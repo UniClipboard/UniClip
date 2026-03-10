@@ -20,6 +20,7 @@ export default [
       'babel.config.js',
       'jest.config.js',
       'jest.setup.js',
+      'coverage/**',
     ],
   },
   {
