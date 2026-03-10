@@ -3,7 +3,7 @@
  * 用于添加或编辑服务器配置
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,6 @@ import {
   Modal,
   TouchableOpacity,
   TextInput,
-  Switch,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
@@ -41,6 +40,11 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
   const { theme } = useTheme();
   const [isTesting, setIsTesting] = useState(false);
 
+  // 输入框 ref
+  const urlRef = useRef<TextInput>(null);
+  const usernameRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
+
   // 表单状态
   const [type, setType] = useState<'syncclipboard' | 'webdav'>(
     initialConfig?.type || 'syncclipboard'
@@ -48,11 +52,6 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
   const [url, setUrl] = useState(initialConfig?.url || '');
   const [username, setUsername] = useState(initialConfig?.username || '');
   const [password, setPassword] = useState(initialConfig?.password || '');
-  const [autoSync, setAutoSync] = useState(initialConfig?.autoSync ?? true);
-  const [syncInterval, setSyncInterval] = useState(initialConfig?.syncInterval?.toString() || '60');
-  const [notificationEnabled, setNotificationEnabled] = useState(
-    initialConfig?.notificationEnabled ?? true
-  );
 
   // 重置表单
   useEffect(() => {
@@ -61,18 +60,12 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
       setUrl(initialConfig.url);
       setUsername(initialConfig.username || '');
       setPassword(initialConfig.password || '');
-      setAutoSync(initialConfig.autoSync ?? true);
-      setSyncInterval(initialConfig.syncInterval?.toString() || '60');
-      setNotificationEnabled(initialConfig.notificationEnabled ?? true);
     } else if (visible && !initialConfig) {
       // 新建时重置为空
       setType('syncclipboard');
       setUrl('');
       setUsername('');
       setPassword('');
-      setAutoSync(true);
-      setSyncInterval('60');
-      setNotificationEnabled(true);
     }
   }, [visible, initialConfig]);
 
@@ -98,12 +91,6 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
 
     if (!password.trim()) {
       Alert.alert('错误', '请输入密码');
-      return false;
-    }
-
-    const intervalNum = parseInt(syncInterval);
-    if (isNaN(intervalNum) || intervalNum < 10) {
-      Alert.alert('错误', '同步间隔不能小于 10 秒');
       return false;
     }
 
@@ -151,9 +138,9 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
       url: url.trim(),
       username: username.trim(),
       password: password.trim(),
-      autoSync,
-      syncInterval: parseInt(syncInterval),
-      notificationEnabled,
+      autoSync: true,
+      syncInterval: 60,
+      notificationEnabled: true,
     };
 
     onSave(config);
@@ -194,7 +181,11 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
           </View>
 
           {/* Form */}
-          <ScrollView style={styles.scrollView}>
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+          >
             {/* 服务器类型 */}
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
@@ -259,6 +250,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
                 <View style={styles.inputGroup}>
                   <Text style={[styles.inputLabel, { color: theme.colors.text }]}>服务器地址</Text>
                   <TextInput
+                    ref={urlRef}
                     style={[
                       styles.input,
                       {
@@ -274,12 +266,16 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
                     autoCapitalize="none"
                     autoCorrect={false}
                     keyboardType="url"
+                    returnKeyType="next"
+                    submitBehavior="submit"
+                    onSubmitEditing={() => usernameRef.current?.focus()}
                   />
                 </View>
 
                 <View style={styles.inputGroup}>
                   <Text style={[styles.inputLabel, { color: theme.colors.text }]}>用户名</Text>
                   <TextInput
+                    ref={usernameRef}
                     style={[
                       styles.input,
                       {
@@ -294,12 +290,16 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
                     onChangeText={setUsername}
                     autoCapitalize="none"
                     autoCorrect={false}
+                    returnKeyType="next"
+                    submitBehavior="submit"
+                    onSubmitEditing={() => passwordRef.current?.focus()}
                   />
                 </View>
 
                 <View style={styles.inputGroup}>
                   <Text style={[styles.inputLabel, { color: theme.colors.text }]}>密码</Text>
                   <TextInput
+                    ref={passwordRef}
                     style={[
                       styles.input,
                       {
@@ -315,108 +315,41 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
                     secureTextEntry
                     autoCapitalize="none"
                     autoCorrect={false}
-                  />
-                </View>
-
-                {/* 测试连接按钮 */}
-                <TouchableOpacity
-                  style={[
-                    styles.testButton,
-                    {
-                      backgroundColor: theme.colors.primary + '20',
-                      borderColor: theme.colors.primary,
-                    },
-                  ]}
-                  onPress={handleTestConnection}
-                  disabled={isTesting}
-                >
-                  {isTesting ? (
-                    <ActivityIndicator size="small" color={theme.colors.primary} />
-                  ) : (
-                    <Text style={[styles.testButtonText, { color: theme.colors.primary }]}>
-                      测试连接
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* 同步设置 */}
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
-                同步设置
-              </Text>
-              <View style={[styles.card, { backgroundColor: theme.colors.surface }]}>
-                <View style={[styles.switchRow, { borderBottomColor: theme.colors.divider }]}>
-                  <View style={styles.switchLabel}>
-                    <Text style={[styles.switchLabelText, { color: theme.colors.text }]}>
-                      自动同步
-                    </Text>
-                    <Text style={[styles.switchDescription, { color: theme.colors.textSecondary }]}>
-                      在后台自动同步剪贴板内容
-                    </Text>
-                  </View>
-                  <Switch
-                    value={autoSync}
-                    onValueChange={setAutoSync}
-                    trackColor={{
-                      false: theme.colors.divider,
-                      true: theme.colors.primary,
-                    }}
-                    thumbColor={theme.colors.surface}
-                  />
-                </View>
-
-                {autoSync && (
-                  <View style={styles.inputGroup}>
-                    <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
-                      同步间隔（秒）
-                    </Text>
-                    <TextInput
-                      style={[
-                        styles.input,
-                        {
-                          color: theme.colors.text,
-                          backgroundColor: theme.colors.background,
-                          borderColor: theme.colors.divider,
-                        },
-                      ]}
-                      placeholder="60"
-                      placeholderTextColor={theme.colors.textTertiary}
-                      value={syncInterval}
-                      onChangeText={setSyncInterval}
-                      keyboardType="number-pad"
-                    />
-                    <Text style={[styles.inputHint, { color: theme.colors.textTertiary }]}>
-                      最小 10 秒，建议 60 秒
-                    </Text>
-                  </View>
-                )}
-
-                <View style={styles.switchRow}>
-                  <View style={styles.switchLabel}>
-                    <Text style={[styles.switchLabelText, { color: theme.colors.text }]}>
-                      同步通知
-                    </Text>
-                    <Text style={[styles.switchDescription, { color: theme.colors.textSecondary }]}>
-                      同步完成后显示通知
-                    </Text>
-                  </View>
-                  <Switch
-                    value={notificationEnabled}
-                    onValueChange={setNotificationEnabled}
-                    trackColor={{
-                      false: theme.colors.divider,
-                      true: theme.colors.primary,
-                    }}
-                    thumbColor={theme.colors.surface}
+                    returnKeyType="done"
+                    onSubmitEditing={() => passwordRef.current?.blur()}
                   />
                 </View>
               </View>
             </View>
-
-            <View style={styles.bottomPadding} />
           </ScrollView>
+
+          {/* 测试连接按钮 - 固定在底部 */}
+          <View
+            style={[
+              styles.footer,
+              { backgroundColor: theme.colors.background, borderTopColor: theme.colors.divider },
+            ]}
+          >
+            <TouchableOpacity
+              style={[
+                styles.testButton,
+                {
+                  backgroundColor: theme.colors.primary + '20',
+                  borderColor: theme.colors.primary,
+                },
+              ]}
+              onPress={handleTestConnection}
+              disabled={isTesting}
+            >
+              {isTesting ? (
+                <ActivityIndicator size="small" color={theme.colors.primary} />
+              ) : (
+                <Text style={[styles.testButtonText, { color: theme.colors.primary }]}>
+                  测试连接
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </Modal>
@@ -452,6 +385,14 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 16,
+  },
+  footer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   section: {
     marginTop: 20,
@@ -539,28 +480,5 @@ const styles = StyleSheet.create({
   },
   headerButtonBold: {
     fontWeight: '600',
-  },
-  switchRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    marginBottom: 12,
-  },
-  switchLabel: {
-    flex: 1,
-    marginRight: 12,
-  },
-  switchLabelText: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  switchDescription: {
-    fontSize: 13,
-  },
-  bottomPadding: {
-    height: 40,
   },
 });
