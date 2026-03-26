@@ -28,6 +28,14 @@ const statusLabels: Record<string, string> = {
   waitForRetry: '等待重试',
 };
 
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
 const statusColors: Record<string, string> = {
   pending: '#FFA726',
   running: '#2196F3',
@@ -88,9 +96,14 @@ export const TransferQueueModal: React.FC<TransferQueueModalProps> = ({ visible,
                   {statusLabels[task.status]}
                 </Text>
               </View>
-              {task.status === 'running' && task.progress > 0 && (
+              {task.status === 'running' && task.progress >= 0 && (
                 <Text style={[styles.progressText, { color: theme.colors.textSecondary }]}>
                   {Math.round(task.progress)}%
+                </Text>
+              )}
+              {task.status === 'running' && task.progress < 0 && (
+                <Text style={[styles.progressText, { color: theme.colors.textSecondary }]}>
+                  {formatBytes(task.bytesTransferred)}
                 </Text>
               )}
             </View>
@@ -106,13 +119,20 @@ export const TransferQueueModal: React.FC<TransferQueueModalProps> = ({ visible,
             </TouchableOpacity>
           )}
         </View>
-        {task.status === 'running' && (
+        {task.status === 'running' && task.progress >= 0 && (
           <View style={[styles.progressBar, { backgroundColor: theme.colors.border }]}>
             <View
               style={[
                 styles.progressFill,
                 { backgroundColor: theme.colors.primary, width: `${task.progress}%` },
               ]}
+            />
+          </View>
+        )}
+        {task.status === 'running' && task.progress < 0 && (
+          <View style={[styles.progressBar, { backgroundColor: theme.colors.border }]}>
+            <View
+              style={[styles.progressFillIndeterminate, { backgroundColor: theme.colors.primary }]}
             />
           </View>
         )}
@@ -295,6 +315,11 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     borderRadius: 2,
+  },
+  progressFillIndeterminate: {
+    height: '100%',
+    borderRadius: 2,
+    width: '30%',
   },
   errorText: {
     fontSize: 11,

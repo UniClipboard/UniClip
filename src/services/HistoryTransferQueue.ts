@@ -24,6 +24,8 @@ export interface TransferTask {
   type: TransferType;
   status: TransferTaskStatus;
   progress: number;
+  bytesTransferred: number;
+  totalBytes?: number;
   createdTime: number;
   startedTime?: number;
   completedTime?: number;
@@ -169,7 +171,8 @@ export class HistoryTransferQueue {
       displayName,
       type: 'download',
       status: 'pending',
-      progress: 0,
+      progress: -1,
+      bytesTransferred: 0,
       createdTime: Date.now(),
       failureCount: 0,
       isImmediateTask: isImmediate,
@@ -206,7 +209,8 @@ export class HistoryTransferQueue {
       displayName,
       type: 'upload',
       status: 'pending',
-      progress: 0,
+      progress: -1,
+      bytesTransferred: 0,
       createdTime: Date.now(),
       failureCount: 0,
       isImmediateTask: isImmediate,
@@ -448,7 +452,21 @@ export class HistoryTransferQueue {
     console.log(`[HistoryTransferQueue] Destination directory: ${historyDir.uri}`);
     console.log(`[HistoryTransferQueue] Destination file: ${destinationUri}`);
 
-    await this.historyAPI.downloadData(task.profileId, destinationUri, task.abortController.signal);
+    await this.historyAPI.downloadData(
+      task.profileId,
+      destinationUri,
+      task.abortController.signal,
+      (info) => {
+        task.bytesTransferred = info.bytesTransferred;
+        task.totalBytes = info.totalBytes;
+        if (info.progress >= 0) {
+          task.progress = Math.round(info.progress * 100);
+        } else {
+          task.progress = -1;
+        }
+        this.notifyStatusChanged(task);
+      }
+    );
 
     await this.historyStorage.updateItem(parsed.hash, {
       fileUri: destinationUri,
@@ -527,7 +545,16 @@ export class HistoryTransferQueue {
     const { clipboardItemToDto } = await import('./HistoryAPI');
     const dto = clipboardItemToDto(item);
 
-    await this.historyAPI.createRecord(dto, item.fileUri, task.abortController.signal);
+    await this.historyAPI.uploadRecord(dto, item.fileUri, task.abortController.signal, (info) => {
+      task.bytesTransferred = info.bytesTransferred;
+      task.totalBytes = info.totalBytes;
+      if (info.progress >= 0) {
+        task.progress = Math.round(info.progress * 100);
+      } else {
+        task.progress = -1;
+      }
+      this.notifyStatusChanged(task);
+    });
 
     await this.historyStorage.updateSyncStatus(parsed.hash, HistorySyncStatus.Synced);
   }

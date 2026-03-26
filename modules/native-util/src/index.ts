@@ -1,9 +1,29 @@
 import { Platform } from 'react-native';
-import { requireNativeModule, EventEmitter, type EventSubscription } from 'expo-modules-core';
+import { requireNativeModule, type EventSubscription } from 'expo-modules-core';
 
 export interface HashProgressEvent {
   progress: number;
   bytesRead: number;
+  totalBytes: number;
+}
+
+export interface UploadProgressEvent {
+  jobId: string;
+  progress: number;
+  bytesWritten: number;
+  totalBytes: number;
+}
+
+export interface DownloadProgressEvent {
+  jobId: string;
+  progress: number;
+  bytesRead: number;
+  totalBytes: number;
+}
+
+export interface ProgressInfo {
+  progress: number;
+  bytesTransferred: number;
   totalBytes: number;
 }
 
@@ -14,13 +34,17 @@ export interface NativeUtilModuleType {
   copyFile(srcUri: string, destUri: string): Promise<void>;
   startUploadFile(url: string, headers: Record<string, string>, fileUri: string): string;
   startDownloadFile(url: string, headers: Record<string, string>, fileUri: string): string;
+  startUploadMultipart(
+    url: string,
+    headers: Record<string, string>,
+    formFields: Record<string, string>,
+    fileUri: string | null
+  ): string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  addListener(eventName: string, listener: (event: any) => void): EventSubscription;
 }
 
 const NativeUtilModule: NativeUtilModuleType = requireNativeModule('NativeUtilModule');
-
-const eventEmitter = new EventEmitter<{
-  onHashProgress: (event: HashProgressEvent) => void;
-}>();
 
 export const isNativeModuleAvailable = Platform.OS === 'android';
 export const isNativeHashModuleAvailable = Platform.OS === 'android';
@@ -43,7 +67,7 @@ export async function nativeCalculateFileHash(
 
   let progressSub: EventSubscription | null = null;
   if (onProgress) {
-    progressSub = eventEmitter.addListener('onHashProgress', (event: HashProgressEvent) => {
+    progressSub = NativeUtilModule.addListener('onHashProgress', (event: HashProgressEvent) => {
       onProgress(event.progress);
     });
   }
@@ -77,7 +101,8 @@ export async function nativeUploadFile(
   url: string,
   headers: Record<string, string>,
   fileUri: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onProgress?: (info: ProgressInfo) => void
 ): Promise<void> {
   if (Platform.OS !== 'android') {
     throw new Error('NativeUtilModule is not available on this platform');
@@ -87,7 +112,22 @@ export async function nativeUploadFile(
     throw new DOMException('Upload aborted', 'AbortError');
   }
 
+  let progressSub: EventSubscription | null = null;
+  let resolvedJobId: string | null = null;
+  if (onProgress) {
+    progressSub = NativeUtilModule.addListener('onUploadProgress', (event: UploadProgressEvent) => {
+      if (resolvedJobId && event.jobId === resolvedJobId) {
+        onProgress({
+          progress: event.progress,
+          bytesTransferred: event.bytesWritten,
+          totalBytes: event.totalBytes,
+        });
+      }
+    });
+  }
+
   const jobId = NativeUtilModule.startUploadFile(url, headers, fileUri);
+  resolvedJobId = jobId;
 
   const abortHandler = () => NativeUtilModule.cancelJob(jobId);
   signal?.addEventListener('abort', abortHandler);
@@ -96,6 +136,51 @@ export async function nativeUploadFile(
     await NativeUtilModule.waitForJob(jobId);
   } finally {
     signal?.removeEventListener('abort', abortHandler);
+    progressSub?.remove();
+  }
+}
+
+export async function nativeUploadMultipart(
+  url: string,
+  headers: Record<string, string>,
+  formFields: Record<string, string>,
+  fileUri?: string,
+  signal?: AbortSignal,
+  onProgress?: (info: ProgressInfo) => void
+): Promise<void> {
+  if (Platform.OS !== 'android') {
+    throw new Error('NativeUtilModule is not available on this platform');
+  }
+
+  if (signal?.aborted) {
+    throw new DOMException('Upload aborted', 'AbortError');
+  }
+
+  let progressSub: EventSubscription | null = null;
+  let resolvedJobId: string | null = null;
+  if (onProgress) {
+    progressSub = NativeUtilModule.addListener('onUploadProgress', (event: UploadProgressEvent) => {
+      if (resolvedJobId && event.jobId === resolvedJobId) {
+        onProgress({
+          progress: event.progress,
+          bytesTransferred: event.bytesWritten,
+          totalBytes: event.totalBytes,
+        });
+      }
+    });
+  }
+
+  const jobId = NativeUtilModule.startUploadMultipart(url, headers, formFields, fileUri ?? null);
+  resolvedJobId = jobId;
+
+  const abortHandler = () => NativeUtilModule.cancelJob(jobId);
+  signal?.addEventListener('abort', abortHandler);
+
+  try {
+    await NativeUtilModule.waitForJob(jobId);
+  } finally {
+    signal?.removeEventListener('abort', abortHandler);
+    progressSub?.remove();
   }
 }
 
@@ -103,7 +188,8 @@ export async function nativeDownloadFile(
   url: string,
   headers: Record<string, string>,
   fileUri: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onProgress?: (info: ProgressInfo) => void
 ): Promise<void> {
   if (Platform.OS !== 'android') {
     throw new Error('NativeUtilModule is not available on this platform');
@@ -113,7 +199,25 @@ export async function nativeDownloadFile(
     throw new DOMException('Download aborted', 'AbortError');
   }
 
+  let progressSub: EventSubscription | null = null;
+  let resolvedJobId: string | null = null;
+  if (onProgress) {
+    progressSub = NativeUtilModule.addListener(
+      'onDownloadProgress',
+      (event: DownloadProgressEvent) => {
+        if (resolvedJobId && event.jobId === resolvedJobId) {
+          onProgress({
+            progress: event.progress,
+            bytesTransferred: event.bytesRead,
+            totalBytes: event.totalBytes,
+          });
+        }
+      }
+    );
+  }
+
   const jobId = NativeUtilModule.startDownloadFile(url, headers, fileUri);
+  resolvedJobId = jobId;
 
   const abortHandler = () => NativeUtilModule.cancelJob(jobId);
   signal?.addEventListener('abort', abortHandler);
@@ -122,5 +226,6 @@ export async function nativeDownloadFile(
     await NativeUtilModule.waitForJob(jobId);
   } finally {
     signal?.removeEventListener('abort', abortHandler);
+    progressSub?.remove();
   }
 }

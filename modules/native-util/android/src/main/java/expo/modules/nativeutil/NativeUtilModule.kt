@@ -22,6 +22,8 @@ class NativeUtilModule : Module() {
         private const val CHUNK_SIZE = 4 * 1024 * 1024
         private const val UPLOAD_BUFFER_SIZE = 8 * 1024
         private const val EVENT_HASH_PROGRESS = "onHashProgress"
+        private const val EVENT_UPLOAD_PROGRESS = "onUploadProgress"
+        private const val EVENT_DOWNLOAD_PROGRESS = "onDownloadProgress"
     }
 
     private val executor = Executors.newCachedThreadPool()
@@ -31,7 +33,7 @@ class NativeUtilModule : Module() {
     override fun definition() = ModuleDefinition {
         Name("NativeUtilModule")
 
-        Events(EVENT_HASH_PROGRESS)
+        Events(EVENT_HASH_PROGRESS, EVENT_UPLOAD_PROGRESS, EVENT_DOWNLOAD_PROGRESS)
 
         Function("startCalculateFileHash") { fileUri: String ->
             val jobId = UUID.randomUUID().toString()
@@ -194,6 +196,9 @@ class NativeUtilModule : Module() {
                         FileInputStream(file).use { input ->
                             val buffer = ByteArray(UPLOAD_BUFFER_SIZE)
                             var read: Int
+                            var bytesWritten = 0L
+                            val totalBytes = file.length()
+                            var lastReportTime = 0L
                             while (input.read(buffer).also { read = it } != -1) {
                                 if (cancelFlag.get()) {
                                     cancelFlags.remove(jobId)
@@ -201,8 +206,33 @@ class NativeUtilModule : Module() {
                                     return@submit
                                 }
                                 output.write(buffer, 0, read)
+                                bytesWritten += read
+
+                                val currentTime = System.currentTimeMillis()
+                                if (currentTime - lastReportTime >= 1000) {
+                                    lastReportTime = currentTime
+                                    val progress = if (totalBytes > 0) {
+                                        bytesWritten.toDouble() / totalBytes.toDouble()
+                                    } else {
+                                        -1.0
+                                    }
+                                    sendEvent(EVENT_UPLOAD_PROGRESS, mapOf(
+                                        "jobId" to jobId,
+                                        "progress" to progress,
+                                        "bytesWritten" to bytesWritten.toDouble(),
+                                        "totalBytes" to totalBytes.toDouble()
+                                    ))
+                                }
                             }
                             output.flush()
+
+                            val progress = if (totalBytes > 0) 1.0 else -1.0
+                            sendEvent(EVENT_UPLOAD_PROGRESS, mapOf(
+                                "jobId" to jobId,
+                                "progress" to progress,
+                                "bytesWritten" to bytesWritten.toDouble(),
+                                "totalBytes" to totalBytes.toDouble()
+                            ))
                         }
                     }
 
@@ -271,6 +301,9 @@ class NativeUtilModule : Module() {
                         file.outputStream().use { output ->
                             val buffer = ByteArray(UPLOAD_BUFFER_SIZE)
                             var read: Int
+                            var bytesRead = 0L
+                            val totalBytes = connection.contentLengthLong
+                            var lastReportTime = 0L
                             while (input.read(buffer).also { read = it } != -1) {
                                 if (cancelFlag.get()) {
                                     cancelFlags.remove(jobId)
@@ -279,8 +312,33 @@ class NativeUtilModule : Module() {
                                     return@submit
                                 }
                                 output.write(buffer, 0, read)
+                                bytesRead += read
+
+                                val currentTime = System.currentTimeMillis()
+                                if (currentTime - lastReportTime >= 1000) {
+                                    lastReportTime = currentTime
+                                    val progress = if (totalBytes > 0) {
+                                        bytesRead.toDouble() / totalBytes.toDouble()
+                                    } else {
+                                        -1.0
+                                    }
+                                    sendEvent(EVENT_DOWNLOAD_PROGRESS, mapOf(
+                                        "jobId" to jobId,
+                                        "progress" to progress,
+                                        "bytesRead" to bytesRead.toDouble(),
+                                        "totalBytes" to totalBytes.toDouble()
+                                    ))
+                                }
                             }
                             output.flush()
+
+                            val progress = if (totalBytes > 0) 1.0 else -1.0
+                            sendEvent(EVENT_DOWNLOAD_PROGRESS, mapOf(
+                                "jobId" to jobId,
+                                "progress" to progress,
+                                "bytesRead" to bytesRead.toDouble(),
+                                "totalBytes" to totalBytes.toDouble()
+                            ))
                         }
                     }
 
@@ -289,6 +347,153 @@ class NativeUtilModule : Module() {
                 } catch (e: Exception) {
                     cancelFlags.remove(jobId)
                     future.complete(DownloadErrorException(e.message ?: "Unknown error", e))
+                } finally {
+                    connection?.disconnect()
+                }
+            }
+
+            return@Function jobId
+        }
+
+        Function("startUploadMultipart") { url: String, headers: Map<String, String>, formFields: Map<String, String>, fileUri: String? ->
+            val jobId = UUID.randomUUID().toString()
+            val cancelFlag = AtomicBoolean(false)
+            cancelFlags[jobId] = cancelFlag
+            val future = CompletableFuture<Any>()
+            pendingJobs[jobId] = future
+
+            executor.submit {
+                var connection: HttpURLConnection? = null
+                try {
+                    val boundary = "----NativeUtilFormBoundary${System.currentTimeMillis()}"
+                    val CRLF = "\r\n"
+                    val boundaryBytes = "--$boundary".toByteArray(Charsets.UTF_8)
+                    val endBoundary = "--$boundary--$CRLF".toByteArray(Charsets.UTF_8)
+
+                    // 计算总内容长度
+                    var contentLength = 0L
+                    for ((name, value) in formFields) {
+                        val partHeader = "Content-Disposition: form-data; name=\"$name\"$CRLF$CRLF$value$CRLF"
+                        contentLength += boundaryBytes.size + CRLF.length + partHeader.toByteArray(Charsets.UTF_8).size
+                    }
+
+                    var file: File? = null
+                    var filePartHeader: String? = null
+
+                    if (fileUri != null) {
+                        val path = resolveFilePath(fileUri)
+                        file = File(path)
+
+                        if (!file.exists()) {
+                            cancelFlags.remove(jobId)
+                            future.complete(FileNotFoundException(path))
+                            return@submit
+                        }
+
+                        val fileName = file.name
+                        filePartHeader = "Content-Disposition: form-data; name=\"data\"; filename=\"$fileName\"${CRLF}Content-Type: application/octet-stream${CRLF}${CRLF}"
+                        contentLength += boundaryBytes.size + CRLF.length + filePartHeader.toByteArray(Charsets.UTF_8).size
+                        contentLength += file.length()
+                        contentLength += CRLF.length + endBoundary.size
+                    } else {
+                        contentLength += endBoundary.size
+                    }
+
+                    var totalBytesWritten = 0L
+                    var lastReportTime = 0L
+
+                    connection = (URL(url).openConnection() as HttpURLConnection).apply {
+                        requestMethod = "POST"
+                        doOutput = true
+                        connectTimeout = 30_000
+                        readTimeout = 0
+                        setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
+                        headers.forEach { (key, value) ->
+                            setRequestProperty(key, value)
+                        }
+                        // 使用固定长度流模式，避免缓冲整个请求体
+                        setFixedLengthStreamingMode(contentLength)
+                    }
+
+                    connection.outputStream.use { output ->
+                        fun writePart(name: String, value: String) {
+                            val partHeader = "Content-Disposition: form-data; name=\"$name\"$CRLF$CRLF$value$CRLF"
+                            output.write(boundaryBytes)
+                            output.write(CRLF.toByteArray(Charsets.UTF_8))
+                            output.write(partHeader.toByteArray(Charsets.UTF_8))
+                            totalBytesWritten += boundaryBytes.size + CRLF.length + partHeader.toByteArray(Charsets.UTF_8).size
+                        }
+
+                        for ((name, value) in formFields) {
+                            writePart(name, value)
+                        }
+
+                        if (file != null && filePartHeader != null) {
+                            output.write(boundaryBytes)
+                            output.write(CRLF.toByteArray(Charsets.UTF_8))
+                            output.write(filePartHeader.toByteArray(Charsets.UTF_8))
+                            totalBytesWritten += boundaryBytes.size + CRLF.length + filePartHeader.toByteArray(Charsets.UTF_8).size
+
+                            FileInputStream(file).use { input ->
+                                val buffer = ByteArray(UPLOAD_BUFFER_SIZE)
+                                var read: Int
+                                while (input.read(buffer).also { read = it } != -1) {
+                                    if (cancelFlag.get()) {
+                                        cancelFlags.remove(jobId)
+                                        future.complete(CancelledException())
+                                        return@submit
+                                    }
+                                    output.write(buffer, 0, read)
+                                    totalBytesWritten += read
+
+                                    val currentTime = System.currentTimeMillis()
+                                    if (currentTime - lastReportTime >= 1000) {
+                                        lastReportTime = currentTime
+                                        val progress = if (contentLength > 0) {
+                                            totalBytesWritten.toDouble() / contentLength.toDouble()
+                                        } else {
+                                            -1.0
+                                        }
+                                        sendEvent(EVENT_UPLOAD_PROGRESS, mapOf(
+                                            "jobId" to jobId,
+                                            "progress" to progress,
+                                            "bytesWritten" to totalBytesWritten.toDouble(),
+                                            "totalBytes" to contentLength.toDouble()
+                                        ))
+                                    }
+                                }
+                            }
+
+                            output.write(CRLF.toByteArray(Charsets.UTF_8))
+                            totalBytesWritten += CRLF.length
+                        }
+
+                        output.write(endBoundary)
+                        output.flush()
+                        totalBytesWritten += endBoundary.size
+
+                        sendEvent(EVENT_UPLOAD_PROGRESS, mapOf(
+                            "jobId" to jobId,
+                            "progress" to 1.0,
+                            "bytesWritten" to contentLength.toDouble(),
+                            "totalBytes" to contentLength.toDouble()
+                        ))
+                    }
+
+                    val responseCode = connection.responseCode
+                    cancelFlags.remove(jobId)
+
+                    if (responseCode in 200..299) {
+                        future.complete("success")
+                    } else {
+                        val body = try {
+                            connection.errorStream?.bufferedReader()?.readText() ?: ""
+                        } catch (_: Exception) { "" }
+                        future.complete(HttpErrorException(responseCode, body))
+                    }
+                } catch (e: Exception) {
+                    cancelFlags.remove(jobId)
+                    future.complete(UploadErrorException(e.message ?: "Unknown error", e))
                 } finally {
                     connection?.disconnect()
                 }

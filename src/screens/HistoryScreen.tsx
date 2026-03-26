@@ -860,24 +860,33 @@ export function HistoryScreen() {
     await setShowFullImage(!showFullImage);
   }, [showFullImage, setShowFullImage]);
 
-  const handleDownload = useCallback(async (item: ClipboardItem) => {
-    console.log(`[HistoryScreen] ========== Download Button Clicked ==========`);
-    console.log(`[HistoryScreen] Item profileHash: ${item.profileHash}`);
-    console.log(`[HistoryScreen] Item type: ${item.type}`);
-    console.log(`[HistoryScreen] Item dataName: ${item.dataName}`);
-    console.log(`[HistoryScreen] Item hasRemoteData: ${item.hasRemoteData}`);
-    console.log(`[HistoryScreen] Item isLocalFileReady: ${item.isLocalFileReady}`);
+  const handleDownload = useCallback(
+    async (item: ClipboardItem) => {
+      console.log(`[HistoryScreen] ========== Download Button Clicked ==========`);
+      console.log(`[HistoryScreen] Item profileHash: ${item.profileHash}`);
+      console.log(`[HistoryScreen] Item type: ${item.type}`);
+      console.log(`[HistoryScreen] Item dataName: ${item.dataName}`);
+      console.log(`[HistoryScreen] Item hasRemoteData: ${item.hasRemoteData}`);
+      console.log(`[HistoryScreen] Item isLocalFileReady: ${item.isLocalFileReady}`);
 
-    const { getHistoryTransferQueue } = await import('@/services/HistoryTransferQueue');
-    const { getProfileId } = await import('@/services/HistoryAPI');
+      const initialized = await ensureSyncServiceInitialized();
+      if (!initialized) {
+        showMessage('历史同步未启用', 'error');
+        return;
+      }
 
-    const profileId = getProfileId(item.type, item.profileHash);
-    console.log(`[HistoryScreen] Generated profileId: ${profileId}`);
+      const { getHistoryTransferQueue } = await import('@/services/HistoryTransferQueue');
+      const { getProfileId } = await import('@/services/HistoryAPI');
 
-    const queue = getHistoryTransferQueue();
-    queue.start();
-    await queue.addDownloadTask(profileId, true);
-  }, []);
+      const profileId = getProfileId(item.type, item.profileHash);
+      console.log(`[HistoryScreen] Generated profileId: ${profileId}`);
+
+      const queue = getHistoryTransferQueue();
+      queue.start();
+      await queue.addDownloadTask(profileId, true);
+    },
+    [ensureSyncServiceInitialized, showMessage]
+  );
 
   const handleUpload = useCallback(
     async (item: ClipboardItem) => {
@@ -886,6 +895,12 @@ export function HistoryScreen() {
       console.log(`[HistoryScreen] Item type: ${item.type}`);
       console.log(`[HistoryScreen] Item isLocalFileReady: ${item.isLocalFileReady}`);
       console.log(`[HistoryScreen] Item syncStatus: ${item.syncStatus}`);
+
+      const initialized = await ensureSyncServiceInitialized();
+      if (!initialized) {
+        showMessage('历史同步未启用', 'error');
+        return;
+      }
 
       // 验证本地文件是否存在
       if (item.fileUri) {
@@ -908,7 +923,7 @@ export function HistoryScreen() {
       queue.start();
       await queue.addUploadTask(profileId, true);
     },
-    [showMessage]
+    [ensureSyncServiceInitialized, showMessage]
   );
 
   const renderItem = useCallback(

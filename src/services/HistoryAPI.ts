@@ -3,7 +3,7 @@
  * 历史记录同步 API 服务
  */
 
-import { nativeDownloadFile } from 'native-util';
+import { nativeDownloadFile, nativeUploadMultipart, ProgressInfo } from 'native-util';
 import { APIClient, APIClientConfig } from './APIClient';
 import { ClipboardContentType, ProfileDto } from '../types/api';
 import { ClipboardItem, HistorySyncStatus } from '../types/clipboard';
@@ -114,12 +114,18 @@ export interface IHistoryAPI {
     update: HistoryRecordUpdateDto,
     signal?: AbortSignal
   ): Promise<HistoryRecordDto>;
-  createRecord(
-    record: Omit<HistoryRecordDto, 'version'>,
+  downloadData(
+    profileId: string,
+    destinationUri: string,
+    signal?: AbortSignal,
+    onProgress?: (info: ProgressInfo) => void
+  ): Promise<string>;
+  uploadRecord(
+    record: HistoryRecordDto,
     fileUri?: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    onProgress?: (info: ProgressInfo) => void
   ): Promise<HistoryRecordDto>;
-  downloadData(profileId: string, destinationUri: string, signal?: AbortSignal): Promise<string>;
   getStatistics(signal?: AbortSignal): Promise<HistoryStatisticsDto>;
   getServerTime(): Promise<Date>;
 }
@@ -263,84 +269,13 @@ export class HistoryAPI extends APIClient implements IHistoryAPI {
   }
 
   /**
-   * 创建记录
-   */
-  async createRecord(
-    record: Omit<HistoryRecordDto, 'version'>,
-    fileUri?: string,
-    signal?: AbortSignal
-  ): Promise<HistoryRecordDto> {
-    if (!record.hash) {
-      throw new ValidationError('Record hash is required');
-    }
-    if (!record.type) {
-      throw new ValidationError('Record type is required');
-    }
-
-    const formData = new FormData();
-
-    formData.append('hash', record.hash);
-    formData.append('type', record.type);
-
-    if (record.text) {
-      formData.append('text', record.text);
-    }
-    if (record.createTime) {
-      formData.append('createTime', record.createTime);
-    }
-    if (record.lastModified) {
-      formData.append('lastModified', record.lastModified);
-    }
-    if (record.lastAccessed) {
-      formData.append('lastAccessed', record.lastAccessed);
-    }
-    if (record.starred !== undefined) {
-      formData.append('starred', record.starred.toString());
-    }
-    if (record.pinned !== undefined) {
-      formData.append('pinned', record.pinned.toString());
-    }
-    if (record.size !== undefined) {
-      formData.append('size', record.size.toString());
-    }
-    if (record.hasData !== undefined) {
-      formData.append('hasData', record.hasData.toString());
-    }
-    if (record.isDeleted !== undefined) {
-      formData.append('isDeleted', record.isDeleted.toString());
-    }
-
-    // 如果有文件且 hasData 为 true，添加文件数据
-    if (fileUri && record.hasData) {
-      const fileName = fileUri.split('/').pop() || 'data';
-      formData.append('data', {
-        uri: fileUri,
-        type: 'application/octet-stream',
-        name: fileName,
-      } as unknown as Blob);
-    }
-
-    try {
-      const result = await this.post<HistoryRecordDto>(HistoryAPI.API_PREFIX, formData, {
-        signal,
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      return result;
-    } catch (error) {
-      console.error('[HistoryAPI] Failed to create record:', error);
-      throw error;
-    }
-  }
-
-  /**
    * 下载数据文件
    */
   async downloadData(
     profileId: string,
     destinationUri: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    onProgress?: (info: ProgressInfo) => void
   ): Promise<string> {
     if (!profileId) {
       throw new ValidationError('Profile ID is required');
@@ -362,13 +297,83 @@ export class HistoryAPI extends APIClient implements IHistoryAPI {
       console.log(`[HistoryAPI] Headers:`, JSON.stringify(headers, null, 2));
       console.log(`[HistoryAPI] Signal aborted: ${signal?.aborted}`);
 
-      await nativeDownloadFile(url, headers, destinationUri, signal);
+      await nativeDownloadFile(url, headers, destinationUri, signal, onProgress);
 
       console.log(`[HistoryAPI] Data downloaded successfully: ${profileId}`);
       return destinationUri;
     } catch (error) {
       console.error(`[HistoryAPI] ========== Download Failed ==========`);
       console.error(`[HistoryAPI] ProfileId: ${profileId}`);
+      console.error(`[HistoryAPI] URL: ${url}`);
+      console.error(`[HistoryAPI] Error:`, error);
+      throw error;
+    }
+  }
+
+  async uploadRecord(
+    record: HistoryRecordDto,
+    fileUri?: string,
+    signal?: AbortSignal,
+    onProgress?: (info: ProgressInfo) => void
+  ): Promise<HistoryRecordDto> {
+    if (!record.hash) {
+      throw new ValidationError('Record hash is required');
+    }
+    if (!record.type) {
+      throw new ValidationError('Record type is required');
+    }
+
+    const url = `${this.baseURL}${HistoryAPI.API_PREFIX}`;
+    const headers = await this.getHeaders();
+
+    const formFields: Record<string, string> = {
+      hash: record.hash,
+      type: record.type,
+    };
+
+    if (record.text) {
+      formFields.text = record.text;
+    }
+    if (record.createTime) {
+      formFields.createTime = record.createTime;
+    }
+    if (record.lastModified) {
+      formFields.lastModified = record.lastModified;
+    }
+    if (record.lastAccessed) {
+      formFields.lastAccessed = record.lastAccessed;
+    }
+    if (record.starred !== undefined) {
+      formFields.starred = record.starred.toString();
+    }
+    if (record.pinned !== undefined) {
+      formFields.pinned = record.pinned.toString();
+    }
+    if (record.size !== undefined) {
+      formFields.size = record.size.toString();
+    }
+    if (record.hasData !== undefined) {
+      formFields.hasData = record.hasData.toString();
+    }
+    if (record.isDeleted !== undefined) {
+      formFields.isDeleted = record.isDeleted.toString();
+    }
+    if (record.version !== undefined) {
+      formFields.version = record.version.toString();
+    }
+
+    console.log(`[HistoryAPI] ========== Upload Request ==========`);
+    console.log(`[HistoryAPI] API: uploadData`);
+    console.log(`[HistoryAPI] URL: ${url}`);
+    console.log(`[HistoryAPI] Form fields:`, formFields);
+    console.log(`[HistoryAPI] File: ${fileUri || 'none'}`);
+
+    try {
+      await nativeUploadMultipart(url, headers, formFields, fileUri, signal, onProgress);
+      console.log(`[HistoryAPI] Upload completed successfully`);
+      return this.getRecord(`${record.type}-${record.hash}`, signal);
+    } catch (error) {
+      console.error(`[HistoryAPI] ========== Upload Failed ==========`);
       console.error(`[HistoryAPI] URL: ${url}`);
       console.error(`[HistoryAPI] Error:`, error);
       throw error;

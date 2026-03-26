@@ -613,7 +613,7 @@ export class HistorySyncService {
         const dto = clipboardItemToDto(item);
 
         console.log(`[HistorySyncService] Uploading LocalOnly record: ${item.profileHash}`);
-        const createdRecord = await this.historyAPI.createRecord(dto, undefined, signal);
+        const createdRecord = await this.historyAPI.uploadRecord(dto, undefined, signal);
 
         // 更新本地状态为已同步
         await this.historyStorage.updateItem(item.profileHash, {
