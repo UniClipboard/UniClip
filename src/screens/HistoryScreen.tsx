@@ -26,6 +26,7 @@ import { Check, ArrowUp, RefreshCw, List } from 'react-native-feather';
 import { FlashList, FlashListRef } from '@shopify/flash-list';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '@/hooks/useTheme';
 import { useHistoryStore } from '@/stores/historyStore';
 import { useSettingsStore } from '@/stores';
@@ -572,7 +573,6 @@ export function HistoryScreen() {
 
       const fileName = asset.name || 'file';
 
-      showMessage('正在添加文件...', 'info');
       setImportingFile(true);
 
       await new Promise<void>((resolve) => {
@@ -587,6 +587,46 @@ export function HistoryScreen() {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '添加文件失败，请重试';
       console.error('[HistoryScreen] Failed to import file:', error);
+      showMessage(errorMessage, 'error');
+    } finally {
+      setImportingFile(false);
+    }
+  }, [showMessage]);
+
+  // 添加图片到历史记录
+  const handleImportImage = useCallback(async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 1,
+      });
+
+      if (result.canceled) {
+        return;
+      }
+
+      const asset = result.assets?.[0];
+      if (!asset) {
+        showMessage('未选择图片', 'error');
+        return;
+      }
+
+      const fileName = asset.fileName || `image_${Date.now()}.jpg`;
+
+      setImportingFile(true);
+
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolve());
+        });
+      });
+
+      await importFileToHistory(asset.uri, fileName, asset.mimeType, asset.fileSize);
+
+      showMessage(`图片 ${fileName} 已添加到历史记录`, 'success');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : '添加图片失败，请重试';
+      console.error('[HistoryScreen] Failed to import image:', error);
       showMessage(errorMessage, 'error');
     } finally {
       setImportingFile(false);
@@ -993,6 +1033,10 @@ export function HistoryScreen() {
   const menuItems = useMemo<MenuItemConfig[]>(() => {
     const items: MenuItemConfig[] = [
       {
+        label: '添加图片',
+        onPress: handleImportImage,
+      },
+      {
         label: '添加文件',
         onPress: handleImportFile,
       },
@@ -1052,6 +1096,7 @@ export function HistoryScreen() {
     isDebugMode,
     isSyncing,
     historySyncEnabled,
+    handleImportImage,
     handleImportFile,
     handleToggleFullImage,
     handleSortChange,

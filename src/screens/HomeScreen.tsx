@@ -18,6 +18,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
 import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '@/hooks/useTheme';
 import { useClipboardStore } from '@/stores/clipboardStore';
 import { useSyncStore } from '@/stores/syncStore';
@@ -499,15 +500,93 @@ export function HomeScreen() {
     }
   }, [uploadingFile, showMessage]);
 
+  // 处理上传图片
+  const handleUploadImage = useCallback(async () => {
+    if (!activeServer) {
+      showMessage('请先在设置中配置服务器', 'info');
+      return;
+    }
+
+    try {
+      clearError();
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 1,
+      });
+
+      if (result.canceled) {
+        return;
+      }
+
+      const asset = result.assets?.[0];
+      if (!asset) {
+        showMessage('未选择图片', 'error');
+        return;
+      }
+
+      const fileName = asset.fileName || `image_${Date.now()}.jpg`;
+
+      showMessage('开始上传图片...', 'info');
+      setUploadingFile(true);
+      const abortController = new AbortController();
+      uploadAbortControllerRef.current = abortController;
+
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolve());
+        });
+      });
+
+      await uploadFileAndAddToHistory(
+        asset.uri,
+        fileName,
+        asset.mimeType,
+        asset.fileSize,
+        activeServer,
+        { signal: abortController.signal }
+      );
+
+      showMessage(`图片 ${fileName} 上传成功`, 'success');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : '图片上传失败，请重试';
+      const normalizedMessage = errorMessage.toLowerCase();
+      const isCanceled =
+        (error instanceof Error && error.name === 'AbortError') ||
+        normalizedMessage.includes('abort') ||
+        normalizedMessage.includes('canceled') ||
+        normalizedMessage.includes('cancelled');
+
+      if (isCanceled) {
+        showMessage('已取消上传', 'info');
+        return;
+      }
+
+      console.error('[HomeScreen] Failed to upload image:', error);
+      setError({
+        title: '图片上传失败',
+        message: errorMessage,
+      });
+      showMessage('图片上传失败', 'error');
+    } finally {
+      uploadAbortControllerRef.current = null;
+      setUploadingFile(false);
+    }
+  }, [activeServer, showMessage]);
+
   // 菜单项配置
   const menuItems = useMemo<MenuItemConfig[]>(
     () => [
+      {
+        label: '上传图片',
+        onPress: handleUploadImage,
+      },
       {
         label: '上传文件',
         onPress: handleUploadFile,
       },
     ],
-    [handleUploadFile]
+    [handleUploadImage, handleUploadFile]
   );
 
   // 设置标题栏菜单按钮
