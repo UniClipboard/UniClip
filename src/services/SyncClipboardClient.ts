@@ -96,7 +96,12 @@ export class SyncClipboardClient extends APIClient implements ISyncClipboardAPI,
   /**
    * 上传文件数据
    */
-  async putFile(fileName: string, fileUri: string, signal?: AbortSignal): Promise<void> {
+  async putFile(
+    fileName: string,
+    fileUri: string,
+    signal?: AbortSignal,
+    onProgress?: (info: ProgressInfo) => void
+  ): Promise<void> {
     if (!fileName) {
       throw new ValidationError('File name is required');
     }
@@ -113,7 +118,7 @@ export class SyncClipboardClient extends APIClient implements ISyncClipboardAPI,
     headers['Content-Type'] = 'application/octet-stream';
 
     try {
-      await nativeUploadFile(url, headers, fileUri, signal);
+      await nativeUploadFile(url, headers, fileUri, signal, onProgress);
       console.log(`[SyncClipboardClient] File uploaded successfully: ${fileName}`);
     } catch (error) {
       console.error(`[SyncClipboardClient] Failed to put file ${fileName}:`, error);

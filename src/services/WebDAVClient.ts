@@ -3,7 +3,7 @@
  * Implements SyncClipboard API using WebDAV protocol
  */
 
-import { nativeUploadFile } from 'native-util';
+import { nativeUploadFile, type ProgressInfo } from 'native-util';
 import { APIClient, ISyncClipboardAPI, PutContentOptions } from './APIClient';
 import { ProfileDto, ServerInfo } from '../types/api';
 import type { ClipboardContent } from '../types/clipboard';
@@ -87,7 +87,12 @@ export class WebDAVClient extends APIClient implements ISyncClipboardAPI {
    * @param fileName 服务器上的文件名
    * @param fileUri 本地文件的 URI，避免将大文件加载到内存中
    */
-  async putFile(fileName: string, fileUri: string, signal?: AbortSignal): Promise<void> {
+  async putFile(
+    fileName: string,
+    fileUri: string,
+    signal?: AbortSignal,
+    onProgress?: (info: ProgressInfo) => void
+  ): Promise<void> {
     if (!fileName) {
       throw new ValidationError('File name is required');
     }
@@ -102,13 +107,11 @@ export class WebDAVClient extends APIClient implements ISyncClipboardAPI {
 
     const url = `${this.baseURL}/file/${encodeURIComponent(fileName)}`;
 
-    // 准备请求头
     const headers = await this.getHeaders();
     headers['Content-Type'] = 'application/octet-stream';
 
     try {
-      // 使用原生 HttpURLConnection 流式上传，每次仅持有 8KB 缓冲，避免将文件读入内存
-      await nativeUploadFile(url, headers, fileUri, signal);
+      await nativeUploadFile(url, headers, fileUri, signal, onProgress);
       console.log(`[WebDAVClient] File uploaded successfully: ${fileName}`);
     } catch (error) {
       console.error(`[WebDAVClient] Failed to put file ${fileName}:`, error);
@@ -313,7 +316,12 @@ export class WebDAVClient extends APIClient implements ISyncClipboardAPI {
       if (profile.hasData && profile.dataName && content.fileUri) {
         console.log(`[WebDAVClient] Uploading data file: ${profile.dataName}`);
         try {
-          await this.putFile(profile.dataName, content.fileUri, options?.signal);
+          await this.putFile(
+            profile.dataName,
+            content.fileUri,
+            options?.signal,
+            options?.onProgress
+          );
         } catch (fileError) {
           throw this.buildError(fileError, '[WebDAVClient] File upload failed');
         }

@@ -70,7 +70,12 @@ export interface ISyncClipboardAPI {
   ): Promise<string>;
 
   /** 上传文件数据 */
-  putFile(fileName: string, fileUri: string, signal?: AbortSignal): Promise<void>;
+  putFile(
+    fileName: string,
+    fileUri: string,
+    signal?: AbortSignal,
+    onProgress?: DownloadProgressCallback
+  ): Promise<void>;
 
   /**
    * 上传剪贴板内容
