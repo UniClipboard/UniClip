@@ -46,15 +46,6 @@ export interface ServerConfig {
 
   /** 密码（加密存储） */
   password?: string;
-
-  /** 是否启用自动同步 */
-  autoSync?: boolean;
-
-  /** 同步间隔（秒） */
-  syncInterval?: number;
-
-  /** 是否启用通知 */
-  notificationEnabled?: boolean;
 }
 
 /**

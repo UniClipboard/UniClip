@@ -162,9 +162,6 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
       url: url.trim(),
       username: username.trim(),
       password: password.trim(),
-      autoSync: true,
-      syncInterval: 60,
-      notificationEnabled: true,
     };
 
     onSave(config);

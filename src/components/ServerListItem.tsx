@@ -95,11 +95,6 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
           <Text style={[styles.detailText, { color: theme.colors.textSecondary }]}>
             👤 {config.username || '未设置'}
           </Text>
-          {config.autoSync && (
-            <Text style={[styles.detailText, { color: theme.colors.textSecondary }]}>
-              🔄 {config.syncInterval}秒
-            </Text>
-          )}
         </View>
       </View>
 
