@@ -328,6 +328,24 @@ export class ClipboardMonitor {
   }
 
   /**
+   * 更新轮询间隔
+   * 如果正在监听，会重新启动轮询计时器
+   */
+  updatePollingInterval(interval: number): void {
+    this.options.pollingInterval = interval;
+    if (this.isMonitoring && this.pollingInterval) {
+      this.startPolling();
+    }
+  }
+
+  /**
+   * 获取当前轮询间隔
+   */
+  getPollingInterval(): number {
+    return this.options.pollingInterval;
+  }
+
+  /**
    * 重置监听器状态
    */
   async reset(): Promise<void> {

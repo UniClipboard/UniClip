@@ -75,7 +75,8 @@ export function HomeScreen() {
   const downloadAbortControllerRef = useRef<AbortController | null>(null);
   const clipboardUploadAbortControllerRef = useRef<AbortController | null>(null);
 
-  const { currentContent, getContent, startMonitoring, stopMonitoring } = useClipboardStore();
+  const { currentContent, getContent, startMonitoring, stopMonitoring, updatePollingInterval } =
+    useClipboardStore();
   const sync = useSyncStore((state) => state.sync);
   const initializeSync = useSyncStore((state) => state.initialize);
   const destroySync = useSyncStore((state) => state.destroy);
@@ -170,9 +171,6 @@ export function HomeScreen() {
       queue.offTaskStatusChanged(handleTaskStatusChanged);
     };
   }, [remoteContent, showMessage, activeServer]);
-
-  // 远程剪贴板轮询间隔（毫秒）
-  const REMOTE_POLLING_INTERVAL = 3000; // 3秒
 
   // 复制远程内容到本地剪贴板的公共函数
   const copyRemoteToLocal = async (content: ClipboardContent, logPrefix: string = '') => {
@@ -444,9 +442,10 @@ export function HomeScreen() {
     fetchRemoteClipboard(true);
 
     // 设置定时轮询
+    const pollingInterval = config?.remotePollingInterval ?? 3000;
     remotePollingInterval.current = setInterval(() => {
       fetchRemoteClipboard(true);
-    }, REMOTE_POLLING_INTERVAL);
+    }, pollingInterval);
   };
 
   // 停止远程剪贴板轮询
@@ -717,6 +716,12 @@ export function HomeScreen() {
       }
     }
   }, [currentContent, activeServer, config, sync]);
+
+  // 监听本地轮询间隔配置变化
+  useEffect(() => {
+    const localInterval = config?.localPollingInterval ?? 1000;
+    updatePollingInterval(localInterval);
+  }, [config?.localPollingInterval, updatePollingInterval]);
 
   // 当服务器配置改变时，启动/停止远程轮询或 SignalR
   useEffect(() => {

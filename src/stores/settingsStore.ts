@@ -109,6 +109,12 @@ interface SettingsState {
   /** 设置日志等级 */
   setLogLevel: (level: 'debug' | 'info' | 'warn' | 'error') => Promise<void>;
 
+  /** 设置远程轮询间隔（毫秒） */
+  setRemotePollingInterval: (interval: number) => Promise<void>;
+
+  /** 设置本地轮询间隔（毫秒） */
+  setLocalPollingInterval: (interval: number) => Promise<void>;
+
   // 导入/导出
   /** 导出配置 */
   exportConfig: () => Promise<string>;
@@ -311,6 +317,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   setLogLevel: async (level: 'debug' | 'info' | 'warn' | 'error') => {
     await get().updateConfig({ logLevel: level });
+  },
+
+  setRemotePollingInterval: async (interval: number) => {
+    await get().updateConfig({ remotePollingInterval: interval });
+  },
+
+  setLocalPollingInterval: async (interval: number) => {
+    await get().updateConfig({ localPollingInterval: interval });
   },
 
   exportConfig: async () => {

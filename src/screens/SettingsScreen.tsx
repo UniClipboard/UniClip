@@ -55,6 +55,8 @@ export const SettingsScreen = () => {
     setUpdateToBeta,
     setEnableHistorySync,
     setLogLevel,
+    setRemotePollingInterval,
+    setLocalPollingInterval,
   } = useSettingsStore();
 
   const [showServerModal, setShowServerModal] = useState(false);
@@ -145,6 +147,12 @@ export const SettingsScreen = () => {
   const [maxSizeInput, setMaxSizeInput] = useState(autoDownloadMaxSizeMB.toString());
   const [maxHistoryItemsInput, setMaxHistoryItemsInput] = useState(
     (config?.maxHistoryItems ?? 1000).toString()
+  );
+  const [remotePollingInput, setRemotePollingInput] = useState(
+    ((config?.remotePollingInterval ?? 3000) / 1000).toString()
+  );
+  const [localPollingInput, setLocalPollingInput] = useState(
+    ((config?.localPollingInterval ?? 1000) / 1000).toString()
   );
 
   // 存储大小状态
@@ -290,6 +298,50 @@ export const SettingsScreen = () => {
       setMaxHistoryItemsInput((config?.maxHistoryItems ?? 1000).toString());
       showMessage(error instanceof Error ? error.message : '设置失败', 'error');
     }
+  };
+
+  // 处理远程轮询间隔输入
+  const handleRemotePollingBlur = async () => {
+    try {
+      const seconds = parseInt(remotePollingInput, 10);
+      if (isNaN(seconds) || seconds < 1) {
+        setRemotePollingInput(((config?.remotePollingInterval ?? 3000) / 1000).toString());
+        showMessage('请输入大于等于1的数字', 'error');
+        return;
+      }
+      const ms = seconds * 1000;
+      await setRemotePollingInterval(ms);
+      showMessage(`已设置远程轮询间隔为 ${seconds}秒`, 'success');
+    } catch (error: unknown) {
+      setRemotePollingInput(((config?.remotePollingInterval ?? 3000) / 1000).toString());
+      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+    }
+  };
+
+  // 处理本地轮询间隔输入
+  const handleLocalPollingBlur = async () => {
+    try {
+      const seconds = parseInt(localPollingInput, 10);
+      if (isNaN(seconds) || seconds < 1) {
+        setLocalPollingInput(((config?.localPollingInterval ?? 1000) / 1000).toString());
+        showMessage('请输入大于等于1的数字', 'error');
+        return;
+      }
+      const ms = seconds * 1000;
+      await setLocalPollingInterval(ms);
+      showMessage(`已设置本地轮询间隔为 ${seconds}秒`, 'success');
+    } catch (error: unknown) {
+      setLocalPollingInput(((config?.localPollingInterval ?? 1000) / 1000).toString());
+      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+    }
+  };
+
+  // 过滤输入，只允许正整数
+  const filterPositiveInteger = (value: string): string => {
+    const filtered = value.replace(/[^0-9]/g, '');
+    if (filtered === '') return '';
+    const num = parseInt(filtered, 10);
+    return num > 0 ? filtered : '';
   };
 
   // 处理切换调试模式
@@ -654,7 +706,7 @@ export const SettingsScreen = () => {
               </View>
             </View>
 
-            <View style={styles.settingRow}>
+            <View style={[styles.settingRow, { borderBottomColor: theme.colors.divider }]}>
               <View style={styles.settingInfo}>
                 <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
                   历史记录同步
@@ -676,6 +728,62 @@ export const SettingsScreen = () => {
                 }
                 disabled={activeServer?.type === 'webdav'}
               />
+            </View>
+
+            {activeServer?.type !== 'syncclipboard' && (
+              <View style={[styles.settingRow, { borderBottomColor: theme.colors.divider }]}>
+                <View style={styles.settingInfo}>
+                  <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                    远程轮询间隔
+                  </Text>
+                </View>
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={[
+                      styles.sizeInput,
+                      {
+                        color: theme.colors.text,
+                        borderColor: theme.colors.divider,
+                        backgroundColor: theme.colors.background,
+                      },
+                    ]}
+                    value={remotePollingInput}
+                    onChangeText={(text) => setRemotePollingInput(filterPositiveInteger(text))}
+                    onBlur={handleRemotePollingBlur}
+                    keyboardType="number-pad"
+                    placeholder="3"
+                    placeholderTextColor={theme.colors.textTertiary}
+                  />
+                  <Text style={[styles.unitLabel, { color: theme.colors.textSecondary }]}>秒</Text>
+                </View>
+              </View>
+            )}
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                  本地轮询间隔
+                </Text>
+              </View>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={[
+                    styles.sizeInput,
+                    {
+                      color: theme.colors.text,
+                      borderColor: theme.colors.divider,
+                      backgroundColor: theme.colors.background,
+                    },
+                  ]}
+                  value={localPollingInput}
+                  onChangeText={(text) => setLocalPollingInput(filterPositiveInteger(text))}
+                  onBlur={handleLocalPollingBlur}
+                  keyboardType="number-pad"
+                  placeholder="1"
+                  placeholderTextColor={theme.colors.textTertiary}
+                />
+                <Text style={[styles.unitLabel, { color: theme.colors.textSecondary }]}>秒</Text>
+              </View>
             </View>
           </View>
         </View>

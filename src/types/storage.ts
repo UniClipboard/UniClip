@@ -82,6 +82,12 @@ export interface AppConfig {
 
   /** 日志等级 */
   logLevel: 'debug' | 'info' | 'warn' | 'error';
+
+  /** 远程轮询间隔（毫秒），默认 3000ms */
+  remotePollingInterval: number;
+
+  /** 本地轮询间隔（毫秒），默认 1000ms */
+  localPollingInterval: number;
 }
 
 /**
@@ -249,6 +255,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   updateToBeta: false,
   enableHistorySync: false, // 默认关闭历史记录同步
   logLevel: 'info', // 默认 info 级别
+  remotePollingInterval: 3000, // 默认 3 秒
+  localPollingInterval: 1000, // 默认 1 秒
 };
 
 /**

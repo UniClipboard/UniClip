@@ -44,6 +44,9 @@ interface ClipboardState {
   /** 停止监听剪贴板 */
   stopMonitoring: () => void;
 
+  /** 更新本地轮询间隔 */
+  updatePollingInterval: (interval: number) => void;
+
   /** 仅更新本地剪贴板卡片显示，不写系统剪贴板、不添加历史记录 */
   setCurrentContentDisplay: (content: ClipboardContent) => void;
 
@@ -254,6 +257,10 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
 
     clipboardMonitor.stop();
     set({ isMonitoring: false });
+  },
+
+  updatePollingInterval: (interval: number) => {
+    clipboardMonitor.updatePollingInterval(interval);
   },
 
   setCurrentContentDisplay: (content: ClipboardContent) => {

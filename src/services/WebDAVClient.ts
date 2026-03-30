@@ -38,6 +38,8 @@ export class WebDAVClient extends APIClient implements ISyncClipboardAPI {
       authService,
       headers: {
         'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
       },
     });
   }
@@ -50,7 +52,14 @@ export class WebDAVClient extends APIClient implements ISyncClipboardAPI {
       // WebDAV GET 请求获取文件
       const profile = await this.get<ProfileDto>(
         `/${WebDAVClient.PROFILE_FILENAME}`,
-        signal ? { signal } : undefined
+        signal
+          ? {
+              signal,
+              headers: { 'Cache-Control': 'no-cache' },
+            }
+          : {
+              headers: { 'Cache-Control': 'no-cache' },
+            }
       );
 
       // 验证响应数据
