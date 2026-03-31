@@ -22,13 +22,13 @@ class ShortcutModule : Module() {
         private const val DOWNLOAD_LABEL = "下载剪贴板"
         private const val DOWNLOAD_URL = "syncclipboard://quick-download"
         private const val DOWNLOAD_ICON_RES = "ic_tile_download"
-        private const val DOWNLOAD_BG_COLOR = "#0066CC"
+        private const val DOWNLOAD_BG_COLOR = "#007AFF"
 
         private const val UPLOAD_SHORTCUT_ID = "shortcut_upload"
         private const val UPLOAD_LABEL = "上传剪贴板"
         private const val UPLOAD_URL = "syncclipboard://quick-upload"
         private const val UPLOAD_ICON_RES = "ic_tile_upload"
-        private const val UPLOAD_BG_COLOR = "#0066CC"
+        private const val UPLOAD_BG_COLOR = "#007AFF"
     }
 
     override fun definition() = ModuleDefinition {

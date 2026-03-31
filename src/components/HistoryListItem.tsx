@@ -754,6 +754,18 @@ export const HistoryListItem = forwardRef<HistoryListItemHandle, HistoryListItem
                 </View>
               )}
 
+              {/* 调试信息：lastAccessed */}
+              {isDebugMode && item.lastAccessed !== undefined && (
+                <View style={styles.debugRow}>
+                  <Text style={[styles.debugLabel, { color: theme.colors.textTertiary }]}>
+                    LastAccessed:
+                  </Text>
+                  <Text style={[styles.debugValue, { color: theme.colors.textSecondary }]}>
+                    {new Date(item.lastAccessed).toISOString()}
+                  </Text>
+                </View>
+              )}
+
               {/* 调试信息：version */}
               {isDebugMode && item.version !== undefined && (
                 <View style={styles.debugRow}>
