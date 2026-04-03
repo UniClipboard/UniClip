@@ -98,6 +98,9 @@ export interface AppConfig {
   /** 是否在后台时使用悬浮窗获取剪贴板（仅 Android） */
   enableClipboardOverlay: boolean;
 
+  /** 是否启用自动上传短信验证码（仅 Android） */
+  enableSmsForwarding: boolean;
+
   /** 调试时显示悬浮窗（仅 Android，调试模式下可用） */
   debugOverlayVisible: boolean;
 
@@ -275,6 +278,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   enableBackgroundTasks: false, // 默认关闭后台任务总开关
   enableBackgroundSync: false, // 默认关闭后台同步
   enableClipboardOverlay: false, // 默认关闭悬浮窗获取剪贴板
+  enableSmsForwarding: false, // 默认关闭自动上传短信验证码
   debugOverlayVisible: false, // 默认不显示悬浮窗
   debugUrlScheme: false, // 默认不显示 URL Scheme 调用
 };

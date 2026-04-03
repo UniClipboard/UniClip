@@ -62,6 +62,7 @@ export const SettingsScreen = () => {
     setEnableBackgroundSync,
     setEnableClipboardOverlay,
     setEnableBackgroundTasks,
+    setEnableSmsForwarding,
   } = useSettingsStore();
 
   const [showServerModal, setShowServerModal] = useState(false);
@@ -89,6 +90,9 @@ export const SettingsScreen = () => {
   );
   const [localClipboardOverlayEnabled, setLocalClipboardOverlayEnabled] = useState(
     config?.enableClipboardOverlay ?? false
+  );
+  const [localSmsForwardingEnabled, setLocalSmsForwardingEnabled] = useState(
+    config?.enableSmsForwarding ?? false
   );
   const [localDebugBgTestEnabled, setLocalDebugBgTestEnabled] = useState(false);
   const [lastBgTestDuration, setLastBgTestDuration] = useState<string>('无记录');
@@ -146,6 +150,10 @@ export const SettingsScreen = () => {
   useEffect(() => {
     setLocalClipboardOverlayEnabled(config?.enableClipboardOverlay ?? false);
   }, [config?.enableClipboardOverlay]);
+
+  useEffect(() => {
+    setLocalSmsForwardingEnabled(config?.enableSmsForwarding ?? false);
+  }, [config?.enableSmsForwarding]);
 
   // 加载上次后台测试持续时长
   useEffect(() => {
@@ -388,6 +396,64 @@ export const SettingsScreen = () => {
       showMessage(enabled ? '已启用悬浮窗获取剪贴板' : '已禁用悬浮窗获取剪贴板', 'success');
     } catch (error: unknown) {
       setLocalClipboardOverlayEnabled(!enabled);
+      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+    }
+  };
+
+  // 处理切换自动上传短信验证码
+  const handleToggleSmsForwarding = async (enabled: boolean) => {
+    if (enabled) {
+      Alert.alert(
+        '启用自动上传短信验证码',
+        '启用后，应用将监听收到的短信，自动提取验证码并上传到服务器。\n\n需要授予短信读取权限。',
+        [
+          { text: '取消', style: 'cancel' },
+          {
+            text: '确认开启',
+            onPress: async () => {
+              if (Platform.OS === 'android') {
+                const { PermissionsAndroid } = require('react-native');
+                const granted = await PermissionsAndroid.check(
+                  PermissionsAndroid.PERMISSIONS.RECEIVE_SMS
+                );
+                if (!granted) {
+                  const result = await PermissionsAndroid.request(
+                    PermissionsAndroid.PERMISSIONS.RECEIVE_SMS
+                  );
+                  if (result !== PermissionsAndroid.RESULTS.GRANTED) {
+                    Alert.alert(
+                      '需要短信权限',
+                      '自动上传验证码需要短信接收权限，请在系统设置中允许',
+                      [
+                        { text: '取消', style: 'cancel' },
+                        { text: '前往设置', onPress: () => Linking.openSettings() },
+                      ]
+                    );
+                    return;
+                  }
+                }
+              }
+              setLocalSmsForwardingEnabled(true);
+              try {
+                await setEnableSmsForwarding(true);
+                showMessage('已启用自动上传短信验证码', 'success');
+              } catch (error: unknown) {
+                setLocalSmsForwardingEnabled(false);
+                showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+              }
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    setLocalSmsForwardingEnabled(false);
+    try {
+      await setEnableSmsForwarding(false);
+      showMessage('已禁用自动上传短信验证码', 'success');
+    } catch (error: unknown) {
+      setLocalSmsForwardingEnabled(true);
       showMessage(error instanceof Error ? error.message : '设置失败', 'error');
     }
   };
@@ -1064,6 +1130,37 @@ export const SettingsScreen = () => {
                   trackColor={{ false: theme.colors.divider, true: theme.colors.primary }}
                   thumbColor={
                     localBackgroundTasksEnabled && localClipboardOverlayEnabled
+                      ? theme.colors.surface
+                      : theme.colors.textTertiary
+                  }
+                  disabled={!localBackgroundTasksEnabled}
+                />
+              </View>
+
+              <View style={styles.settingRow}>
+                <View style={styles.settingInfo}>
+                  <Text
+                    style={[
+                      styles.settingLabel,
+                      {
+                        color: localBackgroundTasksEnabled
+                          ? theme.colors.text
+                          : theme.colors.textTertiary,
+                      },
+                    ]}
+                  >
+                    自动上传短信验证码
+                  </Text>
+                  <Text style={[styles.settingDescription, { color: theme.colors.textTertiary }]}>
+                    监听短信并自动上传验证码
+                  </Text>
+                </View>
+                <Switch
+                  value={localBackgroundTasksEnabled && localSmsForwardingEnabled}
+                  onValueChange={handleToggleSmsForwarding}
+                  trackColor={{ false: theme.colors.divider, true: theme.colors.primary }}
+                  thumbColor={
+                    localBackgroundTasksEnabled && localSmsForwardingEnabled
                       ? theme.colors.surface
                       : theme.colors.textTertiary
                   }

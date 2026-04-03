@@ -19,7 +19,8 @@
       "shortcut": ["modules/shortcut/src"],
       "signalr-client": ["modules/signalr-client/src"],
       "native-timer": ["modules/native-timer/src"],
-      "clipboard-overlay": ["modules/clipboard-overlay/src"]
+      "clipboard-overlay": ["modules/clipboard-overlay/src"],
+      "sms-forwarder": ["modules/sms-forwarder/src"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx"],

@@ -108,6 +108,13 @@ export class SyncManager {
   }
 
   /**
+   * 获取当前 API 客户端（供外部服务使用）
+   */
+  public getAPIClient(): ISyncClipboardAPI | null {
+    return this.apiClient;
+  }
+
+  /**
    * 创建 API 客户端
    */
   private createAPIClient(config: ServerConfig): ISyncClipboardAPI {

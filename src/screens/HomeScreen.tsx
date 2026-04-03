@@ -797,6 +797,27 @@ export function HomeScreen() {
     };
   }, [activeServer, config, initializeSync, destroySync]);
 
+  // 管理短信验证码服务生命周期
+  useEffect(() => {
+    const smsEnabled = config?.enableBackgroundTasks && config?.enableSmsForwarding;
+    const manageSmsService = async () => {
+      const { getSmsCodeService } = await import('@/services/SmsCodeService');
+      const smsService = getSmsCodeService();
+      if (smsEnabled) {
+        await smsService.enable();
+      } else {
+        smsService.disable();
+      }
+    };
+    manageSmsService();
+
+    return () => {
+      import('@/services/SmsCodeService').then(({ getSmsCodeService }) => {
+        getSmsCodeService().disable();
+      });
+    };
+  }, [config?.enableBackgroundTasks, config?.enableSmsForwarding]);
+
   // 监听应用状态变化，控制远程剪贴板轮询或 SignalR
   // 本地剪贴板已由 ClipboardMonitor 持续监听，无需在此处处理
   useEffect(() => {

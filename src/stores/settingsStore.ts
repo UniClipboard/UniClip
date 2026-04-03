@@ -124,6 +124,9 @@ interface SettingsState {
   /** 设置悬浮窗获取剪贴板 */
   setEnableClipboardOverlay: (enabled: boolean) => Promise<void>;
 
+  /** 设置自动上传短信验证码 */
+  setEnableSmsForwarding: (enabled: boolean) => Promise<void>;
+
   // 导入/导出
   /** 导出配置 */
   exportConfig: () => Promise<string>;
@@ -346,6 +349,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   setEnableClipboardOverlay: async (enabled: boolean) => {
     await get().updateConfig({ enableClipboardOverlay: enabled });
+  },
+
+  setEnableSmsForwarding: async (enabled: boolean) => {
+    await get().updateConfig({ enableSmsForwarding: enabled });
   },
 
   exportConfig: async () => {
