@@ -6,14 +6,24 @@ SyncClipboard 的移动客户端，暂时仅支持 Android
 
 ### 剪贴板同步和历史记录
 
-- 支持前台模式下文本、图片、文件同步
+- 文本、图片、单文件类型的剪贴板同步
+- 后台同步，可选基于悬浮窗的后台获取剪贴板方式
 - 通过通知栏快捷方式、桌面快捷方式、分享菜单手动调用
-- 支持历史记录同步
+- 历史记录同步
+- 自动上传短信验证码
 
 ### 服务器支持
 
 - **SyncClipboard 服务器**
 - **WebDAV 服务器**
+
+## 截图
+
+<p align="center">
+  <img src="docs/screenshorts/Screenshot01.jpg" width="250" alt="首页" />
+  <img src="docs/screenshorts/Screenshot02.jpg" width="250" alt="历史记录" />
+  <img src="docs/screenshorts/Screenshot03.jpg" width="250" alt="设置" />
+</p>
 
 ## 快速开始
 

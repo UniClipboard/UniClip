@@ -999,6 +999,30 @@ export const SettingsScreen = () => {
             <View style={[styles.settingRow, { borderBottomColor: theme.colors.divider }]}>
               <View style={styles.settingInfo}>
                 <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                  历史记录同步
+                </Text>
+                <Text style={[styles.settingDescription, { color: theme.colors.textTertiary }]}>
+                  {activeServer?.type === 'webdav'
+                    ? 'WebDAV 服务器不支持历史记录同步'
+                    : '同步历史记录到服务器'}
+                </Text>
+              </View>
+              <Switch
+                value={localHistorySyncEnabled && activeServer?.type !== 'webdav'}
+                onValueChange={handleToggleHistorySync}
+                trackColor={{ false: theme.colors.divider, true: theme.colors.primary }}
+                thumbColor={
+                  localHistorySyncEnabled && activeServer?.type !== 'webdav'
+                    ? theme.colors.surface
+                    : theme.colors.textTertiary
+                }
+                disabled={activeServer?.type === 'webdav'}
+              />
+            </View>
+
+            <View style={[styles.settingRow, { borderBottomColor: theme.colors.divider }]}>
+              <View style={styles.settingInfo}>
+                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
                   允许自动同步的数据大小
                 </Text>
                 <Text style={[styles.settingDescription, { color: theme.colors.textTertiary }]}>
@@ -1024,30 +1048,6 @@ export const SettingsScreen = () => {
                 />
                 <Text style={[styles.unitLabel, { color: theme.colors.textSecondary }]}>MB</Text>
               </View>
-            </View>
-
-            <View style={[styles.settingRow, { borderBottomColor: theme.colors.divider }]}>
-              <View style={styles.settingInfo}>
-                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
-                  历史记录同步
-                </Text>
-                <Text style={[styles.settingDescription, { color: theme.colors.textTertiary }]}>
-                  {activeServer?.type === 'webdav'
-                    ? 'WebDAV 服务器不支持历史记录同步'
-                    : '同步历史记录到服务器'}
-                </Text>
-              </View>
-              <Switch
-                value={localHistorySyncEnabled && activeServer?.type !== 'webdav'}
-                onValueChange={handleToggleHistorySync}
-                trackColor={{ false: theme.colors.divider, true: theme.colors.primary }}
-                thumbColor={
-                  localHistorySyncEnabled && activeServer?.type !== 'webdav'
-                    ? theme.colors.surface
-                    : theme.colors.textTertiary
-                }
-                disabled={activeServer?.type === 'webdav'}
-              />
             </View>
 
             {activeServer?.type !== 'syncclipboard' && (
