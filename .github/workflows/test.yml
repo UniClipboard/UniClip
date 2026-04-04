@@ -10,10 +10,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
 
@@ -25,8 +25,3 @@ jobs:
 
       - name: Run tests with coverage
         run: npm run test:coverage
-
-      - name: Upload coverage reports
-        uses: codecov/codecov-action@v4
-        with:
-          fail_ci_if_error: false
