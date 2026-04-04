@@ -426,13 +426,24 @@ export class SyncManager {
         fileSize: localContent.fileSize,
       });
 
+      // 预设最后上传的 profileHash（防止 SignalR 在 HTTP 响应返回前推送通知导致误触自动下载）
+      const previousProfileHash = this.lastLocalProfileHash;
+      if (currentProfileHash) {
+        this.lastLocalProfileHash = currentProfileHash;
+      }
+
       // 使用 putContent 统一处理：先上传数据（如果有），再上传配置
-      await this.apiClient.putContent(localContent, { signal, onProgress });
+      try {
+        await this.apiClient.putContent(localContent, { signal, onProgress });
+      } catch (uploadError) {
+        // 上传失败，回滚 hash
+        this.lastLocalProfileHash = previousProfileHash;
+        throw uploadError;
+      }
 
       console.log('[SyncManager] Content uploaded successfully');
 
-      // 更新最后上传的 profileHash
-      this.lastLocalProfileHash = currentProfileHash || null;
+      // 持久化 profileHash
       if (currentProfileHash) {
         await AsyncStorage.setItem(STORAGE_KEY_LAST_PROFILE_HASH, currentProfileHash);
       }
