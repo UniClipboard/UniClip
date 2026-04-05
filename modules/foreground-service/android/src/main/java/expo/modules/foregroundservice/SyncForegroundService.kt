@@ -159,16 +159,24 @@ class SyncForegroundService : Service() {
 
         Log.d(TAG, "Notification icon resId=$iconResId")
 
+        // 内容以 \n 分割为标题和正文
+        val lines = content.split("\n", limit = 2)
+        val title = lines[0]
+        val body = if (lines.size > 1) lines[1] else ""
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("SyncClipboard")
-            .setContentText(content)
+            .setContentTitle(title)
+            .setContentText(body)
             .setSmallIcon(iconResId)
             .setContentIntent(pendingLaunchIntent)
             .setOngoing(true)
             .setSilent(true)
             .addAction(0, "临时停止", tempStopPendingIntent)
             .addAction(0, "永久停止", stopPendingIntent)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(content))
+            .setStyle(NotificationCompat.BigTextStyle()
+                .setBigContentTitle(title)
+                .bigText(body)
+            )
             .build()
     }
 

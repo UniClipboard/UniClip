@@ -345,11 +345,25 @@ export class ClipboardMonitor {
   /**
    * 恢复被 pausePolling 暂停的轮询计时器。
    * 会重置计时器间隔，下次轮询从调用此方法起重新计时。
+   * 后台且后台上传未启用时，不恢复轮询（避免后台写入剪贴板后误重启轮询）。
    */
   resumePolling(): void {
-    if (this.isMonitoring) {
-      this.startPolling();
+    if (!this.isMonitoring) return;
+
+    // 如果配置了后台停止，且当前在后台且后台上传未启用，则不恢复轮询
+    if (this.options.stopOnBackground) {
+      const currentState = AppState.currentState;
+      if (currentState === 'background' || currentState === 'inactive') {
+        const { useSettingsStore } = require('@/stores/settingsStore');
+        const config = useSettingsStore.getState().config;
+        const bgUploadEnabled = config?.enableBackgroundTasks && config?.enableBackgroundUpload;
+        if (!bgUploadEnabled) {
+          return;
+        }
+      }
     }
+
+    this.startPolling();
   }
 
   /**

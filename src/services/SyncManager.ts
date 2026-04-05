@@ -137,9 +137,17 @@ export class SyncManager {
    */
   public updateForegroundNotification(text: string): void {
     if (Platform.OS !== 'android') return;
-    const now = new Date();
-    const time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
-    const content = `${text}\n${time}`;
+    // 将 "已上传: preview" 格式转为 "↑ 已上传\npreview"
+    const colonIdx = text.indexOf(': ');
+    let content: string;
+    if (colonIdx >= 0) {
+      const action = text.slice(0, colonIdx);
+      const preview = text.slice(colonIdx + 2);
+      const arrow = action.includes('下载') ? '↓' : '↑';
+      content = `${arrow} ${action}\n${preview}`;
+    } else {
+      content = `SyncClipboard\n${text}`;
+    }
     import('foreground-service')
       .then((ForegroundService) => {
         ForegroundService.updateNotification(content);
