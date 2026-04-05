@@ -118,8 +118,11 @@ interface SettingsState {
   /** 设置后台任务总开关 */
   setEnableBackgroundTasks: (enabled: boolean) => Promise<void>;
 
-  /** 设置后台同步 */
-  setEnableBackgroundSync: (enabled: boolean) => Promise<void>;
+  /** 设置后台下载远程 */
+  setEnableBackgroundDownload: (enabled: boolean) => Promise<void>;
+
+  /** 设置后台上传本地 */
+  setEnableBackgroundUpload: (enabled: boolean) => Promise<void>;
 
   /** 设置悬浮窗获取剪贴板 */
   setEnableClipboardOverlay: (enabled: boolean) => Promise<void>;
@@ -343,8 +346,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     await get().updateConfig({ enableBackgroundTasks: enabled });
   },
 
-  setEnableBackgroundSync: async (enabled: boolean) => {
-    await get().updateConfig({ enableBackgroundSync: enabled });
+  setEnableBackgroundDownload: async (enabled: boolean) => {
+    await get().updateConfig({ enableBackgroundDownload: enabled });
+  },
+
+  setEnableBackgroundUpload: async (enabled: boolean) => {
+    await get().updateConfig({ enableBackgroundUpload: enabled });
   },
 
   setEnableClipboardOverlay: async (enabled: boolean) => {

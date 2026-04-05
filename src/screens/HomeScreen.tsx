@@ -354,8 +354,13 @@ export function HomeScreen() {
         }
       }
 
-      // 如果启用了自动同步，自动复制远程内容到本地剪贴板（仅 Text 类型）
+      // 自动同步：autoSync 开启，或后台且后台下载已开启时强制自动复制
       const autoSyncEnabled = config?.autoSync ?? false;
+      const isAppInBackground = appState.current !== 'active';
+      const bgDownloadEnabled = !!(
+        config?.enableBackgroundTasks && config?.enableBackgroundDownload
+      );
+      const shouldAutoCopy = autoSyncEnabled || (isAppInBackground && bgDownloadEnabled);
       const remoteHash = finalContent.profileHash || finalContent.text || '';
       const localMatchesRemote = remoteHash === lastLocalProfileHash.current;
       if (localMatchesRemote) {
@@ -363,7 +368,7 @@ export function HomeScreen() {
           `[HomeScreen] ${logPrefix}Remote content matches local clipboard, skipping auto-copy`
         );
       } else if (
-        autoSyncEnabled &&
+        shouldAutoCopy &&
         activeServer &&
         !isAutoSyncing.current &&
         !skipAutoCopyDueToLargeFile &&
@@ -716,7 +721,10 @@ export function HomeScreen() {
   // 监听本地剪贴板变化，自动上传
   useEffect(() => {
     const autoSyncEnabled = config?.autoSync ?? false;
-    if (!activeServer || !autoSyncEnabled || !currentContent) {
+    const isAppInBackground = appState.current !== 'active';
+    const bgUploadEnabled = !!(config?.enableBackgroundTasks && config?.enableBackgroundUpload);
+    const shouldAutoUpload = autoSyncEnabled || (isAppInBackground && bgUploadEnabled);
+    if (!activeServer || !shouldAutoUpload || !currentContent) {
       return;
     }
 
@@ -853,7 +861,9 @@ export function HomeScreen() {
     const shouldRun =
       config?.enableBackgroundTasks &&
       config?.enableForegroundNotification &&
-      (config?.enableBackgroundSync || config?.enableSmsForwarding);
+      (config?.enableBackgroundDownload ||
+        config?.enableBackgroundUpload ||
+        config?.enableSmsForwarding);
 
     const manageForegroundService = async () => {
       const ForegroundService = await import('foreground-service');
@@ -885,7 +895,8 @@ export function HomeScreen() {
   }, [
     config?.enableBackgroundTasks,
     config?.enableForegroundNotification,
-    config?.enableBackgroundSync,
+    config?.enableBackgroundDownload,
+    config?.enableBackgroundUpload,
     config?.enableSmsForwarding,
   ]);
 
@@ -920,16 +931,16 @@ export function HomeScreen() {
         } else if (nextAppState === 'background' || nextAppState === 'inactive') {
           console.log('[HomeScreen] App has gone to the background');
 
-          // 后台同步启用时不停止轮询，让轮询在后台继续运行
-          const bgSyncEnabled =
+          // 后台下载启用时不停止轮询，让轮询在后台继续运行
+          const bgDownloadEnabled =
             useSettingsStore.getState().config?.enableBackgroundTasks &&
-            useSettingsStore.getState().config?.enableBackgroundSync;
-          if (!bgSyncEnabled) {
+            useSettingsStore.getState().config?.enableBackgroundDownload;
+          if (!bgDownloadEnabled) {
             // 应用进入后台，停止轮询和 SignalR
             stopRemotePolling();
             await disconnectSignalR();
           } else {
-            console.log('[HomeScreen] Background sync enabled, keeping remote polling active');
+            console.log('[HomeScreen] Background download enabled, keeping remote polling active');
           }
         }
 

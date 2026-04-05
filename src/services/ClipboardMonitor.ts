@@ -292,12 +292,12 @@ export class ClipboardMonitor {
         this.startPolling();
       }
     } else if (nextAppState === 'background' || nextAppState === 'inactive') {
-      // 后台同步启用时不停止轮询
+      // 后台上传启用时不停止轮询
       const { useSettingsStore } = require('@/stores/settingsStore');
-      const bgSyncEnabled =
+      const bgUploadEnabled =
         useSettingsStore.getState().config?.enableBackgroundTasks &&
-        useSettingsStore.getState().config?.enableBackgroundSync;
-      if (!bgSyncEnabled) {
+        useSettingsStore.getState().config?.enableBackgroundUpload;
+      if (!bgUploadEnabled) {
         // 应用进入后台，停止监听
         this.stopPolling();
       }

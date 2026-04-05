@@ -61,7 +61,8 @@ export const SettingsScreen = () => {
     setLogLevel,
     setRemotePollingInterval,
     setLocalPollingInterval,
-    setEnableBackgroundSync,
+    setEnableBackgroundDownload,
+    setEnableBackgroundUpload,
     setEnableClipboardOverlay,
     setEnableBackgroundTasks,
     setEnableSmsForwarding,
@@ -84,8 +85,11 @@ export const SettingsScreen = () => {
   const [localHistorySyncEnabled, setLocalHistorySyncEnabled] = useState(
     config?.enableHistorySync ?? false
   );
-  const [localBackgroundSyncEnabled, setLocalBackgroundSyncEnabled] = useState(
-    config?.enableBackgroundSync ?? false
+  const [localBackgroundDownloadEnabled, setLocalBackgroundDownloadEnabled] = useState(
+    config?.enableBackgroundDownload ?? false
+  );
+  const [localBackgroundUploadEnabled, setLocalBackgroundUploadEnabled] = useState(
+    config?.enableBackgroundUpload ?? false
   );
   const [localBackgroundTasksEnabled, setLocalBackgroundTasksEnabled] = useState(
     config?.enableBackgroundTasks ?? false
@@ -146,8 +150,12 @@ export const SettingsScreen = () => {
   }, [config?.enableHistorySync]);
 
   useEffect(() => {
-    setLocalBackgroundSyncEnabled(config?.enableBackgroundSync ?? false);
-  }, [config?.enableBackgroundSync]);
+    setLocalBackgroundDownloadEnabled(config?.enableBackgroundDownload ?? false);
+  }, [config?.enableBackgroundDownload]);
+
+  useEffect(() => {
+    setLocalBackgroundUploadEnabled(config?.enableBackgroundUpload ?? false);
+  }, [config?.enableBackgroundUpload]);
 
   useEffect(() => {
     setLocalBackgroundTasksEnabled(config?.enableBackgroundTasks ?? false);
@@ -401,23 +409,47 @@ export const SettingsScreen = () => {
     }
   };
 
-  // 处理切换后台同步
-  const handleToggleBackgroundSync = async (enabled: boolean) => {
+  // 处理切换后台下载远程
+  const handleToggleBackgroundDownload = async (enabled: boolean) => {
+    if (enabled) {
+      setLocalBackgroundDownloadEnabled(true);
+      try {
+        await setEnableBackgroundDownload(true);
+        showMessage('已启用后台下载远程', 'success');
+      } catch (error: unknown) {
+        setLocalBackgroundDownloadEnabled(false);
+        showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+      }
+      return;
+    }
+
+    setLocalBackgroundDownloadEnabled(false);
+    try {
+      await setEnableBackgroundDownload(false);
+      showMessage('已禁用后台下载远程', 'success');
+    } catch (error: unknown) {
+      setLocalBackgroundDownloadEnabled(true);
+      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+    }
+  };
+
+  // 处理切换后台上传本地
+  const handleToggleBackgroundUpload = async (enabled: boolean) => {
     if (enabled) {
       Alert.alert(
-        '开启后台同步',
+        '开启后台上传本地',
         'Android 10 及以上的系统，应用在后台无法直接获取本地剪贴板内容，你可能需要启用悬浮窗或使用其他工具来解除此限制。',
         [
           { text: '取消', style: 'cancel' },
           {
             text: '确认开启',
             onPress: async () => {
-              setLocalBackgroundSyncEnabled(true);
+              setLocalBackgroundUploadEnabled(true);
               try {
-                await setEnableBackgroundSync(true);
-                showMessage('已启用后台同步', 'success');
+                await setEnableBackgroundUpload(true);
+                showMessage('已启用后台上传本地', 'success');
               } catch (error: unknown) {
-                setLocalBackgroundSyncEnabled(false);
+                setLocalBackgroundUploadEnabled(false);
                 showMessage(error instanceof Error ? error.message : '设置失败', 'error');
               }
             },
@@ -427,12 +459,12 @@ export const SettingsScreen = () => {
       return;
     }
 
-    setLocalBackgroundSyncEnabled(false);
+    setLocalBackgroundUploadEnabled(false);
     try {
-      await setEnableBackgroundSync(false);
-      showMessage('已禁用后台同步', 'success');
+      await setEnableBackgroundUpload(false);
+      showMessage('已禁用后台上传本地', 'success');
     } catch (error: unknown) {
-      setLocalBackgroundSyncEnabled(true);
+      setLocalBackgroundUploadEnabled(true);
       showMessage(error instanceof Error ? error.message : '设置失败', 'error');
     }
   };
@@ -1179,18 +1211,49 @@ export const SettingsScreen = () => {
                       },
                     ]}
                   >
-                    后台同步
+                    后台下载远程
                   </Text>
                   <Text style={[styles.settingDescription, { color: theme.colors.textTertiary }]}>
-                    仅在启用自动复制时生效
+                    保持远程轮询或 SignalR 在后台运行
                   </Text>
                 </View>
                 <Switch
-                  value={localBackgroundTasksEnabled && localBackgroundSyncEnabled}
-                  onValueChange={handleToggleBackgroundSync}
+                  value={localBackgroundTasksEnabled && localBackgroundDownloadEnabled}
+                  onValueChange={handleToggleBackgroundDownload}
                   trackColor={{ false: theme.colors.divider, true: theme.colors.primary }}
                   thumbColor={
-                    localBackgroundTasksEnabled && localBackgroundSyncEnabled
+                    localBackgroundTasksEnabled && localBackgroundDownloadEnabled
+                      ? theme.colors.surface
+                      : theme.colors.textTertiary
+                  }
+                  disabled={!localBackgroundTasksEnabled}
+                />
+              </View>
+
+              <View style={[styles.settingRow, { borderBottomColor: theme.colors.divider }]}>
+                <View style={styles.settingInfo}>
+                  <Text
+                    style={[
+                      styles.settingLabel,
+                      {
+                        color: localBackgroundTasksEnabled
+                          ? theme.colors.text
+                          : theme.colors.textTertiary,
+                      },
+                    ]}
+                  >
+                    后台上传本地
+                  </Text>
+                  <Text style={[styles.settingDescription, { color: theme.colors.textTertiary }]}>
+                    保持本地剪贴板监听在后台运行
+                  </Text>
+                </View>
+                <Switch
+                  value={localBackgroundTasksEnabled && localBackgroundUploadEnabled}
+                  onValueChange={handleToggleBackgroundUpload}
+                  trackColor={{ false: theme.colors.divider, true: theme.colors.primary }}
+                  thumbColor={
+                    localBackgroundTasksEnabled && localBackgroundUploadEnabled
                       ? theme.colors.surface
                       : theme.colors.textTertiary
                   }

@@ -92,8 +92,11 @@ export interface AppConfig {
   /** 后台任务总开关 */
   enableBackgroundTasks: boolean;
 
-  /** 是否启用后台同步（Android 前台服务） */
-  enableBackgroundSync: boolean;
+  /** 是否在后台时下载远程剪贴板（保持远程轮询或 SignalR 连接） */
+  enableBackgroundDownload: boolean;
+
+  /** 是否在后台时上传本地剪贴板（保持本地剪贴板监听） */
+  enableBackgroundUpload: boolean;
 
   /** 是否在后台时使用悬浮窗获取剪贴板（仅 Android） */
   enableClipboardOverlay: boolean;
@@ -282,7 +285,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   remotePollingInterval: 3000, // 默认 3 秒
   localPollingInterval: 1000, // 默认 1 秒
   enableBackgroundTasks: false, // 默认关闭后台任务总开关
-  enableBackgroundSync: false, // 默认关闭后台同步
+  enableBackgroundDownload: false, // 默认关闭后台下载远程
+  enableBackgroundUpload: false, // 默认关闭后台上传本地
   enableClipboardOverlay: false, // 默认关闭悬浮窗获取剪贴板
   enableSmsForwarding: false, // 默认关闭自动上传短信验证码
   debugOverlayVisible: false, // 默认不显示悬浮窗

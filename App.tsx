@@ -68,7 +68,9 @@ export default function App() {
     const shouldRun =
       config?.enableBackgroundTasks &&
       config?.enableForegroundNotification &&
-      (config?.enableBackgroundSync || config?.enableSmsForwarding);
+      (config?.enableBackgroundDownload ||
+        config?.enableBackgroundUpload ||
+        config?.enableSmsForwarding);
 
     if (shouldRun) {
       import('foreground-service').then((ForegroundService) => {
@@ -79,7 +81,8 @@ export default function App() {
     isLoaded,
     config?.enableBackgroundTasks,
     config?.enableForegroundNotification,
-    config?.enableBackgroundSync,
+    config?.enableBackgroundDownload,
+    config?.enableBackgroundUpload,
     config?.enableSmsForwarding,
   ]);
 
