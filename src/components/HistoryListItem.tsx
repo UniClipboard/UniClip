@@ -22,7 +22,7 @@ import {
   TouchableOpacity,
   Linking,
 } from 'react-native';
-import { Copy, Download, Share, Trash2, ExternalLink, Link2 } from 'react-native-feather';
+import { Copy, Download, Share, Trash2, ExternalLink, Link2, Scissors } from 'react-native-feather';
 import { Ionicons } from '@expo/vector-icons';
 import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Reanimated, {
@@ -149,6 +149,7 @@ interface HistoryListItemProps {
   onToggleStar?: (item: ClipboardItem) => void;
   onDownload?: (item: ClipboardItem) => void;
   onUpload?: (item: ClipboardItem) => void;
+  onWordPick?: (text: string) => void;
   showFullImage?: boolean;
   enableHistorySync?: boolean;
 }
@@ -166,6 +167,7 @@ export const HistoryListItem = forwardRef<HistoryListItemHandle, HistoryListItem
       onToggleStar,
       onDownload,
       onUpload,
+      onWordPick,
       showFullImage = false,
       enableHistorySync = true,
     },
@@ -649,6 +651,17 @@ export const HistoryListItem = forwardRef<HistoryListItemHandle, HistoryListItem
                     >
                       <View style={{ transform: [{ scale: 0.6 }] }}>
                         <Link2 color={theme.colors.primary} />
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                  {item.type === 'Text' && onWordPick && item.text && (
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() => onWordPick(item.text!)}
+                      hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                    >
+                      <View style={{ transform: [{ scale: 0.6 }] }}>
+                        <Scissors color={theme.colors.primary} />
                       </View>
                     </TouchableOpacity>
                   )}

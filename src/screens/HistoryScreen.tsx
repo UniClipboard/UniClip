@@ -39,6 +39,7 @@ import { HistoryListItem, type HistoryListItemHandle } from '@/components/Histor
 import { MessageToast } from '@/components/MessageToast';
 import { TopRightMenu, type MenuItemConfig } from '@/components/TopRightMenu';
 import { TransferQueueModal } from '@/components/TransferQueueModal';
+import { WordPickerScreen } from '@/screens/WordPickerScreen';
 import { copyToLocalClipboard } from '@/utils/clipboard';
 import { openFile, saveFile, shareFile, saveToGallery } from '@/utils/fileActions';
 import { isTextInvalid } from '@/utils/index';
@@ -93,6 +94,7 @@ export function HistoryScreen() {
   const [showTransferQueue, setShowTransferQueue] = useState(false);
   const [importingFile, setImportingFile] = useState(false);
   const [isReorganizing, setIsReorganizing] = useState(false);
+  const [wordPickerText, setWordPickerText] = useState<string | null>(null);
   const {
     hasTasks,
     pendingCount,
@@ -1003,6 +1005,7 @@ export function HistoryScreen() {
           onToggleStar={handleToggleStar}
           onDownload={historySyncEnabled ? handleDownload : undefined}
           onUpload={historySyncEnabled ? handleUpload : undefined}
+          onWordPick={setWordPickerText}
           showFullImage={showFullImage}
           enableHistorySync={historySyncEnabled}
         />
@@ -1403,6 +1406,13 @@ export function HistoryScreen() {
               正在添加文件...
             </Text>
           </View>
+        </View>
+      )}
+
+      {/* 分词选择页面 */}
+      {wordPickerText && (
+        <View style={StyleSheet.absoluteFill}>
+          <WordPickerScreen text={wordPickerText} onComplete={() => setWordPickerText(null)} />
         </View>
       )}
     </View>

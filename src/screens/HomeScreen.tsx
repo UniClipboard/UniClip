@@ -30,6 +30,7 @@ import { ClipboardContent, createDefaultClipboardItem, HistorySyncStatus } from 
 import { CurrentClipboardCard } from '@/components/CurrentClipboardCard';
 import { MessageToast } from '@/components/MessageToast';
 import { TopRightMenu, type MenuItemConfig } from '@/components/TopRightMenu';
+import { WordPickerScreen } from '@/screens/WordPickerScreen';
 import { createAPIClient, historyStorage, SyncManager } from '@/services';
 import { copyToLocalClipboard } from '@/utils/clipboard';
 import { compareHash } from '@/utils/hash';
@@ -66,6 +67,7 @@ export function HomeScreen() {
   const [fileUploadLoadingText, setFileUploadLoadingText] = useState('正在处理文件…');
   const [fileUploadProgress, setFileUploadProgress] = useState<ProgressInfo | null>(null);
   const [uploadingClipboard, setUploadingClipboard] = useState(false);
+  const [wordPickerText, setWordPickerText] = useState<string | null>(null);
   const { error, setError, clearError } = useErrorStore();
   const { message, showMessage, clearMessage } = useMessageStore();
   const appState = useRef(AppState.currentState);
@@ -1240,6 +1242,7 @@ export function HomeScreen() {
                       showMessage(result.message || '复制失败', 'error');
                     }
                   }}
+                  onWordPick={setWordPickerText}
                 />
               )}
             </View>
@@ -1256,6 +1259,7 @@ export function HomeScreen() {
                 uploading={uploadingClipboard}
                 onCancelUpload={handleCancelClipboardUpload}
                 onCopy={copyLocalToClipboard}
+                onWordPick={setWordPickerText}
               />
 
               {/* 错误信息卡片 */}
@@ -1303,6 +1307,7 @@ export function HomeScreen() {
               clipboard={currentContent}
               isRemote={false}
               onCopy={copyLocalToClipboard}
+              onWordPick={setWordPickerText}
             />
           </>
         )}
@@ -1337,6 +1342,12 @@ export function HomeScreen() {
               fileUploadPayload.mimeType?.startsWith('image/') ? fileUploadPayload.uri : undefined
             }
           />
+        </View>
+      )}
+
+      {wordPickerText && (
+        <View style={styles.fullScreenOverlay}>
+          <WordPickerScreen text={wordPickerText} onComplete={() => setWordPickerText(null)} />
         </View>
       )}
     </View>

@@ -38,6 +38,7 @@ interface CurrentClipboardCardProps {
   downloadProgress?: DownloadProgress | null;
   onCancelDownload?: () => void;
   onCopy: (content: ClipboardContent) => Promise<void>;
+  onWordPick?: (text: string) => void;
 }
 
 export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
@@ -51,6 +52,7 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
   downloadProgress,
   onCancelDownload,
   onCopy,
+  onWordPick,
 }) => {
   const { theme } = useTheme();
   const { config } = useSettingsStore();
@@ -365,6 +367,16 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
             onPress={() => Linking.openURL(detectedUrl)}
           >
             <Text style={[styles.actionButtonText, { color: theme.colors.white }]}>打开链接</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* 文本类型：分词按钮 */}
+        {clipboard.type === 'Text' && onWordPick && !isTextInvalid(clipboard.text) && (
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
+            onPress={() => onWordPick(clipboard.text!)}
+          >
+            <Text style={[styles.actionButtonText, { color: theme.colors.white }]}>分词</Text>
           </TouchableOpacity>
         )}
 
