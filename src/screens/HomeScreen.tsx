@@ -33,7 +33,6 @@ import { TopRightMenu, type MenuItemConfig } from '@/components/TopRightMenu';
 import { WordPickerScreen } from '@/screens/WordPickerScreen';
 import { createAPIClient, historyStorage, SyncManager } from '@/services';
 import { copyToLocalClipboard } from '@/utils/clipboard';
-import { compareHash } from '@/utils/hash';
 import { getSignalRClient, type ProfileChangedEvent } from 'signalr-client';
 import { setTimer, clearTimer } from 'native-timer';
 import { downloadAndAddToHistory, type DownloadProgressCallback } from '@/utils/remoteClipboard';
@@ -212,61 +211,41 @@ export function HomeScreen() {
   ) => {
     const previousHash = lastRemoteProfileHash.current;
 
-    // 检查是否有变化
-    if (previousHash === currentHash) {
-      return; // 没有变化，不处理
+    // 使用提取的工具函数解析远程内容（包含 hash 变化检测、上传检测、历史记录查询）
+    const { resolveRemoteContent } = await import('@/utils/processRemoteContent');
+    const resolved = await resolveRemoteContent(content, currentHash, previousHash, hasData, {
+      getLastUploadedHash: () => SyncManager.getInstance().getLastUploadedHash(),
+      getHistoryItem: (profileHash) => historyStorage.getItem(profileHash),
+      getHistoryFileUri: async (type, profileHash, fileName) => {
+        const { getHistoryFileUri } = await import('@/utils/fileStorage');
+        return getHistoryFileUri(type, profileHash, fileName);
+      },
+    });
+
+    // 没有变化，不处理
+    if (!resolved) {
+      return;
     }
 
-    // 检查是否是本地刚上传的内容（避免上传后又下载同一内容）
-    const lastUploadedHash = SyncManager.getInstance().getLastUploadedHash();
-    const isJustUploaded = !!(lastUploadedHash && compareHash(currentHash, lastUploadedHash));
-    if (isJustUploaded) {
+    // 如果是本地刚上传的内容，跳过自动下载/复制，仅更新显示
+    if (resolved.isJustUploaded) {
       console.log(
         `[HomeScreen] ${logPrefix}Remote hash matches last uploaded hash, skipping auto-download/copy but updating display`
       );
       lastRemoteProfileHash.current = currentHash;
-      setRemoteContent(content);
+      setRemoteContent(resolved.content);
       return;
     }
 
     lastRemoteProfileHash.current = currentHash;
 
-    // 1. 先检查历史记录中是否存在相同 profileHash 的记录
-    let finalContent = content; // 最终要显示的内容
+    // 1. 历史记录查询结果
+    let finalContent = resolved.content;
     let skipAutoCopyDueToLargeFile = false;
-    let foundInHistory = false;
+    let foundInHistory = resolved.foundInHistory;
 
-    if (hasData && content.profileHash) {
-      try {
-        const historyItem = await historyStorage.getItem(content.profileHash);
-        if (historyItem) {
-          console.log(
-            `[HomeScreen] ${logPrefix}Found existing history item for profileHash: ${content.profileHash}`
-          );
-          // 从历史记录中获取文件路径
-          const { getHistoryFileUri } = await import('@/utils/fileStorage');
-          const fileUri = await getHistoryFileUri(
-            content.type,
-            content.profileHash!,
-            content.fileName!
-          );
-
-          if (fileUri) {
-            console.log(`[HomeScreen] ${logPrefix}Found existing file in history: ${fileUri}`);
-            // 更新内容，使用历史记录中的文件路径
-            finalContent = {
-              ...content,
-              fileUri: fileUri,
-            };
-
-            foundInHistory = true;
-            console.log(`[HomeScreen] ${logPrefix}Skipping download, using history file`);
-          }
-        }
-      } catch (error) {
-        console.error(`[HomeScreen] ${logPrefix}Error checking history:`, error);
-        // 出错时继续执行下载逻辑
-      }
+    if (foundInHistory) {
+      console.log(`[HomeScreen] ${logPrefix}Found existing file in history, skipping download`);
     }
 
     // 2. 如果历史记录中没有找到，处理自动下载
