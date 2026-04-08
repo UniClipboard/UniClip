@@ -848,12 +848,27 @@ export function HomeScreen() {
       const ForegroundService = await import('foreground-service');
       if (shouldRun) {
         ForegroundService.startService();
+        // 记录后台任务启动时间
+        const { useStatisticsStore } = await import('@/stores/statisticsStore');
+        await useStatisticsStore.getState().recordBackgroundTaskStart();
       } else {
         ForegroundService.stopService();
       }
     };
 
     manageForegroundService();
+
+    // 后台任务心跳：每 60 秒更新一次持续时间
+    let heartbeatTag: string | null = null;
+    if (shouldRun) {
+      const startHeartbeat = async () => {
+        const { useStatisticsStore } = await import('@/stores/statisticsStore');
+        heartbeatTag = setTimer(() => {
+          useStatisticsStore.getState().updateHeartbeat();
+        }, 60_000);
+      };
+      startHeartbeat();
+    }
 
     // 监听通知栏"停止"按钮
     let stopSub: { remove(): void } | null = null;
@@ -874,6 +889,9 @@ export function HomeScreen() {
     return () => {
       stopSub?.remove();
       tempStopSub?.remove();
+      if (heartbeatTag) {
+        clearTimer(heartbeatTag);
+      }
       // 注意：不在 unmount 时停止前台服务，避免快速操作导致后台任务中断
       // 前台服务的停止由 config 变化驱动（shouldRun 为 false 时调用 stopService）
     };

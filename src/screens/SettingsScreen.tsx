@@ -113,6 +113,8 @@ export const SettingsScreen = () => {
   const [smsTestInput, setSmsTestInput] = useState('');
   const [localDebugSmsNotify, setLocalDebugSmsNotify] = useState(config?.debugSmsNotify ?? false);
   const [showLogLevelMenu, setShowLogLevelMenu] = useState(false);
+  const [showStatsModal, setShowStatsModal] = useState(false);
+  const [statsText, setStatsText] = useState('');
 
   // 更新检查状态
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
@@ -712,6 +714,25 @@ export const SettingsScreen = () => {
     } else {
       Alert.alert('提取失败', '未能从输入文本中提取到验证码');
     }
+  };
+
+  // 显示统计信息弹窗
+  const handleShowStatistics = async () => {
+    const { useStatisticsStore } = await import('@/stores/statisticsStore');
+    const store = useStatisticsStore.getState();
+    if (!store.isLoaded) {
+      await store.load();
+    }
+    setStatsText(useStatisticsStore.getState().getStatisticsText());
+    setShowStatsModal(true);
+  };
+
+  // 复制统计信息到剪贴板
+  const handleCopyStatistics = async () => {
+    const Clipboard = await import('expo-clipboard');
+    await Clipboard.setStringAsync(statsText);
+    setShowStatsModal(false);
+    showMessage('已复制统计信息', 'success');
   };
 
   // 处理切换调试短信提醒
@@ -1890,7 +1911,7 @@ export const SettingsScreen = () => {
             )}
 
             {localDebugModeEnabled && (
-              <View style={styles.settingRowNoBorder}>
+              <View style={[styles.settingRow, { borderBottomColor: theme.colors.divider }]}>
                 <View style={styles.settingInfo}>
                   <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
                     测试验证码短信
@@ -1904,6 +1925,20 @@ export const SettingsScreen = () => {
                   }}
                 >
                   <Text style={[styles.actionButtonText, { color: theme.colors.white }]}>测试</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {localDebugModeEnabled && (
+              <View style={styles.settingRowNoBorder}>
+                <View style={styles.settingInfo}>
+                  <Text style={[styles.settingLabel, { color: theme.colors.text }]}>统计信息</Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
+                  onPress={handleShowStatistics}
+                >
+                  <Text style={[styles.actionButtonText, { color: theme.colors.white }]}>查看</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -1969,6 +2004,41 @@ export const SettingsScreen = () => {
               >
                 <Text style={[styles.smsTestModalButtonText, { color: theme.colors.white }]}>
                   测试
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 统计信息模态框 */}
+      <Modal
+        visible={showStatsModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowStatsModal(false)}
+      >
+        <View style={[styles.smsTestModalOverlay, { backgroundColor: theme.colors.overlay }]}>
+          <View style={[styles.smsTestModalContent, { backgroundColor: theme.colors.surface }]}>
+            <Text style={[styles.smsTestModalTitle, { color: theme.colors.text }]}>统计信息</Text>
+            <Text style={[styles.statsText, { color: theme.colors.text }]} selectable>
+              {statsText}
+            </Text>
+            <View style={styles.smsTestModalButtons}>
+              <TouchableOpacity
+                style={[styles.smsTestModalButton, { backgroundColor: theme.colors.divider }]}
+                onPress={() => setShowStatsModal(false)}
+              >
+                <Text style={[styles.smsTestModalButtonText, { color: theme.colors.text }]}>
+                  关闭
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.smsTestModalButton, { backgroundColor: theme.colors.primary }]}
+                onPress={handleCopyStatistics}
+              >
+                <Text style={[styles.smsTestModalButtonText, { color: theme.colors.white }]}>
+                  复制
                 </Text>
               </TouchableOpacity>
             </View>
@@ -2243,6 +2313,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     minHeight: 100,
     marginBottom: 16,
+  },
+  statsText: {
+    fontSize: 14,
+    lineHeight: 22,
+    marginBottom: 16,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   smsTestModalButtons: {
     flexDirection: 'row',
