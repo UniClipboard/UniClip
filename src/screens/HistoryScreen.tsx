@@ -11,10 +11,6 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
-  ActionSheetIOS,
-  Platform,
-  Modal,
-  Pressable,
   Share,
   NativeSyntheticEvent,
   NativeScrollEvent,
@@ -23,6 +19,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Check, RefreshCw, List } from 'react-native-feather';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { FlashList, FlashListRef } from '@shopify/flash-list';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import * as DocumentPicker from 'expo-document-picker';
@@ -75,6 +72,11 @@ export function HistoryScreen() {
     lastAddedTimestamp,
     handleStorageChange,
     setSort,
+    selectedIds,
+    toggleSelection,
+    selectAll,
+    clearSelection,
+    deleteSelected,
   } = useHistoryStore();
   const { config } = useSettingsStore();
 
@@ -82,12 +84,10 @@ export function HistoryScreen() {
 
   const [searchText, setSearchText] = useState('');
   const [filterType, setFilterType] = useState<FilterType>('all');
-  const [selectedItem, setSelectedItem] = useState<ClipboardItem | null>(null);
-  const [showActionSheet, setShowActionSheet] = useState(false);
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [sortField, setSortField] = useState<'timestamp' | 'lastAccessed'>('timestamp');
   const { message, showMessage, clearMessage } = useMessageStore();
   const { setError } = useErrorStore();
-  const actionSheetTranslateY = useRef(new Animated.Value(320)).current;
   const isDebugMode = config?.debugMode ?? false;
   const [showTransferQueue, setShowTransferQueue] = useState(false);
   const [importingFile, setImportingFile] = useState(false);
@@ -189,36 +189,6 @@ export function HistoryScreen() {
       return itemRef as React.RefObject<HistoryListItemHandle>;
     },
     [itemRefsMap]
-  );
-
-  const openActionSheet = useCallback(() => {
-    actionSheetTranslateY.setValue(320);
-    setShowActionSheet(true);
-    requestAnimationFrame(() => {
-      Animated.timing(actionSheetTranslateY, {
-        toValue: 0,
-        duration: 250,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }).start();
-    });
-  }, [actionSheetTranslateY]);
-
-  const closeActionSheet = useCallback(
-    (onClosed?: () => void) => {
-      Animated.timing(actionSheetTranslateY, {
-        toValue: 320,
-        duration: 220,
-        easing: Easing.in(Easing.cubic),
-        useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (finished) {
-          setShowActionSheet(false);
-          onClosed?.();
-        }
-      });
-    },
-    [actionSheetTranslateY]
   );
 
   // 搜索防抖（含初始加载）
@@ -348,15 +318,6 @@ export function HistoryScreen() {
   );
 
   // 复制项目
-  const handleCopyItem = useCallback(
-    async (item: ClipboardItem) => {
-      const result = await copyItemWithSync(item);
-      showMessage(result.message, result.success ? 'success' : 'error');
-      closeActionSheet();
-    },
-    [showMessage, copyItemWithSync, closeActionSheet]
-  );
-
   // 真正执行删除的函数 - 与存储交互
   const performDelete = useCallback(
     async (item: ClipboardItem) => {
@@ -370,21 +331,6 @@ export function HistoryScreen() {
       }
     },
     [deleteItem, showMessage]
-  );
-
-  // 菜单删除处理 - 触发 UI 动画，由 HistoryListItem 的 onDelete 执行真正删除
-  const handleDeleteFromMenu = useCallback(
-    (item: ClipboardItem) => {
-      // 关闭操作表单
-      closeActionSheet();
-
-      // 触发 item 的删除动画，动画完成后会自动调用 onDelete (performDelete)
-      const itemRef = itemRefsMap.get(item.profileHash);
-      if (itemRef?.current) {
-        itemRef.current.startDelete();
-      }
-    },
-    [itemRefsMap, closeActionSheet]
   );
 
   // 分享项目
@@ -465,66 +411,48 @@ export function HistoryScreen() {
     [toggleStar, showMessage]
   );
 
-  // 长按列表项 - 显示操作菜单
+  // 长按进入多选模式
   const handleItemLongPress = useCallback(
     (item: ClipboardItem) => {
-      setSelectedItem(item);
-
-      if (Platform.OS === 'ios') {
-        // 根据类型构建菜单选项
-        const options: string[] = ['取消'];
-        const actions: Array<() => void> = [];
-
-        // Text: 复制、删除
-        // Image: 分享、复制、删除
-        // File/Group: 分享、删除
-
-        if (
-          (item.type === 'Image' || item.type === 'File' || item.type === 'Group') &&
-          item.fileUri
-        ) {
-          options.push('打开');
-          actions.push(() => handleOpen(item));
-        }
-
-        if (item.type === 'Image' || item.type === 'File' || item.type === 'Group') {
-          options.push('分享');
-          actions.push(() => handleShare(item));
-        }
-
-        if (item.type === 'Image' || item.type === 'File' || item.type === 'Group') {
-          if (item.fileUri) {
-            options.push(item.type === 'Image' ? '保存到相册' : '储存到设备');
-            actions.push(() => handleSave(item));
-          }
-        }
-
-        if (item.type === 'Text') {
-          options.push('复制');
-          actions.push(() => handleCopyItem(item));
-        }
-
-        options.push('删除');
-        actions.push(() => handleDeleteFromMenu(item));
-
-        ActionSheetIOS.showActionSheetWithOptions(
-          {
-            options,
-            destructiveButtonIndex: options.length - 1, // 删除始终是最后一项
-            cancelButtonIndex: 0,
-          },
-          (buttonIndex) => {
-            if (buttonIndex > 0 && buttonIndex <= actions.length) {
-              actions[buttonIndex - 1]();
-            }
-          }
-        );
-      } else {
-        openActionSheet();
+      if (!isMultiSelectMode) {
+        setIsMultiSelectMode(true);
+        clearSelection();
       }
+      toggleSelection(item.profileHash);
     },
-    [handleCopyItem, handleOpen, handleShare, handleSave, handleDeleteFromMenu, openActionSheet]
+    [isMultiSelectMode, clearSelection, toggleSelection]
   );
+
+  // 多选模式下点击 item 切换选中
+  const handleMultiSelectPress = useCallback(
+    (item: ClipboardItem) => {
+      toggleSelection(item.profileHash);
+    },
+    [toggleSelection]
+  );
+
+  // 退出多选模式
+  const exitMultiSelectMode = useCallback(() => {
+    setIsMultiSelectMode(false);
+    clearSelection();
+  }, [clearSelection]);
+
+  // 批量删除
+  const handleBatchDelete = useCallback(() => {
+    const count = selectedIds.size;
+    if (count === 0) return;
+    Alert.alert('确认删除', `确定要删除选中的 ${count} 条记录吗？`, [
+      { text: '取消', style: 'cancel' },
+      {
+        text: '删除',
+        style: 'destructive',
+        onPress: async () => {
+          await deleteSelected();
+          setIsMultiSelectMode(false);
+        },
+      },
+    ]);
+  }, [selectedIds.size, deleteSelected]);
 
   // 清空所有历史记录
   const handleClearAll = useCallback(() => {
@@ -1004,6 +932,7 @@ export function HistoryScreen() {
           onSave={handleSave}
           onOpen={handleOpen}
           onLongPress={handleItemLongPress}
+          onPress={handleMultiSelectPress}
           onDelete={performDelete}
           onToggleStar={handleToggleStar}
           onDownload={historySyncEnabled ? handleDownload : undefined}
@@ -1011,6 +940,8 @@ export function HistoryScreen() {
           onWordPick={setWordPickerText}
           showFullImage={showFullImage}
           enableHistorySync={historySyncEnabled}
+          isMultiSelectMode={isMultiSelectMode}
+          isSelected={selectedIds.has(item.profileHash)}
         />
       );
     },
@@ -1020,12 +951,15 @@ export function HistoryScreen() {
       handleShare,
       handleOpen,
       handleItemLongPress,
+      handleMultiSelectPress,
       performDelete,
       handleToggleStar,
       handleDownload,
       handleUpload,
       showFullImage,
       historySyncEnabled,
+      isMultiSelectMode,
+      selectedIds,
     ]
   );
 
@@ -1255,132 +1189,61 @@ export function HistoryScreen() {
         onRefresh={historySyncEnabled ? () => handleIncrementalSync(true) : undefined}
       />
 
-      {/* Android 操作菜单 Modal */}
-      {Platform.OS === 'android' && (
-        <Modal
-          visible={showActionSheet}
-          transparent
-          animationType="none"
-          onRequestClose={() => closeActionSheet()}
+      {/* 多选操作栏 */}
+      {isMultiSelectMode && (
+        <View
+          style={[
+            styles.multiSelectBar,
+            { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.border },
+          ]}
         >
-          <Pressable
-            style={[styles.modalOverlay, { backgroundColor: theme.colors.backdrop }]}
-            onPress={() => closeActionSheet()}
+          <Text style={[styles.multiSelectCount, { color: theme.colors.text }]}>
+            已选 {selectedIds.size} 项
+          </Text>
+          <TouchableOpacity onPress={exitMultiSelectMode} style={styles.multiSelectButton}>
+            <Ionicons name="close" size={22} color={theme.colors.text} />
+            <Text style={[styles.multiSelectButtonText, { color: theme.colors.text }]}>取消</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => (selectedIds.size === items.length ? clearSelection() : selectAll())}
+            style={styles.multiSelectButton}
           >
-            <Animated.View
+            <Ionicons
+              name={selectedIds.size === items.length ? 'checkbox' : 'checkbox-outline'}
+              size={22}
+              color={theme.colors.primary}
+            />
+            <Text style={[styles.multiSelectButtonText, { color: theme.colors.primary }]}>
+              全选
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleBatchDelete}
+            style={styles.multiSelectButton}
+            disabled={selectedIds.size === 0}
+          >
+            <Ionicons
+              name="trash-outline"
+              size={22}
+              color={
+                selectedIds.size > 0 ? theme.colors.error || '#F44336' : theme.colors.textTertiary
+              }
+            />
+            <Text
               style={[
-                styles.actionSheet,
+                styles.multiSelectButtonText,
                 {
-                  backgroundColor: theme.colors.surface,
-                  transform: [{ translateY: actionSheetTranslateY }],
+                  color:
+                    selectedIds.size > 0
+                      ? theme.colors.error || '#F44336'
+                      : theme.colors.textTertiary,
                 },
               ]}
             >
-              {/* 打开按钮 - Image/File/Group 且有本地文件时显示 */}
-              {selectedItem &&
-                (selectedItem.type === 'Image' ||
-                  selectedItem.type === 'File' ||
-                  selectedItem.type === 'Group') &&
-                selectedItem.fileUri && (
-                  <>
-                    <TouchableOpacity
-                      style={styles.actionSheetButton}
-                      onPress={() => {
-                        closeActionSheet(() => selectedItem && handleOpen(selectedItem));
-                      }}
-                    >
-                      <Text style={[styles.actionSheetButtonText, { color: theme.colors.text }]}>
-                        打开
-                      </Text>
-                    </TouchableOpacity>
-                    <View
-                      style={[styles.actionSheetDivider, { backgroundColor: theme.colors.border }]}
-                    />
-                  </>
-                )}
-
-              {/* 储存按钮 - Image/File/Group 且有本地文件时显示 */}
-              {selectedItem &&
-                (selectedItem.type === 'Image' ||
-                  selectedItem.type === 'File' ||
-                  selectedItem.type === 'Group') &&
-                selectedItem.fileUri && (
-                  <>
-                    <TouchableOpacity
-                      style={styles.actionSheetButton}
-                      onPress={() => {
-                        closeActionSheet(() => selectedItem && handleSave(selectedItem));
-                      }}
-                    >
-                      <Text style={[styles.actionSheetButtonText, { color: theme.colors.text }]}>
-                        {selectedItem.type === 'Image' ? '保存到相册' : '储存到设备'}
-                      </Text>
-                    </TouchableOpacity>
-                    <View
-                      style={[styles.actionSheetDivider, { backgroundColor: theme.colors.border }]}
-                    />
-                  </>
-                )}
-
-              {/* 分享按钮 - Image/File/Group 类型显示 */}
-              {selectedItem &&
-                (selectedItem.type === 'Image' ||
-                  selectedItem.type === 'File' ||
-                  selectedItem.type === 'Group') && (
-                  <>
-                    <TouchableOpacity
-                      style={styles.actionSheetButton}
-                      onPress={() => selectedItem && handleShare(selectedItem)}
-                    >
-                      <Text style={[styles.actionSheetButtonText, { color: theme.colors.text }]}>
-                        分享
-                      </Text>
-                    </TouchableOpacity>
-                    <View
-                      style={[styles.actionSheetDivider, { backgroundColor: theme.colors.border }]}
-                    />
-                  </>
-                )}
-
-              {/* 复制按钮 - 仅 Text 类型显示 */}
-              {selectedItem && selectedItem.type === 'Text' && (
-                <>
-                  <TouchableOpacity
-                    style={styles.actionSheetButton}
-                    onPress={() => selectedItem && handleCopyItem(selectedItem)}
-                  >
-                    <Text style={[styles.actionSheetButtonText, { color: theme.colors.text }]}>
-                      复制
-                    </Text>
-                  </TouchableOpacity>
-                  <View
-                    style={[styles.actionSheetDivider, { backgroundColor: theme.colors.border }]}
-                  />
-                </>
-              )}
-
-              {/* 删除按钮 - 所有类型显示 */}
-              <TouchableOpacity
-                style={styles.actionSheetButton}
-                onPress={() => selectedItem && handleDeleteFromMenu(selectedItem)}
-              >
-                <Text
-                  style={[styles.actionSheetButtonText, { color: theme.colors.error || '#F44336' }]}
-                >
-                  删除
-                </Text>
-              </TouchableOpacity>
-              <View style={[styles.actionSheetDivider, { backgroundColor: theme.colors.border }]} />
-
-              {/* 取消按钮 */}
-              <TouchableOpacity style={styles.actionSheetButton} onPress={() => closeActionSheet()}>
-                <Text style={[styles.actionSheetButtonText, { color: theme.colors.textSecondary }]}>
-                  取消
-                </Text>
-              </TouchableOpacity>
-            </Animated.View>
-          </Pressable>
-        </Modal>
+              删除
+            </Text>
+          </TouchableOpacity>
+        </View>
       )}
 
       {/* 传输队列弹窗 */}
@@ -1532,27 +1395,30 @@ const styles = StyleSheet.create({
     fontSize: 15,
     textAlign: 'center',
   },
-  // Modal 样式
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  actionSheet: {
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    paddingBottom: 20,
-  },
-  actionSheetButton: {
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+  // 多选操作栏样式
+  multiSelectBar: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
-  actionSheetButtonText: {
-    fontSize: 16,
+  multiSelectButton: {
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  multiSelectButtonText: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  multiSelectCount: {
+    flex: 1,
+    fontSize: 14,
     fontWeight: '500',
-  },
-  actionSheetDivider: {
-    height: StyleSheet.hairlineWidth,
+    textAlign: 'left',
+    paddingLeft: 8,
   },
   importOverlay: {
     ...StyleSheet.absoluteFill,
