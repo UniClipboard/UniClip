@@ -22,7 +22,7 @@ import {
   Easing,
   ActivityIndicator,
 } from 'react-native';
-import { Check, ArrowUp, RefreshCw, List } from 'react-native-feather';
+import { Check, RefreshCw, List } from 'react-native-feather';
 import { FlashList, FlashListRef } from '@shopify/flash-list';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import * as DocumentPicker from 'expo-document-picker';
@@ -152,7 +152,18 @@ export function HistoryScreen() {
 
   const listRef = useRef<FlashListRef<ClipboardItem>>(null);
   const isScrolledRef = useRef(false);
-  const [showScrollToTop, setShowScrollToTop] = useState(false);
+
+  // 已在历史记录页面时，再次点击导航栏按钮回到顶部
+  useEffect(() => {
+    const unsubscribe = (
+      navigation as { addListener: (event: string, callback: () => void) => () => void }
+    ).addListener('tabPress', () => {
+      if (navigation.isFocused()) {
+        listRef.current?.scrollToOffset({ offset: 0, animated: true });
+      }
+    });
+    return unsubscribe;
+  }, [navigation]);
   const itemRefsMap = useRef<Map<string, React.RefObject<HistoryListItemHandle | null>>>(
     new Map()
   ).current;
@@ -294,18 +305,12 @@ export function HistoryScreen() {
   const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const offsetY = event.nativeEvent.contentOffset.y;
     isScrolledRef.current = offsetY > 10;
-    setShowScrollToTop(offsetY > 200);
   }, []);
 
   // 排序数据（排序已在 store 层面完成，这里直接返回）
   const sortedItems = useMemo(() => {
     return items;
   }, [items]);
-
-  // 回到顶部
-  const handleScrollToTop = useCallback(() => {
-    listRef.current?.scrollToOffset({ offset: 0, animated: true });
-  }, []);
 
   // ClipboardItem 转换为 ClipboardContent 后调用公共复制函数
   const copyItemWithSync = useCallback(async (item: ClipboardItem) => {
@@ -1146,15 +1151,6 @@ export function HistoryScreen() {
               <RefreshCw width={18} height={18} color={theme.colors.primary} />
             </Animated.View>
           )}
-          {showScrollToTop && (
-            <TouchableOpacity
-              style={[styles.scrollToTopButton, { backgroundColor: theme.colors.surface }]}
-              onPress={handleScrollToTop}
-              hitSlop={{ top: 10, right: 5, bottom: 10, left: 5 }}
-            >
-              <ArrowUp width={20} height={20} color={theme.colors.textSecondary} />
-            </TouchableOpacity>
-          )}
           {!isReorganizing && <TopRightMenu items={menuItems} />}
         </View>
       ),
@@ -1165,8 +1161,6 @@ export function HistoryScreen() {
     theme.colors.primary,
     theme.colors.textSecondary,
     menuItems,
-    showScrollToTop,
-    handleScrollToTop,
     isSyncing,
     syncRotationInterpolate,
     hasTasks,
@@ -1467,13 +1461,6 @@ const styles = StyleSheet.create({
   queueBadgeText: {
     fontSize: 10,
     fontWeight: '600',
-  },
-  scrollToTopButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   searchContainer: {
     flexDirection: 'row',
