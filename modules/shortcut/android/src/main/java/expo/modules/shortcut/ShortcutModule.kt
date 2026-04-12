@@ -1,5 +1,6 @@
 package expo.modules.shortcut
 
+import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.ShortcutInfo
 import android.content.pm.ShortcutManager
@@ -8,7 +9,6 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.drawable.Icon
-import android.net.Uri
 import android.os.Build
 import androidx.core.content.res.ResourcesCompat
 import expo.modules.kotlin.Promise
@@ -20,15 +20,17 @@ class ShortcutModule : Module() {
     companion object {
         private const val DOWNLOAD_SHORTCUT_ID = "shortcut_download"
         private const val DOWNLOAD_LABEL = "下载剪贴板"
-        private const val DOWNLOAD_URL = "syncclipboard://quick-download"
+        private const val DOWNLOAD_DIRECTION = "download"
         private const val DOWNLOAD_ICON_RES = "ic_tile_download"
         private const val DOWNLOAD_BG_COLOR = "#007AFF"
 
         private const val UPLOAD_SHORTCUT_ID = "shortcut_upload"
         private const val UPLOAD_LABEL = "上传剪贴板"
-        private const val UPLOAD_URL = "syncclipboard://quick-upload"
+        private const val UPLOAD_DIRECTION = "upload"
         private const val UPLOAD_ICON_RES = "ic_tile_upload"
         private const val UPLOAD_BG_COLOR = "#007AFF"
+
+        private const val QUICK_ACTION_ACTIVITY = "com.jericx.syncclipboardmobile.quickaction.QuickActionActivity"
 
     }
 
@@ -36,11 +38,11 @@ class ShortcutModule : Module() {
         Name("ShortcutModule")
 
         AsyncFunction("requestPinDownloadShortcut") { promise: Promise ->
-            requestPinShortcutInternal(DOWNLOAD_SHORTCUT_ID, DOWNLOAD_LABEL, DOWNLOAD_URL, DOWNLOAD_ICON_RES, DOWNLOAD_BG_COLOR, promise)
+            requestPinShortcutInternal(DOWNLOAD_SHORTCUT_ID, DOWNLOAD_LABEL, DOWNLOAD_DIRECTION, DOWNLOAD_ICON_RES, DOWNLOAD_BG_COLOR, promise)
         }
 
         AsyncFunction("requestPinUploadShortcut") { promise: Promise ->
-            requestPinShortcutInternal(UPLOAD_SHORTCUT_ID, UPLOAD_LABEL, UPLOAD_URL, UPLOAD_ICON_RES, UPLOAD_BG_COLOR, promise)
+            requestPinShortcutInternal(UPLOAD_SHORTCUT_ID, UPLOAD_LABEL, UPLOAD_DIRECTION, UPLOAD_ICON_RES, UPLOAD_BG_COLOR, promise)
         }
 
         Function("setDynamicShortcuts") {
@@ -49,8 +51,8 @@ class ShortcutModule : Module() {
                 val shortcutManager = reactContext.getSystemService(ShortcutManager::class.java)
                     ?: return@Function false
 
-                val downloadShortcut = createShortcutInfo(reactContext, DOWNLOAD_SHORTCUT_ID, DOWNLOAD_LABEL, DOWNLOAD_URL, DOWNLOAD_ICON_RES, DOWNLOAD_BG_COLOR)
-                val uploadShortcut = createShortcutInfo(reactContext, UPLOAD_SHORTCUT_ID, UPLOAD_LABEL, UPLOAD_URL, UPLOAD_ICON_RES, UPLOAD_BG_COLOR)
+                val downloadShortcut = createShortcutInfo(reactContext, DOWNLOAD_SHORTCUT_ID, DOWNLOAD_LABEL, DOWNLOAD_DIRECTION, DOWNLOAD_ICON_RES, DOWNLOAD_BG_COLOR)
+                val uploadShortcut = createShortcutInfo(reactContext, UPLOAD_SHORTCUT_ID, UPLOAD_LABEL, UPLOAD_DIRECTION, UPLOAD_ICON_RES, UPLOAD_BG_COLOR)
 
                 shortcutManager.dynamicShortcuts = listOf(uploadShortcut, downloadShortcut)
                 true
@@ -63,7 +65,7 @@ class ShortcutModule : Module() {
     private fun requestPinShortcutInternal(
         shortcutId: String,
         label: String,
-        url: String,
+        direction: String,
         iconResName: String,
         bgColorHex: String,
         promise: Promise
@@ -85,7 +87,7 @@ class ShortcutModule : Module() {
                 return
             }
 
-            val shortcutInfo = createShortcutInfo(reactContext, shortcutId, label, url, iconResName, bgColorHex)
+            val shortcutInfo = createShortcutInfo(reactContext, shortcutId, label, direction, iconResName, bgColorHex)
             shortcutManager.requestPinShortcut(shortcutInfo, null)
             promise.resolve(true)
         } catch (e: Exception) {
@@ -97,12 +99,13 @@ class ShortcutModule : Module() {
         reactContext: android.content.Context,
         shortcutId: String,
         label: String,
-        url: String,
+        direction: String,
         iconResName: String,
         bgColorHex: String
     ): ShortcutInfo {
-        val launchIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-            setPackage(reactContext.packageName)
+        val launchIntent = Intent(Intent.ACTION_MAIN).apply {
+            component = ComponentName(reactContext, QUICK_ACTION_ACTIVITY)
+            putExtra("direction", direction)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
             addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)

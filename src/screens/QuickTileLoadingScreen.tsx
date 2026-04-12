@@ -13,11 +13,13 @@ import * as Clipboard from 'expo-clipboard';
 interface QuickTileLoadingScreenProps {
   direction: SyncDirection;
   onLoadingComplete: () => void;
+  overlayMode?: boolean;
 }
 
 export const QuickTileLoadingScreen: React.FC<QuickTileLoadingScreenProps> = ({
   direction,
   onLoadingComplete,
+  overlayMode,
 }) => {
   const isUpload = direction === SyncDirection.Upload;
 
@@ -160,6 +162,7 @@ export const QuickTileLoadingScreen: React.FC<QuickTileLoadingScreenProps> = ({
       successButtons={successButtons}
       progress={progress}
       previewText={previewText}
+      overlayMode={overlayMode}
     />
   );
 };

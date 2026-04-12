@@ -179,6 +179,7 @@ export default function App() {
                   moveTaskToBack();
                 }
               }}
+              overlayMode
             />
           </View>
         )}

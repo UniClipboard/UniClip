@@ -312,6 +312,21 @@ export class SyncManager {
 
         return result;
       } catch (error) {
+        // 用户取消操作不视为失败
+        if (error instanceof Error && error.name === 'AbortError') {
+          const result: SyncResult = {
+            success: false,
+            direction,
+            error: error.message,
+            duration: Date.now() - startTime,
+            skipped: true,
+          };
+
+          this.setStatus(SyncStatus.Idle);
+
+          return result;
+        }
+
         // 提取详细错误信息，包含HTTP状态码
         let errorMessage = 'Unknown error';
         if (error instanceof Error) {

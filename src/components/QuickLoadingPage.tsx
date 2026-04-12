@@ -4,7 +4,7 @@
  * 纯 UI + 状态机，不含任何业务逻辑。
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -12,6 +12,7 @@ import {
   Text,
   Image,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   BackHandler,
   ScrollView,
 } from 'react-native';
@@ -40,6 +41,8 @@ export interface QuickLoadingPageProps {
   progress?: ProgressInfo | null;
   previewText?: string;
   previewImage?: string;
+  /** When true, renders as a floating card over a semi-transparent backdrop (for transparent Activity). */
+  overlayMode?: boolean;
 }
 
 export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
@@ -53,6 +56,7 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
   progress,
   previewText,
   previewImage,
+  overlayMode,
 }) => {
   const { theme } = useTheme();
   const [state, setState] = useState<LoadingState>('loading');
@@ -131,141 +135,113 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
     return () => sub.remove();
   }, [state, successContent, successButtons, onComplete, handleCancel]);
 
-  return (
-    <View style={[styles.container, { backgroundColor: theme.colors.surface }]}>
-      <View style={styles.content}>
-        {state === 'loading' && (
-          <>
-            <ActivityIndicator size="large" color={theme.colors.primary} />
-            <Text style={[styles.statusText, { color: theme.colors.text }]}>{loadingText}</Text>
-            {previewImage && (
-              <Image source={{ uri: previewImage }} style={styles.loadingPreviewImage} />
-            )}
-            {previewText && (
-              <Text style={[styles.loadingPreviewText, { color: theme.colors.textSecondary }]}>
-                {previewText}
-              </Text>
-            )}
-            {progress && progress.totalBytes > 0 && (
-              <View style={styles.progressContainer}>
-                <View style={[styles.progressBar, { backgroundColor: theme.colors.border }]}>
-                  <View
-                    style={[
-                      styles.progressFill,
-                      {
-                        backgroundColor: theme.colors.primary,
-                        width: `${progress.progress * 100}%`,
-                      },
-                    ]}
-                  />
-                </View>
-                <Text style={[styles.progressText, { color: theme.colors.textSecondary }]}>
-                  {(progress.progress * 100).toFixed(0)}%{' '}
-                  {formatFileSize(progress.bytesTransferred)} /{' '}
-                  {formatFileSize(progress.totalBytes)}
-                </Text>
-              </View>
-            )}
-            <TouchableOpacity
-              style={[
-                styles.button,
-                styles.buttonOutline,
-                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-              ]}
-              onPress={handleCancel}
-            >
-              <Text style={[styles.buttonText, { color: theme.colors.text }]}>取消</Text>
-            </TouchableOpacity>
-          </>
-        )}
+  const containerBg = overlayMode
+    ? { backgroundColor: 'rgba(0, 0, 0, 0.4)' }
+    : { backgroundColor: theme.colors.surface };
 
-        {state === 'success' && (
-          <>
-            {successContent && <ContentPreview content={successContent} />}
-            <Text style={[styles.successIcon, { color: theme.colors.success }]}>✓</Text>
-            <Text style={[styles.statusText, { color: theme.colors.text }]}>{successText}</Text>
-            {(successContent !== undefined || (successButtons && successButtons.length > 0)) && (
-              <View style={styles.successButtonRow}>
-                {successButtons?.map((btn, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.button,
-                      styles.successButton,
-                      btn.primary
-                        ? { backgroundColor: theme.colors.primary }
-                        : [
-                            styles.buttonOutline,
-                            {
-                              backgroundColor: theme.colors.surface,
-                              borderColor: theme.colors.border,
-                            },
-                          ],
-                    ]}
-                    onPress={btn.onPress}
-                  >
-                    <Text
-                      style={[
-                        styles.buttonText,
-                        { color: btn.primary ? theme.colors.white : theme.colors.text },
-                      ]}
-                    >
-                      {btn.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+  const progressFillDynamic = useMemo(
+    () => ({
+      backgroundColor: theme.colors.primary,
+      width:
+        (progress?.totalBytes ?? 0) > 0
+          ? (`${(progress?.progress ?? 0) * 100}%` as const)
+          : ('100%' as const),
+    }),
+    [theme.colors.primary, progress?.totalBytes, progress?.progress]
+  );
+
+  const contentView = (
+    <View
+      style={[
+        styles.content,
+        overlayMode && [
+          styles.overlayCard,
+          { backgroundColor: theme.colors.surface, shadowColor: theme.colors.text },
+        ],
+      ]}
+    >
+      {state === 'loading' && (
+        <>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={[styles.statusText, { color: theme.colors.text }]}>{loadingText}</Text>
+          {previewImage && (
+            <Image source={{ uri: previewImage }} style={styles.loadingPreviewImage} />
+          )}
+          {previewText && (
+            <Text style={[styles.loadingPreviewText, { color: theme.colors.textSecondary }]}>
+              {previewText}
+            </Text>
+          )}
+          {progress && (progress.totalBytes > 0 || progress.bytesTransferred > 0) && (
+            <View style={styles.progressContainer}>
+              <View style={[styles.progressBar, { backgroundColor: theme.colors.border }]}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    progressFillDynamic,
+                    progress.totalBytes <= 0 && styles.progressFillIndeterminate,
+                  ]}
+                />
+              </View>
+              <Text style={[styles.progressText, { color: theme.colors.textSecondary }]}>
+                {progress.totalBytes > 0
+                  ? `${(progress.progress * 100).toFixed(0)}% ${formatFileSize(progress.bytesTransferred)} / ${formatFileSize(progress.totalBytes)}`
+                  : formatFileSize(progress.bytesTransferred)}
+              </Text>
+            </View>
+          )}
+          <TouchableOpacity
+            style={[
+              styles.button,
+              styles.buttonOutline,
+              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+            ]}
+            onPress={handleCancel}
+          >
+            <Text style={[styles.buttonText, { color: theme.colors.text }]}>取消</Text>
+          </TouchableOpacity>
+        </>
+      )}
+
+      {state === 'success' && (
+        <>
+          {successContent && <ContentPreview content={successContent} />}
+          <Text style={[styles.successIcon, { color: theme.colors.success }]}>✓</Text>
+          <Text style={[styles.statusText, { color: theme.colors.text }]}>{successText}</Text>
+          {(successContent !== undefined || (successButtons && successButtons.length > 0)) && (
+            <View style={styles.successButtonRow}>
+              {successButtons?.map((btn, index) => (
                 <TouchableOpacity
+                  key={index}
                   style={[
                     styles.button,
                     styles.successButton,
-                    styles.buttonOutline,
-                    { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+                    btn.primary
+                      ? { backgroundColor: theme.colors.primary }
+                      : [
+                          styles.buttonOutline,
+                          {
+                            backgroundColor: theme.colors.surface,
+                            borderColor: theme.colors.border,
+                          },
+                        ],
                   ]}
-                  onPress={onComplete}
+                  onPress={btn.onPress}
                 >
-                  <Text style={[styles.buttonText, { color: theme.colors.text }]}>返回</Text>
+                  <Text
+                    style={[
+                      styles.buttonText,
+                      { color: btn.primary ? theme.colors.white : theme.colors.text },
+                    ]}
+                  >
+                    {btn.label}
+                  </Text>
                 </TouchableOpacity>
-              </View>
-            )}
-          </>
-        )}
-
-        {state === 'error' && (
-          <>
-            <Text style={[styles.errorIcon, { color: theme.colors.error }]}>✗</Text>
-            <Text style={[styles.statusText, { color: theme.colors.text }]}>{failureText}</Text>
-            {errorMessage && (
-              <ScrollView
-                style={[styles.errorDetailScroll, { borderColor: theme.colors.border }]}
-                contentContainerStyle={styles.errorDetailScrollContent}
-              >
-                <Text style={[styles.errorDetailText, { color: theme.colors.textTertiary }]}>
-                  {errorMessage}
-                </Text>
-              </ScrollView>
-            )}
-            <View style={styles.buttonRow}>
-              <TouchableOpacity
-                style={[styles.button, { backgroundColor: theme.colors.primary }]}
-                onPress={run}
-              >
-                <Text style={[styles.buttonText, { color: theme.colors.white }]}>重试</Text>
-              </TouchableOpacity>
-              {errorMessage && (
-                <TouchableOpacity
-                  style={[
-                    styles.button,
-                    styles.buttonOutline,
-                    { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-                  ]}
-                  onPress={() => Clipboard.setStringAsync(errorMessage)}
-                >
-                  <Text style={[styles.buttonText, { color: theme.colors.text }]}>复制</Text>
-                </TouchableOpacity>
-              )}
+              ))}
               <TouchableOpacity
                 style={[
                   styles.button,
+                  styles.successButton,
                   styles.buttonOutline,
                   { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
                 ]}
@@ -274,9 +250,72 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
                 <Text style={[styles.buttonText, { color: theme.colors.text }]}>返回</Text>
               </TouchableOpacity>
             </View>
-          </>
-        )}
-      </View>
+          )}
+        </>
+      )}
+
+      {state === 'error' && (
+        <>
+          <Text style={[styles.errorIcon, { color: theme.colors.error }]}>✗</Text>
+          <Text style={[styles.statusText, { color: theme.colors.text }]}>{failureText}</Text>
+          {errorMessage && (
+            <ScrollView
+              style={[styles.errorDetailScroll, { borderColor: theme.colors.border }]}
+              contentContainerStyle={styles.errorDetailScrollContent}
+            >
+              <Text style={[styles.errorDetailText, { color: theme.colors.textTertiary }]}>
+                {errorMessage}
+              </Text>
+            </ScrollView>
+          )}
+          <View style={styles.buttonRow}>
+            <TouchableOpacity
+              style={[styles.button, { backgroundColor: theme.colors.primary }]}
+              onPress={run}
+            >
+              <Text style={[styles.buttonText, { color: theme.colors.white }]}>重试</Text>
+            </TouchableOpacity>
+            {errorMessage && (
+              <TouchableOpacity
+                style={[
+                  styles.button,
+                  styles.buttonOutline,
+                  { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+                ]}
+                onPress={() => Clipboard.setStringAsync(errorMessage)}
+              >
+                <Text style={[styles.buttonText, { color: theme.colors.text }]}>复制</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={[
+                styles.button,
+                styles.buttonOutline,
+                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+              ]}
+              onPress={onComplete}
+            >
+              <Text style={[styles.buttonText, { color: theme.colors.text }]}>返回</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
+    </View>
+  );
+
+  return (
+    <View style={[styles.container, containerBg]}>
+      {overlayMode ? (
+        <TouchableWithoutFeedback
+          onPress={() => {
+            if (state !== 'loading') onComplete();
+          }}
+        >
+          <View style={styles.overlayBackdrop}>{contentView}</View>
+        </TouchableWithoutFeedback>
+      ) : (
+        contentView
+      )}
     </View>
   );
 };
@@ -426,6 +465,9 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 4,
   },
+  progressFillIndeterminate: {
+    opacity: 0.3,
+  },
   progressText: {
     fontSize: 13,
   },
@@ -464,5 +506,21 @@ const styles = StyleSheet.create({
   },
   previewFileMeta: {
     fontSize: 12,
+  },
+  overlayBackdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  overlayCard: {
+    borderRadius: 16,
+    paddingVertical: 28,
+    paddingHorizontal: 24,
+    elevation: 8,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    width: 300,
+    alignSelf: 'center',
   },
 });

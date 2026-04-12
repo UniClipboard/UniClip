@@ -140,6 +140,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
                 lastResult: event.result,
                 stats: manager.getStats(),
                 offlineQueueSize: manager.getOfflineQueueSize(),
+                error: null,
               });
             }
             break;

@@ -151,6 +151,17 @@ export async function nativeUploadFile(
 
   try {
     await NativeUtilModule.waitForJob(jobId);
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      ((error as { code?: string }).code === 'CANCELLED' ||
+        error.message === 'Operation was cancelled')
+    ) {
+      const abortError = new Error('Operation was aborted');
+      abortError.name = 'AbortError';
+      throw abortError;
+    }
+    throw error;
   } finally {
     signal?.removeEventListener('abort', abortHandler);
     progressSub?.remove();
@@ -193,6 +204,17 @@ export async function nativeZipFiles(
 
   try {
     await NativeUtilModule.waitForJob(jobId);
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      ((error as { code?: string }).code === 'CANCELLED' ||
+        error.message === 'Operation was cancelled')
+    ) {
+      const abortError = new Error('Operation was aborted');
+      abortError.name = 'AbortError';
+      throw abortError;
+    }
+    throw error;
   } finally {
     signal?.removeEventListener('abort', abortHandler);
     progressSub?.remove();
@@ -237,6 +259,17 @@ export async function nativeUploadMultipart(
 
   try {
     await NativeUtilModule.waitForJob(jobId);
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      ((error as { code?: string }).code === 'CANCELLED' ||
+        error.message === 'Operation was cancelled')
+    ) {
+      const abortError = new Error('Operation was aborted');
+      abortError.name = 'AbortError';
+      throw abortError;
+    }
+    throw error;
   } finally {
     signal?.removeEventListener('abort', abortHandler);
     progressSub?.remove();
@@ -283,6 +316,17 @@ export async function nativeDownloadFile(
 
   try {
     await NativeUtilModule.waitForJob(jobId);
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      ((error as { code?: string }).code === 'CANCELLED' ||
+        error.message === 'Operation was cancelled')
+    ) {
+      const abortError = new Error('Operation was aborted');
+      abortError.name = 'AbortError';
+      throw abortError;
+    }
+    throw error;
   } finally {
     signal?.removeEventListener('abort', abortHandler);
     progressSub?.remove();
