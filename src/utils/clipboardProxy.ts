@@ -2,24 +2,63 @@
  * Clipboard Proxy
  * 剪贴板代理 - 在 Android 后台时通过悬浮窗获取剪贴板，其他情况直接调用 expo-clipboard
  *
- * 当启用后台同步+悬浮窗模式时，悬浮窗常驻显示（不可见的 1px 窗口），
+ * 当启用后台同步+悬浮窗模式时，悬浮窗按需显示（不可见的 1px 窗口），
  * 每次读取剪贴板时只是 focus 到悬浮窗读取后 unfocus，而非反复创建/销毁。
+ * 若持续 10 秒无后台剪贴板调用，自动关闭悬浮窗以节省资源，下次需要时再打开。
  */
 
 import * as Clipboard from 'expo-clipboard';
 import { AppState, Platform } from 'react-native';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { setTimer, clearTimer } from 'native-timer';
+
+/** 悬浮窗空闲超时时间（毫秒） */
+const OVERLAY_IDLE_TIMEOUT_MS = 10_000;
+/** 空闲计时器的固定 tag */
+const IDLE_TIMER_TAG = 'clipboard_overlay_idle';
 
 let overlayModule: typeof import('clipboard-overlay') | null = null;
+
+/**
+ * 重置空闲计时器：每次悬浮窗被使用时调用，
+ * 10 秒内无新调用则自动关闭悬浮窗。
+ * 使用 native-timer 以确保后台可靠运行。
+ */
+function resetIdleTimer(): void {
+  // 先清除已有的计时器，再重新启动
+  clearTimer(IDLE_TIMER_TAG);
+  setTimer(
+    () => {
+      // 触发一次后立即清除自身（模拟 setTimeout）
+      clearTimer(IDLE_TIMER_TAG);
+      if (overlayModule?.isOverlayShowing()) {
+        overlayModule.hideOverlayWindow().catch((e) => {
+          console.warn('[ClipboardProxy] Failed to hide overlay on idle timeout:', e);
+        });
+      }
+    },
+    OVERLAY_IDLE_TIMEOUT_MS,
+    IDLE_TIMER_TAG
+  );
+}
+
+/** 清除空闲计时器（应用回前台或手动关闭时） */
+function clearIdleTimer(): void {
+  clearTimer(IDLE_TIMER_TAG);
+}
+
 if (Platform.OS === 'android') {
   overlayModule = require('clipboard-overlay');
 
-  // 当应用回到前台时，自动销毁常驻悬浮窗
+  // 当应用回到前台时，自动销毁常驻悬浮窗并清除空闲计时器
   AppState.addEventListener('change', (nextAppState) => {
-    if (nextAppState === 'active' && overlayModule?.isOverlayShowing()) {
-      overlayModule.hideOverlayWindow().catch((e) => {
-        console.warn('[ClipboardProxy] Failed to dismiss overlay on foreground:', e);
-      });
+    if (nextAppState === 'active') {
+      clearIdleTimer();
+      if (overlayModule?.isOverlayShowing()) {
+        overlayModule.hideOverlayWindow().catch((e) => {
+          console.warn('[ClipboardProxy] Failed to dismiss overlay on foreground:', e);
+        });
+      }
     }
   });
 }
@@ -70,6 +109,8 @@ async function shouldUseOverlay(): Promise<boolean> {
   if (!overlayModule.hasOverlayPermission()) return false;
   // Ensure persistent overlay is showing before reading clipboard
   await ensureOverlayShowing();
+  // Reset idle timer: 10 seconds without calls will auto-hide overlay
+  resetIdleTimer();
   return true;
 }
 
