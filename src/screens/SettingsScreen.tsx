@@ -373,30 +373,6 @@ export const SettingsScreen = () => {
           {
             text: '确认开启',
             onPress: async () => {
-              // Android 13+ 需要通知权限（后台任务依赖前台服务通知）
-              if (Platform.OS === 'android') {
-                const { PermissionsAndroid } = require('react-native');
-                const granted = await PermissionsAndroid.check(
-                  PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
-                );
-                if (!granted) {
-                  const result = await PermissionsAndroid.request(
-                    PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
-                  );
-                  if (result !== PermissionsAndroid.RESULTS.GRANTED) {
-                    Alert.alert(
-                      '需要通知权限',
-                      '后台任务需要通知权限才能正常运行，请在系统设置中允许',
-                      [
-                        { text: '取消', style: 'cancel' },
-                        { text: '前往设置', onPress: () => Linking.openSettings() },
-                      ]
-                    );
-                    return;
-                  }
-                }
-              }
-
               setLocalBackgroundTasksEnabled(true);
               try {
                 await setEnableBackgroundTasks(true);
@@ -578,6 +554,23 @@ export const SettingsScreen = () => {
     setLocalForegroundNotification(true);
     try {
       await updateConfig({ enableForegroundNotification: true });
+      // 检查通知权限，提示但不阻止
+      if (Platform.OS === 'android') {
+        const { PermissionsAndroid } = require('react-native');
+        const granted = await PermissionsAndroid.check(
+          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+        );
+        if (!granted) {
+          Alert.alert(
+            '缺少通知权限',
+            '未授予通知权限，常驻通知可能无法显示。建议前往系统设置允许通知权限。',
+            [
+              { text: '稍后再说', style: 'cancel' },
+              { text: '前往设置', onPress: () => Linking.openSettings() },
+            ]
+          );
+        }
+      }
     } catch (error: unknown) {
       setLocalForegroundNotification(false);
       showMessage(error instanceof Error ? error.message : '设置失败', 'error');
@@ -1222,6 +1215,18 @@ export const SettingsScreen = () => {
                   >
                     后台服务常驻通知
                   </Text>
+                  <Text
+                    style={[
+                      styles.settingDescription,
+                      {
+                        color: localBackgroundTasksEnabled
+                          ? theme.colors.textSecondary
+                          : theme.colors.textTertiary,
+                      },
+                    ]}
+                  >
+                    启用后会增加后台服务的稳定性
+                  </Text>
                 </View>
                 <Switch
                   value={localBackgroundTasksEnabled && localForegroundNotification}
@@ -1374,9 +1379,6 @@ export const SettingsScreen = () => {
               <View style={[styles.settingRow, { borderBottomColor: theme.colors.divider }]}>
                 <View style={styles.settingInfo}>
                   <Text style={[styles.settingLabel, { color: theme.colors.text }]}>通知权限</Text>
-                  <Text style={[styles.settingDescription, { color: theme.colors.textTertiary }]}>
-                    后台任务的前台服务通知所需
-                  </Text>
                 </View>
                 <Switch
                   value={permNotification}
