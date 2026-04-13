@@ -136,7 +136,7 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
   }, [state, successContent, successButtons, onComplete, handleCancel]);
 
   const containerBg = overlayMode
-    ? { backgroundColor: 'rgba(0, 0, 0, 0.4)' }
+    ? { backgroundColor: 'transparent' }
     : { backgroundColor: theme.colors.surface };
 
   const progressFillDynamic = useMemo(
