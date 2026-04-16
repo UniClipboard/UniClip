@@ -12,6 +12,7 @@ import { initLogger } from './src/services/Logger';
 import { useTheme } from './src/hooks/useTheme';
 import { setDynamicShortcuts } from 'shortcut';
 import { moveTaskToBack } from 'native-util';
+import { getBackgroundServiceManager } from './src/services/BackgroundServiceManager';
 
 const QUICK_UPLOAD_URL = 'syncclipboard://quick-upload';
 const QUICK_DOWNLOAD_URL = 'syncclipboard://quick-download';
@@ -74,30 +75,13 @@ export default function App() {
     }
   }, [isLoaded, loadConfig]);
 
-  // 确保前台服务在冷启动时也能启动（快速操作不经过 HomeScreen）
+  // 启动所有后台服务（冷启动时保证后台任务正常运行，后续由 BackgroundServiceManager 维护）
   useEffect(() => {
     if (!isLoaded || Platform.OS !== 'android') return;
-
-    const shouldRun =
-      config?.enableBackgroundTasks &&
-      config?.enableForegroundNotification &&
-      (config?.enableBackgroundDownload ||
-        config?.enableBackgroundUpload ||
-        config?.enableSmsForwarding);
-
-    if (shouldRun) {
-      import('foreground-service').then((ForegroundService) => {
-        ForegroundService.startService();
-      });
-    }
-  }, [
-    isLoaded,
-    config?.enableBackgroundTasks,
-    config?.enableForegroundNotification,
-    config?.enableBackgroundDownload,
-    config?.enableBackgroundUpload,
-    config?.enableSmsForwarding,
-  ]);
+    getBackgroundServiceManager()
+      .start()
+      .catch(() => {});
+  }, [isLoaded]);
 
   useEffect(() => {
     if (!isLoaded) return;

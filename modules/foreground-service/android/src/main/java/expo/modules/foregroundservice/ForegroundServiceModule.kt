@@ -18,6 +18,10 @@ class ForegroundServiceModule : Module() {
         fun sendTempStopEvent() {
             moduleInstance?.sendEvent("onTempStopRequested", emptyMap<String, Any>())
         }
+
+        fun isJsRuntimeAlive(): Boolean {
+            return moduleInstance != null
+        }
     }
 
     override fun definition() = ModuleDefinition {

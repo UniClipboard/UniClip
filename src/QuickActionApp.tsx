@@ -13,6 +13,7 @@ import { QuickTileLoadingScreen } from './screens/QuickTileLoadingScreen';
 import { SyncDirection } from './types/sync';
 import { useSettingsStore } from './stores';
 import { initLogger } from './services/Logger';
+import { getBackgroundServiceManager } from './services/BackgroundServiceManager';
 
 interface QuickActionAppProps {
   direction?: string;
@@ -24,7 +25,7 @@ export default function QuickActionApp({
   systemTheme,
 }: QuickActionAppProps) {
   const syncDirection = direction === 'upload' ? SyncDirection.Upload : SyncDirection.Download;
-  const { config, loadConfig, isLoaded } = useSettingsStore();
+  const { loadConfig, isLoaded } = useSettingsStore();
 
   useEffect(() => {
     initLogger();
@@ -36,30 +37,13 @@ export default function QuickActionApp({
     }
   }, [isLoaded, loadConfig]);
 
-  // Start foreground service if configured (cold start case)
+  // 启动所有后台服务（冷启动 / 快速操作时保证后台任务正常运行）
   useEffect(() => {
     if (!isLoaded || Platform.OS !== 'android') return;
-
-    const shouldRun =
-      config?.enableBackgroundTasks &&
-      config?.enableForegroundNotification &&
-      (config?.enableBackgroundDownload ||
-        config?.enableBackgroundUpload ||
-        config?.enableSmsForwarding);
-
-    if (shouldRun) {
-      import('foreground-service').then((ForegroundService) => {
-        ForegroundService.startService();
-      });
-    }
-  }, [
-    isLoaded,
-    config?.enableBackgroundTasks,
-    config?.enableForegroundNotification,
-    config?.enableBackgroundDownload,
-    config?.enableBackgroundUpload,
-    config?.enableSmsForwarding,
-  ]);
+    getBackgroundServiceManager()
+      .start()
+      .catch(() => {});
+  }, [isLoaded]);
 
   const handleComplete = useCallback(() => {
     BackHandler.exitApp();

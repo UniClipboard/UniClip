@@ -530,6 +530,11 @@ export const SettingsScreen = () => {
     setLocalSmsForwardingEnabled(enabled);
     try {
       await setEnableSmsForwarding(enabled);
+      // 同步静态短信接收器状态
+      if (Platform.OS === 'android') {
+        const { setStaticReceiverEnabled } = await import('sms-forwarder');
+        setStaticReceiverEnabled(enabled);
+      }
       showMessage(enabled ? '已启用自动上传短信验证码' : '已禁用自动上传短信验证码', 'success');
     } catch (error: unknown) {
       setLocalSmsForwardingEnabled(!enabled);

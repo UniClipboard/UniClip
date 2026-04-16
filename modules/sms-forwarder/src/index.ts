@@ -8,6 +8,8 @@ interface SmsForwarderModuleType {
   stopListening(): void;
   isListening(): boolean;
   readRecentSms(count: number): SmsMessage[];
+  setStaticReceiverEnabled(enabled: boolean): boolean;
+  isStaticReceiverEnabled(): boolean;
   addListener(eventName: string, listener: (event: SmsReceivedEvent) => void): EventSubscription;
 }
 
@@ -57,4 +59,18 @@ export function readRecentSms(count: number): SmsMessage[] {
     return NativeModule.readRecentSms(count);
   }
   return [];
+}
+
+export function setStaticReceiverEnabled(enabled: boolean): boolean {
+  if (NativeModule) {
+    return NativeModule.setStaticReceiverEnabled(enabled);
+  }
+  return false;
+}
+
+export function isStaticReceiverEnabled(): boolean {
+  if (NativeModule) {
+    return NativeModule.isStaticReceiverEnabled();
+  }
+  return false;
 }

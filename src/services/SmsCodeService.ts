@@ -38,8 +38,10 @@ class SmsCodeService {
     if (Platform.OS !== 'android') return;
     if (this.enabled) return;
 
-    const { startListening, addSmsListener } = await import('sms-forwarder');
+    const { startListening, addSmsListener, setStaticReceiverEnabled } =
+      await import('sms-forwarder');
 
+    setStaticReceiverEnabled(true);
     startListening();
     this.subscription = addSmsListener((event) => {
       this.handleSmsReceived(event.from, event.body);
@@ -48,8 +50,13 @@ class SmsCodeService {
     console.log('[SmsCodeService] Enabled - listening for SMS');
   }
 
-  disable(): void {
+  async disable(): Promise<void> {
     if (!this.enabled) return;
+
+    if (Platform.OS === 'android') {
+      const { setStaticReceiverEnabled } = await import('sms-forwarder');
+      setStaticReceiverEnabled(false);
+    }
 
     this.subscription?.remove();
     this.subscription = null;

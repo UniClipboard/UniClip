@@ -75,6 +75,7 @@ export function HomeScreen() {
   const lastLocalProfileHash = useRef<string | null>(null);
   const isAutoSyncing = useRef(false);
   const signalRConnected = useRef(false);
+  const signalRProfileCallback = useRef<((event: ProfileChangedEvent) => void) | null>(null);
   const downloadAbortControllerRef = useRef<AbortController | null>(null);
   const clipboardUploadAbortControllerRef = useRef<AbortController | null>(null);
 
@@ -523,6 +524,7 @@ export function HomeScreen() {
         );
       };
 
+      signalRProfileCallback.current = handleProfileChanged;
       client.onRemoteClipboardChanged(handleProfileChanged);
 
       // 连接
@@ -542,9 +544,17 @@ export function HomeScreen() {
     if (signalRConnected.current) {
       console.log('[HomeScreen] Disconnecting SignalR...');
       const client = getSignalRClient();
-      client.clearCallbacks();
-      await client.disconnect();
+      // 仅注销 HomeScreen 自身的回调，不影响 BackgroundServiceManager 的回调
+      if (signalRProfileCallback.current) {
+        client.offRemoteClipboardChanged(signalRProfileCallback.current);
+        signalRProfileCallback.current = null;
+      }
       signalRConnected.current = false;
+      // 只有 BackgroundServiceManager 未维护 SignalR 连接时才断开
+      const { getBackgroundServiceManager } = await import('@/services/BackgroundServiceManager');
+      if (!getBackgroundServiceManager().isSignalRRunning()) {
+        await client.disconnect();
+      }
     }
   };
 
@@ -823,90 +833,15 @@ export function HomeScreen() {
     };
   }, [activeServer, config, initializeSync, destroySync]);
 
-  // 管理短信验证码服务生命周期
-  useEffect(() => {
-    const smsEnabled = config?.enableBackgroundTasks && config?.enableSmsForwarding;
-    const manageSmsService = async () => {
-      const { getSmsCodeService } = await import('@/services/SmsCodeService');
-      const smsService = getSmsCodeService();
-      if (smsEnabled) {
-        await smsService.enable();
-      } else {
-        smsService.disable();
-      }
-    };
-    manageSmsService();
-
-    return () => {
-      import('@/services/SmsCodeService').then(({ getSmsCodeService }) => {
-        getSmsCodeService().disable();
-      });
-    };
-  }, [config?.enableBackgroundTasks, config?.enableSmsForwarding]);
-
-  // 管理前台服务（常驻通知）生命周期
+  // 管理后台服务生命周期（委托给 BackgroundServiceManager）
+  // 包括前台服务、SMS 服务、剪贴板监控、后台上传/下载轮询、心跳统计、通知栏停止监听
   useEffect(() => {
     if (Platform.OS !== 'android') return;
-
-    const shouldRun =
-      !isTempDisabledBackgroundTasks &&
-      config?.enableBackgroundTasks &&
-      config?.enableForegroundNotification &&
-      (config?.enableBackgroundDownload ||
-        config?.enableBackgroundUpload ||
-        config?.enableSmsForwarding);
-
-    const manageForegroundService = async () => {
-      const ForegroundService = await import('foreground-service');
-      if (shouldRun) {
-        ForegroundService.startService();
-        // 记录后台任务启动时间
-        const { useStatisticsStore } = await import('@/stores/statisticsStore');
-        await useStatisticsStore.getState().recordBackgroundTaskStart();
-      } else {
-        ForegroundService.stopService();
-      }
-    };
-
-    manageForegroundService();
-
-    // 后台任务心跳：每 60 秒更新一次持续时间
-    let heartbeatTag: string | null = null;
-    if (shouldRun) {
-      const startHeartbeat = async () => {
-        const { useStatisticsStore } = await import('@/stores/statisticsStore');
-        heartbeatTag = setTimer(() => {
-          useStatisticsStore.getState().updateHeartbeat();
-        }, 60_000);
-      };
-      startHeartbeat();
-    }
-
-    // 监听通知栏"停止"按钮
-    let stopSub: { remove(): void } | null = null;
-    let tempStopSub: { remove(): void } | null = null;
-    if (shouldRun) {
-      import('foreground-service').then((ForegroundService) => {
-        stopSub = ForegroundService.addStopListener(() => {
-          // 关闭所有后台任务
-          useSettingsStore.getState().setEnableBackgroundTasks(false);
-        });
-        tempStopSub = ForegroundService.addTempStopListener(() => {
-          // 临时停止：不修改持久化配置，重启 APP 后自动恢复
-          useSettingsStore.getState().setTempDisabledBackgroundTasks(true);
-        });
-      });
-    }
-
-    return () => {
-      stopSub?.remove();
-      tempStopSub?.remove();
-      if (heartbeatTag) {
-        clearTimer(heartbeatTag);
-      }
-      // 注意：不在 unmount 时停止前台服务，避免快速操作导致后台任务中断
-      // 前台服务的停止由 config 变化驱动（shouldRun 为 false 时调用 stopService）
-    };
+    import('@/services/BackgroundServiceManager').then(({ getBackgroundServiceManager }) => {
+      getBackgroundServiceManager()
+        .refresh()
+        .catch(() => {});
+    });
   }, [
     isTempDisabledBackgroundTasks,
     config?.enableBackgroundTasks,

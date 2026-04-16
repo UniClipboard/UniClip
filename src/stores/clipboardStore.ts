@@ -258,6 +258,14 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
       return;
     }
 
+    // 后台任务运行时，保持剪贴板监控以支持后台上传，不随 HomeScreen 卸载而停止
+    const { useSettingsStore } = require('../stores/settingsStore');
+    const config = useSettingsStore.getState().config;
+    const bgUploadEnabled = config?.enableBackgroundTasks && config?.enableBackgroundUpload;
+    if (bgUploadEnabled) {
+      return;
+    }
+
     clipboardMonitor.stop();
     set({ isMonitoring: false });
   },
