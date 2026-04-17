@@ -118,6 +118,9 @@ export interface AppConfig {
 
   /** 同步后发送 Toast 通知（上传/下载完成时） */
   syncToastEnabled: boolean;
+
+  /** 在最近任务列表中隐藏应用（仅 Android） */
+  hideFromRecents: boolean;
 }
 
 /**
@@ -297,6 +300,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   debugSmsNotify: false, // 默认不提醒非验证码类短信
   enableForegroundNotification: true, // 默认启用前台服务常驻通知
   syncToastEnabled: true, // 默认开启同步 Toast 通知
+  hideFromRecents: false, // 默认不隐藏最近任务
 };
 
 /**

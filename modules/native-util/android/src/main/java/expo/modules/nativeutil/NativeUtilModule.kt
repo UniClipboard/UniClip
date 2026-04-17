@@ -627,6 +627,18 @@ class NativeUtilModule : Module() {
             }
         }
 
+        Function("setExcludeFromRecents") { exclude: Boolean ->
+            val activity = appContext.currentActivity ?: return@Function false
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                val am = activity.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
+                    ?: return@Function false
+                am.appTasks.firstOrNull()?.setExcludeFromRecents(exclude)
+                true
+            } else {
+                false
+            }
+        }
+
     }
 
     private fun resolveFilePath(fileUri: String): String {

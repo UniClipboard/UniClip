@@ -51,6 +51,7 @@ export interface NativeUtilModuleType {
   startZipFiles(fileUris: string[], destUri: string): string;
   isIgnoringBatteryOptimizations(): boolean;
   requestIgnoreBatteryOptimizations(): boolean;
+  setExcludeFromRecents(exclude: boolean): boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   addListener(eventName: string, listener: (event: any) => void): EventSubscription;
 }
@@ -82,6 +83,14 @@ export function isIgnoringBatteryOptimizations(): boolean {
 export function requestIgnoreBatteryOptimizations(): boolean {
   if (Platform.OS !== 'android') return false;
   return NativeUtilModule.requestIgnoreBatteryOptimizations();
+}
+
+/**
+ * 设置是否从最近任务列表中隐藏应用
+ */
+export function setExcludeFromRecents(exclude: boolean): boolean {
+  if (Platform.OS !== 'android') return false;
+  return NativeUtilModule.setExcludeFromRecents(exclude);
 }
 
 export async function nativeCopyFile(srcUri: string, destUri: string): Promise<void> {

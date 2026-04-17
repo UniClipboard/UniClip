@@ -116,6 +116,10 @@ export const SettingsScreen = () => {
   const [smsTestInput, setSmsTestInput] = useState('');
   const [localDebugSmsNotify, setLocalDebugSmsNotify] = useState(config?.debugSmsNotify ?? false);
   const [showLogLevelMenu, setShowLogLevelMenu] = useState(false);
+  const [showThemeMenu, setShowThemeMenu] = useState(false);
+  const [localHideFromRecents, setLocalHideFromRecents] = useState(
+    config?.hideFromRecents ?? false
+  );
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [statsText, setStatsText] = useState('');
 
@@ -185,6 +189,10 @@ export const SettingsScreen = () => {
   useEffect(() => {
     setLocalSyncToastEnabled(config?.syncToastEnabled ?? true);
   }, [config?.syncToastEnabled]);
+
+  useEffect(() => {
+    setLocalHideFromRecents(config?.hideFromRecents ?? false);
+  }, [config?.hideFromRecents]);
 
   // 计算存储大小
   useEffect(() => {
@@ -378,7 +386,7 @@ export const SettingsScreen = () => {
       }
       Alert.alert(
         '开启后台任务',
-        '启用后台任务后，应用将在后台持续运行相关服务，大幅增加电量消耗。\n\n建议在系统设置中将 SyncClipboard 的电池优化设为「不受限制」，并在多任务界面锁定 SyncClipboard，减少系统关闭后台任务的概率。',
+        '启用后台任务后，应用将在后台持续运行相关服务，大幅增加电量消耗，强烈建议按需开启。\n\n如有需要，可以在系统设置中将 SyncClipboard 的电池优化设为「不受限制」，并在多任务界面锁定 SyncClipboard，减少系统关闭后台任务的概率。',
         [
           { text: '取消', style: 'cancel' },
           {
@@ -812,6 +820,21 @@ export const SettingsScreen = () => {
       await updateConfig({ syncToastEnabled: enabled });
     } catch (error: unknown) {
       setLocalSyncToastEnabled(!enabled);
+      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+    }
+  };
+
+  // 处理切换最近任务隐藏
+  const handleToggleHideFromRecents = async (enabled: boolean) => {
+    setLocalHideFromRecents(enabled);
+    try {
+      if (Platform.OS === 'android') {
+        const { setExcludeFromRecents } = await import('native-util');
+        setExcludeFromRecents(enabled);
+      }
+      await updateConfig({ hideFromRecents: enabled });
+    } catch (error: unknown) {
+      setLocalHideFromRecents(!enabled);
       showMessage(error instanceof Error ? error.message : '设置失败', 'error');
     }
   };
@@ -1742,10 +1765,10 @@ export const SettingsScreen = () => {
           </View>
         </View>
 
-        {/* 主题设置部分 */}
+        {/* 外观设置部分 */}
         <View style={styles.section}>
           <View style={styles.sectionHeaderBase}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>主题</Text>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>外观</Text>
           </View>
 
           <View
@@ -1754,28 +1777,81 @@ export const SettingsScreen = () => {
               { backgroundColor: theme.colors.surface, borderColor: theme.colors.divider },
             ]}
           >
-            {themeOptions.map((option, index) => (
-              <TouchableOpacity
-                key={option.value}
-                style={[
-                  styles.optionItem,
-                  index < themeOptions.length - 1
-                    ? {
-                        borderBottomWidth: StyleSheet.hairlineWidth,
-                        borderBottomColor: theme.colors.divider,
-                      }
-                    : undefined,
-                ]}
-                onPress={() => setThemeMode(option.value)}
-              >
-                <Text style={[styles.optionLabel, { color: theme.colors.text }]}>
-                  {option.label}
+            <TouchableOpacity
+              style={[styles.settingRow, { borderBottomColor: theme.colors.divider }]}
+              onPress={() => setShowThemeMenu(!showThemeMenu)}
+            >
+              <Text style={[styles.settingLabel, { color: theme.colors.text }]}>主题</Text>
+              <View style={styles.dropdownValue}>
+                <Text style={[styles.dropdownValueText, { color: theme.colors.textSecondary }]}>
+                  {themeOptions.find((o) => o.value === themeMode)?.label ?? '跟随系统'}
                 </Text>
-                {themeMode === option.value && (
-                  <Check stroke={theme.colors.primary} width={22} height={22} strokeWidth={3} />
+                {showThemeMenu ? (
+                  <ChevronUp color={theme.colors.textSecondary} width={18} height={18} />
+                ) : (
+                  <ChevronDown color={theme.colors.textSecondary} width={18} height={18} />
                 )}
-              </TouchableOpacity>
-            ))}
+              </View>
+            </TouchableOpacity>
+
+            {showThemeMenu && (
+              <View style={[styles.dropdownMenu, { borderColor: theme.colors.divider }]}>
+                {themeOptions.map((option, index) => (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[
+                      styles.dropdownItem,
+                      index < themeOptions.length - 1
+                        ? {
+                            borderBottomWidth: StyleSheet.hairlineWidth,
+                            borderBottomColor: theme.colors.divider,
+                          }
+                        : undefined,
+                    ]}
+                    onPress={() => {
+                      setThemeMode(option.value);
+                      setShowThemeMenu(false);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.dropdownItemText,
+                        {
+                          color:
+                            themeMode === option.value ? theme.colors.primary : theme.colors.text,
+                        },
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                    {themeMode === option.value && (
+                      <Check stroke={theme.colors.primary} width={18} height={18} strokeWidth={3} />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {Platform.OS === 'android' && (
+              <View style={[styles.settingRow, { borderBottomColor: theme.colors.divider }]}>
+                <View style={styles.settingInfo}>
+                  <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                    在最近任务列表中隐藏
+                  </Text>
+                  <Text style={[styles.settingDescription, { color: theme.colors.textTertiary }]}>
+                    建议隐藏前先锁定，防止被一键清理
+                  </Text>
+                </View>
+                <Switch
+                  value={localHideFromRecents}
+                  onValueChange={handleToggleHideFromRecents}
+                  trackColor={{ false: theme.colors.divider, true: theme.colors.primary }}
+                  thumbColor={
+                    localHideFromRecents ? theme.colors.surface : theme.colors.textTertiary
+                  }
+                />
+              </View>
+            )}
           </View>
         </View>
 

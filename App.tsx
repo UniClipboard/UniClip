@@ -11,7 +11,7 @@ import { useSettingsStore } from './src/stores';
 import { initLogger } from './src/services/Logger';
 import { useTheme } from './src/hooks/useTheme';
 import { setDynamicShortcuts } from 'shortcut';
-import { moveTaskToBack } from 'native-util';
+import { moveTaskToBack, setExcludeFromRecents } from 'native-util';
 import { getBackgroundServiceManager } from './src/services/BackgroundServiceManager';
 
 const QUICK_UPLOAD_URL = 'syncclipboard://quick-upload';
@@ -81,6 +81,10 @@ export default function App() {
     getBackgroundServiceManager()
       .start()
       .catch(() => {});
+    // 应用启动时恢复「最近任务隐藏」设置
+    if (config?.hideFromRecents) {
+      setExcludeFromRecents(true);
+    }
   }, [isLoaded]);
 
   useEffect(() => {
