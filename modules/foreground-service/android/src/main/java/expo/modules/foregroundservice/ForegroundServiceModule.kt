@@ -65,6 +65,8 @@ class ForegroundServiceModule : Module() {
 
         Function("updateNotification") { content: String ->
             val context = appContext.reactContext ?: return@Function false
+            // 服务未运行时不发送 startService，避免意外重启前台服务
+            if (!SyncForegroundService.isRunning) return@Function false
             val intent = Intent(context, SyncForegroundService::class.java).apply {
                 action = SyncForegroundService.ACTION_UPDATE
                 putExtra(SyncForegroundService.EXTRA_CONTENT, content)
