@@ -120,6 +120,10 @@ export const SettingsScreen = () => {
     config?.hideFromRecents ?? false
   );
   const [showStatsModal, setShowStatsModal] = useState(false);
+  const [showImageAutoDownloadMenu, setShowImageAutoDownloadMenu] = useState(false);
+  const [localImageAutoDownload, setLocalImageAutoDownload] = useState<'wifi' | 'always' | 'off'>(
+    config?.historyImageAutoDownload ?? 'wifi'
+  );
   const [statsText, setStatsText] = useState('');
 
   // 更新检查状态
@@ -193,6 +197,10 @@ export const SettingsScreen = () => {
     setLocalHideFromRecents(config?.hideFromRecents ?? false);
   }, [config?.hideFromRecents]);
 
+  useEffect(() => {
+    setLocalImageAutoDownload(config?.historyImageAutoDownload ?? 'wifi');
+  }, [config?.historyImageAutoDownload]);
+
   // 计算存储大小
   useEffect(() => {
     calculateStorageSizes();
@@ -237,6 +245,12 @@ export const SettingsScreen = () => {
     { label: '跟随系统', value: 'auto' },
     { label: '浅色模式', value: 'light' },
     { label: '深色模式', value: 'dark' },
+  ];
+
+  const imageAutoDownloadOptions: { label: string; value: 'wifi' | 'always' | 'off' }[] = [
+    { label: '仅 Wi-Fi', value: 'wifi' },
+    { label: '总是', value: 'always' },
+    { label: '关闭', value: 'off' },
   ];
 
   // 获取服务器列表
@@ -801,6 +815,16 @@ export const SettingsScreen = () => {
     }
   };
 
+  // 处理历史记录图片自动下载设置变更
+  const handleImageAutoDownloadChange = async (value: 'wifi' | 'always' | 'off') => {
+    setLocalImageAutoDownload(value);
+    try {
+      await updateConfig({ historyImageAutoDownload: value });
+    } catch {
+      setLocalImageAutoDownload(config?.historyImageAutoDownload ?? 'wifi');
+    }
+  };
+
   // 处理切换同步 Toast 通知
   const handleToggleSyncToast = async (enabled: boolean) => {
     setLocalSyncToastEnabled(enabled);
@@ -1096,30 +1120,6 @@ export const SettingsScreen = () => {
             <View style={[styles.settingRow, { borderBottomColor: theme.colors.divider }]}>
               <View style={styles.settingInfo}>
                 <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
-                  历史记录同步
-                </Text>
-                <Text style={[styles.settingDescription, { color: theme.colors.textTertiary }]}>
-                  {activeServer?.type === 'webdav'
-                    ? 'WebDAV 服务器不支持历史记录同步'
-                    : '同步历史记录到服务器'}
-                </Text>
-              </View>
-              <Switch
-                value={localHistorySyncEnabled && activeServer?.type !== 'webdav'}
-                onValueChange={handleToggleHistorySync}
-                trackColor={{ false: theme.colors.divider, true: theme.colors.primary }}
-                thumbColor={
-                  localHistorySyncEnabled && activeServer?.type !== 'webdav'
-                    ? theme.colors.surface
-                    : theme.colors.textTertiary
-                }
-                disabled={activeServer?.type === 'webdav'}
-              />
-            </View>
-
-            <View style={[styles.settingRow, { borderBottomColor: theme.colors.divider }]}>
-              <View style={styles.settingInfo}>
-                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
                   同步 Toast 通知
                 </Text>
                 <Text style={[styles.settingDescription, { color: theme.colors.textTertiary }]}>
@@ -1221,6 +1221,134 @@ export const SettingsScreen = () => {
                 <Text style={[styles.unitLabel, { color: theme.colors.textSecondary }]}>秒</Text>
               </View>
             </View>
+          </View>
+        </View>
+
+        {/* 历史记录部分 */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderBase}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>历史记录</Text>
+          </View>
+
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: theme.colors.surface, borderColor: theme.colors.divider },
+            ]}
+          >
+            <View style={[styles.settingRow, { borderBottomColor: theme.colors.divider }]}>
+              <View style={styles.settingInfo}>
+                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                  历史记录同步
+                </Text>
+                <Text style={[styles.settingDescription, { color: theme.colors.textTertiary }]}>
+                  {activeServer?.type === 'webdav'
+                    ? 'WebDAV 服务器不支持历史记录同步'
+                    : '同步历史记录到服务器'}
+                </Text>
+              </View>
+              <Switch
+                value={localHistorySyncEnabled && activeServer?.type !== 'webdav'}
+                onValueChange={handleToggleHistorySync}
+                trackColor={{ false: theme.colors.divider, true: theme.colors.primary }}
+                thumbColor={
+                  localHistorySyncEnabled && activeServer?.type !== 'webdav'
+                    ? theme.colors.surface
+                    : theme.colors.textTertiary
+                }
+                disabled={activeServer?.type === 'webdav'}
+              />
+            </View>
+
+            <View style={[styles.settingRow, { borderBottomColor: theme.colors.divider }]}>
+              <View style={styles.settingInfo}>
+                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                  历史记录最大保留条数
+                </Text>
+                <Text style={[styles.settingDescription, { color: theme.colors.textTertiary }]}>
+                  最小值为10条
+                </Text>
+              </View>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={[
+                    styles.sizeInput,
+                    {
+                      color: theme.colors.text,
+                      borderColor: theme.colors.divider,
+                      backgroundColor: theme.colors.background,
+                    },
+                  ]}
+                  value={maxHistoryItemsInput}
+                  onChangeText={setMaxHistoryItemsInput}
+                  onBlur={handleMaxHistoryItemsBlur}
+                  keyboardType="number-pad"
+                  placeholder="100"
+                  placeholderTextColor={theme.colors.textTertiary}
+                />
+                <Text style={[styles.unitLabel, { color: theme.colors.textSecondary }]}>条</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.settingRowNoBorder}
+              onPress={() => setShowImageAutoDownloadMenu(!showImageAutoDownloadMenu)}
+            >
+              <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                浏览到图片时自动下载
+              </Text>
+              <View style={styles.dropdownValue}>
+                <Text style={[styles.dropdownValueText, { color: theme.colors.textSecondary }]}>
+                  {imageAutoDownloadOptions.find((o) => o.value === localImageAutoDownload)
+                    ?.label ?? '仅 Wi-Fi'}
+                </Text>
+                {showImageAutoDownloadMenu ? (
+                  <ChevronUp color={theme.colors.textSecondary} width={18} height={18} />
+                ) : (
+                  <ChevronDown color={theme.colors.textSecondary} width={18} height={18} />
+                )}
+              </View>
+            </TouchableOpacity>
+
+            {showImageAutoDownloadMenu && (
+              <View style={[styles.dropdownMenu, { borderColor: theme.colors.divider }]}>
+                {imageAutoDownloadOptions.map((option, index) => (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[
+                      styles.dropdownItem,
+                      index < imageAutoDownloadOptions.length - 1
+                        ? {
+                            borderBottomWidth: StyleSheet.hairlineWidth,
+                            borderBottomColor: theme.colors.divider,
+                          }
+                        : undefined,
+                    ]}
+                    onPress={() => {
+                      handleImageAutoDownloadChange(option.value);
+                      setShowImageAutoDownloadMenu(false);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.dropdownItemText,
+                        {
+                          color:
+                            localImageAutoDownload === option.value
+                              ? theme.colors.primary
+                              : theme.colors.text,
+                        },
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                    {localImageAutoDownload === option.value && (
+                      <Check stroke={theme.colors.primary} width={18} height={18} strokeWidth={3} />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
           </View>
         </View>
 
@@ -1615,7 +1743,7 @@ export const SettingsScreen = () => {
               </TouchableOpacity>
             </View>
 
-            <View style={[styles.settingRow, { borderBottomColor: theme.colors.divider }]}>
+            <View style={styles.settingRowNoBorder}>
               <View style={styles.settingInfo}>
                 <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
                   历史记录空间占用
@@ -1623,36 +1751,6 @@ export const SettingsScreen = () => {
                 <Text style={[styles.settingDescription, { color: theme.colors.textTertiary }]}>
                   {isCalculating ? '加载中...' : formatFileSize(historySize)}
                 </Text>
-              </View>
-            </View>
-
-            <View style={styles.settingRowNoBorder}>
-              <View style={styles.settingInfo}>
-                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
-                  历史记录最大保留条数
-                </Text>
-                <Text style={[styles.settingDescription, { color: theme.colors.textTertiary }]}>
-                  最小值为10条
-                </Text>
-              </View>
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={[
-                    styles.sizeInput,
-                    {
-                      color: theme.colors.text,
-                      borderColor: theme.colors.divider,
-                      backgroundColor: theme.colors.background,
-                    },
-                  ]}
-                  value={maxHistoryItemsInput}
-                  onChangeText={setMaxHistoryItemsInput}
-                  onBlur={handleMaxHistoryItemsBlur}
-                  keyboardType="number-pad"
-                  placeholder="100"
-                  placeholderTextColor={theme.colors.textTertiary}
-                />
-                <Text style={[styles.unitLabel, { color: theme.colors.textSecondary }]}>条</Text>
               </View>
             </View>
           </View>

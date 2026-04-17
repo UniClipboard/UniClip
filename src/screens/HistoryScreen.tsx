@@ -92,6 +92,7 @@ export function HistoryScreen() {
   const [importingFile, setImportingFile] = useState(false);
   const [isReorganizing, setIsReorganizing] = useState(false);
   const [wordPickerText, setWordPickerText] = useState<string | null>(null);
+
   const {
     hasTasks,
     pendingCount,
@@ -382,25 +383,29 @@ export function HistoryScreen() {
 
   // 清空所有历史记录
   const handleClearAll = useCallback(() => {
-    Alert.alert('确认清空', '确定要清空所有历史记录吗？此操作不可撤销。', [
-      { text: '取消', style: 'cancel' },
-      {
-        text: '清空',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await clearHistory();
-            const { getHistorySyncService } = await import('@/services/HistorySyncService');
-            const syncService = getHistorySyncService();
-            await syncService.resetSyncCursor();
-            showMessage('已清空所有历史记录', 'success');
-          } catch (error) {
-            console.error('[HistoryScreen] Failed to clear:', error);
-            showMessage('清空失败', 'error');
-          }
+    Alert.alert(
+      '确认清空',
+      '确定要清空所有历史记录吗？此操作不可撤销，不会删除服务器上已同步的记录。',
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '清空',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await clearHistory();
+              const { getHistorySyncService } = await import('@/services/HistorySyncService');
+              const syncService = getHistorySyncService();
+              await syncService.resetSyncCursor();
+              showMessage('已清空所有历史记录', 'success');
+            } catch (error) {
+              console.error('[HistoryScreen] Failed to clear:', error);
+              showMessage('清空失败', 'error');
+            }
+          },
         },
-      },
-    ]);
+      ]
+    );
   }, [clearHistory, showMessage]);
 
   // 添加文件到历史记录

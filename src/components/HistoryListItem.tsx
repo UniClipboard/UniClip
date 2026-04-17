@@ -3,7 +3,7 @@
  * 历史记录列表项组件
  */
 
-import React, { useState, forwardRef, useMemo } from 'react';
+import React, { useState, forwardRef, useMemo, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, Image, TouchableOpacity, Linking } from 'react-native';
 import { Copy, Download, Share, Link2, Scissors } from 'react-native-feather';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -14,6 +14,7 @@ import { useTransferQueueStore } from '@/stores/transferQueueStore';
 import { getHistoryTransferQueue } from '@/services/HistoryTransferQueue';
 import { getProfileId } from '@/services/HistoryAPI';
 import { formatSizeWithType, formatFileSize } from '@/utils';
+import { useSettingsStore } from '@/stores';
 
 const ACTION_ICON_SIZE = 15;
 
@@ -60,6 +61,49 @@ export const HistoryListItem = forwardRef<object, HistoryListItemProps>(
   ) => {
     const { theme } = useTheme();
     const tasks = useTransferQueueStore((state) => state.tasks);
+
+    // 响应式读取自动下载设置，变化时触发 effect 重新执行
+    const imageAutoDownload = useSettingsStore(
+      (state) => state.config?.historyImageAutoDownload ?? 'wifi'
+    );
+
+    // 组件挂载或 item/设置 变化时触发自动下载（FlashList 复用场景）
+    const autoDownloadTriggered = useRef(false);
+    useEffect(() => {
+      autoDownloadTriggered.current = false;
+    }, [item.profileHash, imageAutoDownload]);
+
+    useEffect(() => {
+      if (autoDownloadTriggered.current) return;
+      if (item.type !== 'Image' || item.isLocalFileReady !== false || !item.hasRemoteData) return;
+      if (!enableHistorySync) return;
+      if (imageAutoDownload === 'off') return;
+
+      const doAutoDownload = async () => {
+        const netInfo = await (await import('@react-native-community/netinfo')).default.fetch();
+        const isWifiNow = netInfo.type === 'wifi';
+        if (imageAutoDownload === 'wifi' && !isWifiNow) return;
+
+        autoDownloadTriggered.current = true;
+        try {
+          const pid = getProfileId(item.type, item.profileHash);
+          const queue = getHistoryTransferQueue();
+          queue.start();
+          await queue.addDownloadTask(pid, true);
+        } catch {
+          autoDownloadTriggered.current = false;
+        }
+      };
+      doAutoDownload();
+    }, [
+      item.profileHash,
+      item.isLocalFileReady,
+      item.type,
+      item.hasRemoteData,
+      enableHistorySync,
+      imageAutoDownload,
+    ]);
+
     const profileId = getProfileId(item.type, item.profileHash);
     const activeTask = tasks.find(
       (t) => t.profileId === profileId && (t.status === 'running' || t.status === 'pending')

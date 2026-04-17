@@ -118,6 +118,9 @@ export interface AppConfig {
 
   /** 在最近任务列表中隐藏应用（仅 Android） */
   hideFromRecents: boolean;
+
+  /** 历史记录图片自动下载策略 */
+  historyImageAutoDownload: 'wifi' | 'always' | 'off';
 }
 
 /**
@@ -297,6 +300,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   enableForegroundNotification: true, // 默认启用前台服务常驻通知
   syncToastEnabled: true, // 默认开启同步 Toast 通知
   hideFromRecents: false, // 默认不隐藏最近任务
+  historyImageAutoDownload: 'wifi', // 默认 Wi-Fi 网络自动下载
 };
 
 /**
