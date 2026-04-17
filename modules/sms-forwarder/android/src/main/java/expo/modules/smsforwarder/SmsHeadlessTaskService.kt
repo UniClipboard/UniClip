@@ -8,8 +8,6 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.facebook.react.HeadlessJsTaskService
@@ -23,8 +21,8 @@ import com.facebook.react.jstasks.HeadlessJsTaskConfig
  * 由 [StaticSmsReceiver] 通过 `startForegroundService()` 启动。
  * 启动后立即调用 `startForeground()` 以满足 Android 8+ 要求。
  *
- * 上传成功后启动 60 秒倒计时，通知显示「已上传验证码：xxx / xx秒后关闭」，
- * 倒计时结束后自动移除前台服务。新 SMS 到来会打断倒计时并重新处理。
+ * 上传成功后发送成功通知（30 秒后自动清除），随即停止前台服务。
+ * 新 SMS 到来会替换通知并重新处理。
  */
 class SmsHeadlessTaskService : HeadlessJsTaskService() {
 
@@ -37,11 +35,19 @@ class SmsHeadlessTaskService : HeadlessJsTaskService() {
         const val ACTION_DISMISS = "expo.modules.smsforwarder.ACTION_DISMISS_COUNTDOWN"
         /** 任务超时：60 秒（含重试时间） */
         private const val TASK_TIMEOUT_MS = 60_000L
-        /** 上传成功后倒计时秒数 */
-        private const val COUNTDOWN_SECONDS = 60
+        /** 成功通知自动清除时间（毫秒） */
+        private const val SUCCESS_NOTIFICATION_TIMEOUT_MS = 30_000L
 
         @Volatile
         private var instance: SmsHeadlessTaskService? = null
+
+        /**
+         * JS 侧上传成功后设置的验证码。
+         * 主路径：[startCountdown] 直接发送成功通知。
+         * 兆底：[onHeadlessJsTaskFinish] 检查此变量，确保通知不会遗漏。
+         */
+        @Volatile
+        var pendingSuccessCode: String? = null
 
         /**
          * 从任意位置更新 Headless 服务的前台通知文本。
@@ -58,11 +64,21 @@ class SmsHeadlessTaskService : HeadlessJsTaskService() {
         }
 
         /**
-         * 由 JS 侧调用：上传成功后启动倒计时。
-         * 倒计时期间通知显示「已上传验证码：code / xx秒后关闭」，结束后自动停止服务。
+         * 由 JS 侧调用：上传成功后发送成功通知并停止服务。
+         * 主路径：直接通过服务实例发送通知。
+         * 若服务实例不可用，则记录 pendingSuccessCode，
+         * 由 [onHeadlessJsTaskFinish] 兆底处理。
          */
         fun startCountdown(code: String) {
-            instance?.beginCountdown(code)
+            Log.d(TAG, "startCountdown called with code=$code")
+            pendingSuccessCode = code
+            // 主路径：直接通过服务实例发送成功通知
+            instance?.let { service ->
+                if (!service.isSuccessPosted) {
+                    pendingSuccessCode = null
+                    service.postSuccessNotification(code)
+                }
+            }
         }
 
         private fun ensureNotificationChannel(context: Context, nm: NotificationManager) {
@@ -119,32 +135,28 @@ class SmsHeadlessTaskService : HeadlessJsTaskService() {
         }
     }
 
-    private val handler = Handler(Looper.getMainLooper())
-    private var countdownRunnable: Runnable? = null
-    private var isCountdownActive = false
+    private var isSuccessPosted = false
 
     override fun onCreate() {
         super.onCreate()
         instance = this
+        pendingSuccessCode = null
         startForeground(NOTIFICATION_ID, buildStaticNotification(this, "SyncClipboard", "正在处理短信验证码…"))
         Log.d(TAG, "SmsHeadlessTaskService created, foreground notification posted")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // “立刻关闭”按钮触发
+        // "取消"按钮触发
         if (intent?.action == ACTION_DISMISS) {
             Log.d(TAG, "Dismiss action received, stopping service")
-            cancelCountdown()
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
         }
-        // 新 SMS 到来 → 取消现有倒计时，重新处理
-        if (isCountdownActive) {
-            cancelCountdown()
-            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
-            nm?.notify(NOTIFICATION_ID, buildStaticNotification(this, "SyncClipboard", "正在处理短信验证码…"))
-            Log.d(TAG, "Countdown cancelled due to new SMS")
+        // 新 SMS 到来 → 重置成功状态
+        if (isSuccessPosted) {
+            isSuccessPosted = false
+            Log.d(TAG, "New SMS arrived, resetting success state")
         }
         return super.onStartCommand(intent, flags, startId)
     }
@@ -166,59 +178,48 @@ class SmsHeadlessTaskService : HeadlessJsTaskService() {
     }
 
     override fun onHeadlessJsTaskFinish(taskId: Int) {
-        if (isCountdownActive) {
-            // 倒计时进行中，不停止服务，由倒计时结束后负责停止
-            Log.d(TAG, "Headless task finished, countdown active, keeping service alive")
+        if (isSuccessPosted) {
+            // 主路径已发送成功通知，不需要额外操作
+            Log.d(TAG, "Headless task finished, success notification already posted")
+            return
+        }
+        // 兆底：检查 pendingSuccessCode（处理桥接异步调用延迟的情况）
+        val code = pendingSuccessCode
+        if (code != null) {
+            pendingSuccessCode = null
+            Log.d(TAG, "Headless task finished, fallback: posting success notification for code=$code")
+            postSuccessNotification(code)
         } else {
-            Log.d(TAG, "Headless task finished, no countdown, stopping service")
+            Log.d(TAG, "Headless task finished, no success, stopping service")
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }
     }
 
     override fun onDestroy() {
-        cancelCountdown()
         instance = null
         super.onDestroy()
     }
 
-    // ---- 倒计时逻辑 ----
+    private fun postSuccessNotification(code: String) {
+        Log.d(TAG, "Posting success notification for code=$code, stopping service")
+        isSuccessPosted = true
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+        ensureNotificationChannel(this, nm)
 
-    private fun beginCountdown(code: String) {
-        cancelCountdown()
-        isCountdownActive = true
-        var remaining = COUNTDOWN_SECONDS
-        Log.d(TAG, "Starting ${COUNTDOWN_SECONDS}s countdown for code=$code")
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("已上传验证码：$code")
+            .setContentText("30秒后自动关闭")
+            .setSmallIcon(getNotificationIcon(this))
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setOngoing(false)
+            .setAutoCancel(true)
+            .setTimeoutAfter(SUCCESS_NOTIFICATION_TIMEOUT_MS)
+            .build()
 
-        countdownRunnable = object : Runnable {
-            override fun run() {
-                if (remaining > 0) {
-                    val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
-                    nm?.notify(
-                        NOTIFICATION_ID,
-                        buildStaticNotification(
-                            this@SmsHeadlessTaskService,
-                            "已上传验证码：$code",
-                            "${remaining}秒后关闭",
-                            dismissButtonLabel = "立刻关闭"
-                        )
-                    )
-                    remaining--
-                    handler.postDelayed(this, 1000)
-                } else {
-                    Log.d(TAG, "Countdown finished, stopping service")
-                    isCountdownActive = false
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                    stopSelf()
-                }
-            }
-        }
-        handler.post(countdownRunnable!!)
-    }
-
-    private fun cancelCountdown() {
-        countdownRunnable?.let { handler.removeCallbacks(it) }
-        countdownRunnable = null
-        isCountdownActive = false
+        stopForeground(STOP_FOREGROUND_DETACH)
+        nm.notify(NOTIFICATION_ID, notification)
+        stopSelf()
     }
 }
