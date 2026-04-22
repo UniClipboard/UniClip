@@ -5,6 +5,8 @@ import android.content.ClipDescription
 import android.os.IBinder
 import java.lang.reflect.Method
 
+
+
 /**
  * ClipboardUserService — 运行在 Shizuku 进程（UID 2000/shell）中
  *
@@ -166,8 +168,21 @@ class ClipboardUserService : IClipboardUserService.Stub() {
         }
     }
 
+    override fun init(callerToken: IBinder) {
+        try {
+            callerToken.linkToDeath({
+                android.util.Log.i(TAG, "Caller process died, exiting UserService")
+                System.exit(0)
+            }, 0)
+            android.util.Log.i(TAG, "Linked to caller token for death detection")
+        } catch (e: Exception) {
+            android.util.Log.e(TAG, "Failed to link to caller token death", e)
+        }
+    }
+
     override fun destroy() {
-        android.util.Log.i(TAG, "UserService destroy called")
+        android.util.Log.i(TAG, "UserService destroy called, exiting process")
         clipboardService = null
+        System.exit(0)
     }
 }
