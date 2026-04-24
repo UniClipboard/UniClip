@@ -23,7 +23,7 @@ jobs:
   publish-release:
     name: Publish GitHub Release
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
-    needs: [code-style, android-build, unit-tests]
+    needs: [publish-gitee-release-upload]
     runs-on: ubuntu-latest
 
     steps:
@@ -53,7 +53,7 @@ jobs:
   sync-to-gitee:
     name: Sync to Gitee
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
-    needs: [publish-release]
+    needs: [code-style, android-build, unit-tests]
     runs-on: ubuntu-latest
 
     steps:
@@ -76,11 +76,13 @@ jobs:
             '+refs/tags/*:refs/tags/*' \
             --prune
 
-  publish-gitee-release:
-    name: Publish Gitee Release
+  publish-gitee-release-create:
+    name: Create Gitee Release
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
     needs: [sync-to-gitee]
     runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create_release.outputs.release_id }}
 
     steps:
       - name: Checkout
@@ -90,12 +92,33 @@ jobs:
         run: |
           awk 'NR==1{next} /^$/{exit} {print}' CHANGES.md > feature.txt
 
-      - name: Download APK artifacts
-        uses: actions/download-artifact@v8
-        with:
-          pattern: apk-*
-          path: apk/
-          merge-multiple: true
+      - name: Delete existing releases in same channel
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_ACCESS_TOKEN }}
+          GITEE_OWNER: ${{ vars.GITEE_OWNER }}
+          GITEE_REPO: ${{ vars.GITEE_REPO }}
+          IS_PRERELEASE: ${{ contains(github.ref_name, 'beta') }}
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, urllib.request
+
+          token = os.environ["GITEE_TOKEN"]
+          owner = os.environ["GITEE_OWNER"]
+          repo = os.environ["GITEE_REPO"]
+          is_prerelease = os.environ["IS_PRERELEASE"] == "true"
+
+          url = f"https://gitee.com/api/v5/repos/{owner}/{repo}/releases?access_token={token}&page=1&per_page=20"
+          with urllib.request.urlopen(url) as response:
+              releases = json.loads(response.read())
+
+          to_delete = [r for r in releases if r.get("prerelease") == is_prerelease]
+          for release in to_delete:
+              rid = release["id"]
+              del_url = f"https://gitee.com/api/v5/repos/{owner}/{repo}/releases/{rid}?access_token={token}"
+              req = urllib.request.Request(del_url, method="DELETE")
+              with urllib.request.urlopen(req) as resp:
+                  print(f"Deleted release {rid}: {release.get('name')}, status: {resp.status}")
+          PYEOF
 
       - name: Create Gitee Release
         id: create_release
@@ -107,7 +130,7 @@ jobs:
           IS_PRERELEASE: ${{ contains(github.ref_name, 'beta') }}
         run: |
           python3 - <<'PYEOF'
-          import json, os, subprocess
+          import json, os
           data = {
               "access_token": os.environ["GITEE_TOKEN"],
               "tag_name": os.environ["TAG_NAME"],
@@ -129,17 +152,32 @@ jobs:
           RELEASE_ID=$(echo "$RESPONSE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
           echo "release_id=$RELEASE_ID" >> $GITHUB_OUTPUT
 
-      - name: Upload APKs to Gitee Release
+  publish-gitee-release-upload:
+    name: Upload APK to Gitee Release (${{ matrix.abi }})
+    needs: [publish-gitee-release-create]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        abi: [arm64-v8a, armeabi-v7a, x86_64, universal]
+
+    steps:
+      - name: Download APK artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: apk-${{ matrix.abi }}
+          path: apk/
+
+      - name: Upload APK to Gitee Release
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_ACCESS_TOKEN }}
           GITEE_OWNER: ${{ vars.GITEE_OWNER }}
           GITEE_REPO: ${{ vars.GITEE_REPO }}
+          RELEASE_ID: ${{ needs.publish-gitee-release-create.outputs.release_id }}
         run: |
-          for APK in apk/*.apk; do
-            echo "Uploading $APK..."
-            curl -s -X POST \
-              "https://gitee.com/api/v5/repos/${GITEE_OWNER}/${GITEE_REPO}/releases/${{ steps.create_release.outputs.release_id }}/attach_files" \
-              -F "access_token=${GITEE_TOKEN}" \
-              -F "file=@${APK}"
-            echo ""
-          done
+          APK=$(ls apk/*.apk | head -1)
+          echo "Uploading $APK..."
+          curl -s -X POST \
+            "https://gitee.com/api/v5/repos/${GITEE_OWNER}/${GITEE_REPO}/releases/${RELEASE_ID}/attach_files" \
+            -F "access_token=${GITEE_TOKEN}" \
+            -F "file=@${APK}"
+          echo ""

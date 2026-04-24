@@ -139,6 +139,7 @@ export const SettingsScreen = () => {
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
+  const [latestGiteeUrl, setLatestGiteeUrl] = useState<string | null>(null);
 
   const appVersion = APP_VERSION;
 
@@ -936,13 +937,18 @@ export const SettingsScreen = () => {
       if (result.hasUpdate) {
         setUpdateAvailable(true);
         setLatestVersion(result.latestVersion);
+        setLatestGiteeUrl(result.giteeReleaseUrl);
         Alert.alert(
           '发现新版本',
-          `最新版本：${result.latestVersion}\n当前版本：${appVersion}\n\n是否前往下载？`,
+          `最新版本：${result.latestVersion}\n当前版本：${appVersion}\n\n请选择下载渠道`,
           [
             { text: '稍后再说', style: 'cancel' },
             {
-              text: '立即更新',
+              text: '前往 Gitee',
+              onPress: () => Linking.openURL(result.giteeReleaseUrl),
+            },
+            {
+              text: '前往 GitHub',
               onPress: () => Linking.openURL(result.releaseUrl),
             },
           ]
@@ -950,6 +956,7 @@ export const SettingsScreen = () => {
       } else {
         setUpdateAvailable(false);
         setLatestVersion(null);
+        setLatestGiteeUrl(null);
         if (showNoUpdateToast) {
           showMessage('当前已是最新版本', 'success');
         }
@@ -2156,7 +2163,24 @@ export const SettingsScreen = () => {
                     ]}
                     onPress={() =>
                       updateAvailable
-                        ? Linking.openURL('https://github.com/Jeric-X/SyncClipboard/releases')
+                        ? Alert.alert('选择下载渠道', `最新版本：${latestVersion}`, [
+                            { text: '取消', style: 'cancel' },
+                            {
+                              text: '前往 Gitee',
+                              onPress: () =>
+                                Linking.openURL(
+                                  latestGiteeUrl ??
+                                    'https://gitee.com/JericX/syncclipboard-mobile/releases'
+                                ),
+                            },
+                            {
+                              text: '前往 GitHub',
+                              onPress: () =>
+                                Linking.openURL(
+                                  'https://github.com/Jeric-X/syncclipboard-mobile/releases'
+                                ),
+                            },
+                          ])
                         : runUpdateCheck(true, localUpdateToBetaEnabled)
                     }
                     disabled={isCheckingUpdate}

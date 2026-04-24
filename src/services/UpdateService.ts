@@ -5,6 +5,7 @@
 
 const GITHUB_RELEASES_API = 'https://api.github.com/repos/Jeric-X/syncclipboard-mobile/releases';
 const RELEASES_PAGE_URL = 'https://github.com/Jeric-X/syncclipboard-mobile/releases';
+const GITEE_RELEASES_PAGE_URL = 'https://gitee.com/JericX/syncclipboard-mobile/releases';
 
 export interface ParsedVersion {
   major: number;
@@ -71,6 +72,7 @@ export interface UpdateCheckResult {
   hasUpdate: boolean;
   latestVersion: string;
   releaseUrl: string;
+  giteeReleaseUrl: string;
 }
 
 /**
@@ -106,14 +108,24 @@ export async function checkForUpdate(
 
   const latest = candidates[0];
   if (!latest) {
-    return { hasUpdate: false, latestVersion: currentVersionStr, releaseUrl: RELEASES_PAGE_URL };
+    return {
+      hasUpdate: false,
+      latestVersion: currentVersionStr,
+      releaseUrl: RELEASES_PAGE_URL,
+      giteeReleaseUrl: GITEE_RELEASES_PAGE_URL,
+    };
   }
 
   const latestParsed = parseVersion(latest.tag_name);
   const currentParsed = parseVersion(currentVersionStr);
 
   if (!currentParsed || !latestParsed) {
-    return { hasUpdate: false, latestVersion: latest.tag_name, releaseUrl: latest.html_url };
+    return {
+      hasUpdate: false,
+      latestVersion: latest.tag_name,
+      releaseUrl: latest.html_url,
+      giteeReleaseUrl: `https://gitee.com/JericX/syncclipboard-mobile/releases/tag/${latest.tag_name}`,
+    };
   }
 
   const hasUpdate = compareVersions(latestParsed, currentParsed) > 0;
@@ -121,5 +133,6 @@ export async function checkForUpdate(
     hasUpdate,
     latestVersion: versionToStr(latestParsed),
     releaseUrl: latest.html_url,
+    giteeReleaseUrl: `https://gitee.com/JericX/syncclipboard-mobile/releases/tag/${latest.tag_name}`,
   };
 }
