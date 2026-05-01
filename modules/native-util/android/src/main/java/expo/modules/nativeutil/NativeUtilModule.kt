@@ -704,6 +704,10 @@ class NativeUtilModule : Module() {
             }
         }
 
+        Function("getSupportedAbis") {
+            Build.SUPPORTED_ABIS.toList()
+        }
+
         AsyncFunction("saveClipboardImageToFile") { destDirPath: String, promise: Promise ->
             executor.submit {
                 try {

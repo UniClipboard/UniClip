@@ -35,7 +35,19 @@ export { ShortcutService } from './ShortcutService';
 
 // Update Service
 export { checkForUpdate, parseVersion, compareVersions, versionToStr } from './UpdateService';
-export type { UpdateCheckResult, ParsedVersion } from './UpdateService';
+export type { UpdateCheckResult, ParsedVersion, ReleaseAssetInfo } from './UpdateService';
+
+// APK Download Service
+export {
+  getPreferredAbi,
+  findAssetForAbi,
+  checkApkCache,
+  downloadApk,
+  installApk,
+  getApkCachePath,
+  cleanOldApkCache,
+} from './ApkDownloadService';
+export type { ApkDownloadOptions, ApkDownloadProgress, ApkSource } from './ApkDownloadService';
 
 // Storage Services
 export { ConfigStorage, configStorage } from './ConfigStorage';

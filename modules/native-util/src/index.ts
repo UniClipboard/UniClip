@@ -54,6 +54,7 @@ export interface NativeUtilModuleType {
   isIgnoringBatteryOptimizations(): boolean;
   requestIgnoreBatteryOptimizations(): boolean;
   setExcludeFromRecents(exclude: boolean): boolean;
+  getSupportedAbis(): string[];
   saveClipboardImageToFile(
     destDirPath: string
   ): Promise<{ width: number; height: number; filePath: string; mimeType: string } | null>;
@@ -97,6 +98,14 @@ export function requestIgnoreBatteryOptimizations(): boolean {
 export function setExcludeFromRecents(exclude: boolean): boolean {
   if (Platform.OS !== 'android') return false;
   return NativeUtilModule.setExcludeFromRecents(exclude);
+}
+
+/**
+ * 获取设备支持的 ABI 列表（按优先级排序）
+ */
+export function getSupportedAbis(): string[] {
+  if (Platform.OS !== 'android') return [];
+  return NativeUtilModule.getSupportedAbis();
 }
 
 /**

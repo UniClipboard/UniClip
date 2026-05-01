@@ -36,6 +36,14 @@ import {
   saveLogsToFile,
   setLogLevel as setLoggerLogLevel,
   type LogLevel,
+  getPreferredAbi,
+  findAssetForAbi,
+  checkApkCache,
+  downloadApk,
+  installApk,
+  cleanOldApkCache,
+  type ReleaseAssetInfo,
+  type ApkSource,
 } from '@/services';
 import { Plus, RefreshCw, Check, ChevronDown, ChevronUp } from 'react-native-feather';
 import { hasOverlayPermission, requestOverlayPermission } from 'clipboard-overlay';
@@ -121,6 +129,9 @@ export const SettingsScreen = () => {
     config?.debugOverlayVisible ?? false
   );
   const [localDebugUrlScheme, setLocalDebugUrlScheme] = useState(config?.debugUrlScheme ?? false);
+  const [localDebugUpdateCheckNoLimit, setLocalDebugUpdateCheckNoLimit] = useState(
+    config?.debugUpdateCheckNoLimit ?? false
+  );
   const [showSmsTestModal, setShowSmsTestModal] = useState(false);
   const [smsTestInput, setSmsTestInput] = useState('');
   const [showLogLevelMenu, setShowLogLevelMenu] = useState(false);
@@ -139,7 +150,13 @@ export const SettingsScreen = () => {
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
-  const [latestGiteeUrl, setLatestGiteeUrl] = useState<string | null>(null);
+  // APK 下载状态
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const downloadAbortRef = useRef<AbortController | null>(null);
+  const latestAssetsRef = useRef<ReleaseAssetInfo[]>([]);
+  const latestTagRef = useRef<string>('');
+  const releaseNotesRef = useRef<string | undefined>(undefined);
 
   const appVersion = APP_VERSION;
 
@@ -254,7 +271,11 @@ export const SettingsScreen = () => {
     if (!isLoaded) return;
     if (!(config?.autoCheckUpdate ?? true)) return;
     const today = new Date().toISOString().slice(0, 10);
-    if ((config?.lastUpdateCheckDate ?? '') === today) return;
+    if (
+      !(config?.debugUpdateCheckNoLimit ?? false) &&
+      (config?.lastUpdateCheckDate ?? '') === today
+    )
+      return;
     runUpdateCheck(false, config?.updateToBeta ?? false);
   }, [isLoaded]);
 
@@ -810,6 +831,17 @@ export const SettingsScreen = () => {
     }
   };
 
+  // 处理切换启动时检查更新不限次数
+  const handleToggleDebugUpdateCheckNoLimit = async (enabled: boolean) => {
+    setLocalDebugUpdateCheckNoLimit(enabled);
+    try {
+      await updateConfig({ debugUpdateCheckNoLimit: enabled });
+    } catch (error: unknown) {
+      setLocalDebugUpdateCheckNoLimit(!enabled);
+      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+    }
+  };
+
   // 测试验证码短信提取
   const handleTestSmsCode = () => {
     const code = extractVerificationCode(smsTestInput);
@@ -937,30 +969,19 @@ export const SettingsScreen = () => {
       if (result.hasUpdate) {
         setUpdateAvailable(true);
         setLatestVersion(result.latestVersion);
-        setLatestGiteeUrl(result.giteeReleaseUrl);
-        Alert.alert(
-          '发现新版本',
-          `最新版本：${result.latestVersion}\n当前版本：${appVersion}\n\n请选择下载渠道`,
-          [
-            { text: '稍后再说', style: 'cancel' },
-            {
-              text: '前往 Gitee',
-              onPress: () => Linking.openURL(result.giteeReleaseUrl),
-            },
-            {
-              text: '前往 GitHub',
-              onPress: () => Linking.openURL(result.releaseUrl),
-            },
-          ]
-        );
+        latestAssetsRef.current = result.assets;
+        latestTagRef.current = result.tagName;
+        releaseNotesRef.current = result.releaseNotes;
+        showDownloadSourceDialog(result.latestVersion, result.assets, result.releaseNotes);
       } else {
         setUpdateAvailable(false);
         setLatestVersion(null);
-        setLatestGiteeUrl(null);
         if (showNoUpdateToast) {
           showMessage('当前已是最新版本', 'success');
         }
       }
+      // 无论是否有更新，清除当前版本及旧版本的 APK 缓存
+      cleanOldApkCache(appVersion);
     } catch {
       if (showNoUpdateToast) {
         showMessage('检查更新失败，请检查网络连接', 'error');
@@ -968,6 +989,147 @@ export const SettingsScreen = () => {
     } finally {
       setIsCheckingUpdate(false);
     }
+  };
+
+  // 点击"更新"按钮：先检查缓存，有则直接安装，否则弹渠道选择
+  const handleUpdateButtonPress = async (
+    version: string,
+    assets: ReleaseAssetInfo[],
+    releaseNotes?: string
+  ) => {
+    if (isDownloading) return;
+
+    let preferredAbi: string = 'universal';
+    try {
+      const { getSupportedAbis } = await import('native-util');
+      const abis = getSupportedAbis();
+      preferredAbi = getPreferredAbi(abis);
+    } catch (e) {
+      console.warn('[UpdateDownload] getSupportedAbis failed:', e);
+    }
+
+    const asset = findAssetForAbi(assets, preferredAbi as Parameters<typeof findAssetForAbi>[1]);
+    if (!asset) {
+      showDownloadSourceDialog(version, assets, releaseNotes);
+      return;
+    }
+
+    const cached = await checkApkCache(version, asset);
+    console.log(`[UpdateDownload] pre-check cache=${cached ?? 'miss'}`);
+    if (cached) {
+      await installApk(cached);
+    } else {
+      showDownloadSourceDialog(version, assets, releaseNotes);
+    }
+  };
+
+  // 弹出选择下载渠道的对话框
+  const showDownloadSourceDialog = (
+    version: string,
+    assets: ReleaseAssetInfo[],
+    releaseNotes?: string
+  ) => {
+    const notesText = releaseNotes ? `\n\n更新说明：\n${releaseNotes}` : '';
+    Alert.alert(
+      '发现新版本',
+      `最新版本：${version}\n当前版本：${appVersion}${notesText}\n\n请选择下载渠道`,
+      [
+        { text: '稍后再说', style: 'cancel' },
+        {
+          text: 'Gitee 下载',
+          onPress: () => handleDownloadApk('gitee', version, assets),
+        },
+        {
+          text: 'GitHub 下载',
+          onPress: () => handleDownloadApk('github', version, assets),
+        },
+      ]
+    );
+  };
+
+  // 下载 APK
+  const handleDownloadApk = async (
+    source: ApkSource,
+    version: string,
+    assets: ReleaseAssetInfo[]
+  ) => {
+    if (isDownloading) return;
+
+    // 检测设备 ABI
+    let preferredAbi: string = 'universal';
+    try {
+      const { getSupportedAbis } = await import('native-util');
+      const abis = getSupportedAbis();
+      preferredAbi = getPreferredAbi(abis);
+      console.log(
+        `[UpdateDownload] supportedAbis=${JSON.stringify(abis)} preferred=${preferredAbi}`
+      );
+    } catch (e) {
+      console.warn('[UpdateDownload] getSupportedAbis failed:', e);
+    }
+
+    const asset = findAssetForAbi(assets, preferredAbi as Parameters<typeof findAssetForAbi>[1]);
+    console.log(
+      `[UpdateDownload] source=${source} version=${version} assets=${assets.map((a) => a.name).join(',')} selectedAsset=${asset?.name ?? 'none'}`
+    );
+    if (!asset) {
+      showMessage('找不到适合当前设备的 APK', 'error');
+      return;
+    }
+
+    setIsDownloading(true);
+    setDownloadProgress(0);
+
+    const abortController = new AbortController();
+    downloadAbortRef.current = abortController;
+
+    try {
+      // 检查是否已有缓存
+      const cached = await checkApkCache(version, asset);
+      console.log(`[UpdateDownload] cache check result=${cached ?? 'miss'}`);
+      if (cached) {
+        await installApk(cached);
+        return;
+      }
+
+      const fileUri = await downloadApk({
+        asset,
+        source,
+        version,
+        signal: abortController.signal,
+        onProgress: (info) => {
+          setDownloadProgress(info.progress);
+        },
+      });
+
+      console.log(`[UpdateDownload] download finished fileUri=${fileUri}`);
+      setUpdateAvailable(false);
+      setLatestVersion(null);
+      await installApk(fileUri);
+    } catch (err) {
+      console.error('[UpdateDownload] error:', err);
+      if (err instanceof Error && err.name === 'AbortError') {
+        showMessage('已取消下载', 'info');
+      } else {
+        showMessage(err instanceof Error ? err.message : '下载失败', 'error');
+      }
+    } finally {
+      setIsDownloading(false);
+      setDownloadProgress(0);
+      downloadAbortRef.current = null;
+    }
+  };
+
+  // 取消下载对话框
+  const handleCancelDownload = () => {
+    Alert.alert('取消下载', '确定要取消下载吗？', [
+      { text: '继续下载', style: 'cancel' },
+      {
+        text: '取消下载',
+        style: 'destructive',
+        onPress: () => downloadAbortRef.current?.abort(),
+      },
+    ]);
   };
 
   // 计算存储大小
@@ -2155,49 +2317,46 @@ export const SettingsScreen = () => {
                     style={[
                       styles.updateButton,
                       {
-                        backgroundColor: updateAvailable
-                          ? theme.colors.primary
-                          : theme.colors.surface,
+                        backgroundColor:
+                          isDownloading || updateAvailable
+                            ? theme.colors.primary
+                            : theme.colors.surface,
                         borderColor: theme.colors.primary,
                       },
                     ]}
-                    onPress={() =>
-                      updateAvailable
-                        ? Alert.alert('选择下载渠道', `最新版本：${latestVersion}`, [
-                            { text: '取消', style: 'cancel' },
-                            {
-                              text: '前往 Gitee',
-                              onPress: () =>
-                                Linking.openURL(
-                                  latestGiteeUrl ??
-                                    'https://gitee.com/JericX/syncclipboard-mobile/releases'
-                                ),
-                            },
-                            {
-                              text: '前往 GitHub',
-                              onPress: () =>
-                                Linking.openURL(
-                                  'https://github.com/Jeric-X/syncclipboard-mobile/releases'
-                                ),
-                            },
-                          ])
-                        : runUpdateCheck(true, localUpdateToBetaEnabled)
-                    }
+                    onPress={() => {
+                      if (isDownloading) {
+                        handleCancelDownload();
+                      } else if (updateAvailable) {
+                        handleUpdateButtonPress(
+                          latestVersion ?? '',
+                          latestAssetsRef.current,
+                          releaseNotesRef.current
+                        );
+                      } else {
+                        runUpdateCheck(true, localUpdateToBetaEnabled);
+                      }
+                    }}
                     disabled={isCheckingUpdate}
                   >
                     <Text
                       style={[
                         styles.updateButtonText,
                         {
-                          color: updateAvailable ? theme.colors.white : theme.colors.primary,
+                          color:
+                            isDownloading || updateAvailable
+                              ? theme.colors.white
+                              : theme.colors.primary,
                         },
                       ]}
                     >
                       {isCheckingUpdate
                         ? '检查中...'
-                        : updateAvailable
-                          ? `更新 ${latestVersion}`
-                          : '检查更新'}
+                        : isDownloading
+                          ? `下载中 ${Math.round(downloadProgress * 100)}%`
+                          : updateAvailable
+                            ? `更新 ${latestVersion}`
+                            : '检查更新'}
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -2351,6 +2510,27 @@ export const SettingsScreen = () => {
                 >
                   <Text style={[styles.actionButtonText, { color: theme.colors.white }]}>测试</Text>
                 </TouchableOpacity>
+              </View>
+            )}
+
+            {localDebugModeEnabled && (
+              <View style={[styles.settingRow, { borderBottomColor: theme.colors.divider }]}>
+                <View style={styles.settingInfo}>
+                  <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                    更新检查不限次数
+                  </Text>
+                  <Text style={[styles.settingDescription, { color: theme.colors.textTertiary }]}>
+                    开启后每次启动均检查更新，不限每天一次
+                  </Text>
+                </View>
+                <Switch
+                  value={localDebugUpdateCheckNoLimit}
+                  onValueChange={handleToggleDebugUpdateCheckNoLimit}
+                  trackColor={{ false: theme.colors.divider, true: theme.colors.primary }}
+                  thumbColor={
+                    localDebugUpdateCheckNoLimit ? theme.colors.surface : theme.colors.textTertiary
+                  }
+                />
               </View>
             )}
 
