@@ -75,6 +75,10 @@ npm run format-docs
 npm run plugin:build
 ```
 
+## 发布与版本号
+
+发版流程、版本号策略、上游同步工作流见 [docs/RELEASE.md](./docs/RELEASE.md)。
+
 ## 致谢
 
 UniClip 基于以下开源项目改进，特此致谢：

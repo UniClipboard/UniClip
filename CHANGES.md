@@ -1,5 +1,8 @@
 v1.0.11
-- 修复：Android 14+ 启用后台服务运行6小时后，自动上传验证码失效
+- [upstream] 修复：Android 14+ 启用后台服务运行6小时后，自动上传验证码失效
+- [uc] 品牌切换为 UniClip，迁移至 UniClipboard/uc-android
+- [uc] 内置下载新版本 APK 功能
+- [uc] 更换应用图标
 
 v1.0.10
 - 功能：通过 Shizuku 在后台获取剪贴板

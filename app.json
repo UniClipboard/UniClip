@@ -17,7 +17,7 @@
       "bundleIdentifier": "app.uniclipboard.ios"
     },
     "android": {
-      "versionCode": 151,
+      "versionCode": 152,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundImage": "./assets/adaptive-icon-bg.png",
