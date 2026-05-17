@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "SyncClipboard",
-    "slug": "syncclipboard-mobile",
-    "scheme": "syncclipboard",
+    "name": "UniClip",
+    "slug": "uniclip",
+    "scheme": "uniclipboard",
     "version": "1.0.11",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,7 +13,8 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "app.uniclipboard.ios"
     },
     "android": {
       "versionCode": 151,
@@ -22,7 +23,7 @@
         "backgroundColor": "#ffffff"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.jericx.syncclipboardmobile",
+      "package": "app.uniclipboard.android",
       "permissions": ["android.permission.REQUEST_INSTALL_PACKAGES"]
     },
     "web": {

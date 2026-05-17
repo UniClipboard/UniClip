@@ -439,7 +439,7 @@ export const SettingsScreen = () => {
       }
       Alert.alert(
         '开启后台任务',
-        '启用后台任务后，应用将在后台持续运行相关服务，大幅增加电量消耗，强烈建议按需开启。\n\n如有需要，可以在系统设置中将 SyncClipboard 的电池优化设为「不受限制」，并在多任务界面锁定 SyncClipboard，减少系统关闭后台任务的概率。',
+        '启用后台任务后，应用将在后台持续运行相关服务，大幅增加电量消耗，强烈建议按需开启。\n\n如有需要，可以在系统设置中将 UniClip 的电池优化设为「不受限制」，并在多任务界面锁定 UniClip，减少系统关闭后台任务的概率。',
         [
           { text: '取消', style: 'cancel' },
           {
@@ -499,7 +499,7 @@ export const SettingsScreen = () => {
     if (enabled) {
       Alert.alert(
         '开启后台上传本地剪贴板',
-        '无需启用此选项，SyncClipboard 也支持从选中文字弹出的菜单直接上传文字。\n\nAndroid 10 及以上的系统，应用在后台无法直接获取本地剪贴板内容，你可能需要启用悬浮窗或使用其他工具绕过此限制。',
+        '无需启用此选项，UniClip 也支持从选中文字弹出的菜单直接上传文字。\n\nAndroid 10 及以上的系统，应用在后台无法直接获取本地剪贴板内容，你可能需要启用悬浮窗或使用其他工具绕过此限制。',
         [
           { text: '取消', style: 'cancel' },
           {
@@ -535,7 +535,7 @@ export const SettingsScreen = () => {
     if (enabled && Platform.OS === 'android') {
       Alert.alert(
         '启用悬浮窗获取剪贴板',
-        '启用后，应用将通过不可见的悬浮窗在后台获取剪贴板内容。这可能导致部分应用因焦点问题产生功能异常以及其他问题。\n\n如果您可以通过其他工具授予 SyncClipboard 后台读取剪贴板的权限，建议关闭此选项。',
+        '启用后，应用将通过不可见的悬浮窗在后台获取剪贴板内容。这可能导致部分应用因焦点问题产生功能异常以及其他问题。\n\n如果您可以通过其他工具授予 UniClip 后台读取剪贴板的权限，建议关闭此选项。',
         [
           { text: '取消', style: 'cancel' },
           {
@@ -1036,8 +1036,8 @@ export const SettingsScreen = () => {
       [
         { text: '稍后再说', style: 'cancel' },
         {
-          text: 'Gitee 下载',
-          onPress: () => handleDownloadApk('gitee', version, assets),
+          text: 'GitCode 下载',
+          onPress: () => handleDownloadApk('gitcode', version, assets),
         },
         {
           text: 'GitHub 下载',
@@ -2367,9 +2367,7 @@ export const SettingsScreen = () => {
                         borderColor: theme.colors.primary,
                       },
                     ]}
-                    onPress={() =>
-                      Linking.openURL('https://github.com/Jeric-X/syncclipboard-mobile')
-                    }
+                    onPress={() => Linking.openURL('https://github.com/UniClipboard/uc-android')}
                   >
                     <Text style={[styles.updateButtonText, { color: theme.colors.white }]}>
                       GitHub

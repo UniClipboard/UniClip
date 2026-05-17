@@ -48,7 +48,7 @@ const withShizukuProvider: ConfigPlugin = (config) => {
     );
 
     if (!hasProvider) {
-      const packageName = modConfig.android?.package || 'com.jericx.syncclipboardmobile';
+      const packageName = modConfig.android?.package || 'app.uniclipboard.android';
 
       application.provider.push({
         $: {

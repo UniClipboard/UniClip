@@ -7,7 +7,7 @@ import { NativeModules, Platform } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
 import { nativeCopyFile } from 'native-util';
 
-const APP_PACKAGE = 'com.jericx.syncclipboardmobile';
+const APP_PACKAGE = 'app.uniclipboard.android';
 
 /**
  * 根据文件 URI / 文件名推断 MIME 类型（模块私有）

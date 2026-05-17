@@ -14,9 +14,9 @@ import { setDynamicShortcuts } from 'shortcut';
 import { moveTaskToBack, setExcludeFromRecents } from 'native-util';
 import { getBackgroundServiceManager } from './src/services/BackgroundServiceManager';
 
-const QUICK_UPLOAD_URL = 'syncclipboard://quick-upload';
-const QUICK_DOWNLOAD_URL = 'syncclipboard://quick-download';
-const PROCESS_TEXT_URL = 'syncclipboard://process-text';
+const QUICK_UPLOAD_URL = 'uniclipboard://quick-upload';
+const QUICK_DOWNLOAD_URL = 'uniclipboard://quick-download';
+const PROCESS_TEXT_URL = 'uniclipboard://process-text';
 
 function parseProcessTextUrl(url: string | null): string | null {
   if (!url || !url.startsWith(PROCESS_TEXT_URL)) return null;

@@ -1,6 +1,5 @@
-package com.jericx.syncclipboardmobile.quickaction
+package app.uniclipboard.android.servicerestart
 
-import android.content.res.Configuration
 import android.os.Bundle
 
 import com.facebook.react.ReactActivity
@@ -8,25 +7,21 @@ import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
 import com.facebook.react.defaults.DefaultReactActivityDelegate
 
-import com.jericx.syncclipboardmobile.BuildConfig
+import android.content.res.Configuration
+import app.uniclipboard.android.BuildConfig
 import expo.modules.ReactActivityDelegateWrapper
 
 /**
- * Transparent Activity for quick clipboard actions (download/upload).
- * Launched from Quick Settings tiles and foreground service notification.
- * Renders only a semi-transparent overlay without showing the main app UI.
+ * 轻量级透明 Activity，用于后台服务被系统重启后引导 JS 运行时启动。
+ * 显示一个简短的"服务已恢复"提示，0.5 秒后自动关闭。
  */
-class QuickActionActivity : ReactActivity() {
-
-    companion object {
-        const val EXTRA_DIRECTION = "direction"
-    }
+class ServiceRestartActivity : ReactActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(null)
     }
 
-    override fun getMainComponentName(): String = "quickAction"
+    override fun getMainComponentName(): String = "serviceRestart"
 
     override fun createReactActivityDelegate(): ReactActivityDelegate {
         return ReactActivityDelegateWrapper(
@@ -40,8 +35,6 @@ class QuickActionActivity : ReactActivity() {
                 override fun getLaunchOptions(): Bundle? {
                     val isDarkMode = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
                     return Bundle().apply {
-                        val direction = intent?.getStringExtra(EXTRA_DIRECTION) ?: "download"
-                        putString("direction", direction)
                         putString("systemTheme", if (isDarkMode) "dark" else "light")
                     }
                 }

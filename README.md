@@ -1,6 +1,6 @@
-# SyncClipboard Mobile
+# UniClip
 
-SyncClipboard 的移动客户端，暂时仅支持 Android
+多端剪贴板同步移动客户端，目前仅支持 Android。
 
 ## 功能特性
 
@@ -14,7 +14,7 @@ SyncClipboard 的移动客户端，暂时仅支持 Android
 
 ### 服务器支持
 
-- **SyncClipboard 服务器**
+- **SyncClipboard 协议服务器**
 - **WebDAV 服务器**
 - **S3 对象存储**
 
@@ -75,6 +75,15 @@ npm run format-docs
 npm run plugin:build
 ```
 
+## 致谢
+
+UniClip 基于以下开源项目改进，特此致谢：
+
+- [Jeric-X/SyncClipboard](https://github.com/Jeric-X/SyncClipboard) — 原始 SyncClipboard 协议与桌面端实现（MIT）
+- [Jeric-X/syncclipboard-mobile](https://github.com/Jeric-X/syncclipboard-mobile) — 移动端原始实现（MIT，作者 JericX）
+
+UniClip 兼容 SyncClipboard 协议，可与 SyncClipboard 服务端配合使用。
+
 ## 开源依赖
 
 ### JavaScript / TypeScript 依赖
@@ -113,3 +122,12 @@ npm run plugin:build
 | [RikkaApps/Shizuku](https://github.com/RikkaApps/Shizuku)                                                             | Shizuku API：无需 Root 的系统 API 访问  |
 | [dotnet/aspnetcore (SignalR Java 客户端)](https://github.com/dotnet/aspnetcore)                                       | SignalR 实时推送（Java/Android 客户端） |
 | [google/gson](https://github.com/google/gson)                                                                         | JSON 序列化（SignalR 协议层）           |
+
+## 许可协议
+
+本项目包含以下版权声明：
+
+- Copyright (c) 2026 JericX（上游 SyncClipboard 原作者）
+- Copyright (c) 2026 mkdir700（UniClip）
+
+详见 [LICENSE](./LICENSE)。

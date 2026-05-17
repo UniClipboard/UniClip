@@ -3,10 +3,13 @@
  * 检查 GitHub 最新 Release 版本更新
  */
 
-const GITHUB_RELEASES_API = 'https://api.github.com/repos/Jeric-X/syncclipboard-mobile/releases';
-const RELEASES_PAGE_URL = 'https://github.com/Jeric-X/syncclipboard-mobile/releases';
-const GITEE_RELEASES_PAGE_URL = 'https://gitee.com/JericX/syncclipboard-mobile/releases';
-const GITEE_DOWNLOAD_BASE = 'https://gitee.com/JericX/syncclipboard-mobile/releases/download';
+const GITHUB_RELEASES_API = 'https://api.github.com/repos/UniClipboard/uc-android/releases';
+const RELEASES_PAGE_URL = 'https://github.com/UniClipboard/uc-android/releases';
+// NOTE: GitCode 的 release 资源下载 URL 模式按 GitHub 风格猜测,
+// 首次在 GitCode 发布 release 后,必须人工点开下载链接验证路径是否对得上,
+// 若 GitCode 实际使用其他模式(如 GitLab 风格 /-/releases/<tag>/downloads/<file>),需相应调整下方两行模板
+const GITCODE_RELEASES_PAGE_URL = 'https://gitcode.com/UniClipboard/uc-android/releases';
+const GITCODE_DOWNLOAD_BASE = 'https://gitcode.com/UniClipboard/uc-android/releases/download';
 
 export interface ParsedVersion {
   major: number;
@@ -17,12 +20,12 @@ export interface ParsedVersion {
 }
 
 export interface ReleaseAssetInfo {
-  /** APK 文件名，如 SyncClipboard-1.0.11-arm64-v8a.apk */
+  /** APK 文件名，如 UniClip-1.0.11-arm64-v8a.apk */
   name: string;
   /** GitHub 直接下载 URL */
   githubDownloadUrl: string;
-  /** Gitee 直接下载 URL */
-  giteeDownloadUrl: string;
+  /** GitCode 直接下载 URL */
+  gitcodeDownloadUrl: string;
   /** SHA-256 哈希值（十六进制小写），来自 GitHub API digest 字段，可能为 undefined */
   sha256?: string;
 }
@@ -85,7 +88,7 @@ export interface UpdateCheckResult {
   latestVersion: string;
   tagName: string;
   releaseUrl: string;
-  giteeReleaseUrl: string;
+  gitcodeReleaseUrl: string;
   /** APK 资源列表（含各 ABI 的下载 URL 和哈希值） */
   assets: ReleaseAssetInfo[];
   /** GitHub Release 更新说明 */
@@ -136,7 +139,7 @@ export async function checkForUpdate(
       latestVersion: currentVersionStr,
       tagName: '',
       releaseUrl: RELEASES_PAGE_URL,
-      giteeReleaseUrl: GITEE_RELEASES_PAGE_URL,
+      gitcodeReleaseUrl: GITCODE_RELEASES_PAGE_URL,
       assets: [],
       releaseNotes: undefined,
     };
@@ -150,7 +153,7 @@ export async function checkForUpdate(
     .map((a) => ({
       name: a.name,
       githubDownloadUrl: a.browser_download_url,
-      giteeDownloadUrl: `${GITEE_DOWNLOAD_BASE}/${latest.tag_name}/${a.name}`,
+      gitcodeDownloadUrl: `${GITCODE_DOWNLOAD_BASE}/${latest.tag_name}/${a.name}`,
       sha256: a.digest?.startsWith('sha256:') ? a.digest.slice(7).toLowerCase() : undefined,
     }));
 
@@ -160,7 +163,7 @@ export async function checkForUpdate(
       latestVersion: latest.tag_name,
       tagName: latest.tag_name,
       releaseUrl: latest.html_url,
-      giteeReleaseUrl: `https://gitee.com/JericX/syncclipboard-mobile/releases/tag/${latest.tag_name}`,
+      gitcodeReleaseUrl: `https://gitcode.com/UniClipboard/uc-android/releases/tag/${latest.tag_name}`,
       assets: apkAssets,
       releaseNotes: latest.body,
     };
@@ -172,7 +175,7 @@ export async function checkForUpdate(
     latestVersion: versionToStr(latestParsed),
     tagName: latest.tag_name,
     releaseUrl: latest.html_url,
-    giteeReleaseUrl: `https://gitee.com/JericX/syncclipboard-mobile/releases/tag/${latest.tag_name}`,
+    gitcodeReleaseUrl: `https://gitcode.com/UniClipboard/uc-android/releases/tag/${latest.tag_name}`,
     assets: apkAssets,
     releaseNotes: latest.body,
   };

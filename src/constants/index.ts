@@ -4,7 +4,7 @@
 
 import * as Application from 'expo-application';
 
-export const APP_NAME = 'SyncClipboard';
+export const APP_NAME = 'UniClip';
 export const APP_VERSION = Application.nativeApplicationVersion ?? '1.0.0';
 
 // API Endpoints

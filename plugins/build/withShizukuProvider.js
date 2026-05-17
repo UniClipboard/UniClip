@@ -33,7 +33,7 @@ const withShizukuProvider = (config) => {
         const shizukuProviderName = 'rikka.shizuku.ShizukuProvider';
         const hasProvider = application.provider.some((p) => p.$?.['android:name'] === shizukuProviderName);
         if (!hasProvider) {
-            const packageName = modConfig.android?.package || 'com.jericx.syncclipboardmobile';
+            const packageName = modConfig.android?.package || 'app.uniclipboard.android';
             application.provider.push({
                 $: {
                     'android:name': shizukuProviderName,

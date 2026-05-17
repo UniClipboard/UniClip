@@ -104,5 +104,6 @@ tmpclaude-*-cwd
 
 # build output
 /android/
+/ios/
 modules/*/android/build/
 modules/*/build/
