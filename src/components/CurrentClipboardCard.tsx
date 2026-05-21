@@ -15,6 +15,7 @@ import {
   Linking,
 } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { spacing, radius, typography, elevation } from '@/theme';
 import { ClipboardContent } from '@/types/clipboard';
 import { useSettingsStore } from '@/stores';
 import { useMessageStore } from '@/stores/messageStore';
@@ -106,16 +107,11 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
 
   if (!clipboard) {
     return (
-      <View
-        style={[
-          styles.card,
-          { backgroundColor: theme.colors.surface, borderColor: theme.colors.divider },
-        ]}
-      >
+      <View style={[styles.card, { backgroundColor: theme.colors.surfaceContainerLow }]}>
         <View style={styles.emptyContent}>
           <Text style={[styles.emptyIcon, { color: theme.colors.textTertiary }]}>📋</Text>
-          <Text style={[styles.emptyTitle, { color: theme.colors.textSecondary }]}>剪贴板为空</Text>
-          <Text style={[styles.emptyDescription, { color: theme.colors.textTertiary }]}>
+          <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>剪贴板为空</Text>
+          <Text style={[styles.emptyDescription, { color: theme.colors.onSurfaceVariant }]}>
             复制内容后将在此显示
           </Text>
         </View>
@@ -257,28 +253,25 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
   };
 
   return (
-    <View
-      style={[
-        styles.card,
-        { backgroundColor: theme.colors.surface, borderColor: theme.colors.divider },
-      ]}
-    >
-      {/* 标题栏 */}
+    <View style={[styles.card, { backgroundColor: theme.colors.surfaceContainerHigh }]}>
+      {/* 标题栏 — M3 leading avatar + 标题 */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.typeIcon}>{getTypeIcon(clipboard.type)}</Text>
+          <View style={[styles.leadingAvatar, { backgroundColor: theme.colors.primaryContainer }]}>
+            <Text style={styles.typeIcon}>{getTypeIcon(clipboard.type)}</Text>
+          </View>
           <View style={styles.headerInfo}>
             <Text style={[styles.typeLabel, { color: theme.colors.text }]}>
               {getTypeLabel(clipboard.type)}
             </Text>
-            <Text style={[styles.timestamp, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.timestamp, { color: theme.colors.onSurfaceVariant }]}>
               {clipboard.timestamp ? formatTime(clipboard.timestamp) : '刚刚'}
             </Text>
           </View>
         </View>
 
         {clipboard.fileSize !== undefined && (
-          <Text style={[styles.sizeLabel, { color: theme.colors.textSecondary }]}>
+          <Text style={[styles.sizeLabel, { color: theme.colors.onSurfaceVariant }]}>
             {formatSizeWithType(clipboard.fileSize, clipboard.type)}
           </Text>
         )}
@@ -358,25 +351,29 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
         )}
       </View>
 
-      {/* 按钮区域 */}
+      {/* 按钮区域 — M3 Filled Tonal(主)+ Outlined(次)*/}
       <View style={styles.actionButtons}>
         {/* 文本中包含 URL：打开链接按钮 */}
         {clipboard.type === 'Text' && detectedUrl && (
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
+            style={[styles.actionButton, { backgroundColor: theme.colors.primaryContainer }]}
             onPress={() => Linking.openURL(detectedUrl)}
           >
-            <Text style={[styles.actionButtonText, { color: theme.colors.white }]}>打开链接</Text>
+            <Text style={[styles.actionButtonText, { color: theme.colors.onPrimaryContainer }]}>
+              打开链接
+            </Text>
           </TouchableOpacity>
         )}
 
         {/* 文本类型：分词按钮 */}
         {clipboard.type === 'Text' && onWordPick && !isTextInvalid(clipboard.text) && (
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
+            style={[styles.actionButton, { backgroundColor: theme.colors.primaryContainer }]}
             onPress={() => onWordPick(clipboard.text!)}
           >
-            <Text style={[styles.actionButtonText, { color: theme.colors.white }]}>分词</Text>
+            <Text style={[styles.actionButtonText, { color: theme.colors.onPrimaryContainer }]}>
+              分词
+            </Text>
           </TouchableOpacity>
         )}
 
@@ -386,31 +383,37 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
             style={[
               styles.actionButton,
               styles.actionButtonLast,
-              { backgroundColor: theme.colors.primary },
+              { backgroundColor: theme.colors.primaryContainer },
             ]}
             onPress={() => onCopy(clipboard)}
           >
-            <Text style={[styles.actionButtonText, { color: theme.colors.white }]}>复制</Text>
+            <Text style={[styles.actionButtonText, { color: theme.colors.onPrimaryContainer }]}>
+              复制
+            </Text>
           </TouchableOpacity>
         )}
 
         {/* 非文本且有文件：打开按钮 */}
         {canOpenFile && (
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
+            style={[styles.actionButton, { backgroundColor: theme.colors.primaryContainer }]}
             onPress={handleOpenFile}
           >
-            <Text style={[styles.actionButtonText, { color: theme.colors.white }]}>打开</Text>
+            <Text style={[styles.actionButtonText, { color: theme.colors.onPrimaryContainer }]}>
+              打开
+            </Text>
           </TouchableOpacity>
         )}
 
         {/* 非Text类型且已下载：保存按钮 */}
         {canShowSaveButton && (
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
+            style={[styles.actionButton, { backgroundColor: theme.colors.primaryContainer }]}
             onPress={handleSaveFile}
           >
-            <Text style={[styles.actionButtonText, { color: theme.colors.white }]}>保存</Text>
+            <Text style={[styles.actionButtonText, { color: theme.colors.onPrimaryContainer }]}>
+              保存
+            </Text>
           </TouchableOpacity>
         )}
 
@@ -420,22 +423,24 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
             style={[
               styles.actionButton,
               styles.actionButtonLast,
-              { backgroundColor: theme.colors.primary },
+              { backgroundColor: theme.colors.primaryContainer },
             ]}
             onPress={handleShare}
           >
-            <Text style={[styles.actionButtonText, { color: theme.colors.white }]}>分享</Text>
+            <Text style={[styles.actionButtonText, { color: theme.colors.onPrimaryContainer }]}>
+              分享
+            </Text>
           </TouchableOpacity>
         )}
 
-        {/* 同步操作按钮 */}
+        {/* 同步操作按钮 — Outlined */}
         {!isRemote && onUpload && (
           <TouchableOpacity
             style={[
               styles.actionButton,
               styles.secondaryButton,
               styles.actionButtonLast,
-              { borderColor: theme.colors.primary },
+              { borderColor: theme.colors.outline },
             ]}
             onPress={uploading ? onCancelUpload : onUpload}
           >
@@ -457,7 +462,7 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
               styles.actionButton,
               styles.secondaryButton,
               styles.actionButtonLast,
-              { borderColor: theme.colors.primary },
+              { borderColor: theme.colors.outline },
             ]}
             onPress={downloading ? onCancelDownload : onDownload}
           >
@@ -503,105 +508,119 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
+    borderRadius: radius.lg,
+    borderCurve: 'continuous',
+    padding: spacing.base,
+    ...elevation.sm,
   },
   emptyContent: {
     alignItems: 'center',
-    paddingVertical: 32,
+    paddingVertical: spacing.xxl,
   },
   emptyIcon: {
     fontSize: 48,
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   emptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 4,
+    fontSize: typography.title3.fontSize,
+    lineHeight: typography.title3.lineHeight,
+    fontWeight: typography.title3.fontWeight,
+    marginBottom: spacing.xs,
   },
   emptyDescription: {
-    fontSize: 14,
+    fontSize: typography.subhead.fontSize,
+    lineHeight: typography.subhead.lineHeight,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
+  leadingAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+  },
   typeIcon: {
-    fontSize: 24,
-    marginRight: 12,
+    fontSize: 20,
   },
   headerInfo: {
     flex: 1,
   },
   typeLabel: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: typography.headline.fontSize,
+    lineHeight: typography.headline.lineHeight,
+    fontWeight: typography.headline.fontWeight,
     marginBottom: 2,
   },
   timestamp: {
-    fontSize: 13,
+    fontSize: typography.footnote.fontSize,
+    lineHeight: typography.footnote.lineHeight,
   },
   sizeLabel: {
-    fontSize: 13,
+    fontSize: typography.footnote.fontSize,
     fontWeight: '500',
   },
   content: {
-    marginBottom: 16,
+    marginBottom: spacing.base,
   },
   actionButtons: {
     flexDirection: 'row',
-    marginBottom: 12,
-    gap: 12,
+    marginBottom: spacing.md,
+    gap: spacing.sm,
   },
   actionButton: {
     flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.base,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    minHeight: 40,
   },
   actionButtonLast: {},
   secondaryButton: {
     borderWidth: 1,
   },
   actionButtonText: {
-    fontSize: 15,
+    fontSize: typography.subhead.fontSize,
     fontWeight: '600',
   },
   secondaryButtonText: {
     fontWeight: '500',
   },
   previewText: {
-    fontSize: 15,
+    fontSize: typography.subhead.fontSize,
     lineHeight: 22,
   },
   mediaPreview: {
-    paddingVertical: 8,
+    paddingVertical: spacing.sm,
   },
   imagePreview: {
     width: '100%',
     height: 200,
-    borderRadius: 8,
+    borderRadius: radius.lg,
+    borderCurve: 'continuous',
   },
   mediaLabel: {
-    fontSize: 15,
-    marginBottom: 4,
+    fontSize: typography.subhead.fontSize,
+    marginBottom: spacing.xs,
   },
   mediaHint: {
-    fontSize: 13,
+    fontSize: typography.footnote.fontSize,
   },
   footer: {
-    paddingTop: 12,
+    paddingTop: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   hashLabel: {

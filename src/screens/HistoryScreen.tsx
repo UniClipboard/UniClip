@@ -26,6 +26,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { TabView, TabBar, type Route } from 'react-native-tab-view';
 import { useTheme } from '@/hooks/useTheme';
+import { spacing, radius, typography, elevation } from '@/theme';
 import { useHistoryStore } from '@/stores/historyStore';
 import { useClipboardStore } from '@/stores/clipboardStore';
 import { useSettingsStore } from '@/stores';
@@ -924,7 +925,7 @@ export function HistoryScreen() {
     ]
   );
 
-  // 自定义 TabBar
+  // 自定义 TabBar — M3 风:主色 indicator + onSurfaceVariant 未激活态
   const renderTabBar = useCallback(
     (props: Parameters<NonNullable<React.ComponentProps<typeof TabView>['renderTabBar']>>[0]) => (
       <TabBar
@@ -932,8 +933,8 @@ export function HistoryScreen() {
         style={[styles.tabBar, { backgroundColor: theme.colors.surface }]}
         indicatorStyle={[styles.tabIndicator, { backgroundColor: theme.colors.primary }]}
         activeColor={theme.colors.primary}
-        inactiveColor={theme.colors.textSecondary}
-        pressColor={theme.colors.border}
+        inactiveColor={theme.colors.onSurfaceVariant}
+        pressColor={theme.colors.outlineVariant}
       />
     ),
     [theme]
@@ -1084,19 +1085,18 @@ export function HistoryScreen() {
           </Text>
         </View>
       )}
-      {/* 搜索栏 */}
+      {/* 搜索栏 — M3 filled search field(pill,无边框)*/}
       <View style={[styles.searchContainer, { backgroundColor: theme.colors.surface }]}>
         <TextInput
           style={[
             styles.searchInput,
             {
-              backgroundColor: theme.colors.background,
+              backgroundColor: theme.colors.surfaceContainerHigh,
               color: theme.colors.text,
-              borderColor: theme.colors.border,
             },
           ]}
           placeholder="搜索历史记录..."
-          placeholderTextColor={theme.colors.textSecondary}
+          placeholderTextColor={theme.colors.onSurfaceVariant}
           value={searchText}
           onChangeText={setSearchText}
           clearButtonMode="while-editing"
@@ -1110,7 +1110,7 @@ export function HistoryScreen() {
             style={[
               styles.clearSearchButtonText,
               {
-                color: searchText ? theme.colors.primary : theme.colors.textTertiary,
+                color: searchText ? theme.colors.primary : theme.colors.onSurfaceVariant,
               },
             ]}
           >
@@ -1195,7 +1195,12 @@ export function HistoryScreen() {
       {/* 导入文件遮罩 */}
       {importingFile && (
         <View style={[styles.importOverlay, { backgroundColor: theme.colors.backdrop }]}>
-          <View style={[styles.importOverlayCard, { backgroundColor: theme.colors.surface }]}>
+          <View
+            style={[
+              styles.importOverlayCard,
+              { backgroundColor: theme.colors.surfaceContainerHigh },
+            ]}
+          >
             <ActivityIndicator size="large" color={theme.colors.primary} />
             <Text style={[styles.importOverlayTitle, { color: theme.colors.text }]}>
               正在添加文件...
@@ -1268,18 +1273,17 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
     paddingTop: 0,
-    gap: 8,
+    gap: spacing.sm,
   },
   searchInput: {
     flex: 1,
-    height: 40,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    fontSize: 15,
-    borderWidth: 1,
+    height: 44,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.base,
+    fontSize: typography.subhead.fontSize,
   },
   clearSearchButton: {
     paddingHorizontal: 8,
@@ -1361,10 +1365,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   importOverlayCard: {
-    borderRadius: 12,
-    padding: 24,
+    borderRadius: radius.lg,
+    borderCurve: 'continuous',
+    padding: spacing.xl,
     alignItems: 'center',
     minWidth: 160,
+    ...elevation.md,
   },
   importOverlayTitle: {
     marginTop: 16,

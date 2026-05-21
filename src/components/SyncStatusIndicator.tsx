@@ -6,6 +6,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { spacing, typography } from '@/theme';
 import { SyncStatus } from '@/types/sync';
 
 interface SyncStatusIndicatorProps {
@@ -111,7 +112,7 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
           <View style={styles.textContainer}>
             <Text style={[styles.statusText, { color: statusColor }]}>{statusText}</Text>
             {timeText && (
-              <Text style={[styles.timeText, { color: theme.colors.textSecondary }]}>
+              <Text style={[styles.timeText, { color: theme.colors.onSurfaceVariant }]}>
                 {timeText}
               </Text>
             )}
@@ -124,7 +125,7 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
             style={[
               styles.dot,
               {
-                backgroundColor: serverConnected ? theme.colors.success : theme.colors.textTertiary,
+                backgroundColor: serverConnected ? theme.colors.success : theme.colors.outline,
               },
             ]}
           />
@@ -136,9 +137,8 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
   },
   content: {
     flexDirection: 'row',
@@ -151,25 +151,25 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   icon: {
-    marginRight: 8,
+    marginRight: spacing.sm,
   },
   iconText: {
     fontSize: 20,
-    marginRight: 8,
+    marginRight: spacing.sm,
   },
   textContainer: {
     flex: 1,
   },
   statusText: {
-    fontSize: 15,
+    fontSize: typography.subhead.fontSize,
     fontWeight: '600',
   },
   timeText: {
-    fontSize: 12,
+    fontSize: typography.caption1.fontSize,
     marginTop: 2,
   },
   connectionDot: {
-    marginLeft: 12,
+    marginLeft: spacing.md,
   },
   dot: {
     width: 8,

@@ -9,6 +9,7 @@ import { Copy, Download, Share, Link2, Scissors } from 'react-native-feather';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { StarIcon } from './StarIcon';
 import { useTheme } from '@/hooks/useTheme';
+import { spacing, radius, typography, elevation } from '@/theme';
 import { ClipboardItem } from '@/types/clipboard';
 import { useTransferQueueStore } from '@/stores/transferQueueStore';
 import { getHistoryTransferQueue } from '@/services/HistoryTransferQueue';
@@ -231,17 +232,23 @@ export const HistoryListItem = forwardRef<object, HistoryListItemProps>(
             style={[
               styles.container,
               {
-                backgroundColor: theme.colors.surface,
-                borderColor: isSelected ? theme.colors.primary : theme.colors.divider,
+                backgroundColor: isSelected
+                  ? theme.colors.primaryContainer
+                  : theme.colors.surfaceContainerLow,
               },
-              isSelected && styles.containerSelected,
+              isSelected && {
+                borderColor: theme.colors.primary,
+                borderWidth: 1.5,
+              },
               isMultiSelectMode && styles.containerMultiSelect,
             ]}
           >
             {/* 顶部内容区 */}
             <View style={styles.topContent}>
-              {/* 左侧图标 */}
-              <View style={styles.iconContainer}>
+              {/* 左侧图标 — M3 tonal leading */}
+              <View
+                style={[styles.iconContainer, { backgroundColor: theme.colors.primaryContainer }]}
+              >
                 <Text style={styles.typeIcon}>{getTypeIcon(item.type)}</Text>
               </View>
 
@@ -650,18 +657,19 @@ HistoryListItem.displayName = 'HistoryListItem';
 
 const styles = StyleSheet.create({
   touchable: {
-    marginHorizontal: 16,
-    marginVertical: 4,
-    borderRadius: 12,
+    marginHorizontal: spacing.base,
+    marginVertical: spacing.xs,
+    borderRadius: radius.lg,
+    borderCurve: 'continuous',
   },
   touchableMultiSelect: {
-    marginLeft: 8,
+    marginLeft: spacing.sm,
   },
   container: {
     flexDirection: 'column',
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    borderCurve: 'continuous',
   },
   containerMultiSelect: {
     flex: 1,
@@ -677,35 +685,36 @@ const styles = StyleSheet.create({
   checkboxContainer: {
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 8,
-    paddingTop: 12,
+    marginRight: spacing.sm,
+    paddingTop: spacing.md,
   },
   topContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   bottomContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 8,
+    marginTop: spacing.sm,
   },
   iconContainer: {
-    width: 24,
-    height: 24,
+    width: 28,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 6,
+    borderRadius: radius.pill,
     overflow: 'hidden',
   },
   typeIcon: {
-    fontSize: 13,
+    fontSize: 14,
   },
   imagePreviewContainer: {
-    marginTop: 8,
-    marginBottom: 4,
-    borderRadius: 8,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+    borderRadius: radius.md,
+    borderCurve: 'continuous',
     overflow: 'hidden',
     alignSelf: 'stretch',
   },
@@ -717,51 +726,51 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     flex: 1,
-    marginLeft: 8,
+    marginLeft: spacing.sm,
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   typeLabel: {
-    fontSize: 13,
+    fontSize: typography.footnote.fontSize,
     fontWeight: '600',
   },
   typeLabelSpacing: {
-    marginLeft: 8,
-    marginRight: 8,
+    marginLeft: spacing.sm,
+    marginRight: spacing.sm,
   },
   timestamp: {
-    fontSize: 12,
+    fontSize: typography.caption1.fontSize,
   },
   timestampAlign: {
     flex: 1,
     textAlign: 'right',
   },
   previewText: {
-    fontSize: 15,
-    lineHeight: 20,
-    marginBottom: 4,
+    fontSize: typography.subhead.fontSize,
+    lineHeight: typography.subhead.lineHeight,
+    marginBottom: spacing.xs,
   },
 
   metaInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
   metaText: {
-    fontSize: 12,
+    fontSize: typography.caption1.fontSize,
   },
   syncBadge: {
-    marginLeft: 4,
+    marginLeft: spacing.xs,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: spacing.xs,
   },
   syncBadgeText: {
-    fontSize: 12,
+    fontSize: typography.caption1.fontSize,
     fontWeight: '500',
   },
   actionsRow: {
@@ -773,7 +782,7 @@ const styles = StyleSheet.create({
     height: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 14,
+    borderRadius: radius.pill,
   },
   progressContainer: {
     width: 28,

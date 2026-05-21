@@ -18,12 +18,13 @@ import {
   Modal,
 } from 'react-native';
 import { APP_VERSION } from '@/constants';
+import { spacing, radius, typography, elevation, PALETTES } from '@/theme';
 import { Paths, Directory } from 'expo-file-system';
 import { calculateDirectorySize, clearDirectory } from '@/utils/fileStorage';
 import { CLIPBOARD_TEMP_DIR } from '@/utils/fileStorage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
-import type { ThemeMode } from '@/theme';
+import type { ThemeMode, PaletteId } from '@/theme';
 import { useSettingsStore } from '@/stores';
 import { ServerConfigModal, ServerListItem, MessageToast } from '@/components';
 import { ServerConfig } from '@/types/api';
@@ -55,7 +56,7 @@ import {
 import { extractVerificationCode } from '@/tasks/SmsUploadTask';
 
 export const SettingsScreen = () => {
-  const { theme, themeMode, setThemeMode } = useTheme();
+  const { theme, themeMode, setThemeMode, paletteId, setPaletteId } = useTheme();
   const {
     config,
     isLoaded,
@@ -135,7 +136,6 @@ export const SettingsScreen = () => {
   const [showSmsTestModal, setShowSmsTestModal] = useState(false);
   const [smsTestInput, setSmsTestInput] = useState('');
   const [showLogLevelMenu, setShowLogLevelMenu] = useState(false);
-  const [showThemeMenu, setShowThemeMenu] = useState(false);
   const [localHideFromRecents, setLocalHideFromRecents] = useState(
     config?.hideFromRecents ?? false
   );
@@ -281,9 +281,25 @@ export const SettingsScreen = () => {
 
   const themeOptions: { label: string; value: ThemeMode }[] = [
     { label: '跟随系统', value: 'auto' },
-    { label: '浅色模式', value: 'light' },
-    { label: '深色模式', value: 'dark' },
+    { label: '浅色', value: 'light' },
+    { label: '深色', value: 'dark' },
   ];
+
+  const handleSetPaletteId = async (id: PaletteId) => {
+    try {
+      await setPaletteId(id);
+    } catch (error: unknown) {
+      showMessage(error instanceof Error ? error.message : '主题色切换失败', 'error');
+    }
+  };
+
+  const handleSetThemeMode = async (mode: ThemeMode) => {
+    try {
+      await setThemeMode(mode);
+    } catch (error: unknown) {
+      showMessage(error instanceof Error ? error.message : '外观模式切换失败', 'error');
+    }
+  };
 
   const imageAutoDownloadOptions: { label: string; value: 'wifi' | 'always' | 'off' }[] = [
     { label: '仅 Wi-Fi', value: 'wifi' },
@@ -2206,63 +2222,132 @@ export const SettingsScreen = () => {
               { backgroundColor: theme.colors.surface, borderColor: theme.colors.divider },
             ]}
           >
-            <TouchableOpacity
-              style={[styles.settingRow, { borderBottomColor: theme.colors.divider }]}
-              onPress={() => setShowThemeMenu(!showThemeMenu)}
+            {/* 主题色 (source color) */}
+            <View
+              style={[
+                styles.appearanceBlock,
+                {
+                  borderBottomWidth: StyleSheet.hairlineWidth,
+                  borderBottomColor: theme.colors.divider,
+                },
+              ]}
             >
-              <Text style={[styles.settingLabel, { color: theme.colors.text }]}>主题</Text>
-              <View style={styles.dropdownValue}>
-                <Text style={[styles.dropdownValueText, { color: theme.colors.textSecondary }]}>
-                  {themeOptions.find((o) => o.value === themeMode)?.label ?? '跟随系统'}
-                </Text>
-                {showThemeMenu ? (
-                  <ChevronUp color={theme.colors.textSecondary} width={18} height={18} />
-                ) : (
-                  <ChevronDown color={theme.colors.textSecondary} width={18} height={18} />
-                )}
+              <Text style={[styles.settingLabel, { color: theme.colors.text }]}>主题色</Text>
+              <Text style={[styles.settingDescription, { color: theme.colors.textTertiary }]}>
+                切换 source color,影响主色调与容器底色
+              </Text>
+              <View style={styles.swatchRow}>
+                {PALETTES.map((p) => {
+                  const active = p.id === paletteId;
+                  return (
+                    <TouchableOpacity
+                      key={p.id}
+                      onPress={() => handleSetPaletteId(p.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`主题色 ${p.label}`}
+                      accessibilityState={{ selected: active }}
+                      style={styles.swatchWrap}
+                    >
+                      <View
+                        style={[
+                          styles.swatchRing,
+                          { borderColor: active ? p.swatch : 'transparent' },
+                        ]}
+                      >
+                        <View style={[styles.swatch, { backgroundColor: p.swatch }]}>
+                          {active && (
+                            <Check
+                              stroke={theme.colors.white}
+                              width={16}
+                              height={16}
+                              strokeWidth={3}
+                            />
+                          )}
+                        </View>
+                      </View>
+                      <Text
+                        style={[
+                          styles.swatchLabel,
+                          {
+                            color: active ? theme.colors.text : theme.colors.textTertiary,
+                            fontWeight: active ? '600' : '400',
+                          },
+                        ]}
+                      >
+                        {p.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
-            </TouchableOpacity>
+            </View>
 
-            {showThemeMenu && (
-              <View style={[styles.dropdownMenu, { borderColor: theme.colors.divider }]}>
-                {themeOptions.map((option, index) => (
-                  <TouchableOpacity
-                    key={option.value}
-                    style={[
-                      styles.dropdownItem,
-                      index < themeOptions.length - 1
-                        ? {
-                            borderBottomWidth: StyleSheet.hairlineWidth,
-                            borderBottomColor: theme.colors.divider,
-                          }
-                        : undefined,
-                    ]}
-                    onPress={() => {
-                      setThemeMode(option.value);
-                      setShowThemeMenu(false);
-                    }}
-                  >
-                    <Text
+            {/* 外观模式 — M3 segmented */}
+            <View
+              style={[
+                styles.appearanceBlock,
+                Platform.OS === 'android' && {
+                  borderBottomWidth: StyleSheet.hairlineWidth,
+                  borderBottomColor: theme.colors.divider,
+                },
+              ]}
+            >
+              <Text style={[styles.settingLabel, { color: theme.colors.text }]}>外观模式</Text>
+              <View style={[styles.segmentedTrack, { borderColor: theme.colors.outline }]}>
+                {themeOptions.map((opt, i) => {
+                  const active = themeMode === opt.value;
+                  const isFirst = i === 0;
+                  const isLast = i === themeOptions.length - 1;
+                  return (
+                    <TouchableOpacity
+                      key={opt.value}
+                      onPress={() => handleSetThemeMode(opt.value)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
                       style={[
-                        styles.dropdownItemText,
+                        styles.segmentedItem,
                         {
-                          color:
-                            themeMode === option.value ? theme.colors.primary : theme.colors.text,
+                          backgroundColor: active ? theme.colors.primaryContainer : 'transparent',
+                          borderLeftWidth: isFirst ? 0 : StyleSheet.hairlineWidth,
+                          borderLeftColor: theme.colors.outline,
+                        },
+                        isFirst && {
+                          borderTopLeftRadius: radius.pill,
+                          borderBottomLeftRadius: radius.pill,
+                        },
+                        isLast && {
+                          borderTopRightRadius: radius.pill,
+                          borderBottomRightRadius: radius.pill,
                         },
                       ]}
                     >
-                      {option.label}
-                    </Text>
-                    {themeMode === option.value && (
-                      <Check stroke={theme.colors.primary} width={18} height={18} strokeWidth={3} />
-                    )}
-                  </TouchableOpacity>
-                ))}
+                      {active && (
+                        <Check
+                          stroke={theme.colors.onPrimaryContainer}
+                          width={14}
+                          height={14}
+                          strokeWidth={3}
+                          style={styles.segmentedCheck}
+                        />
+                      )}
+                      <Text
+                        style={[
+                          styles.segmentedItemText,
+                          {
+                            color: active ? theme.colors.onPrimaryContainer : theme.colors.text,
+                          },
+                        ]}
+                      >
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
-            )}
+            </View>
 
             {Platform.OS === 'android' && (
-              <View style={[styles.settingRow, { borderBottomColor: theme.colors.divider }]}>
+              <View style={styles.settingRowNoBorder}>
                 <View style={styles.settingInfo}>
                   <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
                     在最近任务列表中隐藏
@@ -2660,11 +2745,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   section: {
-    marginTop: 20,
+    marginTop: spacing.lg,
   },
   sectionHeaderBase: {
-    marginHorizontal: 16,
-    marginBottom: 8,
+    marginHorizontal: spacing.base,
+    marginBottom: spacing.sm,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
@@ -2672,10 +2757,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sectionTitle: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: typography.sectionHeader.fontSize,
+    fontWeight: typography.sectionHeader.fontWeight,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: typography.sectionHeader.letterSpacing,
   },
   sectionTitleContainer: {
     flexDirection: 'row',
@@ -2688,102 +2773,108 @@ const styles = StyleSheet.create({
   iconButton: {
     width: 34,
     height: 34,
-    borderRadius: 8,
+    borderRadius: radius.sm,
+    borderCurve: 'continuous',
     justifyContent: 'center',
     alignItems: 'center',
   },
   addButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.sm,
+    borderCurve: 'continuous',
   },
   addButtonText: {
     fontSize: 14,
     fontWeight: '600',
   },
   emptyCard: {
-    marginHorizontal: 16,
-    borderRadius: 12,
-    padding: 32,
+    marginHorizontal: spacing.base,
+    borderRadius: radius.lg,
+    borderCurve: 'continuous',
+    padding: spacing.xxl,
     alignItems: 'center',
+    ...elevation.sm,
   },
   emptyText: {
-    fontSize: 16,
+    fontSize: typography.callout.fontSize,
     fontWeight: '500',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   emptyHint: {
     fontSize: 14,
     textAlign: 'center',
   },
   card: {
-    marginHorizontal: 16,
-    borderRadius: 12,
+    marginHorizontal: spacing.base,
+    borderRadius: radius.lg,
+    borderCurve: 'continuous',
     overflow: 'hidden',
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
+    ...elevation.sm,
   },
   cardTitle: {
-    fontSize: 15,
+    fontSize: typography.subhead.fontSize,
     fontWeight: '600',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
+    paddingHorizontal: spacing.base,
+    paddingTop: spacing.base,
+    paddingBottom: spacing.sm,
   },
   optionItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: spacing.base,
     paddingVertical: 14,
   },
   optionInfo: {
     flex: 1,
   },
   optionLabel: {
-    fontSize: 16,
+    fontSize: typography.callout.fontSize,
   },
   infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: spacing.base,
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   infoLabel: {
-    fontSize: 16,
+    fontSize: typography.callout.fontSize,
   },
   infoValue: {
-    fontSize: 16,
+    fontSize: typography.callout.fontSize,
     fontWeight: '500',
   },
   settingRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   settingRowNoBorder: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
   },
   settingInfo: {
     flex: 1,
-    marginRight: 16,
+    marginRight: spacing.base,
   },
   settingLabel: {
-    fontSize: 16,
+    fontSize: typography.callout.fontSize,
     fontWeight: '500',
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   settingDescription: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: typography.footnote.fontSize,
+    lineHeight: typography.footnote.lineHeight,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -2793,22 +2884,78 @@ const styles = StyleSheet.create({
     width: 80,
     height: 40,
     borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    fontSize: 16,
+    borderRadius: radius.sm,
+    borderCurve: 'continuous',
+    paddingHorizontal: spacing.md,
+    fontSize: typography.callout.fontSize,
     textAlign: 'right',
   },
   unitLabel: {
-    fontSize: 16,
-    marginLeft: 8,
+    fontSize: typography.callout.fontSize,
+    marginLeft: spacing.sm,
     fontWeight: '500',
+  },
+  appearanceBlock: {
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
+  },
+  swatchRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: spacing.md,
+  },
+  swatchWrap: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  swatchRing: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.pill,
+    borderWidth: 2,
+    padding: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  swatch: {
+    width: '100%',
+    height: '100%',
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  swatchLabel: {
+    fontSize: typography.caption1.fontSize,
+    marginTop: spacing.xs,
+  },
+  segmentedTrack: {
+    flexDirection: 'row',
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    overflow: 'hidden',
+    marginTop: spacing.md,
+  },
+  segmentedItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.sm,
+  },
+  segmentedItemText: {
+    fontSize: typography.subhead.fontSize,
+    fontWeight: '500',
+  },
+  segmentedCheck: {
+    marginRight: spacing.xs + 2,
   },
   bottomPadding: {
     height: 40,
   },
   versionBlock: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
   },
   versionTopRow: {
     flexDirection: 'row',
@@ -2817,30 +2964,31 @@ const styles = StyleSheet.create({
   },
   versionButtonGroup: {
     flexDirection: 'row',
-    gap: 8,
+    gap: spacing.sm,
   },
   versionLabelGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
   updateButton: {
-    paddingHorizontal: 12,
+    paddingHorizontal: spacing.md,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: radius.sm,
+    borderCurve: 'continuous',
     borderWidth: 1,
   },
   updateButtonText: {
-    fontSize: 13,
+    fontSize: typography.footnote.fontSize,
     fontWeight: '600',
   },
   dropdownValue: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: spacing.xs,
   },
   dropdownValueText: {
-    fontSize: 16,
+    fontSize: typography.callout.fontSize,
   },
   dropdownMenu: {
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -2849,16 +2997,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
   },
   dropdownItemText: {
-    fontSize: 16,
+    fontSize: typography.callout.fontSize,
   },
   clearButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.sm,
+    borderCurve: 'continuous',
   },
   clearButtonText: {
     fontSize: 14,
@@ -2867,27 +3016,30 @@ const styles = StyleSheet.create({
   buttonGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
   exportButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 8,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.sm,
+    borderCurve: 'continuous',
     borderWidth: 1,
   },
   refreshButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.sm,
+    borderCurve: 'continuous',
   },
   refreshButtonText: {
     fontSize: 14,
     fontWeight: '600',
   },
   actionButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.sm,
+    borderCurve: 'continuous',
   },
   actionButtonText: {
     fontSize: 14,
@@ -2897,41 +3049,45 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: spacing.xl,
   },
   smsTestModalContent: {
     width: '100%',
-    borderRadius: 12,
-    padding: 20,
+    borderRadius: radius.lg,
+    borderCurve: 'continuous',
+    padding: spacing.lg,
+    ...elevation.md,
   },
   smsTestModalTitle: {
-    fontSize: 18,
+    fontSize: typography.title3.fontSize,
     fontWeight: '600',
-    marginBottom: 16,
+    marginBottom: spacing.base,
   },
   smsTestModalInput: {
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: radius.sm,
+    borderCurve: 'continuous',
+    padding: spacing.md,
     fontSize: 14,
     minHeight: 100,
-    marginBottom: 16,
+    marginBottom: spacing.base,
   },
   statsText: {
     fontSize: 14,
     lineHeight: 22,
-    marginBottom: 16,
+    marginBottom: spacing.base,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   smsTestModalButtons: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 12,
+    gap: spacing.md,
   },
   smsTestModalButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.sm,
+    borderCurve: 'continuous',
   },
   smsTestModalButtonText: {
     fontSize: 14,

@@ -6,6 +6,7 @@
 import React, { useRef } from 'react';
 import { Text, StyleSheet, Animated } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { spacing, radius, typography, elevation } from '@/theme';
 
 export type MessageType = 'success' | 'error' | 'info';
 
@@ -48,33 +49,39 @@ export function MessageToast({ message, onMessageShown }: MessageToastProps) {
     return null;
   }
 
+  // M3 Snackbar 风:inverseSurface(成功 / info)/ errorContainer(错误)
+  const bg =
+    message.type === 'error'
+      ? theme.colors.errorContainer
+      : message.type === 'success'
+        ? theme.colors.inverseSurface
+        : theme.colors.inverseSurface;
+  const fg =
+    message.type === 'error' ? theme.colors.onErrorContainer : theme.colors.inverseOnSurface;
+
   return (
     <Animated.View
-      style={[
-        styles.messageContainer,
-        message.type === 'success' && { backgroundColor: theme.colors.messageSuccess },
-        message.type === 'error' && { backgroundColor: theme.colors.messageError },
-        message.type === 'info' && { backgroundColor: theme.colors.primary },
-        { opacity: fadeAnim },
-      ]}
+      style={[styles.messageContainer, { backgroundColor: bg }, { opacity: fadeAnim }]}
     >
-      <Text style={[styles.messageText, { color: theme.colors.white }]}>{message.text}</Text>
+      <Text style={[styles.messageText, { color: fg }]}>{message.text}</Text>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   messageContainer: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginHorizontal: 16,
-    marginBottom: 8,
-    borderRadius: 8,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.base,
+    marginHorizontal: spacing.base,
+    marginBottom: spacing.sm,
+    borderRadius: radius.md,
+    borderCurve: 'continuous',
     alignItems: 'center',
     justifyContent: 'center',
+    ...elevation.md,
   },
   messageText: {
-    fontSize: 15,
+    fontSize: typography.subhead.fontSize,
     fontWeight: '500',
   },
 });

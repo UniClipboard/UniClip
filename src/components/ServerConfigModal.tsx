@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
+import { spacing, radius, typography } from '@/theme';
 import { ServerConfig } from '@/types/api';
 import { createAPIClient } from '@/services';
 
@@ -287,7 +288,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
                     styles.typeOption,
                     { borderBottomColor: theme.colors.divider },
                     type === 'syncclipboard' && {
-                      backgroundColor: theme.colors.primary + '10',
+                      backgroundColor: theme.colors.primaryContainer,
                     },
                   ]}
                   onPress={() => setType('syncclipboard')}
@@ -311,7 +312,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
                   style={[
                     styles.typeOption,
                     { borderBottomColor: theme.colors.divider },
-                    type === 'webdav' && { backgroundColor: theme.colors.primary + '10' },
+                    type === 'webdav' && { backgroundColor: theme.colors.primaryContainer },
                   ]}
                   onPress={() => setType('webdav')}
                 >
@@ -333,7 +334,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
                 <TouchableOpacity
                   style={[
                     styles.typeOption,
-                    type === 's3' && { backgroundColor: theme.colors.primary + '10' },
+                    type === 's3' && { backgroundColor: theme.colors.primaryContainer },
                   ]}
                   onPress={() => setType('s3')}
                 >
@@ -653,22 +654,20 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
             <TouchableOpacity
               style={[
                 styles.testButton,
-                isTesting
-                  ? {
-                      backgroundColor: theme.colors.error + '20',
-                      borderColor: theme.colors.error,
-                    }
-                  : {
-                      backgroundColor: theme.colors.primary + '20',
-                      borderColor: theme.colors.primary,
-                    },
+                {
+                  backgroundColor: isTesting
+                    ? theme.colors.errorContainer
+                    : theme.colors.primaryContainer,
+                },
               ]}
               onPress={handleTestConnection}
             >
               {isTesting ? (
-                <Text style={[styles.testButtonText, { color: theme.colors.error }]}>取消测试</Text>
+                <Text style={[styles.testButtonText, { color: theme.colors.onErrorContainer }]}>
+                  取消测试
+                </Text>
               ) : (
-                <Text style={[styles.testButtonText, { color: theme.colors.primary }]}>
+                <Text style={[styles.testButtonText, { color: theme.colors.onPrimaryContainer }]}>
                   测试连接
                 </Text>
               )}
@@ -691,122 +690,118 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
   },
   headerButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 4,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
     minWidth: 60,
   },
   headerButtonText: {
-    fontSize: 17,
+    fontSize: typography.headline.fontSize,
   },
   headerTitle: {
-    fontSize: 17,
+    fontSize: typography.headline.fontSize,
     fontWeight: '600',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 16,
+    paddingBottom: spacing.base,
   },
   footer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
   },
   section: {
-    marginTop: 20,
+    marginTop: spacing.lg,
   },
   sectionTitle: {
-    fontSize: 13,
+    fontSize: typography.sectionHeader.fontSize,
     fontWeight: '600',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginHorizontal: 16,
-    marginBottom: 8,
+    letterSpacing: typography.sectionHeader.letterSpacing,
+    marginHorizontal: spacing.base,
+    marginBottom: spacing.sm,
   },
   card: {
-    marginHorizontal: 16,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
+    marginHorizontal: spacing.base,
+    borderRadius: radius.lg,
+    borderCurve: 'continuous',
+    padding: spacing.base,
   },
   typeOption: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    marginBottom: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    marginBottom: spacing.sm,
   },
   typeContent: {
     flex: 1,
   },
   typeLabel: {
-    fontSize: 16,
+    fontSize: typography.callout.fontSize,
     fontWeight: '500',
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   typeDescription: {
-    fontSize: 13,
+    fontSize: typography.footnote.fontSize,
   },
   checkmark: {
     width: 24,
     height: 24,
-    borderRadius: 12,
+    borderRadius: radius.pill,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 12,
+    marginLeft: spacing.md,
   },
   checkmarkIcon: {
     fontSize: 16,
     fontWeight: 'bold',
   },
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: spacing.base,
   },
   switchGroup: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   hintText: {
-    fontSize: 12,
-    marginBottom: 16,
+    fontSize: typography.caption1.fontSize,
+    marginBottom: spacing.base,
   },
   inputLabel: {
-    fontSize: 15,
+    fontSize: typography.subhead.fontSize,
     fontWeight: '500',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   input: {
-    fontSize: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
+    fontSize: typography.callout.fontSize,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.md,
     borderWidth: 1,
   },
   inputHint: {
-    fontSize: 12,
-    marginTop: 4,
+    fontSize: typography.caption1.fontSize,
+    marginTop: spacing.xs,
   },
   testButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.base,
+    borderRadius: radius.pill,
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: spacing.sm,
   },
   testButtonText: {
-    fontSize: 16,
+    fontSize: typography.callout.fontSize,
     fontWeight: '600',
   },
   headerButtonBold: {

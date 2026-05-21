@@ -13,6 +13,7 @@ import {
   Platform,
 } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { spacing, radius, typography } from '@/theme';
 
 interface QuickActionsBarProps {
   onUpload: () => void;
@@ -32,18 +33,13 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
   const { theme } = useTheme();
 
   return (
-    <View
-      style={[
-        styles.container,
-        { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.divider },
-      ]}
-    >
-      {/* 上传按钮 */}
+    <View style={[styles.container, { backgroundColor: theme.colors.surface }]}>
+      {/* 上传按钮 — Filled Tonal */}
       <TouchableOpacity
         style={[
           styles.button,
           disabled && styles.buttonDisabled,
-          { backgroundColor: theme.colors.background },
+          { backgroundColor: theme.colors.surfaceContainerHigh },
         ]}
         onPress={onUpload}
         disabled={disabled || syncInProgress}
@@ -53,40 +49,44 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
         <Text
           style={[
             styles.buttonText,
-            { color: disabled ? theme.colors.textTertiary : theme.colors.text },
+            { color: disabled ? theme.colors.outline : theme.colors.onSurface },
           ]}
         >
           上传
         </Text>
       </TouchableOpacity>
 
-      {/* 同步按钮 (主操作) */}
+      {/* 同步按钮 (主操作) — M3 Filled Tonal 主色 */}
       <TouchableOpacity
         style={[
           styles.syncButton,
           disabled && styles.buttonDisabled,
-          { backgroundColor: disabled ? theme.colors.divider : theme.colors.primary },
+          {
+            backgroundColor: disabled
+              ? theme.colors.surfaceContainerHigh
+              : theme.colors.primaryContainer,
+          },
         ]}
         onPress={onSync}
         disabled={disabled || syncInProgress}
         activeOpacity={0.7}
       >
         {syncInProgress ? (
-          <ActivityIndicator size="small" color={theme.colors.white} />
+          <ActivityIndicator size="small" color={theme.colors.onPrimaryContainer} />
         ) : (
           <Text style={styles.syncButtonIcon}>🔄</Text>
         )}
-        <Text style={[styles.syncButtonText, { color: theme.colors.white }]}>
+        <Text style={[styles.syncButtonText, { color: theme.colors.onPrimaryContainer }]}>
           {syncInProgress ? '同步中...' : '同步'}
         </Text>
       </TouchableOpacity>
 
-      {/* 下载按钮 */}
+      {/* 下载按钮 — Filled Tonal */}
       <TouchableOpacity
         style={[
           styles.button,
           disabled && styles.buttonDisabled,
-          { backgroundColor: theme.colors.background },
+          { backgroundColor: theme.colors.surfaceContainerHigh },
         ]}
         onPress={onDownload}
         disabled={disabled || syncInProgress}
@@ -96,7 +96,7 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
         <Text
           style={[
             styles.buttonText,
-            { color: disabled ? theme.colors.textTertiary : theme.colors.text },
+            { color: disabled ? theme.colors.outline : theme.colors.onSurface },
           ]}
         >
           下载
@@ -109,19 +109,18 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
+    paddingBottom: Platform.OS === 'ios' ? spacing.xl : spacing.md,
   },
   button: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginHorizontal: 4,
+    paddingVertical: spacing.md,
+    borderRadius: radius.pill,
+    marginHorizontal: spacing.xs,
   },
   buttonDisabled: {
     opacity: 0.5,
@@ -131,7 +130,7 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   buttonText: {
-    fontSize: 15,
+    fontSize: typography.subhead.fontSize,
     fontWeight: '600',
   },
   syncButton: {
@@ -139,16 +138,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 10,
-    marginHorizontal: 8,
+    paddingVertical: spacing.md + 2,
+    borderRadius: radius.pill,
+    marginHorizontal: spacing.sm,
   },
   syncButtonIcon: {
     fontSize: 22,
-    marginRight: 8,
+    marginRight: spacing.sm,
   },
   syncButtonText: {
-    fontSize: 16,
+    fontSize: typography.callout.fontSize,
     fontWeight: '700',
   },
 });

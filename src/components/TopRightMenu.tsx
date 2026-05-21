@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { MoreVertical, ChevronRight } from 'react-native-feather';
 import { useTheme } from '@/hooks/useTheme';
+import { spacing, radius, typography, elevation } from '@/theme';
 
 export interface MenuItemConfig {
   label: string;
@@ -195,8 +196,7 @@ export const TopRightMenu: React.FC<TopRightMenuProps> = ({ items, onClose }) =>
               style={[
                 styles.floatingMenu,
                 {
-                  backgroundColor: theme.colors.surface,
-                  borderColor: theme.colors.border,
+                  backgroundColor: theme.colors.surfaceContainerHigh,
                   top: menuTopOffset,
                 },
               ]}
@@ -216,8 +216,8 @@ export const TopRightMenu: React.FC<TopRightMenuProps> = ({ items, onClose }) =>
 
 const styles = StyleSheet.create({
   headerButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -226,25 +226,27 @@ const styles = StyleSheet.create({
   },
   floatingMenu: {
     position: 'absolute',
-    right: 12,
-    borderRadius: 8,
-    minWidth: 180,
-    borderWidth: 1,
+    right: spacing.md,
+    borderRadius: radius.md,
+    borderCurve: 'continuous',
+    minWidth: 200,
     overflow: 'hidden',
+    paddingVertical: spacing.sm,
+    ...elevation.lg,
   },
   menuItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.base,
   },
   menuItemText: {
-    fontSize: 15,
+    fontSize: typography.subhead.fontSize,
     fontWeight: '500',
   },
   menuItemIcon: {
-    marginLeft: 8,
+    marginLeft: spacing.sm,
   },
   menuDivider: {
     height: StyleSheet.hairlineWidth,

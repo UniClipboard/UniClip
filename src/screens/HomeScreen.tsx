@@ -10,6 +10,7 @@ import * as ClipboardProxy from '@/utils/clipboardProxy';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '@/hooks/useTheme';
+import { spacing, radius, typography, elevation } from '@/theme';
 import { useClipboardStore } from '@/stores/clipboardStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useClipboardSyncServiceStore } from '@/stores/ClipboardSyncServiceStore';
@@ -303,8 +304,13 @@ export function HomeScreen() {
                 远程剪贴板
               </Text>
               {loadingRemote ? (
-                <View style={[styles.loadingCard, { backgroundColor: theme.colors.surface }]}>
-                  <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+                <View
+                  style={[
+                    styles.loadingCard,
+                    { backgroundColor: theme.colors.surfaceContainerLow },
+                  ]}
+                >
+                  <Text style={[styles.loadingText, { color: theme.colors.onSurfaceVariant }]}>
                     加载中...
                   </Text>
                 </View>
@@ -344,37 +350,31 @@ export function HomeScreen() {
                 onWordPick={setWordPickerText}
               />
 
-              {/* 错误信息卡片 */}
+              {/* 错误信息卡片 — M3 errorContainer */}
               {error && (
-                <View
-                  style={[
-                    styles.errorCard,
-                    {
-                      backgroundColor: theme.colors.errorBackground,
-                      borderColor: theme.colors.errorBorder,
-                    },
-                  ]}
-                >
+                <View style={[styles.errorCard, { backgroundColor: theme.colors.errorContainer }]}>
                   <View style={styles.errorHeader}>
-                    <Text style={[styles.errorTitle, { color: theme.colors.errorTitle }]}>
+                    <Text style={[styles.errorTitle, { color: theme.colors.onErrorContainer }]}>
                       {error.title}
                     </Text>
                     <TouchableOpacity
-                      style={[styles.copyButton, { backgroundColor: theme.colors.errorTitle }]}
+                      style={[styles.copyButton, { backgroundColor: theme.colors.error }]}
                       onPress={handleCopyError}
                     >
-                      <Text style={[styles.copyButtonText, { color: theme.colors.white }]}>
+                      <Text style={[styles.copyButtonText, { color: theme.colors.onError }]}>
                         复制错误
                       </Text>
                     </TouchableOpacity>
                   </View>
                   <ScrollView style={styles.errorScrollView} nestedScrollEnabled={true}>
-                    <Text style={[styles.errorText, { color: theme.colors.errorText }]}>
+                    <Text style={[styles.errorText, { color: theme.colors.onErrorContainer }]}>
                       {error.message}
                     </Text>
                   </ScrollView>
                   <TouchableOpacity style={styles.dismissButton} onPress={() => clearError()}>
-                    <Text style={[styles.dismissButtonText, { color: theme.colors.errorTitle }]}>
+                    <Text
+                      style={[styles.dismissButtonText, { color: theme.colors.onErrorContainer }]}
+                    >
                       关闭
                     </Text>
                   </TouchableOpacity>
@@ -396,9 +396,9 @@ export function HomeScreen() {
 
         {/* 空状态提示 */}
         {!activeServer && (
-          <View style={[styles.emptyState, { backgroundColor: theme.colors.surface }]}>
+          <View style={[styles.emptyState, { backgroundColor: theme.colors.surfaceContainerLow }]}>
             <Text style={[styles.emptyStateTitle, { color: theme.colors.text }]}>未配置服务器</Text>
-            <Text style={[styles.emptyStateText, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.emptyStateText, { color: theme.colors.onSurfaceVariant }]}>
               请在"设置"页面添加服务器配置以启用同步功能
             </Text>
           </View>
@@ -445,107 +445,114 @@ const styles = StyleSheet.create({
   },
 
   infoLabelSpaced: {
-    marginTop: 8,
+    marginTop: spacing.sm,
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
+    padding: spacing.base,
   },
   section: {
-    marginBottom: 24,
+    marginBottom: spacing.xl,
   },
   sectionTitle: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: typography.sectionHeader.fontSize,
+    lineHeight: typography.sectionHeader.lineHeight,
+    fontWeight: typography.sectionHeader.fontWeight,
+    letterSpacing: typography.sectionHeader.letterSpacing,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 12,
-    paddingHorizontal: 4,
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.xs,
   },
   loadingCard: {
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: radius.lg,
+    borderCurve: 'continuous',
+    padding: spacing.base,
     minHeight: 150,
     alignItems: 'center',
     justifyContent: 'center',
+    ...elevation.sm,
   },
   loadingText: {
-    fontSize: 15,
+    fontSize: typography.subhead.fontSize,
   },
   emptyState: {
-    marginTop: 16,
-    padding: 24,
-    borderRadius: 12,
+    marginTop: spacing.base,
+    padding: spacing.xl,
+    borderRadius: radius.lg,
+    borderCurve: 'continuous',
     alignItems: 'center',
+    ...elevation.sm,
   },
   emptyStateTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 8,
+    fontSize: typography.title3.fontSize,
+    lineHeight: typography.title3.lineHeight,
+    fontWeight: typography.title3.fontWeight,
+    marginBottom: spacing.sm,
   },
   emptyStateText: {
-    fontSize: 15,
+    fontSize: typography.subhead.fontSize,
     textAlign: 'center',
     lineHeight: 22,
   },
   infoCard: {
-    marginTop: 16,
-    padding: 16,
-    borderRadius: 12,
+    marginTop: spacing.base,
+    padding: spacing.base,
+    borderRadius: radius.lg,
+    borderCurve: 'continuous',
   },
   infoLabel: {
-    fontSize: 13,
+    fontSize: typography.footnote.fontSize,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   infoValue: {
-    fontSize: 15,
-    marginTop: 4,
+    fontSize: typography.subhead.fontSize,
+    marginTop: spacing.xs,
   },
   bottomPadding: {
     height: 100,
   },
   errorCard: {
-    marginTop: 16,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
+    marginTop: spacing.base,
+    padding: spacing.base,
+    borderRadius: radius.lg,
+    borderCurve: 'continuous',
   },
   errorHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   errorTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: typography.headline.fontSize,
+    fontWeight: typography.headline.fontWeight,
   },
   copyButton: {
-    paddingHorizontal: 12,
+    paddingHorizontal: spacing.md,
     paddingVertical: 6,
-    borderRadius: 6,
+    borderRadius: radius.pill,
   },
   copyButtonText: {
-    fontSize: 13,
+    fontSize: typography.footnote.fontSize,
     fontWeight: '600',
   },
   errorScrollView: {
     maxHeight: 200,
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   errorText: {
-    fontSize: 13,
+    fontSize: typography.footnote.fontSize,
     fontFamily: 'monospace',
     lineHeight: 18,
   },
   dismissButton: {
     alignSelf: 'flex-end',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
   },
   dismissButtonText: {
     fontSize: 14,

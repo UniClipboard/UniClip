@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useTheme } from '@/hooks/useTheme';
+import { spacing, radius, typography, elevation } from '@/theme';
 import type { ClipboardContent } from '@/types/clipboard';
 import type { ProgressInfo } from 'native-util';
 import { formatFileSize, isTextInvalid } from '@/utils';
@@ -154,7 +155,7 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
     <View
       style={[
         styles.content,
-        overlayMode && [styles.overlayCard, { backgroundColor: theme.colors.surface }],
+        overlayMode && [styles.overlayCard, { backgroundColor: theme.colors.surfaceContainerHigh }],
       ]}
     >
       {state === 'loading' && (
@@ -191,11 +192,11 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
             style={[
               styles.button,
               styles.buttonOutline,
-              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+              { backgroundColor: 'transparent', borderColor: theme.colors.outline },
             ]}
             onPress={handleCancel}
           >
-            <Text style={[styles.buttonText, { color: theme.colors.text }]}>取消</Text>
+            <Text style={[styles.buttonText, { color: theme.colors.primary }]}>取消</Text>
           </TouchableOpacity>
         </>
       )}
@@ -218,12 +219,12 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
                     styles.button,
                     styles.successButton,
                     btn.primary
-                      ? { backgroundColor: theme.colors.primary }
+                      ? { backgroundColor: theme.colors.primaryContainer }
                       : [
                           styles.buttonOutline,
                           {
-                            backgroundColor: theme.colors.surface,
-                            borderColor: theme.colors.border,
+                            backgroundColor: 'transparent',
+                            borderColor: theme.colors.outline,
                           },
                         ],
                   ]}
@@ -232,7 +233,9 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
                   <Text
                     style={[
                       styles.buttonText,
-                      { color: btn.primary ? theme.colors.white : theme.colors.text },
+                      {
+                        color: btn.primary ? theme.colors.onPrimaryContainer : theme.colors.primary,
+                      },
                     ]}
                   >
                     {btn.label}
@@ -244,11 +247,11 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
                   styles.button,
                   styles.successButton,
                   styles.buttonOutline,
-                  { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+                  { backgroundColor: 'transparent', borderColor: theme.colors.outline },
                 ]}
                 onPress={onComplete}
               >
-                <Text style={[styles.buttonText, { color: theme.colors.text }]}>返回</Text>
+                <Text style={[styles.buttonText, { color: theme.colors.primary }]}>返回</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -261,42 +264,50 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
           <Text style={[styles.statusText, { color: theme.colors.text }]}>{failureText}</Text>
           {errorMessage && (
             <ScrollView
-              style={[styles.errorDetailScroll, { borderColor: theme.colors.border }]}
+              style={[
+                styles.errorDetailScroll,
+                {
+                  borderColor: theme.colors.outlineVariant,
+                  backgroundColor: theme.colors.errorContainer,
+                },
+              ]}
               contentContainerStyle={styles.errorDetailScrollContent}
             >
-              <Text style={[styles.errorDetailText, { color: theme.colors.textTertiary }]}>
+              <Text style={[styles.errorDetailText, { color: theme.colors.onErrorContainer }]}>
                 {errorMessage}
               </Text>
             </ScrollView>
           )}
           <View style={styles.buttonRow}>
             <TouchableOpacity
-              style={[styles.button, { backgroundColor: theme.colors.primary }]}
+              style={[styles.button, { backgroundColor: theme.colors.primaryContainer }]}
               onPress={run}
             >
-              <Text style={[styles.buttonText, { color: theme.colors.white }]}>重试</Text>
+              <Text style={[styles.buttonText, { color: theme.colors.onPrimaryContainer }]}>
+                重试
+              </Text>
             </TouchableOpacity>
             {errorMessage && (
               <TouchableOpacity
                 style={[
                   styles.button,
                   styles.buttonOutline,
-                  { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+                  { backgroundColor: 'transparent', borderColor: theme.colors.outline },
                 ]}
                 onPress={() => Clipboard.setStringAsync(errorMessage)}
               >
-                <Text style={[styles.buttonText, { color: theme.colors.text }]}>复制</Text>
+                <Text style={[styles.buttonText, { color: theme.colors.primary }]}>复制</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity
               style={[
                 styles.button,
                 styles.buttonOutline,
-                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+                { backgroundColor: 'transparent', borderColor: theme.colors.outline },
               ]}
               onPress={onComplete}
             >
-              <Text style={[styles.buttonText, { color: theme.colors.text }]}>返回</Text>
+              <Text style={[styles.buttonText, { color: theme.colors.primary }]}>返回</Text>
             </TouchableOpacity>
           </View>
         </>
@@ -385,11 +396,11 @@ const styles = StyleSheet.create({
   content: {
     alignItems: 'center',
     alignSelf: 'stretch',
-    paddingHorizontal: 24,
-    gap: 16,
+    paddingHorizontal: spacing.xl,
+    gap: spacing.base,
   },
   statusText: {
-    fontSize: 16,
+    fontSize: typography.callout.fontSize,
   },
   successIcon: {
     fontSize: 48,
@@ -401,25 +412,25 @@ const styles = StyleSheet.create({
     maxHeight: 200,
     width: '100%',
     maxWidth: 280,
-    borderRadius: 8,
-    borderWidth: 1,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   errorDetailScrollContent: {
-    padding: 12,
+    padding: spacing.md,
   },
   errorDetailText: {
-    fontSize: 14,
+    fontSize: typography.footnote.fontSize,
     textAlign: 'center',
   },
   buttonRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
+    gap: spacing.md,
+    marginTop: spacing.sm,
   },
   successButtonRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
+    gap: spacing.md,
+    marginTop: spacing.sm,
     width: '100%',
   },
   successButton: {
@@ -427,12 +438,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
   },
   button: {
-    paddingHorizontal: 28,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.pill,
+    minHeight: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   buttonText: {
-    fontSize: 15,
+    fontSize: typography.subhead.fontSize,
     fontWeight: '600',
     textAlign: 'center',
   },
@@ -515,10 +529,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   overlayCard: {
-    borderRadius: 16,
-    paddingVertical: 28,
-    paddingHorizontal: 24,
+    borderRadius: radius.xl,
+    borderCurve: 'continuous',
+    paddingVertical: spacing.xl + spacing.xs,
+    paddingHorizontal: spacing.xl,
     width: '85%',
     alignSelf: 'center',
+    ...elevation.lg,
   },
 });

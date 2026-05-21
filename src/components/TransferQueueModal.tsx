@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { X, Upload, Download, AlertCircle, Clock, CheckCircle } from 'react-native-feather';
 import { useTheme } from '@/hooks/useTheme';
+import { spacing, radius, typography, alpha } from '@/theme';
 import { useTransferQueueStore } from '@/stores/transferQueueStore';
 import { TransferTask, getHistoryTransferQueue } from '@/services/HistoryTransferQueue';
 import { formatFileSize } from '@/utils';
@@ -58,18 +59,13 @@ export const TransferQueueModal: React.FC<TransferQueueModalProps> = ({ visible,
     const statusColor = statusColors[task.status] || theme.colors.textSecondary;
 
     return (
-      <View
-        style={[
-          styles.taskItem,
-          { backgroundColor: theme.colors.background, borderColor: theme.colors.divider },
-        ]}
-      >
+      <View style={[styles.taskItem, { backgroundColor: theme.colors.surfaceContainerLow }]}>
         <View style={styles.taskHeader}>
-          <View style={[styles.taskTypeIcon, { backgroundColor: theme.colors.primaryLight }]}>
+          <View style={[styles.taskTypeIcon, { backgroundColor: theme.colors.primaryContainer }]}>
             {task.type === 'upload' ? (
-              <Upload width={16} height={16} color={theme.colors.primary} />
+              <Upload width={16} height={16} color={theme.colors.onPrimaryContainer} />
             ) : (
-              <Download width={16} height={16} color={theme.colors.success || '#4CAF50'} />
+              <Download width={16} height={16} color={theme.colors.onPrimaryContainer} />
             )}
           </View>
           <View style={styles.taskInfo}>
@@ -77,7 +73,7 @@ export const TransferQueueModal: React.FC<TransferQueueModalProps> = ({ visible,
               {displayText}
             </Text>
             <View style={styles.taskStatusRow}>
-              <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
+              <View style={[styles.statusBadge, { backgroundColor: alpha(statusColor, 0.16) }]}>
                 {task.status === 'running' && (
                   <ActivityIndicator size="small" color={statusColor} />
                 )}
@@ -113,15 +109,15 @@ export const TransferQueueModal: React.FC<TransferQueueModalProps> = ({ visible,
             task.status === 'running' ||
             task.status === 'waitForRetry') && (
             <TouchableOpacity
-              style={[styles.cancelButton, { borderColor: theme.colors.error || '#F44336' }]}
+              style={[styles.cancelButton, { backgroundColor: theme.colors.errorContainer }]}
               onPress={() => handleCancelTask(task)}
             >
-              <X width={14} height={14} color={theme.colors.error || '#F44336'} />
+              <X width={14} height={14} color={theme.colors.onErrorContainer} />
             </TouchableOpacity>
           )}
         </View>
         {task.status === 'running' && task.progress >= 0 && (
-          <View style={[styles.progressBar, { backgroundColor: theme.colors.border }]}>
+          <View style={[styles.progressBar, { backgroundColor: theme.colors.outlineVariant }]}>
             <View
               style={[
                 styles.progressFill,
@@ -131,7 +127,7 @@ export const TransferQueueModal: React.FC<TransferQueueModalProps> = ({ visible,
           </View>
         )}
         {task.status === 'running' && task.progress < 0 && (
-          <View style={[styles.progressBar, { backgroundColor: theme.colors.border }]}>
+          <View style={[styles.progressBar, { backgroundColor: theme.colors.outlineVariant }]}>
             <View
               style={[styles.progressFillIndeterminate, { backgroundColor: theme.colors.primary }]}
             />
@@ -165,10 +161,14 @@ export const TransferQueueModal: React.FC<TransferQueueModalProps> = ({ visible,
         onPress={onClose}
       >
         <Pressable
-          style={[styles.modalContainer, { backgroundColor: theme.colors.surface }]}
+          style={[styles.modalContainer, { backgroundColor: theme.colors.surfaceContainerHigh }]}
           onPress={(e) => e.stopPropagation()}
         >
-          <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
+          {/* M3 sheet drag handle */}
+          <View style={styles.dragHandleWrap}>
+            <View style={[styles.dragHandle, { backgroundColor: theme.colors.outlineVariant }]} />
+          </View>
+          <View style={styles.header}>
             <Text style={[styles.title, { color: theme.colors.text }]}>传输队列</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <X width={24} height={24} color={theme.colors.text} />
@@ -214,51 +214,59 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContainer: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: radius.xxl,
+    borderTopRightRadius: radius.xxl,
     maxHeight: '70%',
     minHeight: '40%',
+  },
+  dragHandleWrap: {
+    alignItems: 'center',
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xs,
+  },
+  dragHandle: {
+    width: 32,
+    height: 4,
+    borderRadius: 2,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    padding: spacing.base,
   },
   title: {
-    fontSize: 18,
+    fontSize: typography.title3.fontSize,
     fontWeight: '600',
   },
   closeButton: {
-    padding: 4,
+    padding: spacing.xs,
   },
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    paddingVertical: 16,
-    gap: 40,
+    paddingVertical: spacing.base,
+    gap: spacing.xxxl,
   },
   statItem: {
     alignItems: 'center',
   },
   statNumber: {
-    fontSize: 24,
+    fontSize: typography.title1.fontSize,
     fontWeight: '700',
   },
   statLabel: {
-    fontSize: 12,
-    marginTop: 4,
+    fontSize: typography.caption1.fontSize,
+    marginTop: spacing.xs,
   },
   listContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 32,
+    paddingHorizontal: spacing.base,
+    paddingBottom: spacing.xxl,
   },
   taskItem: {
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
-    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
   },
   taskHeader: {
     flexDirection: 'row',
@@ -267,51 +275,50 @@ const styles = StyleSheet.create({
   taskTypeIcon: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: radius.pill,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: spacing.md,
   },
   taskInfo: {
     flex: 1,
   },
   taskText: {
-    fontSize: 14,
+    fontSize: typography.footnote.fontSize,
     fontWeight: '500',
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   taskStatusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: spacing.sm,
     paddingVertical: 2,
-    borderRadius: 10,
-    gap: 4,
+    borderRadius: radius.pill,
+    gap: spacing.xs,
   },
   statusText: {
-    fontSize: 11,
+    fontSize: typography.caption2.fontSize,
     fontWeight: '500',
   },
   progressText: {
-    fontSize: 11,
+    fontSize: typography.caption2.fontSize,
   },
   cancelButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 1,
+    width: 32,
+    height: 32,
+    borderRadius: radius.pill,
     justifyContent: 'center',
     alignItems: 'center',
   },
   progressBar: {
-    height: 3,
+    height: 4,
     borderRadius: 2,
-    marginTop: 8,
+    marginTop: spacing.sm,
     overflow: 'hidden',
   },
   progressFill: {

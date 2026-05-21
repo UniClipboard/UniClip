@@ -6,6 +6,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { spacing, radius, typography, alpha } from '@/theme';
 import { ServerConfig } from '@/types/api';
 
 interface ServerListItemProps {
@@ -56,18 +57,18 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
   const getTypeBadgeColors = (type: string) => {
     if (type === 'syncclipboard') {
       return {
-        backgroundColor: '#4CAF50' + '20',
-        color: '#4CAF50',
+        backgroundColor: alpha('#4CAF50', 0.16),
+        color: theme.isDark ? '#A5D6A7' : '#1B5E20',
       };
     } else if (type === 's3') {
       return {
-        backgroundColor: '#2196F3' + '20',
-        color: '#2196F3',
+        backgroundColor: alpha('#2196F3', 0.16),
+        color: theme.isDark ? '#90CAF9' : '#0D47A1',
       };
     } else {
       return {
-        backgroundColor: '#FF9800' + '20',
-        color: '#FF9800',
+        backgroundColor: alpha('#FF9800', 0.16),
+        color: theme.isDark ? '#FFD58A' : '#8C5400',
       };
     }
   };
@@ -76,8 +77,12 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
     <TouchableOpacity
       style={[
         styles.container,
-        { backgroundColor: theme.colors.surface, borderColor: theme.colors.divider },
-        isActive && [styles.containerActive, { borderColor: theme.colors.primary }],
+        {
+          backgroundColor: isActive
+            ? theme.colors.primaryContainer
+            : theme.colors.surfaceContainerLow,
+        },
+        isActive && { borderWidth: 1.5, borderColor: theme.colors.primary },
       ]}
       onPress={onPress}
       activeOpacity={0.7}
@@ -119,26 +124,30 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
         </View>
       </View>
 
-      {/* 操作按钮 */}
+      {/* 操作按钮 — M3 Filled Tonal */}
       <View style={styles.actions}>
         <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: theme.colors.primary + '10' }]}
+          style={[styles.actionButton, { backgroundColor: theme.colors.primaryContainer }]}
           onPress={(e) => {
             e.stopPropagation();
             onEdit();
           }}
         >
-          <Text style={[styles.actionButtonText, { color: theme.colors.primary }]}>编辑</Text>
+          <Text style={[styles.actionButtonText, { color: theme.colors.onPrimaryContainer }]}>
+            编辑
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: theme.colors.error + '10' }]}
+          style={[styles.actionButton, { backgroundColor: theme.colors.errorContainer }]}
           onPress={(e) => {
             e.stopPropagation();
             handleDelete();
           }}
         >
-          <Text style={[styles.actionButtonText, { color: theme.colors.error }]}>删除</Text>
+          <Text style={[styles.actionButtonText, { color: theme.colors.onErrorContainer }]}>
+            删除
+          </Text>
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
@@ -147,63 +156,60 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    borderWidth: 1,
+    borderRadius: radius.lg,
+    borderCurve: 'continuous',
+    padding: spacing.base,
+    marginHorizontal: spacing.base,
+    marginBottom: spacing.md,
   },
   content: {
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   mainInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   serverName: {
-    fontSize: 17,
-    fontWeight: '600',
+    fontSize: typography.headline.fontSize,
+    fontWeight: typography.headline.fontWeight,
     flex: 1,
-    marginRight: 8,
+    marginRight: spacing.sm,
   },
   typeBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.sm,
   },
   typeText: {
-    fontSize: 11,
+    fontSize: typography.caption2.fontSize,
     fontWeight: '600',
   },
   serverUrl: {
-    fontSize: 14,
-    marginBottom: 8,
+    fontSize: typography.footnote.fontSize,
+    marginBottom: spacing.sm,
   },
   details: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: spacing.base,
   },
   detailText: {
-    fontSize: 13,
+    fontSize: typography.footnote.fontSize,
   },
   actions: {
     flexDirection: 'row',
-    gap: 8,
+    gap: spacing.sm,
   },
   actionButton: {
     flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
     alignItems: 'center',
   },
   actionButtonText: {
-    fontSize: 14,
+    fontSize: typography.subhead.fontSize,
     fontWeight: '600',
-  },
-  containerActive: {
-    borderWidth: 2,
   },
 });
