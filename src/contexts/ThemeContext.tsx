@@ -1,19 +1,30 @@
 /**
  * 主题上下文
- * 提供主题切换和访问功能
+ * 提供主题切换、source color 切换与访问功能
  */
 
 import React, { createContext, useEffect, useState, useCallback } from 'react';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createTheme, type Theme, type ThemeMode } from '@/theme';
+import {
+  createTheme,
+  DEFAULT_PALETTE_ID,
+  type Theme,
+  type ThemeMode,
+  type PaletteId,
+} from '@/theme';
 
 const THEME_STORAGE_KEY = '@syncclipboard:theme_mode';
+const PALETTE_STORAGE_KEY = '@syncclipboard:palette_id';
+
+const VALID_PALETTE_IDS: PaletteId[] = ['purple', 'indigo', 'teal', 'rose', 'amber'];
 
 interface ThemeContextValue {
   theme: Theme;
   themeMode: ThemeMode;
+  paletteId: PaletteId;
   setThemeMode: (mode: ThemeMode) => Promise<void>;
+  setPaletteId: (id: PaletteId) => Promise<void>;
   toggleTheme: () => Promise<void>;
 }
 
@@ -22,6 +33,7 @@ export const ThemeContext = createContext<ThemeContextValue | undefined>(undefin
 interface ThemeProviderProps {
   children: React.ReactNode;
   initialMode?: ThemeMode;
+  initialPaletteId?: PaletteId;
   /** Override system color scheme (e.g. from native Activity's current configuration) */
   systemColorSchemeOverride?: 'light' | 'dark';
 }
@@ -29,31 +41,41 @@ interface ThemeProviderProps {
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({
   children,
   initialMode = 'auto',
+  initialPaletteId = DEFAULT_PALETTE_ID,
   systemColorSchemeOverride,
 }) => {
   const rnColorScheme = (useColorScheme() ?? 'light') === 'dark' ? 'dark' : 'light';
   const systemColorScheme = systemColorSchemeOverride ?? rnColorScheme;
   const [themeMode, setThemeModeState] = useState<ThemeMode>(initialMode);
-  const [theme, setTheme] = useState<Theme>(() => createTheme(initialMode, systemColorScheme));
+  const [paletteId, setPaletteIdState] = useState<PaletteId>(initialPaletteId);
+  const [theme, setTheme] = useState<Theme>(() =>
+    createTheme(initialMode, systemColorScheme, initialPaletteId)
+  );
 
-  // 从存储加载主题设置
+  // 从存储加载主题与 palette
   useEffect(() => {
-    loadThemeMode();
+    void loadPersistedSettings();
   }, []);
 
-  // 监听系统主题变化
+  // 监听 mode / palette / system 变化重建主题
   useEffect(() => {
-    setTheme(createTheme(themeMode, systemColorScheme));
-  }, [themeMode, systemColorScheme]);
+    setTheme(createTheme(themeMode, systemColorScheme, paletteId));
+  }, [themeMode, systemColorScheme, paletteId]);
 
-  const loadThemeMode = async () => {
+  const loadPersistedSettings = async () => {
     try {
-      const savedMode = await AsyncStorage.getItem(THEME_STORAGE_KEY);
+      const [savedMode, savedPalette] = await Promise.all([
+        AsyncStorage.getItem(THEME_STORAGE_KEY),
+        AsyncStorage.getItem(PALETTE_STORAGE_KEY),
+      ]);
       if (savedMode && ['light', 'dark', 'auto'].includes(savedMode)) {
         setThemeModeState(savedMode as ThemeMode);
       }
+      if (savedPalette && VALID_PALETTE_IDS.includes(savedPalette as PaletteId)) {
+        setPaletteIdState(savedPalette as PaletteId);
+      }
     } catch (error) {
-      console.error('Failed to load theme mode:', error);
+      console.error('Failed to load theme settings:', error);
     }
   };
 
@@ -66,6 +88,15 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
     }
   }, []);
 
+  const setPaletteId = useCallback(async (id: PaletteId) => {
+    try {
+      setPaletteIdState(id);
+      await AsyncStorage.setItem(PALETTE_STORAGE_KEY, id);
+    } catch (error) {
+      console.error('Failed to save palette id:', error);
+    }
+  }, []);
+
   const toggleTheme = useCallback(async () => {
     const newMode: ThemeMode = themeMode === 'light' ? 'dark' : 'light';
     await setThemeMode(newMode);
@@ -74,7 +105,9 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
   const value: ThemeContextValue = {
     theme,
     themeMode,
+    paletteId,
     setThemeMode,
+    setPaletteId,
     toggleTheme,
   };
 
