@@ -1,3 +1,8 @@
+v1.1.0
+- [uc] 功能：支持扫码 / 深链接（uniclipboard://connect）接入服务器
+- [uc] 视觉：迁移至 Material 3 Expressive 设计，引入 token 体系并支持 5 套配色切换
+- [uc] 功能：添加 Web 平台运行支持
+
 v1.0.11
 - [upstream] 修复：Android 14+ 启用后台服务运行6小时后，自动上传验证码失效
 - [uc] 品牌切换为 UniClip，迁移至 UniClipboard/uc-android

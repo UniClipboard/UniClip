@@ -3,7 +3,7 @@
     "name": "UniClip",
     "slug": "uniclip",
     "scheme": "uniclipboard",
-    "version": "1.0.11",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -17,7 +17,7 @@
       "bundleIdentifier": "app.uniclipboard.ios"
     },
     "android": {
-      "versionCode": 152,
+      "versionCode": 153,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundImage": "./assets/adaptive-icon-bg.png",
