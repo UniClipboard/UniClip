@@ -59,20 +59,20 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
   };
 
   const getStatusText = (): string => {
-    if (!serverConnected) return '未连接服务器';
+    if (!serverConnected) return 'Not Connected';
 
     switch (status) {
       case SyncStatus.Syncing:
-        return '同步中...';
+        return 'Syncing...';
       case SyncStatus.Success:
-        return '已同步';
+        return 'Synced';
       case SyncStatus.Failed:
-        return '同步失败';
+        return 'Sync Failed';
       case SyncStatus.Conflict:
-        return '同步冲突';
+        return 'Sync Conflict';
       case SyncStatus.Idle:
       default:
-        return '等待同步';
+        return 'Waiting to Sync';
     }
   };
 
@@ -82,11 +82,11 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
     const now = Date.now();
     const diff = now - lastSyncTime;
 
-    if (diff < 60000) return '刚刚同步';
-    if (diff < 3600000) return `${Math.floor(diff / 60000)} 分钟前`;
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前`;
+    if (diff < 60000) return 'Just synced';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
 
-    return new Date(lastSyncTime).toLocaleDateString('zh-CN', {
+    return new Date(lastSyncTime).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',

@@ -240,11 +240,11 @@ const PALETTES_DARK: Record<PaletteId, SourceTokens> = {
 
 // Picker UI 元数据
 export const PALETTES: ReadonlyArray<{ id: PaletteId; label: string; swatch: string }> = [
-  { id: 'purple', label: '深紫', swatch: '#6750A4' },
-  { id: 'indigo', label: '靛蓝', swatch: '#4A4FCF' },
-  { id: 'teal', label: '青绿', swatch: '#006A60' },
-  { id: 'rose', label: '玫瑰', swatch: '#984061' },
-  { id: 'amber', label: '琥珀', swatch: '#825512' },
+  { id: 'purple', label: 'Deep Purple', swatch: '#6750A4' },
+  { id: 'indigo', label: 'Indigo', swatch: '#4A4FCF' },
+  { id: 'teal', label: 'Teal', swatch: '#006A60' },
+  { id: 'rose', label: 'Rose', swatch: '#984061' },
+  { id: 'amber', label: 'Amber', swatch: '#825512' },
 ];
 
 // ------------------------------------------------------------------

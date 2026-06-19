@@ -53,7 +53,7 @@ export default function ServiceRestartApp({ systemTheme }: ServiceRestartAppProp
       <StatusBar backgroundColor="transparent" translucent barStyle="light-content" />
       <View style={[styles.card, isDark ? styles.cardDark : styles.cardLight]}>
         <Text style={[styles.icon]}>✓</Text>
-        <Text style={[styles.text, isDark ? styles.textDark : styles.textLight]}>服务已恢复</Text>
+        <Text style={[styles.text, isDark ? styles.textDark : styles.textLight]}>Service Restored</Text>
       </View>
     </View>
   );

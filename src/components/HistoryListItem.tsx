@@ -149,15 +149,15 @@ export const HistoryListItem = forwardRef<object, HistoryListItemProps>(
     const getTypeLabel = (type: string): string => {
       switch (type) {
         case 'Text':
-          return '文本';
+          return 'Text';
         case 'Image':
-          return '图片';
+          return 'Image';
         case 'File':
-          return '文件';
+          return 'File';
         case 'Group':
-          return '文件组';
+          return 'Group';
         default:
-          return '未知';
+          return 'Unknown';
       }
     };
 
@@ -165,13 +165,13 @@ export const HistoryListItem = forwardRef<object, HistoryListItemProps>(
       const now = Date.now();
       const diff = now - timestamp;
 
-      if (diff < 60000) return '刚刚';
-      if (diff < 3600000) return `${Math.floor(diff / 60000)} 分钟前`;
-      if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前`;
-      if (diff < 604800000) return `${Math.floor(diff / 86400000)} 天前`;
+      if (diff < 60000) return 'just now';
+      if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+      if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+      if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`;
 
       const date = new Date(timestamp);
-      return date.toLocaleDateString('zh-CN', {
+      return date.toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
@@ -185,14 +185,14 @@ export const HistoryListItem = forwardRef<object, HistoryListItemProps>(
       }
       if (item.type === 'Image') {
         // Image: isLocalFileReady 为 false 时显示 text，为 true 时不显示文本
-        return item.text || '图片';
+        return item.text || 'Image';
       }
       if (item.type === 'File') {
         // File: 无论 isLocalFileReady 为 true 还是 false 都显示 text
-        return item.text || '文件';
+        return item.text || 'File';
       }
       if (item.type === 'Group') {
-        return item.text || '文件组';
+        return item.text || 'Group';
       }
       return '';
     };
@@ -346,8 +346,8 @@ export const HistoryListItem = forwardRef<object, HistoryListItemProps>(
                               : ''
                           }`
                         : isUploadTask
-                          ? '取消上传'
-                          : '取消下载'}
+                          ? 'Cancel Upload'
+                          : 'Cancel Download'}
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -381,10 +381,10 @@ export const HistoryListItem = forwardRef<object, HistoryListItemProps>(
                       ]}
                     >
                       {item.syncStatus === 1
-                        ? '已同步'
+                        ? 'Synced'
                         : item.syncStatus === 0
-                          ? '仅本地'
-                          : '待同步'}
+                          ? 'Local Only'
+                          : 'Pending Sync'}
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -413,7 +413,7 @@ export const HistoryListItem = forwardRef<object, HistoryListItemProps>(
                           },
                         ]}
                       >
-                        {item.synced ? '已同步' : '未同步'}
+                        {item.synced ? 'Synced' : 'Not Synced'}
                       </Text>
                     </View>
                   )}
@@ -440,7 +440,7 @@ export const HistoryListItem = forwardRef<object, HistoryListItemProps>(
                           },
                         ]}
                       >
-                        未下载
+                        Not Downloaded
                       </Text>
                     </TouchableOpacity>
                   )}

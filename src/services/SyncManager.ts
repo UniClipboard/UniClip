@@ -532,7 +532,7 @@ export class SyncManager {
         return {
           success: false,
           direction: SyncDirection.Upload,
-          error: `网络错误，已添加到队列: ${errorMessage}`,
+          error: `Network error, added to queue: ${errorMessage}`,
         };
       } else {
         return {
@@ -718,9 +718,9 @@ export class SyncManager {
       if (result.success && !result.skipped && Platform.OS === 'android') {
         const preview = this.getContentPreview(content);
         if (appConfig?.syncToastEnabled !== false) {
-          ToastAndroid.show(`已上传\n${preview}`, ToastAndroid.SHORT);
+          ToastAndroid.show(`Uploaded\n${preview}`, ToastAndroid.SHORT);
         }
-        this.updateForegroundNotification(`已上传: ${preview}`);
+        this.updateForegroundNotification(`Uploaded: ${preview}`);
       }
     };
     this.clipboardMonitor.addCallback(this.realtimeSyncCallback);

@@ -19,7 +19,7 @@ export const ProcessTextScreen: React.FC<ProcessTextScreenProps> = ({ text, onCo
 
   const task = useCallback(
     async (signal: AbortSignal) => {
-      if (!activeServer) throw new Error('请先在设置中配置服务器');
+      if (!activeServer) throw new Error('Configure a server in Settings first');
       await uploadTextAndAddToHistory(text, activeServer, { signal });
     },
     [text, activeServer]
@@ -28,9 +28,9 @@ export const ProcessTextScreen: React.FC<ProcessTextScreenProps> = ({ text, onCo
   return (
     <QuickLoadingPage
       task={task}
-      loadingText="正在上传文字…"
-      successText="上传成功"
-      failureText="上传失败"
+      loadingText="Uploading text..."
+      successText="Upload successful"
+      failureText="Upload failed"
       onComplete={onComplete}
       previewText={text.length > 50 ? `${text.slice(0, 50)}…` : text}
     />

@@ -51,7 +51,7 @@ export async function contentToProfileDto(
     case 'Image':
       return {
         type: 'Image',
-        text: text || '[图片]',
+        text: text || '[Image]',
         hash: profileHash,
         hasData: true,
         dataName: fileName,
@@ -61,7 +61,7 @@ export async function contentToProfileDto(
     case 'File':
       return {
         type: 'File',
-        text: text || fileName || '[文件]',
+        text: text || fileName || '[File]',
         hash: profileHash,
         hasData: true,
         dataName: fileName,
@@ -71,7 +71,7 @@ export async function contentToProfileDto(
     case 'Group':
       return {
         type: 'Group',
-        text: text || '[文件组]',
+        text: text || '[Files]',
         hash: profileHash,
         hasData: true,
         dataName: fileName,
@@ -185,13 +185,13 @@ export function formatFileSize(bytes: number): string {
  */
 export function getClipboardTypeDisplayName(type: ClipboardContentType): string {
   const displayNames: Record<ClipboardContentType, string> = {
-    Text: '文本',
-    Image: '图片',
-    File: '文件',
-    Group: '文件组',
+    Text: 'Text',
+    Image: 'Image',
+    File: 'File',
+    Group: 'Group',
   };
 
-  return displayNames[type] || '未知';
+  return displayNames[type] || 'Unknown';
 }
 
 /**
@@ -275,32 +275,32 @@ export async function copyClipboardItem(
         text: item.text,
         profileHash: item.profileHash,
       });
-      return { success: true, message: '已复制到剪贴板' };
+      return { success: true, message: 'Copied to clipboard' };
     }
 
     if (item.type === 'Image' && item.fileUri) {
       await clipboardManager.setImageContent(item.fileUri);
-      return { success: true, message: '已复制图片到剪贴板' };
+      return { success: true, message: 'Image copied to clipboard' };
     }
 
-    return { success: false, message: '暂不支持此类型的快速复制' };
+    return { success: false, message: 'Quick copy not supported for this type' };
   } catch (error) {
     console.error('[copyClipboardItem] Failed to copy:', error);
 
     // 提取错误信息
-    let errorMessage = '复制失败';
+    let errorMessage = 'Copy failed';
     if (error instanceof Error) {
       // 将整个错误转为字符串进行检查（包括多层堆栈）
       const fullErrorString = error.toString() + ' ' + error.message;
       console.log('[copyClipboardItem] Full error string:', fullErrorString);
 
       if (fullErrorString.includes('TransactionTooLargeException')) {
-        errorMessage = '文本内容过大，无法复制到剪贴板（超过系统限制）';
+        errorMessage = 'Text too large to copy (exceeds system limit)';
       } else if (fullErrorString.includes('setStringAsync')) {
         // 提取更简洁的错误信息
-        errorMessage = '复制失败：' + (error.message || '未知错误');
+        errorMessage = 'Copy failed: ' + (error.message || 'Unknown error');
       } else {
-        errorMessage = error.message || '复制失败';
+        errorMessage = error.message || 'Copy failed';
       }
     }
 
@@ -333,7 +333,7 @@ export async function copyToLocalClipboard(content: ClipboardContent): Promise<C
       } catch (error) {
         console.error('[copyToLocalClipboard] Failed to read text file:', error);
         if (isTextInvalid(content.text)) {
-          return { success: false, message: '无法读取完整文本' };
+          return { success: false, message: 'Unable to read full text' };
         }
       }
     }
@@ -345,7 +345,7 @@ export async function copyToLocalClipboard(content: ClipboardContent): Promise<C
     return result;
   } catch (error) {
     console.error('[copyToLocalClipboard] Failed to copy:', error);
-    return { success: false, message: '复制失败' };
+    return { success: false, message: 'Copy failed' };
   } finally {
     clipboardMonitor.resumePolling();
   }

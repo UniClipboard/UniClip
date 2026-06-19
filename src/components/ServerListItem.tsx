@@ -27,9 +27,9 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
   const { theme } = useTheme();
 
   const handleDelete = () => {
-    Alert.alert('确认删除', `确定要删除服务器 "${getServerDisplayName(config)}" 吗？`, [
-      { text: '取消', style: 'cancel' },
-      { text: '删除', style: 'destructive', onPress: onDelete },
+    Alert.alert('Confirm Delete', `Delete server "${getServerDisplayName(config)}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: onDelete },
     ]);
   };
 
@@ -118,8 +118,8 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
         <View style={styles.details}>
           <Text style={[styles.detailText, { color: theme.colors.textSecondary }]}>
             {config.type === 's3'
-              ? `🪣 ${config.bucketName || '未设置'}`
-              : `👤 ${config.username || '未设置'}`}
+              ? `🪣 ${config.bucketName || 'Not Set'}`
+              : `👤 ${config.username || 'Not Set'}`}
           </Text>
         </View>
       </View>
@@ -134,7 +134,7 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
           }}
         >
           <Text style={[styles.actionButtonText, { color: theme.colors.onPrimaryContainer }]}>
-            编辑
+            Edit
           </Text>
         </TouchableOpacity>
 
@@ -146,7 +146,7 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
           }}
         >
           <Text style={[styles.actionButtonText, { color: theme.colors.onErrorContainer }]}>
-            删除
+            Delete
           </Text>
         </TouchableOpacity>
       </View>

@@ -1,46 +1,46 @@
 # UniClip
 
-多端剪贴板同步移动客户端，目前仅支持 Android。
+Multi-device clipboard sync mobile client, currently only supports Android.
 
-## 功能特性
+## Features
 
-### 剪贴板同步和历史记录
+### Clipboard Sync & History
 
-- 文本、图片、单文件类型的剪贴板同步
-  - 通过通知栏快捷方式、桌面快捷方式、分享菜单手动触发同步
-  - 后台自动同步剪贴板
-- 历史记录同步
-- 自动上传短信验证码
+- Text, image, and single-file clipboard sync
+  - Manual sync via notification shortcut, home screen shortcut, or share menu
+  - Background automatic clipboard sync
+- History sync across devices
+- Auto-upload SMS verification codes
 
-### 服务器支持
+### Server Support
 
-- **SyncClipboard 协议服务器**
-- **WebDAV 服务器**
-- **S3 对象存储**
+- **SyncClipboard protocol server**
+- **WebDAV server**
+- **S3 object storage**
 
-## 截图
+## Screenshots
 
 <p align="center">
-  <img src="docs/screenshorts/Screenshot01.jpg" width="250" alt="首页" />
-  <img src="docs/screenshorts/Screenshot02.jpg" width="250" alt="历史记录" />
-  <img src="docs/screenshorts/Screenshot03.jpg" width="250" alt="设置" />
+  <img src="docs/screenshorts/Screenshot01.jpg" width="250" alt="Home" />
+  <img src="docs/screenshorts/Screenshot02.jpg" width="250" alt="History" />
+  <img src="docs/screenshorts/Screenshot03.jpg" width="250" alt="Settings" />
 </p>
 
-## 开发
+## Development
 
-### 安装依赖
+### Install dependencies
 
 ```bash
 npm install
 ```
 
-### 生成原生项目
+### Generate native projects
 
 ```bash
 npm run prebuild
 ```
 
-### 调试运行
+### Run in development
 
 ```bash
 # Android
@@ -50,88 +50,88 @@ npm run android
 npm run ios
 ```
 
-### 构建 APK
+### Build APK
 
 ```bash
 npm run build:apk
 ```
 
-### 其他命令
+### Other commands
 
 ```bash
-# 类型检查
+# Type checking
 npm run type-check
 
-# 代码检查
+# Lint
 npm run lint
 
-# 自动修复代码问题
+# Auto-fix code issues
 npm run lint:fix
 
-# 格式化文档（JSON/Markdown）
+# Format docs (JSON/Markdown)
 npm run format-docs
 
-# 构建 Expo 原生插件
+# Build Expo native plugins
 npm run plugin:build
 ```
 
-## 发布与版本号
+## Release & Versioning
 
-发版流程、版本号策略、上游同步工作流见 [docs/RELEASE.md](./docs/RELEASE.md)。
+See [docs/RELEASE.md](./docs/RELEASE.md) for release process, versioning strategy, and upstream sync workflow.
 
-## 致谢
+## Acknowledgments
 
-UniClip 基于以下开源项目改进，特此致谢：
+UniClip is built upon the following open-source projects:
 
-- [Jeric-X/SyncClipboard](https://github.com/Jeric-X/SyncClipboard) — 原始 SyncClipboard 协议与桌面端实现（MIT）
-- [Jeric-X/syncclipboard-mobile](https://github.com/Jeric-X/syncclipboard-mobile) — 移动端原始实现（MIT，作者 JericX）
+- [Jeric-X/SyncClipboard](https://github.com/Jeric-X/SyncClipboard) — Original SyncClipboard protocol and desktop implementation (MIT)
+- [Jeric-X/syncclipboard-mobile](https://github.com/Jeric-X/syncclipboard-mobile) — Original mobile implementation (MIT, by JericX)
 
-UniClip 兼容 SyncClipboard 协议，可与 SyncClipboard 服务端配合使用。
+UniClip is compatible with the SyncClipboard protocol and can work with SyncClipboard servers.
 
-## 开源依赖
+## Open Source Dependencies
 
-### JavaScript / TypeScript 依赖
+### JavaScript / TypeScript
 
-| 仓库                                                                                                              | 说明                          |
-| ----------------------------------------------------------------------------------------------------------------- | ----------------------------- |
-| [facebook/react-native](https://github.com/facebook/react-native)                                                 | 跨平台移动框架                |
-| [expo/expo](https://github.com/expo/expo)                                                                         | React Native 工具链与原生模块 |
-| [react-navigation/react-navigation](https://github.com/react-navigation/react-navigation)                         | 导航库                        |
-| [pmndrs/zustand](https://github.com/pmndrs/zustand)                                                               | 轻量状态管理                  |
-| [Shopify/flash-list](https://github.com/Shopify/flash-list)                                                       | 高性能列表渲染                |
-| [software-mansion/react-native-reanimated](https://github.com/software-mansion/react-native-reanimated)           | 动画库                        |
-| [software-mansion/react-native-gesture-handler](https://github.com/software-mansion/react-native-gesture-handler) | 手势处理                      |
-| [software-mansion/react-native-screens](https://github.com/software-mansion/react-native-screens)                 | 原生导航屏幕容器              |
-| [th3rdwave/react-native-safe-area-context](https://github.com/th3rdwave/react-native-safe-area-context)           | 安全区域适配                  |
-| [callstack/react-native-pager-view](https://github.com/callstack/react-native-pager-view)                         | 原生分页视图                  |
-| [satya164/react-native-tab-view](https://github.com/satya164/react-native-tab-view)                               | Tab 切换视图                  |
-| [react-native-async-storage/async-storage](https://github.com/react-native-async-storage/async-storage)           | 本地键值存储                  |
-| [react-native-netinfo/react-native-netinfo](https://github.com/react-native-netinfo/react-native-netinfo)         | 网络状态监听                  |
-| [axios/axios](https://github.com/axios/axios)                                                                     | HTTP 客户端                   |
-| [dotnet/aspnetcore (SignalR)](https://github.com/dotnet/aspnetcore)                                               | 实时推送客户端                |
-| [expo/vector-icons](https://github.com/expo/vector-icons)                                                         | 矢量图标库                    |
-| [jiang0508/react-native-feather](https://github.com/jiang0508/react-native-feather)                               | Feather 图标组件              |
-| [onubo/react-native-logs](https://github.com/onubo/react-native-logs)                                             | 日志工具                      |
-| [margelo/react-native-worklets](https://github.com/margelo/react-native-worklets)                                 | JS Worklets 运行时            |
-| [emn178/js-sha256](https://github.com/emn178/js-sha256)                                                           | SHA-256 哈希计算              |
-| [linonetwo/segmentit](https://github.com/linonetwo/segmentit)                                                     | 中文分词（词语选取功能）      |
+| Repository | Description |
+|---|---|
+| [facebook/react-native](https://github.com/facebook/react-native) | Cross-platform mobile framework |
+| [expo/expo](https://github.com/expo/expo) | React Native toolchain and native modules |
+| [react-navigation/react-navigation](https://github.com/react-navigation/react-navigation) | Navigation library |
+| [pmndrs/zustand](https://github.com/pmndrs/zustand) | Lightweight state management |
+| [Shopify/flash-list](https://github.com/Shopify/flash-list) | High-performance list rendering |
+| [software-mansion/react-native-reanimated](https://github.com/software-mansion/react-native-reanimated) | Animation library |
+| [software-mansion/react-native-gesture-handler](https://github.com/software-mansion/react-native-gesture-handler) | Gesture handling |
+| [software-mansion/react-native-screens](https://github.com/software-mansion/react-native-screens) | Native navigation screen containers |
+| [th3rdwave/react-native-safe-area-context](https://github.com/th3rdwave/react-native-safe-area-context) | Safe area insets |
+| [callstack/react-native-pager-view](https://github.com/callstack/react-native-pager-view) | Native pager view |
+| [satya164/react-native-tab-view](https://github.com/satya164/react-native-tab-view) | Tab view |
+| [react-native-async-storage/async-storage](https://github.com/react-native-async-storage/async-storage) | Local key-value storage |
+| [react-native-netinfo/react-native-netinfo](https://github.com/react-native-netinfo/react-native-netinfo) | Network status listener |
+| [axios/axios](https://github.com/axios/axios) | HTTP client |
+| [dotnet/aspnetcore (SignalR)](https://github.com/dotnet/aspnetcore) | Real-time push client |
+| [expo/vector-icons](https://github.com/expo/vector-icons) | Vector icon library |
+| [jiang0508/react-native-feather](https://github.com/jiang0508/react-native-feather) | Feather icon component |
+| [onubo/react-native-logs](https://github.com/onubo/react-native-logs) | Logging utility |
+| [margelo/react-native-worklets](https://github.com/margelo/react-native-worklets) | JS Worklets runtime |
+| [emn178/js-sha256](https://github.com/emn178/js-sha256) | SHA-256 hashing |
+| [linonetwo/segmentit](https://github.com/linonetwo/segmentit) | Chinese word segmentation (word picker) |
 
-### Android 依赖
+### Android
 
-| 仓库                                                                                                                  | 说明                                    |
-| --------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| [facebook/react-native](https://github.com/facebook/react-native)                                                     | React Native Android 运行时             |
-| [facebook/hermes](https://github.com/facebook/hermes)                                                                 | Hermes JavaScript 引擎                  |
-| [react-native-community/jsc-android-buildscripts](https://github.com/react-native-community/jsc-android-buildscripts) | JavaScriptCore Android 引擎（备选）     |
-| [RikkaApps/Shizuku](https://github.com/RikkaApps/Shizuku)                                                             | Shizuku API：无需 Root 的系统 API 访问  |
-| [dotnet/aspnetcore (SignalR Java 客户端)](https://github.com/dotnet/aspnetcore)                                       | SignalR 实时推送（Java/Android 客户端） |
-| [google/gson](https://github.com/google/gson)                                                                         | JSON 序列化（SignalR 协议层）           |
+| Repository | Description |
+|---|---|
+| [facebook/react-native](https://github.com/facebook/react-native) | React Native Android runtime |
+| [facebook/hermes](https://github.com/facebook/hermes) | Hermes JavaScript engine |
+| [react-native-community/jsc-android-buildscripts](https://github.com/react-native-community/jsc-android-buildscripts) | JavaScriptCore engine (fallback) |
+| [RikkaApps/Shizuku](https://github.com/RikkaApps/Shizuku) | Shizuku API: system API access without root |
+| [dotnet/aspnetcore (SignalR Java Client)](https://github.com/dotnet/aspnetcore) | SignalR real-time push (Java/Android) |
+| [google/gson](https://github.com/google/gson) | JSON serialization (SignalR protocol) |
 
-## 许可协议
+## License
 
-本项目包含以下版权声明：
+This project includes the following copyright notices:
 
-- Copyright (c) 2026 JericX（上游 SyncClipboard 原作者）
-- Copyright (c) 2026 mkdir700（UniClip）
+- Copyright (c) 2026 JericX (upstream SyncClipboard author)
+- Copyright (c) 2026 mkdir700 (UniClip)
 
-详见 [LICENSE](./LICENSE)。
+See [LICENSE](./LICENSE) for details.

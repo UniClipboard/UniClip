@@ -255,7 +255,7 @@ export async function saveLogsToFile(signal?: AbortSignal): Promise<void> {
 
   const fileUris = getLogFileUris();
   if (fileUris.length === 0) {
-    throw new Error('没有可导出的日志文件');
+    throw new Error('No log files to export');
   }
 
   const timestamp = formatLocalDateTime(new Date());
@@ -263,7 +263,7 @@ export async function saveLogsToFile(signal?: AbortSignal): Promise<void> {
 
   const permissions = await StorageAccessFramework.requestDirectoryPermissionsAsync();
   if (!permissions.granted) {
-    throw new Error('未授予存储权限');
+    throw new Error('Storage permission not granted');
   }
 
   const destUri = await StorageAccessFramework.createFileAsync(

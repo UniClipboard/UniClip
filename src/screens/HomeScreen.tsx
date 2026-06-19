@@ -70,10 +70,10 @@ export function HomeScreen() {
     try {
       const { clipboardManager } = await import('@/services');
       await clipboardManager.setClipboardContent(content);
-      showMessage('已复制到剪贴板', 'success');
+      showMessage('Copied to clipboard', 'success');
     } catch (error) {
       console.error('[HomeScreen] Failed to copy local content:', error);
-      showMessage('复制失败', 'error');
+      showMessage('Copy failed', 'error');
     }
   };
 
@@ -92,7 +92,7 @@ export function HomeScreen() {
 
       const asset = result.assets?.[0];
       if (!asset) {
-        showMessage('未选择文件', 'error');
+        showMessage('No file selected', 'error');
         return;
       }
 
@@ -104,7 +104,7 @@ export function HomeScreen() {
       });
     } catch (error) {
       console.error('[HomeScreen] Failed to pick file:', error);
-      showMessage('选择文件失败', 'error');
+      showMessage('Failed to select file', 'error');
     }
   }, [showMessage]);
 
@@ -124,7 +124,7 @@ export function HomeScreen() {
 
       const asset = result.assets?.[0];
       if (!asset) {
-        showMessage('未选择图片', 'error');
+        showMessage('No image selected', 'error');
         return;
       }
 
@@ -136,13 +136,13 @@ export function HomeScreen() {
       });
     } catch (error) {
       console.error('[HomeScreen] Failed to pick image:', error);
-      showMessage('选择图片失败', 'error');
+      showMessage('Failed to select image', 'error');
     }
   }, [showMessage]);
 
   const fileUploadTask = useCallback(
     async (signal: AbortSignal) => {
-      if (!fileUploadPayload) throw new Error('没有可上传的文件');
+      if (!fileUploadPayload) throw new Error('No file to upload');
 
       await getClipboardSyncService().uploadFile(fileUploadPayload, signal);
     },
@@ -157,12 +157,12 @@ export function HomeScreen() {
   const menuItems = useMemo<MenuItemConfig[]>(
     () => [
       {
-        label: '上传图片',
+        label: 'Upload Image',
         onPress: handleUploadImage,
         disabled: !!fileUploadPayload,
       },
       {
-        label: '上传文件',
+        label: 'Upload File',
         onPress: handleUploadFile,
         disabled: !!fileUploadPayload,
       },
@@ -197,19 +197,19 @@ export function HomeScreen() {
       console.log('[HomeScreen] Upload result:', JSON.stringify(result, null, 2));
 
       if (result.success) {
-        showMessage('剪贴板已上传到服务器', 'success');
+        showMessage('Clipboard uploaded to server', 'success');
       } else {
-        const errorMessage = result.error || '上传失败';
+        const errorMessage = result.error || 'Upload failed';
         console.log('[HomeScreen] Upload failed, setting error:', errorMessage);
         setError({
-          title: '上传失败',
+          title: 'Upload failed',
           message: errorMessage,
         });
-        showMessage('上传失败', 'error');
+        showMessage('Upload failed', 'error');
       }
     } catch (error: unknown) {
       console.error('[HomeScreen] Upload exception:', error);
-      const errorMessage = error instanceof Error ? error.message : '无法上传到服务器';
+      const errorMessage = error instanceof Error ? error.message : 'Unable to upload to server';
       const normalizedMessage = errorMessage.toLowerCase();
       const isCanceled =
         (error instanceof Error && error.name === 'AbortError') ||
@@ -218,7 +218,7 @@ export function HomeScreen() {
         normalizedMessage.includes('cancelled');
 
       if (isCanceled) {
-        showMessage('已取消上传', 'info');
+        showMessage('Upload cancelled', 'info');
         return;
       }
 
@@ -229,10 +229,10 @@ export function HomeScreen() {
           : errorMessage;
       console.log('[HomeScreen] Setting error details:', errorDetails);
       setError({
-        title: '上传失败',
+        title: 'Upload failed',
         message: errorDetails,
       });
-      showMessage('上传失败', 'error');
+      showMessage('Upload failed', 'error');
     }
   };
 
@@ -243,13 +243,13 @@ export function HomeScreen() {
     }
 
     getClipboardSyncService().cancelUpload();
-    showMessage('正在取消上传...', 'info');
+    showMessage('Cancelling upload...', 'info');
   }, [uploadingClipboard, showMessage]);
 
   const handleCopyError = async () => {
     if (error) {
       await ClipboardProxy.setStringAsync(`${error.title}\n\n${error.message}`);
-      showMessage('错误信息已复制', 'success');
+      showMessage('Error info copied', 'success');
     }
   };
 
@@ -273,7 +273,7 @@ export function HomeScreen() {
       await getClipboardSyncService().downloadRemoteFile();
     } catch (error) {
       console.error('[HomeScreen] Failed to download remote file:', error);
-      showMessage('文件下载失败', 'error');
+      showMessage('File download failed', 'error');
     }
   };
 
@@ -301,7 +301,7 @@ export function HomeScreen() {
             {/* 远程剪贴板 */}
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
-                远程剪贴板
+                Remote Clipboard
               </Text>
               {loadingRemote ? (
                 <View
@@ -311,7 +311,7 @@ export function HomeScreen() {
                   ]}
                 >
                   <Text style={[styles.loadingText, { color: theme.colors.onSurfaceVariant }]}>
-                    加载中...
+                    Loading...
                   </Text>
                 </View>
               ) : (
@@ -325,9 +325,9 @@ export function HomeScreen() {
                   onCopy={async (content) => {
                     const result = await copyRemoteToLocal(content, 'Manual copy: ');
                     if (result.success) {
-                      showMessage('已复制到剪贴板', 'success');
+      showMessage('Copied to clipboard', 'success');
                     } else {
-                      showMessage(result.message || '复制失败', 'error');
+                      showMessage(result.message || 'Copy failed', 'error');
                     }
                   }}
                   onWordPick={setWordPickerText}
@@ -338,7 +338,7 @@ export function HomeScreen() {
             {/* 本地剪贴板 */}
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
-                本地剪贴板
+                Local Clipboard
               </Text>
               <CurrentClipboardCard
                 clipboard={currentContent}
@@ -362,7 +362,7 @@ export function HomeScreen() {
                       onPress={handleCopyError}
                     >
                       <Text style={[styles.copyButtonText, { color: theme.colors.onError }]}>
-                        复制错误
+                         Copy Error
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -375,7 +375,7 @@ export function HomeScreen() {
                     <Text
                       style={[styles.dismissButtonText, { color: theme.colors.onErrorContainer }]}
                     >
-                      关闭
+                        Dismiss
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -397,9 +397,9 @@ export function HomeScreen() {
         {/* 空状态提示 */}
         {!activeServer && (
           <View style={[styles.emptyState, { backgroundColor: theme.colors.surfaceContainerLow }]}>
-            <Text style={[styles.emptyStateTitle, { color: theme.colors.text }]}>未配置服务器</Text>
+            <Text style={[styles.emptyStateTitle, { color: theme.colors.text }]}>No Server Configured</Text>
             <Text style={[styles.emptyStateText, { color: theme.colors.onSurfaceVariant }]}>
-              请在"设置"页面添加服务器配置以启用同步功能
+              Add a server in Settings to enable sync
             </Text>
           </View>
         )}
@@ -414,9 +414,9 @@ export function HomeScreen() {
         <View style={styles.fullScreenOverlay}>
           <QuickLoadingPage
             task={fileUploadTask}
-            loadingText={fileUploadProgress?.stage ?? '正在处理文件…'}
-            successText="上传成功"
-            failureText="上传失败"
+            loadingText={fileUploadProgress?.stage ?? 'Processing file...'}
+            successText="Upload successful"
+            failureText="Upload failed"
             onComplete={handleFileUploadComplete}
             progress={fileUploadProgress?.progressInfo}
             previewText={fileUploadPayload.fileName}

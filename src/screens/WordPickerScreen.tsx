@@ -201,7 +201,7 @@ export const WordPickerScreen: React.FC<WordPickerScreenProps> = ({ text, onComp
     const selectedText = tokens.filter((_, i) => selected.has(i)).join('');
     if (selectedText) {
       await Clipboard.setStringAsync(selectedText);
-      ToastAndroid.show('已复制', ToastAndroid.SHORT);
+      ToastAndroid.show('Copied', ToastAndroid.SHORT);
     }
   }, [tokens, selected]);
 
@@ -234,9 +234,9 @@ export const WordPickerScreen: React.FC<WordPickerScreenProps> = ({ text, onComp
 
         {/* 标题栏 */}
         <View style={[styles.header, { borderBottomColor: theme.colors.divider }]}>
-          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>分词选择</Text>
+          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Word Picker</Text>
           <View style={styles.headerRight}>
-            <Text style={[styles.splitAllLabel, { color: theme.colors.textSecondary }]}>逐字</Text>
+            <Text style={[styles.splitAllLabel, { color: theme.colors.textSecondary }]}>By Character</Text>
             <Switch
               value={splitAll}
               onValueChange={setSplitAll}
@@ -248,7 +248,7 @@ export const WordPickerScreen: React.FC<WordPickerScreenProps> = ({ text, onComp
               style={styles.switchStyle}
             />
             <TouchableOpacity onPress={close} style={styles.closeButton}>
-              <Text style={[styles.closeButtonText, { color: theme.colors.primary }]}>关闭</Text>
+              <Text style={[styles.closeButtonText, { color: theme.colors.primary }]}>Close</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -259,12 +259,12 @@ export const WordPickerScreen: React.FC<WordPickerScreenProps> = ({ text, onComp
           nestedScrollEnabled
         >
           <Text style={[styles.previewLabel, { color: theme.colors.textSecondary }]}>
-            已选 {selected.size} 个词
+            Selected {selected.size} word(s)
           </Text>
           <Text style={[styles.previewText, { color: theme.colors.text }]}>
             {selected.size > 0
               ? tokens.filter((_, i) => selected.has(i)).join('')
-              : '点击下方文字选择'}
+              : 'Tap words below to select'}
           </Text>
         </ScrollView>
 
@@ -318,13 +318,13 @@ export const WordPickerScreen: React.FC<WordPickerScreenProps> = ({ text, onComp
             style={[styles.bottomButton, { borderColor: theme.colors.border }]}
             onPress={selectAll}
           >
-            <Text style={[styles.bottomButtonText, { color: theme.colors.primary }]}>全选</Text>
+            <Text style={[styles.bottomButtonText, { color: theme.colors.primary }]}>Select All</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.bottomButton, { borderColor: theme.colors.border }]}
             onPress={clearSelection}
           >
-            <Text style={[styles.bottomButtonText, { color: theme.colors.primary }]}>清除</Text>
+            <Text style={[styles.bottomButtonText, { color: theme.colors.primary }]}>Clear</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[
@@ -343,7 +343,7 @@ export const WordPickerScreen: React.FC<WordPickerScreenProps> = ({ text, onComp
                 { color: selected.size > 0 ? theme.colors.white : theme.colors.textDisabled },
               ]}
             >
-              复制
+               Copy
             </Text>
           </TouchableOpacity>
         </View>

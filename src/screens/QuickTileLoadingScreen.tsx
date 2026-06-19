@@ -49,7 +49,7 @@ export const QuickTileLoadingScreen: React.FC<QuickTileLoadingScreenProps> = ({
       );
 
       if (!result.success) {
-        throw new Error(result.error || (isUpload ? '上传失败' : '同步失败'));
+        throw new Error(result.error || (isUpload ? 'Upload failed' : 'Sync failed'));
       }
 
       const content = result.content;
@@ -88,17 +88,17 @@ export const QuickTileLoadingScreen: React.FC<QuickTileLoadingScreenProps> = ({
     ? fileContent.type === 'Text' && textUrl
       ? [
           {
-            label: '复制',
+            label: 'Copy',
             primary: true,
             onPress: async () => {
               try {
                 await Clipboard.setStringAsync(fileContent.text!);
-                ToastAndroid.show('已复制', ToastAndroid.SHORT);
+                ToastAndroid.show('Copied', ToastAndroid.SHORT);
               } catch {}
             },
           },
           {
-            label: '打开链接',
+            label: 'Open Link',
             primary: true,
             onPress: async () => {
               try {
@@ -109,7 +109,7 @@ export const QuickTileLoadingScreen: React.FC<QuickTileLoadingScreenProps> = ({
         ]
       : [
           {
-            label: '打开',
+            label: 'Open',
             primary: true,
             onPress: async () => {
               try {
@@ -118,29 +118,29 @@ export const QuickTileLoadingScreen: React.FC<QuickTileLoadingScreenProps> = ({
             },
           },
           {
-            label: '保存',
+            label: 'Save',
             primary: true,
             onPress: async () => {
               try {
                 if (fileContent.type === 'Image') {
                   await saveToGallery(fileContent.fileUri!);
-                  ToastAndroid.show('已保存到相册', ToastAndroid.SHORT);
+                  ToastAndroid.show('Saved to gallery', ToastAndroid.SHORT);
                 } else {
                   await saveFile(fileContent.fileUri!, fileContent.fileName);
-                  ToastAndroid.show('已储存到设备', ToastAndroid.SHORT);
+                  ToastAndroid.show('Saved to device', ToastAndroid.SHORT);
                 }
               } catch (error) {
                 console.error('[QuickTileLoadingScreen] Failed to save file:', error);
                 if (error instanceof Error && error.message === 'Media library permission denied') {
-                  ToastAndroid.show('需要相册权限才能保存图片', ToastAndroid.SHORT);
+                  ToastAndroid.show('Gallery permission required', ToastAndroid.SHORT);
                   return;
                 }
-                ToastAndroid.show('保存失败', ToastAndroid.SHORT);
+                ToastAndroid.show('Save failed', ToastAndroid.SHORT);
               }
             },
           },
           {
-            label: '分享',
+            label: 'Share',
             primary: true,
             onPress: async () => {
               try {
@@ -154,9 +154,9 @@ export const QuickTileLoadingScreen: React.FC<QuickTileLoadingScreenProps> = ({
   return (
     <QuickLoadingPage
       task={task}
-      loadingText={isUpload ? '正在上传剪贴板...' : '正在下载剪贴板...'}
-      successText={isUpload ? '上传成功！' : '同步成功！'}
-      failureText={isUpload ? '上传失败' : '同步失败'}
+      loadingText={isUpload ? 'Uploading clipboard...' : 'Downloading clipboard...'}
+      successText={isUpload ? 'Upload successful!' : 'Sync successful!'}
+      failureText={isUpload ? 'Upload failed' : 'Sync failed'}
       onComplete={onLoadingComplete}
       successContent={fileContent ?? undefined}
       successButtons={successButtons}

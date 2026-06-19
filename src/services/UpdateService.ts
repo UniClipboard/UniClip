@@ -109,7 +109,7 @@ export async function checkForUpdate(
   });
 
   if (!response.ok) {
-    throw new Error(`GitHub API 请求失败: ${response.status}`);
+    throw new Error(`GitHub API request failed: ${response.status}`);
   }
 
   const releases: Array<{

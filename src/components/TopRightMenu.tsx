@@ -43,7 +43,7 @@ export const TopRightMenu: React.FC<TopRightMenuProps> = ({ items, onClose }) =>
   const handleOpenMenu = useCallback(() => {
     if (Platform.OS === 'ios') {
       const options = [
-        '取消',
+        'Cancel',
         ...items.map((item) => (item.submenu ? `${item.label} ▸` : item.label)),
       ];
       const cancelButtonIndex = 0;
@@ -59,7 +59,7 @@ export const TopRightMenu: React.FC<TopRightMenuProps> = ({ items, onClose }) =>
           if (buttonIndex > 0 && buttonIndex <= items.length) {
             const item = items[buttonIndex - 1];
             if (item.submenu) {
-              const submenuOptions = ['返回', ...item.submenu.map((sub) => sub.label)];
+              const submenuOptions = ['Back', ...item.submenu.map((sub) => sub.label)];
               ActionSheetIOS.showActionSheetWithOptions(
                 {
                   options: submenuOptions,

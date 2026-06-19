@@ -52,7 +52,7 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
             { color: disabled ? theme.colors.outline : theme.colors.onSurface },
           ]}
         >
-          上传
+          Upload
         </Text>
       </TouchableOpacity>
 
@@ -77,7 +77,7 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
           <Text style={styles.syncButtonIcon}>🔄</Text>
         )}
         <Text style={[styles.syncButtonText, { color: theme.colors.onPrimaryContainer }]}>
-          {syncInProgress ? '同步中...' : '同步'}
+          {syncInProgress ? 'Syncing...' : 'Sync'}
         </Text>
       </TouchableOpacity>
 
@@ -99,7 +99,7 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
             { color: disabled ? theme.colors.outline : theme.colors.onSurface },
           ]}
         >
-          下载
+          Download
         </Text>
       </TouchableOpacity>
     </View>

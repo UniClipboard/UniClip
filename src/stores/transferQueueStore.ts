@@ -60,11 +60,11 @@ export const useTransferQueueStore = create<TransferQueueState>((set, get) => ({
       });
 
       if (task.status === 'failed' && task.errorMessage && !task.userCancelled) {
-        const operationName = task.type === 'download' ? '下载' : '上传';
+        const operationName = task.type === 'download' ? 'Download' : 'Upload';
         useErrorStore.getState().showNetworkError(operationName, task.errorMessage);
         useMessageStore
           .getState()
-          .showMessage(`${operationName}失败: ${task.errorMessage}`, 'error');
+          .showMessage(`${operationName} failed: ${task.errorMessage}`, 'error');
       }
     };
 

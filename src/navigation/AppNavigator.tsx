@@ -82,9 +82,9 @@ export const AppNavigator = () => {
           },
         })}
       >
-        <Tab.Screen name="Home" component={HomeScreen} options={{ title: '首页' }} />
-        <Tab.Screen name="History" component={HistoryScreen} options={{ title: '历史' }} />
-        <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: '设置' }} />
+        <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'Home' }} />
+        <Tab.Screen name="History" component={HistoryScreen} options={{ title: 'History' }} />
+        <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
       </Tab.Navigator>
     </NavigationContainer>
   );

@@ -419,7 +419,7 @@ export class ClipboardManager {
 
       return {
         type: 'Image',
-        text: '[图片]',
+        text: '[Image]',
         fileUri: asset.uri,
         fileSize: asset.fileSize,
         profileHash,
@@ -456,7 +456,7 @@ export class ClipboardManager {
 
       return {
         type: 'Image',
-        text: '[图片]',
+        text: '[Image]',
         fileUri: asset.uri,
         fileSize: asset.fileSize,
         profileHash,

@@ -12,7 +12,7 @@ export * from './textUtils';
  */
 export const formatDate = (timestamp: number): string => {
   const date = new Date(timestamp);
-  return date.toLocaleString('zh-CN');
+  return date.toLocaleString('en-US');
 };
 
 /**
@@ -20,12 +20,12 @@ export const formatDate = (timestamp: number): string => {
  */
 export const getClipboardTypeName = (type: ClipboardContentType): string => {
   const typeNames = {
-    Text: '文本',
-    Image: '图片',
-    File: '文件',
-    Group: '文件组',
+    Text: 'Text',
+    Image: 'Image',
+    File: 'File',
+    Group: 'Group',
   };
-  return typeNames[type] || '未知';
+  return typeNames[type] || 'Unknown';
 };
 
 /**
@@ -47,7 +47,7 @@ export const formatFileSize = (bytes: number, decimals: number = 1): string => {
 export const formatSizeWithType = (bytes?: number, type?: string): string => {
   if (!bytes) return '';
   if (type === 'Text') {
-    return bytes.toLocaleString('zh-CN');
+    return bytes.toLocaleString('en-US');
   }
   return formatFileSize(bytes);
 };

@@ -50,11 +50,11 @@ import { importFileToHistory } from '@/utils/uploadFile';
 import { isHistorySyncEnabled } from '@/utils/config';
 
 const TAB_ROUTES: Route[] = [
-  { key: 'all', title: '全部' },
-  { key: 'Text', title: '文本' },
-  { key: 'Image', title: '图片' },
-  { key: 'File', title: '文件' },
-  { key: 'starred', title: '收藏' },
+  { key: 'all', title: 'All' },
+  { key: 'Text', title: 'Text' },
+  { key: 'Image', title: 'Image' },
+  { key: 'File', title: 'File' },
+  { key: 'starred', title: 'Starred' },
 ];
 
 export function HistoryScreen() {
@@ -244,7 +244,7 @@ export function HistoryScreen() {
       if (result.success) {
         showMessage(result.message, 'success');
       } else {
-        showMessage(result.message || '复制失败', 'error');
+        showMessage(result.message || 'Copy failed', 'error');
       }
     },
     [showMessage, copyItemWithSync]
@@ -257,16 +257,16 @@ export function HistoryScreen() {
         if (item.type === 'Text' && !isTextInvalid(item.text)) {
           await Share.share({
             message: item.text,
-            title: '分享文本',
+            title: 'Share Text',
           });
         } else if (item.fileUri) {
           await shareFile(item.fileUri, item.dataName);
         } else {
-          showMessage('暂不支持分享此类型的内容', 'info');
+          showMessage('This type cannot be shared yet', 'info');
         }
       } catch (error) {
         console.error('[HistoryScreen] Failed to share:', error);
-        showMessage('分享失败', 'error');
+        showMessage('Share failed', 'error');
       }
     },
     [showMessage]
@@ -279,22 +279,22 @@ export function HistoryScreen() {
       try {
         if (item.type === 'Image') {
           await saveToGallery(item.fileUri);
-          showMessage('已保存到相册', 'success');
+          showMessage('Saved to gallery', 'success');
         } else {
           await saveFile(item.fileUri, item.dataName);
-          showMessage('已储存到设备', 'success');
+          showMessage('Saved to device', 'success');
         }
       } catch (error) {
         if (error instanceof Error && error.message === 'Storage permission denied') {
-          showMessage('已取消储存', 'info');
+          showMessage('Save cancelled', 'info');
           return;
         }
         if (error instanceof Error && error.message === 'Media library permission denied') {
-          showMessage('需要相册权限才能保存图片', 'error');
+          showMessage('Gallery permission required to save images', 'error');
           return;
         }
         console.error('[HistoryScreen] Failed to save file:', error);
-        showMessage('储存失败', 'error');
+        showMessage('Save failed', 'error');
       }
     },
     [showMessage]
@@ -308,7 +308,7 @@ export function HistoryScreen() {
         await openFile(item.fileUri);
       } catch (error) {
         console.error('[HistoryScreen] Failed to open file:', error);
-        showMessage('打开失败', 'error');
+        showMessage('Open failed', 'error');
       }
     },
     [showMessage]
@@ -322,7 +322,7 @@ export function HistoryScreen() {
         // 同步由 HistorySyncService.handleLocalHistoryChanged 自动处理
       } catch (error) {
         console.error('[HistoryScreen] Failed to toggle star:', error);
-        showMessage('操作失败', 'error');
+        showMessage('Operation failed', 'error');
       }
     },
     [toggleStar, showMessage]
@@ -369,10 +369,10 @@ export function HistoryScreen() {
   const handleBatchDelete = useCallback(() => {
     const count = selectedIds.size;
     if (count === 0) return;
-    Alert.alert('确认删除', `确定要删除选中的 ${count} 条记录吗？`, [
-      { text: '取消', style: 'cancel' },
+    Alert.alert('Confirm Delete', `Delete selected ${count} item(s)?`, [
+      { text: 'Cancel', style: 'cancel' },
       {
-        text: '删除',
+        text: 'Delete',
         style: 'destructive',
         onPress: async () => {
           await deleteSelected();
@@ -385,12 +385,12 @@ export function HistoryScreen() {
   // 清空所有历史记录
   const handleClearAll = useCallback(() => {
     Alert.alert(
-      '确认清空',
-      '确定要清空所有历史记录吗？此操作不可撤销，不会删除服务器上已同步的记录。',
+      'Clear All',
+      'Clear all history? This action cannot be undone. Synced records on the server will not be deleted.',
       [
-        { text: '取消', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: '清空',
+          text: 'Clear',
           style: 'destructive',
           onPress: async () => {
             try {
@@ -398,10 +398,10 @@ export function HistoryScreen() {
               const { getHistorySyncService } = await import('@/services/HistorySyncService');
               const syncService = getHistorySyncService();
               await syncService.resetSyncCursor();
-              showMessage('已清空所有历史记录', 'success');
+              showMessage('All history cleared', 'success');
             } catch (error) {
               console.error('[HistoryScreen] Failed to clear:', error);
-              showMessage('清空失败', 'error');
+              showMessage('Clear failed', 'error');
             }
           },
         },
@@ -422,7 +422,7 @@ export function HistoryScreen() {
 
       const asset = result.assets?.[0];
       if (!asset) {
-        showMessage('未选择文件', 'error');
+        showMessage('No file selected', 'error');
         return;
       }
 
@@ -438,9 +438,9 @@ export function HistoryScreen() {
 
       await importFileToHistory(asset.uri, fileName, asset.mimeType, asset.size);
 
-      showMessage(`文件 ${fileName} 已添加到历史记录`, 'success');
+      showMessage(`File ${fileName} added to history`, 'success');
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : '添加文件失败，请重试';
+      const errorMessage = error instanceof Error ? error.message : 'Failed to add file, please retry';
       console.error('[HistoryScreen] Failed to import file:', error);
       showMessage(errorMessage, 'error');
     } finally {
@@ -462,7 +462,7 @@ export function HistoryScreen() {
 
       const asset = result.assets?.[0];
       if (!asset) {
-        showMessage('未选择图片', 'error');
+        showMessage('No image selected', 'error');
         return;
       }
 
@@ -478,9 +478,9 @@ export function HistoryScreen() {
 
       await importFileToHistory(asset.uri, fileName, asset.mimeType, asset.fileSize);
 
-      showMessage(`图片 ${fileName} 已添加到历史记录`, 'success');
+      showMessage(`Image ${fileName} added to history`, 'success');
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : '添加图片失败，请重试';
+      const errorMessage = error instanceof Error ? error.message : 'Failed to add image, please retry';
       console.error('[HistoryScreen] Failed to import image:', error);
       showMessage(errorMessage, 'error');
     } finally {
@@ -526,7 +526,7 @@ export function HistoryScreen() {
 
     const initialized = await ensureSyncServiceInitialized();
     if (!initialized) {
-      showMessage('请先配置服务器', 'error');
+      showMessage('Configure a server first', 'error');
       return;
     }
 
@@ -534,7 +534,7 @@ export function HistoryScreen() {
     const syncService = getHistorySyncService();
 
     setIsSyncing(true);
-    showMessage('开始同步历史记录...', 'info');
+    showMessage('Starting history sync...', 'info');
 
     try {
       await syncService.syncAll((progress: { message?: string }) => {
@@ -542,15 +542,15 @@ export function HistoryScreen() {
           console.log(`[HistoryScreen] Sync progress: ${progress.message}`);
         }
       });
-      showMessage('历史记录同步完成', 'success');
+      showMessage('History sync complete', 'success');
     } catch (error) {
       console.error('[HistoryScreen] Failed to resync history:', error);
-      const errorMessage = error instanceof Error ? error.message : '未知错误';
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       setError({
-        title: '历史记录同步失败',
+        title: 'History Sync Failed',
         message: errorMessage,
       });
-      showMessage('同步失败: ' + errorMessage, 'error');
+      showMessage('Sync failed: ' + errorMessage, 'error');
     } finally {
       setIsSyncing(false);
     }
@@ -577,9 +577,9 @@ export function HistoryScreen() {
         await syncService.syncIncremental();
       } catch (error) {
         console.error('[HistoryScreen] Failed to incremental sync:', error);
-        const errorMessage = error instanceof Error ? error.message : '未知错误';
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         setError({
-          title: '历史记录增量同步失败',
+          title: 'Incremental Sync Failed',
           message: errorMessage,
         });
       } finally {
@@ -661,9 +661,9 @@ export function HistoryScreen() {
                   await syncService.syncIncremental();
                 } catch (error) {
                   console.error('[HistoryScreen] Failed to incremental sync:', error);
-                  const errorMessage = error instanceof Error ? error.message : '未知错误';
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
                   setError({
-                    title: '历史记录增量同步失败',
+        title: 'Incremental Sync Failed',
                     message: errorMessage,
                   });
                 } finally {
@@ -735,10 +735,10 @@ export function HistoryScreen() {
 
       await addItems(randomItems);
 
-      showMessage('已添加10条随机记录', 'success');
+      showMessage('Added 10 random records', 'success');
     } catch (error) {
       console.error('[HistoryScreen] Failed to add random records:', error);
-      showMessage('添加随机记录失败', 'error');
+      showMessage('Failed to add random records', 'error');
     }
   }, [addItems, showMessage, generateRandomDebugText]);
 
@@ -771,7 +771,7 @@ export function HistoryScreen() {
 
       const initialized = await ensureSyncServiceInitialized();
       if (!initialized) {
-        showMessage('历史同步未启用', 'error');
+        showMessage('History sync not enabled', 'error');
         return;
       }
 
@@ -798,7 +798,7 @@ export function HistoryScreen() {
 
       const initialized = await ensureSyncServiceInitialized();
       if (!initialized) {
-        showMessage('历史同步未启用', 'error');
+        showMessage('History sync not enabled', 'error');
         return;
       }
 
@@ -808,7 +808,7 @@ export function HistoryScreen() {
         const file = new File(item.fileUri);
         if (!file.exists) {
           console.warn(`[HistoryScreen] Local file not found: ${item.fileUri}`);
-          showMessage('本地文件不存在', 'error');
+          showMessage('Local file not found', 'error');
           return;
         }
       }
@@ -874,9 +874,9 @@ export function HistoryScreen() {
     return (
       <View style={styles.emptyContainer}>
         <Text style={styles.emptyIcon}>📋</Text>
-        <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>暂无历史记录</Text>
+        <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>No history yet</Text>
         <Text style={[styles.emptyDescription, { color: theme.colors.textSecondary }]}>
-          {searchText ? '未找到匹配的记录' : '复制内容后将自动保存到历史记录'}
+          {searchText ? 'No matching records found' : 'Copied content is saved here automatically'}
         </Text>
       </View>
     );
@@ -944,23 +944,23 @@ export function HistoryScreen() {
   const menuItems = useMemo<MenuItemConfig[]>(() => {
     const items: MenuItemConfig[] = [
       {
-        label: '添加图片',
+        label: 'Add Image',
         onPress: handleImportImage,
       },
       {
-        label: '添加文件',
+        label: 'Add File',
         onPress: handleImportFile,
       },
       {
-        label: '展示完整图片',
+        label: 'Show Full Image',
         onPress: handleToggleFullImage,
         icon: showFullImage ? <Check color="#2196F3" width={18} height={18} /> : undefined,
       },
       {
-        label: '排序方式',
+        label: 'Sort By',
         submenu: [
           {
-            label: '按创建时间排序',
+            label: 'By Creation Time',
             onPress: () => handleSortChange('timestamp'),
             icon:
               sortField === 'timestamp' ? (
@@ -968,7 +968,7 @@ export function HistoryScreen() {
               ) : undefined,
           },
           {
-            label: '按访问时间排序',
+            label: 'By Last Accessed',
             onPress: () => handleSortChange('lastAccessed'),
             icon:
               sortField === 'lastAccessed' ? (
@@ -981,7 +981,7 @@ export function HistoryScreen() {
 
     if (historySyncEnabled) {
       items.push({
-        label: isSyncing ? '同步中...' : '重新同步历史记录',
+        label: isSyncing ? 'Syncing...' : 'Re-sync History',
         onPress: handleResyncHistory,
         disabled: isSyncing,
       });
@@ -989,18 +989,18 @@ export function HistoryScreen() {
 
     if (isDebugMode) {
       items.push({
-        label: '显示历史记录调试信息',
+        label: 'Show Debug Info',
         onPress: handleToggleHistoryDebugInfo,
         icon: showHistoryDebugInfo ? <Check color="#2196F3" width={18} height={18} /> : undefined,
       });
       items.push({
-        label: '添加10条随机记录',
+        label: 'Add 10 Random Records',
         onPress: handleAddRandomRecords,
       });
     }
 
     items.push({
-      label: '清空所有历史记录',
+      label: 'Clear All History',
       onPress: handleClearAll,
       destructive: true,
     });
@@ -1081,7 +1081,7 @@ export function HistoryScreen() {
         <View style={[styles.reorganizingOverlay, { backgroundColor: theme.colors.background }]}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={[styles.reorganizingText, { color: theme.colors.text }]}>
-            正在整理历史记录...
+            Organizing history...
           </Text>
         </View>
       )}
@@ -1095,7 +1095,7 @@ export function HistoryScreen() {
               color: theme.colors.text,
             },
           ]}
-          placeholder="搜索历史记录..."
+          placeholder="Search history..."
           placeholderTextColor={theme.colors.onSurfaceVariant}
           value={searchText}
           onChangeText={setSearchText}
@@ -1114,7 +1114,7 @@ export function HistoryScreen() {
               },
             ]}
           >
-            清除
+                         Clear
           </Text>
         </TouchableOpacity>
       </View>
@@ -1138,11 +1138,11 @@ export function HistoryScreen() {
           ]}
         >
           <Text style={[styles.multiSelectCount, { color: theme.colors.text }]}>
-            已选 {selectedIds.size} 项
+            Selected {selectedIds.size} items
           </Text>
           <TouchableOpacity onPress={exitMultiSelectMode} style={styles.multiSelectButton}>
             <Ionicons name="close" size={22} color={theme.colors.text} />
-            <Text style={[styles.multiSelectButtonText, { color: theme.colors.text }]}>取消</Text>
+            <Text style={[styles.multiSelectButtonText, { color: theme.colors.text }]}>Cancel</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => (selectedIds.size === items.length ? clearSelection() : selectAll())}
@@ -1154,7 +1154,7 @@ export function HistoryScreen() {
               color={theme.colors.primary}
             />
             <Text style={[styles.multiSelectButtonText, { color: theme.colors.primary }]}>
-              全选
+               Select All
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -1180,7 +1180,7 @@ export function HistoryScreen() {
                 },
               ]}
             >
-              删除
+               Delete
             </Text>
           </TouchableOpacity>
         </View>
@@ -1203,7 +1203,7 @@ export function HistoryScreen() {
           >
             <ActivityIndicator size="large" color={theme.colors.primary} />
             <Text style={[styles.importOverlayTitle, { color: theme.colors.text }]}>
-              正在添加文件...
+              Adding file...
             </Text>
           </View>
         </View>

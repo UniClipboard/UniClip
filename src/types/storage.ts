@@ -284,7 +284,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   syncLargeFiles: true,
   largeFileThreshold: 10 * 1024 * 1024, // 10MB
   theme: 'auto',
-  language: 'zh-CN',
+  language: 'en-US',
   enableNotifications: true,
   syncInBackground: false,
   syncOnStartup: true,

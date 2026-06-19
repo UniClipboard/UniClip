@@ -45,10 +45,10 @@ export async function importFileToHistory(
   const contentType: ClipboardContentType = guessContentType(mimeType);
   const tempPath = prepareTempFilePath(fileName);
   const sourceFile = new File(sourceUri);
-  options?.onProgress?.('正在复制文件…');
+  options?.onProgress?.('Copying file...');
   await nativeCopyFile(sourceFile.uri, tempPath);
 
-  options?.onProgress?.('正在计算哈希…');
+  options?.onProgress?.('Computing hash...');
   const profileHash = await calculateFileProfileHash(tempPath, fileName);
   const resolvedSize = fileSize ?? sourceFile.size;
 
@@ -133,10 +133,10 @@ export async function uploadFileAndAddToHistory(
   };
 
   const apiClient = createAPIClient(activeServer);
-  options?.onProgress?.('正在上传文件…');
+  options?.onProgress?.('Uploading file...');
   await apiClient.putContent(content, {
     signal: options?.signal,
-    onProgress: (info) => options?.onProgress?.('正在上传文件…', info),
+    onProgress: (info) => options?.onProgress?.('Uploading file...', info),
   });
 
   await useHistoryStore.getState().updateItem(result.profileHash, { synced: true });

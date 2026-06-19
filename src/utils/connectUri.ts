@@ -21,12 +21,12 @@ export type ConnectUriError =
   | 'INVALID_URL';
 
 export const CONNECT_URI_ERROR_MESSAGES: Record<ConnectUriError, string> = {
-  INVALID_SCHEME: '不是 UniClipboard 的二维码。',
-  UNSUPPORTED_VERSION: '请升级 App。',
-  UNSUPPORTED_SERVICE: '当前版本不支持该服务。',
-  PAYLOAD_DECODE_FAILED: '二维码已损坏，请重新生成。',
-  MISSING_FIELD: '二维码内容不完整，请重新生成。',
-  INVALID_URL: '二维码里的服务地址无效。',
+  INVALID_SCHEME: 'Not a UniClipboard QR code.',
+  UNSUPPORTED_VERSION: 'Please update the app.',
+  UNSUPPORTED_SERVICE: 'This service is not supported in the current version.',
+  PAYLOAD_DECODE_FAILED: 'QR code is corrupted, please regenerate.',
+  MISSING_FIELD: 'QR code content is incomplete, please regenerate.',
+  INVALID_URL: 'Invalid server URL in QR code.',
 };
 
 export interface ConnectUriResult {

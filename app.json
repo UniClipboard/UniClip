@@ -58,7 +58,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "授权 UniClip 使用相机以扫描二维码接入服务器"
+          "cameraPermission": "Allow UniClip to use the camera to scan QR codes to connect to a server"
         }
       ]
     ]

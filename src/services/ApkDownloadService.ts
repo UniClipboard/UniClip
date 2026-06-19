@@ -197,7 +197,7 @@ export async function downloadApk(options: ApkDownloadOptions): Promise<string> 
     console.log(`[ApkDownload] actual hash=${hash}`);
     if (hash.toLowerCase() !== asset.sha256.toLowerCase()) {
       destFile.delete();
-      throw new Error(`APK 哈希校验失败：期望 ${asset.sha256}，实际 ${hash}`);
+      throw new Error(`APK hash verification failed: expected ${asset.sha256}, got ${hash}`);
     }
     console.log('[ApkDownload] hash verified OK');
   } else {

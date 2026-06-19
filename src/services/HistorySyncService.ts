@@ -182,10 +182,10 @@ export class HistorySyncService {
     }
 
     try {
-      await this.notifyProgress({ phase: 'fetching', message: '校验服务器时间...' });
+      await this.notifyProgress({ phase: 'fetching', message: 'Verifying server time...' });
       await this.validateServerTime(this.syncAbortController.signal);
 
-      await this.notifyProgress({ phase: 'fetching', message: '获取远程记录...' });
+      await this.notifyProgress({ phase: 'fetching', message: 'Fetching remote records...' });
       const remoteRecords = await this.fetchRemoteRecords(
         this.syncAbortController.signal,
         lastSyncTime
@@ -194,24 +194,24 @@ export class HistorySyncService {
       if (remoteRecords.length > 0) {
         await this.notifyProgress({
           phase: 'merging',
-          message: '合并记录...',
+          message: 'Merging records...',
           total: remoteRecords.length,
         });
         await this.mergeRemoteRecords(remoteRecords, this.syncAbortController.signal);
       }
 
       if (isFullSync) {
-        await this.notifyProgress({ phase: 'merging', message: '检测孤儿数据...' });
+        await this.notifyProgress({ phase: 'merging', message: 'Checking orphaned data...' });
         await this.detectOrphanData(remoteRecords, this.syncAbortController.signal);
       }
 
-      await this.notifyProgress({ phase: 'pushing', message: '推送本地变更...' });
+      await this.notifyProgress({ phase: 'pushing', message: 'Pushing local changes...' });
       await this.pushLocalChanges(this.syncAbortController.signal);
 
-      await this.notifyProgress({ phase: 'pushing', message: '上传本地记录...' });
+      await this.notifyProgress({ phase: 'pushing', message: 'Uploading local records...' });
       await this.pushLocalOnlyRecords(this.syncAbortController.signal);
 
-      await this.notifyProgress({ phase: 'pushing', message: '清理过期记录...' });
+      await this.notifyProgress({ phase: 'pushing', message: 'Cleaning up expired records...' });
       const cleanedCount = await this.historyStorage.cleanupExpiredSoftDeletes();
       if (cleanedCount > 0) {
         console.log(`[HistorySyncService] Cleaned ${cleanedCount} expired soft-deleted records`);
@@ -220,16 +220,16 @@ export class HistorySyncService {
       this.lastSyncTime = Date.now();
       await this.saveLastSyncTime();
 
-      await this.notifyProgress({ phase: 'completed', message: '同步完成' });
+      await this.notifyProgress({ phase: 'completed', message: 'Sync complete' });
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         console.log('[HistorySyncService] Sync cancelled');
-        await this.notifyProgress({ phase: 'error', message: '同步已取消' });
+        await this.notifyProgress({ phase: 'error', message: 'Sync cancelled' });
       } else {
         console.error('[HistorySyncService] Sync failed:', error);
         await this.notifyProgress({
           phase: 'error',
-          message: '同步失败',
+          message: 'Sync failed',
           error: error instanceof Error ? error.message : 'Unknown error',
         });
         throw error;
@@ -349,7 +349,7 @@ export class HistorySyncService {
     if (!this.historyAPI) return [];
 
     const isIncremental = modifiedAfter !== undefined;
-    const progressMessage = isIncremental ? '获取增量记录' : '获取远程记录';
+    const progressMessage = isIncremental ? 'Fetching incremental records' : 'Fetching remote records';
     const allRecords: HistoryRecordDto[] = [];
     let page = 1;
     let hasMore = true;
@@ -378,7 +378,7 @@ export class HistorySyncService {
 
         await this.notifyProgress({
           phase: 'fetching',
-          message: `${progressMessage}... (${allRecords.length} 条)`,
+          message: `${progressMessage}... (${allRecords.length})`,
           current: allRecords.length,
         });
       }

@@ -88,7 +88,7 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
       if (signal.aborted) {
         return;
       }
-      setErrorMessage(err instanceof Error ? err.message : '操作失败，请重试');
+      setErrorMessage(err instanceof Error ? err.message : 'Operation failed, please retry');
       setState('error');
     }
   }, [onComplete]);
@@ -196,7 +196,7 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
             ]}
             onPress={handleCancel}
           >
-            <Text style={[styles.buttonText, { color: theme.colors.primary }]}>取消</Text>
+            <Text style={[styles.buttonText, { color: theme.colors.primary }]}>Cancel</Text>
           </TouchableOpacity>
         </>
       )}
@@ -251,7 +251,7 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
                 ]}
                 onPress={onComplete}
               >
-                <Text style={[styles.buttonText, { color: theme.colors.primary }]}>返回</Text>
+                <Text style={[styles.buttonText, { color: theme.colors.primary }]}>Back</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -283,9 +283,9 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
               style={[styles.button, { backgroundColor: theme.colors.primaryContainer }]}
               onPress={run}
             >
-              <Text style={[styles.buttonText, { color: theme.colors.onPrimaryContainer }]}>
-                重试
-              </Text>
+<Text style={[styles.buttonText, { color: theme.colors.onPrimaryContainer }]}>
+                 Retry
+                </Text>
             </TouchableOpacity>
             {errorMessage && (
               <TouchableOpacity
@@ -296,7 +296,7 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
                 ]}
                 onPress={() => Clipboard.setStringAsync(errorMessage)}
               >
-                <Text style={[styles.buttonText, { color: theme.colors.primary }]}>复制</Text>
+                <Text style={[styles.buttonText, { color: theme.colors.primary }]}>Copy</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity
@@ -307,7 +307,7 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
               ]}
               onPress={onComplete}
             >
-              <Text style={[styles.buttonText, { color: theme.colors.primary }]}>返回</Text>
+              <Text style={[styles.buttonText, { color: theme.colors.primary }]}>Back</Text>
             </TouchableOpacity>
           </View>
         </>
@@ -365,7 +365,7 @@ const ContentPreview: React.FC<{ content: ClipboardContent }> = ({ content }) =>
   }
 
   // File (or Image without local URI)
-  const label = content.fileName ?? content.text ?? '未知文件';
+  const label = content.fileName ?? content.text ?? 'Unknown file';
   const size = content.fileSize != null ? ` · ${(content.fileSize / 1024).toFixed(1)} KB` : '';
   return (
     <View

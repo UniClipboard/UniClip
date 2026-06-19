@@ -20,7 +20,7 @@ function addProcessTextActivity(androidManifest) {
     const activityEntry = {
         $: {
             'android:name': activityName,
-            'android:label': '上传',
+            'android:label': 'Upload',
             'android:exported': 'true',
             'android:theme': '@android:style/Theme.NoDisplay',
             'android:taskAffinity': '',

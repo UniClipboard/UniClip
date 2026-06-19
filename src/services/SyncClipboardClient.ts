@@ -261,7 +261,7 @@ export class SyncClipboardClient extends APIClient implements ISyncClipboardAPI,
 
     if (timeDiffMinutes > 5) {
       throw new Error(
-        `服务器时间与本地时间差距过大（${Math.round(timeDiffMinutes)}分钟），请同步系统时间`
+        `Server time differs from local time by ${Math.round(timeDiffMinutes)} minutes. Please sync system time.`
       );
     }
   }

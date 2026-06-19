@@ -110,9 +110,9 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
       <View style={[styles.card, { backgroundColor: theme.colors.surfaceContainerLow }]}>
         <View style={styles.emptyContent}>
           <Text style={[styles.emptyIcon, { color: theme.colors.textTertiary }]}>📋</Text>
-          <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>剪贴板为空</Text>
-          <Text style={[styles.emptyDescription, { color: theme.colors.onSurfaceVariant }]}>
-            复制内容后将在此显示
+            <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>Clipboard is empty</Text>
+            <Text style={[styles.emptyDescription, { color: theme.colors.textSecondary }]}>
+              Copied content will appear here
           </Text>
         </View>
       </View>
@@ -135,13 +135,13 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
   const getTypeLabel = (type: string): string => {
     switch (type) {
       case 'Text':
-        return '文本';
+        return 'Text';
       case 'Image':
-        return '图片';
+        return 'Image';
       case 'File':
-        return '文件';
+        return 'File';
       default:
-        return '未知';
+        return 'Unknown';
     }
   };
 
@@ -149,11 +149,11 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
     const now = Date.now();
     const diff = now - timestamp;
 
-    if (diff < 60000) return '刚刚';
-    if (diff < 3600000) return `${Math.floor(diff / 60000)} 分钟前`;
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前`;
+    if (diff < 60000) return 'just now';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
 
-    return new Date(timestamp).toLocaleDateString('zh-CN', {
+    return new Date(timestamp).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
@@ -167,10 +167,10 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
       return clipboard.text || '';
     }
     if (clipboard.type === 'Image') {
-      return clipboard.fileName || '图片';
+      return clipboard.fileName || 'Image';
     }
     if (clipboard.type === 'File') {
-      return clipboard.fileName || '文件';
+      return clipboard.fileName || 'File';
     }
     return '';
   };
@@ -237,18 +237,18 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
     try {
       if (clipboard.type === 'Image') {
         await saveToGallery(clipboard.fileUri);
-        showMessage('已保存到相册', 'success');
+        showMessage('Saved to gallery', 'success');
       } else {
         await saveFile(clipboard.fileUri, clipboard.fileName);
-        showMessage('已储存到设备', 'success');
+        showMessage('Saved to device', 'success');
       }
     } catch (error) {
       if (error instanceof Error && error.message === 'Media library permission denied') {
-        showMessage('需要相册权限才能保存图片', 'error');
+        showMessage('Gallery permission required to save images', 'error');
         return;
       }
       console.error('[CurrentClipboardCard] Failed to save file:', error);
-      showMessage('保存失败', 'error');
+      showMessage('Save failed', 'error');
     }
   };
 
@@ -265,7 +265,7 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
               {getTypeLabel(clipboard.type)}
             </Text>
             <Text style={[styles.timestamp, { color: theme.colors.onSurfaceVariant }]}>
-              {clipboard.timestamp ? formatTime(clipboard.timestamp) : '刚刚'}
+              {clipboard.timestamp ? formatTime(clipboard.timestamp) : 'just now'}
             </Text>
           </View>
         </View>
@@ -327,10 +327,10 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
             ) : (
               <View>
                 <Text style={[styles.mediaLabel, { color: theme.colors.textSecondary }]}>
-                  {clipboard.fileName || '图片文件'}
+                  {clipboard.fileName || 'Image file'}
                 </Text>
                 <Text style={[styles.mediaHint, { color: theme.colors.textTertiary }]}>
-                  等待下载...
+                  Waiting to download...
                 </Text>
               </View>
             )}
@@ -340,11 +340,11 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
         {clipboard.type === 'File' && (
           <View style={styles.mediaPreview}>
             <Text style={[styles.mediaLabel, { color: theme.colors.textSecondary }]}>
-              {clipboard.fileName || '文件'}
+              {clipboard.fileName || 'File'}
             </Text>
             {clipboard.fileUri && (
               <Text style={[styles.mediaHint, { color: theme.colors.textTertiary }]}>
-                包含文件数据
+                Contains file data
               </Text>
             )}
           </View>
@@ -360,7 +360,7 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
             onPress={() => Linking.openURL(detectedUrl)}
           >
             <Text style={[styles.actionButtonText, { color: theme.colors.onPrimaryContainer }]}>
-              打开链接
+Open Link
             </Text>
           </TouchableOpacity>
         )}
@@ -372,7 +372,7 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
             onPress={() => onWordPick(clipboard.text!)}
           >
             <Text style={[styles.actionButtonText, { color: theme.colors.onPrimaryContainer }]}>
-              分词
+Word Pick
             </Text>
           </TouchableOpacity>
         )}
@@ -388,7 +388,7 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
             onPress={() => onCopy(clipboard)}
           >
             <Text style={[styles.actionButtonText, { color: theme.colors.onPrimaryContainer }]}>
-              复制
+Copy
             </Text>
           </TouchableOpacity>
         )}
@@ -400,7 +400,7 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
             onPress={handleOpenFile}
           >
             <Text style={[styles.actionButtonText, { color: theme.colors.onPrimaryContainer }]}>
-              打开
+Open
             </Text>
           </TouchableOpacity>
         )}
@@ -412,7 +412,7 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
             onPress={handleSaveFile}
           >
             <Text style={[styles.actionButtonText, { color: theme.colors.onPrimaryContainer }]}>
-              保存
+Save
             </Text>
           </TouchableOpacity>
         )}
@@ -428,7 +428,7 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
             onPress={handleShare}
           >
             <Text style={[styles.actionButtonText, { color: theme.colors.onPrimaryContainer }]}>
-              分享
+Share
             </Text>
           </TouchableOpacity>
         )}
@@ -451,7 +451,7 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
                 { color: theme.colors.primary },
               ]}
             >
-              {uploading ? '取消' : '上传'}
+              {uploading ? 'Cancel' : 'Upload'}
             </Text>
           </TouchableOpacity>
         )}
@@ -487,8 +487,8 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
               {downloading && downloadProgress
                 ? `${(downloadProgress.progress * 100).toFixed(0)}%  ${formatFileSize(downloadProgress.bytesTransferred)} / ${formatFileSize(downloadProgress.totalBytes)}`
                 : downloading
-                  ? '取消'
-                  : '下载'}
+                  ? 'Cancel'
+                  : 'Download'}
             </Text>
           </TouchableOpacity>
         )}

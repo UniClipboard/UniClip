@@ -115,7 +115,7 @@ export async function shareFile(fileUri: string, fileName?: string): Promise<voi
   const mimeType = getMimeTypeFromUri(fileUri);
   await Sharing.shareAsync(fileUri, {
     mimeType,
-    dialogTitle: fileName || '分享文件',
+    dialogTitle: fileName || 'Share File',
     UTI: mimeType,
   });
 }
@@ -129,7 +129,7 @@ export async function saveToGallery(fileUri: string): Promise<void> {
   const isImage = mimeType.startsWith('image/');
 
   if (!isImage) {
-    throw new Error('仅支持保存图片到相册');
+    throw new Error('Only images can be saved to gallery');
   }
 
   const { status } = await MediaLibrary.requestPermissionsAsync();

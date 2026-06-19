@@ -22,12 +22,12 @@ interface TransferQueueModalProps {
 }
 
 const statusLabels: Record<string, string> = {
-  pending: '等待中',
-  running: '传输中',
-  completed: '已完成',
-  failed: '失败',
-  cancelled: '已取消',
-  waitForRetry: '等待重试',
+  pending: 'Pending',
+  running: 'Transferring',
+  completed: 'Completed',
+  failed: 'Failed',
+  cancelled: 'Cancelled',
+  waitForRetry: 'Waiting to Retry',
 };
 
 const statusColors: Record<string, string> = {
@@ -169,7 +169,7 @@ export const TransferQueueModal: React.FC<TransferQueueModalProps> = ({ visible,
             <View style={[styles.dragHandle, { backgroundColor: theme.colors.outlineVariant }]} />
           </View>
           <View style={styles.header}>
-            <Text style={[styles.title, { color: theme.colors.text }]}>传输队列</Text>
+            <Text style={[styles.title, { color: theme.colors.text }]}>Transfer Queue</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <X width={24} height={24} color={theme.colors.text} />
             </TouchableOpacity>
@@ -180,18 +180,18 @@ export const TransferQueueModal: React.FC<TransferQueueModalProps> = ({ visible,
               <Text style={[styles.statNumber, { color: theme.colors.primary }]}>
                 {activeCount}
               </Text>
-              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>传输中</Text>
+              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Transferring</Text>
             </View>
             <View style={styles.statItem}>
               <Text style={[styles.statNumber, { color: theme.colors.text }]}>{pendingCount}</Text>
-              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>等待中</Text>
+              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Pending</Text>
             </View>
           </View>
 
           {tasks.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                暂无传输任务
+                No transfer tasks
               </Text>
             </View>
           ) : (

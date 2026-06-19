@@ -53,17 +53,17 @@ function formatDuration(ms: number): string {
   const days = Math.floor(hours / 24);
 
   const parts: string[] = [];
-  if (days > 0) parts.push(`${days}天`);
-  if (hours % 24 > 0) parts.push(`${hours % 24}小时`);
-  if (minutes % 60 > 0) parts.push(`${minutes % 60}分钟`);
-  if (parts.length === 0) parts.push(`${seconds}秒`);
+  if (days > 0) parts.push(`${days}d`);
+  if (hours % 24 > 0) parts.push(`${hours % 24}h`);
+  if (minutes % 60 > 0) parts.push(`${minutes % 60}m`);
+  if (parts.length === 0) parts.push(`${seconds}s`);
 
   return parts.join(' ');
 }
 
 function formatTime(isoString: string): string {
   const date = new Date(isoString);
-  return date.toLocaleString('zh-CN', {
+  return date.toLocaleString('en-US', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -124,18 +124,18 @@ export const useStatisticsStore = create<StatisticsState>((set, get) => ({
 
   getStatisticsText: () => {
     const { backgroundTaskRecords } = get().data;
-    const lines: string[] = ['=== 统计信息 ===', ''];
+    const lines: string[] = ['=== Statistics ===', ''];
 
     if (backgroundTaskRecords.length === 0) {
-      lines.push('后台任务: 无记录');
+      lines.push('Background tasks: No records');
     } else {
-      lines.push(`后台任务记录 (最近 ${backgroundTaskRecords.length} 次):`);
+      lines.push(`Background task records (last ${backgroundTaskRecords.length}):`);
       backgroundTaskRecords.forEach((record, index) => {
         const start = new Date(record.startedAt).getTime();
         const last = new Date(record.lastHeartbeat).getTime();
         const duration = formatDuration(last - start);
-        lines.push(`  ${index + 1}. 启动: ${formatTime(record.startedAt)}`);
-        lines.push(`     持续: ${duration}`);
+        lines.push(`  ${index + 1}. Start: ${formatTime(record.startedAt)}`);
+        lines.push(`     Duration: ${duration}`);
       });
     }
 

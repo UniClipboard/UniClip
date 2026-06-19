@@ -17,6 +17,24 @@ android {
   }
 }
 
+tasks.whenTaskAdded { task ->
+    if (task.name.startsWith('compile') && task.name.endsWith('Aidl') && task.name.contains('Release')) {
+        task.doLast {
+            def aidlDir = project.buildDir.toPath()
+                .resolve('generated/aidl_source_output_dir/release/out')
+            if (aidlDir.toFile().exists()) {
+                aidlDir.toFile().eachFileRecurse { file ->
+                    if (file.name.endsWith('.java') && file.text.startsWith('/*')) {
+                        def cleaned = file.text.replaceFirst(/(?s)^\/\*.*?\*\/\s*/, '')
+                        file.text = cleaned
+                        println "Stripped AIDL header comment from ${file}"
+                    }
+                }
+            }
+        }
+    }
+}
+
 dependencies {
   implementation 'com.facebook.react:react-native:0.83.2'
   implementation 'androidx.core:core-ktx:1.13.1'

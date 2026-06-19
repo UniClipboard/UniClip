@@ -465,9 +465,9 @@ export abstract class APIClient {
         const responseText =
           typeof response === 'string' ? response : JSON.stringify(response, null, 2);
 
-        errorMessage = `服务器返回错误 (HTTP ${statusCode}):\n\n${responseText}`;
+        errorMessage = `Server error (HTTP ${statusCode}):\n\n${responseText}`;
       } else {
-        errorMessage = `服务器返回错误 (HTTP ${statusCode}): ${errorMessage}`;
+        errorMessage = `Server error (HTTP ${statusCode}): ${errorMessage}`;
       }
     } else if (hasResponse) {
       // 有response但没有statusCode（可能是Axios原始错误）
@@ -481,7 +481,7 @@ export abstract class APIClient {
             ? response.data
             : JSON.stringify(response.data, null, 2);
         const status = response.status as number | undefined;
-        errorMessage = `服务器返回错误 (HTTP ${status || 'unknown'}):\n\n${responseText}`;
+        errorMessage = `Server error (HTTP ${status || 'unknown'}):\n\n${responseText}`;
       }
     }
 
