@@ -1,4 +1,5 @@
 {
-  "includeCoAuthoredBy": false,
-  "gitAttribution": false
+"enabledPlugins": {
+    "expo@claude-plugins-official": true
+  }
 }
