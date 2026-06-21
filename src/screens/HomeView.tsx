@@ -11,6 +11,8 @@ import {
   BackHandler,
   useWindowDimensions,
   StatusBar,
+  Modal,
+  ScrollView,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,6 +27,7 @@ import { useErrorStore } from '@/stores/errorStore';
 import { historyStorage } from '@/services';
 import { getClipboardSyncService } from '@/services/ClipboardSyncService';
 import { ClipboardItem, ClipboardContent } from '@/types/clipboard';
+import { ServerConfig } from '@/types/api';
 import { ClipboardCard } from '@/components/ClipboardCard';
 import { MessageToast } from '@/components/MessageToast';
 import { WordPickerScreen } from '@/screens/WordPickerScreen';
@@ -66,7 +69,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
     clearSelection,
     deleteSelected,
   } = useHistoryStore();
-  const { config, getActiveServer } = useSettingsStore();
+  const { config, getActiveServer, getServers, setActiveServer } = useSettingsStore();
   const { message, showMessage, clearMessage } = useMessageStore();
   const { error, setError, clearError } = useErrorStore();
   const uploadingClipboard = useClipboardSyncServiceStore((s) => s.uploadingClipboard);
@@ -89,6 +92,11 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
     fileSize?: number;
   } | null>(null);
   const [showMenu, setShowMenu] = useState(false);
+  const [showServerPicker, setShowServerPicker] = useState(false);
+
+  const servers = getServers();
+  const activeServerIndex = config?.activeServerIndex ?? -1;
+  const activeServerLabel = activeServer?.name || activeServer?.url || '未配置';
 
   const listRef = useRef<FlatList<ClipboardItem>>(null);
 
@@ -371,7 +379,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
           />
         ) : (
           <DefaultTopBar
-            serverLabel={activeServer?.url || '未配置'}
+            serverLabel={activeServerLabel}
             isConnected={!!activeServer}
             onSettings={onOpenSettings}
             showMenu={showMenu}
@@ -439,17 +447,35 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
           />
         ) : (
           <DefaultBottomBar
-            serverLabel={activeServer?.url || '未配置'}
+            serverLabel={activeServerLabel}
             isSyncing={isSyncing}
             onSearch={openSearch}
+            onServerPicker={() => setShowServerPicker(true)}
             onSync={handleSyncHistory}
-            onUpload={handleUpload}
             theme={theme}
           />
         )}
       </View>
 
       <MessageToast message={message} onMessageShown={clearMessage} />
+
+      {/* Server Switcher Modal */}
+      <ServerSwitcherModal
+        visible={showServerPicker}
+        servers={servers}
+        activeIndex={activeServerIndex}
+        onSelect={async (index) => {
+          await setActiveServer(index);
+          setShowServerPicker(false);
+          showMessage('已切换服务器', 'success');
+        }}
+        onClose={() => setShowServerPicker(false)}
+        onOpenSettings={() => {
+          setShowServerPicker(false);
+          onOpenSettings();
+        }}
+        theme={theme}
+      />
 
       {fileUploadPayload && (
         <View style={StyleSheet.absoluteFill}>
@@ -574,15 +600,15 @@ function DefaultBottomBar({
   serverLabel,
   isSyncing,
   onSearch,
+  onServerPicker,
   onSync,
-  onUpload,
   theme,
 }: {
   serverLabel: string;
   isSyncing: boolean;
   onSearch: () => void;
+  onServerPicker: () => void;
   onSync: () => void;
-  onUpload: () => void;
   theme: ReturnType<typeof useTheme>['theme'];
 }) {
   return (
@@ -594,13 +620,17 @@ function DefaultBottomBar({
         <Ionicons name="search" size={20} color={theme.colors.onSurface} />
       </Pressable>
       <Pressable
-        onPress={onUpload}
+        onPress={onServerPicker}
         style={[styles.bottomBarPill, { backgroundColor: theme.colors.surfaceContainerHigh }]}
       >
-        <Ionicons name="arrow-up" size={16} color={theme.colors.onSurface} />
-        <Text style={[styles.bottomBarPillText, { color: theme.colors.onSurface }]}>
-          推送
+        <Ionicons name="time-outline" size={16} color={theme.colors.onSurface} />
+        <Text
+          style={[styles.bottomBarPillText, { color: theme.colors.onSurface }]}
+          numberOfLines={1}
+        >
+          {serverLabel}
         </Text>
+        <Ionicons name="chevron-expand-outline" size={12} color={theme.colors.onSurfaceVariant} />
       </Pressable>
       <Pressable
         onPress={onSync}
@@ -701,6 +731,175 @@ function SelectModeBottomBar({
     </View>
   );
 }
+
+// ─── Server Switcher Modal ───────────────────────────────────────
+
+function ServerSwitcherModal({
+  visible,
+  servers,
+  activeIndex,
+  onSelect,
+  onClose,
+  onOpenSettings,
+  theme,
+}: {
+  visible: boolean;
+  servers: ServerConfig[];
+  activeIndex: number;
+  onSelect: (index: number) => void;
+  onClose: () => void;
+  onOpenSettings: () => void;
+  theme: ReturnType<typeof useTheme>['theme'];
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={modalStyles.backdrop} onPress={onClose}>
+        <View />
+      </Pressable>
+      <View
+        style={[
+          modalStyles.sheet,
+          { backgroundColor: theme.colors.surface },
+        ]}
+      >
+        {/* Handle */}
+        <View style={modalStyles.handleRow}>
+          <View style={[modalStyles.handle, { backgroundColor: theme.colors.outlineVariant }]} />
+        </View>
+        {/* Header */}
+        <View style={modalStyles.header}>
+          <Pressable onPress={onClose} style={modalStyles.headerButton}>
+            <Ionicons name="close" size={20} color={theme.colors.onSurface} />
+          </Pressable>
+          <Text style={[modalStyles.headerTitle, { color: theme.colors.onSurface }]}>
+            服务器
+          </Text>
+          <Pressable onPress={onOpenSettings} style={modalStyles.headerButton}>
+            <Ionicons name="settings-outline" size={20} color={theme.colors.onSurface} />
+          </Pressable>
+        </View>
+        {/* Server list */}
+        <ScrollView style={modalStyles.list}>
+          {servers.length === 0 ? (
+            <Text style={[modalStyles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
+              还没有服务器
+            </Text>
+          ) : (
+            servers.map((server, index) => {
+              const isActive = index === activeIndex;
+              return (
+                <Pressable
+                  key={`${server.url}-${index}`}
+                  onPress={() => onSelect(index)}
+                  style={[
+                    modalStyles.serverRow,
+                    {
+                      backgroundColor: isActive
+                        ? 'rgba(76,175,80,0.08)'
+                        : 'transparent',
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name={isActive ? 'checkmark-circle' : 'ellipse-outline'}
+                    size={22}
+                    color={isActive ? '#4CAF50' : theme.colors.onSurfaceVariant}
+                  />
+                  <View style={modalStyles.serverInfo}>
+                    <Text
+                      style={[modalStyles.serverName, { color: theme.colors.onSurface }]}
+                      numberOfLines={1}
+                    >
+                      {server.name || server.url}
+                    </Text>
+                    <Text
+                      style={[modalStyles.serverUrl, { color: theme.colors.onSurfaceVariant }]}
+                      numberOfLines={1}
+                    >
+                      {server.url}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })
+          )}
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
+const modalStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  sheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '60%',
+    paddingBottom: 32,
+  },
+  handleRow: {
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  headerButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  list: {
+    paddingHorizontal: 8,
+  },
+  emptyText: {
+    textAlign: 'center',
+    paddingVertical: 32,
+    fontSize: 14,
+  },
+  serverRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginBottom: 2,
+  },
+  serverInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  serverName: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  serverUrl: {
+    fontSize: 12,
+  },
+});
 
 // ─── Styles ─────────────────────────────────────────────────────
 
