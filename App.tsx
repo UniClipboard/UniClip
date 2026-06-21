@@ -49,8 +49,6 @@ function handleConnectUrlIfMatched(url: string | null | undefined): boolean {
     pwd: parsed.value.pwd,
     ...(parsed.value.label !== undefined ? { label: parsed.value.label } : {}),
   });
-  // 切到 Settings tab；若 navigation 尚未就绪（冷启动早期），SettingsScreen 的 useEffect
-  // 会在挂载完成时主动检测 store 并打开预填表单。
   navigateIfReady('Settings');
   return true;
 }

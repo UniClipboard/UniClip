@@ -1,23 +1,34 @@
-/**
- * App Navigation
- */
-
-import React from 'react';
-import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import React, { useCallback } from 'react';
+import {
+  NavigationContainer,
+  DefaultTheme,
+  DarkTheme,
+  useNavigation,
+} from '@react-navigation/native';
+import { createStackNavigator } from '@react-navigation/stack';
 import { navigationRef } from './navigationRef';
-import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
-import { HomeScreen } from '@/screens/HomeScreen';
-import { HistoryScreen } from '@/screens/HistoryScreen';
+import { HomeView } from '@/screens/HomeView';
 import { SettingsScreen } from '@/screens/SettingsScreen';
 
-const Tab = createBottomTabNavigator();
+export type RootStackParamList = {
+  Main: undefined;
+  Settings: undefined;
+};
+
+const Stack = createStackNavigator<RootStackParamList>();
+
+function MainScreen() {
+  const navigation = useNavigation<any>();
+  const openSettings = useCallback(() => {
+    navigation.navigate('Settings');
+  }, [navigation]);
+  return <HomeView onOpenSettings={openSettings} />;
+}
 
 export const AppNavigator = () => {
   const { theme } = useTheme();
 
-  // 创建适应主题的导航主题
   const navigationTheme = theme.isDark
     ? {
         ...DarkTheme,
@@ -44,48 +55,23 @@ export const AppNavigator = () => {
 
   return (
     <NavigationContainer ref={navigationRef} theme={navigationTheme}>
-      <Tab.Navigator
-        screenOptions={({ route }) => ({
-          headerStyle: {
-            backgroundColor: theme.colors.surface,
-            elevation: 0,
-            shadowOpacity: 0,
-            borderBottomWidth: 0,
-          },
-          headerTintColor: theme.colors.text,
-          headerTitleStyle: {
-            fontWeight: 'bold',
-          },
-          tabBarStyle: {
-            backgroundColor: theme.colors.tabBarBackground,
-            borderTopColor: theme.colors.tabBarBorder,
-            borderTopWidth: 1,
-            elevation: 0,
-            shadowOpacity: 0,
-          },
-          tabBarActiveTintColor: theme.colors.tabBarActive,
-          tabBarInactiveTintColor: theme.colors.tabBarInactive,
-          tabBarIcon: ({ color, size }) => {
-            let iconName = 'home';
-            if (route.name === 'History') {
-              iconName = 'time';
-            } else if (route.name === 'Settings') {
-              iconName = 'settings';
-            }
-            return (
-              <Ionicons
-                name={iconName as keyof typeof Ionicons.glyphMap}
-                size={size}
-                color={color}
-              />
-            );
-          },
-        })}
-      >
-        <Tab.Screen name="Home" component={HomeScreen} options={{ title: '首页' }} />
-        <Tab.Screen name="History" component={HistoryScreen} options={{ title: '历史' }} />
-        <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: '设置' }} />
-      </Tab.Navigator>
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="Main" component={MainScreen} />
+        <Stack.Screen
+          name="Settings"
+          component={SettingsScreen}
+          options={{
+            headerShown: true,
+            title: '设置',
+            headerStyle: {
+              backgroundColor: theme.colors.surface,
+              elevation: 0,
+              shadowOpacity: 0,
+            },
+            headerTintColor: theme.colors.text,
+          }}
+        />
+      </Stack.Navigator>
     </NavigationContainer>
   );
 };
