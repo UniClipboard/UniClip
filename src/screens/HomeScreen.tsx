@@ -4,7 +4,8 @@
  */
 
 import React, { useState, useLayoutEffect, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
+import { Host, Button, TextButton, Text as ComposeText } from '@expo/ui/jetpack-compose';
 import { useNavigation } from '@react-navigation/native';
 import * as ClipboardProxy from '@/utils/clipboardProxy';
 import * as DocumentPicker from 'expo-document-picker';
@@ -357,27 +358,31 @@ export function HomeScreen() {
                     <Text style={[styles.errorTitle, { color: theme.colors.onErrorContainer }]}>
                       {error.title}
                     </Text>
-                    <TouchableOpacity
-                      style={[styles.copyButton, { backgroundColor: theme.colors.error }]}
-                      onPress={handleCopyError}
-                    >
-                      <Text style={[styles.copyButtonText, { color: theme.colors.onError }]}>
-                        复制错误
-                      </Text>
-                    </TouchableOpacity>
+                    <Host matchContents>
+                      <Button
+                        onClick={handleCopyError}
+                        colors={{
+                          containerColor: theme.colors.error,
+                          contentColor: theme.colors.onError,
+                        }}
+                      >
+                        <ComposeText>复制错误</ComposeText>
+                      </Button>
+                    </Host>
                   </View>
                   <ScrollView style={styles.errorScrollView} nestedScrollEnabled={true}>
                     <Text style={[styles.errorText, { color: theme.colors.onErrorContainer }]}>
                       {error.message}
                     </Text>
                   </ScrollView>
-                  <TouchableOpacity style={styles.dismissButton} onPress={() => clearError()}>
-                    <Text
-                      style={[styles.dismissButtonText, { color: theme.colors.onErrorContainer }]}
+                  <Host matchContents style={styles.dismissButtonHost}>
+                    <TextButton
+                      onClick={() => clearError()}
+                      colors={{ contentColor: theme.colors.onErrorContainer }}
                     >
-                      关闭
-                    </Text>
-                  </TouchableOpacity>
+                      <ComposeText>关闭</ComposeText>
+                    </TextButton>
+                  </Host>
                 </View>
               )}
             </View>
@@ -531,15 +536,6 @@ const styles = StyleSheet.create({
     fontSize: typography.headline.fontSize,
     fontWeight: typography.headline.fontWeight,
   },
-  copyButton: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-    borderRadius: radius.pill,
-  },
-  copyButtonText: {
-    fontSize: typography.footnote.fontSize,
-    fontWeight: '600',
-  },
   errorScrollView: {
     maxHeight: 200,
     marginBottom: spacing.md,
@@ -549,13 +545,7 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
     lineHeight: 18,
   },
-  dismissButton: {
+  dismissButtonHost: {
     alignSelf: 'flex-end',
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.sm,
-  },
-  dismissButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
   },
 });

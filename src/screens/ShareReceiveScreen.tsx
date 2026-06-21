@@ -5,7 +5,8 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, ActivityIndicator, Text, StyleSheet, BackHandler } from 'react-native';
+import { View, Text, StyleSheet, BackHandler } from 'react-native';
+import { Host, CircularProgressIndicator } from '@expo/ui/jetpack-compose';
 import { useIncomingShare, clearSharedPayloads, getSharedPayloads } from 'expo-sharing';
 import { useTheme } from '@/hooks/useTheme';
 import { useSettingsStore } from '@/stores/settingsStore';
@@ -150,7 +151,9 @@ const ResolvingView: React.FC<{
 
   return (
     <View style={[styles.container, { backgroundColor }]}>
-      <ActivityIndicator size="large" color={primaryColor} />
+      <Host matchContents>
+        <CircularProgressIndicator color={primaryColor} />
+      </Host>
       <Text style={[styles.text, { color: textColor }]}>{text}</Text>
     </View>
   );

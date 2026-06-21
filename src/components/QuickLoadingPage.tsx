@@ -4,18 +4,25 @@
  * 纯 UI + 状态机，不含任何业务逻辑。
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
-  ActivityIndicator,
   Text,
   Image,
-  TouchableOpacity,
   TouchableWithoutFeedback,
   BackHandler,
   ScrollView,
 } from 'react-native';
+import {
+  Host,
+  Button,
+  OutlinedButton,
+  CircularProgressIndicator,
+  LinearProgressIndicator,
+  Text as ComposeText,
+} from '@expo/ui/jetpack-compose';
+import { fillMaxWidth } from '@expo/ui/jetpack-compose/modifiers';
 import * as Clipboard from 'expo-clipboard';
 import { useTheme } from '@/hooks/useTheme';
 import { spacing, radius, typography, elevation } from '@/theme';
@@ -140,17 +147,6 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
     ? { backgroundColor: 'transparent' }
     : { backgroundColor: theme.colors.surface };
 
-  const progressFillDynamic = useMemo(
-    () => ({
-      backgroundColor: theme.colors.primary,
-      width:
-        (progress?.totalBytes ?? 0) > 0
-          ? (`${(progress?.progress ?? 0) * 100}%` as const)
-          : ('100%' as const),
-    }),
-    [theme.colors.primary, progress?.totalBytes, progress?.progress]
-  );
-
   const contentView = (
     <View
       style={[
@@ -160,7 +156,9 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
     >
       {state === 'loading' && (
         <>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Host matchContents>
+            <CircularProgressIndicator color={theme.colors.primary} />
+          </Host>
           <Text style={[styles.statusText, { color: theme.colors.text }]}>{loadingText}</Text>
           {previewImage && (
             <Image source={{ uri: previewImage }} style={styles.loadingPreviewImage} />
@@ -172,15 +170,14 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
           )}
           {progress && (progress.totalBytes > 0 || progress.bytesTransferred > 0) && (
             <View style={styles.progressContainer}>
-              <View style={[styles.progressBar, { backgroundColor: theme.colors.border }]}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    progressFillDynamic,
-                    progress.totalBytes <= 0 && styles.progressFillIndeterminate,
-                  ]}
+              <Host matchContents style={styles.progressHost}>
+                <LinearProgressIndicator
+                  progress={progress.totalBytes > 0 ? progress.progress : undefined}
+                  color={theme.colors.primary}
+                  trackColor={theme.colors.border}
+                  modifiers={[fillMaxWidth()]}
                 />
-              </View>
+              </Host>
               <Text style={[styles.progressText, { color: theme.colors.textSecondary }]}>
                 {progress.totalBytes > 0
                   ? `${(progress.progress * 100).toFixed(0)}% ${formatFileSize(progress.bytesTransferred)} / ${formatFileSize(progress.totalBytes)}`
@@ -188,16 +185,11 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
               </Text>
             </View>
           )}
-          <TouchableOpacity
-            style={[
-              styles.button,
-              styles.buttonOutline,
-              { backgroundColor: 'transparent', borderColor: theme.colors.outline },
-            ]}
-            onPress={handleCancel}
-          >
-            <Text style={[styles.buttonText, { color: theme.colors.primary }]}>取消</Text>
-          </TouchableOpacity>
+          <Host matchContents>
+            <OutlinedButton onClick={handleCancel} colors={{ contentColor: theme.colors.primary }}>
+              <ComposeText>取消</ComposeText>
+            </OutlinedButton>
+          </Host>
         </>
       )}
 
@@ -213,46 +205,38 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
           {(successContent !== undefined || (successButtons && successButtons.length > 0)) && (
             <View style={styles.successButtonRow}>
               {successButtons?.map((btn, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.button,
-                    styles.successButton,
-                    btn.primary
-                      ? { backgroundColor: theme.colors.primaryContainer }
-                      : [
-                          styles.buttonOutline,
-                          {
-                            backgroundColor: 'transparent',
-                            borderColor: theme.colors.outline,
-                          },
-                        ],
-                  ]}
-                  onPress={btn.onPress}
-                >
-                  <Text
-                    style={[
-                      styles.buttonText,
-                      {
-                        color: btn.primary ? theme.colors.onPrimaryContainer : theme.colors.primary,
-                      },
-                    ]}
-                  >
-                    {btn.label}
-                  </Text>
-                </TouchableOpacity>
+                <Host matchContents key={index} style={styles.successButtonHost}>
+                  {btn.primary ? (
+                    <Button
+                      onClick={btn.onPress}
+                      modifiers={[fillMaxWidth()]}
+                      colors={{
+                        containerColor: theme.colors.primaryContainer,
+                        contentColor: theme.colors.onPrimaryContainer,
+                      }}
+                    >
+                      <ComposeText>{btn.label}</ComposeText>
+                    </Button>
+                  ) : (
+                    <OutlinedButton
+                      onClick={btn.onPress}
+                      modifiers={[fillMaxWidth()]}
+                      colors={{ contentColor: theme.colors.primary }}
+                    >
+                      <ComposeText>{btn.label}</ComposeText>
+                    </OutlinedButton>
+                  )}
+                </Host>
               ))}
-              <TouchableOpacity
-                style={[
-                  styles.button,
-                  styles.successButton,
-                  styles.buttonOutline,
-                  { backgroundColor: 'transparent', borderColor: theme.colors.outline },
-                ]}
-                onPress={onComplete}
-              >
-                <Text style={[styles.buttonText, { color: theme.colors.primary }]}>返回</Text>
-              </TouchableOpacity>
+              <Host matchContents style={styles.successButtonHost}>
+                <OutlinedButton
+                  onClick={onComplete}
+                  modifiers={[fillMaxWidth()]}
+                  colors={{ contentColor: theme.colors.primary }}
+                >
+                  <ComposeText>返回</ComposeText>
+                </OutlinedButton>
+              </Host>
             </View>
           )}
         </>
@@ -279,36 +263,32 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
             </ScrollView>
           )}
           <View style={styles.buttonRow}>
-            <TouchableOpacity
-              style={[styles.button, { backgroundColor: theme.colors.primaryContainer }]}
-              onPress={run}
-            >
-              <Text style={[styles.buttonText, { color: theme.colors.onPrimaryContainer }]}>
-                重试
-              </Text>
-            </TouchableOpacity>
-            {errorMessage && (
-              <TouchableOpacity
-                style={[
-                  styles.button,
-                  styles.buttonOutline,
-                  { backgroundColor: 'transparent', borderColor: theme.colors.outline },
-                ]}
-                onPress={() => Clipboard.setStringAsync(errorMessage)}
+            <Host matchContents>
+              <Button
+                onClick={run}
+                colors={{
+                  containerColor: theme.colors.primaryContainer,
+                  contentColor: theme.colors.onPrimaryContainer,
+                }}
               >
-                <Text style={[styles.buttonText, { color: theme.colors.primary }]}>复制</Text>
-              </TouchableOpacity>
+                <ComposeText>重试</ComposeText>
+              </Button>
+            </Host>
+            {errorMessage && (
+              <Host matchContents>
+                <OutlinedButton
+                  onClick={() => Clipboard.setStringAsync(errorMessage)}
+                  colors={{ contentColor: theme.colors.primary }}
+                >
+                  <ComposeText>复制</ComposeText>
+                </OutlinedButton>
+              </Host>
             )}
-            <TouchableOpacity
-              style={[
-                styles.button,
-                styles.buttonOutline,
-                { backgroundColor: 'transparent', borderColor: theme.colors.outline },
-              ]}
-              onPress={onComplete}
-            >
-              <Text style={[styles.buttonText, { color: theme.colors.primary }]}>返回</Text>
-            </TouchableOpacity>
+            <Host matchContents>
+              <OutlinedButton onClick={onComplete} colors={{ contentColor: theme.colors.primary }}>
+                <ComposeText>返回</ComposeText>
+              </OutlinedButton>
+            </Host>
           </View>
         </>
       )}
@@ -433,25 +413,8 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     width: '100%',
   },
-  successButton: {
+  successButtonHost: {
     flex: 1,
-    paddingHorizontal: 0,
-  },
-  button: {
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.sm + 2,
-    borderRadius: radius.pill,
-    minHeight: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buttonText: {
-    fontSize: typography.subhead.fontSize,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  buttonOutline: {
-    borderWidth: 1,
   },
   loadingPreviewText: {
     fontSize: 14,
@@ -470,18 +433,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  progressBar: {
+  progressHost: {
     width: '100%',
-    height: 8,
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  progressFillIndeterminate: {
-    opacity: 0.3,
   },
   progressText: {
     fontSize: 13,

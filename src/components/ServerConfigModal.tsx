@@ -10,13 +10,19 @@ import {
   StyleSheet,
   Modal,
   TouchableOpacity,
-  TextInput,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
-  Switch,
 } from 'react-native';
+import {
+  Host,
+  OutlinedTextField,
+  Switch,
+  AlertDialog,
+  TextButton,
+  Text as ComposeText,
+} from '@expo/ui/jetpack-compose';
+import { fillMaxWidth } from '@expo/ui/jetpack-compose/modifiers';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { spacing, radius, typography } from '@/theme';
@@ -40,11 +46,13 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
 }) => {
   const { theme } = useTheme();
   const [isTesting, setIsTesting] = useState(false);
+  const [alertInfo, setAlertInfo] = useState<{ title: string; message: string } | null>(null);
   const testAbortControllerRef = useRef<AbortController | null>(null);
 
-  const urlRef = useRef<TextInput>(null);
-  const usernameRef = useRef<TextInput>(null);
-  const passwordRef = useRef<TextInput>(null);
+  const showAlert = (title: string, message: string) => setAlertInfo({ title, message });
+
+  // OutlinedTextField 是非受控的，重新填充表单时通过 bump formKey 强制重挂载以刷新 defaultValue
+  const [formKey, setFormKey] = useState(0);
 
   const [type, setType] = useState<'syncclipboard' | 'webdav' | 's3'>(
     initialConfig?.type || 'syncclipboard'
@@ -60,10 +68,6 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
   const [objectPrefix, setObjectPrefix] = useState(initialConfig?.objectPrefix || '');
   const [forcePathStyle, setForcePathStyle] = useState(initialConfig?.forcePathStyle ?? false);
 
-  const bucketNameRef = useRef<TextInput>(null);
-  const regionRef = useRef<TextInput>(null);
-  const objectPrefixRef = useRef<TextInput>(null);
-
   useEffect(() => {
     if (visible && initialConfig) {
       setType(initialConfig.type);
@@ -75,6 +79,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
       setBucketName(initialConfig.bucketName || '');
       setObjectPrefix(initialConfig.objectPrefix || '');
       setForcePathStyle(initialConfig.forcePathStyle ?? false);
+      setFormKey((k) => k + 1);
     } else if (visible && !initialConfig) {
       setType('syncclipboard');
       setUrl('');
@@ -85,6 +90,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
       setBucketName('');
       setObjectPrefix('');
       setForcePathStyle(false);
+      setFormKey((k) => k + 1);
     }
   }, [visible, initialConfig]);
 
@@ -110,22 +116,22 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
     if (type === 's3') {
       // S3：bucketName 必填，url 可选（AWS 原生时留空）
       if (!bucketName.trim()) {
-        Alert.alert('错误', '请输入存储桶名称');
+        showAlert('错误', '请输入存储桶名称');
         return false;
       }
       if (!username.trim()) {
-        Alert.alert('错误', '请输入 Access Key ID');
+        showAlert('错误', '请输入 Access Key ID');
         return false;
       }
       if (!password.trim()) {
-        Alert.alert('错误', '请输入 Secret Access Key');
+        showAlert('错误', '请输入 Secret Access Key');
         return false;
       }
       if (url.trim()) {
         try {
           new URL(url);
         } catch {
-          Alert.alert('错误', '端点地址格式不正确');
+          showAlert('错误', '端点地址格式不正确');
           return false;
         }
       }
@@ -133,24 +139,24 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
     }
 
     if (!url.trim()) {
-      Alert.alert('错误', '请输入服务器地址');
+      showAlert('错误', '请输入服务器地址');
       return false;
     }
 
     try {
       new URL(url);
     } catch {
-      Alert.alert('错误', '服务器地址格式不正确');
+      showAlert('错误', '服务器地址格式不正确');
       return false;
     }
 
     if (!username.trim()) {
-      Alert.alert('错误', '请输入用户名');
+      showAlert('错误', '请输入用户名');
       return false;
     }
 
     if (!password.trim()) {
-      Alert.alert('错误', '请输入密码');
+      showAlert('错误', '请输入密码');
       return false;
     }
 
@@ -167,11 +173,11 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
 
     if (type === 's3') {
       if (!bucketName.trim() || !username.trim() || !password.trim()) {
-        Alert.alert('提示', '请先填写存储桶名称、Access Key ID 和 Secret Access Key');
+        showAlert('提示', '请先填写存储桶名称、Access Key ID 和 Secret Access Key');
         return;
       }
     } else if (!url.trim() || !username.trim() || !password.trim()) {
-      Alert.alert('提示', '请先填写服务器地址、用户名和密码');
+      showAlert('提示', '请先填写服务器地址、用户名和密码');
       return;
     }
 
@@ -197,14 +203,14 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
       await client.testConnection(testAbortControllerRef.current.signal);
       console.log('[ServerConfigModal] Test succeeded');
 
-      Alert.alert('成功', '服务器连接测试成功！');
+      showAlert('成功', '服务器连接测试成功！');
     } catch (error: unknown) {
       if (error instanceof Error && error.name === 'AbortError') {
         console.log('[ServerConfigModal] Test cancelled');
         return;
       }
       console.error('[ServerConfigModal] Test failed:', error);
-      Alert.alert('连接失败', error instanceof Error ? error.message : '无法连接到服务器');
+      showAlert('连接失败', error instanceof Error ? error.message : '无法连接到服务器');
     } finally {
       setIsTesting(false);
       testAbortControllerRef.current = null;
@@ -370,194 +376,160 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
                   <>
                     <View style={styles.inputGroup}>
                       <Text style={[styles.inputLabel, { color: theme.colors.text }]}>名称</Text>
-                      <TextInput
-                        style={[
-                          styles.input,
-                          {
-                            color: theme.colors.text,
-                            backgroundColor: theme.colors.background,
-                            borderColor: theme.colors.divider,
-                          },
-                        ]}
-                        placeholder="可选，用于卡片显示"
-                        placeholderTextColor={theme.colors.textTertiary}
-                        value={serverName}
-                        onChangeText={setServerName}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        returnKeyType="next"
-                        submitBehavior="submit"
-                        onSubmitEditing={() => bucketNameRef.current?.focus()}
-                      />
+                      <Host matchContents>
+                        <OutlinedTextField
+                          key={`serverName-${formKey}`}
+                          defaultValue={serverName}
+                          onValueChange={setServerName}
+                          keyboardOptions={{ capitalization: 'none', autoCorrectEnabled: false }}
+                          singleLine
+                          modifiers={[fillMaxWidth()]}
+                        >
+                          <OutlinedTextField.Placeholder>
+                            <ComposeText>可选，用于卡片显示</ComposeText>
+                          </OutlinedTextField.Placeholder>
+                        </OutlinedTextField>
+                      </Host>
                     </View>
 
                     <View style={styles.inputGroup}>
                       <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
                         存储桶名称 *
                       </Text>
-                      <TextInput
-                        ref={bucketNameRef}
-                        style={[
-                          styles.input,
-                          {
-                            color: theme.colors.text,
-                            backgroundColor: theme.colors.background,
-                            borderColor: theme.colors.divider,
-                          },
-                        ]}
-                        placeholder="my-bucket"
-                        placeholderTextColor={theme.colors.textTertiary}
-                        value={bucketName}
-                        onChangeText={setBucketName}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        returnKeyType="next"
-                        submitBehavior="submit"
-                        onSubmitEditing={() => usernameRef.current?.focus()}
-                      />
+                      <Host matchContents>
+                        <OutlinedTextField
+                          key={`bucketName-${formKey}`}
+                          defaultValue={bucketName}
+                          onValueChange={setBucketName}
+                          keyboardOptions={{ capitalization: 'none', autoCorrectEnabled: false }}
+                          singleLine
+                          modifiers={[fillMaxWidth()]}
+                        >
+                          <OutlinedTextField.Placeholder>
+                            <ComposeText>my-bucket</ComposeText>
+                          </OutlinedTextField.Placeholder>
+                        </OutlinedTextField>
+                      </Host>
                     </View>
 
                     <View style={styles.inputGroup}>
                       <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
                         Access Key ID *
                       </Text>
-                      <TextInput
-                        ref={usernameRef}
-                        style={[
-                          styles.input,
-                          {
-                            color: theme.colors.text,
-                            backgroundColor: theme.colors.background,
-                            borderColor: theme.colors.divider,
-                          },
-                        ]}
-                        placeholder=""
-                        placeholderTextColor={theme.colors.textTertiary}
-                        value={username}
-                        onChangeText={setUsername}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        returnKeyType="next"
-                        submitBehavior="submit"
-                        onSubmitEditing={() => passwordRef.current?.focus()}
-                      />
+                      <Host matchContents>
+                        <OutlinedTextField
+                          key={`s3-username-${formKey}`}
+                          defaultValue={username}
+                          onValueChange={setUsername}
+                          keyboardOptions={{ capitalization: 'none', autoCorrectEnabled: false }}
+                          singleLine
+                          modifiers={[fillMaxWidth()]}
+                        />
+                      </Host>
                     </View>
 
                     <View style={styles.inputGroup}>
                       <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
                         Secret Access Key *
                       </Text>
-                      <TextInput
-                        ref={passwordRef}
-                        style={[
-                          styles.input,
-                          {
-                            color: theme.colors.text,
-                            backgroundColor: theme.colors.background,
-                            borderColor: theme.colors.divider,
-                          },
-                        ]}
-                        placeholder=""
-                        placeholderTextColor={theme.colors.textTertiary}
-                        value={password}
-                        onChangeText={setPassword}
-                        secureTextEntry
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        returnKeyType="next"
-                        submitBehavior="submit"
-                        onSubmitEditing={() => urlRef.current?.focus()}
-                      />
+                      <Host matchContents>
+                        <OutlinedTextField
+                          key={`s3-password-${formKey}`}
+                          defaultValue={password}
+                          onValueChange={setPassword}
+                          keyboardOptions={{
+                            keyboardType: 'password',
+                            capitalization: 'none',
+                            autoCorrectEnabled: false,
+                          }}
+                          singleLine
+                          modifiers={[fillMaxWidth()]}
+                        />
+                      </Host>
                     </View>
 
                     <View style={styles.inputGroup}>
                       <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
                         端点地址
                       </Text>
-                      <TextInput
-                        ref={urlRef}
-                        style={[
-                          styles.input,
-                          {
-                            color: theme.colors.text,
-                            backgroundColor: theme.colors.background,
-                            borderColor: theme.colors.divider,
-                          },
-                        ]}
-                        placeholder="留空使用 AWS 标准端点"
-                        placeholderTextColor={theme.colors.textTertiary}
-                        value={url}
-                        onChangeText={setUrl}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        keyboardType="url"
-                        returnKeyType="next"
-                        submitBehavior="submit"
-                        onSubmitEditing={() => regionRef.current?.focus()}
-                      />
+                      <Host matchContents>
+                        <OutlinedTextField
+                          key={`s3-url-${formKey}`}
+                          defaultValue={url}
+                          onValueChange={setUrl}
+                          keyboardOptions={{
+                            keyboardType: 'uri',
+                            capitalization: 'none',
+                            autoCorrectEnabled: false,
+                          }}
+                          singleLine
+                          modifiers={[fillMaxWidth()]}
+                        >
+                          <OutlinedTextField.Placeholder>
+                            <ComposeText>留空使用 AWS 标准端点</ComposeText>
+                          </OutlinedTextField.Placeholder>
+                        </OutlinedTextField>
+                      </Host>
                     </View>
 
                     <View style={styles.inputGroup}>
                       <Text style={[styles.inputLabel, { color: theme.colors.text }]}>区域</Text>
-                      <TextInput
-                        ref={regionRef}
-                        style={[
-                          styles.input,
-                          {
-                            color: theme.colors.text,
-                            backgroundColor: theme.colors.background,
-                            borderColor: theme.colors.divider,
-                          },
-                        ]}
-                        placeholder="us-east-1"
-                        placeholderTextColor={theme.colors.textTertiary}
-                        value={region}
-                        onChangeText={setRegion}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        returnKeyType="next"
-                        submitBehavior="submit"
-                        onSubmitEditing={() => objectPrefixRef.current?.focus()}
-                      />
+                      <Host matchContents>
+                        <OutlinedTextField
+                          key={`region-${formKey}`}
+                          defaultValue={region}
+                          onValueChange={setRegion}
+                          keyboardOptions={{ capitalization: 'none', autoCorrectEnabled: false }}
+                          singleLine
+                          modifiers={[fillMaxWidth()]}
+                        >
+                          <OutlinedTextField.Placeholder>
+                            <ComposeText>us-east-1</ComposeText>
+                          </OutlinedTextField.Placeholder>
+                        </OutlinedTextField>
+                      </Host>
                     </View>
 
                     <View style={styles.inputGroup}>
                       <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
                         对象前缀
                       </Text>
-                      <TextInput
-                        ref={objectPrefixRef}
-                        style={[
-                          styles.input,
-                          {
-                            color: theme.colors.text,
-                            backgroundColor: theme.colors.background,
-                            borderColor: theme.colors.divider,
-                          },
-                        ]}
-                        placeholder="syncclipboard"
-                        placeholderTextColor={theme.colors.textTertiary}
-                        value={objectPrefix}
-                        onChangeText={setObjectPrefix}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        returnKeyType="done"
-                        onSubmitEditing={() => objectPrefixRef.current?.blur()}
-                      />
+                      <Host matchContents>
+                        <OutlinedTextField
+                          key={`objectPrefix-${formKey}`}
+                          defaultValue={objectPrefix}
+                          onValueChange={setObjectPrefix}
+                          keyboardOptions={{
+                            capitalization: 'none',
+                            autoCorrectEnabled: false,
+                            imeAction: 'done',
+                          }}
+                          singleLine
+                          modifiers={[fillMaxWidth()]}
+                        >
+                          <OutlinedTextField.Placeholder>
+                            <ComposeText>syncclipboard</ComposeText>
+                          </OutlinedTextField.Placeholder>
+                        </OutlinedTextField>
+                      </Host>
                     </View>
 
                     <View style={styles.switchGroup}>
                       <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
                         路径风格寻址
                       </Text>
-                      <Switch
-                        value={forcePathStyle}
-                        onValueChange={setForcePathStyle}
-                        trackColor={{ false: theme.colors.divider, true: theme.colors.primary }}
-                        thumbColor={
-                          forcePathStyle ? theme.colors.surface : theme.colors.textTertiary
-                        }
-                      />
+                      <Host matchContents>
+                        <Switch
+                          value={forcePathStyle}
+                          onCheckedChange={setForcePathStyle}
+                          colors={{
+                            checkedTrackColor: theme.colors.primary,
+                            uncheckedTrackColor: theme.colors.divider,
+                            checkedThumbColor: theme.colors.surface,
+                            uncheckedThumbColor: theme.colors.textTertiary,
+                          }}
+                        />
+                      </Host>
                     </View>
                     <Text style={[styles.hintText, { color: theme.colors.textTertiary }]}>
                       建议 S3 兼容服务器启用路径风格寻址
@@ -569,75 +541,53 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
                       <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
                         服务器地址
                       </Text>
-                      <TextInput
-                        ref={urlRef}
-                        style={[
-                          styles.input,
-                          {
-                            color: theme.colors.text,
-                            backgroundColor: theme.colors.background,
-                            borderColor: theme.colors.divider,
-                          },
-                        ]}
-                        placeholder=""
-                        placeholderTextColor={theme.colors.textTertiary}
-                        value={url}
-                        onChangeText={setUrl}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        keyboardType="url"
-                        returnKeyType="next"
-                        submitBehavior="submit"
-                        onSubmitEditing={() => usernameRef.current?.focus()}
-                      />
+                      <Host matchContents>
+                        <OutlinedTextField
+                          key={`url-${formKey}`}
+                          defaultValue={url}
+                          onValueChange={setUrl}
+                          keyboardOptions={{
+                            keyboardType: 'uri',
+                            capitalization: 'none',
+                            autoCorrectEnabled: false,
+                          }}
+                          singleLine
+                          modifiers={[fillMaxWidth()]}
+                        />
+                      </Host>
                     </View>
 
                     <View style={styles.inputGroup}>
                       <Text style={[styles.inputLabel, { color: theme.colors.text }]}>用户名</Text>
-                      <TextInput
-                        ref={usernameRef}
-                        style={[
-                          styles.input,
-                          {
-                            color: theme.colors.text,
-                            backgroundColor: theme.colors.background,
-                            borderColor: theme.colors.divider,
-                          },
-                        ]}
-                        placeholder=""
-                        placeholderTextColor={theme.colors.textTertiary}
-                        value={username}
-                        onChangeText={setUsername}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        returnKeyType="next"
-                        submitBehavior="submit"
-                        onSubmitEditing={() => passwordRef.current?.focus()}
-                      />
+                      <Host matchContents>
+                        <OutlinedTextField
+                          key={`username-${formKey}`}
+                          defaultValue={username}
+                          onValueChange={setUsername}
+                          keyboardOptions={{ capitalization: 'none', autoCorrectEnabled: false }}
+                          singleLine
+                          modifiers={[fillMaxWidth()]}
+                        />
+                      </Host>
                     </View>
 
                     <View style={styles.inputGroup}>
                       <Text style={[styles.inputLabel, { color: theme.colors.text }]}>密码</Text>
-                      <TextInput
-                        ref={passwordRef}
-                        style={[
-                          styles.input,
-                          {
-                            color: theme.colors.text,
-                            backgroundColor: theme.colors.background,
-                            borderColor: theme.colors.divider,
-                          },
-                        ]}
-                        placeholder=""
-                        placeholderTextColor={theme.colors.textTertiary}
-                        value={password}
-                        onChangeText={setPassword}
-                        secureTextEntry
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        returnKeyType="done"
-                        onSubmitEditing={() => passwordRef.current?.blur()}
-                      />
+                      <Host matchContents>
+                        <OutlinedTextField
+                          key={`password-${formKey}`}
+                          defaultValue={password}
+                          onValueChange={setPassword}
+                          keyboardOptions={{
+                            keyboardType: 'password',
+                            capitalization: 'none',
+                            autoCorrectEnabled: false,
+                            imeAction: 'done',
+                          }}
+                          singleLine
+                          modifiers={[fillMaxWidth()]}
+                        />
+                      </Host>
                     </View>
                   </>
                 )}
@@ -674,6 +624,24 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
+
+        {alertInfo && (
+          <Host>
+            <AlertDialog onDismissRequest={() => setAlertInfo(null)}>
+              <AlertDialog.Title>
+                <ComposeText>{alertInfo.title}</ComposeText>
+              </AlertDialog.Title>
+              <AlertDialog.Text>
+                <ComposeText>{alertInfo.message}</ComposeText>
+              </AlertDialog.Text>
+              <AlertDialog.ConfirmButton>
+                <TextButton onClick={() => setAlertInfo(null)}>
+                  <ComposeText>确定</ComposeText>
+                </TextButton>
+              </AlertDialog.ConfirmButton>
+            </AlertDialog>
+          </Host>
+        )}
       </SafeAreaView>
     </Modal>
   );

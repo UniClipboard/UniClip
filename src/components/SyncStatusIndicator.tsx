@@ -4,7 +4,8 @@
  */
 
 import React from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Host, CircularProgressIndicator } from '@expo/ui/jetpack-compose';
 import { useTheme } from '@/hooks/useTheme';
 import { spacing, typography } from '@/theme';
 import { SyncStatus } from '@/types/sync';
@@ -104,7 +105,9 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
       <View style={styles.content}>
         <View style={styles.statusRow}>
           {status === SyncStatus.Syncing ? (
-            <ActivityIndicator size="small" color={statusColor} style={styles.icon} />
+            <Host matchContents style={styles.icon}>
+              <CircularProgressIndicator color={statusColor} />
+            </Host>
           ) : (
             <Text style={styles.iconText}>{statusIcon}</Text>
           )}

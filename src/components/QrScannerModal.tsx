@@ -14,10 +14,15 @@ import {
   TouchableOpacity,
   StatusBar,
   Linking,
-  ActivityIndicator,
   Platform,
-  Alert,
 } from 'react-native';
+import {
+  Host,
+  AlertDialog,
+  TextButton,
+  CircularProgressIndicator,
+  Text as ComposeText,
+} from '@expo/ui/jetpack-compose';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { useTheme } from '@/hooks/useTheme';
@@ -40,6 +45,7 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose
   const { theme } = useTheme();
   const [permission, requestPermission] = useCameraPermissions();
   const [torchOn, setTorchOn] = useState(false);
+  const [scanError, setScanError] = useState<ConnectUriError | null>(null);
   const setPendingConnect = usePendingConnectStore((s) => s.set);
 
   // 防止 onBarcodeScanned 在同一帧多次触发
@@ -69,19 +75,7 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose
       if (!parsed.ok) {
         const code: ConnectUriError = parsed.error;
         console.log(`[QR] scan failed: ${code}`);
-        Alert.alert('扫码失败', CONNECT_URI_ERROR_MESSAGES[code], [
-          {
-            text: '重新扫描',
-            onPress: () => {
-              scanLockRef.current = false;
-            },
-          },
-          {
-            text: '关闭',
-            style: 'cancel',
-            onPress: onClose,
-          },
-        ]);
+        setScanError(code);
         return;
       }
 
@@ -121,7 +115,9 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose
       style={[styles.fullCenter, { backgroundColor: theme.colors.background }]}
       edges={['top', 'bottom']}
     >
-      <ActivityIndicator color={theme.colors.primary} />
+      <Host matchContents>
+        <CircularProgressIndicator color={theme.colors.primary} />
+      </Host>
       <Text style={[styles.dimText, { color: theme.colors.text, marginTop: spacing.md }]}>
         正在请求相机权限…
       </Text>
@@ -234,6 +230,38 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose
     >
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       {renderBody()}
+      {scanError && (
+        <Host>
+          <AlertDialog onDismissRequest={() => setScanError(null)}>
+            <AlertDialog.Title>
+              <ComposeText>扫码失败</ComposeText>
+            </AlertDialog.Title>
+            <AlertDialog.Text>
+              <ComposeText>{CONNECT_URI_ERROR_MESSAGES[scanError]}</ComposeText>
+            </AlertDialog.Text>
+            <AlertDialog.ConfirmButton>
+              <TextButton
+                onClick={() => {
+                  scanLockRef.current = false;
+                  setScanError(null);
+                }}
+              >
+                <ComposeText>重新扫描</ComposeText>
+              </TextButton>
+            </AlertDialog.ConfirmButton>
+            <AlertDialog.DismissButton>
+              <TextButton
+                onClick={() => {
+                  setScanError(null);
+                  onClose();
+                }}
+              >
+                <ComposeText>关闭</ComposeText>
+              </TextButton>
+            </AlertDialog.DismissButton>
+          </AlertDialog>
+        </Host>
+      )}
     </Modal>
   );
 };

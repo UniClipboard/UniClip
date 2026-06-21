@@ -16,8 +16,8 @@ import {
   Dimensions,
   Easing,
   BackHandler,
-  Switch,
 } from 'react-native';
+import { Host, Switch } from '@expo/ui/jetpack-compose';
 import * as Clipboard from 'expo-clipboard';
 import { Segment, useDefault } from 'segmentit';
 import { useTheme } from '@/hooks/useTheme';
@@ -237,16 +237,18 @@ export const WordPickerScreen: React.FC<WordPickerScreenProps> = ({ text, onComp
           <Text style={[styles.headerTitle, { color: theme.colors.text }]}>分词选择</Text>
           <View style={styles.headerRight}>
             <Text style={[styles.splitAllLabel, { color: theme.colors.textSecondary }]}>逐字</Text>
-            <Switch
-              value={splitAll}
-              onValueChange={setSplitAll}
-              trackColor={{
-                false: theme.colors.border,
-                true: theme.colors.primary + '80',
-              }}
-              thumbColor={splitAll ? theme.colors.primary : theme.colors.surface}
-              style={styles.switchStyle}
-            />
+            <Host matchContents style={styles.switchStyle}>
+              <Switch
+                value={splitAll}
+                onCheckedChange={setSplitAll}
+                colors={{
+                  checkedTrackColor: theme.colors.primary + '80',
+                  uncheckedTrackColor: theme.colors.border,
+                  checkedThumbColor: theme.colors.primary,
+                  uncheckedThumbColor: theme.colors.surface,
+                }}
+              />
+            </Host>
             <TouchableOpacity onPress={close} style={styles.closeButton}>
               <Text style={[styles.closeButtonText, { color: theme.colors.primary }]}>关闭</Text>
             </TouchableOpacity>

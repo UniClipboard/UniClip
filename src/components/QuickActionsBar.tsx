@@ -4,16 +4,17 @@
  */
 
 import React from 'react';
+import { View, StyleSheet, Platform } from 'react-native';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-  Platform,
-} from 'react-native';
+  Host,
+  FilledTonalButton,
+  CircularProgressIndicator,
+  Row,
+  Text as ComposeText,
+} from '@expo/ui/jetpack-compose';
+import { fillMaxWidth } from '@expo/ui/jetpack-compose/modifiers';
 import { useTheme } from '@/hooks/useTheme';
-import { spacing, radius, typography } from '@/theme';
+import { spacing } from '@/theme';
 
 interface QuickActionsBarProps {
   onUpload: () => void;
@@ -32,76 +33,59 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
 }) => {
   const { theme } = useTheme();
 
+  const actionDisabled = disabled || syncInProgress;
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.surface }]}>
       {/* 上传按钮 — Filled Tonal */}
-      <TouchableOpacity
-        style={[
-          styles.button,
-          disabled && styles.buttonDisabled,
-          { backgroundColor: theme.colors.surfaceContainerHigh },
-        ]}
-        onPress={onUpload}
-        disabled={disabled || syncInProgress}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.buttonIcon}>⬆️</Text>
-        <Text
-          style={[
-            styles.buttonText,
-            { color: disabled ? theme.colors.outline : theme.colors.onSurface },
-          ]}
+      <Host matchContents style={styles.buttonHost}>
+        <FilledTonalButton
+          onClick={onUpload}
+          enabled={!actionDisabled}
+          modifiers={[fillMaxWidth()]}
+          colors={{
+            containerColor: theme.colors.surfaceContainerHigh,
+            contentColor: theme.colors.onSurface,
+          }}
         >
-          上传
-        </Text>
-      </TouchableOpacity>
+          <ComposeText>⬆️ 上传</ComposeText>
+        </FilledTonalButton>
+      </Host>
 
       {/* 同步按钮 (主操作) — M3 Filled Tonal 主色 */}
-      <TouchableOpacity
-        style={[
-          styles.syncButton,
-          disabled && styles.buttonDisabled,
-          {
-            backgroundColor: disabled
-              ? theme.colors.surfaceContainerHigh
-              : theme.colors.primaryContainer,
-          },
-        ]}
-        onPress={onSync}
-        disabled={disabled || syncInProgress}
-        activeOpacity={0.7}
-      >
-        {syncInProgress ? (
-          <ActivityIndicator size="small" color={theme.colors.onPrimaryContainer} />
-        ) : (
-          <Text style={styles.syncButtonIcon}>🔄</Text>
-        )}
-        <Text style={[styles.syncButtonText, { color: theme.colors.onPrimaryContainer }]}>
-          {syncInProgress ? '同步中...' : '同步'}
-        </Text>
-      </TouchableOpacity>
+      <Host matchContents style={styles.syncButtonHost}>
+        <FilledTonalButton
+          onClick={onSync}
+          enabled={!actionDisabled}
+          modifiers={[fillMaxWidth()]}
+          colors={{
+            containerColor: theme.colors.primaryContainer,
+            contentColor: theme.colors.onPrimaryContainer,
+          }}
+        >
+          <Row verticalAlignment="center" horizontalArrangement="center">
+            {syncInProgress && (
+              <CircularProgressIndicator color={theme.colors.onPrimaryContainer} />
+            )}
+            <ComposeText>{syncInProgress ? '  同步中...' : '🔄 同步'}</ComposeText>
+          </Row>
+        </FilledTonalButton>
+      </Host>
 
       {/* 下载按钮 — Filled Tonal */}
-      <TouchableOpacity
-        style={[
-          styles.button,
-          disabled && styles.buttonDisabled,
-          { backgroundColor: theme.colors.surfaceContainerHigh },
-        ]}
-        onPress={onDownload}
-        disabled={disabled || syncInProgress}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.buttonIcon}>⬇️</Text>
-        <Text
-          style={[
-            styles.buttonText,
-            { color: disabled ? theme.colors.outline : theme.colors.onSurface },
-          ]}
+      <Host matchContents style={styles.buttonHost}>
+        <FilledTonalButton
+          onClick={onDownload}
+          enabled={!actionDisabled}
+          modifiers={[fillMaxWidth()]}
+          colors={{
+            containerColor: theme.colors.surfaceContainerHigh,
+            contentColor: theme.colors.onSurface,
+          }}
         >
-          下载
-        </Text>
-      </TouchableOpacity>
+          <ComposeText>⬇️ 下载</ComposeText>
+        </FilledTonalButton>
+      </Host>
     </View>
   );
 };
@@ -109,45 +93,17 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
     paddingBottom: Platform.OS === 'ios' ? spacing.xl : spacing.md,
   },
-  button: {
+  buttonHost: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.md,
-    borderRadius: radius.pill,
     marginHorizontal: spacing.xs,
   },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  buttonIcon: {
-    fontSize: 20,
-    marginRight: 6,
-  },
-  buttonText: {
-    fontSize: typography.subhead.fontSize,
-    fontWeight: '600',
-  },
-  syncButton: {
+  syncButtonHost: {
     flex: 1.5,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.md + 2,
-    borderRadius: radius.pill,
     marginHorizontal: spacing.sm,
-  },
-  syncButtonIcon: {
-    fontSize: 22,
-    marginRight: spacing.sm,
-  },
-  syncButtonText: {
-    fontSize: typography.callout.fontSize,
-    fontWeight: '700',
   },
 });

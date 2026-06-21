@@ -14,6 +14,13 @@ import {
   Image,
   Linking,
 } from 'react-native';
+import {
+  Host,
+  Button,
+  OutlinedButton,
+  Text as ComposeText,
+} from '@expo/ui/jetpack-compose';
+import { fillMaxWidth } from '@expo/ui/jetpack-compose/modifiers';
 import { useTheme } from '@/hooks/useTheme';
 import { spacing, radius, typography, elevation } from '@/theme';
 import { ClipboardContent } from '@/types/clipboard';
@@ -355,105 +362,111 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
       <View style={styles.actionButtons}>
         {/* 文本中包含 URL：打开链接按钮 */}
         {clipboard.type === 'Text' && detectedUrl && (
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: theme.colors.primaryContainer }]}
-            onPress={() => Linking.openURL(detectedUrl)}
-          >
-            <Text style={[styles.actionButtonText, { color: theme.colors.onPrimaryContainer }]}>
-              打开链接
-            </Text>
-          </TouchableOpacity>
+          <Host matchContents style={styles.actionButtonHost}>
+            <Button
+              onClick={() => Linking.openURL(detectedUrl)}
+              modifiers={[fillMaxWidth()]}
+              colors={{
+                containerColor: theme.colors.primaryContainer,
+                contentColor: theme.colors.onPrimaryContainer,
+              }}
+            >
+              <ComposeText>打开链接</ComposeText>
+            </Button>
+          </Host>
         )}
 
         {/* 文本类型：分词按钮 */}
         {clipboard.type === 'Text' && onWordPick && !isTextInvalid(clipboard.text) && (
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: theme.colors.primaryContainer }]}
-            onPress={() => onWordPick(clipboard.text!)}
-          >
-            <Text style={[styles.actionButtonText, { color: theme.colors.onPrimaryContainer }]}>
-              分词
-            </Text>
-          </TouchableOpacity>
+          <Host matchContents style={styles.actionButtonHost}>
+            <Button
+              onClick={() => onWordPick(clipboard.text!)}
+              modifiers={[fillMaxWidth()]}
+              colors={{
+                containerColor: theme.colors.primaryContainer,
+                contentColor: theme.colors.onPrimaryContainer,
+              }}
+            >
+              <ComposeText>分词</ComposeText>
+            </Button>
+          </Host>
         )}
 
         {/* 远程 Text 类型：只有在不需要下载时才显示复制按钮 */}
         {isRemote && clipboard.type === 'Text' && !showDownloadButton && (
-          <TouchableOpacity
-            style={[
-              styles.actionButton,
-              styles.actionButtonLast,
-              { backgroundColor: theme.colors.primaryContainer },
-            ]}
-            onPress={() => onCopy(clipboard)}
-          >
-            <Text style={[styles.actionButtonText, { color: theme.colors.onPrimaryContainer }]}>
-              复制
-            </Text>
-          </TouchableOpacity>
+          <Host matchContents style={styles.actionButtonHost}>
+            <Button
+              onClick={() => onCopy(clipboard)}
+              modifiers={[fillMaxWidth()]}
+              colors={{
+                containerColor: theme.colors.primaryContainer,
+                contentColor: theme.colors.onPrimaryContainer,
+              }}
+            >
+              <ComposeText>复制</ComposeText>
+            </Button>
+          </Host>
         )}
 
         {/* 非文本且有文件：打开按钮 */}
         {canOpenFile && (
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: theme.colors.primaryContainer }]}
-            onPress={handleOpenFile}
-          >
-            <Text style={[styles.actionButtonText, { color: theme.colors.onPrimaryContainer }]}>
-              打开
-            </Text>
-          </TouchableOpacity>
+          <Host matchContents style={styles.actionButtonHost}>
+            <Button
+              onClick={handleOpenFile}
+              modifiers={[fillMaxWidth()]}
+              colors={{
+                containerColor: theme.colors.primaryContainer,
+                contentColor: theme.colors.onPrimaryContainer,
+              }}
+            >
+              <ComposeText>打开</ComposeText>
+            </Button>
+          </Host>
         )}
 
         {/* 非Text类型且已下载：保存按钮 */}
         {canShowSaveButton && (
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: theme.colors.primaryContainer }]}
-            onPress={handleSaveFile}
-          >
-            <Text style={[styles.actionButtonText, { color: theme.colors.onPrimaryContainer }]}>
-              保存
-            </Text>
-          </TouchableOpacity>
+          <Host matchContents style={styles.actionButtonHost}>
+            <Button
+              onClick={handleSaveFile}
+              modifiers={[fillMaxWidth()]}
+              colors={{
+                containerColor: theme.colors.primaryContainer,
+                contentColor: theme.colors.onPrimaryContainer,
+              }}
+            >
+              <ComposeText>保存</ComposeText>
+            </Button>
+          </Host>
         )}
 
         {/* 非Text类型且已下载：分享按钮 */}
         {canShowShareButton && (
-          <TouchableOpacity
-            style={[
-              styles.actionButton,
-              styles.actionButtonLast,
-              { backgroundColor: theme.colors.primaryContainer },
-            ]}
-            onPress={handleShare}
-          >
-            <Text style={[styles.actionButtonText, { color: theme.colors.onPrimaryContainer }]}>
-              分享
-            </Text>
-          </TouchableOpacity>
+          <Host matchContents style={styles.actionButtonHost}>
+            <Button
+              onClick={handleShare}
+              modifiers={[fillMaxWidth()]}
+              colors={{
+                containerColor: theme.colors.primaryContainer,
+                contentColor: theme.colors.onPrimaryContainer,
+              }}
+            >
+              <ComposeText>分享</ComposeText>
+            </Button>
+          </Host>
         )}
 
         {/* 同步操作按钮 — Outlined */}
         {!isRemote && onUpload && (
-          <TouchableOpacity
-            style={[
-              styles.actionButton,
-              styles.secondaryButton,
-              styles.actionButtonLast,
-              { borderColor: theme.colors.outline },
-            ]}
-            onPress={uploading ? onCancelUpload : onUpload}
-          >
-            <Text
-              style={[
-                styles.actionButtonText,
-                styles.secondaryButtonText,
-                { color: theme.colors.primary },
-              ]}
+          <Host matchContents style={styles.actionButtonHost}>
+            <OutlinedButton
+              onClick={uploading ? onCancelUpload : onUpload}
+              modifiers={[fillMaxWidth()]}
+              colors={{ contentColor: theme.colors.primary }}
             >
-              {uploading ? '取消' : '上传'}
-            </Text>
-          </TouchableOpacity>
+              <ComposeText>{uploading ? '取消' : '上传'}</ComposeText>
+            </OutlinedButton>
+          </Host>
         )}
 
         {showDownloadButton && (
@@ -577,6 +590,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginBottom: spacing.md,
     gap: spacing.sm,
+  },
+  actionButtonHost: {
+    flex: 1,
   },
   actionButton: {
     flex: 1,

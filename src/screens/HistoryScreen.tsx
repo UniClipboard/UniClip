@@ -10,14 +10,19 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  Alert,
   Share,
   Animated,
   Easing,
-  ActivityIndicator,
   useWindowDimensions,
   BackHandler,
 } from 'react-native';
+import {
+  Host,
+  CircularProgressIndicator,
+  AlertDialog,
+  TextButton,
+  Text as ComposeText,
+} from '@expo/ui/jetpack-compose';
 import { Check, RefreshCw, List } from 'react-native-feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { FlashList, FlashListRef } from '@shopify/flash-list';
@@ -93,6 +98,8 @@ export function HistoryScreen() {
   const [importingFile, setImportingFile] = useState(false);
   const [isReorganizing, setIsReorganizing] = useState(false);
   const [wordPickerText, setWordPickerText] = useState<string | null>(null);
+  const [showBatchDeleteDialog, setShowBatchDeleteDialog] = useState(false);
+  const [showClearAllDialog, setShowClearAllDialog] = useState(false);
 
   const {
     hasTasks,
@@ -367,46 +374,33 @@ export function HistoryScreen() {
 
   // 批量删除
   const handleBatchDelete = useCallback(() => {
-    const count = selectedIds.size;
-    if (count === 0) return;
-    Alert.alert('确认删除', `确定要删除选中的 ${count} 条记录吗？`, [
-      { text: '取消', style: 'cancel' },
-      {
-        text: '删除',
-        style: 'destructive',
-        onPress: async () => {
-          await deleteSelected();
-          setIsMultiSelectMode(false);
-        },
-      },
-    ]);
-  }, [selectedIds.size, deleteSelected]);
+    if (selectedIds.size === 0) return;
+    setShowBatchDeleteDialog(true);
+  }, [selectedIds.size]);
+
+  const confirmBatchDelete = useCallback(async () => {
+    setShowBatchDeleteDialog(false);
+    await deleteSelected();
+    setIsMultiSelectMode(false);
+  }, [deleteSelected]);
 
   // 清空所有历史记录
   const handleClearAll = useCallback(() => {
-    Alert.alert(
-      '确认清空',
-      '确定要清空所有历史记录吗？此操作不可撤销，不会删除服务器上已同步的记录。',
-      [
-        { text: '取消', style: 'cancel' },
-        {
-          text: '清空',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await clearHistory();
-              const { getHistorySyncService } = await import('@/services/HistorySyncService');
-              const syncService = getHistorySyncService();
-              await syncService.resetSyncCursor();
-              showMessage('已清空所有历史记录', 'success');
-            } catch (error) {
-              console.error('[HistoryScreen] Failed to clear:', error);
-              showMessage('清空失败', 'error');
-            }
-          },
-        },
-      ]
-    );
+    setShowClearAllDialog(true);
+  }, []);
+
+  const confirmClearAll = useCallback(async () => {
+    setShowClearAllDialog(false);
+    try {
+      await clearHistory();
+      const { getHistorySyncService } = await import('@/services/HistorySyncService');
+      const syncService = getHistorySyncService();
+      await syncService.resetSyncCursor();
+      showMessage('已清空所有历史记录', 'success');
+    } catch (error) {
+      console.error('[HistoryScreen] Failed to clear:', error);
+      showMessage('清空失败', 'error');
+    }
   }, [clearHistory, showMessage]);
 
   // 添加文件到历史记录
@@ -1079,7 +1073,9 @@ export function HistoryScreen() {
       {/* 整理中提示 */}
       {isReorganizing && (
         <View style={[styles.reorganizingOverlay, { backgroundColor: theme.colors.background }]}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Host matchContents>
+            <CircularProgressIndicator color={theme.colors.primary} />
+          </Host>
           <Text style={[styles.reorganizingText, { color: theme.colors.text }]}>
             正在整理历史记录...
           </Text>
@@ -1201,7 +1197,9 @@ export function HistoryScreen() {
               { backgroundColor: theme.colors.surfaceContainerHigh },
             ]}
           >
-            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <Host matchContents>
+              <CircularProgressIndicator color={theme.colors.primary} />
+            </Host>
             <Text style={[styles.importOverlayTitle, { color: theme.colors.text }]}>
               正在添加文件...
             </Text>
@@ -1215,6 +1213,52 @@ export function HistoryScreen() {
           <WordPickerScreen text={wordPickerText} onComplete={() => setWordPickerText(null)} />
         </View>
       )}
+
+      {/* 确认弹窗（批量删除 / 清空全部） */}
+      <Host matchContents>
+        {showBatchDeleteDialog && (
+          <AlertDialog onDismissRequest={() => setShowBatchDeleteDialog(false)}>
+            <AlertDialog.Title>
+              <ComposeText>确认删除</ComposeText>
+            </AlertDialog.Title>
+            <AlertDialog.Text>
+              <ComposeText>{`确定要删除选中的 ${selectedIds.size} 条记录吗？`}</ComposeText>
+            </AlertDialog.Text>
+            <AlertDialog.ConfirmButton>
+              <TextButton onClick={confirmBatchDelete}>
+                <ComposeText>删除</ComposeText>
+              </TextButton>
+            </AlertDialog.ConfirmButton>
+            <AlertDialog.DismissButton>
+              <TextButton onClick={() => setShowBatchDeleteDialog(false)}>
+                <ComposeText>取消</ComposeText>
+              </TextButton>
+            </AlertDialog.DismissButton>
+          </AlertDialog>
+        )}
+        {showClearAllDialog && (
+          <AlertDialog onDismissRequest={() => setShowClearAllDialog(false)}>
+            <AlertDialog.Title>
+              <ComposeText>确认清空</ComposeText>
+            </AlertDialog.Title>
+            <AlertDialog.Text>
+              <ComposeText>
+                确定要清空所有历史记录吗？此操作不可撤销，不会删除服务器上已同步的记录。
+              </ComposeText>
+            </AlertDialog.Text>
+            <AlertDialog.ConfirmButton>
+              <TextButton onClick={confirmClearAll}>
+                <ComposeText>清空</ComposeText>
+              </TextButton>
+            </AlertDialog.ConfirmButton>
+            <AlertDialog.DismissButton>
+              <TextButton onClick={() => setShowClearAllDialog(false)}>
+                <ComposeText>取消</ComposeText>
+              </TextButton>
+            </AlertDialog.DismissButton>
+          </AlertDialog>
+        )}
+      </Host>
     </View>
   );
 }
