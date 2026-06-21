@@ -1,6 +1,6 @@
 /**
  * 服务器配置模态框
- * 用于添加或编辑服务器配置
+ * 对齐 iOS AddServerSheet 布局：扫码 → 名称 → 服务器地址 → 凭据 → 测试连接
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -9,7 +9,7 @@ import {
   Text,
   StyleSheet,
   Modal,
-  TouchableOpacity,
+  Pressable,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
@@ -17,17 +17,19 @@ import {
 import {
   Host,
   OutlinedTextField,
-  Switch,
   AlertDialog,
   TextButton,
   Text as ComposeText,
 } from '@expo/ui/jetpack-compose';
 import { fillMaxWidth } from '@expo/ui/jetpack-compose/modifiers';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { spacing, radius, typography } from '@/theme';
 import { ServerConfig } from '@/types/api';
 import { createAPIClient } from '@/services';
+import { QrScannerModal } from './QrScannerModal';
+import { usePendingConnectStore } from '@/stores';
 
 interface ServerConfigModalProps {
   visible: boolean;
@@ -46,23 +48,26 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
 }) => {
   const { theme } = useTheme();
   const [isTesting, setIsTesting] = useState(false);
+  const [testResult, setTestResult] = useState<'success' | 'failed' | null>(null);
   const [alertInfo, setAlertInfo] = useState<{ title: string; message: string } | null>(null);
   const testAbortControllerRef = useRef<AbortController | null>(null);
+  const [showScanner, setShowScanner] = useState(false);
+  const consumePendingConnect = usePendingConnectStore((s) => s.consume);
 
   const showAlert = (title: string, message: string) => setAlertInfo({ title, message });
 
-  // OutlinedTextField 是非受控的，重新填充表单时通过 bump formKey 强制重挂载以刷新 defaultValue
   const [formKey, setFormKey] = useState(0);
 
+  // 保留 type 字段但 UI 不展示 webdav/s3（未来启用）
   const [type, setType] = useState<'syncclipboard' | 'webdav' | 's3'>(
     initialConfig?.type || 'syncclipboard'
   );
+  const [serverName, setServerName] = useState(initialConfig?.name || '');
   const [url, setUrl] = useState(initialConfig?.url || '');
   const [username, setUsername] = useState(initialConfig?.username || '');
   const [password, setPassword] = useState(initialConfig?.password || '');
 
-  // S3 专有字段
-  const [serverName, setServerName] = useState(initialConfig?.name || '');
+  // S3 专有字段（保留，UI 隐藏）
   const [region, setRegion] = useState(initialConfig?.region || 'us-east-1');
   const [bucketName, setBucketName] = useState(initialConfig?.bucketName || '');
   const [objectPrefix, setObjectPrefix] = useState(initialConfig?.objectPrefix || '');
@@ -71,25 +76,27 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
   useEffect(() => {
     if (visible && initialConfig) {
       setType(initialConfig.type);
+      setServerName(initialConfig.name || '');
       setUrl(initialConfig.url);
       setUsername(initialConfig.username || '');
       setPassword(initialConfig.password || '');
-      setServerName(initialConfig.name || '');
       setRegion(initialConfig.region || 'us-east-1');
       setBucketName(initialConfig.bucketName || '');
       setObjectPrefix(initialConfig.objectPrefix || '');
       setForcePathStyle(initialConfig.forcePathStyle ?? false);
+      setTestResult(null);
       setFormKey((k) => k + 1);
     } else if (visible && !initialConfig) {
       setType('syncclipboard');
+      setServerName('');
       setUrl('');
       setUsername('');
       setPassword('');
-      setServerName('');
       setRegion('us-east-1');
       setBucketName('');
       setObjectPrefix('');
       setForcePathStyle(false);
+      setTestResult(null);
       setFormKey((k) => k + 1);
     }
   }, [visible, initialConfig]);
@@ -112,113 +119,18 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
     onClose();
   };
 
-  const validateForm = (): boolean => {
-    if (type === 's3') {
-      // S3：bucketName 必填，url 可选（AWS 原生时留空）
-      if (!bucketName.trim()) {
-        showAlert('错误', '请输入存储桶名称');
-        return false;
-      }
-      if (!username.trim()) {
-        showAlert('错误', '请输入 Access Key ID');
-        return false;
-      }
-      if (!password.trim()) {
-        showAlert('错误', '请输入 Secret Access Key');
-        return false;
-      }
-      if (url.trim()) {
-        try {
-          new URL(url);
-        } catch {
-          showAlert('错误', '端点地址格式不正确');
-          return false;
-        }
-      }
-      return true;
-    }
-
-    if (!url.trim()) {
-      showAlert('错误', '请输入服务器地址');
-      return false;
-    }
-
-    try {
-      new URL(url);
-    } catch {
-      showAlert('错误', '服务器地址格式不正确');
-      return false;
-    }
-
-    if (!username.trim()) {
-      showAlert('错误', '请输入用户名');
-      return false;
-    }
-
-    if (!password.trim()) {
-      showAlert('错误', '请输入密码');
-      return false;
-    }
-
-    return true;
-  };
-
-  const handleTestConnection = async () => {
-    if (isTesting && testAbortControllerRef.current) {
-      testAbortControllerRef.current.abort();
-      testAbortControllerRef.current = null;
-      setIsTesting(false);
-      return;
-    }
-
-    if (type === 's3') {
-      if (!bucketName.trim() || !username.trim() || !password.trim()) {
-        showAlert('提示', '请先填写存储桶名称、Access Key ID 和 Secret Access Key');
-        return;
-      }
-    } else if (!url.trim() || !username.trim() || !password.trim()) {
-      showAlert('提示', '请先填写服务器地址、用户名和密码');
-      return;
-    }
-
-    setIsTesting(true);
-    testAbortControllerRef.current = new AbortController();
-
-    try {
-      const testConfig: ServerConfig = {
-        type,
-        url: url.trim(),
-        username: username.trim(),
-        password: password.trim(),
-        ...(type === 's3' && {
-          region: region.trim() || 'us-east-1',
-          bucketName: bucketName.trim(),
-          objectPrefix: objectPrefix.trim(),
-          forcePathStyle,
-        }),
-      };
-
-      console.log('[ServerConfigModal] Testing connection:', testConfig.url);
-      const client = createAPIClient(testConfig);
-      await client.testConnection(testAbortControllerRef.current.signal);
-      console.log('[ServerConfigModal] Test succeeded');
-
-      showAlert('成功', '服务器连接测试成功！');
-    } catch (error: unknown) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        console.log('[ServerConfigModal] Test cancelled');
-        return;
-      }
-      console.error('[ServerConfigModal] Test failed:', error);
-      showAlert('连接失败', error instanceof Error ? error.message : '无法连接到服务器');
-    } finally {
-      setIsTesting(false);
-      testAbortControllerRef.current = null;
-    }
-  };
+  const canSave =
+    url.trim().length > 0 && username.trim().length > 0 && password.trim().length > 0;
 
   const handleSave = () => {
-    if (!validateForm()) {
+    if (!canSave) {
+      showAlert('提示', '请填写服务器地址、用户名和密码');
+      return;
+    }
+    try {
+      new URL(url.trim());
+    } catch {
+      showAlert('错误', '服务器地址格式不正确');
       return;
     }
 
@@ -240,6 +152,56 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
     handleClose();
   };
 
+  const handleTestConnection = async () => {
+    if (isTesting && testAbortControllerRef.current) {
+      testAbortControllerRef.current.abort();
+      testAbortControllerRef.current = null;
+      setIsTesting(false);
+      return;
+    }
+
+    if (!url.trim() || !username.trim() || !password.trim()) {
+      showAlert('提示', '请先填写服务器地址、用户名和密码');
+      return;
+    }
+
+    setIsTesting(true);
+    setTestResult(null);
+    testAbortControllerRef.current = new AbortController();
+
+    try {
+      const testConfig: ServerConfig = {
+        type,
+        url: url.trim(),
+        username: username.trim(),
+        password: password.trim(),
+      };
+      const client = createAPIClient(testConfig);
+      await client.testConnection(testAbortControllerRef.current.signal);
+      setTestResult('success');
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'AbortError') return;
+      setTestResult('failed');
+      showAlert('连接失败', error instanceof Error ? error.message : '无法连接到服务器');
+    } finally {
+      setIsTesting(false);
+      testAbortControllerRef.current = null;
+    }
+  };
+
+  // 扫码完成后从 pendingConnectStore 消费数据填充表单
+  const handleScanComplete = () => {
+    setShowScanner(false);
+    const intent = consumePendingConnect();
+    if (intent) {
+      if (intent.url) setUrl(intent.url);
+      if (intent.user) setUsername(intent.user);
+      if (intent.pwd) setPassword(intent.pwd);
+      if (intent.label) setServerName(intent.label);
+      setFormKey((k) => k + 1);
+    }
+  };
+
   return (
     <Modal
       visible={visible}
@@ -252,377 +214,221 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
           style={styles.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <View style={[styles.header, { borderBottomColor: theme.colors.divider }]}>
-            <TouchableOpacity onPress={handleClose} style={styles.headerButton}>
-              <Text style={[styles.headerButtonText, { color: theme.colors.primary }]}>取消</Text>
-            </TouchableOpacity>
-            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+          {/* Header: 取消 / 添加服务器 / 保存 */}
+          <View style={[styles.header, { borderBottomColor: theme.colors.outlineVariant }]}>
+            <Pressable onPress={handleClose} style={styles.headerBtn}>
+              <Text style={[styles.headerBtnText, { color: theme.colors.primary }]}>取消</Text>
+            </Pressable>
+            <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>
               {isEditing ? '编辑服务器' : '添加服务器'}
             </Text>
-            <TouchableOpacity onPress={handleSave} style={styles.headerButton}>
+            <Pressable onPress={handleSave} disabled={!canSave} style={styles.headerBtn}>
               <Text
                 style={[
-                  styles.headerButtonText,
-                  styles.headerButtonBold,
-                  { color: theme.colors.primary },
+                  styles.headerBtnText,
+                  styles.headerBtnBold,
+                  { color: canSave ? theme.colors.primary : theme.colors.outline },
                 ]}
               >
                 保存
               </Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
 
-          {/* Form */}
           <ScrollView
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
           >
-            {/* 服务器类型 */}
+            {/* § 扫码连接 */}
             <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
-                服务器类型
+              <Pressable
+                onPress={() => setShowScanner(true)}
+                style={[styles.scanRow, { backgroundColor: theme.colors.surfaceContainerLow }]}
+              >
+                <Ionicons name="qr-code-outline" size={20} color={theme.colors.primary} />
+                <Text style={[styles.scanLabel, { color: theme.colors.primary }]}>扫码连接</Text>
+                <Ionicons name="chevron-forward" size={16} color={theme.colors.outline} />
+              </Pressable>
+              <Text style={[styles.sectionFooter, { color: theme.colors.onSurfaceVariant }]}>
+                扫描桌面端的二维码，一键填充以下信息。
+              </Text>
+            </View>
+
+            {/* § 名称 */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionHeader, { color: theme.colors.onSurfaceVariant }]}>
+                名称
               </Text>
               <View
-                style={[
-                  styles.card,
-                  { backgroundColor: theme.colors.surface, borderColor: theme.colors.divider },
-                ]}
+                style={[styles.fieldCard, { backgroundColor: theme.colors.surfaceContainerLow }]}
               >
-                <TouchableOpacity
-                  style={[
-                    styles.typeOption,
-                    { borderBottomColor: theme.colors.divider },
-                    type === 'syncclipboard' && {
-                      backgroundColor: theme.colors.primaryContainer,
-                    },
-                  ]}
-                  onPress={() => setType('syncclipboard')}
-                >
-                  <View style={styles.typeContent}>
-                    <Text style={[styles.typeLabel, { color: theme.colors.text }]}>
-                      SyncClipboard 服务器
-                    </Text>
-                    <Text style={[styles.typeDescription, { color: theme.colors.textSecondary }]}>
-                      官方独立服务器或客户端内置服务器
-                    </Text>
-                  </View>
-                  {type === 'syncclipboard' && (
-                    <View style={[styles.checkmark, { backgroundColor: theme.colors.primary }]}>
-                      <Text style={[styles.checkmarkIcon, { color: theme.colors.white }]}>✓</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
+                <Host matchContents style={styles.fieldHost}>
+                  <OutlinedTextField
+                    key={`name-${formKey}`}
+                    defaultValue={serverName}
+                    onValueChange={setServerName}
+                    keyboardOptions={{ capitalization: 'none', autoCorrectEnabled: false }}
+                    singleLine
+                    modifiers={[fillMaxWidth()]}
+                  >
+                    <OutlinedTextField.Placeholder>
+                      <ComposeText>便于辨识的名称</ComposeText>
+                    </OutlinedTextField.Placeholder>
+                  </OutlinedTextField>
+                </Host>
+              </View>
+              <Text style={[styles.sectionFooter, { color: theme.colors.onSurfaceVariant }]}>
+                将显示在剪贴板顶栏。留空会用服务器地址替代。
+              </Text>
+            </View>
 
-                <TouchableOpacity
-                  style={[
-                    styles.typeOption,
-                    { borderBottomColor: theme.colors.divider },
-                    type === 'webdav' && { backgroundColor: theme.colors.primaryContainer },
-                  ]}
-                  onPress={() => setType('webdav')}
-                >
-                  <View style={styles.typeContent}>
-                    <Text style={[styles.typeLabel, { color: theme.colors.text }]}>
-                      WebDAV 服务器
-                    </Text>
-                    <Text style={[styles.typeDescription, { color: theme.colors.textSecondary }]}>
-                      支持 WebDAV 协议的云存储服务
-                    </Text>
-                  </View>
-                  {type === 'webdav' && (
-                    <View style={[styles.checkmark, { backgroundColor: theme.colors.primary }]}>
-                      <Text style={[styles.checkmarkIcon, { color: theme.colors.white }]}>✓</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.typeOption,
-                    type === 's3' && { backgroundColor: theme.colors.primaryContainer },
-                  ]}
-                  onPress={() => setType('s3')}
-                >
-                  <View style={styles.typeContent}>
-                    <Text style={[styles.typeLabel, { color: theme.colors.text }]}>
-                      S3 兼容存储
-                    </Text>
-                    <Text style={[styles.typeDescription, { color: theme.colors.textSecondary }]}>
-                      AWS S3 / MinIO / Cloudflare R2 等
-                    </Text>
-                  </View>
-                  {type === 's3' && (
-                    <View style={[styles.checkmark, { backgroundColor: theme.colors.primary }]}>
-                      <Text style={[styles.checkmarkIcon, { color: theme.colors.white }]}>✓</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
+            {/* § 服务器地址 */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionHeader, { color: theme.colors.onSurfaceVariant }]}>
+                服务器地址
+              </Text>
+              <View
+                style={[styles.fieldCard, { backgroundColor: theme.colors.surfaceContainerLow }]}
+              >
+                <Host matchContents style={styles.fieldHost}>
+                  <OutlinedTextField
+                    key={`url-${formKey}`}
+                    defaultValue={url}
+                    onValueChange={(v) => {
+                      setUrl(v);
+                      setTestResult(null);
+                    }}
+                    keyboardOptions={{
+                      keyboardType: 'uri',
+                      capitalization: 'none',
+                      autoCorrectEnabled: false,
+                    }}
+                    singleLine
+                    modifiers={[fillMaxWidth()]}
+                  >
+                    <OutlinedTextField.Placeholder>
+                      <ComposeText>https://your-server.com:5033/</ComposeText>
+                    </OutlinedTextField.Placeholder>
+                  </OutlinedTextField>
+                </Host>
               </View>
             </View>
 
-            {/* 服务器信息 */}
+            {/* § 凭据 */}
             <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
-                连接信息
+              <Text style={[styles.sectionHeader, { color: theme.colors.onSurfaceVariant }]}>
+                凭据
               </Text>
               <View
+                style={[styles.fieldCard, { backgroundColor: theme.colors.surfaceContainerLow }]}
+              >
+                <Host matchContents style={styles.fieldHost}>
+                  <OutlinedTextField
+                    key={`username-${formKey}`}
+                    defaultValue={username}
+                    onValueChange={(v) => {
+                      setUsername(v);
+                      setTestResult(null);
+                    }}
+                    keyboardOptions={{ capitalization: 'none', autoCorrectEnabled: false }}
+                    singleLine
+                    modifiers={[fillMaxWidth()]}
+                  >
+                    <OutlinedTextField.Placeholder>
+                      <ComposeText>用户名</ComposeText>
+                    </OutlinedTextField.Placeholder>
+                  </OutlinedTextField>
+                </Host>
+                <View style={[styles.fieldDivider, { backgroundColor: theme.colors.outlineVariant }]} />
+                <Host matchContents style={styles.fieldHost}>
+                  <OutlinedTextField
+                    key={`password-${formKey}`}
+                    defaultValue={password}
+                    onValueChange={(v) => {
+                      setPassword(v);
+                      setTestResult(null);
+                    }}
+                    keyboardOptions={{
+                      keyboardType: 'password',
+                      capitalization: 'none',
+                      autoCorrectEnabled: false,
+                      imeAction: 'done',
+                    }}
+                    singleLine
+                    modifiers={[fillMaxWidth()]}
+                  >
+                    <OutlinedTextField.Placeholder>
+                      <ComposeText>密码</ComposeText>
+                    </OutlinedTextField.Placeholder>
+                  </OutlinedTextField>
+                </Host>
+              </View>
+            </View>
+
+            {/* § 连接 */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionHeader, { color: theme.colors.onSurfaceVariant }]}>
+                连接
+              </Text>
+              {testResult && (
+                <View
+                  style={[
+                    styles.testResultRow,
+                    {
+                      backgroundColor:
+                        testResult === 'success'
+                          ? 'rgba(76,175,80,0.08)'
+                          : 'rgba(244,67,54,0.08)',
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name={testResult === 'success' ? 'checkmark-circle' : 'close-circle'}
+                    size={20}
+                    color={testResult === 'success' ? '#4CAF50' : '#F44336'}
+                  />
+                  <Text
+                    style={{
+                      color: testResult === 'success' ? '#4CAF50' : '#F44336',
+                      fontSize: 14,
+                      fontWeight: '500',
+                    }}
+                  >
+                    {testResult === 'success' ? '连接成功' : '连接失败'}
+                  </Text>
+                </View>
+              )}
+              <Pressable
+                onPress={handleTestConnection}
+                disabled={isTesting && !testAbortControllerRef.current}
                 style={[
-                  styles.card,
-                  { backgroundColor: theme.colors.surface, borderColor: theme.colors.divider },
+                  styles.testButton,
+                  {
+                    backgroundColor: isTesting
+                      ? theme.colors.surfaceContainerHigh
+                      : theme.colors.surfaceContainerLow,
+                  },
                 ]}
               >
-                {type === 's3' ? (
+                {isTesting ? (
                   <>
-                    <View style={styles.inputGroup}>
-                      <Text style={[styles.inputLabel, { color: theme.colors.text }]}>名称</Text>
-                      <Host matchContents>
-                        <OutlinedTextField
-                          key={`serverName-${formKey}`}
-                          defaultValue={serverName}
-                          onValueChange={setServerName}
-                          keyboardOptions={{ capitalization: 'none', autoCorrectEnabled: false }}
-                          singleLine
-                          modifiers={[fillMaxWidth()]}
-                        >
-                          <OutlinedTextField.Placeholder>
-                            <ComposeText>可选，用于卡片显示</ComposeText>
-                          </OutlinedTextField.Placeholder>
-                        </OutlinedTextField>
-                      </Host>
-                    </View>
-
-                    <View style={styles.inputGroup}>
-                      <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
-                        存储桶名称 *
-                      </Text>
-                      <Host matchContents>
-                        <OutlinedTextField
-                          key={`bucketName-${formKey}`}
-                          defaultValue={bucketName}
-                          onValueChange={setBucketName}
-                          keyboardOptions={{ capitalization: 'none', autoCorrectEnabled: false }}
-                          singleLine
-                          modifiers={[fillMaxWidth()]}
-                        >
-                          <OutlinedTextField.Placeholder>
-                            <ComposeText>my-bucket</ComposeText>
-                          </OutlinedTextField.Placeholder>
-                        </OutlinedTextField>
-                      </Host>
-                    </View>
-
-                    <View style={styles.inputGroup}>
-                      <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
-                        Access Key ID *
-                      </Text>
-                      <Host matchContents>
-                        <OutlinedTextField
-                          key={`s3-username-${formKey}`}
-                          defaultValue={username}
-                          onValueChange={setUsername}
-                          keyboardOptions={{ capitalization: 'none', autoCorrectEnabled: false }}
-                          singleLine
-                          modifiers={[fillMaxWidth()]}
-                        />
-                      </Host>
-                    </View>
-
-                    <View style={styles.inputGroup}>
-                      <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
-                        Secret Access Key *
-                      </Text>
-                      <Host matchContents>
-                        <OutlinedTextField
-                          key={`s3-password-${formKey}`}
-                          defaultValue={password}
-                          onValueChange={setPassword}
-                          keyboardOptions={{
-                            keyboardType: 'password',
-                            capitalization: 'none',
-                            autoCorrectEnabled: false,
-                          }}
-                          singleLine
-                          modifiers={[fillMaxWidth()]}
-                        />
-                      </Host>
-                    </View>
-
-                    <View style={styles.inputGroup}>
-                      <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
-                        端点地址
-                      </Text>
-                      <Host matchContents>
-                        <OutlinedTextField
-                          key={`s3-url-${formKey}`}
-                          defaultValue={url}
-                          onValueChange={setUrl}
-                          keyboardOptions={{
-                            keyboardType: 'uri',
-                            capitalization: 'none',
-                            autoCorrectEnabled: false,
-                          }}
-                          singleLine
-                          modifiers={[fillMaxWidth()]}
-                        >
-                          <OutlinedTextField.Placeholder>
-                            <ComposeText>留空使用 AWS 标准端点</ComposeText>
-                          </OutlinedTextField.Placeholder>
-                        </OutlinedTextField>
-                      </Host>
-                    </View>
-
-                    <View style={styles.inputGroup}>
-                      <Text style={[styles.inputLabel, { color: theme.colors.text }]}>区域</Text>
-                      <Host matchContents>
-                        <OutlinedTextField
-                          key={`region-${formKey}`}
-                          defaultValue={region}
-                          onValueChange={setRegion}
-                          keyboardOptions={{ capitalization: 'none', autoCorrectEnabled: false }}
-                          singleLine
-                          modifiers={[fillMaxWidth()]}
-                        >
-                          <OutlinedTextField.Placeholder>
-                            <ComposeText>us-east-1</ComposeText>
-                          </OutlinedTextField.Placeholder>
-                        </OutlinedTextField>
-                      </Host>
-                    </View>
-
-                    <View style={styles.inputGroup}>
-                      <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
-                        对象前缀
-                      </Text>
-                      <Host matchContents>
-                        <OutlinedTextField
-                          key={`objectPrefix-${formKey}`}
-                          defaultValue={objectPrefix}
-                          onValueChange={setObjectPrefix}
-                          keyboardOptions={{
-                            capitalization: 'none',
-                            autoCorrectEnabled: false,
-                            imeAction: 'done',
-                          }}
-                          singleLine
-                          modifiers={[fillMaxWidth()]}
-                        >
-                          <OutlinedTextField.Placeholder>
-                            <ComposeText>syncclipboard</ComposeText>
-                          </OutlinedTextField.Placeholder>
-                        </OutlinedTextField>
-                      </Host>
-                    </View>
-
-                    <View style={styles.switchGroup}>
-                      <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
-                        路径风格寻址
-                      </Text>
-                      <Host matchContents>
-                        <Switch
-                          value={forcePathStyle}
-                          onCheckedChange={setForcePathStyle}
-                          colors={{
-                            checkedTrackColor: theme.colors.primary,
-                            uncheckedTrackColor: theme.colors.divider,
-                            checkedThumbColor: theme.colors.surface,
-                            uncheckedThumbColor: theme.colors.textTertiary,
-                          }}
-                        />
-                      </Host>
-                    </View>
-                    <Text style={[styles.hintText, { color: theme.colors.textTertiary }]}>
-                      建议 S3 兼容服务器启用路径风格寻址
+                    <Ionicons name="stop-circle-outline" size={18} color={theme.colors.error} />
+                    <Text style={[styles.testButtonText, { color: theme.colors.error }]}>
+                      取消测试
                     </Text>
                   </>
                 ) : (
                   <>
-                    <View style={styles.inputGroup}>
-                      <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
-                        服务器地址
-                      </Text>
-                      <Host matchContents>
-                        <OutlinedTextField
-                          key={`url-${formKey}`}
-                          defaultValue={url}
-                          onValueChange={setUrl}
-                          keyboardOptions={{
-                            keyboardType: 'uri',
-                            capitalization: 'none',
-                            autoCorrectEnabled: false,
-                          }}
-                          singleLine
-                          modifiers={[fillMaxWidth()]}
-                        />
-                      </Host>
-                    </View>
-
-                    <View style={styles.inputGroup}>
-                      <Text style={[styles.inputLabel, { color: theme.colors.text }]}>用户名</Text>
-                      <Host matchContents>
-                        <OutlinedTextField
-                          key={`username-${formKey}`}
-                          defaultValue={username}
-                          onValueChange={setUsername}
-                          keyboardOptions={{ capitalization: 'none', autoCorrectEnabled: false }}
-                          singleLine
-                          modifiers={[fillMaxWidth()]}
-                        />
-                      </Host>
-                    </View>
-
-                    <View style={styles.inputGroup}>
-                      <Text style={[styles.inputLabel, { color: theme.colors.text }]}>密码</Text>
-                      <Host matchContents>
-                        <OutlinedTextField
-                          key={`password-${formKey}`}
-                          defaultValue={password}
-                          onValueChange={setPassword}
-                          keyboardOptions={{
-                            keyboardType: 'password',
-                            capitalization: 'none',
-                            autoCorrectEnabled: false,
-                            imeAction: 'done',
-                          }}
-                          singleLine
-                          modifiers={[fillMaxWidth()]}
-                        />
-                      </Host>
-                    </View>
+                    <Ionicons name="flash-outline" size={18} color={theme.colors.primary} />
+                    <Text style={[styles.testButtonText, { color: theme.colors.primary }]}>
+                      {testResult ? '重新测试' : '测试连接'}
+                    </Text>
                   </>
                 )}
-              </View>
+              </Pressable>
             </View>
           </ScrollView>
-
-          <View
-            style={[
-              styles.footer,
-              { backgroundColor: theme.colors.background, borderTopColor: theme.colors.divider },
-            ]}
-          >
-            <TouchableOpacity
-              style={[
-                styles.testButton,
-                {
-                  backgroundColor: isTesting
-                    ? theme.colors.errorContainer
-                    : theme.colors.primaryContainer,
-                },
-              ]}
-              onPress={handleTestConnection}
-            >
-              {isTesting ? (
-                <Text style={[styles.testButtonText, { color: theme.colors.onErrorContainer }]}>
-                  取消测试
-                </Text>
-              ) : (
-                <Text style={[styles.testButtonText, { color: theme.colors.onPrimaryContainer }]}>
-                  测试连接
-                </Text>
-              )}
-            </TouchableOpacity>
-          </View>
         </KeyboardAvoidingView>
 
         {alertInfo && (
@@ -643,6 +449,12 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
           </Host>
         )}
       </SafeAreaView>
+
+      <QrScannerModal
+        visible={showScanner}
+        onClose={() => setShowScanner(false)}
+        onScanned={handleScanComplete}
+      />
     </Modal>
   );
 };
@@ -654,125 +466,103 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
+  // Header
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.md,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  headerButton: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.xs,
-    minWidth: 60,
+  headerBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    minWidth: 50,
   },
-  headerButtonText: {
-    fontSize: typography.headline.fontSize,
+  headerBtnText: {
+    fontSize: 16,
   },
-  headerTitle: {
-    fontSize: typography.headline.fontSize,
+  headerBtnBold: {
     fontWeight: '600',
   },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  // Scroll
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: spacing.base,
+    paddingBottom: 40,
   },
-  footer: {
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.md,
-  },
+  // Sections
   section: {
-    marginTop: spacing.lg,
+    marginTop: 24,
+    paddingHorizontal: 16,
   },
-  sectionTitle: {
-    fontSize: typography.sectionHeader.fontSize,
+  sectionHeader: {
+    fontSize: 13,
     fontWeight: '600',
     textTransform: 'uppercase',
-    letterSpacing: typography.sectionHeader.letterSpacing,
-    marginHorizontal: spacing.base,
-    marginBottom: spacing.sm,
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    paddingHorizontal: 4,
   },
-  card: {
-    marginHorizontal: spacing.base,
-    borderRadius: radius.lg,
-    borderCurve: 'continuous',
-    padding: spacing.base,
+  sectionFooter: {
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: 6,
+    paddingHorizontal: 4,
   },
-  typeOption: {
+  // Scan row
+  scanRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.md,
-    marginBottom: spacing.sm,
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
   },
-  typeContent: {
+  scanLabel: {
     flex: 1,
-  },
-  typeLabel: {
-    fontSize: typography.callout.fontSize,
+    fontSize: 15,
     fontWeight: '500',
-    marginBottom: spacing.xs,
   },
-  typeDescription: {
-    fontSize: typography.footnote.fontSize,
+  // Field card
+  fieldCard: {
+    borderRadius: 12,
+    overflow: 'hidden',
   },
-  checkmark: {
-    width: 24,
-    height: 24,
-    borderRadius: radius.pill,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: spacing.md,
+  fieldHost: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
   },
-  checkmarkIcon: {
-    fontSize: 16,
-    fontWeight: 'bold',
+  fieldDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginHorizontal: 12,
   },
-  inputGroup: {
-    marginBottom: spacing.base,
-  },
-  switchGroup: {
+  // Test connection
+  testResultRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.xs,
-  },
-  hintText: {
-    fontSize: typography.caption1.fontSize,
-    marginBottom: spacing.base,
-  },
-  inputLabel: {
-    fontSize: typography.subhead.fontSize,
-    fontWeight: '500',
-    marginBottom: spacing.sm,
-  },
-  input: {
-    fontSize: typography.callout.fontSize,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
-    borderRadius: radius.md,
-    borderWidth: 1,
-  },
-  inputHint: {
-    fontSize: typography.caption1.fontSize,
-    marginTop: spacing.xs,
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginBottom: 8,
   },
   testButton: {
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.base,
-    borderRadius: radius.pill,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: spacing.sm,
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
   },
   testButtonText: {
-    fontSize: typography.callout.fontSize,
-    fontWeight: '600',
-  },
-  headerButtonBold: {
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '500',
   },
 });
