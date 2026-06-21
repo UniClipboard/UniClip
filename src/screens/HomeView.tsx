@@ -28,6 +28,7 @@ import { historyStorage } from '@/services';
 import { getClipboardSyncService } from '@/services/ClipboardSyncService';
 import { ClipboardItem, ClipboardContent } from '@/types/clipboard';
 import { ServerConfig } from '@/types/api';
+import { ServerConfigModal } from '@/components/ServerConfigModal';
 import { ClipboardCard } from '@/components/ClipboardCard';
 import { MessageToast } from '@/components/MessageToast';
 import { WordPickerScreen } from '@/screens/WordPickerScreen';
@@ -69,7 +70,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
     clearSelection,
     deleteSelected,
   } = useHistoryStore();
-  const { config, getActiveServer, getServers, setActiveServer } = useSettingsStore();
+  const { config, getActiveServer, getServers, setActiveServer, addServer } = useSettingsStore();
   const { message, showMessage, clearMessage } = useMessageStore();
   const { error, setError, clearError } = useErrorStore();
   const uploadingClipboard = useClipboardSyncServiceStore((s) => s.uploadingClipboard);
@@ -93,6 +94,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
   } | null>(null);
   const [showMenu, setShowMenu] = useState(false);
   const [showServerPicker, setShowServerPicker] = useState(false);
+  const [showAddServer, setShowAddServer] = useState(false);
 
   const servers = getServers();
   const activeServerIndex = config?.activeServerIndex ?? -1;
@@ -470,11 +472,22 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
           showMessage('已切换服务器', 'success');
         }}
         onClose={() => setShowServerPicker(false)}
-        onOpenSettings={() => {
+        onAdd={() => {
           setShowServerPicker(false);
-          onOpenSettings();
+          setShowAddServer(true);
         }}
         theme={theme}
+      />
+
+      {/* Add Server Modal */}
+      <ServerConfigModal
+        visible={showAddServer}
+        onClose={() => setShowAddServer(false)}
+        onSave={async (serverConfig) => {
+          await addServer(serverConfig);
+          setShowAddServer(false);
+          showMessage('服务器已添加', 'success');
+        }}
       />
 
       {fileUploadPayload && (
@@ -740,7 +753,7 @@ function ServerSwitcherModal({
   activeIndex,
   onSelect,
   onClose,
-  onOpenSettings,
+  onAdd,
   theme,
 }: {
   visible: boolean;
@@ -748,7 +761,7 @@ function ServerSwitcherModal({
   activeIndex: number;
   onSelect: (index: number) => void;
   onClose: () => void;
-  onOpenSettings: () => void;
+  onAdd: () => void;
   theme: ReturnType<typeof useTheme>['theme'];
 }) {
   return (
@@ -766,7 +779,7 @@ function ServerSwitcherModal({
         <View style={modalStyles.handleRow}>
           <View style={[modalStyles.handle, { backgroundColor: theme.colors.outlineVariant }]} />
         </View>
-        {/* Header */}
+        {/* Header: ✕ 服务器 + */}
         <View style={modalStyles.header}>
           <Pressable onPress={onClose} style={modalStyles.headerButton}>
             <Ionicons name="close" size={20} color={theme.colors.onSurface} />
@@ -774,16 +787,28 @@ function ServerSwitcherModal({
           <Text style={[modalStyles.headerTitle, { color: theme.colors.onSurface }]}>
             服务器
           </Text>
-          <Pressable onPress={onOpenSettings} style={modalStyles.headerButton}>
-            <Ionicons name="settings-outline" size={20} color={theme.colors.onSurface} />
+          <Pressable onPress={onAdd} style={modalStyles.headerButton}>
+            <Ionicons name="add" size={22} color={theme.colors.primary} />
           </Pressable>
         </View>
         {/* Server list */}
         <ScrollView style={modalStyles.list}>
           {servers.length === 0 ? (
-            <Text style={[modalStyles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
-              还没有服务器
-            </Text>
+            <View style={modalStyles.emptyState}>
+              <Ionicons name="server-outline" size={40} color={theme.colors.outlineVariant} />
+              <Text style={[modalStyles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
+                还没有服务器
+              </Text>
+              <Pressable
+                onPress={onAdd}
+                style={[modalStyles.addButton, { backgroundColor: theme.colors.primary }]}
+              >
+                <Ionicons name="add" size={18} color={theme.colors.onPrimary} />
+                <Text style={[modalStyles.addButtonText, { color: theme.colors.onPrimary }]}>
+                  添加服务器
+                </Text>
+              </Pressable>
+            </View>
           ) : (
             servers.map((server, index) => {
               const isActive = index === activeIndex;
@@ -874,10 +899,27 @@ const modalStyles = StyleSheet.create({
   list: {
     paddingHorizontal: 8,
   },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 32,
+    gap: 12,
+  },
   emptyText: {
     textAlign: 'center',
-    paddingVertical: 32,
     fontSize: 14,
+  },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginTop: 8,
+  },
+  addButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   serverRow: {
     flexDirection: 'row',
