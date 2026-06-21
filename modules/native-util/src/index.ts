@@ -63,7 +63,8 @@ export interface NativeUtilModuleType {
   addListener(eventName: string, listener: (event: any) => void): EventSubscription;
 }
 
-const NativeUtilModule: NativeUtilModuleType = requireNativeModule('NativeUtilModule');
+const NativeUtilModule: NativeUtilModuleType | null =
+  Platform.OS === 'android' ? requireNativeModule('NativeUtilModule') : null;
 
 export const isNativeModuleAvailable = Platform.OS === 'android';
 export const isNativeHashModuleAvailable = Platform.OS === 'android';
@@ -73,7 +74,7 @@ export const isNativeHashModuleAvailable = Platform.OS === 'android';
  */
 export function moveTaskToBack(): boolean {
   if (Platform.OS !== 'android') return false;
-  return NativeUtilModule.moveTaskToBack();
+  return NativeUtilModule!.moveTaskToBack();
 }
 
 /**
@@ -81,7 +82,7 @@ export function moveTaskToBack(): boolean {
  */
 export function isIgnoringBatteryOptimizations(): boolean {
   if (Platform.OS !== 'android') return true;
-  return NativeUtilModule.isIgnoringBatteryOptimizations();
+  return NativeUtilModule!.isIgnoringBatteryOptimizations();
 }
 
 /**
@@ -89,7 +90,7 @@ export function isIgnoringBatteryOptimizations(): boolean {
  */
 export function requestIgnoreBatteryOptimizations(): boolean {
   if (Platform.OS !== 'android') return false;
-  return NativeUtilModule.requestIgnoreBatteryOptimizations();
+  return NativeUtilModule!.requestIgnoreBatteryOptimizations();
 }
 
 /**
@@ -97,7 +98,7 @@ export function requestIgnoreBatteryOptimizations(): boolean {
  */
 export function setExcludeFromRecents(exclude: boolean): boolean {
   if (Platform.OS !== 'android') return false;
-  return NativeUtilModule.setExcludeFromRecents(exclude);
+  return NativeUtilModule!.setExcludeFromRecents(exclude);
 }
 
 /**
@@ -105,7 +106,7 @@ export function setExcludeFromRecents(exclude: boolean): boolean {
  */
 export function getSupportedAbis(): string[] {
   if (Platform.OS !== 'android') return [];
-  return NativeUtilModule.getSupportedAbis();
+  return NativeUtilModule!.getSupportedAbis();
 }
 
 /**
@@ -118,7 +119,7 @@ export async function nativeSaveClipboardImageToFile(
   destDirPath: string
 ): Promise<{ width: number; height: number; filePath: string; mimeType: string } | null> {
   if (Platform.OS !== 'android') return null;
-  return NativeUtilModule.saveClipboardImageToFile(destDirPath);
+  return NativeUtilModule!.saveClipboardImageToFile(destDirPath);
 }
 
 /**
@@ -128,14 +129,14 @@ export async function nativeSaveClipboardImageToFile(
  */
 export async function nativeSetClipboardImageFromFile(fileUri: string): Promise<boolean> {
   if (Platform.OS !== 'android') return false;
-  return NativeUtilModule.setClipboardImageFromFile(fileUri);
+  return NativeUtilModule!.setClipboardImageFromFile(fileUri);
 }
 
 export async function nativeCopyFile(srcUri: string, destUri: string): Promise<void> {
   if (Platform.OS !== 'android') {
     throw new Error('NativeUtilModule is not available on this platform');
   }
-  await NativeUtilModule.copyFile(srcUri, destUri);
+  await NativeUtilModule!.copyFile(srcUri, destUri);
 }
 
 export async function nativeCalculateFileHash(
@@ -149,18 +150,18 @@ export async function nativeCalculateFileHash(
 
   let progressSub: EventSubscription | null = null;
   if (onProgress) {
-    progressSub = NativeUtilModule.addListener('onHashProgress', (event: HashProgressEvent) => {
+    progressSub = NativeUtilModule!.addListener('onHashProgress', (event: HashProgressEvent) => {
       onProgress(event.progress);
     });
   }
 
-  const jobId = NativeUtilModule.startCalculateFileHash(fileUri);
+  const jobId = NativeUtilModule!.startCalculateFileHash(fileUri);
 
-  const abortHandler = () => NativeUtilModule.cancelJob(jobId);
+  const abortHandler = () => NativeUtilModule!.cancelJob(jobId);
   signal?.addEventListener('abort', abortHandler);
 
   try {
-    const result = await NativeUtilModule.waitForJob(jobId);
+    const result = await NativeUtilModule!.waitForJob(jobId);
     return result;
   } catch (error) {
     if (
@@ -186,7 +187,7 @@ export function nativeCalculateStringMD5Base64(data: string): string {
   if (Platform.OS !== 'android') {
     throw new Error('NativeUtilModule is not available on this platform');
   }
-  return NativeUtilModule.calculateStringMD5Base64(data);
+  return NativeUtilModule!.calculateStringMD5Base64(data);
 }
 
 /**
@@ -201,13 +202,13 @@ export async function nativeCalculateFileMD5Base64(
     throw new Error('NativeUtilModule is not available on this platform');
   }
 
-  const jobId = NativeUtilModule.startCalculateFileMD5Base64(fileUri);
+  const jobId = NativeUtilModule!.startCalculateFileMD5Base64(fileUri);
 
-  const abortHandler = () => NativeUtilModule.cancelJob(jobId);
+  const abortHandler = () => NativeUtilModule!.cancelJob(jobId);
   signal?.addEventListener('abort', abortHandler);
 
   try {
-    const result = await NativeUtilModule.waitForJob(jobId);
+    const result = await NativeUtilModule!.waitForJob(jobId);
     return result;
   } catch (error) {
     if (
@@ -243,7 +244,7 @@ export async function nativeUploadFile(
   let progressSub: EventSubscription | null = null;
   let resolvedJobId: string | null = null;
   if (onProgress) {
-    progressSub = NativeUtilModule.addListener('onUploadProgress', (event: UploadProgressEvent) => {
+    progressSub = NativeUtilModule!.addListener('onUploadProgress', (event: UploadProgressEvent) => {
       if (resolvedJobId && event.jobId === resolvedJobId) {
         onProgress({
           progress: event.progress,
@@ -254,14 +255,14 @@ export async function nativeUploadFile(
     });
   }
 
-  const jobId = NativeUtilModule.startUploadFile(url, headers, fileUri);
+  const jobId = NativeUtilModule!.startUploadFile(url, headers, fileUri);
   resolvedJobId = jobId;
 
-  const abortHandler = () => NativeUtilModule.cancelJob(jobId);
+  const abortHandler = () => NativeUtilModule!.cancelJob(jobId);
   signal?.addEventListener('abort', abortHandler);
 
   try {
-    await NativeUtilModule.waitForJob(jobId);
+    await NativeUtilModule!.waitForJob(jobId);
   } catch (error) {
     if (
       error instanceof Error &&
@@ -296,7 +297,7 @@ export async function nativeZipFiles(
   let progressSub: EventSubscription | null = null;
   let resolvedJobId: string | null = null;
   if (onProgress) {
-    progressSub = NativeUtilModule.addListener('onZipProgress', (event: ZipProgressEvent) => {
+    progressSub = NativeUtilModule!.addListener('onZipProgress', (event: ZipProgressEvent) => {
       if (resolvedJobId && event.jobId === resolvedJobId) {
         onProgress({
           progress: event.progress,
@@ -307,14 +308,14 @@ export async function nativeZipFiles(
     });
   }
 
-  const jobId = NativeUtilModule.startZipFiles(fileUris, destUri);
+  const jobId = NativeUtilModule!.startZipFiles(fileUris, destUri);
   resolvedJobId = jobId;
 
-  const abortHandler = () => NativeUtilModule.cancelJob(jobId);
+  const abortHandler = () => NativeUtilModule!.cancelJob(jobId);
   signal?.addEventListener('abort', abortHandler);
 
   try {
-    await NativeUtilModule.waitForJob(jobId);
+    await NativeUtilModule!.waitForJob(jobId);
   } catch (error) {
     if (
       error instanceof Error &&
@@ -351,7 +352,7 @@ export async function nativeUploadMultipart(
   let progressSub: EventSubscription | null = null;
   let resolvedJobId: string | null = null;
   if (onProgress) {
-    progressSub = NativeUtilModule.addListener('onUploadProgress', (event: UploadProgressEvent) => {
+    progressSub = NativeUtilModule!.addListener('onUploadProgress', (event: UploadProgressEvent) => {
       if (resolvedJobId && event.jobId === resolvedJobId) {
         onProgress({
           progress: event.progress,
@@ -362,14 +363,14 @@ export async function nativeUploadMultipart(
     });
   }
 
-  const jobId = NativeUtilModule.startUploadMultipart(url, headers, formFields, fileUri ?? null);
+  const jobId = NativeUtilModule!.startUploadMultipart(url, headers, formFields, fileUri ?? null);
   resolvedJobId = jobId;
 
-  const abortHandler = () => NativeUtilModule.cancelJob(jobId);
+  const abortHandler = () => NativeUtilModule!.cancelJob(jobId);
   signal?.addEventListener('abort', abortHandler);
 
   try {
-    await NativeUtilModule.waitForJob(jobId);
+    await NativeUtilModule!.waitForJob(jobId);
   } catch (error) {
     if (
       error instanceof Error &&
@@ -405,7 +406,7 @@ export async function nativeDownloadFile(
   let progressSub: EventSubscription | null = null;
   let resolvedJobId: string | null = null;
   if (onProgress) {
-    progressSub = NativeUtilModule.addListener(
+    progressSub = NativeUtilModule!.addListener(
       'onDownloadProgress',
       (event: DownloadProgressEvent) => {
         if (resolvedJobId && event.jobId === resolvedJobId) {
@@ -419,14 +420,14 @@ export async function nativeDownloadFile(
     );
   }
 
-  const jobId = NativeUtilModule.startDownloadFile(url, headers, fileUri);
+  const jobId = NativeUtilModule!.startDownloadFile(url, headers, fileUri);
   resolvedJobId = jobId;
 
-  const abortHandler = () => NativeUtilModule.cancelJob(jobId);
+  const abortHandler = () => NativeUtilModule!.cancelJob(jobId);
   signal?.addEventListener('abort', abortHandler);
 
   try {
-    await NativeUtilModule.waitForJob(jobId);
+    await NativeUtilModule!.waitForJob(jobId);
   } catch (error) {
     if (
       error instanceof Error &&

@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { ToastAndroid, Linking } from 'react-native';
+import { Linking } from 'react-native';
+import { showToast } from '@/utils/toast';
 import { SyncDirection } from '@/types/sync';
 import { ClipboardContent } from '@/types/clipboard';
 import { SyncManager } from '@/services/SyncManager';
@@ -58,7 +59,7 @@ export const QuickTileLoadingScreen: React.FC<QuickTileLoadingScreenProps> = ({
       if (content && content.type === 'Text' && !isTextInvalid(content.text)) {
         const preview = content.text.trim().replace(/\s+/g, ' ');
         const toastMessage = preview.length > 40 ? preview.slice(0, 40) + '…' : preview;
-        ToastAndroid.show(toastMessage, ToastAndroid.SHORT);
+        showToast(toastMessage);
 
         // 文本中包含 URL 时，存入 state 以显示操作按钮
         const urlRegex = /https?:\/\/[^\s<>"'()\]\[{}]+/i;
@@ -93,7 +94,7 @@ export const QuickTileLoadingScreen: React.FC<QuickTileLoadingScreenProps> = ({
             onPress: async () => {
               try {
                 await Clipboard.setStringAsync(fileContent.text!);
-                ToastAndroid.show('已复制', ToastAndroid.SHORT);
+                showToast('已复制');
               } catch {}
             },
           },
@@ -124,18 +125,18 @@ export const QuickTileLoadingScreen: React.FC<QuickTileLoadingScreenProps> = ({
               try {
                 if (fileContent.type === 'Image') {
                   await saveToGallery(fileContent.fileUri!);
-                  ToastAndroid.show('已保存到相册', ToastAndroid.SHORT);
+                  showToast('已保存到相册');
                 } else {
                   await saveFile(fileContent.fileUri!, fileContent.fileName);
-                  ToastAndroid.show('已储存到设备', ToastAndroid.SHORT);
+                  showToast('已储存到设备');
                 }
               } catch (error) {
                 console.error('[QuickTileLoadingScreen] Failed to save file:', error);
                 if (error instanceof Error && error.message === 'Media library permission denied') {
-                  ToastAndroid.show('需要相册权限才能保存图片', ToastAndroid.SHORT);
+                  showToast('需要相册权限才能保存图片');
                   return;
                 }
-                ToastAndroid.show('保存失败', ToastAndroid.SHORT);
+                showToast('保存失败');
               }
             },
           },

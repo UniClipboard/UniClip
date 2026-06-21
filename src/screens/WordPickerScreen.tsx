@@ -10,13 +10,13 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  ToastAndroid,
   Animated,
   Pressable,
   Dimensions,
   Easing,
   BackHandler,
 } from 'react-native';
+import { showToast } from '@/utils/toast';
 import { Host, Switch } from '@expo/ui/jetpack-compose';
 import * as Clipboard from 'expo-clipboard';
 import { Segment, useDefault } from 'segmentit';
@@ -201,7 +201,7 @@ export const WordPickerScreen: React.FC<WordPickerScreenProps> = ({ text, onComp
     const selectedText = tokens.filter((_, i) => selected.has(i)).join('');
     if (selectedText) {
       await Clipboard.setStringAsync(selectedText);
-      ToastAndroid.show('已复制', ToastAndroid.SHORT);
+      showToast('已复制');
     }
   }, [tokens, selected]);
 

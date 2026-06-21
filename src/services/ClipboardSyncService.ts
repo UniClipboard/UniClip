@@ -14,7 +14,8 @@
  * HomeScreen 通过 useClipboardSyncServiceStore 读取状态，通过公开方法触发用户操作。
  */
 
-import { Platform, ToastAndroid } from 'react-native';
+import { Platform } from 'react-native';
+import { showToast } from '@/utils/toast';
 import {
   ClipboardContent,
   createDefaultClipboardItem,
@@ -654,7 +655,7 @@ class ClipboardSyncService {
                 : finalContent.fileName || finalContent.type;
             SyncManager.getInstance().updateForegroundNotification(`已下载: ${preview}`);
             if (config?.syncToastEnabled !== false) {
-              ToastAndroid.show(`已下载\n${preview}`, ToastAndroid.SHORT);
+              showToast(`已下载\n${preview}`);
             }
           }
         } catch (error) {
@@ -731,7 +732,7 @@ class ClipboardSyncService {
           const { useSettingsStore } = require('../stores/settingsStore');
           const config = useSettingsStore.getState().config;
           if (config?.syncToastEnabled !== false) {
-            ToastAndroid.show('文件已下载', ToastAndroid.SHORT);
+            showToast('文件已下载');
           }
         }
         store.setDownloadingRemote(false);
@@ -909,7 +910,7 @@ class ClipboardSyncService {
           const { SyncManager } = require('./SyncManager');
           SyncManager.getInstance().updateForegroundNotification(`已上传: ${preview}`);
           if (config?.syncToastEnabled !== false) {
-            ToastAndroid.show(`已上传\n${preview}`, ToastAndroid.SHORT);
+            showToast(`已上传\n${preview}`);
           }
           // 上传成功后静默刷新远程显示
           this.fetchRemoteClipboard(true).catch(() => {});

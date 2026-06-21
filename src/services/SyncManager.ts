@@ -4,7 +4,8 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ToastAndroid, Platform } from 'react-native';
+import { Platform } from 'react-native';
+import { showToast } from '@/utils/toast';
 import { SyncClipboardClient } from './SyncClipboardClient';
 import { ISyncClipboardAPI } from './APIClient';
 import { WebDAVClient } from './WebDAVClient';
@@ -718,7 +719,7 @@ export class SyncManager {
       if (result.success && !result.skipped && Platform.OS === 'android') {
         const preview = this.getContentPreview(content);
         if (appConfig?.syncToastEnabled !== false) {
-          ToastAndroid.show(`已上传\n${preview}`, ToastAndroid.SHORT);
+          showToast(`已上传\n${preview}`);
         }
         this.updateForegroundNotification(`已上传: ${preview}`);
       }

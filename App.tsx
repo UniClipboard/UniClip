@@ -127,8 +127,7 @@ export default function App() {
 
     // Cold start: app launched via URL scheme
     Linking.getInitialURL().then((url) => {
-      if (config?.debugUrlScheme) {
-        // 注意：connect URI 含明文密码，debug 模式仅显示 prefix 防泄漏
+      if (config?.debugUrlScheme && Platform.OS === 'android') {
         const safeForDebug =
           url && url.startsWith(CONNECT_URL_PREFIX) ? `${CONNECT_URL_PREFIX}?<redacted>` : url;
         ToastAndroid.show(`getInitialURL: ${safeForDebug ?? 'null'}`, ToastAndroid.LONG);
@@ -160,7 +159,7 @@ export default function App() {
 
     // Hot start: app already running, receives URL deep link event
     const urlSub = Linking.addEventListener('url', ({ url }) => {
-      if (config?.debugUrlScheme) {
+      if (config?.debugUrlScheme && Platform.OS === 'android') {
         const safeForDebug =
           url && url.startsWith(CONNECT_URL_PREFIX) ? `${CONNECT_URL_PREFIX}?<redacted>` : url;
         ToastAndroid.show(`addEventListener url: ${safeForDebug ?? 'null'}`, ToastAndroid.LONG);
