@@ -56,6 +56,20 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
 
   const showAlert = (title: string, message: string) => setAlertInfo({ title, message });
 
+  const fieldColors = {
+    focusedContainerColor: 'transparent',
+    unfocusedContainerColor: 'transparent',
+    focusedIndicatorColor: theme.colors.primary,
+    unfocusedIndicatorColor: theme.colors.outlineVariant,
+    focusedTextColor: theme.colors.onSurface,
+    unfocusedTextColor: theme.colors.onSurface,
+    focusedPlaceholderColor: theme.colors.onSurfaceVariant,
+    unfocusedPlaceholderColor: theme.colors.onSurfaceVariant,
+    focusedLabelColor: theme.colors.primary,
+    unfocusedLabelColor: theme.colors.onSurfaceVariant,
+    cursorColor: theme.colors.primary,
+  };
+
   const [formKey, setFormKey] = useState(0);
 
   // 保留 type 字段但 UI 不展示 webdav/s3（未来启用）
@@ -260,24 +274,21 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
               <Text style={[styles.sectionHeader, { color: theme.colors.onSurfaceVariant }]}>
                 名称
               </Text>
-              <View
-                style={[styles.fieldCard, { backgroundColor: theme.colors.surfaceContainerLow }]}
-              >
-                <Host matchContents style={styles.fieldHost}>
-                  <OutlinedTextField
-                    key={`name-${formKey}`}
-                    defaultValue={serverName}
-                    onValueChange={setServerName}
-                    keyboardOptions={{ capitalization: 'none', autoCorrectEnabled: false }}
-                    singleLine
-                    modifiers={[fillMaxWidth()]}
-                  >
-                    <OutlinedTextField.Placeholder>
-                      <ComposeText>便于辨识的名称</ComposeText>
-                    </OutlinedTextField.Placeholder>
-                  </OutlinedTextField>
-                </Host>
-              </View>
+              <Host matchContents style={styles.fieldHost}>
+                <OutlinedTextField
+                  key={`name-${formKey}`}
+                  defaultValue={serverName}
+                  onValueChange={setServerName}
+                  keyboardOptions={{ capitalization: 'none', autoCorrectEnabled: false }}
+                  singleLine
+                  modifiers={[fillMaxWidth()]}
+                  colors={fieldColors}
+                >
+                  <OutlinedTextField.Placeholder>
+                    <ComposeText>便于辨识的名称</ComposeText>
+                  </OutlinedTextField.Placeholder>
+                </OutlinedTextField>
+              </Host>
               <Text style={[styles.sectionFooter, { color: theme.colors.onSurfaceVariant }]}>
                 将显示在剪贴板顶栏。留空会用服务器地址替代。
               </Text>
@@ -288,31 +299,28 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
               <Text style={[styles.sectionHeader, { color: theme.colors.onSurfaceVariant }]}>
                 服务器地址
               </Text>
-              <View
-                style={[styles.fieldCard, { backgroundColor: theme.colors.surfaceContainerLow }]}
-              >
-                <Host matchContents style={styles.fieldHost}>
-                  <OutlinedTextField
-                    key={`url-${formKey}`}
-                    defaultValue={url}
-                    onValueChange={(v) => {
-                      setUrl(v);
-                      setTestResult(null);
-                    }}
-                    keyboardOptions={{
-                      keyboardType: 'uri',
-                      capitalization: 'none',
-                      autoCorrectEnabled: false,
-                    }}
-                    singleLine
-                    modifiers={[fillMaxWidth()]}
-                  >
-                    <OutlinedTextField.Placeholder>
-                      <ComposeText>https://your-server.com:5033/</ComposeText>
-                    </OutlinedTextField.Placeholder>
-                  </OutlinedTextField>
-                </Host>
-              </View>
+              <Host matchContents style={styles.fieldHost}>
+                <OutlinedTextField
+                  key={`url-${formKey}`}
+                  defaultValue={url}
+                  onValueChange={(v) => {
+                    setUrl(v);
+                    setTestResult(null);
+                  }}
+                  keyboardOptions={{
+                    keyboardType: 'uri',
+                    capitalization: 'none',
+                    autoCorrectEnabled: false,
+                  }}
+                  singleLine
+                  modifiers={[fillMaxWidth()]}
+                  colors={fieldColors}
+                >
+                  <OutlinedTextField.Placeholder>
+                    <ComposeText>https://your-server.com:5033/</ComposeText>
+                  </OutlinedTextField.Placeholder>
+                </OutlinedTextField>
+              </Host>
             </View>
 
             {/* § 凭据 */}
@@ -320,50 +328,48 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
               <Text style={[styles.sectionHeader, { color: theme.colors.onSurfaceVariant }]}>
                 凭据
               </Text>
-              <View
-                style={[styles.fieldCard, { backgroundColor: theme.colors.surfaceContainerLow }]}
-              >
-                <Host matchContents style={styles.fieldHost}>
-                  <OutlinedTextField
-                    key={`username-${formKey}`}
-                    defaultValue={username}
-                    onValueChange={(v) => {
-                      setUsername(v);
-                      setTestResult(null);
-                    }}
-                    keyboardOptions={{ capitalization: 'none', autoCorrectEnabled: false }}
-                    singleLine
-                    modifiers={[fillMaxWidth()]}
-                  >
-                    <OutlinedTextField.Placeholder>
-                      <ComposeText>用户名</ComposeText>
-                    </OutlinedTextField.Placeholder>
-                  </OutlinedTextField>
-                </Host>
-                <View style={[styles.fieldDivider, { backgroundColor: theme.colors.outlineVariant }]} />
-                <Host matchContents style={styles.fieldHost}>
-                  <OutlinedTextField
-                    key={`password-${formKey}`}
-                    defaultValue={password}
-                    onValueChange={(v) => {
-                      setPassword(v);
-                      setTestResult(null);
-                    }}
-                    keyboardOptions={{
-                      keyboardType: 'password',
-                      capitalization: 'none',
-                      autoCorrectEnabled: false,
-                      imeAction: 'done',
-                    }}
-                    singleLine
-                    modifiers={[fillMaxWidth()]}
-                  >
-                    <OutlinedTextField.Placeholder>
-                      <ComposeText>密码</ComposeText>
-                    </OutlinedTextField.Placeholder>
-                  </OutlinedTextField>
-                </Host>
-              </View>
+              <Host matchContents style={styles.fieldHost}>
+                <OutlinedTextField
+                  key={`username-${formKey}`}
+                  defaultValue={username}
+                  onValueChange={(v) => {
+                    setUsername(v);
+                    setTestResult(null);
+                  }}
+                  keyboardOptions={{ capitalization: 'none', autoCorrectEnabled: false }}
+                  singleLine
+                  modifiers={[fillMaxWidth()]}
+                  colors={fieldColors}
+                >
+                  <OutlinedTextField.Placeholder>
+                    <ComposeText>用户名</ComposeText>
+                  </OutlinedTextField.Placeholder>
+                </OutlinedTextField>
+              </Host>
+              <View style={{ height: 8 }} />
+              <Host matchContents style={styles.fieldHost}>
+                <OutlinedTextField
+                  key={`password-${formKey}`}
+                  defaultValue={password}
+                  onValueChange={(v) => {
+                    setPassword(v);
+                    setTestResult(null);
+                  }}
+                  keyboardOptions={{
+                    keyboardType: 'password',
+                    capitalization: 'none',
+                    autoCorrectEnabled: false,
+                    imeAction: 'done',
+                  }}
+                  singleLine
+                  modifiers={[fillMaxWidth()]}
+                  colors={fieldColors}
+                >
+                  <OutlinedTextField.Placeholder>
+                    <ComposeText>密码</ComposeText>
+                  </OutlinedTextField.Placeholder>
+                </OutlinedTextField>
+              </Host>
             </View>
 
             {/* § 连接 */}
@@ -530,18 +536,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
   },
-  // Field card
-  fieldCard: {
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
   fieldHost: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-  },
-  fieldDivider: {
-    height: StyleSheet.hairlineWidth,
-    marginHorizontal: 12,
+    paddingHorizontal: 4,
   },
   // Test connection
   testResultRow: {
