@@ -451,6 +451,7 @@ export const SettingsScreen = () => {
     openPrefilledAddForm({
       type: 'syncclipboard',
       url: intent.url,
+      urls: intent.urls,
       username: intent.user,
       password: intent.pwd,
       ...(intent.label ? { name: intent.label } : {}),

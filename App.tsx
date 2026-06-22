@@ -45,6 +45,7 @@ function handleConnectUrlIfMatched(url: string | null | undefined): boolean {
   console.log('[QR][deeplink] succeeded');
   usePendingConnectStore.getState().set({
     url: parsed.value.url,
+    urls: parsed.value.urls.length > 0 ? parsed.value.urls : undefined,
     user: parsed.value.user,
     pwd: parsed.value.pwd,
     ...(parsed.value.label !== undefined ? { label: parsed.value.label } : {}),
