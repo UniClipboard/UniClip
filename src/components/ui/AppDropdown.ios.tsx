@@ -4,6 +4,7 @@ import {
   Text,
   View,
   StyleSheet,
+  PlatformColor,
 } from 'react-native';
 
 export interface AppDropdownOption<T extends string = string> {
@@ -73,7 +74,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 13,
-    color: '#3C3C43',
+    color: PlatformColor('secondaryLabel'),
     marginBottom: 4,
   },
   field: {
@@ -81,7 +82,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: '#C7C7CC',
+    borderColor: PlatformColor('separator'),
     borderRadius: 8,
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -91,15 +92,15 @@ const styles = StyleSheet.create({
   },
   value: {
     fontSize: 16,
-    color: '#000000',
+    color: PlatformColor('label'),
     flexShrink: 1,
   },
   placeholder: {
-    color: '#8E8E93',
+    color: PlatformColor('placeholderText'),
   },
   chevron: {
     fontSize: 18,
-    color: '#8E8E93',
+    color: PlatformColor('secondaryLabel'),
     marginLeft: 8,
   },
 });

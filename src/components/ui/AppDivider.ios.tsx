@@ -1,9 +1,11 @@
-import { View, StyleSheet, type ColorValue } from 'react-native';
+import { View, StyleSheet, PlatformColor, type ColorValue } from 'react-native';
 
 export interface AppDividerProps {
   color?: ColorValue;
   thickness?: number;
 }
+
+const defaultColor = PlatformColor('separator');
 
 export function AppDivider({ color, thickness }: AppDividerProps) {
   return (
@@ -11,7 +13,7 @@ export function AppDivider({ color, thickness }: AppDividerProps) {
       style={{
         height: thickness ?? StyleSheet.hairlineWidth,
         alignSelf: 'stretch',
-        backgroundColor: color ?? '#C6C6C8',
+        backgroundColor: color ?? defaultColor,
       }}
     />
   );

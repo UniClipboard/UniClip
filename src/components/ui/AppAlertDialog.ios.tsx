@@ -4,6 +4,8 @@ import {
   Text,
   Pressable,
   StyleSheet,
+  PlatformColor,
+  DynamicColorIOS,
   type ColorValue,
 } from 'react-native';
 
@@ -75,7 +77,7 @@ const styles = StyleSheet.create({
   card: {
     minWidth: 280,
     maxWidth: 400,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: DynamicColorIOS({ light: '#FFFFFF', dark: '#2C2C2E' }),
     borderRadius: 14,
     padding: 20,
   },
@@ -83,12 +85,13 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     textAlign: 'center',
+    color: PlatformColor('label'),
     marginBottom: 8,
   },
   message: {
     fontSize: 13,
     textAlign: 'center',
-    color: '#3C3C43',
+    color: PlatformColor('secondaryLabel'),
     marginBottom: 16,
   },
   actions: {
@@ -103,7 +106,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: 16,
-    color: '#007AFF',
+    color: PlatformColor('link'),
   },
   confirmText: {
     fontWeight: '600',

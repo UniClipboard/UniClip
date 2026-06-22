@@ -3,6 +3,8 @@ import {
   Text,
   TextInput,
   StyleSheet,
+  PlatformColor,
+  DynamicColorIOS,
   type KeyboardTypeOptions,
 } from 'react-native';
 
@@ -60,15 +62,16 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 13,
-    color: '#3C3C43',
+    color: PlatformColor('secondaryLabel'),
     marginBottom: 4,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#C7C7CC',
+    borderColor: PlatformColor('separator'),
     borderRadius: 8,
     paddingVertical: 10,
     paddingHorizontal: 12,
     fontSize: 16,
+    color: PlatformColor('label'),
   },
 });

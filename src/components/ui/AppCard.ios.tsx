@@ -1,4 +1,4 @@
-import { View, StyleSheet, type ColorValue } from 'react-native';
+import { View, StyleSheet, DynamicColorIOS, type ColorValue } from 'react-native';
 
 export interface AppCardProps {
   children: React.ReactNode;
@@ -7,12 +7,14 @@ export interface AppCardProps {
   fullWidth?: boolean;
 }
 
+const defaultCardBg = DynamicColorIOS({ light: '#FFFFFF', dark: '#1C1C1E' });
+
 export function AppCard({ children, containerColor, elevation = 1, fullWidth }: AppCardProps) {
   return (
     <View
       style={[
         styles.card,
-        { backgroundColor: containerColor ?? '#FFFFFF' },
+        { backgroundColor: containerColor ?? defaultCardBg },
         { shadowOpacity: 0.1 + Math.min(elevation, 6) * 0.02, shadowRadius: elevation },
         fullWidth ? styles.fullWidth : null,
       ]}

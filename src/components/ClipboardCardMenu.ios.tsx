@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { View, Text, Image, StyleSheet, useColorScheme } from 'react-native';
+import { View, Text, Image, StyleSheet, PlatformColor, DynamicColorIOS } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Host } from '@expo/ui/swift-ui';
 import { ContextMenu } from '@expo/ui/swift-ui';
@@ -10,11 +10,14 @@ import type { ClipboardCardMenuProps } from './ClipboardCardMenu.types';
 
 const PREVIEW_WIDTH = 340;
 
+const previewTextColor = PlatformColor('label');
+const previewSecondaryColor = PlatformColor('secondaryLabel');
+const previewBg = DynamicColorIOS({ light: '#FFFFFF', dark: '#1C1C1E' });
+
 function CardPreview({ item, dk }: { item: ClipboardCardMenuProps['item']; dk: string }) {
-  const isDark = useColorScheme() === 'dark';
-  const textColor = isDark ? '#fff' : '#000';
-  const secondaryColor = isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.45)';
-  const bg = isDark ? '#1c1c1e' : '#fff';
+  const textColor = previewTextColor;
+  const secondaryColor = previewSecondaryColor;
+  const bg = previewBg;
 
   switch (dk) {
     case 'text':

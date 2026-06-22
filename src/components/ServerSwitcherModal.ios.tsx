@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
+import { useColorScheme } from 'react-native';
 import { Host, BottomSheet, Group, VStack, Text as SwiftUIText, Spacer, Button as SwiftUIButton, Image, HStack } from '@expo/ui/swift-ui';
-import { presentationDetents, presentationDragIndicator, font, foregroundStyle, frame, padding, buttonStyle, glassEffect, shadow } from '@expo/ui/swift-ui/modifiers';
+import { presentationDetents, presentationDragIndicator, font, foregroundStyle, frame, padding, buttonStyle, glassEffect, background, shapes } from '@expo/ui/swift-ui/modifiers';
 import { SheetHeader } from '@/components/ui';
 import { useSettingsStore } from '@/stores';
 import type { ServerSwitcherModalProps } from './ServerSwitcherModal.types';
@@ -22,22 +23,17 @@ function useNetworkTags(server: ServerConfig) {
 
 function ServerItem({ server, isActive, onPress }: { server: ServerConfig; isActive: boolean; onPress: () => void }) {
   const { count, tags } = useNetworkTags(server);
+  const isDark = useColorScheme() === 'dark';
+  const bgColor = isActive
+    ? (isDark ? '#1A2E1F' : '#F2FBF5')
+    : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)');
 
   return (
     <SwiftUIButton onPress={onPress} modifiers={[buttonStyle('plain'), padding({ horizontal: 20 })]}>
       <HStack spacing={12} alignment="center" modifiers={[
         padding({ horizontal: 16, vertical: 14 }),
         frame({ maxWidth: Infinity }),
-        glassEffect({
-          glass: {
-            variant: 'clear',
-            interactive: true,
-            ...(isActive ? { tint: '#F2FBF5' } : {}),
-          },
-          shape: 'roundedRectangle',
-          cornerRadius: 14,
-        }),
-        shadow({ radius: 1, y: 1, color: 'rgba(0,0,0,0.04)' }),
+        background(bgColor, shapes.roundedRectangle({ cornerRadius: 14 })),
       ]}>
         <Image
           systemName={isActive ? 'checkmark.circle.fill' : 'circle'}
@@ -91,7 +87,7 @@ export function ServerSwitcherModal({ visible, servers, activeIndex, onSelect, o
           presentationDetents(['medium']),
           presentationDragIndicator('visible'),
         ]}>
-          <VStack modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity })]}>
+          <VStack spacing={8} modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity })]}>
             <SheetHeader
               title="服务器"
               left={
@@ -112,7 +108,7 @@ export function ServerSwitcherModal({ visible, servers, activeIndex, onSelect, o
                 <VStack spacing={8}>
                   <Image systemName="server.rack" size={36} color="#8E8E93" />
                   <SwiftUIText modifiers={[font({ size: 15 }), foregroundStyle('#8E8E93')]}>No servers yet</SwiftUIText>
-                  <SwiftUIText modifiers={[font({ size: 13 }), foregroundStyle('#636366')]}>Tap + to add a server</SwiftUIText>
+                  <SwiftUIText modifiers={[font({ size: 13 }), foregroundStyle({ type: 'hierarchical', style: 'tertiary' })]}>Tap + to add a server</SwiftUIText>
                 </VStack>
                 <Spacer />
               </>

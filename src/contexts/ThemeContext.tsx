@@ -4,7 +4,7 @@
  */
 
 import React, { createContext, useEffect, useState, useCallback } from 'react';
-import { useColorScheme } from 'react-native';
+import { Appearance, useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   createTheme,
@@ -56,6 +56,11 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
   useEffect(() => {
     void loadPersistedSettings();
   }, []);
+
+  // themeMode 变化时通知原生层，让 PlatformColor / DynamicColorIOS / SwiftUI 联动
+  useEffect(() => {
+    Appearance.setColorScheme(themeMode === 'auto' ? 'unspecified' : themeMode);
+  }, [themeMode]);
 
   // 监听 mode / palette / system 变化重建主题
   useEffect(() => {

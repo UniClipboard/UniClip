@@ -393,7 +393,7 @@ export function AddServerSheet({ visible, onClose, onSave }: AddServerSheetProps
                       <HStack key={`probe-${u}`} spacing={8} alignment="center">
                         <VStack alignment="leading" spacing={2}>
                           <SwiftUIText
-                            modifiers={[font({ size: 14 }), foregroundStyle('#FFFFFF')]}
+                            modifiers={[font({ size: 14 })]}
                           >
                             {u}
                           </SwiftUIText>

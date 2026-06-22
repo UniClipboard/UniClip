@@ -3,6 +3,7 @@ import {
   View,
   Pressable,
   StyleSheet,
+  DynamicColorIOS,
   type ColorValue,
   useColorScheme,
 } from 'react-native';
@@ -76,7 +77,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#C6C6C8',
+    backgroundColor: DynamicColorIOS({ light: '#C6C6C8', dark: '#5A5A5E' }),
     marginBottom: 12,
   },
 });

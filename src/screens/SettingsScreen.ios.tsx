@@ -35,8 +35,10 @@ import {
 import { iosAccentColor } from '@/theme/iosDesignTokens';
 import { SheetHeader } from '@/components/ui';
 import { useSettingsStore } from '@/stores';
+import { useTheme } from '@/hooks/useTheme';
 import { APP_VERSION } from '@/constants';
 import { calculateDirectorySize, clearDirectory, CLIPBOARD_TEMP_DIR } from '@/utils/fileStorage';
+import type { ThemeMode } from '@/theme';
 
 const CACHE_CAP_OPTIONS = [
   { label: '50 MB', value: 50 * 1024 * 1024 },
@@ -56,6 +58,7 @@ function formatSize(bytes: number): string {
 export const SettingsScreen = () => {
   const navigation = useNavigation();
   const { config, isLoaded, loadConfig, updateConfig } = useSettingsStore();
+  const { setThemeMode } = useTheme();
 
   const [presented, setPresented] = useState(true);
   const [cacheSize, setCacheSize] = useState<number | null>(null);
@@ -269,9 +272,12 @@ export const SettingsScreen = () => {
                   label="主题"
                   systemImage="circle.lefthalf.filled"
                   selection={config.appearance}
-                  onSelectionChange={(v) =>
-                    updateConfig({ appearance: v as 'system' | 'light' | 'dark' })
-                  }
+                  onSelectionChange={(v) => {
+                    const appearance = v as 'system' | 'light' | 'dark';
+                    updateConfig({ appearance });
+                    const modeMap: Record<string, ThemeMode> = { system: 'auto', light: 'light', dark: 'dark' };
+                    setThemeMode(modeMap[appearance] ?? 'auto');
+                  }}
                   modifiers={[pickerStyle('menu')]}
                 >
                   <SwiftUIText modifiers={[tag('system')]}>跟随系统</SwiftUIText>
