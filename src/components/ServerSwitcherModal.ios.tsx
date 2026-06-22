@@ -1,10 +1,15 @@
-import React from 'react';
-import { Host, BottomSheet, Group, VStack, HStack, Text as SwiftUIText, Spacer, Button as SwiftUIButton, Image } from '@expo/ui/swift-ui';
+import React, { useState } from 'react';
+import { Host, BottomSheet, Group, VStack, Text as SwiftUIText, Spacer, Button as SwiftUIButton, Image, HStack } from '@expo/ui/swift-ui';
 import { presentationDetents, presentationDragIndicator, font, foregroundStyle, frame, background, padding, shapes, buttonStyle, glassEffect } from '@expo/ui/swift-ui/modifiers';
+import { SheetHeader } from '@/components/ui';
 import type { ServerSwitcherModalProps } from './ServerSwitcherModal.types';
+import { AddServerSheet } from './AddServerSheet';
 
 export function ServerSwitcherModal({ visible, servers, activeIndex, onSelect, onClose, onAdd }: ServerSwitcherModalProps) {
+  const [showAddSheet, setShowAddSheet] = useState(false);
+
   return (
+    <>
     <Host style={{ position: 'absolute', bottom: 0, left: 0, width: 1, height: 1 }}>
       <BottomSheet
         isPresented={visible}
@@ -14,18 +19,20 @@ export function ServerSwitcherModal({ visible, servers, activeIndex, onSelect, o
           presentationDetents(['medium']),
           presentationDragIndicator('visible'),
         ]}>
-          <VStack modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity }), padding({ horizontal: 24, top: 24 })]}>
-            <HStack modifiers={[frame({ maxWidth: Infinity }), padding({ bottom: 16 })]}>
-              <SwiftUIButton onPress={onClose} modifiers={[buttonStyle('plain'), glassEffect({ glass: { variant: 'regular', interactive: true }, shape: 'circle' })]}>
-                <Image systemName="xmark" size={20} color="#AEAEB2" modifiers={[font({ weight: 'semibold' }), padding()]} />
-              </SwiftUIButton>
-              <Spacer />
-              <SwiftUIText modifiers={[font({ weight: 'semibold', size: 17 })]}>Server</SwiftUIText>
-              <Spacer />
-              <SwiftUIButton onPress={onAdd} modifiers={[buttonStyle('plain'), glassEffect({ glass: { variant: 'regular', interactive: true }, shape: 'circle' })]}>
-                <Image systemName="plus" size={20} color="#AEAEB2" modifiers={[font({ weight: 'semibold' }), padding()]} />
-              </SwiftUIButton>
-            </HStack>
+          <VStack modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity })]}>
+            <SheetHeader
+              title="Server"
+              left={
+                <SwiftUIButton onPress={onClose} modifiers={[buttonStyle('plain'), glassEffect({ glass: { variant: 'regular', interactive: true }, shape: 'circle' })]}>
+                  <Image systemName="xmark" size={20} color="#AEAEB2" modifiers={[font({ weight: 'semibold' }), padding()]} />
+                </SwiftUIButton>
+              }
+              right={
+                <SwiftUIButton onPress={() => setShowAddSheet(true)} modifiers={[buttonStyle('plain'), glassEffect({ glass: { variant: 'regular', interactive: true }, shape: 'circle' })]}>
+                  <Image systemName="plus" size={20} color="#AEAEB2" modifiers={[font({ weight: 'semibold' }), padding()]} />
+                </SwiftUIButton>
+              }
+            />
 
             {servers.length === 0 ? (
               <>
@@ -41,7 +48,7 @@ export function ServerSwitcherModal({ visible, servers, activeIndex, onSelect, o
               servers.map((server, index) => {
                 const isActive = index === activeIndex;
                 return (
-                  <SwiftUIButton key={`${server.url}-${index}`} onPress={() => onSelect(index)}>
+                  <SwiftUIButton key={`${server.url}-${index}`} onPress={() => onSelect(index)} modifiers={[padding({ horizontal: 20 })]}>
                     <HStack spacing={12} alignment="center" modifiers={[
                       padding({ horizontal: 16, vertical: 14 }),
                       background(
@@ -71,5 +78,7 @@ export function ServerSwitcherModal({ visible, servers, activeIndex, onSelect, o
         </Group>
       </BottomSheet>
     </Host>
+    <AddServerSheet visible={showAddSheet} onClose={() => setShowAddSheet(false)} />
+    </>
   );
 }

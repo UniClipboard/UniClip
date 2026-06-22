@@ -39,3 +39,9 @@ export type { AppBottomSheetProps } from './AppBottomSheet';
 
 export { AppDropdown } from './AppDropdown';
 export type { AppDropdownProps, AppDropdownOption } from './AppDropdown';
+
+export { GlassContainer } from './GlassContainer';
+export type { GlassContainerProps, GlassShape } from './GlassContainer';
+
+export { SheetHeader } from './SheetHeader';
+export type { SheetHeaderProps } from './SheetHeader';
