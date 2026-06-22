@@ -761,15 +761,9 @@ class ClipboardSyncService {
   }
 
   private _subscribeToClipboardChanges(): void {
-    if (this.clipboardUnsub) return;
-    const { useClipboardStore } = require('../stores/clipboardStore');
-    this.clipboardUnsub = useClipboardStore.subscribe(
-      (state: { currentContent: unknown }, prevState: { currentContent: unknown }) => {
-        if (state.currentContent !== prevState.currentContent && state.currentContent) {
-          this._handleAutoUpload(state.currentContent as ClipboardContent);
-        }
-      }
-    );
+    // Auto-push is now handled exclusively by SyncEngine (respects autoPushLocal only).
+    // The old path here also triggered on enableBackgroundUpload which bypassed autoPushLocal —
+    // that behavior is intentionally removed for consistency with the iOS native app.
   }
 
   private _unsubscribeFromClipboardChanges(): void {

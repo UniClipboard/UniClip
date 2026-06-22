@@ -706,25 +706,8 @@ export class SyncManager {
    * 启动实时同步
    */
   private startRealtimeSync(): void {
-    this.realtimeSyncCallback = async (content: ClipboardContent) => {
-      // 检查是否启用了自动同步
-      const appConfig = useSettingsStore.getState().config;
-      if (!(appConfig?.autoPushLocal ?? false)) return;
-      // 保存已读取的内容，避免 upload 重新读取剪贴板（后台时第二次悬浮窗读取可能失败）
-      this.pendingUploadContent = content;
-      // 当剪贴板变化时，上传新内容
-      const result = await this.sync(SyncDirection.Upload, true);
-      this.pendingUploadContent = null;
-      // 显示系统 Toast 通知
-      if (result.success && !result.skipped && Platform.OS === 'android') {
-        const preview = this.getContentPreview(content);
-        if (appConfig?.syncToastEnabled !== false) {
-          showToast(`已上传\n${preview}`);
-        }
-        this.updateForegroundNotification(`已上传: ${preview}`);
-      }
-    };
-    this.clipboardMonitor.addCallback(this.realtimeSyncCallback);
+    // Auto-push is now handled exclusively by SyncEngine.
+    // Kept as no-op to avoid breaking SyncManager.initialize() which calls this.
   }
 
   /**
