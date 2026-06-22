@@ -4,16 +4,21 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AppConfig, DEFAULT_APP_CONFIG, STORAGE_KEYS } from '../types/storage';
+import { STORAGE_KEYS } from '../types/storage';
+import { AppSettings, DEFAULT_SETTINGS, SETTINGS_SCHEMA_VERSION } from '../types/settings';
 import { ServerConfig } from '../types/api';
 import { SyncMode } from '../types/sync';
+import { migrateConfig, extractRuntimeState } from './ConfigMigration';
+import { runtimeStateStorage } from './RuntimeStateStorage';
 
 /**
  * 配置存储服务
  */
+const SCHEMA_VERSION_KEY = '@syncclipboard:schema_version';
+
 export class ConfigStorage {
   private static instance: ConfigStorage | null = null;
-  private config: AppConfig | null = null;
+  private config: AppSettings | null = null;
   private initialized = false;
 
   private constructor() {}
@@ -41,8 +46,7 @@ export class ConfigStorage {
       this.initialized = true;
     } catch (error) {
       console.error('[ConfigStorage] Failed to initialize:', error);
-      // 使用默认配置
-      this.config = { ...DEFAULT_APP_CONFIG };
+      this.config = { ...DEFAULT_SETTINGS };
       this.initialized = true;
     }
   }
@@ -52,13 +56,25 @@ export class ConfigStorage {
    */
   private async loadConfig(): Promise<void> {
     const configJson = await AsyncStorage.getItem(STORAGE_KEYS.CONFIG);
+    const versionStr = await AsyncStorage.getItem(SCHEMA_VERSION_KEY);
+    const storedVersion = versionStr ? parseInt(versionStr, 10) : 1;
 
     if (configJson) {
       const savedConfig = JSON.parse(configJson);
-      this.config = { ...DEFAULT_APP_CONFIG, ...savedConfig };
+
+      if (storedVersion < SETTINGS_SCHEMA_VERSION) {
+        const runtimeState = extractRuntimeState(savedConfig);
+        await runtimeStateStorage.save(runtimeState);
+        this.config = migrateConfig(savedConfig);
+        await this.saveConfig();
+        await AsyncStorage.setItem(SCHEMA_VERSION_KEY, String(SETTINGS_SCHEMA_VERSION));
+      } else {
+        this.config = { ...DEFAULT_SETTINGS, ...savedConfig };
+      }
     } else {
-      this.config = { ...DEFAULT_APP_CONFIG };
+      this.config = { ...DEFAULT_SETTINGS };
       await this.saveConfig();
+      await AsyncStorage.setItem(SCHEMA_VERSION_KEY, String(SETTINGS_SCHEMA_VERSION));
     }
   }
 
@@ -81,7 +97,7 @@ export class ConfigStorage {
   /**
    * 获取完整配置
    */
-  public async getConfig(): Promise<AppConfig> {
+  public async getConfig(): Promise<AppSettings> {
     if (!this.initialized) {
       await this.initialize();
     }
@@ -92,7 +108,7 @@ export class ConfigStorage {
   /**
    * 更新配置
    */
-  public async updateConfig(updates: Partial<AppConfig>): Promise<void> {
+  public async updateConfig(updates: Partial<AppSettings>): Promise<void> {
     if (!this.initialized) {
       await this.initialize();
     }
@@ -105,7 +121,7 @@ export class ConfigStorage {
    * 重置配置为默认值
    */
   public async resetConfig(): Promise<void> {
-    this.config = { ...DEFAULT_APP_CONFIG };
+    this.config = { ...DEFAULT_SETTINGS };
     await this.saveConfig();
   }
 
@@ -201,16 +217,16 @@ export class ConfigStorage {
   /**
    * 获取主题设置
    */
-  public async getTheme(): Promise<'light' | 'dark' | 'auto'> {
+  public async getTheme(): Promise<'system' | 'light' | 'dark'> {
     const config = await this.getConfig();
-    return config.theme;
+    return config.appearance;
   }
 
   /**
    * 设置主题
    */
-  public async setTheme(theme: 'light' | 'dark' | 'auto'): Promise<void> {
-    await this.updateConfig({ theme });
+  public async setTheme(theme: 'system' | 'light' | 'dark'): Promise<void> {
+    await this.updateConfig({ appearance: theme });
   }
 
   // ========== 同步设置管理 ==========
@@ -280,15 +296,13 @@ export class ConfigStorage {
    */
   public async importConfig(json: string): Promise<void> {
     try {
-      const config = JSON.parse(json) as AppConfig;
+      const imported = JSON.parse(json);
 
-      // 验证必需字段
-      if (!config.servers || !Array.isArray(config.servers)) {
+      if (!imported.servers || !Array.isArray(imported.servers)) {
         throw new Error('Invalid config: missing servers array');
       }
 
-      // 合并默认配置（确保所有字段都存在）
-      this.config = { ...DEFAULT_APP_CONFIG, ...config };
+      this.config = migrateConfig(imported);
       await this.saveConfig();
     } catch (error) {
       console.error('[ConfigStorage] Failed to import config:', error);
@@ -301,7 +315,7 @@ export class ConfigStorage {
    */
   public async clear(): Promise<void> {
     await AsyncStorage.removeItem(STORAGE_KEYS.CONFIG);
-    this.config = { ...DEFAULT_APP_CONFIG };
+    this.config = { ...DEFAULT_SETTINGS };
     this.initialized = false;
   }
 }

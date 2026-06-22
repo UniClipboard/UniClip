@@ -628,8 +628,7 @@ class ClipboardSyncService {
         }
       }
 
-      // 自动复制：autoSync 开启 或 后台下载启用时
-      const autoSyncEnabled = config?.autoSync ?? false;
+      const autoSyncEnabled = config?.autoApplyRemote ?? false;
       const bgDownloadEnabled = !!(
         config?.enableBackgroundTasks && config?.enableBackgroundDownload
       );
@@ -872,15 +871,15 @@ class ClipboardSyncService {
 
   /**
    * 本地剪贴板内容变化时触发自动上传。
-   * 条件：autoSync 开启 或 后台上传启用。
+   * 条件：autoPushLocal 开启 或 后台上传启用。
    */
   private _handleAutoUpload(content: ClipboardContent): void {
     const { useSettingsStore } = require('../stores/settingsStore');
     const config = useSettingsStore.getState().config;
 
-    const autoSync = config?.autoSync ?? false;
+    const autoPush = config?.autoPushLocal ?? false;
     const bgUpload = config?.enableBackgroundTasks && config?.enableBackgroundUpload;
-    if (!autoSync && !bgUpload) return;
+    if (!autoPush && !bgUpload) return;
     if (!this.activeServer) return;
 
     const currentHash = content.profileHash || content.text || '';

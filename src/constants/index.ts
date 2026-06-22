@@ -24,13 +24,7 @@ export const STORAGE_KEYS = {
   LAST_SYNC_TIME: '@last_sync_time',
 };
 
-// Default Settings
-export const DEFAULT_SETTINGS = {
-  autoSync: true,
-  syncInterval: 5000, // 5 seconds
-  maxHistorySize: 100,
-  theme: 'auto' as const,
-};
+export { DEFAULT_SETTINGS } from '../types/settings';
 
 // Supported Image MIME Types
 export const IMAGE_MIME_TYPES = [

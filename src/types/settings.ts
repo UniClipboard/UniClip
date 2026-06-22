@@ -1,0 +1,161 @@
+import { ServerConfig } from './api';
+import { SyncMode, ConflictResolution } from './sync';
+
+export interface ServerData {
+  servers: ServerConfig[];
+  activeServerIndex: number;
+}
+
+export interface SharedSettings {
+  // Sync behavior
+  trustInsecureCert: boolean;
+  autoApplyRemote: boolean;
+  autoPushLocal: boolean;
+  syncOnStartup: boolean;
+
+  // Attachment & cache
+  attachmentAutoDownload: 'wifi' | 'always' | 'off';
+  payloadCacheMaxBytes: number;
+  autoDownloadMaxSize: number;
+
+  // History
+  enableHistorySync: boolean;
+  maxHistoryItems: number;
+
+  // Updates
+  autoCheckUpdate: boolean;
+  updateToBeta: boolean;
+  ignoredVersion: string | null;
+
+  // Appearance
+  appearance: 'system' | 'light' | 'dark';
+  language: string;
+
+  // Logging & debug
+  logLevel: 'debug' | 'info' | 'warn' | 'error';
+  debugMode: boolean;
+
+  // Downloads
+  downloadRelativePath: string;
+}
+
+export interface AndroidSettings {
+  // Background tasks
+  enableBackgroundTasks: boolean;
+  enableBackgroundDownload: boolean;
+  enableBackgroundUpload: boolean;
+  enableClipboardOverlay: boolean;
+  enableShizukuClipboard: boolean;
+  enableSmsForwarding: boolean;
+  enableForegroundNotification: boolean;
+
+  // Notifications
+  enableNotifications: boolean;
+  syncToastEnabled: boolean;
+
+  // UI
+  hideFromRecents: boolean;
+  paletteId: string;
+  showImageCopyButton: boolean;
+
+  // Polling intervals
+  remotePollingInterval: number;
+  localPollingInterval: number;
+
+  // Debug
+  debugOverlayVisible: boolean;
+  debugUrlScheme: boolean;
+  debugUpdateCheckNoLimit: boolean;
+
+  // SyncManager internals (not exposed in settings UI, kept for runtime)
+  syncMode: SyncMode;
+  syncInterval: number;
+  conflictResolution: ConflictResolution;
+  enableOfflineQueue: boolean;
+  maxOfflineQueueSize: number;
+  syncLargeFiles: boolean;
+  largeFileThreshold: number;
+}
+
+export type AppSettings = ServerData & SharedSettings & AndroidSettings;
+
+export interface RuntimeState {
+  lastUpdateCheckDate: string;
+  needsHistoryReorganize: boolean;
+}
+
+export const SERVER_DATA_DEFAULTS: ServerData = {
+  servers: [],
+  activeServerIndex: -1,
+};
+
+export const SHARED_DEFAULTS: SharedSettings = {
+  trustInsecureCert: false,
+  autoApplyRemote: true,
+  autoPushLocal: false,
+  syncOnStartup: true,
+
+  attachmentAutoDownload: 'wifi',
+  payloadCacheMaxBytes: 200 * 1024 * 1024,
+  autoDownloadMaxSize: 5 * 1024 * 1024,
+
+  enableHistorySync: false,
+  maxHistoryItems: 1000,
+
+  autoCheckUpdate: true,
+  updateToBeta: false,
+  ignoredVersion: null,
+
+  appearance: 'system',
+  language: 'zh-CN',
+
+  logLevel: 'info',
+  debugMode: false,
+
+  downloadRelativePath: '',
+};
+
+export const ANDROID_DEFAULTS: AndroidSettings = {
+  enableBackgroundTasks: false,
+  enableBackgroundDownload: false,
+  enableBackgroundUpload: false,
+  enableClipboardOverlay: false,
+  enableShizukuClipboard: false,
+  enableSmsForwarding: false,
+  enableForegroundNotification: true,
+
+  enableNotifications: true,
+  syncToastEnabled: true,
+
+  hideFromRecents: false,
+  paletteId: 'purple',
+  showImageCopyButton: false,
+
+  remotePollingInterval: 3000,
+  localPollingInterval: 1000,
+
+  debugOverlayVisible: false,
+  debugUrlScheme: false,
+  debugUpdateCheckNoLimit: false,
+
+  syncMode: SyncMode.Manual,
+  syncInterval: 5000,
+  conflictResolution: ConflictResolution.UseNewest,
+  enableOfflineQueue: true,
+  maxOfflineQueueSize: 100,
+  syncLargeFiles: true,
+  largeFileThreshold: 10 * 1024 * 1024,
+};
+
+export const DEFAULT_SETTINGS: AppSettings = {
+  ...SERVER_DATA_DEFAULTS,
+  ...SHARED_DEFAULTS,
+  ...ANDROID_DEFAULTS,
+};
+
+export const RUNTIME_STATE_DEFAULTS: RuntimeState = {
+  lastUpdateCheckDate: '',
+  needsHistoryReorganize: false,
+};
+
+export const SETTINGS_SCHEMA_VERSION = 2;

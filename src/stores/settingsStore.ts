@@ -57,10 +57,10 @@ interface SettingsState {
 
   // 主题设置
   /** 获取主题 */
-  getTheme: () => 'light' | 'dark' | 'auto';
+  getTheme: () => 'system' | 'light' | 'dark';
 
   /** 设置主题 */
-  setTheme: (theme: 'light' | 'dark' | 'auto') => Promise<void>;
+  setTheme: (theme: 'system' | 'light' | 'dark') => Promise<void>;
 
   // 同步设置
   /** 设置同步模式 */
@@ -273,11 +273,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   getTheme: () => {
     const { config } = get();
-    return config?.theme || 'auto';
+    return config?.appearance || 'system';
   },
 
-  setTheme: async (theme: 'light' | 'dark' | 'auto') => {
-    await get().updateConfig({ theme });
+  setTheme: async (theme: 'system' | 'light' | 'dark') => {
+    await get().updateConfig({ appearance: theme });
   },
 
   setSyncMode: async (mode: string) => {
@@ -309,7 +309,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   setSyncInBackground: async (enabled: boolean) => {
-    await get().updateConfig({ syncInBackground: enabled });
+    await get().updateConfig({ enableBackgroundTasks: enabled });
   },
 
   setSyncOnStartup: async (enabled: boolean) => {
@@ -317,7 +317,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   setAutoSync: async (enabled: boolean) => {
-    await get().updateConfig({ autoSync: enabled });
+    await get().updateConfig({ autoApplyRemote: enabled, autoPushLocal: enabled });
   },
 
   setAutoDownloadMaxSize: async (sizeInBytes: number) => {
@@ -329,7 +329,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   setLastUpdateCheckDate: async (date: string) => {
-    await get().updateConfig({ lastUpdateCheckDate: date });
+    const { runtimeStateStorage } = await import('../services/RuntimeStateStorage');
+    await runtimeStateStorage.update({ lastUpdateCheckDate: date });
   },
 
   setUpdateToBeta: async (enabled: boolean) => {

@@ -47,73 +47,56 @@ uniclipboard-android/
 │           │       └── x86_64/libuc_mobile.so
 │           └── libs/
 │
-├── rust-core/                             ← Rust source + build scripts
-│   ├── Cargo.toml                         ← workspace root
-│   ├── crates/
-│   │   ├── uc-mobile/                     ← UniFFI boundary crate (FFI surface)
-│   │   │   ├── Cargo.toml
-│   │   │   ├── src/
-│   │   │   │   ├── lib.rs                 ← ConnectPayload, parse_connect_uri
-│   │   │   │   ├── client.rs              ← MobileSyncClient, async HTTP ops
-│   │   │   │   ├── reducer.rs             ← Sync engine decision reducer
-│   │   │   │   └── bin/uniffi-bindgen.rs  ← Bindgen CLI entrypoint
-│   │   │   └── scripts/
-│   │   │       ├── build-ios-xcframework.sh
-│   │   │       └── build-android.sh
-│   │   └── uc-mobile-proto/               ← Pure codec leaf crate (no FFI deps)
-│   │       ├── Cargo.toml
-│   │       └── src/
-│   │           ├── lib.rs
-│   │           ├── connect_uri.rs
-│   │           ├── clipboard_doc.rs
-│   │           ├── history_record.rs
-│   │           ├── multipart.rs
-│   │           ├── sync_engine.rs
-│   │           └── ...
-│   └── scripts/
-│       ├── build-ios.sh                   ← Build xcframework + copy to modules/uc-core/ios
-│       ├── build-android.sh               ← Build .so + copy to modules/uc-core/android
-│       └── update-bindings.sh             ← One-command: build both + generate bindings
+├── rust-core/                             ← Build orchestration (scripts only, no source)
+│   ├── scripts/
+│   │   ├── build-ios.sh                   ← Build xcframework + stage to modules/uc-core/ios
+│   │   ├── build-android.sh               ← Build .so + stage to modules/uc-core/android
+│   │   └── update-bindings.sh             ← One-command: build both platforms
+│   └── README.md                          ← Documents UC_RUST_REPO env var and prerequisites
 │
 └── plugins/
     └── build/
         └── withRustCore.js                ← Config plugin for xcframework linking
 ```
 
-### Rust source management
+### Rust source lives in the upstream monorepo
 
-The Rust crates (`uc-mobile` + `uc-mobile-proto`) live inside this repo under `rust-core/crates/`.
-They are extracted from the upstream `uniclipboard` monorepo and maintained here as the
-single source of truth for the mobile FFI surface.
+The actual Rust source (`uc-mobile` + `uc-mobile-proto` crates) lives in the
+`uniclipboard` monorepo at:
 
-`rust-core/Cargo.toml` is a standalone workspace (NOT part of the upstream monorepo workspace):
-
-```toml
-[workspace]
-members = [
-  "crates/uc-mobile",
-  "crates/uc-mobile-proto",
-]
-
-[workspace.package]
-version = "0.1.0"
-license = "MIT"
+```
+~/MyProjects/uniclipboard/
+├── crates/
+│   ├── uc-mobile/          ← UniFFI boundary crate (FFI surface)
+│   │   ├── src/lib.rs, client.rs, reducer.rs
+│   │   └── scripts/build-ios-xcframework.sh
+│   └── uc-mobile-proto/    ← Pure codec leaf crate
+│       └── src/...
+└── Cargo.toml              ← Workspace root
 ```
 
-The `uc-mobile-proto` crate is a pure leaf (zero workspace deps beyond small codec crates
-like serde, base64, sha2), so it copies cleanly. `uc-mobile` depends only on `uc-mobile-proto`
-plus vendored external crates (uniffi, reqwest, tokio, etc.).
+This project's `rust-core/scripts/` references the upstream repo via `UC_RUST_REPO`
+environment variable (defaults to `~/MyProjects/uniclipboard`). The scripts:
+1. Invoke `cargo build` / `cargo ndk` in the upstream workspace
+2. Run `uniffi-bindgen` to generate Swift/Kotlin bindings
+3. Copy compiled binaries + generated bindings into `modules/uc-core/{ios,android}/`
+
+This keeps a clean separation: Rust source is maintained in one place, while this
+project only owns the Expo Module wrappers (Swift/Kotlin) and the TypeScript API.
 
 ## Phase 1: iOS Integration (Priority)
 
 ### 1.1 Build Pipeline (`rust-core/scripts/build-ios.sh`)
 
-Builds the xcframework from `rust-core/` source and stages output into the Expo module:
+Invokes the upstream build script and stages output into the Expo module:
 
 ```bash
 #!/usr/bin/env bash
-# Build iOS xcframework + UniFFI Swift bindings from local rust-core/ source,
-# then stage artifacts into modules/uc-core/ios/.
+# Build iOS xcframework + UniFFI Swift bindings from the upstream uniclipboard
+# monorepo, then stage artifacts into modules/uc-core/ios/.
+#
+# Environment:
+#   UC_RUST_REPO  — path to the uniclipboard monorepo (default: ~/MyProjects/uniclipboard)
 #
 # Prerequisites:
 #   - Xcode with iOS SDK
@@ -123,61 +106,28 @@ Builds the xcframework from `rust-core/` source and stages output into the Expo 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-RUST_ROOT="$REPO_ROOT/rust-core"
+RUST_REPO="${UC_RUST_REPO:-$HOME/MyProjects/uniclipboard}"
 MODULE_DIR="$REPO_ROOT/modules/uc-core/ios"
 
-BINDINGS_DIR="$RUST_ROOT/target/uniffi-bindings"
-XCFRAMEWORK_OUT="$RUST_ROOT/target/UniClipboardCore.xcframework"
+if [ ! -d "$RUST_REPO/crates/uc-mobile" ]; then
+  echo "ERROR: UC_RUST_REPO not found at $RUST_REPO" >&2
+  echo "Set UC_RUST_REPO to your uniclipboard monorepo path." >&2
+  exit 1
+fi
 
-# 1. Host cdylib + Swift bindings (uniffi-bindgen library mode)
-echo "==> [1/5] Host cdylib + Swift bindings"
-(cd "$RUST_ROOT" && cargo build -p uc-mobile)
-rm -rf "$BINDINGS_DIR"
-(cd "$RUST_ROOT" && cargo run -p uc-mobile --features bindgen-cli --bin uniffi-bindgen -- \
-  generate --library target/debug/libuc_mobile.dylib \
-  --language swift --out-dir "$BINDINGS_DIR")
+# Run the upstream xcframework build script
+echo "==> Building from: $RUST_REPO"
+(cd "$RUST_REPO" && crates/uc-mobile/scripts/build-ios-xcframework.sh)
 
-mkdir -p "$BINDINGS_DIR/include"
-cp "$BINDINGS_DIR/uc_mobileFFI.h" "$BINDINGS_DIR/include/"
-cp "$BINDINGS_DIR/uc_mobileFFI.modulemap" "$BINDINGS_DIR/include/module.modulemap"
-
-# 2. Device static lib
-echo "==> [2/5] Device static lib (aarch64-apple-ios, release)"
-(cd "$RUST_ROOT" && cargo build -p uc-mobile --release --target aarch64-apple-ios)
-
-# 3. Simulator static libs
-echo "==> [3/5] Simulator static lib (aarch64-apple-ios-sim, release)"
-(cd "$RUST_ROOT" && cargo build -p uc-mobile --release --target aarch64-apple-ios-sim)
-
-echo "==> [4/5] Simulator static lib (x86_64-apple-ios, release)"
-(cd "$RUST_ROOT" && cargo build -p uc-mobile --release --target x86_64-apple-ios)
-
-# 5. Assemble xcframework
-echo "==> [5/5] Assemble xcframework"
-rm -rf "$XCFRAMEWORK_OUT"
-
-# Combine simulator arches into universal binary
-mkdir -p "$RUST_ROOT/target/sim-universal"
-lipo -create \
-  "$RUST_ROOT/target/aarch64-apple-ios-sim/release/libuc_mobile.a" \
-  "$RUST_ROOT/target/x86_64-apple-ios/release/libuc_mobile.a" \
-  -output "$RUST_ROOT/target/sim-universal/libuc_mobile.a"
-
-xcodebuild -create-xcframework \
-  -library "$RUST_ROOT/target/aarch64-apple-ios/release/libuc_mobile.a" \
-  -headers "$BINDINGS_DIR/include" \
-  -library "$RUST_ROOT/target/sim-universal/libuc_mobile.a" \
-  -headers "$BINDINGS_DIR/include" \
-  -output "$XCFRAMEWORK_OUT"
-
-# Stage into Expo module
+# Stage xcframework into Expo module
 rm -rf "$MODULE_DIR/UniClipboardCore.xcframework"
-cp -R "$XCFRAMEWORK_OUT" "$MODULE_DIR/"
+cp -R "$RUST_REPO/target/UniClipboardCore.xcframework" "$MODULE_DIR/"
 
+# Stage Swift bindings + C headers
 mkdir -p "$MODULE_DIR/Bindings/include"
-cp "$BINDINGS_DIR/uc_mobile.swift" "$MODULE_DIR/Bindings/"
-cp "$BINDINGS_DIR/include/uc_mobileFFI.h" "$MODULE_DIR/Bindings/include/"
-cp "$BINDINGS_DIR/include/module.modulemap" "$MODULE_DIR/Bindings/include/"
+cp "$RUST_REPO/target/uniffi-bindings/uc_mobile.swift" "$MODULE_DIR/Bindings/"
+cp "$RUST_REPO/target/uniffi-bindings/include/uc_mobileFFI.h" "$MODULE_DIR/Bindings/include/"
+cp "$RUST_REPO/target/uniffi-bindings/include/module.modulemap" "$MODULE_DIR/Bindings/include/"
 
 echo "Done. iOS artifacts staged in: $MODULE_DIR"
 ```
@@ -501,8 +451,11 @@ start with; switch to A or C when binary distribution matters for CI.
 
 ```bash
 #!/usr/bin/env bash
-# Cross-compile uc-mobile for Android targets and generate Kotlin bindings
-# from local rust-core/ source.
+# Cross-compile uc-mobile for Android and generate Kotlin bindings from the
+# upstream uniclipboard monorepo, then stage into modules/uc-core/android/.
+#
+# Environment:
+#   UC_RUST_REPO  — path to the uniclipboard monorepo (default: ~/MyProjects/uniclipboard)
 #
 # Prerequisites:
 #   - cargo-ndk: cargo install cargo-ndk
@@ -513,24 +466,32 @@ start with; switch to A or C when binary distribution matters for CI.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-RUST_ROOT="$REPO_ROOT/rust-core"
+RUST_REPO="${UC_RUST_REPO:-$HOME/MyProjects/uniclipboard}"
 OUTPUT_DIR="$REPO_ROOT/modules/uc-core/android"
 BINDINGS_DIR="$OUTPUT_DIR/src/main/java"
 JNILIB_DIR="$OUTPUT_DIR/src/main/jniLibs"
 
+if [ ! -d "$RUST_REPO/crates/uc-mobile" ]; then
+  echo "ERROR: UC_RUST_REPO not found at $RUST_REPO" >&2
+  echo "Set UC_RUST_REPO to your uniclipboard monorepo path." >&2
+  exit 1
+fi
+
+echo "==> Building from: $RUST_REPO"
+
 # 1. Build host cdylib for bindgen
 echo "==> [1/3] Host cdylib (for uniffi-bindgen)"
-(cd "$RUST_ROOT" && cargo build -p uc-mobile)
+(cd "$RUST_REPO" && cargo build -p uc-mobile)
 
 # 2. Generate Kotlin bindings
 echo "==> [2/3] Kotlin bindings (uniffi-bindgen library mode)"
-(cd "$RUST_ROOT" && cargo run -p uc-mobile --features bindgen-cli --bin uniffi-bindgen -- \
+(cd "$RUST_REPO" && cargo run -p uc-mobile --features bindgen-cli --bin uniffi-bindgen -- \
   generate --library target/debug/libuc_mobile.dylib \
   --language kotlin --out-dir "$BINDINGS_DIR")
 
 # 3. Cross-compile .so for each ABI
 echo "==> [3/3] Cross-compile (cargo-ndk)"
-(cd "$RUST_ROOT" && cargo ndk \
+(cd "$RUST_REPO" && cargo ndk \
   -t arm64-v8a \
   -t armeabi-v7a \
   -t x86_64 \
@@ -898,7 +859,10 @@ export function cancelInFlight(): void {
 ### Local Development
 
 ```bash
-# First time: build Rust artifacts from rust-core/ source
+# Ensure UC_RUST_REPO points to your uniclipboard monorepo (or use default ~/MyProjects/uniclipboard)
+export UC_RUST_REPO=~/MyProjects/uniclipboard
+
+# First time: build Rust artifacts and stage into modules/uc-core/
 ./rust-core/scripts/build-ios.sh       # → xcframework + Swift bindings (priority)
 ./rust-core/scripts/build-android.sh   # → .so files + Kotlin bindings
 
@@ -910,13 +874,15 @@ npx expo run:android
 
 ### CI / EAS Build
 
-Since Rust source is in-repo, CI can build from source if Rust toolchain is available.
-Alternatively, cache the build artifacts between CI runs to avoid rebuilding every time.
+Build scripts reference the upstream Rust repo. For CI:
 
-**Android**: `.so` files can be committed to repo (~12 MB total) for zero-setup CI.
+**Android**: `.so` files committed to repo (~12 MB total) — no Rust toolchain needed in CI.
+Re-run `build-android.sh` locally when Rust code changes, commit the new `.so` files.
 
-**iOS**: xcframework is too large to commit; CI must either build from source or
-download a pre-built artifact.
+**iOS**: xcframework is too large to commit (~70 MB). Options:
+- Publish xcframework to GitHub Releases, download during EAS build
+- Include Rust toolchain in the EAS build image and run `build-ios.sh` with the
+  upstream repo available (e.g., via git submodule or checkout step)
 
 ## Migration Path (from current JS → Rust)
 
@@ -952,25 +918,6 @@ pull-based sync only.
 
 5. **Expo Go incompatibility**: The app already requires development builds (has multiple
    native modules), so this is not a new constraint.
-
-## Syncing Rust Source from Upstream
-
-When the upstream `uniclipboard` monorepo updates `uc-mobile` or `uc-mobile-proto`,
-sync the changes into `rust-core/crates/`:
-
-```bash
-# From upstream monorepo
-cp -R ~/MyProjects/uniclipboard/crates/uc-mobile/src     rust-core/crates/uc-mobile/src
-cp    ~/MyProjects/uniclipboard/crates/uc-mobile/Cargo.toml rust-core/crates/uc-mobile/Cargo.toml
-cp -R ~/MyProjects/uniclipboard/crates/uc-mobile-proto/src  rust-core/crates/uc-mobile-proto/src
-cp    ~/MyProjects/uniclipboard/crates/uc-mobile-proto/Cargo.toml rust-core/crates/uc-mobile-proto/Cargo.toml
-```
-
-Then adjust the workspace-level Cargo.toml if any dependency versions changed.
-The `uc-mobile` Cargo.toml needs `version.workspace = true` lines replaced with
-explicit versions (since it's no longer in the upstream workspace).
-
-Consider using `git subtree` for automated sync if this becomes frequent.
 
 ## Prerequisites
 

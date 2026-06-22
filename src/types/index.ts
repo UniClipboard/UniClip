@@ -35,10 +35,4 @@ export interface ServerConfig {
   forcePathStyle?: boolean;
 }
 
-export interface AppSettings {
-  server: ServerConfig;
-  autoSync: boolean;
-  syncInterval: number;
-  maxHistorySize: number;
-  theme: 'light' | 'dark' | 'auto';
-}
+export type { AppSettings } from './settings';

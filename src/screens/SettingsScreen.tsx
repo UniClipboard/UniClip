@@ -121,7 +121,7 @@ export const SettingsScreen = () => {
   const { message, showMessage, handleMessageShown } = useMessageToast();
 
   // 本地状态用于跟踪Switch的当前值，避免闪烁
-  const [localAutoSyncEnabled, setLocalAutoSyncEnabled] = useState(config?.autoSync ?? false);
+  const [localAutoSyncEnabled, setLocalAutoSyncEnabled] = useState(config?.autoPushLocal ?? false);
   const [localDebugModeEnabled, setLocalDebugModeEnabled] = useState(config?.debugMode ?? false);
   const [localAutoCheckUpdateEnabled, setLocalAutoCheckUpdateEnabled] = useState(
     config?.autoCheckUpdate ?? true
@@ -172,7 +172,7 @@ export const SettingsScreen = () => {
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [showImageAutoDownloadMenu, setShowImageAutoDownloadMenu] = useState(false);
   const [localImageAutoDownload, setLocalImageAutoDownload] = useState<'wifi' | 'always' | 'off'>(
-    config?.historyImageAutoDownload ?? 'wifi'
+    config?.attachmentAutoDownload ?? 'wifi'
   );
   const [statsText, setStatsText] = useState('');
 
@@ -213,10 +213,9 @@ export const SettingsScreen = () => {
     }
   }, [isLoaded, loadConfig]);
 
-  // 当配置中的autoSync值变化时，更新本地状态
   useEffect(() => {
-    setLocalAutoSyncEnabled(config?.autoSync ?? false);
-  }, [config?.autoSync]);
+    setLocalAutoSyncEnabled(config?.autoPushLocal ?? false);
+  }, [config?.autoPushLocal]);
 
   // 当配置中的debugMode值变化时，更新本地状态
   useEffect(() => {
@@ -275,8 +274,8 @@ export const SettingsScreen = () => {
   }, [config?.hideFromRecents]);
 
   useEffect(() => {
-    setLocalImageAutoDownload(config?.historyImageAutoDownload ?? 'wifi');
-  }, [config?.historyImageAutoDownload]);
+    setLocalImageAutoDownload(config?.attachmentAutoDownload ?? 'wifi');
+  }, [config?.attachmentAutoDownload]);
 
   // 计算存储大小
   useEffect(() => {
@@ -316,13 +315,17 @@ export const SettingsScreen = () => {
   useEffect(() => {
     if (!isLoaded) return;
     if (!(config?.autoCheckUpdate ?? true)) return;
-    const today = new Date().toISOString().slice(0, 10);
-    if (
-      !(config?.debugUpdateCheckNoLimit ?? false) &&
-      (config?.lastUpdateCheckDate ?? '') === today
-    )
-      return;
-    runUpdateCheck(false, config?.updateToBeta ?? false);
+    (async () => {
+      const { runtimeStateStorage } = await import('@/services/RuntimeStateStorage');
+      const runtimeState = await runtimeStateStorage.load();
+      const today = new Date().toISOString().slice(0, 10);
+      if (
+        !(config?.debugUpdateCheckNoLimit ?? false) &&
+        runtimeState.lastUpdateCheckDate === today
+      )
+        return;
+      runUpdateCheck(false, config?.updateToBeta ?? false);
+    })();
   }, [isLoaded]);
 
   const themeOptions: { label: string; value: ThemeMode }[] = [
@@ -529,7 +532,8 @@ export const SettingsScreen = () => {
 
     try {
       await setActiveServer(index);
-      await updateConfig({ needsHistoryReorganize: true });
+      const { runtimeStateStorage } = await import('@/services/RuntimeStateStorage');
+      await runtimeStateStorage.update({ needsHistoryReorganize: true });
       showMessage('已切换服务器', 'success');
     } catch (error: unknown) {
       showMessage(error instanceof Error ? error.message : '切换失败', 'error');
@@ -1036,7 +1040,8 @@ export const SettingsScreen = () => {
       await setEnableHistorySync(enabled);
 
       if (!enabled) {
-        await updateConfig({ needsHistoryReorganize: true });
+        const { runtimeStateStorage } = await import('@/services/RuntimeStateStorage');
+        await runtimeStateStorage.update({ needsHistoryReorganize: true });
       }
 
       showMessage(enabled ? '已启用历史记录同步' : '已禁用历史记录同步', 'success');
@@ -1050,9 +1055,9 @@ export const SettingsScreen = () => {
   const handleImageAutoDownloadChange = async (value: 'wifi' | 'always' | 'off') => {
     setLocalImageAutoDownload(value);
     try {
-      await updateConfig({ historyImageAutoDownload: value });
+      await updateConfig({ attachmentAutoDownload: value });
     } catch {
-      setLocalImageAutoDownload(config?.historyImageAutoDownload ?? 'wifi');
+      setLocalImageAutoDownload(config?.attachmentAutoDownload ?? 'wifi');
     }
   };
 

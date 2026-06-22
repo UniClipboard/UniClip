@@ -67,7 +67,7 @@ export const HistoryListItem = forwardRef<object, HistoryListItemProps>(
 
     // 响应式读取自动下载设置，变化时触发 effect 重新执行
     const imageAutoDownload = useSettingsStore(
-      (state) => state.config?.historyImageAutoDownload ?? 'wifi'
+      (state) => state.config?.attachmentAutoDownload ?? 'wifi'
     );
 
     // 组件挂载或 item/设置 变化时触发自动下载（FlashList 复用场景）

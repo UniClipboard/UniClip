@@ -709,7 +709,7 @@ export class SyncManager {
     this.realtimeSyncCallback = async (content: ClipboardContent) => {
       // 检查是否启用了自动同步
       const appConfig = useSettingsStore.getState().config;
-      if (!(appConfig?.autoSync ?? false)) return;
+      if (!(appConfig?.autoPushLocal ?? false)) return;
       // 保存已读取的内容，避免 upload 重新读取剪贴板（后台时第二次悬浮窗读取可能失败）
       this.pendingUploadContent = content;
       // 当剪贴板变化时，上传新内容

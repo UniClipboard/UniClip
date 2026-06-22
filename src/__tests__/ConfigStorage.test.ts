@@ -1,5 +1,6 @@
 import { ConfigStorage } from '../services/ConfigStorage';
-import { AppConfig, DEFAULT_APP_CONFIG, STORAGE_KEYS } from '../types/storage';
+import { STORAGE_KEYS } from '../types/storage';
+import { AppSettings, DEFAULT_SETTINGS } from '../types/settings';
 import { ServerConfig } from '../types/api';
 import { SyncMode } from '../types/sync';
 
@@ -18,7 +19,7 @@ interface TestableConfigStorage extends ConfigStorage {
 
 interface ConfigStoragePrivate {
   initialized: boolean;
-  config: AppConfig | null;
+  config: AppSettings | null;
 }
 
 describe('ConfigStorage', () => {
@@ -42,8 +43,8 @@ describe('ConfigStorage', () => {
 
   describe('initialize', () => {
     it('should load config from storage', async () => {
-      const mockConfig: AppConfig = {
-        ...DEFAULT_APP_CONFIG,
+      const mockConfig: AppSettings = {
+        ...DEFAULT_SETTINGS,
         servers: [{ type: 'syncclipboard', url: 'https://test.com' }],
         activeServerIndex: 0,
       };
@@ -75,8 +76,8 @@ describe('ConfigStorage', () => {
 
   describe('getConfig', () => {
     it('should return config after initialization', async () => {
-      const mockConfig: AppConfig = {
-        ...DEFAULT_APP_CONFIG,
+      const mockConfig: AppSettings = {
+        ...DEFAULT_SETTINGS,
         syncMode: SyncMode.Manual,
       };
       mockGetItem.mockResolvedValue(JSON.stringify(mockConfig));
@@ -87,7 +88,7 @@ describe('ConfigStorage', () => {
     });
 
     it('should return a copy of config', async () => {
-      mockGetItem.mockResolvedValue(JSON.stringify(DEFAULT_APP_CONFIG));
+      mockGetItem.mockResolvedValue(JSON.stringify(DEFAULT_SETTINGS));
 
       const result = await configStorage.getConfig();
 
@@ -100,7 +101,7 @@ describe('ConfigStorage', () => {
 
   describe('updateConfig', () => {
     it('should update config and save', async () => {
-      mockGetItem.mockResolvedValue(JSON.stringify(DEFAULT_APP_CONFIG));
+      mockGetItem.mockResolvedValue(JSON.stringify(DEFAULT_SETTINGS));
       mockSetItem.mockResolvedValue(undefined);
 
       await configStorage.updateConfig({ syncMode: SyncMode.Auto });
@@ -111,22 +112,22 @@ describe('ConfigStorage', () => {
 
   describe('resetConfig', () => {
     it('should reset to default config', async () => {
-      mockGetItem.mockResolvedValue(JSON.stringify(DEFAULT_APP_CONFIG));
+      mockGetItem.mockResolvedValue(JSON.stringify(DEFAULT_SETTINGS));
       mockSetItem.mockResolvedValue(undefined);
 
       await configStorage.resetConfig();
 
       expect(mockSetItem).toHaveBeenCalledWith(
         STORAGE_KEYS.CONFIG,
-        JSON.stringify(DEFAULT_APP_CONFIG)
+        JSON.stringify(DEFAULT_SETTINGS)
       );
     });
   });
 
   describe('Server Management', () => {
     beforeEach(async () => {
-      const mockConfig: AppConfig = {
-        ...DEFAULT_APP_CONFIG,
+      const mockConfig: AppSettings = {
+        ...DEFAULT_SETTINGS,
         servers: [{ type: 'syncclipboard', url: 'https://server1.com' }],
         activeServerIndex: 0,
       };
@@ -161,7 +162,7 @@ describe('ConfigStorage', () => {
 
       it('should return null if no active server', async () => {
         mockGetItem.mockResolvedValue(
-          JSON.stringify({ ...DEFAULT_APP_CONFIG, servers: [], activeServerIndex: -1 })
+          JSON.stringify({ ...DEFAULT_SETTINGS, servers: [], activeServerIndex: -1 })
         );
         const privateProps = getPrivate(configStorage);
         privateProps.initialized = false;
@@ -186,7 +187,7 @@ describe('ConfigStorage', () => {
       it('should auto-activate first server', async () => {
         const newServer: ServerConfig = { type: 'syncclipboard', url: 'https://server2.com' };
         mockGetItem.mockResolvedValue(
-          JSON.stringify({ ...DEFAULT_APP_CONFIG, servers: [], activeServerIndex: -1 })
+          JSON.stringify({ ...DEFAULT_SETTINGS, servers: [], activeServerIndex: -1 })
         );
         const privateProps = getPrivate(configStorage);
         privateProps.initialized = false;
@@ -245,7 +246,7 @@ describe('ConfigStorage', () => {
       it('should set active server index', async () => {
         mockGetItem.mockResolvedValue(
           JSON.stringify({
-            ...DEFAULT_APP_CONFIG,
+            ...DEFAULT_SETTINGS,
             servers: [
               { type: 'syncclipboard', url: 'https://server1.com' },
               { type: 'webdav', url: 'https://server2.com' },
