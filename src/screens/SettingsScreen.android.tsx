@@ -1423,7 +1423,7 @@ export const SettingsScreen = () => {
             <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>同步设置</Text>
           </View>
 
-          <Host matchContents style={styles.hostFill}>
+          <Host matchContents={{ vertical: true }} style={styles.hostFill}>
             <Card colors={{ containerColor: theme.colors.surface }}>
               <Column modifiers={[fillMaxWidth()]}>
                 <ListItem colors={{ containerColor: theme.colors.surface }}>
@@ -1577,7 +1577,7 @@ export const SettingsScreen = () => {
             <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>历史记录</Text>
           </View>
 
-          <Host matchContents style={styles.hostFill}>
+          <Host matchContents={{ vertical: true }} style={styles.hostFill}>
             <Card colors={{ containerColor: theme.colors.surface }}>
               <Column modifiers={[fillMaxWidth()]}>
                 <ListItem colors={{ containerColor: theme.colors.surface }}>
@@ -1713,7 +1713,7 @@ export const SettingsScreen = () => {
               <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>后台任务</Text>
             </View>
 
-            <Host matchContents style={styles.hostFill}>
+            <Host matchContents={{ vertical: true }} style={styles.hostFill}>
               <Card colors={{ containerColor: theme.colors.surface }}>
                 <Column modifiers={[fillMaxWidth()]}>
                   <ListItem colors={{ containerColor: theme.colors.surface }}>
@@ -1917,7 +1917,7 @@ export const SettingsScreen = () => {
               <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>短信自动化</Text>
             </View>
 
-            <Host matchContents style={styles.hostFill}>
+            <Host matchContents={{ vertical: true }} style={styles.hostFill}>
               <Card colors={{ containerColor: theme.colors.surface }}>
                 <Column modifiers={[fillMaxWidth()]}>
                   <ListItem colors={{ containerColor: theme.colors.surface }}>
@@ -1957,7 +1957,7 @@ export const SettingsScreen = () => {
               </TouchableOpacity>
             </View>
 
-            <Host matchContents style={styles.hostFill}>
+            <Host matchContents={{ vertical: true }} style={styles.hostFill}>
               <Card colors={{ containerColor: theme.colors.surface }}>
                 <Column modifiers={[fillMaxWidth()]}>
                   <ListItem colors={{ containerColor: theme.colors.surface }}>
@@ -2109,7 +2109,7 @@ export const SettingsScreen = () => {
             <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>快捷操作</Text>
           </View>
 
-          <Host matchContents style={styles.hostFill}>
+          <Host matchContents={{ vertical: true }} style={styles.hostFill}>
             <Card colors={{ containerColor: theme.colors.surface }}>
               <Column modifiers={[fillMaxWidth()]}>
                 <ListItem colors={{ containerColor: theme.colors.surface }}>
@@ -2165,7 +2165,7 @@ export const SettingsScreen = () => {
             </TouchableOpacity>
           </View>
 
-          <Host matchContents style={styles.hostFill}>
+          <Host matchContents={{ vertical: true }} style={styles.hostFill}>
             <Card colors={{ containerColor: theme.colors.surface }}>
               <Column modifiers={[fillMaxWidth()]}>
                 <ListItem colors={{ containerColor: theme.colors.surface }}>
@@ -2239,7 +2239,7 @@ export const SettingsScreen = () => {
             <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>日志</Text>
           </View>
 
-          <Host matchContents style={styles.hostFill}>
+          <Host matchContents={{ vertical: true }} style={styles.hostFill}>
             <Card colors={{ containerColor: theme.colors.surface }}>
               <Column modifiers={[fillMaxWidth()]}>
                 <ListItem colors={{ containerColor: theme.colors.surface }}>
@@ -2474,7 +2474,7 @@ export const SettingsScreen = () => {
             <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>关于</Text>
           </View>
 
-          <Host matchContents style={styles.hostFill}>
+          <Host matchContents={{ vertical: true }} style={styles.hostFill}>
             <Card colors={{ containerColor: theme.colors.surface }}>
               <Column modifiers={[fillMaxWidth()]}>
                 <ListItem colors={{ containerColor: theme.colors.surface }}>
@@ -2586,7 +2586,7 @@ export const SettingsScreen = () => {
             <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>调试</Text>
           </View>
 
-          <Host matchContents style={styles.hostFill}>
+          <Host matchContents={{ vertical: true }} style={styles.hostFill}>
             <Card colors={{ containerColor: theme.colors.surface }}>
               <Column modifiers={[fillMaxWidth()]}>
                 <ListItem colors={{ containerColor: theme.colors.surface }}>
