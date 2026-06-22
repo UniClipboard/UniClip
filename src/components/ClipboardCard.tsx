@@ -1,8 +1,15 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Image, Pressable, Platform } from 'react-native';
+import Svg, {
+  Defs,
+  LinearGradient as SvgLinearGradient,
+  Stop,
+  Rect as SvgRect,
+} from 'react-native-svg';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { ArrowDown, ArrowUp } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { useURLMetadata } from '@/hooks/useURLMetadata';
 import { ClipboardItem } from '@/types/clipboard';
 import { iosColors, iosCardShadow, iosDimensions } from '@/theme/iosDesignTokens';
 import {
@@ -195,6 +202,85 @@ function BottomRow({
   );
 }
 
+function GradientScrim({
+  direction,
+  opacity,
+  style,
+}: {
+  direction: 'down' | 'up';
+  opacity: number;
+  style: any;
+}) {
+  const id = direction === 'down' ? 'scrimDown' : 'scrimUp';
+  return (
+    <View style={style} pointerEvents="none">
+      <Svg width="100%" height="100%">
+        <Defs>
+          <SvgLinearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+            <Stop
+              offset="0"
+              stopColor="black"
+              stopOpacity={direction === 'down' ? opacity : 0}
+            />
+            <Stop
+              offset="1"
+              stopColor="black"
+              stopOpacity={direction === 'down' ? 0 : opacity}
+            />
+          </SvgLinearGradient>
+        </Defs>
+        <SvgRect width="100%" height="100%" fill={`url(#${id})`} />
+      </Svg>
+    </View>
+  );
+}
+
+function CheckerboardBackground() {
+  return (
+    <View style={StyleSheet.absoluteFill}>
+      <View style={checkerStyles.overlay}>
+        {Array.from({ length: 12 }, (_, row) => (
+          <View key={row} style={checkerStyles.row}>
+            {Array.from({ length: 12 }, (_, col) => (
+              <View
+                key={col}
+                style={[
+                  checkerStyles.cell,
+                  (row + col) % 2 === 0
+                    ? checkerStyles.lightCell
+                    : checkerStyles.darkCell,
+                ]}
+              />
+            ))}
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+// Keep unused import suppression — Svg/Defs/SvgRect used by GradientScrim
+
+const checkerStyles = StyleSheet.create({
+  overlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    flexDirection: 'column',
+  },
+  row: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  cell: {
+    flex: 1,
+  },
+  lightCell: {
+    backgroundColor: 'rgba(217,217,217,0.25)',
+  },
+  darkCell: {
+    backgroundColor: 'rgba(166,166,166,0.25)',
+  },
+});
+
 function StandardCardBody({
   item,
   displayKind,
@@ -245,24 +331,20 @@ function ImageCardBody({
   const hasImage = item.isLocalFileReady && item.fileUri;
   return (
     <View style={styles.imageBody}>
-      {/* Checkerboard background */}
-      <View style={styles.checkerboard}>
-        {hasImage ? (
-          <Image
-            source={{ uri: item.fileUri }}
-            style={styles.thumbnailImage}
-            resizeMode="contain"
-          />
-        ) : (
-          <View style={[styles.imagePlaceholder, { backgroundColor: 'rgba(76,175,80,0.12)' }]}>
-            <Ionicons name="image" size={36} color="rgba(76,175,80,0.5)" />
-          </View>
-        )}
-      </View>
-      {/* Gradient scrims */}
-      <View style={styles.topGradient} />
-      <View style={styles.bottomGradient} />
-      {/* Overlaid header + footer */}
+      <CheckerboardBackground />
+      {hasImage ? (
+        <Image
+          source={{ uri: item.fileUri }}
+          style={styles.thumbnailImage}
+          resizeMode="contain"
+        />
+      ) : (
+        <View style={[styles.imagePlaceholder, { backgroundColor: 'rgba(76,175,80,0.12)' }]}>
+          <Ionicons name="image" size={36} color="rgba(76,175,80,0.5)" />
+        </View>
+      )}
+      <GradientScrim direction="down" opacity={0.45} style={styles.topScrim} />
+      <GradientScrim direction="up" opacity={0.35} style={styles.bottomScrim} />
       <View style={styles.imageOverlay}>
         <HeaderRow kindLabel={kindLabel} relativeTime={relativeTime} overlay theme={theme} />
         <View style={styles.spacer} />
@@ -280,26 +362,36 @@ function URLCardBody({
   isLatest,
   theme,
 }: Pick<CardBodyProps, 'item' | 'kindLabel' | 'kindColor' | 'relativeTime' | 'isLatest' | 'theme'>) {
+  const metadata = useURLMetadata(item.text.trim());
   const domain = getURLDomain(item.text);
   const urlText = getURLWithoutScheme(item.text);
+  const hasOgImage = !!metadata?.ogImageUrl;
+  const displayTitle = metadata?.title || domain;
+
   return (
     <View style={styles.urlBody}>
-      {/* Top 60%: placeholder or OG image */}
-      <View style={[styles.urlImageArea, { backgroundColor: 'rgba(0,188,212,0.12)' }]}>
-        <Ionicons name="globe-outline" size={36} color="rgba(0,188,212,0.4)" />
-        {/* Top gradient + header */}
-        <View style={styles.topGradient} />
-        <View style={styles.urlImageOverlay}>
+      <View style={styles.urlImageArea}>
+        <View style={[styles.urlPlaceholder, { backgroundColor: 'rgba(0,188,212,0.12)' }]}>
+          <Ionicons name="globe-outline" size={36} color="rgba(0,188,212,0.4)" />
+        </View>
+        {hasOgImage && (
+          <Image
+            source={{ uri: metadata!.ogImageUrl }}
+            style={styles.ogImage}
+            resizeMode="cover"
+          />
+        )}
+        <GradientScrim direction="down" opacity={0.45} style={styles.topScrim} />
+        <View style={styles.urlImageHeaderOverlay}>
           <HeaderRow kindLabel={kindLabel} relativeTime={relativeTime} overlay theme={theme} />
         </View>
       </View>
-      {/* Bottom 40%: domain + URL */}
       <View style={[styles.urlInfoArea, { backgroundColor: iosColors?.secondarySystemGroupedBackground ?? theme.colors.surfaceContainerLow }]}>
         <Text
-          style={[styles.urlDomain, { color: theme.colors.onSurface }]}
+          style={[styles.urlTitle, { color: theme.colors.onSurface }]}
           numberOfLines={1}
         >
-          {domain}
+          {displayTitle}
         </Text>
         <Text
           style={[styles.urlText, { color: theme.colors.onSurfaceVariant }]}
@@ -328,7 +420,6 @@ const styles = StyleSheet.create({
     ...iosCardShadow,
     borderCurve: 'continuous' as any,
   },
-  // Standard (text/file/group)
   standardBody: {
     flex: 1,
     padding: 12,
@@ -348,7 +439,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
   },
-  // Header / Bottom
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -378,58 +468,56 @@ const styles = StyleSheet.create({
   spacer: {
     flex: 1,
   },
-  // Image card
   imageBody: {
     flex: 1,
   },
-  checkerboard: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(200,200,200,0.15)',
-  },
   thumbnailImage: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
     width: '100%',
     height: '100%',
   },
   imagePlaceholder: {
-    flex: 1,
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  topGradient: {
+  topScrim: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     height: 36,
-    backgroundColor: 'transparent',
-    // Using a simple semi-transparent overlay since RN doesn't have LinearGradient built-in
-    // We'll use a View with opacity
   },
-  bottomGradient: {
+  bottomScrim: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     height: 28,
-    backgroundColor: 'transparent',
   },
   imageOverlay: {
-    ...StyleSheet.absoluteFill,
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
     padding: 10,
     justifyContent: 'space-between',
-    // Semi-transparent scrims for text legibility
-    backgroundColor: 'rgba(0,0,0,0.08)',
   },
-  // URL card
   urlBody: {
     flex: 1,
   },
   urlImageArea: {
     flex: 3,
+    overflow: 'hidden',
+  },
+  ogImage: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    width: '100%',
+    height: '100%',
+  },
+  urlPlaceholder: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  urlImageOverlay: {
+  urlImageHeaderOverlay: {
     position: 'absolute',
     top: 0,
     left: 0,
@@ -441,7 +529,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  urlDomain: {
+  urlTitle: {
     fontSize: 12,
     fontWeight: '600',
   },
@@ -449,9 +537,8 @@ const styles = StyleSheet.create({
     fontSize: 10,
     marginTop: 2,
   },
-  // Select overlay
   selectOverlay: {
-    ...StyleSheet.absoluteFill,
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },
