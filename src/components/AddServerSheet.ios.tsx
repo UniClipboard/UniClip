@@ -299,7 +299,7 @@ export function AddServerSheet({ visible, onClose, onSave }: AddServerSheetProps
                     ref={nameRef}
                     placeholder="便于辨识的名称"
                     onTextChange={setName}
-                    modifiers={[textFieldStyle('plain')]}
+                    modifiers={[textFieldStyle('plain'), frame({ minHeight: 22 })]}
                   />
                   <SwiftUIButton onPress={() => {}} modifiers={[buttonStyle('plain')]}>
                     <Image systemName="shuffle" size={18} color="#8E8E93" />
@@ -325,7 +325,7 @@ export function AddServerSheet({ visible, onClose, onSave }: AddServerSheetProps
                       }}
                       placeholder="https://your-server.com:5033/"
                       onTextChange={(text: string) => updateUrl(i, text)}
-                      modifiers={[textFieldStyle('plain'), foregroundColor('#007AFF')]}
+                      modifiers={[textFieldStyle('plain'), foregroundColor('#007AFF'), frame({ minHeight: 22 })]}
                     />
                     {classForUrl(url) && (
                       <URLClassChip urlClass={classForUrl(url)!} />
@@ -362,12 +362,13 @@ export function AddServerSheet({ visible, onClose, onSave }: AddServerSheetProps
                   ref={usernameRef}
                   placeholder="用户名"
                   onTextChange={setUsername}
-                  modifiers={[textFieldStyle('plain')]}
+                  modifiers={[textFieldStyle('plain'), frame({ minHeight: 22 })]}
                 />
                 <SecureField
                   ref={passwordRef}
                   placeholder="密码"
                   onTextChange={setPassword}
+                  modifiers={[frame({ minHeight: 22 })]}
                 />
               </Section>
 
