@@ -7,6 +7,7 @@ import {
   RefreshControl,
   Pressable,
   Share,
+  Linking,
   BackHandler,
   useWindowDimensions,
   StatusBar,
@@ -19,6 +20,8 @@ import { iosColors } from '@/theme/iosDesignTokens';
 import { DefaultTopBar, SelectModeTopBar } from '@/components/HomeTopBar';
 import { DefaultBottomBar, SearchBottomBar, SelectModeBottomBar } from '@/components/HomeBottomBar';
 import { ServerSwitcherModal } from '@/components/ServerSwitcherModal';
+import { ClipboardCardActionSheet } from '@/components/ClipboardCardActionSheet';
+import { ClipboardCardMenu } from '@/components/ClipboardCardMenu';
 import { spacing } from '@/theme';
 import { useHistoryStore } from '@/stores/historyStore';
 import { useClipboardStore } from '@/stores/clipboardStore';
@@ -36,6 +39,9 @@ import { MessageToast } from '@/components/MessageToast';
 import { WordPickerScreen } from '@/screens/WordPickerScreen';
 import { QuickLoadingPage } from '@/components/QuickLoadingPage';
 import { copyToLocalClipboard } from '@/utils/clipboard';
+import { getDisplayKind } from '@/utils/displayKind';
+import { buildActionMenuItems } from '@/utils/actionMenuItems';
+import { saveToGallery, saveFile, shareFile } from '@/utils/fileActions';
 import { HistoryFilter } from '@/types/storage';
 import { isHistorySyncEnabled } from '@/utils/config';
 import * as DocumentPicker from 'expo-document-picker';
@@ -71,6 +77,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
     selectAll,
     clearSelection,
     deleteSelected,
+    deleteItem,
   } = useHistoryStore();
   const { config, getActiveServer, getServers, setActiveServer, addServer } = useSettingsStore();
   const { message, showMessage, clearMessage } = useMessageStore();
@@ -192,15 +199,146 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
     [isSelectMode, toggleSelection, copyItemWithSync, showMessage]
   );
 
+  // ── Long-press → action sheet ────────────────────────────────
+  const [actionSheetItem, setActionSheetItem] = useState<ClipboardItem | null>(null);
+
   const handleItemLongPress = useCallback(
     (item: ClipboardItem) => {
-      if (!isSelectMode) {
+      import('expo-haptics')
+        .then((Haptics) => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium))
+        .catch(() => {});
+      setActionSheetItem(item);
+    },
+    []
+  );
+
+  const handleActionSheetDismiss = useCallback(() => {
+    setActionSheetItem(null);
+  }, []);
+
+  const actionSheetDisplayKind = useMemo(
+    () => (actionSheetItem ? getDisplayKind(actionSheetItem.type, actionSheetItem.text) : null),
+    [actionSheetItem]
+  );
+
+  const actionMenuItems = useMemo(() => {
+    if (!actionSheetItem || !actionSheetDisplayKind) return [];
+    return buildActionMenuItems(actionSheetItem, actionSheetDisplayKind, {
+      onCopy: async () => {
+        const result = await copyItemWithSync(actionSheetItem);
+        showMessage(result.success ? '已复制到剪贴板' : result.message || '复制失败', result.success ? 'success' : 'error');
+      },
+      onSelectText: () => {
+        setWordPickerText(actionSheetItem.text);
+      },
+      onCopyPlainText: async () => {
+        const Clipboard = await import('expo-clipboard');
+        await Clipboard.default.setStringAsync(actionSheetItem.text);
+        showMessage('已复制为纯文本', 'success');
+      },
+      onOpenInBrowser: () => {
+        Linking.openURL(actionSheetItem.text.trim());
+      },
+      onSaveImage: async () => {
+        try {
+          await saveToGallery(actionSheetItem.fileUri!);
+          showMessage('已保存到相册', 'success');
+        } catch {
+          showMessage('保存失败', 'error');
+        }
+      },
+      onSaveFile: async () => {
+        try {
+          await saveFile(actionSheetItem.fileUri!, actionSheetItem.dataName);
+          showMessage('已保存文件', 'success');
+        } catch {
+          showMessage('保存失败', 'error');
+        }
+      },
+      onShare: async () => {
+        if (
+          (actionSheetDisplayKind === 'image' || actionSheetDisplayKind === 'file' || actionSheetDisplayKind === 'group') &&
+          actionSheetItem.fileUri &&
+          actionSheetItem.isLocalFileReady
+        ) {
+          await shareFile(actionSheetItem.fileUri, actionSheetItem.dataName);
+        } else {
+          await Share.share({ message: actionSheetItem.text });
+        }
+      },
+      onSelect: () => {
         setIsSelectMode(true);
         clearSelection();
+        toggleSelection(actionSheetItem.profileHash);
+      },
+      onDelete: async () => {
+        await deleteItem(actionSheetItem.profileHash);
+        showMessage('已删除', 'success');
+      },
+    });
+  }, [actionSheetItem, actionSheetDisplayKind, copyItemWithSync, showMessage, clearSelection, toggleSelection, deleteItem]);
+
+  // ── Unified action dispatcher (used by iOS ContextMenu) ──────
+  const handleCardAction = useCallback(
+    async (item: ClipboardItem, actionKey: string) => {
+      const dk = getDisplayKind(item.type, item.text);
+      switch (actionKey) {
+        case 'copy': {
+          const result = await copyItemWithSync(item);
+          showMessage(result.success ? '已复制到剪贴板' : result.message || '复制失败', result.success ? 'success' : 'error');
+          break;
+        }
+        case 'selectText':
+          setWordPickerText(item.text);
+          break;
+        case 'copyPlain': {
+          const Clipboard = await import('expo-clipboard');
+          await Clipboard.default.setStringAsync(item.text);
+          showMessage('已复制为纯文本', 'success');
+          break;
+        }
+        case 'openBrowser':
+          Linking.openURL(item.text.trim());
+          break;
+        case 'saveImage':
+          try {
+            await saveToGallery(item.fileUri!);
+            showMessage('已保存到相册', 'success');
+          } catch {
+            showMessage('保存失败', 'error');
+          }
+          break;
+        case 'saveFile':
+          try {
+            await saveFile(item.fileUri!, item.dataName);
+            showMessage('已保存文件', 'success');
+          } catch {
+            showMessage('保存失败', 'error');
+          }
+          break;
+        case 'share':
+          if (
+            (dk === 'image' || dk === 'file' || dk === 'group') &&
+            item.fileUri &&
+            item.isLocalFileReady
+          ) {
+            await shareFile(item.fileUri, item.dataName);
+          } else {
+            await Share.share({ message: item.text });
+          }
+          break;
+        case 'select':
+          setIsSelectMode(true);
+          clearSelection();
+          toggleSelection(item.profileHash);
+          break;
+        case 'delete':
+          await deleteItem(item.profileHash);
+          showMessage('已删除', 'success');
+          break;
       }
-      toggleSelection(item.profileHash);
     },
-    [isSelectMode, clearSelection, toggleSelection]
+    [copyItemWithSync, showMessage, clearSelection, toggleSelection, deleteItem]
   );
 
   const exitSelectMode = useCallback(() => {
@@ -345,18 +483,24 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
   const renderCard = useCallback(
     ({ item }: { item: ClipboardItem }) => (
       <View style={{ padding: GRID_SPACING / 2 }}>
-        <ClipboardCard
+        <ClipboardCardMenu
           item={item}
-          isLatest={item.profileHash === latestId}
-          isSelected={selectedIds.has(item.profileHash)}
-          isSelectMode={isSelectMode}
-          onPress={handleItemPress}
-          onLongPress={handleItemLongPress}
           cardSize={cardSize}
-        />
+          onAction={(key) => handleCardAction(item, key)}
+        >
+          <ClipboardCard
+            item={item}
+            isLatest={item.profileHash === latestId}
+            isSelected={selectedIds.has(item.profileHash)}
+            isSelectMode={isSelectMode}
+            onPress={handleItemPress}
+            onLongPress={handleItemLongPress}
+            cardSize={cardSize}
+          />
+        </ClipboardCardMenu>
       </View>
     ),
-    [latestId, selectedIds, isSelectMode, handleItemPress, handleItemLongPress, cardSize]
+    [latestId, selectedIds, isSelectMode, handleItemPress, handleItemLongPress, handleCardAction, cardSize]
   );
 
   const keyExtractor = useCallback((item: ClipboardItem) => item.profileHash, []);
@@ -512,6 +656,14 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
           <WordPickerScreen text={wordPickerText} onComplete={() => setWordPickerText(null)} />
         </View>
       )}
+
+      <ClipboardCardActionSheet
+        visible={actionSheetItem !== null}
+        item={actionSheetItem}
+        displayKind={actionSheetDisplayKind}
+        onDismiss={handleActionSheetDismiss}
+        actions={actionMenuItems}
+      />
     </View>
   );
 }
