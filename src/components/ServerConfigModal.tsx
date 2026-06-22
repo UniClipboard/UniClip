@@ -28,7 +28,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { spacing, radius, typography } from '@/theme';
 import { ServerConfig } from '@/types/api';
-import { createAPIClient } from '@/services';
+import { testConnection as testConnectionViaRust } from 'uc-core';
+import { useSettingsStore } from '@/stores';
 import { QrScannerModal } from './QrScannerModal';
 import { usePendingConnectStore } from '@/stores';
 
@@ -54,6 +55,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
   const testAbortControllerRef = useRef<AbortController | null>(null);
   const [showScanner, setShowScanner] = useState(false);
   const consumePendingConnect = usePendingConnectStore((s) => s.consume);
+  const settings = useSettingsStore((s) => s.config);
 
   const showAlert = (title: string, message: string) => setAlertInfo({ title, message });
 
@@ -191,15 +193,21 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
     testAbortControllerRef.current = new AbortController();
 
     try {
-      const testConfig: ServerConfig = {
-        type,
-        url: url.trim(),
-        username: username.trim(),
-        password: password.trim(),
-      };
-      const client = createAPIClient(testConfig);
-      await client.testConnection(testAbortControllerRef.current.signal);
-      setTestResult('success');
+      const result = await testConnectionViaRust(
+        { baseUrl: url.trim(), username: username.trim(), password: password.trim() },
+        settings?.trustInsecureCert ?? false
+      );
+      if (result === 'Success') {
+        setTestResult('success');
+      } else {
+        setTestResult('failed');
+        const messages: Record<string, string> = {
+          AuthFailed: '认证失败，请检查用户名和密码。',
+          Unreachable: '无法连接到服务器。',
+          MissingFields: '请填写完整的连接信息。',
+        };
+        showAlert('连接失败', messages[result] ?? '未知错误');
+      }
     } catch (error: unknown) {
       if (error instanceof Error && error.name === 'AbortError') return;
       setTestResult('failed');

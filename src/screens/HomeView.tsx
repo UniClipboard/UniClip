@@ -33,7 +33,7 @@ import { historyStorage } from '@/services';
 import { getClipboardSyncService } from '@/services/ClipboardSyncService';
 import { ClipboardItem, ClipboardContent } from '@/types/clipboard';
 import { ServerConfig } from '@/types/api';
-import { ServerConfigModal } from '@/components/ServerConfigModal';
+import { AddServerSheet } from '@/components/AddServerSheet';
 import { ClipboardCard } from '@/components/ClipboardCard';
 import { MessageToast } from '@/components/MessageToast';
 import { WordPickerScreen } from '@/screens/WordPickerScreen';
@@ -624,11 +624,18 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
       />
 
       {/* Add Server Modal */}
-      <ServerConfigModal
+      <AddServerSheet
         visible={showAddServer}
         onClose={() => setShowAddServer(false)}
-        onSave={async (serverConfig) => {
-          await addServer(serverConfig);
+        onSave={async (data) => {
+          await addServer({
+            type: 'syncclipboard',
+            url: data.urls[0],
+            urls: data.urls,
+            name: data.name || undefined,
+            username: data.username,
+            password: data.password,
+          });
           setShowAddServer(false);
           showMessage('服务器已添加', 'success');
         }}

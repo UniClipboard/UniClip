@@ -1,10 +1,12 @@
+export interface AddServerSaveData {
+  name: string;
+  urls: string[];
+  username: string;
+  password: string;
+}
+
 export interface AddServerSheetProps {
   visible: boolean;
   onClose: () => void;
-  onSave?: (data: {
-    name: string;
-    url: string;
-    username: string;
-    password: string;
-  }) => void;
+  onSave: (data: AddServerSaveData) => void;
 }

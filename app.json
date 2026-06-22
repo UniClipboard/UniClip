@@ -49,6 +49,7 @@
       "./plugins/build/withShizukuProvider.js",
       "./plugins/build/withDarkSplashScreen.js",
       "./plugins/build/withAbiSplits.js",
+      "./plugins/build/withRustCore.js",
       [
         "expo-sharing",
         {

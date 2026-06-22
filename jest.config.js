@@ -5,6 +5,13 @@ module.exports = {
   ],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
+    '^native-util$': '<rootDir>/modules/native-util/src',
+    '^uc-core$': '<rootDir>/modules/uc-core/src',
+    '^signalr-client$': '<rootDir>/modules/signalr-client/src',
+    '^native-timer$': '<rootDir>/modules/native-timer/src',
+    '^foreground-service$': '<rootDir>/modules/foreground-service/src',
+    '^shortcut$': '<rootDir>/modules/shortcut/src',
+    '^qr-scanner$': '<rootDir>/modules/qr-scanner/src',
   },
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   testEnvironment: 'node',

@@ -1,0 +1,7 @@
+{
+  "platforms": ["ios"],
+  "name": "qr-scanner",
+  "ios": {
+    "modules": ["QrScannerModule"]
+  }
+}

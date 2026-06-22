@@ -102,6 +102,7 @@ export default function App() {
   useEffect(() => {
     initLogger();
     setDynamicShortcuts();
+
   }, []);
 
   useEffect(() => {

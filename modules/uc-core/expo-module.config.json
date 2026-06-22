@@ -1,0 +1,10 @@
+{
+  "platforms": ["ios", "android"],
+  "name": "uc-core",
+  "ios": {
+    "modules": ["UcCoreModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.uccore.UcCoreModule"]
+  }
+}

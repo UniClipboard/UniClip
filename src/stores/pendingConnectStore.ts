@@ -13,6 +13,7 @@ import { create } from 'zustand';
 
 export interface PendingConnectIntent {
   url: string;
+  urls?: string[];
   user: string;
   pwd: string;
   label?: string;

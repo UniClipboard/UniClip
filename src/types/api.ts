@@ -41,8 +41,11 @@ export interface ServerConfig {
   /** 服务器显示名称（可选） */
   name?: string;
 
-  /** 服务器 URL */
+  /** 服务器 URL（主地址，等同于 urls[0]） */
   url: string;
+
+  /** 候选地址列表（局域网 / Tailscale / 公网），按用户排列顺序 */
+  urls?: string[];
 
   /** 用户名（S3 时为 Access Key ID） */
   username?: string;

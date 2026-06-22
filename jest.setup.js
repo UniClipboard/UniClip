@@ -41,6 +41,19 @@ jest.mock('native-util', () => ({
   nativeCalculateFileHash: jest.fn(),
 }));
 
+jest.mock('uc-core', () => ({
+  parseConnectUri: jest.fn(),
+  getLatest: jest.fn(),
+  putClipboard: jest.fn(),
+  testConnection: jest.fn(),
+  queryHistory: jest.fn(),
+  getFile: jest.fn(),
+  putFile: jest.fn(),
+  getHistoryPayload: jest.fn(),
+  probe: jest.fn(),
+  cancelInFlight: jest.fn(),
+}));
+
 jest.mock('@microsoft/signalr', () => ({
   HubConnectionBuilder: jest.fn().mockImplementation(() => ({
     withUrl: jest.fn().mockReturnThis(),

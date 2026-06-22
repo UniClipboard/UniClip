@@ -3,6 +3,7 @@
  * 统一导出所有组件
  */
 
+export { AddServerSheet } from './AddServerSheet';
 export { ServerConfigModal } from './ServerConfigModal';
 export { ServerListItem } from './ServerListItem';
 export { CurrentClipboardCard } from './CurrentClipboardCard';
