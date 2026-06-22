@@ -101,6 +101,172 @@ public class UcCoreModule: Module {
         Function("cancelInFlight") {
             self.client?.cancelInFlight()
         }
+
+        // MARK: - Sync reducer functions (synchronous, pure state transforms)
+
+        Function("defaultSyncConfig") { () -> [String: Any] in
+            self.ensureInit()
+            return self.syncConfigToMap(defaultSyncConfig())
+        }
+
+        Function("defaultSyncRuntimeState") { () -> [String: Any?] in
+            self.ensureInit()
+            return self.runtimeStateToMap(defaultSyncRuntimeState())
+        }
+
+        Function("planPreamble") { (stateMap: [String: Any?], snapMap: [String: Any?]) -> [String: Any?] in
+            self.ensureInit()
+            let state = self.runtimeStateFromMap(stateMap)
+            let snap = self.preambleSnapshotFromMap(snapMap)
+            let step = planPreamble(state: state, snap: snap)
+            return [
+                "state": self.runtimeStateToMap(step.state),
+                "preamble": [
+                    "recordLocal": step.preamble.recordLocal,
+                    "proceed": self.preambleProceedToMap(step.preamble.proceed)
+                ] as [String: Any]
+            ] as [String: Any]
+        }
+
+        Function("planAfterServerGet") { (stateMap: [String: Any?], snapMap: [String: Any?]) -> [String: Any?] in
+            self.ensureInit()
+            let state = self.runtimeStateFromMap(stateMap)
+            let snap = self.serverGetSnapshotFromMap(snapMap)
+            let route = planAfterServerGet(state: state, snap: snap)
+            return self.serverRouteToMap(route)
+        }
+
+        Function("commitConverged") { (stateMap: [String: Any?], serverHash: String) -> [String: Any?] in
+            self.ensureInit()
+            return self.runtimeStateToMap(commitConverged(state: self.runtimeStateFromMap(stateMap), serverHash: serverHash))
+        }
+
+        Function("commitApply") { (stateMap: [String: Any?], hash: String?, nowMs: Int, cfgMap: [String: Any]) -> [String: Any?] in
+            self.ensureInit()
+            let step = commitApply(state: self.runtimeStateFromMap(stateMap), hash: hash, nowMs: Int64(nowMs), cfg: self.syncConfigFromMap(cfgMap))
+            return self.commitStepToMap(step)
+        }
+
+        Function("commitApplyFailed") { (stateMap: [String: Any?], entryMap: [String: Any?]) -> [String: Any?] in
+            self.ensureInit()
+            return self.runtimeStateToMap(commitApplyFailed(state: self.runtimeStateFromMap(stateMap), entry: self.metaFromMap(entryMap)))
+        }
+
+        Function("commitStage") { (stateMap: [String: Any?], entryMap: [String: Any?]) -> [String: Any?] in
+            self.ensureInit()
+            return self.runtimeStateToMap(commitStage(state: self.runtimeStateFromMap(stateMap), entry: self.metaFromMap(entryMap)))
+        }
+
+        Function("commitPush") { (stateMap: [String: Any?], pushedHash: String?, nowMs: Int, cfgMap: [String: Any]) -> [String: Any?] in
+            self.ensureInit()
+            let step = commitPush(state: self.runtimeStateFromMap(stateMap), pushedHash: pushedHash, nowMs: Int64(nowMs), cfg: self.syncConfigFromMap(cfgMap))
+            return self.commitStepToMap(step)
+        }
+
+        Function("commitPushSkipped") { (stateMap: [String: Any?]) -> [String: Any?] in
+            self.ensureInit()
+            return self.runtimeStateToMap(commitPushSkipped(state: self.runtimeStateFromMap(stateMap)))
+        }
+
+        Function("commitConsentPush") { (stateMap: [String: Any?], pushedHash: String?, nowMs: Int, cfgMap: [String: Any]) -> [String: Any?] in
+            self.ensureInit()
+            let step = commitConsentPush(state: self.runtimeStateFromMap(stateMap), pushedHash: pushedHash, nowMs: Int64(nowMs), cfg: self.syncConfigFromMap(cfgMap))
+            return self.commitStepToMap(step)
+        }
+
+        Function("commitTickSuccess") { (stateMap: [String: Any?]) -> [String: Any?] in
+            self.ensureInit()
+            return self.runtimeStateToMap(commitTickSuccess(state: self.runtimeStateFromMap(stateMap)))
+        }
+
+        Function("commitTickFailure") { (stateMap: [String: Any?], kind: String, jitter: Double, nowMs: Int, cfgMap: [String: Any]) -> [String: Any?] in
+            self.ensureInit()
+            let step = commitTickFailure(
+                state: self.runtimeStateFromMap(stateMap),
+                kind: self.tickErrorKindFromString(kind),
+                jitter: jitter,
+                nowMs: Int64(nowMs),
+                cfg: self.syncConfigFromMap(cfgMap)
+            )
+            return [
+                "state": self.runtimeStateToMap(step.state),
+                "outcome": [
+                    "kickProbe": step.outcome.kickProbe,
+                    "firstOffline": step.outcome.firstOffline
+                ] as [String: Any]
+            ] as [String: Any]
+        }
+
+        Function("commitHistorySyncDone") { (stateMap: [String: Any?], nowMs: Int) -> [String: Any?] in
+            self.ensureInit()
+            return self.runtimeStateToMap(commitHistorySyncDone(state: self.runtimeStateFromMap(stateMap), nowMs: Int64(nowMs)))
+        }
+
+        Function("markStagedApplied") { (stateMap: [String: Any?]) -> [String: Any?] in
+            self.ensureInit()
+            let step = markStagedApplied(state: self.runtimeStateFromMap(stateMap))
+            return [
+                "state": self.runtimeStateToMap(step.state),
+                "wasStaged": step.wasStaged
+            ] as [String: Any]
+        }
+
+        Function("acknowledgeLoopDetection") { (stateMap: [String: Any?]) -> [String: Any?] in
+            self.ensureInit()
+            return self.runtimeStateToMap(acknowledgeLoopDetection(state: self.runtimeStateFromMap(stateMap)))
+        }
+
+        Function("resetRuntimeState") { (stateMap: [String: Any?]) -> [String: Any?] in
+            self.ensureInit()
+            return self.runtimeStateToMap(resetRuntimeState(state: self.runtimeStateFromMap(stateMap)))
+        }
+
+        Function("handleActiveServerChanged") { (stateMap: [String: Any?]) -> [String: Any?] in
+            self.ensureInit()
+            return self.runtimeStateToMap(handleActiveServerChanged(state: self.runtimeStateFromMap(stateMap)))
+        }
+
+        Function("handleNetworkRouteChanged") { (stateMap: [String: Any?]) -> [String: Any?] in
+            self.ensureInit()
+            return self.runtimeStateToMap(handleNetworkRouteChanged(state: self.runtimeStateFromMap(stateMap)))
+        }
+
+        // MARK: - Sync helper functions
+
+        Function("hashesEqual") { (a: String?, b: String?) -> Bool in
+            self.ensureInit()
+            return hashesEqual(a: a, b: b)
+        }
+
+        Function("backoffSecs") { (consecutiveFailures: Int, base: Double, max: Double, jitter: Double) -> Double in
+            self.ensureInit()
+            return backoffSecs(consecutiveFailures: Int64(consecutiveFailures), base: base, max: max, jitter: jitter)
+        }
+
+        Function("cadenceSecs") { (stateStr: String, isSceneInactive: Bool, cfgMap: [String: Any]) -> Double in
+            self.ensureInit()
+            return cadenceSecs(state: self.syncStateFromString(stateStr), isSceneInactive: isSceneInactive, cfg: self.syncConfigFromMap(cfgMap))
+        }
+
+        Function("isHistorySyncDue") { (lastSyncMs: Int?, nowMs: Int, intervalSecs: Double) -> Bool in
+            self.ensureInit()
+            return isHistorySyncDue(lastSyncMs: lastSyncMs.map { Int64($0) }, nowMs: Int64(nowMs), intervalSecs: intervalSecs)
+        }
+
+        Function("isColdStart") { (watermarkMs: Int?) -> Bool in
+            self.ensureInit()
+            return isColdStart(watermarkMs: watermarkMs.map { Int64($0) })
+        }
+
+        Function("advanceWatermark") { (currentMs: Int?, maxLastModifiedMs: Int) -> Int? in
+            self.ensureInit()
+            return advanceWatermark(currentMs: currentMs.map { Int64($0) }, maxLastModifiedMs: Int64(maxLastModifiedMs)).map { Int($0) }
+        }
+
+        Function("isProbeConclusionValid") { (reportEpoch: Double, currentEpoch: Double) -> Bool in
+            self.ensureInit()
+            return isProbeConclusionValid(reportEpoch: UInt64(reportEpoch), currentEpoch: UInt64(currentEpoch))
+        }
     }
 
     // MARK: - Type conversion helpers
@@ -192,6 +358,195 @@ public class UcCoreModule: Module {
         case .authFailed: return "AuthFailed"
         case .unreachable: return "Unreachable"
         case .missingFields: return "MissingFields"
+        }
+    }
+
+    // MARK: - Sync reducer type conversions
+
+    private func syncStateToString(_ s: SyncState) -> String {
+        switch s {
+        case .idle: return "Idle"
+        case .succeeded: return "Succeeded"
+        case .hasNewUnwritten: return "HasNewUnwritten"
+        case .offlineRetrying: return "OfflineRetrying"
+        case .authFailed: return "AuthFailed"
+        case .loopDetected: return "LoopDetected"
+        }
+    }
+
+    private func syncStateFromString(_ s: String) -> SyncState {
+        switch s {
+        case "Succeeded": return .succeeded
+        case "HasNewUnwritten": return .hasNewUnwritten
+        case "OfflineRetrying": return .offlineRetrying
+        case "AuthFailed": return .authFailed
+        case "LoopDetected": return .loopDetected
+        default: return .idle
+        }
+    }
+
+    private func loopDirectionToString(_ d: LoopDirection) -> String {
+        switch d {
+        case .pulled: return "Pulled"
+        case .pushed: return "Pushed"
+        }
+    }
+
+    private func loopDirectionFromString(_ s: String) -> LoopDirection {
+        switch s {
+        case "Pushed": return .pushed
+        default: return .pulled
+        }
+    }
+
+    private func runtimeStateToMap(_ s: SyncRuntimeState) -> [String: Any?] {
+        return [
+            "state": syncStateToString(s.state),
+            "lastSyncedHash": s.lastSyncedHash,
+            "lastAppliedHash": s.lastAppliedHash,
+            "loopEvents": s.loopEvents.map { ev -> [String: Any] in
+                [
+                    "hash": ev.hash,
+                    "direction": loopDirectionToString(ev.direction),
+                    "atMillis": ev.atMillis
+                ]
+            },
+            "stagedServerHash": s.stagedServerHash,
+            "stagedEntry": s.stagedEntry.map { metaToMap($0) },
+            "consecutiveFailures": s.consecutiveFailures,
+            "nextAttemptMs": s.nextAttemptMs,
+            "lastHistorySyncMs": s.lastHistorySyncMs
+        ]
+    }
+
+    private func runtimeStateFromMap(_ map: [String: Any?]) -> SyncRuntimeState {
+        let loopEventsRaw = map["loopEvents"] as? [[String: Any]] ?? []
+        let loopEvents: [LoopGuardEvent] = loopEventsRaw.map { ev in
+            LoopGuardEvent(
+                hash: ev["hash"] as? String ?? "",
+                direction: loopDirectionFromString(ev["direction"] as? String ?? ""),
+                atMillis: (ev["atMillis"] as? NSNumber)?.int64Value ?? 0
+            )
+        }
+        let stagedEntryMap = map["stagedEntry"] as? [String: Any?]
+        return SyncRuntimeState(
+            state: syncStateFromString(map["state"] as? String ?? "Idle"),
+            lastSyncedHash: map["lastSyncedHash"] as? String,
+            lastAppliedHash: map["lastAppliedHash"] as? String,
+            loopEvents: loopEvents,
+            stagedServerHash: map["stagedServerHash"] as? String,
+            stagedEntry: stagedEntryMap.map { metaFromMap($0) },
+            consecutiveFailures: (map["consecutiveFailures"] as? NSNumber)?.int64Value ?? 0,
+            nextAttemptMs: (map["nextAttemptMs"] as? NSNumber)?.int64Value,
+            lastHistorySyncMs: (map["lastHistorySyncMs"] as? NSNumber)?.int64Value
+        )
+    }
+
+    private func syncConfigToMap(_ c: SyncConfig) -> [String: Any] {
+        return [
+            "normalCadenceSecs": c.normalCadenceSecs,
+            "inactiveCadenceSecs": c.inactiveCadenceSecs,
+            "offlineBackoffSecs": c.offlineBackoffSecs,
+            "offlineBackoffMaxSecs": c.offlineBackoffMaxSecs,
+            "historySyncIntervalSecs": c.historySyncIntervalSecs,
+            "loopWindowSecs": c.loopWindowSecs,
+            "loopFlipThreshold": c.loopFlipThreshold
+        ]
+    }
+
+    private func syncConfigFromMap(_ map: [String: Any]) -> SyncConfig {
+        return SyncConfig(
+            normalCadenceSecs: map["normalCadenceSecs"] as? Double ?? 1.0,
+            inactiveCadenceSecs: map["inactiveCadenceSecs"] as? Double ?? 5.0,
+            offlineBackoffSecs: map["offlineBackoffSecs"] as? Double ?? 5.0,
+            offlineBackoffMaxSecs: map["offlineBackoffMaxSecs"] as? Double ?? 60.0,
+            historySyncIntervalSecs: map["historySyncIntervalSecs"] as? Double ?? 30.0,
+            loopWindowSecs: map["loopWindowSecs"] as? Double ?? 30.0,
+            loopFlipThreshold: (map["loopFlipThreshold"] as? NSNumber)?.int64Value ?? 3
+        )
+    }
+
+    private func preambleSnapshotFromMap(_ map: [String: Any?]) -> PreambleSnapshot {
+        return PreambleSnapshot(
+            explicit: map["explicit"] as? Bool ?? false,
+            autoPush: map["autoPush"] as? Bool ?? false,
+            hasActiveServer: map["hasActiveServer"] as? Bool ?? false,
+            deviceHash: map["deviceHash"] as? String,
+            historyHeadHash: map["historyHeadHash"] as? String,
+            persistedSyncedHash: map["persistedSyncedHash"] as? String,
+            nowMs: (map["nowMs"] as? NSNumber)?.int64Value ?? 0
+        )
+    }
+
+    private func serverGetSnapshotFromMap(_ map: [String: Any?]) -> ServerGetSnapshot {
+        let serverEntryMap = map["serverEntry"] as? [String: Any?]
+        return ServerGetSnapshot(
+            autoApply: map["autoApply"] as? Bool ?? false,
+            autoPush: map["autoPush"] as? Bool ?? false,
+            serverEntry: serverEntryMap.map { metaFromMap($0) },
+            devicePresent: map["devicePresent"] as? Bool ?? false,
+            deviceHash: map["deviceHash"] as? String
+        )
+    }
+
+    private func preambleProceedToMap(_ p: PreambleProceed) -> [String: Any] {
+        switch p {
+        case .stop(let reason):
+            let reasonStr: String
+            switch reason {
+            case .noActiveServer: reasonStr = "NoActiveServer"
+            case .paused: reasonStr = "Paused"
+            case .backoffGate: reasonStr = "BackoffGated"
+            }
+            return ["type": "Stop", "reason": reasonStr]
+        case .toNetwork:
+            return ["type": "ToNetwork"]
+        }
+    }
+
+    private func serverRouteToMap(_ route: ServerRoute) -> [String: Any?] {
+        switch route {
+        case .converged(let serverHash):
+            return ["type": "Converged", "serverHash": serverHash]
+        case .serverNew(let plan):
+            return [
+                "type": "ServerNew",
+                "plan": [
+                    "willApply": plan.willApply,
+                    "alreadyStaged": plan.alreadyStaged
+                ] as [String: Any]
+            ]
+        case .push(let decision):
+            let decStr: String
+            switch decision {
+            case .skipConsentMode: decStr = "SkipConsentMode"
+            case .skipNoDevice: decStr = "SkipNoDevice"
+            case .skipAlreadySynced: decStr = "SkipAlreadySynced"
+            case .skipSelfWritten: decStr = "SkipSelfWritten"
+            case .doPush: decStr = "DoPush"
+            }
+            return ["type": "Push", "decision": decStr]
+        }
+    }
+
+    private func commitStepToMap(_ step: CommitStep) -> [String: Any?] {
+        return [
+            "state": runtimeStateToMap(step.state),
+            "outcome": [
+                "tripped": step.outcome.tripped
+            ] as [String: Any]
+        ] as [String: Any]
+    }
+
+    private func tickErrorKindFromString(_ s: String) -> TickErrorKind {
+        switch s {
+        case "AuthFailed": return .authFailed
+        case "Cancelled": return .cancelled
+        case "NetworkUnreachable": return .networkUnreachable
+        case "ConnectTimeout": return .connectTimeout
+        case "ReceiveTimeout": return .receiveTimeout
+        case "OtherSyncError": return .otherSyncError
+        default: return .unexpected
         }
     }
 }

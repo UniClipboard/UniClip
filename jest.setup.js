@@ -28,11 +28,13 @@ jest.mock('expo-file-system', () => ({
 }));
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
+  __esModule: true,
   default: {
-    getItem: jest.fn(),
-    setItem: jest.fn(),
-    removeItem: jest.fn(),
-    clear: jest.fn(),
+    getItem: jest.fn().mockResolvedValue(null),
+    setItem: jest.fn().mockResolvedValue(undefined),
+    removeItem: jest.fn().mockResolvedValue(undefined),
+    clear: jest.fn().mockResolvedValue(undefined),
+    multiSet: jest.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -52,6 +54,51 @@ jest.mock('uc-core', () => ({
   getHistoryPayload: jest.fn(),
   probe: jest.fn(),
   cancelInFlight: jest.fn(),
+  // Sync reducer functions
+  defaultSyncConfig: jest.fn(() => ({
+    normalCadenceSecs: 1.0,
+    inactiveCadenceSecs: 5.0,
+    offlineBackoffSecs: 5.0,
+    offlineBackoffMaxSecs: 60.0,
+    historySyncIntervalSecs: 30.0,
+    loopWindowSecs: 30.0,
+    loopFlipThreshold: 3,
+  })),
+  defaultSyncRuntimeState: jest.fn(() => ({
+    state: 'Idle',
+    lastSyncedHash: null,
+    lastAppliedHash: null,
+    loopEvents: [],
+    stagedServerHash: null,
+    stagedEntry: null,
+    consecutiveFailures: 0,
+    nextAttemptMs: null,
+    lastHistorySyncMs: null,
+  })),
+  planPreamble: jest.fn(),
+  planAfterServerGet: jest.fn(),
+  commitConverged: jest.fn(),
+  commitApply: jest.fn(),
+  commitApplyFailed: jest.fn(),
+  commitStage: jest.fn(),
+  commitPush: jest.fn(),
+  commitPushSkipped: jest.fn(),
+  commitConsentPush: jest.fn(),
+  commitTickSuccess: jest.fn(),
+  commitTickFailure: jest.fn(),
+  commitHistorySyncDone: jest.fn(),
+  markStagedApplied: jest.fn(),
+  acknowledgeLoopDetection: jest.fn(),
+  resetRuntimeState: jest.fn(),
+  handleActiveServerChanged: jest.fn(),
+  handleNetworkRouteChanged: jest.fn(),
+  hashesEqual: jest.fn(),
+  backoffSecs: jest.fn(),
+  cadenceSecs: jest.fn(),
+  isHistorySyncDue: jest.fn(() => false),
+  isColdStart: jest.fn(() => false),
+  advanceWatermark: jest.fn(),
+  isProbeConclusionValid: jest.fn(),
 }));
 
 jest.mock('@microsoft/signalr', () => ({

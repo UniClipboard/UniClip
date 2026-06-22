@@ -107,7 +107,10 @@ class BackgroundServiceManager {
       console.error('[BackgroundServiceManager] Failed to start clipboard monitoring:', e);
     }
 
-    // 始终启动 ClipboardSyncService（前台 UI + 后台同步）
+    // 启动 Rust-driven SyncEngine（1Hz 自动同步 + 去重 + 退避）
+    await this._startSyncEngine();
+
+    // 启动旧 ClipboardSyncService（仅保留上传功能和 SignalR，自动拉取由 SyncEngine 接管）
     await this._startRemoteSync();
 
     // 后台专用服务（前台通知 + 心跳，Android 专属）
@@ -170,6 +173,19 @@ class BackgroundServiceManager {
       await getClipboardSyncService().refresh();
     } catch (e) {
       console.error('[BackgroundServiceManager] Failed to start/refresh remote sync:', e);
+    }
+  }
+
+  /** 启动 Rust-driven SyncEngine（新同步引擎） */
+  private async _startSyncEngine(): Promise<void> {
+    try {
+      const { useSyncEngineStore } = require('../stores/syncEngineStore');
+      const store = useSyncEngineStore.getState();
+      if (!store.isRunning) {
+        await store.start();
+      }
+    } catch (e) {
+      console.error('[BackgroundServiceManager] Failed to start SyncEngine:', e);
     }
   }
 

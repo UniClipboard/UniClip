@@ -265,6 +265,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       await configStorage.setActiveServer(index);
       const config = await configStorage.getConfig();
       set({ config, isSaving: false });
+      // Notify SyncEngine that the active server changed
+      try {
+        const { notifyServerChanged } = require('./syncEngineStore');
+        notifyServerChanged();
+      } catch {
+        // SyncEngine not yet initialized
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to set active server';
       set({ error: errorMessage, isSaving: false });

@@ -31,7 +31,9 @@ import { useMessageStore } from '@/stores/messageStore';
 import { useErrorStore } from '@/stores/errorStore';
 import { historyStorage } from '@/services';
 import { getClipboardSyncService } from '@/services/ClipboardSyncService';
-import { ClipboardItem, ClipboardContent } from '@/types/clipboard';
+import { getLatest, getFile } from 'uc-core';
+import type { ClipboardMeta } from 'uc-core';
+import { ClipboardItem, ClipboardContent, createDefaultClipboardItem, HistorySyncStatus } from '@/types/clipboard';
 import { ServerConfig } from '@/types/api';
 import { AddServerSheet } from '@/components/AddServerSheet';
 import { ClipboardCard } from '@/components/ClipboardCard';
@@ -50,6 +52,70 @@ import * as ImagePicker from 'expo-image-picker';
 const GRID_SPACING = 12;
 const GRID_PADDING = 16;
 const NUM_COLUMNS = 2;
+
+async function fetchAndApplyServerClipboard(): Promise<void> {
+  const { useSettingsStore } = require('@/stores/settingsStore');
+  const settings = useSettingsStore.getState();
+  const server = settings.getActiveServer();
+  if (!server?.url) return;
+
+  const ucServer = {
+    baseUrl: server.url.replace(/\/+$/, ''),
+    username: server.username || '',
+    password: server.password || '',
+  };
+  const trustInsecure = settings.config?.trustInsecureCert ?? false;
+
+  let entry: ClipboardMeta;
+  try {
+    entry = await getLatest(ucServer, trustInsecure);
+  } catch (e: any) {
+    if (e?.message?.includes('404')) return;
+    throw e;
+  }
+  if (!entry) return;
+
+  // Write to system clipboard
+  const Clipboard = require('expo-clipboard');
+  const { clipboardMonitor } = require('@/services/ClipboardMonitor');
+  clipboardMonitor.pausePolling();
+  try {
+    if (entry.kind === 'Text') {
+      if (entry.hasData && entry.dataName) {
+        const bytes = await getFile(ucServer, entry.dataName, trustInsecure);
+        const text = new TextDecoder().decode(bytes);
+        await Clipboard.setStringAsync(text);
+      } else {
+        await Clipboard.setStringAsync(entry.text);
+      }
+    }
+    if (entry.hash) {
+      await clipboardMonitor.setLastContent({
+        type: entry.kind,
+        text: entry.text,
+        profileHash: entry.hash,
+        localClipboardHash: entry.hash,
+      });
+    }
+  } finally {
+    clipboardMonitor.resumePolling();
+  }
+
+  // Add to history
+  const { useHistoryStore } = require('@/stores/historyStore');
+  await useHistoryStore.getState().addItem(
+    createDefaultClipboardItem({
+      type: entry.kind,
+      text: entry.text,
+      profileHash: entry.hash ?? '',
+      hasData: entry.hasData,
+      dataName: entry.dataName ?? undefined,
+      size: entry.size,
+      timestamp: Date.now(),
+      syncStatus: HistorySyncStatus.Synced,
+    })
+  );
+}
 
 interface HomeViewProps {
   onOpenSettings: () => void;
@@ -375,42 +441,40 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
     exitSelectMode();
   }, [sortedItems, selectedIds, exitSelectMode]);
 
-  // Refresh
+  // Refresh — fetch server clipboard, write to system clipboard + history
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await getClipboardSyncService().refreshContent();
+      await fetchAndApplyServerClipboard();
       await loadItems();
     } finally {
       setRefreshing(false);
     }
   }, [loadItems]);
 
-  // Sync history
+  // Sync button — refresh clipboard + history
   const handleSyncHistory = useCallback(async () => {
     if (isSyncing) return;
-    if (!historySyncEnabled) {
-      showMessage('请先配置服务器', 'error');
-      return;
-    }
-    const serverConfig = config!.servers[config!.activeServerIndex];
-    const { getHistorySyncService } = await import('@/services/HistorySyncService');
-    const syncService = getHistorySyncService();
-    const initialized = syncService.ensureInitialized(serverConfig);
-    if (!initialized) {
-      showMessage('同步服务初始化失败', 'error');
-      return;
-    }
     setIsSyncing(true);
     try {
-      await syncService.syncAll(() => {});
+      await fetchAndApplyServerClipboard();
+      await loadItems();
+      if (historySyncEnabled && config) {
+        const serverConfig = config.servers[config.activeServerIndex];
+        const { getHistorySyncService } = await import('@/services/HistorySyncService');
+        const syncService = getHistorySyncService();
+        const initialized = await syncService.ensureInitialized(serverConfig);
+        if (initialized) {
+          await syncService.syncAll(() => {});
+        }
+      }
       showMessage('同步完成', 'success');
     } catch (e) {
       showMessage('同步失败', 'error');
     } finally {
       setIsSyncing(false);
     }
-  }, [isSyncing, historySyncEnabled, config, showMessage]);
+  }, [isSyncing, historySyncEnabled, config, showMessage, loadItems]);
 
   // Upload
   const handleUpload = useCallback(async () => {
