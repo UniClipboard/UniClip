@@ -1,12 +1,84 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { Host, BottomSheet, Group, VStack, Text as SwiftUIText, Spacer, Button as SwiftUIButton, Image, HStack } from '@expo/ui/swift-ui';
-import { presentationDetents, presentationDragIndicator, font, foregroundStyle, frame, background, padding, shapes, buttonStyle, glassEffect } from '@expo/ui/swift-ui/modifiers';
+import { presentationDetents, presentationDragIndicator, font, foregroundStyle, frame, padding, buttonStyle, glassEffect, shadow } from '@expo/ui/swift-ui/modifiers';
 import { SheetHeader } from '@/components/ui';
+import { useSettingsStore } from '@/stores';
 import type { ServerSwitcherModalProps } from './ServerSwitcherModal.types';
+import type { ServerConfig } from '@/types/api';
 import { AddServerSheet } from './AddServerSheet';
+import type { AddServerSaveData } from './AddServerSheet.types';
+import { classifyURL, effectiveURLs, getURLClassDisplay, URL_CLASS_DISPLAY_ORDER, type ServerURLClass } from '@/utils/classifyUrl';
+import type { SFSymbol } from 'sf-symbols-typescript';
+
+function useNetworkTags(server: ServerConfig) {
+  return useMemo(() => {
+    const urls = effectiveURLs(server.urls, server.url);
+    const classSet = new Set<ServerURLClass>();
+    for (const u of urls) classSet.add(classifyURL(u));
+    const tags = URL_CLASS_DISPLAY_ORDER.filter((c) => classSet.has(c)).map((c) => getURLClassDisplay(c));
+    return { count: urls.length, tags };
+  }, [server.urls, server.url]);
+}
+
+function ServerItem({ server, isActive, onPress }: { server: ServerConfig; isActive: boolean; onPress: () => void }) {
+  const { count, tags } = useNetworkTags(server);
+
+  return (
+    <SwiftUIButton onPress={onPress} modifiers={[buttonStyle('plain'), padding({ horizontal: 20 })]}>
+      <HStack spacing={12} alignment="center" modifiers={[
+        padding({ horizontal: 16, vertical: 14 }),
+        frame({ maxWidth: Infinity }),
+        glassEffect({
+          glass: {
+            variant: 'clear',
+            interactive: true,
+            ...(isActive ? { tint: '#F2FBF5' } : {}),
+          },
+          shape: 'roundedRectangle',
+          cornerRadius: 14,
+        }),
+        shadow({ radius: 1, y: 1, color: 'rgba(0,0,0,0.04)' }),
+      ]}>
+        <Image
+          systemName={isActive ? 'checkmark.circle.fill' : 'circle'}
+          size={28}
+          color={isActive ? '#34C759' : undefined}
+          modifiers={isActive ? [] : [foregroundStyle({ type: 'hierarchical', style: 'quaternary' })]}
+        />
+        <VStack alignment="leading" spacing={2}>
+          <SwiftUIText modifiers={[font({ weight: 'medium', size: 17 })]}>{server.name || server.url}</SwiftUIText>
+          <SwiftUIText modifiers={[font({ size: 14 }), foregroundStyle({ type: 'hierarchical', style: 'secondary' })]}>{server.url}</SwiftUIText>
+          <HStack spacing={6} alignment="center" modifiers={[foregroundStyle({ type: 'hierarchical', style: 'tertiary' })]}>
+            <SwiftUIText modifiers={[font({ size: 12 })]}>{count} 个地址</SwiftUIText>
+            {tags.map((tag) => (
+              <HStack key={tag.label} spacing={2} alignment="center">
+                <Image systemName={tag.icon as SFSymbol} size={10} />
+                <SwiftUIText modifiers={[font({ size: 12 })]}>{tag.label}</SwiftUIText>
+              </HStack>
+            ))}
+          </HStack>
+        </VStack>
+        <Spacer />
+      </HStack>
+    </SwiftUIButton>
+  );
+}
 
 export function ServerSwitcherModal({ visible, servers, activeIndex, onSelect, onClose, onAdd }: ServerSwitcherModalProps) {
   const [showAddSheet, setShowAddSheet] = useState(false);
+  const { addServer } = useSettingsStore();
+
+  const handleSaveServer = useCallback(async (data: AddServerSaveData) => {
+    await addServer({
+      type: 'syncclipboard',
+      url: data.urls[0],
+      urls: data.urls,
+      name: data.name || undefined,
+      username: data.username,
+      password: data.password,
+    });
+    setShowAddSheet(false);
+  }, [addServer]);
 
   return (
     <>
@@ -21,7 +93,7 @@ export function ServerSwitcherModal({ visible, servers, activeIndex, onSelect, o
         ]}>
           <VStack modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity })]}>
             <SheetHeader
-              title="Server"
+              title="服务器"
               left={
                 <SwiftUIButton onPress={onClose} modifiers={[buttonStyle('plain'), glassEffect({ glass: { variant: 'regular', interactive: true }, shape: 'circle' })]}>
                   <Image systemName="xmark" size={20} color="#AEAEB2" modifiers={[font({ weight: 'semibold' }), padding()]} />
@@ -48,27 +120,12 @@ export function ServerSwitcherModal({ visible, servers, activeIndex, onSelect, o
               servers.map((server, index) => {
                 const isActive = index === activeIndex;
                 return (
-                  <SwiftUIButton key={`${server.url}-${index}`} onPress={() => onSelect(index)} modifiers={[padding({ horizontal: 20 })]}>
-                    <HStack spacing={12} alignment="center" modifiers={[
-                      padding({ horizontal: 16, vertical: 14 }),
-                      background(
-                        isActive ? '#1B3F2B' : '#2C2C2E',
-                        shapes.roundedRectangle({ cornerRadius: 14, roundedCornerStyle: 'continuous' }),
-                      ),
-                      frame({ maxWidth: Infinity }),
-                    ]}>
-                      <Image
-                        systemName={isActive ? 'checkmark.circle.fill' : 'circle'}
-                        size={28}
-                        color={isActive ? '#34C759' : '#8E8E93'}
-                      />
-                      <VStack alignment="leading" spacing={2}>
-                        <SwiftUIText modifiers={[font({ weight: 'medium', size: 17 })]}>{server.name || server.url}</SwiftUIText>
-                        <SwiftUIText modifiers={[font({ size: 14 }), foregroundStyle('#8E8E93')]}>{server.url}</SwiftUIText>
-                      </VStack>
-                      <Spacer />
-                    </HStack>
-                  </SwiftUIButton>
+                  <ServerItem
+                    key={`${server.url}-${index}`}
+                    server={server}
+                    isActive={isActive}
+                    onPress={() => onSelect(index)}
+                  />
                 );
               })
             )}
@@ -78,7 +135,7 @@ export function ServerSwitcherModal({ visible, servers, activeIndex, onSelect, o
         </Group>
       </BottomSheet>
     </Host>
-    <AddServerSheet visible={showAddSheet} onClose={() => setShowAddSheet(false)} />
+    <AddServerSheet visible={showAddSheet} onClose={() => setShowAddSheet(false)} onSave={handleSaveServer} />
     </>
   );
 }
