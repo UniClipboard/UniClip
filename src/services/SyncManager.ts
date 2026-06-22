@@ -85,7 +85,7 @@ export class SyncManager {
     conflictCount: 0,
   };
 
-  private syncTimer: NodeJS.Timeout | null = null;
+  private syncTimer: ReturnType<typeof setInterval> | null = null;
   private isSyncing = false;
   private currentSyncPromise: Promise<SyncResult> | null = null;
   private currentSyncAbortController: AbortController | null = null;

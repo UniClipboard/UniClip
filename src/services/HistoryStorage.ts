@@ -99,7 +99,7 @@ export class HistoryStorage {
   private maxHistorySize = 1000;
   private changeCallbacks: Set<HistoryChangeCallback> = new Set();
   private pendingChanges: { items: ClipboardItem[]; action: 'add' | 'update' | 'delete' }[] = [];
-  private notifyTimer: NodeJS.Timeout | null = null;
+  private notifyTimer: ReturnType<typeof setTimeout> | null = null;
   private static readonly NOTIFY_BATCH_SIZE = 50;
   private static readonly NOTIFY_DELAY_MS = 100;
   private silentMode = false;

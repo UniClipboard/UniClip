@@ -5,6 +5,7 @@ import {
   DropdownMenuItem,
   OutlinedTextField,
   Text as ComposeText,
+  useNativeState,
 } from '@expo/ui/jetpack-compose';
 import { menuAnchor, fillMaxWidth } from '@expo/ui/jetpack-compose/modifiers';
 
@@ -35,6 +36,7 @@ export function AppDropdown<T extends string = string>({
   const [expanded, setExpanded] = useState(false);
   const selectedLabel =
     options.find((o) => o.value === selectedValue)?.label ?? placeholder ?? '';
+  const selectedLabelState = useNativeState(selectedLabel);
 
   return (
     <ExposedDropdownMenuBox
@@ -46,7 +48,7 @@ export function AppDropdown<T extends string = string>({
     >
       <OutlinedTextField
         key={selectedLabel}
-        defaultValue={selectedLabel}
+        value={selectedLabelState}
         readOnly
         enabled={disabled !== undefined ? !disabled : undefined}
         singleLine

@@ -33,6 +33,7 @@ import {
   ExposedDropdownMenu,
   DropdownMenuItem,
   Text as ComposeText,
+  useNativeState,
 } from '@expo/ui/jetpack-compose';
 import {
   fillMaxWidth,
@@ -378,6 +379,19 @@ export const SettingsScreen = () => {
   const [localPollingInput, setLocalPollingInput] = useState(
     ((config?.localPollingInterval ?? 1000) / 1000).toString()
   );
+
+  // Native state for OutlinedTextField (SDK 56 migration)
+  const maxSizeNativeState = useNativeState(maxSizeInput);
+  const remotePollingNativeState = useNativeState(remotePollingInput);
+  const localPollingNativeState = useNativeState(localPollingInput);
+  const maxHistoryItemsNativeState = useNativeState(maxHistoryItemsInput);
+  const smsTestNativeState = useNativeState(smsTestInput);
+  const imageAutoDownloadLabel =
+    imageAutoDownloadOptions.find((o) => o.value === localImageAutoDownload)?.label ?? '仅 Wi-Fi';
+  const imageAutoDownloadNativeState = useNativeState(imageAutoDownloadLabel);
+  const logLevelLabel =
+    logLevelOptions.find((o) => o.value === config?.logLevel)?.label ?? '错误';
+  const logLevelNativeState = useNativeState(logLevelLabel);
 
   // 存储大小状态
   const [cacheSize, setCacheSize] = useState<number>(0);
@@ -1467,7 +1481,7 @@ export const SettingsScreen = () => {
                   </ListItem.SupportingContent>
                   <ListItem.TrailingContent>
                     <OutlinedTextField
-                      defaultValue={maxSizeInput}
+                      value={maxSizeNativeState}
                       onValueChange={setMaxSizeInput}
                       onFocusChanged={(focused) => {
                         if (!focused) handleMaxSizeBlur();
@@ -1496,7 +1510,7 @@ export const SettingsScreen = () => {
                       <ListItem.TrailingContent>
                         <OutlinedTextField
                           key={remotePollingInput}
-                          defaultValue={remotePollingInput}
+                          value={remotePollingNativeState}
                           onValueChange={(text) =>
                             setRemotePollingInput(filterPositiveInteger(text))
                           }
@@ -1528,7 +1542,7 @@ export const SettingsScreen = () => {
                   <ListItem.TrailingContent>
                     <OutlinedTextField
                       key={localPollingInput}
-                      defaultValue={localPollingInput}
+                      value={localPollingNativeState}
                       onValueChange={(text) => setLocalPollingInput(filterPositiveInteger(text))}
                       onFocusChanged={(focused) => {
                         if (!focused) handleLocalPollingBlur();
@@ -1597,7 +1611,7 @@ export const SettingsScreen = () => {
                   </ListItem.SupportingContent>
                   <ListItem.TrailingContent>
                     <OutlinedTextField
-                      defaultValue={maxHistoryItemsInput}
+                      value={maxHistoryItemsNativeState}
                       onValueChange={setMaxHistoryItemsInput}
                       onFocusChanged={(focused) => {
                         if (!focused) handleMaxHistoryItemsBlur();
@@ -1630,10 +1644,7 @@ export const SettingsScreen = () => {
                     >
                       <OutlinedTextField
                         key={localImageAutoDownload}
-                        defaultValue={
-                          imageAutoDownloadOptions.find((o) => o.value === localImageAutoDownload)
-                            ?.label ?? '仅 Wi-Fi'
-                        }
+                        value={imageAutoDownloadNativeState}
                         readOnly
                         singleLine
                         modifiers={[menuAnchor(), fillMaxWidth()]}
@@ -2237,9 +2248,7 @@ export const SettingsScreen = () => {
                     >
                       <OutlinedTextField
                         key={config?.logLevel ?? 'error'}
-                        defaultValue={
-                          logLevelOptions.find((o) => o.value === config?.logLevel)?.label ?? '错误'
-                        }
+                        value={logLevelNativeState}
                         readOnly
                         singleLine
                         modifiers={[menuAnchor(), fillMaxWidth()]}
@@ -2755,7 +2764,7 @@ export const SettingsScreen = () => {
               </ComposeText>
               <Spacer modifiers={[heightModifier(16)]} />
               <OutlinedTextField
-                defaultValue={smsTestInput}
+                value={smsTestNativeState}
                 onValueChange={setSmsTestInput}
                 modifiers={[fillMaxWidth()]}
               >

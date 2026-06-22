@@ -21,6 +21,16 @@ import {
   type ColorValue,
 } from 'react-native';
 
+// ─── useNativeState ─────────────────────────────────────────────────
+
+export function useNativeState<T>(initialValue: T): [T, (v: T) => void] {
+  const [value, setValue] = React.useState(initialValue);
+  React.useEffect(() => {
+    setValue(initialValue);
+  }, [initialValue]);
+  return [value, setValue];
+}
+
 // ─── Host ───────────────────────────────────────────────────────────
 
 export interface HostProps {

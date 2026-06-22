@@ -20,6 +20,7 @@ import {
   AlertDialog,
   TextButton,
   Text as ComposeText,
+  useNativeState,
 } from '@expo/ui/jetpack-compose';
 import { fillMaxWidth } from '@expo/ui/jetpack-compose/modifiers';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -80,6 +81,12 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
   const [url, setUrl] = useState(initialConfig?.url || '');
   const [username, setUsername] = useState(initialConfig?.username || '');
   const [password, setPassword] = useState(initialConfig?.password || '');
+
+  // Native state for OutlinedTextField (SDK 56 migration)
+  const nameNativeState = useNativeState(serverName);
+  const urlNativeState = useNativeState(url);
+  const usernameNativeState = useNativeState(username);
+  const passwordNativeState = useNativeState(password);
 
   // S3 专有字段（保留，UI 隐藏）
   const [region, setRegion] = useState(initialConfig?.region || 'us-east-1');
@@ -277,7 +284,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
               <Host matchContents style={styles.fieldHost}>
                 <OutlinedTextField
                   key={`name-${formKey}`}
-                  defaultValue={serverName}
+                  value={nameNativeState}
                   onValueChange={setServerName}
                   keyboardOptions={{ capitalization: 'none', autoCorrectEnabled: false }}
                   singleLine
@@ -302,7 +309,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
               <Host matchContents style={styles.fieldHost}>
                 <OutlinedTextField
                   key={`url-${formKey}`}
-                  defaultValue={url}
+                  value={urlNativeState}
                   onValueChange={(v) => {
                     setUrl(v);
                     setTestResult(null);
@@ -331,7 +338,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
               <Host matchContents style={styles.fieldHost}>
                 <OutlinedTextField
                   key={`username-${formKey}`}
-                  defaultValue={username}
+                  value={usernameNativeState}
                   onValueChange={(v) => {
                     setUsername(v);
                     setTestResult(null);
@@ -350,7 +357,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
               <Host matchContents style={styles.fieldHost}>
                 <OutlinedTextField
                   key={`password-${formKey}`}
-                  defaultValue={password}
+                  value={passwordNativeState}
                   onValueChange={(v) => {
                     setPassword(v);
                     setTestResult(null);

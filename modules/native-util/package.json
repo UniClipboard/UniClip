@@ -9,7 +9,7 @@
     "prepare": "expo-module build"
   },
   "devDependencies": {
-    "expo-module-scripts": "^55.0.2"
+    "expo-module-scripts": "~56.0.3"
   },
   "peerDependencies": {
     "expo": "*",

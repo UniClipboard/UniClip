@@ -1,10 +1,5 @@
-/**
- * Message Toast Component
- * 自动关闭的条幅提示组件
- */
-
 import React, { useRef } from 'react';
-import { Text, StyleSheet, Animated } from 'react-native';
+import { Text, StyleSheet, Animated, Platform } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { spacing, radius, typography, elevation } from '@/theme';
 
@@ -26,14 +21,13 @@ export function MessageToast({ message, onMessageShown }: MessageToastProps) {
 
   React.useEffect(() => {
     if (message) {
-      // 淡入动画
       Animated.sequence([
         Animated.timing(fadeAnim, {
           toValue: 1,
           duration: 300,
           useNativeDriver: true,
         }),
-        Animated.delay(2500),
+        Animated.delay(1400),
         Animated.timing(fadeAnim, {
           toValue: 0,
           duration: 300,
@@ -49,13 +43,27 @@ export function MessageToast({ message, onMessageShown }: MessageToastProps) {
     return null;
   }
 
-  // M3 Snackbar 风:inverseSurface(成功 / info)/ errorContainer(错误)
+  const isIOS = Platform.OS === 'ios';
+
+  if (isIOS) {
+    const bg =
+      message.type === 'error' ? '#F44336' : '#34C759';
+    return (
+      <Animated.View
+        style={[
+          styles.iosToast,
+          { backgroundColor: bg, opacity: fadeAnim },
+        ]}
+      >
+        <Text style={styles.iosToastText}>{message.text}</Text>
+      </Animated.View>
+    );
+  }
+
   const bg =
     message.type === 'error'
       ? theme.colors.errorContainer
-      : message.type === 'success'
-        ? theme.colors.inverseSurface
-        : theme.colors.inverseSurface;
+      : theme.colors.inverseSurface;
   const fg =
     message.type === 'error' ? theme.colors.onErrorContainer : theme.colors.inverseOnSurface;
 
@@ -69,6 +77,23 @@ export function MessageToast({ message, onMessageShown }: MessageToastProps) {
 }
 
 const styles = StyleSheet.create({
+  // iOS: green/red capsule, white text, bottom-anchored
+  iosToast: {
+    position: 'absolute',
+    bottom: 120,
+    alignSelf: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iosToastText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  // Android: M3 Snackbar
   messageContainer: {
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.base,

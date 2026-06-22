@@ -7,9 +7,9 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "splash": {
+    "newSplashScreen": {
       "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
+      "imageWidth": 200,
       "backgroundColor": "#ffffff"
     },
     "ios": {
@@ -25,7 +25,10 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "app.uniclipboard.android",
-      "permissions": ["android.permission.REQUEST_INSTALL_PACKAGES", "android.permission.CAMERA"]
+      "permissions": [
+        "android.permission.REQUEST_INSTALL_PACKAGES",
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -51,7 +54,9 @@
         {
           "android": {
             "enabled": true,
-            "singleShareMimeTypes": ["*/*"]
+            "singleShareMimeTypes": [
+              "*/*"
+            ]
           }
         }
       ],
@@ -60,7 +65,7 @@
         {
           "cameraPermission": "授权 UniClip 使用相机以扫描二维码接入服务器"
         }
-      ]
+      ],
     ]
   }
 }

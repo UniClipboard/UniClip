@@ -4,7 +4,9 @@ import {
   Pressable,
   StyleSheet,
   type ColorValue,
+  useColorScheme,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
 
 export interface AppBottomSheetProps {
   visible: boolean;
@@ -19,6 +21,9 @@ export function AppBottomSheet({
   children,
   containerColor,
 }: AppBottomSheetProps) {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+
   return (
     <Modal
       visible={visible}
@@ -28,9 +33,18 @@ export function AppBottomSheet({
     >
       <Pressable style={styles.backdrop} onPress={onDismiss}>
         <Pressable
-          style={[styles.sheet, containerColor ? { backgroundColor: containerColor } : null]}
+          style={styles.sheet}
           onPress={() => {}}
         >
+          <BlurView
+            intensity={90}
+            tint={isDark ? 'systemChromeMaterialDark' : 'systemChromeMaterial'}
+            style={[
+              StyleSheet.absoluteFill,
+              styles.sheetBlur,
+              containerColor ? { backgroundColor: containerColor } : null,
+            ]}
+          />
           <View style={styles.handle} />
           {children}
         </Pressable>
@@ -42,16 +56,20 @@ export function AppBottomSheet({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(0,0,0,0.3)',
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 32,
+    overflow: 'hidden',
+  },
+  sheetBlur: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
   },
   handle: {
     alignSelf: 'center',

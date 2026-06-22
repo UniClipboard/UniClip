@@ -33,14 +33,14 @@ export class SecureStorage {
    * 生产环境应使用真正的加密算法
    */
   private encode(value: string): string {
-    return Buffer.from(value).toString('base64');
+    return btoa(value);
   }
 
   /**
    * 简单的解码函数
    */
   private decode(value: string): string {
-    return Buffer.from(value, 'base64').toString('utf-8');
+    return atob(value);
   }
 
   /**

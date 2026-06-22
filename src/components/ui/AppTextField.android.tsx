@@ -1,4 +1,4 @@
-import { OutlinedTextField } from '@expo/ui/jetpack-compose';
+import { OutlinedTextField, useNativeState } from '@expo/ui/jetpack-compose';
 import type {
   TextFieldKeyboardType,
   TextFieldColors,
@@ -29,9 +29,10 @@ export function AppTextField({
   fullWidth,
   colors,
 }: AppTextFieldProps) {
+  const nativeValue = useNativeState(value);
   return (
     <OutlinedTextField
-      defaultValue={value}
+      value={nativeValue}
       onValueChange={onChangeText}
       enabled={disabled !== undefined ? !disabled : undefined}
       singleLine

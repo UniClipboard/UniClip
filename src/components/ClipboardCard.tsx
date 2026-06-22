@@ -1,8 +1,10 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, Image, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Image, Pressable, Platform } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { ArrowDown, ArrowUp } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { ClipboardItem } from '@/types/clipboard';
+import { iosColors, iosCardShadow, iosDimensions } from '@/theme/iosDesignTokens';
 import {
   getDisplayKind,
   getDisplayKindLabel,
@@ -37,10 +39,11 @@ export const ClipboardCard: React.FC<ClipboardCardProps> = React.memo(
         onLongPress={() => onLongPress?.(item)}
         style={({ pressed }) => [
           styles.card,
+          Platform.OS === 'ios' && styles.cardIOS,
           {
             width: cardSize,
             height: cardSize,
-            backgroundColor: theme.colors.surfaceContainerLow,
+            backgroundColor: iosColors?.secondarySystemGroupedBackground ?? theme.colors.surfaceContainerLow,
             borderColor: isSelected ? theme.colors.primary : 'transparent',
             borderWidth: isSelected ? 2 : 0,
             opacity: pressed ? 0.85 : 1,
@@ -171,16 +174,14 @@ function BottomRow({
   overlay?: boolean;
   theme: CardBodyProps['theme'];
 }) {
-  const directionIcon = item.from
-    ? ('arrow-down' as const)
-    : ('arrow-up' as const);
+  const dirColor = overlay ? 'rgba(255,255,255,0.7)' : theme.colors.onSurfaceVariant;
   return (
     <View style={styles.bottomRow}>
-      <Ionicons
-        name={directionIcon}
-        size={10}
-        color={overlay ? 'rgba(255,255,255,0.7)' : theme.colors.onSurfaceVariant}
-      />
+      {item.from ? (
+        <ArrowDown size={10} color={dirColor} />
+      ) : (
+        <ArrowUp size={10} color={dirColor} />
+      )}
       <View style={styles.bottomSpacer} />
       {isLatest && (
         <View
@@ -293,7 +294,7 @@ function URLCardBody({
         </View>
       </View>
       {/* Bottom 40%: domain + URL */}
-      <View style={[styles.urlInfoArea, { backgroundColor: theme.colors.surfaceContainerLow }]}>
+      <View style={[styles.urlInfoArea, { backgroundColor: iosColors?.secondarySystemGroupedBackground ?? theme.colors.surfaceContainerLow }]}>
         <Text
           style={[styles.urlDomain, { color: theme.colors.onSurface }]}
           numberOfLines={1}
@@ -315,13 +316,17 @@ function URLCardBody({
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 14,
+    borderRadius: iosDimensions.cardCornerRadius,
     overflow: 'hidden',
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 5,
+  },
+  cardIOS: {
+    ...iosCardShadow,
+    borderCurve: 'continuous' as any,
   },
   // Standard (text/file/group)
   standardBody: {
@@ -378,7 +383,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   checkerboard: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(200,200,200,0.15)',
   },
   thumbnailImage: {
@@ -409,7 +414,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   imageOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     padding: 10,
     justifyContent: 'space-between',
     // Semi-transparent scrims for text legibility
@@ -446,7 +451,7 @@ const styles = StyleSheet.create({
   },
   // Select overlay
   selectOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
   },

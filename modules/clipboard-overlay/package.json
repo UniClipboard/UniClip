@@ -9,7 +9,9 @@
     "prepare": "expo-module build"
   },
   "devDependencies": {
-    "expo-module-scripts": "^55.0.2"
+    "@typescript-eslint/eslint-plugin": "^8.61.1",
+    "@typescript-eslint/parser": "^8.61.1",
+    "expo-module-scripts": "~56.0.3"
   },
   "peerDependencies": {
     "expo": "*",

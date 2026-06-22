@@ -6,6 +6,7 @@ import {
   useNavigation,
 } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
+import { Platform } from 'react-native';
 import { navigationRef } from './navigationRef';
 import { useTheme } from '@/hooks/useTheme';
 import { HomeView } from '@/screens/HomeView';
@@ -63,6 +64,7 @@ export const AppNavigator = () => {
           options={{
             headerShown: true,
             title: '设置',
+            presentation: Platform.OS === 'ios' ? 'modal' : 'card',
             headerStyle: {
               backgroundColor: theme.colors.surface,
               elevation: 0,
