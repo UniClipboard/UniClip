@@ -25,8 +25,10 @@ import {
   listStyle,
   textFieldStyle,
   opacity,
+  tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { SheetHeader } from '@/components/ui';
+import { iosAccentColor } from '@/theme/iosDesignTokens';
 import type { AddServerSheetProps } from './AddServerSheet.types';
 
 export function AddServerSheet({ visible, onClose, onSave }: AddServerSheetProps) {
@@ -52,7 +54,7 @@ export function AddServerSheet({ visible, onClose, onSave }: AddServerSheetProps
           presentationDetents(['large']),
           presentationDragIndicator('visible'),
         ]}>
-          <VStack modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity })]}>
+          <VStack modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity }), ...(iosAccentColor ? [tint(iosAccentColor)] : [])]}>
             <SheetHeader
               title="Add Server"
               left={

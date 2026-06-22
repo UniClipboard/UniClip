@@ -1,4 +1,4 @@
-import { Platform, PlatformColor } from 'react-native';
+import { Platform, PlatformColor, DynamicColorIOS, type OpaqueColorValue } from 'react-native';
 
 /**
  * iOS Liquid Glass design tokens — mirrors DESIGN.md from the native project.
@@ -65,6 +65,11 @@ export const iosAccent = {
   light: '#15171C',
   dark: '#F4F2EE',
 } as const;
+
+export const iosAccentColor: OpaqueColorValue | undefined =
+  Platform.OS === 'ios'
+    ? DynamicColorIOS({ light: iosAccent.light, dark: iosAccent.dark })
+    : undefined;
 
 // -- Card shadow (from DESIGN.md) --
 

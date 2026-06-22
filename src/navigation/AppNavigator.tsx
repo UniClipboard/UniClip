@@ -61,17 +61,26 @@ export const AppNavigator = () => {
         <Stack.Screen
           name="Settings"
           component={SettingsScreen}
-          options={{
-            headerShown: true,
-            title: '设置',
-            presentation: Platform.OS === 'ios' ? 'modal' : 'card',
-            headerStyle: {
-              backgroundColor: theme.colors.surface,
-              elevation: 0,
-              shadowOpacity: 0,
-            },
-            headerTintColor: theme.colors.text,
-          }}
+          options={
+            Platform.OS === 'ios'
+              ? {
+                  headerShown: false,
+                  presentation: 'transparentModal',
+                  animation: 'none',
+                  cardStyle: { backgroundColor: 'transparent' },
+                }
+              : {
+                  headerShown: true,
+                  title: '设置',
+                  presentation: 'card',
+                  headerStyle: {
+                    backgroundColor: theme.colors.surface,
+                    elevation: 0,
+                    shadowOpacity: 0,
+                  },
+                  headerTintColor: theme.colors.text,
+                }
+          }
         />
       </Stack.Navigator>
     </NavigationContainer>
