@@ -105,6 +105,9 @@ export function ClipboardCardMenu({ item, cardSize, onAction, children }: Clipbo
         <ContextMenu.Items>
           <Button label="复制" systemImage="doc.on.doc" onPress={() => onAction('copy')} />
           {(dk === 'text' || dk === 'url') && (
+            <Button label="选择文本" systemImage="selection.pin.in.out" onPress={() => onAction('selectText')} />
+          )}
+          {(dk === 'text' || dk === 'url') && (
             <Button label="复制为纯文本" systemImage="doc.plaintext" onPress={() => onAction('copyPlain')} />
           )}
           {dk === 'url' && (
