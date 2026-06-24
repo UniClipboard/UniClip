@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Image, Pressable, Platform } from 'react-native';
 import Svg, {
   Defs,
@@ -328,7 +328,8 @@ function ImageCardBody({
   isLatest,
   theme,
 }: Pick<CardBodyProps, 'item' | 'kindLabel' | 'relativeTime' | 'isLatest' | 'theme'>) {
-  const hasImage = item.isLocalFileReady && item.fileUri;
+  const [loadFailed, setLoadFailed] = useState(false);
+  const hasImage = item.isLocalFileReady && item.fileUri && !loadFailed;
   return (
     <View style={styles.imageBody}>
       <CheckerboardBackground />
@@ -337,6 +338,7 @@ function ImageCardBody({
           source={{ uri: item.fileUri }}
           style={styles.thumbnailImage}
           resizeMode="contain"
+          onError={() => setLoadFailed(true)}
         />
       ) : (
         <View style={[styles.imagePlaceholder, { backgroundColor: 'rgba(76,175,80,0.12)' }]}>
