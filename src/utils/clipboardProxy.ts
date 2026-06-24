@@ -248,11 +248,39 @@ export async function saveImageToFileAsync(
       console.warn('[ClipboardProxy] Overlay saveImageToFileAsync failed, falling back:', e);
     }
   }
-  // 前台模式：使用 native-util 直接读取系统剪贴板并写入文件
+  // Android 前台：native-util 直接读取系统剪贴板并写入文件（不经过 JS 内存）
   if (Platform.OS === 'android') {
     const result = await nativeSaveClipboardImageToFile(destDirPath);
     return result ? { filePath: result.filePath, mimeType: result.mimeType } : null;
   }
+
+  // iOS：通过 expo-clipboard 获取 base64 再写入文件
+  if (Platform.OS === 'ios') {
+    try {
+      const image = await Clipboard.getImageAsync({ format: 'png' });
+      if (!image || !image.data) return null;
+
+      const { writeAsStringAsync, EncodingType } = await import('expo-file-system/legacy');
+      const { Directory } = await import('expo-file-system');
+      const dir = new Directory(destDirPath);
+      if (!dir.exists) dir.create();
+
+      const fileName = `clipboard_${Date.now()}.png`;
+      const filePath = destDirPath.replace(/\/$/, '') + '/' + fileName;
+
+      const prefix = image.data.indexOf('base64,');
+      const base64 = prefix >= 0 ? image.data.slice(prefix + 7) : image.data;
+      await writeAsStringAsync(filePath, base64, {
+        encoding: EncodingType.Base64,
+      });
+
+      return { filePath, mimeType: 'image/png' };
+    } catch (e) {
+      console.warn('[ClipboardProxy] iOS getImageAsync failed:', e);
+      return null;
+    }
+  }
+
   return null;
 }
 

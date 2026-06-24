@@ -221,35 +221,26 @@ export async function calculateFileHash(
 }
 
 /**
- * 计算文件的 profileHash（按照服务器规则）
- * 规则：profileHash = SHA256(fileHashName + "|" + fileHash.ToUpper())
+ * 计算文件的 profileHash（SyncClipboard 规范）
+ *
+ * 规范：Image/File 的 profileHash = SHA256(原始文件字节).toUpperCase()
+ * 文件名**不参与** hash。正典来源 uc-mobile-proto/src/hash.rs（移植自 iOS
+ * Clipboard.swift §4.2）。旧实现的 `fileName|contentHash` 二次哈希会导致不同
+ * 客户端为同一份内容派生不同文件名时 hash 不一致，使 iPhone 每次 pull 都误判
+ * 为新内容、本端重复建卡——已废弃。
  *
  * @param fileUri 文件 URI
- * @param fileName 文件名（可选，为空时从 fileUri 提取）
- * @returns profileHash 字符串
+ * @param _fileName 兼容旧调用签名，已不参与 hash 计算
+ * @returns profileHash 字符串（= 文件内容 SHA256，大写）
  */
 export async function calculateFileProfileHash(
   fileUri: string,
-  fileName?: string,
+  _fileName?: string,
   signal?: AbortSignal
 ): Promise<string> {
   throwIfAborted(signal);
-  // 1. 计算文件内容的 hash
-  const fileHash = await calculateFileHash(fileUri, signal);
-
-  // 2. 获取文件名：如果没有传入，则从 fileUri 提取
-  let fileHashName = fileName;
-  if (!fileHashName) {
-    // 从 URI 中提取文件名（支持 / 和 \ 分隔符）
-    const parts = fileUri.split(/[/\\]/);
-    fileHashName = parts[parts.length - 1] || 'unknown';
-  }
-
-  // 3. 按照服务器规则计算 profileHash = SHA256(fileName + "|" + fileHash)
-  const combinedString = `${fileHashName}|${fileHash.toUpperCase()}`;
-  const profileHash = await calculateTextHash(combinedString, signal);
-
-  return profileHash;
+  // SyncClipboard 规范：Image/File 的 hash 仅取原始字节 SHA256，文件名不参与
+  return calculateFileHash(fileUri, signal);
 }
 
 /**
