@@ -7,7 +7,6 @@ import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   ScrollView,
   Alert,
@@ -46,21 +45,21 @@ import {
   clickable,
 } from '@expo/ui/jetpack-compose/modifiers';
 import { APP_VERSION } from '@/constants';
-import { radius, PALETTES } from '@/theme';
 import { Paths, Directory } from 'expo-file-system';
 import { calculateDirectorySize, clearDirectory } from '@/utils/fileStorage';
 import { CLIPBOARD_TEMP_DIR } from '@/utils/fileStorage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
-import type { ThemeMode, PaletteId } from '@/theme';
 import { useSettingsStore, usePendingConnectStore } from '@/stores';
 import { ServerConfigModal, ServerListItem, QrScannerModal } from '@/components';
 import { ServerConfig } from '@/types/api';
 import { settingsStyles as styles } from './settings/settingsStyles';
 import { SettingsToastProvider, useSettingsToast } from './settings/SettingsToastContext';
 import { SyncSettingsSection } from './settings/SyncSettingsSection';
+import { QuickActionsSection } from './settings/QuickActionsSection';
+import { AppearanceSection } from './settings/AppearanceSection';
+import { DebugSection } from './settings/DebugSection';
 import {
-  ShortcutService,
   checkForUpdate,
   calculateLogSize,
   clearLogs,
@@ -76,17 +75,15 @@ import {
   type ReleaseAssetInfo,
   type ApkSource,
 } from '@/services';
-import { Plus, RefreshCw, Check, ChevronDown, ChevronUp } from 'react-native-feather';
+import { Plus, RefreshCw, ChevronDown, ChevronUp } from 'react-native-feather';
 import { hasOverlayPermission, requestOverlayPermission } from 'clipboard-overlay';
 import {
   isShizukuAvailable,
   hasShizukuPermission,
   requestShizukuPermission,
 } from 'shizuku-clipboard';
-import { extractVerificationCode } from '@/tasks/SmsUploadTask';
-
 const SettingsScreenInner = () => {
-  const { theme, themeMode, setThemeMode, paletteId, setPaletteId } = useTheme();
+  const { theme } = useTheme();
   const {
     config,
     isLoaded,
@@ -121,7 +118,6 @@ const SettingsScreenInner = () => {
   const showMessage = useSettingsToast();
 
   // 本地状态用于跟踪Switch的当前值，避免闪烁
-  const [localDebugModeEnabled, setLocalDebugModeEnabled] = useState(config?.debugMode ?? false);
   const [localAutoCheckUpdateEnabled, setLocalAutoCheckUpdateEnabled] = useState(
     config?.autoCheckUpdate ?? true
   );
@@ -152,25 +148,11 @@ const SettingsScreenInner = () => {
   const [localForegroundNotification, setLocalForegroundNotification] = useState(
     config?.enableForegroundNotification ?? true
   );
-  const [localDebugOverlayVisible, setLocalDebugOverlayVisible] = useState(
-    config?.debugOverlayVisible ?? false
-  );
-  const [localDebugUrlScheme, setLocalDebugUrlScheme] = useState(config?.debugUrlScheme ?? false);
-  const [localDebugUpdateCheckNoLimit, setLocalDebugUpdateCheckNoLimit] = useState(
-    config?.debugUpdateCheckNoLimit ?? false
-  );
-  const [showSmsTestModal, setShowSmsTestModal] = useState(false);
-  const [smsTestInput, setSmsTestInput] = useState('');
   const [showLogLevelMenu, setShowLogLevelMenu] = useState(false);
-  const [localHideFromRecents, setLocalHideFromRecents] = useState(
-    config?.hideFromRecents ?? false
-  );
-  const [showStatsModal, setShowStatsModal] = useState(false);
   const [showImageAutoDownloadMenu, setShowImageAutoDownloadMenu] = useState(false);
   const [localImageAutoDownload, setLocalImageAutoDownload] = useState<'wifi' | 'always' | 'off'>(
     config?.attachmentAutoDownload ?? 'wifi'
   );
-  const [statsText, setStatsText] = useState('');
 
   // AlertDialog / ModalBottomSheet 可见性状态
   const [showShizukuUnavailableDialog, setShowShizukuUnavailableDialog] = useState(false);
@@ -179,9 +161,6 @@ const SettingsScreenInner = () => {
   const [showClearCacheDialog, setShowClearCacheDialog] = useState(false);
   const [showClearLogsDialog, setShowClearLogsDialog] = useState(false);
   const [showCancelDownloadDialog, setShowCancelDownloadDialog] = useState(false);
-  const [smsTestResult, setSmsTestResult] = useState<{ title: string; message: string } | null>(
-    null
-  );
   const [downloadSourceSheet, setDownloadSourceSheet] = useState<{
     version: string;
     assets: ReleaseAssetInfo[];
@@ -222,11 +201,6 @@ const SettingsScreenInner = () => {
       loadConfig();
     }
   }, [isLoaded, loadConfig]);
-
-  // 当配置中的debugMode值变化时，更新本地状态
-  useEffect(() => {
-    setLocalDebugModeEnabled(config?.debugMode ?? false);
-  }, [config?.debugMode]);
 
   // 当配置中的autoCheckUpdate值变化时，更新本地状态
   useEffect(() => {
@@ -270,10 +244,6 @@ const SettingsScreenInner = () => {
   useEffect(() => {
     setLocalForegroundNotification(config?.enableForegroundNotification ?? true);
   }, [config?.enableForegroundNotification]);
-
-  useEffect(() => {
-    setLocalHideFromRecents(config?.hideFromRecents ?? false);
-  }, [config?.hideFromRecents]);
 
   useEffect(() => {
     setLocalImageAutoDownload(config?.attachmentAutoDownload ?? 'wifi');
@@ -330,28 +300,6 @@ const SettingsScreenInner = () => {
     })();
   }, [isLoaded]);
 
-  const themeOptions: { label: string; value: ThemeMode }[] = [
-    { label: '跟随系统', value: 'auto' },
-    { label: '浅色', value: 'light' },
-    { label: '深色', value: 'dark' },
-  ];
-
-  const handleSetPaletteId = async (id: PaletteId) => {
-    try {
-      await setPaletteId(id);
-    } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : '主题色切换失败', 'error');
-    }
-  };
-
-  const handleSetThemeMode = async (mode: ThemeMode) => {
-    try {
-      await setThemeMode(mode);
-    } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : '外观模式切换失败', 'error');
-    }
-  };
-
   const imageAutoDownloadOptions: { label: string; value: 'wifi' | 'always' | 'off' }[] = [
     { label: '仅 Wi-Fi', value: 'wifi' },
     { label: '总是', value: 'always' },
@@ -376,7 +324,6 @@ const SettingsScreenInner = () => {
   );
   // Native state for OutlinedTextField (SDK 56 migration)
   const maxHistoryItemsNativeState = useNativeState(maxHistoryItemsInput);
-  const smsTestNativeState = useNativeState(smsTestInput);
   const imageAutoDownloadLabel =
     imageAutoDownloadOptions.find((o) => o.value === localImageAutoDownload)?.label ?? '仅 Wi-Fi';
   const imageAutoDownloadNativeState = useNativeState(imageAutoDownloadLabel);
@@ -833,84 +780,6 @@ const SettingsScreenInner = () => {
     }
   };
 
-  // 处理切换调试模式
-  const handleToggleDebugMode = async (enabled: boolean) => {
-    // 立即更新本地状态，避免闪烁
-    setLocalDebugModeEnabled(enabled);
-
-    try {
-      await updateConfig({ debugMode: enabled });
-      showMessage(enabled ? '已启用调试模式' : '已禁用调试模式', 'success');
-    } catch (error: unknown) {
-      // 如果设置失败，恢复原来的状态
-      setLocalDebugModeEnabled(!enabled);
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
-    }
-  };
-
-  // 处理切换调试悬浮窗显示
-  const handleToggleDebugOverlayVisible = async (enabled: boolean) => {
-    setLocalDebugOverlayVisible(enabled);
-    try {
-      await updateConfig({ debugOverlayVisible: enabled });
-      showMessage(enabled ? '悬浮窗将在后台时可见' : '悬浮窗已隐藏', 'success');
-    } catch (error: unknown) {
-      setLocalDebugOverlayVisible(!enabled);
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
-    }
-  };
-
-  // 处理切换显示 URL Scheme 调用
-  const handleToggleDebugUrlScheme = async (enabled: boolean) => {
-    setLocalDebugUrlScheme(enabled);
-    try {
-      await updateConfig({ debugUrlScheme: enabled });
-    } catch (error: unknown) {
-      setLocalDebugUrlScheme(!enabled);
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
-    }
-  };
-
-  // 处理切换启动时检查更新不限次数
-  const handleToggleDebugUpdateCheckNoLimit = async (enabled: boolean) => {
-    setLocalDebugUpdateCheckNoLimit(enabled);
-    try {
-      await updateConfig({ debugUpdateCheckNoLimit: enabled });
-    } catch (error: unknown) {
-      setLocalDebugUpdateCheckNoLimit(!enabled);
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
-    }
-  };
-
-  // 测试验证码短信提取
-  const handleTestSmsCode = () => {
-    const code = extractVerificationCode(smsTestInput);
-    if (code) {
-      setSmsTestResult({ title: '提取成功', message: `验证码: ${code}` });
-    } else {
-      setSmsTestResult({ title: '提取失败', message: '未能从输入文本中提取到验证码' });
-    }
-  };
-
-  // 显示统计信息弹窗
-  const handleShowStatistics = async () => {
-    const { useStatisticsStore } = await import('@/stores/statisticsStore');
-    const store = useStatisticsStore.getState();
-    if (!store.isLoaded) {
-      await store.load();
-    }
-    setStatsText(useStatisticsStore.getState().getStatisticsText());
-    setShowStatsModal(true);
-  };
-
-  // 复制统计信息到剪贴板
-  const handleCopyStatistics = async () => {
-    const Clipboard = await import('expo-clipboard');
-    await Clipboard.setStringAsync(statsText);
-    setShowStatsModal(false);
-    showMessage('已复制统计信息', 'success');
-  };
-
   // 处理切换自动检查更新
   const handleToggleAutoCheckUpdate = async (enabled: boolean) => {
     setLocalAutoCheckUpdateEnabled(enabled);
@@ -970,21 +839,6 @@ const SettingsScreenInner = () => {
       await updateConfig({ attachmentAutoDownload: value });
     } catch {
       setLocalImageAutoDownload(config?.attachmentAutoDownload ?? 'wifi');
-    }
-  };
-
-  // 处理切换最近任务隐藏
-  const handleToggleHideFromRecents = async (enabled: boolean) => {
-    setLocalHideFromRecents(enabled);
-    try {
-      if (Platform.OS === 'android') {
-        const { setExcludeFromRecents } = await import('native-util');
-        setExcludeFromRecents(enabled);
-      }
-      await updateConfig({ hideFromRecents: enabled });
-    } catch (error: unknown) {
-      setLocalHideFromRecents(!enabled);
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
     }
   };
 
@@ -1224,24 +1078,6 @@ const SettingsScreenInner = () => {
       showMessage(`日志等级已设置为 ${level}`, 'success');
     } catch {
       showMessage('设置日志等级失败', 'error');
-    }
-  };
-
-  // 处理添加下载快捷方式
-  const handleAddDownloadShortcut = async () => {
-    try {
-      await ShortcutService.addDownloadShortcut();
-    } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : '添加失败', 'error');
-    }
-  };
-
-  // 处理添加上传快捷方式
-  const handleAddUploadShortcut = async () => {
-    try {
-      await ShortcutService.addUploadShortcut();
-    } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : '添加失败', 'error');
     }
   };
 
@@ -1867,53 +1703,7 @@ const SettingsScreenInner = () => {
         )}
 
         {/* 快捷操作部分 */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeaderBase}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>快捷操作</Text>
-          </View>
-
-          <Host matchContents={{ vertical: true }} style={styles.hostFill}>
-            <Card colors={{ containerColor: theme.colors.surface }}>
-              <Column modifiers={[fillMaxWidth()]}>
-                <ListItem colors={{ containerColor: theme.colors.surface }}>
-                  <ListItem.HeadlineContent>
-                    <ComposeText color={theme.colors.text}>添加桌面快捷方式：下载</ComposeText>
-                  </ListItem.HeadlineContent>
-                  <ListItem.TrailingContent>
-                    <Button
-                      onClick={handleAddDownloadShortcut}
-                      colors={{
-                        containerColor: theme.colors.primary,
-                        contentColor: theme.colors.white,
-                      }}
-                    >
-                      <ComposeText>添加</ComposeText>
-                    </Button>
-                  </ListItem.TrailingContent>
-                </ListItem>
-
-                <HorizontalDivider color={theme.colors.divider} />
-
-                <ListItem colors={{ containerColor: theme.colors.surface }}>
-                  <ListItem.HeadlineContent>
-                    <ComposeText color={theme.colors.text}>添加桌面快捷方式：上传</ComposeText>
-                  </ListItem.HeadlineContent>
-                  <ListItem.TrailingContent>
-                    <Button
-                      onClick={handleAddUploadShortcut}
-                      colors={{
-                        containerColor: theme.colors.primary,
-                        contentColor: theme.colors.white,
-                      }}
-                    >
-                      <ComposeText>添加</ComposeText>
-                    </Button>
-                  </ListItem.TrailingContent>
-                </ListItem>
-              </Column>
-            </Card>
-          </Host>
-        </View>
+        <QuickActionsSection />
 
         {/* 存储部分 */}
         <View style={styles.section}>
@@ -2069,167 +1859,7 @@ const SettingsScreenInner = () => {
         </View>
 
         {/* 外观设置部分 */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeaderBase}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>外观</Text>
-          </View>
-
-          <View
-            style={[
-              styles.card,
-              { backgroundColor: theme.colors.surface, borderColor: theme.colors.divider },
-            ]}
-          >
-            {/* 主题色 (source color) */}
-            <View
-              style={[
-                styles.appearanceBlock,
-                {
-                  borderBottomWidth: StyleSheet.hairlineWidth,
-                  borderBottomColor: theme.colors.divider,
-                },
-              ]}
-            >
-              <Text style={[styles.settingLabel, { color: theme.colors.text }]}>主题色</Text>
-              <Text style={[styles.settingDescription, { color: theme.colors.textTertiary }]}>
-                切换 source color,影响主色调与容器底色
-              </Text>
-              <View style={styles.swatchRow}>
-                {PALETTES.map((p) => {
-                  const active = p.id === paletteId;
-                  return (
-                    <TouchableOpacity
-                      key={p.id}
-                      onPress={() => handleSetPaletteId(p.id)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`主题色 ${p.label}`}
-                      accessibilityState={{ selected: active }}
-                      style={styles.swatchWrap}
-                    >
-                      <View
-                        style={[
-                          styles.swatchRing,
-                          { borderColor: active ? p.swatch : 'transparent' },
-                        ]}
-                      >
-                        <View style={[styles.swatch, { backgroundColor: p.swatch }]}>
-                          {active && (
-                            <Check
-                              stroke={theme.colors.white}
-                              width={16}
-                              height={16}
-                              strokeWidth={3}
-                            />
-                          )}
-                        </View>
-                      </View>
-                      <Text
-                        style={[
-                          styles.swatchLabel,
-                          {
-                            color: active ? theme.colors.text : theme.colors.textTertiary,
-                            fontWeight: active ? '600' : '400',
-                          },
-                        ]}
-                      >
-                        {p.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-
-            {/* 外观模式 — M3 segmented */}
-            <View
-              style={[
-                styles.appearanceBlock,
-                Platform.OS === 'android' && {
-                  borderBottomWidth: StyleSheet.hairlineWidth,
-                  borderBottomColor: theme.colors.divider,
-                },
-              ]}
-            >
-              <Text style={[styles.settingLabel, { color: theme.colors.text }]}>外观模式</Text>
-              <View style={[styles.segmentedTrack, { borderColor: theme.colors.outline }]}>
-                {themeOptions.map((opt, i) => {
-                  const active = themeMode === opt.value;
-                  const isFirst = i === 0;
-                  const isLast = i === themeOptions.length - 1;
-                  return (
-                    <TouchableOpacity
-                      key={opt.value}
-                      onPress={() => handleSetThemeMode(opt.value)}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: active }}
-                      style={[
-                        styles.segmentedItem,
-                        {
-                          backgroundColor: active ? theme.colors.primaryContainer : 'transparent',
-                          borderLeftWidth: isFirst ? 0 : StyleSheet.hairlineWidth,
-                          borderLeftColor: theme.colors.outline,
-                        },
-                        isFirst && {
-                          borderTopLeftRadius: radius.pill,
-                          borderBottomLeftRadius: radius.pill,
-                        },
-                        isLast && {
-                          borderTopRightRadius: radius.pill,
-                          borderBottomRightRadius: radius.pill,
-                        },
-                      ]}
-                    >
-                      {active && (
-                        <Check
-                          stroke={theme.colors.onPrimaryContainer}
-                          width={14}
-                          height={14}
-                          strokeWidth={3}
-                          style={styles.segmentedCheck}
-                        />
-                      )}
-                      <Text
-                        style={[
-                          styles.segmentedItemText,
-                          {
-                            color: active ? theme.colors.onPrimaryContainer : theme.colors.text,
-                          },
-                        ]}
-                      >
-                        {opt.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-
-            {Platform.OS === 'android' && (
-              <View style={styles.settingRowNoBorder}>
-                <View style={styles.settingInfo}>
-                  <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
-                    在最近任务列表中隐藏
-                  </Text>
-                  <Text style={[styles.settingDescription, { color: theme.colors.textTertiary }]}>
-                    建议隐藏前先锁定，防止被一键清理
-                  </Text>
-                </View>
-                <Host matchContents>
-                  <ComposeSwitch
-                    value={localHideFromRecents}
-                    onCheckedChange={handleToggleHideFromRecents}
-                    colors={{
-                      checkedTrackColor: theme.colors.primary,
-                      uncheckedTrackColor: theme.colors.divider,
-                      checkedThumbColor: theme.colors.surface,
-                      uncheckedThumbColor: theme.colors.textTertiary,
-                    }}
-                  />
-                </Host>
-              </View>
-            )}
-          </View>
-        </View>
+        <AppearanceSection />
 
         {/* 应用信息部分 */}
         <View style={styles.section}>
@@ -2344,161 +1974,7 @@ const SettingsScreenInner = () => {
         </View>
 
         {/* 调试部分 */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeaderBase}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>调试</Text>
-          </View>
-
-          <Host matchContents={{ vertical: true }} style={styles.hostFill}>
-            <Card colors={{ containerColor: theme.colors.surface }}>
-              <Column modifiers={[fillMaxWidth()]}>
-                <ListItem colors={{ containerColor: theme.colors.surface }}>
-                  <ListItem.HeadlineContent>
-                    <ComposeText color={theme.colors.text}>调试模式</ComposeText>
-                  </ListItem.HeadlineContent>
-                  <ListItem.TrailingContent>
-                    <ComposeSwitch
-                      value={localDebugModeEnabled}
-                      onCheckedChange={handleToggleDebugMode}
-                      colors={{
-                        checkedTrackColor: theme.colors.primary,
-                        uncheckedTrackColor: theme.colors.divider,
-                        checkedThumbColor: theme.colors.surface,
-                        uncheckedThumbColor: theme.colors.textTertiary,
-                      }}
-                    />
-                  </ListItem.TrailingContent>
-                </ListItem>
-
-                {localDebugModeEnabled && Platform.OS === 'android' && (
-                  <>
-                    <HorizontalDivider color={theme.colors.divider} />
-                    <ListItem colors={{ containerColor: theme.colors.surface }}>
-                      <ListItem.HeadlineContent>
-                        <ComposeText color={theme.colors.text}>显示悬浮窗</ComposeText>
-                      </ListItem.HeadlineContent>
-                      <ListItem.SupportingContent>
-                        <ComposeText color={theme.colors.textTertiary}>
-                          后台获取剪贴板时显示可见的悬浮窗
-                        </ComposeText>
-                      </ListItem.SupportingContent>
-                      <ListItem.TrailingContent>
-                        <ComposeSwitch
-                          value={localDebugOverlayVisible}
-                          onCheckedChange={handleToggleDebugOverlayVisible}
-                          colors={{
-                            checkedTrackColor: theme.colors.primary,
-                            uncheckedTrackColor: theme.colors.divider,
-                            checkedThumbColor: theme.colors.surface,
-                            uncheckedThumbColor: theme.colors.textTertiary,
-                          }}
-                        />
-                      </ListItem.TrailingContent>
-                    </ListItem>
-                  </>
-                )}
-
-                {localDebugModeEnabled && (
-                  <>
-                    <HorizontalDivider color={theme.colors.divider} />
-                    <ListItem colors={{ containerColor: theme.colors.surface }}>
-                      <ListItem.HeadlineContent>
-                        <ComposeText color={theme.colors.text}>显示 URL Scheme 调用</ComposeText>
-                      </ListItem.HeadlineContent>
-                      <ListItem.TrailingContent>
-                        <ComposeSwitch
-                          value={localDebugUrlScheme}
-                          onCheckedChange={handleToggleDebugUrlScheme}
-                          colors={{
-                            checkedTrackColor: theme.colors.primary,
-                            uncheckedTrackColor: theme.colors.divider,
-                            checkedThumbColor: theme.colors.surface,
-                            uncheckedThumbColor: theme.colors.textTertiary,
-                          }}
-                        />
-                      </ListItem.TrailingContent>
-                    </ListItem>
-                  </>
-                )}
-
-                {localDebugModeEnabled && (
-                  <>
-                    <HorizontalDivider color={theme.colors.divider} />
-                    <ListItem colors={{ containerColor: theme.colors.surface }}>
-                      <ListItem.HeadlineContent>
-                        <ComposeText color={theme.colors.text}>测试验证码短信</ComposeText>
-                      </ListItem.HeadlineContent>
-                      <ListItem.TrailingContent>
-                        <Button
-                          onClick={() => {
-                            setSmsTestInput('');
-                            setShowSmsTestModal(true);
-                          }}
-                          colors={{
-                            containerColor: theme.colors.primary,
-                            contentColor: theme.colors.white,
-                          }}
-                        >
-                          <ComposeText>测试</ComposeText>
-                        </Button>
-                      </ListItem.TrailingContent>
-                    </ListItem>
-                  </>
-                )}
-
-                {localDebugModeEnabled && (
-                  <>
-                    <HorizontalDivider color={theme.colors.divider} />
-                    <ListItem colors={{ containerColor: theme.colors.surface }}>
-                      <ListItem.HeadlineContent>
-                        <ComposeText color={theme.colors.text}>更新检查不限次数</ComposeText>
-                      </ListItem.HeadlineContent>
-                      <ListItem.SupportingContent>
-                        <ComposeText color={theme.colors.textTertiary}>
-                          开启后每次启动均检查更新，不限每天一次
-                        </ComposeText>
-                      </ListItem.SupportingContent>
-                      <ListItem.TrailingContent>
-                        <ComposeSwitch
-                          value={localDebugUpdateCheckNoLimit}
-                          onCheckedChange={handleToggleDebugUpdateCheckNoLimit}
-                          colors={{
-                            checkedTrackColor: theme.colors.primary,
-                            uncheckedTrackColor: theme.colors.divider,
-                            checkedThumbColor: theme.colors.surface,
-                            uncheckedThumbColor: theme.colors.textTertiary,
-                          }}
-                        />
-                      </ListItem.TrailingContent>
-                    </ListItem>
-                  </>
-                )}
-
-                {localDebugModeEnabled && (
-                  <>
-                    <HorizontalDivider color={theme.colors.divider} />
-                    <ListItem colors={{ containerColor: theme.colors.surface }}>
-                      <ListItem.HeadlineContent>
-                        <ComposeText color={theme.colors.text}>统计信息</ComposeText>
-                      </ListItem.HeadlineContent>
-                      <ListItem.TrailingContent>
-                        <Button
-                          onClick={handleShowStatistics}
-                          colors={{
-                            containerColor: theme.colors.primary,
-                            contentColor: theme.colors.white,
-                          }}
-                        >
-                          <ComposeText>查看</ComposeText>
-                        </Button>
-                      </ListItem.TrailingContent>
-                    </ListItem>
-                  </>
-                )}
-              </Column>
-            </Card>
-          </Host>
-        </View>
+        <DebugSection />
 
         <View style={styles.bottomPadding} />
       </ScrollView>
@@ -2519,76 +1995,6 @@ const SettingsScreenInner = () => {
 
       {/* 扫码 Modal */}
       <QrScannerModal visible={showScannerModal} onClose={handleScannerClose} />
-
-      {/* 测试验证码短信底部表单 */}
-      {showSmsTestModal && (
-        <Host>
-          <ModalBottomSheet onDismissRequest={() => setShowSmsTestModal(false)}>
-            <Column modifiers={[paddingAll(24), fillMaxWidth()]}>
-              <ComposeText color={theme.colors.text} style={{ typography: 'titleLarge' }}>
-                测试验证码短信
-              </ComposeText>
-              <Spacer modifiers={[heightModifier(16)]} />
-              <OutlinedTextField
-                value={smsTestNativeState}
-                onValueChange={setSmsTestInput}
-                modifiers={[fillMaxWidth()]}
-              >
-                <OutlinedTextField.Placeholder>
-                  <ComposeText>输入短信内容...</ComposeText>
-                </OutlinedTextField.Placeholder>
-              </OutlinedTextField>
-              <Spacer modifiers={[heightModifier(16)]} />
-              <Row modifiers={[fillMaxWidth()]} horizontalArrangement="end">
-                <TextButton onClick={() => setShowSmsTestModal(false)}>
-                  <ComposeText>取消</ComposeText>
-                </TextButton>
-                <Spacer modifiers={[widthModifier(8)]} />
-                <Button
-                  onClick={handleTestSmsCode}
-                  colors={{
-                    containerColor: theme.colors.primary,
-                    contentColor: theme.colors.white,
-                  }}
-                >
-                  <ComposeText>测试</ComposeText>
-                </Button>
-              </Row>
-            </Column>
-          </ModalBottomSheet>
-        </Host>
-      )}
-
-      {/* 统计信息底部表单 */}
-      {showStatsModal && (
-        <Host>
-          <ModalBottomSheet onDismissRequest={() => setShowStatsModal(false)}>
-            <Column modifiers={[paddingAll(24), fillMaxWidth()]}>
-              <ComposeText color={theme.colors.text} style={{ typography: 'titleLarge' }}>
-                统计信息
-              </ComposeText>
-              <Spacer modifiers={[heightModifier(16)]} />
-              <ComposeText color={theme.colors.text}>{statsText}</ComposeText>
-              <Spacer modifiers={[heightModifier(16)]} />
-              <Row modifiers={[fillMaxWidth()]} horizontalArrangement="end">
-                <TextButton onClick={() => setShowStatsModal(false)}>
-                  <ComposeText>关闭</ComposeText>
-                </TextButton>
-                <Spacer modifiers={[widthModifier(8)]} />
-                <Button
-                  onClick={handleCopyStatistics}
-                  colors={{
-                    containerColor: theme.colors.primary,
-                    contentColor: theme.colors.white,
-                  }}
-                >
-                  <ComposeText>复制</ComposeText>
-                </Button>
-              </Row>
-            </Column>
-          </ModalBottomSheet>
-        </Host>
-      )}
 
       {/* 添加服务器底部表单 */}
       {showAddServerSheet && (
@@ -2829,25 +2235,6 @@ const SettingsScreenInner = () => {
                 <ComposeText>取消</ComposeText>
               </TextButton>
             </AlertDialog.DismissButton>
-          </AlertDialog>
-        )}
-
-        {smsTestResult && (
-          <AlertDialog
-            onDismissRequest={() => setSmsTestResult(null)}
-            colors={{ containerColor: theme.colors.surface }}
-          >
-            <AlertDialog.Title>
-              <ComposeText color={theme.colors.text}>{smsTestResult.title}</ComposeText>
-            </AlertDialog.Title>
-            <AlertDialog.Text>
-              <ComposeText color={theme.colors.textSecondary}>{smsTestResult.message}</ComposeText>
-            </AlertDialog.Text>
-            <AlertDialog.ConfirmButton>
-              <TextButton onClick={() => setSmsTestResult(null)}>
-                <ComposeText>确定</ComposeText>
-              </TextButton>
-            </AlertDialog.ConfirmButton>
           </AlertDialog>
         )}
       </Host>
