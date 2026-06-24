@@ -163,14 +163,14 @@ class UcCoreModule : Module() {
             )
         }
 
-        Function("commitConverged") { stateMap: Map<String, Any?>, serverHash: String ->
+        Function("commitConverged") { stateMap: Map<String, Any?>, serverHash: String, serverContentId: String? ->
             ensureInit()
-            runtimeStateToMap(uniffi.uc_mobile.commitConverged(runtimeStateFromMap(stateMap), serverHash))
+            runtimeStateToMap(uniffi.uc_mobile.commitConverged(runtimeStateFromMap(stateMap), serverHash, serverContentId))
         }
 
-        Function("commitApply") { stateMap: Map<String, Any?>, hash: String?, nowMs: Double, cfgMap: Map<String, Any?> ->
+        Function("commitApply") { stateMap: Map<String, Any?>, hash: String?, contentId: String?, nowMs: Double, cfgMap: Map<String, Any?> ->
             ensureInit()
-            commitStepToMap(uniffi.uc_mobile.commitApply(runtimeStateFromMap(stateMap), hash, nowMs.toLong(), syncConfigFromMap(cfgMap)))
+            commitStepToMap(uniffi.uc_mobile.commitApply(runtimeStateFromMap(stateMap), hash, contentId, nowMs.toLong(), syncConfigFromMap(cfgMap)))
         }
 
         Function("commitApplyFailed") { stateMap: Map<String, Any?>, entryMap: Map<String, Any?> ->
@@ -316,7 +316,8 @@ private fun metaToMap(meta: ClipboardMeta): Map<String, Any?> = mapOf(
     "dataName" to meta.dataName,
     "hasData" to meta.hasData,
     "size" to meta.size,
-    "hash" to meta.hash
+    "hash" to meta.hash,
+    "contentId" to meta.contentId
 )
 
 private fun metaFromMap(map: Map<String, Any?>): ClipboardMeta {
@@ -332,7 +333,8 @@ private fun metaFromMap(map: Map<String, Any?>): ClipboardMeta {
         dataName = map["dataName"] as? String,
         hasData = map["hasData"] as? Boolean ?: false,
         size = (map["size"] as? Number)?.toLong()?.toULong() ?: 0u,
-        hash = map["hash"] as? String
+        hash = map["hash"] as? String,
+        contentId = map["contentId"] as? String
     )
 }
 
@@ -411,6 +413,7 @@ private fun loopDirectionFromString(s: String): LoopDirection = when (s) {
 private fun runtimeStateToMap(s: SyncRuntimeState): Map<String, Any?> = mapOf(
     "state" to syncStateToString(s.state),
     "lastSyncedHash" to s.lastSyncedHash,
+    "lastSyncedContentId" to s.lastSyncedContentId,
     "lastAppliedHash" to s.lastAppliedHash,
     "loopEvents" to s.loopEvents.map { ev ->
         mapOf(
@@ -420,6 +423,7 @@ private fun runtimeStateToMap(s: SyncRuntimeState): Map<String, Any?> = mapOf(
         )
     },
     "stagedServerHash" to s.stagedServerHash,
+    "stagedContentId" to s.stagedContentId,
     "stagedEntry" to s.stagedEntry?.let { metaToMap(it) },
     "consecutiveFailures" to s.consecutiveFailures,
     "nextAttemptMs" to s.nextAttemptMs,
@@ -440,9 +444,11 @@ private fun runtimeStateFromMap(map: Map<String, Any?>): SyncRuntimeState {
     return SyncRuntimeState(
         state = syncStateFromString(map["state"] as? String ?: "Idle"),
         lastSyncedHash = map["lastSyncedHash"] as? String,
+        lastSyncedContentId = map["lastSyncedContentId"] as? String,
         lastAppliedHash = map["lastAppliedHash"] as? String,
         loopEvents = loopEvents,
         stagedServerHash = map["stagedServerHash"] as? String,
+        stagedContentId = map["stagedContentId"] as? String,
         stagedEntry = stagedEntryMap?.let { metaFromMap(it) },
         consecutiveFailures = (map["consecutiveFailures"] as? Number)?.toLong() ?: 0L,
         nextAttemptMs = (map["nextAttemptMs"] as? Number)?.toLong(),
@@ -477,6 +483,7 @@ private fun preambleSnapshotFromMap(map: Map<String, Any?>): PreambleSnapshot = 
     deviceHash = map["deviceHash"] as? String,
     historyHeadHash = map["historyHeadHash"] as? String,
     persistedSyncedHash = map["persistedSyncedHash"] as? String,
+    persistedSyncedContentId = map["persistedSyncedContentId"] as? String,
     nowMs = (map["nowMs"] as? Number)?.toLong() ?: 0L
 )
 

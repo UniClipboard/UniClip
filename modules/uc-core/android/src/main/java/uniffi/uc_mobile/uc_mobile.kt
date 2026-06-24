@@ -822,13 +822,13 @@ external fun uniffi_uc_mobile_fn_func_backoff_secs(`consecutiveFailures`: Long,`
 ): Double
 external fun uniffi_uc_mobile_fn_func_cadence_secs(`state`: RustBuffer.ByValue,`isSceneInactive`: Byte,`cfg`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Double
-external fun uniffi_uc_mobile_fn_func_commit_apply(`state`: RustBuffer.ByValue,`hash`: RustBuffer.ByValue,`nowMs`: Long,`cfg`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_commit_apply(`state`: RustBuffer.ByValue,`hash`: RustBuffer.ByValue,`contentId`: RustBuffer.ByValue,`nowMs`: Long,`cfg`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 external fun uniffi_uc_mobile_fn_func_commit_apply_failed(`state`: RustBuffer.ByValue,`entry`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 external fun uniffi_uc_mobile_fn_func_commit_consent_push(`state`: RustBuffer.ByValue,`pushedHash`: RustBuffer.ByValue,`nowMs`: Long,`cfg`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
-external fun uniffi_uc_mobile_fn_func_commit_converged(`state`: RustBuffer.ByValue,`serverHash`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_commit_converged(`state`: RustBuffer.ByValue,`serverHash`: RustBuffer.ByValue,`serverContentId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 external fun uniffi_uc_mobile_fn_func_commit_history_sync_done(`state`: RustBuffer.ByValue,`nowMs`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
@@ -1006,7 +1006,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_uc_mobile_checksum_func_cadence_secs() != 61481.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_uc_mobile_checksum_func_commit_apply() != 11935.toShort()) {
+    if (lib.uniffi_uc_mobile_checksum_func_commit_apply() != 39457.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_uc_mobile_checksum_func_commit_apply_failed() != 9075.toShort()) {
@@ -1015,7 +1015,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_uc_mobile_checksum_func_commit_consent_push() != 38441.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_uc_mobile_checksum_func_commit_converged() != 1204.toShort()) {
+    if (lib.uniffi_uc_mobile_checksum_func_commit_converged() != 38852.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_uc_mobile_checksum_func_commit_history_sync_done() != 39606.toShort()) {
@@ -2582,6 +2582,14 @@ data class ClipboardMeta (
      * SHA-256 hex. Optional on upload, always present in daemon responses.
      */
     var `hash`: kotlin.String?
+    , 
+    /**
+     * Server-assigned opaque cross-device identity (`blake3v1:<hex>`), stable
+     * across server-side re-encodes. Present in GET responses; `None` on the
+     * upload path and from a legacy server. Passed through verbatim — the sync
+     * reducer dedups on it (see `uc_mobile_proto::sync_engine`).
+     */
+    var `contentId`: kotlin.String?
     
 ){
     
@@ -2604,6 +2612,7 @@ public object FfiConverterTypeClipboardMeta: FfiConverterRustBuffer<ClipboardMet
             FfiConverterBoolean.read(buf),
             FfiConverterULong.read(buf),
             FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalString.read(buf),
         )
     }
 
@@ -2613,7 +2622,8 @@ public object FfiConverterTypeClipboardMeta: FfiConverterRustBuffer<ClipboardMet
             FfiConverterOptionalString.allocationSize(value.`dataName`) +
             FfiConverterBoolean.allocationSize(value.`hasData`) +
             FfiConverterULong.allocationSize(value.`size`) +
-            FfiConverterOptionalString.allocationSize(value.`hash`)
+            FfiConverterOptionalString.allocationSize(value.`hash`) +
+            FfiConverterOptionalString.allocationSize(value.`contentId`)
     )
 
     override fun write(value: ClipboardMeta, buf: ByteBuffer) {
@@ -2623,6 +2633,7 @@ public object FfiConverterTypeClipboardMeta: FfiConverterRustBuffer<ClipboardMet
             FfiConverterBoolean.write(value.`hasData`, buf)
             FfiConverterULong.write(value.`size`, buf)
             FfiConverterOptionalString.write(value.`hash`, buf)
+            FfiConverterOptionalString.write(value.`contentId`, buf)
     }
 }
 
@@ -3136,6 +3147,12 @@ data class PreambleSnapshot (
     , 
     var `persistedSyncedHash`: kotlin.String?
     , 
+    /**
+     * Cross-process companion of `persisted_synced_hash`; the Share Extension
+     * push path writes this ABSENT (`None`), not stale-carried.
+     */
+    var `persistedSyncedContentId`: kotlin.String?
+    , 
     var `nowMs`: kotlin.Long
     
 ){
@@ -3159,6 +3176,7 @@ public object FfiConverterTypePreambleSnapshot: FfiConverterRustBuffer<PreambleS
             FfiConverterOptionalString.read(buf),
             FfiConverterOptionalString.read(buf),
             FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalString.read(buf),
             FfiConverterLong.read(buf),
         )
     }
@@ -3170,6 +3188,7 @@ public object FfiConverterTypePreambleSnapshot: FfiConverterRustBuffer<PreambleS
             FfiConverterOptionalString.allocationSize(value.`deviceHash`) +
             FfiConverterOptionalString.allocationSize(value.`historyHeadHash`) +
             FfiConverterOptionalString.allocationSize(value.`persistedSyncedHash`) +
+            FfiConverterOptionalString.allocationSize(value.`persistedSyncedContentId`) +
             FfiConverterLong.allocationSize(value.`nowMs`)
     )
 
@@ -3180,6 +3199,7 @@ public object FfiConverterTypePreambleSnapshot: FfiConverterRustBuffer<PreambleS
             FfiConverterOptionalString.write(value.`deviceHash`, buf)
             FfiConverterOptionalString.write(value.`historyHeadHash`, buf)
             FfiConverterOptionalString.write(value.`persistedSyncedHash`, buf)
+            FfiConverterOptionalString.write(value.`persistedSyncedContentId`, buf)
             FfiConverterLong.write(value.`nowMs`, buf)
     }
 }
@@ -3505,11 +3525,22 @@ data class SyncRuntimeState (
     , 
     var `lastSyncedHash`: kotlin.String?
     , 
+    /**
+     * Opaque cross-device identity of the synced content (`blake3v1:<hex>`),
+     * written/cleared in lock-step with `last_synced_hash`.
+     */
+    var `lastSyncedContentId`: kotlin.String?
+    , 
     var `lastAppliedHash`: kotlin.String?
     , 
     var `loopEvents`: List<LoopGuardEvent>
     , 
     var `stagedServerHash`: kotlin.String?
+    , 
+    /**
+     * The staged entry's `contentId`, written/cleared with the staged slot.
+     */
+    var `stagedContentId`: kotlin.String?
     , 
     var `stagedEntry`: ClipboardMeta?
     , 
@@ -3537,7 +3568,9 @@ public object FfiConverterTypeSyncRuntimeState: FfiConverterRustBuffer<SyncRunti
             FfiConverterTypeSyncState.read(buf),
             FfiConverterOptionalString.read(buf),
             FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalString.read(buf),
             FfiConverterSequenceTypeLoopGuardEvent.read(buf),
+            FfiConverterOptionalString.read(buf),
             FfiConverterOptionalString.read(buf),
             FfiConverterOptionalTypeClipboardMeta.read(buf),
             FfiConverterLong.read(buf),
@@ -3549,9 +3582,11 @@ public object FfiConverterTypeSyncRuntimeState: FfiConverterRustBuffer<SyncRunti
     override fun allocationSize(value: SyncRuntimeState) = (
             FfiConverterTypeSyncState.allocationSize(value.`state`) +
             FfiConverterOptionalString.allocationSize(value.`lastSyncedHash`) +
+            FfiConverterOptionalString.allocationSize(value.`lastSyncedContentId`) +
             FfiConverterOptionalString.allocationSize(value.`lastAppliedHash`) +
             FfiConverterSequenceTypeLoopGuardEvent.allocationSize(value.`loopEvents`) +
             FfiConverterOptionalString.allocationSize(value.`stagedServerHash`) +
+            FfiConverterOptionalString.allocationSize(value.`stagedContentId`) +
             FfiConverterOptionalTypeClipboardMeta.allocationSize(value.`stagedEntry`) +
             FfiConverterLong.allocationSize(value.`consecutiveFailures`) +
             FfiConverterOptionalLong.allocationSize(value.`nextAttemptMs`) +
@@ -3561,9 +3596,11 @@ public object FfiConverterTypeSyncRuntimeState: FfiConverterRustBuffer<SyncRunti
     override fun write(value: SyncRuntimeState, buf: ByteBuffer) {
             FfiConverterTypeSyncState.write(value.`state`, buf)
             FfiConverterOptionalString.write(value.`lastSyncedHash`, buf)
+            FfiConverterOptionalString.write(value.`lastSyncedContentId`, buf)
             FfiConverterOptionalString.write(value.`lastAppliedHash`, buf)
             FfiConverterSequenceTypeLoopGuardEvent.write(value.`loopEvents`, buf)
             FfiConverterOptionalString.write(value.`stagedServerHash`, buf)
+            FfiConverterOptionalString.write(value.`stagedContentId`, buf)
             FfiConverterOptionalTypeClipboardMeta.write(value.`stagedEntry`, buf)
             FfiConverterLong.write(value.`consecutiveFailures`, buf)
             FfiConverterOptionalLong.write(value.`nextAttemptMs`, buf)
@@ -5031,13 +5068,15 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
     
 
         /**
-         * Apply commit: a server entry was written to the pasteboard.
-         */ fun `commitApply`(`state`: SyncRuntimeState, `hash`: kotlin.String?, `nowMs`: kotlin.Long, `cfg`: SyncConfig): CommitStep {
+         * Apply commit: a server entry was written to the pasteboard. `content_id` is
+         * the applied server entry's identity (`None` for a legacy server).
+         * FFI-breaking signature change.
+         */ fun `commitApply`(`state`: SyncRuntimeState, `hash`: kotlin.String?, `contentId`: kotlin.String?, `nowMs`: kotlin.Long, `cfg`: SyncConfig): CommitStep {
             return FfiConverterTypeCommitStep.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_commit_apply(
     
-        FfiConverterTypeSyncRuntimeState.lower(`state`),FfiConverterOptionalString.lower(`hash`),FfiConverterLong.lower(`nowMs`),FfiConverterTypeSyncConfig.lower(`cfg`),_status)
+        FfiConverterTypeSyncRuntimeState.lower(`state`),FfiConverterOptionalString.lower(`hash`),FfiConverterOptionalString.lower(`contentId`),FfiConverterLong.lower(`nowMs`),FfiConverterTypeSyncConfig.lower(`cfg`),_status)
 }
     )
     }
@@ -5071,12 +5110,14 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
 
         /**
          * Truth-gate commit: repair watermark, mark applied, clear staged, succeed.
-         */ fun `commitConverged`(`state`: SyncRuntimeState, `serverHash`: kotlin.String): SyncRuntimeState {
+         * `server_content_id` is the server entry's identity (the primary learning
+         * path); pass `None` for a legacy server. FFI-breaking signature change.
+         */ fun `commitConverged`(`state`: SyncRuntimeState, `serverHash`: kotlin.String, `serverContentId`: kotlin.String?): SyncRuntimeState {
             return FfiConverterTypeSyncRuntimeState.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_commit_converged(
     
-        FfiConverterTypeSyncRuntimeState.lower(`state`),FfiConverterString.lower(`serverHash`),_status)
+        FfiConverterTypeSyncRuntimeState.lower(`state`),FfiConverterString.lower(`serverHash`),FfiConverterOptionalString.lower(`serverContentId`),_status)
 }
     )
     }
