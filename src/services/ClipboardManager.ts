@@ -19,6 +19,9 @@ import { nativeSetClipboardImageFromFile } from 'native-util';
  */
 export class ClipboardManager {
   private lastProfileHash: string = '';
+  private _imageReadFailedForState: boolean = false;
+  private _lastImageHash: string | null = null;
+  private _lastImageContent: ClipboardContent | null = null;
 
   /**
    * 获取当前剪贴板内容
@@ -28,6 +31,7 @@ export class ClipboardManager {
       // Directly try getting text first (avoids extra overlay windows for type checks)
       const text = await ClipboardProxy.getStringAsync();
       if (text && text.length > 0) {
+        this._imageReadFailedForState = false;
         return await this.getTextContentFromString(text);
       }
 
@@ -37,7 +41,6 @@ export class ClipboardManager {
         return await this.getImageContent();
       }
 
-      // 没有内容
       return null;
     } catch (error) {
       console.error('[ClipboardManager] Failed to get clipboard content:', error);
@@ -195,6 +198,12 @@ export class ClipboardManager {
       // ========== 阶段2: 从文件计算 localClipboardHash ==========
       const localClipboardHash = await calculateFileHash(randomTempFilePath);
 
+      // 早期去重：hash 未变则返回缓存结果，删除多余临时文件
+      if (this._lastImageHash === localClipboardHash && this._lastImageContent) {
+        try { new File(randomTempFilePath).delete(); } catch {}
+        return { ...this._lastImageContent, timestamp };
+      }
+
       // 将随机命名的临时文件重命名为基于 hash 的确定性名称（便于去重）
       const hashTempFileName = `${localClipboardHash.substring(0, 16)}.${imageExt}`;
       let tempFilePath = prepareTempFilePath(hashTempFileName);
@@ -230,7 +239,7 @@ export class ClipboardManager {
         if (historyFileUri) {
           const historyFile = new File(historyFileUri);
           if (historyFile.exists) {
-            return {
+            const result: ClipboardContent = {
               type: 'Image',
               text: historyItem.dataName,
               fileUri: historyFile.uri,
@@ -241,6 +250,9 @@ export class ClipboardManager {
               hasData: true,
               timestamp,
             };
+            this._lastImageHash = localClipboardHash;
+            this._lastImageContent = result;
+            return result;
           }
         }
       }
@@ -250,11 +262,11 @@ export class ClipboardManager {
       const fileUri = tempFile.uri;
       const fileSize = tempFile.size;
 
-      // 根据服务器规则计算 profileHash
-      const combinedString = `${tempFile.name}|${localClipboardHash.toUpperCase()}`;
-      const profileHash = await calculateTextHash(combinedString);
+      // SyncClipboard 规范：Image 的 profileHash = 文件内容 SHA256（文件名不参与）
+      // 与 iOS Clipboard.swift / 服务端 sync_clipboard_mapping.rs 对齐
+      const profileHash = localClipboardHash;
 
-      return {
+      const result: ClipboardContent = {
         type: 'Image',
         text: tempFile.name,
         fileUri,
@@ -265,6 +277,9 @@ export class ClipboardManager {
         hasData: true,
         timestamp,
       };
+      this._lastImageHash = localClipboardHash;
+      this._lastImageContent = result;
+      return result;
     } catch (error) {
       console.error('[ClipboardManager] Failed to get image:', error);
       throw new Error('Failed to get image from clipboard');
@@ -390,6 +405,9 @@ export class ClipboardManager {
    */
   resetLastProfileHash(): void {
     this.lastProfileHash = '';
+    this._imageReadFailedForState = false;
+    this._lastImageHash = null;
+    this._lastImageContent = null;
   }
 
   /**
