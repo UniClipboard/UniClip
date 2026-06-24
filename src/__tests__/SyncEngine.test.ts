@@ -71,6 +71,7 @@ function setupConvergedTick() {
   });
   mockedGetLatest.mockResolvedValue({
     kind: 'Text', text: 'hello', dataName: null, hasData: false, size: 5, hash: 'ABCD',
+    contentId: 'blake3v1:CID',
   });
   mockedPlanAfterServerGet.mockReturnValue({
     type: 'Converged', serverHash: 'ABCD',
@@ -106,7 +107,7 @@ describe('SyncEngine', () => {
     expect(mockedPlanPreamble).toHaveBeenCalledTimes(1);
     expect(mockedGetLatest).toHaveBeenCalledTimes(1);
     expect(mockedPlanAfterServerGet).toHaveBeenCalledTimes(1);
-    expect(mockedCommitConverged).toHaveBeenCalledWith(DEFAULT_STATE, 'ABCD');
+    expect(mockedCommitConverged).toHaveBeenCalledWith(DEFAULT_STATE, 'ABCD', 'blake3v1:CID');
 
     const status = engine.getStatus();
     expect(status.state).toBe('Succeeded');
