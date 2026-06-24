@@ -59,6 +59,7 @@ import { SyncSettingsSection } from './settings/SyncSettingsSection';
 import { QuickActionsSection } from './settings/QuickActionsSection';
 import { AppearanceSection } from './settings/AppearanceSection';
 import { DebugSection } from './settings/DebugSection';
+import { HistorySection } from './settings/HistorySection';
 import {
   checkForUpdate,
   calculateLogSize,
@@ -96,7 +97,6 @@ const SettingsScreenInner = () => {
     setAutoCheckUpdate,
     setLastUpdateCheckDate,
     setUpdateToBeta,
-    setEnableHistorySync,
     setLogLevel,
     setEnableBackgroundDownload,
     setEnableBackgroundUpload,
@@ -124,9 +124,6 @@ const SettingsScreenInner = () => {
   const [localUpdateToBetaEnabled, setLocalUpdateToBetaEnabled] = useState(
     config?.updateToBeta ?? false
   );
-  const [localHistorySyncEnabled, setLocalHistorySyncEnabled] = useState(
-    config?.enableHistorySync ?? false
-  );
   const [localBackgroundDownloadEnabled, setLocalBackgroundDownloadEnabled] = useState(
     config?.enableBackgroundDownload ?? false
   );
@@ -149,10 +146,6 @@ const SettingsScreenInner = () => {
     config?.enableForegroundNotification ?? true
   );
   const [showLogLevelMenu, setShowLogLevelMenu] = useState(false);
-  const [showImageAutoDownloadMenu, setShowImageAutoDownloadMenu] = useState(false);
-  const [localImageAutoDownload, setLocalImageAutoDownload] = useState<'wifi' | 'always' | 'off'>(
-    config?.attachmentAutoDownload ?? 'wifi'
-  );
 
   // AlertDialog / ModalBottomSheet 可见性状态
   const [showShizukuUnavailableDialog, setShowShizukuUnavailableDialog] = useState(false);
@@ -212,10 +205,6 @@ const SettingsScreenInner = () => {
   }, [config?.updateToBeta]);
 
   useEffect(() => {
-    setLocalHistorySyncEnabled(config?.enableHistorySync ?? true);
-  }, [config?.enableHistorySync]);
-
-  useEffect(() => {
     setLocalBackgroundDownloadEnabled(config?.enableBackgroundDownload ?? false);
   }, [config?.enableBackgroundDownload]);
 
@@ -244,10 +233,6 @@ const SettingsScreenInner = () => {
   useEffect(() => {
     setLocalForegroundNotification(config?.enableForegroundNotification ?? true);
   }, [config?.enableForegroundNotification]);
-
-  useEffect(() => {
-    setLocalImageAutoDownload(config?.attachmentAutoDownload ?? 'wifi');
-  }, [config?.attachmentAutoDownload]);
 
   // 计算存储大小
   useEffect(() => {
@@ -300,12 +285,6 @@ const SettingsScreenInner = () => {
     })();
   }, [isLoaded]);
 
-  const imageAutoDownloadOptions: { label: string; value: 'wifi' | 'always' | 'off' }[] = [
-    { label: '仅 Wi-Fi', value: 'wifi' },
-    { label: '总是', value: 'always' },
-    { label: '关闭', value: 'off' },
-  ];
-
   const logLevelOptions: { label: string; value: LogLevel }[] = [
     { label: '调试', value: 'debug' },
     { label: '信息', value: 'info' },
@@ -318,15 +297,7 @@ const SettingsScreenInner = () => {
   const activeServerIndex = config?.activeServerIndex ?? -1;
   const activeServer = activeServerIndex >= 0 ? servers[activeServerIndex] : null;
 
-  // 本地 state 用于输入框
-  const [maxHistoryItemsInput, setMaxHistoryItemsInput] = useState(
-    (config?.maxHistoryItems ?? 1000).toString()
-  );
   // Native state for OutlinedTextField (SDK 56 migration)
-  const maxHistoryItemsNativeState = useNativeState(maxHistoryItemsInput);
-  const imageAutoDownloadLabel =
-    imageAutoDownloadOptions.find((o) => o.value === localImageAutoDownload)?.label ?? '仅 Wi-Fi';
-  const imageAutoDownloadNativeState = useNativeState(imageAutoDownloadLabel);
   const logLevelLabel =
     logLevelOptions.find((o) => o.value === config?.logLevel)?.label ?? '错误';
   const logLevelNativeState = useNativeState(logLevelLabel);
@@ -759,27 +730,6 @@ const SettingsScreenInner = () => {
     }
   };
 
-  // 处理历史记录最大保留条数输入
-  const handleMaxHistoryItemsBlur = async () => {
-    try {
-      const maxItems = parseInt(maxHistoryItemsInput, 10);
-      if (isNaN(maxItems) || maxItems < 10) {
-        setMaxHistoryItemsInput((config?.maxHistoryItems ?? 1000).toString());
-        showMessage('请输入大于等于10的数字', 'error');
-        return;
-      }
-      await updateConfig({ maxHistoryItems: maxItems });
-      showMessage(`已设置历史记录最大保留条数为 ${maxItems}条`, 'success');
-
-      // 更新历史记录存储的最大大小
-      const { historyStorage } = await import('@/services');
-      historyStorage.setMaxHistorySize(maxItems);
-    } catch (error: unknown) {
-      setMaxHistoryItemsInput((config?.maxHistoryItems ?? 1000).toString());
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
-    }
-  };
-
   // 处理切换自动检查更新
   const handleToggleAutoCheckUpdate = async (enabled: boolean) => {
     setLocalAutoCheckUpdateEnabled(enabled);
@@ -799,46 +749,6 @@ const SettingsScreenInner = () => {
     } catch (error: unknown) {
       setLocalUpdateToBetaEnabled(!enabled);
       showMessage(error instanceof Error ? error.message : '设置失败', 'error');
-    }
-  };
-
-  // 处理切换历史记录同步
-  const handleToggleHistorySync = async (enabled: boolean) => {
-    try {
-      const { getHistorySyncService } = await import('@/services/HistorySyncService');
-      const syncService = getHistorySyncService();
-      syncService.cancelAll();
-
-      if (!enabled) {
-        await syncService.resetSyncCursor();
-      }
-    } catch {
-      // ignore
-    }
-
-    setLocalHistorySyncEnabled(enabled);
-    try {
-      await setEnableHistorySync(enabled);
-
-      if (!enabled) {
-        const { runtimeStateStorage } = await import('@/services/RuntimeStateStorage');
-        await runtimeStateStorage.update({ needsHistoryReorganize: true });
-      }
-
-      showMessage(enabled ? '已启用历史记录同步' : '已禁用历史记录同步', 'success');
-    } catch (error: unknown) {
-      setLocalHistorySyncEnabled(!enabled);
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
-    }
-  };
-
-  // 处理历史记录图片自动下载设置变更
-  const handleImageAutoDownloadChange = async (value: 'wifi' | 'always' | 'off') => {
-    setLocalImageAutoDownload(value);
-    try {
-      await updateConfig({ attachmentAutoDownload: value });
-    } catch {
-      setLocalImageAutoDownload(config?.attachmentAutoDownload ?? 'wifi');
     }
   };
 
@@ -1171,139 +1081,7 @@ const SettingsScreenInner = () => {
         <SyncSettingsSection />
 
         {/* 历史记录部分 */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeaderBase}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>历史记录</Text>
-          </View>
-
-          <Host matchContents={{ vertical: true }} style={styles.hostFill}>
-            <Card colors={{ containerColor: theme.colors.surface }}>
-              <Column modifiers={[fillMaxWidth()]}>
-                <ListItem colors={{ containerColor: theme.colors.surface }}>
-                  <ListItem.HeadlineContent>
-                    <ComposeText color={theme.colors.text}>历史记录同步</ComposeText>
-                  </ListItem.HeadlineContent>
-                  <ListItem.SupportingContent>
-                    <ComposeText color={theme.colors.textTertiary}>
-                      {activeServer?.type !== 'syncclipboard'
-                        ? '当前服务器不支持历史记录同步'
-                        : '同步历史记录到服务器'}
-                    </ComposeText>
-                  </ListItem.SupportingContent>
-                  <ListItem.TrailingContent>
-                    <ComposeSwitch
-                      value={localHistorySyncEnabled && activeServer?.type === 'syncclipboard'}
-                      onCheckedChange={handleToggleHistorySync}
-                      enabled={activeServer?.type === 'syncclipboard'}
-                      colors={{
-                        checkedTrackColor: theme.colors.primary,
-                        uncheckedTrackColor: theme.colors.divider,
-                        checkedThumbColor: theme.colors.surface,
-                        uncheckedThumbColor: theme.colors.textTertiary,
-                      }}
-                    />
-                  </ListItem.TrailingContent>
-                </ListItem>
-
-                <HorizontalDivider color={theme.colors.divider} />
-
-                <ListItem colors={{ containerColor: theme.colors.surface }}>
-                  <ListItem.HeadlineContent>
-                    <ComposeText color={theme.colors.text}>历史记录最大保留条数</ComposeText>
-                  </ListItem.HeadlineContent>
-                  <ListItem.SupportingContent>
-                    <ComposeText color={theme.colors.textTertiary}>最小值为10条</ComposeText>
-                  </ListItem.SupportingContent>
-                  <ListItem.TrailingContent>
-                    <OutlinedTextField
-                      value={maxHistoryItemsNativeState}
-                      onValueChange={setMaxHistoryItemsInput}
-                      onFocusChanged={(focused) => {
-                        if (!focused) handleMaxHistoryItemsBlur();
-                      }}
-                      keyboardOptions={{ keyboardType: 'number' }}
-                      singleLine
-                      modifiers={[widthModifier(112)]}
-                    >
-                      <OutlinedTextField.Placeholder>
-                        <ComposeText>100</ComposeText>
-                      </OutlinedTextField.Placeholder>
-                      <OutlinedTextField.Suffix>
-                        <ComposeText>条</ComposeText>
-                      </OutlinedTextField.Suffix>
-                    </OutlinedTextField>
-                  </ListItem.TrailingContent>
-                </ListItem>
-
-                <HorizontalDivider color={theme.colors.divider} />
-
-                <ListItem colors={{ containerColor: theme.colors.surface }}>
-                  <ListItem.HeadlineContent>
-                    <ComposeText color={theme.colors.text}>浏览到图片时自动下载</ComposeText>
-                  </ListItem.HeadlineContent>
-                  <ListItem.TrailingContent>
-                    <ExposedDropdownMenuBox
-                      expanded={showImageAutoDownloadMenu}
-                      onExpandedChange={setShowImageAutoDownloadMenu}
-                      modifiers={[widthModifier(140)]}
-                    >
-                      <OutlinedTextField
-                        key={localImageAutoDownload}
-                        value={imageAutoDownloadNativeState}
-                        readOnly
-                        singleLine
-                        modifiers={[menuAnchor(), fillMaxWidth()]}
-                      />
-                      <ExposedDropdownMenu
-                        expanded={showImageAutoDownloadMenu}
-                        onDismissRequest={() => setShowImageAutoDownloadMenu(false)}
-                      >
-                        {imageAutoDownloadOptions.map((option) => (
-                          <DropdownMenuItem
-                            key={option.value}
-                            onClick={() => {
-                              handleImageAutoDownloadChange(option.value);
-                              setShowImageAutoDownloadMenu(false);
-                            }}
-                          >
-                            <DropdownMenuItem.Text>
-                              <ComposeText>{option.label}</ComposeText>
-                            </DropdownMenuItem.Text>
-                          </DropdownMenuItem>
-                        ))}
-                      </ExposedDropdownMenu>
-                    </ExposedDropdownMenuBox>
-                  </ListItem.TrailingContent>
-                </ListItem>
-
-                <HorizontalDivider color={theme.colors.divider} />
-
-                <ListItem colors={{ containerColor: theme.colors.surface }}>
-                  <ListItem.HeadlineContent>
-                    <ComposeText color={theme.colors.text}>为图片显示复制按钮</ComposeText>
-                  </ListItem.HeadlineContent>
-                  <ListItem.SupportingContent>
-                    <ComposeText color={theme.colors.textTertiary}>
-                      在历史记录的图片项显示复制到剪贴板按钮
-                    </ComposeText>
-                  </ListItem.SupportingContent>
-                  <ListItem.TrailingContent>
-                    <ComposeSwitch
-                      value={config?.showImageCopyButton ?? false}
-                      onCheckedChange={(enabled) => updateConfig({ showImageCopyButton: enabled })}
-                      colors={{
-                        checkedTrackColor: theme.colors.primary,
-                        uncheckedTrackColor: theme.colors.divider,
-                        checkedThumbColor: theme.colors.surface,
-                        uncheckedThumbColor: theme.colors.textTertiary,
-                      }}
-                    />
-                  </ListItem.TrailingContent>
-                </ListItem>
-              </Column>
-            </Card>
-          </Host>
-        </View>
+        <HistorySection />
 
         {/* 后台任务部分 */}
         {Platform.OS === 'android' && (
