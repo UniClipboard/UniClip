@@ -178,6 +178,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   updateConfig: async (updates: Partial<AppConfig>) => {
+    // 保存旧值用于持久化失败时回滚（乐观更新模式）
+    const prevConfig = get().config;
     set((state) => ({
       config: state.config ? { ...state.config, ...updates } : null,
       isSaving: true,
@@ -189,7 +191,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       set({ isSaving: false });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to update config';
-      set({ error: errorMessage, isSaving: false });
+      // 回滚乐观更新，保证内存 config 与持久化层一致
+      set({ config: prevConfig, error: errorMessage, isSaving: false });
     }
   },
 
