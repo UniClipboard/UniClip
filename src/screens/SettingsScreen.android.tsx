@@ -22,7 +22,6 @@ import {
   Card,
   ListItem,
   Switch as ComposeSwitch,
-  OutlinedTextField,
   HorizontalDivider,
   Button,
   TextButton,
@@ -30,24 +29,16 @@ import {
   AlertDialog,
   ModalBottomSheet,
   Spacer,
-  ExposedDropdownMenuBox,
-  ExposedDropdownMenu,
-  DropdownMenuItem,
   Text as ComposeText,
-  useNativeState,
 } from '@expo/ui/jetpack-compose';
 import {
   fillMaxWidth,
   paddingAll,
   width as widthModifier,
   height as heightModifier,
-  menuAnchor,
   clickable,
 } from '@expo/ui/jetpack-compose/modifiers';
 import { APP_VERSION } from '@/constants';
-import { Paths, Directory } from 'expo-file-system';
-import { calculateDirectorySize, clearDirectory } from '@/utils/fileStorage';
-import { CLIPBOARD_TEMP_DIR } from '@/utils/fileStorage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { useSettingsStore, usePendingConnectStore } from '@/stores';
@@ -60,13 +51,10 @@ import { QuickActionsSection } from './settings/QuickActionsSection';
 import { AppearanceSection } from './settings/AppearanceSection';
 import { DebugSection } from './settings/DebugSection';
 import { HistorySection } from './settings/HistorySection';
+import { StorageSection } from './settings/StorageSection';
+import { LogSection } from './settings/LogSection';
 import {
   checkForUpdate,
-  calculateLogSize,
-  clearLogs,
-  saveLogsToFile,
-  setLogLevel as setLoggerLogLevel,
-  type LogLevel,
   getPreferredAbi,
   findAssetForAbi,
   checkApkCache,
@@ -97,7 +85,6 @@ const SettingsScreenInner = () => {
     setAutoCheckUpdate,
     setLastUpdateCheckDate,
     setUpdateToBeta,
-    setLogLevel,
     setEnableBackgroundDownload,
     setEnableBackgroundUpload,
     setEnableClipboardOverlay,
@@ -145,14 +132,11 @@ const SettingsScreenInner = () => {
   const [localForegroundNotification, setLocalForegroundNotification] = useState(
     config?.enableForegroundNotification ?? true
   );
-  const [showLogLevelMenu, setShowLogLevelMenu] = useState(false);
 
   // AlertDialog / ModalBottomSheet 可见性状态
   const [showShizukuUnavailableDialog, setShowShizukuUnavailableDialog] = useState(false);
   const [showBatteryOptDialog, setShowBatteryOptDialog] = useState(false);
   const [showAddServerSheet, setShowAddServerSheet] = useState(false);
-  const [showClearCacheDialog, setShowClearCacheDialog] = useState(false);
-  const [showClearLogsDialog, setShowClearLogsDialog] = useState(false);
   const [showCancelDownloadDialog, setShowCancelDownloadDialog] = useState(false);
   const [downloadSourceSheet, setDownloadSourceSheet] = useState<{
     version: string;
@@ -234,11 +218,6 @@ const SettingsScreenInner = () => {
     setLocalForegroundNotification(config?.enableForegroundNotification ?? true);
   }, [config?.enableForegroundNotification]);
 
-  // 计算存储大小
-  useEffect(() => {
-    calculateStorageSizes();
-  }, []);
-
   // 刷新权限状态
   const refreshPermissions = async () => {
     if (Platform.OS !== 'android') return;
@@ -285,30 +264,10 @@ const SettingsScreenInner = () => {
     })();
   }, [isLoaded]);
 
-  const logLevelOptions: { label: string; value: LogLevel }[] = [
-    { label: '调试', value: 'debug' },
-    { label: '信息', value: 'info' },
-    { label: '警告', value: 'warn' },
-    { label: '错误', value: 'error' },
-  ];
-
   // 获取服务器列表
   const servers = config?.servers || [];
   const activeServerIndex = config?.activeServerIndex ?? -1;
   const activeServer = activeServerIndex >= 0 ? servers[activeServerIndex] : null;
-
-  // Native state for OutlinedTextField (SDK 56 migration)
-  const logLevelLabel =
-    logLevelOptions.find((o) => o.value === config?.logLevel)?.label ?? '错误';
-  const logLevelNativeState = useNativeState(logLevelLabel);
-
-  // 存储大小状态
-  const [cacheSize, setCacheSize] = useState<number>(0);
-  const [historySize, setHistorySize] = useState<number>(0);
-  const [logSize, setLogSize] = useState<number>(0);
-  const [isCalculating, setIsCalculating] = useState<boolean>(true);
-  const [isExportingLogs, setIsExportingLogs] = useState<boolean>(false);
-  const exportLogsAbortControllerRef = useRef<AbortController | null>(null);
 
   // 权限状态
   const [permNotification, setPermNotification] = useState<boolean>(false);
@@ -319,22 +278,6 @@ const SettingsScreenInner = () => {
   const [shizukuAvailable, setShizukuAvailable] = useState<boolean>(false);
   const [isRefreshingPermissions, setIsRefreshingPermissions] = useState<boolean>(false);
   const hasBatteryOptRequested = useRef<boolean>(false);
-
-  // 目录对象
-  const cacheDir = CLIPBOARD_TEMP_DIR;
-  const historyDir = new Directory(Paths.document, 'clipboards', 'history');
-
-  // 调试日志
-  useEffect(() => {
-    try {
-      console.log('Cache directory:', cacheDir.uri);
-      console.log('History directory:', historyDir.uri);
-      console.log('Cache directory exists:', cacheDir.exists);
-      console.log('History directory exists:', historyDir.exists);
-    } catch (error) {
-      console.error('Error checking directories:', error);
-    }
-  }, []);
 
   // 打开手动表单（新建态）
   const openManualAddForm = () => {
@@ -904,102 +847,6 @@ const SettingsScreenInner = () => {
     setShowCancelDownloadDialog(true);
   };
 
-  // 计算存储大小
-  const calculateStorageSizes = async () => {
-    setIsCalculating(true);
-    try {
-      // 使用setTimeout模拟异步操作，避免UI阻塞
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      const cacheSizeValue = calculateDirectorySize(cacheDir);
-      const historySizeValue = calculateDirectorySize(historyDir);
-      const logSizeValue = calculateLogSize();
-      setCacheSize(cacheSizeValue);
-      setHistorySize(historySizeValue);
-      setLogSize(logSizeValue);
-    } catch (error) {
-      console.error('Failed to calculate storage sizes:', error);
-    } finally {
-      setIsCalculating(false);
-    }
-  };
-
-  // 清除缓存
-  const handleClearCache = () => {
-    setShowClearCacheDialog(true);
-  };
-
-  const handleClearCacheConfirm = async () => {
-    try {
-      clearDirectory(cacheDir);
-      await calculateStorageSizes();
-      showMessage('缓存已清空', 'success');
-    } catch {
-      showMessage('清空缓存失败', 'error');
-    }
-  };
-
-  // 清除日志
-  const handleClearLogs = () => {
-    setShowClearLogsDialog(true);
-  };
-
-  const handleClearLogsConfirm = async () => {
-    try {
-      clearLogs();
-      await calculateStorageSizes();
-      showMessage('日志已清空', 'success');
-    } catch {
-      showMessage('清空日志失败', 'error');
-    }
-  };
-
-  // 导出日志
-  const handleExportLogs = async () => {
-    if (isExportingLogs) {
-      exportLogsAbortControllerRef.current?.abort();
-      return;
-    }
-
-    const abortController = new AbortController();
-    exportLogsAbortControllerRef.current = abortController;
-    setIsExportingLogs(true);
-
-    try {
-      await saveLogsToFile(abortController.signal);
-      showMessage('日志已保存', 'success');
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        showMessage('已取消导出', 'info');
-      } else {
-        const message = error instanceof Error ? error.message : '导出日志失败';
-        showMessage(message, 'error');
-      }
-    } finally {
-      setIsExportingLogs(false);
-      exportLogsAbortControllerRef.current = null;
-    }
-  };
-
-  // 设置日志等级
-  const handleSetLogLevel = async (level: LogLevel) => {
-    try {
-      await setLogLevel(level);
-      setLoggerLogLevel(level);
-      showMessage(`日志等级已设置为 ${level}`, 'success');
-    } catch {
-      showMessage('设置日志等级失败', 'error');
-    }
-  };
-
-  // 格式化文件大小
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
   // 转场动画进行中先渲染轻量占位，避免在动画期间同步挂载 ~11 个 Compose Host 导致进入卡顿。
   if (!contentReady) {
     return (
@@ -1484,157 +1331,10 @@ const SettingsScreenInner = () => {
         <QuickActionsSection />
 
         {/* 存储部分 */}
-        <View style={styles.section}>
-          <View style={[styles.sectionHeaderBase, styles.sectionHeaderRow]}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>存储</Text>
-            <TouchableOpacity
-              style={styles.iconButton}
-              onPress={calculateStorageSizes}
-              disabled={isCalculating}
-            >
-              <RefreshCw color={theme.colors.primary} width={16} height={16} />
-            </TouchableOpacity>
-          </View>
-
-          <Host matchContents={{ vertical: true }} style={styles.hostFill}>
-            <Card colors={{ containerColor: theme.colors.surface }}>
-              <Column modifiers={[fillMaxWidth()]}>
-                <ListItem colors={{ containerColor: theme.colors.surface }}>
-                  <ListItem.HeadlineContent>
-                    <ComposeText color={theme.colors.text}>缓存空间占用</ComposeText>
-                  </ListItem.HeadlineContent>
-                  <ListItem.SupportingContent>
-                    <ComposeText color={theme.colors.textTertiary}>
-                      {isCalculating ? '加载中...' : formatFileSize(cacheSize)}
-                    </ComposeText>
-                  </ListItem.SupportingContent>
-                  <ListItem.TrailingContent>
-                    <Button
-                      onClick={handleClearCache}
-                      enabled={!isCalculating}
-                      colors={{
-                        containerColor: theme.colors.primary,
-                        contentColor: theme.colors.white,
-                      }}
-                    >
-                      <ComposeText>清理</ComposeText>
-                    </Button>
-                  </ListItem.TrailingContent>
-                </ListItem>
-
-                <HorizontalDivider color={theme.colors.divider} />
-
-                <ListItem colors={{ containerColor: theme.colors.surface }}>
-                  <ListItem.HeadlineContent>
-                    <ComposeText color={theme.colors.text}>日志空间占用</ComposeText>
-                  </ListItem.HeadlineContent>
-                  <ListItem.SupportingContent>
-                    <ComposeText color={theme.colors.textTertiary}>
-                      {isCalculating ? '加载中...' : formatFileSize(logSize)}
-                    </ComposeText>
-                  </ListItem.SupportingContent>
-                  <ListItem.TrailingContent>
-                    <Button
-                      onClick={handleClearLogs}
-                      enabled={!isCalculating}
-                      colors={{
-                        containerColor: theme.colors.primary,
-                        contentColor: theme.colors.white,
-                      }}
-                    >
-                      <ComposeText>清理</ComposeText>
-                    </Button>
-                  </ListItem.TrailingContent>
-                </ListItem>
-
-                <HorizontalDivider color={theme.colors.divider} />
-
-                <ListItem colors={{ containerColor: theme.colors.surface }}>
-                  <ListItem.HeadlineContent>
-                    <ComposeText color={theme.colors.text}>历史记录空间占用</ComposeText>
-                  </ListItem.HeadlineContent>
-                  <ListItem.SupportingContent>
-                    <ComposeText color={theme.colors.textTertiary}>
-                      {isCalculating ? '加载中...' : formatFileSize(historySize)}
-                    </ComposeText>
-                  </ListItem.SupportingContent>
-                </ListItem>
-              </Column>
-            </Card>
-          </Host>
-        </View>
+        <StorageSection />
 
         {/* 日志设置部分 */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeaderBase}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>日志</Text>
-          </View>
-
-          <Host matchContents={{ vertical: true }} style={styles.hostFill}>
-            <Card colors={{ containerColor: theme.colors.surface }}>
-              <Column modifiers={[fillMaxWidth()]}>
-                <ListItem colors={{ containerColor: theme.colors.surface }}>
-                  <ListItem.HeadlineContent>
-                    <ComposeText color={theme.colors.text}>日志等级</ComposeText>
-                  </ListItem.HeadlineContent>
-                  <ListItem.TrailingContent>
-                    <ExposedDropdownMenuBox
-                      expanded={showLogLevelMenu}
-                      onExpandedChange={setShowLogLevelMenu}
-                      modifiers={[widthModifier(140)]}
-                    >
-                      <OutlinedTextField
-                        key={config?.logLevel ?? 'error'}
-                        value={logLevelNativeState}
-                        readOnly
-                        singleLine
-                        modifiers={[menuAnchor(), fillMaxWidth()]}
-                      />
-                      <ExposedDropdownMenu
-                        expanded={showLogLevelMenu}
-                        onDismissRequest={() => setShowLogLevelMenu(false)}
-                      >
-                        {logLevelOptions.map((option) => (
-                          <DropdownMenuItem
-                            key={option.value}
-                            onClick={() => {
-                              handleSetLogLevel(option.value);
-                              setShowLogLevelMenu(false);
-                            }}
-                          >
-                            <DropdownMenuItem.Text>
-                              <ComposeText>{option.label}</ComposeText>
-                            </DropdownMenuItem.Text>
-                          </DropdownMenuItem>
-                        ))}
-                      </ExposedDropdownMenu>
-                    </ExposedDropdownMenuBox>
-                  </ListItem.TrailingContent>
-                </ListItem>
-
-                <HorizontalDivider color={theme.colors.divider} />
-
-                <ListItem colors={{ containerColor: theme.colors.surface }}>
-                  <ListItem.HeadlineContent>
-                    <ComposeText color={theme.colors.text}>导出日志</ComposeText>
-                  </ListItem.HeadlineContent>
-                  <ListItem.TrailingContent>
-                    <Button
-                      onClick={handleExportLogs}
-                      enabled={!isCalculating}
-                      colors={{
-                        containerColor: theme.colors.primary,
-                        contentColor: theme.colors.white,
-                      }}
-                    >
-                      <ComposeText>{isExportingLogs ? '取消' : '导出'}</ComposeText>
-                    </Button>
-                  </ListItem.TrailingContent>
-                </ListItem>
-              </Column>
-            </Card>
-          </Host>
-        </View>
+        <LogSection />
 
         {/* 外观设置部分 */}
         <AppearanceSection />
@@ -1862,68 +1562,6 @@ const SettingsScreenInner = () => {
 
       {/* 共享对话框 Host */}
       <Host>
-        {showClearCacheDialog && (
-          <AlertDialog
-            onDismissRequest={() => setShowClearCacheDialog(false)}
-            colors={{ containerColor: theme.colors.surface }}
-          >
-            <AlertDialog.Title>
-              <ComposeText color={theme.colors.text}>清空缓存</ComposeText>
-            </AlertDialog.Title>
-            <AlertDialog.Text>
-              <ComposeText color={theme.colors.textSecondary}>
-                确定要清空缓存目录吗？这将删除所有缓存文件。
-              </ComposeText>
-            </AlertDialog.Text>
-            <AlertDialog.ConfirmButton>
-              <TextButton
-                onClick={() => {
-                  handleClearCacheConfirm();
-                  setShowClearCacheDialog(false);
-                }}
-              >
-                <ComposeText>确定</ComposeText>
-              </TextButton>
-            </AlertDialog.ConfirmButton>
-            <AlertDialog.DismissButton>
-              <TextButton onClick={() => setShowClearCacheDialog(false)}>
-                <ComposeText>取消</ComposeText>
-              </TextButton>
-            </AlertDialog.DismissButton>
-          </AlertDialog>
-        )}
-
-        {showClearLogsDialog && (
-          <AlertDialog
-            onDismissRequest={() => setShowClearLogsDialog(false)}
-            colors={{ containerColor: theme.colors.surface }}
-          >
-            <AlertDialog.Title>
-              <ComposeText color={theme.colors.text}>清空日志</ComposeText>
-            </AlertDialog.Title>
-            <AlertDialog.Text>
-              <ComposeText color={theme.colors.textSecondary}>
-                确定要清空日志目录吗？这将删除所有日志文件。
-              </ComposeText>
-            </AlertDialog.Text>
-            <AlertDialog.ConfirmButton>
-              <TextButton
-                onClick={() => {
-                  handleClearLogsConfirm();
-                  setShowClearLogsDialog(false);
-                }}
-              >
-                <ComposeText>确定</ComposeText>
-              </TextButton>
-            </AlertDialog.ConfirmButton>
-            <AlertDialog.DismissButton>
-              <TextButton onClick={() => setShowClearLogsDialog(false)}>
-                <ComposeText>取消</ComposeText>
-              </TextButton>
-            </AlertDialog.DismissButton>
-          </AlertDialog>
-        )}
-
         {showCancelDownloadDialog && (
           <AlertDialog
             onDismissRequest={() => setShowCancelDownloadDialog(false)}
