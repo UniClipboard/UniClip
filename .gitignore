@@ -25,6 +25,7 @@ web-build/
 # Debug
 *.log
 *.hprof
+logs/
 
 # macOS
 .DS_Store

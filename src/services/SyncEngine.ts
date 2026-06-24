@@ -101,6 +101,14 @@ export class SyncEngine {
   private lastAppliedContentHash: string | null = null;
   private lastWrittenContentHash: string | null = null;
 
+  // 内容指纹幂等守卫：最近一次实际成功 PUT 的内容 hash。即便 reducer 因
+  // commitPush 清空 contentId、跨进程 resync 或网络重置导致 lastSyncedHash
+  // 漂移而重新判定 DoPush，只要内容指纹未变（且服务端尚未确认 → 未 Converged、
+  // 也未被服务端新内容覆盖）就跳过 PUT，根治「同一未变内容被周期性重复回写」。
+  // Converged / apply 新内容 / 换服务器时清空，保证 A→B→A 这类「复制回旧内容」
+  // 仍能正常重推。纯内存态：进程不会每分钟重启，足以拦住稳态重复。
+  private lastPushedContentHash: string | null = null;
+
 
   private tickTimer: ReturnType<typeof setTimeout> | null = null;
   private isTicking = false;
@@ -260,6 +268,7 @@ export class SyncEngine {
   async handleServerChanged(): Promise<void> {
     this.runtimeState = handleActiveServerChanged(this.runtimeState);
     this.stagedEntry = null;
+    this.lastPushedContentHash = null;
     this.setState('Idle');
     this.lastError = null;
     await this.persistSynced(null, null);
@@ -391,6 +400,7 @@ export class SyncEngine {
           this.stagedEntry = null;
           // 服务端已确认收到当前内容，释放幂等守卫：将来即便剪贴板内容变回这份旧
           // 内容（A→B→A），也应允许重新 push。
+          this.lastPushedContentHash = null;
           this.setState('Succeeded');
           this.lastSyncedAt = Date.now();
           this.lastError = null;
@@ -481,6 +491,7 @@ export class SyncEngine {
       this.runtimeState = step.state;
       this.stagedEntry = null;
       // 本地已被服务端新内容覆盖，旧的 push 指纹失效。
+      this.lastPushedContentHash = null;
       this.setState('Succeeded');
       this.lastSyncedAt = Date.now();
       this.lastError = null;
@@ -527,6 +538,19 @@ export class SyncEngine {
           return;
         }
 
+        // 内容指纹幂等守卫（治本）：reducer 因 lastSyncedHash 漂移（contentId 清空 /
+        // 跨进程 resync / 网络重置）而重新判定 DoPush 时，若内容指纹与最近一次成功
+        // PUT 相同——即服务端尚未确认（未 Converged）、本地也未被新内容覆盖——说明
+        // 这是同一份没变的内容被周期性回写，直接跳过，避免 mac 端反复弹「正在接收」。
+        const pushFingerprint = device.meta.hash?.toUpperCase() ?? null;
+        if (pushFingerprint && pushFingerprint === this.lastPushedContentHash) {
+          console.log('[SyncEngine] DoPush skipped by content-fingerprint guard: ' + pushFingerprint.slice(0, 8));
+          this.runtimeState = commitPushSkipped(this.runtimeState);
+          this.setState('Succeeded');
+          this.lastSyncedAt = Date.now();
+          this.lastError = null;
+          return;
+        }
 
         let payload: ArrayBuffer | undefined = device.payload;
         // 截图等本地内容只有 fileUri 没有 fileData，push 前按需读取字节。
@@ -569,6 +593,8 @@ export class SyncEngine {
           this.syncConfig
         );
         this.runtimeState = step.state;
+        // 记录本次实际发出的内容指纹，供后续 tick 的幂等守卫比对。
+        this.lastPushedContentHash = device.meta.hash?.toUpperCase() ?? null;
 
         this.setState('Succeeded');
         if (step.outcome.tripped) {

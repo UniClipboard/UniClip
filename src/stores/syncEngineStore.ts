@@ -84,12 +84,28 @@ async function applyToDevice(meta: ClipboardMeta, payload?: ArrayBuffer): Promis
   clipboardMonitor.pausePolling();
   try {
     let appliedText = meta.text;
+    let fileUri: string | undefined;
+
     if (meta.kind === 'Text') {
       if (meta.hasData && payload) {
         appliedText = new TextDecoder().decode(payload);
         await Clipboard.setStringAsync(appliedText);
       } else {
         await Clipboard.setStringAsync(meta.text);
+      }
+    } else if (meta.hasData && payload && meta.dataName && meta.hash) {
+      const { saveHistoryFile } = await import('@/utils/fileStorage');
+      fileUri = await saveHistoryFile(meta.kind, meta.hash, meta.dataName, payload);
+      // 图片必须真正写入系统剪贴板。否则 apply 只落了历史文件，系统剪贴板仍是设备
+      // 原有内容；ClipboardMonitor 下一轮读回旧内容并覆盖 device 视图，reducer 便
+      // 反复判定「服务端有新图」→ 不停重复 pull 同一张图（并把旧内容 push 回去），
+      // 形成 pull/push 震荡。文本分支已写剪贴板，图片分支此前遗漏。
+      if (fileUri && meta.kind === 'Image') {
+        try {
+          await clipboardManager.setImageContent(fileUri);
+        } catch (e) {
+          console.error('[SyncEngine] Failed to write applied image to system clipboard:', e);
+        }
       }
     }
 
@@ -117,6 +133,8 @@ async function applyToDevice(meta: ClipboardMeta, payload?: ArrayBuffer): Promis
         size: meta.size,
         timestamp: Date.now(),
         syncStatus: HistorySyncStatus.Synced,
+        fileUri,
+        isLocalFileReady: !!fileUri || !meta.hasData,
       });
       await useHistoryStore.getState().addItem(historyItem);
     } catch (e) {

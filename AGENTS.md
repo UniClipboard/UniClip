@@ -38,3 +38,11 @@ Examples in the codebase:
 - `src/components/HomeBottomBar.{ios,android,types}.tsx`
 - `src/components/ServerSwitcherModal.{ios,android,types}.tsx`
 - `src/components/ui/GlassContainer.{ios,tsx}`
+
+# iOS Storage Compatibility
+
+On iOS, this Expo app's local file cache **must be compatible** with the native Swift app at `/Users/mark/MyProjects/iOSApp/UniClipboard`. Although the current bundle identifiers differ, they will be unified in the future. When implementing file/image caching on iOS:
+
+- Use the same directory structure and naming conventions as the native iOS app.
+- Do not invent a new cache layout that would conflict with or duplicate the native app's storage.
+- Verify compatibility by checking the native app's `FileManager` / cache paths before making storage decisions.
