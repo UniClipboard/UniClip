@@ -18,7 +18,6 @@ import {
 import {
   Host,
   Column,
-  Row,
   Card,
   ListItem,
   Switch as ComposeSwitch,
@@ -34,11 +33,9 @@ import {
 import {
   fillMaxWidth,
   paddingAll,
-  width as widthModifier,
   height as heightModifier,
   clickable,
 } from '@expo/ui/jetpack-compose/modifiers';
-import { APP_VERSION } from '@/constants';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { useSettingsStore, usePendingConnectStore } from '@/stores';
@@ -53,17 +50,7 @@ import { DebugSection } from './settings/DebugSection';
 import { HistorySection } from './settings/HistorySection';
 import { StorageSection } from './settings/StorageSection';
 import { LogSection } from './settings/LogSection';
-import {
-  checkForUpdate,
-  getPreferredAbi,
-  findAssetForAbi,
-  checkApkCache,
-  downloadApk,
-  installApk,
-  cleanOldApkCache,
-  type ReleaseAssetInfo,
-  type ApkSource,
-} from '@/services';
+import { AboutSection } from './settings/AboutSection';
 import { Plus, RefreshCw, ChevronDown, ChevronUp } from 'react-native-feather';
 import { hasOverlayPermission, requestOverlayPermission } from 'clipboard-overlay';
 import {
@@ -82,9 +69,6 @@ const SettingsScreenInner = () => {
     deleteServer,
     setActiveServer,
     updateConfig,
-    setAutoCheckUpdate,
-    setLastUpdateCheckDate,
-    setUpdateToBeta,
     setEnableBackgroundDownload,
     setEnableBackgroundUpload,
     setEnableClipboardOverlay,
@@ -105,12 +89,6 @@ const SettingsScreenInner = () => {
   const showMessage = useSettingsToast();
 
   // 本地状态用于跟踪Switch的当前值，避免闪烁
-  const [localAutoCheckUpdateEnabled, setLocalAutoCheckUpdateEnabled] = useState(
-    config?.autoCheckUpdate ?? true
-  );
-  const [localUpdateToBetaEnabled, setLocalUpdateToBetaEnabled] = useState(
-    config?.updateToBeta ?? false
-  );
   const [localBackgroundDownloadEnabled, setLocalBackgroundDownloadEnabled] = useState(
     config?.enableBackgroundDownload ?? false
   );
@@ -137,26 +115,6 @@ const SettingsScreenInner = () => {
   const [showShizukuUnavailableDialog, setShowShizukuUnavailableDialog] = useState(false);
   const [showBatteryOptDialog, setShowBatteryOptDialog] = useState(false);
   const [showAddServerSheet, setShowAddServerSheet] = useState(false);
-  const [showCancelDownloadDialog, setShowCancelDownloadDialog] = useState(false);
-  const [downloadSourceSheet, setDownloadSourceSheet] = useState<{
-    version: string;
-    assets: ReleaseAssetInfo[];
-    releaseNotes?: string;
-  } | null>(null);
-
-  // 更新检查状态
-  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
-  const [updateAvailable, setUpdateAvailable] = useState(false);
-  const [latestVersion, setLatestVersion] = useState<string | null>(null);
-  // APK 下载状态
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [downloadProgress, setDownloadProgress] = useState(0);
-  const downloadAbortRef = useRef<AbortController | null>(null);
-  const latestAssetsRef = useRef<ReleaseAssetInfo[]>([]);
-  const latestTagRef = useRef<string>('');
-  const releaseNotesRef = useRef<string | undefined>(undefined);
-
-  const appVersion = APP_VERSION;
 
   // 延迟挂载重内容：本页含 ~11 个独立的 Jetpack Compose Host（ComposeView），
   // 若在导航转场动画期间同步挂载会占满 JS 线程导致进入卡顿。
@@ -178,15 +136,6 @@ const SettingsScreenInner = () => {
       loadConfig();
     }
   }, [isLoaded, loadConfig]);
-
-  // 当配置中的autoCheckUpdate值变化时，更新本地状态
-  useEffect(() => {
-    setLocalAutoCheckUpdateEnabled(config?.autoCheckUpdate ?? true);
-  }, [config?.autoCheckUpdate]);
-
-  useEffect(() => {
-    setLocalUpdateToBetaEnabled(config?.updateToBeta ?? false);
-  }, [config?.updateToBeta]);
 
   useEffect(() => {
     setLocalBackgroundDownloadEnabled(config?.enableBackgroundDownload ?? false);
@@ -246,23 +195,6 @@ const SettingsScreenInner = () => {
   useEffect(() => {
     refreshPermissions();
   }, []);
-
-  // 自动检查更新（每天一次）
-  useEffect(() => {
-    if (!isLoaded) return;
-    if (!(config?.autoCheckUpdate ?? true)) return;
-    (async () => {
-      const { runtimeStateStorage } = await import('@/services/RuntimeStateStorage');
-      const runtimeState = await runtimeStateStorage.load();
-      const today = new Date().toISOString().slice(0, 10);
-      if (
-        !(config?.debugUpdateCheckNoLimit ?? false) &&
-        runtimeState.lastUpdateCheckDate === today
-      )
-        return;
-      runUpdateCheck(false, config?.updateToBeta ?? false);
-    })();
-  }, [isLoaded]);
 
   // 获取服务器列表
   const servers = config?.servers || [];
@@ -671,180 +603,6 @@ const SettingsScreenInner = () => {
       setLocalForegroundNotification(false);
       showMessage(error instanceof Error ? error.message : '设置失败', 'error');
     }
-  };
-
-  // 处理切换自动检查更新
-  const handleToggleAutoCheckUpdate = async (enabled: boolean) => {
-    setLocalAutoCheckUpdateEnabled(enabled);
-    try {
-      await setAutoCheckUpdate(enabled);
-    } catch (error: unknown) {
-      setLocalAutoCheckUpdateEnabled(!enabled);
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
-    }
-  };
-
-  // 处理切换更新到测试版
-  const handleToggleUpdateToBeta = async (enabled: boolean) => {
-    setLocalUpdateToBetaEnabled(enabled);
-    try {
-      await setUpdateToBeta(enabled);
-    } catch (error: unknown) {
-      setLocalUpdateToBetaEnabled(!enabled);
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
-    }
-  };
-
-  // 执行更新检查逻辑
-  const runUpdateCheck = async (showNoUpdateToast: boolean, includeBeta?: boolean) => {
-    setIsCheckingUpdate(true);
-    try {
-      const today = new Date().toISOString().slice(0, 10);
-      await setLastUpdateCheckDate(today);
-      const useBeta = includeBeta ?? config?.updateToBeta ?? false;
-      const result = await checkForUpdate(appVersion, useBeta);
-      if (result.hasUpdate) {
-        setUpdateAvailable(true);
-        setLatestVersion(result.latestVersion);
-        latestAssetsRef.current = result.assets;
-        latestTagRef.current = result.tagName;
-        releaseNotesRef.current = result.releaseNotes;
-        showDownloadSourceDialog(result.latestVersion, result.assets, result.releaseNotes);
-      } else {
-        setUpdateAvailable(false);
-        setLatestVersion(null);
-        if (showNoUpdateToast) {
-          showMessage('当前已是最新版本', 'success');
-        }
-      }
-      // 无论是否有更新，清除当前版本及旧版本的 APK 缓存
-      cleanOldApkCache(appVersion);
-    } catch {
-      if (showNoUpdateToast) {
-        showMessage('检查更新失败，请检查网络连接', 'error');
-      }
-    } finally {
-      setIsCheckingUpdate(false);
-    }
-  };
-
-  // 点击"更新"按钮：先检查缓存，有则直接安装，否则弹渠道选择
-  const handleUpdateButtonPress = async (
-    version: string,
-    assets: ReleaseAssetInfo[],
-    releaseNotes?: string
-  ) => {
-    if (isDownloading) return;
-
-    let preferredAbi: string = 'universal';
-    try {
-      const { getSupportedAbis } = await import('native-util');
-      const abis = getSupportedAbis();
-      preferredAbi = getPreferredAbi(abis);
-    } catch (e) {
-      console.warn('[UpdateDownload] getSupportedAbis failed:', e);
-    }
-
-    const asset = findAssetForAbi(assets, preferredAbi as Parameters<typeof findAssetForAbi>[1]);
-    if (!asset) {
-      showDownloadSourceDialog(version, assets, releaseNotes);
-      return;
-    }
-
-    const cached = await checkApkCache(version, asset);
-    console.log(`[UpdateDownload] pre-check cache=${cached ?? 'miss'}`);
-    if (cached) {
-      await installApk(cached);
-    } else {
-      showDownloadSourceDialog(version, assets, releaseNotes);
-    }
-  };
-
-  // 弹出选择下载渠道的对话框
-  const showDownloadSourceDialog = (
-    version: string,
-    assets: ReleaseAssetInfo[],
-    releaseNotes?: string
-  ) => {
-    setDownloadSourceSheet({ version, assets, releaseNotes });
-  };
-
-  // 下载 APK
-  const handleDownloadApk = async (
-    source: ApkSource,
-    version: string,
-    assets: ReleaseAssetInfo[]
-  ) => {
-    if (isDownloading) return;
-
-    // 检测设备 ABI
-    let preferredAbi: string = 'universal';
-    try {
-      const { getSupportedAbis } = await import('native-util');
-      const abis = getSupportedAbis();
-      preferredAbi = getPreferredAbi(abis);
-      console.log(
-        `[UpdateDownload] supportedAbis=${JSON.stringify(abis)} preferred=${preferredAbi}`
-      );
-    } catch (e) {
-      console.warn('[UpdateDownload] getSupportedAbis failed:', e);
-    }
-
-    const asset = findAssetForAbi(assets, preferredAbi as Parameters<typeof findAssetForAbi>[1]);
-    console.log(
-      `[UpdateDownload] source=${source} version=${version} assets=${assets.map((a) => a.name).join(',')} selectedAsset=${asset?.name ?? 'none'}`
-    );
-    if (!asset) {
-      showMessage('找不到适合当前设备的 APK', 'error');
-      return;
-    }
-
-    setIsDownloading(true);
-    setDownloadProgress(0);
-
-    const abortController = new AbortController();
-    downloadAbortRef.current = abortController;
-
-    try {
-      // 检查是否已有缓存
-      const cached = await checkApkCache(version, asset);
-      console.log(`[UpdateDownload] cache check result=${cached ?? 'miss'}`);
-      if (cached) {
-        await installApk(cached);
-        return;
-      }
-
-      const fileUri = await downloadApk({
-        asset,
-        source,
-        version,
-        signal: abortController.signal,
-        onProgress: (info) => {
-          setDownloadProgress(info.progress);
-        },
-      });
-
-      console.log(`[UpdateDownload] download finished fileUri=${fileUri}`);
-      setUpdateAvailable(false);
-      setLatestVersion(null);
-      await installApk(fileUri);
-    } catch (err) {
-      console.error('[UpdateDownload] error:', err);
-      if (err instanceof Error && err.name === 'AbortError') {
-        showMessage('已取消下载', 'info');
-      } else {
-        showMessage(err instanceof Error ? err.message : '下载失败', 'error');
-      }
-    } finally {
-      setIsDownloading(false);
-      setDownloadProgress(0);
-      downloadAbortRef.current = null;
-    }
-  };
-
-  // 取消下载对话框
-  const handleCancelDownload = () => {
-    setShowCancelDownloadDialog(true);
   };
 
   // 转场动画进行中先渲染轻量占位，避免在动画期间同步挂载 ~11 个 Compose Host 导致进入卡顿。
@@ -1340,116 +1098,7 @@ const SettingsScreenInner = () => {
         <AppearanceSection />
 
         {/* 应用信息部分 */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeaderBase}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>关于</Text>
-          </View>
-
-          <Host matchContents={{ vertical: true }} style={styles.hostFill}>
-            <Card colors={{ containerColor: theme.colors.surface }}>
-              <Column modifiers={[fillMaxWidth()]}>
-                <ListItem colors={{ containerColor: theme.colors.surface }}>
-                  <ListItem.OverlineContent>
-                    <ComposeText color={theme.colors.textSecondary}>版本</ComposeText>
-                  </ListItem.OverlineContent>
-                  <ListItem.HeadlineContent>
-                    <ComposeText color={theme.colors.text}>{appVersion}</ComposeText>
-                  </ListItem.HeadlineContent>
-                  <ListItem.TrailingContent>
-                    <Row>
-                      {isDownloading || updateAvailable ? (
-                        <Button
-                          onClick={() => {
-                            if (isDownloading) {
-                              handleCancelDownload();
-                            } else {
-                              handleUpdateButtonPress(
-                                latestVersion ?? '',
-                                latestAssetsRef.current,
-                                releaseNotesRef.current
-                              );
-                            }
-                          }}
-                          enabled={!isCheckingUpdate}
-                          colors={{
-                            containerColor: theme.colors.primary,
-                            contentColor: theme.colors.white,
-                          }}
-                        >
-                          <ComposeText>
-                            {isDownloading
-                              ? `下载中 ${Math.round(downloadProgress * 100)}%`
-                              : `更新 ${latestVersion}`}
-                          </ComposeText>
-                        </Button>
-                      ) : (
-                        <OutlinedButton
-                          onClick={() => runUpdateCheck(true, localUpdateToBetaEnabled)}
-                          enabled={!isCheckingUpdate}
-                          colors={{ contentColor: theme.colors.primary }}
-                        >
-                          <ComposeText>{isCheckingUpdate ? '检查中...' : '检查更新'}</ComposeText>
-                        </OutlinedButton>
-                      )}
-                      <Spacer modifiers={[widthModifier(8)]} />
-                      <Button
-                        onClick={() =>
-                          Linking.openURL('https://github.com/UniClipboard/uc-android')
-                        }
-                        colors={{
-                          containerColor: theme.colors.primary,
-                          contentColor: theme.colors.white,
-                        }}
-                      >
-                        <ComposeText>GitHub</ComposeText>
-                      </Button>
-                    </Row>
-                  </ListItem.TrailingContent>
-                </ListItem>
-
-                <HorizontalDivider color={theme.colors.divider} />
-
-                <ListItem colors={{ containerColor: theme.colors.surface }}>
-                  <ListItem.HeadlineContent>
-                    <ComposeText color={theme.colors.text}>自动检查更新</ComposeText>
-                  </ListItem.HeadlineContent>
-                  <ListItem.TrailingContent>
-                    <ComposeSwitch
-                      value={localAutoCheckUpdateEnabled}
-                      onCheckedChange={handleToggleAutoCheckUpdate}
-                      colors={{
-                        checkedTrackColor: theme.colors.primary,
-                        uncheckedTrackColor: theme.colors.divider,
-                        checkedThumbColor: theme.colors.surface,
-                        uncheckedThumbColor: theme.colors.textTertiary,
-                      }}
-                    />
-                  </ListItem.TrailingContent>
-                </ListItem>
-
-                <HorizontalDivider color={theme.colors.divider} />
-
-                <ListItem colors={{ containerColor: theme.colors.surface }}>
-                  <ListItem.HeadlineContent>
-                    <ComposeText color={theme.colors.text}>更新到测试版</ComposeText>
-                  </ListItem.HeadlineContent>
-                  <ListItem.TrailingContent>
-                    <ComposeSwitch
-                      value={localUpdateToBetaEnabled}
-                      onCheckedChange={handleToggleUpdateToBeta}
-                      colors={{
-                        checkedTrackColor: theme.colors.primary,
-                        uncheckedTrackColor: theme.colors.divider,
-                        checkedThumbColor: theme.colors.surface,
-                        uncheckedThumbColor: theme.colors.textTertiary,
-                      }}
-                    />
-                  </ListItem.TrailingContent>
-                </ListItem>
-              </Column>
-            </Card>
-          </Host>
-        </View>
+        <AboutSection />
 
         {/* 调试部分 */}
         <DebugSection />
@@ -1512,85 +1161,8 @@ const SettingsScreenInner = () => {
         </Host>
       )}
 
-      {/* 下载渠道选择底部表单 */}
-      {downloadSourceSheet && (
-        <Host>
-          <ModalBottomSheet onDismissRequest={() => setDownloadSourceSheet(null)}>
-            <Column modifiers={[paddingAll(24), fillMaxWidth()]}>
-              <ComposeText color={theme.colors.text} style={{ typography: 'titleLarge' }}>
-                发现新版本
-              </ComposeText>
-              <Spacer modifiers={[heightModifier(8)]} />
-              <ComposeText color={theme.colors.textSecondary}>
-                {`最新版本：${downloadSourceSheet.version}\n当前版本：${appVersion}${
-                  downloadSourceSheet.releaseNotes
-                    ? `\n\n更新说明：\n${downloadSourceSheet.releaseNotes}`
-                    : ''
-                }`}
-              </ComposeText>
-              <Spacer modifiers={[heightModifier(16)]} />
-              <Button
-                onClick={() => {
-                  const s = downloadSourceSheet;
-                  setDownloadSourceSheet(null);
-                  handleDownloadApk('gitcode', s.version, s.assets);
-                }}
-                modifiers={[fillMaxWidth()]}
-                colors={{
-                  containerColor: theme.colors.primary,
-                  contentColor: theme.colors.white,
-                }}
-              >
-                <ComposeText>GitCode 下载</ComposeText>
-              </Button>
-              <Spacer modifiers={[heightModifier(8)]} />
-              <OutlinedButton
-                onClick={() => {
-                  const s = downloadSourceSheet;
-                  setDownloadSourceSheet(null);
-                  handleDownloadApk('github', s.version, s.assets);
-                }}
-                modifiers={[fillMaxWidth()]}
-                colors={{ contentColor: theme.colors.primary }}
-              >
-                <ComposeText>GitHub 下载</ComposeText>
-              </OutlinedButton>
-            </Column>
-          </ModalBottomSheet>
-        </Host>
-      )}
-
       {/* 共享对话框 Host */}
       <Host>
-        {showCancelDownloadDialog && (
-          <AlertDialog
-            onDismissRequest={() => setShowCancelDownloadDialog(false)}
-            colors={{ containerColor: theme.colors.surface }}
-          >
-            <AlertDialog.Title>
-              <ComposeText color={theme.colors.text}>取消下载</ComposeText>
-            </AlertDialog.Title>
-            <AlertDialog.Text>
-              <ComposeText color={theme.colors.textSecondary}>确定要取消下载吗？</ComposeText>
-            </AlertDialog.Text>
-            <AlertDialog.ConfirmButton>
-              <TextButton
-                onClick={() => {
-                  downloadAbortRef.current?.abort();
-                  setShowCancelDownloadDialog(false);
-                }}
-              >
-                <ComposeText>取消下载</ComposeText>
-              </TextButton>
-            </AlertDialog.ConfirmButton>
-            <AlertDialog.DismissButton>
-              <TextButton onClick={() => setShowCancelDownloadDialog(false)}>
-                <ComposeText>继续下载</ComposeText>
-              </TextButton>
-            </AlertDialog.DismissButton>
-          </AlertDialog>
-        )}
-
         {showShizukuUnavailableDialog && (
           <AlertDialog
             onDismissRequest={() => setShowShizukuUnavailableDialog(false)}
