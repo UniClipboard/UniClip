@@ -45,7 +45,6 @@ import {
   advanceWatermark,
   getLatest,
   putClipboard,
-  putFile,
   getFile,
   queryHistory,
   cancelInFlight,
@@ -54,6 +53,7 @@ import {
 import type { ServerConfig as UcServerConfig, HistoryRecord } from 'uc-core';
 
 const LAST_SYNCED_HASH_KEY = '@syncengine:last_synced_hash';
+const LAST_SYNCED_CONTENT_ID_KEY = '@syncengine:last_synced_content_id';
 const LAST_HISTORY_SYNC_KEY = '@syncengine:last_history_sync_ms';
 
 export type SyncEngineState = SyncState;
@@ -79,6 +79,8 @@ export interface DeviceClipboard {
   hash: string | null;
   meta: ClipboardMeta;
   payload?: ArrayBuffer;
+  /** 本地文件 URI；push 时若 payload 缺失则从此读取字节上传 */
+  fileUri?: string;
 }
 
 export interface SyncSettings {
@@ -99,6 +101,7 @@ export class SyncEngine {
   private lastAppliedContentHash: string | null = null;
   private lastWrittenContentHash: string | null = null;
 
+
   private tickTimer: ReturnType<typeof setTimeout> | null = null;
   private isTicking = false;
   private isSceneInactive = false;
@@ -112,8 +115,9 @@ export class SyncEngine {
   private getSettings: () => SyncSettings;
   private applyToDevice: (meta: ClipboardMeta, payload?: ArrayBuffer) => Promise<void>;
   private onHistoryRecord: ((record: HistoryRecord) => void) | null = null;
-  private getPersistedSyncedHash: () => Promise<string | null>;
-  private persistSyncedHash: (hash: string | null) => Promise<void>;
+  // hash 与 contentId 作为同一水位线快照：原子同写同清（doc §4 / §契约 3）。
+  private getPersistedSynced: () => Promise<{ hash: string | null; contentId: string | null }>;
+  private persistSynced: (hash: string | null, contentId: string | null) => Promise<void>;
 
   constructor(opts: {
     getActiveServer: () => ActiveServerInfo | null;
@@ -130,23 +134,42 @@ export class SyncEngine {
     this.syncConfig = defaultSyncConfig();
     this.runtimeState = defaultSyncRuntimeState();
 
-    this.getPersistedSyncedHash = () => AsyncStorage.getItem(LAST_SYNCED_HASH_KEY);
-    this.persistSyncedHash = async (hash) => {
-      if (hash) {
-        await AsyncStorage.setItem(LAST_SYNCED_HASH_KEY, hash);
-      } else {
-        await AsyncStorage.removeItem(LAST_SYNCED_HASH_KEY);
-      }
+    this.getPersistedSynced = async () => {
+      const pairs = await AsyncStorage.multiGet([
+        LAST_SYNCED_HASH_KEY,
+        LAST_SYNCED_CONTENT_ID_KEY,
+      ]);
+      const map = new Map(pairs);
+      return {
+        hash: map.get(LAST_SYNCED_HASH_KEY) ?? null,
+        contentId: map.get(LAST_SYNCED_CONTENT_ID_KEY) ?? null,
+      };
+    };
+    this.persistSynced = async (hash, contentId) => {
+      // hash 与 contentId 一起落盘 / 一起清空，二者保持一致（reducer 已保证
+      // SyncRuntimeState 内两键同步，此处只负责一起读写）。
+      const sets: [string, string][] = [];
+      const removes: string[] = [];
+      if (hash) sets.push([LAST_SYNCED_HASH_KEY, hash]);
+      else removes.push(LAST_SYNCED_HASH_KEY);
+      if (contentId) sets.push([LAST_SYNCED_CONTENT_ID_KEY, contentId]);
+      else removes.push(LAST_SYNCED_CONTENT_ID_KEY);
+      if (sets.length) await AsyncStorage.multiSet(sets);
+      if (removes.length) await AsyncStorage.multiRemove(removes);
     };
   }
 
   async init(): Promise<void> {
-    const [savedHash, savedHistoryMs] = await Promise.all([
-      this.getPersistedSyncedHash(),
+    const [saved, savedHistoryMs] = await Promise.all([
+      this.getPersistedSynced(),
       AsyncStorage.getItem(LAST_HISTORY_SYNC_KEY),
     ]);
-    if (savedHash) {
-      this.runtimeState = { ...this.runtimeState, lastSyncedHash: savedHash };
+    if (saved.hash || saved.contentId) {
+      this.runtimeState = {
+        ...this.runtimeState,
+        lastSyncedHash: saved.hash,
+        lastSyncedContentId: saved.contentId,
+      };
     }
     this.lastHistorySyncAt = savedHistoryMs ? parseInt(savedHistoryMs, 10) : null;
   }
@@ -239,7 +262,7 @@ export class SyncEngine {
     this.stagedEntry = null;
     this.setState('Idle');
     this.lastError = null;
-    await this.persistSyncedHash(null);
+    await this.persistSynced(null, null);
     this.lastHistorySyncAt = null;
     await AsyncStorage.removeItem(LAST_HISTORY_SYNC_KEY);
     this.notifyListeners();
@@ -287,7 +310,7 @@ export class SyncEngine {
     const settings = this.getSettings();
     console.log('[SyncEngine] doTick: explicit=' + explicit + ' server=' + (server ? server.baseUrl : 'null') + ' device=' + (device?.hash?.slice(0, 8) ?? 'null') + ' autoApply=' + settings.autoApplyRemote + ' autoPush=' + settings.autoPushLocal);
 
-    const persistedHash = await this.getPersistedSyncedHash();
+    const persisted = await this.getPersistedSynced();
 
     let step: PreambleStep;
     try {
@@ -297,7 +320,8 @@ export class SyncEngine {
         hasActiveServer: server !== null,
         deviceHash: device?.hash ?? null,
         historyHeadHash: null,
-        persistedSyncedHash: persistedHash,
+        persistedSyncedHash: persisted.hash,
+        persistedSyncedContentId: persisted.contentId,
         nowMs: Date.now(),
       });
     } catch (e: any) {
@@ -361,8 +385,12 @@ export class SyncEngine {
 
       switch (route.type) {
         case 'Converged':
-          this.runtimeState = commitConverged(this.runtimeState, route.serverHash);
+          // 学到 contentId 的主路径：push 后第一次 GET、设备剪贴板仍是刚 push 的
+          // 内容时走这里，传 server entry 的 contentId（doc §3 步骤 2）。
+          this.runtimeState = commitConverged(this.runtimeState, route.serverHash, serverEntry?.contentId ?? null);
           this.stagedEntry = null;
+          // 服务端已确认收到当前内容，释放幂等守卫：将来即便剪贴板内容变回这份旧
+          // 内容（A→B→A），也应允许重新 push。
           this.setState('Succeeded');
           this.lastSyncedAt = Date.now();
           this.lastError = null;
@@ -446,11 +474,13 @@ export class SyncEngine {
       const step: CommitStep = commitApply(
         this.runtimeState,
         entry.hash,
+        entry.contentId,
         Date.now(),
         this.syncConfig
       );
       this.runtimeState = step.state;
       this.stagedEntry = null;
+      // 本地已被服务端新内容覆盖，旧的 push 指纹失效。
       this.setState('Succeeded');
       this.lastSyncedAt = Date.now();
       this.lastError = null;
@@ -497,10 +527,40 @@ export class SyncEngine {
           return;
         }
 
-        if (device.meta.hasData && device.meta.dataName && device.payload) {
-          await putFile(server, device.meta.dataName, device.payload, trustInsecureCert);
+
+        let payload: ArrayBuffer | undefined = device.payload;
+        // 截图等本地内容只有 fileUri 没有 fileData，push 前按需读取字节。
+        // fileUri 可能指向已被移入历史目录的临时文件，回退用 profileHash 定位。
+        if (device.meta.hasData && device.meta.dataName && !payload) {
+          const { File } = await import('expo-file-system');
+          let uri = device.fileUri;
+          if (!uri || !new File(uri).exists) {
+            const { getHistoryFileUri } = await import('@/utils/fileStorage');
+            uri =
+              (await getHistoryFileUri(
+                device.meta.kind,
+                device.meta.hash ?? '',
+                device.meta.dataName
+              )) ?? undefined;
+          }
+          if (uri && new File(uri).exists) {
+            payload = await new File(uri).arrayBuffer();
+          }
         }
-        await putClipboard(server, device.meta, device.payload, trustInsecureCert);
+        // putClipboard 内部按 spec §3.5 先 PUT /file 再 PUT 元数据，无需单独 putFile。
+        // payload 转 Uint8Array 以匹配 native Data 参数的编组要求（裸 ArrayBuffer 会失败）。
+        const payloadBytes = payload ? new Uint8Array(payload) : undefined;
+        try {
+          await putClipboard(server, device.meta, payloadBytes, trustInsecureCert);
+        } catch (e: any) {
+          console.error(
+            '[SyncEngine] putClipboard failed: kind=' + device.meta.kind +
+            ' dataName=' + device.meta.dataName +
+            ' bytes=' + (payloadBytes?.byteLength ?? 0) +
+            ' err=' + (e?.message ?? e)
+          );
+          throw e;
+        }
 
         const step: CommitStep = commitPush(
           this.runtimeState,
@@ -624,8 +684,10 @@ export class SyncEngine {
   }
 
   private async persistRuntimeHash(): Promise<void> {
-    const hash = this.runtimeState.lastSyncedHash;
-    await this.persistSyncedHash(hash);
+    await this.persistSynced(
+      this.runtimeState.lastSyncedHash,
+      this.runtimeState.lastSyncedContentId
+    );
   }
 
   private notifyListeners(): void {

@@ -72,8 +72,11 @@ function getDeviceClipboard(): DeviceClipboard | null {
       hasData: content.hasData ?? false,
       size: content.fileSize ?? (content.text?.length ?? 0),
       hash: content.profileHash,
+      // 设备本地内容尚无服务端身份；push 后下次 GET 时再学到。
+      contentId: null,
     },
     payload: content.fileData,
+    fileUri: content.fileUri,
   };
 }
 
