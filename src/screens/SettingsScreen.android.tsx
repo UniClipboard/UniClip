@@ -13,6 +13,8 @@ import {
   Alert,
   Linking,
   Platform,
+  ActivityIndicator,
+  InteractionManager,
 } from 'react-native';
 import {
   Host,
@@ -44,7 +46,7 @@ import {
   clickable,
 } from '@expo/ui/jetpack-compose/modifiers';
 import { APP_VERSION } from '@/constants';
-import { spacing, radius, typography, elevation, PALETTES } from '@/theme';
+import { radius, PALETTES } from '@/theme';
 import { Paths, Directory } from 'expo-file-system';
 import { calculateDirectorySize, clearDirectory } from '@/utils/fileStorage';
 import { CLIPBOARD_TEMP_DIR } from '@/utils/fileStorage';
@@ -52,9 +54,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import type { ThemeMode, PaletteId } from '@/theme';
 import { useSettingsStore, usePendingConnectStore } from '@/stores';
-import { ServerConfigModal, ServerListItem, MessageToast, QrScannerModal } from '@/components';
+import { ServerConfigModal, ServerListItem, QrScannerModal } from '@/components';
 import { ServerConfig } from '@/types/api';
-import { useMessageToast } from '@/hooks/useMessageToast';
+import { settingsStyles as styles } from './settings/settingsStyles';
+import { SettingsToastProvider, useSettingsToast } from './settings/SettingsToastContext';
+import { SyncSettingsSection } from './settings/SyncSettingsSection';
 import {
   ShortcutService,
   checkForUpdate,
@@ -81,7 +85,7 @@ import {
 } from 'shizuku-clipboard';
 import { extractVerificationCode } from '@/tasks/SmsUploadTask';
 
-export const SettingsScreen = () => {
+const SettingsScreenInner = () => {
   const { theme, themeMode, setThemeMode, paletteId, setPaletteId } = useTheme();
   const {
     config,
@@ -91,16 +95,12 @@ export const SettingsScreen = () => {
     updateServer,
     deleteServer,
     setActiveServer,
-    setAutoSync,
-    setAutoDownloadMaxSize,
     updateConfig,
     setAutoCheckUpdate,
     setLastUpdateCheckDate,
     setUpdateToBeta,
     setEnableHistorySync,
     setLogLevel,
-    setRemotePollingInterval,
-    setLocalPollingInterval,
     setEnableBackgroundDownload,
     setEnableBackgroundUpload,
     setEnableClipboardOverlay,
@@ -118,10 +118,9 @@ export const SettingsScreen = () => {
   const [prefillFromScan, setPrefillFromScan] = useState<ServerConfig | null>(null);
   const consumePendingConnect = usePendingConnectStore((s) => s.consume);
   const pendingConnectIntent = usePendingConnectStore((s) => s.intent);
-  const { message, showMessage, handleMessageShown } = useMessageToast();
+  const showMessage = useSettingsToast();
 
   // 本地状态用于跟踪Switch的当前值，避免闪烁
-  const [localAutoSyncEnabled, setLocalAutoSyncEnabled] = useState(config?.autoPushLocal ?? false);
   const [localDebugModeEnabled, setLocalDebugModeEnabled] = useState(config?.debugMode ?? false);
   const [localAutoCheckUpdateEnabled, setLocalAutoCheckUpdateEnabled] = useState(
     config?.autoCheckUpdate ?? true
@@ -152,9 +151,6 @@ export const SettingsScreen = () => {
   );
   const [localForegroundNotification, setLocalForegroundNotification] = useState(
     config?.enableForegroundNotification ?? true
-  );
-  const [localSyncToastEnabled, setLocalSyncToastEnabled] = useState(
-    config?.syncToastEnabled ?? true
   );
   const [localDebugOverlayVisible, setLocalDebugOverlayVisible] = useState(
     config?.debugOverlayVisible ?? false
@@ -206,16 +202,26 @@ export const SettingsScreen = () => {
 
   const appVersion = APP_VERSION;
 
+  // 延迟挂载重内容：本页含 ~11 个独立的 Jetpack Compose Host（ComposeView），
+  // 若在导航转场动画期间同步挂载会占满 JS 线程导致进入卡顿。
+  // 先渲染轻量占位，待转场动画结束（runAfterInteractions）后再挂载真正的设置项。
+  const [contentReady, setContentReady] = useState(false);
+  useEffect(() => {
+    // runAfterInteractions 语义即「等转场动画结束后执行」，正是此处所需（startTransition
+    // 不会等动画结束，requestAnimationFrame 只等一帧不足以覆盖整个转场）。
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
+    const task = InteractionManager.runAfterInteractions(() => {
+      setContentReady(true);
+    });
+    return () => task.cancel();
+  }, []);
+
   // 加载配置
   useEffect(() => {
     if (!isLoaded) {
       loadConfig();
     }
   }, [isLoaded, loadConfig]);
-
-  useEffect(() => {
-    setLocalAutoSyncEnabled(config?.autoPushLocal ?? false);
-  }, [config?.autoPushLocal]);
 
   // 当配置中的debugMode值变化时，更新本地状态
   useEffect(() => {
@@ -264,10 +270,6 @@ export const SettingsScreen = () => {
   useEffect(() => {
     setLocalForegroundNotification(config?.enableForegroundNotification ?? true);
   }, [config?.enableForegroundNotification]);
-
-  useEffect(() => {
-    setLocalSyncToastEnabled(config?.syncToastEnabled ?? true);
-  }, [config?.syncToastEnabled]);
 
   useEffect(() => {
     setLocalHideFromRecents(config?.hideFromRecents ?? false);
@@ -367,26 +369,12 @@ export const SettingsScreen = () => {
   const servers = config?.servers || [];
   const activeServerIndex = config?.activeServerIndex ?? -1;
   const activeServer = activeServerIndex >= 0 ? servers[activeServerIndex] : null;
-  const autoDownloadMaxSizeMB = Math.round(
-    (config?.autoDownloadMaxSize ?? 5 * 1024 * 1024) / (1024 * 1024)
-  );
 
   // 本地 state 用于输入框
-  const [maxSizeInput, setMaxSizeInput] = useState(autoDownloadMaxSizeMB.toString());
   const [maxHistoryItemsInput, setMaxHistoryItemsInput] = useState(
     (config?.maxHistoryItems ?? 1000).toString()
   );
-  const [remotePollingInput, setRemotePollingInput] = useState(
-    ((config?.remotePollingInterval ?? 3000) / 1000).toString()
-  );
-  const [localPollingInput, setLocalPollingInput] = useState(
-    ((config?.localPollingInterval ?? 1000) / 1000).toString()
-  );
-
   // Native state for OutlinedTextField (SDK 56 migration)
-  const maxSizeNativeState = useNativeState(maxSizeInput);
-  const remotePollingNativeState = useNativeState(remotePollingInput);
-  const localPollingNativeState = useNativeState(localPollingInput);
   const maxHistoryItemsNativeState = useNativeState(maxHistoryItemsInput);
   const smsTestNativeState = useNativeState(smsTestInput);
   const imageAutoDownloadLabel =
@@ -538,21 +526,6 @@ export const SettingsScreen = () => {
       showMessage('已切换服务器', 'success');
     } catch (error: unknown) {
       showMessage(error instanceof Error ? error.message : '切换失败', 'error');
-    }
-  };
-
-  // 处理切换自动复制
-  const handleToggleAutoSync = async (enabled: boolean) => {
-    // 立即更新本地状态，避免闪烁
-    setLocalAutoSyncEnabled(enabled);
-
-    try {
-      await setAutoSync(enabled);
-      showMessage(enabled ? '已启用自动复制' : '已禁用自动复制', 'success');
-    } catch (error: unknown) {
-      // 如果设置失败，恢复原来的状态
-      setLocalAutoSyncEnabled(!enabled);
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
     }
   };
 
@@ -839,24 +812,6 @@ export const SettingsScreen = () => {
     }
   };
 
-  // 处理最大文件大小输入
-  const handleMaxSizeBlur = async () => {
-    try {
-      const sizeMB = parseInt(maxSizeInput, 10);
-      if (isNaN(sizeMB) || sizeMB < 0) {
-        setMaxSizeInput(autoDownloadMaxSizeMB.toString());
-        showMessage('请输入有效的数字', 'error');
-        return;
-      }
-      const sizeInBytes = sizeMB * 1024 * 1024;
-      await setAutoDownloadMaxSize(sizeInBytes);
-      showMessage(`已设置最大文件大小为 ${sizeMB}MB`, 'success');
-    } catch (error: unknown) {
-      setMaxSizeInput(autoDownloadMaxSizeMB.toString());
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
-    }
-  };
-
   // 处理历史记录最大保留条数输入
   const handleMaxHistoryItemsBlur = async () => {
     try {
@@ -876,50 +831,6 @@ export const SettingsScreen = () => {
       setMaxHistoryItemsInput((config?.maxHistoryItems ?? 1000).toString());
       showMessage(error instanceof Error ? error.message : '设置失败', 'error');
     }
-  };
-
-  // 处理远程轮询间隔输入
-  const handleRemotePollingBlur = async () => {
-    try {
-      const seconds = parseInt(remotePollingInput, 10);
-      if (isNaN(seconds) || seconds < 1) {
-        setRemotePollingInput(((config?.remotePollingInterval ?? 3000) / 1000).toString());
-        showMessage('请输入大于等于1的数字', 'error');
-        return;
-      }
-      const ms = seconds * 1000;
-      await setRemotePollingInterval(ms);
-      showMessage(`已设置远程轮询间隔为 ${seconds}秒`, 'success');
-    } catch (error: unknown) {
-      setRemotePollingInput(((config?.remotePollingInterval ?? 3000) / 1000).toString());
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
-    }
-  };
-
-  // 处理本地轮询间隔输入
-  const handleLocalPollingBlur = async () => {
-    try {
-      const seconds = parseInt(localPollingInput, 10);
-      if (isNaN(seconds) || seconds < 1) {
-        setLocalPollingInput(((config?.localPollingInterval ?? 1000) / 1000).toString());
-        showMessage('请输入大于等于1的数字', 'error');
-        return;
-      }
-      const ms = seconds * 1000;
-      await setLocalPollingInterval(ms);
-      showMessage(`已设置本地轮询间隔为 ${seconds}秒`, 'success');
-    } catch (error: unknown) {
-      setLocalPollingInput(((config?.localPollingInterval ?? 1000) / 1000).toString());
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
-    }
-  };
-
-  // 过滤输入，只允许正整数
-  const filterPositiveInteger = (value: string): string => {
-    const filtered = value.replace(/[^0-9]/g, '');
-    if (filtered === '') return '';
-    const num = parseInt(filtered, 10);
-    return num > 0 ? filtered : '';
   };
 
   // 处理切换调试模式
@@ -1059,17 +970,6 @@ export const SettingsScreen = () => {
       await updateConfig({ attachmentAutoDownload: value });
     } catch {
       setLocalImageAutoDownload(config?.attachmentAutoDownload ?? 'wifi');
-    }
-  };
-
-  // 处理切换同步 Toast 通知
-  const handleToggleSyncToast = async (enabled: boolean) => {
-    setLocalSyncToastEnabled(enabled);
-    try {
-      await updateConfig({ syncToastEnabled: enabled });
-    } catch (error: unknown) {
-      setLocalSyncToastEnabled(!enabled);
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
     }
   };
 
@@ -1354,6 +1254,20 @@ export const SettingsScreen = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  // 转场动画进行中先渲染轻量占位，避免在动画期间同步挂载 ~11 个 Compose Host 导致进入卡顿。
+  if (!contentReady) {
+    return (
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+        edges={[]}
+      >
+        <View style={styles.loadingPlaceholder}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.colors.background }]}
@@ -1418,158 +1332,7 @@ export const SettingsScreen = () => {
         </View>
 
         {/* 同步设置部分 */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeaderBase}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>同步设置</Text>
-          </View>
-
-          <Host matchContents={{ vertical: true }} style={styles.hostFill}>
-            <Card colors={{ containerColor: theme.colors.surface }}>
-              <Column modifiers={[fillMaxWidth()]}>
-                <ListItem colors={{ containerColor: theme.colors.surface }}>
-                  <ListItem.HeadlineContent>
-                    <ComposeText color={theme.colors.text}>自动同步</ComposeText>
-                  </ListItem.HeadlineContent>
-                  <ListItem.SupportingContent>
-                    <ComposeText color={theme.colors.textTertiary}>
-                      处于前台时自动同步剪贴板
-                    </ComposeText>
-                  </ListItem.SupportingContent>
-                  <ListItem.TrailingContent>
-                    <ComposeSwitch
-                      value={localAutoSyncEnabled}
-                      onCheckedChange={handleToggleAutoSync}
-                      colors={{
-                        checkedTrackColor: theme.colors.primary,
-                        uncheckedTrackColor: theme.colors.divider,
-                        checkedThumbColor: theme.colors.surface,
-                        uncheckedThumbColor: theme.colors.textTertiary,
-                      }}
-                    />
-                  </ListItem.TrailingContent>
-                </ListItem>
-
-                <HorizontalDivider color={theme.colors.divider} />
-
-                <ListItem colors={{ containerColor: theme.colors.surface }}>
-                  <ListItem.HeadlineContent>
-                    <ComposeText color={theme.colors.text}>同步 Toast 通知</ComposeText>
-                  </ListItem.HeadlineContent>
-                  <ListItem.SupportingContent>
-                    <ComposeText color={theme.colors.textTertiary}>
-                      上传/下载完成后显示 Toast 提示
-                    </ComposeText>
-                  </ListItem.SupportingContent>
-                  <ListItem.TrailingContent>
-                    <ComposeSwitch
-                      value={localSyncToastEnabled}
-                      onCheckedChange={handleToggleSyncToast}
-                      colors={{
-                        checkedTrackColor: theme.colors.primary,
-                        uncheckedTrackColor: theme.colors.divider,
-                        checkedThumbColor: theme.colors.surface,
-                        uncheckedThumbColor: theme.colors.textTertiary,
-                      }}
-                    />
-                  </ListItem.TrailingContent>
-                </ListItem>
-
-                <HorizontalDivider color={theme.colors.divider} />
-
-                <ListItem colors={{ containerColor: theme.colors.surface }}>
-                  <ListItem.HeadlineContent>
-                    <ComposeText color={theme.colors.text}>允许自动同步的数据大小</ComposeText>
-                  </ListItem.HeadlineContent>
-                  <ListItem.SupportingContent>
-                    <ComposeText color={theme.colors.textTertiary}>
-                      小于此大小的文件将自动下载
-                    </ComposeText>
-                  </ListItem.SupportingContent>
-                  <ListItem.TrailingContent>
-                    <OutlinedTextField
-                      value={maxSizeNativeState}
-                      onValueChange={setMaxSizeInput}
-                      onFocusChanged={(focused) => {
-                        if (!focused) handleMaxSizeBlur();
-                      }}
-                      keyboardOptions={{ keyboardType: 'number' }}
-                      singleLine
-                      modifiers={[widthModifier(96)]}
-                    >
-                      <OutlinedTextField.Placeholder>
-                        <ComposeText>5</ComposeText>
-                      </OutlinedTextField.Placeholder>
-                      <OutlinedTextField.Suffix>
-                        <ComposeText>MB</ComposeText>
-                      </OutlinedTextField.Suffix>
-                    </OutlinedTextField>
-                  </ListItem.TrailingContent>
-                </ListItem>
-
-                {activeServer?.type !== 'syncclipboard' && (
-                  <>
-                    <HorizontalDivider color={theme.colors.divider} />
-                    <ListItem colors={{ containerColor: theme.colors.surface }}>
-                      <ListItem.HeadlineContent>
-                        <ComposeText color={theme.colors.text}>远程轮询间隔</ComposeText>
-                      </ListItem.HeadlineContent>
-                      <ListItem.TrailingContent>
-                        <OutlinedTextField
-                          key={remotePollingInput}
-                          value={remotePollingNativeState}
-                          onValueChange={(text) =>
-                            setRemotePollingInput(filterPositiveInteger(text))
-                          }
-                          onFocusChanged={(focused) => {
-                            if (!focused) handleRemotePollingBlur();
-                          }}
-                          keyboardOptions={{ keyboardType: 'number' }}
-                          singleLine
-                          modifiers={[widthModifier(96)]}
-                        >
-                          <OutlinedTextField.Placeholder>
-                            <ComposeText>3</ComposeText>
-                          </OutlinedTextField.Placeholder>
-                          <OutlinedTextField.Suffix>
-                            <ComposeText>秒</ComposeText>
-                          </OutlinedTextField.Suffix>
-                        </OutlinedTextField>
-                      </ListItem.TrailingContent>
-                    </ListItem>
-                  </>
-                )}
-
-                <HorizontalDivider color={theme.colors.divider} />
-
-                <ListItem colors={{ containerColor: theme.colors.surface }}>
-                  <ListItem.HeadlineContent>
-                    <ComposeText color={theme.colors.text}>本地轮询间隔</ComposeText>
-                  </ListItem.HeadlineContent>
-                  <ListItem.TrailingContent>
-                    <OutlinedTextField
-                      key={localPollingInput}
-                      value={localPollingNativeState}
-                      onValueChange={(text) => setLocalPollingInput(filterPositiveInteger(text))}
-                      onFocusChanged={(focused) => {
-                        if (!focused) handleLocalPollingBlur();
-                      }}
-                      keyboardOptions={{ keyboardType: 'number' }}
-                      singleLine
-                      modifiers={[widthModifier(96)]}
-                    >
-                      <OutlinedTextField.Placeholder>
-                        <ComposeText>1</ComposeText>
-                      </OutlinedTextField.Placeholder>
-                      <OutlinedTextField.Suffix>
-                        <ComposeText>秒</ComposeText>
-                      </OutlinedTextField.Suffix>
-                    </OutlinedTextField>
-                  </ListItem.TrailingContent>
-                </ListItem>
-              </Column>
-            </Card>
-          </Host>
-        </View>
+        <SyncSettingsSection />
 
         {/* 历史记录部分 */}
         <View style={styles.section}>
@@ -2740,9 +2503,6 @@ export const SettingsScreen = () => {
         <View style={styles.bottomPadding} />
       </ScrollView>
 
-      {/* 消息提示 */}
-      <MessageToast message={message} onMessageShown={handleMessageShown} />
-
       {/* 服务器配置模态框 */}
       <ServerConfigModal
         visible={showServerModal}
@@ -3095,151 +2855,8 @@ export const SettingsScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  hostFill: {
-    width: '100%',
-  },
-  section: {
-    marginTop: spacing.lg,
-  },
-  sectionHeaderBase: {
-    marginHorizontal: spacing.base,
-    marginBottom: spacing.sm,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  sectionTitle: {
-    fontSize: typography.sectionHeader.fontSize,
-    fontWeight: typography.sectionHeader.fontWeight,
-    textTransform: 'uppercase',
-    letterSpacing: typography.sectionHeader.letterSpacing,
-  },
-  sectionTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  collapseIcon: {
-    marginTop: 1,
-  },
-  iconButton: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.sm,
-    borderCurve: 'continuous',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyCard: {
-    marginHorizontal: spacing.base,
-    borderRadius: radius.lg,
-    borderCurve: 'continuous',
-    padding: spacing.xxl,
-    alignItems: 'center',
-    ...elevation.sm,
-  },
-  emptyText: {
-    fontSize: typography.callout.fontSize,
-    fontWeight: '500',
-    marginBottom: spacing.sm,
-  },
-  emptyHint: {
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  card: {
-    marginHorizontal: spacing.base,
-    borderRadius: radius.lg,
-    borderCurve: 'continuous',
-    overflow: 'hidden',
-    borderWidth: StyleSheet.hairlineWidth,
-    ...elevation.sm,
-  },
-  settingRowNoBorder: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.md,
-  },
-  settingInfo: {
-    flex: 1,
-    marginRight: spacing.base,
-  },
-  settingLabel: {
-    fontSize: typography.callout.fontSize,
-    fontWeight: '500',
-    marginBottom: spacing.xs,
-  },
-  settingDescription: {
-    fontSize: typography.footnote.fontSize,
-    lineHeight: typography.footnote.lineHeight,
-  },
-  appearanceBlock: {
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.md,
-  },
-  swatchRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: spacing.md,
-  },
-  swatchWrap: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  swatchRing: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.pill,
-    borderWidth: 2,
-    padding: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  swatch: {
-    width: '100%',
-    height: '100%',
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  swatchLabel: {
-    fontSize: typography.caption1.fontSize,
-    marginTop: spacing.xs,
-  },
-  segmentedTrack: {
-    flexDirection: 'row',
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    overflow: 'hidden',
-    marginTop: spacing.md,
-  },
-  segmentedItem: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.sm,
-  },
-  segmentedItemText: {
-    fontSize: typography.subhead.fontSize,
-    fontWeight: '500',
-  },
-  segmentedCheck: {
-    marginRight: spacing.xs + 2,
-  },
-  bottomPadding: {
-    height: 40,
-  },
-});
+export const SettingsScreen = () => (
+  <SettingsToastProvider>
+    <SettingsScreenInner />
+  </SettingsToastProvider>
+);
