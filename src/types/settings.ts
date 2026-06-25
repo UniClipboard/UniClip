@@ -55,7 +55,6 @@ export interface AndroidSettings {
 
   // UI
   hideFromRecents: boolean;
-  paletteId: string;
   showImageCopyButton: boolean;
 
   // Polling intervals
@@ -128,7 +127,6 @@ export const ANDROID_DEFAULTS: AndroidSettings = {
   syncToastEnabled: true,
 
   hideFromRecents: false,
-  paletteId: 'purple',
   showImageCopyButton: false,
 
   remotePollingInterval: 3000,

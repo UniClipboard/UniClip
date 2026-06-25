@@ -3,17 +3,7 @@
  * 导出主题配置、类型和工具函数
  */
 
-import {
-  buildScheme,
-  lightColors,
-  darkColors,
-  PALETTES,
-  DEFAULT_PALETTE_ID,
-  alpha,
-  blend,
-  type ColorScheme,
-  type PaletteId,
-} from './colors';
+import { buildScheme, lightColors, darkColors, alpha, blend, type ColorScheme } from './colors';
 import { spacing, type Spacing } from './spacing';
 import { radius, type Radius } from './radius';
 import { typography, type Typography } from './typography';
@@ -24,7 +14,6 @@ export type ThemeMode = 'light' | 'dark' | 'auto';
 
 export interface Theme {
   mode: ThemeMode;
-  paletteId: PaletteId;
   colors: ColorScheme;
   isDark: boolean;
   spacing: Spacing;
@@ -37,17 +26,12 @@ export interface Theme {
 /**
  * 创建主题对象
  */
-export const createTheme = (
-  mode: ThemeMode,
-  systemColorScheme: 'light' | 'dark',
-  paletteId: PaletteId = DEFAULT_PALETTE_ID
-): Theme => {
+export const createTheme = (mode: ThemeMode, systemColorScheme: 'light' | 'dark'): Theme => {
   const isDark = mode === 'auto' ? systemColorScheme === 'dark' : mode === 'dark';
 
   return {
     mode,
-    paletteId,
-    colors: buildScheme(paletteId, isDark),
+    colors: buildScheme(isDark),
     isDark,
     spacing,
     radius,
@@ -58,17 +42,5 @@ export const createTheme = (
 };
 
 // 导出 token
-export {
-  lightColors,
-  darkColors,
-  spacing,
-  radius,
-  typography,
-  elevation,
-  motion,
-  PALETTES,
-  DEFAULT_PALETTE_ID,
-  alpha,
-  blend,
-};
-export type { ColorScheme, Spacing, Radius, Typography, Elevation, Motion, PaletteId };
+export { lightColors, darkColors, spacing, radius, typography, elevation, motion, alpha, blend };
+export type { ColorScheme, Spacing, Radius, Typography, Elevation, Motion };

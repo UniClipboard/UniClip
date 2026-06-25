@@ -4,11 +4,7 @@
  * 订阅 enableHistorySync / attachmentAutoDownload / showImageCopyButton 及当前服务器类型。
  */
 import React, { memo, useState } from 'react';
-import { View, Text } from 'react-native';
 import {
-  Host,
-  Card,
-  Column,
   ListItem,
   Switch as ComposeSwitch,
   OutlinedTextField,
@@ -24,10 +20,9 @@ import {
   width as widthModifier,
   menuAnchor,
 } from '@expo/ui/jetpack-compose/modifiers';
-import { useTheme } from '@/hooks/useTheme';
 import { useSettingsStore } from '@/stores';
 import { useSettingsToast } from './SettingsToastContext';
-import { settingsStyles as styles } from './settingsStyles';
+import { SettingsSectionItem } from './SettingsSectionItem';
 
 type ImageAutoDownload = 'wifi' | 'always' | 'off';
 const imageAutoDownloadOptions: { label: string; value: ImageAutoDownload }[] = [
@@ -37,7 +32,6 @@ const imageAutoDownloadOptions: { label: string; value: ImageAutoDownload }[] = 
 ];
 
 export const HistorySection = memo(function HistorySection() {
-  const { theme } = useTheme();
   const showMessage = useSettingsToast();
 
   const historySyncEnabled = useSettingsStore((s) => s.config?.enableHistorySync ?? false);
@@ -115,136 +109,115 @@ export const HistorySection = memo(function HistorySection() {
     }
   };
 
-  const switchColors = {
-    checkedTrackColor: theme.colors.primary,
-    uncheckedTrackColor: theme.colors.divider,
-    checkedThumbColor: theme.colors.surface,
-    uncheckedThumbColor: theme.colors.textTertiary,
-  };
-
   return (
-    <View style={styles.section}>
-      <View style={styles.sectionHeaderBase}>
-        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>历史记录</Text>
-      </View>
+    <SettingsSectionItem title="历史记录">
+      <ListItem>
+        <ListItem.HeadlineContent>
+          <ComposeText>历史记录同步</ComposeText>
+        </ListItem.HeadlineContent>
+        <ListItem.SupportingContent>
+          <ComposeText>
+            {!isSyncClipboard ? '当前服务器不支持历史记录同步' : '同步历史记录到服务器'}
+          </ComposeText>
+        </ListItem.SupportingContent>
+        <ListItem.TrailingContent>
+          <ComposeSwitch
+            value={historySyncEnabled && isSyncClipboard}
+            onCheckedChange={handleToggleHistorySync}
+            enabled={isSyncClipboard}
+          />
+        </ListItem.TrailingContent>
+      </ListItem>
 
-      <Host matchContents={{ vertical: true }} style={styles.hostFill}>
-        <Card colors={{ containerColor: theme.colors.surface }}>
-          <Column modifiers={[fillMaxWidth()]}>
-            <ListItem colors={{ containerColor: theme.colors.surface }}>
-              <ListItem.HeadlineContent>
-                <ComposeText color={theme.colors.text}>历史记录同步</ComposeText>
-              </ListItem.HeadlineContent>
-              <ListItem.SupportingContent>
-                <ComposeText color={theme.colors.textTertiary}>
-                  {!isSyncClipboard ? '当前服务器不支持历史记录同步' : '同步历史记录到服务器'}
-                </ComposeText>
-              </ListItem.SupportingContent>
-              <ListItem.TrailingContent>
-                <ComposeSwitch
-                  value={historySyncEnabled && isSyncClipboard}
-                  onCheckedChange={handleToggleHistorySync}
-                  enabled={isSyncClipboard}
-                  colors={switchColors}
-                />
-              </ListItem.TrailingContent>
-            </ListItem>
+      <HorizontalDivider />
 
-            <HorizontalDivider color={theme.colors.divider} />
+      <ListItem>
+        <ListItem.HeadlineContent>
+          <ComposeText>历史记录最大保留条数</ComposeText>
+        </ListItem.HeadlineContent>
+        <ListItem.SupportingContent>
+          <ComposeText>最小值为10条</ComposeText>
+        </ListItem.SupportingContent>
+        <ListItem.TrailingContent>
+          <OutlinedTextField
+            value={maxHistoryItemsNativeState}
+            onValueChange={setMaxHistoryItemsInput}
+            onFocusChanged={(focused) => {
+              if (!focused) handleMaxHistoryItemsBlur();
+            }}
+            keyboardOptions={{ keyboardType: 'number' }}
+            singleLine
+            modifiers={[widthModifier(112)]}
+          >
+            <OutlinedTextField.Placeholder>
+              <ComposeText>100</ComposeText>
+            </OutlinedTextField.Placeholder>
+            <OutlinedTextField.Suffix>
+              <ComposeText>条</ComposeText>
+            </OutlinedTextField.Suffix>
+          </OutlinedTextField>
+        </ListItem.TrailingContent>
+      </ListItem>
 
-            <ListItem colors={{ containerColor: theme.colors.surface }}>
-              <ListItem.HeadlineContent>
-                <ComposeText color={theme.colors.text}>历史记录最大保留条数</ComposeText>
-              </ListItem.HeadlineContent>
-              <ListItem.SupportingContent>
-                <ComposeText color={theme.colors.textTertiary}>最小值为10条</ComposeText>
-              </ListItem.SupportingContent>
-              <ListItem.TrailingContent>
-                <OutlinedTextField
-                  value={maxHistoryItemsNativeState}
-                  onValueChange={setMaxHistoryItemsInput}
-                  onFocusChanged={(focused) => {
-                    if (!focused) handleMaxHistoryItemsBlur();
+      <HorizontalDivider />
+
+      <ListItem>
+        <ListItem.HeadlineContent>
+          <ComposeText>浏览到图片时自动下载</ComposeText>
+        </ListItem.HeadlineContent>
+        <ListItem.TrailingContent>
+          <ExposedDropdownMenuBox
+            expanded={showImageAutoDownloadMenu}
+            onExpandedChange={setShowImageAutoDownloadMenu}
+            modifiers={[widthModifier(140)]}
+          >
+            <OutlinedTextField
+              key={attachmentAutoDownload}
+              value={imageAutoDownloadNativeState}
+              readOnly
+              singleLine
+              modifiers={[menuAnchor(), fillMaxWidth()]}
+            />
+            <ExposedDropdownMenu
+              expanded={showImageAutoDownloadMenu}
+              onDismissRequest={() => setShowImageAutoDownloadMenu(false)}
+            >
+              {imageAutoDownloadOptions.map((option) => (
+                <DropdownMenuItem
+                  key={option.value}
+                  onClick={() => {
+                    handleImageAutoDownloadChange(option.value);
+                    setShowImageAutoDownloadMenu(false);
                   }}
-                  keyboardOptions={{ keyboardType: 'number' }}
-                  singleLine
-                  modifiers={[widthModifier(112)]}
                 >
-                  <OutlinedTextField.Placeholder>
-                    <ComposeText>100</ComposeText>
-                  </OutlinedTextField.Placeholder>
-                  <OutlinedTextField.Suffix>
-                    <ComposeText>条</ComposeText>
-                  </OutlinedTextField.Suffix>
-                </OutlinedTextField>
-              </ListItem.TrailingContent>
-            </ListItem>
+                  <DropdownMenuItem.Text>
+                    <ComposeText>{option.label}</ComposeText>
+                  </DropdownMenuItem.Text>
+                </DropdownMenuItem>
+              ))}
+            </ExposedDropdownMenu>
+          </ExposedDropdownMenuBox>
+        </ListItem.TrailingContent>
+      </ListItem>
 
-            <HorizontalDivider color={theme.colors.divider} />
+      <HorizontalDivider />
 
-            <ListItem colors={{ containerColor: theme.colors.surface }}>
-              <ListItem.HeadlineContent>
-                <ComposeText color={theme.colors.text}>浏览到图片时自动下载</ComposeText>
-              </ListItem.HeadlineContent>
-              <ListItem.TrailingContent>
-                <ExposedDropdownMenuBox
-                  expanded={showImageAutoDownloadMenu}
-                  onExpandedChange={setShowImageAutoDownloadMenu}
-                  modifiers={[widthModifier(140)]}
-                >
-                  <OutlinedTextField
-                    key={attachmentAutoDownload}
-                    value={imageAutoDownloadNativeState}
-                    readOnly
-                    singleLine
-                    modifiers={[menuAnchor(), fillMaxWidth()]}
-                  />
-                  <ExposedDropdownMenu
-                    expanded={showImageAutoDownloadMenu}
-                    onDismissRequest={() => setShowImageAutoDownloadMenu(false)}
-                  >
-                    {imageAutoDownloadOptions.map((option) => (
-                      <DropdownMenuItem
-                        key={option.value}
-                        onClick={() => {
-                          handleImageAutoDownloadChange(option.value);
-                          setShowImageAutoDownloadMenu(false);
-                        }}
-                      >
-                        <DropdownMenuItem.Text>
-                          <ComposeText>{option.label}</ComposeText>
-                        </DropdownMenuItem.Text>
-                      </DropdownMenuItem>
-                    ))}
-                  </ExposedDropdownMenu>
-                </ExposedDropdownMenuBox>
-              </ListItem.TrailingContent>
-            </ListItem>
-
-            <HorizontalDivider color={theme.colors.divider} />
-
-            <ListItem colors={{ containerColor: theme.colors.surface }}>
-              <ListItem.HeadlineContent>
-                <ComposeText color={theme.colors.text}>为图片显示复制按钮</ComposeText>
-              </ListItem.HeadlineContent>
-              <ListItem.SupportingContent>
-                <ComposeText color={theme.colors.textTertiary}>
-                  在历史记录的图片项显示复制到剪贴板按钮
-                </ComposeText>
-              </ListItem.SupportingContent>
-              <ListItem.TrailingContent>
-                <ComposeSwitch
-                  value={showImageCopyButton}
-                  onCheckedChange={(enabled) =>
-                    useSettingsStore.getState().updateConfig({ showImageCopyButton: enabled })
-                  }
-                  colors={switchColors}
-                />
-              </ListItem.TrailingContent>
-            </ListItem>
-          </Column>
-        </Card>
-      </Host>
-    </View>
+      <ListItem>
+        <ListItem.HeadlineContent>
+          <ComposeText>为图片显示复制按钮</ComposeText>
+        </ListItem.HeadlineContent>
+        <ListItem.SupportingContent>
+          <ComposeText>在历史记录的图片项显示复制到剪贴板按钮</ComposeText>
+        </ListItem.SupportingContent>
+        <ListItem.TrailingContent>
+          <ComposeSwitch
+            value={showImageCopyButton}
+            onCheckedChange={(enabled) =>
+              useSettingsStore.getState().updateConfig({ showImageCopyButton: enabled })
+            }
+          />
+        </ListItem.TrailingContent>
+      </ListItem>
+    </SettingsSectionItem>
   );
 });

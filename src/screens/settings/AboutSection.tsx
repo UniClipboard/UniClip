@@ -3,13 +3,12 @@
  *
  * 版本信息、更新检查与 APK 下载安装全流程、自动检查更新 / 更新到测试版开关。
  * 更新/下载相关 state、下载渠道底部表单、取消下载确认弹窗均内聚于此。
+ * 作为 item:无独立 Host,底部表单 + 取消确认弹窗作为 item 内 overlay 渲染
+ * (见 SettingsSectionItem.dialogs)。
  */
 import React, { memo, useEffect, useRef, useState } from 'react';
-import { View, Text, Linking } from 'react-native';
+import { Linking } from 'react-native';
 import {
-  Host,
-  Card,
-  Column,
   Row,
   ListItem,
   Switch as ComposeSwitch,
@@ -20,6 +19,7 @@ import {
   TextButton,
   Spacer,
   HorizontalDivider,
+  Column,
   Text as ComposeText,
 } from '@expo/ui/jetpack-compose';
 import {
@@ -40,15 +40,13 @@ import {
   type ReleaseAssetInfo,
   type ApkSource,
 } from '@/services';
-import { useTheme } from '@/hooks/useTheme';
 import { useSettingsStore } from '@/stores';
 import { useSettingsToast } from './SettingsToastContext';
-import { settingsStyles as styles } from './settingsStyles';
+import { SettingsSectionItem } from './SettingsSectionItem';
 
 const appVersion = APP_VERSION;
 
 export const AboutSection = memo(function AboutSection() {
-  const { theme } = useTheme();
   const showMessage = useSettingsToast();
 
   const autoCheckUpdateEnabled = useSettingsStore((s) => s.config?.autoCheckUpdate ?? true);
@@ -234,185 +232,149 @@ export const AboutSection = memo(function AboutSection() {
     }
   };
 
-  const switchColors = {
-    checkedTrackColor: theme.colors.primary,
-    uncheckedTrackColor: theme.colors.divider,
-    checkedThumbColor: theme.colors.surface,
-    uncheckedThumbColor: theme.colors.textTertiary,
-  };
-  const buttonColors = { containerColor: theme.colors.primary, contentColor: theme.colors.white };
-
   return (
-    <>
-      <View style={styles.section}>
-        <View style={styles.sectionHeaderBase}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>关于</Text>
-        </View>
+    <SettingsSectionItem
+      title="关于"
+      dialogs={
+        <>
+          {/* 下载渠道选择底部表单 */}
+          {downloadSourceSheet && (
+            <ModalBottomSheet onDismissRequest={() => setDownloadSourceSheet(null)}>
+              <Column modifiers={[paddingAll(24), fillMaxWidth()]}>
+                <ComposeText style={{ typography: 'titleLarge' }}>发现新版本</ComposeText>
+                <Spacer modifiers={[heightModifier(8)]} />
+                <ComposeText>
+                  {`最新版本：${downloadSourceSheet.version}\n当前版本：${appVersion}${
+                    downloadSourceSheet.releaseNotes
+                      ? `\n\n更新说明：\n${downloadSourceSheet.releaseNotes}`
+                      : ''
+                  }`}
+                </ComposeText>
+                <Spacer modifiers={[heightModifier(16)]} />
+                <Button
+                  onClick={() => {
+                    const s = downloadSourceSheet;
+                    setDownloadSourceSheet(null);
+                    handleDownloadApk('gitcode', s.version, s.assets);
+                  }}
+                  modifiers={[fillMaxWidth()]}
+                >
+                  <ComposeText>GitCode 下载</ComposeText>
+                </Button>
+                <Spacer modifiers={[heightModifier(8)]} />
+                <OutlinedButton
+                  onClick={() => {
+                    const s = downloadSourceSheet;
+                    setDownloadSourceSheet(null);
+                    handleDownloadApk('github', s.version, s.assets);
+                  }}
+                  modifiers={[fillMaxWidth()]}
+                >
+                  <ComposeText>GitHub 下载</ComposeText>
+                </OutlinedButton>
+              </Column>
+            </ModalBottomSheet>
+          )}
 
-        <Host matchContents={{ vertical: true }} style={styles.hostFill}>
-          <Card colors={{ containerColor: theme.colors.surface }}>
-            <Column modifiers={[fillMaxWidth()]}>
-              <ListItem colors={{ containerColor: theme.colors.surface }}>
-                <ListItem.OverlineContent>
-                  <ComposeText color={theme.colors.textSecondary}>版本</ComposeText>
-                </ListItem.OverlineContent>
-                <ListItem.HeadlineContent>
-                  <ComposeText color={theme.colors.text}>{appVersion}</ComposeText>
-                </ListItem.HeadlineContent>
-                <ListItem.TrailingContent>
-                  <Row>
-                    {isDownloading || updateAvailable ? (
-                      <Button
-                        onClick={() => {
-                          if (isDownloading) {
-                            setShowCancelDownloadDialog(true);
-                          } else {
-                            handleUpdateButtonPress(
-                              latestVersion ?? '',
-                              latestAssetsRef.current,
-                              releaseNotesRef.current
-                            );
-                          }
-                        }}
-                        enabled={!isCheckingUpdate}
-                        colors={buttonColors}
-                      >
-                        <ComposeText>
-                          {isDownloading
-                            ? `下载中 ${Math.round(downloadProgress * 100)}%`
-                            : `更新 ${latestVersion}`}
-                        </ComposeText>
-                      </Button>
-                    ) : (
-                      <OutlinedButton
-                        onClick={() => runUpdateCheck(true, updateToBetaEnabled)}
-                        enabled={!isCheckingUpdate}
-                        colors={{ contentColor: theme.colors.primary }}
-                      >
-                        <ComposeText>{isCheckingUpdate ? '检查中...' : '检查更新'}</ComposeText>
-                      </OutlinedButton>
-                    )}
-                    <Spacer modifiers={[widthModifier(8)]} />
-                    <Button
-                      onClick={() => Linking.openURL('https://github.com/UniClipboard/uc-android')}
-                      colors={buttonColors}
-                    >
-                      <ComposeText>GitHub</ComposeText>
-                    </Button>
-                  </Row>
-                </ListItem.TrailingContent>
-              </ListItem>
-
-              <HorizontalDivider color={theme.colors.divider} />
-
-              <ListItem colors={{ containerColor: theme.colors.surface }}>
-                <ListItem.HeadlineContent>
-                  <ComposeText color={theme.colors.text}>自动检查更新</ComposeText>
-                </ListItem.HeadlineContent>
-                <ListItem.TrailingContent>
-                  <ComposeSwitch
-                    value={autoCheckUpdateEnabled}
-                    onCheckedChange={handleToggleAutoCheckUpdate}
-                    colors={switchColors}
-                  />
-                </ListItem.TrailingContent>
-              </ListItem>
-
-              <HorizontalDivider color={theme.colors.divider} />
-
-              <ListItem colors={{ containerColor: theme.colors.surface }}>
-                <ListItem.HeadlineContent>
-                  <ComposeText color={theme.colors.text}>更新到测试版</ComposeText>
-                </ListItem.HeadlineContent>
-                <ListItem.TrailingContent>
-                  <ComposeSwitch
-                    value={updateToBetaEnabled}
-                    onCheckedChange={handleToggleUpdateToBeta}
-                    colors={switchColors}
-                  />
-                </ListItem.TrailingContent>
-              </ListItem>
-            </Column>
-          </Card>
-        </Host>
-      </View>
-
-      {/* 下载渠道选择底部表单 */}
-      {downloadSourceSheet && (
-        <Host>
-          <ModalBottomSheet onDismissRequest={() => setDownloadSourceSheet(null)}>
-            <Column modifiers={[paddingAll(24), fillMaxWidth()]}>
-              <ComposeText color={theme.colors.text} style={{ typography: 'titleLarge' }}>
-                发现新版本
-              </ComposeText>
-              <Spacer modifiers={[heightModifier(8)]} />
-              <ComposeText color={theme.colors.textSecondary}>
-                {`最新版本：${downloadSourceSheet.version}\n当前版本：${appVersion}${
-                  downloadSourceSheet.releaseNotes
-                    ? `\n\n更新说明：\n${downloadSourceSheet.releaseNotes}`
-                    : ''
-                }`}
-              </ComposeText>
-              <Spacer modifiers={[heightModifier(16)]} />
+          {/* 取消下载确认 */}
+          {showCancelDownloadDialog && (
+            <AlertDialog onDismissRequest={() => setShowCancelDownloadDialog(false)}>
+              <AlertDialog.Title>
+                <ComposeText>取消下载</ComposeText>
+              </AlertDialog.Title>
+              <AlertDialog.Text>
+                <ComposeText>确定要取消下载吗？</ComposeText>
+              </AlertDialog.Text>
+              <AlertDialog.ConfirmButton>
+                <TextButton
+                  onClick={() => {
+                    downloadAbortRef.current?.abort();
+                    setShowCancelDownloadDialog(false);
+                  }}
+                >
+                  <ComposeText>取消下载</ComposeText>
+                </TextButton>
+              </AlertDialog.ConfirmButton>
+              <AlertDialog.DismissButton>
+                <TextButton onClick={() => setShowCancelDownloadDialog(false)}>
+                  <ComposeText>继续下载</ComposeText>
+                </TextButton>
+              </AlertDialog.DismissButton>
+            </AlertDialog>
+          )}
+        </>
+      }
+    >
+      <ListItem>
+        <ListItem.OverlineContent>
+          <ComposeText>版本</ComposeText>
+        </ListItem.OverlineContent>
+        <ListItem.HeadlineContent>
+          <ComposeText>{appVersion}</ComposeText>
+        </ListItem.HeadlineContent>
+        <ListItem.TrailingContent>
+          <Row>
+            {isDownloading || updateAvailable ? (
               <Button
                 onClick={() => {
-                  const s = downloadSourceSheet;
-                  setDownloadSourceSheet(null);
-                  handleDownloadApk('gitcode', s.version, s.assets);
+                  if (isDownloading) {
+                    setShowCancelDownloadDialog(true);
+                  } else {
+                    handleUpdateButtonPress(
+                      latestVersion ?? '',
+                      latestAssetsRef.current,
+                      releaseNotesRef.current
+                    );
+                  }
                 }}
-                modifiers={[fillMaxWidth()]}
-                colors={buttonColors}
+                enabled={!isCheckingUpdate}
               >
-                <ComposeText>GitCode 下载</ComposeText>
+                <ComposeText>
+                  {isDownloading
+                    ? `下载中 ${Math.round(downloadProgress * 100)}%`
+                    : `更新 ${latestVersion}`}
+                </ComposeText>
               </Button>
-              <Spacer modifiers={[heightModifier(8)]} />
+            ) : (
               <OutlinedButton
-                onClick={() => {
-                  const s = downloadSourceSheet;
-                  setDownloadSourceSheet(null);
-                  handleDownloadApk('github', s.version, s.assets);
-                }}
-                modifiers={[fillMaxWidth()]}
-                colors={{ contentColor: theme.colors.primary }}
+                onClick={() => runUpdateCheck(true, updateToBetaEnabled)}
+                enabled={!isCheckingUpdate}
               >
-                <ComposeText>GitHub 下载</ComposeText>
+                <ComposeText>{isCheckingUpdate ? '检查中...' : '检查更新'}</ComposeText>
               </OutlinedButton>
-            </Column>
-          </ModalBottomSheet>
-        </Host>
-      )}
+            )}
+            <Spacer modifiers={[widthModifier(8)]} />
+            <Button onClick={() => Linking.openURL('https://github.com/UniClipboard/uc-android')}>
+              <ComposeText>GitHub</ComposeText>
+            </Button>
+          </Row>
+        </ListItem.TrailingContent>
+      </ListItem>
 
-      {/* 取消下载确认 */}
-      <Host>
-        {showCancelDownloadDialog && (
-          <AlertDialog
-            onDismissRequest={() => setShowCancelDownloadDialog(false)}
-            colors={{ containerColor: theme.colors.surface }}
-          >
-            <AlertDialog.Title>
-              <ComposeText color={theme.colors.text}>取消下载</ComposeText>
-            </AlertDialog.Title>
-            <AlertDialog.Text>
-              <ComposeText color={theme.colors.textSecondary}>确定要取消下载吗？</ComposeText>
-            </AlertDialog.Text>
-            <AlertDialog.ConfirmButton>
-              <TextButton
-                onClick={() => {
-                  downloadAbortRef.current?.abort();
-                  setShowCancelDownloadDialog(false);
-                }}
-              >
-                <ComposeText>取消下载</ComposeText>
-              </TextButton>
-            </AlertDialog.ConfirmButton>
-            <AlertDialog.DismissButton>
-              <TextButton onClick={() => setShowCancelDownloadDialog(false)}>
-                <ComposeText>继续下载</ComposeText>
-              </TextButton>
-            </AlertDialog.DismissButton>
-          </AlertDialog>
-        )}
-      </Host>
-    </>
+      <HorizontalDivider />
+
+      <ListItem>
+        <ListItem.HeadlineContent>
+          <ComposeText>自动检查更新</ComposeText>
+        </ListItem.HeadlineContent>
+        <ListItem.TrailingContent>
+          <ComposeSwitch
+            value={autoCheckUpdateEnabled}
+            onCheckedChange={handleToggleAutoCheckUpdate}
+          />
+        </ListItem.TrailingContent>
+      </ListItem>
+
+      <HorizontalDivider />
+
+      <ListItem>
+        <ListItem.HeadlineContent>
+          <ComposeText>更新到测试版</ComposeText>
+        </ListItem.HeadlineContent>
+        <ListItem.TrailingContent>
+          <ComposeSwitch value={updateToBetaEnabled} onCheckedChange={handleToggleUpdateToBeta} />
+        </ListItem.TrailingContent>
+      </ListItem>
+    </SettingsSectionItem>
   );
 });

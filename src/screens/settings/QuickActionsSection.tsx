@@ -1,27 +1,16 @@
 /**
  * 快捷操作 section
  *
- * 纯动作型 section：不订阅 config，仅调用 ShortcutService。
+ * 纯动作型 section:不订阅 config,仅调用 ShortcutService。
+ * 作为 LazyColumn 的单个 item:无独立 <Host>,内容由父级单 Host 统一组合。
  */
 import React, { memo } from 'react';
-import { View, Text } from 'react-native';
-import {
-  Host,
-  Card,
-  Column,
-  ListItem,
-  Button,
-  HorizontalDivider,
-  Text as ComposeText,
-} from '@expo/ui/jetpack-compose';
-import { fillMaxWidth } from '@expo/ui/jetpack-compose/modifiers';
-import { useTheme } from '@/hooks/useTheme';
+import { ListItem, Button, HorizontalDivider, Text as ComposeText } from '@expo/ui/jetpack-compose';
 import { ShortcutService } from '@/services';
 import { useSettingsToast } from './SettingsToastContext';
-import { settingsStyles as styles } from './settingsStyles';
+import { SettingsSectionItem } from './SettingsSectionItem';
 
 export const QuickActionsSection = memo(function QuickActionsSection() {
-  const { theme } = useTheme();
   const showMessage = useSettingsToast();
 
   const handleAddDownloadShortcut = async () => {
@@ -40,46 +29,31 @@ export const QuickActionsSection = memo(function QuickActionsSection() {
     }
   };
 
-  const buttonColors = {
-    containerColor: theme.colors.primary,
-    contentColor: theme.colors.white,
-  };
-
   return (
-    <View style={styles.section}>
-      <View style={styles.sectionHeaderBase}>
-        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>快捷操作</Text>
-      </View>
+    <SettingsSectionItem title="快捷操作">
+      <ListItem>
+        <ListItem.HeadlineContent>
+          <ComposeText>添加桌面快捷方式：下载</ComposeText>
+        </ListItem.HeadlineContent>
+        <ListItem.TrailingContent>
+          <Button onClick={handleAddDownloadShortcut}>
+            <ComposeText>添加</ComposeText>
+          </Button>
+        </ListItem.TrailingContent>
+      </ListItem>
 
-      <Host matchContents={{ vertical: true }} style={styles.hostFill}>
-        <Card colors={{ containerColor: theme.colors.surface }}>
-          <Column modifiers={[fillMaxWidth()]}>
-            <ListItem colors={{ containerColor: theme.colors.surface }}>
-              <ListItem.HeadlineContent>
-                <ComposeText color={theme.colors.text}>添加桌面快捷方式：下载</ComposeText>
-              </ListItem.HeadlineContent>
-              <ListItem.TrailingContent>
-                <Button onClick={handleAddDownloadShortcut} colors={buttonColors}>
-                  <ComposeText>添加</ComposeText>
-                </Button>
-              </ListItem.TrailingContent>
-            </ListItem>
+      <HorizontalDivider />
 
-            <HorizontalDivider color={theme.colors.divider} />
-
-            <ListItem colors={{ containerColor: theme.colors.surface }}>
-              <ListItem.HeadlineContent>
-                <ComposeText color={theme.colors.text}>添加桌面快捷方式：上传</ComposeText>
-              </ListItem.HeadlineContent>
-              <ListItem.TrailingContent>
-                <Button onClick={handleAddUploadShortcut} colors={buttonColors}>
-                  <ComposeText>添加</ComposeText>
-                </Button>
-              </ListItem.TrailingContent>
-            </ListItem>
-          </Column>
-        </Card>
-      </Host>
-    </View>
+      <ListItem>
+        <ListItem.HeadlineContent>
+          <ComposeText>添加桌面快捷方式：上传</ComposeText>
+        </ListItem.HeadlineContent>
+        <ListItem.TrailingContent>
+          <Button onClick={handleAddUploadShortcut}>
+            <ComposeText>添加</ComposeText>
+          </Button>
+        </ListItem.TrailingContent>
+      </ListItem>
+    </SettingsSectionItem>
   );
 });

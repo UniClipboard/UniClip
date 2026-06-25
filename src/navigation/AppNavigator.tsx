@@ -11,13 +11,24 @@ import { navigationRef } from './navigationRef';
 import { useTheme } from '@/hooks/useTheme';
 import { HomeView } from '@/screens/HomeView';
 import { SettingsScreen } from '@/screens/SettingsScreen';
+import { SettingsSubScreen } from '@/screens/settings/SettingsSubScreen';
+
+export type SettingsSubSection = 'sms' | 'storage' | 'about' | 'developer';
 
 export type RootStackParamList = {
   Main: undefined;
   Settings: undefined;
+  SettingsSub: { section: SettingsSubSection };
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
+
+const SUB_SCREEN_TITLES: Record<SettingsSubSection, string> = {
+  sms: '短信转发',
+  storage: '存储',
+  about: '关于',
+  developer: '开发者选项',
+};
 
 function MainScreen() {
   const navigation = useNavigation<any>();
@@ -81,6 +92,21 @@ export const AppNavigator = () => {
                   headerTintColor: theme.colors.text,
                 }
           }
+        />
+        <Stack.Screen
+          name="SettingsSub"
+          component={SettingsSubScreen}
+          options={({ route }) => ({
+            headerShown: true,
+            title: SUB_SCREEN_TITLES[route.params.section],
+            presentation: 'card',
+            headerStyle: {
+              backgroundColor: theme.colors.surface,
+              elevation: 0,
+              shadowOpacity: 0,
+            },
+            headerTintColor: theme.colors.text,
+          })}
         />
       </Stack.Navigator>
     </NavigationContainer>

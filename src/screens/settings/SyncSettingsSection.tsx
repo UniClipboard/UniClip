@@ -6,11 +6,7 @@
  * 开关不会重渲本组件，反之亦然。
  */
 import React, { memo, useState } from 'react';
-import { View, Text } from 'react-native';
 import {
-  Host,
-  Card,
-  Column,
   ListItem,
   Switch as ComposeSwitch,
   OutlinedTextField,
@@ -18,11 +14,10 @@ import {
   Text as ComposeText,
   useNativeState,
 } from '@expo/ui/jetpack-compose';
-import { fillMaxWidth, width as widthModifier } from '@expo/ui/jetpack-compose/modifiers';
-import { useTheme } from '@/hooks/useTheme';
+import { width as widthModifier } from '@expo/ui/jetpack-compose/modifiers';
 import { useSettingsStore } from '@/stores';
 import { useSettingsToast } from './SettingsToastContext';
-import { settingsStyles as styles } from './settingsStyles';
+import { SettingsSectionItem } from './SettingsSectionItem';
 
 const toMB = (bytes: number) => Math.round(bytes / (1024 * 1024));
 const filterPositiveInteger = (value: string): string => {
@@ -33,7 +28,6 @@ const filterPositiveInteger = (value: string): string => {
 };
 
 export const SyncSettingsSection = memo(function SyncSettingsSection() {
-  const { theme } = useTheme();
   const showMessage = useSettingsToast();
 
   // 仅订阅影响本 section 渲染的字段
@@ -141,153 +135,122 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
     }
   };
 
-  const switchColors = {
-    checkedTrackColor: theme.colors.primary,
-    uncheckedTrackColor: theme.colors.divider,
-    checkedThumbColor: theme.colors.surface,
-    uncheckedThumbColor: theme.colors.textTertiary,
-  };
-
   return (
-    <View style={styles.section}>
-      <View style={styles.sectionHeaderBase}>
-        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>同步设置</Text>
-      </View>
+    <SettingsSectionItem title="同步设置">
+      <ListItem>
+        <ListItem.HeadlineContent>
+          <ComposeText>自动同步</ComposeText>
+        </ListItem.HeadlineContent>
+        <ListItem.SupportingContent>
+          <ComposeText>处于前台时自动同步剪贴板</ComposeText>
+        </ListItem.SupportingContent>
+        <ListItem.TrailingContent>
+          <ComposeSwitch value={autoSyncEnabled} onCheckedChange={handleToggleAutoSync} />
+        </ListItem.TrailingContent>
+      </ListItem>
 
-      <Host matchContents={{ vertical: true }} style={styles.hostFill}>
-        <Card colors={{ containerColor: theme.colors.surface }}>
-          <Column modifiers={[fillMaxWidth()]}>
-            <ListItem colors={{ containerColor: theme.colors.surface }}>
-              <ListItem.HeadlineContent>
-                <ComposeText color={theme.colors.text}>自动同步</ComposeText>
-              </ListItem.HeadlineContent>
-              <ListItem.SupportingContent>
-                <ComposeText color={theme.colors.textTertiary}>
-                  处于前台时自动同步剪贴板
-                </ComposeText>
-              </ListItem.SupportingContent>
-              <ListItem.TrailingContent>
-                <ComposeSwitch
-                  value={autoSyncEnabled}
-                  onCheckedChange={handleToggleAutoSync}
-                  colors={switchColors}
-                />
-              </ListItem.TrailingContent>
-            </ListItem>
+      <HorizontalDivider />
 
-            <HorizontalDivider color={theme.colors.divider} />
+      <ListItem>
+        <ListItem.HeadlineContent>
+          <ComposeText>同步 Toast 通知</ComposeText>
+        </ListItem.HeadlineContent>
+        <ListItem.SupportingContent>
+          <ComposeText>上传/下载完成后显示 Toast 提示</ComposeText>
+        </ListItem.SupportingContent>
+        <ListItem.TrailingContent>
+          <ComposeSwitch value={syncToastEnabled} onCheckedChange={handleToggleSyncToast} />
+        </ListItem.TrailingContent>
+      </ListItem>
 
-            <ListItem colors={{ containerColor: theme.colors.surface }}>
-              <ListItem.HeadlineContent>
-                <ComposeText color={theme.colors.text}>同步 Toast 通知</ComposeText>
-              </ListItem.HeadlineContent>
-              <ListItem.SupportingContent>
-                <ComposeText color={theme.colors.textTertiary}>
-                  上传/下载完成后显示 Toast 提示
-                </ComposeText>
-              </ListItem.SupportingContent>
-              <ListItem.TrailingContent>
-                <ComposeSwitch
-                  value={syncToastEnabled}
-                  onCheckedChange={handleToggleSyncToast}
-                  colors={switchColors}
-                />
-              </ListItem.TrailingContent>
-            </ListItem>
+      <HorizontalDivider />
 
-            <HorizontalDivider color={theme.colors.divider} />
+      <ListItem>
+        <ListItem.HeadlineContent>
+          <ComposeText>允许自动同步的数据大小</ComposeText>
+        </ListItem.HeadlineContent>
+        <ListItem.SupportingContent>
+          <ComposeText>小于此大小的文件将自动下载</ComposeText>
+        </ListItem.SupportingContent>
+        <ListItem.TrailingContent>
+          <OutlinedTextField
+            value={maxSizeNativeState}
+            onValueChange={setMaxSizeInput}
+            onFocusChanged={(focused) => {
+              if (!focused) handleMaxSizeBlur();
+            }}
+            keyboardOptions={{ keyboardType: 'number' }}
+            singleLine
+            modifiers={[widthModifier(96)]}
+          >
+            <OutlinedTextField.Placeholder>
+              <ComposeText>5</ComposeText>
+            </OutlinedTextField.Placeholder>
+            <OutlinedTextField.Suffix>
+              <ComposeText>MB</ComposeText>
+            </OutlinedTextField.Suffix>
+          </OutlinedTextField>
+        </ListItem.TrailingContent>
+      </ListItem>
 
-            <ListItem colors={{ containerColor: theme.colors.surface }}>
-              <ListItem.HeadlineContent>
-                <ComposeText color={theme.colors.text}>允许自动同步的数据大小</ComposeText>
-              </ListItem.HeadlineContent>
-              <ListItem.SupportingContent>
-                <ComposeText color={theme.colors.textTertiary}>
-                  小于此大小的文件将自动下载
-                </ComposeText>
-              </ListItem.SupportingContent>
-              <ListItem.TrailingContent>
-                <OutlinedTextField
-                  value={maxSizeNativeState}
-                  onValueChange={setMaxSizeInput}
-                  onFocusChanged={(focused) => {
-                    if (!focused) handleMaxSizeBlur();
-                  }}
-                  keyboardOptions={{ keyboardType: 'number' }}
-                  singleLine
-                  modifiers={[widthModifier(96)]}
-                >
-                  <OutlinedTextField.Placeholder>
-                    <ComposeText>5</ComposeText>
-                  </OutlinedTextField.Placeholder>
-                  <OutlinedTextField.Suffix>
-                    <ComposeText>MB</ComposeText>
-                  </OutlinedTextField.Suffix>
-                </OutlinedTextField>
-              </ListItem.TrailingContent>
-            </ListItem>
+      {!isSyncClipboard && (
+        <>
+          <HorizontalDivider />
+          <ListItem>
+            <ListItem.HeadlineContent>
+              <ComposeText>远程轮询间隔</ComposeText>
+            </ListItem.HeadlineContent>
+            <ListItem.TrailingContent>
+              <OutlinedTextField
+                key={remotePollingInput}
+                value={remotePollingNativeState}
+                onValueChange={(text) => setRemotePollingInput(filterPositiveInteger(text))}
+                onFocusChanged={(focused) => {
+                  if (!focused) handleRemotePollingBlur();
+                }}
+                keyboardOptions={{ keyboardType: 'number' }}
+                singleLine
+                modifiers={[widthModifier(96)]}
+              >
+                <OutlinedTextField.Placeholder>
+                  <ComposeText>3</ComposeText>
+                </OutlinedTextField.Placeholder>
+                <OutlinedTextField.Suffix>
+                  <ComposeText>秒</ComposeText>
+                </OutlinedTextField.Suffix>
+              </OutlinedTextField>
+            </ListItem.TrailingContent>
+          </ListItem>
+        </>
+      )}
 
-            {!isSyncClipboard && (
-              <>
-                <HorizontalDivider color={theme.colors.divider} />
-                <ListItem colors={{ containerColor: theme.colors.surface }}>
-                  <ListItem.HeadlineContent>
-                    <ComposeText color={theme.colors.text}>远程轮询间隔</ComposeText>
-                  </ListItem.HeadlineContent>
-                  <ListItem.TrailingContent>
-                    <OutlinedTextField
-                      key={remotePollingInput}
-                      value={remotePollingNativeState}
-                      onValueChange={(text) => setRemotePollingInput(filterPositiveInteger(text))}
-                      onFocusChanged={(focused) => {
-                        if (!focused) handleRemotePollingBlur();
-                      }}
-                      keyboardOptions={{ keyboardType: 'number' }}
-                      singleLine
-                      modifiers={[widthModifier(96)]}
-                    >
-                      <OutlinedTextField.Placeholder>
-                        <ComposeText>3</ComposeText>
-                      </OutlinedTextField.Placeholder>
-                      <OutlinedTextField.Suffix>
-                        <ComposeText>秒</ComposeText>
-                      </OutlinedTextField.Suffix>
-                    </OutlinedTextField>
-                  </ListItem.TrailingContent>
-                </ListItem>
-              </>
-            )}
+      <HorizontalDivider />
 
-            <HorizontalDivider color={theme.colors.divider} />
-
-            <ListItem colors={{ containerColor: theme.colors.surface }}>
-              <ListItem.HeadlineContent>
-                <ComposeText color={theme.colors.text}>本地轮询间隔</ComposeText>
-              </ListItem.HeadlineContent>
-              <ListItem.TrailingContent>
-                <OutlinedTextField
-                  key={localPollingInput}
-                  value={localPollingNativeState}
-                  onValueChange={(text) => setLocalPollingInput(filterPositiveInteger(text))}
-                  onFocusChanged={(focused) => {
-                    if (!focused) handleLocalPollingBlur();
-                  }}
-                  keyboardOptions={{ keyboardType: 'number' }}
-                  singleLine
-                  modifiers={[widthModifier(96)]}
-                >
-                  <OutlinedTextField.Placeholder>
-                    <ComposeText>1</ComposeText>
-                  </OutlinedTextField.Placeholder>
-                  <OutlinedTextField.Suffix>
-                    <ComposeText>秒</ComposeText>
-                  </OutlinedTextField.Suffix>
-                </OutlinedTextField>
-              </ListItem.TrailingContent>
-            </ListItem>
-          </Column>
-        </Card>
-      </Host>
-    </View>
+      <ListItem>
+        <ListItem.HeadlineContent>
+          <ComposeText>本地轮询间隔</ComposeText>
+        </ListItem.HeadlineContent>
+        <ListItem.TrailingContent>
+          <OutlinedTextField
+            key={localPollingInput}
+            value={localPollingNativeState}
+            onValueChange={(text) => setLocalPollingInput(filterPositiveInteger(text))}
+            onFocusChanged={(focused) => {
+              if (!focused) handleLocalPollingBlur();
+            }}
+            keyboardOptions={{ keyboardType: 'number' }}
+            singleLine
+            modifiers={[widthModifier(96)]}
+          >
+            <OutlinedTextField.Placeholder>
+              <ComposeText>1</ComposeText>
+            </OutlinedTextField.Placeholder>
+            <OutlinedTextField.Suffix>
+              <ComposeText>秒</ComposeText>
+            </OutlinedTextField.Suffix>
+          </OutlinedTextField>
+        </ListItem.TrailingContent>
+      </ListItem>
+    </SettingsSectionItem>
   );
 });

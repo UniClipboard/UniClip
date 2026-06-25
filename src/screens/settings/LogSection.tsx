@@ -5,11 +5,7 @@
  * isCalculating 来自共享的 storageSizes store。
  */
 import React, { memo, useRef, useState } from 'react';
-import { View, Text } from 'react-native';
 import {
-  Host,
-  Card,
-  Column,
   ListItem,
   Button,
   OutlinedTextField,
@@ -25,11 +21,10 @@ import {
   width as widthModifier,
   menuAnchor,
 } from '@expo/ui/jetpack-compose/modifiers';
-import { useTheme } from '@/hooks/useTheme';
 import { useSettingsStore } from '@/stores';
 import { saveLogsToFile, setLogLevel as setLoggerLogLevel, type LogLevel } from '@/services';
 import { useSettingsToast } from './SettingsToastContext';
-import { settingsStyles as styles } from './settingsStyles';
+import { SettingsSectionItem } from './SettingsSectionItem';
 import { useStorageSizesStore } from './storageSizes';
 
 const logLevelOptions: { label: string; value: LogLevel }[] = [
@@ -40,7 +35,6 @@ const logLevelOptions: { label: string; value: LogLevel }[] = [
 ];
 
 export const LogSection = memo(function LogSection() {
-  const { theme } = useTheme();
   const showMessage = useSettingsToast();
 
   const logLevel = useSettingsStore((s) => s.config?.logLevel);
@@ -89,75 +83,58 @@ export const LogSection = memo(function LogSection() {
   };
 
   return (
-    <View style={styles.section}>
-      <View style={styles.sectionHeaderBase}>
-        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>日志</Text>
-      </View>
-
-      <Host matchContents={{ vertical: true }} style={styles.hostFill}>
-        <Card colors={{ containerColor: theme.colors.surface }}>
-          <Column modifiers={[fillMaxWidth()]}>
-            <ListItem colors={{ containerColor: theme.colors.surface }}>
-              <ListItem.HeadlineContent>
-                <ComposeText color={theme.colors.text}>日志等级</ComposeText>
-              </ListItem.HeadlineContent>
-              <ListItem.TrailingContent>
-                <ExposedDropdownMenuBox
-                  expanded={showLogLevelMenu}
-                  onExpandedChange={setShowLogLevelMenu}
-                  modifiers={[widthModifier(140)]}
-                >
-                  <OutlinedTextField
-                    key={logLevel ?? 'error'}
-                    value={logLevelNativeState}
-                    readOnly
-                    singleLine
-                    modifiers={[menuAnchor(), fillMaxWidth()]}
-                  />
-                  <ExposedDropdownMenu
-                    expanded={showLogLevelMenu}
-                    onDismissRequest={() => setShowLogLevelMenu(false)}
-                  >
-                    {logLevelOptions.map((option) => (
-                      <DropdownMenuItem
-                        key={option.value}
-                        onClick={() => {
-                          handleSetLogLevel(option.value);
-                          setShowLogLevelMenu(false);
-                        }}
-                      >
-                        <DropdownMenuItem.Text>
-                          <ComposeText>{option.label}</ComposeText>
-                        </DropdownMenuItem.Text>
-                      </DropdownMenuItem>
-                    ))}
-                  </ExposedDropdownMenu>
-                </ExposedDropdownMenuBox>
-              </ListItem.TrailingContent>
-            </ListItem>
-
-            <HorizontalDivider color={theme.colors.divider} />
-
-            <ListItem colors={{ containerColor: theme.colors.surface }}>
-              <ListItem.HeadlineContent>
-                <ComposeText color={theme.colors.text}>导出日志</ComposeText>
-              </ListItem.HeadlineContent>
-              <ListItem.TrailingContent>
-                <Button
-                  onClick={handleExportLogs}
-                  enabled={!isCalculating}
-                  colors={{
-                    containerColor: theme.colors.primary,
-                    contentColor: theme.colors.white,
+    <SettingsSectionItem title="日志">
+      <ListItem>
+        <ListItem.HeadlineContent>
+          <ComposeText>日志等级</ComposeText>
+        </ListItem.HeadlineContent>
+        <ListItem.TrailingContent>
+          <ExposedDropdownMenuBox
+            expanded={showLogLevelMenu}
+            onExpandedChange={setShowLogLevelMenu}
+            modifiers={[widthModifier(140)]}
+          >
+            <OutlinedTextField
+              key={logLevel ?? 'error'}
+              value={logLevelNativeState}
+              readOnly
+              singleLine
+              modifiers={[menuAnchor(), fillMaxWidth()]}
+            />
+            <ExposedDropdownMenu
+              expanded={showLogLevelMenu}
+              onDismissRequest={() => setShowLogLevelMenu(false)}
+            >
+              {logLevelOptions.map((option) => (
+                <DropdownMenuItem
+                  key={option.value}
+                  onClick={() => {
+                    handleSetLogLevel(option.value);
+                    setShowLogLevelMenu(false);
                   }}
                 >
-                  <ComposeText>{isExportingLogs ? '取消' : '导出'}</ComposeText>
-                </Button>
-              </ListItem.TrailingContent>
-            </ListItem>
-          </Column>
-        </Card>
-      </Host>
-    </View>
+                  <DropdownMenuItem.Text>
+                    <ComposeText>{option.label}</ComposeText>
+                  </DropdownMenuItem.Text>
+                </DropdownMenuItem>
+              ))}
+            </ExposedDropdownMenu>
+          </ExposedDropdownMenuBox>
+        </ListItem.TrailingContent>
+      </ListItem>
+
+      <HorizontalDivider />
+
+      <ListItem>
+        <ListItem.HeadlineContent>
+          <ComposeText>导出日志</ComposeText>
+        </ListItem.HeadlineContent>
+        <ListItem.TrailingContent>
+          <Button onClick={handleExportLogs} enabled={!isCalculating}>
+            <ComposeText>{isExportingLogs ? '取消' : '导出'}</ComposeText>
+          </Button>
+        </ListItem.TrailingContent>
+      </ListItem>
+    </SettingsSectionItem>
   );
 });

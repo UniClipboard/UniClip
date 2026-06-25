@@ -3,11 +3,11 @@
  *
  * 设计原则:
  * 1. 以 M3 token 为正典(primary / primaryContainer / surfaceContainer* / outline 等)
- * 2. 内置 5 套 source color palette(purple / indigo / teal / rose / amber),light + dark 各一份
- * 3. 状态色(error/warning/success/info)与 inverse surface 不随 palette 变化
+ * 2. 单一 source color(M3 baseline,即 expo-ui 默认色),light + dark 各一份
+ * 3. 状态色(error/warning/success/info)与 inverse surface 固定,不随深浅变化语义
  * 4. 保留旧 key 作为 alias(background/text/card/errorBackground 等),向下兼容仍在使用旧字段的屏幕
  *
- * 调色板色值沿用 App.web.tsx 中已调好的方案。
+ * 历史:曾内置 5 套可切换 palette,现已删除多色板系统,全局收敛为单一 M3 baseline。
  */
 
 // ------------------------------------------------------------------
@@ -37,12 +37,8 @@ export function blend(base: string, overlay: string, opacity: number): string {
 }
 
 // ------------------------------------------------------------------
-// Palette / source tokens
+// Source tokens(单一 M3 baseline,light + dark)
 // ------------------------------------------------------------------
-
-export type PaletteId = 'purple' | 'indigo' | 'teal' | 'rose' | 'amber';
-
-export const DEFAULT_PALETTE_ID: PaletteId = 'indigo';
 
 type SourceTokens = {
   primary: string;
@@ -62,193 +58,44 @@ type SourceTokens = {
   outlineVariant: string;
 };
 
-const PALETTES_LIGHT: Record<PaletteId, SourceTokens> = {
-  purple: {
-    primary: '#6750A4',
-    onPrimary: '#FFFFFF',
-    primaryContainer: '#EADDFF',
-    onPrimaryContainer: '#21005D',
-    background: '#FEF7FF',
-    surface: '#FEF7FF',
-    surfaceContainerLowest: '#FFFFFF',
-    surfaceContainerLow: '#F7F2FA',
-    surfaceContainer: '#F3EDF7',
-    surfaceContainerHigh: '#ECE6F0',
-    surfaceContainerHighest: '#E6E0E9',
-    surfaceVariant: '#E7E0EC',
-    onSurfaceVariant: '#49454F',
-    outline: '#79747E',
-    outlineVariant: '#CAC4D0',
-  },
-  indigo: {
-    primary: '#4A4FCF',
-    onPrimary: '#FFFFFF',
-    primaryContainer: '#DEDFFF',
-    onPrimaryContainer: '#000F73',
-    background: '#FBF8FF',
-    surface: '#FBF8FF',
-    surfaceContainerLowest: '#FFFFFF',
-    surfaceContainerLow: '#F4F1F9',
-    surfaceContainer: '#EEEBF3',
-    surfaceContainerHigh: '#E9E6EE',
-    surfaceContainerHighest: '#E3E0E8',
-    surfaceVariant: '#E3E1EC',
-    onSurfaceVariant: '#46464F',
-    outline: '#767680',
-    outlineVariant: '#C7C5D0',
-  },
-  teal: {
-    primary: '#006A60',
-    onPrimary: '#FFFFFF',
-    primaryContainer: '#74F8E5',
-    onPrimaryContainer: '#00201C',
-    background: '#F4FBF8',
-    surface: '#F4FBF8',
-    surfaceContainerLowest: '#FFFFFF',
-    surfaceContainerLow: '#EEF5F2',
-    surfaceContainer: '#E8EFED',
-    surfaceContainerHigh: '#E2EAE7',
-    surfaceContainerHighest: '#DCE4E2',
-    surfaceVariant: '#DAE5E1',
-    onSurfaceVariant: '#3F4946',
-    outline: '#6F7976',
-    outlineVariant: '#BEC9C5',
-  },
-  rose: {
-    primary: '#984061',
-    onPrimary: '#FFFFFF',
-    primaryContainer: '#FFD9E2',
-    onPrimaryContainer: '#3E001D',
-    background: '#FFF8F8',
-    surface: '#FFF8F8',
-    surfaceContainerLowest: '#FFFFFF',
-    surfaceContainerLow: '#FAF1F2',
-    surfaceContainer: '#F4EBED',
-    surfaceContainerHigh: '#EEE6E7',
-    surfaceContainerHighest: '#E8E0E1',
-    surfaceVariant: '#F2DDE1',
-    onSurfaceVariant: '#514347',
-    outline: '#837377',
-    outlineVariant: '#D5C2C6',
-  },
-  amber: {
-    primary: '#825512',
-    onPrimary: '#FFFFFF',
-    primaryContainer: '#FFDDB7',
-    onPrimaryContainer: '#2A1700',
-    background: '#FFF8F4',
-    surface: '#FFF8F4',
-    surfaceContainerLowest: '#FFFFFF',
-    surfaceContainerLow: '#FAF1EB',
-    surfaceContainer: '#F4ECE6',
-    surfaceContainerHigh: '#EFE6E0',
-    surfaceContainerHighest: '#E9E0DA',
-    surfaceVariant: '#F1E0CF',
-    onSurfaceVariant: '#4F4639',
-    outline: '#817567',
-    outlineVariant: '#D4C4B4',
-  },
+const SOURCE_LIGHT: SourceTokens = {
+  primary: '#6750A4',
+  onPrimary: '#FFFFFF',
+  primaryContainer: '#EADDFF',
+  onPrimaryContainer: '#21005D',
+  background: '#FEF7FF',
+  surface: '#FEF7FF',
+  surfaceContainerLowest: '#FFFFFF',
+  surfaceContainerLow: '#F7F2FA',
+  surfaceContainer: '#F3EDF7',
+  surfaceContainerHigh: '#ECE6F0',
+  surfaceContainerHighest: '#E6E0E9',
+  surfaceVariant: '#E7E0EC',
+  onSurfaceVariant: '#49454F',
+  outline: '#79747E',
+  outlineVariant: '#CAC4D0',
 };
 
-const PALETTES_DARK: Record<PaletteId, SourceTokens> = {
-  purple: {
-    primary: '#D0BCFF',
-    onPrimary: '#381E72',
-    primaryContainer: '#4F378B',
-    onPrimaryContainer: '#EADDFF',
-    background: '#141218',
-    surface: '#141218',
-    surfaceContainerLowest: '#0F0D13',
-    surfaceContainerLow: '#1D1B20',
-    surfaceContainer: '#211F26',
-    surfaceContainerHigh: '#2B2930',
-    surfaceContainerHighest: '#36343B',
-    surfaceVariant: '#49454F',
-    onSurfaceVariant: '#CAC4D0',
-    outline: '#938F99',
-    outlineVariant: '#49454F',
-  },
-  indigo: {
-    primary: '#BCC2FF',
-    onPrimary: '#1A23A6',
-    primaryContainer: '#333BB7',
-    onPrimaryContainer: '#DEDFFF',
-    background: '#121318',
-    surface: '#121318',
-    surfaceContainerLowest: '#0D0E13',
-    surfaceContainerLow: '#1A1B21',
-    surfaceContainer: '#1F1F25',
-    surfaceContainerHigh: '#29292F',
-    surfaceContainerHighest: '#34343A',
-    surfaceVariant: '#46464F',
-    onSurfaceVariant: '#C7C5D0',
-    outline: '#91909A',
-    outlineVariant: '#46464F',
-  },
-  teal: {
-    primary: '#53DBC9',
-    onPrimary: '#003731',
-    primaryContainer: '#005048',
-    onPrimaryContainer: '#74F8E5',
-    background: '#0F1513',
-    surface: '#0F1513',
-    surfaceContainerLowest: '#0A100E',
-    surfaceContainerLow: '#171D1B',
-    surfaceContainer: '#1B2220',
-    surfaceContainerHigh: '#262D2A',
-    surfaceContainerHighest: '#313836',
-    surfaceVariant: '#3F4946',
-    onSurfaceVariant: '#BEC9C5',
-    outline: '#89938F',
-    outlineVariant: '#3F4946',
-  },
-  rose: {
-    primary: '#FFB1C8',
-    onPrimary: '#5E1133',
-    primaryContainer: '#7B2949',
-    onPrimaryContainer: '#FFD9E2',
-    background: '#191113',
-    surface: '#191113',
-    surfaceContainerLowest: '#140C0E',
-    surfaceContainerLow: '#21191B',
-    surfaceContainer: '#251D1F',
-    surfaceContainerHigh: '#30272A',
-    surfaceContainerHighest: '#3B3235',
-    surfaceVariant: '#514347',
-    onSurfaceVariant: '#D5C2C6',
-    outline: '#9E8C90',
-    outlineVariant: '#514347',
-  },
-  amber: {
-    primary: '#FBBA73',
-    onPrimary: '#482900',
-    primaryContainer: '#663D00',
-    onPrimaryContainer: '#FFDDB7',
-    background: '#181210',
-    surface: '#181210',
-    surfaceContainerLowest: '#120D0B',
-    surfaceContainerLow: '#211A17',
-    surfaceContainer: '#251E1B',
-    surfaceContainerHigh: '#302925',
-    surfaceContainerHighest: '#3B3330',
-    surfaceVariant: '#4F4639',
-    onSurfaceVariant: '#D4C4B4',
-    outline: '#9C8E7E',
-    outlineVariant: '#4F4639',
-  },
+const SOURCE_DARK: SourceTokens = {
+  primary: '#D0BCFF',
+  onPrimary: '#381E72',
+  primaryContainer: '#4F378B',
+  onPrimaryContainer: '#EADDFF',
+  background: '#141218',
+  surface: '#141218',
+  surfaceContainerLowest: '#0F0D13',
+  surfaceContainerLow: '#1D1B20',
+  surfaceContainer: '#211F26',
+  surfaceContainerHigh: '#2B2930',
+  surfaceContainerHighest: '#36343B',
+  surfaceVariant: '#49454F',
+  onSurfaceVariant: '#CAC4D0',
+  outline: '#938F99',
+  outlineVariant: '#49454F',
 };
-
-// Picker UI 元数据
-export const PALETTES: ReadonlyArray<{ id: PaletteId; label: string; swatch: string }> = [
-  { id: 'purple', label: '深紫', swatch: '#6750A4' },
-  { id: 'indigo', label: '靛蓝', swatch: '#4A4FCF' },
-  { id: 'teal', label: '青绿', swatch: '#006A60' },
-  { id: 'rose', label: '玫瑰', swatch: '#984061' },
-  { id: 'amber', label: '琥珀', swatch: '#825512' },
-];
 
 // ------------------------------------------------------------------
-// Fixed tokens(不随 palette 变化)
+// Fixed tokens(不随 source 变化的语义/状态色)
 // ------------------------------------------------------------------
 
 const FIXED_LIGHT = {
@@ -294,7 +141,7 @@ const FIXED_LIGHT = {
   overlay: 'rgba(0, 0, 0, 0.3)',
   backdrop: 'rgba(0, 0, 0, 0.5)',
 
-  // 消息提示(Material Design 风,不跟 palette 变化)
+  // 消息提示(Material Design 风)
   messageSuccess: '#4CAF50',
   messageError: '#F44336',
 
@@ -374,7 +221,7 @@ type FixedTokens = typeof FIXED_LIGHT;
 
 function composeScheme(s: SourceTokens, f: FixedTokens, isDark: boolean) {
   return {
-    // === M3 source tokens(随 palette 变化)===
+    // === M3 source tokens ===
     primary: s.primary,
     onPrimary: s.onPrimary,
     primaryContainer: s.primaryContainer,
@@ -485,14 +332,13 @@ function composeScheme(s: SourceTokens, f: FixedTokens, isDark: boolean) {
 // Builders / exports
 // ------------------------------------------------------------------
 
-export function buildScheme(paletteId: PaletteId, isDark: boolean): ColorScheme {
-  const source = isDark ? PALETTES_DARK[paletteId] : PALETTES_LIGHT[paletteId];
+export function buildScheme(isDark: boolean): ColorScheme {
+  const source = isDark ? SOURCE_DARK : SOURCE_LIGHT;
   const fixed = isDark ? FIXED_DARK : FIXED_LIGHT;
   return composeScheme(source, fixed, isDark);
 }
 
-// 默认导出(indigo)— 用于 type 推导与少量直接 import 旧色板的场景
-export const lightColors = buildScheme(DEFAULT_PALETTE_ID, false);
-export const darkColors = buildScheme(DEFAULT_PALETTE_ID, true);
+export const lightColors = buildScheme(false);
+export const darkColors = buildScheme(true);
 
 export type ColorScheme = ReturnType<typeof composeScheme>;
