@@ -22,6 +22,7 @@ import {
 } from '@expo/ui/jetpack-compose/modifiers';
 import { useSettingsStore } from '@/stores';
 import { useSettingsToast } from './SettingsToastContext';
+import { useBlurCommit } from './useBlurCommit';
 import { SettingsSectionItem } from './SettingsSectionItem';
 
 type ImageAutoDownload = 'wifi' | 'always' | 'off';
@@ -92,7 +93,6 @@ export const HistorySection = memo(function HistorySection() {
         return;
       }
       await useSettingsStore.getState().updateConfig({ maxHistoryItems: maxItems });
-      showMessage(`已设置历史记录最大保留条数为 ${maxItems}条`, 'success');
       const { historyStorage } = await import('@/services');
       historyStorage.setMaxHistorySize(maxItems);
     } catch (error: unknown) {
@@ -108,6 +108,8 @@ export const HistorySection = memo(function HistorySection() {
       // store 失败回滚 config，下拉显示自动恢复
     }
   };
+
+  const onMaxHistoryItemsFocusChanged = useBlurCommit(handleMaxHistoryItemsBlur);
 
   return (
     <SettingsSectionItem title="历史记录">
@@ -142,9 +144,7 @@ export const HistorySection = memo(function HistorySection() {
           <OutlinedTextField
             value={maxHistoryItemsNativeState}
             onValueChange={setMaxHistoryItemsInput}
-            onFocusChanged={(focused) => {
-              if (!focused) handleMaxHistoryItemsBlur();
-            }}
+            onFocusChanged={onMaxHistoryItemsFocusChanged}
             keyboardOptions={{ keyboardType: 'number' }}
             singleLine
             modifiers={[widthModifier(112)]}

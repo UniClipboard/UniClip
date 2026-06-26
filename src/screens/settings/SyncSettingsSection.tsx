@@ -17,6 +17,7 @@ import {
 import { width as widthModifier } from '@expo/ui/jetpack-compose/modifiers';
 import { useSettingsStore } from '@/stores';
 import { useSettingsToast } from './SettingsToastContext';
+import { useBlurCommit } from './useBlurCommit';
 import { SettingsSectionItem } from './SettingsSectionItem';
 
 const toMB = (bytes: number) => Math.round(bytes / (1024 * 1024));
@@ -88,7 +89,6 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
         return;
       }
       await useSettingsStore.getState().setAutoDownloadMaxSize(sizeMB * 1024 * 1024);
-      showMessage(`已设置最大文件大小为 ${sizeMB}MB`, 'success');
     } catch (error: unknown) {
       resetToCurrent();
       showMessage(error instanceof Error ? error.message : '设置失败', 'error');
@@ -108,7 +108,6 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
         return;
       }
       await useSettingsStore.getState().setRemotePollingInterval(seconds * 1000);
-      showMessage(`已设置远程轮询间隔为 ${seconds}秒`, 'success');
     } catch (error: unknown) {
       resetToCurrent();
       showMessage(error instanceof Error ? error.message : '设置失败', 'error');
@@ -128,12 +127,15 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
         return;
       }
       await useSettingsStore.getState().setLocalPollingInterval(seconds * 1000);
-      showMessage(`已设置本地轮询间隔为 ${seconds}秒`, 'success');
     } catch (error: unknown) {
       resetToCurrent();
       showMessage(error instanceof Error ? error.message : '设置失败', 'error');
     }
   };
+
+  const onMaxSizeFocusChanged = useBlurCommit(handleMaxSizeBlur);
+  const onRemotePollingFocusChanged = useBlurCommit(handleRemotePollingBlur);
+  const onLocalPollingFocusChanged = useBlurCommit(handleLocalPollingBlur);
 
   return (
     <SettingsSectionItem title="同步设置">
@@ -176,9 +178,7 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
           <OutlinedTextField
             value={maxSizeNativeState}
             onValueChange={setMaxSizeInput}
-            onFocusChanged={(focused) => {
-              if (!focused) handleMaxSizeBlur();
-            }}
+            onFocusChanged={onMaxSizeFocusChanged}
             keyboardOptions={{ keyboardType: 'number' }}
             singleLine
             modifiers={[widthModifier(96)]}
@@ -205,9 +205,7 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
                 key={remotePollingInput}
                 value={remotePollingNativeState}
                 onValueChange={(text) => setRemotePollingInput(filterPositiveInteger(text))}
-                onFocusChanged={(focused) => {
-                  if (!focused) handleRemotePollingBlur();
-                }}
+                onFocusChanged={onRemotePollingFocusChanged}
                 keyboardOptions={{ keyboardType: 'number' }}
                 singleLine
                 modifiers={[widthModifier(96)]}
@@ -235,9 +233,7 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
             key={localPollingInput}
             value={localPollingNativeState}
             onValueChange={(text) => setLocalPollingInput(filterPositiveInteger(text))}
-            onFocusChanged={(focused) => {
-              if (!focused) handleLocalPollingBlur();
-            }}
+            onFocusChanged={onLocalPollingFocusChanged}
             keyboardOptions={{ keyboardType: 'number' }}
             singleLine
             modifiers={[widthModifier(96)]}
