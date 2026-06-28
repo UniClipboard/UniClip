@@ -7,21 +7,25 @@ import type { DefaultBottomBarProps, SelectModeBottomBarProps } from './HomeBott
 
 const BTN = iosDimensions.floatingButtonSize;
 
-export function DefaultBottomBar({ serverLabel, isSyncing, onServerPicker, onSync, theme }: DefaultBottomBarProps) {
+export function DefaultBottomBar({
+  serverLabel,
+  isSyncing,
+  onServerPicker,
+  onSync,
+  theme,
+}: DefaultBottomBarProps) {
   const c = theme.colors.onSurface;
   return (
     <View style={s.row}>
-      <View style={{ flex: 1 }} />
-
-      <Pressable onPress={onServerPicker}>
+      <Pressable onPress={onServerPicker} style={s.pillButton}>
         <GlassContainer shape="capsule" interactive style={s.capsule}>
           <History size={18} color={c} />
-          <Text style={[s.pillText, { color: c }]} numberOfLines={1}>{serverLabel}</Text>
+          <Text style={[s.pillText, { color: c }]} numberOfLines={1}>
+            {serverLabel}
+          </Text>
           <ChevronsUpDown size={12} color={theme.colors.onSurfaceVariant} />
         </GlassContainer>
       </Pressable>
-
-      <View style={{ flex: 1 }} />
 
       <Pressable onPress={onSync} disabled={isSyncing}>
         <GlassContainer shape="circle" interactive style={s.circle}>
@@ -36,7 +40,13 @@ export function DefaultBottomBar({ serverLabel, isSyncing, onServerPicker, onSyn
   );
 }
 
-export function SelectModeBottomBar({ disabled, onCopy, onShare, onDelete, theme }: SelectModeBottomBarProps) {
+export function SelectModeBottomBar({
+  disabled,
+  onCopy,
+  onShare,
+  onDelete,
+  theme,
+}: SelectModeBottomBarProps) {
   const c = disabled ? theme.colors.outline : theme.colors.onSurface;
   return (
     <View style={s.selectRow}>
@@ -60,9 +70,17 @@ export function SelectModeBottomBar({ disabled, onCopy, onShare, onDelete, theme
 }
 
 const s = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  pillButton: { flex: 1 },
   circle: { width: BTN, height: BTN, justifyContent: 'center', alignItems: 'center' },
-  capsule: { height: BTN, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 6 },
+  capsule: {
+    height: BTN,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    gap: 6,
+  },
   pillText: { fontSize: 15, fontWeight: '500' },
   selectRow: { flexDirection: 'row', justifyContent: 'center', gap: 24 },
 });
