@@ -139,5 +139,7 @@ export async function uploadFileAndAddToHistory(
     onProgress: (info) => options?.onProgress?.('正在上传文件…', info),
   });
 
-  await useHistoryStore.getState().updateItem(result.profileHash, { synced: true });
+  await useHistoryStore
+    .getState()
+    .updateItem(result.profileHash, { syncStatus: HistorySyncStatus.Synced });
 }
