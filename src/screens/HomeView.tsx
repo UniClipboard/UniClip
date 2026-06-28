@@ -117,6 +117,13 @@ async function fetchAndApplyServerClipboard(): Promise<void> {
   );
 }
 
+// 自订阅 messageStore，把 toast 出现/消失的重渲染隔离在此，不波及 HomeView 主体与 FlatList
+function HomeMessageToast() {
+  const message = useMessageStore((s) => s.message);
+  const clearMessage = useMessageStore((s) => s.clearMessage);
+  return <MessageToast message={message} onMessageShown={clearMessage} />;
+}
+
 interface HomeViewProps {
   onOpenSettings: () => void;
 }
@@ -128,27 +135,30 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
 
   const cardSize = (screenWidth - GRID_PADDING * 2 - GRID_SPACING * (NUM_COLUMNS - 1)) / NUM_COLUMNS;
 
-  // Stores
-  const {
-    items,
-    loadItems,
-    searchItems,
-    clearHistory,
-    toggleStar,
-    lastAddedTimestamp,
-    handleStorageChange,
-    setSort,
-    selectedIds,
-    toggleSelection,
-    selectAll,
-    clearSelection,
-    deleteSelected,
-    deleteItem,
-  } = useHistoryStore();
-  const { config, getActiveServer, getServers, setActiveServer, addServer } = useSettingsStore();
-  const { message, showMessage, clearMessage } = useMessageStore();
-  const { error, setError, clearError } = useErrorStore();
-  const uploadingClipboard = useClipboardSyncServiceStore((s) => s.uploadingClipboard);
+  // Stores —— 全部用细粒度 selector 订阅。整体订阅会让 store 任意字段(isLoading /
+  // totalCount / message / error 等)变化都重渲染整个 HomeView + FlatList。
+  // action 引用稳定，订阅它们不会触发重渲染。
+  const items = useHistoryStore((s) => s.items);
+  const selectedIds = useHistoryStore((s) => s.selectedIds);
+  const lastAddedTimestamp = useHistoryStore((s) => s.lastAddedTimestamp);
+  const loadItems = useHistoryStore((s) => s.loadItems);
+  const searchItems = useHistoryStore((s) => s.searchItems);
+  const handleStorageChange = useHistoryStore((s) => s.handleStorageChange);
+  const toggleSelection = useHistoryStore((s) => s.toggleSelection);
+  const selectAll = useHistoryStore((s) => s.selectAll);
+  const clearSelection = useHistoryStore((s) => s.clearSelection);
+  const deleteSelected = useHistoryStore((s) => s.deleteSelected);
+  const deleteItem = useHistoryStore((s) => s.deleteItem);
+
+  const config = useSettingsStore((s) => s.config);
+  const getActiveServer = useSettingsStore((s) => s.getActiveServer);
+  const getServers = useSettingsStore((s) => s.getServers);
+  const setActiveServer = useSettingsStore((s) => s.setActiveServer);
+  const addServer = useSettingsStore((s) => s.addServer);
+
+  // message 不在此订阅，交给隔离的 <HomeMessageToast/>，toast 出现/消失只重渲它自身
+  const showMessage = useMessageStore((s) => s.showMessage);
+  const clearError = useErrorStore((s) => s.clearError);
   const fileUploadProgress = useClipboardSyncServiceStore((s) => s.fileUploadProgress);
 
   const activeServer = getActiveServer();
@@ -221,12 +231,9 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
     return () => handler.remove();
   }, [isSelectMode]);
 
-  // Sorted items
-  const sortedItems = useMemo(() => {
-    return [...items].sort((a, b) => b.timestamp - a.timestamp);
-  }, [items]);
-
-  const latestId = sortedItems[0]?.profileHash;
+  // store 已按配置(含 pinned 置顶 + 二分插入保序)排好序，直接使用：
+  // 避免每次 items 变化重排 O(n log n)，也不会覆盖置顶/非 timestamp 的排序方式
+  const latestId = items[0]?.profileHash;
 
   // Actions
   const copyItemWithSync = useCallback(async (item: ClipboardItem) => {
@@ -413,12 +420,12 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
   }, [clearSelection]);
 
   const handleSelectAll = useCallback(() => {
-    if (selectedIds.size === sortedItems.length) {
+    if (selectedIds.size === items.length) {
       clearSelection();
     } else {
       selectAll();
     }
-  }, [selectedIds.size, sortedItems.length, clearSelection, selectAll]);
+  }, [selectedIds.size, items.length, clearSelection, selectAll]);
 
   const handleBatchDelete = useCallback(async () => {
     await deleteSelected();
@@ -426,20 +433,20 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
   }, [deleteSelected]);
 
   const handleBatchCopy = useCallback(async () => {
-    const selected = sortedItems.filter((i) => selectedIds.has(i.profileHash));
+    const selected = items.filter((i) => selectedIds.has(i.profileHash));
     const texts = selected.map((i) => i.text).join('\n');
     const { default: Clipboard } = await import('expo-clipboard');
     await Clipboard.setStringAsync(texts);
     showMessage('已复制所选内容', 'success');
     exitSelectMode();
-  }, [sortedItems, selectedIds, showMessage, exitSelectMode]);
+  }, [items, selectedIds, showMessage, exitSelectMode]);
 
   const handleBatchShare = useCallback(async () => {
-    const selected = sortedItems.filter((i) => selectedIds.has(i.profileHash));
+    const selected = items.filter((i) => selectedIds.has(i.profileHash));
     const texts = selected.map((i) => i.text).join('\n');
     await Share.share({ message: texts });
     exitSelectMode();
-  }, [sortedItems, selectedIds, exitSelectMode]);
+  }, [items, selectedIds, exitSelectMode]);
 
   // Refresh — fetch server clipboard, write to system clipboard + history
   const handleRefresh = useCallback(async () => {
@@ -569,7 +576,19 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
 
   const keyExtractor = useCallback((item: ClipboardItem) => item.profileHash, []);
 
-  const allSelected = sortedItems.length > 0 && selectedIds.size === sortedItems.length;
+  // 网格行高固定（卡片 + 上下间距），提供 getItemLayout 省去布局测量，
+  // 让滚动定位与 scrollToOffset 走快路径。
+  const rowHeight = cardSize + GRID_SPACING;
+  const getItemLayout = useCallback(
+    (_data: ArrayLike<ClipboardItem> | null | undefined, index: number) => ({
+      length: rowHeight,
+      offset: rowHeight * Math.floor(index / NUM_COLUMNS),
+      index,
+    }),
+    [rowHeight]
+  );
+
+  const allSelected = items.length > 0 && selectedIds.size === items.length;
 
   return (
     <View style={[styles.container, { backgroundColor: iosColors?.systemGroupedBackground ?? theme.colors.background }]}>
@@ -612,7 +631,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
       </View>
 
       {/* Grid or Empty */}
-      {sortedItems.length === 0 ? (
+      {items.length === 0 ? (
         <View style={styles.emptyState}>
           <Ionicons name="clipboard-outline" size={48} color={theme.colors.onSurfaceVariant} />
           <Text style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>
@@ -625,10 +644,16 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
       ) : (
         <FlatList
           ref={listRef}
-          data={sortedItems}
+          data={items}
           renderItem={renderCard}
           keyExtractor={keyExtractor}
           numColumns={NUM_COLUMNS}
+          getItemLayout={getItemLayout}
+          removeClippedSubviews={Platform.OS === 'android'}
+          initialNumToRender={8}
+          maxToRenderPerBatch={8}
+          windowSize={9}
+          updateCellsBatchingPeriod={50}
           contentContainerStyle={{
             paddingHorizontal: GRID_PADDING - GRID_SPACING / 2,
             paddingTop: 8,
@@ -667,7 +692,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
         )}
       </View>
 
-      <MessageToast message={message} onMessageShown={clearMessage} />
+      <HomeMessageToast />
 
       {/* Server Switcher */}
       <ServerSwitcherModal

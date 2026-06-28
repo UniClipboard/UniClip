@@ -5,6 +5,7 @@ import Svg, {
   LinearGradient as SvgLinearGradient,
   Stop,
   Rect as SvgRect,
+  Pattern as SvgPattern,
 } from 'react-native-svg';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { ArrowDown, ArrowUp } from 'lucide-react-native';
@@ -235,51 +236,41 @@ function GradientScrim({
   );
 }
 
+const CHECKER_CELL = 16;
+
+// 透明区域棋盘格背景。用单个 SVG Pattern 平铺，替代 12×12=144 个 RN View，
+// 每张图片卡片只产生一个原生视图。
 function CheckerboardBackground() {
   return (
-    <View style={StyleSheet.absoluteFill}>
-      <View style={checkerStyles.overlay}>
-        {Array.from({ length: 12 }, (_, row) => (
-          <View key={row} style={checkerStyles.row}>
-            {Array.from({ length: 12 }, (_, col) => (
-              <View
-                key={col}
-                style={[
-                  checkerStyles.cell,
-                  (row + col) % 2 === 0
-                    ? checkerStyles.lightCell
-                    : checkerStyles.darkCell,
-                ]}
-              />
-            ))}
-          </View>
-        ))}
-      </View>
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Svg width="100%" height="100%">
+        <Defs>
+          <SvgPattern
+            id="checker"
+            width={CHECKER_CELL * 2}
+            height={CHECKER_CELL * 2}
+            patternUnits="userSpaceOnUse"
+          >
+            <SvgRect
+              width={CHECKER_CELL * 2}
+              height={CHECKER_CELL * 2}
+              fill="rgba(166,166,166,0.25)"
+            />
+            <SvgRect width={CHECKER_CELL} height={CHECKER_CELL} fill="rgba(217,217,217,0.25)" />
+            <SvgRect
+              x={CHECKER_CELL}
+              y={CHECKER_CELL}
+              width={CHECKER_CELL}
+              height={CHECKER_CELL}
+              fill="rgba(217,217,217,0.25)"
+            />
+          </SvgPattern>
+        </Defs>
+        <SvgRect width="100%" height="100%" fill="url(#checker)" />
+      </Svg>
     </View>
   );
 }
-
-// Keep unused import suppression — Svg/Defs/SvgRect used by GradientScrim
-
-const checkerStyles = StyleSheet.create({
-  overlay: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    flexDirection: 'column',
-  },
-  row: {
-    flex: 1,
-    flexDirection: 'row',
-  },
-  cell: {
-    flex: 1,
-  },
-  lightCell: {
-    backgroundColor: 'rgba(217,217,217,0.25)',
-  },
-  darkCell: {
-    backgroundColor: 'rgba(166,166,166,0.25)',
-  },
-});
 
 function StandardCardBody({
   item,
