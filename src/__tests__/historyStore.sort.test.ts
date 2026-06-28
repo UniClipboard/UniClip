@@ -158,4 +158,19 @@ describe('historyStore handleStorageChange 排序', () => {
     // sort 应该还是 lastAccessed desc，c 移到首位
     expect(hashes(items)).toEqual(['c', 'a', 'b']);
   });
+
+  it('update 事件中记录不再匹配当前筛选时从列表移除', () => {
+    const { handleStorageChange } = useHistoryStore.getState();
+
+    useHistoryStore.setState({
+      items: [createItem('url', 200, { text: 'https://uniclip.app' })],
+      totalCount: 1,
+      filter: { displayKinds: ['url'] },
+    });
+
+    handleStorageChange([createItem('url', 200, { text: 'plain text' })], 'update');
+
+    expect(useHistoryStore.getState().items).toEqual([]);
+    expect(useHistoryStore.getState().totalCount).toBe(0);
+  });
 });

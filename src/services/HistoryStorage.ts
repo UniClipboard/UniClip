@@ -6,6 +6,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ClipboardItem, HistorySyncStatus } from '../types/clipboard';
 import { HistoryFilter, HistorySort, STORAGE_KEYS } from '../types/storage';
+import { filterHistoryItems } from '@/utils/historyFilters';
 import { getHistoryFileDir } from '../utils/fileStorage';
 import { File, Directory } from 'expo-file-system';
 
@@ -696,54 +697,7 @@ export class HistoryStorage {
       await this.initialize();
     }
 
-    // 先过滤掉软删除的记录
-    let filtered = this.history.filter((item) => !item.isDeleted);
-
-    // 应用过滤器
-    if (filter) {
-      if (filter.type && filter.type.length > 0) {
-        filtered = filtered.filter((item) => filter.type!.includes(item.type));
-      }
-
-      if (filter.startDate) {
-        filtered = filtered.filter((item) => item.timestamp >= filter.startDate!);
-      }
-
-      if (filter.endDate) {
-        filtered = filtered.filter((item) => item.timestamp <= filter.endDate!);
-      }
-
-      if (filter.keyword) {
-        const keyword = filter.keyword.toLowerCase();
-        filtered = filtered.filter(
-          (item) =>
-            item.text.toLowerCase().includes(keyword) ||
-            (item.dataName && item.dataName.toLowerCase().includes(keyword))
-        );
-      }
-
-      if (filter.starredOnly) {
-        filtered = filtered.filter((item) => item.starred === true);
-      }
-
-      if (filter.syncedOnly) {
-        filtered = filtered.filter((item) => item.synced === true);
-      }
-
-      if (filter.pinnedOnly) {
-        filtered = filtered.filter((item) => item.pinned === true);
-      }
-
-      if (filter.localOnly) {
-        filtered = filtered.filter((item) => item.isLocalFileReady === true);
-      }
-
-      if (filter.syncStatus && filter.syncStatus.length > 0) {
-        filtered = filtered.filter(
-          (item) => item.syncStatus !== undefined && filter.syncStatus!.includes(item.syncStatus)
-        );
-      }
-    }
+    let filtered = filterHistoryItems(this.history, filter);
 
     // 应用排序（置顶记录始终在顶部）
     filtered.sort((a, b) => {

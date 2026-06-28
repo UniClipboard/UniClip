@@ -4,6 +4,7 @@
  */
 
 import { HistorySyncStatus } from './clipboard';
+import type { DisplayKind } from '@/utils/displayKind';
 
 export { AppSettings as AppConfig, DEFAULT_SETTINGS as DEFAULT_APP_CONFIG } from './settings';
 
@@ -50,6 +51,9 @@ export interface CacheConfig {
 export interface HistoryFilter {
   /** 内容类型 */
   type?: string[];
+
+  /** 展示类型，文本与链接等客户端识别类型也可单独筛选 */
+  displayKinds?: DisplayKind[];
 
   /** 起始时间 */
   startDate?: number;

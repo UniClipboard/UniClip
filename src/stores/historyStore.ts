@@ -7,6 +7,7 @@ import { create } from 'zustand';
 import { ClipboardItem } from '../types/clipboard';
 import { HistoryFilter, HistorySort } from '../types/storage';
 import { historyStorage } from '../services';
+import { matchesHistoryFilter } from '@/utils/historyFilters';
 
 /**
  * 历史记录状态接口
@@ -366,40 +367,6 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
   handleStorageChange: (changedItems: ClipboardItem[], action: 'add' | 'update' | 'delete') => {
     const { items, filter } = get();
 
-    // 检查是否匹配当前筛选条件
-    const matchesFilter = (record: ClipboardItem): boolean => {
-      if (!filter) return true;
-      if (filter.keyword && !record.text.toLowerCase().includes(filter.keyword.toLowerCase())) {
-        return false;
-      }
-      if (filter.type && filter.type.length > 0 && !filter.type.includes(record.type)) {
-        return false;
-      }
-      if (filter.starredOnly && !record.starred) {
-        return false;
-      }
-      if (filter.pinnedOnly && !record.pinned) {
-        return false;
-      }
-      if (filter.syncedOnly && record.syncStatus !== 1) {
-        return false;
-      }
-      if (filter.localOnly && !record.hasData) {
-        return false;
-      }
-      if (
-        filter.syncStatus &&
-        filter.syncStatus.length > 0 &&
-        !filter.syncStatus.includes(record.syncStatus ?? 0)
-      ) {
-        return false;
-      }
-      if (filter.transferringOnly && record.syncStatus !== 2) {
-        return false;
-      }
-      return true;
-    };
-
     if (action === 'add') {
       // 新增记录：批量插入到列表开头
       // 过滤掉已存在的记录（避免 refresh 和 notifyChange 竞争导致重复插入）
@@ -407,7 +374,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
       const filteredItems = changedItems.filter(
         (item) =>
           !item.isDeleted &&
-          matchesFilter(item) &&
+          matchesHistoryFilter(item, filter ?? undefined) &&
           !existingHashes.has(item.profileHash.toLowerCase())
       );
       if (filteredItems.length > 0) {
@@ -489,6 +456,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
         (item) => !softDeletedHashes.has(item.profileHash.toLowerCase())
       );
       let addedCount = 0;
+      let removedByFilterCount = 0;
 
       for (const changedItem of updatedItems) {
         const existingIndex = newItems.findIndex(
@@ -501,6 +469,12 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
             Object.entries(changedItem).filter(([, value]) => value !== undefined)
           );
           const updatedItem = { ...oldItem, ...filteredUpdates };
+
+          if (!matchesHistoryFilter(updatedItem, filter ?? undefined)) {
+            newItems.splice(existingIndex, 1);
+            removedByFilterCount++;
+            continue;
+          }
 
           // 检查是否需要重新定位
           const sortFieldChanged =
@@ -519,7 +493,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
             // 只更新数据，不移动位置
             newItems[existingIndex] = updatedItem;
           }
-        } else if (matchesFilter(changedItem)) {
+        } else if (matchesHistoryFilter(changedItem, filter ?? undefined)) {
           // 新项按序插入
           const insertIdx = findInsertIndex(newItems, changedItem);
           newItems.splice(insertIdx, 0, changedItem);
@@ -527,7 +501,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
         }
       }
 
-      const removedCount = softDeletedHashes.size;
+      const removedCount = softDeletedHashes.size + removedByFilterCount;
       if (removedCount > 0 || addedCount > 0) {
         set({
           items: [...newItems],

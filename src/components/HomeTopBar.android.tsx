@@ -9,9 +9,21 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { TopRightMenu } from './TopRightMenu';
-import type { DefaultTopBarProps, SearchTopBarProps, SelectModeTopBarProps } from './HomeTopBar.types';
+import type {
+  DefaultTopBarProps,
+  SearchTopBarProps,
+  SelectModeTopBarProps,
+} from './HomeTopBar.types';
+import { HistoryFilterTags } from '@/components/HistoryFilterTags';
 
-export function DefaultTopBar({ serverLabel, isConnected, onSearch, onSettings, onSelectMode, theme }: DefaultTopBarProps) {
+export function DefaultTopBar({
+  serverLabel,
+  isConnected,
+  onSearch,
+  onSettings,
+  onSelectMode,
+  theme,
+}: DefaultTopBarProps) {
   return (
     <View style={s.row}>
       <View style={s.serverStatus}>
@@ -40,7 +52,18 @@ export function DefaultTopBar({ serverLabel, isConnected, onSearch, onSettings, 
   );
 }
 
-export function SearchTopBar({ searchText, onChangeText, onClose, theme }: SearchTopBarProps) {
+export function SearchTopBar({
+  searchText,
+  onChangeText,
+  selectedKinds,
+  selectedDate,
+  hasActiveFilters,
+  onOpenFilters,
+  onRemoveKind,
+  onClearDateFilter,
+  onClose,
+  theme,
+}: SearchTopBarProps) {
   const bg = { backgroundColor: theme.colors.surfaceContainerHigh };
   const p = useSharedValue(0);
 
@@ -58,35 +81,60 @@ export function SearchTopBar({ searchText, onChangeText, onClose, theme }: Searc
   }));
 
   return (
-    <View style={s.searchRow}>
-      <Animated.View style={[s.boxWrap, boxStyle]}>
-        <View style={[s.searchBox, bg]}>
-          <Ionicons name="search" size={16} color={theme.colors.onSurfaceVariant} />
-          <TextInput
-            style={[s.searchInput, { color: theme.colors.onSurface }]}
-            value={searchText}
-            onChangeText={onChangeText}
-            placeholder="搜索剪贴板"
-            placeholderTextColor={theme.colors.onSurfaceVariant}
-            autoFocus
-          />
-          {searchText.length > 0 && (
-            <Pressable onPress={() => onChangeText('')} hitSlop={8}>
-              <Ionicons name="close-circle" size={16} color={theme.colors.onSurfaceVariant} />
-            </Pressable>
-          )}
-        </View>
-      </Animated.View>
-      <Animated.View style={closeStyle}>
-        <Pressable onPress={onClose} style={[s.circle, bg]}>
-          <Ionicons name="close" size={20} color={theme.colors.onSurface} />
-        </Pressable>
-      </Animated.View>
+    <View style={s.searchWrap}>
+      <View style={s.searchRow}>
+        <Animated.View style={[s.boxWrap, boxStyle]}>
+          <View style={[s.searchBox, bg]}>
+            <Ionicons name="search" size={16} color={theme.colors.onSurfaceVariant} />
+            <TextInput
+              style={[s.searchInput, { color: theme.colors.onSurface }]}
+              value={searchText}
+              onChangeText={onChangeText}
+              placeholder="搜索剪贴板"
+              placeholderTextColor={theme.colors.onSurfaceVariant}
+              autoFocus
+            />
+            {searchText.length > 0 && (
+              <Pressable onPress={() => onChangeText('')} hitSlop={8}>
+                <Ionicons name="close-circle" size={16} color={theme.colors.onSurfaceVariant} />
+              </Pressable>
+            )}
+          </View>
+        </Animated.View>
+        <Animated.View style={closeStyle}>
+          <Pressable onPress={onOpenFilters} style={[s.circle, bg]}>
+            <Ionicons
+              name={hasActiveFilters ? 'filter-circle' : 'filter-circle-outline'}
+              size={21}
+              color={hasActiveFilters ? theme.colors.primary : theme.colors.onSurface}
+            />
+          </Pressable>
+        </Animated.View>
+        <Animated.View style={closeStyle}>
+          <Pressable onPress={onClose} style={[s.circle, bg]}>
+            <Ionicons name="close" size={20} color={theme.colors.onSurface} />
+          </Pressable>
+        </Animated.View>
+      </View>
+
+      <HistoryFilterTags
+        selectedKinds={selectedKinds}
+        selectedDate={selectedDate}
+        onRemoveKind={onRemoveKind}
+        onClearDateFilter={onClearDateFilter}
+        theme={theme}
+      />
     </View>
   );
 }
 
-export function SelectModeTopBar({ count, allSelected, onSelectAll, onDone, theme }: SelectModeTopBarProps) {
+export function SelectModeTopBar({
+  count,
+  allSelected,
+  onSelectAll,
+  onDone,
+  theme,
+}: SelectModeTopBarProps) {
   return (
     <View style={s.row}>
       <Text style={[s.selectCount, { color: theme.colors.onSurface }]}>已选择 {count} 项</Text>
@@ -118,11 +166,36 @@ const s = StyleSheet.create({
   actions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconBtn: { justifyContent: 'center', alignItems: 'center' },
   selectCount: { fontSize: 14, fontWeight: '600' },
-  pill: { height: 36, paddingHorizontal: 16, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
+  pill: {
+    height: 36,
+    paddingHorizontal: 16,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   pillText: { fontSize: 14, fontWeight: '500' },
+  searchWrap: { gap: 6 },
   searchRow: { flexDirection: 'row', alignItems: 'center', height: 52, gap: 8 },
   boxWrap: { flex: 1, transformOrigin: 'right' },
-  searchBox: { height: 44, borderRadius: 22, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, gap: 8 },
+  searchBox: {
+    height: 44,
+    borderRadius: 22,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    gap: 8,
+  },
   searchInput: { flex: 1, fontSize: 14, padding: 0 },
-  circle: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
+  circle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
 });

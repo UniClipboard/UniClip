@@ -5,7 +5,6 @@ import {
   StyleSheet,
   FlatList,
   RefreshControl,
-  Pressable,
   Share,
   Linking,
   BackHandler,
@@ -22,7 +21,7 @@ import { DefaultBottomBar, SelectModeBottomBar } from '@/components/HomeBottomBa
 import { ServerSwitcherModal } from '@/components/ServerSwitcherModal';
 import { ClipboardCardActionSheet } from '@/components/ClipboardCardActionSheet';
 import { ClipboardCardMenu } from '@/components/ClipboardCardMenu';
-import { spacing } from '@/theme';
+import { HistoryFilterSheet } from '@/components/HistoryFilterSheet';
 import { useHistoryStore } from '@/stores/historyStore';
 import { useClipboardStore } from '@/stores/clipboardStore';
 import { useSettingsStore } from '@/stores';
@@ -33,18 +32,22 @@ import { historyStorage } from '@/services';
 import { getClipboardSyncService } from '@/services/ClipboardSyncService';
 import { getLatest, getFile } from 'uc-core';
 import type { ClipboardMeta } from 'uc-core';
-import { ClipboardItem, ClipboardContent, createDefaultClipboardItem, HistorySyncStatus } from '@/types/clipboard';
-import { ServerConfig } from '@/types/api';
+import {
+  ClipboardItem,
+  ClipboardContent,
+  createDefaultClipboardItem,
+  HistorySyncStatus,
+} from '@/types/clipboard';
 import { AddServerSheet } from '@/components/AddServerSheet';
 import { ClipboardCard } from '@/components/ClipboardCard';
 import { MessageToast } from '@/components/MessageToast';
 import { WordPickerScreen } from '@/screens/WordPickerScreen';
 import { QuickLoadingPage } from '@/components/QuickLoadingPage';
 import { copyToLocalClipboard } from '@/utils/clipboard';
-import { getDisplayKind } from '@/utils/displayKind';
+import { DisplayKind, getDisplayKind } from '@/utils/displayKind';
 import { buildActionMenuItems } from '@/utils/actionMenuItems';
 import { saveToGallery, saveFile, shareFile } from '@/utils/fileActions';
-import { HistoryFilter } from '@/types/storage';
+import { createHistorySearchFilter, HistoryDateFilter } from '@/utils/historyFilters';
 import { isHistorySyncEnabled } from '@/utils/config';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
@@ -133,7 +136,8 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
 
-  const cardSize = (screenWidth - GRID_PADDING * 2 - GRID_SPACING * (NUM_COLUMNS - 1)) / NUM_COLUMNS;
+  const cardSize =
+    (screenWidth - GRID_PADDING * 2 - GRID_SPACING * (NUM_COLUMNS - 1)) / NUM_COLUMNS;
 
   // Stores —— 全部用细粒度 selector 订阅。整体订阅会让 store 任意字段(isLoading /
   // totalCount / message / error 等)变化都重渲染整个 HomeView + FlatList。
@@ -168,6 +172,9 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
   const [refreshing, setRefreshing] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [searchText, setSearchText] = useState('');
+  const [selectedFilterKinds, setSelectedFilterKinds] = useState<DisplayKind[]>([]);
+  const [selectedDateFilter, setSelectedDateFilter] = useState<HistoryDateFilter>('all');
+  const [showFilterSheet, setShowFilterSheet] = useState(false);
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [wordPickerText, setWordPickerText] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -215,11 +222,16 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
   // Search debounce
   useEffect(() => {
     const timer = setTimeout(() => {
-      const filter: HistoryFilter | undefined = searchText ? { keyword: searchText } : undefined;
-      searchItems(filter);
+      const filter = createHistorySearchFilter({
+        keyword: searchText,
+        displayKinds: selectedFilterKinds,
+        dateFilter: selectedDateFilter,
+      });
+      const hasFilter = Object.keys(filter).length > 0;
+      searchItems(hasFilter ? filter : undefined);
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchText, searchItems]);
+  }, [searchText, selectedFilterKinds, selectedDateFilter, searchItems]);
 
   // Back handler for select mode
   useEffect(() => {
@@ -275,15 +287,12 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
   // ── Long-press → action sheet ────────────────────────────────
   const [actionSheetItem, setActionSheetItem] = useState<ClipboardItem | null>(null);
 
-  const handleItemLongPress = useCallback(
-    (item: ClipboardItem) => {
-      import('expo-haptics')
-        .then((Haptics) => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium))
-        .catch(() => {});
-      setActionSheetItem(item);
-    },
-    []
-  );
+  const handleItemLongPress = useCallback((item: ClipboardItem) => {
+    import('expo-haptics')
+      .then((Haptics) => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium))
+      .catch(() => {});
+    setActionSheetItem(item);
+  }, []);
 
   const handleActionSheetDismiss = useCallback(() => {
     setActionSheetItem(null);
@@ -299,7 +308,10 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
     return buildActionMenuItems(actionSheetItem, actionSheetDisplayKind, {
       onCopy: async () => {
         const result = await copyItemWithSync(actionSheetItem);
-        showMessage(result.success ? '已复制到剪贴板' : result.message || '复制失败', result.success ? 'success' : 'error');
+        showMessage(
+          result.success ? '已复制到剪贴板' : result.message || '复制失败',
+          result.success ? 'success' : 'error'
+        );
       },
       onSelectText: () => {
         setWordPickerText(actionSheetItem.text);
@@ -330,7 +342,9 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
       },
       onShare: async () => {
         if (
-          (actionSheetDisplayKind === 'image' || actionSheetDisplayKind === 'file' || actionSheetDisplayKind === 'group') &&
+          (actionSheetDisplayKind === 'image' ||
+            actionSheetDisplayKind === 'file' ||
+            actionSheetDisplayKind === 'group') &&
           actionSheetItem.fileUri &&
           actionSheetItem.isLocalFileReady
         ) {
@@ -349,7 +363,15 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
         showMessage('已删除', 'success');
       },
     });
-  }, [actionSheetItem, actionSheetDisplayKind, copyItemWithSync, showMessage, clearSelection, toggleSelection, deleteItem]);
+  }, [
+    actionSheetItem,
+    actionSheetDisplayKind,
+    copyItemWithSync,
+    showMessage,
+    clearSelection,
+    toggleSelection,
+    deleteItem,
+  ]);
 
   // ── Unified action dispatcher (used by iOS ContextMenu) ──────
   const handleCardAction = useCallback(
@@ -358,7 +380,10 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
       switch (actionKey) {
         case 'copy': {
           const result = await copyItemWithSync(item);
-          showMessage(result.success ? '已复制到剪贴板' : result.message || '复制失败', result.success ? 'success' : 'error');
+          showMessage(
+            result.success ? '已复制到剪贴板' : result.message || '复制失败',
+            result.success ? 'success' : 'error'
+          );
           break;
         }
         case 'selectText':
@@ -476,7 +501,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
         }
       }
       showMessage('同步完成', 'success');
-    } catch (e) {
+    } catch {
       showMessage('同步失败', 'error');
     } finally {
       setIsSyncing(false);
@@ -493,7 +518,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
       } else {
         showMessage(result.error || '上传失败', 'error');
       }
-    } catch (e) {
+    } catch {
       showMessage('上传失败', 'error');
     }
   }, [showMessage, clearError]);
@@ -519,7 +544,10 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
   // Upload image
   const handleUploadImage = useCallback(async () => {
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 });
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 1,
+      });
       if (result.canceled) return;
       const asset = result.assets?.[0];
       if (!asset) return;
@@ -544,9 +572,22 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
 
   // Search
   const openSearch = useCallback(() => setIsSearching(true), []);
+  const hasActiveFilters = selectedFilterKinds.length > 0 || selectedDateFilter !== 'all';
+  const handleToggleFilterKind = useCallback((kind: DisplayKind) => {
+    setSelectedFilterKinds((current) =>
+      current.includes(kind) ? current.filter((item) => item !== kind) : [...current, kind]
+    );
+  }, []);
+  const handleClearFilters = useCallback(() => {
+    setSelectedFilterKinds([]);
+    setSelectedDateFilter('all');
+  }, []);
   const closeSearch = useCallback(() => {
     setIsSearching(false);
     setSearchText('');
+    setSelectedFilterKinds([]);
+    setSelectedDateFilter('all');
+    setShowFilterSheet(false);
     searchItems(undefined);
   }, [searchItems]);
 
@@ -571,7 +612,15 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
         </ClipboardCardMenu>
       </View>
     ),
-    [latestId, selectedIds, isSelectMode, handleItemPress, handleItemLongPress, handleCardAction, cardSize]
+    [
+      latestId,
+      selectedIds,
+      isSelectMode,
+      handleItemPress,
+      handleItemLongPress,
+      handleCardAction,
+      cardSize,
+    ]
   );
 
   const keyExtractor = useCallback((item: ClipboardItem) => item.profileHash, []);
@@ -591,7 +640,12 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
   const allSelected = items.length > 0 && selectedIds.size === items.length;
 
   return (
-    <View style={[styles.container, { backgroundColor: iosColors?.systemGroupedBackground ?? theme.colors.background }]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: iosColors?.systemGroupedBackground ?? theme.colors.background },
+      ]}
+    >
       <StatusBar
         barStyle={theme.isDark ? 'light-content' : 'dark-content'}
         backgroundColor="transparent"
@@ -612,6 +666,12 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
           <SearchTopBar
             searchText={searchText}
             onChangeText={setSearchText}
+            selectedKinds={selectedFilterKinds}
+            selectedDate={selectedDateFilter}
+            hasActiveFilters={hasActiveFilters}
+            onOpenFilters={() => setShowFilterSheet(true)}
+            onRemoveKind={handleToggleFilterKind}
+            onClearDateFilter={() => setSelectedDateFilter('all')}
             onClose={closeSearch}
             theme={theme}
           />
@@ -693,6 +753,17 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
       </View>
 
       <HomeMessageToast />
+
+      <HistoryFilterSheet
+        visible={showFilterSheet}
+        selectedKinds={selectedFilterKinds}
+        selectedDate={selectedDateFilter}
+        onToggleKind={handleToggleFilterKind}
+        onSelectDate={setSelectedDateFilter}
+        onClear={handleClearFilters}
+        onClose={() => setShowFilterSheet(false)}
+        theme={theme}
+      />
 
       {/* Server Switcher */}
       <ServerSwitcherModal

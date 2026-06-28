@@ -1,4 +1,6 @@
 import type { useTheme } from '@/hooks/useTheme';
+import type { DisplayKind } from '@/utils/displayKind';
+import type { HistoryDateFilter } from '@/utils/historyFilters';
 
 export interface DefaultTopBarProps {
   serverLabel: string;
@@ -12,6 +14,12 @@ export interface DefaultTopBarProps {
 export interface SearchTopBarProps {
   searchText: string;
   onChangeText: (t: string) => void;
+  selectedKinds: DisplayKind[];
+  selectedDate: HistoryDateFilter;
+  hasActiveFilters: boolean;
+  onOpenFilters: () => void;
+  onRemoveKind: (kind: DisplayKind) => void;
+  onClearDateFilter: () => void;
   onClose: () => void;
   theme: ReturnType<typeof useTheme>['theme'];
 }
