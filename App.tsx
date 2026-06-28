@@ -196,11 +196,17 @@ export default function App() {
         {shareReceiveOverlay && (
           <View style={StyleSheet.absoluteFill}>
             <ShareReceiveScreen
-              onComplete={() => {
-                // 分享接收完成后留在 app 内：仅关闭 overlay 露出底层主界面，不再 moveTaskToBack。
-                // 截图等从前台发起的分享，moveTaskToBack 会把整个 task 退到后台、回到桌面；
-                // 与微信/Telegram 等主流 app 一致——接收分享后停在自身界面。
+              onComplete={(returnToSource) => {
+                // 先关 overlay 露出底层主界面。
                 setShareReceiveOverlay(false);
+                // 外部 app（相册/浏览器/文件等）发起的分享 → moveTaskToBack 把 task 退到后台，
+                // 系统显示 task 栈中 UniClip 下方的来源 app，符合「分享目标」的标准行为。
+                // 截图等系统 UI 发起的分享 → returnToSource=false，留在 app 内
+                //（这类分享 moveTaskToBack 会退到桌面，体验差）。
+                // 用 moveTaskToBack 而非 exitApp，保持 Activity 存活以维持后台同步任务。
+                if (returnToSource) {
+                  moveTaskToBack();
+                }
               }}
             />
           </View>

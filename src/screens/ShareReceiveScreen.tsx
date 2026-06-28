@@ -15,7 +15,33 @@ import { QuickLoadingPage } from '@/components/QuickLoadingPage';
 import type { ProgressInfo } from 'native-util';
 
 interface ShareReceiveScreenProps {
-  onComplete: () => void;
+  /**
+   * 分享处理结束的回调。
+   * @param returnToSource true=返回来源 app（外部分享）；false=留在 app 内（截图等系统分享）。
+   */
+  onComplete: (returnToSource: boolean) => void;
+}
+
+/**
+ * 截图 / 系统 UI 发起的分享所用的 content:// authority 特征。
+ * - 小米 HyperOS 截图用 `com.miui.screeshot.provider.fileProvider`（注意小米把 screenshot 拼成了 screeshot）
+ * - 原生 Android 截图用 `com.android.systemui...`
+ * 命中任一特征 → 视为系统分享，完成后留在 app 内（moveTaskToBack 会退到桌面，体验差）。
+ */
+const SCREENSHOT_SHARE_AUTHORITY_HINTS = ['screeshot', 'screenshot', 'com.android.systemui'];
+
+/** 从 content:// URI 取 authority（小写）；非 content:// 返回 null。 */
+function getContentAuthority(uri: string | null | undefined): string | null {
+  if (!uri) return null;
+  const m = /^content:\/\/([^/]+)/i.exec(uri);
+  return m ? m[1].toLowerCase() : null;
+}
+
+/** 判断原始分享 URI 是否来自截图/系统 UI（决定完成后是否留在 app 内）。 */
+function isScreenshotShare(originalUri: string | null | undefined): boolean {
+  const authority = getContentAuthority(originalUri);
+  if (!authority) return false; // 文字/链接/非 content:// → 当作外部分享，返回来源
+  return SCREENSHOT_SHARE_AUTHORITY_HINTS.some((hint) => authority.includes(hint));
 }
 
 function getFileExtFromMime(mimeType: string | null | undefined): string {
@@ -42,13 +68,25 @@ export const ShareReceiveScreen: React.FC<ShareReceiveScreenProps> = ({ onComple
   const [previewText, setPreviewText] = useState<string | undefined>(undefined);
   const [previewImage, setPreviewImage] = useState<string | undefined>(undefined);
 
-  // 挂载时若根本没有分享内容，直接返回
+  // 挂载时若根本没有分享内容，直接返回（无 payload，按外部分享处理）
   useEffect(() => {
     if (!hasShareContent) {
       clearSharedPayloads();
-      onComplete();
+      onComplete(true);
     }
   }, []);
+
+  // 根据原始分享 URI 的来源决定完成后留在 app 还是返回来源 app
+  const handleComplete = useCallback(() => {
+    const originalUri = resolvedSharedPayloads[0]?.value;
+    const returnToSource = !isScreenshotShare(originalUri);
+    if (__DEV__) {
+      console.log(
+        `[share] authority=${getContentAuthority(originalUri) ?? 'none'} returnToSource=${returnToSource}`
+      );
+    }
+    onComplete(returnToSource);
+  }, [resolvedSharedPayloads, onComplete]);
 
   // 上传任务：由 QuickTileLoadingScreen 调用（含重试）
   const task = useCallback(
@@ -114,7 +152,7 @@ export const ShareReceiveScreen: React.FC<ShareReceiveScreenProps> = ({ onComple
         backgroundColor={theme.colors.surface}
         textColor={theme.colors.text}
         primaryColor={theme.colors.primary}
-        onBack={onComplete}
+        onBack={handleComplete}
       />
     );
   }
@@ -125,7 +163,7 @@ export const ShareReceiveScreen: React.FC<ShareReceiveScreenProps> = ({ onComple
       loadingText={loadingText}
       successText="接收并上传成功"
       failureText="处理失败"
-      onComplete={onComplete}
+      onComplete={handleComplete}
       progress={progress}
       previewText={previewText}
       previewImage={previewImage}
