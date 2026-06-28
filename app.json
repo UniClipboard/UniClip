@@ -7,11 +7,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "newSplashScreen": {
-      "image": "./assets/splash-icon.png",
-      "imageWidth": 200,
-      "backgroundColor": "#ffffff"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.uniclipboard.ios"
@@ -48,7 +43,6 @@
       "./plugins/build/withStaticSmsReceiver.js",
       "./plugins/build/withForegroundService.js",
       "./plugins/build/withShizukuProvider.js",
-      "./plugins/build/withDarkSplashScreen.js",
       "./plugins/build/withAbiSplits.js",
       "./plugins/build/withRustCore.js",
       [
