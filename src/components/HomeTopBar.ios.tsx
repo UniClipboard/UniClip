@@ -1,14 +1,21 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Ellipsis } from 'lucide-react-native';
+import { View, Text, TextInput, StyleSheet, Pressable } from 'react-native';
+import { Ellipsis, Search, X, XCircle } from 'lucide-react-native';
 import { Menu, Button as SwiftUIButton, Host } from '@expo/ui/swift-ui';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  interpolate,
+  Easing,
+} from 'react-native-reanimated';
 import { GlassContainer } from '@/components/ui';
 import { iosDimensions } from '@/theme/iosDesignTokens';
-import type { DefaultTopBarProps, SelectModeTopBarProps } from './HomeTopBar.types';
+import type { DefaultTopBarProps, SearchTopBarProps, SelectModeTopBarProps } from './HomeTopBar.types';
 
 const BTN = iosDimensions.floatingButtonSize;
 
-export function DefaultTopBar({ serverLabel, isConnected, onSettings, onSelectMode, theme }: DefaultTopBarProps) {
+export function DefaultTopBar({ serverLabel, isConnected, onSearch, onSettings, onSelectMode, theme }: DefaultTopBarProps) {
   return (
     <View style={s.row}>
       <View style={s.serverStatus}>
@@ -31,6 +38,16 @@ export function DefaultTopBar({ serverLabel, isConnected, onSettings, onSelectMo
           </GlassContainer>
         </Pressable>
 
+        <Pressable onPress={onSearch}>
+          <GlassContainer
+            shape="circle"
+            interactive
+            style={{ width: BTN, height: BTN, justifyContent: 'center', alignItems: 'center' }}
+          >
+            <Search size={22} color={theme.colors.onSurface} />
+          </GlassContainer>
+        </Pressable>
+
         <Host style={{ width: BTN, height: BTN }}>
           <Menu
             label={
@@ -47,6 +64,53 @@ export function DefaultTopBar({ serverLabel, isConnected, onSettings, onSelectMo
           </Menu>
         </Host>
       </View>
+    </View>
+  );
+}
+
+export function SearchTopBar({ searchText, onChangeText, onClose, theme }: SearchTopBarProps) {
+  const p = useSharedValue(0);
+
+  React.useEffect(() => {
+    p.value = withTiming(1, { duration: 240, easing: Easing.out(Easing.cubic) });
+  }, [p]);
+
+  const boxStyle = useAnimatedStyle(() => ({
+    opacity: p.value,
+    transform: [{ scaleX: interpolate(p.value, [0, 1], [0.35, 1]) }],
+  }));
+  const closeStyle = useAnimatedStyle(() => ({
+    opacity: p.value,
+    transform: [{ scale: interpolate(p.value, [0, 1], [0.6, 1]) }],
+  }));
+
+  return (
+    <View style={s.searchRow}>
+      <Animated.View style={[s.boxWrap, boxStyle]}>
+        <GlassContainer shape="capsule" style={s.searchCapsule}>
+          <Search size={16} color={theme.colors.onSurfaceVariant} />
+          <TextInput
+            style={[s.searchInput, { color: theme.colors.onSurface }]}
+            value={searchText}
+            onChangeText={onChangeText}
+            placeholder="搜索剪贴板"
+            placeholderTextColor={theme.colors.onSurfaceVariant}
+            autoFocus
+          />
+          {searchText.length > 0 && (
+            <Pressable onPress={() => onChangeText('')} hitSlop={8}>
+              <XCircle size={14} color={theme.colors.onSurfaceVariant} />
+            </Pressable>
+          )}
+        </GlassContainer>
+      </Animated.View>
+      <Animated.View style={closeStyle}>
+        <Pressable onPress={onClose}>
+          <GlassContainer shape="circle" interactive style={s.circle}>
+            <X size={22} color={theme.colors.onSurface} />
+          </GlassContainer>
+        </Pressable>
+      </Animated.View>
     </View>
   );
 }
@@ -89,4 +153,9 @@ const s = StyleSheet.create({
   label: { fontSize: 14, fontWeight: '600' },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   selectCount: { fontSize: 14, fontWeight: '600' },
+  searchRow: { flexDirection: 'row', alignItems: 'center', height: 52, gap: 8 },
+  boxWrap: { flex: 1, transformOrigin: 'right' },
+  searchCapsule: { height: BTN, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, gap: 6 },
+  searchInput: { flex: 1, fontSize: 15, padding: 0 },
+  circle: { width: BTN, height: BTN, justifyContent: 'center', alignItems: 'center' },
 });

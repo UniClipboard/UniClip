@@ -1,9 +1,17 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Pressable } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  interpolate,
+  Easing,
+} from 'react-native-reanimated';
 import { TopRightMenu } from './TopRightMenu';
-import type { DefaultTopBarProps, SelectModeTopBarProps } from './HomeTopBar.types';
+import type { DefaultTopBarProps, SearchTopBarProps, SelectModeTopBarProps } from './HomeTopBar.types';
 
-export function DefaultTopBar({ serverLabel, isConnected, onSettings, onSelectMode, theme }: DefaultTopBarProps) {
+export function DefaultTopBar({ serverLabel, isConnected, onSearch, onSettings, onSelectMode, theme }: DefaultTopBarProps) {
   return (
     <View style={s.row}>
       <View style={s.serverStatus}>
@@ -19,8 +27,61 @@ export function DefaultTopBar({ serverLabel, isConnected, onSettings, onSelectMo
         >
           <Text style={[s.pillText, { color: theme.colors.onSurface }]}>选择</Text>
         </Pressable>
+        <Pressable
+          onPress={onSearch}
+          style={s.iconBtn}
+          hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+        >
+          <Ionicons name="search" size={22} color={theme.colors.onSurface} />
+        </Pressable>
         <TopRightMenu items={[{ label: '设置', onPress: onSettings }]} />
       </View>
+    </View>
+  );
+}
+
+export function SearchTopBar({ searchText, onChangeText, onClose, theme }: SearchTopBarProps) {
+  const bg = { backgroundColor: theme.colors.surfaceContainerHigh };
+  const p = useSharedValue(0);
+
+  React.useEffect(() => {
+    p.value = withTiming(1, { duration: 240, easing: Easing.out(Easing.cubic) });
+  }, [p]);
+
+  const boxStyle = useAnimatedStyle(() => ({
+    opacity: p.value,
+    transform: [{ scaleX: interpolate(p.value, [0, 1], [0.35, 1]) }],
+  }));
+  const closeStyle = useAnimatedStyle(() => ({
+    opacity: p.value,
+    transform: [{ scale: interpolate(p.value, [0, 1], [0.6, 1]) }],
+  }));
+
+  return (
+    <View style={s.searchRow}>
+      <Animated.View style={[s.boxWrap, boxStyle]}>
+        <View style={[s.searchBox, bg]}>
+          <Ionicons name="search" size={16} color={theme.colors.onSurfaceVariant} />
+          <TextInput
+            style={[s.searchInput, { color: theme.colors.onSurface }]}
+            value={searchText}
+            onChangeText={onChangeText}
+            placeholder="搜索剪贴板"
+            placeholderTextColor={theme.colors.onSurfaceVariant}
+            autoFocus
+          />
+          {searchText.length > 0 && (
+            <Pressable onPress={() => onChangeText('')} hitSlop={8}>
+              <Ionicons name="close-circle" size={16} color={theme.colors.onSurfaceVariant} />
+            </Pressable>
+          )}
+        </View>
+      </Animated.View>
+      <Animated.View style={closeStyle}>
+        <Pressable onPress={onClose} style={[s.circle, bg]}>
+          <Ionicons name="close" size={20} color={theme.colors.onSurface} />
+        </Pressable>
+      </Animated.View>
     </View>
   );
 }
@@ -55,7 +116,13 @@ const s = StyleSheet.create({
   dot: { width: 6, height: 6, borderRadius: 3 },
   label: { fontSize: 14, fontWeight: '600' },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  iconBtn: { justifyContent: 'center', alignItems: 'center' },
   selectCount: { fontSize: 14, fontWeight: '600' },
   pill: { height: 36, paddingHorizontal: 16, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
   pillText: { fontSize: 14, fontWeight: '500' },
+  searchRow: { flexDirection: 'row', alignItems: 'center', height: 52, gap: 8 },
+  boxWrap: { flex: 1, transformOrigin: 'right' },
+  searchBox: { height: 44, borderRadius: 22, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, gap: 8 },
+  searchInput: { flex: 1, fontSize: 14, padding: 0 },
+  circle: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
 });

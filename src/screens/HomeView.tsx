@@ -17,8 +17,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { iosColors } from '@/theme/iosDesignTokens';
-import { DefaultTopBar, SelectModeTopBar } from '@/components/HomeTopBar';
-import { DefaultBottomBar, SearchBottomBar, SelectModeBottomBar } from '@/components/HomeBottomBar';
+import { DefaultTopBar, SearchTopBar, SelectModeTopBar } from '@/components/HomeTopBar';
+import { DefaultBottomBar, SelectModeBottomBar } from '@/components/HomeBottomBar';
 import { ServerSwitcherModal } from '@/components/ServerSwitcherModal';
 import { ClipboardCardActionSheet } from '@/components/ClipboardCardActionSheet';
 import { ClipboardCardMenu } from '@/components/ClipboardCardMenu';
@@ -589,10 +589,18 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
             onDone={exitSelectMode}
             theme={theme}
           />
+        ) : isSearching ? (
+          <SearchTopBar
+            searchText={searchText}
+            onChangeText={setSearchText}
+            onClose={closeSearch}
+            theme={theme}
+          />
         ) : (
           <DefaultTopBar
             serverLabel={activeServerLabel}
             isConnected={!!activeServer}
+            onSearch={openSearch}
             onSettings={onOpenSettings}
             theme={theme}
             onSelectMode={() => {
@@ -648,18 +656,10 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
             onDelete={handleBatchDelete}
             theme={theme}
           />
-        ) : isSearching ? (
-          <SearchBottomBar
-            searchText={searchText}
-            onChangeText={setSearchText}
-            onClose={closeSearch}
-            theme={theme}
-          />
         ) : (
           <DefaultBottomBar
             serverLabel={activeServerLabel}
             isSyncing={isSyncing}
-            onSearch={openSearch}
             onServerPicker={() => setShowServerPicker(true)}
             onSync={handleSyncHistory}
             theme={theme}
