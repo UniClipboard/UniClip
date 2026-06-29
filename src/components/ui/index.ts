@@ -45,3 +45,6 @@ export type { GlassContainerProps, GlassShape } from './GlassContainer';
 
 export { SheetHeader } from './SheetHeader';
 export type { SheetHeaderProps } from './SheetHeader';
+
+export { IosSheetPage, IosSheetForm } from './IosSheetPage';
+export type { IosSheetPageProps, IosSheetFormProps } from './IosSheetPage';

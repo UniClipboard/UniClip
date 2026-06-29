@@ -4,7 +4,6 @@ import {
   Host,
   BottomSheet,
   Group,
-  Form,
   Section,
   VStack,
   HStack,
@@ -26,13 +25,11 @@ import {
   foregroundColor,
   frame,
   buttonStyle,
-  listStyle,
+  controlSize,
   textFieldStyle,
   opacity,
-  tint,
 } from '@expo/ui/swift-ui/modifiers';
-import { SheetHeader } from '@/components/ui';
-import { iosAccentColor } from '@/theme/iosDesignTokens';
+import { IosSheetForm, IosSheetPage } from '@/components/ui';
 import { useSettingsStore } from '@/stores';
 import { probe, type ProbeResult } from 'uc-core';
 import { scanQRCode } from 'qr-scanner';
@@ -77,6 +74,7 @@ export function AddServerSheet({
   visible,
   title = '添加服务器',
   initialData,
+  embeddedInHost = false,
   onClose,
   onSave,
 }: AddServerSheetProps) {
@@ -252,190 +250,181 @@ export function AddServerSheet({
     return null;
   }, [probeResults]);
 
-  return (
-    <Host style={{ position: 'absolute', bottom: 0, left: 0, width: 1, height: 1 }}>
-      <BottomSheet
-        isPresented={visible}
-        onIsPresentedChange={(presented) => {
-          if (!presented) handleClose();
-        }}
-      >
-        <Group modifiers={[presentationDetents(['large']), presentationDragIndicator('visible')]}>
-          <VStack
-            modifiers={[
-              frame({ maxWidth: Infinity, maxHeight: Infinity }),
-              ...(iosAccentColor ? [tint(iosAccentColor)] : []),
-            ]}
-          >
-            <SheetHeader
-              title={title}
-              left={
-                <SwiftUIButton onPress={handleClose} modifiers={[buttonStyle('glass')]}>
-                  <SwiftUIText modifiers={[font({ size: 16 })]}>取消</SwiftUIText>
-                </SwiftUIButton>
-              }
-              right={
-                <SwiftUIButton
-                  onPress={handleSave}
-                  modifiers={[buttonStyle('glass'), opacity(canSave ? 1 : 0.35)]}
-                >
-                  <SwiftUIText modifiers={[font({ weight: 'semibold', size: 16 })]}>
-                    保存
-                  </SwiftUIText>
-                </SwiftUIButton>
-              }
-            />
+  const sheet = (
+    <BottomSheet
+      isPresented={visible}
+      onIsPresentedChange={(presented) => {
+        if (!presented) handleClose();
+      }}
+    >
+      <Group modifiers={[presentationDetents(['large']), presentationDragIndicator('visible')]}>
+        <IosSheetPage
+          title={title}
+          left={
+            <SwiftUIButton
+              onPress={handleClose}
+              modifiers={[buttonStyle('glass'), controlSize('large')]}
+            >
+              <SwiftUIText modifiers={[font({ size: 16 })]}>取消</SwiftUIText>
+            </SwiftUIButton>
+          }
+          right={
+            <SwiftUIButton
+              onPress={handleSave}
+              modifiers={[buttonStyle('glass'), controlSize('large'), opacity(canSave ? 1 : 0.35)]}
+            >
+              <SwiftUIText modifiers={[font({ weight: 'semibold', size: 16 })]}>保存</SwiftUIText>
+            </SwiftUIButton>
+          }
+        >
+          <IosSheetForm>
+            {/* ── 扫码 ── */}
+            <Section footer={<SwiftUIText>扫描桌面端的二维码，一键填充以下信息。</SwiftUIText>}>
+              <SwiftUIButton
+                systemImage="qrcode.viewfinder"
+                label="扫码连接"
+                onPress={handleScan}
+              />
+            </Section>
 
-            <Form modifiers={[listStyle('insetGrouped')]}>
-              {/* ── 扫码 ── */}
-              <Section footer={<SwiftUIText>扫描桌面端的二维码，一键填充以下信息。</SwiftUIText>}>
-                <SwiftUIButton
-                  systemImage="qrcode.viewfinder"
-                  label="扫码连接"
-                  onPress={handleScan}
-                />
-              </Section>
-
-              {/* ── 名称 ── */}
-              <Section
-                title="名称"
-                footer={<SwiftUIText>将显示在剪贴板顶栏。留空会用服务器地址替代。</SwiftUIText>}
-              >
-                <HStack>
-                  <TextField
-                    ref={nameRef}
-                    placeholder="便于辨识的名称"
-                    onTextChange={setName}
-                    modifiers={[textFieldStyle('plain'), frame({ minHeight: 22 })]}
-                  />
-                  <SwiftUIButton onPress={() => {}} modifiers={[buttonStyle('plain')]}>
-                    <Image systemName="shuffle" size={18} color="#8E8E93" />
-                  </SwiftUIButton>
-                </HStack>
-              </Section>
-
-              {/* ── 服务器地址（多地址） ── */}
-              <Section
-                title="服务器地址"
-                footer={
-                  <SwiftUIText>
-                    同一服务器可填多个地址（局域网 / Tailscale / 公网），App
-                    会按当前网络自动选用可达的一条；第一条为默认地址。
-                  </SwiftUIText>
-                }
-              >
-                {urls.map((url, i) => (
-                  <HStack key={`url-row-${i}`} spacing={8}>
-                    <TextField
-                      ref={(r: TextFieldRef | null) => {
-                        urlRefs.current[i] = r;
-                      }}
-                      placeholder="https://your-server.com:5033/"
-                      onTextChange={(text: string) => updateUrl(i, text)}
-                      modifiers={[
-                        textFieldStyle('plain'),
-                        foregroundColor('#007AFF'),
-                        frame({ minHeight: 22 }),
-                      ]}
-                    />
-                    {classForUrl(url) && <URLClassChip urlClass={classForUrl(url)!} />}
-                    {urls.length > 1 && (
-                      <SwiftUIButton
-                        onPress={() => removeUrl(i)}
-                        modifiers={[buttonStyle('plain')]}
-                      >
-                        <Image systemName="minus.circle.fill" size={18} color="#FF3B30" />
-                      </SwiftUIButton>
-                    )}
-                  </HStack>
-                ))}
-                <SwiftUIButton systemImage="plus.circle" label="添加备用地址" onPress={addUrl} />
-                <Toggle
-                  label="允许不安全证书"
-                  isOn={trustInsecureCert}
-                  onIsOnChange={(v) => updateConfig({ trustInsecureCert: v })}
-                />
-              </Section>
-
-              {/* ── 凭据 ── */}
-              <Section title="凭据">
+            {/* ── 名称 ── */}
+            <Section
+              title="名称"
+              footer={<SwiftUIText>将显示在剪贴板顶栏。留空会用服务器地址替代。</SwiftUIText>}
+            >
+              <HStack>
                 <TextField
-                  ref={usernameRef}
-                  placeholder="用户名"
-                  onTextChange={setUsername}
+                  ref={nameRef}
+                  placeholder="便于辨识的名称"
+                  onTextChange={setName}
                   modifiers={[textFieldStyle('plain'), frame({ minHeight: 22 })]}
                 />
-                <SecureField
-                  ref={passwordRef}
-                  placeholder="密码"
-                  onTextChange={setPassword}
-                  modifiers={[frame({ minHeight: 22 })]}
-                />
-              </Section>
+                <SwiftUIButton onPress={() => {}} modifiers={[buttonStyle('plain')]}>
+                  <Image systemName="shuffle" size={18} color="#8E8E93" />
+                </SwiftUIButton>
+              </HStack>
+            </Section>
 
-              {/* ── 测试连接 ── */}
-              <Section
-                title="连接"
-                footer={
-                  probeErrorMessage ? (
-                    <SwiftUIText>{probeErrorMessage}</SwiftUIText>
-                  ) : probeResults ? (
-                    <SwiftUIText>
-                      标注「将使用」的地址是当前网络下的首选；网络变化时会自动重选。
-                    </SwiftUIText>
-                  ) : undefined
-                }
-              >
-                {probeResults &&
-                  cleanedUrls.map((u) => {
-                    const result = probeResults[u];
-                    const cls = classifyURL(u);
-                    const isPicked = u === pickedUrl;
-                    return (
-                      <HStack key={`probe-${u}`} spacing={8} alignment="center">
-                        <VStack alignment="leading" spacing={2}>
-                          <SwiftUIText modifiers={[font({ size: 14 })]}>{u}</SwiftUIText>
-                          <HStack spacing={6}>
-                            <URLClassChip urlClass={cls} />
-                            {isPicked && (
-                              <SwiftUIText
-                                modifiers={[
-                                  font({ weight: 'medium', size: 11 }),
-                                  foregroundStyle('#34C759'),
-                                ]}
-                              >
-                                将使用
-                              </SwiftUIText>
-                            )}
-                          </HStack>
-                        </VStack>
-                        <Spacer />
-                        <ProbeStatusIcon result={result} />
-                      </HStack>
-                    );
-                  })}
-
-                {isProbing ? (
-                  <HStack
-                    spacing={8}
-                    alignment="center"
-                    modifiers={[frame({ maxWidth: Infinity })]}
-                  >
-                    <ProgressView />
-                    <SwiftUIText modifiers={[foregroundStyle('#8E8E93')]}>正在测试…</SwiftUIText>
-                  </HStack>
-                ) : (
-                  <SwiftUIButton
-                    systemImage="bolt.fill"
-                    label={probeResults ? '重新测试' : '测试连接'}
-                    onPress={handleProbe}
+            {/* ── 服务器地址（多地址） ── */}
+            <Section
+              title="服务器地址"
+              footer={
+                <SwiftUIText>
+                  同一服务器可填多个地址（局域网 / Tailscale / 公网），App
+                  会按当前网络自动选用可达的一条；第一条为默认地址。
+                </SwiftUIText>
+              }
+            >
+              {urls.map((url, i) => (
+                <HStack key={`url-row-${i}`} spacing={8}>
+                  <TextField
+                    ref={(r: TextFieldRef | null) => {
+                      urlRefs.current[i] = r;
+                    }}
+                    placeholder="https://your-server.com:5033/"
+                    onTextChange={(text: string) => updateUrl(i, text)}
+                    modifiers={[
+                      textFieldStyle('plain'),
+                      foregroundColor('#007AFF'),
+                      frame({ minHeight: 22 }),
+                    ]}
                   />
-                )}
-              </Section>
-            </Form>
-          </VStack>
-        </Group>
-      </BottomSheet>
-    </Host>
+                  {classForUrl(url) && <URLClassChip urlClass={classForUrl(url)!} />}
+                  {urls.length > 1 && (
+                    <SwiftUIButton onPress={() => removeUrl(i)} modifiers={[buttonStyle('plain')]}>
+                      <Image systemName="minus.circle.fill" size={18} color="#FF3B30" />
+                    </SwiftUIButton>
+                  )}
+                </HStack>
+              ))}
+              <SwiftUIButton systemImage="plus.circle" label="添加备用地址" onPress={addUrl} />
+              <Toggle
+                label="允许不安全证书"
+                isOn={trustInsecureCert}
+                onIsOnChange={(v) => updateConfig({ trustInsecureCert: v })}
+              />
+            </Section>
+
+            {/* ── 凭据 ── */}
+            <Section title="凭据">
+              <TextField
+                ref={usernameRef}
+                placeholder="用户名"
+                onTextChange={setUsername}
+                modifiers={[textFieldStyle('plain'), frame({ minHeight: 22 })]}
+              />
+              <SecureField
+                ref={passwordRef}
+                placeholder="密码"
+                onTextChange={setPassword}
+                modifiers={[frame({ minHeight: 22 })]}
+              />
+            </Section>
+
+            {/* ── 测试连接 ── */}
+            <Section
+              title="连接"
+              footer={
+                probeErrorMessage ? (
+                  <SwiftUIText>{probeErrorMessage}</SwiftUIText>
+                ) : probeResults ? (
+                  <SwiftUIText>
+                    标注「将使用」的地址是当前网络下的首选；网络变化时会自动重选。
+                  </SwiftUIText>
+                ) : undefined
+              }
+            >
+              {probeResults &&
+                cleanedUrls.map((u) => {
+                  const result = probeResults[u];
+                  const cls = classifyURL(u);
+                  const isPicked = u === pickedUrl;
+                  return (
+                    <HStack key={`probe-${u}`} spacing={8} alignment="center">
+                      <VStack alignment="leading" spacing={2}>
+                        <SwiftUIText modifiers={[font({ size: 14 })]}>{u}</SwiftUIText>
+                        <HStack spacing={6}>
+                          <URLClassChip urlClass={cls} />
+                          {isPicked && (
+                            <SwiftUIText
+                              modifiers={[
+                                font({ weight: 'medium', size: 11 }),
+                                foregroundStyle('#34C759'),
+                              ]}
+                            >
+                              将使用
+                            </SwiftUIText>
+                          )}
+                        </HStack>
+                      </VStack>
+                      <Spacer />
+                      <ProbeStatusIcon result={result} />
+                    </HStack>
+                  );
+                })}
+
+              {isProbing ? (
+                <HStack spacing={8} alignment="center" modifiers={[frame({ maxWidth: Infinity })]}>
+                  <ProgressView />
+                  <SwiftUIText modifiers={[foregroundStyle('#8E8E93')]}>正在测试…</SwiftUIText>
+                </HStack>
+              ) : (
+                <SwiftUIButton
+                  systemImage="bolt.fill"
+                  label={probeResults ? '重新测试' : '测试连接'}
+                  onPress={handleProbe}
+                />
+              )}
+            </Section>
+          </IosSheetForm>
+        </IosSheetPage>
+      </Group>
+    </BottomSheet>
+  );
+
+  return embeddedInHost ? (
+    sheet
+  ) : (
+    <Host style={{ position: 'absolute', bottom: 0, left: 0, width: 1, height: 1 }}>{sheet}</Host>
   );
 }

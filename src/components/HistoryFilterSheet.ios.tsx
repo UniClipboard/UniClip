@@ -3,7 +3,6 @@ import { StyleSheet } from 'react-native';
 import {
   BottomSheet,
   Button as SwiftUIButton,
-  Form,
   Group,
   Host,
   HStack,
@@ -12,7 +11,6 @@ import {
   Section,
   Spacer,
   Text as SwiftUIText,
-  VStack,
 } from '@expo/ui/swift-ui';
 import {
   buttonStyle,
@@ -20,13 +18,12 @@ import {
   foregroundStyle,
   frame,
   glassEffect,
-  listStyle,
   padding,
   presentationDetents,
   presentationDragIndicator,
 } from '@expo/ui/swift-ui/modifiers';
 import type { SFSymbol } from 'sf-symbols-typescript';
-import { SheetHeader } from '@/components/ui';
+import { IosSheetForm, IosSheetPage } from '@/components/ui';
 import type { HistoryFilterSheetProps } from './HistoryFilterSheet.types';
 import { getDisplayKindLabel } from '@/utils/displayKind';
 import type { DisplayKind } from '@/utils/displayKind';
@@ -69,38 +66,37 @@ export function HistoryFilterSheet({
         }}
       >
         <Group modifiers={[presentationDetents(['medium']), presentationDragIndicator('visible')]}>
-          <VStack modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity })]}>
-            <SheetHeader
-              title="筛选条件"
-              left={
-                <SwiftUIButton onPress={onClear} modifiers={[buttonStyle('plain')]}>
-                  <SwiftUIText modifiers={[font({ size: 16 }), foregroundStyle('#007AFF')]}>
-                    重置
-                  </SwiftUIText>
-                </SwiftUIButton>
-              }
-              right={
-                <SwiftUIButton
-                  onPress={onClose}
-                  modifiers={[
-                    buttonStyle('plain'),
-                    glassEffect({
-                      glass: { variant: 'regular', interactive: true },
-                      shape: 'circle',
-                    }),
-                  ]}
-                >
-                  <Image
-                    systemName="checkmark"
-                    size={18}
-                    color="#007AFF"
-                    modifiers={[font({ weight: 'semibold' }), padding()]}
-                  />
-                </SwiftUIButton>
-              }
-            />
-
-            <Form modifiers={[listStyle('insetGrouped')]}>
+          <IosSheetPage
+            title="筛选条件"
+            left={
+              <SwiftUIButton onPress={onClear} modifiers={[buttonStyle('plain')]}>
+                <SwiftUIText modifiers={[font({ size: 16 }), foregroundStyle('#007AFF')]}>
+                  重置
+                </SwiftUIText>
+              </SwiftUIButton>
+            }
+            rightSlots={[
+              <SwiftUIButton
+                key="done"
+                onPress={onClose}
+                modifiers={[
+                  buttonStyle('plain'),
+                  glassEffect({
+                    glass: { variant: 'regular', interactive: true },
+                    shape: 'circle',
+                  }),
+                ]}
+              >
+                <Image
+                  systemName="checkmark"
+                  size={18}
+                  color="#007AFF"
+                  modifiers={[font({ weight: 'semibold' }), padding()]}
+                />
+              </SwiftUIButton>,
+            ]}
+          >
+            <IosSheetForm>
               <Section title="类型">
                 {HISTORY_FILTER_KIND_OPTIONS.map((kind) => (
                   <SwiftUIButton
@@ -149,8 +145,8 @@ export function HistoryFilterSheet({
                   </SwiftUIButton>
                 ))}
               </Section>
-            </Form>
-          </VStack>
+            </IosSheetForm>
+          </IosSheetPage>
         </Group>
       </BottomSheet>
     </Host>

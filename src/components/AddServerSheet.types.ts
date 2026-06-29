@@ -9,6 +9,7 @@ export interface AddServerSheetProps {
   visible: boolean;
   title?: string;
   initialData?: AddServerSaveData;
+  embeddedInHost?: boolean;
   onClose: () => void;
   onSave: (data: AddServerSaveData) => void;
 }

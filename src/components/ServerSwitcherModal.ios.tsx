@@ -25,7 +25,7 @@ import {
   contentShape,
   onTapGesture,
 } from '@expo/ui/swift-ui/modifiers';
-import { SheetHeader } from '@/components/ui';
+import { IosSheetPage } from '@/components/ui';
 import { useSettingsStore } from '@/stores';
 import type { ServerSwitcherModalProps } from './ServerSwitcherModal.types';
 import type { ServerConfig } from '@/types/api';
@@ -160,49 +160,50 @@ export function ServerSwitcherModal({
           <Group
             modifiers={[presentationDetents(['medium']), presentationDragIndicator('visible')]}
           >
-            <VStack spacing={8} modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity })]}>
-              <SheetHeader
-                title="服务器"
-                left={
-                  <SwiftUIButton
-                    onPress={onClose}
-                    modifiers={[
-                      buttonStyle('plain'),
-                      glassEffect({
-                        glass: { variant: 'regular', interactive: true },
-                        shape: 'circle',
-                      }),
-                    ]}
-                  >
-                    <Image
-                      systemName="xmark"
-                      size={20}
-                      color="#AEAEB2"
-                      modifiers={[font({ weight: 'semibold' }), padding()]}
-                    />
-                  </SwiftUIButton>
-                }
-                right={
-                  <SwiftUIButton
-                    onPress={() => setShowAddSheet(true)}
-                    modifiers={[
-                      buttonStyle('plain'),
-                      glassEffect({
-                        glass: { variant: 'regular', interactive: true },
-                        shape: 'circle',
-                      }),
-                    ]}
-                  >
-                    <Image
-                      systemName="plus"
-                      size={20}
-                      color="#AEAEB2"
-                      modifiers={[font({ weight: 'semibold' }), padding()]}
-                    />
-                  </SwiftUIButton>
-                }
-              />
-
+            <IosSheetPage
+              title="服务器"
+              spacing={8}
+              leftSlots={[
+                <SwiftUIButton
+                  key="close"
+                  onPress={onClose}
+                  modifiers={[
+                    buttonStyle('plain'),
+                    glassEffect({
+                      glass: { variant: 'regular', interactive: true },
+                      shape: 'circle',
+                    }),
+                  ]}
+                >
+                  <Image
+                    systemName="xmark"
+                    size={20}
+                    color="#AEAEB2"
+                    modifiers={[font({ weight: 'semibold' }), padding()]}
+                  />
+                </SwiftUIButton>,
+              ]}
+              rightSlots={[
+                <SwiftUIButton
+                  key="add"
+                  onPress={() => setShowAddSheet(true)}
+                  modifiers={[
+                    buttonStyle('plain'),
+                    glassEffect({
+                      glass: { variant: 'regular', interactive: true },
+                      shape: 'circle',
+                    }),
+                  ]}
+                >
+                  <Image
+                    systemName="plus"
+                    size={20}
+                    color="#AEAEB2"
+                    modifiers={[font({ weight: 'semibold' }), padding()]}
+                  />
+                </SwiftUIButton>,
+              ]}
+            >
               {servers.length === 0 ? (
                 <>
                   <Spacer />
@@ -237,7 +238,7 @@ export function ServerSwitcherModal({
               )}
 
               <Spacer />
-            </VStack>
+            </IosSheetPage>
           </Group>
         </BottomSheet>
       </Host>
