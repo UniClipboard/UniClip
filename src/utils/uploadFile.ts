@@ -8,6 +8,7 @@ import { File } from 'expo-file-system';
 import { nativeCopyFile, type ProgressInfo } from 'native-util';
 import { calculateFileProfileHash, calculateTextHash } from '@/utils/hash';
 import { prepareTempFilePath } from '@/utils/fileStorage';
+import { convertHeicToJpegIfNeeded } from '@/utils/heicToJpeg';
 import { useHistoryStore } from '@/stores/historyStore';
 import { createAPIClient } from '@/services';
 import { SyncManager } from '@/services/SyncManager';
@@ -42,6 +43,14 @@ export async function importFileToHistory(
   fileSize: number | undefined,
   options?: UploadFileOptions
 ): Promise<ImportResult> {
+  // iOS 相册/分享内容多为 HEIC，发送前转为 JPEG（其它格式与平台原样透传）
+  ({ uri: sourceUri, fileName, mimeType, fileSize } = await convertHeicToJpegIfNeeded(
+    sourceUri,
+    fileName,
+    mimeType,
+    fileSize
+  ));
+
   const contentType: ClipboardContentType = guessContentType(mimeType);
   const tempPath = prepareTempFilePath(fileName);
   const sourceFile = new File(sourceUri);
