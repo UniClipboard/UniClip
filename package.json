@@ -24,6 +24,7 @@
     "test:coverage": "jest --coverage"
   },
   "dependencies": {
+    "@bacons/apple-targets": "^4.0.7",
     "@expo/metro-runtime": "~56.0.15",
     "@expo/ui": "~56.0.18",
     "@expo/vector-icons": "^15.1.1",
@@ -34,6 +35,7 @@
     "@react-navigation/native": "^7.1.28",
     "@react-navigation/stack": "^7.7.1",
     "@shopify/flash-list": "2.0.2",
+    "app-group-store": "^1.0.0",
     "axios": "^1.13.5",
     "expo": "^56.0.12",
     "expo-application": "~56.0.3",

@@ -17,6 +17,7 @@
       "@hooks/*": ["src/hooks/*"],
       "@assets/*": ["src/assets/*"],
       "native-util": ["modules/native-util/src"],
+      "app-group-store": ["modules/app-group-store/src"],
       "shortcut": ["modules/shortcut/src"],
       "signalr-client": ["modules/signalr-client/src"],
       "native-timer": ["modules/native-timer/src"],
@@ -27,5 +28,12 @@
     }
   },
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "ios-shims", "src/__tests__", "plugins"]
+  "exclude": [
+    "node_modules",
+    "ios-shims",
+    "src/__tests__",
+    "plugins",
+    "**/*.test.ts",
+    "**/*.test.tsx"
+  ]
 }

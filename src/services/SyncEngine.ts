@@ -12,6 +12,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getLastSyncedHash } from 'app-group-store';
 import {
   type SyncRuntimeState,
   type SyncConfig,
@@ -109,7 +110,6 @@ export class SyncEngine {
   // 仍能正常重推。纯内存态：进程不会每分钟重启，足以拦住稳态重复。
   private lastPushedContentHash: string | null = null;
 
-
   private tickTimer: ReturnType<typeof setTimeout> | null = null;
   private isTicking = false;
   private isSceneInactive = false;
@@ -143,14 +143,25 @@ export class SyncEngine {
     this.runtimeState = defaultSyncRuntimeState();
 
     this.getPersistedSynced = async () => {
-      const pairs = await AsyncStorage.multiGet([
-        LAST_SYNCED_HASH_KEY,
-        LAST_SYNCED_CONTENT_ID_KEY,
-      ]);
+      const pairs = await AsyncStorage.multiGet([LAST_SYNCED_HASH_KEY, LAST_SYNCED_CONTENT_ID_KEY]);
       const map = new Map(pairs);
+      const hash = map.get(LAST_SYNCED_HASH_KEY) ?? null;
+      const contentId = map.get(LAST_SYNCED_CONTENT_ID_KEY) ?? null;
+      let appGroupHash: string | null = null;
+      try {
+        appGroupHash = await getLastSyncedHash();
+      } catch {
+        appGroupHash = null;
+      }
+      if (appGroupHash && !hashesEqual(appGroupHash, hash)) {
+        return {
+          hash: appGroupHash,
+          contentId: null,
+        };
+      }
       return {
-        hash: map.get(LAST_SYNCED_HASH_KEY) ?? null,
-        contentId: map.get(LAST_SYNCED_CONTENT_ID_KEY) ?? null,
+        hash,
+        contentId,
       };
     };
     this.persistSynced = async (hash, contentId) => {
@@ -317,7 +328,18 @@ export class SyncEngine {
     const server = this.getActiveServer();
     const device = this.getDeviceClipboard();
     const settings = this.getSettings();
-    console.log('[SyncEngine] doTick: explicit=' + explicit + ' server=' + (server ? server.baseUrl : 'null') + ' device=' + (device?.hash?.slice(0, 8) ?? 'null') + ' autoApply=' + settings.autoApplyRemote + ' autoPush=' + settings.autoPushLocal);
+    console.log(
+      '[SyncEngine] doTick: explicit=' +
+        explicit +
+        ' server=' +
+        (server ? server.baseUrl : 'null') +
+        ' device=' +
+        (device?.hash?.slice(0, 8) ?? 'null') +
+        ' autoApply=' +
+        settings.autoApplyRemote +
+        ' autoPush=' +
+        settings.autoPushLocal
+    );
 
     const persisted = await this.getPersistedSynced();
 
@@ -387,16 +409,25 @@ export class SyncEngine {
         return;
       }
 
-      console.log('[SyncEngine] tick: route=' + route.type +
-        (route.type === 'Push' ? '(' + route.decision + ')' : '') +
-        ' server=' + (serverEntry?.hash?.slice(0, 8) ?? 'null') +
-        ' device=' + (device?.hash?.slice(0, 8) ?? 'null'));
+      console.log(
+        '[SyncEngine] tick: route=' +
+          route.type +
+          (route.type === 'Push' ? '(' + route.decision + ')' : '') +
+          ' server=' +
+          (serverEntry?.hash?.slice(0, 8) ?? 'null') +
+          ' device=' +
+          (device?.hash?.slice(0, 8) ?? 'null')
+      );
 
       switch (route.type) {
         case 'Converged':
           // 学到 contentId 的主路径：push 后第一次 GET、设备剪贴板仍是刚 push 的
           // 内容时走这里，传 server entry 的 contentId（doc §3 步骤 2）。
-          this.runtimeState = commitConverged(this.runtimeState, route.serverHash, serverEntry?.contentId ?? null);
+          this.runtimeState = commitConverged(
+            this.runtimeState,
+            route.serverHash,
+            serverEntry?.contentId ?? null
+          );
           this.stagedEntry = null;
           // 服务端已确认收到当前内容，释放幂等守卫：将来即便剪贴板内容变回这份旧
           // 内容（A→B→A），也应允许重新 push。
@@ -407,7 +438,12 @@ export class SyncEngine {
           break;
 
         case 'ServerNew':
-          console.log('[SyncEngine] ServerNew: willApply=' + route.plan.willApply + ' alreadyStaged=' + route.plan.alreadyStaged);
+          console.log(
+            '[SyncEngine] ServerNew: willApply=' +
+              route.plan.willApply +
+              ' alreadyStaged=' +
+              route.plan.alreadyStaged
+          );
           await this.processServerNew(serverEntry!, route.plan, ucServer, server.trustInsecureCert);
           break;
 
@@ -467,7 +503,14 @@ export class SyncEngine {
   ): Promise<void> {
     if (plan.willApply) {
       try {
-        console.log('[SyncEngine] applying server→device: kind=' + entry.kind + ' hash=' + (entry.hash?.slice(0, 8) ?? 'null') + ' hasData=' + entry.hasData);
+        console.log(
+          '[SyncEngine] applying server→device: kind=' +
+            entry.kind +
+            ' hash=' +
+            (entry.hash?.slice(0, 8) ?? 'null') +
+            ' hasData=' +
+            entry.hasData
+        );
         let payload: ArrayBuffer | undefined;
         if (entry.hasData && entry.dataName) {
           payload = await getFile(server, entry.dataName, trustInsecureCert);
@@ -544,7 +587,10 @@ export class SyncEngine {
         // 这是同一份没变的内容被周期性回写，直接跳过，避免 mac 端反复弹「正在接收」。
         const pushFingerprint = device.meta.hash?.toUpperCase() ?? null;
         if (pushFingerprint && pushFingerprint === this.lastPushedContentHash) {
-          console.log('[SyncEngine] DoPush skipped by content-fingerprint guard: ' + pushFingerprint.slice(0, 8));
+          console.log(
+            '[SyncEngine] DoPush skipped by content-fingerprint guard: ' +
+              pushFingerprint.slice(0, 8)
+          );
           this.runtimeState = commitPushSkipped(this.runtimeState);
           this.setState('Succeeded');
           this.lastSyncedAt = Date.now();
@@ -578,10 +624,14 @@ export class SyncEngine {
           await putClipboard(server, device.meta, payloadBytes, trustInsecureCert);
         } catch (e: any) {
           console.error(
-            '[SyncEngine] putClipboard failed: kind=' + device.meta.kind +
-            ' dataName=' + device.meta.dataName +
-            ' bytes=' + (payloadBytes?.byteLength ?? 0) +
-            ' err=' + (e?.message ?? e)
+            '[SyncEngine] putClipboard failed: kind=' +
+              device.meta.kind +
+              ' dataName=' +
+              device.meta.dataName +
+              ' bytes=' +
+              (payloadBytes?.byteLength ?? 0) +
+              ' err=' +
+              (e?.message ?? e)
           );
           throw e;
         }
@@ -613,7 +663,9 @@ export class SyncEngine {
     server: UcServerConfig,
     trustInsecureCert: boolean
   ): Promise<void> {
-    if (!isHistorySyncDue(this.lastHistorySyncAt, Date.now(), this.syncConfig.historySyncIntervalSecs)) {
+    if (
+      !isHistorySyncDue(this.lastHistorySyncAt, Date.now(), this.syncConfig.historySyncIntervalSecs)
+    ) {
       return;
     }
     if (this.isHistorySyncing) return;

@@ -1,0 +1,7 @@
+{
+  "platforms": ["ios"],
+  "name": "app-group-store",
+  "ios": {
+    "modules": ["AppGroupStoreModule"]
+  }
+}

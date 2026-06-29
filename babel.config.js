@@ -39,6 +39,7 @@ module.exports = function (api) {
               ? {}
               : {
                   'native-util': './modules/native-util/src',
+                  'app-group-store': './modules/app-group-store/src',
                   shortcut: './modules/shortcut/src',
                 }),
           },

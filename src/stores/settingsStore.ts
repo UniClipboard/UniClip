@@ -8,6 +8,7 @@ import { AppConfig } from '../types/storage';
 import { ServerConfig } from '../types/api';
 import { SyncMode, ConflictResolution } from '../types/sync';
 import { configStorage } from '../services/ConfigStorage';
+import { syncConfigToAppGroup } from '../services/appGroupSyncCore';
 
 /**
  * 设置状态接口
@@ -161,6 +162,10 @@ const initialState = {
   isTempDisabledBackgroundTasks: false,
 };
 
+async function publishConfig(config: AppConfig): Promise<void> {
+  await syncConfigToAppGroup(config);
+}
+
 /**
  * 创建设置 Store
  */
@@ -170,6 +175,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   loadConfig: async () => {
     try {
       const config = await configStorage.getConfig();
+      await publishConfig(config);
       set({ config, isLoaded: true, error: null });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to load config';
@@ -188,7 +194,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
     try {
       await configStorage.updateConfig(updates);
-      set({ isSaving: false });
+      const config = await configStorage.getConfig();
+      await publishConfig(config);
+      set({ config, isSaving: false });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to update config';
       // 回滚乐观更新，保证内存 config 与持久化层一致
@@ -202,6 +210,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     try {
       await configStorage.resetConfig();
       const config = await configStorage.getConfig();
+      await publishConfig(config);
       set({ config, isSaving: false });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to reset config';
@@ -228,6 +237,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     try {
       await configStorage.addServer(server);
       const config = await configStorage.getConfig();
+      await publishConfig(config);
       set({ config, isSaving: false });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to add server';
@@ -241,6 +251,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     try {
       await configStorage.updateServer(index, updates);
       const config = await configStorage.getConfig();
+      await publishConfig(config);
       set({ config, isSaving: false });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to update server';
@@ -254,6 +265,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     try {
       await configStorage.deleteServer(index);
       const config = await configStorage.getConfig();
+      await publishConfig(config);
       set({ config, isSaving: false });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to delete server';
@@ -267,6 +279,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     try {
       await configStorage.setActiveServer(index);
       const config = await configStorage.getConfig();
+      await publishConfig(config);
       set({ config, isSaving: false });
       // Notify SyncEngine that the active server changed
       try {
@@ -411,6 +424,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     try {
       await configStorage.importConfig(json);
       const config = await configStorage.getConfig();
+      await publishConfig(config);
       set({ config, isSaving: false });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to import config';

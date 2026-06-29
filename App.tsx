@@ -14,6 +14,7 @@ import { useTheme } from './src/hooks/useTheme';
 import { setDynamicShortcuts } from 'shortcut';
 import { moveTaskToBack, setExcludeFromRecents } from 'native-util';
 import { getBackgroundServiceManager } from './src/services/BackgroundServiceManager';
+import { startAppGroupSync } from './src/services/appGroupSync';
 import {
   parseConnectUri,
   CONNECT_URI_ERROR_MESSAGES,
@@ -103,7 +104,6 @@ export default function App() {
   useEffect(() => {
     initLogger();
     setDynamicShortcuts();
-
   }, []);
 
   useEffect(() => {
@@ -111,6 +111,11 @@ export default function App() {
       loadConfig();
     }
   }, [isLoaded, loadConfig]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    return startAppGroupSync();
+  }, [isLoaded]);
 
   // 启动所有服务（冷启动时保证剪贴板监控、远程同步、后台任务正常运行，后续由 BackgroundServiceManager 维护）
   useEffect(() => {

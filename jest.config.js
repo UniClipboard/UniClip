@@ -6,6 +6,7 @@ module.exports = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^native-util$': '<rootDir>/modules/native-util/src',
+    '^app-group-store$': '<rootDir>/modules/app-group-store/src',
     '^uc-core$': '<rootDir>/modules/uc-core/src',
     '^signalr-client$': '<rootDir>/modules/signalr-client/src',
     '^native-timer$': '<rootDir>/modules/native-timer/src',
@@ -17,11 +18,7 @@ module.exports = {
   testEnvironment: 'node',
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   testMatch: ['**/__tests__/**/*.[jt]s?(x)', '**/?(*.)+(spec|test).[tj]s?(x)'],
-  collectCoverageFrom: [
-    'src/**/*.{ts,tsx}',
-    '!src/**/*.d.ts',
-    '!src/**/index.ts',
-  ],
+  collectCoverageFrom: ['src/**/*.{ts,tsx}', '!src/**/*.d.ts', '!src/**/index.ts'],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
 };

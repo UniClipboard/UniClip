@@ -45,6 +45,15 @@ jest.mock('native-util', () => ({
   nativeCalculateFileHash: jest.fn(),
 }));
 
+jest.mock('app-group-store', () => ({
+  saveServers: jest.fn().mockResolvedValue(undefined),
+  getServers: jest.fn().mockResolvedValue({ configs: [], activeConfigId: null }),
+  saveSettings: jest.fn().mockResolvedValue(undefined),
+  getSettings: jest.fn().mockResolvedValue({}),
+  getLastSyncedHash: jest.fn().mockResolvedValue(null),
+  migrateLegacyContainer: jest.fn().mockResolvedValue({ migrated: false, keys: 0 }),
+}));
+
 jest.mock('uc-core', () => ({
   parseConnectUri: jest.fn(),
   getLatest: jest.fn(),

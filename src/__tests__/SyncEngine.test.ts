@@ -17,6 +17,7 @@ import {
   handleNetworkRouteChanged,
   cancelInFlight,
 } from 'uc-core';
+import { getLastSyncedHash } from 'app-group-store';
 import { SyncEngine } from '../services/SyncEngine';
 
 const mockedPlanPreamble = planPreamble as jest.Mock;
@@ -36,6 +37,7 @@ const mockedMarkStagedApplied = markStagedApplied as jest.Mock;
 const mockedCommitStage = commitStage as jest.Mock;
 const mockedHandleNetworkRouteChanged = handleNetworkRouteChanged as jest.Mock;
 const mockedCancelInFlight = cancelInFlight as jest.Mock;
+const mockedGetLastSyncedHash = getLastSyncedHash as jest.Mock;
 
 const DEFAULT_STATE = {
   state: 'Idle' as const,
@@ -49,8 +51,10 @@ const DEFAULT_STATE = {
   lastHistorySyncMs: null,
 };
 
+const engines: SyncEngine[] = [];
+
 function makeEngine(overrides?: Partial<ConstructorParameters<typeof SyncEngine>[0]>) {
-  return new SyncEngine({
+  const engine = new SyncEngine({
     getActiveServer: () => ({
       baseUrl: 'http://test.local',
       username: 'user',
@@ -62,6 +66,8 @@ function makeEngine(overrides?: Partial<ConstructorParameters<typeof SyncEngine>
     applyToDevice: jest.fn(),
     ...overrides,
   });
+  engines.push(engine);
+  return engine;
 }
 
 function setupConvergedTick() {
@@ -70,11 +76,17 @@ function setupConvergedTick() {
     preamble: { recordLocal: false, proceed: { type: 'ToNetwork' } },
   });
   mockedGetLatest.mockResolvedValue({
-    kind: 'Text', text: 'hello', dataName: null, hasData: false, size: 5, hash: 'ABCD',
+    kind: 'Text',
+    text: 'hello',
+    dataName: null,
+    hasData: false,
+    size: 5,
+    hash: 'ABCD',
     contentId: 'blake3v1:CID',
   });
   mockedPlanAfterServerGet.mockReturnValue({
-    type: 'Converged', serverHash: 'ABCD',
+    type: 'Converged',
+    serverHash: 'ABCD',
   });
   const convergedState = { ...DEFAULT_STATE, lastSyncedHash: 'ABCD' };
   mockedCommitConverged.mockReturnValue(convergedState);
@@ -84,7 +96,14 @@ function setupConvergedTick() {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockedGetLastSyncedHash.mockResolvedValue(null);
   mockedIsHistorySyncDue.mockReturnValue(false);
+});
+
+afterEach(() => {
+  while (engines.length > 0) {
+    engines.pop()?.destroy();
+  }
 });
 
 describe('SyncEngine', () => {
@@ -113,6 +132,23 @@ describe('SyncEngine', () => {
     expect(status.state).toBe('Succeeded');
     expect(status.lastSyncedAt).not.toBeNull();
     expect(status.lastError).toBeNull();
+  });
+
+  test('uses App Group last synced hash and clears content id when extension wrote a newer watermark', async () => {
+    const engine = makeEngine();
+    mockedGetLastSyncedHash.mockResolvedValue('EXTENSIONHASH');
+    setupConvergedTick();
+
+    await engine.forceTickNow();
+    engine.destroy();
+
+    expect(mockedPlanPreamble).toHaveBeenCalledWith(
+      DEFAULT_STATE,
+      expect.objectContaining({
+        persistedSyncedHash: 'EXTENSIONHASH',
+        persistedSyncedContentId: null,
+      })
+    );
   });
 
   test('preamble Stop(NoActiveServer) sets Idle', async () => {
@@ -144,7 +180,14 @@ describe('SyncEngine', () => {
     const applyMock = jest.fn();
     const engine = makeEngine({ applyToDevice: applyMock });
 
-    const entry = { kind: 'Text' as const, text: 'new text', dataName: null, hasData: false, size: 8, hash: 'NEWH' };
+    const entry = {
+      kind: 'Text' as const,
+      text: 'new text',
+      dataName: null,
+      hasData: false,
+      size: 8,
+      hash: 'NEWH',
+    };
 
     mockedPlanPreamble.mockReturnValue({
       state: DEFAULT_STATE,
@@ -152,7 +195,8 @@ describe('SyncEngine', () => {
     });
     mockedGetLatest.mockResolvedValue(entry);
     mockedPlanAfterServerGet.mockReturnValue({
-      type: 'ServerNew', plan: { willApply: true, alreadyStaged: false },
+      type: 'ServerNew',
+      plan: { willApply: true, alreadyStaged: false },
     });
     const appliedState = { ...DEFAULT_STATE, lastSyncedHash: 'NEWH' };
     mockedCommitApply.mockReturnValue({ state: appliedState, outcome: { tripped: false } });
@@ -167,7 +211,14 @@ describe('SyncEngine', () => {
 
   test('ServerNew without willApply sets HasNewUnwritten', async () => {
     const engine = makeEngine();
-    const entry = { kind: 'Text' as const, text: 'staged', dataName: null, hasData: false, size: 6, hash: 'STG1' };
+    const entry = {
+      kind: 'Text' as const,
+      text: 'staged',
+      dataName: null,
+      hasData: false,
+      size: 6,
+      hash: 'STG1',
+    };
 
     mockedPlanPreamble.mockReturnValue({
       state: DEFAULT_STATE,
@@ -175,7 +226,8 @@ describe('SyncEngine', () => {
     });
     mockedGetLatest.mockResolvedValue(entry);
     mockedPlanAfterServerGet.mockReturnValue({
-      type: 'ServerNew', plan: { willApply: false, alreadyStaged: false },
+      type: 'ServerNew',
+      plan: { willApply: false, alreadyStaged: false },
     });
     mockedCommitStage.mockReturnValue({ ...DEFAULT_STATE, stagedServerHash: 'STG1' });
     mockedCommitHistorySyncDone.mockReturnValue(DEFAULT_STATE);
@@ -187,7 +239,14 @@ describe('SyncEngine', () => {
   });
 
   test('Push DoPush calls putClipboard', async () => {
-    const deviceMeta = { kind: 'Text' as const, text: 'local', dataName: null, hasData: false, size: 5, hash: 'LOCH' };
+    const deviceMeta = {
+      kind: 'Text' as const,
+      text: 'local',
+      dataName: null,
+      hasData: false,
+      size: 5,
+      hash: 'LOCH',
+    };
     const engine = makeEngine({
       getDeviceClipboard: () => ({ hash: 'LOCH', meta: deviceMeta }),
     });
@@ -198,7 +257,8 @@ describe('SyncEngine', () => {
     });
     mockedGetLatest.mockResolvedValue(null);
     mockedPlanAfterServerGet.mockReturnValue({
-      type: 'Push', decision: 'DoPush',
+      type: 'Push',
+      decision: 'DoPush',
     });
     const pushedState = { ...DEFAULT_STATE, lastSyncedHash: 'LOCH' };
     mockedCommitPush.mockReturnValue({ state: pushedState, outcome: { tripped: false } });
@@ -218,9 +278,17 @@ describe('SyncEngine', () => {
       state: DEFAULT_STATE,
       preamble: { recordLocal: false, proceed: { type: 'ToNetwork' } },
     });
-    mockedGetLatest.mockResolvedValue({ kind: 'Text', text: 'x', dataName: null, hasData: false, size: 1, hash: 'H1' });
+    mockedGetLatest.mockResolvedValue({
+      kind: 'Text',
+      text: 'x',
+      dataName: null,
+      hasData: false,
+      size: 1,
+      hash: 'H1',
+    });
     mockedPlanAfterServerGet.mockReturnValue({
-      type: 'Push', decision: 'SkipAlreadySynced',
+      type: 'Push',
+      decision: 'SkipAlreadySynced',
     });
     mockedCommitPushSkipped.mockReturnValue(DEFAULT_STATE);
     mockedCommitHistorySyncDone.mockReturnValue(DEFAULT_STATE);

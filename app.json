@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "UniClip",
+    "name": "UniClipDev",
     "slug": "uniclip",
     "scheme": "uniclipboard",
     "version": "1.1.0",
@@ -9,7 +9,11 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.uniclipboard.ios"
+      "appleTeamId": "8XG39X5CL8",
+      "bundleIdentifier": "app.uniclipboard.ios.dev",
+      "entitlements": {
+        "com.apple.security.application-groups": ["group.app.uniclipboard.UniClipboard"]
+      }
     },
     "android": {
       "versionCode": 153,
@@ -21,10 +25,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "app.uniclipboard.android",
-      "permissions": [
-        "android.permission.REQUEST_INSTALL_PACKAGES",
-        "android.permission.CAMERA"
-      ]
+      "permissions": ["android.permission.REQUEST_INSTALL_PACKAGES", "android.permission.CAMERA"]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -45,23 +46,48 @@
       "./plugins/build/withShizukuProvider.js",
       "./plugins/build/withAbiSplits.js",
       "./plugins/build/withRustCore.js",
+      "@bacons/apple-targets",
       [
         "expo-sharing",
         {
           "android": {
             "enabled": true,
-            "singleShareMimeTypes": [
-              "*/*"
-            ]
+            "singleShareMimeTypes": ["*/*"]
           }
         }
       ],
       [
         "expo-camera",
         {
-          "cameraPermission": "授权 UniClip 使用相机以扫描二维码接入服务器"
+          "cameraPermission": "授权 UniClipDev 使用相机以扫描二维码接入服务器"
         }
-      ],
-    ]
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "share",
+                  "bundleIdentifier": "app.uniclipboard.ios.dev.Share",
+                  "entitlements": {
+                    "com.apple.security.application-groups": ["group.app.uniclipboard.UniClipboard"]
+                  }
+                },
+                {
+                  "targetName": "keyboard",
+                  "bundleIdentifier": "app.uniclipboard.ios.dev.Keyboard",
+                  "entitlements": {
+                    "com.apple.security.application-groups": ["group.app.uniclipboard.UniClipboard"]
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
   }
 }
