@@ -35,14 +35,25 @@ const PROBE_STATUS_ICONS: Record<ProbeResult, React.ComponentProps<typeof Ionico
   MissingFields: 'ellipse-outline',
 };
 
+function getProbeBackgroundColor(result?: ProbeResult): string {
+  switch (result) {
+    case 'Success':
+      return 'rgba(76,175,80,0.08)';
+    case 'AuthFailed':
+      return 'rgba(244,67,54,0.08)';
+    case 'Unreachable':
+      return 'rgba(255,152,0,0.08)';
+    default:
+      return 'rgba(158,158,158,0.08)';
+  }
+}
+
 function URLClassBadge({ urlClass }: { urlClass: ServerURLClass }) {
   const { theme } = useTheme();
   const meta = getURLClassDisplay(urlClass);
   return (
     <View style={[badgeStyles.container, { backgroundColor: theme.colors.surfaceContainerHigh }]}>
-      <Text style={[badgeStyles.text, { color: theme.colors.onSurfaceVariant }]}>
-        {meta.label}
-      </Text>
+      <Text style={[badgeStyles.text, { color: theme.colors.onSurfaceVariant }]}>{meta.label}</Text>
     </View>
   );
 }
@@ -59,7 +70,13 @@ const badgeStyles = StyleSheet.create({
   },
 });
 
-export function AddServerSheet({ visible, onClose, onSave }: AddServerSheetProps) {
+export function AddServerSheet({
+  visible,
+  title = '添加服务器',
+  initialData,
+  onClose,
+  onSave,
+}: AddServerSheetProps) {
   const { theme } = useTheme();
   const consumePendingConnect = usePendingConnectStore((s) => s.consume);
   const settings = useSettingsStore((s) => s.config);
@@ -77,26 +94,22 @@ export function AddServerSheet({ visible, onClose, onSave }: AddServerSheetProps
 
   const cleanedUrls = useMemo(() => {
     const seen = new Set<string>();
-    return urls
-      .map((u) => u.trim())
-      .filter((u) => u.length > 0 && seen.add(u));
+    return urls.map((u) => u.trim()).filter((u) => u.length > 0 && seen.add(u));
   }, [urls]);
 
   const canSave =
-    cleanedUrls.length > 0 &&
-    username.trim().length > 0 &&
-    password.trim().length > 0;
+    cleanedUrls.length > 0 && username.trim().length > 0 && password.trim().length > 0;
 
   useEffect(() => {
     if (visible) {
-      setName('');
-      setUrls(['']);
-      setUsername('');
-      setPassword('');
+      setName(initialData?.name ?? '');
+      setUrls(initialData?.urls && initialData.urls.length > 0 ? initialData.urls : ['']);
+      setUsername(initialData?.username ?? '');
+      setPassword(initialData?.password ?? '');
       setProbeResults(null);
       setIsProbing(false);
     }
-  }, [visible]);
+  }, [visible, initialData]);
 
   const updateUrl = useCallback((index: number, text: string) => {
     setUrls((prev) => {
@@ -218,7 +231,7 @@ export function AddServerSheet({ visible, onClose, onSave }: AddServerSheetProps
             <Pressable onPress={onClose} style={styles.headerBtn}>
               <Text style={[styles.headerBtnText, { color: theme.colors.primary }]}>取消</Text>
             </Pressable>
-            <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>添加服务器</Text>
+            <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>{title}</Text>
             <Pressable onPress={handleSave} disabled={!canSave} style={styles.headerBtn}>
               <Text
                 style={[
@@ -254,7 +267,9 @@ export function AddServerSheet({ visible, onClose, onSave }: AddServerSheetProps
 
             {/* § 名称 */}
             <View style={styles.section}>
-              <Text style={[styles.sectionHeader, { color: theme.colors.onSurfaceVariant }]}>名称</Text>
+              <Text style={[styles.sectionHeader, { color: theme.colors.onSurfaceVariant }]}>
+                名称
+              </Text>
               <TextInput
                 value={name}
                 onChangeText={setName}
@@ -378,14 +393,7 @@ export function AddServerSheet({ visible, onClose, onSave }: AddServerSheetProps
                       style={[
                         styles.probeRow,
                         {
-                          backgroundColor:
-                            result === 'Success'
-                              ? 'rgba(76,175,80,0.08)'
-                              : result === 'AuthFailed'
-                                ? 'rgba(244,67,54,0.08)'
-                                : result === 'Unreachable'
-                                  ? 'rgba(255,152,0,0.08)'
-                                  : 'rgba(158,158,158,0.08)',
+                          backgroundColor: getProbeBackgroundColor(result),
                         },
                       ]}
                     >

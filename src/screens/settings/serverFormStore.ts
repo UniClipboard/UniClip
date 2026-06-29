@@ -12,24 +12,18 @@ interface ServerFormState {
   formVisible: boolean;
   editingIndex: number | null;
   prefill: ServerConfig | null;
-  scannerVisible: boolean;
-  openManualAdd: () => void;
+  openAdd: () => void;
   openEdit: (index: number) => void;
   openPrefilled: (config: ServerConfig) => void;
-  openScanner: () => void;
   closeForm: () => void;
-  closeScanner: () => void;
 }
 
 export const useServerFormStore = create<ServerFormState>((set) => ({
   formVisible: false,
   editingIndex: null,
   prefill: null,
-  scannerVisible: false,
-  openManualAdd: () => set({ formVisible: true, editingIndex: null, prefill: null }),
+  openAdd: () => set({ formVisible: true, editingIndex: null, prefill: null }),
   openEdit: (index) => set({ formVisible: true, editingIndex: index, prefill: null }),
   openPrefilled: (config) => set({ formVisible: true, editingIndex: null, prefill: config }),
-  openScanner: () => set({ scannerVisible: true }),
   closeForm: () => set({ formVisible: false, prefill: null }),
-  closeScanner: () => set({ scannerVisible: false }),
 }));

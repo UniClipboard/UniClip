@@ -7,6 +7,8 @@ export interface AddServerSaveData {
 
 export interface AddServerSheetProps {
   visible: boolean;
+  title?: string;
+  initialData?: AddServerSaveData;
   onClose: () => void;
   onSave: (data: AddServerSaveData) => void;
 }

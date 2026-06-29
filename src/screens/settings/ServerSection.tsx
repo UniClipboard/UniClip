@@ -9,22 +9,12 @@ import React, { memo, useState } from 'react';
 import {
   Row,
   ListItem,
-  Button,
-  OutlinedButton,
   TextButton,
   AlertDialog,
-  ModalBottomSheet,
-  Column,
-  Spacer,
   HorizontalDivider,
   Text as ComposeText,
 } from '@expo/ui/jetpack-compose';
-import {
-  fillMaxWidth,
-  paddingAll,
-  height as heightModifier,
-  clickable,
-} from '@expo/ui/jetpack-compose/modifiers';
+import { clickable } from '@expo/ui/jetpack-compose/modifiers';
 import { ServerConfig } from '@/types/api';
 import { useSettingsStore } from '@/stores';
 import { useSettingsToast } from './SettingsToastContext';
@@ -58,10 +48,8 @@ export const ServerSection = memo(function ServerSection() {
   const activeServerIndex = useSettingsStore((s) => s.config?.activeServerIndex ?? -1);
 
   const openEdit = useServerFormStore((s) => s.openEdit);
-  const openManualAdd = useServerFormStore((s) => s.openManualAdd);
-  const openScanner = useServerFormStore((s) => s.openScanner);
+  const openAdd = useServerFormStore((s) => s.openAdd);
 
-  const [showAddSheet, setShowAddSheet] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ index: number; name: string } | null>(null);
 
   const handleSetActiveServer = async (index: number) => {
@@ -124,34 +112,6 @@ export const ServerSection = memo(function ServerSection() {
               </AlertDialog.DismissButton>
             </AlertDialog>
           )}
-
-          {showAddSheet && (
-            <ModalBottomSheet onDismissRequest={() => setShowAddSheet(false)}>
-              <Column modifiers={[paddingAll(24), fillMaxWidth()]}>
-                <ComposeText style={{ typography: 'titleLarge' }}>添加服务器</ComposeText>
-                <Spacer modifiers={[heightModifier(16)]} />
-                <Button
-                  onClick={() => {
-                    setShowAddSheet(false);
-                    openScanner();
-                  }}
-                  modifiers={[fillMaxWidth()]}
-                >
-                  <ComposeText>扫描二维码</ComposeText>
-                </Button>
-                <Spacer modifiers={[heightModifier(8)]} />
-                <OutlinedButton
-                  onClick={() => {
-                    setShowAddSheet(false);
-                    openManualAdd();
-                  }}
-                  modifiers={[fillMaxWidth()]}
-                >
-                  <ComposeText>手动填写</ComposeText>
-                </OutlinedButton>
-              </Column>
-            </ModalBottomSheet>
-          )}
         </>
       }
     >
@@ -200,7 +160,7 @@ export const ServerSection = memo(function ServerSection() {
 
       <HorizontalDivider />
 
-      <ListItem modifiers={[clickable(() => setShowAddSheet(true))]}>
+      <ListItem modifiers={[clickable(openAdd)]}>
         <ListItem.HeadlineContent>
           <ComposeText>＋ 添加服务器</ComposeText>
         </ListItem.HeadlineContent>

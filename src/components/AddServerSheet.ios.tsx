@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { Alert } from 'react-native';
 import {
   Host,
@@ -36,10 +36,7 @@ import { iosAccentColor } from '@/theme/iosDesignTokens';
 import { useSettingsStore } from '@/stores';
 import { probe, type ProbeResult } from 'uc-core';
 import { scanQRCode } from 'qr-scanner';
-import {
-  parseConnectUri,
-  CONNECT_URI_ERROR_MESSAGES,
-} from '@/utils/connectUri';
+import { parseConnectUri, CONNECT_URI_ERROR_MESSAGES } from '@/utils/connectUri';
 import {
   classifyURL,
   getURLClassDisplay,
@@ -49,10 +46,7 @@ import {
 import type { SFSymbol } from 'sf-symbols-typescript';
 import type { AddServerSheetProps } from './AddServerSheet.types';
 
-const PROBE_STATUS: Record<
-  ProbeResult,
-  { icon: string; color: string }
-> = {
+const PROBE_STATUS: Record<ProbeResult, { icon: string; color: string }> = {
   Success: { icon: 'checkmark.circle.fill', color: '#34C759' },
   AuthFailed: { icon: 'lock.trianglebadge.exclamationmark.fill', color: '#FF3B30' },
   Unreachable: { icon: 'xmark.circle', color: '#FF9500' },
@@ -79,7 +73,13 @@ function ProbeStatusIcon({ result }: { result?: ProbeResult }) {
   return <Image systemName={s.icon as SFSymbol} size={16} color={s.color} />;
 }
 
-export function AddServerSheet({ visible, onClose, onSave }: AddServerSheetProps) {
+export function AddServerSheet({
+  visible,
+  title = '添加服务器',
+  initialData,
+  onClose,
+  onSave,
+}: AddServerSheetProps) {
   const [name, setName] = useState('');
   const [urls, setUrls] = useState<string[]>(['']);
   const [username, setUsername] = useState('');
@@ -96,17 +96,36 @@ export function AddServerSheet({ visible, onClose, onSave }: AddServerSheetProps
   const usernameRef = useRef<TextFieldRef | null>(null);
   const passwordRef = useRef<TextFieldRef | null>(null);
 
+  useEffect(() => {
+    if (!visible) return;
+
+    const nextName = initialData?.name ?? '';
+    const nextUrls = initialData?.urls && initialData.urls.length > 0 ? initialData.urls : [''];
+    const nextUsername = initialData?.username ?? '';
+    const nextPassword = initialData?.password ?? '';
+
+    setName(nextName);
+    setUrls(nextUrls);
+    setUsername(nextUsername);
+    setPassword(nextPassword);
+    setProbeResults(null);
+    setIsProbing(false);
+
+    setTimeout(() => {
+      nameRef.current?.setText(nextName);
+      nextUrls.forEach((u, i) => urlRefs.current[i]?.setText(u));
+      usernameRef.current?.setText(nextUsername);
+      passwordRef.current?.setText(nextPassword);
+    }, 0);
+  }, [visible, initialData]);
+
   const cleanedUrls = useMemo(() => {
     const seen = new Set<string>();
-    return urls
-      .map((u) => u.trim())
-      .filter((u) => u.length > 0 && seen.add(u));
+    return urls.map((u) => u.trim()).filter((u) => u.length > 0 && seen.add(u));
   }, [urls]);
 
   const canSave =
-    cleanedUrls.length > 0 &&
-    username.trim().length > 0 &&
-    password.trim().length > 0;
+    cleanedUrls.length > 0 && username.trim().length > 0 && password.trim().length > 0;
 
   const updateUrl = useCallback((index: number, text: string) => {
     setUrls((prev) => {
@@ -226,7 +245,8 @@ export function AddServerSheet({ visible, onClose, onSave }: AddServerSheetProps
   const probeErrorMessage = useMemo(() => {
     if (!probeResults) return null;
     const values = Object.values(probeResults);
-    if (values.every((r) => r === 'Unreachable')) return '所有地址均不可达，请检查网络或服务器地址。';
+    if (values.every((r) => r === 'Unreachable'))
+      return '所有地址均不可达，请检查网络或服务器地址。';
     if (values.some((r) => r === 'AuthFailed') && !values.some((r) => r === 'Success'))
       return '认证失败，请检查用户名和密码。';
     return null;
@@ -240,12 +260,7 @@ export function AddServerSheet({ visible, onClose, onSave }: AddServerSheetProps
           if (!presented) handleClose();
         }}
       >
-        <Group
-          modifiers={[
-            presentationDetents(['large']),
-            presentationDragIndicator('visible'),
-          ]}
-        >
+        <Group modifiers={[presentationDetents(['large']), presentationDragIndicator('visible')]}>
           <VStack
             modifiers={[
               frame({ maxWidth: Infinity, maxHeight: Infinity }),
@@ -253,7 +268,7 @@ export function AddServerSheet({ visible, onClose, onSave }: AddServerSheetProps
             ]}
           >
             <SheetHeader
-              title="添加服务器"
+              title={title}
               left={
                 <SwiftUIButton onPress={handleClose} modifiers={[buttonStyle('glass')]}>
                   <SwiftUIText modifiers={[font({ size: 16 })]}>取消</SwiftUIText>
@@ -273,11 +288,7 @@ export function AddServerSheet({ visible, onClose, onSave }: AddServerSheetProps
 
             <Form modifiers={[listStyle('insetGrouped')]}>
               {/* ── 扫码 ── */}
-              <Section
-                footer={
-                  <SwiftUIText>扫描桌面端的二维码，一键填充以下信息。</SwiftUIText>
-                }
-              >
+              <Section footer={<SwiftUIText>扫描桌面端的二维码，一键填充以下信息。</SwiftUIText>}>
                 <SwiftUIButton
                   systemImage="qrcode.viewfinder"
                   label="扫码连接"
@@ -288,11 +299,7 @@ export function AddServerSheet({ visible, onClose, onSave }: AddServerSheetProps
               {/* ── 名称 ── */}
               <Section
                 title="名称"
-                footer={
-                  <SwiftUIText>
-                    将显示在剪贴板顶栏。留空会用服务器地址替代。
-                  </SwiftUIText>
-                }
+                footer={<SwiftUIText>将显示在剪贴板顶栏。留空会用服务器地址替代。</SwiftUIText>}
               >
                 <HStack>
                   <TextField
@@ -325,30 +332,24 @@ export function AddServerSheet({ visible, onClose, onSave }: AddServerSheetProps
                       }}
                       placeholder="https://your-server.com:5033/"
                       onTextChange={(text: string) => updateUrl(i, text)}
-                      modifiers={[textFieldStyle('plain'), foregroundColor('#007AFF'), frame({ minHeight: 22 })]}
+                      modifiers={[
+                        textFieldStyle('plain'),
+                        foregroundColor('#007AFF'),
+                        frame({ minHeight: 22 }),
+                      ]}
                     />
-                    {classForUrl(url) && (
-                      <URLClassChip urlClass={classForUrl(url)!} />
-                    )}
+                    {classForUrl(url) && <URLClassChip urlClass={classForUrl(url)!} />}
                     {urls.length > 1 && (
                       <SwiftUIButton
                         onPress={() => removeUrl(i)}
                         modifiers={[buttonStyle('plain')]}
                       >
-                        <Image
-                          systemName="minus.circle.fill"
-                          size={18}
-                          color="#FF3B30"
-                        />
+                        <Image systemName="minus.circle.fill" size={18} color="#FF3B30" />
                       </SwiftUIButton>
                     )}
                   </HStack>
                 ))}
-                <SwiftUIButton
-                  systemImage="plus.circle"
-                  label="添加备用地址"
-                  onPress={addUrl}
-                />
+                <SwiftUIButton systemImage="plus.circle" label="添加备用地址" onPress={addUrl} />
                 <Toggle
                   label="允许不安全证书"
                   isOn={trustInsecureCert}
@@ -393,11 +394,7 @@ export function AddServerSheet({ visible, onClose, onSave }: AddServerSheetProps
                     return (
                       <HStack key={`probe-${u}`} spacing={8} alignment="center">
                         <VStack alignment="leading" spacing={2}>
-                          <SwiftUIText
-                            modifiers={[font({ size: 14 })]}
-                          >
-                            {u}
-                          </SwiftUIText>
+                          <SwiftUIText modifiers={[font({ size: 14 })]}>{u}</SwiftUIText>
                           <HStack spacing={6}>
                             <URLClassChip urlClass={cls} />
                             {isPicked && (
@@ -419,11 +416,13 @@ export function AddServerSheet({ visible, onClose, onSave }: AddServerSheetProps
                   })}
 
                 {isProbing ? (
-                  <HStack spacing={8} alignment="center" modifiers={[frame({ maxWidth: Infinity })]}>
+                  <HStack
+                    spacing={8}
+                    alignment="center"
+                    modifiers={[frame({ maxWidth: Infinity })]}
+                  >
                     <ProgressView />
-                    <SwiftUIText modifiers={[foregroundStyle('#8E8E93')]}>
-                      正在测试…
-                    </SwiftUIText>
+                    <SwiftUIText modifiers={[foregroundStyle('#8E8E93')]}>正在测试…</SwiftUIText>
                   </HStack>
                 ) : (
                   <SwiftUIButton
