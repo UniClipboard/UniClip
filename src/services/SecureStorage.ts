@@ -7,6 +7,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { log } from './Logger';
 
 const SECURE_STORAGE_PREFIX = '@syncclipboard:secure:';
 
@@ -51,7 +52,7 @@ export class SecureStorage {
       const encoded = this.encode(value);
       await AsyncStorage.setItem(`${SECURE_STORAGE_PREFIX}${key}`, encoded);
     } catch (error) {
-      console.error('[SecureStorage] Failed to set item:', error);
+      log.error('[SecureStorage] Failed to set item:', error);
       throw new Error('Failed to store secure data');
     }
   }
@@ -69,7 +70,7 @@ export class SecureStorage {
 
       return this.decode(encoded);
     } catch (error) {
-      console.error('[SecureStorage] Failed to get item:', error);
+      log.error('[SecureStorage] Failed to get item:', error);
       return null;
     }
   }
@@ -81,7 +82,7 @@ export class SecureStorage {
     try {
       await AsyncStorage.removeItem(`${SECURE_STORAGE_PREFIX}${key}`);
     } catch (error) {
-      console.error('[SecureStorage] Failed to remove item:', error);
+      log.error('[SecureStorage] Failed to remove item:', error);
       throw new Error('Failed to remove secure data');
     }
   }
@@ -94,7 +95,7 @@ export class SecureStorage {
       const value = await AsyncStorage.getItem(`${SECURE_STORAGE_PREFIX}${key}`);
       return value !== null;
     } catch (error) {
-      console.error('[SecureStorage] Failed to check item:', error);
+      log.error('[SecureStorage] Failed to check item:', error);
       return false;
     }
   }
@@ -160,7 +161,7 @@ export class SecureStorage {
         await AsyncStorage.multiRemove(secureKeys);
       }
     } catch (error) {
-      console.error('[SecureStorage] Failed to clear:', error);
+      log.error('[SecureStorage] Failed to clear:', error);
       throw new Error('Failed to clear secure data');
     }
   }
@@ -175,7 +176,7 @@ export class SecureStorage {
         .filter((key) => key.startsWith(SECURE_STORAGE_PREFIX))
         .map((key) => key.replace(SECURE_STORAGE_PREFIX, ''));
     } catch (error) {
-      console.error('[SecureStorage] Failed to get keys:', error);
+      log.error('[SecureStorage] Failed to get keys:', error);
       return [];
     }
   }

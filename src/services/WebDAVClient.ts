@@ -9,6 +9,7 @@ import { ProfileDto, ServerInfo } from '../types/api';
 import type { ClipboardContent } from '../types/clipboard';
 import { ValidationError, ServerError } from './errors';
 import { AuthService } from './AuthService';
+import { log } from './Logger';
 
 /**
  * WebDAV 客户端配置
@@ -71,7 +72,7 @@ export class WebDAVClient extends APIClient implements ISyncClipboardAPI {
       if (error instanceof ServerError && error.statusCode === 404) {
         return { type: 'Text', text: '', hasData: false } as ProfileDto;
       }
-      console.error('[WebDAVClient] Failed to get clipboard:', error);
+      log.error('[WebDAVClient] Failed to get clipboard:', error);
       throw error;
     }
   }
@@ -90,7 +91,7 @@ export class WebDAVClient extends APIClient implements ISyncClipboardAPI {
       // WebDAV PUT 请求上传文件
       await this.put(`/${WebDAVClient.PROFILE_FILENAME}`, profile, signal ? { signal } : undefined);
     } catch (error) {
-      console.error('[WebDAVClient] Failed to put clipboard:', error);
+      log.error('[WebDAVClient] Failed to put clipboard:', error);
       throw error;
     }
   }
@@ -114,7 +115,7 @@ export class WebDAVClient extends APIClient implements ISyncClipboardAPI {
       throw new ValidationError('File URI is required');
     }
 
-    console.log(`[WebDAVClient] Uploading file: ${fileName}`);
+    log.info(`[WebDAVClient] Uploading file: ${fileName}`);
 
     await this.ensureDirectoryExists('/file');
 
@@ -125,9 +126,9 @@ export class WebDAVClient extends APIClient implements ISyncClipboardAPI {
 
     try {
       await nativeUploadFile(url, headers, fileUri, signal, onProgress);
-      console.log(`[WebDAVClient] File uploaded successfully: ${fileName}`);
+      log.info(`[WebDAVClient] File uploaded successfully: ${fileName}`);
     } catch (error) {
-      console.error(`[WebDAVClient] Failed to put file ${fileName}:`, error);
+      log.error(`[WebDAVClient] Failed to put file ${fileName}:`, error);
       throw error;
     }
   }
@@ -154,7 +155,7 @@ export class WebDAVClient extends APIClient implements ISyncClipboardAPI {
 
       return new Date();
     } catch (error) {
-      console.error('[WebDAVClient] Failed to get server time:', error);
+      log.error('[WebDAVClient] Failed to get server time:', error);
       return new Date();
     }
   }
@@ -169,7 +170,7 @@ export class WebDAVClient extends APIClient implements ISyncClipboardAPI {
       const serverHeader = response.headers['server'];
       return serverHeader || 'Unknown WebDAV Server';
     } catch (error) {
-      console.error('[WebDAVClient] Failed to get version:', error);
+      log.error('[WebDAVClient] Failed to get version:', error);
       return 'Unknown WebDAV Server';
     }
   }
@@ -187,7 +188,7 @@ export class WebDAVClient extends APIClient implements ISyncClipboardAPI {
         online: true,
       };
     } catch (error) {
-      console.error('[WebDAVClient] Failed to get server info:', error);
+      log.error('[WebDAVClient] Failed to get server info:', error);
       return {
         version: 'Unknown',
         serverTime: new Date(),
@@ -239,7 +240,7 @@ export class WebDAVClient extends APIClient implements ISyncClipboardAPI {
       // TODO: 实现 XML 解析逻辑
       return files;
     } catch (error) {
-      console.error(`[WebDAVClient] Failed to list directory ${path}:`, error);
+      log.error(`[WebDAVClient] Failed to list directory ${path}:`, error);
       throw error;
     }
   }
@@ -256,7 +257,7 @@ export class WebDAVClient extends APIClient implements ISyncClipboardAPI {
       const url = `/file/${encodeURIComponent(fileName)}`;
       await this.delete(url);
     } catch (error) {
-      console.error(`[WebDAVClient] Failed to delete file ${fileName}:`, error);
+      log.error(`[WebDAVClient] Failed to delete file ${fileName}:`, error);
       throw error;
     }
   }
@@ -306,7 +307,7 @@ export class WebDAVClient extends APIClient implements ISyncClipboardAPI {
         signal,
       });
     } catch (error) {
-      console.error('[WebDAVClient] Connection test failed:', error);
+      log.error('[WebDAVClient] Connection test failed:', error);
       throw error;
     }
   }
@@ -317,7 +318,7 @@ export class WebDAVClient extends APIClient implements ISyncClipboardAPI {
    */
   async putContent(content: ClipboardContent, options?: PutContentOptions): Promise<void> {
     try {
-      console.log('[WebDAVClient] Starting putContent:', {
+      log.info('[WebDAVClient] Starting putContent:', {
         type: content.type,
         hasData: content.hasData,
         fileName: content.fileName,
@@ -327,7 +328,7 @@ export class WebDAVClient extends APIClient implements ISyncClipboardAPI {
       const profile = await contentToProfileDto(content, { signal: options?.signal });
 
       if (profile.hasData && profile.dataName && content.fileUri) {
-        console.log(`[WebDAVClient] Uploading data file: ${profile.dataName}`);
+        log.info(`[WebDAVClient] Uploading data file: ${profile.dataName}`);
         try {
           await this.putFile(
             profile.dataName,
@@ -340,16 +341,16 @@ export class WebDAVClient extends APIClient implements ISyncClipboardAPI {
         }
       }
 
-      console.log('[WebDAVClient] Uploading profile...');
+      log.info('[WebDAVClient] Uploading profile...');
       try {
         await this.putClipboard(profile, options?.signal);
       } catch (configError) {
         throw this.buildError(configError, '[WebDAVClient] Profile upload failed');
       }
 
-      console.log('[WebDAVClient] putContent completed successfully');
+      log.info('[WebDAVClient] putContent completed successfully');
     } catch (error) {
-      console.error('[WebDAVClient] Failed to put content:', error);
+      log.error('[WebDAVClient] Failed to put content:', error);
       throw error;
     }
   }

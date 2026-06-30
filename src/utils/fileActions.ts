@@ -6,6 +6,7 @@
 import { NativeModules, Platform } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
 import { nativeCopyFile } from 'native-util';
+import { log } from '@/services/Logger';
 
 const APP_PACKAGE = 'app.uniclipboard.android';
 
@@ -85,7 +86,7 @@ export async function saveFile(fileUri: string, fileName?: string): Promise<void
 
   // 运行时检查，避免模块顶层静态求值时 NativeModules 尚未注入的问题
   const hashModule = Platform.OS === 'android' ? (NativeModules.NativeUtilModule ?? null) : null;
-  console.log(
+  log.info(
     '[saveFile] NativeModules.NativeUtilModule:',
     hashModule,
     'keys:',
@@ -96,7 +97,7 @@ export async function saveFile(fileUri: string, fileName?: string): Promise<void
     // 原生流式拷贝：FileChannel.transferTo，不把文件读入 JS/Java 堆
     await nativeCopyFile(fileUri, destUri);
   } else {
-    console.warn('[saveFile] falling back to base64, hashModule:', hashModule);
+    log.warn('[saveFile] falling back to base64, hashModule:', hashModule);
     // 降级：base64 读写（非 Android 或原生模块未加载时）
     const content = await FileSystem.readAsStringAsync(fileUri, {
       encoding: FileSystem.EncodingType.Base64,

@@ -25,6 +25,7 @@ import { useMessageStore } from '@/stores/messageStore';
 import { useErrorStore } from '@/stores/errorStore';
 import { QuickLoadingPage } from '@/components/QuickLoadingPage';
 import { getClipboardSyncService } from '@/services/ClipboardSyncService';
+import { log } from '@/services/Logger';
 
 export function HomeScreen() {
   const { theme } = useTheme();
@@ -59,9 +60,9 @@ export function HomeScreen() {
     if (result.success) {
       useClipboardStore.getState().setCurrentContentDisplay(content);
       getClipboardSyncService().recordLocalHash(content.profileHash || content.text || '');
-      console.log(`[HomeScreen] ${logPrefix}Copy to local clipboard completed`);
+      log.info(`[HomeScreen] ${logPrefix}Copy to local clipboard completed`);
     } else {
-      console.error(`[HomeScreen] ${logPrefix}Copy to local clipboard failed: ${result.message}`);
+      log.error(`[HomeScreen] ${logPrefix}Copy to local clipboard failed: ${result.message}`);
     }
     return result;
   };
@@ -73,7 +74,7 @@ export function HomeScreen() {
       await clipboardManager.setClipboardContent(content);
       showMessage('已复制到剪贴板', 'success');
     } catch (error) {
-      console.error('[HomeScreen] Failed to copy local content:', error);
+      log.error('[HomeScreen] Failed to copy local content:', error);
       showMessage('复制失败', 'error');
     }
   };
@@ -104,7 +105,7 @@ export function HomeScreen() {
         fileSize: asset.size,
       });
     } catch (error) {
-      console.error('[HomeScreen] Failed to pick file:', error);
+      log.error('[HomeScreen] Failed to pick file:', error);
       showMessage('选择文件失败', 'error');
     }
   }, [showMessage]);
@@ -136,7 +137,7 @@ export function HomeScreen() {
         fileSize: asset.fileSize,
       });
     } catch (error) {
-      console.error('[HomeScreen] Failed to pick image:', error);
+      log.error('[HomeScreen] Failed to pick image:', error);
       showMessage('选择图片失败', 'error');
     }
   }, [showMessage]);
@@ -193,15 +194,15 @@ export function HomeScreen() {
     try {
       clearError();
 
-      console.log('[HomeScreen] Starting upload...');
+      log.info('[HomeScreen] Starting upload...');
       const result = await getClipboardSyncService().triggerUpload();
-      console.log('[HomeScreen] Upload result:', JSON.stringify(result, null, 2));
+      log.info('[HomeScreen] Upload result:', JSON.stringify(result, null, 2));
 
       if (result.success) {
         showMessage('剪贴板已上传到服务器', 'success');
       } else {
         const errorMessage = result.error || '上传失败';
-        console.log('[HomeScreen] Upload failed, setting error:', errorMessage);
+        log.info('[HomeScreen] Upload failed, setting error:', errorMessage);
         setError({
           title: '上传失败',
           message: errorMessage,
@@ -209,7 +210,7 @@ export function HomeScreen() {
         showMessage('上传失败', 'error');
       }
     } catch (error: unknown) {
-      console.error('[HomeScreen] Upload exception:', error);
+      log.error('[HomeScreen] Upload exception:', error);
       const errorMessage = error instanceof Error ? error.message : '无法上传到服务器';
       const normalizedMessage = errorMessage.toLowerCase();
       const isCanceled =
@@ -228,7 +229,7 @@ export function HomeScreen() {
         error instanceof Error && errorObj.response
           ? JSON.stringify((errorObj.response as Record<string, unknown>).data, null, 2)
           : errorMessage;
-      console.log('[HomeScreen] Setting error details:', errorDetails);
+      log.info('[HomeScreen] Setting error details:', errorDetails);
       setError({
         title: '上传失败',
         message: errorDetails,
@@ -273,7 +274,7 @@ export function HomeScreen() {
     try {
       await getClipboardSyncService().downloadRemoteFile();
     } catch (error) {
-      console.error('[HomeScreen] Failed to download remote file:', error);
+      log.error('[HomeScreen] Failed to download remote file:', error);
       showMessage('文件下载失败', 'error');
     }
   };

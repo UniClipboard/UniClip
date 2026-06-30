@@ -22,6 +22,7 @@ import { calculateTextHash } from '@/utils/hash';
 import { createDefaultClipboardItem, HistorySyncStatus } from '@/types/clipboard';
 import type { ClipboardMeta } from 'uc-core';
 import type { ClipboardContent } from '@/types';
+import { log } from '@/services/Logger';
 
 interface SyncEngineState {
   status: SyncEngineStatus;
@@ -72,7 +73,7 @@ function getDeviceClipboard(): DeviceClipboard | null {
       text: content.text ?? '',
       dataName: content.fileName ?? null,
       hasData: content.hasData ?? false,
-      size: content.fileSize ?? (content.text?.length ?? 0),
+      size: content.fileSize ?? content.text?.length ?? 0,
       hash: content.profileHash,
       // 设备本地内容尚无服务端身份；push 后下次 GET 时再学到。
       contentId: null,
@@ -106,7 +107,7 @@ async function applyToDevice(meta: ClipboardMeta, payload?: ArrayBuffer): Promis
         try {
           await clipboardManager.setImageContent(fileUri);
         } catch (e) {
-          console.error('[SyncEngine] Failed to write applied image to system clipboard:', e);
+          log.error('[SyncEngine] Failed to write applied image to system clipboard:', e);
         }
       }
     }
@@ -141,7 +142,7 @@ async function applyToDevice(meta: ClipboardMeta, payload?: ArrayBuffer): Promis
       });
       await useHistoryStore.getState().addItem(historyItem);
     } catch (e) {
-      console.error('[SyncEngine] Failed to add to history:', e);
+      log.error('[SyncEngine] Failed to add to history:', e);
     }
 
     // Notify old ClipboardSyncService store for upload-progress UI compatibility
@@ -176,9 +177,9 @@ export const useSyncEngineStore = create<SyncEngineState>((set) => ({
   start: async () => {
     if (engine) return;
 
-    console.log('[SyncEngineStore] Starting SyncEngine...');
+    log.info('[SyncEngineStore] Starting SyncEngine...');
     const serverInfo = getActiveServerInfo();
-    console.log('[SyncEngineStore] Active server:', serverInfo ? serverInfo.baseUrl : 'none');
+    log.info('[SyncEngineStore] Active server:', serverInfo ? serverInfo.baseUrl : 'none');
 
     engine = new SyncEngine({
       getActiveServer: getActiveServerInfo,
@@ -188,7 +189,7 @@ export const useSyncEngineStore = create<SyncEngineState>((set) => ({
     });
 
     await engine.init();
-    console.log('[SyncEngineStore] SyncEngine initialized');
+    log.info('[SyncEngineStore] SyncEngine initialized');
 
     engine.addListener((status) => {
       set({ status });

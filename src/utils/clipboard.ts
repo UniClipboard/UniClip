@@ -6,6 +6,7 @@
 import { ProfileDto, ClipboardContent, ClipboardContentType } from '@/types';
 import { calculateContentHash } from '@/utils/hash';
 import { isTextInvalid } from './textUtils';
+import { log } from '@/services/Logger';
 
 export interface ContentToProfileDtoOptions {
   signal?: AbortSignal;
@@ -285,14 +286,14 @@ export async function copyClipboardItem(
 
     return { success: false, message: '暂不支持此类型的快速复制' };
   } catch (error) {
-    console.error('[copyClipboardItem] Failed to copy:', error);
+    log.error('[copyClipboardItem] Failed to copy:', error);
 
     // 提取错误信息
     let errorMessage = '复制失败';
     if (error instanceof Error) {
       // 将整个错误转为字符串进行检查（包括多层堆栈）
       const fullErrorString = error.toString() + ' ' + error.message;
-      console.log('[copyClipboardItem] Full error string:', fullErrorString);
+      log.info('[copyClipboardItem] Full error string:', fullErrorString);
 
       if (fullErrorString.includes('TransactionTooLargeException')) {
         errorMessage = '文本内容过大，无法复制到剪贴板（超过系统限制）';
@@ -323,7 +324,7 @@ export async function copyToLocalClipboard(content: ClipboardContent): Promise<C
       try {
         const response = await fetch(content.fileUri);
         const completeText = await response.text();
-        console.log(
+        log.info(
           `[copyToLocalClipboard] Read complete text from file for profileHash: ${content.profileHash}, length: ${completeText.length}`
         );
         contentToCopy = {
@@ -331,7 +332,7 @@ export async function copyToLocalClipboard(content: ClipboardContent): Promise<C
           text: completeText,
         };
       } catch (error) {
-        console.error('[copyToLocalClipboard] Failed to read text file:', error);
+        log.error('[copyToLocalClipboard] Failed to read text file:', error);
         if (isTextInvalid(content.text)) {
           return { success: false, message: '无法读取完整文本' };
         }
@@ -344,7 +345,7 @@ export async function copyToLocalClipboard(content: ClipboardContent): Promise<C
     }
     return result;
   } catch (error) {
-    console.error('[copyToLocalClipboard] Failed to copy:', error);
+    log.error('[copyToLocalClipboard] Failed to copy:', error);
     return { success: false, message: '复制失败' };
   } finally {
     clipboardMonitor.resumePolling();

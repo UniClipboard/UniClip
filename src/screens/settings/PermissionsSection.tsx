@@ -27,6 +27,7 @@ import {
 } from 'shizuku-clipboard';
 import { useTheme } from '@/hooks/useTheme';
 import { settingsStyles as styles } from './settingsStyles';
+import { log } from '@/services/Logger';
 
 export const PermissionsSection = memo(function PermissionsSection() {
   const { theme } = useTheme();
@@ -60,7 +61,7 @@ export const PermissionsSection = memo(function PermissionsSection() {
       setShizukuAvailable(shizukuUp);
       setPermShizuku(shizukuUp && hasShizukuPermission());
     } catch (e) {
-      console.warn('[Settings] Failed to check permissions:', e);
+      log.warn('[Settings] Failed to check permissions:', e);
     } finally {
       setIsRefreshingPermissions(false);
     }

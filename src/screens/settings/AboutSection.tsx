@@ -43,6 +43,7 @@ import {
 import { useSettingsStore } from '@/stores';
 import { useSettingsToast } from './SettingsToastContext';
 import { SettingsSectionItem } from './SettingsSectionItem';
+import { log } from '@/services/Logger';
 
 const appVersion = APP_VERSION;
 
@@ -137,7 +138,7 @@ export const AboutSection = memo(function AboutSection() {
       const abis = getSupportedAbis();
       preferredAbi = getPreferredAbi(abis);
     } catch (e) {
-      console.warn('[UpdateDownload] getSupportedAbis failed:', e);
+      log.warn('[UpdateDownload] getSupportedAbis failed:', e);
     }
 
     const asset = findAssetForAbi(assets, preferredAbi as Parameters<typeof findAssetForAbi>[1]);
@@ -167,7 +168,7 @@ export const AboutSection = memo(function AboutSection() {
       const abis = getSupportedAbis();
       preferredAbi = getPreferredAbi(abis);
     } catch (e) {
-      console.warn('[UpdateDownload] getSupportedAbis failed:', e);
+      log.warn('[UpdateDownload] getSupportedAbis failed:', e);
     }
 
     const asset = findAssetForAbi(assets, preferredAbi as Parameters<typeof findAssetForAbi>[1]);
@@ -203,7 +204,7 @@ export const AboutSection = memo(function AboutSection() {
       setLatestVersion(null);
       await installApk(fileUri);
     } catch (err) {
-      console.error('[UpdateDownload] error:', err);
+      log.error('[UpdateDownload] error:', err);
       if (err instanceof Error && err.name === 'AbortError') {
         showMessage('已取消下载', 'info');
       } else {

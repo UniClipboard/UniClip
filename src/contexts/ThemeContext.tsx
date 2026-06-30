@@ -7,6 +7,7 @@ import React, { createContext, useEffect, useState, useCallback } from 'react';
 import { Appearance, useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createTheme, type Theme, type ThemeMode } from '@/theme';
+import { log } from '@/services/Logger';
 
 const THEME_STORAGE_KEY = '@syncclipboard:theme_mode';
 
@@ -58,7 +59,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
         setThemeModeState(savedMode as ThemeMode);
       }
     } catch (error) {
-      console.error('Failed to load theme settings:', error);
+      log.error('Failed to load theme settings:', error);
     }
   };
 
@@ -67,7 +68,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
       setThemeModeState(mode);
       await AsyncStorage.setItem(THEME_STORAGE_KEY, mode);
     } catch (error) {
-      console.error('Failed to save theme mode:', error);
+      log.error('Failed to save theme mode:', error);
     }
   }, []);
 

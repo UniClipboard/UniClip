@@ -53,6 +53,7 @@ import { useErrorStore } from '@/stores/errorStore';
 import { calculateTextHash } from '@/utils/hash';
 import { importFileToHistory } from '@/utils/uploadFile';
 import { isHistorySyncEnabled } from '@/utils/config';
+import { log } from '@/services/Logger';
 
 const TAB_ROUTES: Route[] = [
   { key: 'all', title: '全部' },
@@ -132,7 +133,7 @@ export function HistoryScreen() {
           setSort({ field: savedSort, order: 'desc' });
         }
       } catch (error) {
-        console.warn('[HistoryScreen] Failed to load sort setting:', error);
+        log.warn('[HistoryScreen] Failed to load sort setting:', error);
       }
     };
     loadSortSetting();
@@ -151,7 +152,7 @@ export function HistoryScreen() {
         const AsyncStorage = require('@react-native-async-storage/async-storage').default;
         await AsyncStorage.setItem('@syncclipboard:history:sort_field', field);
       } catch (error) {
-        console.warn('[HistoryScreen] Failed to save sort setting:', error);
+        log.warn('[HistoryScreen] Failed to save sort setting:', error);
       }
       loadItems();
     },
@@ -272,7 +273,7 @@ export function HistoryScreen() {
           showMessage('暂不支持分享此类型的内容', 'info');
         }
       } catch (error) {
-        console.error('[HistoryScreen] Failed to share:', error);
+        log.error('[HistoryScreen] Failed to share:', error);
         showMessage('分享失败', 'error');
       }
     },
@@ -300,7 +301,7 @@ export function HistoryScreen() {
           showMessage('需要相册权限才能保存图片', 'error');
           return;
         }
-        console.error('[HistoryScreen] Failed to save file:', error);
+        log.error('[HistoryScreen] Failed to save file:', error);
         showMessage('储存失败', 'error');
       }
     },
@@ -314,7 +315,7 @@ export function HistoryScreen() {
       try {
         await openFile(item.fileUri);
       } catch (error) {
-        console.error('[HistoryScreen] Failed to open file:', error);
+        log.error('[HistoryScreen] Failed to open file:', error);
         showMessage('打开失败', 'error');
       }
     },
@@ -328,7 +329,7 @@ export function HistoryScreen() {
         await toggleStar(item.profileHash);
         // 同步由 HistorySyncService.handleLocalHistoryChanged 自动处理
       } catch (error) {
-        console.error('[HistoryScreen] Failed to toggle star:', error);
+        log.error('[HistoryScreen] Failed to toggle star:', error);
         showMessage('操作失败', 'error');
       }
     },
@@ -398,7 +399,7 @@ export function HistoryScreen() {
       await syncService.resetSyncCursor();
       showMessage('已清空所有历史记录', 'success');
     } catch (error) {
-      console.error('[HistoryScreen] Failed to clear:', error);
+      log.error('[HistoryScreen] Failed to clear:', error);
       showMessage('清空失败', 'error');
     }
   }, [clearHistory, showMessage]);
@@ -435,7 +436,7 @@ export function HistoryScreen() {
       showMessage(`文件 ${fileName} 已添加到历史记录`, 'success');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '添加文件失败，请重试';
-      console.error('[HistoryScreen] Failed to import file:', error);
+      log.error('[HistoryScreen] Failed to import file:', error);
       showMessage(errorMessage, 'error');
     } finally {
       setImportingFile(false);
@@ -475,7 +476,7 @@ export function HistoryScreen() {
       showMessage(`图片 ${fileName} 已添加到历史记录`, 'success');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '添加图片失败，请重试';
-      console.error('[HistoryScreen] Failed to import image:', error);
+      log.error('[HistoryScreen] Failed to import image:', error);
       showMessage(errorMessage, 'error');
     } finally {
       setImportingFile(false);
@@ -533,12 +534,12 @@ export function HistoryScreen() {
     try {
       await syncService.syncAll((progress: { message?: string }) => {
         if (progress.message) {
-          console.log(`[HistoryScreen] Sync progress: ${progress.message}`);
+          log.info(`[HistoryScreen] Sync progress: ${progress.message}`);
         }
       });
       showMessage('历史记录同步完成', 'success');
     } catch (error) {
-      console.error('[HistoryScreen] Failed to resync history:', error);
+      log.error('[HistoryScreen] Failed to resync history:', error);
       const errorMessage = error instanceof Error ? error.message : '未知错误';
       setError({
         title: '历史记录同步失败',
@@ -570,7 +571,7 @@ export function HistoryScreen() {
       try {
         await syncService.syncIncremental();
       } catch (error) {
-        console.error('[HistoryScreen] Failed to incremental sync:', error);
+        log.error('[HistoryScreen] Failed to incremental sync:', error);
         const errorMessage = error instanceof Error ? error.message : '未知错误';
         setError({
           title: '历史记录增量同步失败',
@@ -597,11 +598,11 @@ export function HistoryScreen() {
           const shouldReorganize = !isHistorySyncEnabled(latestConfig);
 
           if (!shouldReorganize) {
-            console.log('[HistoryScreen] Skipped history reorganization (sync re-enabled)');
+            log.info('[HistoryScreen] Skipped history reorganization (sync re-enabled)');
             await runtimeStateStorage.update({ needsHistoryReorganize: false });
           } else {
             setIsReorganizing(true);
-            console.log('[HistoryScreen] Starting history reorganization...');
+            log.info('[HistoryScreen] Starting history reorganization...');
 
             const { HistoryStorage } = await import('@/services/HistoryStorage');
             const { getHistorySyncService } = await import('@/services/HistorySyncService');
@@ -616,13 +617,13 @@ export function HistoryScreen() {
             try {
               await syncService.cleanupRemoteHistorys(abortController.signal);
               await historyStorage.cleanupByCount();
-              console.log('[HistoryScreen] History reorganization completed');
+              log.info('[HistoryScreen] History reorganization completed');
               await runtimeStateStorage.update({ needsHistoryReorganize: false });
             } catch (error) {
               if (error instanceof DOMException && error.name === 'AbortError') {
-                console.log('[HistoryScreen] History reorganization cancelled');
+                log.info('[HistoryScreen] History reorganization cancelled');
               } else {
-                console.error('[HistoryScreen] History reorganization failed:', error);
+                log.error('[HistoryScreen] History reorganization failed:', error);
               }
             } finally {
               syncService.setReorganizeAbortController(null);
@@ -634,7 +635,7 @@ export function HistoryScreen() {
         }
 
         if (historySyncEnabled) {
-          console.log('[HistoryScreen] Screen focused, starting incremental sync');
+          log.info('[HistoryScreen] Screen focused, starting incremental sync');
           const { getHistorySyncService } = await import('@/services/HistorySyncService');
           const syncService = getHistorySyncService();
           const serverConfig = currentConfig?.servers[currentConfig?.activeServerIndex];
@@ -642,7 +643,7 @@ export function HistoryScreen() {
             const initialized = await syncService.ensureInitialized(serverConfig);
             if (initialized) {
               if (syncService.isSyncInProgress()) {
-                console.log('[HistoryScreen] Sync already in progress, showing indicator');
+                log.info('[HistoryScreen] Sync already in progress, showing indicator');
                 setIsSyncing(true);
                 const progressCallback = (progress: { phase: string }) => {
                   if (progress.phase === 'completed' || progress.phase === 'error') {
@@ -656,7 +657,7 @@ export function HistoryScreen() {
                 try {
                   await syncService.syncIncremental();
                 } catch (error) {
-                  console.error('[HistoryScreen] Failed to incremental sync:', error);
+                  log.error('[HistoryScreen] Failed to incremental sync:', error);
                   const errorMessage = error instanceof Error ? error.message : '未知错误';
                   setError({
                     title: '历史记录增量同步失败',
@@ -733,7 +734,7 @@ export function HistoryScreen() {
 
       showMessage('已添加10条随机记录', 'success');
     } catch (error) {
-      console.error('[HistoryScreen] Failed to add random records:', error);
+      log.error('[HistoryScreen] Failed to add random records:', error);
       showMessage('添加随机记录失败', 'error');
     }
   }, [addItems, showMessage, generateRandomDebugText]);
@@ -758,12 +759,12 @@ export function HistoryScreen() {
 
   const handleDownload = useCallback(
     async (item: ClipboardItem) => {
-      console.log(`[HistoryScreen] ========== Download Button Clicked ==========`);
-      console.log(`[HistoryScreen] Item profileHash: ${item.profileHash}`);
-      console.log(`[HistoryScreen] Item type: ${item.type}`);
-      console.log(`[HistoryScreen] Item dataName: ${item.dataName}`);
-      console.log(`[HistoryScreen] Item hasRemoteData: ${item.hasRemoteData}`);
-      console.log(`[HistoryScreen] Item isLocalFileReady: ${item.isLocalFileReady}`);
+      log.info(`[HistoryScreen] ========== Download Button Clicked ==========`);
+      log.info(`[HistoryScreen] Item profileHash: ${item.profileHash}`);
+      log.info(`[HistoryScreen] Item type: ${item.type}`);
+      log.info(`[HistoryScreen] Item dataName: ${item.dataName}`);
+      log.info(`[HistoryScreen] Item hasRemoteData: ${item.hasRemoteData}`);
+      log.info(`[HistoryScreen] Item isLocalFileReady: ${item.isLocalFileReady}`);
 
       const initialized = await ensureSyncServiceInitialized();
       if (!initialized) {
@@ -775,7 +776,7 @@ export function HistoryScreen() {
       const { getProfileId } = await import('@/services/HistoryAPI');
 
       const profileId = getProfileId(item.type, item.profileHash);
-      console.log(`[HistoryScreen] Generated profileId: ${profileId}`);
+      log.info(`[HistoryScreen] Generated profileId: ${profileId}`);
 
       const queue = getHistoryTransferQueue();
       queue.start();
@@ -786,11 +787,11 @@ export function HistoryScreen() {
 
   const handleUpload = useCallback(
     async (item: ClipboardItem) => {
-      console.log(`[HistoryScreen] ========== Upload Button Clicked ==========`);
-      console.log(`[HistoryScreen] Item profileHash: ${item.profileHash}`);
-      console.log(`[HistoryScreen] Item type: ${item.type}`);
-      console.log(`[HistoryScreen] Item isLocalFileReady: ${item.isLocalFileReady}`);
-      console.log(`[HistoryScreen] Item syncStatus: ${item.syncStatus}`);
+      log.info(`[HistoryScreen] ========== Upload Button Clicked ==========`);
+      log.info(`[HistoryScreen] Item profileHash: ${item.profileHash}`);
+      log.info(`[HistoryScreen] Item type: ${item.type}`);
+      log.info(`[HistoryScreen] Item isLocalFileReady: ${item.isLocalFileReady}`);
+      log.info(`[HistoryScreen] Item syncStatus: ${item.syncStatus}`);
 
       const initialized = await ensureSyncServiceInitialized();
       if (!initialized) {
@@ -803,7 +804,7 @@ export function HistoryScreen() {
         const { File } = await import('expo-file-system');
         const file = new File(item.fileUri);
         if (!file.exists) {
-          console.warn(`[HistoryScreen] Local file not found: ${item.fileUri}`);
+          log.warn(`[HistoryScreen] Local file not found: ${item.fileUri}`);
           showMessage('本地文件不存在', 'error');
           return;
         }
@@ -813,7 +814,7 @@ export function HistoryScreen() {
       const { getProfileId } = await import('@/services/HistoryAPI');
 
       const profileId = getProfileId(item.type, item.profileHash);
-      console.log(`[HistoryScreen] Generated profileId: ${profileId}`);
+      log.info(`[HistoryScreen] Generated profileId: ${profileId}`);
 
       const queue = getHistoryTransferQueue();
       queue.start();

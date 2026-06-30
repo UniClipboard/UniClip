@@ -9,6 +9,7 @@ import { create } from 'zustand';
 import { Paths, Directory } from 'expo-file-system';
 import { calculateDirectorySize, CLIPBOARD_TEMP_DIR } from '@/utils/fileStorage';
 import { calculateLogSize } from '@/services';
+import { log } from '@/services/Logger';
 
 interface StorageSizesState {
   cacheSize: number;
@@ -36,7 +37,7 @@ export const useStorageSizesStore = create<StorageSizesState>((set) => ({
         logSize: calculateLogSize(),
       });
     } catch (error) {
-      console.error('Failed to calculate storage sizes:', error);
+      log.error('Failed to calculate storage sizes:', error);
     } finally {
       set({ isCalculating: false });
     }

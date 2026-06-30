@@ -13,6 +13,7 @@ import { historyStorage } from '../services/HistoryStorage';
 import { useHistoryStore } from '../stores/historyStore';
 import { prepareTempFilePath } from './fileStorage';
 import { calculateFileProfileHash } from './hash';
+import { log } from '@/services/Logger';
 
 export type { DownloadProgressCallback };
 
@@ -86,7 +87,7 @@ export async function downloadAndAddToHistory(
       }
     }
   } catch (error) {
-    console.error('[remoteClipboard] Failed to add to history:', error);
+    log.error('[remoteClipboard] Failed to add to history:', error);
   }
 
   return updatedContent;

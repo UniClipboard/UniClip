@@ -13,6 +13,7 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import { uploadFileAndAddToHistory, uploadTextAndAddToHistory } from '@/utils/uploadFile';
 import { QuickLoadingPage } from '@/components/QuickLoadingPage';
 import type { ProgressInfo } from 'native-util';
+import { log } from '@/services/Logger';
 
 interface ShareReceiveScreenProps {
   /**
@@ -81,7 +82,7 @@ export const ShareReceiveScreen: React.FC<ShareReceiveScreenProps> = ({ onComple
     const originalUri = resolvedSharedPayloads[0]?.value;
     const returnToSource = !isScreenshotShare(originalUri);
     if (__DEV__) {
-      console.log(
+      log.info(
         `[share] authority=${getContentAuthority(originalUri) ?? 'none'} returnToSource=${returnToSource}`
       );
     }

@@ -9,6 +9,7 @@ import { HistoryFilter, HistorySort, STORAGE_KEYS } from '../types/storage';
 import { filterHistoryItems } from '@/utils/historyFilters';
 import { getHistoryFileDir } from '../utils/fileStorage';
 import { File, Directory } from 'expo-file-system';
+import { log } from './Logger';
 
 /**
  * 当前历史记录数据版本号
@@ -304,7 +305,7 @@ export class HistoryStorage {
       try {
         callback(copied, action);
       } catch (error) {
-        console.error('[HistoryStorage] Error in change callback:', error);
+        log.error('[HistoryStorage] Error in change callback:', error);
       }
     }
   }
@@ -334,7 +335,7 @@ export class HistoryStorage {
         try {
           callback(items, action);
         } catch (error) {
-          console.error('[HistoryStorage] Error in change callback:', error);
+          log.error('[HistoryStorage] Error in change callback:', error);
         }
       }
     }
@@ -359,7 +360,7 @@ export class HistoryStorage {
           this.maxHistorySize = config.maxHistoryItems;
         }
       } catch (error) {
-        console.warn('[HistoryStorage] Failed to load maxHistoryItems from config:', error);
+        log.warn('[HistoryStorage] Failed to load maxHistoryItems from config:', error);
       }
 
       await this.loadHistory();
@@ -368,10 +369,10 @@ export class HistoryStorage {
 
       // 启动时清理孤儿数据
       this.cleanupOrphanedData().catch((error) => {
-        console.error('[HistoryStorage] Failed to cleanup orphaned data on startup:', error);
+        log.error('[HistoryStorage] Failed to cleanup orphaned data on startup:', error);
       });
     } catch (error) {
-      console.error('[HistoryStorage] Failed to initialize:', error);
+      log.error('[HistoryStorage] Failed to initialize:', error);
       this.history = [];
       this.initialized = true;
     }
@@ -395,7 +396,7 @@ export class HistoryStorage {
       // 执行版本迁移
       if (storedVersion < CURRENT_HISTORY_VERSION) {
         this.history = await this.runMigrations(this.history, storedVersion);
-        console.log(
+        log.info(
           `[HistoryStorage] Migrated history from version ${storedVersion} to ${CURRENT_HISTORY_VERSION}`
         );
         await this.saveHistory();
@@ -431,7 +432,7 @@ export class HistoryStorage {
     for (let v = fromVersion + 1; v <= CURRENT_HISTORY_VERSION; v++) {
       const migration = MIGRATIONS[v];
       if (migration) {
-        console.log(`[HistoryStorage] Running migration to version ${v}`);
+        log.info(`[HistoryStorage] Running migration to version ${v}`);
         migratedItems = migration(migratedItems);
       }
     }
@@ -446,7 +447,7 @@ export class HistoryStorage {
     try {
       await AsyncStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(this.history));
     } catch (error) {
-      console.error('[HistoryStorage] Failed to save history:', error);
+      log.error('[HistoryStorage] Failed to save history:', error);
       throw error;
     }
   }
@@ -495,11 +496,11 @@ export class HistoryStorage {
 
             // 更新 fileUri 为新的路径
             processedItem.fileUri = targetFile.uri;
-            console.log('[HistoryStorage] File moved to history directory:', targetFile.uri);
+            log.info('[HistoryStorage] File moved to history directory:', targetFile.uri);
           }
         }
       } catch (error) {
-        console.error('[HistoryStorage] Failed to move file to history directory:', error);
+        log.error('[HistoryStorage] Failed to move file to history directory:', error);
         // 继续执行，不阻止历史记录添加
       }
     }
@@ -848,14 +849,14 @@ export class HistoryStorage {
         const { deleteHistoryFileDir } = await import('../utils/fileStorage');
         if (item.type && item.profileHash) {
           await deleteHistoryFileDir(item.type, item.profileHash);
-          console.log(
+          log.info(
             '[HistoryStorage] Soft deleted, file directory removed:',
             item.type,
             item.profileHash
           );
         }
       } catch (error) {
-        console.error('[HistoryStorage] Failed to delete history file directory:', error);
+        log.error('[HistoryStorage] Failed to delete history file directory:', error);
       }
 
       this.notifyChange(this.history[index], 'update');
@@ -899,7 +900,7 @@ export class HistoryStorage {
             try {
               await deleteHistoryFileDir(item.type, item.profileHash);
             } catch (error) {
-              console.error(
+              log.error(
                 '[HistoryStorage] Failed to delete history file directory:',
                 item.type,
                 item.profileHash,
@@ -909,7 +910,7 @@ export class HistoryStorage {
           }
         }
       } catch (error) {
-        console.error('[HistoryStorage] Failed to delete history file directories:', error);
+        log.error('[HistoryStorage] Failed to delete history file directories:', error);
       }
 
       this.notifyChangeBatch(updatedItems, 'update');
@@ -935,14 +936,10 @@ export class HistoryStorage {
         const { deleteHistoryFileDir } = await import('../utils/fileStorage');
         if (item.type && item.profileHash) {
           await deleteHistoryFileDir(item.type, item.profileHash);
-          console.log(
-            '[HistoryStorage] History file directory deleted:',
-            item.type,
-            item.profileHash
-          );
+          log.info('[HistoryStorage] History file directory deleted:', item.type, item.profileHash);
         }
       } catch (error) {
-        console.error('[HistoryStorage] Failed to delete history file directory:', error);
+        log.error('[HistoryStorage] Failed to delete history file directory:', error);
       }
     }
   }
@@ -977,7 +974,7 @@ export class HistoryStorage {
             await deleteHistoryFileDir(item.type, item.profileHash);
           }
         } catch (error) {
-          console.error('[HistoryStorage] Failed to delete history file directory:', error);
+          log.error('[HistoryStorage] Failed to delete history file directory:', error);
         }
       }
     }
@@ -1004,7 +1001,7 @@ export class HistoryStorage {
       return 0;
     }
 
-    console.log(`[HistoryStorage] Cleaning up ${expiredItems.length} expired soft-deleted records`);
+    log.info(`[HistoryStorage] Cleaning up ${expiredItems.length} expired soft-deleted records`);
 
     for (const item of expiredItems) {
       await this.physicalDeleteItem(item.profileHash);
@@ -1323,13 +1320,13 @@ export class HistoryStorage {
           try {
             entry.delete();
           } catch (error) {
-            console.error('[HistoryStorage] Failed to delete history entry:', error);
+            log.error('[HistoryStorage] Failed to delete history entry:', error);
           }
         }
-        console.log('[HistoryStorage] History files cleared');
+        log.info('[HistoryStorage] History files cleared');
       }
     } catch (error) {
-      console.error('[HistoryStorage] Failed to clear history files:', error);
+      log.error('[HistoryStorage] Failed to clear history files:', error);
     }
   }
 
@@ -1372,12 +1369,12 @@ export class HistoryStorage {
       await this.initialize();
     }
 
-    console.log(
+    log.info(
       `[HistoryStorage] cleanupByCount called: maxCount=${maxCount}, current maxHistorySize=${this.maxHistorySize}`
     );
 
     if (maxCount === 0) {
-      console.log('[HistoryStorage] cleanupByCount skipped: maxCount is 0');
+      log.info('[HistoryStorage] cleanupByCount skipped: maxCount is 0');
       return 0;
     }
 
@@ -1390,12 +1387,12 @@ export class HistoryStorage {
         !item.pinned
     );
 
-    console.log(
+    log.info(
       `[HistoryStorage] cleanupByCount: total items=${this.history.length}, localOnly items=${localOnlyItems.length}, maxCount=${maxCount}`
     );
 
     if (localOnlyItems.length <= maxCount) {
-      console.log('[HistoryStorage] cleanupByCount skipped: no items to delete');
+      log.info('[HistoryStorage] cleanupByCount skipped: no items to delete');
       return 0;
     }
 
@@ -1423,7 +1420,7 @@ export class HistoryStorage {
           await deleteHistoryFileDir(item.type, item.profileHash);
         }
       } catch (error) {
-        console.error('[HistoryStorage] Failed to delete history file directory:', error);
+        log.error('[HistoryStorage] Failed to delete history file directory:', error);
       }
     }
 
@@ -1431,7 +1428,7 @@ export class HistoryStorage {
       this.notifyChangeBatch(itemsToDelete, 'delete');
     }
 
-    console.log(`[HistoryStorage] Cleaned up ${toDeleteCount} LocalOnly records`);
+    log.info(`[HistoryStorage] Cleaned up ${toDeleteCount} LocalOnly records`);
     return toDeleteCount;
   }
 
@@ -1470,19 +1467,19 @@ export class HistoryStorage {
             try {
               (hashDir as Directory).delete();
               cleanedCount++;
-              console.log(`[HistoryStorage] Cleaned orphaned directory: ${hashDir.uri}`);
+              log.info(`[HistoryStorage] Cleaned orphaned directory: ${hashDir.uri}`);
             } catch (error) {
-              console.error('[HistoryStorage] Failed to delete orphaned directory:', error);
+              log.error('[HistoryStorage] Failed to delete orphaned directory:', error);
             }
           }
         }
       }
 
       if (cleanedCount > 0) {
-        console.log(`[HistoryStorage] Cleaned ${cleanedCount} orphaned data directories`);
+        log.info(`[HistoryStorage] Cleaned ${cleanedCount} orphaned data directories`);
       }
     } catch (error) {
-      console.error('[HistoryStorage] Failed to cleanup orphaned data:', error);
+      log.error('[HistoryStorage] Failed to cleanup orphaned data:', error);
     }
 
     return cleanedCount;

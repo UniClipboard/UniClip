@@ -20,6 +20,7 @@ import {
   type ConnectUriError,
 } from '@/utils/connectUri';
 import { usePendingConnectStore } from '@/stores';
+import { log } from '@/services/Logger';
 
 interface QrScannerModalProps {
   visible: boolean;
@@ -56,11 +57,13 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose
       const parsed = parseConnectUri(result.data ?? '');
       if (!parsed.ok) {
         const code: ConnectUriError = parsed.error;
-        console.log(`[QR] scan failed: ${code}`);
+        log.info(`[QR] scan failed: ${code}`);
         Alert.alert('扫码失败', CONNECT_URI_ERROR_MESSAGES[code], [
           {
             text: '重新扫描',
-            onPress: () => { scanLockRef.current = false; },
+            onPress: () => {
+              scanLockRef.current = false;
+            },
           },
           {
             text: '关闭',
@@ -71,7 +74,7 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose
         return;
       }
 
-      console.log('[QR] scan succeeded');
+      log.info('[QR] scan succeeded');
       setPendingConnect({
         url: parsed.value.url,
         urls: parsed.value.urls,
@@ -249,38 +252,102 @@ const styles = StyleSheet.create({
   headerButtonText: { color: '#FFFFFF', fontSize: typography.callout.fontSize, fontWeight: '500' },
   headerTitle: { color: '#FFFFFF', fontSize: typography.headline.fontSize, fontWeight: '600' },
   maskTop: {
-    position: 'absolute', top: 0, left: 0, right: 0, height: '50%',
-    backgroundColor: MASK_COLOR, transform: [{ translateY: -SCAN_WINDOW_SIZE / 2 }],
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '50%',
+    backgroundColor: MASK_COLOR,
+    transform: [{ translateY: -SCAN_WINDOW_SIZE / 2 }],
   },
   maskBottom: {
-    position: 'absolute', bottom: 0, left: 0, right: 0, height: '50%',
-    backgroundColor: MASK_COLOR, transform: [{ translateY: SCAN_WINDOW_SIZE / 2 }],
-    alignItems: 'center', paddingTop: SCAN_WINDOW_SIZE / 2 + spacing.xl,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '50%',
+    backgroundColor: MASK_COLOR,
+    transform: [{ translateY: SCAN_WINDOW_SIZE / 2 }],
+    alignItems: 'center',
+    paddingTop: SCAN_WINDOW_SIZE / 2 + spacing.xl,
   },
   maskMiddleRow: {
-    position: 'absolute', top: '50%', left: 0, right: 0, height: SCAN_WINDOW_SIZE,
-    flexDirection: 'row', transform: [{ translateY: -SCAN_WINDOW_SIZE / 2 }],
+    position: 'absolute',
+    top: '50%',
+    left: 0,
+    right: 0,
+    height: SCAN_WINDOW_SIZE,
+    flexDirection: 'row',
+    transform: [{ translateY: -SCAN_WINDOW_SIZE / 2 }],
   },
   maskSide: { flex: 1, backgroundColor: MASK_COLOR },
   scanWindow: { width: SCAN_WINDOW_SIZE, height: SCAN_WINDOW_SIZE, position: 'relative' },
-  corner: { position: 'absolute', width: CORNER_LEN, height: CORNER_LEN, borderColor: CORNER_COLOR },
-  cornerTopLeft: { top: 0, left: 0, borderTopWidth: CORNER_WIDTH, borderLeftWidth: CORNER_WIDTH, borderTopLeftRadius: 6 },
-  cornerTopRight: { top: 0, right: 0, borderTopWidth: CORNER_WIDTH, borderRightWidth: CORNER_WIDTH, borderTopRightRadius: 6 },
-  cornerBottomLeft: { bottom: 0, left: 0, borderBottomWidth: CORNER_WIDTH, borderLeftWidth: CORNER_WIDTH, borderBottomLeftRadius: 6 },
-  cornerBottomRight: { bottom: 0, right: 0, borderBottomWidth: CORNER_WIDTH, borderRightWidth: CORNER_WIDTH, borderBottomRightRadius: 6 },
+  corner: {
+    position: 'absolute',
+    width: CORNER_LEN,
+    height: CORNER_LEN,
+    borderColor: CORNER_COLOR,
+  },
+  cornerTopLeft: {
+    top: 0,
+    left: 0,
+    borderTopWidth: CORNER_WIDTH,
+    borderLeftWidth: CORNER_WIDTH,
+    borderTopLeftRadius: 6,
+  },
+  cornerTopRight: {
+    top: 0,
+    right: 0,
+    borderTopWidth: CORNER_WIDTH,
+    borderRightWidth: CORNER_WIDTH,
+    borderTopRightRadius: 6,
+  },
+  cornerBottomLeft: {
+    bottom: 0,
+    left: 0,
+    borderBottomWidth: CORNER_WIDTH,
+    borderLeftWidth: CORNER_WIDTH,
+    borderBottomLeftRadius: 6,
+  },
+  cornerBottomRight: {
+    bottom: 0,
+    right: 0,
+    borderBottomWidth: CORNER_WIDTH,
+    borderRightWidth: CORNER_WIDTH,
+    borderBottomRightRadius: 6,
+  },
   hintText: { color: '#FFFFFF', fontSize: typography.subhead.fontSize, opacity: 0.9 },
   fullCenter: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   dimText: { fontSize: typography.subhead.fontSize },
   permissionPage: { flex: 1 },
-  permissionHeader: { flexDirection: 'row', paddingHorizontal: spacing.base, paddingVertical: spacing.md },
+  permissionHeader: {
+    flexDirection: 'row',
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
+  },
   permissionBackBtn: { paddingVertical: spacing.sm, paddingHorizontal: spacing.xs },
   permissionBackText: { fontSize: typography.headline.fontSize },
   permissionBody: { flex: 1, paddingHorizontal: spacing.xl, justifyContent: 'center' },
-  permissionTitle: { fontSize: typography.title3.fontSize, fontWeight: '700', marginBottom: spacing.md, textAlign: 'center' },
-  permissionDesc: { fontSize: typography.callout.fontSize, lineHeight: typography.callout.fontSize * 1.5, textAlign: 'center', marginBottom: spacing.xl },
+  permissionTitle: {
+    fontSize: typography.title3.fontSize,
+    fontWeight: '700',
+    marginBottom: spacing.md,
+    textAlign: 'center',
+  },
+  permissionDesc: {
+    fontSize: typography.callout.fontSize,
+    lineHeight: typography.callout.fontSize * 1.5,
+    textAlign: 'center',
+    marginBottom: spacing.xl,
+  },
   permissionActions: { gap: spacing.md },
   primaryBtn: { paddingVertical: spacing.md, borderRadius: radius.pill, alignItems: 'center' },
   primaryBtnText: { fontSize: typography.callout.fontSize, fontWeight: '600' },
-  secondaryBtn: { paddingVertical: spacing.md, borderRadius: radius.pill, borderWidth: 1, alignItems: 'center' },
+  secondaryBtn: {
+    paddingVertical: spacing.md,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
   secondaryBtnText: { fontSize: typography.callout.fontSize, fontWeight: '500' },
 });

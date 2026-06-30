@@ -25,6 +25,7 @@ import { SyncDirection, SyncResult } from '../types/sync';
 import type { ProfileChangedEvent } from 'signalr-client';
 import type { ServerConfig } from '../types/api';
 import type { ISyncClipboardAPI } from './APIClient';
+import { log } from './Logger';
 
 class ClipboardSyncService {
   private static instance: ClipboardSyncService | null = null;
@@ -74,7 +75,7 @@ class ClipboardSyncService {
         'SignalR: '
       );
     } catch (e) {
-      console.error('[ClipboardSyncService] SignalR callback error:', e);
+      log.error('[ClipboardSyncService] SignalR callback error:', e);
     }
   };
 
@@ -319,7 +320,7 @@ class ClipboardSyncService {
         this.lastRemoteProfileHash = null;
         throw error; // 非静默模式：交由 UI 层处理错误展示
       }
-      console.error('[ClipboardSyncService] Silent fetch failed:', error);
+      log.error('[ClipboardSyncService] Silent fetch failed:', error);
     } finally {
       if (!silent) {
         useClipboardSyncServiceStore.getState().setLoadingRemote(false);
@@ -397,7 +398,7 @@ class ClipboardSyncService {
       const { useSyncStore } = require('../stores/syncStore');
       await useSyncStore.getState().initialize();
     } catch (e) {
-      console.error('[ClipboardSyncService] Failed to initialize SyncManager:', e);
+      log.error('[ClipboardSyncService] Failed to initialize SyncManager:', e);
     }
   }
 
@@ -406,7 +407,7 @@ class ClipboardSyncService {
       const { useSyncStore } = require('../stores/syncStore');
       await useSyncStore.getState().destroy();
     } catch (e) {
-      console.error('[ClipboardSyncService] Failed to destroy SyncManager:', e);
+      log.error('[ClipboardSyncService] Failed to destroy SyncManager:', e);
     }
   }
 
@@ -417,10 +418,10 @@ class ClipboardSyncService {
       if (config?.enableHistorySync) {
         const { getHistorySyncService } = require('./HistorySyncService');
         await getHistorySyncService().ensureInitialized(server);
-        console.log('[ClipboardSyncService] HistorySyncService initialized');
+        log.info('[ClipboardSyncService] HistorySyncService initialized');
       }
     } catch (e) {
-      console.error('[ClipboardSyncService] Failed to initialize HistorySyncService:', e);
+      log.error('[ClipboardSyncService] Failed to initialize HistorySyncService:', e);
     }
   }
 
@@ -458,9 +459,9 @@ class ClipboardSyncService {
         pollingInterval,
         'remote_sync_poll'
       );
-      console.log('[ClipboardSyncService] Polling started, interval:', pollingInterval);
+      log.info('[ClipboardSyncService] Polling started, interval:', pollingInterval);
     } catch (e) {
-      console.error('[ClipboardSyncService] Failed to start polling:', e);
+      log.error('[ClipboardSyncService] Failed to start polling:', e);
     }
   }
 
@@ -482,7 +483,7 @@ class ClipboardSyncService {
       client.onRemoteClipboardChanged(this._signalRCallback);
       await client.connect(server);
       this.signalRConnected = true;
-      console.log('[ClipboardSyncService] SignalR connected');
+      log.info('[ClipboardSyncService] SignalR connected');
       // 连接后立即获取一次（非静默；错误写入 errorStore）
       await this.fetchRemoteClipboard(false).catch((error: Error) => {
         const { useErrorStore } = require('../stores/errorStore');
@@ -490,7 +491,7 @@ class ClipboardSyncService {
         useErrorStore.getState().setError({ title: '连接失败', message: errorMessage });
       });
     } catch (e) {
-      console.error('[ClipboardSyncService] Failed to connect SignalR:', e);
+      log.error('[ClipboardSyncService] Failed to connect SignalR:', e);
     }
   }
 
@@ -502,7 +503,7 @@ class ClipboardSyncService {
       const client = getSignalRClient();
       client.offRemoteClipboardChanged(this._signalRCallback);
       await client.disconnect();
-      console.log('[ClipboardSyncService] SignalR disconnected');
+      log.info('[ClipboardSyncService] SignalR disconnected');
     } catch {}
   }
 
@@ -551,7 +552,7 @@ class ClipboardSyncService {
 
     // 是本地刚上传的内容，跳过自动下载/复制，仅更新显示
     if (resolved.isJustUploaded) {
-      console.log(
+      log.info(
         `[ClipboardSyncService] ${logPrefix}Remote hash matches last uploaded hash, skipping auto-download/copy`
       );
       this.lastRemoteProfileHash = currentHash;
@@ -566,7 +567,7 @@ class ClipboardSyncService {
     const foundInHistory = resolved.foundInHistory;
 
     if (foundInHistory) {
-      console.log(
+      log.info(
         `[ClipboardSyncService] ${logPrefix}Found existing file in history, skipping download`
       );
     }
@@ -580,19 +581,16 @@ class ClipboardSyncService {
         const fileTooLarge = content.fileSize! > autoDownloadMaxSize;
         if (fileTooLarge) {
           skipAutoCopyDueToLargeFile = true;
-          console.log(
+          log.info(
             `[ClipboardSyncService] ${logPrefix}File too large (${content.fileSize} > ${autoDownloadMaxSize}), skipping auto-download`
           );
         } else {
           try {
             const { downloadAndAddToHistory } = await import('../utils/remoteClipboard');
             finalContent = await downloadAndAddToHistory(content, apiClient, hasData);
-            console.log(`[ClipboardSyncService] ${logPrefix}Auto-download completed`);
+            log.info(`[ClipboardSyncService] ${logPrefix}Auto-download completed`);
           } catch (downloadError) {
-            console.error(
-              `[ClipboardSyncService] ${logPrefix}Auto-download failed:`,
-              downloadError
-            );
+            log.error(`[ClipboardSyncService] ${logPrefix}Auto-download failed:`, downloadError);
             skipAutoCopyDueToLargeFile = true;
           }
         }
@@ -620,11 +618,11 @@ class ClipboardSyncService {
             syncStatus: HistorySyncStatus.Synced,
           });
           await useHistoryStore.getState().addItem(historyItem);
-          console.log(
+          log.info(
             `[ClipboardSyncService] ${logPrefix}Added remote clipboard (no file) to history`
           );
         } catch (error) {
-          console.error(`[ClipboardSyncService] ${logPrefix}Failed to add to history:`, error);
+          log.error(`[ClipboardSyncService] ${logPrefix}Failed to add to history:`, error);
         }
       }
 
@@ -658,7 +656,7 @@ class ClipboardSyncService {
             }
           }
         } catch (error) {
-          console.error(`[ClipboardSyncService] ${logPrefix}Auto-copy failed:`, error);
+          log.error(`[ClipboardSyncService] ${logPrefix}Auto-copy failed:`, error);
         } finally {
           this.isAutoSyncing = false;
         }
@@ -679,9 +677,9 @@ class ClipboardSyncService {
       const { useClipboardStore } = require('../stores/clipboardStore');
       useClipboardStore.getState().setCurrentContentDisplay(content);
       this.lastLocalProfileHash = content.profileHash || content.text || '';
-      console.log(`[ClipboardSyncService] ${logPrefix}Copied to local clipboard`);
+      log.info(`[ClipboardSyncService] ${logPrefix}Copied to local clipboard`);
     } else {
-      console.error(`[ClipboardSyncService] ${logPrefix}Copy failed: ${result.message}`);
+      log.error(`[ClipboardSyncService] ${logPrefix}Copy failed: ${result.message}`);
     }
     return result;
   }
@@ -799,7 +797,7 @@ class ClipboardSyncService {
         }
 
         if (historyCleared) {
-          console.log('[ClipboardSyncService] History cleared, resetting remote content fileUri');
+          log.info('[ClipboardSyncService] History cleared, resetting remote content fileUri');
           useClipboardSyncServiceStore
             .getState()
             .setRemoteContent({ ...currentRemote, fileUri: undefined });
@@ -810,7 +808,7 @@ class ClipboardSyncService {
         if (lastDeletedHashes.length > 0) {
           const deletedSet = new Set(lastDeletedHashes.map((h: string) => h.toLowerCase()));
           if (deletedSet.has(currentRemote.profileHash.toLowerCase())) {
-            console.log(
+            log.info(
               '[ClipboardSyncService] Remote content deleted from history, resetting fileUri:',
               currentRemote.profileHash
             );
@@ -909,7 +907,7 @@ class ClipboardSyncService {
           this.fetchRemoteClipboard(true).catch(() => {});
         }
       })
-      .catch((e: Error) => console.error('[ClipboardSyncService] Auto-upload failed:', e))
+      .catch((e: Error) => log.error('[ClipboardSyncService] Auto-upload failed:', e))
       .finally(() => {
         this.isAutoSyncing = false;
       });
@@ -1080,7 +1078,7 @@ class ClipboardSyncService {
       });
       await useHistoryStore.getState().addItem(historyItem);
     } catch (e) {
-      console.error('[ClipboardSyncService] Failed to add history item before download:', e);
+      log.error('[ClipboardSyncService] Failed to add history item before download:', e);
     }
 
     await queue.addDownloadTask(profileId, true);

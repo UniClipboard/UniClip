@@ -7,6 +7,7 @@ import { create } from 'zustand';
 import { ClipboardContent, createDefaultClipboardItem } from '../types/clipboard';
 import { clipboardManager, clipboardMonitor } from '../services';
 import { useHistoryStore } from './historyStore';
+import { log } from '@/services/Logger';
 
 function notifySyncEngine(content: ClipboardContent): void {
   const { notifyDeviceClipboardChanged } = require('./syncEngineStore');
@@ -135,7 +136,7 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
     try {
       await clipboardManager.setClipboardContent(content);
 
-      console.log(
+      log.info(
         `[clipboardManager] new content set: type=${content.type}, text=${content.text?.substring(
           0,
           20
@@ -243,7 +244,7 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
     set({ isMonitoring: true });
 
     clipboardMonitor.addCallback(async (content) => {
-      console.log('[ClipboardStore] Clipboard content updated:', {
+      log.info('[ClipboardStore] Clipboard content updated:', {
         type: content.type,
         localClipboardHash: content.localClipboardHash?.substring(0, 8),
 

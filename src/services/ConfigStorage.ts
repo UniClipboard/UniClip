@@ -10,6 +10,7 @@ import { ServerConfig } from '../types/api';
 import { SyncMode } from '../types/sync';
 import { migrateConfig, extractRuntimeState } from './ConfigMigration';
 import { runtimeStateStorage } from './RuntimeStateStorage';
+import { log } from './Logger';
 
 /**
  * 配置存储服务
@@ -45,7 +46,7 @@ export class ConfigStorage {
       await this.loadConfig();
       this.initialized = true;
     } catch (error) {
-      console.error('[ConfigStorage] Failed to initialize:', error);
+      log.error('[ConfigStorage] Failed to initialize:', error);
       this.config = { ...DEFAULT_SETTINGS };
       this.initialized = true;
     }
@@ -89,7 +90,7 @@ export class ConfigStorage {
     try {
       await AsyncStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(this.config));
     } catch (error) {
-      console.error('[ConfigStorage] Failed to save config:', error);
+      log.error('[ConfigStorage] Failed to save config:', error);
       throw error;
     }
   }
@@ -305,7 +306,7 @@ export class ConfigStorage {
       this.config = migrateConfig(imported);
       await this.saveConfig();
     } catch (error) {
-      console.error('[ConfigStorage] Failed to import config:', error);
+      log.error('[ConfigStorage] Failed to import config:', error);
       throw new Error('Invalid config JSON');
     }
   }

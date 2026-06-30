@@ -17,6 +17,7 @@ import {
   TimeoutError,
   ConfigurationError,
 } from './errors';
+import { log } from './Logger';
 
 /**
  * 扩展的错误接口，包含网络错误标志和原始错误
@@ -142,12 +143,12 @@ export abstract class APIClient {
           try {
             config.headers.Authorization = this.authService.getAuthHeader();
           } catch (error) {
-            console.warn('Failed to add auth header:', error);
+            log.warn('Failed to add auth header:', error);
           }
         }
 
         // 日志：请求信息
-        console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`);
+        log.info(`[API] ${config.method?.toUpperCase()} ${config.url}`);
 
         return config;
       },
@@ -160,7 +161,7 @@ export abstract class APIClient {
     this.client.interceptors.response.use(
       (response) => {
         // 日志：响应信息
-        console.log(`[API] Response ${response.status} ${response.config.url}`);
+        log.info(`[API] Response ${response.status} ${response.config.url}`);
 
         return response;
       },
@@ -201,8 +202,8 @@ export abstract class APIClient {
       const { status, data } = axiosError.response;
 
       // 记录响应详情
-      console.error('[APIClient] HTTP Error - Status:', status);
-      console.error('[APIClient] Response data:', JSON.stringify(data, null, 2));
+      log.error('[APIClient] HTTP Error - Status:', status);
+      log.error('[APIClient] Response data:', JSON.stringify(data, null, 2));
 
       // 401 未授权
       if (status === 401) {
@@ -317,7 +318,7 @@ export abstract class APIClient {
       try {
         headers.Authorization = this.authService.getAuthHeader();
       } catch (error) {
-        console.warn('Failed to add auth header:', error);
+        log.warn('Failed to add auth header:', error);
       }
     }
 
@@ -407,14 +408,14 @@ export abstract class APIClient {
       const url = `${this.baseURL}${APIClient.FILE_ENDPOINT}${encodeURIComponent(fileName)}`;
       const headers = await this.getHeaders();
 
-      console.log(`[${this.constructor.name}] Downloading file ${fileName} to ${destinationUri}`);
+      log.info(`[${this.constructor.name}] Downloading file ${fileName} to ${destinationUri}`);
 
       await nativeDownloadFile(url, headers, destinationUri, signal, onProgress);
 
-      console.log(`[${this.constructor.name}] File downloaded successfully: ${fileName}`);
+      log.info(`[${this.constructor.name}] File downloaded successfully: ${fileName}`);
       return destinationUri;
     } catch (error) {
-      console.error(`[${this.constructor.name}] Failed to download file ${fileName}:`, error);
+      log.error(`[${this.constructor.name}] Failed to download file ${fileName}:`, error);
       throw error;
     }
   }
@@ -443,7 +444,7 @@ export abstract class APIClient {
    * 构建详细的错误信息，包含HTTP状态码和服务器响应体
    */
   protected buildError(error: unknown, context: string): Error {
-    console.error(context, ':', error);
+    log.error(context, ':', error);
 
     let errorMessage = error instanceof Error ? error.message : 'Unknown error';
     let isNetworkError = false;
@@ -455,11 +456,11 @@ export abstract class APIClient {
     if (hasStatusCode) {
       const errorObj = error as Record<string, unknown>;
       const statusCode = errorObj.statusCode;
-      console.error(`${context} - Status code:`, statusCode);
+      log.error(`${context} - Status code:`, statusCode);
 
       if (hasResponse) {
         const response = errorObj.response;
-        console.error(`${context} - Server response:`, JSON.stringify(response, null, 2));
+        log.error(`${context} - Server response:`, JSON.stringify(response, null, 2));
 
         // 构建包含状态码和响应体的完整错误信息
         const responseText =
@@ -473,7 +474,7 @@ export abstract class APIClient {
       // 有response但没有statusCode（可能是Axios原始错误）
       const errorObj = error as Record<string, unknown>;
       const response = errorObj.response as Record<string, unknown> | undefined;
-      console.error(`${context} - Server response:`, JSON.stringify(response, null, 2));
+      log.error(`${context} - Server response:`, JSON.stringify(response, null, 2));
 
       if (response?.data) {
         const responseText =

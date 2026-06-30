@@ -33,6 +33,7 @@ import {
 import { ClipboardContent } from '../types/clipboard';
 import { useSettingsStore } from '../stores/settingsStore';
 import { createAPIClient as createRoutedAPIClient } from './apiClientFactory';
+import { log } from './Logger';
 
 const STORAGE_KEY_CONFIG = '@syncclipboard:sync:config';
 const STORAGE_KEY_STATS = '@syncclipboard:sync:stats';
@@ -457,14 +458,14 @@ export class SyncManager {
       const { contentToProfileDto } = await import('../utils/clipboard');
       const profile = await contentToProfileDto(localContent);
 
-      console.log('[SyncManager] Upload - Profile info:', {
+      log.info('[SyncManager] Upload - Profile info:', {
         type: profile.type,
         hasData: profile.hasData,
         dataName: profile.dataName,
         size: profile.size,
       });
 
-      console.log('[SyncManager] Upload - Content info:', {
+      log.info('[SyncManager] Upload - Content info:', {
         type: localContent.type,
         hasFileData: !!localContent.fileData,
 
@@ -487,7 +488,7 @@ export class SyncManager {
         throw uploadError;
       }
 
-      console.log('[SyncManager] Content uploaded successfully');
+      log.info('[SyncManager] Content uploaded successfully');
 
       // 持久化 profileHash
       if (currentProfileHash) {
@@ -501,9 +502,9 @@ export class SyncManager {
         content: localContent,
       };
     } catch (error) {
-      console.error('[SyncManager] Upload failed with error:', error);
-      console.error('[SyncManager] Error type:', typeof error);
-      console.error('[SyncManager] Error details:', {
+      log.error('[SyncManager] Upload failed with error:', error);
+      log.error('[SyncManager] Error type:', typeof error);
+      log.error('[SyncManager] Error details:', {
         message: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
         name: error instanceof Error ? error.name : undefined,
@@ -634,7 +635,7 @@ export class SyncManager {
         const autoDownloadMaxSize =
           useSettingsStore.getState().config?.autoDownloadMaxSize ?? 5 * 1024 * 1024;
         if (profile.size && profile.size > autoDownloadMaxSize) {
-          console.log(
+          log.info(
             `[SyncManager] File too large (${profile.size} bytes > ${autoDownloadMaxSize} bytes), skipping auto-download`
           );
           return {
@@ -685,7 +686,7 @@ export class SyncManager {
     const interval = this.config.interval || 5000;
     this.syncTimer = setInterval(() => {
       this.sync(SyncDirection.Both, true).catch((error) => {
-        console.error('Auto sync failed:', error);
+        log.error('Auto sync failed:', error);
       });
     }, interval);
   }
@@ -762,7 +763,7 @@ export class SyncManager {
         if (item.task.retries < maxRetries) {
           failedTasks.push(item);
         } else {
-          console.error(`Task ${item.taskId} exceeded max retries:`, error);
+          log.error(`Task ${item.taskId} exceeded max retries:`, error);
         }
       }
     }
@@ -886,7 +887,7 @@ export class SyncManager {
       try {
         listener(event);
       } catch (error) {
-        console.error('Error in sync listener:', error);
+        log.error('Error in sync listener:', error);
       }
     });
   }
@@ -947,7 +948,7 @@ export class SyncManager {
       // 加载最后的 profileHash 值
       this.lastLocalProfileHash = await AsyncStorage.getItem(STORAGE_KEY_LAST_PROFILE_HASH);
     } catch (error) {
-      console.error('Failed to load persisted data:', error);
+      log.error('Failed to load persisted data:', error);
     }
   }
 
@@ -962,7 +963,7 @@ export class SyncManager {
         [STORAGE_KEY_LAST_PROFILE_HASH, this.lastLocalProfileHash || ''],
       ]);
     } catch (error) {
-      console.error('Failed to save persisted data:', error);
+      log.error('Failed to save persisted data:', error);
     }
   }
 
@@ -973,7 +974,7 @@ export class SyncManager {
     try {
       await AsyncStorage.setItem(STORAGE_KEY_QUEUE, JSON.stringify(this.offlineQueue));
     } catch (error) {
-      console.error('Failed to save offline queue:', error);
+      log.error('Failed to save offline queue:', error);
     }
   }
 

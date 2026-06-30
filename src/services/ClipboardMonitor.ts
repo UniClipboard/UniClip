@@ -65,7 +65,7 @@ export class ClipboardMonitor {
         }
       }
     } catch (error) {
-      console.error('[ClipboardMonitor] Failed to load persisted hash:', error);
+      log.error('[ClipboardMonitor] Failed to load persisted hash:', error);
     }
   }
 
@@ -81,7 +81,7 @@ export class ClipboardMonitor {
       };
       await AsyncStorage.setItem(LAST_CLIPBOARD_HASH_KEY, JSON.stringify(toStore));
     } catch (error) {
-      console.error('[ClipboardMonitor] Failed to persist hash:', error);
+      log.error('[ClipboardMonitor] Failed to persist hash:', error);
     }
   }
 
@@ -90,7 +90,7 @@ export class ClipboardMonitor {
    */
   async start(): Promise<void> {
     if (this.isMonitoring) {
-      console.warn('[ClipboardMonitor] Already monitoring');
+      log.warn('[ClipboardMonitor] Already monitoring');
       return;
     }
 
@@ -112,7 +112,7 @@ export class ClipboardMonitor {
       // TODO: 实现原生 Android ClipboardManager 监听器
     }
 
-    console.log('[ClipboardMonitor] Started monitoring');
+    log.info('[ClipboardMonitor] Started monitoring');
   }
 
   /**
@@ -140,7 +140,7 @@ export class ClipboardMonitor {
       this.debounceTimerTag = null;
     }
 
-    console.log('[ClipboardMonitor] Stopped monitoring');
+    log.info('[ClipboardMonitor] Stopped monitoring');
   }
 
   /**
@@ -209,7 +209,7 @@ export class ClipboardMonitor {
       if (gen !== this.checkGeneration) return;
 
       if (!content) {
-        // console.log('[ClipboardMonitor] Poll: clipboard is empty');
+        // log.info('[ClipboardMonitor] Poll: clipboard is empty');
         return;
       }
 
@@ -221,7 +221,7 @@ export class ClipboardMonitor {
         this.notifyCallbacks(content);
       }
     } catch (error) {
-      console.error('[ClipboardMonitor] Failed to check clipboard:', error);
+      log.error('[ClipboardMonitor] Failed to check clipboard:', error);
     } finally {
       this.isChecking = false;
     }
@@ -280,7 +280,7 @@ export class ClipboardMonitor {
           try {
             callback(content);
           } catch (error) {
-            console.error('[ClipboardMonitor] Callback error:', error);
+            log.error('[ClipboardMonitor] Callback error:', error);
           }
         });
       },
@@ -317,7 +317,7 @@ export class ClipboardMonitor {
         useSettingsStore.getState().config?.enableBackgroundUpload;
       if (!bgUploadEnabled) {
         // 应用进入后台，停止监听
-        console.log(
+        log.info(
           '[ClipboardMonitor] Background upload disabled, stopping polling (app went to background/inactive)'
         );
         this.stopPolling();
@@ -415,11 +415,12 @@ export class ClipboardMonitor {
     try {
       await AsyncStorage.removeItem(LAST_CLIPBOARD_HASH_KEY);
     } catch (error) {
-      console.error('[ClipboardMonitor] Failed to clear persisted hash:', error);
+      log.error('[ClipboardMonitor] Failed to clear persisted hash:', error);
     }
   }
 }
 
 // 创建默认实例
 import { clipboardManager } from './ClipboardManager';
+import { log } from './Logger';
 export const clipboardMonitor = new ClipboardMonitor(clipboardManager);

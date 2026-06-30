@@ -14,12 +14,7 @@ import {
   Image,
   Linking,
 } from 'react-native';
-import {
-  Host,
-  Button,
-  OutlinedButton,
-  Text as ComposeText,
-} from '@expo/ui/jetpack-compose';
+import { Host, Button, OutlinedButton, Text as ComposeText } from '@expo/ui/jetpack-compose';
 import { fillMaxWidth } from '@expo/ui/jetpack-compose/modifiers';
 import { useTheme } from '@/hooks/useTheme';
 import { spacing, radius, typography, elevation } from '@/theme';
@@ -28,6 +23,7 @@ import { useSettingsStore } from '@/stores';
 import { useMessageStore } from '@/stores/messageStore';
 import { openFile, shareFile, saveFile, saveToGallery } from '@/utils/fileActions';
 import { formatFileSize, formatSizeWithType, isTextInvalid } from '@/utils';
+import { log } from '@/services/Logger';
 
 interface DownloadProgress {
   progress: number;
@@ -71,7 +67,7 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
   // 监控 clipboard 变化并强制更新
   useEffect(() => {
     if (clipboard?.localClipboardHash) {
-      console.log('[CurrentClipboardCard] ✓ Received clipboard update:', {
+      log.info('[CurrentClipboardCard] ✓ Received clipboard update:', {
         type: clipboard.type,
         contentHash: clipboard.localClipboardHash.substring(0, 8),
         imageUri: clipboard.fileUri?.substring(clipboard.fileUri.lastIndexOf('/') + 1),
@@ -108,7 +104,7 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
         await shareFile(clipboard.fileUri, clipboard.fileName);
       }
     } catch (error) {
-      console.error('[CurrentClipboardCard] Failed to share:', error);
+      log.error('[CurrentClipboardCard] Failed to share:', error);
     }
   };
 
@@ -219,7 +215,7 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
     try {
       await openFile(clipboard.fileUri);
     } catch (error) {
-      console.error('[CurrentClipboardCard] Failed to open file:', error);
+      log.error('[CurrentClipboardCard] Failed to open file:', error);
     }
   };
 
@@ -254,7 +250,7 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
         showMessage('需要相册权限才能保存图片', 'error');
         return;
       }
-      console.error('[CurrentClipboardCard] Failed to save file:', error);
+      log.error('[CurrentClipboardCard] Failed to save file:', error);
       showMessage('保存失败', 'error');
     }
   };
@@ -314,15 +310,15 @@ export const CurrentClipboardCard: React.FC<CurrentClipboardCardProps> = ({
                   style={styles.imagePreview}
                   resizeMode="contain"
                   onError={(error) => {
-                    console.error('[CurrentClipboardCard] Image load error:', error.nativeEvent);
-                    console.error('[CurrentClipboardCard] File URI:', clipboard.fileUri);
-                    console.error(
+                    log.error('[CurrentClipboardCard] Image load error:', error.nativeEvent);
+                    log.error('[CurrentClipboardCard] File URI:', clipboard.fileUri);
+                    log.error(
                       '[CurrentClipboardCard] Content Hash:',
                       clipboard.localClipboardHash?.substring(0, 8)
                     );
                   }}
                   onLoad={() => {
-                    console.log(
+                    log.info(
                       '[CurrentClipboardCard] Image loaded successfully:',
                       clipboard.fileUri,
                       'contentHash:',

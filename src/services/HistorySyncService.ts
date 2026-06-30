@@ -17,6 +17,7 @@ import { ClipboardItem, HistorySyncStatus } from '@/types/clipboard';
 import { ServerConfig } from '@/types/api';
 import { getSignalRClient, type HistoryChangedEvent } from 'signalr-client';
 import { createHistoryAPIClient } from './apiClientFactory';
+import { log } from './Logger';
 
 const MAX_TIME_DIFFERENCE_MS = 5 * 60 * 1000; // 5 分钟
 
@@ -162,7 +163,7 @@ export class HistorySyncService {
     const lastSyncTime = isFullSync ? undefined : (this.lastSyncTime ?? undefined);
 
     if (this.isSyncing) {
-      console.log('[HistorySyncService] Sync already in progress');
+      log.info('[HistorySyncService] Sync already in progress');
       return;
     }
 
@@ -171,7 +172,7 @@ export class HistorySyncService {
     }
 
     if (!(await this.isHistorySyncEnabled())) {
-      console.log('[HistorySyncService] Sync is disabled');
+      log.info('[HistorySyncService] Sync is disabled');
       return;
     }
 
@@ -215,7 +216,7 @@ export class HistorySyncService {
       await this.notifyProgress({ phase: 'pushing', message: '清理过期记录...' });
       const cleanedCount = await this.historyStorage.cleanupExpiredSoftDeletes();
       if (cleanedCount > 0) {
-        console.log(`[HistorySyncService] Cleaned ${cleanedCount} expired soft-deleted records`);
+        log.info(`[HistorySyncService] Cleaned ${cleanedCount} expired soft-deleted records`);
       }
 
       this.lastSyncTime = Date.now();
@@ -224,10 +225,10 @@ export class HistorySyncService {
       await this.notifyProgress({ phase: 'completed', message: '同步完成' });
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        console.log('[HistorySyncService] Sync cancelled');
+        log.info('[HistorySyncService] Sync cancelled');
         await this.notifyProgress({ phase: 'error', message: '同步已取消' });
       } else {
-        console.error('[HistorySyncService] Sync failed:', error);
+        log.error('[HistorySyncService] Sync failed:', error);
         await this.notifyProgress({
           phase: 'error',
           message: '同步失败',
@@ -330,7 +331,7 @@ export class HistorySyncService {
         const diff = Math.abs(localTime.getTime() - serverTime.getTime());
 
         if (diff > MAX_TIME_DIFFERENCE_MS) {
-          console.warn(
+          log.warn(
             `[HistorySyncService] Time difference detected: ${diff}ms. ` +
               `Local: ${localTime.toISOString()}, Server: ${serverTime.toISOString()}`
           );
@@ -338,7 +339,7 @@ export class HistorySyncService {
         }
       }
     } catch (error) {
-      console.warn('[HistorySyncService] Failed to validate server time:', error);
+      log.warn('[HistorySyncService] Failed to validate server time:', error);
       // 不阻止同步
     }
   }
@@ -385,7 +386,7 @@ export class HistorySyncService {
       }
     }
 
-    console.log(
+    log.info(
       `[HistorySyncService] ${isIncremental ? 'Incremental' : 'Total'} records fetched: ${allRecords.length}`
     );
     return allRecords;
@@ -512,7 +513,7 @@ export class HistorySyncService {
       await this.historyStorage.updateItems(itemsToUpdate);
     }
 
-    console.log(
+    log.info(
       `[HistorySyncService] Merge completed - Remote added: ${remoteAddedCount}, Remote updated: ${remoteUpdatedCount}, Local updated (need sync): ${localUpdatedCount}`
     );
   }
@@ -551,7 +552,7 @@ export class HistorySyncService {
         if (isServerOnly) {
           // 本地无数据，直接物理删除
           await this.historyStorage.physicalDeleteItem(localItem.profileHash);
-          console.log(
+          log.info(
             `[HistorySyncService] Orphan record deleted (no local data): ${localItem.profileHash}`
           );
         } else if (localItem.isLocalFileReady) {
@@ -563,7 +564,7 @@ export class HistorySyncService {
         } else {
           // 本地无数据，直接物理删除
           await this.historyStorage.physicalDeleteItem(localItem.profileHash);
-          console.log(`[HistorySyncService] Orphan record deleted: ${localItem.profileHash}`);
+          log.info(`[HistorySyncService] Orphan record deleted: ${localItem.profileHash}`);
         }
       }
     }
@@ -599,12 +600,12 @@ export class HistorySyncService {
         if (error instanceof Error && error.name === 'AbortError') {
           throw error;
         }
-        console.error(`[HistorySyncService] Failed to push record ${item.profileHash}:`, error);
+        log.error(`[HistorySyncService] Failed to push record ${item.profileHash}:`, error);
         throw error;
       }
     }
 
-    console.log(
+    log.info(
       `[HistorySyncService] Push local changes completed - Success: ${successCount}, Conflict: ${conflictCount}, Not found: ${notFoundCount}`
     );
   }
@@ -631,9 +632,7 @@ export class HistorySyncService {
 
       // hasData === true: 有数据文件，不上传
       if (item.hasData) {
-        console.log(
-          `[HistorySyncService] Skipping LocalOnly record with data: ${item.profileHash}`
-        );
+        log.info(`[HistorySyncService] Skipping LocalOnly record with data: ${item.profileHash}`);
         continue;
       }
 
@@ -642,7 +641,7 @@ export class HistorySyncService {
         const { clipboardItemToDto } = await import('./HistoryAPI');
         const dto = clipboardItemToDto(item);
 
-        console.log(`[HistorySyncService] Uploading LocalOnly record: ${item.profileHash}`);
+        log.info(`[HistorySyncService] Uploading LocalOnly record: ${item.profileHash}`);
         const createdRecord = await this.historyAPI.uploadRecord(dto, undefined, signal);
 
         // 更新本地状态为已同步
@@ -655,11 +654,11 @@ export class HistorySyncService {
           hasRemoteData: false,
         });
 
-        console.log(`[HistorySyncService] LocalOnly record uploaded: ${item.profileHash}`);
+        log.info(`[HistorySyncService] LocalOnly record uploaded: ${item.profileHash}`);
       } catch (error) {
         if (error instanceof SyncConflictError) {
           // 预期错误：记录已存在于服务器，使用服务器版本
-          console.log(
+          log.info(
             `[HistorySyncService] LocalOnly record already exists on server: ${item.profileHash}`
           );
           await this.handleSyncConflict(item, error.serverRecord);
@@ -668,7 +667,7 @@ export class HistorySyncService {
           throw error;
         } else {
           // 非预期错误，传递到外层
-          console.error(
+          log.error(
             `[HistorySyncService] Failed to upload LocalOnly record ${item.profileHash}:`,
             error
           );
@@ -702,7 +701,7 @@ export class HistorySyncService {
       fileUri: local.fileUri,
       isDeleted: serverRecord.isDeleted,
     });
-    console.log(
+    log.info(
       `[HistorySyncService] Conflict resolved for ${local.profileHash}, using server version`
     );
   }
@@ -726,7 +725,7 @@ export class HistorySyncService {
           await this.uploadNewRecord(item);
         }
       } catch (error) {
-        console.error(`[HistorySyncService] Failed to sync record ${item.profileHash}:`, error);
+        log.error(`[HistorySyncService] Failed to sync record ${item.profileHash}:`, error);
       }
     }
   };
@@ -740,7 +739,7 @@ export class HistorySyncService {
     if (!this.historyAPI) return;
 
     if (item.hasData) {
-      console.log(
+      log.info(
         `[HistorySyncService] Skipping new record with data (mobile does not support file upload): ${item.profileHash}`
       );
       return;
@@ -761,7 +760,7 @@ export class HistorySyncService {
         hasRemoteData: false,
       });
 
-      console.log(`[HistorySyncService] New record uploaded: ${item.profileHash}`);
+      log.info(`[HistorySyncService] New record uploaded: ${item.profileHash}`);
     } catch (error) {
       if (error instanceof SyncConflictError) {
         await this.handleSyncConflict(item, error.serverRecord);
@@ -834,7 +833,7 @@ export class HistorySyncService {
     try {
       await this.pushRecordUpdate(item);
     } catch (error) {
-      console.error(`[HistorySyncService] Failed to sync record ${item.profileHash}:`, error);
+      log.error(`[HistorySyncService] Failed to sync record ${item.profileHash}:`, error);
     }
   }
 
@@ -863,7 +862,7 @@ export class HistorySyncService {
   };
 
   private handleRemoteHistoryChanged = async (record: HistoryRecordDto): Promise<void> => {
-    console.log('[HistorySyncService] Remote history changed:', record.hash);
+    log.info('[HistorySyncService] Remote history changed:', record.hash);
 
     // 如果服务器标记为已删除
     if (record.isDeleted) {
@@ -877,7 +876,7 @@ export class HistorySyncService {
           syncStatus: HistorySyncStatus.Synced,
           isLocalFileReady: false,
         });
-        console.log(`[HistorySyncService] Remote record deleted: ${record.hash}`);
+        log.info(`[HistorySyncService] Remote record deleted: ${record.hash}`);
       }
       return;
     }
@@ -923,7 +922,7 @@ export class HistorySyncService {
       try {
         callback(progress);
       } catch (error) {
-        console.error('[HistorySyncService] Progress callback error:', error);
+        log.error('[HistorySyncService] Progress callback error:', error);
       }
     }
   }
@@ -939,7 +938,7 @@ export class HistorySyncService {
         this.lastSyncTime = parseInt(timeStr, 10);
       }
     } catch (error) {
-      console.warn('[HistorySyncService] Failed to load last sync time:', error);
+      log.warn('[HistorySyncService] Failed to load last sync time:', error);
     }
   }
 
@@ -958,7 +957,7 @@ export class HistorySyncService {
         await AsyncStorage.removeItem('@syncclipboard:history:last_sync_time');
       }
     } catch (error) {
-      console.warn('[HistorySyncService] Failed to save last sync time:', error);
+      log.warn('[HistorySyncService] Failed to save last sync time:', error);
     }
   }
 
@@ -975,13 +974,13 @@ export class HistorySyncService {
     update: HistoryRecordUpdateDto
   ): Promise<'synced' | 'notFound' | 'conflict'> {
     if (!this.historyAPI) {
-      console.warn('[HistorySyncService] History API not initialized, cannot sync');
+      log.warn('[HistorySyncService] History API not initialized, cannot sync');
       throw new Error('History API not initialized');
     }
 
     try {
       const updatedRecord = await this.historyAPI.updateRecord(type, hash, update);
-      console.log(`[HistorySyncService] Record synced for ${hash}`);
+      log.info(`[HistorySyncService] Record synced for ${hash}`);
 
       await this.historyStorage.updateItem(hash, {
         version: updatedRecord.version,
@@ -1004,7 +1003,7 @@ export class HistorySyncService {
         });
         return 'notFound';
       }
-      console.error(`[HistorySyncService] Failed to sync record ${hash}:`, error);
+      log.error(`[HistorySyncService] Failed to sync record ${hash}:`, error);
       throw error;
     }
   }
@@ -1042,7 +1041,7 @@ export class HistorySyncService {
   }
 
   async cleanupRemoteHistorys(signal?: AbortSignal): Promise<void> {
-    console.log('[HistorySyncService] Cleaning up remote history records...');
+    log.info('[HistorySyncService] Cleaning up remote history records...');
     const localItems = await this.historyStorage.getAllItemsIncludingDeleted();
 
     const toDeleteHashes: string[] = [];
@@ -1050,7 +1049,7 @@ export class HistorySyncService {
 
     for (const item of localItems) {
       if (signal?.aborted) {
-        console.log('[HistorySyncService] Cleanup aborted');
+        log.info('[HistorySyncService] Cleanup aborted');
         throw new DOMException('Aborted', 'AbortError');
       }
 
@@ -1073,14 +1072,12 @@ export class HistorySyncService {
     }
 
     if (toDeleteHashes.length > 0) {
-      console.log(`[HistorySyncService] Deleting ${toDeleteHashes.length} server-only records...`);
+      log.info(`[HistorySyncService] Deleting ${toDeleteHashes.length} server-only records...`);
       await this.historyStorage.physicalDeleteItems(toDeleteHashes);
     }
 
     if (toMarkAsLocalOnly.length > 0) {
-      console.log(
-        `[HistorySyncService] Marking ${toMarkAsLocalOnly.length} records as LocalOnly...`
-      );
+      log.info(`[HistorySyncService] Marking ${toMarkAsLocalOnly.length} records as LocalOnly...`);
       await this.historyStorage.updateItems(
         toMarkAsLocalOnly.map((hash) => ({
           profileHash: hash,
@@ -1089,7 +1086,7 @@ export class HistorySyncService {
       );
     }
 
-    console.log(
+    log.info(
       `[HistorySyncService] Remote history cleanup completed: deleted=${toDeleteHashes.length}, marked=${toMarkAsLocalOnly.length}`
     );
   }
@@ -1102,7 +1099,7 @@ export class HistorySyncService {
         this.serverConfig?.username !== serverConfig.username;
 
       if (serverChanged) {
-        console.log('[HistorySyncService] Server changed, switching...');
+        log.info('[HistorySyncService] Server changed, switching...');
         const historyAPI = createHistoryAPIClient(serverConfig);
 
         await this.switchServer({

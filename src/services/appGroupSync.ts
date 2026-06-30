@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import { useSettingsStore } from '../stores/settingsStore';
 import { getAppGroupSyncSnapshot, syncConfigToAppGroup } from './appGroupSyncCore';
+import { log } from './Logger';
 
 export * from './appGroupSyncCore';
 
@@ -23,7 +24,7 @@ export function startAppGroupSync(): Unsubscribe {
     lastSnapshot = snapshot;
 
     syncConfigToAppGroup(config).catch((error) => {
-      console.warn('[AppGroupSync] failed:', error?.message ?? error);
+      log.warn('[AppGroupSync] failed:', error?.message ?? error);
     });
   };
 

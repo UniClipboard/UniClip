@@ -14,6 +14,7 @@ import { S3Client } from '../services/S3Client';
 import type { ISyncClipboardAPI } from '../services/APIClient';
 import { sha256 } from 'js-sha256';
 import { createAPIClient as createRoutedAPIClient } from '../services/apiClientFactory';
+import { log } from '@/services/Logger';
 
 // 重试配置
 const MAX_RETRIES = 3;
@@ -32,7 +33,7 @@ export function extractVerificationCode(body: string): string | null {
     const { extractVerificationCode: nativeExtract } = require('sms-forwarder');
     return nativeExtract(body);
   } catch (e) {
-    console.error('[SmsUploadTask] extractVerificationCode native call failed:', e);
+    log.error('[SmsUploadTask] extractVerificationCode native call failed:', e);
     return null;
   }
 }
@@ -46,7 +47,7 @@ async function loadConfig(): Promise<AppConfig | null> {
     if (!json) return null;
     return JSON.parse(json) as AppConfig;
   } catch (e) {
-    console.error('[SmsUploadTask] Failed to load config:', e);
+    log.error('[SmsUploadTask] Failed to load config:', e);
     return null;
   }
 }
@@ -128,13 +129,13 @@ async function uploadWithRetry(
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
       await client.putClipboard(profile);
-      console.log(`[SmsUploadTask] Verification code uploaded: ${code}`);
+      log.info(`[SmsUploadTask] Verification code uploaded: ${code}`);
       startCountdown(code);
       return true;
     } catch (error) {
       if (attempt < MAX_RETRIES) {
         const delay = RETRY_DELAYS[attempt] ?? RETRY_DELAYS[RETRY_DELAYS.length - 1];
-        console.warn(
+        log.warn(
           `[SmsUploadTask] Upload failed (attempt ${attempt + 1}/${MAX_RETRIES + 1}): ${error}, retrying in ${delay}ms`
         );
         await updateNotification(
@@ -142,7 +143,7 @@ async function uploadWithRetry(
         );
         await new Promise((resolve) => setTimeout(resolve, delay));
       } else {
-        console.error(`[SmsUploadTask] Upload failed after ${MAX_RETRIES + 1} attempts:`, error);
+        log.error(`[SmsUploadTask] Upload failed after ${MAX_RETRIES + 1} attempts:`, error);
         await updateNotification(`验证码上传失败: ${code}\n已重试${MAX_RETRIES}次`);
         return false;
       }
@@ -157,46 +158,46 @@ async function uploadWithRetry(
 export default async function SmsUploadTask(taskData?: SmsTaskData): Promise<void> {
   if (Platform.OS !== 'android') return;
   if (!taskData?.body) {
-    console.warn('[SmsUploadTask] No SMS body in task data');
+    log.warn('[SmsUploadTask] No SMS body in task data');
     return;
   }
 
   const { from, body } = taskData;
-  console.log(`[SmsUploadTask] Headless task started, SMS from ${from}`);
+  log.info(`[SmsUploadTask] Headless task started, SMS from ${from}`);
 
   // 1. 提取验证码
   const code = extractVerificationCode(body);
   if (!code) {
-    console.log('[SmsUploadTask] No verification code found in SMS');
+    log.info('[SmsUploadTask] No verification code found in SMS');
     return;
   }
-  console.log(`[SmsUploadTask] Verification code extracted: ${code}`);
+  log.info(`[SmsUploadTask] Verification code extracted: ${code}`);
 
   // 2. 复制到剪贴板（headless 模式下可能失败，不阻塞上传）
   try {
     const Clipboard = require('expo-clipboard');
     await Clipboard.setStringAsync(code);
-    console.log(`[SmsUploadTask] Copied to clipboard: ${code}`);
+    log.info(`[SmsUploadTask] Copied to clipboard: ${code}`);
   } catch (e) {
-    console.warn('[SmsUploadTask] Failed to copy to clipboard (headless mode):', e);
+    log.warn('[SmsUploadTask] Failed to copy to clipboard (headless mode):', e);
   }
 
   // 3. 加载配置
   const config = await loadConfig();
   if (!config) {
-    console.error('[SmsUploadTask] No config found, cannot upload');
+    log.error('[SmsUploadTask] No config found, cannot upload');
     return;
   }
 
   if (!config.enableSmsForwarding) {
-    console.log('[SmsUploadTask] SMS forwarding disabled in config');
+    log.info('[SmsUploadTask] SMS forwarding disabled in config');
     return;
   }
 
   // 4. 获取当前激活的服务器
   const server = config.servers?.[config.activeServerIndex];
   if (!server?.url) {
-    console.error('[SmsUploadTask] No active server configured');
+    log.error('[SmsUploadTask] No active server configured');
     return;
   }
 
@@ -207,8 +208,8 @@ export default async function SmsUploadTask(taskData?: SmsTaskData): Promise<voi
     await updateNotification(`正在上传验证码：${code}`);
     await uploadWithRetry(client, code, profileHash);
   } catch (error) {
-    console.error('[SmsUploadTask] Unexpected error during upload:', error);
+    log.error('[SmsUploadTask] Unexpected error during upload:', error);
   }
 
-  console.log('[SmsUploadTask] Headless task completed');
+  log.info('[SmsUploadTask] Headless task completed');
 }

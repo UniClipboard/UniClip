@@ -5,6 +5,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ConfigurationError } from './errors';
+import { log } from './Logger';
 
 const STORAGE_KEY = '@syncclipboard:credentials';
 
@@ -84,7 +85,7 @@ export class AuthService {
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(this.credentials));
     } catch (error) {
-      console.error('Failed to save credentials:', error);
+      log.error('Failed to save credentials:', error);
       throw new Error('Failed to save credentials to storage');
     }
   }
@@ -101,7 +102,7 @@ export class AuthService {
       }
       return false;
     } catch (error) {
-      console.error('Failed to load credentials:', error);
+      log.error('Failed to load credentials:', error);
       return false;
     }
   }
@@ -114,7 +115,7 @@ export class AuthService {
       await AsyncStorage.removeItem(STORAGE_KEY);
       this.credentials = null;
     } catch (error) {
-      console.error('Failed to delete credentials:', error);
+      log.error('Failed to delete credentials:', error);
       throw new Error('Failed to delete credentials from storage');
     }
   }

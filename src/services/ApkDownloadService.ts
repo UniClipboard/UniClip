@@ -6,6 +6,7 @@
 import { Paths, Directory, File } from 'expo-file-system';
 import type { ReleaseAssetInfo } from './UpdateService';
 import { parseVersion, compareVersions } from './UpdateService';
+import { log } from './Logger';
 
 // APK 缓存目录：CLIPBOARD_TEMP_DIR/updates/v{version}/
 // 清除缓存时会被一并清除
@@ -59,14 +60,14 @@ export function cleanOldApkCache(currentVersion: string): void {
       if (compareVersions(parsed, currentParsed) <= 0) {
         try {
           (item as Directory).delete();
-          console.log(`[ApkCache] deleted old cache: ${name}`);
+          log.info(`[ApkCache] deleted old cache: ${name}`);
         } catch (e) {
-          console.warn(`[ApkCache] failed to delete ${name}:`, e);
+          log.warn(`[ApkCache] failed to delete ${name}:`, e);
         }
       }
     }
   } catch (e) {
-    console.warn('[ApkCache] cleanOldApkCache error:', e);
+    log.warn('[ApkCache] cleanOldApkCache error:', e);
   }
 }
 
@@ -150,24 +151,24 @@ export async function checkApkCache(
 export async function downloadApk(options: ApkDownloadOptions): Promise<string> {
   const { asset, source, version, onProgress, signal } = options;
   const url = source === 'github' ? asset.githubDownloadUrl : asset.gitcodeDownloadUrl;
-  console.log(`[ApkDownload] start source=${source} url=${url}`);
+  log.info(`[ApkDownload] start source=${source} url=${url}`);
 
   // 确保缓存目录存在（含父目录）
   const cacheDir = getUpdateCacheDir(version);
-  console.log(`[ApkDownload] cacheDir=${cacheDir.uri} exists=${cacheDir.exists}`);
+  log.info(`[ApkDownload] cacheDir=${cacheDir.uri} exists=${cacheDir.exists}`);
   ensureUpdateDirExists(version);
-  console.log('[ApkDownload] cacheDir ready');
+  log.info('[ApkDownload] cacheDir ready');
 
   const destFile = getApkCachePath(version, asset.name);
-  console.log(`[ApkDownload] destFile=${destFile.uri} exists=${destFile.exists}`);
+  log.info(`[ApkDownload] destFile=${destFile.uri} exists=${destFile.exists}`);
   // 删除已有的不完整文件
   if (destFile.exists) {
     destFile.delete();
-    console.log('[ApkDownload] deleted stale file');
+    log.info('[ApkDownload] deleted stale file');
   }
 
   const { nativeDownloadFile } = await import('native-util');
-  console.log('[ApkDownload] starting nativeDownloadFile...');
+  log.info('[ApkDownload] starting nativeDownloadFile...');
   try {
     await nativeDownloadFile(
       url,
@@ -184,24 +185,24 @@ export async function downloadApk(options: ApkDownloadOptions): Promise<string> 
         : undefined
     );
   } catch (e) {
-    console.error('[ApkDownload] nativeDownloadFile failed:', e);
+    log.error('[ApkDownload] nativeDownloadFile failed:', e);
     throw e;
   }
-  console.log('[ApkDownload] download completed, file exists:', destFile.exists);
+  log.info('[ApkDownload] download completed, file exists:', destFile.exists);
 
   // 校验哈希
   if (asset.sha256) {
-    console.log(`[ApkDownload] verifying hash, expected=${asset.sha256}`);
+    log.info(`[ApkDownload] verifying hash, expected=${asset.sha256}`);
     const { nativeCalculateFileHash } = await import('native-util');
     const hash = await nativeCalculateFileHash(destFile.uri, signal);
-    console.log(`[ApkDownload] actual hash=${hash}`);
+    log.info(`[ApkDownload] actual hash=${hash}`);
     if (hash.toLowerCase() !== asset.sha256.toLowerCase()) {
       destFile.delete();
       throw new Error(`APK 哈希校验失败：期望 ${asset.sha256}，实际 ${hash}`);
     }
-    console.log('[ApkDownload] hash verified OK');
+    log.info('[ApkDownload] hash verified OK');
   } else {
-    console.log('[ApkDownload] no expected hash, skipping verification');
+    log.info('[ApkDownload] no expected hash, skipping verification');
   }
 
   return destFile.uri;

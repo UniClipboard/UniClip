@@ -9,6 +9,7 @@ import type { ClipboardContent } from '@/types';
 import { isNativeHashModuleAvailable, nativeCalculateFileHash } from 'native-util';
 
 import { isTextInvalid } from './textUtils';
+import { log } from '@/services/Logger';
 
 function createAbortError(): Error {
   const error = new Error('Operation was aborted');
@@ -47,7 +48,7 @@ export async function calculateTextHash(text: string, signal?: AbortSignal): Pro
     if (error instanceof Error && error.name === 'AbortError') {
       throw error;
     }
-    console.error('[HashUtils] Failed to calculate text hash:', error);
+    log.error('[HashUtils] Failed to calculate text hash:', error);
     throw new Error('Failed to calculate text hash');
   }
 }
@@ -78,7 +79,7 @@ export async function calculateBase64Hash(
     if (error instanceof Error && error.name === 'AbortError') {
       throw error;
     }
-    console.error('[HashUtils] Failed to calculate base64 hash:', error);
+    log.error('[HashUtils] Failed to calculate base64 hash:', error);
     throw new Error('Failed to calculate base64 hash');
   }
 }
@@ -118,7 +119,7 @@ export async function calculateBase64ContentHash(
     if (error instanceof Error && error.name === 'AbortError') {
       throw error;
     }
-    console.error('[HashUtils] Failed to calculate base64 content hash:', error);
+    log.error('[HashUtils] Failed to calculate base64 content hash:', error);
     throw new Error('Failed to calculate base64 content hash');
   }
 }
@@ -194,7 +195,7 @@ export async function calculateFileHash(
     throwIfAborted(signal);
 
     const tag = isNativeHashModuleAvailable ? 'native' : 'js';
-    console.log(`[HashUtils] calculateFileHash start (${tag}):`, fileUri);
+    log.info(`[HashUtils] calculateFileHash start (${tag}):`, fileUri);
     const startTime = Date.now();
 
     let hash: string;
@@ -206,16 +207,13 @@ export async function calculateFileHash(
       hash = await calculateFileHashJS(fileUri, signal);
     }
 
-    console.log(
-      `[HashUtils] calculateFileHash done (${tag}) in ${Date.now() - startTime}ms:`,
-      hash
-    );
+    log.info(`[HashUtils] calculateFileHash done (${tag}) in ${Date.now() - startTime}ms:`, hash);
     return hash;
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       throw error;
     }
-    console.error('[HashUtils] Failed to calculate file hash:', error);
+    log.error('[HashUtils] Failed to calculate file hash:', error);
     throw new Error('Failed to calculate file hash');
   }
 }
@@ -295,7 +293,7 @@ export async function calculateBlobHash(blob: Blob): Promise<string> {
 
     return hash.toUpperCase();
   } catch (error) {
-    console.error('[HashUtils] Failed to calculate blob hash:', error);
+    log.error('[HashUtils] Failed to calculate blob hash:', error);
     throw new Error('Failed to calculate blob hash');
   }
 }

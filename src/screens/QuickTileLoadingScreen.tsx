@@ -10,6 +10,7 @@ import { isTextInvalid } from '@/utils/index';
 import { QuickLoadingPage, SuccessButtonConfig } from '@/components/QuickLoadingPage';
 import type { ProgressInfo } from 'native-util';
 import * as Clipboard from 'expo-clipboard';
+import { log } from '@/services/Logger';
 
 interface QuickTileLoadingScreenProps {
   direction: SyncDirection;
@@ -131,7 +132,7 @@ export const QuickTileLoadingScreen: React.FC<QuickTileLoadingScreenProps> = ({
                   showToast('已储存到设备');
                 }
               } catch (error) {
-                console.error('[QuickTileLoadingScreen] Failed to save file:', error);
+                log.error('[QuickTileLoadingScreen] Failed to save file:', error);
                 if (error instanceof Error && error.message === 'Media library permission denied') {
                   showToast('需要相册权限才能保存图片');
                   return;

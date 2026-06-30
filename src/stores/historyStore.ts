@@ -8,6 +8,7 @@ import { ClipboardItem } from '../types/clipboard';
 import { HistoryFilter, HistorySort } from '../types/storage';
 import { historyStorage } from '../services';
 import { matchesHistoryFilter } from '@/utils/historyFilters';
+import { log } from '@/services/Logger';
 
 /**
  * 历史记录状态接口
@@ -290,7 +291,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
       }));
     } catch (error) {
       // 静默失败，不影响用户体验
-      console.error('Failed to increment use count:', error);
+      log.error('Failed to increment use count:', error);
     }
   },
 

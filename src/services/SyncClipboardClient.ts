@@ -23,6 +23,7 @@ import {
   RecordNotFoundError,
   IHistoryAPI,
 } from './HistoryAPI';
+import { log } from './Logger';
 
 /**
  * SyncClipboard API 客户端
@@ -50,7 +51,7 @@ export class SyncClipboardClient extends APIClient implements ISyncClipboardAPI,
 
       return profile;
     } catch (error) {
-      console.error('[SyncClipboardClient] Failed to get clipboard:', error);
+      log.error('[SyncClipboardClient] Failed to get clipboard:', error);
       throw error;
     }
   }
@@ -62,7 +63,7 @@ export class SyncClipboardClient extends APIClient implements ISyncClipboardAPI,
     try {
       this.validateProfile(profile);
 
-      console.log(
+      log.info(
         '[SyncClipboardClient] putClipboard - Profile to upload:',
         JSON.stringify(profile, null, 2)
       );
@@ -73,18 +74,18 @@ export class SyncClipboardClient extends APIClient implements ISyncClipboardAPI,
         signal ? { signal } : undefined
       );
 
-      console.log('[SyncClipboardClient] putClipboard - Upload successful');
+      log.info('[SyncClipboardClient] putClipboard - Upload successful');
     } catch (error) {
-      console.error('[SyncClipboardClient] Failed to put clipboard:', error);
+      log.error('[SyncClipboardClient] Failed to put clipboard:', error);
       if (error instanceof Error) {
-        console.error('[SyncClipboardClient] Error details:', {
+        log.error('[SyncClipboardClient] Error details:', {
           message: error.message,
           name: error.name,
         });
       }
       if (error && typeof error === 'object' && 'response' in error) {
         const errorObj = error as Record<string, unknown>;
-        console.error(
+        log.error(
           '[SyncClipboardClient] Server response:',
           JSON.stringify(errorObj.response, null, 2)
         );
@@ -110,7 +111,7 @@ export class SyncClipboardClient extends APIClient implements ISyncClipboardAPI,
       throw new ValidationError('File URI is required');
     }
 
-    console.log(`[SyncClipboardClient] Uploading file: ${fileName}`);
+    log.info(`[SyncClipboardClient] Uploading file: ${fileName}`);
 
     const url = `${this.baseURL}/file/${encodeURIComponent(fileName)}`;
 
@@ -119,9 +120,9 @@ export class SyncClipboardClient extends APIClient implements ISyncClipboardAPI,
 
     try {
       await nativeUploadFile(url, headers, fileUri, signal, onProgress);
-      console.log(`[SyncClipboardClient] File uploaded successfully: ${fileName}`);
+      log.info(`[SyncClipboardClient] File uploaded successfully: ${fileName}`);
     } catch (error) {
-      console.error(`[SyncClipboardClient] Failed to put file ${fileName}:`, error);
+      log.error(`[SyncClipboardClient] Failed to put file ${fileName}:`, error);
       throw error;
     }
   }
@@ -136,7 +137,7 @@ export class SyncClipboardClient extends APIClient implements ISyncClipboardAPI,
     const signal = options?.signal;
     const onProgress = options?.onProgress;
 
-    console.log('[SyncClipboardClient] putContent - Starting:', {
+    log.info('[SyncClipboardClient] putContent - Starting:', {
       type: content.type,
       hasData: content.hasData,
       fileName: content.fileName,
@@ -166,12 +167,12 @@ export class SyncClipboardClient extends APIClient implements ISyncClipboardAPI,
     }
 
     if (existingRecord && !existingRecord.isDeleted) {
-      console.log(
+      log.info(
         '[SyncClipboardClient] History record already exists on server, skipping data upload'
       );
     } else {
       if (existingRecord?.isDeleted) {
-        console.log('[SyncClipboardClient] History record was deleted, re-uploading');
+        log.info('[SyncClipboardClient] History record was deleted, re-uploading');
       }
       const record: HistoryRecordDto = {
         hash: profile.hash,
@@ -192,10 +193,10 @@ export class SyncClipboardClient extends APIClient implements ISyncClipboardAPI,
 
       try {
         await this.uploadRecord(record, fileUri, signal, onProgress);
-        console.log('[SyncClipboardClient] History record uploaded successfully');
+        log.info('[SyncClipboardClient] History record uploaded successfully');
       } catch (error) {
         if (error instanceof SyncConflictError) {
-          console.log('[SyncClipboardClient] History record conflict, server already has it');
+          log.info('[SyncClipboardClient] History record conflict, server already has it');
         } else {
           throw error;
         }
@@ -204,7 +205,7 @@ export class SyncClipboardClient extends APIClient implements ISyncClipboardAPI,
 
     await this.putClipboard(profile, signal);
 
-    console.log('[SyncClipboardClient] putContent completed successfully');
+    log.info('[SyncClipboardClient] putContent completed successfully');
   }
 
   /**
@@ -223,7 +224,7 @@ export class SyncClipboardClient extends APIClient implements ISyncClipboardAPI,
       const version = await this.get<string>('/version').catch(() => 'Unknown');
       return version;
     } catch (error) {
-      console.error('[SyncClipboardClient] Failed to get version:', error);
+      log.error('[SyncClipboardClient] Failed to get version:', error);
       return 'Unknown';
     }
   }
@@ -241,7 +242,7 @@ export class SyncClipboardClient extends APIClient implements ISyncClipboardAPI,
         online: true,
       };
     } catch (error) {
-      console.error('[SyncClipboardClient] Failed to get server info:', error);
+      log.error('[SyncClipboardClient] Failed to get server info:', error);
       return {
         version: 'Unknown',
         serverTime: new Date(),
@@ -300,7 +301,7 @@ export class SyncClipboardClient extends APIClient implements ISyncClipboardAPI,
       formData.append('sortByLastAccessed', params.sortByLastAccessed.toString());
     }
 
-    console.log(
+    log.info(
       '[SyncClipboardClient] queryRecords params:',
       Object.fromEntries(formData as unknown as Iterable<[string, string]>)
     );
@@ -316,13 +317,10 @@ export class SyncClipboardClient extends APIClient implements ISyncClipboardAPI,
           signal,
         }
       );
-      console.log(
-        '[SyncClipboardClient] queryRecords response length:',
-        response.data?.length || 0
-      );
+      log.info('[SyncClipboardClient] queryRecords response length:', response.data?.length || 0);
       return response.data || [];
     } catch (error) {
-      console.error('[SyncClipboardClient] Failed to query records:', error);
+      log.error('[SyncClipboardClient] Failed to query records:', error);
       throw error;
     }
   }
@@ -345,7 +343,7 @@ export class SyncClipboardClient extends APIClient implements ISyncClipboardAPI,
       if (error instanceof ServerError && error.statusCode === 404) {
         throw new RecordNotFoundError(profileId);
       }
-      console.error('[SyncClipboardClient] Failed to get record:', error);
+      log.error('[SyncClipboardClient] Failed to get record:', error);
       throw error;
     }
   }
@@ -383,7 +381,7 @@ export class SyncClipboardClient extends APIClient implements ISyncClipboardAPI,
           throw new RecordNotFoundError(profileId);
         }
       }
-      console.error('[SyncClipboardClient] Failed to update record:', error);
+      log.error('[SyncClipboardClient] Failed to update record:', error);
       throw error;
     }
   }
@@ -409,14 +407,14 @@ export class SyncClipboardClient extends APIClient implements ISyncClipboardAPI,
     try {
       const headers = await this.getHeaders();
 
-      console.log(`[SyncClipboardClient] Downloading data: ${profileId}`);
+      log.info(`[SyncClipboardClient] Downloading data: ${profileId}`);
 
       await nativeDownloadFile(url, headers, destinationUri, signal, onProgress);
 
-      console.log(`[SyncClipboardClient] Data downloaded successfully: ${profileId}`);
+      log.info(`[SyncClipboardClient] Data downloaded successfully: ${profileId}`);
       return destinationUri;
     } catch (error) {
-      console.error(`[SyncClipboardClient] Failed to download data:`, error);
+      log.error(`[SyncClipboardClient] Failed to download data:`, error);
       throw error;
     }
   }
@@ -476,7 +474,7 @@ export class SyncClipboardClient extends APIClient implements ISyncClipboardAPI,
       formFields.version = record.version.toString();
     }
 
-    console.log('[SyncClipboardClient] Uploading history record:', {
+    log.info('[SyncClipboardClient] Uploading history record:', {
       hash: record.hash,
       type: record.type,
       hasFile: !!fileUri,
@@ -491,7 +489,7 @@ export class SyncClipboardClient extends APIClient implements ISyncClipboardAPI,
         signal,
         onProgress
       );
-      console.log('[SyncClipboardClient] History record uploaded successfully');
+      log.info('[SyncClipboardClient] History record uploaded successfully');
       return this.getRecord(`${record.type}-${record.hash}`, signal);
     } catch (error) {
       if (error && typeof error === 'object' && 'statusCode' in error) {
@@ -501,7 +499,7 @@ export class SyncClipboardClient extends APIClient implements ISyncClipboardAPI,
           throw new SyncConflictError('History record already exists', serverRecord);
         }
       }
-      console.error('[SyncClipboardClient] Failed to upload history record:', error);
+      log.error('[SyncClipboardClient] Failed to upload history record:', error);
       throw error;
     }
   }
@@ -517,7 +515,7 @@ export class SyncClipboardClient extends APIClient implements ISyncClipboardAPI,
       );
       return stats;
     } catch (error) {
-      console.error('[SyncClipboardClient] Failed to get statistics:', error);
+      log.error('[SyncClipboardClient] Failed to get statistics:', error);
       throw error;
     }
   }

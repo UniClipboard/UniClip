@@ -18,6 +18,7 @@ import { ProfileDto, ServerInfo } from '../types/api';
 import type { ClipboardContent } from '../types/clipboard';
 import { ValidationError, ServerError, NetworkError, TimeoutError, APIError } from './errors';
 import { APP_NAME, APP_VERSION } from '../constants';
+import { log } from './Logger';
 
 /**
  * S3 客户端配置
@@ -118,7 +119,7 @@ export class S3Client implements ISyncClipboardAPI {
       if (axios.isAxiosError(error) && error.response?.status === 404) {
         return { type: 'Text', text: '', hasData: false } as ProfileDto;
       }
-      console.error('[S3Client] Failed to get clipboard:', error);
+      log.error('[S3Client] Failed to get clipboard:', error);
       throw this.wrapError(error);
     }
   }
@@ -142,7 +143,7 @@ export class S3Client implements ISyncClipboardAPI {
       const headers = this.signRequest('PUT', path, extraHeaders, body, signal);
       await this.client.put(`/${key}`, body, { headers, signal });
     } catch (error) {
-      console.error('[S3Client] Failed to put clipboard:', error);
+      log.error('[S3Client] Failed to put clipboard:', error);
       throw this.wrapError(error);
     }
   }
@@ -165,12 +166,12 @@ export class S3Client implements ISyncClipboardAPI {
 
     try {
       const headers = this.signRequest('GET', path, {}, '', signal);
-      console.log(`[S3Client] Downloading file ${fileName} to ${destinationUri}`);
+      log.info(`[S3Client] Downloading file ${fileName} to ${destinationUri}`);
       await nativeDownloadFile(url, headers, destinationUri, signal, onProgress);
-      console.log(`[S3Client] File downloaded successfully: ${fileName}`);
+      log.info(`[S3Client] File downloaded successfully: ${fileName}`);
       return destinationUri;
     } catch (error) {
-      console.error(`[S3Client] Failed to download file ${fileName}:`, error);
+      log.error(`[S3Client] Failed to download file ${fileName}:`, error);
       throw this.wrapError(error);
     }
   }
@@ -198,11 +199,11 @@ export class S3Client implements ISyncClipboardAPI {
         'Content-MD5': contentMD5,
       };
       const headers = this.signRequest('PUT', path, extraHeaders, '', signal);
-      console.log(`[S3Client] Uploading file: ${fileName}`);
+      log.info(`[S3Client] Uploading file: ${fileName}`);
       await nativeUploadFile(url, headers, fileUri, signal, onProgress);
-      console.log(`[S3Client] File uploaded successfully: ${fileName}`);
+      log.info(`[S3Client] File uploaded successfully: ${fileName}`);
     } catch (error) {
-      console.error(`[S3Client] Failed to put file ${fileName}:`, error);
+      log.error(`[S3Client] Failed to put file ${fileName}:`, error);
       throw this.wrapError(error);
     }
   }
@@ -212,7 +213,7 @@ export class S3Client implements ISyncClipboardAPI {
    */
   async putContent(content: ClipboardContent, options?: PutContentOptions): Promise<void> {
     try {
-      console.log('[S3Client] Starting putContent:', {
+      log.info('[S3Client] Starting putContent:', {
         type: content.type,
         hasData: content.hasData,
         fileName: content.fileName,
@@ -225,15 +226,15 @@ export class S3Client implements ISyncClipboardAPI {
       await this.ensureFileFolderExists(options?.signal);
 
       if (profile.hasData && profile.dataName && content.fileUri) {
-        console.log(`[S3Client] Uploading data file: ${profile.dataName}`);
+        log.info(`[S3Client] Uploading data file: ${profile.dataName}`);
         await this.putFile(profile.dataName, content.fileUri, options?.signal, options?.onProgress);
       }
 
-      console.log('[S3Client] Uploading profile...');
+      log.info('[S3Client] Uploading profile...');
       await this.putClipboard(profile, options?.signal);
-      console.log('[S3Client] putContent completed successfully');
+      log.info('[S3Client] putContent completed successfully');
     } catch (error) {
-      console.error('[S3Client] Failed to put content:', error);
+      log.error('[S3Client] Failed to put content:', error);
       throw error;
     }
   }
@@ -314,16 +315,12 @@ export class S3Client implements ISyncClipboardAPI {
         .join('&');
 
       await this.client.get(`/?${queryString}`, { headers, signal });
-      console.log('[S3Client] Connection test succeeded');
+      log.info('[S3Client] Connection test succeeded');
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
-        console.error(
-          '[S3Client] Connection test failed:',
-          error.response.status,
-          error.response.data
-        );
+        log.error('[S3Client] Connection test failed:', error.response.status, error.response.data);
       } else {
-        console.error('[S3Client] Connection test failed:', error);
+        log.error('[S3Client] Connection test failed:', error);
       }
       throw this.wrapError(error);
     }
@@ -353,7 +350,7 @@ export class S3Client implements ISyncClipboardAPI {
         const headers = this.signRequest('PUT', path, extraHeaders, '', signal);
         await this.client.put(`/${markerKey}`, '', { headers, signal });
       } catch (putError) {
-        console.warn('[S3Client] Failed to create file folder marker:', putError);
+        log.warn('[S3Client] Failed to create file folder marker:', putError);
       }
     }
   }
@@ -451,7 +448,7 @@ export class S3Client implements ISyncClipboardAPI {
       payloadHash,
     ].join('\n');
 
-    console.debug(
+    log.debug(
       '[S3Client] Canonical Request:',
       JSON.stringify({
         method: method.toUpperCase(),

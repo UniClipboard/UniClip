@@ -14,6 +14,7 @@ import { AppState, Platform } from 'react-native';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { setTimer, clearTimer } from 'native-timer';
 import { nativeSaveClipboardImageToFile } from 'native-util';
+import { log } from '@/services/Logger';
 
 /** 悬浮窗空闲超时时间（毫秒） */
 const OVERLAY_IDLE_TIMEOUT_MS = 10_000;
@@ -37,7 +38,7 @@ function resetIdleTimer(): void {
       clearTimer(IDLE_TIMER_TAG);
       if (overlayModule?.isOverlayShowing()) {
         overlayModule.hideOverlayWindow().catch((e) => {
-          console.warn('[ClipboardProxy] Failed to hide overlay on idle timeout:', e);
+          log.warn('[ClipboardProxy] Failed to hide overlay on idle timeout:', e);
         });
       }
     },
@@ -61,7 +62,7 @@ if (Platform.OS === 'android') {
       clearIdleTimer();
       if (overlayModule?.isOverlayShowing()) {
         overlayModule.hideOverlayWindow().catch((e) => {
-          console.warn('[ClipboardProxy] Failed to dismiss overlay on foreground:', e);
+          log.warn('[ClipboardProxy] Failed to dismiss overlay on foreground:', e);
         });
       }
     }
@@ -77,7 +78,7 @@ async function ensureOverlayShowing(): Promise<void> {
     try {
       await overlayModule.showOverlayWindow();
     } catch (e) {
-      console.warn('[ClipboardProxy] Failed to show persistent overlay:', e);
+      log.warn('[ClipboardProxy] Failed to show persistent overlay:', e);
     }
   }
 }
@@ -91,7 +92,7 @@ export async function dismissOverlay(): Promise<void> {
     try {
       await overlayModule.hideOverlayWindow();
     } catch (e) {
-      console.warn('[ClipboardProxy] Failed to hide persistent overlay:', e);
+      log.warn('[ClipboardProxy] Failed to hide persistent overlay:', e);
     }
   }
 }
@@ -143,14 +144,14 @@ export async function getStringAsync(options?: Clipboard.GetStringOptions): Prom
       const result = await shizukuModule!.getStringViaShizuku();
       return result;
     } catch (e) {
-      console.warn('[ClipboardProxy] Shizuku getStringAsync failed, falling back:', e);
+      log.warn('[ClipboardProxy] Shizuku getStringAsync failed, falling back:', e);
     }
   }
   if (await shouldUseOverlay()) {
     try {
       return await overlayModule!.getStringViaOverlay();
     } catch (e) {
-      console.warn('[ClipboardProxy] Overlay getStringAsync failed, falling back:', e);
+      log.warn('[ClipboardProxy] Overlay getStringAsync failed, falling back:', e);
     }
   }
   return Clipboard.getStringAsync(options);
@@ -174,14 +175,14 @@ export async function hasStringAsync(): Promise<boolean> {
     try {
       return await shizukuModule!.hasStringViaShizuku();
     } catch (e) {
-      console.warn('[ClipboardProxy] Shizuku hasStringAsync failed, falling back:', e);
+      log.warn('[ClipboardProxy] Shizuku hasStringAsync failed, falling back:', e);
     }
   }
   if (await shouldUseOverlay()) {
     try {
       return await overlayModule!.hasStringViaOverlay();
     } catch (e) {
-      console.warn('[ClipboardProxy] Overlay hasStringAsync failed, falling back:', e);
+      log.warn('[ClipboardProxy] Overlay hasStringAsync failed, falling back:', e);
     }
   }
   return Clipboard.hasStringAsync();
@@ -195,14 +196,14 @@ export async function hasImageAsync(): Promise<boolean> {
     try {
       return await shizukuModule!.hasImageViaShizuku();
     } catch (e) {
-      console.warn('[ClipboardProxy] Shizuku hasImageAsync failed, falling back:', e);
+      log.warn('[ClipboardProxy] Shizuku hasImageAsync failed, falling back:', e);
     }
   }
   if (await shouldUseOverlay()) {
     try {
       return await overlayModule!.hasImageViaOverlay();
     } catch (e) {
-      console.warn('[ClipboardProxy] Overlay hasImageAsync failed, falling back:', e);
+      log.warn('[ClipboardProxy] Overlay hasImageAsync failed, falling back:', e);
     }
   }
   return Clipboard.hasImageAsync();
@@ -225,7 +226,7 @@ export async function getImageAsync(
       }
       return null;
     } catch (e) {
-      console.warn('[ClipboardProxy] Overlay getImageAsync failed, falling back:', e);
+      log.warn('[ClipboardProxy] Overlay getImageAsync failed, falling back:', e);
     }
   }
   return Clipboard.getImageAsync(options);
@@ -245,7 +246,7 @@ export async function saveImageToFileAsync(
       if (result) return { filePath: result.filePath, mimeType: result.mimeType };
       // fallback if overlay failed
     } catch (e) {
-      console.warn('[ClipboardProxy] Overlay saveImageToFileAsync failed, falling back:', e);
+      log.warn('[ClipboardProxy] Overlay saveImageToFileAsync failed, falling back:', e);
     }
   }
   // Android 前台：native-util 直接读取系统剪贴板并写入文件（不经过 JS 内存）
@@ -276,7 +277,7 @@ export async function saveImageToFileAsync(
 
       return { filePath, mimeType: 'image/png' };
     } catch (e) {
-      console.warn('[ClipboardProxy] iOS getImageAsync failed:', e);
+      log.warn('[ClipboardProxy] iOS getImageAsync failed:', e);
       return null;
     }
   }

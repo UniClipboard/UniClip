@@ -57,6 +57,7 @@ import { loadServerRouteLiveUrl, saveServerRouteLiveUrl } from './serverRouteRec
 import { selectServerUrl, type ServerRoute as SelectedServerRoute } from './serverRouteSelector';
 import type { ServerConfig as AppServerConfig } from '@/types/api';
 import { HistorySyncStatus } from '@/types/clipboard';
+import { log } from './Logger';
 
 const LAST_SYNCED_HASH_KEY = '@syncengine:last_synced_hash';
 const LAST_SYNCED_CONTENT_ID_KEY = '@syncengine:last_synced_content_id';
@@ -217,7 +218,7 @@ export class SyncEngine {
     if (this.tickTimer !== null) return;
     if (this.state === 'AuthFailed') this.setState('Idle');
     if (this.state === 'LoopDetected') return;
-    console.log('[SyncEngine] start: scheduling tick loop');
+    log.info('[SyncEngine] start: scheduling tick loop');
     this.scheduleNextTick();
   }
 
@@ -352,7 +353,7 @@ export class SyncEngine {
     const server = this.getActiveServer();
     const device = this.getDeviceClipboard();
     const settings = this.getSettings();
-    console.log(
+    log.info(
       '[SyncEngine] doTick: explicit=' +
         explicit +
         ' server=' +
@@ -383,14 +384,14 @@ export class SyncEngine {
         nowMs: Date.now(),
       });
     } catch (e: any) {
-      console.error('[SyncEngine] planPreamble FFI error:', e?.message ?? e);
+      log.error('[SyncEngine] planPreamble FFI error:', e?.message ?? e);
       return;
     }
 
     this.runtimeState = step.state;
 
     if (step.preamble.proceed.type === 'Stop') {
-      console.log('[SyncEngine] preamble: Stop(' + step.preamble.proceed.reason + ')');
+      log.info('[SyncEngine] preamble: Stop(' + step.preamble.proceed.reason + ')');
       if (step.preamble.proceed.reason === 'NoActiveServer') {
         this.setState('Idle');
         this.notifyListeners();
@@ -426,7 +427,7 @@ export class SyncEngine {
         // hash 又无 contentId 的 entry 没有任何可同步身份，归一化为「无内容」(null)
         // 让 reducer 走 Push 分支。真实内容服务端必填 hash（响应侧保证），不会误伤。
         if (serverEntry && !serverEntry.hash && !serverEntry.contentId) {
-          console.log(
+          log.info(
             '[SyncEngine] serverEntry is empty placeholder (no hash/contentId) — treating as no content'
           );
           serverEntry = null;
@@ -454,7 +455,7 @@ export class SyncEngine {
             localSynced.contentId
           )
         ) {
-          console.log(
+          log.info(
             '[SyncEngine] baseline reconcile: server matches LOCAL baseline, dropping stale app-group watermark (' +
               (this.runtimeState.lastSyncedHash?.slice(0, 8) ?? 'null') +
               ' -> ' +
@@ -478,11 +479,11 @@ export class SyncEngine {
             deviceHash: device?.hash ?? null,
           });
         } catch (e: any) {
-          console.error('[SyncEngine] planAfterServerGet FFI error:', e?.message ?? e);
+          log.error('[SyncEngine] planAfterServerGet FFI error:', e?.message ?? e);
           return;
         }
 
-        console.log(
+        log.info(
           '[SyncEngine] tick: route=' +
             plannedRoute.type +
             (plannedRoute.type === 'Push' ? '(' + plannedRoute.decision + ')' : '') +
@@ -511,7 +512,7 @@ export class SyncEngine {
             break;
 
           case 'ServerNew':
-            console.log(
+            log.info(
               '[SyncEngine] ServerNew: willApply=' +
                 plannedRoute.plan.willApply +
                 ' alreadyStaged=' +
@@ -526,12 +527,7 @@ export class SyncEngine {
             break;
 
           case 'Push':
-            await this.maybePush(
-              plannedRoute.decision,
-              device,
-              ucServer,
-              server.trustInsecureCert
-            );
+            await this.maybePush(plannedRoute.decision, device, ucServer, server.trustInsecureCert);
             break;
         }
 
@@ -541,7 +537,7 @@ export class SyncEngine {
       await this.persistRuntimeHash();
       this.notifyListeners();
     } catch (e: any) {
-      console.error('[SyncEngine] tick error:', e?.message ?? e);
+      log.error('[SyncEngine] tick error:', e?.message ?? e);
       const kind = this.classifyError(e);
 
       if (kind === 'AuthFailed') {
@@ -566,7 +562,7 @@ export class SyncEngine {
           this.syncConfig
         );
       } catch (ffiErr: any) {
-        console.error('[SyncEngine] commitTickFailure FFI error:', ffiErr?.message ?? ffiErr);
+        log.error('[SyncEngine] commitTickFailure FFI error:', ffiErr?.message ?? ffiErr);
         this.setState('OfflineRetrying');
         this.lastError = e?.message ?? 'Network error';
         this.notifyListeners();
@@ -587,7 +583,7 @@ export class SyncEngine {
   ): Promise<void> {
     if (plan.willApply) {
       try {
-        console.log(
+        log.info(
           '[SyncEngine] applying server→device: kind=' +
             entry.kind +
             ' hash=' +
@@ -601,7 +597,7 @@ export class SyncEngine {
         }
         await this.applyToDevice(entry, payload);
         this.noteDeviceWrite(entry.hash);
-        console.log('[SyncEngine] apply success');
+        log.info('[SyncEngine] apply success');
       } catch (e: any) {
         this.runtimeState = commitApplyFailed(this.runtimeState, entry);
         this.stagedEntry = entry;
@@ -671,7 +667,7 @@ export class SyncEngine {
         // 这是同一份没变的内容被周期性回写，直接跳过，避免 mac 端反复弹「正在接收」。
         const pushFingerprint = device.meta.hash?.toUpperCase() ?? null;
         if (pushFingerprint && pushFingerprint === this.lastPushedContentHash) {
-          console.log(
+          log.info(
             '[SyncEngine] DoPush skipped by content-fingerprint guard: ' +
               pushFingerprint.slice(0, 8)
           );
@@ -707,7 +703,7 @@ export class SyncEngine {
         try {
           await putClipboard(server, device.meta, payloadBytes, trustInsecureCert);
         } catch (e: any) {
-          console.error(
+          log.error(
             '[SyncEngine] putClipboard failed: kind=' +
               device.meta.kind +
               ' dataName=' +
@@ -751,7 +747,7 @@ export class SyncEngine {
         hasRemoteData: false,
       });
     } catch (e) {
-      console.error('[SyncEngine] Failed to mark pushed history item:', e);
+      log.error('[SyncEngine] Failed to mark pushed history item:', e);
     }
   }
 
@@ -818,11 +814,15 @@ export class SyncEngine {
     operation: (route: SelectedServerRoute) => Promise<T>
   ): Promise<T> {
     return (
-      await selectServerUrl(this.toAppServerConfig(server), {
-        network: getCurrentNetworkContext(),
-        loadLiveUrl: loadServerRouteLiveUrl,
-        saveLiveUrl: saveServerRouteLiveUrl,
-      }, operation)
+      await selectServerUrl(
+        this.toAppServerConfig(server),
+        {
+          network: getCurrentNetworkContext(),
+          loadLiveUrl: loadServerRouteLiveUrl,
+          saveLiveUrl: saveServerRouteLiveUrl,
+        },
+        operation
+      )
     ).result;
   }
 

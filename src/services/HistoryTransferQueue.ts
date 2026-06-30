@@ -8,6 +8,7 @@ import { HistoryStorage } from './HistoryStorage';
 import { HistorySyncStatus } from '@/types/clipboard';
 import { getHistoryFileDir } from '@/utils/fileStorage';
 import { File } from 'expo-file-system';
+import { log } from './Logger';
 
 export type TransferType = 'upload' | 'download';
 export type TransferTaskStatus =
@@ -125,7 +126,7 @@ export class HistoryTransferQueue {
    * 清空队列
    */
   clearQueue(): void {
-    console.log('[HistoryTransferQueue] Clearing queue');
+    log.info('[HistoryTransferQueue] Clearing queue');
 
     // 取消所有活动任务
     for (const task of this.activeTasks.values()) {
@@ -134,7 +135,7 @@ export class HistoryTransferQueue {
         task.status = 'cancelled';
         this.notifyStatusChanged(task);
       } catch (error) {
-        console.error('[HistoryTransferQueue] Error cancelling task:', error);
+        log.error('[HistoryTransferQueue] Error cancelling task:', error);
       }
     }
 
@@ -183,7 +184,7 @@ export class HistoryTransferQueue {
     this.notifyStatusChanged(task);
     this.signalQueue();
 
-    console.log(`[HistoryTransferQueue] Added download task: ${profileId}`);
+    log.info(`[HistoryTransferQueue] Added download task: ${profileId}`);
     return task;
   }
 
@@ -221,7 +222,7 @@ export class HistoryTransferQueue {
     this.notifyStatusChanged(task);
     this.signalQueue();
 
-    console.log(`[HistoryTransferQueue] Added upload task: ${profileId}`);
+    log.info(`[HistoryTransferQueue] Added upload task: ${profileId}`);
     return task;
   }
 
@@ -346,7 +347,7 @@ export class HistoryTransferQueue {
   private async executeTask(task: TransferTask): Promise<void> {
     // 用户取消的任务不执行
     if (task.userCancelled || task.status === 'cancelled') {
-      console.log(`[HistoryTransferQueue] Task was cancelled, skipping: ${task.profileId}`);
+      log.info(`[HistoryTransferQueue] Task was cancelled, skipping: ${task.profileId}`);
       return;
     }
 
@@ -370,17 +371,14 @@ export class HistoryTransferQueue {
         task.status = 'cancelled';
       } else if (task.userCancelled) {
         task.status = 'cancelled';
-        console.log(`[HistoryTransferQueue] Task was cancelled by user: ${task.profileId}`);
+        log.info(`[HistoryTransferQueue] Task was cancelled by user: ${task.profileId}`);
       } else {
         task.status = 'failed';
         task.errorMessage = error instanceof Error ? error.message : 'Unknown error';
         task.failureCount++;
         this.consecutiveFailures++;
 
-        console.error(
-          `[HistoryTransferQueue] Task failed: ${task.profileId} (${task.type})`,
-          error
-        );
+        log.error(`[HistoryTransferQueue] Task failed: ${task.profileId} (${task.type})`, error);
 
         // 检查是否需要重试
         if (
@@ -413,32 +411,32 @@ export class HistoryTransferQueue {
       throw new Error('History API not initialized');
     }
 
-    console.log(`[HistoryTransferQueue] ========== Execute Download Task ==========`);
-    console.log(`[HistoryTransferQueue] ProfileId: ${task.profileId}`);
-    console.log(`[HistoryTransferQueue] Task created: ${new Date(task.createdTime).toISOString()}`);
-    console.log(`[HistoryTransferQueue] Is immediate: ${task.isImmediateTask}`);
+    log.info(`[HistoryTransferQueue] ========== Execute Download Task ==========`);
+    log.info(`[HistoryTransferQueue] ProfileId: ${task.profileId}`);
+    log.info(`[HistoryTransferQueue] Task created: ${new Date(task.createdTime).toISOString()}`);
+    log.info(`[HistoryTransferQueue] Is immediate: ${task.isImmediateTask}`);
 
     const { parseProfileId } = await import('./HistoryAPI');
     const parsed = parseProfileId(task.profileId);
     if (!parsed) {
-      console.error(`[HistoryTransferQueue] Invalid profileId format: ${task.profileId}`);
+      log.error(`[HistoryTransferQueue] Invalid profileId format: ${task.profileId}`);
       throw new Error(`Invalid profileId format: ${task.profileId}`);
     }
 
-    console.log(
+    log.info(
       `[HistoryTransferQueue] Parsed profileId - type: ${parsed.type}, hash: ${parsed.hash}`
     );
 
     const item = await this.historyStorage.getItem(parsed.hash);
     if (!item) {
-      console.error(`[HistoryTransferQueue] Item not found with hash: ${parsed.hash}`);
+      log.error(`[HistoryTransferQueue] Item not found with hash: ${parsed.hash}`);
       throw new Error(`Item not found: ${parsed.hash}`);
     }
 
-    console.log(`[HistoryTransferQueue] Item type: ${item.type}`);
-    console.log(`[HistoryTransferQueue] Item text (fileName): ${item.text}`);
-    console.log(`[HistoryTransferQueue] Item hasRemoteData: ${item.hasRemoteData}`);
-    console.log(`[HistoryTransferQueue] Item isLocalFileReady: ${item.isLocalFileReady}`);
+    log.info(`[HistoryTransferQueue] Item type: ${item.type}`);
+    log.info(`[HistoryTransferQueue] Item text (fileName): ${item.text}`);
+    log.info(`[HistoryTransferQueue] Item hasRemoteData: ${item.hasRemoteData}`);
+    log.info(`[HistoryTransferQueue] Item isLocalFileReady: ${item.isLocalFileReady}`);
 
     const historyDir = getHistoryFileDir(item.type, parsed.hash);
     if (!historyDir.exists) {
@@ -449,8 +447,8 @@ export class HistoryTransferQueue {
     const destinationFile = new File(historyDir, fileName);
     const destinationUri = destinationFile.uri;
 
-    console.log(`[HistoryTransferQueue] Destination directory: ${historyDir.uri}`);
-    console.log(`[HistoryTransferQueue] Destination file: ${destinationUri}`);
+    log.info(`[HistoryTransferQueue] Destination directory: ${historyDir.uri}`);
+    log.info(`[HistoryTransferQueue] Destination file: ${destinationUri}`);
 
     await this.historyAPI.downloadData(
       task.profileId,
@@ -475,7 +473,7 @@ export class HistoryTransferQueue {
       // text: item.text,
     });
 
-    console.log(`[HistoryTransferQueue] Download task completed: ${task.profileId}`);
+    log.info(`[HistoryTransferQueue] Download task completed: ${task.profileId}`);
   }
 
   /**
@@ -509,7 +507,7 @@ export class HistoryTransferQueue {
       );
       // 如果服务器记录已删除，视为不存在，继续上传
       if (existingRecord.isDeleted) {
-        console.log(
+        log.info(
           `[HistoryTransferQueue] Record is deleted on server, will upload: ${task.profileId}`
         );
       } else {
@@ -521,7 +519,7 @@ export class HistoryTransferQueue {
             : Date.now(),
           syncStatus: HistorySyncStatus.Synced,
         });
-        console.log(
+        log.info(
           `[HistoryTransferQueue] Record already exists on server: ${task.profileId}, marked as synced`
         );
         return;
@@ -529,7 +527,7 @@ export class HistoryTransferQueue {
     } catch (error) {
       // 如果是 404 错误，继续执行上传
       if (error instanceof RecordNotFoundError) {
-        console.log(
+        log.info(
           `[HistoryTransferQueue] Record not found on server, will upload: ${task.profileId}`
         );
       } else {
@@ -585,7 +583,7 @@ export class HistoryTransferQueue {
       try {
         callback(task);
       } catch (error) {
-        console.error('[HistoryTransferQueue] Callback error:', error);
+        log.error('[HistoryTransferQueue] Callback error:', error);
       }
     }
   }

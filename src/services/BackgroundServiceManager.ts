@@ -15,6 +15,7 @@
  */
 
 import { Platform } from 'react-native';
+import { log } from './Logger';
 
 class BackgroundServiceManager {
   private static instance: BackgroundServiceManager | null = null;
@@ -60,7 +61,7 @@ class BackgroundServiceManager {
       const { setStaticReceiverEnabled } = require('sms-forwarder');
       setStaticReceiverEnabled(!!config?.enableSmsForwarding);
     } catch (e) {
-      console.error('[BackgroundServiceManager] Failed to toggle SMS receiver:', e);
+      log.error('[BackgroundServiceManager] Failed to toggle SMS receiver:', e);
     }
   }
 
@@ -104,7 +105,7 @@ class BackgroundServiceManager {
       const { useClipboardStore } = require('../stores');
       await useClipboardStore.getState().startMonitoring();
     } catch (e) {
-      console.error('[BackgroundServiceManager] Failed to start clipboard monitoring:', e);
+      log.error('[BackgroundServiceManager] Failed to start clipboard monitoring:', e);
     }
 
     // 启动 Rust-driven SyncEngine（1Hz 自动同步 + 去重 + 退避）
@@ -172,7 +173,7 @@ class BackgroundServiceManager {
       const { getClipboardSyncService } = require('./ClipboardSyncService');
       await getClipboardSyncService().refresh();
     } catch (e) {
-      console.error('[BackgroundServiceManager] Failed to start/refresh remote sync:', e);
+      log.error('[BackgroundServiceManager] Failed to start/refresh remote sync:', e);
     }
   }
 
@@ -185,7 +186,7 @@ class BackgroundServiceManager {
         await store.start();
       }
     } catch (e) {
-      console.error('[BackgroundServiceManager] Failed to start SyncEngine:', e);
+      log.error('[BackgroundServiceManager] Failed to start SyncEngine:', e);
     }
   }
 
@@ -207,7 +208,7 @@ class BackgroundServiceManager {
           useSettingsStore.getState().setTempDisabledBackgroundTasks(true);
         });
       } catch (e) {
-        console.error('[BackgroundServiceManager] Failed to start foreground service:', e);
+        log.error('[BackgroundServiceManager] Failed to start foreground service:', e);
       }
     }
 
@@ -221,10 +222,10 @@ class BackgroundServiceManager {
         useStatisticsStore.getState().updateHeartbeat();
       }, 60_000);
     } catch (e) {
-      console.error('[BackgroundServiceManager] Failed to start statistics/heartbeat:', e);
+      log.error('[BackgroundServiceManager] Failed to start statistics/heartbeat:', e);
     }
 
-    console.log('[BackgroundServiceManager] Background-only services started');
+    log.info('[BackgroundServiceManager] Background-only services started');
   }
 
   /** 更新后台专用服务（配置变化时调用） */
@@ -248,7 +249,7 @@ class BackgroundServiceManager {
         ForegroundService.stopService();
       }
     } catch (e) {
-      console.error('[BackgroundServiceManager] Failed to update foreground service:', e);
+      log.error('[BackgroundServiceManager] Failed to update foreground service:', e);
     }
   }
 
@@ -292,9 +293,7 @@ class BackgroundServiceManager {
           state.config !== prevState.config ||
           state.isTempDisabledBackgroundTasks !== prevState.isTempDisabledBackgroundTasks
         ) {
-          this.refresh().catch((e) =>
-            console.error('[BackgroundServiceManager] refresh failed:', e)
-          );
+          this.refresh().catch((e) => log.error('[BackgroundServiceManager] refresh failed:', e));
         }
       }
     );

@@ -5,6 +5,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CacheItem, CacheConfig, DEFAULT_CACHE_CONFIG, STORAGE_KEYS } from '../types/storage';
+import { log } from './Logger';
 
 /**
  * 缓存管理器
@@ -45,7 +46,7 @@ export class CacheManager {
       this.startCleanupTimer();
       this.initialized = true;
     } catch (error) {
-      console.error('[CacheManager] Failed to initialize:', error);
+      log.error('[CacheManager] Failed to initialize:', error);
       this.cache = new Map();
       this.initialized = true;
     }
@@ -84,7 +85,7 @@ export class CacheManager {
       // 立即清理过期缓存
       await this.cleanup();
     } catch (error) {
-      console.error('[CacheManager] Failed to load cache:', error);
+      log.error('[CacheManager] Failed to load cache:', error);
     }
   }
 
@@ -103,7 +104,7 @@ export class CacheManager {
         await AsyncStorage.multiSet(entries);
       }
     } catch (error) {
-      console.error('[CacheManager] Failed to save cache:', error);
+      log.error('[CacheManager] Failed to save cache:', error);
     }
   }
 
@@ -266,7 +267,7 @@ export class CacheManager {
 
     this.cleanupTimer = setInterval(() => {
       this.cleanup().catch((error) => {
-        console.error('[CacheManager] Cleanup failed:', error);
+        log.error('[CacheManager] Cleanup failed:', error);
       });
     }, this.config.cleanupInterval);
   }

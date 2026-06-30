@@ -4,6 +4,7 @@ import {
   requestPinUploadShortcut,
   isShortcutModuleAvailable,
 } from 'shortcut';
+import { log } from './Logger';
 
 export const ShortcutService = {
   addDownloadShortcut(): Promise<boolean> {
@@ -14,7 +15,7 @@ export const ShortcutService = {
       return Promise.reject(new Error('ShortcutModule is not available'));
     }
     return requestPinDownloadShortcut().catch((error) => {
-      console.error('ShortcutModule addDownloadShortcut error:', error);
+      log.error('ShortcutModule addDownloadShortcut error:', error);
       throw error;
     });
   },
@@ -27,7 +28,7 @@ export const ShortcutService = {
       return Promise.reject(new Error('ShortcutModule is not available'));
     }
     return requestPinUploadShortcut().catch((error) => {
-      console.error('ShortcutModule addUploadShortcut error:', error);
+      log.error('ShortcutModule addUploadShortcut error:', error);
       throw error;
     });
   },

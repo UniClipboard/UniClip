@@ -33,6 +33,7 @@ import {
   type ConnectUriError,
 } from '@/utils/connectUri';
 import { usePendingConnectStore } from '@/stores';
+import { log } from '@/services/Logger';
 
 interface QrScannerModalProps {
   visible: boolean;
@@ -74,12 +75,12 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose
       const parsed = parseConnectUri(result.data ?? '');
       if (!parsed.ok) {
         const code: ConnectUriError = parsed.error;
-        console.log(`[QR] scan failed: ${code}`);
+        log.info(`[QR] scan failed: ${code}`);
         setScanError(code);
         return;
       }
 
-      console.log('[QR] scan succeeded');
+      log.info('[QR] scan succeeded');
       setPendingConnect({
         url: parsed.value.url,
         urls: parsed.value.urls,

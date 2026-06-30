@@ -5,6 +5,7 @@
  */
 
 import { Paths, File, Directory } from 'expo-file-system';
+import { log } from '@/services/Logger';
 
 /**
  * 文件存储目录结构
@@ -41,14 +42,14 @@ export async function initFileStorage(): Promise<void> {
       HISTORY_BASE_DIR.create();
     }
 
-    // console.log('[FileStorage] Initialized directories:', {
+    // log.info('[FileStorage] Initialized directories:', {
     //   base: BASE_DIR.uri,
     //   images: IMAGE_DIR.uri,
     //   files: FILE_DIR.uri,
     //   history: HISTORY_BASE_DIR.uri,
     // });
   } catch (error) {
-    console.error('[FileStorage] Failed to initialize directories:', error);
+    log.error('[FileStorage] Failed to initialize directories:', error);
     throw error;
   }
 }
@@ -94,7 +95,7 @@ export async function saveHistoryFile(
 
     // 检查文件是否已存在
     if (file.exists) {
-      console.log('[FileStorage] History file already exists:', file.uri);
+      log.info('[FileStorage] History file already exists:', file.uri);
       return file.uri;
     }
 
@@ -104,10 +105,10 @@ export async function saveHistoryFile(
     // 写入文件
     file.write(uint8Array);
 
-    console.log('[FileStorage] History file saved:', file.uri);
+    log.info('[FileStorage] History file saved:', file.uri);
     return file.uri;
   } catch (error) {
-    console.error('[FileStorage] Failed to save history file:', error);
+    log.error('[FileStorage] Failed to save history file:', error);
     throw error;
   }
 }
@@ -133,7 +134,7 @@ export async function getHistoryFileUri(
 
     return file.exists ? file.uri : null;
   } catch (error) {
-    console.error('[FileStorage] Failed to get history file URI:', error);
+    log.error('[FileStorage] Failed to get history file URI:', error);
     return null;
   }
 }
@@ -185,10 +186,10 @@ export async function deleteHistoryFileDir(type: string, profileHash: string): P
 
     if (historyDir.exists) {
       historyDir.delete();
-      console.log('[FileStorage] History file directory deleted:', historyDir.uri);
+      log.info('[FileStorage] History file directory deleted:', historyDir.uri);
     }
   } catch (error) {
-    console.error('[FileStorage] Failed to delete history file directory:', error);
+    log.error('[FileStorage] Failed to delete history file directory:', error);
     throw error;
   }
 }
@@ -222,7 +223,7 @@ export async function saveFile(
 
     // 检查文件是否已存在
     if (file.exists) {
-      console.log('[FileStorage] File already exists:', file.uri);
+      log.info('[FileStorage] File already exists:', file.uri);
       return file.uri;
     }
 
@@ -232,10 +233,10 @@ export async function saveFile(
     // 写入文件
     file.write(uint8Array);
 
-    console.log('[FileStorage] File saved:', file.uri);
+    log.info('[FileStorage] File saved:', file.uri);
     return file.uri;
   } catch (error) {
-    console.error('[FileStorage] Failed to save file:', error);
+    log.error('[FileStorage] Failed to save file:', error);
     throw error;
   }
 }
@@ -261,7 +262,7 @@ export async function getFileUri(
 
     return file.exists ? file.uri : null;
   } catch (error) {
-    console.error('[FileStorage] Failed to get file URI:', error);
+    log.error('[FileStorage] Failed to get file URI:', error);
     return null;
   }
 }
@@ -286,10 +287,10 @@ export async function deleteFile(
 
     if (file.exists) {
       file.delete();
-      console.log('[FileStorage] File deleted:', file.uri);
+      log.info('[FileStorage] File deleted:', file.uri);
     }
   } catch (error) {
-    console.error('[FileStorage] Failed to delete file:', error);
+    log.error('[FileStorage] Failed to delete file:', error);
     throw error;
   }
 }
@@ -302,10 +303,10 @@ export async function clearAllFiles(): Promise<void> {
     // 使用新的 Directory API
     if (BASE_DIR.exists) {
       BASE_DIR.delete();
-      console.log('[FileStorage] All files cleared');
+      log.info('[FileStorage] All files cleared');
     }
   } catch (error) {
-    console.error('[FileStorage] Failed to clear files:', error);
+    log.error('[FileStorage] Failed to clear files:', error);
     throw error;
   }
 }
@@ -373,7 +374,7 @@ export async function getStorageStats(): Promise<{
       totalSize,
     };
   } catch (error) {
-    console.error('[FileStorage] Failed to get storage stats:', error);
+    log.error('[FileStorage] Failed to get storage stats:', error);
     return {
       imageCount: 0,
       fileCount: 0,
@@ -412,20 +413,20 @@ export async function downloadAndSaveFile(
     const file = new File(dir, fileName);
 
     if (file.exists) {
-      console.log('[FileStorage] File already exists:', file.uri);
+      log.info('[FileStorage] File already exists:', file.uri);
       return file.uri;
     }
 
     // 直接下载到文件系统（不占用内存）
-    console.log('[FileStorage] Downloading file to:', file.uri);
+    log.info('[FileStorage] Downloading file to:', file.uri);
     await File.downloadFileAsync(downloadUrl, file, {
       headers: headers || {},
     });
 
-    console.log('[FileStorage] File downloaded successfully:', file.uri);
+    log.info('[FileStorage] File downloaded successfully:', file.uri);
     return file.uri;
   } catch (error) {
-    console.error('[FileStorage] Failed to download and save file:', error);
+    log.error('[FileStorage] Failed to download and save file:', error);
     throw error;
   }
 }
@@ -468,7 +469,7 @@ export function calculateDirectorySize(directory: Directory): number {
 
     return totalSize;
   } catch (error) {
-    console.error('[FileStorage] Failed to calculate directory size:', error);
+    log.error('[FileStorage] Failed to calculate directory size:', error);
     return 0;
   }
 }
@@ -496,7 +497,7 @@ export function clearDirectory(directory: Directory): void {
       }
     }
   } catch (error) {
-    console.error('[FileStorage] Failed to clear directory:', error);
+    log.error('[FileStorage] Failed to clear directory:', error);
     throw error;
   }
 }

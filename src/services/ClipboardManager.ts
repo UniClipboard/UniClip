@@ -13,6 +13,7 @@ import { isTextInvalid } from '@/utils/index';
 import { historyStorage } from './HistoryStorage';
 import { prepareTempFilePath, CLIPBOARD_TEMP_DIR } from '@/utils/fileStorage';
 import { nativeSetClipboardImageFromFile } from 'native-util';
+import { log } from './Logger';
 
 /**
  * 剪贴板管理器类
@@ -43,7 +44,7 @@ export class ClipboardManager {
 
       return null;
     } catch (error) {
-      console.error('[ClipboardManager] Failed to get clipboard content:', error);
+      log.error('[ClipboardManager] Failed to get clipboard content:', error);
       return null;
     }
   }
@@ -123,10 +124,10 @@ export class ClipboardManager {
         if (!tempFile.exists) {
           // 文件不存在，保存完整文本到文件
           tempFile.write(new TextEncoder().encode(text));
-          console.log(`[ClipboardManager] Text saved to file: ${fileName}, length: ${text.length}`);
+          log.info(`[ClipboardManager] Text saved to file: ${fileName}, length: ${text.length}`);
         } else {
           // 文件已存在，直接使用
-          console.log(
+          log.info(
             `[ClipboardManager] Text file already exists: ${fileName}, length: ${text.length}`
           );
         }
@@ -149,7 +150,7 @@ export class ClipboardManager {
           timestamp,
         };
       } catch (error) {
-        console.error('[ClipboardManager] Failed to save text to file:', error);
+        log.error('[ClipboardManager] Failed to save text to file:', error);
         // 出错时降级为普通文本处理
       }
     }
@@ -200,7 +201,9 @@ export class ClipboardManager {
 
       // 早期去重：hash 未变则返回缓存结果，删除多余临时文件
       if (this._lastImageHash === localClipboardHash && this._lastImageContent) {
-        try { new File(randomTempFilePath).delete(); } catch {}
+        try {
+          new File(randomTempFilePath).delete();
+        } catch {}
         return { ...this._lastImageContent, timestamp };
       }
 
@@ -281,7 +284,7 @@ export class ClipboardManager {
       this._lastImageContent = result;
       return result;
     } catch (error) {
-      console.error('[ClipboardManager] Failed to get image:', error);
+      log.error('[ClipboardManager] Failed to get image:', error);
       throw new Error('Failed to get image from clipboard');
     }
   }
@@ -297,7 +300,7 @@ export class ClipboardManager {
       const localClipboardHash = await calculateTextHash(text);
       this.lastProfileHash = localClipboardHash;
     } catch (error) {
-      console.error('[ClipboardManager] Failed to set text content:', error);
+      log.error('[ClipboardManager] Failed to set text content:', error);
 
       // 保留原始错误信息，特别是 TransactionTooLargeException
       if (error instanceof Error) {
@@ -322,7 +325,7 @@ export class ClipboardManager {
       const localClipboardHash = await calculateFileHash(imageUri);
       this.lastProfileHash = localClipboardHash;
     } catch (error) {
-      console.error('[ClipboardManager] Failed to set image content:', error);
+      log.error('[ClipboardManager] Failed to set image content:', error);
       throw new Error('Failed to set image to clipboard');
     }
   }
@@ -366,7 +369,7 @@ export class ClipboardManager {
       await Clipboard.setStringAsync('');
       this.lastProfileHash = '';
     } catch (error) {
-      console.error('[ClipboardManager] Failed to clear clipboard:', error);
+      log.error('[ClipboardManager] Failed to clear clipboard:', error);
       throw new Error('Failed to clear clipboard');
     }
   }
@@ -388,7 +391,7 @@ export class ClipboardManager {
 
       return hasChanged;
     } catch (error) {
-      console.error('[ClipboardManager] Failed to check clipboard change:', error);
+      log.error('[ClipboardManager] Failed to check clipboard change:', error);
       return false;
     }
   }
@@ -443,7 +446,7 @@ export class ClipboardManager {
         profileHash,
       };
     } catch (error) {
-      console.error('[ClipboardManager] Failed to pick image:', error);
+      log.error('[ClipboardManager] Failed to pick image:', error);
       return null;
     }
   }
@@ -480,7 +483,7 @@ export class ClipboardManager {
         profileHash,
       };
     } catch (error) {
-      console.error('[ClipboardManager] Failed to take photo:', error);
+      log.error('[ClipboardManager] Failed to take photo:', error);
       return null;
     }
   }
