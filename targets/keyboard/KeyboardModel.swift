@@ -388,11 +388,9 @@ final class KeyboardModel {
         }
         reloadCards()
 
-        // §5.3 from an extension: the keyboard never probes (its lifetime is
-        // measured in keystrokes), so it layers the main app's last probe
-        // verdict (`live_urls`, App Group) over pure shape order —
-        // `preferredURLs` puts the probe-confirmed URL first and falls back
-        // to `orderedURLs[0]` when no verdict exists for this profile.
+        // §5.3 from an extension: start from the last probe verdict
+        // (`live_urls`, App Group) over pure shape order. Network calls then
+        // refresh this with a short concurrent probe before real work.
         let server: ServerConfig? = {
             guard var cfg = servers.activeConfig else { return nil }
             cfg.urls = cfg.preferredURLs(
@@ -419,7 +417,13 @@ final class KeyboardModel {
         isSyncing = true
 
         // ---- Uplink: push the device pasteboard if it carries new content.
-        await pushDeviceClipboardIfNew(snap, changeCount: cc, server: server, trust: trust)
+        await pushDeviceClipboardIfNew(
+            snap,
+            changeCount: cc,
+            server: server,
+            trust: trust,
+            network: currentNetworkContext()
+        )
         guard gen == syncGeneration else { return }
         let didPush: Bool = { if case .pushed = pushStatus { return true } else { return false } }()
         log.info("sync uplink done: pushStatus=\(String(describing: self.pushStatus)) didPush=\(didPush)")
@@ -429,8 +433,17 @@ final class KeyboardModel {
         // fold it into the history log if it's new. The payload (image /
         // overflow text) is fetched lazily on tap — never during this pass.
         do {
-            let client = try SyncClipboardClient(server: server, trustInsecureCert: trust)
-            let latest = try await client.getClipboard()
+            let latest = try await ServerRouteExecutor(store: store).run(
+                server: server,
+                network: currentNetworkContext(),
+                probe: { routed in
+                    let client = try SyncClipboardClient(server: routed, trustInsecureCert: trust)
+                    try await client.probeReachability()
+                }
+            ) { routed in
+                let client = try SyncClipboardClient(server: routed, trustInsecureCert: trust)
+                return try await client.getClipboard()
+            }
             guard gen == syncGeneration else { return }
 
             if didPush, let pushed = lastPushedEntry, Self.isSameContent(latest, pushed) {
@@ -448,8 +461,15 @@ final class KeyboardModel {
                 // main app would skip it: server hash == watermark) AND
                 // letting the next push overwrite it on the server.
                 if let serverHash = latest.hash, !serverHash.isEmpty {
-                    log.info("sync post-push: adopting server hash \(serverHash.prefix(16))… (was \(self.store.loadLastSyncedHash()?.prefix(16) ?? "nil"))")
+                    log.info("sync post-push: adopting server hash \(serverHash.prefix(16))… contentId=\(latest.contentId?.prefix(24) ?? "nil") (was \(self.store.loadLastSyncedHash()?.prefix(16) ?? "nil"))")
                     store.saveLastSyncedHash(serverHash)
+                    // Learn the server's opaque identity for this content (the
+                    // primary path — our pushed entry had none). Pair it with
+                    // the hash so the next GET's re-encoded variant (hash
+                    // changed, contentId unchanged) dedups instead of being
+                    // pulled back as a "new" entry. `latest.contentId` may be
+                    // nil for legacy servers — clearing it then is correct.
+                    store.saveLastSyncedContentId(latest.contentId)
                 }
                 lastError = nil
                 flashSync(.success)
@@ -493,7 +513,8 @@ final class KeyboardModel {
         _ snap: DeviceClipboardSnapshot?,
         changeCount cc: Int,
         server: ServerConfig,
-        trust: Bool
+        trust: Bool,
+        network: NetworkContext
     ) async {
         guard let snap, let hash = snap.clipboard.hash?.uppercased() else {
             log.info("push: snap nil or no hash → .none")
@@ -510,7 +531,12 @@ final class KeyboardModel {
         }
         log.info("push: uploading hash=\(hash.prefix(16))… lastSynced=\(lastHash?.prefix(16) ?? "nil") type=\(snap.clipboard.type.rawValue)")
         do {
-            try await KeyboardUploader(store: store).upload(snap, to: server, trustInsecureCert: trust)
+            try await KeyboardUploader(store: store).upload(
+                snap,
+                to: server,
+                trustInsecureCert: trust,
+                network: network
+            )
             store.saveLastSyncedChangeCount(cc)
             store.appendHistory(entry: snap.clipboard, direction: .pushed)
             pushStatus = .pushed(Self.summary(for: snap.clipboard))
@@ -524,9 +550,18 @@ final class KeyboardModel {
     }
 
     /// Whether the server's `latest` is plausibly the entry we just pushed.
-    /// Hash equality is conclusive; for images the server may rewrite the
-    /// hash AND the filename (it derives its own name component), so fall
-    /// back to type + size. Text compares the inline text itself.
+    /// Only consulted on the post-push downlink (`didPush`), so "the server
+    /// rewrote what we just sent" is the overwhelmingly likely case.
+    ///
+    /// Hash equality is conclusive. Otherwise: text compares the inline text;
+    /// images/files match on type alone. The previous `size` fallback for
+    /// binary content was actively wrong — a server-side re-encode (JPEG→PNG)
+    /// changes BOTH the hash and the byte size, so `size` comparison rejected
+    /// exactly the re-encode case it was meant to absorb, and the re-encoded
+    /// entry then came back down `appendPulledIfNew` as a duplicate. Dropping
+    /// the size check lets the caller adopt the server hash + contentId; any
+    /// genuinely-different concurrent push carries a different contentId and
+    /// is re-surfaced on the following tick.
     private static func isSameContent(_ server: Clipboard, _ pushed: Clipboard) -> Bool {
         guard server.type == pushed.type else { return false }
         if let sh = server.hash, let ph = pushed.hash,
@@ -535,7 +570,7 @@ final class KeyboardModel {
         }
         switch server.type {
         case .text:          return server.text == pushed.text
-        case .image, .file:  return server.size == pushed.size
+        case .image, .file:  return true
         case .group:         return false
         }
     }
@@ -556,6 +591,16 @@ final class KeyboardModel {
         case .image:
             guard latest.hasData, latest.dataName != nil else { return false }
         case .file, .group:
+            return false
+        }
+        // contentId-first: when the server's opaque identity matches the
+        // watermark we already synced, this is the SAME logical content even
+        // if the server re-encoded it (hash differs). This is what stops a
+        // pushed image from coming back down as a duplicate "pull". Opaque
+        // whole-value compare — `latest.contentId` is already nil for an
+        // empty string, so a missing identity falls through to hash compare
+        // (legacy servers / not-yet-learned). See SettingsStore.
+        if let cid = latest.contentId, cid == store.loadLastSyncedContentId() {
             return false
         }
         if store.loadHistory().first?.entry.hash?.uppercased() == hash {
@@ -703,10 +748,20 @@ final class KeyboardModel {
         Task { [weak self] in
             defer { self?.actingCardID = nil }
             do {
-                let client = try SyncClipboardClient(server: ctx.server, trustInsecureCert: ctx.trust)
-                let data = try await client.getFile(name: name)
+                guard let self else { return }
+                let data = try await ServerRouteExecutor(store: self.store).run(
+                    server: ctx.server,
+                    network: self.currentNetworkContext(),
+                    probe: { routed in
+                        let client = try SyncClipboardClient(server: routed, trustInsecureCert: ctx.trust)
+                        try await client.probeReachability()
+                    }
+                ) { routed in
+                    let client = try SyncClipboardClient(server: routed, trustInsecureCert: ctx.trust)
+                    return try await client.getFile(name: name)
+                }
                 if Task.isCancelled { return }
-                self?.lastError = nil
+                self.lastError = nil
                 body(data)
             } catch {
                 if Task.isCancelled { return }
@@ -747,8 +802,17 @@ final class KeyboardModel {
         } else {
             guard let ctx else { return nil }
             do {
-                let client = try SyncClipboardClient(server: ctx.server, trustInsecureCert: ctx.trust)
-                data = try await client.getFile(name: name)
+                data = try await ServerRouteExecutor(store: store).run(
+                    server: ctx.server,
+                    network: currentNetworkContext(),
+                    probe: { routed in
+                        let client = try SyncClipboardClient(server: routed, trustInsecureCert: ctx.trust)
+                        try await client.probeReachability()
+                    }
+                ) { routed in
+                    let client = try SyncClipboardClient(server: routed, trustInsecureCert: ctx.trust)
+                    return try await client.getFile(name: name)
+                }
                 if Task.isCancelled { return nil }
                 store.saveImageData(hash: hash, data: data)
             } catch {

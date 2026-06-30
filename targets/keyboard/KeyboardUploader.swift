@@ -22,21 +22,35 @@ struct KeyboardUploader {
     func upload(
         _ snapshot: DeviceClipboardSnapshot,
         to server: ServerConfig,
-        trustInsecureCert: Bool
+        trustInsecureCert: Bool,
+        network: NetworkContext
     ) async throws {
-        let client = try SyncClipboardClient(server: server, trustInsecureCert: trustInsecureCert)
         let entry = snapshot.clipboard
 
-        if entry.hasData, let payload = snapshot.payload, let name = entry.dataName {
-            try await client.putFile(name: name, body: payload)
+        try await ServerRouteExecutor(store: store).run(
+            server: server,
+            network: network,
+            probe: { routed in
+                let client = try SyncClipboardClient(server: routed, trustInsecureCert: trustInsecureCert)
+                try await client.probeReachability()
+            }
+        ) { routed in
+            let client = try SyncClipboardClient(server: routed, trustInsecureCert: trustInsecureCert)
+            if entry.hasData, let payload = snapshot.payload, let name = entry.dataName {
+                try await client.putFile(name: name, body: payload)
+            }
+            try await client.putClipboard(entry)
         }
-        try await client.putClipboard(entry)
         // Write the hash watermark AFTER a confirmed PUT — not before.
         // Writing before opens a race: pollTick can cancel this task
         // mid-PUT, leaving a stale watermark that causes the next cycle
         // to skip the push entirely.
         if let hash = entry.hash, !hash.isEmpty {
             store.saveLastSyncedHash(hash)
+            // The pushed entry has no server identity yet — clear any stale
+            // contentId so it can't dedup the wrong content. The post-push
+            // downlink re-learns it from the GET. Kept atomic with the hash.
+            store.saveLastSyncedContentId(nil)
         }
     }
 }

@@ -21,33 +21,48 @@ struct ShareUploader {
         self.store = store
     }
 
-    func upload(_ item: ShareItem, to server: ServerConfig, trustInsecureCert: Bool) async throws {
-        let client = try SyncClipboardClient(server: server, trustInsecureCert: trustInsecureCert)
+    func upload(
+        _ item: ShareItem,
+        to server: ServerConfig,
+        trustInsecureCert: Bool,
+        network: NetworkContext
+    ) async throws {
         let (entry, payload) = build(from: item)
         log.info("upload: start \(item.kindLabel, privacy: .public) bytes=\(item.byteCount, privacy: .public) hasData=\(entry.hasData, privacy: .public)")
+        log.error("[share-route-v3] upload start server=\(server.id, privacy: .public) urlCount=\(server.urls.count, privacy: .public) urls=\(server.urls.joined(separator: " | "), privacy: .public) hasData=\(entry.hasData, privacy: .public)")
 
-        if entry.hasData, let payload, let name = entry.dataName {
-            try await client.putFile(name: name, body: payload)
-            log.debug("upload: §3.5 file PUT done")
-            if let hash = entry.hash, !hash.isEmpty {
-                let profileId = HistoryRecord.profileId(type: entry.type, hash: hash)
-                _ = try? await PayloadCache.shared.write(profileId: profileId, bytes: payload)
+        try await ServerRouteExecutor(store: store).run(
+            server: server,
+            network: network,
+            probe: { routed in
+                let client = try SyncClipboardClient(server: routed, trustInsecureCert: trustInsecureCert)
+                try await client.probeReachability()
             }
+        ) { routed in
+            let client = try SyncClipboardClient(server: routed, trustInsecureCert: trustInsecureCert)
+            if entry.hasData, let payload, let name = entry.dataName {
+                try await client.putFile(name: name, body: payload)
+                log.debug("upload: §3.5 file PUT done")
+                if let hash = entry.hash, !hash.isEmpty {
+                    let profileId = HistoryRecord.profileId(type: entry.type, hash: hash)
+                    _ = try? await PayloadCache.shared.write(profileId: profileId, bytes: payload)
+                }
+            }
+            try await client.putClipboard(entry)
         }
-        // Persist BEFORE the metadata PUT, not after. `putClipboard` is the
-        // moment the new hash becomes visible to every other client (the
-        // main app's `SyncEngine.tick()` GETs `/SyncClipboard.json` 1Hz);
-        // if we wrote the hash after the PUT, a concurrent tick would see
-        // `server.hash != lastSyncedContentHash` and pull the entry we
-        // just pushed back to the device (the "one bounce" loop). The file
-        // backend further removes cfprefsd's cross-process cache lag, so
-        // by the time `putClipboard` returns, any other process reading
-        // `loadLastSyncedHash` sees the new value.
+        // Write the watermark only after a confirmed metadata PUT. A failed
+        // route attempt may have uploaded bytes but did not publish metadata;
+        // stamping before success can make the next sync skip real work.
         if let hash = entry.hash, !hash.isEmpty {
             store.saveLastSyncedHash(hash)
+            // The pushed entry has no server identity yet — clear any stale
+            // contentId watermark (kept atomic with the hash) so the main
+            // app's SyncEngine doesn't dedup against a now-wrong identity. It
+            // is re-learned on the next GET, where the server returns one.
+            store.saveLastSyncedContentId(nil)
         }
-        try await client.putClipboard(entry)
         log.info("upload: metadata PUT done, watermark advanced")
+        log.error("[share-route-v3] upload complete server=\(server.id, privacy: .public)")
 
         // Surface the push in the shared history log so it shows up in the
         // main app's Home list. The app's SyncEngine won't log it on its own —

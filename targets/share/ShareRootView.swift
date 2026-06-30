@@ -322,25 +322,24 @@ struct ShareRootView: View {
 
     private func send() async {
         guard let item, var server = resolvedServer else { return }
-        // §5.3 from an extension: like the keyboard, the share sheet never
-        // probes. Layer the main app's last probe verdict (App Group
-        // `live_urls`) over pure shape order so the upload PUTs against the
-        // path that actually works on this network instead of burning a
-        // timeout on `urls[0]`. No NWPathMonitor here (the sheet lives for
-        // seconds) — the stored SSID stands in as the Wi-Fi signal and
-        // Tailscale is checked live, both entitlement-free.
+        // §5.3 from an extension: start from the last probe verdict (App
+        // Group `live_urls`) over pure shape order. The uploader then runs a
+        // short concurrent probe before the real PUTs.
         let store = SettingsStore()
-        server.urls = server.preferredURLs(
-            live: store.loadLiveURL(configId: server.id),
-            network: NetworkContext(
-                ssid: store.loadLastKnownSSID(),
-                isTailscale: TailscaleDetector.isActive()
-            )
-        )
+        let network = await NetworkContextDetector.current(store: store)
+        let liveURL = store.loadLiveURL(configId: server.id)
+        let originalURLs = server.urls
+        server.urls = server.preferredURLs(live: liveURL, network: network)
+        log.error("[share-route-v3] prepare server=\(server.id, privacy: .public) wifi=\(network.isWifi, privacy: .public) cellular=\(network.isCellular, privacy: .public) tailscale=\(network.isTailscale, privacy: .public) ssid=\(network.ssid ?? "nil", privacy: .private) live=\(liveURL ?? "nil", privacy: .public) originalCount=\(originalURLs.count, privacy: .public) original=\(originalURLs.joined(separator: " | "), privacy: .public) orderedCount=\(server.urls.count, privacy: .public) ordered=\(server.urls.joined(separator: " | "), privacy: .public)")
         phase = .uploading
         do {
             let uploader = ShareUploader()
-            try await uploader.upload(item, to: server, trustInsecureCert: trustInsecureCert)
+            try await uploader.upload(
+                item,
+                to: server,
+                trustInsecureCert: trustInsecureCert,
+                network: network
+            )
             log.info("send: upload succeeded \(item.kindLabel, privacy: .public) bytes=\(item.byteCount, privacy: .public)")
             phase = .succeeded
         } catch {
