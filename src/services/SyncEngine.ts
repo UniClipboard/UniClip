@@ -12,7 +12,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getLastSyncedHash } from 'app-group-store';
+import { getLastSyncedHash, getLastSyncedContentId } from 'app-group-store';
 import {
   type SyncRuntimeState,
   type SyncConfig,
@@ -52,6 +52,11 @@ import {
   hashesEqual,
 } from 'uc-core';
 import type { ServerConfig as UcServerConfig, HistoryRecord } from 'uc-core';
+import { getCurrentNetworkContext } from './networkContext';
+import { loadServerRouteLiveUrl, saveServerRouteLiveUrl } from './serverRouteRecordStore';
+import { selectServerUrl, type ServerRoute as SelectedServerRoute } from './serverRouteSelector';
+import type { ServerConfig as AppServerConfig } from '@/types/api';
+import { HistorySyncStatus } from '@/types/clipboard';
 
 const LAST_SYNCED_HASH_KEY = '@syncengine:last_synced_hash';
 const LAST_SYNCED_CONTENT_ID_KEY = '@syncengine:last_synced_content_id';
@@ -71,6 +76,7 @@ export type SyncEngineListener = (status: SyncEngineStatus) => void;
 
 export interface ActiveServerInfo {
   baseUrl: string;
+  urls?: string[];
   username: string;
   password: string;
   trustInsecureCert: boolean;
@@ -148,15 +154,27 @@ export class SyncEngine {
       const hash = map.get(LAST_SYNCED_HASH_KEY) ?? null;
       const contentId = map.get(LAST_SYNCED_CONTENT_ID_KEY) ?? null;
       let appGroupHash: string | null = null;
+      let appGroupContentId: string | null = null;
       try {
-        appGroupHash = await getLastSyncedHash();
+        [appGroupHash, appGroupContentId] = await Promise.all([
+          getLastSyncedHash(),
+          getLastSyncedContentId(),
+        ]);
       } catch {
         appGroupHash = null;
+        appGroupContentId = null;
       }
-      if (appGroupHash && !hashesEqual(appGroupHash, hash)) {
+      const adoptAppGroup = !!(appGroupHash && !hashesEqual(appGroupHash, hash));
+      if (adoptAppGroup) {
+        // An extension (keyboard / share) advanced the cross-process
+        // watermark. Adopt ITS contentId snapshot, not null: the keyboard
+        // learns the server identity post-push and writes the pair, so the
+        // re-encoded GET dedups here too. It's null for legacy servers or a
+        // bare push not yet re-learned — falling back to hash compare, which
+        // is correct.
         return {
           hash: appGroupHash,
-          contentId: null,
+          contentId: appGroupContentId,
         };
       }
       return {
@@ -256,6 +274,12 @@ export class SyncEngine {
     this.lastWrittenContentHash = hash.toUpperCase();
   }
 
+  notifyDeviceChanged(hash: string | null): void {
+    this.noteDeviceWrite(hash);
+    if (this.state === 'AuthFailed' || this.state === 'LoopDetected') return;
+    void this.forceTickNow();
+  }
+
   async applyStagedEntry(): Promise<void> {
     const step = markStagedApplied(this.runtimeState);
     if (!step.wasStaged) return;
@@ -342,6 +366,9 @@ export class SyncEngine {
     );
 
     const persisted = await this.getPersistedSynced();
+    // 纯本地（AsyncStorage）基线快照，供 server GET 后的"并集校正"判定：preamble
+    // 可能用陈旧的 App Group 水位线把它顶掉，需要原样留底以便对比。
+    const localSynced = await this.readLocalSynced();
 
     let step: PreambleStep;
     try {
@@ -377,82 +404,139 @@ export class SyncEngine {
       return;
     }
 
-    const ucServer: UcServerConfig = {
-      baseUrl: server.baseUrl,
-      username: server.username,
-      password: server.password,
-    };
-
     try {
-      let serverEntry: ClipboardMeta | null = null;
-      try {
-        serverEntry = await getLatest(ucServer, server.trustInsecureCert);
-      } catch (e: any) {
-        if (e?.message?.includes('404') || e?.message?.includes('Not Found')) {
-          serverEntry = null;
-        } else {
-          throw e;
+      await this.withActiveRoute(server, async (route) => {
+        const ucServer = this.toUcServer(route);
+        let serverEntry: ClipboardMeta | null = null;
+        try {
+          serverEntry = await getLatest(ucServer, server.trustInsecureCert);
+        } catch (e: any) {
+          if (e?.message?.includes('404') || e?.message?.includes('Not Found')) {
+            serverEntry = null;
+          } else {
+            throw e;
+          }
         }
-      }
 
-      let route: ServerRoute;
-      try {
-        route = planAfterServerGet(this.runtimeState, {
-          autoApply: settings.autoApplyRemote,
-          autoPush: settings.autoPushLocal,
-          serverEntry,
-          devicePresent: device !== null,
-          deviceHash: device?.hash ?? null,
-        });
-      } catch (e: any) {
-        console.error('[SyncEngine] planAfterServerGet FFI error:', e?.message ?? e);
-        return;
-      }
-
-      console.log(
-        '[SyncEngine] tick: route=' +
-          route.type +
-          (route.type === 'Push' ? '(' + route.decision + ')' : '') +
-          ' server=' +
-          (serverEntry?.hash?.slice(0, 8) ?? 'null') +
-          ' device=' +
-          (device?.hash?.slice(0, 8) ?? 'null')
-      );
-
-      switch (route.type) {
-        case 'Converged':
-          // 学到 contentId 的主路径：push 后第一次 GET、设备剪贴板仍是刚 push 的
-          // 内容时走这里，传 server entry 的 contentId（doc §3 步骤 2）。
-          this.runtimeState = commitConverged(
-            this.runtimeState,
-            route.serverHash,
-            serverEntry?.contentId ?? null
-          );
-          this.stagedEntry = null;
-          // 服务端已确认收到当前内容，释放幂等守卫：将来即便剪贴板内容变回这份旧
-          // 内容（A→B→A），也应允许重新 push。
-          this.lastPushedContentHash = null;
-          this.setState('Succeeded');
-          this.lastSyncedAt = Date.now();
-          this.lastError = null;
-          break;
-
-        case 'ServerNew':
+        // 服务端无内容时为兼容官方 SyncClipboard 协议会返回 200 + 空占位 entry
+        // （type=Text, text="", hash=None, contentId=None），而非 404（见
+        // uniclipboard 仓库 uc-webserver .../sync_doc.rs empty_text）。这种
+        // hashless entry 会被 reducer 判成 ServerNew 但 will_apply=false（无 hash
+        // 无法自动应用）→ stage → 卡死 HasNewUnwritten，永久阻塞 autoPush。既无
+        // hash 又无 contentId 的 entry 没有任何可同步身份，归一化为「无内容」(null)
+        // 让 reducer 走 Push 分支。真实内容服务端必填 hash（响应侧保证），不会误伤。
+        if (serverEntry && !serverEntry.hash && !serverEntry.contentId) {
           console.log(
-            '[SyncEngine] ServerNew: willApply=' +
-              route.plan.willApply +
-              ' alreadyStaged=' +
-              route.plan.alreadyStaged
+            '[SyncEngine] serverEntry is empty placeholder (no hash/contentId) — treating as no content'
           );
-          await this.processServerNew(serverEntry!, route.plan, ucServer, server.trustInsecureCert);
-          break;
+          serverEntry = null;
+        }
 
-        case 'Push':
-          await this.maybePush(route.decision, device, ucServer, server.trustInsecureCert);
-          break;
-      }
+        // 跨进程水位线"并集"校正（iOS）：preamble 可能用陈旧的 App Group 水位线
+        // 顶掉本地已收敛基线（getPersistedSynced 的 ADOPT-APPGROUP 分支）。若服务端
+        // 当前内容其实匹配本地基线（cid 优先 / hash 回退），说明 App Group 水位线更
+        // 旧、应以本地为准——否则没变的服务端内容会被误判为 ServerNew，把设备上用户
+        // 刚复制的新内容覆盖掉，且本地内容永远推不上去。App Group 确实更新的场景
+        // （server 匹配 App Group 而非本地）不满足下面条件，照常走 apply，跨进程
+        // contentId 去重能力不受影响。
+        if (
+          serverEntry &&
+          !this.matchesBaseline(
+            serverEntry.hash,
+            serverEntry.contentId,
+            this.runtimeState.lastSyncedHash,
+            this.runtimeState.lastSyncedContentId
+          ) &&
+          this.matchesBaseline(
+            serverEntry.hash,
+            serverEntry.contentId,
+            localSynced.hash,
+            localSynced.contentId
+          )
+        ) {
+          console.log(
+            '[SyncEngine] baseline reconcile: server matches LOCAL baseline, dropping stale app-group watermark (' +
+              (this.runtimeState.lastSyncedHash?.slice(0, 8) ?? 'null') +
+              ' -> ' +
+              (localSynced.hash?.slice(0, 8) ?? 'null') +
+              ')'
+          );
+          this.runtimeState = {
+            ...this.runtimeState,
+            lastSyncedHash: localSynced.hash,
+            lastSyncedContentId: localSynced.contentId,
+          };
+        }
 
-      this.runHistorySyncIfDue(ucServer, server.trustInsecureCert).catch(() => {});
+        let plannedRoute: ServerRoute;
+        try {
+          plannedRoute = planAfterServerGet(this.runtimeState, {
+            autoApply: settings.autoApplyRemote,
+            autoPush: settings.autoPushLocal,
+            serverEntry,
+            devicePresent: device !== null,
+            deviceHash: device?.hash ?? null,
+          });
+        } catch (e: any) {
+          console.error('[SyncEngine] planAfterServerGet FFI error:', e?.message ?? e);
+          return;
+        }
+
+        console.log(
+          '[SyncEngine] tick: route=' +
+            plannedRoute.type +
+            (plannedRoute.type === 'Push' ? '(' + plannedRoute.decision + ')' : '') +
+            ' server=' +
+            (serverEntry?.hash?.slice(0, 8) ?? 'null') +
+            ' device=' +
+            (device?.hash?.slice(0, 8) ?? 'null')
+        );
+
+        switch (plannedRoute.type) {
+          case 'Converged':
+            // 学到 contentId 的主路径：push 后第一次 GET、设备剪贴板仍是刚 push 的
+            // 内容时走这里，传 server entry 的 contentId（doc §3 步骤 2）。
+            this.runtimeState = commitConverged(
+              this.runtimeState,
+              plannedRoute.serverHash,
+              serverEntry?.contentId ?? null
+            );
+            this.stagedEntry = null;
+            // 服务端已确认收到当前内容，释放幂等守卫：将来即便剪贴板内容变回这份旧
+            // 内容（A→B→A），也应允许重新 push。
+            this.lastPushedContentHash = null;
+            this.setState('Succeeded');
+            this.lastSyncedAt = Date.now();
+            this.lastError = null;
+            break;
+
+          case 'ServerNew':
+            console.log(
+              '[SyncEngine] ServerNew: willApply=' +
+                plannedRoute.plan.willApply +
+                ' alreadyStaged=' +
+                plannedRoute.plan.alreadyStaged
+            );
+            await this.processServerNew(
+              serverEntry!,
+              plannedRoute.plan,
+              ucServer,
+              server.trustInsecureCert
+            );
+            break;
+
+          case 'Push':
+            await this.maybePush(
+              plannedRoute.decision,
+              device,
+              ucServer,
+              server.trustInsecureCert
+            );
+            break;
+        }
+
+        this.runHistorySyncIfDue(ucServer, server.trustInsecureCert).catch(() => {});
+      });
 
       await this.persistRuntimeHash();
       this.notifyListeners();
@@ -651,9 +735,23 @@ export class SyncEngine {
           this.tripLoopBreaker();
           return;
         }
+        await this.markHistoryPushed(device.meta.hash);
         this.lastSyncedAt = Date.now();
         this.lastError = null;
         break;
+    }
+  }
+
+  private async markHistoryPushed(hash: string | null): Promise<void> {
+    if (!hash) return;
+    try {
+      const { useHistoryStore } = require('@/stores/historyStore');
+      await useHistoryStore.getState().updateItem(hash, {
+        syncStatus: HistorySyncStatus.Synced,
+        hasRemoteData: false,
+      });
+    } catch (e) {
+      console.error('[SyncEngine] Failed to mark pushed history item:', e);
     }
   }
 
@@ -715,6 +813,38 @@ export class SyncEngine {
 
   // -- Helpers --
 
+  private async withActiveRoute<T>(
+    server: ActiveServerInfo,
+    operation: (route: SelectedServerRoute) => Promise<T>
+  ): Promise<T> {
+    return (
+      await selectServerUrl(this.toAppServerConfig(server), {
+        network: getCurrentNetworkContext(),
+        loadLiveUrl: loadServerRouteLiveUrl,
+        saveLiveUrl: saveServerRouteLiveUrl,
+      }, operation)
+    ).result;
+  }
+
+  private toAppServerConfig(server: ActiveServerInfo): AppServerConfig {
+    const urls = server.urls && server.urls.length > 0 ? server.urls : [server.baseUrl];
+    return {
+      type: 'syncclipboard',
+      url: server.baseUrl,
+      urls,
+      username: server.username,
+      password: server.password,
+    };
+  }
+
+  private toUcServer(route: SelectedServerRoute): UcServerConfig {
+    return {
+      baseUrl: route.url,
+      username: route.server.username ?? '',
+      password: route.server.password ?? '',
+    };
+  }
+
   private scheduleNextTick(): void {
     if (this.tickTimer !== null) {
       clearTimeout(this.tickTimer);
@@ -759,6 +889,32 @@ export class SyncEngine {
       return 'NetworkUnreachable';
     }
     return 'OtherSyncError';
+  }
+
+  /** 只读本地 AsyncStorage 的同步水位线，不掺入 App Group（getPersistedSynced 会掺）。 */
+  private async readLocalSynced(): Promise<{ hash: string | null; contentId: string | null }> {
+    const pairs = await AsyncStorage.multiGet([LAST_SYNCED_HASH_KEY, LAST_SYNCED_CONTENT_ID_KEY]);
+    const map = new Map(pairs);
+    return {
+      hash: map.get(LAST_SYNCED_HASH_KEY) ?? null,
+      contentId: map.get(LAST_SYNCED_CONTENT_ID_KEY) ?? null,
+    };
+  }
+
+  /**
+   * 服务端 entry 是否匹配给定基线，镜像 reducer 的 is_already_synced：两侧都有
+   * contentId 时只比 contentId（不透明、verbatim，跨重编码稳定），否则回退 hash 大写比较。
+   */
+  private matchesBaseline(
+    serverHash: string | null,
+    serverCid: string | null,
+    baseHash: string | null,
+    baseCid: string | null
+  ): boolean {
+    if (serverCid != null && baseCid != null) return serverCid === baseCid;
+    if (serverHash == null && baseHash == null) return true;
+    if (serverHash == null || baseHash == null) return false;
+    return serverHash.toUpperCase() === baseHash.toUpperCase();
   }
 
   private async persistRuntimeHash(): Promise<void> {
