@@ -108,7 +108,7 @@ export const SHARED_DEFAULTS: SharedSettings = {
   appearance: 'system',
   language: 'zh-CN',
 
-  logLevel: 'info',
+  logLevel: __DEV__ ? 'debug' : 'info',
   debugMode: false,
 
   downloadRelativePath: '',
