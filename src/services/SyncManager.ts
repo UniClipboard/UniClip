@@ -6,11 +6,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { showToast } from '@/utils/toast';
-import { SyncClipboardClient } from './SyncClipboardClient';
 import { ISyncClipboardAPI } from './APIClient';
 import { WebDAVClient } from './WebDAVClient';
 import { S3Client } from './S3Client';
-import { AuthService } from './AuthService';
 import { clipboardManager } from './ClipboardManager';
 import { clipboardMonitor } from './ClipboardMonitor';
 import { ConfigurationError } from './errors';
@@ -34,6 +32,7 @@ import {
 } from '../types/sync';
 import { ClipboardContent } from '../types/clipboard';
 import { useSettingsStore } from '../stores/settingsStore';
+import { createAPIClient as createRoutedAPIClient } from './apiClientFactory';
 
 const STORAGE_KEY_CONFIG = '@syncclipboard:sync:config';
 const STORAGE_KEY_STATS = '@syncclipboard:sync:stats';
@@ -168,8 +167,7 @@ export class SyncManager {
       if (!url) {
         throw new ConfigurationError('Server URL is required');
       }
-      const authService = username && password ? new AuthService(username, password) : undefined;
-      return new SyncClipboardClient({ baseURL: url, authService });
+      return createRoutedAPIClient(config);
     }
 
     if (type === 's3') {
