@@ -17,8 +17,9 @@ import {
   handleNetworkRouteChanged,
   cancelInFlight,
 } from 'uc-core';
-import { getLastSyncedHash } from 'app-group-store';
+import { getLastSyncedHash, getLastSyncedContentId } from 'app-group-store';
 import { SyncEngine } from '../services/SyncEngine';
+import { setCurrentNetworkContext } from '../services/networkContext';
 
 const mockedPlanPreamble = planPreamble as jest.Mock;
 const mockedPlanAfterServerGet = planAfterServerGet as jest.Mock;
@@ -38,6 +39,23 @@ const mockedCommitStage = commitStage as jest.Mock;
 const mockedHandleNetworkRouteChanged = handleNetworkRouteChanged as jest.Mock;
 const mockedCancelInFlight = cancelInFlight as jest.Mock;
 const mockedGetLastSyncedHash = getLastSyncedHash as jest.Mock;
+const mockedGetLastSyncedContentId = getLastSyncedContentId as jest.Mock;
+const mockLoadServerRouteLiveUrl = jest.fn();
+const mockSaveServerRouteLiveUrl = jest.fn();
+const mockUpdateHistoryItem = jest.fn();
+
+jest.mock('../services/serverRouteRecordStore', () => ({
+  loadServerRouteLiveUrl: (...args: unknown[]) => mockLoadServerRouteLiveUrl(...args),
+  saveServerRouteLiveUrl: (...args: unknown[]) => mockSaveServerRouteLiveUrl(...args),
+}));
+
+jest.mock('@/stores/historyStore', () => ({
+  useHistoryStore: {
+    getState: () => ({
+      updateItem: (...args: unknown[]) => mockUpdateHistoryItem(...args),
+    }),
+  },
+}));
 
 const DEFAULT_STATE = {
   state: 'Idle' as const,
@@ -57,6 +75,7 @@ function makeEngine(overrides?: Partial<ConstructorParameters<typeof SyncEngine>
   const engine = new SyncEngine({
     getActiveServer: () => ({
       baseUrl: 'http://test.local',
+      urls: ['http://test.local'],
       username: 'user',
       password: 'pass',
       trustInsecureCert: false,
@@ -97,7 +116,12 @@ function setupConvergedTick() {
 beforeEach(() => {
   jest.clearAllMocks();
   mockedGetLastSyncedHash.mockResolvedValue(null);
+  mockedGetLastSyncedContentId.mockResolvedValue(null);
+  mockLoadServerRouteLiveUrl.mockResolvedValue(null);
+  mockSaveServerRouteLiveUrl.mockResolvedValue(undefined);
+  mockUpdateHistoryItem.mockResolvedValue(undefined);
   mockedIsHistorySyncDue.mockReturnValue(false);
+  setCurrentNetworkContext({ isWifi: false, isCellular: false, isTailscale: false, ssid: null });
 });
 
 afterEach(() => {
@@ -134,9 +158,77 @@ describe('SyncEngine', () => {
     expect(status.lastError).toBeNull();
   });
 
-  test('uses App Group last synced hash and clears content id when extension wrote a newer watermark', async () => {
+  test('retries the next active server address when getLatest cannot reach the preferred route', async () => {
+    const engine = makeEngine({
+      getActiveServer: () => ({
+        baseUrl: 'https://clip.example.com',
+        urls: ['https://clip.example.com', 'http://192.168.1.20:5033'],
+        username: 'user',
+        password: 'pass',
+        trustInsecureCert: false,
+      }),
+    });
+    setCurrentNetworkContext({ isWifi: true, isCellular: false, isTailscale: false, ssid: null });
+
+    mockedPlanPreamble.mockReturnValue({
+      state: DEFAULT_STATE,
+      preamble: { recordLocal: false, proceed: { type: 'ToNetwork' } },
+    });
+    mockedGetLatest.mockImplementation(async (server) => {
+      if (server.baseUrl === 'http://192.168.1.20:5033') {
+        throw new Error('network timeout');
+      }
+      return {
+        kind: 'Text',
+        text: 'hello',
+        dataName: null,
+        hasData: false,
+        size: 5,
+        hash: 'ABCD',
+        contentId: 'blake3v1:CID',
+      };
+    });
+    mockedPlanAfterServerGet.mockReturnValue({
+      type: 'Converged',
+      serverHash: 'ABCD',
+    });
+    mockedCommitConverged.mockReturnValue({ ...DEFAULT_STATE, lastSyncedHash: 'ABCD' });
+
+    await engine.forceTickNow();
+
+    expect(mockedGetLatest.mock.calls.map((call) => call[0].baseUrl)).toEqual([
+      'http://192.168.1.20:5033',
+      'https://clip.example.com',
+    ]);
+    expect(mockSaveServerRouteLiveUrl).toHaveBeenCalledWith(
+      'https://clip.example.com',
+      'https://clip.example.com'
+    );
+    expect(engine.getStatus().state).toBe('Succeeded');
+  });
+
+  test('adopts the extension App Group hash + contentId snapshot when it wrote a newer watermark', async () => {
     const engine = makeEngine();
     mockedGetLastSyncedHash.mockResolvedValue('EXTENSIONHASH');
+    mockedGetLastSyncedContentId.mockResolvedValue('blake3v1:EXT');
+    setupConvergedTick();
+
+    await engine.forceTickNow();
+    engine.destroy();
+
+    expect(mockedPlanPreamble).toHaveBeenCalledWith(
+      DEFAULT_STATE,
+      expect.objectContaining({
+        persistedSyncedHash: 'EXTENSIONHASH',
+        persistedSyncedContentId: 'blake3v1:EXT',
+      })
+    );
+  });
+
+  test('App Group newer hash with no contentId (legacy/bare push) yields null contentId', async () => {
+    const engine = makeEngine();
+    mockedGetLastSyncedHash.mockResolvedValue('EXTENSIONHASH');
+    mockedGetLastSyncedContentId.mockResolvedValue(null);
     setupConvergedTick();
 
     await engine.forceTickNow();
@@ -148,6 +240,113 @@ describe('SyncEngine', () => {
         persistedSyncedHash: 'EXTENSIONHASH',
         persistedSyncedContentId: null,
       })
+    );
+  });
+
+  test('normalizes empty-placeholder (hashless) server entry to no content so autoPush proceeds', async () => {
+    // 服务端无内容时为兼容官方协议返回 200 + 空 Text 占位（hash/contentId 均为
+    // null）而非 404。若不归一化，reducer 会判 ServerNew(will_apply=false) 卡死
+    // HasNewUnwritten，阻塞本地新内容上传。
+    const engine = makeEngine({
+      getDeviceClipboard: () => ({
+        hash: 'NEWDEV',
+        meta: {
+          kind: 'Text',
+          text: 'new',
+          dataName: null,
+          hasData: false,
+          size: 3,
+          hash: 'NEWDEV',
+          contentId: null,
+        },
+      }),
+    });
+    mockedPlanPreamble.mockReturnValue({
+      state: DEFAULT_STATE,
+      preamble: { recordLocal: false, proceed: { type: 'ToNetwork' } },
+    });
+    mockedGetLatest.mockResolvedValue({
+      kind: 'Text',
+      text: '',
+      dataName: null,
+      hasData: false,
+      size: 0,
+      hash: null,
+      contentId: null,
+    });
+    mockedPlanAfterServerGet.mockReturnValue({ type: 'Push', decision: 'DoPush' });
+    mockedCommitPush.mockReturnValue({ state: DEFAULT_STATE, outcome: { tripped: false } });
+
+    await engine.forceTickNow();
+
+    // 归一化生效：reducer 收到的 serverEntry 应为 null（而非 hashless 占位）
+    expect(mockedPlanAfterServerGet).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ serverEntry: null })
+    );
+    // 因而走 Push → 本地新内容实际上传
+    expect(mockedPutClipboard).toHaveBeenCalled();
+  });
+
+  test('drops stale App Group watermark when server still matches the local baseline (reconcile)', async () => {
+    // App Group 里残留陈旧水位线被 preamble fold 进 baseline，但服务端当前内容其实
+    // 等于本地基线 → 应把 baseline 校正回本地，避免没变的服务端内容被误判 ServerNew、
+    // 把设备新内容覆盖掉且永远推不上去。
+    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+    AsyncStorage.multiGet.mockResolvedValue([
+      ['@syncengine:last_synced_hash', 'LOCAL'],
+      ['@syncengine:last_synced_content_id', 'blake3v1:LOCALCID'],
+    ]);
+    mockedGetLastSyncedHash.mockResolvedValue('STALE');
+    mockedGetLastSyncedContentId.mockResolvedValue('blake3v1:STALECID');
+
+    const engine = makeEngine({
+      getDeviceClipboard: () => ({
+        hash: 'NEWDEV',
+        meta: {
+          kind: 'Text',
+          text: 'new',
+          dataName: null,
+          hasData: false,
+          size: 3,
+          hash: 'NEWDEV',
+          contentId: null,
+        },
+      }),
+    });
+
+    // preamble fold：陈旧 App Group 水位线顶掉了本地基线。
+    const foldedState = {
+      ...DEFAULT_STATE,
+      lastSyncedHash: 'STALE',
+      lastSyncedContentId: 'blake3v1:STALECID',
+    };
+    mockedPlanPreamble.mockReturnValue({
+      state: foldedState,
+      preamble: { recordLocal: false, proceed: { type: 'ToNetwork' } },
+    });
+    // 服务端当前内容 == 本地基线（未变）。
+    mockedGetLatest.mockResolvedValue({
+      kind: 'Text',
+      text: 'hi',
+      dataName: null,
+      hasData: false,
+      size: 2,
+      hash: 'LOCAL',
+      contentId: 'blake3v1:LOCALCID',
+    });
+    mockedPlanAfterServerGet.mockReturnValue({ type: 'Push', decision: 'DoPush' });
+    mockedCommitPush.mockReturnValue({ state: foldedState, outcome: { tripped: false } });
+
+    await engine.forceTickNow();
+
+    // reconcile 把 baseline 从陈旧 STALE 纠正回本地 LOCAL，再交给 reducer 判路由。
+    expect(mockedPlanAfterServerGet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lastSyncedHash: 'LOCAL',
+        lastSyncedContentId: 'blake3v1:LOCALCID',
+      }),
+      expect.anything()
     );
   });
 
@@ -268,6 +467,12 @@ describe('SyncEngine', () => {
     await engine.forceTickNow();
 
     expect(mockedPutClipboard).toHaveBeenCalled();
+    expect(mockUpdateHistoryItem).toHaveBeenCalledWith(
+      'LOCH',
+      expect.objectContaining({
+        syncStatus: 1,
+      })
+    );
     expect(engine.getStatus().state).toBe('Succeeded');
   });
 
