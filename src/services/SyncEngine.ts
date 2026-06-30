@@ -353,7 +353,7 @@ export class SyncEngine {
     const server = this.getActiveServer();
     const device = this.getDeviceClipboard();
     const settings = this.getSettings();
-    log.info(
+    log.debug(
       '[SyncEngine] doTick: explicit=' +
         explicit +
         ' server=' +
@@ -483,7 +483,7 @@ export class SyncEngine {
           return;
         }
 
-        log.info(
+        log.debug(
           '[SyncEngine] tick: route=' +
             plannedRoute.type +
             (plannedRoute.type === 'Push' ? '(' + plannedRoute.decision + ')' : '') +

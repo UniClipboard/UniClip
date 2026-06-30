@@ -195,7 +195,7 @@ export async function calculateFileHash(
     throwIfAborted(signal);
 
     const tag = isNativeHashModuleAvailable ? 'native' : 'js';
-    log.info(`[HashUtils] calculateFileHash start (${tag}):`, fileUri);
+    log.debug(`[HashUtils] calculateFileHash start (${tag}):`, fileUri);
     const startTime = Date.now();
 
     let hash: string;
@@ -207,7 +207,7 @@ export async function calculateFileHash(
       hash = await calculateFileHashJS(fileUri, signal);
     }
 
-    log.info(`[HashUtils] calculateFileHash done (${tag}) in ${Date.now() - startTime}ms:`, hash);
+    log.debug(`[HashUtils] calculateFileHash done (${tag}) in ${Date.now() - startTime}ms:`, hash);
     return hash;
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {

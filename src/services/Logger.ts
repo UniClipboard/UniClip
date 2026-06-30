@@ -91,7 +91,7 @@ export function initLogger(config?: Partial<LogConfig>): void {
   }
 
   const logConfig = {
-    level: config?.level ?? 'debug',
+    level: config?.level ?? 'info',
     enableConsole: config?.enableConsole ?? true,
   };
 

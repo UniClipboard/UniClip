@@ -9,7 +9,7 @@ import { ShareReceiveScreen } from './src/screens/ShareReceiveScreen';
 import { ProcessTextScreen } from './src/screens/ProcessTextScreen';
 import { SyncDirection } from './src/types/sync';
 import { useSettingsStore, usePendingConnectStore } from './src/stores';
-import { initLogger } from './src/services/Logger';
+import { initLogger, setLogLevel } from './src/services/Logger';
 import { useTheme } from './src/hooks/useTheme';
 import { setDynamicShortcuts } from 'shortcut';
 import { moveTaskToBack, setExcludeFromRecents } from 'native-util';
@@ -112,6 +112,14 @@ export default function App() {
       loadConfig();
     }
   }, [isLoaded, loadConfig]);
+
+  // config 加载后将持久化的日志级别同步给 logger（initLogger 默认 info，
+  // 此处用用户在设置页选择的级别覆盖，使其在重启后依然生效）
+  useEffect(() => {
+    if (config?.logLevel) {
+      setLogLevel(config.logLevel);
+    }
+  }, [config?.logLevel]);
 
   useEffect(() => {
     if (!isLoaded) return;
