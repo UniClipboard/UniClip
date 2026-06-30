@@ -16,6 +16,7 @@ import { HistoryStorage } from './HistoryStorage';
 import { ClipboardItem, HistorySyncStatus } from '@/types/clipboard';
 import { ServerConfig } from '@/types/api';
 import { getSignalRClient, type HistoryChangedEvent } from 'signalr-client';
+import { createHistoryAPIClient } from './apiClientFactory';
 
 const MAX_TIME_DIFFERENCE_MS = 5 * 60 * 1000; // 5 分钟
 
@@ -1097,21 +1098,12 @@ export class HistorySyncService {
     if (this.isInitialized()) {
       const serverChanged =
         this.serverConfig?.url !== serverConfig.url ||
+        JSON.stringify(this.serverConfig?.urls ?? []) !== JSON.stringify(serverConfig.urls ?? []) ||
         this.serverConfig?.username !== serverConfig.username;
 
       if (serverChanged) {
         console.log('[HistorySyncService] Server changed, switching...');
-        const { SyncClipboardClient } = await import('./SyncClipboardClient');
-        const { AuthService } = await import('./AuthService');
-        const authService =
-          serverConfig.username && serverConfig.password
-            ? new AuthService(serverConfig.username, serverConfig.password)
-            : undefined;
-
-        const historyAPI = new SyncClipboardClient({
-          baseURL: serverConfig.url,
-          authService,
-        });
+        const historyAPI = createHistoryAPIClient(serverConfig);
 
         await this.switchServer({
           serverConfig,
@@ -1121,17 +1113,7 @@ export class HistorySyncService {
       return true;
     }
 
-    const { SyncClipboardClient } = await import('./SyncClipboardClient');
-    const { AuthService } = await import('./AuthService');
-    const authService =
-      serverConfig.username && serverConfig.password
-        ? new AuthService(serverConfig.username, serverConfig.password)
-        : undefined;
-
-    const historyAPI = new SyncClipboardClient({
-      baseURL: serverConfig.url,
-      authService,
-    });
+    const historyAPI = createHistoryAPIClient(serverConfig);
 
     await this.initialize({
       serverConfig,

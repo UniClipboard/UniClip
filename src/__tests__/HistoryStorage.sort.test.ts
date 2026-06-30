@@ -156,6 +156,47 @@ describe('HistoryStorage 排序', () => {
       // a 的 lastAccessed 被更新为 Date.now()，应排第一
       expect(result.items[0].profileHash).toBe('a');
     });
+
+    it('re-add 本机内容时，已存在记录重新标记为未推送', async () => {
+      await storage.addItem(
+        createItem('local', 100, {
+          syncStatus: HistorySyncStatus.Synced,
+        })
+      );
+
+      const saved = await storage.addItem(createItem('local', 200));
+
+      expect(saved.syncStatus).toBe(HistorySyncStatus.LocalOnly);
+      expect(saved.from).toBeUndefined();
+    });
+
+    it('re-add 服务端内容时，已存在记录标记为拉取来源', async () => {
+      await storage.addItem(createItem('remote', 100));
+
+      const saved = await storage.addItem(
+        createItem('remote', 200, {
+          syncStatus: HistorySyncStatus.Synced,
+          from: 'server',
+        })
+      );
+
+      expect(saved.syncStatus).toBe(HistorySyncStatus.Synced);
+      expect(saved.from).toBe('server');
+    });
+
+    it('re-add 本机内容时，不沿用旧的拉取来源', async () => {
+      await storage.addItem(
+        createItem('server-to-local', 100, {
+          syncStatus: HistorySyncStatus.Synced,
+          from: 'server',
+        })
+      );
+
+      const saved = await storage.addItem(createItem('server-to-local', 200));
+
+      expect(saved.syncStatus).toBe(HistorySyncStatus.LocalOnly);
+      expect(saved.from).toBeUndefined();
+    });
   });
 
   // =========================================================

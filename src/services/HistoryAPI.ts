@@ -142,6 +142,7 @@ export function dtoToClipboardItem(dto: HistoryRecordDto): ClipboardItem {
     starred: dto.starred ?? false,
     pinned: dto.pinned ?? false,
     syncStatus: HistorySyncStatus.Synced,
+    from: 'server',
     version: dto.version ?? 0,
     lastModified: dto.lastModified ? new Date(dto.lastModified).getTime() : Date.now(),
     lastAccessed: dto.lastAccessed ? new Date(dto.lastAccessed).getTime() : Date.now(),

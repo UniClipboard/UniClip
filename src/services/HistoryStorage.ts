@@ -531,7 +531,10 @@ export class HistoryStorage {
         lastModified: Date.now(),
         lastAccessed: Date.now(),
         version: existing.version + 1,
-        syncStatus: wasDeleted ? HistorySyncStatus.LocalOnly : HistorySyncStatus.NeedSync,
+        syncStatus: wasDeleted
+          ? HistorySyncStatus.LocalOnly
+          : (processedItem.syncStatus ?? HistorySyncStatus.LocalOnly),
+        from: processedItem.from,
       };
 
       // 从旧位置移除，重新插入到正确位置
