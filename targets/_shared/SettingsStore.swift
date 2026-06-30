@@ -33,6 +33,18 @@ public final class SettingsStore: @unchecked Sendable {
     /// never a half-written file.
     static let lastSyncedHashFilename = "last_synced_hash"
 
+    /// Filename of the file-backed `last_synced_content_id` under
+    /// `containerURL`. Plain UTF-8, holds one opaque server identity
+    /// (`blake3v1:<hex>`) or is absent for `nil`. Lives alongside
+    /// `lastSyncedHashFilename` and is written/cleared atomically with it so
+    /// the two form a single cross-process watermark snapshot: extensions
+    /// that learn a `contentId` from a GET surface it to the main app's
+    /// `SyncEngine`, which prefers `contentId` over `hash` for dedup (stable
+    /// across server re-encodes). Same `cfprefsd`-lag reason for being a file
+    /// rather than `UserDefaults`. Unlike the hash, the value is NOT
+    /// upper-cased — the identity is opaque and compared verbatim.
+    static let lastSyncedContentIdFilename = "last_synced_content_id"
+
     /// Filename of the file-backed `last_known_ssid` under `containerURL`.
     /// Plain UTF-8, holds one normalized SSID (§5.1) or is absent for "no
     /// Wi-Fi / unknown". File-backed (not `UserDefaults`) for the same
@@ -43,10 +55,10 @@ public final class SettingsStore: @unchecked Sendable {
     static let lastKnownSSIDFilename = "last_known_ssid"
 
     /// Filename of the file-backed live-URL map under `containerURL`. JSON
-    /// `{configId: url}` — for each profile, the candidate URL the main
-    /// app's most recent §5.3 probe confirmed reachable. Only the main app
-    /// writes it (extensions never probe); the keyboard extension reads it
-    /// as its best guess before falling back to pure shape order. File-
+    /// `{configId: url}` — for each profile, the candidate URL the most
+    /// recent §5.3 probe confirmed reachable. App extensions may refresh it
+    /// while sending, and otherwise read it as a best guess before falling
+    /// back to pure shape order. File-
     /// backed (not `UserDefaults`) for the same cross-process-freshness
     /// reason as the two files above.
     static let liveURLsFilename = "live_urls"
@@ -255,6 +267,36 @@ public final class SettingsStore: @unchecked Sendable {
         }
     }
 
+    private var lastSyncedContentIdFileURL: URL {
+        containerURL.appendingPathComponent(SettingsStore.lastSyncedContentIdFilename, isDirectory: false)
+    }
+
+    /// Load the opaque `contentId` paired with the last synced content, or
+    /// `nil` when absent. Returned VERBATIM (no upper-casing) — the identity
+    /// is compared as a whole. Empty / whitespace-only ⇒ `nil` (treated as
+    /// absent, mirroring the harden-watermark `""` rule).
+    public func loadLastSyncedContentId() -> String? {
+        guard let data = try? Data(contentsOf: lastSyncedContentIdFileURL),
+              let raw = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        return raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : raw
+    }
+
+    /// Persist the opaque `contentId` watermark. Pass `nil` (or an empty /
+    /// whitespace-only string) to clear it — e.g. right after a push, whose
+    /// uploaded entry has no server identity yet (it is re-learned on the
+    /// next GET). Atomic write, same cross-process guarantee as the hash.
+    /// Callers update this together with `saveLastSyncedHash` so the pair
+    /// never goes stale single-sided.
+    public func saveLastSyncedContentId(_ contentId: String?) {
+        if let contentId, !contentId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            try? Data(contentId.utf8).write(to: lastSyncedContentIdFileURL, options: [.atomic])
+        } else {
+            try? FileManager.default.removeItem(at: lastSyncedContentIdFileURL)
+        }
+    }
+
     // MARK: - Last-known Wi-Fi SSID (auto-switch overlay, cross-process)
 
     private var lastKnownSSIDFileURL: URL {
@@ -305,7 +347,7 @@ public final class SettingsStore: @unchecked Sendable {
     }
 
     /// Persist (or with nil, clear) the probe-confirmed URL for `configId`.
-    /// Main-app only — extensions read, never write. Atomic write, same
+    /// Atomic write, same
     /// guarantee as the sibling files: a cross-process reader sees either
     /// the old map or the new one.
     public func saveLiveURL(configId: String, _ url: String?) {

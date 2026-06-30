@@ -17,13 +17,23 @@ public struct Clipboard: Codable, Equatable, Hashable, Sendable {
     public var dataName: String?
     public var size: Int?
 
+    /// Server-assigned opaque content identity (`blake3v1:<hex>`). Present
+    /// only on GET responses; uploads / legacy servers carry `nil`. Compared
+    /// verbatim as a whole — never parsed, case-folded, or normalized beyond
+    /// "empty string ⇒ absent" (a harden-watermark fix can emit `""`, which
+    /// must NOT short-circuit a same-content check). It is stable across
+    /// server-side re-encodes (JPEG→PNG changes `hash` but not `contentId`),
+    /// which is exactly what lets dedup survive re-encoding.
+    public var contentId: String?
+
     public init(
         type: Kind,
         hash: String? = nil,
         text: String,
         hasData: Bool,
         dataName: String? = nil,
-        size: Int? = nil
+        size: Int? = nil,
+        contentId: String? = nil
     ) {
         self.type = type
         self.hash = Self.normalizeHash(hash)
@@ -31,10 +41,11 @@ public struct Clipboard: Codable, Equatable, Hashable, Sendable {
         self.hasData = hasData
         self.dataName = dataName
         self.size = size
+        self.contentId = Self.normalizeContentId(contentId)
     }
 
     private enum CodingKeys: String, CodingKey {
-        case type, hash, text, hasData, dataName, size
+        case type, hash, text, hasData, dataName, size, contentId
     }
 
     public init(from decoder: any Decoder) throws {
@@ -45,6 +56,7 @@ public struct Clipboard: Codable, Equatable, Hashable, Sendable {
         hash    = Self.normalizeHash(try c.decodeIfPresent(String.self, forKey: .hash))
         dataName = try c.decodeIfPresent(String.self, forKey: .dataName)
         size     = try c.decodeIfPresent(Int.self, forKey: .size)
+        contentId = Self.normalizeContentId(try c.decodeIfPresent(String.self, forKey: .contentId))
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -55,6 +67,7 @@ public struct Clipboard: Codable, Equatable, Hashable, Sendable {
         try c.encode(hasData, forKey: .hasData)
         try c.encodeIfPresent(dataName, forKey: .dataName)
         try c.encodeIfPresent(size, forKey: .size)
+        // contentId is GET-only server identity — never published on PUT.
     }
 
     /// §3.1 — empty / whitespace-only hash is normalized to nil so the encoder omits the key.
@@ -63,6 +76,16 @@ public struct Clipboard: Codable, Equatable, Hashable, Sendable {
             return nil
         }
         return s
+    }
+
+    /// Empty / whitespace-only `contentId` ⇒ absent (`nil`). A non-empty
+    /// value is kept VERBATIM — not trimmed, not case-folded — because the
+    /// identity is opaque and compared as a whole.
+    static func normalizeContentId(_ raw: String?) -> String? {
+        guard let raw, !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        return raw
     }
 }
 

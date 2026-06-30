@@ -217,16 +217,28 @@ public struct ServerConfig: Codable, Equatable, Hashable, Identifiable, Sendable
             .map(\.element)
     }
 
-    /// §5.3 — the try-order with the probe's verdict layered on top: a
-    /// `live` URL the app's last probe confirmed reachable leads, the
-    /// remaining candidates follow in shape order as fallbacks. A `live`
-    /// value not in `urls` (the config was edited since the probe wrote
-    /// it) is ignored rather than resurrected. Pure — `live` comes from
-    /// `SettingsStore.loadLiveURL`, `network` from the caller's monitor.
+    /// §5.3 — the try-order with the probe's verdict layered on top. A
+    /// `live` URL leads only while it still matches the current network's
+    /// best URL class; otherwise shape ordering wins so a stale LAN hit from
+    /// Wi-Fi does not block cellular + Tailscale. A `live` value not in `urls`
+    /// is ignored rather than resurrected.
     public func preferredURLs(live: String?, network: NetworkContext) -> [String] {
         let ordered = orderedURLs(network: network)
         guard let live, urls.contains(live) else { return ordered }
+        guard Self.shouldPromoteLiveURL(live, ordered: ordered, network: network) else { return ordered }
         return [live] + ordered.filter { $0 != live }
+    }
+
+    private static func shouldPromoteLiveURL(
+        _ live: String,
+        ordered: [String],
+        network: NetworkContext
+    ) -> Bool {
+        guard let preference = classPreference(network), let first = ordered.first else { return true }
+        func rank(_ url: String) -> Int {
+            preference.firstIndex(of: classifyURL(url)) ?? preference.count
+        }
+        return rank(live) <= rank(first)
     }
 }
 

@@ -105,6 +105,19 @@ public final class SyncClipboardClient: @unchecked Sendable {
         }
     }
 
+    /// Lightweight reachability probe for route selection. It checks the
+    /// mandatory metadata endpoint's HTTP status without decoding the body,
+    /// and treats a missing clipboard as a reachable server.
+    public func probeReachability() async throws {
+        let url = baseURL.appendingPathComponent("SyncClipboard.json")
+        var req = URLRequest(url: url)
+        req.httpMethod = "GET"
+        req.setValue(authHeader, forHTTPHeaderField: "Authorization")
+
+        let (_, response) = try await perform(req, retryTransient: false)
+        try checkProbeStatus(response)
+    }
+
     /// `PUT SyncClipboard.json` — publish clipboard metadata. Spec §2.2.
     /// If `entry.hasData == true`, the payload file MUST already have been
     /// uploaded via `putFile(name:body:)` per §3.5 — this method does not
@@ -244,12 +257,32 @@ public final class SyncClipboardClient: @unchecked Sendable {
         throw err
     }
 
-    private func perform(_ req: URLRequest, attempt: Int = 1) async throws -> (Data, URLResponse) {
+    private func checkProbeStatus(_ response: URLResponse) throws {
+        let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+        switch status {
+        case 200...299, 404:
+            return
+        case 401, 403:
+            throw SyncError(kind: .authFailed)
+        default:
+            throw SyncError(kind: .networkUnreachable, underlying: "probe HTTP \(status)")
+        }
+    }
+
+    private func perform(
+        _ req: URLRequest,
+        attempt: Int = 1,
+        retryTransient: Bool = true
+    ) async throws -> (Data, URLResponse) {
         if wasCancelled {
             throw SyncError(kind: .cancelled, underlying: "client cancelled via cancelInFlight()")
         }
+        let started = networkTimingNow()
         do {
-            return try await session.data(for: req)
+            let (data, response) = try await session.data(for: req)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+            log.info("[network-timing] \(req.httpMethod ?? "?", privacy: .public) \(req.url?.absoluteString ?? "?", privacy: .public) attempt=\(attempt, privacy: .public) status=\(status, privacy: .public) bytes=\(data.count, privacy: .public) ms=\(networkTimingElapsedMilliseconds(since: started), privacy: .public)")
+            return (data, response)
         } catch let e as URLError {
             // -1005 networkConnectionLost / -1001 timedOut: iOS 进程内
             // NWConnection / NECP 路径会僵在 dead state — 即使新建
@@ -258,15 +291,15 @@ public final class SyncClipboardClient: @unchecked Sendable {
             // 给的官方 workaround 是延迟 ~300ms 重试一次：二次请求会
             // 重新走 path 评估，多数情况下能拿到 fresh connection。
             let retriable: Set<URLError.Code> = [.networkConnectionLost, .timedOut]
-            if attempt == 1, retriable.contains(e.code) {
-                log.warning("perform: URLError \(e.code.rawValue, privacy: .public) on \(req.httpMethod ?? "?", privacy: .public) \(req.url?.absoluteString ?? "?", privacy: .public) — retrying once after 300ms")
+            if retryTransient, attempt == 1, retriable.contains(e.code) {
+                log.warning("[network-timing] URLError \(e.code.rawValue, privacy: .public) on \(req.httpMethod ?? "?", privacy: .public) \(req.url?.absoluteString ?? "?", privacy: .public) attempt=\(attempt, privacy: .public) ms=\(networkTimingElapsedMilliseconds(since: started), privacy: .public) — retrying once after 300ms")
                 try? await Task.sleep(nanoseconds: 300_000_000)
-                return try await perform(req, attempt: 2)
+                return try await perform(req, attempt: 2, retryTransient: retryTransient)
             }
-            log.error("perform: URLError \(e.code.rawValue, privacy: .public) on \(req.httpMethod ?? "?", privacy: .public) \(req.url?.absoluteString ?? "?", privacy: .public) attempt=\(attempt, privacy: .public): \(e.localizedDescription, privacy: .public)")
+            log.error("[network-timing] URLError \(e.code.rawValue, privacy: .public) on \(req.httpMethod ?? "?", privacy: .public) \(req.url?.absoluteString ?? "?", privacy: .public) attempt=\(attempt, privacy: .public) ms=\(networkTimingElapsedMilliseconds(since: started), privacy: .public): \(e.localizedDescription, privacy: .public)")
             throw SyncError.mapURLError(e)
         } catch {
-            log.error("perform: non-URLError on \(req.httpMethod ?? "?", privacy: .public) \(req.url?.absoluteString ?? "?", privacy: .public): \(String(describing: error), privacy: .public)")
+            log.error("[network-timing] non-URLError on \(req.httpMethod ?? "?", privacy: .public) \(req.url?.absoluteString ?? "?", privacy: .public) ms=\(networkTimingElapsedMilliseconds(since: started), privacy: .public): \(String(describing: error), privacy: .public)")
             throw SyncError(kind: .networkUnreachable, underlying: "\(error)")
         }
     }
@@ -313,6 +346,14 @@ public final class SyncClipboardClient: @unchecked Sendable {
         }
         return URLSession(configuration: cfg)
     }
+}
+
+private func networkTimingNow() -> UInt64 {
+    DispatchTime.now().uptimeNanoseconds
+}
+
+private func networkTimingElapsedMilliseconds(since start: UInt64) -> UInt64 {
+    (DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
 }
 
 /// Accepts any server trust — used only when the user opts into

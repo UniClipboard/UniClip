@@ -1,4 +1,5 @@
 import Foundation
+import Network
 #if canImport(Darwin)
 import Darwin
 #endif
@@ -64,5 +65,62 @@ public enum TailscaleDetector {
             if (ipv4 & 0xFFC0_0000) == 0x6440_0000 { return true }
         }
         return false
+    }
+}
+
+public enum NetworkContextDetector {
+    public static func current(
+        store: SettingsStore = SettingsStore(),
+        timeoutNanoseconds: UInt64 = 250_000_000
+    ) async -> NetworkContext {
+        let path = await currentPath(timeoutNanoseconds: timeoutNanoseconds)
+        let isWifi = path?.usesInterfaceType(.wifi) ?? false
+        let isCellular = path?.usesInterfaceType(.cellular) ?? false
+        return NetworkContext(
+            ssid: isWifi ? store.loadLastKnownSSID() : nil,
+            isWifi: isWifi,
+            isCellular: isCellular,
+            isTailscale: TailscaleDetector.isActive()
+        )
+    }
+
+    private static func currentPath(timeoutNanoseconds: UInt64) async -> NWPath? {
+        await withTaskGroup(of: NWPath?.self) { group in
+            group.addTask {
+                await withCheckedContinuation { continuation in
+                    let monitor = NWPathMonitor()
+                    let queue = DispatchQueue(label: "app.uniclipboard.network-context", qos: .utility)
+                    let gate = NetworkPathContinuationGate(continuation: continuation, monitor: monitor)
+                    monitor.pathUpdateHandler = { path in
+                        Task { await gate.resume(path) }
+                    }
+                    monitor.start(queue: queue)
+                }
+            }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: timeoutNanoseconds)
+                return nil
+            }
+            let result = await group.next() ?? nil
+            group.cancelAll()
+            return result
+        }
+    }
+}
+
+private actor NetworkPathContinuationGate {
+    private var continuation: CheckedContinuation<NWPath?, Never>?
+    private let monitor: NWPathMonitor
+
+    init(continuation: CheckedContinuation<NWPath?, Never>, monitor: NWPathMonitor) {
+        self.continuation = continuation
+        self.monitor = monitor
+    }
+
+    func resume(_ path: NWPath?) {
+        guard let continuation else { return }
+        self.continuation = nil
+        monitor.cancel()
+        continuation.resume(returning: path)
     }
 }
