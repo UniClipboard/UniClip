@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "UniClipDev",
+    "name": "UniClip",
     "slug": "uniclip",
     "scheme": "uniclipboard",
     "version": "1.1.0",
@@ -10,7 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "appleTeamId": "8XG39X5CL8",
-      "bundleIdentifier": "app.uniclipboard.ios.dev",
+      "bundleIdentifier": "app.uniclipboard.ios",
       "entitlements": {
         "com.apple.security.application-groups": ["group.app.uniclipboard.UniClipboard"]
       }
@@ -59,7 +59,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "授权 UniClipDev 使用相机以扫描二维码接入服务器"
+          "cameraPermission": "授权 UniClip 使用相机以扫描二维码接入服务器"
         }
       ]
     ],
@@ -71,14 +71,14 @@
               "appExtensions": [
                 {
                   "targetName": "share",
-                  "bundleIdentifier": "app.uniclipboard.ios.dev.Share",
+                  "bundleIdentifier": "app.uniclipboard.ios.Share",
                   "entitlements": {
                     "com.apple.security.application-groups": ["group.app.uniclipboard.UniClipboard"]
                   }
                 },
                 {
                   "targetName": "keyboard",
-                  "bundleIdentifier": "app.uniclipboard.ios.dev.Keyboard",
+                  "bundleIdentifier": "app.uniclipboard.ios.Keyboard",
                   "entitlements": {
                     "com.apple.security.application-groups": ["group.app.uniclipboard.UniClipboard"]
                   }

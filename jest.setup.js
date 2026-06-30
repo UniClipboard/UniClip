@@ -15,6 +15,10 @@ jest.mock('expo-clipboard', () => ({
   setImageAsync: jest.fn(),
 }));
 
+jest.mock('expo-application', () => ({
+  nativeApplicationVersion: '1.0.0',
+}));
+
 jest.mock('expo-file-system', () => ({
   File: jest.fn().mockImplementation(() => ({
     info: jest.fn().mockReturnValue({ exists: true, size: 1000 }),
@@ -43,6 +47,15 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 jest.mock('native-util', () => ({
   isNativeHashModuleAvailable: jest.fn().mockReturnValue(false),
   nativeCalculateFileHash: jest.fn(),
+  isTailscaleActive: jest.fn().mockReturnValue(false),
+}));
+
+jest.mock('@react-native-community/netinfo', () => ({
+  __esModule: true,
+  default: {
+    addEventListener: jest.fn(() => jest.fn()),
+    fetch: jest.fn(),
+  },
 }));
 
 jest.mock('app-group-store', () => ({
@@ -51,6 +64,9 @@ jest.mock('app-group-store', () => ({
   saveSettings: jest.fn().mockResolvedValue(undefined),
   getSettings: jest.fn().mockResolvedValue({}),
   getLastSyncedHash: jest.fn().mockResolvedValue(null),
+  getLastSyncedContentId: jest.fn().mockResolvedValue(null),
+  getLiveUrl: jest.fn().mockResolvedValue(null),
+  saveLiveUrl: jest.fn().mockResolvedValue(undefined),
   migrateLegacyContainer: jest.fn().mockResolvedValue({ migrated: false, keys: 0 }),
 }));
 
