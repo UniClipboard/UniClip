@@ -19,6 +19,8 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import androidx.core.content.FileProvider
 import java.net.HttpURLConnection
+import java.net.Inet4Address
+import java.net.NetworkInterface
 import java.net.URL
 import java.nio.channels.Channels
 import java.security.MessageDigest
@@ -708,6 +710,10 @@ class NativeUtilModule : Module() {
             Build.SUPPORTED_ABIS.toList()
         }
 
+        Function("isTailscaleActive") {
+            hasTailscaleAddress()
+        }
+
         AsyncFunction("saveClipboardImageToFile") { destDirPath: String, promise: Promise ->
             executor.submit {
                 try {
@@ -843,6 +849,33 @@ class NativeUtilModule : Module() {
         } else {
             fileUri
         }
+    }
+
+    private fun hasTailscaleAddress(): Boolean {
+        return try {
+            val interfaces = NetworkInterface.getNetworkInterfaces()
+            while (interfaces.hasMoreElements()) {
+                val networkInterface = interfaces.nextElement()
+                if (!networkInterface.isUp || networkInterface.isLoopback) continue
+                val addresses = networkInterface.inetAddresses
+                while (addresses.hasMoreElements()) {
+                    val address = addresses.nextElement()
+                    if (address is Inet4Address && isTailscaleIpv4(address.address)) {
+                        return true
+                    }
+                }
+            }
+            false
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun isTailscaleIpv4(bytes: ByteArray): Boolean {
+        if (bytes.size != 4) return false
+        val first = bytes[0].toInt() and 0xFF
+        val second = bytes[1].toInt() and 0xFF
+        return first == 100 && second in 64..127
     }
 }
 

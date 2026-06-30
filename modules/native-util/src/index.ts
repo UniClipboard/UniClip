@@ -55,6 +55,7 @@ export interface NativeUtilModuleType {
   requestIgnoreBatteryOptimizations(): boolean;
   setExcludeFromRecents(exclude: boolean): boolean;
   getSupportedAbis(): string[];
+  isTailscaleActive(): boolean;
   saveClipboardImageToFile(
     destDirPath: string
   ): Promise<{ width: number; height: number; filePath: string; mimeType: string } | null>;
@@ -107,6 +108,11 @@ export function setExcludeFromRecents(exclude: boolean): boolean {
 export function getSupportedAbis(): string[] {
   if (Platform.OS !== 'android') return [];
   return NativeUtilModule!.getSupportedAbis();
+}
+
+export function isTailscaleActive(): boolean {
+  if (Platform.OS !== 'android') return false;
+  return NativeUtilModule!.isTailscaleActive();
 }
 
 /**
