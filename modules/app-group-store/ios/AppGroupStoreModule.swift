@@ -33,6 +33,18 @@ public class AppGroupStoreModule: Module {
       self.store.loadLastSyncedHash()
     }
 
+    AsyncFunction("getLastSyncedContentId") { () -> String? in
+      self.store.loadLastSyncedContentId()
+    }
+
+    AsyncFunction("getLiveUrl") { (configId: String) -> String? in
+      self.store.loadLiveURL(configId: configId)
+    }
+
+    AsyncFunction("saveLiveUrl") { (configId: String, url: String?) -> Void in
+      self.store.saveLiveURL(configId: configId, url)
+    }
+
     AsyncFunction("migrateLegacyContainer") { () -> [String: Any] in
       let result = SettingsStore.migrateLegacyContainer()
       return ["migrated": result.migrated, "keys": result.keys]
