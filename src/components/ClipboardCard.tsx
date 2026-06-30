@@ -22,6 +22,7 @@ import {
   formatRelativeTime,
   type DisplayKind,
 } from '@/utils/displayKind';
+import { getHistoryDirectionIndicator } from '@/utils/historyDirection';
 
 interface ClipboardCardProps {
   item: ClipboardItem;
@@ -183,10 +184,13 @@ function BottomRow({
   theme: CardBodyProps['theme'];
 }) {
   const dirColor = overlay ? 'rgba(255,255,255,0.7)' : theme.colors.onSurfaceVariant;
+  const indicator = getHistoryDirectionIndicator(item);
   return (
     <View style={styles.bottomRow}>
-      {item.from ? (
+      {indicator === 'download' ? (
         <ArrowDown size={10} color={dirColor} />
+      ) : indicator === 'pendingUpload' || indicator === 'pendingSync' ? (
+        <Ionicons name="time-outline" size={10} color={dirColor} />
       ) : (
         <ArrowUp size={10} color={dirColor} />
       )}

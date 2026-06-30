@@ -8,6 +8,11 @@ import { ClipboardContent, createDefaultClipboardItem } from '../types/clipboard
 import { clipboardManager, clipboardMonitor } from '../services';
 import { useHistoryStore } from './historyStore';
 
+function notifySyncEngine(content: ClipboardContent): void {
+  const { notifyDeviceClipboardChanged } = require('./syncEngineStore');
+  notifyDeviceClipboardChanged(content);
+}
+
 /**
  * 剪贴板状态接口
  */
@@ -112,8 +117,10 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
           size: content.fileSize,
           timestamp: content.timestamp || Date.now(),
           fileUri: content.fileUri,
+          localClipboardHash: content.localClipboardHash,
         });
         await useHistoryStore.getState().addItem(historyItem);
+        notifySyncEngine(content);
       }
     } catch (error) {
       const errorMessage =
@@ -149,8 +156,10 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
         size: content.fileSize,
         timestamp: content.timestamp || Date.now(),
         fileUri: content.fileUri,
+        localClipboardHash: content.localClipboardHash,
       });
       await useHistoryStore.getState().addItem(historyItem);
+      notifySyncEngine(content);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Failed to set clipboard content';
@@ -178,8 +187,11 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
           dataName: content.fileName,
           size: content.fileSize,
           timestamp: content.timestamp || Date.now(),
+          fileUri: content.fileUri,
+          localClipboardHash: content.localClipboardHash,
         });
         await useHistoryStore.getState().addItem(historyItem);
+        notifySyncEngine(content);
       } else {
         set({ isLoading: false });
       }
@@ -209,8 +221,11 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
           dataName: content.fileName,
           size: content.fileSize,
           timestamp: content.timestamp || Date.now(),
+          fileUri: content.fileUri,
+          localClipboardHash: content.localClipboardHash,
         });
         await useHistoryStore.getState().addItem(historyItem);
+        notifySyncEngine(content);
       } else {
         set({ isLoading: false });
       }
@@ -246,8 +261,10 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
         size: content.fileSize,
         timestamp: content.timestamp || Date.now(),
         fileUri: content.fileUri,
+        localClipboardHash: content.localClipboardHash,
       });
       await useHistoryStore.getState().addItem(historyItem);
+      notifySyncEngine(content);
     });
 
     await clipboardMonitor.start();
