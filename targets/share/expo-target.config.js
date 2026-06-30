@@ -2,8 +2,8 @@
 module.exports = (config) => ({
   type: 'share',
   name: 'share',
-  displayName: 'UniClipDev',
-  bundleIdentifier: 'app.uniclipboard.ios.dev.Share',
+  displayName: 'UniClip',
+  bundleIdentifier: 'app.uniclipboard.ios.Share',
   deploymentTarget: '17.0',
   exportJs: false,
   entitlements: {
