@@ -44,8 +44,10 @@ function getActiveServerInfo() {
   const server = settings.getActiveServer();
   if (!server || !server.url) return null;
   const config = settings.config;
+  const urls = server.urls && server.urls.length > 0 ? server.urls : [server.url];
   return {
     baseUrl: server.url.replace(/\/+$/, ''),
+    urls,
     username: server.username || '',
     password: server.password || '',
     trustInsecureCert: config?.trustInsecureCert ?? false,
@@ -135,6 +137,7 @@ async function applyToDevice(meta: ClipboardMeta, payload?: ArrayBuffer): Promis
         syncStatus: HistorySyncStatus.Synced,
         fileUri,
         isLocalFileReady: !!fileUri || !meta.hasData,
+        from: 'server',
       });
       await useHistoryStore.getState().addItem(historyItem);
     } catch (e) {
@@ -275,4 +278,11 @@ export function notifyServerChanged(): void {
 
 export function notifyNetworkChanged(): void {
   engine?.handleNetworkChanged();
+}
+
+export function notifyDeviceClipboardChanged(content: ClipboardContent): void {
+  lastDeviceContent = content;
+  if (content.profileHash) {
+    engine?.notifyDeviceChanged(content.profileHash);
+  }
 }
