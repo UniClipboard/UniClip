@@ -138,12 +138,12 @@ public class UcCoreModule: Module {
 
         Function("commitConverged") { (stateMap: [String: Any?], serverHash: String, serverContentId: String?) -> [String: Any?] in
             self.ensureInit()
-            return self.runtimeStateToMap(commitConverged(state: self.runtimeStateFromMap(stateMap), serverHash: serverHash))
+            return self.runtimeStateToMap(commitConverged(state: self.runtimeStateFromMap(stateMap), serverHash: serverHash, serverContentId: serverContentId))
         }
 
         Function("commitApply") { (stateMap: [String: Any?], hash: String?, contentId: String?, nowMs: Int, cfgMap: [String: Any]) -> [String: Any?] in
             self.ensureInit()
-            let step = commitApply(state: self.runtimeStateFromMap(stateMap), hash: hash, nowMs: Int64(nowMs), cfg: self.syncConfigFromMap(cfgMap))
+            let step = commitApply(state: self.runtimeStateFromMap(stateMap), hash: hash, contentId: contentId, nowMs: Int64(nowMs), cfg: self.syncConfigFromMap(cfgMap))
             return self.commitStepToMap(step)
         }
 
@@ -289,7 +289,7 @@ public class UcCoreModule: Module {
             "hasData": meta.hasData,
             "size": meta.size,
             "hash": meta.hash,
-            "contentId": nil
+            "contentId": meta.contentId
         ]
     }
 
@@ -301,7 +301,8 @@ public class UcCoreModule: Module {
             dataName: map["dataName"] as? String,
             hasData: map["hasData"] as? Bool ?? false,
             size: (map["size"] as? NSNumber)?.uint64Value ?? 0,
-            hash: map["hash"] as? String
+            hash: map["hash"] as? String,
+            contentId: map["contentId"] as? String
         )
     }
 
@@ -404,7 +405,7 @@ public class UcCoreModule: Module {
         return [
             "state": syncStateToString(s.state),
             "lastSyncedHash": s.lastSyncedHash,
-            "lastSyncedContentId": nil,
+            "lastSyncedContentId": s.lastSyncedContentId,
             "lastAppliedHash": s.lastAppliedHash,
             "loopEvents": s.loopEvents.map { ev -> [String: Any] in
                 [
@@ -414,7 +415,7 @@ public class UcCoreModule: Module {
                 ]
             },
             "stagedServerHash": s.stagedServerHash,
-            "stagedContentId": nil,
+            "stagedContentId": s.stagedContentId,
             "stagedEntry": s.stagedEntry.map { metaToMap($0) },
             "consecutiveFailures": s.consecutiveFailures,
             "nextAttemptMs": s.nextAttemptMs,
@@ -435,9 +436,11 @@ public class UcCoreModule: Module {
         return SyncRuntimeState(
             state: syncStateFromString(map["state"] as? String ?? "Idle"),
             lastSyncedHash: map["lastSyncedHash"] as? String,
+            lastSyncedContentId: map["lastSyncedContentId"] as? String,
             lastAppliedHash: map["lastAppliedHash"] as? String,
             loopEvents: loopEvents,
             stagedServerHash: map["stagedServerHash"] as? String,
+            stagedContentId: map["stagedContentId"] as? String,
             stagedEntry: stagedEntryMap.map { metaFromMap($0) },
             consecutiveFailures: (map["consecutiveFailures"] as? NSNumber)?.int64Value ?? 0,
             nextAttemptMs: (map["nextAttemptMs"] as? NSNumber)?.int64Value,
@@ -477,6 +480,7 @@ public class UcCoreModule: Module {
             deviceHash: map["deviceHash"] as? String,
             historyHeadHash: map["historyHeadHash"] as? String,
             persistedSyncedHash: map["persistedSyncedHash"] as? String,
+            persistedSyncedContentId: map["persistedSyncedContentId"] as? String,
             nowMs: (map["nowMs"] as? NSNumber)?.int64Value ?? 0
         )
     }
