@@ -9,12 +9,11 @@ import { Platform } from 'react-native';
 import { STORAGE_KEYS } from '../types/storage';
 import type { AppConfig } from '../types/storage';
 import type { ServerConfig, ProfileDto } from '../types/api';
-import { SyncClipboardClient } from '../services/SyncClipboardClient';
 import { WebDAVClient } from '../services/WebDAVClient';
 import { S3Client } from '../services/S3Client';
-import { AuthService } from '../services/AuthService';
 import type { ISyncClipboardAPI } from '../services/APIClient';
 import { sha256 } from 'js-sha256';
+import { createAPIClient as createRoutedAPIClient } from '../services/apiClientFactory';
 
 // 重试配置
 const MAX_RETRIES = 3;
@@ -59,8 +58,7 @@ function createAPIClient(server: ServerConfig): ISyncClipboardAPI {
   const { type, url, username, password } = server;
 
   if (type === 'syncclipboard') {
-    const authService = username && password ? new AuthService(username, password) : undefined;
-    return new SyncClipboardClient({ baseURL: url, authService });
+    return createRoutedAPIClient(server);
   }
 
   if (type === 's3') {

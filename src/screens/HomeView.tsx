@@ -32,6 +32,9 @@ import { historyStorage } from '@/services';
 import { getClipboardSyncService } from '@/services/ClipboardSyncService';
 import { getLatest, getFile } from 'uc-core';
 import type { ClipboardMeta } from 'uc-core';
+import { getCurrentNetworkContext } from '@/services/networkContext';
+import { loadServerRouteLiveUrl, saveServerRouteLiveUrl } from '@/services/serverRouteRecordStore';
+import { selectServerUrl } from '@/services/serverRouteSelector';
 import {
   ClipboardItem,
   ClipboardContent,
@@ -70,8 +73,30 @@ async function fetchAndApplyServerClipboard(): Promise<void> {
   const trustInsecure = settings.config?.trustInsecureCert ?? false;
 
   let entry: ClipboardMeta;
+  let downloadedText: string | null = null;
   try {
-    entry = await getLatest(ucServer, trustInsecure);
+    const selected = await selectServerUrl(
+      server,
+      {
+        network: getCurrentNetworkContext(),
+        loadLiveUrl: loadServerRouteLiveUrl,
+        saveLiveUrl: saveServerRouteLiveUrl,
+      },
+      async (route) => {
+        const routeServer = {
+          ...ucServer,
+          baseUrl: route.url,
+        };
+        const latest = await getLatest(routeServer, trustInsecure);
+        if (latest.kind === 'Text' && latest.hasData && latest.dataName) {
+          const bytes = await getFile(routeServer, latest.dataName, trustInsecure);
+          return { entry: latest, downloadedText: new TextDecoder().decode(bytes) };
+        }
+        return { entry: latest, downloadedText: null };
+      }
+    );
+    entry = selected.result.entry;
+    downloadedText = selected.result.downloadedText;
   } catch (e: any) {
     if (e?.message?.includes('404')) return;
     throw e;
@@ -84,10 +109,8 @@ async function fetchAndApplyServerClipboard(): Promise<void> {
   clipboardMonitor.pausePolling();
   try {
     if (entry.kind === 'Text') {
-      if (entry.hasData && entry.dataName) {
-        const bytes = await getFile(ucServer, entry.dataName, trustInsecure);
-        const text = new TextDecoder().decode(bytes);
-        await Clipboard.setStringAsync(text);
+      if (downloadedText !== null) {
+        await Clipboard.setStringAsync(downloadedText);
       } else {
         await Clipboard.setStringAsync(entry.text);
       }
@@ -116,6 +139,7 @@ async function fetchAndApplyServerClipboard(): Promise<void> {
       size: entry.size,
       timestamp: Date.now(),
       syncStatus: HistorySyncStatus.Synced,
+      from: 'server',
     })
   );
 }

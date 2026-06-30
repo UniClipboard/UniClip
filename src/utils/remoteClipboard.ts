@@ -74,6 +74,7 @@ export async function downloadAndAddToHistory(
       timestamp: updatedContent.timestamp || Date.now(),
       syncStatus: HistorySyncStatus.Synced,
       fileUri: updatedContent.fileUri,
+      from: 'server',
     });
     await useHistoryStore.getState().addItem(item);
 
