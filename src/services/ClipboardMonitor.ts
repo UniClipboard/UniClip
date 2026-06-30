@@ -306,7 +306,10 @@ export class ClipboardMonitor {
           this.startPolling();
         }
       }
-    } else if (nextAppState === 'background' || nextAppState === 'inactive') {
+    } else if (
+      nextAppState === 'background' ||
+      (nextAppState === 'inactive' && Platform.OS !== 'ios')
+    ) {
       // 后台上传启用时不停止轮询
       const { useSettingsStore } = require('@/stores/settingsStore');
       const bgUploadEnabled =
