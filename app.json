@@ -10,7 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "appleTeamId": "8XG39X5CL8",
-      "bundleIdentifier": "app.uniclipboard.ios",
+      "bundleIdentifier": "app.uniclipboard.UniClipboard",
       "entitlements": {
         "com.apple.security.application-groups": ["group.app.uniclipboard.UniClipboard"]
       }
@@ -71,14 +71,14 @@
               "appExtensions": [
                 {
                   "targetName": "share",
-                  "bundleIdentifier": "app.uniclipboard.ios.Share",
+                  "bundleIdentifier": "app.uniclipboard.UniClipboard.Share",
                   "entitlements": {
                     "com.apple.security.application-groups": ["group.app.uniclipboard.UniClipboard"]
                   }
                 },
                 {
                   "targetName": "keyboard",
-                  "bundleIdentifier": "app.uniclipboard.ios.Keyboard",
+                  "bundleIdentifier": "app.uniclipboard.UniClipboard.Keyboard",
                   "entitlements": {
                     "com.apple.security.application-groups": ["group.app.uniclipboard.UniClipboard"]
                   }

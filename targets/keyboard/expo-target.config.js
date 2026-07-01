@@ -3,7 +3,7 @@ module.exports = (config) => ({
   type: 'keyboard',
   name: 'keyboard',
   displayName: 'UniClip Keyboard',
-  bundleIdentifier: 'app.uniclipboard.ios.Keyboard',
+  bundleIdentifier: 'app.uniclipboard.UniClipboard.Keyboard',
   deploymentTarget: '17.0',
   exportJs: false,
   entitlements: {

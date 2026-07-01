@@ -39,6 +39,15 @@ jest.mock('../services/ConfigStorage', () => ({
   },
 }));
 
+jest.mock('../services/Logger', () => ({
+  log: {
+    error: jest.fn(),
+    warn: jest.fn(),
+    info: jest.fn(),
+    debug: jest.fn(),
+  },
+}));
+
 // cleanupByCount 中有 dynamic import，需要 mock 整个类型模块
 jest.mock('../types/clipboard', () => {
   const actual = jest.requireActual('../types/clipboard');

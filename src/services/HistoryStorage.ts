@@ -4,18 +4,21 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import { ClipboardItem, HistorySyncStatus } from '../types/clipboard';
 import { HistoryFilter, HistorySort, STORAGE_KEYS } from '../types/storage';
 import { filterHistoryItems } from '@/utils/historyFilters';
-import { getHistoryFileDir } from '../utils/fileStorage';
+import { getHistoryFileDir, saveHistoryFile } from '../utils/fileStorage';
 import { File, Directory } from 'expo-file-system';
 import { log } from './Logger';
+import { importHistoryFromAppGroup } from './appGroupHistoryImport';
 
 /**
  * 当前历史记录数据版本号
  * 每次数据结构变更时递增
  */
 const CURRENT_HISTORY_VERSION = 1;
+const APP_GROUP_HISTORY_IMPORT_KEY = '@syncclipboard:history:appgroup-imported';
 
 /**
  * 迁移函数类型
@@ -415,6 +418,22 @@ export class HistoryStorage {
         );
       }
     }
+
+    await this.importAppGroupHistoryOnce();
+  }
+
+  private async importAppGroupHistoryOnce(): Promise<void> {
+    const alreadyImported = await AsyncStorage.getItem(APP_GROUP_HISTORY_IMPORT_KEY);
+    if (alreadyImported === '1') return;
+
+    const imported = await importHistoryFromAppGroup(this.history);
+    if (imported.length > 0) {
+      this.history = [...this.history, ...imported].map(normalizeClipboardItem);
+      this.sortHistory();
+      await this.saveHistory();
+      await AsyncStorage.setItem(STORAGE_KEYS.HISTORY_VERSION, CURRENT_HISTORY_VERSION.toString());
+    }
+    await AsyncStorage.setItem(APP_GROUP_HISTORY_IMPORT_KEY, '1');
   }
 
   /**
@@ -480,23 +499,29 @@ export class HistoryStorage {
           // 读取源文件数据
           const sourceFile = new File(processedItem.fileUri);
           if (sourceFile.exists) {
-            // 获取历史记录目录
-            const historyDir = getHistoryFileDir(processedItem.type, processedItem.profileHash);
+            if (Platform.OS === 'ios') {
+              const data = await sourceFile.arrayBuffer();
+              processedItem.fileUri = await saveHistoryFile(
+                processedItem.type,
+                processedItem.profileHash,
+                processedItem.dataName,
+                data
+              );
+              log.info('[HistoryStorage] File saved to history storage:', processedItem.fileUri);
+            } else {
+              const historyDir = getHistoryFileDir(processedItem.type, processedItem.profileHash);
+              if (!historyDir.exists) {
+                historyDir.create();
+              }
 
-            // 确保历史记录目录存在
-            if (!historyDir.exists) {
-              historyDir.create();
+              const targetFile = new File(historyDir, processedItem.dataName);
+              if (!targetFile.exists) {
+                sourceFile.move(targetFile);
+              }
+
+              processedItem.fileUri = targetFile.uri;
+              log.info('[HistoryStorage] File moved to history directory:', targetFile.uri);
             }
-
-            // 创建目标文件
-            const targetFile = new File(historyDir, processedItem.dataName);
-            if (!targetFile.exists) {
-              sourceFile.move(targetFile);
-            }
-
-            // 更新 fileUri 为新的路径
-            processedItem.fileUri = targetFile.uri;
-            log.info('[HistoryStorage] File moved to history directory:', targetFile.uri);
           }
         }
       } catch (error) {

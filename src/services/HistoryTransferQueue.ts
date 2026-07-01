@@ -6,8 +6,7 @@
 import { IHistoryAPI, RecordNotFoundError } from './HistoryAPI';
 import { HistoryStorage } from './HistoryStorage';
 import { HistorySyncStatus } from '@/types/clipboard';
-import { getHistoryFileDir } from '@/utils/fileStorage';
-import { File } from 'expo-file-system';
+import { prepareHistoryFileUri } from '@/utils/fileStorage';
 import { log } from './Logger';
 
 export type TransferType = 'upload' | 'download';
@@ -438,16 +437,9 @@ export class HistoryTransferQueue {
     log.info(`[HistoryTransferQueue] Item hasRemoteData: ${item.hasRemoteData}`);
     log.info(`[HistoryTransferQueue] Item isLocalFileReady: ${item.isLocalFileReady}`);
 
-    const historyDir = getHistoryFileDir(item.type, parsed.hash);
-    if (!historyDir.exists) {
-      historyDir.create();
-    }
-
     const fileName = item.type !== 'Text' && item.text ? item.text : 'data';
-    const destinationFile = new File(historyDir, fileName);
-    const destinationUri = destinationFile.uri;
+    const destinationUri = await prepareHistoryFileUri(item.type, parsed.hash, fileName);
 
-    log.info(`[HistoryTransferQueue] Destination directory: ${historyDir.uri}`);
     log.info(`[HistoryTransferQueue] Destination file: ${destinationUri}`);
 
     await this.historyAPI.downloadData(

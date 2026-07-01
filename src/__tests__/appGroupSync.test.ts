@@ -1,7 +1,42 @@
 import { DEFAULT_SETTINGS } from '../types/settings';
-import { mapSettingsToAppGroupDTO, mapServersToAppGroupDTO } from '../services/appGroupSync';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  mapSettingsToAppGroupDTO,
+  mapServersToAppGroupDTO,
+  syncConfigToAppGroup,
+} from '../services/appGroupSyncCore';
+
+jest.mock('react-native', () => {
+  const actual = jest.requireActual('react-native');
+  const next = Object.create(actual);
+  Object.defineProperty(next, 'Platform', {
+    value: {
+      ...actual.Platform,
+      OS: 'ios',
+    },
+  });
+  return next;
+});
+
+jest.mock('app-group-store', () => ({
+  saveServers: jest.fn().mockResolvedValue(undefined),
+  getServers: jest.fn().mockResolvedValue({ configs: [], activeConfigId: null }),
+  saveSettings: jest.fn().mockResolvedValue(undefined),
+}));
+
+import { getServers, saveServers, saveSettings } from 'app-group-store';
+
+const CONFIG_USER_STATE_KEY = '@syncclipboard:config:user-state';
 
 describe('App Group sync mapping', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (getServers as jest.Mock).mockResolvedValue({ configs: [], activeConfigId: null });
+    (saveServers as jest.Mock).mockResolvedValue(undefined);
+    (saveSettings as jest.Mock).mockResolvedValue(undefined);
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
+  });
+
   describe('mapServersToAppGroupDTO', () => {
     it('keeps only SyncClipboard servers and derives ids from normalized canonical urls', () => {
       const result = mapServersToAppGroupDTO(
@@ -174,6 +209,49 @@ describe('App Group sync mapping', () => {
         logViewLevelFilter: 'debug',
       });
       expect(result).not.toHaveProperty('logLevel');
+    });
+  });
+
+  describe('syncConfigToAppGroup', () => {
+    it('does not overwrite existing App Group servers with untouched first-launch defaults', async () => {
+      (getServers as jest.Mock).mockResolvedValue({
+        configs: [
+          {
+            id: 'primary',
+            urls: ['https://server.example.com'],
+            username: 'alice',
+            password: 'secret',
+          },
+        ],
+        activeConfigId: 'primary',
+      });
+
+      await syncConfigToAppGroup({ ...DEFAULT_SETTINGS });
+
+      expect(saveServers).not.toHaveBeenCalled();
+      expect(saveSettings).toHaveBeenCalled();
+    });
+
+    it('allows a real local config to delete the last App Group server', async () => {
+      (AsyncStorage.getItem as jest.Mock).mockImplementation((key: string) =>
+        Promise.resolve(key === CONFIG_USER_STATE_KEY ? '1' : null)
+      );
+      (getServers as jest.Mock).mockResolvedValue({
+        configs: [
+          {
+            id: 'primary',
+            urls: ['https://server.example.com'],
+            username: 'alice',
+            password: 'secret',
+          },
+        ],
+        activeConfigId: 'primary',
+      });
+
+      await syncConfigToAppGroup({ ...DEFAULT_SETTINGS });
+
+      expect(saveServers).toHaveBeenCalledWith({ configs: [], activeConfigId: null });
+      expect(saveSettings).toHaveBeenCalled();
     });
   });
 });

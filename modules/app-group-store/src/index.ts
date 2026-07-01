@@ -5,6 +5,13 @@ interface AppGroupStoreNativeModule {
   getServers(): Promise<string>;
   saveSettings(json: string): Promise<void>;
   getSettings(): Promise<string>;
+  getContainerUrl(): Promise<string | null>;
+  getLegacyHistory(): Promise<string | null>;
+  getPayloadFileUri(profileId: string): Promise<string | null>;
+  writePayload(profileId: string, bytes: Uint8Array): Promise<string | null>;
+  deletePayload(profileId: string): Promise<void>;
+  clearPayloads(): Promise<void>;
+  getPayloadStats(): Promise<PayloadStats>;
   getLastSyncedHash(): Promise<string | null>;
   getLastSyncedContentId(): Promise<string | null>;
   getLiveUrl(configId: string): Promise<string | null>;
@@ -48,8 +55,14 @@ export interface LegacyMigrationResult {
   keys: number;
 }
 
+export interface PayloadStats {
+  count: number;
+  totalSize: number;
+}
+
 const EMPTY_SERVERS: ServerConfigListDTO = { configs: [], activeConfigId: null };
 const EMPTY_MIGRATION: LegacyMigrationResult = { migrated: false, keys: 0 };
+const EMPTY_PAYLOAD_STATS: PayloadStats = { count: 0, totalSize: 0 };
 
 export function saveServers(list: ServerConfigListDTO): Promise<void> {
   return NativeModule?.saveServers(JSON.stringify(list)) ?? Promise.resolve();
@@ -67,6 +80,34 @@ export function saveSettings(settings: AppSettingsDTO): Promise<void> {
 export async function getSettings(): Promise<AppSettingsDTO> {
   const json = await NativeModule?.getSettings();
   return json ? (JSON.parse(json) as AppSettingsDTO) : {};
+}
+
+export function getContainerUrl(): Promise<string | null> {
+  return NativeModule?.getContainerUrl() ?? Promise.resolve(null);
+}
+
+export function getLegacyHistory(): Promise<string | null> {
+  return NativeModule?.getLegacyHistory() ?? Promise.resolve(null);
+}
+
+export function getPayloadFileUri(profileId: string): Promise<string | null> {
+  return NativeModule?.getPayloadFileUri(profileId) ?? Promise.resolve(null);
+}
+
+export function writePayload(profileId: string, bytes: Uint8Array): Promise<string | null> {
+  return NativeModule?.writePayload(profileId, bytes) ?? Promise.resolve(null);
+}
+
+export function deletePayload(profileId: string): Promise<void> {
+  return NativeModule?.deletePayload(profileId) ?? Promise.resolve();
+}
+
+export function clearPayloads(): Promise<void> {
+  return NativeModule?.clearPayloads() ?? Promise.resolve();
+}
+
+export function getPayloadStats(): Promise<PayloadStats> {
+  return NativeModule?.getPayloadStats() ?? Promise.resolve(EMPTY_PAYLOAD_STATS);
 }
 
 export function getLastSyncedHash(): Promise<string | null> {

@@ -1,7 +1,9 @@
 import { Platform } from 'react-native';
-import { saveServers, saveSettings } from 'app-group-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getServers, saveServers, saveSettings } from 'app-group-store';
 import type { ServerConfig } from '../types/api';
-import type { AppSettings } from '../types/settings';
+import { DEFAULT_SETTINGS, type AppSettings } from '../types/settings';
+import { CONFIG_USER_STATE_KEY } from './ConfigStorage';
 
 export interface AppGroupServerConfigDTO {
   id: string;
@@ -98,6 +100,14 @@ export async function syncConfigToAppGroup(config: AppSettings | null): Promise<
 
   const servers = mapServersToAppGroupDTO(slice.servers, slice.activeServerIndex);
   const settings = mapSettingsToAppGroupDTO(slice.settings);
+  if (await shouldSkipEmptyDefaultServerOverwrite(slice.settings, servers)) {
+    const existingServers = await getServers();
+    if (existingServers.configs.length > 0) {
+      await saveSettings(settings);
+      return;
+    }
+  }
+
   await Promise.all([saveServers(servers), saveSettings(settings)]);
 }
 
@@ -175,4 +185,27 @@ function mapAttachmentPrefetch(value: AppSettings['attachmentAutoDownload']): {
     case 'off':
       return { attachments: false, cellular: false };
   }
+}
+
+function shouldSkipEmptyDefaultServerOverwrite(
+  settings: AppSettings,
+  servers: AppGroupServerConfigListDTO
+): Promise<boolean> {
+  if (
+    !(
+      servers.configs.length === 0 &&
+      servers.activeConfigId === null &&
+      settings.servers.length === 0 &&
+      settings.activeServerIndex === -1 &&
+      isFreshDefaultConfig(settings)
+    )
+  ) {
+    return Promise.resolve(false);
+  }
+
+  return AsyncStorage.getItem(CONFIG_USER_STATE_KEY).then((state) => state !== '1');
+}
+
+function isFreshDefaultConfig(settings: AppSettings): boolean {
+  return JSON.stringify(settings) === JSON.stringify(DEFAULT_SETTINGS);
 }

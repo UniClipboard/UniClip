@@ -19,16 +19,93 @@ jest.mock('expo-application', () => ({
   nativeApplicationVersion: '1.0.0',
 }));
 
-jest.mock('expo-file-system', () => ({
-  File: jest.fn().mockImplementation(() => ({
-    info: jest.fn().mockReturnValue({ exists: true, size: 1000 }),
-    open: jest.fn().mockReturnValue({
+jest.mock('react-native-logs', () => ({
+  consoleTransport: jest.fn(),
+  logger: {
+    createLogger: jest.fn(() => ({
+      debug: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+      patchConsole: jest.fn(),
+      setSeverity: jest.fn(),
+    })),
+  },
+}));
+
+jest.mock('expo-file-system', () => {
+  class MockDirectory {
+    constructor(...parts) {
+      this.parts = parts;
+      this.name = String(parts[parts.length - 1] ?? '');
+      this.uri = parts
+        .map((part) => (typeof part === 'string' ? part : part?.uri ?? ''))
+        .join('/')
+        .replace(/\/+/g, '/')
+        .replace('file:/', 'file://');
+      this.exists = true;
+      this.isDirectory = true;
+    }
+
+    create = jest.fn();
+    delete = jest.fn();
+    list = jest.fn(() => []);
+  }
+
+  class MockFile {
+    constructor(...parts) {
+      this.parts = parts;
+      this.name = String(parts[parts.length - 1] ?? '');
+      this.uri = parts
+        .map((part) => (typeof part === 'string' ? part : part?.uri ?? ''))
+        .join('/')
+        .replace(/\/+/g, '/')
+        .replace('file:/', 'file://');
+      this.exists = true;
+      this.isDirectory = false;
+    }
+
+    info = jest.fn().mockReturnValue({ exists: true, size: 1000 });
+    open = jest.fn().mockReturnValue({
       readBytes: jest.fn().mockReturnValue(new Uint8Array(10)),
       close: jest.fn(),
-    }),
-  })),
-  DocumentDirectory: 'file://documents/',
-  CacheDirectory: 'file://cache/',
+    });
+    textSync = jest.fn().mockReturnValue('');
+    write = jest.fn();
+    delete = jest.fn();
+    move = jest.fn();
+    arrayBuffer = jest.fn().mockResolvedValue(new ArrayBuffer(0));
+
+    static downloadFileAsync = jest.fn().mockResolvedValue(undefined);
+  }
+
+  return {
+    File: MockFile,
+    Directory: MockDirectory,
+    Paths: {
+      document: 'file://documents',
+      cache: 'file://cache',
+    },
+    DocumentDirectory: 'file://documents/',
+    CacheDirectory: 'file://cache/',
+  };
+});
+
+jest.mock('expo-file-system/legacy', () => ({
+  StorageAccessFramework: {
+    requestDirectoryPermissionsAsync: jest.fn(),
+    createFileAsync: jest.fn(),
+    writeAsStringAsync: jest.fn(),
+  },
+  EncodingType: {
+    Base64: 'base64',
+    UTF8: 'utf8',
+  },
+  readAsStringAsync: jest.fn(),
+  writeAsStringAsync: jest.fn(),
+  copyAsync: jest.fn(),
+  deleteAsync: jest.fn(),
+  getInfoAsync: jest.fn(),
 }));
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
@@ -63,6 +140,13 @@ jest.mock('app-group-store', () => ({
   getServers: jest.fn().mockResolvedValue({ configs: [], activeConfigId: null }),
   saveSettings: jest.fn().mockResolvedValue(undefined),
   getSettings: jest.fn().mockResolvedValue({}),
+  getContainerUrl: jest.fn().mockResolvedValue(null),
+  getLegacyHistory: jest.fn().mockResolvedValue(null),
+  getPayloadFileUri: jest.fn().mockResolvedValue(null),
+  writePayload: jest.fn().mockResolvedValue(null),
+  deletePayload: jest.fn().mockResolvedValue(undefined),
+  clearPayloads: jest.fn().mockResolvedValue(undefined),
+  getPayloadStats: jest.fn().mockResolvedValue({ count: 0, totalSize: 0 }),
   getLastSyncedHash: jest.fn().mockResolvedValue(null),
   getLastSyncedContentId: jest.fn().mockResolvedValue(null),
   getLiveUrl: jest.fn().mockResolvedValue(null),

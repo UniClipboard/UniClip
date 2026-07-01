@@ -5,6 +5,15 @@
  */
 
 import { Paths, File, Directory } from 'expo-file-system';
+import { Platform } from 'react-native';
+import {
+  clearPayloads,
+  deletePayload,
+  getContainerUrl,
+  getPayloadFileUri,
+  getPayloadStats,
+  writePayload,
+} from 'app-group-store';
 import { log } from '@/services/Logger';
 
 /**
@@ -28,6 +37,14 @@ export const CLIPBOARD_TEMP_DIR = new Directory(Paths.cache, 'temp_files');
  */
 export async function initFileStorage(): Promise<void> {
   try {
+    if (Platform.OS === 'ios') {
+      await getContainerUrl();
+      if (!CLIPBOARD_TEMP_DIR.exists) {
+        CLIPBOARD_TEMP_DIR.create();
+      }
+      return;
+    }
+
     // 使用新的 Directory API 创建目录（如果不存在）
     if (!BASE_DIR.exists) {
       BASE_DIR.create();
@@ -61,6 +78,9 @@ export async function initFileStorage(): Promise<void> {
  * @returns 目录对象
  */
 export function getHistoryFileDir(type: string, profileHash: string): Directory {
+  if (Platform.OS === 'ios') {
+    return new Directory(Paths.document, 'clipboards', 'history', makePayloadProfileId(type, profileHash));
+  }
   return new Directory(HISTORY_BASE_DIR, `${type}-${profileHash}`);
 }
 
@@ -79,6 +99,15 @@ export async function saveHistoryFile(
   data: ArrayBuffer
 ): Promise<string> {
   try {
+    if (Platform.OS === 'ios') {
+      const profileId = makePayloadProfileId(type, profileHash);
+      const uri = await writePayload(profileId, new Uint8Array(data));
+      if (!uri) {
+        throw new Error(`Failed to write App Group payload: ${profileId}`);
+      }
+      return uri;
+    }
+
     // 确保基础目录存在
     await initFileStorage();
 
@@ -126,6 +155,10 @@ export async function getHistoryFileUri(
   fileName: string
 ): Promise<string | null> {
   try {
+    if (Platform.OS === 'ios') {
+      return getPayloadFileUri(makePayloadProfileId(type, profileHash));
+    }
+
     // 确保基础目录存在
     await initFileStorage();
 
@@ -164,6 +197,10 @@ export async function prepareHistoryFileUri(
   profileHash: string,
   fileName: string
 ): Promise<string> {
+  if (Platform.OS === 'ios') {
+    return getAppGroupPayloadTargetUri(makePayloadProfileId(type, profileHash));
+  }
+
   // 确保基础目录存在
   await initFileStorage();
 
@@ -182,6 +219,11 @@ export async function prepareHistoryFileUri(
  */
 export async function deleteHistoryFileDir(type: string, profileHash: string): Promise<void> {
   try {
+    if (Platform.OS === 'ios') {
+      await deletePayload(makePayloadProfileId(type, profileHash));
+      return;
+    }
+
     const historyDir = getHistoryFileDir(type, profileHash);
 
     if (historyDir.exists) {
@@ -209,6 +251,18 @@ export async function saveFile(
   extension?: string
 ): Promise<string> {
   try {
+    if (Platform.OS === 'ios') {
+      const profileId = makePayloadProfileId(type, fileHash);
+      const existing = await getPayloadFileUri(profileId);
+      if (existing) return existing;
+
+      const uri = await writePayload(profileId, new Uint8Array(data));
+      if (!uri) {
+        throw new Error(`Failed to write App Group payload: ${profileId}`);
+      }
+      return uri;
+    }
+
     // 确保目录存在
     await initFileStorage();
 
@@ -254,6 +308,10 @@ export async function getFileUri(
   extension?: string
 ): Promise<string | null> {
   try {
+    if (Platform.OS === 'ios') {
+      return getPayloadFileUri(makePayloadProfileId(type, fileHash));
+    }
+
     const dir = type === 'Image' ? IMAGE_DIR : FILE_DIR;
     const fileName = extension ? `${fileHash}${extension}` : fileHash;
 
@@ -279,6 +337,11 @@ export async function deleteFile(
   extension?: string
 ): Promise<void> {
   try {
+    if (Platform.OS === 'ios') {
+      await deletePayload(makePayloadProfileId(type, fileHash));
+      return;
+    }
+
     const dir = type === 'Image' ? IMAGE_DIR : FILE_DIR;
     const fileName = extension ? `${fileHash}${extension}` : fileHash;
 
@@ -300,6 +363,11 @@ export async function deleteFile(
  */
 export async function clearAllFiles(): Promise<void> {
   try {
+    if (Platform.OS === 'ios') {
+      await clearPayloads();
+      return;
+    }
+
     // 使用新的 Directory API
     if (BASE_DIR.exists) {
       BASE_DIR.delete();
@@ -320,6 +388,15 @@ export async function getStorageStats(): Promise<{
   totalSize: number;
 }> {
   try {
+    if (Platform.OS === 'ios') {
+      const stats = await getPayloadStats();
+      return {
+        imageCount: stats.count,
+        fileCount: 0,
+        totalSize: stats.totalSize,
+      };
+    }
+
     let imageCount = 0;
     let fileCount = 0;
     let totalSize = 0;
@@ -400,6 +477,18 @@ export async function downloadAndSaveFile(
   extension?: string
 ): Promise<string> {
   try {
+    if (Platform.OS === 'ios') {
+      const profileId = makePayloadProfileId(type, fileHash);
+      const existing = await getPayloadFileUri(profileId);
+      if (existing) return existing;
+
+      const targetUri = await getAppGroupPayloadTargetUri(profileId);
+      await File.downloadFileAsync(downloadUrl, new File(targetUri), {
+        headers: headers || {},
+      });
+      return targetUri;
+    }
+
     // 确保目录存在
     await initFileStorage();
 
@@ -500,4 +589,17 @@ export function clearDirectory(directory: Directory): void {
     log.error('[FileStorage] Failed to clear directory:', error);
     throw error;
   }
+}
+
+function makePayloadProfileId(type: string, profileHash: string): string {
+  return `${type}-${profileHash}`;
+}
+
+async function getAppGroupPayloadTargetUri(profileId: string): Promise<string> {
+  const containerUrl = await getContainerUrl();
+  if (!containerUrl) {
+    throw new Error('App Group container is unavailable');
+  }
+  await getPayloadFileUri(profileId);
+  return `${containerUrl.replace(/\/+$/, '')}/payloads/${profileId}`;
 }

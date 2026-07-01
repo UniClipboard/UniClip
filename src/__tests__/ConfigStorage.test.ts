@@ -1,4 +1,4 @@
-import { ConfigStorage } from '../services/ConfigStorage';
+import { CONFIG_USER_STATE_KEY, ConfigStorage } from '../services/ConfigStorage';
 import { STORAGE_KEYS } from '../types/storage';
 import { AppSettings, DEFAULT_SETTINGS } from '../types/settings';
 import { ServerConfig } from '../types/api';
@@ -13,6 +13,34 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+jest.mock('react-native', () => {
+  const actual = jest.requireActual('react-native');
+  const next = Object.create(actual);
+  Object.defineProperty(next, 'Platform', {
+    value: {
+      ...actual.Platform,
+      OS: 'ios',
+    },
+  });
+  return next;
+});
+
+jest.mock('app-group-store', () => ({
+  getServers: jest.fn().mockResolvedValue({ configs: [], activeConfigId: null }),
+  getSettings: jest.fn().mockResolvedValue({}),
+}));
+
+jest.mock('../services/Logger', () => ({
+  log: {
+    error: jest.fn(),
+    warn: jest.fn(),
+    info: jest.fn(),
+    debug: jest.fn(),
+  },
+}));
+
+import { getServers, getSettings } from 'app-group-store';
+
 interface TestableConfigStorage extends ConfigStorage {
   initialize(): Promise<void>;
 }
@@ -26,6 +54,8 @@ describe('ConfigStorage', () => {
   let configStorage: TestableConfigStorage;
   const mockGetItem = AsyncStorage.getItem as jest.Mock;
   const mockSetItem = AsyncStorage.setItem as jest.Mock;
+  const mockGetServers = getServers as jest.Mock;
+  const mockGetSettings = getSettings as jest.Mock;
 
   const getPrivate = (storage: TestableConfigStorage): ConfigStoragePrivate => {
     return storage as unknown as ConfigStoragePrivate;
@@ -35,6 +65,10 @@ describe('ConfigStorage', () => {
     jest.clearAllMocks();
     mockGetItem.mockReset();
     mockSetItem.mockReset();
+    mockGetServers.mockReset();
+    mockGetSettings.mockReset();
+    mockGetServers.mockResolvedValue({ configs: [], activeConfigId: null });
+    mockGetSettings.mockResolvedValue({});
     configStorage = ConfigStorage.getInstance() as TestableConfigStorage;
     const privateProps = getPrivate(configStorage);
     privateProps.initialized = false;
@@ -62,6 +96,77 @@ describe('ConfigStorage', () => {
       await configStorage.initialize();
 
       expect(mockSetItem).toHaveBeenCalled();
+    });
+
+    it('seeds first-launch config from App Group servers before saving defaults', async () => {
+      mockGetItem.mockResolvedValue(null);
+      mockSetItem.mockResolvedValue(undefined);
+      mockGetServers.mockResolvedValue({
+        configs: [
+          {
+            id: 'primary',
+            name: 'Primary',
+            urls: ['https://server.example.com', 'http://lan.local'],
+            username: 'alice',
+            password: 'secret',
+          },
+          {
+            id: 'secondary',
+            urls: ['https://backup.example.com'],
+            username: 'bob',
+            password: 'backup',
+          },
+        ],
+        activeConfigId: 'secondary',
+      });
+      mockGetSettings.mockResolvedValue({
+        trustInsecureCert: true,
+        autoApplyServerChanges: false,
+        autoPushDeviceChanges: true,
+        prefetchAttachments: true,
+        prefetchOnCellular: true,
+        payloadCacheMaxBytes: 12345,
+        appearance: 'dark',
+        autoCheckUpdate: false,
+        ignoredVersion: '2.0.0',
+        downloadRelativePath: 'Downloads',
+        logViewLevelFilter: 'warn',
+      });
+
+      await configStorage.initialize();
+
+      const savedConfig = JSON.parse(
+        mockSetItem.mock.calls.find(([key]) => key === STORAGE_KEYS.CONFIG)?.[1]
+      );
+      expect(savedConfig.servers).toEqual([
+        {
+          type: 'syncclipboard',
+          name: 'Primary',
+          url: 'https://server.example.com',
+          urls: ['https://server.example.com', 'http://lan.local'],
+          username: 'alice',
+          password: 'secret',
+        },
+        {
+          type: 'syncclipboard',
+          url: 'https://backup.example.com',
+          urls: ['https://backup.example.com'],
+          username: 'bob',
+          password: 'backup',
+        },
+      ]);
+      expect(savedConfig.activeServerIndex).toBe(1);
+      expect(savedConfig.trustInsecureCert).toBe(true);
+      expect(savedConfig.autoApplyRemote).toBe(false);
+      expect(savedConfig.autoPushLocal).toBe(true);
+      expect(savedConfig.attachmentAutoDownload).toBe('always');
+      expect(savedConfig.payloadCacheMaxBytes).toBe(12345);
+      expect(savedConfig.appearance).toBe('dark');
+      expect(savedConfig.autoCheckUpdate).toBe(false);
+      expect(savedConfig.ignoredVersion).toBe('2.0.0');
+      expect(savedConfig.downloadRelativePath).toBe('Downloads');
+      expect(savedConfig.logLevel).toBe('warn');
+      expect(mockSetItem).not.toHaveBeenCalledWith(CONFIG_USER_STATE_KEY, '1');
     });
 
     it('should not reload if already initialized', async () => {
@@ -107,6 +212,7 @@ describe('ConfigStorage', () => {
       await configStorage.updateConfig({ syncMode: SyncMode.Auto });
 
       expect(mockSetItem).toHaveBeenCalled();
+      expect(mockSetItem).toHaveBeenCalledWith(CONFIG_USER_STATE_KEY, '1');
     });
   });
 
@@ -121,6 +227,7 @@ describe('ConfigStorage', () => {
         STORAGE_KEYS.CONFIG,
         JSON.stringify(DEFAULT_SETTINGS)
       );
+      expect(mockSetItem).toHaveBeenCalledWith(CONFIG_USER_STATE_KEY, '1');
     });
   });
 

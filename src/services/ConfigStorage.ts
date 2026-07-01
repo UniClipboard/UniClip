@@ -11,11 +11,13 @@ import { SyncMode } from '../types/sync';
 import { migrateConfig, extractRuntimeState } from './ConfigMigration';
 import { runtimeStateStorage } from './RuntimeStateStorage';
 import { log } from './Logger';
+import { seedConfigFromAppGroup } from './appGroupSeed';
 
 /**
  * 配置存储服务
  */
 const SCHEMA_VERSION_KEY = '@syncclipboard:schema_version';
+export const CONFIG_USER_STATE_KEY = '@syncclipboard:config:user-state';
 
 export class ConfigStorage {
   private static instance: ConfigStorage | null = null;
@@ -73,7 +75,8 @@ export class ConfigStorage {
         this.config = { ...DEFAULT_SETTINGS, ...savedConfig };
       }
     } else {
-      this.config = { ...DEFAULT_SETTINGS };
+      const seed = await seedConfigFromAppGroup();
+      this.config = seed ? { ...DEFAULT_SETTINGS, ...seed } : { ...DEFAULT_SETTINGS };
       await this.saveConfig();
       await AsyncStorage.setItem(SCHEMA_VERSION_KEY, String(SETTINGS_SCHEMA_VERSION));
     }
@@ -116,6 +119,7 @@ export class ConfigStorage {
 
     this.config = { ...this.config!, ...updates };
     await this.saveConfig();
+    await AsyncStorage.setItem(CONFIG_USER_STATE_KEY, '1');
   }
 
   /**
@@ -124,6 +128,7 @@ export class ConfigStorage {
   public async resetConfig(): Promise<void> {
     this.config = { ...DEFAULT_SETTINGS };
     await this.saveConfig();
+    await AsyncStorage.setItem(CONFIG_USER_STATE_KEY, '1');
   }
 
   // ========== 服务器配置管理 ==========
@@ -305,6 +310,7 @@ export class ConfigStorage {
 
       this.config = migrateConfig(imported);
       await this.saveConfig();
+      await AsyncStorage.setItem(CONFIG_USER_STATE_KEY, '1');
     } catch (error) {
       log.error('[ConfigStorage] Failed to import config:', error);
       throw new Error('Invalid config JSON');
@@ -316,6 +322,7 @@ export class ConfigStorage {
    */
   public async clear(): Promise<void> {
     await AsyncStorage.removeItem(STORAGE_KEYS.CONFIG);
+    await AsyncStorage.removeItem(CONFIG_USER_STATE_KEY);
     this.config = { ...DEFAULT_SETTINGS };
     this.initialized = false;
   }
