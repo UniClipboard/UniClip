@@ -7,6 +7,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as ClipboardProxy from '@/utils/clipboardProxy';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
+import { Platform } from 'react-native';
 import { ClipboardContent } from '@/types';
 import { calculateTextHash, calculateFileHash } from '@/utils/hash';
 import { isTextInvalid } from '@/utils/index';
@@ -315,10 +316,19 @@ export class ClipboardManager {
    */
   async setImageContent(imageUri: string): Promise<void> {
     try {
-      // 直接通过 native 将文件设置到系统剪贴板（不经过 JS 内存/base64）
-      const success = await nativeSetClipboardImageFromFile(imageUri);
-      if (!success) {
-        throw new Error('Native setClipboardImageFromFile returned false');
+      if (Platform.OS === 'ios') {
+        // native-util 未提供 iOS 实现，改走 expo-clipboard（UIPasteboard）
+        const { readAsStringAsync, EncodingType } = await import('expo-file-system/legacy');
+        const base64 = await readAsStringAsync(imageUri, {
+          encoding: EncodingType.Base64,
+        });
+        await Clipboard.setImageAsync(base64);
+      } else {
+        // Android：直接通过 native 将文件设置到系统剪贴板（不经过 JS 内存/base64）
+        const success = await nativeSetClipboardImageFromFile(imageUri);
+        if (!success) {
+          throw new Error('Native setClipboardImageFromFile returned false');
+        }
       }
 
       // 计算并更新 localClipboardHash（用于本地变化检测，与 getImageContent 保持一致使用文件内容 hash）
