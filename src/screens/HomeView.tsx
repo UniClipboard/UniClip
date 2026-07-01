@@ -397,72 +397,6 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
     deleteItem,
   ]);
 
-  // ── Unified action dispatcher (used by iOS ContextMenu) ──────
-  const handleCardAction = useCallback(
-    async (item: ClipboardItem, actionKey: string) => {
-      const dk = getDisplayKind(item.type, item.text);
-      switch (actionKey) {
-        case 'copy': {
-          const result = await copyItemWithSync(item);
-          showMessage(
-            result.success ? '已复制到剪贴板' : result.message || '复制失败',
-            result.success ? 'success' : 'error'
-          );
-          break;
-        }
-        case 'selectText':
-          setWordPickerText(item.text);
-          break;
-        case 'copyPlain': {
-          const Clipboard = await import('expo-clipboard');
-          await Clipboard.default.setStringAsync(item.text);
-          showMessage('已复制为纯文本', 'success');
-          break;
-        }
-        case 'openBrowser':
-          Linking.openURL(item.text.trim());
-          break;
-        case 'saveImage':
-          try {
-            await saveToGallery(item.fileUri!);
-            showMessage('已保存到相册', 'success');
-          } catch {
-            showMessage('保存失败', 'error');
-          }
-          break;
-        case 'saveFile':
-          try {
-            await saveFile(item.fileUri!, item.dataName);
-            showMessage('已保存文件', 'success');
-          } catch {
-            showMessage('保存失败', 'error');
-          }
-          break;
-        case 'share':
-          if (
-            (dk === 'image' || dk === 'file' || dk === 'group') &&
-            item.fileUri &&
-            item.isLocalFileReady
-          ) {
-            await shareFile(item.fileUri, item.dataName);
-          } else {
-            await Share.share({ message: item.text });
-          }
-          break;
-        case 'select':
-          setIsSelectMode(true);
-          clearSelection();
-          toggleSelection(item.profileHash);
-          break;
-        case 'delete':
-          await deleteItem(item.profileHash);
-          showMessage('已删除', 'success');
-          break;
-      }
-    },
-    [copyItemWithSync, showMessage, clearSelection, toggleSelection, deleteItem]
-  );
-
   const exitSelectMode = useCallback(() => {
     setIsSelectMode(false);
     clearSelection();
@@ -619,11 +553,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
   const renderCard = useCallback(
     ({ item }: { item: ClipboardItem }) => (
       <View style={{ padding: GRID_SPACING / 2 }}>
-        <ClipboardCardMenu
-          item={item}
-          cardSize={cardSize}
-          onAction={(key) => handleCardAction(item, key)}
-        >
+        <ClipboardCardMenu item={item} cardSize={cardSize}>
           <ClipboardCard
             item={item}
             isLatest={item.profileHash === latestId}
@@ -636,15 +566,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
         </ClipboardCardMenu>
       </View>
     ),
-    [
-      latestId,
-      selectedIds,
-      isSelectMode,
-      handleItemPress,
-      handleItemLongPress,
-      handleCardAction,
-      cardSize,
-    ]
+    [latestId, selectedIds, isSelectMode, handleItemPress, handleItemLongPress, cardSize]
   );
 
   const keyExtractor = useCallback((item: ClipboardItem) => item.profileHash, []);

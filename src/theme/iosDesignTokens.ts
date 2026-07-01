@@ -29,11 +29,11 @@ export const iosDimensions = {
 // -- Kind tints (semantic per-clipboard-kind colors) --
 
 export const iosKindTints = {
-  text: '#007AFF',   // system blue
-  url: '#32ADE6',    // system cyan
-  image: '#34C759',  // system green
-  file: '#FF9500',   // system orange
-  group: '#AF52DE',  // system purple
+  text: '#007AFF', // system blue
+  url: '#32ADE6', // system cyan
+  image: '#34C759', // system green
+  file: '#FF9500', // system orange
+  group: '#AF52DE', // system purple
 } as const;
 
 // -- System colors via PlatformColor (auto light/dark) --
@@ -43,21 +43,22 @@ export function iosSystemColor(name: string) {
   return PlatformColor(name);
 }
 
-export const iosColors = Platform.OS === 'ios'
-  ? {
-      systemGroupedBackground: PlatformColor('systemGroupedBackground'),
-      secondarySystemGroupedBackground: PlatformColor('secondarySystemGroupedBackground'),
-      tertiarySystemGroupedBackground: PlatformColor('tertiarySystemGroupedBackground'),
-      separator: PlatformColor('separator'),
-      label: PlatformColor('label'),
-      secondaryLabel: PlatformColor('secondaryLabel'),
-      tertiaryLabel: PlatformColor('tertiaryLabel'),
-      quaternaryLabel: PlatformColor('quaternaryLabel'),
-      systemBackground: PlatformColor('systemBackground'),
-      secondarySystemBackground: PlatformColor('secondarySystemBackground'),
-      tertiarySystemFill: PlatformColor('tertiarySystemFill'),
-    }
-  : null;
+export const iosColors =
+  Platform.OS === 'ios'
+    ? {
+        systemGroupedBackground: PlatformColor('systemGroupedBackground'),
+        secondarySystemGroupedBackground: PlatformColor('secondarySystemGroupedBackground'),
+        tertiarySystemGroupedBackground: PlatformColor('tertiarySystemGroupedBackground'),
+        separator: PlatformColor('separator'),
+        label: PlatformColor('label'),
+        secondaryLabel: PlatformColor('secondaryLabel'),
+        tertiaryLabel: PlatformColor('tertiaryLabel'),
+        quaternaryLabel: PlatformColor('quaternaryLabel'),
+        systemBackground: PlatformColor('systemBackground'),
+        secondarySystemBackground: PlatformColor('secondarySystemBackground'),
+        tertiarySystemFill: PlatformColor('tertiarySystemFill'),
+      }
+    : null;
 
 // -- Accent (from DESIGN.md) --
 
@@ -79,3 +80,13 @@ export const iosCardShadow = {
   shadowOpacity: 0.06,
   shadowRadius: 5,
 } as const;
+
+// -- Helpers --
+
+export function hexToRgba(hex: string, alpha: number): string {
+  const clean = hex.replace('#', '');
+  const r = parseInt(clean.substring(0, 2), 16);
+  const g = parseInt(clean.substring(2, 4), 16);
+  const b = parseInt(clean.substring(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
