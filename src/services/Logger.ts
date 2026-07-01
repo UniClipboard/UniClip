@@ -50,7 +50,8 @@ let isInitialized = false;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let logInstance: any = null;
 
-const customFileTransport = (props: {
+/** 导出仅用于单测（append-only 回归锁定）；运行时经由 createLogger 使用 */
+export const customFileTransport = (props: {
   msg: string;
   rawMsg: unknown;
   level: { severity: number; text: string };
@@ -74,12 +75,9 @@ const customFileTransport = (props: {
 
     const logLine = `${timestamp} ${level}${extension}: ${message}\n`;
 
-    if (logFile.exists) {
-      const existingContent = logFile.textSync() || '';
-      logFile.write(existingContent + logLine);
-    } else {
-      logFile.write(logLine);
-    }
+    // 必须追加写。整读整写是 O(文件大小) 的同步 JS 阻塞，文件到数 MB 后
+    // 每条日志都会冻结 JS 线程 100ms+（见 Logger.appendOnly.test.ts）
+    logFile.write(logLine, { append: true });
   } catch (error) {
     console.error('Failed to write log file:', error);
   }

@@ -119,6 +119,8 @@ export class SyncEngine {
 
   private tickTimer: ReturnType<typeof setTimeout> | null = null;
   private isTicking = false;
+  /** 上次记录过的 preamble Stop 原因；同因连发只记第一条，避免 1Hz tick 日志刷屏 */
+  private lastLoggedStopReason: string | null = null;
   private isSceneInactive = false;
   private isHistorySyncing = false;
   private lastHistorySyncAt: number | null = null;
@@ -391,13 +393,18 @@ export class SyncEngine {
     this.runtimeState = step.state;
 
     if (step.preamble.proceed.type === 'Stop') {
-      log.info('[SyncEngine] preamble: Stop(' + step.preamble.proceed.reason + ')');
-      if (step.preamble.proceed.reason === 'NoActiveServer') {
+      const stopReason = step.preamble.proceed.reason;
+      if (this.lastLoggedStopReason !== stopReason) {
+        this.lastLoggedStopReason = stopReason;
+        log.info('[SyncEngine] preamble: Stop(' + stopReason + ')');
+      }
+      if (stopReason === 'NoActiveServer') {
         this.setState('Idle');
         this.notifyListeners();
       }
       return;
     }
+    this.lastLoggedStopReason = null;
 
     if (!server) {
       this.setState('Idle');

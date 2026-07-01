@@ -375,6 +375,38 @@ describe('SyncEngine', () => {
     expect(mockedGetLatest).not.toHaveBeenCalled();
   });
 
+  // 回归：Stop 日志曾每个 tick(1Hz) 打一条，叠加日志文件整读整写导致
+  // 每秒 ~100ms JS 冻结（见 Logger.appendOnly.test.ts）。同因连发只记第一条。
+  test('preamble Stop 同一原因连发只记一条日志，恢复后可再次记录', async () => {
+    const { log } = require('../services/Logger');
+    const infoSpy = jest.spyOn(log, 'info');
+    const stopLogCount = () =>
+      infoSpy.mock.calls.filter((c) => String(c[0]).includes('Stop(NoActiveServer)')).length;
+
+    const engine = makeEngine({ getActiveServer: () => null });
+    mockedPlanPreamble.mockReturnValue({
+      state: DEFAULT_STATE,
+      preamble: { recordLocal: false, proceed: { type: 'Stop', reason: 'NoActiveServer' } },
+    });
+
+    await engine.forceTickNow();
+    await engine.forceTickNow();
+    await engine.forceTickNow();
+    expect(stopLogCount()).toBe(1);
+
+    // 一次正常 tick 之后再次 Stop，应重新记录
+    setupConvergedTick();
+    await engine.forceTickNow();
+    mockedPlanPreamble.mockReturnValue({
+      state: DEFAULT_STATE,
+      preamble: { recordLocal: false, proceed: { type: 'Stop', reason: 'NoActiveServer' } },
+    });
+    await engine.forceTickNow();
+    expect(stopLogCount()).toBe(2);
+
+    infoSpy.mockRestore();
+  });
+
   test('ServerNew with willApply calls applyToDevice', async () => {
     const applyMock = jest.fn();
     const engine = makeEngine({ applyToDevice: applyMock });
