@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   RefreshControl,
   Share,
   Linking,
@@ -22,6 +21,7 @@ import { ServerSwitcherModal } from '@/components/ServerSwitcherModal';
 import { ClipboardCardActionSheet } from '@/components/ClipboardCardActionSheet';
 import { ClipboardCardMenu } from '@/components/ClipboardCardMenu';
 import { HistoryFilterSheet } from '@/components/HistoryFilterSheet';
+import { AnimatedCardGrid, AnimatedCardGridHandle } from '@/components/AnimatedCardGrid';
 import { useHistoryStore } from '@/stores/historyStore';
 import { useClipboardStore } from '@/stores/clipboardStore';
 import { useSettingsStore } from '@/stores';
@@ -144,7 +144,7 @@ async function fetchAndApplyServerClipboard(): Promise<void> {
   );
 }
 
-// 自订阅 messageStore，把 toast 出现/消失的重渲染隔离在此，不波及 HomeView 主体与 FlatList
+// 自订阅 messageStore，把 toast 出现/消失的重渲染隔离在此，不波及 HomeView 主体与卡片网格
 function HomeMessageToast() {
   const message = useMessageStore((s) => s.message);
   const clearMessage = useMessageStore((s) => s.clearMessage);
@@ -164,13 +164,14 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
     (screenWidth - GRID_PADDING * 2 - GRID_SPACING * (NUM_COLUMNS - 1)) / NUM_COLUMNS;
 
   // Stores —— 全部用细粒度 selector 订阅。整体订阅会让 store 任意字段(isLoading /
-  // totalCount / message / error 等)变化都重渲染整个 HomeView + FlatList。
+  // totalCount / message / error 等)变化都重渲染整个 HomeView + 卡片网格。
   // action 引用稳定，订阅它们不会触发重渲染。
   const items = useHistoryStore((s) => s.items);
   const selectedIds = useHistoryStore((s) => s.selectedIds);
   const lastAddedTimestamp = useHistoryStore((s) => s.lastAddedTimestamp);
   const loadItems = useHistoryStore((s) => s.loadItems);
   const searchItems = useHistoryStore((s) => s.searchItems);
+  const setSort = useHistoryStore((s) => s.setSort);
   const handleStorageChange = useHistoryStore((s) => s.handleStorageChange);
   const toggleSelection = useHistoryStore((s) => s.toggleSelection);
   const selectAll = useHistoryStore((s) => s.selectAll);
@@ -216,12 +217,14 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
   const activeServerIndex = config?.activeServerIndex ?? -1;
   const activeServerLabel = activeServer?.name || activeServer?.url || '未配置';
 
-  const listRef = useRef<FlatList<ClipboardItem>>(null);
+  const listRef = useRef<AnimatedCardGridHandle>(null);
 
-  // Load history on mount
+  // Load history on mount —— 首页固定按活动时间(lastAccessed)排序，
+  // 与 HistoryStorage 的 sortConfig 保持一致，复制后才能正确触发重新定位
   useEffect(() => {
+    setSort({ field: 'lastAccessed', order: 'desc' });
     loadItems();
-  }, [loadItems]);
+  }, [setSort, loadItems]);
 
   // Listen for storage changes
   useEffect(() => {
@@ -287,7 +290,8 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
     const result = await copyToLocalClipboard(content);
     if (result.success) {
       useClipboardStore.getState().setCurrentContentDisplay(content);
-      historyStorage.updateLastAccessed(item.profileHash);
+      // 等待重新定位落盘，让飞入动画能尽快拿到确认后的排序结果，减少起飞前的等待
+      await historyStorage.updateLastAccessed(item.profileHash);
     }
     return result;
   }, []);
@@ -298,6 +302,9 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
         toggleSelection(item.profileHash);
         return;
       }
+
+      // 排序重排后卡片的移动动画由 AnimatedCardGrid/GridCell 按下标变化自动处理，
+      // 这里只需要触发复制本身
       const result = await copyItemWithSync(item);
       if (result.success) {
         showMessage('已复制到剪贴板', 'success');
@@ -551,7 +558,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
 
   // Render
   const renderCard = useCallback(
-    ({ item }: { item: ClipboardItem }) => (
+    (item: ClipboardItem) => (
       <View style={{ padding: GRID_SPACING / 2 }}>
         <ClipboardCardMenu item={item} cardSize={cardSize}>
           <ClipboardCard
@@ -570,18 +577,6 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
   );
 
   const keyExtractor = useCallback((item: ClipboardItem) => item.profileHash, []);
-
-  // 网格行高固定（卡片 + 上下间距），提供 getItemLayout 省去布局测量，
-  // 让滚动定位与 scrollToOffset 走快路径。
-  const rowHeight = cardSize + GRID_SPACING;
-  const getItemLayout = useCallback(
-    (_data: ArrayLike<ClipboardItem> | null | undefined, index: number) => ({
-      length: rowHeight,
-      offset: rowHeight * Math.floor(index / NUM_COLUMNS),
-      index,
-    }),
-    [rowHeight]
-  );
 
   const allSelected = items.length > 0 && selectedIds.size === items.length;
 
@@ -648,23 +643,17 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
           </Text>
         </View>
       ) : (
-        <FlatList
+        <AnimatedCardGrid
           ref={listRef}
-          data={items}
-          renderItem={renderCard}
-          keyExtractor={keyExtractor}
+          items={items}
           numColumns={NUM_COLUMNS}
-          getItemLayout={getItemLayout}
-          removeClippedSubviews={Platform.OS === 'android'}
-          initialNumToRender={8}
-          maxToRenderPerBatch={8}
-          windowSize={9}
-          updateCellsBatchingPeriod={50}
-          contentContainerStyle={{
-            paddingHorizontal: GRID_PADDING - GRID_SPACING / 2,
-            paddingTop: 8,
-            paddingBottom: 80,
-          }}
+          cardSize={cardSize}
+          spacing={GRID_SPACING}
+          paddingHorizontal={GRID_PADDING - GRID_SPACING / 2}
+          paddingTop={8}
+          paddingBottom={80}
+          keyExtractor={keyExtractor}
+          renderItem={renderCard}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -673,7 +662,6 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
               colors={[theme.colors.primary]}
             />
           }
-          showsVerticalScrollIndicator={false}
         />
       )}
 

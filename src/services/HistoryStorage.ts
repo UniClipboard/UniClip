@@ -408,6 +408,17 @@ export class HistoryStorage {
           CURRENT_HISTORY_VERSION.toString()
         );
       }
+
+      // 自愈:早期导入/同步路径写入过相同 profileHash 的重复记录,
+      // 会导致 HomeView 网格 React key 冲突(快速滚动时卡片乱飞/空洞)。
+      // 加载时去重合并并回写,存量脏数据一次启动即痊愈。
+      const { items: dedupedHistory, removed } = this.dedupeByProfileHash(this.history);
+      if (removed > 0) {
+        this.history = dedupedHistory;
+        this.sortHistory();
+        log.warn(`[HistoryStorage] Removed ${removed} duplicate history entries (same profileHash)`);
+        await this.saveHistory();
+      }
     } else {
       this.history = [];
       // 新数据写入版本号
@@ -420,6 +431,51 @@ export class HistoryStorage {
     }
 
     await this.importAppGroupHistoryOnce();
+  }
+
+  /**
+   * 按 profileHash(不区分大小写)去重:保留 lastAccessed 最新的副本,
+   * 合并 starred/pinned(或)与 useCount(取最大),缺失 fileUri 时从旧副本补齐。
+   * 保持首次出现的相对顺序。
+   */
+  private dedupeByProfileHash(items: ClipboardItem[]): {
+    items: ClipboardItem[];
+    removed: number;
+  } {
+    const byHash = new Map<string, ClipboardItem>();
+    const order: string[] = [];
+
+    for (const item of items) {
+      const key = item.profileHash.toLowerCase();
+      const existing = byHash.get(key);
+      if (!existing) {
+        byHash.set(key, item);
+        order.push(key);
+        continue;
+      }
+
+      const existingSeen = existing.lastAccessed || existing.timestamp;
+      const itemSeen = item.lastAccessed || item.timestamp;
+      const winner = itemSeen > existingSeen ? item : existing;
+      const loser = winner === item ? existing : item;
+
+      const merged: ClipboardItem = {
+        ...winner,
+        starred: winner.starred || loser.starred,
+        pinned: winner.pinned || loser.pinned,
+        useCount: Math.max(winner.useCount ?? 0, loser.useCount ?? 0),
+      };
+      if (!merged.fileUri && loser.fileUri) {
+        merged.fileUri = loser.fileUri;
+        merged.isLocalFileReady = loser.isLocalFileReady;
+      }
+      byHash.set(key, merged);
+    }
+
+    return {
+      items: order.map((key) => byHash.get(key)!),
+      removed: items.length - order.length,
+    };
   }
 
   private async importAppGroupHistoryOnce(): Promise<void> {
