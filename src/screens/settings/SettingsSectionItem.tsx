@@ -4,9 +4,20 @@
  * 顶层是单个 <Column>(ExpoComposeView),满足 @expo/ui LazyColumn「直接 child 必须是
  * Compose 组件」的硬约束(非 Compose 的 RN 节点会被原生侧静默跳过)。
  * 结构 = 分组标题 + Material Card(内含若干 ListItem 行,由调用方以 children 传入)。
+ *
+ * 颜色:标题用 M3 primary(Compose Text 在无 Surface 包裹时默认内容色是黑色,暗色
+ * 模式下不可见,必须显式指定);Card 显式给 surface 容器色 + outlineVariant 边框,
+ * 保证暗色下卡片边界与背景有对比。色板经 useMaterialColors() 读取所在 <Host> 的
+ * 主题(跟随 Host 的 colorScheme)。
  */
 import React, { memo, type ReactNode } from 'react';
-import { Card, Column, Spacer, Text as ComposeText } from '@expo/ui/jetpack-compose';
+import {
+  Card,
+  Column,
+  Spacer,
+  Text as ComposeText,
+  useMaterialColors,
+} from '@expo/ui/jetpack-compose';
 import { fillMaxWidth, height as heightModifier } from '@expo/ui/jetpack-compose/modifiers';
 
 interface SettingsSectionItemProps {
@@ -25,13 +36,22 @@ export const SettingsSectionItem = memo(function SettingsSectionItem({
   children,
   dialogs,
 }: SettingsSectionItemProps) {
+  const colors = useMaterialColors();
+
   return (
     <Column modifiers={[fillMaxWidth()]}>
-      <ComposeText style={{ fontSize: 13, fontWeight: '600', letterSpacing: 0.6 }}>
+      <ComposeText
+        color={colors.primary}
+        style={{ fontSize: 13, fontWeight: '600', letterSpacing: 0.6 }}
+      >
         {title}
       </ComposeText>
       <Spacer modifiers={[heightModifier(8)]} />
-      <Card>
+      {/* containerColor 与 ListItem 默认容器色(surface)一致,避免行与卡片色不一致的拼块感 */}
+      <Card
+        colors={{ containerColor: colors.surface }}
+        border={{ width: 1, color: colors.outlineVariant }}
+      >
         <Column modifiers={[fillMaxWidth()]}>{children}</Column>
       </Card>
       {dialogs}

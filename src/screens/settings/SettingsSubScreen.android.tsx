@@ -4,6 +4,8 @@
  * 参数化单容器:route param `section` 决定显示哪个二级页内容。结构与一级页一致——
  * 单个 <Host> + <LazyColumn>,各 section 复用已迁的无 Host item 组件。
  * 用 SettingsToastProvider 包裹,使 section 内的 useSettingsToast 正常工作。
+ * 服务器配置/扫码用的 RN <Modal>(ServerModals)必须渲染在 LazyColumn 之外,
+ * 仅在 `sync` 页挂载。
  */
 import React, { memo } from 'react';
 import { StyleSheet } from 'react-native';
@@ -14,6 +16,12 @@ import { fillMaxSize } from '@expo/ui/jetpack-compose/modifiers';
 import { useTheme } from '@/hooks/useTheme';
 import type { RootStackParamList } from '@/navigation/AppNavigator';
 import { SettingsToastProvider } from './SettingsToastContext';
+import { ServerSection } from './ServerSection';
+import { ServerModals } from './ServerModals';
+import { SyncSettingsSection } from './SyncSettingsSection';
+import { HistorySection } from './HistorySection';
+import { BackgroundSection } from './BackgroundSection';
+import { AppearanceSection } from './AppearanceSection';
 import { StorageSection } from './StorageSection';
 import { SmsSection } from './SmsSection';
 import { AboutSection } from './AboutSection';
@@ -31,12 +39,26 @@ const SettingsSubScreenInner = memo(function SettingsSubScreenInner() {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
       edges={[]}
     >
-      <Host style={styles.container}>
+      {/* colorScheme 跟随 app 主题(而非系统深浅色),保证强制深/浅色时 Compose 主题一致 */}
+      <Host style={styles.container} colorScheme={theme.isDark ? 'dark' : 'light'}>
         <LazyColumn
           modifiers={[fillMaxSize()]}
           contentPadding={{ start: 16, end: 16, top: 16, bottom: 40 }}
           verticalArrangement={{ spacedBy: 16 }}
         >
+          {section === 'sync' && (
+            <>
+              <ServerSection />
+              <SyncSettingsSection />
+            </>
+          )}
+
+          {section === 'history' && <HistorySection />}
+
+          {section === 'background' && <BackgroundSection />}
+
+          {section === 'appearance' && <AppearanceSection />}
+
           {section === 'storage' && <StorageSection />}
 
           {section === 'sms' && <SmsSection />}
@@ -52,6 +74,9 @@ const SettingsSubScreenInner = memo(function SettingsSubScreenInner() {
           )}
         </LazyColumn>
       </Host>
+
+      {/* 服务器配置/扫码 RN Modal:必须在 LazyColumn 之外渲染 */}
+      {section === 'sync' && <ServerModals />}
     </SafeAreaView>
   );
 });

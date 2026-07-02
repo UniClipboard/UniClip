@@ -13,7 +13,15 @@ import { HomeView } from '@/screens/HomeView';
 import { SettingsScreen } from '@/screens/SettingsScreen';
 import { SettingsSubScreen } from '@/screens/settings/SettingsSubScreen';
 
-export type SettingsSubSection = 'sms' | 'storage' | 'about' | 'developer';
+export type SettingsSubSection =
+  | 'sync'
+  | 'history'
+  | 'background'
+  | 'appearance'
+  | 'sms'
+  | 'storage'
+  | 'about'
+  | 'developer';
 
 export type RootStackParamList = {
   Main: undefined;
@@ -24,6 +32,10 @@ export type RootStackParamList = {
 const Stack = createStackNavigator<RootStackParamList>();
 
 const SUB_SCREEN_TITLES: Record<SettingsSubSection, string> = {
+  sync: '服务器与同步',
+  history: '历史记录',
+  background: '后台运行',
+  appearance: '外观',
   sms: '短信转发',
   storage: '存储',
   about: '关于',

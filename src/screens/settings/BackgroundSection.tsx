@@ -1,9 +1,10 @@
 /**
- * 后台运行 section（仅 Android）
+ * 后台运行 section（仅 Android,「后台运行」二级页）
  *
- * 后台任务总开关及其子项（常驻通知、后台下载/上传、悬浮窗/Shizuku 获取剪贴板），以及
- * 与之强相关的权限（忽略电池优化）。原先散落的 Alert.alert 确认改为单个配置驱动的
- * Compose AlertDialog(内部化到 item);含 Shizuku/悬浮窗互斥联动。失败回滚交给 store。
+ * 拆为三张卡:「后台任务」(总开关、常驻通知、忽略电池优化)、「后台同步」(后台下载/
+ * 上传)、「后台读取剪贴板」(悬浮窗/Shizuku,二者互斥联动)。原先散落的 Alert.alert
+ * 确认改为单个配置驱动的 Compose AlertDialog(挂在第一张卡的 dialogs 上;Compose
+ * Dialog 是 window 级 overlay,挂载位置不影响展示)。失败回滚交给 store。
  */
 import React, { memo, useEffect, useRef, useState } from 'react';
 import { Platform, Linking } from 'react-native';
@@ -270,152 +271,165 @@ export const BackgroundSection = memo(function BackgroundSection() {
   if (Platform.OS !== 'android') return null;
 
   return (
-    <SettingsSectionItem
-      title="后台运行"
-      dialogs={
-        dialog && (
-          <AlertDialog onDismissRequest={() => setDialog(null)}>
-            <AlertDialog.Title>
-              <ComposeText>{dialog.title}</ComposeText>
-            </AlertDialog.Title>
-            <AlertDialog.Text>
-              <ComposeText>{dialog.text}</ComposeText>
-            </AlertDialog.Text>
-            <AlertDialog.ConfirmButton>
-              <TextButton
-                onClick={() => {
-                  const fn = dialog.onConfirm;
-                  setDialog(null);
-                  fn();
-                }}
-              >
-                <ComposeText>{dialog.confirmLabel}</ComposeText>
-              </TextButton>
-            </AlertDialog.ConfirmButton>
-            {dialog.dismissLabel ? (
-              <AlertDialog.DismissButton>
-                <TextButton onClick={() => setDialog(null)}>
-                  <ComposeText>{dialog.dismissLabel}</ComposeText>
+    <>
+      <SettingsSectionItem
+        title="后台任务"
+        dialogs={
+          dialog && (
+            <AlertDialog onDismissRequest={() => setDialog(null)}>
+              <AlertDialog.Title>
+                <ComposeText>{dialog.title}</ComposeText>
+              </AlertDialog.Title>
+              <AlertDialog.Text>
+                <ComposeText>{dialog.text}</ComposeText>
+              </AlertDialog.Text>
+              <AlertDialog.ConfirmButton>
+                <TextButton
+                  onClick={() => {
+                    const fn = dialog.onConfirm;
+                    setDialog(null);
+                    fn();
+                  }}
+                >
+                  <ComposeText>{dialog.confirmLabel}</ComposeText>
                 </TextButton>
-              </AlertDialog.DismissButton>
-            ) : null}
-          </AlertDialog>
-        )
-      }
-    >
-      <ListItem>
-        <ListItem.HeadlineContent>
-          <ComposeText>后台任务</ComposeText>
-        </ListItem.HeadlineContent>
-        <ListItem.SupportingContent>
-          <ComposeText>
-            {isTempDisabled ? '已临时停止，重启 APP 后恢复开启状态' : '关闭后将停止所有后台任务'}
-          </ComposeText>
-        </ListItem.SupportingContent>
-        <ListItem.TrailingContent>
-          <ComposeSwitch
-            value={backgroundTasksEnabled}
-            onCheckedChange={handleToggleBackgroundTasks}
-          />
-        </ListItem.TrailingContent>
-      </ListItem>
+              </AlertDialog.ConfirmButton>
+              {dialog.dismissLabel ? (
+                <AlertDialog.DismissButton>
+                  <TextButton onClick={() => setDialog(null)}>
+                    <ComposeText>{dialog.dismissLabel}</ComposeText>
+                  </TextButton>
+                </AlertDialog.DismissButton>
+              ) : null}
+            </AlertDialog>
+          )
+        }
+      >
+        <ListItem>
+          <ListItem.HeadlineContent>
+            <ComposeText>后台任务</ComposeText>
+          </ListItem.HeadlineContent>
+          <ListItem.SupportingContent>
+            <ComposeText>
+              {isTempDisabled ? '已临时停止，重启 APP 后恢复开启状态' : '关闭后将停止所有后台任务'}
+            </ComposeText>
+          </ListItem.SupportingContent>
+          <ListItem.TrailingContent>
+            <ComposeSwitch
+              value={backgroundTasksEnabled}
+              onCheckedChange={handleToggleBackgroundTasks}
+            />
+          </ListItem.TrailingContent>
+        </ListItem>
 
-      <HorizontalDivider />
+        <HorizontalDivider />
 
-      <ListItem>
-        <ListItem.HeadlineContent>
-          <ComposeText>后台服务常驻通知</ComposeText>
-        </ListItem.HeadlineContent>
-        <ListItem.SupportingContent>
-          <ComposeText>启用后会增加后台服务的稳定性</ComposeText>
-        </ListItem.SupportingContent>
-        <ListItem.TrailingContent>
-          <ComposeSwitch
-            value={backgroundTasksEnabled && foregroundNotification}
-            onCheckedChange={handleToggleForegroundNotification}
-            enabled={backgroundTasksEnabled}
-          />
-        </ListItem.TrailingContent>
-      </ListItem>
+        <ListItem>
+          <ListItem.HeadlineContent>
+            <ComposeText>后台服务常驻通知</ComposeText>
+          </ListItem.HeadlineContent>
+          <ListItem.SupportingContent>
+            <ComposeText>启用后会增加后台服务的稳定性</ComposeText>
+          </ListItem.SupportingContent>
+          <ListItem.TrailingContent>
+            <ComposeSwitch
+              value={backgroundTasksEnabled && foregroundNotification}
+              onCheckedChange={handleToggleForegroundNotification}
+              enabled={backgroundTasksEnabled}
+            />
+          </ListItem.TrailingContent>
+        </ListItem>
 
-      <HorizontalDivider />
+        <HorizontalDivider />
 
-      <ListItem>
-        <ListItem.HeadlineContent>
-          <ComposeText>后台下载远程</ComposeText>
-        </ListItem.HeadlineContent>
-        <ListItem.TrailingContent>
-          <ComposeSwitch
-            value={backgroundTasksEnabled && backgroundDownload}
-            onCheckedChange={handleToggleBackgroundDownload}
-            enabled={backgroundTasksEnabled}
-          />
-        </ListItem.TrailingContent>
-      </ListItem>
+        <ListItem>
+          <ListItem.HeadlineContent>
+            <ComposeText>忽略电池优化</ComposeText>
+          </ListItem.HeadlineContent>
+          <ListItem.SupportingContent>
+            <ComposeText>防止省电模式中断后台同步</ComposeText>
+          </ListItem.SupportingContent>
+          <ListItem.TrailingContent>
+            <ComposeSwitch value={permBattery} onCheckedChange={handleToggleBattery} />
+          </ListItem.TrailingContent>
+        </ListItem>
+      </SettingsSectionItem>
 
-      <HorizontalDivider />
+      <SettingsSectionItem title="后台同步">
+        <ListItem>
+          <ListItem.HeadlineContent>
+            <ComposeText>后台下载远程</ComposeText>
+          </ListItem.HeadlineContent>
+          <ListItem.SupportingContent>
+            <ComposeText>后台收到远程新内容时自动下载</ComposeText>
+          </ListItem.SupportingContent>
+          <ListItem.TrailingContent>
+            <ComposeSwitch
+              value={backgroundTasksEnabled && backgroundDownload}
+              onCheckedChange={handleToggleBackgroundDownload}
+              enabled={backgroundTasksEnabled}
+            />
+          </ListItem.TrailingContent>
+        </ListItem>
 
-      <ListItem>
-        <ListItem.HeadlineContent>
-          <ComposeText>后台上传本地</ComposeText>
-        </ListItem.HeadlineContent>
-        <ListItem.TrailingContent>
-          <ComposeSwitch
-            value={backgroundTasksEnabled && backgroundUpload}
-            onCheckedChange={handleToggleBackgroundUpload}
-            enabled={backgroundTasksEnabled}
-          />
-        </ListItem.TrailingContent>
-      </ListItem>
+        <HorizontalDivider />
 
-      <HorizontalDivider />
+        <ListItem>
+          <ListItem.HeadlineContent>
+            <ComposeText>后台上传本地</ComposeText>
+          </ListItem.HeadlineContent>
+          <ListItem.SupportingContent>
+            <ComposeText>后台读取到本机剪贴板变化时自动上传</ComposeText>
+          </ListItem.SupportingContent>
+          <ListItem.TrailingContent>
+            <ComposeSwitch
+              value={backgroundTasksEnabled && backgroundUpload}
+              onCheckedChange={handleToggleBackgroundUpload}
+              enabled={backgroundTasksEnabled}
+            />
+          </ListItem.TrailingContent>
+        </ListItem>
+      </SettingsSectionItem>
 
-      <ListItem>
-        <ListItem.HeadlineContent>
-          <ComposeText>后台时通过悬浮窗获取剪贴板</ComposeText>
-        </ListItem.HeadlineContent>
-        <ListItem.TrailingContent>
-          <ComposeSwitch
-            value={backgroundTasksEnabled && clipboardOverlay}
-            onCheckedChange={handleToggleClipboardOverlay}
-            enabled={backgroundTasksEnabled}
-          />
-        </ListItem.TrailingContent>
-      </ListItem>
+      <SettingsSectionItem title="后台读取剪贴板">
+        <ListItem>
+          <ListItem.HeadlineContent>
+            <ComposeText>通过悬浮窗获取剪贴板</ComposeText>
+          </ListItem.HeadlineContent>
+          <ListItem.SupportingContent>
+            <ComposeText>与 Shizuku 方式互斥</ComposeText>
+          </ListItem.SupportingContent>
+          <ListItem.TrailingContent>
+            <ComposeSwitch
+              value={backgroundTasksEnabled && clipboardOverlay}
+              onCheckedChange={handleToggleClipboardOverlay}
+              enabled={backgroundTasksEnabled}
+            />
+          </ListItem.TrailingContent>
+        </ListItem>
 
-      <HorizontalDivider />
+        <HorizontalDivider />
 
-      <ListItem>
-        <ListItem.HeadlineContent>
-          <ComposeText>后台时通过 Shizuku 获取剪贴板</ComposeText>
-        </ListItem.HeadlineContent>
-        <ListItem.SupportingContent>
-          <ComposeText modifiers={[clickable(() => Linking.openURL('https://shizuku.rikka.app/'))]}>
-            前往 Shizuku 官网
-          </ComposeText>
-        </ListItem.SupportingContent>
-        <ListItem.TrailingContent>
-          <ComposeSwitch
-            value={backgroundTasksEnabled && shizukuClipboard}
-            onCheckedChange={handleToggleShizukuClipboard}
-            enabled={backgroundTasksEnabled}
-          />
-        </ListItem.TrailingContent>
-      </ListItem>
-
-      <HorizontalDivider />
-
-      <ListItem>
-        <ListItem.HeadlineContent>
-          <ComposeText>忽略电池优化</ComposeText>
-        </ListItem.HeadlineContent>
-        <ListItem.SupportingContent>
-          <ComposeText>防止省电模式中断后台同步</ComposeText>
-        </ListItem.SupportingContent>
-        <ListItem.TrailingContent>
-          <ComposeSwitch value={permBattery} onCheckedChange={handleToggleBattery} />
-        </ListItem.TrailingContent>
-      </ListItem>
-    </SettingsSectionItem>
+        <ListItem>
+          <ListItem.HeadlineContent>
+            <ComposeText>通过 Shizuku 获取剪贴板</ComposeText>
+          </ListItem.HeadlineContent>
+          <ListItem.SupportingContent>
+            <ComposeText
+              modifiers={[clickable(() => Linking.openURL('https://shizuku.rikka.app/'))]}
+            >
+              前往 Shizuku 官网
+            </ComposeText>
+          </ListItem.SupportingContent>
+          <ListItem.TrailingContent>
+            <ComposeSwitch
+              value={backgroundTasksEnabled && shizukuClipboard}
+              onCheckedChange={handleToggleShizukuClipboard}
+              enabled={backgroundTasksEnabled}
+            />
+          </ListItem.TrailingContent>
+        </ListItem>
+      </SettingsSectionItem>
+    </>
   );
 });
