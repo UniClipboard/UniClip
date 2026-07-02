@@ -1,7 +1,12 @@
 import React, { useRef } from 'react';
 import { Text, StyleSheet, Animated, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { spacing, radius, typography, elevation } from '@/theme';
+
+// Android 悬浮底部条(HomeBottomBar)高度约 64(10 paddingTop + 44 内容 + 10 paddingBottom)+ 安全区,
+// Snackbar 需悬浮在其上方,并留出与它一致的间距。设置页等无底部条的场景也用同一偏移,观感统一。
+const ANDROID_TOAST_BOTTOM_OFFSET = 76;
 
 export type MessageType = 'success' | 'error' | 'info';
 
@@ -17,6 +22,7 @@ interface MessageToastProps {
 
 export function MessageToast({ message, onMessageShown }: MessageToastProps) {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
@@ -69,7 +75,11 @@ export function MessageToast({ message, onMessageShown }: MessageToastProps) {
 
   return (
     <Animated.View
-      style={[styles.messageContainer, { backgroundColor: bg }, { opacity: fadeAnim }]}
+      style={[
+        styles.messageContainer,
+        { backgroundColor: bg, bottom: insets.bottom + ANDROID_TOAST_BOTTOM_OFFSET },
+        { opacity: fadeAnim },
+      ]}
     >
       <Text style={[styles.messageText, { color: fg }]}>{message.text}</Text>
     </Animated.View>
@@ -95,10 +105,11 @@ const styles = StyleSheet.create({
   },
   // Android: M3 Snackbar
   messageContainer: {
+    position: 'absolute',
+    left: spacing.base,
+    right: spacing.base,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.base,
-    marginHorizontal: spacing.base,
-    marginBottom: spacing.sm,
     borderRadius: radius.md,
     borderCurve: 'continuous',
     alignItems: 'center',
