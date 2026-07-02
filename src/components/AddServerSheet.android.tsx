@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useMaterialColors } from '@expo/ui/jetpack-compose';
 import { useTheme } from '@/hooks/useTheme';
 import { useSettingsStore } from '@/stores';
 import { usePendingConnectStore } from '@/stores';
@@ -20,6 +21,16 @@ import { probe, type ProbeResult } from 'uc-core';
 import { classifyURL, getURLClassDisplay, type ServerURLClass } from '@/utils/classifyUrl';
 import { QrScannerModal } from './QrScannerModal';
 import type { AddServerSheetProps } from './AddServerSheet.types';
+
+/**
+ * 与设置页(@expo/ui Compose)同源的 Material You 动态色板,跟随 app 深浅色。
+ * 本表单是纯 RN 组件,若用 @/theme 的静态 M3 baseline(紫色调),在启用动态取色的
+ * 设备上会与周围设置页明显不一致。
+ */
+function useDynamicColors() {
+  const { theme } = useTheme();
+  return useMaterialColors({ colorScheme: theme.isDark ? 'dark' : 'light' });
+}
 
 const PROBE_STATUS_COLORS: Record<ProbeResult, string> = {
   Success: '#4CAF50',
@@ -49,11 +60,11 @@ function getProbeBackgroundColor(result?: ProbeResult): string {
 }
 
 function URLClassBadge({ urlClass }: { urlClass: ServerURLClass }) {
-  const { theme } = useTheme();
+  const colors = useDynamicColors();
   const meta = getURLClassDisplay(urlClass);
   return (
-    <View style={[badgeStyles.container, { backgroundColor: theme.colors.surfaceContainerHigh }]}>
-      <Text style={[badgeStyles.text, { color: theme.colors.onSurfaceVariant }]}>{meta.label}</Text>
+    <View style={[badgeStyles.container, { backgroundColor: colors.surfaceContainerHigh }]}>
+      <Text style={[badgeStyles.text, { color: colors.onSurfaceVariant }]}>{meta.label}</Text>
     </View>
   );
 }
@@ -77,7 +88,7 @@ export function AddServerSheet({
   onClose,
   onSave,
 }: AddServerSheetProps) {
-  const { theme } = useTheme();
+  const colors = useDynamicColors();
   const consumePendingConnect = usePendingConnectStore((s) => s.consume);
   const settings = useSettingsStore((s) => s.config);
 
@@ -212,8 +223,8 @@ export function AddServerSheet({
   const inputStyle = [
     styles.input,
     {
-      color: theme.colors.onSurface,
-      borderColor: theme.colors.outlineVariant,
+      color: colors.onSurface,
+      borderColor: colors.outlineVariant,
     },
   ];
 
@@ -224,20 +235,20 @@ export function AddServerSheet({
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <KeyboardAvoidingView style={styles.flex} behavior="height">
           {/* Header */}
-          <View style={[styles.header, { borderBottomColor: theme.colors.outlineVariant }]}>
+          <View style={[styles.header, { borderBottomColor: colors.outlineVariant }]}>
             <Pressable onPress={onClose} style={styles.headerBtn}>
-              <Text style={[styles.headerBtnText, { color: theme.colors.primary }]}>取消</Text>
+              <Text style={[styles.headerBtnText, { color: colors.primary }]}>取消</Text>
             </Pressable>
-            <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>{title}</Text>
+            <Text style={[styles.headerTitle, { color: colors.onSurface }]}>{title}</Text>
             <Pressable onPress={handleSave} disabled={!canSave} style={styles.headerBtn}>
               <Text
                 style={[
                   styles.headerBtnText,
                   styles.headerBtnBold,
-                  { color: canSave ? theme.colors.primary : theme.colors.outline },
+                  { color: canSave ? colors.primary : colors.outline },
                 ]}
               >
                 保存
@@ -254,41 +265,37 @@ export function AddServerSheet({
             <View style={styles.section}>
               <Pressable
                 onPress={() => setShowScanner(true)}
-                style={[styles.scanRow, { backgroundColor: theme.colors.surfaceContainerLow }]}
+                style={[styles.scanRow, { backgroundColor: colors.surfaceContainerLow }]}
               >
-                <Ionicons name="qr-code-outline" size={20} color={theme.colors.primary} />
-                <Text style={[styles.scanLabel, { color: theme.colors.primary }]}>扫码连接</Text>
-                <Ionicons name="chevron-forward" size={16} color={theme.colors.outline} />
+                <Ionicons name="qr-code-outline" size={20} color={colors.primary} />
+                <Text style={[styles.scanLabel, { color: colors.primary }]}>扫码连接</Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.outline} />
               </Pressable>
-              <Text style={[styles.sectionFooter, { color: theme.colors.onSurfaceVariant }]}>
+              <Text style={[styles.sectionFooter, { color: colors.onSurfaceVariant }]}>
                 扫描桌面端的二维码，一键填充以下信息。
               </Text>
             </View>
 
             {/* § 名称 */}
             <View style={styles.section}>
-              <Text style={[styles.sectionHeader, { color: theme.colors.onSurfaceVariant }]}>
-                名称
-              </Text>
+              <Text style={[styles.sectionHeader, { color: colors.primary }]}>名称</Text>
               <TextInput
                 value={name}
                 onChangeText={setName}
                 placeholder="便于辨识的名称"
-                placeholderTextColor={theme.colors.onSurfaceVariant}
+                placeholderTextColor={colors.onSurfaceVariant}
                 autoCapitalize="none"
                 autoCorrect={false}
                 style={inputStyle}
               />
-              <Text style={[styles.sectionFooter, { color: theme.colors.onSurfaceVariant }]}>
+              <Text style={[styles.sectionFooter, { color: colors.onSurfaceVariant }]}>
                 将显示在剪贴板顶栏。留空会用服务器地址替代。
               </Text>
             </View>
 
             {/* § 服务器地址（多地址） */}
             <View style={styles.section}>
-              <Text style={[styles.sectionHeader, { color: theme.colors.onSurfaceVariant }]}>
-                服务器地址
-              </Text>
+              <Text style={[styles.sectionHeader, { color: colors.primary }]}>服务器地址</Text>
               {urls.map((url, i) => {
                 const trimmed = url.trim();
                 let urlClass: ServerURLClass | null = null;
@@ -305,7 +312,7 @@ export function AddServerSheet({
                         value={url}
                         onChangeText={(text) => updateUrl(i, text)}
                         placeholder="https://your-server.com:5033/"
-                        placeholderTextColor={theme.colors.onSurfaceVariant}
+                        placeholderTextColor={colors.onSurfaceVariant}
                         autoCapitalize="none"
                         autoCorrect={false}
                         keyboardType="url"
@@ -318,7 +325,7 @@ export function AddServerSheet({
                         {urlClass && <URLClassBadge urlClass={urlClass} />}
                         {urls.length > 1 && (
                           <Pressable onPress={() => removeUrl(i)} hitSlop={8}>
-                            <Ionicons name="remove-circle" size={20} color={theme.colors.error} />
+                            <Ionicons name="remove-circle" size={20} color={colors.error} />
                           </Pressable>
                         )}
                       </View>
@@ -328,14 +335,12 @@ export function AddServerSheet({
               })}
               <Pressable
                 onPress={addUrl}
-                style={[styles.actionRow, { backgroundColor: theme.colors.surfaceContainerLow }]}
+                style={[styles.actionRow, { backgroundColor: colors.surfaceContainerLow }]}
               >
-                <Ionicons name="add-circle-outline" size={18} color={theme.colors.primary} />
-                <Text style={[styles.actionRowText, { color: theme.colors.primary }]}>
-                  添加备用地址
-                </Text>
+                <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
+                <Text style={[styles.actionRowText, { color: colors.primary }]}>添加备用地址</Text>
               </Pressable>
-              <Text style={[styles.sectionFooter, { color: theme.colors.onSurfaceVariant }]}>
+              <Text style={[styles.sectionFooter, { color: colors.onSurfaceVariant }]}>
                 同一服务器可填多个地址（局域网 / Tailscale / 公网），App
                 会按当前网络自动选用可达的一条；第一条为默认地址。
               </Text>
@@ -343,9 +348,7 @@ export function AddServerSheet({
 
             {/* § 凭据 */}
             <View style={styles.section}>
-              <Text style={[styles.sectionHeader, { color: theme.colors.onSurfaceVariant }]}>
-                凭据
-              </Text>
+              <Text style={[styles.sectionHeader, { color: colors.primary }]}>凭据</Text>
               <TextInput
                 value={username}
                 onChangeText={(v) => {
@@ -353,7 +356,7 @@ export function AddServerSheet({
                   setProbeResults(null);
                 }}
                 placeholder="用户名"
-                placeholderTextColor={theme.colors.onSurfaceVariant}
+                placeholderTextColor={colors.onSurfaceVariant}
                 autoCapitalize="none"
                 autoCorrect={false}
                 style={inputStyle}
@@ -366,7 +369,7 @@ export function AddServerSheet({
                   setProbeResults(null);
                 }}
                 placeholder="密码"
-                placeholderTextColor={theme.colors.onSurfaceVariant}
+                placeholderTextColor={colors.onSurfaceVariant}
                 secureTextEntry
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -376,9 +379,7 @@ export function AddServerSheet({
 
             {/* § 连接测试 */}
             <View style={styles.section}>
-              <Text style={[styles.sectionHeader, { color: theme.colors.onSurfaceVariant }]}>
-                连接
-              </Text>
+              <Text style={[styles.sectionHeader, { color: colors.primary }]}>连接</Text>
 
               {probeResults &&
                 cleanedUrls.map((u) => {
@@ -400,7 +401,7 @@ export function AddServerSheet({
                       <Ionicons name={statusIcon} size={18} color={statusColor} />
                       <View style={styles.probeInfo}>
                         <Text
-                          style={[styles.probeUrl, { color: theme.colors.onSurface }]}
+                          style={[styles.probeUrl, { color: colors.onSurface }]}
                           numberOfLines={1}
                         >
                           {u}
@@ -421,23 +422,23 @@ export function AddServerSheet({
                   styles.actionRow,
                   {
                     backgroundColor: isProbing
-                      ? theme.colors.surfaceContainerHigh
-                      : theme.colors.surfaceContainerLow,
+                      ? colors.surfaceContainerHigh
+                      : colors.surfaceContainerLow,
                     justifyContent: 'center',
                   },
                 ]}
               >
                 {isProbing ? (
                   <>
-                    <ActivityIndicator size="small" color={theme.colors.onSurfaceVariant} />
-                    <Text style={[styles.actionRowText, { color: theme.colors.onSurfaceVariant }]}>
+                    <ActivityIndicator size="small" color={colors.onSurfaceVariant} />
+                    <Text style={[styles.actionRowText, { color: colors.onSurfaceVariant }]}>
                       正在测试…
                     </Text>
                   </>
                 ) : (
                   <>
-                    <Ionicons name="flash-outline" size={18} color={theme.colors.primary} />
-                    <Text style={[styles.actionRowText, { color: theme.colors.primary }]}>
+                    <Ionicons name="flash-outline" size={18} color={colors.primary} />
+                    <Text style={[styles.actionRowText, { color: colors.primary }]}>
                       {probeResults ? '重新测试' : '测试连接'}
                     </Text>
                   </>
