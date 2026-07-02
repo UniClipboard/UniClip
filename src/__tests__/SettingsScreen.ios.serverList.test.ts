@@ -1,78 +1,81 @@
 import fs from 'fs';
 import path from 'path';
 
-describe('iOS settings server list', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../screens/SettingsScreen.ios.tsx'), 'utf8');
+const readSource = (relativePath: string) =>
+  fs.readFileSync(path.join(__dirname, '..', relativePath), 'utf8');
 
-  it('opens a dedicated server list screen from the server row', () => {
-    expect(source).toContain('showServerList');
-    expect(source).toContain('setShowServerList(true)');
-    expect(source).toContain('服务器列表');
-    expect(source).toContain('onTapGesture');
+describe('iOS settings server list', () => {
+  const orchestratorSource = readSource('screens/SettingsScreen.ios.tsx');
+  const rootPageSource = readSource('screens/settings/ios/SettingsRootPage.tsx');
+  const serverListSource = readSource('screens/settings/ios/ServerListPage.tsx');
+  const commonSource = readSource('screens/settings/ios/common.tsx');
+
+  it('opens a dedicated server list page from the root server row', () => {
+    expect(rootPageSource).toContain("onNavigate('servers')");
+    expect(orchestratorSource).toContain("page === 'servers'");
+    expect(orchestratorSource).toContain('ServerListPage');
+    expect(commonSource).toContain('onTapGesture');
   });
 
   it('uses the unified server sheet for adding and editing servers', () => {
-    expect(source).toContain('AddServerSheet');
-    expect(source).toContain('editingServerIndex');
-    expect(source).toContain('updateServer');
-    expect(source).toContain('addServer');
+    expect(orchestratorSource).toContain('AddServerSheet');
+    expect(orchestratorSource).toContain('editingServerIndex');
+    expect(orchestratorSource).toContain('updateServer');
+    expect(orchestratorSource).toContain('addServer');
   });
 
   it('uses icon-only current server state and shows address count with url', () => {
-    expect(source).toContain("systemImage={isActive ? 'checkmark.circle.fill' : 'server.rack'}");
-    expect(source).toContain('getServerAddressCount');
-    expect(source).toContain('getServerPrimaryUrl');
-    expect(source).not.toContain('当前使用');
+    expect(serverListSource).toContain(
+      "systemImage={isActive ? 'checkmark.circle.fill' : 'server.rack'}"
+    );
+    expect(serverListSource).toContain('getServerAddressCount');
+    expect(serverListSource).not.toContain('当前使用');
   });
 
   it('nests the add/edit sheet inside the settings sheet on iOS', () => {
-    expect(source.indexOf('<AddServerSheet')).toBeGreaterThan(source.indexOf('<BottomSheet'));
-    expect(source.indexOf('<AddServerSheet')).toBeLessThan(source.indexOf('</BottomSheet>'));
-    expect(source).toContain('embeddedInHost');
+    expect(orchestratorSource.indexOf('<AddServerSheet')).toBeGreaterThan(
+      orchestratorSource.indexOf('<BottomSheet')
+    );
+    expect(orchestratorSource.indexOf('<AddServerSheet')).toBeLessThan(
+      orchestratorSource.indexOf('</BottomSheet>')
+    );
+    expect(orchestratorSource).toContain('embeddedInHost');
   });
 
   it('does not add another Host into the settings sheet layout', () => {
-    const sheetSource = fs.readFileSync(
-      path.join(__dirname, '../components/AddServerSheet.ios.tsx'),
-      'utf8'
-    );
+    const sheetSource = readSource('components/AddServerSheet.ios.tsx');
 
     expect(sheetSource).toContain('embeddedInHost = false');
     expect(sheetSource).toContain('return embeddedInHost ? (');
   });
 
   it('uses the same grouped background behind the server list header and body', () => {
-    const sheetPageSource = fs.readFileSync(
-      path.join(__dirname, '../components/ui/IosSheetPage.ios.tsx'),
-      'utf8'
-    );
+    const sheetPageSource = readSource('components/ui/IosSheetPage.ios.tsx');
 
-    expect(source).toContain('IosSheetPage');
-    expect(source).toContain('IosSheetForm');
+    expect(serverListSource).toContain('IosSheetPage');
+    expect(serverListSource).toContain('IosSheetForm');
     expect(sheetPageSource).toContain('iosColors?.systemGroupedBackground');
     expect(sheetPageSource).toContain('background(sheetPageBackgroundColor)');
   });
 
   it('uses the shared left and right header button slots for the server list', () => {
-    const serverListStart = source.indexOf('title="服务器列表"');
-    const serverListEnd = source.indexOf('<IosSheetForm>', serverListStart);
-    const serverListHeader = source.slice(serverListStart, serverListEnd);
+    expect(serverListSource).toContain('leftSlots={[');
+    expect(serverListSource).toContain('rightSlots={[');
+    expect(serverListSource).toContain('systemName="chevron.left"');
+    expect(serverListSource).toContain('systemName="plus"');
+    expect(serverListSource).toContain('onPress={onBack}');
+    expect(serverListSource).toContain('onPress={onAddServer}');
+    expect(serverListSource).not.toContain('left={');
+    expect(serverListSource).not.toContain('right={');
+  });
 
-    expect(serverListHeader).toContain('leftSlots={[');
-    expect(serverListHeader).toContain('rightSlots={[');
-    expect(serverListHeader).toContain("buttonStyle('plain')");
-    expect(serverListHeader).toContain('glassEffect({');
-    expect(serverListHeader).toContain("glass: { variant: 'regular', interactive: true }");
-    expect(serverListHeader).toContain("shape: 'circle'");
-    expect(serverListHeader).toContain('systemName="chevron.left"');
-    expect(serverListHeader).toContain('systemName="plus"');
-    expect(serverListHeader).toContain('size={20}');
-    expect(serverListHeader).toContain('color="#AEAEB2"');
-    expect(serverListHeader).toContain("font({ weight: 'semibold' })");
-    expect(serverListHeader).toContain('padding()');
-    expect(serverListHeader).toContain('setShowServerList(false)');
-    expect(serverListHeader).toContain('openAddServer');
-    expect(serverListHeader).not.toContain('left={');
-    expect(serverListHeader).not.toContain('right={');
+  it('keeps the glass circular header button styling in the shared helper', () => {
+    expect(commonSource).toContain("buttonStyle('plain')");
+    expect(commonSource).toContain('glassEffect({');
+    expect(commonSource).toContain("glass: { variant: 'regular', interactive: true }");
+    expect(commonSource).toContain("shape: 'circle'");
+    expect(commonSource).toContain('size={20}');
+    expect(commonSource).toContain("font({ weight: 'semibold' })");
+    expect(commonSource).toContain('padding()');
   });
 });

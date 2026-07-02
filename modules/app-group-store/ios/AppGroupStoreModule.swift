@@ -98,6 +98,34 @@ public class AppGroupStoreModule: Module {
       let result = SettingsStore.migrateLegacyContainer()
       return ["migrated": result.migrated, "keys": result.keys]
     }
+
+    AsyncFunction("getKeyboardStatus") { () -> [String: Any] in
+      var status: [String: Any] = [:]
+
+      // Live check against the system keyboard list. `AppleKeyboards` holds the
+      // bundle ids of every enabled keyboard; absent (nil) on OS versions that
+      // stopped exposing it, in which case the key is omitted and JS falls back
+      // to the app-group heartbeat below.
+      if let keyboards = UserDefaults.standard.object(forKey: "AppleKeyboards") as? [String],
+         let bundleId = Bundle.main.bundleIdentifier {
+        // System entries carry layout suffixes ("en_US@sw=QWERTY"); match the
+        // extension bundle id with or without one.
+        let keyboardBundleId = bundleId + ".Keyboard"
+        status["enabledInSystem"] = keyboards.contains {
+          $0 == keyboardBundleId || $0.hasPrefix(keyboardBundleId + "@")
+        }
+      }
+
+      // Heartbeat flags the keyboard extension writes on every viewDidAppear.
+      // `lastKnownFullAccess` is the state as of the keyboard's last appearance,
+      // not necessarily the current Settings value.
+      let group = UserDefaults(suiteName: SettingsStore.appGroupID)
+      status["everUsed"] =
+        group?.bool(forKey: AppSettings.PersistenceKey.keyboardExtensionEnabled) ?? false
+      status["lastKnownFullAccess"] =
+        group?.bool(forKey: AppSettings.PersistenceKey.keyboardExtensionFullAccess) ?? false
+      return status
+    }
   }
 
   private static func payloadDirectory() -> URL {

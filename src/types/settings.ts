@@ -37,6 +37,10 @@ export interface SharedSettings {
 
   // Downloads
   downloadRelativePath: string;
+
+  // iOS keyboard extension (consumed by the native keyboard via App Group)
+  keyboardSoundFeedback: boolean;
+  keyboardHapticFeedback: boolean;
 }
 
 export interface AndroidSettings {
@@ -112,6 +116,9 @@ export const SHARED_DEFAULTS: SharedSettings = {
   debugMode: false,
 
   downloadRelativePath: '',
+
+  keyboardSoundFeedback: true,
+  keyboardHapticFeedback: true,
 };
 
 export const ANDROID_DEFAULTS: AndroidSettings = {

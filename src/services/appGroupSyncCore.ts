@@ -30,6 +30,8 @@ export interface AppGroupSettingsDTO {
   ignoredVersion?: string | null;
   downloadRelativePath?: string;
   logViewLevelFilter?: string;
+  keyboardSoundFeedback?: boolean;
+  keyboardHapticFeedback?: boolean;
 }
 
 type SettingsSlice = {
@@ -80,6 +82,8 @@ export function mapSettingsToAppGroupDTO(settings: AppSettings): AppGroupSetting
     ignoredVersion: settings.ignoredVersion,
     downloadRelativePath: settings.downloadRelativePath,
     logViewLevelFilter: settings.logLevel,
+    keyboardSoundFeedback: settings.keyboardSoundFeedback,
+    keyboardHapticFeedback: settings.keyboardHapticFeedback,
   };
 }
 

@@ -17,6 +17,13 @@ interface AppGroupStoreNativeModule {
   getLiveUrl(configId: string): Promise<string | null>;
   saveLiveUrl(configId: string, url: string | null): Promise<void>;
   migrateLegacyContainer(): Promise<LegacyMigrationResult>;
+  getKeyboardStatus(): Promise<NativeKeyboardStatus>;
+}
+
+interface NativeKeyboardStatus {
+  enabledInSystem?: boolean;
+  everUsed: boolean;
+  lastKnownFullAccess: boolean;
 }
 
 const NativeModule = requireOptionalNativeModule<AppGroupStoreNativeModule>('AppGroupStore');
@@ -53,6 +60,22 @@ export interface AppSettingsDTO {
 export interface LegacyMigrationResult {
   migrated: boolean;
   keys: number;
+}
+
+export interface KeyboardStatusDTO {
+  /**
+   * Whether the keyboard extension appears in the system keyboard list right
+   * now. `null` when the OS does not expose the list (fall back to
+   * {@link KeyboardStatusDTO.everUsed}).
+   */
+  enabledInSystem: boolean | null;
+  /** The keyboard extension has appeared on screen at least once. */
+  everUsed: boolean;
+  /**
+   * Full Access as of the keyboard's last appearance — a heartbeat, not a live
+   * read; stale until the user opens the keyboard again.
+   */
+  lastKnownFullAccess: boolean;
 }
 
 export interface PayloadStats {
@@ -136,4 +159,23 @@ export function saveLiveUrl(configId: string, url: string | null): Promise<void>
 
 export function migrateLegacyContainer(): Promise<LegacyMigrationResult> {
   return NativeModule?.migrateLegacyContainer() ?? Promise.resolve(EMPTY_MIGRATION);
+}
+
+const EMPTY_KEYBOARD_STATUS: KeyboardStatusDTO = {
+  enabledInSystem: null,
+  everUsed: false,
+  lastKnownFullAccess: false,
+};
+
+export async function getKeyboardStatus(): Promise<KeyboardStatusDTO> {
+  // typeof guard: dev clients built before this function shipped expose the
+  // module without it, and a plain optional call would throw.
+  if (typeof NativeModule?.getKeyboardStatus !== 'function') return EMPTY_KEYBOARD_STATUS;
+  const status = await NativeModule.getKeyboardStatus();
+  if (!status) return EMPTY_KEYBOARD_STATUS;
+  return {
+    enabledInSystem: status.enabledInSystem ?? null,
+    everUsed: status.everUsed ?? false,
+    lastKnownFullAccess: status.lastKnownFullAccess ?? false,
+  };
 }

@@ -207,6 +207,8 @@ describe('App Group sync mapping', () => {
         ignoredVersion: '2.0.0',
         downloadRelativePath: 'UniClip',
         logViewLevelFilter: 'debug',
+        keyboardSoundFeedback: DEFAULT_SETTINGS.keyboardSoundFeedback,
+        keyboardHapticFeedback: DEFAULT_SETTINGS.keyboardHapticFeedback,
       });
       expect(result).not.toHaveProperty('logLevel');
     });

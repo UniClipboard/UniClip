@@ -19,7 +19,12 @@ describe('iOS sheet page shared background', () => {
 
   it('uses the shared sheet page wrapper for every iOS sheet with a header', () => {
     const iosSheetSources = [
-      'screens/SettingsScreen.ios.tsx',
+      'screens/settings/ios/SettingsRootPage.tsx',
+      'screens/settings/ios/ServerListPage.tsx',
+      'screens/settings/ios/StoragePage.tsx',
+      'screens/settings/ios/KeyboardPage.tsx',
+      'screens/settings/ios/SharePage.tsx',
+      'screens/settings/ios/ClipboardAccessPage.tsx',
       'components/AddServerSheet.ios.tsx',
       'components/HistoryFilterSheet.ios.tsx',
       'components/ServerSwitcherModal.ios.tsx',
@@ -33,7 +38,8 @@ describe('iOS sheet page shared background', () => {
 
   it('keeps Form list backgrounds aligned through the shared form helper', () => {
     const formSheetSources = [
-      'screens/SettingsScreen.ios.tsx',
+      'screens/settings/ios/SettingsRootPage.tsx',
+      'screens/settings/ios/ServerListPage.tsx',
       'components/AddServerSheet.ios.tsx',
       'components/HistoryFilterSheet.ios.tsx',
     ].map(readSource);

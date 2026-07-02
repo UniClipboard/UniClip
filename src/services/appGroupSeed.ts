@@ -63,6 +63,12 @@ export async function seedConfigFromAppGroup(): Promise<Partial<AppSettings> | n
   if (settings.logViewLevelFilter && isLogLevel(settings.logViewLevelFilter)) {
     partial.logLevel = settings.logViewLevelFilter;
   }
+  if (settings.keyboardSoundFeedback !== undefined) {
+    partial.keyboardSoundFeedback = settings.keyboardSoundFeedback;
+  }
+  if (settings.keyboardHapticFeedback !== undefined) {
+    partial.keyboardHapticFeedback = settings.keyboardHapticFeedback;
+  }
 
   return partial;
 }
