@@ -6,6 +6,13 @@ export const URL_CLASS_ICONS = {
   wan: 'globe',
 } as const;
 
+/** Android 对应图标(Ionicons 名),与 iOS 的 SF Symbols 语义一一对应。 */
+export const URL_CLASS_IONICONS = {
+  lan: 'home',
+  tailscale: 'git-network',
+  wan: 'globe-outline',
+} as const;
+
 const URL_CLASS_DISPLAY: Record<ServerURLClass, { label: string; icon: string }> = {
   lan: { label: '局域网', icon: URL_CLASS_ICONS.lan },
   tailscale: { label: 'Tailscale', icon: URL_CLASS_ICONS.tailscale },

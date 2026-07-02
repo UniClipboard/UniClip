@@ -1,15 +1,17 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { StyleSheet, useColorScheme } from 'react-native';
+import { Alert, StyleSheet, useColorScheme } from 'react-native';
 import {
   Host,
   BottomSheet,
   Group,
+  List,
   VStack,
   Text as SwiftUIText,
   Spacer,
   Button as SwiftUIButton,
   Image,
   HStack,
+  SwipeActions,
 } from '@expo/ui/swift-ui';
 import {
   presentationDetents,
@@ -24,8 +26,15 @@ import {
   shapes,
   contentShape,
   onTapGesture,
+  listStyle,
+  scrollContentBackground,
+  listRowBackground,
+  listRowSeparator,
+  listRowInsets,
+  tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { IosSheetPage } from '@/components/ui';
+import { iosColors, iosKindTints, hexToRgba } from '@/theme/iosDesignTokens';
 import { useSettingsStore } from '@/stores';
 import type { ServerSwitcherModalProps } from './ServerSwitcherModal.types';
 import type { ServerConfig } from '@/types/api';
@@ -40,6 +49,9 @@ import {
 } from '@/utils/classifyUrl';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
+const ACTIVE_TINT = iosKindTints.image; // system green — 「已选中/已连接」语义
+const SHEET_BG = iosColors?.systemGroupedBackground ?? '#F2F2F7'; // 与 IosSheetPage 同源
+
 function useNetworkTags(server: ServerConfig) {
   return useMemo(() => {
     const urls = effectiveURLs(server.urls, server.url);
@@ -52,74 +64,146 @@ function useNetworkTags(server: ServerConfig) {
   }, [server.urls, server.url]);
 }
 
-function getRowBackgroundColor(isActive: boolean, isDark: boolean) {
-  if (isActive) return isDark ? '#1A2E1F' : '#F2FBF5';
-  return isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)';
+function toEditData(server: ServerConfig): AddServerSaveData {
+  return {
+    name: server.name ?? '',
+    urls: server.urls && server.urls.length > 0 ? server.urls : [server.url],
+    username: server.username ?? '',
+    password: server.password ?? '',
+  };
 }
 
-function ServerItem({
+function ServerCard({
   server,
   isActive,
-  onPress,
+  onSelect,
+  onEdit,
+  onDelete,
 }: {
   server: ServerConfig;
   isActive: boolean;
-  onPress: () => void;
+  onSelect: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
 }) {
   const { count, tags } = useNetworkTags(server);
   const isDark = useColorScheme() === 'dark';
-  const bgColor = getRowBackgroundColor(isActive, isDark);
+  const cardFill = isActive
+    ? hexToRgba(ACTIVE_TINT, isDark ? 0.18 : 0.1)
+    : iosColors!.secondarySystemGroupedBackground;
 
   return (
-    <Group modifiers={[padding({ horizontal: 20 })]}>
+    // 左滑露出操作:SwiftUI swipeActions 只在 List 行上生效;
+    // trailing 组内先声明的按钮最靠边缘,整滑触发第一个(删除,有 Alert 兜底确认)
+    <SwipeActions
+      modifiers={[
+        listRowBackground(SHEET_BG),
+        listRowSeparator('hidden'),
+        listRowInsets({ top: 5, bottom: 5, leading: 16, trailing: 16 }),
+      ]}
+    >
+      <SwipeActions.Actions edge="trailing">
+        <SwiftUIButton label="删除" role="destructive" systemImage="trash" onPress={onDelete} />
+        <SwiftUIButton
+          label="编辑"
+          systemImage="pencil"
+          onPress={onEdit}
+          modifiers={[tint(iosKindTints.text)]}
+        />
+      </SwipeActions.Actions>
       <HStack
         spacing={12}
         alignment="center"
         modifiers={[
           padding({ horizontal: 16, vertical: 14 }),
           frame({ maxWidth: Infinity }),
-          background(bgColor, shapes.roundedRectangle({ cornerRadius: 14 })),
+          background(cardFill, shapes.roundedRectangle({ cornerRadius: 16 })),
           contentShape(shapes.rectangle()),
-          onTapGesture(onPress),
+          onTapGesture(onSelect),
         ]}
       >
         <Image
           systemName={isActive ? 'checkmark.circle.fill' : 'circle'}
-          size={28}
-          color={isActive ? '#34C759' : undefined}
+          size={26}
+          color={isActive ? ACTIVE_TINT : undefined}
           modifiers={
             isActive ? [] : [foregroundStyle({ type: 'hierarchical', style: 'quaternary' })]
           }
         />
-        <VStack alignment="leading" spacing={2}>
-          <SwiftUIText modifiers={[font({ weight: 'medium', size: 17 })]}>
-            {server.name || server.url}
-          </SwiftUIText>
+        <VStack alignment="leading" spacing={3}>
           <SwiftUIText
             modifiers={[
-              font({ size: 14 }),
-              foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
+              font({ weight: isActive ? 'semibold' : 'medium', size: 17 }),
+              foregroundStyle(iosColors!.label),
             ]}
           >
+            {server.name || server.url}
+          </SwiftUIText>
+          <SwiftUIText modifiers={[font({ size: 14 }), foregroundStyle(iosColors!.secondaryLabel)]}>
             {server.url}
           </SwiftUIText>
           <HStack
-            spacing={6}
+            spacing={8}
             alignment="center"
-            modifiers={[foregroundStyle({ type: 'hierarchical', style: 'tertiary' })]}
+            modifiers={[foregroundStyle(iosColors!.tertiaryLabel)]}
           >
-            <SwiftUIText modifiers={[font({ size: 12 })]}>{count} 个地址</SwiftUIText>
             {tags.map((tag) => (
-              <HStack key={tag.label} spacing={2} alignment="center">
-                <Image systemName={tag.icon as SFSymbol} size={10} />
+              <HStack key={tag.label} spacing={3} alignment="center">
+                <Image systemName={tag.icon as SFSymbol} size={11} />
                 <SwiftUIText modifiers={[font({ size: 12 })]}>{tag.label}</SwiftUIText>
               </HStack>
             ))}
+            <SwiftUIText modifiers={[font({ size: 12 })]}>{count} 个地址</SwiftUIText>
           </HStack>
         </VStack>
         <Spacer />
       </HStack>
-    </Group>
+    </SwipeActions>
+  );
+}
+
+function EmptyState() {
+  return (
+    <>
+      <Spacer />
+      <VStack spacing={8} modifiers={[frame({ maxWidth: Infinity })]}>
+        <Image
+          systemName="server.rack"
+          size={38}
+          modifiers={[foregroundStyle(iosColors!.tertiaryLabel)]}
+        />
+        <SwiftUIText modifiers={[font({ size: 16 }), foregroundStyle(iosColors!.secondaryLabel)]}>
+          还没有服务器
+        </SwiftUIText>
+        <SwiftUIText modifiers={[font({ size: 13 }), foregroundStyle(iosColors!.tertiaryLabel)]}>
+          点击右上角 + 添加
+        </SwiftUIText>
+      </VStack>
+      <Spacer />
+    </>
+  );
+}
+
+function headerCircleButton(key: string, systemName: SFSymbol, onPress: () => void) {
+  return (
+    <SwiftUIButton
+      key={key}
+      onPress={onPress}
+      modifiers={[
+        buttonStyle('plain'),
+        glassEffect({ glass: { variant: 'regular', interactive: true }, shape: 'circle' }),
+      ]}
+    >
+      <Image
+        systemName={systemName}
+        size={20}
+        modifiers={[
+          font({ weight: 'semibold' }),
+          padding(),
+          foregroundStyle(iosColors!.secondaryLabel),
+        ]}
+      />
+    </SwiftUIButton>
   );
 }
 
@@ -131,22 +215,48 @@ export function ServerSwitcherModal({
   onClose,
 }: ServerSwitcherModalProps) {
   const [showAddSheet, setShowAddSheet] = useState(false);
-  const { addServer } = useSettingsStore();
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const { addServer, updateServer, deleteServer } = useSettingsStore();
 
-  const handleSaveServer = useCallback(
+  const editingServer = editingIndex != null ? servers[editingIndex] : undefined;
+  const sheetVisible = showAddSheet || editingServer != null;
+
+  const handleDelete = useCallback(
+    (index: number) => {
+      const server = servers[index];
+      const label = server?.name || server?.url || '此服务器';
+      Alert.alert('删除服务器', `确定要删除「${label}」吗？`, [
+        { text: '取消', style: 'cancel' },
+        { text: '删除', style: 'destructive', onPress: () => void deleteServer(index) },
+      ]);
+    },
+    [servers, deleteServer]
+  );
+
+  const handleSave = useCallback(
     async (data: AddServerSaveData) => {
-      await addServer({
-        type: 'syncclipboard',
+      const payload = {
         url: data.urls[0],
         urls: data.urls,
         name: data.name || undefined,
         username: data.username,
         password: data.password,
-      });
+      };
+      if (editingIndex != null) {
+        await updateServer(editingIndex, payload);
+      } else {
+        await addServer({ type: 'syncclipboard', ...payload });
+      }
       setShowAddSheet(false);
+      setEditingIndex(null);
     },
-    [addServer]
+    [editingIndex, updateServer, addServer]
   );
+
+  const closeSheet = useCallback(() => {
+    setShowAddSheet(false);
+    setEditingIndex(null);
+  }, []);
 
   return (
     <>
@@ -157,95 +267,43 @@ export function ServerSwitcherModal({
             if (!presented) onClose();
           }}
         >
+          {/* 固定单一 medium detent:Host 常驻时 SwiftUI 会记住上次 detent,
+              multi-detent 会导致「关闭再打开自动变全屏」 */}
           <Group
             modifiers={[presentationDetents(['medium']), presentationDragIndicator('visible')]}
           >
             <IosSheetPage
               title="服务器"
-              spacing={8}
-              leftSlots={[
-                <SwiftUIButton
-                  key="close"
-                  onPress={onClose}
-                  modifiers={[
-                    buttonStyle('plain'),
-                    glassEffect({
-                      glass: { variant: 'regular', interactive: true },
-                      shape: 'circle',
-                    }),
-                  ]}
-                >
-                  <Image
-                    systemName="xmark"
-                    size={20}
-                    color="#AEAEB2"
-                    modifiers={[font({ weight: 'semibold' }), padding()]}
-                  />
-                </SwiftUIButton>,
-              ]}
-              rightSlots={[
-                <SwiftUIButton
-                  key="add"
-                  onPress={() => setShowAddSheet(true)}
-                  modifiers={[
-                    buttonStyle('plain'),
-                    glassEffect({
-                      glass: { variant: 'regular', interactive: true },
-                      shape: 'circle',
-                    }),
-                  ]}
-                >
-                  <Image
-                    systemName="plus"
-                    size={20}
-                    color="#AEAEB2"
-                    modifiers={[font({ weight: 'semibold' }), padding()]}
-                  />
-                </SwiftUIButton>,
-              ]}
+              spacing={0}
+              leftSlots={[headerCircleButton('close', 'xmark', onClose)]}
+              rightSlots={[headerCircleButton('add', 'plus', () => setShowAddSheet(true))]}
             >
               {servers.length === 0 ? (
-                <>
-                  <Spacer />
-                  <VStack spacing={8}>
-                    <Image systemName="server.rack" size={36} color="#8E8E93" />
-                    <SwiftUIText modifiers={[font({ size: 15 }), foregroundStyle('#8E8E93')]}>
-                      No servers yet
-                    </SwiftUIText>
-                    <SwiftUIText
-                      modifiers={[
-                        font({ size: 13 }),
-                        foregroundStyle({ type: 'hierarchical', style: 'tertiary' }),
-                      ]}
-                    >
-                      Tap + to add a server
-                    </SwiftUIText>
-                  </VStack>
-                  <Spacer />
-                </>
+                <EmptyState />
               ) : (
-                servers.map((server, index) => {
-                  const isActive = index === activeIndex;
-                  return (
-                    <ServerItem
+                <List modifiers={[listStyle('plain'), scrollContentBackground('hidden')]}>
+                  {servers.map((server, index) => (
+                    <ServerCard
                       key={`${server.url}-${index}`}
                       server={server}
-                      isActive={isActive}
-                      onPress={() => onSelect(index)}
+                      isActive={index === activeIndex}
+                      onSelect={() => onSelect(index)}
+                      onEdit={() => setEditingIndex(index)}
+                      onDelete={() => handleDelete(index)}
                     />
-                  );
-                })
+                  ))}
+                </List>
               )}
-
-              <Spacer />
             </IosSheetPage>
           </Group>
         </BottomSheet>
       </Host>
       <AddServerSheet
-        visible={showAddSheet}
-        onClose={() => setShowAddSheet(false)}
-        onSave={handleSaveServer}
+        visible={sheetVisible}
+        title={editingServer ? '编辑服务器' : undefined}
+        initialData={editingServer ? toEditData(editingServer) : undefined}
+        onClose={closeSheet}
+        onSave={handleSave}
       />
     </>
   );
