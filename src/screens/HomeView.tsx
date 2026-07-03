@@ -15,11 +15,12 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { iosColors } from '@/theme/iosDesignTokens';
+import * as Haptics from 'expo-haptics';
 import { DefaultTopBar, SearchTopBar, SelectModeTopBar } from '@/components/HomeTopBar';
 import { DefaultBottomBar, SelectModeBottomBar } from '@/components/HomeBottomBar';
 import { ServerSwitcherModal } from '@/components/ServerSwitcherModal';
-import { ClipboardCardActionSheet } from '@/components/ClipboardCardActionSheet';
-import { ClipboardCardMenu } from '@/components/ClipboardCardMenu';
+import { CardContextOverlay } from '@/components/CardContextOverlay';
+import type { CardAnchorRect } from '@/components/CardContextOverlay.types';
 import { HistoryFilterSheet } from '@/components/HistoryFilterSheet';
 import { AnimatedCardGrid, AnimatedCardGridHandle } from '@/components/AnimatedCardGrid';
 import { useHistoryStore } from '@/stores/historyStore';
@@ -28,6 +29,8 @@ import { useSettingsStore } from '@/stores';
 import { useClipboardSyncServiceStore } from '@/stores/ClipboardSyncServiceStore';
 import { useMessageStore } from '@/stores/messageStore';
 import { useErrorStore } from '@/stores/errorStore';
+import { useSyncEngineStore } from '@/stores/syncEngineStore';
+import { deriveConnectionStatus } from '@/utils/connectionStatus';
 import { historyStorage } from '@/services';
 import { getClipboardSyncService } from '@/services/ClipboardSyncService';
 import { getLatest, getFile } from 'uc-core';
@@ -43,12 +46,12 @@ import {
 } from '@/types/clipboard';
 import { AddServerSheet } from '@/components/AddServerSheet';
 import { ClipboardCard } from '@/components/ClipboardCard';
-import { MessageToast } from '@/components/MessageToast';
-import { WordPickerScreen } from '@/screens/WordPickerScreen';
+import { ConnectedMessageToast } from '@/components/ConnectedMessageToast';
+import { WordPickerOverlay } from '@/components/WordPickerOverlay';
 import { QuickLoadingPage } from '@/components/QuickLoadingPage';
 import { copyToLocalClipboard } from '@/utils/clipboard';
 import { DisplayKind, getDisplayKind } from '@/utils/displayKind';
-import { buildActionMenuItems } from '@/utils/actionMenuItems';
+import { buildActionMenuGroups } from '@/utils/actionMenuItems';
 import { saveToGallery, saveFile, shareFile } from '@/utils/fileActions';
 import { createHistorySearchFilter, HistoryDateFilter } from '@/utils/historyFilters';
 import { isHistorySyncEnabled } from '@/utils/config';
@@ -144,13 +147,6 @@ async function fetchAndApplyServerClipboard(): Promise<void> {
   );
 }
 
-// 自订阅 messageStore，把 toast 出现/消失的重渲染隔离在此，不波及 HomeView 主体与卡片网格
-function HomeMessageToast() {
-  const message = useMessageStore((s) => s.message);
-  const clearMessage = useMessageStore((s) => s.clearMessage);
-  return <MessageToast message={message} onMessageShown={clearMessage} />;
-}
-
 interface HomeViewProps {
   onOpenSettings: () => void;
 }
@@ -185,13 +181,28 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
   const setActiveServer = useSettingsStore((s) => s.setActiveServer);
   const addServer = useSettingsStore((s) => s.addServer);
 
-  // message 不在此订阅，交给隔离的 <HomeMessageToast/>，toast 出现/消失只重渲它自身
+  // message 不在此订阅，交给自隔离的 <ConnectedMessageToast/>，toast 出现/消失只重渲它自身
   const showMessage = useMessageStore((s) => s.showMessage);
   const clearError = useErrorStore((s) => s.clearError);
   const fileUploadProgress = useClipboardSyncServiceStore((s) => s.fileUploadProgress);
 
   const activeServer = getActiveServer();
   const historySyncEnabled = useMemo(() => isHistorySyncEnabled(config), [config]);
+
+  // 服务器在线状态 —— 单一数据源是 SyncEngine 的状态机，细粒度订阅避免整树重渲
+  const syncState = useSyncEngineStore((s) => s.status.state);
+  const syncLastSyncedAt = useSyncEngineStore((s) => s.status.lastSyncedAt);
+  const syncRefreshing = useSyncEngineStore((s) => s.status.isExplicitlyRefreshing);
+  const connectionStatus = useMemo(
+    () =>
+      deriveConnectionStatus({
+        hasServer: !!activeServer,
+        state: syncState,
+        isExplicitlyRefreshing: syncRefreshing,
+        hasSyncedOnce: syncLastSyncedAt != null,
+      }),
+    [activeServer, syncState, syncRefreshing, syncLastSyncedAt]
+  );
 
   // UI state
   const [refreshing, setRefreshing] = useState(false);
@@ -201,7 +212,10 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
   const [selectedDateFilter, setSelectedDateFilter] = useState<HistoryDateFilter>('all');
   const [showFilterSheet, setShowFilterSheet] = useState(false);
   const [isSelectMode, setIsSelectMode] = useState(false);
-  const [wordPickerText, setWordPickerText] = useState<string | null>(null);
+  const [wordPickerTarget, setWordPickerTarget] = useState<{
+    text: string;
+    anchor: CardAnchorRect | null;
+  } | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [fileUploadPayload, setFileUploadPayload] = useState<{
     uri: string;
@@ -315,49 +329,61 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
     [isSelectMode, toggleSelection, copyItemWithSync, showMessage]
   );
 
-  // ── Long-press → action sheet ────────────────────────────────
-  const [actionSheetItem, setActionSheetItem] = useState<ClipboardItem | null>(null);
+  // ── Long-press → 锚定式上下文浮层 ────────────────────────────
+  const [contextTarget, setContextTarget] = useState<{
+    item: ClipboardItem;
+    anchor: CardAnchorRect | null;
+  } | null>(null);
+  const contextItem = contextTarget?.item ?? null;
 
-  const handleItemLongPress = useCallback((item: ClipboardItem) => {
-    import('expo-haptics')
-      .then((Haptics) => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium))
-      .catch(() => {});
-    setActionSheetItem(item);
-  }, []);
-
-  const handleActionSheetDismiss = useCallback(() => {
-    setActionSheetItem(null);
-  }, []);
-
-  const actionSheetDisplayKind = useMemo(
-    () => (actionSheetItem ? getDisplayKind(actionSheetItem.type, actionSheetItem.text) : null),
-    [actionSheetItem]
+  const handleItemLongPress = useCallback(
+    (item: ClipboardItem, anchor: CardAnchorRect | null) => {
+      // 多选模式下长按与单击同义：切换选中，不弹菜单
+      if (isSelectMode) {
+        toggleSelection(item.profileHash);
+        return;
+      }
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft).catch(() => {});
+      setContextTarget({ item, anchor });
+    },
+    [isSelectMode, toggleSelection]
   );
 
-  const actionMenuItems = useMemo(() => {
-    if (!actionSheetItem || !actionSheetDisplayKind) return [];
-    return buildActionMenuItems(actionSheetItem, actionSheetDisplayKind, {
+  const handleContextDismiss = useCallback(() => {
+    setContextTarget(null);
+  }, []);
+
+  const contextDisplayKind = useMemo(
+    () => (contextItem ? getDisplayKind(contextItem.type, contextItem.text) : null),
+    [contextItem]
+  );
+
+  const actionMenuGroups = useMemo(() => {
+    if (!contextItem || !contextDisplayKind) return [];
+    return buildActionMenuGroups(contextItem, contextDisplayKind, {
       onCopy: async () => {
-        const result = await copyItemWithSync(actionSheetItem);
+        const result = await copyItemWithSync(contextItem);
         showMessage(
           result.success ? '已复制到剪贴板' : result.message || '复制失败',
           result.success ? 'success' : 'error'
         );
       },
       onSelectText: () => {
-        setWordPickerText(actionSheetItem.text);
+        // 动作经 close(after) 在浮层退场后才执行，那时 contextTarget 已清空——
+        // 这里提前把锚点捕获进闭包，分词浮层才能从同一张卡片原位生长
+        setWordPickerTarget({ text: contextItem.text, anchor: contextTarget?.anchor ?? null });
       },
       onCopyPlainText: async () => {
         const Clipboard = await import('expo-clipboard');
-        await Clipboard.default.setStringAsync(actionSheetItem.text);
+        await Clipboard.setStringAsync(contextItem.text);
         showMessage('已复制为纯文本', 'success');
       },
       onOpenInBrowser: () => {
-        Linking.openURL(actionSheetItem.text.trim());
+        Linking.openURL(contextItem.text.trim());
       },
       onSaveImage: async () => {
         try {
-          await saveToGallery(actionSheetItem.fileUri!);
+          await saveToGallery(contextItem.fileUri!);
           showMessage('已保存到相册', 'success');
         } catch {
           showMessage('保存失败', 'error');
@@ -365,7 +391,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
       },
       onSaveFile: async () => {
         try {
-          await saveFile(actionSheetItem.fileUri!, actionSheetItem.dataName);
+          await saveFile(contextItem.fileUri!, contextItem.dataName);
           showMessage('已保存文件', 'success');
         } catch {
           showMessage('保存失败', 'error');
@@ -373,30 +399,31 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
       },
       onShare: async () => {
         if (
-          (actionSheetDisplayKind === 'image' ||
-            actionSheetDisplayKind === 'file' ||
-            actionSheetDisplayKind === 'group') &&
-          actionSheetItem.fileUri &&
-          actionSheetItem.isLocalFileReady
+          (contextDisplayKind === 'image' ||
+            contextDisplayKind === 'file' ||
+            contextDisplayKind === 'group') &&
+          contextItem.fileUri &&
+          contextItem.isLocalFileReady
         ) {
-          await shareFile(actionSheetItem.fileUri, actionSheetItem.dataName);
+          await shareFile(contextItem.fileUri, contextItem.dataName);
         } else {
-          await Share.share({ message: actionSheetItem.text });
+          await Share.share({ message: contextItem.text });
         }
       },
       onSelect: () => {
         setIsSelectMode(true);
         clearSelection();
-        toggleSelection(actionSheetItem.profileHash);
+        toggleSelection(contextItem.profileHash);
       },
       onDelete: async () => {
-        await deleteItem(actionSheetItem.profileHash);
+        await deleteItem(contextItem.profileHash);
         showMessage('已删除', 'success');
       },
     });
   }, [
-    actionSheetItem,
-    actionSheetDisplayKind,
+    contextItem,
+    contextTarget,
+    contextDisplayKind,
     copyItemWithSync,
     showMessage,
     clearSelection,
@@ -425,7 +452,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
   const handleBatchCopy = useCallback(async () => {
     const selected = items.filter((i) => selectedIds.has(i.profileHash));
     const texts = selected.map((i) => i.text).join('\n');
-    const { default: Clipboard } = await import('expo-clipboard');
+    const Clipboard = await import('expo-clipboard');
     await Clipboard.setStringAsync(texts);
     showMessage('已复制所选内容', 'success');
     exitSelectMode();
@@ -560,17 +587,15 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
   const renderCard = useCallback(
     (item: ClipboardItem) => (
       <View style={{ padding: GRID_SPACING / 2 }}>
-        <ClipboardCardMenu item={item} cardSize={cardSize}>
-          <ClipboardCard
-            item={item}
-            isLatest={item.profileHash === latestId}
-            isSelected={selectedIds.has(item.profileHash)}
-            isSelectMode={isSelectMode}
-            onPress={handleItemPress}
-            onLongPress={handleItemLongPress}
-            cardSize={cardSize}
-          />
-        </ClipboardCardMenu>
+        <ClipboardCard
+          item={item}
+          isLatest={item.profileHash === latestId}
+          isSelected={selectedIds.has(item.profileHash)}
+          isSelectMode={isSelectMode}
+          onPress={handleItemPress}
+          onLongPress={handleItemLongPress}
+          cardSize={cardSize}
+        />
       </View>
     ),
     [latestId, selectedIds, isSelectMode, handleItemPress, handleItemLongPress, cardSize]
@@ -619,7 +644,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
         ) : (
           <DefaultTopBar
             serverLabel={activeServerLabel}
-            isConnected={!!activeServer}
+            connectionStatus={connectionStatus}
             onSearch={openSearch}
             onSettings={onOpenSettings}
             theme={theme}
@@ -686,7 +711,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
         )}
       </View>
 
-      <HomeMessageToast />
+      <ConnectedMessageToast />
 
       <HistoryFilterSheet
         visible={showFilterSheet}
@@ -752,18 +777,20 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
         </View>
       )}
 
-      {wordPickerText && (
-        <View style={StyleSheet.absoluteFill}>
-          <WordPickerScreen text={wordPickerText} onComplete={() => setWordPickerText(null)} />
-        </View>
+      {wordPickerTarget && (
+        <WordPickerOverlay
+          text={wordPickerTarget.text}
+          anchor={wordPickerTarget.anchor}
+          onDismiss={() => setWordPickerTarget(null)}
+        />
       )}
 
-      <ClipboardCardActionSheet
-        visible={actionSheetItem !== null}
-        item={actionSheetItem}
-        displayKind={actionSheetDisplayKind}
-        onDismiss={handleActionSheetDismiss}
-        actions={actionMenuItems}
+      <CardContextOverlay
+        item={contextItem}
+        displayKind={contextDisplayKind}
+        anchor={contextTarget?.anchor ?? null}
+        actionGroups={actionMenuGroups}
+        onDismiss={handleContextDismiss}
       />
     </View>
   );
