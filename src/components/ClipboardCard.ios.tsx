@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { View, Text, StyleSheet, Image, Pressable } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, {
   Defs,
   LinearGradient as SvgLinearGradient,
@@ -39,43 +40,71 @@ export const ClipboardCard: React.FC<ClipboardCardProps> = React.memo(
       useClipboardCardViewModel(item);
     const kindColor = iosKindTints[displayKind];
 
+    // 按压时轻微收缩，预告"长按有戏"；长按触发后由浮层接管，pressOut 回弹
+    const cardRef = useRef<View>(null);
+    const pressScale = useSharedValue(1);
+    const pressStyle = useAnimatedStyle(() => ({
+      transform: [{ scale: pressScale.value }],
+    }));
+
+    const handleLongPress = () => {
+      if (!onLongPress) return;
+      const node = cardRef.current;
+      if (!node) {
+        onLongPress(item, null);
+        return;
+      }
+      node.measureInWindow((x, y, width, height) => {
+        onLongPress(item, width > 0 && height > 0 ? { x, y, width, height } : null);
+      });
+    };
+
     return (
-      <Pressable
-        onPress={() => onPress(item)}
-        onLongPress={() => onLongPress?.(item)}
-        style={({ pressed }) => [
-          styles.card,
-          {
-            width: cardSize,
-            height: cardSize,
-            backgroundColor: iosColors!.secondarySystemGroupedBackground,
-            borderColor: isSelected ? iosAccentColor : 'transparent',
-            borderWidth: isSelected ? 2 : 0,
-            opacity: pressed ? 0.85 : 1,
-          },
-        ]}
-      >
-        <CardBody
-          item={item}
-          displayKind={displayKind}
-          kindLabel={kindLabel}
-          kindColor={kindColor}
-          relativeTime={relativeTime}
-          directionIndicator={directionIndicator}
-          isLatest={isLatest}
-        />
-        {isSelectMode && (
-          <View style={styles.selectOverlay}>
-            {isSelected ? (
-              <View style={[styles.checkBadge, { backgroundColor: iosAccentColor }]}>
-                <Check size={16} color="#fff" strokeWidth={3} />
-              </View>
-            ) : (
-              <Circle size={28} color={iosColors!.tertiaryLabel} />
-            )}
-          </View>
-        )}
-      </Pressable>
+      <Animated.View style={pressStyle}>
+        <Pressable
+          ref={cardRef}
+          onPress={() => onPress(item)}
+          onLongPress={handleLongPress}
+          delayLongPress={350}
+          onPressIn={() => {
+            pressScale.value = withTiming(0.97, { duration: 180 });
+          }}
+          onPressOut={() => {
+            pressScale.value = withTiming(1, { duration: 150 });
+          }}
+          style={[
+            styles.card,
+            {
+              width: cardSize,
+              height: cardSize,
+              backgroundColor: iosColors!.secondarySystemGroupedBackground,
+              borderColor: isSelected ? iosAccentColor : 'transparent',
+              borderWidth: isSelected ? 2 : 0,
+            },
+          ]}
+        >
+          <CardBody
+            item={item}
+            displayKind={displayKind}
+            kindLabel={kindLabel}
+            kindColor={kindColor}
+            relativeTime={relativeTime}
+            directionIndicator={directionIndicator}
+            isLatest={isLatest}
+          />
+          {isSelectMode && (
+            <View style={styles.selectOverlay}>
+              {isSelected ? (
+                <View style={[styles.checkBadge, { backgroundColor: iosAccentColor }]}>
+                  <Check size={16} color="#fff" strokeWidth={3} />
+                </View>
+              ) : (
+                <Circle size={28} color={iosColors!.tertiaryLabel} />
+              )}
+            </View>
+          )}
+        </Pressable>
+      </Animated.View>
     );
   }
 );

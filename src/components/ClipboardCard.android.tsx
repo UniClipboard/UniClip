@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Image, Pressable } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, {
   Defs,
   LinearGradient as SvgLinearGradient,
@@ -33,41 +34,69 @@ export const ClipboardCard: React.FC<ClipboardCardProps> = React.memo(
     const kindColor = useMemo(() => getDisplayKindColor(displayKind), [displayKind]);
     const relativeTime = formatRelativeTime(item.timestamp);
 
+    // 按压时轻微收缩，预告"长按有戏"；长按触发后由浮层接管，pressOut 回弹
+    const cardRef = useRef<View>(null);
+    const pressScale = useSharedValue(1);
+    const pressStyle = useAnimatedStyle(() => ({
+      transform: [{ scale: pressScale.value }],
+    }));
+
+    const handleLongPress = () => {
+      if (!onLongPress) return;
+      const node = cardRef.current;
+      if (!node) {
+        onLongPress(item, null);
+        return;
+      }
+      node.measureInWindow((x, y, width, height) => {
+        onLongPress(item, width > 0 && height > 0 ? { x, y, width, height } : null);
+      });
+    };
+
     return (
-      <Pressable
-        onPress={() => onPress(item)}
-        onLongPress={() => onLongPress?.(item)}
-        style={({ pressed }) => [
-          styles.card,
-          {
-            width: cardSize,
-            height: cardSize,
-            backgroundColor: theme.colors.surfaceContainerLow,
-            borderColor: isSelected ? theme.colors.primary : 'transparent',
-            borderWidth: isSelected ? 2 : 0,
-            opacity: pressed ? 0.85 : 1,
-          },
-        ]}
-      >
-        <CardBody
-          item={item}
-          displayKind={displayKind}
-          kindLabel={kindLabel}
-          kindColor={kindColor}
-          relativeTime={relativeTime}
-          isLatest={isLatest}
-          theme={theme}
-        />
-        {isSelectMode && (
-          <View style={styles.selectOverlay}>
-            <Ionicons
-              name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
-              size={28}
-              color={isSelected ? theme.colors.primary : 'rgba(128,128,128,0.6)'}
-            />
-          </View>
-        )}
-      </Pressable>
+      <Animated.View style={pressStyle}>
+        <Pressable
+          ref={cardRef}
+          onPress={() => onPress(item)}
+          onLongPress={handleLongPress}
+          delayLongPress={350}
+          onPressIn={() => {
+            pressScale.value = withTiming(0.97, { duration: 180 });
+          }}
+          onPressOut={() => {
+            pressScale.value = withTiming(1, { duration: 150 });
+          }}
+          style={[
+            styles.card,
+            {
+              width: cardSize,
+              height: cardSize,
+              backgroundColor: theme.colors.surfaceContainerLow,
+              borderColor: isSelected ? theme.colors.primary : 'transparent',
+              borderWidth: isSelected ? 2 : 0,
+            },
+          ]}
+        >
+          <CardBody
+            item={item}
+            displayKind={displayKind}
+            kindLabel={kindLabel}
+            kindColor={kindColor}
+            relativeTime={relativeTime}
+            isLatest={isLatest}
+            theme={theme}
+          />
+          {isSelectMode && (
+            <View style={styles.selectOverlay}>
+              <Ionicons
+                name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
+                size={28}
+                color={isSelected ? theme.colors.primary : 'rgba(128,128,128,0.6)'}
+              />
+            </View>
+          )}
+        </Pressable>
+      </Animated.View>
     );
   }
 );
