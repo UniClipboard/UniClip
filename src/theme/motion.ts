@@ -24,5 +24,16 @@ export const easing: Record<string, EasingFunction> = {
   emphasized: Easing.bezier(0.2, 0.0, 0.0, 1),
 };
 
+/**
+ * 锚定式浮层（卡片上下文菜单、分词选择）共用的进出场参数。
+ * overshootClamping：保留弹簧的减速手感，但到位即停不回弹——
+ * 浮层一旦就位用户就开始读内容了，任何过冲缩放都是干扰。
+ */
+export const overlayMotion = {
+  enterSpring: { damping: 30, stiffness: 380, overshootClamping: true },
+  exitDuration: 160,
+  reducedMotionDuration: 160,
+} as const;
+
 export const motion = { duration, easing } as const;
 export type Motion = typeof motion;
