@@ -24,6 +24,8 @@ import {
   type DisplayKind,
 } from '@/utils/displayKind';
 import { getDomainGradient, getDomainInitial, type DomainGradient } from '@/utils/domainColor';
+import { getFileExtension, getExtensionColor, stripExtension } from '@/utils/fileTypeColor';
+import { formatFileSize } from '@/utils';
 import { getHistoryDirectionIndicator } from '@/utils/historyDirection';
 import type { ClipboardCardProps } from './ClipboardCard.types';
 
@@ -142,9 +144,22 @@ function CardBody({
           theme={theme}
         />
       );
+    case 'file':
+    case 'group':
+      return (
+        <FileCardBody
+          item={item}
+          displayKind={displayKind}
+          kindLabel={kindLabel}
+          kindColor={kindColor}
+          relativeTime={relativeTime}
+          isLatest={isLatest}
+          theme={theme}
+        />
+      );
     default:
       return (
-        <StandardCardBody
+        <TextCardBody
           item={item}
           displayKind={displayKind}
           kindLabel={kindLabel}
@@ -196,11 +211,13 @@ function BottomRow({
   isLatest,
   overlay,
   theme,
+  meta,
 }: {
   item: ClipboardItem;
   isLatest: boolean;
   overlay?: boolean;
   theme: CardBodyProps['theme'];
+  meta?: string;
 }) {
   const dirColor = overlay ? 'rgba(255,255,255,0.7)' : theme.colors.onSurfaceVariant;
   const indicator = getHistoryDirectionIndicator(item);
@@ -213,6 +230,7 @@ function BottomRow({
       ) : (
         <ArrowUp size={10} color={dirColor} />
       )}
+      {!!meta && <Text style={[styles.bottomMeta, { color: theme.colors.outline }]}>{meta}</Text>}
       <View style={styles.bottomSpacer} />
       {isLatest && (
         <View
@@ -284,39 +302,113 @@ function CheckerboardBackground() {
   );
 }
 
-function StandardCardBody({
+// 「引文排版」：短文本升大字号垂直居中像引言卡；长文本小字号排到底、
+// 行尾用卡底色渐变遮罩渐隐，代替 numberOfLines 硬截断
+const QUOTE_MAX_CHARS = 26;
+// 超出可视区的文本对排版无贡献，截断以免超长剪贴内容拖慢布局
+const PARA_RENDER_CHARS = 400;
+
+function TextCardBody({ item, kindLabel, relativeTime, isLatest, theme }: CardBodyProps) {
+  const text = item.text.trim();
+  const isQuote = text.length <= QUOTE_MAX_CHARS;
+
+  return (
+    <View style={styles.standardBody}>
+      <HeaderRow kindLabel={kindLabel} relativeTime={relativeTime} theme={theme} />
+      {isQuote ? (
+        <View style={styles.quoteBody}>
+          <Text style={[styles.quoteText, { color: theme.colors.onSurface }]} numberOfLines={4}>
+            {text}
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.paraClip}>
+          <Text style={[styles.paraText, { color: theme.colors.onSurface }]}>
+            {text.slice(0, PARA_RENDER_CHARS)}
+          </Text>
+          <TextFadeOut color={theme.colors.surfaceContainerLow} />
+        </View>
+      )}
+      <BottomRow item={item} isLatest={isLatest} theme={theme} />
+    </View>
+  );
+}
+
+// 长文本底部的卡底色渐隐遮罩
+function TextFadeOut({ color }: { color: string }) {
+  return (
+    <View style={styles.textFade} pointerEvents="none">
+      <Svg width="100%" height="100%">
+        <Defs>
+          <SvgLinearGradient id="textFade" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={color} stopOpacity={0} />
+            <Stop offset="1" stopColor={color} stopOpacity={1} />
+          </SvgLinearGradient>
+        </Defs>
+        <SvgRect width="100%" height="100%" fill="url(#textFade)" />
+      </Svg>
+    </View>
+  );
+}
+
+// 「拟真文档页」：卡内一张带折角的纸，纸上是扩展名色块 + 文件名；
+// 归档(group)在纸后叠两张旋转的"影子纸"表示多项
+function FileCardBody({
   item,
   displayKind,
   kindLabel,
-  kindColor,
   relativeTime,
   isLatest,
   theme,
 }: CardBodyProps) {
+  const isGroup = displayKind === 'group';
+  const fileName = item.dataName || item.text;
+  const ext = getFileExtension(fileName);
+  const chipLabel = isGroup ? '归档' : ext || '文件';
+  const chipColor = isGroup ? '#AF52DE' : getExtensionColor(ext);
+  const sizeLabel = item.size ? formatFileSize(item.size) : '';
+
+  const paperBg = theme.isDark
+    ? theme.colors.surfaceContainerHigh
+    : theme.colors.surfaceContainerLowest;
+  const paperBorder = theme.colors.outlineVariant;
+  const foldColor = theme.colors.surfaceContainerHighest;
+  const ghostBg = theme.isDark ? theme.colors.surfaceContainer : theme.colors.surfaceContainerHigh;
+  // 折角缺口要与卡底色一致才有"纸角被翻起"的效果
+  const cardBg = theme.colors.surfaceContainerLow;
+
   return (
     <View style={styles.standardBody}>
       <HeaderRow kindLabel={kindLabel} relativeTime={relativeTime} theme={theme} />
-      {displayKind === 'text' ? (
-        <Text style={[styles.textContent, { color: theme.colors.onSurface }]} numberOfLines={4}>
-          {item.text}
-        </Text>
-      ) : (
-        <View style={styles.fileBody}>
-          <Ionicons
-            name={displayKind === 'group' ? 'folder' : 'document'}
-            size={36}
-            color={kindColor}
-          />
-          <Text
-            style={[styles.fileName, { color: theme.colors.onSurfaceVariant }]}
-            numberOfLines={1}
-          >
-            {item.dataName || item.text}
-          </Text>
+      <View style={styles.paperWrap}>
+        <View style={styles.paperStack}>
+          {isGroup && (
+            <>
+              <View
+                style={[styles.paperGhost, styles.paperGhostLeft, { backgroundColor: ghostBg }]}
+              />
+              <View
+                style={[styles.paperGhost, styles.paperGhostRight, { backgroundColor: ghostBg }]}
+              />
+            </>
+          )}
+          <View style={[styles.paper, { backgroundColor: paperBg, borderColor: paperBorder }]}>
+            <View style={[styles.paperCutout, { backgroundColor: cardBg }]}>
+              <View style={[styles.paperFold, { borderLeftColor: foldColor }]} />
+            </View>
+            <View style={[styles.extChip, { backgroundColor: chipColor }]}>
+              <Text style={styles.extChipText}>{chipLabel}</Text>
+            </View>
+            <Text
+              style={[styles.paperName, { color: theme.colors.onSurfaceVariant }]}
+              numberOfLines={2}
+            >
+              {stripExtension(fileName)}
+            </Text>
+          </View>
         </View>
-      )}
-      <View style={styles.spacer} />
-      <BottomRow item={item} isLatest={isLatest} theme={theme} />
+      </View>
+      <BottomRow item={item} isLatest={isLatest} theme={theme} meta={sizeLabel} />
     </View>
   );
 }
@@ -494,20 +586,99 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 12,
   },
-  textContent: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 6,
+  quoteBody: {
+    flex: 1,
+    justifyContent: 'center',
   },
-  fileBody: {
+  quoteText: {
+    fontSize: 17,
+    lineHeight: 24,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+  },
+  paraClip: {
+    flex: 1,
+    marginTop: 8,
+    marginBottom: 6,
+    overflow: 'hidden',
+  },
+  paraText: {
+    fontSize: 13,
+    lineHeight: 18.5,
+  },
+  textFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 22,
+  },
+  paperWrap: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
   },
-  fileName: {
+  paperStack: {
+    width: 92,
+    height: 112,
+  },
+  paperGhost: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 6,
+  },
+  paperGhostLeft: {
+    transform: [{ rotate: '-5deg' }, { translateX: -4 }, { translateY: 2 }],
+  },
+  paperGhostRight: {
+    transform: [{ rotate: '3deg' }, { translateX: 4 }, { translateY: 1 }],
+  },
+  paper: {
+    flex: 1,
+    borderRadius: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 8,
+    elevation: 1,
+  },
+  paperCutout: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 18,
+    height: 18,
+  },
+  paperFold: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 18,
+    borderTopWidth: 18,
+    borderTopColor: 'transparent',
+  },
+  extChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  extChipText: {
+    color: '#fff',
     fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+  },
+  paperName: {
+    fontSize: 10.5,
+    lineHeight: 14,
     textAlign: 'center',
+  },
+  bottomMeta: {
+    fontSize: 11,
+    marginLeft: 5,
   },
   headerRow: {
     flexDirection: 'row',

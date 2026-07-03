@@ -8,16 +8,8 @@ import Svg, {
   Rect as SvgRect,
   Pattern as SvgPattern,
 } from 'react-native-svg';
-import {
-  ArrowDown,
-  ArrowUp,
-  Check,
-  Circle,
-  Clock,
-  File,
-  FolderOpen,
-  Image as ImageIcon,
-} from 'lucide-react-native';
+import { ArrowDown, ArrowUp, Check, Circle, Clock, Image as ImageIcon } from 'lucide-react-native';
+import { useTheme } from '@/hooks/useTheme';
 import { useURLMetadata } from '@/hooks/useURLMetadata';
 import { useClipboardCardViewModel } from '@/hooks/useClipboardCardViewModel';
 import { ClipboardItem } from '@/types/clipboard';
@@ -31,6 +23,8 @@ import {
 } from '@/theme/iosDesignTokens';
 import { getURLDomain, getURLWithoutScheme, type DisplayKind } from '@/utils/displayKind';
 import { getDomainGradient, getDomainInitial, type DomainGradient } from '@/utils/domainColor';
+import { getFileExtension, getExtensionColor, stripExtension } from '@/utils/fileTypeColor';
+import { formatFileSize } from '@/utils';
 import type { HistoryDirectionIndicator } from '@/utils/historyDirection';
 import type { ClipboardCardProps } from './ClipboardCard.types';
 
@@ -125,8 +119,11 @@ function CardBody(props: CardBodyProps) {
       return <ImageCardBody {...props} />;
     case 'url':
       return <URLCardBody {...props} />;
+    case 'file':
+    case 'group':
+      return <FileCardBody {...props} />;
     default:
-      return <StandardCardBody {...props} />;
+      return <TextCardBody {...props} />;
   }
 }
 
@@ -166,10 +163,12 @@ function BottomRow({
   directionIndicator,
   isLatest,
   overlay,
+  meta,
 }: {
   directionIndicator: HistoryDirectionIndicator;
   isLatest: boolean;
   overlay?: boolean;
+  meta?: string;
 }) {
   const dirColor = overlay ? 'rgba(255,255,255,0.7)' : iosColors!.secondaryLabel;
   return (
@@ -180,6 +179,9 @@ function BottomRow({
         <Clock size={10} color={dirColor} />
       ) : (
         <ArrowUp size={10} color={dirColor} />
+      )}
+      {!!meta && (
+        <Text style={[styles.bottomMeta, { color: iosColors!.tertiaryLabel }]}>{meta}</Text>
       )}
       <View style={styles.bottomSpacer} />
       {isLatest && (
@@ -250,36 +252,121 @@ function CheckerboardBackground() {
   );
 }
 
-function StandardCardBody({
+// 「引文排版」：短文本升大字号垂直居中像引言卡；长文本小字号排到底、
+// 行尾用卡底色渐变遮罩渐隐，代替 numberOfLines 硬截断
+const QUOTE_MAX_CHARS = 26;
+// 超出可视区的文本对排版无贡献，截断以免超长剪贴内容拖慢布局
+const PARA_RENDER_CHARS = 400;
+
+function TextCardBody({
   item,
-  displayKind,
   kindLabel,
-  kindColor,
   relativeTime,
   directionIndicator,
   isLatest,
 }: CardBodyProps) {
+  const { theme } = useTheme();
+  const text = item.text.trim();
+  const isQuote = text.length <= QUOTE_MAX_CHARS;
+  // SVG Stop 不认 PlatformColor，按明暗取 secondarySystemGroupedBackground 的实际色值
+  const fadeColor = theme.isDark ? '#1C1C1E' : '#FFFFFF';
+
   return (
     <View style={styles.standardBody}>
       <HeaderRow kindLabel={kindLabel} relativeTime={relativeTime} />
-      {displayKind === 'text' ? (
-        <Text style={[styles.textContent, { color: iosColors!.label }]} numberOfLines={4}>
-          {item.text}
-        </Text>
-      ) : (
-        <View style={styles.fileBody}>
-          {displayKind === 'group' ? (
-            <FolderOpen size={36} color={kindColor} />
-          ) : (
-            <File size={36} color={kindColor} />
-          )}
-          <Text style={[styles.fileName, { color: iosColors!.secondaryLabel }]} numberOfLines={1}>
-            {item.dataName || item.text}
+      {isQuote ? (
+        <View style={styles.quoteBody}>
+          <Text style={[styles.quoteText, { color: iosColors!.label }]} numberOfLines={4}>
+            {text}
           </Text>
         </View>
+      ) : (
+        <View style={styles.paraClip}>
+          <Text style={[styles.paraText, { color: iosColors!.label }]}>
+            {text.slice(0, PARA_RENDER_CHARS)}
+          </Text>
+          <TextFadeOut color={fadeColor} />
+        </View>
       )}
-      <View style={styles.spacer} />
       <BottomRow directionIndicator={directionIndicator} isLatest={isLatest} />
+    </View>
+  );
+}
+
+// 长文本底部的卡底色渐隐遮罩
+function TextFadeOut({ color }: { color: string }) {
+  return (
+    <View style={styles.textFade} pointerEvents="none">
+      <Svg width="100%" height="100%">
+        <Defs>
+          <SvgLinearGradient id="textFade" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={color} stopOpacity={0} />
+            <Stop offset="1" stopColor={color} stopOpacity={1} />
+          </SvgLinearGradient>
+        </Defs>
+        <SvgRect width="100%" height="100%" fill="url(#textFade)" />
+      </Svg>
+    </View>
+  );
+}
+
+// 「拟真文档页」：卡内一张带折角的纸，纸上是扩展名色块 + 文件名；
+// 归档(group)在纸后叠两张旋转的"影子纸"表示多项
+function FileCardBody({
+  item,
+  displayKind,
+  kindLabel,
+  relativeTime,
+  directionIndicator,
+  isLatest,
+}: CardBodyProps) {
+  const { theme } = useTheme();
+  const isGroup = displayKind === 'group';
+  const fileName = item.dataName || item.text;
+  const ext = getFileExtension(fileName);
+  const chipLabel = isGroup ? '归档' : ext || '文件';
+  const chipColor = isGroup ? iosKindTints.group : getExtensionColor(ext);
+  const sizeLabel = item.size ? formatFileSize(item.size) : '';
+
+  const paperBg = theme.isDark ? '#2C2C2E' : '#FDFDFD';
+  const paperBorder = theme.isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)';
+  const foldColor = theme.isDark ? '#3A3A3C' : '#E3E3E8';
+  const ghostBg = theme.isDark ? '#232325' : '#ECECF0';
+  // 折角缺口要与卡底色一致才有"纸角被翻起"的效果
+  const cardBg = theme.isDark ? '#1C1C1E' : '#FFFFFF';
+
+  return (
+    <View style={styles.standardBody}>
+      <HeaderRow kindLabel={kindLabel} relativeTime={relativeTime} />
+      <View style={styles.paperWrap}>
+        <View style={styles.paperStack}>
+          {isGroup && (
+            <>
+              <View
+                style={[styles.paperGhost, styles.paperGhostLeft, { backgroundColor: ghostBg }]}
+              />
+              <View
+                style={[styles.paperGhost, styles.paperGhostRight, { backgroundColor: ghostBg }]}
+              />
+            </>
+          )}
+          <View style={[styles.paper, { backgroundColor: paperBg, borderColor: paperBorder }]}>
+            <View style={[styles.paperCutout, { backgroundColor: cardBg }]}>
+              <View style={[styles.paperFold, { borderLeftColor: foldColor }]} />
+            </View>
+            <View style={[styles.extChip, { backgroundColor: chipColor }]}>
+              <Text style={styles.extChipText}>{chipLabel}</Text>
+            </View>
+            <Text
+              style={[styles.paperName, { color: iosColors!.secondaryLabel }]}
+              numberOfLines={2}
+            >
+              {stripExtension(fileName)}
+            </Text>
+          </View>
+        </View>
+      </View>
+      <BottomRow directionIndicator={directionIndicator} isLatest={isLatest} meta={sizeLabel} />
     </View>
   );
 }
@@ -454,20 +541,102 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 12,
   },
-  textContent: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 6,
+  quoteBody: {
+    flex: 1,
+    justifyContent: 'center',
   },
-  fileBody: {
+  quoteText: {
+    fontSize: 17,
+    lineHeight: 24,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+  },
+  paraClip: {
+    flex: 1,
+    marginTop: 8,
+    marginBottom: 6,
+    overflow: 'hidden',
+  },
+  paraText: {
+    fontSize: 13,
+    lineHeight: 18.5,
+  },
+  textFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 22,
+  },
+  paperWrap: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
   },
-  fileName: {
+  paperStack: {
+    width: 92,
+    height: 112,
+  },
+  paperGhost: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 6,
+  },
+  paperGhostLeft: {
+    transform: [{ rotate: '-5deg' }, { translateX: -4 }, { translateY: 2 }],
+  },
+  paperGhostRight: {
+    transform: [{ rotate: '3deg' }, { translateX: 4 }, { translateY: 1 }],
+  },
+  paper: {
+    flex: 1,
+    borderRadius: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+  },
+  paperCutout: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 18,
+    height: 18,
+  },
+  paperFold: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 18,
+    borderTopWidth: 18,
+    borderTopColor: 'transparent',
+  },
+  extChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  extChipText: {
+    color: '#fff',
     fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+  },
+  paperName: {
+    fontSize: 10.5,
+    lineHeight: 14,
     textAlign: 'center',
+  },
+  bottomMeta: {
+    fontSize: 11,
+    marginLeft: 5,
   },
   headerRow: {
     flexDirection: 'row',
