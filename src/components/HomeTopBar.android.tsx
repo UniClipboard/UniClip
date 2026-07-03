@@ -9,26 +9,49 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { TopRightMenu } from './TopRightMenu';
+import { ServerStatusDot } from './ServerStatusDot';
 import type {
   DefaultTopBarProps,
   SearchTopBarProps,
   SelectModeTopBarProps,
 } from './HomeTopBar.types';
+import { CONNECTION_STATUS_TEXT, type ConnectionStatus } from '@/utils/connectionStatus';
 import { HistoryFilterTags } from '@/components/HistoryFilterTags';
+
+// Material 语义色板：在线绿 / 连接中橙 / 离线灰 / 异常红 / 未配置浅灰
+const STATUS_STYLE: Record<ConnectionStatus, { color: string; pulse: boolean; glow: boolean }> = {
+  online: { color: '#4CAF50', pulse: false, glow: true },
+  connecting: { color: '#FB8C00', pulse: true, glow: false },
+  offline: { color: '#9E9E9E', pulse: false, glow: false },
+  error: { color: '#E53935', pulse: true, glow: false },
+  unconfigured: { color: '#BDBDBD', pulse: false, glow: false },
+};
 
 export function DefaultTopBar({
   serverLabel,
-  isConnected,
+  connectionStatus,
   onSearch,
   onSettings,
   onSelectMode,
   theme,
 }: DefaultTopBarProps) {
+  const dot = STATUS_STYLE[connectionStatus];
+  const dimmed = connectionStatus === 'unconfigured' || connectionStatus === 'offline';
   return (
     <View style={s.row}>
-      <View style={s.serverStatus}>
-        <View style={[s.dot, { backgroundColor: isConnected ? '#4CAF50' : '#9E9E9E' }]} />
-        <Text style={[s.label, { color: theme.colors.onSurface }]} numberOfLines={1}>
+      <View
+        style={s.serverStatus}
+        accessibilityRole="text"
+        accessibilityLabel={`服务器${CONNECTION_STATUS_TEXT[connectionStatus]}，${serverLabel}`}
+      >
+        <ServerStatusDot color={dot.color} pulse={dot.pulse} glow={dot.glow} />
+        <Text
+          style={[
+            s.label,
+            { color: dimmed ? theme.colors.onSurfaceVariant : theme.colors.onSurface },
+          ]}
+          numberOfLines={1}
+        >
           {serverLabel}
         </Text>
       </View>
@@ -161,7 +184,6 @@ export function SelectModeTopBar({
 const s = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 52 },
   serverStatus: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
-  dot: { width: 6, height: 6, borderRadius: 3 },
   label: { fontSize: 14, fontWeight: '600' },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconBtn: { justifyContent: 'center', alignItems: 'center' },

@@ -1,10 +1,11 @@
 import type { useTheme } from '@/hooks/useTheme';
 import type { DisplayKind } from '@/utils/displayKind';
 import type { HistoryDateFilter } from '@/utils/historyFilters';
+import type { ConnectionStatus } from '@/utils/connectionStatus';
 
 export interface DefaultTopBarProps {
   serverLabel: string;
-  isConnected: boolean;
+  connectionStatus: ConnectionStatus;
   onSearch: () => void;
   onSettings: () => void;
   onSelectMode: () => void;
