@@ -14,29 +14,10 @@ public extension SettingsStore {
         }
 
         let sentinel = newURL.appendingPathComponent(legacyMigrationSentinel, isDirectory: false)
-        if fm.fileExists(atPath: sentinel.path) {
-            return (false, 0)
-        }
-
         var copied = 0
         if let oldURL = fm.containerURL(forSecurityApplicationGroupIdentifier: legacyAppGroupID),
-           oldURL.path != newURL.path,
-           let contents = try? fm.contentsOfDirectory(
-               at: oldURL,
-               includingPropertiesForKeys: nil,
-               options: [.skipsHiddenFiles]
-           ) {
-            try? fm.createDirectory(at: newURL, withIntermediateDirectories: true)
-            for source in contents {
-                let destination = newURL.appendingPathComponent(source.lastPathComponent)
-                if fm.fileExists(atPath: destination.path) { continue }
-                do {
-                    try fm.copyItem(at: source, to: destination)
-                    copied += 1
-                } catch {
-                    continue
-                }
-            }
+           oldURL.path != newURL.path {
+            copied += copyMissingItems(from: oldURL, to: newURL, fileManager: fm)
         }
 
         let newDefaults = UserDefaults(suiteName: appGroupID)
@@ -52,6 +33,44 @@ public extension SettingsStore {
 
         try? Data().write(to: sentinel, options: [.atomic])
         return (copied > 0, copied)
+    }
+
+    private static func copyMissingItems(
+        from sourceDirectory: URL,
+        to destinationDirectory: URL,
+        fileManager fm: FileManager
+    ) -> Int {
+        guard let contents = try? fm.contentsOfDirectory(
+            at: sourceDirectory,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return 0
+        }
+
+        try? fm.createDirectory(at: destinationDirectory, withIntermediateDirectories: true)
+
+        var copied = 0
+        for source in contents {
+            let destination = destinationDirectory.appendingPathComponent(source.lastPathComponent)
+            let isDirectory = (try? source.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+
+            if isDirectory {
+                copied += copyMissingItems(from: source, to: destination, fileManager: fm)
+                continue
+            }
+
+            if fm.fileExists(atPath: destination.path) { continue }
+
+            do {
+                try fm.copyItem(at: source, to: destination)
+                copied += 1
+            } catch {
+                continue
+            }
+        }
+
+        return copied
     }
 
     private static var legacyMigrationKeys: [String] {
