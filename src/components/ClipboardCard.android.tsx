@@ -23,6 +23,7 @@ import {
   formatRelativeTime,
   type DisplayKind,
 } from '@/utils/displayKind';
+import { getDomainGradient, getDomainInitial, type DomainGradient } from '@/utils/domainColor';
 import { getHistoryDirectionIndicator } from '@/utils/historyDirection';
 import type { ClipboardCardProps } from './ClipboardCard.types';
 
@@ -136,7 +137,6 @@ function CardBody({
         <URLCardBody
           item={item}
           kindLabel={kindLabel}
-          kindColor={kindColor}
           relativeTime={relativeTime}
           isLatest={isLatest}
           theme={theme}
@@ -356,47 +356,126 @@ function ImageCardBody({
   );
 }
 
+// 方案 A「沉浸全出血」：OG 图铺满整卡，底部 scrim 上叠 favicon + 域名 + 两行标题；
+// 无 OG 图时用域名派生色渐变 + 居中 favicon 兜底
 function URLCardBody({
   item,
   kindLabel,
-  kindColor,
   relativeTime,
   isLatest,
   theme,
-}: Pick<
-  CardBodyProps,
-  'item' | 'kindLabel' | 'kindColor' | 'relativeTime' | 'isLatest' | 'theme'
->) {
+}: Pick<CardBodyProps, 'item' | 'kindLabel' | 'relativeTime' | 'isLatest' | 'theme'>) {
   const metadata = useURLMetadata(item.text.trim());
   const domain = getURLDomain(item.text);
   const urlText = getURLWithoutScheme(item.text);
   const hasOgImage = !!metadata?.ogImageUrl;
-  const displayTitle = metadata?.title || domain;
+  const displayTitle = metadata?.title || urlText;
+  const gradient = getDomainGradient(domain);
+  const indicator = getHistoryDirectionIndicator(item);
+  const dirColor = 'rgba(255,255,255,0.7)';
 
   return (
     <View style={styles.urlBody}>
-      <View style={styles.urlImageArea}>
-        <View style={[styles.urlPlaceholder, { backgroundColor: 'rgba(0,188,212,0.12)' }]}>
-          <Ionicons name="globe-outline" size={36} color="rgba(0,188,212,0.4)" />
+      <DomainGradientBackground gradient={gradient} />
+      {metadata && !hasOgImage && (
+        <View style={styles.urlFallbackCenter}>
+          <Favicon url={metadata.faviconUrl} domain={domain} size={44} />
         </View>
-        {hasOgImage && (
-          <Image source={{ uri: metadata!.ogImageUrl }} style={styles.ogImage} resizeMode="cover" />
-        )}
-        <GradientScrim direction="down" opacity={0.45} style={styles.topScrim} />
-        <View style={styles.urlImageHeaderOverlay}>
-          <HeaderRow kindLabel={kindLabel} relativeTime={relativeTime} overlay theme={theme} />
+      )}
+      {hasOgImage && (
+        <Image source={{ uri: metadata!.ogImageUrl }} style={styles.ogImage} resizeMode="cover" />
+      )}
+      <GradientScrim direction="down" opacity={0.5} style={styles.topScrim} />
+      <URLBottomScrim />
+      <View style={styles.urlOverlay}>
+        <HeaderRow kindLabel={kindLabel} relativeTime={relativeTime} overlay theme={theme} />
+        <View style={styles.spacer} />
+        <View style={styles.urlDomainRow}>
+          <Favicon url={metadata?.faviconUrl} domain={domain} size={16} />
+          <Text style={styles.urlDomain} numberOfLines={1}>
+            {domain}
+          </Text>
+          <View style={styles.bottomSpacer} />
+          {indicator === 'download' ? (
+            <ArrowDown size={10} color={dirColor} />
+          ) : indicator === 'pendingUpload' || indicator === 'pendingSync' ? (
+            <Ionicons name="time-outline" size={10} color={dirColor} />
+          ) : (
+            <ArrowUp size={10} color={dirColor} />
+          )}
+          {isLatest && <View style={[styles.latestDot, styles.urlLatestDot]} />}
         </View>
-      </View>
-      <View style={[styles.urlInfoArea, { backgroundColor: theme.colors.surfaceContainerLow }]}>
-        <Text style={[styles.urlTitle, { color: theme.colors.onSurface }]} numberOfLines={1}>
+        <Text style={styles.urlTitle} numberOfLines={2}>
           {displayTitle}
         </Text>
-        <Text style={[styles.urlText, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>
-          {urlText}
-        </Text>
-        <View style={styles.spacer} />
-        <BottomRow item={item} isLatest={isLatest} theme={theme} />
       </View>
+    </View>
+  );
+}
+
+// 无 OG 图时的整卡对角渐变兜底，颜色由域名哈希派生，同域名恒定
+function DomainGradientBackground({ gradient }: { gradient: DomainGradient }) {
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Svg width="100%" height="100%">
+        <Defs>
+          <SvgLinearGradient id="domainBg" x1="0" y1="0" x2="1" y2="1">
+            <Stop offset="0" stopColor={gradient.start} stopOpacity={1} />
+            <Stop offset="1" stopColor={gradient.end} stopOpacity={1} />
+          </SvgLinearGradient>
+        </Defs>
+        <SvgRect width="100%" height="100%" fill="url(#domainBg)" />
+      </Svg>
+    </View>
+  );
+}
+
+// 底部文字区 scrim：比图片卡的更高更深，保证 favicon/域名/标题在任意 OG 图上可读
+function URLBottomScrim() {
+  return (
+    <View style={styles.urlBottomScrim} pointerEvents="none">
+      <Svg width="100%" height="100%">
+        <Defs>
+          <SvgLinearGradient id="urlScrim" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor="black" stopOpacity={0} />
+            <Stop offset="0.55" stopColor="black" stopOpacity={0.5} />
+            <Stop offset="1" stopColor="black" stopOpacity={0.78} />
+          </SvgLinearGradient>
+        </Defs>
+        <SvgRect width="100%" height="100%" fill="url(#urlScrim)" />
+      </Svg>
+    </View>
+  );
+}
+
+// favicon 图；缺失或解码失败（Android Fresco 不解码部分 .ico）时回退为白底域名字标
+function Favicon({ url, domain, size }: { url?: string; domain: string; size: number }) {
+  const [failed, setFailed] = useState(false);
+  const shape = {
+    width: size,
+    height: size,
+    borderRadius: Math.round(size * 0.28),
+  };
+  if (url && !failed) {
+    return (
+      <Image
+        source={{ uri: url }}
+        style={[styles.faviconTile, shape]}
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  return (
+    <View style={[styles.faviconTile, styles.faviconFallback, shape]}>
+      <Text
+        style={{
+          color: getDomainGradient(domain).start,
+          fontWeight: '800',
+          fontSize: Math.round(size * 0.55),
+        }}
+      >
+        {getDomainInitial(domain)}
+      </Text>
     </View>
   );
 }
@@ -506,10 +585,6 @@ const styles = StyleSheet.create({
   urlBody: {
     flex: 1,
   },
-  urlImageArea: {
-    flex: 3,
-    overflow: 'hidden',
-  },
   ogImage: {
     position: 'absolute',
     top: 0,
@@ -519,7 +594,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  urlPlaceholder: {
+  urlFallbackCenter: {
     position: 'absolute',
     top: 0,
     left: 0,
@@ -528,25 +603,51 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  urlImageHeaderOverlay: {
+  urlBottomScrim: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '62%',
+  },
+  urlOverlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
+    bottom: 0,
     padding: 10,
+    paddingBottom: 11,
   },
-  urlInfoArea: {
-    flex: 2,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+  urlDomainRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  urlDomain: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.8)',
+    flexShrink: 1,
   },
   urlTitle: {
-    fontSize: 12,
+    fontSize: 12.5,
+    lineHeight: 17,
     fontWeight: '600',
+    color: '#fff',
+    marginTop: 5,
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
-  urlText: {
-    fontSize: 10,
-    marginTop: 2,
+  urlLatestDot: {
+    backgroundColor: '#fff',
+  },
+  faviconTile: {
+    backgroundColor: 'rgba(255,255,255,0.92)',
+  },
+  faviconFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   selectOverlay: {
     position: 'absolute',
