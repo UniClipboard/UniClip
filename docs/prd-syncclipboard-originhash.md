@@ -69,12 +69,12 @@ server's canonical entry (hash `B`) is the same logical content it just uploaded
 A new optional field, `originHash`, is added to the clipboard profile document
 exchanged at `GET/PUT /SyncClipboard.json`.
 
-| Property        | Value                                                            |
-|-----------------|-----------------------------------------------------------------|
-| JSON key        | `originHash`                                                     |
-| Type            | string (SHA-256, uppercase hex, 64 chars) — same format as `hash`|
-| Optionality     | Optional. Omitted when not applicable (see §6).                  |
-| Position        | Adjacent to `hash` in serialization order.                      |
+| Property    | Value                                                             |
+| ----------- | ----------------------------------------------------------------- |
+| JSON key    | `originHash`                                                      |
+| Type        | string (SHA-256, uppercase hex, 64 chars) — same format as `hash` |
+| Optionality | Optional. Omitted when not applicable (see §6).                   |
+| Position    | Adjacent to `hash` in serialization order.                        |
 
 The existing `hash` field (the canonical content hash) is unchanged.
 
@@ -117,7 +117,7 @@ MUST stay `A`.
   - Before re-encode: served bytes are still the original → `hash = A`, and
     `originHash` is absent or `A`.
   - After re-encode: served bytes are PNG → `hash = B`, `originHash = A`.
-  There MUST be no state in which `hash = B` while `originHash` is absent or ≠ A.
+    There MUST be no state in which `hash = B` while `originHash` is absent or ≠ A.
 
 ### 6.4 PUT `/SyncClipboard.json`
 
@@ -155,7 +155,7 @@ MUST stay `A`.
 
 - H1. No History API shape change is required by this PRD.
 - H2. However, the duplicate-prevention guarantee only holds if a re-encoded
-  image cannot re-enter a client as a *new* history record under its origin hash
+  image cannot re-enter a client as a _new_ history record under its origin hash
   `A` after the client has already converged on canonical hash `B`. The server
   MUST ensure that history queries do not surface the same logical content under
   two different hashes (`A` from the original upload and `B` after re-encode) such

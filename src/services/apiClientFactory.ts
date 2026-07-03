@@ -53,6 +53,8 @@ export function createHistoryAPIClient(config: ServerConfig): IHistoryAPI {
     throw new ConfigurationError('Server URL is required');
   }
   const authService =
-    config.username && config.password ? new AuthService(config.username, config.password) : undefined;
+    config.username && config.password
+      ? new AuthService(config.username, config.password)
+      : undefined;
   return new RoutedSyncClipboardClient(config, { authService });
 }

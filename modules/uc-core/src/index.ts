@@ -136,14 +136,7 @@ export async function probe(
   timeoutMs = 3000,
   networkEpoch = 0
 ): Promise<ProbeReport> {
-  return NativeModule.probe(
-    urls,
-    username,
-    password,
-    trustInsecureCert,
-    timeoutMs,
-    networkEpoch
-  );
+  return NativeModule.probe(urls, username, password, trustInsecureCert, timeoutMs, networkEpoch);
 }
 
 export function cancelInFlight(): void {
@@ -210,9 +203,7 @@ export interface PreambleSnapshot {
 
 export type StopReason = 'NoActiveServer' | 'Paused' | 'BackoffGated';
 
-export type PreambleProceed =
-  | { type: 'Stop'; reason: StopReason }
-  | { type: 'ToNetwork' };
+export type PreambleProceed = { type: 'Stop'; reason: StopReason } | { type: 'ToNetwork' };
 
 export interface Preamble {
   recordLocal: boolean;
@@ -351,18 +342,12 @@ export function defaultSyncRuntimeState(): SyncRuntimeState {
   return NativeModule.defaultSyncRuntimeState();
 }
 
-export function planPreamble(
-  state: SyncRuntimeState,
-  snap: PreambleSnapshot
-): PreambleStep {
+export function planPreamble(state: SyncRuntimeState, snap: PreambleSnapshot): PreambleStep {
   if (!hasReducer()) return tsFallback.planPreamble(state, snap);
   return NativeModule.planPreamble(stripNullsDeep(state), stripNullsDeep(snap));
 }
 
-export function planAfterServerGet(
-  state: SyncRuntimeState,
-  snap: ServerGetSnapshot
-): ServerRoute {
+export function planAfterServerGet(state: SyncRuntimeState, snap: ServerGetSnapshot): ServerRoute {
   if (!hasReducer()) return tsFallback.planAfterServerGet(state, snap);
   return NativeModule.planAfterServerGet(stripNullsDeep(state), stripNullsDeep(snap));
 }
@@ -405,19 +390,15 @@ export function commitApply(
   return NativeModule.commitApply(stripNullsDeep(state), hash, contentId ?? null, nowMs, cfg);
 }
 
-export function commitApplyFailed(
-  state: SyncRuntimeState,
-  entry: ClipboardMeta
-): SyncRuntimeState {
-  if (!hasReducer()) return { ...state, stagedServerHash: entry.hash, stagedContentId: entry.contentId };
+export function commitApplyFailed(state: SyncRuntimeState, entry: ClipboardMeta): SyncRuntimeState {
+  if (!hasReducer())
+    return { ...state, stagedServerHash: entry.hash, stagedContentId: entry.contentId };
   return NativeModule.commitApplyFailed(stripNullsDeep(state), stripNullsDeep(entry));
 }
 
-export function commitStage(
-  state: SyncRuntimeState,
-  entry: ClipboardMeta
-): SyncRuntimeState {
-  if (!hasReducer()) return { ...state, stagedServerHash: entry.hash, stagedContentId: entry.contentId };
+export function commitStage(state: SyncRuntimeState, entry: ClipboardMeta): SyncRuntimeState {
+  if (!hasReducer())
+    return { ...state, stagedServerHash: entry.hash, stagedContentId: entry.contentId };
   return NativeModule.commitStage(stripNullsDeep(state), stripNullsDeep(entry));
 }
 
@@ -428,7 +409,11 @@ export function commitPush(
   cfg: SyncConfig
 ): CommitStep {
   // push 换了内容但还不知道其服务端身份 → contentId 清空，等下次 GET 重新学到。
-  if (!hasReducer()) return { state: { ...state, lastSyncedHash: pushedHash, lastSyncedContentId: null }, outcome: { tripped: false } };
+  if (!hasReducer())
+    return {
+      state: { ...state, lastSyncedHash: pushedHash, lastSyncedContentId: null },
+      outcome: { tripped: false },
+    };
   return NativeModule.commitPush(stripNullsDeep(state), pushedHash, nowMs, cfg);
 }
 
@@ -443,7 +428,16 @@ export function commitConsentPush(
   nowMs: number,
   cfg: SyncConfig
 ): CommitStep {
-  if (!hasReducer()) return { state: { ...state, lastSyncedHash: pushedHash, lastSyncedContentId: null, lastAppliedHash: pushedHash }, outcome: { tripped: false } };
+  if (!hasReducer())
+    return {
+      state: {
+        ...state,
+        lastSyncedHash: pushedHash,
+        lastSyncedContentId: null,
+        lastAppliedHash: pushedHash,
+      },
+      outcome: { tripped: false },
+    };
   return NativeModule.commitConsentPush(stripNullsDeep(state), pushedHash, nowMs, cfg);
 }
 
@@ -463,16 +457,16 @@ export function commitTickFailure(
     const failures = state.consecutiveFailures + 1;
     return {
       state: { ...state, consecutiveFailures: failures },
-      outcome: { kickProbe: kind === 'NetworkUnreachable' || kind === 'ConnectTimeout', firstOffline: failures === 1 },
+      outcome: {
+        kickProbe: kind === 'NetworkUnreachable' || kind === 'ConnectTimeout',
+        firstOffline: failures === 1,
+      },
     };
   }
   return NativeModule.commitTickFailure(stripNullsDeep(state), kind, jitter, nowMs, cfg);
 }
 
-export function commitHistorySyncDone(
-  state: SyncRuntimeState,
-  nowMs: number
-): SyncRuntimeState {
+export function commitHistorySyncDone(state: SyncRuntimeState, nowMs: number): SyncRuntimeState {
   if (!hasReducer()) return { ...state, lastHistorySyncMs: nowMs };
   return NativeModule.commitHistorySyncDone(stripNullsDeep(state), nowMs);
 }
@@ -494,30 +488,22 @@ export function markStagedApplied(state: SyncRuntimeState): MarkStagedStep {
   return NativeModule.markStagedApplied(stripNullsDeep(state));
 }
 
-export function acknowledgeLoopDetection(
-  state: SyncRuntimeState
-): SyncRuntimeState {
+export function acknowledgeLoopDetection(state: SyncRuntimeState): SyncRuntimeState {
   if (!hasReducer()) return { ...state, state: 'Idle', loopEvents: [] };
   return NativeModule.acknowledgeLoopDetection(stripNullsDeep(state));
 }
 
-export function resetRuntimeState(
-  state: SyncRuntimeState
-): SyncRuntimeState {
+export function resetRuntimeState(state: SyncRuntimeState): SyncRuntimeState {
   if (!hasReducer()) return { ...FALLBACK_RUNTIME_STATE };
   return NativeModule.resetRuntimeState(stripNullsDeep(state));
 }
 
-export function handleActiveServerChanged(
-  state: SyncRuntimeState
-): SyncRuntimeState {
+export function handleActiveServerChanged(state: SyncRuntimeState): SyncRuntimeState {
   if (!hasReducer()) return { ...FALLBACK_RUNTIME_STATE };
   return NativeModule.handleActiveServerChanged(stripNullsDeep(state));
 }
 
-export function handleNetworkRouteChanged(
-  state: SyncRuntimeState
-): SyncRuntimeState {
+export function handleNetworkRouteChanged(state: SyncRuntimeState): SyncRuntimeState {
   if (!hasReducer()) return { ...state, consecutiveFailures: 0, nextAttemptMs: null };
   return NativeModule.handleNetworkRouteChanged(stripNullsDeep(state));
 }
@@ -546,11 +532,7 @@ export function backoffSecs(
   return NativeModule.backoffSecs(consecutiveFailures, base, max, jitter);
 }
 
-export function cadenceSecs(
-  state: SyncState,
-  isSceneInactive: boolean,
-  cfg: SyncConfig
-): number {
+export function cadenceSecs(state: SyncState, isSceneInactive: boolean, cfg: SyncConfig): number {
   if (!hasReducer()) {
     if (state === 'AuthFailed' || state === 'LoopDetected') return Infinity;
     return isSceneInactive ? cfg.inactiveCadenceSecs : cfg.normalCadenceSecs;
@@ -565,7 +547,7 @@ export function isHistorySyncDue(
 ): boolean {
   if (!hasReducer()) {
     if (lastSyncMs == null) return true;
-    return (nowMs - lastSyncMs) >= intervalSecs * 1000;
+    return nowMs - lastSyncMs >= intervalSecs * 1000;
   }
   return NativeModule.isHistorySyncDue(lastSyncMs ?? null, nowMs, intervalSecs);
 }
@@ -586,10 +568,7 @@ export function advanceWatermark(
   return NativeModule.advanceWatermark(currentMs ?? null, maxLastModifiedMs);
 }
 
-export function isProbeConclusionValid(
-  reportEpoch: number,
-  currentEpoch: number
-): boolean {
+export function isProbeConclusionValid(reportEpoch: number, currentEpoch: number): boolean {
   if (!hasReducer()) return reportEpoch === currentEpoch;
   return NativeModule.isProbeConclusionValid(reportEpoch, currentEpoch);
 }
@@ -618,7 +597,10 @@ function isAlreadyStaged(entry: ClipboardMeta, state: SyncRuntimeState): boolean
   const sid = state.stagedContentId;
   if (cid != null && sid != null) return cid === sid;
   if (entry.hash != null) {
-    return state.stagedServerHash != null && state.stagedServerHash.toUpperCase() === entry.hash.toUpperCase();
+    return (
+      state.stagedServerHash != null &&
+      state.stagedServerHash.toUpperCase() === entry.hash.toUpperCase()
+    );
   }
   return false;
 }
@@ -626,21 +608,32 @@ function isAlreadyStaged(entry: ClipboardMeta, state: SyncRuntimeState): boolean
 const tsFallback = {
   planPreamble(state: SyncRuntimeState, snap: PreambleSnapshot): PreambleStep {
     if (!snap.hasActiveServer) {
-      return { state, preamble: { recordLocal: false, proceed: { type: 'Stop', reason: 'NoActiveServer' } } };
+      return {
+        state,
+        preamble: { recordLocal: false, proceed: { type: 'Stop', reason: 'NoActiveServer' } },
+      };
     }
     if (state.state === 'AuthFailed' || state.state === 'LoopDetected') {
-      return { state, preamble: { recordLocal: false, proceed: { type: 'Stop', reason: 'Paused' } } };
+      return {
+        state,
+        preamble: { recordLocal: false, proceed: { type: 'Stop', reason: 'Paused' } },
+      };
     }
     if (!snap.explicit && state.nextAttemptMs !== null && snap.nowMs < state.nextAttemptMs) {
-      return { state, preamble: { recordLocal: false, proceed: { type: 'Stop', reason: 'BackoffGated' } } };
+      return {
+        state,
+        preamble: { recordLocal: false, proceed: { type: 'Stop', reason: 'BackoffGated' } },
+      };
     }
     // Cross-process resync：hash 与 contentId 作为同一快照一起比较、一起写入。
     // contentId 单独漂移（hash 不变）也要触发 fold，否则陈旧的跨进程 contentId 会
     // 滞留。contentId 不透明——verbatim 比较，不走 hash 的大写折叠。
     let newState = state;
     const hashDiffers =
-      (snap.persistedSyncedHash?.toUpperCase() ?? null) !== (state.lastSyncedHash?.toUpperCase() ?? null);
-    const contentIdDiffers = (snap.persistedSyncedContentId ?? null) !== (state.lastSyncedContentId ?? null);
+      (snap.persistedSyncedHash?.toUpperCase() ?? null) !==
+      (state.lastSyncedHash?.toUpperCase() ?? null);
+    const contentIdDiffers =
+      (snap.persistedSyncedContentId ?? null) !== (state.lastSyncedContentId ?? null);
     if (hashDiffers || contentIdDiffers) {
       newState = {
         ...newState,

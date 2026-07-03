@@ -49,7 +49,7 @@ export function AppTextField({
         placeholder={placeholder}
         editable={disabled === undefined ? true : !disabled}
         secureTextEntry={secure}
-        keyboardType={keyboardType ? KEYBOARD_MAP[keyboardType] ?? 'default' : 'default'}
+        keyboardType={keyboardType ? (KEYBOARD_MAP[keyboardType] ?? 'default') : 'default'}
         style={styles.input}
       />
     </View>

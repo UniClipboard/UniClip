@@ -79,7 +79,12 @@ export async function initFileStorage(): Promise<void> {
  */
 export function getHistoryFileDir(type: string, profileHash: string): Directory {
   if (Platform.OS === 'ios') {
-    return new Directory(Paths.document, 'clipboards', 'history', makePayloadProfileId(type, profileHash));
+    return new Directory(
+      Paths.document,
+      'clipboards',
+      'history',
+      makePayloadProfileId(type, profileHash)
+    );
   }
   return new Directory(HISTORY_BASE_DIR, `${type}-${profileHash}`);
 }

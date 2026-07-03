@@ -1,10 +1,5 @@
 import type { ServerConfig } from '@/types/api';
-import {
-  AuthenticationError,
-  NetworkError,
-  ServerError,
-  TimeoutError,
-} from './errors';
+import { AuthenticationError, NetworkError, ServerError, TimeoutError } from './errors';
 import { classifyURL } from '@/utils/classifyUrl';
 
 export interface NetworkContext {
@@ -117,7 +112,11 @@ export async function selectServerUrl<T>(
     attempts.push(url);
     try {
       const result = await operation({
-        server: { ...server, url, urls: [url, ...orderedUrls.filter((candidate) => candidate !== url)] },
+        server: {
+          ...server,
+          url,
+          urls: [url, ...orderedUrls.filter((candidate) => candidate !== url)],
+        },
         serverKey,
         url,
         index,
@@ -148,7 +147,11 @@ async function selectHealthyRoutes(
   const probeTasks = orderedUrls.map((url, index) =>
     createProbeTask(
       {
-        server: { ...server, url, urls: [url, ...orderedUrls.filter((candidate) => candidate !== url)] },
+        server: {
+          ...server,
+          url,
+          urls: [url, ...orderedUrls.filter((candidate) => candidate !== url)],
+        },
         serverKey,
         url,
         index,
@@ -172,9 +175,14 @@ async function selectHealthyRoutes(
   }
 
   return results
-    .filter((result): result is PromiseFulfilledResult<HealthyServerRoute> => result.status === 'fulfilled')
+    .filter(
+      (result): result is PromiseFulfilledResult<HealthyServerRoute> =>
+        result.status === 'fulfilled'
+    )
     .map((result) => result.value)
-    .sort((a, b) => (a.milliseconds === b.milliseconds ? a.index - b.index : a.milliseconds - b.milliseconds));
+    .sort((a, b) =>
+      a.milliseconds === b.milliseconds ? a.index - b.index : a.milliseconds - b.milliseconds
+    );
 }
 
 function createProbeTask(

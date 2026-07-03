@@ -250,15 +250,18 @@ export async function nativeUploadFile(
   let progressSub: EventSubscription | null = null;
   let resolvedJobId: string | null = null;
   if (onProgress) {
-    progressSub = NativeUtilModule!.addListener('onUploadProgress', (event: UploadProgressEvent) => {
-      if (resolvedJobId && event.jobId === resolvedJobId) {
-        onProgress({
-          progress: event.progress,
-          bytesTransferred: event.bytesWritten,
-          totalBytes: event.totalBytes,
-        });
+    progressSub = NativeUtilModule!.addListener(
+      'onUploadProgress',
+      (event: UploadProgressEvent) => {
+        if (resolvedJobId && event.jobId === resolvedJobId) {
+          onProgress({
+            progress: event.progress,
+            bytesTransferred: event.bytesWritten,
+            totalBytes: event.totalBytes,
+          });
+        }
       }
-    });
+    );
   }
 
   const jobId = NativeUtilModule!.startUploadFile(url, headers, fileUri);
@@ -358,15 +361,18 @@ export async function nativeUploadMultipart(
   let progressSub: EventSubscription | null = null;
   let resolvedJobId: string | null = null;
   if (onProgress) {
-    progressSub = NativeUtilModule!.addListener('onUploadProgress', (event: UploadProgressEvent) => {
-      if (resolvedJobId && event.jobId === resolvedJobId) {
-        onProgress({
-          progress: event.progress,
-          bytesTransferred: event.bytesWritten,
-          totalBytes: event.totalBytes,
-        });
+    progressSub = NativeUtilModule!.addListener(
+      'onUploadProgress',
+      (event: UploadProgressEvent) => {
+        if (resolvedJobId && event.jobId === resolvedJobId) {
+          onProgress({
+            progress: event.progress,
+            bytesTransferred: event.bytesWritten,
+            totalBytes: event.totalBytes,
+          });
+        }
       }
-    });
+    );
   }
 
   const jobId = NativeUtilModule!.startUploadMultipart(url, headers, formFields, fileUri ?? null);

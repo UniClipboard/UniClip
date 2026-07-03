@@ -44,12 +44,12 @@ export async function importFileToHistory(
   options?: UploadFileOptions
 ): Promise<ImportResult> {
   // iOS 相册/分享内容多为 HEIC，发送前转为 JPEG（其它格式与平台原样透传）
-  ({ uri: sourceUri, fileName, mimeType, fileSize } = await convertHeicToJpegIfNeeded(
-    sourceUri,
+  ({
+    uri: sourceUri,
     fileName,
     mimeType,
-    fileSize
-  ));
+    fileSize,
+  } = await convertHeicToJpegIfNeeded(sourceUri, fileName, mimeType, fileSize));
 
   const contentType: ClipboardContentType = guessContentType(mimeType);
   const tempPath = prepareTempFilePath(fileName);

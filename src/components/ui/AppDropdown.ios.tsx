@@ -1,11 +1,4 @@
-import {
-  ActionSheetIOS,
-  Pressable,
-  Text,
-  View,
-  StyleSheet,
-  PlatformColor,
-} from 'react-native';
+import { ActionSheetIOS, Pressable, Text, View, StyleSheet, PlatformColor } from 'react-native';
 
 export interface AppDropdownOption<T extends string = string> {
   label: string;
@@ -31,8 +24,7 @@ export function AppDropdown<T extends string = string>({
   disabled,
   fullWidth,
 }: AppDropdownProps<T>) {
-  const selectedLabel =
-    options.find((o) => o.value === selectedValue)?.label ?? placeholder ?? '';
+  const selectedLabel = options.find((o) => o.value === selectedValue)?.label ?? placeholder ?? '';
 
   const openSheet = () => {
     if (disabled) return;
@@ -47,7 +39,7 @@ export function AppDropdown<T extends string = string>({
         if (index != null && index < options.length) {
           onSelect(options[index].value);
         }
-      },
+      }
     );
   };
 

@@ -578,7 +578,10 @@ export class SyncEngine {
         // 避免 1Hz tick 把网络失败刷成 error 日志。
         if (!this.isOffline) {
           this.isOffline = true;
-          log.info('[SyncEngine] server unreachable — offline, will keep retrying:', e?.message ?? e);
+          log.info(
+            '[SyncEngine] server unreachable — offline, will keep retrying:',
+            e?.message ?? e
+          );
         }
       } else {
         // 其余（OtherSyncError 等）才是真正意外的同步错误
@@ -953,9 +956,7 @@ export class SyncEngine {
 
   /** 该错误类型是否属于"服务器不可达/离线"——预期状态，日志上不当作 error。 */
   private isOfflineKind(kind: TickErrorKind): boolean {
-    return (
-      kind === 'NetworkUnreachable' || kind === 'ConnectTimeout' || kind === 'ReceiveTimeout'
-    );
+    return kind === 'NetworkUnreachable' || kind === 'ConnectTimeout' || kind === 'ReceiveTimeout';
   }
 
   /** 只读本地 AsyncStorage 的同步水位线，不掺入 App Group（getPersistedSynced 会掺）。 */

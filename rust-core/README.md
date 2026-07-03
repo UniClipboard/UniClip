@@ -29,8 +29,8 @@ cargo install cargo-ndk
 
 ## Environment
 
-| Variable | Default | Description |
-|----------|---------|-------------|
+| Variable       | Default                     | Description                       |
+| -------------- | --------------------------- | --------------------------------- |
 | `UC_RUST_REPO` | `~/MyProjects/uniclipboard` | Path to the uniclipboard monorepo |
 
 ## Usage
@@ -54,18 +54,18 @@ cargo install cargo-ndk
 
 ### iOS (`modules/uc-core/ios/`)
 
-| File | Description |
-|------|-------------|
-| `UniClipboardCore.xcframework/` | Static library (device + simulator + macOS) |
-| `Bindings/uc_mobile.swift` | UniFFI-generated Swift bindings |
-| `Bindings/include/uc_mobileFFI.h` | C header |
-| `Bindings/include/module.modulemap` | Clang module map |
+| File                                | Description                                 |
+| ----------------------------------- | ------------------------------------------- |
+| `UniClipboardCore.xcframework/`     | Static library (device + simulator + macOS) |
+| `Bindings/uc_mobile.swift`          | UniFFI-generated Swift bindings             |
+| `Bindings/include/uc_mobileFFI.h`   | C header                                    |
+| `Bindings/include/module.modulemap` | Clang module map                            |
 
 ### Android (`modules/uc-core/android/`)
 
-| File | Description |
-|------|-------------|
-| `src/main/jniLibs/{abi}/libuc_mobile.so` | Shared library per ABI |
+| File                                          | Description                      |
+| --------------------------------------------- | -------------------------------- |
+| `src/main/jniLibs/{abi}/libuc_mobile.so`      | Shared library per ABI           |
 | `src/main/java/uniffi/uc_mobile/uc_mobile.kt` | UniFFI-generated Kotlin bindings |
 
 ## Binary Distribution

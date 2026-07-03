@@ -142,8 +142,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
     onClose();
   };
 
-  const canSave =
-    url.trim().length > 0 && username.trim().length > 0 && password.trim().length > 0;
+  const canSave = url.trim().length > 0 && username.trim().length > 0 && password.trim().length > 0;
 
   const handleSave = () => {
     if (!canSave) {
@@ -398,9 +397,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
                     styles.testResultRow,
                     {
                       backgroundColor:
-                        testResult === 'success'
-                          ? 'rgba(76,175,80,0.08)'
-                          : 'rgba(244,67,54,0.08)',
+                        testResult === 'success' ? 'rgba(76,175,80,0.08)' : 'rgba(244,67,54,0.08)',
                     },
                   ]}
                 >

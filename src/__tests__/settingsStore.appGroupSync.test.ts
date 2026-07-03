@@ -65,5 +65,4 @@ describe('settings store App Group writes', () => {
     });
     expect(mockSaveSettings).toHaveBeenCalled();
   });
-
 });

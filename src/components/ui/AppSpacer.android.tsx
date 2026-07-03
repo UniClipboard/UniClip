@@ -1,5 +1,9 @@
 import { Spacer } from '@expo/ui/jetpack-compose';
-import { weight, height as heightModifier, width as widthModifier } from '@expo/ui/jetpack-compose/modifiers';
+import {
+  weight,
+  height as heightModifier,
+  width as widthModifier,
+} from '@expo/ui/jetpack-compose/modifiers';
 
 export interface AppSpacerProps {
   /** When set, the spacer takes a fixed size (dp) instead of flexing. */

@@ -32,15 +32,15 @@ No server-callable hub methods are needed.
 
 ## 2. Connection
 
-| Property | Value |
-|---|---|
-| Hub URL | `{serverUrl}/SyncClipboardHub` (e.g. `http://192.168.1.217:42720/SyncClipboardHub`) |
-| Framework | ASP.NET Core SignalR (clients use `@microsoft/signalr` JS lib and `com.microsoft.signalr` Java lib) |
-| Hub protocol | Default **JSON** hub protocol |
-| Negotiate | **Required.** `skipNegotiation = false` on all clients → server must serve `POST {hub}/negotiate`. This is the endpoint returning 404 today. |
-| Transport | **WebSockets.** The Android client forces `TransportEnum.WEBSOCKETS`. The negotiate response must advertise WebSockets as an available transport. |
-| Auth | HTTP **Basic** — header `Authorization: Basic base64(username:password)`, identical credentials to the REST API. |
-| Keep-alive | Standard SignalR ping/pong; defaults are fine. |
+| Property     | Value                                                                                                                                             |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hub URL      | `{serverUrl}/SyncClipboardHub` (e.g. `http://192.168.1.217:42720/SyncClipboardHub`)                                                               |
+| Framework    | ASP.NET Core SignalR (clients use `@microsoft/signalr` JS lib and `com.microsoft.signalr` Java lib)                                               |
+| Hub protocol | Default **JSON** hub protocol                                                                                                                     |
+| Negotiate    | **Required.** `skipNegotiation = false` on all clients → server must serve `POST {hub}/negotiate`. This is the endpoint returning 404 today.      |
+| Transport    | **WebSockets.** The Android client forces `TransportEnum.WEBSOCKETS`. The negotiate response must advertise WebSockets as an available transport. |
+| Auth         | HTTP **Basic** — header `Authorization: Basic base64(username:password)`, identical credentials to the REST API.                                  |
+| Keep-alive   | Standard SignalR ping/pong; defaults are fine.                                                                                                    |
 
 ### Auth details
 
@@ -71,14 +71,14 @@ clients, e.g. `Clients.All.SendAsync("RemoteProfileChanged", profile)`.
 Sent whenever the "current clipboard" (`/SyncClipboard.json`) changes. Single
 argument `profile`, an object identical to the REST `/SyncClipboard.json` body.
 
-| Field | JSON type | Required | Meaning |
-|---|---|---|---|
-| `type` | string | **yes** | One of `"Text"`, `"Image"`, `"File"`, `"Group"`. |
-| `hash` | string | **yes** | Profile SHA-256, **UPPERCASE hex** (see §6). Empty string `""` for `Group`. |
-| `text` | string | **yes** | For short `Text`: the full text. For `Image`/`File`/`Group` or large text: a preview/label. |
-| `hasData` | bool | **yes** | `true` if there is an associated binary file fetched via `/file/{dataName}`. |
-| `dataName` | string | when `hasData=true` | File name of the associated data. |
-| `size` | number | optional | Size in bytes of the associated data. |
+| Field      | JSON type | Required            | Meaning                                                                                     |
+| ---------- | --------- | ------------------- | ------------------------------------------------------------------------------------------- |
+| `type`     | string    | **yes**             | One of `"Text"`, `"Image"`, `"File"`, `"Group"`.                                            |
+| `hash`     | string    | **yes**             | Profile SHA-256, **UPPERCASE hex** (see §6). Empty string `""` for `Group`.                 |
+| `text`     | string    | **yes**             | For short `Text`: the full text. For `Image`/`File`/`Group` or large text: a preview/label. |
+| `hasData`  | bool      | **yes**             | `true` if there is an associated binary file fetched via `/file/{dataName}`.                |
+| `dataName` | string    | when `hasData=true` | File name of the associated data.                                                           |
+| `size`     | number    | optional            | Size in bytes of the associated data.                                                       |
 
 Example payload (note the casing — see §4):
 
@@ -98,7 +98,7 @@ Per-type field semantics (how the client fills these on upload — mirror them):
 - **Text, large**: stored as a `.txt` file → `hasData=true`, `dataName` set,
   `text` = preview, `size` = file bytes.
 - **Image**: `hasData=true`, `text` = `"[图片]"` placeholder if none, `dataName`
-  + `size` set.
+  - `size` set.
 - **File**: `hasData=true`, `text` = file name or `"[文件]"`, `dataName` +
   `size` set.
 - **Group** (multiple files): `hasData=true`, `text` = `"[文件组]"`, `hash` = `""`.
@@ -108,20 +108,20 @@ Per-type field semantics (how the client fills these on upload — mirror them):
 Sent whenever a history record is created, updated (star/pin/version), or
 soft-deleted. Single argument `record`.
 
-| Field | JSON type | Required | Meaning |
-|---|---|---|---|
-| `hash` | string | **yes** | Record SHA-256 (uppercase hex). |
-| `type` | string | **yes** | `"Text"`, `"Image"`, or `"File"` (history has no `Group`). |
-| `text` | string | recommended | Preview/text. |
-| `hasData` | bool | recommended | Whether binary data exists. |
-| `size` | number | recommended | Bytes. |
-| `starred` | bool | recommended | Star flag. |
-| `pinned` | bool | recommended | Pin flag. |
-| `version` | number (int) | recommended | Optimistic-concurrency version. |
-| `isDeleted` | bool | recommended | `true` for soft delete. |
-| `createTime` | string (ISO 8601) | optional | e.g. `"2026-06-14T08:30:00.000Z"`. |
-| `lastModified` | string (ISO 8601) | optional | |
-| `lastAccessed` | string (ISO 8601) | optional | |
+| Field          | JSON type         | Required    | Meaning                                                    |
+| -------------- | ----------------- | ----------- | ---------------------------------------------------------- |
+| `hash`         | string            | **yes**     | Record SHA-256 (uppercase hex).                            |
+| `type`         | string            | **yes**     | `"Text"`, `"Image"`, or `"File"` (history has no `Group`). |
+| `text`         | string            | recommended | Preview/text.                                              |
+| `hasData`      | bool              | recommended | Whether binary data exists.                                |
+| `size`         | number            | recommended | Bytes.                                                     |
+| `starred`      | bool              | recommended | Star flag.                                                 |
+| `pinned`       | bool              | recommended | Pin flag.                                                  |
+| `version`      | number (int)      | recommended | Optimistic-concurrency version.                            |
+| `isDeleted`    | bool              | recommended | `true` for soft delete.                                    |
+| `createTime`   | string (ISO 8601) | optional    | e.g. `"2026-06-14T08:30:00.000Z"`.                         |
+| `lastModified` | string (ISO 8601) | optional    |                                                            |
+| `lastAccessed` | string (ISO 8601) | optional    |                                                            |
 
 > The client applies safe defaults for missing fields, but send all of them when
 > available to keep the local history list consistent without an extra REST
@@ -164,10 +164,10 @@ camelCase is the correct, future-proof choice.
 
 ## 5. When to broadcast (trigger semantics)
 
-| Server event | Broadcast |
-|---|---|
-| `PUT /SyncClipboard.json` succeeds (current clipboard updated) | `RemoteProfileChanged` with the new profile |
-| `POST /api/history` (record created) | `RemoteHistoryChanged` with the record |
+| Server event                                                           | Broadcast                                                                         |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `PUT /SyncClipboard.json` succeeds (current clipboard updated)         | `RemoteProfileChanged` with the new profile                                       |
+| `POST /api/history` (record created)                                   | `RemoteHistoryChanged` with the record                                            |
 | `PUT /api/history/{type}/{profileId}` (star/pin/delete/version update) | `RemoteHistoryChanged` with the updated record (use `isDeleted=true` for deletes) |
 
 Recipients: broadcast to **all connected clients**. It is safe to include the
@@ -202,16 +202,16 @@ push must equal the one stored.
 These already exist on your server (HTTP works); listed so you can wire the
 broadcasts at the right place.
 
-| Method | Path | Purpose |
-|---|---|---|
-| GET / PUT | `/SyncClipboard.json` | Current clipboard profile (ProfileDto). PUT is the trigger for `RemoteProfileChanged`. |
-| PUT | `/file/{fileName}` | Upload binary data (octet-stream) for `hasData` profiles. |
-| POST | `/api/history` | Create history record (multipart: record + optional file). Trigger for `RemoteHistoryChanged`. |
-| GET | `/api/history/query` | List/query records. |
-| GET | `/api/history/{profileId}` | Fetch one record. |
-| PUT | `/api/history/{type}/{profileId}` | Update star/pin/delete/version. Trigger for `RemoteHistoryChanged`. |
-| GET | `/api/history/{profileId}/data` | Download record's binary data. |
-| GET | `/api/history/statistics` | Aggregate counts. |
+| Method    | Path                              | Purpose                                                                                        |
+| --------- | --------------------------------- | ---------------------------------------------------------------------------------------------- |
+| GET / PUT | `/SyncClipboard.json`             | Current clipboard profile (ProfileDto). PUT is the trigger for `RemoteProfileChanged`.         |
+| PUT       | `/file/{fileName}`                | Upload binary data (octet-stream) for `hasData` profiles.                                      |
+| POST      | `/api/history`                    | Create history record (multipart: record + optional file). Trigger for `RemoteHistoryChanged`. |
+| GET       | `/api/history/query`              | List/query records.                                                                            |
+| GET       | `/api/history/{profileId}`        | Fetch one record.                                                                              |
+| PUT       | `/api/history/{type}/{profileId}` | Update star/pin/delete/version. Trigger for `RemoteHistoryChanged`.                            |
+| GET       | `/api/history/{profileId}/data`   | Download record's binary data.                                                                 |
+| GET       | `/api/history/statistics`         | Aggregate counts.                                                                              |
 
 ---
 

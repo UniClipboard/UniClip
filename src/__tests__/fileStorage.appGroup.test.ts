@@ -109,8 +109,9 @@ describe('fileStorage App Group compatibility', () => {
     const { writePayload } = require('app-group-store');
     const { saveHistoryFile } = require('../utils/fileStorage');
 
-    await expect(saveHistoryFile('Image', 'ABC', 'image.png', new Uint8Array([1, 2]).buffer))
-      .resolves.toBe('file:///group/payloads/Image-ABC');
+    await expect(
+      saveHistoryFile('Image', 'ABC', 'image.png', new Uint8Array([1, 2]).buffer)
+    ).resolves.toBe('file:///group/payloads/Image-ABC');
     expect(writePayload).toHaveBeenCalledWith('Image-ABC', new Uint8Array([1, 2]));
   });
 

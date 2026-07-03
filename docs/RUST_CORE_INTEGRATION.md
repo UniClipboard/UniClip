@@ -77,6 +77,7 @@ The actual Rust source (`uc-mobile` + `uc-mobile-proto` crates) lives in the
 
 This project's `rust-core/scripts/` references the upstream repo via `UC_RUST_REPO`
 environment variable (defaults to `~/MyProjects/uniclipboard`). The scripts:
+
 1. Invoke `cargo build` / `cargo ndk` in the upstream workspace
 2. Run `uniffi-bindgen` to generate Swift/Kotlin bindings
 3. Copy compiled binaries + generated bindings into `modules/uc-core/{ios,android}/`
@@ -135,6 +136,7 @@ echo "Done. iOS artifacts staged in: $MODULE_DIR"
 ### 1.2 Expo Module Config
 
 **`modules/uc-core/expo-module.config.json`**:
+
 ```json
 {
   "platforms": ["ios", "android"],
@@ -151,6 +153,7 @@ echo "Done. iOS artifacts staged in: $MODULE_DIR"
 ### 1.3 Swift Expo Module Wrapper
 
 The Swift module is a thin wrapper that:
+
 - Calls `ucMobileInit()` once at module load
 - Holds a singleton `MobileSyncClient` (same pattern as the native iOS app's `RustSyncCore.shared`)
 - Exposes async methods via Expo Module API
@@ -748,7 +751,7 @@ export interface HistoryQuery {
   beforeMs?: number;
   afterMs?: number;
   modifiedAfterMs?: number;
-  types?: number;          // bitmask: Text=1, Image=2, File=4, Group=8
+  types?: number; // bitmask: Text=1, Image=2, File=4, Group=8
   searchText?: string;
   starred?: boolean;
   sortByLastAccessed?: boolean;
@@ -880,6 +883,7 @@ Build scripts reference the upstream Rust repo. For CI:
 Re-run `build-android.sh` locally when Rust code changes, commit the new `.so` files.
 
 **iOS**: xcframework is too large to commit (~70 MB). Options:
+
 - Publish xcframework to GitHub Releases, download during EAS build
 - Include Rust toolchain in the EAS build image and run `build-ios.sh` with the
   upstream repo available (e.g., via git submodule or checkout step)
@@ -888,15 +892,15 @@ Re-run `build-android.sh` locally when Rust code changes, commit the new `.so` f
 
 The current project does sync via TypeScript (`axios` + SignalR). Migration order:
 
-| Step | Current (TS) | Target (Rust via uc-core) | Risk |
-|---|---|---|---|
-| 1 | QR connect URI parsing (manual) | `parseConnectUri()` | None (pure fn) |
-| 2 | Connection testing (axios) | `testConnection()` / `probe()` | Low |
-| 3 | `axios` GET SyncClipboard.json | `getLatest()` | Medium |
-| 4 | `axios` PUT SyncClipboard.json | `putClipboard()` | Medium |
-| 5 | History query (axios POST) | `queryHistory()` / `getHistoryPayload()` | Medium |
-| 6 | File upload/download (NativeUtil) | `putFile()` / `getFile()` | Medium |
-| 7 | Sync decision logic (if any in TS) | Reducer functions | Low (Phase 3) |
+| Step | Current (TS)                       | Target (Rust via uc-core)                | Risk           |
+| ---- | ---------------------------------- | ---------------------------------------- | -------------- |
+| 1    | QR connect URI parsing (manual)    | `parseConnectUri()`                      | None (pure fn) |
+| 2    | Connection testing (axios)         | `testConnection()` / `probe()`           | Low            |
+| 3    | `axios` GET SyncClipboard.json     | `getLatest()`                            | Medium         |
+| 4    | `axios` PUT SyncClipboard.json     | `putClipboard()`                         | Medium         |
+| 5    | History query (axios POST)         | `queryHistory()` / `getHistoryPayload()` | Medium         |
+| 6    | File upload/download (NativeUtil)  | `putFile()` / `getFile()`                | Medium         |
+| 7    | Sync decision logic (if any in TS) | Reducer functions                        | Low (Phase 3)  |
 
 SignalR push notifications remain in JS (`@microsoft/signalr`) — the Rust core handles
 pull-based sync only.
@@ -913,6 +917,7 @@ pull-based sync only.
    The Swift/Kotlin wrapper maps each variant to a structured error.
 
 4. **Binary size impact**:
+
    - iOS: ~4 MB added to IPA (static lib, single arch after App Thinning)
    - Android: ~4 MB per ABI variant (with ABI splits)
 

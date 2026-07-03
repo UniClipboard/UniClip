@@ -52,8 +52,10 @@ export function ClipboardAccessPage({ onBack }: { onBack: () => void }) {
           header={<SwiftUIText>开启「从其他 App 粘贴」</SwiftUIText>}
           footer={
             <SwiftUIText>
-              iOS 只有在 App 读过一次其他 App 复制的内容后,才会弹出「允许粘贴」并把这项权限记住。全新安装、还没触发过的用户,系统设置里暂时看不到「从其他
-              App 粘贴」这一项。点下面按钮触发一次:弹出「允许粘贴」时选「允许」即完成授权,之后不再询问。
+              iOS 只有在 App 读过一次其他 App
+              复制的内容后,才会弹出「允许粘贴」并把这项权限记住。全新安装、还没触发过的用户,系统设置里暂时看不到「从其他
+              App
+              粘贴」这一项。点下面按钮触发一次:弹出「允许粘贴」时选「允许」即完成授权,之后不再询问。
             </SwiftUIText>
           }
         >
@@ -73,7 +75,8 @@ export function ClipboardAccessPage({ onBack }: { onBack: () => void }) {
           footer={
             <SwiftUIText>
               若刚才没弹窗,可能是剪贴板为空(先复制一段文字再触发),或你之前点过「不允许」被系统记住了。到系统设置把「从其他
-              App 粘贴」设为「允许」即可——触发过一次后这一项才会出现。iOS 不向 App 提供该项当前值,修改后无需返回确认。
+              App 粘贴」设为「允许」即可——触发过一次后这一项才会出现。iOS 不向 App
+              提供该项当前值,修改后无需返回确认。
             </SwiftUIText>
           }
         >

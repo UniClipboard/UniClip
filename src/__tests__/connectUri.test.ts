@@ -53,7 +53,12 @@ describe('parseConnectUri — positive', () => {
 
   it('trims whitespace before passing to Rust', () => {
     mockRustParse.mockReturnValue({
-      v: 1, url: 'http://a.b', urls: [], user: 'u', pwd: 'p', other: {},
+      v: 1,
+      url: 'http://a.b',
+      urls: [],
+      user: 'u',
+      pwd: 'p',
+      other: {},
     });
     parseConnectUri('  \nuniclipboard://connect?...\t ');
     expect(mockRustParse).toHaveBeenCalledWith('uniclipboard://connect?...');
@@ -65,13 +70,18 @@ describe('parseConnectUri — negative (Rust error mapping)', () => {
     { rustError: 'ConnectUriError.InvalidScheme', expected: 'INVALID_SCHEME' },
     { rustError: 'ConnectUriError.UnsupportedVersion', expected: 'UNSUPPORTED_VERSION' },
     { rustError: 'ConnectUriError.UnsupportedService', expected: 'UNSUPPORTED_SERVICE' },
-    { rustError: 'ConnectUriError.PayloadDecodeFailed: base64url: invalid', expected: 'PAYLOAD_DECODE_FAILED' },
+    {
+      rustError: 'ConnectUriError.PayloadDecodeFailed: base64url: invalid',
+      expected: 'PAYLOAD_DECODE_FAILED',
+    },
     { rustError: 'ConnectUriError.MissingField: pwd', expected: 'MISSING_FIELD' },
     { rustError: 'ConnectUriError.InvalidUrl', expected: 'INVALID_URL' },
   ];
 
   test.each(cases)('Rust throws "$rustError" → $expected', ({ rustError, expected }) => {
-    mockRustParse.mockImplementation(() => { throw new Error(rustError); });
+    mockRustParse.mockImplementation(() => {
+      throw new Error(rustError);
+    });
     const r = parseConnectUri('uniclipboard://connect?...');
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toBe(expected);
@@ -86,7 +96,9 @@ describe('parseConnectUri — edge cases', () => {
   });
 
   it('unknown Rust error maps to PAYLOAD_DECODE_FAILED', () => {
-    mockRustParse.mockImplementation(() => { throw new Error('SomeUnknownError'); });
+    mockRustParse.mockImplementation(() => {
+      throw new Error('SomeUnknownError');
+    });
     const r = parseConnectUri('uniclipboard://anything');
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toBe('PAYLOAD_DECODE_FAILED');

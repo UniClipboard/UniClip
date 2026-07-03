@@ -12,14 +12,7 @@ export interface AppRowProps {
   padding?: number;
 }
 
-export function AppRow({
-  children,
-  align,
-  justify,
-  spacing,
-  fullWidth,
-  padding,
-}: AppRowProps) {
+export function AppRow({ children, align, justify, spacing, fullWidth, padding }: AppRowProps) {
   const modifiers: ModifierConfig[] = [];
   if (fullWidth) modifiers.push(fillMaxWidth());
   if (padding) modifiers.push(paddingAll(padding));

@@ -26,17 +26,9 @@ export function AppBottomSheet({
   const isDark = colorScheme === 'dark';
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onDismiss}
-    >
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onDismiss}>
       <Pressable style={styles.backdrop} onPress={onDismiss}>
-        <Pressable
-          style={styles.sheet}
-          onPress={() => {}}
-        >
+        <Pressable style={styles.sheet} onPress={() => {}}>
           <BlurView
             intensity={90}
             tint={isDark ? 'systemChromeMaterialDark' : 'systemChromeMaterial'}

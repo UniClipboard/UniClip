@@ -34,8 +34,7 @@ export function AppDropdown<T extends string = string>({
   fullWidth,
 }: AppDropdownProps<T>) {
   const [expanded, setExpanded] = useState(false);
-  const selectedLabel =
-    options.find((o) => o.value === selectedValue)?.label ?? placeholder ?? '';
+  const selectedLabel = options.find((o) => o.value === selectedValue)?.label ?? placeholder ?? '';
   const selectedLabelState = useNativeState(selectedLabel);
 
   return (
@@ -54,9 +53,7 @@ export function AppDropdown<T extends string = string>({
         singleLine
         modifiers={[menuAnchor()]}
       >
-        {label ? (
-          <OutlinedTextField.Label>{label}</OutlinedTextField.Label>
-        ) : null}
+        {label ? <OutlinedTextField.Label>{label}</OutlinedTextField.Label> : null}
       </OutlinedTextField>
       <ExposedDropdownMenu expanded={expanded} onDismissRequest={() => setExpanded(false)}>
         {options.map((option) => (

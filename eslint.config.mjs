@@ -84,4 +84,22 @@ export default [
       },
     },
   },
+  {
+    // 这些文件被 tsconfig.json exclude,不参与 type-aware 解析
+    files: [
+      'ios-shims/**/*.{ts,tsx}',
+      'plugins/**/*.ts',
+      'src/__tests__/**/*.{ts,tsx}',
+      '**/*.test.{ts,tsx}',
+      'targets/**/*.js',
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: null,
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-deprecated': 'off',
+    },
+  },
 ];

@@ -79,11 +79,7 @@ export function GlassContainer({
 
   return (
     <View style={[getShapeStyle(shape, cornerRadius), { overflow: 'hidden' }, style]}>
-      <BlurView
-        intensity={80}
-        tint={tint}
-        style={StyleSheet.absoluteFill}
-      />
+      <BlurView intensity={80} tint={tint} style={StyleSheet.absoluteFill} />
       <View style={getStrokeStyle(shape, cornerRadius)} />
       {children}
     </View>

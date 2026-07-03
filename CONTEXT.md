@@ -11,6 +11,7 @@ a parallel native-feel implementation in progress. It syncs clipboard content (t
 image, single file) and history across devices through a self-hosted server.
 
 Supported server backends:
+
 - **SyncClipboard** protocol server (with SignalR push; see below)
 - **WebDAV**
 - **S3** object storage
@@ -37,26 +38,26 @@ App identity: `app.uniclipboard.android` / `app.uniclipboard.ios`, scheme `unicl
 ```
 
 The core sync logic is a **Rust reducer** (`uc-core`). TypeScript owns I/O (network,
-clipboard, persistence) and UI; all sync *decisions* route through Rust. This mirrors
+clipboard, persistence) and UI; all sync _decisions_ route through Rust. This mirrors
 the native iOS app's `SyncEngine.swift` so behavior stays identical across platforms.
 
 ## Key directories
 
-| Path | Contents |
-|------|----------|
-| `src/screens/` | Screens: Home, History, Settings, ShareReceive, ProcessText, QuickTile, WordPicker. Platform-split where UI diverges. |
-| `src/components/` | Reusable UI; many platform-split (`.android`/`.ios`/`.types`). |
-| `src/services/` | Business logic & I/O. See "Services" below. |
-| `src/stores/` | Zustand stores (settings, clipboard, history, sync, transfer queue, etc.). |
-| `src/theme/` | Material 3 tokens (`colors.ts`) + iOS tokens (`iosDesignTokens.ts`), spacing/radius/typography/motion/elevation. |
-| `src/navigation/` | React Navigation setup + `navigationRef` for imperative nav. |
-| `src/utils/` | Pure helpers: clipboard, hashing, URL classification, connect-URI parsing, file storage. |
-| `src/tasks/` | Background tasks (e.g. SMS code upload). |
-| `modules/` | Local Expo native modules (Kotlin/Swift + TS). Each maps to a tsconfig path alias. |
-| `rust-core/` | Build scripts that compile the upstream `uniclipboard` Rust crate into `modules/uc-core/`. |
-| `plugins/` | Expo config plugins (TS source → `plugins/build/*.js`); wire native manifest/permissions. |
-| `ios-shims/` | iOS stubs for Android-only `@expo/ui/jetpack-compose` imports. |
-| `web-stubs/` + `App.web.tsx` | Web build stubs (web is a secondary target). |
+| Path                         | Contents                                                                                                              |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `src/screens/`               | Screens: Home, History, Settings, ShareReceive, ProcessText, QuickTile, WordPicker. Platform-split where UI diverges. |
+| `src/components/`            | Reusable UI; many platform-split (`.android`/`.ios`/`.types`).                                                        |
+| `src/services/`              | Business logic & I/O. See "Services" below.                                                                           |
+| `src/stores/`                | Zustand stores (settings, clipboard, history, sync, transfer queue, etc.).                                            |
+| `src/theme/`                 | Material 3 tokens (`colors.ts`) + iOS tokens (`iosDesignTokens.ts`), spacing/radius/typography/motion/elevation.      |
+| `src/navigation/`            | React Navigation setup + `navigationRef` for imperative nav.                                                          |
+| `src/utils/`                 | Pure helpers: clipboard, hashing, URL classification, connect-URI parsing, file storage.                              |
+| `src/tasks/`                 | Background tasks (e.g. SMS code upload).                                                                              |
+| `modules/`                   | Local Expo native modules (Kotlin/Swift + TS). Each maps to a tsconfig path alias.                                    |
+| `rust-core/`                 | Build scripts that compile the upstream `uniclipboard` Rust crate into `modules/uc-core/`.                            |
+| `plugins/`                   | Expo config plugins (TS source → `plugins/build/*.js`); wire native manifest/permissions.                             |
+| `ios-shims/`                 | iOS stubs for Android-only `@expo/ui/jetpack-compose` imports.                                                        |
+| `web-stubs/` + `App.web.tsx` | Web build stubs (web is a secondary target).                                                                          |
 
 ## Path aliases (tsconfig)
 
@@ -68,18 +69,18 @@ bare name: `uc-core`, `native-util`, `shortcut`, `signalr-client`, `native-timer
 
 ## Native modules (`modules/`)
 
-| Module | Purpose |
-|--------|---------|
-| `uc-core` | **Rust core** via UniFFI. Sync reducer, clipboard protocol client, history DB, hashing. Kotlin/Swift bindings auto-generated; `.so` committed, iOS xcframework built locally. |
-| `foreground-service` | Android foreground service to keep clipboard monitoring alive. |
-| `clipboard-overlay` | Clipboard read via overlay (Android 10+ background clipboard access workaround). |
-| `shizuku-clipboard` | Background clipboard access via Shizuku. |
-| `native-timer` | Native interval timer for the 1Hz sync tick. |
-| `native-util` | Misc Android utilities (`moveTaskToBack`, exclude-from-recents, etc.). |
-| `shortcut` | Dynamic app shortcuts / quick tiles. |
-| `signalr-client` | SignalR client for SyncClipboard push notifications. |
-| `sms-forwarder` | SMS receiver for auto-forwarding verification codes. |
-| `qr-scanner` | QR scanning for the `uniclipboard://connect` provisioning URI. |
+| Module               | Purpose                                                                                                                                                                       |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `uc-core`            | **Rust core** via UniFFI. Sync reducer, clipboard protocol client, history DB, hashing. Kotlin/Swift bindings auto-generated; `.so` committed, iOS xcframework built locally. |
+| `foreground-service` | Android foreground service to keep clipboard monitoring alive.                                                                                                                |
+| `clipboard-overlay`  | Clipboard read via overlay (Android 10+ background clipboard access workaround).                                                                                              |
+| `shizuku-clipboard`  | Background clipboard access via Shizuku.                                                                                                                                      |
+| `native-timer`       | Native interval timer for the 1Hz sync tick.                                                                                                                                  |
+| `native-util`        | Misc Android utilities (`moveTaskToBack`, exclude-from-recents, etc.).                                                                                                        |
+| `shortcut`           | Dynamic app shortcuts / quick tiles.                                                                                                                                          |
+| `signalr-client`     | SignalR client for SyncClipboard push notifications.                                                                                                                          |
+| `sms-forwarder`      | SMS receiver for auto-forwarding verification codes.                                                                                                                          |
+| `qr-scanner`         | QR scanning for the `uniclipboard://connect` provisioning URI.                                                                                                                |
 
 ## Services (`src/services/`)
 
@@ -170,5 +171,5 @@ npm run build:apk      # release APK
 - `docs/RELEASE.md` — release & versioning workflow.
 - `docs/prd-syncclipboard-originhash.md` — origin-hash PRD (in progress).
 - `task_plan.md` / `findings.md` / `progress.md` — active working notes (transient).
-</content>
-</invoke>
+  </content>
+  </invoke>

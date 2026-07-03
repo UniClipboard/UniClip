@@ -66,7 +66,9 @@ describe('migrateConfig', () => {
   // --- historyImageAutoDownload → attachmentAutoDownload ---
 
   it('maps historyImageAutoDownload → attachmentAutoDownload', () => {
-    expect(migrateConfig({ historyImageAutoDownload: 'always' }).attachmentAutoDownload).toBe('always');
+    expect(migrateConfig({ historyImageAutoDownload: 'always' }).attachmentAutoDownload).toBe(
+      'always'
+    );
     expect(migrateConfig({ historyImageAutoDownload: 'off' }).attachmentAutoDownload).toBe('off');
     expect(migrateConfig({ historyImageAutoDownload: 'wifi' }).attachmentAutoDownload).toBe('wifi');
   });

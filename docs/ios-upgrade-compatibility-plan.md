@@ -2,23 +2,23 @@
 
 > Goal: let existing users of the native iOS app
 > (`/Users/mark/MyProjects/iOSApp/UniClipboard`) receive this Expo build as an
-> **App Store update (beta)** of the *same* app — not a fresh install of a
+> **App Store update (beta)** of the _same_ app — not a fresh install of a
 > separate "UniClip" app — with their server config, settings, history and
 > cached payloads preserved.
 
 ## 0. Status snapshot
 
-| Area | Item | State |
-| --- | --- | --- |
-| Update link | Bundle id (main / Share / Keyboard) unified to `app.uniclipboard.UniClipboard[.Share/.Keyboard]` | ✅ done |
-| Update link | Team `8XG39X5CL8`, App Group `group.app.uniclipboard.UniClipboard`, display name `UniClip` | ✅ already aligned |
-| Update link | Same App Store Connect app record; submitted build number > live | ⏳ manual (ASC) |
-| Data | Settings/servers **serialization** (suiteName / keys / Codable) | ✅ byte-identical |
-| Data | Legacy migration will not wipe native data | ✅ safe |
-| Data | **RN first-launch overwrites App Group servers with empty defaults** | ❌ **P0 blocker** |
-| Data | History list not read from App Group | ❌ P1 |
-| Data | Image/file payloads not read from native `payloads/` | ❌ P1 |
-| Data | `mapSettingsToAppGroupDTO` drops several fields | ⚠️ P2 |
+| Area        | Item                                                                                             | State              |
+| ----------- | ------------------------------------------------------------------------------------------------ | ------------------ |
+| Update link | Bundle id (main / Share / Keyboard) unified to `app.uniclipboard.UniClipboard[.Share/.Keyboard]` | ✅ done            |
+| Update link | Team `8XG39X5CL8`, App Group `group.app.uniclipboard.UniClipboard`, display name `UniClip`       | ✅ already aligned |
+| Update link | Same App Store Connect app record; submitted build number > live                                 | ⏳ manual (ASC)    |
+| Data        | Settings/servers **serialization** (suiteName / keys / Codable)                                  | ✅ byte-identical  |
+| Data        | Legacy migration will not wipe native data                                                       | ✅ safe            |
+| Data        | **RN first-launch overwrites App Group servers with empty defaults**                             | ❌ **P0 blocker**  |
+| Data        | History list not read from App Group                                                             | ❌ P1              |
+| Data        | Image/file payloads not read from native `payloads/`                                             | ❌ P1              |
+| Data        | `mapSettingsToAppGroupDTO` drops several fields                                                  | ⚠️ P2              |
 
 Bundle-id edits already applied:
 `app.json:13,74,81`, `targets/share/expo-target.config.js:6`,
@@ -32,7 +32,7 @@ The Expo project stores data in **two disconnected places**:
 - **World A — App Group container** (`group.app.uniclipboard.UniClipboard`),
   used by the Swift extensions and the `modules/app-group-store` native module.
   Its Swift models (`targets/_shared/*.swift`, `modules/app-group-store/ios/Shared/*.swift`)
-  are byte-identical to the native app's `Shared/`, so the *format* is fully
+  are byte-identical to the native app's `Shared/`, so the _format_ is fully
   compatible.
 - **World B — RN app sandbox**, used by the screens the user actually sees:
   `expo-file-system` `Paths.document/clipboards/…` (`src/utils/fileStorage.ts:18-21`)
@@ -64,7 +64,7 @@ First launch, no local AsyncStorage config yet:
 
 ### 2.2 Fix — seed ConfigStorage from the App Group on first launch
 
-Do it inside `ConfigStorage.loadConfig`'s empty branch, *before* falling back
+Do it inside `ConfigStorage.loadConfig`'s empty branch, _before_ falling back
 to defaults. Once ConfigStorage holds the real config, the later
 `publishConfig` pushes the correct values back (idempotent, no data loss), so
 no extra guard/sentinel is needed — the branch only runs when there is no local
@@ -108,23 +108,33 @@ export async function seedConfigFromAppGroup(): Promise<Partial<AppSettings> | n
     servers,
     activeServerIndex: activeServerIndex >= 0 ? activeServerIndex : servers.length ? 0 : -1,
   };
-  if (settings.trustInsecureCert !== undefined) partial.trustInsecureCert = settings.trustInsecureCert;
-  if (settings.autoApplyServerChanges !== undefined) partial.autoApplyRemote = settings.autoApplyServerChanges;
-  if (settings.autoPushDeviceChanges !== undefined) partial.autoPushLocal = settings.autoPushDeviceChanges;
-  if (settings.payloadCacheMaxBytes !== undefined) partial.payloadCacheMaxBytes = settings.payloadCacheMaxBytes;
+  if (settings.trustInsecureCert !== undefined)
+    partial.trustInsecureCert = settings.trustInsecureCert;
+  if (settings.autoApplyServerChanges !== undefined)
+    partial.autoApplyRemote = settings.autoApplyServerChanges;
+  if (settings.autoPushDeviceChanges !== undefined)
+    partial.autoPushLocal = settings.autoPushDeviceChanges;
+  if (settings.payloadCacheMaxBytes !== undefined)
+    partial.payloadCacheMaxBytes = settings.payloadCacheMaxBytes;
   if (settings.appearance !== undefined) partial.appearance = settings.appearance;
   if (settings.autoCheckUpdate !== undefined) partial.autoCheckUpdate = settings.autoCheckUpdate;
   if (settings.ignoredVersion !== undefined) partial.ignoredVersion = settings.ignoredVersion;
-  if (settings.downloadRelativePath !== undefined) partial.downloadRelativePath = settings.downloadRelativePath;
+  if (settings.downloadRelativePath !== undefined)
+    partial.downloadRelativePath = settings.downloadRelativePath;
 
   // attachmentAutoDownload is derived from two booleans (mapAttachmentPrefetch)
   if (settings.prefetchAttachments !== undefined) {
     partial.attachmentAutoDownload = settings.prefetchAttachments
-      ? settings.prefetchOnCellular ? 'always' : 'wifi'
+      ? settings.prefetchOnCellular
+        ? 'always'
+        : 'wifi'
       : 'off';
   }
   // logViewLevelFilter → logLevel, validate against the enum
-  if (settings.logViewLevelFilter && ['debug', 'info', 'warn', 'error'].includes(settings.logViewLevelFilter)) {
+  if (
+    settings.logViewLevelFilter &&
+    ['debug', 'info', 'warn', 'error'].includes(settings.logViewLevelFilter)
+  ) {
     partial.logLevel = settings.logViewLevelFilter as AppSettings['logLevel'];
   }
   return partial;
@@ -153,14 +163,14 @@ has servers — so an accidental empty push can never clobber real data.
 
 ### 2.4 Field-mapping reference (servers)
 
-| App Group DTO (`AppGroupServerConfigDTO`) | RN `ServerConfig` |
-| --- | --- |
-| `id` | (drop; RN re-derives via `makeUniqueConfigId`) |
-| `name?` | `name?` |
-| `urls[]` | `urls[]`, and `url = urls[0]` |
-| `username` | `username` |
-| `password` | `password` |
-| `activeConfigId` | `activeServerIndex = configs.findIndex(id === activeConfigId)` |
+| App Group DTO (`AppGroupServerConfigDTO`) | RN `ServerConfig`                                              |
+| ----------------------------------------- | -------------------------------------------------------------- |
+| `id`                                      | (drop; RN re-derives via `makeUniqueConfigId`)                 |
+| `name?`                                   | `name?`                                                        |
+| `urls[]`                                  | `urls[]`, and `url = urls[0]`                                  |
+| `username`                                | `username`                                                     |
+| `password`                                | `password`                                                     |
+| `activeConfigId`                          | `activeServerIndex = configs.findIndex(id === activeConfigId)` |
 
 Only `type: 'syncclipboard'` servers exist in the App Group (native app is
 SyncClipboard-only), so no WebDAV/S3 handling is needed here.
@@ -170,7 +180,7 @@ SyncClipboard-only), so no WebDAV/S3 handling is needed here.
 ## 3. P1 — Migrate history + payload cache (strongly recommended)
 
 Not a hard blocker (server config survives via P0, so the app re-pulls), but
-without it the upgrade *feels* like a fresh install: history list empties and
+without it the upgrade _feels_ like a fresh install: history list empties and
 every image/file re-downloads.
 
 ### 3.1 History
@@ -189,21 +199,22 @@ Steps:
 2. In a one-time RN migration (guarded by an AsyncStorage sentinel, e.g.
    `@migrated:appgroup_history`), parse and map each row:
 
-   | `ClipboardHistoryItem` (native) | `ClipboardItem` (RN) |
-   | --- | --- |
-   | `entry.type` | `type` |
-   | `entry.text` | `text` |
-   | `entry.hash` | `profileHash` (`?? ''`) |
-   | `entry.hasData` | `hasData`, `hasRemoteData` |
-   | `entry.dataName` | `dataName` |
-   | `entry.size` | `size` |
-   | `timestamp` (Date) | `timestamp` = epoch ms (also `lastModified`/`lastAccessed`) |
-   | `direction` (`pulled`/`pushed`/`local`) | `from`; `syncStatus = local ? LocalOnly : Synced` |
-   | `id` (UUID) | drop; RN keys by its own scheme — confirm in `HistoryStorage` |
-   | — | `starred:false, version:0, isDeleted:false, pinned:false, isLocalFileReady:false` |
+   | `ClipboardHistoryItem` (native)         | `ClipboardItem` (RN)                                                              |
+   | --------------------------------------- | --------------------------------------------------------------------------------- |
+   | `entry.type`                            | `type`                                                                            |
+   | `entry.text`                            | `text`                                                                            |
+   | `entry.hash`                            | `profileHash` (`?? ''`)                                                           |
+   | `entry.hasData`                         | `hasData`, `hasRemoteData`                                                        |
+   | `entry.dataName`                        | `dataName`                                                                        |
+   | `entry.size`                            | `size`                                                                            |
+   | `timestamp` (Date)                      | `timestamp` = epoch ms (also `lastModified`/`lastAccessed`)                       |
+   | `direction` (`pulled`/`pushed`/`local`) | `from`; `syncStatus = local ? LocalOnly : Synced`                                 |
+   | `id` (UUID)                             | drop; RN keys by its own scheme — confirm in `HistoryStorage`                     |
+   | —                                       | `starred:false, version:0, isDeleted:false, pinned:false, isLocalFileReady:false` |
 
    Set `isLocalFileReady:false` unless the matching payload is also migrated
    (§3.2), so the UI knows to fetch on demand.
+
 3. Insert via `HistoryStorage`'s bulk/import path (read `HistoryStorage.ts` for
    the exact write API and dedup key before wiring this up). Merge, don't
    clobber, if RN already has rows.
@@ -251,9 +262,9 @@ overwrite. Low urgency; does not block the beta.
 
 1. **Same ASC app record**: confirm `app.uniclipboard.UniClipboard` exists in
    App Store Connect and is the record that shipped the native app. Bundle-id
-   parity only helps if the new binary is uploaded to *that* record.
+   parity only helps if the new binary is uploaded to _that_ record.
 2. **Build number**: native live build is `12` (`project.pbxproj
-   CURRENT_PROJECT_VERSION`). The submitted build number must exceed the last
+CURRENT_PROJECT_VERSION`). The submitted build number must exceed the last
    TestFlight/App Store build. `eas.json` uses `appVersionSource: remote` +
    `autoIncrement`; make sure the remote counter starts above the live value.
 3. **Regenerate native project**: `npx expo prebuild -p ios` so `ios/` picks up

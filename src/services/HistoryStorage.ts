@@ -11,7 +11,10 @@ import { filterHistoryItems } from '@/utils/historyFilters';
 import { getHistoryFileDir, saveHistoryFile } from '../utils/fileStorage';
 import { File, Directory } from 'expo-file-system';
 import { log } from './Logger';
-import { importHistoryFromAppGroup, repairAppGroupHistoryPayloadUris } from './appGroupHistoryImport';
+import {
+  importHistoryFromAppGroup,
+  repairAppGroupHistoryPayloadUris,
+} from './appGroupHistoryImport';
 
 /**
  * 当前历史记录数据版本号
@@ -416,7 +419,9 @@ export class HistoryStorage {
       if (removed > 0) {
         this.history = dedupedHistory;
         this.sortHistory();
-        log.warn(`[HistoryStorage] Removed ${removed} duplicate history entries (same profileHash)`);
+        log.warn(
+          `[HistoryStorage] Removed ${removed} duplicate history entries (same profileHash)`
+        );
         await this.saveHistory();
       }
     } else {

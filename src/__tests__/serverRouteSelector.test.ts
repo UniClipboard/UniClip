@@ -25,11 +25,9 @@ describe('serverRouteSelector', () => {
   it('orders one server profile for the current network and remembered live url', () => {
     const config = server([wan, lan, tailnet]);
 
-    expect(orderServerUrls(config, { isWifi: true, isCellular: false, isTailscale: false })).toEqual([
-      lan,
-      tailnet,
-      wan,
-    ]);
+    expect(
+      orderServerUrls(config, { isWifi: true, isCellular: false, isTailscale: false })
+    ).toEqual([lan, tailnet, wan]);
 
     expect(
       orderServerUrls(config, { isWifi: false, isCellular: true, isTailscale: false })

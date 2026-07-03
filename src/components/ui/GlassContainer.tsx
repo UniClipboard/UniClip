@@ -19,9 +19,7 @@ export function GlassContainer({
   children,
 }: GlassContainerProps) {
   const shapeStyle: ViewStyle =
-    shape === 'card'
-      ? { borderRadius: cornerRadius ?? 18 }
-      : { borderRadius: 9999 };
+    shape === 'card' ? { borderRadius: cornerRadius ?? 18 } : { borderRadius: 9999 };
 
   return <View style={[shapeStyle, { overflow: 'hidden' }, style]}>{children}</View>;
 }

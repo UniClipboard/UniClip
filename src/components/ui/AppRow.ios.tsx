@@ -24,14 +24,7 @@ const JUSTIFY_MAP: Record<string, ViewStyle['justifyContent']> = {
   spaceEvenly: 'space-evenly',
 };
 
-export function AppRow({
-  children,
-  align,
-  justify,
-  spacing,
-  fullWidth,
-  padding,
-}: AppRowProps) {
+export function AppRow({ children, align, justify, spacing, fullWidth, padding }: AppRowProps) {
   return (
     <View
       style={[

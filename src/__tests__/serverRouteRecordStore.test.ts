@@ -1,9 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getLiveUrl, saveLiveUrl } from 'app-group-store';
-import {
-  loadServerRouteLiveUrl,
-  saveServerRouteLiveUrl,
-} from '@/services/serverRouteRecordStore';
+import { loadServerRouteLiveUrl, saveServerRouteLiveUrl } from '@/services/serverRouteRecordStore';
 
 const mockGetItem = AsyncStorage.getItem as jest.Mock;
 const mockSetItem = AsyncStorage.setItem as jest.Mock;

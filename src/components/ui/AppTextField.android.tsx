@@ -1,8 +1,5 @@
 import { OutlinedTextField, useNativeState } from '@expo/ui/jetpack-compose';
-import type {
-  TextFieldKeyboardType,
-  TextFieldColors,
-} from '@expo/ui/jetpack-compose';
+import type { TextFieldKeyboardType, TextFieldColors } from '@expo/ui/jetpack-compose';
 import { fillMaxWidth } from '@expo/ui/jetpack-compose/modifiers';
 import type { ColorValue } from 'react-native';
 
@@ -40,9 +37,7 @@ export function AppTextField({
       colors={colors}
       modifiers={fullWidth ? [fillMaxWidth()] : undefined}
     >
-      {label ? (
-        <OutlinedTextField.Label>{label}</OutlinedTextField.Label>
-      ) : null}
+      {label ? <OutlinedTextField.Label>{label}</OutlinedTextField.Label> : null}
       {placeholder ? (
         <OutlinedTextField.Placeholder>{placeholder}</OutlinedTextField.Placeholder>
       ) : null}

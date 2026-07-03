@@ -6,10 +6,7 @@
  * 保证渲染 key 全局唯一且对相同输入稳定;首份副本保留原始 key,
  * 正常(无重复)数据的动画身份完全不受影响。
  */
-export function buildOccurrenceKeys<T>(
-  items: T[],
-  keyExtractor: (item: T) => string
-): string[] {
+export function buildOccurrenceKeys<T>(items: T[], keyExtractor: (item: T) => string): string[] {
   const seen = new Map<string, number>();
   return items.map((item) => {
     const base = keyExtractor(item);

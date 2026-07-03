@@ -90,7 +90,10 @@ function BaseButton({ onClick, enabled = true, colors, children }: ButtonProps) 
       ]}
     >
       {React.Children.map(children, (child) => {
-        if (React.isValidElement(child) && (child.type === Text || (child.type as any)?.displayName === 'Text')) {
+        if (
+          React.isValidElement(child) &&
+          (child.type === Text || (child.type as any)?.displayName === 'Text')
+        ) {
           return React.cloneElement(child as React.ReactElement<any>, {
             color: (child.props as any).color || colors?.contentColor || '#fff',
           });
@@ -113,7 +116,10 @@ export function OutlinedButton({ colors, ...props }: ButtonProps) {
       style={[shimStyles.outlinedButton, props.enabled === false && shimStyles.buttonDisabled]}
     >
       {React.Children.map(props.children, (child) => {
-        if (React.isValidElement(child) && (child.type === Text || (child.type as any)?.displayName === 'Text')) {
+        if (
+          React.isValidElement(child) &&
+          (child.type === Text || (child.type as any)?.displayName === 'Text')
+        ) {
           return React.cloneElement(child as React.ReactElement<any>, {
             color: (child.props as any).color || colors?.contentColor || '#007AFF',
           });
@@ -136,7 +142,10 @@ export function FilledTonalButton({ colors, ...props }: ButtonProps) {
       ]}
     >
       {React.Children.map(props.children, (child) => {
-        if (React.isValidElement(child) && (child.type === Text || (child.type as any)?.displayName === 'Text')) {
+        if (
+          React.isValidElement(child) &&
+          (child.type === Text || (child.type as any)?.displayName === 'Text')
+        ) {
           return React.cloneElement(child as React.ReactElement<any>, {
             color: (child.props as any).color || colors?.contentColor || '#333',
           });
@@ -155,7 +164,10 @@ export function TextButton({ colors, ...props }: ButtonProps) {
       style={props.enabled === false ? shimStyles.buttonDisabled : undefined}
     >
       {React.Children.map(props.children, (child) => {
-        if (React.isValidElement(child) && (child.type === Text || (child.type as any)?.displayName === 'Text')) {
+        if (
+          React.isValidElement(child) &&
+          (child.type === Text || (child.type as any)?.displayName === 'Text')
+        ) {
           return React.cloneElement(child as React.ReactElement<any>, {
             color: (child.props as any).color || colors?.contentColor || '#007AFF',
           });
@@ -192,7 +204,9 @@ export function Switch({ value, onCheckedChange, enabled = true, colors }: Switc
         false: colors?.uncheckedTrackColor as string,
         true: colors?.checkedTrackColor as string,
       }}
-      thumbColor={value ? (colors?.checkedThumbColor as string) : (colors?.uncheckedThumbColor as string)}
+      thumbColor={
+        value ? (colors?.checkedThumbColor as string) : (colors?.uncheckedThumbColor as string)
+      }
     />
   );
 }
@@ -220,9 +234,19 @@ interface LinearProgressProps {
 export function LinearProgressIndicator({ progress, color, trackColor }: LinearProgressProps) {
   const pct = progress != null ? Math.max(0, Math.min(1, progress)) : undefined;
   return (
-    <View style={[shimStyles.linearTrack, trackColor ? { backgroundColor: trackColor as string } : null]}>
+    <View
+      style={[
+        shimStyles.linearTrack,
+        trackColor ? { backgroundColor: trackColor as string } : null,
+      ]}
+    >
       {pct != null ? (
-        <View style={[shimStyles.linearFill, { width: `${pct * 100}%`, backgroundColor: (color as string) || '#007AFF' }]} />
+        <View
+          style={[
+            shimStyles.linearFill,
+            { width: `${pct * 100}%`, backgroundColor: (color as string) || '#007AFF' },
+          ]}
+        />
       ) : (
         <ActivityIndicator color={color as string} style={{ alignSelf: 'center' }} />
       )}
@@ -263,16 +287,24 @@ export function AlertDialog({ onDismissRequest, colors, children }: AlertDialogP
     if (child.type === AlertDialogTitle || (child.type as any) === AlertDialog.Title) {
       React.Children.forEach(child.props.children, (c: any) => {
         if (typeof c === 'string') title = c;
-        else if (React.isValidElement(c) && (c.props as any).children) title = (c.props as any).children;
+        else if (React.isValidElement(c) && (c.props as any).children)
+          title = (c.props as any).children;
       });
     } else if (child.type === AlertDialogText || (child.type as any) === AlertDialog.Text) {
       React.Children.forEach(child.props.children, (c: any) => {
         if (typeof c === 'string') message = c;
-        else if (React.isValidElement(c) && (c.props as any).children) message = (c.props as any).children;
+        else if (React.isValidElement(c) && (c.props as any).children)
+          message = (c.props as any).children;
       });
-    } else if (child.type === AlertDialogConfirmButton || (child.type as any) === AlertDialog.ConfirmButton) {
+    } else if (
+      child.type === AlertDialogConfirmButton ||
+      (child.type as any) === AlertDialog.ConfirmButton
+    ) {
       confirmNode = child.props.children;
-    } else if (child.type === AlertDialogDismissButton || (child.type as any) === AlertDialog.DismissButton) {
+    } else if (
+      child.type === AlertDialogDismissButton ||
+      (child.type as any) === AlertDialog.DismissButton
+    ) {
       dismissNode = child.props.children;
     }
   });
@@ -280,7 +312,12 @@ export function AlertDialog({ onDismissRequest, colors, children }: AlertDialogP
   return (
     <Modal transparent animationType="fade" onRequestClose={onDismissRequest}>
       <Pressable style={shimStyles.dialogOverlay} onPress={onDismissRequest}>
-        <View style={[shimStyles.dialogContainer, colors?.containerColor ? { backgroundColor: colors.containerColor as string } : null]}>
+        <View
+          style={[
+            shimStyles.dialogContainer,
+            colors?.containerColor ? { backgroundColor: colors.containerColor as string } : null,
+          ]}
+        >
           {title ? <RNText style={shimStyles.dialogTitle}>{title}</RNText> : null}
           {message ? <RNText style={shimStyles.dialogMessage}>{message}</RNText> : null}
           <View style={shimStyles.dialogButtons}>
@@ -331,15 +368,21 @@ export function OutlinedTextField({
 }: OutlinedTextFieldProps) {
   let placeholder = '';
   React.Children.forEach(children, (child) => {
-    if (React.isValidElement(child) && ((child.type as any) === OutlinedTextField.Placeholder || (child.type as any) === TextFieldPlaceholder)) {
+    if (
+      React.isValidElement(child) &&
+      ((child.type as any) === OutlinedTextField.Placeholder ||
+        (child.type as any) === TextFieldPlaceholder)
+    ) {
       React.Children.forEach(child.props.children, (c: any) => {
         if (typeof c === 'string') placeholder = c;
-        else if (React.isValidElement(c) && (c.props as any).children) placeholder = (c.props as any).children;
+        else if (React.isValidElement(c) && (c.props as any).children)
+          placeholder = (c.props as any).children;
       });
     }
   });
 
-  const keyboardType = keyboardOptions?.keyboardType === 'number' ? 'numeric' as const : 'default' as const;
+  const keyboardType =
+    keyboardOptions?.keyboardType === 'number' ? ('numeric' as const) : ('default' as const);
 
   return (
     <TextInput
@@ -372,7 +415,12 @@ interface CardProps {
 
 export function Card({ colors, children }: CardProps) {
   return (
-    <View style={[shimStyles.card, colors?.containerColor ? { backgroundColor: colors.containerColor as string } : null]}>
+    <View
+      style={[
+        shimStyles.card,
+        colors?.containerColor ? { backgroundColor: colors.containerColor as string } : null,
+      ]}
+    >
       {children}
     </View>
   );
@@ -408,14 +456,23 @@ export function ListItem({ colors, children }: ListItemProps) {
   React.Children.forEach(children, (child) => {
     if (!React.isValidElement(child)) return;
     const type = child.type as any;
-    if (type === ListItemOverlineContent || type === ListItem.OverlineContent) overline = child.props.children;
-    else if (type === ListItemHeadlineContent || type === ListItem.HeadlineContent) headline = child.props.children;
-    else if (type === ListItemSupportingContent || type === ListItem.SupportingContent) supporting = child.props.children;
-    else if (type === ListItemTrailingContent || type === ListItem.TrailingContent) trailing = child.props.children;
+    if (type === ListItemOverlineContent || type === ListItem.OverlineContent)
+      overline = child.props.children;
+    else if (type === ListItemHeadlineContent || type === ListItem.HeadlineContent)
+      headline = child.props.children;
+    else if (type === ListItemSupportingContent || type === ListItem.SupportingContent)
+      supporting = child.props.children;
+    else if (type === ListItemTrailingContent || type === ListItem.TrailingContent)
+      trailing = child.props.children;
   });
 
   return (
-    <View style={[shimStyles.listItem, colors?.containerColor ? { backgroundColor: colors.containerColor as string } : null]}>
+    <View
+      style={[
+        shimStyles.listItem,
+        colors?.containerColor ? { backgroundColor: colors.containerColor as string } : null,
+      ]}
+    >
       <View style={{ flex: 1 }}>
         {overline}
         {headline}
@@ -457,9 +514,11 @@ export function Row({ verticalAlignment, horizontalArrangement, children }: RowP
         flexDirection: 'row',
         alignItems: verticalAlignment === 'center' ? 'center' : undefined,
         justifyContent:
-          horizontalArrangement === 'center' ? 'center' :
-          horizontalArrangement === 'end' ? 'flex-end' :
-          undefined,
+          horizontalArrangement === 'center'
+            ? 'center'
+            : horizontalArrangement === 'end'
+              ? 'flex-end'
+              : undefined,
         width: '100%',
       }}
     >
@@ -535,14 +594,16 @@ interface ExposedDropdownMenuProps {
   [key: string]: any;
 }
 
-export function ExposedDropdownMenu({ expanded, onDismissRequest, children }: ExposedDropdownMenuProps) {
+export function ExposedDropdownMenu({
+  expanded,
+  onDismissRequest,
+  children,
+}: ExposedDropdownMenuProps) {
   if (!expanded) return null;
   return (
     <Modal transparent animationType="fade" onRequestClose={onDismissRequest}>
       <Pressable style={shimStyles.dropdownOverlay} onPress={onDismissRequest}>
-        <View style={shimStyles.dropdownMenu}>
-          {children}
-        </View>
+        <View style={shimStyles.dropdownMenu}>{children}</View>
       </Pressable>
     </Modal>
   );
@@ -562,10 +623,14 @@ export function DropdownMenuItem({ onClick, children }: DropdownMenuItemProps) {
   let label = '';
   React.Children.forEach(children, (child) => {
     if (!React.isValidElement(child)) return;
-    if ((child.type as any) === DropdownMenuItem.Text || (child.type as any) === DropdownMenuItemText) {
+    if (
+      (child.type as any) === DropdownMenuItem.Text ||
+      (child.type as any) === DropdownMenuItemText
+    ) {
       React.Children.forEach(child.props.children, (c: any) => {
         if (typeof c === 'string') label = c;
-        else if (React.isValidElement(c) && (c.props as any).children) label = (c.props as any).children;
+        else if (React.isValidElement(c) && (c.props as any).children)
+          label = (c.props as any).children;
       });
     }
   });

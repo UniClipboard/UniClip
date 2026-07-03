@@ -7,157 +7,157 @@ description: Cross-platform clipboard sync app — Material 3 Expressive on Andr
 android:
   colors:
     # Source tokens — vary by palette (indigo shown)
-    primary: "#4A4FCF"
-    on-primary: "#FFFFFF"
-    primary-container: "#DEDFFF"
-    on-primary-container: "#000F73"
-    background: "#FBF8FF"
-    surface: "#FBF8FF"
-    surface-container-lowest: "#FFFFFF"
-    surface-container-low: "#F4F1F9"
-    surface-container: "#EEEBF3"
-    surface-container-high: "#E9E6EE"
-    surface-container-highest: "#E3E0E8"
-    surface-variant: "#E3E1EC"
-    on-surface: "#1D1B20"
-    on-surface-variant: "#46464F"
-    on-background: "#1D1B20"
-    outline: "#767680"
-    outline-variant: "#C7C5D0"
+    primary: '#4A4FCF'
+    on-primary: '#FFFFFF'
+    primary-container: '#DEDFFF'
+    on-primary-container: '#000F73'
+    background: '#FBF8FF'
+    surface: '#FBF8FF'
+    surface-container-lowest: '#FFFFFF'
+    surface-container-low: '#F4F1F9'
+    surface-container: '#EEEBF3'
+    surface-container-high: '#E9E6EE'
+    surface-container-highest: '#E3E0E8'
+    surface-variant: '#E3E1EC'
+    on-surface: '#1D1B20'
+    on-surface-variant: '#46464F'
+    on-background: '#1D1B20'
+    outline: '#767680'
+    outline-variant: '#C7C5D0'
     # Fixed tokens
-    secondary: "#625B71"
-    on-secondary: "#FFFFFF"
-    secondary-container: "#E8DEF8"
-    on-secondary-container: "#1D192B"
-    tertiary: "#7D5260"
-    on-tertiary: "#FFFFFF"
-    tertiary-container: "#FFD8E4"
-    on-tertiary-container: "#31111D"
-    error: "#B3261E"
-    on-error: "#FFFFFF"
-    error-container: "#F9DEDC"
-    on-error-container: "#410E0B"
-    warning: "#FF9500"
-    warning-container: "#FFF4E5"
-    on-warning-container: "#8C5400"
-    success: "#34C759"
-    success-container: "#E6F4EA"
-    on-success-container: "#1B5E20"
-    info: "#5AC8FA"
-    info-container: "#E3F2FD"
-    on-info-container: "#0D47A1"
-    inverse-surface: "#322F35"
-    inverse-on-surface: "#F5EFF7"
-    overlay: "rgba(0, 0, 0, 0.3)"
-    backdrop: "rgba(0, 0, 0, 0.5)"
-    white: "#FFFFFF"
+    secondary: '#625B71'
+    on-secondary: '#FFFFFF'
+    secondary-container: '#E8DEF8'
+    on-secondary-container: '#1D192B'
+    tertiary: '#7D5260'
+    on-tertiary: '#FFFFFF'
+    tertiary-container: '#FFD8E4'
+    on-tertiary-container: '#31111D'
+    error: '#B3261E'
+    on-error: '#FFFFFF'
+    error-container: '#F9DEDC'
+    on-error-container: '#410E0B'
+    warning: '#FF9500'
+    warning-container: '#FFF4E5'
+    on-warning-container: '#8C5400'
+    success: '#34C759'
+    success-container: '#E6F4EA'
+    on-success-container: '#1B5E20'
+    info: '#5AC8FA'
+    info-container: '#E3F2FD'
+    on-info-container: '#0D47A1'
+    inverse-surface: '#322F35'
+    inverse-on-surface: '#F5EFF7'
+    overlay: 'rgba(0, 0, 0, 0.3)'
+    backdrop: 'rgba(0, 0, 0, 0.5)'
+    white: '#FFFFFF'
 
   colors-dark:
-    primary: "#BCC2FF"
-    on-primary: "#1A23A6"
-    primary-container: "#333BB7"
-    on-primary-container: "#DEDFFF"
-    background: "#121318"
-    surface: "#121318"
-    surface-container-lowest: "#0D0E13"
-    surface-container-low: "#1A1B21"
-    surface-container: "#1F1F25"
-    surface-container-high: "#29292F"
-    surface-container-highest: "#34343A"
-    surface-variant: "#46464F"
-    on-surface: "#E6E0E9"
-    on-surface-variant: "#C7C5D0"
-    on-background: "#E6E0E9"
-    outline: "#91909A"
-    outline-variant: "#46464F"
-    secondary: "#CCC2DC"
-    secondary-container: "#4A4458"
-    tertiary: "#EFB8C8"
-    tertiary-container: "#633B48"
-    error: "#F2B8B5"
-    error-container: "#8C1D18"
-    warning: "#FF9F0A"
-    warning-container: "#3B2A0F"
-    success: "#30D158"
-    success-container: "#14331D"
-    info: "#64D2FF"
-    info-container: "#0F2A3B"
-    inverse-surface: "#E6E0E9"
-    inverse-on-surface: "#322F35"
-    overlay: "rgba(255, 255, 255, 0.1)"
-    backdrop: "rgba(0, 0, 0, 0.7)"
-    white: "#FFFFFF"
+    primary: '#BCC2FF'
+    on-primary: '#1A23A6'
+    primary-container: '#333BB7'
+    on-primary-container: '#DEDFFF'
+    background: '#121318'
+    surface: '#121318'
+    surface-container-lowest: '#0D0E13'
+    surface-container-low: '#1A1B21'
+    surface-container: '#1F1F25'
+    surface-container-high: '#29292F'
+    surface-container-highest: '#34343A'
+    surface-variant: '#46464F'
+    on-surface: '#E6E0E9'
+    on-surface-variant: '#C7C5D0'
+    on-background: '#E6E0E9'
+    outline: '#91909A'
+    outline-variant: '#46464F'
+    secondary: '#CCC2DC'
+    secondary-container: '#4A4458'
+    tertiary: '#EFB8C8'
+    tertiary-container: '#633B48'
+    error: '#F2B8B5'
+    error-container: '#8C1D18'
+    warning: '#FF9F0A'
+    warning-container: '#3B2A0F'
+    success: '#30D158'
+    success-container: '#14331D'
+    info: '#64D2FF'
+    info-container: '#0F2A3B'
+    inverse-surface: '#E6E0E9'
+    inverse-on-surface: '#322F35'
+    overlay: 'rgba(255, 255, 255, 0.1)'
+    backdrop: 'rgba(0, 0, 0, 0.7)'
+    white: '#FFFFFF'
 
   typography:
     large-title:
       fontFamily: system
       fontSize: 34px
-      fontWeight: "700"
+      fontWeight: '700'
       lineHeight: 41px
       letterSpacing: 0.37px
     title1:
       fontFamily: system
       fontSize: 28px
-      fontWeight: "700"
+      fontWeight: '700'
       lineHeight: 34px
       letterSpacing: 0.36px
     title2:
       fontFamily: system
       fontSize: 22px
-      fontWeight: "700"
+      fontWeight: '700'
       lineHeight: 28px
       letterSpacing: 0.35px
     title3:
       fontFamily: system
       fontSize: 20px
-      fontWeight: "600"
+      fontWeight: '600'
       lineHeight: 25px
       letterSpacing: 0.38px
     headline:
       fontFamily: system
       fontSize: 17px
-      fontWeight: "600"
+      fontWeight: '600'
       lineHeight: 22px
       letterSpacing: -0.43px
     body:
       fontFamily: system
       fontSize: 17px
-      fontWeight: "400"
+      fontWeight: '400'
       lineHeight: 22px
       letterSpacing: -0.43px
     callout:
       fontFamily: system
       fontSize: 16px
-      fontWeight: "400"
+      fontWeight: '400'
       lineHeight: 21px
       letterSpacing: -0.32px
     subhead:
       fontFamily: system
       fontSize: 15px
-      fontWeight: "400"
+      fontWeight: '400'
       lineHeight: 20px
       letterSpacing: -0.24px
     footnote:
       fontFamily: system
       fontSize: 13px
-      fontWeight: "400"
+      fontWeight: '400'
       lineHeight: 18px
       letterSpacing: -0.08px
     caption1:
       fontFamily: system
       fontSize: 12px
-      fontWeight: "400"
+      fontWeight: '400'
       lineHeight: 16px
     caption2:
       fontFamily: system
       fontSize: 11px
-      fontWeight: "400"
+      fontWeight: '400'
       lineHeight: 13px
       letterSpacing: 0.07px
     section-header:
       fontFamily: system
       fontSize: 13px
-      fontWeight: "600"
+      fontWeight: '600'
       lineHeight: 18px
       letterSpacing: 0.5px
 
@@ -188,36 +188,36 @@ android:
 
   components:
     card:
-      backgroundColor: "{android.colors.surface-container-low}"
-      textColor: "{android.colors.on-surface}"
-      rounded: "{android.rounded.DEFAULT}"
+      backgroundColor: '{android.colors.surface-container-low}'
+      textColor: '{android.colors.on-surface}'
+      rounded: '{android.rounded.DEFAULT}'
       padding: 16px
     bottom-sheet:
-      backgroundColor: "{android.colors.surface}"
-      rounded: "{android.rounded.xxl}"
+      backgroundColor: '{android.colors.surface}'
+      rounded: '{android.rounded.xxl}'
       padding: 0 16px 32px
     action-row:
-      rounded: "{android.rounded.DEFAULT}"
+      rounded: '{android.rounded.DEFAULT}'
       padding: 14px 20px
     chip-default:
-      backgroundColor: "{android.colors.surface}"
-      textColor: "{android.colors.on-surface}"
-      rounded: "{android.rounded.sm}"
+      backgroundColor: '{android.colors.surface}'
+      textColor: '{android.colors.on-surface}'
+      rounded: '{android.rounded.sm}'
       padding: 6px 10px
     chip-selected:
-      backgroundColor: "{android.colors.primary}"
-      textColor: "{android.colors.on-primary}"
-      rounded: "{android.rounded.sm}"
+      backgroundColor: '{android.colors.primary}'
+      textColor: '{android.colors.on-primary}'
+      rounded: '{android.rounded.sm}'
       padding: 6px 10px
     button-primary:
-      backgroundColor: "{android.colors.primary}"
-      textColor: "{android.colors.on-primary}"
-      rounded: "{android.rounded.md}"
+      backgroundColor: '{android.colors.primary}'
+      textColor: '{android.colors.on-primary}'
+      rounded: '{android.rounded.md}'
       height: 48px
     button-outlined:
       backgroundColor: transparent
-      textColor: "{android.colors.primary}"
-      rounded: "{android.rounded.md}"
+      textColor: '{android.colors.primary}'
+      rounded: '{android.rounded.md}'
       height: 48px
 
 # ─── iOS: Liquid Glass (iOS 26.x) ─────────────────────────────────
@@ -237,23 +237,23 @@ ios:
     tertiary-system-grouped-background: PlatformColor("tertiarySystemGroupedBackground")
     separator: PlatformColor("separator")
     tertiary-system-fill: PlatformColor("tertiarySystemFill")
-    system-blue: "#007AFF"
-    system-green: "#34C759"
-    system-orange: "#FF9500"
-    system-red: "#FF3B30"
-    system-cyan: "#32ADE6"
-    system-purple: "#AF52DE"
+    system-blue: '#007AFF'
+    system-green: '#34C759'
+    system-orange: '#FF9500'
+    system-red: '#FF3B30'
+    system-cyan: '#32ADE6'
+    system-purple: '#AF52DE'
 
   accent:
-    light: "#15171C"
-    dark: "#F4F2EE"
+    light: '#15171C'
+    dark: '#F4F2EE'
 
   kind-tints:
-    text: "#007AFF"
-    url: "#32ADE6"
-    image: "#34C759"
-    file: "#FF9500"
-    group: "#AF52DE"
+    text: '#007AFF'
+    url: '#32ADE6'
+    image: '#34C759'
+    file: '#FF9500'
+    group: '#AF52DE'
 
   dimensions:
     floating-button-size: 52px
@@ -284,20 +284,20 @@ ios:
       rounded: 18px
       padding: 12px
     sheet-header:
-      typography: "{android.typography.headline}"
+      typography: '{android.typography.headline}'
       padding: 20px 20px 12px
     chip-default:
       backgroundColor: PlatformColor("tertiarySystemFill")
       textColor: PlatformColor("label")
-      rounded: "{ios.rounded.xl}"
+      rounded: '{ios.rounded.xl}'
       padding: 8px 12px
     chip-selected:
-      backgroundColor: "{ios.accent}"
+      backgroundColor: '{ios.accent}'
       textColor: DynamicColorIOS(light="#F4F2EE", dark="#15171C")
-      rounded: "{ios.rounded.xl}"
+      rounded: '{ios.rounded.xl}'
       padding: 8px 12px
     context-menu-button:
-      typography: "{android.typography.body}"
+      typography: '{android.typography.body}'
     page-sheet:
       backgroundColor: PlatformColor("systemBackground")
 
@@ -309,19 +309,19 @@ elevation:
     shadowRadius: 0px
     elevation: 0
   sm:
-    shadowColor: "#000"
+    shadowColor: '#000'
     shadowOffset: 0px 1px
     shadowOpacity: 0.05
     shadowRadius: 2px
     elevation: 1
   md:
-    shadowColor: "#000"
+    shadowColor: '#000'
     shadowOffset: 0px 2px
     shadowOpacity: 0.08
     shadowRadius: 8px
     elevation: 3
   lg:
-    shadowColor: "#000"
+    shadowColor: '#000'
     shadowOffset: 0px 8px
     shadowOpacity: 0.16
     shadowRadius: 24px
@@ -379,20 +379,20 @@ Use `PlatformColor()` for every system color. Use `iosAccentColor` from `iosDesi
 
 Both platforms share the same type scale, aligned to iOS Human Interface Guidelines text styles. The font family is always the system default (San Francisco on iOS, Roboto on Android).
 
-| Token          | Size | Weight | Line Height | Tracking |
-|----------------|------|--------|-------------|----------|
-| `largeTitle`   | 34   | 700    | 41          | 0.37     |
-| `title1`       | 28   | 700    | 34          | 0.36     |
-| `title2`       | 22   | 700    | 28          | 0.35     |
-| `title3`       | 20   | 600    | 25          | 0.38     |
-| `headline`     | 17   | 600    | 22          | −0.43    |
-| `body`         | 17   | 400    | 22          | −0.43    |
-| `callout`      | 16   | 400    | 21          | −0.32    |
-| `subhead`      | 15   | 400    | 20          | −0.24    |
-| `footnote`     | 13   | 400    | 18          | −0.08    |
-| `caption1`     | 12   | 400    | 16          | 0        |
-| `caption2`     | 11   | 400    | 13          | 0.07     |
-| `sectionHeader`| 13   | 600    | 18          | 0.50     |
+| Token           | Size | Weight | Line Height | Tracking |
+| --------------- | ---- | ------ | ----------- | -------- |
+| `largeTitle`    | 34   | 700    | 41          | 0.37     |
+| `title1`        | 28   | 700    | 34          | 0.36     |
+| `title2`        | 22   | 700    | 28          | 0.35     |
+| `title3`        | 20   | 600    | 25          | 0.38     |
+| `headline`      | 17   | 600    | 22          | −0.43    |
+| `body`          | 17   | 400    | 22          | −0.43    |
+| `callout`       | 16   | 400    | 21          | −0.32    |
+| `subhead`       | 15   | 400    | 20          | −0.24    |
+| `footnote`      | 13   | 400    | 18          | −0.08    |
+| `caption1`      | 12   | 400    | 16          | 0        |
+| `caption2`      | 11   | 400    | 13          | 0.07     |
+| `sectionHeader` | 13   | 600    | 18          | 0.50     |
 
 Access via `theme.typography.*`.
 
@@ -415,12 +415,12 @@ The clipboard card grid uses an adaptive column layout: each card is 160–210px
 
 Standard M3 elevation system with `elevation` prop for native Compose cards and `shadow*` props for RN views:
 
-| Level | Use case           | `shadowRadius` | Android `elevation` |
-|-------|--------------------|----------------|---------------------|
-| none  | Flat elements      | 0              | 0                   |
-| sm    | Static cards       | 2              | 1                   |
-| md    | Floating cards     | 8              | 3                   |
-| lg    | Modals / overlays  | 24             | 8                   |
+| Level | Use case          | `shadowRadius` | Android `elevation` |
+| ----- | ----------------- | -------------- | ------------------- |
+| none  | Flat elements     | 0              | 0                   |
+| sm    | Static cards      | 2              | 1                   |
+| md    | Floating cards    | 8              | 3                   |
+| lg    | Modals / overlays | 24             | 8                   |
 
 ### iOS
 
@@ -434,24 +434,24 @@ iOS avoids traditional shadows in favor of the **Liquid Glass** material system:
 
 ### Android
 
-| Element          | Radius  | Token        |
-|------------------|---------|--------------|
-| Small chips      | 8px     | `radius.sm`  |
-| Input fields     | 10px    | `radius.md`  |
-| Cards            | 12px    | `radius.base`|
-| Glass cards      | 18px    | `radius.xl`  |
-| Bottom sheets    | 24px    | `radius.xxl` |
-| Pills / capsules | 999px   | `radius.pill` |
+| Element          | Radius | Token         |
+| ---------------- | ------ | ------------- |
+| Small chips      | 8px    | `radius.sm`   |
+| Input fields     | 10px   | `radius.md`   |
+| Cards            | 12px   | `radius.base` |
+| Glass cards      | 18px   | `radius.xl`   |
+| Bottom sheets    | 24px   | `radius.xxl`  |
+| Pills / capsules | 999px  | `radius.pill` |
 
 ### iOS
 
-| Element           | Radius  | Notes                                  |
-|-------------------|---------|----------------------------------------|
-| Cards             | 14px    | `iosDimensions.cardCornerRadius`       |
-| Glass cards       | 18px    | `iosDimensions.glassCardRadius`        |
-| Surfaces          | 12px    | `iosDimensions.surfaceCornerRadius`    |
-| Chips (capsule)   | 18px    | Capsule shape with `borderCurve: continuous` |
-| Bottom sheet top  | 20px    | Native page sheet handles this         |
+| Element          | Radius | Notes                                        |
+| ---------------- | ------ | -------------------------------------------- |
+| Cards            | 14px   | `iosDimensions.cardCornerRadius`             |
+| Glass cards      | 18px   | `iosDimensions.glassCardRadius`              |
+| Surfaces         | 12px   | `iosDimensions.surfaceCornerRadius`          |
+| Chips (capsule)  | 18px   | Capsule shape with `borderCurve: continuous` |
+| Bottom sheet top | 20px   | Native page sheet handles this               |
 
 All iOS radii should use `borderCurve: 'continuous'` for the native smooth-corner look.
 

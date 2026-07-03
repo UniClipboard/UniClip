@@ -19,6 +19,7 @@ ComponentName.types.ts      → Shared props interface (imported by both platfor
 - Each platform file owns its own styles (`StyleSheet.create`) — no shared style objects across platforms.
 
 **iOS components** use:
+
 - `@expo/ui/swift-ui` (Menu, Button, Host, BottomSheet, etc.) for native SwiftUI controls
 - `expo-glass-effect` GlassView + `expo-blur` BlurView for Liquid Glass
 - `GlassContainer` from `@/components/ui` (wraps the above with shape variants)
@@ -28,12 +29,14 @@ ComponentName.types.ts      → Shared props interface (imported by both platfor
 - Design tokens from `@/theme/iosDesignTokens.ts`
 
 **Android components** use:
+
 - `@expo/ui/jetpack-compose` for native Compose controls
 - Material Design 3 color tokens from `@/theme/colors.ts`
 - `@expo/vector-icons/Ionicons` for icons
 - Custom Modal with transparent backdrop for bottom sheets
 
 Examples in the codebase:
+
 - `src/components/HomeTopBar.{ios,android,types}.tsx`
 - `src/components/HomeBottomBar.{ios,android,types}.tsx`
 - `src/components/ServerSwitcherModal.{ios,android,types}.tsx`

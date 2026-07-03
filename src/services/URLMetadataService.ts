@@ -60,9 +60,7 @@ function parseOGMeta(html: string, baseUrl: string): URLCardMetadata {
   const head = html.slice(0, 16384);
   const result: URLCardMetadata = {};
 
-  const titleMatch =
-    matchMetaContent(head, 'og:title') ??
-    matchMetaContent(head, 'twitter:title');
+  const titleMatch = matchMetaContent(head, 'og:title') ?? matchMetaContent(head, 'twitter:title');
   if (titleMatch) {
     result.title = decodeHTMLEntities(titleMatch);
   } else {

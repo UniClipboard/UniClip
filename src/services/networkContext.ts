@@ -53,7 +53,7 @@ function networkContextFromNetInfo(state: NetInfoState): NetworkContext {
     isWifi,
     isCellular,
     isTailscale: isTailscaleActive(),
-    ssid: isWifi ? details?.ssid ?? null : null,
+    ssid: isWifi ? (details?.ssid ?? null) : null,
   };
 }
 

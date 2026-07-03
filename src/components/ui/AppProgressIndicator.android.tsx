@@ -1,7 +1,4 @@
-import {
-  CircularProgressIndicator,
-  LinearProgressIndicator,
-} from '@expo/ui/jetpack-compose';
+import { CircularProgressIndicator, LinearProgressIndicator } from '@expo/ui/jetpack-compose';
 import { fillMaxWidth } from '@expo/ui/jetpack-compose/modifiers';
 import type { ColorValue } from 'react-native';
 

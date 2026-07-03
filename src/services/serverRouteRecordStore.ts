@@ -1,5 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getLiveUrl as getAppGroupLiveUrl, saveLiveUrl as saveAppGroupLiveUrl } from 'app-group-store';
+import {
+  getLiveUrl as getAppGroupLiveUrl,
+  saveLiveUrl as saveAppGroupLiveUrl,
+} from 'app-group-store';
 
 const LIVE_URL_KEY_PREFIX = '@server-route:live-url:';
 
@@ -15,10 +18,7 @@ export async function loadServerRouteLiveUrl(serverKey: string): Promise<string 
   return appGroupUrl;
 }
 
-export async function saveServerRouteLiveUrl(
-  serverKey: string,
-  url: string | null
-): Promise<void> {
+export async function saveServerRouteLiveUrl(serverKey: string, url: string | null): Promise<void> {
   const key = makeLiveUrlKey(serverKey);
   if (url) {
     await AsyncStorage.setItem(key, url);
