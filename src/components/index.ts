@@ -6,12 +6,11 @@
 export { AddServerSheet } from './AddServerSheet';
 export { ServerConfigModal } from './ServerConfigModal';
 export { ServerListItem } from './ServerListItem';
-export { CurrentClipboardCard } from './CurrentClipboardCard';
 export { SyncStatusIndicator } from './SyncStatusIndicator';
 export { QuickActionsBar } from './QuickActionsBar';
-export { HistoryListItem } from './HistoryListItem';
 export { MessageToast } from './MessageToast';
 export type { MessageType } from './MessageToast';
+export { ConnectedMessageToast } from './ConnectedMessageToast';
 export { TopRightMenu } from './TopRightMenu';
 export type { MenuItemConfig } from './TopRightMenu';
 export { QuickLoadingPage } from './QuickLoadingPage';
