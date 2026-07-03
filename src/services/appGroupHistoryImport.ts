@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { getLegacyHistory, getPayloadFileUri } from 'app-group-store';
+import { getLegacyHistory, getPayloadFileUri, migrateLegacyContainer } from 'app-group-store';
 import { ClipboardItem, HistorySyncStatus } from '../types/clipboard';
 import { log } from './Logger';
 
@@ -24,6 +24,7 @@ export async function importHistoryFromAppGroup(
   if (Platform.OS !== 'ios') return [];
 
   try {
+    await migrateLegacyContainer();
     const json = await getLegacyHistory();
     if (!json) return [];
 
@@ -49,6 +50,45 @@ export async function importHistoryFromAppGroup(
     log.warn('[AppGroupHistoryImport] failed:', error);
     return [];
   }
+}
+
+export async function repairAppGroupHistoryPayloadUris(
+  items: ClipboardItem[]
+): Promise<{ items: ClipboardItem[]; repaired: number }> {
+  if (Platform.OS !== 'ios') return { items, repaired: 0 };
+
+  try {
+    await migrateLegacyContainer();
+  } catch (error) {
+    log.warn('[AppGroupHistoryImport] legacy payload migration failed:', error);
+  }
+
+  let repaired = 0;
+  const nextItems: ClipboardItem[] = [];
+
+  for (const item of items) {
+    if (!item.hasData || !item.profileHash || !['Image', 'File'].includes(item.type)) {
+      nextItems.push(item);
+      continue;
+    }
+
+    const profileId = `${item.type}-${item.profileHash}`;
+    const fileUri = await getPayloadFileUri(profileId);
+    if (!fileUri || (item.fileUri === fileUri && item.isLocalFileReady !== false)) {
+      nextItems.push(item);
+      continue;
+    }
+
+    repaired += 1;
+    nextItems.push({
+      ...item,
+      fileUri,
+      isLocalFileReady: true,
+      hasRemoteData: item.hasRemoteData ?? true,
+    });
+  }
+
+  return { items: repaired > 0 ? nextItems : items, repaired };
 }
 
 async function mapNativeHistoryItem(item: NativeHistoryItem): Promise<ClipboardItem | null> {

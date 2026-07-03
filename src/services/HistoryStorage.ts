@@ -11,7 +11,7 @@ import { filterHistoryItems } from '@/utils/historyFilters';
 import { getHistoryFileDir, saveHistoryFile } from '../utils/fileStorage';
 import { File, Directory } from 'expo-file-system';
 import { log } from './Logger';
-import { importHistoryFromAppGroup } from './appGroupHistoryImport';
+import { importHistoryFromAppGroup, repairAppGroupHistoryPayloadUris } from './appGroupHistoryImport';
 
 /**
  * 当前历史记录数据版本号
@@ -431,6 +431,7 @@ export class HistoryStorage {
     }
 
     await this.importAppGroupHistoryOnce();
+    await this.repairAppGroupPayloadUris();
   }
 
   /**
@@ -490,6 +491,15 @@ export class HistoryStorage {
       await AsyncStorage.setItem(STORAGE_KEYS.HISTORY_VERSION, CURRENT_HISTORY_VERSION.toString());
     }
     await AsyncStorage.setItem(APP_GROUP_HISTORY_IMPORT_KEY, '1');
+  }
+
+  private async repairAppGroupPayloadUris(): Promise<void> {
+    const { items, repaired } = await repairAppGroupHistoryPayloadUris(this.history);
+    if (repaired === 0) return;
+
+    this.history = items.map(normalizeClipboardItem);
+    this.sortHistory();
+    await this.saveHistory();
   }
 
   /**

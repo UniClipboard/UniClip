@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getLegacyHistory, getPayloadFileUri } from 'app-group-store';
+import { getLegacyHistory, getPayloadFileUri, migrateLegacyContainer } from 'app-group-store';
 import { HistoryStorage } from '../services/HistoryStorage';
 import { HistorySyncStatus } from '../types/clipboard';
 import { STORAGE_KEYS } from '../types/storage';
@@ -19,6 +19,7 @@ jest.mock('react-native', () => {
 jest.mock('app-group-store', () => ({
   getLegacyHistory: jest.fn().mockResolvedValue(null),
   getPayloadFileUri: jest.fn().mockResolvedValue(null),
+  migrateLegacyContainer: jest.fn().mockResolvedValue({ migrated: false, keys: 0 }),
 }));
 
 jest.mock('expo-file-system', () => ({
@@ -59,6 +60,7 @@ const mockGetItem = AsyncStorage.getItem as jest.Mock;
 const mockSetItem = AsyncStorage.setItem as jest.Mock;
 const mockGetLegacyHistory = getLegacyHistory as jest.Mock;
 const mockGetPayloadFileUri = getPayloadFileUri as jest.Mock;
+const mockMigrateLegacyContainer = migrateLegacyContainer as jest.Mock;
 const APP_GROUP_HISTORY_IMPORT_KEY = '@syncclipboard:history:appgroup-imported';
 
 describe('App Group history import', () => {
@@ -69,6 +71,7 @@ describe('App Group history import', () => {
     mockSetItem.mockResolvedValue(undefined);
     mockGetLegacyHistory.mockResolvedValue(null);
     mockGetPayloadFileUri.mockResolvedValue(null);
+    mockMigrateLegacyContainer.mockResolvedValue({ migrated: false, keys: 0 });
   });
 
   it('imports native App Group history when RN history is empty', async () => {
@@ -108,6 +111,7 @@ describe('App Group history import', () => {
     const storage = HistoryStorage.getInstance();
     await storage.initialize();
 
+    expect(mockMigrateLegacyContainer).toHaveBeenCalled();
     const items = await storage.getAllItems();
     expect(items).toHaveLength(2);
     expect(items.find((item) => item.profileHash === 'TEXT01')).toEqual(
@@ -144,5 +148,52 @@ describe('App Group history import', () => {
     await storage.initialize();
 
     expect(mockGetLegacyHistory).not.toHaveBeenCalled();
+  });
+
+  it('repairs imported image records that were saved before payloads were migrated', async () => {
+    mockGetItem.mockImplementation((key: string) => {
+      if (key === APP_GROUP_HISTORY_IMPORT_KEY) return Promise.resolve('1');
+      if (key === STORAGE_KEYS.HISTORY) {
+        return Promise.resolve(
+          JSON.stringify([
+            {
+              type: 'Image',
+              text: 'image.png',
+              profileHash: 'ABCDEF',
+              hasData: true,
+              dataName: 'image.png',
+              size: 42,
+              timestamp: 1700000100000,
+              starred: false,
+              syncStatus: HistorySyncStatus.Synced,
+              version: 0,
+              lastModified: 1700000100000,
+              lastAccessed: 1700000100000,
+              isDeleted: false,
+              pinned: false,
+              isLocalFileReady: false,
+              hasRemoteData: true,
+            },
+          ])
+        );
+      }
+      return Promise.resolve(null);
+    });
+    mockGetPayloadFileUri.mockImplementation((profileId: string) =>
+      profileId === 'Image-ABCDEF' ? Promise.resolve('file:///group/payloads/Image-ABCDEF') : null
+    );
+
+    const storage = HistoryStorage.getInstance();
+    await storage.initialize();
+
+    const items = await storage.getAllItems();
+    expect(items[0]).toEqual(
+      expect.objectContaining({
+        fileUri: 'file:///group/payloads/Image-ABCDEF',
+        isLocalFileReady: true,
+      })
+    );
+    expect(mockMigrateLegacyContainer).toHaveBeenCalled();
+    expect(mockSetItem).toHaveBeenCalledWith(STORAGE_KEYS.HISTORY, expect.any(String));
   });
 });
