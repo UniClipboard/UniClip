@@ -31,7 +31,8 @@ export function SettingsToastProvider({ children }: { children: React.ReactNode 
   return (
     <SettingsToastContext.Provider value={stableShow}>
       {children}
-      <MessageToast message={message} onMessageShown={handleMessageShown} />
+      {/* 设置页 scene 在原生导航头下方,不含状态栏,用小偏移即可 */}
+      <MessageToast message={message} onMessageShown={handleMessageShown} topOffset={12} />
     </SettingsToastContext.Provider>
   );
 }
