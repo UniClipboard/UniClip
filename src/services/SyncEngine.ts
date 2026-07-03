@@ -121,6 +121,12 @@ export class SyncEngine {
   private isTicking = false;
   /** 上次记录过的 preamble Stop 原因；同因连发只记第一条，避免 1Hz tick 日志刷屏 */
   private lastLoggedStopReason: string | null = null;
+  /**
+   * 是否处于"服务器不可达"离线态。服务器离线是预期状态而非错误：1Hz tick 会持续
+   * 失败，这里只在「在线↔离线」跳变时各记一条 info，避免把网络失败刷成 error 日志
+   * （也顺带压掉 1Hz Logger IO 抖动）。
+   */
+  private isOffline = false;
   private isSceneInactive = false;
   private isHistorySyncing = false;
   private lastHistorySyncAt: number | null = null;
@@ -307,6 +313,7 @@ export class SyncEngine {
     this.runtimeState = handleActiveServerChanged(this.runtimeState);
     this.stagedEntry = null;
     this.lastPushedContentHash = null;
+    this.isOffline = false;
     this.setState('Idle');
     this.lastError = null;
     await this.persistSynced(null, null);
@@ -542,12 +549,23 @@ export class SyncEngine {
       });
 
       await this.persistRuntimeHash();
+      // tick 成功走通：若此前处于离线态，记一条恢复日志并复位
+      if (this.isOffline) {
+        this.isOffline = false;
+        log.info('[SyncEngine] server reachable again — back online');
+      }
       this.notifyListeners();
     } catch (e: any) {
-      log.error('[SyncEngine] tick error:', e?.message ?? e);
       const kind = this.classifyError(e);
 
+      // 取消（切服务器 / 网络路由变更主动 abort 在途请求）属预期，不记日志、不改状态
+      if (kind === 'Cancelled') {
+        return;
+      }
+
       if (kind === 'AuthFailed') {
+        // 鉴权失败需要用户介入，属真错误
+        log.error('[SyncEngine] tick error (auth):', e?.message ?? e);
         this.setState('AuthFailed');
         this.lastError = e?.message ?? 'Authentication failed';
         this.stop();
@@ -555,8 +573,16 @@ export class SyncEngine {
         return;
       }
 
-      if (kind === 'Cancelled') {
-        return;
+      if (this.isOfflineKind(kind)) {
+        // 服务器不可达是预期状态，不算 error：仅在进入离线态时记一条 info，
+        // 避免 1Hz tick 把网络失败刷成 error 日志。
+        if (!this.isOffline) {
+          this.isOffline = true;
+          log.info('[SyncEngine] server unreachable — offline, will keep retrying:', e?.message ?? e);
+        }
+      } else {
+        // 其余（OtherSyncError 等）才是真正意外的同步错误
+        log.error('[SyncEngine] tick error:', e?.message ?? e);
       }
 
       let failStep: TickFailureStep;
@@ -710,16 +736,20 @@ export class SyncEngine {
         try {
           await putClipboard(server, device.meta, payloadBytes, trustInsecureCert);
         } catch (e: any) {
-          log.error(
-            '[SyncEngine] putClipboard failed: kind=' +
-              device.meta.kind +
-              ' dataName=' +
-              device.meta.dataName +
-              ' bytes=' +
-              (payloadBytes?.byteLength ?? 0) +
-              ' err=' +
-              (e?.message ?? e)
-          );
+          // 离线导致的 push 失败会被上层 catch 归一化为离线态处理，这里不再当作 error
+          // 刷屏；仅编组/服务端等真实 push 失败才带上下文记 error。
+          if (!this.isOfflineKind(this.classifyError(e))) {
+            log.error(
+              '[SyncEngine] putClipboard failed: kind=' +
+                device.meta.kind +
+                ' dataName=' +
+                device.meta.dataName +
+                ' bytes=' +
+                (payloadBytes?.byteLength ?? 0) +
+                ' err=' +
+                (e?.message ?? e)
+            );
+          }
           throw e;
         }
 
@@ -886,16 +916,46 @@ export class SyncEngine {
     if (msg.includes('401') || msg.includes('unauthorized') || msg.includes('auth')) {
       return 'AuthFailed';
     }
-    if (msg.includes('cancel') || msg.includes('abort')) {
+    if (msg.includes('cancel') || (msg.includes('abort') && !msg.includes('connection abort'))) {
       return 'Cancelled';
     }
-    if (msg.includes('timeout')) {
+    if (msg.includes('timeout') || msg.includes('timed out')) {
       return msg.includes('connect') ? 'ConnectTimeout' : 'ReceiveTimeout';
     }
-    if (msg.includes('network') || msg.includes('unreachable') || msg.includes('econnrefused')) {
+    // 服务器不可达的各种表述（reqwest / 原生网络栈）——归一为 NetworkUnreachable，
+    // 既让 reducer 走网络退避，也让上层按"离线（非错误）"处理日志。
+    if (
+      msg.includes('network') ||
+      msg.includes('unreachable') ||
+      msg.includes('offline') ||
+      msg.includes('econnrefused') ||
+      msg.includes('connection refused') ||
+      msg.includes('connection reset') ||
+      msg.includes('connection abort') ||
+      msg.includes('connection closed') ||
+      msg.includes('connection lost') ||
+      msg.includes('could not connect') ||
+      msg.includes('cannot connect') ||
+      msg.includes('failed to connect') ||
+      msg.includes('trying to connect') ||
+      msg.includes('tcp connect') ||
+      msg.includes('error sending request') ||
+      msg.includes('no route to host') ||
+      msg.includes('could not be found') ||
+      msg.includes('enotfound') ||
+      msg.includes('dns') ||
+      msg.includes('socket')
+    ) {
       return 'NetworkUnreachable';
     }
     return 'OtherSyncError';
+  }
+
+  /** 该错误类型是否属于"服务器不可达/离线"——预期状态，日志上不当作 error。 */
+  private isOfflineKind(kind: TickErrorKind): boolean {
+    return (
+      kind === 'NetworkUnreachable' || kind === 'ConnectTimeout' || kind === 'ReceiveTimeout'
+    );
   }
 
   /** 只读本地 AsyncStorage 的同步水位线，不掺入 App Group（getPersistedSynced 会掺）。 */
