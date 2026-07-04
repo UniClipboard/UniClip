@@ -5,6 +5,32 @@ public class UcCoreModule: Module {
     private static var initialized = false
     private var client: MobileSyncClient?
 
+    // Live SSE subscriptions keyed by the TS-assigned subscriptionId. Mutated
+    // from both the JS thread (start/cancel) and Rust callback threads
+    // (onDisconnected), hence the lock.
+    private var sseHandles: [String: SseHandle] = [:]
+    private let sseLock = NSLock()
+
+    fileprivate func removeSseHandle(_ subscriptionId: String) -> SseHandle? {
+        sseLock.lock()
+        defer { sseLock.unlock() }
+        return sseHandles.removeValue(forKey: subscriptionId)
+    }
+
+    private func storeSseHandle(_ subscriptionId: String, _ handle: SseHandle) {
+        sseLock.lock()
+        defer { sseLock.unlock() }
+        sseHandles[subscriptionId] = handle
+    }
+
+    private func cancelAllSseHandles() {
+        sseLock.lock()
+        let handles = sseHandles.values
+        sseHandles.removeAll()
+        sseLock.unlock()
+        handles.forEach { $0.cancel() }
+    }
+
     private func ensureInit() {
         if !UcCoreModule.initialized {
             ucMobileInit()
@@ -23,6 +49,8 @@ public class UcCoreModule: Module {
 
     public func definition() -> ModuleDefinition {
         Name("UcCore")
+
+        Events("onSseHello", "onSseUpdate", "onSseResync", "onSseDisconnected")
 
         Function("parseConnectUri") { (uri: String) -> [String: Any] in
             let payload = try parseConnectUri(uri: uri)
@@ -100,6 +128,33 @@ public class UcCoreModule: Module {
 
         Function("cancelInFlight") {
             self.client?.cancelInFlight()
+        }
+
+        // MARK: - SSE push channel (mobile-sync notify-then-pull)
+        //
+        // `subscriptionId` is assigned by the TS epoch state machine (design
+        // §5.2) and echoed back on every event so stale callbacks from a
+        // cancelled subscription can be told apart from the current one.
+        // Reconnect policy is entirely on the TS side: on `onSseDisconnected`
+        // the caller decides whether/when to call `startSseSubscription`
+        // again. Rust callbacks arrive on a Rust runtime thread; forwarding
+        // hops to the main queue before touching sendEvent.
+
+        Function("startSseSubscription") { (subscriptionId: String, serverMap: [String: String], trustInsecureCert: Bool) in
+            let server = self.serverFromMap(serverMap)
+            let listener = SseEventForwarder(subscriptionId: subscriptionId, module: self)
+            self.removeSseHandle(subscriptionId)?.cancel()
+            let handle = try self.getClient(trustInsecureCert: trustInsecureCert)
+                .startSseSubscription(server: server, listener: listener)
+            self.storeSseHandle(subscriptionId, handle)
+        }
+
+        Function("cancelSseSubscription") { (subscriptionId: String) in
+            self.removeSseHandle(subscriptionId)?.cancel()
+        }
+
+        OnDestroy {
+            self.cancelAllSseHandles()
         }
 
         // MARK: - Sync reducer functions (synchronous, pure state transforms)
@@ -554,6 +609,62 @@ public class UcCoreModule: Module {
         case "ReceiveTimeout": return .receiveTimeout
         case "OtherSyncError": return .otherSyncError
         default: return .unexpected
+        }
+    }
+}
+
+// MARK: - SSE listener
+
+/// One instance per subscription (matching the Rust contract: a reconnect is
+/// a new listener with no memory of the old one). Holds the module weakly —
+/// after module teardown callbacks become no-ops. uc-mobile invokes these on
+/// its own runtime thread (design §9 risk 4), so every callback hops to the
+/// main queue before calling `sendEvent`, mirroring the Android bridge's
+/// `Handler(Looper.getMainLooper()).post`.
+private final class SseEventForwarder: SseListener, @unchecked Sendable {
+    private let subscriptionId: String
+    private weak var module: UcCoreModule?
+
+    init(subscriptionId: String, module: UcCoreModule) {
+        self.subscriptionId = subscriptionId
+        self.module = module
+    }
+
+    func onHello(serverTimeMs: Int64) {
+        let id = subscriptionId
+        DispatchQueue.main.async { [weak module] in
+            module?.sendEvent("onSseHello", [
+                "subscriptionId": id,
+                "serverTimeMs": serverTimeMs
+            ])
+        }
+    }
+
+    func onUpdate(contentId: String) {
+        let id = subscriptionId
+        DispatchQueue.main.async { [weak module] in
+            module?.sendEvent("onSseUpdate", [
+                "subscriptionId": id,
+                "contentId": contentId
+            ])
+        }
+    }
+
+    func onResync() {
+        let id = subscriptionId
+        DispatchQueue.main.async { [weak module] in
+            module?.sendEvent("onSseResync", ["subscriptionId": id])
+        }
+    }
+
+    func onDisconnected(reason: String) {
+        let id = subscriptionId
+        _ = module?.removeSseHandle(id)
+        DispatchQueue.main.async { [weak module] in
+            module?.sendEvent("onSseDisconnected", [
+                "subscriptionId": id,
+                "reason": reason
+            ])
         }
     }
 }
