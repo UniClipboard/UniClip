@@ -8,7 +8,7 @@
 
 import { create } from 'zustand';
 import { AppState, type AppStateStatus } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
+import * as ClipboardProxy from '@/utils/clipboardProxy';
 import {
   SyncEngine,
   type SyncEngineStatus,
@@ -92,9 +92,9 @@ async function applyToDevice(meta: ClipboardMeta, payload?: ArrayBuffer): Promis
     if (meta.kind === 'Text') {
       if (meta.hasData && payload) {
         appliedText = new TextDecoder().decode(payload);
-        await Clipboard.setStringAsync(appliedText);
+        await ClipboardProxy.setStringAsync(appliedText);
       } else {
-        await Clipboard.setStringAsync(meta.text);
+        await ClipboardProxy.setStringAsync(meta.text);
       }
     } else if (meta.hasData && payload && meta.dataName && meta.hash) {
       const { saveHistoryFile } = await import('@/utils/fileStorage');

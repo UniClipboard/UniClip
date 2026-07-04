@@ -222,3 +222,13 @@ jest.mock('@microsoft/signalr', () => ({
 }));
 
 global.setImmediate = jest.useRealTimers;
+
+// 每个测试后重置 SQLite 单例,保证测试间使用全新的 :memory: 数据库(隔离)
+afterEach(async () => {
+  try {
+    const { _closeDatabaseForTest } = require('@/services/db/database');
+    await _closeDatabaseForTest();
+  } catch {
+    // db 模块未加载或未打开,忽略
+  }
+});

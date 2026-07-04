@@ -40,6 +40,13 @@ export class ClipboardMonitor {
   private isChecking: boolean = false;
   private checkGeneration: number = 0;
 
+  // 事件驱动监听状态（Android + READ_LOGS 已授时启用，替代轮询）
+  private eventMonitorActive: boolean = false;
+  private eventSubscription: { remove: () => void } | null = null;
+  // pausePolling/resumePolling 期间同时门控事件回调，防止「程序内写入剪贴板」
+  // 触发原生 listener 被误判为用户新复制而回环上传。
+  private eventPaused: boolean = false;
+
   constructor(clipboardManager: ClipboardManager, options?: ClipboardMonitorOptions) {
     this.clipboardManager = clipboardManager;
 
@@ -104,15 +111,21 @@ export class ClipboardMonitor {
       this.appStateSubscription = AppState.addEventListener('change', this.handleAppStateChange);
     }
 
-    // 开始轮询（iOS）或设置监听器（Android）
+    // 开始轮询（iOS）或事件驱动/轮询（Android）
     if (Platform.OS === 'ios') {
       this.startPolling();
     } else if (Platform.OS === 'android') {
-      this.startPolling(); // Android 也使用轮询作为备选方案
-      // TODO: 实现原生 Android ClipboardManager 监听器
+      // Android：READ_LOGS 已授 → 事件驱动（复制即触发，无 1Hz 轮询空转）；
+      // 否则回落到轮询。
+      const eventStarted = await this.tryStartEventMonitor();
+      if (!eventStarted) {
+        this.startPolling();
+      }
     }
 
-    log.info('[ClipboardMonitor] Started monitoring');
+    log.info(
+      `[ClipboardMonitor] Started monitoring (${this.eventMonitorActive ? 'event-driven' : 'polling'})`
+    );
   }
 
   /**
@@ -127,6 +140,9 @@ export class ClipboardMonitor {
 
     // 停止轮询
     this.stopPolling();
+
+    // 停止事件驱动监听
+    this.stopEventMonitor();
 
     // 取消应用状态监听
     if (this.appStateSubscription) {
@@ -213,17 +229,103 @@ export class ClipboardMonitor {
         return;
       }
 
-      // 检查内容是否发生变化
-      if (this.hasContentChanged(content)) {
-        this.lastContent = content;
-        // 持久化 hash
-        await this.persistHash(content);
-        this.notifyCallbacks(content);
-      }
+      await this.emitIfChanged(content);
     } catch (error) {
       log.error('[ClipboardMonitor] Failed to check clipboard:', error);
     } finally {
       this.isChecking = false;
+    }
+  }
+
+  /**
+   * 若内容相对 lastContent 发生变化，则更新 lastContent、持久化并通知回调。
+   * 轮询与事件驱动两条路径共用。
+   */
+  private async emitIfChanged(content: ClipboardContent): Promise<void> {
+    if (this.hasContentChanged(content)) {
+      this.lastContent = content;
+      await this.persistHash(content);
+      this.notifyCallbacks(content);
+    }
+  }
+
+  /**
+   * 尝试启动事件驱动监听（ClipCascade 式）。
+   * 仅 Android + READ_LOGS 已授时生效：前台走原生 OnPrimaryClipChangedListener，
+   * 后台走 logcat 触发的悬浮窗读取，复制即 emit onClipboardChange。
+   * @returns 是否成功启用（false 时调用方回落到轮询）
+   */
+  private async tryStartEventMonitor(): Promise<boolean> {
+    if (Platform.OS !== 'android') return false;
+    try {
+      const overlay = require('clipboard-overlay') as typeof import('clipboard-overlay');
+      if (!overlay.hasReadLogsPermission()) return false;
+
+      // 先订阅再启动，避免漏掉启动瞬间的事件
+      this.eventSubscription = overlay.addClipboardChangeListener((event) => {
+        void this.handleClipboardEvent(event);
+      });
+
+      const ok = await overlay.startClipboardMonitor();
+      if (!ok) {
+        this.eventSubscription?.remove();
+        this.eventSubscription = null;
+        return false;
+      }
+      this.eventMonitorActive = true;
+      return true;
+    } catch (error) {
+      log.warn('[ClipboardMonitor] Event monitor unavailable, falling back to polling:', error);
+      this.eventSubscription?.remove();
+      this.eventSubscription = null;
+      return false;
+    }
+  }
+
+  private stopEventMonitor(): void {
+    if (this.eventSubscription) {
+      try {
+        this.eventSubscription.remove();
+      } catch {
+        /* ignore */
+      }
+      this.eventSubscription = null;
+    }
+    if (this.eventMonitorActive) {
+      try {
+        const overlay = require('clipboard-overlay') as typeof import('clipboard-overlay');
+        void overlay.stopClipboardMonitor();
+      } catch {
+        /* ignore */
+      }
+      this.eventMonitorActive = false;
+    }
+  }
+
+  /**
+   * 处理原生 onClipboardChange 事件。
+   * - text：原生已在焦点窗口读到文本，直接用其构建内容，避免二次抢焦点。
+   * - image/files：临时放开悬浮窗读取，走完整 checkClipboard 管道（含存文件/hash）。
+   */
+  private async handleClipboardEvent(event: { type: string; content: string }): Promise<void> {
+    if (!this.isMonitoring || this.eventPaused) return;
+    try {
+      if (event.type === 'text') {
+        if (!event.content) return;
+        const content = await this.clipboardManager.buildTextContent(event.content);
+        await this.emitIfChanged(content);
+      } else {
+        // 图片/文件：需再次读取系统剪贴板取实际内容，事件期间放开按需悬浮窗读取
+        const { setOnDemandRead } = require('@/utils/clipboardProxy');
+        setOnDemandRead(true);
+        try {
+          await this.checkClipboard();
+        } finally {
+          setOnDemandRead(false);
+        }
+      }
+    } catch (error) {
+      log.error('[ClipboardMonitor] Failed to handle clipboard event:', error);
     }
   }
 
@@ -297,6 +399,14 @@ export class ClipboardMonitor {
       return;
     }
 
+    // 事件驱动模式不使用轮询计时器（原生监听器已覆盖前后台），跳过轮询增删
+    if (this.eventMonitorActive) {
+      if (nextAppState === 'active' && this.isMonitoring) {
+        void this.checkClipboard();
+      }
+      return;
+    }
+
     if (nextAppState === 'active') {
       // 应用进入前台，立即检查一次剪贴板（减少等待第一次轮询的延迟）
       // 再重启轮询计时器
@@ -361,6 +471,8 @@ export class ClipboardMonitor {
    * 用于"程序内写入剪贴板"期间防止监听器误触发，配合 resumePolling 使用。
    */
   pausePolling(): void {
+    // 事件驱动模式下无轮询计时器，但仍需门控事件回调，防止程序内写入被误判为新复制
+    this.eventPaused = true;
     this.stopPolling();
   }
 
@@ -370,7 +482,13 @@ export class ClipboardMonitor {
    * 后台且后台上传未启用时，不恢复轮询（避免后台写入剪贴板后误重启轮询）。
    */
   resumePolling(): void {
+    // 无论是否恢复轮询计时器，都先解除事件回调门控（事件模式仅需这一步）
+    this.eventPaused = false;
+
     if (!this.isMonitoring) return;
+
+    // 事件驱动模式无轮询计时器，解除门控即可
+    if (this.eventMonitorActive) return;
 
     // 如果配置了后台停止，且当前在后台且后台上传未启用，则不恢复轮询
     if (this.options.stopOnBackground) {

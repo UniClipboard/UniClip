@@ -22,7 +22,6 @@
       "signalr-client": ["modules/signalr-client/src"],
       "native-timer": ["modules/native-timer/src"],
       "clipboard-overlay": ["modules/clipboard-overlay/src"],
-      "shizuku-clipboard": ["modules/shizuku-clipboard/src"],
       "sms-forwarder": ["modules/sms-forwarder/src"],
       "foreground-service": ["modules/foreground-service/src"]
     }

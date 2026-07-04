@@ -51,6 +51,15 @@ export class ClipboardManager {
   }
 
   /**
+   * 从已知文本构建剪贴板内容（含 hash/历史查询），不再读取系统剪贴板。
+   * 供事件驱动监听器使用：原生侧已在悬浮窗焦点窗口内读到文本并 emit，
+   * JS 直接复用该文本构建内容，避免二次抢焦点。
+   */
+  async buildTextContent(text: string): Promise<ClipboardContent> {
+    return this.getTextContentFromString(text);
+  }
+
+  /**
    * 获取文本内容（从已获取的文本字符串构建）
    */
   private async getTextContentFromString(text: string): Promise<ClipboardContent> {
@@ -295,7 +304,7 @@ export class ClipboardManager {
    */
   async setTextContent(text: string): Promise<void> {
     try {
-      await Clipboard.setStringAsync(text);
+      await ClipboardProxy.setStringAsync(text);
 
       // 计算并更新 localClipboardHash（用于本地变化检测）
       const localClipboardHash = await calculateTextHash(text);
@@ -376,7 +385,7 @@ export class ClipboardManager {
    */
   async clearClipboard(): Promise<void> {
     try {
-      await Clipboard.setStringAsync('');
+      await ClipboardProxy.setStringAsync('');
       this.lastProfileHash = '';
     } catch (error) {
       log.error('[ClipboardManager] Failed to clear clipboard:', error);

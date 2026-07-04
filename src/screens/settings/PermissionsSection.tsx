@@ -1,7 +1,7 @@
 /**
  * 权限管理 section（仅 Android）
  *
- * 通知/悬浮窗/短信/Shizuku/电池优化权限的状态展示与跳转申请。权限状态完全自包含
+ * 通知/悬浮窗/短信/电池优化权限的状态展示与跳转申请。权限状态完全自包含
  * （挂载时刷新一次，提供手动刷新），不影响其它 section。
  */
 import React, { memo, useEffect, useRef, useState } from 'react';
@@ -20,11 +20,6 @@ import {
 import { fillMaxWidth } from '@expo/ui/jetpack-compose/modifiers';
 import { RefreshCw } from 'react-native-feather';
 import { hasOverlayPermission, requestOverlayPermission } from 'clipboard-overlay';
-import {
-  isShizukuAvailable,
-  hasShizukuPermission,
-  requestShizukuPermission,
-} from 'shizuku-clipboard';
 import { useTheme } from '@/hooks/useTheme';
 import { settingsStyles as styles } from './settingsStyles';
 import { log } from '@/services/Logger';
@@ -36,10 +31,7 @@ export const PermissionsSection = memo(function PermissionsSection() {
   const [permOverlay, setPermOverlay] = useState(false);
   const [permSms, setPermSms] = useState(false);
   const [permBattery, setPermBattery] = useState(false);
-  const [permShizuku, setPermShizuku] = useState(false);
-  const [shizukuAvailable, setShizukuAvailable] = useState(false);
   const [isRefreshingPermissions, setIsRefreshingPermissions] = useState(false);
-  const [showShizukuUnavailableDialog, setShowShizukuUnavailableDialog] = useState(false);
   const [showBatteryOptDialog, setShowBatteryOptDialog] = useState(false);
   const hasBatteryOptRequested = useRef(false);
 
@@ -57,9 +49,6 @@ export const PermissionsSection = memo(function PermissionsSection() {
       setPermSms(sms);
       const { isIgnoringBatteryOptimizations } = await import('native-util');
       setPermBattery(isIgnoringBatteryOptimizations());
-      const shizukuUp = isShizukuAvailable();
-      setShizukuAvailable(shizukuUp);
-      setPermShizuku(shizukuUp && hasShizukuPermission());
     } catch (e) {
       log.warn('[Settings] Failed to check permissions:', e);
     } finally {
@@ -137,37 +126,6 @@ export const PermissionsSection = memo(function PermissionsSection() {
 
               <ListItem>
                 <ListItem.HeadlineContent>
-                  <ComposeText>Shizuku 权限</ComposeText>
-                </ListItem.HeadlineContent>
-                <ListItem.SupportingContent>
-                  <ComposeText>
-                    {shizukuAvailable
-                      ? '后台通过 Shizuku 获取剪贴板所需'
-                      : 'Shizuku 未运行，请先启动 Shizuku'}
-                  </ComposeText>
-                </ListItem.SupportingContent>
-                <ListItem.TrailingContent>
-                  <ComposeSwitch
-                    value={permShizuku}
-                    onCheckedChange={() => {
-                      if (!shizukuAvailable) {
-                        setShowShizukuUnavailableDialog(true);
-                        return;
-                      }
-                      if (!permShizuku) {
-                        requestShizukuPermission();
-                        // 延迟刷新权限状态（等待用户授权）
-                        setTimeout(refreshPermissions, 2000);
-                      }
-                    }}
-                  />
-                </ListItem.TrailingContent>
-              </ListItem>
-
-              <HorizontalDivider />
-
-              <ListItem>
-                <ListItem.HeadlineContent>
                   <ComposeText>忽略电池优化</ComposeText>
                 </ListItem.HeadlineContent>
                 <ListItem.SupportingContent>
@@ -194,35 +152,6 @@ export const PermissionsSection = memo(function PermissionsSection() {
       </View>
 
       <Host>
-        {showShizukuUnavailableDialog && (
-          <AlertDialog onDismissRequest={() => setShowShizukuUnavailableDialog(false)}>
-            <AlertDialog.Title>
-              <ComposeText>Shizuku 未运行</ComposeText>
-            </AlertDialog.Title>
-            <AlertDialog.Text>
-              <ComposeText>
-                请先安装并启动 Shizuku。{'\n\n'}非 Root 设备每次重启后需重新启动 Shizuku（Android
-                11+ 可通过无线调试自行启动）。
-              </ComposeText>
-            </AlertDialog.Text>
-            <AlertDialog.ConfirmButton>
-              <TextButton
-                onClick={() => {
-                  Linking.openURL('https://shizuku.rikka.app/guide/setup/');
-                  setShowShizukuUnavailableDialog(false);
-                }}
-              >
-                <ComposeText>了解更多</ComposeText>
-              </TextButton>
-            </AlertDialog.ConfirmButton>
-            <AlertDialog.DismissButton>
-              <TextButton onClick={() => setShowShizukuUnavailableDialog(false)}>
-                <ComposeText>取消</ComposeText>
-              </TextButton>
-            </AlertDialog.DismissButton>
-          </AlertDialog>
-        )}
-
         {showBatteryOptDialog && (
           <AlertDialog onDismissRequest={() => setShowBatteryOptDialog(false)}>
             <AlertDialog.Title>

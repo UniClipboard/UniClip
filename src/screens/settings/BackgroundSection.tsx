@@ -2,7 +2,7 @@
  * 后台运行 section（仅 Android,「后台运行」二级页）
  *
  * 拆为三张卡:「后台任务」(总开关、常驻通知、忽略电池优化)、「后台同步」(后台下载/
- * 上传)、「后台读取剪贴板」(悬浮窗/Shizuku,二者互斥联动)。原先散落的 Alert.alert
+ * 上传)、「后台读取剪贴板」(悬浮窗;授予 READ_LOGS 后自动切换为事件驱动)。原先散落的 Alert.alert
  * 确认改为单个配置驱动的 Compose AlertDialog(挂在第一张卡的 dialogs 上;Compose
  * Dialog 是 window 级 overlay,挂载位置不影响展示)。失败回滚交给 store。
  */
@@ -16,13 +16,7 @@ import {
   HorizontalDivider,
   Text as ComposeText,
 } from '@expo/ui/jetpack-compose';
-import { clickable } from '@expo/ui/jetpack-compose/modifiers';
 import { hasOverlayPermission, requestOverlayPermission } from 'clipboard-overlay';
-import {
-  isShizukuAvailable,
-  hasShizukuPermission,
-  requestShizukuPermission,
-} from 'shizuku-clipboard';
 import { useSettingsStore } from '@/stores';
 import { useSettingsToast } from './SettingsToastContext';
 import { SettingsSectionItem } from './SettingsSectionItem';
@@ -48,7 +42,6 @@ export const BackgroundSection = memo(function BackgroundSection() {
   const backgroundDownload = useSettingsStore((s) => s.config?.enableBackgroundDownload ?? false);
   const backgroundUpload = useSettingsStore((s) => s.config?.enableBackgroundUpload ?? false);
   const clipboardOverlay = useSettingsStore((s) => s.config?.enableClipboardOverlay ?? false);
-  const shizukuClipboard = useSettingsStore((s) => s.config?.enableShizukuClipboard ?? false);
 
   const [dialog, setDialog] = useState<BgDialog | null>(null);
   const [permBattery, setPermBattery] = useState(false);
@@ -203,55 +196,6 @@ export const BackgroundSection = memo(function BackgroundSection() {
     }
   };
 
-  const handleToggleShizukuClipboard = async (enabled: boolean) => {
-    if (enabled && Platform.OS === 'android') {
-      if (!isShizukuAvailable()) {
-        setDialog({
-          title: 'Shizuku 未运行',
-          text: '请先安装并启动 Shizuku。\n\n非 Root 设备每次重启后需重新启动 Shizuku（Android 11+ 可通过无线调试自行启动）。',
-          confirmLabel: '了解更多',
-          dismissLabel: '取消',
-          onConfirm: () => Linking.openURL('https://shizuku.rikka.app/guide/setup/'),
-        });
-        return;
-      }
-
-      if (!hasShizukuPermission()) {
-        const requested = requestShizukuPermission();
-        if (!requested) {
-          setDialog({
-            title: '权限请求失败',
-            text: '无法请求 Shizuku 权限，请确认 Shizuku 版本支持。',
-            confirmLabel: '确定',
-            onConfirm: () => {},
-          });
-          return;
-        }
-        showMessage('请在 Shizuku 弹窗中授予权限后重新启用', 'info');
-        return;
-      }
-
-      try {
-        // 启用 Shizuku 时自动关闭悬浮窗方式
-        if (useSettingsStore.getState().config?.enableClipboardOverlay) {
-          await useSettingsStore.getState().setEnableClipboardOverlay(false);
-        }
-        await useSettingsStore.getState().setEnableShizukuClipboard(true);
-        showMessage('已启用 Shizuku 获取剪贴板', 'success');
-      } catch (error: unknown) {
-        showMessage(error instanceof Error ? error.message : '设置失败', 'error');
-      }
-      return;
-    }
-
-    try {
-      await useSettingsStore.getState().setEnableShizukuClipboard(enabled);
-      showMessage(enabled ? '已启用 Shizuku 获取剪贴板' : '已禁用 Shizuku 获取剪贴板', 'success');
-    } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
-    }
-  };
-
   const handleToggleBattery = async () => {
     const { requestIgnoreBatteryOptimizations } = await import('native-util');
     if (hasBatteryOptRequested.current) {
@@ -397,34 +341,14 @@ export const BackgroundSection = memo(function BackgroundSection() {
             <ComposeText>通过悬浮窗获取剪贴板</ComposeText>
           </ListItem.HeadlineContent>
           <ListItem.SupportingContent>
-            <ComposeText>与 Shizuku 方式互斥</ComposeText>
+            <ComposeText>
+              后台复制时通过不可见悬浮窗读取；授予 READ_LOGS 后自动切换为复制即触发
+            </ComposeText>
           </ListItem.SupportingContent>
           <ListItem.TrailingContent>
             <ComposeSwitch
               value={backgroundTasksEnabled && clipboardOverlay}
               onCheckedChange={handleToggleClipboardOverlay}
-              enabled={backgroundTasksEnabled}
-            />
-          </ListItem.TrailingContent>
-        </ListItem>
-
-        <HorizontalDivider />
-
-        <ListItem>
-          <ListItem.HeadlineContent>
-            <ComposeText>通过 Shizuku 获取剪贴板</ComposeText>
-          </ListItem.HeadlineContent>
-          <ListItem.SupportingContent>
-            <ComposeText
-              modifiers={[clickable(() => Linking.openURL('https://shizuku.rikka.app/'))]}
-            >
-              前往 Shizuku 官网
-            </ComposeText>
-          </ListItem.SupportingContent>
-          <ListItem.TrailingContent>
-            <ComposeSwitch
-              value={backgroundTasksEnabled && shizukuClipboard}
-              onCheckedChange={handleToggleShizukuClipboard}
               enabled={backgroundTasksEnabled}
             />
           </ListItem.TrailingContent>

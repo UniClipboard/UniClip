@@ -92,6 +92,7 @@ export default [
       'src/__tests__/**/*.{ts,tsx}',
       '**/*.test.{ts,tsx}',
       'targets/**/*.js',
+      '__mocks__/**/*.js',
     ],
     languageOptions: {
       parserOptions: {

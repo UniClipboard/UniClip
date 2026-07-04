@@ -4,6 +4,7 @@ module.exports = {
     'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|js-sha256)',
   ],
   moduleNameMapper: {
+    '^expo-sqlite$': '<rootDir>/__mocks__/expo-sqlite.js',
     '^@/(.*)$': '<rootDir>/src/$1',
     '^native-util$': '<rootDir>/modules/native-util/src',
     '^app-group-store$': '<rootDir>/modules/app-group-store/src',

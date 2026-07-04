@@ -64,7 +64,7 @@ the native iOS app's `SyncEngine.swift` so behavior stays identical across platf
 `@/*` → `src/*`, plus `@components`, `@screens`, `@services`, `@stores`, `@types`,
 `@utils`, `@constants`, `@navigation`, `@hooks`, `@assets`. Native modules import by
 bare name: `uc-core`, `native-util`, `shortcut`, `signalr-client`, `native-timer`,
-`clipboard-overlay`, `shizuku-clipboard`, `sms-forwarder`, `foreground-service`,
+`clipboard-overlay`, `sms-forwarder`, `foreground-service`,
 `qr-scanner`.
 
 ## Native modules (`modules/`)
@@ -73,8 +73,7 @@ bare name: `uc-core`, `native-util`, `shortcut`, `signalr-client`, `native-timer
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `uc-core`            | **Rust core** via UniFFI. Sync reducer, clipboard protocol client, history DB, hashing. Kotlin/Swift bindings auto-generated; `.so` committed, iOS xcframework built locally. |
 | `foreground-service` | Android foreground service to keep clipboard monitoring alive.                                                                                                                |
-| `clipboard-overlay`  | Clipboard read via overlay (Android 10+ background clipboard access workaround).                                                                                              |
-| `shizuku-clipboard`  | Background clipboard access via Shizuku.                                                                                                                                      |
+| `clipboard-overlay`  | Clipboard read/write via overlay + event-driven monitor (ClipCascade-style: `OnPrimaryClipChangedListener` foreground, logcat `ClipboardService:E` background trigger gated by READ_LOGS). Android 10+ background clipboard access workaround. |
 | `native-timer`       | Native interval timer for the 1Hz sync tick.                                                                                                                                  |
 | `native-util`        | Misc Android utilities (`moveTaskToBack`, exclude-from-recents, etc.).                                                                                                        |
 | `shortcut`           | Dynamic app shortcuts / quick tiles.                                                                                                                                          |

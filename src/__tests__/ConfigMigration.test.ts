@@ -172,7 +172,6 @@ describe('migrateConfig', () => {
       enableBackgroundDownload: false,
       enableBackgroundUpload: false,
       enableClipboardOverlay: false,
-      enableShizukuClipboard: false,
       enableSmsForwarding: false,
       enableForegroundNotification: true,
       syncToastEnabled: true,

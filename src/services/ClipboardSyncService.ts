@@ -220,6 +220,9 @@ class ClipboardSyncService {
     this.isAppActive = true;
     if (!this.activeServer) return;
 
+    const { useSettingsStore } = require('../stores/settingsStore');
+    const config = useSettingsStore.getState().config;
+
     if (this.activeServer.type === 'syncclipboard') {
       const { getSignalRClient } = require('signalr-client');
       if (!getSignalRClient().isConnected()) {
@@ -228,10 +231,14 @@ class ClipboardSyncService {
         // 已连接，补刷一次
         await this.fetchRemoteClipboard(true);
       }
+      // SignalR 需要服务端 ≥v3.1.1 才有 Hub；negotiate 404 时原生层只会无限重连,
+      // JS 侧无从感知。始终保留轮询兜底,_processRemoteClipboardContent 的哈希
+      // 去重保证推送与轮询不会重复处理同一内容。
+      if (!this.pollingTag) {
+        this._startPolling(config?.remotePollingInterval);
+      }
     } else {
       // 轮询模式：若轮询已停止（进入后台时可能停止），重新启动
-      const { useSettingsStore } = require('../stores/settingsStore');
-      const config = useSettingsStore.getState().config;
       if (!this.pollingTag) {
         this._startPolling(config?.remotePollingInterval);
       }
@@ -431,6 +438,8 @@ class ClipboardSyncService {
 
     if (server.type === 'syncclipboard') {
       await this._connectSignalR(server);
+      // 轮询兜底：SignalR Hub 不可用（服务端 <v3.1.1 时 negotiate 404）也能收到远端内容
+      this._startPolling(config?.remotePollingInterval);
     } else {
       this._startPolling(config?.remotePollingInterval);
       // 立即获取一次（非静默，显示加载状态；错误写入 errorStore）

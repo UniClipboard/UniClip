@@ -175,8 +175,8 @@ export default async function SmsUploadTask(taskData?: SmsTaskData): Promise<voi
 
   // 2. 复制到剪贴板（headless 模式下可能失败，不阻塞上传）
   try {
-    const Clipboard = require('expo-clipboard');
-    await Clipboard.setStringAsync(code);
+    const ClipboardProxy = require('@/utils/clipboardProxy');
+    await ClipboardProxy.setStringAsync(code);
     log.info(`[SmsUploadTask] Copied to clipboard: ${code}`);
   } catch (e) {
     log.warn('[SmsUploadTask] Failed to copy to clipboard (headless mode):', e);

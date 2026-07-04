@@ -49,7 +49,6 @@ export interface AndroidSettings {
   enableBackgroundDownload: boolean;
   enableBackgroundUpload: boolean;
   enableClipboardOverlay: boolean;
-  enableShizukuClipboard: boolean;
   enableSmsForwarding: boolean;
   enableForegroundNotification: boolean;
 
@@ -126,7 +125,6 @@ export const ANDROID_DEFAULTS: AndroidSettings = {
   enableBackgroundDownload: false,
   enableBackgroundUpload: false,
   enableClipboardOverlay: false,
-  enableShizukuClipboard: false,
   enableSmsForwarding: false,
   enableForegroundNotification: true,
 

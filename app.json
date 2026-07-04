@@ -28,7 +28,10 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "app.uniclipboard.android",
-      "permissions": ["android.permission.REQUEST_INSTALL_PACKAGES", "android.permission.CAMERA"]
+      "permissions": [
+        "android.permission.REQUEST_INSTALL_PACKAGES",
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -46,7 +49,6 @@
       "./plugins/build/withSmsPermission.js",
       "./plugins/build/withStaticSmsReceiver.js",
       "./plugins/build/withForegroundService.js",
-      "./plugins/build/withShizukuProvider.js",
       "./plugins/build/withAbiSplits.js",
       "./plugins/build/withRustCore.js",
       "@bacons/apple-targets",
@@ -55,7 +57,9 @@
         {
           "android": {
             "enabled": true,
-            "singleShareMimeTypes": ["*/*"]
+            "singleShareMimeTypes": [
+              "*/*"
+            ]
           }
         }
       ],
@@ -64,7 +68,8 @@
         {
           "cameraPermission": "授权 UniClip 使用相机以扫描二维码接入服务器"
         }
-      ]
+      ],
+      "expo-sqlite"
     ],
     "extra": {
       "eas": {

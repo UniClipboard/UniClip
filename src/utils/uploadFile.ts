@@ -90,9 +90,25 @@ export async function uploadTextAndAddToHistory(
 ): Promise<void> {
   const profileHash = await calculateTextHash(text, options?.signal);
 
+  // 先本地落库（LocalOnly），确保服务端异常（如上传返回 500）时也不丢失内容。
+  // 与图片/文件分享路径（uploadFileAndAddToHistory）保持一致：本地优先、上传其后。
+  await useHistoryStore.getState().addItem(
+    createDefaultClipboardItem({
+      type: 'Text',
+      text,
+      profileHash,
+      hasData: false,
+      timestamp: Date.now(),
+      localClipboardHash: profileHash,
+      syncStatus: HistorySyncStatus.LocalOnly,
+    })
+  );
+
   // 预先设置 hash，避免 SignalR/轮询推送时误判为新远程内容触发自动下载
   SyncManager.getInstance().setLastUploadedHash(profileHash);
 
+  // 上传到服务器：失败会向上抛出（ShareReceiveScreen 展示“处理失败”），
+  // 但本地记录已保存、不会丢失，后续由同步引擎重试推送。
   const content: ClipboardContent = {
     type: 'Text',
     text,
@@ -101,19 +117,13 @@ export async function uploadTextAndAddToHistory(
     hasData: false,
     timestamp: Date.now(),
   };
-
   const apiClient = createAPIClient(activeServer);
   await apiClient.putContent(content, { signal: options?.signal });
 
-  const historyItem = createDefaultClipboardItem({
-    type: 'Text',
-    text,
-    profileHash,
-    hasData: false,
-    timestamp: Date.now(),
-    syncStatus: HistorySyncStatus.Synced,
-  });
-  await useHistoryStore.getState().addItem(historyItem);
+  // 上传成功 → 标记已同步
+  await useHistoryStore
+    .getState()
+    .updateItem(profileHash, { syncStatus: HistorySyncStatus.Synced });
 }
 
 export async function uploadFileAndAddToHistory(

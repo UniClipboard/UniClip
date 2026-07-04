@@ -117,7 +117,6 @@ settings but they are not expected to exist on the other platform.
 | `enableBackgroundDownload`     | boolean | false    | Background remote clipboard download       |
 | `enableBackgroundUpload`       | boolean | false    | Background local clipboard upload          |
 | `enableClipboardOverlay`       | boolean | false    | Invisible overlay for clipboard access     |
-| `enableShizukuClipboard`       | boolean | false    | Shizuku API for background clipboard       |
 | `enableSmsForwarding`          | boolean | false    | Auto-upload SMS verification codes         |
 | `enableForegroundNotification` | boolean | true     | Persistent foreground service notification |
 | `syncToastEnabled`             | boolean | true     | Toast on sync completion                   |
@@ -191,7 +190,6 @@ export interface AndroidSettings {
   enableBackgroundDownload: boolean;
   enableBackgroundUpload: boolean;
   enableClipboardOverlay: boolean;
-  enableShizukuClipboard: boolean;
   enableSmsForwarding: boolean;
   enableForegroundNotification: boolean;
   syncToastEnabled: boolean;

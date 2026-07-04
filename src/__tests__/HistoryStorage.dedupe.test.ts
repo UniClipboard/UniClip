@@ -150,17 +150,18 @@ describe('HistoryStorage 加载时去重自愈', () => {
     expect(items).toHaveLength(1);
   });
 
-  it('发现重复时回写清理后的历史', async () => {
-    await initWithStoredHistory([createItem('dup', 300), createItem('dup', 100)]);
+  it('发现重复时 SQLite 中只保留一条', async () => {
+    const storage = await initWithStoredHistory([createItem('dup', 300), createItem('dup', 100)]);
 
-    const persisted = JSON.parse(asyncStore[STORAGE_KEYS.HISTORY]) as ClipboardItem[];
-    expect(persisted.filter((i) => i.profileHash.toLowerCase() === 'dup')).toHaveLength(1);
+    const items = await storage.getAllItems();
+    expect(items.filter((i) => i.profileHash.toLowerCase() === 'dup')).toHaveLength(1);
   });
 
-  it('无重复时不改写存储', async () => {
+  it('迁移到 SQLite 后不改写旧 AsyncStorage history（保留回滚数据）', async () => {
     const AsyncStorage = jest.requireMock('@react-native-async-storage/async-storage');
     await initWithStoredHistory([createItem('a', 300), createItem('b', 100)]);
 
+    // 新架构:历史落 SQLite,旧 @syncclipboard:history JSON 保持不变(回滚保险)
     const historyWrites = (AsyncStorage.setItem as jest.Mock).mock.calls.filter(
       ([key]: [string]) => key === STORAGE_KEYS.HISTORY
     );

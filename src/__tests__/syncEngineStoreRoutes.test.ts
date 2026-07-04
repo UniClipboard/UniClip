@@ -32,6 +32,11 @@ jest.mock('@/services/ClipboardMonitor', () => ({
   },
 }));
 
+jest.mock('@/utils/clipboardProxy', () => ({
+  setStringAsync: jest.fn().mockResolvedValue(true),
+  getStringAsync: jest.fn().mockResolvedValue(''),
+}));
+
 jest.mock('react-native', () => ({
   AppState: {
     addEventListener: jest.fn(() => ({ remove: jest.fn() })),

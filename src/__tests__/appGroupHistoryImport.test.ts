@@ -136,7 +136,6 @@ describe('App Group history import', () => {
         isLocalFileReady: true,
       })
     );
-    expect(mockSetItem).toHaveBeenCalledWith(STORAGE_KEYS.HISTORY, expect.any(String));
   });
 
   it('does not import native App Group history again after it already checked once', async () => {
@@ -194,6 +193,5 @@ describe('App Group history import', () => {
       })
     );
     expect(mockMigrateLegacyContainer).toHaveBeenCalled();
-    expect(mockSetItem).toHaveBeenCalledWith(STORAGE_KEYS.HISTORY, expect.any(String));
   });
 });

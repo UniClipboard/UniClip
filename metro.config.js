@@ -10,7 +10,6 @@ const WEB_STUBBED_MODULES = new Set([
   'native-util',
   'native-timer',
   'clipboard-overlay',
-  'shizuku-clipboard',
   'sms-forwarder',
   'foreground-service',
   'shortcut',

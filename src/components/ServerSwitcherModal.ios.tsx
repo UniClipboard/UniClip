@@ -117,7 +117,7 @@ function ServerCard({
         modifiers={[
           padding({ horizontal: 16, vertical: 14 }),
           frame({ maxWidth: Infinity }),
-          background(cardFill, shapes.roundedRectangle({ cornerRadius: 16 })),
+          background(cardFill, shapes.roundedRectangle({ cornerRadius: 22 })),
           contentShape(shapes.rectangle()),
           onTapGesture(onSelect),
         ]}
