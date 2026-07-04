@@ -50,8 +50,13 @@ import {
   queryHistory,
   cancelInFlight,
   hashesEqual,
+  hasSse,
+  startSseSubscription,
+  cancelSseSubscription,
+  addSseListener,
 } from 'uc-core';
 import type { ServerConfig as UcServerConfig, HistoryRecord } from 'uc-core';
+import type { EventSubscription } from 'expo-modules-core';
 import { getCurrentNetworkContext } from './networkContext';
 import { loadServerRouteLiveUrl, saveServerRouteLiveUrl } from './serverRouteRecordStore';
 import { selectServerUrl, type ServerRoute as SelectedServerRoute } from './serverRouteSelector';
@@ -62,6 +67,17 @@ import { log } from './Logger';
 const LAST_SYNCED_HASH_KEY = '@syncengine:last_synced_hash';
 const LAST_SYNCED_CONTENT_ID_KEY = '@syncengine:last_synced_content_id';
 const LAST_HISTORY_SYNC_KEY = '@syncengine:last_history_sync_ms';
+
+// SSE 在线时下行推送接管即时性，周期 tick 降为低频兜底（设计 §5.2：SSE 在线也保留
+// ~30s 兜底 tick）；SSE 断开/回退时恢复 normalCadence（1Hz）轮询。
+const SSE_FALLBACK_CADENCE_SECS = 30;
+// 断线退避重连：1s 起指数翻倍，封顶 30s。
+const SSE_BACKOFF_BASE_MS = 1000;
+const SSE_BACKOFF_MAX_MS = 30000;
+// 连续失败达到阈值 → feature-detect 判定服务端不支持 SSE（或持续不可用），
+// 停止退避、回到 1Hz 轮询，改为低频重试探测。
+const SSE_MAX_CONSECUTIVE_FAILURES = 5;
+const SSE_FEATURE_RETRY_MS = 5 * 60 * 1000;
 
 export type SyncEngineState = SyncState;
 
@@ -94,6 +110,8 @@ export interface DeviceClipboard {
 export interface SyncSettings {
   autoApplyRemote: boolean;
   autoPushLocal: boolean;
+  /** 是否尝试 SSE 推送通道（RN 本地设置 + feature-detect 双重门控，设计 F-6）。 */
+  enableSse: boolean;
 }
 
 export class SyncEngine {
@@ -119,6 +137,21 @@ export class SyncEngine {
 
   private tickTimer: ReturnType<typeof setTimeout> | null = null;
   private isTicking = false;
+  // F-7 pending-pull 合并：SSE 事件 / 本地写 / 兜底 tick 多源并发时，最多
+  // 「一个在跑 + 一个 pending」，不叠加并发 getLatest。
+  private runningForcedTick = false;
+  private pendingForcedTick = false;
+
+  // -- SSE push channel state（策略全在 TS 侧，Rust 只管单次会话）--
+  // epoch 绑定确切 server config：切服务器/网络路由/退后台都 bump epoch，
+  // 旧 epoch 的在途回调按 subscriptionId 过滤丢弃（设计 §5.2 F-7）。
+  private sseEpoch = 0;
+  private sseSubscriptionId: string | null = null;
+  private sseConnected = false;
+  private sseConsecutiveFailures = 0;
+  private sseReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private sseRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  private sseSubscriptions: EventSubscription[] = [];
   /** 上次记录过的 preamble Stop 原因；同因连发只记第一条，避免 1Hz tick 日志刷屏 */
   private lastLoggedStopReason: string | null = null;
   /**
@@ -203,6 +236,47 @@ export class SyncEngine {
       if (sets.length) await AsyncStorage.multiSet(sets);
       if (removes.length) await AsyncStorage.multiRemove(removes);
     };
+
+    this.setupSseListeners();
+  }
+
+  private setupSseListeners(): void {
+    if (!hasSse()) return;
+    // 监听只注册一次，回调内按 subscriptionId 过滤：不是当前订阅（旧 epoch
+    // 或已取消）的在途回调一律丢弃。
+    this.sseSubscriptions = [
+      addSseListener('onSseHello', (e) => {
+        if (e.subscriptionId !== this.sseSubscriptionId) return;
+        log.info('[SyncEngine] SSE hello (serverTime=' + e.serverTimeMs + ')');
+        this.sseConnected = true;
+        this.sseConsecutiveFailures = 0;
+        // 无重放承诺：连上后无条件拉一次，覆盖建连窗口竞态（设计 §4.3）。
+        void this.forceTickNow();
+      }),
+      addSseListener('onSseUpdate', (e) => {
+        if (e.subscriptionId !== this.sseSubscriptionId) return;
+        // F-1 短路：contentId（blake3v1，跨重编码稳定）匹配已同步基线则连
+        // getLatest 都省。桌面 resurface 同内容重戳时间戳正落在这里。
+        if (
+          this.runtimeState.lastSyncedContentId != null &&
+          e.contentId === this.runtimeState.lastSyncedContentId
+        ) {
+          log.debug('[SyncEngine] SSE update short-circuited (contentId already synced)');
+          return;
+        }
+        log.info('[SyncEngine] SSE update -> pull');
+        void this.forceTickNow();
+      }),
+      addSseListener('onSseResync', (e) => {
+        if (e.subscriptionId !== this.sseSubscriptionId) return;
+        log.info('[SyncEngine] SSE resync -> unconditional pull');
+        void this.forceTickNow();
+      }),
+      addSseListener('onSseDisconnected', (e) => {
+        if (e.subscriptionId !== this.sseSubscriptionId) return;
+        this.handleSseDisconnected(e.reason);
+      }),
+    ];
   }
 
   async init(): Promise<void> {
@@ -228,6 +302,7 @@ export class SyncEngine {
     if (this.state === 'LoopDetected') return;
     log.info('[SyncEngine] start: scheduling tick loop');
     this.scheduleNextTick();
+    void this.startSse();
   }
 
   stop(): void {
@@ -235,14 +310,150 @@ export class SyncEngine {
       clearTimeout(this.tickTimer);
       this.tickTimer = null;
     }
+    this.stopSse();
   }
 
   setSceneInactive(inactive: boolean): void {
     this.isSceneInactive = inactive;
   }
 
+  // -- SSE push channel --
+
+  /**
+   * 建立 SSE 订阅（新 epoch）。设置关 / native 不支持 / 无 active server 时
+   * 静默返回——下行保持现状 1Hz 轮询，天然 feature-gate。
+   */
+  async startSse(): Promise<void> {
+    if (!hasSse()) return;
+    if (!this.getSettings().enableSse) return;
+    const server = this.getActiveServer();
+    if (!server) return;
+
+    this.cancelSseSubscriptionInternal();
+    this.sseEpoch += 1;
+    const epoch = this.sseEpoch;
+    const subscriptionId = 'sse-' + epoch;
+
+    // 复用与 tick 相同的 live-URL 选择逻辑，epoch 绑定确切 server config。
+    let ucServer: UcServerConfig;
+    try {
+      ucServer = await this.withActiveRoute(server, async (route) => this.toUcServer(route));
+    } catch (e: any) {
+      log.info('[SyncEngine] SSE route resolve failed: ' + (e?.message ?? e));
+      this.handleSseDisconnected('route resolve failed');
+      return;
+    }
+    // await 期间 epoch 可能已被 bump（切服务器/退后台），旧请求作废。
+    if (epoch !== this.sseEpoch) return;
+
+    this.sseSubscriptionId = subscriptionId;
+    try {
+      startSseSubscription(subscriptionId, ucServer, server.trustInsecureCert);
+      log.info('[SyncEngine] SSE subscribing (' + subscriptionId + ') to ' + ucServer.baseUrl);
+    } catch (e: any) {
+      log.warn('[SyncEngine] SSE subscribe threw: ' + (e?.message ?? e));
+      this.sseSubscriptionId = null;
+      this.handleSseDisconnected('subscribe failed');
+    }
+  }
+
+  /** 断开 SSE 并丢弃在途回调（bump epoch）。退后台 / stop / destroy 时调用。 */
+  stopSse(): void {
+    this.cancelSseSubscriptionInternal();
+    this.sseEpoch += 1;
+    if (this.sseReconnectTimer !== null) {
+      clearTimeout(this.sseReconnectTimer);
+      this.sseReconnectTimer = null;
+    }
+    if (this.sseRetryTimer !== null) {
+      clearTimeout(this.sseRetryTimer);
+      this.sseRetryTimer = null;
+    }
+  }
+
+  /** 切服务器 / 网络路由变化 / 设置开关翻转：清退避计数，立即按新 config 重连。 */
+  restartSse(): void {
+    this.stopSse();
+    this.sseConsecutiveFailures = 0;
+    void this.startSse();
+  }
+
+  private cancelSseSubscriptionInternal(): void {
+    if (this.sseSubscriptionId !== null) {
+      try {
+        cancelSseSubscription(this.sseSubscriptionId);
+      } catch {
+        // native 侧已不存在该订阅时静默
+      }
+      this.sseSubscriptionId = null;
+    }
+    this.sseConnected = false;
+  }
+
+  private handleSseDisconnected(reason: string): void {
+    this.sseSubscriptionId = null;
+    const wasConnected = this.sseConnected;
+    this.sseConnected = false;
+    this.sseConsecutiveFailures += 1;
+
+    // SSE 掉线后周期 tick 可能还挂在 30s 兜底档上，立即重排回 1Hz 轮询，
+    // 不留下行盲区。（timer 为 null 说明 tick 在跑或引擎已停，前者 finally
+    // 里会用最新 sseConnected 重排，后者不该被这里唤醒。）
+    if (this.tickTimer !== null) this.scheduleNextTick();
+
+    if (this.sseConsecutiveFailures >= SSE_MAX_CONSECUTIVE_FAILURES) {
+      // feature-detect 回退：服务端大概率不支持 SSE（旧版本 / 反代剥流），
+      // 停止退避重连，低频重试探测。
+      if (this.sseConsecutiveFailures === SSE_MAX_CONSECUTIVE_FAILURES) {
+        log.info(
+          '[SyncEngine] SSE unavailable after ' +
+            this.sseConsecutiveFailures +
+            ' failures (' +
+            reason +
+            ') — falling back to polling, will re-probe every ' +
+            SSE_FEATURE_RETRY_MS / 60000 +
+            'min'
+        );
+      }
+      if (this.sseRetryTimer !== null) clearTimeout(this.sseRetryTimer);
+      this.sseRetryTimer = setTimeout(() => {
+        this.sseRetryTimer = null;
+        void this.startSse();
+      }, SSE_FEATURE_RETRY_MS);
+      return;
+    }
+
+    const delayMs = Math.min(
+      SSE_BACKOFF_BASE_MS * Math.pow(2, this.sseConsecutiveFailures - 1),
+      SSE_BACKOFF_MAX_MS
+    );
+    if (wasConnected) {
+      log.info('[SyncEngine] SSE disconnected (' + reason + '), reconnect in ' + delayMs + 'ms');
+    }
+    if (this.sseReconnectTimer !== null) clearTimeout(this.sseReconnectTimer);
+    this.sseReconnectTimer = setTimeout(() => {
+      this.sseReconnectTimer = null;
+      void this.startSse();
+    }, delayMs);
+  }
+
   async forceTickNow(): Promise<void> {
-    await this.tick(true);
+    // F-7：一个在跑 + 至多一个 pending。运行期间新触发合并进 pending，
+    // 跑完补拉一次；再多的并发触发直接吸收。
+    if (this.runningForcedTick) {
+      this.pendingForcedTick = true;
+      return;
+    }
+    this.runningForcedTick = true;
+    try {
+      do {
+        this.pendingForcedTick = false;
+        await this.tick(true);
+      } while (this.pendingForcedTick);
+    } finally {
+      this.runningForcedTick = false;
+      this.pendingForcedTick = false;
+    }
   }
 
   async explicitRefresh(): Promise<void> {
@@ -321,22 +532,29 @@ export class SyncEngine {
     await AsyncStorage.removeItem(LAST_HISTORY_SYNC_KEY);
     this.notifyListeners();
     this.start();
+    this.restartSse();
     this.forceTickNow();
   }
 
   handleNetworkChanged(): void {
     cancelInFlight();
     this.runtimeState = handleNetworkRouteChanged(this.runtimeState);
+    // round 6 F-3：路由切换等价 epoch 变化——立即按当前路由重连，
+    // 不等 Rust 侧心跳超时（2×25s）才发现死连接。
+    this.restartSse();
   }
 
   handleEndpointChanged(): void {
     cancelInFlight();
     this.runtimeState = handleNetworkRouteChanged(this.runtimeState);
+    this.restartSse();
     this.forceTickNow();
   }
 
   destroy(): void {
     this.stop();
+    for (const sub of this.sseSubscriptions) sub.remove();
+    this.sseSubscriptions = [];
     this.listeners.clear();
   }
 
@@ -893,9 +1111,14 @@ export class SyncEngine {
       this.tickTimer = null;
       return;
     }
+    // SSE 在线时下行由推送接管，周期 tick 降为 30s 兜底（省电正收益所在）；
+    // 断开/回退时恢复 1Hz。scene inactive 分支维持原低频档。
+    const activeCadenceSecs = this.sseConnected
+      ? SSE_FALLBACK_CADENCE_SECS
+      : this.syncConfig.normalCadenceSecs;
     const interval = this.isSceneInactive
       ? this.syncConfig.inactiveCadenceSecs * 1000
-      : this.syncConfig.normalCadenceSecs * 1000;
+      : activeCadenceSecs * 1000;
     this.tickTimer = setTimeout(() => {
       this.tickTimer = null;
       this.tick(false);

@@ -107,6 +107,9 @@ interface SettingsState {
   /** 设置是否启用历史记录同步 */
   setEnableHistorySync: (enabled: boolean) => Promise<void>;
 
+  /** 设置是否启用 SSE 推送通道 */
+  setEnableSse: (enabled: boolean) => Promise<void>;
+
   /** 设置日志等级 */
   setLogLevel: (level: 'debug' | 'info' | 'warn' | 'error') => Promise<void>;
 
@@ -359,6 +362,16 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   setEnableHistorySync: async (enabled: boolean) => {
     await get().updateConfig({ enableHistorySync: enabled });
+  },
+
+  setEnableSse: async (enabled: boolean) => {
+    await get().updateConfig({ enableSse: enabled });
+    try {
+      const { notifySseSettingChanged } = require('./syncEngineStore');
+      notifySseSettingChanged();
+    } catch {
+      // SyncEngine not yet initialized
+    }
   },
 
   setLogLevel: async (level: 'debug' | 'info' | 'warn' | 'error') => {

@@ -34,6 +34,7 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
 
   // 仅订阅影响本 section 渲染的字段
   const syncToastEnabled = useSettingsStore((s) => s.config?.syncToastEnabled ?? true);
+  const sseEnabled = useSettingsStore((s) => s.config?.enableSse ?? true);
   const isSyncClipboard = useSettingsStore((s) => {
     const c = s.config;
     const i = c?.activeServerIndex ?? -1;
@@ -61,6 +62,14 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
   const handleToggleSyncToast = async (enabled: boolean) => {
     try {
       await useSettingsStore.getState().updateConfig({ syncToastEnabled: enabled });
+    } catch (error: unknown) {
+      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+    }
+  };
+
+  const handleToggleSse = async (enabled: boolean) => {
+    try {
+      await useSettingsStore.getState().setEnableSse(enabled);
     } catch (error: unknown) {
       showMessage(error instanceof Error ? error.message : '设置失败', 'error');
     }
@@ -172,6 +181,22 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
       </SettingsSectionItem>
 
       <SettingsSectionItem title="高级">
+        {isSyncClipboard && (
+          <>
+            <ListItem>
+              <ListItem.HeadlineContent>
+                <ComposeText>实时推送(SSE)</ComposeText>
+              </ListItem.HeadlineContent>
+              <ListItem.SupportingContent>
+                <ComposeText>服务端推送剪贴板变化,更省电更即时;不支持时自动回退轮询</ComposeText>
+              </ListItem.SupportingContent>
+              <ListItem.TrailingContent>
+                <ComposeSwitch value={sseEnabled} onCheckedChange={handleToggleSse} />
+              </ListItem.TrailingContent>
+            </ListItem>
+            <HorizontalDivider />
+          </>
+        )}
         {!isSyncClipboard && (
           <>
             <ListItem>

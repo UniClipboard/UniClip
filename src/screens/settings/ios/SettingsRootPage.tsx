@@ -118,6 +118,13 @@ export function SettingsRootPage({
             isOn={config.autoPushLocal}
             onIsOnChange={(v) => updateConfig({ autoPushLocal: v })}
           />
+          <IconToggleRow
+            icon="bolt.horizontal"
+            iconColor={settingsTileColors.orange}
+            label="实时推送 (SSE)"
+            isOn={config.enableSse}
+            onIsOnChange={(v) => useSettingsStore.getState().setEnableSse(v)}
+          />
         </Section>
 
         {/* ── 扩展与权限 ── */}

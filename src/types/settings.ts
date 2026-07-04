@@ -12,6 +12,8 @@ export interface SharedSettings {
   autoApplyRemote: boolean;
   autoPushLocal: boolean;
   syncOnStartup: boolean;
+  /** SSE 推送通道开关；实际是否生效还叠加 feature-detect（服务端不支持则自动回退轮询）。 */
+  enableSse: boolean;
 
   // Attachment & cache
   attachmentAutoDownload: 'wifi' | 'always' | 'off';
@@ -96,6 +98,7 @@ export const SHARED_DEFAULTS: SharedSettings = {
   autoApplyRemote: true,
   autoPushLocal: false,
   syncOnStartup: true,
+  enableSse: true,
 
   attachmentAutoDownload: 'wifi',
   payloadCacheMaxBytes: 200 * 1024 * 1024,

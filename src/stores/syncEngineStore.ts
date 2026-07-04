@@ -60,6 +60,7 @@ function getSettings(): SyncSettings {
   return {
     autoApplyRemote: config?.autoApplyRemote ?? true,
     autoPushLocal: config?.autoPushLocal ?? false,
+    enableSse: config?.enableSse ?? true,
   };
 }
 
@@ -279,6 +280,11 @@ export function notifyServerChanged(): void {
 
 export function notifyNetworkChanged(): void {
   engine?.handleNetworkChanged();
+}
+
+/** enableSse 开关翻转时调用：按最新设置断开或重建 SSE 订阅。 */
+export function notifySseSettingChanged(): void {
+  engine?.restartSse();
 }
 
 export function notifyDeviceClipboardChanged(content: ClipboardContent): void {
