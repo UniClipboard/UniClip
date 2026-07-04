@@ -1,4 +1,4 @@
-import { requireNativeModule } from 'expo-modules-core';
+import { requireNativeModule, type EventSubscription } from 'expo-modules-core';
 
 const NativeModule = requireNativeModule('UcCore');
 
@@ -141,6 +141,66 @@ export async function probe(
 
 export function cancelInFlight(): void {
   NativeModule.cancelInFlight();
+}
+
+// --- SSE push channel (notify-then-pull) ---
+//
+// Rust 只管单次会话（断即 onSseDisconnected，不自动重连）；退避重连、
+// feature-detect 回退轮询、生命周期与并发协调全部在 TS 侧（SyncEngine）。
+// 每个事件都回传 subscriptionId，调用方据此丢弃已取消订阅（旧 epoch）的
+// 在途回调。
+
+export interface SseHelloEvent {
+  subscriptionId: string;
+  /** 服务端建连时刻的时钟（ms）。收到即无条件拉一次，覆盖建连窗口竞态。 */
+  serverTimeMs: number;
+}
+
+export interface SseUpdateEvent {
+  subscriptionId: string;
+  /** 新内容的 `blake3v1:<hex>` contentId——与 lastSyncedContentId 比对短路，不是内容本身。 */
+  contentId: string;
+}
+
+export interface SseResyncEvent {
+  subscriptionId: string;
+}
+
+export interface SseDisconnectedEvent {
+  subscriptionId: string;
+  /** 人类可读诊断信息，非稳定机器码。调用方自己 cancel 时不触发。 */
+  reason: string;
+}
+
+export interface SseEvents {
+  onSseHello: (event: SseHelloEvent) => void;
+  onSseUpdate: (event: SseUpdateEvent) => void;
+  onSseResync: (event: SseResyncEvent) => void;
+  onSseDisconnected: (event: SseDisconnectedEvent) => void;
+}
+
+/** iOS 绑定尚未包含 SSE 时返回 false（对齐 hasReducer 的 feature-detect 模式）。 */
+export function hasSse(): boolean {
+  return typeof NativeModule.startSseSubscription === 'function';
+}
+
+export function startSseSubscription(
+  subscriptionId: string,
+  server: ServerConfig,
+  trustInsecureCert = false
+): void {
+  NativeModule.startSseSubscription(subscriptionId, server, trustInsecureCert);
+}
+
+export function cancelSseSubscription(subscriptionId: string): void {
+  NativeModule.cancelSseSubscription(subscriptionId);
+}
+
+export function addSseListener<K extends keyof SseEvents>(
+  eventName: K,
+  listener: SseEvents[K]
+): EventSubscription {
+  return NativeModule.addListener(eventName, listener);
 }
 
 // --- Sync Reducer Types ---

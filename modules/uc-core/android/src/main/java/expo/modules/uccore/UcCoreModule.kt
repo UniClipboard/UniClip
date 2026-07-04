@@ -1,8 +1,11 @@
 package expo.modules.uccore
 
+import android.os.Handler
+import android.os.Looper
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import kotlinx.coroutines.runBlocking
+import java.util.concurrent.ConcurrentHashMap
 import uniffi.uc_mobile.*
 
 class UcCoreModule : Module() {
@@ -12,6 +15,8 @@ class UcCoreModule : Module() {
     }
 
     private var client: MobileSyncClient? = null
+    private val handler = Handler(Looper.getMainLooper())
+    private val sseHandles = ConcurrentHashMap<String, SseHandle>()
 
     private fun ensureInit() {
         if (!initialized) {
@@ -30,6 +35,8 @@ class UcCoreModule : Module() {
 
     override fun definition() = ModuleDefinition {
         Name("UcCore")
+
+        Events("onSseHello", "onSseUpdate", "onSseResync", "onSseDisconnected")
 
         Function("parseConnectUri") { uri: String ->
             val payload = parseConnectUri(uri)
@@ -124,6 +131,66 @@ class UcCoreModule : Module() {
 
         Function("cancelInFlight") {
             client?.cancelInFlight()
+        }
+
+        // SSE push channel (mobile-sync notify-then-pull). `subscriptionId` is
+        // assigned by the TS epoch state machine (design §5.2) and echoed back
+        // on every event so stale callbacks from a cancelled subscription can
+        // be told apart from the current one. Reconnect policy is entirely on
+        // the TS side: on `onSseDisconnected` the caller decides whether/when
+        // to call `startSseSubscription` again.
+
+        Function("startSseSubscription") { subscriptionId: String,
+                                             serverMap: Map<String, String>,
+                                             trustInsecureCert: Boolean ->
+            val server = serverFromMap(serverMap)
+            val listener = object : SseListener {
+                override fun onHello(serverTimeMs: Long) {
+                    handler.post {
+                        sendEvent("onSseHello", mapOf(
+                            "subscriptionId" to subscriptionId,
+                            "serverTimeMs" to serverTimeMs
+                        ))
+                    }
+                }
+
+                override fun onUpdate(contentId: String) {
+                    handler.post {
+                        sendEvent("onSseUpdate", mapOf(
+                            "subscriptionId" to subscriptionId,
+                            "contentId" to contentId
+                        ))
+                    }
+                }
+
+                override fun onResync() {
+                    handler.post {
+                        sendEvent("onSseResync", mapOf("subscriptionId" to subscriptionId))
+                    }
+                }
+
+                override fun onDisconnected(reason: String) {
+                    sseHandles.remove(subscriptionId)
+                    handler.post {
+                        sendEvent("onSseDisconnected", mapOf(
+                            "subscriptionId" to subscriptionId,
+                            "reason" to reason
+                        ))
+                    }
+                }
+            }
+
+            sseHandles.remove(subscriptionId)?.cancel()
+            sseHandles[subscriptionId] = getClient(trustInsecureCert).startSseSubscription(server, listener)
+        }
+
+        Function("cancelSseSubscription") { subscriptionId: String ->
+            sseHandles.remove(subscriptionId)?.cancel()
+        }
+
+        OnDestroy {
+            sseHandles.values.forEach { it.cancel() }
+            sseHandles.clear()
         }
 
         // Sync reducer functions (synchronous, pure state transforms)
