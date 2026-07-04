@@ -25,7 +25,6 @@ import { historyRepository } from './db/historyRepository';
  * 当前历史记录数据版本号(AsyncStorage 时代的数据结构版本,迁移导入时复用)
  */
 const CURRENT_HISTORY_VERSION = 1;
-const APP_GROUP_HISTORY_IMPORT_KEY = '@syncclipboard:history:appgroup-imported';
 
 /**
  * 迁移函数类型
@@ -254,8 +253,8 @@ export class HistoryStorage {
       // 一次性把旧 AsyncStorage 历史导入 SQLite
       await this.migrateFromAsyncStorageOnce();
 
-      // iOS App Group 一次性导入 + payload URI 修复
-      await this.importAppGroupHistoryOnce();
+      // iOS App Group legacy JSON 日志合并 + payload URI 修复
+      await this.importAppGroupHistory();
       await this.repairAppGroupPayloadUris();
 
       this.initialized = true;
@@ -359,17 +358,20 @@ export class HistoryStorage {
     };
   }
 
-  private async importAppGroupHistoryOnce(): Promise<void> {
-    const alreadyImported = await AsyncStorage.getItem(APP_GROUP_HISTORY_IMPORT_KEY);
-    if (alreadyImported === '1') return;
-
+  /**
+   * 合并 App Group legacy JSON 日志(UserDefaults)进共享 SQLite。
+   * 常态下扩展直写共享 DB,JSON 不再增长;但共享 DB 尚不可用时
+   * (App 更新后未首启、容器暂不可读)扩展会回退写 JSON,所以每次
+   * 启动都跑:按 profileHash 判重(含软删 tombstone,已删不复活),
+   * 幂等且日志 ≤200 条,开销可忽略。
+   */
+  private async importAppGroupHistory(): Promise<void> {
     const existing = await historyRepository.getAll(this.sortConfig, { includeDeleted: true });
     const imported = await importHistoryFromAppGroup(existing);
     if (imported.length > 0) {
       await historyRepository.replaceMany(imported.map(normalizeClipboardItem));
       await AsyncStorage.setItem(STORAGE_KEYS.HISTORY_VERSION, CURRENT_HISTORY_VERSION.toString());
     }
-    await AsyncStorage.setItem(APP_GROUP_HISTORY_IMPORT_KEY, '1');
   }
 
   private async repairAppGroupPayloadUris(): Promise<void> {

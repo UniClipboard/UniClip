@@ -138,15 +138,32 @@ describe('App Group history import', () => {
     );
   });
 
-  it('does not import native App Group history again after it already checked once', async () => {
-    mockGetItem.mockImplementation((key: string) =>
-      Promise.resolve(key === APP_GROUP_HISTORY_IMPORT_KEY ? '1' : null)
-    );
+  it('re-merges the legacy log idempotently and never resurrects deleted items', async () => {
+    const legacyJson = JSON.stringify([
+      {
+        id: '8604E01F-7555-4872-B315-44022A252327',
+        entry: { type: 'Text', hash: 'TEXT01', text: 'hello', hasData: false, size: 5 },
+        timestamp: 1700000100000,
+        direction: 'local',
+      },
+    ]);
+    mockGetLegacyHistory.mockResolvedValue(legacyJson);
 
     const storage = HistoryStorage.getInstance();
     await storage.initialize();
+    expect(
+      (await storage.getAllItems()).filter((item) => item.profileHash === 'TEXT01')
+    ).toHaveLength(1);
 
-    expect(mockGetLegacyHistory).not.toHaveBeenCalled();
+    // 用户在 App 里删除 → tombstone;下次启动的再合并不得复活它
+    await storage.softDeleteItem('TEXT01');
+    (HistoryStorage as unknown as { instance: null }).instance = null;
+    const storage2 = HistoryStorage.getInstance();
+    await storage2.initialize();
+
+    expect(mockGetLegacyHistory).toHaveBeenCalledTimes(2); // 每次启动都合并
+    const items = await storage2.getAllItems();
+    expect(items.find((item) => item.profileHash === 'TEXT01')).toBeUndefined();
   });
 
   it('repairs imported image records that were saved before payloads were migrated', async () => {

@@ -1,9 +1,17 @@
+import { Directory, File } from 'expo-file-system';
 import * as SQLite from 'expo-sqlite';
+import { Platform } from 'react-native';
 
 import { log } from '@/services/Logger';
 
-/** 数据库文件名(RN 私有沙盒,默认位置) */
+/**
+ * 数据库文件名。iOS 上落在 App Group 容器的 Databases/ 子目录,
+ * 键盘/分享扩展直接读写同一个文件(单一信源);Android 用默认位置。
+ */
 const DB_NAME = 'uniclipboard.db';
+
+/** App Group 容器内的数据库子目录(与 payloads/ 平级) */
+const APP_GROUP_DB_SUBDIR = 'Databases';
 
 /**
  * Schema 版本。与 AsyncStorage 的 HISTORY_VERSION 解耦——
@@ -41,12 +49,60 @@ export function getDatabase(): Promise<SQLite.SQLiteDatabase> {
 }
 
 async function openAndMigrate(): Promise<SQLite.SQLiteDatabase> {
-  const db = await SQLite.openDatabaseAsync(DB_NAME);
-  // WAL 提升并发读写性能(官方推荐建库即开)
+  const directory = await resolveIOSAppGroupDirectory();
+  const db = await SQLite.openDatabaseAsync(DB_NAME, undefined, directory ?? undefined);
+  // WAL 提升并发读写性能(官方推荐建库即开);跨进程(键盘/分享扩展)
+  // 并发访问依赖 WAL + busy_timeout,两侧都必须设置。
   await db.execAsync('PRAGMA journal_mode = WAL;');
+  await db.execAsync('PRAGMA busy_timeout = 3000;');
   await migrate(db);
-  log.info(`[DB] opened ${DB_NAME}, schema v${SCHEMA_VERSION}`);
+  log.info(`[DB] opened ${DB_NAME} at ${directory ?? 'default'}, schema v${SCHEMA_VERSION}`);
   return db;
+}
+
+/**
+ * iOS:解析 App Group 容器内的数据库目录,并在首次切换时把
+ * 私有沙盒里的旧数据库文件(.db / -wal / -shm)搬过去。
+ * 容器不可用(测试宿主、entitlement 缺失)时返回 null,回落默认目录。
+ */
+async function resolveIOSAppGroupDirectory(): Promise<string | null> {
+  if (Platform.OS !== 'ios') return null;
+  try {
+    const { getContainerUrl } = await import('app-group-store');
+    const containerUrl = await getContainerUrl();
+    if (!containerUrl) return null;
+
+    const dir = new Directory(containerUrl, APP_GROUP_DB_SUBDIR);
+    if (!dir.exists) dir.create({ intermediates: true });
+    migrateSandboxDatabaseFiles(dir);
+
+    // expo-sqlite 的 directory 参数是原生文件路径(非 file:// URI)
+    return decodeURIComponent(dir.uri.replace(/^file:\/\//, '')).replace(/\/+$/, '');
+  } catch (error) {
+    log.warn('[DB] App Group container unavailable, using sandbox directory:', error);
+    return null;
+  }
+}
+
+/**
+ * 一次性搬迁:旧版把 DB 建在私有沙盒(expo-sqlite 默认目录)。
+ * App Group 里还没有 DB 而沙盒里有时,连同 -wal/-shm 一起移动,
+ * 避免丢掉尚未 checkpoint 的写入。目标已存在则不动(幂等)。
+ */
+function migrateSandboxDatabaseFiles(targetDir: Directory): void {
+  const targetDb = new File(targetDir, DB_NAME);
+  if (targetDb.exists) return;
+
+  const legacyDir = SQLite.defaultDatabaseDirectory as string;
+  const legacyDb = new File(`file://${legacyDir}`, DB_NAME);
+  if (!legacyDb.exists) return;
+
+  for (const suffix of ['', '-wal', '-shm']) {
+    const src = new File(`file://${legacyDir}`, `${DB_NAME}${suffix}`);
+    if (!src.exists) continue;
+    src.move(new File(targetDir, `${DB_NAME}${suffix}`));
+  }
+  log.info('[DB] moved sandbox database into App Group container');
 }
 
 /**

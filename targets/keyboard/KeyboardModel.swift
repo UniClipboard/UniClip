@@ -142,6 +142,16 @@ final class KeyboardModel {
     /// init-time migrations on every tick.
     private let store = SettingsStore()
 
+    /// History reads/writes route through the shared App Group SQLite
+    /// database (single source of truth with the main app — deletes there
+    /// disappear here, tombstones block pull-resurrection), falling back to
+    /// the legacy JSON log until the app's first launch creates the DB.
+    /// `lazy` (not `let`) so a keyboard session that starts before the app
+    /// ever ran still probes the DB at first use; `@ObservationIgnored`
+    /// because @Observable can't macro-expand lazy storage.
+    @ObservationIgnored
+    private lazy var history = HistoryLog(store: store)
+
     /// Decoded thumbnails keyed by image content hash. Bounded by NSCache's
     /// own eviction so a long-lived keyboard session can't grow unbounded.
     private let thumbnailCache = NSCache<NSString, UIImage>()
@@ -477,7 +487,7 @@ final class KeyboardModel {
                 // Normal pull — including the "we pushed but another device
                 // pushed right after" race, where `latest` is genuinely new
                 // remote content that must surface, not be adopted.
-                let historyHeadHash = store.loadHistory().first?.entry.hash
+                let historyHeadHash = history.headHash()
                 log.info("sync pull: serverHash=\(latest.hash ?? "nil") serverType=\(latest.type.rawValue) historyHeadHash=\(historyHeadHash ?? "nil") lastSyncedHash=\(self.store.loadLastSyncedHash() ?? "nil")")
                 let pulledNew = appendPulledIfNew(latest)
                 log.info("sync pull result: pulledNew=\(pulledNew)")
@@ -502,8 +512,8 @@ final class KeyboardModel {
     private func recordLocalClipboardIfNew(_ snap: DeviceClipboardSnapshot?) {
         guard let snap, let hash = snap.clipboard.hash?.uppercased() else { return }
         if hash == store.loadLastSyncedHash()?.uppercased() { return }
-        if store.loadHistory().first?.entry.hash?.uppercased() == hash { return }
-        store.appendHistory(entry: snap.clipboard, direction: .local)
+        if history.headHash()?.uppercased() == hash { return }
+        history.append(entry: snap.clipboard, direction: .local)
     }
 
     /// Push the device pasteboard to the server if it carries new content.
@@ -538,7 +548,7 @@ final class KeyboardModel {
                 network: network
             )
             store.saveLastSyncedChangeCount(cc)
-            store.appendHistory(entry: snap.clipboard, direction: .pushed)
+            history.append(entry: snap.clipboard, direction: .pushed)
             pushStatus = .pushed(Self.summary(for: snap.clipboard))
             lastPushedEntry = snap.clipboard
             log.info("push: success")
@@ -603,14 +613,15 @@ final class KeyboardModel {
         if let cid = latest.contentId, cid == store.loadLastSyncedContentId() {
             return false
         }
-        if store.loadHistory().first?.entry.hash?.uppercased() == hash {
+        if history.headHash()?.uppercased() == hash {
             return false
         }
         if hash == store.loadLastSyncedHash()?.uppercased() {
             return false
         }
-        store.appendHistory(entry: latest, direction: .pulled)
-        return true
+        // May still return false: the shared DB suppresses a pull whose row
+        // the user deleted in the main app (tombstone) — deletions stay dead.
+        return history.append(entry: latest, direction: .pulled)
     }
 
     /// Show a brief outcome badge on the refresh button, then clear it.
@@ -627,8 +638,7 @@ final class KeyboardModel {
     /// Rebuild the card row from the on-disk history log (newest-first,
     /// text + image only). Cheap enough to call after every sync half.
     private func reloadCards() {
-        cards = store.loadHistory()
-            .sorted { $0.timestamp > $1.timestamp }
+        cards = history.loadRecent(limit: 100)
             .compactMap(Self.card(from:))
     }
 
@@ -713,14 +723,14 @@ final class KeyboardModel {
             // failed and — failure being swallowed — the copy silently did
             // nothing.
             if let hash = e.hash, let local = store.loadImageData(hash: hash), !local.isEmpty {
-                copyImageToPasteboard(local, ext: ext, cardID: card.id)
+                copyImageToPasteboard(local, ext: ext, card: card)
             } else {
                 // No local bytes (e.g. a server-pulled metadata entry whose
                 // payload was never fetched) — fall back to the server, which
                 // now surfaces fetch failures instead of swallowing them.
                 fetchThen(card: card, name: name) { [weak self] data in
                     guard let self, !data.isEmpty else { return }
-                    self.copyImageToPasteboard(data, ext: ext, cardID: card.id)
+                    self.copyImageToPasteboard(data, ext: ext, card: card)
                 }
             }
         }
@@ -731,11 +741,11 @@ final class KeyboardModel {
     /// card at the history head, and push through the normal uplink. Shared by
     /// the local-cache-hit fast path and the server-fetch fallback in
     /// `activate`. Reading back our own just-written pasteboard never prompts.
-    private func copyImageToPasteboard(_ data: Data, ext: String, cardID: UUID) {
+    private func copyImageToPasteboard(_ data: Data, ext: String, card: Card) {
         UIPasteboard.general.setData(data, forPasteboardType: PasteboardReader.uti(forExt: ext))
         store.saveImageData(hash: Clipboard.computeBytesHash(data), data: data)
-        store.touchHistoryItem(id: cardID)
-        flashActed(cardID)
+        history.touch(hash: card.entry.hash, legacyID: card.id)
+        flashActed(card.id)
         refresh()
     }
 

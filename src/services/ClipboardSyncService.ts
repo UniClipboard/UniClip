@@ -188,6 +188,18 @@ class ClipboardSyncService {
   /** 应用切换到前台时调用 */
   async onAppForeground(): Promise<void> {
     this.isAppActive = true;
+
+    // iOS:键盘/分享扩展可能在后台直接写了共享 SQLite(单一信源),
+    // 回前台先从库里重载,让 Home 列表和扩展保持一致。
+    if (Platform.OS === 'ios') {
+      try {
+        const { useHistoryStore } = require('../stores/historyStore');
+        await useHistoryStore.getState().refresh();
+      } catch (error) {
+        log.warn('[ClipboardSyncService] foreground history refresh failed:', error);
+      }
+    }
+
     if (!this.activeServer) return;
 
     const { useSettingsStore } = require('../stores/settingsStore');

@@ -64,11 +64,12 @@ struct ShareUploader {
         log.info("upload: metadata PUT done, watermark advanced")
         log.error("[share-route-v3] upload complete server=\(server.id, privacy: .public)")
 
-        // Surface the push in the shared history log so it shows up in the
+        // Surface the push in the shared history so it shows up in the
         // main app's Home list. The app's SyncEngine won't log it on its own —
         // it sees the watermark we just wrote and treats the server entry as
-        // already synced (skipping its own appendHistory).
-        store.appendHistory(entry: entry, direction: .pushed)
+        // already synced (skipping its own append). Routes to the shared
+        // SQLite database (single source of truth) with a JSON-log fallback.
+        HistoryLog(store: store).append(entry: entry, direction: .pushed)
 
         // Tell iOS Sharing Suggestions "the user just sent this to this
         // server" so next time the share sheet ranks the server's

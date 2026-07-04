@@ -88,7 +88,6 @@ async function initWithStoredHistory(items: ClipboardItem[]): Promise<HistorySto
   for (const key of Object.keys(asyncStore)) delete asyncStore[key];
   asyncStore[STORAGE_KEYS.HISTORY] = JSON.stringify(items);
   asyncStore[STORAGE_KEYS.HISTORY_VERSION] = '1';
-  asyncStore['@syncclipboard:history:appgroup-imported'] = '1';
 
   (HistoryStorage as unknown as { instance: null }).instance = null;
   const storage = HistoryStorage.getInstance();
