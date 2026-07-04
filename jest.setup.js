@@ -152,6 +152,7 @@ jest.mock('app-group-store', () => ({
   getLiveUrl: jest.fn().mockResolvedValue(null),
   saveLiveUrl: jest.fn().mockResolvedValue(undefined),
   migrateLegacyContainer: jest.fn().mockResolvedValue({ migrated: false, keys: 0 }),
+  getPasteboardChangeCount: jest.fn(() => null),
 }));
 
 jest.mock('uc-core', () => ({
@@ -165,6 +166,11 @@ jest.mock('uc-core', () => ({
   getHistoryPayload: jest.fn(),
   probe: jest.fn(),
   cancelInFlight: jest.fn(),
+  // SSE subscription bridge
+  hasSse: jest.fn(() => false),
+  startSseSubscription: jest.fn(),
+  cancelSseSubscription: jest.fn(),
+  addSseListener: jest.fn(() => ({ remove: jest.fn() })),
   // Sync reducer functions
   defaultSyncConfig: jest.fn(() => ({
     normalCadenceSecs: 1.0,
@@ -210,15 +216,6 @@ jest.mock('uc-core', () => ({
   isColdStart: jest.fn(() => false),
   advanceWatermark: jest.fn(),
   isProbeConclusionValid: jest.fn(),
-}));
-
-jest.mock('@microsoft/signalr', () => ({
-  HubConnectionBuilder: jest.fn().mockImplementation(() => ({
-    withUrl: jest.fn().mockReturnThis(),
-    withAutomaticReconnect: jest.fn().mockReturnThis(),
-    configureLogging: jest.fn().mockReturnThis(),
-    build: jest.fn(),
-  })),
 }));
 
 global.setImmediate = jest.useRealTimers;
