@@ -104,7 +104,7 @@ export async function uploadTextAndAddToHistory(
     })
   );
 
-  // 预先设置 hash，避免 SignalR/轮询推送时误判为新远程内容触发自动下载
+  // 预先设置 hash，避免轮询/SSE 拉取时误判为新远程内容触发自动下载
   SyncManager.getInstance().setLastUploadedHash(profileHash);
 
   // 上传到服务器：失败会向上抛出（ShareReceiveScreen 展示“处理失败”），
@@ -136,7 +136,7 @@ export async function uploadFileAndAddToHistory(
 ): Promise<void> {
   const result = await importFileToHistory(sourceUri, fileName, mimeType, fileSize, options);
 
-  // 预先设置 hash，避免 SignalR/轮询推送时误判为新远程内容触发自动下载
+  // 预先设置 hash，避免轮询/SSE 拉取时误判为新远程内容触发自动下载
   SyncManager.getInstance().setLastUploadedHash(result.profileHash);
 
   const content: ClipboardContent = {

@@ -19,7 +19,6 @@
       "native-util": ["modules/native-util/src"],
       "app-group-store": ["modules/app-group-store/src"],
       "shortcut": ["modules/shortcut/src"],
-      "signalr-client": ["modules/signalr-client/src"],
       "native-timer": ["modules/native-timer/src"],
       "clipboard-overlay": ["modules/clipboard-overlay/src"],
       "sms-forwarder": ["modules/sms-forwarder/src"],

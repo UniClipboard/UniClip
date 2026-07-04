@@ -3,7 +3,8 @@
  * 管理远程剪贴板同步（前台显示 + 后台同步）。
  *
  * 职责：
- * - 远程剪贴板获取（SignalR 或定时轮询）
+ * - 远程剪贴板获取（WebDAV/S3 定时轮询；syncclipboard 服务器的自动拉取
+ *   由 SyncEngine 的 SSE 推送 + 兜底 tick 接管，这里只保留手动刷新）
  * - 处理远程剪贴板变化（哈希检测、自动下载、自动复制、历史记录）
  * - SyncManager 生命周期管理（初始化/销毁）
  * - HistorySyncService 初始化
@@ -22,7 +23,6 @@ import {
   HistorySyncStatus,
 } from '../types/clipboard';
 import { SyncDirection, SyncResult } from '../types/sync';
-import type { ProfileChangedEvent } from 'signalr-client';
 import type { ServerConfig } from '../types/api';
 import type { ISyncClipboardAPI } from './APIClient';
 import { log } from './Logger';
@@ -34,7 +34,6 @@ class ClipboardSyncService {
   private _isStarted = false;
   private activeServer: ServerConfig | null = null;
   private pollingTag: string | null = null;
-  private signalRConnected = false;
   private lastRemoteProfileHash: string | null = null;
   private lastLocalProfileHash: string | null = null;
   private isAutoSyncing = false;
@@ -49,35 +48,6 @@ class ClipboardSyncService {
   private _downloadAbortController: AbortController | null = null;
   /** 当前正在进行的剪贴板上传 AbortController */
   private _uploadAbortController: AbortController | null = null;
-
-  /** SignalR 收到远程变化时的统一回调（箭头函数保证 this 稳定，供 off 注销） */
-  private readonly _signalRCallback = async (event: ProfileChangedEvent): Promise<void> => {
-    try {
-      if (!this.activeServer) return;
-      const { profileDtoToContent } = await import('../utils/clipboard');
-      const profile = {
-        type: event.type as 'Text' | 'Image' | 'File' | 'Group',
-        hash: event.hash,
-        text: event.text,
-        hasData: event.hasData,
-        dataName: event.dataName,
-        size: event.size,
-      };
-      const content = profileDtoToContent(profile);
-      const currentHash = content.profileHash || content.text || '';
-      const { createAPIClient } = require('./index');
-      const apiClient = createAPIClient(this.activeServer);
-      await this._processRemoteClipboardContent(
-        content,
-        currentHash,
-        profile.hasData,
-        apiClient,
-        'SignalR: '
-      );
-    } catch (e) {
-      log.error('[ClipboardSyncService] SignalR callback error:', e);
-    }
-  };
 
   private constructor() {}
 
@@ -123,7 +93,7 @@ class ClipboardSyncService {
     this.activeServer = activeServer;
     this.lastRemoteProfileHash = null; // 重启时重置，确保首次获取能正确处理
 
-    // 建立远程连接（SignalR 或轮询）
+    // 建立远程连接（WebDAV/S3 轮询；syncclipboard 只做初始拉取）
     await this._startConnection(activeServer);
 
     // 订阅本地剪贴板变化（用于自动上传）
@@ -177,9 +147,9 @@ class ClipboardSyncService {
       await this.stop();
       await this.start();
     } else if (this.activeServer) {
-      // 服务器未变：若连接仍活跃则不重连（避免与 App.tsx start() 双重触发时的无谓断联）
-      const connectionActive = !!this.pollingTag || this.signalRConnected;
-      if (!connectionActive) {
+      // 服务器未变：若轮询仍活跃则不重建（避免与 App.tsx start() 双重触发时的无谓断联）。
+      // syncclipboard 类型无轮询（下行归 SyncEngine），只会重复一次初始拉取，无害。
+      if (!this.pollingTag) {
         await this._startConnection(this.activeServer);
       }
       // 确保订阅存在（幂等）
@@ -224,19 +194,8 @@ class ClipboardSyncService {
     const config = useSettingsStore.getState().config;
 
     if (this.activeServer.type === 'syncclipboard') {
-      const { getSignalRClient } = require('signalr-client');
-      if (!getSignalRClient().isConnected()) {
-        await this._connectSignalR(this.activeServer);
-      } else {
-        // 已连接，补刷一次
-        await this.fetchRemoteClipboard(true);
-      }
-      // SignalR 需要服务端 ≥v3.1.1 才有 Hub；negotiate 404 时原生层只会无限重连,
-      // JS 侧无从感知。始终保留轮询兜底,_processRemoteClipboardContent 的哈希
-      // 去重保证推送与轮询不会重复处理同一内容。
-      if (!this.pollingTag) {
-        this._startPolling(config?.remotePollingInterval);
-      }
+      // 自动拉取由 SyncEngine（SSE + 兜底 tick）负责，这里只补刷一次远程显示
+      await this.fetchRemoteClipboard(true);
     } else {
       // 轮询模式：若轮询已停止（进入后台时可能停止），重新启动
       if (!this.pollingTag) {
@@ -255,7 +214,6 @@ class ClipboardSyncService {
 
     if (!bgDownloadEnabled) {
       this._stopPolling();
-      await this._disconnectSignalR();
     }
   }
 
@@ -385,11 +343,6 @@ class ClipboardSyncService {
     this.lastLocalProfileHash = hash;
   }
 
-  /** 后台 SignalR 是否连接中（供 HomeScreen 断开 SignalR 时判断是否可以真正 disconnect）。 */
-  isSignalRRunning(): boolean {
-    return this.signalRConnected;
-  }
-
   // ─── 私有实现 ─────────────────────────────────────────────────────────────
 
   private async _readActiveServer(): Promise<ServerConfig | null> {
@@ -436,24 +389,22 @@ class ClipboardSyncService {
     const { useSettingsStore } = require('../stores/settingsStore');
     const config = useSettingsStore.getState().config;
 
-    if (server.type === 'syncclipboard') {
-      await this._connectSignalR(server);
-      // 轮询兜底：SignalR Hub 不可用（服务端 <v3.1.1 时 negotiate 404）也能收到远端内容
+    // syncclipboard 类型的自动拉取由 SyncEngine（SSE 推送 + 兜底 tick）负责，
+    // 这里不再轮询，只做一次初始拉取刷新远程显示；WebDAV/S3 无 SyncEngine
+    // 支持，保留定时轮询作为唯一下行通道。
+    if (server.type !== 'syncclipboard') {
       this._startPolling(config?.remotePollingInterval);
-    } else {
-      this._startPolling(config?.remotePollingInterval);
-      // 立即获取一次（非静默，显示加载状态；错误写入 errorStore）
-      await this.fetchRemoteClipboard(false).catch((error: Error) => {
-        const { useErrorStore } = require('../stores/errorStore');
-        const errorMessage = error?.message ?? '无法连接到服务器';
-        useErrorStore.getState().setError({ title: '连接失败', message: errorMessage });
-      });
     }
+    // 立即获取一次（非静默，显示加载状态；错误写入 errorStore）
+    await this.fetchRemoteClipboard(false).catch((error: Error) => {
+      const { useErrorStore } = require('../stores/errorStore');
+      const errorMessage = error?.message ?? '无法连接到服务器';
+      useErrorStore.getState().setError({ title: '连接失败', message: errorMessage });
+    });
   }
 
   private async _stopConnection(): Promise<void> {
     this._stopPolling();
-    await this._disconnectSignalR();
   }
 
   private _startPolling(interval?: number): void {
@@ -482,38 +433,6 @@ class ClipboardSyncService {
       } catch {}
       this.pollingTag = null;
     }
-  }
-
-  private async _connectSignalR(server: ServerConfig): Promise<void> {
-    if (this.signalRConnected) return;
-    try {
-      const { getSignalRClient } = require('signalr-client');
-      const client = getSignalRClient();
-      client.onRemoteClipboardChanged(this._signalRCallback);
-      await client.connect(server);
-      this.signalRConnected = true;
-      log.info('[ClipboardSyncService] SignalR connected');
-      // 连接后立即获取一次（非静默；错误写入 errorStore）
-      await this.fetchRemoteClipboard(false).catch((error: Error) => {
-        const { useErrorStore } = require('../stores/errorStore');
-        const errorMessage = error?.message ?? '无法连接到服务器';
-        useErrorStore.getState().setError({ title: '连接失败', message: errorMessage });
-      });
-    } catch (e) {
-      log.error('[ClipboardSyncService] Failed to connect SignalR:', e);
-    }
-  }
-
-  private async _disconnectSignalR(): Promise<void> {
-    if (!this.signalRConnected) return;
-    this.signalRConnected = false;
-    try {
-      const { getSignalRClient } = require('signalr-client');
-      const client = getSignalRClient();
-      client.offRemoteClipboardChanged(this._signalRCallback);
-      await client.disconnect();
-      log.info('[ClipboardSyncService] SignalR disconnected');
-    } catch {}
   }
 
   /**

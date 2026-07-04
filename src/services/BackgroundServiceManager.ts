@@ -3,7 +3,7 @@
  * 统一管理所有 JS 侧后台服务的生命周期。
  *
  * 负责管理：
- * - ClipboardSyncService（远程同步、SignalR/轮询、SyncManager、自动上传/下载）
+ * - ClipboardSyncService（远程内容显示、WebDAV/S3 轮询、SyncManager、自动上传/下载）
  * - 前台服务（常驻通知）
  * - 短信验证码服务
  * - 剪贴板监控（startMonitoring）
@@ -68,19 +68,6 @@ class BackgroundServiceManager {
   // ─── 公开 API ─────────────────────────────────────────────
 
   /**
-   * 后台 SignalR 是否正在运行（委托给 ClipboardSyncService）。
-   * @deprecated 直接使用 getClipboardSyncService().isSignalRRunning()
-   */
-  isSignalRRunning(): boolean {
-    try {
-      const { getClipboardSyncService } = require('./ClipboardSyncService');
-      return getClipboardSyncService().isSignalRRunning();
-    } catch {
-      return false;
-    }
-  }
-
-  /**
    * 启动所有服务（幂等）。
    * 由任意 Activity 入口调用。
    * - 始终启动剪贴板监控（前台 UI 需要）
@@ -111,7 +98,7 @@ class BackgroundServiceManager {
     // 启动 Rust-driven SyncEngine（1Hz 自动同步 + 去重 + 退避）
     await this._startSyncEngine();
 
-    // 启动旧 ClipboardSyncService（仅保留上传功能和 SignalR，自动拉取由 SyncEngine 接管）
+    // 启动旧 ClipboardSyncService（上传与远程显示；syncclipboard 自动拉取由 SyncEngine 的 SSE+兜底 tick 接管）
     await this._startRemoteSync();
 
     // 后台专用服务（前台通知 + 心跳，Android 专属）

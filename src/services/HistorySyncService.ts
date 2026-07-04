@@ -15,7 +15,6 @@ import {
 import { HistoryStorage } from './HistoryStorage';
 import { ClipboardItem, HistorySyncStatus } from '@/types/clipboard';
 import { ServerConfig } from '@/types/api';
-import { getSignalRClient, type HistoryChangedEvent } from 'signalr-client';
 import { createHistoryAPIClient } from './apiClientFactory';
 import { log } from './Logger';
 
@@ -71,10 +70,6 @@ export class HistorySyncService {
     this.historyAPI = config.historyAPI;
     this.serverConfig = config.serverConfig;
 
-    // 注册 SignalR 历史变化事件监听
-    const client = getSignalRClient();
-    client.onRemoteHistoryChanged(this.handleNativeHistoryChanged);
-
     // 注册本地存储变更回调，自动同步 NeedSync 记录
     this.storageChangeCallback = this.handleLocalHistoryChanged;
     this.historyStorage.addChangeCallback(this.storageChangeCallback);
@@ -100,10 +95,6 @@ export class HistorySyncService {
    * 销毁同步服务
    */
   async destroy(): Promise<void> {
-    // 移除 SignalR 历史变化回调
-    const client = getSignalRClient();
-    client.offRemoteHistoryChanged(this.handleNativeHistoryChanged);
-
     // 移除本地存储变更回调
     if (this.storageChangeCallback) {
       this.historyStorage.removeChangeCallback(this.storageChangeCallback);
@@ -387,7 +378,9 @@ export class HistorySyncService {
     }
 
     log.info(
-      `[HistorySyncService] ${isIncremental ? 'Incremental' : 'Total'} records fetched: ${allRecords.length}`
+      `[HistorySyncService] ${isIncremental ? 'Incremental' : 'Total'} records fetched: ${
+        allRecords.length
+      }`
     );
     return allRecords;
   }
@@ -836,83 +829,6 @@ export class HistorySyncService {
       log.error(`[HistorySyncService] Failed to sync record ${item.profileHash}:`, error);
     }
   }
-
-  /**
-   * 处理远程历史变化
-   */
-  /**
-   * 处理 native SignalR 历史变化事件，转换为 HistoryRecordDto 并处理
-   */
-  private handleNativeHistoryChanged = async (event: HistoryChangedEvent): Promise<void> => {
-    const record: HistoryRecordDto = {
-      hash: event.hash,
-      text: event.text,
-      type: event.type as 'Text' | 'Image' | 'File',
-      hasData: event.hasData,
-      size: event.size,
-      starred: event.starred,
-      pinned: event.pinned,
-      version: event.version,
-      isDeleted: event.isDeleted,
-      createTime: event.createTime,
-      lastModified: event.lastModified,
-      lastAccessed: event.lastAccessed,
-    };
-    await this.handleRemoteHistoryChanged(record);
-  };
-
-  private handleRemoteHistoryChanged = async (record: HistoryRecordDto): Promise<void> => {
-    log.info('[HistorySyncService] Remote history changed:', record.hash);
-
-    // 如果服务器标记为已删除
-    if (record.isDeleted) {
-      const localItem = await this.historyStorage.getItem(record.hash);
-      if (localItem) {
-        // 标记本地为软删除
-        await this.historyStorage.updateItem(localItem.profileHash, {
-          isDeleted: true,
-          version: record.version || 0,
-          lastModified: record.lastModified ? new Date(record.lastModified).getTime() : Date.now(),
-          syncStatus: HistorySyncStatus.Synced,
-          isLocalFileReady: false,
-        });
-        log.info(`[HistorySyncService] Remote record deleted: ${record.hash}`);
-      }
-      return;
-    }
-
-    const localItem = await this.historyStorage.getItem(record.hash);
-
-    if (!localItem) {
-      // 新记录，添加到本地
-      const item = dtoToClipboardItem(record);
-      await this.historyStorage.addItem(item);
-    } else {
-      // 已存在，合并
-      const remoteVersion = record.version || 0;
-      const localVersion = localItem.version || 0;
-
-      if (remoteVersion > localVersion || !localItem.lastModified) {
-        const remoteModified = record.lastModified ? new Date(record.lastModified).getTime() : 0;
-        const localModified = localItem.lastModified || 0;
-
-        if (remoteModified > localModified) {
-          await this.historyStorage.updateItem(localItem.profileHash, {
-            text: record.text || localItem.text,
-            starred: record.starred,
-            pinned: record.pinned,
-            version: remoteVersion,
-            lastModified: remoteModified,
-            syncStatus: HistorySyncStatus.Synced,
-            hasRemoteData: record.hasData,
-            isLocalFileReady: localItem.isLocalFileReady,
-            fileUri: localItem.fileUri,
-            isDeleted: false,
-          });
-        }
-      }
-    }
-  };
 
   /**
    * 通知进度

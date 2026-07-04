@@ -19,14 +19,6 @@ export { S3Client, type S3ClientConfig } from './S3Client';
 export { ClipboardManager, clipboardManager } from './ClipboardManager';
 export { ClipboardMonitor, clipboardMonitor } from './ClipboardMonitor';
 
-// SignalR Client (re-exported from signalr-client module)
-export { getSignalRClient, resetSignalRClient } from 'signalr-client';
-export type {
-  SignalRClient,
-  RemoteClipboardChangedCallback,
-  RemoteHistoryChangedCallback,
-} from 'signalr-client';
-
 // Sync Manager
 export { SyncManager } from './SyncManager';
 

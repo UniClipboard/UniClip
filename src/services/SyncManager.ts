@@ -473,7 +473,7 @@ export class SyncManager {
         fileSize: localContent.fileSize,
       });
 
-      // 预设最后上传的 profileHash（防止 SignalR 在 HTTP 响应返回前推送通知导致误触自动下载）
+      // 预设最后上传的 profileHash（防止推送/轮询在 HTTP 响应返回前先看到新内容导致误触自动下载）
       const previousProfileHash = this.lastLocalProfileHash;
       if (currentProfileHash) {
         this.lastLocalProfileHash = currentProfileHash;
