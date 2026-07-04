@@ -8,8 +8,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ClipboardManager } from './ClipboardManager';
 import { ClipboardContent, ClipboardChangeCallback, ClipboardMonitorOptions } from '@/types';
 import { setTimer, clearTimer } from 'native-timer';
+import { getPasteboardChangeCount } from 'app-group-store';
+import * as ClipboardProxy from '@/utils/clipboardProxy';
 
 const LAST_CLIPBOARD_HASH_KEY = '@last_clipboard_hash';
+const IOS_DENIED_CHANGE_COUNT_KEY = '@ios_pasteboard_denied_change_count';
 
 interface PersistedClipboardHash {
   localClipboardHash?: string;
@@ -39,6 +42,14 @@ export class ClipboardMonitor {
   private static readonly DEBOUNCE_TIMER_TAG = 'clipboard_monitor_debounce';
   private isChecking: boolean = false;
   private checkGeneration: number = 0;
+
+  // iOS：UIPasteboard.changeCount 门控。读 changeCount 不触发系统「允许粘贴」
+  // 弹窗，只有读真实内容才会弹。changeCount 未变化时跳过真实读取，避免每秒
+  // 弹一次授权框（以及授权后每秒读一次内容的开销）。
+  private lastSeenChangeCountIOS: number | null = null;
+  // 用户在系统弹窗点了「不允许」时对应的 changeCount：在剪贴板出现新内容
+  // （changeCount 变化）之前不再尝试读取，也就不再弹窗。持久化以跨启动生效。
+  private deniedChangeCountIOS: number | null = null;
 
   // 事件驱动监听状态（Android + READ_LOGS 已授时启用，替代轮询）
   private eventMonitorActive: boolean = false;
@@ -105,6 +116,10 @@ export class ClipboardMonitor {
 
     // 从 AsyncStorage 加载持久化的 hash
     await this.loadPersistedHash();
+
+    if (Platform.OS === 'ios') {
+      await this.loadPersistedDeniedChangeCount();
+    }
 
     // 监听应用状态变化
     if (this.options.stopOnBackground) {
@@ -216,6 +231,14 @@ export class ClipboardMonitor {
   private async checkClipboard(): Promise<void> {
     // 互斥锁：如果上一次检查还在进行中（大图片 hash 计算耗时），跳过本次
     if (this.isChecking) return;
+
+    // iOS：changeCount 未变化（或用户已对当前内容拒绝授权）时跳过真实读取
+    const changeCount = Platform.OS === 'ios' ? getPasteboardChangeCount() : null;
+    if (changeCount !== null) {
+      if (changeCount === this.deniedChangeCountIOS) return;
+      if (changeCount === this.lastSeenChangeCountIOS) return;
+    }
+
     this.isChecking = true;
     const gen = this.checkGeneration;
     try {
@@ -223,6 +246,29 @@ export class ClipboardMonitor {
 
       // 如果在 getClipboardContent 期间 setLastContent 被调用，丢弃本次结果
       if (gen !== this.checkGeneration) return;
+
+      if (changeCount !== null) {
+        if (content) {
+          this.lastSeenChangeCountIOS = changeCount;
+          if (this.deniedChangeCountIOS !== null) {
+            await this.setDeniedChangeCount(null);
+          }
+        } else {
+          // 读到空但剪贴板确有内容 → 用户在系统弹窗点了「不允许」。
+          // 记住该 changeCount，出现新内容前不再尝试读取（不再弹窗）。
+          const hasContent =
+            (await ClipboardProxy.hasStringAsync()) || (await ClipboardProxy.hasImageAsync());
+          if (hasContent) {
+            log.info(
+              '[ClipboardMonitor] Pasteboard read denied by user; pausing reads until changeCount changes'
+            );
+            await this.setDeniedChangeCount(changeCount);
+          } else {
+            // 剪贴板确实为空，同样记住 changeCount 避免每秒重复读
+            this.lastSeenChangeCountIOS = changeCount;
+          }
+        }
+      }
 
       if (!content) {
         // log.info('[ClipboardMonitor] Poll: clipboard is empty');
@@ -234,6 +280,51 @@ export class ClipboardMonitor {
       log.error('[ClipboardMonitor] Failed to check clipboard:', error);
     } finally {
       this.isChecking = false;
+    }
+  }
+
+  /**
+   * iOS：当前剪贴板内容是否已被用户拒绝读取（点过「不允许」且尚无新内容）。
+   * 供启动时的一次性初始读取等外部读取点在读之前判断，避免再次触发弹窗。
+   */
+  isReadBlockedByDenial(): boolean {
+    if (Platform.OS !== 'ios' || this.deniedChangeCountIOS === null) return false;
+    const changeCount = getPasteboardChangeCount();
+    return changeCount !== null && changeCount === this.deniedChangeCountIOS;
+  }
+
+  /**
+   * iOS：清除「用户已拒绝」状态并强制下次轮询重新读取。
+   * 供用户显式重新触发授权的入口（如设置页「触发一次并授权」）调用。
+   */
+  async clearDenial(): Promise<void> {
+    if (Platform.OS !== 'ios') return;
+    this.lastSeenChangeCountIOS = null;
+    await this.setDeniedChangeCount(null);
+  }
+
+  private async loadPersistedDeniedChangeCount(): Promise<void> {
+    try {
+      const stored = await AsyncStorage.getItem(IOS_DENIED_CHANGE_COUNT_KEY);
+      if (stored !== null) {
+        const parsed = Number(stored);
+        this.deniedChangeCountIOS = Number.isFinite(parsed) ? parsed : null;
+      }
+    } catch (error) {
+      log.error('[ClipboardMonitor] Failed to load denied changeCount:', error);
+    }
+  }
+
+  private async setDeniedChangeCount(changeCount: number | null): Promise<void> {
+    this.deniedChangeCountIOS = changeCount;
+    try {
+      if (changeCount === null) {
+        await AsyncStorage.removeItem(IOS_DENIED_CHANGE_COUNT_KEY);
+      } else {
+        await AsyncStorage.setItem(IOS_DENIED_CHANGE_COUNT_KEY, String(changeCount));
+      }
+    } catch (error) {
+      log.error('[ClipboardMonitor] Failed to persist denied changeCount:', error);
     }
   }
 

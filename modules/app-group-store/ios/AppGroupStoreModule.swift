@@ -1,5 +1,6 @@
 import ExpoModulesCore
 import Foundation
+import UIKit
 
 public class AppGroupStoreModule: Module {
   private let store = SettingsStore()
@@ -27,6 +28,12 @@ public class AppGroupStoreModule: Module {
     AsyncFunction("getSettings") { () throws -> String in
       let data = try self.encoder.encode(self.store.loadAppSettings())
       return String(data: data, encoding: .utf8) ?? "{}"
+    }
+
+    // Free signal: reading changeCount never triggers the iOS paste
+    // permission prompt, unlike reading the pasteboard's actual contents.
+    Function("getPasteboardChangeCount") { () -> Int in
+      UIPasteboard.general.changeCount
     }
 
     AsyncFunction("getContainerUrl") { () -> String? in

@@ -18,6 +18,7 @@ interface AppGroupStoreNativeModule {
   saveLiveUrl(configId: string, url: string | null): Promise<void>;
   migrateLegacyContainer(): Promise<LegacyMigrationResult>;
   getKeyboardStatus(): Promise<NativeKeyboardStatus>;
+  getPasteboardChangeCount(): number;
 }
 
 interface NativeKeyboardStatus {
@@ -103,6 +104,15 @@ export function saveSettings(settings: AppSettingsDTO): Promise<void> {
 export async function getSettings(): Promise<AppSettingsDTO> {
   const json = await NativeModule?.getSettings();
   return json ? (JSON.parse(json) as AppSettingsDTO) : {};
+}
+
+/**
+ * iOS UIPasteboard.changeCount — increments on every clipboard change and is
+ * free to read (never triggers the system paste permission prompt). Returns
+ * `null` when the native module is unavailable (Android / Expo Go).
+ */
+export function getPasteboardChangeCount(): number | null {
+  return NativeModule?.getPasteboardChangeCount() ?? null;
 }
 
 export function getContainerUrl(): Promise<string | null> {

@@ -33,6 +33,7 @@ describe('clipboardStore initial clipboard read', () => {
         updatePollingInterval: jest.fn(),
         checkAndUpdateLastContent,
         setLastContent: jest.fn(),
+        isReadBlockedByDenial: jest.fn(() => false),
       },
     }));
 

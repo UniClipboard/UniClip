@@ -272,7 +272,10 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
 
     // 立即读取一次当前剪贴板内容，确保 UI 不需要等待第一次轮询 tick
     // （监控的 change-detection 路径在内容无变化时不触发回调，需要显式初始读取）
-    await get().getContent();
+    // iOS：用户对当前剪贴板内容点过「不允许」时跳过，避免冷启动再次弹授权框
+    if (!clipboardMonitor.isReadBlockedByDenial()) {
+      await get().getContent();
+    }
   },
 
   stopMonitoring: () => {

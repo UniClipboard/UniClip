@@ -34,6 +34,10 @@ export function ClipboardAccessPage({ onBack }: { onBack: () => void }) {
   const triggerPastePermission = async () => {
     try {
       await Clipboard.getStringAsync();
+      // 用户显式重新触发授权：清除监听器里「已拒绝」的记忆，让轮询恢复读取
+      // （若用户这次点了「允许」，下一个 tick 即可正常同步当前内容）。
+      const { clipboardMonitor } = await import('@/services/ClipboardMonitor');
+      await clipboardMonitor.clearDenial();
     } catch (e) {
       log.warn('[ClipboardAccess] trigger paste read failed:', e);
     } finally {
