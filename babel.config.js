@@ -47,5 +47,12 @@ module.exports = function (api) {
       ],
       'react-native-reanimated/plugin',
     ],
+    // jest(NODE_ENV=test)下把 `await import()` 转成 require,否则 Node vm 会因缺少
+    // --experimental-vm-modules 抛错。仅影响测试,Metro/生产构建不走此分支。
+    env: {
+      test: {
+        plugins: ['dynamic-import-node'],
+      },
+    },
   };
 };

@@ -103,6 +103,9 @@ async function applyToDevice(meta: ClipboardMeta, payload?: ArrayBuffer): Promis
   try {
     let appliedText = meta.text;
     let fileUri: string | undefined;
+    // 这次 apply 是否真的把内容写进了系统剪贴板。File 类型写不进 Android 系统剪贴板,
+    // 故保持 false——用于避免向 echo 保护 / anti-echo 谎报「系统剪贴板已是本内容」。
+    let wroteToClipboard = false;
 
     if (meta.kind === 'Text') {
       if (meta.hasData && payload) {
@@ -111,6 +114,7 @@ async function applyToDevice(meta: ClipboardMeta, payload?: ArrayBuffer): Promis
       } else {
         await ClipboardProxy.setStringAsync(meta.text);
       }
+      wroteToClipboard = true;
     } else if (meta.hasData && payload && meta.dataName && meta.hash) {
       const { saveHistoryFile } = await import('@/utils/fileStorage');
       fileUri = await saveHistoryFile(meta.kind, meta.hash, meta.dataName, payload);
@@ -121,14 +125,20 @@ async function applyToDevice(meta: ClipboardMeta, payload?: ArrayBuffer): Promis
       if (fileUri && meta.kind === 'Image') {
         try {
           await clipboardManager.setImageContent(fileUri);
+          wroteToClipboard = true;
         } catch (e) {
           log.error('[SyncEngine] Failed to write applied image to system clipboard:', e);
         }
       }
     }
 
-    // Echo protection: tell ClipboardMonitor this content is ours
-    if (meta.hash) {
+    // Echo protection: 只有这次 apply 真的写入了系统剪贴板时,才把它登记为
+    // ClipboardMonitor 的 lastContent。File 写不进 Android 系统剪贴板,系统剪贴板仍
+    // 停留在上一条内容;若在此谎报 meta.hash,monitor 回读到真实残留(上一条文本)时
+    // 会误判为「新变化」→ 触发 writeActivate 污染 activate 寄存器 → 把旧内容 push 回
+    // 去,覆盖服务端刚同步来的文件。跳过后 lastContent 保持真实残留,回读即被当作
+    // echo 丢弃(不依赖时间窗,永久有效)。
+    if (meta.hash && wroteToClipboard) {
       const echoContent: ClipboardContent = {
         type: meta.kind as any,
         text: appliedText,
@@ -138,9 +148,12 @@ async function applyToDevice(meta: ClipboardMeta, payload?: ArrayBuffer): Promis
       await clipboardMonitor.setLastContent(echoContent);
     }
 
-    // §3:被动应用的内容不是一次「激活」。清空 activate 寄存器,并记下 applied hash,
-    // 让监听回读到该内容时 writeActivate 反 echo 直接跳过——消除陈旧 X re-push 陷阱。
-    noteApplied(meta.hash ?? null);
+    // §3:被动应用的内容不是一次「激活」。清空 activate 寄存器(无条件)。anti-echo 基准
+    // 只在真的写入了系统剪贴板时更新,使 lastAppliedHash 始终等于系统剪贴板的真实残留——
+    // File 应用后它保持文件之前那条文本的 hash,回读该文本时反 echo 直接跳过。
+    if (wroteToClipboard) {
+      noteApplied(meta.hash ?? null);
+    }
     await clearActivate();
 
     // Add to history store so the card appears in UI（回填 contentId:保留服务端身份,
