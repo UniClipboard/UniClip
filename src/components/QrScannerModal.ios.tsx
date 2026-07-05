@@ -131,7 +131,9 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose
           </TouchableOpacity>
         </View>
         <View style={styles.permissionBody}>
-          <Text style={[styles.permissionTitle, { color: theme.colors.textPrimary }]}>需要相机权限</Text>
+          <Text style={[styles.permissionTitle, { color: theme.colors.textPrimary }]}>
+            需要相机权限
+          </Text>
           <Text
             style={[
               styles.permissionDesc,

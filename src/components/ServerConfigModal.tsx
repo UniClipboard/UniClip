@@ -423,9 +423,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
                 style={[
                   styles.testButton,
                   {
-                    backgroundColor: isTesting
-                      ? theme.colors.surfaceHigh
-                      : theme.colors.surfaceLow,
+                    backgroundColor: isTesting ? theme.colors.surfaceHigh : theme.colors.surfaceLow,
                   },
                 ]}
               >

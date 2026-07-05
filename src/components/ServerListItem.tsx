@@ -78,9 +78,7 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
         style={[
           styles.container,
           {
-            backgroundColor: isActive
-              ? theme.colors.accentContainer
-              : theme.colors.surfaceLow,
+            backgroundColor: isActive ? theme.colors.accentContainer : theme.colors.surfaceLow,
           },
           isActive && { borderWidth: 1.5, borderColor: theme.colors.accent },
         ]}
@@ -90,7 +88,10 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
         {/* 服务器信息 */}
         <View style={styles.content}>
           <View style={styles.mainInfo}>
-            <Text style={[styles.serverName, { color: theme.colors.textPrimary }]} numberOfLines={1}>
+            <Text
+              style={[styles.serverName, { color: theme.colors.textPrimary }]}
+              numberOfLines={1}
+            >
               {getServerDisplayName(config)}
             </Text>
             <View

@@ -12,14 +12,14 @@ push (any branch)      ──▶ code-style + unit-tests + android-build
 tag v* / manual run    ──▶ (build-ios ‖ android-build) ──▶ release
 ```
 
-| Workflow | Runs on | Does |
-| --- | --- | --- |
-| `android-build.yml` | every push | Build release APKs (all ABIs) → artifacts |
-| `build-ios.yml` | tag `v*` / `workflow_dispatch` | Build the uc-mobile xcframework from pinned source, prebuild, archive, export a **distribution-signed `.ipa`** → artifact (no upload) |
-| `release.yml` | tag `v*` (needs both builds) | Upload the `.ipa` to **TestFlight**; publish APKs to **GitHub Release** + **Gitee** |
+| Workflow            | Runs on                        | Does                                                                                                                                  |
+| ------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `android-build.yml` | every push                     | Build release APKs (all ABIs) → artifacts                                                                                             |
+| `build-ios.yml`     | tag `v*` / `workflow_dispatch` | Build the uc-mobile xcframework from pinned source, prebuild, archive, export a **distribution-signed `.ipa`** → artifact (no upload) |
+| `release.yml`       | tag `v*` (needs both builds)   | Upload the `.ipa` to **TestFlight**; publish APKs to **GitHub Release** + **Gitee**                                                   |
 
 All publishing lives in `release.yml`, so a failed lint / test / iOS build
-blocks the GitHub/Gitee release *and* the TestFlight upload.
+blocks the GitHub/Gitee release _and_ the TestFlight upload.
 
 ## The uc-mobile xcframework
 
@@ -44,15 +44,15 @@ Add under **Settings → Secrets and variables → Actions**. These are the same
 Apple credentials the native iOS app repo uses (identical team `8XG39X5CL8` and
 bundle ids), so the certs / key / profiles are shared.
 
-| Secret | What |
-| --- | --- |
-| `ASC_API_KEY_ID` | App Store Connect API key id (e.g. `77DMDM7BYZ`) |
-| `ASC_API_ISSUER_ID` | Issuer id (UUID) — from Users and Access → Integrations |
-| `ASC_API_KEY_P8` | base64 of `AuthKey_<id>.p8` (App Manager role) |
-| `DIST_CERT_P12_BASE64` | base64 of the Apple **Distribution** cert + key `.p12` |
-| `DIST_CERT_PASSWORD` | password of that `.p12` |
-| `DEV_CERT_P12_BASE64` | base64 of the Apple **Development** cert + key `.p12` |
-| `DEV_CERT_PASSWORD` | password of that `.p12` |
+| Secret                 | What                                                    |
+| ---------------------- | ------------------------------------------------------- |
+| `ASC_API_KEY_ID`       | App Store Connect API key id (e.g. `77DMDM7BYZ`)        |
+| `ASC_API_ISSUER_ID`    | Issuer id (UUID) — from Users and Access → Integrations |
+| `ASC_API_KEY_P8`       | base64 of `AuthKey_<id>.p8` (App Manager role)          |
+| `DIST_CERT_P12_BASE64` | base64 of the Apple **Distribution** cert + key `.p12`  |
+| `DIST_CERT_PASSWORD`   | password of that `.p12`                                 |
+| `DEV_CERT_P12_BASE64`  | base64 of the Apple **Development** cert + key `.p12`   |
+| `DEV_CERT_PASSWORD`    | password of that `.p12`                                 |
 
 Already configured for the Android release path (reused as-is): `GITEE_PRIVATE_KEY`,
 `GITEE_ACCESS_TOKEN` (secrets) and `GITEE_OWNER`, `GITEE_REPO` (variables).
@@ -83,7 +83,7 @@ via `asc_profiles.rb install`.
 4. In App Store Connect → TestFlight: wait for processing, answer export
    compliance, add the build to a testing group.
 
-**Manual iOS dev build** (no tag): Actions → `build` → *Run workflow*. Inputs:
+**Manual iOS dev build** (no tag): Actions → `build` → _Run workflow_. Inputs:
 
 - leave `upload_testflight` unchecked → runs `build-ios` only: rebuild
   xcframework, archive, export a signed `.ipa` artifact. No upload, no

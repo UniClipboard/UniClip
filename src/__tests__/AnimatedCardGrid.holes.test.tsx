@@ -151,17 +151,19 @@ interface MountedCell {
 }
 
 function readMountedCells(root: ReactTestInstance): MountedCell[] {
-  return root.findAll((n) => n.type === ('AnimatedView' as any)).map((view) => {
-    const styles = view.props.style as any[];
-    const base = styles[0];
-    const live = styles[styles.length - 1];
-    const t = live.transform as { translateX?: number; translateY?: number }[];
-    // 视觉位置 = 静态 left/top + 动画 transform 增量
-    const x = (base.left ?? 0) + t.find((e) => 'translateX' in e)!.translateX!;
-    const y = (base.top ?? 0) + t.find((e) => 'translateY' in e)!.translateY!;
-    const marker = view.findAll((n) => n.type === ('cell' as any))[0];
-    return { x, y, hash: marker.props.cellHash, id: marker.props.cellId };
-  });
+  return root
+    .findAll((n) => n.type === ('AnimatedView' as any))
+    .map((view) => {
+      const styles = view.props.style as any[];
+      const base = styles[0];
+      const live = styles[styles.length - 1];
+      const t = live.transform as { translateX?: number; translateY?: number }[];
+      // 视觉位置 = 静态 left/top + 动画 transform 增量
+      const x = (base.left ?? 0) + t.find((e) => 'translateX' in e)!.translateX!;
+      const y = (base.top ?? 0) + t.find((e) => 'translateY' in e)!.translateY!;
+      const marker = view.findAll((n) => n.type === ('cell' as any))[0];
+      return { x, y, hash: marker.props.cellHash, id: marker.props.cellId };
+    });
 }
 
 function checkInvariants(root: ReactTestInstance, items: Item[], scrollTop: number, label: string) {

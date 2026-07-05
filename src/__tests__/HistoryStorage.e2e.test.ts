@@ -171,7 +171,9 @@ describe('分享路径 → SQLite 各类型(uploadFile 构造的 item)', () => {
       hasData: true,
       dataName: 'shared.png',
     });
-    expect(hashesOf((await s.searchItems({ displayKinds: ['image'] })).items)).toContain('SH_IMG_1');
+    expect(hashesOf((await s.searchItems({ displayKinds: ['image'] })).items)).toContain(
+      'SH_IMG_1'
+    );
   });
 
   it('分享文件 → File 落库', async () => {

@@ -44,9 +44,11 @@ jest.mock('@/services/db/activateRepository', () => {
   return {
     activateRepository: {
       get: jest.fn(async () => row),
-      upsert: jest.fn(async (profileHash: string, contentId: string | null, activatedAtMs: number) => {
-        row = { profileHash, contentId, activatedAtMs };
-      }),
+      upsert: jest.fn(
+        async (profileHash: string, contentId: string | null, activatedAtMs: number) => {
+          row = { profileHash, contentId, activatedAtMs };
+        }
+      ),
       clear: jest.fn(async () => {
         row = null;
       }),

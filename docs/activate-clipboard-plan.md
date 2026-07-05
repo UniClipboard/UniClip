@@ -85,17 +85,17 @@ reducer's watermarks already prevent pushing applied content. We must NOT try to
 
 > **On apply, CLEAR the `activate_clipboard` row.**
 
-This honors the semantic literally (applied content is *not* recorded as an activation) **and**
+This honors the semantic literally (applied content is _not_ recorded as an activation) **and**
 removes the stale-X trap (nothing to re-push; `device_present=false` until the next genuine
 capture; the OS clipboard's real content Y already matches `last_synced=Y`).
 
 ### The three write rules (all through one entry point)
 
-| Trigger | activate write |
-| --- | --- |
-| Genuine local new content (foreground snapshot / Android monitor), `≠ last_applied_hash` and `≠ current activate` | **write** (local activation; `content_id` null) |
-| User actively uses / restores an item | **write** (carry that item's `content_id` if it has one) |
-| Passive apply of remote content | **clear the row** (not an activation; watermarks already prevent re-push) |
+| Trigger                                                                                                           | activate write                                                            |
+| ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Genuine local new content (foreground snapshot / Android monitor), `≠ last_applied_hash` and `≠ current activate` | **write** (local activation; `content_id` null)                           |
+| User actively uses / restores an item                                                                             | **write** (carry that item's `content_id` if it has one)                  |
+| Passive apply of remote content                                                                                   | **clear the row** (not an activation; watermarks already prevent re-push) |
 
 ---
 
@@ -161,8 +161,8 @@ applyRemote(entry):        # the reducer/apply path
 
 - **iOS** — `AppState` foreground → `changeCount` gating (read content only when it advanced, to
   avoid paste-prompt spam) → anti-echo guard → `writeActivate`. Plus in-app user actions. **No
-  background capture.** Product consequence to accept: *iOS uploads sync when you next open the
-  app.* Reuse the embryonic foreground read at `ClipboardMonitor.ts:512-534`.
+  background capture.** Product consequence to accept: _iOS uploads sync when you next open the
+  app._ Reuse the embryonic foreground read at `ClipboardMonitor.ts:512-534`.
 - **Android** — keep the live monitor (READ_LOGS/accessibility → near-real-time) **and**
   foreground snapshot + user actions; all call the same `writeActivate`.
 - **iOS extensions** (share/keyboard, run while main app is suspended) — write activate **and**

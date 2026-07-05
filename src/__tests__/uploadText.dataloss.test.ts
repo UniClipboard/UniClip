@@ -7,7 +7,7 @@
  */
 import type { ServerConfig } from '@/types/api';
 import { HistorySyncStatus } from '@/types/clipboard';
-import { createAPIClient } from '@/services';
+import { createAPIClient, historyStorage } from '@/services';
 import { uploadTextAndAddToHistory } from '@/utils/uploadFile';
 
 // 变量名必须以 mock 前缀,jest.mock 工厂才允许引用(hoisting 规则)
@@ -22,7 +22,10 @@ jest.mock('@/utils/heicToJpeg', () => ({
     fileSize,
   })),
 }));
-jest.mock('@/services', () => ({ createAPIClient: jest.fn() }));
+jest.mock('@/services', () => ({
+  createAPIClient: jest.fn(),
+  historyStorage: { getItem: jest.fn() },
+}));
 jest.mock('@/services/SyncManager', () => ({
   SyncManager: { getInstance: () => ({ setLastUploadedHash: jest.fn() }) },
 }));
@@ -40,6 +43,11 @@ describe('分享文本:服务端异常不丢数据', () => {
   beforeEach(() => {
     mockAddItem.mockClear();
     mockUpdateItem.mockClear();
+    // pushHistoryRecord 从 historyStorage 读回已落库记录再重建内容上传;
+    // 回放本测试刚 addItem 的那条(LocalOnly),让成功/失败路径都走到 putContent。
+    (historyStorage.getItem as jest.Mock).mockImplementation(
+      async () => mockAddItem.mock.calls[0]?.[0]
+    );
   });
 
   it('上传返回 500 时:仍先本地落库(addItem 为 LocalOnly),内容不丢;不标记 Synced', async () => {
@@ -47,9 +55,7 @@ describe('分享文本:服务端异常不丢数据', () => {
       putContent: jest.fn().mockRejectedValue(new Error('status=500')),
     });
 
-    await expect(
-      uploadTextAndAddToHistory('会因服务端异常丢失的文本', server)
-    ).rejects.toThrow();
+    await expect(uploadTextAndAddToHistory('会因服务端异常丢失的文本', server)).rejects.toThrow();
 
     // 关键:addItem 在上传之前已执行 → 数据已本地保存
     expect(mockAddItem).toHaveBeenCalledTimes(1);

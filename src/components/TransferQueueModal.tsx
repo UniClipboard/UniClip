@@ -177,13 +177,13 @@ export const TransferQueueModal: React.FC<TransferQueueModalProps> = ({ visible,
 
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
-              <Text style={[styles.statNumber, { color: theme.colors.accent }]}>
-                {activeCount}
-              </Text>
+              <Text style={[styles.statNumber, { color: theme.colors.accent }]}>{activeCount}</Text>
               <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>传输中</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={[styles.statNumber, { color: theme.colors.textPrimary }]}>{pendingCount}</Text>
+              <Text style={[styles.statNumber, { color: theme.colors.textPrimary }]}>
+                {pendingCount}
+              </Text>
               <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>等待中</Text>
             </View>
           </View>

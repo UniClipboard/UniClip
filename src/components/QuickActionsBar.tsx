@@ -64,9 +64,7 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
           }}
         >
           <Row verticalAlignment="center" horizontalArrangement="center">
-            {syncInProgress && (
-              <CircularProgressIndicator color={theme.colors.onAccentContainer} />
-            )}
+            {syncInProgress && <CircularProgressIndicator color={theme.colors.onAccentContainer} />}
             <ComposeText>{syncInProgress ? '  同步中...' : '🔄 同步'}</ComposeText>
           </Row>
         </FilledTonalButton>

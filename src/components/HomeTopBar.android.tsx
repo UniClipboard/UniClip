@@ -177,10 +177,7 @@ export function SelectModeTopBar({
             {allSelected ? '取消全选' : '全选'}
           </Text>
         </Pressable>
-        <Pressable
-          onPress={onDone}
-          style={[s.pill, { backgroundColor: theme.colors.surfaceHigh }]}
-        >
+        <Pressable onPress={onDone} style={[s.pill, { backgroundColor: theme.colors.surfaceHigh }]}>
           <Text style={[s.pillText, { color: theme.colors.textPrimary }]}>完成</Text>
         </Pressable>
       </View>

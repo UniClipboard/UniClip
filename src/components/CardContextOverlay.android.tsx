@@ -122,10 +122,7 @@ function CardPreview(props: PreviewProps) {
 function TextPreview({ item, maxWidth, maxHeight, theme }: PreviewProps) {
   return (
     <View
-      style={[
-        s.previewCard,
-        { maxWidth, maxHeight, backgroundColor: theme.colors.surfaceLow },
-      ]}
+      style={[s.previewCard, { maxWidth, maxHeight, backgroundColor: theme.colors.surfaceLow }]}
     >
       <Text style={[s.previewText, { color: theme.colors.textPrimary }]} numberOfLines={24}>
         {item.text}

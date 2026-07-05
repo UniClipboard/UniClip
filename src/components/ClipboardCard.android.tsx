@@ -368,9 +368,7 @@ function FileCardBody({
   const chipColor = isGroup ? '#AF52DE' : getExtensionColor(ext);
   const sizeLabel = item.size ? formatFileSize(item.size) : '';
 
-  const paperBg = theme.isDark
-    ? theme.colors.surfaceHigh
-    : theme.colors.surfaceLowest;
+  const paperBg = theme.isDark ? theme.colors.surfaceHigh : theme.colors.surfaceLowest;
   const paperBorder = theme.colors.separator;
   const foldColor = theme.colors.surfaceHighest;
   const ghostBg = theme.isDark ? theme.colors.surfaceMid : theme.colors.surfaceHigh;
