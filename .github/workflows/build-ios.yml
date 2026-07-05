@@ -72,6 +72,20 @@ jobs:
           echo "KEYCHAIN_PATH=$RUNNER_TEMP/ci.keychain-db"   >> "$GITHUB_ENV"
           echo "UC_SRC=$RUNNER_TEMP/uc-core-src"             >> "$GITHUB_ENV"
 
+      # Signing preflight up front: writing the ASC key and installing the App
+      # Store profiles here (rather than only before export) fails a missing or
+      # misconfigured profile in ~1 min instead of after the 15-20 min archive.
+      - name: Write App Store Connect API key
+        env:
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+        run: echo -n "$ASC_API_KEY_P8" | base64 --decode > "$ASC_KEY_PATH"
+
+      - name: Install App Store provisioning profiles
+        env:
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+        run: ruby scripts/asc_profiles.rb install "$ASC_API_KEY_ID" "$ASC_API_ISSUER_ID" "$ASC_KEY_PATH"
+
       - name: Select latest Xcode 26
         run: |
           XCODE_APP="$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
@@ -163,11 +177,6 @@ jobs:
           security list-keychain -d user -s "$KEYCHAIN_PATH"
           security find-identity -v -p codesigning "$KEYCHAIN_PATH"
 
-      - name: Write App Store Connect API key
-        env:
-          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
-        run: echo -n "$ASC_API_KEY_P8" | base64 --decode > "$ASC_KEY_PATH"
-
       - name: Archive
         env:
           ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
@@ -197,15 +206,9 @@ jobs:
           path: ${{ env.ARCHIVE_PATH }}/dSYMs
           if-no-files-found: warn
 
-      # Automatic signing at export makes xcodebuild attempt cloud signing,
-      # which needs an Admin-role API key. Instead we export with manual signing
-      # against pre-created App Store profiles that this step installs.
-      - name: Install App Store provisioning profiles
-        env:
-          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
-          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
-        run: ruby scripts/asc_profiles.rb install "$ASC_API_KEY_ID" "$ASC_API_ISSUER_ID" "$ASC_KEY_PATH"
-
+      # Export uses manual signing against the App Store profiles installed in
+      # the preflight step above (automatic export signing would need an
+      # Admin-role API key).
       - name: Export signed IPA
         env:
           ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
