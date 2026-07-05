@@ -1,0 +1,285 @@
+# Build the iOS app and export a distribution-signed .ipa (App Store) as a
+# workflow artifact. Does NOT upload to TestFlight — release.yml consumes the
+# artifact and uploads it, so all publishing lives in the release flow.
+#
+# The Rust mobile core (uc-mobile) xcframework is gitignored (293MB, single
+# .a > GitHub's 100MB limit), so this workflow rebuilds it from a PINNED commit
+# of the source monorepo (UniClipboard/UniClipboard) via a shallow CI clone —
+# the app repo carries no submodule. Bump UC_CORE_REF below when adopting a new
+# uc-mobile version (must stay compatible with the committed
+# modules/uc-core/ios/UcCoreModule.swift wrapper).
+#
+# Required repository secrets (see docs/ios-release-ci.md):
+#   ASC_API_KEY_ID, ASC_API_ISSUER_ID, ASC_API_KEY_P8 (base64 of AuthKey_*.p8)
+#   DIST_CERT_P12_BASE64, DIST_CERT_PASSWORD
+#   DEV_CERT_P12_BASE64,  DEV_CERT_PASSWORD
+
+name: build-ios
+
+on:
+  workflow_call:
+    inputs:
+      build_number:
+        description: "Override CFBundleVersion (empty = use app.json expo.ios.buildNumber)"
+        required: false
+        type: string
+      upload_testflight:
+        description: "Upload the exported .ipa straight to TestFlight (for manual dev builds; the tagged release path uploads via release.yml instead)"
+        required: false
+        default: false
+        type: boolean
+    outputs:
+      version:
+        description: "App marketing version from app.json"
+        value: ${{ jobs.build.outputs.version }}
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: "Override CFBundleVersion (empty = use app.json expo.ios.buildNumber)"
+        required: false
+        type: string
+      upload_testflight:
+        description: "Also upload the build to TestFlight"
+        required: false
+        default: false
+        type: boolean
+
+env:
+  # Pinned uc-mobile source commit. Full SHA so GitHub can serve it via
+  # `git fetch --depth 1 <sha>` even after the source branch advances.
+  UC_CORE_REPO: https://github.com/UniClipboard/UniClipboard.git
+  UC_CORE_REF: 9cfe6bd8ad57573c1266724667f0d107e7378624
+  APPLE_TEAM_ID: 8XG39X5CL8
+
+jobs:
+  build:
+    name: Build & export iOS IPA
+    runs-on: macos-26
+    timeout-minutes: 90
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # The `runner` context is not allowed in job-level env, so derive
+      # temp-dir paths here instead.
+      - name: Set derived paths
+        run: |
+          echo "ARCHIVE_PATH=$RUNNER_TEMP/UniClip.xcarchive" >> "$GITHUB_ENV"
+          echo "EXPORT_PATH=$RUNNER_TEMP/export"             >> "$GITHUB_ENV"
+          echo "ASC_KEY_PATH=$RUNNER_TEMP/AuthKey.p8"        >> "$GITHUB_ENV"
+          echo "KEYCHAIN_PATH=$RUNNER_TEMP/ci.keychain-db"   >> "$GITHUB_ENV"
+          echo "UC_SRC=$RUNNER_TEMP/uc-core-src"             >> "$GITHUB_ENV"
+
+      - name: Select latest Xcode 26
+        run: |
+          XCODE_APP="$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
+          sudo xcode-select -s "$XCODE_APP"
+          xcodebuild -version
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios,aarch64-apple-darwin
+
+      - name: Prepend cargo bin to PATH
+        # Works around the macOS image's Homebrew rustup shim so `cargo`
+        # resolves to the rustup-managed toolchain, not rustup-init.
+        run: echo "${CARGO_HOME:-$HOME/.cargo}/bin" >> "$GITHUB_PATH"
+
+      - name: Build uc-mobile xcframework from pinned source
+        run: |
+          set -euo pipefail
+          # Shallow-fetch exactly the pinned commit (GitHub allows fetching an
+          # arbitrary reachable SHA, so this survives the source branch moving).
+          rm -rf "$UC_SRC"; mkdir -p "$UC_SRC"
+          git -C "$UC_SRC" init -q
+          git -C "$UC_SRC" remote add origin "$UC_CORE_REPO"
+          git -C "$UC_SRC" fetch -q --depth 1 origin "$UC_CORE_REF"
+          git -C "$UC_SRC" checkout -q FETCH_HEAD
+          # The workspace [patch.crates-io] points at vendor/iroh-blobs; cargo
+          # fails to parse the manifest if the submodule is absent (even though
+          # uc-mobile does not link it).
+          git -C "$UC_SRC" submodule update --init --recursive
+
+          # The source repo pins its own Rust channel via rust-toolchain.toml;
+          # the Apple cross-targets must be installed on THAT channel.
+          ( cd "$UC_SRC"
+            TC=$(rustup show active-toolchain | awk '{print $1}')
+            echo "pinned toolchain: $TC"
+            rustup target add --toolchain "$TC" \
+              aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios aarch64-apple-darwin
+            UC_MOBILE_BUILD_LOCKED=1 bash crates/uc-mobile/scripts/build-ios-xcframework.sh
+          )
+
+          # Drop the framework + paired UniFFI binding into the Expo module
+          # (both gitignored locally; the UcCore podspec vendors them).
+          DEST="modules/uc-core/ios"
+          rm -rf "$DEST/UniClipboardCore.xcframework" "$DEST/Bindings"
+          cp -R "$UC_SRC/target/UniClipboardCore.xcframework" "$DEST/UniClipboardCore.xcframework"
+          mkdir -p "$DEST/Bindings/include"
+          cp "$UC_SRC/target/uniffi-bindings/uc_mobile.swift" "$DEST/Bindings/uc_mobile.swift"
+          cp -R "$UC_SRC/target/uniffi-bindings/include/." "$DEST/Bindings/include/"
+          echo "== staged uc-core artifacts =="; ls -la "$DEST" "$DEST/Bindings"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Expo prebuild (iOS)
+        run: npx expo prebuild -p ios --no-install
+
+      - name: Get version name
+        id: version
+        run: echo "version=$(node -p "require('./app.json').expo.version")" >> "$GITHUB_OUTPUT"
+
+      - name: CocoaPods install
+        run: cd ios && pod install
+
+      - name: Install signing certificates
+        env:
+          DIST_CERT_P12_BASE64: ${{ secrets.DIST_CERT_P12_BASE64 }}
+          DIST_CERT_PASSWORD: ${{ secrets.DIST_CERT_PASSWORD }}
+          DEV_CERT_P12_BASE64: ${{ secrets.DEV_CERT_P12_BASE64 }}
+          DEV_CERT_PASSWORD: ${{ secrets.DEV_CERT_PASSWORD }}
+        run: |
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          echo -n "$DIST_CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/dist.p12"
+          echo -n "$DEV_CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/dev.p12"
+          security import "$RUNNER_TEMP/dist.p12" -P "$DIST_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security import "$RUNNER_TEMP/dev.p12" -P "$DEV_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          rm "$RUNNER_TEMP/dist.p12" "$RUNNER_TEMP/dev.p12"
+
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" > /dev/null
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+      - name: Write App Store Connect API key
+        env:
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+        run: echo -n "$ASC_API_KEY_P8" | base64 --decode > "$ASC_KEY_PATH"
+
+      - name: Archive
+        env:
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+        run: |
+          EXTRA_SETTINGS=()
+          if [ -n "$BUILD_NUMBER" ]; then
+            EXTRA_SETTINGS+=("CURRENT_PROJECT_VERSION=$BUILD_NUMBER")
+          fi
+          xcodebuild archive \
+            -workspace ios/UniClip.xcworkspace \
+            -scheme UniClip \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$ARCHIVE_PATH" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_API_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_API_ISSUER_ID" \
+            "${EXTRA_SETTINGS[@]}"
+
+      - name: Upload dSYMs artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-dsyms-${{ github.run_number }}
+          path: ${{ env.ARCHIVE_PATH }}/dSYMs
+          if-no-files-found: warn
+
+      # Automatic signing at export makes xcodebuild attempt cloud signing,
+      # which needs an Admin-role API key. Instead we export with manual signing
+      # against pre-created App Store profiles that this step installs.
+      - name: Install App Store provisioning profiles
+        env:
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+        run: ruby scripts/asc_profiles.rb install "$ASC_API_KEY_ID" "$ASC_API_ISSUER_ID" "$ASC_KEY_PATH"
+
+      - name: Export signed IPA
+        env:
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>destination</key>
+            <string>export</string>
+            <key>teamID</key>
+            <string>${APPLE_TEAM_ID}</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>signingCertificate</key>
+            <string>Apple Distribution</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>app.uniclipboard.UniClipboard</key>
+              <string>UniClipboard App Store</string>
+              <key>app.uniclipboard.UniClipboard.Share</key>
+              <string>UniClipboard Share App Store</string>
+              <key>app.uniclipboard.UniClipboard.Keyboard</key>
+              <string>UniClipboard Keyboard App Store</string>
+            </dict>
+            <key>uploadSymbols</key>
+            <true/>
+            <key>manageAppVersionAndBuildNumber</key>
+            <false/>
+          </dict>
+          </plist>
+          EOF
+          # PATH prefix avoids Homebrew rsync shadowing system rsync, which
+          # breaks Xcode's IPA packaging with a bare "Copy failed".
+          env PATH="/usr/bin:/bin:/usr/sbin:/sbin:$PATH" xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$EXPORT_PATH" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_API_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_API_ISSUER_ID"
+          echo "== exported =="; ls -la "$EXPORT_PATH"
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-ipa
+          path: ${{ env.EXPORT_PATH }}/*.ipa
+          if-no-files-found: error
+
+      # Opt-in direct upload for manual dev builds (no tag, no Android/Gitee
+      # release). Tagged releases skip this and upload from the artifact in
+      # release.yml instead.
+      - name: Upload to TestFlight (dev build)
+        if: ${{ inputs.upload_testflight }}
+        env:
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          cp "$ASC_KEY_PATH" ~/".appstoreconnect/private_keys/AuthKey_${ASC_API_KEY_ID}.p8"
+          IPA=$(ls "$EXPORT_PATH"/*.ipa | head -1)
+          echo "Uploading $IPA to TestFlight..."
+          xcrun altool --upload-app --type ios --file "$IPA" \
+            --apiKey "$ASC_API_KEY_ID" --apiIssuer "$ASC_API_ISSUER_ID"
+
+      - name: Clean up keychain and API key
+        if: always()
+        run: |
+          security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
+          rm -f "$ASC_KEY_PATH"
+          rm -f ~/.appstoreconnect/private_keys/AuthKey_*.p8
