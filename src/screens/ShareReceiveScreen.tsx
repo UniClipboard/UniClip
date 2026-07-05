@@ -9,6 +9,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, BackHandler, type ColorValue } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Host, CircularProgressIndicator } from '@expo/ui/jetpack-compose';
 import { useIncomingShare, clearSharedPayloads, getSharedPayloads } from 'expo-sharing';
 import { useTheme } from '@/hooks/useTheme';
@@ -61,14 +62,19 @@ function getFileExtFromMime(mimeType: string | null | undefined): string {
 
 export const ShareReceiveScreen: React.FC<ShareReceiveScreenProps> = ({ onComplete }) => {
   const { theme } = useTheme();
+  const { t } = useTranslation('share');
 
   const { resolvedSharedPayloads, isResolving, error: resolveError } = useIncomingShare();
   // 挂载时同步读取原始 payload，避免 hook 异步初始化导致误判"没有内容"
   const [hasShareContent] = useState(() => getSharedPayloads().length > 0);
   const showMessage = useMessageStore((s) => s.showMessage);
-  const [savingText, setSavingText] = useState('正在解析分享内容…');
+  const [savingText, setSavingText] = useState(t('receive.parsing'));
   // 落库只应执行一次，防止 effect 依赖变化重入
   const processedRef = useRef(false);
+  // useIncomingShare 的 isResolving 初始为 false，解析是在其内部 effect 里异步启动的
+  // （启动时才 setIsResolving(true)）。因此单凭 !isResolving 无法区分「解析尚未开始」
+  // 与「解析已结束」。此 ref 记录解析是否真正开始过一轮，供落库 effect 判定「已结束」。
+  const resolveStartedRef = useRef(false);
 
   // 挂载时若根本没有分享内容，直接返回（无 payload，按外部分享处理）
   useEffect(() => {
@@ -94,23 +100,35 @@ export const ShareReceiveScreen: React.FC<ShareReceiveScreenProps> = ({ onComple
 
   // 解析完成 → 落库(本地即完成) → 入队后台上传 → 立即返回。上传失败不阻塞分享,内容留在本地。
   useEffect(() => {
+    if (isResolving) {
+      resolveStartedRef.current = true; // 记录解析确实开始过一轮
+      return; // 解析进行中，等它结束
+    }
     if (!hasShareContent || processedRef.current) return;
-    if (isResolving) return; // 等 expo-sharing 解析完成
+    // 关键守卫:必须等 expo-sharing 解析「真正结束」才落库。
+    // isResolving 初始为 false 且解析异步启动 —— 首帧(isResolving 仍为 false、
+    // resolvedSharedPayloads 仍为空)若直接放行,会拿空 payload 抛错并被 processedRef
+    // 永久锁死,导致分享内容既不落库也不推送(表现为分享后一闪即返回)。
+    // 「已结束」= 有解析结果 / 有解析错误 / 已实际解析过一轮(resolveStartedRef)。
+    const resolutionSettled =
+      resolveError != null || resolvedSharedPayloads.length > 0 || resolveStartedRef.current;
+    if (!resolutionSettled) return;
     processedRef.current = true;
 
     (async () => {
       try {
-        if (resolveError) throw new Error(`解析分享内容失败: ${resolveError.message}`);
+        if (resolveError)
+          throw new Error(t('receive.parseFailed', { message: resolveError.message }));
         const payload = resolvedSharedPayloads[0];
-        if (!payload) throw new Error('没有可处理的分享内容');
+        if (!payload) throw new Error(t('receive.noContent'));
 
-        setSavingText('正在保存…');
+        setSavingText(t('receive.saving'));
 
         // 文字分享（text / url 类型，contentUri 为 null）
         // 或 URL 分享（浏览器分享链接时 contentUri 是 https:// 而非本地文件）
         if (!payload.contentUri || payload.shareType === 'url') {
           const text = payload.value?.trim() || '';
-          if (!text) throw new Error('分享的文字内容为空');
+          if (!text) throw new Error(t('receive.emptyText'));
           const { profileHash } = await importTextToHistory(text);
           BackgroundUploadManager.enqueue(profileHash);
         } else {
@@ -132,7 +150,7 @@ export const ShareReceiveScreen: React.FC<ShareReceiveScreenProps> = ({ onComple
         clearSharedPayloads();
       } catch (err) {
         // 落库失败(如解析错误/文件复制失败)才提示;上传失败不在此处(已交后台)。
-        showMessage(err instanceof Error ? err.message : '保存失败', 'error');
+        showMessage(err instanceof Error ? err.message : t('receive.saveFailed'), 'error');
       } finally {
         handleComplete();
       }
@@ -144,6 +162,7 @@ export const ShareReceiveScreen: React.FC<ShareReceiveScreenProps> = ({ onComple
     resolvedSharedPayloads,
     handleComplete,
     showMessage,
+    t,
   ]);
 
   if (!hasShareContent) return null;
