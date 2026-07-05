@@ -167,7 +167,7 @@ export class SyncEngine {
   private listeners = new Set<SyncEngineListener>();
 
   private getActiveServer: () => ActiveServerInfo | null;
-  private getDeviceClipboard: () => DeviceClipboard | null;
+  private getDeviceClipboard: () => DeviceClipboard | null | Promise<DeviceClipboard | null>;
   private getSettings: () => SyncSettings;
   private applyToDevice: (meta: ClipboardMeta, payload?: ArrayBuffer) => Promise<void>;
   private onHistoryRecord: ((record: HistoryRecord) => void) | null = null;
@@ -177,7 +177,7 @@ export class SyncEngine {
 
   constructor(opts: {
     getActiveServer: () => ActiveServerInfo | null;
-    getDeviceClipboard: () => DeviceClipboard | null;
+    getDeviceClipboard: () => DeviceClipboard | null | Promise<DeviceClipboard | null>;
     getSettings: () => SyncSettings;
     applyToDevice: (meta: ClipboardMeta, payload?: ArrayBuffer) => Promise<void>;
     onHistoryRecord?: (record: HistoryRecord) => void;
@@ -578,7 +578,7 @@ export class SyncEngine {
 
   private async doTick(explicit: boolean): Promise<void> {
     const server = this.getActiveServer();
-    const device = this.getDeviceClipboard();
+    const device = await this.getDeviceClipboard();
     const settings = this.getSettings();
     log.debug(
       '[SyncEngine] doTick: explicit=' +

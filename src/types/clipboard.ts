@@ -90,6 +90,12 @@ export interface ClipboardItem {
 
   /** 远程是否有数据（服务器HasData字段） */
   hasRemoteData?: boolean;
+
+  /**
+   * 服务端身份（`blake3v1:<hex>`）。拉取/应用的远端条目回填此值，本地复制的条目为空。
+   * 让每条历史都保留其服务端身份，activate_clipboard 借 profileHash 指针解析出 content_id。
+   */
+  contentId?: string;
 }
 
 /**

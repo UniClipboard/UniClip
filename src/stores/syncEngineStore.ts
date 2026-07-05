@@ -18,8 +18,10 @@ import {
 import { clipboardManager } from '@/services/ClipboardManager';
 import { clipboardMonitor } from '@/services/ClipboardMonitor';
 import { useSettingsStore } from './settingsStore';
-import { calculateTextHash } from '@/utils/hash';
 import { createDefaultClipboardItem, HistorySyncStatus } from '@/types/clipboard';
+import { activateRepository } from '@/services/db/activateRepository';
+import { historyRepository } from '@/services/db/historyRepository';
+import { writeActivate, clearActivate, noteApplied } from '@/services/ActivateClipboardService';
 import type { ClipboardMeta } from 'uc-core';
 import type { ClipboardContent } from '@/types';
 import { log } from '@/services/Logger';
@@ -38,7 +40,6 @@ interface SyncEngineState {
 let engine: SyncEngine | null = null;
 let appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
 let clipboardCallback: ((content: ClipboardContent) => void) | null = null;
-let lastDeviceContent: ClipboardContent | null = null;
 
 function getActiveServerInfo() {
   const settings = useSettingsStore.getState();
@@ -64,24 +65,37 @@ function getSettings(): SyncSettings {
   };
 }
 
-function getDeviceClipboard(): DeviceClipboard | null {
-  const content = lastDeviceContent;
-  if (!content || !content.profileHash) return null;
-  return {
-    hash: content.profileHash,
-    meta: {
-      kind: (content.type ?? 'Text') as 'Text' | 'Image' | 'File' | 'Group',
-      text: content.text ?? '',
-      dataName: content.fileName ?? null,
-      hasData: content.hasData ?? false,
-      size: content.fileSize ?? content.text?.length ?? 0,
-      hash: content.profileHash,
-      // 设备本地内容尚无服务端身份；push 后下次 GET 时再学到。
-      contentId: null,
-    },
-    payload: content.fileData,
-    fileUri: content.fileUri,
-  };
+/**
+ * device_hash 代理 —— reducer 每 tick 读此值(§6)。
+ * 读 activate_clipboard 单行,经 profile_hash 指针解析出 clipboard_history 行,拼成
+ * DeviceClipboard。activate 被清空(apply 后)→ 返回 null → device_present=false。
+ * 不提供 payload(ArrayBuffer):push 路径会按 hash/dataName 从文件存储按需读字节。
+ */
+async function getDeviceClipboard(): Promise<DeviceClipboard | null> {
+  try {
+    const activate = await activateRepository.get();
+    if (!activate) return null;
+    const item = await historyRepository.getByProfileHash(activate.profileHash);
+    if (!item) return null;
+    return {
+      hash: item.profileHash,
+      meta: {
+        kind: (item.type ?? 'Text') as 'Text' | 'Image' | 'File' | 'Group',
+        text: item.text ?? '',
+        dataName: item.dataName ?? null,
+        hasData: item.hasData ?? false,
+        size: item.size ?? item.text?.length ?? 0,
+        hash: item.profileHash,
+        // content_id 优先取寄存器反规范化副本,回退历史行(拉取项才有,本地为 null)。
+        contentId: activate.contentId ?? item.contentId ?? null,
+      },
+      payload: undefined,
+      fileUri: item.fileUri,
+    };
+  } catch (e) {
+    log.error('[SyncEngineStore] getDeviceClipboard failed:', e);
+    return null;
+  }
 }
 
 async function applyToDevice(meta: ClipboardMeta, payload?: ArrayBuffer): Promise<void> {
@@ -122,10 +136,15 @@ async function applyToDevice(meta: ClipboardMeta, payload?: ArrayBuffer): Promis
         localClipboardHash: meta.hash,
       };
       await clipboardMonitor.setLastContent(echoContent);
-      lastDeviceContent = echoContent;
     }
 
-    // Add to history store so the card appears in UI
+    // §3:被动应用的内容不是一次「激活」。清空 activate 寄存器,并记下 applied hash,
+    // 让监听回读到该内容时 writeActivate 反 echo 直接跳过——消除陈旧 X re-push 陷阱。
+    noteApplied(meta.hash ?? null);
+    await clearActivate();
+
+    // Add to history store so the card appears in UI（回填 contentId:保留服务端身份,
+    // 供「用户重新激活此拉取项」时自然带回 content_id）
     try {
       const { useHistoryStore } = require('./historyStore');
       const historyItem = createDefaultClipboardItem({
@@ -140,6 +159,7 @@ async function applyToDevice(meta: ClipboardMeta, payload?: ArrayBuffer): Promis
         fileUri,
         isLocalFileReady: !!fileUri || !meta.hasData,
         from: 'server',
+        contentId: meta.contentId ?? undefined,
       });
       await useHistoryStore.getState().addItem(historyItem);
     } catch (e) {
@@ -196,19 +216,20 @@ export const useSyncEngineStore = create<SyncEngineState>((set) => ({
       set({ status });
     });
 
+    // 剪贴板监听(Android 事件驱动 / 前台快照)捕获到本地新内容:写入 activate 寄存器,
+    // 并强制一次 tick 让本地内容尽快 push(反 echo 由 writeActivate 内部处理)。
     clipboardCallback = async (content) => {
-      lastDeviceContent = content;
-      if (content.profileHash) {
-        engine?.noteDeviceWrite(content.profileHash);
-      }
+      if (!content.profileHash) return;
+      await writeActivate(content);
+      engine?.noteDeviceWrite(content.profileHash);
     };
     clipboardMonitor.addCallback(clipboardCallback);
 
-    // Seed initial device content so the first tick sees it
+    // 首次前台快照:把当前系统剪贴板作为一次本地激活写入寄存器,让首个 tick 能看到它。
     try {
       const current = await clipboardManager.getClipboardContent();
       if (current) {
-        lastDeviceContent = current;
+        await writeActivate(current);
       }
     } catch {
       // ignore
@@ -287,9 +308,13 @@ export function notifySseSettingChanged(): void {
   engine?.restartSse();
 }
 
-export function notifyDeviceClipboardChanged(content: ClipboardContent): void {
-  lastDeviceContent = content;
-  if (content.profileHash) {
-    engine?.notifyDeviceChanged(content.profileHash);
-  }
+/**
+ * 用户主动产生的本地新内容(复制/粘贴/选图/拍照)——写入 activate 寄存器后强制一次 tick。
+ * 先 await 写库,确保被强制的 tick 读到的是最新 device_hash 而非陈旧值。
+ */
+export async function notifyDeviceClipboardChanged(content: ClipboardContent): Promise<void> {
+  if (!content.profileHash) return;
+  // 主动激活:绕过被动 anti-echo(用户明确使用某项,即便等于刚 apply 的内容也要激活)。
+  await writeActivate(content, { active: true });
+  engine?.notifyDeviceChanged(content.profileHash);
 }

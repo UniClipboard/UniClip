@@ -30,6 +30,7 @@ export interface HistoryRow {
   from: string | null;
   deviceName: string | null;
   synced: number | null;
+  contentId: string | null;
 }
 
 /** 列顺序(单一事实源):INSERT / UPDATE / rowValues 都据此对齐 */
@@ -57,6 +58,7 @@ export const HISTORY_COLUMNS: (keyof HistoryRow)[] = [
   'from',
   'deviceName',
   'synced',
+  'contentId',
 ];
 
 const bool = (v: boolean | undefined | null): number => (v ? 1 : 0);
@@ -90,6 +92,7 @@ export function toRow(item: ClipboardItem): HistoryRow {
     from: item.from ?? null,
     deviceName: item.deviceName ?? null,
     synced: optBool(item.synced),
+    contentId: item.contentId ?? null,
   };
 }
 
@@ -118,6 +121,7 @@ export function fromRow(row: HistoryRow): ClipboardItem {
     from: row.from ?? undefined,
     deviceName: row.deviceName ?? undefined,
     synced: row.synced === null || row.synced === undefined ? undefined : !!row.synced,
+    contentId: row.contentId ?? undefined,
   };
 }
 

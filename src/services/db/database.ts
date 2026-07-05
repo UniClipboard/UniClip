@@ -17,10 +17,16 @@ const APP_GROUP_DB_SUBDIR = 'Databases';
  * Schema 版本。与 AsyncStorage 的 HISTORY_VERSION 解耦——
  * 这里管理的是 SQLite 表结构的演进,用 PRAGMA user_version 持久化。
  */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 /** 历史记录表名 */
 export const TABLE_HISTORY = 'clipboard_history';
+
+/**
+ * activate_clipboard 表名——单行同步寄存器,承载 reducer 每 tick 读取的 device_hash 代理。
+ * 单一意图、低噪声,与多写者的 clipboard_history 隔离(见 docs/activate-clipboard-plan.md)。
+ */
+export const TABLE_ACTIVATE = 'activate_clipboard';
 
 let dbInstance: SQLite.SQLiteDatabase | null = null;
 let openPromise: Promise<SQLite.SQLiteDatabase> | null = null;
@@ -122,8 +128,11 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
     version = 1;
   }
 
-  // 后续版本在此追加:
-  // if (version === 1) { await db.execAsync(MIGRATE_V1_TO_V2); version = 2; }
+  if (version === 1) {
+    await migrateToV2(db);
+    log.info('[DB] applied schema v2 (activate_clipboard + clipboard_history.contentId)');
+    version = 2;
+  }
 
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 }
@@ -168,6 +177,31 @@ CREATE INDEX IF NOT EXISTS idx_hist_sort_acc  ON ${TABLE_HISTORY}(isDeleted, pin
 CREATE INDEX IF NOT EXISTS idx_hist_localhash ON ${TABLE_HISTORY}(localClipboardHash);
 CREATE INDEX IF NOT EXISTS idx_hist_sync      ON ${TABLE_HISTORY}(syncStatus);
 `;
+
+/**
+ * Schema v2 —— activate_clipboard 单行寄存器 + clipboard_history.contentId 列。
+ *
+ * - activate_clipboard:CHECK(id=1) 强制单行;profile_hash 指向必然存在的历史行,
+ *   content_id 为当前行服务端身份的反规范化副本;删除该行 = device_present=false。
+ * - clipboard_history.contentId:拉取/应用的条目回填 `blake3v1:<hex>`,本地复制为 null。
+ *   不做回填,后续拉取自然填充。
+ */
+async function migrateToV2(db: SQLite.SQLiteDatabase): Promise<void> {
+  await db.execAsync(`
+CREATE TABLE IF NOT EXISTS ${TABLE_ACTIVATE} (
+  id              INTEGER PRIMARY KEY CHECK (id = 1),
+  profile_hash    TEXT NOT NULL,
+  content_id      TEXT,
+  activated_at_ms INTEGER NOT NULL
+);
+`);
+
+  // ALTER TABLE ADD COLUMN 无 IF NOT EXISTS;迁移可能被中断后重跑,先探测列是否已存在。
+  const cols = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${TABLE_HISTORY})`);
+  if (!cols.some((c) => c.name === 'contentId')) {
+    await db.execAsync(`ALTER TABLE ${TABLE_HISTORY} ADD COLUMN contentId TEXT`);
+  }
+}
 
 /** 仅供测试/调试:关闭并丢弃单例(下次 getDatabase 会重新打开) */
 export async function _closeDatabaseForTest(): Promise<void> {

@@ -37,6 +37,35 @@ jest.mock('@/utils/clipboardProxy', () => ({
   getStringAsync: jest.fn().mockResolvedValue(''),
 }));
 
+// activate_clipboard / clipboard_history 的内存桩:writeActivate / getDeviceClipboard
+// 走真实逻辑,只把 SQLite 换成进程内的单行寄存器 + Map。
+jest.mock('@/services/db/activateRepository', () => {
+  let row: any = null;
+  return {
+    activateRepository: {
+      get: jest.fn(async () => row),
+      upsert: jest.fn(async (profileHash: string, contentId: string | null, activatedAtMs: number) => {
+        row = { profileHash, contentId, activatedAtMs };
+      }),
+      clear: jest.fn(async () => {
+        row = null;
+      }),
+    },
+  };
+});
+
+jest.mock('@/services/db/historyRepository', () => {
+  const map = new Map<string, any>();
+  return {
+    historyRepository: {
+      getByProfileHash: jest.fn(async (h: string) => map.get(h.toLowerCase()) ?? null),
+      replace: jest.fn(async (item: any) => {
+        map.set(item.profileHash.toLowerCase(), item);
+      }),
+    },
+  };
+});
+
 jest.mock('react-native', () => ({
   AppState: {
     addEventListener: jest.fn(() => ({ remove: jest.fn() })),
@@ -90,7 +119,7 @@ describe('syncEngineStore route config', () => {
     const { notifyDeviceClipboardChanged } = require('@/stores/syncEngineStore');
 
     await useSyncEngineStore.getState().start();
-    notifyDeviceClipboardChanged({
+    await notifyDeviceClipboardChanged({
       type: 'Text',
       text: 'local',
       profileHash: 'LOCAL_HASH',
@@ -104,7 +133,7 @@ describe('syncEngineStore route config', () => {
   it('keeps a clipboard change that arrives before SyncEngine starts', async () => {
     const { notifyDeviceClipboardChanged } = require('@/stores/syncEngineStore');
 
-    notifyDeviceClipboardChanged({
+    await notifyDeviceClipboardChanged({
       type: 'Text',
       text: 'local before engine',
       profileHash: 'EARLY_HASH',
@@ -114,7 +143,7 @@ describe('syncEngineStore route config', () => {
     await useSyncEngineStore.getState().start();
 
     const engineOptions = (SyncEngine as jest.Mock).mock.calls[0][0];
-    expect(engineOptions.getDeviceClipboard()).toEqual(
+    expect(await engineOptions.getDeviceClipboard()).toEqual(
       expect.objectContaining({
         hash: 'EARLY_HASH',
         meta: expect.objectContaining({

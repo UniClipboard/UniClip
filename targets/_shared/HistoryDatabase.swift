@@ -41,6 +41,13 @@ public final class HistoryDatabase {
     private let db: OpaquePointer
     private let containerURL: URL
 
+    /// `clipboard_history.contentId` is an additive v2 column (RN's
+    /// `migrateToV2`). RN owns the migration and an extension may run against a
+    /// DB still on v1, so detect the column once and degrade gracefully:
+    /// reads omit it, writes skip it — never fail the whole statement over an
+    /// absent column. See docs/activate-clipboard-plan.md §7.
+    private let hasContentId: Bool
+
     /// Fails when the App Group container, database file, or expected table
     /// isn't there — callers must treat that as "shared DB not ready" and
     /// fall back to the legacy JSON log, never as an error to surface.
@@ -66,6 +73,9 @@ public final class HistoryDatabase {
         self.db = opened
         self.containerURL = base
         sqlite3_busy_timeout(opened, 3000)
+        // Set before any early `return nil` below (all stored props must be
+        // initialized first). Absent column ⇒ prepare fails ⇒ false.
+        self.hasContentId = Self.columnExists("contentId", db: opened, table: Self.table)
 
         // Validate the canonical read against whatever schema version the
         // app last migrated to. Prepare failure ⇒ incompatible ⇒ fall back.
@@ -85,8 +95,10 @@ public final class HistoryDatabase {
     /// Newest-first, tombstones excluded. Metadata only — payload bytes stay
     /// on disk, so this is safe inside the keyboard's memory budget.
     public func loadRecent(limit: Int) -> [ClipboardHistoryItem] {
+        // contentId trails the canonical columns (index 7) only when present.
+        let columns = Self.readColumns + (hasContentId ? ", contentId" : "")
         let sql = """
-        SELECT \(Self.readColumns) FROM \(Self.table)
+        SELECT \(columns) FROM \(Self.table)
         WHERE isDeleted = 0 ORDER BY timestamp DESC LIMIT ?
         """
         var stmt: OpaquePointer?
@@ -109,7 +121,8 @@ public final class HistoryDatabase {
                 text: columnText(stmt, 2) ?? "",
                 hasData: sqlite3_column_int(stmt, 5) != 0,
                 dataName: columnText(stmt, 3),
-                size: sqlite3_column_type(stmt, 4) == SQLITE_NULL ? nil : Int(sqlite3_column_int64(stmt, 4))
+                size: sqlite3_column_type(stmt, 4) == SQLITE_NULL ? nil : Int(sqlite3_column_int64(stmt, 4)),
+                contentId: hasContentId ? columnText(stmt, 7) : nil
             )
             let ms = sqlite3_column_int64(stmt, 6)
             items.append(ClipboardHistoryItem(
@@ -237,13 +250,17 @@ public final class HistoryDatabase {
         direction: ClipboardHistoryItem.Direction,
         at now: Date
     ) -> Bool {
+        // Preserve the row's server identity when the v2 column is available so
+        // "user re-activates this pulled item" recovers its contentId in RN.
+        let extraCol = hasContentId ? ", contentId" : ""
+        let extraVal = hasContentId ? ", ?" : ""
         let sql = """
         INSERT OR REPLACE INTO \(Self.table)
           (profileHash, type, text, displayKind, dataName, size, fileUri,
            hasData, hasRemoteData, localClipboardHash, timestamp, lastAccessed,
            lastModified, useCount, starred, pinned, isDeleted, isLocalFileReady,
-           syncStatus, version, "from", deviceName, synced)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, 0, 0, 0, 0, ?, ?, 0, ?, NULL, NULL)
+           syncStatus, version, "from", deviceName, synced\(extraCol))
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, 0, 0, 0, 0, ?, ?, 0, ?, NULL, NULL\(extraVal))
         """
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
@@ -272,6 +289,7 @@ public final class HistoryDatabase {
         sqlite3_bind_int(stmt, 13, entry.hasData ? (payloadURL != nil ? 1 : 0) : 1)
         sqlite3_bind_int(stmt, 14, direction == .local ? 0 : 1) // HistorySyncStatus: LocalOnly / Synced
         bindOptionalText(stmt, 15, direction == .pulled ? "server" : nil)
+        if hasContentId { bindOptionalText(stmt, 16, entry.contentId) }
 
         guard sqlite3_step(stmt) == SQLITE_DONE else { logError("insert step"); return false }
         return true
@@ -325,6 +343,16 @@ public final class HistoryDatabase {
 
     private static func epochMs(_ date: Date) -> Int64 {
         Int64((date.timeIntervalSince1970 * 1000).rounded())
+    }
+
+    /// Whether `column` exists on `table`: a zero-row probe SELECT prepares
+    /// only when the column is present. Used to tolerate additive migrations
+    /// RN may not have applied yet.
+    private static func columnExists(_ column: String, db: OpaquePointer, table: String) -> Bool {
+        var stmt: OpaquePointer?
+        defer { sqlite3_finalize(stmt) }
+        let sql = "SELECT \(column) FROM \(table) LIMIT 0"
+        return sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK
     }
 
     private func bindText(_ stmt: OpaquePointer?, _ index: Int32, _ value: String) {
