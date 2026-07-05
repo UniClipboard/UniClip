@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useMaterialColors } from '@expo/ui/jetpack-compose';
 import { useTheme } from '@/hooks/useTheme';
@@ -83,11 +84,13 @@ const badgeStyles = StyleSheet.create({
 
 export function AddServerSheet({
   visible,
-  title = '添加服务器',
+  title: titleProp,
   initialData,
   onClose,
   onSave,
 }: AddServerSheetProps) {
+  const { t } = useTranslation('server');
+  const title = titleProp ?? t('sheet.addTitle');
   const colors = useDynamicColors();
   const consumePendingConnect = usePendingConnectStore((s) => s.consume);
   const settings = useSettingsStore((s) => s.config);
@@ -146,11 +149,11 @@ export function AddServerSheet({
 
   const handleProbe = useCallback(async () => {
     if (cleanedUrls.length === 0) {
-      Alert.alert('提示', '请先填写至少一个服务器地址。');
+      Alert.alert(t('alert.hintTitle'), t('alert.fillUrlFirst'));
       return;
     }
     if (!username.trim() || !password.trim()) {
-      Alert.alert('提示', '请先填写用户名和密码。');
+      Alert.alert(t('alert.hintTitle'), t('alert.fillCredentialsFirst'));
       return;
     }
 
@@ -173,7 +176,7 @@ export function AddServerSheet({
     } finally {
       setIsProbing(false);
     }
-  }, [cleanedUrls, username, password, trustInsecureCert]);
+  }, [cleanedUrls, username, password, trustInsecureCert, t]);
 
   const pickedUrl = useMemo(() => {
     if (!probeResults) return null;
@@ -186,13 +189,13 @@ export function AddServerSheet({
 
   const handleSave = useCallback(() => {
     if (!canSave) {
-      Alert.alert('提示', '请填写服务器地址、用户名和密码。');
+      Alert.alert(t('alert.hintTitle'), t('alert.fillAllFieldsDot'));
       return;
     }
     try {
       new URL(cleanedUrls[0]);
     } catch {
-      Alert.alert('错误', '服务器地址格式不正确。');
+      Alert.alert(t('alert.errorTitle'), t('alert.invalidUrlDot'));
       return;
     }
     onSave({
@@ -202,7 +205,7 @@ export function AddServerSheet({
       password: password.trim(),
     });
     onClose();
-  }, [canSave, name, cleanedUrls, username, password, onSave, onClose]);
+  }, [canSave, name, cleanedUrls, username, password, onSave, onClose, t]);
 
   const handleScanComplete = useCallback(() => {
     setShowScanner(false);
@@ -240,7 +243,9 @@ export function AddServerSheet({
           {/* Header */}
           <View style={[styles.header, { borderBottomColor: colors.outlineVariant }]}>
             <Pressable onPress={onClose} style={styles.headerBtn}>
-              <Text style={[styles.headerBtnText, { color: colors.primary }]}>取消</Text>
+              <Text style={[styles.headerBtnText, { color: colors.primary }]}>
+                {t('action.cancel', { ns: 'common' })}
+              </Text>
             </Pressable>
             <Text style={[styles.headerTitle, { color: colors.onSurface }]}>{title}</Text>
             <Pressable onPress={handleSave} disabled={!canSave} style={styles.headerBtn}>
@@ -251,7 +256,7 @@ export function AddServerSheet({
                   { color: canSave ? colors.primary : colors.outline },
                 ]}
               >
-                保存
+                {t('action.save', { ns: 'common' })}
               </Text>
             </Pressable>
           </View>
@@ -268,34 +273,40 @@ export function AddServerSheet({
                 style={[styles.scanRow, { backgroundColor: colors.surfaceContainerLow }]}
               >
                 <Ionicons name="qr-code-outline" size={20} color={colors.primary} />
-                <Text style={[styles.scanLabel, { color: colors.primary }]}>扫码连接</Text>
+                <Text style={[styles.scanLabel, { color: colors.primary }]}>
+                  {t('scan.action')}
+                </Text>
                 <Ionicons name="chevron-forward" size={16} color={colors.outline} />
               </Pressable>
               <Text style={[styles.sectionFooter, { color: colors.onSurfaceVariant }]}>
-                扫描桌面端的二维码，一键填充以下信息。
+                {t('scan.footer')}
               </Text>
             </View>
 
             {/* § 名称 */}
             <View style={styles.section}>
-              <Text style={[styles.sectionHeader, { color: colors.primary }]}>名称</Text>
+              <Text style={[styles.sectionHeader, { color: colors.primary }]}>
+                {t('form.nameLabel')}
+              </Text>
               <TextInput
                 value={name}
                 onChangeText={setName}
-                placeholder="便于辨识的名称"
+                placeholder={t('form.namePlaceholder')}
                 placeholderTextColor={colors.onSurfaceVariant}
                 autoCapitalize="none"
                 autoCorrect={false}
                 style={inputStyle}
               />
               <Text style={[styles.sectionFooter, { color: colors.onSurfaceVariant }]}>
-                将显示在剪贴板顶栏。留空会用服务器地址替代。
+                {t('form.nameFooter')}
               </Text>
             </View>
 
             {/* § 服务器地址（多地址） */}
             <View style={styles.section}>
-              <Text style={[styles.sectionHeader, { color: colors.primary }]}>服务器地址</Text>
+              <Text style={[styles.sectionHeader, { color: colors.primary }]}>
+                {t('form.urlLabel')}
+              </Text>
               {urls.map((url, i) => {
                 const trimmed = url.trim();
                 let urlClass: ServerURLClass | null = null;
@@ -338,24 +349,27 @@ export function AddServerSheet({
                 style={[styles.actionRow, { backgroundColor: colors.surfaceContainerLow }]}
               >
                 <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
-                <Text style={[styles.actionRowText, { color: colors.primary }]}>添加备用地址</Text>
+                <Text style={[styles.actionRowText, { color: colors.primary }]}>
+                  {t('form.addBackupUrl')}
+                </Text>
               </Pressable>
               <Text style={[styles.sectionFooter, { color: colors.onSurfaceVariant }]}>
-                同一服务器可填多个地址（局域网 / Tailscale / 公网），App
-                会按当前网络自动选用可达的一条；第一条为默认地址。
+                {t('form.urlFooter')}
               </Text>
             </View>
 
             {/* § 凭据 */}
             <View style={styles.section}>
-              <Text style={[styles.sectionHeader, { color: colors.primary }]}>凭据</Text>
+              <Text style={[styles.sectionHeader, { color: colors.primary }]}>
+                {t('form.credentialsLabel')}
+              </Text>
               <TextInput
                 value={username}
                 onChangeText={(v) => {
                   setUsername(v);
                   setProbeResults(null);
                 }}
-                placeholder="用户名"
+                placeholder={t('form.usernamePlaceholder')}
                 placeholderTextColor={colors.onSurfaceVariant}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -368,7 +382,7 @@ export function AddServerSheet({
                   setPassword(v);
                   setProbeResults(null);
                 }}
-                placeholder="密码"
+                placeholder={t('form.passwordPlaceholder')}
                 placeholderTextColor={colors.onSurfaceVariant}
                 secureTextEntry
                 autoCapitalize="none"
@@ -379,7 +393,9 @@ export function AddServerSheet({
 
             {/* § 连接测试 */}
             <View style={styles.section}>
-              <Text style={[styles.sectionHeader, { color: colors.primary }]}>连接</Text>
+              <Text style={[styles.sectionHeader, { color: colors.primary }]}>
+                {t('connect.sectionLabel')}
+              </Text>
 
               {probeResults &&
                 cleanedUrls.map((u) => {
@@ -408,7 +424,9 @@ export function AddServerSheet({
                         </Text>
                         <View style={styles.probeLabels}>
                           <URLClassBadge urlClass={cls} />
-                          {isPicked && <Text style={styles.pickedLabel}>将使用</Text>}
+                          {isPicked && (
+                            <Text style={styles.pickedLabel}>{t('connect.willUse')}</Text>
+                          )}
                         </View>
                       </View>
                     </View>
@@ -432,14 +450,14 @@ export function AddServerSheet({
                   <>
                     <ActivityIndicator size="small" color={colors.onSurfaceVariant} />
                     <Text style={[styles.actionRowText, { color: colors.onSurfaceVariant }]}>
-                      正在测试…
+                      {t('connect.testing')}
                     </Text>
                   </>
                 ) : (
                   <>
                     <Ionicons name="flash-outline" size={18} color={colors.primary} />
                     <Text style={[styles.actionRowText, { color: colors.primary }]}>
-                      {probeResults ? '重新测试' : '测试连接'}
+                      {probeResults ? t('connect.retest') : t('connect.test')}
                     </Text>
                   </>
                 )}

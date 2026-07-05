@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import {
   Host,
   FilledTonalButton,
@@ -31,6 +32,7 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
   disabled = false,
   syncInProgress = false,
 }) => {
+  const { t } = useTranslation('home');
   const { theme } = useTheme();
 
   const actionDisabled = disabled || syncInProgress;
@@ -48,7 +50,7 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
             contentColor: theme.colors.textPrimary,
           }}
         >
-          <ComposeText>⬆️ 上传</ComposeText>
+          <ComposeText>{t('quickActions.upload')}</ComposeText>
         </FilledTonalButton>
       </Host>
 
@@ -65,7 +67,9 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
         >
           <Row verticalAlignment="center" horizontalArrangement="center">
             {syncInProgress && <CircularProgressIndicator color={theme.colors.onAccentContainer} />}
-            <ComposeText>{syncInProgress ? '  同步中...' : '🔄 同步'}</ComposeText>
+            <ComposeText>
+              {syncInProgress ? t('quickActions.syncing') : t('quickActions.sync')}
+            </ComposeText>
           </Row>
         </FilledTonalButton>
       </Host>
@@ -81,7 +85,7 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
             contentColor: theme.colors.textPrimary,
           }}
         >
-          <ComposeText>⬇️ 下载</ComposeText>
+          <ComposeText>{t('quickActions.download')}</ComposeText>
         </FilledTonalButton>
       </Host>
     </View>

@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import Animated from 'react-native-reanimated';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useTranslation } from 'react-i18next';
 import { GestureDetector, GestureHandlerRootView, ScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConnectedMessageToast } from '@/components/ConnectedMessageToast';
@@ -25,6 +26,8 @@ import type { WordPickerOverlayProps } from './WordPickerOverlay.types';
  * 交互全部在 useWordPicker，本文件只负责 M3 皮肤。
  */
 export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPickerOverlayProps) {
+  // 命名为 tr:本组件内的 t 是入场/退场过渡对象(useOverlayGrowTransition)
+  const { t: tr } = useTranslation('history');
   const { theme } = useTheme();
   const colors = theme.colors;
   const insets = useSafeAreaInsets();
@@ -64,7 +67,7 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
                 onPress={() => t.close()}
                 style={[s.closeButton, { backgroundColor: colors.surfaceHigh }]}
                 accessibilityRole="button"
-                accessibilityLabel="关闭"
+                accessibilityLabel={tr('action.close', { ns: 'common' })}
               >
                 <Ionicons name="close" size={22} color={colors.textPrimary} />
               </Pressable>
@@ -77,7 +80,7 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
 
             {picker.truncated && (
               <Text style={[s.banner, { color: colors.textSecondary }]}>
-                文本过长，仅显示前 5000 字
+                {tr('wordPicker.truncated', { count: 5000 })}
               </Text>
             )}
 
@@ -112,7 +115,9 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
               </ScrollView>
             ) : (
               <View style={s.emptyWrap}>
-                <Text style={[s.emptyText, { color: colors.textSecondary }]}>没有可选择的文本</Text>
+                <Text style={[s.emptyText, { color: colors.textSecondary }]}>
+                  {tr('wordPicker.empty')}
+                </Text>
               </View>
             )}
 
@@ -154,7 +159,7 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
                     <Text
                       style={[s.previewText, s.previewTextFill, { color: colors.textSecondary }]}
                     >
-                      点按或滑动选择文字
+                      {tr('wordPicker.placeholder')}
                     </Text>
                   </View>
                 )}
@@ -174,7 +179,9 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
                     { color: picker.hasSelectableTokens ? colors.textPrimary : colors.border },
                   ]}
                 >
-                  {picker.allSelected ? '取消全选' : '全选'}
+                  {picker.allSelected
+                    ? tr('wordPicker.deselectAll')
+                    : tr('action.selectAll', { ns: 'common' })}
                 </Text>
               </Pressable>
               <Pressable
@@ -197,7 +204,7 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
                     { color: hasSelection ? colors.onAccent : colors.border },
                   ]}
                 >
-                  复制
+                  {tr('action.copy', { ns: 'common' })}
                 </Text>
               </Pressable>
               <Pressable
@@ -205,7 +212,7 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
                 disabled={!hasSelection}
                 style={[s.circleButton, { backgroundColor: colors.surfaceHigh }]}
                 accessibilityRole="button"
-                accessibilityLabel="分享"
+                accessibilityLabel={tr('action.share', { ns: 'common' })}
               >
                 <Ionicons
                   name="share-outline"
@@ -233,6 +240,7 @@ function GranularityToggle({
   onChange: (g: 'word' | 'char') => void;
   colors: ColorScheme;
 }) {
+  const { t } = useTranslation('history');
   return (
     <View style={[s.segTrack, { backgroundColor: colors.surfaceHigh }]}>
       {(['word', 'char'] as const).map((g) => {
@@ -251,7 +259,7 @@ function GranularityToggle({
                 { color: active ? colors.onAccentContainer : colors.textSecondary },
               ]}
             >
-              {g === 'word' ? '分词' : '逐字'}
+              {g === 'word' ? t('wordPicker.granularity.word') : t('wordPicker.granularity.char')}
             </Text>
           </Pressable>
         );

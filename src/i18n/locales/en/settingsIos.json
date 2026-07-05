@@ -1,0 +1,73 @@
+{
+  "keyboard": {
+    "title": "Keyboard",
+    "status": {
+      "added": "Added",
+      "undetectable": "Can't detect",
+      "notAdded": "Not added",
+      "detectAfterOpen": "Open the keyboard to detect",
+      "on": "On",
+      "off": "Off"
+    },
+    "statusSection": {
+      "title": "Status",
+      "footer": "Full Access status is reported by the keyboard when it opens. If you just changed it in Settings, open the keyboard once in the field below to refresh."
+    },
+    "systemKeyboard": "System keyboard",
+    "fullAccess": "Full Access",
+    "enableSteps": {
+      "title": "Setup steps",
+      "footer": "Allow Full Access lets the keyboard read the clipboard and connect to your server — it's required for syncing. Content is only sent to the server you configure.",
+      "step1": "Open UniClip in Settings and tap Keyboards",
+      "step2": "Turn on UniClip Keyboard",
+      "step3": "Turn on Allow Full Access and confirm"
+    },
+    "tryout": {
+      "title": "Try it",
+      "footer": "Tap the field, then press and hold the globe key 🌐 and choose UniClip Keyboard. Once it opens, the status above refreshes automatically.",
+      "placeholder": "Bring up the keyboard here to test"
+    },
+    "feedback": {
+      "title": "Key feedback",
+      "footer": "Changes take effect the next time you open the keyboard.",
+      "sound": "Key sound",
+      "haptic": "Haptic feedback"
+    }
+  },
+  "share": {
+    "title": "Share",
+    "testMessage": "Share test from UniClip 👋",
+    "intro": {
+      "footer": "In any app, tap Share and choose UniClip to push content straight to your clipboard server — no need to copy and switch back to UniClip first."
+    },
+    "supportedContent": {
+      "label": "Supported content",
+      "value": "Text · Links · Images · Files"
+    },
+    "favorite": {
+      "title": "Add to favorites",
+      "footer": "Once added to Favorites, UniClip stays pinned at the front of the app row in the share sheet.",
+      "step1": "Open any share sheet (tap the button below)",
+      "step2": "Swipe the app icon row to the far right and tap More",
+      "step3": "Tap Edit in the top right, then use ➕ to add UniClip to Favorites",
+      "step4": "Drag it to the front and tap Done"
+    },
+    "tryButton": "Open the share sheet to try"
+  },
+  "serverList": {
+    "title": "Servers",
+    "footer": "Tap a server to edit its address, name, and credentials. Servers you add appear in this list.",
+    "empty": {
+      "label": "No servers yet"
+    },
+    "addShort": "Add",
+    "addressCount_one": "{{count}} address",
+    "addressCount_other": "{{count}} addresses",
+    "addServer": "Add server",
+    "connection": {
+      "title": "Connection",
+      "footer": "Allow Insecure Certificates is only needed when the server uses a self-signed HTTPS certificate; plain HTTP doesn't require it.",
+      "allowInsecure": "Allow insecure certificates"
+    }
+  }
+}

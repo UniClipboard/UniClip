@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Button as SwiftUIButton,
   HStack,
@@ -45,6 +46,7 @@ export function ServerListPage({
   onAddServer: () => void;
   onEditServer: (index: number) => void;
 }) {
+  const { t } = useTranslation('settingsIos');
   const { config, updateConfig } = useSettingsStore();
   if (!config) return null;
 
@@ -52,21 +54,21 @@ export function ServerListPage({
 
   return (
     <IosSheetPage
-      title="服务器"
+      title={t('serverList.title')}
       leftSlots={[<HeaderCircleButton key="back" systemName="chevron.left" onPress={onBack} />]}
       rightSlots={[<HeaderCircleButton key="add" systemName="plus" onPress={onAddServer} />]}
     >
       <IosSheetForm>
-        <Section
-          footer={
-            <SwiftUIText>
-              点选一台服务器可编辑地址、名称和凭据。新增服务器后会出现在此列表。
-            </SwiftUIText>
-          }
-        >
+        <Section footer={<SwiftUIText>{t('serverList.footer')}</SwiftUIText>}>
           {servers.length === 0 ? (
-            <LabeledContent label={<Label title="还没有服务器" systemImage="server.rack" />}>
-              <SwiftUIButton systemImage="plus.circle" label="新增" onPress={onAddServer} />
+            <LabeledContent
+              label={<Label title={t('serverList.empty.label')} systemImage="server.rack" />}
+            >
+              <SwiftUIButton
+                systemImage="plus.circle"
+                label={t('serverList.addShort')}
+                onPress={onAddServer}
+              />
             </LabeledContent>
           ) : (
             servers.map((server, index) => {
@@ -88,7 +90,7 @@ export function ServerListPage({
                   <Spacer />
                   <VStack alignment="trailing" spacing={2}>
                     <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-                      {getServerAddressCount(server)} 个地址
+                      {t('serverList.addressCount', { count: getServerAddressCount(server) })}
                     </SwiftUIText>
                     <SwiftUIText
                       modifiers={[foregroundStyle({ type: 'hierarchical', style: 'tertiary' })]}
@@ -105,21 +107,21 @@ export function ServerListPage({
 
         {servers.length > 0 && (
           <Section>
-            <SwiftUIButton systemImage="plus.circle" label="新增服务器" onPress={onAddServer} />
+            <SwiftUIButton
+              systemImage="plus.circle"
+              label={t('serverList.addServer')}
+              onPress={onAddServer}
+            />
           </Section>
         )}
 
         {/* ── 连接 ── */}
         <Section
-          header={<SwiftUIText>连接</SwiftUIText>}
-          footer={
-            <SwiftUIText>
-              「允许不安全证书」仅在服务器使用自签名 HTTPS 证书时需要，纯 HTTP 无需开启。
-            </SwiftUIText>
-          }
+          header={<SwiftUIText>{t('serverList.connection.title')}</SwiftUIText>}
+          footer={<SwiftUIText>{t('serverList.connection.footer')}</SwiftUIText>}
         >
           <SettingsToggle
-            label="允许不安全证书"
+            label={t('serverList.connection.allowInsecure')}
             systemImage="lock.open"
             isOn={config.trustInsecureCert}
             onIsOnChange={(v) => updateConfig({ trustInsecureCert: v })}

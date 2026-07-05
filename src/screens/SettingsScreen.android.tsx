@@ -32,6 +32,7 @@ import {
 } from '@expo/ui/jetpack-compose/modifiers';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
 import { useSettingsStore } from '@/stores';
 import { APP_VERSION } from '@/constants';
@@ -104,6 +105,7 @@ interface HubGroupProps {
 
 /** 顶部「自动同步」主开关卡片(M3 primary switch)。 */
 const AutoSyncMasterCard = memo(function AutoSyncMasterCard() {
+  const { t } = useTranslation('settings');
   const showMessage = useSettingsToast();
   // 无参调用读取所在 <Host> 的主题色板,跟随 Host 的 colorScheme
   const colors = useMaterialColors();
@@ -112,10 +114,10 @@ const AutoSyncMasterCard = memo(function AutoSyncMasterCard() {
   const handleToggle = async (enabled: boolean) => {
     try {
       await useSettingsStore.getState().setAutoSync(enabled);
-      showMessage(enabled ? '已启用自动同步' : '已禁用自动同步', 'success');
+      showMessage(enabled ? t('hub.autoSync.enabled') : t('hub.autoSync.disabled'), 'success');
     } catch (error: unknown) {
       // 失败时 store 已回滚 config,Switch 会自动回弹
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+      showMessage(error instanceof Error ? error.message : t('hub.autoSync.updateFailed'), 'error');
     }
   };
 
@@ -137,13 +139,13 @@ const AutoSyncMasterCard = memo(function AutoSyncMasterCard() {
         ]}
       >
         <Column modifiers={[weight(1)]}>
-          <ComposeText style={{ typography: 'titleMedium' }}>自动同步</ComposeText>
+          <ComposeText style={{ typography: 'titleMedium' }}>{t('hub.autoSync.title')}</ComposeText>
           <Spacer modifiers={[heightModifier(2)]} />
           <ComposeText
             style={{ fontSize: 13 }}
             color={autoSyncEnabled ? colors.onPrimaryContainer : colors.onSurfaceVariant}
           >
-            处于前台时自动同步剪贴板
+            {t('hub.autoSync.desc')}
           </ComposeText>
         </Column>
         <ComposeSwitch value={autoSyncEnabled} onCheckedChange={handleToggle} />
@@ -154,28 +156,35 @@ const AutoSyncMasterCard = memo(function AutoSyncMasterCard() {
 
 /** 「同步」组:服务器与同步 / 历史记录。 */
 const SyncHubGroup = memo(function SyncHubGroup({ iconTint, onNavigate }: HubGroupProps) {
+  const { t } = useTranslation('settings');
   const serverSummary = useSettingsStore((s) => {
     const c = s.config;
     const servers = c?.servers ?? [];
-    if (servers.length === 0) return '未配置服务器';
+    if (servers.length === 0) return t('hub.summary.serverNone');
     const active = servers[c?.activeServerIndex ?? -1];
     return active
-      ? `当前:${getServerDisplayName(active)} · 共 ${servers.length} 台`
-      : `共 ${servers.length} 台服务器`;
+      ? t('hub.summary.serverActive', {
+          name: getServerDisplayName(active),
+          count: servers.length,
+        })
+      : t('hub.summary.serverCount', { count: servers.length });
   });
   const historySummary = useSettingsStore((s) => {
     const c = s.config;
     const i = c?.activeServerIndex ?? -1;
     const supportsSync = i >= 0 && c?.servers?.[i]?.type === 'syncclipboard';
     const syncOn = (c?.enableHistorySync ?? false) && supportsSync;
-    return `${syncOn ? '同步已开启' : '同步已关闭'} · 最多保留 ${c?.maxHistoryItems ?? 1000} 条`;
+    return t('hub.summary.history', {
+      status: syncOn ? t('hub.summary.syncOn') : t('hub.summary.syncOff'),
+      count: c?.maxHistoryItems ?? 1000,
+    });
   });
 
   return (
-    <SettingsSectionItem title="同步">
+    <SettingsSectionItem title={t('category.sync')}>
       <HubRow
         section="sync"
-        label="服务器与同步"
+        label={t('hub.rows.serverLabel')}
         summary={serverSummary}
         iconTint={iconTint}
         onNavigate={onNavigate}
@@ -183,7 +192,7 @@ const SyncHubGroup = memo(function SyncHubGroup({ iconTint, onNavigate }: HubGro
       <HorizontalDivider />
       <HubRow
         section="history"
-        label="历史记录"
+        label={t('category.history')}
         summary={historySummary}
         iconTint={iconTint}
         onNavigate={onNavigate}
@@ -194,22 +203,29 @@ const SyncHubGroup = memo(function SyncHubGroup({ iconTint, onNavigate }: HubGro
 
 /** 「通用」组:后台运行 / 短信转发 / 外观 / 存储。 */
 const GeneralHubGroup = memo(function GeneralHubGroup({ iconTint, onNavigate }: HubGroupProps) {
+  const { t } = useTranslation('settings');
   const { themeMode } = useTheme();
   const backgroundSummary = useSettingsStore((s) => {
-    if (s.isTempDisabledBackgroundTasks) return '已临时停止,重启应用后恢复';
-    return (s.config?.enableBackgroundTasks ?? false) ? '后台任务已开启' : '后台任务已关闭';
+    if (s.isTempDisabledBackgroundTasks) return t('hub.summary.backgroundTempDisabled');
+    return (s.config?.enableBackgroundTasks ?? false)
+      ? t('hub.summary.backgroundOn')
+      : t('hub.summary.backgroundOff');
   });
   const smsSummary = useSettingsStore((s) =>
-    (s.config?.enableSmsForwarding ?? false) ? '验证码自动上传已开启' : '验证码自动上传已关闭'
+    (s.config?.enableSmsForwarding ?? false) ? t('hub.summary.smsOn') : t('hub.summary.smsOff')
   );
   const appearanceSummary =
-    themeMode === 'light' ? '浅色' : themeMode === 'dark' ? '深色' : '跟随系统';
+    themeMode === 'light'
+      ? t('appearance.mode.light')
+      : themeMode === 'dark'
+        ? t('appearance.mode.dark')
+        : t('appearance.mode.system');
 
   return (
-    <SettingsSectionItem title="通用">
+    <SettingsSectionItem title={t('general.sectionTitle')}>
       <HubRow
         section="background"
-        label="后台运行"
+        label={t('category.background')}
         summary={backgroundSummary}
         iconTint={iconTint}
         onNavigate={onNavigate}
@@ -217,7 +233,7 @@ const GeneralHubGroup = memo(function GeneralHubGroup({ iconTint, onNavigate }: 
       <HorizontalDivider />
       <HubRow
         section="sms"
-        label="短信转发"
+        label={t('category.sms')}
         summary={smsSummary}
         iconTint={iconTint}
         onNavigate={onNavigate}
@@ -225,7 +241,7 @@ const GeneralHubGroup = memo(function GeneralHubGroup({ iconTint, onNavigate }: 
       <HorizontalDivider />
       <HubRow
         section="appearance"
-        label="外观"
+        label={t('appearance.sectionTitle')}
         summary={appearanceSummary}
         iconTint={iconTint}
         onNavigate={onNavigate}
@@ -233,8 +249,8 @@ const GeneralHubGroup = memo(function GeneralHubGroup({ iconTint, onNavigate }: 
       <HorizontalDivider />
       <HubRow
         section="storage"
-        label="存储"
-        summary="缓存、日志与历史记录占用"
+        label={t('category.storage')}
+        summary={t('hub.summary.storage')}
         iconTint={iconTint}
         onNavigate={onNavigate}
       />
@@ -244,20 +260,21 @@ const GeneralHubGroup = memo(function GeneralHubGroup({ iconTint, onNavigate }: 
 
 /** 「其他」组:关于 / 开发者选项。 */
 const OtherHubGroup = memo(function OtherHubGroup({ iconTint, onNavigate }: HubGroupProps) {
+  const { t } = useTranslation('settings');
   return (
-    <SettingsSectionItem title="其他">
+    <SettingsSectionItem title={t('category.other')}>
       <HubRow
         section="about"
-        label="关于"
-        summary={`当前版本 ${APP_VERSION}`}
+        label={t('category.about')}
+        summary={t('hub.summary.about', { version: APP_VERSION })}
         iconTint={iconTint}
         onNavigate={onNavigate}
       />
       <HorizontalDivider />
       <HubRow
         section="developer"
-        label="开发者选项"
-        summary="日志、调试与快捷方式"
+        label={t('category.developer')}
+        summary={t('hub.summary.developer')}
         iconTint={iconTint}
         onNavigate={onNavigate}
       />

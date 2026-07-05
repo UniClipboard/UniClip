@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import i18n from '@/i18n';
 
 interface ErrorInfo {
   title: string;
@@ -23,8 +24,8 @@ export const useErrorStore = create<ErrorState>((set) => ({
   showNetworkError: (operation: string, detail?: string) => {
     set({
       error: {
-        title: `${operation}失败`,
-        message: detail || '网络连接失败，请检查网络设置',
+        title: i18n.t('sync:error.operationFailedTitle', { operation }),
+        message: detail || i18n.t('sync:error.networkDefault'),
       },
     });
   },

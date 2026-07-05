@@ -1,0 +1,61 @@
+{
+  "transferQueue": {
+    "title": "传输队列",
+    "empty": "暂无传输任务",
+    "status": {
+      "pending": "等待中",
+      "running": "传输中",
+      "completed": "已完成",
+      "failed": "失败",
+      "cancelled": "已取消",
+      "waitForRetry": "等待重试"
+    }
+  },
+  "filter": {
+    "title": "筛选条件",
+    "section": {
+      "kind": "类型",
+      "date": "日期"
+    },
+    "date": {
+      "all": "全部",
+      "today": "今天",
+      "yesterday": "昨天",
+      "pastWeek": "7 天内"
+    }
+  },
+  "kind": {
+    "text": "文本",
+    "url": "链接",
+    "image": "图片",
+    "file": "文件",
+    "group": "归档"
+  },
+  "time": {
+    "justNow": "刚刚",
+    "secondsAgo": "{{n}}秒前",
+    "minutesAgo": "{{n}}分钟前",
+    "hoursAgo": "{{n}}小时前",
+    "daysAgo": "{{n}}天前"
+  },
+  "wordPicker": {
+    "truncated": "文本过长，仅显示前 {{count}} 字",
+    "empty": "没有可选择的文本",
+    "granularity": {
+      "word": "分词",
+      "char": "逐字"
+    },
+    "deselectAll": "取消全选",
+    "placeholder": "点按或滑动选择文字",
+    "copyFailed": "复制失败",
+    "copied": "已复制到剪贴板"
+  },
+  "menu": {
+    "copyPlain": "复制为纯文本",
+    "selectText": "选择文本",
+    "openBrowser": "在浏览器中打开",
+    "saveImage": "保存图片",
+    "saveFile": "保存文件",
+    "closeMenu": "关闭菜单"
+  }
+}

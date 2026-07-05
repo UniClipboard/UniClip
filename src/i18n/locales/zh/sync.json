@@ -1,0 +1,78 @@
+{
+  "status": {
+    "notConnected": "未连接服务器",
+    "syncing": "同步中...",
+    "synced": "已同步",
+    "failed": "同步失败",
+    "conflict": "同步冲突",
+    "waiting": "等待同步"
+  },
+  "lastSync": {
+    "justNow": "刚刚同步",
+    "minutesAgo": "{{n}} 分钟前",
+    "hoursAgo": "{{n}} 小时前"
+  },
+  "quickLoad": {
+    "uploading": "正在上传剪贴板...",
+    "downloading": "正在下载剪贴板...",
+    "uploadSuccess": "上传成功！",
+    "downloadSuccess": "同步成功！",
+    "uploadFailed": "上传失败",
+    "downloadFailed": "同步失败",
+    "openLink": "打开链接",
+    "genericError": "操作失败，请重试",
+    "unknownFile": "未知文件"
+  },
+  "toast": {
+    "copied": "已复制",
+    "savedToGallery": "已保存到相册",
+    "savedToDevice": "已储存到设备",
+    "needGalleryPermission": "需要相册权限才能保存图片",
+    "saveFailed": "保存失败"
+  },
+  "connectionStatus": {
+    "unconfigured": "未配置服务器",
+    "connecting": "连接中",
+    "online": "已连接",
+    "offline": "服务器离线",
+    "error": "连接异常"
+  },
+  "operation": {
+    "download": "下载",
+    "upload": "上传"
+  },
+  "transfer": {
+    "failedWithDetail": "{{operation}}失败: {{detail}}"
+  },
+  "error": {
+    "operationFailedTitle": "{{operation}}失败",
+    "networkDefault": "网络连接失败，请检查网络设置"
+  },
+  "statistics": {
+    "header": "=== 统计信息 ===",
+    "noRecords": "后台任务: 无记录",
+    "recordsTitle": "后台任务记录 (最近 {{n}} 次):",
+    "recordStart": "  {{index}}. 启动: {{time}}",
+    "recordDuration": "     持续: {{duration}}"
+  },
+  "duration": {
+    "days": "{{n}}天",
+    "hours": "{{n}}小时",
+    "minutes": "{{n}}分钟",
+    "seconds": "{{n}}秒"
+  },
+  "progress": {
+    "validatingTime": "校验服务器时间...",
+    "fetchingRemote": "获取远程记录...",
+    "fetchingIncremental": "获取增量记录",
+    "fetchingWithCount": "{{label}}... ({{count}} 条)",
+    "merging": "合并记录...",
+    "detectingOrphan": "检测孤儿数据...",
+    "pushingChanges": "推送本地变更...",
+    "uploadingRecords": "上传本地记录...",
+    "cleaningExpired": "清理过期记录...",
+    "completed": "同步完成",
+    "cancelled": "同步已取消",
+    "failed": "同步失败"
+  }
+}

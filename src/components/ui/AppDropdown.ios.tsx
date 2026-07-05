@@ -1,4 +1,5 @@
 import { ActionSheetIOS, Pressable, Text, View, StyleSheet, PlatformColor } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 export interface AppDropdownOption<T extends string = string> {
   label: string;
@@ -24,6 +25,7 @@ export function AppDropdown<T extends string = string>({
   disabled,
   fullWidth,
 }: AppDropdownProps<T>) {
+  const { t } = useTranslation('history');
   const selectedLabel = options.find((o) => o.value === selectedValue)?.label ?? placeholder ?? '';
 
   const openSheet = () => {
@@ -31,7 +33,7 @@ export function AppDropdown<T extends string = string>({
     const cancelButtonIndex = options.length;
     ActionSheetIOS.showActionSheetWithOptions(
       {
-        options: [...options.map((o) => o.label), '取消'],
+        options: [...options.map((o) => o.label), t('action.cancel', { ns: 'common' })],
         cancelButtonIndex,
         title: label,
       },

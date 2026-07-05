@@ -19,6 +19,25 @@ jest.mock('expo-application', () => ({
   nativeApplicationVersion: '1.0.0',
 }));
 
+// expo-localization 会拉入 expo-modules-core(在 node 测试环境下缺 EventEmitter 而抛错)。
+// 直接 mock 掉,返回一个 zh 设备语言,使 i18n 初始化为 zh-CN(与测试对基准中文文案的断言一致)。
+jest.mock('expo-localization', () => ({
+  getLocales: () => [
+    {
+      languageCode: 'zh',
+      languageTag: 'zh-CN',
+      regionCode: 'CN',
+      textDirection: 'ltr',
+      decimalSeparator: '.',
+      digitGroupingSeparator: ',',
+      measurementSystem: 'metric',
+      currencyCode: 'CNY',
+      currencySymbol: '¥',
+    },
+  ],
+  getCalendars: () => [{ calendar: 'gregory', timeZone: 'Asia/Shanghai', uses24hourClock: true, firstWeekday: 1 }],
+}));
+
 jest.mock('react-native-logs', () => ({
   consoleTransport: jest.fn(),
   logger: {

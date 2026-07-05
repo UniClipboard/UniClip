@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   View,
   Text,
@@ -49,6 +50,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
   isEditing = false,
 }) => {
   const { theme } = useTheme();
+  const { t } = useTranslation('server');
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'failed' | null>(null);
   const [alertInfo, setAlertInfo] = useState<{ title: string; message: string } | null>(null);
@@ -146,13 +148,13 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
 
   const handleSave = () => {
     if (!canSave) {
-      showAlert('提示', '请填写服务器地址、用户名和密码');
+      showAlert(t('alert.hintTitle'), t('alert.fillAllFields'));
       return;
     }
     try {
       new URL(url.trim());
     } catch {
-      showAlert('错误', '服务器地址格式不正确');
+      showAlert(t('alert.errorTitle'), t('alert.invalidUrl'));
       return;
     }
 
@@ -183,7 +185,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
     }
 
     if (!url.trim() || !username.trim() || !password.trim()) {
-      showAlert('提示', '请先填写服务器地址、用户名和密码');
+      showAlert(t('alert.hintTitle'), t('alert.fillFieldsFirst'));
       return;
     }
 
@@ -201,16 +203,19 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
       } else {
         setTestResult('failed');
         const messages: Record<string, string> = {
-          AuthFailed: '认证失败，请检查用户名和密码。',
-          Unreachable: '无法连接到服务器。',
-          MissingFields: '请填写完整的连接信息。',
+          AuthFailed: t('probe.authFailed'),
+          Unreachable: t('probe.unreachable'),
+          MissingFields: t('probe.missingFields'),
         };
-        showAlert('连接失败', messages[result] ?? '未知错误');
+        showAlert(t('connect.failed'), messages[result] ?? t('alert.unknownError'));
       }
     } catch (error: unknown) {
       if (error instanceof Error && error.name === 'AbortError') return;
       setTestResult('failed');
-      showAlert('连接失败', error instanceof Error ? error.message : '无法连接到服务器');
+      showAlert(
+        t('connect.failed'),
+        error instanceof Error ? error.message : t('alert.cannotConnect')
+      );
     } finally {
       setIsTesting(false);
       testAbortControllerRef.current = null;
@@ -245,10 +250,12 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
           {/* Header: 取消 / 添加服务器 / 保存 */}
           <View style={[styles.header, { borderBottomColor: theme.colors.separator }]}>
             <Pressable onPress={handleClose} style={styles.headerBtn}>
-              <Text style={[styles.headerBtnText, { color: theme.colors.accent }]}>取消</Text>
+              <Text style={[styles.headerBtnText, { color: theme.colors.accent }]}>
+                {t('action.cancel', { ns: 'common' })}
+              </Text>
             </Pressable>
             <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
-              {isEditing ? '编辑服务器' : '添加服务器'}
+              {isEditing ? t('sheet.editTitle') : t('sheet.addTitle')}
             </Text>
             <Pressable onPress={handleSave} disabled={!canSave} style={styles.headerBtn}>
               <Text
@@ -258,7 +265,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
                   { color: canSave ? theme.colors.accent : theme.colors.border },
                 ]}
               >
-                保存
+                {t('action.save', { ns: 'common' })}
               </Text>
             </Pressable>
           </View>
@@ -275,18 +282,20 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
                 style={[styles.scanRow, { backgroundColor: theme.colors.surfaceLow }]}
               >
                 <Ionicons name="qr-code-outline" size={20} color={theme.colors.accent} />
-                <Text style={[styles.scanLabel, { color: theme.colors.accent }]}>扫码连接</Text>
+                <Text style={[styles.scanLabel, { color: theme.colors.accent }]}>
+                  {t('scan.action')}
+                </Text>
                 <Ionicons name="chevron-forward" size={16} color={theme.colors.border} />
               </Pressable>
               <Text style={[styles.sectionFooter, { color: theme.colors.textSecondary }]}>
-                扫描桌面端的二维码，一键填充以下信息。
+                {t('scan.footer')}
               </Text>
             </View>
 
             {/* § 名称 */}
             <View style={styles.section}>
               <Text style={[styles.sectionHeader, { color: theme.colors.textSecondary }]}>
-                名称
+                {t('form.nameLabel')}
               </Text>
               <Host matchContents style={styles.fieldHost}>
                 <OutlinedTextField
@@ -299,19 +308,19 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
                   colors={fieldColors}
                 >
                   <OutlinedTextField.Placeholder>
-                    <ComposeText>便于辨识的名称</ComposeText>
+                    <ComposeText>{t('form.namePlaceholder')}</ComposeText>
                   </OutlinedTextField.Placeholder>
                 </OutlinedTextField>
               </Host>
               <Text style={[styles.sectionFooter, { color: theme.colors.textSecondary }]}>
-                将显示在剪贴板顶栏。留空会用服务器地址替代。
+                {t('form.nameFooter')}
               </Text>
             </View>
 
             {/* § 服务器地址 */}
             <View style={styles.section}>
               <Text style={[styles.sectionHeader, { color: theme.colors.textSecondary }]}>
-                服务器地址
+                {t('form.urlLabel')}
               </Text>
               <Host matchContents style={styles.fieldHost}>
                 <OutlinedTextField
@@ -340,7 +349,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
             {/* § 凭据 */}
             <View style={styles.section}>
               <Text style={[styles.sectionHeader, { color: theme.colors.textSecondary }]}>
-                凭据
+                {t('form.credentialsLabel')}
               </Text>
               <Host matchContents style={styles.fieldHost}>
                 <OutlinedTextField
@@ -356,7 +365,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
                   colors={fieldColors}
                 >
                   <OutlinedTextField.Placeholder>
-                    <ComposeText>用户名</ComposeText>
+                    <ComposeText>{t('form.usernamePlaceholder')}</ComposeText>
                   </OutlinedTextField.Placeholder>
                 </OutlinedTextField>
               </Host>
@@ -380,7 +389,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
                   colors={fieldColors}
                 >
                   <OutlinedTextField.Placeholder>
-                    <ComposeText>密码</ComposeText>
+                    <ComposeText>{t('form.passwordPlaceholder')}</ComposeText>
                   </OutlinedTextField.Placeholder>
                 </OutlinedTextField>
               </Host>
@@ -389,7 +398,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
             {/* § 连接 */}
             <View style={styles.section}>
               <Text style={[styles.sectionHeader, { color: theme.colors.textSecondary }]}>
-                连接
+                {t('connect.sectionLabel')}
               </Text>
               {testResult && (
                 <View
@@ -413,7 +422,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
                       fontWeight: '500',
                     }}
                   >
-                    {testResult === 'success' ? '连接成功' : '连接失败'}
+                    {testResult === 'success' ? t('connect.success') : t('connect.failed')}
                   </Text>
                 </View>
               )}
@@ -431,14 +440,14 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
                   <>
                     <Ionicons name="stop-circle-outline" size={18} color={theme.colors.error} />
                     <Text style={[styles.testButtonText, { color: theme.colors.error }]}>
-                      取消测试
+                      {t('connect.cancelTest')}
                     </Text>
                   </>
                 ) : (
                   <>
                     <Ionicons name="flash-outline" size={18} color={theme.colors.accent} />
                     <Text style={[styles.testButtonText, { color: theme.colors.accent }]}>
-                      {testResult ? '重新测试' : '测试连接'}
+                      {testResult ? t('connect.retest') : t('connect.test')}
                     </Text>
                   </>
                 )}
@@ -458,7 +467,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
               </AlertDialog.Text>
               <AlertDialog.ConfirmButton>
                 <TextButton onClick={() => setAlertInfo(null)}>
-                  <ComposeText>确定</ComposeText>
+                  <ComposeText>{t('action.confirm', { ns: 'common' })}</ComposeText>
                 </TextButton>
               </AlertDialog.ConfirmButton>
             </AlertDialog>

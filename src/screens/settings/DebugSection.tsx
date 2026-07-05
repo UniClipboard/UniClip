@@ -6,6 +6,7 @@
  * 其状态/handler 一并内聚到本组件。
  */
 import React, { memo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Platform } from 'react-native';
 import {
   Column,
@@ -34,6 +35,7 @@ import { useSettingsToast } from './SettingsToastContext';
 import { SettingsSectionItem } from './SettingsSectionItem';
 
 export const DebugSection = memo(function DebugSection() {
+  const { t } = useTranslation('settingsAbout');
   const showMessage = useSettingsToast();
 
   const debugMode = useSettingsStore((s) => s.config?.debugMode ?? false);
@@ -55,18 +57,21 @@ export const DebugSection = memo(function DebugSection() {
   const handleToggleDebugMode = async (enabled: boolean) => {
     try {
       await useSettingsStore.getState().updateConfig({ debugMode: enabled });
-      showMessage(enabled ? '已启用调试模式' : '已禁用调试模式', 'success');
+      showMessage(enabled ? t('debug.modeEnabled') : t('debug.modeDisabled'), 'success');
     } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+      showMessage(error instanceof Error ? error.message : t('error.saveFailed'), 'error');
     }
   };
 
   const handleToggleDebugOverlayVisible = async (enabled: boolean) => {
     try {
       await useSettingsStore.getState().updateConfig({ debugOverlayVisible: enabled });
-      showMessage(enabled ? '悬浮窗将在后台时可见' : '悬浮窗已隐藏', 'success');
+      showMessage(
+        enabled ? t('debug.overlayVisibleToast') : t('debug.overlayHiddenToast'),
+        'success'
+      );
     } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+      showMessage(error instanceof Error ? error.message : t('error.saveFailed'), 'error');
     }
   };
 
@@ -74,7 +79,7 @@ export const DebugSection = memo(function DebugSection() {
     try {
       await useSettingsStore.getState().updateConfig({ debugUrlScheme: enabled });
     } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+      showMessage(error instanceof Error ? error.message : t('error.saveFailed'), 'error');
     }
   };
 
@@ -82,7 +87,7 @@ export const DebugSection = memo(function DebugSection() {
     try {
       await useSettingsStore.getState().updateConfig({ debugUpdateCheckNoLimit: enabled });
     } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+      showMessage(error instanceof Error ? error.message : t('error.saveFailed'), 'error');
     }
   };
 
@@ -90,8 +95,8 @@ export const DebugSection = memo(function DebugSection() {
     const code = extractVerificationCode(smsTestInput);
     setSmsTestResult(
       code
-        ? { title: '提取成功', message: `验证码: ${code}` }
-        : { title: '提取失败', message: '未能从输入文本中提取到验证码' }
+        ? { title: t('sms.extractSuccessTitle'), message: t('sms.codeResult', { code }) }
+        : { title: t('sms.extractFailTitle'), message: t('sms.extractFailMessage') }
     );
   };
 
@@ -109,19 +114,19 @@ export const DebugSection = memo(function DebugSection() {
     const Clipboard = await import('expo-clipboard');
     await Clipboard.setStringAsync(statsText);
     setShowStatsModal(false);
-    showMessage('已复制统计信息', 'success');
+    showMessage(t('stats.copied'), 'success');
   };
 
   return (
     <SettingsSectionItem
-      title="调试"
+      title={t('debug.title')}
       dialogs={
         <>
           {/* 测试验证码短信底部表单 */}
           {showSmsTestModal && (
             <ModalBottomSheet onDismissRequest={() => setShowSmsTestModal(false)}>
               <Column modifiers={[paddingAll(24), fillMaxWidth()]}>
-                <ComposeText style={{ typography: 'titleLarge' }}>测试验证码短信</ComposeText>
+                <ComposeText style={{ typography: 'titleLarge' }}>{t('sms.title')}</ComposeText>
                 <Spacer modifiers={[heightModifier(16)]} />
                 <OutlinedTextField
                   value={smsTestNativeState}
@@ -129,17 +134,17 @@ export const DebugSection = memo(function DebugSection() {
                   modifiers={[fillMaxWidth()]}
                 >
                   <OutlinedTextField.Placeholder>
-                    <ComposeText>输入短信内容...</ComposeText>
+                    <ComposeText>{t('sms.placeholder')}</ComposeText>
                   </OutlinedTextField.Placeholder>
                 </OutlinedTextField>
                 <Spacer modifiers={[heightModifier(16)]} />
                 <Row modifiers={[fillMaxWidth()]} horizontalArrangement="end">
                   <TextButton onClick={() => setShowSmsTestModal(false)}>
-                    <ComposeText>取消</ComposeText>
+                    <ComposeText>{t('action.cancel', { ns: 'common' })}</ComposeText>
                   </TextButton>
                   <Spacer modifiers={[widthModifier(8)]} />
                   <Button onClick={handleTestSmsCode}>
-                    <ComposeText>测试</ComposeText>
+                    <ComposeText>{t('sms.test')}</ComposeText>
                   </Button>
                 </Row>
               </Column>
@@ -150,17 +155,17 @@ export const DebugSection = memo(function DebugSection() {
           {showStatsModal && (
             <ModalBottomSheet onDismissRequest={() => setShowStatsModal(false)}>
               <Column modifiers={[paddingAll(24), fillMaxWidth()]}>
-                <ComposeText style={{ typography: 'titleLarge' }}>统计信息</ComposeText>
+                <ComposeText style={{ typography: 'titleLarge' }}>{t('stats.title')}</ComposeText>
                 <Spacer modifiers={[heightModifier(16)]} />
                 <ComposeText>{statsText}</ComposeText>
                 <Spacer modifiers={[heightModifier(16)]} />
                 <Row modifiers={[fillMaxWidth()]} horizontalArrangement="end">
                   <TextButton onClick={() => setShowStatsModal(false)}>
-                    <ComposeText>关闭</ComposeText>
+                    <ComposeText>{t('action.close', { ns: 'common' })}</ComposeText>
                   </TextButton>
                   <Spacer modifiers={[widthModifier(8)]} />
                   <Button onClick={handleCopyStatistics}>
-                    <ComposeText>复制</ComposeText>
+                    <ComposeText>{t('action.copy', { ns: 'common' })}</ComposeText>
                   </Button>
                 </Row>
               </Column>
@@ -178,7 +183,7 @@ export const DebugSection = memo(function DebugSection() {
               </AlertDialog.Text>
               <AlertDialog.ConfirmButton>
                 <TextButton onClick={() => setSmsTestResult(null)}>
-                  <ComposeText>确定</ComposeText>
+                  <ComposeText>{t('action.confirm', { ns: 'common' })}</ComposeText>
                 </TextButton>
               </AlertDialog.ConfirmButton>
             </AlertDialog>
@@ -188,7 +193,7 @@ export const DebugSection = memo(function DebugSection() {
     >
       <ListItem>
         <ListItem.HeadlineContent>
-          <ComposeText>调试模式</ComposeText>
+          <ComposeText>{t('debug.modeLabel')}</ComposeText>
         </ListItem.HeadlineContent>
         <ListItem.TrailingContent>
           <ComposeSwitch value={debugMode} onCheckedChange={handleToggleDebugMode} />
@@ -200,10 +205,10 @@ export const DebugSection = memo(function DebugSection() {
           <HorizontalDivider />
           <ListItem>
             <ListItem.HeadlineContent>
-              <ComposeText>显示悬浮窗</ComposeText>
+              <ComposeText>{t('debug.overlayLabel')}</ComposeText>
             </ListItem.HeadlineContent>
             <ListItem.SupportingContent>
-              <ComposeText>后台获取剪贴板时显示可见的悬浮窗</ComposeText>
+              <ComposeText>{t('debug.overlayDesc')}</ComposeText>
             </ListItem.SupportingContent>
             <ListItem.TrailingContent>
               <ComposeSwitch
@@ -220,7 +225,7 @@ export const DebugSection = memo(function DebugSection() {
           <HorizontalDivider />
           <ListItem>
             <ListItem.HeadlineContent>
-              <ComposeText>显示 URL Scheme 调用</ComposeText>
+              <ComposeText>{t('debug.urlSchemeLabel')}</ComposeText>
             </ListItem.HeadlineContent>
             <ListItem.TrailingContent>
               <ComposeSwitch value={debugUrlScheme} onCheckedChange={handleToggleDebugUrlScheme} />
@@ -234,7 +239,7 @@ export const DebugSection = memo(function DebugSection() {
           <HorizontalDivider />
           <ListItem>
             <ListItem.HeadlineContent>
-              <ComposeText>测试验证码短信</ComposeText>
+              <ComposeText>{t('sms.title')}</ComposeText>
             </ListItem.HeadlineContent>
             <ListItem.TrailingContent>
               <Button
@@ -243,7 +248,7 @@ export const DebugSection = memo(function DebugSection() {
                   setShowSmsTestModal(true);
                 }}
               >
-                <ComposeText>测试</ComposeText>
+                <ComposeText>{t('sms.test')}</ComposeText>
               </Button>
             </ListItem.TrailingContent>
           </ListItem>
@@ -255,10 +260,10 @@ export const DebugSection = memo(function DebugSection() {
           <HorizontalDivider />
           <ListItem>
             <ListItem.HeadlineContent>
-              <ComposeText>更新检查不限次数</ComposeText>
+              <ComposeText>{t('debug.updateNoLimitLabel')}</ComposeText>
             </ListItem.HeadlineContent>
             <ListItem.SupportingContent>
-              <ComposeText>开启后每次启动均检查更新，不限每天一次</ComposeText>
+              <ComposeText>{t('debug.updateNoLimitDesc')}</ComposeText>
             </ListItem.SupportingContent>
             <ListItem.TrailingContent>
               <ComposeSwitch
@@ -275,11 +280,11 @@ export const DebugSection = memo(function DebugSection() {
           <HorizontalDivider />
           <ListItem>
             <ListItem.HeadlineContent>
-              <ComposeText>统计信息</ComposeText>
+              <ComposeText>{t('stats.title')}</ComposeText>
             </ListItem.HeadlineContent>
             <ListItem.TrailingContent>
               <Button onClick={handleShowStatistics}>
-                <ComposeText>查看</ComposeText>
+                <ComposeText>{t('stats.view')}</ComposeText>
               </Button>
             </ListItem.TrailingContent>
           </ListItem>

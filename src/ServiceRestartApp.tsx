@@ -7,6 +7,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, Text, BackHandler, StatusBar, Platform } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from './stores';
 import { initLogger } from './services/Logger';
 import { getBackgroundServiceManager } from './services/BackgroundServiceManager';
@@ -16,6 +17,7 @@ interface ServiceRestartAppProps {
 }
 
 export default function ServiceRestartApp({ systemTheme }: ServiceRestartAppProps) {
+  const { t } = useTranslation('share');
   const { loadConfig, isLoaded } = useSettingsStore();
   const [ready, setReady] = useState(false);
   const isDark = systemTheme === 'dark';
@@ -53,7 +55,9 @@ export default function ServiceRestartApp({ systemTheme }: ServiceRestartAppProp
       <StatusBar backgroundColor="transparent" translucent barStyle="light-content" />
       <View style={[styles.card, isDark ? styles.cardDark : styles.cardLight]}>
         <Text style={[styles.icon]}>✓</Text>
-        <Text style={[styles.text, isDark ? styles.textDark : styles.textLight]}>服务已恢复</Text>
+        <Text style={[styles.text, isDark ? styles.textDark : styles.textLight]}>
+          {t('serviceRestart.restored')}
+        </Text>
       </View>
     </View>
   );

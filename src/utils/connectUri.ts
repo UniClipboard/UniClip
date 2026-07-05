@@ -9,6 +9,7 @@
  * 实现委托给 Rust core (uc-mobile) 通过 UniFFI FFI 调用。
  */
 
+import i18n from '@/i18n';
 import { parseConnectUri as rustParseConnectUri } from 'uc-core';
 
 export const CONNECT_URI_SCHEME = 'uniclipboard';
@@ -24,14 +25,36 @@ export type ConnectUriError =
   | 'MISSING_FIELD'
   | 'INVALID_URL';
 
-export const CONNECT_URI_ERROR_MESSAGES: Record<ConnectUriError, string> = {
-  INVALID_SCHEME: '不是 UniClipboard 的二维码。',
-  UNSUPPORTED_VERSION: '请升级 App。',
-  UNSUPPORTED_SERVICE: '当前版本不支持该服务。',
-  PAYLOAD_DECODE_FAILED: '二维码已损坏，请重新生成。',
-  MISSING_FIELD: '二维码内容不完整，请重新生成。',
-  INVALID_URL: '二维码里的服务地址无效。',
-};
+const CONNECT_URI_ERROR_CODES: ConnectUriError[] = [
+  'INVALID_SCHEME',
+  'UNSUPPORTED_VERSION',
+  'UNSUPPORTED_SERVICE',
+  'PAYLOAD_DECODE_FAILED',
+  'MISSING_FIELD',
+  'INVALID_URL',
+];
+
+/** 返回某错误码对应的本地化文案(调用时求值,语言切换即时生效)。 */
+export function getConnectUriErrorMessage(error: ConnectUriError): string {
+  return i18n.t(`connect:error.${error}`);
+}
+
+/**
+ * 错误码 → 本地化文案的映射。
+ * 用 getter 惰性求值,使 `CONNECT_URI_ERROR_MESSAGES[code]` 的既有消费点无需改动,
+ * 同时随语言切换实时返回当前语言文案。
+ */
+export const CONNECT_URI_ERROR_MESSAGES: Record<ConnectUriError, string> =
+  CONNECT_URI_ERROR_CODES.reduce(
+    (acc, code) => {
+      Object.defineProperty(acc, code, {
+        enumerable: true,
+        get: () => getConnectUriErrorMessage(code),
+      });
+      return acc;
+    },
+    {} as Record<ConnectUriError, string>
+  );
 
 export interface ConnectUriResult {
   url: string;

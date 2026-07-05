@@ -1,3 +1,4 @@
+import i18n from '@/i18n';
 import type { ClipboardContentType } from '@/types/api';
 
 export type DisplayKind = 'text' | 'url' | 'image' | 'file' | 'group';
@@ -29,11 +30,11 @@ function isURL(text: string): boolean {
 
 export function getDisplayKindLabel(kind: DisplayKind): string {
   const labels: Record<DisplayKind, string> = {
-    text: '文本',
-    url: '链接',
-    image: '图片',
-    file: '文件',
-    group: '归档',
+    text: i18n.t('history:kind.text'),
+    url: i18n.t('history:kind.url'),
+    image: i18n.t('history:kind.image'),
+    file: i18n.t('history:kind.file'),
+    group: i18n.t('history:kind.group'),
   };
   return labels[kind];
 }
@@ -77,11 +78,11 @@ export function getURLWithoutScheme(text: string): string {
 export function formatRelativeTime(timestamp: number): string {
   const now = Date.now();
   const diff = now - timestamp;
-  if (diff < 5000) return '刚刚';
-  if (diff < 60000) return `${Math.floor(diff / 1000)}秒前`;
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`;
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`;
-  if (diff < 604800000) return `${Math.floor(diff / 86400000)}天前`;
+  if (diff < 5000) return i18n.t('history:time.justNow');
+  if (diff < 60000) return i18n.t('history:time.secondsAgo', { n: Math.floor(diff / 1000) });
+  if (diff < 3600000) return i18n.t('history:time.minutesAgo', { n: Math.floor(diff / 60000) });
+  if (diff < 86400000) return i18n.t('history:time.hoursAgo', { n: Math.floor(diff / 3600000) });
+  if (diff < 604800000) return i18n.t('history:time.daysAgo', { n: Math.floor(diff / 86400000) });
   const d = new Date(timestamp);
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }

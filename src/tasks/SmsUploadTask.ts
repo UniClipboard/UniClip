@@ -15,6 +15,7 @@ import type { ISyncClipboardAPI } from '../services/APIClient';
 import { sha256 } from 'js-sha256';
 import { createAPIClient as createRoutedAPIClient } from '../services/apiClientFactory';
 import { log } from '@/services/Logger';
+import i18n from '@/i18n';
 
 // 重试配置
 const MAX_RETRIES = 3;
@@ -139,12 +140,16 @@ async function uploadWithRetry(
           `[SmsUploadTask] Upload failed (attempt ${attempt + 1}/${MAX_RETRIES + 1}): ${error}, retrying in ${delay}ms`
         );
         await updateNotification(
-          `验证码上传重试中: ${code}\n第${attempt + 1}次失败，${Math.round(delay / 1000)}秒后重试…`
+          i18n.t('share:sms.retrying', {
+            code,
+            attempt: attempt + 1,
+            seconds: Math.round(delay / 1000),
+          })
         );
         await new Promise((resolve) => setTimeout(resolve, delay));
       } else {
         log.error(`[SmsUploadTask] Upload failed after ${MAX_RETRIES + 1} attempts:`, error);
-        await updateNotification(`验证码上传失败: ${code}\n已重试${MAX_RETRIES}次`);
+        await updateNotification(i18n.t('share:sms.failed', { code, count: MAX_RETRIES }));
         return false;
       }
     }
@@ -205,7 +210,7 @@ export default async function SmsUploadTask(taskData?: SmsTaskData): Promise<voi
   try {
     const client = createAPIClient(server);
     const profileHash = calculateHash(code);
-    await updateNotification(`正在上传验证码：${code}`);
+    await updateNotification(i18n.t('share:sms.uploading', { code }));
     await uploadWithRetry(client, code, profileHash);
   } catch (error) {
     log.error('[SmsUploadTask] Unexpected error during upload:', error);

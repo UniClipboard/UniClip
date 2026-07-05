@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TextInput, StyleSheet, Pressable } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Animated, {
   useSharedValue,
@@ -36,6 +37,7 @@ export function DefaultTopBar({
   onSelectMode,
   theme,
 }: DefaultTopBarProps) {
+  const { t } = useTranslation('home');
   const dot = STATUS_STYLE[connectionStatus];
   const dimmed = connectionStatus === 'unconfigured' || connectionStatus === 'offline';
   return (
@@ -48,7 +50,10 @@ export function DefaultTopBar({
           pressed && { opacity: 0.7 },
         ]}
         accessibilityRole="button"
-        accessibilityLabel={`切换服务器，当前${serverLabel}，${CONNECTION_STATUS_TEXT[connectionStatus]}`}
+        accessibilityLabel={t('topBar.switchServerA11y', {
+          server: serverLabel,
+          status: CONNECTION_STATUS_TEXT[connectionStatus],
+        })}
       >
         <ServerStatusDot color={dot.color} pulse={dot.pulse} glow={dot.glow} />
         <Text
@@ -67,7 +72,9 @@ export function DefaultTopBar({
           onPress={onSelectMode}
           style={[s.pill, { backgroundColor: theme.colors.surfaceHigh }]}
         >
-          <Text style={[s.pillText, { color: theme.colors.textPrimary }]}>选择</Text>
+          <Text style={[s.pillText, { color: theme.colors.textPrimary }]}>
+            {t('action.select', { ns: 'common' })}
+          </Text>
         </Pressable>
         <Pressable
           onPress={onSearch}
@@ -76,7 +83,9 @@ export function DefaultTopBar({
         >
           <Ionicons name="search" size={22} color={theme.colors.textPrimary} />
         </Pressable>
-        <TopRightMenu items={[{ label: '设置', onPress: onSettings }]} />
+        <TopRightMenu
+          items={[{ label: t('action.settings', { ns: 'common' }), onPress: onSettings }]}
+        />
       </View>
     </View>
   );
@@ -94,6 +103,7 @@ export function SearchTopBar({
   onClose,
   theme,
 }: SearchTopBarProps) {
+  const { t } = useTranslation('home');
   const bg = { backgroundColor: theme.colors.surfaceHigh };
   const p = useSharedValue(0);
 
@@ -120,7 +130,7 @@ export function SearchTopBar({
               style={[s.searchInput, { color: theme.colors.textPrimary }]}
               value={searchText}
               onChangeText={onChangeText}
-              placeholder="搜索剪贴板"
+              placeholder={t('topBar.searchPlaceholder')}
               placeholderTextColor={theme.colors.textSecondary}
               autoFocus
             />
@@ -165,20 +175,25 @@ export function SelectModeTopBar({
   onDone,
   theme,
 }: SelectModeTopBarProps) {
+  const { t } = useTranslation('home');
   return (
     <View style={s.row}>
-      <Text style={[s.selectCount, { color: theme.colors.textPrimary }]}>已选择 {count} 项</Text>
+      <Text style={[s.selectCount, { color: theme.colors.textPrimary }]}>
+        {t('topBar.selectedCount', { n: count })}
+      </Text>
       <View style={s.actions}>
         <Pressable
           onPress={onSelectAll}
           style={[s.pill, { backgroundColor: theme.colors.surfaceHigh }]}
         >
           <Text style={[s.pillText, { color: theme.colors.textPrimary }]}>
-            {allSelected ? '取消全选' : '全选'}
+            {allSelected ? t('topBar.deselectAll') : t('action.selectAll', { ns: 'common' })}
           </Text>
         </Pressable>
         <Pressable onPress={onDone} style={[s.pill, { backgroundColor: theme.colors.surfaceHigh }]}>
-          <Text style={[s.pillText, { color: theme.colors.textPrimary }]}>完成</Text>
+          <Text style={[s.pillText, { color: theme.colors.textPrimary }]}>
+            {t('action.done', { ns: 'common' })}
+          </Text>
         </Pressable>
       </View>
     </View>

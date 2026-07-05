@@ -17,6 +17,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
 import { duration } from '@/theme/motion';
 
@@ -47,6 +48,7 @@ export function AppBottomSheet({
   children,
   containerColor,
 }: AppBottomSheetProps) {
+  const { t } = useTranslation('history');
   const { theme } = useTheme();
   const { height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -109,7 +111,7 @@ export function AppBottomSheet({
         style={StyleSheet.absoluteFill}
         onPress={onDismiss}
         accessibilityRole="button"
-        accessibilityLabel="关闭"
+        accessibilityLabel={t('action.close', { ns: 'common' })}
       />
       <Animated.View
         onLayout={handlePanelLayout}

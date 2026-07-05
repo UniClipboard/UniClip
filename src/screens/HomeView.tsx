@@ -13,6 +13,7 @@ import {
   Platform,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { iosColors } from '@/theme/iosDesignTokens';
@@ -154,6 +155,7 @@ interface HomeViewProps {
 }
 
 export function HomeView({ onOpenSettings }: HomeViewProps) {
+  const { t } = useTranslation('home');
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
@@ -225,7 +227,8 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
 
   const servers = getServers();
   const activeServerIndex = config?.activeServerIndex ?? -1;
-  const activeServerLabel = activeServer?.name || activeServer?.url || '未配置';
+  const activeServerLabel =
+    activeServer?.name || activeServer?.url || t('topBar.serverUnconfigured');
 
   const listRef = useRef<AnimatedCardGridHandle>(null);
 
@@ -320,12 +323,12 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
       // 这里只需要触发复制本身
       const result = await copyItemWithSync(item);
       if (result.success) {
-        showMessage('已复制到剪贴板', 'success');
+        showMessage(t('toast.copied'), 'success');
       } else {
-        showMessage(result.message || '复制失败', 'error');
+        showMessage(result.message || t('toast.copyFailed'), 'error');
       }
     },
-    [isSelectMode, toggleSelection, copyItemWithSync, showMessage]
+    [isSelectMode, toggleSelection, copyItemWithSync, showMessage, t]
   );
 
   // ── Long-press → 锚定式上下文浮层 ────────────────────────────
@@ -363,7 +366,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
       onCopy: async () => {
         const result = await copyItemWithSync(contextItem);
         showMessage(
-          result.success ? '已复制到剪贴板' : result.message || '复制失败',
+          result.success ? t('toast.copied') : result.message || t('toast.copyFailed'),
           result.success ? 'success' : 'error'
         );
       },
@@ -375,7 +378,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
       onCopyPlainText: async () => {
         const Clipboard = await import('expo-clipboard');
         await Clipboard.setStringAsync(contextItem.text);
-        showMessage('已复制为纯文本', 'success');
+        showMessage(t('toast.copiedPlainText'), 'success');
       },
       onOpenInBrowser: () => {
         Linking.openURL(contextItem.text.trim());
@@ -383,17 +386,17 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
       onSaveImage: async () => {
         try {
           await saveToGallery(contextItem.fileUri!);
-          showMessage('已保存到相册', 'success');
+          showMessage(t('toast.savedToGallery'), 'success');
         } catch {
-          showMessage('保存失败', 'error');
+          showMessage(t('toast.saveFailed'), 'error');
         }
       },
       onSaveFile: async () => {
         try {
           await saveFile(contextItem.fileUri!, contextItem.dataName);
-          showMessage('已保存文件', 'success');
+          showMessage(t('toast.savedFile'), 'success');
         } catch {
-          showMessage('保存失败', 'error');
+          showMessage(t('toast.saveFailed'), 'error');
         }
       },
       onShare: async () => {
@@ -416,7 +419,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
       },
       onDelete: async () => {
         await deleteItem(contextItem.profileHash);
-        showMessage('已删除', 'success');
+        showMessage(t('toast.deleted'), 'success');
       },
     });
   }, [
@@ -428,6 +431,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
     clearSelection,
     toggleSelection,
     deleteItem,
+    t,
   ]);
 
   const exitSelectMode = useCallback(() => {
@@ -453,9 +457,9 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
     const texts = selected.map((i) => i.text).join('\n');
     const Clipboard = await import('expo-clipboard');
     await Clipboard.setStringAsync(texts);
-    showMessage('已复制所选内容', 'success');
+    showMessage(t('toast.copiedSelected'), 'success');
     exitSelectMode();
-  }, [items, selectedIds, showMessage, exitSelectMode]);
+  }, [items, selectedIds, showMessage, exitSelectMode, t]);
 
   const handleBatchShare = useCallback(async () => {
     const selected = items.filter((i) => selectedIds.has(i.profileHash));
@@ -491,13 +495,13 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
           await syncService.syncAll(() => {});
         }
       }
-      showMessage('同步完成', 'success');
+      showMessage(t('toast.syncDone'), 'success');
     } catch {
-      showMessage('同步失败', 'error');
+      showMessage(t('toast.syncFailed'), 'error');
     } finally {
       setIsSyncing(false);
     }
-  }, [isSyncing, historySyncEnabled, config, showMessage, loadItems]);
+  }, [isSyncing, historySyncEnabled, config, showMessage, loadItems, t]);
 
   // Upload
   const handleUpload = useCallback(async () => {
@@ -505,14 +509,14 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
       clearError();
       const result = await getClipboardSyncService().triggerUpload();
       if (result.success) {
-        showMessage('已上传到服务器', 'success');
+        showMessage(t('toast.uploadedToServer'), 'success');
       } else {
-        showMessage(result.error || '上传失败', 'error');
+        showMessage(result.error || t('toast.uploadFailed'), 'error');
       }
     } catch {
-      showMessage('上传失败', 'error');
+      showMessage(t('toast.uploadFailed'), 'error');
     }
-  }, [showMessage, clearError]);
+  }, [showMessage, clearError, t]);
 
   // 保存并后台上传:先落本地(瞬时、必成功、立刻可见),再把推送交给后台异步重试。
   // 服务端离线时内容已在本地(卡片显示待上传角标),界面不阻塞、无需干等;取消问题随之消解。
@@ -531,13 +535,13 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
           payload.fileSize
         );
         await loadItems();
-        showMessage('已保存到本地', 'success');
+        showMessage(t('toast.savedLocally'), 'success');
         BackgroundUploadManager.enqueue(result.profileHash);
       } catch {
-        showMessage('保存失败', 'error');
+        showMessage(t('toast.saveFailed'), 'error');
       }
     },
-    [loadItems, showMessage]
+    [loadItems, showMessage, t]
   );
 
   // Upload file
@@ -554,9 +558,9 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
         fileSize: asset.size,
       });
     } catch {
-      showMessage('选择文件失败', 'error');
+      showMessage(t('toast.pickFileFailed'), 'error');
     }
-  }, [saveAndPush, showMessage]);
+  }, [saveAndPush, showMessage, t]);
 
   // Upload image
   const handleUploadImage = useCallback(async () => {
@@ -575,16 +579,16 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
         fileSize: asset.fileSize,
       });
     } catch {
-      showMessage('选择图片失败', 'error');
+      showMessage(t('toast.pickImageFailed'), 'error');
     }
-  }, [saveAndPush, showMessage]);
+  }, [saveAndPush, showMessage, t]);
 
   // 拍照上传 —— 相机权限已在 app.json 声明(Android CAMERA / iOS expo-camera）
   const handleTakePhoto = useCallback(async () => {
     try {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) {
-        showMessage('需要相机权限', 'error');
+        showMessage(t('toast.cameraPermissionNeeded'), 'error');
         return;
       }
       const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1 });
@@ -598,9 +602,9 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
         fileSize: asset.fileSize,
       });
     } catch {
-      showMessage('拍照失败', 'error');
+      showMessage(t('toast.takePhotoFailed'), 'error');
     }
-  }, [saveAndPush, showMessage]);
+  }, [saveAndPush, showMessage, t]);
 
   // Search
   const openSearch = useCallback(() => setIsSearching(true), []);
@@ -702,20 +706,20 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
         <View style={styles.emptyState}>
           <Ionicons name="clipboard-outline" size={48} color={theme.colors.textSecondary} />
           <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>
-            还没有同步过剪贴板
+            {t('empty.title')}
           </Text>
           <Text style={[styles.emptyDesc, { color: theme.colors.textSecondary }]}>
-            上传一张图片或文件，或等待服务器同步
+            {t('empty.description')}
           </Text>
           <Pressable
             onPress={() => setShowAddMenu(true)}
             style={[styles.emptyCta, { backgroundColor: theme.colors.accent }]}
             accessibilityRole="button"
-            accessibilityLabel="上传第一条内容"
+            accessibilityLabel={t('empty.cta')}
           >
             <Ionicons name="cloud-upload-outline" size={18} color={theme.colors.onAccent} />
             <Text style={[styles.emptyCtaText, { color: theme.colors.onAccent }]}>
-              上传第一条内容
+              {t('empty.cta')}
             </Text>
           </Pressable>
         </View>
@@ -790,7 +794,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
         onSelect={async (index) => {
           await setActiveServer(index);
           setShowServerPicker(false);
-          showMessage('已切换服务器', 'success');
+          showMessage(t('toast.serverSwitched'), 'success');
         }}
         onClose={() => setShowServerPicker(false)}
         onAdd={() => {
@@ -814,7 +818,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
             password: data.password,
           });
           setShowAddServer(false);
-          showMessage('服务器已添加', 'success');
+          showMessage(t('toast.serverAdded'), 'success');
         }}
       />
 

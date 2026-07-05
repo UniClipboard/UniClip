@@ -1,0 +1,92 @@
+{
+  "appearance": {
+    "sectionTitle": "外观",
+    "mode": {
+      "label": "外观模式",
+      "system": "跟随系统",
+      "light": "浅色",
+      "dark": "深色"
+    },
+    "hideFromRecents": {
+      "title": "在最近任务列表中隐藏",
+      "desc": "建议隐藏前先锁定，防止被一键清理"
+    },
+    "modeChangeFailed": "外观模式切换失败",
+    "updateFailed": "设置失败"
+  },
+  "general": {
+    "sectionTitle": "通用",
+    "theme": "主题"
+  },
+  "category": {
+    "sync": "同步",
+    "about": "关于",
+    "other": "其他",
+    "storage": "存储",
+    "server": "服务器",
+    "history": "历史记录",
+    "background": "后台运行",
+    "sms": "短信转发",
+    "developer": "开发者选项",
+    "extensions": "扩展与权限"
+  },
+  "hub": {
+    "autoSync": {
+      "title": "自动同步",
+      "desc": "处于前台时自动同步剪贴板",
+      "enabled": "已启用自动同步",
+      "disabled": "已禁用自动同步",
+      "updateFailed": "设置失败"
+    },
+    "rows": {
+      "serverLabel": "服务器与同步"
+    },
+    "summary": {
+      "serverNone": "未配置服务器",
+      "serverActive": "当前:{{name}} · 共 {{count}} 台",
+      "serverCount": "共 {{count}} 台服务器",
+      "syncOn": "同步已开启",
+      "syncOff": "同步已关闭",
+      "history": "{{status}} · 最多保留 {{count}} 条",
+      "backgroundTempDisabled": "已临时停止,重启应用后恢复",
+      "backgroundOn": "后台任务已开启",
+      "backgroundOff": "后台任务已关闭",
+      "smsOn": "验证码自动上传已开启",
+      "smsOff": "验证码自动上传已关闭",
+      "storage": "缓存、日志与历史记录占用",
+      "about": "当前版本 {{version}}",
+      "developer": "日志、调试与快捷方式"
+    }
+  },
+  "server": {
+    "addTitle": "添加服务器",
+    "editTitle": "编辑服务器",
+    "count": "{{count}} 个"
+  },
+  "ios": {
+    "sync": {
+      "footer": "开启「自动写入」后，服务器有新内容时会立即覆盖本机剪贴板；关闭则只在主页高亮提示。",
+      "autoApply": "自动写入本机剪贴板",
+      "autoPush": "自动推送本机剪贴板",
+      "sse": "实时推送 (SSE)"
+    },
+    "extensions": {
+      "footer": "键盘和分享扩展让你在其他 App 里直接使用 UniClip；剪贴板访问设为「允许」可避免同步时反复弹窗。",
+      "keyboard": "键盘",
+      "share": "分享",
+      "clipboardAccess": "剪贴板访问权限"
+    },
+    "keyboardHint": {
+      "needsFullAccess": "需完全访问",
+      "notEnabled": "未启用"
+    },
+    "general": {
+      "checkUpdateOnLaunch": "启动时检查更新"
+    },
+    "about": {
+      "projectHome": "项目主页",
+      "version": "版本"
+    }
+  },
+  "openSystemSettings": "打开系统设置"
+}

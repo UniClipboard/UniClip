@@ -1,0 +1,62 @@
+{
+  "empty": {
+    "title": "还没有同步过剪贴板",
+    "description": "上传一张图片或文件，或等待服务器同步",
+    "cta": "上传第一条内容"
+  },
+  "topBar": {
+    "selectedCount": "已选择 {{n}} 项",
+    "deselectAll": "取消全选",
+    "searchPlaceholder": "搜索剪贴板",
+    "switchServerA11y": "切换服务器，当前{{server}}，{{status}}",
+    "serverUnconfigured": "未配置"
+  },
+  "a11y": {
+    "addContent": "添加内容",
+    "closeMenu": "关闭菜单"
+  },
+  "fab": {
+    "takePhoto": "拍照",
+    "pickImage": "相册图片",
+    "pickFile": "选择文件",
+    "uploadClipboard": "上传剪贴板",
+    "syncNow": "立即同步"
+  },
+  "quickActions": {
+    "upload": "⬆️ 上传",
+    "sync": "🔄 同步",
+    "syncing": "  同步中...",
+    "download": "⬇️ 下载"
+  },
+  "toast": {
+    "copied": "已复制到剪贴板",
+    "copyFailed": "复制失败",
+    "copiedPlainText": "已复制为纯文本",
+    "savedToGallery": "已保存到相册",
+    "saveFailed": "保存失败",
+    "savedFile": "已保存文件",
+    "deleted": "已删除",
+    "copiedSelected": "已复制所选内容",
+    "syncDone": "同步完成",
+    "syncFailed": "同步失败",
+    "uploadedToServer": "已上传到服务器",
+    "uploadFailed": "上传失败",
+    "savedLocally": "已保存到本地",
+    "pickFileFailed": "选择文件失败",
+    "pickImageFailed": "选择图片失败",
+    "cameraPermissionNeeded": "需要相机权限",
+    "takePhotoFailed": "拍照失败",
+    "serverSwitched": "已切换服务器",
+    "serverAdded": "服务器已添加"
+  },
+  "nav": {
+    "sync": "服务器与同步",
+    "history": "历史记录",
+    "background": "后台运行",
+    "appearance": "外观",
+    "sms": "短信转发",
+    "storage": "存储",
+    "about": "关于",
+    "developer": "开发者选项"
+  }
+}

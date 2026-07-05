@@ -1,3 +1,4 @@
+import i18n from '@/i18n';
 import type { ClipboardItem } from '@/types/clipboard';
 import type { DisplayKind } from '@/utils/displayKind';
 
@@ -49,18 +50,23 @@ export function getClipboardCardActionDescriptors(
 ): CardActionDescriptor[] {
   const descriptors: CardActionDescriptor[] = [];
 
-  descriptors.push({ key: 'copy', label: '复制', androidIcon: 'copy-outline', group: 'primary' });
+  descriptors.push({
+    key: 'copy',
+    label: i18n.t('common:action.copy'),
+    androidIcon: 'copy-outline',
+    group: 'primary',
+  });
 
   if (displayKind === 'text' || displayKind === 'url') {
     descriptors.push({
       key: 'copyPlain',
-      label: '复制为纯文本',
+      label: i18n.t('history:menu.copyPlain'),
       androidIcon: 'clipboard-outline',
       group: 'primary',
     });
     descriptors.push({
       key: 'selectText',
-      label: '选择文本',
+      label: i18n.t('history:menu.selectText'),
       androidIcon: 'text-outline',
       group: 'content',
     });
@@ -69,7 +75,7 @@ export function getClipboardCardActionDescriptors(
   if (displayKind === 'url') {
     descriptors.push({
       key: 'openBrowser',
-      label: '在浏览器中打开',
+      label: i18n.t('history:menu.openBrowser'),
       androidIcon: 'open-outline',
       group: 'content',
     });
@@ -78,7 +84,7 @@ export function getClipboardCardActionDescriptors(
   if (displayKind === 'image' && item.isLocalFileReady && item.fileUri) {
     descriptors.push({
       key: 'saveImage',
-      label: '保存图片',
+      label: i18n.t('history:menu.saveImage'),
       androidIcon: 'download-outline',
       group: 'content',
     });
@@ -91,7 +97,7 @@ export function getClipboardCardActionDescriptors(
   ) {
     descriptors.push({
       key: 'saveFile',
-      label: '保存文件',
+      label: i18n.t('history:menu.saveFile'),
       androidIcon: 'download-outline',
       group: 'content',
     });
@@ -99,19 +105,19 @@ export function getClipboardCardActionDescriptors(
 
   descriptors.push({
     key: 'share',
-    label: '分享',
+    label: i18n.t('common:action.share'),
     androidIcon: 'share-outline',
     group: 'organize',
   });
   descriptors.push({
     key: 'select',
-    label: '选择',
+    label: i18n.t('common:action.select'),
     androidIcon: 'checkmark-circle-outline',
     group: 'organize',
   });
   descriptors.push({
     key: 'delete',
-    label: '删除',
+    label: i18n.t('common:action.delete'),
     androidIcon: 'trash-outline',
     group: 'danger',
     destructive: true,

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Button as SwiftUIButton,
   HStack,
@@ -39,6 +40,7 @@ function formatSize(bytes: number): string {
 }
 
 export function StoragePage({ onBack, active = true }: { onBack: () => void; active?: boolean }) {
+  const { t } = useTranslation('settingsStorage');
   const { config, updateConfig } = useSettingsStore();
   const [cacheSize, setCacheSize] = useState<number | null>(null);
   const [purging, setPurging] = useState(false);
@@ -73,28 +75,32 @@ export function StoragePage({ onBack, active = true }: { onBack: () => void; act
 
   const prefetchEnabled = config.attachmentAutoDownload !== 'off';
   const prefetchOnCellular = config.attachmentAutoDownload === 'always';
-  const cacheSizeLabel = purging ? '清除中…' : cacheSize !== null ? formatSize(cacheSize) : '—';
+  const cacheSizeLabel = purging
+    ? t('cache.clearing')
+    : cacheSize !== null
+      ? formatSize(cacheSize)
+      : '—';
 
   return (
     <IosSheetPage
-      title="存储"
+      title={t('title')}
       leftSlots={[<HeaderCircleButton key="back" systemName="chevron.left" onPress={onBack} />]}
     >
       <IosSheetForm>
         {/* ── 预下载 ── */}
         <Section
-          header={<SwiftUIText>预下载</SwiftUIText>}
-          footer={<SwiftUIText>开启后，新内容会在后台静默缓存，点击预览无需等待。</SwiftUIText>}
+          header={<SwiftUIText>{t('prefetch.sectionHeader')}</SwiftUIText>}
+          footer={<SwiftUIText>{t('prefetch.sectionFooter')}</SwiftUIText>}
         >
           <SettingsToggle
-            label="预下载附件"
+            label={t('prefetch.attachmentLabel')}
             systemImage="icloud.and.arrow.down"
             isOn={prefetchEnabled}
             onIsOnChange={(v) => updateConfig({ attachmentAutoDownload: v ? 'wifi' : 'off' })}
           />
           {prefetchEnabled && (
             <SettingsToggle
-              label="蜂窝下也预下载"
+              label={t('prefetch.cellularLabel')}
               systemImage="antenna.radiowaves.left.and.right"
               isOn={prefetchOnCellular}
               onIsOnChange={(v) => updateConfig({ attachmentAutoDownload: v ? 'always' : 'wifi' })}
@@ -103,9 +109,9 @@ export function StoragePage({ onBack, active = true }: { onBack: () => void; act
         </Section>
 
         {/* ── 缓存 ── */}
-        <Section header={<SwiftUIText>缓存</SwiftUIText>}>
+        <Section header={<SwiftUIText>{t('cache.sectionHeader')}</SwiftUIText>}>
           <Picker
-            label="缓存上限"
+            label={t('cache.capLabel')}
             systemImage="externaldrive"
             selection={config.payloadCacheMaxBytes}
             onSelectionChange={(v) => updateConfig({ payloadCacheMaxBytes: v as number })}
@@ -119,14 +125,14 @@ export function StoragePage({ onBack, active = true }: { onBack: () => void; act
           </Picker>
 
           <HStack modifiers={[frame({ maxWidth: Infinity })]}>
-            <Label title="缓存占用" systemImage="internaldrive" />
+            <Label title={t('cache.iosUsageLabel')} systemImage="internaldrive" />
             <Spacer />
             <SwiftUIText modifiers={[foregroundStyle('secondary'), monospacedDigit()]}>
               {cacheSizeLabel}
             </SwiftUIText>
             <Spacer modifiers={[frame({ width: 8 })]} />
             <SwiftUIButton
-              label="清除"
+              label={t('action.clear', { ns: 'common' })}
               onPress={handlePurgeCache}
               modifiers={[
                 buttonStyle('borderless'),

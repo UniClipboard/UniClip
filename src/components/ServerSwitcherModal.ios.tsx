@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { Alert, StyleSheet, useColorScheme } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import {
   Host,
   BottomSheet,
@@ -86,6 +87,7 @@ function ServerCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const { t } = useTranslation('serverSwitch');
   const { count, tags } = useNetworkTags(server);
   const isDark = useColorScheme() === 'dark';
   const cardFill = isActive
@@ -103,9 +105,14 @@ function ServerCard({
       ]}
     >
       <SwipeActions.Actions edge="trailing">
-        <SwiftUIButton label="删除" role="destructive" systemImage="trash" onPress={onDelete} />
         <SwiftUIButton
-          label="编辑"
+          label={t('action.delete', { ns: 'common' })}
+          role="destructive"
+          systemImage="trash"
+          onPress={onDelete}
+        />
+        <SwiftUIButton
+          label={t('action.edit', { ns: 'common' })}
           systemImage="pencil"
           onPress={onEdit}
           modifiers={[tint(iosKindTints.text)]}
@@ -153,7 +160,9 @@ function ServerCard({
                 <SwiftUIText modifiers={[font({ size: 12 })]}>{tag.label}</SwiftUIText>
               </HStack>
             ))}
-            <SwiftUIText modifiers={[font({ size: 12 })]}>{count} 个地址</SwiftUIText>
+            <SwiftUIText modifiers={[font({ size: 12 })]}>
+              {t('card.addressCount', { count })}
+            </SwiftUIText>
           </HStack>
         </VStack>
         <Spacer />
@@ -163,6 +172,7 @@ function ServerCard({
 }
 
 function EmptyState() {
+  const { t } = useTranslation('serverSwitch');
   return (
     <>
       <Spacer />
@@ -173,10 +183,10 @@ function EmptyState() {
           modifiers={[foregroundStyle(iosColors!.tertiaryLabel)]}
         />
         <SwiftUIText modifiers={[font({ size: 16 }), foregroundStyle(iosColors!.secondaryLabel)]}>
-          还没有服务器
+          {t('empty.title')}
         </SwiftUIText>
         <SwiftUIText modifiers={[font({ size: 13 }), foregroundStyle(iosColors!.tertiaryLabel)]}>
-          点击右上角 + 添加
+          {t('empty.hint')}
         </SwiftUIText>
       </VStack>
       <Spacer />
@@ -214,6 +224,7 @@ export function ServerSwitcherModal({
   onSelect,
   onClose,
 }: ServerSwitcherModalProps) {
+  const { t } = useTranslation('serverSwitch');
   const [showAddSheet, setShowAddSheet] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const { addServer, updateServer, deleteServer } = useSettingsStore();
@@ -224,13 +235,17 @@ export function ServerSwitcherModal({
   const handleDelete = useCallback(
     (index: number) => {
       const server = servers[index];
-      const label = server?.name || server?.url || '此服务器';
-      Alert.alert('删除服务器', `确定要删除「${label}」吗？`, [
-        { text: '取消', style: 'cancel' },
-        { text: '删除', style: 'destructive', onPress: () => void deleteServer(index) },
+      const label = server?.name || server?.url || t('delete.fallbackName');
+      Alert.alert(t('delete.title'), t('delete.message', { name: label }), [
+        { text: t('action.cancel', { ns: 'common' }), style: 'cancel' },
+        {
+          text: t('action.delete', { ns: 'common' }),
+          style: 'destructive',
+          onPress: () => void deleteServer(index),
+        },
       ]);
     },
-    [servers, deleteServer]
+    [servers, deleteServer, t]
   );
 
   const handleSave = useCallback(
@@ -273,7 +288,7 @@ export function ServerSwitcherModal({
             modifiers={[presentationDetents(['medium']), presentationDragIndicator('visible')]}
           >
             <IosSheetPage
-              title="服务器"
+              title={t('title')}
               spacing={0}
               leftSlots={[headerCircleButton('close', 'xmark', onClose)]}
               rightSlots={[headerCircleButton('add', 'plus', () => setShowAddSheet(true))]}
@@ -300,7 +315,7 @@ export function ServerSwitcherModal({
       </Host>
       <AddServerSheet
         visible={sheetVisible}
-        title={editingServer ? '编辑服务器' : undefined}
+        title={editingServer ? t('sheet.editTitle') : undefined}
         initialData={editingServer ? toEditData(editingServer) : undefined}
         onClose={closeSheet}
         onSave={handleSave}

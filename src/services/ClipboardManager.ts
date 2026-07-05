@@ -15,6 +15,7 @@ import { historyStorage } from './HistoryStorage';
 import { prepareTempFilePath, CLIPBOARD_TEMP_DIR } from '@/utils/fileStorage';
 import { nativeSetClipboardImageFromFile } from 'native-util';
 import { log } from './Logger';
+import i18n from '@/i18n';
 
 /**
  * 剪贴板管理器类
@@ -459,7 +460,7 @@ export class ClipboardManager {
 
       return {
         type: 'Image',
-        text: '[图片]',
+        text: i18n.t('errors:contentPlaceholder.image'),
         fileUri: asset.uri,
         fileSize: asset.fileSize,
         profileHash,
@@ -496,7 +497,7 @@ export class ClipboardManager {
 
       return {
         type: 'Image',
-        text: '[图片]',
+        text: i18n.t('errors:contentPlaceholder.image'),
         fileUri: asset.uri,
         fileSize: asset.fileSize,
         profileHash,

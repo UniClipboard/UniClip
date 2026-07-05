@@ -5,6 +5,7 @@
  * （挂载时刷新一次，提供手动刷新），不影响其它 section。
  */
 import React, { memo, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { View, Text, TouchableOpacity, Platform, Linking } from 'react-native';
 import {
   Host,
@@ -25,6 +26,7 @@ import { settingsStyles as styles } from './settingsStyles';
 import { log } from '@/services/Logger';
 
 export const PermissionsSection = memo(function PermissionsSection() {
+  const { t } = useTranslation('settingsPermissions');
   const { theme } = useTheme();
 
   const [permNotification, setPermNotification] = useState(false);
@@ -66,7 +68,9 @@ export const PermissionsSection = memo(function PermissionsSection() {
     <>
       <View style={styles.section}>
         <View style={[styles.sectionHeaderBase, styles.sectionHeaderRow]}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>权限管理</Text>
+          <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
+            {t('section.title')}
+          </Text>
           <TouchableOpacity
             style={styles.iconButton}
             onPress={refreshPermissions}
@@ -81,7 +85,7 @@ export const PermissionsSection = memo(function PermissionsSection() {
             <Column modifiers={[fillMaxWidth()]}>
               <ListItem>
                 <ListItem.HeadlineContent>
-                  <ComposeText>通知权限</ComposeText>
+                  <ComposeText>{t('notification.title')}</ComposeText>
                 </ListItem.HeadlineContent>
                 <ListItem.TrailingContent>
                   <ComposeSwitch
@@ -95,10 +99,10 @@ export const PermissionsSection = memo(function PermissionsSection() {
 
               <ListItem>
                 <ListItem.HeadlineContent>
-                  <ComposeText>悬浮窗权限</ComposeText>
+                  <ComposeText>{t('overlay.title')}</ComposeText>
                 </ListItem.HeadlineContent>
                 <ListItem.SupportingContent>
-                  <ComposeText>后台通过悬浮窗获取剪贴板所需</ComposeText>
+                  <ComposeText>{t('overlay.description')}</ComposeText>
                 </ListItem.SupportingContent>
                 <ListItem.TrailingContent>
                   <ComposeSwitch
@@ -112,10 +116,10 @@ export const PermissionsSection = memo(function PermissionsSection() {
 
               <ListItem>
                 <ListItem.HeadlineContent>
-                  <ComposeText>短信权限</ComposeText>
+                  <ComposeText>{t('sms.title')}</ComposeText>
                 </ListItem.HeadlineContent>
                 <ListItem.SupportingContent>
-                  <ComposeText>自动上传短信验证码所需</ComposeText>
+                  <ComposeText>{t('sms.description')}</ComposeText>
                 </ListItem.SupportingContent>
                 <ListItem.TrailingContent>
                   <ComposeSwitch value={permSms} onCheckedChange={() => Linking.openSettings()} />
@@ -126,10 +130,10 @@ export const PermissionsSection = memo(function PermissionsSection() {
 
               <ListItem>
                 <ListItem.HeadlineContent>
-                  <ComposeText>忽略电池优化</ComposeText>
+                  <ComposeText>{t('battery.title')}</ComposeText>
                 </ListItem.HeadlineContent>
                 <ListItem.SupportingContent>
-                  <ComposeText>防止省电模式中断后台同步</ComposeText>
+                  <ComposeText>{t('battery.description')}</ComposeText>
                 </ListItem.SupportingContent>
                 <ListItem.TrailingContent>
                   <ComposeSwitch
@@ -155,12 +159,10 @@ export const PermissionsSection = memo(function PermissionsSection() {
         {showBatteryOptDialog && (
           <AlertDialog onDismissRequest={() => setShowBatteryOptDialog(false)}>
             <AlertDialog.Title>
-              <ComposeText>无法唤起系统弹窗</ComposeText>
+              <ComposeText>{t('batteryDialog.title')}</ComposeText>
             </AlertDialog.Title>
             <AlertDialog.Text>
-              <ComposeText>
-                系统限制每次安装仅允许弹出一次电池优化请求，请前往系统设置手动关闭电池优化。
-              </ComposeText>
+              <ComposeText>{t('batteryDialog.message')}</ComposeText>
             </AlertDialog.Text>
             <AlertDialog.ConfirmButton>
               <TextButton
@@ -169,12 +171,12 @@ export const PermissionsSection = memo(function PermissionsSection() {
                   setShowBatteryOptDialog(false);
                 }}
               >
-                <ComposeText>前往设置</ComposeText>
+                <ComposeText>{t('action.openSettings')}</ComposeText>
               </TextButton>
             </AlertDialog.ConfirmButton>
             <AlertDialog.DismissButton>
               <TextButton onClick={() => setShowBatteryOptDialog(false)}>
-                <ComposeText>取消</ComposeText>
+                <ComposeText>{t('action.cancel', { ns: 'common' })}</ComposeText>
               </TextButton>
             </AlertDialog.DismissButton>
           </AlertDialog>

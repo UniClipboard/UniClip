@@ -11,12 +11,19 @@ import {
 } from '@expo/ui/swift-ui';
 import { foregroundStyle, frame, pickerStyle, tag } from '@expo/ui/swift-ui/modifiers';
 import type { SFSymbol } from 'sf-symbols-typescript';
+import { useTranslation } from 'react-i18next';
 
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
 import { useSettingsStore } from '@/stores';
 import { useTheme } from '@/hooks/useTheme';
 import { APP_VERSION } from '@/constants';
 import type { ThemeMode } from '@/theme';
+import { useAppLanguage } from '@/i18n/useAppLanguage';
+import {
+  LANGUAGE_NATIVE_NAMES,
+  type LanguagePreference,
+  SUPPORTED_LANGUAGES,
+} from '@/i18n/languages';
 import {
   chevronColor,
   SettingsIconTile,
@@ -57,8 +64,10 @@ export function SettingsRootPage({
   onNavigate: (page: SettingsPage) => void;
   active?: boolean;
 }) {
+  const { t } = useTranslation('settings');
   const { config, updateConfig } = useSettingsStore();
   const { setThemeMode } = useTheme();
+  const { preference: languagePref, setLanguage } = useAppLanguage();
   const keyboard = useKeyboardStatus();
   const refreshKeyboard = keyboard.refresh;
 
@@ -74,54 +83,50 @@ export function SettingsRootPage({
 
   const keyboardHint =
     keyboard.state === 'ready'
-      ? { value: '已启用', color: statusGreen }
+      ? { value: t('state.enabled', { ns: 'common' }), color: statusGreen }
       : keyboard.state === 'added'
-        ? { value: '需完全访问', color: statusOrange }
+        ? { value: t('ios.keyboardHint.needsFullAccess'), color: statusOrange }
         : keyboard.state === 'notAdded'
-          ? { value: '未启用', color: undefined }
+          ? { value: t('ios.keyboardHint.notEnabled'), color: undefined }
           : { value: undefined, color: undefined };
 
   return (
-    <IosSheetPage title="设置">
+    <IosSheetPage title={t('action.settings', { ns: 'common' })}>
       <IosSheetForm>
         {/* ── 服务器 ── */}
         <Section>
           <SettingsNavRow
             icon="server.rack"
             iconColor={settingsTileColors.blue}
-            title="服务器"
-            value={`${servers.length} 个`}
+            title={t('category.server')}
+            value={t('server.count', { count: servers.length })}
             onPress={() => onNavigate('servers')}
           />
         </Section>
 
         {/* ── 同步 ── */}
         <Section
-          header={<SwiftUIText>同步</SwiftUIText>}
-          footer={
-            <SwiftUIText>
-              开启「自动写入」后，服务器有新内容时会立即覆盖本机剪贴板；关闭则只在主页高亮提示。
-            </SwiftUIText>
-          }
+          header={<SwiftUIText>{t('category.sync')}</SwiftUIText>}
+          footer={<SwiftUIText>{t('ios.sync.footer')}</SwiftUIText>}
         >
           <IconToggleRow
             icon="arrow.down.doc"
             iconColor={settingsTileColors.green}
-            label="自动写入本机剪贴板"
+            label={t('ios.sync.autoApply')}
             isOn={config.autoApplyRemote}
             onIsOnChange={(v) => updateConfig({ autoApplyRemote: v })}
           />
           <IconToggleRow
             icon="arrow.up.doc"
             iconColor={settingsTileColors.teal}
-            label="自动推送本机剪贴板"
+            label={t('ios.sync.autoPush')}
             isOn={config.autoPushLocal}
             onIsOnChange={(v) => updateConfig({ autoPushLocal: v })}
           />
           <IconToggleRow
             icon="bolt.horizontal"
             iconColor={settingsTileColors.orange}
-            label="实时推送 (SSE)"
+            label={t('ios.sync.sse')}
             isOn={config.enableSse}
             onIsOnChange={(v) => useSettingsStore.getState().setEnableSse(v)}
           />
@@ -129,18 +134,13 @@ export function SettingsRootPage({
 
         {/* ── 扩展与权限 ── */}
         <Section
-          header={<SwiftUIText>扩展与权限</SwiftUIText>}
-          footer={
-            <SwiftUIText>
-              键盘和分享扩展让你在其他 App 里直接使用
-              UniClip；剪贴板访问设为「允许」可避免同步时反复弹窗。
-            </SwiftUIText>
-          }
+          header={<SwiftUIText>{t('category.extensions')}</SwiftUIText>}
+          footer={<SwiftUIText>{t('ios.extensions.footer')}</SwiftUIText>}
         >
           <SettingsNavRow
             icon="keyboard"
             iconColor={settingsTileColors.indigo}
-            title="键盘"
+            title={t('ios.extensions.keyboard')}
             value={keyboardHint.value}
             valueColor={keyboardHint.color}
             onPress={() => onNavigate('keyboard')}
@@ -148,13 +148,13 @@ export function SettingsRootPage({
           <SettingsNavRow
             icon="square.and.arrow.up"
             iconColor={settingsTileColors.green}
-            title="分享"
+            title={t('ios.extensions.share')}
             onPress={() => onNavigate('share')}
           />
           <SettingsNavRow
             icon="doc.on.clipboard"
             iconColor={settingsTileColors.orange}
-            title="剪贴板访问权限"
+            title={t('ios.extensions.clipboardAccess')}
             onPress={() => onNavigate('clipboard')}
           />
         </Section>
@@ -164,17 +164,17 @@ export function SettingsRootPage({
           <SettingsNavRow
             icon="externaldrive"
             iconColor={settingsTileColors.purple}
-            title="存储"
+            title={t('category.storage')}
             onPress={() => onNavigate('storage')}
           />
         </Section>
 
         {/* ── 通用 ── */}
-        <Section header={<SwiftUIText>通用</SwiftUIText>}>
+        <Section header={<SwiftUIText>{t('general.sectionTitle')}</SwiftUIText>}>
           <HStack spacing={12} modifiers={[frame({ maxWidth: Infinity })]}>
             <SettingsIconTile systemName="circle.lefthalf.filled" color={settingsTileColors.gray} />
             <Picker
-              label="主题"
+              label={t('general.theme')}
               selection={config.appearance}
               onSelectionChange={(v) => {
                 const appearance = v as 'system' | 'light' | 'dark';
@@ -188,27 +188,49 @@ export function SettingsRootPage({
               }}
               modifiers={[pickerStyle('menu')]}
             >
-              <SwiftUIText modifiers={[tag('system')]}>跟随系统</SwiftUIText>
-              <SwiftUIText modifiers={[tag('light')]}>浅色</SwiftUIText>
-              <SwiftUIText modifiers={[tag('dark')]}>深色</SwiftUIText>
+              <SwiftUIText modifiers={[tag('system')]}>{t('appearance.mode.system')}</SwiftUIText>
+              <SwiftUIText modifiers={[tag('light')]}>{t('appearance.mode.light')}</SwiftUIText>
+              <SwiftUIText modifiers={[tag('dark')]}>{t('appearance.mode.dark')}</SwiftUIText>
+            </Picker>
+          </HStack>
+
+          {/* 语言 */}
+          <HStack spacing={12} modifiers={[frame({ maxWidth: Infinity })]}>
+            <SettingsIconTile systemName="globe" color={settingsTileColors.blue} />
+            <Picker
+              label={t('language.title', { ns: 'common' })}
+              selection={languagePref}
+              onSelectionChange={(v) => {
+                void setLanguage(v as LanguagePreference);
+              }}
+              modifiers={[pickerStyle('menu')]}
+            >
+              <SwiftUIText modifiers={[tag('system')]}>
+                {t('language.system', { ns: 'common' })}
+              </SwiftUIText>
+              {SUPPORTED_LANGUAGES.map((code) => (
+                <SwiftUIText key={code} modifiers={[tag(code)]}>
+                  {LANGUAGE_NATIVE_NAMES[code]}
+                </SwiftUIText>
+              ))}
             </Picker>
           </HStack>
 
           <IconToggleRow
             icon="arrow.triangle.2.circlepath"
             iconColor={settingsTileColors.red}
-            label="启动时检查更新"
+            label={t('ios.general.checkUpdateOnLaunch')}
             isOn={config.autoCheckUpdate}
             onIsOnChange={(v) => updateConfig({ autoCheckUpdate: v })}
           />
         </Section>
 
         {/* ── 关于 ── */}
-        <Section header={<SwiftUIText>关于</SwiftUIText>}>
+        <Section header={<SwiftUIText>{t('category.about')}</SwiftUIText>}>
           <Link destination="https://github.com/UniClipboard/UniClipboard">
             <HStack spacing={12} modifiers={[frame({ maxWidth: Infinity })]}>
               <SettingsIconTile systemName="globe" color={settingsTileColors.gray} />
-              <SwiftUIText>项目主页</SwiftUIText>
+              <SwiftUIText>{t('ios.about.projectHome')}</SwiftUIText>
               <Spacer />
               <Image systemName="arrow.up.right" size={12} color={chevronColor} />
             </HStack>
@@ -218,7 +240,7 @@ export function SettingsRootPage({
             label={
               <HStack spacing={12}>
                 <SettingsIconTile systemName="info.circle" color={settingsTileColors.gray} />
-                <SwiftUIText>版本</SwiftUIText>
+                <SwiftUIText>{t('ios.about.version')}</SwiftUIText>
               </HStack>
             }
           >

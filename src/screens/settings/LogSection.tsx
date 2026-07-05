@@ -5,6 +5,7 @@
  * isCalculating 来自共享的 storageSizes store。
  */
 import React, { memo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ListItem,
   Button,
@@ -27,14 +28,8 @@ import { useSettingsToast } from './SettingsToastContext';
 import { SettingsSectionItem } from './SettingsSectionItem';
 import { useStorageSizesStore } from './storageSizes';
 
-const logLevelOptions: { label: string; value: LogLevel }[] = [
-  { label: '调试', value: 'debug' },
-  { label: '信息', value: 'info' },
-  { label: '警告', value: 'warn' },
-  { label: '错误', value: 'error' },
-];
-
 export const LogSection = memo(function LogSection() {
+  const { t } = useTranslation('settingsAbout');
   const showMessage = useSettingsToast();
 
   const logLevel = useSettingsStore((s) => s.config?.logLevel);
@@ -44,16 +39,24 @@ export const LogSection = memo(function LogSection() {
   const [isExportingLogs, setIsExportingLogs] = useState(false);
   const exportLogsAbortControllerRef = useRef<AbortController | null>(null);
 
-  const logLevelLabel = logLevelOptions.find((o) => o.value === logLevel)?.label ?? '错误';
+  const logLevelOptions: { label: string; value: LogLevel }[] = [
+    { label: t('log.level.debug'), value: 'debug' },
+    { label: t('log.level.info'), value: 'info' },
+    { label: t('log.level.warn'), value: 'warn' },
+    { label: t('log.level.error'), value: 'error' },
+  ];
+
+  const logLevelLabel =
+    logLevelOptions.find((o) => o.value === logLevel)?.label ?? t('log.level.error');
   const logLevelNativeState = useNativeState(logLevelLabel);
 
   const handleSetLogLevel = async (level: LogLevel) => {
     try {
       await useSettingsStore.getState().setLogLevel(level);
       setLoggerLogLevel(level);
-      showMessage(`日志等级已设置为 ${level}`, 'success');
+      showMessage(t('log.setSuccess', { level }), 'success');
     } catch {
-      showMessage('设置日志等级失败', 'error');
+      showMessage(t('log.setFailed'), 'error');
     }
   };
 
@@ -69,12 +72,12 @@ export const LogSection = memo(function LogSection() {
 
     try {
       await saveLogsToFile(abortController.signal);
-      showMessage('日志已保存', 'success');
+      showMessage(t('log.exported'), 'success');
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        showMessage('已取消导出', 'info');
+        showMessage(t('log.exportCanceled'), 'info');
       } else {
-        showMessage(error instanceof Error ? error.message : '导出日志失败', 'error');
+        showMessage(error instanceof Error ? error.message : t('log.exportFailed'), 'error');
       }
     } finally {
       setIsExportingLogs(false);
@@ -83,10 +86,10 @@ export const LogSection = memo(function LogSection() {
   };
 
   return (
-    <SettingsSectionItem title="日志">
+    <SettingsSectionItem title={t('log.title')}>
       <ListItem>
         <ListItem.HeadlineContent>
-          <ComposeText>日志等级</ComposeText>
+          <ComposeText>{t('log.levelLabel')}</ComposeText>
         </ListItem.HeadlineContent>
         <ListItem.TrailingContent>
           <ExposedDropdownMenuBox
@@ -127,11 +130,13 @@ export const LogSection = memo(function LogSection() {
 
       <ListItem>
         <ListItem.HeadlineContent>
-          <ComposeText>导出日志</ComposeText>
+          <ComposeText>{t('log.exportLabel')}</ComposeText>
         </ListItem.HeadlineContent>
         <ListItem.TrailingContent>
           <Button onClick={handleExportLogs} enabled={!isCalculating}>
-            <ComposeText>{isExportingLogs ? '取消' : '导出'}</ComposeText>
+            <ComposeText>
+              {isExportingLogs ? t('action.cancel', { ns: 'common' }) : t('log.export')}
+            </ComposeText>
           </Button>
         </ListItem.TrailingContent>
       </ListItem>

@@ -1,0 +1,82 @@
+{
+  "title": "About",
+  "versionLabel": "Version",
+  "update": {
+    "check": "Check for updates",
+    "checking": "Checking...",
+    "updateTo": "Update {{version}}",
+    "upToDate": "You're on the latest version",
+    "checkFailed": "Update check failed, please check your network connection"
+  },
+  "autoCheck": {
+    "label": "Auto check for updates"
+  },
+  "updateToBeta": {
+    "label": "Update to beta"
+  },
+  "download": {
+    "newVersionTitle": "New version available",
+    "latestVersion": "Latest version: {{version}}",
+    "currentVersion": "Current version: {{version}}",
+    "releaseNotes": "Release notes:\n{{notes}}",
+    "gitcode": "Download from GitCode",
+    "github": "Download from GitHub",
+    "downloading": "Downloading {{percent}}%",
+    "canceled": "Download canceled",
+    "failed": "Download failed",
+    "noSuitableApk": "No suitable APK found for this device"
+  },
+  "cancelDownload": {
+    "title": "Cancel download",
+    "message": "Are you sure you want to cancel the download?",
+    "confirm": "Cancel download",
+    "dismiss": "Keep downloading"
+  },
+  "error": {
+    "saveFailed": "Failed to save settings"
+  },
+  "log": {
+    "title": "Logs",
+    "levelLabel": "Log level",
+    "level": {
+      "debug": "Debug",
+      "info": "Info",
+      "warn": "Warning",
+      "error": "Error"
+    },
+    "setSuccess": "Log level set to {{level}}",
+    "setFailed": "Failed to set log level",
+    "exportLabel": "Export logs",
+    "export": "Export",
+    "exported": "Logs saved",
+    "exportCanceled": "Export canceled",
+    "exportFailed": "Failed to export logs"
+  },
+  "debug": {
+    "title": "Debug",
+    "modeLabel": "Debug mode",
+    "modeEnabled": "Debug mode enabled",
+    "modeDisabled": "Debug mode disabled",
+    "overlayLabel": "Show overlay",
+    "overlayDesc": "Show a visible overlay when reading the clipboard in the background",
+    "overlayVisibleToast": "Overlay will be visible in the background",
+    "overlayHiddenToast": "Overlay hidden",
+    "urlSchemeLabel": "Show URL Scheme calls",
+    "updateNoLimitLabel": "Unlimited update checks",
+    "updateNoLimitDesc": "When on, checks for updates on every launch instead of once a day"
+  },
+  "sms": {
+    "title": "Test verification SMS",
+    "placeholder": "Enter SMS content...",
+    "test": "Test",
+    "extractSuccessTitle": "Extraction succeeded",
+    "extractFailTitle": "Extraction failed",
+    "codeResult": "Code: {{code}}",
+    "extractFailMessage": "Could not extract a verification code from the input text"
+  },
+  "stats": {
+    "title": "Statistics",
+    "view": "View",
+    "copied": "Statistics copied"
+  }
+}

@@ -1,6 +1,8 @@
 import { registerRootComponent } from 'expo';
 import { Platform, AppRegistry } from 'react-native';
 
+// 初始化 i18next(副作用),必须在任何组件渲染前完成,覆盖所有 AppRegistry 入口。
+import './src/i18n';
 import App from './App';
 
 // registerRootComponent calls AppRegistry.registerComponent('main', () => App);

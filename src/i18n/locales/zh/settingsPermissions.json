@@ -1,0 +1,64 @@
+{
+  "section": {
+    "title": "权限管理"
+  },
+  "notification": {
+    "title": "通知权限"
+  },
+  "overlay": {
+    "title": "悬浮窗权限",
+    "description": "后台通过悬浮窗获取剪贴板所需"
+  },
+  "sms": {
+    "title": "短信权限",
+    "description": "自动上传短信验证码所需"
+  },
+  "battery": {
+    "title": "忽略电池优化",
+    "description": "防止省电模式中断后台同步"
+  },
+  "batteryDialog": {
+    "title": "无法唤起系统弹窗",
+    "message": "系统限制每次安装仅允许弹出一次电池优化请求，请前往系统设置手动关闭电池优化。"
+  },
+  "action": {
+    "openSettings": "前往设置"
+  },
+  "smsAutomation": {
+    "title": "短信自动化",
+    "autoUpload": "自动上传短信验证码",
+    "permissionRequiredTitle": "需要短信权限",
+    "permissionRequiredMessage": "自动上传验证码需要短信接收权限，请在系统设置中允许",
+    "enabledToast": "已启用自动上传短信验证码",
+    "disabledToast": "已禁用自动上传短信验证码",
+    "saveFailed": "设置失败"
+  },
+  "quickActions": {
+    "title": "快捷操作",
+    "addDownloadShortcut": "添加桌面快捷方式：下载",
+    "addUploadShortcut": "添加桌面快捷方式：上传",
+    "addFailed": "添加失败"
+  },
+  "clipboardAccess": {
+    "title": "剪贴板访问",
+    "enableSection": {
+      "header": "开启「从其他 App 粘贴」",
+      "footer": "iOS 只有在 App 读过一次其他 App 复制的内容后,才会弹出「允许粘贴」并把这项权限记住。全新安装、还没触发过的用户,系统设置里暂时看不到「从其他 App 粘贴」这一项。点下面按钮触发一次:弹出「允许粘贴」时选「允许」即完成授权,之后不再询问。"
+    },
+    "triggeredStep": "已触发一次读取。弹窗时点「允许」即可",
+    "triggerAgain": "再触发一次",
+    "triggerAndGrant": "触发一次并授权",
+    "fallbackSection": {
+      "header": "没弹窗,或想改选择",
+      "footer": "若刚才没弹窗,可能是剪贴板为空(先复制一段文字再触发),或你之前点过「不允许」被系统记住了。到系统设置把「从其他 App 粘贴」设为「允许」即可——触发过一次后这一项才会出现。iOS 不向 App 提供该项当前值,修改后无需返回确认。",
+      "step1": "打开系统设置中的 UniClip",
+      "step2": "点「从其他 App 粘贴」",
+      "step3": "选择「允许」"
+    },
+    "relatedSection": {
+      "header": "相关设置",
+      "footer": "开启后会自动读取并推送本机复制的内容，建议先把上面的权限设为「允许」。保持关闭则用主页「粘贴」按钮手动推送，iOS 不会弹窗。",
+      "autoPushLabel": "自动推送本机剪贴板"
+    }
+  }
+}

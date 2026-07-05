@@ -26,6 +26,7 @@ import { SyncDirection, SyncResult } from '../types/sync';
 import type { ServerConfig } from '../types/api';
 import type { ISyncClipboardAPI } from './APIClient';
 import { log } from './Logger';
+import i18n from '@/i18n';
 
 class ClipboardSyncService {
   private static instance: ClipboardSyncService | null = null;
@@ -246,8 +247,10 @@ class ClipboardSyncService {
       await this.fetchRemoteClipboard(false);
     } catch (error) {
       const { useErrorStore } = require('../stores/errorStore');
-      const errorMessage = error instanceof Error ? error.message : '刷新失败';
-      useErrorStore.getState().setError({ title: '刷新失败', message: errorMessage });
+      const errorMessage = error instanceof Error ? error.message : i18n.t('errors:refresh.failed');
+      useErrorStore
+        .getState()
+        .setError({ title: i18n.t('errors:refresh.failed'), message: errorMessage });
     }
   }
 
@@ -410,8 +413,10 @@ class ClipboardSyncService {
     // 立即获取一次（非静默，显示加载状态；错误写入 errorStore）
     await this.fetchRemoteClipboard(false).catch((error: Error) => {
       const { useErrorStore } = require('../stores/errorStore');
-      const errorMessage = error?.message ?? '无法连接到服务器';
-      useErrorStore.getState().setError({ title: '连接失败', message: errorMessage });
+      const errorMessage = error?.message ?? i18n.t('errors:connect.cannotReach');
+      useErrorStore
+        .getState()
+        .setError({ title: i18n.t('errors:connect.failed'), message: errorMessage });
     });
   }
 
@@ -590,9 +595,11 @@ class ClipboardSyncService {
               finalContent.type === 'Text' && finalContent.text
                 ? finalContent.text.trim().replace(/\s+/g, ' ').slice(0, 30)
                 : finalContent.fileName || finalContent.type;
-            SyncManager.getInstance().updateForegroundNotification(`已下载: ${preview}`);
+            SyncManager.getInstance().updateForegroundNotification(
+              `${i18n.t('errors:notification.downloaded')}: ${preview}`
+            );
             if (config?.syncToastEnabled !== false) {
-              showToast(`已下载\n${preview}`);
+              showToast(`${i18n.t('errors:notification.downloaded')}\n${preview}`);
             }
           }
         } catch (error) {
@@ -669,7 +676,7 @@ class ClipboardSyncService {
           const { useSettingsStore } = require('../stores/settingsStore');
           const config = useSettingsStore.getState().config;
           if (config?.syncToastEnabled !== false) {
-            showToast('文件已下载');
+            showToast(i18n.t('errors:notification.fileDownloaded'));
           }
         }
         store.setDownloadingRemote(false);
@@ -839,9 +846,11 @@ class ClipboardSyncService {
               ? content.text.trim().replace(/\s+/g, ' ').slice(0, 30)
               : content.fileName || content.type;
           const { SyncManager } = require('./SyncManager');
-          SyncManager.getInstance().updateForegroundNotification(`已上传: ${preview}`);
+          SyncManager.getInstance().updateForegroundNotification(
+            `${i18n.t('errors:notification.uploaded')}: ${preview}`
+          );
           if (config?.syncToastEnabled !== false) {
-            showToast(`已上传\n${preview}`);
+            showToast(`${i18n.t('errors:notification.uploaded')}\n${preview}`);
           }
           // 上传成功后静默刷新远程显示
           this.fetchRemoteClipboard(true).catch(() => {});

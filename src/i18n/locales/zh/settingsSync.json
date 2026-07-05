@@ -1,0 +1,60 @@
+{
+  "options": {
+    "title": "同步选项",
+    "syncToast": {
+      "title": "同步 Toast 通知",
+      "desc": "上传/下载完成后显示 Toast 提示"
+    },
+    "autoSize": {
+      "title": "允许自动同步的数据大小",
+      "desc": "小于此大小的文件将自动下载"
+    }
+  },
+  "advanced": {
+    "title": "高级",
+    "sse": {
+      "title": "实时推送(SSE)",
+      "desc": "服务端推送剪贴板变化,更省电更即时;不支持时自动回退轮询"
+    },
+    "remotePolling": {
+      "title": "远程轮询间隔",
+      "desc": "拉取远程剪贴板的频率"
+    },
+    "localPolling": {
+      "title": "本地轮询间隔",
+      "desc": "检测本机剪贴板变化的频率"
+    }
+  },
+  "unit": {
+    "seconds": "秒"
+  },
+  "server": {
+    "title": "服务器",
+    "empty": {
+      "title": "还没有配置服务器",
+      "desc": "点击下方添加第一个服务器"
+    },
+    "deleteDialog": {
+      "title": "确认删除",
+      "message": "确定要删除服务器 \"{{name}}\" 吗？"
+    }
+  },
+  "form": {
+    "addTitle": "添加服务器",
+    "editTitle": "编辑服务器"
+  },
+  "toast": {
+    "serverSwitched": "已切换服务器",
+    "serverDeleted": "服务器已删除",
+    "serverAdded": "服务器已添加",
+    "serverUpdated": "服务器配置已更新"
+  },
+  "error": {
+    "updateFailed": "设置失败",
+    "invalidNumber": "请输入有效的数字",
+    "minOneSecond": "请输入大于等于1的数字",
+    "switchFailed": "切换失败",
+    "deleteFailed": "删除失败",
+    "operationFailed": "操作失败"
+  }
+}

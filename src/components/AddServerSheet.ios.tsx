@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { Alert } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import {
   Host,
   BottomSheet,
@@ -72,12 +73,14 @@ function ProbeStatusIcon({ result }: { result?: ProbeResult }) {
 
 export function AddServerSheet({
   visible,
-  title = '添加服务器',
+  title: titleProp,
   initialData,
   embeddedInHost = false,
   onClose,
   onSave,
 }: AddServerSheetProps) {
+  const { t } = useTranslation('server');
+  const title = titleProp ?? t('sheet.addTitle');
   const [name, setName] = useState('');
   const [urls, setUrls] = useState<string[]>(['']);
   const [username, setUsername] = useState('');
@@ -207,7 +210,7 @@ export function AddServerSheet({
 
       const parsed = parseConnectUri(raw);
       if (!parsed.ok) {
-        Alert.alert('扫码失败', CONNECT_URI_ERROR_MESSAGES[parsed.error]);
+        Alert.alert(t('scan.failedTitle'), CONNECT_URI_ERROR_MESSAGES[parsed.error]);
         return;
       }
 
@@ -225,9 +228,9 @@ export function AddServerSheet({
         if (parsed.value.label) nameRef.current?.setText(parsed.value.label);
       }, 300);
     } catch (e: unknown) {
-      Alert.alert('扫码失败', e instanceof Error ? e.message : '未知错误');
+      Alert.alert(t('scan.failedTitle'), e instanceof Error ? e.message : t('alert.unknownError'));
     }
-  }, []);
+  }, [t]);
 
   const classForUrl = useCallback((u: string): ServerURLClass | null => {
     const trimmed = u.trim();
@@ -243,12 +246,11 @@ export function AddServerSheet({
   const probeErrorMessage = useMemo(() => {
     if (!probeResults) return null;
     const values = Object.values(probeResults);
-    if (values.every((r) => r === 'Unreachable'))
-      return '所有地址均不可达，请检查网络或服务器地址。';
+    if (values.every((r) => r === 'Unreachable')) return t('probe.allUnreachable');
     if (values.some((r) => r === 'AuthFailed') && !values.some((r) => r === 'Success'))
-      return '认证失败，请检查用户名和密码。';
+      return t('probe.authFailed');
     return null;
-  }, [probeResults]);
+  }, [probeResults, t]);
 
   const sheet = (
     <BottomSheet
@@ -265,7 +267,9 @@ export function AddServerSheet({
               onPress={handleClose}
               modifiers={[buttonStyle('glass'), controlSize('large')]}
             >
-              <SwiftUIText modifiers={[font({ size: 16 })]}>取消</SwiftUIText>
+              <SwiftUIText modifiers={[font({ size: 16 })]}>
+                {t('action.cancel', { ns: 'common' })}
+              </SwiftUIText>
             </SwiftUIButton>
           }
           right={
@@ -273,29 +277,31 @@ export function AddServerSheet({
               onPress={handleSave}
               modifiers={[buttonStyle('glass'), controlSize('large'), opacity(canSave ? 1 : 0.35)]}
             >
-              <SwiftUIText modifiers={[font({ weight: 'semibold', size: 16 })]}>保存</SwiftUIText>
+              <SwiftUIText modifiers={[font({ weight: 'semibold', size: 16 })]}>
+                {t('action.save', { ns: 'common' })}
+              </SwiftUIText>
             </SwiftUIButton>
           }
         >
           <IosSheetForm>
             {/* ── 扫码 ── */}
-            <Section footer={<SwiftUIText>扫描桌面端的二维码，一键填充以下信息。</SwiftUIText>}>
+            <Section footer={<SwiftUIText>{t('scan.footer')}</SwiftUIText>}>
               <SwiftUIButton
                 systemImage="qrcode.viewfinder"
-                label="扫码连接"
+                label={t('scan.action')}
                 onPress={handleScan}
               />
             </Section>
 
             {/* ── 名称 ── */}
             <Section
-              title="名称"
-              footer={<SwiftUIText>将显示在剪贴板顶栏。留空会用服务器地址替代。</SwiftUIText>}
+              title={t('form.nameLabel')}
+              footer={<SwiftUIText>{t('form.nameFooter')}</SwiftUIText>}
             >
               <HStack>
                 <TextField
                   ref={nameRef}
-                  placeholder="便于辨识的名称"
+                  placeholder={t('form.namePlaceholder')}
                   onTextChange={setName}
                   modifiers={[textFieldStyle('plain'), frame({ minHeight: 22 })]}
                 />
@@ -307,13 +313,8 @@ export function AddServerSheet({
 
             {/* ── 服务器地址（多地址） ── */}
             <Section
-              title="服务器地址"
-              footer={
-                <SwiftUIText>
-                  同一服务器可填多个地址（局域网 / Tailscale / 公网），App
-                  会按当前网络自动选用可达的一条；第一条为默认地址。
-                </SwiftUIText>
-              }
+              title={t('form.urlLabel')}
+              footer={<SwiftUIText>{t('form.urlFooter')}</SwiftUIText>}
             >
               {urls.map((url, i) => (
                 <HStack key={`url-row-${i}`} spacing={8}>
@@ -337,25 +338,29 @@ export function AddServerSheet({
                   )}
                 </HStack>
               ))}
-              <SwiftUIButton systemImage="plus.circle" label="添加备用地址" onPress={addUrl} />
+              <SwiftUIButton
+                systemImage="plus.circle"
+                label={t('form.addBackupUrl')}
+                onPress={addUrl}
+              />
               <SettingsToggle
-                label="允许不安全证书"
+                label={t('form.allowInsecureCert')}
                 isOn={trustInsecureCert}
                 onIsOnChange={(v) => updateConfig({ trustInsecureCert: v })}
               />
             </Section>
 
             {/* ── 凭据 ── */}
-            <Section title="凭据">
+            <Section title={t('form.credentialsLabel')}>
               <TextField
                 ref={usernameRef}
-                placeholder="用户名"
+                placeholder={t('form.usernamePlaceholder')}
                 onTextChange={setUsername}
                 modifiers={[textFieldStyle('plain'), frame({ minHeight: 22 })]}
               />
               <SecureField
                 ref={passwordRef}
-                placeholder="密码"
+                placeholder={t('form.passwordPlaceholder')}
                 onTextChange={setPassword}
                 modifiers={[frame({ minHeight: 22 })]}
               />
@@ -363,14 +368,12 @@ export function AddServerSheet({
 
             {/* ── 测试连接 ── */}
             <Section
-              title="连接"
+              title={t('connect.sectionLabel')}
               footer={
                 probeErrorMessage ? (
                   <SwiftUIText>{probeErrorMessage}</SwiftUIText>
                 ) : probeResults ? (
-                  <SwiftUIText>
-                    标注「将使用」的地址是当前网络下的首选；网络变化时会自动重选。
-                  </SwiftUIText>
+                  <SwiftUIText>{t('connect.resultFooter')}</SwiftUIText>
                 ) : undefined
               }
             >
@@ -392,7 +395,7 @@ export function AddServerSheet({
                                 foregroundStyle('#34C759'),
                               ]}
                             >
-                              将使用
+                              {t('connect.willUse')}
                             </SwiftUIText>
                           )}
                         </HStack>
@@ -406,12 +409,14 @@ export function AddServerSheet({
               {isProbing ? (
                 <HStack spacing={8} alignment="center" modifiers={[frame({ maxWidth: Infinity })]}>
                   <ProgressView />
-                  <SwiftUIText modifiers={[foregroundStyle('#8E8E93')]}>正在测试…</SwiftUIText>
+                  <SwiftUIText modifiers={[foregroundStyle('#8E8E93')]}>
+                    {t('connect.testing')}
+                  </SwiftUIText>
                 </HStack>
               ) : (
                 <SwiftUIButton
                   systemImage="bolt.fill"
-                  label={probeResults ? '重新测试' : '测试连接'}
+                  label={probeResults ? t('connect.retest') : t('connect.test')}
                   onPress={handleProbe}
                 />
               )}

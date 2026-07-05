@@ -1,0 +1,11 @@
+{
+  "scanFailed": "扫码失败",
+  "error": {
+    "INVALID_SCHEME": "不是 UniClipboard 的二维码。",
+    "UNSUPPORTED_VERSION": "请升级 App。",
+    "UNSUPPORTED_SERVICE": "当前版本不支持该服务。",
+    "PAYLOAD_DECODE_FAILED": "二维码已损坏，请重新生成。",
+    "MISSING_FIELD": "二维码内容不完整，请重新生成。",
+    "INVALID_URL": "二维码里的服务地址无效。"
+  }
+}

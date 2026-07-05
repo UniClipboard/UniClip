@@ -31,6 +31,7 @@ export interface SharedSettings {
 
   // Appearance
   appearance: 'system' | 'light' | 'dark';
+  /** 界面语言偏好:'system' 跟随系统,或具体语言代码('zh-CN' | 'en')。见 src/i18n */
   language: string;
 
   // Logging & debug
@@ -112,7 +113,7 @@ export const SHARED_DEFAULTS: SharedSettings = {
   ignoredVersion: null,
 
   appearance: 'system',
-  language: 'zh-CN',
+  language: 'system',
 
   logLevel: __DEV__ ? 'debug' : 'info',
   debugMode: false,

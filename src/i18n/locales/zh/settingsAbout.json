@@ -1,0 +1,82 @@
+{
+  "title": "关于",
+  "versionLabel": "版本",
+  "update": {
+    "check": "检查更新",
+    "checking": "检查中...",
+    "updateTo": "更新 {{version}}",
+    "upToDate": "当前已是最新版本",
+    "checkFailed": "检查更新失败，请检查网络连接"
+  },
+  "autoCheck": {
+    "label": "自动检查更新"
+  },
+  "updateToBeta": {
+    "label": "更新到测试版"
+  },
+  "download": {
+    "newVersionTitle": "发现新版本",
+    "latestVersion": "最新版本：{{version}}",
+    "currentVersion": "当前版本：{{version}}",
+    "releaseNotes": "更新说明：\n{{notes}}",
+    "gitcode": "GitCode 下载",
+    "github": "GitHub 下载",
+    "downloading": "下载中 {{percent}}%",
+    "canceled": "已取消下载",
+    "failed": "下载失败",
+    "noSuitableApk": "找不到适合当前设备的 APK"
+  },
+  "cancelDownload": {
+    "title": "取消下载",
+    "message": "确定要取消下载吗？",
+    "confirm": "取消下载",
+    "dismiss": "继续下载"
+  },
+  "error": {
+    "saveFailed": "设置失败"
+  },
+  "log": {
+    "title": "日志",
+    "levelLabel": "日志等级",
+    "level": {
+      "debug": "调试",
+      "info": "信息",
+      "warn": "警告",
+      "error": "错误"
+    },
+    "setSuccess": "日志等级已设置为 {{level}}",
+    "setFailed": "设置日志等级失败",
+    "exportLabel": "导出日志",
+    "export": "导出",
+    "exported": "日志已保存",
+    "exportCanceled": "已取消导出",
+    "exportFailed": "导出日志失败"
+  },
+  "debug": {
+    "title": "调试",
+    "modeLabel": "调试模式",
+    "modeEnabled": "已启用调试模式",
+    "modeDisabled": "已禁用调试模式",
+    "overlayLabel": "显示悬浮窗",
+    "overlayDesc": "后台获取剪贴板时显示可见的悬浮窗",
+    "overlayVisibleToast": "悬浮窗将在后台时可见",
+    "overlayHiddenToast": "悬浮窗已隐藏",
+    "urlSchemeLabel": "显示 URL Scheme 调用",
+    "updateNoLimitLabel": "更新检查不限次数",
+    "updateNoLimitDesc": "开启后每次启动均检查更新，不限每天一次"
+  },
+  "sms": {
+    "title": "测试验证码短信",
+    "placeholder": "输入短信内容...",
+    "test": "测试",
+    "extractSuccessTitle": "提取成功",
+    "extractFailTitle": "提取失败",
+    "codeResult": "验证码: {{code}}",
+    "extractFailMessage": "未能从输入文本中提取到验证码"
+  },
+  "stats": {
+    "title": "统计信息",
+    "view": "查看",
+    "copied": "已复制统计信息"
+  }
+}

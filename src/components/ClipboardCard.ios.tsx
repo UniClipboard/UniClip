@@ -9,6 +9,7 @@ import Svg, {
   Pattern as SvgPattern,
 } from 'react-native-svg';
 import { ArrowDown, ArrowUp, Check, Circle, Clock, Image as ImageIcon } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
 import { useURLMetadata } from '@/hooks/useURLMetadata';
 import { useClipboardCardViewModel } from '@/hooks/useClipboardCardViewModel';
@@ -320,11 +321,12 @@ function FileCardBody({
   directionIndicator,
   isLatest,
 }: CardBodyProps) {
+  const { t } = useTranslation('history');
   const { theme } = useTheme();
   const isGroup = displayKind === 'group';
   const fileName = item.dataName || item.text;
   const ext = getFileExtension(fileName);
-  const chipLabel = isGroup ? '归档' : ext || '文件';
+  const chipLabel = isGroup ? t('kind.group') : ext || t('kind.file');
   const chipColor = isGroup ? iosKindTints.group : getExtensionColor(ext);
   const sizeLabel = item.size ? formatFileSize(item.size) : '';
 

@@ -5,6 +5,7 @@
  * 作为 item：无独立 Host，外壳(标题 + Card + Column)由 SettingsSectionItem 提供。
  */
 import React, { memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Platform, Alert, Linking } from 'react-native';
 import { ListItem, Switch as ComposeSwitch, Text as ComposeText } from '@expo/ui/jetpack-compose';
 import { useSettingsStore } from '@/stores';
@@ -12,6 +13,7 @@ import { useSettingsToast } from './SettingsToastContext';
 import { SettingsSectionItem } from './SettingsSectionItem';
 
 export const SmsSection = memo(function SmsSection() {
+  const { t } = useTranslation('settingsPermissions');
   const showMessage = useSettingsToast();
   const smsForwardingEnabled = useSettingsStore((s) => s.config?.enableSmsForwarding ?? false);
 
@@ -22,10 +24,14 @@ export const SmsSection = memo(function SmsSection() {
       if (!granted) {
         const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECEIVE_SMS);
         if (result !== PermissionsAndroid.RESULTS.GRANTED) {
-          Alert.alert('需要短信权限', '自动上传验证码需要短信接收权限，请在系统设置中允许', [
-            { text: '取消', style: 'cancel' },
-            { text: '前往设置', onPress: () => Linking.openSettings() },
-          ]);
+          Alert.alert(
+            t('smsAutomation.permissionRequiredTitle'),
+            t('smsAutomation.permissionRequiredMessage'),
+            [
+              { text: t('action.cancel', { ns: 'common' }), style: 'cancel' },
+              { text: t('action.openSettings'), onPress: () => Linking.openSettings() },
+            ]
+          );
           return;
         }
       }
@@ -37,19 +43,22 @@ export const SmsSection = memo(function SmsSection() {
         const { setStaticReceiverEnabled } = await import('sms-forwarder');
         setStaticReceiverEnabled(enabled);
       }
-      showMessage(enabled ? '已启用自动上传短信验证码' : '已禁用自动上传短信验证码', 'success');
+      showMessage(
+        enabled ? t('smsAutomation.enabledToast') : t('smsAutomation.disabledToast'),
+        'success'
+      );
     } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+      showMessage(error instanceof Error ? error.message : t('smsAutomation.saveFailed'), 'error');
     }
   };
 
   if (Platform.OS !== 'android') return null;
 
   return (
-    <SettingsSectionItem title="短信自动化">
+    <SettingsSectionItem title={t('smsAutomation.title')}>
       <ListItem>
         <ListItem.HeadlineContent>
-          <ComposeText>自动上传短信验证码</ComposeText>
+          <ComposeText>{t('smsAutomation.autoUpload')}</ComposeText>
         </ListItem.HeadlineContent>
         <ListItem.TrailingContent>
           <ComposeSwitch value={smsForwardingEnabled} onCheckedChange={handleToggleSmsForwarding} />

@@ -4,6 +4,7 @@ import { StorageAccessFramework } from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 import { nativeZipFiles } from 'native-util';
 import * as Application from 'expo-application';
+import i18n from '@/i18n';
 
 const LOG_DIR = new Directory(Paths.document, 'logs');
 const MAX_LOG_DAYS = 3;
@@ -253,7 +254,7 @@ export async function saveLogsToFile(signal?: AbortSignal): Promise<void> {
 
   const fileUris = getLogFileUris();
   if (fileUris.length === 0) {
-    throw new Error('没有可导出的日志文件');
+    throw new Error(i18n.t('errors:log.noFilesToExport'));
   }
 
   const timestamp = formatLocalDateTime(new Date());
@@ -261,7 +262,7 @@ export async function saveLogsToFile(signal?: AbortSignal): Promise<void> {
 
   const permissions = await StorageAccessFramework.requestDirectoryPermissionsAsync();
   if (!permissions.granted) {
-    throw new Error('未授予存储权限');
+    throw new Error(i18n.t('errors:log.storagePermissionDenied'));
   }
 
   const destUri = await StorageAccessFramework.createFileAsync(

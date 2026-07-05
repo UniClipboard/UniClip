@@ -1,0 +1,62 @@
+{
+  "empty": {
+    "title": "No clipboard synced yet",
+    "description": "Upload an image or file, or wait for the server to sync",
+    "cta": "Upload your first item"
+  },
+  "topBar": {
+    "selectedCount": "{{n}} selected",
+    "deselectAll": "Deselect all",
+    "searchPlaceholder": "Search clipboard",
+    "switchServerA11y": "Switch server, currently {{server}}, {{status}}",
+    "serverUnconfigured": "Not configured"
+  },
+  "a11y": {
+    "addContent": "Add content",
+    "closeMenu": "Close menu"
+  },
+  "fab": {
+    "takePhoto": "Take photo",
+    "pickImage": "Photo library",
+    "pickFile": "Choose file",
+    "uploadClipboard": "Upload clipboard",
+    "syncNow": "Sync now"
+  },
+  "quickActions": {
+    "upload": "⬆️ Upload",
+    "sync": "🔄 Sync",
+    "syncing": "  Syncing...",
+    "download": "⬇️ Download"
+  },
+  "toast": {
+    "copied": "Copied to clipboard",
+    "copyFailed": "Copy failed",
+    "copiedPlainText": "Copied as plain text",
+    "savedToGallery": "Saved to gallery",
+    "saveFailed": "Save failed",
+    "savedFile": "File saved",
+    "deleted": "Deleted",
+    "copiedSelected": "Copied selected items",
+    "syncDone": "Sync complete",
+    "syncFailed": "Sync failed",
+    "uploadedToServer": "Uploaded to server",
+    "uploadFailed": "Upload failed",
+    "savedLocally": "Saved locally",
+    "pickFileFailed": "Couldn't pick a file",
+    "pickImageFailed": "Couldn't pick an image",
+    "cameraPermissionNeeded": "Camera permission required",
+    "takePhotoFailed": "Couldn't take photo",
+    "serverSwitched": "Server switched",
+    "serverAdded": "Server added"
+  },
+  "nav": {
+    "sync": "Servers & Sync",
+    "history": "History",
+    "background": "Background",
+    "appearance": "Appearance",
+    "sms": "SMS Forwarding",
+    "storage": "Storage",
+    "about": "About",
+    "developer": "Developer Options"
+  }
+}

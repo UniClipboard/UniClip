@@ -34,6 +34,7 @@ import { ClipboardContent } from '../types/clipboard';
 import { useSettingsStore } from '../stores/settingsStore';
 import { createAPIClient as createRoutedAPIClient } from './apiClientFactory';
 import { log } from './Logger';
+import i18n from '@/i18n';
 
 const STORAGE_KEY_CONFIG = '@syncclipboard:sync:config';
 const STORAGE_KEY_STATS = '@syncclipboard:sync:stats';
@@ -532,7 +533,7 @@ export class SyncManager {
         return {
           success: false,
           direction: SyncDirection.Upload,
-          error: `网络错误，已添加到队列: ${errorMessage}`,
+          error: i18n.t('errors:sync.networkErrorQueued', { error: errorMessage }),
         };
       } else {
         return {

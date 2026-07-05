@@ -17,6 +17,7 @@ import { ClipboardItem, HistorySyncStatus } from '@/types/clipboard';
 import { ServerConfig } from '@/types/api';
 import { createHistoryAPIClient } from './apiClientFactory';
 import { log } from './Logger';
+import i18n from '@/i18n';
 
 const MAX_TIME_DIFFERENCE_MS = 5 * 60 * 1000; // 5 分钟
 
@@ -175,10 +176,16 @@ export class HistorySyncService {
     }
 
     try {
-      await this.notifyProgress({ phase: 'fetching', message: '校验服务器时间...' });
+      await this.notifyProgress({
+        phase: 'fetching',
+        message: i18n.t('sync:progress.validatingTime'),
+      });
       await this.validateServerTime(this.syncAbortController.signal);
 
-      await this.notifyProgress({ phase: 'fetching', message: '获取远程记录...' });
+      await this.notifyProgress({
+        phase: 'fetching',
+        message: i18n.t('sync:progress.fetchingRemote'),
+      });
       const remoteRecords = await this.fetchRemoteRecords(
         this.syncAbortController.signal,
         lastSyncTime
@@ -187,24 +194,36 @@ export class HistorySyncService {
       if (remoteRecords.length > 0) {
         await this.notifyProgress({
           phase: 'merging',
-          message: '合并记录...',
+          message: i18n.t('sync:progress.merging'),
           total: remoteRecords.length,
         });
         await this.mergeRemoteRecords(remoteRecords, this.syncAbortController.signal);
       }
 
       if (isFullSync) {
-        await this.notifyProgress({ phase: 'merging', message: '检测孤儿数据...' });
+        await this.notifyProgress({
+          phase: 'merging',
+          message: i18n.t('sync:progress.detectingOrphan'),
+        });
         await this.detectOrphanData(remoteRecords, this.syncAbortController.signal);
       }
 
-      await this.notifyProgress({ phase: 'pushing', message: '推送本地变更...' });
+      await this.notifyProgress({
+        phase: 'pushing',
+        message: i18n.t('sync:progress.pushingChanges'),
+      });
       await this.pushLocalChanges(this.syncAbortController.signal);
 
-      await this.notifyProgress({ phase: 'pushing', message: '上传本地记录...' });
+      await this.notifyProgress({
+        phase: 'pushing',
+        message: i18n.t('sync:progress.uploadingRecords'),
+      });
       await this.pushLocalOnlyRecords(this.syncAbortController.signal);
 
-      await this.notifyProgress({ phase: 'pushing', message: '清理过期记录...' });
+      await this.notifyProgress({
+        phase: 'pushing',
+        message: i18n.t('sync:progress.cleaningExpired'),
+      });
       const cleanedCount = await this.historyStorage.cleanupExpiredSoftDeletes();
       if (cleanedCount > 0) {
         log.info(`[HistorySyncService] Cleaned ${cleanedCount} expired soft-deleted records`);
@@ -213,16 +232,16 @@ export class HistorySyncService {
       this.lastSyncTime = Date.now();
       await this.saveLastSyncTime();
 
-      await this.notifyProgress({ phase: 'completed', message: '同步完成' });
+      await this.notifyProgress({ phase: 'completed', message: i18n.t('sync:progress.completed') });
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         log.info('[HistorySyncService] Sync cancelled');
-        await this.notifyProgress({ phase: 'error', message: '同步已取消' });
+        await this.notifyProgress({ phase: 'error', message: i18n.t('sync:progress.cancelled') });
       } else {
         log.error('[HistorySyncService] Sync failed:', error);
         await this.notifyProgress({
           phase: 'error',
-          message: '同步失败',
+          message: i18n.t('sync:progress.failed'),
           error: error instanceof Error ? error.message : 'Unknown error',
         });
         throw error;
@@ -342,7 +361,9 @@ export class HistorySyncService {
     if (!this.historyAPI) return [];
 
     const isIncremental = modifiedAfter !== undefined;
-    const progressMessage = isIncremental ? '获取增量记录' : '获取远程记录';
+    const progressMessage = isIncremental
+      ? i18n.t('sync:progress.fetchingIncremental')
+      : i18n.t('sync:progress.fetchingRemote');
     const allRecords: HistoryRecordDto[] = [];
     let page = 1;
     let hasMore = true;
@@ -371,7 +392,10 @@ export class HistorySyncService {
 
         await this.notifyProgress({
           phase: 'fetching',
-          message: `${progressMessage}... (${allRecords.length} 条)`,
+          message: i18n.t('sync:progress.fetchingWithCount', {
+            label: progressMessage,
+            count: allRecords.length,
+          }),
           current: allRecords.length,
         });
       }

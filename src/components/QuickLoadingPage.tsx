@@ -5,6 +5,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   View,
   StyleSheet,
@@ -67,6 +68,7 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
   overlayMode,
 }) => {
   const { theme } = useTheme();
+  const { t } = useTranslation('sync');
   const [state, setState] = useState<LoadingState>('loading');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -95,13 +97,13 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
       if (signal.aborted) {
         return;
       }
-      setErrorMessage(err instanceof Error ? err.message : '操作失败，请重试');
+      setErrorMessage(err instanceof Error ? err.message : t('quickLoad.genericError'));
       setState('error');
     }
     // run 仅用 taskRef/setState(均稳定),不依赖 onComplete。旧代码误加 [onComplete]:
     // 父组件每次重渲染都传入新的内联 onComplete → run 重建 → 下方 useEffect 重跑 →
     // cleanup abort 掉正在进行的任务再重启,导致「取消」被自身进度更新架空、任务自循环。
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     run();
@@ -194,7 +196,7 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
           )}
           <Host matchContents>
             <OutlinedButton onClick={handleCancel} colors={{ contentColor: theme.colors.accent }}>
-              <ComposeText>取消</ComposeText>
+              <ComposeText>{t('action.cancel', { ns: 'common' })}</ComposeText>
             </OutlinedButton>
           </Host>
         </>
@@ -243,7 +245,7 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
                   modifiers={[fillMaxWidth()]}
                   colors={{ contentColor: theme.colors.accent }}
                 >
-                  <ComposeText>返回</ComposeText>
+                  <ComposeText>{t('action.back', { ns: 'common' })}</ComposeText>
                 </OutlinedButton>
               </Host>
             </View>
@@ -282,7 +284,7 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
                   contentColor: theme.colors.onAccentContainer,
                 }}
               >
-                <ComposeText>重试</ComposeText>
+                <ComposeText>{t('action.retry', { ns: 'common' })}</ComposeText>
               </Button>
             </Host>
             {errorMessage && (
@@ -291,13 +293,13 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
                   onClick={() => Clipboard.setStringAsync(errorMessage)}
                   colors={{ contentColor: theme.colors.accent }}
                 >
-                  <ComposeText>复制</ComposeText>
+                  <ComposeText>{t('action.copy', { ns: 'common' })}</ComposeText>
                 </OutlinedButton>
               </Host>
             )}
             <Host matchContents>
               <OutlinedButton onClick={onComplete} colors={{ contentColor: theme.colors.accent }}>
-                <ComposeText>返回</ComposeText>
+                <ComposeText>{t('action.back', { ns: 'common' })}</ComposeText>
               </OutlinedButton>
             </Host>
           </View>
@@ -329,6 +331,7 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
 
 const ContentPreview: React.FC<{ content: ClipboardContent }> = ({ content }) => {
   const { theme } = useTheme();
+  const { t } = useTranslation('sync');
 
   if (content.type === 'Image' && content.fileUri) {
     return (
@@ -356,7 +359,7 @@ const ContentPreview: React.FC<{ content: ClipboardContent }> = ({ content }) =>
   }
 
   // File (or Image without local URI)
-  const label = content.fileName ?? content.text ?? '未知文件';
+  const label = content.fileName ?? content.text ?? t('quickLoad.unknownFile');
   const size = content.fileSize != null ? ` · ${(content.fileSize / 1024).toFixed(1)} KB` : '';
   return (
     <View

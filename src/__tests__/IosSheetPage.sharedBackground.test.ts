@@ -74,9 +74,9 @@ describe('iOS sheet page shared background', () => {
     const addServerSource = readSource('components/AddServerSheet.ios.tsx');
 
     expect(addServerSource).toContain('left={');
-    expect(addServerSource).toContain('取消');
+    expect(addServerSource).toContain("t('action.cancel'");
     expect(addServerSource).toContain('right={');
-    expect(addServerSource).toContain('保存');
+    expect(addServerSource).toContain("t('action.save'");
     expect(headerSource).toContain('renderAdaptiveHeaderSide');
     expect(headerSource).toContain('leftSlots ?');
     expect(headerSource).toContain('rightSlots ?');
@@ -96,8 +96,8 @@ describe('iOS sheet page shared background', () => {
     expect(addServerSource).toContain('controlSize');
     expect(headerSource).toContain("controlSize('large')");
     expect(headerSource.match(/controlSize\('large'\)/g)).toHaveLength(2);
-    expect(headerSource).toContain('取消');
-    expect(headerSource).toContain('保存');
+    expect(headerSource).toContain("t('action.cancel'");
+    expect(headerSource).toContain("t('action.save'");
   });
 
   it('routes icon-only sheet actions through fixed header slots', () => {

@@ -3,6 +3,7 @@
  */
 
 import { ClipboardContentType } from '../types/api';
+import i18n from '@/i18n';
 
 // Export text utilities
 export * from './textUtils';
@@ -20,12 +21,12 @@ export const formatDate = (timestamp: number): string => {
  */
 export const getClipboardTypeName = (type: ClipboardContentType): string => {
   const typeNames = {
-    Text: '文本',
-    Image: '图片',
-    File: '文件',
-    Group: '文件组',
+    Text: i18n.t('errors:contentType.text'),
+    Image: i18n.t('errors:contentType.image'),
+    File: i18n.t('errors:contentType.file'),
+    Group: i18n.t('errors:contentType.group'),
   };
-  return typeNames[type] || '未知';
+  return typeNames[type] || i18n.t('errors:contentType.unknown');
 };
 
 /**

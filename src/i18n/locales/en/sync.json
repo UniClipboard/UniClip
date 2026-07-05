@@ -1,0 +1,78 @@
+{
+  "status": {
+    "notConnected": "Server not connected",
+    "syncing": "Syncing...",
+    "synced": "Synced",
+    "failed": "Sync failed",
+    "conflict": "Sync conflict",
+    "waiting": "Waiting to sync"
+  },
+  "lastSync": {
+    "justNow": "Synced just now",
+    "minutesAgo": "{{n}} min ago",
+    "hoursAgo": "{{n}} h ago"
+  },
+  "quickLoad": {
+    "uploading": "Uploading clipboard...",
+    "downloading": "Downloading clipboard...",
+    "uploadSuccess": "Upload complete!",
+    "downloadSuccess": "Sync complete!",
+    "uploadFailed": "Upload failed",
+    "downloadFailed": "Sync failed",
+    "openLink": "Open link",
+    "genericError": "Operation failed, please try again",
+    "unknownFile": "Unknown file"
+  },
+  "toast": {
+    "copied": "Copied",
+    "savedToGallery": "Saved to gallery",
+    "savedToDevice": "Saved to device",
+    "needGalleryPermission": "Gallery permission is required to save images",
+    "saveFailed": "Save failed"
+  },
+  "connectionStatus": {
+    "unconfigured": "No server configured",
+    "connecting": "Connecting",
+    "online": "Connected",
+    "offline": "Server offline",
+    "error": "Connection error"
+  },
+  "operation": {
+    "download": "Download",
+    "upload": "Upload"
+  },
+  "transfer": {
+    "failedWithDetail": "{{operation}} failed: {{detail}}"
+  },
+  "error": {
+    "operationFailedTitle": "{{operation}} failed",
+    "networkDefault": "Network connection failed, please check your network settings"
+  },
+  "statistics": {
+    "header": "=== Statistics ===",
+    "noRecords": "Background tasks: no records",
+    "recordsTitle": "Background task records (last {{n}}):",
+    "recordStart": "  {{index}}. Started: {{time}}",
+    "recordDuration": "     Duration: {{duration}}"
+  },
+  "duration": {
+    "days": "{{n}}d",
+    "hours": "{{n}}h",
+    "minutes": "{{n}}m",
+    "seconds": "{{n}}s"
+  },
+  "progress": {
+    "validatingTime": "Validating server time...",
+    "fetchingRemote": "Fetching remote records...",
+    "fetchingIncremental": "Fetching incremental records",
+    "fetchingWithCount": "{{label}}... ({{count}})",
+    "merging": "Merging records...",
+    "detectingOrphan": "Detecting orphan data...",
+    "pushingChanges": "Pushing local changes...",
+    "uploadingRecords": "Uploading local records...",
+    "cleaningExpired": "Cleaning up expired records...",
+    "completed": "Sync complete",
+    "cancelled": "Sync cancelled",
+    "failed": "Sync failed"
+  }
+}

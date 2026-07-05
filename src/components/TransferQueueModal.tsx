@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { X, Upload, Download, AlertCircle, Clock, CheckCircle } from 'react-native-feather';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
 import { spacing, radius, typography, alpha } from '@/theme';
 import { useTransferQueueStore } from '@/stores/transferQueueStore';
@@ -21,13 +22,14 @@ interface TransferQueueModalProps {
   onClose: () => void;
 }
 
-const statusLabels: Record<string, string> = {
-  pending: '等待中',
-  running: '传输中',
-  completed: '已完成',
-  failed: '失败',
-  cancelled: '已取消',
-  waitForRetry: '等待重试',
+// 状态 → i18n 键(键在模块级安全,文案在渲染时经 t 求值以支持语言切换)
+const STATUS_LABEL_KEYS: Record<string, string> = {
+  pending: 'transferQueue.status.pending',
+  running: 'transferQueue.status.running',
+  completed: 'transferQueue.status.completed',
+  failed: 'transferQueue.status.failed',
+  cancelled: 'transferQueue.status.cancelled',
+  waitForRetry: 'transferQueue.status.waitForRetry',
 };
 
 const statusColors: Record<string, string> = {
@@ -40,6 +42,7 @@ const statusColors: Record<string, string> = {
 };
 
 export const TransferQueueModal: React.FC<TransferQueueModalProps> = ({ visible, onClose }) => {
+  const { t } = useTranslation('history');
   const { theme } = useTheme();
   const { tasks, subscribe, pendingCount, activeCount } = useTransferQueueStore();
 
@@ -87,7 +90,7 @@ export const TransferQueueModal: React.FC<TransferQueueModalProps> = ({ visible,
                   <Clock width={12} height={12} color={statusColor} />
                 )}
                 <Text style={[styles.statusText, { color: statusColor }]}>
-                  {statusLabels[task.status]}
+                  {STATUS_LABEL_KEYS[task.status] ? t(STATUS_LABEL_KEYS[task.status]) : ''}
                 </Text>
               </View>
               {task.status === 'running' && task.progress >= 0 && (
@@ -169,7 +172,9 @@ export const TransferQueueModal: React.FC<TransferQueueModalProps> = ({ visible,
             <View style={[styles.dragHandle, { backgroundColor: theme.colors.separator }]} />
           </View>
           <View style={styles.header}>
-            <Text style={[styles.title, { color: theme.colors.textPrimary }]}>传输队列</Text>
+            <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+              {t('transferQueue.title')}
+            </Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <X width={24} height={24} color={theme.colors.textPrimary} />
             </TouchableOpacity>
@@ -178,20 +183,24 @@ export const TransferQueueModal: React.FC<TransferQueueModalProps> = ({ visible,
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
               <Text style={[styles.statNumber, { color: theme.colors.accent }]}>{activeCount}</Text>
-              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>传输中</Text>
+              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
+                {t('transferQueue.status.running')}
+              </Text>
             </View>
             <View style={styles.statItem}>
               <Text style={[styles.statNumber, { color: theme.colors.textPrimary }]}>
                 {pendingCount}
               </Text>
-              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>等待中</Text>
+              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
+                {t('transferQueue.status.pending')}
+              </Text>
             </View>
           </View>
 
           {tasks.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                暂无传输任务
+                {t('transferQueue.empty')}
               </Text>
             </View>
           ) : (

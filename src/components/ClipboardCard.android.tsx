@@ -10,6 +10,7 @@ import Svg, {
 } from 'react-native-svg';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { ArrowDown, ArrowUp } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
 import { useURLMetadata } from '@/hooks/useURLMetadata';
 import { ClipboardItem } from '@/types/clipboard';
@@ -361,10 +362,11 @@ function FileCardBody({
   isLatest,
   theme,
 }: CardBodyProps) {
+  const { t } = useTranslation('history');
   const isGroup = displayKind === 'group';
   const fileName = item.dataName || item.text;
   const ext = getFileExtension(fileName);
-  const chipLabel = isGroup ? '归档' : ext || '文件';
+  const chipLabel = isGroup ? t('kind.group') : ext || t('kind.file');
   const chipColor = isGroup ? '#AF52DE' : getExtensionColor(ext);
   const sizeLabel = item.size ? formatFileSize(item.size) : '';
 

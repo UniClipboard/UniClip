@@ -1,0 +1,58 @@
+{
+  "sheet": {
+    "addTitle": "Add Server",
+    "editTitle": "Edit Server"
+  },
+  "scan": {
+    "action": "Scan to Connect",
+    "footer": "Scan the QR code in the desktop app to fill in the details below.",
+    "failedTitle": "Scan Failed"
+  },
+  "form": {
+    "nameLabel": "Name",
+    "namePlaceholder": "A name you'll recognize",
+    "nameFooter": "Shown in the clipboard top bar. If left blank, the server address is used instead.",
+    "urlLabel": "Server Address",
+    "urlFooter": "You can add several addresses for the same server (LAN / Tailscale / public). The app automatically picks a reachable one for your current network; the first is the default.",
+    "addBackupUrl": "Add Backup Address",
+    "allowInsecureCert": "Allow Insecure Certificates",
+    "credentialsLabel": "Credentials",
+    "usernamePlaceholder": "Username",
+    "passwordPlaceholder": "Password"
+  },
+  "connect": {
+    "sectionLabel": "Connection",
+    "test": "Test Connection",
+    "retest": "Test Again",
+    "cancelTest": "Cancel Test",
+    "testing": "Testing…",
+    "success": "Connected",
+    "failed": "Connection Failed",
+    "willUse": "Will use",
+    "resultFooter": "The address marked \"Will use\" is preferred on your current network; it is reselected automatically when the network changes."
+  },
+  "probe": {
+    "allUnreachable": "None of the addresses are reachable. Check your network or server address.",
+    "authFailed": "Authentication failed. Check your username and password.",
+    "unreachable": "Unable to connect to the server.",
+    "missingFields": "Please fill in all connection details."
+  },
+  "alert": {
+    "hintTitle": "Notice",
+    "errorTitle": "Error",
+    "unknownError": "Unknown error",
+    "fillAllFields": "Please enter the server address, username, and password",
+    "fillAllFieldsDot": "Please enter the server address, username, and password.",
+    "fillFieldsFirst": "Please enter the server address, username, and password first",
+    "fillUrlFirst": "Please enter at least one server address first.",
+    "fillCredentialsFirst": "Please enter your username and password first.",
+    "invalidUrl": "The server address format is invalid",
+    "invalidUrlDot": "The server address format is invalid.",
+    "cannotConnect": "Unable to connect to the server"
+  },
+  "listItem": {
+    "notSet": "Not set",
+    "deleteConfirmTitle": "Confirm Deletion",
+    "deleteConfirmMessage": "Delete server \"{{name}}\"?"
+  }
+}

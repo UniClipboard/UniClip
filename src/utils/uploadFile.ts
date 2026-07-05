@@ -13,6 +13,7 @@
 
 import { File } from 'expo-file-system';
 import { nativeCopyFile, type ProgressInfo } from 'native-util';
+import i18n from '@/i18n';
 import { calculateFileProfileHash, calculateTextHash } from '@/utils/hash';
 import { prepareTempFilePath } from '@/utils/fileStorage';
 import { convertHeicToJpegIfNeeded } from '@/utils/heicToJpeg';
@@ -80,10 +81,10 @@ export async function importFileToHistory(
   const contentType: ClipboardContentType = guessContentType(mimeType);
   const tempPath = prepareTempFilePath(fileName);
   const sourceFile = new File(sourceUri);
-  options?.onProgress?.('正在复制文件…');
+  options?.onProgress?.(i18n.t('share:upload.copying'));
   await nativeCopyFile(sourceFile.uri, tempPath);
 
-  options?.onProgress?.('正在计算哈希…');
+  options?.onProgress?.(i18n.t('share:upload.hashing'));
   const profileHash = await calculateFileProfileHash(tempPath, fileName);
   const resolvedSize = fileSize ?? sourceFile.size;
 
@@ -150,15 +151,15 @@ export async function pushHistoryRecord(
   options?: UploadFileOptions
 ): Promise<void> {
   const item = await historyStorage.getItem(profileHash);
-  if (!item) throw new Error(`记录不存在: ${profileHash}`);
+  if (!item) throw new Error(i18n.t('share:upload.recordNotFound', { hash: profileHash }));
   if (item.syncStatus === HistorySyncStatus.Synced) return;
 
   const content = historyItemToContent(item);
   const apiClient = createAPIClient(activeServer);
-  options?.onProgress?.('正在上传…');
+  options?.onProgress?.(i18n.t('share:upload.uploading'));
   await apiClient.putContent(content, {
     signal: options?.signal,
-    onProgress: (info) => options?.onProgress?.('正在上传…', info),
+    onProgress: (info) => options?.onProgress?.(i18n.t('share:upload.uploading'), info),
   });
 
   await useHistoryStore

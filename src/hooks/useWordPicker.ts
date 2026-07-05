@@ -11,6 +11,7 @@ import {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import * as Haptics from 'expo-haptics';
+import i18n from '@/i18n';
 import { log } from '@/services/Logger';
 import { useMessageStore } from '@/stores/messageStore';
 import {
@@ -276,12 +277,14 @@ export function useWordPicker(text: string, close: (after?: () => void) => void)
       await Clipboard.setStringAsync(previewText);
     } catch (e) {
       log.error('[WordPicker] Copy to clipboard failed:', e);
-      useMessageStore.getState().showMessage('复制失败', 'error');
+      useMessageStore.getState().showMessage(i18n.t('history:wordPicker.copyFailed'), 'error');
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     // 退场动画结束后再冒泡 toast，让它显示在宿主屏幕里
-    close(() => useMessageStore.getState().showMessage('已复制到剪贴板', 'success'));
+    close(() =>
+      useMessageStore.getState().showMessage(i18n.t('history:wordPicker.copied'), 'success')
+    );
   }, [previewText, close]);
 
   const shareSelected = useCallback(async () => {

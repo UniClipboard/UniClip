@@ -17,6 +17,7 @@ import { pushHistoryRecord } from '@/utils/uploadFile';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useMessageStore } from '@/stores/messageStore';
 import { log } from './Logger';
+import i18n from '@/i18n';
 
 /** 退避序列(ms):约 2→4→8→16→30s,总计约 1 分钟后放弃,保持 LocalOnly 等下次同步。 */
 const RETRY_BACKOFF_MS = [2000, 4000, 8000, 16000, 30000];
@@ -65,7 +66,7 @@ async function runUpload(profileHash: string, controller: AbortController): Prom
       );
       if (isLast) {
         // 耗尽重试:内容仍在本地(LocalOnly),卡片角标已表明「待上传」,给一次轻提示即可。
-        useMessageStore.getState().showMessage('上传失败,内容已存到本地', 'error');
+        useMessageStore.getState().showMessage(i18n.t('errors:upload.failedSavedLocal'), 'error');
         return;
       }
       await delay(RETRY_BACKOFF_MS[attempt], signal);

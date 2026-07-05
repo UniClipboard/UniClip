@@ -6,6 +6,7 @@
  * 5 种连接语义，UI 只关心这 5 种，不直接耦合 reducer 的状态名。
  */
 
+import i18n from '@/i18n';
 import type { SyncEngineState } from '@/services/SyncEngine';
 
 export type ConnectionStatus =
@@ -46,11 +47,25 @@ export function deriveConnectionStatus({
   return 'connecting';
 }
 
-/** 无障碍 / tooltip 文案 */
+/**
+ * 无障碍 / tooltip 文案。
+ * 用 getter 而非静态值:每次访问都实时调用 i18n.t,保证语言切换后立即生效
+ * （避免模块级常量在 import 时被求值一次后固化）。
+ */
 export const CONNECTION_STATUS_TEXT: Record<ConnectionStatus, string> = {
-  unconfigured: '未配置服务器',
-  connecting: '连接中',
-  online: '已连接',
-  offline: '服务器离线',
-  error: '连接异常',
+  get unconfigured() {
+    return i18n.t('sync:connectionStatus.unconfigured');
+  },
+  get connecting() {
+    return i18n.t('sync:connectionStatus.connecting');
+  },
+  get online() {
+    return i18n.t('sync:connectionStatus.online');
+  },
+  get offline() {
+    return i18n.t('sync:connectionStatus.offline');
+  },
+  get error() {
+    return i18n.t('sync:connectionStatus.error');
+  },
 };

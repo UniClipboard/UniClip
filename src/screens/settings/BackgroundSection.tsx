@@ -7,6 +7,7 @@
  * Dialog 是 window 级 overlay,挂载位置不影响展示)。失败回滚交给 store。
  */
 import React, { memo, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Platform, Linking } from 'react-native';
 import {
   ListItem,
@@ -30,6 +31,7 @@ interface BgDialog {
 }
 
 export const BackgroundSection = memo(function BackgroundSection() {
+  const { t } = useTranslation('settingsBackground');
   const showMessage = useSettingsToast();
 
   const isTempDisabled = useSettingsStore((s) => s.isTempDisabledBackgroundTasks);
@@ -61,20 +63,20 @@ export const BackgroundSection = memo(function BackgroundSection() {
     if (enabled) {
       if (store.isTempDisabledBackgroundTasks) {
         store.setTempDisabledBackgroundTasks(false);
-        showMessage('已恢复后台任务', 'success');
+        showMessage(t('toast.tasksRestored'), 'success');
         return;
       }
       setDialog({
-        title: '开启后台任务',
-        text: '启用后台任务后，应用将在后台持续运行相关服务，大幅增加电量消耗，强烈建议按需开启。\n\n如有需要，可以在系统设置中将 UniClip 的电池优化设为「不受限制」，并在多任务界面锁定 UniClip，减少系统关闭后台任务的概率。',
-        confirmLabel: '确认开启',
-        dismissLabel: '取消',
+        title: t('dialog.enableTasks.title'),
+        text: t('dialog.enableTasks.text'),
+        confirmLabel: t('dialog.enableTasks.confirm'),
+        dismissLabel: t('action.cancel', { ns: 'common' }),
         onConfirm: async () => {
           try {
             await useSettingsStore.getState().setEnableBackgroundTasks(true);
-            showMessage('已启用后台任务', 'success');
+            showMessage(t('toast.tasksEnabled'), 'success');
           } catch (error: unknown) {
-            showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+            showMessage(error instanceof Error ? error.message : t('toast.setFailed'), 'error');
           }
         },
       });
@@ -83,24 +85,24 @@ export const BackgroundSection = memo(function BackgroundSection() {
 
     try {
       await useSettingsStore.getState().setEnableBackgroundTasks(false);
-      showMessage('已禁用后台任务', 'success');
+      showMessage(t('toast.tasksDisabled'), 'success');
     } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+      showMessage(error instanceof Error ? error.message : t('toast.setFailed'), 'error');
     }
   };
 
   const handleToggleForegroundNotification = async (enabled: boolean) => {
     if (!enabled) {
       setDialog({
-        title: '关闭常驻通知',
-        text: '关闭常驻通知会降低后台服务稳定性，系统终止后台任务的可能性增大。',
-        confirmLabel: '确认关闭',
-        dismissLabel: '取消',
+        title: t('dialog.disableNotification.title'),
+        text: t('dialog.disableNotification.text'),
+        confirmLabel: t('dialog.disableNotification.confirm'),
+        dismissLabel: t('action.cancel', { ns: 'common' }),
         onConfirm: async () => {
           try {
             await useSettingsStore.getState().updateConfig({ enableForegroundNotification: false });
           } catch (error: unknown) {
-            showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+            showMessage(error instanceof Error ? error.message : t('toast.setFailed'), 'error');
           }
         },
       });
@@ -116,41 +118,41 @@ export const BackgroundSection = memo(function BackgroundSection() {
         );
         if (!granted) {
           setDialog({
-            title: '缺少通知权限',
-            text: '未授予通知权限，常驻通知可能无法显示。建议前往系统设置允许通知权限。',
-            confirmLabel: '前往设置',
-            dismissLabel: '稍后再说',
+            title: t('dialog.missingNotificationPermission.title'),
+            text: t('dialog.missingNotificationPermission.text'),
+            confirmLabel: t('dialog.missingNotificationPermission.confirm'),
+            dismissLabel: t('dialog.missingNotificationPermission.dismiss'),
             onConfirm: () => Linking.openSettings(),
           });
         }
       }
     } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+      showMessage(error instanceof Error ? error.message : t('toast.setFailed'), 'error');
     }
   };
 
   const handleToggleBackgroundDownload = async (enabled: boolean) => {
     try {
       await useSettingsStore.getState().setEnableBackgroundDownload(enabled);
-      showMessage(enabled ? '已启用后台下载远程' : '已禁用后台下载远程', 'success');
+      showMessage(enabled ? t('toast.downloadEnabled') : t('toast.downloadDisabled'), 'success');
     } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+      showMessage(error instanceof Error ? error.message : t('toast.setFailed'), 'error');
     }
   };
 
   const handleToggleBackgroundUpload = async (enabled: boolean) => {
     if (enabled) {
       setDialog({
-        title: '开启后台上传本地剪贴板',
-        text: '无需启用此选项，UniClip 也支持从选中文字弹出的菜单直接上传文字。\n\nAndroid 10 及以上的系统，应用在后台无法直接获取本地剪贴板内容，你可能需要启用悬浮窗或使用其他工具绕过此限制。',
-        confirmLabel: '确认开启',
-        dismissLabel: '取消',
+        title: t('dialog.enableUpload.title'),
+        text: t('dialog.enableUpload.text'),
+        confirmLabel: t('dialog.enableUpload.confirm'),
+        dismissLabel: t('action.cancel', { ns: 'common' }),
         onConfirm: async () => {
           try {
             await useSettingsStore.getState().setEnableBackgroundUpload(true);
-            showMessage('已启用后台上传本地', 'success');
+            showMessage(t('toast.uploadEnabled'), 'success');
           } catch (error: unknown) {
-            showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+            showMessage(error instanceof Error ? error.message : t('toast.setFailed'), 'error');
           }
         },
       });
@@ -159,19 +161,19 @@ export const BackgroundSection = memo(function BackgroundSection() {
 
     try {
       await useSettingsStore.getState().setEnableBackgroundUpload(false);
-      showMessage('已禁用后台上传本地', 'success');
+      showMessage(t('toast.uploadDisabled'), 'success');
     } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+      showMessage(error instanceof Error ? error.message : t('toast.setFailed'), 'error');
     }
   };
 
   const handleToggleClipboardOverlay = async (enabled: boolean) => {
     if (enabled && Platform.OS === 'android') {
       setDialog({
-        title: '启用悬浮窗获取剪贴板',
-        text: '启用后，应用将通过不可见的悬浮窗在后台获取剪贴板内容。这可能导致部分应用因焦点问题产生功能异常以及其他问题。\n\n如果您可以通过其他工具授予 UniClip 后台读取剪贴板的权限，建议关闭此选项。',
-        confirmLabel: '确定',
-        dismissLabel: '取消',
+        title: t('dialog.enableOverlay.title'),
+        text: t('dialog.enableOverlay.text'),
+        confirmLabel: t('action.confirm', { ns: 'common' }),
+        dismissLabel: t('action.cancel', { ns: 'common' }),
         onConfirm: async () => {
           if (!hasOverlayPermission()) {
             requestOverlayPermission();
@@ -179,9 +181,9 @@ export const BackgroundSection = memo(function BackgroundSection() {
           }
           try {
             await useSettingsStore.getState().setEnableClipboardOverlay(true);
-            showMessage('已启用悬浮窗获取剪贴板', 'success');
+            showMessage(t('toast.overlayEnabled'), 'success');
           } catch (error: unknown) {
-            showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+            showMessage(error instanceof Error ? error.message : t('toast.setFailed'), 'error');
           }
         },
       });
@@ -190,9 +192,9 @@ export const BackgroundSection = memo(function BackgroundSection() {
 
     try {
       await useSettingsStore.getState().setEnableClipboardOverlay(enabled);
-      showMessage(enabled ? '已启用悬浮窗获取剪贴板' : '已禁用悬浮窗获取剪贴板', 'success');
+      showMessage(enabled ? t('toast.overlayEnabled') : t('toast.overlayDisabled'), 'success');
     } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+      showMessage(error instanceof Error ? error.message : t('toast.setFailed'), 'error');
     }
   };
 
@@ -200,10 +202,10 @@ export const BackgroundSection = memo(function BackgroundSection() {
     const { requestIgnoreBatteryOptimizations } = await import('native-util');
     if (hasBatteryOptRequested.current) {
       setDialog({
-        title: '无法唤起系统弹窗',
-        text: '系统限制每次安装仅允许弹出一次电池优化请求，请前往系统设置手动关闭电池优化。',
-        confirmLabel: '前往设置',
-        dismissLabel: '取消',
+        title: t('dialog.batteryFallback.title'),
+        text: t('dialog.batteryFallback.text'),
+        confirmLabel: t('dialog.batteryFallback.confirm'),
+        dismissLabel: t('action.cancel', { ns: 'common' }),
         onConfirm: () => Linking.openSettings(),
       });
       return;
@@ -217,7 +219,7 @@ export const BackgroundSection = memo(function BackgroundSection() {
   return (
     <>
       <SettingsSectionItem
-        title="后台任务"
+        title={t('tasks.cardTitle')}
         dialogs={
           dialog && (
             <AlertDialog onDismissRequest={() => setDialog(null)}>
@@ -251,11 +253,11 @@ export const BackgroundSection = memo(function BackgroundSection() {
       >
         <ListItem>
           <ListItem.HeadlineContent>
-            <ComposeText>后台任务</ComposeText>
+            <ComposeText>{t('tasks.toggle.title')}</ComposeText>
           </ListItem.HeadlineContent>
           <ListItem.SupportingContent>
             <ComposeText>
-              {isTempDisabled ? '已临时停止，重启 APP 后恢复开启状态' : '关闭后将停止所有后台任务'}
+              {isTempDisabled ? t('tasks.toggle.descTempDisabled') : t('tasks.toggle.descNormal')}
             </ComposeText>
           </ListItem.SupportingContent>
           <ListItem.TrailingContent>
@@ -270,10 +272,10 @@ export const BackgroundSection = memo(function BackgroundSection() {
 
         <ListItem>
           <ListItem.HeadlineContent>
-            <ComposeText>后台服务常驻通知</ComposeText>
+            <ComposeText>{t('tasks.notification.title')}</ComposeText>
           </ListItem.HeadlineContent>
           <ListItem.SupportingContent>
-            <ComposeText>启用后会增加后台服务的稳定性</ComposeText>
+            <ComposeText>{t('tasks.notification.desc')}</ComposeText>
           </ListItem.SupportingContent>
           <ListItem.TrailingContent>
             <ComposeSwitch
@@ -288,10 +290,10 @@ export const BackgroundSection = memo(function BackgroundSection() {
 
         <ListItem>
           <ListItem.HeadlineContent>
-            <ComposeText>忽略电池优化</ComposeText>
+            <ComposeText>{t('tasks.battery.title')}</ComposeText>
           </ListItem.HeadlineContent>
           <ListItem.SupportingContent>
-            <ComposeText>防止省电模式中断后台同步</ComposeText>
+            <ComposeText>{t('tasks.battery.desc')}</ComposeText>
           </ListItem.SupportingContent>
           <ListItem.TrailingContent>
             <ComposeSwitch value={permBattery} onCheckedChange={handleToggleBattery} />
@@ -299,13 +301,13 @@ export const BackgroundSection = memo(function BackgroundSection() {
         </ListItem>
       </SettingsSectionItem>
 
-      <SettingsSectionItem title="后台同步">
+      <SettingsSectionItem title={t('sync.cardTitle')}>
         <ListItem>
           <ListItem.HeadlineContent>
-            <ComposeText>后台下载远程</ComposeText>
+            <ComposeText>{t('sync.download.title')}</ComposeText>
           </ListItem.HeadlineContent>
           <ListItem.SupportingContent>
-            <ComposeText>后台收到远程新内容时自动下载</ComposeText>
+            <ComposeText>{t('sync.download.desc')}</ComposeText>
           </ListItem.SupportingContent>
           <ListItem.TrailingContent>
             <ComposeSwitch
@@ -320,10 +322,10 @@ export const BackgroundSection = memo(function BackgroundSection() {
 
         <ListItem>
           <ListItem.HeadlineContent>
-            <ComposeText>后台上传本地</ComposeText>
+            <ComposeText>{t('sync.upload.title')}</ComposeText>
           </ListItem.HeadlineContent>
           <ListItem.SupportingContent>
-            <ComposeText>后台读取到本机剪贴板变化时自动上传</ComposeText>
+            <ComposeText>{t('sync.upload.desc')}</ComposeText>
           </ListItem.SupportingContent>
           <ListItem.TrailingContent>
             <ComposeSwitch
@@ -335,15 +337,13 @@ export const BackgroundSection = memo(function BackgroundSection() {
         </ListItem>
       </SettingsSectionItem>
 
-      <SettingsSectionItem title="后台读取剪贴板">
+      <SettingsSectionItem title={t('clipboard.cardTitle')}>
         <ListItem>
           <ListItem.HeadlineContent>
-            <ComposeText>通过悬浮窗获取剪贴板</ComposeText>
+            <ComposeText>{t('clipboard.overlay.title')}</ComposeText>
           </ListItem.HeadlineContent>
           <ListItem.SupportingContent>
-            <ComposeText>
-              后台复制时通过不可见悬浮窗读取；授予 READ_LOGS 后自动切换为复制即触发
-            </ComposeText>
+            <ComposeText>{t('clipboard.overlay.desc')}</ComposeText>
           </ListItem.SupportingContent>
           <ListItem.TrailingContent>
             <ComposeSwitch

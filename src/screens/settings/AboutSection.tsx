@@ -7,6 +7,7 @@
  * (见 SettingsSectionItem.dialogs)。
  */
 import React, { memo, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Linking } from 'react-native';
 import {
   Row,
@@ -48,6 +49,7 @@ import { log } from '@/services/Logger';
 const appVersion = APP_VERSION;
 
 export const AboutSection = memo(function AboutSection() {
+  const { t } = useTranslation('settingsAbout');
   const showMessage = useSettingsToast();
 
   const autoCheckUpdateEnabled = useSettingsStore((s) => s.config?.autoCheckUpdate ?? true);
@@ -96,14 +98,14 @@ export const AboutSection = memo(function AboutSection() {
         setUpdateAvailable(false);
         setLatestVersion(null);
         if (showNoUpdateToast) {
-          showMessage('当前已是最新版本', 'success');
+          showMessage(t('update.upToDate'), 'success');
         }
       }
       // 无论是否有更新，清除当前版本及旧版本的 APK 缓存
       cleanOldApkCache(appVersion);
     } catch {
       if (showNoUpdateToast) {
-        showMessage('检查更新失败，请检查网络连接', 'error');
+        showMessage(t('update.checkFailed'), 'error');
       }
     } finally {
       setIsCheckingUpdate(false);
@@ -173,7 +175,7 @@ export const AboutSection = memo(function AboutSection() {
 
     const asset = findAssetForAbi(assets, preferredAbi as Parameters<typeof findAssetForAbi>[1]);
     if (!asset) {
-      showMessage('找不到适合当前设备的 APK', 'error');
+      showMessage(t('download.noSuitableApk'), 'error');
       return;
     }
 
@@ -206,9 +208,9 @@ export const AboutSection = memo(function AboutSection() {
     } catch (err) {
       log.error('[UpdateDownload] error:', err);
       if (err instanceof Error && err.name === 'AbortError') {
-        showMessage('已取消下载', 'info');
+        showMessage(t('download.canceled'), 'info');
       } else {
-        showMessage(err instanceof Error ? err.message : '下载失败', 'error');
+        showMessage(err instanceof Error ? err.message : t('download.failed'), 'error');
       }
     } finally {
       setIsDownloading(false);
@@ -221,7 +223,7 @@ export const AboutSection = memo(function AboutSection() {
     try {
       await useSettingsStore.getState().setAutoCheckUpdate(enabled);
     } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+      showMessage(error instanceof Error ? error.message : t('error.saveFailed'), 'error');
     }
   };
 
@@ -229,25 +231,32 @@ export const AboutSection = memo(function AboutSection() {
     try {
       await useSettingsStore.getState().setUpdateToBeta(enabled);
     } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+      showMessage(error instanceof Error ? error.message : t('error.saveFailed'), 'error');
     }
   };
 
   return (
     <SettingsSectionItem
-      title="关于"
+      title={t('title')}
       dialogs={
         <>
           {/* 下载渠道选择底部表单 */}
           {downloadSourceSheet && (
             <ModalBottomSheet onDismissRequest={() => setDownloadSourceSheet(null)}>
               <Column modifiers={[paddingAll(24), fillMaxWidth()]}>
-                <ComposeText style={{ typography: 'titleLarge' }}>发现新版本</ComposeText>
+                <ComposeText style={{ typography: 'titleLarge' }}>
+                  {t('download.newVersionTitle')}
+                </ComposeText>
                 <Spacer modifiers={[heightModifier(8)]} />
                 <ComposeText>
-                  {`最新版本：${downloadSourceSheet.version}\n当前版本：${appVersion}${
+                  {`${t('download.latestVersion', { version: downloadSourceSheet.version })}\n${t(
+                    'download.currentVersion',
+                    { version: appVersion }
+                  )}${
                     downloadSourceSheet.releaseNotes
-                      ? `\n\n更新说明：\n${downloadSourceSheet.releaseNotes}`
+                      ? `\n\n${t('download.releaseNotes', {
+                          notes: downloadSourceSheet.releaseNotes,
+                        })}`
                       : ''
                   }`}
                 </ComposeText>
@@ -260,7 +269,7 @@ export const AboutSection = memo(function AboutSection() {
                   }}
                   modifiers={[fillMaxWidth()]}
                 >
-                  <ComposeText>GitCode 下载</ComposeText>
+                  <ComposeText>{t('download.gitcode')}</ComposeText>
                 </Button>
                 <Spacer modifiers={[heightModifier(8)]} />
                 <OutlinedButton
@@ -271,7 +280,7 @@ export const AboutSection = memo(function AboutSection() {
                   }}
                   modifiers={[fillMaxWidth()]}
                 >
-                  <ComposeText>GitHub 下载</ComposeText>
+                  <ComposeText>{t('download.github')}</ComposeText>
                 </OutlinedButton>
               </Column>
             </ModalBottomSheet>
@@ -281,10 +290,10 @@ export const AboutSection = memo(function AboutSection() {
           {showCancelDownloadDialog && (
             <AlertDialog onDismissRequest={() => setShowCancelDownloadDialog(false)}>
               <AlertDialog.Title>
-                <ComposeText>取消下载</ComposeText>
+                <ComposeText>{t('cancelDownload.title')}</ComposeText>
               </AlertDialog.Title>
               <AlertDialog.Text>
-                <ComposeText>确定要取消下载吗？</ComposeText>
+                <ComposeText>{t('cancelDownload.message')}</ComposeText>
               </AlertDialog.Text>
               <AlertDialog.ConfirmButton>
                 <TextButton
@@ -293,12 +302,12 @@ export const AboutSection = memo(function AboutSection() {
                     setShowCancelDownloadDialog(false);
                   }}
                 >
-                  <ComposeText>取消下载</ComposeText>
+                  <ComposeText>{t('cancelDownload.confirm')}</ComposeText>
                 </TextButton>
               </AlertDialog.ConfirmButton>
               <AlertDialog.DismissButton>
                 <TextButton onClick={() => setShowCancelDownloadDialog(false)}>
-                  <ComposeText>继续下载</ComposeText>
+                  <ComposeText>{t('cancelDownload.dismiss')}</ComposeText>
                 </TextButton>
               </AlertDialog.DismissButton>
             </AlertDialog>
@@ -308,7 +317,7 @@ export const AboutSection = memo(function AboutSection() {
     >
       <ListItem>
         <ListItem.OverlineContent>
-          <ComposeText>版本</ComposeText>
+          <ComposeText>{t('versionLabel')}</ComposeText>
         </ListItem.OverlineContent>
         <ListItem.HeadlineContent>
           <ComposeText>{appVersion}</ComposeText>
@@ -332,8 +341,8 @@ export const AboutSection = memo(function AboutSection() {
               >
                 <ComposeText>
                   {isDownloading
-                    ? `下载中 ${Math.round(downloadProgress * 100)}%`
-                    : `更新 ${latestVersion}`}
+                    ? t('download.downloading', { percent: Math.round(downloadProgress * 100) })
+                    : t('update.updateTo', { version: latestVersion })}
                 </ComposeText>
               </Button>
             ) : (
@@ -341,7 +350,9 @@ export const AboutSection = memo(function AboutSection() {
                 onClick={() => runUpdateCheck(true, updateToBetaEnabled)}
                 enabled={!isCheckingUpdate}
               >
-                <ComposeText>{isCheckingUpdate ? '检查中...' : '检查更新'}</ComposeText>
+                <ComposeText>
+                  {isCheckingUpdate ? t('update.checking') : t('update.check')}
+                </ComposeText>
               </OutlinedButton>
             )}
             <Spacer modifiers={[widthModifier(8)]} />
@@ -356,7 +367,7 @@ export const AboutSection = memo(function AboutSection() {
 
       <ListItem>
         <ListItem.HeadlineContent>
-          <ComposeText>自动检查更新</ComposeText>
+          <ComposeText>{t('autoCheck.label')}</ComposeText>
         </ListItem.HeadlineContent>
         <ListItem.TrailingContent>
           <ComposeSwitch
@@ -370,7 +381,7 @@ export const AboutSection = memo(function AboutSection() {
 
       <ListItem>
         <ListItem.HeadlineContent>
-          <ComposeText>更新到测试版</ComposeText>
+          <ComposeText>{t('updateToBeta.label')}</ComposeText>
         </ListItem.HeadlineContent>
         <ListItem.TrailingContent>
           <ComposeSwitch value={updateToBetaEnabled} onCheckedChange={handleToggleUpdateToBeta} />

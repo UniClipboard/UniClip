@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Platform, useColorScheme } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { BlurView } from 'expo-blur';
 import {
   Camera,
@@ -46,6 +47,7 @@ export function AddActionsFab({
   onUploadClipboard,
   onSync,
 }: AddActionsFabProps) {
+  const { t } = useTranslation('home');
   const insets = useSafeAreaInsets();
   const isDark = useColorScheme() === 'dark';
   const [mounted, setMounted] = useState(open);
@@ -89,26 +91,32 @@ export function AddActionsFab({
   );
 
   const rows: Row[] = [
-    { key: 'photo', Icon: Camera, color: iosKindTints.image, label: '拍照', onPress: onTakePhoto },
+    {
+      key: 'photo',
+      Icon: Camera,
+      color: iosKindTints.image,
+      label: t('fab.takePhoto'),
+      onPress: onTakePhoto,
+    },
     {
       key: 'image',
       Icon: ImageIcon,
       color: iosKindTints.image,
-      label: '相册图片',
+      label: t('fab.pickImage'),
       onPress: onPickImage,
     },
     {
       key: 'file',
       Icon: FileIcon,
       color: iosKindTints.file,
-      label: '选择文件',
+      label: t('fab.pickFile'),
       onPress: onPickFile,
     },
     {
       key: 'clip',
       Icon: ClipboardIcon,
       color: iosKindTints.text,
-      label: '上传剪贴板',
+      label: t('fab.uploadClipboard'),
       onPress: onUploadClipboard,
     },
   ];
@@ -128,7 +136,7 @@ export function AddActionsFab({
             style={[StyleSheet.absoluteFill, s.scrimTouch]}
             onPress={() => onOpenChange(false)}
             accessibilityRole="button"
-            accessibilityLabel="关闭菜单"
+            accessibilityLabel={t('a11y.closeMenu')}
           />
         </>
       )}
@@ -137,7 +145,7 @@ export function AddActionsFab({
         onPress={toggleOpen}
         style={[s.fab, { bottom: fabBottom }]}
         accessibilityRole="button"
-        accessibilityLabel="添加内容"
+        accessibilityLabel={t('a11y.addContent')}
       >
         <GlassContainer shape="circle" interactive style={s.fabGlass}>
           <Animated.View style={fabIconStyle}>
@@ -177,7 +185,7 @@ export function AddActionsFab({
                 >
                   <RefreshCw size={16} color="#FFFFFF" />
                 </View>
-                <Text style={[s.label, { color: iosColors!.label }]}>立即同步</Text>
+                <Text style={[s.label, { color: iosColors!.label }]}>{t('fab.syncNow')}</Text>
               </Pressable>
             </View>
           </View>

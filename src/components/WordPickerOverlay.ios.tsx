@@ -11,6 +11,7 @@ import {
 import Animated from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 import { ChevronUp, Copy, Share2, X } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { GestureDetector, GestureHandlerRootView, ScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConnectedMessageToast } from '@/components/ConnectedMessageToast';
@@ -33,6 +34,8 @@ const BTN = iosDimensions.floatingButtonSize;
  * 交互全部在 useWordPicker，本文件只负责皮肤。
  */
 export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPickerOverlayProps) {
+  // 命名为 tr:本组件内的 t 是入场/退场过渡对象(useOverlayGrowTransition)
+  const { t: tr } = useTranslation('history');
   const insets = useSafeAreaInsets();
   const { height: screenH } = useWindowDimensions();
 
@@ -63,7 +66,7 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
               <Pressable
                 onPress={() => t.close()}
                 accessibilityRole="button"
-                accessibilityLabel="关闭"
+                accessibilityLabel={tr('action.close', { ns: 'common' })}
               >
                 <GlassContainer shape="circle" interactive style={s.closeCircle}>
                   <X size={20} color={iosColors!.label} />
@@ -82,7 +85,9 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
                       accessibilityState={{ selected: active }}
                     >
                       <Text style={[s.segText, active && s.segTextActive]}>
-                        {g === 'word' ? '分词' : '逐字'}
+                        {g === 'word'
+                          ? tr('wordPicker.granularity.word')
+                          : tr('wordPicker.granularity.char')}
                       </Text>
                     </Pressable>
                   );
@@ -90,7 +95,9 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
               </View>
             </View>
 
-            {picker.truncated && <Text style={s.banner}>文本过长，仅显示前 5000 字</Text>}
+            {picker.truncated && (
+              <Text style={s.banner}>{tr('wordPicker.truncated', { count: 5000 })}</Text>
+            )}
 
             {picker.status === 'preparing' ? (
               <View style={s.skeletonWrap}>
@@ -126,7 +133,7 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
               </ScrollView>
             ) : (
               <View style={s.emptyWrap}>
-                <Text style={s.emptyText}>没有可选择的文本</Text>
+                <Text style={s.emptyText}>{tr('wordPicker.empty')}</Text>
               </View>
             )}
 
@@ -157,7 +164,7 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
                     </View>
                   ) : (
                     <View style={s.previewRow}>
-                      <Text style={s.previewPlaceholder}>点按或滑动选择文字</Text>
+                      <Text style={s.previewPlaceholder}>{tr('wordPicker.placeholder')}</Text>
                     </View>
                   )}
                 </GlassContainer>
@@ -172,7 +179,9 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
               >
                 <GlassContainer shape="capsule" interactive style={s.sideCapsule}>
                   <Text style={[s.sideText, !picker.hasSelectableTokens && s.disabledText]}>
-                    {picker.allSelected ? '取消全选' : '全选'}
+                    {picker.allSelected
+                      ? tr('wordPicker.deselectAll')
+                      : tr('action.selectAll', { ns: 'common' })}
                   </Text>
                 </GlassContainer>
               </Pressable>
@@ -184,14 +193,14 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
                 style={[s.copyCapsule, !hasSelection && s.copyCapsuleDisabled]}
               >
                 <Copy size={18} color={onAccentColor} />
-                <Text style={s.copyText}>复制</Text>
+                <Text style={s.copyText}>{tr('action.copy', { ns: 'common' })}</Text>
               </Pressable>
 
               <Pressable
                 onPress={picker.shareSelected}
                 disabled={!hasSelection}
                 accessibilityRole="button"
-                accessibilityLabel="分享"
+                accessibilityLabel={tr('action.share', { ns: 'common' })}
               >
                 <GlassContainer shape="circle" interactive style={s.circle}>
                   <Share2

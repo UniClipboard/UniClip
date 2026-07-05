@@ -1,10 +1,11 @@
 import React from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useTranslation } from 'react-i18next';
 import type { HistoryFilterSheetProps } from './HistoryFilterSheet.types';
 import { getDisplayKindColor, getDisplayKindIcon, getDisplayKindLabel } from '@/utils/displayKind';
 import {
-  HISTORY_FILTER_DATE_OPTIONS,
+  getHistoryFilterDateOptions,
   HISTORY_FILTER_KIND_OPTIONS,
 } from '@/utils/historyFilterOptions';
 import { radius, spacing } from '@/theme';
@@ -19,6 +20,7 @@ export function HistoryFilterSheet({
   onClose,
   theme,
 }: HistoryFilterSheetProps) {
+  const { t } = useTranslation('history');
   return (
     <Modal
       visible={visible}
@@ -43,10 +45,14 @@ export function HistoryFilterSheet({
         <View style={[styles.handle, { backgroundColor: theme.colors.separator }]} />
 
         <View style={styles.header}>
-          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>筛选条件</Text>
+          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+            {t('filter.title')}
+          </Text>
           <View style={styles.headerActions}>
             <Pressable onPress={onClear} style={styles.headerButton}>
-              <Text style={[styles.headerButtonText, { color: theme.colors.accent }]}>重置</Text>
+              <Text style={[styles.headerButtonText, { color: theme.colors.accent }]}>
+                {t('action.reset', { ns: 'common' })}
+              </Text>
             </Pressable>
             <Pressable onPress={onClose} style={styles.doneButton}>
               <Ionicons name="checkmark" size={20} color={theme.colors.accent} />
@@ -55,7 +61,7 @@ export function HistoryFilterSheet({
         </View>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <FilterSection title="类型" theme={theme}>
+          <FilterSection title={t('filter.section.kind')} theme={theme}>
             {HISTORY_FILTER_KIND_OPTIONS.map((kind) => {
               const selected = selectedKinds.includes(kind);
               return (
@@ -72,8 +78,8 @@ export function HistoryFilterSheet({
             })}
           </FilterSection>
 
-          <FilterSection title="日期" theme={theme}>
-            {HISTORY_FILTER_DATE_OPTIONS.map((option) => (
+          <FilterSection title={t('filter.section.date')} theme={theme}>
+            {getHistoryFilterDateOptions().map((option) => (
               <FilterRow
                 key={option.value}
                 label={option.label}

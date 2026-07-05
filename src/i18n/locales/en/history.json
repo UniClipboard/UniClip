@@ -1,0 +1,61 @@
+{
+  "transferQueue": {
+    "title": "Transfer queue",
+    "empty": "No transfer tasks",
+    "status": {
+      "pending": "Waiting",
+      "running": "Transferring",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled",
+      "waitForRetry": "Waiting to retry"
+    }
+  },
+  "filter": {
+    "title": "Filters",
+    "section": {
+      "kind": "Type",
+      "date": "Date"
+    },
+    "date": {
+      "all": "All",
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "pastWeek": "Past 7 days"
+    }
+  },
+  "kind": {
+    "text": "Text",
+    "url": "Link",
+    "image": "Image",
+    "file": "File",
+    "group": "Archive"
+  },
+  "time": {
+    "justNow": "Just now",
+    "secondsAgo": "{{n}}s ago",
+    "minutesAgo": "{{n}}m ago",
+    "hoursAgo": "{{n}}h ago",
+    "daysAgo": "{{n}}d ago"
+  },
+  "wordPicker": {
+    "truncated": "Text too long, showing first {{count}} characters",
+    "empty": "No selectable text",
+    "granularity": {
+      "word": "Words",
+      "char": "Characters"
+    },
+    "deselectAll": "Deselect all",
+    "placeholder": "Tap or swipe to select text",
+    "copyFailed": "Copy failed",
+    "copied": "Copied to clipboard"
+  },
+  "menu": {
+    "copyPlain": "Copy as plain text",
+    "selectText": "Select text",
+    "openBrowser": "Open in browser",
+    "saveImage": "Save image",
+    "saveFile": "Save file",
+    "closeMenu": "Close menu"
+  }
+}

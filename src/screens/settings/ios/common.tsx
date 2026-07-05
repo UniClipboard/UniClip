@@ -1,5 +1,6 @@
 import React from 'react';
 import { Linking, PlatformColor } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import {
   Button as SwiftUIButton,
   HStack,
@@ -174,11 +175,12 @@ export function HeaderCircleButton({
 }
 
 /** Form-row button that deep-links into this app's page in the iOS Settings app. */
-export function OpenSystemSettingsButton({ label = '打开系统设置' }: { label?: string }) {
+export function OpenSystemSettingsButton({ label }: { label?: string }) {
+  const { t } = useTranslation('settings');
   return (
     <SwiftUIButton
       systemImage="arrow.up.forward.app"
-      label={label}
+      label={label ?? t('openSystemSettings')}
       onPress={() => {
         Linking.openSettings();
       }}

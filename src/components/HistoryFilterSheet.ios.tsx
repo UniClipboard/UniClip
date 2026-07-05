@@ -23,12 +23,13 @@ import {
   presentationDragIndicator,
 } from '@expo/ui/swift-ui/modifiers';
 import type { SFSymbol } from 'sf-symbols-typescript';
+import { useTranslation } from 'react-i18next';
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
 import type { HistoryFilterSheetProps } from './HistoryFilterSheet.types';
 import { getDisplayKindLabel } from '@/utils/displayKind';
 import type { DisplayKind } from '@/utils/displayKind';
 import {
-  HISTORY_FILTER_DATE_OPTIONS,
+  getHistoryFilterDateOptions,
   HISTORY_FILTER_KIND_OPTIONS,
 } from '@/utils/historyFilterOptions';
 
@@ -57,6 +58,7 @@ export function HistoryFilterSheet({
   onClear,
   onClose,
 }: HistoryFilterSheetProps) {
+  const { t } = useTranslation('history');
   return (
     <Host style={styles.host}>
       <BottomSheet
@@ -67,11 +69,11 @@ export function HistoryFilterSheet({
       >
         <Group modifiers={[presentationDetents(['medium']), presentationDragIndicator('visible')]}>
           <IosSheetPage
-            title="筛选条件"
+            title={t('filter.title')}
             left={
               <SwiftUIButton onPress={onClear} modifiers={[buttonStyle('plain')]}>
                 <SwiftUIText modifiers={[font({ size: 16 }), foregroundStyle('#007AFF')]}>
-                  重置
+                  {t('action.reset', { ns: 'common' })}
                 </SwiftUIText>
               </SwiftUIButton>
             }
@@ -97,7 +99,7 @@ export function HistoryFilterSheet({
             ]}
           >
             <IosSheetForm>
-              <Section title="类型">
+              <Section title={t('filter.section.kind')}>
                 {HISTORY_FILTER_KIND_OPTIONS.map((kind) => (
                   <SwiftUIButton
                     key={kind}
@@ -128,8 +130,8 @@ export function HistoryFilterSheet({
                 ))}
               </Section>
 
-              <Section title="日期">
-                {HISTORY_FILTER_DATE_OPTIONS.map((option) => (
+              <Section title={t('filter.section.date')}>
+                {getHistoryFilterDateOptions().map((option) => (
                   <SwiftUIButton
                     key={option.value}
                     onPress={() => onSelectDate(option.value)}

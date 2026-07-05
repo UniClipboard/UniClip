@@ -1,0 +1,39 @@
+{
+  "title": "服务器",
+  "empty": {
+    "title": "还没有服务器",
+    "addButton": "添加服务器",
+    "hint": "点击右上角 + 添加"
+  },
+  "sheet": {
+    "editTitle": "编辑服务器"
+  },
+  "card": {
+    "addressCount_one": "{{count}} 个地址",
+    "addressCount_other": "{{count}} 个地址"
+  },
+  "delete": {
+    "title": "删除服务器",
+    "message": "确定要删除「{{name}}」吗？",
+    "fallbackName": "此服务器"
+  },
+  "qr": {
+    "title": "扫描二维码",
+    "hint": "将二维码对准框内",
+    "scanFailedTitle": "扫码失败",
+    "rescan": "重新扫描",
+    "requestingPermission": "正在请求相机权限…",
+    "torch": {
+      "turnOn": "手电",
+      "turnOff": "关灯"
+    },
+    "permission": {
+      "title": "需要相机权限",
+      "desc": "UniClip 需要访问相机来扫描接入二维码。",
+      "deniedForever": "\n\n权限已被永久拒绝，请在系统设置中手动开启。",
+      "requestAgain": "再次请求权限",
+      "openSettings": "前往系统设置",
+      "enterManually": "改为手动填写"
+    }
+  }
+}

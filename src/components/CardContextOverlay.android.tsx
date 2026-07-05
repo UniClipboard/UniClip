@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
 import { useURLMetadata } from '@/hooks/useURLMetadata';
 import { useCardContextTransition } from '@/hooks/useCardContextTransition';
@@ -39,6 +40,8 @@ interface OverlayBodyProps extends Omit<CardContextOverlayProps, 'item' | 'displ
 }
 
 function OverlayBody({ item, displayKind, anchor, actionGroups, onDismiss }: OverlayBodyProps) {
+  // 命名为 tr:本组件内的 t 是过渡对象(useCardContextTransition)
+  const { t: tr } = useTranslation('history');
   const { theme } = useTheme();
   const t = useCardContextTransition(anchor, onDismiss);
 
@@ -61,7 +64,7 @@ function OverlayBody({ item, displayKind, anchor, actionGroups, onDismiss }: Ove
           style={StyleSheet.absoluteFill}
           onPress={() => t.close()}
           accessibilityRole="button"
-          accessibilityLabel="关闭菜单"
+          accessibilityLabel={tr('menu.closeMenu')}
         />
 
         <Animated.View

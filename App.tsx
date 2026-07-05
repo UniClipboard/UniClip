@@ -9,6 +9,8 @@ import { ShareReceiveScreen } from './src/screens/ShareReceiveScreen';
 import { ProcessTextScreen } from './src/screens/ProcessTextScreen';
 import { SyncDirection } from './src/types/sync';
 import { useSettingsStore, usePendingConnectStore } from './src/stores';
+import i18n from './src/i18n';
+import { applyLanguagePreference } from './src/i18n/useAppLanguage';
 import { initLogger, setLogLevel } from './src/services/Logger';
 import { useTheme } from './src/hooks/useTheme';
 import { setDynamicShortcuts } from 'shortcut';
@@ -41,7 +43,7 @@ function handleConnectUrlIfMatched(url: string | null | undefined): boolean {
   const parsed = parseConnectUri(url);
   if (!parsed.ok) {
     console.log(`[QR][deeplink] failed: ${parsed.error}`);
-    Alert.alert('扫码失败', CONNECT_URI_ERROR_MESSAGES[parsed.error]);
+    Alert.alert(i18n.t('connect:scanFailed'), CONNECT_URI_ERROR_MESSAGES[parsed.error]);
     return true;
   }
   console.log('[QR][deeplink] succeeded');
@@ -120,6 +122,14 @@ export default function App() {
       setLogLevel(config.logLevel);
     }
   }, [config?.logLevel]);
+
+  // config 加载后应用用户的语言偏好（i18n 初始化时默认取系统语言，此处按持久化偏好覆盖，
+  // 'system' 仍跟随系统）。
+  useEffect(() => {
+    if (config?.language) {
+      applyLanguagePreference(config.language);
+    }
+  }, [config?.language]);
 
   useEffect(() => {
     if (!isLoaded) return;

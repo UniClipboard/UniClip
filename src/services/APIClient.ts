@@ -18,6 +18,7 @@ import {
   ConfigurationError,
 } from './errors';
 import { log } from './Logger';
+import i18n from '@/i18n';
 
 /**
  * 扩展的错误接口，包含网络错误标志和原始错误
@@ -466,9 +467,15 @@ export abstract class APIClient {
         const responseText =
           typeof response === 'string' ? response : JSON.stringify(response, null, 2);
 
-        errorMessage = `服务器返回错误 (HTTP ${statusCode}):\n\n${responseText}`;
+        errorMessage = i18n.t('errors:server.errorWithBody', {
+          status: statusCode,
+          body: responseText,
+        });
       } else {
-        errorMessage = `服务器返回错误 (HTTP ${statusCode}): ${errorMessage}`;
+        errorMessage = i18n.t('errors:server.errorWithMessage', {
+          status: statusCode,
+          message: errorMessage,
+        });
       }
     } else if (hasResponse) {
       // 有response但没有statusCode（可能是Axios原始错误）
@@ -482,7 +489,10 @@ export abstract class APIClient {
             ? response.data
             : JSON.stringify(response.data, null, 2);
         const status = response.status as number | undefined;
-        errorMessage = `服务器返回错误 (HTTP ${status || 'unknown'}):\n\n${responseText}`;
+        errorMessage = i18n.t('errors:server.errorWithBody', {
+          status: status || 'unknown',
+          body: responseText,
+        });
       }
     }
 

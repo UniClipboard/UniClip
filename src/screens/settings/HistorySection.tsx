@@ -4,6 +4,7 @@
  * 订阅 enableHistorySync / attachmentAutoDownload / showImageCopyButton 及当前服务器类型。
  */
 import React, { memo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ListItem,
   Switch as ComposeSwitch,
@@ -26,13 +27,10 @@ import { useBlurCommit } from './useBlurCommit';
 import { SettingsSectionItem } from './SettingsSectionItem';
 
 type ImageAutoDownload = 'wifi' | 'always' | 'off';
-const imageAutoDownloadOptions: { label: string; value: ImageAutoDownload }[] = [
-  { label: '仅 Wi-Fi', value: 'wifi' },
-  { label: '总是', value: 'always' },
-  { label: '关闭', value: 'off' },
-];
+const IMAGE_AUTO_DOWNLOAD_VALUES: ImageAutoDownload[] = ['wifi', 'always', 'off'];
 
 export const HistorySection = memo(function HistorySection() {
+  const { t } = useTranslation('settingsStorage');
   const showMessage = useSettingsToast();
 
   const historySyncEnabled = useSettingsStore((s) => s.config?.enableHistorySync ?? false);
@@ -51,9 +49,15 @@ export const HistorySection = memo(function HistorySection() {
   );
   const [showImageAutoDownloadMenu, setShowImageAutoDownloadMenu] = useState(false);
 
+  const imageAutoDownloadOptions = IMAGE_AUTO_DOWNLOAD_VALUES.map((value) => ({
+    value,
+    label: t(`autoDownload.${value}`),
+  }));
+
   const maxHistoryItemsNativeState = useNativeState(maxHistoryItemsInput);
   const imageAutoDownloadLabel =
-    imageAutoDownloadOptions.find((o) => o.value === attachmentAutoDownload)?.label ?? '仅 Wi-Fi';
+    imageAutoDownloadOptions.find((o) => o.value === attachmentAutoDownload)?.label ??
+    t('autoDownload.wifi');
   const imageAutoDownloadNativeState = useNativeState(imageAutoDownloadLabel);
 
   const handleToggleHistorySync = async (enabled: boolean) => {
@@ -74,9 +78,9 @@ export const HistorySection = memo(function HistorySection() {
         const { runtimeStateStorage } = await import('@/services/RuntimeStateStorage');
         await runtimeStateStorage.update({ needsHistoryReorganize: true });
       }
-      showMessage(enabled ? '已启用历史记录同步' : '已禁用历史记录同步', 'success');
+      showMessage(enabled ? t('history.syncEnabled') : t('history.syncDisabled'), 'success');
     } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+      showMessage(error instanceof Error ? error.message : t('setFailed'), 'error');
     }
   };
 
@@ -89,7 +93,7 @@ export const HistorySection = memo(function HistorySection() {
       const maxItems = parseInt(maxHistoryItemsInput, 10);
       if (isNaN(maxItems) || maxItems < 10) {
         resetToCurrent();
-        showMessage('请输入大于等于10的数字', 'error');
+        showMessage(t('history.maxItemsInvalid'), 'error');
         return;
       }
       await useSettingsStore.getState().updateConfig({ maxHistoryItems: maxItems });
@@ -97,7 +101,7 @@ export const HistorySection = memo(function HistorySection() {
       historyStorage.setMaxHistorySize(maxItems);
     } catch (error: unknown) {
       resetToCurrent();
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+      showMessage(error instanceof Error ? error.message : t('setFailed'), 'error');
     }
   };
 
@@ -112,14 +116,14 @@ export const HistorySection = memo(function HistorySection() {
   const onMaxHistoryItemsFocusChanged = useBlurCommit(handleMaxHistoryItemsBlur);
 
   return (
-    <SettingsSectionItem title="历史记录">
+    <SettingsSectionItem title={t('history.sectionTitle')}>
       <ListItem>
         <ListItem.HeadlineContent>
-          <ComposeText>历史记录同步</ComposeText>
+          <ComposeText>{t('history.syncLabel')}</ComposeText>
         </ListItem.HeadlineContent>
         <ListItem.SupportingContent>
           <ComposeText>
-            {!isSyncClipboard ? '当前服务器不支持历史记录同步' : '同步历史记录到服务器'}
+            {!isSyncClipboard ? t('history.syncUnsupported') : t('history.syncSupported')}
           </ComposeText>
         </ListItem.SupportingContent>
         <ListItem.TrailingContent>
@@ -135,10 +139,10 @@ export const HistorySection = memo(function HistorySection() {
 
       <ListItem>
         <ListItem.HeadlineContent>
-          <ComposeText>历史记录最大保留条数</ComposeText>
+          <ComposeText>{t('history.maxItemsLabel')}</ComposeText>
         </ListItem.HeadlineContent>
         <ListItem.SupportingContent>
-          <ComposeText>最小值为10条</ComposeText>
+          <ComposeText>{t('history.maxItemsHint')}</ComposeText>
         </ListItem.SupportingContent>
         <ListItem.TrailingContent>
           <OutlinedTextField
@@ -153,7 +157,7 @@ export const HistorySection = memo(function HistorySection() {
               <ComposeText>100</ComposeText>
             </OutlinedTextField.Placeholder>
             <OutlinedTextField.Suffix>
-              <ComposeText>条</ComposeText>
+              <ComposeText>{t('history.maxItemsSuffix')}</ComposeText>
             </OutlinedTextField.Suffix>
           </OutlinedTextField>
         </ListItem.TrailingContent>
@@ -163,7 +167,7 @@ export const HistorySection = memo(function HistorySection() {
 
       <ListItem>
         <ListItem.HeadlineContent>
-          <ComposeText>浏览到图片时自动下载</ComposeText>
+          <ComposeText>{t('history.autoDownloadLabel')}</ComposeText>
         </ListItem.HeadlineContent>
         <ListItem.TrailingContent>
           <ExposedDropdownMenuBox
@@ -204,10 +208,10 @@ export const HistorySection = memo(function HistorySection() {
 
       <ListItem>
         <ListItem.HeadlineContent>
-          <ComposeText>为图片显示复制按钮</ComposeText>
+          <ComposeText>{t('history.showCopyButtonLabel')}</ComposeText>
         </ListItem.HeadlineContent>
         <ListItem.SupportingContent>
-          <ComposeText>在历史记录的图片项显示复制到剪贴板按钮</ComposeText>
+          <ComposeText>{t('history.showCopyButtonHint')}</ComposeText>
         </ListItem.SupportingContent>
         <ListItem.TrailingContent>
           <ComposeSwitch

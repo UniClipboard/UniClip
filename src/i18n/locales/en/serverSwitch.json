@@ -1,0 +1,39 @@
+{
+  "title": "Servers",
+  "empty": {
+    "title": "No servers yet",
+    "addButton": "Add Server",
+    "hint": "Tap + in the top right to add"
+  },
+  "sheet": {
+    "editTitle": "Edit Server"
+  },
+  "card": {
+    "addressCount_one": "{{count}} address",
+    "addressCount_other": "{{count}} addresses"
+  },
+  "delete": {
+    "title": "Delete Server",
+    "message": "Delete “{{name}}”?",
+    "fallbackName": "this server"
+  },
+  "qr": {
+    "title": "Scan QR Code",
+    "hint": "Align the QR code within the frame",
+    "scanFailedTitle": "Scan Failed",
+    "rescan": "Scan Again",
+    "requestingPermission": "Requesting camera permission…",
+    "torch": {
+      "turnOn": "Torch",
+      "turnOff": "Turn Off"
+    },
+    "permission": {
+      "title": "Camera Permission Needed",
+      "desc": "UniClip needs camera access to scan the connection QR code.",
+      "deniedForever": "\n\nCamera access has been permanently denied. Please enable it manually in Settings.",
+      "requestAgain": "Request Permission Again",
+      "openSettings": "Open Settings",
+      "enterManually": "Enter Manually"
+    }
+  }
+}

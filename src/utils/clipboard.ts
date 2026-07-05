@@ -7,6 +7,7 @@ import { ProfileDto, ClipboardContent, ClipboardContentType } from '@/types';
 import { calculateContentHash } from '@/utils/hash';
 import { isTextInvalid } from './textUtils';
 import { log } from '@/services/Logger';
+import i18n from '@/i18n';
 
 export interface ContentToProfileDtoOptions {
   signal?: AbortSignal;
@@ -52,7 +53,7 @@ export async function contentToProfileDto(
     case 'Image':
       return {
         type: 'Image',
-        text: text || '[图片]',
+        text: text || i18n.t('errors:contentPlaceholder.image'),
         hash: profileHash,
         hasData: true,
         dataName: fileName,
@@ -62,7 +63,7 @@ export async function contentToProfileDto(
     case 'File':
       return {
         type: 'File',
-        text: text || fileName || '[文件]',
+        text: text || fileName || i18n.t('errors:contentPlaceholder.file'),
         hash: profileHash,
         hasData: true,
         dataName: fileName,
@@ -72,7 +73,7 @@ export async function contentToProfileDto(
     case 'Group':
       return {
         type: 'Group',
-        text: text || '[文件组]',
+        text: text || i18n.t('errors:contentPlaceholder.group'),
         hash: profileHash,
         hasData: true,
         dataName: fileName,
@@ -186,13 +187,13 @@ export function formatFileSize(bytes: number): string {
  */
 export function getClipboardTypeDisplayName(type: ClipboardContentType): string {
   const displayNames: Record<ClipboardContentType, string> = {
-    Text: '文本',
-    Image: '图片',
-    File: '文件',
-    Group: '文件组',
+    Text: i18n.t('errors:contentType.text'),
+    Image: i18n.t('errors:contentType.image'),
+    File: i18n.t('errors:contentType.file'),
+    Group: i18n.t('errors:contentType.group'),
   };
 
-  return displayNames[type] || '未知';
+  return displayNames[type] || i18n.t('errors:contentType.unknown');
 }
 
 /**
@@ -276,32 +277,34 @@ export async function copyClipboardItem(
         text: item.text,
         profileHash: item.profileHash,
       });
-      return { success: true, message: '已复制到剪贴板' };
+      return { success: true, message: i18n.t('errors:copy.copied') };
     }
 
     if (item.type === 'Image' && item.fileUri) {
       await clipboardManager.setImageContent(item.fileUri);
-      return { success: true, message: '已复制图片到剪贴板' };
+      return { success: true, message: i18n.t('errors:copy.copiedImage') };
     }
 
-    return { success: false, message: '暂不支持此类型的快速复制' };
+    return { success: false, message: i18n.t('errors:copy.unsupportedType') };
   } catch (error) {
     log.error('[copyClipboardItem] Failed to copy:', error);
 
     // 提取错误信息
-    let errorMessage = '复制失败';
+    let errorMessage = i18n.t('errors:copy.failed');
     if (error instanceof Error) {
       // 将整个错误转为字符串进行检查（包括多层堆栈）
       const fullErrorString = error.toString() + ' ' + error.message;
       log.info('[copyClipboardItem] Full error string:', fullErrorString);
 
       if (fullErrorString.includes('TransactionTooLargeException')) {
-        errorMessage = '文本内容过大，无法复制到剪贴板（超过系统限制）';
+        errorMessage = i18n.t('errors:copy.textTooLarge');
       } else if (fullErrorString.includes('setStringAsync')) {
         // 提取更简洁的错误信息
-        errorMessage = '复制失败：' + (error.message || '未知错误');
+        errorMessage = i18n.t('errors:copy.failedWithReason', {
+          reason: error.message || i18n.t('errors:copy.unknownError'),
+        });
       } else {
-        errorMessage = error.message || '复制失败';
+        errorMessage = error.message || i18n.t('errors:copy.failed');
       }
     }
 
@@ -334,7 +337,7 @@ export async function copyToLocalClipboard(content: ClipboardContent): Promise<C
       } catch (error) {
         log.error('[copyToLocalClipboard] Failed to read text file:', error);
         if (isTextInvalid(content.text)) {
-          return { success: false, message: '无法读取完整文本' };
+          return { success: false, message: i18n.t('errors:copy.cannotReadFullText') };
         }
       }
     }
@@ -346,7 +349,7 @@ export async function copyToLocalClipboard(content: ClipboardContent): Promise<C
     return result;
   } catch (error) {
     log.error('[copyToLocalClipboard] Failed to copy:', error);
-    return { success: false, message: '复制失败' };
+    return { success: false, message: i18n.t('errors:copy.failed') };
   } finally {
     clipboardMonitor.resumePolling();
   }

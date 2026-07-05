@@ -7,6 +7,7 @@
  * 手动刷新入口移至二级页 navigator 的 headerRight。
  */
 import React, { memo, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ListItem,
   Button,
@@ -30,6 +31,7 @@ const formatFileSize = (bytes: number): string => {
 };
 
 export const StorageSection = memo(function StorageSection() {
+  const { t } = useTranslation('settingsStorage');
   const showMessage = useSettingsToast();
 
   const cacheSize = useStorageSizesStore((s) => s.cacheSize);
@@ -49,9 +51,9 @@ export const StorageSection = memo(function StorageSection() {
     try {
       clearDirectory(CLIPBOARD_TEMP_DIR);
       await recalculate();
-      showMessage('缓存已清空', 'success');
+      showMessage(t('cache.cleared'), 'success');
     } catch {
-      showMessage('清空缓存失败', 'error');
+      showMessage(t('cache.clearFailed'), 'error');
     }
   };
 
@@ -59,24 +61,24 @@ export const StorageSection = memo(function StorageSection() {
     try {
       clearLogs();
       await recalculate();
-      showMessage('日志已清空', 'success');
+      showMessage(t('log.cleared'), 'success');
     } catch {
-      showMessage('清空日志失败', 'error');
+      showMessage(t('log.clearFailed'), 'error');
     }
   };
 
   return (
     <SettingsSectionItem
-      title="存储"
+      title={t('title')}
       dialogs={
         <>
           {showClearCacheDialog && (
             <AlertDialog onDismissRequest={() => setShowClearCacheDialog(false)}>
               <AlertDialog.Title>
-                <ComposeText>清空缓存</ComposeText>
+                <ComposeText>{t('cache.clearDialogTitle')}</ComposeText>
               </AlertDialog.Title>
               <AlertDialog.Text>
-                <ComposeText>确定要清空缓存目录吗？这将删除所有缓存文件。</ComposeText>
+                <ComposeText>{t('cache.clearDialogMessage')}</ComposeText>
               </AlertDialog.Text>
               <AlertDialog.ConfirmButton>
                 <TextButton
@@ -85,12 +87,12 @@ export const StorageSection = memo(function StorageSection() {
                     setShowClearCacheDialog(false);
                   }}
                 >
-                  <ComposeText>确定</ComposeText>
+                  <ComposeText>{t('action.confirm', { ns: 'common' })}</ComposeText>
                 </TextButton>
               </AlertDialog.ConfirmButton>
               <AlertDialog.DismissButton>
                 <TextButton onClick={() => setShowClearCacheDialog(false)}>
-                  <ComposeText>取消</ComposeText>
+                  <ComposeText>{t('action.cancel', { ns: 'common' })}</ComposeText>
                 </TextButton>
               </AlertDialog.DismissButton>
             </AlertDialog>
@@ -99,10 +101,10 @@ export const StorageSection = memo(function StorageSection() {
           {showClearLogsDialog && (
             <AlertDialog onDismissRequest={() => setShowClearLogsDialog(false)}>
               <AlertDialog.Title>
-                <ComposeText>清空日志</ComposeText>
+                <ComposeText>{t('log.clearDialogTitle')}</ComposeText>
               </AlertDialog.Title>
               <AlertDialog.Text>
-                <ComposeText>确定要清空日志目录吗？这将删除所有日志文件。</ComposeText>
+                <ComposeText>{t('log.clearDialogMessage')}</ComposeText>
               </AlertDialog.Text>
               <AlertDialog.ConfirmButton>
                 <TextButton
@@ -111,12 +113,12 @@ export const StorageSection = memo(function StorageSection() {
                     setShowClearLogsDialog(false);
                   }}
                 >
-                  <ComposeText>确定</ComposeText>
+                  <ComposeText>{t('action.confirm', { ns: 'common' })}</ComposeText>
                 </TextButton>
               </AlertDialog.ConfirmButton>
               <AlertDialog.DismissButton>
                 <TextButton onClick={() => setShowClearLogsDialog(false)}>
-                  <ComposeText>取消</ComposeText>
+                  <ComposeText>{t('action.cancel', { ns: 'common' })}</ComposeText>
                 </TextButton>
               </AlertDialog.DismissButton>
             </AlertDialog>
@@ -126,14 +128,16 @@ export const StorageSection = memo(function StorageSection() {
     >
       <ListItem>
         <ListItem.HeadlineContent>
-          <ComposeText>缓存空间占用</ComposeText>
+          <ComposeText>{t('cache.usageLabel')}</ComposeText>
         </ListItem.HeadlineContent>
         <ListItem.SupportingContent>
-          <ComposeText>{isCalculating ? '加载中...' : formatFileSize(cacheSize)}</ComposeText>
+          <ComposeText>
+            {isCalculating ? t('state.loading', { ns: 'common' }) : formatFileSize(cacheSize)}
+          </ComposeText>
         </ListItem.SupportingContent>
         <ListItem.TrailingContent>
           <Button onClick={() => setShowClearCacheDialog(true)} enabled={!isCalculating}>
-            <ComposeText>清理</ComposeText>
+            <ComposeText>{t('cleanUp')}</ComposeText>
           </Button>
         </ListItem.TrailingContent>
       </ListItem>
@@ -142,14 +146,16 @@ export const StorageSection = memo(function StorageSection() {
 
       <ListItem>
         <ListItem.HeadlineContent>
-          <ComposeText>日志空间占用</ComposeText>
+          <ComposeText>{t('log.usageLabel')}</ComposeText>
         </ListItem.HeadlineContent>
         <ListItem.SupportingContent>
-          <ComposeText>{isCalculating ? '加载中...' : formatFileSize(logSize)}</ComposeText>
+          <ComposeText>
+            {isCalculating ? t('state.loading', { ns: 'common' }) : formatFileSize(logSize)}
+          </ComposeText>
         </ListItem.SupportingContent>
         <ListItem.TrailingContent>
           <Button onClick={() => setShowClearLogsDialog(true)} enabled={!isCalculating}>
-            <ComposeText>清理</ComposeText>
+            <ComposeText>{t('cleanUp')}</ComposeText>
           </Button>
         </ListItem.TrailingContent>
       </ListItem>
@@ -158,10 +164,12 @@ export const StorageSection = memo(function StorageSection() {
 
       <ListItem>
         <ListItem.HeadlineContent>
-          <ComposeText>历史记录空间占用</ComposeText>
+          <ComposeText>{t('history.usageLabel')}</ComposeText>
         </ListItem.HeadlineContent>
         <ListItem.SupportingContent>
-          <ComposeText>{isCalculating ? '加载中...' : formatFileSize(historySize)}</ComposeText>
+          <ComposeText>
+            {isCalculating ? t('state.loading', { ns: 'common' }) : formatFileSize(historySize)}
+          </ComposeText>
         </ListItem.SupportingContent>
       </ListItem>
     </SettingsSectionItem>

@@ -1,0 +1,92 @@
+{
+  "appearance": {
+    "sectionTitle": "Appearance",
+    "mode": {
+      "label": "Appearance mode",
+      "system": "Follow system",
+      "light": "Light",
+      "dark": "Dark"
+    },
+    "hideFromRecents": {
+      "title": "Hide from recent tasks",
+      "desc": "Lock before hiding to avoid being cleared in one tap"
+    },
+    "modeChangeFailed": "Failed to change appearance mode",
+    "updateFailed": "Update failed"
+  },
+  "general": {
+    "sectionTitle": "General",
+    "theme": "Theme"
+  },
+  "category": {
+    "sync": "Sync",
+    "about": "About",
+    "other": "Other",
+    "storage": "Storage",
+    "server": "Servers",
+    "history": "History",
+    "background": "Background",
+    "sms": "SMS forwarding",
+    "developer": "Developer options",
+    "extensions": "Extensions & permissions"
+  },
+  "hub": {
+    "autoSync": {
+      "title": "Auto sync",
+      "desc": "Automatically sync the clipboard while in the foreground",
+      "enabled": "Auto sync enabled",
+      "disabled": "Auto sync disabled",
+      "updateFailed": "Update failed"
+    },
+    "rows": {
+      "serverLabel": "Servers & sync"
+    },
+    "summary": {
+      "serverNone": "No server configured",
+      "serverActive": "Current: {{name}} · {{count}} total",
+      "serverCount": "{{count}} servers",
+      "syncOn": "Sync on",
+      "syncOff": "Sync off",
+      "history": "{{status}} · keep up to {{count}} items",
+      "backgroundTempDisabled": "Temporarily stopped, resumes after restart",
+      "backgroundOn": "Background tasks on",
+      "backgroundOff": "Background tasks off",
+      "smsOn": "Code auto-upload on",
+      "smsOff": "Code auto-upload off",
+      "storage": "Cache, logs and history usage",
+      "about": "Version {{version}}",
+      "developer": "Logs, debugging and shortcuts"
+    }
+  },
+  "server": {
+    "addTitle": "Add server",
+    "editTitle": "Edit server",
+    "count": "{{count}}"
+  },
+  "ios": {
+    "sync": {
+      "footer": "When Auto-write is on, new server content immediately overwrites this device's clipboard; when off, it's only highlighted on the home screen.",
+      "autoApply": "Auto-write to clipboard",
+      "autoPush": "Auto-push clipboard",
+      "sse": "Live push (SSE)"
+    },
+    "extensions": {
+      "footer": "The keyboard and share extensions let you use UniClip directly in other apps; set clipboard access to Allow to avoid repeated prompts during sync.",
+      "keyboard": "Keyboard",
+      "share": "Share",
+      "clipboardAccess": "Clipboard access"
+    },
+    "keyboardHint": {
+      "needsFullAccess": "Needs full access",
+      "notEnabled": "Not enabled"
+    },
+    "general": {
+      "checkUpdateOnLaunch": "Check for updates on launch"
+    },
+    "about": {
+      "projectHome": "Project home",
+      "version": "Version"
+    }
+  },
+  "openSystemSettings": "Open system settings"
+}

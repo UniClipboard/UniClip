@@ -16,6 +16,7 @@ import {
   useNativeState,
 } from '@expo/ui/jetpack-compose';
 import { width as widthModifier } from '@expo/ui/jetpack-compose/modifiers';
+import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from '@/stores';
 import { useSettingsToast } from './SettingsToastContext';
 import { useBlurCommit } from './useBlurCommit';
@@ -30,6 +31,7 @@ const filterPositiveInteger = (value: string): string => {
 };
 
 export const SyncSettingsSection = memo(function SyncSettingsSection() {
+  const { t } = useTranslation('settingsSync');
   const showMessage = useSettingsToast();
 
   // 仅订阅影响本 section 渲染的字段
@@ -63,7 +65,7 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
     try {
       await useSettingsStore.getState().updateConfig({ syncToastEnabled: enabled });
     } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+      showMessage(error instanceof Error ? error.message : t('error.updateFailed'), 'error');
     }
   };
 
@@ -71,7 +73,7 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
     try {
       await useSettingsStore.getState().setEnableSse(enabled);
     } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+      showMessage(error instanceof Error ? error.message : t('error.updateFailed'), 'error');
     }
   };
 
@@ -84,13 +86,13 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
       const sizeMB = parseInt(maxSizeInput, 10);
       if (isNaN(sizeMB) || sizeMB < 0) {
         resetToCurrent();
-        showMessage('请输入有效的数字', 'error');
+        showMessage(t('error.invalidNumber'), 'error');
         return;
       }
       await useSettingsStore.getState().setAutoDownloadMaxSize(sizeMB * 1024 * 1024);
     } catch (error: unknown) {
       resetToCurrent();
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+      showMessage(error instanceof Error ? error.message : t('error.updateFailed'), 'error');
     }
   };
 
@@ -103,13 +105,13 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
       const seconds = parseInt(remotePollingInput, 10);
       if (isNaN(seconds) || seconds < 1) {
         resetToCurrent();
-        showMessage('请输入大于等于1的数字', 'error');
+        showMessage(t('error.minOneSecond'), 'error');
         return;
       }
       await useSettingsStore.getState().setRemotePollingInterval(seconds * 1000);
     } catch (error: unknown) {
       resetToCurrent();
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+      showMessage(error instanceof Error ? error.message : t('error.updateFailed'), 'error');
     }
   };
 
@@ -122,13 +124,13 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
       const seconds = parseInt(localPollingInput, 10);
       if (isNaN(seconds) || seconds < 1) {
         resetToCurrent();
-        showMessage('请输入大于等于1的数字', 'error');
+        showMessage(t('error.minOneSecond'), 'error');
         return;
       }
       await useSettingsStore.getState().setLocalPollingInterval(seconds * 1000);
     } catch (error: unknown) {
       resetToCurrent();
-      showMessage(error instanceof Error ? error.message : '设置失败', 'error');
+      showMessage(error instanceof Error ? error.message : t('error.updateFailed'), 'error');
     }
   };
 
@@ -138,13 +140,13 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
 
   return (
     <>
-      <SettingsSectionItem title="同步选项">
+      <SettingsSectionItem title={t('options.title')}>
         <ListItem>
           <ListItem.HeadlineContent>
-            <ComposeText>同步 Toast 通知</ComposeText>
+            <ComposeText>{t('options.syncToast.title')}</ComposeText>
           </ListItem.HeadlineContent>
           <ListItem.SupportingContent>
-            <ComposeText>上传/下载完成后显示 Toast 提示</ComposeText>
+            <ComposeText>{t('options.syncToast.desc')}</ComposeText>
           </ListItem.SupportingContent>
           <ListItem.TrailingContent>
             <ComposeSwitch value={syncToastEnabled} onCheckedChange={handleToggleSyncToast} />
@@ -155,10 +157,10 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
 
         <ListItem>
           <ListItem.HeadlineContent>
-            <ComposeText>允许自动同步的数据大小</ComposeText>
+            <ComposeText>{t('options.autoSize.title')}</ComposeText>
           </ListItem.HeadlineContent>
           <ListItem.SupportingContent>
-            <ComposeText>小于此大小的文件将自动下载</ComposeText>
+            <ComposeText>{t('options.autoSize.desc')}</ComposeText>
           </ListItem.SupportingContent>
           <ListItem.TrailingContent>
             <OutlinedTextField
@@ -180,15 +182,15 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
         </ListItem>
       </SettingsSectionItem>
 
-      <SettingsSectionItem title="高级">
+      <SettingsSectionItem title={t('advanced.title')}>
         {isSyncClipboard && (
           <>
             <ListItem>
               <ListItem.HeadlineContent>
-                <ComposeText>实时推送(SSE)</ComposeText>
+                <ComposeText>{t('advanced.sse.title')}</ComposeText>
               </ListItem.HeadlineContent>
               <ListItem.SupportingContent>
-                <ComposeText>服务端推送剪贴板变化,更省电更即时;不支持时自动回退轮询</ComposeText>
+                <ComposeText>{t('advanced.sse.desc')}</ComposeText>
               </ListItem.SupportingContent>
               <ListItem.TrailingContent>
                 <ComposeSwitch value={sseEnabled} onCheckedChange={handleToggleSse} />
@@ -201,10 +203,10 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
           <>
             <ListItem>
               <ListItem.HeadlineContent>
-                <ComposeText>远程轮询间隔</ComposeText>
+                <ComposeText>{t('advanced.remotePolling.title')}</ComposeText>
               </ListItem.HeadlineContent>
               <ListItem.SupportingContent>
-                <ComposeText>拉取远程剪贴板的频率</ComposeText>
+                <ComposeText>{t('advanced.remotePolling.desc')}</ComposeText>
               </ListItem.SupportingContent>
               <ListItem.TrailingContent>
                 <OutlinedTextField
@@ -220,7 +222,7 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
                     <ComposeText>3</ComposeText>
                   </OutlinedTextField.Placeholder>
                   <OutlinedTextField.Suffix>
-                    <ComposeText>秒</ComposeText>
+                    <ComposeText>{t('unit.seconds')}</ComposeText>
                   </OutlinedTextField.Suffix>
                 </OutlinedTextField>
               </ListItem.TrailingContent>
@@ -231,10 +233,10 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
 
         <ListItem>
           <ListItem.HeadlineContent>
-            <ComposeText>本地轮询间隔</ComposeText>
+            <ComposeText>{t('advanced.localPolling.title')}</ComposeText>
           </ListItem.HeadlineContent>
           <ListItem.SupportingContent>
-            <ComposeText>检测本机剪贴板变化的频率</ComposeText>
+            <ComposeText>{t('advanced.localPolling.desc')}</ComposeText>
           </ListItem.SupportingContent>
           <ListItem.TrailingContent>
             <OutlinedTextField
@@ -250,7 +252,7 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
                 <ComposeText>1</ComposeText>
               </OutlinedTextField.Placeholder>
               <OutlinedTextField.Suffix>
-                <ComposeText>秒</ComposeText>
+                <ComposeText>{t('unit.seconds')}</ComposeText>
               </OutlinedTextField.Suffix>
             </OutlinedTextField>
           </ListItem.TrailingContent>

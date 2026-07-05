@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, useWindowDimensions } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import ReanimatedSwipeable, {
   type SwipeableMethods,
@@ -62,6 +63,7 @@ function SwipeActionButtons({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const { t } = useTranslation('serverSwitch');
   const c = theme.colors;
   return (
     <View style={s.swipeActions}>
@@ -76,7 +78,9 @@ function SwipeActionButtons({
           }}
         >
           <Ionicons name="create-outline" size={20} color={c.onAccentContainer} />
-          <Text style={[s.swipeBtnText, { color: c.onAccentContainer }]}>编辑</Text>
+          <Text style={[s.swipeBtnText, { color: c.onAccentContainer }]}>
+            {t('action.edit', { ns: 'common' })}
+          </Text>
         </Pressable>
       </View>
       <View style={[s.swipeBtnClip, { backgroundColor: c.errorContainer }]}>
@@ -89,7 +93,9 @@ function SwipeActionButtons({
           }}
         >
           <Ionicons name="trash-outline" size={20} color={c.onErrorContainer} />
-          <Text style={[s.swipeBtnText, { color: c.onErrorContainer }]}>删除</Text>
+          <Text style={[s.swipeBtnText, { color: c.onErrorContainer }]}>
+            {t('action.delete', { ns: 'common' })}
+          </Text>
         </Pressable>
       </View>
     </View>
@@ -111,6 +117,7 @@ function ServerCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const { t } = useTranslation('serverSwitch');
   const { count, tags } = useNetworkTags(server);
   const c = theme.colors;
 
@@ -154,7 +161,9 @@ function ServerCard({
                   <Text style={[s.tagText, { color: c.textSecondary }]}>{tag.label}</Text>
                 </View>
               ))}
-              <Text style={[s.count, { color: c.textSecondary }]}>{count} 个地址</Text>
+              <Text style={[s.count, { color: c.textSecondary }]}>
+                {t('card.addressCount', { count })}
+              </Text>
             </View>
           </View>
         </Pressable>
@@ -171,6 +180,7 @@ export function ServerSwitcherModal({
   onClose,
   theme,
 }: ServerSwitcherModalProps) {
+  const { t } = useTranslation('serverSwitch');
   const c = theme.colors;
   const { height: windowHeight } = useWindowDimensions();
   const { addServer, updateServer, deleteServer } = useSettingsStore();
@@ -210,7 +220,7 @@ export function ServerSwitcherModal({
             <Pressable onPress={onClose} style={s.headerBtn} hitSlop={8}>
               <Ionicons name="close" size={22} color={c.textPrimary} />
             </Pressable>
-            <Text style={[s.headerTitle, { color: c.textPrimary }]}>服务器</Text>
+            <Text style={[s.headerTitle, { color: c.textPrimary }]}>{t('title')}</Text>
             <Pressable onPress={() => setShowAddSheet(true)} style={s.headerBtn} hitSlop={8}>
               <Ionicons name="add" size={24} color={c.accent} />
             </Pressable>
@@ -219,13 +229,13 @@ export function ServerSwitcherModal({
           {servers.length === 0 ? (
             <View style={s.empty}>
               <Ionicons name="server-outline" size={40} color={c.separator} />
-              <Text style={[s.emptyText, { color: c.textSecondary }]}>还没有服务器</Text>
+              <Text style={[s.emptyText, { color: c.textSecondary }]}>{t('empty.title')}</Text>
               <Pressable
                 onPress={() => setShowAddSheet(true)}
                 style={[s.addBtn, { backgroundColor: c.accent }]}
               >
                 <Ionicons name="add" size={18} color={c.onAccent} />
-                <Text style={[s.addBtnText, { color: c.onAccent }]}>添加服务器</Text>
+                <Text style={[s.addBtnText, { color: c.onAccent }]}>{t('empty.addButton')}</Text>
               </Pressable>
             </View>
           ) : (
@@ -251,10 +261,12 @@ export function ServerSwitcherModal({
         <Host>
           <AlertDialog onDismissRequest={() => setDeleteIndex(null)}>
             <AlertDialog.Title>
-              <ComposeText>删除服务器</ComposeText>
+              <ComposeText>{t('delete.title')}</ComposeText>
             </AlertDialog.Title>
             <AlertDialog.Text>
-              <ComposeText>{`确定要删除「${serverLabel(deleteServerTarget)}」吗？`}</ComposeText>
+              <ComposeText>
+                {t('delete.message', { name: serverLabel(deleteServerTarget) })}
+              </ComposeText>
             </AlertDialog.Text>
             <AlertDialog.ConfirmButton>
               <TextButton
@@ -264,12 +276,12 @@ export function ServerSwitcherModal({
                   if (idx != null) void deleteServer(idx);
                 }}
               >
-                <ComposeText>删除</ComposeText>
+                <ComposeText>{t('action.delete', { ns: 'common' })}</ComposeText>
               </TextButton>
             </AlertDialog.ConfirmButton>
             <AlertDialog.DismissButton>
               <TextButton onClick={() => setDeleteIndex(null)}>
-                <ComposeText>取消</ComposeText>
+                <ComposeText>{t('action.cancel', { ns: 'common' })}</ComposeText>
               </TextButton>
             </AlertDialog.DismissButton>
           </AlertDialog>
@@ -278,7 +290,7 @@ export function ServerSwitcherModal({
 
       <AddServerSheet
         visible={sheetVisible}
-        title={editingServer ? '编辑服务器' : undefined}
+        title={editingServer ? t('sheet.editTitle') : undefined}
         initialData={editingServer ? toEditData(editingServer) : undefined}
         onClose={() => {
           setShowAddSheet(false);

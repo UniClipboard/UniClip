@@ -18,6 +18,7 @@ import {
   Trash2,
   type LucideIcon,
 } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { useURLMetadata } from '@/hooks/useURLMetadata';
 import { useCardContextTransition } from '@/hooks/useCardContextTransition';
 import { iosColors, iosKindTints, hexToRgba } from '@/theme/iosDesignTokens';
@@ -67,6 +68,8 @@ interface OverlayBodyProps extends Omit<CardContextOverlayProps, 'item' | 'displ
 }
 
 function OverlayBody({ item, displayKind, anchor, actionGroups, onDismiss }: OverlayBodyProps) {
+  // 命名为 tr:本组件内的 t 是过渡对象(useCardContextTransition)
+  const { t: tr } = useTranslation('history');
   const t = useCardContextTransition(anchor, onDismiss);
 
   return (
@@ -81,7 +84,7 @@ function OverlayBody({ item, displayKind, anchor, actionGroups, onDismiss }: Ove
           style={StyleSheet.absoluteFill}
           onPress={() => t.close()}
           accessibilityRole="button"
-          accessibilityLabel="关闭菜单"
+          accessibilityLabel={tr('menu.closeMenu')}
         />
 
         <Animated.View

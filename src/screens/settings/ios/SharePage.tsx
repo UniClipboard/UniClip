@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Share } from 'react-native';
 import {
   Button as SwiftUIButton,
@@ -19,54 +20,47 @@ import { GuideStepRow, HeaderCircleButton } from './common';
  * it by hand, with a button that opens a real share sheet to practice on.
  */
 export function SharePage({ onBack }: { onBack: () => void }) {
+  const { t } = useTranslation('settingsIos');
   const handleTryShare = useCallback(() => {
-    Share.share({ message: '来自 UniClip 的分享测试 👋' }).catch(() => {
+    Share.share({ message: t('share.testMessage') }).catch(() => {
       // user dismissed the sheet — nothing to do
     });
-  }, []);
+  }, [t]);
 
   return (
     <IosSheetPage
-      title="分享"
+      title={t('share.title')}
       leftSlots={[<HeaderCircleButton key="back" systemName="chevron.left" onPress={onBack} />]}
     >
       <IosSheetForm>
         {/* ── 说明 ── */}
-        <Section
-          footer={
-            <SwiftUIText>
-              在任意 App
-              里点「分享」，选择「UniClip」，即可把内容直接推送到你的剪贴板服务器——无需先复制再切回
-              UniClip。
-            </SwiftUIText>
-          }
-        >
-          <LabeledContent label={<Label title="支持内容" systemImage="square.and.arrow.up" />}>
+        <Section footer={<SwiftUIText>{t('share.intro.footer')}</SwiftUIText>}>
+          <LabeledContent
+            label={
+              <Label title={t('share.supportedContent.label')} systemImage="square.and.arrow.up" />
+            }
+          >
             <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-              文本 · 链接 · 图片 · 文件
+              {t('share.supportedContent.value')}
             </SwiftUIText>
           </LabeledContent>
         </Section>
 
         {/* ── 设为常用 ── */}
         <Section
-          header={<SwiftUIText>设为常用</SwiftUIText>}
-          footer={
-            <SwiftUIText>
-              加入「个人收藏」后，UniClip 会固定出现在分享面板 App 列表的最前排。
-            </SwiftUIText>
-          }
+          header={<SwiftUIText>{t('share.favorite.title')}</SwiftUIText>}
+          footer={<SwiftUIText>{t('share.favorite.footer')}</SwiftUIText>}
         >
-          <GuideStepRow index={1} text="打开任意分享面板（可点下方按钮）" />
-          <GuideStepRow index={2} text="App 图标一排滑到最右，点「更多」" />
-          <GuideStepRow index={3} text="点右上角「编辑」，用 ➕ 把 UniClip 加入个人收藏" />
-          <GuideStepRow index={4} text="拖动到最前，点「完成」" />
+          <GuideStepRow index={1} text={t('share.favorite.step1')} />
+          <GuideStepRow index={2} text={t('share.favorite.step2')} />
+          <GuideStepRow index={3} text={t('share.favorite.step3')} />
+          <GuideStepRow index={4} text={t('share.favorite.step4')} />
         </Section>
 
         <Section>
           <SwiftUIButton
             systemImage="square.and.arrow.up"
-            label="打开分享面板试一试"
+            label={t('share.tryButton')}
             onPress={handleTryShare}
           />
         </Section>

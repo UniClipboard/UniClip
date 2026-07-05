@@ -1,3 +1,5 @@
+import i18n from '@/i18n';
+
 export type ServerURLClass = 'lan' | 'tailscale' | 'wan';
 
 export const URL_CLASS_ICONS = {
@@ -13,16 +15,24 @@ export const URL_CLASS_IONICONS = {
   wan: 'globe-outline',
 } as const;
 
-const URL_CLASS_DISPLAY: Record<ServerURLClass, { label: string; icon: string }> = {
-  lan: { label: '局域网', icon: URL_CLASS_ICONS.lan },
-  tailscale: { label: 'Tailscale', icon: URL_CLASS_ICONS.tailscale },
-  wan: { label: '公网', icon: URL_CLASS_ICONS.wan },
+// 图标名(SF Symbol / Ionicon)不随语言变化;label 的翻译键在调用时经 i18n.t 解析,
+// 保证切换语言即时生效(不能把已翻译文案固化到模块级常量)。
+const URL_CLASS_ICON: Record<ServerURLClass, string> = {
+  lan: URL_CLASS_ICONS.lan,
+  tailscale: URL_CLASS_ICONS.tailscale,
+  wan: URL_CLASS_ICONS.wan,
+};
+
+const URL_CLASS_LABEL_KEY: Record<ServerURLClass, string> = {
+  lan: 'errors:urlClass.lan',
+  tailscale: 'errors:urlClass.tailscale',
+  wan: 'errors:urlClass.wan',
 };
 
 export const URL_CLASS_DISPLAY_ORDER: ServerURLClass[] = ['lan', 'tailscale', 'wan'];
 
-export function getURLClassDisplay(cls: ServerURLClass) {
-  return URL_CLASS_DISPLAY[cls];
+export function getURLClassDisplay(cls: ServerURLClass): { label: string; icon: string } {
+  return { label: i18n.t(URL_CLASS_LABEL_KEY[cls]), icon: URL_CLASS_ICON[cls] };
 }
 
 function classifyIPv4(host: string): ServerURLClass | null {

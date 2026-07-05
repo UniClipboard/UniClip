@@ -1,0 +1,73 @@
+{
+  "keyboard": {
+    "title": "键盘",
+    "status": {
+      "added": "已添加",
+      "undetectable": "无法检测",
+      "notAdded": "未添加",
+      "detectAfterOpen": "打开键盘后可检测",
+      "on": "已开启",
+      "off": "未开启"
+    },
+    "statusSection": {
+      "title": "状态",
+      "footer": "「完全访问」状态由键盘在打开时上报——如果你刚在系统设置里修改过，在下方输入框打开一次键盘即可刷新。"
+    },
+    "systemKeyboard": "系统键盘",
+    "fullAccess": "完全访问",
+    "enableSteps": {
+      "title": "启用步骤",
+      "footer": "「允许完全访问」用于读取剪贴板并连接你的服务器，是同步功能的前提；内容只会发送到你自己配置的服务器。",
+      "step1": "打开系统设置中的 UniClip，点「键盘」",
+      "step2": "开启「UniClip Keyboard」",
+      "step3": "开启「允许完全访问」并确认"
+    },
+    "tryout": {
+      "title": "试一试",
+      "footer": "点击输入框，长按地球键 🌐 选择「UniClip Keyboard」。键盘打开后，上方状态会自动刷新。",
+      "placeholder": "在这里唤起键盘测试"
+    },
+    "feedback": {
+      "title": "按键反馈",
+      "footer": "更改会在下次打开键盘时生效。",
+      "sound": "按键声音",
+      "haptic": "触感反馈"
+    }
+  },
+  "share": {
+    "title": "分享",
+    "testMessage": "来自 UniClip 的分享测试 👋",
+    "intro": {
+      "footer": "在任意 App 里点「分享」，选择「UniClip」，即可把内容直接推送到你的剪贴板服务器——无需先复制再切回 UniClip。"
+    },
+    "supportedContent": {
+      "label": "支持内容",
+      "value": "文本 · 链接 · 图片 · 文件"
+    },
+    "favorite": {
+      "title": "设为常用",
+      "footer": "加入「个人收藏」后，UniClip 会固定出现在分享面板 App 列表的最前排。",
+      "step1": "打开任意分享面板（可点下方按钮）",
+      "step2": "App 图标一排滑到最右，点「更多」",
+      "step3": "点右上角「编辑」，用 ➕ 把 UniClip 加入个人收藏",
+      "step4": "拖动到最前，点「完成」"
+    },
+    "tryButton": "打开分享面板试一试"
+  },
+  "serverList": {
+    "title": "服务器",
+    "footer": "点选一台服务器可编辑地址、名称和凭据。新增服务器后会出现在此列表。",
+    "empty": {
+      "label": "还没有服务器"
+    },
+    "addShort": "新增",
+    "addressCount_one": "{{count}} 个地址",
+    "addressCount_other": "{{count}} 个地址",
+    "addServer": "新增服务器",
+    "connection": {
+      "title": "连接",
+      "footer": "「允许不安全证书」仅在服务器使用自签名 HTTPS 证书时需要，纯 HTTP 无需开启。",
+      "allowInsecure": "允许不安全证书"
+    }
+  }
+}

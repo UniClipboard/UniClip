@@ -16,6 +16,7 @@ import {
   Linking,
   Platform,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import {
   Host,
   AlertDialog,
@@ -43,6 +44,7 @@ interface QrScannerModalProps {
 }
 
 export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose, onScanned }) => {
+  const { t } = useTranslation('serverSwitch');
   const { theme } = useTheme();
   const [permission, requestPermission] = useCameraPermissions();
   const [torchOn, setTorchOn] = useState(false);
@@ -100,14 +102,16 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose
         onPress={onClose}
         style={[styles.headerButton, { backgroundColor: 'rgba(0,0,0,0.4)' }]}
       >
-        <Text style={styles.headerButtonText}>取消</Text>
+        <Text style={styles.headerButtonText}>{t('action.cancel', { ns: 'common' })}</Text>
       </TouchableOpacity>
-      <Text style={styles.headerTitle}>扫描二维码</Text>
+      <Text style={styles.headerTitle}>{t('qr.title')}</Text>
       <TouchableOpacity
         onPress={() => setTorchOn((v) => !v)}
         style={[styles.headerButton, { backgroundColor: 'rgba(0,0,0,0.4)' }]}
       >
-        <Text style={styles.headerButtonText}>{torchOn ? '关灯' : '手电'}</Text>
+        <Text style={styles.headerButtonText}>
+          {torchOn ? t('qr.torch.turnOff') : t('qr.torch.turnOn')}
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -121,7 +125,7 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose
         <CircularProgressIndicator color={theme.colors.accent} />
       </Host>
       <Text style={[styles.dimText, { color: theme.colors.textPrimary, marginTop: spacing.md }]}>
-        正在请求相机权限…
+        {t('qr.requestingPermission')}
       </Text>
     </SafeAreaView>
   );
@@ -135,12 +139,14 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose
       >
         <View style={styles.permissionHeader}>
           <TouchableOpacity onPress={onClose} style={styles.permissionBackBtn}>
-            <Text style={[styles.permissionBackText, { color: theme.colors.accent }]}>取消</Text>
+            <Text style={[styles.permissionBackText, { color: theme.colors.accent }]}>
+              {t('action.cancel', { ns: 'common' })}
+            </Text>
           </TouchableOpacity>
         </View>
         <View style={styles.permissionBody}>
           <Text style={[styles.permissionTitle, { color: theme.colors.textPrimary }]}>
-            需要相机权限
+            {t('qr.permission.title')}
           </Text>
           <Text
             style={[
@@ -148,8 +154,8 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose
               { color: theme.colors.textSecondary ?? theme.colors.textPrimary },
             ]}
           >
-            UniClip 需要访问相机来扫描接入二维码。
-            {canAskAgain ? '' : '\n\n权限已被永久拒绝，请在系统设置中手动开启。'}
+            {t('qr.permission.desc')}
+            {canAskAgain ? '' : t('qr.permission.deniedForever')}
           </Text>
           <View style={styles.permissionActions}>
             {canAskAgain ? (
@@ -158,7 +164,7 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose
                 onPress={() => requestPermission()}
               >
                 <Text style={[styles.primaryBtnText, { color: theme.colors.onAccent }]}>
-                  再次请求权限
+                  {t('qr.permission.requestAgain')}
                 </Text>
               </TouchableOpacity>
             ) : (
@@ -167,7 +173,7 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose
                 onPress={() => Linking.openSettings()}
               >
                 <Text style={[styles.primaryBtnText, { color: theme.colors.onAccent }]}>
-                  前往系统设置
+                  {t('qr.permission.openSettings')}
                 </Text>
               </TouchableOpacity>
             )}
@@ -179,7 +185,7 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose
               onPress={onClose}
             >
               <Text style={[styles.secondaryBtnText, { color: theme.colors.textPrimary }]}>
-                改为手动填写
+                {t('qr.permission.enterManually')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -210,7 +216,7 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose
         <View style={styles.maskSide} />
       </View>
       <View style={styles.maskBottom} pointerEvents="none">
-        <Text style={styles.hintText}>将二维码对准框内</Text>
+        <Text style={styles.hintText}>{t('qr.hint')}</Text>
       </View>
       <SafeAreaView style={styles.headerSafeArea} edges={['top']}>
         {renderHeader()}
@@ -238,7 +244,7 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose
         <Host>
           <AlertDialog onDismissRequest={() => setScanError(null)}>
             <AlertDialog.Title>
-              <ComposeText>扫码失败</ComposeText>
+              <ComposeText>{t('qr.scanFailedTitle')}</ComposeText>
             </AlertDialog.Title>
             <AlertDialog.Text>
               <ComposeText>{CONNECT_URI_ERROR_MESSAGES[scanError]}</ComposeText>
@@ -250,7 +256,7 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose
                   setScanError(null);
                 }}
               >
-                <ComposeText>重新扫描</ComposeText>
+                <ComposeText>{t('qr.rescan')}</ComposeText>
               </TextButton>
             </AlertDialog.ConfirmButton>
             <AlertDialog.DismissButton>
@@ -260,7 +266,7 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose
                   onClose();
                 }}
               >
-                <ComposeText>关闭</ComposeText>
+                <ComposeText>{t('action.close', { ns: 'common' })}</ComposeText>
               </TextButton>
             </AlertDialog.DismissButton>
           </AlertDialog>

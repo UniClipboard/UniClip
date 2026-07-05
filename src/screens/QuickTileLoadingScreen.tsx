@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Linking } from 'react-native';
 import { showToast } from '@/utils/toast';
 import { SyncDirection } from '@/types/sync';
@@ -24,6 +25,7 @@ export const QuickTileLoadingScreen: React.FC<QuickTileLoadingScreenProps> = ({
   overlayMode,
 }) => {
   const isUpload = direction === SyncDirection.Upload;
+  const { t } = useTranslation('sync');
 
   // 用 state 存储下载的文件内容，触发重渲染以更新 successButtons prop
   const [fileContent, setFileContent] = useState<ClipboardContent | null>(null);
@@ -51,7 +53,9 @@ export const QuickTileLoadingScreen: React.FC<QuickTileLoadingScreenProps> = ({
       );
 
       if (!result.success) {
-        throw new Error(result.error || (isUpload ? '上传失败' : '同步失败'));
+        throw new Error(
+          result.error || (isUpload ? t('quickLoad.uploadFailed') : t('quickLoad.downloadFailed'))
+        );
       }
 
       const content = result.content;
@@ -75,7 +79,7 @@ export const QuickTileLoadingScreen: React.FC<QuickTileLoadingScreenProps> = ({
         setFileContent(content);
       }
     },
-    [direction, isUpload]
+    [direction, isUpload, t]
   );
 
   // 检测文本中的 URL
@@ -90,17 +94,17 @@ export const QuickTileLoadingScreen: React.FC<QuickTileLoadingScreenProps> = ({
     ? fileContent.type === 'Text' && textUrl
       ? [
           {
-            label: '复制',
+            label: t('action.copy', { ns: 'common' }),
             primary: true,
             onPress: async () => {
               try {
                 await Clipboard.setStringAsync(fileContent.text!);
-                showToast('已复制');
+                showToast(t('toast.copied'));
               } catch {}
             },
           },
           {
-            label: '打开链接',
+            label: t('quickLoad.openLink'),
             primary: true,
             onPress: async () => {
               try {
@@ -111,7 +115,7 @@ export const QuickTileLoadingScreen: React.FC<QuickTileLoadingScreenProps> = ({
         ]
       : [
           {
-            label: '打开',
+            label: t('action.open', { ns: 'common' }),
             primary: true,
             onPress: async () => {
               try {
@@ -120,29 +124,29 @@ export const QuickTileLoadingScreen: React.FC<QuickTileLoadingScreenProps> = ({
             },
           },
           {
-            label: '保存',
+            label: t('action.save', { ns: 'common' }),
             primary: true,
             onPress: async () => {
               try {
                 if (fileContent.type === 'Image') {
                   await saveToGallery(fileContent.fileUri!);
-                  showToast('已保存到相册');
+                  showToast(t('toast.savedToGallery'));
                 } else {
                   await saveFile(fileContent.fileUri!, fileContent.fileName);
-                  showToast('已储存到设备');
+                  showToast(t('toast.savedToDevice'));
                 }
               } catch (error) {
                 log.error('[QuickTileLoadingScreen] Failed to save file:', error);
                 if (error instanceof Error && error.message === 'Media library permission denied') {
-                  showToast('需要相册权限才能保存图片');
+                  showToast(t('toast.needGalleryPermission'));
                   return;
                 }
-                showToast('保存失败');
+                showToast(t('toast.saveFailed'));
               }
             },
           },
           {
-            label: '分享',
+            label: t('action.share', { ns: 'common' }),
             primary: true,
             onPress: async () => {
               try {
@@ -156,9 +160,9 @@ export const QuickTileLoadingScreen: React.FC<QuickTileLoadingScreenProps> = ({
   return (
     <QuickLoadingPage
       task={task}
-      loadingText={isUpload ? '正在上传剪贴板...' : '正在下载剪贴板...'}
-      successText={isUpload ? '上传成功！' : '同步成功！'}
-      failureText={isUpload ? '上传失败' : '同步失败'}
+      loadingText={isUpload ? t('quickLoad.uploading') : t('quickLoad.downloading')}
+      successText={isUpload ? t('quickLoad.uploadSuccess') : t('quickLoad.downloadSuccess')}
+      failureText={isUpload ? t('quickLoad.uploadFailed') : t('quickLoad.downloadFailed')}
       onComplete={onLoadingComplete}
       successContent={fileContent ?? undefined}
       successButtons={successButtons}

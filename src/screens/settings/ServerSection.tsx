@@ -15,6 +15,7 @@ import {
   Text as ComposeText,
 } from '@expo/ui/jetpack-compose';
 import { clickable } from '@expo/ui/jetpack-compose/modifiers';
+import { useTranslation } from 'react-i18next';
 import { ServerConfig } from '@/types/api';
 import { useSettingsStore } from '@/stores';
 import { useSettingsToast } from './SettingsToastContext';
@@ -42,6 +43,7 @@ const getServerTypeLabel = (type: string): string => {
 };
 
 export const ServerSection = memo(function ServerSection() {
+  const { t } = useTranslation('settingsSync');
   const showMessage = useSettingsToast();
 
   const servers = useSettingsStore((s) => s.config?.servers ?? []);
@@ -66,33 +68,35 @@ export const ServerSection = memo(function ServerSection() {
       await useSettingsStore.getState().setActiveServer(index);
       const { runtimeStateStorage } = await import('@/services/RuntimeStateStorage');
       await runtimeStateStorage.update({ needsHistoryReorganize: true });
-      showMessage('已切换服务器', 'success');
+      showMessage(t('toast.serverSwitched'), 'success');
     } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : '切换失败', 'error');
+      showMessage(error instanceof Error ? error.message : t('error.switchFailed'), 'error');
     }
   };
 
   const handleDeleteServer = async (index: number) => {
     try {
       await useSettingsStore.getState().deleteServer(index);
-      showMessage('服务器已删除', 'success');
+      showMessage(t('toast.serverDeleted'), 'success');
     } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : '删除失败', 'error');
+      showMessage(error instanceof Error ? error.message : t('error.deleteFailed'), 'error');
     }
   };
 
   return (
     <SettingsSectionItem
-      title="服务器"
+      title={t('server.title')}
       dialogs={
         <>
           {deleteTarget && (
             <AlertDialog onDismissRequest={() => setDeleteTarget(null)}>
               <AlertDialog.Title>
-                <ComposeText>确认删除</ComposeText>
+                <ComposeText>{t('server.deleteDialog.title')}</ComposeText>
               </AlertDialog.Title>
               <AlertDialog.Text>
-                <ComposeText>{`确定要删除服务器 "${deleteTarget.name}" 吗？`}</ComposeText>
+                <ComposeText>
+                  {t('server.deleteDialog.message', { name: deleteTarget.name })}
+                </ComposeText>
               </AlertDialog.Text>
               <AlertDialog.ConfirmButton>
                 <TextButton
@@ -102,12 +106,12 @@ export const ServerSection = memo(function ServerSection() {
                     handleDeleteServer(idx);
                   }}
                 >
-                  <ComposeText>删除</ComposeText>
+                  <ComposeText>{t('action.delete', { ns: 'common' })}</ComposeText>
                 </TextButton>
               </AlertDialog.ConfirmButton>
               <AlertDialog.DismissButton>
                 <TextButton onClick={() => setDeleteTarget(null)}>
-                  <ComposeText>取消</ComposeText>
+                  <ComposeText>{t('action.cancel', { ns: 'common' })}</ComposeText>
                 </TextButton>
               </AlertDialog.DismissButton>
             </AlertDialog>
@@ -118,10 +122,10 @@ export const ServerSection = memo(function ServerSection() {
       {servers.length === 0 ? (
         <ListItem>
           <ListItem.HeadlineContent>
-            <ComposeText>还没有配置服务器</ComposeText>
+            <ComposeText>{t('server.empty.title')}</ComposeText>
           </ListItem.HeadlineContent>
           <ListItem.SupportingContent>
-            <ComposeText>点击下方添加第一个服务器</ComposeText>
+            <ComposeText>{t('server.empty.desc')}</ComposeText>
           </ListItem.SupportingContent>
         </ListItem>
       ) : (
@@ -143,12 +147,12 @@ export const ServerSection = memo(function ServerSection() {
                 <ListItem.TrailingContent>
                   <Row>
                     <TextButton onClick={() => openEdit(index)}>
-                      <ComposeText>编辑</ComposeText>
+                      <ComposeText>{t('action.edit', { ns: 'common' })}</ComposeText>
                     </TextButton>
                     <TextButton
                       onClick={() => setDeleteTarget({ index, name: getServerDisplayName(server) })}
                     >
-                      <ComposeText>删除</ComposeText>
+                      <ComposeText>{t('action.delete', { ns: 'common' })}</ComposeText>
                     </TextButton>
                   </Row>
                 </ListItem.TrailingContent>
@@ -162,7 +166,7 @@ export const ServerSection = memo(function ServerSection() {
 
       <ListItem modifiers={[clickable(openAdd)]}>
         <ListItem.HeadlineContent>
-          <ComposeText>＋ 添加服务器</ComposeText>
+          <ComposeText>{`＋ ${t('form.addTitle')}`}</ComposeText>
         </ListItem.HeadlineContent>
       </ListItem>
     </SettingsSectionItem>

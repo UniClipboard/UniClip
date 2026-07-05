@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Host, AlertDialog, TextButton, Text as ComposeText } from '@expo/ui/jetpack-compose';
 import { useTheme } from '@/hooks/useTheme';
@@ -26,6 +27,7 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
   onDelete,
 }) => {
   const { theme } = useTheme();
+  const { t } = useTranslation('server');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const handleDelete = () => {
@@ -125,8 +127,8 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
           <View style={styles.details}>
             <Text style={[styles.detailText, { color: theme.colors.textSecondary }]}>
               {config.type === 's3'
-                ? `🪣 ${config.bucketName || '未设置'}`
-                : `👤 ${config.username || '未设置'}`}
+                ? `🪣 ${config.bucketName || t('listItem.notSet')}`
+                : `👤 ${config.username || t('listItem.notSet')}`}
             </Text>
           </View>
         </View>
@@ -141,7 +143,7 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
             }}
           >
             <Text style={[styles.actionButtonText, { color: theme.colors.onAccentContainer }]}>
-              编辑
+              {t('action.edit', { ns: 'common' })}
             </Text>
           </TouchableOpacity>
 
@@ -153,7 +155,7 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
             }}
           >
             <Text style={[styles.actionButtonText, { color: theme.colors.onErrorContainer }]}>
-              删除
+              {t('action.delete', { ns: 'common' })}
             </Text>
           </TouchableOpacity>
         </View>
@@ -163,10 +165,12 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
         <Host>
           <AlertDialog onDismissRequest={() => setShowDeleteDialog(false)}>
             <AlertDialog.Title>
-              <ComposeText>确认删除</ComposeText>
+              <ComposeText>{t('listItem.deleteConfirmTitle')}</ComposeText>
             </AlertDialog.Title>
             <AlertDialog.Text>
-              <ComposeText>{`确定要删除服务器 "${getServerDisplayName(config)}" 吗？`}</ComposeText>
+              <ComposeText>
+                {t('listItem.deleteConfirmMessage', { name: getServerDisplayName(config) })}
+              </ComposeText>
             </AlertDialog.Text>
             <AlertDialog.ConfirmButton>
               <TextButton
@@ -175,12 +179,12 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
                   onDelete();
                 }}
               >
-                <ComposeText>删除</ComposeText>
+                <ComposeText>{t('action.delete', { ns: 'common' })}</ComposeText>
               </TextButton>
             </AlertDialog.ConfirmButton>
             <AlertDialog.DismissButton>
               <TextButton onClick={() => setShowDeleteDialog(false)}>
-                <ComposeText>取消</ComposeText>
+                <ComposeText>{t('action.cancel', { ns: 'common' })}</ComposeText>
               </TextButton>
             </AlertDialog.DismissButton>
           </AlertDialog>

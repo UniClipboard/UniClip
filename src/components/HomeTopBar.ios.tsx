@@ -8,6 +8,7 @@ import {
   PlatformColor,
   type ColorValue,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { ChevronDown, Ellipsis, ListFilter, Search, X, XCircle } from 'lucide-react-native';
 import { Menu, Button as SwiftUIButton, Host } from '@expo/ui/swift-ui';
 import Animated, {
@@ -49,6 +50,7 @@ export function DefaultTopBar({
   onSelectMode,
   theme,
 }: DefaultTopBarProps) {
+  const { t } = useTranslation('home');
   const dot = STATUS_STYLE[connectionStatus];
   const dimmed = connectionStatus === 'unconfigured' || connectionStatus === 'offline';
   return (
@@ -57,7 +59,10 @@ export function DefaultTopBar({
         onPress={onSwitchServer}
         style={s.serverPress}
         accessibilityRole="button"
-        accessibilityLabel={`切换服务器，当前${serverLabel}，${CONNECTION_STATUS_TEXT[connectionStatus]}`}
+        accessibilityLabel={t('topBar.switchServerA11y', {
+          server: serverLabel,
+          status: CONNECTION_STATUS_TEXT[connectionStatus],
+        })}
       >
         <GlassContainer shape="capsule" interactive style={s.serverPill}>
           <ServerStatusDot color={dot.color} pulse={dot.pulse} glow={dot.glow} />
@@ -90,7 +95,7 @@ export function DefaultTopBar({
             }}
           >
             <Text style={{ fontSize: 15, fontWeight: '500', color: theme.colors.textPrimary }}>
-              选择
+              {t('action.select', { ns: 'common' })}
             </Text>
           </GlassContainer>
         </Pressable>
@@ -117,7 +122,11 @@ export function DefaultTopBar({
               </GlassContainer>
             }
           >
-            <SwiftUIButton systemImage="gearshape" label="设置" onPress={onSettings} />
+            <SwiftUIButton
+              systemImage="gearshape"
+              label={t('action.settings', { ns: 'common' })}
+              onPress={onSettings}
+            />
           </Menu>
         </Host>
       </View>
@@ -137,6 +146,7 @@ export function SearchTopBar({
   onClose,
   theme,
 }: SearchTopBarProps) {
+  const { t } = useTranslation('home');
   const p = useSharedValue(0);
 
   React.useEffect(() => {
@@ -162,7 +172,7 @@ export function SearchTopBar({
               style={[s.searchInput, { color: theme.colors.textPrimary }]}
               value={searchText}
               onChangeText={onChangeText}
-              placeholder="搜索剪贴板"
+              placeholder={t('topBar.searchPlaceholder')}
               placeholderTextColor={theme.colors.textSecondary}
               autoFocus
             />
@@ -210,9 +220,12 @@ export function SelectModeTopBar({
   onDone,
   theme,
 }: SelectModeTopBarProps) {
+  const { t } = useTranslation('home');
   return (
     <View style={s.row}>
-      <Text style={[s.selectCount, { color: theme.colors.textPrimary }]}>已选择 {count} 项</Text>
+      <Text style={[s.selectCount, { color: theme.colors.textPrimary }]}>
+        {t('topBar.selectedCount', { n: count })}
+      </Text>
       <View style={{ flex: 1, minWidth: 0 }} />
       <View style={s.actions}>
         <Pressable onPress={onSelectAll}>
@@ -227,7 +240,7 @@ export function SelectModeTopBar({
             }}
           >
             <Text style={{ fontSize: 15, fontWeight: '500', color: theme.colors.textPrimary }}>
-              {allSelected ? '取消全选' : '全选'}
+              {allSelected ? t('topBar.deselectAll') : t('action.selectAll', { ns: 'common' })}
             </Text>
           </GlassContainer>
         </Pressable>
@@ -243,7 +256,7 @@ export function SelectModeTopBar({
             }}
           >
             <Text style={{ fontSize: 15, fontWeight: '500', color: theme.colors.textPrimary }}>
-              完成
+              {t('action.done', { ns: 'common' })}
             </Text>
           </GlassContainer>
         </Pressable>

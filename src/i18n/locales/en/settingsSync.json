@@ -1,0 +1,60 @@
+{
+  "options": {
+    "title": "Sync options",
+    "syncToast": {
+      "title": "Sync toast notifications",
+      "desc": "Show a toast when an upload or download completes"
+    },
+    "autoSize": {
+      "title": "Auto-sync size limit",
+      "desc": "Files smaller than this are downloaded automatically"
+    }
+  },
+  "advanced": {
+    "title": "Advanced",
+    "sse": {
+      "title": "Live push (SSE)",
+      "desc": "The server pushes clipboard changes for instant, battery-friendly sync; falls back to polling when unsupported"
+    },
+    "remotePolling": {
+      "title": "Remote polling interval",
+      "desc": "How often to fetch the remote clipboard"
+    },
+    "localPolling": {
+      "title": "Local polling interval",
+      "desc": "How often to check this device's clipboard for changes"
+    }
+  },
+  "unit": {
+    "seconds": "s"
+  },
+  "server": {
+    "title": "Servers",
+    "empty": {
+      "title": "No servers configured yet",
+      "desc": "Tap below to add your first server"
+    },
+    "deleteDialog": {
+      "title": "Confirm deletion",
+      "message": "Delete server \"{{name}}\"?"
+    }
+  },
+  "form": {
+    "addTitle": "Add server",
+    "editTitle": "Edit server"
+  },
+  "toast": {
+    "serverSwitched": "Server switched",
+    "serverDeleted": "Server deleted",
+    "serverAdded": "Server added",
+    "serverUpdated": "Server settings updated"
+  },
+  "error": {
+    "updateFailed": "Update failed",
+    "invalidNumber": "Please enter a valid number",
+    "minOneSecond": "Please enter a number of 1 or greater",
+    "switchFailed": "Switch failed",
+    "deleteFailed": "Delete failed",
+    "operationFailed": "Operation failed"
+  }
+}

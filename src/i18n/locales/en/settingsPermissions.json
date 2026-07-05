@@ -1,0 +1,64 @@
+{
+  "section": {
+    "title": "Permissions"
+  },
+  "notification": {
+    "title": "Notifications"
+  },
+  "overlay": {
+    "title": "Display over other apps",
+    "description": "Required to read the clipboard in the background via an overlay"
+  },
+  "sms": {
+    "title": "SMS",
+    "description": "Required to auto-upload SMS verification codes"
+  },
+  "battery": {
+    "title": "Ignore battery optimization",
+    "description": "Prevents power-saving mode from interrupting background sync"
+  },
+  "batteryDialog": {
+    "title": "Can't open the system dialog",
+    "message": "The system only allows the battery optimization prompt to appear once per install. Please turn off battery optimization manually in system settings."
+  },
+  "action": {
+    "openSettings": "Open settings"
+  },
+  "smsAutomation": {
+    "title": "SMS automation",
+    "autoUpload": "Auto-upload SMS verification codes",
+    "permissionRequiredTitle": "SMS permission required",
+    "permissionRequiredMessage": "Auto-uploading verification codes needs SMS receive permission. Please allow it in system settings.",
+    "enabledToast": "Auto-upload of SMS verification codes enabled",
+    "disabledToast": "Auto-upload of SMS verification codes disabled",
+    "saveFailed": "Failed to save settings"
+  },
+  "quickActions": {
+    "title": "Quick actions",
+    "addDownloadShortcut": "Add home screen shortcut: Download",
+    "addUploadShortcut": "Add home screen shortcut: Upload",
+    "addFailed": "Failed to add"
+  },
+  "clipboardAccess": {
+    "title": "Clipboard access",
+    "enableSection": {
+      "header": "Enable \"Paste from Other Apps\"",
+      "footer": "iOS only shows the \"Allow Paste\" prompt—and remembers this permission—after the app has read content copied from another app at least once. On a fresh install, before you've ever triggered it, the \"Paste from Other Apps\" row won't even appear in system settings. Tap the button below to trigger it once: when \"Allow Paste\" appears, choose \"Allow\" to grant the permission, and you won't be asked again."
+    },
+    "triggeredStep": "Read triggered once. Tap \"Allow\" when the prompt appears.",
+    "triggerAgain": "Trigger again",
+    "triggerAndGrant": "Trigger once and grant",
+    "fallbackSection": {
+      "header": "No prompt, or want to change your choice",
+      "footer": "If no prompt appeared, the clipboard may be empty (copy some text first, then trigger), or you previously tapped \"Don't Allow\" and iOS remembered it. Go to system settings and set \"Paste from Other Apps\" to \"Allow\"—this row only appears after you've triggered it once. iOS doesn't expose the current value to the app, so there's no need to return and confirm after changing it.",
+      "step1": "Open UniClip in system settings",
+      "step2": "Tap \"Paste from Other Apps\"",
+      "step3": "Choose \"Allow\""
+    },
+    "relatedSection": {
+      "header": "Related settings",
+      "footer": "When enabled, content copied on this device is automatically read and pushed; we recommend setting the permission above to \"Allow\" first. Leave it off to push manually with the \"Paste\" button on the home screen—iOS won't prompt.",
+      "autoPushLabel": "Auto-push this device's clipboard"
+    }
+  }
+}

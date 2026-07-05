@@ -1,0 +1,80 @@
+{
+  "tasks": {
+    "cardTitle": "Background tasks",
+    "toggle": {
+      "title": "Background tasks",
+      "descTempDisabled": "Temporarily stopped; will resume after restarting the app",
+      "descNormal": "Turning this off stops all background tasks"
+    },
+    "notification": {
+      "title": "Persistent service notification",
+      "desc": "Keeping it on improves background service stability"
+    },
+    "battery": {
+      "title": "Ignore battery optimization",
+      "desc": "Prevents battery saver from interrupting background sync"
+    }
+  },
+  "sync": {
+    "cardTitle": "Background sync",
+    "download": {
+      "title": "Download from remote",
+      "desc": "Automatically download new remote content in the background"
+    },
+    "upload": {
+      "title": "Upload local clipboard",
+      "desc": "Automatically upload when the local clipboard changes in the background"
+    }
+  },
+  "clipboard": {
+    "cardTitle": "Background clipboard access",
+    "overlay": {
+      "title": "Read clipboard via overlay",
+      "desc": "Reads the clipboard through an invisible overlay when copying in the background; switches to copy-triggered mode once READ_LOGS is granted"
+    }
+  },
+  "dialog": {
+    "enableTasks": {
+      "title": "Enable background tasks",
+      "text": "Once background tasks are enabled, the app keeps running related services in the background, which significantly increases battery usage. We strongly recommend enabling it only when needed.\n\nIf needed, set UniClip's battery optimization to \"Unrestricted\" in system settings and lock UniClip in the recent apps view to reduce the chance of the system killing background tasks.",
+      "confirm": "Enable"
+    },
+    "disableNotification": {
+      "title": "Turn off persistent notification",
+      "text": "Turning off the persistent notification reduces background service stability and makes it more likely the system will terminate background tasks.",
+      "confirm": "Turn off"
+    },
+    "missingNotificationPermission": {
+      "title": "Notification permission missing",
+      "text": "Notification permission hasn't been granted, so the persistent notification may not appear. We recommend allowing notifications in system settings.",
+      "confirm": "Open settings",
+      "dismiss": "Later"
+    },
+    "enableUpload": {
+      "title": "Enable background upload of local clipboard",
+      "text": "You don't need to enable this option — UniClip also lets you upload text directly from the menu that pops up when you select text.\n\nOn Android 10 and above, apps can't directly read the local clipboard in the background. You may need to enable the overlay or use another tool to work around this limitation.",
+      "confirm": "Enable"
+    },
+    "enableOverlay": {
+      "title": "Enable overlay to read clipboard",
+      "text": "Once enabled, the app reads the clipboard in the background through an invisible overlay. This may cause some apps to malfunction due to focus issues, among other problems.\n\nIf you can grant UniClip background clipboard access through another tool, we recommend turning this off."
+    },
+    "batteryFallback": {
+      "title": "Can't open system dialog",
+      "text": "The system only allows the battery optimization request to appear once per installation. Please turn off battery optimization manually in system settings.",
+      "confirm": "Open settings"
+    }
+  },
+  "toast": {
+    "tasksRestored": "Background tasks resumed",
+    "tasksEnabled": "Background tasks enabled",
+    "tasksDisabled": "Background tasks disabled",
+    "downloadEnabled": "Background remote download enabled",
+    "downloadDisabled": "Background remote download disabled",
+    "uploadEnabled": "Background local upload enabled",
+    "uploadDisabled": "Background local upload disabled",
+    "overlayEnabled": "Overlay clipboard access enabled",
+    "overlayDisabled": "Overlay clipboard access disabled",
+    "setFailed": "Failed to update setting"
+  }
+}

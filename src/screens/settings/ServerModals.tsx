@@ -5,6 +5,7 @@
  * LazyColumn 之外、与 <Host> 同级。状态来自 serverFormStore(由 ServerSection 的列表触发)。
  */
 import React, { memo, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AddServerSheet } from '@/components';
 import type { AddServerSaveData } from '@/components/AddServerSheet.types';
 import { useSettingsStore, usePendingConnectStore } from '@/stores';
@@ -13,6 +14,7 @@ import { useServerFormStore } from './serverFormStore';
 import { buildServerConfigFromAddServerData, getAddServerInitialData } from './serverFormAdapter';
 
 export const ServerModals = memo(function ServerModals() {
+  const { t } = useTranslation('settingsSync');
   const showMessage = useSettingsToast();
   const servers = useSettingsStore((s) => s.config?.servers ?? []);
 
@@ -53,21 +55,21 @@ export const ServerModals = memo(function ServerModals() {
       if (editingIndex !== null) {
         const serverConfig = buildServerConfigFromAddServerData(data, editingServer);
         await useSettingsStore.getState().updateServer(editingIndex, serverConfig);
-        showMessage('服务器配置已更新', 'success');
+        showMessage(t('toast.serverUpdated'), 'success');
       } else {
         const serverConfig = buildServerConfigFromAddServerData(data);
         await useSettingsStore.getState().addServer(serverConfig);
-        showMessage('服务器已添加', 'success');
+        showMessage(t('toast.serverAdded'), 'success');
       }
     } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : '操作失败', 'error');
+      showMessage(error instanceof Error ? error.message : t('error.operationFailed'), 'error');
     }
   };
 
   return (
     <AddServerSheet
       visible={formVisible}
-      title={editingIndex !== null ? '编辑服务器' : '添加服务器'}
+      title={editingIndex !== null ? t('form.editTitle') : t('form.addTitle')}
       initialData={initialData}
       onClose={closeForm}
       onSave={handleSaveServer}

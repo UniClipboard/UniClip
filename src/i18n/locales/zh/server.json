@@ -1,0 +1,58 @@
+{
+  "sheet": {
+    "addTitle": "添加服务器",
+    "editTitle": "编辑服务器"
+  },
+  "scan": {
+    "action": "扫码连接",
+    "footer": "扫描桌面端的二维码，一键填充以下信息。",
+    "failedTitle": "扫码失败"
+  },
+  "form": {
+    "nameLabel": "名称",
+    "namePlaceholder": "便于辨识的名称",
+    "nameFooter": "将显示在剪贴板顶栏。留空会用服务器地址替代。",
+    "urlLabel": "服务器地址",
+    "urlFooter": "同一服务器可填多个地址（局域网 / Tailscale / 公网），App 会按当前网络自动选用可达的一条；第一条为默认地址。",
+    "addBackupUrl": "添加备用地址",
+    "allowInsecureCert": "允许不安全证书",
+    "credentialsLabel": "凭据",
+    "usernamePlaceholder": "用户名",
+    "passwordPlaceholder": "密码"
+  },
+  "connect": {
+    "sectionLabel": "连接",
+    "test": "测试连接",
+    "retest": "重新测试",
+    "cancelTest": "取消测试",
+    "testing": "正在测试…",
+    "success": "连接成功",
+    "failed": "连接失败",
+    "willUse": "将使用",
+    "resultFooter": "标注「将使用」的地址是当前网络下的首选；网络变化时会自动重选。"
+  },
+  "probe": {
+    "allUnreachable": "所有地址均不可达，请检查网络或服务器地址。",
+    "authFailed": "认证失败，请检查用户名和密码。",
+    "unreachable": "无法连接到服务器。",
+    "missingFields": "请填写完整的连接信息。"
+  },
+  "alert": {
+    "hintTitle": "提示",
+    "errorTitle": "错误",
+    "unknownError": "未知错误",
+    "fillAllFields": "请填写服务器地址、用户名和密码",
+    "fillAllFieldsDot": "请填写服务器地址、用户名和密码。",
+    "fillFieldsFirst": "请先填写服务器地址、用户名和密码",
+    "fillUrlFirst": "请先填写至少一个服务器地址。",
+    "fillCredentialsFirst": "请先填写用户名和密码。",
+    "invalidUrl": "服务器地址格式不正确",
+    "invalidUrlDot": "服务器地址格式不正确。",
+    "cannotConnect": "无法连接到服务器"
+  },
+  "listItem": {
+    "notSet": "未设置",
+    "deleteConfirmTitle": "确认删除",
+    "deleteConfirmMessage": "确定要删除服务器 \"{{name}}\" 吗？"
+  }
+}

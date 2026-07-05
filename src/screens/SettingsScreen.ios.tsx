@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useWindowDimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { Host, BottomSheet, Group, VStack, ZStack } from '@expo/ui/swift-ui';
 import {
   presentationDetents,
@@ -64,6 +65,7 @@ function SubPageSlide({
  * push/pop parallax, mimicking a native navigation stack.
  */
 export const SettingsScreen = () => {
+  const { t } = useTranslation('settings');
   const navigation = useNavigation();
   const { width } = useWindowDimensions();
   const { config, isLoaded, loadConfig, addServer, updateServer } = useSettingsStore();
@@ -168,7 +170,7 @@ export const SettingsScreen = () => {
 
             <AddServerSheet
               visible={showServerForm}
-              title={editingServerIndex !== null ? '编辑服务器' : '添加服务器'}
+              title={editingServerIndex !== null ? t('server.editTitle') : t('server.addTitle')}
               initialData={serverFormInitialData}
               embeddedInHost
               onClose={closeServerForm}

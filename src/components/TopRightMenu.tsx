@@ -15,6 +15,7 @@ import {
   ActionSheetIOS,
 } from 'react-native';
 import { MoreVertical, ChevronRight } from 'react-native-feather';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
 import { spacing, radius, typography, elevation } from '@/theme';
 
@@ -34,6 +35,7 @@ interface TopRightMenuProps {
 }
 
 export const TopRightMenu: React.FC<TopRightMenuProps> = ({ items, onClose }) => {
+  const { t } = useTranslation('common');
   const { theme } = useTheme();
   const [showMenu, setShowMenu] = useState(false);
   const [submenuItems, setSubmenuItems] = useState<MenuItemConfig[] | null>(null);
@@ -43,7 +45,7 @@ export const TopRightMenu: React.FC<TopRightMenuProps> = ({ items, onClose }) =>
   const handleOpenMenu = useCallback(() => {
     if (Platform.OS === 'ios') {
       const options = [
-        '取消',
+        t('action.cancel'),
         ...items.map((item) => (item.submenu ? `${item.label} ▸` : item.label)),
       ];
       const cancelButtonIndex = 0;
@@ -59,7 +61,7 @@ export const TopRightMenu: React.FC<TopRightMenuProps> = ({ items, onClose }) =>
           if (buttonIndex > 0 && buttonIndex <= items.length) {
             const item = items[buttonIndex - 1];
             if (item.submenu) {
-              const submenuOptions = ['返回', ...item.submenu.map((sub) => sub.label)];
+              const submenuOptions = [t('action.back'), ...item.submenu.map((sub) => sub.label)];
               ActionSheetIOS.showActionSheetWithOptions(
                 {
                   options: submenuOptions,
@@ -92,7 +94,7 @@ export const TopRightMenu: React.FC<TopRightMenuProps> = ({ items, onClose }) =>
         setShowMenu(true);
       }
     }
-  }, [items, theme.colors.accent, onClose]);
+  }, [items, theme.colors.accent, onClose, t]);
 
   const handleMenuItemPress = (item: MenuItemConfig) => {
     if (item.disabled) return;

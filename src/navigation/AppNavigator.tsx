@@ -7,6 +7,7 @@ import {
 } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Platform } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { navigationRef } from './navigationRef';
 import { useTheme } from '@/hooks/useTheme';
 import { HomeView } from '@/screens/HomeView';
@@ -31,17 +32,6 @@ export type RootStackParamList = {
 
 const Stack = createStackNavigator<RootStackParamList>();
 
-const SUB_SCREEN_TITLES: Record<SettingsSubSection, string> = {
-  sync: '服务器与同步',
-  history: '历史记录',
-  background: '后台运行',
-  appearance: '外观',
-  sms: '短信转发',
-  storage: '存储',
-  about: '关于',
-  developer: '开发者选项',
-};
-
 function MainScreen() {
   const navigation = useNavigation<any>();
   const openSettings = useCallback(() => {
@@ -52,6 +42,19 @@ function MainScreen() {
 
 export const AppNavigator = () => {
   const { theme } = useTheme();
+  const { t } = useTranslation('home');
+
+  // 子页面标题在组件内按当前语言构建(而非模块级常量),切换语言即时生效
+  const subScreenTitles: Record<SettingsSubSection, string> = {
+    sync: t('nav.sync'),
+    history: t('nav.history'),
+    background: t('nav.background'),
+    appearance: t('nav.appearance'),
+    sms: t('nav.sms'),
+    storage: t('nav.storage'),
+    about: t('nav.about'),
+    developer: t('nav.developer'),
+  };
 
   const navigationTheme = theme.isDark
     ? {
@@ -94,7 +97,7 @@ export const AppNavigator = () => {
                 }
               : {
                   headerShown: true,
-                  title: '设置',
+                  title: t('action.settings', { ns: 'common' }),
                   presentation: 'card',
                   headerStyle: {
                     backgroundColor: theme.colors.surface as string,
@@ -110,7 +113,7 @@ export const AppNavigator = () => {
           component={SettingsSubScreen}
           options={({ route }) => ({
             headerShown: true,
-            title: SUB_SCREEN_TITLES[route.params.section],
+            title: subScreenTitles[route.params.section],
             presentation: 'card',
             headerStyle: {
               backgroundColor: theme.colors.surface as string,

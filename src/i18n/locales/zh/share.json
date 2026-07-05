@@ -1,0 +1,30 @@
+{
+  "receive": {
+    "parsing": "正在解析分享内容…",
+    "saving": "正在保存…",
+    "parseFailed": "解析分享内容失败: {{message}}",
+    "noContent": "没有可处理的分享内容",
+    "emptyText": "分享的文字内容为空",
+    "saveFailed": "保存失败"
+  },
+  "processText": {
+    "loading": "正在上传文字…",
+    "success": "上传成功",
+    "failure": "上传失败",
+    "noServer": "请先在设置中配置服务器"
+  },
+  "upload": {
+    "copying": "正在复制文件…",
+    "hashing": "正在计算哈希…",
+    "uploading": "正在上传…",
+    "recordNotFound": "记录不存在: {{hash}}"
+  },
+  "sms": {
+    "uploading": "正在上传验证码：{{code}}",
+    "retrying": "验证码上传重试中: {{code}}\n第{{attempt}}次失败，{{seconds}}秒后重试…",
+    "failed": "验证码上传失败: {{code}}\n已重试{{count}}次"
+  },
+  "serviceRestart": {
+    "restored": "服务已恢复"
+  }
+}

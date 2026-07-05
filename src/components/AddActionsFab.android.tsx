@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, BackHandler, Platform } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Animated, {
   Easing,
@@ -39,6 +40,7 @@ export function AddActionsFab({
   onSync,
   theme,
 }: AddActionsFabProps) {
+  const { t } = useTranslation('home');
   const insets = useSafeAreaInsets();
   const [mounted, setMounted] = useState(open);
   const progress = useSharedValue(0);
@@ -96,28 +98,28 @@ export function AddActionsFab({
       key: 'photo',
       icon: 'camera',
       color: getDisplayKindColor('image'),
-      label: '拍照',
+      label: t('fab.takePhoto'),
       onPress: onTakePhoto,
     },
     {
       key: 'image',
       icon: 'image',
       color: getDisplayKindColor('image'),
-      label: '相册图片',
+      label: t('fab.pickImage'),
       onPress: onPickImage,
     },
     {
       key: 'file',
       icon: 'document',
       color: getDisplayKindColor('file'),
-      label: '选择文件',
+      label: t('fab.pickFile'),
       onPress: onPickFile,
     },
     {
       key: 'clip',
       icon: 'clipboard',
       color: getDisplayKindColor('text'),
-      label: '上传剪贴板',
+      label: t('fab.uploadClipboard'),
       onPress: onUploadClipboard,
     },
   ];
@@ -137,7 +139,7 @@ export function AddActionsFab({
             style={[StyleSheet.absoluteFill, s.scrimTouch]}
             onPress={() => onOpenChange(false)}
             accessibilityRole="button"
-            accessibilityLabel="关闭菜单"
+            accessibilityLabel={t('a11y.closeMenu')}
           />
         </>
       )}
@@ -146,7 +148,7 @@ export function AddActionsFab({
         onPress={toggleOpen}
         style={[s.fab, { bottom: fabBottom, backgroundColor: theme.colors.accent }]}
         accessibilityRole="button"
-        accessibilityLabel="添加内容"
+        accessibilityLabel={t('a11y.addContent')}
       >
         <Animated.View style={fabIconStyle}>
           <Ionicons name="add" size={28} color={theme.colors.onAccent} />
@@ -183,7 +185,7 @@ export function AddActionsFab({
             <View style={[s.mini, { backgroundColor: theme.colors.textSecondary }]}>
               <Ionicons name="sync" size={18} color={theme.colors.surface} />
             </View>
-            <Text style={[s.label, { color: theme.colors.textPrimary }]}>立即同步</Text>
+            <Text style={[s.label, { color: theme.colors.textPrimary }]}>{t('fab.syncNow')}</Text>
           </Pressable>
         </Animated.View>
       )}

@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { View, Text, StyleSheet, type ColorValue } from 'react-native';
 import { Host, CircularProgressIndicator } from '@expo/ui/jetpack-compose';
 import { useTheme } from '@/hooks/useTheme';
@@ -22,6 +23,7 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
   serverConnected,
 }) => {
   const { theme } = useTheme();
+  const { t } = useTranslation('sync');
 
   const getStatusColor = (): ColorValue => {
     if (!serverConnected) return theme.colors.textTertiary;
@@ -60,20 +62,20 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
   };
 
   const getStatusText = (): string => {
-    if (!serverConnected) return '未连接服务器';
+    if (!serverConnected) return t('status.notConnected');
 
     switch (status) {
       case SyncStatus.Syncing:
-        return '同步中...';
+        return t('status.syncing');
       case SyncStatus.Success:
-        return '已同步';
+        return t('status.synced');
       case SyncStatus.Failed:
-        return '同步失败';
+        return t('status.failed');
       case SyncStatus.Conflict:
-        return '同步冲突';
+        return t('status.conflict');
       case SyncStatus.Idle:
       default:
-        return '等待同步';
+        return t('status.waiting');
     }
   };
 
@@ -83,9 +85,9 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
     const now = Date.now();
     const diff = now - lastSyncTime;
 
-    if (diff < 60000) return '刚刚同步';
-    if (diff < 3600000) return `${Math.floor(diff / 60000)} 分钟前`;
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前`;
+    if (diff < 60000) return t('lastSync.justNow');
+    if (diff < 3600000) return t('lastSync.minutesAgo', { n: Math.floor(diff / 60000) });
+    if (diff < 86400000) return t('lastSync.hoursAgo', { n: Math.floor(diff / 3600000) });
 
     return new Date(lastSyncTime).toLocaleDateString('zh-CN', {
       month: 'short',

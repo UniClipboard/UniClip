@@ -5,6 +5,7 @@
 
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import i18n from '@/i18n';
 
 const STORAGE_KEY = '@statistics';
 const MAX_RECORDS = 5;
@@ -53,10 +54,10 @@ function formatDuration(ms: number): string {
   const days = Math.floor(hours / 24);
 
   const parts: string[] = [];
-  if (days > 0) parts.push(`${days}天`);
-  if (hours % 24 > 0) parts.push(`${hours % 24}小时`);
-  if (minutes % 60 > 0) parts.push(`${minutes % 60}分钟`);
-  if (parts.length === 0) parts.push(`${seconds}秒`);
+  if (days > 0) parts.push(i18n.t('sync:duration.days', { n: days }));
+  if (hours % 24 > 0) parts.push(i18n.t('sync:duration.hours', { n: hours % 24 }));
+  if (minutes % 60 > 0) parts.push(i18n.t('sync:duration.minutes', { n: minutes % 60 }));
+  if (parts.length === 0) parts.push(i18n.t('sync:duration.seconds', { n: seconds }));
 
   return parts.join(' ');
 }
@@ -124,18 +125,23 @@ export const useStatisticsStore = create<StatisticsState>((set, get) => ({
 
   getStatisticsText: () => {
     const { backgroundTaskRecords } = get().data;
-    const lines: string[] = ['=== 统计信息 ===', ''];
+    const lines: string[] = [i18n.t('sync:statistics.header'), ''];
 
     if (backgroundTaskRecords.length === 0) {
-      lines.push('后台任务: 无记录');
+      lines.push(i18n.t('sync:statistics.noRecords'));
     } else {
-      lines.push(`后台任务记录 (最近 ${backgroundTaskRecords.length} 次):`);
+      lines.push(i18n.t('sync:statistics.recordsTitle', { n: backgroundTaskRecords.length }));
       backgroundTaskRecords.forEach((record, index) => {
         const start = new Date(record.startedAt).getTime();
         const last = new Date(record.lastHeartbeat).getTime();
         const duration = formatDuration(last - start);
-        lines.push(`  ${index + 1}. 启动: ${formatTime(record.startedAt)}`);
-        lines.push(`     持续: ${duration}`);
+        lines.push(
+          i18n.t('sync:statistics.recordStart', {
+            index: index + 1,
+            time: formatTime(record.startedAt),
+          })
+        );
+        lines.push(i18n.t('sync:statistics.recordDuration', { duration }));
       });
     }
 

@@ -1,0 +1,11 @@
+{
+  "scanFailed": "Scan failed",
+  "error": {
+    "INVALID_SCHEME": "Not a UniClipboard QR code.",
+    "UNSUPPORTED_VERSION": "Please update the app.",
+    "UNSUPPORTED_SERVICE": "This version doesn't support that service.",
+    "PAYLOAD_DECODE_FAILED": "The QR code is corrupted. Please regenerate it.",
+    "MISSING_FIELD": "The QR code is incomplete. Please regenerate it.",
+    "INVALID_URL": "The server address in the QR code is invalid."
+  }
+}
