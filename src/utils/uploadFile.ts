@@ -1,7 +1,14 @@
 /**
- * uploadFileAndAddToHistory
- * 将本地文件（content:// 或 file:// URI）复制到 temp 目录、写入历史记录并上传到服务器。
- * 供 HomeScreen 右上角"上传文件"菜单和 ShareReceiveScreen 共同调用。
+ * uploadFile — 「保存本地」与「推送服务器」两段式
+ *
+ * 业务语义:上传 = 先落本地(瞬时、必成功) + 后台推送(可失败、可重试)。
+ * - import*ToHistory():只把内容复制/落库为 LocalOnly,立即返回,不碰网络。
+ * - pushHistoryRecord():从本地库读出该记录并推送到服务器,成功后标记 Synced。
+ * - upload*AndAddToHistory():import + push 的组合(保持旧签名,供 ProcessTextScreen 等
+ *   仍需「落库即上传、就地展示结果」的前台路径使用)。
+ *
+ * 前台(HomeView FAB / ShareReceiveScreen)只调 import*,推送交给 BackgroundUploadManager;
+ * 服务端离线时内容已在本地(LocalOnly,卡片显示待上传角标),不会丢失、不阻塞界面。
  */
 
 import { File } from 'expo-file-system';
@@ -10,9 +17,9 @@ import { calculateFileProfileHash, calculateTextHash } from '@/utils/hash';
 import { prepareTempFilePath } from '@/utils/fileStorage';
 import { convertHeicToJpegIfNeeded } from '@/utils/heicToJpeg';
 import { useHistoryStore } from '@/stores/historyStore';
-import { createAPIClient } from '@/services';
+import { createAPIClient, historyStorage } from '@/services';
 import { SyncManager } from '@/services/SyncManager';
-import type { ClipboardContent } from '@/types/clipboard';
+import type { ClipboardContent, ClipboardItem } from '@/types/clipboard';
 import { createDefaultClipboardItem, HistorySyncStatus } from '@/types/clipboard';
 import type { ClipboardContentType } from '@/types/api';
 import type { ServerConfig } from '@/types/api';
@@ -21,6 +28,21 @@ function guessContentType(mimeType: string | null | undefined): ClipboardContent
   if (!mimeType) return 'File';
   if (mimeType.startsWith('image/')) return 'Image';
   return 'File';
+}
+
+/** 本地历史记录 → 上传用 ClipboardContent(供后台推送重建内容,不依赖内存态) */
+function historyItemToContent(item: ClipboardItem): ClipboardContent {
+  return {
+    type: item.type,
+    text: item.text,
+    fileUri: item.fileUri,
+    fileName: item.dataName ?? item.text,
+    fileSize: item.size,
+    profileHash: item.profileHash,
+    localClipboardHash: item.localClipboardHash ?? item.profileHash,
+    hasData: item.hasData,
+    timestamp: item.timestamp,
+  };
 }
 
 export interface UploadFileOptions {
@@ -36,6 +58,10 @@ export interface ImportResult {
   contentType: ClipboardContentType;
 }
 
+/**
+ * 仅落库(文件/图片):复制到 temp、算 hash、写入历史(LocalOnly)。
+ * 不碰网络;返回可用于后台推送的 profileHash。
+ */
 export async function importFileToHistory(
   sourceUri: string,
   fileName: string,
@@ -74,6 +100,9 @@ export async function importFileToHistory(
     })
   );
 
+  // 预先设置 hash，避免轮询/SSE 拉取时把自己刚落库的内容误判为新远程内容触发下载
+  SyncManager.getInstance().setLastUploadedHash(profileHash);
+
   return {
     profileHash,
     fileUri: savedItem.fileUri ?? tempPath,
@@ -83,15 +112,15 @@ export async function importFileToHistory(
   };
 }
 
-export async function uploadTextAndAddToHistory(
+/**
+ * 仅落库(文本):算 hash、写入历史(LocalOnly)。不碰网络;返回 profileHash。
+ */
+export async function importTextToHistory(
   text: string,
-  activeServer: ServerConfig,
   options?: { signal?: AbortSignal }
-): Promise<void> {
+): Promise<{ profileHash: string }> {
   const profileHash = await calculateTextHash(text, options?.signal);
 
-  // 先本地落库（LocalOnly），确保服务端异常（如上传返回 500）时也不丢失内容。
-  // 与图片/文件分享路径（uploadFileAndAddToHistory）保持一致：本地优先、上传其后。
   await useHistoryStore.getState().addItem(
     createDefaultClipboardItem({
       type: 'Text',
@@ -107,25 +136,52 @@ export async function uploadTextAndAddToHistory(
   // 预先设置 hash，避免轮询/SSE 拉取时误判为新远程内容触发自动下载
   SyncManager.getInstance().setLastUploadedHash(profileHash);
 
-  // 上传到服务器：失败会向上抛出（ShareReceiveScreen 展示“处理失败”），
-  // 但本地记录已保存、不会丢失，后续由同步引擎重试推送。
-  const content: ClipboardContent = {
-    type: 'Text',
-    text,
-    profileHash,
-    localClipboardHash: profileHash,
-    hasData: false,
-    timestamp: Date.now(),
-  };
-  const apiClient = createAPIClient(activeServer);
-  await apiClient.putContent(content, { signal: options?.signal });
+  return { profileHash };
+}
 
-  // 上传成功 → 标记已同步
+/**
+ * 推送一条已落库的记录到服务器,成功后标记 Synced。
+ * 从本地库读记录重建内容,因此可用于后台重试与「稍后重推」——不依赖调用方内存态。
+ * 若记录已是 Synced 则直接返回(幂等)。
+ */
+export async function pushHistoryRecord(
+  profileHash: string,
+  activeServer: ServerConfig,
+  options?: UploadFileOptions
+): Promise<void> {
+  const item = await historyStorage.getItem(profileHash);
+  if (!item) throw new Error(`记录不存在: ${profileHash}`);
+  if (item.syncStatus === HistorySyncStatus.Synced) return;
+
+  const content = historyItemToContent(item);
+  const apiClient = createAPIClient(activeServer);
+  options?.onProgress?.('正在上传…');
+  await apiClient.putContent(content, {
+    signal: options?.signal,
+    onProgress: (info) => options?.onProgress?.('正在上传…', info),
+  });
+
   await useHistoryStore
     .getState()
     .updateItem(profileHash, { syncStatus: HistorySyncStatus.Synced });
 }
 
+/**
+ * 落库 + 同步推送文本(前台阻塞式,供 ProcessTextScreen 就地展示结果)。
+ * 本地记录先保存,上传失败向上抛出但内容不丢失,后续由同步引擎/重试补推。
+ */
+export async function uploadTextAndAddToHistory(
+  text: string,
+  activeServer: ServerConfig,
+  options?: { signal?: AbortSignal }
+): Promise<void> {
+  const { profileHash } = await importTextToHistory(text, options);
+  await pushHistoryRecord(profileHash, activeServer, { signal: options?.signal });
+}
+
+/**
+ * 落库 + 同步推送文件(前台阻塞式)。本地先落库,上传失败内容不丢失。
+ */
 export async function uploadFileAndAddToHistory(
   sourceUri: string,
   fileName: string,
@@ -135,30 +191,5 @@ export async function uploadFileAndAddToHistory(
   options?: UploadFileOptions
 ): Promise<void> {
   const result = await importFileToHistory(sourceUri, fileName, mimeType, fileSize, options);
-
-  // 预先设置 hash，避免轮询/SSE 拉取时误判为新远程内容触发自动下载
-  SyncManager.getInstance().setLastUploadedHash(result.profileHash);
-
-  const content: ClipboardContent = {
-    type: result.contentType,
-    text: result.fileName,
-    fileUri: result.fileUri,
-    fileName: result.fileName,
-    fileSize: result.fileSize,
-    profileHash: result.profileHash,
-    localClipboardHash: result.profileHash,
-    hasData: true,
-    timestamp: Date.now(),
-  };
-
-  const apiClient = createAPIClient(activeServer);
-  options?.onProgress?.('正在上传文件…');
-  await apiClient.putContent(content, {
-    signal: options?.signal,
-    onProgress: (info) => options?.onProgress?.('正在上传文件…', info),
-  });
-
-  await useHistoryStore
-    .getState()
-    .updateItem(result.profileHash, { syncStatus: HistorySyncStatus.Synced });
+  await pushHistoryRecord(result.profileHash, activeServer, options);
 }

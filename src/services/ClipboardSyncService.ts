@@ -900,44 +900,6 @@ class ClipboardSyncService {
     }
   }
 
-  /**
-   * 上传文件到服务器（由 HomeScreen 在用户选择文件/图片后触发）。
-   * 上传进度通过 ClipboardSyncServiceStore.fileUploadProgress 更新。
-   * 调用方无需传入 activeServer，服务内部从 store 读取。
-   */
-  async uploadFile(
-    payload: { uri: string; fileName: string; mimeType?: string | null; fileSize?: number },
-    signal: AbortSignal
-  ): Promise<void> {
-    const server = this.activeServer;
-    if (!server) throw new Error('请先在设置中配置服务器');
-
-    const { useClipboardSyncServiceStore } = require('../stores/ClipboardSyncServiceStore');
-    const store = useClipboardSyncServiceStore.getState();
-    store.setFileUploadProgress({ stage: '正在处理文件…', progress: null });
-
-    try {
-      const { uploadFileAndAddToHistory } = await import('../utils/uploadFile');
-      await uploadFileAndAddToHistory(
-        payload.uri,
-        payload.fileName,
-        payload.mimeType,
-        payload.fileSize,
-        server,
-        {
-          signal,
-          onProgress: (stage: string, progressInfo?: import('native-util').ProgressInfo) => {
-            useClipboardSyncServiceStore
-              .getState()
-              .setFileUploadProgress({ stage, progressInfo: progressInfo ?? null });
-          },
-        }
-      );
-    } finally {
-      useClipboardSyncServiceStore.getState().setFileUploadProgress(null);
-    }
-  }
-
   /** WebDAV/S3 直接下载，进度通过 store 更新 */
   private async _downloadForWebDAV(
     server: ServerConfig,

@@ -98,7 +98,10 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
       setErrorMessage(err instanceof Error ? err.message : '操作失败，请重试');
       setState('error');
     }
-  }, [onComplete]);
+    // run 仅用 taskRef/setState(均稳定),不依赖 onComplete。旧代码误加 [onComplete]:
+    // 父组件每次重渲染都传入新的内联 onComplete → run 重建 → 下方 useEffect 重跑 →
+    // cleanup abort 掉正在进行的任务再重启,导致「取消」被自身进度更新架空、任务自循环。
+  }, []);
 
   useEffect(() => {
     run();
@@ -159,7 +162,9 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
           <Host matchContents>
             <CircularProgressIndicator color={theme.colors.accent} />
           </Host>
-          <Text style={[styles.statusText, { color: theme.colors.textPrimary }]}>{loadingText}</Text>
+          <Text style={[styles.statusText, { color: theme.colors.textPrimary }]}>
+            {loadingText}
+          </Text>
           {previewImage && (
             <Image source={{ uri: previewImage }} style={styles.loadingPreviewImage} />
           )}
@@ -180,7 +185,9 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
               </Host>
               <Text style={[styles.progressText, { color: theme.colors.textSecondary }]}>
                 {progress.totalBytes > 0
-                  ? `${(progress.progress * 100).toFixed(0)}% ${formatFileSize(progress.bytesTransferred)} / ${formatFileSize(progress.totalBytes)}`
+                  ? `${(progress.progress * 100).toFixed(0)}% ${formatFileSize(
+                      progress.bytesTransferred
+                    )} / ${formatFileSize(progress.totalBytes)}`
                   : formatFileSize(progress.bytesTransferred)}
               </Text>
             </View>
@@ -199,7 +206,9 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
           {!(successButtons && successButtons.length > 0) && (
             <>
               <Text style={[styles.successIcon, { color: theme.colors.success }]}>✓</Text>
-              <Text style={[styles.statusText, { color: theme.colors.textPrimary }]}>{successText}</Text>
+              <Text style={[styles.statusText, { color: theme.colors.textPrimary }]}>
+                {successText}
+              </Text>
             </>
           )}
           {(successContent !== undefined || (successButtons && successButtons.length > 0)) && (
@@ -245,7 +254,9 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
       {state === 'error' && (
         <>
           <Text style={[styles.errorIcon, { color: theme.colors.error }]}>✗</Text>
-          <Text style={[styles.statusText, { color: theme.colors.textPrimary }]}>{failureText}</Text>
+          <Text style={[styles.statusText, { color: theme.colors.textPrimary }]}>
+            {failureText}
+          </Text>
           {errorMessage && (
             <ScrollView
               style={[

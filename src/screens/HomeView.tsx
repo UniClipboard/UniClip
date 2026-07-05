@@ -27,7 +27,7 @@ import { AnimatedCardGrid, AnimatedCardGridHandle } from '@/components/AnimatedC
 import { useHistoryStore } from '@/stores/historyStore';
 import { useClipboardStore } from '@/stores/clipboardStore';
 import { useSettingsStore } from '@/stores';
-import { useClipboardSyncServiceStore } from '@/stores/ClipboardSyncServiceStore';
+import { BackgroundUploadManager } from '@/services/BackgroundUploadManager';
 import { useMessageStore } from '@/stores/messageStore';
 import { useErrorStore } from '@/stores/errorStore';
 import { useSyncEngineStore, notifyDeviceClipboardChanged } from '@/stores/syncEngineStore';
@@ -50,7 +50,7 @@ import { AddActionsFab } from '@/components/AddActionsFab';
 import { ClipboardCard } from '@/components/ClipboardCard';
 import { ConnectedMessageToast } from '@/components/ConnectedMessageToast';
 import { WordPickerOverlay } from '@/components/WordPickerOverlay';
-import { QuickLoadingPage } from '@/components/QuickLoadingPage';
+import { importFileToHistory } from '@/utils/uploadFile';
 import { copyToLocalClipboard } from '@/utils/clipboard';
 import { DisplayKind, getDisplayKind } from '@/utils/displayKind';
 import { buildActionMenuGroups } from '@/utils/actionMenuItems';
@@ -186,7 +186,6 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
   // message 不在此订阅，交给自隔离的 <ConnectedMessageToast/>，toast 出现/消失只重渲它自身
   const showMessage = useMessageStore((s) => s.showMessage);
   const clearError = useErrorStore((s) => s.clearError);
-  const fileUploadProgress = useClipboardSyncServiceStore((s) => s.fileUploadProgress);
 
   const activeServer = getActiveServer();
   const historySyncEnabled = useMemo(() => isHistorySyncEnabled(config), [config]);
@@ -219,12 +218,6 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
     anchor: CardAnchorRect | null;
   } | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [fileUploadPayload, setFileUploadPayload] = useState<{
-    uri: string;
-    fileName: string;
-    mimeType?: string | null;
-    fileSize?: number;
-  } | null>(null);
 
   const [showServerPicker, setShowServerPicker] = useState(false);
   const [showAddServer, setShowAddServer] = useState(false);
@@ -521,6 +514,32 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
     }
   }, [showMessage, clearError]);
 
+  // 保存并后台上传:先落本地(瞬时、必成功、立刻可见),再把推送交给后台异步重试。
+  // 服务端离线时内容已在本地(卡片显示待上传角标),界面不阻塞、无需干等;取消问题随之消解。
+  const saveAndPush = useCallback(
+    async (payload: {
+      uri: string;
+      fileName: string;
+      mimeType?: string | null;
+      fileSize?: number;
+    }) => {
+      try {
+        const result = await importFileToHistory(
+          payload.uri,
+          payload.fileName,
+          payload.mimeType,
+          payload.fileSize
+        );
+        await loadItems();
+        showMessage('已保存到本地', 'success');
+        BackgroundUploadManager.enqueue(result.profileHash);
+      } catch {
+        showMessage('保存失败', 'error');
+      }
+    },
+    [loadItems, showMessage]
+  );
+
   // Upload file
   const handleUploadFile = useCallback(async () => {
     try {
@@ -528,7 +547,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
       if (result.canceled) return;
       const asset = result.assets?.[0];
       if (!asset) return;
-      setFileUploadPayload({
+      await saveAndPush({
         uri: asset.uri,
         fileName: asset.name || 'file',
         mimeType: asset.mimeType,
@@ -537,7 +556,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
     } catch {
       showMessage('选择文件失败', 'error');
     }
-  }, [showMessage]);
+  }, [saveAndPush, showMessage]);
 
   // Upload image
   const handleUploadImage = useCallback(async () => {
@@ -549,7 +568,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
       if (result.canceled) return;
       const asset = result.assets?.[0];
       if (!asset) return;
-      setFileUploadPayload({
+      await saveAndPush({
         uri: asset.uri,
         fileName: asset.fileName || `image_${Date.now()}.jpg`,
         mimeType: asset.mimeType,
@@ -558,7 +577,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
     } catch {
       showMessage('选择图片失败', 'error');
     }
-  }, [showMessage]);
+  }, [saveAndPush, showMessage]);
 
   // 拍照上传 —— 相机权限已在 app.json 声明(Android CAMERA / iOS expo-camera）
   const handleTakePhoto = useCallback(async () => {
@@ -572,7 +591,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
       if (result.canceled) return;
       const asset = result.assets?.[0];
       if (!asset) return;
-      setFileUploadPayload({
+      await saveAndPush({
         uri: asset.uri,
         fileName: asset.fileName || `photo_${Date.now()}.jpg`,
         mimeType: asset.mimeType,
@@ -581,15 +600,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
     } catch {
       showMessage('拍照失败', 'error');
     }
-  }, [showMessage]);
-
-  const fileUploadTask = useCallback(
-    async (signal: AbortSignal) => {
-      if (!fileUploadPayload) throw new Error('没有可上传的文件');
-      await getClipboardSyncService().uploadFile(fileUploadPayload, signal);
-    },
-    [fileUploadPayload]
-  );
+  }, [saveAndPush, showMessage]);
 
   // Search
   const openSearch = useCallback(() => setIsSearching(true), []);
@@ -745,7 +756,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
       )}
 
       {/* 右下融合操作按钮 + 上传悬浮菜单(默认态;上传进度页占屏时隐藏) */}
-      {!isSelectMode && !isSearching && !fileUploadPayload && (
+      {!isSelectMode && !isSearching && (
         <AddActionsFab
           open={showAddMenu}
           onOpenChange={setShowAddMenu}
@@ -806,23 +817,6 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
           showMessage('服务器已添加', 'success');
         }}
       />
-
-      {fileUploadPayload && (
-        <View style={StyleSheet.absoluteFill}>
-          <QuickLoadingPage
-            task={fileUploadTask}
-            loadingText={fileUploadProgress?.stage ?? '正在处理文件…'}
-            successText="上传成功"
-            failureText="上传失败"
-            onComplete={() => setFileUploadPayload(null)}
-            progress={fileUploadProgress?.progressInfo}
-            previewText={fileUploadPayload.fileName}
-            previewImage={
-              fileUploadPayload.mimeType?.startsWith('image/') ? fileUploadPayload.uri : undefined
-            }
-          />
-        </View>
-      )}
 
       {wordPickerTarget && (
         <WordPickerOverlay

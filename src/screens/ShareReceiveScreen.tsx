@@ -1,18 +1,20 @@
 /**
  * Share Receive Screen
- * 接收分享文件页面 - 当其他 App 分享文件到本 App 时显示
- * UI 和加载/成功/失败/重试逻辑完全复用 QuickTileLoadingScreen
+ * 接收分享文件页面 - 当其他 App 分享文件到本 App 时显示。
+ *
+ * 业务语义:分享 = 先落本地(瞬时、必成功) + 后台推送。解析完成后立即把内容落库
+ * (LocalOnly),把上传交给 BackgroundUploadManager 异步重试,然后立刻返回来源 app——
+ * 不再让用户在「上传中」界面干等,服务端离线也不阻塞(内容已在本地,卡片显示待上传角标)。
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, BackHandler, type ColorValue } from 'react-native';
 import { Host, CircularProgressIndicator } from '@expo/ui/jetpack-compose';
 import { useIncomingShare, clearSharedPayloads, getSharedPayloads } from 'expo-sharing';
 import { useTheme } from '@/hooks/useTheme';
-import { useSettingsStore } from '@/stores/settingsStore';
-import { uploadFileAndAddToHistory, uploadTextAndAddToHistory } from '@/utils/uploadFile';
-import { QuickLoadingPage } from '@/components/QuickLoadingPage';
-import type { ProgressInfo } from 'native-util';
+import { useMessageStore } from '@/stores/messageStore';
+import { importFileToHistory, importTextToHistory } from '@/utils/uploadFile';
+import { BackgroundUploadManager } from '@/services/BackgroundUploadManager';
 import { log } from '@/services/Logger';
 
 interface ShareReceiveScreenProps {
@@ -63,11 +65,10 @@ export const ShareReceiveScreen: React.FC<ShareReceiveScreenProps> = ({ onComple
   const { resolvedSharedPayloads, isResolving, error: resolveError } = useIncomingShare();
   // 挂载时同步读取原始 payload，避免 hook 异步初始化导致误判"没有内容"
   const [hasShareContent] = useState(() => getSharedPayloads().length > 0);
-  const activeServer = useSettingsStore((s) => s.getActiveServer());
-  const [loadingText, setLoadingText] = useState('正在处理文件…');
-  const [progress, setProgress] = useState<ProgressInfo | null>(null);
-  const [previewText, setPreviewText] = useState<string | undefined>(undefined);
-  const [previewImage, setPreviewImage] = useState<string | undefined>(undefined);
+  const showMessage = useMessageStore((s) => s.showMessage);
+  const [savingText, setSavingText] = useState('正在解析分享内容…');
+  // 落库只应执行一次，防止 effect 依赖变化重入
+  const processedRef = useRef(false);
 
   // 挂载时若根本没有分享内容，直接返回（无 payload，按外部分享处理）
   useEffect(() => {
@@ -83,97 +84,83 @@ export const ShareReceiveScreen: React.FC<ShareReceiveScreenProps> = ({ onComple
     const returnToSource = !isScreenshotShare(originalUri);
     if (__DEV__) {
       log.info(
-        `[share] authority=${getContentAuthority(originalUri) ?? 'none'} returnToSource=${returnToSource}`
+        `[share] authority=${
+          getContentAuthority(originalUri) ?? 'none'
+        } returnToSource=${returnToSource}`
       );
     }
     onComplete(returnToSource);
   }, [resolvedSharedPayloads, onComplete]);
 
-  // 上传任务：由 QuickTileLoadingScreen 调用（含重试）
-  const task = useCallback(
-    async (signal: AbortSignal) => {
-      if (resolveError) throw new Error(`解析分享内容失败: ${resolveError.message}`);
-      if (!activeServer) throw new Error('请先在设置中配置服务器');
+  // 解析完成 → 落库(本地即完成) → 入队后台上传 → 立即返回。上传失败不阻塞分享,内容留在本地。
+  useEffect(() => {
+    if (!hasShareContent || processedRef.current) return;
+    if (isResolving) return; // 等 expo-sharing 解析完成
+    processedRef.current = true;
 
-      const payload = resolvedSharedPayloads[0];
-      if (!payload) throw new Error('没有可处理的分享内容');
+    (async () => {
+      try {
+        if (resolveError) throw new Error(`解析分享内容失败: ${resolveError.message}`);
+        const payload = resolvedSharedPayloads[0];
+        if (!payload) throw new Error('没有可处理的分享内容');
 
-      // 文字分享（text / url 类型，contentUri 为 null）
-      // 或 URL 分享（浏览器分享链接时 contentUri 是 https:// 而非本地文件）
-      if (!payload.contentUri || payload.shareType === 'url') {
-        const text = payload.value?.trim() || '';
-        if (!text) throw new Error('分享的文字内容为空');
-        setLoadingText('正在上传文字…');
-        setPreviewText(text.slice(0, 100));
-        await uploadTextAndAddToHistory(text, activeServer, { signal });
-        clearSharedPayloads();
-        return;
-      }
+        setSavingText('正在保存…');
 
-      // 文件分享
-      const contentMime = payload.contentMimeType;
-      let fileName = payload.originalName;
-      if (!fileName) {
-        const ext = getFileExtFromMime(contentMime);
-        fileName = `shared_${Date.now()}${ext}`;
-      }
-      setPreviewText(fileName);
-
-      // 如果是图片类型，设置预览图片
-      if (contentMime?.startsWith('image/')) {
-        setPreviewImage(payload.contentUri);
-      }
-
-      await uploadFileAndAddToHistory(
-        payload.contentUri,
-        fileName,
-        contentMime,
-        undefined,
-        activeServer,
-        {
-          signal,
-          onProgress: (stage, info) => {
-            setLoadingText(stage);
-            setProgress(info ?? null);
-          },
+        // 文字分享（text / url 类型，contentUri 为 null）
+        // 或 URL 分享（浏览器分享链接时 contentUri 是 https:// 而非本地文件）
+        if (!payload.contentUri || payload.shareType === 'url') {
+          const text = payload.value?.trim() || '';
+          if (!text) throw new Error('分享的文字内容为空');
+          const { profileHash } = await importTextToHistory(text);
+          BackgroundUploadManager.enqueue(profileHash);
+        } else {
+          // 文件分享
+          const contentMime = payload.contentMimeType;
+          let fileName = payload.originalName;
+          if (!fileName) {
+            const ext = getFileExtFromMime(contentMime);
+            fileName = `shared_${Date.now()}${ext}`;
+          }
+          const result = await importFileToHistory(
+            payload.contentUri,
+            fileName,
+            contentMime,
+            undefined
+          );
+          BackgroundUploadManager.enqueue(result.profileHash);
         }
-      );
-      clearSharedPayloads();
-    },
-    [resolvedSharedPayloads, activeServer, resolveError]
-  );
+        clearSharedPayloads();
+      } catch (err) {
+        // 落库失败(如解析错误/文件复制失败)才提示;上传失败不在此处(已交后台)。
+        showMessage(err instanceof Error ? err.message : '保存失败', 'error');
+      } finally {
+        handleComplete();
+      }
+    })();
+  }, [
+    hasShareContent,
+    isResolving,
+    resolveError,
+    resolvedSharedPayloads,
+    handleComplete,
+    showMessage,
+  ]);
 
   if (!hasShareContent) return null;
 
-  // 等待 expo-sharing 解析分享内容
-  if (isResolving && !resolveError) {
-    return (
-      <ResolvingView
-        text="正在解析分享内容…"
-        backgroundColor={theme.colors.surface}
-        textColor={theme.colors.textPrimary}
-        primaryColor={theme.colors.accent}
-        onBack={handleComplete}
-      />
-    );
-  }
-
   return (
-    <QuickLoadingPage
-      task={task}
-      loadingText={loadingText}
-      successText="接收并上传成功"
-      failureText="处理失败"
-      onComplete={handleComplete}
-      progress={progress}
-      previewText={previewText}
-      previewImage={previewImage}
+    <SavingView
+      text={savingText}
+      backgroundColor={theme.colors.surface}
+      textColor={theme.colors.textPrimary}
+      primaryColor={theme.colors.accent}
+      onBack={handleComplete}
     />
   );
 };
 
-/** 仅在等待 expo-sharing 解析阶段使用的极简 loading 界面 */
-const ResolvingView: React.FC<{
+/** 解析 / 保存阶段的极简 loading 界面（落库通常很快，随后自动返回来源 app） */
+const SavingView: React.FC<{
   text: string;
   backgroundColor: ColorValue;
   textColor: ColorValue;
