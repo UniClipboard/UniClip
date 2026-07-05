@@ -59,17 +59,17 @@ export const TransferQueueModal: React.FC<TransferQueueModalProps> = ({ visible,
     const statusColor = statusColors[task.status] || theme.colors.textSecondary;
 
     return (
-      <View style={[styles.taskItem, { backgroundColor: theme.colors.surfaceContainerLow }]}>
+      <View style={[styles.taskItem, { backgroundColor: theme.colors.surfaceLow }]}>
         <View style={styles.taskHeader}>
-          <View style={[styles.taskTypeIcon, { backgroundColor: theme.colors.primaryContainer }]}>
+          <View style={[styles.taskTypeIcon, { backgroundColor: theme.colors.accentContainer }]}>
             {task.type === 'upload' ? (
-              <Upload width={16} height={16} color={theme.colors.onPrimaryContainer} />
+              <Upload width={16} height={16} color={theme.colors.onAccentContainer} />
             ) : (
-              <Download width={16} height={16} color={theme.colors.onPrimaryContainer} />
+              <Download width={16} height={16} color={theme.colors.onAccentContainer} />
             )}
           </View>
           <View style={styles.taskInfo}>
-            <Text style={[styles.taskText, { color: theme.colors.text }]} numberOfLines={1}>
+            <Text style={[styles.taskText, { color: theme.colors.textPrimary }]} numberOfLines={1}>
               {displayText}
             </Text>
             <View style={styles.taskStatusRow}>
@@ -117,19 +117,19 @@ export const TransferQueueModal: React.FC<TransferQueueModalProps> = ({ visible,
           )}
         </View>
         {task.status === 'running' && task.progress >= 0 && (
-          <View style={[styles.progressBar, { backgroundColor: theme.colors.outlineVariant }]}>
+          <View style={[styles.progressBar, { backgroundColor: theme.colors.separator }]}>
             <View
               style={[
                 styles.progressFill,
-                { backgroundColor: theme.colors.primary, width: `${task.progress}%` },
+                { backgroundColor: theme.colors.accent, width: `${task.progress}%` },
               ]}
             />
           </View>
         )}
         {task.status === 'running' && task.progress < 0 && (
-          <View style={[styles.progressBar, { backgroundColor: theme.colors.outlineVariant }]}>
+          <View style={[styles.progressBar, { backgroundColor: theme.colors.separator }]}>
             <View
-              style={[styles.progressFillIndeterminate, { backgroundColor: theme.colors.primary }]}
+              style={[styles.progressFillIndeterminate, { backgroundColor: theme.colors.accent }]}
             />
           </View>
         )}
@@ -161,29 +161,29 @@ export const TransferQueueModal: React.FC<TransferQueueModalProps> = ({ visible,
         onPress={onClose}
       >
         <Pressable
-          style={[styles.modalContainer, { backgroundColor: theme.colors.surfaceContainerHigh }]}
+          style={[styles.modalContainer, { backgroundColor: theme.colors.surfaceHigh }]}
           onPress={(e) => e.stopPropagation()}
         >
           {/* M3 sheet drag handle */}
           <View style={styles.dragHandleWrap}>
-            <View style={[styles.dragHandle, { backgroundColor: theme.colors.outlineVariant }]} />
+            <View style={[styles.dragHandle, { backgroundColor: theme.colors.separator }]} />
           </View>
           <View style={styles.header}>
-            <Text style={[styles.title, { color: theme.colors.text }]}>传输队列</Text>
+            <Text style={[styles.title, { color: theme.colors.textPrimary }]}>传输队列</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <X width={24} height={24} color={theme.colors.text} />
+              <X width={24} height={24} color={theme.colors.textPrimary} />
             </TouchableOpacity>
           </View>
 
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
-              <Text style={[styles.statNumber, { color: theme.colors.primary }]}>
+              <Text style={[styles.statNumber, { color: theme.colors.accent }]}>
                 {activeCount}
               </Text>
               <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>传输中</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={[styles.statNumber, { color: theme.colors.text }]}>{pendingCount}</Text>
+              <Text style={[styles.statNumber, { color: theme.colors.textPrimary }]}>{pendingCount}</Text>
               <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>等待中</Text>
             </View>
           </View>

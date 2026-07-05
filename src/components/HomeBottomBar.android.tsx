@@ -10,21 +10,21 @@ export function DefaultBottomBar({
   onSync,
   theme,
 }: DefaultBottomBarProps) {
-  const bg = { backgroundColor: theme.colors.surfaceContainerHigh };
+  const bg = { backgroundColor: theme.colors.surfaceHigh };
   return (
     <View style={s.row}>
       <Pressable onPress={onServerPicker} style={[s.pill, bg]}>
-        <Ionicons name="time-outline" size={16} color={theme.colors.onSurface} />
-        <Text style={[s.pillText, { color: theme.colors.onSurface }]} numberOfLines={1}>
+        <Ionicons name="time-outline" size={16} color={theme.colors.textPrimary} />
+        <Text style={[s.pillText, { color: theme.colors.textPrimary }]} numberOfLines={1}>
           {serverLabel}
         </Text>
-        <Ionicons name="chevron-expand-outline" size={12} color={theme.colors.onSurfaceVariant} />
+        <Ionicons name="chevron-expand-outline" size={12} color={theme.colors.textSecondary} />
       </Pressable>
       <Pressable onPress={onSync} disabled={isSyncing} style={[s.circle, bg]}>
         <Ionicons
           name="sync"
           size={20}
-          color={isSyncing ? theme.colors.onSurfaceVariant : theme.colors.onSurface}
+          color={isSyncing ? theme.colors.textSecondary : theme.colors.textPrimary}
         />
       </Pressable>
     </View>
@@ -38,8 +38,8 @@ export function SelectModeBottomBar({
   onDelete,
   theme,
 }: SelectModeBottomBarProps) {
-  const bg = { backgroundColor: theme.colors.surfaceContainerHigh };
-  const ic = disabled ? theme.colors.outline : theme.colors.onSurface;
+  const bg = { backgroundColor: theme.colors.surfaceHigh };
+  const ic = disabled ? theme.colors.border : theme.colors.textPrimary;
   return (
     <View style={s.selectRow}>
       <Pressable onPress={onCopy} disabled={disabled} style={[s.circle, bg]}>
@@ -52,7 +52,7 @@ export function SelectModeBottomBar({
         <Ionicons
           name="trash-outline"
           size={20}
-          color={disabled ? theme.colors.outline : '#F44336'}
+          color={disabled ? theme.colors.border : '#F44336'}
         />
       </Pressable>
     </View>

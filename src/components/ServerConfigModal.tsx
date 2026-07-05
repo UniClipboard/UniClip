@@ -62,15 +62,15 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
   const fieldColors = {
     focusedContainerColor: 'transparent',
     unfocusedContainerColor: 'transparent',
-    focusedIndicatorColor: theme.colors.primary,
-    unfocusedIndicatorColor: theme.colors.outlineVariant,
-    focusedTextColor: theme.colors.onSurface,
-    unfocusedTextColor: theme.colors.onSurface,
-    focusedPlaceholderColor: theme.colors.onSurfaceVariant,
-    unfocusedPlaceholderColor: theme.colors.onSurfaceVariant,
-    focusedLabelColor: theme.colors.primary,
-    unfocusedLabelColor: theme.colors.onSurfaceVariant,
-    cursorColor: theme.colors.primary,
+    focusedIndicatorColor: theme.colors.accent,
+    unfocusedIndicatorColor: theme.colors.separator,
+    focusedTextColor: theme.colors.textPrimary,
+    unfocusedTextColor: theme.colors.textPrimary,
+    focusedPlaceholderColor: theme.colors.textSecondary,
+    unfocusedPlaceholderColor: theme.colors.textSecondary,
+    focusedLabelColor: theme.colors.accent,
+    unfocusedLabelColor: theme.colors.textSecondary,
+    cursorColor: theme.colors.accent,
   };
 
   const [formKey, setFormKey] = useState(0);
@@ -243,11 +243,11 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           {/* Header: 取消 / 添加服务器 / 保存 */}
-          <View style={[styles.header, { borderBottomColor: theme.colors.outlineVariant }]}>
+          <View style={[styles.header, { borderBottomColor: theme.colors.separator }]}>
             <Pressable onPress={handleClose} style={styles.headerBtn}>
-              <Text style={[styles.headerBtnText, { color: theme.colors.primary }]}>取消</Text>
+              <Text style={[styles.headerBtnText, { color: theme.colors.accent }]}>取消</Text>
             </Pressable>
-            <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>
+            <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
               {isEditing ? '编辑服务器' : '添加服务器'}
             </Text>
             <Pressable onPress={handleSave} disabled={!canSave} style={styles.headerBtn}>
@@ -255,7 +255,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
                 style={[
                   styles.headerBtnText,
                   styles.headerBtnBold,
-                  { color: canSave ? theme.colors.primary : theme.colors.outline },
+                  { color: canSave ? theme.colors.accent : theme.colors.border },
                 ]}
               >
                 保存
@@ -272,20 +272,20 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
             <View style={styles.section}>
               <Pressable
                 onPress={() => setShowScanner(true)}
-                style={[styles.scanRow, { backgroundColor: theme.colors.surfaceContainerLow }]}
+                style={[styles.scanRow, { backgroundColor: theme.colors.surfaceLow }]}
               >
-                <Ionicons name="qr-code-outline" size={20} color={theme.colors.primary} />
-                <Text style={[styles.scanLabel, { color: theme.colors.primary }]}>扫码连接</Text>
-                <Ionicons name="chevron-forward" size={16} color={theme.colors.outline} />
+                <Ionicons name="qr-code-outline" size={20} color={theme.colors.accent} />
+                <Text style={[styles.scanLabel, { color: theme.colors.accent }]}>扫码连接</Text>
+                <Ionicons name="chevron-forward" size={16} color={theme.colors.border} />
               </Pressable>
-              <Text style={[styles.sectionFooter, { color: theme.colors.onSurfaceVariant }]}>
+              <Text style={[styles.sectionFooter, { color: theme.colors.textSecondary }]}>
                 扫描桌面端的二维码，一键填充以下信息。
               </Text>
             </View>
 
             {/* § 名称 */}
             <View style={styles.section}>
-              <Text style={[styles.sectionHeader, { color: theme.colors.onSurfaceVariant }]}>
+              <Text style={[styles.sectionHeader, { color: theme.colors.textSecondary }]}>
                 名称
               </Text>
               <Host matchContents style={styles.fieldHost}>
@@ -303,14 +303,14 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
                   </OutlinedTextField.Placeholder>
                 </OutlinedTextField>
               </Host>
-              <Text style={[styles.sectionFooter, { color: theme.colors.onSurfaceVariant }]}>
+              <Text style={[styles.sectionFooter, { color: theme.colors.textSecondary }]}>
                 将显示在剪贴板顶栏。留空会用服务器地址替代。
               </Text>
             </View>
 
             {/* § 服务器地址 */}
             <View style={styles.section}>
-              <Text style={[styles.sectionHeader, { color: theme.colors.onSurfaceVariant }]}>
+              <Text style={[styles.sectionHeader, { color: theme.colors.textSecondary }]}>
                 服务器地址
               </Text>
               <Host matchContents style={styles.fieldHost}>
@@ -339,7 +339,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
 
             {/* § 凭据 */}
             <View style={styles.section}>
-              <Text style={[styles.sectionHeader, { color: theme.colors.onSurfaceVariant }]}>
+              <Text style={[styles.sectionHeader, { color: theme.colors.textSecondary }]}>
                 凭据
               </Text>
               <Host matchContents style={styles.fieldHost}>
@@ -388,7 +388,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
 
             {/* § 连接 */}
             <View style={styles.section}>
-              <Text style={[styles.sectionHeader, { color: theme.colors.onSurfaceVariant }]}>
+              <Text style={[styles.sectionHeader, { color: theme.colors.textSecondary }]}>
                 连接
               </Text>
               {testResult && (
@@ -424,8 +424,8 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
                   styles.testButton,
                   {
                     backgroundColor: isTesting
-                      ? theme.colors.surfaceContainerHigh
-                      : theme.colors.surfaceContainerLow,
+                      ? theme.colors.surfaceHigh
+                      : theme.colors.surfaceLow,
                   },
                 ]}
               >
@@ -438,8 +438,8 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({
                   </>
                 ) : (
                   <>
-                    <Ionicons name="flash-outline" size={18} color={theme.colors.primary} />
-                    <Text style={[styles.testButtonText, { color: theme.colors.primary }]}>
+                    <Ionicons name="flash-outline" size={18} color={theme.colors.accent} />
+                    <Text style={[styles.testButtonText, { color: theme.colors.accent }]}>
                       {testResult ? '重新测试' : '测试连接'}
                     </Text>
                   </>

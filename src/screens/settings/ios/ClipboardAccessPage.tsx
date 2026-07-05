@@ -1,11 +1,16 @@
 import React, { useState } from 'react';
 import * as Clipboard from 'expo-clipboard';
-import { Button as SwiftUIButton, Section, Text as SwiftUIText, Toggle } from '@expo/ui/swift-ui';
+import { Button as SwiftUIButton, Section, Text as SwiftUIText } from '@expo/ui/swift-ui';
 
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
 import { log } from '@/services/Logger';
 import { useSettingsStore } from '@/stores';
-import { GuideStepRow, HeaderCircleButton, OpenSystemSettingsButton } from './common';
+import {
+  GuideStepRow,
+  HeaderCircleButton,
+  OpenSystemSettingsButton,
+  SettingsToggle,
+} from './common';
 
 /**
  * "Paste from Other Apps" permission guide. iOS 16+ prompts on every
@@ -101,7 +106,7 @@ export function ClipboardAccessPage({ onBack }: { onBack: () => void }) {
               </SwiftUIText>
             }
           >
-            <Toggle
+            <SettingsToggle
               label="自动推送本机剪贴板"
               systemImage="arrow.up.doc"
               isOn={config.autoPushLocal}

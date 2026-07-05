@@ -118,9 +118,9 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose
       edges={['top', 'bottom']}
     >
       <Host matchContents>
-        <CircularProgressIndicator color={theme.colors.primary} />
+        <CircularProgressIndicator color={theme.colors.accent} />
       </Host>
-      <Text style={[styles.dimText, { color: theme.colors.text, marginTop: spacing.md }]}>
+      <Text style={[styles.dimText, { color: theme.colors.textPrimary, marginTop: spacing.md }]}>
         正在请求相机权限…
       </Text>
     </SafeAreaView>
@@ -135,15 +135,15 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose
       >
         <View style={styles.permissionHeader}>
           <TouchableOpacity onPress={onClose} style={styles.permissionBackBtn}>
-            <Text style={[styles.permissionBackText, { color: theme.colors.primary }]}>取消</Text>
+            <Text style={[styles.permissionBackText, { color: theme.colors.accent }]}>取消</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.permissionBody}>
-          <Text style={[styles.permissionTitle, { color: theme.colors.text }]}>需要相机权限</Text>
+          <Text style={[styles.permissionTitle, { color: theme.colors.textPrimary }]}>需要相机权限</Text>
           <Text
             style={[
               styles.permissionDesc,
-              { color: theme.colors.textSecondary ?? theme.colors.text },
+              { color: theme.colors.textSecondary ?? theme.colors.textPrimary },
             ]}
           >
             UniClip 需要访问相机来扫描接入二维码。
@@ -152,19 +152,19 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose
           <View style={styles.permissionActions}>
             {canAskAgain ? (
               <TouchableOpacity
-                style={[styles.primaryBtn, { backgroundColor: theme.colors.primary }]}
+                style={[styles.primaryBtn, { backgroundColor: theme.colors.accent }]}
                 onPress={() => requestPermission()}
               >
-                <Text style={[styles.primaryBtnText, { color: theme.colors.onPrimary }]}>
+                <Text style={[styles.primaryBtnText, { color: theme.colors.onAccent }]}>
                   再次请求权限
                 </Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
-                style={[styles.primaryBtn, { backgroundColor: theme.colors.primary }]}
+                style={[styles.primaryBtn, { backgroundColor: theme.colors.accent }]}
                 onPress={() => Linking.openSettings()}
               >
-                <Text style={[styles.primaryBtnText, { color: theme.colors.onPrimary }]}>
+                <Text style={[styles.primaryBtnText, { color: theme.colors.onAccent }]}>
                   前往系统设置
                 </Text>
               </TouchableOpacity>
@@ -172,11 +172,11 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose
             <TouchableOpacity
               style={[
                 styles.secondaryBtn,
-                { borderColor: theme.colors.outline ?? theme.colors.divider },
+                { borderColor: theme.colors.border ?? theme.colors.separator },
               ]}
               onPress={onClose}
             >
-              <Text style={[styles.secondaryBtnText, { color: theme.colors.text }]}>
+              <Text style={[styles.secondaryBtnText, { color: theme.colors.textPrimary }]}>
                 改为手动填写
               </Text>
             </TouchableOpacity>

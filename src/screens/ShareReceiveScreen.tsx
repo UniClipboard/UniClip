@@ -5,7 +5,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, BackHandler } from 'react-native';
+import { View, Text, StyleSheet, BackHandler, type ColorValue } from 'react-native';
 import { Host, CircularProgressIndicator } from '@expo/ui/jetpack-compose';
 import { useIncomingShare, clearSharedPayloads, getSharedPayloads } from 'expo-sharing';
 import { useTheme } from '@/hooks/useTheme';
@@ -151,8 +151,8 @@ export const ShareReceiveScreen: React.FC<ShareReceiveScreenProps> = ({ onComple
       <ResolvingView
         text="正在解析分享内容…"
         backgroundColor={theme.colors.surface}
-        textColor={theme.colors.text}
-        primaryColor={theme.colors.primary}
+        textColor={theme.colors.textPrimary}
+        primaryColor={theme.colors.accent}
         onBack={handleComplete}
       />
     );
@@ -175,9 +175,9 @@ export const ShareReceiveScreen: React.FC<ShareReceiveScreenProps> = ({ onComple
 /** 仅在等待 expo-sharing 解析阶段使用的极简 loading 界面 */
 const ResolvingView: React.FC<{
   text: string;
-  backgroundColor: string;
-  textColor: string;
-  primaryColor: string;
+  backgroundColor: ColorValue;
+  textColor: ColorValue;
+  primaryColor: ColorValue;
   onBack: () => void;
 }> = ({ text, backgroundColor, textColor, primaryColor, onBack }) => {
   useEffect(() => {

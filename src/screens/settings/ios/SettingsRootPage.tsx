@@ -8,7 +8,6 @@ import {
   Section,
   Spacer,
   Text as SwiftUIText,
-  Toggle,
 } from '@expo/ui/swift-ui';
 import { foregroundStyle, frame, pickerStyle, tag } from '@expo/ui/swift-ui/modifiers';
 import type { SFSymbol } from 'sf-symbols-typescript';
@@ -22,6 +21,7 @@ import {
   chevronColor,
   SettingsIconTile,
   SettingsNavRow,
+  SettingsToggle,
   settingsTileColors,
   statusGreen,
   statusOrange,
@@ -45,7 +45,7 @@ function IconToggleRow({
   return (
     <HStack spacing={12} modifiers={[frame({ maxWidth: Infinity })]}>
       <SettingsIconTile systemName={icon} color={iconColor} />
-      <Toggle label={label} isOn={isOn} onIsOnChange={onIsOnChange} />
+      <SettingsToggle label={label} isOn={isOn} onIsOnChange={onIsOnChange} />
     </HStack>
   );
 }

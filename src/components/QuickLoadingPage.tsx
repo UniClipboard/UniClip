@@ -151,15 +151,15 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
     <View
       style={[
         styles.content,
-        overlayMode && [styles.overlayCard, { backgroundColor: theme.colors.surfaceContainerHigh }],
+        overlayMode && [styles.overlayCard, { backgroundColor: theme.colors.surfaceHigh }],
       ]}
     >
       {state === 'loading' && (
         <>
           <Host matchContents>
-            <CircularProgressIndicator color={theme.colors.primary} />
+            <CircularProgressIndicator color={theme.colors.accent} />
           </Host>
-          <Text style={[styles.statusText, { color: theme.colors.text }]}>{loadingText}</Text>
+          <Text style={[styles.statusText, { color: theme.colors.textPrimary }]}>{loadingText}</Text>
           {previewImage && (
             <Image source={{ uri: previewImage }} style={styles.loadingPreviewImage} />
           )}
@@ -173,8 +173,8 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
               <Host matchContents style={styles.progressHost}>
                 <LinearProgressIndicator
                   progress={progress.totalBytes > 0 ? progress.progress : undefined}
-                  color={theme.colors.primary}
-                  trackColor={theme.colors.border}
+                  color={theme.colors.accent}
+                  trackColor={theme.colors.separator}
                   modifiers={[fillMaxWidth()]}
                 />
               </Host>
@@ -186,7 +186,7 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
             </View>
           )}
           <Host matchContents>
-            <OutlinedButton onClick={handleCancel} colors={{ contentColor: theme.colors.primary }}>
+            <OutlinedButton onClick={handleCancel} colors={{ contentColor: theme.colors.accent }}>
               <ComposeText>取消</ComposeText>
             </OutlinedButton>
           </Host>
@@ -199,7 +199,7 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
           {!(successButtons && successButtons.length > 0) && (
             <>
               <Text style={[styles.successIcon, { color: theme.colors.success }]}>✓</Text>
-              <Text style={[styles.statusText, { color: theme.colors.text }]}>{successText}</Text>
+              <Text style={[styles.statusText, { color: theme.colors.textPrimary }]}>{successText}</Text>
             </>
           )}
           {(successContent !== undefined || (successButtons && successButtons.length > 0)) && (
@@ -211,8 +211,8 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
                       onClick={btn.onPress}
                       modifiers={[fillMaxWidth()]}
                       colors={{
-                        containerColor: theme.colors.primaryContainer,
-                        contentColor: theme.colors.onPrimaryContainer,
+                        containerColor: theme.colors.accentContainer,
+                        contentColor: theme.colors.onAccentContainer,
                       }}
                     >
                       <ComposeText>{btn.label}</ComposeText>
@@ -221,7 +221,7 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
                     <OutlinedButton
                       onClick={btn.onPress}
                       modifiers={[fillMaxWidth()]}
-                      colors={{ contentColor: theme.colors.primary }}
+                      colors={{ contentColor: theme.colors.accent }}
                     >
                       <ComposeText>{btn.label}</ComposeText>
                     </OutlinedButton>
@@ -232,7 +232,7 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
                 <OutlinedButton
                   onClick={onComplete}
                   modifiers={[fillMaxWidth()]}
-                  colors={{ contentColor: theme.colors.primary }}
+                  colors={{ contentColor: theme.colors.accent }}
                 >
                   <ComposeText>返回</ComposeText>
                 </OutlinedButton>
@@ -245,13 +245,13 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
       {state === 'error' && (
         <>
           <Text style={[styles.errorIcon, { color: theme.colors.error }]}>✗</Text>
-          <Text style={[styles.statusText, { color: theme.colors.text }]}>{failureText}</Text>
+          <Text style={[styles.statusText, { color: theme.colors.textPrimary }]}>{failureText}</Text>
           {errorMessage && (
             <ScrollView
               style={[
                 styles.errorDetailScroll,
                 {
-                  borderColor: theme.colors.outlineVariant,
+                  borderColor: theme.colors.separator,
                   backgroundColor: theme.colors.errorContainer,
                 },
               ]}
@@ -267,8 +267,8 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
               <Button
                 onClick={run}
                 colors={{
-                  containerColor: theme.colors.primaryContainer,
-                  contentColor: theme.colors.onPrimaryContainer,
+                  containerColor: theme.colors.accentContainer,
+                  contentColor: theme.colors.onAccentContainer,
                 }}
               >
                 <ComposeText>重试</ComposeText>
@@ -278,14 +278,14 @@ export const QuickLoadingPage: React.FC<QuickLoadingPageProps> = ({
               <Host matchContents>
                 <OutlinedButton
                   onClick={() => Clipboard.setStringAsync(errorMessage)}
-                  colors={{ contentColor: theme.colors.primary }}
+                  colors={{ contentColor: theme.colors.accent }}
                 >
                   <ComposeText>复制</ComposeText>
                 </OutlinedButton>
               </Host>
             )}
             <Host matchContents>
-              <OutlinedButton onClick={onComplete} colors={{ contentColor: theme.colors.primary }}>
+              <OutlinedButton onClick={onComplete} colors={{ contentColor: theme.colors.accent }}>
                 <ComposeText>返回</ComposeText>
               </OutlinedButton>
             </Host>
@@ -330,11 +330,11 @@ const ContentPreview: React.FC<{ content: ClipboardContent }> = ({ content }) =>
       <View
         style={[
           styles.previewTextBox,
-          { backgroundColor: theme.colors.background, borderColor: theme.colors.border },
+          { backgroundColor: theme.colors.background, borderColor: theme.colors.separator },
         ]}
       >
         <Text
-          style={[styles.previewText, { color: theme.colors.text }]}
+          style={[styles.previewText, { color: theme.colors.textPrimary }]}
           numberOfLines={6}
           ellipsizeMode="tail"
         >
@@ -351,11 +351,11 @@ const ContentPreview: React.FC<{ content: ClipboardContent }> = ({ content }) =>
     <View
       style={[
         styles.previewFileBox,
-        { backgroundColor: theme.colors.background, borderColor: theme.colors.border },
+        { backgroundColor: theme.colors.background, borderColor: theme.colors.separator },
       ]}
     >
-      <Text style={[styles.previewFileIcon, { color: theme.colors.primary }]}>📄</Text>
-      <Text style={[styles.previewFileName, { color: theme.colors.text }]} numberOfLines={2}>
+      <Text style={[styles.previewFileIcon, { color: theme.colors.accent }]}>📄</Text>
+      <Text style={[styles.previewFileName, { color: theme.colors.textPrimary }]} numberOfLines={2}>
         {label}
       </Text>
       {size !== '' && (

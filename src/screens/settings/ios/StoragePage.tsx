@@ -7,7 +7,6 @@ import {
   Section,
   Spacer,
   Text as SwiftUIText,
-  Toggle,
 } from '@expo/ui/swift-ui';
 import {
   buttonStyle,
@@ -22,7 +21,7 @@ import {
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
 import { useSettingsStore } from '@/stores';
 import { calculateDirectorySize, clearDirectory, CLIPBOARD_TEMP_DIR } from '@/utils/fileStorage';
-import { HeaderCircleButton } from './common';
+import { HeaderCircleButton, SettingsToggle } from './common';
 
 const CACHE_CAP_OPTIONS = [
   { label: '50 MB', value: 50 * 1024 * 1024 },
@@ -87,14 +86,14 @@ export function StoragePage({ onBack, active = true }: { onBack: () => void; act
           header={<SwiftUIText>预下载</SwiftUIText>}
           footer={<SwiftUIText>开启后，新内容会在后台静默缓存，点击预览无需等待。</SwiftUIText>}
         >
-          <Toggle
+          <SettingsToggle
             label="预下载附件"
             systemImage="icloud.and.arrow.down"
             isOn={prefetchEnabled}
             onIsOnChange={(v) => updateConfig({ attachmentAutoDownload: v ? 'wifi' : 'off' })}
           />
           {prefetchEnabled && (
-            <Toggle
+            <SettingsToggle
               label="蜂窝下也预下载"
               systemImage="antenna.radiowaves.left.and.right"
               isOn={prefetchOnCellular}

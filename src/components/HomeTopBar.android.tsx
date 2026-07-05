@@ -30,6 +30,7 @@ const STATUS_STYLE: Record<ConnectionStatus, { color: string; pulse: boolean; gl
 export function DefaultTopBar({
   serverLabel,
   connectionStatus,
+  onSwitchServer,
   onSearch,
   onSettings,
   onSelectMode,
@@ -39,35 +40,41 @@ export function DefaultTopBar({
   const dimmed = connectionStatus === 'unconfigured' || connectionStatus === 'offline';
   return (
     <View style={s.row}>
-      <View
-        style={s.serverStatus}
-        accessibilityRole="text"
-        accessibilityLabel={`服务器${CONNECTION_STATUS_TEXT[connectionStatus]}，${serverLabel}`}
+      <Pressable
+        onPress={onSwitchServer}
+        style={({ pressed }) => [
+          s.serverStatus,
+          { backgroundColor: theme.colors.surfaceHigh },
+          pressed && { opacity: 0.7 },
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel={`切换服务器，当前${serverLabel}，${CONNECTION_STATUS_TEXT[connectionStatus]}`}
       >
         <ServerStatusDot color={dot.color} pulse={dot.pulse} glow={dot.glow} />
         <Text
           style={[
             s.label,
-            { color: dimmed ? theme.colors.onSurfaceVariant : theme.colors.onSurface },
+            { color: dimmed ? theme.colors.textSecondary : theme.colors.textPrimary },
           ]}
           numberOfLines={1}
         >
           {serverLabel}
         </Text>
-      </View>
+        <Ionicons name="chevron-down" size={16} color={theme.colors.textSecondary} />
+      </Pressable>
       <View style={s.actions}>
         <Pressable
           onPress={onSelectMode}
-          style={[s.pill, { backgroundColor: theme.colors.surfaceContainerHigh }]}
+          style={[s.pill, { backgroundColor: theme.colors.surfaceHigh }]}
         >
-          <Text style={[s.pillText, { color: theme.colors.onSurface }]}>选择</Text>
+          <Text style={[s.pillText, { color: theme.colors.textPrimary }]}>选择</Text>
         </Pressable>
         <Pressable
           onPress={onSearch}
           style={s.iconBtn}
           hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
         >
-          <Ionicons name="search" size={22} color={theme.colors.onSurface} />
+          <Ionicons name="search" size={22} color={theme.colors.textPrimary} />
         </Pressable>
         <TopRightMenu items={[{ label: '设置', onPress: onSettings }]} />
       </View>
@@ -87,7 +94,7 @@ export function SearchTopBar({
   onClose,
   theme,
 }: SearchTopBarProps) {
-  const bg = { backgroundColor: theme.colors.surfaceContainerHigh };
+  const bg = { backgroundColor: theme.colors.surfaceHigh };
   const p = useSharedValue(0);
 
   React.useEffect(() => {
@@ -108,18 +115,18 @@ export function SearchTopBar({
       <View style={s.searchRow}>
         <Animated.View style={[s.boxWrap, boxStyle]}>
           <View style={[s.searchBox, bg]}>
-            <Ionicons name="search" size={16} color={theme.colors.onSurfaceVariant} />
+            <Ionicons name="search" size={16} color={theme.colors.textSecondary} />
             <TextInput
-              style={[s.searchInput, { color: theme.colors.onSurface }]}
+              style={[s.searchInput, { color: theme.colors.textPrimary }]}
               value={searchText}
               onChangeText={onChangeText}
               placeholder="搜索剪贴板"
-              placeholderTextColor={theme.colors.onSurfaceVariant}
+              placeholderTextColor={theme.colors.textSecondary}
               autoFocus
             />
             {searchText.length > 0 && (
               <Pressable onPress={() => onChangeText('')} hitSlop={8}>
-                <Ionicons name="close-circle" size={16} color={theme.colors.onSurfaceVariant} />
+                <Ionicons name="close-circle" size={16} color={theme.colors.textSecondary} />
               </Pressable>
             )}
           </View>
@@ -129,13 +136,13 @@ export function SearchTopBar({
             <Ionicons
               name={hasActiveFilters ? 'filter-circle' : 'filter-circle-outline'}
               size={21}
-              color={hasActiveFilters ? theme.colors.primary : theme.colors.onSurface}
+              color={hasActiveFilters ? theme.colors.accent : theme.colors.textPrimary}
             />
           </Pressable>
         </Animated.View>
         <Animated.View style={closeStyle}>
           <Pressable onPress={onClose} style={[s.circle, bg]}>
-            <Ionicons name="close" size={20} color={theme.colors.onSurface} />
+            <Ionicons name="close" size={20} color={theme.colors.textPrimary} />
           </Pressable>
         </Animated.View>
       </View>
@@ -160,21 +167,21 @@ export function SelectModeTopBar({
 }: SelectModeTopBarProps) {
   return (
     <View style={s.row}>
-      <Text style={[s.selectCount, { color: theme.colors.onSurface }]}>已选择 {count} 项</Text>
+      <Text style={[s.selectCount, { color: theme.colors.textPrimary }]}>已选择 {count} 项</Text>
       <View style={s.actions}>
         <Pressable
           onPress={onSelectAll}
-          style={[s.pill, { backgroundColor: theme.colors.surfaceContainerHigh }]}
+          style={[s.pill, { backgroundColor: theme.colors.surfaceHigh }]}
         >
-          <Text style={[s.pillText, { color: theme.colors.onSurface }]}>
+          <Text style={[s.pillText, { color: theme.colors.textPrimary }]}>
             {allSelected ? '取消全选' : '全选'}
           </Text>
         </Pressable>
         <Pressable
           onPress={onDone}
-          style={[s.pill, { backgroundColor: theme.colors.surfaceContainerHigh }]}
+          style={[s.pill, { backgroundColor: theme.colors.surfaceHigh }]}
         >
-          <Text style={[s.pillText, { color: theme.colors.onSurface }]}>完成</Text>
+          <Text style={[s.pillText, { color: theme.colors.textPrimary }]}>完成</Text>
         </Pressable>
       </View>
     </View>
@@ -183,7 +190,16 @@ export function SelectModeTopBar({
 
 const s = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 52 },
-  serverStatus: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
+  serverStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 1,
+    height: 36,
+    paddingLeft: 12,
+    paddingRight: 10,
+    borderRadius: 18,
+  },
   label: { fontSize: 14, fontWeight: '600' },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconBtn: { justifyContent: 'center', alignItems: 'center' },

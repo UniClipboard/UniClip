@@ -36,20 +36,20 @@ export function HistoryFilterSheet({
           styles.sheet,
           {
             backgroundColor: theme.colors.surface,
-            borderTopColor: theme.colors.outlineVariant,
+            borderTopColor: theme.colors.separator,
           },
         ]}
       >
-        <View style={[styles.handle, { backgroundColor: theme.colors.outlineVariant }]} />
+        <View style={[styles.handle, { backgroundColor: theme.colors.separator }]} />
 
         <View style={styles.header}>
-          <Text style={[styles.title, { color: theme.colors.onSurface }]}>筛选条件</Text>
+          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>筛选条件</Text>
           <View style={styles.headerActions}>
             <Pressable onPress={onClear} style={styles.headerButton}>
-              <Text style={[styles.headerButtonText, { color: theme.colors.primary }]}>重置</Text>
+              <Text style={[styles.headerButtonText, { color: theme.colors.accent }]}>重置</Text>
             </Pressable>
             <Pressable onPress={onClose} style={styles.doneButton}>
-              <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
+              <Ionicons name="checkmark" size={20} color={theme.colors.accent} />
             </Pressable>
           </View>
         </View>
@@ -98,8 +98,8 @@ interface FilterSectionProps {
 function FilterSection({ title, children, theme }: FilterSectionProps) {
   return (
     <View style={styles.section}>
-      <Text style={[styles.sectionTitle, { color: theme.colors.onSurfaceVariant }]}>{title}</Text>
-      <View style={[styles.sectionCard, { backgroundColor: theme.colors.surfaceContainerLow }]}>
+      <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>{title}</Text>
+      <View style={[styles.sectionCard, { backgroundColor: theme.colors.surfaceLow }]}>
         {children}
       </View>
     </View>
@@ -121,12 +121,12 @@ function FilterRow({ label, selected, onPress, theme, icon, iconColor }: FilterR
       onPress={onPress}
       style={({ pressed }) => [
         styles.row,
-        pressed && { backgroundColor: theme.colors.surfaceContainerHigh },
+        pressed && { backgroundColor: theme.colors.surfaceHigh },
       ]}
     >
       {icon ? <Ionicons name={icon as never} size={20} color={iconColor} /> : null}
-      <Text style={[styles.rowLabel, { color: theme.colors.onSurface }]}>{label}</Text>
-      {selected ? <Ionicons name="checkmark" size={20} color={theme.colors.primary} /> : null}
+      <Text style={[styles.rowLabel, { color: theme.colors.textPrimary }]}>{label}</Text>
+      {selected ? <Ionicons name="checkmark" size={20} color={theme.colors.accent} /> : null}
     </Pressable>
   );
 }

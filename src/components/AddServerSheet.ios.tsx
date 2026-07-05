@@ -13,7 +13,6 @@ import {
   Image,
   TextField,
   SecureField,
-  Toggle,
   ProgressView,
   type TextFieldRef,
 } from '@expo/ui/swift-ui';
@@ -30,6 +29,7 @@ import {
   opacity,
 } from '@expo/ui/swift-ui/modifiers';
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
+import { SettingsToggle } from '@/screens/settings/ios/common';
 import { useSettingsStore } from '@/stores';
 import { probe, type ProbeResult } from 'uc-core';
 import { scanQRCode } from 'qr-scanner';
@@ -338,7 +338,7 @@ export function AddServerSheet({
                 </HStack>
               ))}
               <SwiftUIButton systemImage="plus.circle" label="添加备用地址" onPress={addUrl} />
-              <Toggle
+              <SettingsToggle
                 label="允许不安全证书"
                 isOn={trustInsecureCert}
                 onIsOnChange={(v) => updateConfig({ trustInsecureCert: v })}

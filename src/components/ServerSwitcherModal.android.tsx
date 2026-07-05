@@ -5,7 +5,7 @@ import ReanimatedSwipeable, {
   type SwipeableMethods,
 } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { Host, AlertDialog, TextButton, Text as ComposeText } from '@expo/ui/jetpack-compose';
-import { AppBottomSheet } from '@/components/ui';
+import { AppTopSheet } from '@/components/ui';
 import { useSettingsStore } from '@/stores';
 import {
   classifyURL,
@@ -66,23 +66,23 @@ function SwipeActionButtons({
   return (
     <View style={s.swipeActions}>
       {/* ripple 是 Pressable 自己的背景层,裁剪必须放在外层容器 */}
-      <View style={[s.swipeBtnClip, { backgroundColor: c.primaryContainer }]}>
+      <View style={[s.swipeBtnClip, { backgroundColor: c.accentContainer }]}>
         <Pressable
           style={s.swipeBtn}
-          android_ripple={{ color: c.outlineVariant }}
+          android_ripple={{ color: c.separator }}
           onPress={() => {
             methods.close();
             onEdit();
           }}
         >
-          <Ionicons name="create-outline" size={20} color={c.onPrimaryContainer} />
-          <Text style={[s.swipeBtnText, { color: c.onPrimaryContainer }]}>编辑</Text>
+          <Ionicons name="create-outline" size={20} color={c.onAccentContainer} />
+          <Text style={[s.swipeBtnText, { color: c.onAccentContainer }]}>编辑</Text>
         </Pressable>
       </View>
       <View style={[s.swipeBtnClip, { backgroundColor: c.errorContainer }]}>
         <Pressable
           style={s.swipeBtn}
-          android_ripple={{ color: c.outlineVariant }}
+          android_ripple={{ color: c.separator }}
           onPress={() => {
             methods.close();
             onDelete();
@@ -127,34 +127,34 @@ function ServerCard({
       <View
         style={[
           s.cardClip,
-          { backgroundColor: isActive ? c.primaryContainer : c.surfaceContainerLow },
-          isActive && { borderWidth: 1.5, borderColor: c.primary },
+          { backgroundColor: isActive ? c.accentContainer : c.surfaceLow },
+          isActive && { borderWidth: 1.5, borderColor: c.accent },
         ]}
       >
-        <Pressable onPress={onSelect} android_ripple={{ color: c.outlineVariant }} style={s.card}>
+        <Pressable onPress={onSelect} android_ripple={{ color: c.separator }} style={s.card}>
           <Ionicons
             name={isActive ? 'checkmark-circle' : 'ellipse-outline'}
             size={24}
-            color={isActive ? c.primary : c.outline}
+            color={isActive ? c.accent : c.border}
           />
           <View style={s.info}>
             <Text
-              style={[s.name, { color: c.onSurface, fontWeight: isActive ? '700' : '600' }]}
+              style={[s.name, { color: c.textPrimary, fontWeight: isActive ? '700' : '600' }]}
               numberOfLines={1}
             >
               {serverLabel(server)}
             </Text>
-            <Text style={[s.url, { color: c.onSurfaceVariant }]} numberOfLines={1}>
+            <Text style={[s.url, { color: c.textSecondary }]} numberOfLines={1}>
               {server.url}
             </Text>
             <View style={s.tagRow}>
               {tags.map((tag) => (
-                <View key={tag.cls} style={[s.tag, { backgroundColor: c.surfaceContainerHighest }]}>
-                  <Ionicons name={tag.icon} size={11} color={c.onSurfaceVariant} />
-                  <Text style={[s.tagText, { color: c.onSurfaceVariant }]}>{tag.label}</Text>
+                <View key={tag.cls} style={[s.tag, { backgroundColor: c.surfaceHighest }]}>
+                  <Ionicons name={tag.icon} size={11} color={c.textSecondary} />
+                  <Text style={[s.tagText, { color: c.textSecondary }]}>{tag.label}</Text>
                 </View>
               ))}
-              <Text style={[s.count, { color: c.onSurfaceVariant }]}>{count} 个地址</Text>
+              <Text style={[s.count, { color: c.textSecondary }]}>{count} 个地址</Text>
             </View>
           </View>
         </Pressable>
@@ -204,28 +204,28 @@ export function ServerSwitcherModal({
 
   return (
     <>
-      <AppBottomSheet visible={visible} onDismiss={onClose} containerColor={c.surface}>
+      <AppTopSheet visible={visible} onDismiss={onClose} containerColor={c.surface}>
         <View style={[s.content, { maxHeight: windowHeight * 0.62 }]}>
           <View style={s.header}>
             <Pressable onPress={onClose} style={s.headerBtn} hitSlop={8}>
-              <Ionicons name="close" size={22} color={c.onSurface} />
+              <Ionicons name="close" size={22} color={c.textPrimary} />
             </Pressable>
-            <Text style={[s.headerTitle, { color: c.onSurface }]}>服务器</Text>
+            <Text style={[s.headerTitle, { color: c.textPrimary }]}>服务器</Text>
             <Pressable onPress={() => setShowAddSheet(true)} style={s.headerBtn} hitSlop={8}>
-              <Ionicons name="add" size={24} color={c.primary} />
+              <Ionicons name="add" size={24} color={c.accent} />
             </Pressable>
           </View>
 
           {servers.length === 0 ? (
             <View style={s.empty}>
-              <Ionicons name="server-outline" size={40} color={c.outlineVariant} />
-              <Text style={[s.emptyText, { color: c.onSurfaceVariant }]}>还没有服务器</Text>
+              <Ionicons name="server-outline" size={40} color={c.separator} />
+              <Text style={[s.emptyText, { color: c.textSecondary }]}>还没有服务器</Text>
               <Pressable
                 onPress={() => setShowAddSheet(true)}
-                style={[s.addBtn, { backgroundColor: c.primary }]}
+                style={[s.addBtn, { backgroundColor: c.accent }]}
               >
-                <Ionicons name="add" size={18} color={c.onPrimary} />
-                <Text style={[s.addBtnText, { color: c.onPrimary }]}>添加服务器</Text>
+                <Ionicons name="add" size={18} color={c.onAccent} />
+                <Text style={[s.addBtnText, { color: c.onAccent }]}>添加服务器</Text>
               </Pressable>
             </View>
           ) : (
@@ -244,7 +244,7 @@ export function ServerSwitcherModal({
             </ScrollView>
           )}
         </View>
-      </AppBottomSheet>
+      </AppTopSheet>
 
       {/* 删除确认 */}
       {deleteServerTarget && (

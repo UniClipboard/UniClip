@@ -293,7 +293,7 @@ const SettingsScreenInner = () => {
         edges={[]}
       >
         <View style={styles.loadingPlaceholder}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <ActivityIndicator size="large" color={theme.colors.accent} />
         </View>
       </SafeAreaView>
     );

@@ -124,10 +124,10 @@ function TextPreview({ item, maxWidth, maxHeight, theme }: PreviewProps) {
     <View
       style={[
         s.previewCard,
-        { maxWidth, maxHeight, backgroundColor: theme.colors.surfaceContainerLow },
+        { maxWidth, maxHeight, backgroundColor: theme.colors.surfaceLow },
       ]}
     >
-      <Text style={[s.previewText, { color: theme.colors.onSurface }]} numberOfLines={24}>
+      <Text style={[s.previewText, { color: theme.colors.textPrimary }]} numberOfLines={24}>
         {item.text}
       </Text>
     </View>
@@ -144,7 +144,7 @@ function URLPreview({ item, maxWidth, theme }: PreviewProps) {
       style={[
         s.previewCard,
         s.previewNoPadding,
-        { width, backgroundColor: theme.colors.surfaceContainerLow },
+        { width, backgroundColor: theme.colors.surfaceLow },
       ]}
     >
       {metadata?.ogImageUrl ? (
@@ -156,7 +156,7 @@ function URLPreview({ item, maxWidth, theme }: PreviewProps) {
       )}
       <View style={s.urlInfo}>
         {metadata?.title ? (
-          <Text style={[s.urlTitle, { color: theme.colors.onSurface }]} numberOfLines={2}>
+          <Text style={[s.urlTitle, { color: theme.colors.textPrimary }]} numberOfLines={2}>
             {metadata.title}
           </Text>
         ) : null}
@@ -199,7 +199,7 @@ function ImagePreview({ item, maxWidth, maxHeight, theme }: PreviewProps) {
           {
             width: Math.min(maxWidth, 260),
             height: 180,
-            backgroundColor: theme.colors.surfaceContainerLow,
+            backgroundColor: theme.colors.surfaceLow,
           },
         ]}
       >
@@ -220,7 +220,7 @@ function ImagePreview({ item, maxWidth, maxHeight, theme }: PreviewProps) {
       style={[
         s.previewCard,
         s.previewNoPadding,
-        { width, height, backgroundColor: theme.colors.surfaceContainerLow },
+        { width, height, backgroundColor: theme.colors.surfaceLow },
       ]}
     >
       <Image source={{ uri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
@@ -235,7 +235,7 @@ function FilePreview({ item, displayKind, maxWidth, theme }: PreviewProps) {
       style={[
         s.previewCard,
         s.filePreview,
-        { width: Math.min(maxWidth, 240), backgroundColor: theme.colors.surfaceContainerLow },
+        { width: Math.min(maxWidth, 240), backgroundColor: theme.colors.surfaceLow },
       ]}
     >
       <Ionicons
@@ -243,11 +243,11 @@ function FilePreview({ item, displayKind, maxWidth, theme }: PreviewProps) {
         size={44}
         color={kindColor}
       />
-      <Text style={[s.fileName, { color: theme.colors.onSurface }]} numberOfLines={2}>
+      <Text style={[s.fileName, { color: theme.colors.textPrimary }]} numberOfLines={2}>
         {item.dataName || item.text}
       </Text>
       {item.size ? (
-        <Text style={[s.fileSize, { color: theme.colors.onSurfaceVariant }]}>
+        <Text style={[s.fileSize, { color: theme.colors.textSecondary }]}>
           {formatFileSize(item.size)}
         </Text>
       ) : null}
@@ -267,20 +267,20 @@ function ActionMenu({
   onAction: (action: ActionMenuItem) => void;
 }) {
   return (
-    <View style={[s.menu, { backgroundColor: theme.colors.surfaceContainerHigh }]}>
+    <View style={[s.menu, { backgroundColor: theme.colors.surfaceHigh }]}>
       {groups.map((group, groupIndex) => (
         <React.Fragment key={group[0]?.key ?? groupIndex}>
           {groupIndex > 0 && (
-            <View style={[s.groupSeparator, { backgroundColor: theme.colors.outlineVariant }]} />
+            <View style={[s.groupSeparator, { backgroundColor: theme.colors.separator }]} />
           )}
           {group.map((action) => {
-            const color = action.destructive ? theme.colors.error : theme.colors.onSurface;
+            const color = action.destructive ? theme.colors.error : theme.colors.textPrimary;
             return (
               <Pressable
                 key={action.key}
                 onPress={() => onAction(action)}
                 accessibilityRole="button"
-                android_ripple={{ color: theme.colors.outlineVariant }}
+                android_ripple={{ color: theme.colors.separator }}
                 style={s.row}
               >
                 <Ionicons name={action.icon as any} size={20} color={color} />

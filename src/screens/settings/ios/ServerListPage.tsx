@@ -8,7 +8,6 @@ import {
   Section,
   Spacer,
   Text as SwiftUIText,
-  Toggle,
   VStack,
 } from '@expo/ui/swift-ui';
 import {
@@ -22,7 +21,7 @@ import {
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
 import { useSettingsStore } from '@/stores';
 import type { ServerConfig } from '@/types/api';
-import { chevronColor, HeaderCircleButton } from './common';
+import { chevronColor, HeaderCircleButton, SettingsToggle } from './common';
 
 function getServerDisplayName(config: ServerConfig): string {
   if (config.name) return config.name;
@@ -119,7 +118,7 @@ export function ServerListPage({
             </SwiftUIText>
           }
         >
-          <Toggle
+          <SettingsToggle
             label="允许不安全证书"
             systemImage="lock.open"
             isOn={config.trustInsecureCert}

@@ -2,6 +2,7 @@ import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import {
   View,
   Text,
+  Pressable,
   StyleSheet,
   RefreshControl,
   Share,
@@ -17,7 +18,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { iosColors } from '@/theme/iosDesignTokens';
 import * as Haptics from 'expo-haptics';
 import { DefaultTopBar, SearchTopBar, SelectModeTopBar } from '@/components/HomeTopBar';
-import { DefaultBottomBar, SelectModeBottomBar } from '@/components/HomeBottomBar';
+import { SelectModeBottomBar } from '@/components/HomeBottomBar';
 import { ServerSwitcherModal } from '@/components/ServerSwitcherModal';
 import { CardContextOverlay } from '@/components/CardContextOverlay';
 import type { CardAnchorRect } from '@/components/CardContextOverlay.types';
@@ -29,7 +30,7 @@ import { useSettingsStore } from '@/stores';
 import { useClipboardSyncServiceStore } from '@/stores/ClipboardSyncServiceStore';
 import { useMessageStore } from '@/stores/messageStore';
 import { useErrorStore } from '@/stores/errorStore';
-import { useSyncEngineStore } from '@/stores/syncEngineStore';
+import { useSyncEngineStore, notifyDeviceClipboardChanged } from '@/stores/syncEngineStore';
 import { deriveConnectionStatus } from '@/utils/connectionStatus';
 import { historyStorage } from '@/services';
 import { getClipboardSyncService } from '@/services/ClipboardSyncService';
@@ -45,6 +46,7 @@ import {
   HistorySyncStatus,
 } from '@/types/clipboard';
 import { AddServerSheet } from '@/components/AddServerSheet';
+import { AddActionsFab } from '@/components/AddActionsFab';
 import { ClipboardCard } from '@/components/ClipboardCard';
 import { ConnectedMessageToast } from '@/components/ConnectedMessageToast';
 import { WordPickerOverlay } from '@/components/WordPickerOverlay';
@@ -226,6 +228,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
 
   const [showServerPicker, setShowServerPicker] = useState(false);
   const [showAddServer, setShowAddServer] = useState(false);
+  const [showAddMenu, setShowAddMenu] = useState(false);
 
   const servers = getServers();
   const activeServerIndex = config?.activeServerIndex ?? -1;
@@ -304,6 +307,9 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
     const result = await copyToLocalClipboard(content);
     if (result.success) {
       useClipboardStore.getState().setCurrentContentDisplay(content);
+      // 用户主动使用某项 = 一次明确的激活:直接发 activate 事件驱动同步(写 activate 寄存器、
+      // 带回该项 content_id、forceTick),不再依赖 ClipboardMonitor 的被动读/抑制机制。
+      void notifyDeviceClipboardChanged(content);
       // 等待重新定位落盘，让飞入动画能尽快拿到确认后的排序结果，减少起飞前的等待
       await historyStorage.updateLastAccessed(item.profileHash);
     }
@@ -554,6 +560,29 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
     }
   }, [showMessage]);
 
+  // 拍照上传 —— 相机权限已在 app.json 声明(Android CAMERA / iOS expo-camera）
+  const handleTakePhoto = useCallback(async () => {
+    try {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) {
+        showMessage('需要相机权限', 'error');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1 });
+      if (result.canceled) return;
+      const asset = result.assets?.[0];
+      if (!asset) return;
+      setFileUploadPayload({
+        uri: asset.uri,
+        fileName: asset.fileName || `photo_${Date.now()}.jpg`,
+        mimeType: asset.mimeType,
+        fileSize: asset.fileSize,
+      });
+    } catch {
+      showMessage('拍照失败', 'error');
+    }
+  }, [showMessage]);
+
   const fileUploadTask = useCallback(
     async (signal: AbortSignal) => {
       if (!fileUploadPayload) throw new Error('没有可上传的文件');
@@ -645,6 +674,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
           <DefaultTopBar
             serverLabel={activeServerLabel}
             connectionStatus={connectionStatus}
+            onSwitchServer={() => setShowServerPicker(true)}
             onSearch={openSearch}
             onSettings={onOpenSettings}
             theme={theme}
@@ -659,13 +689,24 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
       {/* Grid or Empty */}
       {items.length === 0 ? (
         <View style={styles.emptyState}>
-          <Ionicons name="clipboard-outline" size={48} color={theme.colors.onSurfaceVariant} />
-          <Text style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>
+          <Ionicons name="clipboard-outline" size={48} color={theme.colors.textSecondary} />
+          <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>
             还没有同步过剪贴板
           </Text>
-          <Text style={[styles.emptyDesc, { color: theme.colors.onSurfaceVariant }]}>
-            服务器的新内容会自动出现在这里
+          <Text style={[styles.emptyDesc, { color: theme.colors.textSecondary }]}>
+            上传一张图片或文件，或等待服务器同步
           </Text>
+          <Pressable
+            onPress={() => setShowAddMenu(true)}
+            style={[styles.emptyCta, { backgroundColor: theme.colors.accent }]}
+            accessibilityRole="button"
+            accessibilityLabel="上传第一条内容"
+          >
+            <Ionicons name="cloud-upload-outline" size={18} color={theme.colors.onAccent} />
+            <Text style={[styles.emptyCtaText, { color: theme.colors.onAccent }]}>
+              上传第一条内容
+            </Text>
+          </Pressable>
         </View>
       ) : (
         <AnimatedCardGrid
@@ -683,16 +724,16 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              tintColor={Platform.OS === 'ios' ? undefined : theme.colors.primary}
-              colors={[theme.colors.primary]}
+              tintColor={Platform.OS === 'ios' ? undefined : theme.colors.accent}
+              colors={[theme.colors.accent]}
             />
           }
         />
       )}
 
-      {/* Bottom Bar */}
-      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 10 }]}>
-        {isSelectMode ? (
+      {/* 多选底栏(默认态由右下 FAB 取代) */}
+      {isSelectMode && (
+        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 10 }]}>
           <SelectModeBottomBar
             disabled={selectedIds.size === 0}
             onCopy={handleBatchCopy}
@@ -700,16 +741,22 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
             onDelete={handleBatchDelete}
             theme={theme}
           />
-        ) : (
-          <DefaultBottomBar
-            serverLabel={activeServerLabel}
-            isSyncing={isSyncing}
-            onServerPicker={() => setShowServerPicker(true)}
-            onSync={handleSyncHistory}
-            theme={theme}
-          />
-        )}
-      </View>
+        </View>
+      )}
+
+      {/* 右下融合操作按钮 + 上传悬浮菜单(默认态;上传进度页占屏时隐藏) */}
+      {!isSelectMode && !isSearching && !fileUploadPayload && (
+        <AddActionsFab
+          open={showAddMenu}
+          onOpenChange={setShowAddMenu}
+          onTakePhoto={handleTakePhoto}
+          onPickImage={handleUploadImage}
+          onPickFile={handleUploadFile}
+          onUploadClipboard={handleUpload}
+          onSync={handleSyncHistory}
+          theme={theme}
+        />
+      )}
 
       <ConnectedMessageToast />
 
@@ -821,6 +868,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  emptyCta: {
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+    borderRadius: 999,
+  },
+  emptyCtaText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   bottomBar: {
     position: 'absolute',

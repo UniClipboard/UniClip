@@ -79,10 +79,10 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
           styles.container,
           {
             backgroundColor: isActive
-              ? theme.colors.primaryContainer
-              : theme.colors.surfaceContainerLow,
+              ? theme.colors.accentContainer
+              : theme.colors.surfaceLow,
           },
-          isActive && { borderWidth: 1.5, borderColor: theme.colors.primary },
+          isActive && { borderWidth: 1.5, borderColor: theme.colors.accent },
         ]}
         onPress={onPress}
         activeOpacity={0.7}
@@ -90,7 +90,7 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
         {/* 服务器信息 */}
         <View style={styles.content}>
           <View style={styles.mainInfo}>
-            <Text style={[styles.serverName, { color: theme.colors.text }]} numberOfLines={1}>
+            <Text style={[styles.serverName, { color: theme.colors.textPrimary }]} numberOfLines={1}>
               {getServerDisplayName(config)}
             </Text>
             <View
@@ -133,13 +133,13 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
         {/* 操作按钮 — M3 Filled Tonal */}
         <View style={styles.actions}>
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: theme.colors.primaryContainer }]}
+            style={[styles.actionButton, { backgroundColor: theme.colors.accentContainer }]}
             onPress={(e) => {
               e.stopPropagation();
               onEdit();
             }}
           >
-            <Text style={[styles.actionButtonText, { color: theme.colors.onPrimaryContainer }]}>
+            <Text style={[styles.actionButtonText, { color: theme.colors.onAccentContainer }]}>
               编辑
             </Text>
           </TouchableOpacity>

@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, type ColorValue } from 'react-native';
 import { Host, CircularProgressIndicator } from '@expo/ui/jetpack-compose';
 import { useTheme } from '@/hooks/useTheme';
 import { spacing, typography } from '@/theme';
@@ -23,12 +23,12 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
 }) => {
   const { theme } = useTheme();
 
-  const getStatusColor = (): string => {
+  const getStatusColor = (): ColorValue => {
     if (!serverConnected) return theme.colors.textTertiary;
 
     switch (status) {
       case SyncStatus.Syncing:
-        return theme.colors.primary;
+        return theme.colors.accent;
       case SyncStatus.Success:
         return '#4CAF50'; // Green
       case SyncStatus.Failed:
@@ -115,7 +115,7 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
           <View style={styles.textContainer}>
             <Text style={[styles.statusText, { color: statusColor }]}>{statusText}</Text>
             {timeText && (
-              <Text style={[styles.timeText, { color: theme.colors.onSurfaceVariant }]}>
+              <Text style={[styles.timeText, { color: theme.colors.textSecondary }]}>
                 {timeText}
               </Text>
             )}
@@ -128,7 +128,7 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
             style={[
               styles.dot,
               {
-                backgroundColor: serverConnected ? theme.colors.success : theme.colors.outline,
+                backgroundColor: serverConnected ? theme.colors.success : theme.colors.border,
               },
             ]}
           />

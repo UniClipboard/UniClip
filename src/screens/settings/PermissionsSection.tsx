@@ -66,13 +66,13 @@ export const PermissionsSection = memo(function PermissionsSection() {
     <>
       <View style={styles.section}>
         <View style={[styles.sectionHeaderBase, styles.sectionHeaderRow]}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>权限管理</Text>
+          <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>权限管理</Text>
           <TouchableOpacity
             style={styles.iconButton}
             onPress={refreshPermissions}
             disabled={isRefreshingPermissions}
           >
-            <RefreshCw color={theme.colors.primary} width={16} height={16} />
+            <RefreshCw color={theme.colors.accent} width={16} height={16} />
           </TouchableOpacity>
         </View>
 

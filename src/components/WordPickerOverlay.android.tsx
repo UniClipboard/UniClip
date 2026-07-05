@@ -1,5 +1,13 @@
 import React, { useRef } from 'react';
-import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import {
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+  type ColorValue,
+} from 'react-native';
 import Animated from 'react-native-reanimated';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { GestureDetector, GestureHandlerRootView, ScrollView } from 'react-native-gesture-handler';
@@ -54,11 +62,11 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
             <View style={[s.topBar, { paddingTop: insets.top + 8 }]}>
               <Pressable
                 onPress={() => t.close()}
-                style={[s.closeButton, { backgroundColor: colors.surfaceContainerHigh }]}
+                style={[s.closeButton, { backgroundColor: colors.surfaceHigh }]}
                 accessibilityRole="button"
                 accessibilityLabel="关闭"
               >
-                <Ionicons name="close" size={22} color={colors.onSurface} />
+                <Ionicons name="close" size={22} color={colors.textPrimary} />
               </Pressable>
               <GranularityToggle
                 value={picker.granularity}
@@ -68,13 +76,13 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
             </View>
 
             {picker.truncated && (
-              <Text style={[s.banner, { color: colors.onSurfaceVariant }]}>
+              <Text style={[s.banner, { color: colors.textSecondary }]}>
                 文本过长，仅显示前 5000 字
               </Text>
             )}
 
             {picker.status === 'preparing' ? (
-              <SkeletonRows color={colors.surfaceContainerHigh} />
+              <SkeletonRows color={colors.surfaceHigh} />
             ) : picker.hasSelectableTokens ? (
               <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent}>
                 <GestureDetector gesture={picker.paintGesture}>
@@ -104,24 +112,18 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
               </ScrollView>
             ) : (
               <View style={s.emptyWrap}>
-                <Text style={[s.emptyText, { color: colors.onSurfaceVariant }]}>
-                  没有可选择的文本
-                </Text>
+                <Text style={[s.emptyText, { color: colors.textSecondary }]}>没有可选择的文本</Text>
               </View>
             )}
 
             <Pressable onPress={preview.toggle} disabled={!hasSelection}>
               <Animated.View
-                style={[
-                  s.previewBar,
-                  { backgroundColor: colors.surfaceContainerHigh },
-                  preview.barStyle,
-                ]}
+                style={[s.previewBar, { backgroundColor: colors.surfaceHigh }, preview.barStyle]}
               >
                 {hasSelection ? (
                   <View style={[s.previewRow, preview.expanded && s.previewRowExpanded]}>
-                    <View style={[s.countBadge, { backgroundColor: colors.primary }]}>
-                      <Text style={[s.countText, { color: colors.onPrimary }]}>
+                    <View style={[s.countBadge, { backgroundColor: colors.accent }]}>
+                      <Text style={[s.countText, { color: colors.onAccent }]}>
                         {picker.selectedCount}
                       </Text>
                     </View>
@@ -130,13 +132,13 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
                         style={[s.previewScroll, { maxHeight: previewMaxHeight - 48 }]}
                         nestedScrollEnabled
                       >
-                        <Text style={[s.previewText, { color: colors.onSurface }]}>
+                        <Text style={[s.previewText, { color: colors.textPrimary }]}>
                           {picker.previewText}
                         </Text>
                       </ScrollView>
                     ) : (
                       <Text
-                        style={[s.previewText, s.previewTextFill, { color: colors.onSurface }]}
+                        style={[s.previewText, s.previewTextFill, { color: colors.textPrimary }]}
                         numberOfLines={2}
                         ellipsizeMode="tail"
                       >
@@ -144,13 +146,13 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
                       </Text>
                     )}
                     <Animated.View style={preview.chevronStyle}>
-                      <Ionicons name="chevron-up" size={16} color={colors.onSurfaceVariant} />
+                      <Ionicons name="chevron-up" size={16} color={colors.textSecondary} />
                     </Animated.View>
                   </View>
                 ) : (
                   <View style={s.previewRow}>
                     <Text
-                      style={[s.previewText, s.previewTextFill, { color: colors.onSurfaceVariant }]}
+                      style={[s.previewText, s.previewTextFill, { color: colors.textSecondary }]}
                     >
                       点按或滑动选择文字
                     </Text>
@@ -163,13 +165,13 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
               <Pressable
                 onPress={picker.toggleSelectAll}
                 disabled={!picker.hasSelectableTokens}
-                style={[s.sideButton, { backgroundColor: colors.surfaceContainerHigh }]}
+                style={[s.sideButton, { backgroundColor: colors.surfaceHigh }]}
                 accessibilityRole="button"
               >
                 <Text
                   style={[
                     s.sideButtonText,
-                    { color: picker.hasSelectableTokens ? colors.onSurface : colors.outline },
+                    { color: picker.hasSelectableTokens ? colors.textPrimary : colors.border },
                   ]}
                 >
                   {picker.allSelected ? '取消全选' : '全选'}
@@ -180,19 +182,19 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
                 disabled={!hasSelection}
                 style={[
                   s.copyButton,
-                  { backgroundColor: hasSelection ? colors.primary : colors.surfaceContainerHigh },
+                  { backgroundColor: hasSelection ? colors.accent : colors.surfaceHigh },
                 ]}
                 accessibilityRole="button"
               >
                 <Ionicons
                   name="copy-outline"
                   size={18}
-                  color={hasSelection ? colors.onPrimary : colors.outline}
+                  color={hasSelection ? colors.onAccent : colors.border}
                 />
                 <Text
                   style={[
                     s.copyButtonText,
-                    { color: hasSelection ? colors.onPrimary : colors.outline },
+                    { color: hasSelection ? colors.onAccent : colors.border },
                   ]}
                 >
                   复制
@@ -201,14 +203,14 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
               <Pressable
                 onPress={picker.shareSelected}
                 disabled={!hasSelection}
-                style={[s.circleButton, { backgroundColor: colors.surfaceContainerHigh }]}
+                style={[s.circleButton, { backgroundColor: colors.surfaceHigh }]}
                 accessibilityRole="button"
                 accessibilityLabel="分享"
               >
                 <Ionicons
                   name="share-outline"
                   size={20}
-                  color={hasSelection ? colors.onSurface : colors.outline}
+                  color={hasSelection ? colors.textPrimary : colors.border}
                 />
               </Pressable>
             </View>
@@ -232,21 +234,21 @@ function GranularityToggle({
   colors: ColorScheme;
 }) {
   return (
-    <View style={[s.segTrack, { backgroundColor: colors.surfaceContainerHigh }]}>
+    <View style={[s.segTrack, { backgroundColor: colors.surfaceHigh }]}>
       {(['word', 'char'] as const).map((g) => {
         const active = value === g;
         return (
           <Pressable
             key={g}
             onPress={() => onChange(g)}
-            style={[s.segItem, active && { backgroundColor: colors.secondaryContainer }]}
+            style={[s.segItem, active && { backgroundColor: colors.accentContainer }]}
             accessibilityRole="button"
             accessibilityState={{ selected: active }}
           >
             <Text
               style={[
                 s.segText,
-                { color: active ? colors.onSecondaryContainer : colors.onSurfaceVariant },
+                { color: active ? colors.onAccentContainer : colors.textSecondary },
               ]}
             >
               {g === 'word' ? '分词' : '逐字'}
@@ -258,7 +260,7 @@ function GranularityToggle({
   );
 }
 
-function SkeletonRows({ color }: { color: string }) {
+function SkeletonRows({ color }: { color: ColorValue }) {
   return (
     <View style={s.skeletonWrap}>
       {(['92%', '78%', '86%', '60%'] as const).map((width, i) => (
@@ -293,12 +295,12 @@ const TokenTile = React.memo(function TokenTile({
       accessibilityState={{ selected: isSelected }}
       style={({ pressed }) => [
         s.tile,
-        { backgroundColor: isSelected ? colors.primary : colors.surfaceContainerHigh },
+        { backgroundColor: isSelected ? colors.accent : colors.surfaceHigh },
         pressed && s.tilePressed,
       ]}
     >
       <Text
-        style={[s.tileText, { color: isSelected ? colors.onPrimary : colors.onSurface }]}
+        style={[s.tileText, { color: isSelected ? colors.onAccent : colors.textPrimary }]}
         numberOfLines={1}
         ellipsizeMode="middle"
       >

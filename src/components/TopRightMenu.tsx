@@ -53,7 +53,7 @@ export const TopRightMenu: React.FC<TopRightMenuProps> = ({ items, onClose }) =>
           options,
           cancelButtonIndex,
           destructiveButtonIndex: items.findIndex((item) => item.destructive) + 1,
-          tintColor: theme.colors.primary,
+          tintColor: theme.colors.accent,
         },
         (buttonIndex) => {
           if (buttonIndex > 0 && buttonIndex <= items.length) {
@@ -64,7 +64,7 @@ export const TopRightMenu: React.FC<TopRightMenuProps> = ({ items, onClose }) =>
                 {
                   options: submenuOptions,
                   cancelButtonIndex: 0,
-                  tintColor: theme.colors.primary,
+                  tintColor: theme.colors.accent,
                 },
                 (subIndex) => {
                   if (subIndex > 0 && subIndex <= item.submenu!.length) {
@@ -92,7 +92,7 @@ export const TopRightMenu: React.FC<TopRightMenuProps> = ({ items, onClose }) =>
         setShowMenu(true);
       }
     }
-  }, [items, theme.colors.primary, onClose]);
+  }, [items, theme.colors.accent, onClose]);
 
   const handleMenuItemPress = (item: MenuItemConfig) => {
     if (item.disabled) return;
@@ -133,7 +133,7 @@ export const TopRightMenu: React.FC<TopRightMenuProps> = ({ items, onClose }) =>
               color: item.disabled
                 ? theme.colors.textTertiary
                 : item.color ||
-                  (item.destructive ? theme.colors.error || '#F44336' : theme.colors.text),
+                  (item.destructive ? theme.colors.error || '#F44336' : theme.colors.textPrimary),
             },
           ]}
         >
@@ -145,7 +145,7 @@ export const TopRightMenu: React.FC<TopRightMenuProps> = ({ items, onClose }) =>
         )}
       </TouchableOpacity>
       {index < totalItems - 1 && (
-        <View style={[styles.menuDivider, { backgroundColor: theme.colors.border }]} />
+        <View style={[styles.menuDivider, { backgroundColor: theme.colors.separator }]} />
       )}
     </View>
   );
@@ -164,7 +164,7 @@ export const TopRightMenu: React.FC<TopRightMenuProps> = ({ items, onClose }) =>
               color: item.disabled
                 ? theme.colors.textTertiary
                 : item.color ||
-                  (item.destructive ? theme.colors.error || '#F44336' : theme.colors.text),
+                  (item.destructive ? theme.colors.error || '#F44336' : theme.colors.textPrimary),
             },
           ]}
         >
@@ -173,7 +173,7 @@ export const TopRightMenu: React.FC<TopRightMenuProps> = ({ items, onClose }) =>
         {item.icon && !item.disabled && <View style={styles.menuItemIcon}>{item.icon}</View>}
       </TouchableOpacity>
       {index < totalItems - 1 && (
-        <View style={[styles.menuDivider, { backgroundColor: theme.colors.border }]} />
+        <View style={[styles.menuDivider, { backgroundColor: theme.colors.separator }]} />
       )}
     </View>
   );
@@ -186,7 +186,7 @@ export const TopRightMenu: React.FC<TopRightMenuProps> = ({ items, onClose }) =>
         style={styles.headerButton}
         hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
       >
-        <MoreVertical color={theme.colors.text} width={24} height={24} />
+        <MoreVertical color={theme.colors.textPrimary} width={24} height={24} />
       </TouchableOpacity>
 
       {Platform.OS === 'android' && (
@@ -196,7 +196,7 @@ export const TopRightMenu: React.FC<TopRightMenuProps> = ({ items, onClose }) =>
               style={[
                 styles.floatingMenu,
                 {
-                  backgroundColor: theme.colors.surfaceContainerHigh,
+                  backgroundColor: theme.colors.surfaceHigh,
                   top: menuTopOffset,
                 },
               ]}

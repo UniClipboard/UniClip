@@ -44,8 +44,8 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
           enabled={!actionDisabled}
           modifiers={[fillMaxWidth()]}
           colors={{
-            containerColor: theme.colors.surfaceContainerHigh,
-            contentColor: theme.colors.onSurface,
+            containerColor: theme.colors.surfaceHigh,
+            contentColor: theme.colors.textPrimary,
           }}
         >
           <ComposeText>⬆️ 上传</ComposeText>
@@ -59,13 +59,13 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
           enabled={!actionDisabled}
           modifiers={[fillMaxWidth()]}
           colors={{
-            containerColor: theme.colors.primaryContainer,
-            contentColor: theme.colors.onPrimaryContainer,
+            containerColor: theme.colors.accentContainer,
+            contentColor: theme.colors.onAccentContainer,
           }}
         >
           <Row verticalAlignment="center" horizontalArrangement="center">
             {syncInProgress && (
-              <CircularProgressIndicator color={theme.colors.onPrimaryContainer} />
+              <CircularProgressIndicator color={theme.colors.onAccentContainer} />
             )}
             <ComposeText>{syncInProgress ? '  同步中...' : '🔄 同步'}</ComposeText>
           </Row>
@@ -79,8 +79,8 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
           enabled={!actionDisabled}
           modifiers={[fillMaxWidth()]}
           colors={{
-            containerColor: theme.colors.surfaceContainerHigh,
-            contentColor: theme.colors.onSurface,
+            containerColor: theme.colors.surfaceHigh,
+            contentColor: theme.colors.textPrimary,
           }}
         >
           <ComposeText>⬇️ 下载</ComposeText>

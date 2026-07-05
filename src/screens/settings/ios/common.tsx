@@ -1,11 +1,12 @@
 import React from 'react';
-import { Linking } from 'react-native';
+import { Linking, PlatformColor } from 'react-native';
 import {
   Button as SwiftUIButton,
   HStack,
   Image,
   Spacer,
   Text as SwiftUIText,
+  Toggle,
 } from '@expo/ui/swift-ui';
 import {
   background,
@@ -19,6 +20,7 @@ import {
   onTapGesture,
   padding,
   shapes,
+  tint,
 } from '@expo/ui/swift-ui/modifiers';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
@@ -38,6 +40,17 @@ export const chevronColor = '#8E8E93';
 export const headerIconColor = '#AEAEB2';
 export const statusGreen = settingsTileColors.green;
 export const statusOrange = settingsTileColors.orange;
+
+/**
+ * iOS 系统绿开关。设置界面根 VStack 级联了墨色 accent tint(SettingsScreen.ios.tsx),
+ * 会把 SwiftUI Toggle 的轨道也染成主题色;这里用 systemGreen 覆盖,让所有开关走 iOS
+ * 原生绿轨道,而按钮/导航链接等仍保持 accent。新增设置开关统一用本组件而非裸 Toggle。
+ */
+const switchGreenTint = tint(PlatformColor('systemGreen'));
+
+export function SettingsToggle({ modifiers, ...rest }: React.ComponentProps<typeof Toggle>) {
+  return <Toggle {...rest} modifiers={[...(modifiers ?? []), switchGreenTint]} />;
+}
 
 /** Rounded-square colored icon, like the leading icons in the iOS Settings app. */
 export function SettingsIconTile({ systemName, color }: { systemName: SFSymbol; color: string }) {

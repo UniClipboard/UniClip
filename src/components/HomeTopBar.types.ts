@@ -6,6 +6,7 @@ import type { ConnectionStatus } from '@/utils/connectionStatus';
 export interface DefaultTopBarProps {
   serverLabel: string;
   connectionStatus: ConnectionStatus;
+  onSwitchServer: () => void;
   onSearch: () => void;
   onSettings: () => void;
   onSelectMode: () => void;

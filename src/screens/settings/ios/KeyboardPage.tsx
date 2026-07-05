@@ -1,16 +1,15 @@
 import React from 'react';
-import {
-  Label,
-  LabeledContent,
-  Section,
-  Text as SwiftUIText,
-  TextField,
-  Toggle,
-} from '@expo/ui/swift-ui';
+import { Label, LabeledContent, Section, Text as SwiftUIText, TextField } from '@expo/ui/swift-ui';
 
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
 import { useSettingsStore } from '@/stores';
-import { GuideStepRow, HeaderCircleButton, OpenSystemSettingsButton, StatusValue } from './common';
+import {
+  GuideStepRow,
+  HeaderCircleButton,
+  OpenSystemSettingsButton,
+  SettingsToggle,
+  StatusValue,
+} from './common';
 import { useKeyboardStatus } from './useKeyboardStatus';
 
 /**
@@ -99,13 +98,13 @@ export function KeyboardPage({ onBack, active = true }: { onBack: () => void; ac
             header={<SwiftUIText>按键反馈</SwiftUIText>}
             footer={<SwiftUIText>更改会在下次打开键盘时生效。</SwiftUIText>}
           >
-            <Toggle
+            <SettingsToggle
               label="按键声音"
               systemImage="speaker.wave.2"
               isOn={config.keyboardSoundFeedback}
               onIsOnChange={(v) => updateConfig({ keyboardSoundFeedback: v })}
             />
-            <Toggle
+            <SettingsToggle
               label="触感反馈"
               systemImage="iphone.radiowaves.left.and.right"
               isOn={config.keyboardHapticFeedback}

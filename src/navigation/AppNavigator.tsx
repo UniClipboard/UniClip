@@ -58,22 +58,22 @@ export const AppNavigator = () => {
         ...DarkTheme,
         colors: {
           ...DarkTheme.colors,
-          primary: theme.colors.primary,
-          background: theme.colors.background,
-          card: theme.colors.surface,
-          text: theme.colors.text,
-          border: theme.colors.border,
+          primary: theme.colors.accent as string,
+          background: theme.colors.background as string,
+          card: theme.colors.surface as string,
+          text: theme.colors.textPrimary as string,
+          border: theme.colors.separator as string,
         },
       }
     : {
         ...DefaultTheme,
         colors: {
           ...DefaultTheme.colors,
-          primary: theme.colors.primary,
-          background: theme.colors.background,
-          card: theme.colors.surface,
-          text: theme.colors.text,
-          border: theme.colors.border,
+          primary: theme.colors.accent as string,
+          background: theme.colors.background as string,
+          card: theme.colors.surface as string,
+          text: theme.colors.textPrimary as string,
+          border: theme.colors.separator as string,
         },
       };
 
@@ -97,11 +97,11 @@ export const AppNavigator = () => {
                   title: '设置',
                   presentation: 'card',
                   headerStyle: {
-                    backgroundColor: theme.colors.surface,
+                    backgroundColor: theme.colors.surface as string,
                     elevation: 0,
                     shadowOpacity: 0,
                   },
-                  headerTintColor: theme.colors.text,
+                  headerTintColor: theme.colors.textPrimary as string,
                 }
           }
         />
@@ -113,11 +113,11 @@ export const AppNavigator = () => {
             title: SUB_SCREEN_TITLES[route.params.section],
             presentation: 'card',
             headerStyle: {
-              backgroundColor: theme.colors.surface,
+              backgroundColor: theme.colors.surface as string,
               elevation: 0,
               shadowOpacity: 0,
             },
-            headerTintColor: theme.colors.text,
+            headerTintColor: theme.colors.textPrimary as string,
           })}
         />
       </Stack.Navigator>

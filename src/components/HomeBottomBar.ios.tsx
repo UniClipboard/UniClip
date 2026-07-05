@@ -14,7 +14,7 @@ export function DefaultBottomBar({
   onSync,
   theme,
 }: DefaultBottomBarProps) {
-  const c = theme.colors.onSurface;
+  const c = theme.colors.textPrimary;
   return (
     <View style={s.row}>
       <Pressable onPress={onServerPicker} style={s.pillButton}>
@@ -23,14 +23,14 @@ export function DefaultBottomBar({
           <Text style={[s.pillText, { color: c }]} numberOfLines={1}>
             {serverLabel}
           </Text>
-          <ChevronsUpDown size={12} color={theme.colors.onSurfaceVariant} />
+          <ChevronsUpDown size={12} color={theme.colors.textSecondary} />
         </GlassContainer>
       </Pressable>
 
       <Pressable onPress={onSync} disabled={isSyncing}>
         <GlassContainer shape="circle" interactive style={s.circle}>
           {isSyncing ? (
-            <ActivityIndicator size="small" color={theme.colors.onSurfaceVariant} />
+            <ActivityIndicator size="small" color={theme.colors.textSecondary} />
           ) : (
             <RefreshCw size={22} color={c} />
           )}
@@ -47,7 +47,7 @@ export function SelectModeBottomBar({
   onDelete,
   theme,
 }: SelectModeBottomBarProps) {
-  const c = disabled ? theme.colors.outline : theme.colors.onSurface;
+  const c = disabled ? theme.colors.border : theme.colors.textPrimary;
   return (
     <View style={s.selectRow}>
       <Pressable onPress={onCopy} disabled={disabled}>
@@ -62,7 +62,7 @@ export function SelectModeBottomBar({
       </Pressable>
       <Pressable onPress={onDelete} disabled={disabled}>
         <GlassContainer shape="circle" interactive style={s.circle}>
-          <Trash2 size={22} color={disabled ? theme.colors.outline : '#F44336'} />
+          <Trash2 size={22} color={disabled ? theme.colors.border : '#F44336'} />
         </GlassContainer>
       </Pressable>
     </View>

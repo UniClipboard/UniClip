@@ -55,10 +55,10 @@ function FilterTag({ label, onPress, theme }: FilterTagProps) {
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.tag, { backgroundColor: theme.colors.primaryContainer }]}
+      style={[styles.tag, { backgroundColor: theme.colors.accentContainer }]}
     >
-      <Text style={[styles.tagText, { color: theme.colors.onPrimaryContainer }]}>{label}</Text>
-      <Ionicons name="close" size={12} color={theme.colors.onPrimaryContainer} />
+      <Text style={[styles.tagText, { color: theme.colors.onAccentContainer }]}>{label}</Text>
+      <Ionicons name="close" size={12} color={theme.colors.onAccentContainer} />
     </Pressable>
   );
 }

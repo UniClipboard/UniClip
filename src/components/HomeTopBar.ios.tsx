@@ -8,7 +8,7 @@ import {
   PlatformColor,
   type ColorValue,
 } from 'react-native';
-import { Ellipsis, ListFilter, Search, X, XCircle } from 'lucide-react-native';
+import { ChevronDown, Ellipsis, ListFilter, Search, X, XCircle } from 'lucide-react-native';
 import { Menu, Button as SwiftUIButton, Host } from '@expo/ui/swift-ui';
 import Animated, {
   useSharedValue,
@@ -43,6 +43,7 @@ const STATUS_STYLE: Record<ConnectionStatus, { color: ColorValue; pulse: boolean
 export function DefaultTopBar({
   serverLabel,
   connectionStatus,
+  onSwitchServer,
   onSearch,
   onSettings,
   onSelectMode,
@@ -52,22 +53,27 @@ export function DefaultTopBar({
   const dimmed = connectionStatus === 'unconfigured' || connectionStatus === 'offline';
   return (
     <View style={s.row}>
-      <View
-        style={s.serverStatus}
-        accessibilityRole="text"
-        accessibilityLabel={`服务器${CONNECTION_STATUS_TEXT[connectionStatus]}，${serverLabel}`}
+      <Pressable
+        onPress={onSwitchServer}
+        style={s.serverPress}
+        accessibilityRole="button"
+        accessibilityLabel={`切换服务器，当前${serverLabel}，${CONNECTION_STATUS_TEXT[connectionStatus]}`}
       >
-        <ServerStatusDot color={dot.color} pulse={dot.pulse} glow={dot.glow} />
-        <Text
-          style={[
-            s.label,
-            { color: dimmed ? theme.colors.onSurfaceVariant : theme.colors.onSurface },
-          ]}
-          numberOfLines={1}
-        >
-          {serverLabel}
-        </Text>
-      </View>
+        <GlassContainer shape="capsule" interactive style={s.serverPill}>
+          <ServerStatusDot color={dot.color} pulse={dot.pulse} glow={dot.glow} />
+          <Text
+            style={[
+              s.label,
+              s.labelShrink,
+              { color: dimmed ? theme.colors.textSecondary : theme.colors.textPrimary },
+            ]}
+            numberOfLines={1}
+          >
+            {serverLabel}
+          </Text>
+          <ChevronDown size={15} color={theme.colors.textSecondary} />
+        </GlassContainer>
+      </Pressable>
 
       <View style={{ flex: 1, minWidth: 0 }} />
 
@@ -83,7 +89,7 @@ export function DefaultTopBar({
               alignItems: 'center',
             }}
           >
-            <Text style={{ fontSize: 15, fontWeight: '500', color: theme.colors.onSurface }}>
+            <Text style={{ fontSize: 15, fontWeight: '500', color: theme.colors.textPrimary }}>
               选择
             </Text>
           </GlassContainer>
@@ -95,7 +101,7 @@ export function DefaultTopBar({
             interactive
             style={{ width: BTN, height: BTN, justifyContent: 'center', alignItems: 'center' }}
           >
-            <Search size={22} color={theme.colors.onSurface} />
+            <Search size={22} color={theme.colors.textPrimary} />
           </GlassContainer>
         </Pressable>
 
@@ -107,7 +113,7 @@ export function DefaultTopBar({
                 interactive
                 style={{ width: BTN, height: BTN, justifyContent: 'center', alignItems: 'center' }}
               >
-                <Ellipsis size={22} color={theme.colors.onSurface} />
+                <Ellipsis size={22} color={theme.colors.textPrimary} />
               </GlassContainer>
             }
           >
@@ -151,18 +157,18 @@ export function SearchTopBar({
       <View style={s.searchRow}>
         <Animated.View style={[s.boxWrap, boxStyle]}>
           <GlassContainer shape="capsule" style={s.searchCapsule}>
-            <Search size={16} color={theme.colors.onSurfaceVariant} />
+            <Search size={16} color={theme.colors.textSecondary} />
             <TextInput
-              style={[s.searchInput, { color: theme.colors.onSurface }]}
+              style={[s.searchInput, { color: theme.colors.textPrimary }]}
               value={searchText}
               onChangeText={onChangeText}
               placeholder="搜索剪贴板"
-              placeholderTextColor={theme.colors.onSurfaceVariant}
+              placeholderTextColor={theme.colors.textSecondary}
               autoFocus
             />
             {searchText.length > 0 && (
               <Pressable onPress={() => onChangeText('')} hitSlop={8}>
-                <XCircle size={14} color={theme.colors.onSurfaceVariant} />
+                <XCircle size={14} color={theme.colors.textSecondary} />
               </Pressable>
             )}
           </GlassContainer>
@@ -172,7 +178,7 @@ export function SearchTopBar({
             <GlassContainer shape="circle" interactive style={s.circle}>
               <ListFilter
                 size={21}
-                color={hasActiveFilters ? theme.colors.primary : theme.colors.onSurface}
+                color={hasActiveFilters ? theme.colors.accent : theme.colors.textPrimary}
               />
             </GlassContainer>
           </Pressable>
@@ -180,7 +186,7 @@ export function SearchTopBar({
         <Animated.View style={closeStyle}>
           <Pressable onPress={onClose}>
             <GlassContainer shape="circle" interactive style={s.circle}>
-              <X size={22} color={theme.colors.onSurface} />
+              <X size={22} color={theme.colors.textPrimary} />
             </GlassContainer>
           </Pressable>
         </Animated.View>
@@ -206,7 +212,7 @@ export function SelectModeTopBar({
 }: SelectModeTopBarProps) {
   return (
     <View style={s.row}>
-      <Text style={[s.selectCount, { color: theme.colors.onSurface }]}>已选择 {count} 项</Text>
+      <Text style={[s.selectCount, { color: theme.colors.textPrimary }]}>已选择 {count} 项</Text>
       <View style={{ flex: 1, minWidth: 0 }} />
       <View style={s.actions}>
         <Pressable onPress={onSelectAll}>
@@ -220,7 +226,7 @@ export function SelectModeTopBar({
               alignItems: 'center',
             }}
           >
-            <Text style={{ fontSize: 15, fontWeight: '500', color: theme.colors.onSurface }}>
+            <Text style={{ fontSize: 15, fontWeight: '500', color: theme.colors.textPrimary }}>
               {allSelected ? '取消全选' : '全选'}
             </Text>
           </GlassContainer>
@@ -236,7 +242,7 @@ export function SelectModeTopBar({
               alignItems: 'center',
             }}
           >
-            <Text style={{ fontSize: 15, fontWeight: '500', color: theme.colors.onSurface }}>
+            <Text style={{ fontSize: 15, fontWeight: '500', color: theme.colors.textPrimary }}>
               完成
             </Text>
           </GlassContainer>
@@ -248,8 +254,16 @@ export function SelectModeTopBar({
 
 const s = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 52 },
-  serverStatus: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
+  serverPress: { flexShrink: 1 },
+  serverPill: {
+    height: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+  },
   label: { fontSize: 14, fontWeight: '600' },
+  labelShrink: { flexShrink: 1 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   selectCount: { fontSize: 14, fontWeight: '600' },
   searchWrap: { gap: 6 },

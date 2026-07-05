@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Image, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Image, Pressable, type ColorValue } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, {
   Defs,
@@ -74,8 +74,8 @@ export const ClipboardCard: React.FC<ClipboardCardProps> = React.memo(
             {
               width: cardSize,
               height: cardSize,
-              backgroundColor: theme.colors.surfaceContainerLow,
-              borderColor: isSelected ? theme.colors.primary : 'transparent',
+              backgroundColor: theme.colors.surfaceLow,
+              borderColor: isSelected ? theme.colors.accent : 'transparent',
               borderWidth: isSelected ? 2 : 0,
             },
           ]}
@@ -94,7 +94,7 @@ export const ClipboardCard: React.FC<ClipboardCardProps> = React.memo(
               <Ionicons
                 name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
                 size={28}
-                color={isSelected ? theme.colors.primary : 'rgba(128,128,128,0.6)'}
+                color={isSelected ? theme.colors.accent : 'rgba(128,128,128,0.6)'}
               />
             </View>
           )}
@@ -188,7 +188,7 @@ function HeaderRow({
       <Text
         style={[
           styles.kindLabel,
-          { color: overlay ? '#fff' : theme.colors.onSurfaceVariant },
+          { color: overlay ? '#fff' : theme.colors.textSecondary },
           overlay && styles.kindLabelOverlay,
         ]}
       >
@@ -197,7 +197,7 @@ function HeaderRow({
       <Text
         style={[
           styles.timeLabel,
-          { color: overlay ? 'rgba(255,255,255,0.8)' : theme.colors.outline },
+          { color: overlay ? 'rgba(255,255,255,0.8)' : theme.colors.border },
         ]}
       >
         {relativeTime}
@@ -219,7 +219,7 @@ function BottomRow({
   theme: CardBodyProps['theme'];
   meta?: string;
 }) {
-  const dirColor = overlay ? 'rgba(255,255,255,0.7)' : theme.colors.onSurfaceVariant;
+  const dirColor = overlay ? 'rgba(255,255,255,0.7)' : theme.colors.textSecondary;
   const indicator = getHistoryDirectionIndicator(item);
   return (
     <View style={styles.bottomRow}>
@@ -230,11 +230,11 @@ function BottomRow({
       ) : (
         <ArrowUp size={10} color={dirColor} />
       )}
-      {!!meta && <Text style={[styles.bottomMeta, { color: theme.colors.outline }]}>{meta}</Text>}
+      {!!meta && <Text style={[styles.bottomMeta, { color: theme.colors.border }]}>{meta}</Text>}
       <View style={styles.bottomSpacer} />
       {isLatest && (
         <View
-          style={[styles.latestDot, { backgroundColor: overlay ? '#fff' : theme.colors.primary }]}
+          style={[styles.latestDot, { backgroundColor: overlay ? '#fff' : theme.colors.accent }]}
         />
       )}
     </View>
@@ -317,16 +317,16 @@ function TextCardBody({ item, kindLabel, relativeTime, isLatest, theme }: CardBo
       <HeaderRow kindLabel={kindLabel} relativeTime={relativeTime} theme={theme} />
       {isQuote ? (
         <View style={styles.quoteBody}>
-          <Text style={[styles.quoteText, { color: theme.colors.onSurface }]} numberOfLines={4}>
+          <Text style={[styles.quoteText, { color: theme.colors.textPrimary }]} numberOfLines={4}>
             {text}
           </Text>
         </View>
       ) : (
         <View style={styles.paraClip}>
-          <Text style={[styles.paraText, { color: theme.colors.onSurface }]}>
+          <Text style={[styles.paraText, { color: theme.colors.textPrimary }]}>
             {text.slice(0, PARA_RENDER_CHARS)}
           </Text>
-          <TextFadeOut color={theme.colors.surfaceContainerLow} />
+          <TextFadeOut color={theme.colors.surfaceLow} />
         </View>
       )}
       <BottomRow item={item} isLatest={isLatest} theme={theme} />
@@ -335,7 +335,7 @@ function TextCardBody({ item, kindLabel, relativeTime, isLatest, theme }: CardBo
 }
 
 // 长文本底部的卡底色渐隐遮罩
-function TextFadeOut({ color }: { color: string }) {
+function TextFadeOut({ color }: { color: ColorValue }) {
   return (
     <View style={styles.textFade} pointerEvents="none">
       <Svg width="100%" height="100%">
@@ -369,13 +369,13 @@ function FileCardBody({
   const sizeLabel = item.size ? formatFileSize(item.size) : '';
 
   const paperBg = theme.isDark
-    ? theme.colors.surfaceContainerHigh
-    : theme.colors.surfaceContainerLowest;
-  const paperBorder = theme.colors.outlineVariant;
-  const foldColor = theme.colors.surfaceContainerHighest;
-  const ghostBg = theme.isDark ? theme.colors.surfaceContainer : theme.colors.surfaceContainerHigh;
+    ? theme.colors.surfaceHigh
+    : theme.colors.surfaceLowest;
+  const paperBorder = theme.colors.separator;
+  const foldColor = theme.colors.surfaceHighest;
+  const ghostBg = theme.isDark ? theme.colors.surfaceMid : theme.colors.surfaceHigh;
   // 折角缺口要与卡底色一致才有"纸角被翻起"的效果
-  const cardBg = theme.colors.surfaceContainerLow;
+  const cardBg = theme.colors.surfaceLow;
 
   return (
     <View style={styles.standardBody}>
@@ -400,7 +400,7 @@ function FileCardBody({
               <Text style={styles.extChipText}>{chipLabel}</Text>
             </View>
             <Text
-              style={[styles.paperName, { color: theme.colors.onSurfaceVariant }]}
+              style={[styles.paperName, { color: theme.colors.textSecondary }]}
               numberOfLines={2}
             >
               {stripExtension(fileName)}

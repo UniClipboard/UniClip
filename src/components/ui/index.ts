@@ -37,6 +37,9 @@ export type { AppCardProps } from './AppCard';
 export { AppBottomSheet } from './AppBottomSheet';
 export type { AppBottomSheetProps } from './AppBottomSheet';
 
+export { AppTopSheet } from './AppTopSheet';
+export type { AppTopSheetProps } from './AppTopSheet';
+
 export { AppDropdown } from './AppDropdown';
 export type { AppDropdownProps, AppDropdownOption } from './AppDropdown';
 
