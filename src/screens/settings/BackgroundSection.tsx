@@ -1,14 +1,17 @@
 /**
  * 后台运行 section（仅 Android,「后台运行」二级页）
  *
- * 拆为三张卡:「后台任务」(总开关、常驻通知、忽略电池优化)、「后台同步」(后台下载/
- * 上传)、「后台读取剪贴板」(悬浮窗;授予 READ_LOGS 后自动切换为事件驱动)。原先散落的 Alert.alert
- * 确认改为单个配置驱动的 Compose AlertDialog(挂在第一张卡的 dialogs 上;Compose
+ * 卡片一「后台自动同步」只有一个总开关:开启时批量打开下载/上传/常驻通知,并依次引导
+ * 三项系统权限(忽略电池优化、通知权限、悬浮窗权限;跳系统页的两项靠 AppState 监听下一次
+ * 回到前台来串行,避免连续拉起多个系统 Activity 互相打断)。
+ * 卡片二「高级选项」默认折叠,展开后是原来的 5 个细分开关(常驻通知/电池优化/下载/上传/
+ * 悬浮窗),供需要精细控制的用户使用。
+ * Alert.alert 确认统一走单个配置驱动的 Compose AlertDialog(挂在卡片一上;Compose
  * Dialog 是 window 级 overlay,挂载位置不影响展示)。失败回滚交给 store。
  */
 import React, { memo, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Platform, Linking } from 'react-native';
+import { Platform, Linking, AppState } from 'react-native';
 import {
   ListItem,
   Switch as ComposeSwitch,
@@ -16,11 +19,16 @@ import {
   TextButton,
   HorizontalDivider,
   Text as ComposeText,
+  Icon,
+  useMaterialColors,
 } from '@expo/ui/jetpack-compose';
+import { clickable } from '@expo/ui/jetpack-compose/modifiers';
 import { hasOverlayPermission, requestOverlayPermission } from 'clipboard-overlay';
 import { useSettingsStore } from '@/stores';
 import { useSettingsToast } from './SettingsToastContext';
 import { SettingsSectionItem } from './SettingsSectionItem';
+
+const CHEVRON_ICON = require('../../assets/icons/chevron_right.xml');
 
 interface BgDialog {
   title: string;
@@ -30,9 +38,28 @@ interface BgDialog {
   dismissLabel?: string;
 }
 
+/** 等待下一次回到前台(用于串联跳系统设置页的权限申请),超时兜底避免永久挂起。 */
+function waitForNextActiveState(timeoutMs = 60_000): Promise<void> {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      sub.remove();
+      clearTimeout(timer);
+      resolve();
+    };
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') finish();
+    });
+    const timer = setTimeout(finish, timeoutMs);
+  });
+}
+
 export const BackgroundSection = memo(function BackgroundSection() {
   const { t } = useTranslation('settingsBackground');
   const showMessage = useSettingsToast();
+  const colors = useMaterialColors();
 
   const isTempDisabled = useSettingsStore((s) => s.isTempDisabledBackgroundTasks);
   const backgroundTasksEnabled = useSettingsStore(
@@ -46,38 +73,89 @@ export const BackgroundSection = memo(function BackgroundSection() {
   const clipboardOverlay = useSettingsStore((s) => s.config?.enableClipboardOverlay ?? false);
 
   const [dialog, setDialog] = useState<BgDialog | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [permBattery, setPermBattery] = useState(false);
   const hasBatteryOptRequested = useRef(false);
 
-  useEffect(() => {
+  const refreshBatteryPermission = () => {
     if (Platform.OS !== 'android') return;
     import('native-util')
       .then(({ isIgnoringBatteryOptimizations }) => {
         setPermBattery(isIgnoringBatteryOptimizations());
       })
       .catch(() => {});
+  };
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    refreshBatteryPermission();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refreshBatteryPermission();
+    });
+    return () => sub.remove();
   }, []);
+
+  /** 开启总开关后依次引导:忽略电池优化 → 通知权限 → 悬浮窗权限。 */
+  const runPermissionOnboarding = async () => {
+    const { isIgnoringBatteryOptimizations, requestIgnoreBatteryOptimizations } =
+      await import('native-util');
+    if (!isIgnoringBatteryOptimizations()) {
+      requestIgnoreBatteryOptimizations();
+      hasBatteryOptRequested.current = true;
+      await waitForNextActiveState();
+      setPermBattery(isIgnoringBatteryOptimizations());
+    }
+
+    try {
+      const { PermissionsAndroid } = require('react-native');
+      const hasNotificationPerm = await PermissionsAndroid.check(
+        PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+      );
+      if (!hasNotificationPerm) {
+        await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+      }
+    } catch {
+      // 忽略:部分系统版本无此权限项
+    }
+
+    if (!hasOverlayPermission()) {
+      requestOverlayPermission();
+      await waitForNextActiveState();
+      if (hasOverlayPermission()) {
+        await useSettingsStore.getState().setEnableClipboardOverlay(true);
+      }
+    } else {
+      await useSettingsStore.getState().setEnableClipboardOverlay(true);
+    }
+  };
 
   const handleToggleBackgroundTasks = async (enabled: boolean) => {
     const store = useSettingsStore.getState();
     if (enabled) {
       if (store.isTempDisabledBackgroundTasks) {
         store.setTempDisabledBackgroundTasks(false);
-        showMessage(t('toast.tasksRestored'), 'success');
+        showMessage(t('toast.autoSyncRestored'), 'success');
         return;
       }
       setDialog({
-        title: t('dialog.enableTasks.title'),
-        text: t('dialog.enableTasks.text'),
-        confirmLabel: t('dialog.enableTasks.confirm'),
+        title: t('dialog.enableAutoSync.title'),
+        text: t('dialog.enableAutoSync.text'),
+        confirmLabel: t('dialog.enableAutoSync.confirm'),
         dismissLabel: t('action.cancel', { ns: 'common' }),
         onConfirm: async () => {
           try {
-            await useSettingsStore.getState().setEnableBackgroundTasks(true);
-            showMessage(t('toast.tasksEnabled'), 'success');
+            await useSettingsStore.getState().updateConfig({
+              enableBackgroundTasks: true,
+              enableBackgroundDownload: true,
+              enableBackgroundUpload: true,
+              enableForegroundNotification: true,
+            });
+            showMessage(t('toast.autoSyncEnabled'), 'success');
           } catch (error: unknown) {
             showMessage(error instanceof Error ? error.message : t('toast.setFailed'), 'error');
+            return;
           }
+          void runPermissionOnboarding();
         },
       });
       return;
@@ -85,7 +163,7 @@ export const BackgroundSection = memo(function BackgroundSection() {
 
     try {
       await useSettingsStore.getState().setEnableBackgroundTasks(false);
-      showMessage(t('toast.tasksDisabled'), 'success');
+      showMessage(t('toast.autoSyncDisabled'), 'success');
     } catch (error: unknown) {
       showMessage(error instanceof Error ? error.message : t('toast.setFailed'), 'error');
     }
@@ -219,7 +297,7 @@ export const BackgroundSection = memo(function BackgroundSection() {
   return (
     <>
       <SettingsSectionItem
-        title={t('tasks.cardTitle')}
+        title={t('main.cardTitle')}
         dialogs={
           dialog && (
             <AlertDialog onDismissRequest={() => setDialog(null)}>
@@ -253,11 +331,11 @@ export const BackgroundSection = memo(function BackgroundSection() {
       >
         <ListItem>
           <ListItem.HeadlineContent>
-            <ComposeText>{t('tasks.toggle.title')}</ComposeText>
+            <ComposeText>{t('main.cardTitle')}</ComposeText>
           </ListItem.HeadlineContent>
           <ListItem.SupportingContent>
             <ComposeText>
-              {isTempDisabled ? t('tasks.toggle.descTempDisabled') : t('tasks.toggle.descNormal')}
+              {isTempDisabled ? t('main.toggle.descTempDisabled') : t('main.toggle.descNormal')}
             </ComposeText>
           </ListItem.SupportingContent>
           <ListItem.TrailingContent>
@@ -270,90 +348,105 @@ export const BackgroundSection = memo(function BackgroundSection() {
 
         <HorizontalDivider />
 
-        <ListItem>
+        <ListItem modifiers={[clickable(() => setShowAdvanced((v) => !v))]}>
           <ListItem.HeadlineContent>
-            <ComposeText>{t('tasks.notification.title')}</ComposeText>
+            <ComposeText>
+              {showAdvanced ? t('advanced.collapse') : t('advanced.expand')}
+            </ComposeText>
           </ListItem.HeadlineContent>
-          <ListItem.SupportingContent>
-            <ComposeText>{t('tasks.notification.desc')}</ComposeText>
-          </ListItem.SupportingContent>
           <ListItem.TrailingContent>
-            <ComposeSwitch
-              value={backgroundTasksEnabled && foregroundNotification}
-              onCheckedChange={handleToggleForegroundNotification}
-              enabled={backgroundTasksEnabled}
-            />
-          </ListItem.TrailingContent>
-        </ListItem>
-
-        <HorizontalDivider />
-
-        <ListItem>
-          <ListItem.HeadlineContent>
-            <ComposeText>{t('tasks.battery.title')}</ComposeText>
-          </ListItem.HeadlineContent>
-          <ListItem.SupportingContent>
-            <ComposeText>{t('tasks.battery.desc')}</ComposeText>
-          </ListItem.SupportingContent>
-          <ListItem.TrailingContent>
-            <ComposeSwitch value={permBattery} onCheckedChange={handleToggleBattery} />
+            <Icon source={CHEVRON_ICON} size={20} tint={colors.onSurfaceVariant} />
           </ListItem.TrailingContent>
         </ListItem>
       </SettingsSectionItem>
 
-      <SettingsSectionItem title={t('sync.cardTitle')}>
-        <ListItem>
-          <ListItem.HeadlineContent>
-            <ComposeText>{t('sync.download.title')}</ComposeText>
-          </ListItem.HeadlineContent>
-          <ListItem.SupportingContent>
-            <ComposeText>{t('sync.download.desc')}</ComposeText>
-          </ListItem.SupportingContent>
-          <ListItem.TrailingContent>
-            <ComposeSwitch
-              value={backgroundTasksEnabled && backgroundDownload}
-              onCheckedChange={handleToggleBackgroundDownload}
-              enabled={backgroundTasksEnabled}
-            />
-          </ListItem.TrailingContent>
-        </ListItem>
+      {showAdvanced && (
+        <SettingsSectionItem title={t('advanced.cardTitle')}>
+          <ListItem>
+            <ListItem.HeadlineContent>
+              <ComposeText>{t('advanced.notification.title')}</ComposeText>
+            </ListItem.HeadlineContent>
+            <ListItem.SupportingContent>
+              <ComposeText>{t('advanced.notification.desc')}</ComposeText>
+            </ListItem.SupportingContent>
+            <ListItem.TrailingContent>
+              <ComposeSwitch
+                value={backgroundTasksEnabled && foregroundNotification}
+                onCheckedChange={handleToggleForegroundNotification}
+                enabled={backgroundTasksEnabled}
+              />
+            </ListItem.TrailingContent>
+          </ListItem>
 
-        <HorizontalDivider />
+          <HorizontalDivider />
 
-        <ListItem>
-          <ListItem.HeadlineContent>
-            <ComposeText>{t('sync.upload.title')}</ComposeText>
-          </ListItem.HeadlineContent>
-          <ListItem.SupportingContent>
-            <ComposeText>{t('sync.upload.desc')}</ComposeText>
-          </ListItem.SupportingContent>
-          <ListItem.TrailingContent>
-            <ComposeSwitch
-              value={backgroundTasksEnabled && backgroundUpload}
-              onCheckedChange={handleToggleBackgroundUpload}
-              enabled={backgroundTasksEnabled}
-            />
-          </ListItem.TrailingContent>
-        </ListItem>
-      </SettingsSectionItem>
+          <ListItem>
+            <ListItem.HeadlineContent>
+              <ComposeText>{t('advanced.battery.title')}</ComposeText>
+            </ListItem.HeadlineContent>
+            <ListItem.SupportingContent>
+              <ComposeText>{t('advanced.battery.desc')}</ComposeText>
+            </ListItem.SupportingContent>
+            <ListItem.TrailingContent>
+              <ComposeSwitch value={permBattery} onCheckedChange={handleToggleBattery} />
+            </ListItem.TrailingContent>
+          </ListItem>
 
-      <SettingsSectionItem title={t('clipboard.cardTitle')}>
-        <ListItem>
-          <ListItem.HeadlineContent>
-            <ComposeText>{t('clipboard.overlay.title')}</ComposeText>
-          </ListItem.HeadlineContent>
-          <ListItem.SupportingContent>
-            <ComposeText>{t('clipboard.overlay.desc')}</ComposeText>
-          </ListItem.SupportingContent>
-          <ListItem.TrailingContent>
-            <ComposeSwitch
-              value={backgroundTasksEnabled && clipboardOverlay}
-              onCheckedChange={handleToggleClipboardOverlay}
-              enabled={backgroundTasksEnabled}
-            />
-          </ListItem.TrailingContent>
-        </ListItem>
-      </SettingsSectionItem>
+          <HorizontalDivider />
+
+          <ListItem>
+            <ListItem.HeadlineContent>
+              <ComposeText>{t('advanced.download.title')}</ComposeText>
+            </ListItem.HeadlineContent>
+            <ListItem.SupportingContent>
+              <ComposeText>{t('advanced.download.desc')}</ComposeText>
+            </ListItem.SupportingContent>
+            <ListItem.TrailingContent>
+              <ComposeSwitch
+                value={backgroundTasksEnabled && backgroundDownload}
+                onCheckedChange={handleToggleBackgroundDownload}
+                enabled={backgroundTasksEnabled}
+              />
+            </ListItem.TrailingContent>
+          </ListItem>
+
+          <HorizontalDivider />
+
+          <ListItem>
+            <ListItem.HeadlineContent>
+              <ComposeText>{t('advanced.upload.title')}</ComposeText>
+            </ListItem.HeadlineContent>
+            <ListItem.SupportingContent>
+              <ComposeText>{t('advanced.upload.desc')}</ComposeText>
+            </ListItem.SupportingContent>
+            <ListItem.TrailingContent>
+              <ComposeSwitch
+                value={backgroundTasksEnabled && backgroundUpload}
+                onCheckedChange={handleToggleBackgroundUpload}
+                enabled={backgroundTasksEnabled}
+              />
+            </ListItem.TrailingContent>
+          </ListItem>
+
+          <HorizontalDivider />
+
+          <ListItem>
+            <ListItem.HeadlineContent>
+              <ComposeText>{t('advanced.overlay.title')}</ComposeText>
+            </ListItem.HeadlineContent>
+            <ListItem.SupportingContent>
+              <ComposeText>{t('advanced.overlay.desc')}</ComposeText>
+            </ListItem.SupportingContent>
+            <ListItem.TrailingContent>
+              <ComposeSwitch
+                value={backgroundTasksEnabled && clipboardOverlay}
+                onCheckedChange={handleToggleClipboardOverlay}
+                enabled={backgroundTasksEnabled}
+              />
+            </ListItem.TrailingContent>
+          </ListItem>
+        </SettingsSectionItem>
+      )}
     </>
   );
 });

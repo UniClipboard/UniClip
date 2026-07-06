@@ -1,11 +1,15 @@
 {
-  "tasks": {
-    "cardTitle": "Background tasks",
+  "main": {
+    "cardTitle": "Background auto-sync",
     "toggle": {
-      "title": "Background tasks",
       "descTempDisabled": "Temporarily stopped; will resume after restarting the app",
-      "descNormal": "Turning this off stops all background tasks"
-    },
+      "descNormal": "Keeps syncing the clipboard in the background, and guides you through granting the permissions it needs"
+    }
+  },
+  "advanced": {
+    "cardTitle": "Advanced options",
+    "expand": "Show advanced options",
+    "collapse": "Hide advanced options",
     "notification": {
       "title": "Persistent service notification",
       "desc": "Keeping it on improves background service stability"
@@ -13,10 +17,7 @@
     "battery": {
       "title": "Ignore battery optimization",
       "desc": "Prevents battery saver from interrupting background sync"
-    }
-  },
-  "sync": {
-    "cardTitle": "Background sync",
+    },
     "download": {
       "title": "Download from remote",
       "desc": "Automatically download new remote content in the background"
@@ -24,19 +25,16 @@
     "upload": {
       "title": "Upload local clipboard",
       "desc": "Automatically upload when the local clipboard changes in the background"
-    }
-  },
-  "clipboard": {
-    "cardTitle": "Background clipboard access",
+    },
     "overlay": {
       "title": "Read clipboard via overlay",
-      "desc": "Reads the clipboard through an invisible overlay when copying in the background; switches to copy-triggered mode once READ_LOGS is granted"
+      "desc": "Reads the clipboard through an invisible overlay when copying in the background; switches to copy-triggered mode once READ_LOGS is granted. Already requested automatically when you turn on \"Background auto-sync\" — you can turn it off or back on here."
     }
   },
   "dialog": {
-    "enableTasks": {
-      "title": "Enable background tasks",
-      "text": "Once background tasks are enabled, the app keeps running related services in the background, which significantly increases battery usage. We strongly recommend enabling it only when needed.\n\nIf needed, set UniClip's battery optimization to \"Unrestricted\" in system settings and lock UniClip in the recent apps view to reduce the chance of the system killing background tasks.",
+    "enableAutoSync": {
+      "title": "Enable background auto-sync",
+      "text": "Once enabled, the app keeps syncing the clipboard in the background. We'll guide you through 3 system permissions: ignore battery optimization, notifications, and overlay access. Allowing all of them gives the best result, but declining still lets you keep using the app.",
       "confirm": "Enable"
     },
     "disableNotification": {
@@ -66,9 +64,9 @@
     }
   },
   "toast": {
-    "tasksRestored": "Background tasks resumed",
-    "tasksEnabled": "Background tasks enabled",
-    "tasksDisabled": "Background tasks disabled",
+    "autoSyncRestored": "Background auto-sync resumed",
+    "autoSyncEnabled": "Background auto-sync enabled",
+    "autoSyncDisabled": "Background auto-sync disabled",
     "downloadEnabled": "Background remote download enabled",
     "downloadDisabled": "Background remote download disabled",
     "uploadEnabled": "Background local upload enabled",

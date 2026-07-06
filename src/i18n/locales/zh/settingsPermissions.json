@@ -1,26 +1,4 @@
 {
-  "section": {
-    "title": "权限管理"
-  },
-  "notification": {
-    "title": "通知权限"
-  },
-  "overlay": {
-    "title": "悬浮窗权限",
-    "description": "后台通过悬浮窗获取剪贴板所需"
-  },
-  "sms": {
-    "title": "短信权限",
-    "description": "自动上传短信验证码所需"
-  },
-  "battery": {
-    "title": "忽略电池优化",
-    "description": "防止省电模式中断后台同步"
-  },
-  "batteryDialog": {
-    "title": "无法唤起系统弹窗",
-    "message": "系统限制每次安装仅允许弹出一次电池优化请求，请前往系统设置手动关闭电池优化。"
-  },
   "action": {
     "openSettings": "前往设置"
   },

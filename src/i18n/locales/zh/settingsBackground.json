@@ -1,11 +1,15 @@
 {
-  "tasks": {
-    "cardTitle": "后台任务",
+  "main": {
+    "cardTitle": "后台自动同步",
     "toggle": {
-      "title": "后台任务",
       "descTempDisabled": "已临时停止，重启 APP 后恢复开启状态",
-      "descNormal": "关闭后将停止所有后台任务"
-    },
+      "descNormal": "开启后将持续同步剪贴板，并自动引导授予所需的系统权限"
+    }
+  },
+  "advanced": {
+    "cardTitle": "高级选项",
+    "expand": "展开高级选项",
+    "collapse": "收起高级选项",
     "notification": {
       "title": "后台服务常驻通知",
       "desc": "启用后会增加后台服务的稳定性"
@@ -13,10 +17,7 @@
     "battery": {
       "title": "忽略电池优化",
       "desc": "防止省电模式中断后台同步"
-    }
-  },
-  "sync": {
-    "cardTitle": "后台同步",
+    },
     "download": {
       "title": "后台下载远程",
       "desc": "后台收到远程新内容时自动下载"
@@ -24,19 +25,16 @@
     "upload": {
       "title": "后台上传本地",
       "desc": "后台读取到本机剪贴板变化时自动上传"
-    }
-  },
-  "clipboard": {
-    "cardTitle": "后台读取剪贴板",
+    },
     "overlay": {
       "title": "通过悬浮窗获取剪贴板",
-      "desc": "后台复制时通过不可见悬浮窗读取；授予 READ_LOGS 后自动切换为复制即触发"
+      "desc": "后台复制时通过不可见悬浮窗读取；授予 READ_LOGS 后自动切换为复制即触发；开启「后台自动同步」时已自动申请，这里可单独关闭/重新开启"
     }
   },
   "dialog": {
-    "enableTasks": {
-      "title": "开启后台任务",
-      "text": "启用后台任务后，应用将在后台持续运行相关服务，大幅增加电量消耗，强烈建议按需开启。\n\n如有需要，可以在系统设置中将 UniClip 的电池优化设为「不受限制」，并在多任务界面锁定 UniClip，减少系统关闭后台任务的概率。",
+    "enableAutoSync": {
+      "title": "开启后台自动同步",
+      "text": "开启后应用将在后台持续同步剪贴板，我们会依次引导你完成 3 项系统授权：忽略电池优化、通知权限、悬浮窗权限。全部允许可获得最佳效果，拒绝也不影响继续使用。",
       "confirm": "确认开启"
     },
     "disableNotification": {
@@ -66,9 +64,9 @@
     }
   },
   "toast": {
-    "tasksRestored": "已恢复后台任务",
-    "tasksEnabled": "已启用后台任务",
-    "tasksDisabled": "已禁用后台任务",
+    "autoSyncRestored": "已恢复后台自动同步",
+    "autoSyncEnabled": "已启用后台自动同步",
+    "autoSyncDisabled": "已禁用后台自动同步",
     "downloadEnabled": "已启用后台下载远程",
     "downloadDisabled": "已禁用后台下载远程",
     "uploadEnabled": "已启用后台上传本地",

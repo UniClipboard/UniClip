@@ -1,26 +1,4 @@
 {
-  "section": {
-    "title": "Permissions"
-  },
-  "notification": {
-    "title": "Notifications"
-  },
-  "overlay": {
-    "title": "Display over other apps",
-    "description": "Required to read the clipboard in the background via an overlay"
-  },
-  "sms": {
-    "title": "SMS",
-    "description": "Required to auto-upload SMS verification codes"
-  },
-  "battery": {
-    "title": "Ignore battery optimization",
-    "description": "Prevents power-saving mode from interrupting background sync"
-  },
-  "batteryDialog": {
-    "title": "Can't open the system dialog",
-    "message": "The system only allows the battery optimization prompt to appear once per install. Please turn off battery optimization manually in system settings."
-  },
   "action": {
     "openSettings": "Open settings"
   },
