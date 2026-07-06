@@ -197,6 +197,16 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const config = await configStorage.getConfig();
       await publishConfig(config);
       set({ config, isSaving: false });
+      // autoApplyRemote 是引擎内部持有的设置（auto_apply），改动要推给引擎；
+      // autoPushLocal 是客户端侧门控（协调器 push 时读），无需通知引擎。
+      if ('autoApplyRemote' in updates) {
+        try {
+          const { notifySettingsChanged } = require('./syncEngineStore');
+          notifySettingsChanged();
+        } catch {
+          // SyncEngine not yet initialized
+        }
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to update config';
       // 回滚乐观更新，保证内存 config 与持久化层一致

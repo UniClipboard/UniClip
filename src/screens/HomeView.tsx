@@ -35,17 +35,7 @@ import { useSyncEngineStore, notifyDeviceClipboardChanged } from '@/stores/syncE
 import { deriveConnectionStatus } from '@/utils/connectionStatus';
 import { historyStorage } from '@/services';
 import { getClipboardSyncService } from '@/services/ClipboardSyncService';
-import { getLatest, getFile } from 'uc-core';
-import type { ClipboardMeta } from 'uc-core';
-import { getCurrentNetworkContext } from '@/services/networkContext';
-import { loadServerRouteLiveUrl, saveServerRouteLiveUrl } from '@/services/serverRouteRecordStore';
-import { selectServerUrl } from '@/services/serverRouteSelector';
-import {
-  ClipboardItem,
-  ClipboardContent,
-  createDefaultClipboardItem,
-  HistorySyncStatus,
-} from '@/types/clipboard';
+import { ClipboardItem, ClipboardContent } from '@/types/clipboard';
 import { AddServerSheet } from '@/components/AddServerSheet';
 import { AddActionsFab } from '@/components/AddActionsFab';
 import { ClipboardCard } from '@/components/ClipboardCard';
@@ -65,89 +55,11 @@ const GRID_SPACING = 12;
 const GRID_PADDING = 16;
 const NUM_COLUMNS = 2;
 
-async function fetchAndApplyServerClipboard(): Promise<void> {
-  const { useSettingsStore } = require('@/stores/settingsStore');
-  const settings = useSettingsStore.getState();
-  const server = settings.getActiveServer();
-  if (!server?.url) return;
-
-  const ucServer = {
-    baseUrl: server.url.replace(/\/+$/, ''),
-    username: server.username || '',
-    password: server.password || '',
-  };
-  const trustInsecure = settings.config?.trustInsecureCert ?? false;
-
-  let entry: ClipboardMeta;
-  let downloadedText: string | null = null;
-  try {
-    const selected = await selectServerUrl(
-      server,
-      {
-        network: getCurrentNetworkContext(),
-        loadLiveUrl: loadServerRouteLiveUrl,
-        saveLiveUrl: saveServerRouteLiveUrl,
-      },
-      async (route) => {
-        const routeServer = {
-          ...ucServer,
-          baseUrl: route.url,
-        };
-        const latest = await getLatest(routeServer, trustInsecure);
-        if (latest.kind === 'Text' && latest.hasData && latest.dataName) {
-          const bytes = await getFile(routeServer, latest.dataName, trustInsecure);
-          return { entry: latest, downloadedText: new TextDecoder().decode(bytes) };
-        }
-        return { entry: latest, downloadedText: null };
-      }
-    );
-    entry = selected.result.entry;
-    downloadedText = selected.result.downloadedText;
-  } catch (e: any) {
-    if (e?.message?.includes('404')) return;
-    throw e;
-  }
-  if (!entry) return;
-
-  // Write to system clipboard
-  const Clipboard = require('expo-clipboard');
-  const { clipboardMonitor } = require('@/services/ClipboardMonitor');
-  clipboardMonitor.pausePolling();
-  try {
-    if (entry.kind === 'Text') {
-      if (downloadedText !== null) {
-        await Clipboard.setStringAsync(downloadedText);
-      } else {
-        await Clipboard.setStringAsync(entry.text);
-      }
-    }
-    if (entry.hash) {
-      await clipboardMonitor.setLastContent({
-        type: entry.kind,
-        text: entry.text,
-        profileHash: entry.hash,
-        localClipboardHash: entry.hash,
-      });
-    }
-  } finally {
-    clipboardMonitor.resumePolling();
-  }
-
-  // Add to history
-  const { useHistoryStore } = require('@/stores/historyStore');
-  await useHistoryStore.getState().addItem(
-    createDefaultClipboardItem({
-      type: entry.kind,
-      text: entry.text,
-      profileHash: entry.hash ?? '',
-      hasData: entry.hasData,
-      dataName: entry.dataName ?? undefined,
-      size: entry.size,
-      timestamp: Date.now(),
-      syncStatus: HistorySyncStatus.Synced,
-      from: 'server',
-    })
-  );
+// 下拉刷新 / 同步按钮统一走 SyncEngine 的显式 pull（enginePull(Explicit)）——引擎内部
+// get_latest + 冲突解析 + watermark，Applied 分支经 applyToDevice 写回剪贴板/历史，
+// 不再在 UI 层直调 FFI（旧 fetchAndApplyServerClipboard 已删）。
+async function refreshFromServer(): Promise<void> {
+  await useSyncEngineStore.getState().forceSync();
 }
 
 interface HomeViewProps {
@@ -472,7 +384,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await fetchAndApplyServerClipboard();
+      await refreshFromServer();
       await loadItems();
     } finally {
       setRefreshing(false);
@@ -484,7 +396,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
     if (isSyncing) return;
     setIsSyncing(true);
     try {
-      await fetchAndApplyServerClipboard();
+      await refreshFromServer();
       await loadItems();
       if (historySyncEnabled && config) {
         const serverConfig = config.servers[config.activeServerIndex];

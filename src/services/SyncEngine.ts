@@ -1,71 +1,65 @@
 /**
- * SyncEngine — Rust reducer-driven clipboard sync state machine.
+ * SyncEngine — Rust `MobileSyncEngine` 的薄协调器（P3 迁移后）。
  *
- * Mirrors iOS SyncEngine.swift: 1Hz foreground tick that converges device
- * and server clipboards automatically. All sync decisions route through the
- * Rust reducer (planPreamble / planAfterServerGet / commit*); this TypeScript
- * shell owns the I/O (network, clipboard, persistence) and UI state.
+ * 去重 / 防回环 / watermark 持久化 / 冲突解析 / 退避全部收进 Rust 引擎，本层只负责：
+ *   - 触发 push / pull / applyStaged，并把 `SyncOutcome` 翻译成历史行 / 剪贴板写回 / UI 状态；
+ *   - 维护 SSE 连接状态机（重连退避 / feature-detect 降级 / epoch 过滤——**决策全在 TS**，
+ *     引擎只在 pull(trigger) 里吃 SSE 语义，故仅回调体改成 enginePull）；
+ *   - 周期兜底 tick 定时器（现驱动 enginePull(Routine)）；
+ *   - history 列表同步（queryHistory + RN 侧 watermark，引擎不含 history 键）；
+ *   - device_hash 代理（activate 寄存器，经注入的 getDeviceClipboard 回调）。
  *
- * Conflict resolution is server-wins: when both sides change inside the same
- * tick the server is processed first; the next tick's hash dedup prevents
- * echoing the applied content back.
+ * URL 路由（引擎只持单 baseUrl，app 有 LAN/WAN 多候选）：事件驱动重解析——start /
+ * 服务器切换 / 网络路由变化时用 selectServerUrl 的排序解析出 live URL 喂给引擎；离线时
+ * 轮换候选做故障转移（离线期清 watermark 无害，服务端本就不可达）。
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getLastSyncedHash, getLastSyncedContentId } from 'app-group-store';
 import {
-  type SyncRuntimeState,
-  type SyncConfig,
-  type SyncState,
-  type ClipboardMeta,
-  type PreambleStep,
-  type ServerRoute,
-  type CommitStep,
-  type TickFailureStep,
-  type TickErrorKind,
+  engineInit,
+  engineDispose,
+  enginePush,
+  enginePull,
+  engineApplyStaged,
+  engineSetServer,
+  engineHandleNetworkRouteChanged,
+  engineSetSettings,
+  engineAcknowledgeLoopDetected,
+  hasEngine,
   defaultSyncConfig,
-  defaultSyncRuntimeState,
-  planPreamble,
-  planAfterServerGet,
-  commitConverged,
-  commitApply,
-  commitApplyFailed,
-  commitStage,
-  commitPush,
-  commitPushSkipped,
-  commitConsentPush,
-  commitTickFailure,
-  commitHistorySyncDone,
-  markStagedApplied,
-  acknowledgeLoopDetection,
-  resetRuntimeState,
-  handleActiveServerChanged,
-  handleNetworkRouteChanged,
+  queryHistory,
   isHistorySyncDue,
   isColdStart,
   advanceWatermark,
-  getLatest,
-  putClipboard,
-  getFile,
-  queryHistory,
-  cancelInFlight,
-  hashesEqual,
   hasSse,
   startSseSubscription,
   cancelSseSubscription,
   addSseListener,
 } from 'uc-core';
-import type { ServerConfig as UcServerConfig, HistoryRecord } from 'uc-core';
+import type {
+  SyncConfig,
+  ClipboardMeta,
+  LocalContent,
+  SyncOutcome,
+  SyncedMeta,
+  StagedPreview,
+  PullTrigger,
+  ServerConfig as UcServerConfig,
+  HistoryRecord,
+} from 'uc-core';
 import type { EventSubscription } from 'expo-modules-core';
 import { getCurrentNetworkContext } from './networkContext';
 import { loadServerRouteLiveUrl, saveServerRouteLiveUrl } from './serverRouteRecordStore';
-import { selectServerUrl, type ServerRoute as SelectedServerRoute } from './serverRouteSelector';
+import {
+  selectServerUrl,
+  orderServerUrls,
+  getServerRouteKey,
+  type ServerRoute as SelectedServerRoute,
+} from './serverRouteSelector';
 import type { ServerConfig as AppServerConfig } from '@/types/api';
 import { HistorySyncStatus } from '@/types/clipboard';
 import { log } from './Logger';
 
-const LAST_SYNCED_HASH_KEY = '@syncengine:last_synced_hash';
-const LAST_SYNCED_CONTENT_ID_KEY = '@syncengine:last_synced_content_id';
 const LAST_HISTORY_SYNC_KEY = '@syncengine:last_history_sync_ms';
 
 // SSE 在线时下行推送接管即时性，周期 tick 降为低频兜底（设计 §5.2：SSE 在线也保留
@@ -79,7 +73,17 @@ const SSE_BACKOFF_MAX_MS = 30000;
 const SSE_MAX_CONSECUTIVE_FAILURES = 5;
 const SSE_FEATURE_RETRY_MS = 5 * 60 * 1000;
 
-export type SyncEngineState = SyncState;
+// 连续 N 次离线 tick 后开始轮换候选 URL 做故障转移（Option A：引擎只持单 URL，
+// 靠协调器在离线时切换候选；离线期没有成功的 pull，清 watermark 不会 clobber）。
+const OFFLINE_URL_ROTATE_AFTER = 2;
+
+export type SyncEngineState =
+  | 'Idle'
+  | 'Succeeded'
+  | 'HasNewUnwritten'
+  | 'OfflineRetrying'
+  | 'AuthFailed'
+  | 'LoopDetected';
 
 export interface SyncEngineStatus {
   state: SyncEngineState;
@@ -114,8 +118,31 @@ export interface SyncSettings {
   enableSse: boolean;
 }
 
+type ErrorKind =
+  | 'AuthFailed'
+  | 'Cancelled'
+  | 'NetworkUnreachable'
+  | 'ConnectTimeout'
+  | 'ReceiveTimeout'
+  | 'OtherSyncError';
+
+/** pull 触发强弱排序（穿透优先），供单飞合并时选更强的 pending。 */
+function triggerRank(t: PullTrigger): number {
+  switch (t.tag) {
+    case 'Explicit':
+      return 4;
+    case 'SseResync':
+      return 3;
+    case 'SseHello':
+      return 2;
+    case 'SseUpdate':
+      return 1;
+    case 'Routine':
+      return 0;
+  }
+}
+
 export class SyncEngine {
-  private runtimeState: SyncRuntimeState;
   private syncConfig: SyncConfig;
 
   private state: SyncEngineState = 'Idle';
@@ -124,27 +151,24 @@ export class SyncEngine {
   private isExplicitlyRefreshing = false;
   private stagedEntry: ClipboardMeta | null = null;
 
-  private lastAppliedContentHash: string | null = null;
-  private lastWrittenContentHash: string | null = null;
-
-  // 内容指纹幂等守卫：最近一次实际成功 PUT 的内容 hash。即便 reducer 因
-  // commitPush 清空 contentId、跨进程 resync 或网络重置导致 lastSyncedHash
-  // 漂移而重新判定 DoPush，只要内容指纹未变（且服务端尚未确认 → 未 Converged、
-  // 也未被服务端新内容覆盖）就跳过 PUT，根治「同一未变内容被周期性重复回写」。
-  // Converged / apply 新内容 / 换服务器时清空，保证 A→B→A 这类「复制回旧内容」
-  // 仍能正常重推。纯内存态：进程不会每分钟重启，足以拦住稳态重复。
-  private lastPushedContentHash: string | null = null;
+  // -- 引擎实例（native 长期持有；这里只记录构造状态与当前喂给引擎的 URL）--
+  private engineConstructed = false;
+  private currentEngineUrl: string | null = null;
+  private offlineTicks = 0;
+  private offlineUrlRotation = 0;
 
   private tickTimer: ReturnType<typeof setTimeout> | null = null;
-  private isTicking = false;
-  // F-7 pending-pull 合并：SSE 事件 / 本地写 / 兜底 tick 多源并发时，最多
-  // 「一个在跑 + 一个 pending」，不叠加并发 getLatest。
-  private runningForcedTick = false;
-  private pendingForcedTick = false;
+  // BackingOff{retryAfterMs} 覆盖下一次 tick 间隔（一次性）。
+  private nextTickOverrideMs: number | null = null;
+
+  // pull 单飞合并：一个在跑 + 至多一个 pending（取更强触发），吸收 SSE 突发。
+  private pullInFlight = false;
+  private pendingPullTrigger: PullTrigger | null = null;
+  // push 单飞合并：本地写突发合并成一次（每次重跑读最新 device）。
+  private pushInFlight = false;
+  private pushPending = false;
 
   // -- SSE push channel state（策略全在 TS 侧，Rust 只管单次会话）--
-  // epoch 绑定确切 server config：切服务器/网络路由/退后台都 bump epoch，
-  // 旧 epoch 的在途回调按 subscriptionId 过滤丢弃（设计 §5.2 F-7）。
   private sseEpoch = 0;
   private sseSubscriptionId: string | null = null;
   private sseConnected = false;
@@ -152,12 +176,10 @@ export class SyncEngine {
   private sseReconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private sseRetryTimer: ReturnType<typeof setTimeout> | null = null;
   private sseSubscriptions: EventSubscription[] = [];
-  /** 上次记录过的 preamble Stop 原因；同因连发只记第一条，避免 1Hz tick 日志刷屏 */
-  private lastLoggedStopReason: string | null = null;
+
   /**
-   * 是否处于"服务器不可达"离线态。服务器离线是预期状态而非错误：1Hz tick 会持续
-   * 失败，这里只在「在线↔离线」跳变时各记一条 info，避免把网络失败刷成 error 日志
-   * （也顺带压掉 1Hz Logger IO 抖动）。
+   * 服务器不可达离线态。服务器离线是预期状态而非错误：兜底 tick 会持续失败，
+   * 这里只在「在线↔离线」跳变时各记一条 info，避免刷屏（也压掉 Logger IO 抖动）。
    */
   private isOffline = false;
   private isSceneInactive = false;
@@ -171,9 +193,6 @@ export class SyncEngine {
   private getSettings: () => SyncSettings;
   private applyToDevice: (meta: ClipboardMeta, payload?: ArrayBuffer) => Promise<void>;
   private onHistoryRecord: ((record: HistoryRecord) => void) | null = null;
-  // hash 与 contentId 作为同一水位线快照：原子同写同清（doc §4 / §契约 3）。
-  private getPersistedSynced: () => Promise<{ hash: string | null; contentId: string | null }>;
-  private persistSynced: (hash: string | null, contentId: string | null) => Promise<void>;
 
   constructor(opts: {
     getActiveServer: () => ActiveServerInfo | null;
@@ -188,57 +207,144 @@ export class SyncEngine {
     this.applyToDevice = opts.applyToDevice;
     this.onHistoryRecord = opts.onHistoryRecord ?? null;
     this.syncConfig = defaultSyncConfig();
-    this.runtimeState = defaultSyncRuntimeState();
-
-    this.getPersistedSynced = async () => {
-      const pairs = await AsyncStorage.multiGet([LAST_SYNCED_HASH_KEY, LAST_SYNCED_CONTENT_ID_KEY]);
-      const map = new Map(pairs);
-      const hash = map.get(LAST_SYNCED_HASH_KEY) ?? null;
-      const contentId = map.get(LAST_SYNCED_CONTENT_ID_KEY) ?? null;
-      let appGroupHash: string | null = null;
-      let appGroupContentId: string | null = null;
-      try {
-        [appGroupHash, appGroupContentId] = await Promise.all([
-          getLastSyncedHash(),
-          getLastSyncedContentId(),
-        ]);
-      } catch {
-        appGroupHash = null;
-        appGroupContentId = null;
-      }
-      const adoptAppGroup = !!(appGroupHash && !hashesEqual(appGroupHash, hash));
-      if (adoptAppGroup) {
-        // An extension (keyboard / share) advanced the cross-process
-        // watermark. Adopt ITS contentId snapshot, not null: the keyboard
-        // learns the server identity post-push and writes the pair, so the
-        // re-encoded GET dedups here too. It's null for legacy servers or a
-        // bare push not yet re-learned — falling back to hash compare, which
-        // is correct.
-        return {
-          hash: appGroupHash,
-          contentId: appGroupContentId,
-        };
-      }
-      return {
-        hash,
-        contentId,
-      };
-    };
-    this.persistSynced = async (hash, contentId) => {
-      // hash 与 contentId 一起落盘 / 一起清空，二者保持一致（reducer 已保证
-      // SyncRuntimeState 内两键同步，此处只负责一起读写）。
-      const sets: [string, string][] = [];
-      const removes: string[] = [];
-      if (hash) sets.push([LAST_SYNCED_HASH_KEY, hash]);
-      else removes.push(LAST_SYNCED_HASH_KEY);
-      if (contentId) sets.push([LAST_SYNCED_CONTENT_ID_KEY, contentId]);
-      else removes.push(LAST_SYNCED_CONTENT_ID_KEY);
-      if (sets.length) await AsyncStorage.multiSet(sets);
-      if (removes.length) await AsyncStorage.multiRemove(removes);
-    };
 
     this.setupSseListeners();
   }
+
+  async init(): Promise<void> {
+    // watermark 已下沉进引擎（native KeyValueStore），RN 侧仅保留 history 列表同步水位线。
+    const savedHistoryMs = await AsyncStorage.getItem(LAST_HISTORY_SYNC_KEY);
+    this.lastHistorySyncAt = savedHistoryMs ? parseInt(savedHistoryMs, 10) : null;
+  }
+
+  // -- Lifecycle --
+
+  start(): void {
+    if (this.state === 'LoopDetected') return;
+    if (this.state === 'AuthFailed') this.setState('Idle');
+    log.info('[SyncEngine] start');
+    // 先确保引擎按当前 live URL 构造/对齐，再起 tick + SSE + 立即收敛一次。
+    void (async () => {
+      const ok = await this.ensureEngine();
+      if (!ok) {
+        this.setState('Idle');
+        this.notifyListeners();
+        return;
+      }
+      if (this.tickTimer === null) this.scheduleNextTick();
+      void this.startSse();
+      // 首次立即收敛：有本地内容且允许自动推送就 push（内部含 get_latest，双向都覆盖），
+      // 否则显式 pull 一次拉服务端最新。
+      void this.reconverge();
+    })();
+  }
+
+  stop(): void {
+    // 停 tick + SSE，但保留 native 引擎实例（设计：长生命周期单实例，退后台不销毁）。
+    if (this.tickTimer !== null) {
+      clearTimeout(this.tickTimer);
+      this.tickTimer = null;
+    }
+    this.stopSse();
+  }
+
+  setSceneInactive(inactive: boolean): void {
+    this.isSceneInactive = inactive;
+  }
+
+  destroy(): void {
+    this.stop();
+    for (const sub of this.sseSubscriptions) sub.remove();
+    this.sseSubscriptions = [];
+    this.listeners.clear();
+    if (this.engineConstructed) {
+      try {
+        engineDispose();
+      } catch {
+        // native 已释放时静默
+      }
+      this.engineConstructed = false;
+      this.currentEngineUrl = null;
+    }
+  }
+
+  // -- 引擎构造 / URL 对齐（Option A：事件驱动重解析）--
+
+  /** 引擎的 auto_apply 快照来自 app 设置的 autoApplyRemote。 */
+  private engineSettings() {
+    return { autoApply: this.getSettings().autoApplyRemote };
+  }
+
+  /**
+   * 解析当前 active server 的 live URL，构造（首次）或对齐（URL 变了）引擎。
+   * @param rotate 离线故障转移：先失效缓存的 live URL 并轮换候选顺序。
+   * @returns 是否有可用 active server（引擎已就绪）。
+   */
+  private async ensureEngine(rotate = false): Promise<boolean> {
+    if (!hasEngine()) return false;
+    const server = this.getActiveServer();
+    if (!server) return false;
+
+    const ucServer = await this.resolveLiveUcServer(server, rotate);
+
+    if (!this.engineConstructed) {
+      try {
+        engineInit(ucServer, this.syncConfig, this.engineSettings(), server.trustInsecureCert);
+        this.engineConstructed = true;
+        this.currentEngineUrl = ucServer.baseUrl;
+        log.info('[SyncEngine] engineInit @ ' + ucServer.baseUrl);
+      } catch (e: any) {
+        log.error('[SyncEngine] engineInit failed:', e?.message ?? e);
+        return false;
+      }
+      return true;
+    }
+
+    if (ucServer.baseUrl !== this.currentEngineUrl) {
+      try {
+        // 注意：换 baseUrl 会清 watermark（same_server 精确比对）。仅在事件驱动
+        // 重解析 / 离线轮换时发生；调用方（handleNetworkChanged / 离线 tick）随后
+        // 会立即 reconverge，用 push/truth-gate 重新收敛。
+        await engineSetServer(ucServer);
+        this.currentEngineUrl = ucServer.baseUrl;
+        log.info('[SyncEngine] engineSetServer @ ' + ucServer.baseUrl);
+      } catch (e: any) {
+        log.error('[SyncEngine] engineSetServer failed:', e?.message ?? e);
+      }
+    }
+    return true;
+  }
+
+  /**
+   * 不打网络地解析出最优 live URL：按网络偏好排序候选 + 缓存的 live URL 提升。
+   * rotate=true 时失效缓存并按轮换序号偏移选另一候选（离线故障转移）。
+   */
+  private async resolveLiveUcServer(
+    server: ActiveServerInfo,
+    rotate: boolean
+  ): Promise<UcServerConfig> {
+    const appServer = this.toAppServerConfig(server);
+    const key = getServerRouteKey(appServer);
+    let liveUrl: string | null = null;
+    if (rotate) {
+      await saveServerRouteLiveUrl(key, null);
+    } else {
+      liveUrl = await loadServerRouteLiveUrl(key);
+    }
+    const ordered = orderServerUrls(appServer, getCurrentNetworkContext(), { liveUrl });
+    let url = ordered[0] ?? server.baseUrl;
+    if (rotate && ordered.length > 1) {
+      this.offlineUrlRotation = (this.offlineUrlRotation + 1) % ordered.length;
+      url = ordered[this.offlineUrlRotation] ?? url;
+    }
+    return {
+      baseUrl: url.replace(/\/+$/, ''),
+      username: server.username,
+      password: server.password,
+    };
+  }
+
+  // -- SSE push channel（连接生命周期全在 TS，回调体改成 enginePull）--
 
   private setupSseListeners(): void {
     if (!hasSse()) return;
@@ -251,26 +357,19 @@ export class SyncEngine {
         this.sseConnected = true;
         this.sseConsecutiveFailures = 0;
         // 无重放承诺：连上后无条件拉一次，覆盖建连窗口竞态（设计 §4.3）。
-        void this.forceTickNow();
+        void this.runPull({ tag: 'SseHello' });
       }),
       addSseListener('onSseUpdate', (e) => {
         if (e.subscriptionId !== this.sseSubscriptionId) return;
-        // F-1 短路：contentId（blake3v1，跨重编码稳定）匹配已同步基线则连
-        // getLatest 都省。桌面 resurface 同内容重戳时间戳正落在这里。
-        if (
-          this.runtimeState.lastSyncedContentId != null &&
-          e.contentId === this.runtimeState.lastSyncedContentId
-        ) {
-          log.debug('[SyncEngine] SSE update short-circuited (contentId already synced)');
-          return;
-        }
+        // contentId 短路已下沉进引擎：SseUpdate 若命中已同步 watermark，enginePull
+        // 直接返回 UpToDate{SseShortCircuit}，连 get_latest 都省，无需 TS 侧预判。
         log.info('[SyncEngine] SSE update -> pull');
-        void this.forceTickNow();
+        void this.runPull({ tag: 'SseUpdate', contentId: e.contentId });
       }),
       addSseListener('onSseResync', (e) => {
         if (e.subscriptionId !== this.sseSubscriptionId) return;
         log.info('[SyncEngine] SSE resync -> unconditional pull');
-        void this.forceTickNow();
+        void this.runPull({ tag: 'SseResync' });
       }),
       addSseListener('onSseDisconnected', (e) => {
         if (e.subscriptionId !== this.sseSubscriptionId) return;
@@ -279,49 +378,9 @@ export class SyncEngine {
     ];
   }
 
-  async init(): Promise<void> {
-    const [saved, savedHistoryMs] = await Promise.all([
-      this.getPersistedSynced(),
-      AsyncStorage.getItem(LAST_HISTORY_SYNC_KEY),
-    ]);
-    if (saved.hash || saved.contentId) {
-      this.runtimeState = {
-        ...this.runtimeState,
-        lastSyncedHash: saved.hash,
-        lastSyncedContentId: saved.contentId,
-      };
-    }
-    this.lastHistorySyncAt = savedHistoryMs ? parseInt(savedHistoryMs, 10) : null;
-  }
-
-  // -- Lifecycle --
-
-  start(): void {
-    if (this.tickTimer !== null) return;
-    if (this.state === 'AuthFailed') this.setState('Idle');
-    if (this.state === 'LoopDetected') return;
-    log.info('[SyncEngine] start: scheduling tick loop');
-    this.scheduleNextTick();
-    void this.startSse();
-  }
-
-  stop(): void {
-    if (this.tickTimer !== null) {
-      clearTimeout(this.tickTimer);
-      this.tickTimer = null;
-    }
-    this.stopSse();
-  }
-
-  setSceneInactive(inactive: boolean): void {
-    this.isSceneInactive = inactive;
-  }
-
-  // -- SSE push channel --
-
   /**
    * 建立 SSE 订阅（新 epoch）。设置关 / native 不支持 / 无 active server 时
-   * 静默返回——下行保持现状 1Hz 轮询，天然 feature-gate。
+   * 静默返回——下行保持现状轮询，天然 feature-gate。
    */
   async startSse(): Promise<void> {
     if (!hasSse()) return;
@@ -334,7 +393,6 @@ export class SyncEngine {
     const epoch = this.sseEpoch;
     const subscriptionId = 'sse-' + epoch;
 
-    // 复用与 tick 相同的 live-URL 选择逻辑，epoch 绑定确切 server config。
     let ucServer: UcServerConfig;
     try {
       ucServer = await this.withActiveRoute(server, async (route) => this.toUcServer(route));
@@ -396,9 +454,7 @@ export class SyncEngine {
     this.sseConnected = false;
     this.sseConsecutiveFailures += 1;
 
-    // SSE 掉线后周期 tick 可能还挂在 30s 兜底档上，立即重排回 1Hz 轮询，
-    // 不留下行盲区。（timer 为 null 说明 tick 在跑或引擎已停，前者 finally
-    // 里会用最新 sseConnected 重排，后者不该被这里唤醒。）
+    // SSE 掉线后周期 tick 可能还挂在 30s 兜底档上，立即重排回 1Hz 轮询，不留下行盲区。
     if (this.tickTimer !== null) this.scheduleNextTick();
 
     if (this.sseConsecutiveFailures >= SSE_MAX_CONSECUTIVE_FAILURES) {
@@ -437,37 +493,104 @@ export class SyncEngine {
     }, delayMs);
   }
 
-  async forceTickNow(): Promise<void> {
-    // F-7：一个在跑 + 至多一个 pending。运行期间新触发合并进 pending，
-    // 跑完补拉一次；再多的并发触发直接吸收。
-    if (this.runningForcedTick) {
-      this.pendingForcedTick = true;
-      return;
-    }
-    this.runningForcedTick = true;
-    try {
-      do {
-        this.pendingForcedTick = false;
-        await this.tick(true);
-      } while (this.pendingForcedTick);
-    } finally {
-      this.runningForcedTick = false;
-      this.pendingForcedTick = false;
-    }
+  // -- 外部触发入口 --
+
+  /** 本地剪贴板变化（复制/粘贴/选图/拍照 / monitor 回调）：push 当前 device 内容。 */
+  notifyLocalChanged(): void {
+    if (this.state === 'AuthFailed' || this.state === 'LoopDetected') return;
+    void this.runPush();
   }
 
+  /** 用户下拉刷新：显式 pull 穿透退避。 */
   async explicitRefresh(): Promise<void> {
     this.isExplicitlyRefreshing = true;
     this.notifyListeners();
     try {
-      await this.tick(true);
+      await this.pullServer({ tag: 'Explicit' });
+      await this.runHistorySyncIfDue().catch(() => {});
     } finally {
       this.isExplicitlyRefreshing = false;
       this.notifyListeners();
     }
   }
 
-  // -- State accessors --
+  /** 用户在 staged banner 点「应用」：下载字节 + 推进 watermark，返回 Applied。 */
+  async applyStagedEntry(): Promise<void> {
+    if (!this.engineConstructed) return;
+    let outcome: SyncOutcome;
+    try {
+      outcome = await engineApplyStaged();
+    } catch (e: any) {
+      log.error('[SyncEngine] engineApplyStaged threw:', e?.message ?? e);
+      return;
+    }
+    await this.applyOutcome(outcome, false);
+  }
+
+  /** 用户消 LoopDetected banner：清 loop 缓冲，恢复同步。 */
+  async acknowledgeLoop(): Promise<void> {
+    if (this.engineConstructed) {
+      try {
+        await engineAcknowledgeLoopDetected();
+      } catch (e: any) {
+        log.error('[SyncEngine] engineAcknowledgeLoopDetected threw:', e?.message ?? e);
+      }
+    }
+    this.setState('Idle');
+    this.lastError = null;
+    this.notifyListeners();
+    this.start();
+  }
+
+  /** app 设置变更（autoApplyRemote 翻转）：把最新 auto_apply 推给引擎。 */
+  async applySettings(): Promise<void> {
+    if (!this.engineConstructed) return;
+    try {
+      await engineSetSettings(this.engineSettings());
+    } catch (e: any) {
+      log.error('[SyncEngine] engineSetSettings threw:', e?.message ?? e);
+    }
+  }
+
+  /** 服务器切换：引擎按新 server 清 watermark + reset，重启 tick / SSE 并立即收敛。 */
+  async handleServerChanged(): Promise<void> {
+    this.stagedEntry = null;
+    this.isOffline = false;
+    this.offlineTicks = 0;
+    this.setState('Idle');
+    this.lastError = null;
+    // history 列表同步水位线是 RN 侧独立键，切服务器清空。
+    this.lastHistorySyncAt = null;
+    await AsyncStorage.removeItem(LAST_HISTORY_SYNC_KEY);
+
+    // 强制按新 server 重解析并对齐引擎（新 URL → engineSetServer 清 watermark）。
+    this.currentEngineUrl = null;
+    await this.ensureEngine();
+
+    this.notifyListeners();
+    if (this.tickTimer === null) this.scheduleNextTick();
+    this.restartSse();
+    void this.reconverge();
+  }
+
+  /** 网络路由变化：清引擎退避 + 重解析 live URL + 重连 SSE + 立即收敛。 */
+  handleNetworkChanged(): void {
+    void (async () => {
+      if (this.engineConstructed) {
+        try {
+          await engineHandleNetworkRouteChanged();
+        } catch (e: any) {
+          log.error('[SyncEngine] engineHandleNetworkRouteChanged threw:', e?.message ?? e);
+        }
+      }
+      // 路由切换后网络偏好可能翻转 → 重解析可能选中另一候选 URL。
+      await this.ensureEngine();
+      this.restartSse();
+      void this.reconverge();
+    })();
+  }
+
+  // -- 状态访问 --
 
   getStatus(): SyncEngineStatus {
     return {
@@ -484,515 +607,279 @@ export class SyncEngine {
     return () => this.listeners.delete(listener);
   }
 
-  noteReapplyWritten(deviceHash: string | null): void {
-    if (!deviceHash) return;
-    this.lastAppliedContentHash = deviceHash.toUpperCase();
-  }
+  // -- 核心：push / pull / reconverge --
 
-  noteDeviceWrite(hash: string | null): void {
-    if (!hash) return;
-    this.lastWrittenContentHash = hash.toUpperCase();
-  }
-
-  notifyDeviceChanged(hash: string | null): void {
-    this.noteDeviceWrite(hash);
-    if (this.state === 'AuthFailed' || this.state === 'LoopDetected') return;
-    void this.forceTickNow();
-  }
-
-  async applyStagedEntry(): Promise<void> {
-    const step = markStagedApplied(this.runtimeState);
-    if (!step.wasStaged) return;
-    this.runtimeState = step.state;
-    this.stagedEntry = null;
-    this.setState('Succeeded');
-    this.lastSyncedAt = Date.now();
-    this.lastError = null;
-    await this.persistRuntimeHash();
-    this.notifyListeners();
-  }
-
-  async acknowledgeLoop(): Promise<void> {
-    this.runtimeState = acknowledgeLoopDetection(this.runtimeState);
-    this.setState('Idle');
-    this.lastError = null;
-    this.notifyListeners();
-    this.start();
-  }
-
-  async handleServerChanged(): Promise<void> {
-    this.runtimeState = handleActiveServerChanged(this.runtimeState);
-    this.stagedEntry = null;
-    this.lastPushedContentHash = null;
-    this.isOffline = false;
-    this.setState('Idle');
-    this.lastError = null;
-    await this.persistSynced(null, null);
-    this.lastHistorySyncAt = null;
-    await AsyncStorage.removeItem(LAST_HISTORY_SYNC_KEY);
-    this.notifyListeners();
-    this.start();
-    this.restartSse();
-    this.forceTickNow();
-  }
-
-  handleNetworkChanged(): void {
-    cancelInFlight();
-    this.runtimeState = handleNetworkRouteChanged(this.runtimeState);
-    // round 6 F-3：路由切换等价 epoch 变化——立即按当前路由重连，
-    // 不等 Rust 侧心跳超时（2×25s）才发现死连接。
-    this.restartSse();
-  }
-
-  handleEndpointChanged(): void {
-    cancelInFlight();
-    this.runtimeState = handleNetworkRouteChanged(this.runtimeState);
-    this.restartSse();
-    this.forceTickNow();
-  }
-
-  destroy(): void {
-    this.stop();
-    for (const sub of this.sseSubscriptions) sub.remove();
-    this.sseSubscriptions = [];
-    this.listeners.clear();
-  }
-
-  // -- Core tick --
-
-  private async tick(explicit = false): Promise<void> {
-    if (!explicit && this.isTicking) return;
-    if (explicit) {
-      while (this.isTicking) {
-        await new Promise((r) => setTimeout(r, 50));
-      }
+  /**
+   * 立即收敛一次：有本地内容且允许自动推送就 push（内部含 get_latest，双向覆盖），
+   * 否则显式 pull 拉服务端最新。用于 start / 服务器切换 / 网络变化后重建 watermark。
+   */
+  private async reconverge(): Promise<void> {
+    const device = await this.safeGetDevice();
+    if (device && this.getSettings().autoPushLocal) {
+      await this.runPush();
+    } else {
+      await this.runPull({ tag: 'Explicit' });
     }
-    this.isTicking = true;
+  }
+
+  /** push 单飞合并入口。 */
+  private async runPush(): Promise<void> {
+    if (this.pushInFlight) {
+      this.pushPending = true;
+      return;
+    }
+    this.pushInFlight = true;
     try {
-      await this.doTick(explicit);
+      do {
+        this.pushPending = false;
+        await this.pushLocal();
+      } while (this.pushPending);
     } finally {
-      this.isTicking = false;
-      this.scheduleNextTick();
+      this.pushInFlight = false;
     }
   }
 
-  private async doTick(explicit: boolean): Promise<void> {
-    const server = this.getActiveServer();
-    const device = await this.getDeviceClipboard();
-    const settings = this.getSettings();
-    log.debug(
-      '[SyncEngine] doTick: explicit=' +
-        explicit +
-        ' server=' +
-        (server ? server.baseUrl : 'null') +
-        ' device=' +
-        (device?.hash?.slice(0, 8) ?? 'null') +
-        ' autoApply=' +
-        settings.autoApplyRemote +
-        ' autoPush=' +
-        settings.autoPushLocal
-    );
-
-    const persisted = await this.getPersistedSynced();
-    // 纯本地（AsyncStorage）基线快照，供 server GET 后的"并集校正"判定：preamble
-    // 可能用陈旧的 App Group 水位线把它顶掉，需要原样留底以便对比。
-    const localSynced = await this.readLocalSynced();
-
-    let step: PreambleStep;
+  /** pull 单飞合并入口（pending 取更强触发）。 */
+  private async runPull(trigger: PullTrigger): Promise<void> {
+    if (this.pullInFlight) {
+      if (
+        this.pendingPullTrigger === null ||
+        triggerRank(trigger) > triggerRank(this.pendingPullTrigger)
+      ) {
+        this.pendingPullTrigger = trigger;
+      }
+      return;
+    }
+    this.pullInFlight = true;
     try {
-      step = planPreamble(this.runtimeState, {
-        explicit,
-        autoPush: settings.autoPushLocal,
-        hasActiveServer: server !== null,
-        deviceHash: device?.hash ?? null,
-        historyHeadHash: null,
-        persistedSyncedHash: persisted.hash,
-        persistedSyncedContentId: persisted.contentId,
-        nowMs: Date.now(),
-      });
+      let t: PullTrigger | null = trigger;
+      while (t) {
+        await this.pullServer(t);
+        t = this.pendingPullTrigger;
+        this.pendingPullTrigger = null;
+      }
+    } finally {
+      this.pullInFlight = false;
+      this.pendingPullTrigger = null;
+    }
+  }
+
+  private async pushLocal(): Promise<void> {
+    // 自动推送关（consent 模式）：本地内容留在本地，不自动上传。
+    if (!this.getSettings().autoPushLocal) return;
+    if (!(await this.ensureEngine())) return;
+    const device = await this.safeGetDevice();
+    if (!device) return;
+
+    let content: LocalContent;
+    try {
+      content = await this.buildLocalContent(device);
     } catch (e: any) {
-      log.error('[SyncEngine] planPreamble FFI error:', e?.message ?? e);
+      log.error('[SyncEngine] buildLocalContent failed:', e?.message ?? e);
       return;
     }
 
-    this.runtimeState = step.state;
-
-    if (step.preamble.proceed.type === 'Stop') {
-      const stopReason = step.preamble.proceed.reason;
-      if (this.lastLoggedStopReason !== stopReason) {
-        this.lastLoggedStopReason = stopReason;
-        log.info('[SyncEngine] preamble: Stop(' + stopReason + ')');
-      }
-      if (stopReason === 'NoActiveServer') {
-        this.setState('Idle');
-        this.notifyListeners();
-      }
+    let outcome: SyncOutcome;
+    try {
+      outcome = await enginePush(content);
+    } catch (e: any) {
+      this.handleOpThrow(e);
       return;
     }
-    this.lastLoggedStopReason = null;
+    await this.applyOutcome(outcome, false);
+  }
 
+  private async pullServer(trigger: PullTrigger): Promise<void> {
+    const server = this.getActiveServer();
     if (!server) {
       this.setState('Idle');
       this.notifyListeners();
       return;
     }
+    if (!(await this.ensureEngine())) return;
+    const device = await this.safeGetDevice();
+    const deviceHash = device?.hash ?? null;
 
+    let outcome: SyncOutcome;
     try {
+      outcome = await enginePull(trigger, deviceHash);
+    } catch (e: any) {
+      this.handleOpThrow(e);
+      return;
+    }
+    await this.applyOutcome(outcome, trigger.tag !== 'Routine');
+  }
+
+  /**
+   * 翻译 SyncOutcome 到历史行 / 剪贴板写回 / UI 状态。
+   * @param explicit 触发是否为显式（Explicit/SSE/push）——仅影响遥测日志措辞。
+   */
+  private async applyOutcome(outcome: SyncOutcome, _explicit: boolean): Promise<void> {
+    switch (outcome.tag) {
+      case 'Uploaded':
+        await this.markHistoryPushed(outcome.meta.hash);
+        this.onSyncSuccess();
+        break;
+
+      case 'Applied':
+        await this.applyAppliedOutcome(outcome.content, outcome.meta);
+        this.onSyncSuccess();
+        break;
+
+      case 'Staged':
+        this.stagedEntry = this.previewToMeta(outcome.preview);
+        this.clearOffline();
+        this.setState('HasNewUnwritten');
+        this.lastSyncedAt = Date.now();
+        this.lastError = null;
+        break;
+
+      case 'UpToDate':
+        this.onSyncSuccess();
+        break;
+
+      case 'BackingOff':
+        // 例行 tick 被同步操作退避挡下：按 retryAfterMs 排下次 Routine，不重试。
+        this.nextTickOverrideMs = Math.max(0, outcome.retryAfterMs);
+        log.debug('[SyncEngine] BackingOff ' + outcome.retryAfterMs + 'ms');
+        break;
+
+      case 'LoopDetected':
+        this.tripLoopBreaker();
+        break;
+
+      case 'Failed':
+        this.handleFailed(outcome.error);
+        break;
+    }
+    this.notifyListeners();
+  }
+
+  private async applyAppliedOutcome(content: LocalContent, meta: SyncedMeta): Promise<void> {
+    const payload = coercePayload(content.payload);
+    const clipMeta: ClipboardMeta = {
+      kind: meta.kind,
+      text: content.text ?? meta.text ?? '',
+      dataName: content.dataName ?? null,
+      hasData: payload != null,
+      size: meta.size ?? payload?.byteLength ?? content.text?.length ?? 0,
+      hash: meta.hash,
+      contentId: meta.contentId,
+    };
+    try {
+      await this.applyToDevice(clipMeta, payload ?? undefined);
+      log.info('[SyncEngine] applied server->device: kind=' + clipMeta.kind);
+    } catch (e: any) {
+      // 写回失败按错误处理；引擎已乐观置 last_applied，下次 pull 会重试应用。
+      log.error('[SyncEngine] applyToDevice failed:', e?.message ?? e);
+      this.handleFailed(e?.message ?? 'apply failed');
+    }
+  }
+
+  private onSyncSuccess(): void {
+    this.stagedEntry = null;
+    this.clearOffline();
+    this.setState('Succeeded');
+    this.lastSyncedAt = Date.now();
+    this.lastError = null;
+  }
+
+  private clearOffline(): void {
+    this.offlineTicks = 0;
+    if (this.isOffline) {
+      this.isOffline = false;
+      log.info('[SyncEngine] server reachable again — back online');
+    }
+  }
+
+  private handleOpThrow(e: any): void {
+    // FFI 边界抛出（native 异常）——按普通失败翻译。
+    this.handleFailed(e?.message ?? String(e));
+    this.notifyListeners();
+  }
+
+  private handleFailed(error: string): void {
+    const kind = this.classifyError(error);
+
+    // 取消（切服务器 / 网络路由变更主动 abort）属预期，不记日志、不改状态。
+    if (kind === 'Cancelled') return;
+
+    if (kind === 'AuthFailed') {
+      log.error('[SyncEngine] op error (auth):', error);
+      this.setState('AuthFailed');
+      this.lastError = error || 'Authentication failed';
+      this.stop();
+      return;
+    }
+
+    if (this.isOfflineKind(kind)) {
+      if (!this.isOffline) {
+        this.isOffline = true;
+        log.info('[SyncEngine] server unreachable — offline, will keep retrying:', error);
+      }
+      this.offlineTicks += 1;
+      this.setState('OfflineRetrying');
+      this.lastError = error || 'Network error';
+      // 连续离线 → 轮换候选 URL 做故障转移（离线期清 watermark 无害）。
+      if (this.offlineTicks >= OFFLINE_URL_ROTATE_AFTER) {
+        void this.ensureEngine(true);
+      }
+    } else {
+      log.error('[SyncEngine] op error:', error);
+      this.setState('OfflineRetrying');
+      this.lastError = error || 'Sync error';
+    }
+  }
+
+  // -- history 列表同步（引擎不含 history 键，100% 留 RN 侧）--
+
+  private async runHistorySyncIfDue(): Promise<void> {
+    if (
+      !isHistorySyncDue(this.lastHistorySyncAt, Date.now(), this.syncConfig.historySyncIntervalSecs)
+    ) {
+      return;
+    }
+    if (this.isHistorySyncing) return;
+    const server = this.getActiveServer();
+    if (!server) return;
+    this.isHistorySyncing = true;
+    try {
+      const watermarkMs = this.lastHistorySyncAt;
+      const cold = isColdStart(watermarkMs);
+      let maxModifiedMs = watermarkMs ?? 0;
+      let page = 1;
+      const maxPages = 50;
+
       await this.withActiveRoute(server, async (route) => {
         const ucServer = this.toUcServer(route);
-        let serverEntry: ClipboardMeta | null = null;
-        try {
-          serverEntry = await getLatest(ucServer, server.trustInsecureCert);
-        } catch (e: any) {
-          if (e?.message?.includes('404') || e?.message?.includes('Not Found')) {
-            serverEntry = null;
-          } else {
-            throw e;
+        while (page <= maxPages) {
+          const records = await queryHistory(
+            ucServer,
+            { page, modifiedAfterMs: watermarkMs ?? undefined },
+            server.trustInsecureCert
+          );
+          if (records.length === 0) break;
+          for (const record of records) {
+            this.onHistoryRecord?.(record);
+            if (record.lastModifiedMs && record.lastModifiedMs > maxModifiedMs) {
+              maxModifiedMs = record.lastModifiedMs;
+            }
           }
+          if (cold) break;
+          page++;
         }
-
-        // 服务端无内容时为兼容官方 SyncClipboard 协议会返回 200 + 空占位 entry
-        // （type=Text, text="", hash=None, contentId=None），而非 404（见
-        // uniclipboard 仓库 uc-webserver .../sync_doc.rs empty_text）。这种
-        // hashless entry 会被 reducer 判成 ServerNew 但 will_apply=false（无 hash
-        // 无法自动应用）→ stage → 卡死 HasNewUnwritten，永久阻塞 autoPush。既无
-        // hash 又无 contentId 的 entry 没有任何可同步身份，归一化为「无内容」(null)
-        // 让 reducer 走 Push 分支。真实内容服务端必填 hash（响应侧保证），不会误伤。
-        if (serverEntry && !serverEntry.hash && !serverEntry.contentId) {
-          log.info(
-            '[SyncEngine] serverEntry is empty placeholder (no hash/contentId) — treating as no content'
-          );
-          serverEntry = null;
-        }
-
-        // 跨进程水位线"并集"校正（iOS）：preamble 可能用陈旧的 App Group 水位线
-        // 顶掉本地已收敛基线（getPersistedSynced 的 ADOPT-APPGROUP 分支）。若服务端
-        // 当前内容其实匹配本地基线（cid 优先 / hash 回退），说明 App Group 水位线更
-        // 旧、应以本地为准——否则没变的服务端内容会被误判为 ServerNew，把设备上用户
-        // 刚复制的新内容覆盖掉，且本地内容永远推不上去。App Group 确实更新的场景
-        // （server 匹配 App Group 而非本地）不满足下面条件，照常走 apply，跨进程
-        // contentId 去重能力不受影响。
-        if (
-          serverEntry &&
-          !this.matchesBaseline(
-            serverEntry.hash,
-            serverEntry.contentId,
-            this.runtimeState.lastSyncedHash,
-            this.runtimeState.lastSyncedContentId
-          ) &&
-          this.matchesBaseline(
-            serverEntry.hash,
-            serverEntry.contentId,
-            localSynced.hash,
-            localSynced.contentId
-          )
-        ) {
-          log.info(
-            '[SyncEngine] baseline reconcile: server matches LOCAL baseline, dropping stale app-group watermark (' +
-              (this.runtimeState.lastSyncedHash?.slice(0, 8) ?? 'null') +
-              ' -> ' +
-              (localSynced.hash?.slice(0, 8) ?? 'null') +
-              ')'
-          );
-          this.runtimeState = {
-            ...this.runtimeState,
-            lastSyncedHash: localSynced.hash,
-            lastSyncedContentId: localSynced.contentId,
-          };
-        }
-
-        let plannedRoute: ServerRoute;
-        try {
-          plannedRoute = planAfterServerGet(this.runtimeState, {
-            autoApply: settings.autoApplyRemote,
-            autoPush: settings.autoPushLocal,
-            serverEntry,
-            devicePresent: device !== null,
-            deviceHash: device?.hash ?? null,
-          });
-        } catch (e: any) {
-          log.error('[SyncEngine] planAfterServerGet FFI error:', e?.message ?? e);
-          return;
-        }
-
-        log.debug(
-          '[SyncEngine] tick: route=' +
-            plannedRoute.type +
-            (plannedRoute.type === 'Push' ? '(' + plannedRoute.decision + ')' : '') +
-            ' server=' +
-            (serverEntry?.hash?.slice(0, 8) ?? 'null') +
-            ' device=' +
-            (device?.hash?.slice(0, 8) ?? 'null')
-        );
-
-        switch (plannedRoute.type) {
-          case 'Converged':
-            // 学到 contentId 的主路径：push 后第一次 GET、设备剪贴板仍是刚 push 的
-            // 内容时走这里，传 server entry 的 contentId（doc §3 步骤 2）。
-            this.runtimeState = commitConverged(
-              this.runtimeState,
-              plannedRoute.serverHash,
-              serverEntry?.contentId ?? null
-            );
-            this.stagedEntry = null;
-            // 服务端已确认收到当前内容，释放幂等守卫：将来即便剪贴板内容变回这份旧
-            // 内容（A→B→A），也应允许重新 push。
-            this.lastPushedContentHash = null;
-            this.setState('Succeeded');
-            this.lastSyncedAt = Date.now();
-            this.lastError = null;
-            break;
-
-          case 'ServerNew':
-            log.info(
-              '[SyncEngine] ServerNew: willApply=' +
-                plannedRoute.plan.willApply +
-                ' alreadyStaged=' +
-                plannedRoute.plan.alreadyStaged
-            );
-            await this.processServerNew(
-              serverEntry!,
-              plannedRoute.plan,
-              ucServer,
-              server.trustInsecureCert
-            );
-            break;
-
-          case 'Push':
-            await this.maybePush(plannedRoute.decision, device, ucServer, server.trustInsecureCert);
-            break;
-        }
-
-        this.runHistorySyncIfDue(ucServer, server.trustInsecureCert).catch(() => {});
       });
 
-      await this.persistRuntimeHash();
-      // tick 成功走通：若此前处于离线态，记一条恢复日志并复位
-      if (this.isOffline) {
-        this.isOffline = false;
-        log.info('[SyncEngine] server reachable again — back online');
-      }
-      this.notifyListeners();
+      const advanced = advanceWatermark(watermarkMs, maxModifiedMs);
+      if (advanced !== null) this.lastHistorySyncAt = advanced;
     } catch (e: any) {
-      const kind = this.classifyError(e);
-
-      // 取消（切服务器 / 网络路由变更主动 abort 在途请求）属预期，不记日志、不改状态
-      if (kind === 'Cancelled') {
-        return;
+      // history 列表同步失败不影响主同步，静默（离线时常态）。
+      log.debug('[SyncEngine] history sync failed: ' + (e?.message ?? e));
+    } finally {
+      this.isHistorySyncing = false;
+      if (this.lastHistorySyncAt) {
+        await AsyncStorage.setItem(LAST_HISTORY_SYNC_KEY, String(this.lastHistorySyncAt));
       }
-
-      if (kind === 'AuthFailed') {
-        // 鉴权失败需要用户介入，属真错误
-        log.error('[SyncEngine] tick error (auth):', e?.message ?? e);
-        this.setState('AuthFailed');
-        this.lastError = e?.message ?? 'Authentication failed';
-        this.stop();
-        this.notifyListeners();
-        return;
-      }
-
-      if (this.isOfflineKind(kind)) {
-        // 服务器不可达是预期状态，不算 error：仅在进入离线态时记一条 info，
-        // 避免 1Hz tick 把网络失败刷成 error 日志。
-        if (!this.isOffline) {
-          this.isOffline = true;
-          log.info(
-            '[SyncEngine] server unreachable — offline, will keep retrying:',
-            e?.message ?? e
-          );
-        }
-      } else {
-        // 其余（OtherSyncError 等）才是真正意外的同步错误
-        log.error('[SyncEngine] tick error:', e?.message ?? e);
-      }
-
-      let failStep: TickFailureStep;
-      try {
-        failStep = commitTickFailure(
-          this.runtimeState,
-          kind,
-          Math.random() * 0.4 + 0.8,
-          Date.now(),
-          this.syncConfig
-        );
-      } catch (ffiErr: any) {
-        log.error('[SyncEngine] commitTickFailure FFI error:', ffiErr?.message ?? ffiErr);
-        this.setState('OfflineRetrying');
-        this.lastError = e?.message ?? 'Network error';
-        this.notifyListeners();
-        return;
-      }
-      this.runtimeState = failStep.state;
-      this.setState('OfflineRetrying');
-      this.lastError = e?.message ?? 'Network error';
-      this.notifyListeners();
-    }
-  }
-
-  private async processServerNew(
-    entry: ClipboardMeta,
-    plan: { willApply: boolean; alreadyStaged: boolean },
-    server: UcServerConfig,
-    trustInsecureCert: boolean
-  ): Promise<void> {
-    if (plan.willApply) {
-      try {
-        log.info(
-          '[SyncEngine] applying server→device: kind=' +
-            entry.kind +
-            ' hash=' +
-            (entry.hash?.slice(0, 8) ?? 'null') +
-            ' hasData=' +
-            entry.hasData
-        );
-        let payload: ArrayBuffer | undefined;
-        if (entry.hasData && entry.dataName) {
-          payload = await getFile(server, entry.dataName, trustInsecureCert);
-        }
-        await this.applyToDevice(entry, payload);
-        this.noteDeviceWrite(entry.hash);
-        log.info('[SyncEngine] apply success');
-      } catch (e: any) {
-        this.runtimeState = commitApplyFailed(this.runtimeState, entry);
-        this.stagedEntry = entry;
-        throw e;
-      }
-
-      const step: CommitStep = commitApply(
-        this.runtimeState,
-        entry.hash,
-        entry.contentId,
-        Date.now(),
-        this.syncConfig
-      );
-      this.runtimeState = step.state;
-      this.stagedEntry = null;
-      // 本地已被服务端新内容覆盖，旧的 push 指纹失效。
-      this.lastPushedContentHash = null;
-      this.setState('Succeeded');
-      this.lastSyncedAt = Date.now();
-      this.lastError = null;
-
-      if (step.outcome.tripped) {
-        this.tripLoopBreaker();
-      }
-    } else if (!plan.alreadyStaged) {
-      this.runtimeState = commitStage(this.runtimeState, entry);
-      this.stagedEntry = entry;
-      this.setState('HasNewUnwritten');
-      this.lastSyncedAt = Date.now();
-      this.lastError = null;
-    }
-  }
-
-  private async maybePush(
-    decision: string,
-    device: DeviceClipboard | null,
-    server: UcServerConfig,
-    trustInsecureCert: boolean
-  ): Promise<void> {
-    switch (decision) {
-      case 'SkipConsentMode':
-      case 'SkipNoDevice':
-        this.runtimeState = commitPushSkipped(this.runtimeState);
-        this.setState('Succeeded');
-        this.lastError = null;
-        break;
-
-      case 'SkipAlreadySynced':
-      case 'SkipSelfWritten':
-        this.runtimeState = commitPushSkipped(this.runtimeState);
-        this.setState('Succeeded');
-        this.lastSyncedAt = Date.now();
-        this.lastError = null;
-        break;
-
-      case 'DoPush':
-        if (!device) {
-          this.runtimeState = commitPushSkipped(this.runtimeState);
-          this.setState('Succeeded');
-          this.lastError = null;
-          return;
-        }
-
-        // 内容指纹幂等守卫（治本）：reducer 因 lastSyncedHash 漂移（contentId 清空 /
-        // 跨进程 resync / 网络重置）而重新判定 DoPush 时，若内容指纹与最近一次成功
-        // PUT 相同——即服务端尚未确认（未 Converged）、本地也未被新内容覆盖——说明
-        // 这是同一份没变的内容被周期性回写，直接跳过，避免 mac 端反复弹「正在接收」。
-        const pushFingerprint = device.meta.hash?.toUpperCase() ?? null;
-        if (pushFingerprint && pushFingerprint === this.lastPushedContentHash) {
-          log.info(
-            '[SyncEngine] DoPush skipped by content-fingerprint guard: ' +
-              pushFingerprint.slice(0, 8)
-          );
-          this.runtimeState = commitPushSkipped(this.runtimeState);
-          this.setState('Succeeded');
-          this.lastSyncedAt = Date.now();
-          this.lastError = null;
-          return;
-        }
-
-        let payload: ArrayBuffer | undefined = device.payload;
-        // 截图等本地内容只有 fileUri 没有 fileData，push 前按需读取字节。
-        // fileUri 可能指向已被移入历史目录的临时文件，回退用 profileHash 定位。
-        if (device.meta.hasData && device.meta.dataName && !payload) {
-          const { File } = await import('expo-file-system');
-          let uri = device.fileUri;
-          if (!uri || !new File(uri).exists) {
-            const { getHistoryFileUri } = await import('@/utils/fileStorage');
-            uri =
-              (await getHistoryFileUri(
-                device.meta.kind,
-                device.meta.hash ?? '',
-                device.meta.dataName
-              )) ?? undefined;
-          }
-          if (uri && new File(uri).exists) {
-            payload = await new File(uri).arrayBuffer();
-          }
-        }
-        // putClipboard 内部按 spec §3.5 先 PUT /file 再 PUT 元数据，无需单独 putFile。
-        // payload 转 Uint8Array 以匹配 native Data 参数的编组要求（裸 ArrayBuffer 会失败）。
-        const payloadBytes = payload ? new Uint8Array(payload) : undefined;
-        try {
-          await putClipboard(server, device.meta, payloadBytes, trustInsecureCert);
-        } catch (e: any) {
-          // 离线导致的 push 失败会被上层 catch 归一化为离线态处理，这里不再当作 error
-          // 刷屏；仅编组/服务端等真实 push 失败才带上下文记 error。
-          if (!this.isOfflineKind(this.classifyError(e))) {
-            log.error(
-              '[SyncEngine] putClipboard failed: kind=' +
-                device.meta.kind +
-                ' dataName=' +
-                device.meta.dataName +
-                ' bytes=' +
-                (payloadBytes?.byteLength ?? 0) +
-                ' err=' +
-                (e?.message ?? e)
-            );
-          }
-          throw e;
-        }
-
-        const step: CommitStep = commitPush(
-          this.runtimeState,
-          device.meta.hash,
-          Date.now(),
-          this.syncConfig
-        );
-        this.runtimeState = step.state;
-        // 记录本次实际发出的内容指纹，供后续 tick 的幂等守卫比对。
-        this.lastPushedContentHash = device.meta.hash?.toUpperCase() ?? null;
-
-        this.setState('Succeeded');
-        if (step.outcome.tripped) {
-          this.tripLoopBreaker();
-          return;
-        }
-        await this.markHistoryPushed(device.meta.hash);
-        this.lastSyncedAt = Date.now();
-        this.lastError = null;
-        break;
     }
   }
 
@@ -1009,63 +896,55 @@ export class SyncEngine {
     }
   }
 
-  // -- History sync --
+  // -- 内容构建 helpers --
 
-  private async runHistorySyncIfDue(
-    server: UcServerConfig,
-    trustInsecureCert: boolean
-  ): Promise<void> {
-    if (
-      !isHistorySyncDue(this.lastHistorySyncAt, Date.now(), this.syncConfig.historySyncIntervalSecs)
-    ) {
-      return;
+  private async buildLocalContent(device: DeviceClipboard): Promise<LocalContent> {
+    const meta = device.meta;
+    let payload: ArrayBuffer | undefined = device.payload;
+    // 截图等本地内容只有 fileUri 没有 fileData，push 前按需读取字节。
+    // fileUri 可能指向已被移入历史目录的临时文件，回退用 hash 定位。
+    if (meta.hasData && meta.dataName && !payload) {
+      const { File } = await import('expo-file-system');
+      let uri = device.fileUri;
+      if (!uri || !new File(uri).exists) {
+        const { getHistoryFileUri } = await import('@/utils/fileStorage');
+        uri = (await getHistoryFileUri(meta.kind, meta.hash ?? '', meta.dataName)) ?? undefined;
+      }
+      if (uri && new File(uri).exists) {
+        payload = await new File(uri).arrayBuffer();
+      }
     }
-    if (this.isHistorySyncing) return;
-    this.isHistorySyncing = true;
+    return {
+      kind: meta.kind,
+      text: meta.text ?? '',
+      dataName: meta.dataName ?? null,
+      // Uint8Array 匹配 native Data/ByteArray 编组（裸 ArrayBuffer 会失败）。
+      payload: payload ? new Uint8Array(payload) : null,
+    };
+  }
+
+  private previewToMeta(preview: StagedPreview): ClipboardMeta {
+    return {
+      kind: preview.kind,
+      text: preview.text,
+      dataName: null,
+      hasData: preview.kind !== 'Text',
+      size: preview.size ?? preview.text.length,
+      hash: null,
+      contentId: null,
+    };
+  }
+
+  private async safeGetDevice(): Promise<DeviceClipboard | null> {
     try {
-      const watermarkMs = this.lastHistorySyncAt;
-      const cold = isColdStart(watermarkMs);
-      let maxModifiedMs = watermarkMs ?? 0;
-      let page = 1;
-      const maxPages = 50;
-
-      while (page <= maxPages) {
-        const records = await queryHistory(
-          server,
-          {
-            page,
-            modifiedAfterMs: watermarkMs ?? undefined,
-          },
-          trustInsecureCert
-        );
-
-        if (records.length === 0) break;
-
-        for (const record of records) {
-          this.onHistoryRecord?.(record);
-          if (record.lastModifiedMs && record.lastModifiedMs > maxModifiedMs) {
-            maxModifiedMs = record.lastModifiedMs;
-          }
-        }
-
-        if (cold) break;
-        page++;
-      }
-
-      const advanced = advanceWatermark(watermarkMs, maxModifiedMs);
-      if (advanced !== null) {
-        this.lastHistorySyncAt = advanced;
-      }
-    } finally {
-      this.isHistorySyncing = false;
-      this.runtimeState = commitHistorySyncDone(this.runtimeState, Date.now());
-      if (this.lastHistorySyncAt) {
-        await AsyncStorage.setItem(LAST_HISTORY_SYNC_KEY, String(this.lastHistorySyncAt));
-      }
+      return await this.getDeviceClipboard();
+    } catch (e: any) {
+      log.error('[SyncEngine] getDeviceClipboard failed:', e?.message ?? e);
+      return null;
     }
   }
 
-  // -- Helpers --
+  // -- 路由 helpers（history 同步 / SSE 仍走 RN 侧多 URL 选择）--
 
   private async withActiveRoute<T>(
     server: ActiveServerInfo,
@@ -1103,26 +982,38 @@ export class SyncEngine {
     };
   }
 
+  // -- tick 调度 --
+
   private scheduleNextTick(): void {
-    if (this.tickTimer !== null) {
-      clearTimeout(this.tickTimer);
-    }
+    if (this.tickTimer !== null) clearTimeout(this.tickTimer);
     if (this.state === 'AuthFailed' || this.state === 'LoopDetected') {
       this.tickTimer = null;
       return;
     }
-    // SSE 在线时下行由推送接管，周期 tick 降为 30s 兜底（省电正收益所在）；
-    // 断开/回退时恢复 1Hz。scene inactive 分支维持原低频档。
+    // SSE 在线时下行由推送接管，周期 tick 降为 30s 兜底；断开/回退时恢复 1Hz。
     const activeCadenceSecs = this.sseConnected
       ? SSE_FALLBACK_CADENCE_SECS
       : this.syncConfig.normalCadenceSecs;
-    const interval = this.isSceneInactive
+    const cadenceMs = this.isSceneInactive
       ? this.syncConfig.inactiveCadenceSecs * 1000
       : activeCadenceSecs * 1000;
+    // BackingOff 覆盖（一次性）：按引擎给的 retryAfterMs 排下一次 Routine。
+    const interval =
+      this.nextTickOverrideMs !== null ? Math.max(this.nextTickOverrideMs, cadenceMs) : cadenceMs;
+    this.nextTickOverrideMs = null;
     this.tickTimer = setTimeout(() => {
       this.tickTimer = null;
-      this.tick(false);
+      void this.onRoutineTick();
     }, interval);
+  }
+
+  private async onRoutineTick(): Promise<void> {
+    try {
+      await this.runPull({ tag: 'Routine' });
+      await this.runHistorySyncIfDue().catch(() => {});
+    } finally {
+      this.scheduleNextTick();
+    }
   }
 
   private setState(s: SyncEngineState): void {
@@ -1134,11 +1025,10 @@ export class SyncEngine {
     this.setState('LoopDetected');
     this.lastError = 'Sync loop detected — same content alternated too many times';
     this.stop();
-    this.notifyListeners();
   }
 
-  private classifyError(e: any): TickErrorKind {
-    const msg = (e?.message ?? '').toLowerCase();
+  private classifyError(error: string): ErrorKind {
+    const msg = (error ?? '').toLowerCase();
     if (msg.includes('401') || msg.includes('unauthorized') || msg.includes('auth')) {
       return 'AuthFailed';
     }
@@ -1148,8 +1038,6 @@ export class SyncEngine {
     if (msg.includes('timeout') || msg.includes('timed out')) {
       return msg.includes('connect') ? 'ConnectTimeout' : 'ReceiveTimeout';
     }
-    // 服务器不可达的各种表述（reqwest / 原生网络栈）——归一为 NetworkUnreachable，
-    // 既让 reducer 走网络退避，也让上层按"离线（非错误）"处理日志。
     if (
       msg.includes('network') ||
       msg.includes('unreachable') ||
@@ -1178,41 +1066,8 @@ export class SyncEngine {
   }
 
   /** 该错误类型是否属于"服务器不可达/离线"——预期状态，日志上不当作 error。 */
-  private isOfflineKind(kind: TickErrorKind): boolean {
+  private isOfflineKind(kind: ErrorKind): boolean {
     return kind === 'NetworkUnreachable' || kind === 'ConnectTimeout' || kind === 'ReceiveTimeout';
-  }
-
-  /** 只读本地 AsyncStorage 的同步水位线，不掺入 App Group（getPersistedSynced 会掺）。 */
-  private async readLocalSynced(): Promise<{ hash: string | null; contentId: string | null }> {
-    const pairs = await AsyncStorage.multiGet([LAST_SYNCED_HASH_KEY, LAST_SYNCED_CONTENT_ID_KEY]);
-    const map = new Map(pairs);
-    return {
-      hash: map.get(LAST_SYNCED_HASH_KEY) ?? null,
-      contentId: map.get(LAST_SYNCED_CONTENT_ID_KEY) ?? null,
-    };
-  }
-
-  /**
-   * 服务端 entry 是否匹配给定基线，镜像 reducer 的 is_already_synced：两侧都有
-   * contentId 时只比 contentId（不透明、verbatim，跨重编码稳定），否则回退 hash 大写比较。
-   */
-  private matchesBaseline(
-    serverHash: string | null,
-    serverCid: string | null,
-    baseHash: string | null,
-    baseCid: string | null
-  ): boolean {
-    if (serverCid != null && baseCid != null) return serverCid === baseCid;
-    if (serverHash == null && baseHash == null) return true;
-    if (serverHash == null || baseHash == null) return false;
-    return serverHash.toUpperCase() === baseHash.toUpperCase();
-  }
-
-  private async persistRuntimeHash(): Promise<void> {
-    await this.persistSynced(
-      this.runtimeState.lastSyncedHash,
-      this.runtimeState.lastSyncedContentId
-    );
   }
 
   private notifyListeners(): void {
@@ -1225,4 +1080,15 @@ export class SyncEngine {
       }
     }
   }
+}
+
+/** 引擎 Applied 回传的 payload（ArrayBuffer/Uint8Array/null）归一成 ArrayBuffer。 */
+function coercePayload(payload: ArrayBuffer | Uint8Array | null | undefined): ArrayBuffer | null {
+  if (!payload) return null;
+  if (payload instanceof ArrayBuffer) return payload;
+  // Uint8Array → 取其底层 buffer 的精确切片。
+  return payload.buffer.slice(
+    payload.byteOffset,
+    payload.byteOffset + payload.byteLength
+  ) as ArrayBuffer;
 }

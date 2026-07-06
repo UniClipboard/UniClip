@@ -234,7 +234,7 @@ export const useSyncEngineStore = create<SyncEngineState>((set) => ({
     clipboardCallback = async (content) => {
       if (!content.profileHash) return;
       await writeActivate(content);
-      engine?.noteDeviceWrite(content.profileHash);
+      engine?.notifyLocalChanged();
     };
     clipboardMonitor.addCallback(clipboardCallback);
 
@@ -321,6 +321,11 @@ export function notifySseSettingChanged(): void {
   engine?.restartSse();
 }
 
+/** autoApplyRemote 等引擎设置变更时调用：把最新 auto_apply 推给引擎。 */
+export function notifySettingsChanged(): void {
+  void engine?.applySettings();
+}
+
 /**
  * 用户主动产生的本地新内容(复制/粘贴/选图/拍照)——写入 activate 寄存器后强制一次 tick。
  * 先 await 写库,确保被强制的 tick 读到的是最新 device_hash 而非陈旧值。
@@ -329,5 +334,5 @@ export async function notifyDeviceClipboardChanged(content: ClipboardContent): P
   if (!content.profileHash) return;
   // 主动激活:绕过被动 anti-echo(用户明确使用某项,即便等于刚 apply 的内容也要激活)。
   await writeActivate(content, { active: true });
-  engine?.notifyDeviceChanged(content.profileHash);
+  engine?.notifyLocalChanged();
 }

@@ -11,7 +11,14 @@ jest.mock('@/services/SyncEngine', () => ({
     destroy: jest.fn(),
     addListener: jest.fn(),
     getStatus: jest.fn(),
-    notifyDeviceChanged: jest.fn(),
+    notifyLocalChanged: jest.fn(),
+    applyStagedEntry: jest.fn(),
+    explicitRefresh: jest.fn(),
+    acknowledgeLoop: jest.fn(),
+    applySettings: jest.fn(),
+    handleServerChanged: jest.fn(),
+    handleNetworkChanged: jest.fn(),
+    restartSse: jest.fn(),
   })),
 }));
 
@@ -133,7 +140,7 @@ describe('syncEngineStore route config', () => {
     });
 
     const engineInstance = (SyncEngine as jest.Mock).mock.results[0].value;
-    expect(engineInstance.notifyDeviceChanged).toHaveBeenCalledWith('LOCAL_HASH');
+    expect(engineInstance.notifyLocalChanged).toHaveBeenCalled();
   });
 
   // 回归:文本→文件连续应用后,系统剪贴板残留旧文本(File 写不进系统剪贴板)。
