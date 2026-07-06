@@ -14,10 +14,41 @@ private let log = Logger(subsystem: "app.uniclipboard", category: "store")
 /// matches the forward-compat philosophy of `AppSettings.init(from:)` —
 /// stored data must never block app startup.
 public final class SettingsStore: @unchecked Sendable {
-    /// App Group container shared between the main app and the Share
-    /// Extension. Keep in sync with the `application-groups` entitlement
-    /// on both targets.
-    public static let appGroupID = "group.app.uniclipboard.UniClipboard"
+    /// App Group container shared between the main app and app extensions.
+    /// The main app receives the value through Info.plist; extensions derive
+    /// it from their own bundle identifier so dev/prod installs stay isolated
+    /// without hardcoding the production container.
+    public static var appGroupID: String {
+        infoPlistAppGroupID ?? bundleDerivedAppGroupID ?? defaultAppGroupID
+    }
+
+    private static let defaultAppGroupID = "group.app.uniclipboard.UniClipboard"
+    private static let appBundleIDPrefix = "app.uniclipboard.UniClipboard"
+    private static let extensionBundleSuffixes = [".Share", ".Keyboard"]
+
+    private static var infoPlistAppGroupID: String? {
+        guard let raw = Bundle.main.object(forInfoDictionaryKey: "UCAppGroupIdentifier") as? String else {
+            return nil
+        }
+        return normalizeAppGroupID(raw)
+    }
+
+    private static var bundleDerivedAppGroupID: String? {
+        guard var bundleID = Bundle.main.bundleIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines),
+              bundleID.hasPrefix(appBundleIDPrefix) else {
+            return nil
+        }
+        for suffix in extensionBundleSuffixes where bundleID.hasSuffix(suffix) {
+            bundleID.removeLast(suffix.count)
+            break
+        }
+        return normalizeAppGroupID("group.\(bundleID)")
+    }
+
+    private static func normalizeAppGroupID(_ raw: String) -> String? {
+        let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty || value.contains("$(") ? nil : value
+    }
 
     /// Filename of the file-backed `last_synced_content_hash` under
     /// `containerURL`. Plain text, UTF-8, contains a single uppercase

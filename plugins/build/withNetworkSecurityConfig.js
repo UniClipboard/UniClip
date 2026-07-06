@@ -53,7 +53,9 @@ function addNetworkSecurityConfig(androidManifest) {
         return androidManifest;
     }
     const application = manifest.application[0];
-    application.$ = application.$ || {};
+    if (!application.$) {
+        application.$ = { 'android:name': '.MainApplication' };
+    }
     application.$['android:networkSecurityConfig'] = '@xml/network_security_config';
     return androidManifest;
 }

@@ -50,6 +50,7 @@ env:
   UC_CORE_REPO: https://github.com/UniClipboard/UniClipboard.git
   UC_CORE_REF: 9cfe6bd8ad57573c1266724667f0d107e7378624
   APPLE_TEAM_ID: 8XG39X5CL8
+  APP_VARIANT: production
 
 jobs:
   build:

@@ -673,9 +673,39 @@ private final class SseEventForwarder: SseListener, @unchecked Sendable {
 
 class ExpoPlatformBridge: PlatformBridge {
     func appGroupDir() -> String {
-        let url = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: "group.app.uniclipboard.UniClipboard"
-        )
+        let url = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupID)
         return url?.path ?? NSTemporaryDirectory()
+    }
+
+    private var appGroupID: String {
+        Self.infoPlistAppGroupID ?? Self.bundleDerivedAppGroupID ?? Self.defaultAppGroupID
+    }
+
+    private static let defaultAppGroupID = "group.app.uniclipboard.UniClipboard"
+    private static let appBundleIDPrefix = "app.uniclipboard.UniClipboard"
+    private static let extensionBundleSuffixes = [".Share", ".Keyboard"]
+
+    private static var infoPlistAppGroupID: String? {
+        guard let raw = Bundle.main.object(forInfoDictionaryKey: "UCAppGroupIdentifier") as? String else {
+            return nil
+        }
+        return normalizeAppGroupID(raw)
+    }
+
+    private static var bundleDerivedAppGroupID: String? {
+        guard var bundleID = Bundle.main.bundleIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines),
+              bundleID.hasPrefix(appBundleIDPrefix) else {
+            return nil
+        }
+        for suffix in extensionBundleSuffixes where bundleID.hasSuffix(suffix) {
+            bundleID.removeLast(suffix.count)
+            break
+        }
+        return normalizeAppGroupID("group.\(bundleID)")
+    }
+
+    private static func normalizeAppGroupID(_ raw: String) -> String? {
+        let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty || value.contains("$(") ? nil : value
     }
 }

@@ -3,7 +3,9 @@ module.exports = (config) => ({
   type: 'share',
   name: 'share',
   displayName: 'UniClip',
-  bundleIdentifier: 'app.uniclipboard.UniClipboard.Share',
+  // Leading dot → appended to the main app bundle id, so it follows the
+  // dev/prod variant automatically (…UniClipboard.Share / …UniClipboard.dev.Share).
+  bundleIdentifier: '.Share',
   deploymentTarget: '17.0',
   exportJs: false,
   entitlements: {
