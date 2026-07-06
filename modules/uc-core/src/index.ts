@@ -179,7 +179,7 @@ export interface SseEvents {
   onSseDisconnected: (event: SseDisconnectedEvent) => void;
 }
 
-/** iOS 绑定尚未包含 SSE 时返回 false（对齐 hasReducer 的 feature-detect 模式）。 */
+/** iOS 绑定尚未包含 SSE 时返回 false（对齐 hasSyncHelpers 的 feature-detect 模式）。 */
 export function hasSse(): boolean {
   return typeof NativeModule.startSseSubscription === 'function';
 }
@@ -203,38 +203,214 @@ export function addSseListener<K extends keyof SseEvents>(
   return NativeModule.addListener(eventName, listener);
 }
 
-// --- Sync Reducer Types ---
+// --- MobileSyncEngine (push/pull 同步 SDK) ---
+//
+// 取代旧的「TS 逐函数驱动 reducer」编排:去重 / 防回环 / watermark / 冲突解析
+// 全部收进 Rust `MobileSyncEngine`,RN 侧只调 push / pull / applyStaged + 几个
+// 生命周期方法。引擎实例由 native 桥长期持有(单实例,像 SSE handle 一样),
+// TS 经这些模块函数驱动。
+//
+// 设计 / 契约:上游 `.planning/2026-07-05-mobile-push-pull-sdk-*.md`。
+// 注意:SSE 连接生命周期仍在 TS(上面那段)——引擎只在 pull(trigger) 里吃 SSE 语义。
 
-export type SyncState =
-  | 'Idle'
-  | 'Succeeded'
-  | 'HasNewUnwritten'
-  | 'OfflineRetrying'
-  | 'AuthFailed'
-  | 'LoopDetected';
+export type ClipboardKind = 'Text' | 'Image' | 'File' | 'Group';
 
-export type LoopDirection = 'Pulled' | 'Pushed';
-
-export interface LoopGuardEvent {
-  hash: string;
-  direction: LoopDirection;
-  atMillis: number;
+/** 客户端从剪贴板读到的本地内容。File/Image 带 payload 字节 + dataName;纯文本走 text。 */
+export interface LocalContent {
+  kind: ClipboardKind;
+  /** Text 内容;Image/File 为空串。 */
+  text: string;
+  /** Image/File 的文件名提示(扩展名驱动 Image 上传名);Text 为 null。 */
+  dataName: string | null;
+  /** Image/File 的字节;Text 为 null。push 入参接受 ArrayBuffer/Uint8Array;
+   *  Applied 回传时是 ArrayBuffer。 */
+  payload?: ArrayBuffer | Uint8Array | null;
 }
 
-export interface SyncRuntimeState {
-  state: SyncState;
-  lastSyncedHash: string | null;
-  /** 与 lastSyncedHash 并列的稳定身份水位线，原子同写同清。 */
-  lastSyncedContentId: string | null;
-  lastAppliedHash: string | null;
-  loopEvents: LoopGuardEvent[];
-  stagedServerHash: string | null;
-  stagedContentId: string | null;
-  stagedEntry: ClipboardMeta | null;
-  consecutiveFailures: number;
-  nextAttemptMs: number | null;
-  lastHistorySyncMs: number | null;
+/** 引擎设置。`autoApply` 关时服务端新内容走 staged 流(见 applyStaged)。
+ *  `autoPush`(何时调 push)归客户端,不在此。 */
+export interface SyncSettings {
+  autoApply: boolean;
 }
+
+/** push / pull / applyStaged 流动内容的元数据,供 native 往 HistoryStorage 追加历史行。 */
+export interface SyncedMeta {
+  kind: ClipboardKind;
+  hash: string | null;
+  contentId: string | null;
+  text: string | null;
+  size: number | null;
+}
+
+/** 渲染「有新内容可用」banner 的最小信息(不含字节)。 */
+export interface StagedPreview {
+  kind: ClipboardKind;
+  text: string;
+  size: number | null;
+}
+
+/** UpToDate 的原因,供遥测。 */
+export type UpToDateReason =
+  | 'AlreadySynced'
+  | 'SelfWritten'
+  | 'Converged'
+  | 'NoLocalChange'
+  | 'SseShortCircuit'
+  | 'ConsentMode';
+
+/** pull 的触发源:决定退避门控与 SSE contentId 短路。push 无触发概念。 */
+export type PullTrigger =
+  | { tag: 'Routine' } // 兜底 tick:受同步操作退避门控
+  | { tag: 'Explicit' } // 用户下拉刷新:穿透退避
+  | { tag: 'SseHello' } // 连接刚活:无条件 pull(穿透)
+  | { tag: 'SseResync' } // 服务端 lagged:无条件 pull(穿透)
+  | { tag: 'SseUpdate'; contentId: string }; // contentId 命中已同步水位线则短路 UpToDate
+
+/**
+ * push / pull / applyStaged 的统一结果(tagged union,用 `tag` 判别)。
+ */
+export type SyncOutcome =
+  /** 完整 put_clipboard 成功(推进 active register)。meta 供追加 .local 历史行。 */
+  | { tag: 'Uploaded'; meta: SyncedMeta }
+  /** 服务端有更新内容,字节已下载:native 写入剪贴板/Files,追加 .pulled 历史行。
+   *  本地那次写入让位(未上传,Q10 stale-clobber 保护)。 */
+  | { tag: 'Applied'; content: LocalContent; meta: SyncedMeta }
+  /** 服务端有新内容但 autoApply 关:已暂存(会话内),native 出 banner。 */
+  | { tag: 'Staged'; preview: StagedPreview }
+  /** 什么都没流动(已同步/自写/已收敛/无本地变化/SSE 短路/consent)。 */
+  | { tag: 'UpToDate'; reason: UpToDateReason }
+  /** 例行 tick 被同步操作退避挡下:按 retryAfterMs 排下次 Routine,不要重试。 */
+  | { tag: 'BackingOff'; retryAfterMs: number }
+  /** 防回环跳闸,已暂停:出 banner,用户 ack 后调 engineAcknowledgeLoopDetected。 */
+  | { tag: 'LoopDetected' }
+  /** 失败:error 为人类可读诊断串。 */
+  | { tag: 'Failed'; error: string };
+
+/** 引擎绑定是否可用(feature-detect,对齐 hasSse/hasSyncHelpers)。 */
+export function hasEngine(): boolean {
+  return typeof NativeModule.engineInit === 'function';
+}
+
+/**
+ * 构造并让 native 桥长期持有 `MobileSyncEngine` 单实例。一次性调用(切服务器走
+ * engineSetServer,不要重建)。内部复用桥已持有的 `MobileSyncClient` + native 的
+ * `KeyValueStore`(App Group / app 私有文件)。构造失败会抛。
+ */
+export function engineInit(
+  server: ServerConfig,
+  config: SyncConfig,
+  settings: SyncSettings,
+  trustInsecureCert = false
+): void {
+  NativeModule.engineInit(server, config, settings, trustInsecureCert);
+}
+
+/** 释放引擎实例(切服务器 reset / 停止同步时)。 */
+export function engineDispose(): void {
+  NativeModule.engineDispose();
+}
+
+function toSyncedMeta(m: any): SyncedMeta {
+  return {
+    kind: m.kind,
+    hash: m.hash ?? null,
+    contentId: m.contentId ?? null,
+    text: m.text ?? null,
+    size: m.size ?? null,
+  };
+}
+
+/**
+ * 把 native 桥返回的 outcome map 规范成干净的 tagged union。桥为规避 Android 嵌套字节
+ * 编组,把 Applied 的 payload 放在顶层——这里归位到 content.payload,并把缺省字段
+ * coalesce 成 null。
+ */
+function normalizeOutcome(raw: any): SyncOutcome {
+  switch (raw?.tag) {
+    case 'Uploaded':
+      return { tag: 'Uploaded', meta: toSyncedMeta(raw.meta) };
+    case 'Applied':
+      return {
+        tag: 'Applied',
+        content: {
+          kind: raw.content.kind,
+          text: raw.content.text,
+          dataName: raw.content.dataName ?? null,
+          payload: raw.payload ?? null,
+        },
+        meta: toSyncedMeta(raw.meta),
+      };
+    case 'Staged':
+      return {
+        tag: 'Staged',
+        preview: {
+          kind: raw.preview.kind,
+          text: raw.preview.text,
+          size: raw.preview.size ?? null,
+        },
+      };
+    case 'UpToDate':
+      return { tag: 'UpToDate', reason: raw.reason };
+    case 'BackingOff':
+      return { tag: 'BackingOff', retryAfterMs: raw.retryAfterMs };
+    case 'LoopDetected':
+      return { tag: 'LoopDetected' };
+    case 'Failed':
+      return { tag: 'Failed', error: raw.error ?? 'unknown error' };
+    default:
+      return { tag: 'Failed', error: `unknown outcome tag: ${String(raw?.tag)}` };
+  }
+}
+
+/** 本地剪贴板变化后调用。引擎内部先 get_latest(server-new 优先 apply 防 stale-clobber),
+ *  否则按 watermark/自写 guard 去重,真需要才完整 put_clipboard。 */
+export async function enginePush(content: LocalContent): Promise<SyncOutcome> {
+  // payload 拆成独立参数(照 putClipboard 惯例;避免嵌套字节过 Android 编组器)。
+  const { payload, ...rest } = content;
+  const raw = await NativeModule.enginePush(rest, payload ?? null);
+  return normalizeOutcome(raw);
+}
+
+/** 探测并(按 autoApply)应用服务端新内容。currentDeviceHash 供 truth-gate 收敛检测。 */
+export async function enginePull(
+  trigger: PullTrigger,
+  currentDeviceHash: string | null
+): Promise<SyncOutcome> {
+  const raw = await NativeModule.enginePull(trigger, currentDeviceHash);
+  return normalizeOutcome(raw);
+}
+
+/** 用户在 staged banner 点「应用」时调:此刻下载字节并推进水位线,返回 Applied。 */
+export async function engineApplyStaged(): Promise<SyncOutcome> {
+  const raw = await NativeModule.engineApplyStaged();
+  return normalizeOutcome(raw);
+}
+
+/** 切服务器:与当前不同即清 watermark + reset runtime(新服务器有自己的内容时间线)。 */
+export async function engineSetServer(server: ServerConfig): Promise<void> {
+  return NativeModule.engineSetServer(server);
+}
+
+/** 网络路由变化:清同步操作退避,让下一次触发立即打网络。 */
+export async function engineHandleNetworkRouteChanged(): Promise<void> {
+  return NativeModule.engineHandleNetworkRouteChanged();
+}
+
+/** 设置变更(autoApply 翻转)。 */
+export async function engineSetSettings(settings: SyncSettings): Promise<void> {
+  return NativeModule.engineSetSettings(settings);
+}
+
+/** 用户消 LoopDetected banner 后调:清 loop 缓冲,恢复同步。 */
+export async function engineAcknowledgeLoopDetected(): Promise<void> {
+  return NativeModule.engineAcknowledgeLoopDetected();
+}
+
+// --- Sync config + cadence helpers ---
+//
+// 这几个纯函数是 reducer 时代唯一活下来的部分——去重/防回环/watermark/冲突解析
+// 都已收进上面的 MobileSyncEngine,但 RN 侧的 history 列表同步节流(SyncEngine.ts
+// runHistorySyncIfDue)和冷启动/watermark 判断仍需要它们,故保留。
 
 export interface SyncConfig {
   normalCadenceSecs: number;
@@ -246,95 +422,6 @@ export interface SyncConfig {
   loopFlipThreshold: number;
 }
 
-export interface PreambleSnapshot {
-  explicit: boolean;
-  autoPush: boolean;
-  hasActiveServer: boolean;
-  deviceHash: string | null;
-  historyHeadHash: string | null;
-  persistedSyncedHash: string | null;
-  /**
-   * 跨进程 resync 用：从持久化存储读出的 lastSyncedContentId。Share Extension /
-   * 后台 push 路径不知道 contentId，必须写 null（不要沿用旧值）。
-   */
-  persistedSyncedContentId: string | null;
-  nowMs: number;
-}
-
-export type StopReason = 'NoActiveServer' | 'Paused' | 'BackoffGated';
-
-export type PreambleProceed = { type: 'Stop'; reason: StopReason } | { type: 'ToNetwork' };
-
-export interface Preamble {
-  recordLocal: boolean;
-  proceed: PreambleProceed;
-}
-
-export interface PreambleStep {
-  state: SyncRuntimeState;
-  preamble: Preamble;
-}
-
-export interface ServerGetSnapshot {
-  autoApply: boolean;
-  autoPush: boolean;
-  serverEntry: ClipboardMeta | null;
-  devicePresent: boolean;
-  deviceHash: string | null;
-}
-
-export interface ServerNewPlan {
-  willApply: boolean;
-  alreadyStaged: boolean;
-}
-
-export type PushDecision =
-  | 'SkipConsentMode'
-  | 'SkipNoDevice'
-  | 'SkipAlreadySynced'
-  | 'SkipSelfWritten'
-  | 'DoPush';
-
-export type ServerRoute =
-  | { type: 'Converged'; serverHash: string }
-  | { type: 'ServerNew'; plan: ServerNewPlan }
-  | { type: 'Push'; decision: PushDecision };
-
-export interface CommitOutcome {
-  tripped: boolean;
-}
-
-export interface CommitStep {
-  state: SyncRuntimeState;
-  outcome: CommitOutcome;
-}
-
-export type TickErrorKind =
-  | 'AuthFailed'
-  | 'Cancelled'
-  | 'NetworkUnreachable'
-  | 'ConnectTimeout'
-  | 'ReceiveTimeout'
-  | 'OtherSyncError'
-  | 'Unexpected';
-
-export interface TickFailureOutcome {
-  kickProbe: boolean;
-  firstOffline: boolean;
-}
-
-export interface TickFailureStep {
-  state: SyncRuntimeState;
-  outcome: TickFailureOutcome;
-}
-
-export interface MarkStagedStep {
-  state: SyncRuntimeState;
-  wasStaged: boolean;
-}
-
-// --- Sync Reducer Functions ---
-
 const FALLBACK_SYNC_CONFIG: SyncConfig = {
   normalCadenceSecs: 1.0,
   inactiveCadenceSecs: 5.0,
@@ -345,259 +432,14 @@ const FALLBACK_SYNC_CONFIG: SyncConfig = {
   loopFlipThreshold: 3,
 };
 
-const FALLBACK_RUNTIME_STATE: SyncRuntimeState = {
-  state: 'Idle',
-  lastSyncedHash: null,
-  lastSyncedContentId: null,
-  lastAppliedHash: null,
-  loopEvents: [],
-  stagedServerHash: null,
-  stagedContentId: null,
-  stagedEntry: null,
-  consecutiveFailures: 0,
-  nextAttemptMs: null,
-  lastHistorySyncMs: null,
-};
-
-function hasReducer(): boolean {
-  return typeof NativeModule.planPreamble === 'function';
-}
-
-/**
- * 过 FFI 边界前深度剔除对象里的 null/undefined 字段。
- *
- * Expo 的 Android 编组器（`Map<String, Any?>` 参数 → AnyTypeConverter →
- * RN `toHashMap`）在转换「Map 里嵌套的对象」时，遇到对象内的 null 字段会抛
- * `Cannot convert '[object Object]' to a Kotlin type. Value is null, expected an
- * Object`。受影响的是嵌套 ClipboardMeta（`ServerGetSnapshot.serverEntry`、
- * `SyncRuntimeState.stagedEntry`，它们的 hash/dataName/contentId 常为 null）。
- *
- * Kotlin 侧一律用 `as? T` 读取，key 缺失与值为 null 等价，所以剥掉 null 字段
- * 语义完全不变。顶层 Map 参数的 null 值本就会被 Expo 跳过，只有嵌套对象需要处理；
- * 这里对所有过界对象统一深度清理（iOS 的 Swift 编组器不受影响，统一处理无副作用）。
- */
-function stripNullsDeep<T>(value: T): T {
-  if (value === null || value === undefined) return value;
-  if (Array.isArray(value)) {
-    return value.map((v) => stripNullsDeep(v)) as unknown as T;
-  }
-  if (typeof value === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      if (v === null || v === undefined) continue;
-      out[k] = stripNullsDeep(v);
-    }
-    return out as unknown as T;
-  }
-  return value;
+/** 绑定是否带这批 sync 辅助函数(老绑定可能缺,回退纯 TS 实现)。 */
+function hasSyncHelpers(): boolean {
+  return typeof NativeModule.defaultSyncConfig === 'function';
 }
 
 export function defaultSyncConfig(): SyncConfig {
-  if (!hasReducer()) return { ...FALLBACK_SYNC_CONFIG };
+  if (!hasSyncHelpers()) return { ...FALLBACK_SYNC_CONFIG };
   return NativeModule.defaultSyncConfig();
-}
-
-export function defaultSyncRuntimeState(): SyncRuntimeState {
-  if (!hasReducer()) return { ...FALLBACK_RUNTIME_STATE };
-  return NativeModule.defaultSyncRuntimeState();
-}
-
-export function planPreamble(state: SyncRuntimeState, snap: PreambleSnapshot): PreambleStep {
-  if (!hasReducer()) return tsFallback.planPreamble(state, snap);
-  return NativeModule.planPreamble(stripNullsDeep(state), stripNullsDeep(snap));
-}
-
-export function planAfterServerGet(state: SyncRuntimeState, snap: ServerGetSnapshot): ServerRoute {
-  if (!hasReducer()) return tsFallback.planAfterServerGet(state, snap);
-  return NativeModule.planAfterServerGet(stripNullsDeep(state), stripNullsDeep(snap));
-}
-
-export function commitConverged(
-  state: SyncRuntimeState,
-  serverHash: string,
-  serverContentId: string | null
-): SyncRuntimeState {
-  if (!hasReducer()) {
-    return {
-      ...state,
-      lastSyncedHash: serverHash,
-      lastSyncedContentId: serverContentId,
-      stagedContentId: null,
-    };
-  }
-  return NativeModule.commitConverged(stripNullsDeep(state), serverHash, serverContentId ?? null);
-}
-
-export function commitApply(
-  state: SyncRuntimeState,
-  hash: string | null,
-  contentId: string | null,
-  nowMs: number,
-  cfg: SyncConfig
-): CommitStep {
-  if (!hasReducer()) {
-    return {
-      state: {
-        ...state,
-        lastSyncedHash: hash,
-        lastSyncedContentId: contentId,
-        lastAppliedHash: hash,
-        stagedContentId: null,
-      },
-      outcome: { tripped: false },
-    };
-  }
-  return NativeModule.commitApply(stripNullsDeep(state), hash, contentId ?? null, nowMs, cfg);
-}
-
-export function commitApplyFailed(state: SyncRuntimeState, entry: ClipboardMeta): SyncRuntimeState {
-  if (!hasReducer())
-    return { ...state, stagedServerHash: entry.hash, stagedContentId: entry.contentId };
-  return NativeModule.commitApplyFailed(stripNullsDeep(state), stripNullsDeep(entry));
-}
-
-export function commitStage(state: SyncRuntimeState, entry: ClipboardMeta): SyncRuntimeState {
-  if (!hasReducer())
-    return { ...state, stagedServerHash: entry.hash, stagedContentId: entry.contentId };
-  return NativeModule.commitStage(stripNullsDeep(state), stripNullsDeep(entry));
-}
-
-export function commitPush(
-  state: SyncRuntimeState,
-  pushedHash: string | null,
-  nowMs: number,
-  cfg: SyncConfig
-): CommitStep {
-  // push 换了内容但还不知道其服务端身份 → contentId 清空，等下次 GET 重新学到。
-  if (!hasReducer())
-    return {
-      state: { ...state, lastSyncedHash: pushedHash, lastSyncedContentId: null },
-      outcome: { tripped: false },
-    };
-  return NativeModule.commitPush(stripNullsDeep(state), pushedHash, nowMs, cfg);
-}
-
-export function commitPushSkipped(state: SyncRuntimeState): SyncRuntimeState {
-  if (!hasReducer()) return state;
-  return NativeModule.commitPushSkipped(stripNullsDeep(state));
-}
-
-export function commitConsentPush(
-  state: SyncRuntimeState,
-  pushedHash: string | null,
-  nowMs: number,
-  cfg: SyncConfig
-): CommitStep {
-  if (!hasReducer())
-    return {
-      state: {
-        ...state,
-        lastSyncedHash: pushedHash,
-        lastSyncedContentId: null,
-        lastAppliedHash: pushedHash,
-      },
-      outcome: { tripped: false },
-    };
-  return NativeModule.commitConsentPush(stripNullsDeep(state), pushedHash, nowMs, cfg);
-}
-
-export function commitTickSuccess(state: SyncRuntimeState): SyncRuntimeState {
-  if (!hasReducer()) return { ...state, consecutiveFailures: 0 };
-  return NativeModule.commitTickSuccess(stripNullsDeep(state));
-}
-
-export function commitTickFailure(
-  state: SyncRuntimeState,
-  kind: TickErrorKind,
-  jitter: number,
-  nowMs: number,
-  cfg: SyncConfig
-): TickFailureStep {
-  if (!hasReducer()) {
-    const failures = state.consecutiveFailures + 1;
-    return {
-      state: { ...state, consecutiveFailures: failures },
-      outcome: {
-        kickProbe: kind === 'NetworkUnreachable' || kind === 'ConnectTimeout',
-        firstOffline: failures === 1,
-      },
-    };
-  }
-  return NativeModule.commitTickFailure(stripNullsDeep(state), kind, jitter, nowMs, cfg);
-}
-
-export function commitHistorySyncDone(state: SyncRuntimeState, nowMs: number): SyncRuntimeState {
-  if (!hasReducer()) return { ...state, lastHistorySyncMs: nowMs };
-  return NativeModule.commitHistorySyncDone(stripNullsDeep(state), nowMs);
-}
-
-export function markStagedApplied(state: SyncRuntimeState): MarkStagedStep {
-  if (!hasReducer()) {
-    const wasStaged = state.stagedServerHash !== null;
-    return {
-      state: {
-        ...state,
-        lastSyncedHash: state.stagedServerHash,
-        lastSyncedContentId: state.stagedContentId,
-        stagedServerHash: null,
-        stagedContentId: null,
-      },
-      wasStaged,
-    };
-  }
-  return NativeModule.markStagedApplied(stripNullsDeep(state));
-}
-
-export function acknowledgeLoopDetection(state: SyncRuntimeState): SyncRuntimeState {
-  if (!hasReducer()) return { ...state, state: 'Idle', loopEvents: [] };
-  return NativeModule.acknowledgeLoopDetection(stripNullsDeep(state));
-}
-
-export function resetRuntimeState(state: SyncRuntimeState): SyncRuntimeState {
-  if (!hasReducer()) return { ...FALLBACK_RUNTIME_STATE };
-  return NativeModule.resetRuntimeState(stripNullsDeep(state));
-}
-
-export function handleActiveServerChanged(state: SyncRuntimeState): SyncRuntimeState {
-  if (!hasReducer()) return { ...FALLBACK_RUNTIME_STATE };
-  return NativeModule.handleActiveServerChanged(stripNullsDeep(state));
-}
-
-export function handleNetworkRouteChanged(state: SyncRuntimeState): SyncRuntimeState {
-  if (!hasReducer()) return { ...state, consecutiveFailures: 0, nextAttemptMs: null };
-  return NativeModule.handleNetworkRouteChanged(stripNullsDeep(state));
-}
-
-// --- Sync Helper Functions ---
-
-export function hashesEqual(a: string | null, b: string | null): boolean {
-  if (!hasReducer()) {
-    if (a == null && b == null) return true;
-    if (a == null || b == null) return false;
-    return a.toUpperCase() === b.toUpperCase();
-  }
-  return NativeModule.hashesEqual(a ?? null, b ?? null);
-}
-
-export function backoffSecs(
-  consecutiveFailures: number,
-  base: number,
-  max: number,
-  jitter: number
-): number {
-  if (!hasReducer()) {
-    const exp = Math.min(consecutiveFailures - 1, 6);
-    return Math.min(base * Math.pow(2, Math.max(0, exp)), max) * jitter;
-  }
-  return NativeModule.backoffSecs(consecutiveFailures, base, max, jitter);
-}
-
-export function cadenceSecs(state: SyncState, isSceneInactive: boolean, cfg: SyncConfig): number {
-  if (!hasReducer()) {
-    if (state === 'AuthFailed' || state === 'LoopDetected') return Infinity;
-    return isSceneInactive ? cfg.inactiveCadenceSecs : cfg.normalCadenceSecs;
-  }
-  return NativeModule.cadenceSecs(state, isSceneInactive, cfg);
 }
 
 export function isHistorySyncDue(
@@ -605,7 +447,7 @@ export function isHistorySyncDue(
   nowMs: number,
   intervalSecs: number
 ): boolean {
-  if (!hasReducer()) {
+  if (!hasSyncHelpers()) {
     if (lastSyncMs == null) return true;
     return nowMs - lastSyncMs >= intervalSecs * 1000;
   }
@@ -613,7 +455,7 @@ export function isHistorySyncDue(
 }
 
 export function isColdStart(watermarkMs: number | null): boolean {
-  if (!hasReducer()) return watermarkMs == null;
+  if (!hasSyncHelpers()) return watermarkMs == null;
   return NativeModule.isColdStart(watermarkMs ?? null);
 }
 
@@ -621,123 +463,9 @@ export function advanceWatermark(
   currentMs: number | null,
   maxLastModifiedMs: number
 ): number | null {
-  if (!hasReducer()) {
+  if (!hasSyncHelpers()) {
     if (currentMs == null || maxLastModifiedMs > currentMs) return maxLastModifiedMs;
     return null;
   }
   return NativeModule.advanceWatermark(currentMs ?? null, maxLastModifiedMs);
 }
-
-export function isProbeConclusionValid(reportEpoch: number, currentEpoch: number): boolean {
-  if (!hasReducer()) return reportEpoch === currentEpoch;
-  return NativeModule.isProbeConclusionValid(reportEpoch, currentEpoch);
-}
-
-// --- TypeScript fallback implementations (used when Rust FFI unavailable) ---
-
-/**
- * 服务端 entry 是否就是已记录为「已同步」的内容（镜像 Rust `is_already_synced`）。
- * 两侧都有 contentId 时只比 contentId（不透明、verbatim）——这正是跨重编码稳定的
- * 关键；任一侧缺 contentId 时回退到既有 hash 大写比较（legacy / 未学到）。
- */
-function isAlreadySynced(entry: ClipboardMeta, state: SyncRuntimeState): boolean {
-  const cid = entry.contentId;
-  const sid = state.lastSyncedContentId;
-  if (cid != null && sid != null) return cid === sid;
-  const h = entry.hash;
-  const s = state.lastSyncedHash;
-  if (h == null && s == null) return true;
-  if (h == null || s == null) return false;
-  return h.toUpperCase() === s.toUpperCase();
-}
-
-/** staged 去重，同样 contentId 优先、hash 回退（镜像 Rust `plan_server_new`）。 */
-function isAlreadyStaged(entry: ClipboardMeta, state: SyncRuntimeState): boolean {
-  const cid = entry.contentId;
-  const sid = state.stagedContentId;
-  if (cid != null && sid != null) return cid === sid;
-  if (entry.hash != null) {
-    return (
-      state.stagedServerHash != null &&
-      state.stagedServerHash.toUpperCase() === entry.hash.toUpperCase()
-    );
-  }
-  return false;
-}
-
-const tsFallback = {
-  planPreamble(state: SyncRuntimeState, snap: PreambleSnapshot): PreambleStep {
-    if (!snap.hasActiveServer) {
-      return {
-        state,
-        preamble: { recordLocal: false, proceed: { type: 'Stop', reason: 'NoActiveServer' } },
-      };
-    }
-    if (state.state === 'AuthFailed' || state.state === 'LoopDetected') {
-      return {
-        state,
-        preamble: { recordLocal: false, proceed: { type: 'Stop', reason: 'Paused' } },
-      };
-    }
-    if (!snap.explicit && state.nextAttemptMs !== null && snap.nowMs < state.nextAttemptMs) {
-      return {
-        state,
-        preamble: { recordLocal: false, proceed: { type: 'Stop', reason: 'BackoffGated' } },
-      };
-    }
-    // Cross-process resync：hash 与 contentId 作为同一快照一起比较、一起写入。
-    // contentId 单独漂移（hash 不变）也要触发 fold，否则陈旧的跨进程 contentId 会
-    // 滞留。contentId 不透明——verbatim 比较，不走 hash 的大写折叠。
-    let newState = state;
-    const hashDiffers =
-      (snap.persistedSyncedHash?.toUpperCase() ?? null) !==
-      (state.lastSyncedHash?.toUpperCase() ?? null);
-    const contentIdDiffers =
-      (snap.persistedSyncedContentId ?? null) !== (state.lastSyncedContentId ?? null);
-    if (hashDiffers || contentIdDiffers) {
-      newState = {
-        ...newState,
-        lastSyncedHash: snap.persistedSyncedHash ? snap.persistedSyncedHash.toUpperCase() : null,
-        lastSyncedContentId: snap.persistedSyncedContentId ?? null,
-      };
-    }
-    return { state: newState, preamble: { recordLocal: false, proceed: { type: 'ToNetwork' } } };
-  },
-
-  planAfterServerGet(state: SyncRuntimeState, snap: ServerGetSnapshot): ServerRoute {
-    const entry = snap.serverEntry;
-    const serverHash = entry?.hash ?? null;
-    const deviceHash = snap.deviceHash ?? null;
-    const synced = state.lastSyncedHash;
-
-    // Truth-gate（对齐 Rust reducer）：server latest == device clipboard 才算
-    // Converged。旧实现误用 server == lastSynced，会在「服务端未变但设备有新内容
-    // 待推送」时直接 Converged，导致 autoPush 永不触发。
-    if (serverHash && deviceHash && serverHash.toUpperCase() === deviceHash.toUpperCase()) {
-      return { type: 'Converged', serverHash: serverHash.toUpperCase() };
-    }
-
-    // 服务端有新内容——identity-aware：重编码（JPEG→PNG）会改 hash 但 contentId
-    // 不变；两侧都有 contentId 时只比 contentId（忽略 hash），否则回退 hash 比较。
-    if (entry && serverHash && !isAlreadySynced(entry, state)) {
-      const alreadyStaged = isAlreadyStaged(entry, state);
-      const willApply = snap.autoApply && !alreadyStaged;
-      return { type: 'ServerNew', plan: { willApply, alreadyStaged } };
-    }
-
-    if (!snap.autoPush) {
-      return { type: 'Push', decision: 'SkipConsentMode' };
-    }
-    if (!snap.devicePresent) {
-      return { type: 'Push', decision: 'SkipNoDevice' };
-    }
-    const dh = snap.deviceHash?.toUpperCase() ?? null;
-    if (dh && synced && dh === synced.toUpperCase()) {
-      return { type: 'Push', decision: 'SkipAlreadySynced' };
-    }
-    if (dh && state.lastAppliedHash && dh === state.lastAppliedHash.toUpperCase()) {
-      return { type: 'Push', decision: 'SkipSelfWritten' };
-    }
-    return { type: 'Push', decision: 'DoPush' };
-  },
-};

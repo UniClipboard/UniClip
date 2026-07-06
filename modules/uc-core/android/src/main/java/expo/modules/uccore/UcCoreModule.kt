@@ -5,6 +5,7 @@ import android.os.Looper
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import kotlinx.coroutines.runBlocking
+import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import uniffi.uc_mobile.*
 
@@ -15,8 +16,14 @@ class UcCoreModule : Module() {
     }
 
     private var client: MobileSyncClient? = null
+    // Long-lived push/pull sync engine (design 2026-07-05). One instance for the
+    // active server; `engineSetServer` reconfigures in place, never reconstructs.
+    private var engine: MobileSyncEngine? = null
     private val handler = Handler(Looper.getMainLooper())
     private val sseHandles = ConcurrentHashMap<String, SseHandle>()
+
+    private fun requireEngine(): MobileSyncEngine =
+        engine ?: throw IllegalStateException("MobileSyncEngine not initialized — call engineInit first")
 
     private fun ensureInit() {
         if (!initialized) {
@@ -188,155 +195,82 @@ class UcCoreModule : Module() {
             sseHandles.remove(subscriptionId)?.cancel()
         }
 
+        // --- MobileSyncEngine (push/pull sync SDK) ---
+        // Replaces the per-function reducer driving: dedup / anti-loop / watermark /
+        // conflict resolution all live inside the Rust engine. TS drives via these.
+
+        Function("engineInit") { serverMap: Map<String, String>,
+                                  configMap: Map<String, Any?>,
+                                  settingsMap: Map<String, Any?>,
+                                  trustInsecureCert: Boolean ->
+            ensureInit()
+            val ctx = appContext.reactContext?.applicationContext
+                ?: throw IllegalStateException("no Android context for KeyValueStore")
+            // Android has no App Group; watermark is persisted to app-private files
+            // (single-process). Cross-process alignment with extensions is a follow-up.
+            val baseDir = File(ctx.filesDir, "uc-mobile-kv").apply { mkdirs() }
+            val store = AndroidKeyValueStore(baseDir)
+            engine = MobileSyncEngine(
+                serverFromMap(serverMap),
+                syncConfigFromMap(configMap),
+                syncSettingsFromMap(settingsMap),
+                store,
+                getClient(trustInsecureCert)
+            )
+        }
+
+        Function("engineDispose") {
+            engine?.close()
+            engine = null
+        }
+
+        AsyncFunction("enginePush") { contentMap: Map<String, Any?>, payload: ByteArray? ->
+            val content = localContentFromMap(contentMap, payload)
+            syncOutcomeToMap(runBlocking { requireEngine().push(content) })
+        }
+
+        AsyncFunction("enginePull") { triggerMap: Map<String, Any?>, currentDeviceHash: String? ->
+            val trigger = pullTriggerFromMap(triggerMap)
+            syncOutcomeToMap(runBlocking { requireEngine().pull(trigger, currentDeviceHash) })
+        }
+
+        AsyncFunction("engineApplyStaged") {
+            syncOutcomeToMap(runBlocking { requireEngine().applyStaged() })
+        }
+
+        AsyncFunction("engineSetServer") { serverMap: Map<String, String> ->
+            val server = serverFromMap(serverMap)
+            runBlocking { requireEngine().setServer(server) }
+        }
+
+        AsyncFunction("engineHandleNetworkRouteChanged") {
+            runBlocking { requireEngine().handleNetworkRouteChanged() }
+        }
+
+        AsyncFunction("engineSetSettings") { settingsMap: Map<String, Any?> ->
+            val settings = syncSettingsFromMap(settingsMap)
+            runBlocking { requireEngine().setSettings(settings) }
+        }
+
+        AsyncFunction("engineAcknowledgeLoopDetected") {
+            runBlocking { requireEngine().acknowledgeLoopDetected() }
+        }
+
         OnDestroy {
             sseHandles.values.forEach { it.cancel() }
             sseHandles.clear()
+            engine?.close()
+            engine = null
         }
 
-        // Sync reducer functions (synchronous, pure state transforms)
+        // Sync config + cadence helpers (survivors from the pre-engine reducer design;
+        // dedup/anti-loop/watermark/conflict resolution now live in MobileSyncEngine
+        // above — these remain for RN-side history-sync cadence + cold-start/watermark
+        // bookkeeping, which the engine doesn't own).
 
         Function("defaultSyncConfig") {
             ensureInit()
             syncConfigToMap(uniffi.uc_mobile.defaultSyncConfig())
-        }
-
-        Function("defaultSyncRuntimeState") {
-            ensureInit()
-            runtimeStateToMap(uniffi.uc_mobile.defaultSyncRuntimeState())
-        }
-
-        Function("planPreamble") { stateMap: Map<String, Any?>, snapMap: Map<String, Any?> ->
-            ensureInit()
-            val step = uniffi.uc_mobile.planPreamble(
-                runtimeStateFromMap(stateMap),
-                preambleSnapshotFromMap(snapMap)
-            )
-            mapOf(
-                "state" to runtimeStateToMap(step.state),
-                "preamble" to mapOf(
-                    "recordLocal" to step.preamble.recordLocal,
-                    "proceed" to preambleProceedToMap(step.preamble.proceed)
-                )
-            )
-        }
-
-        Function("planAfterServerGet") { stateMap: Map<String, Any?>, snapMap: Map<String, Any?> ->
-            ensureInit()
-            serverRouteToMap(
-                uniffi.uc_mobile.planAfterServerGet(
-                    runtimeStateFromMap(stateMap),
-                    serverGetSnapshotFromMap(snapMap)
-                )
-            )
-        }
-
-        Function("commitConverged") { stateMap: Map<String, Any?>, serverHash: String, serverContentId: String? ->
-            ensureInit()
-            runtimeStateToMap(uniffi.uc_mobile.commitConverged(runtimeStateFromMap(stateMap), serverHash, serverContentId))
-        }
-
-        Function("commitApply") { stateMap: Map<String, Any?>, hash: String?, contentId: String?, nowMs: Double, cfgMap: Map<String, Any?> ->
-            ensureInit()
-            commitStepToMap(uniffi.uc_mobile.commitApply(runtimeStateFromMap(stateMap), hash, contentId, nowMs.toLong(), syncConfigFromMap(cfgMap)))
-        }
-
-        Function("commitApplyFailed") { stateMap: Map<String, Any?>, entryMap: Map<String, Any?> ->
-            ensureInit()
-            runtimeStateToMap(uniffi.uc_mobile.commitApplyFailed(runtimeStateFromMap(stateMap), metaFromMap(entryMap)))
-        }
-
-        Function("commitStage") { stateMap: Map<String, Any?>, entryMap: Map<String, Any?> ->
-            ensureInit()
-            runtimeStateToMap(uniffi.uc_mobile.commitStage(runtimeStateFromMap(stateMap), metaFromMap(entryMap)))
-        }
-
-        Function("commitPush") { stateMap: Map<String, Any?>, pushedHash: String?, nowMs: Double, cfgMap: Map<String, Any?> ->
-            ensureInit()
-            commitStepToMap(uniffi.uc_mobile.commitPush(runtimeStateFromMap(stateMap), pushedHash, nowMs.toLong(), syncConfigFromMap(cfgMap)))
-        }
-
-        Function("commitPushSkipped") { stateMap: Map<String, Any?> ->
-            ensureInit()
-            runtimeStateToMap(uniffi.uc_mobile.commitPushSkipped(runtimeStateFromMap(stateMap)))
-        }
-
-        Function("commitConsentPush") { stateMap: Map<String, Any?>, pushedHash: String?, nowMs: Double, cfgMap: Map<String, Any?> ->
-            ensureInit()
-            commitStepToMap(uniffi.uc_mobile.commitConsentPush(runtimeStateFromMap(stateMap), pushedHash, nowMs.toLong(), syncConfigFromMap(cfgMap)))
-        }
-
-        Function("commitTickSuccess") { stateMap: Map<String, Any?> ->
-            ensureInit()
-            runtimeStateToMap(uniffi.uc_mobile.commitTickSuccess(runtimeStateFromMap(stateMap)))
-        }
-
-        Function("commitTickFailure") { stateMap: Map<String, Any?>, kind: String, jitter: Double, nowMs: Double, cfgMap: Map<String, Any?> ->
-            ensureInit()
-            val step = uniffi.uc_mobile.commitTickFailure(
-                runtimeStateFromMap(stateMap),
-                tickErrorKindFromString(kind),
-                jitter,
-                nowMs.toLong(),
-                syncConfigFromMap(cfgMap)
-            )
-            mapOf(
-                "state" to runtimeStateToMap(step.state),
-                "outcome" to mapOf(
-                    "kickProbe" to step.outcome.kickProbe,
-                    "firstOffline" to step.outcome.firstOffline
-                )
-            )
-        }
-
-        Function("commitHistorySyncDone") { stateMap: Map<String, Any?>, nowMs: Double ->
-            ensureInit()
-            runtimeStateToMap(uniffi.uc_mobile.commitHistorySyncDone(runtimeStateFromMap(stateMap), nowMs.toLong()))
-        }
-
-        Function("markStagedApplied") { stateMap: Map<String, Any?> ->
-            ensureInit()
-            val step = uniffi.uc_mobile.markStagedApplied(runtimeStateFromMap(stateMap))
-            mapOf(
-                "state" to runtimeStateToMap(step.state),
-                "wasStaged" to step.wasStaged
-            )
-        }
-
-        Function("acknowledgeLoopDetection") { stateMap: Map<String, Any?> ->
-            ensureInit()
-            runtimeStateToMap(uniffi.uc_mobile.acknowledgeLoopDetection(runtimeStateFromMap(stateMap)))
-        }
-
-        Function("resetRuntimeState") { stateMap: Map<String, Any?> ->
-            ensureInit()
-            runtimeStateToMap(uniffi.uc_mobile.resetRuntimeState(runtimeStateFromMap(stateMap)))
-        }
-
-        Function("handleActiveServerChanged") { stateMap: Map<String, Any?> ->
-            ensureInit()
-            runtimeStateToMap(uniffi.uc_mobile.handleActiveServerChanged(runtimeStateFromMap(stateMap)))
-        }
-
-        Function("handleNetworkRouteChanged") { stateMap: Map<String, Any?> ->
-            ensureInit()
-            runtimeStateToMap(uniffi.uc_mobile.handleNetworkRouteChanged(runtimeStateFromMap(stateMap)))
-        }
-
-        // Sync helper functions
-
-        Function("hashesEqual") { a: String?, b: String? ->
-            ensureInit()
-            uniffi.uc_mobile.hashesEqual(a, b)
-        }
-
-        Function("backoffSecs") { consecutiveFailures: Double, base: Double, max: Double, jitter: Double ->
-            ensureInit()
-            uniffi.uc_mobile.backoffSecs(consecutiveFailures.toLong(), base, max, jitter)
-        }
-
-        Function("cadenceSecs") { stateStr: String, isSceneInactive: Boolean, cfgMap: Map<String, Any?> ->
-            ensureInit()
-            uniffi.uc_mobile.cadenceSecs(syncStateFromString(stateStr), isSceneInactive, syncConfigFromMap(cfgMap))
         }
 
         Function("isHistorySyncDue") { lastSyncMs: Double?, nowMs: Double, intervalSecs: Double ->
@@ -353,11 +287,6 @@ class UcCoreModule : Module() {
             ensureInit()
             uniffi.uc_mobile.advanceWatermark(currentMs?.toLong(), maxLastModifiedMs.toLong())
         }
-
-        Function("isProbeConclusionValid") { reportEpoch: Double, currentEpoch: Double ->
-            ensureInit()
-            uniffi.uc_mobile.isProbeConclusionValid(reportEpoch.toULong(), currentEpoch.toULong())
-        }
     }
 }
 
@@ -365,6 +294,110 @@ class AndroidPlatformBridge : PlatformBridge {
     override fun appGroupDir(): String {
         return ""
     }
+}
+
+/**
+ * `KeyValueStore` backing for `MobileSyncEngine`'s durable watermark
+ * (`last_synced_hash` / `last_synced_content_id`). Each key maps to a file named
+ * `key` under [baseDir]. Writes are tmp-then-rename so a concurrent reader sees the
+ * old or new value, never a half-written file. Android has no App Group, so this is
+ * app-private (single-process) — cross-process alignment with extensions is a
+ * separate follow-up.
+ */
+class AndroidKeyValueStore(private val baseDir: File) : KeyValueStore {
+    private fun file(key: String) = File(baseDir, key)
+
+    override fun get(key: String): ByteArray? {
+        val f = file(key)
+        return if (f.exists()) f.readBytes() else null
+    }
+
+    override fun set(key: String, value: ByteArray) {
+        val tmp = File(baseDir, "$key.tmp")
+        tmp.writeBytes(value)
+        if (!tmp.renameTo(file(key))) {
+            // renameTo can fail if the destination exists on some filesystems;
+            // fall back to delete + rename.
+            file(key).delete()
+            tmp.renameTo(file(key))
+        }
+    }
+
+    override fun remove(key: String) {
+        file(key).delete()
+    }
+}
+
+private fun clipboardKindFromString(kind: String?): ClipboardKind = when (kind) {
+    "Image" -> ClipboardKind.IMAGE
+    "File" -> ClipboardKind.FILE
+    "Group" -> ClipboardKind.GROUP
+    else -> ClipboardKind.TEXT
+}
+
+private fun syncSettingsFromMap(map: Map<String, Any?>): SyncSettings =
+    SyncSettings(autoApply = map["autoApply"] as? Boolean ?: true)
+
+private fun localContentFromMap(map: Map<String, Any?>, payload: ByteArray?): LocalContent =
+    LocalContent(
+        kind = clipboardKindFromString(map["kind"] as? String),
+        text = map["text"] as? String ?: "",
+        dataName = map["dataName"] as? String,
+        payload = payload
+    )
+
+private fun pullTriggerFromMap(map: Map<String, Any?>): PullTrigger = when (map["tag"] as? String) {
+    "Explicit" -> PullTrigger.Explicit
+    "SseHello" -> PullTrigger.SseHello
+    "SseResync" -> PullTrigger.SseResync
+    "SseUpdate" -> PullTrigger.SseUpdate(map["contentId"] as? String ?: "")
+    else -> PullTrigger.Routine
+}
+
+private fun upToDateReasonToString(r: UpToDateReason): String = when (r) {
+    UpToDateReason.ALREADY_SYNCED -> "AlreadySynced"
+    UpToDateReason.SELF_WRITTEN -> "SelfWritten"
+    UpToDateReason.CONVERGED -> "Converged"
+    UpToDateReason.NO_LOCAL_CHANGE -> "NoLocalChange"
+    UpToDateReason.SSE_SHORT_CIRCUIT -> "SseShortCircuit"
+    UpToDateReason.CONSENT_MODE -> "ConsentMode"
+}
+
+private fun syncedMetaToMap(m: SyncedMeta): Map<String, Any?> = mapOf(
+    "kind" to clipboardKindToString(m.kind),
+    "hash" to m.hash,
+    "contentId" to m.contentId,
+    "text" to m.text,
+    "size" to m.size
+)
+
+private fun stagedPreviewToMap(p: StagedPreview): Map<String, Any?> = mapOf(
+    "kind" to clipboardKindToString(p.kind),
+    "text" to p.text,
+    "size" to p.size
+)
+
+// Content sans payload — the Applied outcome carries payload bytes at the top level
+// (top-level ByteArray marshals cleanly; nested does not always).
+private fun localContentToMap(c: LocalContent): Map<String, Any?> = mapOf(
+    "kind" to clipboardKindToString(c.kind),
+    "text" to c.text,
+    "dataName" to c.dataName
+)
+
+private fun syncOutcomeToMap(o: SyncOutcome): Map<String, Any?> = when (o) {
+    is SyncOutcome.Uploaded -> mapOf("tag" to "Uploaded", "meta" to syncedMetaToMap(o.meta))
+    is SyncOutcome.Applied -> mapOf(
+        "tag" to "Applied",
+        "content" to localContentToMap(o.content),
+        "payload" to o.content.payload,
+        "meta" to syncedMetaToMap(o.meta)
+    )
+    is SyncOutcome.Staged -> mapOf("tag" to "Staged", "preview" to stagedPreviewToMap(o.preview))
+    is SyncOutcome.UpToDate -> mapOf("tag" to "UpToDate", "reason" to upToDateReasonToString(o.reason))
+    is SyncOutcome.BackingOff -> mapOf("tag" to "BackingOff", "retryAfterMs" to o.retryAfterMs)
+    SyncOutcome.LoopDetected -> mapOf("tag" to "LoopDetected")
+    is SyncOutcome.Failed -> mapOf("tag" to "Failed", "error" to (o.error.message ?: o.error.toString()))
 }
 
 private fun serverFromMap(map: Map<String, String>): ServerConfig {
@@ -447,81 +480,7 @@ private fun probeResultToString(result: ProbeResult): String = when (result) {
     ProbeResult.MISSING_FIELDS -> "MissingFields"
 }
 
-// Sync reducer type conversions
-
-private fun syncStateToString(s: SyncState): String = when (s) {
-    SyncState.IDLE -> "Idle"
-    SyncState.SUCCEEDED -> "Succeeded"
-    SyncState.HAS_NEW_UNWRITTEN -> "HasNewUnwritten"
-    SyncState.OFFLINE_RETRYING -> "OfflineRetrying"
-    SyncState.AUTH_FAILED -> "AuthFailed"
-    SyncState.LOOP_DETECTED -> "LoopDetected"
-}
-
-private fun syncStateFromString(s: String): SyncState = when (s) {
-    "Succeeded" -> SyncState.SUCCEEDED
-    "HasNewUnwritten" -> SyncState.HAS_NEW_UNWRITTEN
-    "OfflineRetrying" -> SyncState.OFFLINE_RETRYING
-    "AuthFailed" -> SyncState.AUTH_FAILED
-    "LoopDetected" -> SyncState.LOOP_DETECTED
-    else -> SyncState.IDLE
-}
-
-private fun loopDirectionToString(d: LoopDirection): String = when (d) {
-    LoopDirection.PULLED -> "Pulled"
-    LoopDirection.PUSHED -> "Pushed"
-}
-
-private fun loopDirectionFromString(s: String): LoopDirection = when (s) {
-    "Pushed" -> LoopDirection.PUSHED
-    else -> LoopDirection.PULLED
-}
-
-private fun runtimeStateToMap(s: SyncRuntimeState): Map<String, Any?> = mapOf(
-    "state" to syncStateToString(s.state),
-    "lastSyncedHash" to s.lastSyncedHash,
-    "lastSyncedContentId" to s.lastSyncedContentId,
-    "lastAppliedHash" to s.lastAppliedHash,
-    "loopEvents" to s.loopEvents.map { ev ->
-        mapOf(
-            "hash" to ev.hash,
-            "direction" to loopDirectionToString(ev.direction),
-            "atMillis" to ev.atMillis
-        )
-    },
-    "stagedServerHash" to s.stagedServerHash,
-    "stagedContentId" to s.stagedContentId,
-    "stagedEntry" to s.stagedEntry?.let { metaToMap(it) },
-    "consecutiveFailures" to s.consecutiveFailures,
-    "nextAttemptMs" to s.nextAttemptMs,
-    "lastHistorySyncMs" to s.lastHistorySyncMs
-)
-
-@Suppress("UNCHECKED_CAST")
-private fun runtimeStateFromMap(map: Map<String, Any?>): SyncRuntimeState {
-    val loopEventsRaw = map["loopEvents"] as? List<Map<String, Any?>> ?: emptyList()
-    val loopEvents = loopEventsRaw.map { ev ->
-        LoopGuardEvent(
-            hash = ev["hash"] as? String ?: "",
-            direction = loopDirectionFromString(ev["direction"] as? String ?: ""),
-            atMillis = (ev["atMillis"] as? Number)?.toLong() ?: 0L
-        )
-    }
-    val stagedEntryMap = map["stagedEntry"] as? Map<String, Any?>
-    return SyncRuntimeState(
-        state = syncStateFromString(map["state"] as? String ?: "Idle"),
-        lastSyncedHash = map["lastSyncedHash"] as? String,
-        lastSyncedContentId = map["lastSyncedContentId"] as? String,
-        lastAppliedHash = map["lastAppliedHash"] as? String,
-        loopEvents = loopEvents,
-        stagedServerHash = map["stagedServerHash"] as? String,
-        stagedContentId = map["stagedContentId"] as? String,
-        stagedEntry = stagedEntryMap?.let { metaFromMap(it) },
-        consecutiveFailures = (map["consecutiveFailures"] as? Number)?.toLong() ?: 0L,
-        nextAttemptMs = (map["nextAttemptMs"] as? Number)?.toLong(),
-        lastHistorySyncMs = (map["lastHistorySyncMs"] as? Number)?.toLong()
-    )
-}
+// Sync config type conversions (defaultSyncConfig / engineInit's SyncConfig arg)
 
 private fun syncConfigToMap(c: SyncConfig): Map<String, Any> = mapOf(
     "normalCadenceSecs" to c.normalCadenceSecs,
@@ -542,74 +501,3 @@ private fun syncConfigFromMap(map: Map<String, Any?>): SyncConfig = SyncConfig(
     loopWindowSecs = (map["loopWindowSecs"] as? Number)?.toDouble() ?: 30.0,
     loopFlipThreshold = (map["loopFlipThreshold"] as? Number)?.toLong() ?: 3L
 )
-
-private fun preambleSnapshotFromMap(map: Map<String, Any?>): PreambleSnapshot = PreambleSnapshot(
-    explicit = map["explicit"] as? Boolean ?: false,
-    autoPush = map["autoPush"] as? Boolean ?: false,
-    hasActiveServer = map["hasActiveServer"] as? Boolean ?: false,
-    deviceHash = map["deviceHash"] as? String,
-    historyHeadHash = map["historyHeadHash"] as? String,
-    persistedSyncedHash = map["persistedSyncedHash"] as? String,
-    persistedSyncedContentId = map["persistedSyncedContentId"] as? String,
-    nowMs = (map["nowMs"] as? Number)?.toLong() ?: 0L
-)
-
-@Suppress("UNCHECKED_CAST")
-private fun serverGetSnapshotFromMap(map: Map<String, Any?>): ServerGetSnapshot {
-    val serverEntryMap = map["serverEntry"] as? Map<String, Any?>
-    return ServerGetSnapshot(
-        autoApply = map["autoApply"] as? Boolean ?: false,
-        autoPush = map["autoPush"] as? Boolean ?: false,
-        serverEntry = serverEntryMap?.let { metaFromMap(it) },
-        devicePresent = map["devicePresent"] as? Boolean ?: false,
-        deviceHash = map["deviceHash"] as? String
-    )
-}
-
-private fun preambleProceedToMap(p: PreambleProceed): Map<String, Any> = when (p) {
-    is PreambleProceed.Stop -> {
-        val reasonStr = when (p.reason) {
-            StopReason.NO_ACTIVE_SERVER -> "NoActiveServer"
-            StopReason.PAUSED -> "Paused"
-            StopReason.BACKOFF_GATE -> "BackoffGated"
-        }
-        mapOf("type" to "Stop", "reason" to reasonStr)
-    }
-    is PreambleProceed.ToNetwork -> mapOf("type" to "ToNetwork")
-}
-
-private fun serverRouteToMap(route: ServerRoute): Map<String, Any?> = when (route) {
-    is ServerRoute.Converged -> mapOf("type" to "Converged", "serverHash" to route.serverHash)
-    is ServerRoute.ServerNew -> mapOf(
-        "type" to "ServerNew",
-        "plan" to mapOf(
-            "willApply" to route.plan.willApply,
-            "alreadyStaged" to route.plan.alreadyStaged
-        )
-    )
-    is ServerRoute.Push -> {
-        val decStr = when (route.decision) {
-            PushDecision.SKIP_CONSENT_MODE -> "SkipConsentMode"
-            PushDecision.SKIP_NO_DEVICE -> "SkipNoDevice"
-            PushDecision.SKIP_ALREADY_SYNCED -> "SkipAlreadySynced"
-            PushDecision.SKIP_SELF_WRITTEN -> "SkipSelfWritten"
-            PushDecision.DO_PUSH -> "DoPush"
-        }
-        mapOf("type" to "Push", "decision" to decStr)
-    }
-}
-
-private fun commitStepToMap(step: CommitStep): Map<String, Any?> = mapOf(
-    "state" to runtimeStateToMap(step.state),
-    "outcome" to mapOf("tripped" to step.outcome.tripped)
-)
-
-private fun tickErrorKindFromString(s: String): TickErrorKind = when (s) {
-    "AuthFailed" -> TickErrorKind.AUTH_FAILED
-    "Cancelled" -> TickErrorKind.CANCELLED
-    "NetworkUnreachable" -> TickErrorKind.NETWORK_UNREACHABLE
-    "ConnectTimeout" -> TickErrorKind.CONNECT_TIMEOUT
-    "ReceiveTimeout" -> TickErrorKind.RECEIVE_TIMEOUT
-    "OtherSyncError" -> TickErrorKind.OTHER_SYNC_ERROR
-    else -> TickErrorKind.UNEXPECTED
-}
