@@ -74,5 +74,20 @@
     "completed": "Sync complete",
     "cancelled": "Sync cancelled",
     "failed": "Sync failed"
+  },
+  "banner": {
+    "staged": {
+      "title": "New content available",
+      "subtitleImage": "An image",
+      "subtitleFile": "A file",
+      "subtitleGroup": "Multiple items",
+      "apply": "Apply",
+      "applying": "Applying…"
+    },
+    "loop": {
+      "title": "Sync loop paused",
+      "subtitle": "Content kept flip-flopping between devices, so syncing was paused",
+      "dismiss": "Got it"
+    }
   }
 }

@@ -74,5 +74,20 @@
     "completed": "同步完成",
     "cancelled": "同步已取消",
     "failed": "同步失败"
+  },
+  "banner": {
+    "staged": {
+      "title": "有新内容待应用",
+      "subtitleImage": "一张图片",
+      "subtitleFile": "一个文件",
+      "subtitleGroup": "多个项目",
+      "apply": "应用",
+      "applying": "应用中…"
+    },
+    "loop": {
+      "title": "同步循环已暂停",
+      "subtitle": "内容在设备间反复切换，已自动暂停同步",
+      "dismiss": "知道了"
+    }
   }
 }

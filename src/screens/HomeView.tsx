@@ -20,6 +20,7 @@ import { iosColors } from '@/theme/iosDesignTokens';
 import * as Haptics from 'expo-haptics';
 import { DefaultTopBar, SearchTopBar, SelectModeTopBar } from '@/components/HomeTopBar';
 import { SelectModeBottomBar } from '@/components/HomeBottomBar';
+import { SyncStatusBanner } from '@/components/SyncStatusBanner';
 import { ServerSwitcherModal } from '@/components/ServerSwitcherModal';
 import { CardContextOverlay } from '@/components/CardContextOverlay';
 import type { CardAnchorRect } from '@/components/CardContextOverlay.types';
@@ -108,6 +109,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
   const syncState = useSyncEngineStore((s) => s.status.state);
   const syncLastSyncedAt = useSyncEngineStore((s) => s.status.lastSyncedAt);
   const syncRefreshing = useSyncEngineStore((s) => s.status.isExplicitlyRefreshing);
+  const stagedEntry = useSyncEngineStore((s) => s.status.stagedEntry);
   const connectionStatus = useMemo(
     () =>
       deriveConnectionStatus({
@@ -118,6 +120,23 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
       }),
     [activeServer, syncState, syncRefreshing, syncLastSyncedAt]
   );
+
+  // HasNewUnwritten banner 的预览文案：按 stagedEntry.kind 取摘要，Text 直接秀内容
+  const stagedPreviewText = useMemo(() => {
+    if (!stagedEntry) return '';
+    switch (stagedEntry.kind) {
+      case 'Text':
+        return stagedEntry.text?.trim() || t('banner.staged.subtitleFile', { ns: 'sync' });
+      case 'Image':
+        return t('banner.staged.subtitleImage', { ns: 'sync' });
+      case 'File':
+        return stagedEntry.dataName || t('banner.staged.subtitleFile', { ns: 'sync' });
+      case 'Group':
+        return t('banner.staged.subtitleGroup', { ns: 'sync' });
+      default:
+        return '';
+    }
+  }, [stagedEntry, t]);
 
   // UI state
   const [refreshing, setRefreshing] = useState(false);
@@ -132,6 +151,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
     anchor: CardAnchorRect | null;
   } | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isApplyingStaged, setIsApplyingStaged] = useState(false);
 
   const [showServerPicker, setShowServerPicker] = useState(false);
   const [showAddServer, setShowAddServer] = useState(false);
@@ -391,6 +411,18 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
     }
   }, [loadItems]);
 
+  // HasNewUnwritten banner「应用」：下载 staged 内容写回设备，成功后引擎会转出该状态
+  const handleApplyStagedEntry = useCallback(async () => {
+    setIsApplyingStaged(true);
+    await useSyncEngineStore.getState().applyStagedEntry();
+    setIsApplyingStaged(false);
+  }, []);
+
+  // LoopDetected banner「知道了」：清 loop 缓冲，恢复同步
+  const handleDismissLoop = useCallback(async () => {
+    await useSyncEngineStore.getState().acknowledgeLoop();
+  }, []);
+
   // Sync button — refresh clipboard + history
   const handleSyncHistory = useCallback(async () => {
     if (isSyncing) return;
@@ -612,6 +644,31 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
           />
         )}
       </View>
+
+      {/* 同步状态 banner：HasNewUnwritten(待应用) / LoopDetected(循环已暂停) */}
+      {syncState === 'HasNewUnwritten' && (
+        <SyncStatusBanner
+          variant="staged"
+          title={t('banner.staged.title', { ns: 'sync' })}
+          subtitle={stagedPreviewText}
+          actionLabel={t(isApplyingStaged ? 'banner.staged.applying' : 'banner.staged.apply', {
+            ns: 'sync',
+          })}
+          isActionBusy={isApplyingStaged}
+          onAction={handleApplyStagedEntry}
+          theme={theme}
+        />
+      )}
+      {syncState === 'LoopDetected' && (
+        <SyncStatusBanner
+          variant="loop"
+          title={t('banner.loop.title', { ns: 'sync' })}
+          subtitle={t('banner.loop.subtitle', { ns: 'sync' })}
+          actionLabel={t('banner.loop.dismiss', { ns: 'sync' })}
+          onAction={handleDismissLoop}
+          theme={theme}
+        />
+      )}
 
       {/* Grid or Empty */}
       {items.length === 0 ? (
