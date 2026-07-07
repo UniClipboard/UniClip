@@ -8,6 +8,7 @@ import type { AppLanguage } from './languages';
 
 import zhCommon from './locales/zh/common.json';
 import zhConnect from './locales/zh/connect.json';
+import zhOnboarding from './locales/zh/onboarding.json';
 import zhHome from './locales/zh/home.json';
 import zhShare from './locales/zh/share.json';
 import zhSync from './locales/zh/sync.json';
@@ -25,6 +26,7 @@ import zhSettingsIos from './locales/zh/settingsIos.json';
 
 import enCommon from './locales/en/common.json';
 import enConnect from './locales/en/connect.json';
+import enOnboarding from './locales/en/onboarding.json';
 import enHome from './locales/en/home.json';
 import enShare from './locales/en/share.json';
 import enSync from './locales/en/sync.json';
@@ -47,6 +49,7 @@ export const DEFAULT_NS = 'common' as const;
 export const NS_LIST = [
   'common',
   'connect',
+  'onboarding',
   'home',
   'share',
   'sync',
@@ -67,6 +70,7 @@ export const resources: Record<AppLanguage, Record<string, object>> = {
   'zh-CN': {
     common: zhCommon,
     connect: zhConnect,
+    onboarding: zhOnboarding,
     home: zhHome,
     share: zhShare,
     sync: zhSync,
@@ -85,6 +89,7 @@ export const resources: Record<AppLanguage, Record<string, object>> = {
   en: {
     common: enCommon,
     connect: enConnect,
+    onboarding: enOnboarding,
     home: enHome,
     share: enShare,
     sync: enSync,

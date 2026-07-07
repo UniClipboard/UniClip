@@ -1,0 +1,29 @@
+{
+  "skip": "Skip",
+  "continue": "Continue",
+  "welcome": {
+    "wordmark": "UniClip",
+    "title": "Your clipboard,\non every device",
+    "body": "All your own devices sharing one clipboard — no collaboration, no cloud."
+  },
+  "companion": {
+    "title": "A companion\nto your computer",
+    "body": "Connect to the UniClipboard desktop app that's already running, and bring your clipboard to hand.",
+    "spec": "COMPANION · CONNECTS TO DESKTOP"
+  },
+  "lan": {
+    "title": "Same Wi-Fi,\na direct link",
+    "body": "Your phone and computer talk peer-to-peer on the same local network — no detour through the internet. What you copy arrives almost instantly.",
+    "spec": "LAN ONLY · PEER-TO-PEER"
+  },
+  "action": {
+    "title": "Copy here, paste there",
+    "body": "Copy on your computer and paste on your phone; use the share sheet to send anything back.",
+    "types": "Text · Link · Image · File",
+    "pair": "Scan to pair",
+    "later": "Not now",
+    "pile": {
+      "note": "Meeting notes\nWed 10:00\nAlign the plan"
+    }
+  }
+}

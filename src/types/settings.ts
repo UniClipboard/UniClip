@@ -43,6 +43,10 @@ export interface SharedSettings {
   // iOS keyboard extension (consumed by the native keyboard via App Group)
   keyboardSoundFeedback: boolean;
   keyboardHapticFeedback: boolean;
+
+  // Onboarding
+  /** 首次启动引导是否已完成(RN 侧门控,不供原生扩展消费)。 */
+  onboardingCompleted: boolean;
 }
 
 export interface AndroidSettings {
@@ -120,6 +124,8 @@ export const SHARED_DEFAULTS: SharedSettings = {
 
   keyboardSoundFeedback: true,
   keyboardHapticFeedback: true,
+
+  onboardingCompleted: false,
 };
 
 export const ANDROID_DEFAULTS: AndroidSettings = {
