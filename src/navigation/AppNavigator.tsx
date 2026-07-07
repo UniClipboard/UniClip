@@ -8,7 +8,7 @@ import {
 import { createStackNavigator } from '@react-navigation/stack';
 import { Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { navigationRef } from './navigationRef';
+import { navigationRef, flushPendingNavigation } from './navigationRef';
 import { useTheme } from '@/hooks/useTheme';
 import { HomeView } from '@/screens/HomeView';
 import { SettingsScreen } from '@/screens/SettingsScreen';
@@ -81,7 +81,11 @@ export const AppNavigator = () => {
       };
 
   return (
-    <NavigationContainer ref={navigationRef} theme={navigationTheme}>
+    <NavigationContainer
+      ref={navigationRef}
+      theme={navigationTheme}
+      onReady={flushPendingNavigation}
+    >
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Main" component={MainScreen} />
         <Stack.Screen

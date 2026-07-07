@@ -16,7 +16,7 @@ import {
 import { iosAccentColor } from '@/theme/iosDesignTokens';
 import { AddServerSheet } from '@/components';
 import type { AddServerSaveData } from '@/components/AddServerSheet.types';
-import { useSettingsStore } from '@/stores';
+import { useSettingsStore, usePendingConnectStore } from '@/stores';
 import {
   buildServerConfigFromAddServerData,
   getAddServerInitialData,
@@ -74,10 +74,31 @@ export const SettingsScreen = () => {
   const [page, setPage] = useState<SettingsPage>('root');
   const [showServerForm, setShowServerForm] = useState(false);
   const [editingServerIndex, setEditingServerIndex] = useState<number | null>(null);
+  // 扫码/深链预填数据（新增服务器场景，区别于 editingServer 的编辑场景）
+  const [prefillData, setPrefillData] = useState<AddServerSaveData | undefined>(undefined);
+  const consumePendingConnect = usePendingConnectStore((s) => s.consume);
+  const pendingConnectIntent = usePendingConnectStore((s) => s.intent);
 
   useEffect(() => {
     if (!isLoaded) loadConfig();
   }, [isLoaded, loadConfig]);
+
+  // 扫码/深链凭据（pendingConnectStore）消费：切到服务器子页并弹出预填「添加服务器」表单。
+  // Android 侧对应逻辑在 ServerModals；iOS 设置页用本地 state 驱动子页，故在此消费。
+  useEffect(() => {
+    if (!pendingConnectIntent || showServerForm) return;
+    const intent = consumePendingConnect();
+    if (!intent) return;
+    setEditingServerIndex(null);
+    setPrefillData({
+      name: intent.label ?? '',
+      urls: intent.urls && intent.urls.length > 0 ? intent.urls : [intent.url],
+      username: intent.user,
+      password: intent.pwd,
+    });
+    setPage('servers');
+    setShowServerForm(true);
+  }, [pendingConnectIntent, showServerForm, consumePendingConnect]);
 
   const handleDismiss = useCallback(
     (p: boolean) => {
@@ -94,8 +115,8 @@ export const SettingsScreen = () => {
   const servers = config?.servers ?? [];
   const editingServer = editingServerIndex !== null ? servers[editingServerIndex] : undefined;
   const serverFormInitialData = useMemo(
-    () => (editingServer ? getAddServerInitialData(editingServer) : undefined),
-    [editingServer]
+    () => (editingServer ? getAddServerInitialData(editingServer) : prefillData),
+    [editingServer, prefillData]
   );
 
   const openAddServer = useCallback(() => {
@@ -111,6 +132,7 @@ export const SettingsScreen = () => {
   const closeServerForm = useCallback(() => {
     setShowServerForm(false);
     setEditingServerIndex(null);
+    setPrefillData(undefined);
   }, []);
 
   const handleSaveServer = useCallback(

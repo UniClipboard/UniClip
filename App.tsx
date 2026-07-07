@@ -3,7 +3,7 @@ import { StyleSheet, Linking, ToastAndroid, StatusBar, View, Platform, Alert } f
 import { useEffect, useState } from 'react';
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
-import { navigateIfReady } from './src/navigation/navigationRef';
+import { navigateWhenReady } from './src/navigation/navigationRef';
 import { QuickTileLoadingScreen } from './src/screens/QuickTileLoadingScreen';
 import { ShareReceiveScreen } from './src/screens/ShareReceiveScreen';
 import { ProcessTextScreen } from './src/screens/ProcessTextScreen';
@@ -32,7 +32,8 @@ const CONNECT_URL_PREFIX = `${CONNECT_URI_SCHEME}://${CONNECT_URI_HOST}`;
 
 /**
  * 检测并处理 uniclipboard://connect 接入凭据 URI。
- * 解析成功 → 写入 pendingConnectStore + 切到 Settings tab，让 SettingsScreen 弹出预填表单。
+ * 解析成功 → 写入 pendingConnectStore + 导航到服务器配置页，由 ServerModals(Android) /
+ * SettingsScreen(iOS) 消费凭据弹出预填表单。
  * 解析失败 → 弹 Alert 提示错误文案。
  *
  * 安全：本函数绝不 log URI 原文或 payload。
@@ -54,7 +55,13 @@ function handleConnectUrlIfMatched(url: string | null | undefined): boolean {
     pwd: parsed.value.pwd,
     ...(parsed.value.label !== undefined ? { label: parsed.value.label } : {}),
   });
-  navigateIfReady('Settings');
+  // iOS 走 BottomSheet（SettingsScreen.ios 的内部子页），导航到 Settings 即可，凭据由其自身消费；
+  // Android 直达同步子页 SettingsSub{sync}——ServerModals 只在此挂载，是唯一消费 pendingConnect 的地方。
+  if (Platform.OS === 'ios') {
+    navigateWhenReady('Settings');
+  } else {
+    navigateWhenReady('SettingsSub', { section: 'sync' });
+  }
   return true;
 }
 
