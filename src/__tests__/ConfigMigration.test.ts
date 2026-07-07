@@ -164,7 +164,6 @@ describe('migrateConfig', () => {
       autoCheckUpdate: true,
       lastUpdateCheckDate: '2026-06-20',
       updateToBeta: false,
-      enableHistorySync: true,
       logLevel: 'info',
       remotePollingInterval: 3000,
       localPollingInterval: 1000,
@@ -201,7 +200,6 @@ describe('migrateConfig', () => {
 
     // Preserved fields
     expect(result.maxHistoryItems).toBe(500);
-    expect(result.enableHistorySync).toBe(true);
     expect(result.showImageCopyButton).toBe(true);
 
     // Runtime state excluded

@@ -23,11 +23,6 @@
   "history": {
     "usageLabel": "History usage",
     "sectionTitle": "History",
-    "syncLabel": "History sync",
-    "syncUnsupported": "The current server does not support history sync",
-    "syncSupported": "Sync history to the server",
-    "syncEnabled": "History sync enabled",
-    "syncDisabled": "History sync disabled",
     "maxItemsLabel": "Maximum history entries",
     "maxItemsHint": "Minimum is 10 entries",
     "maxItemsSuffix": "entries",

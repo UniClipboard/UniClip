@@ -9,8 +9,8 @@
  *   待上传角标),不再打扰用户。
  * - 幂等:同一 profileHash 正在推送时重复 enqueue 忽略。
  * - 可取消:cancel(profileHash) 中断底层请求(暂无 UI 入口,预留给卡片「取消上传」)。
- * - 不依赖 enableHistorySync:直接读当前服务器 + putContent,与旧前台上传语义一致
- *   (uploadRecord + putClipboard,即推送为服务器当前剪贴板)。
+ * - 直接读当前服务器 + putContent 推送(uploadRecord + putClipboard,即写入服务器当前
+ *   剪贴板),与旧前台上传语义一致。
  */
 
 import { pushHistoryRecord } from '@/utils/uploadFile';

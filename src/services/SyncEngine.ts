@@ -6,7 +6,6 @@
  *   - 维护 SSE 连接状态机（重连退避 / feature-detect 降级 / epoch 过滤——**决策全在 TS**，
  *     引擎只在 pull(trigger) 里吃 SSE 语义，故仅回调体改成 enginePull）；
  *   - 周期兜底 tick 定时器（现驱动 enginePull(Routine)）；
- *   - history 列表同步（queryHistory + RN 侧 watermark，引擎不含 history 键）；
  *   - device_hash 代理（activate 寄存器，经注入的 getDeviceClipboard 回调）。
  *
  * URL 路由（引擎只持单 baseUrl，app 有 LAN/WAN 多候选）：事件驱动重解析——start /
@@ -14,7 +13,6 @@
  * 轮换候选做故障转移（离线期清 watermark 无害，服务端本就不可达）。
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   engineInit,
   engineDispose,
@@ -27,10 +25,6 @@ import {
   engineAcknowledgeLoopDetected,
   hasEngine,
   defaultSyncConfig,
-  queryHistory,
-  isHistorySyncDue,
-  isColdStart,
-  advanceWatermark,
   hasSse,
   startSseSubscription,
   cancelSseSubscription,
@@ -45,7 +39,6 @@ import type {
   StagedPreview,
   PullTrigger,
   ServerConfig as UcServerConfig,
-  HistoryRecord,
 } from 'uc-core';
 import type { EventSubscription } from 'expo-modules-core';
 import { getCurrentNetworkContext } from './networkContext';
@@ -59,8 +52,6 @@ import {
 import type { ServerConfig as AppServerConfig } from '@/types/api';
 import { HistorySyncStatus } from '@/types/clipboard';
 import { log } from './Logger';
-
-const LAST_HISTORY_SYNC_KEY = '@syncengine:last_history_sync_ms';
 
 // SSE 在线时下行推送接管即时性，周期 tick 降为低频兜底（设计 §5.2：SSE 在线也保留
 // ~30s 兜底 tick）；SSE 断开/回退时恢复 normalCadence（1Hz）轮询。
@@ -183,8 +174,6 @@ export class SyncEngine {
    */
   private isOffline = false;
   private isSceneInactive = false;
-  private isHistorySyncing = false;
-  private lastHistorySyncAt: number | null = null;
 
   private listeners = new Set<SyncEngineListener>();
 
@@ -192,29 +181,20 @@ export class SyncEngine {
   private getDeviceClipboard: () => DeviceClipboard | null | Promise<DeviceClipboard | null>;
   private getSettings: () => SyncSettings;
   private applyToDevice: (meta: ClipboardMeta, payload?: ArrayBuffer) => Promise<void>;
-  private onHistoryRecord: ((record: HistoryRecord) => void) | null = null;
 
   constructor(opts: {
     getActiveServer: () => ActiveServerInfo | null;
     getDeviceClipboard: () => DeviceClipboard | null | Promise<DeviceClipboard | null>;
     getSettings: () => SyncSettings;
     applyToDevice: (meta: ClipboardMeta, payload?: ArrayBuffer) => Promise<void>;
-    onHistoryRecord?: (record: HistoryRecord) => void;
   }) {
     this.getActiveServer = opts.getActiveServer;
     this.getDeviceClipboard = opts.getDeviceClipboard;
     this.getSettings = opts.getSettings;
     this.applyToDevice = opts.applyToDevice;
-    this.onHistoryRecord = opts.onHistoryRecord ?? null;
     this.syncConfig = defaultSyncConfig();
 
     this.setupSseListeners();
-  }
-
-  async init(): Promise<void> {
-    // watermark 已下沉进引擎（native KeyValueStore），RN 侧仅保留 history 列表同步水位线。
-    const savedHistoryMs = await AsyncStorage.getItem(LAST_HISTORY_SYNC_KEY);
-    this.lastHistorySyncAt = savedHistoryMs ? parseInt(savedHistoryMs, 10) : null;
   }
 
   // -- Lifecycle --
@@ -507,7 +487,6 @@ export class SyncEngine {
     this.notifyListeners();
     try {
       await this.pullServer({ tag: 'Explicit' });
-      await this.runHistorySyncIfDue().catch(() => {});
     } finally {
       this.isExplicitlyRefreshing = false;
       this.notifyListeners();
@@ -559,9 +538,6 @@ export class SyncEngine {
     this.offlineTicks = 0;
     this.setState('Idle');
     this.lastError = null;
-    // history 列表同步水位线是 RN 侧独立键，切服务器清空。
-    this.lastHistorySyncAt = null;
-    await AsyncStorage.removeItem(LAST_HISTORY_SYNC_KEY);
 
     // 强制按新 server 重解析并对齐引擎（新 URL → engineSetServer 清 watermark）。
     this.currentEngineUrl = null;
@@ -831,58 +807,6 @@ export class SyncEngine {
     }
   }
 
-  // -- history 列表同步（引擎不含 history 键，100% 留 RN 侧）--
-
-  private async runHistorySyncIfDue(): Promise<void> {
-    if (
-      !isHistorySyncDue(this.lastHistorySyncAt, Date.now(), this.syncConfig.historySyncIntervalSecs)
-    ) {
-      return;
-    }
-    if (this.isHistorySyncing) return;
-    const server = this.getActiveServer();
-    if (!server) return;
-    this.isHistorySyncing = true;
-    try {
-      const watermarkMs = this.lastHistorySyncAt;
-      const cold = isColdStart(watermarkMs);
-      let maxModifiedMs = watermarkMs ?? 0;
-      let page = 1;
-      const maxPages = 50;
-
-      await this.withActiveRoute(server, async (route) => {
-        const ucServer = this.toUcServer(route);
-        while (page <= maxPages) {
-          const records = await queryHistory(
-            ucServer,
-            { page, modifiedAfterMs: watermarkMs ?? undefined },
-            server.trustInsecureCert
-          );
-          if (records.length === 0) break;
-          for (const record of records) {
-            this.onHistoryRecord?.(record);
-            if (record.lastModifiedMs && record.lastModifiedMs > maxModifiedMs) {
-              maxModifiedMs = record.lastModifiedMs;
-            }
-          }
-          if (cold) break;
-          page++;
-        }
-      });
-
-      const advanced = advanceWatermark(watermarkMs, maxModifiedMs);
-      if (advanced !== null) this.lastHistorySyncAt = advanced;
-    } catch (e: any) {
-      // history 列表同步失败不影响主同步，静默（离线时常态）。
-      log.debug('[SyncEngine] history sync failed: ' + (e?.message ?? e));
-    } finally {
-      this.isHistorySyncing = false;
-      if (this.lastHistorySyncAt) {
-        await AsyncStorage.setItem(LAST_HISTORY_SYNC_KEY, String(this.lastHistorySyncAt));
-      }
-    }
-  }
-
   private async markHistoryPushed(hash: string | null): Promise<void> {
     if (!hash) return;
     try {
@@ -944,7 +868,7 @@ export class SyncEngine {
     }
   }
 
-  // -- 路由 helpers（history 同步 / SSE 仍走 RN 侧多 URL 选择）--
+  // -- 路由 helpers（SSE 走 RN 侧多 URL 选择）--
 
   private async withActiveRoute<T>(
     server: ActiveServerInfo,
@@ -1010,7 +934,6 @@ export class SyncEngine {
   private async onRoutineTick(): Promise<void> {
     try {
       await this.runPull({ tag: 'Routine' });
-      await this.runHistorySyncIfDue().catch(() => {});
     } finally {
       this.scheduleNextTick();
     }

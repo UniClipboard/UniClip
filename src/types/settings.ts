@@ -21,7 +21,6 @@ export interface SharedSettings {
   autoDownloadMaxSize: number;
 
   // History
-  enableHistorySync: boolean;
   maxHistoryItems: number;
 
   // Updates
@@ -105,7 +104,6 @@ export const SHARED_DEFAULTS: SharedSettings = {
   payloadCacheMaxBytes: 200 * 1024 * 1024,
   autoDownloadMaxSize: 5 * 1024 * 1024,
 
-  enableHistorySync: false,
   maxHistoryItems: 1000,
 
   autoCheckUpdate: true,

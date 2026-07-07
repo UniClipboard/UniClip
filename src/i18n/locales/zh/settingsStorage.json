@@ -23,11 +23,6 @@
   "history": {
     "usageLabel": "历史记录空间占用",
     "sectionTitle": "历史记录",
-    "syncLabel": "历史记录同步",
-    "syncUnsupported": "当前服务器不支持历史记录同步",
-    "syncSupported": "同步历史记录到服务器",
-    "syncEnabled": "已启用历史记录同步",
-    "syncDisabled": "已禁用历史记录同步",
     "maxItemsLabel": "历史记录最大保留条数",
     "maxItemsHint": "最小值为10条",
     "maxItemsSuffix": "条",

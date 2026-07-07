@@ -4,13 +4,7 @@ import type { APIClientConfig, ISyncClipboardAPI } from './APIClient';
 import type { ProfileDto, ServerInfo } from '@/types/api';
 import type { ClipboardContent } from '@/types/clipboard';
 import type { ProgressInfo } from 'native-util';
-import type {
-  HistoryRecordDto,
-  HistoryRecordUpdateDto,
-  HistoryQueryParams,
-  HistoryStatisticsDto,
-  IHistoryAPI,
-} from './HistoryAPI';
+import type { HistoryRecordDto, IHistoryAPI } from './HistoryAPI';
 import type { ServerConfig } from '@/types/api';
 import { getCurrentNetworkContext } from './networkContext';
 import { loadServerRouteLiveUrl, saveServerRouteLiveUrl } from './serverRouteRecordStore';
@@ -73,24 +67,8 @@ export class RoutedSyncClipboardClient implements RoutedSyncClipboardSurface {
     return this.call('testConnection', signal);
   }
 
-  async queryRecords(
-    params: HistoryQueryParams,
-    signal?: AbortSignal
-  ): Promise<HistoryRecordDto[]> {
-    return this.call('queryRecords', params, signal);
-  }
-
   async getRecord(profileId: string, signal?: AbortSignal): Promise<HistoryRecordDto> {
     return this.call('getRecord', profileId, signal);
-  }
-
-  async updateRecord(
-    type: 'Text' | 'Image' | 'File',
-    profileId: string,
-    update: HistoryRecordUpdateDto,
-    signal?: AbortSignal
-  ): Promise<HistoryRecordDto> {
-    return this.call('updateRecord', type, profileId, update, signal);
   }
 
   async downloadData(
@@ -109,10 +87,6 @@ export class RoutedSyncClipboardClient implements RoutedSyncClipboardSurface {
     onProgress?: (info: ProgressInfo) => void
   ): Promise<HistoryRecordDto> {
     return this.call('uploadRecord', record, fileUri, signal, onProgress);
-  }
-
-  async getStatistics(signal?: AbortSignal): Promise<HistoryStatisticsDto> {
-    return this.call('getStatistics', signal);
   }
 
   private routeOptions() {

@@ -4,8 +4,7 @@
  */
 
 import { ProgressInfo } from 'native-util';
-import { ClipboardContentType } from '../types/api';
-import { ClipboardItem, HistorySyncStatus } from '../types/clipboard';
+import { ClipboardItem } from '../types/clipboard';
 
 /**
  * 历史记录 DTO（服务器格式）
@@ -23,43 +22,6 @@ export interface HistoryRecordDto {
   hasData?: boolean;
   version?: number;
   isDeleted?: boolean;
-}
-
-/**
- * 历史记录更新 DTO
- */
-export interface HistoryRecordUpdateDto {
-  starred?: boolean;
-  pinned?: boolean;
-  isDelete?: boolean;
-  version?: number;
-  lastModified?: string;
-  lastAccessed?: string;
-}
-
-/**
- * 历史记录查询参数
- */
-export interface HistoryQueryParams {
-  page?: number;
-  before?: string;
-  after?: string;
-  modifiedAfter?: string;
-  types?: number;
-  searchText?: string;
-  starred?: boolean;
-  sortByLastAccessed?: boolean;
-}
-
-/**
- * 历史记录统计 DTO
- */
-export interface HistoryStatisticsDto {
-  totalCount: number;
-  starredCount: number;
-  deletedCount: number;
-  activeCount: number;
-  totalFileSizeMB: number;
 }
 
 /**
@@ -89,29 +51,10 @@ export class RecordNotFoundError extends Error {
 }
 
 /**
- * 类型过滤位掩码
- */
-export const ProfileTypeFilter = {
-  Text: 1,
-  Image: 2,
-  File: 4,
-  Group: 8,
-  All: 15,
-  FileAndGroup: 12,
-} as const;
-
-/**
  * History API 接口
  */
 export interface IHistoryAPI {
-  queryRecords(params: HistoryQueryParams, signal?: AbortSignal): Promise<HistoryRecordDto[]>;
   getRecord(profileId: string, signal?: AbortSignal): Promise<HistoryRecordDto>;
-  updateRecord(
-    type: 'Text' | 'Image' | 'File',
-    profileId: string,
-    update: HistoryRecordUpdateDto,
-    signal?: AbortSignal
-  ): Promise<HistoryRecordDto>;
   downloadData(
     profileId: string,
     destinationUri: string,
@@ -124,32 +67,7 @@ export interface IHistoryAPI {
     signal?: AbortSignal,
     onProgress?: (info: ProgressInfo) => void
   ): Promise<HistoryRecordDto>;
-  getStatistics(signal?: AbortSignal): Promise<HistoryStatisticsDto>;
   getServerTime(signal?: AbortSignal): Promise<Date>;
-}
-
-/**
- * 工具函数：将 HistoryRecordDto 转换为 ClipboardItem
- */
-export function dtoToClipboardItem(dto: HistoryRecordDto): ClipboardItem {
-  return {
-    type: dto.type as ClipboardContentType,
-    text: dto.text || '',
-    profileHash: dto.hash,
-    hasData: dto.hasData || false,
-    size: dto.size ?? 0,
-    timestamp: dto.createTime ? new Date(dto.createTime).getTime() : Date.now(),
-    starred: dto.starred ?? false,
-    pinned: dto.pinned ?? false,
-    syncStatus: HistorySyncStatus.Synced,
-    from: 'server',
-    version: dto.version ?? 0,
-    lastModified: dto.lastModified ? new Date(dto.lastModified).getTime() : Date.now(),
-    lastAccessed: dto.lastAccessed ? new Date(dto.lastAccessed).getTime() : Date.now(),
-    isDeleted: dto.isDeleted ?? false,
-    hasRemoteData: dto.hasData ?? false,
-    isLocalFileReady: false,
-  };
 }
 
 /**

@@ -1,7 +1,7 @@
 /**
  * 历史记录 section
  *
- * 订阅 enableHistorySync / attachmentAutoDownload / showImageCopyButton 及当前服务器类型。
+ * 订阅 attachmentAutoDownload / showImageCopyButton。
  */
 import React, { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -33,12 +33,6 @@ export const HistorySection = memo(function HistorySection() {
   const { t } = useTranslation('settingsStorage');
   const showMessage = useSettingsToast();
 
-  const historySyncEnabled = useSettingsStore((s) => s.config?.enableHistorySync ?? false);
-  const isSyncClipboard = useSettingsStore((s) => {
-    const c = s.config;
-    const i = c?.activeServerIndex ?? -1;
-    return i >= 0 ? c?.servers?.[i]?.type === 'syncclipboard' : false;
-  });
   const attachmentAutoDownload = useSettingsStore(
     (s) => (s.config?.attachmentAutoDownload ?? 'wifi') as ImageAutoDownload
   );
@@ -59,30 +53,6 @@ export const HistorySection = memo(function HistorySection() {
     imageAutoDownloadOptions.find((o) => o.value === attachmentAutoDownload)?.label ??
     t('autoDownload.wifi');
   const imageAutoDownloadNativeState = useNativeState(imageAutoDownloadLabel);
-
-  const handleToggleHistorySync = async (enabled: boolean) => {
-    try {
-      const { getHistorySyncService } = await import('@/services/HistorySyncService');
-      const syncService = getHistorySyncService();
-      syncService.cancelAll();
-      if (!enabled) {
-        await syncService.resetSyncCursor();
-      }
-    } catch {
-      // ignore
-    }
-
-    try {
-      await useSettingsStore.getState().setEnableHistorySync(enabled);
-      if (!enabled) {
-        const { runtimeStateStorage } = await import('@/services/RuntimeStateStorage');
-        await runtimeStateStorage.update({ needsHistoryReorganize: true });
-      }
-      showMessage(enabled ? t('history.syncEnabled') : t('history.syncDisabled'), 'success');
-    } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : t('setFailed'), 'error');
-    }
-  };
 
   const handleMaxHistoryItemsBlur = async () => {
     const resetToCurrent = () =>
@@ -117,26 +87,6 @@ export const HistorySection = memo(function HistorySection() {
 
   return (
     <SettingsSectionItem title={t('history.sectionTitle')}>
-      <ListItem>
-        <ListItem.HeadlineContent>
-          <ComposeText>{t('history.syncLabel')}</ComposeText>
-        </ListItem.HeadlineContent>
-        <ListItem.SupportingContent>
-          <ComposeText>
-            {!isSyncClipboard ? t('history.syncUnsupported') : t('history.syncSupported')}
-          </ComposeText>
-        </ListItem.SupportingContent>
-        <ListItem.TrailingContent>
-          <ComposeSwitch
-            value={historySyncEnabled && isSyncClipboard}
-            onCheckedChange={handleToggleHistorySync}
-            enabled={isSyncClipboard}
-          />
-        </ListItem.TrailingContent>
-      </ListItem>
-
-      <HorizontalDivider />
-
       <ListItem>
         <ListItem.HeadlineContent>
           <ComposeText>{t('history.maxItemsLabel')}</ComposeText>

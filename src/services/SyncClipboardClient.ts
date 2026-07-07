@@ -16,9 +16,6 @@ import { ValidationError, ServerError } from './errors';
 import { isTextInvalid } from '../utils/index';
 import {
   HistoryRecordDto,
-  HistoryRecordUpdateDto,
-  HistoryQueryParams,
-  HistoryStatisticsDto,
   SyncConflictError,
   RecordNotFoundError,
   IHistoryAPI,
@@ -268,64 +265,6 @@ export class SyncClipboardClient extends APIClient implements ISyncClipboardAPI,
   }
 
   /**
-   * 查询历史记录 (IHistoryAPI)
-   */
-  async queryRecords(
-    params: HistoryQueryParams,
-    signal?: AbortSignal
-  ): Promise<HistoryRecordDto[]> {
-    const formData = new FormData();
-
-    if (params.page !== undefined) {
-      formData.append('page', params.page.toString());
-    }
-    if (params.before) {
-      formData.append('before', params.before);
-    }
-    if (params.after) {
-      formData.append('after', params.after);
-    }
-    if (params.modifiedAfter) {
-      formData.append('modifiedAfter', params.modifiedAfter);
-    }
-    if (params.types !== undefined) {
-      formData.append('types', params.types.toString());
-    }
-    if (params.searchText) {
-      formData.append('searchText', params.searchText);
-    }
-    if (params.starred !== undefined) {
-      formData.append('starred', params.starred.toString());
-    }
-    if (params.sortByLastAccessed !== undefined) {
-      formData.append('sortByLastAccessed', params.sortByLastAccessed.toString());
-    }
-
-    log.info(
-      '[SyncClipboardClient] queryRecords params:',
-      Object.fromEntries(formData as unknown as Iterable<[string, string]>)
-    );
-
-    try {
-      const response = await this.client.post<HistoryRecordDto[]>(
-        `${SyncClipboardClient.HISTORY_API_PREFIX}/query`,
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-          signal,
-        }
-      );
-      log.info('[SyncClipboardClient] queryRecords response length:', response.data?.length || 0);
-      return response.data || [];
-    } catch (error) {
-      log.error('[SyncClipboardClient] Failed to query records:', error);
-      throw error;
-    }
-  }
-
-  /**
    * 获取单条历史记录 (IHistoryAPI)
    */
   async getRecord(profileId: string, signal?: AbortSignal): Promise<HistoryRecordDto> {
@@ -344,44 +283,6 @@ export class SyncClipboardClient extends APIClient implements ISyncClipboardAPI,
         throw new RecordNotFoundError(profileId);
       }
       log.error('[SyncClipboardClient] Failed to get record:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * 更新历史记录 (IHistoryAPI)
-   */
-  async updateRecord(
-    type: 'Text' | 'Image' | 'File',
-    profileId: string,
-    update: HistoryRecordUpdateDto,
-    signal?: AbortSignal
-  ): Promise<HistoryRecordDto> {
-    if (!profileId) {
-      throw new ValidationError('Profile ID is required');
-    }
-
-    try {
-      const record = await this.patch<HistoryRecordDto>(
-        `${SyncClipboardClient.HISTORY_API_PREFIX}/${type}/${encodeURIComponent(profileId)}`,
-        update,
-        signal ? { signal } : undefined
-      );
-      return record;
-    } catch (error) {
-      if (error && typeof error === 'object') {
-        const apiError = error as { statusCode?: number; response?: unknown };
-
-        if (apiError.statusCode === 409 && apiError.response) {
-          const serverRecord = apiError.response as HistoryRecordDto;
-          throw new SyncConflictError('Version conflict', serverRecord);
-        }
-
-        if (apiError.statusCode === 404) {
-          throw new RecordNotFoundError(profileId);
-        }
-      }
-      log.error('[SyncClipboardClient] Failed to update record:', error);
       throw error;
     }
   }
@@ -500,22 +401,6 @@ export class SyncClipboardClient extends APIClient implements ISyncClipboardAPI,
         }
       }
       log.error('[SyncClipboardClient] Failed to upload history record:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * 获取历史记录统计信息 (IHistoryAPI)
-   */
-  async getStatistics(signal?: AbortSignal): Promise<HistoryStatisticsDto> {
-    try {
-      const stats = await this.get<HistoryStatisticsDto>(
-        `${SyncClipboardClient.HISTORY_API_PREFIX}/statistics`,
-        signal ? { signal } : undefined
-      );
-      return stats;
-    } catch (error) {
-      log.error('[SyncClipboardClient] Failed to get statistics:', error);
       throw error;
     }
   }

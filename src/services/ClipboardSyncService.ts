@@ -7,7 +7,6 @@
  *   由 SyncEngine 的 SSE 推送 + 兜底 tick 接管，这里只保留手动刷新）
  * - 处理远程剪贴板变化（哈希检测、自动下载、自动复制、历史记录）
  * - SyncManager 生命周期管理（初始化/销毁）
- * - HistorySyncService 初始化
  * - 自动上传（本地剪贴板变化时触发）
  * - 通过 useClipboardSyncServiceStore 向 UI 提供状态
  *
@@ -77,11 +76,6 @@ class ClipboardSyncService {
 
     // 初始化 SyncManager
     await this._initializeSyncManager();
-
-    // 初始化历史同步服务
-    if (activeServer) {
-      await this._initializeHistorySyncService(activeServer);
-    }
 
     const { useClipboardSyncServiceStore } = require('../stores/ClipboardSyncServiceStore');
 
@@ -383,20 +377,6 @@ class ClipboardSyncService {
       await useSyncStore.getState().destroy();
     } catch (e) {
       log.error('[ClipboardSyncService] Failed to destroy SyncManager:', e);
-    }
-  }
-
-  private async _initializeHistorySyncService(server: ServerConfig): Promise<void> {
-    try {
-      const { useSettingsStore } = require('../stores/settingsStore');
-      const config = useSettingsStore.getState().config;
-      if (config?.enableHistorySync) {
-        const { getHistorySyncService } = require('./HistorySyncService');
-        await getHistorySyncService().ensureInitialized(server);
-        log.info('[ClipboardSyncService] HistorySyncService initialized');
-      }
-    } catch (e) {
-      log.error('[ClipboardSyncService] Failed to initialize HistorySyncService:', e);
     }
   }
 

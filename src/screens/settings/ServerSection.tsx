@@ -58,13 +58,6 @@ export const ServerSection = memo(function ServerSection() {
     if (index === activeServerIndex) return;
 
     try {
-      const { getHistorySyncService } = await import('@/services/HistorySyncService');
-      getHistorySyncService().cancelAll();
-    } catch {
-      // ignore
-    }
-
-    try {
       await useSettingsStore.getState().setActiveServer(index);
       const { runtimeStateStorage } = await import('@/services/RuntimeStateStorage');
       await runtimeStateStorage.update({ needsHistoryReorganize: true });

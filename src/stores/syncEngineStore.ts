@@ -222,9 +222,6 @@ export const useSyncEngineStore = create<SyncEngineState>((set) => ({
       applyToDevice,
     });
 
-    await engine.init();
-    log.info('[SyncEngineStore] SyncEngine initialized');
-
     engine.addListener((status) => {
       set({ status });
     });

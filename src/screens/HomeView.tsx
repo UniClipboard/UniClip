@@ -48,7 +48,6 @@ import { DisplayKind, getDisplayKind } from '@/utils/displayKind';
 import { buildActionMenuGroups } from '@/utils/actionMenuItems';
 import { saveToGallery, saveFile, shareFile } from '@/utils/fileActions';
 import { createHistorySearchFilter, HistoryDateFilter } from '@/utils/historyFilters';
-import { isHistorySyncEnabled } from '@/utils/config';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -103,7 +102,6 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
   const clearError = useErrorStore((s) => s.clearError);
 
   const activeServer = getActiveServer();
-  const historySyncEnabled = useMemo(() => isHistorySyncEnabled(config), [config]);
 
   // 服务器在线状态 —— 单一数据源是 SyncEngine 的状态机，细粒度订阅避免整树重渲
   const syncState = useSyncEngineStore((s) => s.status.state);
@@ -423,29 +421,20 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
     await useSyncEngineStore.getState().acknowledgeLoop();
   }, []);
 
-  // Sync button — refresh clipboard + history
+  // Sync button — refresh current server value + reload local history
   const handleSyncHistory = useCallback(async () => {
     if (isSyncing) return;
     setIsSyncing(true);
     try {
       await refreshFromServer();
       await loadItems();
-      if (historySyncEnabled && config) {
-        const serverConfig = config.servers[config.activeServerIndex];
-        const { getHistorySyncService } = await import('@/services/HistorySyncService');
-        const syncService = getHistorySyncService();
-        const initialized = await syncService.ensureInitialized(serverConfig);
-        if (initialized) {
-          await syncService.syncAll(() => {});
-        }
-      }
       showMessage(t('toast.syncDone'), 'success');
     } catch {
       showMessage(t('toast.syncFailed'), 'error');
     } finally {
       setIsSyncing(false);
     }
-  }, [isSyncing, historySyncEnabled, config, showMessage, loadItems, t]);
+  }, [isSyncing, showMessage, loadItems, t]);
 
   // Upload
   const handleUpload = useCallback(async () => {

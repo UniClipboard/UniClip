@@ -169,16 +169,9 @@ const SyncHubGroup = memo(function SyncHubGroup({ iconTint, onNavigate }: HubGro
         })
       : t('hub.summary.serverCount', { count: servers.length });
   });
-  const historySummary = useSettingsStore((s) => {
-    const c = s.config;
-    const i = c?.activeServerIndex ?? -1;
-    const supportsSync = i >= 0 && c?.servers?.[i]?.type === 'syncclipboard';
-    const syncOn = (c?.enableHistorySync ?? false) && supportsSync;
-    return t('hub.summary.history', {
-      status: syncOn ? t('hub.summary.syncOn') : t('hub.summary.syncOff'),
-      count: c?.maxHistoryItems ?? 1000,
-    });
-  });
+  const historySummary = useSettingsStore((s) =>
+    t('hub.summary.history', { count: s.config?.maxHistoryItems ?? 1000 })
+  );
 
   return (
     <SettingsSectionItem title={t('category.sync')}>
