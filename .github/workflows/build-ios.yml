@@ -48,7 +48,7 @@ env:
   # Pinned uc-mobile source commit. Full SHA so GitHub can serve it via
   # `git fetch --depth 1 <sha>` even after the source branch advances.
   UC_CORE_REPO: https://github.com/UniClipboard/UniClipboard.git
-  UC_CORE_REF: 9cfe6bd8ad57573c1266724667f0d107e7378624
+  UC_CORE_REF: 23a72351cb702de645817ff2f8b5cbcc4c2f6a1d
   APPLE_TEAM_ID: 8XG39X5CL8
   APP_VARIANT: production
 
