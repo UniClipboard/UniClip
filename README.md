@@ -4,7 +4,7 @@
 
 官网：<https://uniclipboard.app>
 
-支持 **Android**（已出货）与 **iOS**（公测中）。桌面端见 [UniClipboard/UniClipboard](https://github.com/UniClipboard/UniClipboard)。
+支持 **Android**（已出货）与 **iOS**（[TestFlight 公测中](https://testflight.apple.com/join/nyNQ8dQe)）。桌面端见 [UniClipboard/UniClipboard](https://github.com/UniClipboard/UniClipboard)。
 
 ## 功能特性
 
