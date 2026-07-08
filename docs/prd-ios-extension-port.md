@@ -14,7 +14,7 @@ Scope: iOS only
 ## 1. Goal & Scope
 
 Bring two iOS App Extensions from the native app at
-`/Users/mark/MyProjects/iOSApp/UniClipboard` into this Expo (SDK 56 / RN 0.85)
+`<native-ios-repo>/UniClipboard` into this Expo (SDK 56 / RN 0.85)
 app:
 
 - **Share Extension** — `com.apple.share-services`. Share text / URL / image /
@@ -328,5 +328,5 @@ phase is independently verifiable.
 - Expo iOS App Extensions (EAS): https://docs.expo.dev/build-reference/app-extensions/
 - Expo iOS capabilities (App Groups auto-sync): https://docs.expo.dev/build-reference/ios-capabilities/
 - EAS App Group provisioning cache bug: https://github.com/expo/expo/issues/40851
-- Source of truth (native): `/Users/mark/MyProjects/iOSApp/UniClipboard/{UniClipboardShare,UniClipboardKeyboard,Shared}`
+- Source of truth (native): `<native-ios-repo>/UniClipboard/{UniClipboardShare,UniClipboardKeyboard,Shared}`
 - App Group ID locations: `Shared/Models/SettingsStore.swift:20`, `modules/uc-core/ios/UcCoreModule.swift:566`

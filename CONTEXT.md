@@ -155,7 +155,7 @@ npm run build:apk      # release APK
 
 - **Read the versioned Expo docs** (`https://docs.expo.dev/versions/v56.0.0/`) — SDK 56 differs from older APIs.
 - **iOS storage compatibility**: iOS file cache must match the native Swift app at
-  `/Users/mark/MyProjects/iOSApp/UniClipboard` (bundle IDs to be unified). Check its
+  `<native-ios-repo>/UniClipboard` (bundle IDs to be unified). Check its
   `FileManager` paths before changing cache layout.
 - **Security**: connect-URI handling must never log the URI or payload.
 - **Switch components**: ON-track must be green (Android `success`, iOS system green) — not primary/accent.

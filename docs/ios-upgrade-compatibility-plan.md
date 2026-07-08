@@ -1,7 +1,7 @@
 # iOS Upgrade Compatibility Plan (Native → Expo)
 
 > Goal: let existing users of the native iOS app
-> (`/Users/mark/MyProjects/iOSApp/UniClipboard`) receive this Expo build as an
+> (`<native-ios-repo>/UniClipboard`) receive this Expo build as an
 > **App Store update (beta)** of the _same_ app — not a fresh install of a
 > separate "UniClip" app — with their server config, settings, history and
 > cached payloads preserved.
