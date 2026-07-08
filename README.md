@@ -4,7 +4,7 @@
 
 官网：<https://uniclipboard.app>
 
-支持 **Android**（已出货）与 **iOS**（公测中）。
+支持 **Android**（已出货）与 **iOS**（公测中）。桌面端见 [UniClipboard/UniClipboard](https://github.com/UniClipboard/UniClipboard)。
 
 ## 功能特性
 
@@ -103,10 +103,7 @@ npm run plugin:build
 
 ## 致谢
 
-UniClip 早期基于以下开源项目起步，特此致谢：
-
-- [Jeric-X/SyncClipboard](https://github.com/Jeric-X/SyncClipboard) — 原始 SyncClipboard 协议与桌面端实现（MIT）
-- [Jeric-X/syncclipboard-mobile](https://github.com/Jeric-X/syncclipboard-mobile) — 移动端原始实现（MIT，作者 JericX）
+UniClip 的移动端早期 fork 自 [Jeric-X/syncclipboard-mobile](https://github.com/Jeric-X/syncclipboard-mobile)（MIT，作者 JericX），特此致谢。
 
 ## 许可协议
 
