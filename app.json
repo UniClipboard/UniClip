@@ -32,10 +32,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "app.uniclipboard.android",
-      "permissions": [
-        "android.permission.REQUEST_INSTALL_PACKAGES",
-        "android.permission.CAMERA"
-      ]
+      "permissions": ["android.permission.REQUEST_INSTALL_PACKAGES", "android.permission.CAMERA"]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -61,9 +58,7 @@
         {
           "android": {
             "enabled": true,
-            "singleShareMimeTypes": [
-              "*/*"
-            ]
+            "singleShareMimeTypes": ["*/*"]
           }
         }
       ],
