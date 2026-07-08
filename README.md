@@ -4,7 +4,15 @@
 
 官网：<https://uniclipboard.app>
 
-支持 **Android**（已出货）与 **iOS**（[TestFlight 公测中](https://testflight.apple.com/join/nyNQ8dQe)）。桌面端见 [UniClipboard/UniClipboard](https://github.com/UniClipboard/UniClipboard)。
+覆盖 **Android**、**iOS** 与桌面端。
+
+## 安装
+
+| 平台    | 获取方式                                                                                                                                                                                                             |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Android | [GitHub Releases](https://github.com/UniClipboard/UniClip/releases/latest) 下载 APK（`arm64-v8a` / `armeabi-v7a` / `x86_64` / `universal`）；国内镜像见 [Gitee](https://gitee.com/uni-clipboard/uc-android/releases) |
+| iOS     | [TestFlight 公测](https://testflight.apple.com/join/nyNQ8dQe)（需先安装 TestFlight）                                                                                                                                 |
+| 桌面端  | 见 [UniClipboard/UniClipboard](https://github.com/UniClipboard/UniClipboard)                                                                                                                                         |
 
 ## 功能特性
 
