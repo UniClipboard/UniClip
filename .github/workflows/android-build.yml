@@ -56,7 +56,7 @@ jobs:
         run: |
           cd android/app/build/outputs/apk/release
           VERSION=${{ steps.version.outputs.version }}
-          for ABI in arm64-v8a armeabi-v7a x86_64 universal; do
+          for ABI in arm64-v8a armeabi-v7a universal; do
             SRC="app-${ABI}-release.apk"
             if [ -f "$SRC" ]; then
               mv "$SRC" "UniClip-${VERSION}-${ABI}.apk"
@@ -74,12 +74,6 @@ jobs:
         with:
           name: apk-armeabi-v7a
           path: android/app/build/outputs/apk/release/UniClip-${{ steps.version.outputs.version }}-armeabi-v7a.apk
-
-      - name: Upload x86_64 APK
-        uses: actions/upload-artifact@v7
-        with:
-          name: apk-x86_64
-          path: android/app/build/outputs/apk/release/UniClip-${{ steps.version.outputs.version }}-x86_64.apk
 
       - name: Upload universal APK
         uses: actions/upload-artifact@v7

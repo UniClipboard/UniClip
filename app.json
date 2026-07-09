@@ -51,6 +51,7 @@
       "./plugins/build/withStaticSmsReceiver.js",
       "./plugins/build/withForegroundService.js",
       "./plugins/build/withAbiSplits.js",
+      "./plugins/build/withGradleBuildTuning.js",
       "./plugins/build/withRustCore.js",
       "@bacons/apple-targets",
       [

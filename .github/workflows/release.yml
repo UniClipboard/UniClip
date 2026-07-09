@@ -185,7 +185,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        abi: [arm64-v8a, armeabi-v7a, x86_64, universal]
+        abi: [arm64-v8a, armeabi-v7a, universal]
 
     steps:
       - name: Download APK artifact
