@@ -225,6 +225,9 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose
   );
 
   const renderBody = () => {
+    // modal 不可见时卸载相机:RN <Modal> 关闭不会卸载子节点,而 CameraView 一旦
+    // 挂载就占用摄像头。expo-camera 的 active 属性仅 iOS 生效,安卓只能靠卸载释放。
+    if (!visible) return null;
     if (!permission) return renderPermissionPending();
     if (!permission.granted) return renderPermissionDenied();
     return renderScanner();
