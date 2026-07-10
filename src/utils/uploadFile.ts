@@ -11,6 +11,7 @@
  * 服务端离线时内容已在本地(LocalOnly,卡片显示待上传角标),不会丢失、不阻塞界面。
  */
 
+import { Platform } from 'react-native';
 import { File } from 'expo-file-system';
 import { nativeCopyFile, type ProgressInfo } from 'android-util';
 import i18n from '@/i18n';
@@ -82,7 +83,13 @@ export async function importFileToHistory(
   const tempPath = prepareTempFilePath(fileName);
   const sourceFile = new File(sourceUri);
   options?.onProgress?.(i18n.t('share:upload.copying'));
-  await nativeCopyFile(sourceFile.uri, tempPath);
+  // nativeCopyFile 仅 Android 可用(FileChannel 流式拷贝,不占 JS 堆);
+  // iOS 该原生模块不存在,改走 expo-file-system 的 File.copy,否则整条落库路径抛错「保存失败」。
+  if (Platform.OS === 'android') {
+    await nativeCopyFile(sourceFile.uri, tempPath);
+  } else {
+    await sourceFile.copy(new File(tempPath), { overwrite: true });
+  }
 
   options?.onProgress?.(i18n.t('share:upload.hashing'));
   const profileHash = await calculateFileProfileHash(tempPath, fileName);
