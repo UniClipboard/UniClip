@@ -21,7 +21,9 @@
     "plugin:build": "cd plugins && tsc -p tsconfig.json",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "release:build": "node scripts/bump-build.mjs",
+    "release:version": "node scripts/bump-version.mjs"
   },
   "dependencies": {
     "@bacons/apple-targets": "^4.0.7",

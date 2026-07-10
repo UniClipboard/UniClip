@@ -5,46 +5,73 @@ release process for UniClip.
 
 ## Versioning Policy
 
-UniClip follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`)
-**independently** from the upstream `Jeric-X/syncclipboard-mobile` project.
+UniClip uses **two independent axes**, so our fast release cadence does not keep
+re-triggering iOS App Store / TestFlight review:
 
-- **Snapshot point:** version `1.0.11` is the alignment snapshot where UniClip
-  last shared a version number with upstream. From `1.0.12` onward, UniClip's
-  version numbers evolve on their own schedule and have no relation to upstream
-  release numbers.
-- **PATCH (`1.0.X`)** — bug fixes only, no API or user-visible behavior change.
-- **MINOR (`1.X.0`)** — new features, backward compatible.
-- **MAJOR (`X.0.0`)** — breaking changes (protocol break, removed feature,
-  data-format migration).
+1. **Marketing version** — `expo.version`, a 3-segment `MAJOR.MINOR.PATCH`
+   ([SemVer](https://semver.org/)), independent from the upstream
+   `Jeric-X/syncclipboard-mobile` project. This maps to the iOS
+   `CFBundleShortVersionString`. **Apple re-reviews whenever this changes**, so
+   it is bumped **deliberately and rarely** — at feature milestones, not every
+   release.
+   - **PATCH (`1.0.X`)** — bug fixes only, no user-visible behavior change.
+   - **MINOR (`1.X.0`)** — new features, backward compatible.
+   - **MAJOR (`X.0.0`)** — breaking changes (protocol break, removed feature,
+     data-format migration).
+2. **Build counter** — a single monotonic integer bumped **every** release. It
+   drives both `expo.android.versionCode` and `expo.ios.buildNumber` (kept
+   equal), and is the 4th segment of the git tag. On iOS only the
+   `CFBundleVersion` changes → no review. Our fast cadence rides on this axis.
 
-### versionCode Rule
+> **Snapshot point:** version `1.0.11` (versionCode 152) was the alignment
+> snapshot where UniClip last shared a version number with upstream. From then
+> on the two axes evolve independently.
 
-`android.versionCode` is an integer that **must increase monotonically** across
-every published artifact, including beta builds. The rule is simple:
+### Build Counter Rule
 
-> Every published tag bumps `versionCode` by 1.
+The build counter **must increase monotonically** across every published
+artifact, including betas and marketing-version bumps (it is never reset). The
+rule is simple:
 
-| Release       | version | versionCode |
-| ------------- | ------- | ----------- |
-| v1.0.11-beta1 | 1.0.11  | 151         |
-| v1.0.11       | 1.0.11  | 152         |
-| v1.0.12-beta1 | 1.0.12  | 153         |
-| v1.0.12       | 1.0.12  | 154         |
+> Every published tag bumps the build counter by 1;
+> `versionCode` and `ios.buildNumber` are both set to it.
 
-This guarantees that any user who installed an earlier build (stable or beta)
-can upgrade to a newer one.
+| Release    | expo.version (iOS marketing) | build counter | Android versionName | iOS review? |
+| ---------- | ---------------------------- | ------------- | ------------------- | ----------- |
+| v1.3.0.156 | 1.3.0 (frozen)               | 156           | 1.3.0.156           | no          |
+| v1.3.0.157 | 1.3.0 (frozen)               | 157           | 1.3.0.157           | no          |
+| v1.4.0.158 | 1.4.0 (bumped)               | 158           | 1.4.0.158           | **yes**     |
+| v1.4.0.159 | 1.4.0 (frozen)               | 159           | 1.4.0.159           | no          |
+
+### Android self-update depends on the tag — do NOT change its shape
+
+Android is sideload-only: the in-app updater (`src/services/UpdateService.ts`)
+compares the **installed `versionName`** against the **latest GitHub release
+tag**. Two hard constraints follow:
+
+- The Android `versionName` MUST carry the build counter as a 4th segment
+  (`1.3.0.156`). This is injected at prebuild by
+  `plugins/withAndroidBuildVersionName.ts` (from `expo.version` +
+  `expo.android.versionCode`). Without it, a user already on the newest build
+  compares `1.3.0` against tag `v1.3.0.156` and sees a **permanent false
+  "update available"**.
+- The tag MUST be a form `parseVersion` accepts: `vX.Y.Z`, `vX.Y.Z.B`, or
+  `...-betaN`. Separators like `v1.3.0-b5` or `v1.3.0+5` **fail to parse** and
+  silently disable update detection.
 
 ### Tag Naming
 
-- **Stable:** `vX.Y.Z` (e.g. `v1.0.12`)
-- **Pre-release:** `vX.Y.Z-betaN` (e.g. `v1.0.12-beta1`)
+- **Stable:** `vX.Y.Z.B` (e.g. `v1.3.0.156`) — the `.B` is the build counter.
+- **Pre-release:** `vX.Y.Z.B-betaN` (e.g. `v1.3.0.156-beta1`).
 
 The CI workflow detects the channel via `contains(github.ref_name, 'beta')` and
-marks the GitHub Release accordingly.
+marks the GitHub Release accordingly. iOS reads its marketing version from
+`app.json` `expo.version` (always 3-segment), so the tag's 4th segment never
+reaches the iOS `CFBundleShortVersionString`.
 
 ## CHANGES.md Format
 
-The first line of each version section is the bare tag (`vX.Y.Z`); the CI
+The first line of each version section is the bare tag (`vX.Y.Z.B`); the CI
 extracts release notes with:
 
 ```sh
@@ -123,28 +150,36 @@ independent.
       device, including any long-running scenarios mentioned in the
       changelog.
 - [ ] `CHANGES.md` top section reflects the final release notes (this becomes
-      the GitHub/Gitee release body).
-- [ ] `app.json`:
-  - `expo.version` matches the tag without the `v` prefix.
-  - `expo.android.versionCode` is bumped to `previous + 1`.
+      the GitHub/Gitee release body); its first line is the full tag `vX.Y.Z.B`.
+- [ ] `app.json` build metadata was bumped with the scripts below (never
+      hand-edit `versionCode` / `buildNumber` — that risks the two drifting).
 - [ ] Working tree is clean.
 - [ ] `main` is up to date with the latest CI green.
 
 ### Steps
 
+Pick the axis. **Most releases are build-only** (marketing version frozen, no
+iOS review):
+
 ```sh
-# 1. Bump version metadata on a clean main
-#    edit app.json: version, versionCode
-#    edit CHANGES.md: new vX.Y.Z section at top
+# 1a. Build-only release (frequent): bump the counter, keep expo.version frozen.
+npm run release:build            # add --dry-run first to preview
 
-# 2. Commit
+# 1b. OR marketing-version release (rare, re-triggers iOS review):
+npm run release:version -- 1.4.0
+```
+
+Both scripts edit `app.json` and print the exact tag + git commands. Then:
+
+```sh
+# 2. Add a "vX.Y.Z.B" section to the TOP of CHANGES.md (first line = the tag).
+
+# 3. Commit, push, tag (the tag push triggers the release workflow).
 git add app.json CHANGES.md
-git commit -m "chore: release vX.Y.Z"
-
-# 3. Tag and push
+git commit -m "chore(release): X.Y.Z.B"
 git push origin main
-git tag vX.Y.Z
-git push origin vX.Y.Z
+git tag vX.Y.Z.B
+git push origin vX.Y.Z.B
 ```
 
 The tag push triggers the `build.yml` workflow on GitHub Actions, which in

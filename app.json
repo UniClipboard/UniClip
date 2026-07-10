@@ -53,6 +53,7 @@
       "./plugins/build/withAbiSplits.js",
       "./plugins/build/withGradleBuildTuning.js",
       "./plugins/build/withRustCore.js",
+      "./plugins/build/withAndroidBuildVersionName.js",
       "@bacons/apple-targets",
       [
         "expo-sharing",
