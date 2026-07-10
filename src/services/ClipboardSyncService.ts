@@ -913,7 +913,7 @@ class ClipboardSyncService {
         apiClient,
         remoteContent.hasData || false,
         abortController.signal,
-        (info: import('native-util').ProgressInfo) => {
+        (info: import('android-util').ProgressInfo) => {
           useClipboardSyncServiceStore.getState().setDownloadProgress({
             progress: info.progress,
             bytesTransferred: info.bytesTransferred,

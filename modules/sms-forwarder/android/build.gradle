@@ -16,5 +16,5 @@ android {
 
 dependencies {
   implementation 'com.facebook.react:react-native:0.83.2'
-  implementation project(':native-util')
+  implementation project(':android-util')
 }

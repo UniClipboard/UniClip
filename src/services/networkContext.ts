@@ -1,6 +1,6 @@
 import type { NetworkContext } from './serverRouteSelector';
 import NetInfo, { type NetInfoState } from '@react-native-community/netinfo';
-import { isTailscaleActive } from 'native-util';
+import { isTailscaleActive } from 'android-util';
 
 let currentNetworkContext: NetworkContext = {
   isWifi: false,

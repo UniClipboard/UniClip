@@ -15,7 +15,7 @@ import { ConfigurationError } from './errors';
 import { ServerConfig, ProfileDto } from '../types/api';
 import { compareHash } from '../utils/hash';
 import { isTextInvalid } from '../utils/index';
-import type { ProgressInfo } from 'native-util';
+import type { ProgressInfo } from 'android-util';
 import {
   SyncConfig,
   SyncStatus,

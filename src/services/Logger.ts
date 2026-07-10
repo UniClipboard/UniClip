@@ -2,7 +2,7 @@ import { logger, consoleTransport } from 'react-native-logs';
 import { Paths, Directory, File } from 'expo-file-system';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
-import { nativeZipFiles } from 'native-util';
+import { nativeZipFiles } from 'android-util';
 import * as Application from 'expo-application';
 import i18n from '@/i18n';
 

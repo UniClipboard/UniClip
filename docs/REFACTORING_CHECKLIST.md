@@ -464,7 +464,7 @@ import {
   HistoryQueryParams,
   HistoryStatisticsDto,
 } from '@/types/history';
-import { ProgressInfo } from 'native-util';
+import { ProgressInfo } from 'android-util';
 
 export interface IHistoryAPI {
   getHistory(params?: HistoryQueryParams): Promise<HistoryRecordDto[]>;

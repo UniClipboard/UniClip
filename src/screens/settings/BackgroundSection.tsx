@@ -82,7 +82,7 @@ export const BackgroundSection = memo(function BackgroundSection() {
 
   const refreshBatteryPermission = () => {
     if (Platform.OS !== 'android') return;
-    import('native-util')
+    import('android-util')
       .then(({ isIgnoringBatteryOptimizations }) => {
         setPermBattery(isIgnoringBatteryOptimizations());
       })
@@ -115,7 +115,7 @@ export const BackgroundSection = memo(function BackgroundSection() {
   /** 开启总开关后依次引导:忽略电池优化 → 通知权限 → 悬浮窗权限。 */
   const runPermissionOnboarding = async () => {
     const { isIgnoringBatteryOptimizations, requestIgnoreBatteryOptimizations } =
-      await import('native-util');
+      await import('android-util');
     if (!isIgnoringBatteryOptimizations()) {
       requestIgnoreBatteryOptimizations();
       hasBatteryOptRequested.current = true;
@@ -305,7 +305,7 @@ export const BackgroundSection = memo(function BackgroundSection() {
   };
 
   const handleToggleBattery = async () => {
-    const { requestIgnoreBatteryOptimizations } = await import('native-util');
+    const { requestIgnoreBatteryOptimizations } = await import('android-util');
     if (hasBatteryOptRequested.current) {
       setDialog({
         title: t('dialog.batteryFallback.title'),

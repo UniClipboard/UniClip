@@ -13,7 +13,7 @@ import { calculateTextHash, calculateFileHash } from '@/utils/hash';
 import { isTextInvalid } from '@/utils/index';
 import { historyStorage } from './HistoryStorage';
 import { prepareTempFilePath, CLIPBOARD_TEMP_DIR } from '@/utils/fileStorage';
-import { nativeSetClipboardImageFromFile } from 'native-util';
+import { nativeSetClipboardImageFromFile } from 'android-util';
 import { log } from './Logger';
 import i18n from '@/i18n';
 
@@ -327,7 +327,7 @@ export class ClipboardManager {
   async setImageContent(imageUri: string): Promise<void> {
     try {
       if (Platform.OS === 'ios') {
-        // native-util 未提供 iOS 实现，改走 expo-clipboard（UIPasteboard）
+        // android-util 未提供 iOS 实现，改走 expo-clipboard（UIPasteboard）
         const { readAsStringAsync, EncodingType } = await import('expo-file-system/legacy');
         const base64 = await readAsStringAsync(imageUri, {
           encoding: EncodingType.Base64,

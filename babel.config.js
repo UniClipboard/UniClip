@@ -38,7 +38,7 @@ module.exports = function (api) {
             ...(isWeb
               ? {}
               : {
-                  'native-util': './modules/native-util/src',
+                  'android-util': './modules/android-util/src',
                   'app-group-store': './modules/app-group-store/src',
                   shortcut: './modules/shortcut/src',
                 }),

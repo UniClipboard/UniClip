@@ -6,7 +6,7 @@ module.exports = {
   moduleNameMapper: {
     '^expo-sqlite$': '<rootDir>/__mocks__/expo-sqlite.js',
     '^@/(.*)$': '<rootDir>/src/$1',
-    '^native-util$': '<rootDir>/modules/native-util/src',
+    '^android-util$': '<rootDir>/modules/android-util/src',
     '^app-group-store$': '<rootDir>/modules/app-group-store/src',
     '^uc-core$': '<rootDir>/modules/uc-core/src',
     '^signalr-client$': '<rootDir>/modules/signalr-client/src',

@@ -13,7 +13,7 @@ import * as Clipboard from 'expo-clipboard';
 import { AppState, Platform } from 'react-native';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { setTimer, clearTimer } from 'native-timer';
-import { nativeSaveClipboardImageToFile } from 'native-util';
+import { nativeSaveClipboardImageToFile } from 'android-util';
 import { log } from '@/services/Logger';
 
 /** 悬浮窗空闲超时时间（毫秒） */
@@ -243,7 +243,7 @@ export async function saveImageToFileAsync(
       log.warn('[ClipboardProxy] Overlay saveImageToFileAsync failed, falling back:', e);
     }
   }
-  // Android 前台：native-util 直接读取系统剪贴板并写入文件（不经过 JS 内存）
+  // Android 前台：android-util 直接读取系统剪贴板并写入文件（不经过 JS 内存）
   if (Platform.OS === 'android') {
     const result = await nativeSaveClipboardImageToFile(destDirPath);
     return result ? { filePath: result.filePath, mimeType: result.mimeType } : null;

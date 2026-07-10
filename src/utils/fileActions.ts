@@ -5,7 +5,7 @@
 
 import { NativeModules, Platform } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
-import { nativeCopyFile } from 'native-util';
+import { nativeCopyFile } from 'android-util';
 import { log } from '@/services/Logger';
 import i18n from '@/i18n';
 

@@ -1,6 +1,6 @@
 {
   "platforms": ["android"],
-  "name": "native-util",
+  "name": "android-util",
   "android": {
     "modules": ["expo.modules.nativeutil.NativeUtilModule"]
   }

@@ -8,7 +8,7 @@ import { AuthService } from './AuthService';
 import { APP_NAME, APP_VERSION } from '../constants';
 import { ProfileDto, ServerInfo } from '../types/api';
 import type { ClipboardContent } from '../types/clipboard';
-import { nativeDownloadFile, type ProgressInfo } from 'native-util';
+import { nativeDownloadFile, type ProgressInfo } from 'android-util';
 import {
   APIError,
   AuthenticationError,

@@ -12,7 +12,7 @@
  */
 
 import { File } from 'expo-file-system';
-import { nativeCopyFile, type ProgressInfo } from 'native-util';
+import { nativeCopyFile, type ProgressInfo } from 'android-util';
 import i18n from '@/i18n';
 import { calculateFileProfileHash, calculateTextHash } from '@/utils/hash';
 import { prepareTempFilePath } from '@/utils/fileStorage';

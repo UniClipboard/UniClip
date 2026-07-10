@@ -16,7 +16,7 @@
       "@navigation/*": ["src/navigation/*"],
       "@hooks/*": ["src/hooks/*"],
       "@assets/*": ["src/assets/*"],
-      "native-util": ["modules/native-util/src"],
+      "android-util": ["modules/android-util/src"],
       "app-group-store": ["modules/app-group-store/src"],
       "shortcut": ["modules/shortcut/src"],
       "native-timer": ["modules/native-timer/src"],

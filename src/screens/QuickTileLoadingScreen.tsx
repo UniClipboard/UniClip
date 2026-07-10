@@ -9,7 +9,7 @@ import { useSyncStore } from '@/stores/syncStore';
 import { openFile, shareFile, saveFile, saveToGallery } from '@/utils/fileActions';
 import { isTextInvalid } from '@/utils/index';
 import { QuickLoadingPage, SuccessButtonConfig } from '@/components/QuickLoadingPage';
-import type { ProgressInfo } from 'native-util';
+import type { ProgressInfo } from 'android-util';
 import * as Clipboard from 'expo-clipboard';
 import { log } from '@/services/Logger';
 

@@ -6,7 +6,7 @@ import {
   stopNetworkContextMonitor,
 } from '@/services/networkContext';
 import { notifyNetworkChanged } from '@/stores/syncEngineStore';
-import { isTailscaleActive } from 'native-util';
+import { isTailscaleActive } from 'android-util';
 
 jest.mock('@/stores/syncEngineStore', () => ({
   notifyNetworkChanged: jest.fn(),

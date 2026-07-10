@@ -131,7 +131,7 @@ export async function checkApkCache(
   if (!asset.sha256) return file.uri;
 
   try {
-    const { nativeCalculateFileHash } = await import('native-util');
+    const { nativeCalculateFileHash } = await import('android-util');
     const hash = await nativeCalculateFileHash(file.uri);
     if (hash.toLowerCase() === asset.sha256.toLowerCase()) {
       return file.uri;
@@ -168,7 +168,7 @@ export async function downloadApk(options: ApkDownloadOptions): Promise<string> 
     log.info('[ApkDownload] deleted stale file');
   }
 
-  const { nativeDownloadFile } = await import('native-util');
+  const { nativeDownloadFile } = await import('android-util');
   log.info('[ApkDownload] starting nativeDownloadFile...');
   try {
     await nativeDownloadFile(
@@ -194,7 +194,7 @@ export async function downloadApk(options: ApkDownloadOptions): Promise<string> 
   // 校验哈希
   if (asset.sha256) {
     log.info(`[ApkDownload] verifying hash, expected=${asset.sha256}`);
-    const { nativeCalculateFileHash } = await import('native-util');
+    const { nativeCalculateFileHash } = await import('android-util');
     const hash = await nativeCalculateFileHash(destFile.uri, signal);
     log.info(`[ApkDownload] actual hash=${hash}`);
     if (hash.toLowerCase() !== asset.sha256.toLowerCase()) {

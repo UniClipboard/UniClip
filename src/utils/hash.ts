@@ -6,7 +6,7 @@
 import * as Crypto from 'expo-crypto';
 import { sha256 } from 'js-sha256';
 import type { ClipboardContent } from '@/types';
-import { isNativeHashModuleAvailable, nativeCalculateFileHash } from 'native-util';
+import { isNativeHashModuleAvailable, nativeCalculateFileHash } from 'android-util';
 
 import { isTextInvalid } from './textUtils';
 import { log } from '@/services/Logger';

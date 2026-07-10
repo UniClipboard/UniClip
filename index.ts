@@ -11,7 +11,7 @@ import App from './App';
 registerRootComponent(App);
 
 // 仅在 Android 上注册额外的 Activity/HeadlessTask 入口。
-// 这些子树会拉入 Logger / native-util / clipboard-overlay 等原生依赖,
+// 这些子树会拉入 Logger / android-util / clipboard-overlay 等原生依赖,
 // 在 web 平台上即使模块被 stub,顶层副作用(如 new Directory(Paths.document, 'logs'))
 // 也会抛错导致白屏,所以必须守卫掉。
 if (Platform.OS === 'android') {

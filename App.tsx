@@ -14,7 +14,7 @@ import { applyLanguagePreference } from './src/i18n/useAppLanguage';
 import { initLogger, setLogLevel } from './src/services/Logger';
 import { useTheme } from './src/hooks/useTheme';
 import { setDynamicShortcuts } from 'shortcut';
-import { moveTaskToBack, setExcludeFromRecents } from 'native-util';
+import { moveTaskToBack, setExcludeFromRecents } from 'android-util';
 import { getBackgroundServiceManager } from './src/services/BackgroundServiceManager';
 import { startAppGroupSync } from './src/services/appGroupSync';
 import { startNetworkContextMonitor } from './src/services/networkContext';

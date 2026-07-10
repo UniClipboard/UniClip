@@ -28,7 +28,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useTheme } from '@/hooks/useTheme';
 import { spacing, radius, typography, elevation } from '@/theme';
 import type { ClipboardContent } from '@/types/clipboard';
-import type { ProgressInfo } from 'native-util';
+import type { ProgressInfo } from 'android-util';
 import { formatFileSize, isTextInvalid } from '@/utils';
 
 type LoadingState = 'loading' | 'success' | 'error';

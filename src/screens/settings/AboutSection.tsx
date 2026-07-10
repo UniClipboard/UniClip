@@ -136,7 +136,7 @@ export const AboutSection = memo(function AboutSection() {
 
     let preferredAbi: string = 'universal';
     try {
-      const { getSupportedAbis } = await import('native-util');
+      const { getSupportedAbis } = await import('android-util');
       const abis = getSupportedAbis();
       preferredAbi = getPreferredAbi(abis);
     } catch (e) {
@@ -166,7 +166,7 @@ export const AboutSection = memo(function AboutSection() {
 
     let preferredAbi: string = 'universal';
     try {
-      const { getSupportedAbis } = await import('native-util');
+      const { getSupportedAbis } = await import('android-util');
       const abis = getSupportedAbis();
       preferredAbi = getPreferredAbi(abis);
     } catch (e) {

@@ -51,7 +51,7 @@
 - **平台分离 UI**：所有跨平台差异的组件按 Metro 平台文件拆分——
   - iOS：Liquid Glass / SwiftUI（`@expo/ui`、`expo-glass-effect`、`lucide-react-native`）
   - Android：Material Design 3 / Jetpack Compose（`@expo/ui/jetpack-compose`、Ionicons）
-- **自研原生模块**（`modules/`）：`uc-core`、`foreground-service`、`native-timer`、`clipboard-overlay`、`app-group-store`、`native-util`、`qr-scanner`、`shortcut`、`sms-forwarder`。
+- **自研原生模块**（`modules/`）：`uc-core`、`foreground-service`、`native-timer`、`clipboard-overlay`、`app-group-store`、`android-util`、`qr-scanner`、`shortcut`、`sms-forwarder`。
 
 ## 开发
 

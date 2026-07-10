@@ -7,7 +7,7 @@ const WEB_STUB = path.resolve(__dirname, 'web-stubs/empty.js');
 
 // web 平台需要 stub 掉的原生模块名
 const WEB_STUBBED_MODULES = new Set([
-  'native-util',
+  'android-util',
   'native-timer',
   'clipboard-overlay',
   'sms-forwarder',

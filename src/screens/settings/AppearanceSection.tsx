@@ -78,7 +78,7 @@ export const AppearanceSection = memo(function AppearanceSection() {
   const handleToggleHideFromRecents = async (enabled: boolean) => {
     try {
       if (Platform.OS === 'android') {
-        const { setExcludeFromRecents } = await import('native-util');
+        const { setExcludeFromRecents } = await import('android-util');
         setExcludeFromRecents(enabled);
       }
       await useSettingsStore.getState().updateConfig({ hideFromRecents: enabled });

@@ -183,7 +183,7 @@ graph TD
 - `expo-clipboard` - 剪贴板 API
 - `expo-image-picker` - 图片选择器
 - `expo-file-system` - 文件系统
-- `native-util` - nativeSetClipboardImageFromFile
+- `android-util` - nativeSetClipboardImageFromFile
 
 **被依赖**:
 

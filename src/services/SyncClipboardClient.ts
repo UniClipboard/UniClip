@@ -8,7 +8,7 @@ import {
   nativeUploadFile,
   nativeUploadMultipart,
   ProgressInfo,
-} from 'native-util';
+} from 'android-util';
 import { APIClient, APIClientConfig, PutContentOptions, ISyncClipboardAPI } from './APIClient';
 import { ProfileDto, ServerInfo } from '../types/api';
 import type { ClipboardContent } from '../types/clipboard';

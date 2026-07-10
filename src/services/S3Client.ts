@@ -12,7 +12,7 @@ import {
   nativeCalculateStringMD5Base64,
   nativeCalculateFileMD5Base64,
   type ProgressInfo,
-} from 'native-util';
+} from 'android-util';
 import { ISyncClipboardAPI, PutContentOptions, DownloadProgressCallback } from './APIClient';
 import { ProfileDto, ServerInfo } from '../types/api';
 import type { ClipboardContent } from '../types/clipboard';

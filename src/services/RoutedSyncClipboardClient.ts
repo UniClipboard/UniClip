@@ -3,7 +3,7 @@ import { SyncClipboardClient } from './SyncClipboardClient';
 import type { APIClientConfig, ISyncClipboardAPI } from './APIClient';
 import type { ProfileDto, ServerInfo } from '@/types/api';
 import type { ClipboardContent } from '@/types/clipboard';
-import type { ProgressInfo } from 'native-util';
+import type { ProgressInfo } from 'android-util';
 import type { HistoryRecordDto, IHistoryAPI } from './HistoryAPI';
 import type { ServerConfig } from '@/types/api';
 import { getCurrentNetworkContext } from './networkContext';

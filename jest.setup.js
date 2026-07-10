@@ -140,7 +140,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   },
 }));
 
-jest.mock('native-util', () => ({
+jest.mock('android-util', () => ({
   isNativeHashModuleAvailable: jest.fn().mockReturnValue(false),
   nativeCalculateFileHash: jest.fn(),
   isTailscaleActive: jest.fn().mockReturnValue(false),

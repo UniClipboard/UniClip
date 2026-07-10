@@ -63,7 +63,7 @@ the native iOS app's `SyncEngine.swift` so behavior stays identical across platf
 
 `@/*` → `src/*`, plus `@components`, `@screens`, `@services`, `@stores`, `@types`,
 `@utils`, `@constants`, `@navigation`, `@hooks`, `@assets`. Native modules import by
-bare name: `uc-core`, `native-util`, `shortcut`, `signalr-client`, `native-timer`,
+bare name: `uc-core`, `android-util`, `shortcut`, `signalr-client`, `native-timer`,
 `clipboard-overlay`, `sms-forwarder`, `foreground-service`,
 `qr-scanner`.
 
@@ -75,7 +75,7 @@ bare name: `uc-core`, `native-util`, `shortcut`, `signalr-client`, `native-timer
 | `foreground-service` | Android foreground service to keep clipboard monitoring alive.                                                                                                                                                                                 |
 | `clipboard-overlay`  | Clipboard read/write via overlay + event-driven monitor (ClipCascade-style: `OnPrimaryClipChangedListener` foreground, logcat `ClipboardService:E` background trigger gated by READ_LOGS). Android 10+ background clipboard access workaround. |
 | `native-timer`       | Native interval timer for the 1Hz sync tick.                                                                                                                                                                                                   |
-| `native-util`        | Misc Android utilities (`moveTaskToBack`, exclude-from-recents, etc.).                                                                                                                                                                         |
+| `android-util`       | Misc Android utilities (`moveTaskToBack`, exclude-from-recents, etc.).                                                                                                                                                                         |
 | `shortcut`           | Dynamic app shortcuts / quick tiles.                                                                                                                                                                                                           |
 | `signalr-client`     | SignalR client for SyncClipboard push notifications.                                                                                                                                                                                           |
 | `sms-forwarder`      | SMS receiver for auto-forwarding verification codes.                                                                                                                                                                                           |

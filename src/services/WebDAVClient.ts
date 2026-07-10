@@ -3,7 +3,7 @@
  * Implements SyncClipboard API using WebDAV protocol
  */
 
-import { nativeUploadFile, type ProgressInfo } from 'native-util';
+import { nativeUploadFile, type ProgressInfo } from 'android-util';
 import { APIClient, ISyncClipboardAPI, PutContentOptions } from './APIClient';
 import { ProfileDto, ServerInfo } from '../types/api';
 import type { ClipboardContent } from '../types/clipboard';

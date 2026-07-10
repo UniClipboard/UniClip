@@ -3,7 +3,7 @@
  * 历史记录 API 相关类型定义
  */
 
-import { ProgressInfo } from 'native-util';
+import { ProgressInfo } from 'android-util';
 import { ClipboardItem } from '../types/clipboard';
 
 /**
