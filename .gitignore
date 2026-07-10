@@ -117,3 +117,7 @@ modules/uc-core/ios/Bindings/
 /ios/
 modules/*/android/build/
 modules/*/build/
+
+# Regenerated per-variant by @bacons/apple-targets at prebuild; committing it
+# pins one variant's App Groups and breaks the other variant's extensions.
+targets/*/generated.entitlements
