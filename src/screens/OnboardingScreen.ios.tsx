@@ -156,7 +156,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
               <ScanLine size={18} color={onInk} />
               <Text style={[s.ctaText, { color: onInk }]}>{t('action.pair')}</Text>
             </Pressable>
-            <Pressable style={s.cta2} onPress={() => onComplete({ paired: false })} hitSlop={6}>
+            <Pressable style={s.cta2} onPress={() => onComplete()} hitSlop={6}>
               <Text style={[s.cta2Text, { color: theme.colors.textSecondary }]}>
                 {t('action.later')}
               </Text>
@@ -170,7 +170,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
         onClose={() => setScanning(false)}
         onScanned={() => {
           setScanning(false);
-          onComplete({ paired: true });
+          onComplete();
         }}
       />
     </SafeAreaView>

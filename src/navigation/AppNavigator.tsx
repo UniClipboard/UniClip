@@ -44,32 +44,18 @@ function MainScreen() {
 }
 
 /**
- * 首启引导容器:落库 onboardingCompleted,再把用户送到目的地。
- * 扫码成功(paired)→ 重置栈到 Main + 配置消费页(iOS: Settings / Android: SettingsSub{sync}),
- * 让既有的 pendingConnect 流程弹出预填表单;暂不配对 → 直接进 Main。
+ * 首启引导容器:落库 onboardingCompleted,再把用户送到 Main。
+ * 扫码成功(paired)时凭据已由 QrScannerModal 写入 pendingConnectStore,HomeView 挂载后
+ * 自行消费并弹出预填「添加服务器」表单——无需再中转整个 Settings 面板(那会多叠一层 sheet)。
+ * 暂不配对 → 同样进 Main,无 pendingConnect 即不弹表单。
  */
 function OnboardingGate() {
   const navigation = useNavigation<any>();
   const updateConfig = useSettingsStore((s) => s.updateConfig);
-  const onComplete = useCallback(
-    async ({ paired }: { paired: boolean }) => {
-      await updateConfig({ onboardingCompleted: true });
-      if (paired) {
-        navigation.reset({
-          index: 1,
-          routes: [
-            { name: 'Main' },
-            Platform.OS === 'ios'
-              ? { name: 'Settings' }
-              : { name: 'SettingsSub', params: { section: 'sync' } },
-          ],
-        });
-      } else {
-        navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
-      }
-    },
-    [navigation, updateConfig]
-  );
+  const onComplete = useCallback(async () => {
+    await updateConfig({ onboardingCompleted: true });
+    navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+  }, [navigation, updateConfig]);
   return <OnboardingScreen onComplete={onComplete} />;
 }
 

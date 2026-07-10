@@ -28,6 +28,7 @@ import { AnimatedCardGrid, AnimatedCardGridHandle } from '@/components/AnimatedC
 import { useHistoryStore } from '@/stores/historyStore';
 import { useClipboardStore } from '@/stores/clipboardStore';
 import { useSettingsStore } from '@/stores';
+import { usePendingConnectStore } from '@/stores/pendingConnectStore';
 import { BackgroundUploadManager } from '@/services/BackgroundUploadManager';
 import { useMessageStore } from '@/stores/messageStore';
 import { useErrorStore } from '@/stores/errorStore';
@@ -37,6 +38,7 @@ import { historyStorage } from '@/services';
 import { getClipboardSyncService } from '@/services/ClipboardSyncService';
 import { ClipboardItem, ClipboardContent } from '@/types/clipboard';
 import { AddServerSheet } from '@/components/AddServerSheet';
+import type { AddServerSaveData } from '@/components/AddServerSheet.types';
 import { AddActionsFab } from '@/components/AddActionsFab';
 import { ClipboardCard } from '@/components/ClipboardCard';
 import { ConnectedMessageToast } from '@/components/ConnectedMessageToast';
@@ -95,6 +97,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
   const getServers = useSettingsStore((s) => s.getServers);
   const setActiveServer = useSettingsStore((s) => s.setActiveServer);
   const addServer = useSettingsStore((s) => s.addServer);
+  const consumePendingConnect = usePendingConnectStore((s) => s.consume);
 
   // message 不在此订阅，交给自隔离的 <ConnectedMessageToast/>，toast 出现/消失只重渲它自身
   const showMessage = useMessageStore((s) => s.showMessage);
@@ -152,6 +155,9 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
 
   const [showServerPicker, setShowServerPicker] = useState(false);
   const [showAddServer, setShowAddServer] = useState(false);
+  const [addServerPrefill, setAddServerPrefill] = useState<AddServerSaveData | undefined>(
+    undefined
+  );
   const [showAddMenu, setShowAddMenu] = useState(false);
 
   const servers = getServers();
@@ -210,6 +216,21 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
     setSort({ field: 'lastAccessed', order: 'desc' });
     loadItems();
   }, [setSort, loadItems]);
+
+  // 引导扫码交接:QrScannerModal 已把凭据写入 pendingConnectStore,首帧挂载即消费并弹出
+  // 预填「添加服务器」表单。仅挂载一次([] 依赖)——绝不订阅 intent 变化,否则 HomeView 常驻在
+  // Settings 之下时会抢走设置页内嵌扫码器(场景②)的凭据。
+  useEffect(() => {
+    const intent = consumePendingConnect();
+    if (!intent) return;
+    setAddServerPrefill({
+      name: intent.label ?? '',
+      urls: intent.urls && intent.urls.length > 0 ? intent.urls : [intent.url],
+      username: intent.user,
+      password: intent.pwd,
+    });
+    setShowAddServer(true);
+  }, []);
 
   // Listen for storage changes
   useEffect(() => {
@@ -788,6 +809,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
         onClose={() => setShowServerPicker(false)}
         onAdd={() => {
           setShowServerPicker(false);
+          setAddServerPrefill(undefined);
           setShowAddServer(true);
         }}
         theme={theme}
@@ -796,7 +818,11 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
       {/* Add Server Modal */}
       <AddServerSheet
         visible={showAddServer}
-        onClose={() => setShowAddServer(false)}
+        initialData={addServerPrefill}
+        onClose={() => {
+          setShowAddServer(false);
+          setAddServerPrefill(undefined);
+        }}
         onSave={async (data) => {
           await addServer({
             type: 'syncclipboard',
@@ -807,6 +833,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
             password: data.password,
           });
           setShowAddServer(false);
+          setAddServerPrefill(undefined);
           showMessage(t('toast.serverAdded'), 'success');
         }}
       />

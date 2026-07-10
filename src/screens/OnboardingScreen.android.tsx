@@ -159,7 +159,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
               <Ionicons name="scan-outline" size={19} color={c.onAccent as string} />
               <Text style={[s.ctaText, { color: c.onAccent }]}>{t('action.pair')}</Text>
             </Pressable>
-            <Pressable style={s.cta2} onPress={() => onComplete({ paired: false })} hitSlop={6}>
+            <Pressable style={s.cta2} onPress={() => onComplete()} hitSlop={6}>
               <Text style={[s.cta2Text, { color: c.textSecondary }]}>{t('action.later')}</Text>
             </Pressable>
           </>
@@ -171,7 +171,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
         onClose={() => setScanning(false)}
         onScanned={() => {
           setScanning(false);
-          onComplete({ paired: true });
+          onComplete();
         }}
       />
     </SafeAreaView>
