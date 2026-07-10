@@ -189,9 +189,6 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose
   const renderScanner = () => (
     <View style={styles.scannerRoot}>
       <CameraView
-        // active 随 modal 可见性联动:RN <Modal> 关闭(visible=false)时不会卸载
-        // 子节点,若不停掉相机会话,expo-camera 会一直占用摄像头(灵动岛绿灯常亮)。
-        active={visible}
         style={StyleSheet.absoluteFill}
         facing="back"
         enableTorch={torchOn}
@@ -219,6 +216,11 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose
   );
 
   const renderBody = () => {
+    // modal 不可见时卸载相机:RN <Modal> 关闭不会卸载子节点,CameraView 一旦挂载
+    // 就占用摄像头(灵动岛绿灯常亮)。expo-camera 的 active=false 因初始化竞态
+    // (init 里 initializeCaptureSessionInput 会抢先起会话)释放不可靠,只有卸载
+    // 触发 removeFromSuperview → stopSession 才能确定关闭。
+    if (!visible) return null;
     if (!permission) return renderPermissionPending();
     if (!permission.granted) return renderPermissionDenied();
     return renderScanner();
