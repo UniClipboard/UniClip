@@ -2,7 +2,6 @@ import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import {
   View,
   Text,
-  Pressable,
   StyleSheet,
   RefreshControl,
   Share,
@@ -159,6 +158,49 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
   const activeServerIndex = config?.activeServerIndex ?? -1;
   const activeServerLabel =
     activeServer?.name || activeServer?.url || t('topBar.serverUnconfigured');
+
+  // 空状态文案：按连接语义给出「纯提示」，不带任何操作按钮
+  //（配对/重试/去设置等动作分别由顶栏服务器切换、SyncEngine 自动重试、设置入口承担）
+  const emptyContent = useMemo(() => {
+    switch (connectionStatus) {
+      case 'unconfigured':
+        return {
+          icon: 'link-outline' as const,
+          title: t('empty.unconfigured.title'),
+          description: t('empty.unconfigured.description'),
+          tint: theme.colors.textSecondary,
+        };
+      case 'connecting':
+        return {
+          icon: 'sync-outline' as const,
+          title: t('empty.connecting.title'),
+          description: t('empty.connecting.description', { server: activeServerLabel }),
+          tint: theme.colors.textSecondary,
+        };
+      case 'offline':
+        return {
+          icon: 'cloud-offline-outline' as const,
+          title: t('empty.offline.title', { server: activeServerLabel }),
+          description: t('empty.offline.description'),
+          tint: theme.colors.textSecondary,
+        };
+      case 'error':
+        return {
+          icon: 'alert-circle-outline' as const,
+          title: t('empty.error.title'),
+          description: t('empty.error.description'),
+          tint: theme.colors.error,
+        };
+      case 'online':
+      default:
+        return {
+          icon: 'clipboard-outline' as const,
+          title: t('empty.online.title'),
+          description: t('empty.online.description'),
+          tint: theme.colors.textSecondary,
+        };
+    }
+  }, [connectionStatus, activeServerLabel, t, theme.colors.textSecondary, theme.colors.error]);
 
   const listRef = useRef<AnimatedCardGridHandle>(null);
 
@@ -662,24 +704,13 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
       {/* Grid or Empty */}
       {items.length === 0 ? (
         <View style={styles.emptyState}>
-          <Ionicons name="clipboard-outline" size={48} color={theme.colors.textSecondary} />
+          <Ionicons name={emptyContent.icon} size={48} color={emptyContent.tint} />
           <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>
-            {t('empty.title')}
+            {emptyContent.title}
           </Text>
           <Text style={[styles.emptyDesc, { color: theme.colors.textSecondary }]}>
-            {t('empty.description')}
+            {emptyContent.description}
           </Text>
-          <Pressable
-            onPress={() => setShowAddMenu(true)}
-            style={[styles.emptyCta, { backgroundColor: theme.colors.accent }]}
-            accessibilityRole="button"
-            accessibilityLabel={t('empty.cta')}
-          >
-            <Ionicons name="cloud-upload-outline" size={18} color={theme.colors.onAccent} />
-            <Text style={[styles.emptyCtaText, { color: theme.colors.onAccent }]}>
-              {t('empty.cta')}
-            </Text>
-          </Pressable>
         </View>
       ) : (
         <AnimatedCardGrid
@@ -824,19 +855,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
-  },
-  emptyCta: {
-    marginTop: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 18,
-    paddingVertical: 11,
-    borderRadius: 999,
-  },
-  emptyCtaText: {
-    fontSize: 14,
-    fontWeight: '600',
   },
   bottomBar: {
     position: 'absolute',

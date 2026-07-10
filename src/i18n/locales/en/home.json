@@ -1,8 +1,25 @@
 {
   "empty": {
-    "title": "No clipboard synced yet",
-    "description": "Upload an image or file, or wait for the server to sync",
-    "cta": "Upload your first item"
+    "unconfigured": {
+      "title": "No device paired",
+      "description": "Open UniClipboard on a computer on the same Wi‑Fi network to link it and start syncing."
+    },
+    "connecting": {
+      "title": "Connecting…",
+      "description": "Reaching {{server}} on your local network."
+    },
+    "online": {
+      "title": "Your clipboard is in sync",
+      "description": "Copy something on any paired device and it'll appear here."
+    },
+    "offline": {
+      "title": "Can't reach {{server}}",
+      "description": "It isn't responding on this network. Make sure it's awake and on the same Wi‑Fi."
+    },
+    "error": {
+      "title": "Sync needs attention",
+      "description": "Access was refused or sync was paused. Check your server settings to reconnect."
+    }
   },
   "topBar": {
     "selectedCount": "{{n}} selected",

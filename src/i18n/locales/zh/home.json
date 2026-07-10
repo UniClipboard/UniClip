@@ -1,8 +1,25 @@
 {
   "empty": {
-    "title": "还没有同步过剪贴板",
-    "description": "上传一张图片或文件，或等待服务器同步",
-    "cta": "上传第一条内容"
+    "unconfigured": {
+      "title": "还没有配对设备",
+      "description": "在同一 Wi‑Fi 网络下的电脑上打开 UniClipboard，即可配对并开始同步。"
+    },
+    "connecting": {
+      "title": "正在连接…",
+      "description": "正在本地网络中连接 {{server}}。"
+    },
+    "online": {
+      "title": "剪贴板已同步",
+      "description": "在任意已配对设备上复制内容，就会出现在这里。"
+    },
+    "offline": {
+      "title": "无法连接 {{server}}",
+      "description": "它在当前网络中没有响应。请确认它已唤醒并连接到同一 Wi‑Fi。"
+    },
+    "error": {
+      "title": "同步需要处理",
+      "description": "访问被拒绝或同步已暂停。请检查服务器设置以重新连接。"
+    }
   },
   "topBar": {
     "selectedCount": "已选择 {{n}} 项",
