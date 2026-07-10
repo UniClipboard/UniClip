@@ -195,8 +195,10 @@ order:
 
 ### Beta Release
 
-Same workflow, but with `vX.Y.Z-betaN` tags. The CI auto-marks the release as
-pre-release.
+Same workflow, but with `vX.Y.Z.B-betaN` tags (e.g. `v1.3.0.156-beta1`). The
+`.B` build-counter segment is required so the tag matches [Tag Naming](#tag-naming)
+and stays compatible with `parseVersion` / Android update detection. The CI
+auto-marks the release as pre-release when the tag name contains `beta`.
 
 ## Identifier Reference
 
