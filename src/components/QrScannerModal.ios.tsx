@@ -189,6 +189,9 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose
   const renderScanner = () => (
     <View style={styles.scannerRoot}>
       <CameraView
+        // active 随 modal 可见性联动:RN <Modal> 关闭(visible=false)时不会卸载
+        // 子节点,若不停掉相机会话,expo-camera 会一直占用摄像头(灵动岛绿灯常亮)。
+        active={visible}
         style={StyleSheet.absoluteFill}
         facing="back"
         enableTorch={torchOn}

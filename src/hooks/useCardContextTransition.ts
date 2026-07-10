@@ -123,7 +123,13 @@ export function useCardContextTransition(anchor: CardAnchorRect | null, onDismis
       closingRef.current = true;
       const finish = () => {
         onDismiss();
-        after?.();
+        // 把选中动作推迟到浮层的原生 <Modal> 真正卸载/dismiss 之后再执行。
+        // 若在同一 tick 里紧接着 present 系统面板(如分享 sheet),会在
+        // iOS 16.x 上构成 present-while-dismissing 而冻结整个界面。浮层是
+        // animationType="none",卸载几乎瞬时,隔两帧即可让 dismiss 完成。
+        if (after) {
+          requestAnimationFrame(() => requestAnimationFrame(after));
+        }
       };
       progress.value = withTiming(
         0,
