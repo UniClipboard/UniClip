@@ -30,6 +30,7 @@ import { useClipboardStore } from '@/stores/clipboardStore';
 import { useSettingsStore } from '@/stores';
 import { usePendingConnectStore } from '@/stores/pendingConnectStore';
 import { BackgroundUploadManager } from '@/services/BackgroundUploadManager';
+import { log } from '@/services/Logger';
 import { useMessageStore } from '@/stores/messageStore';
 import { useErrorStore } from '@/stores/errorStore';
 import { useSyncEngineStore, notifyDeviceClipboardChanged } from '@/stores/syncEngineStore';
@@ -533,7 +534,8 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
         await loadItems();
         showMessage(t('toast.savedLocally'), 'success');
         BackgroundUploadManager.enqueue(result.profileHash);
-      } catch {
+      } catch (error) {
+        log.error('[HomeView] saveAndPush failed:', error);
         showMessage(t('toast.saveFailed'), 'error');
       }
     },
