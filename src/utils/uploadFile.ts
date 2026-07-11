@@ -45,6 +45,11 @@ export interface ImportResult {
 /**
  * 仅落库(文件/图片):复制到 temp、算 hash、写入历史(LocalOnly)。
  * 不碰网络;返回可用于后台推送的 profileHash。
+ *
+ * **调用方契约**:必须先 `await` 本函数(落库完成)再触发推送
+ * (`BackgroundUploadManager.enqueue` / `pushHistoryRecordViaEngine`)。顺序颠倒——
+ * 先推送后落库——会让推送侧按 hash 读不到记录(推空/报错),分享内容有丢失风险。
+ * 落库与推送已解耦,不丢数据依赖的正是「落库先、且独立于网络」这一点。
  */
 export async function importFileToHistory(
   sourceUri: string,
@@ -108,6 +113,10 @@ export async function importFileToHistory(
 
 /**
  * 仅落库(文本):算 hash、写入历史(LocalOnly)。不碰网络;返回 profileHash。
+ *
+ * **调用方契约**:必须先 `await` 本函数(落库完成)再触发推送
+ * (`pushHistoryRecordViaEngine`)。顺序颠倒会推空/报错、分享文本有丢失风险——
+ * 这正是当年 data-loss bug 的成因,见 `uploadText.dataloss.test.ts`。
  */
 export async function importTextToHistory(
   text: string,
