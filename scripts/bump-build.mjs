@@ -24,7 +24,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { format } from 'prettier';
+import { format, resolveConfig } from 'prettier';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const appJsonPath = join(root, 'app.json');
@@ -58,7 +58,11 @@ if (dryRun) {
   process.exit(0);
 }
 
-writeFileSync(appJsonPath, await format(JSON.stringify(app), { filepath: appJsonPath }));
+const prettierConfig = await resolveConfig(appJsonPath);
+writeFileSync(
+  appJsonPath,
+  await format(JSON.stringify(app), { ...prettierConfig, filepath: appJsonPath })
+);
 
 console.log(`✓ build ${next}  (marketing version ${version} frozen)`);
 console.log(`  android.versionCode = ${next}, ios.buildNumber = "${next}"`);

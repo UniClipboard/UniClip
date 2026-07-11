@@ -20,6 +20,7 @@ function createFixture(scriptName: (typeof scriptNames)[number]): string {
   const fixtureScripts = join(fixtureRoot, 'scripts');
   mkdirSync(fixtureScripts);
   copyFileSync(join(projectRoot, 'scripts', scriptName), join(fixtureScripts, scriptName));
+  copyFileSync(join(projectRoot, '.prettierrc'), join(fixtureRoot, '.prettierrc'));
   symlinkSync(join(projectRoot, 'node_modules'), join(fixtureRoot, 'node_modules'), 'dir');
 
   const app = {
@@ -28,7 +29,7 @@ function createFixture(scriptName: (typeof scriptNames)[number]): string {
       ios: { buildNumber: '156' },
       android: {
         versionCode: 156,
-        permissions: ['camera', 'files'],
+        permissions: ['android.permission.REQUEST_INSTALL_PACKAGES', 'android.permission.CAMERA'],
       },
     },
   };
@@ -45,9 +46,13 @@ describe.each([
 
     try {
       execFileSync(process.execPath, [join(fixtureRoot, 'scripts', basename(scriptName)), ...args]);
-      const result = readFileSync(join(fixtureRoot, 'app.json'), 'utf8');
+      const appJsonPath = join(fixtureRoot, 'app.json');
+      const result = readFileSync(appJsonPath, 'utf8');
+      const config = await prettier.resolveConfig(appJsonPath);
 
-      await expect(prettier.check(result, { filepath: 'app.json' })).resolves.toBe(true);
+      await expect(prettier.check(result, { ...config, filepath: appJsonPath })).resolves.toBe(
+        true
+      );
     } finally {
       rmSync(fixtureRoot, { recursive: true, force: true });
     }
