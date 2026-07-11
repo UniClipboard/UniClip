@@ -1,0 +1,7 @@
+{
+  "platforms": ["ios"],
+  "name": "document-exporter",
+  "ios": {
+    "modules": ["DocumentExporterModule"]
+  }
+}

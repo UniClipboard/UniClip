@@ -132,8 +132,10 @@ export const QuickTileLoadingScreen: React.FC<QuickTileLoadingScreenProps> = ({
                   await saveToGallery(fileContent.fileUri!);
                   showToast(t('toast.savedToGallery'));
                 } else {
-                  await saveFile(fileContent.fileUri!, fileContent.fileName);
-                  showToast(t('toast.savedToDevice'));
+                  const saved = await saveFile(fileContent.fileUri!, fileContent.fileName);
+                  if (saved) {
+                    showToast(t('toast.savedToDevice'));
+                  }
                 }
               } catch (error) {
                 log.error('[QuickTileLoadingScreen] Failed to save file:', error);

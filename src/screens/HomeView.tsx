@@ -387,9 +387,12 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
       },
       onSaveFile: async () => {
         try {
-          await saveFile(contextItem.fileUri!, contextItem.dataName);
-          showMessage(t('toast.savedFile'), 'success');
-        } catch {
+          const saved = await saveFile(contextItem.fileUri!, contextItem.dataName);
+          if (saved) {
+            showMessage(t('toast.savedFile'), 'success');
+          }
+        } catch (e) {
+          log.error('[HomeView] saveFile failed:', e);
           showMessage(t('toast.saveFailed'), 'error');
         }
       },

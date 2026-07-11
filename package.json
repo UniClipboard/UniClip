@@ -38,6 +38,7 @@
     "@shopify/flash-list": "2.0.2",
     "app-group-store": "^1.0.0",
     "axios": "^1.13.5",
+    "document-exporter": "^1.0.0",
     "expo": "^56.0.12",
     "expo-application": "~56.0.3",
     "expo-blur": "~56.0.3",
