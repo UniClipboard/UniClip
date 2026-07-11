@@ -8,13 +8,11 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "buildNumber": "156",
+      "buildNumber": "157",
       "supportsTablet": true,
       "appleTeamId": "8XG39X5CL8",
       "bundleIdentifier": "app.uniclipboard.UniClipboard",
-      "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
-      },
+      "infoPlist": { "ITSAppUsesNonExemptEncryption": false },
       "entitlements": {
         "com.apple.security.application-groups": [
           "group.app.uniclipboard.UniClipboard",
@@ -23,7 +21,7 @@
       }
     },
     "android": {
-      "versionCode": 156,
+      "versionCode": 157,
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -34,9 +32,7 @@
       "package": "app.uniclipboard.android",
       "permissions": ["android.permission.REQUEST_INSTALL_PACKAGES", "android.permission.CAMERA"]
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
+    "web": { "favicon": "./assets/favicon.png" },
     "plugins": [
       "./plugins/build/withNativeLogger.js",
       "./plugins/build/withNetworkSecurityConfig.js",
@@ -55,21 +51,8 @@
       "./plugins/build/withRustCore.js",
       "./plugins/build/withAndroidBuildVersionName.js",
       "@bacons/apple-targets",
-      [
-        "expo-sharing",
-        {
-          "android": {
-            "enabled": true,
-            "singleShareMimeTypes": ["*/*"]
-          }
-        }
-      ],
-      [
-        "expo-camera",
-        {
-          "cameraPermission": "授权 UniClip 使用相机以扫描二维码接入服务器"
-        }
-      ],
+      ["expo-sharing", { "android": { "enabled": true, "singleShareMimeTypes": ["*/*"] } }],
+      ["expo-camera", { "cameraPermission": "授权 UniClip 使用相机以扫描二维码接入服务器" }],
       "expo-sqlite",
       [
         "expo-localization",
