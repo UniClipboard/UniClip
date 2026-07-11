@@ -154,7 +154,7 @@ independent.
 - [ ] `app.json` build metadata was bumped with the scripts below (never
       hand-edit `versionCode` / `buildNumber` — that risks the two drifting).
 - [ ] Working tree is clean.
-- [ ] `main` is up to date with the latest CI green.
+- [ ] The release metadata commit has been pushed to `main`.
 
 ### Steps
 
@@ -169,36 +169,44 @@ npm run release:build            # add --dry-run first to preview
 npm run release:version -- 1.4.0
 ```
 
-Both scripts edit `app.json` and print the exact tag + git commands. Then:
+Both scripts edit `app.json` and print the derived tag. Then:
 
 ```sh
 # 2. Add a "vX.Y.Z.B" section to the TOP of CHANGES.md (first line = the tag).
 
-# 3. Commit, push, tag (the tag push triggers the release workflow).
+# 3. Commit and push the release metadata. Do not create or push the tag.
 git add app.json CHANGES.md
 git commit -m "chore(release): X.Y.Z.B"
 git push origin main
-git tag vX.Y.Z.B
-git push origin vX.Y.Z.B
 ```
 
-The tag push triggers the `build.yml` workflow on GitHub Actions, which in
-order:
+In GitHub Actions, open `build`, choose **Run workflow** on `main`, enable
+`publish_release`, and leave the iOS dev-build inputs empty. The workflow then:
 
-1. Runs `code-style` + `unit-tests` + `android-build` (4-ABI matrix).
-2. Publishes a GitHub Release with all 4 APKs (`arm64-v8a`, `armeabi-v7a`,
+1. Validates that Android/iOS build counters and the first line of `CHANGES.md`
+   describe the same release.
+2. Runs style checks, unit tests, and both Android and iOS builds.
+3. Creates the derived tag only after every check and both builds succeed.
+4. Uploads the same validated iOS artifact to TestFlight.
+5. Publishes a GitHub Release with the APKs (`arm64-v8a`, `armeabi-v7a`,
    `x86_64`, `universal`). This job does **not** wait for the Gitee jobs.
-3. Mirrors the repository to Gitee.
-4. Creates a matching Gitee Release.
-5. Uploads 3 ABI APKs to Gitee (`universal` is skipped due to Gitee's
+6. Mirrors the repository to Gitee and creates a matching release without
+   deleting unrelated prior releases.
+7. Uploads 3 ABI APKs to Gitee (`universal` is skipped due to Gitee's
    upload size limits).
+
+Directly pushing a `v*` tag does not publish a release. If a publishing job
+fails after the tag was created, use **Re-run failed jobs** on the same Actions
+run so successful builds and destinations are not repeated.
 
 ### Beta Release
 
-Same workflow, but with `vX.Y.Z.B-betaN` tags (e.g. `v1.3.0.156-beta1`). The
-`.B` build-counter segment is required so the tag matches [Tag Naming](#tag-naming)
-and stays compatible with `parseVersion` / Android update detection. The CI
-auto-marks the release as pre-release when the tag name contains `beta`.
+Use `vX.Y.Z.B-betaN` (for example `v1.3.0.156-beta1`) as the first line of the
+top `CHANGES.md` section, then use the same manual `publish_release` flow. The
+`.B` build-counter segment is required so the derived tag matches
+[Tag Naming](#tag-naming) and stays compatible with `parseVersion` / Android
+update detection. CI marks the release as a prerelease when the derived tag
+contains `beta`.
 
 ## Identifier Reference
 

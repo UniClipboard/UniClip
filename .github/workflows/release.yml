@@ -4,7 +4,7 @@
 #   - github-release     publish the Android APKs to a GitHub Release
 #   - sync-to-gitee / gitee-release-*   mirror + release the APKs on Gitee
 #
-# Called by build.yml on tag pushes only. Secrets come via `secrets: inherit`.
+# Called by build.yml only after validation, both builds, and tag creation.
 
 name: release
 
@@ -13,6 +13,11 @@ permissions:
 
 on:
   workflow_call:
+    inputs:
+      tag_name:
+        description: 'Validated release tag created by the calling workflow'
+        required: true
+        type: string
 
 jobs:
   testflight:
@@ -60,6 +65,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag_name }}
 
       - name: Extract changelog from CHANGES.md
         run: |
@@ -77,7 +84,8 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           allowUpdates: true
-          prerelease: ${{ contains(github.ref_name, 'beta') }}
+          tag: ${{ inputs.tag_name }}
+          prerelease: ${{ contains(inputs.tag_name, '-beta') }}
           bodyFile: feature.txt
           artifacts: apk/*.apk
 
@@ -114,38 +122,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag_name }}
 
       - name: Extract changelog from CHANGES.md
         run: |
           awk 'NR==1{next} /^$/{exit} {print}' CHANGES.md > feature.txt
-
-      - name: Delete existing releases in same channel
-        env:
-          GITEE_TOKEN: ${{ secrets.GITEE_ACCESS_TOKEN }}
-          GITEE_OWNER: ${{ vars.GITEE_OWNER }}
-          GITEE_REPO: ${{ vars.GITEE_REPO }}
-          IS_PRERELEASE: ${{ contains(github.ref_name, 'beta') }}
-        run: |
-          python3 - <<'PYEOF'
-          import json, os, urllib.request
-
-          token = os.environ["GITEE_TOKEN"]
-          owner = os.environ["GITEE_OWNER"]
-          repo = os.environ["GITEE_REPO"]
-          is_prerelease = os.environ["IS_PRERELEASE"] == "true"
-
-          url = f"https://gitee.com/api/v5/repos/{owner}/{repo}/releases?access_token={token}&page=1&per_page=20"
-          with urllib.request.urlopen(url) as response:
-              releases = json.loads(response.read())
-
-          to_delete = [r for r in releases if r.get("prerelease") == is_prerelease]
-          for release in to_delete:
-              rid = release["id"]
-              del_url = f"https://gitee.com/api/v5/repos/{owner}/{repo}/releases/{rid}?access_token={token}"
-              req = urllib.request.Request(del_url, method="DELETE")
-              with urllib.request.urlopen(req) as resp:
-                  print(f"Deleted release {rid}: {release.get('name')}, status: {resp.status}")
-          PYEOF
 
       - name: Create Gitee Release
         id: create_release
@@ -153,31 +135,48 @@ jobs:
           GITEE_TOKEN: ${{ secrets.GITEE_ACCESS_TOKEN }}
           GITEE_OWNER: ${{ vars.GITEE_OWNER }}
           GITEE_REPO: ${{ vars.GITEE_REPO }}
-          TAG_NAME: ${{ github.ref_name }}
-          IS_PRERELEASE: ${{ contains(github.ref_name, 'beta') }}
+          TAG_NAME: ${{ inputs.tag_name }}
+          IS_PRERELEASE: ${{ contains(inputs.tag_name, '-beta') }}
         run: |
           python3 - <<'PYEOF'
-          import json, os
-          data = {
-              "access_token": os.environ["GITEE_TOKEN"],
-              "tag_name": os.environ["TAG_NAME"],
-              "name": os.environ["TAG_NAME"],
-              "body": open("feature.txt").read(),
-              "prerelease": os.environ["IS_PRERELEASE"] == "true",
-              "target_commitish": "main"
-          }
-          with open("release.json", "w") as f:
-              json.dump(data, f)
+          import json, os, urllib.parse, urllib.request
+
+          token = os.environ["GITEE_TOKEN"]
+          owner = os.environ["GITEE_OWNER"]
+          repo = os.environ["GITEE_REPO"]
+          tag = os.environ["TAG_NAME"]
+          base_url = f"https://gitee.com/api/v5/repos/{owner}/{repo}/releases"
+
+          query = urllib.parse.urlencode({"access_token": token, "page": 1, "per_page": 100})
+          with urllib.request.urlopen(f"{base_url}?{query}") as response:
+              releases = json.loads(response.read())
+
+          existing = next((release for release in releases if release.get("tag_name") == tag), None)
+          if existing:
+              release = existing
+              print(f"Reusing Gitee release {release['id']} for {tag}")
+          else:
+              data = {
+                  "access_token": os.environ["GITEE_TOKEN"],
+                  "tag_name": tag,
+                  "name": tag,
+                  "body": open("feature.txt").read(),
+                  "prerelease": os.environ["IS_PRERELEASE"] == "true",
+                  "target_commitish": "main"
+              }
+              request = urllib.request.Request(
+                  base_url,
+                  data=json.dumps(data).encode(),
+                  headers={"Content-Type": "application/json"},
+                  method="POST",
+              )
+              with urllib.request.urlopen(request) as response:
+                  release = json.loads(response.read())
+              print(f"Created Gitee release {release['id']} for {tag}")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"release_id={release['id']}\n")
           PYEOF
-
-          RESPONSE=$(curl -s -X POST \
-            "https://gitee.com/api/v5/repos/${GITEE_OWNER}/${GITEE_REPO}/releases" \
-            -H "Content-Type: application/json" \
-            -d @release.json)
-          echo "Gitee API response: $RESPONSE"
-
-          RELEASE_ID=$(echo "$RESPONSE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
-          echo "release_id=$RELEASE_ID" >> $GITHUB_OUTPUT
 
   gitee-release-upload:
     name: Upload APK to Gitee Release (${{ matrix.abi }})

@@ -17,6 +17,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { format } from 'prettier';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const appJsonPath = join(root, 'app.json');
@@ -58,14 +59,16 @@ expo.android.versionCode = next;
 expo.ios.buildNumber = String(next);
 
 if (dryRun) {
-  console.log(`[dry-run] marketing version: ${prevVersion} -> ${newVersion} (⚠ re-triggers iOS review)`);
+  console.log(
+    `[dry-run] marketing version: ${prevVersion} -> ${newVersion} (⚠ re-triggers iOS review)`
+  );
   console.log(`[dry-run] build counter: ${prevCode}/${prevIosBuild} -> ${next}`);
   console.log(`[dry-run] android.versionCode -> ${next}, ios.buildNumber -> "${next}"`);
   console.log(`[dry-run] tag -> ${tag}`);
   process.exit(0);
 }
 
-writeFileSync(appJsonPath, JSON.stringify(app, null, 2) + '\n');
+writeFileSync(appJsonPath, await format(JSON.stringify(app), { filepath: appJsonPath }));
 
 console.log(`✓ marketing version ${prevVersion} -> ${newVersion}  (build ${next})`);
 console.log('  ⚠ This is a NEW iOS marketing version — expect one App Store / TestFlight review.');
@@ -73,8 +76,9 @@ console.log(`  android.versionCode = ${next}, ios.buildNumber = "${next}"`);
 console.log('');
 console.log('Next steps:');
 console.log(`  1. Add a "${tag}" section to the TOP of CHANGES.md (first line = the tag).`);
-console.log('  2. Commit + tag + push:');
+console.log('  2. Commit and push the release metadata:');
 console.log(`       git add app.json CHANGES.md`);
 console.log(`       git commit -m "chore(release): ${tag.slice(1)}"`);
-console.log(`       git push`);
-console.log(`       git tag ${tag} && git push origin ${tag}`);
+console.log(`       git push origin main`);
+console.log('  3. In GitHub Actions, run "build" on main with publish_release enabled.');
+console.log(`     CI will create ${tag} only after every check and both platform builds pass.`);

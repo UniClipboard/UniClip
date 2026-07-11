@@ -22,6 +22,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "release:validate": "node scripts/validate-release.mjs",
     "release:build": "node scripts/bump-build.mjs",
     "release:version": "node scripts/bump-version.mjs"
   },

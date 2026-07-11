@@ -7,45 +7,119 @@ on:
   push:
     branches:
       - '**'
-    tags:
-      - 'v*'
   workflow_dispatch:
     inputs:
+      publish_release:
+        description: 'Validate, build both platforms, create the tag, and publish the release'
+        required: false
+        default: false
+        type: boolean
       build_number:
-        description: "iOS: override CFBundleVersion (empty = use app.json expo.ios.buildNumber)"
+        description: 'iOS dev build only: override CFBundleVersion'
         required: false
         type: string
       upload_testflight:
-        description: "iOS: also upload the dev build to TestFlight (no Android/Gitee release)"
+        description: 'iOS dev build only: upload to TestFlight without creating a release'
         required: false
         default: false
         type: boolean
 
+concurrency:
+  group: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release && 'uniclip-release' || format('uniclip-build-{0}', github.ref) }}
+  cancel-in-progress: false
+
 jobs:
-  # ---- Always (every push) ----
+  prepare:
+    name: Prepare
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release-metadata.outputs.tag }}
+      prerelease: ${{ steps.release-metadata.outputs.prerelease }}
+    steps:
+      - name: Validate release request
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release }}
+        env:
+          BUILD_NUMBER: ${{ inputs.build_number }}
+          UPLOAD_TESTFLIGHT: ${{ inputs.upload_testflight }}
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Full releases must run from main, not $GITHUB_REF" >&2
+            exit 1
+          fi
+          if [ -n "$BUILD_NUMBER" ] || [ "$UPLOAD_TESTFLIGHT" = "true" ]; then
+            echo "Full releases cannot use the iOS dev-build overrides" >&2
+            exit 1
+          fi
+
+      - name: Checkout release commit
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release }}
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Require the latest main commit
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release }}
+        run: |
+          git fetch origin main
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+            echo "The selected commit is no longer the latest main commit" >&2
+            exit 1
+          fi
+
+      - name: Validate and derive release metadata
+        id: release-metadata
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release }}
+        run: npm run release:validate
+
+      - name: Require an available release tag
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release }}
+        env:
+          TAG: ${{ steps.release-metadata.outputs.tag }}
+        run: bash scripts/create-release-tag.sh --check
+
   code-style:
+    needs: [prepare]
     uses: ./.github/workflows/code-style.yml
 
   android-build:
+    needs: [prepare]
     uses: ./.github/workflows/android-build.yml
 
   unit-tests:
+    needs: [prepare]
     uses: ./.github/workflows/test.yml
 
-  # ---- iOS build: expensive (archive) + needs signing secrets, so only on a
-  #      v* tag or a manual dispatch, never on ordinary branch pushes. ----
+  # Manual runs build iOS. A dev build may optionally upload directly to
+  # TestFlight; a full release leaves uploading to release.yml after tagging.
   ios-build:
-    if: ${{ startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' }}
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    needs: [prepare]
     uses: ./.github/workflows/build-ios.yml
     secrets: inherit
     with:
       build_number: ${{ inputs.build_number }}
-      upload_testflight: ${{ github.event_name == 'workflow_dispatch' && inputs.upload_testflight || false }}
+      upload_testflight: ${{ !inputs.publish_release && inputs.upload_testflight }}
 
-  # ---- Release: TestFlight (iOS) + GitHub/Gitee Release (Android). Gated on a
-  #      v* tag and on both builds + checks succeeding. ----
+  create-release-tag:
+    name: Create release tag
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release }}
+    needs: [prepare, code-style, unit-tests, android-build, ios-build]
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ needs.prepare.outputs.tag }}
+    steps:
+      - name: Checkout validated commit
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Create tag once
+        run: bash scripts/create-release-tag.sh
+
   release:
-    if: ${{ startsWith(github.ref, 'refs/tags/') }}
-    needs: [code-style, unit-tests, android-build, ios-build]
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release }}
+    needs: [prepare, code-style, unit-tests, android-build, ios-build, create-release-tag]
     uses: ./.github/workflows/release.yml
     secrets: inherit
+    with:
+      tag_name: ${{ needs.prepare.outputs.tag }}

@@ -8,15 +8,16 @@ Automated iOS build + TestFlight upload, modeled on the native iOS app repo's
 `build.yml` orchestrates three reusable workflows:
 
 ```
-push (any branch)      ──▶ code-style + unit-tests + android-build
-tag v* / manual run    ──▶ (build-ios ‖ android-build) ──▶ release
+push (any branch)       ──▶ code-style + unit-tests + android-build
+manual iOS dev build   ──▶ build-ios (optional TestFlight upload)
+manual full release    ──▶ validate + both builds ──▶ create tag ──▶ release
 ```
 
-| Workflow            | Runs on                        | Does                                                                                                                                  |
-| ------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `android-build.yml` | every push                     | Build release APKs (all ABIs) → artifacts                                                                                             |
-| `build-ios.yml`     | tag `v*` / `workflow_dispatch` | Build the uc-mobile xcframework from pinned source, prebuild, archive, export a **distribution-signed `.ipa`** → artifact (no upload) |
-| `release.yml`       | tag `v*` (needs both builds)   | Upload the `.ipa` to **TestFlight**; publish APKs to **GitHub Release** + **Gitee**                                                   |
+| Workflow            | Runs on                       | Does                                                                                                                                  |
+| ------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `android-build.yml` | every push / manual release   | Build release APKs (all ABIs) → artifacts                                                                                             |
+| `build-ios.yml`     | manual dev build / release    | Build the uc-mobile xcframework from pinned source, prebuild, archive, export a **distribution-signed `.ipa`** → artifact (no upload) |
+| `release.yml`       | validated manual release only | Upload the `.ipa` to **TestFlight**; publish APKs to **GitHub Release** + **Gitee**                                                   |
 
 All publishing lives in `release.yml`, so a failed lint / test / iOS build
 blocks the GitHub/Gitee release _and_ the TestFlight upload.
@@ -77,10 +78,13 @@ via `asc_profiles.rb install`.
 1. **Bump the iOS build number** — `expo.ios.buildNumber` in `app.json` must be
    unique within the marketing version (`altool` does not auto-bump). Bump
    `expo.version` too if it's a new marketing version. Update `CHANGES.md`.
-2. **Tag and push:** `git tag v1.1.1 && git push origin v1.1.1`.
-3. The tagged run: builds Android + iOS, then `release` uploads the `.ipa` to
-   TestFlight and publishes the APKs to GitHub + Gitee.
-4. In App Store Connect → TestFlight: wait for processing, answer export
+2. Commit and push the release metadata to `main`. Do not create the tag.
+3. Actions → `build` → _Run workflow_ on `main`; enable `publish_release` and
+   leave the dev-build inputs empty.
+4. CI validates metadata, builds Android + iOS, creates the tag only after both
+   builds succeed, then uploads the `.ipa` to TestFlight and publishes the APKs
+   to GitHub + Gitee.
+5. In App Store Connect → TestFlight: wait for processing, answer export
    compliance, add the build to a testing group.
 
 **Manual iOS dev build** (no tag): Actions → `build` → _Run workflow_. Inputs:
@@ -94,9 +98,9 @@ via `asc_profiles.rb install`.
   clean "ship an iOS dev build to try" path.
 - `build_number` (optional) overrides the CFBundleVersion for this run.
 
-To ship both platforms (iOS → TestFlight + Android → GitHub/Gitee), push a `v*`
-tag instead. A tag whose name contains `beta` (e.g. `v1.1.1-beta1`) marks the
-GitHub/Gitee release as a prerelease; the iOS side always goes to TestFlight.
+To ship both platforms, enable `publish_release`. CI derives the tag from the
+first line of `CHANGES.md`; a tag containing `beta` marks the GitHub/Gitee
+release as a prerelease. The iOS side always goes to TestFlight.
 
 ## Dev build vs release build
 
@@ -118,7 +122,7 @@ App Store Connect app record. The distinction is by channel:
 - **Cloud signing permission error** — the API key lacks signing management;
   ensure it has the **App Manager** role (not Developer).
 - **Duplicate build number rejected on upload** — step 1 was skipped; bump
-  `expo.ios.buildNumber` and re-tag.
+  `expo.ios.buildNumber`, update `CHANGES.md`, and start a new release.
 - **`Unresolved reference` / link errors compiling `UcCoreModule.swift`** — the
   `UC_CORE_REF` pin drifted from the committed wrapper; realign the pin or the
   wrapper.
