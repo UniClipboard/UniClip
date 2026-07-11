@@ -1,19 +1,21 @@
 /**
- * 分享文本:服务端异常不丢数据(uploadTextAndAddToHistory 本地优先)
+ * 分享文本:数据不丢的结构性保证(importTextToHistory 本地优先)
  *
- * 回归:此前 uploadTextAndAddToHistory 先上传后落库,服务端返回 500 时
- * addItem 从未执行 → 分享的文本丢失。修复为「先本地落库(LocalOnly),再上传」,
- * 与图片/文件分享路径一致,上传失败也不丢内容。
+ * 回归:此前 uploadTextAndAddToHistory 先上传后落库,服务端 500 时 addItem 从未执行
+ * → 分享文本丢失。迁移后落库(importTextToHistory)与推送(pushHistoryRecordViaEngine)
+ * 彻底解耦:importTextToHistory **不碰网络**,总是先把文本写为 LocalOnly 再返回 hash,
+ * 推送失败只影响同步状态、绝不影响已落库内容。本用例锁定这条不丢数据的结构性保证。
  */
-import type { ServerConfig } from '@/types/api';
 import { HistorySyncStatus } from '@/types/clipboard';
-import { createAPIClient, historyStorage } from '@/services';
-import { uploadTextAndAddToHistory } from '@/utils/uploadFile';
+import { importTextToHistory } from '@/utils/uploadFile';
 
 // 变量名必须以 mock 前缀,jest.mock 工厂才允许引用(hoisting 规则)
 const mockAddItem = jest.fn(async (item: unknown) => item);
 const mockUpdateItem = jest.fn(async () => {});
+const mockSetLastUploadedHash = jest.fn();
 
+// uploadFile 顶层 import 了 heicToJpeg（→ expo-image-manipulator，测试环境无原生模块）;
+// importTextToHistory 不走 HEIC,mock 掉避免加载真实原生模块。
 jest.mock('@/utils/heicToJpeg', () => ({
   convertHeicToJpegIfNeeded: jest.fn(async (uri, fileName, mimeType, fileSize) => ({
     uri,
@@ -22,12 +24,8 @@ jest.mock('@/utils/heicToJpeg', () => ({
     fileSize,
   })),
 }));
-jest.mock('@/services', () => ({
-  createAPIClient: jest.fn(),
-  historyStorage: { getItem: jest.fn() },
-}));
 jest.mock('@/services/SyncManager', () => ({
-  SyncManager: { getInstance: () => ({ setLastUploadedHash: jest.fn() }) },
+  SyncManager: { getInstance: () => ({ setLastUploadedHash: mockSetLastUploadedHash }) },
 }));
 jest.mock('@/utils/hash', () => ({
   calculateTextHash: jest.fn(async () => 'HASH_TEXT_ABC'),
@@ -37,27 +35,18 @@ jest.mock('@/stores/historyStore', () => ({
   useHistoryStore: { getState: () => ({ addItem: mockAddItem, updateItem: mockUpdateItem }) },
 }));
 
-const server = { id: 's1', url: 'http://localhost:1', name: 'test' } as unknown as ServerConfig;
-
-describe('分享文本:服务端异常不丢数据', () => {
+describe('分享文本:importTextToHistory 本地优先,不丢数据', () => {
   beforeEach(() => {
     mockAddItem.mockClear();
     mockUpdateItem.mockClear();
-    // pushHistoryRecord 从 historyStorage 读回已落库记录再重建内容上传;
-    // 回放本测试刚 addItem 的那条(LocalOnly),让成功/失败路径都走到 putContent。
-    (historyStorage.getItem as jest.Mock).mockImplementation(
-      async () => mockAddItem.mock.calls[0]?.[0]
-    );
+    mockSetLastUploadedHash.mockClear();
   });
 
-  it('上传返回 500 时:仍先本地落库(addItem 为 LocalOnly),内容不丢;不标记 Synced', async () => {
-    (createAPIClient as jest.Mock).mockReturnValue({
-      putContent: jest.fn().mockRejectedValue(new Error('status=500')),
-    });
+  it('落库即写为 LocalOnly,不碰网络、不依赖任何 server 参数', async () => {
+    const { profileHash } = await importTextToHistory('会因服务端异常丢失的文本');
 
-    await expect(uploadTextAndAddToHistory('会因服务端异常丢失的文本', server)).rejects.toThrow();
-
-    // 关键:addItem 在上传之前已执行 → 数据已本地保存
+    expect(profileHash).toBe('HASH_TEXT_ABC');
+    // 关键:落库先于(且独立于)任何推送 → 即便后续 push 失败,内容已在本地
     expect(mockAddItem).toHaveBeenCalledTimes(1);
     expect(mockAddItem.mock.calls[0][0]).toMatchObject({
       type: 'Text',
@@ -65,23 +54,12 @@ describe('分享文本:服务端异常不丢数据', () => {
       profileHash: 'HASH_TEXT_ABC',
       syncStatus: HistorySyncStatus.LocalOnly,
     });
-    // 上传失败 → 不应标记为已同步
+    // importTextToHistory 只负责落库,绝不在此标记 Synced(那是 push 成功后的事)
     expect(mockUpdateItem).not.toHaveBeenCalled();
   });
 
-  it('上传成功时:先 addItem(LocalOnly),后 updateItem(Synced)', async () => {
-    const putContent = jest.fn().mockResolvedValue(undefined);
-    (createAPIClient as jest.Mock).mockReturnValue({ putContent });
-
-    await uploadTextAndAddToHistory('正常文本', server);
-
-    expect(mockAddItem).toHaveBeenCalledTimes(1);
-    expect(mockAddItem.mock.calls[0][0]).toMatchObject({
-      syncStatus: HistorySyncStatus.LocalOnly,
-    });
-    expect(putContent).toHaveBeenCalledTimes(1);
-    expect(mockUpdateItem).toHaveBeenCalledWith('HASH_TEXT_ABC', {
-      syncStatus: HistorySyncStatus.Synced,
-    });
+  it('预置 lastUploadedHash 以抑制自拉回环(anti-echo)', async () => {
+    await importTextToHistory('正常文本');
+    expect(mockSetLastUploadedHash).toHaveBeenCalledWith('HASH_TEXT_ABC');
   });
 });

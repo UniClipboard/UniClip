@@ -1,14 +1,13 @@
 /**
- * uploadFile — 「保存本地」与「推送服务器」两段式
+ * uploadFile — 「落库」段(与「推送服务器」段解耦)
  *
- * 业务语义:上传 = 先落本地(瞬时、必成功) + 后台推送(可失败、可重试)。
- * - import*ToHistory():只把内容复制/落库为 LocalOnly,立即返回,不碰网络。
- * - pushHistoryRecord():从本地库读出该记录并推送到服务器,成功后标记 Synced。
- * - upload*AndAddToHistory():import + push 的组合(保持旧签名,供 ProcessTextScreen 等
- *   仍需「落库即上传、就地展示结果」的前台路径使用)。
+ * 业务语义:上传 = 先落本地(瞬时、必成功) + 后台推送(可失败、可重试)。本文件只管落库:
+ * - import*ToHistory():把内容复制/落库为 LocalOnly,立即返回 profileHash,**不碰网络**。
  *
- * 前台(HomeView FAB / ShareReceiveScreen)只调 import*,推送交给 BackgroundUploadManager;
- * 服务端离线时内容已在本地(LocalOnly,卡片显示待上传角标),不会丢失、不阻塞界面。
+ * 推送段已迁到 Rust 引擎直传:前台(HomeView FAB / ShareReceiveScreen)调 import* 落库后,
+ * 把 profileHash 交给 BackgroundUploadManager → pushHistoryRecordViaEngine(uc-core putClipboard);
+ * ProcessTextScreen 前台阻塞式路径同理(import* + pushHistoryRecordViaEngine)。服务端离线时
+ * 内容已在本地(LocalOnly,卡片显示待上传角标),不会丢失、不阻塞界面。
  */
 
 import { Platform } from 'react-native';
@@ -20,32 +19,14 @@ import { prepareTempFilePath } from '@/utils/fileStorage';
 import { sanitizeDataName } from '@/utils/fileName';
 import { convertHeicToJpegIfNeeded } from '@/utils/heicToJpeg';
 import { useHistoryStore } from '@/stores/historyStore';
-import { createAPIClient, historyStorage } from '@/services';
 import { SyncManager } from '@/services/SyncManager';
-import type { ClipboardContent, ClipboardItem } from '@/types/clipboard';
 import { createDefaultClipboardItem, HistorySyncStatus } from '@/types/clipboard';
 import type { ClipboardContentType } from '@/types/api';
-import type { ServerConfig } from '@/types/api';
 
 function guessContentType(mimeType: string | null | undefined): ClipboardContentType {
   if (!mimeType) return 'File';
   if (mimeType.startsWith('image/')) return 'Image';
   return 'File';
-}
-
-/** 本地历史记录 → 上传用 ClipboardContent(供后台推送重建内容,不依赖内存态) */
-function historyItemToContent(item: ClipboardItem): ClipboardContent {
-  return {
-    type: item.type,
-    text: item.text,
-    fileUri: item.fileUri,
-    fileName: item.dataName ?? item.text,
-    fileSize: item.size,
-    profileHash: item.profileHash,
-    localClipboardHash: item.localClipboardHash ?? item.profileHash,
-    hasData: item.hasData,
-    timestamp: item.timestamp,
-  };
 }
 
 export interface UploadFileOptions {
@@ -150,52 +131,4 @@ export async function importTextToHistory(
   SyncManager.getInstance().setLastUploadedHash(profileHash);
 
   return { profileHash };
-}
-
-/**
- * 推送一条已落库的记录到服务器,成功后标记 Synced。
- * 从本地库读记录重建内容,因此可用于后台重试与「稍后重推」——不依赖调用方内存态。
- * 若记录已是 Synced 则直接返回(幂等)。
- *
- * @deprecated 遗留 SyncClipboardClient 直传路径,走 `POST /api/history`(daemon 0.19 已弃)。
- *   显式上传改走 `pushHistoryRecordViaEngine`(uc-core `putClipboard` 直传)。仅
- *   `uploadTextAndAddToHistory` 内部仍引用,待 Phase 2 一并移除,勿新增调用方。
- */
-export async function pushHistoryRecord(
-  profileHash: string,
-  activeServer: ServerConfig,
-  options?: UploadFileOptions
-): Promise<void> {
-  const item = await historyStorage.getItem(profileHash);
-  if (!item) throw new Error(i18n.t('share:upload.recordNotFound', { hash: profileHash }));
-  if (item.syncStatus === HistorySyncStatus.Synced) return;
-
-  const content = historyItemToContent(item);
-  const apiClient = createAPIClient(activeServer);
-  options?.onProgress?.(i18n.t('share:upload.uploading'));
-  await apiClient.putContent(content, {
-    signal: options?.signal,
-    onProgress: (info) => options?.onProgress?.(i18n.t('share:upload.uploading'), info),
-  });
-
-  await useHistoryStore
-    .getState()
-    .updateItem(profileHash, { syncStatus: HistorySyncStatus.Synced });
-}
-
-/**
- * 落库 + 同步推送文本(前台阻塞式,供 ProcessTextScreen 就地展示结果)。
- * 本地记录先保存,上传失败向上抛出但内容不丢失,后续由同步引擎/重试补推。
- *
- * @deprecated 走遗留 {@link pushHistoryRecord}。生产已改用 `importTextToHistory` +
- *   `pushHistoryRecordViaEngine`;当前仅 `uploadText.dataloss.test.ts` 回归用例引用,
- *   待 Phase 2 连同遗留直传一并移除。
- */
-export async function uploadTextAndAddToHistory(
-  text: string,
-  activeServer: ServerConfig,
-  options?: { signal?: AbortSignal }
-): Promise<void> {
-  const { profileHash } = await importTextToHistory(text, options);
-  await pushHistoryRecord(profileHash, activeServer, { signal: options?.signal });
 }
