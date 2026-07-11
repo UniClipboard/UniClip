@@ -333,3 +333,22 @@ export async function notifyDeviceClipboardChanged(content: ClipboardContent): P
   await writeActivate(content, { active: true });
   engine?.notifyLocalChanged();
 }
+
+/**
+ * 显式推送一条已落库记录到服务器（uc-core putClipboard 直传，绕过 autoPushLocal 门控）。
+ *
+ * 供 BackgroundUploadManager（FAB / 分享上传）与前台文本上传使用:内容先 import*ToHistory
+ * 落库(LocalOnly),再用此函数按 profileHash 推送。成功后 pushRecordExplicit 把该行标记
+ * Synced;失败(离线等)向上抛,交调用方退避重试。
+ *
+ * 引擎未启动时先冷启一次(用户显式上传意图应尽力送达)。注意 start() 副作用较重——会注册
+ * 剪贴板监听 / AppState 监听、并抓一次系统剪贴板快照写入 activate 寄存器;正常路径下引擎
+ * 早已由 BackgroundServiceManager 启动,此分支极少走到(仅冷启兜底)。
+ */
+export async function pushHistoryRecordViaEngine(profileHash: string): Promise<void> {
+  if (!engine) {
+    await useSyncEngineStore.getState().start();
+  }
+  if (!engine) throw new Error('SyncEngine failed to start');
+  await engine.pushRecordExplicit(profileHash);
+}

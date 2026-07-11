@@ -7,10 +7,18 @@ import {
   engineHandleNetworkRouteChanged,
   engineSetSettings,
   engineAcknowledgeLoopDetected,
+  putClipboard,
 } from 'uc-core';
 import type { SyncOutcome } from 'uc-core';
 import { SyncEngine, type DeviceClipboard } from '../services/SyncEngine';
 import { setCurrentNetworkContext } from '../services/networkContext';
+import { HistorySyncStatus } from '@/types/clipboard';
+
+const mockGetHistoryItem = jest.fn();
+jest.mock('@/services', () => ({
+  historyStorage: { getItem: (...args: unknown[]) => mockGetHistoryItem(...args) },
+}));
+const mockedPutClipboard = putClipboard as jest.Mock;
 
 const mockedEnginePush = enginePush as jest.Mock;
 const mockedEnginePull = enginePull as jest.Mock;
@@ -374,5 +382,93 @@ describe('SyncEngine coordinator', () => {
     expect(mockedEngineSetServer).toHaveBeenCalledWith(
       expect.objectContaining({ baseUrl: 'http://192.168.1.20:5033' })
     );
+  });
+});
+
+describe('SyncEngine.pushRecordExplicit (显式上传直传)', () => {
+  const TEXT_RECORD = {
+    profileHash: 'HASH_TEXT',
+    type: 'Text',
+    text: 'hello',
+    dataName: undefined,
+    hasData: false,
+    size: 5,
+    syncStatus: HistorySyncStatus.LocalOnly,
+  };
+
+  beforeEach(() => {
+    mockedPutClipboard.mockResolvedValue(undefined);
+  });
+
+  test('文本记录:直传 putClipboard 并把该行标记 Synced（不走 enginePush）', async () => {
+    const engine = makeEngine();
+    mockGetHistoryItem.mockResolvedValue({ ...TEXT_RECORD });
+
+    await engine.pushRecordExplicit('HASH_TEXT');
+
+    expect(mockedPutClipboard).toHaveBeenCalledTimes(1);
+    const [ucServer, meta, payload, trust] = mockedPutClipboard.mock.calls[0];
+    expect(ucServer).toEqual(expect.objectContaining({ baseUrl: 'http://test.local' }));
+    expect(meta).toEqual(
+      expect.objectContaining({ kind: 'Text', dataName: null, hasData: false, hash: 'HASH_TEXT' })
+    );
+    expect(payload).toBeUndefined();
+    expect(trust).toBe(false);
+    // markHistoryPushed → 标记 Synced
+    expect(mockUpdateHistoryItem).toHaveBeenCalledWith('HASH_TEXT', {
+      syncStatus: HistorySyncStatus.Synced,
+      hasRemoteData: false,
+    });
+    // 显式上传绝不经过引擎去重
+    expect(mockedEnginePush).not.toHaveBeenCalled();
+  });
+
+  test('已 Synced 的记录:幂等直返,不发 putClipboard', async () => {
+    const engine = makeEngine();
+    mockGetHistoryItem.mockResolvedValue({ ...TEXT_RECORD, syncStatus: HistorySyncStatus.Synced });
+
+    await engine.pushRecordExplicit('HASH_TEXT');
+
+    expect(mockedPutClipboard).not.toHaveBeenCalled();
+    expect(mockUpdateHistoryItem).not.toHaveBeenCalled();
+  });
+
+  test('记录不存在:抛错', async () => {
+    const engine = makeEngine();
+    mockGetHistoryItem.mockResolvedValue(null);
+
+    await expect(engine.pushRecordExplicit('MISSING')).rejects.toThrow(/not found/);
+    expect(mockedPutClipboard).not.toHaveBeenCalled();
+  });
+
+  test('文件记录:读字节 + meta.dataName 纵深防御清洗（去掉 ?t= 等非法字符）', async () => {
+    const engine = makeEngine();
+    mockGetHistoryItem.mockResolvedValue({
+      profileHash: 'HASH_FILE',
+      type: 'File',
+      text: 'doc.pdf',
+      dataName: 'doc?t=SIGNED.pdf', // 签名 URL 残留的坏名
+      hasData: true,
+      size: 123,
+      fileUri: 'file://cache/doc.pdf',
+      syncStatus: HistorySyncStatus.LocalOnly,
+    });
+
+    await engine.pushRecordExplicit('HASH_FILE');
+
+    const [, meta, payload] = mockedPutClipboard.mock.calls[0];
+    expect(meta.dataName).toBe('doc_t=SIGNED.pdf'); // ? → _,服务端 staging 才不 500
+    expect(meta.dataName).not.toMatch(/\?/);
+    expect(meta.hasData).toBe(true);
+    expect(payload).toBeInstanceOf(Uint8Array);
+  });
+
+  test('putClipboard 抛错（离线/5xx）向上传播,不标记 Synced', async () => {
+    const engine = makeEngine();
+    mockGetHistoryItem.mockResolvedValue({ ...TEXT_RECORD });
+    mockedPutClipboard.mockRejectedValue(new Error('ServerError(status: 500)'));
+
+    await expect(engine.pushRecordExplicit('HASH_TEXT')).rejects.toThrow(/500/);
+    expect(mockUpdateHistoryItem).not.toHaveBeenCalled();
   });
 });

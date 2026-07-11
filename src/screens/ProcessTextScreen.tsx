@@ -1,14 +1,15 @@
 /**
  * Process Text Screen
  * 处理来自 Android 文字选中菜单（PROCESS_TEXT）的上传请求。
- * 复用 QuickLoadingPage 和 uploadTextAndAddToHistory，与 ShareReceiveScreen 保持一致。
+ * 复用 QuickLoadingPage：落库(importTextToHistory) + 走 Rust 引擎显式推送。
  */
 
 import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QuickLoadingPage } from '@/components/QuickLoadingPage';
 import { useSettingsStore } from '@/stores/settingsStore';
-import { uploadTextAndAddToHistory } from '@/utils/uploadFile';
+import { importTextToHistory } from '@/utils/uploadFile';
+import { pushHistoryRecordViaEngine } from '@/stores/syncEngineStore';
 
 interface ProcessTextScreenProps {
   text: string;
@@ -22,7 +23,8 @@ export const ProcessTextScreen: React.FC<ProcessTextScreenProps> = ({ text, onCo
   const task = useCallback(
     async (signal: AbortSignal) => {
       if (!activeServer) throw new Error(t('processText.noServer'));
-      await uploadTextAndAddToHistory(text, activeServer, { signal });
+      const { profileHash } = await importTextToHistory(text, { signal });
+      await pushHistoryRecordViaEngine(profileHash);
     },
     [text, activeServer, t]
   );

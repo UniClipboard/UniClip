@@ -17,6 +17,7 @@ import { nativeCopyFile, type ProgressInfo } from 'android-util';
 import i18n from '@/i18n';
 import { calculateFileProfileHash, calculateTextHash } from '@/utils/hash';
 import { prepareTempFilePath } from '@/utils/fileStorage';
+import { sanitizeDataName } from '@/utils/fileName';
 import { convertHeicToJpegIfNeeded } from '@/utils/heicToJpeg';
 import { useHistoryStore } from '@/stores/historyStore';
 import { createAPIClient, historyStorage } from '@/services';
@@ -78,6 +79,10 @@ export async function importFileToHistory(
     mimeType,
     fileSize,
   } = await convertHeicToJpegIfNeeded(sourceUri, fileName, mimeType, fileSize));
+
+  // 清洗文件名：签名 URL 临时名里的 `?t=…` 会让服务端 staging 建文件失败（500）。
+  // 用清洗后的名做本地临时路径 + dataName，两端一致；hash 只取字节不受影响。
+  fileName = sanitizeDataName(fileName);
 
   const contentType: ClipboardContentType = guessContentType(mimeType);
   const tempPath = prepareTempFilePath(fileName);
@@ -151,6 +156,10 @@ export async function importTextToHistory(
  * 推送一条已落库的记录到服务器,成功后标记 Synced。
  * 从本地库读记录重建内容,因此可用于后台重试与「稍后重推」——不依赖调用方内存态。
  * 若记录已是 Synced 则直接返回(幂等)。
+ *
+ * @deprecated 遗留 SyncClipboardClient 直传路径,走 `POST /api/history`(daemon 0.19 已弃)。
+ *   显式上传改走 `pushHistoryRecordViaEngine`(uc-core `putClipboard` 直传)。仅
+ *   `uploadTextAndAddToHistory` 内部仍引用,待 Phase 2 一并移除,勿新增调用方。
  */
 export async function pushHistoryRecord(
   profileHash: string,
@@ -177,6 +186,10 @@ export async function pushHistoryRecord(
 /**
  * 落库 + 同步推送文本(前台阻塞式,供 ProcessTextScreen 就地展示结果)。
  * 本地记录先保存,上传失败向上抛出但内容不丢失,后续由同步引擎/重试补推。
+ *
+ * @deprecated 走遗留 {@link pushHistoryRecord}。生产已改用 `importTextToHistory` +
+ *   `pushHistoryRecordViaEngine`;当前仅 `uploadText.dataloss.test.ts` 回归用例引用,
+ *   待 Phase 2 连同遗留直传一并移除。
  */
 export async function uploadTextAndAddToHistory(
   text: string,
@@ -185,19 +198,4 @@ export async function uploadTextAndAddToHistory(
 ): Promise<void> {
   const { profileHash } = await importTextToHistory(text, options);
   await pushHistoryRecord(profileHash, activeServer, { signal: options?.signal });
-}
-
-/**
- * 落库 + 同步推送文件(前台阻塞式)。本地先落库,上传失败内容不丢失。
- */
-export async function uploadFileAndAddToHistory(
-  sourceUri: string,
-  fileName: string,
-  mimeType: string | null | undefined,
-  fileSize: number | undefined,
-  activeServer: ServerConfig,
-  options?: UploadFileOptions
-): Promise<void> {
-  const result = await importFileToHistory(sourceUri, fileName, mimeType, fileSize, options);
-  await pushHistoryRecord(result.profileHash, activeServer, options);
 }

@@ -18,6 +18,7 @@ import {
   engineDispose,
   enginePush,
   enginePull,
+  putClipboard,
   engineApplyStaged,
   engineSetServer,
   engineHandleNetworkRouteChanged,
@@ -51,6 +52,8 @@ import {
 } from './serverRouteSelector';
 import type { ServerConfig as AppServerConfig } from '@/types/api';
 import { HistorySyncStatus } from '@/types/clipboard';
+import type { ClipboardItem } from '@/types/clipboard';
+import { sanitizeDataName } from '@/utils/fileName';
 import { log } from './Logger';
 
 // SSE 在线时下行推送接管即时性，周期 tick 降为低频兜底（设计 §5.2：SSE 在线也保留
@@ -531,6 +534,54 @@ export class SyncEngine {
     }
   }
 
+  /**
+   * 显式推送一条已落库的历史记录（FAB 选文件/图片/拍照、分享接收、前台文本）。
+   *
+   * 与自动 push（pushLocal）不同：这是用户明确的「上传」意图，**绕过 autoPushLocal 门控**
+   * 一律推送——consent 模式下被动激活仍留本地，但显式上传照推。
+   *
+   * **不走 enginePush**：enginePush 带 reducer 去重 / watermark / 自写 guard，app 前后台
+   * 反复重启后引擎状态错乱时会静默跳过 PUT、假报成功（服务端零收到）。显式上传必须真正
+   * 发出，故直接用底层 {@link putClipboard}——内部先 `PUT /file/{dataName}` 传字节、再
+   * `PUT /SyncClipboard.json` 传 meta，无去重；iOS 也真发字节（Rust 实现，不依赖 android-util）。
+   *
+   * - 记录不存在 / 无 server / 文件字节缺失：抛错。
+   * - 记录已 Synced：幂等直接返回。
+   * - putClipboard 成功：内容已在服务端，标记该行 Synced（不依赖引擎 outcome）。
+   * - putClipboard 抛错（离线 / 服务端 5xx 等）：向上抛，交调用方（BackgroundUploadManager）退避重试。
+   */
+  async pushRecordExplicit(profileHash: string): Promise<void> {
+    if (!(await this.ensureEngine())) {
+      throw new Error('SyncEngine unavailable (no engine or active server)');
+    }
+    const server = this.getActiveServer();
+    if (!server) throw new Error('SyncEngine: no active server');
+
+    const { historyStorage } = require('@/services');
+    const item: ClipboardItem | null = await historyStorage.getItem(profileHash);
+    if (!item) throw new Error('history record not found: ' + profileHash);
+    if (item.syncStatus === HistorySyncStatus.Synced) return; // 幂等
+
+    // 用原始 dataName 读本地字节（与本地存储文件名一致），上传 meta 再用清洗后的名——
+    // 纵深防御：import 已清洗过新数据，这里兜底历史里可能残留的坏名（带 `?t=` 等），
+    // 否则服务端 begin_stage 会 500。ClipboardContentType 与 ClipboardKind 同域。
+    const payload = await this.readRecordPayload(item);
+    const meta: ClipboardMeta = {
+      kind: item.type,
+      text: item.text ?? '',
+      dataName: item.dataName ? sanitizeDataName(item.dataName) : null,
+      hasData: payload != null,
+      size: item.size ?? payload?.byteLength ?? item.text?.length ?? 0,
+      hash: item.profileHash,
+      contentId: item.contentId ?? null,
+    };
+
+    const ucServer = await this.resolveLiveUcServer(server, false);
+    await putClipboard(ucServer, meta, payload ?? undefined, server.trustInsecureCert);
+
+    await this.markHistoryPushed(profileHash);
+  }
+
   /** 服务器切换：引擎按新 server 清 watermark + reset，重启 tick / SSE 并立即收敛。 */
   async handleServerChanged(): Promise<void> {
     this.stagedEntry = null;
@@ -845,6 +896,28 @@ export class SyncEngine {
       // Uint8Array 匹配 native Data/ByteArray 编组（裸 ArrayBuffer 会失败）。
       payload: payload ? new Uint8Array(payload) : null,
     };
+  }
+
+  /**
+   * 读一条历史记录的文件字节（供 pushRecordExplicit）。Text（无 data）返回 null。
+   * File/Image 按 fileUri 读，fileUri 失效时回退用 hash + 原始 dataName 定位历史目录文件；
+   * 字节确实缺失则抛错（交调用方重试）。
+   */
+  private async readRecordPayload(item: ClipboardItem): Promise<Uint8Array | null> {
+    if (!(item.hasData && item.dataName)) return null;
+    const { File } = await import('expo-file-system');
+    let uri = item.fileUri;
+    if (!uri || !new File(uri).exists) {
+      const { getHistoryFileUri } = await import('@/utils/fileStorage');
+      // ClipboardContentType 与 ClipboardKind 同域（Text/Image/File/Group），直接透传。
+      uri =
+        (await getHistoryFileUri(item.type, item.profileHash ?? '', item.dataName)) ?? undefined;
+    }
+    if (uri && new File(uri).exists) {
+      // Uint8Array 匹配 native Data/ByteArray 编组（裸 ArrayBuffer 会失败）。
+      return new Uint8Array(await new File(uri).arrayBuffer());
+    }
+    throw new Error('file bytes missing for record: ' + item.profileHash);
   }
 
   private previewToMeta(preview: StagedPreview): ClipboardMeta {

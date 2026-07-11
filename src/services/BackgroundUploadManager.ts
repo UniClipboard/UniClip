@@ -8,12 +8,14 @@
  * - 有限退避重试:服务端离线/瞬时错误时自动重试若干次;耗尽后保持 LocalOnly(卡片显示
  *   待上传角标),不再打扰用户。
  * - 幂等:同一 profileHash 正在推送时重复 enqueue 忽略。
- * - 可取消:cancel(profileHash) 中断底层请求(暂无 UI 入口,预留给卡片「取消上传」)。
- * - 直接读当前服务器 + putContent 推送(uploadRecord + putClipboard,即写入服务器当前
- *   剪贴板),与旧前台上传语义一致。
+ * - 可取消:cancel(profileHash) 中断等待中的重试(底层直传不接 AbortSignal,已发出的
+ *   推送无法中断,与旧行为一致)。
+ * - 走 pushHistoryRecordViaEngine → SyncEngine.pushRecordExplicit → uc-core putClipboard
+ *   直传(先 PUT /file/{dataName} 传字节、再 PUT /SyncClipboard.json 传 meta),无引擎去重、
+ *   绕过 autoPushLocal 门控(显式上传意图)。
  */
 
-import { pushHistoryRecord } from '@/utils/uploadFile';
+import { pushHistoryRecordViaEngine } from '@/stores/syncEngineStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useMessageStore } from '@/stores/messageStore';
 import { log } from './Logger';
@@ -54,7 +56,8 @@ async function runUpload(profileHash: string, controller: AbortController): Prom
     }
 
     try {
-      await pushHistoryRecord(profileHash, server, { signal });
+      // 底层直传不接 AbortSignal:显式上传一旦发出无法中断(signal 仅用于取消重试等待)。
+      await pushHistoryRecordViaEngine(profileHash);
       log.info(`[BackgroundUpload] Pushed: ${profileHash}`);
       return; // 成功(或已 Synced)
     } catch (error) {
