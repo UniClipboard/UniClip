@@ -19,7 +19,7 @@
     "latestVersion": "最新版本：{{version}}",
     "currentVersion": "当前版本：{{version}}",
     "releaseNotes": "更新说明：\n{{notes}}",
-    "gitcode": "GitCode 下载",
+    "gitee": "Gitee 下载",
     "github": "GitHub 下载",
     "downloading": "下载中 {{percent}}%",
     "canceled": "已取消下载",
