@@ -72,7 +72,7 @@ export function cleanOldApkCache(currentVersion: string): void {
   }
 }
 
-export type ApkSource = 'github' | 'gitcode';
+export type ApkSource = 'github' | 'gitee';
 
 const SUPPORTED_ABI_NAMES = ['arm64-v8a', 'armeabi-v7a', 'x86_64'] as const;
 type ApkAbi = (typeof SUPPORTED_ABI_NAMES)[number] | 'universal';
@@ -151,7 +151,7 @@ export async function checkApkCache(
  */
 export async function downloadApk(options: ApkDownloadOptions): Promise<string> {
   const { asset, source, version, onProgress, signal } = options;
-  const url = source === 'github' ? asset.githubDownloadUrl : asset.gitcodeDownloadUrl;
+  const url = source === 'github' ? asset.githubDownloadUrl : asset.giteeDownloadUrl;
   log.info(`[ApkDownload] start source=${source} url=${url}`);
 
   // 确保缓存目录存在（含父目录）

@@ -19,7 +19,7 @@
     "latestVersion": "Latest version: {{version}}",
     "currentVersion": "Current version: {{version}}",
     "releaseNotes": "Release notes:\n{{notes}}",
-    "gitcode": "Download from GitCode",
+    "gitee": "Download from Gitee",
     "github": "Download from GitHub",
     "downloading": "Downloading {{percent}}%",
     "canceled": "Download canceled",

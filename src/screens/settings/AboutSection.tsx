@@ -265,11 +265,11 @@ export const AboutSection = memo(function AboutSection() {
                   onClick={() => {
                     const s = downloadSourceSheet;
                     setDownloadSourceSheet(null);
-                    handleDownloadApk('gitcode', s.version, s.assets);
+                    handleDownloadApk('gitee', s.version, s.assets);
                   }}
                   modifiers={[fillMaxWidth()]}
                 >
-                  <ComposeText>{t('download.gitcode')}</ComposeText>
+                  <ComposeText>{t('download.gitee')}</ComposeText>
                 </Button>
                 <Spacer modifiers={[heightModifier(8)]} />
                 <OutlinedButton
