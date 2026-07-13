@@ -5,7 +5,10 @@ import {
   DarkTheme,
   useNavigation,
 } from '@react-navigation/native';
-import { createStackNavigator } from '@react-navigation/stack';
+import {
+  createNativeStackNavigator,
+  type NativeStackNavigationProp,
+} from '@react-navigation/native-stack';
 import { Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { navigationRef, flushPendingNavigation } from './navigationRef';
@@ -33,10 +36,10 @@ export type RootStackParamList = {
   SettingsSub: { section: SettingsSubSection };
 };
 
-const Stack = createStackNavigator<RootStackParamList>();
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
 function MainScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'Main'>>();
   const openSettings = useCallback(() => {
     navigation.navigate('Settings');
   }, [navigation]);
@@ -50,7 +53,7 @@ function MainScreen() {
  * 暂不配对 → 同样进 Main,无 pendingConnect 即不弹表单。
  */
 function OnboardingGate() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'Onboarding'>>();
   const updateConfig = useSettingsStore((s) => s.updateConfig);
   const onComplete = useCallback(async () => {
     await updateConfig({ onboardingCompleted: true });
@@ -126,17 +129,17 @@ export const AppNavigator = () => {
                   headerShown: false,
                   presentation: 'transparentModal',
                   animation: 'none',
-                  cardStyle: { backgroundColor: 'transparent' },
+                  contentStyle: { backgroundColor: 'transparent' },
                 }
               : {
                   headerShown: true,
                   title: t('action.settings', { ns: 'common' }),
                   presentation: 'card',
+                  animation: 'slide_from_right',
                   headerStyle: {
                     backgroundColor: theme.colors.surface as string,
-                    elevation: 0,
-                    shadowOpacity: 0,
                   },
+                  headerShadowVisible: false,
                   headerTintColor: theme.colors.textPrimary as string,
                 }
           }
@@ -148,11 +151,11 @@ export const AppNavigator = () => {
             headerShown: true,
             title: subScreenTitles[route.params.section],
             presentation: 'card',
+            animation: 'slide_from_right',
             headerStyle: {
               backgroundColor: theme.colors.surface as string,
-              elevation: 0,
-              shadowOpacity: 0,
             },
+            headerShadowVisible: false,
             headerTintColor: theme.colors.textPrimary as string,
           })}
         />
