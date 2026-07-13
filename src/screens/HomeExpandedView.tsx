@@ -3,6 +3,7 @@ import { View, StyleSheet, StatusBar, type ColorValue } from 'react-native';
 import { SelectModeBottomBar } from '@/components/HomeBottomBar';
 import { AddActionsFab } from '@/components/AddActionsFab';
 import { ClipboardDetailPane } from '@/components/ClipboardDetailPane';
+import { ClipboardDetailModal } from '@/components/ClipboardDetailModal';
 import { useHomeController } from './useHomeController';
 import { HomeMasterGrid } from './HomeMasterGrid';
 import { HomeFilterRail } from './HomeFilterRail';
@@ -19,7 +20,7 @@ const GUTTER = 12; // 面板之间 / 面板与屏幕边的缝隙
 /**
  * 平板首页 —— 自适应的筛选栏、历史网格与详情工作台。
  *
- * 足够宽时详情显示在网格右侧;窄平板保留筛选栏与完整网格,点击卡片后详情覆盖在右侧。
+ * 足够宽时详情显示在网格右侧;窄平板保留筛选栏与完整网格,点击卡片后打开独立详情页。
  * 各区域使用浮起的圆角面板(paneColor),靠 GUTTER 缝隙分区,不画分割线。Android 面板取
  * surfaceHigh、卡片 surfaceLow ——
  * 卡片明显区别于面板背景(light 卡片更亮浮起、dark 卡片更暗内嵌,两主题都有清晰对比);
@@ -58,7 +59,6 @@ export function HomeExpandedView({
 
   const panePlaceholder = paneColor as never;
   const showSideDetail = workspace.detailPlacement === 'side';
-  const showDetail = showSideDetail || detailActivated;
 
   return (
     <View style={[styles.container, { backgroundColor: gutterColor as never }]}>
@@ -106,28 +106,25 @@ export function HomeExpandedView({
           )}
         </View>
 
-        {/* 详情始终绝对定位在右侧,避免旋转时在 flex 布局与覆盖层之间搬动整棵内容。 */}
-        <View
-          pointerEvents={showDetail ? 'auto' : 'none'}
-          accessibilityElementsHidden={!showDetail}
-          style={[
-            styles.pane,
-            styles.overlayDetail,
-            {
-              width: workspace.detailWidth,
-              backgroundColor: panePlaceholder,
-              opacity: showDetail ? 1 : 0,
-              transform: [{ translateX: showDetail ? 0 : workspace.detailWidth + GUTTER }],
-            },
-          ]}
-        >
-          <ClipboardDetailPane
-            c={c}
-            item={detailActivated ? c.detailItem : null}
-            onClose={showSideDetail ? undefined : () => setDetailActivated(false)}
-          />
-        </View>
+        {showSideDetail && (
+          <View
+            style={[
+              styles.pane,
+              styles.sideDetail,
+              { width: workspace.detailWidth, backgroundColor: panePlaceholder },
+            ]}
+          >
+            <ClipboardDetailPane c={c} item={detailActivated ? c.detailItem : null} />
+          </View>
+        )}
       </View>
+
+      <ClipboardDetailModal
+        visible={!showSideDetail && detailActivated}
+        onDismiss={() => setDetailActivated(false)}
+        c={c}
+        containerColor={paneColor as ColorValue}
+      />
 
       {/* 上传融合按钮:锚定整屏右下 */}
       {!c.isSelectMode && !c.isSearching && (
@@ -169,7 +166,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     position: 'relative',
   },
-  overlayDetail: {
+  sideDetail: {
     position: 'absolute',
     top: GUTTER,
     right: GUTTER,
