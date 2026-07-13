@@ -71,7 +71,11 @@
     "placeholderDesc": "从左侧列表点选任意条目，在这里查看完整内容并操作。",
     "fromDevice": "来自 {{device}}",
     "unknownDevice": "本机",
-    "sectionActions": "操作",
+    "quickActions": {
+      "select": "选择",
+      "open": "打开",
+      "save": "保存"
+    },
     "close": "关闭详情"
   },
   "rail": {

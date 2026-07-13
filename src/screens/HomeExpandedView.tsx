@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { View, StyleSheet, StatusBar, type ColorValue } from 'react-native';
 import { SelectModeBottomBar } from '@/components/HomeBottomBar';
 import { AddActionsFab } from '@/components/AddActionsFab';
+import { FAB_SIZE } from '@/components/AddActionsFab.types';
 import { ClipboardDetailPane } from '@/components/ClipboardDetailPane';
 import { ClipboardDetailModal } from '@/components/ClipboardDetailModal';
 import { useHomeController } from './useHomeController';
@@ -16,6 +17,8 @@ type Controller = ReturnType<typeof useHomeController>;
 
 const RAIL_WIDTH = 72;
 const GUTTER = 12; // 面板之间 / 面板与屏幕边的缝隙
+// side 模式把 FAB 水平居中到左侧 rail 底部:rail 左缘在 GUTTER 处,栏宽 RAIL_WIDTH。
+const RAIL_FAB_INSET = GUTTER + (RAIL_WIDTH - FAB_SIZE) / 2;
 
 /**
  * 平板首页 —— 自适应的筛选栏、历史网格与详情工作台。
@@ -51,10 +54,11 @@ export function HomeExpandedView({
 
   const handleSelectItem = useCallback(
     (item: ClipboardItem) => {
+      c.setShowAddMenu(false);
       c.selectDetailItem(item);
       setDetailActivated(true);
     },
-    [c.selectDetailItem]
+    [c.selectDetailItem, c.setShowAddMenu]
   );
 
   const panePlaceholder = paneColor as never;
@@ -126,8 +130,10 @@ export function HomeExpandedView({
         containerColor={paneColor as ColorValue}
       />
 
-      {/* 上传融合按钮:锚定整屏右下 */}
-      {!c.isSelectMode && !c.isSearching && (
+      {/* 上传融合按钮:平板恒锚到左侧 rail 底部(横竖屏一致,菜单向右上展开),不再有右下角
+          形态。overlay(竖屏)弹出详情时全屏 Modal 会盖住 rail,故此时隐藏 FAB;side 双栏详情
+          常驻在右栏、不遮 rail,FAB 保持可见。 */}
+      {!c.isSelectMode && !c.isSearching && !(detailActivated && !showSideDetail) && (
         <AddActionsFab
           open={c.showAddMenu}
           onOpenChange={c.setShowAddMenu}
@@ -137,6 +143,8 @@ export function HomeExpandedView({
           onUploadClipboard={c.handleUpload}
           onSync={c.handleSyncHistory}
           theme={theme}
+          anchor="start"
+          horizontalInset={RAIL_FAB_INSET}
         />
       )}
 

@@ -1,11 +1,17 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Image, Pressable } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { getDisplayKind, formatRelativeTime, DisplayKind } from '@/utils/displayKind';
 import { formatFileSize } from '@/utils';
 import type { ActionMenuItem } from '@/utils/actionMenuItems';
+import { getDetailActionLayout } from '@/utils/detailActionLayout';
 import type { HomeController } from '@/screens/useHomeController';
 import type { ClipboardItem } from '@/types/clipboard';
+import { ClipboardDetailActionBar } from './ClipboardDetailActionBar';
+import { usePopoverTransition } from './usePopoverTransition';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const KIND_ICON: Record<DisplayKind, string> = {
   text: 'document-text-outline',
@@ -25,13 +31,16 @@ export function ClipboardDetailPane({
   c,
   item = c.detailItem,
   onClose,
+  active = true,
 }: {
   c: HomeController;
   item?: ClipboardItem | null;
   onClose?: () => void;
+  active?: boolean;
 }) {
   const { theme } = c;
   const { colors } = theme;
+  const [overflowOpen, setOverflowOpen] = useState(false);
 
   const displayKind = useMemo(() => (item ? getDisplayKind(item.type, item.text) : null), [item]);
 
@@ -39,6 +48,21 @@ export function ClipboardDetailPane({
     if (!item || !displayKind) return [];
     return c.makeActionGroups(item, displayKind, null).flat();
   }, [item, displayKind, c]);
+
+  const actionLayout = useMemo(
+    () => (displayKind ? getDetailActionLayout(actions, displayKind) : null),
+    [actions, displayKind]
+  );
+
+  // profileHash 可能在不同条目间重复(见网格去重逻辑),叠加 timestamp 作为身份,
+  // 保证在两条 hash 相同但实为不同的条目间切换时,overflow 浮层也会复位。
+  useEffect(() => {
+    setOverflowOpen(false);
+  }, [active, item?.profileHash, item?.timestamp]);
+
+  // 遮罩与操作栏内的 overflow 浮层用同一份 open 状态,各自跑相同时序 → 视觉同步淡入淡出。
+  const backdrop = usePopoverTransition(overflowOpen);
+  const backdropStyle = useAnimatedStyle(() => ({ opacity: backdrop.progress.value }));
 
   if (!item || !displayKind) {
     return (
@@ -54,47 +78,43 @@ export function ClipboardDetailPane({
     );
   }
 
-  const primary = actions.find((a) => a.key === 'copy');
-  const secondary = actions.filter((a) => a.key !== 'copy');
   const deviceLabel = item.deviceName
     ? c.t('detail.fromDevice', { device: item.deviceName })
     : c.t('detail.unknownDevice');
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={[styles.kindChip, { backgroundColor: colors.accentContainer }]}>
-            <Ionicons
-              name={KIND_ICON[displayKind] as never}
-              size={18}
-              color={colors.onAccentContainer}
-            />
-          </View>
-          <View style={styles.headerText}>
-            <Text style={[styles.headerDevice, { color: colors.textPrimary }]} numberOfLines={1}>
-              {deviceLabel}
-            </Text>
-            <Text style={[styles.headerMeta, { color: colors.textSecondary }]} numberOfLines={1}>
-              {formatRelativeTime(item.timestamp)}
-              {item.size ? ` · ${formatFileSize(item.size)}` : ''}
-            </Text>
-          </View>
-          {onClose && (
-            <Pressable
-              onPress={onClose}
-              accessibilityRole="button"
-              accessibilityLabel={c.t('detail.close')}
-              hitSlop={8}
-              style={({ pressed }) => [styles.closeButton, pressed && styles.closeButtonPressed]}
-            >
-              <Ionicons name="close" size={22} color={colors.textSecondary} />
-            </Pressable>
-          )}
+      <View style={styles.header}>
+        <View style={[styles.kindChip, { backgroundColor: colors.accentContainer }]}>
+          <Ionicons
+            name={KIND_ICON[displayKind] as never}
+            size={18}
+            color={colors.onAccentContainer}
+          />
         </View>
+        <View style={styles.headerText}>
+          <Text style={[styles.headerDevice, { color: colors.textPrimary }]} numberOfLines={1}>
+            {deviceLabel}
+          </Text>
+          <Text style={[styles.headerMeta, { color: colors.textSecondary }]} numberOfLines={1}>
+            {formatRelativeTime(item.timestamp)}
+            {item.size ? ` · ${formatFileSize(item.size)}` : ''}
+          </Text>
+        </View>
+        {onClose && (
+          <Pressable
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel={c.t('detail.close')}
+            hitSlop={8}
+            style={({ pressed }) => [styles.closeButton, pressed && styles.closeButtonPressed]}
+          >
+            <Ionicons name="close" size={22} color={colors.textSecondary} />
+          </Pressable>
+        )}
+      </View>
 
-        {/* Preview */}
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {displayKind === 'image' && item.fileUri && item.isLocalFileReady ? (
           <View style={[styles.preview, { backgroundColor: colors.surface }]}>
             <Image source={{ uri: item.fileUri }} style={styles.image} resizeMode="contain" />
@@ -113,51 +133,35 @@ export function ClipboardDetailPane({
             </Text>
           </View>
         )}
-
-        {/* Actions */}
-        {primary && (
-          <Pressable
-            onPress={primary.onPress}
-            style={({ pressed }) => [
-              styles.primaryBtn,
-              { backgroundColor: colors.accent, opacity: pressed ? 0.85 : 1 },
-            ]}
-          >
-            <Ionicons name={primary.icon as never} size={18} color={colors.onAccent} />
-            <Text style={[styles.primaryLabel, { color: colors.onAccent }]}>{primary.label}</Text>
-          </Pressable>
-        )}
-
-        <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>
-          {c.t('detail.sectionActions')}
-        </Text>
-        <View style={styles.actionList}>
-          {secondary.map((a) => (
-            <Pressable
-              key={a.key}
-              onPress={a.onPress}
-              style={({ pressed }) => [
-                styles.actionRow,
-                pressed && { backgroundColor: colors.surface },
-              ]}
-            >
-              <Ionicons
-                name={a.icon as never}
-                size={20}
-                color={a.destructive ? colors.error : colors.textSecondary}
-              />
-              <Text
-                style={[
-                  styles.actionLabel,
-                  { color: a.destructive ? colors.error : colors.textPrimary },
-                ]}
-              >
-                {a.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
       </ScrollView>
+
+      {backdrop.mounted ? (
+        <AnimatedPressable
+          testID="detail-overflow-backdrop"
+          onPress={() => setOverflowOpen(false)}
+          accessibilityRole="button"
+          accessibilityLabel={c.t('action.close', { ns: 'common' })}
+          style={[StyleSheet.absoluteFill, styles.overflowBackdrop, backdropStyle]}
+        />
+      ) : null}
+
+      {actionLayout ? (
+        <ClipboardDetailActionBar
+          primary={actionLayout.primary}
+          quick={actionLayout.quick}
+          overflow={actionLayout.overflow}
+          quickLabels={{
+            selectText: c.t('detail.quickActions.select'),
+            openBrowser: c.t('detail.quickActions.open'),
+            saveImage: c.t('detail.quickActions.save'),
+            saveFile: c.t('detail.quickActions.save'),
+          }}
+          moreLabel={c.t('action.more', { ns: 'common' })}
+          theme={theme}
+          popoverOpen={overflowOpen}
+          onPopoverOpenChange={setOverflowOpen}
+        />
+      ) : null}
     </View>
   );
 }
@@ -182,13 +186,17 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   content: {
-    padding: 20,
-    gap: 16,
+    paddingHorizontal: 20,
+    paddingTop: 4,
+    paddingBottom: 20,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 12,
   },
   kindChip: {
     width: 40,
@@ -241,38 +249,9 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
   },
-  primaryBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    height: 48,
-    borderRadius: 14,
-  },
-  primaryLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  sectionLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-    marginTop: 4,
-    marginLeft: 4,
-  },
-  actionList: {
-    gap: 2,
-  },
-  actionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 13,
-    borderRadius: 12,
-  },
-  actionLabel: {
-    fontSize: 15,
+  overflowBackdrop: {
+    // 透明层,只为捕获浮层外的点击以关闭它;不压暗——详情常驻在双栏右侧或全屏 Modal 里,
+    // 压暗单栏观感突兀。整体随浮层同步淡入淡出(此处只有 zIndex,opacity 由动画驱动)。
+    zIndex: 2,
   },
 });

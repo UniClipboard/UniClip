@@ -13,9 +13,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { getDisplayKindColor } from '@/utils/displayKind';
-import type { AddActionsFabProps } from './AddActionsFab.types';
-
-const FAB_SIZE = 56;
+import { FAB_SIZE, type AddActionsFabProps } from './AddActionsFab.types';
 
 type Row = {
   key: string;
@@ -39,9 +37,14 @@ export function AddActionsFab({
   onUploadClipboard,
   onSync,
   theme,
+  anchor = 'end',
+  horizontalInset = 16,
 }: AddActionsFabProps) {
   const { t } = useTranslation('home');
   const insets = useSafeAreaInsets();
+  const anchorEnd = anchor === 'end';
+  // 贴右→菜单向左上展开;贴左→向右上展开(缩放锚点随之翻转)。
+  const anchorStyle = anchorEnd ? { right: horizontalInset } : { left: horizontalInset };
   const [mounted, setMounted] = useState(open);
   const progress = useSharedValue(0);
 
@@ -146,7 +149,7 @@ export function AddActionsFab({
 
       <Pressable
         onPress={toggleOpen}
-        style={[s.fab, { bottom: fabBottom, backgroundColor: theme.colors.accent }]}
+        style={[s.fab, anchorStyle, { bottom: fabBottom, backgroundColor: theme.colors.accent }]}
         accessibilityRole="button"
         accessibilityLabel={t('a11y.addContent')}
       >
@@ -159,34 +162,44 @@ export function AddActionsFab({
         <Animated.View
           style={[
             s.pop,
-            { bottom: popBottom, backgroundColor: theme.colors.surfaceHigh },
+            anchorStyle,
+            {
+              bottom: popBottom,
+              backgroundColor: theme.colors.surfaceHigh,
+              transformOrigin: anchorEnd ? 'bottom right' : 'bottom left',
+            },
             popStyle,
           ]}
         >
           {rows.map((row) => (
+            // 每行套一层 overflow:hidden 圆角裁剪:android_ripple 默认按行矩形边界扩散,
+            // 不跟随圆角;用圆角裁剪容器把波纹裁成 borderRadius 的形状,避免方波纹溢出。
+            <View key={row.key} style={s.rowClip}>
+              <Pressable
+                onPress={() => runItem(row.onPress)}
+                android_ripple={{ color: theme.colors.separator }}
+                style={s.row}
+              >
+                <View style={[s.mini, { backgroundColor: row.color }]}>
+                  <Ionicons name={row.icon} size={18} color="#FFFFFF" />
+                </View>
+                <Text style={[s.label, { color: theme.colors.textPrimary }]}>{row.label}</Text>
+              </Pressable>
+            </View>
+          ))}
+          <View style={[s.div, { backgroundColor: theme.colors.separator }]} />
+          <View style={s.rowClip}>
             <Pressable
-              key={row.key}
-              onPress={() => runItem(row.onPress)}
+              onPress={() => runItem(onSync)}
               android_ripple={{ color: theme.colors.separator }}
               style={s.row}
             >
-              <View style={[s.mini, { backgroundColor: row.color }]}>
-                <Ionicons name={row.icon} size={18} color="#FFFFFF" />
+              <View style={[s.mini, { backgroundColor: theme.colors.textSecondary }]}>
+                <Ionicons name="sync" size={18} color={theme.colors.surface} />
               </View>
-              <Text style={[s.label, { color: theme.colors.textPrimary }]}>{row.label}</Text>
+              <Text style={[s.label, { color: theme.colors.textPrimary }]}>{t('fab.syncNow')}</Text>
             </Pressable>
-          ))}
-          <View style={[s.div, { backgroundColor: theme.colors.separator }]} />
-          <Pressable
-            onPress={() => runItem(onSync)}
-            android_ripple={{ color: theme.colors.separator }}
-            style={s.row}
-          >
-            <View style={[s.mini, { backgroundColor: theme.colors.textSecondary }]}>
-              <Ionicons name="sync" size={18} color={theme.colors.surface} />
-            </View>
-            <Text style={[s.label, { color: theme.colors.textPrimary }]}>{t('fab.syncNow')}</Text>
-          </Pressable>
+          </View>
         </Animated.View>
       )}
     </>
@@ -198,7 +211,6 @@ const s = StyleSheet.create({
   scrimTouch: { zIndex: 16 },
   fab: {
     position: 'absolute',
-    right: 16,
     width: FAB_SIZE,
     height: FAB_SIZE,
     borderRadius: 18,
@@ -214,14 +226,17 @@ const s = StyleSheet.create({
   },
   pop: {
     position: 'absolute',
-    right: 16,
     width: 186,
     borderRadius: 18,
     borderCurve: 'continuous',
     padding: 6,
     elevation: 10,
-    transformOrigin: 'bottom right',
     zIndex: 21,
+  },
+  rowClip: {
+    borderRadius: 12,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
   },
   row: {
     flexDirection: 'row',
@@ -229,8 +244,6 @@ const s = StyleSheet.create({
     gap: 12,
     paddingVertical: 9,
     paddingHorizontal: 8,
-    borderRadius: 12,
-    borderCurve: 'continuous',
   },
   mini: {
     width: 32,

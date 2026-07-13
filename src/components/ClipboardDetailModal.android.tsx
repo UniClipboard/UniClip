@@ -47,7 +47,7 @@ export function ClipboardDetailModal({
           ]}
           accessibilityViewIsModal
         >
-          <ClipboardDetailPane c={c} onClose={onDismiss} />
+          <ClipboardDetailPane c={c} onClose={onDismiss} active={visible} />
         </View>
       </View>
     </Modal>

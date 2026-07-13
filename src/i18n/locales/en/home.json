@@ -71,7 +71,11 @@
     "placeholderDesc": "Pick any entry from the list to see its full content and actions here.",
     "fromDevice": "From {{device}}",
     "unknownDevice": "This device",
-    "sectionActions": "Actions",
+    "quickActions": {
+      "select": "Select",
+      "open": "Open",
+      "save": "Save"
+    },
     "close": "Close details"
   },
   "rail": {

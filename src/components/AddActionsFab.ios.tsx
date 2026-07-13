@@ -22,9 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { GlassContainer } from '@/components/ui';
 import { iosAccent, iosColors, iosKindTints, iosSystemColor } from '@/theme/iosDesignTokens';
-import type { AddActionsFabProps } from './AddActionsFab.types';
-
-const FAB_SIZE = 56;
+import { FAB_SIZE, type AddActionsFabProps } from './AddActionsFab.types';
 
 type Row = {
   key: string;
@@ -46,10 +44,15 @@ export function AddActionsFab({
   onPickFile,
   onUploadClipboard,
   onSync,
+  anchor = 'end',
+  horizontalInset = 16,
 }: AddActionsFabProps) {
   const { t } = useTranslation('home');
   const insets = useSafeAreaInsets();
   const isDark = useColorScheme() === 'dark';
+  const anchorEnd = anchor === 'end';
+  // 贴右→菜单向左上展开;贴左→向右上展开(缩放锚点随之翻转)。
+  const anchorStyle = anchorEnd ? { right: horizontalInset } : { left: horizontalInset };
   const [mounted, setMounted] = useState(open);
   const progress = useSharedValue(0);
 
@@ -143,7 +146,7 @@ export function AddActionsFab({
 
       <Pressable
         onPress={toggleOpen}
-        style={[s.fab, { bottom: fabBottom }]}
+        style={[s.fab, anchorStyle, { bottom: fabBottom }]}
         accessibilityRole="button"
         accessibilityLabel={t('a11y.addContent')}
       >
@@ -155,7 +158,14 @@ export function AddActionsFab({
       </Pressable>
 
       {mounted && (
-        <Animated.View style={[s.popWrap, { bottom: popBottom }, popStyle]}>
+        <Animated.View
+          style={[
+            s.popWrap,
+            anchorStyle,
+            { bottom: popBottom, transformOrigin: anchorEnd ? 'bottom right' : 'bottom left' },
+            popStyle,
+          ]}
+        >
           <View style={s.popClip}>
             <BlurView
               intensity={90}
@@ -200,7 +210,6 @@ const s = StyleSheet.create({
   scrimTouch: { zIndex: 16 },
   fab: {
     position: 'absolute',
-    right: 16,
     width: FAB_SIZE,
     height: FAB_SIZE,
     zIndex: 20,
@@ -208,9 +217,7 @@ const s = StyleSheet.create({
   fabGlass: { width: FAB_SIZE, height: FAB_SIZE, justifyContent: 'center', alignItems: 'center' },
   popWrap: {
     position: 'absolute',
-    right: 16,
     width: 190,
-    transformOrigin: 'bottom right',
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.22,
