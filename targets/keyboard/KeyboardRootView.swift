@@ -67,7 +67,7 @@ private let keyboardSurfaceColor = Color(uiColor: UIColor { trait in
 /// newly-copied device content (uplink). The 🌐 strip returns to a typing
 /// keyboard.
 struct KeyboardRootView: View {
-    let model: KeyboardModel
+    @ObservedObject var model: KeyboardModel
 
     /// Search mode swaps the server-name bar for a type-scope filter strip
     /// (a custom keyboard has no QWERTY, so 🔍 filters rather than queries).
@@ -306,14 +306,15 @@ struct KeyboardRootView: View {
                         CardView(model: model, card: card)
                     }
                 }
-                .scrollTargetLayout()
+                .keyboardCardRowLayout(hMargin: KeyboardLayout.hMargin)
                 .padding(.vertical, KeyboardLayout.cardRowVPad)
             }
-            // contentMargins (not padding inside the stack) keeps the resting
-            // first card on the shared hMargin grid while still letting cards
-            // bleed to the screen edge mid-scroll.
-            .contentMargins(.horizontal, KeyboardLayout.hMargin, for: .scrollContent)
-            .scrollTargetBehavior(.viewAligned)
+            // On iOS 17+ contentMargins (not padding inside the stack) keeps
+            // the resting first card on the shared hMargin grid while still
+            // letting cards bleed to the screen edge mid-scroll; iOS 16 gets
+            // the resting inset from the row's own horizontal padding instead
+            // (see keyboardCardRowLayout / keyboardCardScrollBehavior).
+            .keyboardCardScrollBehavior(hMargin: KeyboardLayout.hMargin)
             .keyboardScrollEdgeEffectHidden()
             .frame(maxHeight: .infinity)
         } else if model.isSyncing {
@@ -667,7 +668,7 @@ private struct BackspaceKey: View {
 // MARK: - Card
 
 private struct CardView: View {
-    let model: KeyboardModel
+    @ObservedObject var model: KeyboardModel
     let card: KeyboardModel.Card
 
     private var isActing: Bool { model.actingCardID == card.id }
@@ -837,7 +838,7 @@ private struct CardThumbnail: View {
                     Image(systemName: didLoad ? "photo" : "photo.badge.arrow.down")
                         .font(.title2)
                         .foregroundStyle(.secondary)
-                        .symbolEffect(.pulse, isActive: !didLoad)
+                        .keyboardPulse(!didLoad)
                 }
             }
             .clipShape(shape)
@@ -917,6 +918,45 @@ private extension View {
     func keyboardScrollEdgeEffectHidden() -> some View {
         if #available(iOS 26, *) {
             scrollEdgeEffectHidden(true)
+        } else {
+            self
+        }
+    }
+
+    /// Marks the card row as the scroll snap container on iOS 17+ (paged,
+    /// view-aligned scrolling). iOS 16 has no `scrollTargetLayout`, so the row
+    /// falls back to plain horizontal padding by `hMargin` — no snapping, but
+    /// the resting first card still lands on the shared horizontal grid (the
+    /// iOS 17 path gets that inset from `contentMargins` instead, which also
+    /// lets cards bleed to the screen edge mid-scroll).
+    @ViewBuilder
+    func keyboardCardRowLayout(hMargin: CGFloat) -> some View {
+        if #available(iOS 17, *) {
+            scrollTargetLayout()
+        } else {
+            padding(.horizontal, hMargin)
+        }
+    }
+
+    /// iOS 17+ symmetric content insets + view-aligned snapping for the card
+    /// ScrollView. No-op on iOS 16, where the row's own horizontal padding
+    /// (see keyboardCardRowLayout) supplies the resting inset.
+    @ViewBuilder
+    func keyboardCardScrollBehavior(hMargin: CGFloat) -> some View {
+        if #available(iOS 17, *) {
+            contentMargins(.horizontal, hMargin, for: .scrollContent)
+                .scrollTargetBehavior(.viewAligned)
+        } else {
+            self
+        }
+    }
+
+    /// iOS 17+ symbol pulse while `active`. No-op on iOS 16 (static glyph) —
+    /// `symbolEffect` is unavailable there.
+    @ViewBuilder
+    func keyboardPulse(_ active: Bool) -> some View {
+        if #available(iOS 17, *) {
+            symbolEffect(.pulse, isActive: active)
         } else {
             self
         }
