@@ -8,7 +8,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "buildNumber": "157",
+      "buildNumber": "158",
       "supportsTablet": true,
       "appleTeamId": "8XG39X5CL8",
       "bundleIdentifier": "app.uniclipboard.UniClipboard",
@@ -21,7 +21,7 @@
       }
     },
     "android": {
-      "versionCode": 157,
+      "versionCode": 158,
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -56,12 +56,7 @@
       "expo-sqlite",
       [
         "expo-localization",
-        {
-          "supportedLocales": {
-            "ios": ["zh-Hans", "en"],
-            "android": ["zh", "en"]
-          }
-        }
+        { "supportedLocales": { "ios": ["zh-Hans", "en"], "android": ["zh", "en"] } }
       ]
     ],
     "extra": {
