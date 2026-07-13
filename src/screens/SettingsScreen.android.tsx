@@ -278,9 +278,12 @@ const OtherHubGroup = memo(function OtherHubGroup({ iconTint, onNavigate }: HubG
 const SettingsScreenInner = () => {
   const { theme } = useTheme();
   const navigation = useNavigation<any>();
-  // 本组件在 <Host> 之外,须显式指定 colorScheme 跟随 app 主题(而非系统深浅色)
+  // Host 外部也使用同一 seed,避免图标色与 Host 内的 Compose 色板不一致。
   const appColorScheme = theme.isDark ? 'dark' : 'light';
-  const colors = useMaterialColors({ colorScheme: appColorScheme });
+  const colors = useMaterialColors({
+    colorScheme: appColorScheme,
+    seedColor: theme.colors.accent,
+  });
   const isLoaded = useSettingsStore((s) => s.isLoaded);
   const loadConfig = useSettingsStore((s) => s.loadConfig);
 
@@ -318,7 +321,7 @@ const SettingsScreenInner = () => {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
       edges={[]}
     >
-      <Host style={styles.container} colorScheme={appColorScheme}>
+      <Host style={styles.container} colorScheme={appColorScheme} seedColor={theme.colors.accent}>
         <LazyColumn
           modifiers={[fillMaxSize()]}
           contentPadding={{ start: 16, end: 16, top: 8, bottom: 40 }}

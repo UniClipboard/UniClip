@@ -39,8 +39,11 @@ const SettingsSubScreenInner = memo(function SettingsSubScreenInner() {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
       edges={[]}
     >
-      {/* colorScheme 跟随 app 主题(而非系统深浅色),保证强制深/浅色时 Compose 主题一致 */}
-      <Host style={styles.container} colorScheme={theme.isDark ? 'dark' : 'light'}>
+      <Host
+        style={styles.container}
+        colorScheme={theme.isDark ? 'dark' : 'light'}
+        seedColor={theme.colors.accent}
+      >
         <LazyColumn
           modifiers={[fillMaxSize()]}
           contentPadding={{ start: 16, end: 16, top: 16, bottom: 40 }}
