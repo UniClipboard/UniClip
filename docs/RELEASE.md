@@ -71,35 +71,54 @@ reaches the iOS `CFBundleShortVersionString`.
 
 ## CHANGES.md Format
 
-The first line of each version section is the bare tag (`vX.Y.Z.B`); the CI
-extracts release notes with:
+The first line of each version section is the bare tag (`vX.Y.Z.B`) — **keep
+that unchanged**, `scripts/validate-release.mjs` parses it. Everything below the
+tag, up to the next tag line, is the notes body for that release.
 
-```sh
-awk 'NR==1{next} /^$/{exit} {print}' CHANGES.md > feature.txt
-```
+iOS and Android ship one shared changelog, but each channel shows its own
+notes. `scripts/release-notes.mjs` splits the top block into per-platform notes
+using three optional sub-headings:
 
-So **keep the first-line tag format unchanged**. Every bullet must be prefixed
-with a provenance tag:
+- `### 通用` (or `Common`) — applies to **both** platforms.
+- `### iOS` — iOS only (GitHub/Gitee Release iOS section + TestFlight "What to
+  Test").
+- `### Android` (or `安卓`) — Android only.
 
-- `[upstream]` — change ported from `Jeric-X/syncclipboard-mobile` or
-  `Jeric-X/SyncClipboard`. Include a ref to the upstream commit/PR when
-  possible.
-- `[uc]` — UniClip-specific change (feature, refactor, branding, UI, etc.).
+From that, CI produces:
+
+- **GitHub / Gitee Release body** — a two-section Markdown body: `🤖 Android`
+  (通用 + Android) and `🍎 iOS` (通用 + iOS).
+- **TestFlight "What to Test"** — the iOS notes (通用 + iOS), written onto the
+  uploaded build via the App Store Connect API in `release.yml`'s `testflight`
+  job.
+
+Bullets may still carry a provenance tag (`[uc]` for UniClip-specific changes,
+`[upstream]` for changes ported from `Jeric-X/syncclipboard-mobile` /
+`Jeric-X/SyncClipboard`, with a commit/PR ref when possible).
+
+Run `node scripts/release-notes.mjs --print` locally to preview both channels
+before pushing.
 
 ### Example
 
 ```
-v1.0.12
-- [upstream] Fix: clipboard sync stops after device sleep (ref: Jeric-X/syncclipboard-mobile@abc1234)
-- [uc] Feature: add in-app APK update notification
-- [uc] Refactor: extract sync coordinator from HomeScreen
+v1.3.0.158
 
-v1.0.11
-- [upstream] Fix: auto-upload SMS verification code stops working after 6h background runtime on Android 14+
-- [uc] Rebrand to UniClip, migrate to UniClipboard/uc-android
-- [uc] Built-in APK update download
-- [uc] New app icon
+### 通用
+- 修复：完成配对后未正确接入待处理的连接
+- [uc] 优化：首页空状态改为按上下文提示
+
+### iOS
+- 功能：保存文件时可自行选择保存位置
+- 修复：分享 / 键盘扩展读取到空的服务器配置
+
+### Android
+- 优化：后台设置简化为单个引导式开关
 ```
+
+**Backward compatible:** a legacy flat block with no sub-headings still works —
+bullets default to 通用, and an inline `（iOS）` / `（Android）` / `（安卓）` tag on a
+single bullet routes just that bullet to the platform.
 
 ## Upstream Sync Workflow
 

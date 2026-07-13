@@ -23,8 +23,13 @@ jobs:
   testflight:
     name: Upload to TestFlight
     runs-on: macos-26
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag_name }}
+
       - name: Select latest Xcode 26
         run: |
           XCODE_APP="$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
@@ -55,6 +60,21 @@ jobs:
           xcrun altool --upload-app --type ios --file "$IPA" \
             --apiKey "$ASC_API_KEY_ID" --apiIssuer "$ASC_API_ISSUER_ID"
 
+      - name: Set TestFlight "What to Test" (iOS notes)
+        continue-on-error: true
+        env:
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+        run: |
+          node scripts/release-notes.mjs
+          BUNDLE_ID=$(node -e "process.stdout.write(require('./app.json').expo.ios.bundleIdentifier)")
+          BUILD_NUMBER=$(node -e "process.stdout.write(String(require('./app.json').expo.ios.buildNumber))")
+          echo "Setting What to Test for $BUNDLE_ID build $BUILD_NUMBER"
+          ruby scripts/asc_whats_to_test.rb \
+            "$ASC_API_KEY_ID" "$ASC_API_ISSUER_ID" \
+            ~/".appstoreconnect/private_keys/AuthKey_${ASC_API_KEY_ID}.p8" \
+            "$BUNDLE_ID" "$BUILD_NUMBER" release-notes-testflight.txt
+
       - name: Clean up API key
         if: always()
         run: rm -f ~/.appstoreconnect/private_keys/AuthKey_*.p8
@@ -68,10 +88,10 @@ jobs:
         with:
           ref: ${{ inputs.tag_name }}
 
-      - name: Extract changelog from CHANGES.md
+      - name: Generate per-platform release notes
         run: |
-          awk 'NR==1{next} /^$/{exit} {print}' CHANGES.md > feature.txt
-          cat feature.txt
+          node scripts/release-notes.mjs
+          cat release-notes-github.md
 
       - name: Download APK artifacts
         uses: actions/download-artifact@v8
@@ -86,7 +106,7 @@ jobs:
           allowUpdates: true
           tag: ${{ inputs.tag_name }}
           prerelease: ${{ contains(inputs.tag_name, '-beta') }}
-          bodyFile: feature.txt
+          bodyFile: release-notes-github.md
           artifacts: apk/*.apk
 
   sync-to-gitee:
@@ -125,9 +145,8 @@ jobs:
         with:
           ref: ${{ inputs.tag_name }}
 
-      - name: Extract changelog from CHANGES.md
-        run: |
-          awk 'NR==1{next} /^$/{exit} {print}' CHANGES.md > feature.txt
+      - name: Generate per-platform release notes
+        run: node scripts/release-notes.mjs
 
       - name: Create Gitee Release
         id: create_release
@@ -160,7 +179,7 @@ jobs:
                   "access_token": os.environ["GITEE_TOKEN"],
                   "tag_name": tag,
                   "name": tag,
-                  "body": open("feature.txt").read(),
+                  "body": open("release-notes-github.md").read(),
                   "prerelease": os.environ["IS_PRERELEASE"] == "true",
                   "target_commitish": "main"
               }

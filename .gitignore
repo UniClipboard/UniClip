@@ -121,3 +121,8 @@ modules/*/build/
 # Regenerated per-variant by @bacons/apple-targets at prebuild; committing it
 # pins one variant's App Groups and breaks the other variant's extensions.
 targets/*/generated.entitlements
+# Generated at release time by scripts/release-notes.mjs
+release-notes-github.md
+release-notes-android.txt
+release-notes-ios.txt
+release-notes-testflight.txt

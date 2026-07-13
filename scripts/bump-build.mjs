@@ -69,6 +69,8 @@ console.log(`  android.versionCode = ${next}, ios.buildNumber = "${next}"`);
 console.log('');
 console.log('Next steps:');
 console.log(`  1. Add a "${tag}" section to the TOP of CHANGES.md (first line = the tag).`);
+console.log('     Group notes under ### 通用 / ### iOS / ### Android sub-headings;');
+console.log('     preview both channels with: node scripts/release-notes.mjs --print');
 console.log('  2. Commit and push the release metadata:');
 console.log(`       git add app.json CHANGES.md`);
 console.log(`       git commit -m "chore(release): ${tag.slice(1)}"`);
