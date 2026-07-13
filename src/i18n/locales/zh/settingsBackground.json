@@ -24,21 +24,32 @@
       "title": "后台上传本地",
       "desc": "后台读取到本机剪贴板变化时自动上传"
     },
-    "overlay": {
-      "title": "通过悬浮窗获取剪贴板",
-      "desc": "后台写入剪贴板会用到，也是自动识别本机复制图片/文件的前提"
+    "clipboardAccess": {
+      "title": "后台剪贴板读取方式",
+      "method": {
+        "overlay": "悬浮窗",
+        "shizuku": "Shizuku"
+      },
+      "authorization": {
+        "title": "读取授权",
+        "ready": "已准备好",
+        "unauthorized": "尚未授权，点击授权",
+        "unavailable": "未安装或未启动 Shizuku，点击查看开启方法",
+        "incompatible": "当前系统的智能剪贴板限制了此方式，请改用悬浮窗"
+      }
     },
     "autoDetect": {
       "title": "自动检测本机复制",
       "enabled": "已启用：复制内容后立即触发同步",
-      "disabled": "未启用：日常可用选中文字菜单里的「上传」；点击复制 adb 授权命令以启用完整后台检测",
+      "setupRequired": "还需电脑授权，点击复制授权命令",
+      "authorizationRequired": "完成上方授权后即可自动检测",
       "copied": "已复制 adb 授权命令"
     }
   },
   "dialog": {
     "enableAutoSync": {
       "title": "开启后台自动同步",
-      "text": "开启后应用将在后台持续同步剪贴板，我们会依次引导你完成 3 项系统授权：忽略电池优化、通知权限、悬浮窗权限。全部允许可获得最佳效果，拒绝也不影响继续使用。",
+      "text": "开启后应用将在后台持续同步剪贴板，我们会依次引导你完成电池、通知和当前剪贴板读取方式所需的授权。全部允许可获得最佳效果，拒绝也不影响继续使用。",
       "confirm": "确认开启"
     },
     "disableNotification": {
@@ -57,10 +68,6 @@
       "text": "无需启用此选项，UniClip 也支持从选中文字弹出的菜单直接上传文字。\n\nAndroid 10 及以上的系统，应用在后台无法直接获取本地剪贴板内容，你可能需要启用悬浮窗或使用其他工具绕过此限制。",
       "confirm": "确认开启"
     },
-    "enableOverlay": {
-      "title": "启用悬浮窗获取剪贴板",
-      "text": "启用后，应用将通过不可见的悬浮窗在后台获取剪贴板内容。这可能导致部分应用因焦点问题产生功能异常以及其他问题。\n\n如果您可以通过其他工具授予 UniClip 后台读取剪贴板的权限，建议关闭此选项。"
-    },
     "batteryFallback": {
       "title": "无法唤起系统弹窗",
       "text": "系统限制每次安装仅允许弹出一次电池优化请求，请前往系统设置手动关闭电池优化。",
@@ -75,8 +82,7 @@
     "downloadDisabled": "已禁用后台下载远程",
     "uploadEnabled": "已启用后台上传本地",
     "uploadDisabled": "已禁用后台上传本地",
-    "overlayEnabled": "已启用悬浮窗获取剪贴板",
-    "overlayDisabled": "已禁用悬浮窗获取剪贴板",
+    "clipboardAccessChanged": "已切换后台剪贴板读取方式",
     "setFailed": "设置失败"
   }
 }

@@ -24,21 +24,32 @@
       "title": "Upload local clipboard",
       "desc": "Automatically upload when the local clipboard changes in the background"
     },
-    "overlay": {
-      "title": "Read clipboard via overlay",
-      "desc": "Used for background clipboard writes; also required to auto-detect copied images/files"
+    "clipboardAccess": {
+      "title": "Background clipboard access",
+      "method": {
+        "overlay": "Overlay",
+        "shizuku": "Shizuku"
+      },
+      "authorization": {
+        "title": "Clipboard access",
+        "ready": "Ready",
+        "unauthorized": "Not authorized; tap to authorize",
+        "unavailable": "Shizuku is not installed or running; tap for setup instructions",
+        "incompatible": "The system's smart clipboard blocks this method; use Overlay instead"
+      }
     },
     "autoDetect": {
       "title": "Auto-detect local copies",
       "enabled": "Enabled: syncing triggers right after you copy",
-      "disabled": "Disabled: use the \"Upload\" action from the text-selection menu day to day; tap to copy the adb command that enables full background detection",
+      "setupRequired": "Computer setup is still required; tap to copy the authorization command",
+      "authorizationRequired": "Complete clipboard access above to enable automatic detection",
       "copied": "adb command copied"
     }
   },
   "dialog": {
     "enableAutoSync": {
       "title": "Enable background auto-sync",
-      "text": "Once enabled, the app keeps syncing the clipboard in the background. We'll guide you through 3 system permissions: ignore battery optimization, notifications, and overlay access. Allowing all of them gives the best result, but declining still lets you keep using the app.",
+      "text": "Once enabled, the app keeps syncing the clipboard in the background. We'll guide you through battery, notification, and clipboard access for the selected method. Allowing all of them gives the best result, but declining still lets you keep using the app.",
       "confirm": "Enable"
     },
     "disableNotification": {
@@ -57,10 +68,6 @@
       "text": "You don't need to enable this option — UniClip also lets you upload text directly from the menu that pops up when you select text.\n\nOn Android 10 and above, apps can't directly read the local clipboard in the background. You may need to enable the overlay or use another tool to work around this limitation.",
       "confirm": "Enable"
     },
-    "enableOverlay": {
-      "title": "Enable overlay to read clipboard",
-      "text": "Once enabled, the app reads the clipboard in the background through an invisible overlay. This may cause some apps to malfunction due to focus issues, among other problems.\n\nIf you can grant UniClip background clipboard access through another tool, we recommend turning this off."
-    },
     "batteryFallback": {
       "title": "Can't open system dialog",
       "text": "The system only allows the battery optimization request to appear once per installation. Please turn off battery optimization manually in system settings.",
@@ -75,8 +82,7 @@
     "downloadDisabled": "Background remote download disabled",
     "uploadEnabled": "Background local upload enabled",
     "uploadDisabled": "Background local upload disabled",
-    "overlayEnabled": "Overlay clipboard access enabled",
-    "overlayDisabled": "Overlay clipboard access disabled",
+    "clipboardAccessChanged": "Background clipboard access method changed",
     "setFailed": "Failed to update setting"
   }
 }

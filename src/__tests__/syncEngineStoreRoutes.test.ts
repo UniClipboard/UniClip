@@ -1,6 +1,7 @@
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useSyncEngineStore } from '@/stores/syncEngineStore';
 import { SyncEngine } from '@/services/SyncEngine';
+import { AppState } from 'react-native';
 
 jest.mock('@/services/SyncEngine', () => ({
   SyncEngine: jest.fn().mockImplementation((options) => ({
@@ -8,6 +9,7 @@ jest.mock('@/services/SyncEngine', () => ({
     init: jest.fn().mockResolvedValue(undefined),
     start: jest.fn(),
     stop: jest.fn(),
+    setSceneInactive: jest.fn(),
     destroy: jest.fn(),
     addListener: jest.fn(),
     getStatus: jest.fn(),
@@ -81,6 +83,7 @@ jest.mock('@/services/db/historyRepository', () => {
 
 jest.mock('react-native', () => ({
   AppState: {
+    currentState: 'active',
     addEventListener: jest.fn(() => ({ remove: jest.fn() })),
   },
   Platform: {
@@ -92,6 +95,7 @@ describe('syncEngineStore route config', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     useSyncEngineStore.getState().stop();
+    (AppState as { currentState: string }).currentState = 'active';
     useSettingsStore.setState({
       config: {
         servers: [
@@ -141,6 +145,43 @@ describe('syncEngineStore route config', () => {
 
     const engineInstance = (SyncEngine as jest.Mock).mock.results[0].value;
     expect(engineInstance.notifyLocalChanged).toHaveBeenCalled();
+  });
+
+  it('allows local pushes while background upload is enabled', async () => {
+    (AppState as { currentState: string }).currentState = 'background';
+    useSettingsStore.setState((state) => ({
+      config: {
+        ...state.config,
+        autoPushLocal: false,
+        enableBackgroundTasks: true,
+        enableBackgroundUpload: true,
+      } as any,
+    }));
+
+    await useSyncEngineStore.getState().start();
+
+    const engineOptions = (SyncEngine as jest.Mock).mock.calls[0][0];
+    expect(engineOptions.getSettings().autoPushLocal).toBe(true);
+  });
+
+  it('keeps remote sync running in the background when background download is enabled', async () => {
+    useSettingsStore.setState((state) => ({
+      config: {
+        ...state.config,
+        enableBackgroundTasks: true,
+        enableBackgroundDownload: true,
+      } as any,
+    }));
+    await useSyncEngineStore.getState().start();
+    const engineInstance = (SyncEngine as jest.Mock).mock.results[0].value;
+    const appStateListener = (AppState.addEventListener as jest.Mock).mock.calls.find(
+      ([eventName]) => eventName === 'change'
+    )?.[1];
+
+    (AppState as { currentState: string }).currentState = 'background';
+    appStateListener('background');
+
+    expect(engineInstance.stop).not.toHaveBeenCalled();
   });
 
   // 回归:文本→文件连续应用后,系统剪贴板残留旧文本(File 写不进系统剪贴板)。

@@ -3,6 +3,8 @@ describe('clipboardStore initial clipboard read', () => {
   let getClipboardContent: jest.Mock;
   let checkAndUpdateLastContent: jest.Mock;
   let startMonitor: jest.Mock;
+  let stopMonitor: jest.Mock;
+  let addCallback: jest.Mock;
   let notifyDeviceClipboardChanged: jest.Mock;
 
   beforeEach(() => {
@@ -19,6 +21,8 @@ describe('clipboardStore initial clipboard read', () => {
     });
     checkAndUpdateLastContent = jest.fn().mockResolvedValue(true);
     startMonitor = jest.fn().mockResolvedValue(undefined);
+    stopMonitor = jest.fn();
+    addCallback = jest.fn();
     notifyDeviceClipboardChanged = jest.fn();
 
     jest.doMock('../services', () => ({
@@ -26,10 +30,10 @@ describe('clipboardStore initial clipboard read', () => {
         getClipboardContent,
       },
       clipboardMonitor: {
-        addCallback: jest.fn(),
+        addCallback,
         removeCallback: jest.fn(),
         start: startMonitor,
-        stop: jest.fn(),
+        stop: stopMonitor,
         updatePollingInterval: jest.fn(),
         checkAndUpdateLastContent,
         setLastContent: jest.fn(),
@@ -83,5 +87,30 @@ describe('clipboardStore initial clipboard read', () => {
         profileHash: 'LOCAL_HASH',
       })
     );
+  });
+
+  it('force restarts monitoring without registering the store callback twice', async () => {
+    const { useClipboardStore } = require('../stores/clipboardStore');
+
+    await useClipboardStore.getState().startMonitoring();
+    await useClipboardStore.getState().restartMonitoring();
+
+    expect(stopMonitor).toHaveBeenCalledTimes(1);
+    expect(startMonitor).toHaveBeenCalledTimes(2);
+    expect(addCallback).toHaveBeenCalledTimes(1);
+    expect(useClipboardStore.getState().isMonitoring).toBe(true);
+  });
+
+  it('coalesces concurrent monitoring restart requests', async () => {
+    const { useClipboardStore } = require('../stores/clipboardStore');
+
+    await useClipboardStore.getState().startMonitoring();
+    await Promise.all([
+      useClipboardStore.getState().restartMonitoring(),
+      useClipboardStore.getState().restartMonitoring(),
+    ]);
+
+    expect(stopMonitor).toHaveBeenCalledTimes(1);
+    expect(startMonitor).toHaveBeenCalledTimes(2);
   });
 });

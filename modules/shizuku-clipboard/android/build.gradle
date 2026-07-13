@@ -1,0 +1,25 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'app.uniclipboard'
+version = '1.0.0'
+
+android {
+  namespace "expo.modules.shizukuclipboard"
+  defaultConfig {
+    versionCode 1
+    versionName "1.0.0"
+  }
+  buildFeatures {
+    aidl true
+  }
+}
+
+dependencies {
+  def shizukuVersion = "13.1.5"
+  implementation "dev.rikka.shizuku:api:$shizukuVersion"
+  implementation "dev.rikka.shizuku:provider:$shizukuVersion"
+  implementation 'androidx.core:core-ktx:1.17.0'
+}

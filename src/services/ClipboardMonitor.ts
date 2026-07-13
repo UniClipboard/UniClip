@@ -10,6 +10,8 @@ import { ClipboardContent, ClipboardChangeCallback, ClipboardMonitorOptions } fr
 import { setTimer, clearTimer } from 'native-timer';
 import { getPasteboardChangeCount } from 'app-group-store';
 import * as ClipboardProxy from '@/utils/clipboardProxy';
+import { getBackgroundClipboardAdapter } from '@/utils/androidBackgroundClipboardAccess';
+import type { BackgroundClipboardAdapter } from '@/utils/backgroundClipboardAccess';
 
 const LAST_CLIPBOARD_HASH_KEY = '@last_clipboard_hash';
 const IOS_DENIED_CHANGE_COUNT_KEY = '@ios_pasteboard_denied_change_count';
@@ -53,6 +55,7 @@ export class ClipboardMonitor {
 
   // 事件驱动监听状态（Android + READ_LOGS 已授时启用，替代轮询）
   private eventMonitorActive: boolean = false;
+  private eventMonitorAdapter: BackgroundClipboardAdapter | null = null;
   private eventSubscription: { remove: () => void } | null = null;
   // pausePolling/resumePolling 期间同时门控事件回调，防止「程序内写入剪贴板」
   // 触发原生 listener 被误判为用户新复制而回环上传。
@@ -139,7 +142,9 @@ export class ClipboardMonitor {
     }
 
     log.info(
-      `[ClipboardMonitor] Started monitoring (${this.eventMonitorActive ? 'event-driven' : 'polling'})`
+      `[ClipboardMonitor] Started monitoring (${
+        this.eventMonitorActive ? 'event-driven' : 'polling'
+      })`
     );
   }
 
@@ -349,20 +354,14 @@ export class ClipboardMonitor {
   private async tryStartEventMonitor(): Promise<boolean> {
     if (Platform.OS !== 'android') return false;
     try {
-      const overlay = require('clipboard-overlay') as typeof import('clipboard-overlay');
-      if (!overlay.hasReadLogsPermission()) return false;
-
-      // 先订阅再启动，避免漏掉启动瞬间的事件
-      this.eventSubscription = overlay.addClipboardChangeListener((event) => {
+      const adapter = getBackgroundClipboardAdapter('monitor');
+      if (!adapter) return false;
+      const monitor = await adapter.startMonitoring((event) => {
         void this.handleClipboardEvent(event);
       });
-
-      const ok = await overlay.startClipboardMonitor();
-      if (!ok) {
-        this.eventSubscription?.remove();
-        this.eventSubscription = null;
-        return false;
-      }
+      if (!monitor) return false;
+      this.eventSubscription = monitor;
+      this.eventMonitorAdapter = adapter;
       this.eventMonitorActive = true;
       return true;
     } catch (error) {
@@ -383,13 +382,8 @@ export class ClipboardMonitor {
       this.eventSubscription = null;
     }
     if (this.eventMonitorActive) {
-      try {
-        const overlay = require('clipboard-overlay') as typeof import('clipboard-overlay');
-        void overlay.stopClipboardMonitor();
-      } catch {
-        /* ignore */
-      }
       this.eventMonitorActive = false;
+      this.eventMonitorAdapter = null;
     }
   }
 
@@ -406,14 +400,8 @@ export class ClipboardMonitor {
         const content = await this.clipboardManager.buildTextContent(event.content);
         await this.emitIfChanged(content);
       } else {
-        // 图片/文件：需再次读取系统剪贴板取实际内容，事件期间放开按需悬浮窗读取
-        const { setOnDemandRead } = require('@/utils/clipboardProxy');
-        setOnDemandRead(true);
-        try {
-          await this.checkClipboard();
-        } finally {
-          setOnDemandRead(false);
-        }
+        const read = () => this.checkClipboard();
+        await (this.eventMonitorAdapter?.runTriggeredRead(read) ?? read());
       }
     } catch (error) {
       log.error('[ClipboardMonitor] Failed to handle clipboard event:', error);

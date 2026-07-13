@@ -115,6 +115,21 @@ describe('migrateConfig', () => {
     expect(result.downloadRelativePath).toBe('');
   });
 
+  it('uses overlay access for existing Android installs by default', () => {
+    const result = migrateConfig({ enableClipboardOverlay: false });
+    expect(result.clipboardAccessMethod).toBe('overlay');
+  });
+
+  it('keeps Shizuku selected when migrating a build that previously enabled it', () => {
+    const result = migrateConfig({ enableShizukuClipboard: true });
+    expect(result.clipboardAccessMethod).toBe('shizuku');
+  });
+
+  it('preserves an explicit clipboard access method', () => {
+    const result = migrateConfig({ clipboardAccessMethod: 'shizuku' });
+    expect(result.clipboardAccessMethod).toBe('shizuku');
+  });
+
   // --- passthrough for SyncManager internals ---
 
   it('preserves syncMode when present', () => {

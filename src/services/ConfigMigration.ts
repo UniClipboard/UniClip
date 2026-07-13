@@ -15,6 +15,7 @@ const DEPRECATED_KEYS = [
   'theme',
   'historyImageAutoDownload',
   'syncInBackground',
+  'enableShizukuClipboard',
 ] as const;
 
 export function migrateConfig(raw: unknown): AppSettings {
@@ -53,6 +54,11 @@ export function migrateConfig(raw: unknown): AppSettings {
   // syncInBackground → enableBackgroundTasks
   if ('syncInBackground' in old && !('enableBackgroundTasks' in old)) {
     result.enableBackgroundTasks = !!old.syncInBackground;
+  }
+
+  // Builds before schema v3 exposed Shizuku as a standalone boolean.
+  if (!('clipboardAccessMethod' in old)) {
+    result.clipboardAccessMethod = old.enableShizukuClipboard === true ? 'shizuku' : 'overlay';
   }
 
   return result as unknown as AppSettings;

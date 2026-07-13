@@ -54,6 +54,7 @@ export interface AndroidSettings {
   enableBackgroundTasks: boolean;
   enableBackgroundDownload: boolean;
   enableBackgroundUpload: boolean;
+  clipboardAccessMethod: 'overlay' | 'shizuku';
   enableClipboardOverlay: boolean;
   enableSmsForwarding: boolean;
   enableForegroundNotification: boolean;
@@ -132,6 +133,7 @@ export const ANDROID_DEFAULTS: AndroidSettings = {
   enableBackgroundTasks: false,
   enableBackgroundDownload: false,
   enableBackgroundUpload: false,
+  clipboardAccessMethod: 'overlay',
   enableClipboardOverlay: false,
   enableSmsForwarding: false,
   enableForegroundNotification: true,
@@ -169,4 +171,4 @@ export const RUNTIME_STATE_DEFAULTS: RuntimeState = {
   needsHistoryReorganize: false,
 };
 
-export const SETTINGS_SCHEMA_VERSION = 2;
+export const SETTINGS_SCHEMA_VERSION = 3;

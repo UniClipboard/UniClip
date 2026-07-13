@@ -57,12 +57,31 @@ function getActiveServerInfo() {
 }
 
 function getSettings(): SyncSettings {
-  const config = useSettingsStore.getState().config;
+  const settings = useSettingsStore.getState();
+  const config = settings.config;
+  const appIsBackground = AppState.currentState !== 'active';
+  const backgroundTasksEnabled =
+    !settings.isTempDisabledBackgroundTasks && (config?.enableBackgroundTasks ?? false);
+  const backgroundDownloadEnabled =
+    backgroundTasksEnabled && (config?.enableBackgroundDownload ?? false);
+  const backgroundUploadEnabled =
+    backgroundTasksEnabled && (config?.enableBackgroundUpload ?? false);
   return {
-    autoApplyRemote: config?.autoApplyRemote ?? true,
-    autoPushLocal: config?.autoPushLocal ?? false,
+    autoApplyRemote:
+      (config?.autoApplyRemote ?? true) && (!appIsBackground || backgroundDownloadEnabled),
+    autoPushLocal: (config?.autoPushLocal ?? false) || (appIsBackground && backgroundUploadEnabled),
     enableSse: config?.enableSse ?? true,
   };
+}
+
+function shouldKeepRemoteSyncRunningInBackground(): boolean {
+  const settings = useSettingsStore.getState();
+  const config = settings.config;
+  return !!(
+    !settings.isTempDisabledBackgroundTasks &&
+    config?.enableBackgroundTasks &&
+    config.enableBackgroundDownload
+  );
 }
 
 /**
@@ -249,11 +268,18 @@ export const useSyncEngineStore = create<SyncEngineState>((set) => ({
       if (!engine) return;
       if (state === 'active') {
         engine.setSceneInactive(false);
+        void engine.applySettings();
         engine.start();
       } else if (state === 'inactive') {
         engine.setSceneInactive(true);
       } else if (state === 'background') {
-        engine.stop();
+        engine.setSceneInactive(true);
+        void engine.applySettings();
+        if (shouldKeepRemoteSyncRunningInBackground()) {
+          engine.start();
+        } else {
+          engine.stop();
+        }
       }
     });
 

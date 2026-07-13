@@ -12,6 +12,7 @@ module.exports = {
     '^signalr-client$': '<rootDir>/modules/signalr-client/src',
     '^native-timer$': '<rootDir>/modules/native-timer/src',
     '^foreground-service$': '<rootDir>/modules/foreground-service/src',
+    '^shizuku-clipboard$': '<rootDir>/modules/shizuku-clipboard/src',
     '^shortcut$': '<rootDir>/modules/shortcut/src',
     '^qr-scanner$': '<rootDir>/modules/qr-scanner/src',
   },

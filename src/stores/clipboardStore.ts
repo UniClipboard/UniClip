@@ -14,6 +14,9 @@ function notifySyncEngine(content: ClipboardContent): void {
   notifyDeviceClipboardChanged(content);
 }
 
+let storeMonitorCallbackRegistered = false;
+let restartMonitoringPromise: Promise<void> | null = null;
+
 /**
  * 剪贴板状态接口
  */
@@ -49,6 +52,9 @@ interface ClipboardState {
 
   /** 停止监听剪贴板 */
   stopMonitoring: () => void;
+
+  /** 强制重启监听，用于切换后台剪贴板访问方式 */
+  restartMonitoring: () => Promise<void>;
 
   /** 更新本地轮询间隔 */
   updatePollingInterval: (interval: number) => void;
@@ -243,30 +249,33 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
 
     set({ isMonitoring: true });
 
-    clipboardMonitor.addCallback(async (content) => {
-      log.info('[ClipboardStore] Clipboard content updated:', {
-        type: content.type,
-        localClipboardHash: content.localClipboardHash?.substring(0, 8),
+    if (!storeMonitorCallbackRegistered) {
+      clipboardMonitor.addCallback(async (content) => {
+        log.info('[ClipboardStore] Clipboard content updated:', {
+          type: content.type,
+          localClipboardHash: content.localClipboardHash?.substring(0, 8),
 
-        timestamp: content.timestamp,
-      });
-      set({ currentContent: content });
+          timestamp: content.timestamp,
+        });
+        set({ currentContent: content });
 
-      // 添加到历史记录
-      const historyItem = createDefaultClipboardItem({
-        type: content.type,
-        text: content.text || '',
-        profileHash: content.profileHash || '',
-        hasData: !!(content.fileName || content.fileUri),
-        dataName: content.fileName,
-        size: content.fileSize,
-        timestamp: content.timestamp || Date.now(),
-        fileUri: content.fileUri,
-        localClipboardHash: content.localClipboardHash,
+        // 添加到历史记录
+        const historyItem = createDefaultClipboardItem({
+          type: content.type,
+          text: content.text || '',
+          profileHash: content.profileHash || '',
+          hasData: !!(content.fileName || content.fileUri),
+          dataName: content.fileName,
+          size: content.fileSize,
+          timestamp: content.timestamp || Date.now(),
+          fileUri: content.fileUri,
+          localClipboardHash: content.localClipboardHash,
+        });
+        await useHistoryStore.getState().addItem(historyItem);
+        notifySyncEngine(content);
       });
-      await useHistoryStore.getState().addItem(historyItem);
-      notifySyncEngine(content);
-    });
+      storeMonitorCallbackRegistered = true;
+    }
 
     await clipboardMonitor.start();
 
@@ -293,6 +302,18 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
 
     clipboardMonitor.stop();
     set({ isMonitoring: false });
+  },
+
+  restartMonitoring: async () => {
+    if (restartMonitoringPromise) return restartMonitoringPromise;
+    restartMonitoringPromise = (async () => {
+      clipboardMonitor.stop();
+      set({ isMonitoring: false });
+      await get().startMonitoring();
+    })().finally(() => {
+      restartMonitoringPromise = null;
+    });
+    return restartMonitoringPromise;
   },
 
   updatePollingInterval: (interval: number) => {

@@ -11,26 +11,35 @@
  * Alert.alert 确认统一走单个配置驱动的 Compose AlertDialog(挂在卡片一上;Compose
  * Dialog 是 window 级 overlay,挂载位置不影响展示)。失败回滚交给 store。
  */
-import React, { memo, useEffect, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Platform, Linking, AppState } from 'react-native';
 import {
+  Column,
   ListItem,
   Switch as ComposeSwitch,
   AlertDialog,
   TextButton,
   HorizontalDivider,
+  SingleChoiceSegmentedButtonRow,
+  SegmentedButton,
   Text as ComposeText,
+  Spacer,
 } from '@expo/ui/jetpack-compose';
-import { clickable } from '@expo/ui/jetpack-compose/modifiers';
-import * as Application from 'expo-application';
-import * as Clipboard from 'expo-clipboard';
 import {
-  hasOverlayPermission,
-  requestOverlayPermission,
-  hasReadLogsPermission,
-} from 'clipboard-overlay';
-import { useSettingsStore } from '@/stores';
+  clickable,
+  fillMaxWidth,
+  height as heightModifier,
+  padding,
+} from '@expo/ui/jetpack-compose/modifiers';
+import * as Clipboard from 'expo-clipboard';
+import { useClipboardStore, useSettingsStore } from '@/stores';
+import {
+  changeClipboardAccessMethod,
+  getClipboardAccessAdapter,
+} from '@/utils/androidBackgroundClipboardAccess';
+import type { ClipboardAuthorizationState } from '@/utils/backgroundClipboardAccess';
+import { refreshBackgroundClipboardAuthorization } from '@/utils/backgroundClipboardAccess';
 import { useSettingsToast } from './SettingsToastContext';
 import { SettingsSectionItem } from './SettingsSectionItem';
 
@@ -73,11 +82,15 @@ export const BackgroundSection = memo(function BackgroundSection() {
   );
   const backgroundDownload = useSettingsStore((s) => s.config?.enableBackgroundDownload ?? false);
   const backgroundUpload = useSettingsStore((s) => s.config?.enableBackgroundUpload ?? false);
-  const clipboardOverlay = useSettingsStore((s) => s.config?.enableClipboardOverlay ?? false);
+  const clipboardAccessMethod = useSettingsStore(
+    (s) => s.config?.clipboardAccessMethod ?? 'overlay'
+  );
 
   const [dialog, setDialog] = useState<BgDialog | null>(null);
   const [permBattery, setPermBattery] = useState(false);
-  const [readLogsGranted, setReadLogsGranted] = useState(false);
+  const [clipboardAccessState, setClipboardAccessState] = useState<ClipboardAuthorizationState>(
+    () => getClipboardAccessAdapter(clipboardAccessMethod).getAuthorizationState()
+  );
   const hasBatteryOptRequested = useRef(false);
 
   const refreshBatteryPermission = () => {
@@ -89,28 +102,34 @@ export const BackgroundSection = memo(function BackgroundSection() {
       .catch(() => {});
   };
 
-  /** READ_LOGS 只能靠 adb 授予/撤销,应用内无法感知变化时机,回到前台时重新查一次。 */
-  const refreshReadLogsPermission = () => {
-    if (Platform.OS !== 'android') return;
-    try {
-      setReadLogsGranted(hasReadLogsPermission());
-    } catch {
-      setReadLogsGranted(false);
-    }
-  };
+  const refreshClipboardAccessState = useCallback(() => {
+    setClipboardAccessState(
+      getClipboardAccessAdapter(clipboardAccessMethod).getAuthorizationState()
+    );
+  }, [clipboardAccessMethod]);
 
   useEffect(() => {
     if (Platform.OS !== 'android') return;
     refreshBatteryPermission();
-    refreshReadLogsPermission();
+    refreshClipboardAccessState();
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
         refreshBatteryPermission();
-        refreshReadLogsPermission();
+        refreshClipboardAccessState();
       }
     });
     return () => sub.remove();
-  }, []);
+  }, [refreshClipboardAccessState]);
+
+  useEffect(() => {
+    const adapter = getClipboardAccessAdapter(clipboardAccessMethod);
+    const subscription = adapter.addAuthorizationChangeListener(() => {
+      void refreshBackgroundClipboardAuthorization(adapter, setClipboardAccessState, () =>
+        useClipboardStore.getState().restartMonitoring()
+      );
+    });
+    return () => subscription.remove();
+  }, [clipboardAccessMethod]);
 
   /** 开启总开关后依次引导:忽略电池优化 → 通知权限 → 悬浮窗权限。 */
   const runPermissionOnboarding = async () => {
@@ -135,15 +154,17 @@ export const BackgroundSection = memo(function BackgroundSection() {
       // 忽略:部分系统版本无此权限项
     }
 
-    if (!hasOverlayPermission()) {
-      requestOverlayPermission();
+    const adapter = getClipboardAccessAdapter(
+      useSettingsStore.getState().config?.clipboardAccessMethod ?? 'overlay'
+    );
+    await adapter.activate();
+    const authorization = adapter.getAuthorizationState();
+    if (authorization.status === 'unavailable' && authorization.setupUrl) {
+      await Linking.openURL(authorization.setupUrl);
+    } else if (authorization.status !== 'ready' && adapter.requestAuthorization()) {
       await waitForNextActiveState();
-      if (hasOverlayPermission()) {
-        await useSettingsStore.getState().setEnableClipboardOverlay(true);
-      }
-    } else {
-      await useSettingsStore.getState().setEnableClipboardOverlay(true);
     }
+    refreshClipboardAccessState();
   };
 
   const handleToggleBackgroundTasks = async (enabled: boolean) => {
@@ -262,42 +283,41 @@ export const BackgroundSection = memo(function BackgroundSection() {
     }
   };
 
-  const handleToggleClipboardOverlay = async (enabled: boolean) => {
-    if (enabled && Platform.OS === 'android') {
-      setDialog({
-        title: t('dialog.enableOverlay.title'),
-        text: t('dialog.enableOverlay.text'),
-        confirmLabel: t('action.confirm', { ns: 'common' }),
-        dismissLabel: t('action.cancel', { ns: 'common' }),
-        onConfirm: async () => {
-          if (!hasOverlayPermission()) {
-            requestOverlayPermission();
-            return;
-          }
-          try {
-            await useSettingsStore.getState().setEnableClipboardOverlay(true);
-            showMessage(t('toast.overlayEnabled'), 'success');
-          } catch (error: unknown) {
-            showMessage(error instanceof Error ? error.message : t('toast.setFailed'), 'error');
-          }
-        },
-      });
-      return;
-    }
-
+  const handleSetClipboardAccessMethod = async (method: 'overlay' | 'shizuku') => {
     try {
-      await useSettingsStore.getState().setEnableClipboardOverlay(enabled);
-      showMessage(enabled ? t('toast.overlayEnabled') : t('toast.overlayDisabled'), 'success');
+      await changeClipboardAccessMethod(
+        clipboardAccessMethod,
+        method,
+        (nextMethod) =>
+          useSettingsStore.getState().updateConfig({ clipboardAccessMethod: nextMethod }),
+        () => useClipboardStore.getState().restartMonitoring()
+      );
+      setClipboardAccessState(getClipboardAccessAdapter(method).getAuthorizationState());
+      showMessage(t('toast.clipboardAccessChanged'), 'success');
     } catch (error: unknown) {
       showMessage(error instanceof Error ? error.message : t('toast.setFailed'), 'error');
     }
   };
 
-  /** 未授权 READ_LOGS 时,点击状态行把 adb 授权命令复制到剪贴板,供电脑侧直接粘贴执行。 */
-  const handleCopyReadLogsCommand = async () => {
+  const handleAuthorizeClipboardAccess = async () => {
     try {
-      const pkg = Application.applicationId ?? 'app.uniclipboard.android';
-      await Clipboard.setStringAsync(`adb shell pm grant ${pkg} android.permission.READ_LOGS`);
+      const adapter = getClipboardAccessAdapter(clipboardAccessMethod);
+      const authorization = adapter.getAuthorizationState();
+      if (authorization.setupUrl) {
+        await Linking.openURL(authorization.setupUrl);
+      } else {
+        adapter.requestAuthorization();
+      }
+      refreshClipboardAccessState();
+    } catch (error: unknown) {
+      showMessage(error instanceof Error ? error.message : t('toast.setFailed'), 'error');
+    }
+  };
+
+  const handleClipboardMonitoringSetup = async () => {
+    if (!clipboardAccessState.setupCommand) return;
+    try {
+      await Clipboard.setStringAsync(clipboardAccessState.setupCommand);
       showMessage(t('advanced.autoDetect.copied'), 'success');
     } catch (error: unknown) {
       showMessage(error instanceof Error ? error.message : t('toast.setFailed'), 'error');
@@ -444,33 +464,63 @@ export const BackgroundSection = memo(function BackgroundSection() {
 
         <HorizontalDivider />
 
-        <ListItem>
+        <Column modifiers={[fillMaxWidth(), padding(16, 12, 16, 12)]}>
+          <ComposeText style={{ fontSize: 15, fontWeight: '500' }}>
+            {t('advanced.clipboardAccess.title')}
+          </ComposeText>
+          <Spacer modifiers={[heightModifier(12)]} />
+          <SingleChoiceSegmentedButtonRow modifiers={[fillMaxWidth()]}>
+            {(['overlay', 'shizuku'] as const).map((method) => (
+              <SegmentedButton
+                key={method}
+                selected={clipboardAccessMethod === method}
+                onClick={() => handleSetClipboardAccessMethod(method)}
+              >
+                <SegmentedButton.Label>
+                  <ComposeText>{t(`advanced.clipboardAccess.method.${method}`)}</ComposeText>
+                </SegmentedButton.Label>
+              </SegmentedButton>
+            ))}
+          </SingleChoiceSegmentedButtonRow>
+        </Column>
+
+        <HorizontalDivider />
+
+        <ListItem
+          modifiers={
+            clipboardAccessState.status === 'ready' ||
+            clipboardAccessState.status === 'incompatible'
+              ? []
+              : [clickable(handleAuthorizeClipboardAccess)]
+          }
+        >
           <ListItem.HeadlineContent>
-            <ComposeText>{t('advanced.overlay.title')}</ComposeText>
+            <ComposeText>{t('advanced.clipboardAccess.authorization.title')}</ComposeText>
           </ListItem.HeadlineContent>
           <ListItem.SupportingContent>
-            <ComposeText>{t('advanced.overlay.desc')}</ComposeText>
+            <ComposeText>
+              {t(`advanced.clipboardAccess.authorization.${clipboardAccessState.status}`)}
+            </ComposeText>
           </ListItem.SupportingContent>
-          <ListItem.TrailingContent>
-            <ComposeSwitch
-              value={backgroundTasksEnabled && clipboardOverlay}
-              onCheckedChange={handleToggleClipboardOverlay}
-              enabled={backgroundTasksEnabled}
-            />
-          </ListItem.TrailingContent>
         </ListItem>
 
         <HorizontalDivider />
 
-        <ListItem modifiers={readLogsGranted ? [] : [clickable(handleCopyReadLogsCommand)]}>
+        <ListItem
+          modifiers={
+            clipboardAccessState.setupCommand ? [clickable(handleClipboardMonitoringSetup)] : []
+          }
+        >
           <ListItem.HeadlineContent>
             <ComposeText>{t('advanced.autoDetect.title')}</ComposeText>
           </ListItem.HeadlineContent>
           <ListItem.SupportingContent>
             <ComposeText>
-              {readLogsGranted
+              {clipboardAccessState.monitoringStatus === 'ready'
                 ? t('advanced.autoDetect.enabled')
-                : t('advanced.autoDetect.disabled')}
+                : clipboardAccessState.setupCommand
+                  ? t('advanced.autoDetect.setupRequired')
+                  : t('advanced.autoDetect.authorizationRequired')}
             </ComposeText>
           </ListItem.SupportingContent>
         </ListItem>
