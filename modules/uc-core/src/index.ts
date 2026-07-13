@@ -320,6 +320,13 @@ function toSyncedMeta(m: any): SyncedMeta {
   };
 }
 
+function normalizeNativeSyncError(error: unknown): string {
+  if (typeof error === 'string' && error.trim().length > 0) {
+    return error.trim();
+  }
+  return 'Native sync failed without error details';
+}
+
 /**
  * 把 native 桥返回的 outcome map 规范成干净的 tagged union。桥为规避 Android 嵌套字节
  * 编组,把 Applied 的 payload 放在顶层——这里归位到 content.payload,并把缺省字段
@@ -356,7 +363,7 @@ function normalizeOutcome(raw: any): SyncOutcome {
     case 'LoopDetected':
       return { tag: 'LoopDetected' };
     case 'Failed':
-      return { tag: 'Failed', error: raw.error ?? 'unknown error' };
+      return { tag: 'Failed', error: normalizeNativeSyncError(raw.error) };
     default:
       return { tag: 'Failed', error: `unknown outcome tag: ${String(raw?.tag)}` };
   }

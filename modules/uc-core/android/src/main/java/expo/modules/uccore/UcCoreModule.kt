@@ -385,6 +385,22 @@ private fun localContentToMap(c: LocalContent): Map<String, Any?> = mapOf(
     "dataName" to c.dataName
 )
 
+private fun syncErrorToMessage(error: SyncException): String = when (error) {
+    is SyncException.NotInitialized -> "sync engine not initialized"
+    is SyncException.InvalidInput -> "invalid input: ${error.reason}"
+    is SyncException.Network -> error.reason
+        .takeIf { it.isNotBlank() }
+        ?.let { "network: $it" }
+        ?: "network error"
+    is SyncException.Unauthorized -> "unauthorized (401): check username/password"
+    is SyncException.NotFound -> "not found (404)"
+    is SyncException.ServerException -> "server error (HTTP ${error.status})"
+    is SyncException.ProtocolException -> "protocol error (HTTP ${error.status})"
+    is SyncException.DecodingFailed -> "decoding failed: ${error.reason}"
+    is SyncException.Cancelled -> "cancelled"
+    is SyncException.Internal -> "internal: ${error.reason}"
+}
+
 private fun syncOutcomeToMap(o: SyncOutcome): Map<String, Any?> = when (o) {
     is SyncOutcome.Uploaded -> mapOf("tag" to "Uploaded", "meta" to syncedMetaToMap(o.meta))
     is SyncOutcome.Applied -> mapOf(
@@ -397,7 +413,7 @@ private fun syncOutcomeToMap(o: SyncOutcome): Map<String, Any?> = when (o) {
     is SyncOutcome.UpToDate -> mapOf("tag" to "UpToDate", "reason" to upToDateReasonToString(o.reason))
     is SyncOutcome.BackingOff -> mapOf("tag" to "BackingOff", "retryAfterMs" to o.retryAfterMs)
     SyncOutcome.LoopDetected -> mapOf("tag" to "LoopDetected")
-    is SyncOutcome.Failed -> mapOf("tag" to "Failed", "error" to (o.error.message ?: o.error.toString()))
+    is SyncOutcome.Failed -> mapOf("tag" to "Failed", "error" to syncErrorToMessage(o.error))
 }
 
 private fun serverFromMap(map: Map<String, String>): ServerConfig {

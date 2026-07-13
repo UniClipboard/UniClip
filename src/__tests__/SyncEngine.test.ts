@@ -14,6 +14,18 @@ import { SyncEngine, type DeviceClipboard } from '../services/SyncEngine';
 import { setCurrentNetworkContext } from '../services/networkContext';
 import { HistorySyncStatus } from '@/types/clipboard';
 
+const mockLogError = jest.fn();
+const mockLogInfo = jest.fn();
+
+jest.mock('../services/Logger', () => ({
+  log: {
+    debug: jest.fn(),
+    info: (...args: unknown[]) => mockLogInfo(...args),
+    warn: jest.fn(),
+    error: (...args: unknown[]) => mockLogError(...args),
+  },
+}));
+
 const mockGetHistoryItem = jest.fn();
 jest.mock('@/services', () => ({
   historyStorage: { getItem: (...args: unknown[]) => mockGetHistoryItem(...args) },
@@ -232,6 +244,21 @@ describe('SyncEngine coordinator', () => {
 
     expect(engine.getStatus().state).toBe('OfflineRetrying');
     expect(engine.getStatus().lastError).toContain('Network unreachable');
+  });
+
+  test('repeated blank failures keep useful detail without repeating error logs', async () => {
+    const engine = makeEngine();
+    mockedEnginePull.mockResolvedValue({ tag: 'Failed', error: '' } as SyncOutcome);
+
+    await engine.explicitRefresh();
+    await engine.explicitRefresh();
+
+    expect(engine.getStatus().lastError).toBe('Native sync failed without error details');
+    expect(mockLogError).toHaveBeenCalledTimes(1);
+    expect(mockLogError).toHaveBeenCalledWith(
+      '[SyncEngine] op error:',
+      'Native sync failed without error details'
+    );
   });
 
   test('Failed(auth) outcome sets AuthFailed', async () => {

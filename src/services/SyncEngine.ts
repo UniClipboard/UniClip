@@ -176,6 +176,7 @@ export class SyncEngine {
    * 这里只在「在线↔离线」跳变时各记一条 info，避免刷屏（也压掉 Logger IO 抖动）。
    */
   private isOffline = false;
+  private lastReportedSyncError: string | null = null;
   private isSceneInactive = false;
 
   private listeners = new Set<SyncEngineListener>();
@@ -806,6 +807,7 @@ export class SyncEngine {
   private onSyncSuccess(): void {
     this.stagedEntry = null;
     this.clearOffline();
+    this.lastReportedSyncError = null;
     this.setState('Succeeded');
     this.lastSyncedAt = Date.now();
     this.lastError = null;
@@ -826,15 +828,16 @@ export class SyncEngine {
   }
 
   private handleFailed(error: string): void {
-    const kind = this.classifyError(error);
+    const detail = error.trim() || 'Native sync failed without error details';
+    const kind = this.classifyError(detail);
 
     // 取消（切服务器 / 网络路由变更主动 abort）属预期，不记日志、不改状态。
     if (kind === 'Cancelled') return;
 
     if (kind === 'AuthFailed') {
-      log.error('[SyncEngine] op error (auth):', error);
+      log.error('[SyncEngine] op error (auth):', detail);
       this.setState('AuthFailed');
-      this.lastError = error || 'Authentication failed';
+      this.lastError = detail;
       this.stop();
       return;
     }
@@ -842,19 +845,22 @@ export class SyncEngine {
     if (this.isOfflineKind(kind)) {
       if (!this.isOffline) {
         this.isOffline = true;
-        log.info('[SyncEngine] server unreachable — offline, will keep retrying:', error);
+        log.info('[SyncEngine] server unreachable — offline, will keep retrying:', detail);
       }
       this.offlineTicks += 1;
       this.setState('OfflineRetrying');
-      this.lastError = error || 'Network error';
+      this.lastError = detail;
       // 连续离线 → 轮换候选 URL 做故障转移（离线期清 watermark 无害）。
       if (this.offlineTicks >= OFFLINE_URL_ROTATE_AFTER) {
         void this.ensureEngine(true);
       }
     } else {
-      log.error('[SyncEngine] op error:', error);
+      if (this.lastReportedSyncError !== detail) {
+        log.error('[SyncEngine] op error:', detail);
+        this.lastReportedSyncError = detail;
+      }
       this.setState('OfflineRetrying');
-      this.lastError = error || 'Sync error';
+      this.lastError = detail;
     }
   }
 
