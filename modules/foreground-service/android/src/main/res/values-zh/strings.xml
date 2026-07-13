@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="foreground_service_channel_name">后台任务</string>
+    <string name="foreground_service_channel_description">UniClip 后台同步服务</string>
+    <string name="foreground_service_running">后台任务运行中</string>
+    <string name="foreground_service_stopping">正在停止…</string>
+    <string name="foreground_service_action_temp_stop">临时停止</string>
+    <string name="foreground_service_action_stop">永久停止</string>
+    <string name="foreground_service_restart_channel_name">后台服务提醒</string>
+    <string name="foreground_service_restart_channel_description">后台服务被系统终止后的提醒</string>
+    <string name="foreground_service_restart_title">后台服务已停止</string>
+    <string name="foreground_service_restart_content">点击恢复后台服务</string>
+    <string name="foreground_service_timeout_content">系统限制后台任务在主界面关闭后 24 小时内最多运行 6 小时，点击重新启动。</string>
+</resources>

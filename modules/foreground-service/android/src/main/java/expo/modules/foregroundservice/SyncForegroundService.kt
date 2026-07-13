@@ -5,19 +5,20 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.res.Configuration
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
-import expo.modules.nativeutil.NativeLogger
+import androidx.annotation.StringRes
 import androidx.core.app.NotificationCompat
+import expo.modules.nativeutil.NativeLogger
 
 class SyncForegroundService : Service() {
 
     companion object {
         private const val TAG = "SyncForegroundService"
         const val CHANNEL_ID = "syncclipboard_foreground"
-        const val CHANNEL_NAME = "后台任务"
         const val NOTIFY_ID = 0x2020
         const val ACTION_START = "START"
         const val ACTION_STOP = "STOP"
@@ -26,7 +27,6 @@ class SyncForegroundService : Service() {
         const val EXTRA_CONTENT = "content"
         private const val RESTART_NOTIFY_ID = 0x2021
         private const val RESTART_CHANNEL_ID = "syncclipboard_restart"
-        private const val RESTART_CHANNEL_NAME = "服务重启提醒"
 
         var isRunning = false
             private set
@@ -37,11 +37,12 @@ class SyncForegroundService : Service() {
     }
 
     private var notificationManager: NotificationManager? = null
+    private var lastContent: String? = null
 
     override fun onCreate() {
         super.onCreate()
         NativeLogger.d(TAG, "Service onCreate")
-        createNotificationChannel()
+        createNotificationChannels()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -63,7 +64,7 @@ class SyncForegroundService : Service() {
                     return START_NOT_STICKY
                 }
 
-                val notification = createNotification("后台任务运行中")
+                val notification = createNotification()
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                     startForeground(NOTIFY_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
                 } else {
@@ -76,7 +77,7 @@ class SyncForegroundService : Service() {
                 NativeLogger.d(TAG, "Stopping foreground service (permanent)")
                 stoppedByUser = true
                 if (!isRunning) {
-                    val notification = createNotification("正在停止...")
+                    val notification = createNotification(getString(R.string.foreground_service_stopping))
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                         startForeground(NOTIFY_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
                     } else {
@@ -93,7 +94,7 @@ class SyncForegroundService : Service() {
                 NativeLogger.d(TAG, "Stopping foreground service (temporary)")
                 stoppedByUser = true
                 if (!isRunning) {
-                    val notification = createNotification("正在停止...")
+                    val notification = createNotification(getString(R.string.foreground_service_stopping))
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                         startForeground(NOTIFY_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
                     } else {
@@ -107,12 +108,11 @@ class SyncForegroundService : Service() {
                 ForegroundServiceModule.sendTempStopEvent()
             }
             ACTION_UPDATE -> {
-                val content = intent.getStringExtra(EXTRA_CONTENT) ?: "后台任务运行中"
-                updateNotification(content)
+                updateNotification(intent.getStringExtra(EXTRA_CONTENT))
             }
             else -> {
                 // Unknown action - still need to call startForeground to prevent crash
-                val notification = createNotification("后台任务运行中")
+                val notification = createNotification()
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                     startForeground(NOTIFY_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
                 } else {
@@ -126,6 +126,14 @@ class SyncForegroundService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        createNotificationChannels()
+        if (isRunning) {
+            notificationManager?.notify(NOTIFY_ID, createNotification(lastContent))
+        }
+    }
+
     /**
      * Android 14+ 回调：dataSync 类型前台服务 6小时/24小时配额耗尽时由系统调用。
      * 若不在此回调中及时停止，系统会强制 ANR 终止进程（不经过 onDestroy 优雅路径）。
@@ -135,7 +143,7 @@ class SyncForegroundService : Service() {
     override fun onTimeout(startId: Int) {
         NativeLogger.w(TAG, "dataSync foreground service timed out (6h/24h quota exhausted), stopping gracefully")
         stoppedByUser = true   // 防止 onDestroy 重复发通知
-        showRestartNotification(contentText = "系统限制后台任务在主界面关闭后24小时内最多运行6小时，点击重新启动")
+        showRestartNotification(R.string.foreground_service_timeout_content)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
         isRunning = false
@@ -167,22 +175,33 @@ class SyncForegroundService : Service() {
         super.onDestroy()
     }
 
-    private fun createNotificationChannel() {
+    private fun createNotificationChannels() {
         notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
+            val foregroundChannel = NotificationChannel(
                 CHANNEL_ID,
-                CHANNEL_NAME,
+                getString(R.string.foreground_service_channel_name),
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "SyncClipboard 后台同步服务"
+                description = getString(R.string.foreground_service_channel_description)
                 setShowBadge(false)
             }
-            notificationManager?.createNotificationChannel(channel)
+            val restartChannel = NotificationChannel(
+                RESTART_CHANNEL_ID,
+                getString(R.string.foreground_service_restart_channel_name),
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = getString(R.string.foreground_service_restart_channel_description)
+            }
+            notificationManager?.createNotificationChannels(
+                listOf(foregroundChannel, restartChannel)
+            )
         }
     }
 
-    private fun createNotification(content: String): Notification {
+    private fun createNotification(content: String? = null): Notification {
+        lastContent = content
+
         // PendingIntent to open the app when notification is tapped
         val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
         val pendingLaunchIntent = PendingIntent.getActivity(
@@ -219,7 +238,8 @@ class SyncForegroundService : Service() {
         NativeLogger.d(TAG, "Notification icon resId=$iconResId")
 
         // 内容以 \n 分割为标题和正文
-        val lines = content.split("\n", limit = 2)
+        val resolvedContent = content ?: getString(R.string.foreground_service_running)
+        val lines = resolvedContent.split("\n", limit = 2)
         val title = lines[0]
         val body = if (lines.size > 1) lines[1] else ""
 
@@ -230,8 +250,16 @@ class SyncForegroundService : Service() {
             .setContentIntent(pendingLaunchIntent)
             .setOngoing(true)
             .setSilent(true)
-            .addAction(0, "临时停止", tempStopPendingIntent)
-            .addAction(0, "永久停止", stopPendingIntent)
+            .addAction(
+                0,
+                getString(R.string.foreground_service_action_temp_stop),
+                tempStopPendingIntent
+            )
+            .addAction(
+                0,
+                getString(R.string.foreground_service_action_stop),
+                stopPendingIntent
+            )
             .setStyle(NotificationCompat.BigTextStyle()
                 .setBigContentTitle(title)
                 .bigText(body)
@@ -239,25 +267,17 @@ class SyncForegroundService : Service() {
             .build()
     }
 
-    private fun updateNotification(content: String) {
+    private fun updateNotification(content: String?) {
         val notification = createNotification(content)
         notificationManager?.notify(NOTIFY_ID, notification)
     }
 
-    private fun showRestartNotification(contentText: String = "点击恢复后台服务") {
+    private fun showRestartNotification(
+        @StringRes contentResId: Int = R.string.foreground_service_restart_content
+    ) {
         val nm = getSystemService(NOTIFICATION_SERVICE) as? NotificationManager ?: return
 
-        // 创建独立的通知渠道（重要性设为 HIGH 以弹出 heads-up）
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                RESTART_CHANNEL_ID,
-                RESTART_CHANNEL_NAME,
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "后台服务被系统终止后重启提醒"
-            }
-            nm.createNotificationChannel(channel)
-        }
+        createNotificationChannels()
 
         // 启动 ServiceRestartActivity（自动恢复服务后退出）
         val restartIntent = Intent().apply {
@@ -278,8 +298,8 @@ class SyncForegroundService : Service() {
             ?: android.R.drawable.ic_menu_info_details
 
         val notification = NotificationCompat.Builder(this, RESTART_CHANNEL_ID)
-            .setContentTitle("后台服务已停止")
-            .setContentText(contentText)
+            .setContentTitle(getString(R.string.foreground_service_restart_title))
+            .setContentText(getString(contentResId))
             .setSmallIcon(iconResId)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)

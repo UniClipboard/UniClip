@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="foreground_service_channel_name">Background tasks</string>
+    <string name="foreground_service_channel_description">UniClip background sync service</string>
+    <string name="foreground_service_running">Background tasks running</string>
+    <string name="foreground_service_stopping">Stopping…</string>
+    <string name="foreground_service_action_temp_stop">Pause</string>
+    <string name="foreground_service_action_stop">Stop</string>
+    <string name="foreground_service_restart_channel_name">Background service alerts</string>
+    <string name="foreground_service_restart_channel_description">Alerts when the background service is stopped by the system</string>
+    <string name="foreground_service_restart_title">Background service stopped</string>
+    <string name="foreground_service_restart_content">Tap to resume background service</string>
+    <string name="foreground_service_timeout_content">Android limits background tasks to 6 hours within 24 hours after the app is closed. Tap to restart.</string>
+</resources>
