@@ -16,6 +16,7 @@ interface ShizukuClipboardModuleInterface {
   isShizukuAvailable(): boolean;
   hasShizukuPermission(): boolean;
   isBackgroundClipboardRestricted(): boolean;
+  resolveBackgroundClipboardRestriction(): Promise<boolean>;
   requestShizukuPermission(): boolean;
   startClipboardMonitor(): Promise<boolean>;
   stopClipboardMonitor(): Promise<boolean>;
@@ -53,6 +54,10 @@ export function isBackgroundClipboardRestricted(): boolean {
 
 export function requestShizukuPermission(): boolean {
   return NativeModule?.requestShizukuPermission() ?? false;
+}
+
+export async function resolveBackgroundClipboardRestriction(): Promise<boolean> {
+  return NativeModule?.resolveBackgroundClipboardRestriction() ?? false;
 }
 
 export async function startClipboardMonitor(): Promise<boolean> {

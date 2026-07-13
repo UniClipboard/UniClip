@@ -25,25 +25,40 @@
       "desc": "后台读取到本机剪贴板变化时自动上传"
     },
     "clipboardAccess": {
-      "title": "后台剪贴板读取方式",
+      "title": "后台剪贴板访问",
       "method": {
         "overlay": "悬浮窗",
         "shizuku": "Shizuku"
       },
-      "authorization": {
-        "title": "读取授权",
-        "ready": "已准备好",
-        "unauthorized": "尚未授权，点击授权",
-        "unavailable": "未安装或未启动 Shizuku，点击查看开启方法",
-        "incompatible": "当前系统的智能剪贴板限制了此方式，请改用悬浮窗"
+      "summary": {
+        "ready": "{{method}} · 已就绪",
+        "action-required": "{{method}} · 还差 1 步"
+      },
+      "issue": {
+        "service-unavailable": "当前方式尚未运行",
+        "permission-required": "需要完成访问授权",
+        "system-restriction": "MIUI 正在阻止后台剪贴板访问",
+        "monitoring-setup-required": "还需完成自动检测设置"
+      },
+      "action": {
+        "continue": "继续设置",
+        "change": "更换方式"
+      },
+      "setup": {
+        "completed": "后台剪贴板访问已就绪",
+        "commandCopied": "电脑授权命令已复制",
+        "failed": "未能完成设置，请确认 Shizuku 正在运行"
+      },
+      "restriction": {
+        "title": "关闭 MIUI 剪贴板限制",
+        "text": "UniClip 将通过 Shizuku 关闭 MIUI 的智能剪贴板限制，以便在后台读取和写入剪贴板。此操作可能同时关闭系统的智能剪贴板功能。",
+        "confirm": "关闭限制"
+      },
+      "change": {
+        "title": "更换后台访问方式",
+        "text": "切换为 {{method}} 后，UniClip 会立即带你完成该方式还缺的设置。",
+        "confirm": "改用 {{method}}"
       }
-    },
-    "autoDetect": {
-      "title": "自动检测本机复制",
-      "enabled": "已启用：复制内容后立即触发同步",
-      "setupRequired": "还需电脑授权，点击复制授权命令",
-      "authorizationRequired": "完成上方授权后即可自动检测",
-      "copied": "已复制 adb 授权命令"
     }
   },
   "dialog": {

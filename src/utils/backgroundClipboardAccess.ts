@@ -20,6 +20,53 @@ export interface ClipboardAuthorizationState {
   setupCommand?: string;
 }
 
+export type BackgroundClipboardSetupIssue =
+  | 'service-unavailable'
+  | 'permission-required'
+  | 'system-restriction'
+  | 'monitoring-setup-required';
+
+export interface BackgroundClipboardSetupState {
+  status: 'ready' | 'action-required';
+  issue: BackgroundClipboardSetupIssue | null;
+}
+
+export type BackgroundClipboardSetupActionResult =
+  | 'completed'
+  | 'waiting-for-return'
+  | 'command-copied'
+  | 'no-action'
+  | 'failed';
+
+const BACKGROUND_CLIPBOARD_METHODS: AndroidSettings['clipboardAccessMethod'][] = [
+  'shizuku',
+  'overlay',
+];
+
+export function getBackgroundClipboardSetupState(
+  state: ClipboardAuthorizationState
+): BackgroundClipboardSetupState {
+  if (state.status === 'unavailable') {
+    return { status: 'action-required', issue: 'service-unavailable' };
+  }
+  if (state.status === 'unauthorized') {
+    return { status: 'action-required', issue: 'permission-required' };
+  }
+  if (state.status === 'incompatible') {
+    return { status: 'action-required', issue: 'system-restriction' };
+  }
+  if (state.monitoringStatus === 'setup-required') {
+    return { status: 'action-required', issue: 'monitoring-setup-required' };
+  }
+  return { status: 'ready', issue: null };
+}
+
+export function getAlternativeClipboardMethod(
+  currentMethod: AndroidSettings['clipboardAccessMethod']
+): AndroidSettings['clipboardAccessMethod'] {
+  return BACKGROUND_CLIPBOARD_METHODS.find((method) => method !== currentMethod) ?? currentMethod;
+}
+
 interface ShizukuAuthorizationInputs {
   available: boolean;
   authorized: boolean;
@@ -64,6 +111,7 @@ export interface BackgroundClipboardAdapter {
   addAuthorizationChangeListener(listener: () => void): BackgroundClipboardMonitor;
   getAuthorizationState(): ClipboardAuthorizationState;
   requestAuthorization(): boolean;
+  continueSetup(): Promise<BackgroundClipboardSetupActionResult>;
 }
 
 type ClipboardAdapterRegistry = Record<
@@ -110,8 +158,8 @@ export async function changeBackgroundClipboardMethod({
   adapters,
   persist,
   restart,
-}: ChangeBackgroundClipboardMethodOptions): Promise<void> {
-  if (currentMethod === nextMethod) return;
+}: ChangeBackgroundClipboardMethodOptions): Promise<BackgroundClipboardSetupActionResult> {
+  if (currentMethod === nextMethod) return 'no-action';
 
   const current = getClipboardAdapter(currentMethod, adapters);
   const next = getClipboardAdapter(nextMethod, adapters);
@@ -120,6 +168,7 @@ export async function changeBackgroundClipboardMethod({
     await persist(nextMethod);
     await next.activate();
     await restart();
+    return next.continueSetup();
   } catch (error) {
     await current.activate();
     throw error;

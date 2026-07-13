@@ -198,6 +198,17 @@ class ShizukuClipboardModule : Module() {
             val service = ensureConnected()
             promise.resolve(try { service?.setPrimaryClipText(text) == true } catch (_: Exception) { false })
         }
+
+        AsyncFunction("resolveBackgroundClipboardRestriction") { promise: Promise ->
+            val service = ensureConnected()
+            promise.resolve(
+                try {
+                    service?.resolveBackgroundClipboardRestriction() == true
+                } catch (_: Exception) {
+                    false
+                }
+            )
+        }
     }
 
     private fun isAvailable(): Boolean = try { Shizuku.pingBinder() } catch (_: Exception) { false }

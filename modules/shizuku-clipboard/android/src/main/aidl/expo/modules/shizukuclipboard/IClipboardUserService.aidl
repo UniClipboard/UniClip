@@ -8,5 +8,6 @@ interface IClipboardUserService {
     String getPrimaryClipJson();
     boolean copyPrimaryClipToFile(in ParcelFileDescriptor destination);
     boolean setPrimaryClipText(String text);
+    boolean resolveBackgroundClipboardRestriction();
     void destroy();
 }

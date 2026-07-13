@@ -1,5 +1,7 @@
 import {
   changeBackgroundClipboardMethod,
+  getAlternativeClipboardMethod,
+  getBackgroundClipboardSetupState,
   getClipboardAdapter,
   getShizukuAuthorizationState,
   refreshBackgroundClipboardAuthorization,
@@ -28,9 +30,40 @@ const adapter = (
     monitoringStatus: ready ? 'ready' : 'setup-required',
   }),
   requestAuthorization: () => true,
+  continueSetup: async () => 'no-action',
 });
 
 describe('selectBackgroundClipboardAdapter', () => {
+  it.each([
+    {
+      state: { status: 'unavailable', monitoringStatus: 'setup-required' } as const,
+      expected: { status: 'action-required', issue: 'service-unavailable' },
+    },
+    {
+      state: { status: 'unauthorized', monitoringStatus: 'setup-required' } as const,
+      expected: { status: 'action-required', issue: 'permission-required' },
+    },
+    {
+      state: { status: 'incompatible', monitoringStatus: 'setup-required' } as const,
+      expected: { status: 'action-required', issue: 'system-restriction' },
+    },
+    {
+      state: { status: 'ready', monitoringStatus: 'setup-required' } as const,
+      expected: { status: 'action-required', issue: 'monitoring-setup-required' },
+    },
+    {
+      state: { status: 'ready', monitoringStatus: 'ready' } as const,
+      expected: { status: 'ready', issue: null },
+    },
+  ])('collapses authorization into one user-facing setup state', ({ state, expected }) => {
+    expect(getBackgroundClipboardSetupState(state)).toEqual(expected);
+  });
+
+  it('keeps method switching inside the shared clipboard abstraction', () => {
+    expect(getAlternativeClipboardMethod('overlay')).toBe('shizuku');
+    expect(getAlternativeClipboardMethod('shizuku')).toBe('overlay');
+  });
+
   it('reports an OEM clipboard restriction instead of ready', () => {
     expect(
       getShizukuAuthorizationState({ available: true, authorized: true, restricted: true })
@@ -151,6 +184,42 @@ describe('selectBackgroundClipboardAdapter', () => {
     expect(shizuku.activate.mock.invocationCallOrder[0]).toBeLessThan(
       restart.mock.invocationCallOrder[0]
     );
+  });
+
+  it('continues the newly selected method setup after switching', async () => {
+    const overlay = adapter('overlay', true);
+    const shizuku = adapter('shizuku', false);
+    shizuku.continueSetup = jest.fn().mockResolvedValue('waiting-for-return');
+
+    const result = await changeBackgroundClipboardMethod({
+      currentMethod: 'overlay',
+      nextMethod: 'shizuku',
+      adapters: { overlay, shizuku },
+      persist: jest.fn().mockResolvedValue(undefined),
+      restart: jest.fn().mockResolvedValue(undefined),
+    });
+
+    expect(result).toBe('waiting-for-return');
+    expect(shizuku.continueSetup).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the new method selected when its follow-up setup throws', async () => {
+    const overlay = adapter('overlay', true);
+    const shizuku = adapter('shizuku', false);
+    overlay.activate = jest.fn().mockResolvedValue(undefined);
+    shizuku.continueSetup = jest.fn().mockRejectedValue(new Error('setup failed'));
+
+    await expect(
+      changeBackgroundClipboardMethod({
+        currentMethod: 'overlay',
+        nextMethod: 'shizuku',
+        adapters: { overlay, shizuku },
+        persist: jest.fn().mockResolvedValue(undefined),
+        restart: jest.fn().mockResolvedValue(undefined),
+      })
+    ).rejects.toThrow('setup failed');
+
+    expect(overlay.activate).not.toHaveBeenCalled();
   });
 
   it('publishes new authorization state before restarting monitoring', async () => {

@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
+import android.provider.Settings
 import android.util.Log
 import org.json.JSONObject
 import java.io.FileOutputStream
@@ -114,6 +115,17 @@ class ClipboardUserService : IClipboardUserService.Stub() {
 
     override fun setPrimaryClipText(text: String): Boolean {
         return invokeClipboard("setPrimaryClip", ClipData.newPlainText("UniClip", text)) != null
+    }
+
+    override fun resolveBackgroundClipboardRestriction(): Boolean {
+        val resolver = application()?.contentResolver ?: return false
+        return try {
+            Settings.Secure.putInt(resolver, "mi_lab_ai_clipboard_enable", 0) &&
+                Settings.Secure.getInt(resolver, "mi_lab_ai_clipboard_enable", 1) == 0
+        } catch (error: Exception) {
+            Log.e(TAG, "Failed to disable MIUI smart clipboard restriction", error)
+            false
+        }
     }
 
     override fun destroy() {

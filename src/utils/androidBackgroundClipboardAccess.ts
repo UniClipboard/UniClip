@@ -1,5 +1,6 @@
-import { AppState, Platform } from 'react-native';
+import { AppState, Linking, Platform } from 'react-native';
 import * as Application from 'expo-application';
+import * as Clipboard from 'expo-clipboard';
 import { setTimer, clearTimer } from 'native-timer';
 import { useSettingsStore } from '@/stores/settingsStore';
 import {
@@ -11,6 +12,7 @@ import {
   type BackgroundClipboardEvent,
   type BackgroundClipboardMonitor,
   type BackgroundClipboardOperation,
+  type BackgroundClipboardSetupActionResult,
 } from '@/utils/backgroundClipboardAccess';
 
 const OVERLAY_IDLE_TIMEOUT_MS = 10_000;
@@ -132,6 +134,18 @@ class OverlayClipboardAdapter implements BackgroundClipboardAdapter {
     return true;
   }
 
+  async continueSetup(): Promise<BackgroundClipboardSetupActionResult> {
+    const state = this.getAuthorizationState();
+    if (state.status === 'unauthorized') {
+      return this.requestAuthorization() ? 'waiting-for-return' : 'failed';
+    }
+    if (state.setupCommand) {
+      await Clipboard.setStringAsync(state.setupCommand);
+      return 'command-copied';
+    }
+    return 'no-action';
+  }
+
   dismiss(): void {
     clearTimer(OVERLAY_IDLE_TIMER);
     const overlayModule = getOverlayModule();
@@ -224,6 +238,23 @@ class ShizukuClipboardAdapter implements BackgroundClipboardAdapter {
     if (this.getAuthorizationState().status === 'incompatible') return false;
     return getShizukuModule().requestShizukuPermission();
   }
+
+  async continueSetup(): Promise<BackgroundClipboardSetupActionResult> {
+    const state = this.getAuthorizationState();
+    if (state.status === 'incompatible') {
+      return (await getShizukuModule().resolveBackgroundClipboardRestriction())
+        ? 'completed'
+        : 'failed';
+    }
+    if (state.status === 'unavailable' && state.setupUrl) {
+      await Linking.openURL(state.setupUrl);
+      return 'waiting-for-return';
+    }
+    if (state.status === 'unauthorized') {
+      return this.requestAuthorization() ? 'waiting-for-return' : 'failed';
+    }
+    return 'no-action';
+  }
 }
 
 const overlayAdapter = new OverlayClipboardAdapter();
@@ -259,7 +290,7 @@ export function changeClipboardAccessMethod(
   nextMethod: 'overlay' | 'shizuku',
   persist: (method: 'overlay' | 'shizuku') => Promise<void>,
   restart: () => Promise<void>
-): Promise<void> {
+): Promise<BackgroundClipboardSetupActionResult> {
   return changeBackgroundClipboardMethod({
     currentMethod,
     nextMethod,

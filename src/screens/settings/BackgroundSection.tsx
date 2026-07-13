@@ -4,10 +4,8 @@
  * 卡片一「后台自动同步」只有一个总开关:开启时批量打开下载/上传/常驻通知,并依次引导
  * 三项系统权限(忽略电池优化、通知权限、悬浮窗权限;跳系统页的两项靠 AppState 监听下一次
  * 回到前台来串行,避免连续拉起多个系统 Activity 互相打断)。
- * 卡片二「高级选项」始终展开,是原来的 5 个细分开关(常驻通知/电池优化/下载/上传/悬浮窗),
- * 供需要精细控制的用户使用;末尾附一行「自动检测本机复制」状态,如实反映 READ_LOGS 是否已授权
- * (应用内无法申请,仅能靠电脑 adb 授予)。未授权时点击该行会把 adb 授权命令复制到剪贴板,方便
- * 愿意折腾的用户直接粘贴执行;避免用户以为开了悬浮窗开关就等于开启了后台自动读取。
+ * 卡片二「高级选项」始终展开。后台剪贴板访问只展示一行结果:完成时允许更换方式,
+ * 未完成时只给出当前缺少的一步,具体设置动作由所选 adapter 自己处理。
  * Alert.alert 确认统一走单个配置驱动的 Compose AlertDialog(挂在卡片一上;Compose
  * Dialog 是 window 级 overlay,挂载位置不影响展示)。失败回滚交给 store。
  */
@@ -15,31 +13,24 @@ import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Platform, Linking, AppState } from 'react-native';
 import {
-  Column,
   ListItem,
   Switch as ComposeSwitch,
   AlertDialog,
   TextButton,
   HorizontalDivider,
-  SingleChoiceSegmentedButtonRow,
-  SegmentedButton,
   Text as ComposeText,
-  Spacer,
 } from '@expo/ui/jetpack-compose';
-import {
-  clickable,
-  fillMaxWidth,
-  height as heightModifier,
-  padding,
-} from '@expo/ui/jetpack-compose/modifiers';
-import * as Clipboard from 'expo-clipboard';
 import { useClipboardStore, useSettingsStore } from '@/stores';
 import {
   changeClipboardAccessMethod,
   getClipboardAccessAdapter,
 } from '@/utils/androidBackgroundClipboardAccess';
 import type { ClipboardAuthorizationState } from '@/utils/backgroundClipboardAccess';
-import { refreshBackgroundClipboardAuthorization } from '@/utils/backgroundClipboardAccess';
+import {
+  getAlternativeClipboardMethod,
+  getBackgroundClipboardSetupState,
+  refreshBackgroundClipboardAuthorization,
+} from '@/utils/backgroundClipboardAccess';
 import { useSettingsToast } from './SettingsToastContext';
 import { SettingsSectionItem } from './SettingsSectionItem';
 
@@ -91,6 +82,8 @@ export const BackgroundSection = memo(function BackgroundSection() {
   const [clipboardAccessState, setClipboardAccessState] = useState<ClipboardAuthorizationState>(
     () => getClipboardAccessAdapter(clipboardAccessMethod).getAuthorizationState()
   );
+  const clipboardSetupState = getBackgroundClipboardSetupState(clipboardAccessState);
+  const alternativeClipboardAccessMethod = getAlternativeClipboardMethod(clipboardAccessMethod);
   const hasBatteryOptRequested = useRef(false);
 
   const refreshBatteryPermission = () => {
@@ -159,10 +152,9 @@ export const BackgroundSection = memo(function BackgroundSection() {
     );
     await adapter.activate();
     const authorization = adapter.getAuthorizationState();
-    if (authorization.status === 'unavailable' && authorization.setupUrl) {
-      await Linking.openURL(authorization.setupUrl);
-    } else if (authorization.status !== 'ready' && adapter.requestAuthorization()) {
-      await waitForNextActiveState();
+    if (authorization.status === 'unavailable' || authorization.status === 'unauthorized') {
+      const result = await adapter.continueSetup();
+      if (result === 'waiting-for-return') await waitForNextActiveState();
     }
     refreshClipboardAccessState();
   };
@@ -285,43 +277,76 @@ export const BackgroundSection = memo(function BackgroundSection() {
 
   const handleSetClipboardAccessMethod = async (method: 'overlay' | 'shizuku') => {
     try {
-      await changeClipboardAccessMethod(
+      const setupResult = await changeClipboardAccessMethod(
         clipboardAccessMethod,
         method,
         (nextMethod) =>
           useSettingsStore.getState().updateConfig({ clipboardAccessMethod: nextMethod }),
         () => useClipboardStore.getState().restartMonitoring()
       );
-      setClipboardAccessState(getClipboardAccessAdapter(method).getAuthorizationState());
+      const adapter = getClipboardAccessAdapter(method);
       showMessage(t('toast.clipboardAccessChanged'), 'success');
+      await handleClipboardAccessSetupResult(adapter, setupResult);
     } catch (error: unknown) {
       showMessage(error instanceof Error ? error.message : t('toast.setFailed'), 'error');
     }
   };
 
-  const handleAuthorizeClipboardAccess = async () => {
+  const handleChangeClipboardAccessMethod = () => {
+    const nextMethodLabel = t(
+      `advanced.clipboardAccess.method.${alternativeClipboardAccessMethod}`
+    );
+    setDialog({
+      title: t('advanced.clipboardAccess.change.title'),
+      text: t('advanced.clipboardAccess.change.text', { method: nextMethodLabel }),
+      confirmLabel: t('advanced.clipboardAccess.change.confirm', { method: nextMethodLabel }),
+      dismissLabel: t('action.cancel', { ns: 'common' }),
+      onConfirm: () => void handleSetClipboardAccessMethod(alternativeClipboardAccessMethod),
+    });
+  };
+
+  const handleClipboardAccessSetupResult = async (
+    adapter: ReturnType<typeof getClipboardAccessAdapter>,
+    result: Awaited<ReturnType<typeof adapter.continueSetup>>
+  ) => {
+    if (result === 'waiting-for-return') await waitForNextActiveState();
+    if (result === 'failed') {
+      showMessage(t('advanced.clipboardAccess.setup.failed'), 'error');
+      return;
+    }
+    if (result === 'command-copied') {
+      showMessage(t('advanced.clipboardAccess.setup.commandCopied'), 'success');
+    }
+    if (result === 'completed') {
+      showMessage(t('advanced.clipboardAccess.setup.completed'), 'success');
+    }
+    await refreshBackgroundClipboardAuthorization(adapter, setClipboardAccessState, () =>
+      useClipboardStore.getState().restartMonitoring()
+    );
+  };
+
+  const continueClipboardAccessSetup = async () => {
     try {
       const adapter = getClipboardAccessAdapter(clipboardAccessMethod);
-      const authorization = adapter.getAuthorizationState();
-      if (authorization.setupUrl) {
-        await Linking.openURL(authorization.setupUrl);
-      } else {
-        adapter.requestAuthorization();
-      }
-      refreshClipboardAccessState();
+      const result = await adapter.continueSetup();
+      await handleClipboardAccessSetupResult(adapter, result);
     } catch (error: unknown) {
       showMessage(error instanceof Error ? error.message : t('toast.setFailed'), 'error');
     }
   };
 
-  const handleClipboardMonitoringSetup = async () => {
-    if (!clipboardAccessState.setupCommand) return;
-    try {
-      await Clipboard.setStringAsync(clipboardAccessState.setupCommand);
-      showMessage(t('advanced.autoDetect.copied'), 'success');
-    } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : t('toast.setFailed'), 'error');
+  const handleContinueClipboardAccessSetup = () => {
+    if (clipboardSetupState.issue === 'system-restriction') {
+      setDialog({
+        title: t('advanced.clipboardAccess.restriction.title'),
+        text: t('advanced.clipboardAccess.restriction.text'),
+        confirmLabel: t('advanced.clipboardAccess.restriction.confirm'),
+        dismissLabel: t('action.cancel', { ns: 'common' }),
+        onConfirm: () => void continueClipboardAccessSetup(),
+      });
+      return;
     }
+    void continueClipboardAccessSetup();
   };
 
   const handleToggleBattery = async () => {
@@ -464,65 +489,35 @@ export const BackgroundSection = memo(function BackgroundSection() {
 
         <HorizontalDivider />
 
-        <Column modifiers={[fillMaxWidth(), padding(16, 12, 16, 12)]}>
-          <ComposeText style={{ fontSize: 15, fontWeight: '500' }}>
-            {t('advanced.clipboardAccess.title')}
-          </ComposeText>
-          <Spacer modifiers={[heightModifier(12)]} />
-          <SingleChoiceSegmentedButtonRow modifiers={[fillMaxWidth()]}>
-            {(['overlay', 'shizuku'] as const).map((method) => (
-              <SegmentedButton
-                key={method}
-                selected={clipboardAccessMethod === method}
-                onClick={() => handleSetClipboardAccessMethod(method)}
-              >
-                <SegmentedButton.Label>
-                  <ComposeText>{t(`advanced.clipboardAccess.method.${method}`)}</ComposeText>
-                </SegmentedButton.Label>
-              </SegmentedButton>
-            ))}
-          </SingleChoiceSegmentedButtonRow>
-        </Column>
-
-        <HorizontalDivider />
-
-        <ListItem
-          modifiers={
-            clipboardAccessState.status === 'ready' ||
-            clipboardAccessState.status === 'incompatible'
-              ? []
-              : [clickable(handleAuthorizeClipboardAccess)]
-          }
-        >
+        <ListItem>
           <ListItem.HeadlineContent>
-            <ComposeText>{t('advanced.clipboardAccess.authorization.title')}</ComposeText>
+            <ComposeText>{t('advanced.clipboardAccess.title')}</ComposeText>
           </ListItem.HeadlineContent>
           <ListItem.SupportingContent>
             <ComposeText>
-              {t(`advanced.clipboardAccess.authorization.${clipboardAccessState.status}`)}
+              {t(`advanced.clipboardAccess.summary.${clipboardSetupState.status}`, {
+                method: t(`advanced.clipboardAccess.method.${clipboardAccessMethod}`),
+              })}
+              {clipboardSetupState.issue
+                ? `\n${t(`advanced.clipboardAccess.issue.${clipboardSetupState.issue}`)}`
+                : ''}
             </ComposeText>
           </ListItem.SupportingContent>
-        </ListItem>
-
-        <HorizontalDivider />
-
-        <ListItem
-          modifiers={
-            clipboardAccessState.setupCommand ? [clickable(handleClipboardMonitoringSetup)] : []
-          }
-        >
-          <ListItem.HeadlineContent>
-            <ComposeText>{t('advanced.autoDetect.title')}</ComposeText>
-          </ListItem.HeadlineContent>
-          <ListItem.SupportingContent>
-            <ComposeText>
-              {clipboardAccessState.monitoringStatus === 'ready'
-                ? t('advanced.autoDetect.enabled')
-                : clipboardAccessState.setupCommand
-                  ? t('advanced.autoDetect.setupRequired')
-                  : t('advanced.autoDetect.authorizationRequired')}
-            </ComposeText>
-          </ListItem.SupportingContent>
+          <ListItem.TrailingContent>
+            <TextButton
+              onClick={
+                clipboardSetupState.status === 'ready'
+                  ? handleChangeClipboardAccessMethod
+                  : handleContinueClipboardAccessSetup
+              }
+            >
+              <ComposeText>
+                {clipboardSetupState.status === 'ready'
+                  ? t('advanced.clipboardAccess.action.change')
+                  : t('advanced.clipboardAccess.action.continue')}
+              </ComposeText>
+            </TextButton>
+          </ListItem.TrailingContent>
         </ListItem>
       </SettingsSectionItem>
     </>

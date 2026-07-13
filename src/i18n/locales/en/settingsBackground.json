@@ -30,20 +30,35 @@
         "overlay": "Overlay",
         "shizuku": "Shizuku"
       },
-      "authorization": {
-        "title": "Clipboard access",
-        "ready": "Ready",
-        "unauthorized": "Not authorized; tap to authorize",
-        "unavailable": "Shizuku is not installed or running; tap for setup instructions",
-        "incompatible": "The system's smart clipboard blocks this method; use Overlay instead"
+      "summary": {
+        "ready": "{{method}} · Ready",
+        "action-required": "{{method}} · 1 step remaining"
+      },
+      "issue": {
+        "service-unavailable": "The selected method is not running",
+        "permission-required": "Clipboard access needs authorization",
+        "system-restriction": "MIUI is blocking background clipboard access",
+        "monitoring-setup-required": "Automatic copy detection still needs setup"
+      },
+      "action": {
+        "continue": "Continue setup",
+        "change": "Change method"
+      },
+      "setup": {
+        "completed": "Background clipboard access is ready",
+        "commandCopied": "Computer authorization command copied",
+        "failed": "Setup could not be completed; make sure Shizuku is running"
+      },
+      "restriction": {
+        "title": "Turn off the MIUI clipboard restriction",
+        "text": "UniClip will use Shizuku to turn off MIUI's smart clipboard restriction so clipboard content can be read and written in the background. This may also disable the system smart clipboard feature.",
+        "confirm": "Turn off restriction"
+      },
+      "change": {
+        "title": "Change background access method",
+        "text": "After switching to {{method}}, UniClip will immediately guide you through any remaining setup.",
+        "confirm": "Use {{method}}"
       }
-    },
-    "autoDetect": {
-      "title": "Auto-detect local copies",
-      "enabled": "Enabled: syncing triggers right after you copy",
-      "setupRequired": "Computer setup is still required; tap to copy the authorization command",
-      "authorizationRequired": "Complete clipboard access above to enable automatic detection",
-      "copied": "adb command copied"
     }
   },
   "dialog": {
