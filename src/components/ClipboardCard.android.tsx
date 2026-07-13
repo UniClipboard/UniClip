@@ -1,5 +1,14 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Image, Pressable, type ColorValue } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  Pressable,
+  type ColorValue,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, {
   Defs,
@@ -31,7 +40,7 @@ import { getHistoryDirectionIndicator } from '@/utils/historyDirection';
 import type { ClipboardCardProps } from './ClipboardCard.types';
 
 export const ClipboardCard: React.FC<ClipboardCardProps> = React.memo(
-  ({ item, isLatest, isSelected, isSelectMode, onPress, onLongPress, cardSize }) => {
+  ({ item, isLatest, isSelected, isSelectMode, onPress, onLongPress }) => {
     const { theme } = useTheme();
     const displayKind = useMemo(() => getDisplayKind(item.type, item.text), [item.type, item.text]);
     const kindLabel = useMemo(() => getDisplayKindLabel(displayKind), [displayKind]);
@@ -58,7 +67,7 @@ export const ClipboardCard: React.FC<ClipboardCardProps> = React.memo(
     };
 
     return (
-      <Animated.View style={pressStyle}>
+      <Animated.View style={[styles.fill, pressStyle]}>
         <Pressable
           ref={cardRef}
           onPress={() => onPress(item)}
@@ -73,8 +82,6 @@ export const ClipboardCard: React.FC<ClipboardCardProps> = React.memo(
           style={[
             styles.card,
             {
-              width: cardSize,
-              height: cardSize,
               backgroundColor: theme.colors.surfaceLow,
               borderColor: isSelected ? theme.colors.accent : 'transparent',
               borderWidth: isSelected ? 2 : 0,
@@ -242,6 +249,14 @@ function BottomRow({
   );
 }
 
+function SvgFill({ style, children }: { style?: StyleProp<ViewStyle>; children: React.ReactNode }) {
+  return (
+    <View style={style ?? StyleSheet.absoluteFill} pointerEvents="none">
+      <Svg style={StyleSheet.absoluteFill}>{children}</Svg>
+    </View>
+  );
+}
+
 function GradientScrim({
   direction,
   opacity,
@@ -253,17 +268,15 @@ function GradientScrim({
 }) {
   const id = direction === 'down' ? 'scrimDown' : 'scrimUp';
   return (
-    <View style={style} pointerEvents="none">
-      <Svg width="100%" height="100%">
-        <Defs>
-          <SvgLinearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor="black" stopOpacity={direction === 'down' ? opacity : 0} />
-            <Stop offset="1" stopColor="black" stopOpacity={direction === 'down' ? 0 : opacity} />
-          </SvgLinearGradient>
-        </Defs>
-        <SvgRect width="100%" height="100%" fill={`url(#${id})`} />
-      </Svg>
-    </View>
+    <SvgFill style={style}>
+      <Defs>
+        <SvgLinearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor="black" stopOpacity={direction === 'down' ? opacity : 0} />
+          <Stop offset="1" stopColor="black" stopOpacity={direction === 'down' ? 0 : opacity} />
+        </SvgLinearGradient>
+      </Defs>
+      <SvgRect width="100%" height="100%" fill={`url(#${id})`} />
+    </SvgFill>
   );
 }
 
@@ -273,33 +286,31 @@ const CHECKER_CELL = 16;
 // 每张图片卡片只产生一个原生视图。
 function CheckerboardBackground() {
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Svg width="100%" height="100%">
-        <Defs>
-          <SvgPattern
-            id="checker"
+    <SvgFill>
+      <Defs>
+        <SvgPattern
+          id="checker"
+          width={CHECKER_CELL * 2}
+          height={CHECKER_CELL * 2}
+          patternUnits="userSpaceOnUse"
+        >
+          <SvgRect
             width={CHECKER_CELL * 2}
             height={CHECKER_CELL * 2}
-            patternUnits="userSpaceOnUse"
-          >
-            <SvgRect
-              width={CHECKER_CELL * 2}
-              height={CHECKER_CELL * 2}
-              fill="rgba(166,166,166,0.25)"
-            />
-            <SvgRect width={CHECKER_CELL} height={CHECKER_CELL} fill="rgba(217,217,217,0.25)" />
-            <SvgRect
-              x={CHECKER_CELL}
-              y={CHECKER_CELL}
-              width={CHECKER_CELL}
-              height={CHECKER_CELL}
-              fill="rgba(217,217,217,0.25)"
-            />
-          </SvgPattern>
-        </Defs>
-        <SvgRect width="100%" height="100%" fill="url(#checker)" />
-      </Svg>
-    </View>
+            fill="rgba(166,166,166,0.25)"
+          />
+          <SvgRect width={CHECKER_CELL} height={CHECKER_CELL} fill="rgba(217,217,217,0.25)" />
+          <SvgRect
+            x={CHECKER_CELL}
+            y={CHECKER_CELL}
+            width={CHECKER_CELL}
+            height={CHECKER_CELL}
+            fill="rgba(217,217,217,0.25)"
+          />
+        </SvgPattern>
+      </Defs>
+      <SvgRect width="100%" height="100%" fill="url(#checker)" />
+    </SvgFill>
   );
 }
 
@@ -338,17 +349,15 @@ function TextCardBody({ item, kindLabel, relativeTime, isLatest, theme }: CardBo
 // 长文本底部的卡底色渐隐遮罩
 function TextFadeOut({ color }: { color: ColorValue }) {
   return (
-    <View style={styles.textFade} pointerEvents="none">
-      <Svg width="100%" height="100%">
-        <Defs>
-          <SvgLinearGradient id="textFade" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={color} stopOpacity={0} />
-            <Stop offset="1" stopColor={color} stopOpacity={1} />
-          </SvgLinearGradient>
-        </Defs>
-        <SvgRect width="100%" height="100%" fill="url(#textFade)" />
-      </Svg>
-    </View>
+    <SvgFill style={styles.textFade}>
+      <Defs>
+        <SvgLinearGradient id="textFade" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor={color} stopOpacity={0} />
+          <Stop offset="1" stopColor={color} stopOpacity={1} />
+        </SvgLinearGradient>
+      </Defs>
+      <SvgRect width="100%" height="100%" fill="url(#textFade)" />
+    </SvgFill>
   );
 }
 
@@ -508,35 +517,31 @@ function URLCardBody({
 // 无 OG 图时的整卡对角渐变兜底，颜色由域名哈希派生，同域名恒定
 function DomainGradientBackground({ gradient }: { gradient: DomainGradient }) {
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Svg width="100%" height="100%">
-        <Defs>
-          <SvgLinearGradient id="domainBg" x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0" stopColor={gradient.start} stopOpacity={1} />
-            <Stop offset="1" stopColor={gradient.end} stopOpacity={1} />
-          </SvgLinearGradient>
-        </Defs>
-        <SvgRect width="100%" height="100%" fill="url(#domainBg)" />
-      </Svg>
-    </View>
+    <SvgFill>
+      <Defs>
+        <SvgLinearGradient id="domainBg" x1="0" y1="0" x2="1" y2="1">
+          <Stop offset="0" stopColor={gradient.start} stopOpacity={1} />
+          <Stop offset="1" stopColor={gradient.end} stopOpacity={1} />
+        </SvgLinearGradient>
+      </Defs>
+      <SvgRect width="100%" height="100%" fill="url(#domainBg)" />
+    </SvgFill>
   );
 }
 
 // 底部文字区 scrim：比图片卡的更高更深，保证 favicon/域名/标题在任意 OG 图上可读
 function URLBottomScrim() {
   return (
-    <View style={styles.urlBottomScrim} pointerEvents="none">
-      <Svg width="100%" height="100%">
-        <Defs>
-          <SvgLinearGradient id="urlScrim" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor="black" stopOpacity={0} />
-            <Stop offset="0.55" stopColor="black" stopOpacity={0.5} />
-            <Stop offset="1" stopColor="black" stopOpacity={0.78} />
-          </SvgLinearGradient>
-        </Defs>
-        <SvgRect width="100%" height="100%" fill="url(#urlScrim)" />
-      </Svg>
-    </View>
+    <SvgFill style={styles.urlBottomScrim}>
+      <Defs>
+        <SvgLinearGradient id="urlScrim" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor="black" stopOpacity={0} />
+          <Stop offset="0.55" stopColor="black" stopOpacity={0.5} />
+          <Stop offset="1" stopColor="black" stopOpacity={0.78} />
+        </SvgLinearGradient>
+      </Defs>
+      <SvgRect width="100%" height="100%" fill="url(#urlScrim)" />
+    </SvgFill>
   );
 }
 
@@ -573,7 +578,11 @@ function Favicon({ url, domain, size }: { url?: string; domain: string; size: nu
 }
 
 const styles = StyleSheet.create({
+  fill: {
+    flex: 1,
+  },
   card: {
+    flex: 1,
     borderRadius: iosDimensions.cardCornerRadius,
     overflow: 'hidden',
     elevation: 2,
@@ -718,8 +727,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    width: '100%',
-    height: '100%',
+    // 仅用四边 inset 拉满,不再叠 width/height:'100%' —— 绝对定位下百分比会覆盖 right/bottom
+    // 并按父容器宽高的百分比独立取整,卡片宽为小数时比父容器少 1px,右/下露出底层 1px 浅色缝。
   },
   imagePlaceholder: {
     position: 'absolute',
@@ -762,8 +771,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    width: '100%',
-    height: '100%',
+    // 仅用四边 inset 拉满,不再叠 width/height:'100%' —— 绝对定位下百分比会覆盖 right/bottom
+    // 并按父容器宽高的百分比独立取整,卡片宽为小数时比父容器少 1px,右/下露出底层 1px 浅色缝。
   },
   urlFallbackCenter: {
     position: 'absolute',

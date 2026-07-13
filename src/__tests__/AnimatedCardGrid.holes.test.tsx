@@ -8,6 +8,7 @@
  */
 import React from 'react';
 import TestRenderer, { act, ReactTestRenderer, ReactTestInstance } from 'react-test-renderer';
+import { StyleSheet } from 'react-native';
 
 // ---- 可控的 reanimated mock:withSpring 挂起,由测试显式落定/取消 ----
 type SpringBox = { _current: number; value: number };
@@ -55,6 +56,10 @@ jest.mock('react-native-reanimated', () => {
         }
       },
     });
+    box.get = () => box.value;
+    box.set = (value: unknown) => {
+      box.value = value;
+    };
     return box;
   };
 
@@ -312,5 +317,88 @@ describe('AnimatedCardGrid 空槽位模糊回路', () => {
     world.setItems(items.filter((_, i) => i !== 5));
     world.settle();
     checkInvariants(world.renderer.root, world.getItems(), 0, 'delete-middle');
+  });
+
+  it.each([2, 4])('头部新增在 %i 列布局中只提交一次界面更新', (numColumns) => {
+    let items: Item[] = Array.from({ length: 20 }, (_, index) => ({
+      id: index + 1,
+      hash: `hash-${index + 1}`,
+    }));
+    const commits: string[] = [];
+    const render = () => (
+      <React.Profiler id={`grid-${numColumns}`} onRender={(_id, phase) => commits.push(phase)}>
+        <AnimatedCardGrid
+          items={items}
+          numColumns={numColumns}
+          cardSize={CARD_SIZE}
+          spacing={SPACING}
+          paddingHorizontal={PAD_H}
+          paddingTop={PAD_TOP}
+          paddingBottom={PAD_BOTTOM}
+          keyExtractor={keyExtractor}
+          renderItem={renderItem}
+        />
+      </React.Profiler>
+    );
+
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(render());
+    });
+    act(() => {
+      renderer.root.findByType('AnimatedScrollView' as any).props.onLayout({
+        nativeEvent: { layout: { height: VIEWPORT } },
+      });
+    });
+    commits.length = 0;
+
+    items = [{ id: 21, hash: 'hash-21' }, ...items];
+    act(() => {
+      renderer.update(render());
+    });
+    act(() => {
+      settleAllSprings();
+    });
+
+    expect(commits).toEqual(['update']);
+  });
+
+  it('keeps card content at a fixed layout size while the visual slot resizes', () => {
+    const items: Item[] = [{ id: 1, hash: 'hash-1' }];
+    const render = (cardSize: number) => (
+      <AnimatedCardGrid
+        items={items}
+        numColumns={1}
+        cardSize={cardSize}
+        renderCardSize={200}
+        spacing={SPACING}
+        paddingHorizontal={PAD_H}
+        paddingTop={PAD_TOP}
+        paddingBottom={PAD_BOTTOM}
+        keyExtractor={keyExtractor}
+        renderItem={renderItem}
+      />
+    );
+
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(render(100));
+    });
+    const firstFrame = StyleSheet.flatten(
+      renderer.root.findByType('cell' as any).parent?.props.style
+    );
+    expect(firstFrame.width).toBe(200);
+    expect(firstFrame.height).toBe(200);
+    expect(firstFrame.transform).toEqual([{ scale: 0.5 }]);
+
+    act(() => {
+      renderer.update(render(120));
+    });
+    const secondFrame = StyleSheet.flatten(
+      renderer.root.findByType('cell' as any).parent?.props.style
+    );
+    expect(secondFrame.width).toBe(200);
+    expect(secondFrame.height).toBe(200);
+    expect(secondFrame.transform).toEqual([{ scale: 0.6 }]);
   });
 });

@@ -22,6 +22,7 @@ interface AnimatedCardGridProps<T> {
   items: T[];
   numColumns: number;
   cardSize: number;
+  renderCardSize?: number;
   spacing: number;
   paddingHorizontal: number;
   paddingTop: number;
@@ -39,6 +40,7 @@ function AnimatedCardGridInner<T>(
     items,
     numColumns,
     cardSize,
+    renderCardSize,
     spacing,
     paddingHorizontal,
     paddingTop,
@@ -52,7 +54,6 @@ function AnimatedCardGridInner<T>(
   const scrollRef = useRef<ScrollView>(null);
   const [viewportHeight, setViewportHeight] = useState(0);
   const [scrollTop, setScrollTop] = useState(0);
-  const [animatingHashes, setAnimatingHashes] = useState<Set<string>>(new Set());
 
   const cellSize = cardSize + spacing;
   const totalRows = Math.ceil(items.length / numColumns);
@@ -61,12 +62,6 @@ function AnimatedCardGridInner<T>(
   // 渲染 key 经过出现序消歧:业务 key 出现重复(脏数据)时也保证 React key
   // 全局唯一,避免 key 冲突导致组件实例被过继给另一份副本(卡片乱飞/空洞)
   const cellKeys = useMemo(() => buildOccurrenceKeys(items, keyExtractor), [items, keyExtractor]);
-
-  const indexMap = useMemo(() => {
-    const map = new Map<string, number>();
-    cellKeys.forEach((key, i) => map.set(key, i));
-    return map;
-  }, [cellKeys]);
 
   useImperativeHandle(
     ref,
@@ -94,24 +89,6 @@ function AnimatedCardGridInner<T>(
     setViewportHeight(e.nativeEvent.layout.height);
   }, []);
 
-  const handleAnimationStart = useCallback((hash: string) => {
-    setAnimatingHashes((prev) => {
-      if (prev.has(hash)) return prev;
-      const next = new Set(prev);
-      next.add(hash);
-      return next;
-    });
-  }, []);
-
-  const handleAnimationEnd = useCallback((hash: string) => {
-    setAnimatingHashes((prev) => {
-      if (!prev.has(hash)) return prev;
-      const next = new Set(prev);
-      next.delete(hash);
-      return next;
-    });
-  }, []);
-
   const overscan = Math.max(viewportHeight, OVERSCAN_MIN_PX);
   const windowStartRow = Math.max(0, Math.floor((scrollTop - paddingTop - overscan) / cellSize));
   const windowEndRow = Math.min(
@@ -121,17 +98,14 @@ function AnimatedCardGridInner<T>(
   const windowStartIndex = windowStartRow * numColumns;
   const windowEndIndex = Math.min(items.length, windowEndRow * numColumns);
 
-  // 渲染集合 = 可视窗口(含缓冲) ∪ 正在飞行中的卡片——后者哪怕已经飞出窗口范围
-  // 也要保持挂载，直到动画播完，否则会在窗口边界被腰斩
+  // 只渲染可视窗口与缓冲区。GridCell 的静态坐标始终是最终槽位，移动动画只是
+  // 从旧槽位到最终槽位的视觉补偿，因此无需在动画开始/结束时回写列表状态。
   const renderIndices = useMemo(() => {
-    const set = new Set<number>();
-    for (let i = windowStartIndex; i < windowEndIndex; i++) set.add(i);
-    animatingHashes.forEach((hash) => {
-      const idx = indexMap.get(hash);
-      if (idx !== undefined) set.add(idx);
-    });
-    return Array.from(set).sort((a, b) => a - b);
-  }, [windowStartIndex, windowEndIndex, animatingHashes, indexMap]);
+    return Array.from(
+      { length: Math.max(0, windowEndIndex - windowStartIndex) },
+      (_, offset) => windowStartIndex + offset
+    );
+  }, [windowStartIndex, windowEndIndex]);
 
   return (
     <Animated.ScrollView
@@ -150,16 +124,14 @@ function AnimatedCardGridInner<T>(
             <GridCell
               key={cellKey}
               index={i}
-              itemHash={cellKey}
               item={item}
               renderItem={renderItem}
               numColumns={numColumns}
               cardSize={cardSize}
+              renderCardSize={renderCardSize}
               spacing={spacing}
               paddingHorizontal={paddingHorizontal}
               paddingTop={paddingTop}
-              onAnimationStart={handleAnimationStart}
-              onAnimationEnd={handleAnimationEnd}
             />
           );
         })}

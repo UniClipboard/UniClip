@@ -66,6 +66,18 @@
     "serverSwitched": "Server switched",
     "serverAdded": "Server added"
   },
+  "detail": {
+    "placeholderTitle": "Select an item",
+    "placeholderDesc": "Pick any entry from the list to see its full content and actions here.",
+    "fromDevice": "From {{device}}",
+    "unknownDevice": "This device",
+    "sectionActions": "Actions",
+    "close": "Close details"
+  },
+  "rail": {
+    "filters": "Filter",
+    "all": "All"
+  },
   "nav": {
     "sync": "Servers & Sync",
     "history": "History",

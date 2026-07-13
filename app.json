@@ -4,7 +4,7 @@
     "slug": "uniclip",
     "scheme": "uniclipboard",
     "version": "1.3.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {

@@ -66,6 +66,18 @@
     "serverSwitched": "已切换服务器",
     "serverAdded": "服务器已添加"
   },
+  "detail": {
+    "placeholderTitle": "选择一项查看详情",
+    "placeholderDesc": "从左侧列表点选任意条目，在这里查看完整内容并操作。",
+    "fromDevice": "来自 {{device}}",
+    "unknownDevice": "本机",
+    "sectionActions": "操作",
+    "close": "关闭详情"
+  },
+  "rail": {
+    "filters": "筛选",
+    "all": "全部"
+  },
   "nav": {
     "sync": "服务器与同步",
     "history": "历史记录",
