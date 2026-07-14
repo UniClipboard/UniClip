@@ -15,8 +15,9 @@ export const FAB_SIZE = 56;
 export type FabAnchor = 'start' | 'end';
 
 export interface AddActionsFabProps {
-  /** 悬浮菜单是否展开(受控) */
+  /** 悬浮菜单是否展开(Android 受控；iOS 原生 Menu 自行管理) */
   open: boolean;
+  /** 更新 Android 受控状态；iOS 仅在执行菜单项时用于重置共享状态 */
   onOpenChange: (open: boolean) => void;
   /** 相机拍摄后上传 */
   onTakePhoto: () => void;
