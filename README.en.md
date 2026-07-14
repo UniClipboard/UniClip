@@ -10,11 +10,11 @@ Covers **Android**, **iOS**, and desktop.
 
 ## Install
 
-| Platform | How to get it |
-| -------- | ------------- |
+| Platform | How to get it                                                                                                                                                                                                                         |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Android  | Download the APK from [GitHub Releases](https://github.com/UniClipboard/UniClip/releases/latest) (`arm64-v8a` / `armeabi-v7a` / `x86_64` / `universal`); China mirror on [Gitee](https://gitee.com/uni-clipboard/uc-android/releases) |
-| iOS      | [TestFlight public beta](https://testflight.apple.com/join/nyNQ8dQe) (install TestFlight first) |
-| Desktop  | See [UniClipboard/UniClipboard](https://github.com/UniClipboard/UniClipboard) |
+| iOS      | [TestFlight public beta](https://testflight.apple.com/join/nyNQ8dQe) (install TestFlight first)                                                                                                                                       |
+| Desktop  | See [UniClipboard/UniClipboard](https://github.com/UniClipboard/UniClipboard)                                                                                                                                                         |
 
 ## Features
 

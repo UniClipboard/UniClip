@@ -24,7 +24,12 @@
     "test:coverage": "jest --coverage",
     "release:validate": "node scripts/validate-release.mjs",
     "release:build": "node scripts/bump-build.mjs",
-    "release:version": "node scripts/bump-version.mjs"
+    "release:version": "node scripts/bump-version.mjs",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{json,md}": "prettier --write",
+    "*.{ts,tsx,js,jsx}": "eslint"
   },
   "dependencies": {
     "@bacons/apple-targets": "^4.0.7",
@@ -96,6 +101,8 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-native": "^5.0.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.8",
     "prettier": "^3.8.1",
     "typescript": "~6.0.3"
   },
