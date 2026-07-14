@@ -201,6 +201,9 @@ jobs:
     name: Upload APK to Gitee Release (${{ matrix.abi }})
     needs: [gitee-release-create]
     runs-on: ubuntu-latest
+    # A healthy upload takes under a minute; a hung connection would otherwise
+    # hold the job for GitHub's 6-hour default.
+    timeout-minutes: 30
     strategy:
       matrix:
         abi: [arm64-v8a, armeabi-v7a, universal]
@@ -221,7 +224,9 @@ jobs:
         run: |
           APK=$(ls apk/*.apk | head -1)
           echo "Uploading $APK..."
-          curl -s -X POST \
+          curl -s --fail-with-body -X POST \
+            --connect-timeout 30 --max-time 600 \
+            --retry 3 --retry-all-errors \
             "https://gitee.com/api/v5/repos/${GITEE_OWNER}/${GITEE_REPO}/releases/${RELEASE_ID}/attach_files" \
             -F "access_token=${GITEE_TOKEN}" \
             -F "file=@${APK}"
