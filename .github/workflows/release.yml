@@ -206,7 +206,10 @@ jobs:
     timeout-minutes: 30
     strategy:
       matrix:
-        abi: [arm64-v8a, armeabi-v7a, universal]
+        # No universal here: the universal APK (~128MB) exceeds Gitee's 100MB
+        # per-attachment limit and has never uploaded successfully. Devices
+        # falling back to universal get it from the GitHub release instead.
+        abi: [arm64-v8a, armeabi-v7a]
 
     steps:
       - name: Download APK artifact
