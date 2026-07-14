@@ -1,5 +1,7 @@
 # UniClip
 
+**简体中文** · [English](./README.en.md)
+
 开源的跨设备剪贴板同步工具 —— 在多台设备、多种操作系统之间同步文本、图片和文件。端到端加密，无需注册，无需云端。
 
 官网：<https://uniclipboard.app>
@@ -38,9 +40,7 @@
 ## 截图
 
 <p align="center">
-  <img src="docs/screenshorts/Screenshot01.jpg" width="250" alt="首页" />
-  <img src="docs/screenshorts/Screenshot02.jpg" width="250" alt="历史记录" />
-  <img src="docs/screenshorts/Screenshot03.jpg" width="250" alt="设置" />
+  <img src="docs/screenshorts/hero.jpg" width="900" alt="UniClip 在 iPad 与 iPhone 上的同步界面" />
 </p>
 
 ## 架构概览
