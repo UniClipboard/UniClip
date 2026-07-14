@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { ServerConfig } from './api';
 import { SyncMode, ConflictResolution } from './sync';
 
@@ -160,11 +161,23 @@ export const ANDROID_DEFAULTS: AndroidSettings = {
   largeFileThreshold: 10 * 1024 * 1024,
 };
 
-export const DEFAULT_SETTINGS: AppSettings = {
-  ...SERVER_DATA_DEFAULTS,
-  ...SHARED_DEFAULTS,
-  ...ANDROID_DEFAULTS,
+export const IOS_DEFAULTS: Pick<SharedSettings, 'autoApplyRemote' | 'autoPushLocal'> = {
+  autoApplyRemote: true,
+  autoPushLocal: true,
 };
+
+export function createDefaultSettings(platform: string): AppSettings {
+  const platformDefaults = platform === 'ios' ? IOS_DEFAULTS : {};
+
+  return {
+    ...SERVER_DATA_DEFAULTS,
+    ...SHARED_DEFAULTS,
+    ...ANDROID_DEFAULTS,
+    ...platformDefaults,
+  };
+}
+
+export const DEFAULT_SETTINGS: AppSettings = createDefaultSettings(Platform.OS);
 
 export const RUNTIME_STATE_DEFAULTS: RuntimeState = {
   lastUpdateCheckDate: '',

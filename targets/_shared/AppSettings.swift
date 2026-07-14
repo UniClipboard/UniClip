@@ -29,10 +29,8 @@ public struct AppSettings: Codable, Equatable, Hashable, Sendable {
     /// When true, the sync engine actively READS `UIPasteboard.general`
     /// every tick and auto-pushes new local content to the server. iOS 16+
     /// shows an "Allow Paste" prompt each time it reads content copied from
-    /// another app, so this is **off by default**: the headline push path
-    /// is the Home-screen system paste button (`PasteButton`), which reads
-    /// on the user's explicit tap and never prompts. Power users who accept
-    /// the prompts can opt back into fully-automatic push here.
+    /// another app. This is on by default so push and pull both follow the
+    /// app's automatic-sync behavior; users can turn it off in Settings.
     ///
     /// When false, the engine never reads pasteboard content on its own —
     /// it only polls the free `changeCount` / `hasStrings` signals to
@@ -90,7 +88,7 @@ public struct AppSettings: Codable, Equatable, Hashable, Sendable {
         logViewLevelFilter: "info",
         ignoredVersion: nil,
         autoApplyServerChanges: true,
-        autoPushDeviceChanges: false,
+        autoPushDeviceChanges: true,
         prefetchAttachments: true,
         prefetchOnCellular: false,
         payloadCacheMaxBytes: 200 * 1024 * 1024,
@@ -110,7 +108,7 @@ public struct AppSettings: Codable, Equatable, Hashable, Sendable {
         logViewLevelFilter: String = "info",
         ignoredVersion: String? = nil,
         autoApplyServerChanges: Bool = true,
-        autoPushDeviceChanges: Bool = false,
+        autoPushDeviceChanges: Bool = true,
         prefetchAttachments: Bool = true,
         prefetchOnCellular: Bool = false,
         payloadCacheMaxBytes: Int = 200 * 1024 * 1024,
@@ -154,53 +152,53 @@ public struct AppSettings: Codable, Equatable, Hashable, Sendable {
     }
 
     public init(from decoder: any Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        let d = AppSettings.defaults
-        trustInsecureCert       = try c.decodeIfPresent(Bool.self,   forKey: .trustInsecureCert)       ?? d.trustInsecureCert
-        autoCheckUpdate         = try c.decodeIfPresent(Bool.self,   forKey: .autoCheckUpdate)         ?? d.autoCheckUpdate
-        manualUploadDialogShown = try c.decodeIfPresent(Bool.self,   forKey: .manualUploadDialogShown) ?? d.manualUploadDialogShown
-        downloadRelativePath    = try c.decodeIfPresent(String.self, forKey: .downloadRelativePath)    ?? d.downloadRelativePath
-        logViewLevelFilter      = try c.decodeIfPresent(String.self, forKey: .logViewLevelFilter)      ?? d.logViewLevelFilter
-        ignoredVersion          = try c.decodeIfPresent(String.self, forKey: .ignoredVersion)
-        autoApplyServerChanges  = try c.decodeIfPresent(Bool.self,   forKey: .autoApplyServerChanges)  ?? d.autoApplyServerChanges
-        autoPushDeviceChanges   = try c.decodeIfPresent(Bool.self,   forKey: .autoPushDeviceChanges)   ?? d.autoPushDeviceChanges
-        prefetchAttachments     = try c.decodeIfPresent(Bool.self,   forKey: .prefetchAttachments)     ?? d.prefetchAttachments
-        prefetchOnCellular      = try c.decodeIfPresent(Bool.self,   forKey: .prefetchOnCellular)      ?? d.prefetchOnCellular
-        payloadCacheMaxBytes    = try c.decodeIfPresent(Int.self,    forKey: .payloadCacheMaxBytes)    ?? d.payloadCacheMaxBytes
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = AppSettings.defaults
+        trustInsecureCert       = try container.decodeIfPresent(Bool.self,   forKey: .trustInsecureCert)       ?? defaults.trustInsecureCert
+        autoCheckUpdate         = try container.decodeIfPresent(Bool.self,   forKey: .autoCheckUpdate)         ?? defaults.autoCheckUpdate
+        manualUploadDialogShown = try container.decodeIfPresent(Bool.self,   forKey: .manualUploadDialogShown) ?? defaults.manualUploadDialogShown
+        downloadRelativePath    = try container.decodeIfPresent(String.self, forKey: .downloadRelativePath)    ?? defaults.downloadRelativePath
+        logViewLevelFilter      = try container.decodeIfPresent(String.self, forKey: .logViewLevelFilter)      ?? defaults.logViewLevelFilter
+        ignoredVersion          = try container.decodeIfPresent(String.self, forKey: .ignoredVersion)
+        autoApplyServerChanges  = try container.decodeIfPresent(Bool.self,   forKey: .autoApplyServerChanges)  ?? defaults.autoApplyServerChanges
+        autoPushDeviceChanges   = try container.decodeIfPresent(Bool.self,   forKey: .autoPushDeviceChanges)   ?? defaults.autoPushDeviceChanges
+        prefetchAttachments     = try container.decodeIfPresent(Bool.self,   forKey: .prefetchAttachments)     ?? defaults.prefetchAttachments
+        prefetchOnCellular      = try container.decodeIfPresent(Bool.self,   forKey: .prefetchOnCellular)      ?? defaults.prefetchOnCellular
+        payloadCacheMaxBytes    = try container.decodeIfPresent(Int.self,    forKey: .payloadCacheMaxBytes)    ?? defaults.payloadCacheMaxBytes
         // Unknown raw value (e.g. an older client wrote something we don't
         // recognize, or the key was hand-edited) falls back to system —
         // safer than throwing and losing every other setting in the blob.
-        if let raw = try c.decodeIfPresent(String.self, forKey: .appearance) {
-            appearance = AppearanceMode(rawValue: raw) ?? d.appearance
+        if let raw = try container.decodeIfPresent(String.self, forKey: .appearance) {
+            appearance = AppearanceMode(rawValue: raw) ?? defaults.appearance
         } else {
-            appearance = d.appearance
+            appearance = defaults.appearance
         }
-        keyboardSoundFeedback   = try c.decodeIfPresent(Bool.self,   forKey: .keyboardSoundFeedback)   ?? d.keyboardSoundFeedback
-        keyboardHapticFeedback  = try c.decodeIfPresent(Bool.self,   forKey: .keyboardHapticFeedback)  ?? d.keyboardHapticFeedback
-        onboardingShown         = try c.decodeIfPresent(Bool.self,   forKey: .onboardingShown)         ?? d.onboardingShown
-        pastePermissionHintDismissed = try c.decodeIfPresent(Bool.self, forKey: .pastePermissionHintDismissed) ?? d.pastePermissionHintDismissed
-        enhancementsPromptShown = try c.decodeIfPresent(Bool.self, forKey: .enhancementsPromptShown) ?? d.enhancementsPromptShown
+        keyboardSoundFeedback   = try container.decodeIfPresent(Bool.self,   forKey: .keyboardSoundFeedback)   ?? defaults.keyboardSoundFeedback
+        keyboardHapticFeedback  = try container.decodeIfPresent(Bool.self,   forKey: .keyboardHapticFeedback)  ?? defaults.keyboardHapticFeedback
+        onboardingShown         = try container.decodeIfPresent(Bool.self,   forKey: .onboardingShown)         ?? defaults.onboardingShown
+        pastePermissionHintDismissed = try container.decodeIfPresent(Bool.self, forKey: .pastePermissionHintDismissed) ?? defaults.pastePermissionHintDismissed
+        enhancementsPromptShown = try container.decodeIfPresent(Bool.self, forKey: .enhancementsPromptShown) ?? defaults.enhancementsPromptShown
     }
 
     public func encode(to encoder: any Encoder) throws {
-        var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(trustInsecureCert,       forKey: .trustInsecureCert)
-        try c.encode(autoCheckUpdate,         forKey: .autoCheckUpdate)
-        try c.encode(manualUploadDialogShown, forKey: .manualUploadDialogShown)
-        try c.encode(downloadRelativePath,    forKey: .downloadRelativePath)
-        try c.encode(logViewLevelFilter,      forKey: .logViewLevelFilter)
-        try c.encodeIfPresent(ignoredVersion, forKey: .ignoredVersion)
-        try c.encode(autoApplyServerChanges,  forKey: .autoApplyServerChanges)
-        try c.encode(autoPushDeviceChanges,   forKey: .autoPushDeviceChanges)
-        try c.encode(prefetchAttachments,     forKey: .prefetchAttachments)
-        try c.encode(prefetchOnCellular,      forKey: .prefetchOnCellular)
-        try c.encode(payloadCacheMaxBytes,    forKey: .payloadCacheMaxBytes)
-        try c.encode(appearance.rawValue,     forKey: .appearance)
-        try c.encode(keyboardSoundFeedback,   forKey: .keyboardSoundFeedback)
-        try c.encode(keyboardHapticFeedback,  forKey: .keyboardHapticFeedback)
-        try c.encode(onboardingShown,         forKey: .onboardingShown)
-        try c.encode(pastePermissionHintDismissed, forKey: .pastePermissionHintDismissed)
-        try c.encode(enhancementsPromptShown, forKey: .enhancementsPromptShown)
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(trustInsecureCert,       forKey: .trustInsecureCert)
+        try container.encode(autoCheckUpdate,         forKey: .autoCheckUpdate)
+        try container.encode(manualUploadDialogShown, forKey: .manualUploadDialogShown)
+        try container.encode(downloadRelativePath,    forKey: .downloadRelativePath)
+        try container.encode(logViewLevelFilter,      forKey: .logViewLevelFilter)
+        try container.encodeIfPresent(ignoredVersion, forKey: .ignoredVersion)
+        try container.encode(autoApplyServerChanges,  forKey: .autoApplyServerChanges)
+        try container.encode(autoPushDeviceChanges,   forKey: .autoPushDeviceChanges)
+        try container.encode(prefetchAttachments,     forKey: .prefetchAttachments)
+        try container.encode(prefetchOnCellular,      forKey: .prefetchOnCellular)
+        try container.encode(payloadCacheMaxBytes,    forKey: .payloadCacheMaxBytes)
+        try container.encode(appearance.rawValue,     forKey: .appearance)
+        try container.encode(keyboardSoundFeedback,   forKey: .keyboardSoundFeedback)
+        try container.encode(keyboardHapticFeedback,  forKey: .keyboardHapticFeedback)
+        try container.encode(onboardingShown,         forKey: .onboardingShown)
+        try container.encode(pastePermissionHintDismissed, forKey: .pastePermissionHintDismissed)
+        try container.encode(enhancementsPromptShown, forKey: .enhancementsPromptShown)
     }
 }
 
