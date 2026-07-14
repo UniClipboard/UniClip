@@ -38,10 +38,14 @@ import type { HistoryDirectionIndicator } from '@/utils/historyDirection';
 import type { ClipboardCardProps } from './ClipboardCard.types';
 
 export const ClipboardCard: React.FC<ClipboardCardProps> = React.memo(
-  ({ item, isLatest, isSelected, isSelectMode, onPress, onLongPress }) => {
+  ({ item, isLatest, isSelected, isSelectMode, onPress, onLongPress, surfaceColor }) => {
     const { displayKind, kindLabel, relativeTime, directionIndicator } =
       useClipboardCardViewModel(item);
     const kindColor = iosKindTints[displayKind];
+
+    // 传入 surfaceColor = 双栏「凹陷」样式:卡片比面板暗，此时去掉下投阴影,否则凹陷块反显凸起。
+    // compact(iPhone)不传 → 保留阴影，卡片浮起于页面之上。
+    const recessed = surfaceColor != null;
 
     // 按压时轻微收缩，预告"长按有戏"；长按触发后由浮层接管，pressOut 回弹
     const cardRef = useRef<View>(null);
@@ -77,8 +81,9 @@ export const ClipboardCard: React.FC<ClipboardCardProps> = React.memo(
           }}
           style={[
             styles.card,
+            !recessed && iosCardShadow,
             {
-              backgroundColor: iosColors!.secondarySystemGroupedBackground,
+              backgroundColor: surfaceColor ?? iosColors!.secondarySystemGroupedBackground,
               borderColor: isSelected ? iosAccentColor : 'transparent',
               borderWidth: isSelected ? 2 : 0,
             },
@@ -92,6 +97,7 @@ export const ClipboardCard: React.FC<ClipboardCardProps> = React.memo(
             relativeTime={relativeTime}
             directionIndicator={directionIndicator}
             isLatest={isLatest}
+            surfaceColor={surfaceColor}
           />
           {isSelectMode && (
             <View style={styles.selectOverlay}>
@@ -118,6 +124,15 @@ interface CardBodyProps {
   relativeTime: string;
   directionIndicator: HistoryDirectionIndicator;
   isLatest: boolean;
+  /** 覆盖的卡底色(与外层 Pressable 背景一致)。SVG 渐隐遮罩/折角缺口需要与卡底色
+   *  严格一致,而 SVG 不认 PlatformColor,故仅当传入字符串色值时生效。 */
+  surfaceColor?: ClipboardCardProps['surfaceColor'];
+}
+
+// 传入 surfaceColor(字符串)时用它,否则按明暗回退 secondarySystemGroupedBackground 的实际色值
+function resolveCardBg(surfaceColor: CardBodyProps['surfaceColor'], isDark: boolean): string {
+  if (typeof surfaceColor === 'string') return surfaceColor;
+  return isDark ? '#1C1C1E' : '#FFFFFF';
 }
 
 function CardBody(props: CardBodyProps) {
@@ -277,12 +292,13 @@ function TextCardBody({
   relativeTime,
   directionIndicator,
   isLatest,
+  surfaceColor,
 }: CardBodyProps) {
   const { theme } = useTheme();
   const text = item.text.trim();
   const isQuote = text.length <= QUOTE_MAX_CHARS;
-  // SVG Stop 不认 PlatformColor，按明暗取 secondarySystemGroupedBackground 的实际色值
-  const fadeColor = theme.isDark ? '#1C1C1E' : '#FFFFFF';
+  // 渐隐遮罩必须与卡底色一致才能"隐入卡底"
+  const fadeColor = resolveCardBg(surfaceColor, theme.isDark);
 
   return (
     <View style={styles.standardBody}>
@@ -330,6 +346,7 @@ function FileCardBody({
   relativeTime,
   directionIndicator,
   isLatest,
+  surfaceColor,
 }: CardBodyProps) {
   const { t } = useTranslation('history');
   const { theme } = useTheme();
@@ -340,12 +357,15 @@ function FileCardBody({
   const chipColor = isGroup ? iosKindTints.group : getExtensionColor(ext);
   const sizeLabel = item.size ? formatFileSize(item.size) : '';
 
-  const paperBg = theme.isDark ? '#2C2C2E' : '#FDFDFD';
+  // 暗色下纸面要比卡底亮一阶;卡底被 surfaceColor 覆盖(tertiary #2C2C2E)时纸面/折角/影子纸
+  // 顺势各上移一阶,否则纸面与卡底同色隐形
+  const raised = theme.isDark && typeof surfaceColor === 'string';
+  const paperBg = theme.isDark ? (raised ? '#3A3A3C' : '#2C2C2E') : '#FDFDFD';
   const paperBorder = theme.isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)';
-  const foldColor = theme.isDark ? '#3A3A3C' : '#E3E3E8';
-  const ghostBg = theme.isDark ? '#232325' : '#ECECF0';
+  const foldColor = theme.isDark ? (raised ? '#48484A' : '#3A3A3C') : '#E3E3E8';
+  const ghostBg = theme.isDark ? (raised ? '#2F2F31' : '#232325') : '#ECECF0';
   // 折角缺口要与卡底色一致才有"纸角被翻起"的效果
-  const cardBg = theme.isDark ? '#1C1C1E' : '#FFFFFF';
+  const cardBg = resolveCardBg(surfaceColor, theme.isDark);
 
   return (
     <View style={styles.standardBody}>
@@ -547,7 +567,7 @@ const styles = StyleSheet.create({
     borderRadius: iosDimensions.cardCornerRadius,
     borderCurve: 'continuous' as any,
     overflow: 'hidden',
-    ...iosCardShadow,
+    // 阴影按需在组件内加(仅 compact 浮起态);凹陷态(surfaceColor)不加,见上方 recessed。
   },
   standardBody: {
     flex: 1,

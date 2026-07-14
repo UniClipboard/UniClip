@@ -6,7 +6,7 @@ import { ClipboardCard } from '@/components/ClipboardCard';
 import { ClipboardItem } from '@/types/clipboard';
 import { computeGridMetrics } from '@/utils/gridLayout';
 import type { HomeController } from './useHomeController';
-import { iosDimensions } from '@/theme/iosDesignTokens';
+import { iosColors, iosDimensions } from '@/theme/iosDesignTokens';
 
 const GRID_SPACING = 12;
 const GRID_PADDING = 16;
@@ -62,6 +62,13 @@ export function HomeMasterGrid({
           isSelectMode={isSelectMode}
           onPress={handlePress}
           onLongPress={c.handleItemLongPress}
+          // 双栏卡片嵌在浮起面板(secondary)里,用第三层的 tertiarySystemGroupedBackground
+          // 区分层级(light 柔灰 / dark 比面板亮一阶),即系统为「嵌在 secondary 面板里的内容块」
+          // 设计的层级色;传入 surfaceColor 同时会关掉卡片的下投阴影(见 ClipboardCard.ios)。
+          // 传具体色值而非 PlatformColor:卡片内部的 SVG 渐隐遮罩/折角缺口需要拿到字符串色值
+          // 才能与卡底色严格一致(SVG Stop 不认 PlatformColor)。
+          // Android 上 iosColors 为 null → undefined → 卡片走各自默认(surfaceLow/High 已自带对比)。
+          surfaceColor={iosColors ? (theme.isDark ? '#2C2C2E' : '#F2F2F7') : undefined}
         />
       );
     },
@@ -73,6 +80,7 @@ export function HomeMasterGrid({
       isSelectMode,
       detailItem,
       showDetailSelection,
+      theme.isDark,
     ]
   );
 

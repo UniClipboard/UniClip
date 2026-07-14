@@ -13,7 +13,9 @@ import type { HomeViewProps } from './HomeView.types';
  * - expanded : iPad 全屏 / 大屏 —— 方案 B 三栏工作台 · inset(HomeExpandedView)。
  *
  * iOS 的 gutter/pane 底色走系统分组背景:gutter=systemGroupedBackground、
- * 浮起面板=secondarySystemGroupedBackground(与卡片同源,层级由系统在明暗下自动处理)。
+ * 浮起面板=secondarySystemGroupedBackground(网格区同为该面板色,中间区域是一个整体白面板)。
+ * 双栏里的卡片取第三层的 tertiarySystemGroupedBackground(见 HomeMasterGrid),
+ * 是系统为「嵌在 secondary 面板里的内容块」设计的层级色,明暗两主题都与面板有和谐对比。
  */
 export function HomeView({ onOpenSettings }: HomeViewProps) {
   const c = useHomeController(onOpenSettings);

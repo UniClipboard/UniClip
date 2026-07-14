@@ -27,7 +27,9 @@ const RAIL_FAB_INSET = GUTTER + (RAIL_WIDTH - FAB_SIZE) / 2;
  * 各区域使用浮起的圆角面板(paneColor),靠 GUTTER 缝隙分区,不画分割线。Android 面板取
  * surfaceHigh、卡片 surfaceLow ——
  * 卡片明显区别于面板背景(light 卡片更亮浮起、dark 卡片更暗内嵌,两主题都有清晰对比);
- * iOS 走系统分组背景,面板/卡片层级由系统在明暗下自动处理。gutter=background/systemGroupedBackground。
+ * iOS 面板取 secondarySystemGroupedBackground、卡片取第三层的 tertiarySystemGroupedBackground
+ * 并去掉阴影(在 HomeMasterGrid 传入),两主题都与面板有和谐对比。
+ * gutter=background/systemGroupedBackground。
  *
  * 详情在首次点选前只显示轻量占位,避免旋转时在后台重排未使用的图片预览。
  * iOS / Android 差异仅在 gutter/pane 两个底色 token,由各自平台的 HomeView 传入。
@@ -81,7 +83,7 @@ export function HomeExpandedView({
           <HomeFilterRail c={c} />
         </View>
 
-        {/* ── 历史网格(面板)── 卡片(surfaceLow)在 surfaceHigh 面板上浮起,三栏统一为面板 */}
+        {/* ── 历史网格(面板)── 卡片在面板上以层级色区分,三栏统一为面板 */}
         <View
           style={[
             styles.pane,
