@@ -22,6 +22,10 @@
       "today": "今天",
       "yesterday": "昨天",
       "pastWeek": "7 天内"
+    },
+    "chip": {
+      "all": "全部",
+      "date": "时间"
     }
   },
   "kind": {

@@ -72,6 +72,26 @@ export const iosAccentColor: OpaqueColorValue | undefined =
     ? DynamicColorIOS({ light: iosAccent.light, dark: iosAccent.dark })
     : undefined;
 
+/** accent 填充上的前景色(明/暗手动解析,给吃不了 PlatformColor 的场景用) */
+export const iosOnAccent = {
+  light: '#FFFFFF',
+  dark: iosAccent.light,
+} as const;
+
+// -- 系统色的明暗 hex 近似 --
+// 优先用上面的 iosColors(PlatformColor);只有 SwiftUI modifier(@expo/ui)和
+// CSS 渐变(experimental_backgroundImage)这类吃不了 PlatformColor 的出口才用这份。
+// 值对照 UIKit 的默认明暗解析结果,新增条目时同样成对给出 light/dark。
+
+export const iosSystemHex = {
+  /** systemGroupedBackground */
+  groupedBackground: { light: '#F2F2F7', dark: '#000000' },
+  /** secondarySystemGroupedBackground(分组页里的卡片/胶囊底色) */
+  secondaryGroupedBackground: { light: '#FFFFFF', dark: '#1C1C1E' },
+  /** secondaryLabel */
+  secondaryLabel: { light: 'rgba(60, 60, 67, 0.6)', dark: 'rgba(235, 235, 245, 0.6)' },
+} as const;
+
 // -- Card shadow (from DESIGN.md) --
 
 export const iosCardShadow = {

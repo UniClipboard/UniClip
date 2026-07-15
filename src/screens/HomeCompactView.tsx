@@ -1,14 +1,19 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, RefreshControl, StatusBar, type ColorValue } from 'react-native';
+import Animated from 'react-native-reanimated';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { iosColors } from '@/theme/iosDesignTokens';
 import { AnimatedCardGrid } from '@/components/AnimatedCardGrid';
+import { HomeFilterChipsRow } from '@/components/HomeFilterChipsRow';
+import { FILTER_CHIP_ROW_HEIGHT } from '@/components/HomeFilterChipsRow.types';
 import { SelectModeBottomBar } from '@/components/HomeBottomBar';
 import { AddActionsFab } from '@/components/AddActionsFab';
 import { ClipboardCard } from '@/components/ClipboardCard';
 import { ClipboardItem } from '@/types/clipboard';
 import { HomeTopBarArea, HomeSyncBanners } from './HomeChrome';
 import { HomeOverlays } from './HomeOverlays';
+import { CHIP_ROW_GRID_METRICS } from './chipRowGridMetrics';
+import { useChipRowCollapse } from './useChipRowCollapse';
 import type { HomeController } from './useHomeController';
 
 const GRID_SPACING = 12;
@@ -30,9 +35,17 @@ export function HomeCompactView({
   refreshTintColor?: ColorValue;
 }) {
   const { theme, items, selectedIds, isSelectMode } = c;
+  const backgroundColor = iosColors?.systemGroupedBackground ?? theme.colors.background;
 
   const cardSize =
     (screenWidth - GRID_PADDING * 2 - GRID_SPACING * (NUM_COLUMNS - 1)) / NUM_COLUMNS;
+
+  const chipRowCollapse = useChipRowCollapse(CHIP_ROW_GRID_METRICS.contentInsetTop);
+  // 筛选后列表为空时强制展开筛选行,保证用户能撤掉筛选
+  const revealChipRow = chipRowCollapse.reveal;
+  useEffect(() => {
+    if (items.length === 0) revealChipRow();
+  }, [items.length, revealChipRow]);
 
   const renderCard = useCallback(
     (item: ClipboardItem) => (
@@ -51,12 +64,7 @@ export function HomeCompactView({
   );
 
   return (
-    <View
-      style={[
-        styles.container,
-        { backgroundColor: iosColors?.systemGroupedBackground ?? theme.colors.background },
-      ]}
-    >
+    <View style={[styles.container, { backgroundColor }]}>
       <StatusBar
         barStyle={theme.isDark ? 'light-content' : 'dark-content'}
         backgroundColor="transparent"
@@ -66,38 +74,64 @@ export function HomeCompactView({
       <HomeTopBarArea c={c} />
       <HomeSyncBanners c={c} />
 
-      {items.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Ionicons name={c.emptyContent.icon} size={48} color={c.emptyContent.tint} />
-          <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>
-            {c.emptyContent.title}
-          </Text>
-          <Text style={[styles.emptyDesc, { color: theme.colors.textSecondary }]}>
-            {c.emptyContent.description}
-          </Text>
-        </View>
-      ) : (
-        <AnimatedCardGrid
-          ref={c.listRef}
-          items={items}
-          numColumns={NUM_COLUMNS}
-          cardSize={cardSize}
-          spacing={GRID_SPACING}
-          paddingHorizontal={GRID_PADDING - GRID_SPACING / 2}
-          paddingTop={8}
-          paddingBottom={80}
-          keyExtractor={c.keyExtractor}
-          renderItem={renderCard}
-          refreshControl={
-            <RefreshControl
-              refreshing={c.refreshing}
-              onRefresh={c.handleRefresh}
-              tintColor={refreshTintColor}
-              colors={[theme.colors.accent]}
-            />
-          }
-        />
-      )}
+      {/*
+       * 网格区:筛选 chip 行以 overlay 覆盖在网格顶部(网格内容用 paddingTop 预留同等
+       * 高度),随滚动 1:1 收展只动 transform/opacity,零布局重排。行在搜索/多选态也保持
+       * 挂载:三种模式共享同一份筛选状态,且网格 paddingTop 恒定,卡片坐标不因模式切换跳变。
+       */}
+      <View style={styles.gridArea}>
+        {items.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name={c.emptyContent.icon} size={48} color={c.emptyContent.tint} />
+            <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>
+              {c.emptyContent.title}
+            </Text>
+            <Text style={[styles.emptyDesc, { color: theme.colors.textSecondary }]}>
+              {c.emptyContent.description}
+            </Text>
+          </View>
+        ) : (
+          <AnimatedCardGrid
+            ref={c.listRef}
+            items={items}
+            numColumns={NUM_COLUMNS}
+            cardSize={cardSize}
+            spacing={GRID_SPACING}
+            paddingHorizontal={GRID_PADDING - GRID_SPACING / 2}
+            paddingTop={8 + CHIP_ROW_GRID_METRICS.paddingTopExtra}
+            paddingBottom={80}
+            keyExtractor={c.keyExtractor}
+            renderItem={renderCard}
+            contentInsetTop={CHIP_ROW_GRID_METRICS.contentInsetTop}
+            onScrollWorklet={chipRowCollapse.onScrollWorklet}
+            onScrollEndWorklet={chipRowCollapse.onScrollEndWorklet}
+            refreshControl={
+              <RefreshControl
+                refreshing={c.refreshing}
+                onRefresh={c.handleRefresh}
+                tintColor={refreshTintColor}
+                colors={[theme.colors.accent]}
+                progressViewOffset={CHIP_ROW_GRID_METRICS.progressViewOffset || undefined}
+              />
+            }
+          />
+        )}
+
+        <Animated.View
+          style={[styles.chipRowOverlay, { backgroundColor }, chipRowCollapse.rowStyle]}
+          accessibilityElementsHidden={chipRowCollapse.isFullyHidden}
+          importantForAccessibility={chipRowCollapse.isFullyHidden ? 'no-hide-descendants' : 'auto'}
+        >
+          <HomeFilterChipsRow
+            selectedKinds={c.selectedFilterKinds}
+            selectedDate={c.selectedDateFilter}
+            onToggleKind={c.handleToggleFilterKind}
+            onClearKinds={c.handleClearFilterKinds}
+            onSelectDate={c.setSelectedDateFilter}
+            theme={theme}
+          />
+        </Animated.View>
+      </View>
 
       {/* 多选底栏(默认态由右下 FAB 取代) */}
       {isSelectMode && (
@@ -135,6 +169,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  gridArea: {
+    flex: 1,
+  },
+  chipRowOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+  },
   cardSlot: {
     flex: 1,
     padding: GRID_SPACING / 2,
@@ -144,6 +187,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 12,
+    paddingTop: FILTER_CHIP_ROW_HEIGHT,
     paddingHorizontal: 40,
   },
   emptyTitle: {

@@ -22,6 +22,10 @@
       "today": "Today",
       "yesterday": "Yesterday",
       "pastWeek": "Past 7 days"
+    },
+    "chip": {
+      "all": "All",
+      "date": "Date"
     }
   },
   "kind": {

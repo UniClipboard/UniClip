@@ -24,7 +24,9 @@ const mockAnim: {
   // 只保留挂载瞬间的快照,之后共享值更新不再反映到视图上(JS 侧回调照常触发)。
   // 对应真机上"快速挂载/卸载后动画样式不再生效"的故障模式。
   mapperDeadForNewMounts: boolean;
-} = { pendingSprings: [], mapperDeadForNewMounts: false };
+  // 记录组件通过 ref 发起的 scrollTo 调用(scrollToOffset 的 inset 换算断言用)
+  scrollToCalls: Array<{ y: number; animated?: boolean }>;
+} = { pendingSprings: [], mapperDeadForNewMounts: false, scrollToCalls: [] };
 
 function settleAllSprings() {
   while (mockAnim.pendingSprings.length > 0) {
@@ -66,9 +68,14 @@ jest.mock('react-native-reanimated', () => {
   const AnimatedView = ReactActual.forwardRef((props: any, ref: any) =>
     ReactActual.createElement('AnimatedView', { ...props, ref })
   );
-  const AnimatedScrollView = ReactActual.forwardRef((props: any, ref: any) =>
-    ReactActual.createElement('AnimatedScrollView', { ...props, ref })
-  );
+  const AnimatedScrollView = ReactActual.forwardRef((props: any, ref: any) => {
+    ReactActual.useImperativeHandle(ref, () => ({
+      scrollTo: (opts: { y: number; animated?: boolean }) => {
+        mockAnim.scrollToCalls.push(opts);
+      },
+    }));
+    return ReactActual.createElement('AnimatedScrollView', props);
+  });
 
   return {
     __esModule: true,
@@ -92,7 +99,10 @@ jest.mock('react-native-reanimated', () => {
         },
       };
     },
-    useAnimatedScrollHandler: (fn: (event: any) => void) => fn,
+    // 组件用对象形式 { onScroll, onEndDrag, onMomentumEnd };测试只驱动 onScroll
+    useAnimatedScrollHandler: (
+      handlers: ((event: any) => void) | { onScroll?: (event: any) => void }
+    ) => (typeof handlers === 'function' ? handlers : (event: any) => handlers.onScroll?.(event)),
     withSpring: (to: number, _config: any, cb?: (finished: boolean) => void) => ({
       __spring: true,
       to,
@@ -105,7 +115,7 @@ jest.mock('react-native-worklets', () => ({
   scheduleOnRN: (fn: (...args: any[]) => void, ...args: any[]) => fn(...args),
 }));
 
-import { AnimatedCardGrid } from '@/components/AnimatedCardGrid';
+import { AnimatedCardGrid, type AnimatedCardGridHandle } from '@/components/AnimatedCardGrid';
 
 // ---- 布局参数(与断言共用) ----
 const NUM_COLUMNS = 2;
@@ -126,9 +136,13 @@ const keyExtractor = (item: Item) => item.hash;
 const renderItem = (item: Item) =>
   React.createElement('cell', { cellId: item.id, cellHash: item.hash });
 
-function renderGrid(items: Item[]) {
+function renderGrid(
+  items: Item[],
+  opts?: { gridRef?: React.Ref<AnimatedCardGridHandle>; contentInsetTop?: number }
+) {
   return (
     <AnimatedCardGrid
+      ref={opts?.gridRef}
       items={items}
       numColumns={NUM_COLUMNS}
       cardSize={CARD_SIZE}
@@ -138,6 +152,7 @@ function renderGrid(items: Item[]) {
       paddingBottom={PAD_BOTTOM}
       keyExtractor={keyExtractor}
       renderItem={renderItem}
+      contentInsetTop={opts?.contentInsetTop}
     />
   );
 }
@@ -400,5 +415,55 @@ describe('AnimatedCardGrid 空槽位模糊回路', () => {
     expect(secondFrame.width).toBe(200);
     expect(secondFrame.height).toBe(200);
     expect(secondFrame.transform).toEqual([{ scale: 0.6 }]);
+  });
+});
+
+describe('AnimatedCardGrid contentInsetTop(iOS 筛选行 overlay 预留)', () => {
+  beforeEach(() => {
+    mockAnim.scrollToCalls.length = 0;
+  });
+
+  const makeItems = (count: number): Item[] =>
+    Array.from({ length: count }, (_, index) => ({ id: index + 1, hash: `hash-${index + 1}` }));
+
+  function mount(contentInsetTop?: number) {
+    const gridRef = React.createRef<AnimatedCardGridHandle>();
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(renderGrid(makeItems(8), { gridRef, contentInsetTop }));
+    });
+    const scrollView = renderer.root.findByType('AnimatedScrollView' as any);
+    return { gridRef, scrollView };
+  }
+
+  it('无 inset 时 scrollToOffset 直接透传 offset', () => {
+    const { gridRef } = mount();
+    act(() => {
+      gridRef.current!.scrollToOffset({ offset: 120, animated: false });
+    });
+    expect(mockAnim.scrollToCalls).toEqual([{ y: 120, animated: false }]);
+  });
+
+  it('有 inset 时 scrollToOffset 以内容坐标换算:offset 0 = 静止顶部(y = -inset)', () => {
+    const INSET = 46;
+    const { gridRef } = mount(INSET);
+    act(() => {
+      gridRef.current!.scrollToOffset({ offset: 0, animated: true });
+    });
+    expect(mockAnim.scrollToCalls).toEqual([{ y: -INSET, animated: true }]);
+  });
+
+  it('有 inset 时把 contentInset/contentOffset 传给 ScrollView 并禁用系统自动调整', () => {
+    const INSET = 46;
+    const { scrollView } = mount(INSET);
+    expect(scrollView.props.contentInset).toEqual({ top: INSET });
+    expect(scrollView.props.contentOffset).toEqual({ x: 0, y: -INSET });
+    expect(scrollView.props.automaticallyAdjustContentInsets).toBe(false);
+  });
+
+  it('无 inset 时不注入 contentInset/contentOffset(保持既有行为)', () => {
+    const { scrollView } = mount();
+    expect(scrollView.props.contentInset).toBeUndefined();
+    expect(scrollView.props.contentOffset).toBeUndefined();
   });
 });

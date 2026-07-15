@@ -617,14 +617,18 @@ export function useHomeController(onOpenSettings: () => void) {
   // Search
   const openSearch = useCallback(() => setIsSearching(true), []);
   const hasActiveFilters = selectedFilterKinds.length > 0 || selectedDateFilter !== 'all';
+  // 类型筛选是全局单选(chip 行、搜索筛选弹层、平板 FilterRail 共用):点新类型替换,
+  // 点已选类型取消(回到「全部」)。弹层里的 checkmark 行按 radio 语义理解,与同弹层的
+  // 时间区一致。状态保持数组是为了兼容 HistoryFilter.displayKinds 的存储/查询管线。
   const handleToggleFilterKind = useCallback((kind: DisplayKind) => {
-    setSelectedFilterKinds((current) =>
-      current.includes(kind) ? current.filter((item) => item !== kind) : [...current, kind]
-    );
+    setSelectedFilterKinds((current) => (current.includes(kind) ? [] : [kind]));
   }, []);
   const handleClearFilters = useCallback(() => {
     setSelectedFilterKinds([]);
     setSelectedDateFilter('all');
+  }, []);
+  const handleClearFilterKinds = useCallback(() => {
+    setSelectedFilterKinds([]);
   }, []);
   const closeSearch = useCallback(() => {
     setIsSearching(false);
@@ -696,6 +700,7 @@ export function useHomeController(onOpenSettings: () => void) {
     hasActiveFilters,
     handleToggleFilterKind,
     handleClearFilters,
+    handleClearFilterKinds,
     showFilterSheet,
     setShowFilterSheet,
     // server + connection
