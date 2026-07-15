@@ -129,7 +129,7 @@ export const QuickTileLoadingScreen: React.FC<QuickTileLoadingScreenProps> = ({
             onPress: async () => {
               try {
                 if (fileContent.type === 'Image') {
-                  await saveToGallery(fileContent.fileUri!);
+                  await saveToGallery(fileContent.fileUri!, fileContent.fileName);
                   showToast(t('toast.savedToGallery'));
                 } else {
                   const saved = await saveFile(fileContent.fileUri!, fileContent.fileName);

@@ -31,5 +31,5 @@ export interface FileActions {
   /**
    * 保存图片到系统相册（两端一致，仅支持图片类型）。
    */
-  saveToGallery(fileUri: string): Promise<void>;
+  saveToGallery(fileUri: string, fileName?: string): Promise<void>;
 }

@@ -398,9 +398,10 @@ export function useHomeController(onOpenSettings: () => void) {
         },
         onSaveImage: async () => {
           try {
-            await saveToGallery(item.fileUri!);
+            await saveToGallery(item.fileUri!, item.dataName);
             showMessage(t('toast.savedToGallery'), 'success');
-          } catch {
+          } catch (error) {
+            log.error('[HomeView] saveToGallery failed:', error);
             showMessage(t('toast.saveFailed'), 'error');
           }
         },

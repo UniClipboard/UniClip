@@ -18,6 +18,7 @@ import { moveTaskToBack, setExcludeFromRecents } from 'android-util';
 import { getBackgroundServiceManager } from './src/services/BackgroundServiceManager';
 import { startAppGroupSync } from './src/services/appGroupSync';
 import { startNetworkContextMonitor } from './src/services/networkContext';
+import { initializeGalleryExports } from './src/utils/fileActions.shared';
 import {
   parseConnectUri,
   CONNECT_URI_ERROR_MESSAGES,
@@ -113,6 +114,7 @@ export default function App() {
 
   useEffect(() => {
     initLogger();
+    void initializeGalleryExports();
     setDynamicShortcuts();
   }, []);
 
