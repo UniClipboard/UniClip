@@ -5,18 +5,17 @@
  *   让用户自己选保存位置，语义上与「分享」区分开。
  * - `openFile`：iOS 没有 ACTION_VIEW，交给系统分享/预览面板处理。
  * - `shareFile`：两端一致，从 shared 复用。
- * - `saveToGallery`：复用 shared 的暂存/清理，但用支持 add-only 权限的 iOS legacy writer。
+ * - `saveToGallery`：复用 shared 的校验/权限逻辑，由 PhotoKit 直接读取 App Group payload。
  */
 
-import { exportFile } from 'document-exporter';
-import { saveToLibraryAsync } from 'expo-media-library/legacy';
+import { exportFile, saveImageToPhotoLibrary } from 'document-exporter';
 import type { FileActions } from './fileActions.types';
 import { shareFile, saveToGallery as saveToGalleryShared } from './fileActions.shared';
 
 export { shareFile };
 
 export async function saveToGallery(fileUri: string, fileName?: string): Promise<void> {
-  await saveToGalleryShared(fileUri, fileName, saveToLibraryAsync);
+  await saveToGalleryShared(fileUri, fileName, saveImageToPhotoLibrary);
 }
 
 /**

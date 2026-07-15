@@ -29,6 +29,11 @@ import { createHistorySearchFilter, HistoryDateFilter } from '@/utils/historyFil
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 
+function getErrorCode(error: unknown): string {
+  if (typeof error !== 'object' || error === null || !('code' in error)) return 'UNKNOWN';
+  return typeof error.code === 'string' ? error.code : 'UNKNOWN';
+}
+
 // 下拉刷新 / 同步按钮统一走 SyncEngine 的显式 pull（enginePull(Explicit)）——引擎内部
 // get_latest + 冲突解析 + watermark，Applied 分支经 applyToDevice 写回剪贴板/历史，
 // 不再在 UI 层直调 FFI（旧 fetchAndApplyServerClipboard 已删）。
@@ -401,7 +406,7 @@ export function useHomeController(onOpenSettings: () => void) {
             await saveToGallery(item.fileUri!, item.dataName);
             showMessage(t('toast.savedToGallery'), 'success');
           } catch (error) {
-            log.error('[HomeView] saveToGallery failed:', error);
+            log.error(`[HomeView] saveToGallery failed (${getErrorCode(error)})`);
             showMessage(t('toast.saveFailed'), 'error');
           }
         },

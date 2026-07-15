@@ -1,5 +1,8 @@
 import ExpoModulesCore
+import ImageIO
+import Photos
 import UIKit
+import UniformTypeIdentifiers
 
 public class DocumentExporterModule: Module {
   public func definition() -> ModuleDefinition {
@@ -13,17 +16,16 @@ public class DocumentExporterModule: Module {
         self.presentExporter(fileUri: fileUri, fileName: fileName, promise: promise)
       }
     }
+
+    AsyncFunction("saveImageToPhotoLibraryAsync") {
+      (fileUri: String, fileName: String?, promise: Promise) in
+      self.saveImageToPhotoLibrary(fileUri: fileUri, fileName: fileName, promise: promise)
+    }
   }
 
   @MainActor
   private func presentExporter(fileUri: String, fileName: String?, promise: Promise) {
-    // Accept both `file://...` URIs and bare filesystem paths.
-    let source: URL
-    if let parsed = URL(string: fileUri), parsed.isFileURL {
-      source = parsed
-    } else {
-      source = URL(fileURLWithPath: fileUri)
-    }
+    let source = Self.fileURL(from: fileUri)
 
     guard FileManager.default.fileExists(atPath: source.path) else {
       promise.reject("ERR_NOT_FOUND", "Source file does not exist: \(source.path)")
@@ -67,6 +69,75 @@ public class DocumentExporterModule: Module {
     objc_setAssociatedObject(picker, "coordinator", coordinator, .OBJC_ASSOCIATION_RETAIN)
 
     topVC.present(picker, animated: true)
+  }
+
+  private func saveImageToPhotoLibrary(fileUri: String, fileName: String?, promise: Promise) {
+    let source = Self.fileURL(from: fileUri)
+    guard FileManager.default.fileExists(atPath: source.path) else {
+      promise.reject("ERR_NOT_FOUND", "Source image does not exist")
+      return
+    }
+
+    let preferredName = Self.safeFileName(fileName) ?? source.lastPathComponent
+    let fileExtension = URL(fileURLWithPath: preferredName).pathExtension
+    guard
+      !fileExtension.isEmpty,
+      let declaredType = UTType(filenameExtension: fileExtension),
+      declaredType.conforms(to: .image)
+    else {
+      promise.reject("ERR_UNSUPPORTED_IMAGE", "Image filename has an unsupported extension")
+      return
+    }
+
+    let imageData: Data
+    do {
+      imageData = try Data(contentsOf: source, options: .mappedIfSafe)
+    } catch {
+      promise.reject("ERR_IMAGE_READ", "Failed to read source image")
+      return
+    }
+
+    guard
+      let imageSource = CGImageSourceCreateWithData(imageData as CFData, nil),
+      let detectedIdentifier = CGImageSourceGetType(imageSource) as String?,
+      let detectedType = UTType(detectedIdentifier),
+      detectedType.conforms(to: .image)
+    else {
+      promise.reject("ERR_UNSUPPORTED_IMAGE", "Source data is not a supported image")
+      return
+    }
+
+    let options = PHAssetResourceCreationOptions()
+    options.originalFilename = preferredName
+    options.uniformTypeIdentifier = detectedType.identifier
+
+    PHPhotoLibrary.shared().performChanges {
+      let request = PHAssetCreationRequest.forAsset()
+      request.addResource(with: .photo, data: imageData, options: options)
+    } completionHandler: { saved, error in
+      if saved {
+        promise.resolve()
+      } else {
+        let errorCode = (error as NSError?)?.code ?? 0
+        promise.reject(
+          "ERR_PHOTO_SAVE_\(errorCode)",
+          "Photo library rejected the image with error code \(errorCode)"
+        )
+      }
+    }
+  }
+
+  private static func fileURL(from fileUri: String) -> URL {
+    if let parsed = URL(string: fileUri), parsed.isFileURL {
+      return parsed
+    }
+    return URL(fileURLWithPath: fileUri)
+  }
+
+  private static func safeFileName(_ fileName: String?) -> String? {
+    guard let fileName, !fileName.isEmpty else { return nil }
+    let name = URL(fileURLWithPath: fileName).lastPathComponent
+    return name.isEmpty ? nil : name
   }
 
   @MainActor

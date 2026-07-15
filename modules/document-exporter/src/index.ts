@@ -2,6 +2,7 @@ import { requireOptionalNativeModule } from 'expo-modules-core';
 
 interface DocumentExporterNativeModule {
   exportFileAsync(fileUri: string, fileName: string | null): Promise<string | null>;
+  saveImageToPhotoLibraryAsync(fileUri: string, fileName: string | null): Promise<void>;
 }
 
 const NativeModule = requireOptionalNativeModule<DocumentExporterNativeModule>('DocumentExporter');
@@ -25,4 +26,16 @@ export async function exportFile(fileUri: string, fileName?: string): Promise<st
     throw new Error('DocumentExporter native module is unavailable');
   }
   return NativeModule.exportFileAsync(fileUri, fileName ?? null);
+}
+
+/**
+ * Save an image to the iOS photo library without creating a renamed temp copy.
+ * The native exporter supplies the filename and UTI directly to PhotoKit, so
+ * content-addressed App Group payloads can remain extensionless on disk.
+ */
+export async function saveImageToPhotoLibrary(fileUri: string, fileName?: string): Promise<void> {
+  if (!NativeModule) {
+    throw new Error('DocumentExporter native module is unavailable');
+  }
+  await NativeModule.saveImageToPhotoLibraryAsync(fileUri, fileName ?? null);
 }
