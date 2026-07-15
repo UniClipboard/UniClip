@@ -8,7 +8,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "buildNumber": "159",
+      "buildNumber": "160",
       "supportsTablet": true,
       "appleTeamId": "8XG39X5CL8",
       "bundleIdentifier": "app.uniclipboard.UniClipboard",
@@ -21,7 +21,7 @@
       }
     },
     "android": {
-      "versionCode": 159,
+      "versionCode": 160,
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
