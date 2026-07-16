@@ -49,6 +49,9 @@
     "exportLabel": "导出日志",
     "export": "导出",
     "exported": "日志已保存",
+    "exportMethodPrompt": "请选择分享日志，或将日志导出为文件。",
+    "exportFile": "导出文件",
+    "shareFailed": "分享日志失败",
     "exportCanceled": "已取消导出",
     "exportFailed": "导出日志失败"
   },

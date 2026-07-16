@@ -1,10 +1,9 @@
 /**
  * 日志 section
  *
- * 日志等级下拉（订阅 config.logLevel）与导出日志。导出按钮在存储计算中时禁用，
- * isCalculating 来自共享的 storageSizes store。
+ * 日志等级下拉（订阅 config.logLevel）与导出日志。
  */
-import React, { memo, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ListItem,
@@ -14,6 +13,8 @@ import {
   ExposedDropdownMenu,
   DropdownMenuItem,
   HorizontalDivider,
+  AlertDialog,
+  TextButton,
   Text as ComposeText,
   useNativeState,
 } from '@expo/ui/jetpack-compose';
@@ -23,21 +24,44 @@ import {
   menuAnchor,
 } from '@expo/ui/jetpack-compose/modifiers';
 import { useSettingsStore } from '@/stores';
-import { saveLogsToFile, setLogLevel as setLoggerLogLevel, type LogLevel } from '@/services';
+import {
+  createLogArchive,
+  deleteExportedLogArchive,
+  saveLogsToFile,
+  scheduleExportedLogArchiveCleanup,
+  setLogLevel as setLoggerLogLevel,
+  type ExportedLogArchive,
+  type LogLevel,
+} from '@/services';
+import { shareFile } from '@/utils/fileActions';
 import { useSettingsToast } from './SettingsToastContext';
 import { SettingsSectionItem } from './SettingsSectionItem';
-import { useStorageSizesStore } from './storageSizes';
+
+function LogLevelField({ label }: { label: string }) {
+  const nativeLabel = useNativeState(label);
+
+  return (
+    <OutlinedTextField
+      value={nativeLabel}
+      readOnly
+      singleLine
+      modifiers={[menuAnchor(), fillMaxWidth()]}
+    />
+  );
+}
 
 export const LogSection = memo(function LogSection() {
   const { t } = useTranslation('settingsAbout');
   const showMessage = useSettingsToast();
 
   const logLevel = useSettingsStore((s) => s.config?.logLevel);
-  const isCalculating = useStorageSizesStore((s) => s.isCalculating);
 
   const [showLogLevelMenu, setShowLogLevelMenu] = useState(false);
+  const [showExportMethodDialog, setShowExportMethodDialog] = useState(false);
   const [isExportingLogs, setIsExportingLogs] = useState(false);
   const exportLogsAbortControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => exportLogsAbortControllerRef.current?.abort(), []);
 
   const logLevelOptions: { label: string; value: LogLevel }[] = [
     { label: t('log.level.debug'), value: 'debug' },
@@ -48,7 +72,6 @@ export const LogSection = memo(function LogSection() {
 
   const logLevelLabel =
     logLevelOptions.find((o) => o.value === logLevel)?.label ?? t('log.level.error');
-  const logLevelNativeState = useNativeState(logLevelLabel);
 
   const handleSetLogLevel = async (level: LogLevel) => {
     try {
@@ -60,15 +83,44 @@ export const LogSection = memo(function LogSection() {
     }
   };
 
-  const handleExportLogs = async () => {
-    if (isExportingLogs) {
-      exportLogsAbortControllerRef.current?.abort();
-      return;
-    }
-
+  const beginExportOperation = () => {
     const abortController = new AbortController();
     exportLogsAbortControllerRef.current = abortController;
     setIsExportingLogs(true);
+    return abortController;
+  };
+
+  const finishExportOperation = () => {
+    setIsExportingLogs(false);
+    exportLogsAbortControllerRef.current = null;
+  };
+
+  const handleShareLogs = async () => {
+    setShowExportMethodDialog(false);
+    const abortController = beginExportOperation();
+    let archive: ExportedLogArchive | null = null;
+
+    try {
+      archive = await createLogArchive(abortController.signal);
+      await shareFile(archive.uri, archive.fileName);
+      scheduleExportedLogArchiveCleanup(archive.uri);
+    } catch (error) {
+      if (archive) {
+        deleteExportedLogArchive(archive.uri);
+      }
+      if (error instanceof Error && error.name === 'AbortError') {
+        showMessage(t('log.exportCanceled'), 'info');
+      } else {
+        showMessage(error instanceof Error ? error.message : t('log.shareFailed'), 'error');
+      }
+    } finally {
+      finishExportOperation();
+    }
+  };
+
+  const handleSaveLogsToFile = async () => {
+    setShowExportMethodDialog(false);
+    const abortController = beginExportOperation();
 
     try {
       await saveLogsToFile(abortController.signal);
@@ -80,13 +132,44 @@ export const LogSection = memo(function LogSection() {
         showMessage(error instanceof Error ? error.message : t('log.exportFailed'), 'error');
       }
     } finally {
-      setIsExportingLogs(false);
-      exportLogsAbortControllerRef.current = null;
+      finishExportOperation();
+    }
+  };
+
+  const handleExportButtonClick = () => {
+    if (isExportingLogs) {
+      exportLogsAbortControllerRef.current?.abort();
+    } else {
+      setShowExportMethodDialog(true);
     }
   };
 
   return (
-    <SettingsSectionItem title={t('log.title')}>
+    <SettingsSectionItem
+      title={t('log.title')}
+      dialogs={
+        showExportMethodDialog ? (
+          <AlertDialog onDismissRequest={() => setShowExportMethodDialog(false)}>
+            <AlertDialog.Title>
+              <ComposeText>{t('log.exportLabel')}</ComposeText>
+            </AlertDialog.Title>
+            <AlertDialog.Text>
+              <ComposeText>{t('log.exportMethodPrompt')}</ComposeText>
+            </AlertDialog.Text>
+            <AlertDialog.ConfirmButton>
+              <TextButton onClick={handleShareLogs}>
+                <ComposeText>{t('action.share', { ns: 'common' })}</ComposeText>
+              </TextButton>
+            </AlertDialog.ConfirmButton>
+            <AlertDialog.DismissButton>
+              <TextButton onClick={handleSaveLogsToFile}>
+                <ComposeText>{t('log.exportFile')}</ComposeText>
+              </TextButton>
+            </AlertDialog.DismissButton>
+          </AlertDialog>
+        ) : null
+      }
+    >
       <ListItem>
         <ListItem.HeadlineContent>
           <ComposeText>{t('log.levelLabel')}</ComposeText>
@@ -97,13 +180,7 @@ export const LogSection = memo(function LogSection() {
             onExpandedChange={setShowLogLevelMenu}
             modifiers={[widthModifier(140)]}
           >
-            <OutlinedTextField
-              key={logLevel ?? 'error'}
-              value={logLevelNativeState}
-              readOnly
-              singleLine
-              modifiers={[menuAnchor(), fillMaxWidth()]}
-            />
+            <LogLevelField key={logLevelLabel} label={logLevelLabel} />
             <ExposedDropdownMenu
               expanded={showLogLevelMenu}
               onDismissRequest={() => setShowLogLevelMenu(false)}
@@ -133,7 +210,7 @@ export const LogSection = memo(function LogSection() {
           <ComposeText>{t('log.exportLabel')}</ComposeText>
         </ListItem.HeadlineContent>
         <ListItem.TrailingContent>
-          <Button onClick={handleExportLogs} enabled={!isCalculating}>
+          <Button onClick={handleExportButtonClick}>
             <ComposeText>
               {isExportingLogs ? t('action.cancel', { ns: 'common' }) : t('log.export')}
             </ComposeText>

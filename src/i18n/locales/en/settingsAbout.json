@@ -49,6 +49,9 @@
     "exportLabel": "Export logs",
     "export": "Export",
     "exported": "Logs saved",
+    "exportMethodPrompt": "Choose whether to share the logs or export them as a file.",
+    "exportFile": "Export file",
+    "shareFailed": "Failed to share logs",
     "exportCanceled": "Export canceled",
     "exportFailed": "Failed to export logs"
   },
