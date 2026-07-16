@@ -29,7 +29,13 @@ export { getClipboardSyncService as getClipboardSyncService } from './ClipboardS
 export { ShortcutService } from './ShortcutService';
 
 // Update Service
-export { checkForUpdate, parseVersion, compareVersions, versionToStr } from './UpdateService';
+export {
+  checkForUpdate,
+  parseVersion,
+  compareVersions,
+  versionToStr,
+  selectLocalizedReleaseNotes,
+} from './UpdateService';
 export type { UpdateCheckResult, ParsedVersion, ReleaseAssetInfo } from './UpdateService';
 
 // APK Download Service

@@ -20,15 +20,36 @@ function readRootArg() {
   return resolve(root);
 }
 
+function readAppConfig(root) {
+  try {
+    return JSON.parse(readFileSync(resolve(root, 'app.json'), 'utf8'));
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    fail(`cannot read app.json: ${detail}`);
+  }
+}
+
+function readChangelogTag(root, filename) {
+  let changelog;
+  try {
+    changelog = readFileSync(resolve(root, filename), 'utf8').replace(/^\uFEFF/, '');
+  } catch {
+    fail(`${filename} is required`);
+  }
+  return changelog.split(/\r?\n/, 1)[0].trim();
+}
+
 const root = readRootArg();
-const app = JSON.parse(readFileSync(resolve(root, 'app.json'), 'utf8'));
-const changelog = readFileSync(resolve(root, 'CHANGES.md'), 'utf8').replace(/^\uFEFF/, '');
+const app = readAppConfig(root);
 const expo = app.expo ?? {};
 const version = String(expo.version ?? '');
 const androidBuild = Number(expo.android?.versionCode);
 const iosBuildText = String(expo.ios?.buildNumber ?? '');
 const iosBuild = Number(iosBuildText);
-const changelogTag = changelog.split(/\r?\n/, 1)[0].trim();
+const changelogTags = new Map([
+  ['CHANGES.md', readChangelogTag(root, 'CHANGES.md')],
+  ['CHANGES.en.md', readChangelogTag(root, 'CHANGES.en.md')],
+]);
 
 if (!/^\d+\.\d+\.\d+$/.test(version)) {
   fail('app.json expo.version must use MAJOR.MINOR.PATCH');
@@ -45,10 +66,18 @@ if (androidBuild !== iosBuild) {
 
 const escapedVersion = version.replaceAll('.', '\\.');
 const tagPattern = new RegExp(`^v${escapedVersion}\\.${androidBuild}(?:-beta[1-9]\\d*)?$`);
-if (!tagPattern.test(changelogTag)) {
-  fail(
-    `CHANGES.md must start with v${version}.${androidBuild} or v${version}.${androidBuild}-betaN`
-  );
+for (const [filename, tag] of changelogTags) {
+  if (!tagPattern.test(tag)) {
+    fail(
+      `${filename} must start with v${version}.${androidBuild} or v${version}.${androidBuild}-betaN`
+    );
+  }
+}
+
+const changelogTag = changelogTags.get('CHANGES.md');
+const englishChangelogTag = changelogTags.get('CHANGES.en.md');
+if (changelogTag !== englishChangelogTag) {
+  fail(`CHANGES.en.md must start with the same tag as CHANGES.md (${changelogTag})`);
 }
 
 const prerelease = changelogTag.includes('-beta');

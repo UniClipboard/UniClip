@@ -69,56 +69,75 @@ marks the GitHub Release accordingly. iOS reads its marketing version from
 `app.json` `expo.version` (always 3-segment), so the tag's 4th segment never
 reaches the iOS `CFBundleShortVersionString`.
 
-## CHANGES.md Format
+## Localized Changelog Format
 
-The first line of each version section is the bare tag (`vX.Y.Z.B`) — **keep
-that unchanged**, `scripts/validate-release.mjs` parses it. Everything below the
-tag, up to the next tag line, is the notes body for that release.
+Every release is recorded in two files:
 
-iOS and Android ship one shared changelog, but each channel shows its own
-notes. `scripts/release-notes.mjs` splits the top block into per-platform notes
-using three optional sub-headings:
+- `CHANGES.md` contains Simplified Chinese notes.
+- `CHANGES.en.md` contains the matching English notes.
 
-- `### 通用` (or `Common`) — applies to **both** platforms.
-- `### iOS` — iOS only (GitHub/Gitee Release iOS section + TestFlight "What to
-  Test").
-- `### Android` (or `安卓`) — Android only.
+The first line of both top sections is the same bare tag (`vX.Y.Z.B`). Keep it
+unchanged: `npm run release:validate` rejects a release if either tag does not
+match `app.json`, if the two files drift apart, or if either top section cannot
+produce release notes. Everything below the tag, up to the next tag line, is the
+notes body for that release.
 
-From that, CI produces:
+Each language ships one shared changelog for iOS and Android.
+`scripts/release-notes.mjs` splits each top block with three optional headings:
 
-- **GitHub / Gitee Release body** — a two-section Markdown body: `🤖 Android`
-  (通用 + Android) and `🍎 iOS` (通用 + iOS).
-- **TestFlight "What to Test"** — the iOS notes (通用 + iOS), written onto the
-  uploaded build via the App Store Connect API in `release.yml`'s `testflight`
-  job.
+- `### 通用` in `CHANGES.md` or `### Common` in `CHANGES.en.md` applies to both
+  platforms.
+- `### iOS` applies only to iOS.
+- `### Android` applies only to Android.
+
+CI produces:
+
+- **GitHub / Gitee Release body:** visible `[zh-CN] 简体中文` and `[en] English`
+  sections, each containing its own Android and iOS notes. The locale-code
+  prefixes provide a stable machine-readable boundary while remaining readable
+  in older clients that show the body as plain text. Older, unmarked Release
+  bodies remain readable as-is.
+- **TestFlight "What to Test":** Chinese iOS notes for `zh-Hans` and English
+  iOS notes for `en-US`. The publishing script updates existing localizations,
+  creates either one when missing, and reports request failures only after
+  attempting both.
 
 Bullets may still carry a provenance tag (`[uc]` for UniClip-specific changes,
 `[upstream]` for changes ported from `Jeric-X/syncclipboard-mobile` /
 `Jeric-X/SyncClipboard`, with a commit/PR ref when possible).
 
-Run `node scripts/release-notes.mjs --print` locally to preview both channels
-before pushing.
+Run `node scripts/release-notes.mjs --print` locally to preview both languages
+and both platforms before pushing. `npm run release:validate` performs the same
+parsing check without writing release artifacts.
 
 ### Example
+
+`CHANGES.md`:
 
 ```
 v1.3.0.158
 
 ### 通用
 - 修复：完成配对后未正确接入待处理的连接
-- [uc] 优化：首页空状态改为按上下文提示
 
 ### iOS
 - 功能：保存文件时可自行选择保存位置
-- 修复：分享 / 键盘扩展读取到空的服务器配置
-
-### Android
-- 优化：后台设置简化为单个引导式开关
 ```
 
-**Backward compatible:** a legacy flat block with no sub-headings still works —
-bullets default to 通用, and an inline `（iOS）` / `（Android）` / `（安卓）` tag on a
-single bullet routes just that bullet to the platform.
+`CHANGES.en.md`:
+
+```
+v1.3.0.158
+
+### Common
+- Fix: Pending connections are adopted after pairing
+
+### iOS
+- Feature: Choose where to save files
+```
+
+**Backward compatible:** a flat block with no sub-headings still routes bullets
+to both platforms. Legacy inline platform tags are also still supported.
 
 ## Upstream Sync Workflow
 
@@ -149,8 +168,8 @@ Routine:
    Ref: Jeric-X/syncclipboard-mobile@abc1234
    ```
 
-5. **Record** the change in `CHANGES.md` under the current development
-   version, prefixed with `[upstream]`.
+5. **Record** the change in `CHANGES.md` and `CHANGES.en.md` under the current
+   development version, prefixed with `[upstream]`.
 
 ### Tracking the Sync Point
 
@@ -164,12 +183,12 @@ independent.
 ### Pre-release Checklist
 
 - [ ] All upstream fixes intended for this release have been ported and
-      recorded in `CHANGES.md`.
+      recorded in both changelog files.
 - [ ] Beta build (if one was published) has been verified on a physical
       device, including any long-running scenarios mentioned in the
       changelog.
-- [ ] `CHANGES.md` top section reflects the final release notes (this becomes
-      the GitHub/Gitee release body); its first line is the full tag `vX.Y.Z.B`.
+- [ ] `CHANGES.md` and `CHANGES.en.md` top sections contain equivalent final
+      release notes and start with the same full tag `vX.Y.Z.B`.
 - [ ] `app.json` build metadata was bumped with the scripts below (never
       hand-edit `versionCode` / `buildNumber` — that risks the two drifting).
 - [ ] Working tree is clean.
@@ -191,10 +210,10 @@ npm run release:version -- 1.4.0
 Both scripts edit `app.json` and print the derived tag. Then:
 
 ```sh
-# 2. Add a "vX.Y.Z.B" section to the TOP of CHANGES.md (first line = the tag).
+# 2. Add matching "vX.Y.Z.B" sections to CHANGES.md and CHANGES.en.md.
 
 # 3. Commit and push the release metadata. Do not create or push the tag.
-git add app.json CHANGES.md
+git add app.json CHANGES.md CHANGES.en.md
 git commit -m "chore(release): X.Y.Z.B"
 git push origin main
 ```
@@ -202,8 +221,8 @@ git push origin main
 In GitHub Actions, open `build`, choose **Run workflow** on `main`, enable
 `publish_release`, and leave the iOS dev-build inputs empty. The workflow then:
 
-1. Validates that Android/iOS build counters and the first line of `CHANGES.md`
-   describe the same release.
+1. Validates that Android/iOS build counters and both changelog files describe
+   the same release, and that both top sections can generate release notes.
 2. Runs style checks, unit tests, and both Android and iOS builds.
 3. Creates the derived tag only after every check and both builds succeed.
 4. Uploads the same validated iOS artifact to TestFlight.
@@ -221,7 +240,8 @@ run so successful builds and destinations are not repeated.
 ### Beta Release
 
 Use `vX.Y.Z.B-betaN` (for example `v1.3.0.156-beta1`) as the first line of the
-top `CHANGES.md` section, then use the same manual `publish_release` flow. The
+top sections of both changelog files, then use the same manual
+`publish_release` flow. The
 `.B` build-counter segment is required so the derived tag matches
 [Tag Naming](#tag-naming) and stays compatible with `parseVersion` / Android
 update detection. CI marks the release as a prerelease when the derived tag

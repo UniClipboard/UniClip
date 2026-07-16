@@ -83,6 +83,45 @@ export function compareVersions(a: ParsedVersion, b: ParsedVersion): number {
   return a.beta - b.beta;
 }
 
+const RELEASE_LOCALE_MARKER = /^##[ \t]+\[(zh-CN|en)\](?:[ \t]+|$)/;
+
+/**
+ * Select the release-note section matching the active app language.
+ * Bodies published before bilingual notes were introduced have no locale
+ * headings and are returned unchanged.
+ */
+export function selectLocalizedReleaseNotes(
+  body: string | undefined,
+  language: string
+): string | undefined {
+  if (body === undefined) return undefined;
+
+  const lines = body.split(/\r?\n/);
+  const sections = new Map<string, string>();
+  let activeLocale: string | undefined;
+  let activeStart = 0;
+
+  const finishSection = (end: number) => {
+    if (!activeLocale) return;
+    sections.set(activeLocale, lines.slice(activeStart, end).join('\n').trim());
+  };
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const marker = lines[index].match(RELEASE_LOCALE_MARKER);
+    if (!marker) continue;
+
+    finishSection(index);
+    activeLocale = marker[1];
+    activeStart = index + 1;
+  }
+
+  if (!activeLocale) return body;
+  finishSection(lines.length);
+
+  const requested = language.toLowerCase().startsWith('en') ? 'en' : 'zh-CN';
+  return sections.get(requested) || sections.get('zh-CN') || sections.get('en') || body;
+}
+
 export interface UpdateCheckResult {
   hasUpdate: boolean;
   latestVersion: string;
@@ -91,7 +130,7 @@ export interface UpdateCheckResult {
   giteeReleaseUrl: string;
   /** APK 资源列表（含各 ABI 的下载 URL 和哈希值） */
   assets: ReleaseAssetInfo[];
-  /** GitHub Release 更新说明 */
+  /** GitHub Release 更新说明原文，由展示层按应用语言选择 */
   releaseNotes?: string;
 }
 

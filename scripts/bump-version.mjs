@@ -37,8 +37,19 @@ if (!/^\d+\.\d+\.\d+$/.test(newVersion)) {
   process.exit(1);
 }
 
-const app = JSON.parse(readFileSync(appJsonPath, 'utf8'));
+let app;
+try {
+  app = JSON.parse(readFileSync(appJsonPath, 'utf8'));
+} catch (error) {
+  const detail = error instanceof Error ? error.message : String(error);
+  console.error(`✗ could not read app.json: ${detail}`);
+  process.exit(1);
+}
 const expo = app.expo;
+if (!expo) {
+  console.error('✗ app.json must contain an expo object');
+  process.exit(1);
+}
 const prevVersion = String(expo.version);
 
 const prevCode = Number(expo.android?.versionCode ?? 0);
@@ -79,11 +90,11 @@ console.log('  ⚠ This is a NEW iOS marketing version — expect one App Store 
 console.log(`  android.versionCode = ${next}, ios.buildNumber = "${next}"`);
 console.log('');
 console.log('Next steps:');
-console.log(`  1. Add a "${tag}" section to the TOP of CHANGES.md (first line = the tag).`);
-console.log('     Group notes under ### 通用 / ### iOS / ### Android sub-headings;');
-console.log('     preview both channels with: node scripts/release-notes.mjs --print');
+console.log(`  1. Add matching "${tag}" sections to CHANGES.md and CHANGES.en.md.`);
+console.log('     Group notes under Common / iOS / Android sub-headings;');
+console.log('     preview both languages with: node scripts/release-notes.mjs --print');
 console.log('  2. Commit and push the release metadata:');
-console.log(`       git add app.json CHANGES.md`);
+console.log(`       git add app.json CHANGES.md CHANGES.en.md`);
 console.log(`       git commit -m "chore(release): ${tag.slice(1)}"`);
 console.log(`       git push origin main`);
 console.log('  3. In GitHub Actions, run "build" on main with publish_release enabled.');

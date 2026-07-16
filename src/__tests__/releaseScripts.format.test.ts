@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import {
   copyFileSync,
   mkdtempSync,
@@ -13,9 +13,9 @@ import { basename, join } from 'node:path';
 import * as prettier from 'prettier';
 
 const projectRoot = join(__dirname, '..', '..');
-const scriptNames = ['bump-build.mjs', 'bump-version.mjs'] as const;
+type ScriptName = 'bump-build.mjs' | 'bump-version.mjs';
 
-function createFixture(scriptName: (typeof scriptNames)[number]): string {
+function createFixture(scriptName: ScriptName): string {
   const fixtureRoot = mkdtempSync(join(tmpdir(), 'uniclip-release-script-'));
   const fixtureScripts = join(fixtureRoot, 'scripts');
   mkdirSync(fixtureScripts);
@@ -41,6 +41,25 @@ describe.each([
   ['bump-build.mjs', []],
   ['bump-version.mjs', ['1.4.0']],
 ] as const)('%s', (scriptName, args) => {
+  it('rejects malformed app.json without an uncaught exception', () => {
+    const fixtureRoot = createFixture(scriptName);
+
+    try {
+      writeFileSync(join(fixtureRoot, 'app.json'), '{ invalid json');
+      const result = spawnSync(
+        process.execPath,
+        [join(fixtureRoot, 'scripts', basename(scriptName)), ...args],
+        { encoding: 'utf8' }
+      );
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain('could not read app.json');
+      expect(result.stderr).not.toContain('\n    at ');
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
   it('keeps app.json compatible with the repository format check', async () => {
     const fixtureRoot = createFixture(scriptName);
 

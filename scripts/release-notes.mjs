@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
- * release-notes — split the TOP version block of CHANGES.md into per-platform
- * release notes.
+ * release-notes — split the top version blocks of CHANGES.md and
+ * CHANGES.en.md into localized, per-platform release notes.
  *
- * iOS and Android now ship one shared changelog but each channel shows its own
- * notes: the GitHub / Gitee Release body gets a two-section body (Android +
- * iOS), and TestFlight's "What to Test" gets the iOS-only notes.
+ * The GitHub / Gitee body contains visible Simplified Chinese and English
+ * sections, each split into Android and iOS. TestFlight gets localized iOS-only
+ * notes.
  *
  * Source format (per version block, sub-headings optional):
  *
@@ -29,13 +29,13 @@
  *     the single bullet to that platform, so old-style blocks keep working.
  *
  * Outputs (written into --out-dir, default cwd):
- *   - release-notes-github.md     two-section Markdown body (Android + iOS)
- *   - release-notes-android.txt   common + Android bullets
- *   - release-notes-ios.txt       common + iOS bullets
- *   - release-notes-testflight.txt  iOS notes as plain text (What to Test)
+ *   - release-notes-github.md       bilingual Markdown body
+ *   - release-notes-{android,ios}.txt          Chinese platform notes
+ *   - release-notes-{android,ios}.en.txt       English platform notes
+ *   - release-notes-testflight{,.en}.txt       localized iOS plain text
  *
  * Usage:
- *   node scripts/release-notes.mjs [--out-dir <dir>] [--root <repo>] [--print]
+ *   node scripts/release-notes.mjs [--out-dir <dir>] [--root <repo>] [--print | --check]
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -56,82 +56,126 @@ function argValue(name, fallback) {
 const root = resolve(argValue('--root', import.meta.dirname + '/..'));
 const outDir = resolve(argValue('--out-dir', process.cwd()));
 const printOnly = process.argv.includes('--print');
-
-const raw = readFileSync(resolve(root, 'CHANGES.md'), 'utf8').replace(/^﻿/, '');
-const lines = raw.split(/\r?\n/);
+const checkOnly = process.argv.includes('--check');
 
 const VERSION_LINE = /^v\d+\.\d+\.\d+/;
-if (!lines[0] || !VERSION_LINE.test(lines[0].trim())) {
-  fail('CHANGES.md must start with a version line, e.g. "v1.3.0.158"');
-}
-const tag = lines[0].trim();
-
-// Collect the top block only: everything until the next version line.
-const block = [];
-for (let i = 1; i < lines.length; i++) {
-  if (VERSION_LINE.test(lines[i].trim())) break;
-  block.push(lines[i]);
-}
-
 const HEADING = /^#{1,6}\s*(.+?)\s*$/;
 const IOS_INLINE = /（\s*iOS\s*）|\(\s*iOS\s*\)/i;
 const ANDROID_INLINE = /（\s*(?:Android|安卓)\s*）|\(\s*(?:Android|安卓)\s*\)/i;
 
 function classifyHeading(text) {
-  const t = text.toLowerCase();
-  if (t.includes('ios')) return 'ios';
-  if (t.includes('android') || text.includes('安卓')) return 'android';
-  return 'common'; // 通用 / common / anything else
+  const lower = text.toLowerCase();
+  if (lower.includes('ios')) return 'ios';
+  if (lower.includes('android') || text.includes('安卓')) return 'android';
+  return 'common';
 }
 
-const buckets = { common: [], ios: [], android: [] };
-let current = 'common';
-for (const line of block) {
-  const heading = line.match(HEADING);
-  if (heading) {
-    current = classifyHeading(heading[1]);
-    continue;
+function parseChangelog(filename) {
+  let raw;
+  try {
+    raw = readFileSync(resolve(root, filename), 'utf8').replace(/^﻿/, '');
+  } catch {
+    fail(`${filename} is required`);
   }
-  if (!line.trim().startsWith('-')) continue; // skip blanks / prose
-  let bucket = current;
-  // Legacy inline routing only applies to bullets left in the default bucket.
-  if (current === 'common') {
-    if (IOS_INLINE.test(line)) bucket = 'ios';
-    else if (ANDROID_INLINE.test(line)) bucket = 'android';
+
+  const lines = raw.split(/\r?\n/);
+  if (!lines[0] || !VERSION_LINE.test(lines[0].trim())) {
+    fail(`${filename} must start with a version line, e.g. "v1.3.0.158"`);
   }
-  buckets[bucket].push(line.trimEnd());
+
+  const tag = lines[0].trim();
+  const block = [];
+  for (let index = 1; index < lines.length; index += 1) {
+    if (VERSION_LINE.test(lines[index].trim())) break;
+    block.push(lines[index]);
+  }
+
+  const buckets = { common: [], ios: [], android: [] };
+  let current = 'common';
+  for (const line of block) {
+    const heading = line.match(HEADING);
+    if (heading) {
+      current = classifyHeading(heading[1]);
+      continue;
+    }
+    if (!line.trim().startsWith('-')) continue;
+
+    let bucket = current;
+    if (current === 'common') {
+      if (IOS_INLINE.test(line)) bucket = 'ios';
+      else if (ANDROID_INLINE.test(line)) bucket = 'android';
+    }
+    buckets[bucket].push(line.trimEnd());
+  }
+
+  const androidNotes = [...buckets.common, ...buckets.android];
+  const iosNotes = [...buckets.common, ...buckets.ios];
+  if (androidNotes.length === 0 && iosNotes.length === 0) {
+    fail(`no changelog bullets found in ${filename} under ${tag}`);
+  }
+
+  return { tag, androidNotes, iosNotes };
 }
 
-const androidNotes = [...buckets.common, ...buckets.android];
-const iosNotes = [...buckets.common, ...buckets.ios];
-
-if (androidNotes.length === 0 && iosNotes.length === 0) {
-  fail(`no changelog bullets found under ${tag}`);
+function platformSection(title, notes, emptyLabel) {
+  const body = notes.length ? notes.join('\n') : `- ${emptyLabel}`;
+  return `### ${title}\n${body}`;
 }
 
-function section(title, notes) {
-  const body = notes.length ? notes.join('\n') : '- （无更新）';
-  return `## ${title}\n${body}`;
+function languageSection(title, locale, changelog, emptyLabel) {
+  return `## [${locale}] ${title}\n\n${platformSection(
+    'Android',
+    changelog.androidNotes,
+    emptyLabel
+  )}\n\n${platformSection('iOS', changelog.iosNotes, emptyLabel)}`;
 }
 
-const githubBody = `${section('🤖 Android', androidNotes)}\n\n${section('🍎 iOS', iosNotes)}\n`;
-const androidText = androidNotes.join('\n') + '\n';
-const iosText = iosNotes.join('\n') + '\n';
+const chinese = parseChangelog('CHANGES.md');
+const english = parseChangelog('CHANGES.en.md');
+if (chinese.tag !== english.tag) {
+  fail(
+    `CHANGES.md and CHANGES.en.md must start with the same version (${chinese.tag} != ${english.tag})`
+  );
+}
+const tag = chinese.tag;
+
+const githubBody = `${languageSection(
+  '简体中文',
+  'zh-CN',
+  chinese,
+  '（无更新）'
+)}\n\n${languageSection('English', 'en', english, 'No updates.')}\n`;
+const chineseAndroidText = chinese.androidNotes.join('\n') + '\n';
+const chineseIosText = chinese.iosNotes.join('\n') + '\n';
+const englishAndroidText = english.androidNotes.join('\n') + '\n';
+const englishIosText = english.iosNotes.join('\n') + '\n';
+
+if (checkOnly) {
+  console.log(`validated release-notes for ${tag}`);
+  process.exit(0);
+}
 
 if (printOnly) {
-  process.stdout.write(`tag: ${tag}\n\n=== github.md ===\n${githubBody}\n=== testflight (iOS) ===\n${iosText}`);
+  process.stdout.write(
+    `tag: ${tag}\n\n=== github.md ===\n${githubBody}\n=== testflight (zh-CN) ===\n${chineseIosText}\n=== testflight (en) ===\n${englishIosText}`
+  );
   process.exit(0);
 }
 
 const files = {
   'release-notes-github.md': githubBody,
-  'release-notes-android.txt': androidText,
-  'release-notes-ios.txt': iosText,
-  'release-notes-testflight.txt': iosText,
+  'release-notes-android.txt': chineseAndroidText,
+  'release-notes-android.en.txt': englishAndroidText,
+  'release-notes-ios.txt': chineseIosText,
+  'release-notes-ios.en.txt': englishIosText,
+  'release-notes-testflight.txt': chineseIosText,
+  'release-notes-testflight.en.txt': englishIosText,
 };
 for (const [name, content] of Object.entries(files)) {
   writeFileSync(resolve(outDir, name), content);
 }
 
-console.log(`release-notes for ${tag}: ${androidNotes.length} Android bullet(s), ${iosNotes.length} iOS bullet(s)`);
+console.log(
+  `release-notes for ${tag}: zh-CN ${chinese.androidNotes.length} Android / ${chinese.iosNotes.length} iOS, en ${english.androidNotes.length} Android / ${english.iosNotes.length} iOS bullet(s)`
+);
 console.log(`wrote ${Object.keys(files).join(', ')} to ${outDir}`);

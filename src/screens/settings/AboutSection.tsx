@@ -6,7 +6,7 @@
  * 作为 item:无独立 Host,底部表单 + 取消确认弹窗作为 item 内 overlay 渲染
  * (见 SettingsSectionItem.dialogs)。
  */
-import React, { memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Linking } from 'react-native';
 import {
@@ -38,6 +38,7 @@ import {
   downloadApk,
   installApk,
   cleanOldApkCache,
+  selectLocalizedReleaseNotes,
   type ReleaseAssetInfo,
   type ApkSource,
 } from '@/services';
@@ -49,7 +50,7 @@ import { log } from '@/services/Logger';
 const appVersion = APP_VERSION;
 
 export const AboutSection = memo(function AboutSection() {
-  const { t } = useTranslation('settingsAbout');
+  const { t, i18n } = useTranslation('settingsAbout');
   const showMessage = useSettingsToast();
 
   const autoCheckUpdateEnabled = useSettingsStore((s) => s.config?.autoCheckUpdate ?? true);
@@ -64,8 +65,12 @@ export const AboutSection = memo(function AboutSection() {
   const [downloadSourceSheet, setDownloadSourceSheet] = useState<{
     version: string;
     assets: ReleaseAssetInfo[];
-    releaseNotes?: string;
+    releaseNotesBody?: string;
   } | null>(null);
+  const localizedReleaseNotes = selectLocalizedReleaseNotes(
+    downloadSourceSheet?.releaseNotesBody,
+    i18n.resolvedLanguage ?? i18n.language
+  );
 
   const downloadAbortRef = useRef<AbortController | null>(null);
   const latestAssetsRef = useRef<ReleaseAssetInfo[]>([]);
@@ -75,9 +80,9 @@ export const AboutSection = memo(function AboutSection() {
   const showDownloadSourceDialog = (
     version: string,
     assets: ReleaseAssetInfo[],
-    releaseNotes?: string
+    releaseNotesBody?: string
   ) => {
-    setDownloadSourceSheet({ version, assets, releaseNotes });
+    setDownloadSourceSheet({ version, assets, releaseNotesBody });
   };
 
   const runUpdateCheck = async (showNoUpdateToast: boolean, includeBeta?: boolean) => {
@@ -253,9 +258,9 @@ export const AboutSection = memo(function AboutSection() {
                     'download.currentVersion',
                     { version: appVersion }
                   )}${
-                    downloadSourceSheet.releaseNotes
+                    localizedReleaseNotes
                       ? `\n\n${t('download.releaseNotes', {
-                          notes: downloadSourceSheet.releaseNotes,
+                          notes: localizedReleaseNotes,
                         })}`
                       : ''
                   }`}

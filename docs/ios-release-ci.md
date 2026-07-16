@@ -77,13 +77,14 @@ via `asc_profiles.rb install`.
 
 1. **Bump the iOS build number** — `expo.ios.buildNumber` in `app.json` must be
    unique within the marketing version (`altool` does not auto-bump). Bump
-   `expo.version` too if it's a new marketing version. Update `CHANGES.md`.
+   `expo.version` too if it's a new marketing version. Update `CHANGES.md` and
+   `CHANGES.en.md` with matching tags.
 2. Commit and push the release metadata to `main`. Do not create the tag.
 3. Actions → `build` → _Run workflow_ on `main`; enable `publish_release` and
    leave the dev-build inputs empty.
-4. CI validates metadata, builds Android + iOS, creates the tag only after both
-   builds succeed, then uploads the `.ipa` to TestFlight and publishes the APKs
-   to GitHub + Gitee.
+4. CI validates metadata and both localized release-note sections, builds
+   Android + iOS, creates the tag only after both builds succeed, then uploads
+   the `.ipa` to TestFlight and publishes the APKs to GitHub + Gitee.
 5. In App Store Connect → TestFlight: wait for processing, answer export
    compliance, add the build to a testing group.
 
@@ -98,9 +99,11 @@ via `asc_profiles.rb install`.
   clean "ship an iOS dev build to try" path.
 - `build_number` (optional) overrides the CFBundleVersion for this run.
 
-To ship both platforms, enable `publish_release`. CI derives the tag from the
-first line of `CHANGES.md`; a tag containing `beta` marks the GitHub/Gitee
-release as a prerelease. The iOS side always goes to TestFlight.
+To ship both platforms, enable `publish_release`. CI requires matching tags in
+`CHANGES.md` and `CHANGES.en.md`; a tag containing `beta` marks the
+GitHub/Gitee release as a prerelease. The iOS side always goes to TestFlight,
+with localized "What to Test" notes for `zh-Hans` and `en-US`; missing build
+localizations are created automatically.
 
 ## Dev build vs release build
 
@@ -122,7 +125,7 @@ App Store Connect app record. The distinction is by channel:
 - **Cloud signing permission error** — the API key lacks signing management;
   ensure it has the **App Manager** role (not Developer).
 - **Duplicate build number rejected on upload** — step 1 was skipped; bump
-  `expo.ios.buildNumber`, update `CHANGES.md`, and start a new release.
+  `expo.ios.buildNumber`, update both changelog files, and start a new release.
 - **`Unresolved reference` / link errors compiling `UcCoreModule.swift`** — the
   `UC_CORE_REF` pin drifted from the committed wrapper; realign the pin or the
   wrapper.

@@ -9,6 +9,7 @@ function createReleaseFixture(options?: {
   androidBuild?: number;
   iosBuild?: string;
   changelogTag?: string;
+  englishChangelogTag?: string;
 }): string {
   const root = mkdtempSync(join(tmpdir(), 'uniclip-release-metadata-'));
   const androidBuild = options?.androidBuild ?? 156;
@@ -25,7 +26,11 @@ function createReleaseFixture(options?: {
       },
     })
   );
-  writeFileSync(join(root, 'CHANGES.md'), `${changelogTag}\n- release note\n`);
+  writeFileSync(join(root, 'CHANGES.md'), `${changelogTag}\n- 中文发布说明\n`);
+  writeFileSync(
+    join(root, 'CHANGES.en.md'),
+    `${options?.englishChangelogTag ?? changelogTag}\n- English release note\n`
+  );
   return root;
 }
 
@@ -56,6 +61,28 @@ describe('release metadata validation', () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain(`tag=${tag}`);
     expect(result.stdout).toContain(prereleaseLine);
+  });
+
+  it('rejects localized changelogs whose release tags drift apart', () => {
+    const root = createReleaseFixture({ englishChangelogTag: 'v1.3.0.156-beta1' });
+    fixtureRoots.push(root);
+
+    const result = validate(root);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('CHANGES.en.md');
+  });
+
+  it('rejects malformed app.json without an uncaught exception', () => {
+    const root = createReleaseFixture();
+    fixtureRoots.push(root);
+    writeFileSync(join(root, 'app.json'), '{ invalid json');
+
+    const result = validate(root);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('cannot read app.json');
+    expect(result.stderr).not.toContain('\n    at ');
   });
 
   it('rejects Android and iOS build counters that drift apart', () => {

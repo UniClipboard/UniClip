@@ -23,5 +23,8 @@ jobs:
       - name: Run unit tests
         run: npm test
 
+      - name: Run TestFlight release-note tests
+        run: ruby scripts/asc_whats_to_test_test.rb
+
       - name: Run tests with coverage
         run: npm run test:coverage

@@ -73,7 +73,8 @@ jobs:
           ruby scripts/asc_whats_to_test.rb \
             "$ASC_API_KEY_ID" "$ASC_API_ISSUER_ID" \
             ~/".appstoreconnect/private_keys/AuthKey_${ASC_API_KEY_ID}.p8" \
-            "$BUNDLE_ID" "$BUILD_NUMBER" release-notes-testflight.txt
+            "$BUNDLE_ID" "$BUILD_NUMBER" \
+            release-notes-testflight.txt release-notes-testflight.en.txt
 
       - name: Clean up API key
         if: always()
