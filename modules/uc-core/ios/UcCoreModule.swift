@@ -9,10 +9,10 @@ public class UcCoreModule: Module {
     private var engine: MobileSyncEngine?
 
     private func requireEngine() throws -> MobileSyncEngine {
-        guard let e = engine else {
+        guard let syncEngine = engine else {
             throw EngineNotInitializedException()
         }
-        return e
+        return syncEngine
     }
 
     // Live SSE subscriptions keyed by the TS-assigned subscriptionId. Mutated
@@ -49,14 +49,16 @@ public class UcCoreModule: Module {
     }
 
     private func getClient(trustInsecureCert: Bool) throws -> MobileSyncClient {
-        if let c = client { return c }
+        if let existingClient = client { return existingClient }
         ensureInit()
         let bridge = ExpoPlatformBridge()
-        let c = try MobileSyncClient(bridge: bridge, trustInsecureCert: trustInsecureCert)
-        client = c
-        return c
+        let newClient = try MobileSyncClient(bridge: bridge, trustInsecureCert: trustInsecureCert)
+        client = newClient
+        return newClient
     }
 
+    // Expo's SDK 56 result builder has no flattening primitive for grouped definitions.
+    // swiftlint:disable:next function_body_length
     public func definition() -> ModuleDefinition {
         Name("UcCore")
 
@@ -84,13 +86,13 @@ public class UcCoreModule: Module {
         AsyncFunction("putClipboard") { (serverMap: [String: String], metaMap: [String: Any?], payload: Data?, trustInsecureCert: Bool) in
             let server = self.serverFromMap(serverMap)
             let meta = self.metaFromMap(metaMap)
-            try await self.getClient(trustInsecureCert: trustInsecureCert)
+            _ = try await self.getClient(trustInsecureCert: trustInsecureCert)
                 .putClipboard(server: server, meta: meta, payload: payload)
         }
 
         AsyncFunction("testConnection") { (serverMap: [String: String], trustInsecureCert: Bool) -> String in
             let server = self.serverFromMap(serverMap)
-            let result = await try self.getClient(trustInsecureCert: trustInsecureCert)
+            let result = try await self.getClient(trustInsecureCert: trustInsecureCert)
                 .testConnection(server: server, trustInsecureCert: trustInsecureCert)
             return self.probeResultToString(result)
         }
@@ -122,13 +124,27 @@ public class UcCoreModule: Module {
         }
 
         AsyncFunction("probe") { (urls: [String], username: String, password: String, trustInsecureCert: Bool, timeoutMs: UInt32, networkEpoch: UInt64) -> [String: Any] in
-            let report = await try self.getClient(trustInsecureCert: trustInsecureCert)
+            let report = try await self.getClient(trustInsecureCert: trustInsecureCert)
                 .probe(urls: urls, username: username, password: password,
                        trustInsecureCert: trustInsecureCert,
                        timeoutMs: timeoutMs, networkEpoch: networkEpoch)
             var results: [String: String] = [:]
             for (url, result) in report.results {
                 results[url] = self.probeResultToString(result)
+            }
+            return [
+                "networkEpoch": report.networkEpoch,
+                "results": results
+            ]
+        }
+
+        AsyncFunction("healthProbe") { (urls: [String], trustInsecureCert: Bool, timeoutMs: UInt32, networkEpoch: UInt64) -> [String: Any] in
+            let report = try await self.getClient(trustInsecureCert: trustInsecureCert)
+                .healthProbe(urls: urls, trustInsecureCert: trustInsecureCert,
+                             timeoutMs: timeoutMs, networkEpoch: networkEpoch)
+            var results: [String: String] = [:]
+            for (url, result) in report.results {
+                results[url] = self.healthProbeResultToString(result)
             }
             return [
                 "networkEpoch": report.networkEpoch,
@@ -185,40 +201,40 @@ public class UcCoreModule: Module {
         }
 
         AsyncFunction("enginePush") { (contentMap: [String: Any?], payload: Data?) -> [String: Any?] in
-            let e = try self.requireEngine()
+            let syncEngine = try self.requireEngine()
             let content = self.localContentFromMap(contentMap, payload: payload)
-            return self.syncOutcomeToMap(await e.push(content: content))
+            return self.syncOutcomeToMap(await syncEngine.push(content: content))
         }
 
         AsyncFunction("enginePull") { (triggerMap: [String: Any?], currentDeviceHash: String?) -> [String: Any?] in
-            let e = try self.requireEngine()
+            let syncEngine = try self.requireEngine()
             let trigger = self.pullTriggerFromMap(triggerMap)
-            return self.syncOutcomeToMap(await e.pull(trigger: trigger, currentDeviceHash: currentDeviceHash))
+            return self.syncOutcomeToMap(await syncEngine.pull(trigger: trigger, currentDeviceHash: currentDeviceHash))
         }
 
         AsyncFunction("engineApplyStaged") { () -> [String: Any?] in
-            let e = try self.requireEngine()
-            return self.syncOutcomeToMap(await e.applyStaged())
+            let syncEngine = try self.requireEngine()
+            return self.syncOutcomeToMap(await syncEngine.applyStaged())
         }
 
         AsyncFunction("engineSetServer") { (serverMap: [String: String]) in
-            let e = try self.requireEngine()
-            await e.setServer(server: self.serverFromMap(serverMap))
+            let syncEngine = try self.requireEngine()
+            await syncEngine.setServer(server: self.serverFromMap(serverMap))
         }
 
         AsyncFunction("engineHandleNetworkRouteChanged") {
-            let e = try self.requireEngine()
-            await e.handleNetworkRouteChanged()
+            let syncEngine = try self.requireEngine()
+            await syncEngine.handleNetworkRouteChanged()
         }
 
         AsyncFunction("engineSetSettings") { (settingsMap: [String: Any]) in
-            let e = try self.requireEngine()
-            await e.setSettings(settings: self.syncSettingsFromMap(settingsMap))
+            let syncEngine = try self.requireEngine()
+            await syncEngine.setSettings(settings: self.syncSettingsFromMap(settingsMap))
         }
 
         AsyncFunction("engineAcknowledgeLoopDetected") {
-            let e = try self.requireEngine()
-            await e.acknowledgeLoopDetected()
+            let syncEngine = try self.requireEngine()
+            await syncEngine.acknowledgeLoopDetected()
         }
 
         OnDestroy {
@@ -252,9 +268,12 @@ public class UcCoreModule: Module {
         }
     }
 
+}
+
+private extension UcCoreModule {
     // MARK: - Type conversion helpers
 
-    private func serverFromMap(_ map: [String: String]) -> ServerConfig {
+    func serverFromMap(_ map: [String: String]) -> ServerConfig {
         var base = (map["baseUrl"] ?? "").trimmingCharacters(in: .whitespaces)
         while base.hasSuffix("/") { base.removeLast() }
         return ServerConfig(
@@ -325,31 +344,31 @@ public class UcCoreModule: Module {
         }
     }
 
-    private func syncedMetaToMap(_ m: SyncedMeta) -> [String: Any?] {
+    func syncedMetaToMap(_ meta: SyncedMeta) -> [String: Any?] {
         return [
-            "kind": self.clipboardKindToString(m.kind),
-            "hash": m.hash,
-            "contentId": m.contentId,
-            "text": m.text,
-            "size": m.size
+            "kind": self.clipboardKindToString(meta.kind),
+            "hash": meta.hash,
+            "contentId": meta.contentId,
+            "text": meta.text,
+            "size": meta.size
         ]
     }
 
-    private func stagedPreviewToMap(_ p: StagedPreview) -> [String: Any?] {
+    func stagedPreviewToMap(_ preview: StagedPreview) -> [String: Any?] {
         return [
-            "kind": self.clipboardKindToString(p.kind),
-            "text": p.text,
-            "size": p.size
+            "kind": self.clipboardKindToString(preview.kind),
+            "text": preview.text,
+            "size": preview.size
         ]
     }
 
     // Content sans payload — the Applied outcome carries payload bytes at the top
     // level (top-level Data marshals cleanly; nested does not always).
-    private func localContentToMap(_ c: LocalContent) -> [String: Any?] {
+    func localContentToMap(_ content: LocalContent) -> [String: Any?] {
         return [
-            "kind": self.clipboardKindToString(c.kind),
-            "text": c.text,
-            "dataName": c.dataName
+            "kind": self.clipboardKindToString(content.kind),
+            "text": content.text,
+            "dataName": content.dataName
         ]
     }
 
@@ -390,20 +409,20 @@ public class UcCoreModule: Module {
         )
     }
 
-    private func historyRecordToMap(_ r: HistoryRecord) -> [String: Any?] {
+    func historyRecordToMap(_ record: HistoryRecord) -> [String: Any?] {
         return [
-            "hash": r.hash,
-            "kind": self.clipboardKindToString(r.kind),
-            "text": r.text,
-            "hasData": r.hasData,
-            "size": r.size,
-            "createTimeMs": r.createTimeMs,
-            "lastModifiedMs": r.lastModifiedMs,
-            "lastAccessedMs": r.lastAccessedMs,
-            "starred": r.starred,
-            "pinned": r.pinned,
-            "version": r.version,
-            "isDeleted": r.isDeleted
+            "hash": record.hash,
+            "kind": self.clipboardKindToString(record.kind),
+            "text": record.text,
+            "hasData": record.hasData,
+            "size": record.size,
+            "createTimeMs": record.createTimeMs,
+            "lastModifiedMs": record.lastModifiedMs,
+            "lastAccessedMs": record.lastAccessedMs,
+            "starred": record.starred,
+            "pinned": record.pinned,
+            "version": record.version,
+            "isDeleted": record.isDeleted
         ]
     }
 
@@ -434,17 +453,25 @@ public class UcCoreModule: Module {
         }
     }
 
+    private func healthProbeResultToString(_ result: HealthProbeResult) -> String {
+        switch result {
+        case .success: return "Success"
+        case .notSupported: return "NotSupported"
+        case .unreachable: return "Unreachable"
+        }
+    }
+
     // MARK: - Sync config type conversions (defaultSyncConfig / engineInit's SyncConfig arg)
 
-    private func syncConfigToMap(_ c: SyncConfig) -> [String: Any] {
+    func syncConfigToMap(_ config: SyncConfig) -> [String: Any] {
         return [
-            "normalCadenceSecs": c.normalCadenceSecs,
-            "inactiveCadenceSecs": c.inactiveCadenceSecs,
-            "offlineBackoffSecs": c.offlineBackoffSecs,
-            "offlineBackoffMaxSecs": c.offlineBackoffMaxSecs,
-            "historySyncIntervalSecs": c.historySyncIntervalSecs,
-            "loopWindowSecs": c.loopWindowSecs,
-            "loopFlipThreshold": c.loopFlipThreshold
+            "normalCadenceSecs": config.normalCadenceSecs,
+            "inactiveCadenceSecs": config.inactiveCadenceSecs,
+            "offlineBackoffSecs": config.offlineBackoffSecs,
+            "offlineBackoffMaxSecs": config.offlineBackoffMaxSecs,
+            "historySyncIntervalSecs": config.historySyncIntervalSecs,
+            "loopWindowSecs": config.loopWindowSecs,
+            "loopFlipThreshold": config.loopFlipThreshold
         ]
     }
 
@@ -521,7 +548,7 @@ private final class SseEventForwarder: SseListener, @unchecked Sendable {
 // MARK: - Engine errors
 
 /// Thrown when an engine method is called before `engineInit`.
-private final class EngineNotInitializedException: Exception {
+private final class EngineNotInitializedException: Exception, @unchecked Sendable {
     override var reason: String {
         "MobileSyncEngine not initialized — call engineInit first"
     }
@@ -563,7 +590,7 @@ final class ExpoKeyValueStore: KeyValueStore, @unchecked Sendable {
 
 // MARK: - PlatformBridge implementation
 
-class ExpoPlatformBridge: PlatformBridge {
+final class ExpoPlatformBridge: PlatformBridge, @unchecked Sendable {
     func appGroupDir() -> String {
         let url = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupID)
         return url?.path ?? NSTemporaryDirectory()

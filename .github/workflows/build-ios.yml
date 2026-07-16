@@ -20,26 +20,26 @@ on:
   workflow_call:
     inputs:
       build_number:
-        description: "Override CFBundleVersion (empty = use app.json expo.ios.buildNumber)"
+        description: 'Override CFBundleVersion (empty = use app.json expo.ios.buildNumber)'
         required: false
         type: string
       upload_testflight:
-        description: "Upload the exported .ipa straight to TestFlight (for manual dev builds; the tagged release path uploads via release.yml instead)"
+        description: 'Upload the exported .ipa straight to TestFlight (for manual dev builds; the tagged release path uploads via release.yml instead)'
         required: false
         default: false
         type: boolean
     outputs:
       version:
-        description: "App marketing version from app.json"
+        description: 'App marketing version from app.json'
         value: ${{ jobs.build.outputs.version }}
   workflow_dispatch:
     inputs:
       build_number:
-        description: "Override CFBundleVersion (empty = use app.json expo.ios.buildNumber)"
+        description: 'Override CFBundleVersion (empty = use app.json expo.ios.buildNumber)'
         required: false
         type: string
       upload_testflight:
-        description: "Also upload the build to TestFlight"
+        description: 'Also upload the build to TestFlight'
         required: false
         default: false
         type: boolean
@@ -48,7 +48,7 @@ env:
   # Pinned uc-mobile source commit. Full SHA so GitHub can serve it via
   # `git fetch --depth 1 <sha>` even after the source branch advances.
   UC_CORE_REPO: https://github.com/UniClipboard/UniClipboard.git
-  UC_CORE_REF: 23a72351cb702de645817ff2f8b5cbcc4c2f6a1d
+  UC_CORE_REF: a8f2216f936ee137ff71deb70b13a32c4cf397b0
   APPLE_TEAM_ID: 8XG39X5CL8
   APP_VARIANT: production
 

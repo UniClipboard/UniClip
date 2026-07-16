@@ -26,6 +26,8 @@ import {
   engineAcknowledgeLoopDetected,
   hasEngine,
   defaultSyncConfig,
+  hasHealthProbe,
+  healthProbe,
   hasSse,
   startSseSubscription,
   cancelSseSubscription,
@@ -39,6 +41,7 @@ import type {
   SyncedMeta,
   StagedPreview,
   PullTrigger,
+  HealthProbeResult,
   ServerConfig as UcServerConfig,
 } from 'uc-core';
 import type { EventSubscription } from 'expo-modules-core';
@@ -70,6 +73,32 @@ const SSE_FEATURE_RETRY_MS = 5 * 60 * 1000;
 // 连续 N 次离线 tick 后开始轮换候选 URL 做故障转移（Option A：引擎只持单 URL，
 // 靠协调器在离线时切换候选；离线期没有成功的 pull，清 watermark 不会 clobber）。
 const OFFLINE_URL_ROTATE_AFTER = 2;
+const HEALTH_PROBE_TIMEOUT_MS = 1500;
+const HEALTH_FOREGROUND_CADENCE_MS = 2000;
+const HEALTH_INACTIVE_CADENCE_MS = 10000;
+const LEGACY_FOREGROUND_CADENCE_MS = 15000;
+const LEGACY_INACTIVE_CADENCE_MS = 60000;
+const RECOVERY_JITTER_RATIO = 0.1;
+
+type HealthCapability = 'unknown' | 'supported' | 'unconfirmedLegacy' | 'unsupported';
+type RecoveryRouteDecision = { url: string; capability: 'supported' | 'legacy' };
+
+function chooseRecoveryRoute(
+  urls: string[],
+  results: Record<string, HealthProbeResult>,
+  capability: HealthCapability
+): RecoveryRouteDecision | null {
+  const supportedUrl = urls.find((url) => results[url] === 'Success');
+  if (supportedUrl) return { url: supportedUrl, capability: 'supported' };
+  if (capability === 'unsupported' || capability === 'unconfirmedLegacy') return null;
+  const legacyUrl = urls.find((url) => results[url] === 'NotSupported');
+  return legacyUrl ? { url: legacyUrl, capability: 'legacy' } : null;
+}
+
+function jitterRecoveryDelay(baseMs: number): number {
+  const multiplier = 1 - RECOVERY_JITTER_RATIO + Math.random() * RECOVERY_JITTER_RATIO * 2;
+  return Math.round(baseMs * multiplier);
+}
 
 export type SyncEngineState =
   | 'Idle'
@@ -150,6 +179,12 @@ export class SyncEngine {
   private currentEngineUrl: string | null = null;
   private offlineTicks = 0;
   private offlineRouteSwitches = 0;
+  private isRunning = false;
+  private recoveryEpoch = 0;
+  private recoveryProbeInFlight = false;
+  private healthCapability: HealthCapability = 'unknown';
+  private healthCapabilityServerKey: string | null = null;
+  private routeCommitQueue: Promise<void> = Promise.resolve();
 
   private tickTimer: ReturnType<typeof setTimeout> | null = null;
   // BackingOff{retryAfterMs} 覆盖下一次 tick 间隔（一次性）。
@@ -204,8 +239,8 @@ export class SyncEngine {
   // -- Lifecycle --
 
   start(): void {
-    if (this.state === 'LoopDetected') return;
-    if (this.state === 'AuthFailed') this.setState('Idle');
+    if (this.state === 'LoopDetected' || this.state === 'AuthFailed') return;
+    this.isRunning = true;
     log.info('[SyncEngine] start');
     // 先确保引擎按当前 live URL 构造/对齐，再起 tick + SSE + 立即收敛一次。
     void (async () => {
@@ -216,6 +251,7 @@ export class SyncEngine {
         return;
       }
       if (this.tickTimer === null) this.scheduleNextTick();
+      if (this.isOffline) return;
       void this.startSse();
       // 首次立即收敛：有本地内容且允许自动推送就 push（内部含 get_latest，双向都覆盖），
       // 否则显式 pull 一次拉服务端最新。
@@ -225,6 +261,8 @@ export class SyncEngine {
 
   stop(): void {
     // 停 tick + SSE，但保留 native 引擎实例（设计：长生命周期单实例，退后台不销毁）。
+    this.isRunning = false;
+    this.recoveryEpoch += 1;
     if (this.tickTimer !== null) {
       clearTimeout(this.tickTimer);
       this.tickTimer = null;
@@ -233,7 +271,9 @@ export class SyncEngine {
   }
 
   setSceneInactive(inactive: boolean): void {
+    if (this.isSceneInactive === inactive) return;
     this.isSceneInactive = inactive;
+    if (this.isRunning && this.isOffline) this.scheduleNextTick();
   }
 
   destroy(): void {
@@ -314,7 +354,7 @@ export class SyncEngine {
     const key = getServerRouteKey(appServer);
     let liveUrl: string | null = null;
     if (rotate) {
-      await saveServerRouteLiveUrl(key, null);
+      await this.commitRouteCache(this.recoveryEpoch, key, null);
     } else {
       liveUrl = await loadServerRouteLiveUrl(key);
     }
@@ -594,6 +634,9 @@ export class SyncEngine {
     this.isOffline = false;
     this.offlineTicks = 0;
     this.offlineRouteSwitches = 0;
+    this.recoveryEpoch += 1;
+    this.healthCapability = 'unknown';
+    this.healthCapabilityServerKey = null;
     this.setState('Idle');
     this.lastError = null;
 
@@ -611,6 +654,8 @@ export class SyncEngine {
   handleNetworkChanged(): void {
     this.offlineTicks = 0;
     this.offlineRouteSwitches = 0;
+    this.recoveryEpoch += 1;
+    if (this.healthCapability === 'unconfirmedLegacy') this.healthCapability = 'unknown';
     void (async () => {
       if (this.engineConstructed) {
         try {
@@ -621,6 +666,10 @@ export class SyncEngine {
       }
       // 路由切换后网络偏好可能翻转 → 强制重解析候选 URL。
       await this.ensureEngine(false, true);
+      if (this.isOffline) {
+        this.scheduleNextTick();
+        return;
+      }
       this.restartSse();
       void this.reconverge();
     })();
@@ -690,7 +739,8 @@ export class SyncEngine {
     try {
       let t: PullTrigger | null = trigger;
       while (t) {
-        await this.pullServer(t);
+        // Pulls share native engine state and must remain serial.
+        await this.pullServer(t); // pi-lens-ignore: await-in-loop
         t = this.pendingPullTrigger;
         this.pendingPullTrigger = null;
       }
@@ -819,6 +869,7 @@ export class SyncEngine {
     this.setState('Succeeded');
     this.lastSyncedAt = Date.now();
     this.lastError = null;
+    if (this.isRunning) void this.startSse();
   }
 
   private clearOffline(): void {
@@ -854,6 +905,7 @@ export class SyncEngine {
     if (this.isOfflineKind(kind)) {
       if (!this.isOffline) {
         this.isOffline = true;
+        this.stopSse();
         log.info('[SyncEngine] server unreachable — offline, will keep retrying:', detail);
       }
       this.offlineTicks += 1;
@@ -875,6 +927,7 @@ export class SyncEngine {
         this.offlineRouteSwitches += 1;
         void this.ensureEngine(true);
       }
+      if (this.isRunning) this.scheduleNextTick();
     } else {
       if (this.lastReportedSyncError !== detail) {
         log.error('[SyncEngine] op error:', detail);
@@ -1008,22 +1061,139 @@ export class SyncEngine {
 
   // -- tick 调度 --
 
+  private async runRecoveryProbe(): Promise<void> {
+    if (this.recoveryProbeInFlight) return;
+    const server = this.getActiveServer();
+    if (!server) return;
+    const appServer = this.toAppServerConfig(server);
+    const serverKey = getServerRouteKey(appServer);
+    if (this.healthCapabilityServerKey !== serverKey) {
+      this.healthCapabilityServerKey = serverKey;
+      this.healthCapability = 'unknown';
+    }
+    const urls = orderServerUrls(appServer, getCurrentNetworkContext(), { liveUrl: null });
+    const epoch = this.recoveryEpoch;
+    this.recoveryProbeInFlight = true;
+    try {
+      const report = await healthProbe(
+        urls,
+        server.trustInsecureCert,
+        HEALTH_PROBE_TIMEOUT_MS,
+        epoch
+      );
+      if (!this.isCurrentRecoveryResult(epoch, serverKey) || report.networkEpoch !== epoch) return;
+
+      const decision = chooseRecoveryRoute(urls, report.results, this.healthCapability);
+      if (!decision) return;
+      if (decision.capability === 'supported') {
+        this.healthCapability = 'supported';
+        if (!(await this.commitRouteCache(epoch, serverKey, decision.url))) return;
+      } else {
+        this.healthCapability = 'unconfirmedLegacy';
+      }
+
+      if (!(await this.selectRecoveryRoute(server, serverKey, decision.url, epoch))) return;
+      await this.runPull({ tag: 'Explicit' });
+      if (decision.capability === 'legacy' && !this.isOffline && this.state !== 'AuthFailed') {
+        this.healthCapability = 'unsupported';
+        await this.commitRouteCache(epoch, serverKey, decision.url);
+      }
+    } catch (error: unknown) {
+      const detail = error instanceof Error ? error.message : String(error);
+      log.debug('[SyncEngine] health probe failed:', detail);
+    } finally {
+      this.recoveryProbeInFlight = false;
+    }
+  }
+
+  private isCurrentServerEpoch(epoch: number, serverKey: string): boolean {
+    if (this.recoveryEpoch !== epoch) return false;
+    const server = this.getActiveServer();
+    return server !== null && getServerRouteKey(this.toAppServerConfig(server)) === serverKey;
+  }
+
+  private isCurrentRecoveryResult(epoch: number, serverKey: string): boolean {
+    return this.isRunning && this.isOffline && this.isCurrentServerEpoch(epoch, serverKey);
+  }
+
+  private commitRouteCache(epoch: number, serverKey: string, url: string | null): Promise<boolean> {
+    const commit = this.routeCommitQueue.then(async () => {
+      if (!this.isCurrentServerEpoch(epoch, serverKey)) return false;
+      await saveServerRouteLiveUrl(serverKey, url);
+      if (this.isCurrentServerEpoch(epoch, serverKey)) return true;
+      await saveServerRouteLiveUrl(serverKey, null);
+      return false;
+    });
+    this.routeCommitQueue = commit.then(
+      () => undefined,
+      () => undefined
+    );
+    return commit;
+  }
+
+  private async selectRecoveryRoute(
+    server: ActiveServerInfo,
+    serverKey: string,
+    url: string,
+    epoch: number
+  ): Promise<boolean> {
+    if (!this.isCurrentRecoveryResult(epoch, serverKey)) return false;
+    const ucServer = this.toUcServer({
+      server: this.toAppServerConfig(server),
+      serverKey,
+      url,
+      index: 0,
+    });
+    if (!this.engineConstructed) {
+      engineInit(ucServer, this.syncConfig, this.engineSettings(), server.trustInsecureCert);
+      if (!this.isCurrentRecoveryResult(epoch, serverKey)) return false;
+      this.engineConstructed = true;
+      this.currentEngineUrl = url;
+      return true;
+    }
+    if (this.currentEngineUrl === url) return true;
+
+    await engineSetServer(ucServer);
+    if (!this.isCurrentRecoveryResult(epoch, serverKey)) {
+      this.currentEngineUrl = null;
+      await this.ensureEngine(false, true);
+      return false;
+    }
+    this.currentEngineUrl = url;
+    return true;
+  }
+
   private scheduleNextTick(): void {
     if (this.tickTimer !== null) clearTimeout(this.tickTimer);
-    if (this.state === 'AuthFailed' || this.state === 'LoopDetected') {
+    if (!this.isRunning || this.state === 'AuthFailed' || this.state === 'LoopDetected') {
       this.tickTimer = null;
       return;
     }
-    // SSE 在线时下行由推送接管，周期 tick 降为 30s 兜底；断开/回退时恢复 1Hz。
-    const activeCadenceSecs = this.sseConnected
-      ? SSE_FALLBACK_CADENCE_SECS
-      : this.syncConfig.normalCadenceSecs;
-    const cadenceMs = this.isSceneInactive
-      ? this.syncConfig.inactiveCadenceSecs * 1000
-      : activeCadenceSecs * 1000;
-    // BackingOff 覆盖（一次性）：按引擎给的 retryAfterMs 排下一次 Routine。
-    const interval =
-      this.nextTickOverrideMs !== null ? Math.max(this.nextTickOverrideMs, cadenceMs) : cadenceMs;
+
+    let interval: number;
+    if (this.isOffline) {
+      const legacy =
+        this.healthCapability === 'unsupported' ||
+        this.healthCapability === 'unconfirmedLegacy' ||
+        !hasHealthProbe();
+      let baseMs: number;
+      if (legacy) {
+        baseMs = this.isSceneInactive ? LEGACY_INACTIVE_CADENCE_MS : LEGACY_FOREGROUND_CADENCE_MS;
+      } else {
+        baseMs = this.isSceneInactive ? HEALTH_INACTIVE_CADENCE_MS : HEALTH_FOREGROUND_CADENCE_MS;
+      }
+      interval = jitterRecoveryDelay(baseMs);
+    } else {
+      // SSE 在线时下行由推送接管，周期 tick 降为 30s 兜底；断开/回退时恢复 1Hz。
+      const activeCadenceSecs = this.sseConnected
+        ? SSE_FALLBACK_CADENCE_SECS
+        : this.syncConfig.normalCadenceSecs;
+      const cadenceMs = this.isSceneInactive
+        ? this.syncConfig.inactiveCadenceSecs * 1000
+        : activeCadenceSecs * 1000;
+      interval =
+        this.nextTickOverrideMs !== null ? Math.max(this.nextTickOverrideMs, cadenceMs) : cadenceMs;
+    }
     this.nextTickOverrideMs = null;
     this.tickTimer = setTimeout(() => {
       this.tickTimer = null;
@@ -1033,7 +1203,18 @@ export class SyncEngine {
 
   private async onRoutineTick(): Promise<void> {
     try {
-      await this.runPull({ tag: 'Routine' });
+      if (!this.isOffline) {
+        await this.runPull({ tag: 'Routine' });
+      } else if (
+        this.healthCapability === 'unsupported' ||
+        this.healthCapability === 'unconfirmedLegacy' ||
+        !hasHealthProbe()
+      ) {
+        await this.runPull({ tag: 'Routine' });
+        if (!this.isOffline && this.state !== 'AuthFailed') this.healthCapability = 'unsupported';
+      } else {
+        await this.runRecoveryProbe();
+      }
     } finally {
       this.scheduleNextTick();
     }

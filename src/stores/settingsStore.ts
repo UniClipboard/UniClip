@@ -163,6 +163,15 @@ async function publishConfig(config: AppConfig): Promise<void> {
   await syncConfigToAppGroup(config);
 }
 
+function notifySyncEngineServerChanged(): void {
+  try {
+    const { notifyServerChanged } = require('./syncEngineStore');
+    notifyServerChanged();
+  } catch {
+    // SyncEngine is optional until its store has been initialized.
+  }
+}
+
 /**
  * 创建设置 Store
  */
@@ -253,6 +262,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   updateServer: async (index: number, updates: Partial<ServerConfig>) => {
+    const updatesActiveServer = get().config?.activeServerIndex === index;
     set({ isSaving: true, error: null });
 
     try {
@@ -260,6 +270,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const config = await configStorage.getConfig();
       await publishConfig(config);
       set({ config, isSaving: false });
+      if (updatesActiveServer) notifySyncEngineServerChanged();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to update server';
       set({ error: errorMessage, isSaving: false });
@@ -288,13 +299,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const config = await configStorage.getConfig();
       await publishConfig(config);
       set({ config, isSaving: false });
-      // Notify SyncEngine that the active server changed
-      try {
-        const { notifyServerChanged } = require('./syncEngineStore');
-        notifyServerChanged();
-      } catch {
-        // SyncEngine not yet initialized
-      }
+      notifySyncEngineServerChanged();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to set active server';
       set({ error: errorMessage, isSaving: false });

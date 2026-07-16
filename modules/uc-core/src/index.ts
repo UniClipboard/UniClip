@@ -66,6 +66,13 @@ export interface ProbeReport {
   results: Record<string, ProbeResult>;
 }
 
+export type HealthProbeResult = 'Success' | 'NotSupported' | 'Unreachable';
+
+export interface HealthProbeReport {
+  networkEpoch: number;
+  results: Record<string, HealthProbeResult>;
+}
+
 // --- Functions ---
 
 export function parseConnectUri(uri: string): ConnectPayload {
@@ -137,6 +144,19 @@ export async function probe(
   networkEpoch = 0
 ): Promise<ProbeReport> {
   return NativeModule.probe(urls, username, password, trustInsecureCert, timeoutMs, networkEpoch);
+}
+
+export function hasHealthProbe(): boolean {
+  return typeof NativeModule.healthProbe === 'function';
+}
+
+export function healthProbe(
+  urls: string[],
+  trustInsecureCert = false,
+  timeoutMs = 1500,
+  networkEpoch = 0
+): Promise<HealthProbeReport> {
+  return NativeModule.healthProbe(urls, trustInsecureCert, timeoutMs, networkEpoch);
 }
 
 export function cancelInFlight(): void {

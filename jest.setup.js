@@ -35,7 +35,9 @@ jest.mock('expo-localization', () => ({
       currencySymbol: '¥',
     },
   ],
-  getCalendars: () => [{ calendar: 'gregory', timeZone: 'Asia/Shanghai', uses24hourClock: true, firstWeekday: 1 }],
+  getCalendars: () => [
+    { calendar: 'gregory', timeZone: 'Asia/Shanghai', uses24hourClock: true, firstWeekday: 1 },
+  ],
 }));
 
 jest.mock('react-native-logs', () => ({
@@ -184,6 +186,8 @@ jest.mock('uc-core', () => ({
   putFile: jest.fn(),
   getHistoryPayload: jest.fn(),
   probe: jest.fn(),
+  hasHealthProbe: jest.fn(() => true),
+  healthProbe: jest.fn(),
   cancelInFlight: jest.fn(),
   // SSE subscription bridge
   hasSse: jest.fn(() => false),

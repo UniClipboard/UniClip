@@ -314,7 +314,7 @@ internal inline fun<T, reified E: Throwable> uniffiTraitInterfaceCallWithError(
         }
     }
 }
-// Initial value and increment amount for handles. 
+// Initial value and increment amount for handles.
 // These ensure that Kotlin-generated handles always have the lowest bit set
 private const val UNIFFI_HANDLEMAP_INITIAL = 1.toLong()
 private const val UNIFFI_HANDLEMAP_DELTA = 2.toLong()
@@ -324,7 +324,7 @@ private const val UNIFFI_HANDLEMAP_DELTA = 2.toLong()
 // This is used pass an opaque 64-bit handle representing a foreign object to the Rust code.
 internal class UniffiHandleMap<T: Any> {
     private val map = ConcurrentHashMap<Long, T>()
-    // Start 
+    // Start
     private val counter = java.util.concurrent.atomic.AtomicLong(UNIFFI_HANDLEMAP_INITIAL)
 
     val size: Int
@@ -807,6 +807,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_uc_mobile_checksum_method_mobilesyncclient_get_latest(
     ): Short
+    external fun uniffi_uc_mobile_checksum_method_mobilesyncclient_health_probe(
+    ): Short
     external fun uniffi_uc_mobile_checksum_method_mobilesyncclient_probe(
     ): Short
     external fun uniffi_uc_mobile_checksum_method_mobilesyncclient_put_clipboard(
@@ -862,39 +864,41 @@ internal object IntegrityCheckingUniffiLib {
     external fun ffi_uc_mobile_uniffi_contract_version(
     ): Int
 
-        
+
 }
 
 internal object UniffiLib {
-    
+
     // The Cleaner for the whole library
     internal val CLEANER: UniffiCleaner by lazy {
         UniffiCleaner.create()
     }
-    
+
 
     init {
         Native.register(UniffiLib::class.java, findLibraryName(componentName = "uc_mobile"))
         uniffiCallbackInterfaceKeyValueStore.register(this)
         uniffiCallbackInterfacePlatformBridge.register(this)
         uniffiCallbackInterfaceSseListener.register(this)
-        
+
     }
-    external fun uniffi_uc_mobile_fn_clone_mobilesyncclient(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    external fun uniffi_uc_mobile_fn_clone_mobilesyncclient(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_uc_mobile_fn_free_mobilesyncclient(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_free_mobilesyncclient(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
-external fun uniffi_uc_mobile_fn_constructor_mobilesyncclient_new(`bridge`: Long,`trustInsecureCert`: Byte,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_constructor_mobilesyncclient_new(`bridge`: Long,`trustInsecureCert`: Byte,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_uc_mobile_fn_method_mobilesyncclient_bridge_probe(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_method_mobilesyncclient_bridge_probe(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun uniffi_uc_mobile_fn_method_mobilesyncclient_cancel_in_flight(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_method_mobilesyncclient_cancel_in_flight(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
 external fun uniffi_uc_mobile_fn_method_mobilesyncclient_get_file(`ptr`: Long,`server`: RustBuffer.ByValue,`name`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_uc_mobile_fn_method_mobilesyncclient_get_history_payload(`ptr`: Long,`server`: RustBuffer.ByValue,`profileId`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_uc_mobile_fn_method_mobilesyncclient_get_latest(`ptr`: Long,`server`: RustBuffer.ByValue,
+): Long
+external fun uniffi_uc_mobile_fn_method_mobilesyncclient_health_probe(`ptr`: Long,`urls`: RustBuffer.ByValue,`trustInsecureCert`: Byte,`timeoutMs`: Int,`networkEpoch`: Long,
 ): Long
 external fun uniffi_uc_mobile_fn_method_mobilesyncclient_probe(`ptr`: Long,`urls`: RustBuffer.ByValue,`username`: RustBuffer.ByValue,`password`: RustBuffer.ByValue,`trustInsecureCert`: Byte,`timeoutMs`: Int,`networkEpoch`: Long,
 ): Long
@@ -904,59 +908,59 @@ external fun uniffi_uc_mobile_fn_method_mobilesyncclient_put_file(`ptr`: Long,`s
 ): Long
 external fun uniffi_uc_mobile_fn_method_mobilesyncclient_query_history(`ptr`: Long,`server`: RustBuffer.ByValue,`query`: RustBuffer.ByValue,
 ): Long
-external fun uniffi_uc_mobile_fn_method_mobilesyncclient_set_trust_insecure_cert(`ptr`: Long,`trustInsecureCert`: Byte,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_method_mobilesyncclient_set_trust_insecure_cert(`ptr`: Long,`trustInsecureCert`: Byte,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
-external fun uniffi_uc_mobile_fn_method_mobilesyncclient_start_sse_subscription(`ptr`: Long,`server`: RustBuffer.ByValue,`listener`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_method_mobilesyncclient_start_sse_subscription(`ptr`: Long,`server`: RustBuffer.ByValue,`listener`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Long
 external fun uniffi_uc_mobile_fn_method_mobilesyncclient_test_connection(`ptr`: Long,`server`: RustBuffer.ByValue,`trustInsecureCert`: Byte,
 ): Long
 external fun uniffi_uc_mobile_fn_method_mobilesyncclient_tls_probe(`ptr`: Long,`url`: RustBuffer.ByValue,
 ): Long
-external fun uniffi_uc_mobile_fn_clone_platformbridge(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_clone_platformbridge(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_uc_mobile_fn_free_platformbridge(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_free_platformbridge(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
 external fun uniffi_uc_mobile_fn_init_callback_vtable_platformbridge(`vtable`: UniffiVTableCallbackInterfacePlatformBridge,
 ): Unit
-external fun uniffi_uc_mobile_fn_method_platformbridge_app_group_dir(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_method_platformbridge_app_group_dir(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun uniffi_uc_mobile_fn_clone_ssehandle(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_clone_ssehandle(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_uc_mobile_fn_free_ssehandle(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_free_ssehandle(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
-external fun uniffi_uc_mobile_fn_method_ssehandle_cancel(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_method_ssehandle_cancel(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
-external fun uniffi_uc_mobile_fn_clone_sselistener(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_clone_sselistener(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_uc_mobile_fn_free_sselistener(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_free_sselistener(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
 external fun uniffi_uc_mobile_fn_init_callback_vtable_sselistener(`vtable`: UniffiVTableCallbackInterfaceSseListener,
 ): Unit
-external fun uniffi_uc_mobile_fn_method_sselistener_on_hello(`ptr`: Long,`serverTimeMs`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_method_sselistener_on_hello(`ptr`: Long,`serverTimeMs`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
-external fun uniffi_uc_mobile_fn_method_sselistener_on_update(`ptr`: Long,`contentId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_method_sselistener_on_update(`ptr`: Long,`contentId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
-external fun uniffi_uc_mobile_fn_method_sselistener_on_resync(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_method_sselistener_on_resync(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
-external fun uniffi_uc_mobile_fn_method_sselistener_on_disconnected(`ptr`: Long,`reason`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_method_sselistener_on_disconnected(`ptr`: Long,`reason`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
-external fun uniffi_uc_mobile_fn_clone_keyvaluestore(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_clone_keyvaluestore(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_uc_mobile_fn_free_keyvaluestore(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_free_keyvaluestore(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
 external fun uniffi_uc_mobile_fn_init_callback_vtable_keyvaluestore(`vtable`: UniffiVTableCallbackInterfaceKeyValueStore,
 ): Unit
-external fun uniffi_uc_mobile_fn_method_keyvaluestore_get(`ptr`: Long,`key`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_method_keyvaluestore_get(`ptr`: Long,`key`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun uniffi_uc_mobile_fn_method_keyvaluestore_set(`ptr`: Long,`key`: RustBuffer.ByValue,`value`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_method_keyvaluestore_set(`ptr`: Long,`key`: RustBuffer.ByValue,`value`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
-external fun uniffi_uc_mobile_fn_method_keyvaluestore_remove(`ptr`: Long,`key`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_method_keyvaluestore_remove(`ptr`: Long,`key`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
-external fun uniffi_uc_mobile_fn_clone_mobilesyncengine(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_clone_mobilesyncengine(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_uc_mobile_fn_free_mobilesyncengine(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_free_mobilesyncengine(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
-external fun uniffi_uc_mobile_fn_constructor_mobilesyncengine_new(`server`: RustBuffer.ByValue,`config`: RustBuffer.ByValue,`settings`: RustBuffer.ByValue,`store`: Long,`client`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_constructor_mobilesyncengine_new(`server`: RustBuffer.ByValue,`config`: RustBuffer.ByValue,`settings`: RustBuffer.ByValue,`store`: Long,`client`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Long
 external fun uniffi_uc_mobile_fn_method_mobilesyncengine_acknowledge_loop_detected(`ptr`: Long,
 ): Long
@@ -972,71 +976,71 @@ external fun uniffi_uc_mobile_fn_method_mobilesyncengine_set_server(`ptr`: Long,
 ): Long
 external fun uniffi_uc_mobile_fn_method_mobilesyncengine_set_settings(`ptr`: Long,`settings`: RustBuffer.ByValue,
 ): Long
-external fun uniffi_uc_mobile_fn_func_parse_connect_uri(`uri`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_parse_connect_uri(`uri`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun uniffi_uc_mobile_fn_func_first_reachable(`orderedUrls`: RustBuffer.ByValue,`results`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_first_reachable(`orderedUrls`: RustBuffer.ByValue,`results`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun uniffi_uc_mobile_fn_func_uc_mobile_init(uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_uc_mobile_init(uniffi_out_err: UniffiRustCallStatus,
 ): Unit
-external fun uniffi_uc_mobile_fn_func_acknowledge_loop_detection(`state`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_acknowledge_loop_detection(`state`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun uniffi_uc_mobile_fn_func_advance_watermark(`currentMs`: RustBuffer.ByValue,`maxLastModifiedMs`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_advance_watermark(`currentMs`: RustBuffer.ByValue,`maxLastModifiedMs`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun uniffi_uc_mobile_fn_func_backoff_secs(`consecutiveFailures`: Long,`base`: Double,`max`: Double,`jitter`: Double,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_backoff_secs(`consecutiveFailures`: Long,`base`: Double,`max`: Double,`jitter`: Double,uniffi_out_err: UniffiRustCallStatus,
 ): Double
-external fun uniffi_uc_mobile_fn_func_cadence_secs(`state`: RustBuffer.ByValue,`isSceneInactive`: Byte,`cfg`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_cadence_secs(`state`: RustBuffer.ByValue,`isSceneInactive`: Byte,`cfg`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Double
-external fun uniffi_uc_mobile_fn_func_commit_apply(`state`: RustBuffer.ByValue,`hash`: RustBuffer.ByValue,`contentId`: RustBuffer.ByValue,`nowMs`: Long,`cfg`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_commit_apply(`state`: RustBuffer.ByValue,`hash`: RustBuffer.ByValue,`contentId`: RustBuffer.ByValue,`nowMs`: Long,`cfg`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun uniffi_uc_mobile_fn_func_commit_apply_failed(`state`: RustBuffer.ByValue,`entry`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_commit_apply_failed(`state`: RustBuffer.ByValue,`entry`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun uniffi_uc_mobile_fn_func_commit_consent_push(`state`: RustBuffer.ByValue,`pushedHash`: RustBuffer.ByValue,`nowMs`: Long,`cfg`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_commit_consent_push(`state`: RustBuffer.ByValue,`pushedHash`: RustBuffer.ByValue,`nowMs`: Long,`cfg`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun uniffi_uc_mobile_fn_func_commit_converged(`state`: RustBuffer.ByValue,`serverHash`: RustBuffer.ByValue,`serverContentId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_commit_converged(`state`: RustBuffer.ByValue,`serverHash`: RustBuffer.ByValue,`serverContentId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun uniffi_uc_mobile_fn_func_commit_history_sync_done(`state`: RustBuffer.ByValue,`nowMs`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_commit_history_sync_done(`state`: RustBuffer.ByValue,`nowMs`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun uniffi_uc_mobile_fn_func_commit_push(`state`: RustBuffer.ByValue,`pushedHash`: RustBuffer.ByValue,`contentId`: RustBuffer.ByValue,`nowMs`: Long,`cfg`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_commit_push(`state`: RustBuffer.ByValue,`pushedHash`: RustBuffer.ByValue,`contentId`: RustBuffer.ByValue,`nowMs`: Long,`cfg`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun uniffi_uc_mobile_fn_func_commit_push_skipped(`state`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_commit_push_skipped(`state`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun uniffi_uc_mobile_fn_func_commit_stage(`state`: RustBuffer.ByValue,`entry`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_commit_stage(`state`: RustBuffer.ByValue,`entry`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun uniffi_uc_mobile_fn_func_commit_tick_failure(`state`: RustBuffer.ByValue,`kind`: RustBuffer.ByValue,`jitter`: Double,`nowMs`: Long,`cfg`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_commit_tick_failure(`state`: RustBuffer.ByValue,`kind`: RustBuffer.ByValue,`jitter`: Double,`nowMs`: Long,`cfg`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun uniffi_uc_mobile_fn_func_commit_tick_success(`state`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_commit_tick_success(`state`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun uniffi_uc_mobile_fn_func_default_sync_config(uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_default_sync_config(uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun uniffi_uc_mobile_fn_func_default_sync_runtime_state(uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_default_sync_runtime_state(uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun uniffi_uc_mobile_fn_func_handle_active_server_changed(`state`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_handle_active_server_changed(`state`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun uniffi_uc_mobile_fn_func_handle_network_route_changed(`state`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_handle_network_route_changed(`state`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun uniffi_uc_mobile_fn_func_hashes_equal(`a`: RustBuffer.ByValue,`b`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_hashes_equal(`a`: RustBuffer.ByValue,`b`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Byte
-external fun uniffi_uc_mobile_fn_func_is_cold_start(`watermarkMs`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_is_cold_start(`watermarkMs`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Byte
-external fun uniffi_uc_mobile_fn_func_is_history_sync_due(`lastSyncMs`: RustBuffer.ByValue,`nowMs`: Long,`intervalSecs`: Double,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_is_history_sync_due(`lastSyncMs`: RustBuffer.ByValue,`nowMs`: Long,`intervalSecs`: Double,uniffi_out_err: UniffiRustCallStatus,
 ): Byte
-external fun uniffi_uc_mobile_fn_func_is_probe_conclusion_valid(`reportEpoch`: Long,`currentEpoch`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_is_probe_conclusion_valid(`reportEpoch`: Long,`currentEpoch`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Byte
-external fun uniffi_uc_mobile_fn_func_mark_staged_applied(`state`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_mark_staged_applied(`state`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun uniffi_uc_mobile_fn_func_plan_after_server_get(`state`: RustBuffer.ByValue,`snap`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_plan_after_server_get(`state`: RustBuffer.ByValue,`snap`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun uniffi_uc_mobile_fn_func_plan_preamble(`state`: RustBuffer.ByValue,`snap`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_plan_preamble(`state`: RustBuffer.ByValue,`snap`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun uniffi_uc_mobile_fn_func_reset_runtime_state(`state`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_uc_mobile_fn_func_reset_runtime_state(`state`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun ffi_uc_mobile_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_uc_mobile_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun ffi_uc_mobile_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_uc_mobile_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun ffi_uc_mobile_rustbuffer_free(`buf`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_uc_mobile_rustbuffer_free(`buf`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
-external fun ffi_uc_mobile_rustbuffer_reserve(`buf`: RustBuffer.ByValue,`additional`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_uc_mobile_rustbuffer_reserve(`buf`: RustBuffer.ByValue,`additional`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
 external fun ffi_uc_mobile_rust_future_poll_u8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -1044,7 +1048,7 @@ external fun ffi_uc_mobile_rust_future_cancel_u8(`handle`: Long,
 ): Unit
 external fun ffi_uc_mobile_rust_future_free_u8(`handle`: Long,
 ): Unit
-external fun ffi_uc_mobile_rust_future_complete_u8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_uc_mobile_rust_future_complete_u8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Byte
 external fun ffi_uc_mobile_rust_future_poll_i8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -1052,7 +1056,7 @@ external fun ffi_uc_mobile_rust_future_cancel_i8(`handle`: Long,
 ): Unit
 external fun ffi_uc_mobile_rust_future_free_i8(`handle`: Long,
 ): Unit
-external fun ffi_uc_mobile_rust_future_complete_i8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_uc_mobile_rust_future_complete_i8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Byte
 external fun ffi_uc_mobile_rust_future_poll_u16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -1060,7 +1064,7 @@ external fun ffi_uc_mobile_rust_future_cancel_u16(`handle`: Long,
 ): Unit
 external fun ffi_uc_mobile_rust_future_free_u16(`handle`: Long,
 ): Unit
-external fun ffi_uc_mobile_rust_future_complete_u16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_uc_mobile_rust_future_complete_u16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Short
 external fun ffi_uc_mobile_rust_future_poll_i16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -1068,7 +1072,7 @@ external fun ffi_uc_mobile_rust_future_cancel_i16(`handle`: Long,
 ): Unit
 external fun ffi_uc_mobile_rust_future_free_i16(`handle`: Long,
 ): Unit
-external fun ffi_uc_mobile_rust_future_complete_i16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_uc_mobile_rust_future_complete_i16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Short
 external fun ffi_uc_mobile_rust_future_poll_u32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -1076,7 +1080,7 @@ external fun ffi_uc_mobile_rust_future_cancel_u32(`handle`: Long,
 ): Unit
 external fun ffi_uc_mobile_rust_future_free_u32(`handle`: Long,
 ): Unit
-external fun ffi_uc_mobile_rust_future_complete_u32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_uc_mobile_rust_future_complete_u32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Int
 external fun ffi_uc_mobile_rust_future_poll_i32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -1084,7 +1088,7 @@ external fun ffi_uc_mobile_rust_future_cancel_i32(`handle`: Long,
 ): Unit
 external fun ffi_uc_mobile_rust_future_free_i32(`handle`: Long,
 ): Unit
-external fun ffi_uc_mobile_rust_future_complete_i32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_uc_mobile_rust_future_complete_i32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Int
 external fun ffi_uc_mobile_rust_future_poll_u64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -1092,7 +1096,7 @@ external fun ffi_uc_mobile_rust_future_cancel_u64(`handle`: Long,
 ): Unit
 external fun ffi_uc_mobile_rust_future_free_u64(`handle`: Long,
 ): Unit
-external fun ffi_uc_mobile_rust_future_complete_u64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_uc_mobile_rust_future_complete_u64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Long
 external fun ffi_uc_mobile_rust_future_poll_i64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -1100,7 +1104,7 @@ external fun ffi_uc_mobile_rust_future_cancel_i64(`handle`: Long,
 ): Unit
 external fun ffi_uc_mobile_rust_future_free_i64(`handle`: Long,
 ): Unit
-external fun ffi_uc_mobile_rust_future_complete_i64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_uc_mobile_rust_future_complete_i64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Long
 external fun ffi_uc_mobile_rust_future_poll_f32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -1108,7 +1112,7 @@ external fun ffi_uc_mobile_rust_future_cancel_f32(`handle`: Long,
 ): Unit
 external fun ffi_uc_mobile_rust_future_free_f32(`handle`: Long,
 ): Unit
-external fun ffi_uc_mobile_rust_future_complete_f32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_uc_mobile_rust_future_complete_f32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Float
 external fun ffi_uc_mobile_rust_future_poll_f64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -1116,7 +1120,7 @@ external fun ffi_uc_mobile_rust_future_cancel_f64(`handle`: Long,
 ): Unit
 external fun ffi_uc_mobile_rust_future_free_f64(`handle`: Long,
 ): Unit
-external fun ffi_uc_mobile_rust_future_complete_f64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_uc_mobile_rust_future_complete_f64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Double
 external fun ffi_uc_mobile_rust_future_poll_rust_buffer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -1124,7 +1128,7 @@ external fun ffi_uc_mobile_rust_future_cancel_rust_buffer(`handle`: Long,
 ): Unit
 external fun ffi_uc_mobile_rust_future_free_rust_buffer(`handle`: Long,
 ): Unit
-external fun ffi_uc_mobile_rust_future_complete_rust_buffer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_uc_mobile_rust_future_complete_rust_buffer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
 external fun ffi_uc_mobile_rust_future_poll_void(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -1132,10 +1136,10 @@ external fun ffi_uc_mobile_rust_future_cancel_void(`handle`: Long,
 ): Unit
 external fun ffi_uc_mobile_rust_future_free_void(`handle`: Long,
 ): Unit
-external fun ffi_uc_mobile_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_uc_mobile_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
 
-    
+
 }
 
 private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
@@ -1249,6 +1253,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_uc_mobile_checksum_method_mobilesyncclient_get_latest() != 38248.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uc_mobile_checksum_method_mobilesyncclient_health_probe() != 16297.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_uc_mobile_checksum_method_mobilesyncclient_probe() != 57844.toShort()) {
@@ -1444,7 +1451,7 @@ inline fun <T : Disposable?, R> T.use(block: (T) -> R) =
         }
     }
 
-/** 
+/**
  * Placeholder object used to signal that we're constructing an interface with a FFI handle.
  *
  * This is the first argument for interface constructors that input a raw handle. It exists is that
@@ -1455,7 +1462,7 @@ inline fun <T : Disposable?, R> T.use(block: (T) -> R) =
  * */
 object UniffiWithHandle
 
-/** 
+/**
  * Used to instantiate an interface without an actual pointer, for fakes in tests, mostly.
  *
  * @suppress
@@ -1879,13 +1886,13 @@ public object FfiConverterByteArray: FfiConverterRustBuffer<ByteArray> {
  * and [`crate::client::SseListener`].
  */
 public interface KeyValueStore {
-    
+
     fun `get`(`key`: kotlin.String): kotlin.ByteArray?
-    
+
     fun `set`(`key`: kotlin.String, `value`: kotlin.ByteArray)
-    
+
     fun `remove`(`key`: kotlin.String)
-    
+
     companion object
 }
 
@@ -2007,10 +2014,10 @@ open class KeyValueStoreImpl: Disposable, AutoCloseable, KeyValueStore
     }
     )
     }
-    
+
 
     override fun `set`(`key`: kotlin.String, `value`: kotlin.ByteArray)
-        = 
+        =
     callWithHandle {
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_method_keyvaluestore_set(
@@ -2018,11 +2025,11 @@ open class KeyValueStoreImpl: Disposable, AutoCloseable, KeyValueStore
         FfiConverterString.lower(`key`),FfiConverterByteArray.lower(`value`),_status)
 }
     }
-    
-    
+
+
 
     override fun `remove`(`key`: kotlin.String)
-        = 
+        =
     callWithHandle {
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_method_keyvaluestore_remove(
@@ -2030,21 +2037,21 @@ open class KeyValueStoreImpl: Disposable, AutoCloseable, KeyValueStore
         FfiConverterString.lower(`key`),_status)
 }
     }
-    
-    
-
-    
-
-    
 
 
-    
-    
+
+
+
+
+
+
+
+
     /**
      * @suppress
      */
     companion object
-    
+
 }
 
 
@@ -2255,25 +2262,25 @@ public object FfiConverterTypeKeyValueStore: FfiConverter<KeyValueStore, Long> {
  * current_thread tokio runtime.
  */
 public interface MobileSyncClientInterface {
-    
+
     /**
      * Round-trip probe: Rust calling back into the foreign bridge (B1).
      */
     fun `bridgeProbe`(): kotlin.String
-    
+
     /**
      * Abort all requests currently running on the runtime thread. Their
      * awaiting callers observe [`SyncError::Cancelled`]. Does NOT poison the
      * client — subsequent calls proceed normally (see the module docs).
      */
     fun `cancelInFlight`()
-    
+
     /**
      * `GET /file/{name}` — download payload bytes (spec §2.4). Same filename
      * guard as [`Self::put_file`]; 404 surfaces as [`SyncError::NotFound`].
      */
     suspend fun `getFile`(`server`: ServerConfig, `name`: kotlin.String): kotlin.ByteArray
-    
+
     /**
      * `GET /api/history/{profileId}/data` — download a history record's
      * payload bytes (spec §2.11). `profile_id` is the composite
@@ -2281,12 +2288,18 @@ public interface MobileSyncClientInterface {
      * rejected before any network call if empty or containing `/` / `\`.
      */
     suspend fun `getHistoryPayload`(`server`: ServerConfig, `profileId`: kotlin.String): kotlin.ByteArray
-    
+
     /**
      * `GET /SyncClipboard.json` — latest clipboard metadata (spec §2.1).
      */
     suspend fun `getLatest`(`server`: ServerConfig): ClipboardMeta
-    
+
+    /**
+     * Probe the constant-cost mobile LAN `/healthz` endpoint on every distinct
+     * candidate. Requests carry no credentials and response bodies are ignored.
+     */
+    suspend fun `healthProbe`(`urls`: List<kotlin.String>, `trustInsecureCert`: kotlin.Boolean, `timeoutMs`: kotlin.UInt, `networkEpoch`: kotlin.ULong): HealthProbeReport
+
     /**
      * Probe every distinct candidate URL of a profile concurrently and report
      * per-URL reachability (spec §5.3; Swift `ConnectionTester.probe`).
@@ -2304,7 +2317,7 @@ public interface MobileSyncClientInterface {
      * (see its docs). Returns one verdict per *distinct* URL string.
      */
     suspend fun `probe`(`urls`: List<kotlin.String>, `username`: kotlin.String, `password`: kotlin.String, `trustInsecureCert`: kotlin.Boolean, `timeoutMs`: kotlin.UInt, `networkEpoch`: kotlin.ULong): ProbeReport
-    
+
     /**
      * `PUT /SyncClipboard.json`, optionally preceded by
      * `PUT /file/{dataName}` for the binary payload (spec §2.2/§2.3/§3.5).
@@ -2323,27 +2336,27 @@ public interface MobileSyncClientInterface {
      * (seam 3) — see the module docs.
      */
     suspend fun `putClipboard`(`server`: ServerConfig, `meta`: ClipboardMeta, `payload`: kotlin.ByteArray?): kotlin.String?
-    
+
     /**
      * `PUT /file/{name}` — upload payload bytes (spec §2.3). Rejects names
      * containing `/`, `\`, or empty before any network call.
      */
     suspend fun `putFile`(`server`: ServerConfig, `name`: kotlin.String, `body`: kotlin.ByteArray)
-    
+
     /**
      * `POST /api/history/query` — paginated history listing (spec §2.7).
      * Filters are sent as `multipart/form-data`. An empty array is the
      * documented end-of-list signal, NOT an error.
      */
     suspend fun `queryHistory`(`server`: ServerConfig, `query`: HistoryQuery): List<HistoryRecord>
-    
+
     /**
      * Swap the production client's TLS-validation policy in place (the user
      * toggled `trustInsecureCert`). Rebuilds only the reqwest client — the
      * runtime thread, in-flight tracking, and boundary counter are untouched.
      */
     fun `setTrustInsecureCert`(`trustInsecureCert`: kotlin.Boolean)
-    
+
     /**
      * Subscribe to `GET /api/sse/clipboard`'s notify-then-pull push channel
      * (mobile-sync SSE design §5.1). `server` is taken per call, matching the
@@ -2364,7 +2377,7 @@ public interface MobileSyncClientInterface {
      * client was constructed still takes effect on the next subscription.
      */
     fun `startSseSubscription`(`server`: ServerConfig, `listener`: SseListener): SseHandle
-    
+
     /**
      * "测试连接" — probe ONE server's reachability + credentials via a full
      * `GET /SyncClipboard.json` (spec §5.3 Layer 2 single-URL form; Swift
@@ -2377,7 +2390,7 @@ public interface MobileSyncClientInterface {
      * set); the default-false path reuses the validating production client.
      */
     suspend fun `testConnection`(`server`: ServerConfig, `trustInsecureCert`: kotlin.Boolean): ProbeResult
-    
+
     /**
      * B2 TLS acceptance probe: complete one real TLS handshake (HTTPS GET)
      * and return the status code. Proves the ring provider installed by
@@ -2385,7 +2398,7 @@ public interface MobileSyncClientInterface {
      * context; the response body is discarded.
      */
     suspend fun `tlsProbe`(`url`: kotlin.String): kotlin.UShort
-    
+
     companion object
 }
 
@@ -2429,10 +2442,10 @@ open class MobileSyncClient: Disposable, AutoCloseable, MobileSyncClientInterfac
      * flag would force needless rebuilds.
      */
     constructor(`bridge`: PlatformBridge, `trustInsecureCert`: kotlin.Boolean) :
-        this(UniffiWithHandle, 
+        this(UniffiWithHandle,
     uniffiRustCallWithError(SyncException) { _status ->
     UniffiLib.uniffi_uc_mobile_fn_constructor_mobilesyncclient_new(
-    
+
         FfiConverterTypePlatformBridge.lower(`bridge`),FfiConverterBoolean.lower(`trustInsecureCert`),_status)
 }
     )
@@ -2508,7 +2521,7 @@ open class MobileSyncClient: Disposable, AutoCloseable, MobileSyncClientInterfac
         }
     }
 
-    
+
     /**
      * Round-trip probe: Rust calling back into the foreign bridge (B1).
      */override fun `bridgeProbe`(): kotlin.String {
@@ -2522,15 +2535,15 @@ open class MobileSyncClient: Disposable, AutoCloseable, MobileSyncClientInterfac
     }
     )
     }
-    
 
-    
+
+
     /**
      * Abort all requests currently running on the runtime thread. Their
      * awaiting callers observe [`SyncError::Cancelled`]. Does NOT poison the
      * client — subsequent calls proceed normally (see the module docs).
      */override fun `cancelInFlight`()
-        = 
+        =
     callWithHandle {
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_method_mobilesyncclient_cancel_in_flight(
@@ -2538,10 +2551,10 @@ open class MobileSyncClient: Disposable, AutoCloseable, MobileSyncClientInterfac
         _status)
 }
     }
-    
-    
 
-    
+
+
+
     /**
      * `GET /file/{name}` — download payload bytes (spec §2.4). Same filename
      * guard as [`Self::put_file`]; 404 surfaces as [`SyncError::NotFound`].
@@ -2566,7 +2579,7 @@ open class MobileSyncClient: Disposable, AutoCloseable, MobileSyncClientInterfac
     )
     }
 
-    
+
     /**
      * `GET /api/history/{profileId}/data` — download a history record's
      * payload bytes (spec §2.11). `profile_id` is the composite
@@ -2593,7 +2606,7 @@ open class MobileSyncClient: Disposable, AutoCloseable, MobileSyncClientInterfac
     )
     }
 
-    
+
     /**
      * `GET /SyncClipboard.json` — latest clipboard metadata (spec §2.1).
      */
@@ -2617,7 +2630,31 @@ open class MobileSyncClient: Disposable, AutoCloseable, MobileSyncClientInterfac
     )
     }
 
-    
+
+    /**
+     * Probe the constant-cost mobile LAN `/healthz` endpoint on every distinct
+     * candidate. Requests carry no credentials and response bodies are ignored.
+     */
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `healthProbe`(`urls`: List<kotlin.String>, `trustInsecureCert`: kotlin.Boolean, `timeoutMs`: kotlin.UInt, `networkEpoch`: kotlin.ULong) : HealthProbeReport {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_uc_mobile_fn_method_mobilesyncclient_health_probe(
+                uniffiHandle,
+                FfiConverterSequenceString.lower(`urls`),FfiConverterBoolean.lower(`trustInsecureCert`),FfiConverterUInt.lower(`timeoutMs`),FfiConverterULong.lower(`networkEpoch`),
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_uc_mobile_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_uc_mobile_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_uc_mobile_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterTypeHealthProbeReport.lift(it) },
+        // Error FFI converter
+        UniffiNullRustCallStatusErrorHandler,
+    )
+    }
+
+
     /**
      * Probe every distinct candidate URL of a profile concurrently and report
      * per-URL reachability (spec §5.3; Swift `ConnectionTester.probe`).
@@ -2653,7 +2690,7 @@ open class MobileSyncClient: Disposable, AutoCloseable, MobileSyncClientInterfac
     )
     }
 
-    
+
     /**
      * `PUT /SyncClipboard.json`, optionally preceded by
      * `PUT /file/{dataName}` for the binary payload (spec §2.2/§2.3/§3.5).
@@ -2691,7 +2728,7 @@ open class MobileSyncClient: Disposable, AutoCloseable, MobileSyncClientInterfac
     )
     }
 
-    
+
     /**
      * `PUT /file/{name}` — upload payload bytes (spec §2.3). Rejects names
      * containing `/`, `\`, or empty before any network call.
@@ -2711,13 +2748,13 @@ open class MobileSyncClient: Disposable, AutoCloseable, MobileSyncClientInterfac
         { future -> UniffiLib.ffi_uc_mobile_rust_future_free_void(future) },
         // lift function
         { Unit },
-        
+
         // Error FFI converter
         SyncException.ErrorHandler,
     )
     }
 
-    
+
     /**
      * `POST /api/history/query` — paginated history listing (spec §2.7).
      * Filters are sent as `multipart/form-data`. An empty array is the
@@ -2743,14 +2780,14 @@ open class MobileSyncClient: Disposable, AutoCloseable, MobileSyncClientInterfac
     )
     }
 
-    
+
     /**
      * Swap the production client's TLS-validation policy in place (the user
      * toggled `trustInsecureCert`). Rebuilds only the reqwest client — the
      * runtime thread, in-flight tracking, and boundary counter are untouched.
      */
     @Throws(SyncException::class)override fun `setTrustInsecureCert`(`trustInsecureCert`: kotlin.Boolean)
-        = 
+        =
     callWithHandle {
     uniffiRustCallWithError(SyncException) { _status ->
     UniffiLib.uniffi_uc_mobile_fn_method_mobilesyncclient_set_trust_insecure_cert(
@@ -2758,10 +2795,10 @@ open class MobileSyncClient: Disposable, AutoCloseable, MobileSyncClientInterfac
         FfiConverterBoolean.lower(`trustInsecureCert`),_status)
 }
     }
-    
-    
 
-    
+
+
+
     /**
      * Subscribe to `GET /api/sse/clipboard`'s notify-then-pull push channel
      * (mobile-sync SSE design §5.1). `server` is taken per call, matching the
@@ -2791,9 +2828,9 @@ open class MobileSyncClient: Disposable, AutoCloseable, MobileSyncClientInterfac
     }
     )
     }
-    
 
-    
+
+
     /**
      * "测试连接" — probe ONE server's reachability + credentials via a full
      * `GET /SyncClipboard.json` (spec §5.3 Layer 2 single-URL form; Swift
@@ -2824,7 +2861,7 @@ open class MobileSyncClient: Disposable, AutoCloseable, MobileSyncClientInterfac
     )
     }
 
-    
+
     /**
      * B2 TLS acceptance probe: complete one real TLS handshake (HTTPS GET)
      * and return the status code. Proves the ring provider installed by
@@ -2851,18 +2888,18 @@ open class MobileSyncClient: Disposable, AutoCloseable, MobileSyncClientInterfac
     )
     }
 
-    
-
-    
 
 
-    
-    
+
+
+
+
+
     /**
      * @suppress
      */
     companion object
-    
+
 }
 
 
@@ -2991,34 +3028,34 @@ public object FfiConverterTypeMobileSyncClient: FfiConverter<MobileSyncClient, L
  * reconstruction).
  */
 public interface MobileSyncEngineInterface {
-    
+
     /**
      * User dismissed the loop-detected banner — clear the trip buffer and
      * resume. `async`, see [`Self::set_server`]'s doc comment for why.
      */
     suspend fun `acknowledgeLoopDetected`()
-    
+
     /**
      * User tapped "apply" on a staged banner (`auto_apply` off). Downloads the
      * staged entry's bytes now and advances the watermark exactly like a
      * `pull`-triggered apply.
      */
     suspend fun `applyStaged`(): SyncOutcome
-    
+
     /**
      * Network path changed (Wi-Fi/cellular flip) — the backoff accumulated
      * against the dead route says nothing about the new one. `async`, see
      * [`Self::set_server`]'s doc comment for why.
      */
     suspend fun `handleNetworkRouteChanged`()
-    
+
     /**
      * Probe for (and, per `auto_apply`, apply) server-new content. `trigger`
      * decides the backoff gate and SSE short-circuit; `current_device_hash` feeds
      * the truth-gate convergence check (Q1).
      */
     suspend fun `pull`(`trigger`: PullTrigger, `currentDeviceHash`: kotlin.String?): SyncOutcome
-    
+
     /**
      * Native observed a local pasteboard change and read its bytes — call this to
      * sync it. Internally runs `get_latest` FIRST (Q10): if the server changed
@@ -3028,7 +3065,7 @@ public interface MobileSyncEngineInterface {
      * and (on a genuine change) a full `put_clipboard`.
      */
     suspend fun `push`(`content`: LocalContent): SyncOutcome
-    
+
     /**
      * Switch the active server. A genuine change (Q8) clears the durable
      * watermark (new server, new content timeline) and resets in-memory runtime
@@ -3043,12 +3080,12 @@ public interface MobileSyncEngineInterface {
      * automatically, so this is a mechanical, low-cost change for callers.
      */
     suspend fun `setServer`(`server`: ServerConfig)
-    
+
     /**
      * `async`, see [`Self::set_server`]'s doc comment for why.
      */
     suspend fun `setSettings`(`settings`: SyncSettings)
-    
+
     companion object
 }
 
@@ -3082,10 +3119,10 @@ open class MobileSyncEngine: Disposable, AutoCloseable, MobileSyncEngineInterfac
         this.cleanable = null
     }
     constructor(`server`: ServerConfig, `config`: SyncConfig, `settings`: SyncSettings, `store`: KeyValueStore, `client`: MobileSyncClient) :
-        this(UniffiWithHandle, 
+        this(UniffiWithHandle,
     uniffiRustCallWithError(SyncException) { _status ->
     UniffiLib.uniffi_uc_mobile_fn_constructor_mobilesyncengine_new(
-    
+
         FfiConverterTypeServerConfig.lower(`server`),FfiConverterTypeSyncConfig.lower(`config`),FfiConverterTypeSyncSettings.lower(`settings`),FfiConverterTypeKeyValueStore.lower(`store`),FfiConverterTypeMobileSyncClient.lower(`client`),_status)
 }
     )
@@ -3161,7 +3198,7 @@ open class MobileSyncEngine: Disposable, AutoCloseable, MobileSyncEngineInterfac
         }
     }
 
-    
+
     /**
      * User dismissed the loop-detected banner — clear the trip buffer and
      * resume. `async`, see [`Self::set_server`]'s doc comment for why.
@@ -3172,7 +3209,7 @@ open class MobileSyncEngine: Disposable, AutoCloseable, MobileSyncEngineInterfac
         callWithHandle { uniffiHandle ->
             UniffiLib.uniffi_uc_mobile_fn_method_mobilesyncengine_acknowledge_loop_detected(
                 uniffiHandle,
-                
+
             )
         },
         { future, callback, continuation -> UniffiLib.ffi_uc_mobile_rust_future_poll_void(future, callback, continuation) },
@@ -3180,13 +3217,13 @@ open class MobileSyncEngine: Disposable, AutoCloseable, MobileSyncEngineInterfac
         { future -> UniffiLib.ffi_uc_mobile_rust_future_free_void(future) },
         // lift function
         { Unit },
-        
+
         // Error FFI converter
         UniffiNullRustCallStatusErrorHandler,
     )
     }
 
-    
+
     /**
      * User tapped "apply" on a staged banner (`auto_apply` off). Downloads the
      * staged entry's bytes now and advances the watermark exactly like a
@@ -3198,7 +3235,7 @@ open class MobileSyncEngine: Disposable, AutoCloseable, MobileSyncEngineInterfac
         callWithHandle { uniffiHandle ->
             UniffiLib.uniffi_uc_mobile_fn_method_mobilesyncengine_apply_staged(
                 uniffiHandle,
-                
+
             )
         },
         { future, callback, continuation -> UniffiLib.ffi_uc_mobile_rust_future_poll_rust_buffer(future, callback, continuation) },
@@ -3211,7 +3248,7 @@ open class MobileSyncEngine: Disposable, AutoCloseable, MobileSyncEngineInterfac
     )
     }
 
-    
+
     /**
      * Network path changed (Wi-Fi/cellular flip) — the backoff accumulated
      * against the dead route says nothing about the new one. `async`, see
@@ -3223,7 +3260,7 @@ open class MobileSyncEngine: Disposable, AutoCloseable, MobileSyncEngineInterfac
         callWithHandle { uniffiHandle ->
             UniffiLib.uniffi_uc_mobile_fn_method_mobilesyncengine_handle_network_route_changed(
                 uniffiHandle,
-                
+
             )
         },
         { future, callback, continuation -> UniffiLib.ffi_uc_mobile_rust_future_poll_void(future, callback, continuation) },
@@ -3231,13 +3268,13 @@ open class MobileSyncEngine: Disposable, AutoCloseable, MobileSyncEngineInterfac
         { future -> UniffiLib.ffi_uc_mobile_rust_future_free_void(future) },
         // lift function
         { Unit },
-        
+
         // Error FFI converter
         UniffiNullRustCallStatusErrorHandler,
     )
     }
 
-    
+
     /**
      * Probe for (and, per `auto_apply`, apply) server-new content. `trigger`
      * decides the backoff gate and SSE short-circuit; `current_device_hash` feeds
@@ -3262,7 +3299,7 @@ open class MobileSyncEngine: Disposable, AutoCloseable, MobileSyncEngineInterfac
     )
     }
 
-    
+
     /**
      * Native observed a local pasteboard change and read its bytes — call this to
      * sync it. Internally runs `get_latest` FIRST (Q10): if the server changed
@@ -3290,7 +3327,7 @@ open class MobileSyncEngine: Disposable, AutoCloseable, MobileSyncEngineInterfac
     )
     }
 
-    
+
     /**
      * Switch the active server. A genuine change (Q8) clears the durable
      * watermark (new server, new content timeline) and resets in-memory runtime
@@ -3318,13 +3355,13 @@ open class MobileSyncEngine: Disposable, AutoCloseable, MobileSyncEngineInterfac
         { future -> UniffiLib.ffi_uc_mobile_rust_future_free_void(future) },
         // lift function
         { Unit },
-        
+
         // Error FFI converter
         UniffiNullRustCallStatusErrorHandler,
     )
     }
 
-    
+
     /**
      * `async`, see [`Self::set_server`]'s doc comment for why.
      */
@@ -3342,24 +3379,24 @@ open class MobileSyncEngine: Disposable, AutoCloseable, MobileSyncEngineInterfac
         { future -> UniffiLib.ffi_uc_mobile_rust_future_free_void(future) },
         // lift function
         { Unit },
-        
+
         // Error FFI converter
         UniffiNullRustCallStatusErrorHandler,
     )
     }
 
-    
-
-    
 
 
-    
-    
+
+
+
+
+
     /**
      * @suppress
      */
     companion object
-    
+
 }
 
 
@@ -3492,13 +3529,13 @@ public object FfiConverterTypeMobileSyncEngine: FfiConverter<MobileSyncEngine, L
  * inside a future (spike plan §4).
  */
 public interface PlatformBridge {
-    
+
     /**
      * Absolute path of the app-group container directory (shared between
      * the iOS app and its keyboard/share extensions).
      */
     fun `appGroupDir`(): kotlin.String
-    
+
     companion object
 }
 
@@ -3607,7 +3644,7 @@ open class PlatformBridgeImpl: Disposable, AutoCloseable, PlatformBridge
         }
     }
 
-    
+
     /**
      * Absolute path of the app-group container directory (shared between
      * the iOS app and its keyboard/share extensions).
@@ -3622,20 +3659,20 @@ open class PlatformBridgeImpl: Disposable, AutoCloseable, PlatformBridge
     }
     )
     }
-    
-
-    
-
-    
 
 
-    
-    
+
+
+
+
+
+
+
     /**
      * @suppress
      */
     companion object
-    
+
 }
 
 
@@ -3823,13 +3860,13 @@ public object FfiConverterTypePlatformBridge: FfiConverter<PlatformBridge, Long>
  * the subscription's lifetime.
  */
 public interface SseHandleInterface {
-    
+
     /**
      * Idempotent: calling this more than once (or after the subscription
      * already ended on its own) is a no-op.
      */
     fun `cancel`()
-    
+
     companion object
 }
 
@@ -3938,12 +3975,12 @@ open class SseHandle: Disposable, AutoCloseable, SseHandleInterface
         }
     }
 
-    
+
     /**
      * Idempotent: calling this more than once (or after the subscription
      * already ended on its own) is a no-op.
      */override fun `cancel`()
-        = 
+        =
     callWithHandle {
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_method_ssehandle_cancel(
@@ -3951,21 +3988,21 @@ open class SseHandle: Disposable, AutoCloseable, SseHandleInterface
         _status)
 }
     }
-    
-    
-
-    
-
-    
 
 
-    
-    
+
+
+
+
+
+
+
+
     /**
      * @suppress
      */
     companion object
-    
+
 }
 
 
@@ -4096,7 +4133,7 @@ public object FfiConverterTypeSseHandle: FfiConverter<SseHandle, Long> {
  * side (design §5.2).
  */
 public interface SseListener {
-    
+
     /**
      * The connection is live; `server_time_ms` is the server's clock at
      * connect time. The caller should unconditionally pull the latest
@@ -4105,7 +4142,7 @@ public interface SseListener {
      * of this unconditional pull).
      */
     fun `onHello`(`serverTimeMs`: kotlin.Long)
-    
+
     /**
      * The active-clipboard register advanced. `content_id` is the new
      * `snapshot_hash` — NOT a signal to apply directly (§2 red line: this
@@ -4113,14 +4150,14 @@ public interface SseListener {
      * (`GET /SyncClipboard.json`) to act on it.
      */
     fun `onUpdate`(`contentId`: kotlin.String)
-    
+
     /**
      * The server's broadcast receiver fell behind (design F-3) — the caller
      * may have missed update(s) and should unconditionally pull once,
      * exactly like `on_hello`.
      */
     fun `onResync`()
-    
+
     /**
      * The stream ended for any reason (heartbeat timeout, server closed the
      * connection, transport error, non-2xx response). `reason` is a
@@ -4128,7 +4165,7 @@ public interface SseListener {
      * fired when the caller itself calls [`SseHandle::cancel`].
      */
     fun `onDisconnected`(`reason`: kotlin.String)
-    
+
     companion object
 }
 
@@ -4235,7 +4272,7 @@ open class SseListenerImpl: Disposable, AutoCloseable, SseListener
         }
     }
 
-    
+
     /**
      * The connection is live; `server_time_ms` is the server's clock at
      * connect time. The caller should unconditionally pull the latest
@@ -4243,7 +4280,7 @@ open class SseListenerImpl: Disposable, AutoCloseable, SseListener
      * replay promise, so a connect-time race is only safe to ignore because
      * of this unconditional pull).
      */override fun `onHello`(`serverTimeMs`: kotlin.Long)
-        = 
+        =
     callWithHandle {
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_method_sselistener_on_hello(
@@ -4251,17 +4288,17 @@ open class SseListenerImpl: Disposable, AutoCloseable, SseListener
         FfiConverterLong.lower(`serverTimeMs`),_status)
 }
     }
-    
-    
 
-    
+
+
+
     /**
      * The active-clipboard register advanced. `content_id` is the new
      * `snapshot_hash` — NOT a signal to apply directly (§2 red line: this
      * channel never carries content). The caller must pull
      * (`GET /SyncClipboard.json`) to act on it.
      */override fun `onUpdate`(`contentId`: kotlin.String)
-        = 
+        =
     callWithHandle {
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_method_sselistener_on_update(
@@ -4269,16 +4306,16 @@ open class SseListenerImpl: Disposable, AutoCloseable, SseListener
         FfiConverterString.lower(`contentId`),_status)
 }
     }
-    
-    
 
-    
+
+
+
     /**
      * The server's broadcast receiver fell behind (design F-3) — the caller
      * may have missed update(s) and should unconditionally pull once,
      * exactly like `on_hello`.
      */override fun `onResync`()
-        = 
+        =
     callWithHandle {
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_method_sselistener_on_resync(
@@ -4286,17 +4323,17 @@ open class SseListenerImpl: Disposable, AutoCloseable, SseListener
         _status)
 }
     }
-    
-    
 
-    
+
+
+
     /**
      * The stream ended for any reason (heartbeat timeout, server closed the
      * connection, transport error, non-2xx response). `reason` is a
      * human-readable diagnostic, not a stable machine-parseable code. Not
      * fired when the caller itself calls [`SseHandle::cancel`].
      */override fun `onDisconnected`(`reason`: kotlin.String)
-        = 
+        =
     callWithHandle {
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_method_sselistener_on_disconnected(
@@ -4304,21 +4341,21 @@ open class SseListenerImpl: Disposable, AutoCloseable, SseListener
         FfiConverterString.lower(`reason`),_status)
 }
     }
-    
-    
-
-    
-
-    
 
 
-    
-    
+
+
+
+
+
+
+
+
     /**
      * @suppress
      */
     companion object
-    
+
 }
 
 
@@ -4450,26 +4487,26 @@ public object FfiConverterTypeSseListener: FfiConverter<SseListener, Long> {
  */
 data class ClipboardMeta (
     var `kind`: ClipboardKind
-    , 
+    ,
     /**
      * Text content for `Text`; file-name hint for payload kinds.
      */
     var `text`: kotlin.String
-    , 
+    ,
     /**
      * Server-side payload name; required when a binary payload exists.
      */
     var `dataName`: kotlin.String?
-    , 
+    ,
     var `hasData`: kotlin.Boolean
-    , 
+    ,
     var `size`: kotlin.ULong
-    , 
+    ,
     /**
      * SHA-256 hex. Optional on upload, always present in daemon responses.
      */
     var `hash`: kotlin.String?
-    , 
+    ,
     /**
      * Server-assigned opaque cross-device identity (`blake3v1:<hex>`), stable
      * across server-side re-encodes. Present in GET responses; `None` on the
@@ -4477,13 +4514,13 @@ data class ClipboardMeta (
      * reducer dedups on it (see `uc_mobile_proto::sync_engine`).
      */
     var `contentId`: kotlin.String?
-    
+
 ){
-    
 
-    
 
-    
+
+
+
     companion object
 }
 
@@ -4535,13 +4572,13 @@ data class CommitOutcome (
      * [`SyncState::LoopDetected`].
      */
     var `tripped`: kotlin.Boolean
-    
+
 ){
-    
 
-    
 
-    
+
+
+
     companion object
 }
 
@@ -4571,15 +4608,15 @@ public object FfiConverterTypeCommitOutcome: FfiConverterRustBuffer<CommitOutcom
  */
 data class CommitStep (
     var `state`: SyncRuntimeState
-    , 
+    ,
     var `outcome`: CommitOutcome
-    
+
 ){
-    
 
-    
 
-    
+
+
+
     companion object
 }
 
@@ -4620,38 +4657,38 @@ data class ConnectPayload (
      * Payload schema version; v1 = 1.
      */
     var `v`: kotlin.UInt
-    , 
+    ,
     /**
      * Primary server base URL (equals `urls[0]` when `urls` is non-empty).
      */
     var `url`: kotlin.String
-    , 
+    ,
     /**
      * Ordered candidate base URLs (empty for single-candidate codes).
      */
     var `urls`: List<kotlin.String>
-    , 
+    ,
     /**
      * HTTP Basic Auth username.
      */
     var `user`: kotlin.String
-    , 
+    ,
     /**
      * HTTP Basic Auth plaintext password (one-shot display semantics, spec §5.1).
      */
     var `pwd`: kotlin.String
-    , 
+    ,
     /**
      * Extension metadata KV (`o` on the wire); unknown keys are preserved.
      */
     var `other`: Map<kotlin.String, kotlin.String>
-    
+
 ){
-    
 
-    
 
-    
+
+
+
     companion object
 }
 
@@ -4692,6 +4729,47 @@ public object FfiConverterTypeConnectPayload: FfiConverterRustBuffer<ConnectPayl
 
 
 /**
+ * Multi-URL mobile LAN liveness results stamped with the caller's network epoch.
+ */
+data class HealthProbeReport (
+    var `networkEpoch`: kotlin.ULong
+    ,
+    var `results`: Map<kotlin.String, HealthProbeResult>
+
+){
+
+
+
+
+
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeHealthProbeReport: FfiConverterRustBuffer<HealthProbeReport> {
+    override fun read(buf: ByteBuffer): HealthProbeReport {
+        return HealthProbeReport(
+            FfiConverterULong.read(buf),
+            FfiConverterMapStringTypeHealthProbeResult.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: HealthProbeReport) = (
+            FfiConverterULong.allocationSize(value.`networkEpoch`) +
+            FfiConverterMapStringTypeHealthProbeResult.allocationSize(value.`results`)
+    )
+
+    override fun write(value: HealthProbeReport, buf: ByteBuffer) {
+            FfiConverterULong.write(value.`networkEpoch`, buf)
+            FfiConverterMapStringTypeHealthProbeResult.write(value.`results`, buf)
+    }
+}
+
+
+
+/**
  * Filter parameters for [`MobileSyncClient::query_history`] (spec §2.7). FFI
  * mirror of [`uc_mobile_proto::HistoryQuery`]; timestamps are Unix epoch
  * milliseconds (Swift-side `Date(timeIntervalSince1970: ms/1000)`), all other
@@ -4704,43 +4782,43 @@ data class HistoryQuery (
      * the documented end-of-list signal.
      */
     var `page`: kotlin.Long?
-    , 
+    ,
     /**
      * Strict upper bound on `createTime` (epoch millis).
      */
     var `beforeMs`: kotlin.Long?
-    , 
+    ,
     /**
      * Inclusive lower bound on `createTime` (epoch millis).
      */
     var `afterMs`: kotlin.Long?
-    , 
+    ,
     /**
      * STRICT lower bound on `lastModified` (epoch millis) — the
      * incremental-sync primitive.
      */
     var `modifiedAfterMs`: kotlin.Long?
-    , 
+    ,
     /**
      * Type bitmask: Text=1, Image=2, File=4, Group=8 (15 = all).
      */
     var `types`: kotlin.Long?
-    , 
+    ,
     /**
      * Server-side substring match against the record's `text`.
      */
     var `searchText`: kotlin.String?
-    , 
+    ,
     var `starred`: kotlin.Boolean?
-    , 
+    ,
     var `sortByLastAccessed`: kotlin.Boolean?
-    
+
 ){
-    
 
-    
 
-    
+
+
+
     companion object
 }
 
@@ -4796,41 +4874,41 @@ data class HistoryRecord (
      * SHA-256 uppercase hex of the content.
      */
     var `hash`: kotlin.String
-    , 
+    ,
     var `kind`: ClipboardKind
-    , 
+    ,
     /**
      * Preview text; `None` only when the wire field was absent.
      */
     var `text`: kotlin.String?
-    , 
+    ,
     var `hasData`: kotlin.Boolean
-    , 
+    ,
     var `size`: kotlin.Long?
-    , 
+    ,
     var `createTimeMs`: kotlin.Long?
-    , 
+    ,
     var `lastModifiedMs`: kotlin.Long?
-    , 
+    ,
     var `lastAccessedMs`: kotlin.Long?
-    , 
+    ,
     var `starred`: kotlin.Boolean
-    , 
+    ,
     var `pinned`: kotlin.Boolean
-    , 
+    ,
     /**
      * Server-side optimistic-lock version (0 on create).
      */
     var `version`: kotlin.Long?
-    , 
+    ,
     var `isDeleted`: kotlin.Boolean
-    
+
 ){
-    
 
-    
 
-    
+
+
+
     companion object
 }
 
@@ -4896,29 +4974,29 @@ public object FfiConverterTypeHistoryRecord: FfiConverterRustBuffer<HistoryRecor
  */
 data class LocalContent (
     var `kind`: ClipboardKind
-    , 
+    ,
     /**
      * Text content for `Text`; unused (empty) for `Image`/`File`.
      */
     var `text`: kotlin.String
-    , 
+    ,
     /**
      * Filename hint for `Image`/`File` (extension drives the upload name for
      * `Image`); unused for `Text`.
      */
     var `dataName`: kotlin.String?
-    , 
+    ,
     /**
      * Payload bytes for `Image`/`File`; `None` for `Text`.
      */
     var `payload`: kotlin.ByteArray?
-    
+
 ){
-    
 
-    
 
-    
+
+
+
     companion object
 }
 
@@ -4957,17 +5035,17 @@ public object FfiConverterTypeLocalContent: FfiConverterRustBuffer<LocalContent>
  */
 data class LoopGuardEvent (
     var `hash`: kotlin.String
-    , 
+    ,
     var `direction`: LoopDirection
-    , 
+    ,
     var `atMillis`: kotlin.Long
-    
+
 ){
-    
 
-    
 
-    
+
+
+
     companion object
 }
 
@@ -5004,15 +5082,15 @@ public object FfiConverterTypeLoopGuardEvent: FfiConverterRustBuffer<LoopGuardEv
  */
 data class MarkStagedStep (
     var `state`: SyncRuntimeState
-    , 
+    ,
     var `wasStaged`: kotlin.Boolean
-    
+
 ){
-    
 
-    
 
-    
+
+
+
     companion object
 }
 
@@ -5045,15 +5123,15 @@ public object FfiConverterTypeMarkStagedStep: FfiConverterRustBuffer<MarkStagedS
  */
 data class Preamble (
     var `recordLocal`: kotlin.Boolean
-    , 
+    ,
     var `proceed`: PreambleProceed
-    
+
 ){
-    
 
-    
 
-    
+
+
+
     companion object
 }
 
@@ -5087,31 +5165,31 @@ public object FfiConverterTypePreamble: FfiConverterRustBuffer<Preamble> {
  */
 data class PreambleSnapshot (
     var `explicit`: kotlin.Boolean
-    , 
+    ,
     var `autoPush`: kotlin.Boolean
-    , 
+    ,
     var `hasActiveServer`: kotlin.Boolean
-    , 
+    ,
     var `deviceHash`: kotlin.String?
-    , 
+    ,
     var `historyHeadHash`: kotlin.String?
-    , 
+    ,
     var `persistedSyncedHash`: kotlin.String?
-    , 
+    ,
     /**
      * Cross-process companion of `persisted_synced_hash`; the Share Extension
      * push path writes this ABSENT (`None`), not stale-carried.
      */
     var `persistedSyncedContentId`: kotlin.String?
-    , 
+    ,
     var `nowMs`: kotlin.Long
-    
+
 ){
-    
 
-    
 
-    
+
+
+
     companion object
 }
 
@@ -5162,15 +5240,15 @@ public object FfiConverterTypePreambleSnapshot: FfiConverterRustBuffer<PreambleS
  */
 data class PreambleStep (
     var `state`: SyncRuntimeState
-    , 
+    ,
     var `preamble`: Preamble
-    
+
 ){
-    
 
-    
 
-    
+
+
+
     companion object
 }
 
@@ -5214,18 +5292,18 @@ data class ProbeReport (
      * The `network_epoch` passed to [`MobileSyncClient::probe`], echoed back.
      */
     var `networkEpoch`: kotlin.ULong
-    , 
+    ,
     /**
      * One verdict per *distinct* URL string probed (Swift `[String: Result]`).
      */
     var `results`: Map<kotlin.String, ProbeResult>
-    
+
 ){
-    
 
-    
 
-    
+
+
+
     companion object
 }
 
@@ -5262,17 +5340,17 @@ data class ServerConfig (
      * Server base URL without trailing slash, e.g. `http://192.168.1.5:42720`.
      */
     var `baseUrl`: kotlin.String
-    , 
+    ,
     var `username`: kotlin.String
-    , 
+    ,
     var `password`: kotlin.String
-    
+
 ){
-    
 
-    
 
-    
+
+
+
     companion object
 }
 
@@ -5309,21 +5387,21 @@ public object FfiConverterTypeServerConfig: FfiConverterRustBuffer<ServerConfig>
  */
 data class ServerGetSnapshot (
     var `autoApply`: kotlin.Boolean
-    , 
+    ,
     var `autoPush`: kotlin.Boolean
-    , 
+    ,
     var `serverEntry`: ClipboardMeta?
-    , 
+    ,
     var `devicePresent`: kotlin.Boolean
-    , 
+    ,
     var `deviceHash`: kotlin.String?
-    
+
 ){
-    
 
-    
 
-    
+
+
+
     companion object
 }
 
@@ -5365,15 +5443,15 @@ public object FfiConverterTypeServerGetSnapshot: FfiConverterRustBuffer<ServerGe
  */
 data class ServerNewPlan (
     var `alreadyStaged`: kotlin.Boolean
-    , 
+    ,
     var `willApply`: kotlin.Boolean
-    
+
 ){
-    
 
-    
 
-    
+
+
+
     companion object
 }
 
@@ -5406,17 +5484,17 @@ public object FfiConverterTypeServerNewPlan: FfiConverterRustBuffer<ServerNewPla
  */
 data class StagedPreview (
     var `kind`: ClipboardKind
-    , 
+    ,
     var `text`: kotlin.String
-    , 
+    ,
     var `size`: kotlin.Long?
-    
+
 ){
-    
 
-    
 
-    
+
+
+
     companion object
 }
 
@@ -5452,25 +5530,25 @@ public object FfiConverterTypeStagedPreview: FfiConverterRustBuffer<StagedPrevie
  */
 data class SyncConfig (
     var `normalCadenceSecs`: kotlin.Double
-    , 
+    ,
     var `inactiveCadenceSecs`: kotlin.Double
-    , 
+    ,
     var `offlineBackoffSecs`: kotlin.Double
-    , 
+    ,
     var `offlineBackoffMaxSecs`: kotlin.Double
-    , 
+    ,
     var `historySyncIntervalSecs`: kotlin.Double
-    , 
+    ,
     var `loopWindowSecs`: kotlin.Double
-    , 
+    ,
     var `loopFlipThreshold`: kotlin.Long
-    
+
 ){
-    
 
-    
 
-    
+
+
+
     companion object
 }
 
@@ -5519,40 +5597,40 @@ public object FfiConverterTypeSyncConfig: FfiConverterRustBuffer<SyncConfig> {
  */
 data class SyncRuntimeState (
     var `state`: SyncState
-    , 
+    ,
     var `lastSyncedHash`: kotlin.String?
-    , 
+    ,
     /**
      * Opaque cross-device identity of the synced content (`blake3v1:<hex>`),
      * written/cleared in lock-step with `last_synced_hash`.
      */
     var `lastSyncedContentId`: kotlin.String?
-    , 
+    ,
     var `lastAppliedHash`: kotlin.String?
-    , 
+    ,
     var `loopEvents`: List<LoopGuardEvent>
-    , 
+    ,
     var `stagedServerHash`: kotlin.String?
-    , 
+    ,
     /**
      * The staged entry's `contentId`, written/cleared with the staged slot.
      */
     var `stagedContentId`: kotlin.String?
-    , 
+    ,
     var `stagedEntry`: ClipboardMeta?
-    , 
+    ,
     var `consecutiveFailures`: kotlin.Long
-    , 
+    ,
     var `nextAttemptMs`: kotlin.Long?
-    , 
+    ,
     var `lastHistorySyncMs`: kotlin.Long?
-    
+
 ){
-    
 
-    
 
-    
+
+
+
     companion object
 }
 
@@ -5614,13 +5692,13 @@ public object FfiConverterTypeSyncRuntimeState: FfiConverterRustBuffer<SyncRunti
  */
 data class SyncSettings (
     var `autoApply`: kotlin.Boolean
-    
+
 ){
-    
 
-    
 
-    
+
+
+
     companion object
 }
 
@@ -5651,21 +5729,21 @@ public object FfiConverterTypeSyncSettings: FfiConverterRustBuffer<SyncSettings>
  */
 data class SyncedMeta (
     var `kind`: ClipboardKind
-    , 
+    ,
     var `hash`: kotlin.String?
-    , 
+    ,
     var `contentId`: kotlin.String?
-    , 
+    ,
     var `text`: kotlin.String?
-    , 
+    ,
     var `size`: kotlin.Long?
-    
+
 ){
-    
 
-    
 
-    
+
+
+
     companion object
 }
 
@@ -5707,15 +5785,15 @@ public object FfiConverterTypeSyncedMeta: FfiConverterRustBuffer<SyncedMeta> {
  */
 data class TickFailureOutcome (
     var `kickProbe`: kotlin.Boolean
-    , 
+    ,
     var `firstOffline`: kotlin.Boolean
-    
+
 ){
-    
 
-    
 
-    
+
+
+
     companion object
 }
 
@@ -5748,15 +5826,15 @@ public object FfiConverterTypeTickFailureOutcome: FfiConverterRustBuffer<TickFai
  */
 data class TickFailureStep (
     var `state`: SyncRuntimeState
-    , 
+    ,
     var `outcome`: TickFailureOutcome
-    
+
 ){
-    
 
-    
 
-    
+
+
+
     companion object
 }
 
@@ -5791,13 +5869,13 @@ public object FfiConverterTypeTickFailureStep: FfiConverterRustBuffer<TickFailur
  */
 
 enum class ClipboardKind {
-    
+
     TEXT,
     IMAGE,
     FILE,
     GROUP;
 
-    
+
 
 
     companion object
@@ -5834,66 +5912,66 @@ public object FfiConverterTypeClipboardKind: FfiConverterRustBuffer<ClipboardKin
  * types (`&'static str` → `String`, `usize` → `u64`).
  */
 sealed class ConnectUriException: kotlin.Exception() {
-    
+
     class InvalidScheme(
         ) : ConnectUriException() {
         override val message
             get() = ""
     }
-    
+
     class UnsupportedVersion(
         ) : ConnectUriException() {
         override val message
             get() = ""
     }
-    
+
     class UnsupportedService(
         ) : ConnectUriException() {
         override val message
             get() = ""
     }
-    
+
     class PayloadDecodeFailed(
-        
+
         val `reason`: kotlin.String
         ) : ConnectUriException() {
         override val message
             get() = "reason=${ `reason` }"
     }
-    
+
     class MissingField(
-        
+
         val `field`: kotlin.String
         ) : ConnectUriException() {
         override val message
             get() = "field=${ `field` }"
     }
-    
+
     class InvalidUrl(
         ) : ConnectUriException() {
         override val message
             get() = ""
     }
-    
+
     class UriTooLong(
-        
-        val `len`: kotlin.ULong, 
-        
+
+        val `len`: kotlin.ULong,
+
         val `max`: kotlin.ULong
         ) : ConnectUriException() {
         override val message
             get() = "len=${ `len` }, max=${ `max` }"
     }
-    
 
-    
+
+
 
 
     companion object ErrorHandler : UniffiRustCallStatusErrorHandler<ConnectUriException> {
         override fun lift(error_buf: RustBuffer.ByValue): ConnectUriException = FfiConverterTypeConnectUriError.lift(error_buf)
     }
 
-    
+
 }
 
 /**
@@ -5901,7 +5979,7 @@ sealed class ConnectUriException: kotlin.Exception() {
  */
 public object FfiConverterTypeConnectUriError : FfiConverterRustBuffer<ConnectUriException> {
     override fun read(buf: ByteBuffer): ConnectUriException {
-        
+
 
         return when(buf.getInt()) {
             1 -> ConnectUriException.InvalidScheme()
@@ -6001,15 +6079,62 @@ public object FfiConverterTypeConnectUriError : FfiConverterRustBuffer<ConnectUr
 
 
 /**
+ * Liveness verdict for one mobile LAN `/healthz` candidate.
+ */
+
+enum class HealthProbeResult {
+
+    /**
+     * HTTP 200 or 204: the mobile LAN listener is reachable.
+     */
+    SUCCESS,
+    /**
+     * HTTP 404: this reachable server does not expose the health capability.
+     */
+    NOT_SUPPORTED,
+    /**
+     * No HTTP answer or any other response status.
+     */
+    UNREACHABLE;
+
+
+
+
+    companion object
+}
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeHealthProbeResult: FfiConverterRustBuffer<HealthProbeResult> {
+    override fun read(buf: ByteBuffer) = try {
+        HealthProbeResult.values()[buf.getInt() - 1]
+    } catch (e: IndexOutOfBoundsException) {
+        throw RuntimeException("invalid enum value, something is very wrong!!", e)
+    }
+
+    override fun allocationSize(value: HealthProbeResult) = 4UL
+
+    override fun write(value: HealthProbeResult, buf: ByteBuffer) {
+        buf.putInt(value.ordinal + 1)
+    }
+}
+
+
+
+
+
+/**
  * FFI mirror of [`ProtoLoopDirection`] (loop-guard subset of history direction).
  */
 
 enum class LoopDirection {
-    
+
     PULLED,
     PUSHED;
 
-    
+
 
 
     companion object
@@ -6041,30 +6166,30 @@ public object FfiConverterTypeLoopDirection: FfiConverterRustBuffer<LoopDirectio
  * Whether the preamble lets the tick proceed ([`se::PreambleProceed`]).
  */
 sealed class PreambleProceed {
-    
+
     /**
      * Stop here for the given reason.
      */
     data class Stop(
         val `reason`: uniffi.uc_mobile.StopReason) : PreambleProceed()
-        
+
     {
-        
+
 
         companion object
     }
-    
+
     /**
      * Continue to `getClipboard()`.
      */
     object ToNetwork : PreambleProceed()
-    
-    
 
-    
 
-    
-    
+
+
+
+
+
 
 
     companion object
@@ -6133,7 +6258,7 @@ public object FfiConverterTypePreambleProceed : FfiConverterRustBuffer<PreambleP
  */
 
 enum class ProbeResult {
-    
+
     /**
      * 2xx success or 404 — the server answered, the path works.
      */
@@ -6152,7 +6277,7 @@ enum class ProbeResult {
      */
     MISSING_FIELDS;
 
-    
+
 
 
     companion object
@@ -6185,31 +6310,31 @@ public object FfiConverterTypeProbeResult: FfiConverterRustBuffer<ProbeResult> {
  * the SSE `contentId` short-circuit (design Q3/Q6).
  */
 sealed class PullTrigger {
-    
+
     /**
      * Fallback-tick cadence — gated by the sync-op backoff window.
      */
     object Routine : PullTrigger()
-    
-    
+
+
     /**
      * User pull-to-refresh — punches through backoff.
      */
     object Explicit : PullTrigger()
-    
-    
+
+
     /**
      * SSE connection just became live — punches through (may have missed updates).
      */
     object SseHello : PullTrigger()
-    
-    
+
+
     /**
      * Server told us we lagged — punches through.
      */
     object SseResync : PullTrigger()
-    
-    
+
+
     /**
      * SSE push notification carrying a `contentId`. Short-circuits to
      * `UpToDate{SseShortCircuit}` with no network call when it already matches the
@@ -6217,18 +6342,18 @@ sealed class PullTrigger {
      */
     data class SseUpdate(
         val `contentId`: kotlin.String) : PullTrigger()
-        
+
     {
-        
+
 
         companion object
     }
-    
 
-    
 
-    
-    
+
+
+
+
 
 
     companion object
@@ -6321,14 +6446,14 @@ public object FfiConverterTypePullTrigger : FfiConverterRustBuffer<PullTrigger>{
  */
 
 enum class PushDecision {
-    
+
     SKIP_CONSENT_MODE,
     SKIP_NO_DEVICE,
     SKIP_ALREADY_SYNCED,
     SKIP_SELF_WRITTEN,
     DO_PUSH;
 
-    
+
 
 
     companion object
@@ -6360,48 +6485,48 @@ public object FfiConverterTypePushDecision: FfiConverterRustBuffer<PushDecision>
  * Routing verdict after the server GET ([`se::ServerRoute`]).
  */
 sealed class ServerRoute {
-    
+
     /**
      * Truth-gate: server and device hold identical content.
      */
     data class Converged(
         val `serverHash`: kotlin.String) : ServerRoute()
-        
+
     {
-        
+
 
         companion object
     }
-    
+
     /**
      * Server has new content.
      */
     data class ServerNew(
         val `plan`: uniffi.uc_mobile.ServerNewPlan) : ServerRoute()
-        
+
     {
-        
+
 
         companion object
     }
-    
+
     /**
      * Server unchanged — fall through to the push side.
      */
     data class Push(
         val `decision`: uniffi.uc_mobile.PushDecision) : ServerRoute()
-        
+
     {
-        
+
 
         companion object
     }
-    
 
-    
 
-    
-    
+
+
+
+
 
 
     companion object
@@ -6480,12 +6605,12 @@ public object FfiConverterTypeServerRoute : FfiConverterRustBuffer<ServerRoute>{
  */
 
 enum class StopReason {
-    
+
     NO_ACTIVE_SERVER,
     PAUSED,
     BACKOFF_GATE;
 
-    
+
 
 
     companion object
@@ -6524,36 +6649,36 @@ public object FfiConverterTypeStopReason: FfiConverterRustBuffer<StopReason> {
  * network failure identically (backoff), so the distinction is not surfaced.
  */
 sealed class SyncException: kotlin.Exception() {
-    
+
     class NotInitialized(
         ) : SyncException() {
         override val message
             get() = ""
     }
-    
+
     /**
      * Swift `.invalidURL`: bad base URL, file name, or profile id (rejected
      * before any network call).
      */
     class InvalidInput(
-        
+
         val `reason`: kotlin.String
         ) : SyncException() {
         override val message
             get() = "reason=${ `reason` }"
     }
-    
+
     /**
      * Swift `.networkUnreachable` / `.connectTimeout` / `.receiveTimeout`.
      */
     class Network(
-        
+
         val `reason`: kotlin.String
         ) : SyncException() {
         override val message
             get() = "reason=${ `reason` }"
     }
-    
+
     /**
      * Swift `.authFailed` — HTTP 401.
      */
@@ -6562,7 +6687,7 @@ sealed class SyncException: kotlin.Exception() {
         override val message
             get() = ""
     }
-    
+
     /**
      * Swift `.notFound` — HTTP 404 (also the documented "empty server" GET
      * state, which callers treat as "absent", not an error).
@@ -6572,42 +6697,42 @@ sealed class SyncException: kotlin.Exception() {
         override val message
             get() = ""
     }
-    
+
     /**
      * Swift `.serverError(status)` — HTTP 5xx.
      */
     class ServerException(
-        
+
         val `status`: kotlin.UShort
         ) : SyncException() {
         override val message
             get() = "status=${ `status` }"
     }
-    
+
     /**
      * Swift `.protocolError(status)` — any other non-success status (e.g.
      * other 4xx, 3xx, or a non-{200,201,204} 2xx).
      */
     class ProtocolException(
-        
+
         val `status`: kotlin.UShort
         ) : SyncException() {
         override val message
             get() = "status=${ `status` }"
     }
-    
+
     /**
      * Swift `.decodingFailed` — a 2xx body that did not parse as the expected
      * wire shape.
      */
     class DecodingFailed(
-        
+
         val `reason`: kotlin.String
         ) : SyncException() {
         override val message
             get() = "reason=${ `reason` }"
     }
-    
+
     /**
      * Swift `.cancelled` — the request was aborted via
      * [`MobileSyncClient::cancel_in_flight`] (or the caller-side future was
@@ -6618,24 +6743,24 @@ sealed class SyncException: kotlin.Exception() {
         override val message
             get() = ""
     }
-    
+
     class Internal(
-        
+
         val `reason`: kotlin.String
         ) : SyncException() {
         override val message
             get() = "reason=${ `reason` }"
     }
-    
 
-    
+
+
 
 
     companion object ErrorHandler : UniffiRustCallStatusErrorHandler<SyncException> {
         override fun lift(error_buf: RustBuffer.ByValue): SyncException = FfiConverterTypeSyncError.lift(error_buf)
     }
 
-    
+
 }
 
 /**
@@ -6643,7 +6768,7 @@ sealed class SyncException: kotlin.Exception() {
  */
 public object FfiConverterTypeSyncError : FfiConverterRustBuffer<SyncException> {
     override fun read(buf: ByteBuffer): SyncException {
-        
+
 
         return when(buf.getInt()) {
             1 -> SyncException.NotInitialized()
@@ -6782,91 +6907,91 @@ public object FfiConverterTypeSyncError : FfiConverterRustBuffer<SyncException> 
  * Unified result of `push` / `pull` / `apply_staged` (design §4).
  */
 sealed class SyncOutcome {
-    
+
     /**
      * A full `put_clipboard` succeeded — the active register advanced.
      */
     data class Uploaded(
         val `meta`: uniffi.uc_mobile.SyncedMeta) : SyncOutcome()
-        
+
     {
-        
+
 
         companion object
     }
-    
+
     /**
      * Server content was downloaded; native should write it to the
      * pasteboard/Files. `last_applied_hash` is already set (optimistic, Q5).
      */
     data class Applied(
-        val `content`: uniffi.uc_mobile.LocalContent, 
+        val `content`: uniffi.uc_mobile.LocalContent,
         val `meta`: uniffi.uc_mobile.SyncedMeta) : SyncOutcome()
-        
+
     {
-        
+
 
         companion object
     }
-    
+
     /**
      * Server has new content but `auto_apply` is off — staged for later
      * [`MobileSyncEngine::apply_staged`].
      */
     data class Staged(
         val `preview`: uniffi.uc_mobile.StagedPreview) : SyncOutcome()
-        
+
     {
-        
+
 
         companion object
     }
-    
+
     /**
      * Nothing flowed.
      */
     data class UpToDate(
         val `reason`: uniffi.uc_mobile.UpToDateReason) : SyncOutcome()
-        
+
     {
-        
+
 
         companion object
     }
-    
+
     /**
      * A routine call was gated by the sync-op backoff window.
      */
     data class BackingOff(
         val `retryAfterMs`: kotlin.Long) : SyncOutcome()
-        
+
     {
-        
+
 
         companion object
     }
-    
+
     /**
      * The anti-loop guard tripped; paused until
      * [`MobileSyncEngine::acknowledge_loop_detected`].
      */
     object LoopDetected : SyncOutcome()
-    
-    
+
+
     data class Failed(
         val `error`: uniffi.uc_mobile.SyncException) : SyncOutcome()
-        
+
     {
-        
+
 
         companion object
     }
-    
 
-    
 
-    
-    
+
+
+
+
 
 
     companion object
@@ -7004,7 +7129,7 @@ public object FfiConverterTypeSyncOutcome : FfiConverterRustBuffer<SyncOutcome>{
  */
 
 enum class SyncState {
-    
+
     IDLE,
     SUCCEEDED,
     HAS_NEW_UNWRITTEN,
@@ -7012,7 +7137,7 @@ enum class SyncState {
     AUTH_FAILED,
     LOOP_DETECTED;
 
-    
+
 
 
     companion object
@@ -7046,7 +7171,7 @@ public object FfiConverterTypeSyncState: FfiConverterRustBuffer<SyncState> {
  */
 
 enum class TickErrorKind {
-    
+
     AUTH_FAILED,
     CANCELLED,
     NETWORK_UNREACHABLE,
@@ -7055,7 +7180,7 @@ enum class TickErrorKind {
     OTHER_SYNC_ERROR,
     UNEXPECTED;
 
-    
+
 
 
     companion object
@@ -7088,7 +7213,7 @@ public object FfiConverterTypeTickErrorKind: FfiConverterRustBuffer<TickErrorKin
  */
 
 enum class UpToDateReason {
-    
+
     /**
      * Device content already matches the synced watermark.
      */
@@ -7115,7 +7240,7 @@ enum class UpToDateReason {
      */
     CONSENT_MODE;
 
-    
+
 
 
     companion object
@@ -7430,6 +7555,45 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
 /**
  * @suppress
  */
+public object FfiConverterMapStringTypeHealthProbeResult: FfiConverterRustBuffer<Map<kotlin.String, HealthProbeResult>> {
+    override fun read(buf: ByteBuffer): Map<kotlin.String, HealthProbeResult> {
+        val len = buf.getInt()
+        return buildMap<kotlin.String, HealthProbeResult>(len) {
+            repeat(len) {
+                val k = FfiConverterString.read(buf)
+                val v = FfiConverterTypeHealthProbeResult.read(buf)
+                this[k] = v
+            }
+        }
+    }
+
+    override fun allocationSize(value: Map<kotlin.String, HealthProbeResult>): ULong {
+        val spaceForMapSize = 4UL
+        val spaceForChildren = value.map { (k, v) ->
+            FfiConverterString.allocationSize(k) +
+            FfiConverterTypeHealthProbeResult.allocationSize(v)
+        }.sum()
+        return spaceForMapSize + spaceForChildren
+    }
+
+    override fun write(value: Map<kotlin.String, HealthProbeResult>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        // The parens on `(k, v)` here ensure we're calling the right method,
+        // which is important for compatibility with older android devices.
+        // Ref https://blog.danlew.net/2017/03/16/kotlin-puzzler-whose-line-is-it-anyways/
+        value.forEach { (k, v) ->
+            FfiConverterString.write(k, buf)
+            FfiConverterTypeHealthProbeResult.write(v, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
 public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<kotlin.String, ProbeResult>> {
     override fun read(buf: ByteBuffer): Map<kotlin.String, ProbeResult> {
         val len = buf.getInt()
@@ -7480,12 +7644,12 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
             return FfiConverterTypeConnectPayload.lift(
     uniffiRustCallWithError(ConnectUriException) { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_parse_connect_uri(
-    
+
         FfiConverterString.lower(`uri`),_status)
 }
     )
     }
-    
+
 
         /**
          * The §5.3 pick: the first URL in `ordered_urls` (shape order for the current
@@ -7500,12 +7664,12 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
             return FfiConverterOptionalString.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_first_reachable(
-    
+
         FfiConverterSequenceString.lower(`orderedUrls`),FfiConverterMapStringTypeProbeResult.lower(`results`),_status)
 }
     )
     }
-    
+
 
         /**
          * Install the process-wide rustls `ring` CryptoProvider (idempotent).
@@ -7515,14 +7679,14 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
          * the keyboard extension, and the share extension each load the cdylib into
          * their own process with no Rust `main()` to do this.
          */ fun `ucMobileInit`()
-        = 
+        =
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_uc_mobile_init(
-    
+
         _status)
 }
-    
-    
+
+
 
         /**
          * User dismissed the loop-detected banner: wipe the cycle buffer, back to idle.
@@ -7530,12 +7694,12 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
             return FfiConverterTypeSyncRuntimeState.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_acknowledge_loop_detection(
-    
+
         FfiConverterTypeSyncRuntimeState.lower(`state`),_status)
 }
     )
     }
-    
+
 
         /**
          * New watermark after a history round; `None` when it didn't move.
@@ -7543,12 +7707,12 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
             return FfiConverterOptionalLong.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_advance_watermark(
-    
+
         FfiConverterOptionalLong.lower(`currentMs`),FfiConverterLong.lower(`maxLastModifiedMs`),_status)
 }
     )
     }
-    
+
 
         /**
          * Exponential backoff with caller-supplied jitter.
@@ -7556,12 +7720,12 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
             return FfiConverterDouble.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_backoff_secs(
-    
+
         FfiConverterLong.lower(`consecutiveFailures`),FfiConverterDouble.lower(`base`),FfiConverterDouble.lower(`max`),FfiConverterDouble.lower(`jitter`),_status)
 }
     )
     }
-    
+
 
         /**
          * Cadence for the current state (`AuthFailed` / `LoopDetected` → infinity).
@@ -7569,12 +7733,12 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
             return FfiConverterDouble.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_cadence_secs(
-    
+
         FfiConverterTypeSyncState.lower(`state`),FfiConverterBoolean.lower(`isSceneInactive`),FfiConverterTypeSyncConfig.lower(`cfg`),_status)
 }
     )
     }
-    
+
 
         /**
          * Apply commit: a server entry was written to the pasteboard. `content_id` is
@@ -7584,12 +7748,12 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
             return FfiConverterTypeCommitStep.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_commit_apply(
-    
+
         FfiConverterTypeSyncRuntimeState.lower(`state`),FfiConverterOptionalString.lower(`hash`),FfiConverterOptionalString.lower(`contentId`),FfiConverterLong.lower(`nowMs`),FfiConverterTypeSyncConfig.lower(`cfg`),_status)
 }
     )
     }
-    
+
 
         /**
          * Apply-failed commit: park the entry so the next tick short-circuits.
@@ -7597,12 +7761,12 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
             return FfiConverterTypeSyncRuntimeState.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_commit_apply_failed(
-    
+
         FfiConverterTypeSyncRuntimeState.lower(`state`),FfiConverterTypeClipboardMeta.lower(`entry`),_status)
 }
     )
     }
-    
+
 
         /**
          * Consent-push commit: user handed us bytes via the paste control.
@@ -7610,12 +7774,12 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
             return FfiConverterTypeCommitStep.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_commit_consent_push(
-    
+
         FfiConverterTypeSyncRuntimeState.lower(`state`),FfiConverterOptionalString.lower(`pushedHash`),FfiConverterLong.lower(`nowMs`),FfiConverterTypeSyncConfig.lower(`cfg`),_status)
 }
     )
     }
-    
+
 
         /**
          * Truth-gate commit: repair watermark, mark applied, clear staged, succeed.
@@ -7625,12 +7789,12 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
             return FfiConverterTypeSyncRuntimeState.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_commit_converged(
-    
+
         FfiConverterTypeSyncRuntimeState.lower(`state`),FfiConverterString.lower(`serverHash`),FfiConverterOptionalString.lower(`serverContentId`),_status)
 }
     )
     }
-    
+
 
         /**
          * Record that a history-sync round ran.
@@ -7638,12 +7802,12 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
             return FfiConverterTypeSyncRuntimeState.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_commit_history_sync_done(
-    
+
         FfiConverterTypeSyncRuntimeState.lower(`state`),FfiConverterLong.lower(`nowMs`),_status)
 }
     )
     }
-    
+
 
         /**
          * Push commit. `pushed_hash` is `None` for a documented silent skip.
@@ -7654,12 +7818,12 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
             return FfiConverterTypeCommitStep.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_commit_push(
-    
+
         FfiConverterTypeSyncRuntimeState.lower(`state`),FfiConverterOptionalString.lower(`pushedHash`),FfiConverterOptionalString.lower(`contentId`),FfiConverterLong.lower(`nowMs`),FfiConverterTypeSyncConfig.lower(`cfg`),_status)
 }
     )
     }
-    
+
 
         /**
          * Push-skip commit: any skip branch leaves the tick healthy.
@@ -7667,12 +7831,12 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
             return FfiConverterTypeSyncRuntimeState.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_commit_push_skipped(
-    
+
         FfiConverterTypeSyncRuntimeState.lower(`state`),_status)
 }
     )
     }
-    
+
 
         /**
          * Stage-only commit: auto-apply off (or hashless) — stash + `HasNewUnwritten`.
@@ -7680,12 +7844,12 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
             return FfiConverterTypeSyncRuntimeState.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_commit_stage(
-    
+
         FfiConverterTypeSyncRuntimeState.lower(`state`),FfiConverterTypeClipboardMeta.lower(`entry`),_status)
 }
     )
     }
-    
+
 
         /**
          * Tick error handler. `jitter` is native-supplied (`0.8…1.2`) for determinism.
@@ -7693,12 +7857,12 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
             return FfiConverterTypeTickFailureStep.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_commit_tick_failure(
-    
+
         FfiConverterTypeSyncRuntimeState.lower(`state`),FfiConverterTypeTickErrorKind.lower(`kind`),FfiConverterDouble.lower(`jitter`),FfiConverterLong.lower(`nowMs`),FfiConverterTypeSyncConfig.lower(`cfg`),_status)
 }
     )
     }
-    
+
 
         /**
          * Happy-path tick tail: drop the backoff counter.
@@ -7706,12 +7870,12 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
             return FfiConverterTypeSyncRuntimeState.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_commit_tick_success(
-    
+
         FfiConverterTypeSyncRuntimeState.lower(`state`),_status)
 }
     )
     }
-    
+
 
         /**
          * Default tunables ([`se::SyncConfig::default`]) — single source of truth for
@@ -7720,12 +7884,12 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
             return FfiConverterTypeSyncConfig.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_default_sync_config(
-    
+
         _status)
 }
     )
     }
-    
+
 
         /**
          * A freshly-reset runtime state ([`se::SyncRuntimeState::default`]).
@@ -7733,12 +7897,12 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
             return FfiConverterTypeSyncRuntimeState.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_default_sync_runtime_state(
-    
+
         _status)
 }
     )
     }
-    
+
 
         /**
          * Active server changed: full reset plus clearing the synced hash.
@@ -7746,12 +7910,12 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
             return FfiConverterTypeSyncRuntimeState.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_handle_active_server_changed(
-    
+
         FfiConverterTypeSyncRuntimeState.lower(`state`),_status)
 }
     )
     }
-    
+
 
         /**
          * Network route / endpoint changed: clear the backoff accumulated against the
@@ -7760,12 +7924,12 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
             return FfiConverterTypeSyncRuntimeState.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_handle_network_route_changed(
-    
+
         FfiConverterTypeSyncRuntimeState.lower(`state`),_status)
 }
     )
     }
-    
+
 
         /**
          * Case-insensitive hash comparison treating `None == None`.
@@ -7773,12 +7937,12 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
             return FfiConverterBoolean.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_hashes_equal(
-    
+
         FfiConverterOptionalString.lower(`a`),FfiConverterOptionalString.lower(`b`),_status)
 }
     )
     }
-    
+
 
         /**
          * Cold-start = no history watermark yet (fetch only page 1, seed the watermark).
@@ -7786,12 +7950,12 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
             return FfiConverterBoolean.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_is_cold_start(
-    
+
         FfiConverterOptionalLong.lower(`watermarkMs`),_status)
 }
     )
     }
-    
+
 
         /**
          * Whether a history-sync round is due.
@@ -7799,12 +7963,12 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
             return FfiConverterBoolean.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_is_history_sync_due(
-    
+
         FfiConverterOptionalLong.lower(`lastSyncMs`),FfiConverterLong.lower(`nowMs`),FfiConverterDouble.lower(`intervalSecs`),_status)
 }
     )
     }
-    
+
 
         /**
          * Whether a probe conclusion is still valid (its network epoch is current).
@@ -7812,12 +7976,12 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
             return FfiConverterBoolean.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_is_probe_conclusion_valid(
-    
+
         FfiConverterULong.lower(`reportEpoch`),FfiConverterULong.lower(`currentEpoch`),_status)
 }
     )
     }
-    
+
 
         /**
          * User manually applied the staged entry. `was_staged` is `false` (no-op) when
@@ -7826,12 +7990,12 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
             return FfiConverterTypeMarkStagedStep.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_mark_staged_applied(
-    
+
         FfiConverterTypeSyncRuntimeState.lower(`state`),_status)
 }
     )
     }
-    
+
 
         /**
          * Post-`getClipboard` route. Read-only over `state`.
@@ -7839,12 +8003,12 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
             return FfiConverterTypeServerRoute.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_plan_after_server_get(
-    
+
         FfiConverterTypeSyncRuntimeState.lower(`state`),FfiConverterTypeServerGetSnapshot.lower(`snap`),_status)
 }
     )
     }
-    
+
 
         /**
          * Tick preamble — local-history decision, early-exit guards, and (on the
@@ -7853,12 +8017,12 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
             return FfiConverterTypePreambleStep.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_plan_preamble(
-    
+
         FfiConverterTypeSyncRuntimeState.lower(`state`),FfiConverterTypePreambleSnapshot.lower(`snap`),_status)
 }
     )
     }
-    
+
 
         /**
          * Clear per-server runtime state without touching the persisted synced hash.
@@ -7866,11 +8030,11 @@ public object FfiConverterMapStringTypeProbeResult: FfiConverterRustBuffer<Map<k
             return FfiConverterTypeSyncRuntimeState.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_uc_mobile_fn_func_reset_runtime_state(
-    
+
         FfiConverterTypeSyncRuntimeState.lower(`state`),_status)
 }
     )
     }
-    
+
 
 

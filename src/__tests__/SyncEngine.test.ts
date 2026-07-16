@@ -7,6 +7,7 @@ import {
   engineHandleNetworkRouteChanged,
   engineSetSettings,
   engineAcknowledgeLoopDetected,
+  healthProbe,
   putClipboard,
 } from 'uc-core';
 import type { SyncOutcome } from 'uc-core';
@@ -40,6 +41,7 @@ const mockedEngineSetServer = engineSetServer as jest.Mock;
 const mockedEngineHandleNetworkRouteChanged = engineHandleNetworkRouteChanged as jest.Mock;
 const mockedEngineSetSettings = engineSetSettings as jest.Mock;
 const mockedEngineAcknowledgeLoopDetected = engineAcknowledgeLoopDetected as jest.Mock;
+const mockedHealthProbe = healthProbe as jest.Mock;
 
 const mockLoadServerRouteLiveUrl = jest.fn();
 const mockSaveServerRouteLiveUrl = jest.fn();
@@ -59,6 +61,17 @@ jest.mock('@/stores/historyStore', () => ({
 }));
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
+const settlePromises = async () => {
+  for (let index = 0; index < 12; index += 1) await Promise.resolve();
+};
+
+function deferred<T = void>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((resolver) => {
+    resolve = resolver;
+  });
+  return { promise, resolve };
+}
 
 const engines: SyncEngine[] = [];
 
@@ -101,6 +114,12 @@ beforeEach(() => {
   // 默认:pull/push 都回 UpToDate,单个用例再各自覆盖。
   mockedEnginePull.mockResolvedValue({ tag: 'UpToDate', reason: 'AlreadySynced' } as SyncOutcome);
   mockedEnginePush.mockResolvedValue({ tag: 'UpToDate', reason: 'NoLocalChange' } as SyncOutcome);
+  mockedHealthProbe.mockImplementation(
+    async (_urls: string[], _trust: boolean, _timeout: number, networkEpoch: number) => ({
+      networkEpoch,
+      results: {},
+    })
+  );
   setCurrentNetworkContext({ isWifi: false, isCellular: false, isTailscale: false, ssid: null });
 });
 
@@ -435,6 +454,318 @@ describe('SyncEngine coordinator', () => {
     expect(mockedEngineSetServer).toHaveBeenCalledWith(
       expect.objectContaining({ baseUrl: 'http://192.168.1.20:5033' })
     );
+  });
+});
+
+describe('SyncEngine offline recovery probe', () => {
+  let randomSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.5);
+  });
+
+  afterEach(() => {
+    while (engines.length > 0) engines.pop()?.destroy();
+    randomSpy.mockRestore();
+    jest.useRealTimers();
+  });
+
+  async function startOffline(engine: SyncEngine): Promise<void> {
+    mockedEnginePull.mockResolvedValueOnce({
+      tag: 'Failed',
+      error: 'Network unreachable',
+    } as SyncOutcome);
+    engine.start();
+    await settlePromises();
+    expect(engine.getStatus().state).toBe('OfflineRetrying');
+  }
+
+  test('foreground health success selects the route and triggers one real sync within 2 seconds', async () => {
+    const engine = makeEngine();
+    mockedHealthProbe.mockImplementation(
+      async (_urls: string[], _trust: boolean, _timeout: number, networkEpoch: number) => ({
+        networkEpoch,
+        results: { 'http://test.local': 'Success' },
+      })
+    );
+    await startOffline(engine);
+    mockedEnginePull.mockResolvedValueOnce({
+      tag: 'UpToDate',
+      reason: 'AlreadySynced',
+    } as SyncOutcome);
+
+    await jest.advanceTimersByTimeAsync(1_999);
+    expect(mockedHealthProbe).not.toHaveBeenCalled();
+    await jest.advanceTimersByTimeAsync(1);
+    await settlePromises();
+
+    expect(mockedHealthProbe).toHaveBeenCalledTimes(1);
+    expect(mockSaveServerRouteLiveUrl).toHaveBeenCalledWith(
+      'http://test.local',
+      'http://test.local'
+    );
+    expect(mockedEnginePull).toHaveBeenCalledTimes(2);
+    expect(engine.getStatus().state).toBe('Succeeded');
+  });
+
+  test('keeps one health round in flight and discards a stale network epoch result', async () => {
+    let resolveProbe: ((value: unknown) => void) | null = null;
+    mockedHealthProbe.mockImplementation(
+      (_urls: string[], _trust: boolean, _timeout: number, networkEpoch: number) =>
+        new Promise((resolve) => {
+          resolveProbe = (value?: unknown) =>
+            resolve(
+              value ?? {
+                networkEpoch,
+                results: { 'http://test.local': 'Success' },
+              }
+            );
+        })
+    );
+    const engine = makeEngine();
+    await startOffline(engine);
+
+    await jest.advanceTimersByTimeAsync(2_000);
+    await settlePromises();
+    expect(mockedHealthProbe).toHaveBeenCalledTimes(1);
+
+    await jest.advanceTimersByTimeAsync(30_000);
+    expect(mockedHealthProbe).toHaveBeenCalledTimes(1);
+
+    engine.handleNetworkChanged();
+    await settlePromises();
+    resolveProbe?.(undefined);
+    await settlePromises();
+
+    expect(mockedEnginePull).toHaveBeenCalledTimes(1);
+    expect(engine.getStatus().state).toBe('OfflineRetrying');
+  });
+
+  test('uses 10 second cadence while an inactive background engine remains running', async () => {
+    const engine = makeEngine();
+    await startOffline(engine);
+
+    await jest.advanceTimersByTimeAsync(2_000);
+    await settlePromises();
+    expect(mockedHealthProbe).toHaveBeenCalledTimes(1);
+
+    engine.setSceneInactive(true);
+    await jest.advanceTimersByTimeAsync(9_999);
+    expect(mockedHealthProbe).toHaveBeenCalledTimes(1);
+    await jest.advanceTimersByTimeAsync(1);
+    await settlePromises();
+    expect(mockedHealthProbe).toHaveBeenCalledTimes(2);
+  });
+
+  test('confirms a 404 with real sync before using the 15 second legacy cadence', async () => {
+    const engine = makeEngine();
+    mockedHealthProbe.mockImplementation(
+      async (_urls: string[], _trust: boolean, _timeout: number, networkEpoch: number) => ({
+        networkEpoch,
+        results: { 'http://test.local': 'NotSupported' },
+      })
+    );
+    await startOffline(engine);
+    mockedEnginePull.mockResolvedValueOnce({
+      tag: 'UpToDate',
+      reason: 'AlreadySynced',
+    } as SyncOutcome);
+
+    await jest.advanceTimersByTimeAsync(2_000);
+    await settlePromises();
+    expect(engine.getStatus().state).toBe('Succeeded');
+    expect(mockedHealthProbe).toHaveBeenCalledTimes(1);
+
+    mockedEnginePull.mockResolvedValueOnce({
+      tag: 'Failed',
+      error: 'Network unreachable',
+    } as SyncOutcome);
+    await engine.explicitRefresh();
+    expect(engine.getStatus().state).toBe('OfflineRetrying');
+
+    await jest.advanceTimersByTimeAsync(14_999);
+    expect(mockedEnginePull).toHaveBeenCalledTimes(3);
+    await jest.advanceTimersByTimeAsync(1);
+    await settlePromises();
+    expect(mockedEnginePull).toHaveBeenCalledTimes(4);
+    expect(mockedHealthProbe).toHaveBeenCalledTimes(1);
+  });
+
+  test('a previously supported server falls back after a later 404 is confirmed', async () => {
+    const engine = makeEngine();
+    mockedHealthProbe.mockImplementation(
+      async (_urls: string[], _trust: boolean, _timeout: number, networkEpoch: number) => ({
+        networkEpoch,
+        results: { 'http://test.local': 'Success' },
+      })
+    );
+    await startOffline(engine);
+    mockedEnginePull.mockResolvedValueOnce({
+      tag: 'UpToDate',
+      reason: 'AlreadySynced',
+    } as SyncOutcome);
+    await jest.advanceTimersByTimeAsync(2_000);
+    await settlePromises();
+    expect(engine.getStatus().state).toBe('Succeeded');
+
+    mockedHealthProbe.mockImplementation(
+      async (_urls: string[], _trust: boolean, _timeout: number, networkEpoch: number) => ({
+        networkEpoch,
+        results: { 'http://test.local': 'NotSupported' },
+      })
+    );
+    mockedEnginePull.mockResolvedValueOnce({
+      tag: 'Failed',
+      error: 'Network unreachable',
+    } as SyncOutcome);
+    await engine.explicitRefresh();
+    mockedEnginePull.mockResolvedValueOnce({
+      tag: 'UpToDate',
+      reason: 'AlreadySynced',
+    } as SyncOutcome);
+    await jest.advanceTimersByTimeAsync(2_000);
+    await settlePromises();
+
+    expect(mockedHealthProbe).toHaveBeenCalledTimes(2);
+    expect(engine.getStatus().state).toBe('Succeeded');
+
+    mockedEnginePull.mockResolvedValueOnce({
+      tag: 'Failed',
+      error: 'Network unreachable',
+    } as SyncOutcome);
+    await engine.explicitRefresh();
+    await jest.advanceTimersByTimeAsync(14_999);
+    expect(mockedEnginePull).toHaveBeenCalledTimes(5);
+    await jest.advanceTimersByTimeAsync(1);
+    await settlePromises();
+    expect(mockedEnginePull).toHaveBeenCalledTimes(6);
+    expect(mockedHealthProbe).toHaveBeenCalledTimes(2);
+  });
+
+  test('stale health success cannot commit a delayed route cache write', async () => {
+    const engine = makeEngine({
+      getActiveServer: () => ({
+        baseUrl: 'https://clip.example.com',
+        urls: ['https://clip.example.com', 'http://192.168.1.20:5033'],
+        username: 'user',
+        password: 'pass',
+        trustInsecureCert: false,
+      }),
+    });
+    mockedHealthProbe.mockImplementation(
+      async (_urls: string[], _trust: boolean, _timeout: number, networkEpoch: number) => ({
+        networkEpoch,
+        results: { 'http://192.168.1.20:5033': 'Success' },
+      })
+    );
+    const routeWrite = deferred<void>();
+    mockSaveServerRouteLiveUrl.mockImplementationOnce(() => routeWrite.promise);
+    await startOffline(engine);
+
+    await jest.advanceTimersByTimeAsync(2_000);
+    await settlePromises();
+    expect(mockSaveServerRouteLiveUrl).toHaveBeenCalledWith(
+      'https://clip.example.com',
+      'http://192.168.1.20:5033'
+    );
+
+    engine.handleNetworkChanged();
+    await settlePromises();
+    routeWrite.resolve();
+    await settlePromises();
+
+    expect(mockedEngineSetServer).not.toHaveBeenCalledWith(
+      expect.objectContaining({ baseUrl: 'http://192.168.1.20:5033' })
+    );
+    expect(mockedEnginePull).toHaveBeenCalledTimes(1);
+  });
+
+  test('stale native route mutation is restored to the current network route', async () => {
+    const engine = makeEngine({
+      getActiveServer: () => ({
+        baseUrl: 'https://clip.example.com',
+        urls: ['https://clip.example.com', 'http://192.168.1.20:5033'],
+        username: 'user',
+        password: 'pass',
+        trustInsecureCert: false,
+      }),
+    });
+    mockedHealthProbe.mockImplementation(
+      async (_urls: string[], _trust: boolean, _timeout: number, networkEpoch: number) => ({
+        networkEpoch,
+        results: { 'http://192.168.1.20:5033': 'Success' },
+      })
+    );
+    const routeMutation = deferred<void>();
+    mockedEngineSetServer.mockImplementationOnce(() => routeMutation.promise);
+    await startOffline(engine);
+
+    await jest.advanceTimersByTimeAsync(2_000);
+    await settlePromises();
+    expect(mockedEngineSetServer).toHaveBeenCalledWith(
+      expect.objectContaining({ baseUrl: 'http://192.168.1.20:5033' })
+    );
+
+    engine.handleNetworkChanged();
+    await settlePromises();
+    routeMutation.resolve();
+    await settlePromises();
+
+    const lastServer = mockedEngineSetServer.mock.calls.at(-1)?.[0];
+    expect(lastServer).toEqual(expect.objectContaining({ baseUrl: 'https://clip.example.com' }));
+    expect(mockedEnginePull).toHaveBeenCalledTimes(1);
+  });
+
+  test('health success followed by 401 stops recovery probes', async () => {
+    const engine = makeEngine();
+    mockedHealthProbe.mockImplementation(
+      async (_urls: string[], _trust: boolean, _timeout: number, networkEpoch: number) => ({
+        networkEpoch,
+        results: { 'http://test.local': 'Success' },
+      })
+    );
+    await startOffline(engine);
+    mockedEnginePull.mockResolvedValueOnce({
+      tag: 'Failed',
+      error: '401 Unauthorized',
+    } as SyncOutcome);
+
+    await jest.advanceTimersByTimeAsync(2_000);
+    await settlePromises();
+    expect(engine.getStatus().state).toBe('AuthFailed');
+
+    engine.start();
+    await settlePromises();
+    await jest.advanceTimersByTimeAsync(60_000);
+    expect(engine.getStatus().state).toBe('AuthFailed');
+    expect(mockedHealthProbe).toHaveBeenCalledTimes(1);
+    expect(mockedEnginePull).toHaveBeenCalledTimes(2);
+  });
+
+  test('health success followed by another network failure re-enters one probe loop', async () => {
+    const engine = makeEngine();
+    mockedHealthProbe.mockImplementation(
+      async (_urls: string[], _trust: boolean, _timeout: number, networkEpoch: number) => ({
+        networkEpoch,
+        results: { 'http://test.local': 'Success' },
+      })
+    );
+    await startOffline(engine);
+    mockedEnginePull
+      .mockResolvedValueOnce({ tag: 'Failed', error: 'Network unreachable' } as SyncOutcome)
+      .mockResolvedValueOnce({ tag: 'UpToDate', reason: 'AlreadySynced' } as SyncOutcome);
+
+    await jest.advanceTimersByTimeAsync(2_000);
+    await settlePromises();
+    expect(engine.getStatus().state).toBe('OfflineRetrying');
+    expect(mockedHealthProbe).toHaveBeenCalledTimes(1);
+
+    await jest.advanceTimersByTimeAsync(2_000);
+    await settlePromises();
+    expect(mockedHealthProbe).toHaveBeenCalledTimes(2);
+    expect(mockedEnginePull).toHaveBeenCalledTimes(3);
+    expect(engine.getStatus().state).toBe('Succeeded');
   });
 });
 

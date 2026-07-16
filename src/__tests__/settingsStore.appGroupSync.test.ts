@@ -3,6 +3,11 @@ import { saveServers, saveSettings } from 'app-group-store';
 import { ConfigStorage } from '../services/ConfigStorage';
 import { useSettingsStore } from '../stores/settingsStore';
 
+const mockNotifyServerChanged = jest.fn();
+jest.mock('../stores/syncEngineStore', () => ({
+  notifyServerChanged: (...args: unknown[]) => mockNotifyServerChanged(...args),
+}));
+
 jest.mock('react-native', () => {
   const actual = jest.requireActual('react-native');
   const next = Object.create(actual);
@@ -40,6 +45,25 @@ describe('settings store App Group writes', () => {
       error: null,
       isTempDisabledBackgroundTasks: false,
     });
+  });
+
+  it('notifies the sync engine when the active server configuration changes', async () => {
+    await useSettingsStore.getState().addServer({
+      type: 'syncclipboard',
+      name: 'Primary',
+      url: 'https://server.example.com/',
+      username: 'alice',
+      password: 'secret',
+    });
+    mockNotifyServerChanged.mockClear();
+
+    await useSettingsStore.getState().updateServer(0, {
+      url: 'https://new-server.example.com/',
+      password: 'new-secret',
+    });
+
+    expect(mockNotifyServerChanged).toHaveBeenCalledTimes(1);
+    await useSettingsStore.getState().deleteServer(0);
   });
 
   it('writes the added server to the App Group before addServer resolves on iOS', async () => {
