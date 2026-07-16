@@ -7,6 +7,7 @@ import { navigateWhenReady } from './src/navigation/navigationRef';
 import { QuickTileLoadingScreen } from './src/screens/QuickTileLoadingScreen';
 import { ShareReceiveScreen } from './src/screens/ShareReceiveScreen';
 import { ProcessTextScreen } from './src/screens/ProcessTextScreen';
+import { QrScannerHost } from './src/components/QrScannerHost';
 import { SyncDirection } from './src/types/sync';
 import { useSettingsStore, usePendingConnectStore } from './src/stores';
 import i18n from './src/i18n';
@@ -229,6 +230,7 @@ export default function App() {
       <ThemeProvider>
         <ThemedStatusBar />
         {appMode === 'checking' ? null : <AppNavigator />}
+        <QrScannerHost />
         {shareReceiveOverlay && (
           <View style={StyleSheet.absoluteFill}>
             <ShareReceiveScreen

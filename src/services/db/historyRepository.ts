@@ -127,7 +127,7 @@ export const historyRepository = {
   },
 
   /** 过滤 + 排序 + 分页查询(默认排除软删除) */
-  async query(
+  async find(
     filter?: HistoryFilter,
     sort?: HistorySort,
     opts: QueryOpts = {}
@@ -161,7 +161,7 @@ export const historyRepository = {
 
   /** 取全部(includeDeleted 控制是否含软删除),按当前排序 */
   async getAll(sort?: HistorySort, opts: QueryOpts = {}): Promise<ClipboardItem[]> {
-    return this.query(undefined, sort, opts);
+    return this.find(undefined, sort, opts);
   },
 
   /** 所有 profileHash 的小写集合(cleanupOrphanedData 用) */
@@ -179,7 +179,13 @@ export const historyRepository = {
     await db.runAsync(INSERT_SQL, rowValues(toRow(item)));
   },
 
-  /** 事务内批量 upsert(迁移导入 / addItems / updateItems) */
+  /**
+   * 事务内批量 upsert(迁移导入 / addItems / updateItems)
+   *
+   * 必须顺序执行:整个批次复用同一个 prepared statement,而 statement 的参数绑定是有状态的。
+   * 原生侧靠互斥锁保证单次 execute 的原子性,所以并发下发不会更快(锁把它们排回队列),
+   * 只会让 INSERT OR REPLACE 在批内同 profileHash 时的胜出者变成竞态。
+   */
   async replaceMany(items: ClipboardItem[]): Promise<void> {
     if (items.length === 0) return;
     const db = await getDatabase();

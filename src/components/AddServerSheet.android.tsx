@@ -16,11 +16,9 @@ import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useMaterialColors } from '@expo/ui/jetpack-compose';
 import { useTheme } from '@/hooks/useTheme';
-import { useSettingsStore } from '@/stores';
-import { usePendingConnectStore } from '@/stores';
+import { usePendingConnectStore, useQrScannerStore, useSettingsStore } from '@/stores';
 import { probe, type ProbeResult } from 'uc-core';
 import { classifyURL, getURLClassDisplay, type ServerURLClass } from '@/utils/classifyUrl';
-import { QrScannerModal } from './QrScannerModal';
 import type { AddServerSheetProps } from './AddServerSheet.types';
 
 /**
@@ -93,13 +91,15 @@ export function AddServerSheet({
   const title = titleProp ?? t('sheet.addTitle');
   const colors = useDynamicColors();
   const consumePendingConnect = usePendingConnectStore((s) => s.consume);
+  const scannerVisible = useQrScannerStore((s) => s.isVisible);
+  const openScanner = useQrScannerStore((s) => s.open);
   const settings = useSettingsStore((s) => s.config);
 
   const [name, setName] = useState('');
   const [urls, setUrls] = useState<string[]>(['']);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [showScanner, setShowScanner] = useState(false);
+  const [awaitingScan, setAwaitingScan] = useState(false);
 
   const [isProbing, setIsProbing] = useState(false);
   const [probeResults, setProbeResults] = useState<Record<string, ProbeResult> | null>(null);
@@ -207,21 +207,31 @@ export function AddServerSheet({
     onClose();
   }, [canSave, name, cleanedUrls, username, password, onSave, onClose, t]);
 
-  const handleScanComplete = useCallback(() => {
-    setShowScanner(false);
+  // 扫码器关闭后回填。扫码器由 QrScannerHost 挂在应用级(见 qrScannerStore),扫中的凭据落在
+  // pendingConnectStore 里。只有本实例发起过扫码(awaitingScan)才消费,否则会抢走其他消费方的凭据。
+  // 逐字段守卫:扫到的码若缺某字段,保留用户已手输的内容而不是清空。
+  useEffect(() => {
+    if (!awaitingScan || scannerVisible) return;
+
     const intent = consumePendingConnect();
-    if (intent) {
-      if (intent.urls && intent.urls.length > 0) {
-        setUrls(intent.urls);
-      } else if (intent.url) {
-        setUrls([intent.url]);
-      }
-      if (intent.user) setUsername(intent.user);
-      if (intent.pwd) setPassword(intent.pwd);
-      if (intent.label) setName(intent.label);
-      setProbeResults(null);
+    setAwaitingScan(false);
+    if (!intent) return;
+
+    if (intent.urls && intent.urls.length > 0) {
+      setUrls(intent.urls);
+    } else if (intent.url) {
+      setUrls([intent.url]);
     }
-  }, [consumePendingConnect]);
+    if (intent.user) setUsername(intent.user);
+    if (intent.pwd) setPassword(intent.pwd);
+    if (intent.label) setName(intent.label);
+    setProbeResults(null);
+  }, [awaitingScan, scannerVisible, consumePendingConnect]);
+
+  const handleOpenScanner = useCallback(() => {
+    setAwaitingScan(true);
+    openScanner();
+  }, [openScanner]);
 
   const inputStyle = [
     styles.input,
@@ -269,7 +279,7 @@ export function AddServerSheet({
             {/* § 扫码 */}
             <View style={styles.section}>
               <Pressable
-                onPress={() => setShowScanner(true)}
+                onPress={handleOpenScanner}
                 style={[styles.scanRow, { backgroundColor: colors.surfaceContainerLow }]}
               >
                 <Ionicons name="qr-code-outline" size={20} color={colors.primary} />
@@ -314,7 +324,9 @@ export function AddServerSheet({
                   try {
                     new URL(trimmed);
                     urlClass = classifyURL(trimmed);
-                  } catch {}
+                  } catch {
+                    urlClass = null;
+                  }
                 }
                 return (
                   <View key={`url-${i}`} style={styles.urlRow}>
@@ -466,12 +478,6 @@ export function AddServerSheet({
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
-
-      <QrScannerModal
-        visible={showScanner}
-        onClose={() => setShowScanner(false)}
-        onScanned={handleScanComplete}
-      />
     </Modal>
   );
 }

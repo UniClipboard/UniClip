@@ -1,14 +1,6 @@
-import React from 'react';
 import { View, Text, TextInput, StyleSheet, Pressable } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  interpolate,
-  Easing,
-} from 'react-native-reanimated';
 import { TopRightMenu } from './TopRightMenu';
 import { ServerStatusDot } from './ServerStatusDot';
 import type {
@@ -105,25 +97,11 @@ export function SearchTopBar({
 }: SearchTopBarProps) {
   const { t } = useTranslation('home');
   const bg = { backgroundColor: theme.colors.surfaceHigh };
-  const p = useSharedValue(0);
-
-  React.useEffect(() => {
-    p.value = withTiming(1, { duration: 240, easing: Easing.out(Easing.cubic) });
-  }, [p]);
-
-  const boxStyle = useAnimatedStyle(() => ({
-    opacity: p.value,
-    transform: [{ scaleX: interpolate(p.value, [0, 1], [0.35, 1]) }],
-  }));
-  const closeStyle = useAnimatedStyle(() => ({
-    opacity: p.value,
-    transform: [{ scale: interpolate(p.value, [0, 1], [0.6, 1]) }],
-  }));
 
   return (
     <View style={s.searchWrap}>
       <View style={s.searchRow}>
-        <Animated.View style={[s.boxWrap, boxStyle]}>
+        <View style={s.boxWrap}>
           <View style={[s.searchBox, bg]}>
             <Ionicons name="search" size={16} color={theme.colors.textSecondary} />
             <TextInput
@@ -140,21 +118,17 @@ export function SearchTopBar({
               </Pressable>
             )}
           </View>
-        </Animated.View>
-        <Animated.View style={closeStyle}>
-          <Pressable onPress={onOpenFilters} style={[s.circle, bg]}>
-            <Ionicons
-              name={hasActiveFilters ? 'filter-circle' : 'filter-circle-outline'}
-              size={21}
-              color={hasActiveFilters ? theme.colors.accent : theme.colors.textPrimary}
-            />
-          </Pressable>
-        </Animated.View>
-        <Animated.View style={closeStyle}>
-          <Pressable onPress={onClose} style={[s.circle, bg]}>
-            <Ionicons name="close" size={20} color={theme.colors.textPrimary} />
-          </Pressable>
-        </Animated.View>
+        </View>
+        <Pressable onPress={onOpenFilters} style={[s.circle, bg]}>
+          <Ionicons
+            name={hasActiveFilters ? 'filter-circle' : 'filter-circle-outline'}
+            size={21}
+            color={hasActiveFilters ? theme.colors.accent : theme.colors.textPrimary}
+          />
+        </Pressable>
+        <Pressable onPress={onClose} style={[s.circle, bg]}>
+          <Ionicons name="close" size={20} color={theme.colors.textPrimary} />
+        </Pressable>
       </View>
 
       <HistoryFilterTags
@@ -226,7 +200,7 @@ const s = StyleSheet.create({
   pillText: { fontSize: 14, fontWeight: '500' },
   searchWrap: { gap: 6 },
   searchRow: { flexDirection: 'row', alignItems: 'center', height: 52, gap: 8 },
-  boxWrap: { flex: 1, transformOrigin: 'right' },
+  boxWrap: { flex: 1 },
   searchBox: {
     height: 44,
     borderRadius: 22,

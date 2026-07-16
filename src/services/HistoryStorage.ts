@@ -103,6 +103,8 @@ function normalizeClipboardItem(item: ClipboardItem): ClipboardItem {
 export class HistoryStorage {
   private static instance: HistoryStorage | null = null;
   private initialized = false;
+  private initializationPromise: Promise<void> | null = null;
+  private initializationError: unknown = null;
   private maxHistorySize = 1000;
   private changeCallbacks: Set<HistoryChangeCallback> = new Set();
   private pendingChanges: { items: ClipboardItem[]; action: 'add' | 'update' | 'delete' }[] = [];
@@ -229,44 +231,61 @@ export class HistoryStorage {
 
   /**
    * 初始化历史记录存储
+   *
+   * 并发调用共享同一次初始化。失败后门闩住并对后续调用快速抛出首个错误——初始化流水线是确定性的
+   * (建库 + schema 迁移 + 一次性数据导入),立刻重跑不会有不同结果,只会让三十来个
+   * `if (!initialized) await initialize()` 守卫把整条重型 IO 流水线反复重放。恢复手段是重启 app。
    */
   public async initialize(): Promise<void> {
-    if (this.initialized) {
-      return;
+    if (this.initialized) return;
+    if (this.initializationError !== null) throw this.initializationError;
+
+    if (!this.initializationPromise) {
+      this.initializationPromise = this.initializeOnce()
+        .catch((error: unknown) => {
+          log.error('[HistoryStorage] Failed to initialize:', error);
+          this.initializationError = error;
+          throw error;
+        })
+        .finally(() => {
+          this.initializationPromise = null;
+        });
+    }
+    return this.initializationPromise;
+  }
+
+  private async initializeOnce(): Promise<void> {
+    // 读不到配置不致命:退回默认 maxHistorySize
+    try {
+      const { configStorage } = await import('./ConfigStorage');
+      const config = await configStorage.getConfig();
+      if (config?.maxHistoryItems) {
+        this.maxHistorySize = config.maxHistoryItems;
+      }
+    } catch (error) {
+      log.warn('[HistoryStorage] Failed to load maxHistoryItems from config:', error);
     }
 
+    // 建库(含 schema 迁移)是唯一致命的一步:没有 DB 就没有历史功能,必须让调用方知道
+    await getDatabase();
+
+    // 以下三步都是一次性数据搬运(旧 AsyncStorage 历史 / iOS App Group 遗留 JSON / payload URI 修复)。
+    // 失败只影响历史数据的完整性,DB 本身仍然可用——记录后继续,让 app 带着已有历史正常跑,
+    // 而不是因为搬不动遗留数据就把整个历史功能拖垮(App Group 读取失败在 iOS 上是有先例的)。
     try {
-      // 从配置中读取最大历史记录条数
-      try {
-        const { configStorage } = await import('./ConfigStorage');
-        const config = await configStorage.getConfig();
-        if (config?.maxHistoryItems) {
-          this.maxHistorySize = config.maxHistoryItems;
-        }
-      } catch (error) {
-        log.warn('[HistoryStorage] Failed to load maxHistoryItems from config:', error);
-      }
-
-      // 打开数据库(建库 + schema 迁移)
-      await getDatabase();
-
-      // 一次性把旧 AsyncStorage 历史导入 SQLite
       await this.migrateFromAsyncStorageOnce();
-
-      // iOS App Group legacy JSON 日志合并 + payload URI 修复
       await this.importAppGroupHistory();
       await this.repairAppGroupPayloadUris();
-
-      this.initialized = true;
-
-      // 启动时清理孤儿数据
-      this.cleanupOrphanedData().catch((error) => {
-        log.error('[HistoryStorage] Failed to cleanup orphaned data on startup:', error);
-      });
     } catch (error) {
-      log.error('[HistoryStorage] Failed to initialize:', error);
-      this.initialized = true;
+      log.error('[HistoryStorage] History data import failed, continuing with existing DB:', error);
     }
+
+    this.initialized = true;
+
+    // 启动时清理孤儿数据
+    this.cleanupOrphanedData().catch((error) => {
+      log.error('[HistoryStorage] Failed to cleanup orphaned data on startup:', error);
+    });
   }
 
   /**
@@ -581,7 +600,7 @@ export class HistoryStorage {
     if (!this.initialized) {
       await this.initialize();
     }
-    return historyRepository.query(undefined, this.sortConfig, { includeDeleted: false });
+    return historyRepository.find(undefined, this.sortConfig, { includeDeleted: false });
   }
 
   /**
@@ -601,7 +620,7 @@ export class HistoryStorage {
     if (!this.initialized) {
       await this.initialize();
     }
-    return historyRepository.query(undefined, this.sortConfig, {
+    return historyRepository.find(undefined, this.sortConfig, {
       includeDeleted: false,
       limit: pageSize,
       offset: (page - 1) * pageSize,
@@ -620,7 +639,7 @@ export class HistoryStorage {
       await this.initialize();
     }
 
-    const items = await historyRepository.query(filter, sort, { includeDeleted: false });
+    const items = await historyRepository.find(filter, sort, { includeDeleted: false });
     return { items, total: items.length };
   }
 
@@ -850,10 +869,7 @@ export class HistoryStorage {
 
     log.info(`[HistoryStorage] Cleaning up ${expiredItems.length} expired soft-deleted records`);
 
-    for (const item of expiredItems) {
-      await this.physicalDeleteItem(item.profileHash);
-    }
-
+    await this.physicalDeleteItems(expiredItems.map((item) => item.profileHash));
     return expiredItems.length;
   }
 
@@ -1012,7 +1028,7 @@ export class HistoryStorage {
     if (!this.initialized) {
       await this.initialize();
     }
-    return historyRepository.query({ syncStatus: [HistorySyncStatus.NeedSync] }, this.sortConfig, {
+    return historyRepository.find({ syncStatus: [HistorySyncStatus.NeedSync] }, this.sortConfig, {
       includeDeleted: true,
     });
   }
@@ -1024,7 +1040,7 @@ export class HistoryStorage {
     if (!this.initialized) {
       await this.initialize();
     }
-    return historyRepository.query({ syncStatus: [HistorySyncStatus.LocalOnly] }, this.sortConfig, {
+    return historyRepository.find({ syncStatus: [HistorySyncStatus.LocalOnly] }, this.sortConfig, {
       includeDeleted: true,
     });
   }
@@ -1036,7 +1052,7 @@ export class HistoryStorage {
     if (!this.initialized) {
       await this.initialize();
     }
-    const synced = await historyRepository.query(
+    const synced = await historyRepository.find(
       { syncStatus: [HistorySyncStatus.Synced] },
       this.sortConfig,
       { includeDeleted: true }
@@ -1192,7 +1208,7 @@ export class HistoryStorage {
     }
 
     // LocalOnly 且非 starred/pinned 的记录,按最旧在前
-    const localOnly = await historyRepository.query(
+    const localOnly = await historyRepository.find(
       { syncStatus: [HistorySyncStatus.LocalOnly] },
       { field: 'timestamp', order: 'asc' },
       { includeDeleted: true }
