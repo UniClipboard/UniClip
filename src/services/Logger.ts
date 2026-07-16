@@ -1,13 +1,15 @@
 import { logger, consoleTransport } from 'react-native-logs';
 import { Paths, Directory, File } from 'expo-file-system';
-import { StorageAccessFramework } from 'expo-file-system/legacy';
+import { deleteAsync, StorageAccessFramework } from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
-import { nativeZipFiles } from 'android-util';
+import { nativeCopyFile, nativeZipFiles } from 'android-util';
 import * as Application from 'expo-application';
 import i18n from '@/i18n';
 
 const LOG_DIR = new Directory(Paths.document, 'logs');
+const LOG_EXPORT_DIR = new Directory(Paths.cache, 'log_exports');
 const MAX_LOG_DAYS = 3;
+const LOG_EXPORT_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 function formatLocalDate(date: Date): string {
   const year = date.getFullYear();
@@ -41,6 +43,11 @@ export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 export interface LogConfig {
   level: LogLevel;
   enableConsole: boolean;
+}
+
+export interface ExportedLogArchive {
+  uri: string;
+  fileName: string;
 }
 
 interface CustomTransportOptions {
@@ -117,6 +124,9 @@ export function initLogger(config?: Partial<LogConfig>): void {
   isInitialized = true;
 
   cleanOldLogs();
+  if (Platform.OS === 'android') {
+    cleanExportedLogArchives();
+  }
   logSystemInfo();
 }
 
@@ -247,29 +257,126 @@ export function getLogFileUris(): string[] {
     .map((file) => file.uri);
 }
 
+function createExportAbortError(): Error {
+  const error = new Error('Log export was aborted');
+  error.name = 'AbortError';
+  return error;
+}
+
+function throwIfExportAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw createExportAbortError();
+  }
+}
+
+function cleanExportedLogArchives(now = Date.now()): void {
+  if (!LOG_EXPORT_DIR.exists) return;
+
+  for (const entry of LOG_EXPORT_DIR.list()) {
+    if (
+      !(entry instanceof File) ||
+      !entry.name.startsWith('logs_') ||
+      !entry.name.endsWith('.zip')
+    ) {
+      continue;
+    }
+    if (entry.lastModified === null || now - entry.lastModified >= LOG_EXPORT_RETENTION_MS) {
+      entry.delete();
+    }
+  }
+}
+
+function getExportableLogFileUris(): string[] {
+  const fileUris = getLogFileUris();
+  if (fileUris.length === 0) {
+    throw new Error(i18n.t('errors:log.noFilesToExport'));
+  }
+  return fileUris;
+}
+
+async function createLogArchiveFromFiles(
+  fileUris: string[],
+  signal?: AbortSignal
+): Promise<ExportedLogArchive> {
+  const timestamp = formatLocalDateTime(new Date());
+  const fileName = `logs_${timestamp}.zip`;
+
+  if (!LOG_EXPORT_DIR.exists) {
+    LOG_EXPORT_DIR.create();
+  }
+  const archive = new File(LOG_EXPORT_DIR, fileName);
+  if (archive.exists) {
+    archive.delete();
+  }
+
+  try {
+    await nativeZipFiles(fileUris, archive.uri, signal);
+    throwIfExportAborted(signal);
+    return { uri: archive.uri, fileName };
+  } catch (error) {
+    if (archive.exists) {
+      archive.delete();
+    }
+    throw error;
+  }
+}
+
+export function createLogArchive(signal?: AbortSignal): Promise<ExportedLogArchive> {
+  if (Platform.OS !== 'android') {
+    throw new Error('createLogArchive is only supported on Android');
+  }
+
+  cleanExportedLogArchives();
+  return createLogArchiveFromFiles(getExportableLogFileUris(), signal);
+}
+
 export async function saveLogsToFile(signal?: AbortSignal): Promise<void> {
   if (Platform.OS !== 'android') {
     throw new Error('saveLogsToFile is only supported on Android');
   }
 
-  const fileUris = getLogFileUris();
-  if (fileUris.length === 0) {
-    throw new Error(i18n.t('errors:log.noFilesToExport'));
-  }
-
-  const timestamp = formatLocalDateTime(new Date());
-  const zipFileName = `logs_${timestamp}`;
-
+  const fileUris = getExportableLogFileUris();
+  cleanExportedLogArchives();
   const permissions = await StorageAccessFramework.requestDirectoryPermissionsAsync();
   if (!permissions.granted) {
-    throw new Error(i18n.t('errors:log.storagePermissionDenied'));
+    throw createExportAbortError();
   }
 
-  const destUri = await StorageAccessFramework.createFileAsync(
-    permissions.directoryUri,
-    zipFileName,
-    'application/zip'
-  );
+  let archive: ExportedLogArchive | null = null;
+  let destUri: string | null = null;
+  try {
+    archive = await createLogArchiveFromFiles(fileUris, signal);
+    throwIfExportAborted(signal);
+    destUri = await StorageAccessFramework.createFileAsync(
+      permissions.directoryUri,
+      archive.fileName,
+      'application/zip'
+    );
+    await nativeCopyFile(archive.uri, destUri);
+    throwIfExportAborted(signal);
+  } catch (error) {
+    if (destUri) {
+      try {
+        await deleteAsync(destUri, { idempotent: true });
+      } catch {
+        // Preserve the original export error if the document provider cannot delete the partial file.
+      }
+    }
+    throw error;
+  } finally {
+    if (archive) {
+      deleteExportedLogArchive(archive.uri);
+    }
+  }
+}
 
-  await nativeZipFiles(fileUris, destUri, signal);
+export function deleteExportedLogArchive(fileUri: string): void {
+  const archive = new File(fileUri);
+  if (archive.exists) {
+    archive.delete();
+  }
+}
+
+export function scheduleExportedLogArchiveCleanup(fileUri: string): void {
+  setTimeout(() => deleteExportedLogArchive(fileUri), LOG_EXPORT_RETENTION_MS);
 }

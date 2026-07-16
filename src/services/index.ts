@@ -63,7 +63,11 @@ export {
   clearLogs,
   cleanOldLogs,
   log,
+  createLogArchive,
   saveLogsToFile,
+  deleteExportedLogArchive,
+  scheduleExportedLogArchiveCleanup,
+  type ExportedLogArchive,
   type LogConfig,
   type LogLevel,
 } from './Logger';

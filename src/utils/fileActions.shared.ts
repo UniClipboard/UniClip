@@ -37,6 +37,7 @@ export function getMimeTypeFromUri(fileUri: string): string {
   const name = fileUri.split('?')[0].toLowerCase();
   if (name.endsWith('.apk')) return 'application/vnd.android.package-archive';
   if (name.endsWith('.pdf')) return 'application/pdf';
+  if (name.endsWith('.zip')) return 'application/zip';
   if (name.endsWith('.mp4') || name.endsWith('.mkv') || name.endsWith('.avi')) return 'video/*';
   if (name.endsWith('.mp3') || name.endsWith('.flac') || name.endsWith('.aac')) return 'audio/*';
   if (getGalleryImageExtension(name)) return 'image/*';
