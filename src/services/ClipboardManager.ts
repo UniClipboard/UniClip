@@ -41,12 +41,25 @@ export class ClipboardManager {
       // If no text, check for image
       const hasImage = await ClipboardProxy.hasImageAsync();
       if (hasImage) {
-        return await this.getImageContent();
+        try {
+          const content = await this.getImageContent();
+          this._imageReadFailedForState = false;
+          return content;
+        } catch (error) {
+          if (!this._imageReadFailedForState) {
+            const detail = error instanceof Error ? error.message : String(error);
+            log.error('[ClipboardManager] Failed to get image:', detail);
+            this._imageReadFailedForState = true;
+          }
+          return null;
+        }
       }
 
+      this._imageReadFailedForState = false;
       return null;
     } catch (error) {
-      log.error('[ClipboardManager] Failed to get clipboard content:', error);
+      const detail = error instanceof Error ? error.message : String(error);
+      log.error('[ClipboardManager] Failed to get clipboard content:', detail);
       return null;
     }
   }
@@ -200,12 +213,12 @@ export class ClipboardManager {
       const imageExt = saved.mimeType.includes('png')
         ? 'png'
         : saved.mimeType.includes('jpeg') || saved.mimeType.includes('jpg')
-          ? 'jpg'
-          : saved.mimeType.includes('gif')
-            ? 'gif'
-            : saved.mimeType.includes('webp')
-              ? 'webp'
-              : 'png';
+        ? 'jpg'
+        : saved.mimeType.includes('gif')
+        ? 'gif'
+        : saved.mimeType.includes('webp')
+        ? 'webp'
+        : 'png';
 
       // ========== 阶段2: 从文件计算 localClipboardHash ==========
       const localClipboardHash = await calculateFileHash(randomTempFilePath);
@@ -214,7 +227,12 @@ export class ClipboardManager {
       if (this._lastImageHash === localClipboardHash && this._lastImageContent) {
         try {
           new File(randomTempFilePath).delete();
-        } catch {}
+        } catch (error) {
+          log.debug(
+            '[ClipboardManager] Failed to remove duplicate temporary image:',
+            error instanceof Error ? error.message : String(error)
+          );
+        }
         return { ...this._lastImageContent, timestamp };
       }
 
@@ -226,7 +244,12 @@ export class ClipboardManager {
         // 已有同内容文件，删除随机临时文件
         try {
           new File(randomTempFilePath).delete();
-        } catch {}
+        } catch (error) {
+          log.debug(
+            '[ClipboardManager] Failed to remove duplicate temporary image:',
+            error instanceof Error ? error.message : String(error)
+          );
+        }
       } else {
         // 重命名为 hash 命名
         try {
@@ -295,8 +318,7 @@ export class ClipboardManager {
       this._lastImageContent = result;
       return result;
     } catch (error) {
-      log.error('[ClipboardManager] Failed to get image:', error);
-      throw new Error('Failed to get image from clipboard');
+      throw error instanceof Error ? error : new Error(String(error));
     }
   }
 

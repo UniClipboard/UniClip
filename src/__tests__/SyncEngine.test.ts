@@ -12,7 +12,7 @@ import {
 import type { SyncOutcome } from 'uc-core';
 import { SyncEngine, type DeviceClipboard } from '../services/SyncEngine';
 import { setCurrentNetworkContext } from '../services/networkContext';
-import { HistorySyncStatus } from '@/types/clipboard';
+import { HistorySyncStatus } from '../types/clipboard';
 
 const mockLogError = jest.fn();
 const mockLogInfo = jest.fn();
@@ -377,6 +377,32 @@ describe('SyncEngine coordinator', () => {
     expect(mockedEngineInit).toHaveBeenCalledTimes(1);
     expect(mockedEngineInit.mock.calls[0][0]).toEqual(
       expect.objectContaining({ baseUrl: 'http://192.168.1.20:5033' })
+    );
+  });
+
+  test('offline failover tries each alternate URL once without resetting into a 1Hz switch loop', async () => {
+    const engine = makeEngine({
+      getActiveServer: () => ({
+        baseUrl: 'http://100.114.7.75:42720',
+        urls: ['http://100.114.7.75:42720', 'http://192.168.1.130:42720'],
+        username: 'user',
+        password: 'pass',
+        trustInsecureCert: false,
+      }),
+    });
+    mockedEnginePull.mockResolvedValue({
+      tag: 'Failed',
+      error: 'Network unreachable',
+    } as SyncOutcome);
+
+    for (let attempt = 0; attempt < 4; attempt++) {
+      await engine.explicitRefresh();
+      await flush();
+    }
+
+    expect(mockedEngineSetServer).toHaveBeenCalledTimes(1);
+    expect(mockedEngineSetServer).toHaveBeenCalledWith(
+      expect.objectContaining({ baseUrl: 'http://192.168.1.130:42720' })
     );
   });
 

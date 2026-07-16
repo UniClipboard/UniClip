@@ -149,7 +149,7 @@ export class SyncEngine {
   private engineConstructed = false;
   private currentEngineUrl: string | null = null;
   private offlineTicks = 0;
-  private offlineUrlRotation = 0;
+  private offlineRouteSwitches = 0;
 
   private tickTimer: ReturnType<typeof setTimeout> | null = null;
   // BackingOff{retryAfterMs} 覆盖下一次 tick 间隔（一次性）。
@@ -264,10 +264,13 @@ export class SyncEngine {
    * @param rotate 离线故障转移：先失效缓存的 live URL 并轮换候选顺序。
    * @returns 是否有可用 active server（引擎已就绪）。
    */
-  private async ensureEngine(rotate = false): Promise<boolean> {
+  private async ensureEngine(rotate = false, forceResolve = false): Promise<boolean> {
     if (!hasEngine()) return false;
     const server = this.getActiveServer();
     if (!server) return false;
+    // 普通 push/pull 复用当前路由。只有网络/服务器事件或离线故障转移才重解析，
+    // 否则清空 live URL 后的下一次 tick 会立刻跳回默认地址并清掉 Rust 退避。
+    if (this.engineConstructed && this.currentEngineUrl && !rotate && !forceResolve) return true;
 
     const ucServer = await this.resolveLiveUcServer(server, rotate);
 
@@ -301,7 +304,7 @@ export class SyncEngine {
 
   /**
    * 不打网络地解析出最优 live URL：按网络偏好排序候选 + 缓存的 live URL 提升。
-   * rotate=true 时失效缓存并按轮换序号偏移选另一候选（离线故障转移）。
+   * rotate=true 时失效缓存并选择当前地址之后的候选（离线故障转移）。
    */
   private async resolveLiveUcServer(
     server: ActiveServerInfo,
@@ -317,9 +320,11 @@ export class SyncEngine {
     }
     const ordered = orderServerUrls(appServer, getCurrentNetworkContext(), { liveUrl });
     let url = ordered[0] ?? server.baseUrl;
-    if (rotate && ordered.length > 1) {
-      this.offlineUrlRotation = (this.offlineUrlRotation + 1) % ordered.length;
-      url = ordered[this.offlineUrlRotation] ?? url;
+    if (rotate && ordered.length > 1 && this.currentEngineUrl) {
+      const currentIndex = ordered.findIndex(
+        (candidate) => candidate.replace(/\/+$/, '') === this.currentEngineUrl
+      );
+      url = ordered[(currentIndex + 1 + ordered.length) % ordered.length] ?? url;
     }
     return {
       baseUrl: url.replace(/\/+$/, ''),
@@ -588,6 +593,7 @@ export class SyncEngine {
     this.stagedEntry = null;
     this.isOffline = false;
     this.offlineTicks = 0;
+    this.offlineRouteSwitches = 0;
     this.setState('Idle');
     this.lastError = null;
 
@@ -603,6 +609,8 @@ export class SyncEngine {
 
   /** 网络路由变化：清引擎退避 + 重解析 live URL + 重连 SSE + 立即收敛。 */
   handleNetworkChanged(): void {
+    this.offlineTicks = 0;
+    this.offlineRouteSwitches = 0;
     void (async () => {
       if (this.engineConstructed) {
         try {
@@ -611,8 +619,8 @@ export class SyncEngine {
           log.error('[SyncEngine] engineHandleNetworkRouteChanged threw:', e?.message ?? e);
         }
       }
-      // 路由切换后网络偏好可能翻转 → 重解析可能选中另一候选 URL。
-      await this.ensureEngine();
+      // 路由切换后网络偏好可能翻转 → 强制重解析候选 URL。
+      await this.ensureEngine(false, true);
       this.restartSse();
       void this.reconverge();
     })();
@@ -815,6 +823,7 @@ export class SyncEngine {
 
   private clearOffline(): void {
     this.offlineTicks = 0;
+    this.offlineRouteSwitches = 0;
     if (this.isOffline) {
       this.isOffline = false;
       log.info('[SyncEngine] server reachable again — back online');
@@ -850,8 +859,20 @@ export class SyncEngine {
       this.offlineTicks += 1;
       this.setState('OfflineRetrying');
       this.lastError = detail;
-      // 连续离线 → 轮换候选 URL 做故障转移（离线期清 watermark 无害）。
-      if (this.offlineTicks >= OFFLINE_URL_ROTATE_AFTER) {
+      // 每个候选地址在一次离线阶段只尝试一轮。切地址会清 Rust 退避；若循环
+      // 轮换所有地址，退避会被持续重置成 1Hz 网络请求。
+      const server = this.getActiveServer();
+      const routeCount = server
+        ? orderServerUrls(this.toAppServerConfig(server), getCurrentNetworkContext(), {
+            liveUrl: null,
+          }).length
+        : 0;
+      if (
+        this.offlineTicks >= OFFLINE_URL_ROTATE_AFTER &&
+        this.offlineRouteSwitches < Math.max(0, routeCount - 1)
+      ) {
+        this.offlineTicks = 0;
+        this.offlineRouteSwitches += 1;
         void this.ensureEngine(true);
       }
     } else {
