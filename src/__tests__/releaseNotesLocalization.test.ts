@@ -26,6 +26,8 @@ describe('release note localization', () => {
     ['zh-CN', '### Android\n- 中文通用\n- 中文 Android\n\n### iOS\n- 中文 iOS'],
     ['en', '### Android\n- English common\n- English Android\n\n### iOS\n- English iOS'],
     ['en-US', '### Android\n- English common\n- English Android\n\n### iOS\n- English iOS'],
+    ['ru', '### Android\n- English common\n- English Android\n\n### iOS\n- English iOS'],
+    ['pt-BR', '### Android\n- English common\n- English Android\n\n### iOS\n- English iOS'],
   ])('selects the matching section for %s', (language, expected) => {
     expect(selectLocalizedReleaseNotes(bilingualNotes, language)).toBe(expected);
   });

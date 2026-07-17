@@ -1,0 +1,71 @@
+{
+  "keyboard": {
+    "title": "Teclado",
+    "status": {
+      "added": "Adicionado",
+      "undetectable": "Não é possível detectar",
+      "notAdded": "Não adicionado",
+      "detectAfterOpen": "Abra o teclado para detectar",
+      "on": "Ativado",
+      "off": "Desativado"
+    },
+    "statusSection": {
+      "title": "Status",
+      "footer": "O status de Acesso Total é informado pelo teclado quando ele é aberto. Se você acabou de alterá-lo nos Ajustes, abra o teclado uma vez no campo abaixo para atualizar."
+    },
+    "systemKeyboard": "Teclado do sistema",
+    "fullAccess": "Acesso Total",
+    "enableSteps": {
+      "title": "Etapas de configuração",
+      "footer": "Permitir Acesso Total permite que o teclado leia a área de transferência e se conecte ao seu servidor; isso é necessário para sincronizar. O conteúdo é enviado apenas ao servidor que você configurar.",
+      "step1": "Abra o UniClip nos Ajustes e toque em Teclados",
+      "step2": "Ative o Teclado UniClip",
+      "step3": "Ative Permitir Acesso Total e confirme"
+    },
+    "tryout": {
+      "title": "Experimente",
+      "footer": "Toque no campo, mantenha pressionada a tecla de globo e escolha Teclado UniClip. Ao abri-lo, o status acima será atualizado automaticamente.",
+      "placeholder": "Abra o teclado aqui para testar"
+    },
+    "feedback": {
+      "title": "Feedback das teclas",
+      "footer": "As alterações entram em vigor na próxima vez que você abrir o teclado.",
+      "sound": "Som das teclas",
+      "haptic": "Feedback tátil"
+    }
+  },
+  "share": {
+    "title": "Compartilhar",
+    "testMessage": "Teste de compartilhamento do UniClip",
+    "intro": {
+      "footer": "Em qualquer app, toque em Compartilhar e escolha UniClip para enviar o conteúdo diretamente ao servidor da sua área de transferência; não é necessário copiar e voltar ao UniClip antes."
+    },
+    "supportedContent": {
+      "label": "Conteúdo compatível",
+      "value": "Texto · Links · Imagens · Arquivos"
+    },
+    "favorite": {
+      "title": "Adicionar aos favoritos",
+      "footer": "Depois de adicionado aos Favoritos, o UniClip fica fixado no início da linha de apps na folha de compartilhamento.",
+      "step1": "Abra qualquer folha de compartilhamento",
+      "step2": "Deslize a linha de ícones de apps até o fim e toque em Mais",
+      "step3": "Toque em Editar no canto superior direito e use + para adicionar o UniClip aos Favoritos",
+      "step4": "Arraste-o para a frente e toque em OK"
+    },
+    "tryButton": "Abrir a folha de compartilhamento para experimentar"
+  },
+  "serverList": {
+    "title": "Servidores",
+    "footer": "Toque em um servidor para editar seu endereço, nome e credenciais. Os servidores adicionados aparecem nesta lista.",
+    "empty": { "label": "Ainda não há servidores" },
+    "addShort": "Adicionar",
+    "addressCount_one": "{{count}} endereço",
+    "addressCount_other": "{{count}} endereços",
+    "addServer": "Adicionar servidor",
+    "connection": {
+      "title": "Conexão",
+      "footer": "Permitir certificados inseguros é necessário apenas quando o servidor usa um certificado HTTPS autoassinado; HTTP simples não precisa disso.",
+      "allowInsecure": "Permitir certificados inseguros"
+    }
+  }
+}

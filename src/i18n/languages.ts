@@ -10,13 +10,13 @@
 import { getLocales } from 'expo-localization';
 
 /** 应用实际加载翻译资源使用的语言代码 */
-export type AppLanguage = 'zh-CN' | 'en';
+export type AppLanguage = 'zh-CN' | 'en' | 'ru' | 'pt-BR';
 
 /** 用户偏好:'system' 跟随系统,其余为显式语言 */
 export type LanguagePreference = 'system' | AppLanguage;
 
 /** 受支持的语言(资源目录以此为准) */
-export const SUPPORTED_LANGUAGES: readonly AppLanguage[] = ['zh-CN', 'en'] as const;
+export const SUPPORTED_LANGUAGES: readonly AppLanguage[] = ['zh-CN', 'en', 'ru', 'pt-BR'] as const;
 
 /** 缺失翻译时的回退语言 */
 export const FALLBACK_LANGUAGE: AppLanguage = 'zh-CN';
@@ -27,6 +27,8 @@ export const FALLBACK_LANGUAGE: AppLanguage = 'zh-CN';
 export const LANGUAGE_NATIVE_NAMES: Record<AppLanguage, string> = {
   'zh-CN': '简体中文',
   en: 'English',
+  ru: 'Русский',
+  'pt-BR': 'Português (Brasil)',
 };
 
 /**
@@ -39,6 +41,8 @@ export function resolveDeviceLanguage(): AppLanguage {
       const code = locale.languageCode?.toLowerCase();
       if (code === 'zh') return 'zh-CN';
       if (code === 'en') return 'en';
+      if (code === 'ru') return 'ru';
+      if (code === 'pt') return 'pt-BR';
     }
   } catch {
     // getLocales 理论上不会抛,兜底以防 web/异常环境
@@ -53,6 +57,6 @@ export function resolveDeviceLanguage(): AppLanguage {
 export function resolvePreference(
   pref: LanguagePreference | string | null | undefined
 ): AppLanguage {
-  if (pref === 'zh-CN' || pref === 'en') return pref;
+  if (pref === 'zh-CN' || pref === 'en' || pref === 'ru' || pref === 'pt-BR') return pref;
   return resolveDeviceLanguage();
 }

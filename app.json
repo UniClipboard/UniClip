@@ -56,7 +56,12 @@
       "expo-sqlite",
       [
         "expo-localization",
-        { "supportedLocales": { "ios": ["zh-Hans", "en"], "android": ["zh", "en"] } }
+        {
+          "supportedLocales": {
+            "ios": ["zh-Hans", "en", "ru", "pt-BR"],
+            "android": ["zh", "en", "ru", "pt-BR"]
+          }
+        }
       ]
     ],
     "extra": {

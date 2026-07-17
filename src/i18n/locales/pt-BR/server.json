@@ -1,0 +1,58 @@
+{
+  "sheet": {
+    "addTitle": "Adicionar servidor",
+    "editTitle": "Editar servidor"
+  },
+  "scan": {
+    "action": "Escanear para conectar",
+    "footer": "Escaneie o código QR no app UniClipboard do computador para preencher os dados abaixo.",
+    "failedTitle": "Falha ao escanear"
+  },
+  "form": {
+    "nameLabel": "Nome",
+    "namePlaceholder": "Um nome fácil de identificar",
+    "nameFooter": "Exibido na barra superior da área de transferência. Se ficar em branco, o endereço do servidor é usado.",
+    "urlLabel": "Endereço do servidor",
+    "urlFooter": "Um mesmo servidor pode ter vários endereços (rede local / Tailscale / internet). O app escolhe automaticamente um endereço acessível na rede atual; o primeiro é o padrão.",
+    "addBackupUrl": "Adicionar endereço alternativo",
+    "allowInsecureCert": "Permitir certificados inseguros",
+    "credentialsLabel": "Credenciais",
+    "usernamePlaceholder": "Nome de usuário",
+    "passwordPlaceholder": "Senha"
+  },
+  "connect": {
+    "sectionLabel": "Conexão",
+    "test": "Testar conexão",
+    "retest": "Testar novamente",
+    "cancelTest": "Cancelar teste",
+    "testing": "Testando…",
+    "success": "Conectado",
+    "failed": "Falha na conexão",
+    "willUse": "Será usado",
+    "resultFooter": "O endereço marcado como “Será usado” é o preferido na rede atual; a escolha é refeita automaticamente quando a rede muda."
+  },
+  "probe": {
+    "allUnreachable": "Nenhum endereço está acessível. Verifique sua rede ou o endereço do servidor.",
+    "authFailed": "Falha na autenticação. Verifique o nome de usuário e a senha.",
+    "unreachable": "Não foi possível conectar ao servidor.",
+    "missingFields": "Preencha todos os dados de conexão."
+  },
+  "alert": {
+    "hintTitle": "Aviso",
+    "errorTitle": "Erro",
+    "unknownError": "Erro desconhecido",
+    "fillAllFields": "Preencha o endereço do servidor, o nome de usuário e a senha",
+    "fillAllFieldsDot": "Preencha o endereço do servidor, o nome de usuário e a senha.",
+    "fillFieldsFirst": "Preencha primeiro o endereço do servidor, o nome de usuário e a senha",
+    "fillUrlFirst": "Preencha primeiro pelo menos um endereço de servidor.",
+    "fillCredentialsFirst": "Preencha primeiro o nome de usuário e a senha.",
+    "invalidUrl": "O formato do endereço do servidor é inválido",
+    "invalidUrlDot": "O formato do endereço do servidor é inválido.",
+    "cannotConnect": "Não foi possível conectar ao servidor"
+  },
+  "listItem": {
+    "notSet": "Não definido",
+    "deleteConfirmTitle": "Confirmar exclusão",
+    "deleteConfirmMessage": "Excluir o servidor “{{name}}”?"
+  }
+}

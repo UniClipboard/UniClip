@@ -1,0 +1,98 @@
+{
+  "appearance": {
+    "sectionTitle": "Aparência",
+    "mode": {
+      "label": "Modo de aparência",
+      "system": "Seguir o sistema",
+      "light": "Claro",
+      "dark": "Escuro"
+    },
+    "hideFromRecents": {
+      "title": "Ocultar das tarefas recentes",
+      "desc": "Bloqueie antes de ocultar para evitar que seja limpo com um toque"
+    },
+    "modeChangeFailed": "Não foi possível alterar o modo de aparência",
+    "updateFailed": "Falha na atualização"
+  },
+  "general": {
+    "sectionTitle": "Geral",
+    "theme": "Tema"
+  },
+  "category": {
+    "sync": "Sincronização",
+    "about": "Sobre",
+    "other": "Outros",
+    "storage": "Armazenamento",
+    "server": "Servidores",
+    "history": "Histórico",
+    "background": "Segundo plano",
+    "sms": "Encaminhamento de SMS",
+    "developer": "Opções do desenvolvedor",
+    "extensions": "Extensões e permissões"
+  },
+  "hub": {
+    "clipboardSync": {
+      "title": "Sincronização da área de transferência",
+      "autoApply": {
+        "title": "Gravar automaticamente na área de transferência",
+        "desc": "Grava o novo conteúdo do servidor na área de transferência do sistema deste dispositivo"
+      },
+      "autoPush": {
+        "title": "Enviar automaticamente a área de transferência",
+        "desc": "Envia cópias locais e itens reutilizados do histórico para o servidor"
+      },
+      "footer": "Estas opções controlam a direção da sincronização; as configurações de segundo plano controlam onde ela pode ser executada",
+      "updateFailed": "Falha na atualização"
+    },
+    "rows": {
+      "serverLabel": "Servidores e sincronização"
+    },
+    "summary": {
+      "serverNone": "Nenhum servidor configurado",
+      "serverActive": "Atual: {{name}} · {{count}} no total",
+      "serverCount_one": "{{count}} servidor",
+      "serverCount_other": "{{count}} servidores",
+      "history_one": "Manter até {{count}} item",
+      "history_other": "Manter até {{count}} itens",
+      "backgroundTempDisabled": "Pausado temporariamente; será retomado após reiniciar",
+      "backgroundOn": "Tarefas em segundo plano ativadas",
+      "backgroundOff": "Tarefas em segundo plano desativadas",
+      "smsOn": "Envio automático de códigos ativado",
+      "smsOff": "Envio automático de códigos desativado",
+      "storage": "Uso de cache, logs e histórico",
+      "about": "Versão {{version}}",
+      "developer": "Logs, depuração e atalhos"
+    }
+  },
+  "server": {
+    "addTitle": "Adicionar servidor",
+    "editTitle": "Editar servidor",
+    "count": "{{count}}"
+  },
+  "ios": {
+    "sync": {
+      "footer": "Quando Gravar automaticamente está ativado, o novo conteúdo do servidor substitui imediatamente a área de transferência deste dispositivo; quando desativado, ele é apenas destacado na tela inicial.",
+      "autoApply": "Gravar automaticamente na área de transferência",
+      "autoPush": "Enviar automaticamente a área de transferência",
+      "sse": "Envio ao vivo (SSE)"
+    },
+    "extensions": {
+      "footer": "As extensões de teclado e compartilhamento permitem usar o UniClip diretamente em outros apps; defina o acesso à área de transferência como Permitir para evitar solicitações repetidas durante a sincronização.",
+      "keyboard": "Teclado",
+      "share": "Compartilhar",
+      "clipboardAccess": "Acesso à área de transferência"
+    },
+    "keyboardHint": {
+      "needsFullAccess": "Requer acesso total",
+      "notEnabled": "Não ativado"
+    },
+    "general": {
+      "checkUpdateOnLaunch": "Verificar atualizações ao iniciar"
+    },
+    "about": {
+      "projectHome": "Página do projeto",
+      "version": "Versão"
+    }
+  },
+  "openSystemSettings": "Abrir configurações do sistema"
+}

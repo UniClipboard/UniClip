@@ -118,7 +118,7 @@ export function selectLocalizedReleaseNotes(
   if (!activeLocale) return body;
   finishSection(lines.length);
 
-  const requested = language.toLowerCase().startsWith('en') ? 'en' : 'zh-CN';
+  const requested = language.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en';
   return sections.get(requested) || sections.get('zh-CN') || sections.get('en') || body;
 }
 

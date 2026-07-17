@@ -31,7 +31,7 @@ export interface SharedSettings {
 
   // Appearance
   appearance: 'system' | 'light' | 'dark';
-  /** 界面语言偏好:'system' 跟随系统,或具体语言代码('zh-CN' | 'en')。见 src/i18n */
+  /** 界面语言偏好:'system' 跟随系统,或具体语言代码('zh-CN' | 'en' | 'ru' | 'pt-BR')。见 src/i18n */
   language: string;
 
   // Logging & debug

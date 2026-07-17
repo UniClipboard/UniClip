@@ -1,0 +1,66 @@
+{
+  "transferQueue": {
+    "title": "Fila de transferência",
+    "empty": "Nenhuma tarefa de transferência",
+    "status": {
+      "pending": "Aguardando",
+      "running": "Transferindo",
+      "completed": "Concluído",
+      "failed": "Falhou",
+      "cancelled": "Cancelado",
+      "waitForRetry": "Aguardando nova tentativa"
+    }
+  },
+  "filter": {
+    "title": "Filtros",
+    "section": {
+      "kind": "Tipo",
+      "date": "Data"
+    },
+    "date": {
+      "all": "Todos",
+      "today": "Hoje",
+      "yesterday": "Ontem",
+      "pastWeek": "Últimos 7 dias"
+    },
+    "chip": {
+      "all": "Todos",
+      "date": "Período"
+    }
+  },
+  "kind": {
+    "text": "Texto",
+    "url": "Link",
+    "image": "Imagem",
+    "file": "Arquivo",
+    "group": "Arquivo compactado"
+  },
+  "time": {
+    "justNow": "Agora",
+    "secondsAgo": "Há {{n}} s",
+    "minutesAgo": "Há {{n}} min",
+    "hoursAgo": "Há {{n}} h",
+    "daysAgo": "Há {{n}} d"
+  },
+  "wordPicker": {
+    "truncated_one": "Texto muito longo; exibindo {{count}} caractere",
+    "truncated_other": "Texto muito longo, mostrando os primeiros {{count}} caracteres",
+    "empty": "Nenhum texto selecionável",
+    "granularity": {
+      "word": "Palavras",
+      "char": "Caracteres"
+    },
+    "deselectAll": "Desmarcar tudo",
+    "placeholder": "Toque ou deslize para selecionar o texto",
+    "copyFailed": "Falha ao copiar",
+    "copied": "Copiado para a área de transferência"
+  },
+  "menu": {
+    "copyPlain": "Copiar como texto simples",
+    "selectText": "Selecionar texto",
+    "openBrowser": "Abrir no navegador",
+    "saveImage": "Salvar imagem",
+    "saveFile": "Salvar arquivo",
+    "closeMenu": "Fechar menu"
+  }
+}

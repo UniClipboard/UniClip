@@ -4,7 +4,7 @@
  * - applyLanguagePreference: 把偏好解析为实际语言并切换 i18next(供 App 启动/非组件调用)。
  * - useAppLanguage: 组件用,返回当前偏好、已解析语言,以及持久化并即时生效的 setLanguage。
  *
- * 偏好持久化复用 settings.language 字段('system' | 'zh-CN' | 'en')。
+ * 偏好持久化复用 settings.language 字段('system' | 'zh-CN' | 'en' | 'ru' | 'pt-BR')。
  */
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';

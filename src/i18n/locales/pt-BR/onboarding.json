@@ -1,0 +1,29 @@
+{
+  "skip": "Pular",
+  "continue": "Continuar",
+  "welcome": {
+    "wordmark": "UniClip",
+    "title": "A área de transferência\nem cada dispositivo",
+    "body": "Todos os seus dispositivos compartilham a mesma área de transferência — sem colaboração, sem nuvem."
+  },
+  "companion": {
+    "title": "O companheiro\ndo seu computador",
+    "body": "Conecte-se ao app UniClipboard que já está rodando no computador e tenha a área de transferência sempre à mão.",
+    "spec": "MODO COMPANHEIRO · CONECTA AO COMPUTADOR"
+  },
+  "lan": {
+    "title": "Mesmo Wi-Fi,\nconexão direta",
+    "body": "Seu celular e o computador se conectam ponto a ponto na mesma rede local, sem desvio pela internet. O que você copia chega quase instantaneamente.",
+    "spec": "SOMENTE REDE LOCAL · PONTO A PONTO"
+  },
+  "action": {
+    "title": "Copiou, chegou",
+    "body": "Copie no computador e cole no celular; use o menu de compartilhamento para enviar qualquer coisa de volta.",
+    "types": "Texto · Link · Imagem · Arquivo",
+    "pair": "Escanear para parear",
+    "later": "Agora não",
+    "pile": {
+      "note": "Reunião\nQua 10:00\nAlinhar prazos"
+    }
+  }
+}

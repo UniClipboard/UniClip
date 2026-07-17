@@ -1,0 +1,98 @@
+{
+  "main": {
+    "cardTitle": "Sincronização automática em segundo plano",
+    "toggle": {
+      "descTempDisabled": "Pausada temporariamente; será retomada após reiniciar o app",
+      "descNormal": "Permite que as direções de sincronização ativadas sejam executadas em segundo plano e orienta sobre as permissões necessárias"
+    },
+    "footer": "O download e o envio em segundo plano seguem as configurações de direção Gravar automaticamente e Enviar automaticamente"
+  },
+  "advanced": {
+    "cardTitle": "Opções avançadas",
+    "notification": {
+      "title": "Notificação persistente do serviço",
+      "desc": "Mantê-la ativada melhora a estabilidade do serviço em segundo plano"
+    },
+    "battery": {
+      "title": "Ignorar otimização de bateria",
+      "desc": "Impede que a economia de bateria interrompa a sincronização em segundo plano"
+    },
+    "download": {
+      "title": "Baixar do remoto",
+      "desc": "Recebe novo conteúdo remoto em segundo plano quando Gravar automaticamente está ativado"
+    },
+    "upload": {
+      "title": "Enviar área de transferência local",
+      "desc": "Envia alterações da área de transferência em segundo plano quando Enviar automaticamente está ativado"
+    },
+    "clipboardAccess": {
+      "title": "Acesso à área de transferência em segundo plano",
+      "method": { "overlay": "Sobreposição", "shizuku": "Shizuku" },
+      "summary": {
+        "ready": "{{method}} · Pronto",
+        "action-required": "{{method}} · falta 1 etapa"
+      },
+      "issue": {
+        "service-unavailable": "O método selecionado não está em execução",
+        "permission-required": "O acesso à área de transferência precisa de autorização",
+        "system-restriction": "O MIUI está bloqueando o acesso à área de transferência em segundo plano",
+        "monitoring-setup-required": "A detecção automática de cópia ainda precisa de configuração"
+      },
+      "action": { "continue": "Continuar configuração", "change": "Alterar método" },
+      "setup": {
+        "completed": "O acesso à área de transferência em segundo plano está pronto",
+        "commandCopied": "Comando de autorização do computador copiado",
+        "failed": "Não foi possível concluir a configuração; verifique se o Shizuku está em execução"
+      },
+      "restriction": {
+        "title": "Desativar a restrição de área de transferência do MIUI",
+        "text": "O UniClip usará o Shizuku para desativar a restrição de área de transferência inteligente do MIUI, para que o conteúdo possa ser lido e gravado em segundo plano. Isso também pode desativar o recurso de área de transferência inteligente do sistema.",
+        "confirm": "Desativar restrição"
+      },
+      "change": {
+        "title": "Alterar método de acesso em segundo plano",
+        "text": "Após mudar para {{method}}, o UniClip orientará imediatamente sobre qualquer configuração restante.",
+        "confirm": "Usar {{method}}"
+      }
+    }
+  },
+  "dialog": {
+    "enableAutoSync": {
+      "title": "Ativar sincronização automática em segundo plano",
+      "text": "Depois de ativado, o app continuará sincronizando a área de transferência em segundo plano. Vamos orientar sobre bateria, notificações e acesso à área de transferência para o método selecionado. Permitir tudo oferece o melhor resultado, mas recusas ainda permitem continuar usando o app.",
+      "confirm": "Ativar"
+    },
+    "disableNotification": {
+      "title": "Desativar notificação persistente",
+      "text": "Desativar a notificação persistente reduz a estabilidade do serviço em segundo plano e aumenta a probabilidade de o sistema encerrar as tarefas em segundo plano.",
+      "confirm": "Desativar"
+    },
+    "missingNotificationPermission": {
+      "title": "Permissão de notificação ausente",
+      "text": "A permissão de notificação não foi concedida, portanto a notificação persistente pode não aparecer. Recomendamos permitir notificações nas configurações do sistema.",
+      "confirm": "Abrir configurações",
+      "dismiss": "Mais tarde"
+    },
+    "enableUpload": {
+      "title": "Ativar envio em segundo plano da área de transferência local",
+      "text": "Não é necessário ativar esta opção: o UniClip também permite enviar texto diretamente pelo menu exibido ao selecionar texto.\n\nNo Android 10 e versões posteriores, os apps não podem ler diretamente a área de transferência local em segundo plano. Talvez seja necessário ativar a sobreposição ou usar outra ferramenta para contornar essa limitação.",
+      "confirm": "Ativar"
+    },
+    "batteryFallback": {
+      "title": "Não foi possível abrir a caixa de diálogo do sistema",
+      "text": "O sistema permite que a solicitação de otimização de bateria apareça apenas uma vez por instalação. Desative a otimização de bateria manualmente nas configurações do sistema.",
+      "confirm": "Abrir configurações"
+    }
+  },
+  "toast": {
+    "autoSyncRestored": "Sincronização automática em segundo plano retomada",
+    "autoSyncEnabled": "Sincronização automática em segundo plano ativada",
+    "autoSyncDisabled": "Sincronização automática em segundo plano desativada",
+    "downloadEnabled": "Download remoto em segundo plano ativado",
+    "downloadDisabled": "Download remoto em segundo plano desativado",
+    "uploadEnabled": "Envio local em segundo plano ativado",
+    "uploadDisabled": "Envio local em segundo plano desativado",
+    "clipboardAccessChanged": "Método de acesso à área de transferência em segundo plano alterado",
+    "setFailed": "Falha ao atualizar a configuração"
+  }
+}

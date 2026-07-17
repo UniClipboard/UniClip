@@ -1,0 +1,94 @@
+{
+  "status": {
+    "notConnected": "Servidor não conectado",
+    "syncing": "Sincronizando...",
+    "synced": "Sincronizado",
+    "failed": "Falha na sincronização",
+    "conflict": "Conflito de sincronização",
+    "waiting": "Aguardando sincronização"
+  },
+  "lastSync": {
+    "justNow": "Sincronizado agora",
+    "minutesAgo": "há {{n}} min",
+    "hoursAgo": "há {{n}} h"
+  },
+  "quickLoad": {
+    "uploading": "Enviando a área de transferência...",
+    "downloading": "Baixando a área de transferência...",
+    "uploadSuccess": "Envio concluído!",
+    "downloadSuccess": "Sincronização concluída!",
+    "uploadFailed": "Falha no envio",
+    "downloadFailed": "Falha na sincronização",
+    "openLink": "Abrir link",
+    "genericError": "Falha na operação. Tente novamente.",
+    "unknownFile": "Arquivo desconhecido"
+  },
+  "toast": {
+    "copied": "Copiado",
+    "savedToGallery": "Salvo na galeria",
+    "savedToDevice": "Salvo no dispositivo",
+    "needGalleryPermission": "Permissão da galeria necessária para salvar imagens",
+    "saveFailed": "Falha ao salvar"
+  },
+  "connectionStatus": {
+    "unconfigured": "Nenhum servidor configurado",
+    "connecting": "Conectando",
+    "online": "Conectado",
+    "offline": "Servidor off-line",
+    "error": "Erro de conexão"
+  },
+  "operation": {
+    "download": "download",
+    "upload": "envio"
+  },
+  "transfer": {
+    "failedWithDetail": "Falha no {{operation}}: {{detail}}"
+  },
+  "error": {
+    "operationFailedTitle": "Falha no {{operation}}",
+    "networkDefault": "Falha na conexão de rede. Verifique as configurações de rede."
+  },
+  "statistics": {
+    "header": "=== Estatísticas ===",
+    "noRecords": "Tarefas em segundo plano: nenhum registro",
+    "recordsTitle": "Registros de tarefas em segundo plano (últimos {{n}}):",
+    "recordStart": "  {{index}}. Início: {{time}}",
+    "recordDuration": "     Duração: {{duration}}"
+  },
+  "duration": {
+    "days": "{{n}}d",
+    "hours": "{{n}}h",
+    "minutes": "{{n}}min",
+    "seconds": "{{n}}s"
+  },
+  "progress": {
+    "validatingTime": "Validando o horário do servidor...",
+    "fetchingRemote": "Buscando registros remotos...",
+    "fetchingIncremental": "Buscando registros incrementais",
+    "fetchingWithCount_one": "{{label}}... ({{count}} registro)",
+    "fetchingWithCount_other": "{{label}}... ({{count}} registros)",
+    "merging": "Mesclando registros...",
+    "detectingOrphan": "Detectando dados órfãos...",
+    "pushingChanges": "Enviando alterações locais...",
+    "uploadingRecords": "Enviando registros locais...",
+    "cleaningExpired": "Limpando registros expirados...",
+    "completed": "Sincronização concluída",
+    "cancelled": "Sincronização cancelada",
+    "failed": "Falha na sincronização"
+  },
+  "banner": {
+    "staged": {
+      "title": "Novo conteúdo para aplicar",
+      "subtitleImage": "Uma imagem",
+      "subtitleFile": "Um arquivo",
+      "subtitleGroup": "Vários itens",
+      "apply": "Aplicar",
+      "applying": "Aplicando…"
+    },
+    "loop": {
+      "title": "Ciclo de sincronização pausado",
+      "subtitle": "O conteúdo alternava entre dispositivos, então a sincronização foi pausada",
+      "dismiss": "Entendi"
+    }
+  }
+}

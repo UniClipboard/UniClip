@@ -1,0 +1,41 @@
+{
+  "title": "Серверы",
+  "empty": {
+    "title": "Нет серверов",
+    "addButton": "Добавить сервер",
+    "hint": "Нажмите + вверху справа, чтобы добавить"
+  },
+  "sheet": {
+    "editTitle": "Изменить сервер"
+  },
+  "card": {
+    "addressCount_one": "{{count}} адрес",
+    "addressCount_few": "{{count}} адреса",
+    "addressCount_many": "{{count}} адресов",
+    "addressCount_other": "{{count}} адреса"
+  },
+  "delete": {
+    "title": "Удалить сервер",
+    "message": "Удалить „{{name}}“?",
+    "fallbackName": "этот сервер"
+  },
+  "qr": {
+    "title": "Сканировать QR-код",
+    "hint": "Наведите камеру на QR-код",
+    "scanFailedTitle": "Не удалось отсканировать",
+    "rescan": "Сканировать снова",
+    "requestingPermission": "Запрос доступа к камере…",
+    "torch": {
+      "turnOn": "Фонарик",
+      "turnOff": "Выключить"
+    },
+    "permission": {
+      "title": "Нужен доступ к камере",
+      "desc": "Приложению UniClip нужен доступ к камере, чтобы сканировать QR-код подключения.",
+      "deniedForever": "\n\nДоступ к камере запрещён навсегда. Включите его вручную в настройках системы.",
+      "requestAgain": "Запросить доступ снова",
+      "openSettings": "Открыть настройки системы",
+      "enterManually": "Ввести вручную"
+    }
+  }
+}

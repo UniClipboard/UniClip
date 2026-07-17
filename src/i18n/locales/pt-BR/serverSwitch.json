@@ -1,0 +1,39 @@
+{
+  "title": "Servidores",
+  "empty": {
+    "title": "Nenhum servidor ainda",
+    "addButton": "Adicionar servidor",
+    "hint": "Toque em + no canto superior direito para adicionar"
+  },
+  "sheet": {
+    "editTitle": "Editar servidor"
+  },
+  "card": {
+    "addressCount_one": "{{count}} endereço",
+    "addressCount_other": "{{count}} endereços"
+  },
+  "delete": {
+    "title": "Excluir servidor",
+    "message": "Tem certeza de que deseja excluir “{{name}}”?",
+    "fallbackName": "este servidor"
+  },
+  "qr": {
+    "title": "Escanear código QR",
+    "hint": "Alinhe o código QR dentro do quadro",
+    "scanFailedTitle": "Falha ao escanear",
+    "rescan": "Escanear novamente",
+    "requestingPermission": "Solicitando permissão da câmera…",
+    "torch": {
+      "turnOn": "Lanterna",
+      "turnOff": "Desligar"
+    },
+    "permission": {
+      "title": "Permissão de câmera necessária",
+      "desc": "O UniClip precisa acessar a câmera para escanear o código QR de conexão.",
+      "deniedForever": "\n\nA permissão foi negada permanentemente. Ative-a manualmente nas configurações do sistema.",
+      "requestAgain": "Solicitar permissão novamente",
+      "openSettings": "Abrir configurações do sistema",
+      "enterManually": "Digitar manualmente"
+    }
+  }
+}

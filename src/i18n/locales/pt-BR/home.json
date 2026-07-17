@@ -1,0 +1,97 @@
+{
+  "empty": {
+    "unconfigured": {
+      "title": "Nenhum dispositivo pareado",
+      "description": "Abra o UniClipboard em um computador na mesma rede Wi‑Fi para parear e começar a sincronizar."
+    },
+    "connecting": {
+      "title": "Conectando…",
+      "description": "Conectando a {{server}} na rede local."
+    },
+    "online": {
+      "title": "Sua área de transferência está sincronizada",
+      "description": "Copie algo em qualquer dispositivo pareado e aparecerá aqui."
+    },
+    "offline": {
+      "title": "{{server}} não está acessível",
+      "description": "Não está respondendo nesta rede. Verifique se ele está ligado e na mesma rede Wi‑Fi."
+    },
+    "error": {
+      "title": "A sincronização precisa de atenção",
+      "description": "O acesso foi recusado ou a sincronização foi pausada. Verifique as configurações do servidor para reconectar."
+    }
+  },
+  "topBar": {
+    "selectedCount": "{{n}} selecionados",
+    "deselectAll": "Desmarcar tudo",
+    "searchPlaceholder": "Pesquisar na área de transferência",
+    "switchServerA11y": "Trocar de servidor, atualmente {{server}}, {{status}}",
+    "serverUnconfigured": "Não configurado"
+  },
+  "a11y": {
+    "addContent": "Adicionar conteúdo",
+    "closeMenu": "Fechar menu"
+  },
+  "fab": {
+    "takePhoto": "Tirar foto",
+    "pickImage": "Fotos",
+    "pickFile": "Escolher arquivo",
+    "uploadClipboard": "Enviar área de transferência",
+    "syncNow": "Sincronizar agora"
+  },
+  "quickActions": {
+    "upload": "⬆️ Enviar",
+    "sync": "🔄 Sincronizar",
+    "syncing": "  Sincronizando...",
+    "download": "⬇️ Baixar"
+  },
+  "toast": {
+    "copied": "Copiado para a área de transferência",
+    "copiedLocal": "Copiado neste dispositivo",
+    "copiedAutoPushEnabled": "Copiado; envio automático ativado",
+    "copyFailed": "Falha ao copiar",
+    "copiedPlainText": "Copiado como texto simples",
+    "savedToGallery": "Salvo na galeria",
+    "saveFailed": "Falha ao salvar",
+    "savedFile": "Arquivo salvo",
+    "deleted": "Excluído",
+    "copiedSelected": "Itens selecionados copiados",
+    "syncDone": "Sincronização concluída",
+    "syncFailed": "Falha na sincronização",
+    "uploadedToServer": "Enviado ao servidor",
+    "uploadFailed": "Falha no envio",
+    "savedLocally": "Salvo localmente",
+    "pickFileFailed": "Falha ao escolher arquivo",
+    "pickImageFailed": "Falha ao escolher imagem",
+    "cameraPermissionNeeded": "Permissão de câmera necessária",
+    "takePhotoFailed": "Falha ao tirar foto",
+    "serverSwitched": "Servidor trocado",
+    "serverAdded": "Servidor adicionado"
+  },
+  "detail": {
+    "placeholderTitle": "Selecione um item",
+    "placeholderDesc": "Toque em qualquer item da lista à esquerda para ver o conteúdo completo e as ações aqui.",
+    "fromDevice": "De {{device}}",
+    "unknownDevice": "Este dispositivo",
+    "quickActions": {
+      "select": "Selecionar",
+      "open": "Abrir",
+      "save": "Salvar"
+    },
+    "close": "Fechar detalhes"
+  },
+  "rail": {
+    "filters": "Filtros",
+    "all": "Todos"
+  },
+  "nav": {
+    "sync": "Servidores e sincronização",
+    "history": "Histórico",
+    "background": "Segundo plano",
+    "appearance": "Aparência",
+    "sms": "Encaminhamento de SMS",
+    "storage": "Armazenamento",
+    "about": "Sobre",
+    "developer": "Opções de desenvolvedor"
+  }
+}

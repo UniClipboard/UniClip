@@ -1,0 +1,42 @@
+{
+  "appName": "UniClip",
+  "action": {
+    "confirm": "Confirmar",
+    "cancel": "Cancelar",
+    "save": "Salvar",
+    "delete": "Excluir",
+    "remove": "Remover",
+    "edit": "Editar",
+    "add": "Adicionar",
+    "close": "Fechar",
+    "done": "Concluído",
+    "retry": "Tentar novamente",
+    "refresh": "Atualizar",
+    "copy": "Copiar",
+    "share": "Compartilhar",
+    "open": "Abrir",
+    "back": "Voltar",
+    "next": "Avançar",
+    "ok": "OK",
+    "reset": "Redefinir",
+    "clear": "Limpar",
+    "select": "Selecionar",
+    "selectAll": "Selecionar tudo",
+    "deselect": "Desmarcar",
+    "more": "Mais",
+    "settings": "Configurações"
+  },
+  "state": {
+    "loading": "Carregando…",
+    "saving": "Salvando…",
+    "empty": "Nada por aqui ainda",
+    "success": "Sucesso",
+    "failed": "Falhou",
+    "enabled": "Ativado",
+    "disabled": "Desativado"
+  },
+  "language": {
+    "title": "Idioma",
+    "system": "Seguir o sistema"
+  }
+}

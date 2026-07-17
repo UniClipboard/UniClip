@@ -1,0 +1,40 @@
+{
+  "action": { "openSettings": "Abrir configurações" },
+  "smsAutomation": {
+    "title": "Automação de SMS",
+    "autoUpload": "Enviar códigos de verificação por SMS automaticamente",
+    "permissionRequiredTitle": "Permissão de SMS necessária",
+    "permissionRequiredMessage": "O envio automático de códigos de verificação requer permissão para receber SMS. Permita-a nas configurações do sistema.",
+    "enabledToast": "Envio automático de códigos de verificação por SMS ativado",
+    "disabledToast": "Envio automático de códigos de verificação por SMS desativado",
+    "saveFailed": "Falha ao salvar as configurações"
+  },
+  "quickActions": {
+    "title": "Ações rápidas",
+    "addDownloadShortcut": "Adicionar atalho à tela inicial: Baixar",
+    "addUploadShortcut": "Adicionar atalho à tela inicial: Enviar",
+    "addFailed": "Falha ao adicionar"
+  },
+  "clipboardAccess": {
+    "title": "Acesso à área de transferência",
+    "enableSection": {
+      "header": "Ativar \"Colar de Outros Apps\"",
+      "footer": "O iOS só mostra o aviso \"Permitir Colar\" e memoriza essa permissão depois que o app leu ao menos uma vez conteúdo copiado de outro app. Em uma instalação nova, antes de você acioná-la, a opção \"Colar de Outros Apps\" nem aparece nas configurações do sistema. Toque no botão abaixo para acioná-la uma vez: quando \"Permitir Colar\" aparecer, escolha \"Permitir\" para conceder a permissão e não será solicitado novamente."
+    },
+    "triggeredStep": "Leitura acionada uma vez. Toque em \"Permitir\" quando o aviso aparecer.",
+    "triggerAgain": "Acionar novamente",
+    "triggerAndGrant": "Acionar uma vez e conceder",
+    "fallbackSection": {
+      "header": "Nenhum aviso, ou deseja alterar sua escolha",
+      "footer": "Se nenhum aviso apareceu, a área de transferência pode estar vazia (copie algum texto primeiro e acione novamente), ou você tocou em \"Não Permitir\" anteriormente e o iOS memorizou isso. Vá às configurações do sistema e defina \"Colar de Outros Apps\" como \"Permitir\"; essa opção só aparece depois que você a aciona uma vez. O iOS não expõe o valor atual ao app, portanto não é necessário voltar e confirmar depois de alterá-lo.",
+      "step1": "Abra o UniClip nas configurações do sistema",
+      "step2": "Toque em \"Colar de Outros Apps\"",
+      "step3": "Escolha \"Permitir\""
+    },
+    "relatedSection": {
+      "header": "Configurações relacionadas",
+      "footer": "Quando ativado, o conteúdo copiado neste dispositivo é lido e enviado automaticamente; recomendamos primeiro definir a permissão acima como \"Permitir\". Deixe desativado para enviar manualmente com o botão \"Colar\" na tela inicial; o iOS não mostrará aviso.",
+      "autoPushLabel": "Enviar automaticamente a área de transferência deste dispositivo"
+    }
+  }
+}

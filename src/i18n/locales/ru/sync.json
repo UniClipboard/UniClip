@@ -1,0 +1,96 @@
+{
+  "status": {
+    "notConnected": "Нет подключения к серверу",
+    "syncing": "Синхронизация...",
+    "synced": "Синхронизировано",
+    "failed": "Ошибка синхронизации",
+    "conflict": "Конфликт синхронизации",
+    "waiting": "Ожидание синхронизации"
+  },
+  "lastSync": {
+    "justNow": "Только что",
+    "minutesAgo": "{{n}} мин назад",
+    "hoursAgo": "{{n}} ч назад"
+  },
+  "quickLoad": {
+    "uploading": "Отправка буфера обмена...",
+    "downloading": "Скачивание буфера обмена...",
+    "uploadSuccess": "Отправлено!",
+    "downloadSuccess": "Синхронизировано!",
+    "uploadFailed": "Не удалось отправить",
+    "downloadFailed": "Ошибка синхронизации",
+    "openLink": "Открыть ссылку",
+    "genericError": "Не удалось выполнить операцию. Попробуйте ещё раз",
+    "unknownFile": "Неизвестный файл"
+  },
+  "toast": {
+    "copied": "Скопировано",
+    "savedToGallery": "Изображение сохранено",
+    "savedToDevice": "Сохранено на устройство",
+    "needGalleryPermission": "Нужен доступ к фото, чтобы сохранять изображения",
+    "saveFailed": "Не удалось сохранить"
+  },
+  "connectionStatus": {
+    "unconfigured": "Сервер не настроен",
+    "connecting": "Подключение",
+    "online": "Подключено",
+    "offline": "Сервер офлайн",
+    "error": "Ошибка подключения"
+  },
+  "operation": {
+    "download": "Скачивание",
+    "upload": "Отправка"
+  },
+  "transfer": {
+    "failedWithDetail": "Ошибка: {{operation}} — {{detail}}"
+  },
+  "error": {
+    "operationFailedTitle": "Ошибка: {{operation}}",
+    "networkDefault": "Не удалось подключиться к сети. Проверьте настройки сети"
+  },
+  "statistics": {
+    "header": "=== Статистика ===",
+    "noRecords": "Фоновые задачи: нет записей",
+    "recordsTitle": "Последние записи фоновых задач ({{n}}):",
+    "recordStart": "  {{index}}. Запуск: {{time}}",
+    "recordDuration": "     Длительность: {{duration}}"
+  },
+  "duration": {
+    "days": "{{n}} дн.",
+    "hours": "{{n}} ч",
+    "minutes": "{{n}} мин",
+    "seconds": "{{n}} с"
+  },
+  "progress": {
+    "validatingTime": "Проверка времени сервера...",
+    "fetchingRemote": "Получение удалённых записей...",
+    "fetchingIncremental": "Получение новых записей",
+    "fetchingWithCount_one": "{{label}}... ({{count}} запись)",
+    "fetchingWithCount_few": "{{label}}... ({{count}} записи)",
+    "fetchingWithCount_many": "{{label}}... ({{count}} записей)",
+    "fetchingWithCount_other": "{{label}}... ({{count}} записи)",
+    "merging": "Объединение записей...",
+    "detectingOrphan": "Поиск осиротевших данных...",
+    "pushingChanges": "Отправка локальных изменений...",
+    "uploadingRecords": "Отправка локальных записей...",
+    "cleaningExpired": "Очистка устаревших записей...",
+    "completed": "Синхронизация завершена",
+    "cancelled": "Синхронизация отменена",
+    "failed": "Ошибка синхронизации"
+  },
+  "banner": {
+    "staged": {
+      "title": "Есть новое содержимое",
+      "subtitleImage": "Изображение",
+      "subtitleFile": "Файл",
+      "subtitleGroup": "Несколько элементов",
+      "apply": "Применить",
+      "applying": "Применение…"
+    },
+    "loop": {
+      "title": "Цикл синхронизации приостановлен",
+      "subtitle": "Содержимое постоянно менялось между устройствами, синхронизация приостановлена автоматически",
+      "dismiss": "Понятно"
+    }
+  }
+}
