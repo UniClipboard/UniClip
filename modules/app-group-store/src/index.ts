@@ -50,6 +50,7 @@ export interface AppSettingsDTO {
   prefetchOnCellular?: boolean;
   payloadCacheMaxBytes?: number;
   appearance?: 'system' | 'light' | 'dark';
+  language?: string;
   autoCheckUpdate?: boolean;
   ignoredVersion?: string | null;
   downloadRelativePath?: string;
@@ -88,13 +89,22 @@ const EMPTY_SERVERS: ServerConfigListDTO = { configs: [], activeConfigId: null }
 const EMPTY_MIGRATION: LegacyMigrationResult = { migrated: false, keys: 0 };
 const EMPTY_PAYLOAD_STATS: PayloadStats = { count: 0, totalSize: 0 };
 
+function parseNativeJson<T>(json: string | undefined, fallback: T): T {
+  if (!json) return fallback;
+  try {
+    return JSON.parse(json) as T;
+  } catch {
+    return fallback;
+  }
+}
+
 export function saveServers(list: ServerConfigListDTO): Promise<void> {
   return NativeModule?.saveServers(JSON.stringify(list)) ?? Promise.resolve();
 }
 
 export async function getServers(): Promise<ServerConfigListDTO> {
   const json = await NativeModule?.getServers();
-  return json ? (JSON.parse(json) as ServerConfigListDTO) : EMPTY_SERVERS;
+  return parseNativeJson(json, EMPTY_SERVERS);
 }
 
 export function saveSettings(settings: AppSettingsDTO): Promise<void> {
@@ -103,7 +113,7 @@ export function saveSettings(settings: AppSettingsDTO): Promise<void> {
 
 export async function getSettings(): Promise<AppSettingsDTO> {
   const json = await NativeModule?.getSettings();
-  return json ? (JSON.parse(json) as AppSettingsDTO) : {};
+  return parseNativeJson(json, {});
 }
 
 /**

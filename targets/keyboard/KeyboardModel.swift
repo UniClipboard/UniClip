@@ -28,6 +28,9 @@ private let log = Logger(subsystem: "app.uniclipboard.keyboard", category: "sync
 /// Observation framework is iOS 17+ and would otherwise gate the whole
 /// keyboard off iOS 16 devices.
 @MainActor
+// The sync state machine and its presentation-ready card mapping intentionally
+// share one actor-isolated owner; splitting it would duplicate mutable state.
+// swiftlint:disable:next type_body_length
 final class KeyboardModel: ObservableObject {
 
     // MARK: - Top-level gate
@@ -89,6 +92,7 @@ final class KeyboardModel: ObservableObject {
     /// so a fresh install feels like a stock keyboard.
     private(set) var soundFeedback = true
     private(set) var hapticFeedback = true
+    @Published private(set) var localization = ExtensionLocalization()
 
     @Published private(set) var gate: Gate = .ok
     /// Drives the header's refresh spinner. Independent of `cards` so a sync
@@ -119,6 +123,7 @@ final class KeyboardModel: ObservableObject {
     /// Set by the controller; a custom keyboard can read the type but can
     /// only ever *insert a newline*, which most single-line fields submit on.
     @Published private(set) var returnKeyTitle: String?
+    private var returnKeyType: UIReturnKeyType?
 
     /// Server + trust resolved on the last sync pass, reused by a card tap to
     /// fetch its deferred payload / thumbnail without re-reading the store.
@@ -207,9 +212,17 @@ final class KeyboardModel: ObservableObject {
     /// Cheap (one `UserDefaults` data decode); called on appear and on each
     /// sync pass so a change in the main app is picked up promptly.
     private func loadFeedbackPrefs() {
-        let s = store.loadAppSettings()
-        soundFeedback = s.keyboardSoundFeedback
-        hapticFeedback = s.keyboardHapticFeedback
+        applyPreferences(store.loadAppSettings())
+    }
+
+    private func applyPreferences(_ settings: AppSettings) {
+        soundFeedback = settings.keyboardSoundFeedback
+        hapticFeedback = settings.keyboardHapticFeedback
+        let nextLocalization = ExtensionLocalization(preference: settings.language)
+        guard nextLocalization != localization else { return }
+        localization = nextLocalization
+        updateReturnKeyTitle()
+        if !cards.isEmpty { reloadCards() }
     }
 
     /// Fire key feedback for a button/key tap: the system click sound and a
@@ -364,15 +377,20 @@ final class KeyboardModel: ObservableObject {
     /// (发送 / 搜索 / …) like the system keyboard. Called by the controller on
     /// appear / when the input context changes.
     func setReturnKeyType(_ type: UIReturnKeyType?) {
-        switch type ?? .default {
-        case .go:                       returnKeyTitle = String(localized: "前往")
-        case .search, .google, .yahoo:  returnKeyTitle = String(localized: "搜索")
-        case .send:                     returnKeyTitle = String(localized: "发送")
-        case .done:                     returnKeyTitle = String(localized: "完成")
-        case .next:                     returnKeyTitle = String(localized: "下一项")
-        case .continue:                 returnKeyTitle = String(localized: "继续")
-        case .join:                     returnKeyTitle = String(localized: "加入")
-        default:                        returnKeyTitle = nil   // .default → ↵ glyph
+        returnKeyType = type
+        updateReturnKeyTitle()
+    }
+
+    private func updateReturnKeyTitle() {
+        switch returnKeyType ?? .default {
+        case .go: returnKeyTitle = localization.string("前往")
+        case .search, .google, .yahoo: returnKeyTitle = localization.string("搜索")
+        case .send: returnKeyTitle = localization.string("发送")
+        case .done: returnKeyTitle = localization.string("完成")
+        case .next: returnKeyTitle = localization.string("下一项")
+        case .continue: returnKeyTitle = localization.string("继续")
+        case .join: returnKeyTitle = localization.string("加入")
+        default: returnKeyTitle = nil   // .default → ↵ glyph
         }
     }
 
@@ -381,8 +399,7 @@ final class KeyboardModel: ObservableObject {
     private func sync(force: Bool, gen: Int) async {
         let servers = store.loadServers()
         let settings = store.loadAppSettings()
-        soundFeedback = settings.keyboardSoundFeedback
-        hapticFeedback = settings.keyboardHapticFeedback
+        applyPreferences(settings)
 
         // Read the pasteboard once — the content read triggers iOS's
         // "允许粘贴" prompt, so we gate on changeCount and share the
@@ -416,7 +433,7 @@ final class KeyboardModel: ObservableObject {
             gate = .noServer
             store.saveLastSyncedChangeCount(cc)
             if force {
-                lastError = String(localized: "尚未配置服务器，请先在主程序中添加")
+                lastError = localization.string("尚未配置服务器，请先在主程序中添加")
                 flashSync(.failure)
             }
             if gen == syncGeneration { isSyncing = false }
@@ -474,7 +491,13 @@ final class KeyboardModel: ObservableObject {
                 // main app would skip it: server hash == watermark) AND
                 // letting the next push overwrite it on the server.
                 if let serverHash = latest.hash, !serverHash.isEmpty {
-                    log.info("sync post-push: adopting server hash \(serverHash.prefix(16))… contentId=\(latest.contentId?.prefix(24) ?? "nil") (was \(self.store.loadLastSyncedHash()?.prefix(16) ?? "nil"))")
+                    log.info(
+                        """
+                        sync post-push: adopting server hash \(serverHash.prefix(16))… \
+                        contentId=\(latest.contentId?.prefix(24) ?? "nil") \
+                        (was \(self.store.loadLastSyncedHash()?.prefix(16) ?? "nil"))
+                        """
+                    )
                     store.saveLastSyncedHash(serverHash)
                     // Learn the server's opaque identity for this content (the
                     // primary path — our pushed entry had none). Pair it with
@@ -491,7 +514,14 @@ final class KeyboardModel: ObservableObject {
                 // pushed right after" race, where `latest` is genuinely new
                 // remote content that must surface, not be adopted.
                 let historyHeadHash = history.headHash()
-                log.info("sync pull: serverHash=\(latest.hash ?? "nil") serverType=\(latest.type.rawValue) historyHeadHash=\(historyHeadHash ?? "nil") lastSyncedHash=\(self.store.loadLastSyncedHash() ?? "nil")")
+                log.info(
+                    """
+                    sync pull: serverHash=\(latest.hash ?? "nil") \
+                    serverType=\(latest.type.rawValue) \
+                    historyHeadHash=\(historyHeadHash ?? "nil") \
+                    lastSyncedHash=\(self.store.loadLastSyncedHash() ?? "nil")
+                    """
+                )
                 let pulledNew = appendPulledIfNew(latest)
                 log.info("sync pull result: pulledNew=\(pulledNew)")
                 reloadCards()
@@ -501,7 +531,7 @@ final class KeyboardModel: ObservableObject {
         } catch {
             guard gen == syncGeneration else { return }
             log.error("sync: failed — \(String(describing: error))")
-            lastError = Self.message(for: error)
+            lastError = message(for: error)
             flashSync(.failure)
         }
 
@@ -552,12 +582,12 @@ final class KeyboardModel: ObservableObject {
             )
             store.saveLastSyncedChangeCount(cc)
             history.append(entry: snap.clipboard, direction: .pushed)
-            pushStatus = .pushed(Self.summary(for: snap.clipboard))
+            pushStatus = .pushed(summary(for: snap.clipboard))
             lastPushedEntry = snap.clipboard
             log.info("push: success")
         } catch {
             store.saveLastSyncedChangeCount(cc)
-            pushStatus = .failed(Self.message(for: error))
+            pushStatus = .failed(message(for: error))
             log.error("push: FAILED \(error)")
         }
     }
@@ -642,35 +672,35 @@ final class KeyboardModel: ObservableObject {
     /// text + image only). Cheap enough to call after every sync half.
     private func reloadCards() {
         cards = history.loadRecent(limit: 100)
-            .compactMap(Self.card(from:))
+            .compactMap { card(from: $0) }
     }
 
-    private static func card(from item: ClipboardHistoryItem) -> Card? {
-        let e = item.entry
-        switch e.type {
+    private func card(from item: ClipboardHistoryItem) -> Card? {
+        let entry = item.entry
+        switch entry.type {
         case .text:
-            let isLink = looksLikeURL(e.text)
+            let isLink = Self.looksLikeURL(entry.text)
             return Card(
                 id: item.id,
                 kind: isLink ? .link : .text,
-                entry: e,
-                title: snippet(e.text),
-                subtitle: isLink ? urlHost(e.text) : nil,
-                time: Self.relativeShort(item.timestamp),
-                sizeText: textCountText(e.size ?? e.text.count)
+                entry: entry,
+                title: Self.snippet(entry.text),
+                subtitle: isLink ? Self.urlHost(entry.text) : nil,
+                time: relativeShort(item.timestamp),
+                sizeText: textCountText(entry.size ?? entry.text.count)
             )
         case .image:
-            guard e.hasData, let name = e.dataName else { return nil }
+            guard entry.hasData, let name = entry.dataName else { return nil }
             let rawExt = (name as NSString).pathExtension
             let ext = rawExt.isEmpty ? "png" : rawExt.lowercased()
             return Card(
                 id: item.id,
                 kind: .image,
-                entry: e,
-                title: String(localized: "图片"),
+                entry: entry,
+                title: localization.string("图片"),
                 subtitle: ext.uppercased(),
-                time: Self.relativeShort(item.timestamp),
-                sizeText: imageSizeText(byteCount: e.size ?? 0)
+                time: relativeShort(item.timestamp),
+                sizeText: imageSizeText(byteCount: entry.size ?? 0)
             )
         case .file, .group:
             return nil
@@ -698,23 +728,23 @@ final class KeyboardModel: ObservableObject {
     func activate(_ card: Card) {
         guard actingCardID == nil else { return }
         keyFeedback()
-        let e = card.entry
+        let entry = card.entry
         switch card.kind {
         case .text, .link:
-            if e.hasData, let name = e.dataName {
+            if entry.hasData, let name = entry.dataName {
                 // §3.4 overflow: title shows only the preview; fetch the full
                 // text file, then insert.
                 fetchThen(card: card, name: name) { [weak self] data in
-                    guard let self, let s = String(data: data, encoding: .utf8) else { return }
-                    self.insertText(s)
+                    guard let self, let text = String(data: data, encoding: .utf8) else { return }
+                    self.insertText(text)
                     self.flashActed(card.id)
                 }
             } else {
-                insertText(e.text)
+                insertText(entry.text)
                 flashActed(card.id)
             }
         case .image:
-            guard let name = e.dataName else { return }
+            guard let name = entry.dataName else { return }
             let rawExt = (name as NSString).pathExtension
             let ext = rawExt.isEmpty ? "png" : rawExt.lowercased()
             // Local-cache-first, mirroring `thumbnail(for:)`. If the card's
@@ -725,7 +755,7 @@ final class KeyboardModel: ObservableObject {
             // server's `file/<dataName>` is often gone by then, so the fetch
             // failed and — failure being swallowed — the copy silently did
             // nothing.
-            if let hash = e.hash, let local = store.loadImageData(hash: hash), !local.isEmpty {
+            if let hash = entry.hash, let local = store.loadImageData(hash: hash), !local.isEmpty {
                 copyImageToPasteboard(local, ext: ext, card: card)
             } else {
                 // No local bytes (e.g. a server-pulled metadata entry whose
@@ -779,7 +809,7 @@ final class KeyboardModel: ObservableObject {
             } catch {
                 if Task.isCancelled { return }
                 log.error("fetchThen: getFile(name: \(name)) failed — \(error)")
-                self?.lastError = Self.message(for: error)
+                self?.lastError = self?.message(for: error)
                 self?.flashSync(.failure)
             }
         }
@@ -860,18 +890,20 @@ final class KeyboardModel: ObservableObject {
 
     /// True for a trimmed, whitespace-free http(s) URL with a host. Kept
     /// strict so prose with a stray "www." doesn't masquerade as a link.
-    private static func looksLikeURL(_ s: String) -> Bool {
-        let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !t.isEmpty, t.count <= 2048, !t.contains(where: \.isWhitespace) else { return false }
-        guard let url = URL(string: t),
+    private static func looksLikeURL(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              trimmed.count <= 2048,
+              !trimmed.contains(where: \.isWhitespace) else { return false }
+        guard let url = URL(string: trimmed),
               let scheme = url.scheme?.lowercased(),
               scheme == "http" || scheme == "https",
               url.host?.isEmpty == false else { return false }
         return true
     }
 
-    private static func urlHost(_ s: String) -> String? {
-        URL(string: s.trimmingCharacters(in: .whitespacesAndNewlines))?.host
+    private static func urlHost(_ text: String) -> String? {
+        URL(string: text.trimmingCharacters(in: .whitespacesAndNewlines))?.host
     }
 
     // MARK: - Formatting helpers
@@ -884,58 +916,15 @@ final class KeyboardModel: ObservableObject {
         return String(collapsed.prefix(limit)) + "…"
     }
 
-    private static func summary(for clip: Clipboard) -> String {
+    private func summary(for clip: Clipboard) -> String {
         switch clip.type {
-        case .text:  return snippet(clip.text, limit: 40)
-        case .image: return String(localized: "图片")
-        case .file:  return clip.dataName ?? String(localized: "文件")
-        case .group: return String(localized: "内容")
+        case .text: return Self.snippet(clip.text, limit: 40)
+        case .image: return localization.string("图片")
+        case .file: return clip.dataName ?? localization.string("文件")
+        case .group: return localization.string("内容")
         }
     }
 
-    private static func textCountText(_ count: Int) -> String {
-        String(localized: "\(count) 字")
-    }
-
-    private static func imageSizeText(byteCount: Int) -> String {
-        guard byteCount > 0 else { return "" }
-        let f = ByteCountFormatter()
-        f.countStyle = .file
-        return f.string(fromByteCount: Int64(byteCount))
-    }
-
-    /// "刚刚" inside ±5s, else the system relative formatter. Local to the
-    /// extension — the app's `Date.relativeShort` lives in the main target.
-    private static func relativeShort(_ date: Date) -> String {
-        if abs(date.timeIntervalSinceNow) < 5 { return String(localized: "刚刚") }
-        let f = RelativeDateTimeFormatter()
-        f.unitsStyle = .short
-        return f.localizedString(for: date, relativeTo: Date())
-    }
-
-    private static func message(for error: Error) -> String {
-        if let e = error as? SyncError { return message(for: e) }
-        if let e = error as? LocalizedError, let d = e.errorDescription { return d }
-        return String(localized: "同步失败")
-    }
-
-    /// User-facing copy for `SyncError`. Mirrors `SendClipboardIntent.errorMessage`
-    /// (which lives in the app target and isn't visible to this extension).
-    private static func message(for err: SyncError) -> String {
-        switch err.kind {
-        case .authFailed:                return String(localized: "认证失败 — 请检查用户名和密码")
-        case .connectTimeout:            return String(localized: "连接超时 — 请检查服务器地址")
-        case .receiveTimeout:            return String(localized: "接收超时 — 请稍后重试")
-        case .networkUnreachable:        return String(localized: "无法连接 — 请检查网络和 URL")
-        case .invalidURL:                return String(localized: "服务器地址无效")
-        case .decodingFailed:            return String(localized: "服务器返回的数据无法解析")
-        case .protocolError(let code):   return String(localized: "服务器返回 HTTP \(code)")
-        case .serverError(let code):     return String(localized: "服务器错误 \(code)")
-        case .notFound:                  return String(localized: "服务器尚未发布剪贴板")
-        case .hashMismatch:              return String(localized: "内容校验失败 — 文件可能损坏")
-        case .cancelled:                 return String(localized: "请求已取消")
-        }
-    }
 }
 
 #if DEBUG
@@ -944,12 +933,12 @@ extension KeyboardModel {
     /// be exercised on a real device, so previews are how the layout gets
     /// eyeballed. Thumbnails resolve to the placeholder (no `ctx`/network).
     static func previewReady() -> KeyboardModel {
-        let m = KeyboardModel()
-        m.hasFullAccess = true
-        m.gate = .ok
-        m.serverLabel = "家里的 NAS"
-        m.syncFlash = .success
-        m.cards = [
+        let model = KeyboardModel()
+        model.hasFullAccess = true
+        model.gate = .ok
+        model.serverLabel = "家里的 NAS"
+        model.syncFlash = .success
+        model.cards = [
             Card(id: UUID(), kind: .text,
                  entry: Clipboard(type: .text, text: "明天上午 10 点开会,别忘了带上周的报表。", hasData: false, size: 18),
                  title: "明天上午 10 点开会,别忘了带上周的报表。", subtitle: nil, time: "刚刚", sizeText: "18 字"),
@@ -963,15 +952,15 @@ extension KeyboardModel {
                  entry: Clipboard(type: .text, text: "let name = \"Uni Clipboard\"", hasData: false, size: 27),
                  title: "let name = \"Uni Clipboard\"", subtitle: nil, time: "8 分钟前", sizeText: "27 字"),
         ]
-        return m
+        return model
     }
 
     static func previewEmpty() -> KeyboardModel {
-        let m = KeyboardModel()
-        m.hasFullAccess = true
-        m.gate = .ok
-        m.serverLabel = "家里的 NAS"
-        return m
+        let model = KeyboardModel()
+        model.hasFullAccess = true
+        model.gate = .ok
+        model.serverLabel = "家里的 NAS"
+        return model
     }
 }
 #endif

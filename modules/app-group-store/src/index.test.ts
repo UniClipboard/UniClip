@@ -1,3 +1,6 @@
+/// <reference types="jest" />
+/// <reference types="node" />
+
 beforeEach(() => {
   jest.resetModules();
   jest.unmock('app-group-store');
@@ -62,6 +65,7 @@ describe('app-group-store JS wrapper', () => {
       trustInsecureCert: true,
       autoApplyServerChanges: false,
       autoPushDeviceChanges: true,
+      language: 'ru',
     };
 
     mockNativeModule.getServers.mockResolvedValue(JSON.stringify(servers));
@@ -101,6 +105,11 @@ describe('app-group-store JS wrapper', () => {
     await expect(getLiveUrl('https://example.com')).resolves.toBe('https://example.com');
     await expect(getLastSyncedContentId()).resolves.toBe('blake3v1:abc');
     await expect(migrateLegacyContainer()).resolves.toEqual({ migrated: true, keys: 2 });
+
+    mockNativeModule.getServers.mockResolvedValue('{broken');
+    mockNativeModule.getSettings.mockResolvedValue('{broken');
+    await expect(getServers()).resolves.toEqual({ configs: [], activeConfigId: null });
+    await expect(getSettings()).resolves.toEqual({});
   });
 
   it('falls back safely when the native module is not linked', async () => {

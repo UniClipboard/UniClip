@@ -26,6 +26,7 @@ export interface AppGroupSettingsDTO {
   prefetchOnCellular?: boolean;
   payloadCacheMaxBytes?: number;
   appearance?: 'system' | 'light' | 'dark';
+  language?: string;
   autoCheckUpdate?: boolean;
   ignoredVersion?: string | null;
   downloadRelativePath?: string;
@@ -78,6 +79,7 @@ export function mapSettingsToAppGroupDTO(settings: AppSettings): AppGroupSetting
     prefetchOnCellular: prefetch.cellular,
     payloadCacheMaxBytes: settings.payloadCacheMaxBytes,
     appearance: settings.appearance,
+    language: settings.language,
     autoCheckUpdate: settings.autoCheckUpdate,
     ignoredVersion: settings.ignoredVersion,
     downloadRelativePath: settings.downloadRelativePath,

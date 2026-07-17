@@ -49,6 +49,10 @@ public struct AppSettings: Codable, Equatable, Hashable, Sendable {
     /// UI appearance preference. Default `.system` so existing installs
     /// keep their current behavior (follow iOS appearance).
     public var appearance: AppearanceMode
+    /// UI language preference mirrored from the React Native app. `system`
+    /// follows the extension host locale; explicit values keep extensions in
+    /// sync with the language selected inside UniClip.
+    public var language: String
     /// When true, key taps in the UniClip keyboard extension play the
     /// system key-click sound via `UIDevice.playInputClick()` — which iOS
     /// further gates on the global 键盘点击音 switch. Default true to match
@@ -93,6 +97,7 @@ public struct AppSettings: Codable, Equatable, Hashable, Sendable {
         prefetchOnCellular: false,
         payloadCacheMaxBytes: 200 * 1024 * 1024,
         appearance: .system,
+        language: "system",
         keyboardSoundFeedback: true,
         keyboardHapticFeedback: true,
         onboardingShown: false,
@@ -113,6 +118,7 @@ public struct AppSettings: Codable, Equatable, Hashable, Sendable {
         prefetchOnCellular: Bool = false,
         payloadCacheMaxBytes: Int = 200 * 1024 * 1024,
         appearance: AppearanceMode = .system,
+        language: String = "system",
         keyboardSoundFeedback: Bool = true,
         keyboardHapticFeedback: Bool = true,
         onboardingShown: Bool = false,
@@ -131,6 +137,7 @@ public struct AppSettings: Codable, Equatable, Hashable, Sendable {
         self.prefetchOnCellular = prefetchOnCellular
         self.payloadCacheMaxBytes = payloadCacheMaxBytes
         self.appearance = appearance
+        self.language = language
         self.keyboardSoundFeedback = keyboardSoundFeedback
         self.keyboardHapticFeedback = keyboardHapticFeedback
         self.onboardingShown = onboardingShown
@@ -144,7 +151,7 @@ public struct AppSettings: Codable, Equatable, Hashable, Sendable {
         case autoApplyServerChanges
         case autoPushDeviceChanges
         case prefetchAttachments, prefetchOnCellular, payloadCacheMaxBytes
-        case appearance
+        case appearance, language
         case keyboardSoundFeedback, keyboardHapticFeedback
         case onboardingShown
         case pastePermissionHintDismissed
@@ -173,6 +180,12 @@ public struct AppSettings: Codable, Equatable, Hashable, Sendable {
         } else {
             appearance = defaults.appearance
         }
+        if let languagePreference = try container.decodeIfPresent(String.self, forKey: .language),
+           ["system", "zh-CN", "en", "ru", "pt-BR"].contains(languagePreference) {
+            language = languagePreference
+        } else {
+            language = defaults.language
+        }
         keyboardSoundFeedback   = try container.decodeIfPresent(Bool.self,   forKey: .keyboardSoundFeedback)   ?? defaults.keyboardSoundFeedback
         keyboardHapticFeedback  = try container.decodeIfPresent(Bool.self,   forKey: .keyboardHapticFeedback)  ?? defaults.keyboardHapticFeedback
         onboardingShown         = try container.decodeIfPresent(Bool.self,   forKey: .onboardingShown)         ?? defaults.onboardingShown
@@ -194,6 +207,7 @@ public struct AppSettings: Codable, Equatable, Hashable, Sendable {
         try container.encode(prefetchOnCellular,      forKey: .prefetchOnCellular)
         try container.encode(payloadCacheMaxBytes,    forKey: .payloadCacheMaxBytes)
         try container.encode(appearance.rawValue,     forKey: .appearance)
+        try container.encode(language,                forKey: .language)
         try container.encode(keyboardSoundFeedback,   forKey: .keyboardSoundFeedback)
         try container.encode(keyboardHapticFeedback,  forKey: .keyboardHapticFeedback)
         try container.encode(onboardingShown,         forKey: .onboardingShown)

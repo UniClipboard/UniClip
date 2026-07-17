@@ -12,8 +12,8 @@ enum ShareItem: Equatable {
 
     var displayName: String {
         switch self {
-        case .text(let s):
-            let trimmed = s.trimmingCharacters(in: .whitespacesAndNewlines)
+        case .text(let text):
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.count <= 80 { return trimmed }
             return String(trimmed.prefix(80)) + "…"
         case .image(_, let ext):  return "image.\(ext)"
@@ -23,9 +23,9 @@ enum ShareItem: Equatable {
 
     var byteCount: Int {
         switch self {
-        case .text(let s):              return s.utf8.count
-        case .image(let d, _):          return d.count
-        case .file(_, let b):           return b.count
+        case .text(let text):           return text.utf8.count
+        case .image(let data, _):        return data.count
+        case .file(_, let bytes):        return bytes.count
         }
     }
 
@@ -50,10 +50,17 @@ enum ShareItemError: Error, LocalizedError {
     case loadFailed(String)
 
     var errorDescription: String? {
+        message(using: ExtensionLocalization())
+    }
+
+    func message(using localization: ExtensionLocalization) -> String {
         switch self {
-        case .noInputItems:        return String(localized: "没有可分享的内容")
-        case .noUsableAttachment:  return String(localized: "暂不支持这种内容")
-        case .loadFailed(let s):   return String(localized: "读取分享内容失败: \(s)")
+        case .noInputItems:
+            return localization.string("没有可分享的内容")
+        case .noUsableAttachment:
+            return localization.string("暂不支持这种内容")
+        case .loadFailed(let reason):
+            return localization.string("读取分享内容失败: %@", reason)
         }
     }
 }
@@ -66,8 +73,9 @@ enum ShareItemExtractor {
         // Priority 1 — public.url: Safari "share this page", Mail attachments
         // (often surfaced as file-url), etc. URL-shaped sharing is by far
         // the highest-signal text on iOS.
-        for p in providers where p.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
-            if let url = try await loadURL(p) {
+        for provider in providers
+        where provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
+            if let url = try await loadURL(provider) {
                 if url.isFileURL {
                     return try await readFileURL(url)
                 }
@@ -77,46 +85,46 @@ enum ShareItemExtractor {
 
         // Priority 2 — plain text. `public.plain-text` is the most common;
         // `public.text` is a parent UTI that some apps register.
-        for p in providers {
+        for provider in providers {
             for uti in [UTType.plainText.identifier, UTType.text.identifier]
-            where p.hasItemConformingToTypeIdentifier(uti) {
-                if let s = try await loadString(p, uti: uti) {
-                    return .text(s)
+            where provider.hasItemConformingToTypeIdentifier(uti) {
+                if let text = try await loadString(provider, uti: uti) {
+                    return .text(text)
                 }
             }
         }
 
         // Priority 3 — image. Photos: HEIC. Screenshots / web: PNG. Old
         // photos / random apps: JPEG. GIF is rare. We probe in this order.
-        for p in providers {
+        for provider in providers {
             for (uti, ext) in [
                 (UTType.png.identifier,  "png"),
                 (UTType.heic.identifier, "heic"),
                 (UTType.jpeg.identifier, "jpg"),
                 (UTType.gif.identifier,  "gif"),
-            ] where p.hasItemConformingToTypeIdentifier(uti) {
-                if let bytes = try await loadBytes(p, uti: uti) {
+            ] where provider.hasItemConformingToTypeIdentifier(uti) {
+                if let bytes = try await loadBytes(provider, uti: uti) {
                     return .image(bytes, ext: ext)
                 }
             }
             // Fallback: any image UTI we didn't explicitly probe — load as
             // PNG (most-decodable fallback ext).
-            if p.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
-                if let bytes = try await loadBytes(p, uti: UTType.image.identifier) {
+            if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
+                if let bytes = try await loadBytes(provider, uti: UTType.image.identifier) {
                     return .image(bytes, ext: "png")
                 }
             }
         }
 
         // Priority 4 — arbitrary file via Files-app share.
-        for p in providers {
+        for provider in providers {
             for uti in [UTType.fileURL.identifier, UTType.data.identifier]
-            where p.hasItemConformingToTypeIdentifier(uti) {
-                if let url = try await loadURL(p), url.isFileURL {
+            where provider.hasItemConformingToTypeIdentifier(uti) {
+                if let url = try await loadURL(provider), url.isFileURL {
                     return try await readFileURL(url)
                 }
-                if let bytes = try await loadBytes(p, uti: uti) {
-                    let suggestedName = p.suggestedName ?? "file"
+                if let bytes = try await loadBytes(provider, uti: uti) {
+                    let suggestedName = provider.suggestedName ?? "file"
                     return .file(name: suggestedName, bytes: bytes)
                 }
             }
@@ -127,25 +135,27 @@ enum ShareItemExtractor {
 
     // MARK: - NSItemProvider async wrappers
 
-    private static func loadURL(_ p: NSItemProvider) async throws -> URL? {
-        try await withCheckedThrowingContinuation { cont in
-            p.loadItem(forTypeIdentifier: UTType.url.identifier, options: nil) { value, err in
-                if let err { cont.resume(throwing: ShareItemError.loadFailed("\(err)")); return }
-                cont.resume(returning: value as? URL)
+    private static func loadURL(_ provider: NSItemProvider) async throws -> URL? {
+        try await withCheckedThrowingContinuation { continuation in
+            provider.loadItem(forTypeIdentifier: UTType.url.identifier, options: nil) { value, err in
+                if let err { continuation.resume(throwing: ShareItemError.loadFailed("\(err)")); return }
+                continuation.resume(returning: value as? URL)
             }
         }
     }
 
-    private static func loadString(_ p: NSItemProvider, uti: String) async throws -> String? {
-        try await withCheckedThrowingContinuation { cont in
-            p.loadItem(forTypeIdentifier: uti, options: nil) { value, err in
-                if let err { cont.resume(throwing: ShareItemError.loadFailed("\(err)")); return }
-                if let s = value as? String { cont.resume(returning: s); return }
-                if let url = value as? URL, !url.isFileURL { cont.resume(returning: url.absoluteString); return }
-                if let data = value as? Data, let s = String(data: data, encoding: .utf8) {
-                    cont.resume(returning: s); return
+    private static func loadString(_ provider: NSItemProvider, uti: String) async throws -> String? {
+        try await withCheckedThrowingContinuation { continuation in
+            provider.loadItem(forTypeIdentifier: uti, options: nil) { value, err in
+                if let err { continuation.resume(throwing: ShareItemError.loadFailed("\(err)")); return }
+                if let text = value as? String { continuation.resume(returning: text); return }
+                if let url = value as? URL, !url.isFileURL {
+                    continuation.resume(returning: url.absoluteString); return
                 }
-                cont.resume(returning: nil)
+                if let data = value as? Data, let text = String(data: data, encoding: .utf8) {
+                    continuation.resume(returning: text); return
+                }
+                continuation.resume(returning: nil)
             }
         }
     }
@@ -154,24 +164,24 @@ enum ShareItemExtractor {
     /// ways depending on the source — sometimes as a `URL` pointing into
     /// an extension-scoped temp dir (large images, files), sometimes as
     /// in-memory `Data`. We collapse both into bytes.
-    private static func loadBytes(_ p: NSItemProvider, uti: String) async throws -> Data? {
-        try await withCheckedThrowingContinuation { cont in
-            p.loadItem(forTypeIdentifier: uti, options: nil) { value, err in
-                if let err { cont.resume(throwing: ShareItemError.loadFailed("\(err)")); return }
-                if let data = value as? Data { cont.resume(returning: data); return }
+    private static func loadBytes(_ provider: NSItemProvider, uti: String) async throws -> Data? {
+        try await withCheckedThrowingContinuation { continuation in
+            provider.loadItem(forTypeIdentifier: uti, options: nil) { value, err in
+                if let err { continuation.resume(throwing: ShareItemError.loadFailed("\(err)")); return }
+                if let data = value as? Data { continuation.resume(returning: data); return }
                 if let url = value as? URL, url.isFileURL {
                     do {
                         let data = try Data(contentsOf: url)
-                        cont.resume(returning: data)
+                        continuation.resume(returning: data)
                     } catch {
-                        cont.resume(throwing: ShareItemError.loadFailed("\(error)"))
+                        continuation.resume(throwing: ShareItemError.loadFailed("\(error)"))
                     }
                     return
                 }
                 if let image = value as? UIImage, let data = image.pngData() {
-                    cont.resume(returning: data); return
+                    continuation.resume(returning: data); return
                 }
-                cont.resume(returning: nil)
+                continuation.resume(returning: nil)
             }
         }
     }

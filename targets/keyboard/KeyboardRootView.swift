@@ -66,6 +66,8 @@ private let keyboardSurfaceColor = Color(uiColor: UIColor { trait in
 /// (downlink) or fetches + copies an image; a background pass auto-pushes
 /// newly-copied device content (uplink). The 🌐 strip returns to a typing
 /// keyboard.
+// One root keeps the keyboard bands' overlays, focus, and sizing coordinated.
+// swiftlint:disable:next type_body_length
 struct KeyboardRootView: View {
     @ObservedObject var model: KeyboardModel
 
@@ -122,6 +124,7 @@ struct KeyboardRootView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .environment(\.locale, model.localization.locale)
         // Deliberately NO opaque background: the system already draws the
         // keyboard tray (flat gray pre-iOS 26, Liquid Glass on iOS 26+) and it
         // auto-adapts to appearance + OS version. We keep the surface clear and
@@ -165,7 +168,7 @@ struct KeyboardRootView: View {
                     .frame(height: 34)
                 }
                 .buttonStyle(ChromePressStyle(shape: Capsule(style: .continuous), hitOutset: 5))
-                .accessibilityLabel(Text("切换服务器"))
+                .accessibilityLabel(Text(model.localization.string("切换服务器")))
             } else {
                 Text(verbatim: "UniClip")
                     .font(.subheadline.weight(.semibold))
@@ -177,7 +180,7 @@ struct KeyboardRootView: View {
                     circleButton(system: "magnifyingglass") {
                         withAnimation(.snappy(duration: 0.22)) { searching = true }
                     }
-                    .accessibilityLabel(Text("筛选"))
+                    .accessibilityLabel(Text(model.localization.string("筛选")))
                 }
                 Spacer(minLength: 0)
                 if model.gate != .needsFullAccess {
@@ -213,12 +216,14 @@ struct KeyboardRootView: View {
             }
             .buttonStyle(ChromePressStyle(shape: Circle(), hitOutset: 5))
             .transition(.scale(scale: 0.6).combined(with: .opacity))
-            .accessibilityLabel(Text(flash == .success ? "同步成功" : "同步失败"))
+            .accessibilityLabel(
+                Text(model.localization.string(flash == .success ? "同步成功" : "同步失败"))
+            )
         } else {
             circleButton(system: "arrow.clockwise") {
                 model.refresh(force: true)
             }
-            .accessibilityLabel(Text("刷新"))
+            .accessibilityLabel(Text(model.localization.string("刷新")))
             .transition(.opacity)
         }
     }
@@ -233,7 +238,7 @@ struct KeyboardRootView: View {
                     filter = .all
                 }
             }
-            .accessibilityLabel(Text("关闭筛选"))
+            .accessibilityLabel(Text(model.localization.string("关闭筛选")))
 
             // Plain HStack, NOT a ScrollView: four fixed chips always fit
             // (even at 320pt width), and on iOS 26 a scrollable ScrollView
@@ -241,13 +246,13 @@ struct KeyboardRootView: View {
             // tray renders as a translucent band across the whole viewport
             // (glass can't sample glass; same artifact family as glassEffect).
             HStack(spacing: 6) {
-                ForEach(Filter.allCases) { f in
-                    let isOn = f == filter
+                ForEach(Filter.allCases) { filterOption in
+                    let isOn = filterOption == filter
                     Button {
                         model.keyFeedback()
-                        withAnimation(.snappy(duration: 0.2)) { filter = f }
+                        withAnimation(.snappy(duration: 0.2)) { filter = filterOption }
                     } label: {
-                        Text(f.title)
+                        Text(filterOption.title, bundle: model.localization.bundle)
                             .font(.footnote.weight(.semibold))
                             // Selected chip is a tinted capsule, so the label
                             // is fixed white (accentColor resolves to system
@@ -272,7 +277,7 @@ struct KeyboardRootView: View {
     }
 
     private var serverTitle: String {
-        model.serverLabel.isEmpty ? String(localized: "UniClip") : model.serverLabel
+        model.serverLabel.isEmpty ? "UniClip" : model.serverLabel
     }
 
     // MARK: - Middle (cards / states + switcher overlay)
@@ -321,18 +326,27 @@ struct KeyboardRootView: View {
             centered {
                 HStack(spacing: 8) {
                     ProgressView()
-                    Text("正在同步…").font(.callout).foregroundStyle(.secondary)
+                    Text(model.localization.string("正在同步…"))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
                 }
             }
         } else if let err = model.lastError {
             centered {
                 VStack(spacing: 10) {
-                    infoBlock(system: "exclamationmark.triangle", title: String(localized: "同步失败"), message: err)
+                    infoBlock(
+                        system: "exclamationmark.triangle",
+                        title: model.localization.string("同步失败"),
+                        message: err
+                    )
                     Button {
                         model.keyFeedback()
                         model.refresh(force: true)
                     } label: {
-                        Label("重试", systemImage: "arrow.clockwise")
+                        Label(
+                            model.localization.string("重试"),
+                            systemImage: "arrow.clockwise"
+                        )
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
@@ -342,8 +356,10 @@ struct KeyboardRootView: View {
             centered {
                 infoBlock(
                     system: searching ? emptyFilterIcon : "tray",
-                    title: searching ? emptyFilterTitle : String(localized: "暂无剪贴板记录"),
-                    message: String(localized: "复制文本或图片后回到这里即可发送")
+                    title: searching
+                        ? emptyFilterTitle
+                        : model.localization.string("暂无剪贴板记录"),
+                    message: model.localization.string("复制文本或图片后回到这里即可发送")
                 )
             }
         }
@@ -360,10 +376,10 @@ struct KeyboardRootView: View {
 
     private var emptyFilterTitle: String {
         switch filter {
-        case .all:   String(localized: "暂无剪贴板记录")
-        case .text:  String(localized: "暂无文本记录")
-        case .link:  String(localized: "暂无链接记录")
-        case .image: String(localized: "暂无图片记录")
+        case .all: model.localization.string("暂无剪贴板记录")
+        case .text: model.localization.string("暂无文本记录")
+        case .link: model.localization.string("暂无链接记录")
+        case .image: model.localization.string("暂无图片记录")
         }
     }
 
@@ -460,7 +476,7 @@ struct KeyboardRootView: View {
         } label: {
             // Labeled like the system space bar — a blank white cap next to
             // the labeled 发送 key read as a broken placeholder.
-            Text("空格")
+            Text(model.localization.string("空格"))
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -495,7 +511,7 @@ struct KeyboardRootView: View {
             .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(Text("回车"))
+        .accessibilityLabel(Text(model.localization.string("回车")))
     }
 
     // MARK: - Bottom strip (globe / dismiss)
@@ -509,7 +525,7 @@ struct KeyboardRootView: View {
         if model.needsInputModeSwitchKey {
             HStack(spacing: 0) {
                 glyphButton(system: "globe", size: KeyboardLayout.globeSize) { model.advanceInputMode() }
-                    .accessibilityLabel(Text("切换键盘"))
+                    .accessibilityLabel(Text(model.localization.string("切换键盘")))
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, KeyboardLayout.hMargin)
@@ -532,14 +548,18 @@ struct KeyboardRootView: View {
                 Image(systemName: "lock.shield")
                     .font(.largeTitle)
                     .foregroundStyle(.tint)
-                Text("需要「完全访问权限」")
+                Text(model.localization.string("需要「完全访问权限」"))
                     .font(.headline)
-                Text("在 设置 › 通用 › 键盘 › UniClip 中开启「允许完全访问」,即可在打开键盘时自动同步剪贴板。")
+                Text(
+                    model.localization.string(
+                        "在 设置 › 通用 › 键盘 › UniClip 中开启「允许完全访问」,即可在打开键盘时自动同步剪贴板。"
+                    )
+                )
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 24)
-                Button("前往设置 ›") {
+                Button(model.localization.string("前往设置 ›")) {
                     model.openSettings()
                 }
                 .buttonStyle(.borderedProminent)
@@ -637,7 +657,7 @@ private struct BackspaceKey: View {
                 if isPressing { startRepeating() } else { stopRepeating() }
             }
             .onDisappear { stopRepeating() }
-            .accessibilityLabel(Text("删除"))
+            .accessibilityLabel(Text(model.localization.string("删除")))
             .accessibilityAddTraits(.isButton)
     }
 
@@ -711,7 +731,7 @@ private struct CardView: View {
             Image(systemName: kindIcon)
                 .font(.system(size: 11, weight: .bold))
                 .foregroundStyle(kindTint)
-            Text(kindLabel)
+            Text(kindLabel, bundle: model.localization.bundle)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(kindTint)
             Text(card.time)
@@ -761,7 +781,10 @@ private struct CardView: View {
             // surfaces entirely (see the flat-surface helpers note).
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(keyboardSurfaceColor.opacity(0.92))
-            Label(actedLabel, systemImage: "checkmark.circle.fill")
+            Label(
+                model.localization.string(card.kind == .image ? "已复制" : "已插入"),
+                systemImage: "checkmark.circle.fill"
+            )
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.green)
                 .labelStyle(.titleAndIcon)
@@ -793,9 +816,6 @@ private struct CardView: View {
         }
     }
 
-    private var actedLabel: LocalizedStringKey {
-        card.kind == .image ? "已复制" : "已插入"
-    }
 }
 
 // MARK: - Lazy image thumbnail

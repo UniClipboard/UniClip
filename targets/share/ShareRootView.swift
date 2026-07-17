@@ -31,6 +31,7 @@ struct ShareRootView: View {
     /// share sheet matches the main app instead of always rendering in
     /// whatever the system happens to be set to.
     @State private var appearance: AppearanceMode = .system
+    @State private var localization = ExtensionLocalization()
 
     enum Phase: Equatable {
         case loadingAttachment
@@ -45,14 +46,14 @@ struct ShareRootView: View {
             Group {
                 switch phase {
                 case .loadingAttachment:
-                    centered { ProgressView(String(localized: "正在读取分享内容…")) }
+                    centered { ProgressView(localization.string("正在读取分享内容…")) }
                 case .ready:
                     readyForm
                 case .uploading:
                     centered {
                         VStack(spacing: 12) {
                             ProgressView()
-                            Text("正在发送到 \(selectedServerName)…")
+                            Text(localization.string("正在发送到 %@…", selectedServerName))
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
@@ -63,7 +64,7 @@ struct ShareRootView: View {
                             Image(systemName: "checkmark.circle.fill")
                                 .font(.largeTitle)
                                 .foregroundStyle(.green)
-                            Text("已发送")
+                            Text(localization.string("已发送"))
                                 .font(.headline)
                         }
                     }
@@ -73,7 +74,7 @@ struct ShareRootView: View {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .font(.largeTitle)
                                 .foregroundStyle(.orange)
-                            Text("发送失败")
+                            Text(localization.string("发送失败"))
                                 .font(.headline)
                             Text(msg)
                                 .font(.footnote)
@@ -84,11 +85,11 @@ struct ShareRootView: View {
                     }
                 }
             }
-            .navigationTitle("分享到 UniClipboard")
+            .navigationTitle(localization.string("分享到 UniClipboard"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("取消") { onCancel() }
+                    Button(localization.string("取消")) { onCancel() }
                         .disabled(phase == .uploading)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -97,6 +98,7 @@ struct ShareRootView: View {
             }
         }
         .task { await loadEverything() }
+        .environment(\.locale, localization.locale)
         .preferredColorScheme(appearance.colorScheme)
     }
 
@@ -112,14 +114,14 @@ struct ShareRootView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            Section(String(localized: "内容")) {
+            Section(localization.string("内容")) {
                 if let item {
                     contentRow(for: item)
                 }
             }
 
             if servers.configs.count > 1 {
-                Section(String(localized: "发送到")) {
+                Section(localization.string("发送到")) {
                     ForEach(servers.configs, id: \.id) { server in
                         Button {
                             selectedServerId = server.id
@@ -145,7 +147,7 @@ struct ShareRootView: View {
                     }
                 }
             } else if let only = servers.configs.first {
-                Section(String(localized: "发送到")) {
+                Section(localization.string("发送到")) {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(only.displayLabel)
@@ -161,7 +163,7 @@ struct ShareRootView: View {
                 }
             } else {
                 Section {
-                    Text("尚未配置服务器,请先打开 UniClipboard 主程序添加")
+                    Text(localization.string("尚未配置服务器,请先打开 UniClipboard 主程序添加"))
                         .foregroundStyle(.secondary)
                         .font(.footnote)
                 }
@@ -217,14 +219,16 @@ struct ShareRootView: View {
 
     private func sizeLabel(for item: ShareItem) -> String {
         switch item {
-        case .text(let s):
-            return String(localized: "文本 · \(s.count) 字")
-        case .image(let b, let ext):
-            let f = ByteCountFormatter()
-            return String(localized: "图片 · \(ext.uppercased()) · \(f.string(fromByteCount: Int64(b.count)))")
-        case .file(_, let b):
-            let f = ByteCountFormatter()
-            return String(localized: "文件 · \(f.string(fromByteCount: Int64(b.count)))")
+        case .text(let text):
+            return localization.string("文本 · %lld 字", Int64(text.count))
+        case .image(let bytes, let ext):
+            return localization.string(
+                "图片 · %@ · %@",
+                ext.uppercased(),
+                localization.byteCount(bytes.count)
+            )
+        case .file(_, let bytes):
+            return localization.string("文件 · %@", localization.byteCount(bytes.count))
         }
     }
 
@@ -232,10 +236,10 @@ struct ShareRootView: View {
     private var trailingButton: some View {
         switch phase {
         case .succeeded, .failed:
-            Button("完成") { onFinish() }
+            Button(localization.string("完成")) { onFinish() }
                 .bold()
         case .ready:
-            Button("发送") { Task { await send() } }
+            Button(localization.string("发送")) { Task { await send() } }
                 .bold()
                 .disabled(!canSend)
         default:
@@ -257,8 +261,8 @@ struct ShareRootView: View {
     }
 
     private var selectedServerName: String {
-        if let s = resolvedServer { return s.displayLabel }
-        return String(localized: "未选择服务器")
+        if let server = resolvedServer { return server.displayLabel }
+        return localization.string("未选择服务器")
     }
 
     private func centered<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
@@ -279,6 +283,7 @@ struct ShareRootView: View {
         servers = loadedServers
         trustInsecureCert = loadedSettings.trustInsecureCert
         appearance = loadedSettings.appearance
+        localization = ExtensionLocalization(preference: loadedSettings.language)
 
         // Resolve initial selection: Sharing-Suggestions tap takes
         // priority; if the tapped server has since been deleted we note
@@ -288,7 +293,7 @@ struct ShareRootView: View {
                 selectedServerId = pre
             } else {
                 selectedServerId = loadedServers.activeConfigId ?? loadedServers.configs.first?.id
-                prefillNote = String(localized: "原服务器已不可用,已切换到当前活动服务器")
+                prefillNote = localization.string("原服务器已不可用,已切换到当前活动服务器")
             }
         } else {
             selectedServerId = loadedServers.activeConfigId ?? loadedServers.configs.first?.id
@@ -296,7 +301,7 @@ struct ShareRootView: View {
 
         guard let ctx = context else {
             log.error("loadEverything: no extension context")
-            phase = .failed(String(localized: "没有可分享的内容"))
+            phase = .failed(localization.string("没有可分享的内容"))
             return
         }
         do {
@@ -316,7 +321,10 @@ struct ShareRootView: View {
             // source app advertised a UTI it couldn't fulfill, or our
             // extractor has a gap. Bug-grade either way.
             log.error("loadEverything: extraction failed: \(String(describing: error), privacy: .public)")
-            phase = .failed((error as? LocalizedError)?.errorDescription ?? "\(error)")
+            let message = (error as? ShareItemError)?.message(using: localization)
+                ?? (error as? LocalizedError)?.errorDescription
+                ?? localization.string("读取分享内容失败: %@", String(describing: error))
+            phase = .failed(message)
         }
     }
 
@@ -330,7 +338,20 @@ struct ShareRootView: View {
         let liveURL = store.loadLiveURL(configId: server.id)
         let originalURLs = server.urls
         server.urls = server.preferredURLs(live: liveURL, network: network)
-        log.error("[share-route-v3] prepare server=\(server.id, privacy: .public) wifi=\(network.isWifi, privacy: .public) cellular=\(network.isCellular, privacy: .public) tailscale=\(network.isTailscale, privacy: .public) ssid=\(network.ssid ?? "nil", privacy: .private) live=\(liveURL ?? "nil", privacy: .public) originalCount=\(originalURLs.count, privacy: .public) original=\(originalURLs.joined(separator: " | "), privacy: .public) orderedCount=\(server.urls.count, privacy: .public) ordered=\(server.urls.joined(separator: " | "), privacy: .public)")
+        log.error(
+            """
+            [share-route-v3] prepare server=\(server.id, privacy: .public) \
+            wifi=\(network.isWifi, privacy: .public) \
+            cellular=\(network.isCellular, privacy: .public) \
+            tailscale=\(network.isTailscale, privacy: .public) \
+            ssid=\(network.ssid ?? "nil", privacy: .private) \
+            live=\(liveURL ?? "nil", privacy: .public) \
+            originalCount=\(originalURLs.count, privacy: .public) \
+            original=\(originalURLs.joined(separator: " | "), privacy: .public) \
+            orderedCount=\(server.urls.count, privacy: .public) \
+            ordered=\(server.urls.joined(separator: " | "), privacy: .public)
+            """
+        )
         phase = .uploading
         do {
             let uploader = ShareUploader()
@@ -345,8 +366,29 @@ struct ShareRootView: View {
         } catch {
             let kind = (error as? SyncError).map { String(describing: $0.kind) } ?? String(describing: type(of: error))
             log.error("send: upload failed \(kind, privacy: .public): \(String(describing: error), privacy: .private)")
-            let msg = (error as? LocalizedError)?.errorDescription ?? "\(error)"
-            phase = .failed(msg)
+            phase = .failed(message(for: error))
+        }
+    }
+
+    private func message(for error: Error) -> String {
+        guard let syncError = error as? SyncError else {
+            return (error as? LocalizedError)?.errorDescription
+                ?? localization.string("同步失败")
+        }
+        switch syncError.kind {
+        case .authFailed: return localization.string("认证失败 — 请检查用户名和密码")
+        case .connectTimeout: return localization.string("连接超时 — 请检查服务器地址")
+        case .receiveTimeout: return localization.string("接收超时 — 请稍后重试")
+        case .networkUnreachable: return localization.string("无法连接 — 请检查网络和 URL")
+        case .invalidURL: return localization.string("服务器地址无效")
+        case .decodingFailed: return localization.string("服务器返回的数据无法解析")
+        case .protocolError(let code):
+            return localization.string("服务器返回 HTTP %lld", Int64(code))
+        case .serverError(let code):
+            return localization.string("服务器错误 %lld", Int64(code))
+        case .notFound: return localization.string("服务器尚未发布剪贴板")
+        case .hashMismatch: return localization.string("内容校验失败 — 文件可能损坏")
+        case .cancelled: return localization.string("请求已取消")
         }
     }
 }
