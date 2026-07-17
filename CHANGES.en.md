@@ -1,3 +1,25 @@
+v1.3.0.162
+
+### Common
+
+- Feature: Add Russian and Brazilian Portuguese interfaces, with system-language detection and manual selection in settings
+- Feature: Add lightweight health probes for faster offline recovery, with automatic fallback for legacy servers
+- Fix: Preserve retry backoff when failing over between server URLs, preventing frequent requests while offline
+- Fix: Make history initialization concurrency-safe to avoid duplicate startup work and query races
+- Fix: Keep retrying image clipboard reads after failures without repeatedly logging the same error
+
+### iOS
+
+- Fix: Probe server URLs in parallel and continue through fallback routes after upload failures, reducing Share extension delays for multi-address servers
+
+### Android
+
+- Feature: Control applying remote clipboard changes and pushing local changes independently, with foreground and background sync honoring each direction
+- Feature: In-app release notes now support Simplified Chinese and English and follow the app language
+- Feature: Log export can share directly or save to a file, with temporary archives cleaned automatically
+- Fix: Host the QR scanner at app level so scanned server details reliably return to the add-server form
+- Fix: Prevent search from racing the initial history load or repeatedly querying after filters are cleared
+
 v1.3.0.161
 
 ### Common
