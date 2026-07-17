@@ -124,5 +124,8 @@ targets/*/generated.entitlements
 # Generated at release time by scripts/release-notes.mjs
 release-notes-github.md
 release-notes-android.txt
+release-notes-android.en.txt
 release-notes-ios.txt
+release-notes-ios.en.txt
 release-notes-testflight.txt
+release-notes-testflight.en.txt
