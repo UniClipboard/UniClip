@@ -47,6 +47,8 @@
   },
   "toast": {
     "copied": "Copied to clipboard",
+    "copiedLocal": "Copied to this device",
+    "copiedAutoPushEnabled": "Copied; automatic push is on",
     "copyFailed": "Copy failed",
     "copiedPlainText": "Copied as plain text",
     "savedToGallery": "Saved to gallery",

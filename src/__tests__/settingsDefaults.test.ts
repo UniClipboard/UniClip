@@ -9,10 +9,10 @@ describe('platform settings defaults', () => {
     expect(settings.autoPushLocal).toBe(true);
   });
 
-  it('keeps automatic push disabled by default on Android', () => {
+  it('enables automatic pull and push on Android', () => {
     const settings = createDefaultSettings('android');
 
     expect(settings.autoApplyRemote).toBe(true);
-    expect(settings.autoPushLocal).toBe(false);
+    expect(settings.autoPushLocal).toBe(true);
   });
 });

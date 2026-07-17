@@ -31,11 +31,17 @@
     "extensions": "扩展与权限"
   },
   "hub": {
-    "autoSync": {
-      "title": "自动同步",
-      "desc": "处于前台时自动同步剪贴板",
-      "enabled": "已启用自动同步",
-      "disabled": "已禁用自动同步",
+    "clipboardSync": {
+      "title": "剪贴板同步",
+      "autoApply": {
+        "title": "自动写入本机剪贴板",
+        "desc": "服务器有新内容时，自动写入本机系统剪贴板"
+      },
+      "autoPush": {
+        "title": "自动推送本机剪贴板",
+        "desc": "本机复制内容或使用历史记录后，自动推送到服务器"
+      },
+      "footer": "以上选项控制同步方向；后台执行能力由“后台运行”设置单独控制",
       "updateFailed": "设置失败"
     },
     "rows": {

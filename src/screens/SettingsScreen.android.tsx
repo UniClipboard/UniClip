@@ -1,35 +1,25 @@
 /**
  * 设置页面(Android) — M3 设置中枢(hub)
  *
- * 一级页只做总开关与导航:顶部「自动同步」主开关卡片(M3 primary-switch 模式,开启时
- * primaryContainer 高亮),其下为三组带图标 + 动态摘要的分类入口(同步/通用/其他),
- * 具体设置全部下沉到 SettingsSub 二级页。整页仍是单 <Host> + <LazyColumn>,转场结束
+ * 一级页展示两个方向独立的剪贴板同步开关，其下为三组带图标 + 动态摘要的分类入口
+ * (同步/通用/其他)，具体设置全部下沉到 SettingsSub 二级页。方向开关与 iOS 对齐：
+ * 自动写入控制远端到本机，自动推送控制本机到服务端。整页仍是单 <Host> +
+ * <LazyColumn>,转场结束
  * 后再挂载 Host,避免滑入期间抢占 JS 线程。
  */
-import React, { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { View, ActivityIndicator, InteractionManager } from 'react-native';
 import {
   Host,
   LazyColumn,
   ListItem,
   HorizontalDivider,
-  Card,
-  Column,
-  Row,
-  Spacer,
   Icon,
   Switch as ComposeSwitch,
   Text as ComposeText,
   useMaterialColors,
 } from '@expo/ui/jetpack-compose';
-import {
-  fillMaxSize,
-  fillMaxWidth,
-  clickable,
-  padding,
-  weight,
-  height as heightModifier,
-} from '@expo/ui/jetpack-compose/modifiers';
+import { fillMaxSize, clickable } from '@expo/ui/jetpack-compose/modifiers';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -103,54 +93,59 @@ interface HubGroupProps {
   onNavigate: (section: SettingsSubSection) => void;
 }
 
-/** 顶部「自动同步」主开关卡片(M3 primary switch)。 */
-const AutoSyncMasterCard = memo(function AutoSyncMasterCard() {
+/** 与 iOS 对齐的双向同步开关：远端写入本机 / 本机推送远端。 */
+const ClipboardSyncDirectionGroup = memo(function ClipboardSyncDirectionGroup() {
   const { t } = useTranslation('settings');
   const showMessage = useSettingsToast();
-  // 无参调用读取所在 <Host> 的主题色板,跟随 Host 的 colorScheme
-  const colors = useMaterialColors();
-  const autoSyncEnabled = useSettingsStore((s) => s.config?.autoPushLocal ?? false);
+  const autoApplyRemote = useSettingsStore((s) => s.config?.autoApplyRemote ?? true);
+  const autoPushLocal = useSettingsStore((s) => s.config?.autoPushLocal ?? true);
 
-  const handleToggle = async (enabled: boolean) => {
-    try {
-      await useSettingsStore.getState().setAutoSync(enabled);
-      showMessage(enabled ? t('hub.autoSync.enabled') : t('hub.autoSync.disabled'), 'success');
-    } catch (error: unknown) {
-      // 失败时 store 已回滚 config,Switch 会自动回弹
-      showMessage(error instanceof Error ? error.message : t('hub.autoSync.updateFailed'), 'error');
+  const updateDirection = async (
+    updates: { autoApplyRemote: boolean } | { autoPushLocal: boolean }
+  ) => {
+    const result = await useSettingsStore.getState().updateConfig(updates);
+    if (!result.ok) {
+      showMessage(result.error || t('hub.clipboardSync.updateFailed'), 'error');
     }
   };
 
   return (
-    <Card
-      colors={
-        autoSyncEnabled
-          ? { containerColor: colors.primaryContainer, contentColor: colors.onPrimaryContainer }
-          : { containerColor: colors.surface }
-      }
-      border={{ width: 1, color: colors.outlineVariant }}
+    <SettingsSectionItem
+      title={t('hub.clipboardSync.title')}
+      footer={t('hub.clipboardSync.footer')}
     >
-      <Row
-        verticalAlignment="center"
-        modifiers={[
-          fillMaxWidth(),
-          clickable(() => handleToggle(!autoSyncEnabled)),
-          padding(20, 18, 16, 18),
-        ]}
-      >
-        <Column modifiers={[weight(1)]}>
-          <ComposeText style={{ typography: 'titleMedium' }}>{t('hub.autoSync.title')}</ComposeText>
-          <Spacer modifiers={[heightModifier(2)]} />
-          <ComposeText
-            style={{ fontSize: 13 }}
-            color={autoSyncEnabled ? colors.onPrimaryContainer : colors.onSurfaceVariant}
-          >
-            {t('hub.autoSync.desc')}
-          </ComposeText>
-        </Column>
-        <ComposeSwitch value={autoSyncEnabled} onCheckedChange={handleToggle} />
-      </Row>
-    </Card>
+      <ListItem>
+        <ListItem.HeadlineContent>
+          <ComposeText>{t('hub.clipboardSync.autoApply.title')}</ComposeText>
+        </ListItem.HeadlineContent>
+        <ListItem.SupportingContent>
+          <ComposeText>{t('hub.clipboardSync.autoApply.desc')}</ComposeText>
+        </ListItem.SupportingContent>
+        <ListItem.TrailingContent>
+          <ComposeSwitch
+            value={autoApplyRemote}
+            onCheckedChange={(enabled) => updateDirection({ autoApplyRemote: enabled })}
+          />
+        </ListItem.TrailingContent>
+      </ListItem>
+
+      <HorizontalDivider />
+
+      <ListItem>
+        <ListItem.HeadlineContent>
+          <ComposeText>{t('hub.clipboardSync.autoPush.title')}</ComposeText>
+        </ListItem.HeadlineContent>
+        <ListItem.SupportingContent>
+          <ComposeText>{t('hub.clipboardSync.autoPush.desc')}</ComposeText>
+        </ListItem.SupportingContent>
+        <ListItem.TrailingContent>
+          <ComposeSwitch
+            value={autoPushLocal}
+            onCheckedChange={(enabled) => updateDirection({ autoPushLocal: enabled })}
+          />
+        </ListItem.TrailingContent>
+      </ListItem>
+    </SettingsSectionItem>
   );
 });
 
@@ -327,7 +322,7 @@ const SettingsScreenInner = () => {
           contentPadding={{ start: 16, end: 16, top: 8, bottom: 40 }}
           verticalArrangement={{ spacedBy: 16 }}
         >
-          <AutoSyncMasterCard />
+          <ClipboardSyncDirectionGroup />
           <SyncHubGroup iconTint={iconTint} onNavigate={handleNavigate} />
           <GeneralHubGroup iconTint={iconTint} onNavigate={handleNavigate} />
           <OtherHubGroup iconTint={iconTint} onNavigate={handleNavigate} />

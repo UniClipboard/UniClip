@@ -47,6 +47,8 @@
   },
   "toast": {
     "copied": "已复制到剪贴板",
+    "copiedLocal": "已复制到本机",
+    "copiedAutoPushEnabled": "已复制，自动推送已开启",
     "copyFailed": "复制失败",
     "copiedPlainText": "已复制为纯文本",
     "savedToGallery": "已保存到相册",

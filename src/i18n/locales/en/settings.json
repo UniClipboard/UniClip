@@ -31,11 +31,17 @@
     "extensions": "Extensions & permissions"
   },
   "hub": {
-    "autoSync": {
-      "title": "Auto sync",
-      "desc": "Automatically sync the clipboard while in the foreground",
-      "enabled": "Auto sync enabled",
-      "disabled": "Auto sync disabled",
+    "clipboardSync": {
+      "title": "Clipboard sync",
+      "autoApply": {
+        "title": "Auto-write to clipboard",
+        "desc": "Write new server content to this device's system clipboard"
+      },
+      "autoPush": {
+        "title": "Auto-push clipboard",
+        "desc": "Push local copies and reused history items to the server"
+      },
+      "footer": "These options control sync direction; Background settings control where it can run",
       "updateFailed": "Update failed"
     },
     "rows": {

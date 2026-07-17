@@ -3,8 +3,9 @@
     "cardTitle": "Background auto-sync",
     "toggle": {
       "descTempDisabled": "Temporarily stopped; will resume after restarting the app",
-      "descNormal": "Keeps syncing the clipboard in the background, and guides you through granting the permissions it needs"
-    }
+      "descNormal": "Lets enabled sync directions run in the background and guides you through required permissions"
+    },
+    "footer": "Background download and upload follow the Auto-write and Auto-push direction settings"
   },
   "advanced": {
     "cardTitle": "Advanced options",
@@ -18,11 +19,11 @@
     },
     "download": {
       "title": "Download from remote",
-      "desc": "Automatically download new remote content in the background"
+      "desc": "Receive new remote content in the background when Auto-write is on"
     },
     "upload": {
       "title": "Upload local clipboard",
-      "desc": "Automatically upload when the local clipboard changes in the background"
+      "desc": "Upload background clipboard changes when Auto-push is on"
     },
     "clipboardAccess": {
       "title": "Background clipboard access",

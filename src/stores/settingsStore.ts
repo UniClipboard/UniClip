@@ -10,6 +10,8 @@ import { SyncMode, ConflictResolution } from '../types/sync';
 import { configStorage } from '../services/ConfigStorage';
 import { syncConfigToAppGroup } from '../services/appGroupSyncCore';
 
+export type UpdateConfigResult = { ok: true } | { ok: false; error: string };
+
 /**
  * 设置状态接口
  */
@@ -31,8 +33,8 @@ interface SettingsState {
   /** 加载配置 */
   loadConfig: () => Promise<void>;
 
-  /** 更新配置 */
-  updateConfig: (updates: Partial<AppConfig>) => Promise<void>;
+  /** 更新配置，并显式返回持久化结果 */
+  updateConfig: (updates: Partial<AppConfig>) => Promise<UpdateConfigResult>;
 
   /** 重置配置 */
   resetConfig: () => Promise<void>;
@@ -88,9 +90,6 @@ interface SettingsState {
 
   /** 设置启动时同步 */
   setSyncOnStartup: (enabled: boolean) => Promise<void>;
-
-  /** 设置自动同步 */
-  setAutoSync: (enabled: boolean) => Promise<void>;
 
   /** 设置自动下载最大文件大小（字节） */
   setAutoDownloadMaxSize: (sizeInBytes: number) => Promise<void>;
@@ -163,6 +162,8 @@ async function publishConfig(config: AppConfig): Promise<void> {
   await syncConfigToAppGroup(config);
 }
 
+let configUpdateQueue: Promise<void> = Promise.resolve();
+
 function notifySyncEngineServerChanged(): void {
   try {
     const { notifyServerChanged } = require('./syncEngineStore');
@@ -189,35 +190,45 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
   },
 
-  updateConfig: async (updates: Partial<AppConfig>) => {
-    // 保存旧值用于持久化失败时回滚（乐观更新模式）
-    const prevConfig = get().config;
-    set((state) => ({
-      config: state.config ? { ...state.config, ...updates } : null,
-      isSaving: true,
-      error: null,
-    }));
+  updateConfig: (updates: Partial<AppConfig>) => {
+    const update = configUpdateQueue.then(async (): Promise<UpdateConfigResult> => {
+      // 保存旧值用于持久化失败时回滚（乐观更新模式）
+      const prevConfig = get().config;
+      set((state) => ({
+        config: state.config ? { ...state.config, ...updates } : null,
+        isSaving: true,
+        error: null,
+      }));
 
-    try {
-      await configStorage.updateConfig(updates);
-      const config = await configStorage.getConfig();
-      await publishConfig(config);
-      set({ config, isSaving: false });
-      // autoApplyRemote 是引擎内部持有的设置（auto_apply），改动要推给引擎；
-      // autoPushLocal 是客户端侧门控（协调器 push 时读），无需通知引擎。
-      if ('autoApplyRemote' in updates) {
-        try {
-          const { notifySettingsChanged } = require('./syncEngineStore');
-          notifySettingsChanged();
-        } catch {
-          // SyncEngine not yet initialized
+      try {
+        await configStorage.updateConfig(updates);
+        const config = await configStorage.getConfig();
+        await publishConfig(config);
+        set({ config, isSaving: false });
+        // autoApplyRemote 是引擎内部持有的设置（auto_apply），改动要推给引擎；
+        // autoPushLocal 是客户端侧门控（协调器 push 时读），无需通知引擎。
+        if ('autoApplyRemote' in updates) {
+          try {
+            const { notifySettingsChanged } = require('./syncEngineStore');
+            notifySettingsChanged();
+          } catch {
+            // SyncEngine not yet initialized
+          }
         }
+        return { ok: true };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to update config';
+        // 回滚乐观更新，保证内存 config 与持久化层一致
+        set({ config: prevConfig, error: errorMessage, isSaving: false });
+        return { ok: false, error: errorMessage };
       }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to update config';
-      // 回滚乐观更新，保证内存 config 与持久化层一致
-      set({ config: prevConfig, error: errorMessage, isSaving: false });
-    }
+    });
+
+    configUpdateQueue = update.then(
+      () => undefined,
+      () => undefined
+    );
+    return update;
   },
 
   resetConfig: async () => {
@@ -349,10 +360,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   setSyncOnStartup: async (enabled: boolean) => {
     await get().updateConfig({ syncOnStartup: enabled });
-  },
-
-  setAutoSync: async (enabled: boolean) => {
-    await get().updateConfig({ autoApplyRemote: enabled, autoPushLocal: enabled });
   },
 
   setAutoDownloadMaxSize: async (sizeInBytes: number) => {

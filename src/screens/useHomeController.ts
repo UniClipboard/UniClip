@@ -334,6 +334,16 @@ export function useHomeController(onOpenSettings: () => void) {
     return result;
   }, []);
 
+  const getCopySuccessMessage = useCallback(
+    () =>
+      t(
+        (useSettingsStore.getState().config?.autoPushLocal ?? true)
+          ? 'toast.copiedAutoPushEnabled'
+          : 'toast.copiedLocal'
+      ),
+    [t]
+  );
+
   const handleItemPress = useCallback(
     async (item: ClipboardItem) => {
       if (isSelectMode) {
@@ -345,12 +355,12 @@ export function useHomeController(onOpenSettings: () => void) {
       // 这里只需要触发复制本身
       const result = await copyItemWithSync(item);
       if (result.success) {
-        showMessage(t('toast.copied'), 'success');
+        showMessage(getCopySuccessMessage(), 'success');
       } else {
         showMessage(result.message || t('toast.copyFailed'), 'error');
       }
     },
-    [isSelectMode, toggleSelection, copyItemWithSync, showMessage, t]
+    [isSelectMode, toggleSelection, copyItemWithSync, showMessage, getCopySuccessMessage, t]
   );
 
   // ── Long-press → 锚定式上下文浮层 ────────────────────────────
@@ -394,7 +404,7 @@ export function useHomeController(onOpenSettings: () => void) {
         onCopy: async () => {
           const result = await copyItemWithSync(item);
           showMessage(
-            result.success ? t('toast.copied') : result.message || t('toast.copyFailed'),
+            result.success ? getCopySuccessMessage() : result.message || t('toast.copyFailed'),
             result.success ? 'success' : 'error'
           );
         },
@@ -452,7 +462,15 @@ export function useHomeController(onOpenSettings: () => void) {
           showMessage(t('toast.deleted'), 'success');
         },
       }),
-    [copyItemWithSync, showMessage, clearSelection, toggleSelection, deleteItem, t]
+    [
+      copyItemWithSync,
+      showMessage,
+      clearSelection,
+      toggleSelection,
+      deleteItem,
+      getCopySuccessMessage,
+      t,
+    ]
   );
 
   const actionMenuGroups = useMemo(() => {

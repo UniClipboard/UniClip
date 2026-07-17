@@ -9,7 +9,7 @@
  * Alert.alert 确认统一走单个配置驱动的 Compose AlertDialog(挂在卡片一上;Compose
  * Dialog 是 window 级 overlay,挂载位置不影响展示)。失败回滚交给 store。
  */
-import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Platform, Linking, AppState } from 'react-native';
 import {
@@ -71,6 +71,8 @@ export const BackgroundSection = memo(function BackgroundSection() {
   const foregroundNotification = useSettingsStore(
     (s) => s.config?.enableForegroundNotification ?? true
   );
+  const autoApplyRemote = useSettingsStore((s) => s.config?.autoApplyRemote ?? true);
+  const autoPushLocal = useSettingsStore((s) => s.config?.autoPushLocal ?? true);
   const backgroundDownload = useSettingsStore((s) => s.config?.enableBackgroundDownload ?? false);
   const backgroundUpload = useSettingsStore((s) => s.config?.enableBackgroundUpload ?? false);
   const clipboardAccessMethod = useSettingsStore(
@@ -280,8 +282,12 @@ export const BackgroundSection = memo(function BackgroundSection() {
       const setupResult = await changeClipboardAccessMethod(
         clipboardAccessMethod,
         method,
-        (nextMethod) =>
-          useSettingsStore.getState().updateConfig({ clipboardAccessMethod: nextMethod }),
+        async (nextMethod) => {
+          const result = await useSettingsStore
+            .getState()
+            .updateConfig({ clipboardAccessMethod: nextMethod });
+          if (!result.ok) throw new Error(result.error);
+        },
         () => useClipboardStore.getState().restartMonitoring()
       );
       const adapter = getClipboardAccessAdapter(method);
@@ -371,6 +377,7 @@ export const BackgroundSection = memo(function BackgroundSection() {
     <>
       <SettingsSectionItem
         title={t('main.cardTitle')}
+        footer={t('main.footer')}
         dialogs={
           dialog && (
             <AlertDialog onDismissRequest={() => setDialog(null)}>
@@ -462,9 +469,9 @@ export const BackgroundSection = memo(function BackgroundSection() {
           </ListItem.SupportingContent>
           <ListItem.TrailingContent>
             <ComposeSwitch
-              value={backgroundTasksEnabled && backgroundDownload}
+              value={backgroundTasksEnabled && autoApplyRemote && backgroundDownload}
               onCheckedChange={handleToggleBackgroundDownload}
-              enabled={backgroundTasksEnabled}
+              enabled={backgroundTasksEnabled && autoApplyRemote}
             />
           </ListItem.TrailingContent>
         </ListItem>
@@ -480,9 +487,9 @@ export const BackgroundSection = memo(function BackgroundSection() {
           </ListItem.SupportingContent>
           <ListItem.TrailingContent>
             <ComposeSwitch
-              value={backgroundTasksEnabled && backgroundUpload}
+              value={backgroundTasksEnabled && autoPushLocal && backgroundUpload}
               onCheckedChange={handleToggleBackgroundUpload}
-              enabled={backgroundTasksEnabled}
+              enabled={backgroundTasksEnabled && autoPushLocal}
             />
           </ListItem.TrailingContent>
         </ListItem>

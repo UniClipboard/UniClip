@@ -10,7 +10,7 @@
  * 保证暗色下卡片边界与背景有对比。色板经 useMaterialColors() 读取所在 <Host> 的
  * 主题(跟随 Host 的 colorScheme)。
  */
-import React, { memo, type ReactNode } from 'react';
+import { memo, type ReactNode } from 'react';
 import {
   Card,
   Column,
@@ -23,6 +23,7 @@ import { fillMaxWidth, height as heightModifier } from '@expo/ui/jetpack-compose
 interface SettingsSectionItemProps {
   title: string;
   children: ReactNode;
+  footer?: string;
   /**
    * 可选:该分组的弹窗(AlertDialog / ModalBottomSheet)。作为 item 内的 overlay 渲染——
    * Compose Dialog 是 window 级 overlay,不占列表布局,且弹窗打开时 item 必在视口(modal
@@ -34,6 +35,7 @@ interface SettingsSectionItemProps {
 export const SettingsSectionItem = memo(function SettingsSectionItem({
   title,
   children,
+  footer,
   dialogs,
 }: SettingsSectionItemProps) {
   const colors = useMaterialColors();
@@ -42,7 +44,7 @@ export const SettingsSectionItem = memo(function SettingsSectionItem({
     <Column modifiers={[fillMaxWidth()]}>
       <ComposeText
         color={colors.primary}
-        style={{ fontSize: 13, fontWeight: '600', letterSpacing: 0.6 }}
+        style={{ fontSize: 13, fontWeight: '600', letterSpacing: 0 }}
       >
         {title}
       </ComposeText>
@@ -54,6 +56,14 @@ export const SettingsSectionItem = memo(function SettingsSectionItem({
       >
         <Column modifiers={[fillMaxWidth()]}>{children}</Column>
       </Card>
+      {footer ? (
+        <>
+          <Spacer modifiers={[heightModifier(6)]} />
+          <ComposeText color={colors.onSurfaceVariant} style={{ fontSize: 12 }}>
+            {footer}
+          </ComposeText>
+        </>
+      ) : null}
       {dialogs}
     </Column>
   );

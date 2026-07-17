@@ -23,6 +23,7 @@ export class ConfigStorage {
   private static instance: ConfigStorage | null = null;
   private config: AppSettings | null = null;
   private initialized = false;
+  private updateQueue: Promise<void> = Promise.resolve();
 
   private constructor() {}
 
@@ -63,7 +64,12 @@ export class ConfigStorage {
     const storedVersion = versionStr ? parseInt(versionStr, 10) : 1;
 
     if (configJson) {
-      const savedConfig = JSON.parse(configJson);
+      let savedConfig: unknown;
+      try {
+        savedConfig = JSON.parse(configJson);
+      } catch (error) {
+        throw new Error('Stored config is not valid JSON', { cause: error });
+      }
 
       if (storedVersion < SETTINGS_SCHEMA_VERSION) {
         const runtimeState = extractRuntimeState(savedConfig);
@@ -72,7 +78,7 @@ export class ConfigStorage {
         await this.saveConfig();
         await AsyncStorage.setItem(SCHEMA_VERSION_KEY, String(SETTINGS_SCHEMA_VERSION));
       } else {
-        this.config = { ...DEFAULT_SETTINGS, ...savedConfig };
+        this.config = migrateConfig(savedConfig);
       }
     } else {
       const seed = await seedConfigFromAppGroup();
@@ -85,13 +91,13 @@ export class ConfigStorage {
   /**
    * 保存配置
    */
-  private async saveConfig(): Promise<void> {
-    if (!this.config) {
+  private async saveConfig(config: AppSettings | null = this.config): Promise<void> {
+    if (!config) {
       throw new Error('Config not initialized');
     }
 
     try {
-      await AsyncStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(this.config));
+      await AsyncStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(config));
     } catch (error) {
       log.error('[ConfigStorage] Failed to save config:', error);
       throw error;
@@ -112,14 +118,21 @@ export class ConfigStorage {
   /**
    * 更新配置
    */
-  public async updateConfig(updates: Partial<AppSettings>): Promise<void> {
-    if (!this.initialized) {
-      await this.initialize();
-    }
+  public updateConfig(updates: Partial<AppSettings>): Promise<void> {
+    const update = this.updateQueue.then(async () => {
+      if (!this.initialized) {
+        await this.initialize();
+      }
 
-    this.config = { ...this.config!, ...updates };
-    await this.saveConfig();
-    await AsyncStorage.setItem(CONFIG_USER_STATE_KEY, '1');
+      const nextConfig = { ...this.config!, ...updates };
+      await AsyncStorage.setItem(CONFIG_USER_STATE_KEY, '1');
+      await this.saveConfig(nextConfig);
+      this.config = nextConfig;
+    });
+
+    // A failed write must reject its caller without poisoning later updates.
+    this.updateQueue = update.catch(() => undefined);
+    return update;
   }
 
   /**

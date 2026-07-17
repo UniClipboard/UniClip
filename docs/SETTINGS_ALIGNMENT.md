@@ -18,7 +18,7 @@ with a shared TypeScript type definition ensuring semantic parity.
 | ------------------- | ------- | ------- | ------------------------------------------------------------ |
 | `trustInsecureCert` | boolean | false   | Allow self-signed HTTPS certificates (passed to Rust client) |
 | `autoApplyRemote`   | boolean | true    | Auto-write server-side changes to device clipboard           |
-| `autoPushLocal`     | boolean | false   | Auto-read device clipboard and push to server                |
+| `autoPushLocal`     | boolean | true    | Auto-read device clipboard and push to server                |
 | `syncOnStartup`     | boolean | true    | Sync immediately on app launch                               |
 
 **Alignment notes:**
@@ -225,7 +225,7 @@ export type AppSettings = SharedSettings & AndroidSettings;
 export const SHARED_DEFAULTS: SharedSettings = {
   trustInsecureCert: false,
   autoApplyRemote: true,
-  autoPushLocal: false,
+  autoPushLocal: true,
   syncOnStartup: true,
 
   attachmentAutoDownload: 'wifi',

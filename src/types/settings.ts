@@ -102,7 +102,7 @@ export const SERVER_DATA_DEFAULTS: ServerData = {
 export const SHARED_DEFAULTS: SharedSettings = {
   trustInsecureCert: false,
   autoApplyRemote: true,
-  autoPushLocal: false,
+  autoPushLocal: true,
   syncOnStartup: true,
   enableSse: true,
 
