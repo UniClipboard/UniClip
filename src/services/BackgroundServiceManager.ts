@@ -14,8 +14,9 @@
  * HomeScreen 不负责后台服务的启动与停止。
  */
 
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { log } from './Logger';
+import { canAutoPushInBackground, shouldRunBackgroundSync } from '@/utils/syncDirectionPolicy';
 
 class BackgroundServiceManager {
   private static instance: BackgroundServiceManager | null = null;
@@ -43,11 +44,7 @@ class BackgroundServiceManager {
     const state = useSettingsStore.getState();
     const config = state.config;
     const tempDisabled = state.isTempDisabledBackgroundTasks;
-    return (
-      !tempDisabled &&
-      !!config?.enableBackgroundTasks &&
-      !!(config?.enableBackgroundDownload || config?.enableBackgroundUpload)
-    );
+    return shouldRunBackgroundSync(config, tempDisabled);
   }
 
   /**
@@ -97,6 +94,7 @@ class BackgroundServiceManager {
 
     // 启动 Rust-driven SyncEngine（1Hz 自动同步 + 去重 + 退避）
     await this._startSyncEngine();
+    await this._reconcileSyncExecution();
 
     // 启动旧 ClipboardSyncService（上传与远程显示；syncclipboard 自动拉取由 SyncEngine 的 SSE+兜底 tick 接管）
     await this._startRemoteSync();
@@ -133,6 +131,9 @@ class BackgroundServiceManager {
     if (Platform.OS === 'android') {
       this._updateSmsReceiver();
     }
+
+    // 先立即应用停止/恢复策略，不能被旧远端请求阻塞。
+    await this._reconcileSyncExecution();
 
     // 刷新远程同步服务（处理服务器变更、连接类型切换等）
     await this._startRemoteSync();
@@ -174,6 +175,31 @@ class BackgroundServiceManager {
       }
     } catch (e) {
       log.error('[BackgroundServiceManager] Failed to start SyncEngine:', e);
+    }
+  }
+
+  /** 按当前 AppState 和后台策略重评估新引擎与本地剪贴板监听。 */
+  private async _reconcileSyncExecution(): Promise<void> {
+    try {
+      const { reconcileSyncEngineAppState } = require('../stores/syncEngineStore');
+      reconcileSyncEngineAppState();
+    } catch (e) {
+      log.error('[BackgroundServiceManager] Failed to reconcile SyncEngine:', e);
+    }
+
+    if (AppState.currentState === 'active') return;
+
+    try {
+      const { useSettingsStore } = require('../stores/settingsStore');
+      const settings = useSettingsStore.getState();
+      const { useClipboardStore } = require('../stores/clipboardStore');
+      if (canAutoPushInBackground(settings.config, settings.isTempDisabledBackgroundTasks)) {
+        await useClipboardStore.getState().startMonitoring();
+      } else {
+        useClipboardStore.getState().stopMonitoring();
+      }
+    } catch (e) {
+      log.error('[BackgroundServiceManager] Failed to reconcile clipboard monitoring:', e);
     }
   }
 
@@ -251,14 +277,18 @@ class BackgroundServiceManager {
       try {
         const { clearTimer } = require('native-timer');
         clearTimer(this.heartbeatTag);
-      } catch {}
+      } catch (error) {
+        log.warn('[BackgroundServiceManager] Failed to clear heartbeat timer:', error);
+      }
       this.heartbeatTag = null;
     }
 
     try {
       const ForegroundService = require('foreground-service');
       ForegroundService.stopService();
-    } catch {}
+    } catch (error) {
+      log.warn('[BackgroundServiceManager] Failed to stop foreground service:', error);
+    }
   }
 
   private _cleanupListeners(): void {

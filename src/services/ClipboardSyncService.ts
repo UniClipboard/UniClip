@@ -7,7 +7,6 @@
  *   由 SyncEngine 的 SSE 推送 + 兜底 tick 接管，这里只保留手动刷新）
  * - 处理远程剪贴板变化（哈希检测、自动下载、自动复制、历史记录）
  * - SyncManager 生命周期管理（初始化/销毁）
- * - 自动上传（本地剪贴板变化时触发）
  * - 通过 useClipboardSyncServiceStore 向 UI 提供状态
  *
  * 生命周期仅由 BackgroundServiceManager 控制。
@@ -16,6 +15,7 @@
 
 import { Platform } from 'react-native';
 import { showToast } from '@/utils/toast';
+import { canAutoApplyInBackground } from '@/utils/syncDirectionPolicy';
 import {
   ClipboardContent,
   createDefaultClipboardItem,
@@ -37,7 +37,6 @@ class ClipboardSyncService {
   private lastRemoteProfileHash: string | null = null;
   private lastLocalProfileHash: string | null = null;
   private isAutoSyncing = false;
-  private clipboardUnsub: (() => void) | null = null;
   private historyUnsub: (() => void) | null = null;
   private transferQueueHandler:
     | ((task: import('./HistoryTransferQueue').TransferTask) => Promise<void>)
@@ -72,6 +71,8 @@ class ClipboardSyncService {
     if (!useSettingsStore.getState().isLoaded) {
       await useSettingsStore.getState().loadConfig();
     }
+    const { AppState } = require('react-native');
+    this.isAppActive = AppState.currentState === 'active';
     const activeServer = useSettingsStore.getState().getActiveServer();
 
     // 初始化 SyncManager
@@ -81,30 +82,22 @@ class ClipboardSyncService {
 
     if (!activeServer) {
       useClipboardSyncServiceStore.getState().setRemoteContent(null);
-      this._subscribeToClipboardChanges();
       return;
     }
 
     this.activeServer = activeServer;
     this.lastRemoteProfileHash = null; // 重启时重置，确保首次获取能正确处理
 
-    // 建立远程连接（WebDAV/S3 轮询；syncclipboard 只做初始拉取）
-    await this._startConnection(activeServer);
-
-    // 订阅本地剪贴板变化（用于自动上传）
-    this._subscribeToClipboardChanges();
-
-    // 订阅历史记录删除事件（用于重置 remoteContent 的 fileUri）
+    // 先建立生命周期订阅，后台策略关闭时也要能在回前台后恢复连接。
     this._subscribeToHistoryChanges();
-
-    // 订阅 localPollingInterval 配置变化（更新 ClipboardMonitor 轮询间隔）
     this._subscribeToLocalPollingIntervalChanges();
-
-    // 订阅传输队列状态变化（同步到 store，供 UI 展示）
     this._subscribeToTransferQueue();
-
-    // 订阅 AppState 变化（前台/后台切换时管理连接状态）
     this._subscribeToAppState();
+
+    // 建立远程连接（WebDAV/S3 轮询；syncclipboard 只做初始拉取）。
+    if (this._canRunRemoteForCurrentState()) {
+      await this._startConnection(activeServer);
+    }
   }
 
   /**
@@ -112,7 +105,6 @@ class ClipboardSyncService {
    */
   async stop(): Promise<void> {
     this._isStarted = false;
-    this._unsubscribeFromClipboardChanges();
     this._unsubscribeFromHistoryChanges();
     this._unsubscribeFromLocalPollingIntervalChanges();
     this._unsubscribeFromTransferQueue();
@@ -142,18 +134,32 @@ class ClipboardSyncService {
       await this.stop();
       await this.start();
     } else if (this.activeServer) {
-      // 服务器未变：若轮询仍活跃则不重建（避免与 App.tsx start() 双重触发时的无谓断联）。
-      // syncclipboard 类型无轮询（下行归 SyncEngine），只会重复一次初始拉取，无害。
-      if (!this.pollingTag) {
-        await this._startConnection(this.activeServer);
+      if (this._canRunRemoteForCurrentState()) {
+        // 服务器未变：若轮询仍活跃则不重建（避免双重触发时的无谓断联）。
+        // syncclipboard 类型无轮询，只会重复一次初始拉取。
+        if (!this.pollingTag) {
+          await this._startConnection(this.activeServer);
+        }
+      } else {
+        this.isAppActive = false;
+        this._stopPolling();
       }
+
       // 确保订阅存在（幂等）
-      this._subscribeToClipboardChanges();
       this._subscribeToHistoryChanges();
       this._subscribeToLocalPollingIntervalChanges();
       this._subscribeToTransferQueue();
       this._subscribeToAppState();
     }
+  }
+
+  private _canRunRemoteForCurrentState(): boolean {
+    const { AppState } = require('react-native');
+    if (AppState.currentState === 'active') return true;
+
+    const { useSettingsStore } = require('../stores/settingsStore');
+    const settings = useSettingsStore.getState();
+    return canAutoApplyInBackground(settings.config, settings.isTempDisabledBackgroundTasks);
   }
 
   // ─── AppState 通知 ──────────────────────────────────────────────────────
@@ -216,10 +222,8 @@ class ClipboardSyncService {
   async onAppBackground(): Promise<void> {
     this.isAppActive = false;
     const { useSettingsStore } = require('../stores/settingsStore');
-    const config = useSettingsStore.getState().config;
-    const bgDownloadEnabled = config?.enableBackgroundTasks && config?.enableBackgroundDownload;
-
-    if (!bgDownloadEnabled) {
+    const settings = useSettingsStore.getState();
+    if (!canAutoApplyInBackground(settings.config, settings.isTempDisabledBackgroundTasks)) {
       this._stopPolling();
     }
   }
@@ -427,7 +431,9 @@ class ClipboardSyncService {
       try {
         const { clearTimer } = require('native-timer');
         clearTimer(this.pollingTag);
-      } catch {}
+      } catch (error) {
+        log.warn('[ClipboardSyncService] Failed to clear polling timer:', error);
+      }
       this.pollingTag = null;
     }
   }
@@ -446,7 +452,8 @@ class ClipboardSyncService {
     const { useClipboardSyncServiceStore } = require('../stores/ClipboardSyncServiceStore');
     const { useSettingsStore } = require('../stores/settingsStore');
     const { historyStorage } = require('./HistoryStorage');
-    const config = useSettingsStore.getState().config;
+    const settings = useSettingsStore.getState();
+    const config = settings.config;
     const previousHash = this.lastRemoteProfileHash;
 
     const { resolveRemoteContent } = await import('../utils/processRemoteContent');
@@ -551,11 +558,9 @@ class ClipboardSyncService {
         }
       }
 
-      const autoSyncEnabled = config?.autoApplyRemote ?? false;
-      const bgDownloadEnabled = !!(
-        config?.enableBackgroundTasks && config?.enableBackgroundDownload
-      );
-      const shouldAutoCopy = autoSyncEnabled || (!this.isAppActive && bgDownloadEnabled);
+      const shouldAutoCopy = this.isAppActive
+        ? (config?.autoApplyRemote ?? true)
+        : canAutoApplyInBackground(config, settings.isTempDisabledBackgroundTasks);
       const remoteHash = finalContent.profileHash || finalContent.text || '';
       const localMatchesRemote = remoteHash === this.lastLocalProfileHash;
 
@@ -685,17 +690,6 @@ class ClipboardSyncService {
     store.setDownloadProgress(null);
   }
 
-  private _subscribeToClipboardChanges(): void {
-    // Auto-push is now handled exclusively by SyncEngine (respects autoPushLocal only).
-    // The old path here also triggered on enableBackgroundUpload which bypassed autoPushLocal —
-    // that behavior is intentionally removed for consistency with the iOS native app.
-  }
-
-  private _unsubscribeFromClipboardChanges(): void {
-    this.clipboardUnsub?.();
-    this.clipboardUnsub = null;
-  }
-
   /**
    * 订阅历史记录删除事件，当 remoteContent 对应的条目被删除时重置其 fileUri。
    */
@@ -786,60 +780,6 @@ class ClipboardSyncService {
   private _unsubscribeFromLocalPollingIntervalChanges(): void {
     this._localPollingIntervalUnsub?.();
     this._localPollingIntervalUnsub = null;
-  }
-
-  /**
-   * 本地剪贴板内容变化时触发自动上传。
-   * 条件：autoPushLocal 开启 或 后台上传启用。
-   */
-  private _handleAutoUpload(content: ClipboardContent): void {
-    const { useSettingsStore } = require('../stores/settingsStore');
-    const config = useSettingsStore.getState().config;
-
-    const autoPush = config?.autoPushLocal ?? false;
-    const bgUpload = config?.enableBackgroundTasks && config?.enableBackgroundUpload;
-    if (!autoPush && !bgUpload) return;
-    if (!this.activeServer) return;
-
-    const currentHash = content.profileHash || content.text || '';
-
-    // 初始化时记录哈希，不触发上传
-    if (this.lastLocalProfileHash === null) {
-      this.lastLocalProfileHash = currentHash;
-      return;
-    }
-
-    if (currentHash === this.lastLocalProfileHash) return;
-    this.lastLocalProfileHash = currentHash;
-
-    if (this.isAutoSyncing) return;
-    this.isAutoSyncing = true;
-
-    const { useSyncStore } = require('../stores/syncStore');
-    useSyncStore
-      .getState()
-      .sync(SyncDirection.Upload)
-      .then((result: SyncResult) => {
-        if (result.success && !result.skipped && Platform.OS === 'android') {
-          const preview =
-            content.type === 'Text' && content.text
-              ? content.text.trim().replace(/\s+/g, ' ').slice(0, 30)
-              : content.fileName || content.type;
-          const { SyncManager } = require('./SyncManager');
-          SyncManager.getInstance().updateForegroundNotification(
-            `${i18n.t('errors:notification.uploaded')}: ${preview}`
-          );
-          if (config?.syncToastEnabled !== false) {
-            showToast(`${i18n.t('errors:notification.uploaded')}\n${preview}`);
-          }
-          // 上传成功后静默刷新远程显示
-          this.fetchRemoteClipboard(true).catch(() => {});
-        }
-      })
-      .catch((e: Error) => log.error('[ClipboardSyncService] Auto-upload failed:', e))
-      .finally(() => {
-        this.isAutoSyncing = false;
-      });
   }
 
   // ─── 用户触发的文件下载操作 ──────────────────────────────────

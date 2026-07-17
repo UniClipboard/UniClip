@@ -1,12 +1,36 @@
-import { useSettingsStore } from '@/stores/settingsStore';
-import { useSyncEngineStore } from '@/stores/syncEngineStore';
-import { SyncEngine } from '@/services/SyncEngine';
+/// <reference types="node" />
+
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { useSettingsStore } from '../stores/settingsStore';
+import { reconcileSyncEngineAppState, useSyncEngineStore } from '../stores/syncEngineStore';
+import { SyncEngine } from '../services/SyncEngine';
 import { AppState } from 'react-native';
 
+interface CapturedEngineOptions {
+  getActiveServer: () => unknown;
+  getSettings: () => { autoPushLocal: boolean };
+  getDeviceClipboard: () => Promise<unknown>;
+  applyToDevice: (meta: Record<string, unknown>, payload?: ArrayBuffer) => Promise<void>;
+}
+
+interface MockEngineInstance {
+  start: jest.Mock;
+  stop: jest.Mock;
+  notifyLocalChanged: jest.Mock;
+}
+
+const getEngineMock = () => SyncEngine as unknown as jest.Mock;
+const getEngineOptions = () => getEngineMock().mock.calls[0][0] as CapturedEngineOptions;
+const getEngineInstance = () => getEngineMock().mock.results[0].value as MockEngineInstance;
+const getAppStateListener = () =>
+  (AppState.addEventListener as unknown as jest.Mock).mock.calls.find(
+    ([eventName]) => eventName === 'change'
+  )?.[1] as ((state: string) => void) | undefined;
+
 jest.mock('@/services/SyncEngine', () => ({
-  SyncEngine: jest.fn().mockImplementation((options) => ({
+  SyncEngine: jest.fn().mockImplementation((options: unknown) => ({
     options,
-    init: jest.fn().mockResolvedValue(undefined),
+    init: jest.fn(async () => undefined),
     start: jest.fn(),
     stop: jest.fn(),
     setSceneInactive: jest.fn(),
@@ -26,8 +50,8 @@ jest.mock('@/services/SyncEngine', () => ({
 
 jest.mock('@/services/ClipboardManager', () => ({
   clipboardManager: {
-    getClipboardContent: jest.fn().mockResolvedValue(null),
-    setImageContent: jest.fn().mockResolvedValue(undefined),
+    getClipboardContent: jest.fn(async () => null),
+    setImageContent: jest.fn(async () => undefined),
   },
 }));
 
@@ -37,17 +61,17 @@ jest.mock('@/services/ClipboardMonitor', () => ({
     removeCallback: jest.fn(),
     pausePolling: jest.fn(),
     resumePolling: jest.fn(),
-    setLastContent: jest.fn().mockResolvedValue(undefined),
+    setLastContent: jest.fn(async () => undefined),
   },
 }));
 
 jest.mock('@/utils/clipboardProxy', () => ({
-  setStringAsync: jest.fn().mockResolvedValue(true),
-  getStringAsync: jest.fn().mockResolvedValue(''),
+  setStringAsync: jest.fn(async () => true),
+  getStringAsync: jest.fn(async () => ''),
 }));
 
 jest.mock('@/utils/fileStorage', () => ({
-  saveHistoryFile: jest.fn().mockResolvedValue('file:///history/a.zip'),
+  saveHistoryFile: jest.fn(async () => 'file:///history/a.zip'),
 }));
 
 // activate_clipboard / clipboard_history 的内存桩:writeActivate / getDeviceClipboard
@@ -122,7 +146,7 @@ describe('syncEngineStore route config', () => {
   it('passes every configured address to SyncEngine active server info', async () => {
     await useSyncEngineStore.getState().start();
 
-    const engineOptions = (SyncEngine as jest.Mock).mock.calls[0][0];
+    const engineOptions = getEngineOptions();
     expect(engineOptions.getActiveServer()).toEqual({
       baseUrl: 'https://clip.example.com',
       urls: ['https://clip.example.com', 'http://192.168.1.20:5033'],
@@ -143,11 +167,11 @@ describe('syncEngineStore route config', () => {
       localClipboardHash: 'LOCAL_HASH',
     });
 
-    const engineInstance = (SyncEngine as jest.Mock).mock.results[0].value;
+    const engineInstance = getEngineInstance();
     expect(engineInstance.notifyLocalChanged).toHaveBeenCalled();
   });
 
-  it('allows local pushes while background upload is enabled', async () => {
+  it('does not let background upload override a disabled auto-push direction', async () => {
     (AppState as { currentState: string }).currentState = 'background';
     useSettingsStore.setState((state) => ({
       config: {
@@ -160,28 +184,106 @@ describe('syncEngineStore route config', () => {
 
     await useSyncEngineStore.getState().start();
 
-    const engineOptions = (SyncEngine as jest.Mock).mock.calls[0][0];
-    expect(engineOptions.getSettings().autoPushLocal).toBe(true);
+    const engineOptions = getEngineOptions();
+    expect(engineOptions.getSettings().autoPushLocal).toBe(false);
   });
 
-  it('keeps remote sync running in the background when background download is enabled', async () => {
+  it('allows background pushes only when direction and background capability are enabled', async () => {
+    (AppState as { currentState: string }).currentState = 'background';
     useSettingsStore.setState((state) => ({
       config: {
         ...state.config,
+        autoPushLocal: true,
+        enableBackgroundTasks: true,
+        enableBackgroundUpload: true,
+      } as any,
+    }));
+
+    await useSyncEngineStore.getState().start();
+
+    const engineOptions = getEngineOptions();
+    expect(engineOptions.getSettings().autoPushLocal).toBe(true);
+  });
+
+  it('blocks background pushes when background upload capability is disabled', async () => {
+    (AppState as { currentState: string }).currentState = 'background';
+    useSettingsStore.setState((state) => ({
+      config: {
+        ...state.config,
+        autoPushLocal: true,
+        enableBackgroundTasks: true,
+        enableBackgroundUpload: false,
+      } as any,
+    }));
+
+    await useSyncEngineStore.getState().start();
+
+    const engineOptions = getEngineOptions();
+    expect(engineOptions.getSettings().autoPushLocal).toBe(false);
+  });
+
+  it('keeps remote sync running when auto-write and background download are enabled', async () => {
+    useSettingsStore.setState((state) => ({
+      config: {
+        ...state.config,
+        autoApplyRemote: true,
         enableBackgroundTasks: true,
         enableBackgroundDownload: true,
       } as any,
     }));
     await useSyncEngineStore.getState().start();
-    const engineInstance = (SyncEngine as jest.Mock).mock.results[0].value;
-    const appStateListener = (AppState.addEventListener as jest.Mock).mock.calls.find(
-      ([eventName]) => eventName === 'change'
-    )?.[1];
+    const engineInstance = getEngineInstance();
+    const appStateListener = getAppStateListener();
 
     (AppState as { currentState: string }).currentState = 'background';
-    appStateListener('background');
+    expect(appStateListener).toBeDefined();
+    appStateListener?.('background');
 
     expect(engineInstance.stop).not.toHaveBeenCalled();
+  });
+
+  it('stops an already-backgrounded engine when background tasks are temporarily disabled', async () => {
+    useSettingsStore.setState((state) => ({
+      config: {
+        ...state.config,
+        autoApplyRemote: true,
+        enableBackgroundTasks: true,
+        enableBackgroundDownload: true,
+      } as any,
+      isTempDisabledBackgroundTasks: false,
+    }));
+    await useSyncEngineStore.getState().start();
+    const engineInstance = getEngineInstance();
+    const appStateListener = getAppStateListener();
+
+    (AppState as { currentState: string }).currentState = 'background';
+    appStateListener?.('background');
+    engineInstance.stop.mockClear();
+
+    useSettingsStore.setState({ isTempDisabledBackgroundTasks: true });
+    reconcileSyncEngineAppState();
+
+    expect(engineInstance.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops remote background sync when the auto-write direction is disabled', async () => {
+    useSettingsStore.setState((state) => ({
+      config: {
+        ...state.config,
+        autoApplyRemote: false,
+        enableBackgroundTasks: true,
+        enableBackgroundDownload: true,
+      } as any,
+    }));
+    await useSyncEngineStore.getState().start();
+    const engineInstance = getEngineInstance();
+    const appStateListener = getAppStateListener();
+
+    (AppState as { currentState: string }).currentState = 'background';
+    expect(appStateListener).toBeDefined();
+    appStateListener?.('background');
+
+    expect(engineInstance.stop).toHaveBeenCalled();
   });
 
   // 回归:文本→文件连续应用后,系统剪贴板残留旧文本(File 写不进系统剪贴板)。
@@ -193,7 +295,7 @@ describe('syncEngineStore route config', () => {
     const { writeActivate } = require('@/services/ActivateClipboardService');
 
     await useSyncEngineStore.getState().start();
-    const engineOptions = (SyncEngine as jest.Mock).mock.calls[0][0];
+    const engineOptions = getEngineOptions();
 
     // 1) 先应用一条文本 T —— 会真正写入系统剪贴板,故应登记为 monitor 的 echo 基准。
     await engineOptions.applyToDevice({
@@ -240,7 +342,7 @@ describe('syncEngineStore route config', () => {
 
     await useSyncEngineStore.getState().start();
 
-    const engineOptions = (SyncEngine as jest.Mock).mock.calls[0][0];
+    const engineOptions = getEngineOptions();
     expect(await engineOptions.getDeviceClipboard()).toEqual(
       expect.objectContaining({
         hash: 'EARLY_HASH',

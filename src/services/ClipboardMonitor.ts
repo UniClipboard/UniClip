@@ -12,6 +12,7 @@ import { getPasteboardChangeCount } from 'app-group-store';
 import * as ClipboardProxy from '@/utils/clipboardProxy';
 import { getBackgroundClipboardAdapter } from '@/utils/androidBackgroundClipboardAccess';
 import type { BackgroundClipboardAdapter } from '@/utils/backgroundClipboardAccess';
+import { canAutoPushInBackground } from '@/utils/syncDirectionPolicy';
 
 const LAST_CLIPBOARD_HASH_KEY = '@last_clipboard_hash';
 const IOS_DENIED_CHANGE_COUNT_KEY = '@ios_pasteboard_denied_change_count';
@@ -501,9 +502,11 @@ export class ClipboardMonitor {
     ) {
       // 后台上传启用时不停止轮询
       const { useSettingsStore } = require('@/stores/settingsStore');
-      const bgUploadEnabled =
-        useSettingsStore.getState().config?.enableBackgroundTasks &&
-        useSettingsStore.getState().config?.enableBackgroundUpload;
+      const settings = useSettingsStore.getState();
+      const bgUploadEnabled = canAutoPushInBackground(
+        settings.config,
+        settings.isTempDisabledBackgroundTasks
+      );
       if (!bgUploadEnabled) {
         // 应用进入后台，停止监听
         log.info(
@@ -574,8 +577,11 @@ export class ClipboardMonitor {
       const currentState = AppState.currentState;
       if (currentState === 'background' || currentState === 'inactive') {
         const { useSettingsStore } = require('@/stores/settingsStore');
-        const config = useSettingsStore.getState().config;
-        const bgUploadEnabled = config?.enableBackgroundTasks && config?.enableBackgroundUpload;
+        const settings = useSettingsStore.getState();
+        const bgUploadEnabled = canAutoPushInBackground(
+          settings.config,
+          settings.isTempDisabledBackgroundTasks
+        );
         if (!bgUploadEnabled) {
           return;
         }

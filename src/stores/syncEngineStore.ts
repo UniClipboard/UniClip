@@ -25,6 +25,11 @@ import { writeActivate, clearActivate, noteApplied } from '@/services/ActivateCl
 import type { ClipboardMeta } from 'uc-core';
 import type { ClipboardContent } from '@/types';
 import { log } from '@/services/Logger';
+import {
+  canAutoApplyInBackground,
+  canAutoPushInBackground,
+  shouldRunBackgroundSync,
+} from '@/utils/syncDirectionPolicy';
 
 interface SyncEngineState {
   status: SyncEngineStatus;
@@ -60,16 +65,14 @@ function getSettings(): SyncSettings {
   const settings = useSettingsStore.getState();
   const config = settings.config;
   const appIsBackground = AppState.currentState !== 'active';
-  const backgroundTasksEnabled =
-    !settings.isTempDisabledBackgroundTasks && (config?.enableBackgroundTasks ?? false);
-  const backgroundDownloadEnabled =
-    backgroundTasksEnabled && (config?.enableBackgroundDownload ?? false);
-  const backgroundUploadEnabled =
-    backgroundTasksEnabled && (config?.enableBackgroundUpload ?? false);
+  const backgroundTemporarilyDisabled = settings.isTempDisabledBackgroundTasks;
   return {
-    autoApplyRemote:
-      (config?.autoApplyRemote ?? true) && (!appIsBackground || backgroundDownloadEnabled),
-    autoPushLocal: (config?.autoPushLocal ?? false) || (appIsBackground && backgroundUploadEnabled),
+    autoApplyRemote: appIsBackground
+      ? canAutoApplyInBackground(config, backgroundTemporarilyDisabled)
+      : (config?.autoApplyRemote ?? true),
+    autoPushLocal: appIsBackground
+      ? canAutoPushInBackground(config, backgroundTemporarilyDisabled)
+      : (config?.autoPushLocal ?? true),
     enableSse: config?.enableSse ?? true,
   };
 }
@@ -77,11 +80,28 @@ function getSettings(): SyncSettings {
 function shouldKeepRemoteSyncRunningInBackground(): boolean {
   const settings = useSettingsStore.getState();
   const config = settings.config;
-  return !!(
-    !settings.isTempDisabledBackgroundTasks &&
-    config?.enableBackgroundTasks &&
-    config.enableBackgroundDownload
-  );
+  return shouldRunBackgroundSync(config, settings.isTempDisabledBackgroundTasks);
+}
+
+export function reconcileSyncEngineAppState(state: AppStateStatus = AppState.currentState): void {
+  if (!engine) return;
+
+  if (state === 'active') {
+    engine.setSceneInactive(false);
+    void engine.applySettings();
+    engine.start();
+    return;
+  }
+
+  engine.setSceneInactive(true);
+  if (state !== 'background') return;
+
+  void engine.applySettings();
+  if (shouldKeepRemoteSyncRunningInBackground()) {
+    engine.start();
+  } else {
+    engine.stop();
+  }
 }
 
 /**
@@ -264,26 +284,10 @@ export const useSyncEngineStore = create<SyncEngineState>((set) => ({
       // ignore
     }
 
-    appStateSubscription = AppState.addEventListener('change', (state: AppStateStatus) => {
-      if (!engine) return;
-      if (state === 'active') {
-        engine.setSceneInactive(false);
-        void engine.applySettings();
-        engine.start();
-      } else if (state === 'inactive') {
-        engine.setSceneInactive(true);
-      } else if (state === 'background') {
-        engine.setSceneInactive(true);
-        void engine.applySettings();
-        if (shouldKeepRemoteSyncRunningInBackground()) {
-          engine.start();
-        } else {
-          engine.stop();
-        }
-      }
-    });
+    appStateSubscription = AppState.addEventListener('change', reconcileSyncEngineAppState);
 
     engine.start();
+    reconcileSyncEngineAppState();
     set({ isRunning: true });
   },
 

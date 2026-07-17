@@ -8,6 +8,7 @@ import { ClipboardContent, createDefaultClipboardItem } from '../types/clipboard
 import { clipboardManager, clipboardMonitor } from '../services';
 import { useHistoryStore } from './historyStore';
 import { log } from '@/services/Logger';
+import { canAutoPushInBackground } from '@/utils/syncDirectionPolicy';
 
 function notifySyncEngine(content: ClipboardContent): void {
   const { notifyDeviceClipboardChanged } = require('./syncEngineStore');
@@ -294,8 +295,11 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
 
     // 后台任务运行时，保持剪贴板监控以支持后台上传，不随 HomeScreen 卸载而停止
     const { useSettingsStore } = require('../stores/settingsStore');
-    const config = useSettingsStore.getState().config;
-    const bgUploadEnabled = config?.enableBackgroundTasks && config?.enableBackgroundUpload;
+    const settings = useSettingsStore.getState();
+    const bgUploadEnabled = canAutoPushInBackground(
+      settings.config,
+      settings.isTempDisabledBackgroundTasks
+    );
     if (bgUploadEnabled) {
       return;
     }
