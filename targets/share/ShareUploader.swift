@@ -28,28 +28,29 @@ struct ShareUploader {
         network: NetworkContext
     ) async throws {
         let (entry, payload) = build(from: item)
-        log.info("upload: start \(item.kindLabel, privacy: .public) bytes=\(item.byteCount, privacy: .public) hasData=\(entry.hasData, privacy: .public)")
-        log.error("[share-route-v3] upload start server=\(server.id, privacy: .public) urlCount=\(server.urls.count, privacy: .public) urls=\(server.urls.joined(separator: " | "), privacy: .public) hasData=\(entry.hasData, privacy: .public)")
+        let clients = ShareClientPool(trustInsecureCert: trustInsecureCert)
+        logUploadStart(item: item, entry: entry, server: server)
 
         try await ServerRouteExecutor(store: store).run(
             server: server,
             network: network,
             probe: { routed in
-                let client = try SyncClipboardClient(server: routed, trustInsecureCert: trustInsecureCert)
+                let client = try await clients.client(for: routed)
                 try await client.probeReachability()
-            }
-        ) { routed in
-            let client = try SyncClipboardClient(server: routed, trustInsecureCert: trustInsecureCert)
-            if entry.hasData, let payload, let name = entry.dataName {
-                try await client.putFile(name: name, body: payload)
-                log.debug("upload: §3.5 file PUT done")
-                if let hash = entry.hash, !hash.isEmpty {
-                    let profileId = HistoryRecord.profileId(type: entry.type, hash: hash)
-                    _ = try? await PayloadCache.shared.write(profileId: profileId, bytes: payload)
+            },
+            operation: { routed in
+                let client = try await clients.client(for: routed)
+                if entry.hasData, let payload, let name = entry.dataName {
+                    try await client.putFile(name: name, body: payload)
+                    log.debug("upload: §3.5 file PUT done")
+                    if let hash = entry.hash, !hash.isEmpty {
+                        let profileId = HistoryRecord.profileId(type: entry.type, hash: hash)
+                        _ = try? await PayloadCache.shared.write(profileId: profileId, bytes: payload)
+                    }
                 }
+                try await client.putClipboard(entry)
             }
-            try await client.putClipboard(entry)
-        }
+        )
         // Write the watermark only after a confirmed metadata PUT. A failed
         // route attempt may have uploaded bytes but did not publish metadata;
         // stamping before success can make the next sync skip real work.
@@ -79,15 +80,50 @@ struct ShareUploader {
 
     private func build(from item: ShareItem) -> (clipboard: Clipboard, payload: Data?) {
         switch item {
-        case .text(let s):
-            let (c, p) = Clipboard.publishText(s)
-            return (c, p)
+        case .text(let text):
+            return Clipboard.publishText(text)
         case .image(let bytes, let ext):
-            let (c, p) = Clipboard.publishImage(bytes: bytes, ext: ext)
-            return (c, p)
+            return Clipboard.publishImage(bytes: bytes, ext: ext)
         case .file(let name, let bytes):
-            let (c, p) = Clipboard.publishFile(name: name, bytes: bytes)
-            return (c, p)
+            return Clipboard.publishFile(name: name, bytes: bytes)
         }
+    }
+}
+
+private func logUploadStart(item: ShareItem, entry: Clipboard, server: ServerConfig) {
+    let urlList = server.urls.joined(separator: " | ")
+    log.info(
+        """
+        upload: start \(item.kindLabel, privacy: .public) \
+        bytes=\(item.byteCount, privacy: .public) hasData=\(entry.hasData, privacy: .public)
+        """
+    )
+    log.error(
+        """
+        [share-route-v3] upload start server=\(server.id, privacy: .public) \
+        urlCount=\(server.urls.count, privacy: .public) urls=\(urlList, privacy: .public) \
+        hasData=\(entry.hasData, privacy: .public)
+        """
+    )
+}
+
+private actor ShareClientPool {
+    private let trustInsecureCert: Bool
+    private var clients: [String: SyncClipboardClient] = [:]
+
+    init(trustInsecureCert: Bool) {
+        self.trustInsecureCert = trustInsecureCert
+    }
+
+    func client(for server: ServerConfig) throws -> SyncClipboardClient {
+        if let client = clients[server.url] {
+            return client
+        }
+        let client = try SyncClipboardClient(
+            server: server,
+            trustInsecureCert: trustInsecureCert
+        )
+        clients[server.url] = client
+        return client
     }
 }

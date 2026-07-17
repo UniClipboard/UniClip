@@ -9,7 +9,7 @@ public struct ServerRouteExecutor: Sendable {
 
     public init(
         store: SettingsStore = SettingsStore(),
-        probeTimeoutNanoseconds: UInt64 = 1_000_000_000
+        probeTimeoutNanoseconds: UInt64 = 5_000_000_000
     ) {
         self.store = store
         self.probeTimeoutNanoseconds = probeTimeoutNanoseconds
@@ -24,7 +24,15 @@ public struct ServerRouteExecutor: Sendable {
         let runStarted = timingNow()
         let live = store.loadLiveURL(configId: server.id)
         let urls = server.preferredURLs(live: live, network: network)
-        routeLog.error("[route-timing][route-v3] run start server=\(server.id, privacy: .public) wifi=\(network.isWifi, privacy: .public) cellular=\(network.isCellular, privacy: .public) tailscale=\(network.isTailscale, privacy: .public) ssid=\(network.ssid ?? "nil", privacy: .private) live=\(live ?? "nil", privacy: .public) urls=\(urls.joined(separator: " | "), privacy: .public)")
+        let urlList = urls.joined(separator: " | ")
+        routeLog.error(
+            """
+            [route-timing][route-v3] run start server=\(server.id, privacy: .public) \
+            wifi=\(network.isWifi, privacy: .public) cellular=\(network.isCellular, privacy: .public) \
+            tailscale=\(network.isTailscale, privacy: .public) ssid=\(network.ssid ?? "nil", privacy: .private) \
+            live=\(live ?? "nil", privacy: .public) urls=\(urlList, privacy: .public)
+            """
+        )
         let routeURLs: [String]
         if let probe, urls.count > 1 {
             let healthy = try await healthyURLs(server: server, urls: urls, probe: probe)
@@ -33,7 +41,7 @@ public struct ServerRouteExecutor: Sendable {
                 routeLog.error("[route-timing] run failed no healthy route after probe totalMs=\(timingElapsedMilliseconds(since: runStarted), privacy: .public)")
                 throw SyncError(kind: .networkUnreachable)
             }
-            routeURLs = healthy
+            routeURLs = healthy + urls.filter { !healthy.contains($0) }
         } else {
             routeURLs = urls
             if urls.count <= 1 {
@@ -49,17 +57,34 @@ public struct ServerRouteExecutor: Sendable {
                 routeLog.error("[route-timing][route-v3] operation start url=\(url, privacy: .public)")
                 let result = try await operation(routed)
                 store.saveLiveURL(configId: server.id, url)
-                routeLog.error("[route-timing][route-v3] operation success url=\(url, privacy: .public) operationMs=\(timingElapsedMilliseconds(since: operationStarted), privacy: .public) totalMs=\(timingElapsedMilliseconds(since: runStarted), privacy: .public)")
+                let operationMilliseconds = timingElapsedMilliseconds(since: operationStarted)
+                let totalMilliseconds = timingElapsedMilliseconds(since: runStarted)
+                routeLog.error(
+                    """
+                    [route-timing][route-v3] operation success url=\(url, privacy: .public) \
+                    operationMs=\(operationMilliseconds, privacy: .public) \
+                    totalMs=\(totalMilliseconds, privacy: .public)
+                    """
+                )
                 return result
             } catch {
                 guard Self.isRetryable(error) else { throw error }
-                routeLog.error("[route-timing][route-v3] operation failed url=\(url, privacy: .public) operationMs=\(timingElapsedMilliseconds(since: operationStarted), privacy: .public) error=\(String(describing: error), privacy: .public), trying next")
+                let operationMilliseconds = timingElapsedMilliseconds(since: operationStarted)
+                let errorDescription = String(describing: error)
+                routeLog.error(
+                    """
+                    [route-timing][route-v3] operation failed url=\(url, privacy: .public) \
+                    operationMs=\(operationMilliseconds, privacy: .public) \
+                    error=\(errorDescription, privacy: .public), trying next
+                    """
+                )
                 lastRetryableError = error
             }
         }
 
         store.saveLiveURL(configId: server.id, nil)
-        routeLog.error("[route-timing] run failed totalMs=\(timingElapsedMilliseconds(since: runStarted), privacy: .public)")
+        let totalMilliseconds = timingElapsedMilliseconds(since: runStarted)
+        routeLog.error("[route-timing] run failed totalMs=\(totalMilliseconds, privacy: .public)")
         throw lastRetryableError ?? SyncError(kind: .networkUnreachable)
     }
 
@@ -69,40 +94,16 @@ public struct ServerRouteExecutor: Sendable {
         probe: @escaping @Sendable (ServerConfig) async throws -> Void
     ) async throws -> [String] {
         let probeStarted = timingNow()
-        routeLog.error("[route-timing][route-v3] probe batch start timeoutMs=\(probeTimeoutNanoseconds / 1_000_000, privacy: .public) urls=\(urls.joined(separator: " | "), privacy: .public)")
+        let timeoutMilliseconds = probeTimeoutNanoseconds / 1_000_000
+        let urlList = urls.joined(separator: " | ")
+        routeLog.error(
+            """
+            [route-timing][route-v3] probe batch start \
+            timeoutMs=\(timeoutMilliseconds, privacy: .public) urls=\(urlList, privacy: .public)
+            """
+        )
 
-        let outcomes = await withTaskGroup(of: ProbeOutcome.self) { group in
-            for (index, url) in urls.enumerated() {
-                let routed = routedServer(server, url: url, urls: urls)
-                group.addTask {
-                    let started = timingNow()
-                    routeLog.error("[route-timing][route-v3] probe start url=\(url, privacy: .public)")
-                    do {
-                        try await withProbeTimeout(nanoseconds: probeTimeoutNanoseconds) {
-                            try await probe(routed)
-                        }
-                        let elapsed = timingElapsedMilliseconds(since: started)
-                        routeLog.error("[route-timing][route-v3] probe success url=\(url, privacy: .public) ms=\(elapsed, privacy: .public)")
-                        return .success(url: url, index: index, milliseconds: elapsed)
-                    } catch {
-                        routeLog.error("[route-timing][route-v3] probe failed url=\(url, privacy: .public) ms=\(timingElapsedMilliseconds(since: started), privacy: .public) error=\(String(describing: error), privacy: .public)")
-                        return .failure(
-                            url: url,
-                            retryable: Self.isRetryable(error),
-                            syncError: error as? SyncError,
-                            description: String(describing: error)
-                        )
-                    }
-                }
-            }
-
-            var outcomes: [ProbeOutcome] = []
-            for await outcome in group {
-                outcomes.append(outcome)
-            }
-            return outcomes
-        }
-
+        let outcomes = await collectProbeOutcomes(server: server, urls: urls, probe: probe)
         if case let .failure(_, _, syncError, _)? = outcomes.first(where: {
             if case let .failure(_, retryable, _, _) = $0 { return !retryable }
             return false
@@ -121,19 +122,93 @@ public struct ServerRouteExecutor: Sendable {
             return $0.milliseconds < $1.milliseconds
         }
 
+        logProbeSummary(healthy: healthy, outcomes: outcomes, startedAt: probeStarted)
+        return healthy.map(\.url)
+    }
+
+    private func collectProbeOutcomes(
+        server: ServerConfig,
+        urls: [String],
+        probe: @escaping @Sendable (ServerConfig) async throws -> Void
+    ) async -> [ProbeOutcome] {
+        await withTaskGroup(of: ProbeOutcome.self) { group in
+            for (index, url) in urls.enumerated() {
+                let routed = routedServer(server, url: url, urls: urls)
+                group.addTask {
+                    let started = timingNow()
+                    routeLog.error("[route-timing][route-v3] probe start url=\(url, privacy: .public)")
+                    do {
+                        try await withProbeTimeout(nanoseconds: probeTimeoutNanoseconds) {
+                            try await probe(routed)
+                        }
+                        let elapsed = timingElapsedMilliseconds(since: started)
+                        routeLog.error(
+                            """
+                            [route-timing][route-v3] probe success url=\(url, privacy: .public) \
+                            ms=\(elapsed, privacy: .public)
+                            """
+                        )
+                        return .success(url: url, index: index, milliseconds: elapsed)
+                    } catch {
+                        let elapsed = timingElapsedMilliseconds(since: started)
+                        let errorDescription = String(describing: error)
+                        routeLog.error(
+                            """
+                            [route-timing][route-v3] probe failed url=\(url, privacy: .public) \
+                            ms=\(elapsed, privacy: .public) error=\(errorDescription, privacy: .public)
+                            """
+                        )
+                        return .failure(
+                            url: url,
+                            retryable: Self.isRetryable(error),
+                            syncError: error as? SyncError,
+                            description: errorDescription
+                        )
+                    }
+                }
+            }
+
+            var outcomes: [ProbeOutcome] = []
+            for await outcome in group {
+                outcomes.append(outcome)
+                if outcome.shouldStopBatch {
+                    group.cancelAll()
+                    break
+                }
+            }
+            return outcomes
+        }
+    }
+
+    private func logProbeSummary(
+        healthy: [ProbeSuccess],
+        outcomes: [ProbeOutcome],
+        startedAt: UInt64
+    ) {
+        let batchMilliseconds = timingElapsedMilliseconds(since: startedAt)
         if healthy.isEmpty {
-            let retryableErrors = outcomes.compactMap { outcome -> String? in
+            let failures = outcomes.compactMap { outcome -> String? in
                 if case let .failure(url, _, _, description) = outcome {
                     return "\(url): \(description)"
                 }
                 return nil
             }
-            routeLog.error("[route-timing][route-v3] probe batch no healthy route batchMs=\(timingElapsedMilliseconds(since: probeStarted), privacy: .public) failures=\(retryableErrors.joined(separator: " | "), privacy: .public)")
+            .joined(separator: " | ")
+            routeLog.error(
+                """
+                [route-timing][route-v3] probe batch no healthy route \
+                batchMs=\(batchMilliseconds, privacy: .public) failures=\(failures, privacy: .public)
+                """
+            )
         } else {
-            routeLog.error("[route-timing][route-v3] probe batch selected urls=\(healthy.map { "\($0.url)(\($0.milliseconds)ms)" }.joined(separator: " | "), privacy: .public) batchMs=\(timingElapsedMilliseconds(since: probeStarted), privacy: .public)")
+            let selectedURLs = healthy.map { "\($0.url)(\($0.milliseconds)ms)" }.joined(separator: " | ")
+            routeLog.error(
+                """
+                [route-timing][route-v3] probe batch selected urls=\(selectedURLs, privacy: .public) \
+                batchMs=\(batchMilliseconds, privacy: .public)
+                """
+            )
         }
-
-        return healthy.map(\.url)
     }
 
     private func routedServer(_ server: ServerConfig, url: String, urls: [String]) -> ServerConfig {
@@ -156,6 +231,15 @@ public struct ServerRouteExecutor: Sendable {
 private enum ProbeOutcome: Sendable {
     case success(url: String, index: Int, milliseconds: UInt64)
     case failure(url: String, retryable: Bool, syncError: SyncError?, description: String)
+
+    var shouldStopBatch: Bool {
+        switch self {
+        case .success:
+            return true
+        case .failure(_, let retryable, _, _):
+            return !retryable
+        }
+    }
 }
 
 private struct ProbeSuccess: Sendable {
