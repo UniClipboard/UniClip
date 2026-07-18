@@ -4,7 +4,7 @@ on:
   workflow_call:
     outputs:
       version:
-        description: "App version from package.json"
+        description: 'App version from package.json'
         value: ${{ jobs.build.outputs.version }}
 
 jobs:
