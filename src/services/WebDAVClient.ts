@@ -168,7 +168,7 @@ export class WebDAVClient extends APIClient implements ISyncClipboardAPI {
       // WebDAV 通常会在响应头中包含服务器信息
       const response = await this.client.options('/');
       const serverHeader = response.headers['server'];
-      return serverHeader || 'Unknown WebDAV Server';
+      return typeof serverHeader === 'string' ? serverHeader : 'Unknown WebDAV Server';
     } catch (error) {
       log.error('[WebDAVClient] Failed to get version:', error);
       return 'Unknown WebDAV Server';
