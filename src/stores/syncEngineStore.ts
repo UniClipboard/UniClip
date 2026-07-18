@@ -44,7 +44,7 @@ interface SyncEngineState {
 
 let engine: SyncEngine | null = null;
 let appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
-let clipboardCallback: ((content: ClipboardContent) => void) | null = null;
+const automaticPushesInFlight = new Map<string, Promise<void>>();
 
 function getActiveServerInfo() {
   const settings = useSettingsStore.getState();
@@ -69,10 +69,10 @@ function getSettings(): SyncSettings {
   return {
     autoApplyRemote: appIsBackground
       ? canAutoApplyInBackground(config, backgroundTemporarilyDisabled)
-      : (config?.autoApplyRemote ?? true),
+      : config?.autoApplyRemote ?? true,
     autoPushLocal: appIsBackground
       ? canAutoPushInBackground(config, backgroundTemporarilyDisabled)
-      : (config?.autoPushLocal ?? true),
+      : config?.autoPushLocal ?? true,
     enableSse: config?.enableSse ?? true,
   };
 }
@@ -265,25 +265,6 @@ export const useSyncEngineStore = create<SyncEngineState>((set) => ({
       set({ status });
     });
 
-    // 剪贴板监听(Android 事件驱动 / 前台快照)捕获到本地新内容:写入 activate 寄存器,
-    // 并强制一次 tick 让本地内容尽快 push(反 echo 由 writeActivate 内部处理)。
-    clipboardCallback = async (content) => {
-      if (!content.profileHash) return;
-      await writeActivate(content);
-      engine?.notifyLocalChanged();
-    };
-    clipboardMonitor.addCallback(clipboardCallback);
-
-    // 首次前台快照:把当前系统剪贴板作为一次本地激活写入寄存器,让首个 tick 能看到它。
-    try {
-      const current = await clipboardManager.getClipboardContent();
-      if (current) {
-        await writeActivate(current);
-      }
-    } catch {
-      // ignore
-    }
-
     appStateSubscription = AppState.addEventListener('change', reconcileSyncEngineAppState);
 
     engine.start();
@@ -300,11 +281,6 @@ export const useSyncEngineStore = create<SyncEngineState>((set) => ({
     if (appStateSubscription) {
       appStateSubscription.remove();
       appStateSubscription = null;
-    }
-
-    if (clipboardCallback) {
-      clipboardMonitor.removeCallback(clipboardCallback);
-      clipboardCallback = null;
     }
 
     set({
@@ -353,15 +329,39 @@ export function notifySettingsChanged(): void {
   void engine?.applySettings();
 }
 
-/**
- * 用户主动产生的本地新内容(复制/粘贴/选图/拍照)——写入 activate 寄存器后强制一次 tick。
- * 先 await 写库,确保被强制的 tick 读到的是最新 device_hash 而非陈旧值。
- */
+/** 本地新内容落库后，按当前方向设置当场尝试上传一次。失败只保留本地，不排队重试。 */
 export async function notifyDeviceClipboardChanged(content: ClipboardContent): Promise<void> {
-  if (!content.profileHash) return;
-  // 主动激活:绕过被动 anti-echo(用户明确使用某项,即便等于刚 apply 的内容也要激活)。
+  const profileHash = content.profileHash;
+  if (!profileHash) return;
+
+  // 保留既有的主动激活/历史兜底语义，但不把它留给生命周期或网络恢复补传。
   await writeActivate(content, { active: true });
-  engine?.notifyLocalChanged();
+  await clearActivate();
+
+  if (!getSettings().autoPushLocal) return;
+
+  const key = profileHash.toUpperCase();
+  const existing = automaticPushesInFlight.get(key);
+  if (existing) return existing;
+
+  const attempt = (async () => {
+    if (!engine) {
+      await useSyncEngineStore.getState().start();
+    }
+    if (!engine) return;
+
+    try {
+      await engine.pushRecordExplicit(profileHash);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      log.info('[SyncEngineStore] Automatic push failed; kept local:', detail);
+    }
+  })().finally(() => {
+    automaticPushesInFlight.delete(key);
+  });
+
+  automaticPushesInFlight.set(key, attempt);
+  await attempt;
 }
 
 /**

@@ -75,4 +75,24 @@ describe('ClipboardMonitor iOS app state handling', () => {
 
     expect(clearTimer).toHaveBeenCalledWith('clipboard_monitor');
   });
+
+  it('reads the clipboard immediately when the app returns to the foreground', async () => {
+    const { ClipboardMonitor } = require('../services/ClipboardMonitor');
+    const manager = {
+      getClipboardContent: jest.fn().mockResolvedValue(null),
+      resetLastProfileHash: jest.fn(),
+    };
+    const monitor = new ClipboardMonitor(manager, {
+      pollingInterval: 1000,
+      stopOnBackground: true,
+      debounceDelay: 300,
+    });
+
+    await monitor.start();
+    appStateHandler?.('background');
+    appStateHandler?.('active');
+    await Promise.resolve();
+
+    expect(manager.getClipboardContent).toHaveBeenCalledTimes(1);
+  });
 });

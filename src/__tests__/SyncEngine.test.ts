@@ -195,6 +195,16 @@ describe('SyncEngine coordinator', () => {
     expect(engine.getStatus().state).toBe('Succeeded');
   });
 
+  test('starting with retained local content refreshes remote state without retrying a push', async () => {
+    const engine = makeEngine({ getDeviceClipboard: () => TEXT_DEVICE });
+
+    engine.start();
+    await settlePromises();
+
+    expect(mockedEnginePull).toHaveBeenCalledTimes(1);
+    expect(mockedEnginePush).not.toHaveBeenCalled();
+  });
+
   test('consent mode (autoPushLocal off) does not auto-push local content', async () => {
     const engine = makeEngine({
       getDeviceClipboard: () => TEXT_DEVICE,
@@ -366,13 +376,17 @@ describe('SyncEngine coordinator', () => {
   });
 
   test('handleNetworkChanged clears engine backoff', async () => {
-    const engine = makeEngine();
+    const engine = makeEngine({ getDeviceClipboard: () => TEXT_DEVICE });
     await engine.explicitRefresh();
+    mockedEnginePull.mockClear();
+    mockedEnginePush.mockClear();
 
     engine.handleNetworkChanged();
     await flush();
 
     expect(mockedEngineHandleNetworkRouteChanged).toHaveBeenCalled();
+    expect(mockedEnginePull).toHaveBeenCalledTimes(1);
+    expect(mockedEnginePush).not.toHaveBeenCalled();
   });
 
   test('applySettings pushes auto_apply to the engine', async () => {

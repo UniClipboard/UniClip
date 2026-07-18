@@ -17,6 +17,7 @@ interface MockEngineInstance {
   start: jest.Mock;
   stop: jest.Mock;
   notifyLocalChanged: jest.Mock;
+  pushRecordExplicit: jest.Mock;
 }
 
 const getEngineMock = () => SyncEngine as unknown as jest.Mock;
@@ -38,6 +39,7 @@ jest.mock('@/services/SyncEngine', () => ({
     addListener: jest.fn(),
     getStatus: jest.fn(),
     notifyLocalChanged: jest.fn(),
+    pushRecordExplicit: jest.fn(async () => undefined),
     applyStagedEntry: jest.fn(),
     explicitRefresh: jest.fn(),
     acknowledgeLoop: jest.fn(),
@@ -72,6 +74,14 @@ jest.mock('@/utils/clipboardProxy', () => ({
 
 jest.mock('@/utils/fileStorage', () => ({
   saveHistoryFile: jest.fn(async () => 'file:///history/a.zip'),
+}));
+
+jest.mock('@/stores/historyStore', () => ({
+  useHistoryStore: {
+    getState: () => ({
+      addItem: jest.fn(async (item: unknown) => item),
+    }),
+  },
 }));
 
 // activate_clipboard / clipboard_history 的内存桩:writeActivate / getDeviceClipboard
@@ -156,10 +166,16 @@ describe('syncEngineStore route config', () => {
     });
   });
 
-  it('kicks SyncEngine immediately when local clipboard changes', async () => {
+  it('attempts one direct upload when local clipboard changes and auto-push is enabled', async () => {
     const { notifyDeviceClipboardChanged } = require('@/stores/syncEngineStore');
+    const { historyRepository } = require('@/services/db/historyRepository');
 
     await useSyncEngineStore.getState().start();
+    getEngineInstance().pushRecordExplicit.mockImplementationOnce(async (profileHash: string) => {
+      expect(await historyRepository.getByProfileHash(profileHash)).toEqual(
+        expect.objectContaining({ profileHash: 'LOCAL_HASH', text: 'local' })
+      );
+    });
     await notifyDeviceClipboardChanged({
       type: 'Text',
       text: 'local',
@@ -168,7 +184,48 @@ describe('syncEngineStore route config', () => {
     });
 
     const engineInstance = getEngineInstance();
-    expect(engineInstance.notifyLocalChanged).toHaveBeenCalled();
+    expect(engineInstance.pushRecordExplicit).toHaveBeenCalledTimes(1);
+    expect(engineInstance.pushRecordExplicit).toHaveBeenCalledWith('LOCAL_HASH');
+    expect(engineInstance.notifyLocalChanged).not.toHaveBeenCalled();
+  });
+
+  it('keeps local clipboard content without uploading when auto-push is disabled', async () => {
+    const { notifyDeviceClipboardChanged } = require('@/stores/syncEngineStore');
+    useSettingsStore.setState((state) => ({
+      config: { ...state.config, autoPushLocal: false } as any,
+    }));
+
+    await useSyncEngineStore.getState().start();
+    await notifyDeviceClipboardChanged({
+      type: 'Text',
+      text: 'local only',
+      profileHash: 'LOCAL_ONLY_HASH',
+      localClipboardHash: 'LOCAL_ONLY_HASH',
+    });
+
+    expect(getEngineInstance().pushRecordExplicit).not.toHaveBeenCalled();
+  });
+
+  it('does not retry a failed automatic upload when the app becomes active again', async () => {
+    const { notifyDeviceClipboardChanged } = require('@/stores/syncEngineStore');
+
+    await useSyncEngineStore.getState().start();
+    const engineInstance = getEngineInstance();
+    engineInstance.pushRecordExplicit.mockRejectedValueOnce(new Error('offline'));
+
+    await expect(
+      notifyDeviceClipboardChanged({
+        type: 'Text',
+        text: 'keep local after failure',
+        profileHash: 'FAILED_HASH',
+        localClipboardHash: 'FAILED_HASH',
+      })
+    ).resolves.toBeUndefined();
+
+    reconcileSyncEngineAppState('active');
+    await Promise.resolve();
+
+    expect(engineInstance.pushRecordExplicit).toHaveBeenCalledTimes(1);
   });
 
   it('does not let background upload override a disabled auto-push direction', async () => {
@@ -330,8 +387,12 @@ describe('syncEngineStore route config', () => {
     expect(activateRepository.upsert).not.toHaveBeenCalled();
   });
 
-  it('keeps a clipboard change that arrives before SyncEngine starts', async () => {
+  it('keeps an early clipboard change local without retaining it for a later retry', async () => {
     const { notifyDeviceClipboardChanged } = require('@/stores/syncEngineStore');
+    const { historyRepository } = require('@/services/db/historyRepository');
+    useSettingsStore.setState((state) => ({
+      config: { ...state.config, autoPushLocal: false } as any,
+    }));
 
     await notifyDeviceClipboardChanged({
       type: 'Text',
@@ -343,14 +404,13 @@ describe('syncEngineStore route config', () => {
     await useSyncEngineStore.getState().start();
 
     const engineOptions = getEngineOptions();
-    expect(await engineOptions.getDeviceClipboard()).toEqual(
+    expect(await historyRepository.getByProfileHash('EARLY_HASH')).toEqual(
       expect.objectContaining({
-        hash: 'EARLY_HASH',
-        meta: expect.objectContaining({
-          hash: 'EARLY_HASH',
-          text: 'local before engine',
-        }),
+        profileHash: 'EARLY_HASH',
+        text: 'local before engine',
       })
     );
+    expect(await engineOptions.getDeviceClipboard()).toBeNull();
+    expect(getEngineInstance().pushRecordExplicit).not.toHaveBeenCalled();
   });
 });

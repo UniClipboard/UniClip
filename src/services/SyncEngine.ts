@@ -247,7 +247,7 @@ export class SyncEngine {
     if (this.state === 'LoopDetected' || this.state === 'AuthFailed') return;
     this.isRunning = true;
     log.info('[SyncEngine] start');
-    // 先确保引擎按当前 live URL 构造/对齐，再起 tick + SSE + 立即收敛一次。
+    // 先确保引擎按当前 live URL 构造/对齐，再起 tick + SSE + 立即刷新服务端状态。
     void (async () => {
       const ok = await this.ensureEngine();
       if (!ok) {
@@ -258,8 +258,7 @@ export class SyncEngine {
       if (this.tickTimer === null) this.scheduleNextTick();
       if (this.isOffline) return;
       void this.startSse();
-      // 首次立即收敛：有本地内容且允许自动推送就 push（内部含 get_latest，双向都覆盖），
-      // 否则显式 pull 一次拉服务端最新。
+      // 自动上传仅由新剪贴板事件触发；启动时只拉取服务端最新状态。
       void this.reconverge();
     })();
   }
@@ -336,7 +335,7 @@ export class SyncEngine {
       try {
         // 注意：换 baseUrl 会清 watermark（same_server 精确比对）。仅在事件驱动
         // 重解析 / 离线轮换时发生；调用方（handleNetworkChanged / 离线 tick）随后
-        // 会立即 reconverge，用 push/truth-gate 重新收敛。
+        // 会立即 reconverge，按新路由刷新服务端状态。
         await engineSetServer(ucServer);
         this.currentEngineUrl = ucServer.baseUrl;
         log.info('[SyncEngine] engineSetServer @ ' + ucServer.baseUrl);
@@ -720,16 +719,11 @@ export class SyncEngine {
   // -- 核心：push / pull / reconverge --
 
   /**
-   * 立即收敛一次：有本地内容且允许自动推送就 push（内部含 get_latest，双向覆盖），
-   * 否则显式 pull 拉服务端最新。用于 start / 服务器切换 / 网络变化后重建 watermark。
+   * 启动、服务器切换和网络恢复只刷新服务端状态。自动上传只由新剪贴板事件当场触发；
+   * 这里不得补传之前失败或在 auto-push 关闭时保留的本地内容。
    */
   private async reconverge(): Promise<void> {
-    const device = await this.safeGetDevice();
-    if (device && this.getSettings().autoPushLocal) {
-      await this.runPush();
-    } else {
-      await this.runPull({ tag: 'Explicit' });
-    }
+    await this.runPull({ tag: 'Explicit' });
   }
 
   /** push 单飞合并入口。 */
