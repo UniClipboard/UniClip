@@ -1,6 +1,16 @@
 /// <reference types="jest" />
 
 const mockExistingLocalUris = new Set<string>();
+const mockExistingDirectoryUris = new Set<string>([
+  'file://documents/logs',
+  'file://cache/log_exports',
+]);
+const mockFileContents = new Map<string, string>([
+  [
+    'file://documents/logs/app_2026-07-16.txt',
+    '2026-07-16 12:00:00 ERROR: status=401 Authorization: Bearer historical-token password=historical-password',
+  ],
+]);
 const mockZipFiles = jest.fn(
   async (_fileUris: string[], destUri: string, _signal?: AbortSignal) => {
     mockExistingLocalUris.add(destUri);
@@ -18,6 +28,7 @@ const mockCreateFile = jest.fn(
 const mockDeleteFile = jest.fn(async (_fileUri: string) => undefined);
 let mockExportLastModified = Date.now();
 const mockDeletedLocalUris: string[] = [];
+const mockDeletedDirectoryUris: string[] = [];
 
 jest.mock('react-native', () => ({
   Platform: { OS: 'android' },
@@ -31,18 +42,32 @@ jest.mock('android-util', () => ({
 
 jest.mock('expo-file-system', () => {
   class MockDirectory {
-    exists = true;
     uri: string;
     name: string;
 
     constructor(...parts: unknown[]) {
-      this.name = String(parts[parts.length - 1] ?? '');
+      this.name = String(parts[parts.length - 1] ?? '')
+        .split('/')
+        .at(-1)!;
       this.uri = parts
         .map((part) => (typeof part === 'string' ? part : ((part as { uri?: string })?.uri ?? '')))
         .join('/');
     }
 
-    create = jest.fn();
+    get exists() {
+      return mockExistingDirectoryUris.has(this.uri);
+    }
+
+    create = jest.fn(() => {
+      mockExistingDirectoryUris.add(this.uri);
+    });
+    delete = jest.fn(() => {
+      mockExistingDirectoryUris.delete(this.uri);
+      mockDeletedDirectoryUris.push(this.uri);
+      for (const uri of [...mockExistingLocalUris]) {
+        if (uri.startsWith(`${this.uri}/`)) mockExistingLocalUris.delete(uri);
+      }
+    });
     list = jest.fn(() => {
       if (this.name === 'logs') {
         return [new MockFile(this, 'app_2026-07-16.txt')];
@@ -60,7 +85,9 @@ jest.mock('expo-file-system', () => {
     name: string;
 
     constructor(...parts: unknown[]) {
-      this.name = String(parts[parts.length - 1] ?? '');
+      this.name = String(parts[parts.length - 1] ?? '')
+        .split('/')
+        .at(-1)!;
       this.uri = parts
         .map((part) => (typeof part === 'string' ? part : ((part as { uri?: string })?.uri ?? '')))
         .join('/');
@@ -70,6 +97,12 @@ jest.mock('expo-file-system', () => {
     get exists() {
       return mockExistingLocalUris.has(this.uri);
     }
+
+    text = jest.fn(async () => mockFileContents.get(this.uri) ?? '');
+    write = jest.fn((content: string) => {
+      mockFileContents.set(this.uri, content);
+      mockExistingLocalUris.add(this.uri);
+    });
 
     delete = jest.fn(() => {
       mockExistingLocalUris.delete(this.uri);
@@ -102,7 +135,16 @@ describe('Logger shareable export', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockExistingLocalUris.clear();
+    mockExistingDirectoryUris.clear();
+    mockExistingDirectoryUris.add('file://documents/logs');
+    mockExistingDirectoryUris.add('file://cache/log_exports');
+    mockFileContents.clear();
+    mockFileContents.set(
+      'file://documents/logs/app_2026-07-16.txt',
+      '2026-07-16 12:00:00 ERROR: status=401 Authorization: Bearer historical-token password=historical-password'
+    );
     mockDeletedLocalUris.length = 0;
+    mockDeletedDirectoryUris.length = 0;
     mockExportLastModified = Date.now();
   });
 
@@ -113,9 +155,17 @@ describe('Logger shareable export', () => {
     expect(mockCreateFile).not.toHaveBeenCalled();
     expect(mockCopyFile).not.toHaveBeenCalled();
     expect(mockZipFiles).toHaveBeenCalledWith(
-      ['file://documents/logs/app_2026-07-16.txt'],
+      [expect.stringMatching(/^file:\/\/cache\/log_exports\/sanitized_.+\/app_2026-07-16\.txt$/)],
       expect.stringMatching(/^file:\/\/cache\/log_exports\/logs_.+\.zip$/),
       undefined
+    );
+    const sanitizedUri = mockZipFiles.mock.calls[0][0][0];
+    const sanitizedContent = mockFileContents.get(sanitizedUri);
+    expect(sanitizedContent).toContain('status=401');
+    expect(sanitizedContent).not.toContain('historical-token');
+    expect(sanitizedContent).not.toContain('historical-password');
+    expect(mockDeletedDirectoryUris).toContain(
+      sanitizedUri.slice(0, sanitizedUri.lastIndexOf('/'))
     );
     expect(result).toEqual({
       uri: mockZipFiles.mock.calls[0][1],

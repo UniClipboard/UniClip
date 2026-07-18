@@ -1,10 +1,16 @@
-import { logger, consoleTransport } from 'react-native-logs';
+import {
+  logger,
+  consoleTransport,
+  type ConsoleTransportOptions,
+  type transportFunctionType,
+} from 'react-native-logs';
 import { Paths, Directory, File } from 'expo-file-system';
 import { deleteAsync, StorageAccessFramework } from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 import { nativeCopyFile, nativeZipFiles } from 'android-util';
 import * as Application from 'expo-application';
 import i18n from '@/i18n';
+import { redactLogText, redactLogValue } from './logRedaction';
 
 const LOG_DIR = new Directory(Paths.document, 'logs');
 const LOG_EXPORT_DIR = new Directory(Paths.cache, 'log_exports');
@@ -58,6 +64,14 @@ let isInitialized = false;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let logInstance: any = null;
 
+const redactingConsoleTransport: transportFunctionType<ConsoleTransportOptions> = (props) => {
+  consoleTransport({
+    ...props,
+    msg: redactLogText(props.msg),
+    rawMsg: redactLogValue(props.rawMsg),
+  });
+};
+
 /** 导出仅用于单测（append-only 回归锁定）；运行时经由 createLogger 使用 */
 export const customFileTransport = (props: {
   msg: string;
@@ -79,7 +93,7 @@ export const customFileTransport = (props: {
     const timestamp = formatLocalTimestamp(today);
     const level = props.level.text.toUpperCase();
     const extension = props.extension ? ` [${props.extension}]` : '';
-    const message = props.msg;
+    const message = redactLogText(props.msg);
 
     const logLine = `${timestamp} ${level}${extension}: ${message}\n`;
 
@@ -102,7 +116,7 @@ export function initLogger(config?: Partial<LogConfig>): void {
   };
 
   const transports = logConfig.enableConsole
-    ? [consoleTransport, customFileTransport]
+    ? [redactingConsoleTransport, customFileTransport]
     : [customFileTransport];
 
   logInstance = logger.createLogger({
@@ -241,10 +255,14 @@ export function cleanOldLogs(): void {
 }
 
 export const log = {
-  debug: (...args: unknown[]) => getLogger().debug(args.length === 1 ? args[0] : args),
-  info: (...args: unknown[]) => getLogger().info(args.length === 1 ? args[0] : args),
-  warn: (...args: unknown[]) => getLogger().warn(args.length === 1 ? args[0] : args),
-  error: (...args: unknown[]) => getLogger().error(args.length === 1 ? args[0] : args),
+  debug: (...args: unknown[]) =>
+    getLogger().debug(redactLogValue(args.length === 1 ? args[0] : args)),
+  info: (...args: unknown[]) =>
+    getLogger().info(redactLogValue(args.length === 1 ? args[0] : args)),
+  warn: (...args: unknown[]) =>
+    getLogger().warn(redactLogValue(args.length === 1 ? args[0] : args)),
+  error: (...args: unknown[]) =>
+    getLogger().error(redactLogValue(args.length === 1 ? args[0] : args)),
 };
 
 export function getLogFileUris(): string[] {
@@ -305,12 +323,24 @@ async function createLogArchiveFromFiles(
     LOG_EXPORT_DIR.create();
   }
   const archive = new File(LOG_EXPORT_DIR, fileName);
+  const sanitizedDirectory = new Directory(LOG_EXPORT_DIR, `sanitized_${timestamp}_${Date.now()}`);
   if (archive.exists) {
     archive.delete();
   }
 
   try {
-    await nativeZipFiles(fileUris, archive.uri, signal);
+    throwIfExportAborted(signal);
+    sanitizedDirectory.create({ intermediates: true });
+    const sanitizedFileUris: string[] = [];
+    for (const fileUri of fileUris) {
+      throwIfExportAborted(signal);
+      const source = new File(fileUri);
+      const sanitizedFile = new File(sanitizedDirectory, source.name);
+      sanitizedFile.write(redactLogText(await source.text()));
+      sanitizedFileUris.push(sanitizedFile.uri);
+    }
+    throwIfExportAborted(signal);
+    await nativeZipFiles(sanitizedFileUris, archive.uri, signal);
     throwIfExportAborted(signal);
     return { uri: archive.uri, fileName };
   } catch (error) {
@@ -318,6 +348,12 @@ async function createLogArchiveFromFiles(
       archive.delete();
     }
     throw error;
+  } finally {
+    try {
+      if (sanitizedDirectory.exists) sanitizedDirectory.delete();
+    } catch {
+      // Temporary sanitized files contain no credentials; cache cleanup remains best-effort.
+    }
   }
 }
 

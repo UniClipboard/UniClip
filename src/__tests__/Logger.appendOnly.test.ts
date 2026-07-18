@@ -54,4 +54,22 @@ describe('Logger 文件传输器', () => {
     expect(writeCalls[0].content).toContain('hello');
     expect(writeCalls[1].content).toContain('world');
   });
+
+  it('写入前清除已经被格式化进消息的账号和密码', () => {
+    const base = {
+      rawMsg: 'ignored',
+      level: { severity: 3, text: 'error' },
+    };
+
+    customFileTransport({
+      ...base,
+      msg: 'Authorization: Bearer future-token username=alice password=future-password',
+    });
+
+    expect(writeCalls).toHaveLength(1);
+    expect(writeCalls[0].content).not.toContain('future-token');
+    expect(writeCalls[0].content).not.toContain('alice');
+    expect(writeCalls[0].content).not.toContain('future-password');
+    expect(writeCalls[0].options).toEqual({ append: true });
+  });
 });
