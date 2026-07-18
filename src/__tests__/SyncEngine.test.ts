@@ -1,3 +1,5 @@
+/// <reference types="jest" />
+
 import {
   enginePush,
   enginePull,
@@ -9,18 +11,23 @@ import {
   engineAcknowledgeLoopDetected,
   healthProbe,
   putClipboard,
+  hasSse,
+  startSseSubscription,
+  cancelSseSubscription,
+  addSseListener,
 } from 'uc-core';
 import type { SyncOutcome } from 'uc-core';
 import { SyncEngine, type DeviceClipboard } from '../services/SyncEngine';
 import { setCurrentNetworkContext } from '../services/networkContext';
 import { HistorySyncStatus } from '../types/clipboard';
 
+const mockLogDebug = jest.fn();
 const mockLogError = jest.fn();
 const mockLogInfo = jest.fn();
 
 jest.mock('../services/Logger', () => ({
   log: {
-    debug: jest.fn(),
+    debug: (...args: unknown[]) => mockLogDebug(...args),
     info: (...args: unknown[]) => mockLogInfo(...args),
     warn: jest.fn(),
     error: (...args: unknown[]) => mockLogError(...args),
@@ -42,7 +49,12 @@ const mockedEngineHandleNetworkRouteChanged = engineHandleNetworkRouteChanged as
 const mockedEngineSetSettings = engineSetSettings as jest.Mock;
 const mockedEngineAcknowledgeLoopDetected = engineAcknowledgeLoopDetected as jest.Mock;
 const mockedHealthProbe = healthProbe as jest.Mock;
+const mockedHasSse = hasSse as jest.Mock;
+const mockedStartSseSubscription = startSseSubscription as jest.Mock;
+const mockedCancelSseSubscription = cancelSseSubscription as jest.Mock;
+const mockedAddSseListener = addSseListener as jest.Mock;
 
+const sseListeners = new Map<string, (event: unknown) => void>();
 const mockLoadServerRouteLiveUrl = jest.fn();
 const mockSaveServerRouteLiveUrl = jest.fn();
 const mockUpdateHistoryItem = jest.fn();
@@ -108,6 +120,14 @@ function makeEngine(overrides?: Partial<ConstructorParameters<typeof SyncEngine>
 
 beforeEach(() => {
   jest.clearAllMocks();
+  sseListeners.clear();
+  mockedHasSse.mockReturnValue(false);
+  mockedAddSseListener.mockImplementation(
+    (eventName: string, listener: (event: unknown) => void) => {
+      sseListeners.set(eventName, listener);
+      return { remove: jest.fn() };
+    }
+  );
   mockLoadServerRouteLiveUrl.mockResolvedValue(null);
   mockSaveServerRouteLiveUrl.mockResolvedValue(undefined);
   mockUpdateHistoryItem.mockResolvedValue(undefined);
@@ -457,6 +477,91 @@ describe('SyncEngine coordinator', () => {
   });
 });
 
+describe('SyncEngine SSE lifecycle', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(0);
+    mockedHasSse.mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    while (engines.length > 0) engines.pop()?.destroy();
+    jest.useRealTimers();
+  });
+
+  function emitSse(eventName: string, event: unknown): void {
+    const listener = sseListeners.get(eventName);
+    if (!listener) throw new Error('Missing SSE listener: ' + eventName);
+    listener(event);
+  }
+
+  test('keeps the current SSE subscription after hello pull succeeds', async () => {
+    const engine = makeEngine({
+      getSettings: () => ({ autoApplyRemote: true, autoPushLocal: false, enableSse: true }),
+    });
+
+    engine.start();
+    await settlePromises();
+
+    expect(mockedStartSseSubscription).toHaveBeenCalledTimes(1);
+    const subscriptionId = mockedStartSseSubscription.mock.calls[0][0] as string;
+
+    emitSse('onSseHello', { subscriptionId, serverTimeMs: 123 });
+    await settlePromises();
+
+    expect(mockedEnginePull).toHaveBeenCalledWith({ tag: 'SseHello' }, null);
+    expect(mockedStartSseSubscription).toHaveBeenCalledTimes(1);
+    expect(mockedCancelSseSubscription).not.toHaveBeenCalled();
+  });
+
+  test('logs repeated SSE subscribe and hello events at info once per 30 seconds', async () => {
+    const engine = makeEngine({
+      getSettings: () => ({ autoApplyRemote: true, autoPushLocal: false, enableSse: true }),
+    });
+
+    await engine.startSse();
+    const firstId = mockedStartSseSubscription.mock.calls[
+      mockedStartSseSubscription.mock.calls.length - 1
+    ]?.[0] as string;
+    emitSse('onSseHello', { subscriptionId: firstId, serverTimeMs: 100 });
+    await settlePromises();
+
+    await jest.advanceTimersByTimeAsync(1_000);
+    await engine.startSse();
+    const secondId = mockedStartSseSubscription.mock.calls[
+      mockedStartSseSubscription.mock.calls.length - 1
+    ]?.[0] as string;
+    emitSse('onSseHello', { subscriptionId: secondId, serverTimeMs: 200 });
+    await settlePromises();
+
+    await jest.advanceTimersByTimeAsync(29_000);
+    await engine.startSse();
+    const thirdId = mockedStartSseSubscription.mock.calls[
+      mockedStartSseSubscription.mock.calls.length - 1
+    ]?.[0] as string;
+    emitSse('onSseHello', { subscriptionId: thirdId, serverTimeMs: 300 });
+    await settlePromises();
+
+    const infoMessages = mockLogInfo.mock.calls
+      .map(([message]) => message)
+      .filter((message) => typeof message === 'string' && message.includes('[SyncEngine] SSE'));
+    const debugMessages = mockLogDebug.mock.calls
+      .map(([message]) => message)
+      .filter((message) => typeof message === 'string' && message.includes('[SyncEngine] SSE'));
+
+    expect(infoMessages).toEqual([
+      '[SyncEngine] SSE subscribing (sse-1) to http://test.local',
+      '[SyncEngine] SSE hello (serverTime=100)',
+      '[SyncEngine] SSE subscribing (sse-3) to http://test.local',
+      '[SyncEngine] SSE hello (serverTime=300)',
+    ]);
+    expect(debugMessages).toEqual([
+      '[SyncEngine] SSE subscribing (sse-2) to http://test.local',
+      '[SyncEngine] SSE hello (serverTime=200)',
+    ]);
+  });
+});
+
 describe('SyncEngine offline recovery probe', () => {
   let randomSpy: jest.SpyInstance;
 
@@ -535,7 +640,7 @@ describe('SyncEngine offline recovery probe', () => {
 
     engine.handleNetworkChanged();
     await settlePromises();
-    resolveProbe?.(undefined);
+    (resolveProbe as ((value: unknown) => void) | null)?.(undefined);
     await settlePromises();
 
     expect(mockedEnginePull).toHaveBeenCalledTimes(1);
@@ -712,7 +817,8 @@ describe('SyncEngine offline recovery probe', () => {
     routeMutation.resolve();
     await settlePromises();
 
-    const lastServer = mockedEngineSetServer.mock.calls.at(-1)?.[0];
+    const lastServer =
+      mockedEngineSetServer.mock.calls[mockedEngineSetServer.mock.calls.length - 1]?.[0];
     expect(lastServer).toEqual(expect.objectContaining({ baseUrl: 'https://clip.example.com' }));
     expect(mockedEnginePull).toHaveBeenCalledTimes(1);
   });

@@ -62,6 +62,8 @@ import { log } from './Logger';
 // SSE 在线时下行推送接管即时性，周期 tick 降为低频兜底（设计 §5.2：SSE 在线也保留
 // ~30s 兜底 tick）；SSE 断开/回退时恢复 normalCadence（1Hz）轮询。
 const SSE_FALLBACK_CADENCE_SECS = 30;
+// 重复建连日志保留低频 info 采样，其余降为 debug，避免异常重连时刷屏。
+const SSE_LIFECYCLE_INFO_INTERVAL_MS = 30_000;
 // 断线退避重连：1s 起指数翻倍，封顶 30s。
 const SSE_BACKOFF_BASE_MS = 1000;
 const SSE_BACKOFF_MAX_MS = 30000;
@@ -201,7 +203,10 @@ export class SyncEngine {
   private sseEpoch = 0;
   private sseSubscriptionId: string | null = null;
   private sseConnected = false;
+  private sseConnectAttemptEpoch: number | null = null;
   private sseConsecutiveFailures = 0;
+  private lastSseLifecycleInfoAt: number | null = null;
+  private sseLifecycleAtInfo = false;
   private sseReconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private sseRetryTimer: ReturnType<typeof setTimeout> | null = null;
   private sseSubscriptions: EventSubscription[] = [];
@@ -382,7 +387,7 @@ export class SyncEngine {
     this.sseSubscriptions = [
       addSseListener('onSseHello', (e) => {
         if (e.subscriptionId !== this.sseSubscriptionId) return;
-        log.info('[SyncEngine] SSE hello (serverTime=' + e.serverTimeMs + ')');
+        this.logSseLifecycle('[SyncEngine] SSE hello (serverTime=' + e.serverTimeMs + ')');
         this.sseConnected = true;
         this.sseConsecutiveFailures = 0;
         // 无重放承诺：连上后无条件拉一次，覆盖建连窗口竞态（设计 §4.3）。
@@ -421,26 +426,37 @@ export class SyncEngine {
     this.sseEpoch += 1;
     const epoch = this.sseEpoch;
     const subscriptionId = 'sse-' + epoch;
-
-    let ucServer: UcServerConfig;
+    this.sseConnectAttemptEpoch = epoch;
     try {
-      ucServer = await this.withActiveRoute(server, async (route) => this.toUcServer(route));
-    } catch (e: any) {
-      log.info('[SyncEngine] SSE route resolve failed: ' + (e?.message ?? e));
-      this.handleSseDisconnected('route resolve failed');
-      return;
-    }
-    // await 期间 epoch 可能已被 bump（切服务器/退后台），旧请求作废。
-    if (epoch !== this.sseEpoch) return;
+      let ucServer: UcServerConfig;
+      try {
+        ucServer = await this.withActiveRoute(server, async (route) => this.toUcServer(route));
+      } catch (e: any) {
+        log.info('[SyncEngine] SSE route resolve failed: ' + (e?.message ?? e));
+        this.handleSseDisconnected('route resolve failed');
+        return;
+      }
+      // await 期间 epoch 可能已被 bump（切服务器/退后台），旧请求作废。
+      if (epoch !== this.sseEpoch) return;
 
-    this.sseSubscriptionId = subscriptionId;
-    try {
-      startSseSubscription(subscriptionId, ucServer, server.trustInsecureCert);
-      log.info('[SyncEngine] SSE subscribing (' + subscriptionId + ') to ' + ucServer.baseUrl);
-    } catch (e: any) {
-      log.warn('[SyncEngine] SSE subscribe threw: ' + (e?.message ?? e));
-      this.sseSubscriptionId = null;
-      this.handleSseDisconnected('subscribe failed');
+      this.sseSubscriptionId = subscriptionId;
+      try {
+        startSseSubscription(subscriptionId, ucServer, server.trustInsecureCert);
+        const now = Date.now();
+        this.sseLifecycleAtInfo =
+          this.lastSseLifecycleInfoAt === null ||
+          now - this.lastSseLifecycleInfoAt >= SSE_LIFECYCLE_INFO_INTERVAL_MS;
+        if (this.sseLifecycleAtInfo) this.lastSseLifecycleInfoAt = now;
+        this.logSseLifecycle(
+          '[SyncEngine] SSE subscribing (' + subscriptionId + ') to ' + ucServer.baseUrl
+        );
+      } catch (e: any) {
+        log.warn('[SyncEngine] SSE subscribe threw: ' + (e?.message ?? e));
+        this.sseSubscriptionId = null;
+        this.handleSseDisconnected('subscribe failed');
+      }
+    } finally {
+      if (this.sseConnectAttemptEpoch === epoch) this.sseConnectAttemptEpoch = null;
     }
   }
 
@@ -448,6 +464,7 @@ export class SyncEngine {
   stopSse(): void {
     this.cancelSseSubscriptionInternal();
     this.sseEpoch += 1;
+    this.sseConnectAttemptEpoch = null;
     if (this.sseReconnectTimer !== null) {
       clearTimeout(this.sseReconnectTimer);
       this.sseReconnectTimer = null;
@@ -463,6 +480,14 @@ export class SyncEngine {
     this.stopSse();
     this.sseConsecutiveFailures = 0;
     void this.startSse();
+  }
+
+  private logSseLifecycle(message: string): void {
+    if (this.sseLifecycleAtInfo) {
+      log.info(message);
+    } else {
+      log.debug(message);
+    }
   }
 
   private cancelSseSubscriptionInternal(): void {
@@ -869,7 +894,15 @@ export class SyncEngine {
     this.setState('Succeeded');
     this.lastSyncedAt = Date.now();
     this.lastError = null;
-    if (this.isRunning) void this.startSse();
+    if (
+      this.isRunning &&
+      this.sseSubscriptionId === null &&
+      this.sseConnectAttemptEpoch === null &&
+      this.sseReconnectTimer === null &&
+      this.sseRetryTimer === null
+    ) {
+      void this.startSse();
+    }
   }
 
   private clearOffline(): void {
