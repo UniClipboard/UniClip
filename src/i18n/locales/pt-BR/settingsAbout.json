@@ -15,6 +15,7 @@
     "latestVersion": "Versão mais recente: {{version}}",
     "currentVersion": "Versão atual: {{version}}",
     "releaseNotes": "Notas da versão:\n{{notes}}",
+    "r2": "Baixar (recomendado)",
     "gitee": "Baixar do Gitee",
     "github": "Baixar do GitHub",
     "downloading": "Baixando {{percent}}%",

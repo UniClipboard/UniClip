@@ -290,12 +290,23 @@ export const AboutSection = memo(function AboutSection({ initialUpdate }: AboutS
                   onClick={() => {
                     const s = downloadSourceSheet;
                     setDownloadSourceSheet(null);
+                    handleDownloadApk('r2', s.version, s.assets);
+                  }}
+                  modifiers={[fillMaxWidth()]}
+                >
+                  <ComposeText>{t('download.r2')}</ComposeText>
+                </Button>
+                <Spacer modifiers={[heightModifier(8)]} />
+                <OutlinedButton
+                  onClick={() => {
+                    const s = downloadSourceSheet;
+                    setDownloadSourceSheet(null);
                     handleDownloadApk('gitee', s.version, s.assets);
                   }}
                   modifiers={[fillMaxWidth()]}
                 >
                   <ComposeText>{t('download.gitee')}</ComposeText>
-                </Button>
+                </OutlinedButton>
                 <Spacer modifiers={[heightModifier(8)]} />
                 <OutlinedButton
                   onClick={() => {

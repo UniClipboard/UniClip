@@ -35,8 +35,6 @@ export {
   parseVersion,
   compareVersions,
   versionToStr,
-  getChangelogUrl,
-  fetchChangelog,
 } from './UpdateService';
 export type {
   UpdateCheckResult,
@@ -44,7 +42,6 @@ export type {
   ReleaseAssetInfo,
   AutomaticUpdateSettings,
   AutomaticUpdateDependencies,
-  ChangelogPlatform,
 } from './UpdateService';
 
 // APK Download Service

@@ -1,16 +1,21 @@
 /**
  * Update Service
- * 检查 GitHub 最新 Release 版本更新
+ * 从 Cloudflare R2 派发的 manifest 检查版本更新
  */
 
 import { runtimeStateStorage } from './RuntimeStateStorage';
 
-const GITHUB_RELEASES_API = 'https://api.github.com/repos/UniClipboard/uc-android/releases';
-const GITHUB_RAW_BASE = 'https://raw.githubusercontent.com/UniClipboard/UniClip';
+// R2 更新网关。桌面端与移动端共用 bucket `uniclipboard-releases`,由 update-server
+// Worker 暴露在 release.uniclipboard.app;移动端产物集中在 android/ 前缀下:
+//   GET /android/{stable,beta}.json          → 渠道 manifest
+//   GET /android/artifacts/{tag}/{file}.apk  → APK 下载
+const R2_UPDATE_BASE = 'https://release.uniclipboard.app/android';
+// GitHub / Gitee 仍作为下载镜像保留(R2 为主)。两者的 release 附件下载 URL 都采用
+// /releases/download/<tag>/<file> 模式,由 manifest 里的 tagName + asset 名推导。
 const RELEASES_PAGE_URL = 'https://github.com/UniClipboard/uc-android/releases';
-// Gitee 镜像渠道。仓库路径由 CI 的 GITEE_OWNER/GITEE_REPO 决定(uni-clipboard/uc-android),
+const GITHUB_DOWNLOAD_BASE = 'https://github.com/UniClipboard/uc-android/releases/download';
+// Gitee 仓库路径由 CI 的 GITEE_OWNER/GITEE_REPO 决定(uni-clipboard/uc-android),
 // 与 GitHub 侧的 UniClipboard/uc-android 大小写/写法不同,勿直接沿用 GitHub 命名空间。
-// Gitee release 附件下载 URL 采用 /releases/download/<tag>/<file> 模式,与 GitHub 一致。
 const GITEE_RELEASES_PAGE_URL = 'https://gitee.com/uni-clipboard/uc-android/releases';
 const GITEE_DOWNLOAD_BASE = 'https://gitee.com/uni-clipboard/uc-android/releases/download';
 
@@ -25,11 +30,13 @@ export interface ParsedVersion {
 export interface ReleaseAssetInfo {
   /** APK 文件名，如 UniClip-1.0.11-arm64-v8a.apk */
   name: string;
-  /** GitHub 直接下载 URL */
+  /** R2 直接下载 URL（主下载源） */
+  r2DownloadUrl: string;
+  /** GitHub 直接下载 URL（镜像） */
   githubDownloadUrl: string;
-  /** Gitee 直接下载 URL */
+  /** Gitee 直接下载 URL（镜像） */
   giteeDownloadUrl: string;
-  /** SHA-256 哈希值（十六进制小写），来自 GitHub API digest 字段，可能为 undefined */
+  /** SHA-256 哈希值（十六进制小写），来自 manifest 的 sha256 字段，可能为 undefined */
   sha256?: string;
 }
 
@@ -86,36 +93,8 @@ export function compareVersions(a: ParsedVersion, b: ParsedVersion): number {
   return a.beta - b.beta;
 }
 
-export type ChangelogPlatform = 'android' | 'ios';
-
 function getChangelogLanguage(language: string): 'zh' | 'en' {
   return language.toLowerCase().startsWith('zh') ? 'zh' : 'en';
-}
-
-export function getChangelogUrl(
-  tagName: string,
-  platform: ChangelogPlatform,
-  language: string
-): string {
-  const filename = `${tagName}.${platform}.${getChangelogLanguage(language)}.md`;
-  return `${GITHUB_RAW_BASE}/${tagName}/changelogs/${filename}`;
-}
-
-export async function fetchChangelog(
-  tagName: string,
-  platform: ChangelogPlatform,
-  language: string
-): Promise<string | undefined> {
-  try {
-    const response = await fetch(getChangelogUrl(tagName, platform, language));
-    if (!response.ok) return undefined;
-
-    const body = await response.text();
-    const notes = body.trim();
-    return notes || undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 export interface UpdateCheckResult {
@@ -128,6 +107,23 @@ export interface UpdateCheckResult {
   assets: ReleaseAssetInfo[];
   /** 对应版本、平台和语言的静态 Markdown 更新说明 */
   releaseNotes?: string;
+}
+
+/**
+ * R2 渠道 manifest 的线上格式。
+ * 与 scripts/assemble-android-manifest.mjs 及 desktop 的 worker types.ts 保持一致。
+ *
+ * 注意两个版本串的差异：`version` 是 4 段式（= tag 去掉前缀 `v`，与安装包的
+ * Android versionName 一致，供比较使用）；`assets[].name` 里的文件名用的是 3 段式
+ * marketing 版本（expo.version），二者不能混用。详见 assemble 脚本的注释。
+ */
+interface AndroidUpdateManifest {
+  version: string;
+  tagName: string;
+  prerelease: boolean;
+  pub_date: string;
+  notes: { en: string; zh: string };
+  assets: Array<{ name: string; sha256?: string }>;
 }
 
 export interface AutomaticUpdateSettings {
@@ -148,91 +144,77 @@ export interface AutomaticUpdateDependencies {
   ) => Promise<UpdateCheckResult>;
 }
 
+/** 从 manifest 内嵌的双语 notes 中按当前界面语言取更新说明。 */
+function pickManifestNotes(
+  notes: AndroidUpdateManifest['notes'] | undefined,
+  language: string
+): string | undefined {
+  if (!notes) return undefined;
+  const body = notes[getChangelogLanguage(language)]?.trim();
+  return body || undefined;
+}
+
 /**
- * 从 GitHub API 获取最新版本并与当前版本比较
- * @param currentVersionStr 当前版本字符串
- * @param includeBeta 是否包含 beta 版本，默认 false
- * @param language 当前界面语言，用于读取对应的 Android Markdown 更新日志
+ * 从 R2 渠道 manifest 获取最新版本并与当前版本比较
+ * @param currentVersionStr 当前版本字符串（4 段式 Android versionName）
+ * @param includeBeta 是否接受预发布版本（beta 渠道），默认 false
+ * @param language 当前界面语言，用于从 manifest 选取对应语言的更新说明
  */
 export async function checkForUpdate(
   currentVersionStr: string,
   includeBeta = false,
   language = 'en'
 ): Promise<UpdateCheckResult> {
-  const response = await fetch(GITHUB_RELEASES_API, {
-    headers: { Accept: 'application/vnd.github+json' },
+  // includeBeta 只是「是否接受预发布」的布尔开关：stable 渠道只含最新正式版，
+  // beta 渠道含（正式 + 预发布中）的最新版。
+  const channel = includeBeta ? 'beta' : 'stable';
+  const response = await fetch(`${R2_UPDATE_BASE}/${channel}.json`, {
+    headers: { Accept: 'application/json' },
   });
 
   if (!response.ok) {
-    throw new Error(`GitHub API 请求失败: ${response.status}`);
+    throw new Error(`R2 更新请求失败: ${response.status}`);
   }
 
-  const releases: Array<{
-    tag_name: string;
-    prerelease: boolean;
-    draft: boolean;
-    html_url: string;
-    assets: Array<{
-      name: string;
-      browser_download_url: string;
-      digest?: string; // 格式: "sha256:HEX_VALUE"
-    }>;
-  }> = await response.json();
+  const manifest: AndroidUpdateManifest = await response.json();
+  const tag = manifest.tagName;
+  const githubReleaseUrl = `${RELEASES_PAGE_URL}/tag/${tag}`;
+  const giteeReleaseUrl = `${GITEE_RELEASES_PAGE_URL}/tag/${tag}`;
 
-  // 过滤草稿；若不包含 beta 则进一步过滤 prerelease
-  const candidates = releases.filter((r) => {
-    if (r.draft) return false;
-    if (!includeBeta && r.prerelease) return false;
-    return true;
-  });
-
-  const latest = candidates[0];
-  if (!latest) {
-    return {
-      hasUpdate: false,
-      latestVersion: currentVersionStr,
-      tagName: '',
-      releaseUrl: RELEASES_PAGE_URL,
-      giteeReleaseUrl: GITEE_RELEASES_PAGE_URL,
-      assets: [],
-      releaseNotes: undefined,
-    };
-  }
-
-  const latestParsed = parseVersion(latest.tag_name);
-  const currentParsed = parseVersion(currentVersionStr);
-
-  const apkAssets: ReleaseAssetInfo[] = latest.assets
+  // R2 为主下载源；GitHub / Gitee 按同一套 /releases/download/<tag>/<file> 规则推导为镜像。
+  const apkAssets: ReleaseAssetInfo[] = (manifest.assets ?? [])
     .filter((a) => a.name.endsWith('.apk'))
     .map((a) => ({
       name: a.name,
-      githubDownloadUrl: a.browser_download_url,
-      giteeDownloadUrl: `${GITEE_DOWNLOAD_BASE}/${latest.tag_name}/${a.name}`,
-      sha256: a.digest?.startsWith('sha256:') ? a.digest.slice(7).toLowerCase() : undefined,
+      r2DownloadUrl: `${R2_UPDATE_BASE}/artifacts/${tag}/${a.name}`,
+      githubDownloadUrl: `${GITHUB_DOWNLOAD_BASE}/${tag}/${a.name}`,
+      giteeDownloadUrl: `${GITEE_DOWNLOAD_BASE}/${tag}/${a.name}`,
+      sha256: a.sha256?.toLowerCase(),
     }));
+
+  const latestParsed = parseVersion(manifest.version);
+  const currentParsed = parseVersion(currentVersionStr);
 
   if (!currentParsed || !latestParsed) {
     return {
       hasUpdate: false,
-      latestVersion: latest.tag_name,
-      tagName: latest.tag_name,
-      releaseUrl: latest.html_url,
-      giteeReleaseUrl: `https://gitee.com/uni-clipboard/uc-android/releases/tag/${latest.tag_name}`,
+      latestVersion: manifest.version,
+      tagName: tag,
+      releaseUrl: githubReleaseUrl,
+      giteeReleaseUrl,
       assets: apkAssets,
       releaseNotes: undefined,
     };
   }
 
   const hasUpdate = compareVersions(latestParsed, currentParsed) > 0;
-  const releaseNotes = hasUpdate
-    ? await fetchChangelog(latest.tag_name, 'android', language)
-    : undefined;
+  const releaseNotes = hasUpdate ? pickManifestNotes(manifest.notes, language) : undefined;
   return {
     hasUpdate,
     latestVersion: versionToStr(latestParsed),
-    tagName: latest.tag_name,
-    releaseUrl: latest.html_url,
-    giteeReleaseUrl: `https://gitee.com/uni-clipboard/uc-android/releases/tag/${latest.tag_name}`,
+    tagName: tag,
+    releaseUrl: githubReleaseUrl,
+    giteeReleaseUrl,
     assets: apkAssets,
     releaseNotes,
   };

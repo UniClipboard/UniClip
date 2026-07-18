@@ -72,7 +72,19 @@ export function cleanOldApkCache(currentVersion: string): void {
   }
 }
 
-export type ApkSource = 'github' | 'gitee';
+export type ApkSource = 'r2' | 'github' | 'gitee';
+
+/** 按下载源从 asset 上取对应的直链 URL。 */
+function resolveDownloadUrl(asset: ReleaseAssetInfo, source: ApkSource): string {
+  switch (source) {
+    case 'r2':
+      return asset.r2DownloadUrl;
+    case 'github':
+      return asset.githubDownloadUrl;
+    case 'gitee':
+      return asset.giteeDownloadUrl;
+  }
+}
 
 const SUPPORTED_ABI_NAMES = ['arm64-v8a', 'armeabi-v7a', 'x86_64'] as const;
 type ApkAbi = (typeof SUPPORTED_ABI_NAMES)[number] | 'universal';
@@ -151,7 +163,7 @@ export async function checkApkCache(
  */
 export async function downloadApk(options: ApkDownloadOptions): Promise<string> {
   const { asset, source, version, onProgress, signal } = options;
-  const url = source === 'github' ? asset.githubDownloadUrl : asset.giteeDownloadUrl;
+  const url = resolveDownloadUrl(asset, source);
   log.info(`[ApkDownload] start source=${source} url=${url}`);
 
   // 确保缓存目录存在（含父目录）

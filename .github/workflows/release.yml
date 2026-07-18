@@ -110,6 +110,80 @@ jobs:
           bodyFile: release-notes-github.md
           artifacts: apk/*.apk
 
+  # Mirror the APKs and a channel manifest into the shared Cloudflare R2 bucket
+  # (`uniclipboard-releases`, also used by the desktop app) under an `android/`
+  # prefix, then let the update-server Worker at release.uniclipboard.app serve
+  # them. This is the primary update source the app polls; the GitHub + Gitee
+  # releases above stay as download mirrors.
+  #
+  # Requires repo secrets CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID (the same
+  # credentials the desktop repo uses to publish to this bucket).
+  r2-upload:
+    name: Upload to R2
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag_name }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Download APK artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: apk-*
+          path: apk/
+          merge-multiple: true
+
+      - name: Generate versioned changelogs
+        run: node scripts/release-notes.mjs
+
+      - name: Assemble Android update manifest
+        run: |
+          MARKETING_VERSION=$(node -p "require('./app.json').expo.version")
+          node scripts/assemble-android-manifest.mjs \
+            --tag "${{ inputs.tag_name }}" \
+            --marketing-version "$MARKETING_VERSION" \
+            --prerelease "${{ contains(inputs.tag_name, '-beta') }}" \
+            --apk-dir apk \
+            --changelog-dir changelogs \
+            --out-dir manifests
+
+      - name: Upload APKs and manifest to R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npm install -g wrangler
+          TAG="${{ inputs.tag_name }}"
+
+          for file in apk/*.apk; do
+            filename=$(basename "$file")
+            echo "Uploading ${filename} to R2..."
+            wrangler r2 object put \
+              "uniclipboard-releases/android/artifacts/${TAG}/${filename}" \
+              --file "$file" \
+              --remote
+          done
+
+          # The assemble step writes stable.json + beta.json for a stable
+          # release, or beta.json only for a prerelease. Upload whatever it
+          # produced so each channel points at its newest applicable build.
+          for manifest in manifests/*.json; do
+            channel=$(basename "$manifest" .json)
+            echo "Uploading ${channel} manifest to R2..."
+            cat "$manifest"
+            wrangler r2 object put \
+              "uniclipboard-releases/android/${channel}.json" \
+              --file "$manifest" \
+              --content-type "application/json" \
+              --remote
+          done
+
   sync-to-gitee:
     name: Sync to Gitee
     runs-on: ubuntu-latest
