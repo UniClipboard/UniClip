@@ -50,7 +50,7 @@ jest.mock('expo-file-system', () => {
         .split('/')
         .at(-1)!;
       this.uri = parts
-        .map((part) => (typeof part === 'string' ? part : ((part as { uri?: string })?.uri ?? '')))
+        .map((part) => (typeof part === 'string' ? part : (part as { uri?: string })?.uri ?? ''))
         .join('/');
     }
 
@@ -89,7 +89,7 @@ jest.mock('expo-file-system', () => {
         .split('/')
         .at(-1)!;
       this.uri = parts
-        .map((part) => (typeof part === 'string' ? part : ((part as { uri?: string })?.uri ?? '')))
+        .map((part) => (typeof part === 'string' ? part : (part as { uri?: string })?.uri ?? ''))
         .join('/');
       this.lastModified = this.name === 'logs_old.zip' ? mockExportLastModified : null;
     }

@@ -213,12 +213,12 @@ export class ClipboardManager {
       const imageExt = saved.mimeType.includes('png')
         ? 'png'
         : saved.mimeType.includes('jpeg') || saved.mimeType.includes('jpg')
-          ? 'jpg'
-          : saved.mimeType.includes('gif')
-            ? 'gif'
-            : saved.mimeType.includes('webp')
-              ? 'webp'
-              : 'png';
+        ? 'jpg'
+        : saved.mimeType.includes('gif')
+        ? 'gif'
+        : saved.mimeType.includes('webp')
+        ? 'webp'
+        : 'png';
 
       // ========== 阶段2: 从文件计算 localClipboardHash ==========
       const localClipboardHash = await calculateFileHash(randomTempFilePath);

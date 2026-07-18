@@ -41,7 +41,9 @@ export function HomeFilterChipsRow({
 
   // 滚动区右缘的渐隐过渡:让类型 chip 滑向时间 chip 时淡出,弱化两区边界。
   // background 是 6 位 hex,追加 00 得到同色全透明端。
-  const fadeBg = `linear-gradient(to right, ${String(colors.background)}00, ${String(colors.background)})`;
+  const fadeBg = `linear-gradient(to right, ${String(colors.background)}00, ${String(
+    colors.background
+  )})`;
 
   return (
     <View style={styles.row}>

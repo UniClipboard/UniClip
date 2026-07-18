@@ -517,8 +517,8 @@ export function Row({ verticalAlignment, horizontalArrangement, children }: RowP
           horizontalArrangement === 'center'
             ? 'center'
             : horizontalArrangement === 'end'
-              ? 'flex-end'
-              : undefined,
+            ? 'flex-end'
+            : undefined,
         width: '100%',
       }}
     >

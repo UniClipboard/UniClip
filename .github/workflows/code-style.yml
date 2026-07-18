@@ -20,11 +20,5 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run ESLint
-        run: npm run lint
-
-      - name: Run Prettier format check
-        run: npm run format-docs:check
-
-      - name: Run TypeScript type check
-        run: npm run type-check
+      - name: Run quality checks
+        run: npm run check:quality

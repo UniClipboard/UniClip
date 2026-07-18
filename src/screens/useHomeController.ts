@@ -322,7 +322,7 @@ export function useHomeController(onOpenSettings: () => void) {
   const getCopySuccessMessage = useCallback(
     () =>
       t(
-        (useSettingsStore.getState().config?.autoPushLocal ?? true)
+        useSettingsStore.getState().config?.autoPushLocal ?? true
           ? 'toast.copiedAutoPushEnabled'
           : 'toast.copiedLocal'
       ),

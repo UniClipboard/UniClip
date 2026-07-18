@@ -2,15 +2,24 @@ node_modules/
 .expo/
 .expo-shared/
 dist/
-build/
+**/build/
+**/target/
+android/
+ios/
 *.log
 .DS_Store
 coverage/
 
-# Documentation folders (external skills / agent notes)
+# Local agent state and external skill documentation
+.pi-subagents/
 .claude/
 .ai/
+.agents/
+task_plan.md
+findings.md
+progress.md
 
+# Generated release artifacts and parser-owned changelog sources
+release-notes-*
 CHANGES.md
 CHANGES.en.md
-.agents/

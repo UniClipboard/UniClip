@@ -226,10 +226,7 @@ function createProbeTask(
 }
 
 class RouteProbeError extends Error {
-  constructor(
-    readonly route: ServerRoute,
-    readonly error: unknown
-  ) {
+  constructor(readonly route: ServerRoute, readonly error: unknown) {
     super(error instanceof Error ? error.message : 'Route probe failed');
     this.name = 'RouteProbeError';
   }

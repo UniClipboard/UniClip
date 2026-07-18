@@ -94,10 +94,10 @@ function buildOrderBy(sort: HistorySort | undefined): string {
     field === 'lastAccessed'
       ? 'COALESCE(NULLIF(lastAccessed, 0), timestamp)' // a.lastAccessed || a.timestamp
       : field === 'useCount'
-        ? 'IFNULL(useCount, 0)'
-        : field === 'size'
-          ? 'IFNULL(size, 0)'
-          : 'timestamp';
+      ? 'IFNULL(useCount, 0)'
+      : field === 'size'
+      ? 'IFNULL(size, 0)'
+      : 'timestamp';
   return `ORDER BY pinned DESC, ${col} ${order}`;
 }
 

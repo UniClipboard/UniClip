@@ -137,7 +137,9 @@ async function uploadWithRetry(
       if (attempt < MAX_RETRIES) {
         const delay = RETRY_DELAYS[attempt] ?? RETRY_DELAYS[RETRY_DELAYS.length - 1];
         log.warn(
-          `[SmsUploadTask] Upload failed (attempt ${attempt + 1}/${MAX_RETRIES + 1}): ${error}, retrying in ${delay}ms`
+          `[SmsUploadTask] Upload failed (attempt ${attempt + 1}/${
+            MAX_RETRIES + 1
+          }): ${error}, retrying in ${delay}ms`
         );
         await updateNotification(
           i18n.t('share:sms.retrying', {

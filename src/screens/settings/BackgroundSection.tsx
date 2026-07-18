@@ -131,8 +131,9 @@ export const BackgroundSection = memo(function BackgroundSection() {
 
   /** 开启总开关后依次引导:忽略电池优化 → 通知权限 → 悬浮窗权限。 */
   const runPermissionOnboarding = async () => {
-    const { isIgnoringBatteryOptimizations, requestIgnoreBatteryOptimizations } =
-      await import('android-util');
+    const { isIgnoringBatteryOptimizations, requestIgnoreBatteryOptimizations } = await import(
+      'android-util'
+    );
     if (!isIgnoringBatteryOptimizations()) {
       requestIgnoreBatteryOptimizations();
       hasBatteryOptRequested.current = true;

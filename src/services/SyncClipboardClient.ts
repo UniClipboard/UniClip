@@ -303,7 +303,9 @@ export class SyncClipboardClient extends APIClient implements ISyncClipboardAPI,
       throw new ValidationError('Destination URI is required');
     }
 
-    const url = `${this.baseURL}${SyncClipboardClient.HISTORY_API_PREFIX}/${encodeURIComponent(profileId)}/data`;
+    const url = `${this.baseURL}${SyncClipboardClient.HISTORY_API_PREFIX}/${encodeURIComponent(
+      profileId
+    )}/data`;
 
     try {
       const headers = await this.getHeaders();

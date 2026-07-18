@@ -4,7 +4,6 @@ import tsParser from '@typescript-eslint/parser';
 import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
 import reactNativePlugin from 'eslint-plugin-react-native';
-import prettierPlugin from 'eslint-plugin-prettier';
 import prettierConfig from 'eslint-config-prettier';
 
 export default [
@@ -13,9 +12,10 @@ export default [
       'node_modules/**',
       '.expo/**',
       'dist/**',
-      'build/**',
-      'plugins/build/**',
-      'modules/*/build/**',
+      '**/build/**',
+      '.pi-subagents/**',
+      'android/**',
+      'ios/**',
       'web-stubs/**',
       '*.config.js',
       'babel.config.js',
@@ -62,11 +62,9 @@ export default [
       react: reactPlugin,
       'react-hooks': reactHooksPlugin,
       'react-native': reactNativePlugin,
-      prettier: prettierPlugin,
     },
     rules: {
       ...prettierConfig.rules,
-      'prettier/prettier': 'error',
       'react/react-in-jsx-scope': 'off',
       'react/prop-types': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',

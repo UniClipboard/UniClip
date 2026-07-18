@@ -26,7 +26,7 @@ jest.mock('expo-file-system', () => {
     constructor(...parts: unknown[]) {
       this.name = String(parts[parts.length - 1] ?? '');
       this.uri = parts
-        .map((part) => (typeof part === 'string' ? part : ((part as { uri?: string })?.uri ?? '')))
+        .map((part) => (typeof part === 'string' ? part : (part as { uri?: string })?.uri ?? ''))
         .join('/');
     }
 

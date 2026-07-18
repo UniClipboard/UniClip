@@ -17,9 +17,9 @@ export function canAutoApplyInBackground(
 ): boolean {
   return Boolean(
     !temporarilyDisabled &&
-    (config?.autoApplyRemote ?? true) &&
-    config?.enableBackgroundTasks &&
-    config.enableBackgroundDownload
+      (config?.autoApplyRemote ?? true) &&
+      config?.enableBackgroundTasks &&
+      config.enableBackgroundDownload
   );
 }
 
@@ -29,9 +29,9 @@ export function canAutoPushInBackground(
 ): boolean {
   return Boolean(
     !temporarilyDisabled &&
-    (config?.autoPushLocal ?? true) &&
-    config?.enableBackgroundTasks &&
-    config.enableBackgroundUpload
+      (config?.autoPushLocal ?? true) &&
+      config?.enableBackgroundTasks &&
+      config.enableBackgroundUpload
   );
 }
 

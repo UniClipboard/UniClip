@@ -69,10 +69,10 @@ function getSettings(): SyncSettings {
   return {
     autoApplyRemote: appIsBackground
       ? canAutoApplyInBackground(config, backgroundTemporarilyDisabled)
-      : (config?.autoApplyRemote ?? true),
+      : config?.autoApplyRemote ?? true,
     autoPushLocal: appIsBackground
       ? canAutoPushInBackground(config, backgroundTemporarilyDisabled)
-      : (config?.autoPushLocal ?? true),
+      : config?.autoPushLocal ?? true,
     enableSse: config?.enableSse ?? true,
   };
 }

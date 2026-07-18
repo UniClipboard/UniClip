@@ -497,7 +497,7 @@ export class HistoryStorage {
         version: existing.version + 1,
         syncStatus: wasDeleted
           ? HistorySyncStatus.LocalOnly
-          : (processedItem.syncStatus ?? HistorySyncStatus.LocalOnly),
+          : processedItem.syncStatus ?? HistorySyncStatus.LocalOnly,
         from: processedItem.from,
       };
       await historyRepository.replace(resultItem);

@@ -70,7 +70,7 @@ export async function saveFile(fileUri: string, fileName?: string): Promise<bool
   );
 
   // 运行时检查，避免模块顶层静态求值时 NativeModules 尚未注入的问题
-  const hashModule = Platform.OS === 'android' ? (NativeModules.NativeUtilModule ?? null) : null;
+  const hashModule = Platform.OS === 'android' ? NativeModules.NativeUtilModule ?? null : null;
   log.info(
     '[saveFile] NativeModules.NativeUtilModule:',
     hashModule,

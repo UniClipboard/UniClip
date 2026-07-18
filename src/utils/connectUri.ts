@@ -45,16 +45,13 @@ export function getConnectUriErrorMessage(error: ConnectUriError): string {
  * 同时随语言切换实时返回当前语言文案。
  */
 export const CONNECT_URI_ERROR_MESSAGES: Record<ConnectUriError, string> =
-  CONNECT_URI_ERROR_CODES.reduce(
-    (acc, code) => {
-      Object.defineProperty(acc, code, {
-        enumerable: true,
-        get: () => getConnectUriErrorMessage(code),
-      });
-      return acc;
-    },
-    {} as Record<ConnectUriError, string>
-  );
+  CONNECT_URI_ERROR_CODES.reduce((acc, code) => {
+    Object.defineProperty(acc, code, {
+      enumerable: true,
+      get: () => getConnectUriErrorMessage(code),
+    });
+    return acc;
+  }, {} as Record<ConnectUriError, string>);
 
 export interface ConnectUriResult {
   url: string;

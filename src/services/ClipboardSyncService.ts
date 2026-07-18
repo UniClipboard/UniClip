@@ -559,7 +559,7 @@ class ClipboardSyncService {
       }
 
       const shouldAutoCopy = this.isAppActive
-        ? (config?.autoApplyRemote ?? true)
+        ? config?.autoApplyRemote ?? true
         : canAutoApplyInBackground(config, settings.isTempDisabledBackgroundTasks);
       const remoteHash = finalContent.profileHash || finalContent.text || '';
       const localMatchesRemote = remoteHash === this.lastLocalProfileHash;

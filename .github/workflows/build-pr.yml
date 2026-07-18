@@ -11,4 +11,5 @@ jobs:
     uses: ./.github/workflows/test.yml
 
   android-build:
+    needs: [code-style, unit-tests]
     uses: ./.github/workflows/android-build.yml

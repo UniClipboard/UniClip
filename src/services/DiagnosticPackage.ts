@@ -88,10 +88,8 @@ export interface DiagnosticEvent {
   reason: DiagnosticReason | null;
 }
 
-interface ParsedDiagnosticEvent extends Omit<
-  DiagnosticEvent,
-  'firstAt' | 'lastAt' | 'occurrences'
-> {
+interface ParsedDiagnosticEvent
+  extends Omit<DiagnosticEvent, 'firstAt' | 'lastAt' | 'occurrences'> {
   kind: 'event';
   timestamp: string;
 }

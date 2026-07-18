@@ -18,7 +18,10 @@ const WEB_STUBBED_MODULES = new Set([
 // iOS 平台: 将 @expo/ui/jetpack-compose 重定向到 RN 原生组件 shim
 const IOS_SHIMS = {
   '@expo/ui/jetpack-compose': path.resolve(__dirname, 'ios-shims/expo-ui-jetpack-compose.tsx'),
-  '@expo/ui/jetpack-compose/modifiers': path.resolve(__dirname, 'ios-shims/expo-ui-jetpack-compose-modifiers.ts'),
+  '@expo/ui/jetpack-compose/modifiers': path.resolve(
+    __dirname,
+    'ios-shims/expo-ui-jetpack-compose-modifiers.ts'
+  ),
 };
 
 const originalResolveRequest = config.resolver.resolveRequest;

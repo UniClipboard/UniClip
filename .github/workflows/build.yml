@@ -82,7 +82,7 @@ jobs:
     uses: ./.github/workflows/code-style.yml
 
   android-build:
-    needs: [prepare]
+    needs: [prepare, code-style, unit-tests]
     uses: ./.github/workflows/android-build.yml
 
   unit-tests:
@@ -93,7 +93,7 @@ jobs:
   # TestFlight; a full release leaves uploading to release.yml after tagging.
   ios-build:
     if: ${{ github.event_name == 'workflow_dispatch' }}
-    needs: [prepare]
+    needs: [prepare, code-style, unit-tests]
     uses: ./.github/workflows/build-ios.yml
     secrets: inherit
     with:

@@ -195,19 +195,19 @@ const GeneralHubGroup = memo(function GeneralHubGroup({ iconTint, onNavigate }: 
   const { themeMode } = useTheme();
   const backgroundSummary = useSettingsStore((s) => {
     if (s.isTempDisabledBackgroundTasks) return t('hub.summary.backgroundTempDisabled');
-    return (s.config?.enableBackgroundTasks ?? false)
+    return s.config?.enableBackgroundTasks ?? false
       ? t('hub.summary.backgroundOn')
       : t('hub.summary.backgroundOff');
   });
   const smsSummary = useSettingsStore((s) =>
-    (s.config?.enableSmsForwarding ?? false) ? t('hub.summary.smsOn') : t('hub.summary.smsOff')
+    s.config?.enableSmsForwarding ?? false ? t('hub.summary.smsOn') : t('hub.summary.smsOff')
   );
   const appearanceSummary =
     themeMode === 'light'
       ? t('appearance.mode.light')
       : themeMode === 'dark'
-        ? t('appearance.mode.dark')
-        : t('appearance.mode.system');
+      ? t('appearance.mode.dark')
+      : t('appearance.mode.system');
 
   return (
     <SettingsSectionItem title={t('general.sectionTitle')}>

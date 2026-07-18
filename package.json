@@ -17,23 +17,32 @@
     "web": "expo start --web",
     "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
     "lint:fix": "eslint . --ext .ts,.tsx,.js,.jsx --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "format-docs": "prettier --write \"**/*.{json,md}\"",
     "format-docs:check": "prettier --check \"**/*.{json,md}\"",
     "type-check": "tsc --noEmit",
+    "check:quality": "npm run lint && npm run format:check && npm run type-check",
     "build:apk": "cd android && gradlew assembleRelease",
     "plugin:build": "cd plugins && tsc -p tsconfig.json",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "test:ci": "npm test -- --runInBand && ruby scripts/asc_whats_to_test_test.rb && npm run test:coverage -- --runInBand",
+    "check:ci": "npm run check:quality && npm run test:ci",
     "release:validate": "node scripts/validate-release.mjs && node scripts/validate-uc-core-ref.mjs && node scripts/release-notes.mjs --check",
+    "release:check": "npm run release:validate && npm run check:ci",
     "changelog:generate": "node scripts/release-notes.mjs --out-dir .",
     "release:build": "node scripts/bump-build.mjs",
     "release:version": "node scripts/bump-version.mjs",
     "prepare": "husky"
   },
   "lint-staged": {
-    "*.{json,md}": "prettier --write",
-    "*.{ts,tsx,js,jsx}": "eslint"
+    "*.{json,md,yml,yaml}": "prettier --write",
+    "*.{ts,tsx,js,jsx}": [
+      "prettier --write",
+      "eslint"
+    ]
   },
   "dependencies": {
     "@bacons/apple-targets": "^4.0.7",
@@ -101,7 +110,6 @@
     "better-sqlite3": "^12.11.1",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-prettier": "^5.5.5",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-native": "^5.0.0",
