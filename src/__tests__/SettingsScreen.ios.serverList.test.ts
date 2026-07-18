@@ -1,3 +1,5 @@
+/// <reference types="node" />
+
 import fs from 'fs';
 import path from 'path';
 
@@ -8,6 +10,7 @@ describe('iOS settings server list', () => {
   const orchestratorSource = readSource('screens/SettingsScreen.ios.tsx');
   const rootPageSource = readSource('screens/settings/ios/SettingsRootPage.tsx');
   const serverListSource = readSource('screens/settings/ios/ServerListPage.tsx');
+  const diagnosticsSource = readSource('screens/settings/ios/DiagnosticsPage.tsx');
   const commonSource = readSource('screens/settings/ios/common.tsx');
 
   it('opens a dedicated server list page from the root server row', () => {
@@ -15,6 +18,16 @@ describe('iOS settings server list', () => {
     expect(orchestratorSource).toContain("page === 'servers'");
     expect(orchestratorSource).toContain('ServerListPage');
     expect(commonSource).toContain('onTapGesture');
+  });
+
+  it('opens diagnostics from About and cleans the package after system sharing', () => {
+    expect(rootPageSource).toContain("onNavigate('diagnostics')");
+    expect(orchestratorSource).toContain("page === 'diagnostics'");
+    expect(orchestratorSource).toContain('DiagnosticsPage');
+    expect(diagnosticsSource).toContain('createDiagnosticPackage');
+    expect(diagnosticsSource).toContain('await shareFile(artifact.uri, artifact.fileName)');
+    expect(diagnosticsSource).toContain('if (artifact) deleteDiagnosticPackage(artifact.uri)');
+    expect(diagnosticsSource).toContain('disabled(isGenerating || !config)');
   });
 
   it('uses the unified server sheet for adding and editing servers', () => {

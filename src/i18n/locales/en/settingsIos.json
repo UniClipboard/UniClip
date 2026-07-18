@@ -69,5 +69,24 @@
       "footer": "Allow Insecure Certificates is only needed when the server uses a self-signed HTTPS certificate; plain HTTP doesn't require it.",
       "allowInsecure": "Allow insecure certificates"
     }
+  },
+  "diagnostics": {
+    "title": "Diagnostics",
+    "package": {
+      "appVersion": "App version",
+      "logRange": "Log range",
+      "lastThreeDays": "Last 3 days",
+      "extensions": "Native extension logs",
+      "notIncluded": "Not included",
+      "footer": "The package contains app state and redacted log statistics. Clipboard contents, credentials, raw log messages, and native extension logs are excluded."
+    },
+    "action": {
+      "generate": "Generate and share",
+      "preparing": "Preparing..."
+    },
+    "error": {
+      "title": "Couldn't create diagnostics",
+      "message": "Please try again later."
+    }
   }
 }

@@ -69,5 +69,24 @@
       "footer": "「允许不安全证书」仅在服务器使用自签名 HTTPS 证书时需要，纯 HTTP 无需开启。",
       "allowInsecure": "允许不安全证书"
     }
+  },
+  "diagnostics": {
+    "title": "诊断",
+    "package": {
+      "appVersion": "App 版本",
+      "logRange": "日志范围",
+      "lastThreeDays": "最近 3 天",
+      "extensions": "原生扩展日志",
+      "notIncluded": "未包含",
+      "footer": "诊断包仅包含应用状态和脱敏后的日志统计，不包含剪贴板内容、凭据、原始日志消息或原生扩展日志。"
+    },
+    "action": {
+      "generate": "生成并分享",
+      "preparing": "正在生成..."
+    },
+    "error": {
+      "title": "无法生成诊断包",
+      "message": "请稍后重试。"
+    }
   }
 }

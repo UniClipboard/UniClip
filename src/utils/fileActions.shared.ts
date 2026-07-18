@@ -36,12 +36,35 @@ function getGalleryImageExtension(value: string | undefined): string | null {
 export function getMimeTypeFromUri(fileUri: string): string {
   const name = fileUri.split('?')[0].toLowerCase();
   if (name.endsWith('.apk')) return 'application/vnd.android.package-archive';
+  if (name.endsWith('.json')) return 'application/json';
+  if (name.endsWith('.txt') || name.endsWith('.log')) return 'text/plain';
   if (name.endsWith('.pdf')) return 'application/pdf';
   if (name.endsWith('.zip')) return 'application/zip';
   if (name.endsWith('.mp4') || name.endsWith('.mkv') || name.endsWith('.avi')) return 'video/*';
   if (name.endsWith('.mp3') || name.endsWith('.flac') || name.endsWith('.aac')) return 'audio/*';
   if (getGalleryImageExtension(name)) return 'image/*';
   return '*/*';
+}
+
+function getUniformTypeIdentifier(mimeType: string): string {
+  switch (mimeType) {
+    case 'application/json':
+      return 'public.json';
+    case 'text/plain':
+      return 'public.plain-text';
+    case 'application/pdf':
+      return 'com.adobe.pdf';
+    case 'application/zip':
+      return 'public.zip-archive';
+    case 'image/*':
+      return 'public.image';
+    case 'video/*':
+      return 'public.movie';
+    case 'audio/*':
+      return 'public.audio';
+    default:
+      return 'public.data';
+  }
 }
 
 /**
@@ -53,7 +76,7 @@ export async function shareFile(fileUri: string, fileName?: string): Promise<voi
   await Sharing.shareAsync(fileUri, {
     mimeType,
     dialogTitle: fileName || i18n.t('errors:share.dialogTitle'),
-    UTI: mimeType,
+    UTI: getUniformTypeIdentifier(mimeType),
   });
 }
 

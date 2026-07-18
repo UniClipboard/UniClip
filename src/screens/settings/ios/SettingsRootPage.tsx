@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import {
   HStack,
   Image,
@@ -227,6 +227,13 @@ export function SettingsRootPage({
 
         {/* ── 关于 ── */}
         <Section header={<SwiftUIText>{t('category.about')}</SwiftUIText>}>
+          <SettingsNavRow
+            icon="waveform.path.ecg"
+            iconColor={settingsTileColors.red}
+            title={t('diagnostics.title', { ns: 'settingsIos' })}
+            onPress={() => onNavigate('diagnostics')}
+          />
+
           <Link destination="https://github.com/UniClipboard/UniClipboard">
             <HStack spacing={12} modifiers={[frame({ maxWidth: Infinity })]}>
               <SettingsIconTile systemName="globe" color={settingsTileColors.gray} />

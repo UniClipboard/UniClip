@@ -28,6 +28,7 @@ import { StoragePage } from './settings/ios/StoragePage';
 import { KeyboardPage } from './settings/ios/KeyboardPage';
 import { SharePage } from './settings/ios/SharePage';
 import { ClipboardAccessPage } from './settings/ios/ClipboardAccessPage';
+import { DiagnosticsPage } from './settings/ios/DiagnosticsPage';
 
 /** UINavigationController-style push/pop spring. */
 const PUSH_SPRING = Animation.spring({ response: 0.38, dampingFraction: 0.92 });
@@ -60,7 +61,7 @@ function SubPageSlide({
 
 /**
  * iOS settings sheet: a hub root page plus in-sheet sub-pages (servers /
- * storage / keyboard / share / clipboard access) layered in a ZStack inside
+ * storage / keyboard / share / clipboard access / diagnostics) layered in a ZStack inside
  * one SwiftUI BottomSheet. Navigation slides pages horizontally with a
  * push/pop parallax, mimicking a native navigation stack.
  */
@@ -187,6 +188,9 @@ export const SettingsScreen = () => {
               </SubPageSlide>
               <SubPageSlide active={page === 'clipboard'} width={width}>
                 <ClipboardAccessPage onBack={backToRoot} />
+              </SubPageSlide>
+              <SubPageSlide active={page === 'diagnostics'} width={width}>
+                <DiagnosticsPage onBack={backToRoot} />
               </SubPageSlide>
             </ZStack>
 

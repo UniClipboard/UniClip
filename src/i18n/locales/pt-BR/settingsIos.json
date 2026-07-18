@@ -67,5 +67,24 @@
       "footer": "Permitir certificados inseguros é necessário apenas quando o servidor usa um certificado HTTPS autoassinado; HTTP simples não precisa disso.",
       "allowInsecure": "Permitir certificados inseguros"
     }
+  },
+  "diagnostics": {
+    "title": "Diagnóstico",
+    "package": {
+      "appVersion": "Versão do app",
+      "logRange": "Período dos registros",
+      "lastThreeDays": "Últimos 3 dias",
+      "extensions": "Registros das extensões",
+      "notIncluded": "Não incluídos",
+      "footer": "O pacote contém o estado do app e estatísticas de registros sem dados sensíveis. Conteúdo da área de transferência, credenciais, mensagens brutas e registros das extensões não são incluídos."
+    },
+    "action": {
+      "generate": "Gerar e compartilhar",
+      "preparing": "Preparando..."
+    },
+    "error": {
+      "title": "Não foi possível criar o diagnóstico",
+      "message": "Tente novamente mais tarde."
+    }
   }
 }
