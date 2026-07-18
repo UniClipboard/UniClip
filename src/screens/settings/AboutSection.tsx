@@ -6,7 +6,7 @@
  * 作为 item:无独立 Host,底部表单 + 取消确认弹窗作为 item 内 overlay 渲染
  * (见 SettingsSectionItem.dialogs)。
  */
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Linking } from 'react-native';
 import {
@@ -32,6 +32,7 @@ import {
 import { APP_VERSION } from '@/constants';
 import {
   checkForUpdate,
+  checkForAutomaticUpdate,
   getPreferredAbi,
   findAssetForAbi,
   checkApkCache,
@@ -41,6 +42,7 @@ import {
   selectLocalizedReleaseNotes,
   type ReleaseAssetInfo,
   type ApkSource,
+  type UpdateCheckResult,
 } from '@/services';
 import { useSettingsStore } from '@/stores';
 import { useSettingsToast } from './SettingsToastContext';
@@ -49,12 +51,19 @@ import { log } from '@/services/Logger';
 
 const appVersion = APP_VERSION;
 
-export const AboutSection = memo(function AboutSection() {
+interface AboutSectionProps {
+  initialUpdate?: UpdateCheckResult;
+}
+
+export const AboutSection = memo(function AboutSection({ initialUpdate }: AboutSectionProps) {
   const { t, i18n } = useTranslation('settingsAbout');
   const showMessage = useSettingsToast();
 
   const autoCheckUpdateEnabled = useSettingsStore((s) => s.config?.autoCheckUpdate ?? true);
   const updateToBetaEnabled = useSettingsStore((s) => s.config?.updateToBeta ?? false);
+  const debugUpdateCheckNoLimit = useSettingsStore(
+    (s) => s.config?.debugUpdateCheckNoLimit ?? false
+  );
 
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
@@ -85,6 +94,19 @@ export const AboutSection = memo(function AboutSection() {
     setDownloadSourceSheet({ version, assets, releaseNotesBody });
   };
 
+  const applyAvailableUpdate = useCallback((result: UpdateCheckResult) => {
+    setUpdateAvailable(true);
+    setLatestVersion(result.latestVersion);
+    latestAssetsRef.current = result.assets;
+    latestTagRef.current = result.tagName;
+    releaseNotesRef.current = result.releaseNotes;
+    setDownloadSourceSheet({
+      version: result.latestVersion,
+      assets: result.assets,
+      releaseNotesBody: result.releaseNotes,
+    });
+  }, []);
+
   const runUpdateCheck = async (showNoUpdateToast: boolean, includeBeta?: boolean) => {
     setIsCheckingUpdate(true);
     try {
@@ -93,12 +115,7 @@ export const AboutSection = memo(function AboutSection() {
       const useBeta = includeBeta ?? useSettingsStore.getState().config?.updateToBeta ?? false;
       const result = await checkForUpdate(appVersion, useBeta);
       if (result.hasUpdate) {
-        setUpdateAvailable(true);
-        setLatestVersion(result.latestVersion);
-        latestAssetsRef.current = result.assets;
-        latestTagRef.current = result.tagName;
-        releaseNotesRef.current = result.releaseNotes;
-        showDownloadSourceDialog(result.latestVersion, result.assets, result.releaseNotes);
+        applyAvailableUpdate(result);
       } else {
         setUpdateAvailable(false);
         setLatestVersion(null);
@@ -117,19 +134,23 @@ export const AboutSection = memo(function AboutSection() {
     }
   };
 
+  useEffect(() => {
+    if (initialUpdate?.hasUpdate) applyAvailableUpdate(initialUpdate);
+  }, [initialUpdate, applyAvailableUpdate]);
+
   // 自动检查更新（每天一次），仅挂载时执行
   useEffect(() => {
-    const cfg = useSettingsStore.getState().config;
-    if (!(cfg?.autoCheckUpdate ?? true)) return;
-    (async () => {
-      const { runtimeStateStorage } = await import('@/services/RuntimeStateStorage');
-      const runtimeState = await runtimeStateStorage.load();
-      const today = new Date().toISOString().slice(0, 10);
-      if (!(cfg?.debugUpdateCheckNoLimit ?? false) && runtimeState.lastUpdateCheckDate === today) {
-        return;
-      }
-      runUpdateCheck(false, cfg?.updateToBeta ?? false);
-    })();
+    if (initialUpdate?.hasUpdate) return;
+    void checkForAutomaticUpdate(appVersion, {
+      autoCheckUpdate: autoCheckUpdateEnabled,
+      updateToBeta: updateToBetaEnabled,
+      debugUpdateCheckNoLimit,
+    })
+      .then((result) => {
+        if (result?.hasUpdate) applyAvailableUpdate(result);
+        cleanOldApkCache(appVersion);
+      })
+      .catch(() => {});
   }, []);
 
   const handleUpdateButtonPress = async (

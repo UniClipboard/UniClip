@@ -3,6 +3,8 @@
  * 检查 GitHub 最新 Release 版本更新
  */
 
+import { runtimeStateStorage } from './RuntimeStateStorage';
+
 const GITHUB_RELEASES_API = 'https://api.github.com/repos/UniClipboard/uc-android/releases';
 const RELEASES_PAGE_URL = 'https://github.com/UniClipboard/uc-android/releases';
 // Gitee 镜像渠道。仓库路径由 CI 的 GITEE_OWNER/GITEE_REPO 决定(uni-clipboard/uc-android),
@@ -134,6 +136,19 @@ export interface UpdateCheckResult {
   releaseNotes?: string;
 }
 
+export interface AutomaticUpdateSettings {
+  autoCheckUpdate: boolean;
+  updateToBeta: boolean;
+  debugUpdateCheckNoLimit: boolean;
+}
+
+export interface AutomaticUpdateDependencies {
+  getToday: () => string;
+  loadLastCheckDate: () => Promise<string>;
+  recordCheckDate: (date: string) => Promise<void>;
+  check: (currentVersion: string, includeBeta: boolean) => Promise<UpdateCheckResult>;
+}
+
 /**
  * 从 GitHub API 获取最新版本并与当前版本比较
  * @param currentVersionStr 当前版本字符串
@@ -218,4 +233,27 @@ export async function checkForUpdate(
     assets: apkAssets,
     releaseNotes: latest.body,
   };
+}
+
+const automaticUpdateDependencies: AutomaticUpdateDependencies = {
+  getToday: () => new Date().toISOString().slice(0, 10),
+  loadLastCheckDate: async () => (await runtimeStateStorage.load()).lastUpdateCheckDate,
+  recordCheckDate: (date) => runtimeStateStorage.update({ lastUpdateCheckDate: date }),
+  check: checkForUpdate,
+};
+
+/** Run a silent, frequency-limited update check from any eligible screen. */
+export async function checkForAutomaticUpdate(
+  currentVersion: string,
+  settings: AutomaticUpdateSettings,
+  dependencies: AutomaticUpdateDependencies = automaticUpdateDependencies
+): Promise<UpdateCheckResult | null> {
+  if (!settings.autoCheckUpdate) return null;
+
+  const today = dependencies.getToday();
+  const lastCheckDate = await dependencies.loadLastCheckDate();
+  if (!settings.debugUpdateCheckNoLimit && lastCheckDate === today) return null;
+
+  await dependencies.recordCheckDate(today);
+  return dependencies.check(currentVersion, settings.updateToBeta);
 }

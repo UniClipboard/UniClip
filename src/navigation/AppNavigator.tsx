@@ -18,6 +18,7 @@ import { HomeView } from '@/screens/HomeView';
 import { OnboardingScreen } from '@/screens/OnboardingScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
 import { SettingsSubScreen } from '@/screens/settings/SettingsSubScreen';
+import type { UpdateCheckResult } from '@/services/UpdateService';
 
 export type SettingsSubSection =
   | 'sync'
@@ -33,7 +34,7 @@ export type RootStackParamList = {
   Onboarding: undefined;
   Main: undefined;
   Settings: undefined;
-  SettingsSub: { section: SettingsSubSection };
+  SettingsSub: { section: SettingsSubSection; update?: UpdateCheckResult };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -43,7 +44,13 @@ function MainScreen() {
   const openSettings = useCallback(() => {
     navigation.navigate('Settings');
   }, [navigation]);
-  return <HomeView onOpenSettings={openSettings} />;
+  const openAbout = useCallback(
+    (update: UpdateCheckResult) => {
+      navigation.navigate('SettingsSub', { section: 'about', update });
+    },
+    [navigation]
+  );
+  return <HomeView onOpenSettings={openSettings} onOpenAbout={openAbout} />;
 }
 
 /**

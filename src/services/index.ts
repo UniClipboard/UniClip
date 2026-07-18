@@ -31,12 +31,19 @@ export { ShortcutService } from './ShortcutService';
 // Update Service
 export {
   checkForUpdate,
+  checkForAutomaticUpdate,
   parseVersion,
   compareVersions,
   versionToStr,
   selectLocalizedReleaseNotes,
 } from './UpdateService';
-export type { UpdateCheckResult, ParsedVersion, ReleaseAssetInfo } from './UpdateService';
+export type {
+  UpdateCheckResult,
+  ParsedVersion,
+  ReleaseAssetInfo,
+  AutomaticUpdateSettings,
+  AutomaticUpdateDependencies,
+} from './UpdateService';
 
 // APK Download Service
 export {

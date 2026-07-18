@@ -1,10 +1,14 @@
-import React from 'react';
-import { useWindowDimensions } from 'react-native';
+import React, { useEffect } from 'react';
+import { Alert, useWindowDimensions } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useHomeController } from './useHomeController';
 import { getLayoutMode } from '@/hooks/useLayoutMode';
 import { HomeCompactView } from './HomeCompactView';
 import { HomeExpandedView } from './HomeExpandedView';
 import type { HomeViewProps } from './HomeView.types';
+import { APP_VERSION } from '@/constants';
+import { checkForAutomaticUpdate } from '@/services';
+import { useSettingsStore } from '@/stores';
 
 /**
  * Android 首页。两级布局:
@@ -16,10 +20,40 @@ import type { HomeViewProps } from './HomeView.types';
  * surfaceLow 与 background 在 light 下仅差 ~2%,肉眼几乎分不出。网格卡片仍是 surfaceLow,
  * 与手机端一致。
  */
-export function HomeView({ onOpenSettings }: HomeViewProps) {
+export function HomeView({ onOpenSettings, onOpenAbout }: HomeViewProps) {
   const c = useHomeController(onOpenSettings);
+  const { t: tAbout } = useTranslation('settingsAbout');
+  const { t: tCommon } = useTranslation('common');
   const { width: screenWidth } = useWindowDimensions();
   const mode = getLayoutMode(screenWidth);
+  const autoCheckUpdate = useSettingsStore((state) => state.config?.autoCheckUpdate ?? true);
+  const updateToBeta = useSettingsStore((state) => state.config?.updateToBeta ?? false);
+  const debugUpdateCheckNoLimit = useSettingsStore(
+    (state) => state.config?.debugUpdateCheckNoLimit ?? false
+  );
+
+  useEffect(() => {
+    void checkForAutomaticUpdate(APP_VERSION, {
+      autoCheckUpdate,
+      updateToBeta,
+      debugUpdateCheckNoLimit,
+    })
+      .then((result) => {
+        if (!result?.hasUpdate) return;
+        Alert.alert(
+          tAbout('download.newVersionTitle'),
+          tAbout('download.latestVersion', { version: result.latestVersion }),
+          [
+            { text: tCommon('action.cancel'), style: 'cancel' },
+            {
+              text: tAbout('update.updateTo', { version: result.latestVersion }),
+              onPress: () => onOpenAbout(result),
+            },
+          ]
+        );
+      })
+      .catch(() => {});
+  }, [autoCheckUpdate, updateToBeta, debugUpdateCheckNoLimit, onOpenAbout, tAbout, tCommon]);
 
   if (mode === 'compact') {
     return (
