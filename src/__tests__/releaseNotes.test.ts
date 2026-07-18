@@ -5,7 +5,6 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { selectLocalizedReleaseNotes } from '../services/UpdateService';
 
 const scriptPath = join(__dirname, '..', '..', 'scripts', 'release-notes.mjs');
 
@@ -83,22 +82,32 @@ describe('localized release note generation', () => {
     expect(github).not.toContain('<!--');
     expect(github).toContain('### Android\n- English common\n- English Android');
     expect(github).toContain('### iOS\n- English common\n- English iOS');
-    expect(selectLocalizedReleaseNotes(github, 'zh-CN')).toBe(
-      '### Android\n- 中文通用\n- 中文 Android\n\n### iOS\n- 中文通用\n- 中文 iOS'
-    );
-    expect(selectLocalizedReleaseNotes(github, 'en')).toBe(
-      '### Android\n- English common\n- English Android\n\n### iOS\n- English common\n- English iOS'
-    );
-
     expect(readFileSync(join(outDir, 'release-notes-testflight.txt'), 'utf8')).toBe(
       '- 中文通用\n- 中文 iOS\n'
     );
     expect(readFileSync(join(outDir, 'release-notes-testflight.en.txt'), 'utf8')).toBe(
       '- English common\n- English iOS\n'
     );
+    expect(readFileSync(join(outDir, 'changelogs', 'v1.3.0.161.android.zh.md'), 'utf8')).toBe(
+      '- 中文通用\n- 中文 Android\n'
+    );
+    expect(readFileSync(join(outDir, 'changelogs', 'v1.3.0.161.ios.zh.md'), 'utf8')).toBe(
+      '- 中文通用\n- 中文 iOS\n'
+    );
+    expect(readFileSync(join(outDir, 'changelogs', 'v1.3.0.161.android.en.md'), 'utf8')).toBe(
+      '- English common\n- English Android\n'
+    );
+    expect(readFileSync(join(outDir, 'changelogs', 'v1.3.0.161.ios.en.md'), 'utf8')).toBe(
+      '- English common\n- English iOS\n'
+    );
   });
 
-  it('checks note generation without writing release artifacts', () => {
+  it('checks committed changelog files without writing release artifacts', () => {
+    const generate = spawnSync(process.execPath, [scriptPath, '--root', root, '--out-dir', root], {
+      encoding: 'utf8',
+    });
+    expect(generate.status).toBe(0);
+
     const result = spawnSync(
       process.execPath,
       [scriptPath, '--root', root, '--out-dir', outDir, '--check'],
@@ -108,8 +117,17 @@ describe('localized release note generation', () => {
     );
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain('validated release-notes for v1.3.0.161');
+    expect(result.stdout).toContain('validated release-notes and changelog files for v1.3.0.161');
     expect(() => readFileSync(join(outDir, 'release-notes-github.md'), 'utf8')).toThrow();
+  });
+
+  it('rejects a release whose committed changelog files are missing', () => {
+    const result = spawnSync(process.execPath, [scriptPath, '--root', root, '--check'], {
+      encoding: 'utf8',
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('missing changelogs/v1.3.0.161.android.zh.md');
   });
 
   it('rejects an empty English top section during validation', () => {

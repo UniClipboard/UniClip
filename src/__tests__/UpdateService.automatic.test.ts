@@ -1,5 +1,5 @@
-import * as updateService from '@/services/UpdateService';
-import type { UpdateCheckResult } from '@/services/UpdateService';
+import * as updateService from '../services/UpdateService';
+import type { UpdateCheckResult } from '../services/UpdateService';
 
 const availableUpdate: UpdateCheckResult = {
   hasUpdate: true,
@@ -16,12 +16,17 @@ type AutomaticUpdateCheck = (
     autoCheckUpdate: boolean;
     updateToBeta: boolean;
     debugUpdateCheckNoLimit: boolean;
+    language: string;
   },
   dependencies: {
     getToday: () => string;
     loadLastCheckDate: () => Promise<string>;
     recordCheckDate: (date: string) => Promise<void>;
-    check: (currentVersion: string, includeBeta: boolean) => Promise<UpdateCheckResult>;
+    check: (
+      currentVersion: string,
+      includeBeta: boolean,
+      language: string
+    ) => Promise<UpdateCheckResult>;
   }
 ) => Promise<UpdateCheckResult | null>;
 
@@ -46,12 +51,17 @@ describe('automatic update checks', () => {
     const dependencies = createDependencies();
     const result = await checkForAutomaticUpdate(
       '1.3.0',
-      { autoCheckUpdate: true, updateToBeta: true, debugUpdateCheckNoLimit: false },
+      {
+        autoCheckUpdate: true,
+        updateToBeta: true,
+        debugUpdateCheckNoLimit: false,
+        language: 'zh-CN',
+      },
       dependencies
     );
 
     expect(dependencies.recordCheckDate).toHaveBeenCalledWith('2026-07-18');
-    expect(dependencies.check).toHaveBeenCalledWith('1.3.0', true);
+    expect(dependencies.check).toHaveBeenCalledWith('1.3.0', true, 'zh-CN');
     expect(result).toEqual(availableUpdate);
   });
 
@@ -62,7 +72,12 @@ describe('automatic update checks', () => {
     const dependencies = createDependencies('2026-07-18');
     const result = await checkForAutomaticUpdate(
       '1.3.0',
-      { autoCheckUpdate: true, updateToBeta: false, debugUpdateCheckNoLimit: false },
+      {
+        autoCheckUpdate: true,
+        updateToBeta: false,
+        debugUpdateCheckNoLimit: false,
+        language: 'en',
+      },
       dependencies
     );
 
@@ -78,7 +93,12 @@ describe('automatic update checks', () => {
     const dependencies = createDependencies();
     const result = await checkForAutomaticUpdate(
       '1.3.0',
-      { autoCheckUpdate: false, updateToBeta: false, debugUpdateCheckNoLimit: false },
+      {
+        autoCheckUpdate: false,
+        updateToBeta: false,
+        debugUpdateCheckNoLimit: false,
+        language: 'en',
+      },
       dependencies
     );
 

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { Alert, useWindowDimensions } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useHomeController } from './useHomeController';
@@ -22,7 +22,7 @@ import { useSettingsStore } from '@/stores';
  */
 export function HomeView({ onOpenSettings, onOpenAbout }: HomeViewProps) {
   const c = useHomeController(onOpenSettings);
-  const { t: tAbout } = useTranslation('settingsAbout');
+  const { t: tAbout, i18n } = useTranslation('settingsAbout');
   const { t: tCommon } = useTranslation('common');
   const { width: screenWidth } = useWindowDimensions();
   const mode = getLayoutMode(screenWidth);
@@ -31,12 +31,14 @@ export function HomeView({ onOpenSettings, onOpenAbout }: HomeViewProps) {
   const debugUpdateCheckNoLimit = useSettingsStore(
     (state) => state.config?.debugUpdateCheckNoLimit ?? false
   );
+  const activeLanguage = i18n.resolvedLanguage ?? i18n.language;
 
   useEffect(() => {
     void checkForAutomaticUpdate(APP_VERSION, {
       autoCheckUpdate,
       updateToBeta,
       debugUpdateCheckNoLimit,
+      language: activeLanguage,
     })
       .then((result) => {
         if (!result?.hasUpdate) return;
@@ -53,7 +55,15 @@ export function HomeView({ onOpenSettings, onOpenAbout }: HomeViewProps) {
         );
       })
       .catch(() => {});
-  }, [autoCheckUpdate, updateToBeta, debugUpdateCheckNoLimit, onOpenAbout, tAbout, tCommon]);
+  }, [
+    activeLanguage,
+    autoCheckUpdate,
+    updateToBeta,
+    debugUpdateCheckNoLimit,
+    onOpenAbout,
+    tAbout,
+    tCommon,
+  ]);
 
   if (mode === 'compact') {
     return (

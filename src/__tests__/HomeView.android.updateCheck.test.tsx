@@ -1,7 +1,6 @@
-import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { Alert } from 'react-native';
-import type { UpdateCheckResult } from '@/services/UpdateService';
+import type { UpdateCheckResult } from '../services/UpdateService';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -14,10 +13,13 @@ const updateResult: UpdateCheckResult = {
   assets: [],
 };
 
-const mockCheckForAutomaticUpdate = jest.fn(async () => updateResult);
+const mockCheckForAutomaticUpdate = jest.fn<Promise<UpdateCheckResult | null>, unknown[]>(
+  async () => updateResult
+);
 
 jest.mock('@/services', () => ({
-  checkForAutomaticUpdate: (...args: unknown[]) => mockCheckForAutomaticUpdate(...args),
+  checkForAutomaticUpdate: (currentVersion: string, settings: unknown) =>
+    mockCheckForAutomaticUpdate(currentVersion, settings),
 }));
 
 jest.mock('@/stores', () => ({
@@ -37,6 +39,7 @@ jest.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: { version?: string }) =>
       options?.version ? `${key}:${options.version}` : key,
+    i18n: { resolvedLanguage: 'zh-CN', language: 'zh-CN' },
   }),
 }));
 
@@ -47,7 +50,7 @@ jest.mock('@/screens/useHomeController', () => ({
 jest.mock('@/screens/HomeCompactView', () => ({ HomeCompactView: () => null }));
 jest.mock('@/screens/HomeExpandedView', () => ({ HomeExpandedView: () => null }));
 
-import { HomeView } from '@/screens/HomeView.android';
+import { HomeView } from '../screens/HomeView.android';
 
 async function flushEffects() {
   await act(async () => {
@@ -74,6 +77,7 @@ describe('Android Home update check', () => {
       autoCheckUpdate: true,
       updateToBeta: false,
       debugUpdateCheckNoLimit: false,
+      language: 'zh-CN',
     });
     expect(alertSpy).toHaveBeenCalledTimes(1);
 

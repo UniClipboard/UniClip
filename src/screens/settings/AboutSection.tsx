@@ -28,6 +28,7 @@ import {
   width as widthModifier,
   paddingAll,
   height as heightModifier,
+  verticalScroll,
 } from '@expo/ui/jetpack-compose/modifiers';
 import { APP_VERSION } from '@/constants';
 import {
@@ -39,7 +40,6 @@ import {
   downloadApk,
   installApk,
   cleanOldApkCache,
-  selectLocalizedReleaseNotes,
   type ReleaseAssetInfo,
   type ApkSource,
   type UpdateCheckResult,
@@ -76,10 +76,8 @@ export const AboutSection = memo(function AboutSection({ initialUpdate }: AboutS
     assets: ReleaseAssetInfo[];
     releaseNotesBody?: string;
   } | null>(null);
-  const localizedReleaseNotes = selectLocalizedReleaseNotes(
-    downloadSourceSheet?.releaseNotesBody,
-    i18n.resolvedLanguage ?? i18n.language
-  );
+  const activeLanguage = i18n.resolvedLanguage ?? i18n.language;
+  const localizedReleaseNotes = downloadSourceSheet?.releaseNotesBody;
 
   const downloadAbortRef = useRef<AbortController | null>(null);
   const latestAssetsRef = useRef<ReleaseAssetInfo[]>([]);
@@ -113,7 +111,7 @@ export const AboutSection = memo(function AboutSection({ initialUpdate }: AboutS
       const today = new Date().toISOString().slice(0, 10);
       await useSettingsStore.getState().setLastUpdateCheckDate(today);
       const useBeta = includeBeta ?? useSettingsStore.getState().config?.updateToBeta ?? false;
-      const result = await checkForUpdate(appVersion, useBeta);
+      const result = await checkForUpdate(appVersion, useBeta, activeLanguage);
       if (result.hasUpdate) {
         applyAvailableUpdate(result);
       } else {
@@ -145,6 +143,7 @@ export const AboutSection = memo(function AboutSection({ initialUpdate }: AboutS
       autoCheckUpdate: autoCheckUpdateEnabled,
       updateToBeta: updateToBetaEnabled,
       debugUpdateCheckNoLimit,
+      language: activeLanguage,
     })
       .then((result) => {
         if (result?.hasUpdate) applyAvailableUpdate(result);
@@ -269,7 +268,7 @@ export const AboutSection = memo(function AboutSection({ initialUpdate }: AboutS
           {/* 下载渠道选择底部表单 */}
           {downloadSourceSheet && (
             <ModalBottomSheet onDismissRequest={() => setDownloadSourceSheet(null)}>
-              <Column modifiers={[paddingAll(24), fillMaxWidth()]}>
+              <Column modifiers={[paddingAll(24), fillMaxWidth(), verticalScroll()]}>
                 <ComposeText style={{ typography: 'titleLarge' }}>
                   {t('download.newVersionTitle')}
                 </ComposeText>

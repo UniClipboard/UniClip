@@ -90,17 +90,25 @@ Each language ships one shared changelog for iOS and Android.
 - `### iOS` applies only to iOS.
 - `### Android` applies only to Android.
 
-CI produces:
+The generator produces:
 
+- **Versioned client changelogs:** committed files named
+  `changelogs/vX.Y.Z.B.<platform>.<language>.md`, where `platform` is `android`
+  or `ios` and `language` is `zh` or `en`. Each file contains common notes plus
+  notes for that platform. The Android updater fetches the file from the exact
+  release tag; it does not read the GitHub Release body. Non-Chinese app
+  languages currently use the English file.
 - **GitHub / Gitee Release body:** visible `[zh-CN] 简体中文` and `[en] English`
-  sections, each containing its own Android and iOS notes. The locale-code
-  prefixes provide a stable machine-readable boundary while remaining readable
-  in older clients that show the body as plain text. Older, unmarked Release
-  bodies remain readable as-is.
+  sections for people viewing the release page, each containing Android and iOS
+  notes.
 - **TestFlight "What to Test":** Chinese iOS notes for `zh-Hans` and English
   iOS notes for `en-US`. The publishing script updates existing localizations,
   creates either one when missing, and reports request failures only after
   attempting both.
+
+Run `npm run changelog:generate` after editing the top CHANGES blocks and commit
+all four generated files. `npm run release:validate` rejects missing or stale
+client changelog files before the release tag can be created.
 
 Bullets may still carry a provenance tag (`[uc]` for UniClip-specific changes,
 `[upstream]` for changes ported from `Jeric-X/syncclipboard-mobile` /
@@ -189,6 +197,8 @@ independent.
       changelog.
 - [ ] `CHANGES.md` and `CHANGES.en.md` top sections contain equivalent final
       release notes and start with the same full tag `vX.Y.Z.B`.
+- [ ] `npm run changelog:generate` was run and all four matching files under
+      `changelogs/` are committed.
 - [ ] `app.json` build metadata was bumped with the scripts below (never
       hand-edit `versionCode` / `buildNumber` — that risks the two drifting).
 - [ ] Working tree is clean.
@@ -210,10 +220,12 @@ npm run release:version -- 1.4.0
 Both scripts edit `app.json` and print the derived tag. Then:
 
 ```sh
-# 2. Add matching "vX.Y.Z.B" sections to CHANGES.md and CHANGES.en.md.
+# 2. Add matching "vX.Y.Z.B" sections to CHANGES.md and CHANGES.en.md,
+#    then generate the per-platform client changelogs.
+npm run changelog:generate
 
 # 3. Commit and push the release metadata. Do not create or push the tag.
-git add app.json CHANGES.md CHANGES.en.md
+git add app.json CHANGES.md CHANGES.en.md changelogs
 git commit -m "chore(release): X.Y.Z.B"
 git push origin main
 ```

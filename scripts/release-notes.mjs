@@ -33,11 +33,12 @@
  *   - release-notes-{android,ios}.txt          Chinese platform notes
  *   - release-notes-{android,ios}.en.txt       English platform notes
  *   - release-notes-testflight{,.en}.txt       localized iOS plain text
+ *   - changelogs/<tag>.{android,ios}.{zh,en}.md versioned client changelogs
  *
  * Usage:
  *   node scripts/release-notes.mjs [--out-dir <dir>] [--root <repo>] [--print | --check]
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 function fail(message) {
@@ -149,9 +150,28 @@ const chineseAndroidText = chinese.androidNotes.join('\n') + '\n';
 const chineseIosText = chinese.iosNotes.join('\n') + '\n';
 const englishAndroidText = english.androidNotes.join('\n') + '\n';
 const englishIosText = english.iosNotes.join('\n') + '\n';
+const changelogFiles = {
+  [`${tag}.android.zh.md`]: chineseAndroidText,
+  [`${tag}.ios.zh.md`]: chineseIosText,
+  [`${tag}.android.en.md`]: englishAndroidText,
+  [`${tag}.ios.en.md`]: englishIosText,
+};
 
 if (checkOnly) {
-  console.log(`validated release-notes for ${tag}`);
+  for (const [name, expected] of Object.entries(changelogFiles)) {
+    const relativePath = `changelogs/${name}`;
+    let actual;
+    try {
+      actual = readFileSync(resolve(root, relativePath), 'utf8').replace(/\r\n/g, '\n');
+    } catch {
+      fail(`missing ${relativePath}; run node scripts/release-notes.mjs --out-dir .`);
+    }
+    if (actual !== expected) {
+      fail(`${relativePath} is out of date; run node scripts/release-notes.mjs --out-dir .`);
+    }
+  }
+
+  console.log(`validated release-notes and changelog files for ${tag}`);
   process.exit(0);
 }
 
@@ -175,7 +195,17 @@ for (const [name, content] of Object.entries(files)) {
   writeFileSync(resolve(outDir, name), content);
 }
 
+const changelogDir = resolve(outDir, 'changelogs');
+mkdirSync(changelogDir, { recursive: true });
+for (const [name, content] of Object.entries(changelogFiles)) {
+  writeFileSync(resolve(changelogDir, name), content);
+}
+
 console.log(
   `release-notes for ${tag}: zh-CN ${chinese.androidNotes.length} Android / ${chinese.iosNotes.length} iOS, en ${english.androidNotes.length} Android / ${english.iosNotes.length} iOS bullet(s)`
 );
-console.log(`wrote ${Object.keys(files).join(', ')} to ${outDir}`);
+console.log(
+  `wrote ${Object.keys(files).join(', ')} and ${
+    Object.keys(changelogFiles).length
+  } changelog file(s) to ${outDir}`
+);

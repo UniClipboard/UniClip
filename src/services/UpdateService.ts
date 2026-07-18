@@ -6,6 +6,7 @@
 import { runtimeStateStorage } from './RuntimeStateStorage';
 
 const GITHUB_RELEASES_API = 'https://api.github.com/repos/UniClipboard/uc-android/releases';
+const GITHUB_RAW_BASE = 'https://raw.githubusercontent.com/UniClipboard/UniClip';
 const RELEASES_PAGE_URL = 'https://github.com/UniClipboard/uc-android/releases';
 // Gitee 镜像渠道。仓库路径由 CI 的 GITEE_OWNER/GITEE_REPO 决定(uni-clipboard/uc-android),
 // 与 GitHub 侧的 UniClipboard/uc-android 大小写/写法不同,勿直接沿用 GitHub 命名空间。
@@ -85,43 +86,36 @@ export function compareVersions(a: ParsedVersion, b: ParsedVersion): number {
   return a.beta - b.beta;
 }
 
-const RELEASE_LOCALE_MARKER = /^##[ \t]+\[(zh-CN|en)\](?:[ \t]+|$)/;
+export type ChangelogPlatform = 'android' | 'ios';
 
-/**
- * Select the release-note section matching the active app language.
- * Bodies published before bilingual notes were introduced have no locale
- * headings and are returned unchanged.
- */
-export function selectLocalizedReleaseNotes(
-  body: string | undefined,
+function getChangelogLanguage(language: string): 'zh' | 'en' {
+  return language.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+}
+
+export function getChangelogUrl(
+  tagName: string,
+  platform: ChangelogPlatform,
   language: string
-): string | undefined {
-  if (body === undefined) return undefined;
+): string {
+  const filename = `${tagName}.${platform}.${getChangelogLanguage(language)}.md`;
+  return `${GITHUB_RAW_BASE}/${tagName}/changelogs/${filename}`;
+}
 
-  const lines = body.split(/\r?\n/);
-  const sections = new Map<string, string>();
-  let activeLocale: string | undefined;
-  let activeStart = 0;
+export async function fetchChangelog(
+  tagName: string,
+  platform: ChangelogPlatform,
+  language: string
+): Promise<string | undefined> {
+  try {
+    const response = await fetch(getChangelogUrl(tagName, platform, language));
+    if (!response.ok) return undefined;
 
-  const finishSection = (end: number) => {
-    if (!activeLocale) return;
-    sections.set(activeLocale, lines.slice(activeStart, end).join('\n').trim());
-  };
-
-  for (let index = 0; index < lines.length; index += 1) {
-    const marker = lines[index].match(RELEASE_LOCALE_MARKER);
-    if (!marker) continue;
-
-    finishSection(index);
-    activeLocale = marker[1];
-    activeStart = index + 1;
+    const body = await response.text();
+    const notes = body.trim();
+    return notes || undefined;
+  } catch {
+    return undefined;
   }
-
-  if (!activeLocale) return body;
-  finishSection(lines.length);
-
-  const requested = language.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en';
-  return sections.get(requested) || sections.get('zh-CN') || sections.get('en') || body;
 }
 
 export interface UpdateCheckResult {
@@ -132,7 +126,7 @@ export interface UpdateCheckResult {
   giteeReleaseUrl: string;
   /** APK 资源列表（含各 ABI 的下载 URL 和哈希值） */
   assets: ReleaseAssetInfo[];
-  /** GitHub Release 更新说明原文，由展示层按应用语言选择 */
+  /** 对应版本、平台和语言的静态 Markdown 更新说明 */
   releaseNotes?: string;
 }
 
@@ -140,23 +134,30 @@ export interface AutomaticUpdateSettings {
   autoCheckUpdate: boolean;
   updateToBeta: boolean;
   debugUpdateCheckNoLimit: boolean;
+  language: string;
 }
 
 export interface AutomaticUpdateDependencies {
   getToday: () => string;
   loadLastCheckDate: () => Promise<string>;
   recordCheckDate: (date: string) => Promise<void>;
-  check: (currentVersion: string, includeBeta: boolean) => Promise<UpdateCheckResult>;
+  check: (
+    currentVersion: string,
+    includeBeta: boolean,
+    language: string
+  ) => Promise<UpdateCheckResult>;
 }
 
 /**
  * 从 GitHub API 获取最新版本并与当前版本比较
  * @param currentVersionStr 当前版本字符串
  * @param includeBeta 是否包含 beta 版本，默认 false
+ * @param language 当前界面语言，用于读取对应的 Android Markdown 更新日志
  */
 export async function checkForUpdate(
   currentVersionStr: string,
-  includeBeta = false
+  includeBeta = false,
+  language = 'en'
 ): Promise<UpdateCheckResult> {
   const response = await fetch(GITHUB_RELEASES_API, {
     headers: { Accept: 'application/vnd.github+json' },
@@ -171,7 +172,6 @@ export async function checkForUpdate(
     prerelease: boolean;
     draft: boolean;
     html_url: string;
-    body?: string;
     assets: Array<{
       name: string;
       browser_download_url: string;
@@ -219,11 +219,14 @@ export async function checkForUpdate(
       releaseUrl: latest.html_url,
       giteeReleaseUrl: `https://gitee.com/uni-clipboard/uc-android/releases/tag/${latest.tag_name}`,
       assets: apkAssets,
-      releaseNotes: latest.body,
+      releaseNotes: undefined,
     };
   }
 
   const hasUpdate = compareVersions(latestParsed, currentParsed) > 0;
+  const releaseNotes = hasUpdate
+    ? await fetchChangelog(latest.tag_name, 'android', language)
+    : undefined;
   return {
     hasUpdate,
     latestVersion: versionToStr(latestParsed),
@@ -231,7 +234,7 @@ export async function checkForUpdate(
     releaseUrl: latest.html_url,
     giteeReleaseUrl: `https://gitee.com/uni-clipboard/uc-android/releases/tag/${latest.tag_name}`,
     assets: apkAssets,
-    releaseNotes: latest.body,
+    releaseNotes,
   };
 }
 
@@ -255,5 +258,5 @@ export async function checkForAutomaticUpdate(
   if (!settings.debugUpdateCheckNoLimit && lastCheckDate === today) return null;
 
   await dependencies.recordCheckDate(today);
-  return dependencies.check(currentVersion, settings.updateToBeta);
+  return dependencies.check(currentVersion, settings.updateToBeta, settings.language);
 }
