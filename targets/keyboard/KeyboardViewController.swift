@@ -38,9 +38,11 @@ final class KeyboardViewController: UIInputViewController {
     /// required) so it can never conflict with the system-imposed constraints
     /// on the input view.
     private lazy var heightConstraint: NSLayoutConstraint = {
-        let c = view.heightAnchor.constraint(equalToConstant: KeyboardLayout.contentHeight)
-        c.priority = UILayoutPriority(999)
-        return c
+        let constraint = view.heightAnchor.constraint(
+            equalToConstant: KeyboardLayout.contentHeight
+        )
+        constraint.priority = UILayoutPriority(999)
+        return constraint
     }()
 
     override func viewDidLoad() {
@@ -66,21 +68,6 @@ final class KeyboardViewController: UIInputViewController {
         model.playInputClick = {
             UIDevice.current.playInputClick()
         }
-        model.openSettings = { [unowned self] in
-            let keyboard = URL(string: "App-prefs:General&path=Keyboard")
-            let fallback = URL(string: UIApplication.openSettingsURLString)
-            guard let url = keyboard ?? fallback else { return }
-            let selector = sel_registerName("openURL:")
-            var responder: UIResponder? = self
-            while let r = responder {
-                if r.responds(to: selector) {
-                    r.perform(selector, with: url)
-                    return
-                }
-                responder = r.next
-            }
-        }
-
         // Keep every layer *visually* transparent so the system-drawn keyboard
         // tray (flat gray pre-iOS 26, Liquid Glass on iOS 26+) shows through.
         // The controller's own view defaults opaque, and UIHostingController
@@ -122,9 +109,11 @@ final class KeyboardViewController: UIInputViewController {
         // Size to content: add the globe band only when the strip is shown, so a
         // single-keyboard install doesn't leave the freed space floating the
         // card row up off the keys.
-        heightConstraint.constant = needsInputModeSwitchKey
-            ? KeyboardLayout.contentHeight + KeyboardLayout.stripBandHeight
-            : KeyboardLayout.contentHeight
+        let contentHeight = hasFullAccess
+            ? KeyboardLayout.contentHeight
+            : KeyboardLayout.restrictedContentHeight
+        heightConstraint.constant = contentHeight
+            + (needsInputModeSwitchKey ? KeyboardLayout.stripBandHeight : 0)
         heightConstraint.isActive = true
         model.setReturnKeyType(textDocumentProxy.returnKeyType)
         model.onAppear()

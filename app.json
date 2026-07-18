@@ -35,6 +35,7 @@
     "web": { "favicon": "./assets/favicon.png" },
     "plugins": [
       "./plugins/build/withNativeLogger.js",
+      "./plugins/build/withIosSettingsBundle.js",
       "./plugins/build/withNetworkSecurityConfig.js",
       "./plugins/build/withQuickSettingsTileManifest.js",
       "./plugins/build/withProcessTextManifest.js",

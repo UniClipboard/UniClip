@@ -21,7 +21,7 @@
 "回车" = "Retorno";
 "切换键盘" = "Trocar teclado";
 "需要「完全访问权限」" = "Acesso Total Necessário";
-"在 设置 › 通用 › 键盘 › UniClip 中开启「允许完全访问」,即可在打开键盘时自动同步剪贴板。" = "Em Ajustes › Geral › Teclado › UniClip, ative Permitir Acesso Total para sincronizar a área de transferência ao abrir este teclado.";
+"在 设置 › 通用 › 键盘 › UniClip 中开启「允许完全访问」,即可在打开键盘时自动同步剪贴板。" = "Abra Ajustes › Geral › Teclado › Teclados, selecione o UniClip e ative Permitir Acesso Total.";
 "前往设置 ›" = "Abrir Ajustes ›";
 "删除" = "Apagar";
 "已复制" = "Copiado";

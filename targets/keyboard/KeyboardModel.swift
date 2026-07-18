@@ -140,7 +140,6 @@ final class KeyboardModel: ObservableObject {
     /// input view adopts `UIInputViewAudioFeedback` AND the user has
     /// 键盘点击音 enabled, so the model never has to check that itself.
     var playInputClick: () -> Void = {}
-    var openSettings: () -> Void = {}
 
     /// Reused light-impact generator for key haptics. Kept warm via
     /// `prepare()` so a press fires with minimal latency.

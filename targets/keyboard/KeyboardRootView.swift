@@ -1,8 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// Single source of truth for the keyboard's vertical metrics. The
-/// controller's height constraint is **computed** from these
+/// Vertical metrics shared with the controller's computed height constraint.
 /// (`contentHeight` / `stripBandHeight`), so a tweak here can no longer
 /// drift out of sync with a hand-summed constant — exactly that drift
 /// (top bar 36 → 38 without touching the controller's 252) once starved the
@@ -43,6 +42,7 @@ enum KeyboardLayout {
             + cardHeight + cardRowVPad * 2
             + keyRowTopPad + keyRowHeight + keyRowBottomPad
     }
+    static var restrictedContentHeight: CGFloat { contentHeight - keyRowTopPad - keyRowHeight - keyRowBottomPad }
 
     /// Extra band added when iOS wants an input-mode switch key.
     static var stripBandHeight: CGFloat {
@@ -112,7 +112,7 @@ struct KeyboardRootView: View {
                     .padding(.vertical, KeyboardLayout.topBarVPad)
                 content
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                keyRow
+                if model.hasFullAccess { keyRow }
                 bottomStrip
             }
 
@@ -559,11 +559,11 @@ struct KeyboardRootView: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 24)
-                Button(model.localization.string("前往设置 ›")) {
-                    model.openSettings()
+                if let settingsURL = KeyboardSettingsURL.destination {
+                    Link(model.localization.string("前往设置 ›"), destination: settingsURL)
+                        .buttonStyle(.borderedProminent)
+                        .foregroundStyle(Color(.systemBackground))
                 }
-                .buttonStyle(.borderedProminent)
-                .foregroundStyle(Color(.systemBackground))
             }
         }
     }

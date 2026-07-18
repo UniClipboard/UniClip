@@ -21,7 +21,7 @@
 "回车" = "Return";
 "切换键盘" = "Switch keyboard";
 "需要「完全访问权限」" = "Full Access Required";
-"在 设置 › 通用 › 键盘 › UniClip 中开启「允许完全访问」,即可在打开键盘时自动同步剪贴板。" = "In Settings › General › Keyboard › UniClip, turn on Allow Full Access to sync the clipboard whenever this keyboard opens.";
+"在 设置 › 通用 › 键盘 › UniClip 中开启「允许完全访问」,即可在打开键盘时自动同步剪贴板。" = "Open Settings › General › Keyboard › Keyboards, select UniClip, then enable Allow Full Access.";
 "前往设置 ›" = "Open Settings ›";
 "删除" = "Delete";
 "已复制" = "Copied";
