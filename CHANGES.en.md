@@ -1,4 +1,4 @@
-v1.3.0.164
+v1.3.0.165
 
 ### Common
 
@@ -8,7 +8,9 @@ v1.3.0.164
 
 ### Android
 
+- Feature: Check for and download app updates from the official direct source, with GitHub and Gitee retained as backup mirrors
 - Improvement: Load in-app update notes for the exact target release, platform, and interface language to avoid mismatched release content
+- Fix: Correctly recognize and remove spaces from numeric verification codes in forwarded SMS messages
 
 v1.3.0.163
 
