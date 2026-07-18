@@ -69,10 +69,10 @@ function getSettings(): SyncSettings {
   return {
     autoApplyRemote: appIsBackground
       ? canAutoApplyInBackground(config, backgroundTemporarilyDisabled)
-      : config?.autoApplyRemote ?? true,
+      : (config?.autoApplyRemote ?? true),
     autoPushLocal: appIsBackground
       ? canAutoPushInBackground(config, backgroundTemporarilyDisabled)
-      : config?.autoPushLocal ?? true,
+      : (config?.autoPushLocal ?? true),
     enableSse: config?.enableSse ?? true,
   };
 }
@@ -179,7 +179,7 @@ async function applyToDevice(meta: ClipboardMeta, payload?: ArrayBuffer): Promis
     // echo 丢弃(不依赖时间窗,永久有效)。
     if (meta.hash && wroteToClipboard) {
       const echoContent: ClipboardContent = {
-        type: meta.kind as any,
+        type: meta.kind,
         text: appliedText,
         profileHash: meta.hash,
         localClipboardHash: meta.hash,
@@ -222,7 +222,7 @@ async function applyToDevice(meta: ClipboardMeta, payload?: ArrayBuffer): Promis
     try {
       const { useClipboardSyncServiceStore } = require('./ClipboardSyncServiceStore');
       useClipboardSyncServiceStore.getState().setRemoteContent({
-        type: meta.kind as any,
+        type: meta.kind,
         text: appliedText,
         profileHash: meta.hash ?? undefined,
         hasData: meta.hasData,

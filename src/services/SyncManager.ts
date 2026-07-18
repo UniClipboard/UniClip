@@ -5,7 +5,6 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
-import { showToast } from '@/utils/toast';
 import { ISyncClipboardAPI } from './APIClient';
 import { WebDAVClient } from './WebDAVClient';
 import { S3Client } from './S3Client';
@@ -302,16 +301,16 @@ export class SyncManager {
           case SyncDirection.Download:
             result = await this.download(isAuto, mergedSignal, onProgress, onPreview);
             break;
-          case SyncDirection.Both:
+          case SyncDirection.Both: {
             // 先下载后上传，避免覆盖远程内容
             const downloadResult = await this.download(isAuto, mergedSignal, onProgress, onPreview);
             if (downloadResult.success || downloadResult.skipped) {
-              const uploadResult = await this.upload(isAuto, mergedSignal, onProgress, onPreview);
-              result = uploadResult;
+              result = await this.upload(isAuto, mergedSignal, onProgress, onPreview);
             } else {
               result = downloadResult;
             }
             break;
+          }
         }
 
         result.duration = Date.now() - startTime;
@@ -810,23 +809,6 @@ export class SyncManager {
       default:
         return 'remote';
     }
-  }
-
-  /**
-   * 判断是否是网络错误
-   */
-  private isNetworkError(error: unknown): boolean {
-    if (error instanceof Error) {
-      const message = error.message.toLowerCase();
-      return (
-        message.includes('network') ||
-        message.includes('timeout') ||
-        message.includes('connection') ||
-        message.includes('econnrefused') ||
-        message.includes('offline')
-      );
-    }
-    return false;
   }
 
   /**

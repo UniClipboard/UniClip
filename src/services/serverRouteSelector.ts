@@ -248,7 +248,7 @@ export function createRoutedOperation<TClient>(
     async call<K extends MethodKeys<TClient>>(
       method: K,
       ...args: MethodArgs<TClient[K]>
-    ): Promise<Awaited<ReturnType<Extract<TClient[K], (...args: any[]) => any>>>> {
+    ): Promise<MethodReturn<TClient[K]>> {
       const selected = await selectServerUrl(server, options, async (route) => {
         const client = createClient(route);
         const fn = client[method];
@@ -257,16 +257,20 @@ export function createRoutedOperation<TClient>(
         }
         return fn.apply(client, args);
       });
-      return selected.result as Awaited<ReturnType<Extract<TClient[K], (...args: any[]) => any>>>;
+      return selected.result as MethodReturn<TClient[K]>;
     },
   };
 }
 
+type ClientMethod = (...args: never[]) => unknown;
+
 type MethodKeys<T> = {
-  [K in keyof T]: T[K] extends (...args: any[]) => any ? K : never;
+  [K in keyof T]: T[K] extends ClientMethod ? K : never;
 }[keyof T];
 
-type MethodArgs<T> = T extends (...args: infer A) => any ? A : never;
+type MethodArgs<T> = T extends (...args: infer A) => unknown ? A : never;
+
+type MethodReturn<T> = Awaited<ReturnType<Extract<T, ClientMethod>>>;
 
 function getClassPreference(network: NetworkContext) {
   const onWifi = network.isWifi || !!network.ssid;
