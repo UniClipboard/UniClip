@@ -1,3 +1,15 @@
+v1.3.0.164
+
+### Common
+
+- Fix: Keep type and date filters active after leaving search and ensure consecutive queries display only the latest results
+- Fix: Make automatic local clipboard uploads one-shot; failed content stays on the device instead of being retried after network or app-state changes
+- Fix: Redact server credentials, tokens, and other sensitive values before logs are written or exported
+
+### Android
+
+- Improvement: Load in-app update notes for the exact target release, platform, and interface language to avoid mismatched release content
+
 v1.3.0.163
 
 ### Common
