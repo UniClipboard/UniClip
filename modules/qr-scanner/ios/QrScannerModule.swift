@@ -93,7 +93,7 @@ private class ScanCoordinator: NSObject, DataScannerViewControllerDelegate {
 
     cancelBtn.addTarget(self, action: #selector(cancelTapped), for: .touchUpInside)
     cancelBtn.translatesAutoresizingMaskIntoConstraints = false
-    overlay.addSubview(cancelBtn)
+    scanner.view.addSubview(cancelBtn)
 
     // ── Reticle (center) ──
     let reticleSize: CGFloat = 240
@@ -111,8 +111,8 @@ private class ScanCoordinator: NSObject, DataScannerViewControllerDelegate {
     overlay.addSubview(hint)
 
     NSLayoutConstraint.activate([
-      cancelBtn.topAnchor.constraint(equalTo: overlay.safeAreaLayoutGuide.topAnchor, constant: 12),
-      cancelBtn.leadingAnchor.constraint(equalTo: overlay.leadingAnchor, constant: 20),
+      cancelBtn.topAnchor.constraint(equalTo: scanner.view.safeAreaLayoutGuide.topAnchor, constant: 12),
+      cancelBtn.leadingAnchor.constraint(equalTo: scanner.view.leadingAnchor, constant: 20),
       cancelBtn.widthAnchor.constraint(equalToConstant: 64),
       cancelBtn.heightAnchor.constraint(equalToConstant: 36),
 
@@ -194,39 +194,39 @@ private class ReticleView: UIView {
     ctx.setLineWidth(lineWidth)
     ctx.setLineCap(.round)
 
-    let r = rect.insetBy(dx: lineWidth / 2, dy: lineWidth / 2)
-    let cl = cornerLength
+    let insetRect = rect.insetBy(dx: lineWidth / 2, dy: lineWidth / 2)
+    let cornerSpan = cornerLength
 
     // Top-left
-    ctx.move(to: CGPoint(x: r.minX, y: r.minY + cl))
-    ctx.addArc(tangent1End: CGPoint(x: r.minX, y: r.minY),
-               tangent2End: CGPoint(x: r.minX + cl, y: r.minY),
+    ctx.move(to: CGPoint(x: insetRect.minX, y: insetRect.minY + cornerSpan))
+    ctx.addArc(tangent1End: CGPoint(x: insetRect.minX, y: insetRect.minY),
+               tangent2End: CGPoint(x: insetRect.minX + cornerSpan, y: insetRect.minY),
                radius: cornerRadius)
-    ctx.addLine(to: CGPoint(x: r.minX + cl, y: r.minY))
+    ctx.addLine(to: CGPoint(x: insetRect.minX + cornerSpan, y: insetRect.minY))
     ctx.strokePath()
 
     // Top-right
-    ctx.move(to: CGPoint(x: r.maxX - cl, y: r.minY))
-    ctx.addArc(tangent1End: CGPoint(x: r.maxX, y: r.minY),
-               tangent2End: CGPoint(x: r.maxX, y: r.minY + cl),
+    ctx.move(to: CGPoint(x: insetRect.maxX - cornerSpan, y: insetRect.minY))
+    ctx.addArc(tangent1End: CGPoint(x: insetRect.maxX, y: insetRect.minY),
+               tangent2End: CGPoint(x: insetRect.maxX, y: insetRect.minY + cornerSpan),
                radius: cornerRadius)
-    ctx.addLine(to: CGPoint(x: r.maxX, y: r.minY + cl))
+    ctx.addLine(to: CGPoint(x: insetRect.maxX, y: insetRect.minY + cornerSpan))
     ctx.strokePath()
 
     // Bottom-left
-    ctx.move(to: CGPoint(x: r.minX, y: r.maxY - cl))
-    ctx.addArc(tangent1End: CGPoint(x: r.minX, y: r.maxY),
-               tangent2End: CGPoint(x: r.minX + cl, y: r.maxY),
+    ctx.move(to: CGPoint(x: insetRect.minX, y: insetRect.maxY - cornerSpan))
+    ctx.addArc(tangent1End: CGPoint(x: insetRect.minX, y: insetRect.maxY),
+               tangent2End: CGPoint(x: insetRect.minX + cornerSpan, y: insetRect.maxY),
                radius: cornerRadius)
-    ctx.addLine(to: CGPoint(x: r.minX + cl, y: r.maxY))
+    ctx.addLine(to: CGPoint(x: insetRect.minX + cornerSpan, y: insetRect.maxY))
     ctx.strokePath()
 
     // Bottom-right
-    ctx.move(to: CGPoint(x: r.maxX - cl, y: r.maxY))
-    ctx.addArc(tangent1End: CGPoint(x: r.maxX, y: r.maxY),
-               tangent2End: CGPoint(x: r.maxX, y: r.maxY - cl),
+    ctx.move(to: CGPoint(x: insetRect.maxX - cornerSpan, y: insetRect.maxY))
+    ctx.addArc(tangent1End: CGPoint(x: insetRect.maxX, y: insetRect.maxY),
+               tangent2End: CGPoint(x: insetRect.maxX, y: insetRect.maxY - cornerSpan),
                radius: cornerRadius)
-    ctx.addLine(to: CGPoint(x: r.maxX, y: r.maxY - cl))
+    ctx.addLine(to: CGPoint(x: insetRect.maxX, y: insetRect.maxY - cornerSpan))
     ctx.strokePath()
   }
 }
