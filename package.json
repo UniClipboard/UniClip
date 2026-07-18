@@ -2,6 +2,9 @@
   "name": "uniclip",
   "version": "1.0.0",
   "main": "index.ts",
+  "engines": {
+    "node": ">=22.22.1 <23"
+  },
   "workspaces": [
     "modules/*"
   ],
