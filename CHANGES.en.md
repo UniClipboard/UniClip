@@ -1,3 +1,23 @@
+v1.3.0.163
+
+### Common
+
+- Fix: Follow System is now the default language option, and the interface updates when returning after a system-language change; unsupported languages fall back to English
+- Fix: Prevent duplicate SSE subscriptions after a successful connection and reduce repetitive logs during frequent reconnects
+
+### iOS
+
+- Feature: Add privacy-safe diagnostic export that summarizes the last three days of sync state and categorized errors without including raw log messages
+- Feature: Localize the Share and keyboard extensions in Simplified Chinese, English, Russian, and Brazilian Portuguese, following the app language
+- Improvement: Open UniClip settings directly for keyboard Full Access setup and hide unavailable editing keys until access is granted
+- Fix: Restore the Cancel button in the QR scanner
+
+### Android
+
+- Feature: Add three background clipboard access methods: timed polling, ADB event detection, and Shizuku, with comparison and step-by-step setup guidance
+- Feature: Check for updates from the home screen and open release notes and download options when a new version is available
+- Improvement: Use compact dropdowns for appearance and language settings so longer options no longer crowd the layout
+
 v1.3.0.162
 
 ### Common
