@@ -5,8 +5,8 @@
 # The Rust mobile core (uc-mobile) xcframework is gitignored (293MB, single
 # .a > GitHub's 100MB limit), so this workflow rebuilds it from a PINNED commit
 # of the source monorepo (UniClipboard/UniClipboard) via a shallow CI clone —
-# the app repo carries no submodule. Bump UC_CORE_REF below when adopting a new
-# uc-mobile version (must stay compatible with the committed
+# the app repo carries no submodule. Bump rust-core/source-ref when adopting a
+# new uc-mobile version (must stay compatible with the committed
 # modules/uc-core/ios/UcCoreModule.swift wrapper).
 #
 # Required repository secrets (see docs/ios-release-ci.md):
@@ -45,10 +45,7 @@ on:
         type: boolean
 
 env:
-  # Pinned uc-mobile source commit. Full SHA so GitHub can serve it via
-  # `git fetch --depth 1 <sha>` even after the source branch advances.
   UC_CORE_REPO: https://github.com/UniClipboard/UniClipboard.git
-  UC_CORE_REF: a8f2216f936ee137ff71deb70b13a32c4cf397b0
   APPLE_TEAM_ID: 8XG39X5CL8
   APP_VARIANT: production
 
@@ -67,6 +64,8 @@ jobs:
       # temp-dir paths here instead.
       - name: Set derived paths
         run: |
+          UC_CORE_REF="$(tr -d '\r\n' < rust-core/source-ref)"
+          echo "UC_CORE_REF=$UC_CORE_REF"                     >> "$GITHUB_ENV"
           echo "ARCHIVE_PATH=$RUNNER_TEMP/UniClip.xcarchive" >> "$GITHUB_ENV"
           echo "EXPORT_PATH=$RUNNER_TEMP/export"             >> "$GITHUB_ENV"
           echo "ASC_KEY_PATH=$RUNNER_TEMP/AuthKey.p8"        >> "$GITHUB_ENV"

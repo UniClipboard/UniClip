@@ -20,6 +20,7 @@ function readPackageScripts(): Record<string, string> {
 
 const packageScripts = readPackageScripts();
 const buildWorkflow = readFileSync(join(root, '.github', 'workflows', 'build.yml'), 'utf8');
+const iosBuildWorkflow = readFileSync(join(root, '.github', 'workflows', 'build-ios.yml'), 'utf8');
 const releaseWorkflow = readFileSync(join(root, '.github', 'workflows', 'release.yml'), 'utf8');
 const testWorkflow = readFileSync(join(root, '.github', 'workflows', 'test.yml'), 'utf8');
 
@@ -43,6 +44,13 @@ describe('validated release workflow', () => {
       /create-release-tag:[\s\S]*needs:\s*\[prepare, code-style, unit-tests, android-build, ios-build\]/
     );
     expect(buildWorkflow).toContain('bash scripts/create-release-tag.sh');
+  });
+
+  it('validates the pinned uc-mobile source before starting release builds', () => {
+    expect(packageScripts['release:validate']).toContain('validate-uc-core-ref.mjs');
+    expect(buildWorkflow).toContain('npm run release:validate');
+    expect(iosBuildWorkflow).toContain('rust-core/source-ref');
+    expect(iosBuildWorkflow).not.toMatch(/UC_CORE_REF:\s*[0-9a-f]{40}/);
   });
 
   it('serializes full releases without cancelling one already in progress', () => {
