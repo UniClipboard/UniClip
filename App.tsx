@@ -1,5 +1,14 @@
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { StyleSheet, Linking, ToastAndroid, StatusBar, View, Platform, Alert } from 'react-native';
+import {
+  StyleSheet,
+  Linking,
+  ToastAndroid,
+  StatusBar,
+  View,
+  Platform,
+  Alert,
+  AppState,
+} from 'react-native';
 import { useEffect, useState } from 'react';
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
@@ -137,6 +146,15 @@ export default function App() {
     if (config?.language) {
       applyLanguagePreference(config.language);
     }
+  }, [config?.language]);
+
+  useEffect(() => {
+    if (config?.language !== 'system') return;
+
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') applyLanguagePreference('system');
+    });
+    return () => subscription.remove();
   }, [config?.language]);
 
   useEffect(() => {

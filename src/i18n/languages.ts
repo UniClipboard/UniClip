@@ -19,7 +19,7 @@ export type LanguagePreference = 'system' | AppLanguage;
 export const SUPPORTED_LANGUAGES: readonly AppLanguage[] = ['zh-CN', 'en', 'ru', 'pt-BR'] as const;
 
 /** 缺失翻译时的回退语言 */
-export const FALLBACK_LANGUAGE: AppLanguage = 'zh-CN';
+export const FALLBACK_LANGUAGE: AppLanguage = 'en';
 
 /**
  * 各语言用自身书写系统展示的名称(不翻译,便于用户在任意界面语言下辨认)。

@@ -184,4 +184,4 @@ export const RUNTIME_STATE_DEFAULTS: RuntimeState = {
   needsHistoryReorganize: false,
 };
 
-export const SETTINGS_SCHEMA_VERSION = 3;
+export const SETTINGS_SCHEMA_VERSION = 4;

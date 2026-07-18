@@ -3,6 +3,7 @@ import {
   RuntimeState,
   DEFAULT_SETTINGS,
   RUNTIME_STATE_DEFAULTS,
+  SETTINGS_SCHEMA_VERSION,
 } from '../types/settings';
 
 const RUNTIME_STATE_KEYS: (keyof RuntimeState)[] = [
@@ -18,7 +19,10 @@ const DEPRECATED_KEYS = [
   'enableShizukuClipboard',
 ] as const;
 
-export function migrateConfig(raw: unknown): AppSettings {
+export function migrateConfig(
+  raw: unknown,
+  sourceSchemaVersion = SETTINGS_SCHEMA_VERSION
+): AppSettings {
   if (!raw || typeof raw !== 'object') {
     return { ...DEFAULT_SETTINGS };
   }
@@ -54,6 +58,12 @@ export function migrateConfig(raw: unknown): AppSettings {
   // syncInBackground → enableBackgroundTasks
   if ('syncInBackground' in old && !('enableBackgroundTasks' in old)) {
     result.enableBackgroundTasks = !!old.syncInBackground;
+  }
+
+  // Before schema v4, Chinese was persisted as the implicit default before
+  // "follow system" existed, so it cannot be distinguished from a user choice.
+  if (sourceSchemaVersion < 4 && old.language === 'zh-CN') {
+    result.language = 'system';
   }
 
   // Builds before schema v3 exposed Shizuku as a standalone boolean.

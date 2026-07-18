@@ -106,10 +106,12 @@ describe('language resolution', () => {
   });
 
   it.each([
+    ['zh', 'zh-CN'],
+    ['en', 'en'],
     ['ru', 'ru'],
     ['pt', 'pt-BR'],
     ['pt-PT', 'pt-BR'],
-    ['fr', 'zh-CN'],
+    ['fr', 'en'],
   ])('maps device locale %s to %s', (deviceLocale, expected) => {
     setDeviceLanguage(deviceLocale.split('-')[0]);
     expect(resolveDeviceLanguage()).toBe(expected);
@@ -125,8 +127,8 @@ describe('language resolution', () => {
     expect(resolveDeviceLanguage()).toBe('ru');
   });
 
-  it('falls back for an unknown preference', () => {
+  it('falls back to English for an unknown preference and unsupported device locale', () => {
     setDeviceLanguage('fr');
-    expect(resolvePreference('unknown')).toBe('zh-CN');
+    expect(resolvePreference('unknown')).toBe('en');
   });
 });

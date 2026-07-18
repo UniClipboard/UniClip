@@ -74,7 +74,7 @@ export class ConfigStorage {
       if (storedVersion < SETTINGS_SCHEMA_VERSION) {
         const runtimeState = extractRuntimeState(savedConfig);
         await runtimeStateStorage.save(runtimeState);
-        this.config = migrateConfig(savedConfig);
+        this.config = migrateConfig(savedConfig, storedVersion);
         await this.saveConfig();
         await AsyncStorage.setItem(SCHEMA_VERSION_KEY, String(SETTINGS_SCHEMA_VERSION));
       } else {

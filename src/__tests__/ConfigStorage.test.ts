@@ -98,6 +98,29 @@ describe('ConfigStorage', () => {
       expect(mockSetItem).toHaveBeenCalled();
     });
 
+    it('migrates the legacy Chinese default to the system language preference', async () => {
+      const legacyConfig = { ...DEFAULT_SETTINGS, language: 'zh-CN' };
+      mockGetItem.mockImplementation((key: string) =>
+        Promise.resolve(key === STORAGE_KEYS.CONFIG ? JSON.stringify(legacyConfig) : '3')
+      );
+      mockSetItem.mockResolvedValue(undefined);
+
+      await configStorage.initialize();
+
+      await expect(configStorage.getConfig()).resolves.toMatchObject({ language: 'system' });
+    });
+
+    it('preserves an explicit Chinese preference in the current schema', async () => {
+      const currentConfig = { ...DEFAULT_SETTINGS, language: 'zh-CN' };
+      mockGetItem.mockImplementation((key: string) =>
+        Promise.resolve(key === STORAGE_KEYS.CONFIG ? JSON.stringify(currentConfig) : '4')
+      );
+
+      await configStorage.initialize();
+
+      await expect(configStorage.getConfig()).resolves.toMatchObject({ language: 'zh-CN' });
+    });
+
     it('seeds first-launch config from App Group servers before saving defaults', async () => {
       mockGetItem.mockResolvedValue(null);
       mockSetItem.mockResolvedValue(undefined);
@@ -135,9 +158,16 @@ describe('ConfigStorage', () => {
 
       await configStorage.initialize();
 
-      const savedConfig = JSON.parse(
-        mockSetItem.mock.calls.find(([key]) => key === STORAGE_KEYS.CONFIG)?.[1]
-      );
+      const savedConfigJson = mockSetItem.mock.calls.find(
+        ([key]) => key === STORAGE_KEYS.CONFIG
+      )?.[1];
+      expect(typeof savedConfigJson).toBe('string');
+      let savedConfig: AppSettings;
+      try {
+        savedConfig = JSON.parse(savedConfigJson) as AppSettings;
+      } catch {
+        throw new Error('Expected ConfigStorage to persist valid JSON');
+      }
       expect(savedConfig.servers).toEqual([
         {
           type: 'syncclipboard',
