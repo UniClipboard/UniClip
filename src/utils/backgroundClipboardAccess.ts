@@ -38,11 +38,6 @@ export type BackgroundClipboardSetupActionResult =
   | 'no-action'
   | 'failed';
 
-const BACKGROUND_CLIPBOARD_METHODS: AndroidSettings['clipboardAccessMethod'][] = [
-  'shizuku',
-  'overlay',
-];
-
 export function getBackgroundClipboardSetupState(
   state: ClipboardAuthorizationState
 ): BackgroundClipboardSetupState {
@@ -59,12 +54,6 @@ export function getBackgroundClipboardSetupState(
     return { status: 'action-required', issue: 'monitoring-setup-required' };
   }
   return { status: 'ready', issue: null };
-}
-
-export function getAlternativeClipboardMethod(
-  currentMethod: AndroidSettings['clipboardAccessMethod']
-): AndroidSettings['clipboardAccessMethod'] {
-  return BACKGROUND_CLIPBOARD_METHODS.find((method) => method !== currentMethod) ?? currentMethod;
 }
 
 interface ShizukuAuthorizationInputs {
@@ -163,16 +152,45 @@ export async function changeBackgroundClipboardMethod({
 
   const current = getClipboardAdapter(currentMethod, adapters);
   const next = getClipboardAdapter(nextMethod, adapters);
+  let nextMethodPersisted = false;
+
   await current.deactivate();
   try {
     await persist(nextMethod);
+    nextMethodPersisted = true;
     await next.activate();
     await restart();
-    return next.continueSetup();
   } catch (error) {
-    await current.activate();
+    const rollbackErrors: unknown[] = [];
+    const attemptRollback = async (action: () => Promise<void>) => {
+      try {
+        await action();
+      } catch (rollbackError) {
+        rollbackErrors.push(rollbackError);
+      }
+    };
+
+    await attemptRollback(() => next.deactivate());
+    if (nextMethodPersisted) {
+      await attemptRollback(() => persist(currentMethod));
+    }
+    await attemptRollback(() => current.activate());
+    await attemptRollback(restart);
+
+    if (rollbackErrors.length > 0) {
+      const detail = rollbackErrors
+        .map((rollbackError) =>
+          rollbackError instanceof Error ? rollbackError.message : String(rollbackError)
+        )
+        .join('; ');
+      throw new Error(`Clipboard method rollback failed: ${detail}`, { cause: error });
+    }
     throw error;
   }
+
+  // Follow-up authorization belongs to the new method and must not roll the
+  // completed switch back when the user cancels or setup itself fails.
+  return next.continueSetup();
 }
 
 export async function refreshBackgroundClipboardAuthorization(

@@ -3,6 +3,7 @@ import * as Application from 'expo-application';
 import * as Clipboard from 'expo-clipboard';
 import { setTimer, clearTimer } from 'native-timer';
 import { useSettingsStore } from '@/stores/settingsStore';
+import type { ClipboardAccessMethod } from '@/types/settings';
 import {
   changeBackgroundClipboardMethod,
   getShizukuAuthorizationState,
@@ -27,8 +28,9 @@ function getShizukuModule(): typeof import('shizuku-clipboard') {
 }
 
 class OverlayClipboardAdapter implements BackgroundClipboardAdapter {
-  readonly method = 'overlay' as const;
   private triggeredRead = false;
+
+  constructor(readonly method: 'overlay-polling' | 'overlay-event') {}
 
   isReady(operation: BackgroundClipboardOperation): boolean {
     const overlayModule = getOverlayModule();
@@ -36,14 +38,20 @@ class OverlayClipboardAdapter implements BackgroundClipboardAdapter {
     if (!(config?.enableClipboardOverlay ?? false) || !overlayModule.hasOverlayPermission()) {
       return false;
     }
-    if (operation === 'monitor') return overlayModule.hasReadLogsPermission();
-    if (operation === 'read') return this.triggeredRead;
+    if (operation === 'monitor') {
+      return this.method === 'overlay-event' && overlayModule.hasReadLogsPermission();
+    }
+    if (operation === 'read') {
+      return this.method === 'overlay-polling' || this.triggeredRead;
+    }
     return true;
   }
 
   async startMonitoring(
     listener: (event: BackgroundClipboardEvent) => void
   ): Promise<BackgroundClipboardMonitor | null> {
+    if (this.method === 'overlay-polling') return null;
+
     const overlayModule = getOverlayModule();
     const eventSubscription = overlayModule.addClipboardChangeListener(listener);
     const started = await overlayModule.startClipboardMonitor();
@@ -118,14 +126,16 @@ class OverlayClipboardAdapter implements BackgroundClipboardAdapter {
 
   getAuthorizationState() {
     const overlayModule = getOverlayModule();
-    const monitoringReady = overlayModule.hasReadLogsPermission();
+    const monitoringReady =
+      this.method === 'overlay-polling' || overlayModule.hasReadLogsPermission();
     const applicationId = Application.applicationId ?? 'app.uniclipboard.android';
     return {
       status: overlayModule.hasOverlayPermission() ? ('ready' as const) : ('unauthorized' as const),
       monitoringStatus: monitoringReady ? ('ready' as const) : ('setup-required' as const),
-      setupCommand: monitoringReady
-        ? undefined
-        : `adb shell pm grant ${applicationId} android.permission.READ_LOGS`,
+      setupCommand:
+        this.method === 'overlay-event' && !monitoringReady
+          ? `adb shell pm grant ${applicationId} android.permission.READ_LOGS`
+          : undefined,
     };
   }
 
@@ -257,14 +267,16 @@ class ShizukuClipboardAdapter implements BackgroundClipboardAdapter {
   }
 }
 
-const overlayAdapter = new OverlayClipboardAdapter();
+const overlayPollingAdapter = new OverlayClipboardAdapter('overlay-polling');
+const overlayEventAdapter = new OverlayClipboardAdapter('overlay-event');
 const adapters = {
-  overlay: overlayAdapter,
+  'overlay-polling': overlayPollingAdapter,
+  'overlay-event': overlayEventAdapter,
   shizuku: new ShizukuClipboardAdapter(),
 };
 
 AppState.addEventListener('change', (state) => {
-  if (Platform.OS === 'android' && state === 'active') overlayAdapter.dismiss();
+  if (Platform.OS === 'android' && state === 'active') overlayPollingAdapter.dismiss();
 });
 
 export function getBackgroundClipboardAdapter(
@@ -272,7 +284,7 @@ export function getBackgroundClipboardAdapter(
 ): BackgroundClipboardAdapter | null {
   const config = useSettingsStore.getState().config;
   return selectBackgroundClipboardAdapter({
-    selectedMethod: config?.clipboardAccessMethod ?? 'overlay',
+    selectedMethod: config?.clipboardAccessMethod ?? 'overlay-polling',
     appIsBackground: AppState.currentState === 'background',
     operation,
     adapters,
@@ -280,15 +292,15 @@ export function getBackgroundClipboardAdapter(
 }
 
 export function getClipboardAccessAdapter(
-  method: 'overlay' | 'shizuku'
+  method: ClipboardAccessMethod
 ): BackgroundClipboardAdapter {
   return getClipboardAdapter(method, adapters);
 }
 
 export function changeClipboardAccessMethod(
-  currentMethod: 'overlay' | 'shizuku',
-  nextMethod: 'overlay' | 'shizuku',
-  persist: (method: 'overlay' | 'shizuku') => Promise<void>,
+  currentMethod: ClipboardAccessMethod,
+  nextMethod: ClipboardAccessMethod,
+  persist: (method: ClipboardAccessMethod) => Promise<void>,
   restart: () => Promise<void>
 ): Promise<BackgroundClipboardSetupActionResult> {
   return changeBackgroundClipboardMethod({

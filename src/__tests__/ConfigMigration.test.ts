@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import { migrateConfig, extractRuntimeState } from '../services/ConfigMigration';
 import { DEFAULT_SETTINGS, RUNTIME_STATE_DEFAULTS } from '../types/settings';
 import { SyncMode, ConflictResolution } from '../types/sync';
@@ -115,9 +116,14 @@ describe('migrateConfig', () => {
     expect(result.downloadRelativePath).toBe('');
   });
 
-  it('uses overlay access for existing Android installs by default', () => {
-    const result = migrateConfig({ enableClipboardOverlay: false });
-    expect(result.clipboardAccessMethod).toBe('overlay');
+  it('uses overlay polling for installs without an explicit access method', () => {
+    const result = migrateConfig({ enableClipboardOverlay: false }, 4);
+    expect(result.clipboardAccessMethod).toBe('overlay-polling');
+  });
+
+  it('preserves the schema v4 overlay behavior as event detection', () => {
+    const result = migrateConfig({ clipboardAccessMethod: 'overlay' }, 4);
+    expect(result.clipboardAccessMethod).toBe('overlay-event');
   });
 
   it('keeps Shizuku selected when migrating a build that previously enabled it', () => {
@@ -125,9 +131,17 @@ describe('migrateConfig', () => {
     expect(result.clipboardAccessMethod).toBe('shizuku');
   });
 
-  it('preserves an explicit clipboard access method', () => {
-    const result = migrateConfig({ clipboardAccessMethod: 'shizuku' });
-    expect(result.clipboardAccessMethod).toBe('shizuku');
+  it.each(['overlay-polling', 'overlay-event', 'shizuku'] as const)(
+    'preserves the explicit clipboard access method %s',
+    (clipboardAccessMethod) => {
+      const result = migrateConfig({ clipboardAccessMethod });
+      expect(result.clipboardAccessMethod).toBe(clipboardAccessMethod);
+    }
+  );
+
+  it('replaces an unknown clipboard access method with the default', () => {
+    const result = migrateConfig({ clipboardAccessMethod: 'unknown' });
+    expect(result.clipboardAccessMethod).toBe('overlay-polling');
   });
 
   // --- passthrough for SyncManager internals ---

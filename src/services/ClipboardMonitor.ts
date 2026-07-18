@@ -130,12 +130,12 @@ export class ClipboardMonitor {
       this.appStateSubscription = AppState.addEventListener('change', this.handleAppStateChange);
     }
 
-    // 开始轮询（iOS）或事件驱动/轮询（Android）
+    // 开始轮询（iOS）或当前 Android 访问方式对应的事件监听/定时轮询。
     if (Platform.OS === 'ios') {
       this.startPolling();
     } else if (Platform.OS === 'android') {
-      // Android：READ_LOGS 已授 → 事件驱动（复制即触发，无 1Hz 轮询空转）；
-      // 否则回落到轮询。
+      // overlay-event / Shizuku 提供事件监听；overlay-polling 主动返回不可监听，
+      // 由这里回落到现有 native-timer 轮询并通过悬浮窗逐次读取。
       const eventStarted = await this.tryStartEventMonitor();
       if (!eventStarted) {
         this.startPolling();

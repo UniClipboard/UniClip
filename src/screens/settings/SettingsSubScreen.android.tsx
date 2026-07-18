@@ -28,6 +28,7 @@ import { AboutSection } from './AboutSection';
 import { LogSection } from './LogSection';
 import { DebugSection } from './DebugSection';
 import { QuickActionsSection } from './QuickActionsSection';
+import { ClipboardAccessMethodSheetProvider } from './ClipboardAccessMethodSheet';
 
 const SettingsSubScreenInner = memo(function SettingsSubScreenInner() {
   const { theme } = useTheme();
@@ -66,7 +67,7 @@ const SettingsSubScreenInner = memo(function SettingsSubScreenInner() {
 
           {section === 'sms' && <SmsSection />}
 
-          {section === 'about' && <AboutSection />}
+          {section === 'about' && <AboutSection initialUpdate={route.params.update} />}
 
           {section === 'developer' && (
             <>
@@ -86,7 +87,9 @@ const SettingsSubScreenInner = memo(function SettingsSubScreenInner() {
 
 export const SettingsSubScreen = () => (
   <SettingsToastProvider>
-    <SettingsSubScreenInner />
+    <ClipboardAccessMethodSheetProvider>
+      <SettingsSubScreenInner />
+    </ClipboardAccessMethodSheetProvider>
   </SettingsToastProvider>
 );
 

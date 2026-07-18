@@ -26,39 +26,101 @@
       "desc": "Upload background clipboard changes when Auto-push is on"
     },
     "clipboardAccess": {
-      "title": "Background clipboard access",
+      "title": "Background reading",
       "method": {
-        "overlay": "Overlay",
+        "overlay-polling": "Polling",
+        "overlay-event": "ADB events",
         "shizuku": "Shizuku"
       },
-      "summary": {
-        "ready": "{{method}} · Ready",
-        "action-required": "{{method}} · 1 step remaining"
+      "description": {
+        "overlay-polling": "Recommended for most people; no computer needed, but it may briefly affect input",
+        "overlay-event": "Reads only after copies; less interference, but a computer is needed once",
+        "shizuku": "The most seamless option; requires Shizuku to stay running"
       },
       "issue": {
-        "service-unavailable": "The selected method is not running",
-        "permission-required": "Clipboard access needs authorization",
-        "system-restriction": "MIUI is blocking background clipboard access",
-        "monitoring-setup-required": "Automatic copy detection still needs setup"
+        "service-unavailable": "Shizuku is not running",
+        "permission-required": "Clipboard access still needs permission",
+        "system-restriction": "MIUI is blocking background access",
+        "monitoring-setup-required": "Computer authorization is still required"
+      },
+      "issueDescription": {
+        "service-unavailable": "Install and start Shizuku, then return to authorize",
+        "permission-required": "Follow the system prompt to allow UniClip to use this method",
+        "system-restriction": "Use Shizuku to turn off the MIUI smart clipboard restriction",
+        "monitoring-setup-required": "Run one ADB command on a computer with USB debugging enabled"
       },
       "action": {
-        "continue": "Continue setup",
-        "change": "Change method"
+        "service-unavailable": "Open Shizuku",
+        "permission-required": "Authorize",
+        "system-restriction": "Resolve",
+        "monitoring-setup-required": "View steps",
+        "check": "Check access"
       },
       "setup": {
         "completed": "Background clipboard access is ready",
-        "commandCopied": "Computer authorization command copied",
-        "failed": "Setup could not be completed; make sure Shizuku is running"
+        "commandCopied": "Command copied; run it in a computer terminal",
+        "failed": "Background clipboard setup could not be completed"
+      },
+      "sheet": {
+        "title": "Choose a background reading method",
+        "subtitle": "Swipe to compare setup effort, responsiveness, and limitations",
+        "recommended": "Recommended",
+        "current": "Currently using",
+        "useMethod": "Use this method",
+        "pageLabel": "Option {{current}} of {{total}}",
+        "labels": {
+          "bestFor": "Best for",
+          "benefit": "Advantage",
+          "tradeoff": "Keep in mind",
+          "setup": "Before you start"
+        },
+        "methods": {
+          "overlay-polling": {
+            "title": "Timed polling",
+            "summary": "The simplest option, with no computer or extra app required",
+            "bestFor": "Most people who want it to work with minimal setup",
+            "benefit": "No ADB; works as soon as overlay permission is granted",
+            "tradeoff": "Checks every second and may briefly affect keyboards, games, or full-screen apps",
+            "setup": "Allow UniClip to display over other apps"
+          },
+          "overlay-event": {
+            "title": "ADB events",
+            "summary": "Reads only after a copy for faster response and less daily interference",
+            "bestFor": "People who can connect a computer and prefer lower power use",
+            "benefit": "No continuous polling; runs only when Android reports a copy event",
+            "tradeoff": "Authorization must be repeated after reinstalling the app",
+            "setup": "Requires overlay permission, USB debugging, and ADB on a computer"
+          },
+          "shizuku": {
+            "title": "Shizuku",
+            "summary": "The smoothest background monitoring without an overlay",
+            "bestFor": "Advanced users who already use or understand Shizuku",
+            "benefit": "Event-driven, responsive, and never temporarily takes window focus",
+            "tradeoff": "Depends on the Shizuku service, which usually needs restarting after a reboot",
+            "setup": "Install and start Shizuku, then grant UniClip access"
+          }
+        }
+      },
+      "adbGuide": {
+        "title": "Authorize ADB event detection",
+        "subtitle": "UniClip uses this permission only to detect copy events and does not process other log content",
+        "status": {
+          "copied": "Command copied. Run it in a computer terminal, then return to check access.",
+          "notDetected": "Authorization was not detected. Check the device connection and command result."
+        },
+        "step1": "Install Android Platform Tools (ADB) on the computer.",
+        "step2": "Enable USB debugging in the phone's Developer options.",
+        "step3": "Connect by USB and allow debugging from this computer on the phone.",
+        "step4": "Run the command below in the computer terminal, then tap Check access.",
+        "commandLabel": "Computer terminal command",
+        "copyCommand": "Copy authorization command",
+        "copyAgain": "Copy command again",
+        "check": "Check access"
       },
       "restriction": {
         "title": "Turn off the MIUI clipboard restriction",
         "text": "UniClip will use Shizuku to turn off MIUI's smart clipboard restriction so clipboard content can be read and written in the background. This may also disable the system smart clipboard feature.",
         "confirm": "Turn off restriction"
-      },
-      "change": {
-        "title": "Change background access method",
-        "text": "After switching to {{method}}, UniClip will immediately guide you through any remaining setup.",
-        "confirm": "Use {{method}}"
       }
     }
   },

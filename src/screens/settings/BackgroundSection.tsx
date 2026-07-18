@@ -4,8 +4,8 @@
  * 卡片一「后台自动同步」只有一个总开关:开启时批量打开下载/上传/常驻通知,并依次引导
  * 三项系统权限(忽略电池优化、通知权限、悬浮窗权限;跳系统页的两项靠 AppState 监听下一次
  * 回到前台来串行,避免连续拉起多个系统 Activity 互相打断)。
- * 卡片二「高级选项」始终展开。后台剪贴板访问只展示一行结果:完成时允许更换方式,
- * 未完成时只给出当前缺少的一步,具体设置动作由所选 adapter 自己处理。
+ * 卡片二「高级选项」始终展开。后台剪贴板访问通过横向分页 Bottom Sheet 比较并选择
+ * 定时轮询、READ_LOGS 事件检测或 Shizuku；缺少的授权步骤由所选 adapter 自己处理。
  * Alert.alert 确认统一走单个配置驱动的 Compose AlertDialog(挂在卡片一上;Compose
  * Dialog 是 window 级 overlay,挂载位置不影响展示)。失败回滚交给 store。
  */
@@ -21,18 +21,20 @@ import {
   Text as ComposeText,
 } from '@expo/ui/jetpack-compose';
 import { useClipboardStore, useSettingsStore } from '@/stores';
+import type { ClipboardAccessMethod } from '@/types/settings';
 import {
   changeClipboardAccessMethod,
   getClipboardAccessAdapter,
 } from '@/utils/androidBackgroundClipboardAccess';
 import type { ClipboardAuthorizationState } from '@/utils/backgroundClipboardAccess';
 import {
-  getAlternativeClipboardMethod,
   getBackgroundClipboardSetupState,
   refreshBackgroundClipboardAuthorization,
 } from '@/utils/backgroundClipboardAccess';
 import { useSettingsToast } from './SettingsToastContext';
 import { SettingsSectionItem } from './SettingsSectionItem';
+import { useClipboardAccessMethodSheet } from './ClipboardAccessMethodSheet';
+import { resolveAdbAuthorizationCheck } from './ClipboardAccessMethodSheet.state';
 
 interface BgDialog {
   title: string;
@@ -63,6 +65,7 @@ function waitForNextActiveState(timeoutMs = 60_000): Promise<void> {
 export const BackgroundSection = memo(function BackgroundSection() {
   const { t } = useTranslation('settingsBackground');
   const showMessage = useSettingsToast();
+  const { openMethodSheet, openAdbSetupSheet, closeSheet } = useClipboardAccessMethodSheet();
 
   const isTempDisabled = useSettingsStore((s) => s.isTempDisabledBackgroundTasks);
   const backgroundTasksEnabled = useSettingsStore(
@@ -76,16 +79,16 @@ export const BackgroundSection = memo(function BackgroundSection() {
   const backgroundDownload = useSettingsStore((s) => s.config?.enableBackgroundDownload ?? false);
   const backgroundUpload = useSettingsStore((s) => s.config?.enableBackgroundUpload ?? false);
   const clipboardAccessMethod = useSettingsStore(
-    (s) => s.config?.clipboardAccessMethod ?? 'overlay'
+    (s) => s.config?.clipboardAccessMethod ?? 'overlay-polling'
   );
 
   const [dialog, setDialog] = useState<BgDialog | null>(null);
   const [permBattery, setPermBattery] = useState(false);
+  const [adbCommandCopied, setAdbCommandCopied] = useState(false);
   const [clipboardAccessState, setClipboardAccessState] = useState<ClipboardAuthorizationState>(
     () => getClipboardAccessAdapter(clipboardAccessMethod).getAuthorizationState()
   );
   const clipboardSetupState = getBackgroundClipboardSetupState(clipboardAccessState);
-  const alternativeClipboardAccessMethod = getAlternativeClipboardMethod(clipboardAccessMethod);
   const hasBatteryOptRequested = useRef(false);
 
   const refreshBatteryPermission = () => {
@@ -150,7 +153,7 @@ export const BackgroundSection = memo(function BackgroundSection() {
     }
 
     const adapter = getClipboardAccessAdapter(
-      useSettingsStore.getState().config?.clipboardAccessMethod ?? 'overlay'
+      useSettingsStore.getState().config?.clipboardAccessMethod ?? 'overlay-polling'
     );
     await adapter.activate();
     const authorization = adapter.getAuthorizationState();
@@ -277,8 +280,22 @@ export const BackgroundSection = memo(function BackgroundSection() {
     }
   };
 
-  const handleSetClipboardAccessMethod = async (method: 'overlay' | 'shizuku') => {
+  const openAdbSetupGuide = (stage: 'instructions' | 'copied' | 'notDetected') => {
+    const command =
+      getClipboardAccessAdapter('overlay-event').getAuthorizationState().setupCommand ?? '';
+    openAdbSetupSheet({
+      stage,
+      command,
+      onCopy: () => void continueClipboardAccessSetup(),
+      onCheck: () => void checkAdbAuthorization(),
+    });
+  };
+
+  const handleSetClipboardAccessMethod = async (method: ClipboardAccessMethod) => {
+    if (method === clipboardAccessMethod) return;
+
     try {
+      setAdbCommandCopied(false);
       const setupResult = await changeClipboardAccessMethod(
         clipboardAccessMethod,
         method,
@@ -298,19 +315,6 @@ export const BackgroundSection = memo(function BackgroundSection() {
     }
   };
 
-  const handleChangeClipboardAccessMethod = () => {
-    const nextMethodLabel = t(
-      `advanced.clipboardAccess.method.${alternativeClipboardAccessMethod}`
-    );
-    setDialog({
-      title: t('advanced.clipboardAccess.change.title'),
-      text: t('advanced.clipboardAccess.change.text', { method: nextMethodLabel }),
-      confirmLabel: t('advanced.clipboardAccess.change.confirm', { method: nextMethodLabel }),
-      dismissLabel: t('action.cancel', { ns: 'common' }),
-      onConfirm: () => void handleSetClipboardAccessMethod(alternativeClipboardAccessMethod),
-    });
-  };
-
   const handleClipboardAccessSetupResult = async (
     adapter: ReturnType<typeof getClipboardAccessAdapter>,
     result: Awaited<ReturnType<typeof adapter.continueSetup>>
@@ -321,7 +325,9 @@ export const BackgroundSection = memo(function BackgroundSection() {
       return;
     }
     if (result === 'command-copied') {
+      setAdbCommandCopied(true);
       showMessage(t('advanced.clipboardAccess.setup.commandCopied'), 'success');
+      openAdbSetupGuide('copied');
     }
     if (result === 'completed') {
       showMessage(t('advanced.clipboardAccess.setup.completed'), 'success');
@@ -341,7 +347,50 @@ export const BackgroundSection = memo(function BackgroundSection() {
     }
   };
 
+  const checkAdbAuthorization = async () => {
+    try {
+      const adapter = getClipboardAccessAdapter('overlay-event');
+      const nextState = adapter.getAuthorizationState();
+      const outcome = resolveAdbAuthorizationCheck(nextState);
+      setClipboardAccessState(nextState);
+
+      if (outcome === 'show-adb-guide') {
+        openAdbSetupGuide('notDetected');
+        return;
+      }
+      if (outcome === 'continue-access-setup') {
+        setAdbCommandCopied(false);
+        closeSheet();
+        const result = await adapter.continueSetup();
+        await handleClipboardAccessSetupResult(adapter, result);
+        return;
+      }
+
+      await useClipboardStore.getState().restartMonitoring();
+      setAdbCommandCopied(false);
+      closeSheet();
+      showMessage(t('advanced.clipboardAccess.setup.completed'), 'success');
+    } catch (error: unknown) {
+      showMessage(error instanceof Error ? error.message : t('toast.setFailed'), 'error');
+    }
+  };
+
+  const handleOpenClipboardMethodSheet = () => {
+    openMethodSheet({
+      selectedMethod: clipboardAccessMethod,
+      onSelect: handleSetClipboardAccessMethod,
+    });
+  };
+
   const handleContinueClipboardAccessSetup = () => {
+    if (clipboardSetupState.issue === 'monitoring-setup-required') {
+      if (adbCommandCopied) {
+        void checkAdbAuthorization();
+      } else {
+        openAdbSetupGuide('instructions');
+      }
+      return;
+    }
     if (clipboardSetupState.issue === 'system-restriction') {
       setDialog({
         title: t('advanced.clipboardAccess.restriction.title'),
@@ -502,30 +551,46 @@ export const BackgroundSection = memo(function BackgroundSection() {
           </ListItem.HeadlineContent>
           <ListItem.SupportingContent>
             <ComposeText>
-              {t(`advanced.clipboardAccess.summary.${clipboardSetupState.status}`, {
-                method: t(`advanced.clipboardAccess.method.${clipboardAccessMethod}`),
-              })}
-              {clipboardSetupState.issue
-                ? `\n${t(`advanced.clipboardAccess.issue.${clipboardSetupState.issue}`)}`
-                : ''}
+              {t(`advanced.clipboardAccess.description.${clipboardAccessMethod}`)}
             </ComposeText>
           </ListItem.SupportingContent>
           <ListItem.TrailingContent>
-            <TextButton
-              onClick={
-                clipboardSetupState.status === 'ready'
-                  ? handleChangeClipboardAccessMethod
-                  : handleContinueClipboardAccessSetup
-              }
-            >
+            <TextButton onClick={handleOpenClipboardMethodSheet}>
               <ComposeText>
-                {clipboardSetupState.status === 'ready'
-                  ? t('advanced.clipboardAccess.action.change')
-                  : t('advanced.clipboardAccess.action.continue')}
+                {t(`advanced.clipboardAccess.method.${clipboardAccessMethod}`)}
               </ComposeText>
             </TextButton>
           </ListItem.TrailingContent>
         </ListItem>
+
+        {clipboardSetupState.status === 'action-required' ? (
+          <>
+            <HorizontalDivider />
+            <ListItem>
+              <ListItem.HeadlineContent>
+                <ComposeText>
+                  {t(`advanced.clipboardAccess.issue.${clipboardSetupState.issue}`)}
+                </ComposeText>
+              </ListItem.HeadlineContent>
+              <ListItem.SupportingContent>
+                <ComposeText>
+                  {t(`advanced.clipboardAccess.issueDescription.${clipboardSetupState.issue}`)}
+                </ComposeText>
+              </ListItem.SupportingContent>
+              <ListItem.TrailingContent>
+                <TextButton onClick={handleContinueClipboardAccessSetup}>
+                  <ComposeText>
+                    {t(
+                      clipboardSetupState.issue === 'monitoring-setup-required' && adbCommandCopied
+                        ? 'advanced.clipboardAccess.action.check'
+                        : `advanced.clipboardAccess.action.${clipboardSetupState.issue}`
+                    )}
+                  </ComposeText>
+                </TextButton>
+              </ListItem.TrailingContent>
+            </ListItem>
+          </>
+        ) : null}
       </SettingsSectionItem>
     </>
   );

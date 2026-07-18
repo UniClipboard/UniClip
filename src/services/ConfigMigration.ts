@@ -66,9 +66,20 @@ export function migrateConfig(
     result.language = 'system';
   }
 
-  // Builds before schema v3 exposed Shizuku as a standalone boolean.
+  // Builds before schema v3 exposed Shizuku as a standalone boolean. New installs and
+  // legacy overlay-only installs default to no-ADB polling. The v4 `overlay` value meant
+  // READ_LOGS event detection, so preserve that behavior when upgrading to schema v5.
   if (!('clipboardAccessMethod' in old)) {
-    result.clipboardAccessMethod = old.enableShizukuClipboard === true ? 'shizuku' : 'overlay';
+    result.clipboardAccessMethod =
+      old.enableShizukuClipboard === true ? 'shizuku' : 'overlay-polling';
+  } else if (old.clipboardAccessMethod === 'overlay') {
+    result.clipboardAccessMethod = 'overlay-event';
+  } else if (
+    old.clipboardAccessMethod !== 'overlay-polling' &&
+    old.clipboardAccessMethod !== 'overlay-event' &&
+    old.clipboardAccessMethod !== 'shizuku'
+  ) {
+    result.clipboardAccessMethod = DEFAULT_SETTINGS.clipboardAccessMethod;
   }
 
   return result as unknown as AppSettings;

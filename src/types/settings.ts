@@ -50,12 +50,14 @@ export interface SharedSettings {
   onboardingCompleted: boolean;
 }
 
+export type ClipboardAccessMethod = 'overlay-polling' | 'overlay-event' | 'shizuku';
+
 export interface AndroidSettings {
   // Background tasks
   enableBackgroundTasks: boolean;
   enableBackgroundDownload: boolean;
   enableBackgroundUpload: boolean;
-  clipboardAccessMethod: 'overlay' | 'shizuku';
+  clipboardAccessMethod: ClipboardAccessMethod;
   enableClipboardOverlay: boolean;
   enableSmsForwarding: boolean;
   enableForegroundNotification: boolean;
@@ -134,7 +136,7 @@ export const ANDROID_DEFAULTS: AndroidSettings = {
   enableBackgroundTasks: false,
   enableBackgroundDownload: false,
   enableBackgroundUpload: false,
-  clipboardAccessMethod: 'overlay',
+  clipboardAccessMethod: 'overlay-polling',
   enableClipboardOverlay: false,
   enableSmsForwarding: false,
   enableForegroundNotification: true,
@@ -184,4 +186,4 @@ export const RUNTIME_STATE_DEFAULTS: RuntimeState = {
   needsHistoryReorganize: false,
 };
 
-export const SETTINGS_SCHEMA_VERSION = 4;
+export const SETTINGS_SCHEMA_VERSION = 5;
