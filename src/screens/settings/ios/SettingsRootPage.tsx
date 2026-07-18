@@ -85,10 +85,10 @@ export function SettingsRootPage({
     keyboard.state === 'ready'
       ? { value: t('state.enabled', { ns: 'common' }), color: statusGreen }
       : keyboard.state === 'added'
-        ? { value: t('ios.keyboardHint.needsFullAccess'), color: statusOrange }
-        : keyboard.state === 'notAdded'
-          ? { value: t('ios.keyboardHint.notEnabled'), color: undefined }
-          : { value: undefined, color: undefined };
+      ? { value: t('ios.keyboardHint.needsFullAccess'), color: statusOrange }
+      : keyboard.state === 'notAdded'
+      ? { value: t('ios.keyboardHint.notEnabled'), color: undefined }
+      : { value: undefined, color: undefined };
 
   return (
     <IosSheetPage title={t('action.settings', { ns: 'common' })}>
