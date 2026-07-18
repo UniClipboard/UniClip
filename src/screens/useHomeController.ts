@@ -25,7 +25,8 @@ import { copyToLocalClipboard } from '@/utils/clipboard';
 import { DisplayKind, getDisplayKind } from '@/utils/displayKind';
 import { buildActionMenuGroups, ActionMenuItem } from '@/utils/actionMenuItems';
 import { saveToGallery, saveFile, shareFile } from '@/utils/fileActions';
-import { createHistorySearchFilter, HistoryDateFilter } from '@/utils/historyFilters';
+import { HistoryDateFilter } from '@/utils/historyFilters';
+import { useHomeHistoryFilter } from './useHomeHistoryFilter';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -237,29 +238,13 @@ export function useHomeController(onOpenSettings: () => void) {
     }
   }, [lastAddedTimestamp]);
 
-  // Search debounce only runs while the search UI is active. The initial load already
-  // owns the first history query and must not race with a filter-less search.
-  useEffect(() => {
-    if (!isSearching) return;
-
-    const filter = createHistorySearchFilter({
-      keyword: searchText,
-      displayKinds: selectedFilterKinds,
-      dateFilter: selectedDateFilter,
-    });
-    const hasFilter = Object.keys(filter).length > 0;
-
-    // 想要全量、而列表已经是全量(刚进搜索态,还没输入任何条件)时不必重查。
-    // 清空条件后 store 里的 filter 仍非空,这时的 searchItems(undefined) 才是真正需要的恢复查询。
-    // 这里用 getState() 快照读而不订阅:filter 由下面的 searchItems 自己写回,订阅它会让
-    // effect 被自己的结果重新触发,变成每 300ms 自查一次的死循环。
-    if (!hasFilter && !useHistoryStore.getState().filter) return;
-
-    const timer = setTimeout(() => {
-      searchItems(hasFilter ? filter : undefined);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [isSearching, searchText, selectedFilterKinds, selectedDateFilter, searchItems]);
+  useHomeHistoryFilter({
+    isSearching,
+    searchText,
+    selectedFilterKinds,
+    selectedDateFilter,
+    searchItems,
+  });
 
   const exitSelectMode = useCallback(() => {
     setIsSelectMode(false);

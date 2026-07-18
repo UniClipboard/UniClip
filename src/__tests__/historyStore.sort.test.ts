@@ -5,6 +5,7 @@
 
 import { useHistoryStore } from '../stores/historyStore';
 import { ClipboardItem, HistorySyncStatus } from '../types/clipboard';
+import { historyStorage } from '../services';
 
 // Mock historyStorage，避免真实 AsyncStorage 依赖
 jest.mock('../services', () => ({
@@ -53,6 +54,7 @@ function hashes(items: ClipboardItem[]): string[] {
 
 describe('historyStore handleStorageChange 排序', () => {
   beforeEach(() => {
+    jest.clearAllMocks();
     useHistoryStore.getState().reset();
   });
 
@@ -172,5 +174,30 @@ describe('historyStore handleStorageChange 排序', () => {
 
     expect(useHistoryStore.getState().items).toEqual([]);
     expect(useHistoryStore.getState().totalCount).toBe(0);
+  });
+
+  it('快速切换筛选时忽略较晚返回的旧结果', async () => {
+    let resolveImageSearch!: (result: { items: ClipboardItem[]; total: number }) => void;
+    const imageSearch = new Promise<{ items: ClipboardItem[]; total: number }>((resolve) => {
+      resolveImageSearch = resolve;
+    });
+    const imageItem = createItem('image', 200, { type: 'Image', text: 'photo.png' });
+    const textItem = createItem('text', 300, { type: 'Text', text: 'latest note' });
+    const searchItemsMock = historyStorage.searchItems as jest.MockedFunction<
+      typeof historyStorage.searchItems
+    >;
+    searchItemsMock
+      .mockImplementationOnce(() => imageSearch)
+      .mockResolvedValueOnce({ items: [textItem], total: 1 });
+
+    const oldRequest = useHistoryStore.getState().searchItems({ displayKinds: ['image'] });
+    await useHistoryStore.getState().searchItems({ displayKinds: ['text'] });
+    expect(hashes(useHistoryStore.getState().items)).toEqual(['text']);
+
+    resolveImageSearch({ items: [imageItem], total: 1 });
+    await oldRequest;
+
+    expect(hashes(useHistoryStore.getState().items)).toEqual(['text']);
+    expect(useHistoryStore.getState().filter).toEqual({ displayKinds: ['text'] });
   });
 });

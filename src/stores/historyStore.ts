@@ -129,6 +129,8 @@ const initialState = {
   historyCleared: false,
 };
 
+let historyQuerySequence = 0;
+
 /**
  * 创建历史记录 Store
  */
@@ -136,6 +138,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
   ...initialState,
 
   loadItems: async () => {
+    const querySequence = ++historyQuerySequence;
     set({ isLoading: true, error: null });
 
     try {
@@ -144,24 +147,28 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
       const effectiveSort: HistorySort = sort || { field: 'timestamp', order: 'desc' };
 
       const result = await historyStorage.searchItems(filter || undefined, effectiveSort);
+      if (querySequence !== historyQuerySequence) return;
       set({
         items: result.items,
         totalCount: result.total,
         isLoading: false,
       });
     } catch (error) {
+      if (querySequence !== historyQuerySequence) return;
       const errorMessage = error instanceof Error ? error.message : 'Failed to load history';
       set({ error: errorMessage, isLoading: false });
     }
   },
 
   searchItems: async (filter, sort) => {
+    const querySequence = ++historyQuerySequence;
     // 不传 sort 时保留当前 sort 配置，避免覆盖 loadSortSetting 设置的值
     const effectiveSort = sort !== undefined ? sort : get().sort;
     set({ isLoading: true, error: null, filter, sort: effectiveSort });
 
     try {
       const result = await historyStorage.searchItems(filter, effectiveSort || undefined);
+      if (querySequence !== historyQuerySequence) return;
 
       set({
         items: result.items,
@@ -169,6 +176,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
         isLoading: false,
       });
     } catch (error) {
+      if (querySequence !== historyQuerySequence) return;
       const errorMessage = error instanceof Error ? error.message : 'Failed to search history';
       set({ error: errorMessage, isLoading: false });
     }
@@ -296,6 +304,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
   },
 
   clearHistory: async () => {
+    historyQuerySequence++;
     set({ isLoading: true, error: null });
 
     try {
@@ -527,6 +536,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
   },
 
   reset: () => {
+    historyQuerySequence++;
     set(initialState);
   },
 }));
