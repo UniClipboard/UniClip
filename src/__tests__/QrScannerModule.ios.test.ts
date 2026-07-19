@@ -10,6 +10,19 @@ const scannerSource = readFileSync(
 );
 
 describe('iOS QR scanner controls', () => {
+  it('mounts scanner content inside a modal-specific safe-area provider', () => {
+    const modalSource = readFileSync(
+      join(process.cwd(), 'src', 'components', 'QrScannerModal.ios.tsx'),
+      'utf8'
+    );
+
+    expect(modalSource).toContain(
+      "import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';"
+    );
+    expect(modalSource).toContain('<SafeAreaProvider style={styles.modalRoot}>');
+    expect(modalSource).toContain('</SafeAreaProvider>');
+  });
+
   it('keeps the cancel button in the interactive scanner view', () => {
     expect(scannerSource).toContain('scanner.view.addSubview(cancelBtn)');
     expect(scannerSource).toContain(

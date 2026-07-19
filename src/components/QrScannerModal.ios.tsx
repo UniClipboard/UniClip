@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { useTheme } from '@/hooks/useTheme';
 import { spacing, radius, typography } from '@/theme';
@@ -234,7 +234,10 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({ visible, onClose
       onRequestClose={onClose}
     >
       <StatusBar barStyle="light-content" />
-      {renderBody()}
+      {/* A React Native Modal has its own native window. Wait for that window's inset
+          callback before mounting the camera/header, otherwise its first layout can be
+          computed with a zero top inset when opened directly from onboarding. */}
+      <SafeAreaProvider style={styles.modalRoot}>{renderBody()}</SafeAreaProvider>
     </Modal>
   );
 };
@@ -246,6 +249,7 @@ const CORNER_COLOR = '#FFFFFF';
 const MASK_COLOR = 'rgba(0,0,0,0.55)';
 
 const styles = StyleSheet.create({
+  modalRoot: { flex: 1 },
   scannerRoot: { flex: 1, backgroundColor: '#000' },
   headerSafeArea: { position: 'absolute', top: 0, left: 0, right: 0 },
   header: {
