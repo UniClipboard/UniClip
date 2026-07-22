@@ -1,0 +1,31 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.ucengine'
+version = '0.19.1'
+
+android {
+  namespace "expo.modules.ucengine"
+  defaultConfig {
+    versionCode 1
+    versionName "0.19.1"
+    ndk {
+      abiFilters 'arm64-v8a', 'x86_64'
+    }
+  }
+}
+
+dependencies {
+  implementation files('libs/UniClipboardEngine.aar')
+  implementation 'net.java.dev.jna:jna:5.14.0@aar'
+}
+
+tasks.configureEach { task ->
+  if (task.name.startsWith('pre') && !file('libs/UniClipboardEngine.aar').exists()) {
+    task.doFirst {
+      throw new GradleException('Missing UniClipboardEngine.aar; run scripts/update-unified-engine-core.sh')
+    }
+  }
+}

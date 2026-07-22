@@ -13,6 +13,7 @@ const WEB_STUBBED_MODULES = new Set([
   'sms-forwarder',
   'foreground-service',
   'shortcut',
+  'uc-engine',
 ]);
 
 // iOS 平台: 将 @expo/ui/jetpack-compose 重定向到 RN 原生组件 shim

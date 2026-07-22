@@ -9,6 +9,7 @@ module.exports = {
     '^android-util$': '<rootDir>/modules/android-util/src',
     '^app-group-store$': '<rootDir>/modules/app-group-store/src',
     '^uc-core$': '<rootDir>/modules/uc-core/src',
+    '^uc-engine$': '<rootDir>/modules/uc-engine/src',
     '^signalr-client$': '<rootDir>/modules/signalr-client/src',
     '^native-timer$': '<rootDir>/modules/native-timer/src',
     '^foreground-service$': '<rootDir>/modules/foreground-service/src',

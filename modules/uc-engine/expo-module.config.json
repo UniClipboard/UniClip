@@ -1,0 +1,10 @@
+{
+  "platforms": ["ios", "android"],
+  "name": "uc-engine",
+  "ios": {
+    "modules": ["UcEngineModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.ucengine.UcEngineModule"]
+  }
+}
