@@ -12,10 +12,12 @@ import {
   Switch as ComposeSwitch,
   OutlinedTextField,
   HorizontalDivider,
+  SegmentedButton,
+  SingleChoiceSegmentedButtonRow,
   Text as ComposeText,
   useNativeState,
 } from '@expo/ui/jetpack-compose';
-import { width as widthModifier } from '@expo/ui/jetpack-compose/modifiers';
+import { fillMaxWidth, width as widthModifier } from '@expo/ui/jetpack-compose/modifiers';
 import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from '@/stores';
 import { useSettingsToast } from './SettingsToastContext';
@@ -36,6 +38,7 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
 
   // 仅订阅影响本 section 渲染的字段
   const syncToastEnabled = useSettingsStore((s) => s.config?.syncToastEnabled ?? true);
+  const syncChannel = useSettingsStore((s) => s.config?.syncChannel ?? 'p2p');
   const sseEnabled = useSettingsStore((s) => s.config?.enableSse ?? true);
   const isSyncClipboard = useSettingsStore((s) => {
     const c = s.config;
@@ -75,6 +78,12 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
     } catch (error: unknown) {
       showMessage(error instanceof Error ? error.message : t('error.updateFailed'), 'error');
     }
+  };
+
+  const handleSyncChannel = async (channel: 'p2p' | 'lan') => {
+    if (channel === syncChannel) return;
+    const result = await useSettingsStore.getState().setSyncChannel(channel);
+    if (!result.ok) showMessage(result.error || t('error.updateFailed'), 'error');
   };
 
   const handleMaxSizeBlur = async () => {
@@ -140,6 +149,27 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
 
   return (
     <>
+      <SettingsSectionItem title={t('syncChannel.title', { ns: 'settings' })}>
+        <SingleChoiceSegmentedButtonRow modifiers={[fillMaxWidth()]}>
+          <SegmentedButton
+            selected={syncChannel === 'p2p'}
+            onClick={() => handleSyncChannel('p2p')}
+          >
+            <SegmentedButton.Label>
+              <ComposeText>{t('syncChannel.p2p', { ns: 'settings' })}</ComposeText>
+            </SegmentedButton.Label>
+          </SegmentedButton>
+          <SegmentedButton
+            selected={syncChannel === 'lan'}
+            onClick={() => handleSyncChannel('lan')}
+          >
+            <SegmentedButton.Label>
+              <ComposeText>{t('syncChannel.lan', { ns: 'settings' })}</ComposeText>
+            </SegmentedButton.Label>
+          </SegmentedButton>
+        </SingleChoiceSegmentedButtonRow>
+      </SettingsSectionItem>
+
       <SettingsSectionItem title={t('options.title')}>
         <ListItem>
           <ListItem.HeadlineContent>

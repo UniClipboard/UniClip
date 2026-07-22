@@ -117,4 +117,16 @@ describe('settingsStore.updateConfig', () => {
       expect.objectContaining({ autoApplyRemote: true })
     );
   });
+
+  it('persists the explicitly selected sync channel', async () => {
+    await configStorage.getConfig();
+
+    const result = await useSettingsStore.getState().setSyncChannel('lan');
+
+    expect(result).toEqual({ ok: true });
+    expect(useSettingsStore.getState().config?.syncChannel).toBe('lan');
+    await expect(configStorage.getConfig()).resolves.toEqual(
+      expect.objectContaining({ syncChannel: 'lan' })
+    );
+  });
 });

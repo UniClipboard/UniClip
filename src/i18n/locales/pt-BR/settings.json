@@ -18,6 +18,11 @@
     "sectionTitle": "Geral",
     "theme": "Tema"
   },
+  "syncChannel": {
+    "title": "Canal de sincronização",
+    "p2p": "P2P",
+    "lan": "Rede local"
+  },
   "category": {
     "sync": "Sincronização",
     "about": "Sobre",

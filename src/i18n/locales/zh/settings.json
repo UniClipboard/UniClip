@@ -18,6 +18,11 @@
     "sectionTitle": "通用",
     "theme": "主题"
   },
+  "syncChannel": {
+    "title": "同步通道",
+    "p2p": "P2P",
+    "lan": "局域网"
+  },
   "category": {
     "sync": "同步",
     "about": "关于",

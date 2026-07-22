@@ -7,6 +7,7 @@ import { create } from 'zustand';
 import { AppConfig } from '../types/storage';
 import { ServerConfig } from '../types/api';
 import { SyncMode, ConflictResolution } from '../types/sync';
+import type { SyncChannel } from '../types/settings';
 import { configStorage } from '../services/ConfigStorage';
 import { syncConfigToAppGroup } from '../services/appGroupSyncCore';
 
@@ -68,6 +69,9 @@ interface SettingsState {
   // 同步设置
   /** 设置同步模式 */
   setSyncMode: (mode: string) => Promise<void>;
+
+  /** 设置 P2P 或 LAN 同步通道 */
+  setSyncChannel: (channel: SyncChannel) => Promise<UpdateConfigResult>;
 
   /** 设置同步间隔 */
   setSyncInterval: (interval: number) => Promise<void>;
@@ -325,6 +329,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setTheme: async (theme: 'system' | 'light' | 'dark') => {
     await get().updateConfig({ appearance: theme });
   },
+
+  setSyncChannel: (channel: SyncChannel) => get().updateConfig({ syncChannel: channel }),
 
   setSyncMode: async (mode: string) => {
     await get().updateConfig({ syncMode: mode as SyncMode });

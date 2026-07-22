@@ -109,6 +109,20 @@ export function SettingsRootPage({
           header={<SwiftUIText>{t('category.sync')}</SwiftUIText>}
           footer={<SwiftUIText>{t('ios.sync.footer')}</SwiftUIText>}
         >
+          <HStack spacing={12} modifiers={[frame({ maxWidth: Infinity })]}>
+            <SettingsIconTile systemName="network" color={settingsTileColors.blue} />
+            <Picker
+              label={t('syncChannel.title')}
+              selection={config.syncChannel}
+              onSelectionChange={(value) => {
+                void useSettingsStore.getState().setSyncChannel(value as 'p2p' | 'lan');
+              }}
+              modifiers={[pickerStyle('segmented')]}
+            >
+              <SwiftUIText modifiers={[tag('p2p')]}>{t('syncChannel.p2p')}</SwiftUIText>
+              <SwiftUIText modifiers={[tag('lan')]}>{t('syncChannel.lan')}</SwiftUIText>
+            </Picker>
+          </HStack>
           <IconToggleRow
             icon="arrow.down.doc"
             iconColor={settingsTileColors.green}

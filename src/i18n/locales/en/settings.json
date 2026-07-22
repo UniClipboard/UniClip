@@ -18,6 +18,11 @@
     "sectionTitle": "General",
     "theme": "Theme"
   },
+  "syncChannel": {
+    "title": "Sync channel",
+    "p2p": "P2P",
+    "lan": "Local network"
+  },
   "category": {
     "sync": "Sync",
     "about": "About",
