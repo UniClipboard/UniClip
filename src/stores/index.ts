@@ -11,3 +11,4 @@ export { useClipboardSyncServiceStore as useClipboardSyncServiceStore } from './
 export { usePendingConnectStore, type PendingConnectIntent } from './pendingConnectStore';
 export { useQrScannerStore } from './qrScannerStore';
 export { useSyncEngineStore, notifyServerChanged, notifyNetworkChanged } from './syncEngineStore';
+export { useUnifiedEngineStore } from './unifiedEngineStore';

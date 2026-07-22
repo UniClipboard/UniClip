@@ -28,7 +28,6 @@ class BackgroundServiceManager {
   private tempStopSub: { remove(): void } | null = null;
   /** 取消对 settingsStore 的订阅 */
   private settingsUnsub: (() => void) | null = null;
-  private unifiedEngineRunning = false;
   private readonly syncChannels = new SyncChannelCoordinator(
     {
       start: () => this._startUnifiedEngine(),
@@ -170,26 +169,17 @@ class BackgroundServiceManager {
   }
 
   private async _startUnifiedEngine(): Promise<void> {
-    if (this.unifiedEngineRunning) return;
-
-    const { start } = require('uc-engine');
+    const { getUnifiedEngineService } = require('./UnifiedEngineService');
     const Application = require('expo-application');
-    await start({
+    await getUnifiedEngineService().start({
       appVersion: Application.nativeApplicationVersion ?? 'unknown',
       profileId: 'default',
     });
-    this.unifiedEngineRunning = true;
   }
 
   private async _stopUnifiedEngine(): Promise<void> {
-    if (!this.unifiedEngineRunning) return;
-
-    try {
-      const { shutdown } = require('uc-engine');
-      await shutdown(5_000);
-    } finally {
-      this.unifiedEngineRunning = false;
-    }
+    const { getUnifiedEngineService } = require('./UnifiedEngineService');
+    await getUnifiedEngineService().stop();
   }
 
   private async _startLanSync(): Promise<void> {

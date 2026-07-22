@@ -53,9 +53,11 @@ jest.mock('../stores/syncEngineStore', () => ({
   },
 }));
 
-jest.mock('uc-engine', () => ({
-  start: mockP2pStart,
-  shutdown: mockP2pStop,
+jest.mock('../services/UnifiedEngineService', () => ({
+  getUnifiedEngineService: () => ({
+    start: mockP2pStart,
+    stop: mockP2pStop,
+  }),
 }));
 
 jest.mock('../stores/clipboardStore', () => ({
@@ -109,6 +111,13 @@ describe('BackgroundServiceManager background policy', () => {
     expect(mockP2pStart).toHaveBeenCalledTimes(1);
     expect(mockRemoteRefresh).not.toHaveBeenCalled();
     expect(mockReconcileSyncEngineAppState).not.toHaveBeenCalled();
+
+    jest.clearAllMocks();
+    settingsState.config.syncChannel = 'lan';
+    await getBackgroundServiceManager().refresh();
+
+    expect(mockP2pStop).toHaveBeenCalledTimes(1);
+    expect(mockLanStart).toHaveBeenCalledTimes(1);
   });
 
   it('stops clipboard monitoring and reconciles SyncEngine after temporary disable', async () => {
