@@ -1,6 +1,6 @@
 {
   "version": "core-v0.19.1",
-  "sourceCommit": "21850cd498bf581110c3c3fe05b04db1c8982441",
-  "iosSha256": "1b8950d1b418562ae8f6cad36157ecc472205c8753c497e78d77fd2fa091b45a",
-  "androidSha256": "e6e82111cd971a4764e3e946d6b36b1d5799a18bf13b3beeb87130709be02120"
+  "sourceCommit": "f204a4d4bfedcd471a3da3c43a27aeeb8ec90abf",
+  "iosSha256": "5ba6a51942abb2933faed58f9f862d03bb650f3a2bc91d2183807c70bcc4faa6",
+  "androidSha256": "4e88d1cffa9c665da2fc246789b1d457c282ebc6c48075dd149ce2c271a77604"
 }

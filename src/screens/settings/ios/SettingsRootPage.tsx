@@ -123,6 +123,14 @@ export function SettingsRootPage({
               <SwiftUIText modifiers={[tag('lan')]}>{t('syncChannel.lan')}</SwiftUIText>
             </Picker>
           </HStack>
+          {config.syncChannel === 'p2p' ? (
+            <SettingsNavRow
+              icon="person.2"
+              iconColor={settingsTileColors.indigo}
+              title={t('space.title', { ns: 'settingsSync' })}
+              onPress={() => onNavigate('space')}
+            />
+          ) : null}
           <IconToggleRow
             icon="arrow.down.doc"
             iconColor={settingsTileColors.green}

@@ -22,6 +22,7 @@ export interface SpaceCreated {
 export interface InvitationIssued {
   invitationCode: string;
   expiresAtMs: number;
+  availability: 'crossNetwork' | 'sameLocalNetwork';
 }
 
 export interface SpaceJoined {

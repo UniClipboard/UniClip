@@ -55,7 +55,15 @@ public final class UcEngineModule: Module {
 
     AsyncFunction("issueInvitation") { () -> [String: Any] in
       let result = try self.requireEngine().issueInvitation()
-      return ["invitationCode": result.invitationCode, "expiresAtMs": result.expiresAtMs]
+      let availability = switch result.availability {
+      case .crossNetwork: "crossNetwork"
+      case .sameLocalNetwork: "sameLocalNetwork"
+      }
+      return [
+        "invitationCode": result.invitationCode,
+        "expiresAtMs": result.expiresAtMs,
+        "availability": availability,
+      ]
     }
 
     AsyncFunction("joinSpace") {

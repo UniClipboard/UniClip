@@ -1,5 +1,6 @@
 export type SettingsPage =
   | 'root'
+  | 'space'
   | 'servers'
   | 'storage'
   | 'keyboard'

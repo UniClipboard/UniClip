@@ -29,6 +29,7 @@ import { KeyboardPage } from './settings/ios/KeyboardPage';
 import { SharePage } from './settings/ios/SharePage';
 import { ClipboardAccessPage } from './settings/ios/ClipboardAccessPage';
 import { DiagnosticsPage } from './settings/ios/DiagnosticsPage';
+import { SpacePage } from './settings/ios/SpacePage';
 
 /** UINavigationController-style push/pop spring. */
 const PUSH_SPRING = Animation.spring({ response: 0.38, dampingFraction: 0.92 });
@@ -176,6 +177,9 @@ export const SettingsScreen = () => {
                   onAddServer={openAddServer}
                   onEditServer={openEditServer}
                 />
+              </SubPageSlide>
+              <SubPageSlide active={page === 'space'} width={width}>
+                <SpacePage onBack={backToRoot} />
               </SubPageSlide>
               <SubPageSlide active={page === 'storage'} width={width}>
                 <StoragePage onBack={backToRoot} active={page === 'storage'} />

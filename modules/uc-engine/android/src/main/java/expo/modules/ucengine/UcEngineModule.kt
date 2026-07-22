@@ -36,6 +36,7 @@ import uniffi.uc_engine_uniffi.BindingFailure
 import uniffi.uc_engine_uniffi.BindingFileMetadata
 import uniffi.uc_engine_uniffi.BindingHost
 import uniffi.uc_engine_uniffi.HostBindingException
+import uniffi.uc_engine_uniffi.InvitationAvailability
 import uniffi.uc_engine_uniffi.MobileEngine
 import uniffi.uc_engine_uniffi.SendReport
 import uniffi.uc_engine_uniffi.coreVersion
@@ -94,7 +95,15 @@ class UcEngineModule : Module() {
     }
     AsyncFunction("issueInvitation") {
       val result = requireEngine().issueInvitation()
-      mapOf("invitationCode" to result.invitationCode, "expiresAtMs" to result.expiresAtMs)
+      val availability = when (result.availability) {
+        InvitationAvailability.CROSS_NETWORK -> "crossNetwork"
+        InvitationAvailability.SAME_LOCAL_NETWORK -> "sameLocalNetwork"
+      }
+      mapOf(
+        "invitationCode" to result.invitationCode,
+        "expiresAtMs" to result.expiresAtMs,
+        "availability" to availability
+      )
     }
     AsyncFunction("joinSpace") { invitationCode: String, deviceName: String?, passphrase: String ->
       val result = requireEngine().joinSpace(invitationCode, deviceName, passphrase)

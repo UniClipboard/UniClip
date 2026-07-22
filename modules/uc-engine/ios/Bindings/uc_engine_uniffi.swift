@@ -1629,12 +1629,14 @@ public func FfiConverterTypeBindingFileMetadata_lower(_ value: BindingFileMetada
 public struct InvitationIssued: Equatable, Hashable {
     public var invitationCode: String
     public var expiresAtMs: Int64
+    public var availability: InvitationAvailability
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(invitationCode: String, expiresAtMs: Int64) {
+    public init(invitationCode: String, expiresAtMs: Int64, availability: InvitationAvailability) {
         self.invitationCode = invitationCode
         self.expiresAtMs = expiresAtMs
+        self.availability = availability
     }
 
 
@@ -1654,13 +1656,15 @@ public struct FfiConverterTypeInvitationIssued: FfiConverterRustBuffer {
         return
             try InvitationIssued(
                 invitationCode: FfiConverterString.read(from: &buf),
-                expiresAtMs: FfiConverterInt64.read(from: &buf)
+                expiresAtMs: FfiConverterInt64.read(from: &buf),
+                availability: FfiConverterTypeInvitationAvailability.read(from: &buf)
         )
     }
 
     public static func write(_ value: InvitationIssued, into buf: inout [UInt8]) {
         FfiConverterString.write(value.invitationCode, into: &buf)
         FfiConverterInt64.write(value.expiresAtMs, into: &buf)
+        FfiConverterTypeInvitationAvailability.write(value.availability, into: &buf)
     }
 }
 
@@ -2765,6 +2769,73 @@ public func FfiConverterTypeHostBindingError_lift(_ buf: RustBuffer) throws -> H
 public func FfiConverterTypeHostBindingError_lower(_ value: HostBindingError) -> RustBuffer {
     return FfiConverterTypeHostBindingError.lower(value)
 }
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
+public enum InvitationAvailability: Equatable, Hashable {
+
+    case crossNetwork
+    case sameLocalNetwork
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension InvitationAvailability: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeInvitationAvailability: FfiConverterRustBuffer {
+    typealias SwiftType = InvitationAvailability
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> InvitationAvailability {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        case 1: return .crossNetwork
+
+        case 2: return .sameLocalNetwork
+
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: InvitationAvailability, into buf: inout [UInt8]) {
+        switch value {
+
+
+        case .crossNetwork:
+            writeInt(&buf, Int32(1))
+
+
+        case .sameLocalNetwork:
+            writeInt(&buf, Int32(2))
+
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeInvitationAvailability_lift(_ buf: RustBuffer) throws -> InvitationAvailability {
+    return try FfiConverterTypeInvitationAvailability.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeInvitationAvailability_lower(_ value: InvitationAvailability) -> RustBuffer {
+    return FfiConverterTypeInvitationAvailability.lower(value)
+}
+
 
 #if swift(>=5.8)
 @_documentation(visibility: private)

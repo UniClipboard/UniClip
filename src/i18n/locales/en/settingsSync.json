@@ -49,6 +49,45 @@
     "serverAdded": "Server added",
     "serverUpdated": "Server settings updated"
   },
+  "space": {
+    "title": "P2P space",
+    "footer": "The device name, passphrase, and invitation code are used only for this operation and are not saved in app settings.",
+    "mode": "Setup method",
+    "working": "Working...",
+    "create": {
+      "title": "Create a new space",
+      "description": "Start a new encrypted space on this device",
+      "action": "Create"
+    },
+    "join": {
+      "title": "Join an existing space",
+      "description": "Use an invitation generated on another device",
+      "action": "Join"
+    },
+    "field": {
+      "deviceName": "Device name",
+      "passphrase": "Space passphrase",
+      "invitationCode": "Invitation code"
+    },
+    "status": {
+      "ready": "Space is ready",
+      "spaceId": "Space ID"
+    },
+    "invitation": {
+      "title": "Invite another device",
+      "description": "Generate a time-limited invitation for the current space.",
+      "action": "Generate invitation",
+      "code": "Invitation code",
+      "crossNetwork": "This invitation can be used by a device on another network.",
+      "sameLocalNetwork": "This invitation only works while both devices are on the same local network."
+    },
+    "error": {
+      "deviceNameRequired": "Enter a device name",
+      "passphraseRequired": "Enter the space passphrase",
+      "invitationCodeRequired": "Enter an invitation code",
+      "operationFailed": "The operation failed. Check your input and try again."
+    }
+  },
   "error": {
     "updateFailed": "Update failed",
     "invalidNumber": "Please enter a valid number",

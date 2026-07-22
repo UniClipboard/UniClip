@@ -41,6 +41,45 @@
     "serverAdded": "Servidor adicionado",
     "serverUpdated": "Configurações do servidor atualizadas"
   },
+  "space": {
+    "title": "Espaço P2P",
+    "footer": "O nome do dispositivo, a senha e o código de convite são usados apenas nesta operação e não são salvos nas configurações.",
+    "mode": "Forma de configuração",
+    "working": "Processando...",
+    "create": {
+      "title": "Criar um novo espaço",
+      "description": "Iniciar um novo espaço criptografado neste dispositivo",
+      "action": "Criar"
+    },
+    "join": {
+      "title": "Entrar em um espaço existente",
+      "description": "Usar um convite gerado em outro dispositivo",
+      "action": "Entrar"
+    },
+    "field": {
+      "deviceName": "Nome do dispositivo",
+      "passphrase": "Senha do espaço",
+      "invitationCode": "Código de convite"
+    },
+    "status": {
+      "ready": "O espaço está pronto",
+      "spaceId": "ID do espaço"
+    },
+    "invitation": {
+      "title": "Convidar outro dispositivo",
+      "description": "Gerar um convite temporário para o espaço atual.",
+      "action": "Gerar convite",
+      "code": "Código de convite",
+      "crossNetwork": "Este convite pode ser usado por um dispositivo em outra rede.",
+      "sameLocalNetwork": "Este convite só funciona enquanto os dois dispositivos estiverem na mesma rede local."
+    },
+    "error": {
+      "deviceNameRequired": "Informe o nome do dispositivo",
+      "passphraseRequired": "Informe a senha do espaço",
+      "invitationCodeRequired": "Informe um código de convite",
+      "operationFailed": "A operação falhou. Verifique os dados e tente novamente."
+    }
+  },
   "error": {
     "updateFailed": "Falha na atualização",
     "invalidNumber": "Insira um número válido",

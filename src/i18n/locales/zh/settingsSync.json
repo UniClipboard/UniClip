@@ -49,6 +49,45 @@
     "serverAdded": "服务器已添加",
     "serverUpdated": "服务器配置已更新"
   },
+  "space": {
+    "title": "P2P 空间",
+    "footer": "设备名、口令和邀请码仅用于本次操作，不会保存到应用设置中。",
+    "mode": "设置方式",
+    "working": "处理中...",
+    "create": {
+      "title": "创建新空间",
+      "description": "在这台设备上建立一个新的加密空间",
+      "action": "创建"
+    },
+    "join": {
+      "title": "加入已有空间",
+      "description": "使用另一台设备生成的邀请码加入",
+      "action": "加入"
+    },
+    "field": {
+      "deviceName": "设备名称",
+      "passphrase": "空间口令",
+      "invitationCode": "邀请码"
+    },
+    "status": {
+      "ready": "空间已就绪",
+      "spaceId": "空间编号"
+    },
+    "invitation": {
+      "title": "邀请其他设备",
+      "description": "为已有空间生成一个限时邀请码。",
+      "action": "生成邀请码",
+      "code": "邀请码",
+      "crossNetwork": "此邀请码可用于其他网络中的设备。",
+      "sameLocalNetwork": "此邀请码仅在两台设备连接同一局域网时有效。"
+    },
+    "error": {
+      "deviceNameRequired": "请输入设备名称",
+      "passphraseRequired": "请输入空间口令",
+      "invitationCodeRequired": "请输入邀请码",
+      "operationFailed": "操作失败,请检查输入后重试"
+    }
+  },
   "error": {
     "updateFailed": "设置失败",
     "invalidNumber": "请输入有效的数字",

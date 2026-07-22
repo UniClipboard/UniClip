@@ -84,7 +84,7 @@ describe('unified P2P engine native module', () => {
     const pin = read('core-source.json');
 
     expect(pin).toContain('"version": "core-v0.19.1"');
-    expect(pin).toContain('"sourceCommit": "21850cd498bf581110c3c3fe05b04db1c8982441"');
+    expect(pin).toContain('"sourceCommit": "f204a4d4bfedcd471a3da3c43a27aeeb8ec90abf"');
     expect(pin).toContain('"iosSha256"');
     expect(pin).toContain('"androidSha256"');
   });
