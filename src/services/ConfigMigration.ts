@@ -60,6 +60,15 @@ export function migrateConfig(
     result.enableBackgroundTasks = !!old.syncInBackground;
   }
 
+  // Before schema v6 all production sync paths were the LAN compatibility channel.
+  // Preserve that behavior until the user explicitly selects P2P.
+  if (sourceSchemaVersion < 6 && old.syncChannel !== 'p2p' && old.syncChannel !== 'lan') {
+    result.syncChannel = 'lan';
+  }
+  if (result.syncChannel !== 'p2p' && result.syncChannel !== 'lan') {
+    result.syncChannel = DEFAULT_SETTINGS.syncChannel;
+  }
+
   // Before schema v4, Chinese was persisted as the implicit default before
   // "follow system" existed, so it cannot be distinguished from a user choice.
   if (sourceSchemaVersion < 4 && old.language === 'zh-CN') {

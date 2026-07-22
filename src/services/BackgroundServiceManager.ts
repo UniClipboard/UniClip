@@ -17,6 +17,7 @@
 import { AppState, Platform } from 'react-native';
 import { log } from './Logger';
 import { canAutoPushInBackground, shouldRunBackgroundSync } from '@/utils/syncDirectionPolicy';
+import { SyncChannelCoordinator } from './SyncChannelCoordinator';
 
 class BackgroundServiceManager {
   private static instance: BackgroundServiceManager | null = null;
@@ -27,6 +28,17 @@ class BackgroundServiceManager {
   private tempStopSub: { remove(): void } | null = null;
   /** 取消对 settingsStore 的订阅 */
   private settingsUnsub: (() => void) | null = null;
+  private unifiedEngineRunning = false;
+  private readonly syncChannels = new SyncChannelCoordinator(
+    {
+      start: () => this._startUnifiedEngine(),
+      stop: () => this._stopUnifiedEngine(),
+    },
+    {
+      start: () => this._startLanSync(),
+      stop: () => this._stopLanSync(),
+    }
+  );
 
   private constructor() {}
 
@@ -92,12 +104,7 @@ class BackgroundServiceManager {
       log.error('[BackgroundServiceManager] Failed to start clipboard monitoring:', e);
     }
 
-    // 启动 Rust-driven SyncEngine（1Hz 自动同步 + 去重 + 退避）
-    await this._startSyncEngine();
-    await this._reconcileSyncExecution();
-
-    // 启动旧 ClipboardSyncService（上传与远程显示；syncclipboard 自动拉取由 SyncEngine 的 SSE+兜底 tick 接管）
-    await this._startRemoteSync();
+    await this._reconcileSelectedSyncChannel();
 
     // 后台专用服务（前台通知 + 心跳，Android 专属）
     if (Platform.OS === 'android') {
@@ -132,11 +139,7 @@ class BackgroundServiceManager {
       this._updateSmsReceiver();
     }
 
-    // 先立即应用停止/恢复策略，不能被旧远端请求阻塞。
-    await this._reconcileSyncExecution();
-
-    // 刷新远程同步服务（处理服务器变更、连接类型切换等）
-    await this._startRemoteSync();
+    await this._reconcileSelectedSyncChannel();
 
     // 后台专用服务（Android 专属）
     if (Platform.OS === 'android') {
@@ -154,6 +157,54 @@ class BackgroundServiceManager {
   }
 
   // ─── 私有实现 ─────────────────────────────────────────────
+
+  private async _reconcileSelectedSyncChannel(): Promise<void> {
+    const { useSettingsStore } = require('../stores/settingsStore');
+    const channel = useSettingsStore.getState().config?.syncChannel ?? 'lan';
+
+    try {
+      await this.syncChannels.select(channel);
+    } catch (e) {
+      log.error(`[BackgroundServiceManager] Failed to start selected ${channel} channel:`, e);
+    }
+  }
+
+  private async _startUnifiedEngine(): Promise<void> {
+    if (this.unifiedEngineRunning) return;
+
+    const { start } = require('uc-engine');
+    const Application = require('expo-application');
+    await start({
+      appVersion: Application.nativeApplicationVersion ?? 'unknown',
+      profileId: 'default',
+    });
+    this.unifiedEngineRunning = true;
+  }
+
+  private async _stopUnifiedEngine(): Promise<void> {
+    if (!this.unifiedEngineRunning) return;
+
+    try {
+      const { shutdown } = require('uc-engine');
+      await shutdown(5_000);
+    } finally {
+      this.unifiedEngineRunning = false;
+    }
+  }
+
+  private async _startLanSync(): Promise<void> {
+    await this._reconcileSyncExecution();
+    await this._startSyncEngine();
+    await this._startRemoteSync();
+  }
+
+  private async _stopLanSync(): Promise<void> {
+    const { useSyncEngineStore } = require('../stores/syncEngineStore');
+    useSyncEngineStore.getState().stop();
+
+    const { getClipboardSyncService } = require('./ClipboardSyncService');
+    await getClipboardSyncService().stop();
+  }
 
   /** 启动/刷新 ClipboardSyncService */
   private async _startRemoteSync(): Promise<void> {

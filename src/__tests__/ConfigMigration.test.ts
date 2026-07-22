@@ -20,6 +20,24 @@ describe('migrateConfig', () => {
     expect(result.logLevel).toBe('debug');
   });
 
+  it('keeps existing installs on the LAN channel when upgrading from schema v5', () => {
+    const result = migrateConfig({ ...DEFAULT_SETTINGS, syncChannel: undefined }, 5);
+
+    expect(result.syncChannel).toBe('lan');
+  });
+
+  it.each(['p2p', 'lan'] as const)('preserves the explicit sync channel %s', (syncChannel) => {
+    const result = migrateConfig({ ...DEFAULT_SETTINGS, syncChannel }, 6);
+
+    expect(result.syncChannel).toBe(syncChannel);
+  });
+
+  it('replaces an unknown sync channel with the P2P default', () => {
+    const result = migrateConfig({ ...DEFAULT_SETTINGS, syncChannel: 'unknown' }, 6);
+
+    expect(result.syncChannel).toBe('p2p');
+  });
+
   // --- autoSync → autoApplyRemote + autoPushLocal ---
 
   it('maps autoSync: true → autoApplyRemote: true + autoPushLocal: true', () => {

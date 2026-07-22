@@ -2,12 +2,17 @@ import { Platform } from 'react-native';
 import { ServerConfig } from './api';
 import { SyncMode, ConflictResolution } from './sync';
 
+export type SyncChannel = 'p2p' | 'lan';
+
 export interface ServerData {
   servers: ServerConfig[];
   activeServerIndex: number;
 }
 
 export interface SharedSettings {
+  /** User-selected transport. P2P and LAN never run as automatic fallbacks for each other. */
+  syncChannel: SyncChannel;
+
   // Sync behavior
   trustInsecureCert: boolean;
   autoApplyRemote: boolean;
@@ -102,6 +107,7 @@ export const SERVER_DATA_DEFAULTS: ServerData = {
 };
 
 export const SHARED_DEFAULTS: SharedSettings = {
+  syncChannel: 'p2p',
   trustInsecureCert: false,
   autoApplyRemote: true,
   autoPushLocal: true,
@@ -186,4 +192,4 @@ export const RUNTIME_STATE_DEFAULTS: RuntimeState = {
   needsHistoryReorganize: false,
 };
 
-export const SETTINGS_SCHEMA_VERSION = 5;
+export const SETTINGS_SCHEMA_VERSION = 6;
