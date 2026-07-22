@@ -63,4 +63,35 @@ describe('SyncChannelCoordinator', () => {
     expect(events).toEqual(['p2p:start']);
     expect(coordinator.getActiveChannel()).toBeNull();
   });
+
+  it('serializes rapid channel changes so the latest selection wins', async () => {
+    const events: string[] = [];
+    let finishP2pStop: (() => void) | undefined;
+    const p2p: SyncChannelRuntime = {
+      start: async () => {
+        events.push('p2p:start');
+      },
+      stop: async () => {
+        events.push('p2p:stop');
+        await new Promise<void>((resolve) => {
+          finishP2pStop = resolve;
+        });
+      },
+    };
+    const coordinator = new SyncChannelCoordinator(p2p, runtime('lan', events));
+    await coordinator.select('p2p');
+    events.length = 0;
+
+    const selectLan = coordinator.select('lan');
+    await Promise.resolve();
+    const selectP2p = coordinator.select('p2p');
+    await Promise.resolve();
+
+    expect(events).toEqual(['p2p:stop']);
+    finishP2pStop?.();
+    await Promise.all([selectLan, selectP2p]);
+
+    expect(events).toEqual(['p2p:stop', 'lan:start', 'lan:stop', 'p2p:start']);
+    expect(coordinator.getActiveChannel()).toBe('p2p');
+  });
 });

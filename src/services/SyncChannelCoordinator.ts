@@ -7,6 +7,7 @@ export interface SyncChannelRuntime {
 
 export class SyncChannelCoordinator {
   private activeChannel: SyncChannel | null = null;
+  private selectionQueue: Promise<void> = Promise.resolve();
 
   constructor(private readonly p2p: SyncChannelRuntime, private readonly lan: SyncChannelRuntime) {}
 
@@ -14,7 +15,13 @@ export class SyncChannelCoordinator {
     return this.activeChannel;
   }
 
-  async select(channel: SyncChannel): Promise<void> {
+  select(channel: SyncChannel): Promise<void> {
+    const selection = this.selectionQueue.then(() => this.applySelection(channel));
+    this.selectionQueue = selection.catch(() => undefined);
+    return selection;
+  }
+
+  private async applySelection(channel: SyncChannel): Promise<void> {
     if (this.activeChannel === channel) {
       await this.runtime(channel).start();
       return;

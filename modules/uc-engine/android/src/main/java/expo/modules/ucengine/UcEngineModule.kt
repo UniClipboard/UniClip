@@ -41,6 +41,15 @@ import uniffi.uc_engine_uniffi.SendReport
 import uniffi.uc_engine_uniffi.coreVersion
 
 class UcEngineModule : Module() {
+  companion object {
+    init {
+      System.loadLibrary("uc_engine_uniffi")
+    }
+
+    @JvmStatic
+    private external fun nativeInstallAndroidContext(context: Context): Boolean
+  }
+
   private val lock = Any()
   private var engine: MobileEngine? = null
   private var files: FileHandleRegistry? = null
@@ -52,6 +61,7 @@ class UcEngineModule : Module() {
 
     AsyncFunction("start") { config: Map<String, String> ->
       val context = requireContext()
+      check(nativeInstallAndroidContext(context)) { "Failed to initialize the Android P2P runtime" }
       val registry = FileHandleRegistry(context)
       val started = MobileEngine.start(
         BindingConfig(

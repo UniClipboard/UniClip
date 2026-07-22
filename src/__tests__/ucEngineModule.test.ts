@@ -70,11 +70,21 @@ describe('unified P2P engine native module', () => {
     expect(kotlin).not.toContain('putString(key');
   });
 
+  it('installs the Android JNI context before starting the P2P engine', () => {
+    const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
+
+    const installContext = kotlin.indexOf('nativeInstallAndroidContext(context)');
+    const startEngine = kotlin.indexOf('MobileEngine.start(');
+
+    expect(installContext).toBeGreaterThan(-1);
+    expect(startEngine).toBeGreaterThan(installContext);
+  });
+
   it('pins both platform artifacts to the same core version and source commit', () => {
     const pin = read('core-source.json');
 
     expect(pin).toContain('"version": "core-v0.19.1"');
-    expect(pin).toContain('"sourceCommit": "99d584120f5d4c9f141988cbd7b56b1e8a718c4c"');
+    expect(pin).toContain('"sourceCommit": "21850cd498bf581110c3c3fe05b04db1c8982441"');
     expect(pin).toContain('"iosSha256"');
     expect(pin).toContain('"androidSha256"');
   });
