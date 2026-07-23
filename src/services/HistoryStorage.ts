@@ -463,7 +463,7 @@ export class HistoryStorage {
               }
               const targetFile = new File(dir, processedItem.dataName);
               if (!targetFile.exists) {
-                sourceFile.move(targetFile);
+                await sourceFile.move(targetFile);
               }
               processedItem.fileUri = targetFile.uri;
               log.info('[HistoryStorage] File moved to history directory:', targetFile.uri);

@@ -10,14 +10,13 @@ import { useHistoryStore } from '@/stores/historyStore';
 import { useClipboardStore } from '@/stores/clipboardStore';
 import { useSettingsStore } from '@/stores';
 import { usePendingConnectStore } from '@/stores/pendingConnectStore';
-import { BackgroundUploadManager } from '@/services/BackgroundUploadManager';
 import { log } from '@/services/Logger';
 import { useMessageStore } from '@/stores/messageStore';
 import { useErrorStore } from '@/stores/errorStore';
 import { useSyncEngineStore, notifyDeviceClipboardChanged } from '@/stores/syncEngineStore';
 import { deriveConnectionStatus } from '@/utils/connectionStatus';
 import { historyStorage } from '@/services';
-import { getClipboardSyncService } from '@/services/ClipboardSyncService';
+import { getUnifiedContentService } from '@/services/UnifiedContentService';
 import { ClipboardItem, ClipboardContent } from '@/types/clipboard';
 import type { AddServerSaveData } from '@/components/AddServerSheet.types';
 import { importFileToHistory } from '@/utils/uploadFile';
@@ -534,9 +533,12 @@ export function useHomeController(onOpenSettings: () => void) {
   const handleUpload = useCallback(async () => {
     try {
       clearError();
-      const result = await getClipboardSyncService().triggerUpload();
+      const result = await getUnifiedContentService().sendCurrentClipboard();
       if (result.success) {
-        showMessage(t('toast.uploadedToServer'), 'success');
+        showMessage(
+          t(result.channel === 'p2p' ? 'toast.sentToPeers' : 'toast.uploadedToServer'),
+          'success'
+        );
       } else {
         showMessage(result.error || t('toast.uploadFailed'), 'error');
       }
@@ -545,8 +547,7 @@ export function useHomeController(onOpenSettings: () => void) {
     }
   }, [showMessage, clearError, t]);
 
-  // 保存并后台上传:先落本地(瞬时、必成功、立刻可见),再把推送交给后台异步重试。
-  // 服务端离线时内容已在本地(卡片显示待上传角标),界面不阻塞、无需干等;取消问题随之消解。
+  // 先落本地并立即显示，再按用户明确选择的通道发送。
   const saveAndPush = useCallback(
     async (payload: {
       uri: string;
@@ -554,18 +555,36 @@ export function useHomeController(onOpenSettings: () => void) {
       mimeType?: string | null;
       fileSize?: number;
     }) => {
+      let result;
       try {
-        const result = await importFileToHistory(
+        result = await importFileToHistory(
           payload.uri,
           payload.fileName,
           payload.mimeType,
           payload.fileSize
         );
-        showMessage(t('toast.savedLocally'), 'success');
-        BackgroundUploadManager.enqueue(result.profileHash);
       } catch (error) {
-        log.error('[HomeView] saveAndPush failed:', error);
+        log.error('[HomeView] Failed to save imported content:', error);
         showMessage(t('toast.saveFailed'), 'error');
+        return;
+      }
+
+      try {
+        const sendResult = await getUnifiedContentService().sendImportedAsset(
+          {
+            kind: result.contentType === 'Image' ? 'image' : 'file',
+            uri: result.fileUri,
+            mimeType: payload.mimeType,
+          },
+          result.profileHash
+        );
+        showMessage(
+          t(sendResult.channel === 'p2p' ? 'toast.sentToPeers' : 'toast.savedLocally'),
+          'success'
+        );
+      } catch (error) {
+        log.error('[HomeView] Failed to send imported content:', error);
+        showMessage(t('toast.uploadFailed'), 'error');
       }
     },
     [showMessage, t]

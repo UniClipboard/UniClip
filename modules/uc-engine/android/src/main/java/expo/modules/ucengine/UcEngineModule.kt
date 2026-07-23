@@ -45,6 +45,77 @@ import uniffi.uc_engine_uniffi.MobileEngine
 import uniffi.uc_engine_uniffi.SendReport
 import uniffi.uc_engine_uniffi.coreVersion
 
+private fun uriListFile(
+  context: Context,
+  format: String,
+  mimeType: String?,
+  bytes: ByteArray
+): File? {
+  val knownFormat = format.equals("files", ignoreCase = true) ||
+    format.equals("public.file-url", ignoreCase = true) ||
+    format.equals("NSFilenamesPboardType", ignoreCase = true)
+  val knownMime = mimeType.equals("text/uri-list", ignoreCase = true) ||
+    mimeType.equals("file/uri-list", ignoreCase = true)
+  if (!knownFormat || !knownMime) return null
+
+  val uri = bytes.toString(Charsets.UTF_8)
+    .lineSequence()
+    .map(String::trim)
+    .firstOrNull { it.isNotEmpty() && !it.startsWith('#') }
+    ?.let(Uri::parse)
+    ?.takeIf { it.scheme.equals("file", ignoreCase = true) }
+    ?: return null
+  val path = uri.path ?: return null
+  val source = File(path).canonicalFile
+  val allowedRoots = listOf(context.filesDir.canonicalFile, context.cacheDir.canonicalFile)
+  if (allowedRoots.none { source.toPath().startsWith(it.toPath()) }) return null
+  return source.takeIf { it.isFile }
+}
+
+internal fun clipDataForRepresentation(
+  context: Context,
+  files: FileHandleRegistry,
+  representation: BindingClipboardRepresentation
+): ClipData = when (representation) {
+  is BindingClipboardRepresentation.Inline -> {
+    val referencedFile = uriListFile(
+      context,
+      representation.format,
+      representation.mimeType,
+      representation.bytes
+    )
+    if (referencedFile != null) {
+      val directory = File(context.cacheDir, "uc-engine-clipboard")
+        .also { if (!it.exists() && !it.mkdirs()) throw HostBindingException.Io() }
+      val target = File(directory, "clipboard-${UUID.randomUUID()}-${referencedFile.name}")
+      referencedFile.copyTo(target)
+      val uri = FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.ucengine.files",
+        target
+      )
+      ClipData.newUri(context.contentResolver, referencedFile.name, uri)
+    } else if (representation.format == "text/plain") {
+      ClipData.newPlainText("", representation.bytes.toString(Charsets.UTF_8))
+    } else {
+      val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(representation.mimeType)
+        ?: "bin"
+      val directory = File(context.cacheDir, "uc-engine-clipboard")
+        .also { if (!it.exists() && !it.mkdirs()) throw HostBindingException.Io() }
+      val file = File(directory, "clipboard-${UUID.randomUUID()}.$extension")
+      file.writeBytes(representation.bytes)
+      val uri = FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.ucengine.files",
+        file
+      )
+      ClipData.newUri(context.contentResolver, "", uri)
+    }
+  }
+  is BindingClipboardRepresentation.File ->
+    ClipData.newUri(context.contentResolver, representation.displayName, files.uri(representation.handle))
+}
+
 class UcEngineModule : Module() {
   companion object {
     init {
@@ -340,27 +411,7 @@ private class AndroidEngineHost(
     val first = snapshot.representations.firstOrNull()
       ?: return clipboard.setPrimaryClip(ClipData.newPlainText("", ""))
     try {
-      val clip = when (first) {
-        is BindingClipboardRepresentation.Inline -> {
-          if (first.format == "text/plain") {
-            ClipData.newPlainText("", first.bytes.toString(Charsets.UTF_8))
-          } else {
-            val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(first.mimeType)
-              ?: "bin"
-            val directory = directory(context.cacheDir, "uc-engine-clipboard")
-            val file = File(directory, "clipboard-${UUID.randomUUID()}.$extension")
-            file.writeBytes(first.bytes)
-            val uri = FileProvider.getUriForFile(
-              context,
-              "${context.packageName}.ucengine.files",
-              file
-            )
-            ClipData.newUri(context.contentResolver, "", uri)
-          }
-        }
-        is BindingClipboardRepresentation.File ->
-          ClipData.newUri(context.contentResolver, first.displayName, files.uri(first.handle))
-      }
+      val clip = clipDataForRepresentation(context, files, first)
       clipboard.setPrimaryClip(clip)
     } catch (_: SecurityException) {
       throw HostBindingException.PermissionDenied()

@@ -16,6 +16,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
+import uniffi.uc_engine_uniffi.BindingClipboardRepresentation
 import uniffi.uc_engine_uniffi.HostBindingException
 
 @RunWith(AndroidJUnit4::class)
@@ -93,6 +94,32 @@ class NativeSystemHostTest {
     assertArrayEquals(expected, files.read(handle, 0, expected.size + 1))
     assertArrayEquals(expected, destination.readBytes())
     assertFalse(handle.contains(destination.absolutePath))
+  }
+
+  @Test
+  fun uriListClipboardRepresentationSharesTheReferencedFileBytes() {
+    val source = File(
+      context.filesDir,
+      "uc-engine/file-cache/host-tests/${UUID.randomUUID()}/00000000"
+    )
+    check(source.parentFile?.mkdirs() == true)
+    val expected = ByteArray(793) { (it % 239).toByte() }
+    source.writeBytes(expected)
+    source.deleteOnExit()
+
+    val clip = clipDataForRepresentation(
+      context,
+      FileHandleRegistry(context),
+      BindingClipboardRepresentation.Inline(
+        "files",
+        "text/uri-list",
+        "file://${source.absolutePath}\n".toByteArray()
+      )
+    )
+    val sharedUri = clip.getItemAt(0).uri
+
+    assertNotNull(sharedUri)
+    assertArrayEquals(expected, context.contentResolver.openInputStream(sharedUri!!)?.readBytes())
   }
 
   @Test

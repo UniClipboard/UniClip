@@ -74,6 +74,9 @@ jest.mock('expo-file-system', () => {
   }
 
   class MockFile {
+    static moveMock = jest.fn();
+    static existsMock = jest.fn(() => true);
+
     constructor(...parts) {
       this.parts = parts;
       this.name = String(parts[parts.length - 1] ?? '');
@@ -82,7 +85,7 @@ jest.mock('expo-file-system', () => {
         .join('/')
         .replace(/\/+/g, '/')
         .replace('file:/', 'file://');
-      this.exists = true;
+      this.exists = MockFile.existsMock(this.uri);
       this.isDirectory = false;
     }
 
@@ -94,7 +97,7 @@ jest.mock('expo-file-system', () => {
     textSync = jest.fn().mockReturnValue('');
     write = jest.fn();
     delete = jest.fn();
-    move = jest.fn();
+    move = (...args) => MockFile.moveMock(...args);
     arrayBuffer = jest.fn().mockResolvedValue(new ArrayBuffer(0));
 
     static downloadFileAsync = jest.fn().mockResolvedValue(undefined);
@@ -145,6 +148,8 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 jest.mock('android-util', () => ({
   isNativeHashModuleAvailable: jest.fn().mockReturnValue(false),
   nativeCalculateFileHash: jest.fn(),
+  nativeSaveClipboardFileToFile: jest.fn().mockResolvedValue(null),
+  nativeGetClipboardFileSourceId: jest.fn().mockReturnValue(null),
   isTailscaleActive: jest.fn().mockReturnValue(false),
 }));
 

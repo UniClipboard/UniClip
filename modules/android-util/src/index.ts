@@ -34,6 +34,14 @@ export interface ProgressInfo {
   totalBytes: number;
 }
 
+export interface ClipboardFileInfo {
+  filePath: string;
+  displayName: string;
+  mimeType: string;
+  size: number;
+  sourceId: string;
+}
+
 export interface NativeUtilModuleType {
   moveTaskToBack(): boolean;
   calculateStringMD5Base64(data: string): string;
@@ -59,6 +67,8 @@ export interface NativeUtilModuleType {
   saveClipboardImageToFile(
     destDirPath: string
   ): Promise<{ width: number; height: number; filePath: string; mimeType: string } | null>;
+  saveClipboardFileToFile(destDirPath: string): Promise<ClipboardFileInfo | null>;
+  getClipboardFileSourceId(): string | null;
   setClipboardImageFromFile(fileUri: string): Promise<boolean>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   addListener(eventName: string, listener: (event: any) => void): EventSubscription;
@@ -126,6 +136,18 @@ export async function nativeSaveClipboardImageToFile(
 ): Promise<{ width: number; height: number; filePath: string; mimeType: string } | null> {
   if (Platform.OS !== 'android') return null;
   return NativeUtilModule!.saveClipboardImageToFile(destDirPath);
+}
+
+export async function nativeSaveClipboardFileToFile(
+  destDirPath: string
+): Promise<ClipboardFileInfo | null> {
+  if (Platform.OS !== 'android') return null;
+  return NativeUtilModule!.saveClipboardFileToFile(destDirPath);
+}
+
+export function nativeGetClipboardFileSourceId(): string | null {
+  if (Platform.OS !== 'android') return null;
+  return NativeUtilModule!.getClipboardFileSourceId();
 }
 
 /**

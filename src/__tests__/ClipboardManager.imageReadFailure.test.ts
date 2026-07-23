@@ -1,7 +1,9 @@
 const mockLogError = jest.fn();
 const mockGetStringAsync = jest.fn();
 const mockHasImageAsync = jest.fn();
+const mockGetFileSourceIdAsync = jest.fn();
 const mockSaveImageToFileAsync = jest.fn();
+const mockSaveFileToFileAsync = jest.fn();
 
 jest.mock('expo-image-picker', () => ({}));
 
@@ -17,7 +19,9 @@ jest.mock('../services/Logger', () => ({
 jest.mock('../utils/clipboardProxy', () => ({
   getStringAsync: (...args: unknown[]) => mockGetStringAsync(...args),
   hasImageAsync: (...args: unknown[]) => mockHasImageAsync(...args),
+  getFileSourceIdAsync: (...args: unknown[]) => mockGetFileSourceIdAsync(...args),
   saveImageToFileAsync: (...args: unknown[]) => mockSaveImageToFileAsync(...args),
+  saveFileToFileAsync: (...args: unknown[]) => mockSaveFileToFileAsync(...args),
 }));
 
 import { ClipboardManager } from '../services/ClipboardManager';
@@ -27,7 +31,9 @@ describe('ClipboardManager image read failures', () => {
     jest.clearAllMocks();
     mockGetStringAsync.mockResolvedValue('');
     mockHasImageAsync.mockResolvedValue(true);
+    mockGetFileSourceIdAsync.mockResolvedValue(null);
     mockSaveImageToFileAsync.mockRejectedValue(new Error('native image export failed'));
+    mockSaveFileToFileAsync.mockResolvedValue(null);
   });
 
   it('logs one useful error for a repeated failure episode and keeps retrying reads', async () => {

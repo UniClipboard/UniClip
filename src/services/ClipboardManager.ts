@@ -25,6 +25,12 @@ export class ClipboardManager {
   private _imageReadFailedForState: boolean = false;
   private _lastImageHash: string | null = null;
   private _lastImageContent: ClipboardContent | null = null;
+  private _lastFileSourceId: string | null = null;
+  private _lastFileContent: ClipboardContent | null = null;
+  private _fileReadInFlight: {
+    sourceId: string;
+    promise: Promise<ClipboardContent | null>;
+  } | null = null;
 
   /**
    * 获取当前剪贴板内容
@@ -35,12 +41,14 @@ export class ClipboardManager {
       const text = await ClipboardProxy.getStringAsync();
       if (text && text.length > 0) {
         this._imageReadFailedForState = false;
+        this.resetFileReadCache();
         return await this.getTextContentFromString(text);
       }
 
       // If no text, check for image
       const hasImage = await ClipboardProxy.hasImageAsync();
       if (hasImage) {
+        this.resetFileReadCache();
         try {
           const content = await this.getImageContent();
           this._imageReadFailedForState = false;
@@ -55,6 +63,33 @@ export class ClipboardManager {
         }
       }
 
+      if (Platform.OS === 'android') {
+        const fileSourceId = await ClipboardProxy.getFileSourceIdAsync();
+        if (fileSourceId === this._lastFileSourceId && this._lastFileContent) {
+          return await this.getCachedFileContent(Date.now());
+        }
+        if (!fileSourceId) {
+          this.resetFileReadCache();
+          this._imageReadFailedForState = false;
+          return null;
+        }
+
+        if (this._fileReadInFlight?.sourceId === fileSourceId) {
+          const content = await this._fileReadInFlight.promise;
+          return content ? { ...content, timestamp: Date.now() } : null;
+        }
+
+        const promise = this.readAndroidClipboardFile();
+        this._fileReadInFlight = { sourceId: fileSourceId, promise };
+        try {
+          return await promise;
+        } finally {
+          if (this._fileReadInFlight?.promise === promise) {
+            this._fileReadInFlight = null;
+          }
+        }
+      }
+
       this._imageReadFailedForState = false;
       return null;
     } catch (error) {
@@ -62,6 +97,97 @@ export class ClipboardManager {
       log.error('[ClipboardManager] Failed to get clipboard content:', detail);
       return null;
     }
+  }
+
+  private resetFileReadCache(): void {
+    this._lastFileSourceId = null;
+    this._lastFileContent = null;
+  }
+
+  private async readAndroidClipboardFile(): Promise<ClipboardContent | null> {
+    const file = await ClipboardProxy.saveFileToFileAsync(CLIPBOARD_TEMP_DIR.uri);
+    if (!file) {
+      this.resetFileReadCache();
+      return null;
+    }
+
+    const localClipboardHash = await calculateFileHash(file.filePath);
+    const historyItem = await historyStorage.getItemByLocalHash(localClipboardHash);
+    if (historyItem?.type === 'File' && historyItem.hasData && historyItem.dataName) {
+      const { getHistoryFileUri } = await import('@/utils/fileStorage');
+      const historyFileUri = await getHistoryFileUri(
+        'File',
+        historyItem.profileHash,
+        historyItem.dataName
+      );
+      if (historyFileUri) {
+        try {
+          new FileSystem.File(file.filePath).delete();
+        } catch (error) {
+          log.debug(
+            '[ClipboardManager] Failed to remove duplicate temporary file:',
+            error instanceof Error ? error.message : String(error)
+          );
+        }
+        const content: ClipboardContent = {
+          type: 'File',
+          text: historyItem.dataName,
+          fileUri: historyFileUri,
+          fileName: historyItem.dataName,
+          fileSize: historyItem.size ?? file.size,
+          profileHash: historyItem.profileHash,
+          localClipboardHash,
+          hasData: true,
+          timestamp: Date.now(),
+        };
+        this._lastFileSourceId = file.sourceId;
+        this._lastFileContent = content;
+        return content;
+      }
+    }
+
+    const content: ClipboardContent = {
+      type: 'File',
+      text: file.displayName,
+      fileUri: file.filePath,
+      fileName: file.displayName,
+      fileSize: file.size,
+      profileHash: localClipboardHash,
+      localClipboardHash,
+      hasData: true,
+      timestamp: Date.now(),
+    };
+    this._lastFileSourceId = file.sourceId;
+    this._lastFileContent = content;
+    return content;
+  }
+
+  private async getCachedFileContent(timestamp: number): Promise<ClipboardContent> {
+    const cached = this._lastFileContent!;
+    const historyItem = cached.localClipboardHash
+      ? await historyStorage.getItemByLocalHash(cached.localClipboardHash)
+      : null;
+    if (historyItem?.type === 'File' && historyItem.hasData && historyItem.dataName) {
+      const { getHistoryFileUri } = await import('@/utils/fileStorage');
+      const historyFileUri = await getHistoryFileUri(
+        'File',
+        historyItem.profileHash,
+        historyItem.dataName
+      );
+      if (historyFileUri) {
+        this._lastFileContent = {
+          ...cached,
+          text: historyItem.dataName,
+          fileUri: historyFileUri,
+          fileName: historyItem.dataName,
+          fileSize: historyItem.size ?? cached.fileSize,
+          profileHash: historyItem.profileHash,
+          timestamp,
+        };
+        return this._lastFileContent;
+      }
+    }
+    return { ...cached, timestamp };
   }
 
   /**
@@ -453,6 +579,7 @@ export class ClipboardManager {
     this._imageReadFailedForState = false;
     this._lastImageHash = null;
     this._lastImageContent = null;
+    this.resetFileReadCache();
   }
 
   /**

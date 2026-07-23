@@ -59,6 +59,7 @@
     "syncDone": "Sincronização concluída",
     "syncFailed": "Falha na sincronização",
     "uploadedToServer": "Enviado ao servidor",
+    "sentToPeers": "Enviado aos outros dispositivos",
     "uploadFailed": "Falha no envio",
     "savedLocally": "Salvo localmente",
     "pickFileFailed": "Falha ao escolher arquivo",

@@ -10,6 +10,7 @@ import android.content.Intent
 import android.graphics.BitmapFactory
 import android.graphics.Bitmap
 import android.provider.Settings
+import android.provider.OpenableColumns
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.modules.Module
@@ -780,6 +781,99 @@ class NativeUtilModule : Module() {
                     promise.resolve(null)
                 }
             }
+        }
+
+        AsyncFunction("saveClipboardFileToFile") { destDirPath: String, promise: Promise ->
+            executor.submit {
+                try {
+                    val context = appContext.reactContext
+                    val clipboard = context?.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                    val clip = clipboard?.primaryClip
+                    val item = clip?.takeIf { it.itemCount > 0 }?.getItemAt(0)
+                    val uri = item?.uri
+                    if (context == null || clip == null || uri == null) {
+                        promise.resolve(null)
+                        return@submit
+                    }
+
+                    val resolvedMimeType = context.contentResolver.getType(uri)
+                    if (resolvedMimeType?.startsWith("image/") == true) {
+                        promise.resolve(null)
+                        return@submit
+                    }
+
+                    var queriedName: String? = null
+                    var queriedSize: Long? = null
+                    try {
+                        context.contentResolver.query(
+                            uri,
+                            arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE),
+                            null,
+                            null,
+                            null
+                        )?.use { cursor ->
+                            if (cursor.moveToFirst()) {
+                                cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                                    .takeIf { it >= 0 && !cursor.isNull(it) }
+                                    ?.let { queriedName = cursor.getString(it) }
+                                cursor.getColumnIndex(OpenableColumns.SIZE)
+                                    .takeIf { it >= 0 && !cursor.isNull(it) }
+                                    ?.let { queriedSize = cursor.getLong(it) }
+                            }
+                        }
+                    } catch (_: Exception) {
+                    }
+
+                    val rawName = clip.description?.label?.toString()
+                        ?.takeIf { it.isNotBlank() }
+                        ?: queriedName
+                        ?: uri.lastPathSegment
+                        ?: "clipboard-file"
+                    val safeName = rawName
+                        .substringAfterLast('/')
+                        .replace(Regex("[\\\\/:*?\"<>|\\u0000-\\u001f]"), "_")
+                        .take(180)
+                        .ifBlank { "clipboard-file" }
+                    val dir = File(resolveFilePath(destDirPath)).also { it.mkdirs() }
+                    val target = File(
+                        dir,
+                        "tmp_${System.currentTimeMillis()}_${(Math.random() * 100000).toInt()}_$safeName"
+                    )
+                    val input = context.contentResolver.openInputStream(uri)
+                    if (input == null) {
+                        promise.resolve(null)
+                        return@submit
+                    }
+                    input.use { source ->
+                        FileOutputStream(target).use { output ->
+                            source.copyTo(output, bufferSize = 8192)
+                        }
+                    }
+
+                    promise.resolve(mapOf(
+                        "filePath" to "file://${target.absolutePath}",
+                        "displayName" to safeName,
+                        "mimeType" to (resolvedMimeType ?: "application/octet-stream"),
+                        "size" to (queriedSize?.takeIf { it >= 0 } ?: target.length()),
+                        "sourceId" to "${uri}#${clip.description.timestamp}"
+                    ))
+                } catch (e: Exception) {
+                    NativeLogger.e("NativeUtilModule", "saveClipboardFileToFile failed", e)
+                    promise.resolve(null)
+                }
+            }
+        }
+
+        Function("getClipboardFileSourceId") {
+            val context = appContext.reactContext ?: return@Function null
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                ?: return@Function null
+            val clip = clipboard.primaryClip?.takeIf { it.itemCount > 0 }
+                ?: return@Function null
+            val uri = clip.getItemAt(0).uri ?: return@Function null
+            val mimeType = context.contentResolver.getType(uri)
+            if (mimeType?.startsWith("image/") == true) return@Function null
+            "${uri}#${clip.description.timestamp}"
         }
 
         AsyncFunction("setClipboardImageFromFile") { fileUri: String, promise: Promise ->

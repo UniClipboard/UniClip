@@ -9,6 +9,8 @@
  */
 import { ClipboardItem, createDefaultClipboardItem, HistorySyncStatus } from '../types/clipboard';
 import { HistoryStorage } from '../services/HistoryStorage';
+import { File } from 'expo-file-system';
+import { Platform } from 'react-native';
 
 jest.mock('../utils/fileStorage', () => ({
   getHistoryFileDir: jest.fn(() => ({ uri: 'file://history', exists: true, create: jest.fn() })),
@@ -131,6 +133,56 @@ describe('复制路径 → SQLite 各类型', () => {
 });
 
 describe('分享路径 → SQLite 各类型(uploadFile 构造的 item)', () => {
+  it('等待 Android 文件移动真正完成后才返回可发送的历史条目', async () => {
+    const originalOS = Platform.OS;
+    Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
+    const mockedFile = File as unknown as { moveMock: jest.Mock; existsMock: jest.Mock };
+    const moveMock = mockedFile.moveMock;
+    mockedFile.existsMock.mockImplementation((uri: string) => !uri.startsWith('file://history'));
+    let finishMove: (() => void) | undefined;
+    moveMock.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishMove = resolve;
+        })
+    );
+
+    try {
+      const storage = await freshStorage();
+      let settled = false;
+      const adding = storage
+        .addItem(
+          createDefaultClipboardItem({
+            type: 'Image',
+            text: '',
+            profileHash: 'SH_IMG_PENDING_MOVE',
+            hasData: true,
+            dataName: 'shared.png',
+            size: 68,
+            timestamp: T0,
+            fileUri: 'file://temp/shared.png',
+            from: 'share',
+          })
+        )
+        .then(() => {
+          settled = true;
+        });
+
+      await new Promise<void>((resolve) => setTimeout(resolve, 20));
+      const settledBeforeMove = settled;
+      finishMove?.();
+      await adding;
+      expect(moveMock).toHaveBeenCalledTimes(1);
+      expect(settledBeforeMove).toBe(false);
+      expect(settled).toBe(true);
+    } finally {
+      mockedFile.existsMock.mockReset();
+      mockedFile.existsMock.mockReturnValue(true);
+      moveMock.mockReset();
+      Object.defineProperty(Platform, 'OS', { value: originalOS, configurable: true });
+    }
+  });
+
   it('分享文本 → Text 落库并可检索(from=share)', async () => {
     const s = await freshStorage();
     await s.addItem(

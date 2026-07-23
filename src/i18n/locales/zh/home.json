@@ -59,6 +59,7 @@
     "syncDone": "同步完成",
     "syncFailed": "同步失败",
     "uploadedToServer": "已上传到服务器",
+    "sentToPeers": "已发送到其他设备",
     "uploadFailed": "上传失败",
     "savedLocally": "已保存到本地",
     "pickFileFailed": "选择文件失败",

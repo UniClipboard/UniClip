@@ -6,6 +6,11 @@
 import * as Clipboard from 'expo-clipboard';
 import { Platform } from 'react-native';
 import { nativeSaveClipboardImageToFile } from 'android-util';
+import {
+  nativeGetClipboardFileSourceId,
+  nativeSaveClipboardFileToFile,
+  type ClipboardFileInfo,
+} from 'android-util';
 import { log } from '@/services/Logger';
 import { getBackgroundClipboardAdapter } from '@/utils/androidBackgroundClipboardAccess';
 
@@ -138,6 +143,16 @@ export async function saveImageToFileAsync(
   }
 
   return null;
+}
+
+export async function saveFileToFileAsync(destDirPath: string): Promise<ClipboardFileInfo | null> {
+  if (Platform.OS !== 'android') return null;
+  return nativeSaveClipboardFileToFile(destDirPath);
+}
+
+export async function getFileSourceIdAsync(): Promise<string | null> {
+  if (Platform.OS !== 'android') return null;
+  return nativeGetClipboardFileSourceId();
 }
 
 /**

@@ -59,6 +59,7 @@
     "syncDone": "Sync complete",
     "syncFailed": "Sync failed",
     "uploadedToServer": "Uploaded to server",
+    "sentToPeers": "Sent to your other devices",
     "uploadFailed": "Upload failed",
     "savedLocally": "Saved locally",
     "pickFileFailed": "Couldn't pick a file",
