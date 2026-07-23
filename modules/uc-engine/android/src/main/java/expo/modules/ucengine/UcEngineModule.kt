@@ -6,6 +6,7 @@ import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import android.webkit.MimeTypeMap
@@ -19,6 +20,7 @@ import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import java.security.KeyStore
 import java.security.MessageDigest
+import java.security.ProviderException
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import javax.crypto.Cipher
@@ -313,9 +315,36 @@ private class AndroidEngineHost(
     File(parent, name).also { if (!it.exists() && !it.mkdirs()) throw HostBindingException.Io() }
 }
 
-private class KeystoreSecureStorage(context: Context) {
+internal fun interface SecretKeyProvider {
+  fun get(): SecretKey
+}
+
+private class AndroidKeyStoreSecretKeyProvider(private val alias: String) : SecretKeyProvider {
+  override fun get(): SecretKey {
+    val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+    (keyStore.getKey(alias, null) as? SecretKey)?.let { return it }
+    val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+    generator.init(
+      KeyGenParameterSpec.Builder(
+        alias,
+        KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+      )
+        .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+        .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+        .setRandomizedEncryptionRequired(true)
+        .build()
+    )
+    return generator.generateKey()
+  }
+}
+
+internal class KeystoreSecureStorage(
+  context: Context,
+  private val secretKeyProvider: SecretKeyProvider = AndroidKeyStoreSecretKeyProvider(
+    "${context.packageName}.uc-engine.master"
+  )
+) {
   private val preferences = context.getSharedPreferences("uc_engine_secure", Context.MODE_PRIVATE)
-  private val alias = "${context.packageName}.uc-engine.master"
   private val lock = Any()
 
   fun get(key: String): ByteArray? = synchronized(lock) {
@@ -325,9 +354,29 @@ private class KeystoreSecureStorage(context: Context) {
       val ivSize = payload.first().toInt() and 0xff
       val iv = payload.copyOfRange(1, ivSize + 1)
       val ciphertext = payload.copyOfRange(ivSize + 1, payload.size)
-      val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-      cipher.init(Cipher.DECRYPT_MODE, secretKey(), GCMParameterSpec(128, iv))
-      cipher.doFinal(ciphertext)
+      val secretKey = try {
+        secretKeyProvider.get()
+      } catch (_: Exception) {
+        throw HostBindingException.Unavailable()
+      }
+      val cipher = try {
+        Cipher.getInstance("AES/GCM/NoPadding").also {
+          it.init(Cipher.DECRYPT_MODE, secretKey, GCMParameterSpec(128, iv))
+        }
+      } catch (_: KeyPermanentlyInvalidatedException) {
+        throw HostBindingException.Unavailable()
+      } catch (_: ProviderException) {
+        throw HostBindingException.Unavailable()
+      } catch (_: Exception) {
+        throw HostBindingException.Io()
+      }
+      try {
+        cipher.doFinal(ciphertext)
+      } catch (_: Exception) {
+        throw HostBindingException.Io()
+      }
+    } catch (error: HostBindingException) {
+      throw error
     } catch (_: Exception) {
       throw HostBindingException.Io()
     }
@@ -336,7 +385,7 @@ private class KeystoreSecureStorage(context: Context) {
   fun set(key: String, value: ByteArray) = synchronized(lock) {
     try {
       val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-      cipher.init(Cipher.ENCRYPT_MODE, secretKey())
+      cipher.init(Cipher.ENCRYPT_MODE, secretKeyProvider.get())
       val encrypted = cipher.doFinal(value)
       val payload = ByteBuffer.allocate(1 + cipher.iv.size + encrypted.size)
         .put(cipher.iv.size.toByte())
@@ -358,30 +407,13 @@ private class KeystoreSecureStorage(context: Context) {
     if (!preferences.edit().remove(storageId(key)).commit()) throw HostBindingException.Io()
   }
 
-  private fun secretKey(): SecretKey {
-    val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-    (keyStore.getKey(alias, null) as? SecretKey)?.let { return it }
-    val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
-    generator.init(
-      KeyGenParameterSpec.Builder(
-        alias,
-        KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
-      )
-        .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-        .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-        .setRandomizedEncryptionRequired(true)
-        .build()
-    )
-    return generator.generateKey()
-  }
-
   private fun storageId(key: String): String = Base64.encodeToString(
     MessageDigest.getInstance("SHA-256").digest(key.toByteArray()),
     Base64.NO_WRAP or Base64.URL_SAFE
   )
 }
 
-private class FileHandleRegistry(private val context: Context) {
+internal class FileHandleRegistry(private val context: Context) {
   private data class Entry(val uri: Uri, val writable: Boolean)
   private val entries = ConcurrentHashMap<String, Entry>()
 

@@ -90,6 +90,7 @@ DerivedData/
 # Testing
 coverage/
 .nyc_output/
+modules/uc-engine/.build/
 
 # Temporary files
 *.tmp

@@ -1,11 +1,10 @@
 import ExpoModulesCore
-import Security
 import UIKit
 import UniformTypeIdentifiers
 
 public final class UcEngineModule: Module {
   private let lock = NSLock()
-  private let files = FileHandleRegistry()
+  private let files = AppleFileHandleRegistry()
   private var engine: MobileEngine?
 
   public func definition() -> ModuleDefinition {
@@ -105,10 +104,10 @@ public final class UcEngineModule: Module {
     }
 
     Function("registerInputFile") { (uri: String) in
-      try self.files.register(uri: uri, writable: false)
+      try withHostBindingError { try self.files.register(uri: uri, writable: false) }
     }
     Function("registerOutputFile") { (uri: String) in
-      try self.files.register(uri: uri, writable: true)
+      try withHostBindingError { try self.files.register(uri: uri, writable: true) }
     }
     Function("releaseFileHandle") { (handle: String) in self.files.remove(handle) }
 
@@ -231,12 +230,13 @@ public final class UcEngineModule: Module {
 }
 
 private final class AppleEngineHost: BindingHost, @unchecked Sendable {
-  private let files: FileHandleRegistry
-  private let keychainService: String
+  private let files: AppleFileHandleRegistry
+  private let secureStorage: AppleSecureStorage
 
-  init(files: FileHandleRegistry) {
+  init(files: AppleFileHandleRegistry) {
     self.files = files
-    self.keychainService = (Bundle.main.bundleIdentifier ?? "app.uniclipboard.mobile") + ".engine"
+    let service = (Bundle.main.bundleIdentifier ?? "app.uniclipboard.mobile") + ".engine"
+    self.secureStorage = AppleSecureStorage(service: service)
   }
 
   func privateDataDirectory() throws -> String {
@@ -260,55 +260,38 @@ private final class AppleEngineHost: BindingHost, @unchecked Sendable {
   }
 
   func secureStorageGet(key: String) throws -> Data? {
-    let query = keychainQuery(key: key).merging([
-      kSecReturnData as String: true,
-      kSecMatchLimit as String: kSecMatchLimitOne,
-    ]) { _, new in new }
-    var item: CFTypeRef?
-    let status = SecItemCopyMatching(query as CFDictionary, &item)
-    if status == errSecItemNotFound { return nil }
-    guard status == errSecSuccess, let data = item as? Data else { throw keychainError(status) }
-    return data
+    try withHostBindingError { try secureStorage.get(key: key) }
   }
 
   func secureStorageSet(key: String, value: Data) throws {
-    let query = keychainQuery(key: key)
-    let status = SecItemAdd(
-      query.merging([kSecValueData as String: value]) { _, new in new } as CFDictionary,
-      nil
-    )
-    if status == errSecDuplicateItem {
-      let update = SecItemUpdate(
-        query as CFDictionary,
-        [kSecValueData as String: value] as CFDictionary
-      )
-      guard update == errSecSuccess else { throw keychainError(update) }
-    } else if status != errSecSuccess {
-      throw keychainError(status)
-    }
+    try withHostBindingError { try secureStorage.set(key: key, value: value) }
   }
 
   func secureStorageDelete(key: String) throws {
-    let status = SecItemDelete(keychainQuery(key: key) as CFDictionary)
-    guard status == errSecSuccess || status == errSecItemNotFound else {
-      throw keychainError(status)
-    }
+    try withHostBindingError { try secureStorage.delete(key: key) }
   }
 
   func fileMetadata(handle: String) throws -> BindingFileMetadata {
-    try files.metadata(handle)
+    try withHostBindingError {
+      let metadata = try files.metadata(handle)
+      return BindingFileMetadata(
+        displayName: metadata.displayName,
+        sizeBytes: metadata.sizeBytes,
+        mimeType: metadata.mimeType
+      )
+    }
   }
 
   func fileReadChunk(handle: String, offset: UInt64, maxBytes: UInt32) throws -> Data {
-    try files.read(handle, offset: offset, maxBytes: maxBytes)
+    try withHostBindingError { try files.read(handle, offset: offset, maxBytes: maxBytes) }
   }
 
   func fileWriteChunk(handle: String, offset: UInt64, bytes: Data) throws {
-    try files.write(handle, offset: offset, bytes: bytes)
+    try withHostBindingError { try files.write(handle, offset: offset, bytes: bytes) }
   }
 
   func fileFinishWrite(handle: String) throws {
-    try files.finishWrite(handle)
+    try withHostBindingError { try files.finishWrite(handle) }
   }
 
   func clipboardRead() throws -> BindingClipboardSnapshot {
@@ -321,7 +304,7 @@ private final class AppleEngineHost: BindingHost, @unchecked Sendable {
         representations.append(.inline(format: "image/png", mimeType: "image/png", bytes: bytes))
       } else if let url = pasteboard.url, url.isFileURL {
         let handle = self.files.register(url: url, writable: false)
-        let metadata = try self.files.metadata(handle)
+        let metadata = try withHostBindingError { try self.files.metadata(handle) }
         representations.append(
           .file(
             format: metadata.mimeType ?? "application/octet-stream",
@@ -356,7 +339,7 @@ private final class AppleEngineHost: BindingHost, @unchecked Sendable {
           UIPasteboard.general.setData(bytes, forPasteboardType: type)
         }
       case .file(_, let handle, _, _, _):
-        UIPasteboard.general.url = try self.files.url(handle)
+        UIPasteboard.general.url = try withHostBindingError { try self.files.url(handle) }
       }
     }
   }
@@ -368,114 +351,6 @@ private final class AppleEngineHost: BindingHost, @unchecked Sendable {
     return url
   }
 
-  private func keychainQuery(key: String) -> [String: Any] {
-    [
-      kSecClass as String: kSecClassGenericPassword,
-      kSecAttrService as String: keychainService,
-      kSecAttrAccount as String: key,
-      kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
-    ]
-  }
-
-  private func keychainError(_ status: OSStatus) -> HostBindingError {
-    switch status {
-    case errSecInteractionNotAllowed, errSecNotAvailable: .Unavailable
-    case errSecAuthFailed, errSecUserCanceled: .PermissionDenied
-    default: .Io
-    }
-  }
-}
-
-private final class FileHandleRegistry: @unchecked Sendable {
-  private struct Entry {
-    let url: URL
-    let writable: Bool
-  }
-
-  private let lock = NSLock()
-  private var entries: [String: Entry] = [:]
-
-  func register(uri: String, writable: Bool) throws -> String {
-    let url: URL
-    if let parsed = URL(string: uri), parsed.isFileURL {
-      url = parsed
-    } else {
-      url = URL(fileURLWithPath: uri)
-    }
-    return register(url: url, writable: writable)
-  }
-
-  func register(url: URL, writable: Bool) -> String {
-    let handle = UUID().uuidString
-    lock.withLock { entries[handle] = Entry(url: url, writable: writable) }
-    return handle
-  }
-
-  func remove(_ handle: String) {
-    _ = lock.withLock { entries.removeValue(forKey: handle) }
-  }
-
-  func removeAll() {
-    lock.withLock { entries.removeAll() }
-  }
-
-  func url(_ handle: String) throws -> URL {
-    guard let entry = lock.withLock({ entries[handle] }) else { throw HostBindingError.InvalidHandle }
-    return entry.url
-  }
-
-  func metadata(_ handle: String) throws -> BindingFileMetadata {
-    let target = try entry(handle)
-    return try scoped(target.url) {
-      let values = try target.url.resourceValues(forKeys: [.fileSizeKey, .contentTypeKey])
-      return BindingFileMetadata(
-        displayName: target.url.lastPathComponent,
-        sizeBytes: UInt64(values.fileSize ?? 0),
-        mimeType: values.contentType?.preferredMIMEType
-      )
-    }
-  }
-
-  func read(_ handle: String, offset: UInt64, maxBytes: UInt32) throws -> Data {
-    let target = try entry(handle)
-    return try scoped(target.url) {
-      let file = try FileHandle(forReadingFrom: target.url)
-      defer { try? file.close() }
-      try file.seek(toOffset: offset)
-      return try file.read(upToCount: Int(maxBytes)) ?? Data()
-    }
-  }
-
-  func write(_ handle: String, offset: UInt64, bytes: Data) throws {
-    let target = try entry(handle)
-    guard target.writable else { throw HostBindingError.PermissionDenied }
-    try scoped(target.url) {
-      if !FileManager.default.fileExists(atPath: target.url.path) {
-        FileManager.default.createFile(atPath: target.url.path, contents: nil)
-      }
-      let file = try FileHandle(forWritingTo: target.url)
-      defer { try? file.close() }
-      try file.seek(toOffset: offset)
-      try file.write(contentsOf: bytes)
-    }
-  }
-
-  func finishWrite(_ handle: String) throws {
-    let target = try entry(handle)
-    guard target.writable else { throw HostBindingError.PermissionDenied }
-    guard FileManager.default.fileExists(atPath: target.url.path) else { throw HostBindingError.Io }
-  }
-
-  private func entry(_ handle: String) throws -> Entry {
-    guard let value = lock.withLock({ entries[handle] }) else { throw HostBindingError.InvalidHandle }
-    return value
-  }
-
-  private func scoped<T>(_ url: URL, operation: () throws -> T) throws -> T {
-    let scoped = url.startAccessingSecurityScopedResource()
-    defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-    do { return try operation() } catch { throw HostBindingError.Io }
-  }
 }
 
 private final class UcEngineNotStartedException: Exception, @unchecked Sendable {
@@ -491,6 +366,19 @@ private extension NSLock {
     lock()
     defer { unlock() }
     return try operation()
+  }
+}
+
+private func withHostBindingError<T>(_ operation: () throws -> T) throws -> T {
+  do {
+    return try operation()
+  } catch let error as SystemHostError {
+    switch error {
+    case .unavailable: throw HostBindingError.Unavailable
+    case .permissionDenied: throw HostBindingError.PermissionDenied
+    case .invalidHandle: throw HostBindingError.InvalidHandle
+    case .io: throw HostBindingError.Io
+    }
   }
 }
 

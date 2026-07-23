@@ -11,6 +11,7 @@ android {
   defaultConfig {
     versionCode 1
     versionName "0.19.1"
+    testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     ndk {
       abiFilters 'arm64-v8a', 'x86_64'
     }
@@ -20,6 +21,9 @@ android {
 dependencies {
   implementation files('libs/UniClipboardEngine.aar')
   implementation 'net.java.dev.jna:jna:5.14.0@aar'
+  androidTestImplementation 'androidx.test:core:1.6.1'
+  androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+  androidTestImplementation 'androidx.test:runner:1.6.2'
 }
 
 tasks.configureEach { task ->
