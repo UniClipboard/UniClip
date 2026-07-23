@@ -22,7 +22,7 @@ let package = Package(
         "UcEngineModule.swift",
         "UniClipboardEngine.xcframework",
       ],
-      sources: ["NativeSystemHost.swift"]
+      sources: ["NativeLifecycleHost.swift", "NativeSystemHost.swift"]
     ),
     .testTarget(
       name: "UcEngineSystemHostTests",

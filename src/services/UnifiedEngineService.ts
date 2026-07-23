@@ -154,6 +154,16 @@ export class UnifiedEngineService {
         this.updateSnapshot({ status: 'failed', lastEvent: event, fatalFailure: event.failure });
         log.error('[UnifiedEngineService] The P2P engine reported a fatal failure:', event.failure);
         break;
+      case 'lifecycleFailed':
+        this.updateSnapshot({
+          lastEvent: event,
+          lifecycleFailure: { action: event.action, failure: event.failure },
+        });
+        log.error(
+          `[UnifiedEngineService] The P2P engine failed to ${event.action}:`,
+          event.failure
+        );
+        break;
       case 'operationFinished':
         this.updateSnapshot({ lastEvent: event });
         break;

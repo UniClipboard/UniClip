@@ -49,6 +49,74 @@ final class NativeSystemHostTests: XCTestCase {
     XCTAssertEqual(try Data(contentsOf: destination), expected)
     XCTAssertFalse(handle.contains(destination.path))
   }
+
+  func testLifecycleHostRecoversPersistedSessionBeforeUse() throws {
+    let engine = FakeNativeEngineLifecycle(state: .running)
+    engine.recovery = NativeSessionRecovery(unlocked: true, resumed: true)
+    let host = NativeLifecycleHost(report: { _ in XCTFail("Recovery must not be reported") })
+
+    try host.prepare(engine)
+
+    XCTAssertEqual(engine.recoverCalls, 1)
+  }
+
+  func testLifecycleHostForwardsOnlyLegalSystemTransitions() throws {
+    let engine = FakeNativeEngineLifecycle(state: .running)
+    let host = NativeLifecycleHost(report: { _ in XCTFail("Transition must not fail") })
+
+    host.enterForeground(engine)
+    host.enterBackground(engine)
+    engine.state = .suspended
+    host.enterForeground(engine)
+
+    XCTAssertEqual(engine.suspendCalls, 1)
+    XCTAssertEqual(engine.resumeCalls, 1)
+  }
+
+  func testLifecycleHostReportsTransitionFailures() throws {
+    let engine = FakeNativeEngineLifecycle(state: .running)
+    engine.transitionError = TestLifecycleError.failed
+    var reported: Error?
+    let host = NativeLifecycleHost(report: { reported = $0 })
+
+    host.enterBackground(engine)
+
+    XCTAssertNotNil(reported)
+  }
+}
+
+private enum TestLifecycleError: Error {
+  case failed
+}
+
+private final class FakeNativeEngineLifecycle: NativeEngineLifecycle {
+  var state: NativeEngineLifecycleState
+  var recovery = NativeSessionRecovery(unlocked: false, resumed: false)
+  var transitionError: Error?
+  var recoverCalls = 0
+  var suspendCalls = 0
+  var resumeCalls = 0
+
+  init(state: NativeEngineLifecycleState) {
+    self.state = state
+  }
+
+  func recoverSession() throws -> NativeSessionRecovery {
+    recoverCalls += 1
+    return recovery
+  }
+
+  func lifecycleState() throws -> NativeEngineLifecycleState { state }
+
+  func suspend() throws {
+    suspendCalls += 1
+    if let transitionError { throw transitionError }
+  }
+
+  func resume() throws {
+    resumeCalls += 1
+    if let transitionError { throw transitionError }
+  }
 }
 
 private struct UnavailableKeychain: KeychainAccessing {

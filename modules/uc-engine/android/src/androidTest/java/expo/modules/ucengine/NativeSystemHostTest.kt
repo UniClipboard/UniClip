@@ -10,6 +10,8 @@ import java.security.MessageDigest
 import java.util.UUID
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
@@ -91,5 +93,69 @@ class NativeSystemHostTest {
     assertArrayEquals(expected, files.read(handle, 0, expected.size + 1))
     assertArrayEquals(expected, destination.readBytes())
     assertFalse(handle.contains(destination.absolutePath))
+  }
+
+  @Test
+  fun lifecycleHostRecoversPersistedSessionBeforeUse() {
+    val engine = FakeEngineLifecycle(EngineLifecycleState.RUNNING).apply {
+      recovery = EngineSessionRecovery(unlocked = true, resumed = true)
+    }
+    val host = NativeLifecycleHost { throw AssertionError("Recovery must not be reported") }
+
+    host.prepare(engine)
+
+    assertEquals(1, engine.recoverCalls)
+  }
+
+  @Test
+  fun lifecycleHostForwardsOnlyLegalSystemTransitions() {
+    val engine = FakeEngineLifecycle(EngineLifecycleState.RUNNING)
+    val host = NativeLifecycleHost { throw AssertionError("Transition must not fail") }
+
+    host.enterForeground(engine)
+    host.enterBackground(engine)
+    engine.state = EngineLifecycleState.SUSPENDED
+    host.enterForeground(engine)
+
+    assertEquals(1, engine.suspendCalls)
+    assertEquals(1, engine.resumeCalls)
+  }
+
+  @Test
+  fun lifecycleHostReportsTransitionFailures() {
+    val engine = FakeEngineLifecycle(EngineLifecycleState.RUNNING).apply {
+      transitionError = IllegalStateException("failed")
+    }
+    var reported: Throwable? = null
+    val host = NativeLifecycleHost { reported = it }
+
+    host.enterBackground(engine)
+
+    assertNotNull(reported)
+  }
+}
+
+private class FakeEngineLifecycle(var state: EngineLifecycleState) : EngineLifecycle {
+  var recovery = EngineSessionRecovery(unlocked = false, resumed = false)
+  var transitionError: Throwable? = null
+  var recoverCalls = 0
+  var suspendCalls = 0
+  var resumeCalls = 0
+
+  override fun recoverSession(): EngineSessionRecovery {
+    recoverCalls += 1
+    return recovery
+  }
+
+  override fun lifecycleState(): EngineLifecycleState = state
+
+  override fun suspend() {
+    suspendCalls += 1
+    transitionError?.let { throw it }
+  }
+
+  override fun resume() {
+    resumeCalls += 1
+    transitionError?.let { throw it }
   }
 }

@@ -1157,7 +1157,13 @@ public protocol MobileEngineProtocol: AnyObject, Sendable {
 
     func joinSpace(invitationCode: String, deviceName: String?, passphrase: String) throws  -> SpaceJoined
 
+    func lifecycleState() throws  -> BindingEngineState
+
     func nextEvent(timeoutMs: UInt64)  -> BindingEvent?
+
+    func queryLocalDevice() throws  -> LocalDevice
+
+    func recoverSession(allowSecureStorageUnlock: Bool) throws  -> SessionRecovery
 
     func restoreClipboard(entryId: String, mode: BindingClipboardRestoreMode) throws  -> BindingClipboardRestoreOutcome
 
@@ -1282,11 +1288,36 @@ open func joinSpace(invitationCode: String, deviceName: String?, passphrase: Str
 })
 }
 
+open func lifecycleState()throws  -> BindingEngineState  {
+    return try  FfiConverterTypeBindingEngineState_lift(try rustCallWithError(FfiConverterTypeBindingError_lift) {
+    uniffi_uc_engine_uniffi_fn_method_mobileengine_lifecycle_state(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+
 open func nextEvent(timeoutMs: UInt64) -> BindingEvent?  {
     return try!  FfiConverterOptionTypeBindingEvent.lift(try! rustCall() {
     uniffi_uc_engine_uniffi_fn_method_mobileengine_next_event(
             self.uniffiCloneHandle(),
         FfiConverterUInt64.lower(timeoutMs),$0
+    )
+})
+}
+
+open func queryLocalDevice()throws  -> LocalDevice  {
+    return try  FfiConverterTypeLocalDevice_lift(try rustCallWithError(FfiConverterTypeBindingError_lift) {
+    uniffi_uc_engine_uniffi_fn_method_mobileengine_query_local_device(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+
+open func recoverSession(allowSecureStorageUnlock: Bool)throws  -> SessionRecovery  {
+    return try  FfiConverterTypeSessionRecovery_lift(try rustCallWithError(FfiConverterTypeBindingError_lift) {
+    uniffi_uc_engine_uniffi_fn_method_mobileengine_recover_session(
+            self.uniffiCloneHandle(),
+        FfiConverterBool.lower(allowSecureStorageUnlock),$0
     )
 })
 }
@@ -1684,6 +1715,60 @@ public func FfiConverterTypeInvitationIssued_lower(_ value: InvitationIssued) ->
 }
 
 
+public struct LocalDevice: Equatable, Hashable {
+    public var deviceId: String
+    public var displayName: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(deviceId: String, displayName: String) {
+        self.deviceId = deviceId
+        self.displayName = displayName
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension LocalDevice: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeLocalDevice: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> LocalDevice {
+        return
+            try LocalDevice(
+                deviceId: FfiConverterString.read(from: &buf),
+                displayName: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: LocalDevice, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.deviceId, into: &buf)
+        FfiConverterString.write(value.displayName, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeLocalDevice_lift(_ buf: RustBuffer) throws -> LocalDevice {
+    return try FfiConverterTypeLocalDevice.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeLocalDevice_lower(_ value: LocalDevice) -> RustBuffer {
+    return FfiConverterTypeLocalDevice.lower(value)
+}
+
+
 public struct SendReport: Equatable, Hashable {
     public var entryId: String
     public var atMs: Int64
@@ -1755,6 +1840,60 @@ public func FfiConverterTypeSendReport_lift(_ buf: RustBuffer) throws -> SendRep
 #endif
 public func FfiConverterTypeSendReport_lower(_ value: SendReport) -> RustBuffer {
     return FfiConverterTypeSendReport.lower(value)
+}
+
+
+public struct SessionRecovery: Equatable, Hashable {
+    public var unlocked: Bool
+    public var resumed: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(unlocked: Bool, resumed: Bool) {
+        self.unlocked = unlocked
+        self.resumed = resumed
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension SessionRecovery: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeSessionRecovery: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SessionRecovery {
+        return
+            try SessionRecovery(
+                unlocked: FfiConverterBool.read(from: &buf),
+                resumed: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: SessionRecovery, into buf: inout [UInt8]) {
+        FfiConverterBool.write(value.unlocked, into: &buf)
+        FfiConverterBool.write(value.resumed, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSessionRecovery_lift(_ buf: RustBuffer) throws -> SessionRecovery {
+    return try FfiConverterTypeSessionRecovery.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSessionRecovery_lower(_ value: SessionRecovery) -> RustBuffer {
+    return FfiConverterTypeSessionRecovery.lower(value)
 }
 
 
@@ -2445,6 +2584,8 @@ public enum BindingEvent: Equatable, Hashable {
     )
     case operationFinished(operationId: String, terminal: BindingOperationTerminal, failure: BindingFailure?
     )
+    case lifecycleFailed(action: BindingLifecycleAction, failure: BindingFailure
+    )
     case refreshRequired(reason: BindingRefreshReason
     )
     case fatal(failure: BindingFailure
@@ -2478,13 +2619,16 @@ public struct FfiConverterTypeBindingEvent: FfiConverterRustBuffer {
         case 2: return .operationFinished(operationId: try FfiConverterString.read(from: &buf), terminal: try FfiConverterTypeBindingOperationTerminal.read(from: &buf), failure: try FfiConverterOptionTypeBindingFailure.read(from: &buf)
         )
 
-        case 3: return .refreshRequired(reason: try FfiConverterTypeBindingRefreshReason.read(from: &buf)
+        case 3: return .lifecycleFailed(action: try FfiConverterTypeBindingLifecycleAction.read(from: &buf), failure: try FfiConverterTypeBindingFailure.read(from: &buf)
         )
 
-        case 4: return .fatal(failure: try FfiConverterTypeBindingFailure.read(from: &buf)
+        case 4: return .refreshRequired(reason: try FfiConverterTypeBindingRefreshReason.read(from: &buf)
         )
 
-        case 5: return .changed(kind: try FfiConverterString.read(from: &buf)
+        case 5: return .fatal(failure: try FfiConverterTypeBindingFailure.read(from: &buf)
+        )
+
+        case 6: return .changed(kind: try FfiConverterString.read(from: &buf)
         )
 
         default: throw UniffiInternalError.unexpectedEnumCase
@@ -2507,18 +2651,24 @@ public struct FfiConverterTypeBindingEvent: FfiConverterRustBuffer {
             FfiConverterOptionTypeBindingFailure.write(failure, into: &buf)
 
 
-        case let .refreshRequired(reason):
+        case let .lifecycleFailed(action,failure):
             writeInt(&buf, Int32(3))
+            FfiConverterTypeBindingLifecycleAction.write(action, into: &buf)
+            FfiConverterTypeBindingFailure.write(failure, into: &buf)
+
+
+        case let .refreshRequired(reason):
+            writeInt(&buf, Int32(4))
             FfiConverterTypeBindingRefreshReason.write(reason, into: &buf)
 
 
         case let .fatal(failure):
-            writeInt(&buf, Int32(4))
+            writeInt(&buf, Int32(5))
             FfiConverterTypeBindingFailure.write(failure, into: &buf)
 
 
         case let .changed(kind):
-            writeInt(&buf, Int32(5))
+            writeInt(&buf, Int32(6))
             FfiConverterString.write(kind, into: &buf)
 
         }
@@ -2538,6 +2688,73 @@ public func FfiConverterTypeBindingEvent_lift(_ buf: RustBuffer) throws -> Bindi
 #endif
 public func FfiConverterTypeBindingEvent_lower(_ value: BindingEvent) -> RustBuffer {
     return FfiConverterTypeBindingEvent.lower(value)
+}
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
+public enum BindingLifecycleAction: Equatable, Hashable {
+
+    case suspend
+    case resume
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension BindingLifecycleAction: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeBindingLifecycleAction: FfiConverterRustBuffer {
+    typealias SwiftType = BindingLifecycleAction
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> BindingLifecycleAction {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        case 1: return .suspend
+
+        case 2: return .resume
+
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: BindingLifecycleAction, into buf: inout [UInt8]) {
+        switch value {
+
+
+        case .suspend:
+            writeInt(&buf, Int32(1))
+
+
+        case .resume:
+            writeInt(&buf, Int32(2))
+
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeBindingLifecycleAction_lift(_ buf: RustBuffer) throws -> BindingLifecycleAction {
+    return try FfiConverterTypeBindingLifecycleAction.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeBindingLifecycleAction_lower(_ value: BindingLifecycleAction) -> RustBuffer {
+    return FfiConverterTypeBindingLifecycleAction.lower(value)
 }
 
 
@@ -3082,7 +3299,16 @@ private let initializationResult: InitializationResult = {
     if (uniffi_uc_engine_uniffi_checksum_method_mobileengine_join_space() != 24854) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_uc_engine_uniffi_checksum_method_mobileengine_lifecycle_state() != 54350) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_uc_engine_uniffi_checksum_method_mobileengine_next_event() != 60947) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_uc_engine_uniffi_checksum_method_mobileengine_query_local_device() != 6632) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_uc_engine_uniffi_checksum_method_mobileengine_recover_session() != 26112) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_uc_engine_uniffi_checksum_method_mobileengine_restore_clipboard() != 59783) {

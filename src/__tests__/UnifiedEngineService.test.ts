@@ -92,6 +92,38 @@ describe('UnifiedEngineService', () => {
     expect(shutdown).toHaveBeenCalledTimes(1);
   });
 
+  it('publishes lifecycle transition failures from the unified event stream', async () => {
+    const pendingEvent = deferred<EngineEvent | null>();
+    const events: EngineEvent[] = [
+      {
+        type: 'lifecycleFailed',
+        action: 'resume',
+        failure: { code: 1214, category: 'unavailable', retryable: true },
+      },
+    ];
+    const snapshots: UnifiedEngineSnapshot[] = [];
+    const service = new UnifiedEngineService(
+      {
+        start: async () => undefined,
+        shutdown: async () => pendingEvent.resolve(null),
+        nextEvent: async () => events.shift() ?? pendingEvent.promise,
+      },
+      (snapshot) => snapshots.push(snapshot),
+      0
+    );
+
+    await service.start(config());
+    const failed = await waitForSnapshot(snapshots, (state) => state.lifecycleFailure != null);
+
+    expect(failed.lifecycleFailure).toEqual({
+      action: 'resume',
+      failure: { code: 1214, category: 'unavailable', retryable: true },
+    });
+    expect(failed.isStarted).toBe(true);
+
+    await service.stop();
+  });
+
   it('publishes a failed state when native startup rejects', async () => {
     const snapshots: UnifiedEngineSnapshot[] = [];
     const nextEvent = jest.fn<UnifiedEngineApi['nextEvent']>();

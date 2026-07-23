@@ -48,13 +48,17 @@ describe('unified P2P engine native module', () => {
   });
 
   it('uses Keychain and native app lifecycle on iOS without a file fallback', () => {
-    const swift = read('ios/UcEngineModule.swift');
+    const swift = `${read('ios/UcEngineModule.swift')}\n${read('ios/NativeSystemHost.swift')}`;
 
     expect(swift).toContain('kSecClassGenericPassword');
     expect(swift).toContain('SecItemCopyMatching');
     expect(swift).toContain('SecItemUpdate');
     expect(swift).toContain('OnAppEntersBackground');
     expect(swift).toContain('OnAppEntersForeground');
+    expect(swift).toContain('NativeLifecycleHost');
+    expect(swift).toContain('recoverSession(allowSecureStorageUnlock: true)');
+    expect(swift).not.toContain('try? self.currentEngine()?.suspend()');
+    expect(swift).not.toContain('try? self.currentEngine()?.resume()');
     expect(swift).toContain('FileHandleRegistry');
     expect(swift).not.toContain('UserDefaults');
   });
@@ -66,6 +70,10 @@ describe('unified P2P engine native module', () => {
     expect(kotlin).toContain('KeyGenParameterSpec.Builder');
     expect(kotlin).toContain('OnActivityEntersBackground');
     expect(kotlin).toContain('OnActivityEntersForeground');
+    expect(kotlin).toContain('NativeLifecycleHost');
+    expect(kotlin).toContain('recoverSession(true)');
+    expect(kotlin).not.toContain('runCatching { currentEngine()?.suspend() }');
+    expect(kotlin).not.toContain('runCatching { currentEngine()?.resume() }');
     expect(kotlin).toContain('FileHandleRegistry');
     expect(kotlin).not.toContain('putString(key');
   });
@@ -84,7 +92,7 @@ describe('unified P2P engine native module', () => {
     const pin = read('core-source.json');
 
     expect(pin).toContain('"version": "core-v0.19.1"');
-    expect(pin).toContain('"sourceCommit": "f204a4d4bfedcd471a3da3c43a27aeeb8ec90abf"');
+    expect(pin).toContain('"sourceCommit": "693bb50ffcb02d975e3356ccd42137a1b3e15624"');
     expect(pin).toContain('"iosSha256"');
     expect(pin).toContain('"androidSha256"');
   });

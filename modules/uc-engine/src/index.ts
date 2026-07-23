@@ -52,6 +52,11 @@ export type EngineEvent =
       terminal: string;
       failure: { code: number; category: string; retryable: boolean } | null;
     }
+  | {
+      type: 'lifecycleFailed';
+      action: 'suspend' | 'resume';
+      failure: { code: number; category: string; retryable: boolean };
+    }
   | { type: 'refreshRequired'; reason: string }
   | { type: 'fatal'; failure: { code: number; category: string; retryable: boolean } }
   | { type: 'changed'; kind: string };

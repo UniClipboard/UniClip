@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 public final class UcEngineModule: Module {
   private let lock = NSLock()
   private let files = AppleFileHandleRegistry()
+  private lazy var lifecycle = NativeLifecycleHost(report: Self.reportLifecycleError)
   private var engine: MobileEngine?
 
   public func definition() -> ModuleDefinition {
@@ -20,6 +21,16 @@ public final class UcEngineModule: Module {
         config: BindingConfig(appVersion: appVersion, profileId: profileId),
         host: host
       )
+      do {
+        try self.lifecycle.prepare(AppleEngineLifecycle(engine: started))
+      } catch {
+        do {
+          try started.shutdown(deadlineMs: 2_000)
+        } catch {
+          Self.reportLifecycleError(error)
+        }
+        throw error
+      }
       let installed = self.lock.withLock {
         guard self.engine == nil else { return false }
         self.engine = started
@@ -138,8 +149,12 @@ public final class UcEngineModule: Module {
       )
     }
 
-    OnAppEntersBackground { try? self.currentEngine()?.suspend() }
-    OnAppEntersForeground { try? self.currentEngine()?.resume() }
+    OnAppEntersBackground {
+      self.lifecycle.enterBackground(self.currentEngine().map(AppleEngineLifecycle.init))
+    }
+    OnAppEntersForeground {
+      self.lifecycle.enterForeground(self.currentEngine().map(AppleEngineLifecycle.init))
+    }
     OnAppContextDestroys { self.shutdownForDestroy() }
   }
 
@@ -157,8 +172,16 @@ public final class UcEngineModule: Module {
       defer { engine = nil }
       return engine
     }
-    try? active?.shutdown(deadlineMs: 2_000)
+    do {
+      try active?.shutdown(deadlineMs: 2_000)
+    } catch {
+      Self.reportLifecycleError(error)
+    }
     files.removeAll()
+  }
+
+  private static func reportLifecycleError(_ error: Error) {
+    NSLog("UcEngine lifecycle transition failed: %@", String(describing: error))
   }
 
   private static func sendReportMap(_ report: SendReport) -> [String: Any] {
@@ -192,12 +215,25 @@ public final class UcEngineModule: Module {
         "terminal": String(describing: terminal),
         "failure": failure.map(failureMap),
       ]
+    case .lifecycleFailed(let action, let failure):
+      return [
+        "type": "lifecycleFailed",
+        "action": lifecycleActionName(action),
+        "failure": failureMap(failure),
+      ]
     case .refreshRequired(let reason):
       return ["type": "refreshRequired", "reason": String(describing: reason)]
     case .fatal(let failure):
       return ["type": "fatal", "failure": failureMap(failure)]
     case .changed(let kind):
       return ["type": "changed", "kind": kind]
+    }
+  }
+
+  private static func lifecycleActionName(_ action: BindingLifecycleAction) -> String {
+    switch action {
+    case .suspend: "suspend"
+    case .resume: "resume"
     }
   }
 
@@ -226,6 +262,38 @@ public final class UcEngineModule: Module {
     case .payloadUnavailable: "payloadUnavailable"
     case .notApplicable: "notApplicable"
     }
+  }
+}
+
+private final class AppleEngineLifecycle: NativeEngineLifecycle {
+  private let engine: MobileEngine
+
+  init(engine: MobileEngine) {
+    self.engine = engine
+  }
+
+  func recoverSession() throws -> NativeSessionRecovery {
+    let recovery = try engine.recoverSession(allowSecureStorageUnlock: true)
+    return NativeSessionRecovery(unlocked: recovery.unlocked, resumed: recovery.resumed)
+  }
+
+  func lifecycleState() throws -> NativeEngineLifecycleState {
+    switch try engine.lifecycleState() {
+    case .running: .running
+    case .quiescing: .quiescing
+    case .quiesced: .quiesced
+    case .suspended: .suspended
+    case .shuttingDown: .shuttingDown
+    case .stopped: .stopped
+    }
+  }
+
+  func suspend() throws {
+    try engine.suspend()
+  }
+
+  func resume() throws {
+    try engine.resume()
   }
 }
 

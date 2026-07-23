@@ -9,6 +9,7 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import android.util.Log
 import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
 import expo.modules.kotlin.exception.CodedException
@@ -37,6 +38,7 @@ import uniffi.uc_engine_uniffi.BindingEvent
 import uniffi.uc_engine_uniffi.BindingFailure
 import uniffi.uc_engine_uniffi.BindingFileMetadata
 import uniffi.uc_engine_uniffi.BindingHost
+import uniffi.uc_engine_uniffi.BindingLifecycleAction
 import uniffi.uc_engine_uniffi.HostBindingException
 import uniffi.uc_engine_uniffi.InvitationAvailability
 import uniffi.uc_engine_uniffi.MobileEngine
@@ -54,6 +56,7 @@ class UcEngineModule : Module() {
   }
 
   private val lock = Any()
+  private val lifecycle = NativeLifecycleHost(::reportLifecycleError)
   private var engine: MobileEngine? = null
   private var files: FileHandleRegistry? = null
 
@@ -73,6 +76,17 @@ class UcEngineModule : Module() {
         ),
         AndroidEngineHost(context, registry)
       )
+      try {
+        lifecycle.prepare(AndroidEngineLifecycle(started))
+      } catch (error: Throwable) {
+        try {
+          started.shutdown(2_000u)
+        } catch (shutdownError: Throwable) {
+          reportLifecycleError(shutdownError)
+        }
+        started.close()
+        throw error
+      }
       synchronized(lock) {
         if (engine != null) {
           started.close()
@@ -141,9 +155,19 @@ class UcEngineModule : Module() {
       requireEngine().exportEntry(entryId, destinationHandle)
     }
 
-    OnActivityEntersBackground { runCatching { currentEngine()?.suspend() } }
-    OnActivityEntersForeground { runCatching { currentEngine()?.resume() } }
-    OnDestroy { runCatching { shutdown(2_000) } }
+    OnActivityEntersBackground {
+      lifecycle.enterBackground(currentEngine()?.let(::AndroidEngineLifecycle))
+    }
+    OnActivityEntersForeground {
+      lifecycle.enterForeground(currentEngine()?.let(::AndroidEngineLifecycle))
+    }
+    OnDestroy {
+      try {
+        shutdown(2_000)
+      } catch (error: Throwable) {
+        reportLifecycleError(error)
+      }
+    }
   }
 
   private fun requireContext(): Context =
@@ -155,6 +179,10 @@ class UcEngineModule : Module() {
 
   private fun requireFiles(): FileHandleRegistry =
     synchronized(lock) { files } ?: throw UcEngineNotStartedException()
+
+  private fun reportLifecycleError(error: Throwable) {
+    Log.e("UcEngine", "P2P engine lifecycle transition failed", error)
+  }
 
   private fun shutdown(deadlineMs: Long) {
     val active: MobileEngine?
@@ -197,12 +225,22 @@ class UcEngineModule : Module() {
       "terminal" to event.terminal.name,
       "failure" to event.failure?.let(::failureMap)
     )
+    is BindingEvent.LifecycleFailed -> mapOf(
+      "type" to "lifecycleFailed",
+      "action" to lifecycleActionName(event.action),
+      "failure" to failureMap(event.failure)
+    )
     is BindingEvent.RefreshRequired -> mapOf(
       "type" to "refreshRequired",
       "reason" to event.reason.name
     )
     is BindingEvent.Fatal -> mapOf("type" to "fatal", "failure" to failureMap(event.failure))
     is BindingEvent.Changed -> mapOf("type" to "changed", "kind" to event.kind)
+  }
+
+  private fun lifecycleActionName(action: BindingLifecycleAction): String = when (action) {
+    BindingLifecycleAction.SUSPEND -> "suspend"
+    BindingLifecycleAction.RESUME -> "resume"
   }
 
   private fun stateName(state: BindingEngineState): String = when (state) {
@@ -225,6 +263,26 @@ class UcEngineModule : Module() {
     BindingClipboardRestoreOutcome.PAYLOAD_UNAVAILABLE -> "payloadUnavailable"
     BindingClipboardRestoreOutcome.NOT_APPLICABLE -> "notApplicable"
   }
+}
+
+private class AndroidEngineLifecycle(private val engine: MobileEngine) : EngineLifecycle {
+  override fun recoverSession(): EngineSessionRecovery {
+    val recovery = engine.recoverSession(true)
+    return EngineSessionRecovery(recovery.unlocked, recovery.resumed)
+  }
+
+  override fun lifecycleState(): EngineLifecycleState = when (engine.lifecycleState()) {
+    BindingEngineState.RUNNING -> EngineLifecycleState.RUNNING
+    BindingEngineState.QUIESCING -> EngineLifecycleState.QUIESCING
+    BindingEngineState.QUIESCED -> EngineLifecycleState.QUIESCED
+    BindingEngineState.SUSPENDED -> EngineLifecycleState.SUSPENDED
+    BindingEngineState.SHUTTING_DOWN -> EngineLifecycleState.SHUTTING_DOWN
+    BindingEngineState.STOPPED -> EngineLifecycleState.STOPPED
+  }
+
+  override fun suspend() = engine.suspend()
+
+  override fun resume() = engine.resume()
 }
 
 private class AndroidEngineHost(
