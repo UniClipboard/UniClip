@@ -52,9 +52,12 @@
   },
   "connection": {
     "addTitle": "Add sync connection",
+    "addSheetTitle": "Add connection",
     "p2pDescription": "End-to-end encrypted space",
+    "compatibilityTitle": "Compatibility",
     "lanDeprecated": "LAN is deprecated and remains temporarily available only to existing users. It will be removed in a future release.",
     "legacyLanAction": "Add legacy LAN connection",
+    "legacyLanDescription": "For existing LAN setups during the transition",
     "invitationExpires": "Invitation expires at {{time}}"
   },
   "migration": {

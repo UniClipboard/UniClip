@@ -52,9 +52,12 @@
   },
   "connection": {
     "addTitle": "Добавить подключение синхронизации",
+    "addSheetTitle": "Новое подключение",
     "p2pDescription": "Пространство со сквозным шифрованием",
+    "compatibilityTitle": "Совместимость",
     "lanDeprecated": "LAN устарел и временно доступен только существующим пользователям. В будущей версии он будет удалён.",
     "legacyLanAction": "Добавить старое LAN-подключение",
+    "legacyLanDescription": "Для существующих настроек LAN на время перехода",
     "invitationExpires": "Приглашение истекает в {{time}}"
   },
   "migration": {

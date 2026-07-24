@@ -44,9 +44,12 @@
   },
   "connection": {
     "addTitle": "Adicionar conexão de sincronização",
+    "addSheetTitle": "Nova conexão",
     "p2pDescription": "Espaço com criptografia de ponta a ponta",
+    "compatibilityTitle": "Compatibilidade",
     "lanDeprecated": "A LAN está obsoleta e permanece temporariamente disponível apenas para usuários existentes. Ela será removida em uma versão futura.",
     "legacyLanAction": "Adicionar conexão LAN antiga",
+    "legacyLanDescription": "Para configurações LAN existentes durante a transição",
     "invitationExpires": "O convite expira às {{time}}"
   },
   "migration": {

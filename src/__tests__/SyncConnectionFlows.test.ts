@@ -26,6 +26,19 @@ describe('unified sync connection flows', () => {
     }
   });
 
+  it('gives the iOS add sheet a native hierarchy instead of a flat button list', () => {
+    const ios = source('components/AddSyncConnectionSheet.ios.tsx');
+
+    expect(ios).toContain('IosSheetPage');
+    expect(ios).toContain('ConnectionChoiceCard');
+    expect(ios).toContain("t('space.create.description')");
+    expect(ios).toContain("t('space.join.description')");
+    expect(ios).toContain("t('connection.addSheetTitle')");
+    expect(ios).toContain('headerCircleButton');
+    expect(ios).toContain("presentationDetents(['medium'])");
+    expect(ios).toContain('disabled(!canSubmit || pending)');
+  });
+
   it('does not reset native fields after connection completion unmounts the sheet', () => {
     const android = source('components/AddSyncConnectionSheet.android.tsx');
     const ios = source('components/AddSyncConnectionSheet.ios.tsx');
@@ -39,6 +52,20 @@ describe('unified sync connection flows', () => {
       expect(platform).toContain('mountedRef');
       expect(completion).toMatch(/if \(!mountedRef\.current\) return;[\s\S]*reset\(\)/);
     }
+  });
+
+  it('clears iOS form values before switching between create and join', () => {
+    const ios = source('components/AddSyncConnectionSheet.ios.tsx');
+    const clearInputs = ios.slice(ios.indexOf('const clearInputs'), ios.indexOf('const reset'));
+    const backToChoose = ios.slice(
+      ios.indexOf('const backToChoose'),
+      ios.indexOf('const completeConnection')
+    );
+
+    expect(clearInputs).toContain("setDeviceName('')");
+    expect(clearInputs).toContain("setPassphrase('')");
+    expect(clearInputs).toContain("setInvitationCode('')");
+    expect(backToChoose).toContain('clearInputs()');
   });
 
   it('shows one P2P target plus deprecated LAN targets and selects them atomically', () => {

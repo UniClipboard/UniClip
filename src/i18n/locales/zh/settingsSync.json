@@ -52,9 +52,12 @@
   },
   "connection": {
     "addTitle": "新增同步连接",
+    "addSheetTitle": "新增连接",
     "p2pDescription": "端到端加密空间",
+    "compatibilityTitle": "兼容模式",
     "lanDeprecated": "LAN 已弃用，只为升级前已有配置的用户暂时保留，未来版本会删除。",
     "legacyLanAction": "添加旧 LAN 连接",
+    "legacyLanDescription": "仅供已有 LAN 配置的用户在过渡期间使用",
     "invitationExpires": "邀请码将在 {{time}} 到期"
   },
   "migration": {
