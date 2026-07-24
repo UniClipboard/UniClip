@@ -155,6 +155,13 @@ class BackgroundServiceManager {
     }
   }
 
+  /** Wait until the currently selected sync transport is active. */
+  async activateSelectedSyncChannel(): Promise<void> {
+    const { useSettingsStore } = require('../stores/settingsStore');
+    const channel = useSettingsStore.getState().config?.syncChannel ?? 'lan';
+    await this.syncChannels.select(channel);
+  }
+
   // ─── 私有实现 ─────────────────────────────────────────────
 
   private async _reconcileSelectedSyncChannel(): Promise<void> {
@@ -162,7 +169,7 @@ class BackgroundServiceManager {
     const channel = useSettingsStore.getState().config?.syncChannel ?? 'lan';
 
     try {
-      await this.syncChannels.select(channel);
+      await this.activateSelectedSyncChannel();
     } catch (e) {
       log.error(`[BackgroundServiceManager] Failed to start selected ${channel} channel:`, e);
     }
@@ -175,6 +182,8 @@ class BackgroundServiceManager {
       appVersion: Application.nativeApplicationVersion ?? 'unknown',
       profileId: 'default',
     });
+    const { getUnifiedSpaceService } = require('./UnifiedSpaceService');
+    await getUnifiedSpaceService().refresh();
   }
 
   private async _stopUnifiedEngine(): Promise<void> {

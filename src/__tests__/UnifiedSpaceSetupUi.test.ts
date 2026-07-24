@@ -27,7 +27,7 @@ describe('unified space setup UI', () => {
     const combined = `${android}\n${ios}`;
 
     expect(android).toContain("invitation.availability === 'sameLocalNetwork'");
-    expect(ios).toContain("invitation.availability === 'sameLocalNetwork'");
+    expect(ios).toContain("visibleInvitation.availability === 'sameLocalNetwork'");
     expect(combined).toContain('space.invitation.sameLocalNetwork');
     expect(combined).not.toContain('UnifiedSpaceProbe');
   });
@@ -57,11 +57,28 @@ describe('unified space setup UI', () => {
     expect(combined).toContain("setPassphrase('')");
   });
 
+  it('supports device management and leaving the local space on both platforms', () => {
+    const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
+    const ios = source('screens/settings/ios/SpacePage.tsx');
+
+    for (const platform of [android, ios]) {
+      expect(platform).toContain('useUnifiedSpaceStore');
+      expect(platform).toContain('.removeMember(');
+      expect(platform).toContain('.leaveSpace()');
+      expect(platform).toContain('space.devices.title');
+      expect(platform).toContain('space.leave.action');
+    }
+  });
+
   it('keeps invitation availability copy aligned in every supported language', () => {
     for (const locale of ['en', 'pt-BR', 'ru', 'zh']) {
       const messages = JSON.parse(source(`i18n/locales/${locale}/settingsSync.json`));
       expect(messages.space.invitation.sameLocalNetwork).toEqual(expect.any(String));
       expect(messages.space.invitation.crossNetwork).toEqual(expect.any(String));
+      expect(messages.space.devices.title).toEqual(expect.any(String));
+      expect(messages.space.devices.remove).toEqual(expect.any(String));
+      expect(messages.space.leave.action).toEqual(expect.any(String));
+      expect(messages.space.leave.confirm).toEqual(expect.any(String));
     }
   });
 });

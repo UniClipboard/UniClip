@@ -119,6 +119,14 @@ describe('settingsStore.updateConfig', () => {
   });
 
   it('persists the explicitly selected sync channel', async () => {
+    const eligibleConfig = {
+      ...DEFAULT_SETTINGS,
+      legacyLanEligible: true,
+      servers: [{ type: 'syncclipboard' as const, name: 'Home', url: 'http://home.test' }],
+      activeServerIndex: 0,
+    };
+    mockGetItem.mockResolvedValue(JSON.stringify(eligibleConfig));
+    useSettingsStore.setState({ config: eligibleConfig });
     await configStorage.getConfig();
 
     const result = await useSettingsStore.getState().setSyncChannel('lan');
@@ -126,7 +134,114 @@ describe('settingsStore.updateConfig', () => {
     expect(result).toEqual({ ok: true });
     expect(useSettingsStore.getState().config?.syncChannel).toBe('lan');
     await expect(configStorage.getConfig()).resolves.toEqual(
-      expect.objectContaining({ syncChannel: 'lan' })
+      expect.objectContaining({ syncChannel: 'lan', activeServerIndex: 0 })
     );
+  });
+
+  it('atomically selects an eligible LAN connection', async () => {
+    const servers = [
+      { type: 'syncclipboard' as const, name: 'Home', url: 'http://home.test' },
+      { type: 'syncclipboard' as const, name: 'Office', url: 'http://office.test' },
+    ];
+    const eligibleConfig = {
+      ...DEFAULT_SETTINGS,
+      legacyLanEligible: true,
+      servers,
+      activeServerIndex: 0,
+    };
+    mockGetItem.mockResolvedValue(JSON.stringify(eligibleConfig));
+    useSettingsStore.setState({ config: eligibleConfig });
+    await configStorage.getConfig();
+    mockSetItem.mockClear();
+
+    const result = await useSettingsStore
+      .getState()
+      .selectSyncConnection({ kind: 'lan', serverIndex: 1 });
+
+    expect(result).toEqual({ ok: true });
+    expect(useSettingsStore.getState().config).toEqual(
+      expect.objectContaining({ syncChannel: 'lan', activeServerIndex: 1 })
+    );
+    const configWrites = mockSetItem.mock.calls.filter(([key]) => key === STORAGE_KEYS.CONFIG);
+    expect(configWrites).toHaveLength(1);
+    expect(JSON.parse(configWrites[0][1] as string)).toEqual(
+      expect.objectContaining({ syncChannel: 'lan', activeServerIndex: 1 })
+    );
+  });
+
+  it('selects P2P without deleting the remembered LAN connection', async () => {
+    const eligibleConfig = {
+      ...DEFAULT_SETTINGS,
+      legacyLanEligible: true,
+      servers: [{ type: 'syncclipboard' as const, name: 'Home', url: 'http://home.test' }],
+      activeServerIndex: 0,
+      syncChannel: 'lan' as const,
+    };
+    mockGetItem.mockResolvedValue(JSON.stringify(eligibleConfig));
+    useSettingsStore.setState({ config: eligibleConfig });
+    await configStorage.getConfig();
+
+    const result = await useSettingsStore.getState().selectSyncConnection({ kind: 'p2p' });
+
+    expect(result).toEqual({ ok: true });
+    expect(useSettingsStore.getState().config).toEqual(
+      expect.objectContaining({
+        syncChannel: 'p2p',
+        activeServerIndex: 0,
+        servers: eligibleConfig.servers,
+      })
+    );
+  });
+
+  it('rejects LAN selection for an ineligible install', async () => {
+    const newInstallConfig = {
+      ...DEFAULT_SETTINGS,
+      servers: [{ type: 'syncclipboard' as const, name: 'Imported', url: 'http://imported.test' }],
+      activeServerIndex: 0,
+    };
+    mockGetItem.mockResolvedValue(JSON.stringify(newInstallConfig));
+    useSettingsStore.setState({ config: newInstallConfig });
+    await configStorage.getConfig();
+    mockSetItem.mockClear();
+
+    const result = await useSettingsStore
+      .getState()
+      .selectSyncConnection({ kind: 'lan', serverIndex: 0 });
+
+    expect(result).toEqual({ ok: false, error: 'Legacy LAN connections are unavailable' });
+    expect(useSettingsStore.getState().config?.syncChannel).toBe('p2p');
+    expect(mockSetItem.mock.calls.some(([key]) => key === STORAGE_KEYS.CONFIG)).toBe(false);
+  });
+
+  it('rejects a LAN selection with an unknown server index', async () => {
+    const eligibleConfig = {
+      ...DEFAULT_SETTINGS,
+      legacyLanEligible: true,
+      servers: [{ type: 'syncclipboard' as const, name: 'Home', url: 'http://home.test' }],
+    };
+    mockGetItem.mockResolvedValue(JSON.stringify(eligibleConfig));
+    useSettingsStore.setState({ config: eligibleConfig });
+    await configStorage.getConfig();
+
+    const result = await useSettingsStore
+      .getState()
+      .selectSyncConnection({ kind: 'lan', serverIndex: 2 });
+
+    expect(result).toEqual({ ok: false, error: 'Invalid LAN connection' });
+  });
+
+  it('rejects adding a LAN connection for an ineligible install', async () => {
+    await configStorage.getConfig();
+    mockSetItem.mockClear();
+
+    const result = await useSettingsStore.getState().addServer({
+      type: 'syncclipboard',
+      name: 'Blocked',
+      url: 'http://blocked.test',
+    });
+
+    expect(result).toEqual({ ok: false, error: 'Legacy LAN connections are unavailable' });
+    expect(useSettingsStore.getState().config?.servers).toEqual([]);
+    expect(mockSetItem.mock.calls.some(([key]) => key === STORAGE_KEYS.CONFIG)).toBe(false);
   });
 });

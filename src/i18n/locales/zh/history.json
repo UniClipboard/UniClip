@@ -42,6 +42,12 @@
     "hoursAgo": "{{n}}小时前",
     "daysAgo": "{{n}}天前"
   },
+  "delivery": {
+    "delivered": "已送达",
+    "offline": "设备离线",
+    "failed": "发送失败",
+    "pending": "发送中"
+  },
   "wordPicker": {
     "truncated": "文本过长，仅显示前 {{count}} 字",
     "empty": "没有可选择的文本",
@@ -60,6 +66,7 @@
     "openBrowser": "在浏览器中打开",
     "saveImage": "保存图片",
     "saveFile": "保存文件",
+    "resend": "重新发送",
     "closeMenu": "关闭菜单"
   }
 }

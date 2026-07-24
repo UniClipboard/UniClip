@@ -42,6 +42,12 @@
     "hoursAgo": "Há {{n}} h",
     "daysAgo": "Há {{n}} d"
   },
+  "delivery": {
+    "delivered": "Entregue",
+    "offline": "Dispositivo offline",
+    "failed": "Falha no envio",
+    "pending": "Enviando"
+  },
   "wordPicker": {
     "truncated_one": "Texto muito longo; exibindo {{count}} caractere",
     "truncated_other": "Texto muito longo, mostrando os primeiros {{count}} caracteres",
@@ -61,6 +67,7 @@
     "openBrowser": "Abrir no navegador",
     "saveImage": "Salvar imagem",
     "saveFile": "Salvar arquivo",
+    "resend": "Enviar novamente",
     "closeMenu": "Fechar menu"
   }
 }

@@ -150,6 +150,22 @@ export class UnifiedEngineService {
       case 'changed':
         this.updateSnapshot({ lastEvent: event, lastChangedKind: event.kind });
         break;
+      case 'incomingEntry':
+      case 'incomingPending':
+      case 'receiveAttemptStateChanged':
+      case 'deliveryStatusChanged':
+      case 'transferStatusChanged':
+      case 'activeClipboardChanged':
+        this.updateSnapshot({
+          lastEvent: event,
+          lastChangedKind: event.type,
+          refreshRevision: this.snapshot.refreshRevision + 1,
+        });
+        break;
+      case 'peerPresenceChanged':
+      case 'transferProgress':
+        this.updateSnapshot({ lastEvent: event, lastChangedKind: event.type });
+        break;
       case 'fatal':
         this.updateSnapshot({ status: 'failed', lastEvent: event, fatalFailure: event.failure });
         log.error('[UnifiedEngineService] The P2P engine reported a fatal failure:', event.failure);

@@ -7,7 +7,7 @@ import { create } from 'zustand';
 import { AppConfig } from '../types/storage';
 import { ServerConfig } from '../types/api';
 import { SyncMode, ConflictResolution } from '../types/sync';
-import type { SyncChannel } from '../types/settings';
+import type { SyncChannel, SyncConnectionTarget } from '../types/settings';
 import { configStorage } from '../services/ConfigStorage';
 import { syncConfigToAppGroup } from '../services/appGroupSyncCore';
 
@@ -48,7 +48,7 @@ interface SettingsState {
   getActiveServer: () => ServerConfig | null;
 
   /** 添加服务器 */
-  addServer: (server: ServerConfig) => Promise<void>;
+  addServer: (server: ServerConfig) => Promise<UpdateConfigResult>;
 
   /** 更新服务器 */
   updateServer: (index: number, updates: Partial<ServerConfig>) => Promise<void>;
@@ -72,6 +72,9 @@ interface SettingsState {
 
   /** 设置 P2P 或 LAN 同步通道 */
   setSyncChannel: (channel: SyncChannel) => Promise<UpdateConfigResult>;
+
+  /** Atomically selects the transport and its concrete target. */
+  selectSyncConnection: (target: SyncConnectionTarget) => Promise<UpdateConfigResult>;
 
   /** 设置同步间隔 */
   setSyncInterval: (interval: number) => Promise<void>;
@@ -263,6 +266,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   addServer: async (server: ServerConfig) => {
+    if (!get().config?.legacyLanEligible) {
+      const error = 'Legacy LAN connections are unavailable';
+      set({ error });
+      return { ok: false, error };
+    }
     set({ isSaving: true, error: null });
 
     try {
@@ -270,9 +278,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const config = await configStorage.getConfig();
       await publishConfig(config);
       set({ config, isSaving: false });
+      return { ok: true };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to add server';
       set({ error: errorMessage, isSaving: false });
+      return { ok: false, error: errorMessage };
     }
   },
 
@@ -330,7 +340,32 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     await get().updateConfig({ appearance: theme });
   },
 
-  setSyncChannel: (channel: SyncChannel) => get().updateConfig({ syncChannel: channel }),
+  setSyncChannel: (channel: SyncChannel) => {
+    if (channel === 'p2p') return get().selectSyncConnection({ kind: 'p2p' });
+    return get().selectSyncConnection({
+      kind: 'lan',
+      serverIndex: get().config?.activeServerIndex ?? -1,
+    });
+  },
+
+  selectSyncConnection: async (target: SyncConnectionTarget) => {
+    const config = get().config;
+    if (!config) return { ok: false, error: 'Settings are not loaded' };
+
+    if (target.kind === 'p2p') {
+      return get().updateConfig({ syncChannel: 'p2p' });
+    }
+    if (!config.legacyLanEligible) {
+      return { ok: false, error: 'Legacy LAN connections are unavailable' };
+    }
+    if (target.serverIndex < 0 || target.serverIndex >= config.servers.length) {
+      return { ok: false, error: 'Invalid LAN connection' };
+    }
+    return get().updateConfig({
+      syncChannel: 'lan',
+      activeServerIndex: target.serverIndex,
+    });
+  },
 
   setSyncMode: async (mode: string) => {
     await get().updateConfig({ syncMode: mode as SyncMode });

@@ -13,9 +13,20 @@ describe('explicit sync channel settings', () => {
 
     expect(android).toContain('SingleChoiceSegmentedButtonRow');
     expect(android).toContain('SegmentedButton');
-    expect(android).toContain('setSyncChannel');
+    expect(android).toContain('legacyLanEligible');
+    expect(android).toContain('selectSyncConnection');
+    expect(android).not.toContain('setSyncChannel');
     expect(ios).toContain("pickerStyle('segmented')");
-    expect(ios).toContain('setSyncChannel');
+    expect(ios).toContain('config.legacyLanEligible');
+    expect(ios).toContain('selectSyncConnection');
+    expect(ios).not.toContain('setSyncChannel');
+  });
+
+  it('summarizes the selected P2P connection instead of the retained LAN profile', () => {
+    const android = readFileSync(join(root, 'src/screens/SettingsScreen.android.tsx'), 'utf8');
+
+    expect(android).toContain("if (c.syncChannel === 'p2p')");
+    expect(android).toContain("t('connection.p2pDescription', { ns: 'settingsSync' })");
   });
 
   it.each(['zh', 'en', 'ru', 'pt-BR'])('provides %s channel labels', (locale) => {

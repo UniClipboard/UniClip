@@ -45,7 +45,11 @@ function dependencies(
 describe('UnifiedContentService', () => {
   it('sends current text through P2P without touching LAN', async () => {
     const deps = dependencies('p2p', {
-      readClipboard: jest.fn(async () => ({ type: 'Text', text: 'private text' })),
+      readClipboard: jest.fn(async () => ({
+        type: 'Text',
+        text: 'private text',
+        profileHash: 'LOCAL_TEXT_HASH',
+      })),
     });
     const service = new UnifiedContentService(deps);
 
@@ -53,10 +57,64 @@ describe('UnifiedContentService', () => {
       channel: 'p2p',
       success: true,
       entryId: 'entry-1',
+      profileHash: 'LOCAL_TEXT_HASH',
+      deliveryState: 'delivered',
+      report,
     });
 
     expect(deps.p2p.sendText).toHaveBeenCalledWith('private text', []);
     expect(deps.uploadLanClipboard).not.toHaveBeenCalled();
+  });
+
+  it('preserves every P2P delivery count for honest feedback', async () => {
+    const detailedReport: SendReport = {
+      ...report,
+      totalAccepted: 1,
+      totalDuplicate: 2,
+      totalOffline: 3,
+      totalErrored: 4,
+      totalPending: 5,
+    };
+    const native = api();
+    native.sendText.mockResolvedValueOnce(detailedReport);
+    const deps = dependencies('p2p', {
+      p2p: native,
+      readClipboard: jest.fn(async () => ({ type: 'Text', text: 'delivery details' })),
+    });
+
+    await expect(new UnifiedContentService(deps).sendCurrentClipboard()).resolves.toEqual({
+      channel: 'p2p',
+      success: false,
+      entryId: 'entry-1',
+      profileHash: undefined,
+      deliveryState: 'failed',
+      report: detailedReport,
+    });
+  });
+
+  it('reports an offline P2P send as offline instead of success', async () => {
+    const offlineReport: SendReport = {
+      ...report,
+      totalAccepted: 0,
+      totalOffline: 1,
+    };
+    const native = api();
+    native.sendFiles.mockResolvedValueOnce(offlineReport);
+    const deps = dependencies('p2p', { p2p: native });
+
+    await expect(
+      new UnifiedContentService(deps).sendImportedAsset(
+        { kind: 'file', uri: 'file:///private/offline.txt' },
+        'OFFLINE_FILE_HASH'
+      )
+    ).resolves.toEqual({
+      channel: 'p2p',
+      success: false,
+      entryId: 'entry-1',
+      profileHash: 'OFFLINE_FILE_HASH',
+      deliveryState: 'offline',
+      report: offlineReport,
+    });
   });
 
   it('reads current image bytes and preserves its media type for P2P', async () => {

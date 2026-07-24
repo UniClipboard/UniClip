@@ -1,6 +1,13 @@
 {
   "skip": "跳过",
   "continue": "继续",
+  "setup": {
+    "title": "开始同步",
+    "body": "创建一个新的加密空间，或用邀请码加入已有空间。也可以先跳过，只使用本地历史。",
+    "create": "创建新空间",
+    "join": "加入已有空间",
+    "skip": "暂时跳过"
+  },
   "welcome": {
     "wordmark": "UniClip",
     "title": "把剪贴板\n接到每一台设备",

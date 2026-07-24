@@ -28,6 +28,7 @@ import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
+import org.json.JSONObject
 import uniffi.uc_engine_uniffi.BindingClipboardRepresentation
 import uniffi.uc_engine_uniffi.BindingClipboardRestoreMode
 import uniffi.uc_engine_uniffi.BindingClipboardRestoreOutcome
@@ -39,9 +40,11 @@ import uniffi.uc_engine_uniffi.BindingFailure
 import uniffi.uc_engine_uniffi.BindingFileMetadata
 import uniffi.uc_engine_uniffi.BindingHost
 import uniffi.uc_engine_uniffi.BindingLifecycleAction
+import uniffi.uc_engine_uniffi.EntryNotResendableReason
 import uniffi.uc_engine_uniffi.HostBindingException
 import uniffi.uc_engine_uniffi.InvitationAvailability
 import uniffi.uc_engine_uniffi.MobileEngine
+import uniffi.uc_engine_uniffi.ResendEntryOutcome
 import uniffi.uc_engine_uniffi.SendReport
 import uniffi.uc_engine_uniffi.coreVersion
 
@@ -72,10 +75,101 @@ private fun uriListFile(
   return source.takeIf { it.isFile }
 }
 
+private const val CLIPBOARD_SHARE_MAX_ENTRIES = 64
+private const val CLIPBOARD_SHARE_MAX_AGE_MS = 7L * 24 * 60 * 60 * 1_000
+private const val FILE_DISPLAY_METADATA_FORMAT = "uniclipboard-file-display-metadata"
+private const val FILE_DISPLAY_METADATA_MIME =
+  "application/x-uniclipboard-file-display-metadata+json"
+
+private fun clipboardDisplayNames(
+  representations: List<BindingClipboardRepresentation>
+): Map<String, String> = representations.asSequence()
+  .filterIsInstance<BindingClipboardRepresentation.Inline>()
+  .firstOrNull {
+    it.format == FILE_DISPLAY_METADATA_FORMAT || it.mimeType == FILE_DISPLAY_METADATA_MIME
+  }
+  ?.let { representation ->
+    runCatching {
+      val files = JSONObject(representation.bytes.toString(Charsets.UTF_8)).getJSONArray("files")
+      buildMap {
+        for (index in 0 until files.length()) {
+          val file = files.getJSONObject(index)
+          val storageName = file.optString("storage_name")
+          val displayName = file.optString("display_name")
+          if (storageName.isNotBlank() && displayName.isNotBlank()) {
+            put(storageName, displayName)
+          }
+        }
+      }
+    }.getOrDefault(emptyMap())
+  }
+  .orEmpty()
+
+private fun safeClipboardDisplayName(value: String): String {
+  val leaf = value.substringAfterLast('/').substringAfterLast('\\').trim()
+  val sanitized = buildString {
+    leaf.codePoints().forEach { codePoint ->
+      val replacement = codePoint < 0x20 || codePoint == 0x7f
+      appendCodePoint(if (replacement) '_'.code else codePoint)
+    }
+  }
+  val candidate = buildString {
+    var byteCount = 0
+    sanitized.codePoints().forEach { codePoint ->
+      val character = String(Character.toChars(codePoint))
+      val characterBytes = character.toByteArray(Charsets.UTF_8).size
+      if (byteCount + characterBytes <= 240) {
+        append(character)
+        byteCount += characterBytes
+      }
+    }
+  }.trim()
+  return candidate.takeUnless { it.isBlank() || it == "." || it == ".." } ?: "file"
+}
+
+internal fun pruneClipboardShareCache(
+  root: File,
+  nowMs: Long = System.currentTimeMillis(),
+  maxEntries: Int = CLIPBOARD_SHARE_MAX_ENTRIES
+) {
+  val entries = root.listFiles()?.sortedByDescending(File::lastModified).orEmpty()
+  entries.forEachIndexed { index, entry ->
+    val expired = nowMs - entry.lastModified() > CLIPBOARD_SHARE_MAX_AGE_MS
+    if (expired || index >= maxEntries) entry.deleteRecursively()
+  }
+}
+
+private fun createClipboardShareFile(
+  context: Context,
+  displayName: String,
+  write: (File) -> Unit
+): File {
+  val root = File(context.cacheDir, "uc-engine-clipboard/shares")
+    .also { if (!it.exists() && !it.mkdirs()) throw HostBindingException.Io() }
+  pruneClipboardShareCache(root, maxEntries = CLIPBOARD_SHARE_MAX_ENTRIES - 1)
+  val directory = File(root, UUID.randomUUID().toString())
+    .also { if (!it.mkdirs()) throw HostBindingException.Io() }
+  val target = File(directory, safeClipboardDisplayName(displayName))
+  try {
+    write(target)
+    return target
+  } catch (error: Exception) {
+    directory.deleteRecursively()
+    throw error
+  }
+}
+
+private fun clipboardUri(context: Context, file: File): Uri = FileProvider.getUriForFile(
+  context,
+  "${context.packageName}.ucengine.files",
+  file
+)
+
 internal fun clipDataForRepresentation(
   context: Context,
   files: FileHandleRegistry,
-  representation: BindingClipboardRepresentation
+  representation: BindingClipboardRepresentation,
+  displayNames: Map<String, String> = emptyMap()
 ): ClipData = when (representation) {
   is BindingClipboardRepresentation.Inline -> {
     val referencedFile = uriListFile(
@@ -85,35 +179,44 @@ internal fun clipDataForRepresentation(
       representation.bytes
     )
     if (referencedFile != null) {
-      val directory = File(context.cacheDir, "uc-engine-clipboard")
-        .also { if (!it.exists() && !it.mkdirs()) throw HostBindingException.Io() }
-      val target = File(directory, "clipboard-${UUID.randomUUID()}-${referencedFile.name}")
-      referencedFile.copyTo(target)
-      val uri = FileProvider.getUriForFile(
-        context,
-        "${context.packageName}.ucengine.files",
-        target
-      )
-      ClipData.newUri(context.contentResolver, referencedFile.name, uri)
+      val displayName = displayNames[referencedFile.name] ?: referencedFile.name
+      val target = createClipboardShareFile(context, displayName) {
+        referencedFile.copyTo(it)
+      }
+      val uri = clipboardUri(context, target)
+      ClipData.newUri(context.contentResolver, displayName, uri)
     } else if (representation.format == "text/plain") {
       ClipData.newPlainText("", representation.bytes.toString(Charsets.UTF_8))
     } else {
       val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(representation.mimeType)
         ?: "bin"
-      val directory = File(context.cacheDir, "uc-engine-clipboard")
-        .also { if (!it.exists() && !it.mkdirs()) throw HostBindingException.Io() }
-      val file = File(directory, "clipboard-${UUID.randomUUID()}.$extension")
-      file.writeBytes(representation.bytes)
-      val uri = FileProvider.getUriForFile(
-        context,
-        "${context.packageName}.ucengine.files",
-        file
-      )
+      val file = createClipboardShareFile(context, "clipboard.$extension") {
+        it.writeBytes(representation.bytes)
+      }
+      val uri = clipboardUri(context, file)
       ClipData.newUri(context.contentResolver, "", uri)
     }
   }
-  is BindingClipboardRepresentation.File ->
-    ClipData.newUri(context.contentResolver, representation.displayName, files.uri(representation.handle))
+  is BindingClipboardRepresentation.File -> {
+    val file = createClipboardShareFile(context, representation.displayName) { target ->
+      context.contentResolver.openInputStream(files.uri(representation.handle))?.use { input ->
+        target.outputStream().use(input::copyTo)
+      } ?: throw HostBindingException.Io()
+    }
+    ClipData.newUri(context.contentResolver, representation.displayName, clipboardUri(context, file))
+  }
+}
+
+internal fun clipDataForSnapshot(
+  context: Context,
+  files: FileHandleRegistry,
+  representations: List<BindingClipboardRepresentation>
+): ClipData {
+  val first = representations.firstOrNull {
+    it !is BindingClipboardRepresentation.Inline ||
+      (it.format != FILE_DISPLAY_METADATA_FORMAT && it.mimeType != FILE_DISPLAY_METADATA_MIME)
+  } ?: return ClipData.newPlainText("", "")
+  return clipDataForRepresentation(context, files, first, clipboardDisplayNames(representations))
 }
 
 class UcEngineModule : Module() {
@@ -206,6 +309,40 @@ class UcEngineModule : Module() {
     AsyncFunction("nextEvent") { timeoutMs: Long ->
       requireEngine().nextEvent(timeoutMs.toULong())?.let(::eventMap)
     }
+    AsyncFunction("refreshPeerConnections") {
+      val result = requireEngine().refreshPeerConnections()
+      mapOf(
+        "total" to result.total.toLong(),
+        "online" to result.online.toLong(),
+        "offline" to result.offline.toLong(),
+        "errors" to result.errors.toLong()
+      )
+    }
+    AsyncFunction("querySpaceState") {
+      val result = requireEngine().querySpaceState()
+      mapOf(
+        "hasCompleted" to result.hasCompleted,
+        "spaceId" to result.spaceId,
+        "currentInvitation" to result.currentInvitation?.let {
+          mapOf("invitationCode" to it.invitationCode, "expiresAtMs" to it.expiresAtMs)
+        },
+        "deviceName" to result.deviceName
+      )
+    }
+    AsyncFunction("listDevices") {
+      requireEngine().listDevices().map {
+        mapOf("deviceId" to it.deviceId, "displayName" to it.displayName, "online" to it.online)
+      }
+    }
+    AsyncFunction("removeMember") { deviceId: String ->
+      requireEngine().removeMember(deviceId)
+    }
+    AsyncFunction("resendEntry") { entryId: String, targetDevices: List<String> ->
+      resendOutcomeMap(requireEngine().resendEntry(entryId, targetDevices))
+    }
+    AsyncFunction("leaveSpace") {
+      requireEngine().leaveSpace()
+    }
     AsyncFunction("sendText") { text: String, targetDevices: List<String> ->
       sendReportMap(requireEngine().sendText(text, targetDevices))
     }
@@ -219,6 +356,9 @@ class UcEngineModule : Module() {
       sendReportMap(requireEngine().sendFiles(fileHandles, targetDevices))
     }
     AsyncFunction("captureCurrentClipboard") { requireEngine().captureCurrentClipboard() }
+    AsyncFunction("observeClipboardChange") { dispatch: Boolean ->
+      requireEngine().observeClipboardChange(dispatch)?.let(::sendReportMap)
+    }
     AsyncFunction("restoreClipboard") { entryId: String, mode: String ->
       restoreOutcome(requireEngine().restoreClipboard(entryId, restoreMode(mode)))
     }
@@ -279,6 +419,30 @@ class UcEngineModule : Module() {
     "totalPending" to report.totalPending.toLong()
   )
 
+  private fun resendOutcomeMap(outcome: ResendEntryOutcome): Map<String, Any> = when (outcome) {
+    is ResendEntryOutcome.Completed -> mapOf(
+      "kind" to "completed",
+      "accepted" to outcome.accepted.toLong(),
+      "duplicate" to outcome.duplicate.toLong(),
+      "offline" to outcome.offline.toLong(),
+      "errored" to outcome.errored.toLong(),
+      "pending" to outcome.pending.toLong()
+    )
+    is ResendEntryOutcome.EntryNotFound ->
+      mapOf("kind" to "entryNotFound", "entryId" to outcome.entryId)
+    is ResendEntryOutcome.EntryNotResendable -> mapOf(
+      "kind" to "entryNotResendable",
+      "entryId" to outcome.entryId,
+      "reason" to when (outcome.reason) {
+        EntryNotResendableReason.REMOTE_ORIGIN -> "remoteOrigin"
+        EntryNotResendableReason.PAYLOAD_LOST -> "payloadLost"
+      }
+    )
+    is ResendEntryOutcome.TargetNotTrusted ->
+      mapOf("kind" to "targetNotTrusted", "deviceId" to outcome.deviceId)
+    ResendEntryOutcome.NoEligibleTargets -> mapOf("kind" to "noEligibleTargets")
+  }
+
   private fun failureMap(failure: BindingFailure): Map<String, Any> = mapOf(
     "code" to failure.code.toLong(),
     "category" to failure.category.name,
@@ -306,6 +470,63 @@ class UcEngineModule : Module() {
       "reason" to event.reason.name
     )
     is BindingEvent.Fatal -> mapOf("type" to "fatal", "failure" to failureMap(event.failure))
+    is BindingEvent.IncomingEntry -> mapOf(
+      "type" to "incomingEntry",
+      "entryId" to event.entryId,
+      "attemptId" to event.attemptId,
+      "preview" to event.preview,
+      "origin" to event.origin.name.lowercase()
+    )
+    is BindingEvent.IncomingPending -> mapOf(
+      "type" to "incomingPending",
+      "entryId" to event.entryId,
+      "attemptId" to event.attemptId,
+      "fromDevice" to event.fromDevice,
+      "totalBytes" to event.totalBytes?.toLong(),
+      "filenames" to event.filenames
+    )
+    is BindingEvent.ReceiveAttemptStateChanged -> mapOf(
+      "type" to "receiveAttemptStateChanged",
+      "entryId" to event.entryId,
+      "attemptId" to event.attemptId,
+      "state" to event.state
+    )
+    is BindingEvent.DeliveryStatusChanged -> mapOf(
+      "type" to "deliveryStatusChanged",
+      "entryId" to event.entryId,
+      "targetDeviceId" to event.targetDeviceId
+    )
+    is BindingEvent.PeerPresenceChanged -> mapOf(
+      "type" to "peerPresenceChanged",
+      "deviceId" to event.deviceId,
+      "state" to event.state,
+      "atMs" to event.atMs
+    )
+    is BindingEvent.TransferProgress -> mapOf(
+      "type" to "transferProgress",
+      "transferId" to event.transferId,
+      "entryId" to event.entryId,
+      "attemptId" to event.attemptId,
+      "peerId" to event.peerId,
+      "direction" to event.direction.name.lowercase(),
+      "completedBytes" to event.completedBytes.toLong(),
+      "totalBytes" to event.totalBytes?.toLong()
+    )
+    is BindingEvent.TransferStatusChanged -> mapOf(
+      "type" to "transferStatusChanged",
+      "transferId" to event.transferId,
+      "entryId" to event.entryId,
+      "attemptId" to event.attemptId,
+      "status" to event.status,
+      "reason" to event.reason
+    )
+    is BindingEvent.ActiveClipboardChanged -> mapOf(
+      "type" to "activeClipboardChanged",
+      "snapshotHash" to event.snapshotHash,
+      "entryId" to event.entryId,
+      "activatedAtMs" to event.activatedAtMs,
+      "activatedBy" to event.activatedBy
+    )
     is BindingEvent.Changed -> mapOf("type" to "changed", "kind" to event.kind)
   }
 
@@ -408,10 +629,8 @@ private class AndroidEngineHost(
   override fun clipboardWrite(snapshot: BindingClipboardSnapshot) {
     val clipboard = context.getSystemService(ClipboardManager::class.java)
       ?: throw HostBindingException.Unavailable()
-    val first = snapshot.representations.firstOrNull()
-      ?: return clipboard.setPrimaryClip(ClipData.newPlainText("", ""))
     try {
-      val clip = clipDataForRepresentation(context, files, first)
+      val clip = clipDataForSnapshot(context, files, snapshot.representations)
       clipboard.setPrimaryClip(clip)
     } catch (_: SecurityException) {
       throw HostBindingException.PermissionDenied()

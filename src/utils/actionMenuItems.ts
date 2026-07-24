@@ -17,6 +17,7 @@ interface ActionHandlers {
   onOpenInBrowser: () => void;
   onSaveImage: () => void;
   onSaveFile: () => void;
+  onResend: () => void;
   onShare: () => void;
   onSelect: () => void;
   onDelete: () => void;
@@ -103,6 +104,15 @@ export function getClipboardCardActionDescriptors(
     });
   }
 
+  if (item.p2pEntryId && item.p2pDeliveryState && item.p2pDeliveryState !== 'delivered') {
+    descriptors.push({
+      key: 'resend',
+      label: i18n.t('history:menu.resend'),
+      androidIcon: 'refresh-outline',
+      group: 'primary',
+    });
+  }
+
   descriptors.push({
     key: 'share',
     label: i18n.t('common:action.share'),
@@ -138,6 +148,7 @@ export function buildActionMenuGroups(
     openBrowser: handlers.onOpenInBrowser,
     saveImage: handlers.onSaveImage,
     saveFile: handlers.onSaveFile,
+    resend: handlers.onResend,
     share: handlers.onShare,
     select: handlers.onSelect,
     delete: handlers.onDelete,

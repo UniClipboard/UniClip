@@ -65,7 +65,7 @@ export function SettingsRootPage({
   active?: boolean;
 }) {
   const { t } = useTranslation('settings');
-  const { config, updateConfig } = useSettingsStore();
+  const { config, updateConfig, selectSyncConnection } = useSettingsStore();
   const { setThemeMode } = useTheme();
   const { preference: languagePref, setLanguage } = useAppLanguage();
   const keyboard = useKeyboardStatus();
@@ -90,39 +90,53 @@ export function SettingsRootPage({
           ? { value: t('ios.keyboardHint.notEnabled'), color: undefined }
           : { value: undefined, color: undefined };
 
+  const handleSyncChannel = (value: string) => {
+    if (value === 'p2p') {
+      void selectSyncConnection({ kind: 'p2p' });
+      return;
+    }
+    if (!config.legacyLanEligible || config.activeServerIndex < 0) return;
+    void selectSyncConnection({
+      kind: 'lan',
+      serverIndex: config.activeServerIndex,
+    });
+  };
+
   return (
     <IosSheetPage title={t('action.settings', { ns: 'common' })}>
       <IosSheetForm>
         {/* ── 服务器 ── */}
-        <Section>
-          <SettingsNavRow
-            icon="server.rack"
-            iconColor={settingsTileColors.blue}
-            title={t('category.server')}
-            value={t('server.count', { count: servers.length })}
-            onPress={() => onNavigate('servers')}
-          />
-        </Section>
+        {config.legacyLanEligible ? (
+          <Section footer={<SwiftUIText>{t('connection.lanDeprecated', { ns: 'settingsSync' })}</SwiftUIText>}>
+            <SettingsNavRow
+              icon="server.rack"
+              iconColor={settingsTileColors.blue}
+              title={t('category.server')}
+              value={t('server.count', { count: servers.length })}
+              onPress={() => onNavigate('servers')}
+            />
+          </Section>
+        ) : null}
 
         {/* ── 同步 ── */}
         <Section
           header={<SwiftUIText>{t('category.sync')}</SwiftUIText>}
           footer={<SwiftUIText>{t('ios.sync.footer')}</SwiftUIText>}
         >
-          <HStack spacing={12} modifiers={[frame({ maxWidth: Infinity })]}>
-            <SettingsIconTile systemName="network" color={settingsTileColors.blue} />
-            <Picker
-              label={t('syncChannel.title')}
-              selection={config.syncChannel}
-              onSelectionChange={(value) => {
-                void useSettingsStore.getState().setSyncChannel(value as 'p2p' | 'lan');
-              }}
-              modifiers={[pickerStyle('segmented')]}
-            >
-              <SwiftUIText modifiers={[tag('p2p')]}>{t('syncChannel.p2p')}</SwiftUIText>
-              <SwiftUIText modifiers={[tag('lan')]}>{t('syncChannel.lan')}</SwiftUIText>
-            </Picker>
-          </HStack>
+          {config.legacyLanEligible ? (
+            <HStack spacing={12} modifiers={[frame({ maxWidth: Infinity })]}>
+              <SettingsIconTile systemName="network" color={settingsTileColors.blue} />
+              <Picker
+                label={t('syncChannel.title')}
+                selection={config.syncChannel}
+                onSelectionChange={handleSyncChannel}
+                modifiers={[pickerStyle('segmented')]}
+              >
+                <SwiftUIText modifiers={[tag('p2p')]}>{t('syncChannel.p2p')}</SwiftUIText>
+                <SwiftUIText modifiers={[tag('lan')]}>{t('syncChannel.lan')}</SwiftUIText>
+              </Picker>
+            </HStack>
+          ) : null}
           {config.syncChannel === 'p2p' ? (
             <SettingsNavRow
               icon="person.2"

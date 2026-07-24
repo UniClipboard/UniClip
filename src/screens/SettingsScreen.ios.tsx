@@ -80,6 +80,7 @@ export const SettingsScreen = () => {
   const [prefillData, setPrefillData] = useState<AddServerSaveData | undefined>(undefined);
   const consumePendingConnect = usePendingConnectStore((s) => s.consume);
   const pendingConnectIntent = usePendingConnectStore((s) => s.intent);
+  const legacyLanEligible = config?.legacyLanEligible ?? false;
 
   useEffect(() => {
     if (!isLoaded) loadConfig();
@@ -88,9 +89,10 @@ export const SettingsScreen = () => {
   // 扫码/深链凭据（pendingConnectStore）消费：切到服务器子页并弹出预填「添加服务器」表单。
   // Android 侧对应逻辑在 ServerModals；iOS 设置页用本地 state 驱动子页，故在此消费。
   useEffect(() => {
-    if (!pendingConnectIntent || showServerForm) return;
+    if (!isLoaded || !pendingConnectIntent || showServerForm) return;
     const intent = consumePendingConnect();
     if (!intent) return;
+    if (!legacyLanEligible) return;
     setEditingServerIndex(null);
     setPrefillData({
       name: intent.label ?? '',
@@ -100,7 +102,7 @@ export const SettingsScreen = () => {
     });
     setPage('servers');
     setShowServerForm(true);
-  }, [pendingConnectIntent, showServerForm, consumePendingConnect]);
+  }, [pendingConnectIntent, showServerForm, consumePendingConnect, isLoaded, legacyLanEligible]);
 
   const handleDismiss = useCallback(
     (p: boolean) => {
@@ -122,9 +124,10 @@ export const SettingsScreen = () => {
   );
 
   const openAddServer = useCallback(() => {
+    if (!legacyLanEligible) return;
     setEditingServerIndex(null);
     setShowServerForm(true);
-  }, []);
+  }, [legacyLanEligible]);
 
   const openEditServer = useCallback((index: number) => {
     setEditingServerIndex(index);
@@ -143,7 +146,8 @@ export const SettingsScreen = () => {
         const existing = servers[editingServerIndex];
         await updateServer(editingServerIndex, buildServerConfigFromAddServerData(data, existing));
       } else {
-        await addServer(buildServerConfigFromAddServerData(data));
+        const result = await addServer(buildServerConfigFromAddServerData(data));
+        if (!result.ok) return;
       }
       closeServerForm();
     },
@@ -199,7 +203,7 @@ export const SettingsScreen = () => {
             </ZStack>
 
             <AddServerSheet
-              visible={showServerForm}
+              visible={showServerForm && legacyLanEligible}
               title={editingServerIndex !== null ? t('server.editTitle') : t('server.addTitle')}
               initialData={serverFormInitialData}
               embeddedInHost

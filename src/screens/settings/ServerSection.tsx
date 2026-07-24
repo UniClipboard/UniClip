@@ -48,6 +48,7 @@ export const ServerSection = memo(function ServerSection() {
 
   const servers = useSettingsStore((s) => s.config?.servers ?? []);
   const activeServerIndex = useSettingsStore((s) => s.config?.activeServerIndex ?? -1);
+  const syncChannel = useSettingsStore((s) => s.config?.syncChannel ?? 'p2p');
 
   const openEdit = useServerFormStore((s) => s.openEdit);
   const openAdd = useServerFormStore((s) => s.openAdd);
@@ -55,10 +56,16 @@ export const ServerSection = memo(function ServerSection() {
   const [deleteTarget, setDeleteTarget] = useState<{ index: number; name: string } | null>(null);
 
   const handleSetActiveServer = async (index: number) => {
-    if (index === activeServerIndex) return;
+    if (syncChannel === 'lan' && index === activeServerIndex) return;
 
     try {
-      await useSettingsStore.getState().setActiveServer(index);
+      const result = await useSettingsStore
+        .getState()
+        .selectSyncConnection({ kind: 'lan', serverIndex: index });
+      if (!result.ok) {
+        showMessage(result.error, 'error');
+        return;
+      }
       const { runtimeStateStorage } = await import('@/services/RuntimeStateStorage');
       await runtimeStateStorage.update({ needsHistoryReorganize: true });
       showMessage(t('toast.serverSwitched'), 'success');

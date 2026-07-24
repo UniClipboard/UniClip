@@ -65,6 +65,38 @@ describe('ClipboardManager file reads', () => {
     expect(mockCalculateFileHash).toHaveBeenCalledWith('file://cache/temp_files/received-plan.txt');
   });
 
+  it('keeps a text file as a file when clipboard text coercion returns its contents', async () => {
+    mockGetStringAsync.mockResolvedValue('plain text file contents');
+    const manager = new ClipboardManager();
+
+    await expect(manager.getClipboardContent()).resolves.toEqual(
+      expect.objectContaining({
+        type: 'File',
+        fileName: 'received-plan.txt',
+        localClipboardHash: 'FILE_HASH',
+      })
+    );
+
+    expect(mockSaveFileToFileAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps an iOS file URL as a file when clipboard text coercion returns the URL', async () => {
+    Object.defineProperty(Platform, 'OS', { configurable: true, value: 'ios' });
+    mockGetStringAsync.mockResolvedValue('file://cache/shares/received-plan.txt');
+    const manager = new ClipboardManager();
+
+    await expect(manager.getClipboardContent()).resolves.toEqual(
+      expect.objectContaining({
+        type: 'File',
+        fileName: 'received-plan.txt',
+        localClipboardHash: 'FILE_HASH',
+      })
+    );
+
+    expect(mockGetFileSourceIdAsync).toHaveBeenCalledTimes(1);
+    expect(mockSaveFileToFileAsync).toHaveBeenCalledTimes(1);
+  });
+
   it('does not copy or hash the same clipboard file on every polling tick', async () => {
     const manager = new ClipboardManager();
 

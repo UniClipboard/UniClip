@@ -152,8 +152,13 @@ const ClipboardSyncDirectionGroup = memo(function ClipboardSyncDirectionGroup() 
 /** 「同步」组:服务器与同步 / 历史记录。 */
 const SyncHubGroup = memo(function SyncHubGroup({ iconTint, onNavigate }: HubGroupProps) {
   const { t } = useTranslation('settings');
+  const legacyLanEligible = useSettingsStore((s) => s.config?.legacyLanEligible ?? false);
   const serverSummary = useSettingsStore((s) => {
     const c = s.config;
+    if (!c?.legacyLanEligible) return t('connection.p2pDescription', { ns: 'settingsSync' });
+    if (c.syncChannel === 'p2p') {
+      return t('connection.p2pDescription', { ns: 'settingsSync' });
+    }
     const servers = c?.servers ?? [];
     if (servers.length === 0) return t('hub.summary.serverNone');
     const active = servers[c?.activeServerIndex ?? -1];
@@ -172,7 +177,9 @@ const SyncHubGroup = memo(function SyncHubGroup({ iconTint, onNavigate }: HubGro
     <SettingsSectionItem title={t('category.sync')}>
       <HubRow
         section="sync"
-        label={t('hub.rows.serverLabel')}
+        label={
+          legacyLanEligible ? t('hub.rows.serverLabel') : t('space.title', { ns: 'settingsSync' })
+        }
         summary={serverSummary}
         iconTint={iconTint}
         onNavigate={onNavigate}

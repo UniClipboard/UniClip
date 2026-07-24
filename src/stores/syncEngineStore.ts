@@ -23,8 +23,10 @@ import { activateRepository } from '@/services/db/activateRepository';
 import { historyRepository } from '@/services/db/historyRepository';
 import { writeActivate, clearActivate, noteApplied } from '@/services/ActivateClipboardService';
 import type { ClipboardMeta } from 'uc-core';
+import type { SendReport } from 'uc-engine';
 import type { ClipboardContent } from '@/types';
 import { log } from '@/services/Logger';
+import { persistP2pDeliveryReport } from '@/services/P2pDeliveryState';
 import {
   canAutoApplyInBackground,
   canAutoPushInBackground,
@@ -330,7 +332,27 @@ export function notifySettingsChanged(): void {
 }
 
 /** 本地新内容落库后，按当前方向设置当场尝试上传一次。失败只保留本地，不排队重试。 */
-export async function notifyDeviceClipboardChanged(content: ClipboardContent): Promise<void> {
+export async function notifyDeviceClipboardChanged(
+  content: ClipboardContent
+): Promise<SendReport | null | void> {
+  const config = useSettingsStore.getState().config;
+  if ((config?.syncChannel ?? 'p2p') === 'p2p') {
+    const dispatch =
+      (config?.autoPushLocal ?? true) && (content.type === 'Text' || content.type === 'Image');
+    try {
+      const p2p = require('uc-engine') as {
+        observeClipboardChange(shouldDispatch: boolean): Promise<SendReport | null>;
+      };
+      const report = await p2p.observeClipboardChange(dispatch);
+      if (report) await persistP2pDeliveryReport(content.profileHash, report);
+      return report;
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      log.info('[SyncEngineStore] P2P clipboard observation failed; kept local:', detail);
+      return null;
+    }
+  }
+
   const profileHash = content.profileHash;
   if (!profileHash) return;
 

@@ -3,6 +3,7 @@ node_modules/
 .expo-shared/
 dist/
 **/build/
+**/.build/
 **/target/
 android/
 ios/

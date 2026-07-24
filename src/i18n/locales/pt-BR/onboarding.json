@@ -1,6 +1,13 @@
 {
   "skip": "Pular",
   "continue": "Continuar",
+  "setup": {
+    "title": "Começar a sincronizar",
+    "body": "Crie um novo espaço criptografado ou entre em um espaço com um convite. Você também pode pular e usar apenas o histórico local.",
+    "create": "Criar novo espaço",
+    "join": "Entrar em um espaço",
+    "skip": "Pular por enquanto"
+  },
   "welcome": {
     "wordmark": "UniClip",
     "title": "A área de transferência\nem cada dispositivo",

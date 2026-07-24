@@ -1,6 +1,13 @@
 {
   "skip": "Skip",
   "continue": "Continue",
+  "setup": {
+    "title": "Start syncing",
+    "body": "Create a new encrypted space or join one with an invitation. You can also skip setup and keep using local history.",
+    "create": "Create new space",
+    "join": "Join existing space",
+    "skip": "Skip for now"
+  },
   "welcome": {
     "wordmark": "UniClip",
     "title": "Your clipboard,\non every device",

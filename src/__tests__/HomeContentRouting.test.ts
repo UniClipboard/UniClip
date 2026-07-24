@@ -17,4 +17,18 @@ describe('home content routing', () => {
     expect(controller).not.toContain('getClipboardSyncService().triggerUpload()');
     expect(controller).not.toContain('BackgroundUploadManager.enqueue(');
   });
+
+  it('derives status and refresh from the selected sync connection', () => {
+    expect(controller).toContain('deriveP2pConnectionStatus');
+    expect(controller).toContain('refreshSelectedConnection');
+    expect(controller).toContain('useUnifiedEngineStore');
+    expect(controller).toContain("config?.syncChannel ?? 'p2p'");
+  });
+
+  it('does not expose LAN-only sync banners while P2P is selected', () => {
+    expect(controller).toContain(
+      "const visibleSyncState = syncChannel === 'lan' ? syncState : 'Idle';"
+    );
+    expect(controller).toContain('syncState: visibleSyncState');
+  });
 });

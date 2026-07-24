@@ -17,6 +17,7 @@ export const ServerModals = memo(function ServerModals() {
   const { t } = useTranslation('settingsSync');
   const showMessage = useSettingsToast();
   const servers = useSettingsStore((s) => s.config?.servers ?? []);
+  const legacyLanEligible = useSettingsStore((s) => s.config?.legacyLanEligible ?? false);
 
   const formVisible = useServerFormStore((s) => s.formVisible);
   const editingIndex = useServerFormStore((s) => s.editingIndex);
@@ -32,6 +33,10 @@ export const ServerModals = memo(function ServerModals() {
     if (pendingConnectIntent && !formVisible) {
       const intent = consumePendingConnect();
       if (!intent) return;
+      if (!legacyLanEligible) {
+        showMessage(t('connection.lanDeprecated'), 'error');
+        return;
+      }
       openPrefilled({
         type: 'syncclipboard',
         url: intent.url,
@@ -41,7 +46,7 @@ export const ServerModals = memo(function ServerModals() {
         ...(intent.label ? { name: intent.label } : {}),
       });
     }
-  }, [pendingConnectIntent, formVisible, consumePendingConnect, openPrefilled]);
+  }, [pendingConnectIntent, formVisible, consumePendingConnect, legacyLanEligible, openPrefilled, showMessage, t]);
 
   const editingServer = editingIndex !== null ? servers[editingIndex] : undefined;
   const initialData = useMemo(() => {
@@ -58,7 +63,11 @@ export const ServerModals = memo(function ServerModals() {
         showMessage(t('toast.serverUpdated'), 'success');
       } else {
         const serverConfig = buildServerConfigFromAddServerData(data);
-        await useSettingsStore.getState().addServer(serverConfig);
+        const result = await useSettingsStore.getState().addServer(serverConfig);
+        if (!result.ok) {
+          showMessage(result.error, 'error');
+          return;
+        }
         showMessage(t('toast.serverAdded'), 'success');
       }
     } catch (error: unknown) {
@@ -68,7 +77,7 @@ export const ServerModals = memo(function ServerModals() {
 
   return (
     <AddServerSheet
-      visible={formVisible}
+      visible={formVisible && legacyLanEligible}
       title={editingIndex !== null ? t('form.editTitle') : t('form.addTitle')}
       initialData={initialData}
       onClose={closeForm}

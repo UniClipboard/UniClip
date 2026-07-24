@@ -57,6 +57,14 @@ function handleConnectUrlIfMatched(url: string | null | undefined): boolean {
     Alert.alert(i18n.t('connect:scanFailed'), CONNECT_URI_ERROR_MESSAGES[parsed.error]);
     return true;
   }
+  const legacyLanEligible = useSettingsStore.getState().config?.legacyLanEligible ?? false;
+  if (!legacyLanEligible) {
+    Alert.alert(
+      i18n.t('settingsSync:migration.title'),
+      i18n.t('settingsSync:connection.lanDeprecated')
+    );
+    return true;
+  }
   console.log('[QR][deeplink] succeeded');
   usePendingConnectStore.getState().set({
     url: parsed.value.url,

@@ -44,10 +44,24 @@
     "editTitle": "编辑服务器"
   },
   "toast": {
+    "connectionSwitched": "已切换同步连接",
     "serverSwitched": "已切换服务器",
     "serverDeleted": "服务器已删除",
     "serverAdded": "服务器已添加",
     "serverUpdated": "服务器配置已更新"
+  },
+  "connection": {
+    "addTitle": "新增同步连接",
+    "p2pDescription": "端到端加密空间",
+    "lanDeprecated": "LAN 已弃用，只为升级前已有配置的用户暂时保留，未来版本会删除。",
+    "legacyLanAction": "添加旧 LAN 连接",
+    "invitationExpires": "邀请码将在 {{time}} 到期"
+  },
+  "migration": {
+    "title": "切换到 P2P 同步",
+    "body": "LAN 同步将在未来版本删除。现在可以创建或加入加密空间；在迁移完成前，现有 LAN 连接仍可继续使用。",
+    "setUpP2p": "设置 P2P",
+    "later": "以后再说"
   },
   "space": {
     "title": "P2P 空间",
@@ -80,6 +94,18 @@
       "code": "邀请码",
       "crossNetwork": "此邀请码可用于其他网络中的设备。",
       "sameLocalNetwork": "此邀请码仅在两台设备连接同一局域网时有效。"
+    },
+    "devices": {
+      "title": "空间设备",
+      "empty": "还没有其他设备",
+      "online": "在线",
+      "offline": "离线",
+      "remove": "移除设备",
+      "removeConfirm": "确定从空间中移除这台设备吗？"
+    },
+    "leave": {
+      "action": "离开空间",
+      "confirm": "离开后本地历史仍会保留，但需要重新创建或加入空间才能继续同步。"
     },
     "error": {
       "deviceNameRequired": "请输入设备名称",

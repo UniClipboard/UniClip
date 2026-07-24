@@ -3,6 +3,7 @@ package expo.modules.ucengine
 import androidx.core.content.FileProvider
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import android.provider.OpenableColumns
 import android.util.Base64
 import java.io.File
 import java.security.ProviderException
@@ -120,6 +121,156 @@ class NativeSystemHostTest {
 
     assertNotNull(sharedUri)
     assertArrayEquals(expected, context.contentResolver.openInputStream(sharedUri!!)?.readBytes())
+  }
+
+  @Test
+  fun uriListClipboardSnapshotUsesDisplayMetadataForTheSharedFileName() {
+    val source = File(
+      context.filesDir,
+      "uc-engine/file-cache/host-tests/${UUID.randomUUID()}/00000000"
+    )
+    check(source.parentFile?.mkdirs() == true)
+    val expected = ByteArray(99) { (it % 73).toByte() }
+    source.writeBytes(expected)
+    source.deleteOnExit()
+
+    val clip = clipDataForSnapshot(
+      context,
+      FileHandleRegistry(context),
+      listOf(
+        BindingClipboardRepresentation.Inline(
+          "files",
+          "text/uri-list",
+          "file://${source.absolutePath}\n".toByteArray()
+        ),
+        BindingClipboardRepresentation.Inline(
+          "uniclipboard-file-display-metadata",
+          "application/x-uniclipboard-file-display-metadata+json",
+          """{"files":[{"storage_name":"00000000","display_name":"plan006-original-name.txt"}]}"""
+            .toByteArray()
+        )
+      )
+    )
+    val sharedUri = clip.getItemAt(0).uri!!
+    val displayName = context.contentResolver.query(
+      sharedUri,
+      arrayOf(OpenableColumns.DISPLAY_NAME),
+      null,
+      null,
+      null
+    )?.use { cursor ->
+      check(cursor.moveToFirst())
+      cursor.getString(cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME))
+    }
+
+    assertEquals("plan006-original-name.txt", displayName)
+    assertArrayEquals(expected, context.contentResolver.openInputStream(sharedUri)?.readBytes())
+  }
+
+  @Test
+  fun fileClipboardRepresentationPreservesItsDisplayName() {
+    val source = File(
+      context.cacheDir,
+      "uc-engine-clipboard/host-tests/${UUID.randomUUID()}/00000000"
+    )
+    check(source.parentFile?.mkdirs() == true)
+    val expected = ByteArray(99) { (it % 73).toByte() }
+    source.writeBytes(expected)
+    source.deleteOnExit()
+    val sourceUri = FileProvider.getUriForFile(
+      context,
+      "${context.packageName}.ucengine.files",
+      source
+    )
+    val files = FileHandleRegistry(context)
+    val handle = files.register(sourceUri.toString(), false)
+
+    val clip = clipDataForRepresentation(
+      context,
+      files,
+      BindingClipboardRepresentation.File(
+        "application/octet-stream",
+        handle,
+        "plan006-original-name.txt",
+        "text/plain",
+        expected.size.toULong()
+      )
+    )
+    val sharedUri = clip.getItemAt(0).uri
+    val displayName = context.contentResolver.query(
+      sharedUri!!,
+      arrayOf(OpenableColumns.DISPLAY_NAME),
+      null,
+      null,
+      null
+    )?.use { cursor ->
+      check(cursor.moveToFirst())
+      cursor.getString(cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME))
+    }
+
+    assertEquals("plan006-original-name.txt", displayName)
+    assertArrayEquals(expected, context.contentResolver.openInputStream(sharedUri)?.readBytes())
+  }
+
+  @Test
+  fun fileClipboardRepresentationRemovesUnsafePathComponents() {
+    val source = File(
+      context.cacheDir,
+      "uc-engine-clipboard/host-tests/${UUID.randomUUID()}/00000000"
+    )
+    check(source.parentFile?.mkdirs() == true)
+    source.writeText("safe content")
+    source.deleteOnExit()
+    val sourceUri = FileProvider.getUriForFile(
+      context,
+      "${context.packageName}.ucengine.files",
+      source
+    )
+    val files = FileHandleRegistry(context)
+
+    val clip = clipDataForRepresentation(
+      context,
+      files,
+      BindingClipboardRepresentation.File(
+        "application/octet-stream",
+        files.register(sourceUri.toString(), false),
+        "../../unsafe/report.txt",
+        "text/plain",
+        source.length().toULong()
+      )
+    )
+    val sharedUri = clip.getItemAt(0).uri!!
+    val displayName = context.contentResolver.query(
+      sharedUri,
+      arrayOf(OpenableColumns.DISPLAY_NAME),
+      null,
+      null,
+      null
+    )?.use { cursor ->
+      check(cursor.moveToFirst())
+      cursor.getString(cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME))
+    }
+
+    assertEquals("report.txt", displayName)
+    assertEquals("safe content", context.contentResolver.openInputStream(sharedUri)?.bufferedReader()?.readText())
+  }
+
+  @Test
+  fun clipboardShareCacheRemovesExpiredAndOverflowEntries() {
+    val root = File(context.cacheDir, "uc-engine-clipboard/host-tests/${UUID.randomUUID()}/shares")
+    check(root.mkdirs())
+    val now = System.currentTimeMillis()
+    repeat(66) { index ->
+      val entry = File(root, index.toString()).also { check(it.mkdir()) }
+      check(entry.setLastModified(now - index))
+    }
+    val expired = File(root, "expired").also { check(it.mkdir()) }
+    check(expired.setLastModified(now - 8L * 24 * 60 * 60 * 1_000))
+
+    pruneClipboardShareCache(root, now)
+
+    assertFalse(expired.exists())
+    assertEquals(64, root.listFiles()?.size)
   }
 
   @Test

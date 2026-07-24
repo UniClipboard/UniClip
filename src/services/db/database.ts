@@ -17,7 +17,7 @@ const APP_GROUP_DB_SUBDIR = 'Databases';
  * Schema 版本。与 AsyncStorage 的 HISTORY_VERSION 解耦——
  * 这里管理的是 SQLite 表结构的演进,用 PRAGMA user_version 持久化。
  */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 /** 历史记录表名 */
 export const TABLE_HISTORY = 'clipboard_history';
@@ -134,6 +134,12 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
     version = 2;
   }
 
+  if (version === 2) {
+    await migrateToV3(db);
+    log.info('[DB] applied schema v3 (P2P delivery state)');
+    version = 3;
+  }
+
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 }
 
@@ -200,6 +206,16 @@ CREATE TABLE IF NOT EXISTS ${TABLE_ACTIVATE} (
   const cols = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${TABLE_HISTORY})`);
   if (!cols.some((c) => c.name === 'contentId')) {
     await db.execAsync(`ALTER TABLE ${TABLE_HISTORY} ADD COLUMN contentId TEXT`);
+  }
+}
+
+async function migrateToV3(db: SQLite.SQLiteDatabase): Promise<void> {
+  const cols = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${TABLE_HISTORY})`);
+  if (!cols.some((c) => c.name === 'p2pEntryId')) {
+    await db.execAsync(`ALTER TABLE ${TABLE_HISTORY} ADD COLUMN p2pEntryId TEXT`);
+  }
+  if (!cols.some((c) => c.name === 'p2pDeliveryState')) {
+    await db.execAsync(`ALTER TABLE ${TABLE_HISTORY} ADD COLUMN p2pDeliveryState TEXT`);
   }
 }
 

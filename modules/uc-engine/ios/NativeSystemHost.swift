@@ -112,6 +112,165 @@ struct AppleFileMetadata {
   let mimeType: String?
 }
 
+struct AppleClipboardDisplayMetadata: Decodable {
+  static let format = "uniclipboard-file-display-metadata"
+  static let mimeType = "application/x-uniclipboard-file-display-metadata+json"
+
+  private struct Entry: Decodable {
+    let storageName: String
+    let displayName: String
+
+    enum CodingKeys: String, CodingKey {
+      case storageName = "storage_name"
+      case displayName = "display_name"
+    }
+  }
+
+  private let files: [Entry]
+
+  init(data: Data) throws {
+    self = try JSONDecoder().decode(Self.self, from: data)
+  }
+
+  func displayName(for storageName: String) -> String? {
+    files.first { $0.storageName == storageName }?.displayName
+  }
+
+  static func matches(format: String, mimeType: String?) -> Bool {
+    format == Self.format || mimeType == Self.mimeType
+  }
+}
+
+struct AppleClipboardFileSelection {
+  let sourceURL: URL
+  let displayName: String
+}
+
+enum AppleClipboardFileResolver {
+  static func resolve(
+    format: String,
+    mimeType: String?,
+    bytes: Data,
+    metadata: AppleClipboardDisplayMetadata?,
+    allowedRoots: [URL]
+  ) -> AppleClipboardFileSelection? {
+    let knownFormat = ["files", "public.file-url", "NSFilenamesPboardType"].contains(format)
+    let knownMime = mimeType == "text/uri-list" || mimeType == "file/uri-list"
+    guard knownFormat || knownMime,
+      let uriList = String(data: bytes, encoding: .utf8),
+      let value = uriList.split(whereSeparator: \.isNewline)
+        .map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) })
+        .first(where: { !$0.isEmpty && !$0.hasPrefix("#") }),
+      let parsed = URL(string: value), parsed.isFileURL
+    else { return nil }
+
+    let source = parsed.resolvingSymlinksInPath().standardizedFileURL
+    let isAllowed = allowedRoots.contains { root in
+      let rootPath = root.resolvingSymlinksInPath().standardizedFileURL.path
+      return source.path == rootPath || source.path.hasPrefix(rootPath + "/")
+    }
+    var isDirectory: ObjCBool = false
+    guard isAllowed,
+      FileManager.default.fileExists(atPath: source.path, isDirectory: &isDirectory),
+      !isDirectory.boolValue
+    else { return nil }
+
+    return AppleClipboardFileSelection(
+      sourceURL: source,
+      displayName: metadata?.displayName(for: source.lastPathComponent)
+        ?? source.lastPathComponent
+    )
+  }
+}
+
+final class AppleClipboardShareCache {
+  private static let maximumEntries = 64
+  private static let maximumAge: TimeInterval = 7 * 24 * 60 * 60
+
+  private let root: URL
+  private let fileManager: FileManager
+
+  init(
+    root: URL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+      .appendingPathComponent("uc-engine-clipboard/shares", isDirectory: true),
+    fileManager: FileManager = .default
+  ) {
+    self.root = root
+    self.fileManager = fileManager
+  }
+
+  func create(displayName: String, write: (URL) throws -> Void) throws -> URL {
+    do {
+      try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+      try prune(now: Date(), maximumEntries: Self.maximumEntries - 1)
+      let directory = root.appendingPathComponent(UUID().uuidString, isDirectory: true)
+      try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+      let target = directory.appendingPathComponent(Self.safeDisplayName(displayName))
+      do {
+        try write(target)
+        return target
+      } catch {
+        try? fileManager.removeItem(at: directory)
+        throw error
+      }
+    } catch let error as SystemHostError {
+      throw error
+    } catch {
+      throw SystemHostError.io
+    }
+  }
+
+  func prune(now: Date = Date()) throws {
+    try prune(now: now, maximumEntries: Self.maximumEntries)
+  }
+
+  private func prune(now: Date, maximumEntries: Int) throws {
+    guard fileManager.fileExists(atPath: root.path) else { return }
+    do {
+      let entries = try fileManager.contentsOfDirectory(
+        at: root,
+        includingPropertiesForKeys: [.contentModificationDateKey],
+        options: [.skipsHiddenFiles]
+      ).sorted {
+        let left = try? $0.resourceValues(forKeys: [.contentModificationDateKey])
+          .contentModificationDate
+        let right = try? $1.resourceValues(forKeys: [.contentModificationDateKey])
+          .contentModificationDate
+        return (left ?? .distantPast) > (right ?? .distantPast)
+      }
+      for (index, entry) in entries.enumerated() {
+        let modified = try entry.resourceValues(forKeys: [.contentModificationDateKey])
+          .contentModificationDate ?? .distantPast
+        if now.timeIntervalSince(modified) > Self.maximumAge || index >= maximumEntries {
+          try fileManager.removeItem(at: entry)
+        }
+      }
+    } catch let error as SystemHostError {
+      throw error
+    } catch {
+      throw SystemHostError.io
+    }
+  }
+
+  private static func safeDisplayName(_ value: String) -> String {
+    let leaf = value.components(separatedBy: CharacterSet(charactersIn: "/\\")).last ?? ""
+    let sanitized = String(
+      leaf.unicodeScalars.map { scalar in
+        CharacterSet.controlCharacters.contains(scalar) ? "_" : Character(String(scalar))
+      }
+    ).trimmingCharacters(in: .whitespacesAndNewlines)
+    var result = ""
+    var byteCount = 0
+    for character in sanitized {
+      let bytes = String(character).utf8.count
+      guard byteCount + bytes <= 240 else { break }
+      result.append(character)
+      byteCount += bytes
+    }
+    return result.isEmpty || result == "." || result == ".." ? "file" : result
+  }
+}
+
 final class AppleFileHandleRegistry: @unchecked Sendable {
   private struct Entry {
     let url: URL
@@ -171,6 +330,13 @@ final class AppleFileHandleRegistry: @unchecked Sendable {
       defer { try? file.close() }
       try file.seek(toOffset: offset)
       return try file.read(upToCount: Int(maxBytes)) ?? Data()
+    }
+  }
+
+  func copy(_ handle: String, to destination: URL) throws {
+    let target = try entry(handle)
+    try scoped(target.url) {
+      try FileManager.default.copyItem(at: target.url, to: destination)
     }
   }
 

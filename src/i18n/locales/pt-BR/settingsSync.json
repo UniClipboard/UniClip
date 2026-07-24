@@ -36,10 +36,24 @@
   },
   "form": { "addTitle": "Adicionar servidor", "editTitle": "Editar servidor" },
   "toast": {
+    "connectionSwitched": "Conexao de sincronizacao alterada",
     "serverSwitched": "Servidor alterado",
     "serverDeleted": "Servidor excluído",
     "serverAdded": "Servidor adicionado",
     "serverUpdated": "Configurações do servidor atualizadas"
+  },
+  "connection": {
+    "addTitle": "Adicionar conexão de sincronização",
+    "p2pDescription": "Espaço com criptografia de ponta a ponta",
+    "lanDeprecated": "A LAN está obsoleta e permanece temporariamente disponível apenas para usuários existentes. Ela será removida em uma versão futura.",
+    "legacyLanAction": "Adicionar conexão LAN antiga",
+    "invitationExpires": "O convite expira às {{time}}"
+  },
+  "migration": {
+    "title": "Migrar para sincronização P2P",
+    "body": "A sincronização por LAN será removida em uma versão futura. Você já pode criar ou entrar em um espaço criptografado, enquanto a conexão LAN atual continua disponível durante a transição.",
+    "setUpP2p": "Configurar P2P",
+    "later": "Lembrar depois"
   },
   "space": {
     "title": "Espaço P2P",
@@ -72,6 +86,18 @@
       "code": "Código de convite",
       "crossNetwork": "Este convite pode ser usado por um dispositivo em outra rede.",
       "sameLocalNetwork": "Este convite só funciona enquanto os dois dispositivos estiverem na mesma rede local."
+    },
+    "devices": {
+      "title": "Dispositivos do espaço",
+      "empty": "Nenhum outro dispositivo ainda",
+      "online": "Online",
+      "offline": "Offline",
+      "remove": "Remover dispositivo",
+      "removeConfirm": "Remover este dispositivo do espaço?"
+    },
+    "leave": {
+      "action": "Sair do espaço",
+      "confirm": "O histórico local será mantido. Crie ou entre em um espaço novamente para retomar a sincronização."
     },
     "error": {
       "deviceNameRequired": "Informe o nome do dispositivo",

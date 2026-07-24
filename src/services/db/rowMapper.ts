@@ -31,6 +31,8 @@ export interface HistoryRow {
   deviceName: string | null;
   synced: number | null;
   contentId: string | null;
+  p2pEntryId: string | null;
+  p2pDeliveryState: string | null;
 }
 
 /** 列顺序(单一事实源):INSERT / UPDATE / rowValues 都据此对齐 */
@@ -59,6 +61,8 @@ export const HISTORY_COLUMNS: (keyof HistoryRow)[] = [
   'deviceName',
   'synced',
   'contentId',
+  'p2pEntryId',
+  'p2pDeliveryState',
 ];
 
 const bool = (v: boolean | undefined | null): number => (v ? 1 : 0);
@@ -93,6 +97,8 @@ export function toRow(item: ClipboardItem): HistoryRow {
     deviceName: item.deviceName ?? null,
     synced: optBool(item.synced),
     contentId: item.contentId ?? null,
+    p2pEntryId: item.p2pEntryId ?? null,
+    p2pDeliveryState: item.p2pDeliveryState ?? null,
   };
 }
 
@@ -122,6 +128,8 @@ export function fromRow(row: HistoryRow): ClipboardItem {
     deviceName: row.deviceName ?? undefined,
     synced: row.synced === null || row.synced === undefined ? undefined : !!row.synced,
     contentId: row.contentId ?? undefined,
+    p2pEntryId: row.p2pEntryId ?? undefined,
+    p2pDeliveryState: (row.p2pDeliveryState as ClipboardItem['p2pDeliveryState']) ?? undefined,
   };
 }
 

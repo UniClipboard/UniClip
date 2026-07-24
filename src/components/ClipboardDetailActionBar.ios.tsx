@@ -6,6 +6,7 @@ import {
   Download,
   Ellipsis,
   ExternalLink,
+  RotateCcw,
   Share2,
   TextCursorInput,
   type LucideIcon,
@@ -21,6 +22,7 @@ const ACTION_ICONS: Record<string, LucideIcon> = {
   openBrowser: ExternalLink,
   saveImage: Download,
   saveFile: Download,
+  resend: RotateCcw,
   share: Share2,
   select: CheckCircle2,
 };
@@ -32,6 +34,7 @@ const MENU_IMAGES: Record<string, MenuAction['image']> = {
   openBrowser: 'safari',
   saveImage: 'square.and.arrow.down',
   saveFile: 'square.and.arrow.down',
+  resend: 'arrow.clockwise',
   share: 'square.and.arrow.up',
   select: 'checkmark.circle',
   delete: 'trash',

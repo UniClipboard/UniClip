@@ -37,6 +37,27 @@ export class ClipboardManager {
    */
   async getClipboardContent(): Promise<ClipboardContent | null> {
     try {
+      const fileSourceId = await ClipboardProxy.getFileSourceIdAsync();
+      if (fileSourceId) {
+        if (fileSourceId === this._lastFileSourceId && this._lastFileContent) {
+          return await this.getCachedFileContent(Date.now());
+        }
+        if (this._fileReadInFlight?.sourceId === fileSourceId) {
+          const content = await this._fileReadInFlight.promise;
+          return content ? { ...content, timestamp: Date.now() } : null;
+        }
+
+        const promise = this.readClipboardFile();
+        this._fileReadInFlight = { sourceId: fileSourceId, promise };
+        try {
+          return await promise;
+        } finally {
+          if (this._fileReadInFlight?.promise === promise) {
+            this._fileReadInFlight = null;
+          }
+        }
+      }
+
       // Directly try getting text first (avoids extra overlay windows for type checks)
       const text = await ClipboardProxy.getStringAsync();
       if (text && text.length > 0) {
@@ -64,30 +85,9 @@ export class ClipboardManager {
       }
 
       if (Platform.OS === 'android') {
-        const fileSourceId = await ClipboardProxy.getFileSourceIdAsync();
-        if (fileSourceId === this._lastFileSourceId && this._lastFileContent) {
-          return await this.getCachedFileContent(Date.now());
-        }
-        if (!fileSourceId) {
-          this.resetFileReadCache();
-          this._imageReadFailedForState = false;
-          return null;
-        }
-
-        if (this._fileReadInFlight?.sourceId === fileSourceId) {
-          const content = await this._fileReadInFlight.promise;
-          return content ? { ...content, timestamp: Date.now() } : null;
-        }
-
-        const promise = this.readAndroidClipboardFile();
-        this._fileReadInFlight = { sourceId: fileSourceId, promise };
-        try {
-          return await promise;
-        } finally {
-          if (this._fileReadInFlight?.promise === promise) {
-            this._fileReadInFlight = null;
-          }
-        }
+        this.resetFileReadCache();
+        this._imageReadFailedForState = false;
+        return null;
       }
 
       this._imageReadFailedForState = false;
@@ -104,7 +104,7 @@ export class ClipboardManager {
     this._lastFileContent = null;
   }
 
-  private async readAndroidClipboardFile(): Promise<ClipboardContent | null> {
+  private async readClipboardFile(): Promise<ClipboardContent | null> {
     const file = await ClipboardProxy.saveFileToFileAsync(CLIPBOARD_TEMP_DIR.uri);
     if (!file) {
       this.resetFileReadCache();

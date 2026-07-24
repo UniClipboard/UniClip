@@ -227,8 +227,11 @@ function BottomRow({
   theme: CardBodyProps['theme'];
   meta?: string;
 }) {
+  const { t } = useTranslation('history');
   const dirColor = overlay ? 'rgba(255,255,255,0.7)' : theme.colors.textSecondary;
   const indicator = getHistoryDirectionIndicator(item);
+  const deliveryLabel = item.p2pDeliveryState ? t(`delivery.${item.p2pDeliveryState}`) : '';
+  const bottomMeta = [meta, deliveryLabel].filter(Boolean).join(' · ');
   return (
     <View style={styles.bottomRow}>
       {indicator === 'download' ? (
@@ -238,7 +241,9 @@ function BottomRow({
       ) : (
         <ArrowUp size={10} color={dirColor} />
       )}
-      {!!meta && <Text style={[styles.bottomMeta, { color: theme.colors.border }]}>{meta}</Text>}
+      {bottomMeta ? (
+        <Text style={[styles.bottomMeta, { color: theme.colors.border }]}>{bottomMeta}</Text>
+      ) : null}
       <View style={styles.bottomSpacer} />
       {isLatest && (
         <View

@@ -44,6 +44,45 @@ export interface SendReport {
   totalPending: number;
 }
 
+export interface PeerConnectionRefresh {
+  total: number;
+  online: number;
+  offline: number;
+  errors: number;
+}
+
+export interface SpaceInvitation {
+  invitationCode: string;
+  expiresAtMs: number;
+}
+
+export interface SpaceState {
+  hasCompleted: boolean;
+  spaceId: string | null;
+  currentInvitation: SpaceInvitation | null;
+  deviceName: string | null;
+}
+
+export interface Device {
+  deviceId: string;
+  displayName: string;
+  online: boolean;
+}
+
+export type ResendEntryOutcome =
+  | {
+      kind: 'completed';
+      accepted: number;
+      duplicate: number;
+      offline: number;
+      errored: number;
+      pending: number;
+    }
+  | { kind: 'entryNotFound'; entryId: string }
+  | { kind: 'entryNotResendable'; entryId: string; reason: 'remoteOrigin' | 'payloadLost' }
+  | { kind: 'targetNotTrusted'; deviceId: string }
+  | { kind: 'noEligibleTargets' };
+
 export type EngineEvent =
   | { type: 'stateChanged'; state: EngineState }
   | {
@@ -59,6 +98,54 @@ export type EngineEvent =
     }
   | { type: 'refreshRequired'; reason: string }
   | { type: 'fatal'; failure: { code: number; category: string; retryable: boolean } }
+  | {
+      type: 'incomingEntry';
+      entryId: string;
+      attemptId: string | null;
+      preview: string;
+      origin: 'local' | 'remote';
+    }
+  | {
+      type: 'incomingPending';
+      entryId: string;
+      attemptId: string | null;
+      fromDevice: string;
+      totalBytes: number | null;
+      filenames: string[];
+    }
+  | {
+      type: 'receiveAttemptStateChanged';
+      entryId: string;
+      attemptId: string;
+      state: string;
+    }
+  | { type: 'deliveryStatusChanged'; entryId: string; targetDeviceId: string }
+  | { type: 'peerPresenceChanged'; deviceId: string; state: string; atMs: number }
+  | {
+      type: 'transferProgress';
+      transferId: string;
+      entryId: string | null;
+      attemptId: string | null;
+      peerId: string;
+      direction: 'sending' | 'receiving';
+      completedBytes: number;
+      totalBytes: number | null;
+    }
+  | {
+      type: 'transferStatusChanged';
+      transferId: string;
+      entryId: string;
+      attemptId: string | null;
+      status: string;
+      reason: string | null;
+    }
+  | {
+      type: 'activeClipboardChanged';
+      snapshotHash: string;
+      entryId: string;
+      activatedAtMs: number;
+      activatedBy: string;
+    }
   | { type: 'changed'; kind: string };
 
 export type ClipboardRestoreMode = 'standard' | 'plainText' | 'filePaths';
@@ -78,6 +165,12 @@ interface UcEngineNativeModule {
     passphrase: string
   ): Promise<SpaceJoined>;
   nextEvent(timeoutMs: number): Promise<EngineEvent | null>;
+  refreshPeerConnections(): Promise<PeerConnectionRefresh>;
+  querySpaceState(): Promise<SpaceState>;
+  listDevices(): Promise<Device[]>;
+  removeMember(deviceId: string): Promise<void>;
+  resendEntry(entryId: string, targetDevices: string[]): Promise<ResendEntryOutcome>;
+  leaveSpace(): Promise<void>;
   sendText(text: string, targetDevices: string[]): Promise<SendReport>;
   sendImage(bytes: Uint8Array, mimeType: string, targetDevices: string[]): Promise<SendReport>;
   registerInputFile(uri: string): string;
@@ -85,6 +178,7 @@ interface UcEngineNativeModule {
   releaseFileHandle(handle: string): void;
   sendFiles(fileHandles: string[], targetDevices: string[]): Promise<SendReport>;
   captureCurrentClipboard(): Promise<string | null>;
+  observeClipboardChange(dispatch: boolean): Promise<SendReport | null>;
   restoreClipboard(entryId: string, mode: ClipboardRestoreMode): Promise<ClipboardRestoreOutcome>;
   exportEntry(entryId: string, destinationHandle: string): Promise<void>;
 }
@@ -131,6 +225,33 @@ export function nextEvent(timeoutMs = 1_000): Promise<EngineEvent | null> {
   return NativeModule.nextEvent(timeoutMs);
 }
 
+export function refreshPeerConnections(): Promise<PeerConnectionRefresh> {
+  return NativeModule.refreshPeerConnections();
+}
+
+export function querySpaceState(): Promise<SpaceState> {
+  return NativeModule.querySpaceState();
+}
+
+export function listDevices(): Promise<Device[]> {
+  return NativeModule.listDevices();
+}
+
+export function removeMember(deviceId: string): Promise<void> {
+  return NativeModule.removeMember(deviceId);
+}
+
+export function resendEntry(
+  entryId: string,
+  targetDevices: string[] = []
+): Promise<ResendEntryOutcome> {
+  return NativeModule.resendEntry(entryId, targetDevices);
+}
+
+export function leaveSpace(): Promise<void> {
+  return NativeModule.leaveSpace();
+}
+
 export function sendText(text: string, targetDevices: string[] = []): Promise<SendReport> {
   return NativeModule.sendText(text, targetDevices);
 }
@@ -164,6 +285,10 @@ export function sendFiles(
 
 export function captureCurrentClipboard(): Promise<string | null> {
   return NativeModule.captureCurrentClipboard();
+}
+
+export function observeClipboardChange(dispatch: boolean): Promise<SendReport | null> {
+  return NativeModule.observeClipboardChange(dispatch);
 }
 
 export function restoreClipboard(

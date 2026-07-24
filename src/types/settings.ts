@@ -3,6 +3,7 @@ import { ServerConfig } from './api';
 import { SyncMode, ConflictResolution } from './sync';
 
 export type SyncChannel = 'p2p' | 'lan';
+export type SyncConnectionTarget = { kind: 'p2p' } | { kind: 'lan'; serverIndex: number };
 
 export interface ServerData {
   servers: ServerConfig[];
@@ -53,6 +54,10 @@ export interface SharedSettings {
   // Onboarding
   /** 首次启动引导是否已完成(RN 侧门控,不供原生扩展消费)。 */
   onboardingCompleted: boolean;
+  /** Schema-v7 snapshot: this install already used LAN before LAN became upgrade-only. */
+  legacyLanEligible: boolean;
+  /** Last app version that showed the LAN-to-P2P migration prompt. */
+  lanMigrationPromptedVersion: string | null;
 }
 
 export type ClipboardAccessMethod = 'overlay-polling' | 'overlay-event' | 'shizuku';
@@ -136,6 +141,8 @@ export const SHARED_DEFAULTS: SharedSettings = {
   keyboardHapticFeedback: true,
 
   onboardingCompleted: false,
+  legacyLanEligible: false,
+  lanMigrationPromptedVersion: null,
 };
 
 export const ANDROID_DEFAULTS: AndroidSettings = {
@@ -192,4 +199,4 @@ export const RUNTIME_STATE_DEFAULTS: RuntimeState = {
   needsHistoryReorganize: false,
 };
 
-export const SETTINGS_SCHEMA_VERSION = 6;
+export const SETTINGS_SCHEMA_VERSION = 7;

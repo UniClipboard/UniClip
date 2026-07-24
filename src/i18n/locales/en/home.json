@@ -1,8 +1,8 @@
 {
   "empty": {
     "unconfigured": {
-      "title": "No device paired",
-      "description": "Open UniClipboard on a computer on the same Wi‑Fi network to link it and start syncing."
+      "title": "No P2P space yet",
+      "description": "Create a space or join one with an invitation to start syncing. Your local history stays available."
     },
     "connecting": {
       "title": "Connecting…",
@@ -62,6 +62,12 @@
     "sentToPeers": "Sent to your other devices",
     "uploadFailed": "Upload failed",
     "savedLocally": "Saved locally",
+    "p2pDelivery": {
+      "delivered": "Delivered to your other devices",
+      "offline": "Saved here; the other device is offline",
+      "failed": "Saved here; sending failed",
+      "pending": "Saved here; still sending"
+    },
     "pickFileFailed": "Couldn't pick a file",
     "pickImageFailed": "Couldn't pick an image",
     "cameraPermissionNeeded": "Camera permission required",

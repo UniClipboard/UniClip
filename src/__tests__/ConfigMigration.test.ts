@@ -1,6 +1,10 @@
 import { describe, expect, it } from '@jest/globals';
 import { migrateConfig, extractRuntimeState } from '../services/ConfigMigration';
-import { DEFAULT_SETTINGS, RUNTIME_STATE_DEFAULTS } from '../types/settings';
+import {
+  DEFAULT_SETTINGS,
+  RUNTIME_STATE_DEFAULTS,
+  SETTINGS_SCHEMA_VERSION,
+} from '../types/settings';
 import { SyncMode, ConflictResolution } from '../types/sync';
 
 describe('migrateConfig', () => {
@@ -24,6 +28,41 @@ describe('migrateConfig', () => {
     const result = migrateConfig({ ...DEFAULT_SETTINGS, syncChannel: undefined }, 5);
 
     expect(result.syncChannel).toBe('lan');
+  });
+
+  it('marks a pre-v7 install with an existing LAN server as legacy-LAN eligible', () => {
+    const result = migrateConfig(
+      {
+        ...DEFAULT_SETTINGS,
+        servers: [{ type: 'syncclipboard', name: 'Home', url: 'http://home.test' }],
+        syncChannel: 'lan',
+      },
+      6
+    );
+
+    expect(SETTINGS_SCHEMA_VERSION).toBe(7);
+    expect(result.legacyLanEligible).toBe(true);
+    expect(result.lanMigrationPromptedVersion).toBeNull();
+  });
+
+  it('does not grant legacy LAN eligibility to a pre-v7 install without a server', () => {
+    const result = migrateConfig({ ...DEFAULT_SETTINGS, servers: [], syncChannel: 'lan' }, 6);
+
+    expect(result.legacyLanEligible).toBe(false);
+  });
+
+  it('preserves recorded LAN migration state after schema v7', () => {
+    const result = migrateConfig(
+      {
+        ...DEFAULT_SETTINGS,
+        legacyLanEligible: true,
+        lanMigrationPromptedVersion: '1.4.0',
+      },
+      7
+    );
+
+    expect(result.legacyLanEligible).toBe(true);
+    expect(result.lanMigrationPromptedVersion).toBe('1.4.0');
   });
 
   it.each(['p2p', 'lan'] as const)('preserves the explicit sync channel %s', (syncChannel) => {

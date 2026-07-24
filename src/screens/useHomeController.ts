@@ -14,11 +14,26 @@ import { log } from '@/services/Logger';
 import { useMessageStore } from '@/stores/messageStore';
 import { useErrorStore } from '@/stores/errorStore';
 import { useSyncEngineStore, notifyDeviceClipboardChanged } from '@/stores/syncEngineStore';
+import { useUnifiedEngineStore } from '@/stores/unifiedEngineStore';
+import { useUnifiedSpaceStore } from '@/stores/unifiedSpaceStore';
 import { deriveConnectionStatus } from '@/utils/connectionStatus';
+import {
+  deriveP2pConnectionStatus,
+  refreshSelectedConnection,
+} from '@/services/SelectedSyncConnection';
 import { historyStorage } from '@/services';
 import { getUnifiedContentService } from '@/services/UnifiedContentService';
+import { getUnifiedSpaceService } from '@/services/UnifiedSpaceService';
+import {
+  p2pDeliveryStateFromResend,
+  p2pDeliveryUpdates,
+  persistP2pDeliveryReport,
+} from '@/services/P2pDeliveryState';
+import { shouldShowLanMigrationPrompt } from '@/services/LanMigrationPolicy';
+import { APP_VERSION } from '@/constants';
 import { ClipboardItem, ClipboardContent } from '@/types/clipboard';
 import type { AddServerSaveData } from '@/components/AddServerSheet.types';
+import type { SyncConnectionTarget } from '@/types/settings';
 import { importFileToHistory } from '@/utils/uploadFile';
 import { copyToLocalClipboard } from '@/utils/clipboard';
 import { DisplayKind, getDisplayKind } from '@/utils/displayKind';
@@ -32,13 +47,6 @@ import * as ImagePicker from 'expo-image-picker';
 function getErrorCode(error: unknown): string {
   if (typeof error !== 'object' || error === null || !('code' in error)) return 'UNKNOWN';
   return typeof error.code === 'string' ? error.code : 'UNKNOWN';
-}
-
-// 下拉刷新 / 同步按钮统一走 SyncEngine 的显式 pull（enginePull(Explicit)）——引擎内部
-// get_latest + 冲突解析 + watermark，Applied 分支经 applyToDevice 写回剪贴板/历史，
-// 不再在 UI 层直调 FFI（旧 fetchAndApplyServerClipboard 已删）。
-async function refreshFromServer(): Promise<void> {
-  await useSyncEngineStore.getState().forceSync();
 }
 
 /**
@@ -74,8 +82,10 @@ export function useHomeController(onOpenSettings: () => void) {
   const config = useSettingsStore((s) => s.config);
   const getActiveServer = useSettingsStore((s) => s.getActiveServer);
   const getServers = useSettingsStore((s) => s.getServers);
-  const setActiveServer = useSettingsStore((s) => s.setActiveServer);
+  const selectSyncConnection = useSettingsStore((s) => s.selectSyncConnection);
+  const updateConfig = useSettingsStore((s) => s.updateConfig);
   const addServer = useSettingsStore((s) => s.addServer);
+  const settingsLoaded = useSettingsStore((s) => s.isLoaded);
   const consumePendingConnect = usePendingConnectStore((s) => s.consume);
 
   // message 不在此订阅，交给自隔离的 <ConnectedMessageToast/>，toast 出现/消失只重渲它自身
@@ -83,21 +93,29 @@ export function useHomeController(onOpenSettings: () => void) {
   const clearError = useErrorStore((s) => s.clearError);
 
   const activeServer = getActiveServer();
+  const syncChannel = config?.syncChannel ?? 'p2p';
+  const legacyLanEligible = config?.legacyLanEligible ?? false;
+  const p2pSpaceId = useUnifiedSpaceStore((s) => s.spaceId);
 
   // 服务器在线状态 —— 单一数据源是 SyncEngine 的状态机，细粒度订阅避免整树重渲
   const syncState = useSyncEngineStore((s) => s.status.state);
   const syncLastSyncedAt = useSyncEngineStore((s) => s.status.lastSyncedAt);
   const syncRefreshing = useSyncEngineStore((s) => s.status.isExplicitlyRefreshing);
   const stagedEntry = useSyncEngineStore((s) => s.status.stagedEntry);
+  const visibleSyncState = syncChannel === 'lan' ? syncState : 'Idle';
+  const p2pStatus = useUnifiedEngineStore((s) => s.status);
+  const p2pRefreshRevision = useUnifiedEngineStore((s) => s.refreshRevision);
   const connectionStatus = useMemo(
     () =>
-      deriveConnectionStatus({
-        hasServer: !!activeServer,
-        state: syncState,
-        isExplicitlyRefreshing: syncRefreshing,
-        hasSyncedOnce: syncLastSyncedAt != null,
-      }),
-    [activeServer, syncState, syncRefreshing, syncLastSyncedAt]
+      syncChannel === 'p2p'
+        ? deriveP2pConnectionStatus(p2pStatus, p2pSpaceId !== null)
+        : deriveConnectionStatus({
+            hasServer: !!activeServer,
+            state: syncState,
+            isExplicitlyRefreshing: syncRefreshing,
+            hasSyncedOnce: syncLastSyncedAt != null,
+          }),
+    [activeServer, p2pSpaceId, p2pStatus, syncChannel, syncState, syncRefreshing, syncLastSyncedAt]
   );
 
   // HasNewUnwritten banner 的预览文案：按 stagedEntry.kind 取摘要，Text 直接秀内容
@@ -133,6 +151,7 @@ export function useHomeController(onOpenSettings: () => void) {
   const [isApplyingStaged, setIsApplyingStaged] = useState(false);
 
   const [showServerPicker, setShowServerPicker] = useState(false);
+  const [showAddConnection, setShowAddConnection] = useState(false);
   const [showAddServer, setShowAddServer] = useState(false);
   const [addServerPrefill, setAddServerPrefill] = useState<AddServerSaveData | undefined>(
     undefined
@@ -148,7 +167,12 @@ export function useHomeController(onOpenSettings: () => void) {
   const servers = getServers();
   const activeServerIndex = config?.activeServerIndex ?? -1;
   const activeServerLabel =
-    activeServer?.name || activeServer?.url || t('topBar.serverUnconfigured');
+    syncChannel === 'p2p'
+      ? t('settingsSync:space.title')
+      : activeServer?.name || activeServer?.url || t('topBar.serverUnconfigured');
+  const showLanMigrationPrompt = config
+    ? shouldShowLanMigrationPrompt(config, APP_VERSION, p2pSpaceId !== null)
+    : false;
 
   // 空状态文案：按连接语义给出「纯提示」，不带任何操作按钮
   //（配对/重试/去设置等动作分别由顶栏服务器切换、SyncEngine 自动重试、设置入口承担）
@@ -202,12 +226,23 @@ export function useHomeController(onOpenSettings: () => void) {
     loadItems();
   }, [setSort, loadItems]);
 
+  useEffect(() => {
+    if (syncChannel === 'p2p' && p2pRefreshRevision > 0) {
+      loadItems();
+    }
+  }, [loadItems, p2pRefreshRevision, syncChannel]);
+
   // 引导扫码交接:QrScannerModal 已把凭据写入 pendingConnectStore,首帧挂载即消费并弹出
   // 预填「添加服务器」表单。仅挂载一次([] 依赖)——绝不订阅 intent 变化,否则 HomeView 常驻在
   // Settings 之下时会抢走设置页内嵌扫码器(场景②)的凭据。
   useEffect(() => {
+    if (!settingsLoaded) return;
     const intent = consumePendingConnect();
     if (!intent) return;
+    if (!legacyLanEligible) {
+      showMessage(t('settingsSync:connection.lanDeprecated'), 'error');
+      return;
+    }
     setAddServerPrefill({
       name: intent.label ?? '',
       urls: intent.urls && intent.urls.length > 0 ? intent.urls : [intent.url],
@@ -215,7 +250,7 @@ export function useHomeController(onOpenSettings: () => void) {
       password: intent.pwd,
     });
     setShowAddServer(true);
-  }, []);
+  }, [consumePendingConnect, legacyLanEligible, settingsLoaded, showMessage, t]);
 
   // Listen for storage changes
   useEffect(() => {
@@ -425,6 +460,24 @@ export function useHomeController(onOpenSettings: () => void) {
             showMessage(t('toast.saveFailed'), 'error');
           }
         },
+        onResend: async () => {
+          if (!item.p2pEntryId) return;
+          try {
+            const outcome = await getUnifiedSpaceService().resendEntry(item.p2pEntryId);
+            const deliveryState = p2pDeliveryStateFromResend(outcome);
+            await historyStorage.updateItem(
+              item.profileHash,
+              p2pDeliveryUpdates(item.p2pEntryId, deliveryState)
+            );
+            showMessage(
+              t(`toast.p2pDelivery.${deliveryState}`),
+              deliveryState === 'delivered' ? 'success' : 'error'
+            );
+          } catch (error) {
+            log.error('[HomeView] Failed to resend P2P content:', error);
+            showMessage(t('toast.p2pDelivery.failed'), 'error');
+          }
+        },
         onShare: async () => {
           if (
             (displayKind === 'image' || displayKind === 'file' || displayKind === 'group') &&
@@ -495,12 +548,15 @@ export function useHomeController(onOpenSettings: () => void) {
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await refreshFromServer();
+      await refreshSelectedConnection(syncChannel, {
+        refreshP2p: () => require('uc-engine').refreshPeerConnections(),
+        refreshLan: () => useSyncEngineStore.getState().forceSync(),
+      });
       await loadItems();
     } finally {
       setRefreshing(false);
     }
-  }, [loadItems]);
+  }, [loadItems, syncChannel]);
 
   // HasNewUnwritten banner「应用」：下载 staged 内容写回设备，成功后引擎会转出该状态
   const handleApplyStagedEntry = useCallback(async () => {
@@ -519,7 +575,10 @@ export function useHomeController(onOpenSettings: () => void) {
     if (isSyncing) return;
     setIsSyncing(true);
     try {
-      await refreshFromServer();
+      await refreshSelectedConnection(syncChannel, {
+        refreshP2p: () => require('uc-engine').refreshPeerConnections(),
+        refreshLan: () => useSyncEngineStore.getState().forceSync(),
+      });
       await loadItems();
       showMessage(t('toast.syncDone'), 'success');
     } catch {
@@ -527,25 +586,29 @@ export function useHomeController(onOpenSettings: () => void) {
     } finally {
       setIsSyncing(false);
     }
-  }, [isSyncing, showMessage, loadItems, t]);
+  }, [isSyncing, showMessage, loadItems, syncChannel, t]);
 
   // Upload
   const handleUpload = useCallback(async () => {
     try {
       clearError();
       const result = await getUnifiedContentService().sendCurrentClipboard();
-      if (result.success) {
+      if (result.channel === 'p2p') {
+        await persistP2pDeliveryReport(result.profileHash, result.report);
+        await loadItems();
         showMessage(
-          t(result.channel === 'p2p' ? 'toast.sentToPeers' : 'toast.uploadedToServer'),
-          'success'
+          t(`toast.p2pDelivery.${result.deliveryState}`),
+          result.success ? 'success' : 'error'
         );
+      } else if (result.success) {
+        showMessage(t('toast.uploadedToServer'), 'success');
       } else {
         showMessage(result.error || t('toast.uploadFailed'), 'error');
       }
     } catch {
       showMessage(t('toast.uploadFailed'), 'error');
     }
-  }, [showMessage, clearError, t]);
+  }, [showMessage, clearError, loadItems, t]);
 
   // 先落本地并立即显示，再按用户明确选择的通道发送。
   const saveAndPush = useCallback(
@@ -578,16 +641,22 @@ export function useHomeController(onOpenSettings: () => void) {
           },
           result.profileHash
         );
-        showMessage(
-          t(sendResult.channel === 'p2p' ? 'toast.sentToPeers' : 'toast.savedLocally'),
-          'success'
-        );
+        if (sendResult.channel === 'p2p') {
+          await persistP2pDeliveryReport(sendResult.profileHash, sendResult.report);
+          await loadItems();
+          showMessage(
+            t(`toast.p2pDelivery.${sendResult.deliveryState}`),
+            sendResult.success ? 'success' : 'error'
+          );
+        } else {
+          showMessage(t('toast.savedLocally'), 'success');
+        }
       } catch (error) {
         log.error('[HomeView] Failed to send imported content:', error);
         showMessage(t('toast.uploadFailed'), 'error');
       }
     },
-    [showMessage, t]
+    [loadItems, showMessage, t]
   );
 
   // Upload file
@@ -681,18 +750,39 @@ export function useHomeController(onOpenSettings: () => void) {
 
   const allSelected = items.length > 0 && selectedIds.size === items.length;
 
-  const handleSwitchServer = useCallback(
-    async (index: number) => {
-      await setActiveServer(index);
+  const handleSwitchConnection = useCallback(
+    async (target: SyncConnectionTarget) => {
+      const result = await selectSyncConnection(target);
+      if (!result.ok) {
+        showMessage(result.error, 'error');
+        return;
+      }
       setShowServerPicker(false);
-      showMessage(t('toast.serverSwitched'), 'success');
+      showMessage(t('settingsSync:toast.connectionSwitched'), 'success');
     },
-    [setActiveServer, showMessage, t]
+    [selectSyncConnection, showMessage, t]
   );
+
+  const handleP2pConnected = useCallback(async () => {
+    const target: SyncConnectionTarget = { kind: 'p2p' };
+    const result = await selectSyncConnection(target);
+    if (!result.ok) {
+      showMessage(result.error, 'error');
+      return false;
+    }
+    setShowAddConnection(false);
+    setShowServerPicker(false);
+    return true;
+  }, [selectSyncConnection, showMessage]);
+
+  const markLanMigrationPrompt = useCallback(async () => {
+    const result = await updateConfig({ lanMigrationPromptedVersion: APP_VERSION });
+    if (!result.ok) showMessage(result.error, 'error');
+  }, [showMessage, updateConfig]);
 
   const handleAddServer = useCallback(
     async (data: AddServerSaveData) => {
-      await addServer({
+      const result = await addServer({
         type: 'syncclipboard',
         url: data.urls[0],
         urls: data.urls,
@@ -700,6 +790,10 @@ export function useHomeController(onOpenSettings: () => void) {
         username: data.username,
         password: data.password,
       });
+      if (!result.ok) {
+        showMessage(result.error, 'error');
+        return;
+      }
       setShowAddServer(false);
       setAddServerPrefill(undefined);
       showMessage(t('toast.serverAdded'), 'success');
@@ -746,16 +840,24 @@ export function useHomeController(onOpenSettings: () => void) {
     connectionStatus,
     servers,
     activeServerIndex,
+    syncChannel,
+    p2pSpaceId,
+    legacyLanEligible,
+    showLanMigrationPrompt,
+    markLanMigrationPrompt,
     showServerPicker,
     setShowServerPicker,
-    handleSwitchServer,
+    handleSwitchConnection,
+    showAddConnection,
+    setShowAddConnection,
+    handleP2pConnected,
     showAddServer,
     setShowAddServer,
     addServerPrefill,
     setAddServerPrefill,
     handleAddServer,
     // sync banners
-    syncState,
+    syncState: visibleSyncState,
     stagedPreviewText,
     isApplyingStaged,
     handleApplyStagedEntry,

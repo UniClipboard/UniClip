@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Host, LazyColumn } from '@expo/ui/jetpack-compose';
 import { fillMaxSize } from '@expo/ui/jetpack-compose/modifiers';
 import { useTheme } from '@/hooks/useTheme';
+import { useSettingsStore } from '@/stores';
 import type { RootStackParamList } from '@/navigation/AppNavigator';
 import { SettingsToastProvider } from './SettingsToastContext';
 import { ServerSection } from './ServerSection';
@@ -34,6 +35,7 @@ const SettingsSubScreenInner = memo(function SettingsSubScreenInner() {
   const { theme } = useTheme();
   const route = useRoute<RouteProp<RootStackParamList, 'SettingsSub'>>();
   const section = route.params.section;
+  const legacyLanEligible = useSettingsStore((s) => s.config?.legacyLanEligible ?? false);
 
   return (
     <SafeAreaView
@@ -52,7 +54,7 @@ const SettingsSubScreenInner = memo(function SettingsSubScreenInner() {
         >
           {section === 'sync' && (
             <>
-              <ServerSection />
+              {legacyLanEligible && <ServerSection />}
               <SyncSettingsSection />
             </>
           )}
@@ -80,7 +82,7 @@ const SettingsSubScreenInner = memo(function SettingsSubScreenInner() {
       </Host>
 
       {/* 服务器配置/扫码 RN Modal:必须在 LazyColumn 之外渲染 */}
-      {section === 'sync' && <ServerModals />}
+      {section === 'sync' && legacyLanEligible && <ServerModals />}
     </SafeAreaView>
   );
 });

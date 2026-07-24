@@ -124,6 +124,43 @@ describe('UnifiedEngineService', () => {
     await service.stop();
   });
 
+  it('requests UI refreshes for detailed clipboard and delivery events', async () => {
+    const events: EngineEvent[] = [
+      {
+        type: 'incomingEntry',
+        entryId: 'entry-1',
+        attemptId: null,
+        preview: 'New clipboard content',
+        origin: 'remote',
+      },
+      {
+        type: 'deliveryStatusChanged',
+        entryId: 'entry-1',
+        targetDeviceId: 'device-2',
+      },
+      {
+        type: 'fatal',
+        failure: { code: 7001, category: 'runtime', retryable: false },
+      },
+    ];
+    const snapshots: UnifiedEngineSnapshot[] = [];
+    const service = new UnifiedEngineService(
+      {
+        start: async () => undefined,
+        shutdown: async () => undefined,
+        nextEvent: async () => events.shift() ?? null,
+      },
+      (snapshot) => snapshots.push(snapshot),
+      0
+    );
+
+    await service.start(config());
+    const failed = await waitForSnapshot(snapshots, (state) => state.status === 'failed');
+
+    expect(failed.refreshRevision).toBe(2);
+    expect(failed.lastChangedKind).toBe('deliveryStatusChanged');
+  });
+
   it('publishes a failed state when native startup rejects', async () => {
     const snapshots: UnifiedEngineSnapshot[] = [];
     const nextEvent = jest.fn<UnifiedEngineApi['nextEvent']>();

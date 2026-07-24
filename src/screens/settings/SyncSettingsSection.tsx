@@ -40,6 +40,8 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
   // 仅订阅影响本 section 渲染的字段
   const syncToastEnabled = useSettingsStore((s) => s.config?.syncToastEnabled ?? true);
   const syncChannel = useSettingsStore((s) => s.config?.syncChannel ?? 'p2p');
+  const legacyLanEligible = useSettingsStore((s) => s.config?.legacyLanEligible ?? false);
+  const activeServerIndex = useSettingsStore((s) => s.config?.activeServerIndex ?? -1);
   const sseEnabled = useSettingsStore((s) => s.config?.enableSse ?? true);
   const isSyncClipboard = useSettingsStore((s) => {
     const c = s.config;
@@ -83,7 +85,11 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
 
   const handleSyncChannel = async (channel: 'p2p' | 'lan') => {
     if (channel === syncChannel) return;
-    const result = await useSettingsStore.getState().setSyncChannel(channel);
+    const target =
+      channel === 'p2p'
+        ? ({ kind: 'p2p' } as const)
+        : ({ kind: 'lan', serverIndex: activeServerIndex } as const);
+    const result = await useSettingsStore.getState().selectSyncConnection(target);
     if (!result.ok) showMessage(result.error || t('error.updateFailed'), 'error');
   };
 
@@ -150,26 +156,29 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
 
   return (
     <>
-      <SettingsSectionItem title={t('syncChannel.title', { ns: 'settings' })}>
-        <SingleChoiceSegmentedButtonRow modifiers={[fillMaxWidth()]}>
-          <SegmentedButton
-            selected={syncChannel === 'p2p'}
-            onClick={() => handleSyncChannel('p2p')}
-          >
-            <SegmentedButton.Label>
-              <ComposeText>{t('syncChannel.p2p', { ns: 'settings' })}</ComposeText>
-            </SegmentedButton.Label>
-          </SegmentedButton>
-          <SegmentedButton
-            selected={syncChannel === 'lan'}
-            onClick={() => handleSyncChannel('lan')}
-          >
-            <SegmentedButton.Label>
-              <ComposeText>{t('syncChannel.lan', { ns: 'settings' })}</ComposeText>
-            </SegmentedButton.Label>
-          </SegmentedButton>
-        </SingleChoiceSegmentedButtonRow>
-      </SettingsSectionItem>
+      {legacyLanEligible ? (
+        <SettingsSectionItem title={t('syncChannel.title', { ns: 'settings' })}>
+          <SingleChoiceSegmentedButtonRow modifiers={[fillMaxWidth()]}>
+            <SegmentedButton
+              selected={syncChannel === 'p2p'}
+              onClick={() => handleSyncChannel('p2p')}
+            >
+              <SegmentedButton.Label>
+                <ComposeText>{t('syncChannel.p2p', { ns: 'settings' })}</ComposeText>
+              </SegmentedButton.Label>
+            </SegmentedButton>
+            <SegmentedButton
+              selected={syncChannel === 'lan'}
+              onClick={() => handleSyncChannel('lan')}
+            >
+              <SegmentedButton.Label>
+                <ComposeText>{t('syncChannel.lan', { ns: 'settings' })}</ComposeText>
+              </SegmentedButton.Label>
+            </SegmentedButton>
+          </SingleChoiceSegmentedButtonRow>
+          <ComposeText>{t('connection.lanDeprecated')}</ComposeText>
+        </SettingsSectionItem>
+      ) : null}
 
       {syncChannel === 'p2p' && <UnifiedSpaceSetup />}
 

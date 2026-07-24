@@ -1,6 +1,8 @@
 import type { SendReport } from 'uc-engine';
 import type { ClipboardContent } from '@/types/clipboard';
 import type { SyncChannel } from '@/types/settings';
+import type { P2pDeliveryState } from '@/types/clipboard';
+import { p2pDeliveryStateFromReport } from './P2pDeliveryState';
 
 export interface UnifiedContentApi {
   sendText(text: string, targetDevices: string[]): Promise<SendReport>;
@@ -31,7 +33,14 @@ export interface UnifiedContentDependencies {
 }
 
 export type UnifiedContentResult =
-  | { channel: 'p2p'; success: true; entryId: string }
+  | {
+      channel: 'p2p';
+      success: boolean;
+      entryId: string;
+      profileHash: string | undefined;
+      deliveryState: P2pDeliveryState;
+      report: SendReport;
+    }
   | { channel: 'lan'; success: boolean; error?: string };
 
 export type UnifiedContentErrorCode =
@@ -91,7 +100,7 @@ export class UnifiedContentService {
         if (!text) {
           throw new UnifiedContentError('clipboardEmpty', 'The clipboard is empty');
         }
-        return this.p2pResult(await this.deps.p2p.sendText(text, []));
+        return this.p2pResult(await this.deps.p2p.sendText(text, []), content.profileHash);
       }
       case 'Image': {
         if (!content.fileUri) {
@@ -99,13 +108,16 @@ export class UnifiedContentService {
         }
         const bytes = await this.deps.readFileBytes(content.fileUri);
         const mimeType = imageMimeType(content.fileUri, undefined);
-        return this.p2pResult(await this.deps.p2p.sendImage(bytes, mimeType, []));
+        return this.p2pResult(
+          await this.deps.p2p.sendImage(bytes, mimeType, []),
+          content.profileHash
+        );
       }
       case 'File':
         if (!content.fileUri) {
           throw new UnifiedContentError('fileUnavailable', 'The clipboard file is unavailable');
         }
-        return this.sendP2pFile(content.fileUri);
+        return this.sendP2pFile(content.fileUri, content.profileHash);
       default:
         throw new UnifiedContentError(
           'clipboardUnsupported',
@@ -130,23 +142,31 @@ export class UnifiedContentService {
         imageMimeType(asset.uri, asset.mimeType),
         []
       );
-      return this.p2pResult(report);
+      return this.p2pResult(report, profileHash);
     }
 
-    return this.sendP2pFile(asset.uri);
+    return this.sendP2pFile(asset.uri, profileHash);
   }
 
-  private async sendP2pFile(uri: string): Promise<UnifiedContentResult> {
+  private async sendP2pFile(uri: string, profileHash?: string): Promise<UnifiedContentResult> {
     const handle = this.deps.p2p.registerInputFile(uri);
     try {
-      return this.p2pResult(await this.deps.p2p.sendFiles([handle], []));
+      return this.p2pResult(await this.deps.p2p.sendFiles([handle], []), profileHash);
     } finally {
       this.deps.p2p.releaseFileHandle(handle);
     }
   }
 
-  private p2pResult(report: SendReport): UnifiedContentResult {
-    return { channel: 'p2p', success: true, entryId: report.entryId };
+  private p2pResult(report: SendReport, profileHash?: string): UnifiedContentResult {
+    const deliveryState = p2pDeliveryStateFromReport(report);
+    return {
+      channel: 'p2p',
+      success: deliveryState === 'delivered',
+      entryId: report.entryId,
+      profileHash,
+      deliveryState,
+      report,
+    };
   }
 }
 

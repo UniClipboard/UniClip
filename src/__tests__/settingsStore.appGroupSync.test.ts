@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { saveServers, saveSettings } from 'app-group-store';
 import { ConfigStorage } from '../services/ConfigStorage';
 import { useSettingsStore } from '../stores/settingsStore';
+import { DEFAULT_SETTINGS } from '../types/settings';
 
 const mockNotifyServerChanged = jest.fn();
 jest.mock('../stores/syncEngineStore', () => ({
@@ -28,7 +29,8 @@ const mockSaveSettings = saveSettings as jest.Mock;
 describe('settings store App Group writes', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockGetItem.mockResolvedValue(null);
+    const eligibleConfig = { ...DEFAULT_SETTINGS, legacyLanEligible: true };
+    mockGetItem.mockResolvedValue(JSON.stringify(eligibleConfig));
     mockSetItem.mockResolvedValue(undefined);
 
     const storage = ConfigStorage.getInstance() as unknown as {
@@ -39,8 +41,8 @@ describe('settings store App Group writes', () => {
     storage.config = null;
 
     useSettingsStore.setState({
-      config: null,
-      isLoaded: false,
+      config: eligibleConfig,
+      isLoaded: true,
       isSaving: false,
       error: null,
       isTempDisabledBackgroundTasks: false,

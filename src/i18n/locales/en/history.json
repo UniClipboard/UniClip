@@ -42,6 +42,12 @@
     "hoursAgo": "{{n}}h ago",
     "daysAgo": "{{n}}d ago"
   },
+  "delivery": {
+    "delivered": "Delivered",
+    "offline": "Device offline",
+    "failed": "Send failed",
+    "pending": "Sending"
+  },
   "wordPicker": {
     "truncated": "Text too long, showing first {{count}} characters",
     "empty": "No selectable text",
@@ -60,6 +66,7 @@
     "openBrowser": "Open in browser",
     "saveImage": "Save image",
     "saveFile": "Save file",
+    "resend": "Send again",
     "closeMenu": "Close menu"
   }
 }

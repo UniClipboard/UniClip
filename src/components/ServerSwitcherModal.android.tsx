@@ -52,6 +52,48 @@ function serverLabel(server: ServerConfig): string {
 
 type Theme = ServerSwitcherModalProps['theme'];
 
+function P2pCard({
+  isActive,
+  spaceId,
+  theme,
+  onSelect,
+}: {
+  isActive: boolean;
+  spaceId: string | null;
+  theme: Theme;
+  onSelect: () => void;
+}) {
+  const { t } = useTranslation('settingsSync');
+  const c = theme.colors;
+
+  return (
+    <View
+      style={[
+        s.cardClip,
+        { backgroundColor: isActive ? c.accentContainer : c.surfaceLow },
+        isActive && { borderWidth: 1.5, borderColor: c.accent },
+      ]}
+    >
+      <Pressable onPress={onSelect} android_ripple={{ color: c.separator }} style={s.card}>
+        <Ionicons
+          name={isActive ? 'checkmark-circle' : 'ellipse-outline'}
+          size={24}
+          color={isActive ? c.accent : c.border}
+        />
+        <Ionicons name="people-outline" size={24} color={c.textSecondary} />
+        <View style={s.info}>
+          <Text style={[s.name, { color: c.textPrimary }]} numberOfLines={1}>
+            {t('space.title')}
+          </Text>
+          <Text style={[s.url, { color: c.textSecondary }]} numberOfLines={1}>
+            {spaceId || t('connection.p2pDescription')}
+          </Text>
+        </View>
+      </Pressable>
+    </View>
+  );
+}
+
 function SwipeActionButtons({
   theme,
   methods,
@@ -176,21 +218,24 @@ export function ServerSwitcherModal({
   visible,
   servers,
   activeIndex,
+  selectedChannel,
+  p2pSpaceId,
+  legacyLanEligible,
   onSelect,
   onClose,
+  onAdd,
   theme,
 }: ServerSwitcherModalProps) {
   const { t } = useTranslation('serverSwitch');
   const c = theme.colors;
   const { height: windowHeight } = useWindowDimensions();
-  const { addServer, updateServer, deleteServer } = useSettingsStore();
-  const [showAddSheet, setShowAddSheet] = useState(false);
+  const { updateServer, deleteServer } = useSettingsStore();
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null);
 
   const editingServer = editingIndex != null ? servers[editingIndex] : undefined;
   const deleteServerTarget = deleteIndex != null ? servers[deleteIndex] : undefined;
-  const sheetVisible = showAddSheet || editingServer != null;
+  const sheetVisible = editingServer != null;
 
   const handleSave = useCallback(
     async (data: AddServerSaveData) => {
@@ -201,15 +246,11 @@ export function ServerSwitcherModal({
         username: data.username,
         password: data.password,
       };
-      if (editingIndex != null) {
-        await updateServer(editingIndex, payload);
-      } else {
-        await addServer({ type: 'syncclipboard', ...payload });
-      }
-      setShowAddSheet(false);
+      if (editingIndex == null) return;
+      await updateServer(editingIndex, payload);
       setEditingIndex(null);
     },
-    [editingIndex, updateServer, addServer]
+    [editingIndex, updateServer]
   );
 
   return (
@@ -221,38 +262,37 @@ export function ServerSwitcherModal({
               <Ionicons name="close" size={22} color={c.textPrimary} />
             </Pressable>
             <Text style={[s.headerTitle, { color: c.textPrimary }]}>{t('title')}</Text>
-            <Pressable onPress={() => setShowAddSheet(true)} style={s.headerBtn} hitSlop={8}>
+            <Pressable onPress={onAdd} style={s.headerBtn} hitSlop={8}>
               <Ionicons name="add" size={24} color={c.accent} />
             </Pressable>
           </View>
 
-          {servers.length === 0 ? (
-            <View style={s.empty}>
-              <Ionicons name="server-outline" size={40} color={c.separator} />
-              <Text style={[s.emptyText, { color: c.textSecondary }]}>{t('empty.title')}</Text>
-              <Pressable
-                onPress={() => setShowAddSheet(true)}
-                style={[s.addBtn, { backgroundColor: c.accent }]}
-              >
-                <Ionicons name="add" size={18} color={c.onAccent} />
-                <Text style={[s.addBtnText, { color: c.onAccent }]}>{t('empty.addButton')}</Text>
-              </Pressable>
-            </View>
-          ) : (
-            <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false}>
-              {servers.map((server, index) => (
-                <ServerCard
-                  key={`${server.url}-${index}`}
-                  server={server}
-                  isActive={index === activeIndex}
-                  theme={theme}
-                  onSelect={() => onSelect(index)}
-                  onEdit={() => setEditingIndex(index)}
-                  onDelete={() => setDeleteIndex(index)}
-                />
-              ))}
-            </ScrollView>
-          )}
+          <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false}>
+            <P2pCard
+              isActive={selectedChannel === 'p2p'}
+              spaceId={p2pSpaceId}
+              theme={theme}
+              onSelect={() => onSelect({ kind: 'p2p' })}
+            />
+            {legacyLanEligible ? (
+              <Text style={[s.deprecation, { color: c.textSecondary }]}>
+                {t('connection.lanDeprecated', { ns: 'settingsSync' })}
+              </Text>
+            ) : null}
+            {legacyLanEligible
+              ? servers.map((server, index) => (
+                  <ServerCard
+                    key={`${server.url}-${index}`}
+                    server={server}
+                    isActive={selectedChannel === 'lan' && index === activeIndex}
+                    theme={theme}
+                    onSelect={() => onSelect({ kind: 'lan', serverIndex: index })}
+                    onEdit={() => setEditingIndex(index)}
+                    onDelete={() => setDeleteIndex(index)}
+                  />
+                ))
+              : null}
+          </ScrollView>
         </View>
       </AppTopSheet>
 
@@ -293,7 +333,6 @@ export function ServerSwitcherModal({
         title={editingServer ? t('sheet.editTitle') : undefined}
         initialData={editingServer ? toEditData(editingServer) : undefined}
         onClose={() => {
-          setShowAddSheet(false);
           setEditingIndex(null);
         }}
         onSave={handleSave}
@@ -320,6 +359,7 @@ const s = StyleSheet.create({
   },
   headerTitle: { fontSize: 17, fontWeight: '700' },
   list: { paddingHorizontal: 12, paddingTop: 4, paddingBottom: 8, gap: 10 },
+  deprecation: { fontSize: 13, lineHeight: 18, paddingHorizontal: 4, paddingTop: 6 },
   cardClip: {
     borderRadius: 16,
     borderCurve: 'continuous',
@@ -360,16 +400,4 @@ const s = StyleSheet.create({
     gap: 4,
   },
   swipeBtnText: { fontSize: 12, fontWeight: '600' },
-  empty: { alignItems: 'center', paddingVertical: 40, gap: 12 },
-  emptyText: { textAlign: 'center', fontSize: 15 },
-  addBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-    marginTop: 8,
-  },
-  addBtnText: { fontSize: 14, fontWeight: '600' },
 });

@@ -1,8 +1,8 @@
 {
   "empty": {
     "unconfigured": {
-      "title": "还没有配对设备",
-      "description": "在同一 Wi‑Fi 网络下的电脑上打开 UniClipboard，即可配对并开始同步。"
+      "title": "尚未加入 P2P 空间",
+      "description": "创建空间或使用邀请码加入即可开始同步。本地历史会继续保留。"
     },
     "connecting": {
       "title": "正在连接…",
@@ -62,6 +62,12 @@
     "sentToPeers": "已发送到其他设备",
     "uploadFailed": "上传失败",
     "savedLocally": "已保存到本地",
+    "p2pDelivery": {
+      "delivered": "已送达到其他设备",
+      "offline": "已保存在本机，其他设备离线",
+      "failed": "已保存在本机，发送失败",
+      "pending": "已保存在本机，正在发送"
+    },
     "pickFileFailed": "选择文件失败",
     "pickImageFailed": "选择图片失败",
     "cameraPermissionNeeded": "需要相机权限",

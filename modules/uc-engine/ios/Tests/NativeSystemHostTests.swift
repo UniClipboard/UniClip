@@ -50,6 +50,103 @@ final class NativeSystemHostTests: XCTestCase {
     XCTAssertFalse(handle.contains(destination.path))
   }
 
+  func testClipboardSharePreservesDisplayNameAndContent() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent("uc-engine-clipboard-tests-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let source = directory.appendingPathComponent("00000000")
+    let expected = Data((0..<99).map { UInt8($0 % 73) })
+    try expected.write(to: source)
+    let cache = AppleClipboardShareCache(root: directory.appendingPathComponent("shares"))
+
+    let shared = try cache.create(displayName: "plan006-original-name.txt") {
+      try FileManager.default.copyItem(at: source, to: $0)
+    }
+
+    XCTAssertEqual(shared.lastPathComponent, "plan006-original-name.txt")
+    XCTAssertEqual(try Data(contentsOf: shared), expected)
+  }
+
+  func testClipboardDisplayMetadataRestoresTheOriginalName() throws {
+    let metadata = Data(
+      #"{"files":[{"storage_name":"00000000","display_name":"plan006-original-name.txt"}]}"#
+        .utf8
+    )
+
+    XCTAssertEqual(
+      try AppleClipboardDisplayMetadata(data: metadata).displayName(for: "00000000"),
+      "plan006-original-name.txt"
+    )
+  }
+
+  func testClipboardFileResolverCombinesOpaquePathWithOriginalName() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent("uc-engine-clipboard-resolver-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let source = directory.appendingPathComponent("00000000")
+    try Data("file content".utf8).write(to: source)
+    let metadata = try AppleClipboardDisplayMetadata(
+      data: Data(
+        #"{"files":[{"storage_name":"00000000","display_name":"plan006-original-name.txt"}]}"#
+          .utf8
+      )
+    )
+
+    let selection = AppleClipboardFileResolver.resolve(
+      format: "files",
+      mimeType: "text/uri-list",
+      bytes: Data("\(source.absoluteString)\n".utf8),
+      metadata: metadata,
+      allowedRoots: [directory]
+    )
+
+    XCTAssertEqual(selection?.sourceURL, source)
+    XCTAssertEqual(selection?.displayName, "plan006-original-name.txt")
+  }
+
+  func testClipboardShareRemovesUnsafePathComponents() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent("uc-engine-clipboard-tests-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let cache = AppleClipboardShareCache(root: directory)
+
+    let shared = try cache.create(displayName: "../../unsafe/report.txt") {
+      try Data("safe content".utf8).write(to: $0)
+    }
+
+    XCTAssertEqual(shared.lastPathComponent, "report.txt")
+    XCTAssertEqual(shared.deletingLastPathComponent().deletingLastPathComponent(), directory)
+  }
+
+  func testClipboardShareCacheRemovesExpiredAndOverflowEntries() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent("uc-engine-clipboard-tests-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let now = Date()
+    for index in 0..<66 {
+      let entry = directory.appendingPathComponent(String(index), isDirectory: true)
+      try FileManager.default.createDirectory(at: entry, withIntermediateDirectories: true)
+      try FileManager.default.setAttributes(
+        [.modificationDate: now.addingTimeInterval(-TimeInterval(index))],
+        ofItemAtPath: entry.path
+      )
+    }
+    let expired = directory.appendingPathComponent("expired", isDirectory: true)
+    try FileManager.default.createDirectory(at: expired, withIntermediateDirectories: true)
+    try FileManager.default.setAttributes(
+      [.modificationDate: now.addingTimeInterval(-8 * 24 * 60 * 60)],
+      ofItemAtPath: expired.path
+    )
+
+    try AppleClipboardShareCache(root: directory).prune(now: now)
+
+    XCTAssertFalse(FileManager.default.fileExists(atPath: expired.path))
+    XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path).count, 64)
+  }
+
   func testLifecycleHostRecoversPersistedSessionBeforeUse() throws {
     let engine = FakeNativeEngineLifecycle(state: .running)
     engine.recovery = NativeSessionRecovery(unlocked: true, resumed: true)

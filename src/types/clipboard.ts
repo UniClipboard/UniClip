@@ -5,6 +5,8 @@
 
 import { ClipboardContentType } from './api';
 
+export type P2pDeliveryState = 'delivered' | 'offline' | 'failed' | 'pending';
+
 /**
  * 历史记录同步状态
  */
@@ -96,6 +98,12 @@ export interface ClipboardItem {
    * 让每条历史都保留其服务端身份，activate_clipboard 借 profileHash 指针解析出 content_id。
    */
   contentId?: string;
+
+  /** P2P 核心中的发送条目编号，用于失败后重新发送。 */
+  p2pEntryId?: string;
+
+  /** 最近一次 P2P 投递结果。 */
+  p2pDeliveryState?: P2pDeliveryState;
 }
 
 /**

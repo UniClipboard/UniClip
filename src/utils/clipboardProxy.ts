@@ -4,6 +4,7 @@
  */
 
 import * as Clipboard from 'expo-clipboard';
+import { Directory, File } from 'expo-file-system';
 import { Platform } from 'react-native';
 import { nativeSaveClipboardImageToFile } from 'android-util';
 import {
@@ -13,6 +14,7 @@ import {
 } from 'android-util';
 import { log } from '@/services/Logger';
 import { getBackgroundClipboardAdapter } from '@/utils/androidBackgroundClipboardAccess';
+import { sanitizeDataName } from '@/utils/fileName';
 
 /**
  * 获取剪贴板文本
@@ -146,13 +148,37 @@ export async function saveImageToFileAsync(
 }
 
 export async function saveFileToFileAsync(destDirPath: string): Promise<ClipboardFileInfo | null> {
-  if (Platform.OS !== 'android') return null;
-  return nativeSaveClipboardFileToFile(destDirPath);
+  if (Platform.OS === 'android') return nativeSaveClipboardFileToFile(destDirPath);
+  if (Platform.OS !== 'ios') return null;
+
+  const sourceId = await getFileSourceIdAsync();
+  if (!sourceId) return null;
+
+  const source = new File(sourceId);
+  if (!source.exists) return null;
+
+  const directory = new Directory(destDirPath);
+  if (!directory.exists) directory.create({ idempotent: true, intermediates: true });
+  const displayName = sanitizeDataName(source.name);
+  const destination = new File(directory, displayName);
+  if (destination.exists) destination.delete();
+  await source.copy(destination);
+
+  return {
+    filePath: destination.uri,
+    displayName,
+    mimeType: source.type || 'application/octet-stream',
+    size: source.size,
+    sourceId,
+  };
 }
 
 export async function getFileSourceIdAsync(): Promise<string | null> {
-  if (Platform.OS !== 'android') return null;
-  return nativeGetClipboardFileSourceId();
+  if (Platform.OS === 'android') return nativeGetClipboardFileSourceId();
+  if (Platform.OS !== 'ios') return null;
+
+  const url = await Clipboard.getUrlAsync();
+  return url?.startsWith('file://') ? url : null;
 }
 
 /**

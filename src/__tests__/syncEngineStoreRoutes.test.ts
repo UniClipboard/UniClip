@@ -6,6 +6,8 @@ import { reconcileSyncEngineAppState, useSyncEngineStore } from '../stores/syncE
 import { SyncEngine } from '../services/SyncEngine';
 import { AppState } from 'react-native';
 
+const mockObserveClipboardChange = jest.fn(async () => null);
+
 interface CapturedEngineOptions {
   getActiveServer: () => unknown;
   getSettings: () => { autoPushLocal: boolean };
@@ -48,6 +50,10 @@ jest.mock('@/services/SyncEngine', () => ({
     handleNetworkChanged: jest.fn(),
     restartSse: jest.fn(),
   })),
+}));
+
+jest.mock('uc-engine', () => ({
+  observeClipboardChange: mockObserveClipboardChange,
 }));
 
 jest.mock('@/services/ClipboardManager', () => ({
@@ -143,6 +149,7 @@ describe('syncEngineStore route config', () => {
           },
         ],
         activeServerIndex: 0,
+        syncChannel: 'lan',
         trustInsecureCert: true,
       } as any,
       isLoaded: true,
@@ -188,6 +195,85 @@ describe('syncEngineStore route config', () => {
     expect(engineInstance.pushRecordExplicit).toHaveBeenCalledWith('LOCAL_HASH');
     expect(engineInstance.notifyLocalChanged).not.toHaveBeenCalled();
   });
+
+  it('routes P2P text changes to the core observer without starting LAN', async () => {
+    const { notifyDeviceClipboardChanged } = require('@/stores/syncEngineStore');
+    const { activateRepository } = require('@/services/db/activateRepository');
+    useSettingsStore.setState((state) => ({
+      config: { ...state.config, syncChannel: 'p2p', autoPushLocal: true } as any,
+    }));
+
+    await notifyDeviceClipboardChanged({
+      type: 'Text',
+      text: 'p2p local text',
+      profileHash: 'P2P_TEXT_HASH',
+      localClipboardHash: 'P2P_TEXT_HASH',
+    });
+
+    expect(mockObserveClipboardChange).toHaveBeenCalledWith(true);
+    expect(getEngineMock()).not.toHaveBeenCalled();
+    expect(activateRepository.upsert).not.toHaveBeenCalled();
+  });
+
+  it('records an automatic P2P delivery result on the matching history item', async () => {
+    const { notifyDeviceClipboardChanged } = require('@/stores/syncEngineStore');
+    const { historyRepository } = require('@/services/db/historyRepository');
+    useSettingsStore.setState((state) => ({
+      config: { ...state.config, syncChannel: 'p2p', autoPushLocal: true } as any,
+    }));
+    await historyRepository.replace({
+      profileHash: 'P2P_OFFLINE_HASH',
+      text: 'keep local',
+    });
+    mockObserveClipboardChange.mockResolvedValueOnce({
+      entryId: 'entry-offline',
+      atMs: 1,
+      totalAccepted: 0,
+      totalDuplicate: 0,
+      totalOffline: 1,
+      totalErrored: 0,
+      totalPending: 0,
+    });
+
+    await notifyDeviceClipboardChanged({
+      type: 'Text',
+      text: 'keep local',
+      profileHash: 'P2P_OFFLINE_HASH',
+      localClipboardHash: 'P2P_OFFLINE_HASH',
+    });
+
+    await expect(historyRepository.getByProfileHash('P2P_OFFLINE_HASH')).resolves.toMatchObject({
+      p2pEntryId: 'entry-offline',
+      p2pDeliveryState: 'offline',
+    });
+  });
+
+  it.each([
+    [{ type: 'Text', text: 'local only' }, false],
+    [{ type: 'File', fileUri: 'file:///private/report.pdf' }, false],
+    [{ type: 'Image', fileUri: 'file:///private/photo.png' }, true],
+  ] as const)(
+    'observes P2P clipboard content with the expected dispatch policy',
+    async (content, expectedDispatch) => {
+      const { notifyDeviceClipboardChanged } = require('@/stores/syncEngineStore');
+      useSettingsStore.setState((state) => ({
+        config: {
+          ...state.config,
+          syncChannel: 'p2p',
+          autoPushLocal: content.type === 'Text' ? false : true,
+        } as any,
+      }));
+
+      await notifyDeviceClipboardChanged({
+        ...content,
+        profileHash: `P2P_${content.type}_HASH`,
+        localClipboardHash: `P2P_${content.type}_HASH`,
+      });
+
+      expect(mockObserveClipboardChange).toHaveBeenCalledWith(expectedDispatch);
+      expect(getEngineMock()).not.toHaveBeenCalled();
+    }
+  );
 
   it('keeps local clipboard content without uploading when auto-push is disabled', async () => {
     const { notifyDeviceClipboardChanged } = require('@/stores/syncEngineStore');

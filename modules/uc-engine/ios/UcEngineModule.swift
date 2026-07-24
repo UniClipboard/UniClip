@@ -97,6 +97,49 @@ public final class UcEngineModule: Module {
       try self.requireEngine().nextEvent(timeoutMs: timeoutMs).map(Self.eventMap)
     }
 
+    AsyncFunction("refreshPeerConnections") { () -> [String: Any] in
+      let result = try self.requireEngine().refreshPeerConnections()
+      return [
+        "total": result.total,
+        "online": result.online,
+        "offline": result.offline,
+        "errors": result.errors,
+      ]
+    }
+
+    AsyncFunction("querySpaceState") { () -> [String: Any?] in
+      let result = try self.requireEngine().querySpaceState()
+      return [
+        "hasCompleted": result.hasCompleted,
+        "spaceId": result.spaceId,
+        "currentInvitation": result.currentInvitation.map {
+          ["invitationCode": $0.invitationCode, "expiresAtMs": $0.expiresAtMs]
+        },
+        "deviceName": result.deviceName,
+      ]
+    }
+
+    AsyncFunction("listDevices") { () -> [[String: Any]] in
+      try self.requireEngine().listDevices().map {
+        ["deviceId": $0.deviceId, "displayName": $0.displayName, "online": $0.online]
+      }
+    }
+
+    AsyncFunction("removeMember") { (deviceId: String) in
+      try self.requireEngine().removeMember(deviceId: deviceId)
+    }
+
+    AsyncFunction("resendEntry") {
+      (entryId: String, targetDevices: [String]) -> [String: Any] in
+      Self.resendOutcomeMap(
+        try self.requireEngine().resendEntry(entryId: entryId, targetDevices: targetDevices)
+      )
+    }
+
+    AsyncFunction("leaveSpace") {
+      try self.requireEngine().leaveSpace()
+    }
+
     AsyncFunction("sendText") { (text: String, targetDevices: [String]) -> [String: Any] in
       Self.sendReportMap(
         try self.requireEngine().sendText(text: text, targetDevices: targetDevices)
@@ -134,6 +177,9 @@ public final class UcEngineModule: Module {
 
     AsyncFunction("captureCurrentClipboard") { () -> String? in
       try self.requireEngine().captureCurrentClipboard()
+    }
+    AsyncFunction("observeClipboardChange") { (dispatch: Bool) -> [String: Any]? in
+      try self.requireEngine().observeClipboardChange(dispatch: dispatch).map(Self.sendReportMap)
     }
     AsyncFunction("restoreClipboard") { (entryId: String, mode: String) -> String in
       let result = try self.requireEngine().restoreClipboard(
@@ -196,6 +242,32 @@ public final class UcEngineModule: Module {
     ]
   }
 
+  private static func resendOutcomeMap(_ outcome: ResendEntryOutcome) -> [String: Any] {
+    switch outcome {
+    case .completed(let accepted, let duplicate, let offline, let errored, let pending):
+      return [
+        "kind": "completed",
+        "accepted": accepted,
+        "duplicate": duplicate,
+        "offline": offline,
+        "errored": errored,
+        "pending": pending,
+      ]
+    case .entryNotFound(let entryId):
+      return ["kind": "entryNotFound", "entryId": entryId]
+    case .entryNotResendable(let entryId, let reason):
+      let reasonName = switch reason {
+      case .remoteOrigin: "remoteOrigin"
+      case .payloadLost: "payloadLost"
+      }
+      return ["kind": "entryNotResendable", "entryId": entryId, "reason": reasonName]
+    case .targetNotTrusted(let deviceId):
+      return ["kind": "targetNotTrusted", "deviceId": deviceId]
+    case .noEligibleTargets:
+      return ["kind": "noEligibleTargets"]
+    }
+  }
+
   private static func failureMap(_ failure: BindingFailure) -> [String: Any] {
     [
       "code": failure.code,
@@ -225,6 +297,85 @@ public final class UcEngineModule: Module {
       return ["type": "refreshRequired", "reason": String(describing: reason)]
     case .fatal(let failure):
       return ["type": "fatal", "failure": failureMap(failure)]
+    case .incomingEntry(let entryId, let attemptId, let preview, let origin):
+      return [
+        "type": "incomingEntry",
+        "entryId": entryId,
+        "attemptId": attemptId,
+        "preview": preview,
+        "origin": String(describing: origin),
+      ]
+    case .incomingPending(let entryId, let attemptId, let fromDevice, let totalBytes, let filenames):
+      return [
+        "type": "incomingPending",
+        "entryId": entryId,
+        "attemptId": attemptId,
+        "fromDevice": fromDevice,
+        "totalBytes": totalBytes,
+        "filenames": filenames,
+      ]
+    case .receiveAttemptStateChanged(let entryId, let attemptId, let state):
+      return [
+        "type": "receiveAttemptStateChanged",
+        "entryId": entryId,
+        "attemptId": attemptId,
+        "state": state,
+      ]
+    case .deliveryStatusChanged(let entryId, let targetDeviceId):
+      return [
+        "type": "deliveryStatusChanged",
+        "entryId": entryId,
+        "targetDeviceId": targetDeviceId,
+      ]
+    case .peerPresenceChanged(let deviceId, let state, let atMs):
+      return [
+        "type": "peerPresenceChanged",
+        "deviceId": deviceId,
+        "state": state,
+        "atMs": atMs,
+      ]
+    case .transferProgress(
+      let transferId,
+      let entryId,
+      let attemptId,
+      let peerId,
+      let direction,
+      let completedBytes,
+      let totalBytes
+    ):
+      return [
+        "type": "transferProgress",
+        "transferId": transferId,
+        "entryId": entryId,
+        "attemptId": attemptId,
+        "peerId": peerId,
+        "direction": String(describing: direction),
+        "completedBytes": completedBytes,
+        "totalBytes": totalBytes,
+      ]
+    case .transferStatusChanged(
+      let transferId,
+      let entryId,
+      let attemptId,
+      let status,
+      let reason
+    ):
+      return [
+        "type": "transferStatusChanged",
+        "transferId": transferId,
+        "entryId": entryId,
+        "attemptId": attemptId,
+        "status": status,
+        "reason": reason,
+      ]
+    case .activeClipboardChanged(let snapshotHash, let entryId, let activatedAtMs, let activatedBy):
+      return [
+        "type": "activeClipboardChanged",
+        "snapshotHash": snapshotHash,
+        "entryId": entryId,
+        "activatedAtMs": activatedAtMs,
+        "activatedBy": activatedBy,
+      ]
     case .changed(let kind):
       return ["type": "changed", "kind": kind]
     }
@@ -299,6 +450,7 @@ private final class AppleEngineLifecycle: NativeEngineLifecycle {
 
 private final class AppleEngineHost: BindingHost, @unchecked Sendable {
   private let files: AppleFileHandleRegistry
+  private let clipboardShares = AppleClipboardShareCache()
   private let secureStorage: AppleSecureStorage
 
   init(files: AppleFileHandleRegistry) {
@@ -392,13 +544,39 @@ private final class AppleEngineHost: BindingHost, @unchecked Sendable {
 
   func clipboardWrite(snapshot: BindingClipboardSnapshot) throws {
     try onMain {
-      guard let first = snapshot.representations.first else {
+      let metadata = snapshot.representations.lazy.compactMap { representation in
+        guard case .inline(let format, let mimeType, let bytes) = representation,
+          AppleClipboardDisplayMetadata.matches(format: format, mimeType: mimeType)
+        else { return nil as AppleClipboardDisplayMetadata? }
+        return try? AppleClipboardDisplayMetadata(data: bytes)
+      }.first
+      guard let first = snapshot.representations.first(where: { representation in
+        guard case .inline(let format, let mimeType, _) = representation else { return true }
+        return !AppleClipboardDisplayMetadata.matches(format: format, mimeType: mimeType)
+      }) else {
         UIPasteboard.general.items = []
         return
       }
       switch first {
       case .inline(let format, let mimeType, let bytes):
-        if format == "text/plain", let text = String(data: bytes, encoding: .utf8) {
+        let fileSelection = AppleClipboardFileResolver.resolve(
+          format: format,
+          mimeType: mimeType,
+          bytes: bytes,
+          metadata: metadata,
+          allowedRoots: [
+            try self.applicationSupportDirectory(),
+            FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0],
+            FileManager.default.temporaryDirectory,
+          ]
+        )
+        if let fileSelection {
+          UIPasteboard.general.url = try withHostBindingError {
+            try self.clipboardShares.create(displayName: fileSelection.displayName) { target in
+              try FileManager.default.copyItem(at: fileSelection.sourceURL, to: target)
+            }
+          }
+        } else if format == "text/plain", let text = String(data: bytes, encoding: .utf8) {
           UIPasteboard.general.string = text
         } else if let image = UIImage(data: bytes) {
           UIPasteboard.general.image = image
@@ -406,8 +584,12 @@ private final class AppleEngineHost: BindingHost, @unchecked Sendable {
           let type = mimeType.flatMap { UTType(mimeType: $0) }?.identifier ?? format
           UIPasteboard.general.setData(bytes, forPasteboardType: type)
         }
-      case .file(_, let handle, _, _, _):
-        UIPasteboard.general.url = try withHostBindingError { try self.files.url(handle) }
+      case .file(_, let handle, let displayName, _, _):
+        UIPasteboard.general.url = try withHostBindingError {
+          try self.clipboardShares.create(displayName: displayName) { target in
+            try self.files.copy(handle, to: target)
+          }
+        }
       }
     }
   }

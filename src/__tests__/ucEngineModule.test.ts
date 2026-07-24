@@ -33,17 +33,58 @@ describe('unified P2P engine native module', () => {
       'issueInvitation',
       'joinSpace',
       'nextEvent',
+      'refreshPeerConnections',
       'sendText',
       'sendImage',
       'registerInputFile',
       'registerOutputFile',
       'sendFiles',
       'captureCurrentClipboard',
+      'observeClipboardChange',
       'restoreClipboard',
       'exportEntry',
       'releaseFileHandle',
     ]) {
       expect(javascript).toContain(`export function ${operation}`);
+    }
+  });
+
+  it('maps detailed clipboard, delivery, transfer, and presence events on both platforms', () => {
+    const javascript = read('src/index.ts');
+    const swift = read('ios/UcEngineModule.swift');
+    const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
+
+    for (const eventType of [
+      'incomingEntry',
+      'incomingPending',
+      'receiveAttemptStateChanged',
+      'deliveryStatusChanged',
+      'peerPresenceChanged',
+      'transferProgress',
+      'transferStatusChanged',
+      'activeClipboardChanged',
+    ]) {
+      expect(javascript).toContain(`type: '${eventType}'`);
+      expect(swift).toContain(`"type": "${eventType}"`);
+      expect(kotlin).toContain(`"type" to "${eventType}"`);
+    }
+  });
+
+  it('exposes complete space management on JavaScript, iOS, and Android', () => {
+    const javascript = read('src/index.ts');
+    const swift = read('ios/UcEngineModule.swift');
+    const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
+
+    for (const operation of [
+      'querySpaceState',
+      'listDevices',
+      'removeMember',
+      'resendEntry',
+      'leaveSpace',
+    ]) {
+      expect(javascript).toContain(`export function ${operation}`);
+      expect(swift).toContain(`AsyncFunction("${operation}")`);
+      expect(kotlin).toContain(`AsyncFunction("${operation}")`);
     }
   });
 
@@ -88,12 +129,37 @@ describe('unified P2P engine native module', () => {
     expect(startEngine).toBeGreaterThan(installContext);
   });
 
-  it('pins both platform artifacts to the same core version and source commit', () => {
-    const pin = read('core-source.json');
+  it('preserves declared file names when native hosts write received files to the clipboard', () => {
+    const swift = read('ios/UcEngineModule.swift');
+    const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
 
-    expect(pin).toContain('"version": "core-v0.19.1"');
-    expect(pin).toContain('"sourceCommit": "693bb50ffcb02d975e3356ccd42137a1b3e15624"');
-    expect(pin).toContain('"iosSha256"');
-    expect(pin).toContain('"androidSha256"');
+    expect(swift).toContain('clipboardShares.create(displayName: displayName)');
+    expect(swift).not.toContain(
+      'UIPasteboard.general.url = try withHostBindingError { try self.files.url(handle) }'
+    );
+    expect(kotlin).toContain('createClipboardShareFile(context, representation.displayName)');
+  });
+
+  it('pins both platform artifacts to the same core version and source commit', () => {
+    const pin = JSON.parse(read('core-source.json')) as {
+      repository: string;
+      version: string;
+      sourceCommit: string;
+      swiftPackageChecksum: string;
+      artifacts: Record<string, string>;
+    };
+
+    expect(pin.repository).toBe('UniClipboard/core');
+    expect(pin.version).toMatch(/^core-v\d+\.\d+\.\d+(?:-[a-z0-9.]+)?$/);
+    expect(pin.sourceCommit).toMatch(/^[a-f0-9]{40}$/);
+    for (const artifact of [
+      'UniClipboardEngine.aar',
+      'UniClipboardEngine.xcframework.zip',
+      'uc_engine_uniffi.kt',
+      'uc_engine_uniffi.swift',
+    ]) {
+      expect(pin.artifacts[artifact]).toMatch(/^[a-f0-9]{64}$/);
+    }
+    expect(pin.swiftPackageChecksum).toBe(pin.artifacts['UniClipboardEngine.xcframework.zip']);
   });
 });

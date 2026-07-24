@@ -44,10 +44,24 @@
     "editTitle": "Edit server"
   },
   "toast": {
+    "connectionSwitched": "Sync connection switched",
     "serverSwitched": "Server switched",
     "serverDeleted": "Server deleted",
     "serverAdded": "Server added",
     "serverUpdated": "Server settings updated"
+  },
+  "connection": {
+    "addTitle": "Add sync connection",
+    "p2pDescription": "End-to-end encrypted space",
+    "lanDeprecated": "LAN is deprecated and remains temporarily available only to existing users. It will be removed in a future release.",
+    "legacyLanAction": "Add legacy LAN connection",
+    "invitationExpires": "Invitation expires at {{time}}"
+  },
+  "migration": {
+    "title": "Move to P2P sync",
+    "body": "LAN sync will be removed in a future release. You can create or join an encrypted space now, while your existing LAN connection remains available during the transition.",
+    "setUpP2p": "Set up P2P",
+    "later": "Remind me later"
   },
   "space": {
     "title": "P2P space",
@@ -80,6 +94,18 @@
       "code": "Invitation code",
       "crossNetwork": "This invitation can be used by a device on another network.",
       "sameLocalNetwork": "This invitation only works while both devices are on the same local network."
+    },
+    "devices": {
+      "title": "Space devices",
+      "empty": "No other devices yet",
+      "online": "Online",
+      "offline": "Offline",
+      "remove": "Remove device",
+      "removeConfirm": "Remove this device from the space?"
+    },
+    "leave": {
+      "action": "Leave space",
+      "confirm": "Your local history will stay on this device. Create or join a space again to resume syncing."
     },
     "error": {
       "deviceNameRequired": "Enter a device name",

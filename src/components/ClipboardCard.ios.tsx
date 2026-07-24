@@ -182,17 +182,22 @@ function HeaderRow({
 }
 
 function BottomRow({
+  item,
   directionIndicator,
   isLatest,
   overlay,
   meta,
 }: {
+  item: ClipboardItem;
   directionIndicator: HistoryDirectionIndicator;
   isLatest: boolean;
   overlay?: boolean;
   meta?: string;
 }) {
+  const { t } = useTranslation('history');
   const dirColor = overlay ? 'rgba(255,255,255,0.7)' : iosColors!.secondaryLabel;
+  const deliveryLabel = item.p2pDeliveryState ? t(`delivery.${item.p2pDeliveryState}`) : '';
+  const bottomMeta = [meta, deliveryLabel].filter(Boolean).join(' · ');
   return (
     <View style={styles.bottomRow}>
       {directionIndicator === 'download' ? (
@@ -202,9 +207,9 @@ function BottomRow({
       ) : (
         <ArrowUp size={10} color={dirColor} />
       )}
-      {!!meta && (
-        <Text style={[styles.bottomMeta, { color: iosColors!.tertiaryLabel }]}>{meta}</Text>
-      )}
+      {bottomMeta ? (
+        <Text style={[styles.bottomMeta, { color: iosColors!.tertiaryLabel }]}>{bottomMeta}</Text>
+      ) : null}
       <View style={styles.bottomSpacer} />
       {isLatest && (
         <View style={[styles.latestDot, { backgroundColor: overlay ? '#fff' : iosAccentColor }]} />
@@ -317,7 +322,7 @@ function TextCardBody({
           <TextFadeOut color={fadeColor} />
         </View>
       )}
-      <BottomRow directionIndicator={directionIndicator} isLatest={isLatest} />
+      <BottomRow item={item} directionIndicator={directionIndicator} isLatest={isLatest} />
     </View>
   );
 }
@@ -398,7 +403,12 @@ function FileCardBody({
           </View>
         </View>
       </View>
-      <BottomRow directionIndicator={directionIndicator} isLatest={isLatest} meta={sizeLabel} />
+      <BottomRow
+        item={item}
+        directionIndicator={directionIndicator}
+        isLatest={isLatest}
+        meta={sizeLabel}
+      />
     </View>
   );
 }
@@ -433,7 +443,12 @@ function ImageCardBody({
       <View style={styles.imageOverlay}>
         <HeaderRow kindLabel={kindLabel} relativeTime={relativeTime} overlay />
         <View style={styles.spacer} />
-        <BottomRow directionIndicator={directionIndicator} isLatest={isLatest} overlay />
+        <BottomRow
+          item={item}
+          directionIndicator={directionIndicator}
+          isLatest={isLatest}
+          overlay
+        />
       </View>
     </View>
   );

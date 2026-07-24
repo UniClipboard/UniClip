@@ -171,26 +171,52 @@ function ServerCard({
   );
 }
 
-function EmptyState() {
-  const { t } = useTranslation('serverSwitch');
+function P2pCard({
+  isActive,
+  spaceId,
+  onSelect,
+}: {
+  isActive: boolean;
+  spaceId: string | null;
+  onSelect: () => void;
+}) {
+  const { t } = useTranslation('settingsSync');
+  const isDark = useColorScheme() === 'dark';
+  const cardFill = isActive
+    ? hexToRgba(ACTIVE_TINT, isDark ? 0.18 : 0.1)
+    : iosColors!.secondarySystemGroupedBackground;
+
   return (
-    <>
-      <Spacer />
-      <VStack spacing={8} modifiers={[frame({ maxWidth: Infinity })]}>
-        <Image
-          systemName="server.rack"
-          size={38}
-          modifiers={[foregroundStyle(iosColors!.tertiaryLabel)]}
-        />
-        <SwiftUIText modifiers={[font({ size: 16 }), foregroundStyle(iosColors!.secondaryLabel)]}>
-          {t('empty.title')}
+    <HStack
+      spacing={12}
+      alignment="center"
+      modifiers={[
+        listRowBackground(SHEET_BG),
+        listRowSeparator('hidden'),
+        listRowInsets({ top: 5, bottom: 5, leading: 16, trailing: 16 }),
+        padding({ horizontal: 16, vertical: 14 }),
+        frame({ maxWidth: Infinity }),
+        background(cardFill, shapes.roundedRectangle({ cornerRadius: 22 })),
+        contentShape(shapes.rectangle()),
+        onTapGesture(onSelect),
+      ]}
+    >
+      <Image
+        systemName={isActive ? 'checkmark.circle.fill' : 'circle'}
+        size={26}
+        color={isActive ? ACTIVE_TINT : undefined}
+      />
+      <Image systemName="person.2" size={22} />
+      <VStack alignment="leading" spacing={3}>
+        <SwiftUIText modifiers={[font({ size: 17, weight: 'semibold' })]}>
+          {t('space.title')}
         </SwiftUIText>
-        <SwiftUIText modifiers={[font({ size: 13 }), foregroundStyle(iosColors!.tertiaryLabel)]}>
-          {t('empty.hint')}
+        <SwiftUIText modifiers={[font({ size: 13 }), foregroundStyle('secondary')]}>
+          {spaceId || t('connection.p2pDescription')}
         </SwiftUIText>
       </VStack>
       <Spacer />
-    </>
+    </HStack>
   );
 }
 
@@ -221,16 +247,19 @@ export function ServerSwitcherModal({
   visible,
   servers,
   activeIndex,
+  selectedChannel,
+  p2pSpaceId,
+  legacyLanEligible,
   onSelect,
   onClose,
+  onAdd,
 }: ServerSwitcherModalProps) {
   const { t } = useTranslation('serverSwitch');
-  const [showAddSheet, setShowAddSheet] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const { addServer, updateServer, deleteServer } = useSettingsStore();
+  const { updateServer, deleteServer } = useSettingsStore();
 
   const editingServer = editingIndex != null ? servers[editingIndex] : undefined;
-  const sheetVisible = showAddSheet || editingServer != null;
+  const sheetVisible = editingServer != null;
 
   const handleDelete = useCallback(
     (index: number) => {
@@ -257,19 +286,14 @@ export function ServerSwitcherModal({
         username: data.username,
         password: data.password,
       };
-      if (editingIndex != null) {
-        await updateServer(editingIndex, payload);
-      } else {
-        await addServer({ type: 'syncclipboard', ...payload });
-      }
-      setShowAddSheet(false);
+      if (editingIndex == null) return;
+      await updateServer(editingIndex, payload);
       setEditingIndex(null);
     },
-    [editingIndex, updateServer, addServer]
+    [editingIndex, updateServer]
   );
 
   const closeSheet = useCallback(() => {
-    setShowAddSheet(false);
     setEditingIndex(null);
   }, []);
 
@@ -291,24 +315,38 @@ export function ServerSwitcherModal({
               title={t('title')}
               spacing={0}
               leftSlots={[headerCircleButton('close', 'xmark', onClose)]}
-              rightSlots={[headerCircleButton('add', 'plus', () => setShowAddSheet(true))]}
+              rightSlots={[headerCircleButton('add', 'plus', onAdd)]}
             >
-              {servers.length === 0 ? (
-                <EmptyState />
-              ) : (
-                <List modifiers={[listStyle('plain'), scrollContentBackground('hidden')]}>
-                  {servers.map((server, index) => (
-                    <ServerCard
-                      key={`${server.url}-${index}`}
-                      server={server}
-                      isActive={index === activeIndex}
-                      onSelect={() => onSelect(index)}
-                      onEdit={() => setEditingIndex(index)}
-                      onDelete={() => handleDelete(index)}
-                    />
-                  ))}
-                </List>
-              )}
+              <List modifiers={[listStyle('plain'), scrollContentBackground('hidden')]}>
+                <P2pCard
+                  isActive={selectedChannel === 'p2p'}
+                  spaceId={p2pSpaceId}
+                  onSelect={() => onSelect({ kind: 'p2p' })}
+                />
+                {legacyLanEligible ? (
+                  <SwiftUIText
+                    modifiers={[
+                      font({ size: 13 }),
+                      foregroundStyle('secondary'),
+                      padding({ horizontal: 16, vertical: 8 }),
+                    ]}
+                  >
+                    {t('connection.lanDeprecated', { ns: 'settingsSync' })}
+                  </SwiftUIText>
+                ) : null}
+                {legacyLanEligible
+                  ? servers.map((server, index) => (
+                      <ServerCard
+                        key={`${server.url}-${index}`}
+                        server={server}
+                        isActive={selectedChannel === 'lan' && index === activeIndex}
+                        onSelect={() => onSelect({ kind: 'lan', serverIndex: index })}
+                        onEdit={() => setEditingIndex(index)}
+                        onDelete={() => handleDelete(index)}
+                      />
+                    ))
+                  : null}
+              </List>
             </IosSheetPage>
           </Group>
         </BottomSheet>

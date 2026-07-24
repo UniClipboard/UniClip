@@ -59,7 +59,13 @@ export function ServerListPage({
       rightSlots={[<HeaderCircleButton key="add" systemName="plus" onPress={onAddServer} />]}
     >
       <IosSheetForm>
-        <Section footer={<SwiftUIText>{t('serverList.footer')}</SwiftUIText>}>
+        <Section
+          footer={
+            <SwiftUIText>
+              {t('connection.lanDeprecated', { ns: 'settingsSync' })}
+            </SwiftUIText>
+          }
+        >
           {servers.length === 0 ? (
             <LabeledContent
               label={<Label title={t('serverList.empty.label')} systemImage="server.rack" />}

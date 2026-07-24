@@ -8,6 +8,7 @@ const mockLanStart = jest.fn<() => Promise<void>>(async () => undefined);
 const mockLanStop = jest.fn<() => void>();
 const mockP2pStart = jest.fn<() => Promise<void>>(async () => undefined);
 const mockP2pStop = jest.fn<() => Promise<void>>(async () => undefined);
+const mockSpaceRefresh = jest.fn(async () => undefined);
 const mockStartMonitoring = jest.fn(async () => undefined);
 const mockStopMonitoring = jest.fn();
 const mockSetStaticReceiverEnabled = jest.fn();
@@ -60,6 +61,10 @@ jest.mock('../services/UnifiedEngineService', () => ({
   }),
 }));
 
+jest.mock('../services/UnifiedSpaceService', () => ({
+  getUnifiedSpaceService: () => ({ refresh: mockSpaceRefresh }),
+}));
+
 jest.mock('../stores/clipboardStore', () => ({
   useClipboardStore: {
     getState: () => ({
@@ -99,6 +104,15 @@ describe('BackgroundServiceManager background policy', () => {
     mockRemoteRefresh.mockResolvedValue(undefined);
   });
 
+  it('can explicitly wait for the selected P2P runtime before a space setup operation', async () => {
+    settingsState.config.syncChannel = 'p2p';
+
+    await getBackgroundServiceManager().activateSelectedSyncChannel();
+
+    expect(mockP2pStart).toHaveBeenCalledTimes(1);
+    expect(mockSpaceRefresh).toHaveBeenCalledTimes(1);
+  });
+
   it('stops LAN before starting the explicitly selected P2P channel', async () => {
     await getBackgroundServiceManager().refresh();
     jest.clearAllMocks();
@@ -109,6 +123,7 @@ describe('BackgroundServiceManager background policy', () => {
     expect(mockLanStop).toHaveBeenCalledTimes(1);
     expect(mockRemoteStop).toHaveBeenCalledTimes(1);
     expect(mockP2pStart).toHaveBeenCalledTimes(1);
+    expect(mockSpaceRefresh).toHaveBeenCalledTimes(1);
     expect(mockRemoteRefresh).not.toHaveBeenCalled();
     expect(mockReconcileSyncEngineAppState).not.toHaveBeenCalled();
 

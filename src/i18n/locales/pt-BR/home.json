@@ -1,8 +1,8 @@
 {
   "empty": {
     "unconfigured": {
-      "title": "Nenhum dispositivo pareado",
-      "description": "Abra o UniClipboard em um computador na mesma rede Wi‑Fi para parear e começar a sincronizar."
+      "title": "Nenhum espaço P2P ainda",
+      "description": "Crie um espaço ou entre com um convite para começar a sincronizar. Seu histórico local continuará disponível."
     },
     "connecting": {
       "title": "Conectando…",
@@ -62,6 +62,12 @@
     "sentToPeers": "Enviado aos outros dispositivos",
     "uploadFailed": "Falha no envio",
     "savedLocally": "Salvo localmente",
+    "p2pDelivery": {
+      "delivered": "Entregue aos outros dispositivos",
+      "offline": "Salvo aqui; o outro dispositivo está offline",
+      "failed": "Salvo aqui; falha no envio",
+      "pending": "Salvo aqui; ainda enviando"
+    },
     "pickFileFailed": "Falha ao escolher arquivo",
     "pickImageFailed": "Falha ao escolher imagem",
     "cameraPermissionNeeded": "Permissão de câmera necessária",

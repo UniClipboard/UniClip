@@ -69,6 +69,17 @@ export function migrateConfig(
     result.syncChannel = DEFAULT_SETTINGS.syncChannel;
   }
 
+  // Schema v7 freezes LAN access to installs that already had a LAN profile.
+  // The durable flag must survive deleting the final profile during the transition window.
+  if (sourceSchemaVersion < 7) {
+    result.legacyLanEligible = Array.isArray(old.servers) && old.servers.length > 0;
+    result.lanMigrationPromptedVersion = null;
+  } else {
+    result.legacyLanEligible = old.legacyLanEligible === true;
+    result.lanMigrationPromptedVersion =
+      typeof old.lanMigrationPromptedVersion === 'string' ? old.lanMigrationPromptedVersion : null;
+  }
+
   // Before schema v4, Chinese was persisted as the implicit default before
   // "follow system" existed, so it cannot be distinguished from a user choice.
   if (sourceSchemaVersion < 4 && old.language === 'zh-CN') {
