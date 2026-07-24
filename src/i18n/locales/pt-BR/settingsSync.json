@@ -80,7 +80,8 @@
     },
     "status": {
       "ready": "O espaço está pronto",
-      "spaceId": "ID do espaço"
+      "spaceId": "ID do espaço",
+      "currentDevice": "Este dispositivo: {{name}}"
     },
     "invitation": {
       "title": "Convidar outro dispositivo",

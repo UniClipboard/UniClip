@@ -88,7 +88,8 @@
     },
     "status": {
       "ready": "Space is ready",
-      "spaceId": "Space ID"
+      "spaceId": "Space ID",
+      "currentDevice": "This device: {{name}}"
     },
     "invitation": {
       "title": "Invite another device",

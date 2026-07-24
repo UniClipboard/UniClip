@@ -1,34 +1,52 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
-import type { InvitationIssued, SpaceCreated, SpaceJoined } from 'uc-engine';
+import * as Clipboard from 'expo-clipboard';
+import type { InvitationIssued } from 'uc-engine';
 import {
   Button as SwiftUIButton,
   HStack,
-  LabeledContent,
+  Image,
   Picker,
   ProgressView,
   Section,
   SecureField,
   type SecureFieldRef,
+  Spacer,
   Text as SwiftUIText,
   TextField,
   type TextFieldRef,
+  VStack,
 } from '@expo/ui/swift-ui';
 import {
+  accessibilityLabel,
   buttonStyle,
+  controlSize,
+  disabled,
+  font,
   foregroundStyle,
   frame,
+  lineLimit,
+  listRowBackground,
+  listRowInsets,
+  minimumScaleFactor,
   opacity,
   pickerStyle,
   tag,
   textFieldStyle,
+  textSelection,
+  tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { useTranslation } from 'react-i18next';
 
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
 import { getUnifiedSpaceService, UnifiedSpaceInputError } from '@/services/UnifiedSpaceService';
-import { useUnifiedSpaceStore } from '@/stores/unifiedSpaceStore';
-import { HeaderCircleButton } from './common';
+import { useUnifiedSpaceStore, type UnifiedSpaceDevice } from '@/stores/unifiedSpaceStore';
+import {
+  HeaderCircleButton,
+  SettingsIconTile,
+  settingsTileColors,
+  statusGreen,
+} from './common';
 
 type SetupMode = 'create' | 'join';
 type PendingOperation = SetupMode | 'invite' | 'leave' | `remove:${string}` | null;
@@ -36,6 +54,102 @@ type PendingOperation = SetupMode | 'invite' | 'leave' | `remove:${string}` | nu
 function operationError(error: unknown, t: (key: string) => string): string {
   if (error instanceof UnifiedSpaceInputError) return t(`space.error.${error.code}`);
   return t('space.error.operationFailed');
+}
+
+function CopyableValue({
+  label,
+  value,
+  copied,
+  copyLabel,
+  onCopy,
+}: {
+  label: string;
+  value: string;
+  copied: boolean;
+  copyLabel: string;
+  onCopy: () => void;
+}) {
+  return (
+    <VStack alignment="leading" spacing={5} modifiers={[frame({ maxWidth: Infinity })]}>
+      <SwiftUIText modifiers={[font({ size: 13 }), foregroundStyle('secondary')]}>
+        {label}
+      </SwiftUIText>
+      <HStack spacing={8} alignment="center" modifiers={[frame({ maxWidth: Infinity })]}>
+        <SwiftUIText
+          modifiers={[
+            font({ size: 13, design: 'monospaced' }),
+            lineLimit(1),
+            minimumScaleFactor(0.7),
+            textSelection(true),
+          ]}
+        >
+          {value}
+        </SwiftUIText>
+        <Spacer />
+        <SwiftUIButton
+          onPress={onCopy}
+          modifiers={[buttonStyle('borderless'), accessibilityLabel(copyLabel)]}
+        >
+          <Image
+            systemName={copied ? 'checkmark' : 'doc.on.doc'}
+            size={16}
+            color={copied ? statusGreen : settingsTileColors.gray}
+            modifiers={[frame({ width: 28, height: 28 })]}
+          />
+        </SwiftUIButton>
+      </HStack>
+    </VStack>
+  );
+}
+
+function SpaceDeviceRow({
+  device,
+  removing,
+  removeLabel,
+  onlineLabel,
+  offlineLabel,
+  onRemove,
+}: {
+  device: UnifiedSpaceDevice;
+  removing: boolean;
+  removeLabel: string;
+  onlineLabel: string;
+  offlineLabel: string;
+  onRemove: () => void;
+}) {
+  const statusColor = device.online ? statusGreen : settingsTileColors.gray;
+
+  return (
+    <HStack spacing={12} alignment="center" modifiers={[frame({ maxWidth: Infinity })]}>
+      <Image systemName="person.crop.circle" size={28} color={settingsTileColors.indigo} />
+      <VStack alignment="leading" spacing={3}>
+        <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>{device.displayName}</SwiftUIText>
+        <HStack spacing={5} alignment="center">
+          <Image systemName="circle.fill" size={7} color={statusColor} />
+          <SwiftUIText modifiers={[font({ size: 13 }), foregroundStyle('secondary')]}>
+            {device.online ? onlineLabel : offlineLabel}
+          </SwiftUIText>
+        </HStack>
+      </VStack>
+      <Spacer />
+      {removing ? (
+        <ProgressView />
+      ) : (
+        <SwiftUIButton
+          role="destructive"
+          onPress={onRemove}
+          modifiers={[buttonStyle('plain'), accessibilityLabel(removeLabel)]}
+        >
+          <Image
+            systemName="trash"
+            size={16}
+            color={settingsTileColors.red}
+            modifiers={[frame({ width: 32, height: 32 })]}
+          />
+        </SwiftUIButton>
+      )}
+    </HStack>
+  );
 }
 
 export function SpacePage({ onBack }: { onBack: () => void }) {
@@ -46,9 +160,8 @@ export function SpacePage({ onBack }: { onBack: () => void }) {
   const [invitationCode, setInvitationCode] = useState('');
   const [pending, setPending] = useState<PendingOperation>(null);
   const [error, setError] = useState<string | null>(null);
-  const [created, setCreated] = useState<SpaceCreated | null>(null);
-  const [joined, setJoined] = useState<SpaceJoined | null>(null);
   const [invitation, setInvitation] = useState<InvitationIssued | null>(null);
+  const [copiedValue, setCopiedValue] = useState<string | null>(null);
   const space = useUnifiedSpaceStore();
 
   const deviceNameRef = useRef<TextFieldRef>(null);
@@ -56,8 +169,10 @@ export function SpacePage({ onBack }: { onBack: () => void }) {
   const passphraseRef = useRef<SecureFieldRef>(null);
 
   useEffect(() => {
-    void getUnifiedSpaceService().refresh();
-  }, []);
+    void getUnifiedSpaceService()
+      .refresh()
+      .catch((cause) => setError(operationError(cause, t)));
+  }, [t]);
 
   const clearSensitiveInput = () => {
     setPassphrase('');
@@ -69,9 +184,8 @@ export function SpacePage({ onBack }: { onBack: () => void }) {
     setDeviceName('');
     setInvitationCode('');
     setError(null);
-    setCreated(null);
-    setJoined(null);
     setInvitation(null);
+    setCopiedValue(null);
     clearSensitiveInput();
     void deviceNameRef.current?.clear();
     void invitationCodeRef.current?.clear();
@@ -85,11 +199,9 @@ export function SpacePage({ onBack }: { onBack: () => void }) {
     try {
       const service = getUnifiedSpaceService();
       if (mode === 'create') {
-        setCreated(await service.createSpace(deviceName, passphrase));
-        setJoined(null);
+        await service.createSpace(deviceName, passphrase);
       } else {
-        setJoined(await service.joinSpace(invitationCode, deviceName, passphrase));
-        setCreated(null);
+        await service.joinSpace(invitationCode, deviceName, passphrase);
       }
       clearSensitiveInput();
     } catch (cause) {
@@ -103,6 +215,7 @@ export function SpacePage({ onBack }: { onBack: () => void }) {
     if (pending) return;
     setPending('invite');
     setError(null);
+    setCopiedValue(null);
     try {
       setInvitation(await getUnifiedSpaceService().issueInvitation());
     } catch (cause) {
@@ -110,6 +223,11 @@ export function SpacePage({ onBack }: { onBack: () => void }) {
     } finally {
       setPending(null);
     }
+  };
+
+  const copyValue = async (value: string) => {
+    await Clipboard.setStringAsync(value);
+    setCopiedValue(value);
   };
 
   const removeMember = (deviceId: string) => {
@@ -140,9 +258,8 @@ export function SpacePage({ onBack }: { onBack: () => void }) {
           void getUnifiedSpaceService()
             .leaveSpace()
             .then(() => {
-              setCreated(null);
-              setJoined(null);
               setInvitation(null);
+              setCopiedValue(null);
             })
             .catch((cause) => setError(operationError(cause, t)))
             .finally(() => setPending(null));
@@ -151,7 +268,7 @@ export function SpacePage({ onBack }: { onBack: () => void }) {
     ]);
   };
 
-  const spaceId = space.spaceId ?? created?.spaceId ?? joined?.spaceId;
+  const spaceId = space.spaceId;
   const visibleInvitation = invitation ?? space.invitation;
   const invitationDescription = visibleInvitation
     ? 'availability' in visibleInvitation
@@ -162,141 +279,225 @@ export function SpacePage({ onBack }: { onBack: () => void }) {
         )
       : t('space.invitation.description')
     : t('space.invitation.description');
+  const invitationFooter = visibleInvitation
+    ? `${invitationDescription}\n${t('connection.invitationExpires', {
+        time: new Date(visibleInvitation.expiresAtMs).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+      })}`
+    : invitationDescription;
+  const canSubmit =
+    deviceName.trim().length > 0 &&
+    passphrase.trim().length > 0 &&
+    (mode !== 'join' || invitationCode.trim().length > 0);
+  const isInitialLoading =
+    !spaceId && !pending && (space.status === 'idle' || space.status === 'loading');
 
   return (
     <IosSheetPage
       title={t('space.title')}
-      leftSlots={[<HeaderCircleButton key="back" systemName="chevron.left" onPress={handleBack} />]}
+      leftSlots={[
+        <HeaderCircleButton key="back" systemName="chevron.left" onPress={handleBack} />,
+      ]}
     >
       <IosSheetForm>
-        {!spaceId ? (
-          <Section footer={<SwiftUIText>{t('space.footer')}</SwiftUIText>}>
-            <Picker
-              label={t('space.mode')}
-              selection={mode}
-              onSelectionChange={(value) => {
-                setMode(value as SetupMode);
-                setError(null);
-                clearSensitiveInput();
-              }}
-              modifiers={[pickerStyle('segmented')]}
-            >
-              <SwiftUIText modifiers={[tag('create')]}>{t('space.create.action')}</SwiftUIText>
-              <SwiftUIText modifiers={[tag('join')]}>{t('space.join.action')}</SwiftUIText>
-            </Picker>
+        {isInitialLoading ? (
+          <Section>
+            <HStack spacing={10} modifiers={[frame({ maxWidth: Infinity })]}>
+              <ProgressView />
+              <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
+                {t('state.loading', { ns: 'common' })}
+              </SwiftUIText>
+            </HStack>
           </Section>
         ) : null}
 
-        {!spaceId ? (
-          <Section title={t(`space.${mode}.title`)}>
-            {mode === 'join' ? (
+        {!spaceId && !isInitialLoading ? (
+          <>
+            <Section footer={<SwiftUIText>{t('space.footer')}</SwiftUIText>}>
+              <Picker
+                label={t('space.mode')}
+                selection={mode}
+                onSelectionChange={(value) => {
+                  setMode(value as SetupMode);
+                  setError(null);
+                  clearSensitiveInput();
+                }}
+                modifiers={[pickerStyle('segmented')]}
+              >
+                <SwiftUIText modifiers={[tag('create')]}>{t('space.create.action')}</SwiftUIText>
+                <SwiftUIText modifiers={[tag('join')]}>{t('space.join.action')}</SwiftUIText>
+              </Picker>
+            </Section>
+
+            <Section title={t(`space.${mode}.title`)}>
+              {mode === 'join' ? (
+                <TextField
+                  ref={invitationCodeRef}
+                  placeholder={t('space.field.invitationCode')}
+                  onTextChange={setInvitationCode}
+                  modifiers={[textFieldStyle('plain'), frame({ minHeight: 26 })]}
+                />
+              ) : null}
               <TextField
-                ref={invitationCodeRef}
-                placeholder={t('space.field.invitationCode')}
-                onTextChange={setInvitationCode}
-                modifiers={[textFieldStyle('plain'), frame({ minHeight: 22 })]}
+                ref={deviceNameRef}
+                placeholder={t('space.field.deviceName')}
+                onTextChange={setDeviceName}
+                modifiers={[textFieldStyle('plain'), frame({ minHeight: 26 })]}
               />
-            ) : null}
-            <TextField
-              ref={deviceNameRef}
-              placeholder={t('space.field.deviceName')}
-              onTextChange={setDeviceName}
-              modifiers={[textFieldStyle('plain'), frame({ minHeight: 22 })]}
-            />
-            <SecureField
-              ref={passphraseRef}
-              placeholder={t('space.field.passphrase')}
-              onTextChange={setPassphrase}
-              modifiers={[frame({ minHeight: 22 })]}
-            />
-            <SwiftUIButton
-              systemImage={mode === 'create' ? 'plus.circle.fill' : 'link.circle.fill'}
-              label={pending === mode ? t('space.working') : t(`space.${mode}.action`)}
-              onPress={submit}
-              modifiers={[buttonStyle('borderedProminent'), opacity(pending ? 0.45 : 1)]}
-            />
-          </Section>
+              <SecureField
+                ref={passphraseRef}
+                placeholder={t('space.field.passphrase')}
+                onTextChange={setPassphrase}
+                modifiers={[frame({ minHeight: 26 })]}
+              />
+            </Section>
+
+            <Section>
+              <SwiftUIButton
+                onPress={submit}
+                modifiers={[
+                  buttonStyle('borderedProminent'),
+                  controlSize('large'),
+                  tint(mode === 'create' ? settingsTileColors.blue : settingsTileColors.purple),
+                  listRowBackground('transparent'),
+                  listRowInsets({ top: 6, bottom: 6, leading: 0, trailing: 0 }),
+                  disabled(!canSubmit || pending !== null),
+                  opacity(!canSubmit || pending !== null ? 0.32 : 1),
+                ]}
+              >
+                <HStack
+                  spacing={8}
+                  modifiers={[
+                    frame({ minHeight: 50, maxWidth: Infinity }),
+                    foregroundStyle('#FFFFFF'),
+                  ]}
+                >
+                  <Spacer />
+                  <Image
+                    systemName={mode === 'create' ? 'plus.circle.fill' : 'link.circle.fill'}
+                    size={16}
+                  />
+                  <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>
+                    {pending === mode ? t('space.working') : t(`space.${mode}.action`)}
+                  </SwiftUIText>
+                  <Spacer />
+                </HStack>
+              </SwiftUIButton>
+            </Section>
+          </>
         ) : null}
 
         {error ? (
           <Section>
-            <SwiftUIText modifiers={[foregroundStyle('red')]}>{error}</SwiftUIText>
+            <HStack spacing={8}>
+              <Image systemName="exclamationmark.circle.fill" size={17} color={settingsTileColors.red} />
+              <SwiftUIText modifiers={[foregroundStyle('red')]}>{error}</SwiftUIText>
+            </HStack>
           </Section>
         ) : null}
 
         {spaceId ? (
           <>
-            <Section header={<SwiftUIText>{t('space.status.ready')}</SwiftUIText>}>
-              <LabeledContent label={t('space.status.spaceId')}>
-                <SwiftUIText modifiers={[foregroundStyle('secondary')]}>{spaceId}</SwiftUIText>
-              </LabeledContent>
+            <Section footer={<SwiftUIText>{t('connection.p2pDescription')}</SwiftUIText>}>
+              <HStack spacing={12} alignment="center" modifiers={[frame({ maxWidth: Infinity })]}>
+                <SettingsIconTile systemName="person.2.fill" color={settingsTileColors.indigo} />
+                <VStack alignment="leading" spacing={3}>
+                  <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>
+                    {t('space.status.ready')}
+                  </SwiftUIText>
+                  {space.deviceName ? (
+                    <SwiftUIText modifiers={[font({ size: 13 }), foregroundStyle('secondary')]}>
+                      {t('space.status.currentDevice', { name: space.deviceName })}
+                    </SwiftUIText>
+                  ) : null}
+                </VStack>
+                <Spacer />
+                <Image systemName="checkmark.circle.fill" size={22} color={statusGreen} />
+              </HStack>
+              <CopyableValue
+                label={t('space.status.spaceId')}
+                value={spaceId}
+                copied={copiedValue === spaceId}
+                copyLabel={t('action.copy', { ns: 'common' })}
+                onCopy={() => void copyValue(spaceId)}
+              />
             </Section>
-            <Section header={<SwiftUIText>{t('space.devices.title')}</SwiftUIText>}>
+
+            <Section
+              header={
+                <HStack modifiers={[frame({ maxWidth: Infinity })]}>
+                  <SwiftUIText>{t('space.devices.title')}</SwiftUIText>
+                  <Spacer />
+                  <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
+                    {space.devices.length}
+                  </SwiftUIText>
+                </HStack>
+              }
+            >
               {space.devices.length ? (
                 space.devices.map((device) => (
-                  <HStack
+                  <SpaceDeviceRow
                     key={device.deviceId}
-                    spacing={12}
-                    modifiers={[frame({ maxWidth: Infinity })]}
-                  >
-                    <LabeledContent label={device.displayName}>
-                      <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-                        {t(device.online ? 'space.devices.online' : 'space.devices.offline')}
-                      </SwiftUIText>
-                    </LabeledContent>
-                    <SwiftUIButton
-                      systemImage="person.crop.circle.badge.minus"
-                      label={t('space.devices.remove')}
-                      role="destructive"
-                      onPress={() => removeMember(device.deviceId)}
-                    />
-                  </HStack>
+                    device={device}
+                    removing={pending === `remove:${device.deviceId}`}
+                    removeLabel={t('space.devices.remove')}
+                    onlineLabel={t('space.devices.online')}
+                    offlineLabel={t('space.devices.offline')}
+                    onRemove={() => removeMember(device.deviceId)}
+                  />
                 ))
               ) : (
-                <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-                  {t('space.devices.empty')}
-                </SwiftUIText>
+                <HStack spacing={10}>
+                  <Image systemName="person.2" size={18} color={settingsTileColors.gray} />
+                  <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
+                    {t('space.devices.empty')}
+                  </SwiftUIText>
+                </HStack>
               )}
             </Section>
-          </>
-        ) : null}
 
-        {spaceId ? (
-          <Section
-            header={<SwiftUIText>{t('space.invitation.title')}</SwiftUIText>}
-            footer={<SwiftUIText>{invitationDescription}</SwiftUIText>}
-          >
-            {visibleInvitation ? (
-              <LabeledContent label={t('space.invitation.code')}>
-                <SwiftUIText>{visibleInvitation.invitationCode}</SwiftUIText>
-              </LabeledContent>
-            ) : null}
-            {pending === 'invite' ? (
-              <HStack spacing={8} modifiers={[frame({ maxWidth: Infinity })]}>
-                <ProgressView />
-                <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-                  {t('space.working')}
-                </SwiftUIText>
-              </HStack>
-            ) : (
+            <Section
+              header={<SwiftUIText>{t('space.invitation.title')}</SwiftUIText>}
+              footer={<SwiftUIText>{invitationFooter}</SwiftUIText>}
+            >
+              {visibleInvitation ? (
+                <CopyableValue
+                  label={t('space.invitation.code')}
+                  value={visibleInvitation.invitationCode}
+                  copied={copiedValue === visibleInvitation.invitationCode}
+                  copyLabel={t('action.copy', { ns: 'common' })}
+                  onCopy={() => void copyValue(visibleInvitation.invitationCode)}
+                />
+              ) : null}
+              {pending === 'invite' ? (
+                <HStack spacing={8} modifiers={[frame({ maxWidth: Infinity })]}>
+                  <ProgressView />
+                  <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
+                    {t('space.working')}
+                  </SwiftUIText>
+                </HStack>
+              ) : (
+                <SwiftUIButton
+                  systemImage="person.badge.plus"
+                  label={t('space.invitation.action')}
+                  onPress={issueInvitation}
+                  modifiers={[tint(settingsTileColors.purple), disabled(pending !== null)]}
+                />
+              )}
+            </Section>
+
+            <Section footer={<SwiftUIText>{t('space.leave.confirm')}</SwiftUIText>}>
               <SwiftUIButton
-                systemImage="person.badge.plus"
-                label={t('space.invitation.action')}
-                onPress={issueInvitation}
+                systemImage="rectangle.portrait.and.arrow.right"
+                label={t('space.leave.action')}
+                role="destructive"
+                onPress={leaveSpace}
+                modifiers={[disabled(pending !== null)]}
               />
-            )}
-          </Section>
-        ) : null}
-
-        {spaceId ? (
-          <Section footer={<SwiftUIText>{t('space.leave.confirm')}</SwiftUIText>}>
-            <SwiftUIButton
-              systemImage="rectangle.portrait.and.arrow.right"
-              label={t('space.leave.action')}
-              role="destructive"
-              onPress={leaveSpace}
-            />
-          </Section>
+            </Section>
+          </>
         ) : null}
       </IosSheetForm>
     </IosSheetPage>

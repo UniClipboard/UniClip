@@ -88,7 +88,8 @@
     },
     "status": {
       "ready": "空间已就绪",
-      "spaceId": "空间编号"
+      "spaceId": "空间编号",
+      "currentDevice": "本机：{{name}}"
     },
     "invitation": {
       "title": "邀请其他设备",

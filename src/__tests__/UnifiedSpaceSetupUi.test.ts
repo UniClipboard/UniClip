@@ -70,6 +70,19 @@ describe('unified space setup UI', () => {
     }
   });
 
+  it('gives the iOS space page a compact overview and manageable device rows', () => {
+    const ios = source('screens/settings/ios/SpacePage.tsx');
+
+    expect(ios).toContain('CopyableValue');
+    expect(ios).toContain('Clipboard.setStringAsync');
+    expect(ios).toContain('SettingsIconTile');
+    expect(ios).toContain('SpaceDeviceRow');
+    expect(ios).toContain('systemName="trash"');
+    expect(ios).toContain('lineLimit(1)');
+    expect(ios).toContain('space.status.currentDevice');
+    expect(ios).toContain('disabled(!canSubmit || pending !== null)');
+  });
+
   it('keeps invitation availability copy aligned in every supported language', () => {
     for (const locale of ['en', 'pt-BR', 'ru', 'zh']) {
       const messages = JSON.parse(source(`i18n/locales/${locale}/settingsSync.json`));
@@ -79,6 +92,7 @@ describe('unified space setup UI', () => {
       expect(messages.space.devices.remove).toEqual(expect.any(String));
       expect(messages.space.leave.action).toEqual(expect.any(String));
       expect(messages.space.leave.confirm).toEqual(expect.any(String));
+      expect(messages.space.status.currentDevice).toEqual(expect.any(String));
     }
   });
 });
