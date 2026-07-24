@@ -20,6 +20,11 @@ Pod::Spec.new do |s|
   s.source_files = ['*.swift', 'Bindings/*.swift']
   s.vendored_frameworks = 'UniClipboardEngine.xcframework'
   s.exclude_files = 'Bindings/include/**'
+  s.script_phase = {
+    :name => 'Verify UniClipboard Engine Release',
+    :script => 'node "${PODS_TARGET_SRCROOT}/../../../scripts/verify-unified-engine-core.mjs" --prepared',
+    :execution_position => :before_compile,
+  }
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',
     'SWIFT_COMPILATION_MODE' => 'wholemodule',

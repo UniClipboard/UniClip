@@ -1,3 +1,6 @@
-/android/libs/UniClipboardEngine.aar
+/android/release-maven/
+/android/release-metadata/
 /android/build/
+/ios/Bindings/uc_engine_uniffi.swift
 /ios/UniClipboardEngine.xcframework/
+/.artifacts/

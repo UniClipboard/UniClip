@@ -3,14 +3,21 @@ plugins {
   id 'expo-module-gradle-plugin'
 }
 
+def coreSource = new groovy.json.JsonSlurper().parse(file('../core-source.json'))
+def coreVersion = coreSource.version.replace('core-v', '')
+
 group = 'expo.modules.ucengine'
-version = '0.19.1'
+version = coreVersion
+
+repositories {
+  maven { url = uri('release-maven') }
+}
 
 android {
   namespace "expo.modules.ucengine"
   defaultConfig {
     versionCode 1
-    versionName "0.19.1"
+    versionName coreVersion
     testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     ndk {
       abiFilters 'arm64-v8a', 'x86_64'
@@ -19,17 +26,17 @@ android {
 }
 
 dependencies {
-  implementation files('libs/UniClipboardEngine.aar')
-  implementation 'net.java.dev.jna:jna:5.14.0@aar'
+  implementation "app.uniclipboard:uniclipboard-engine:${coreVersion}"
   androidTestImplementation 'androidx.test:core:1.6.1'
   androidTestImplementation 'androidx.test.ext:junit:1.2.1'
   androidTestImplementation 'androidx.test:runner:1.6.2'
 }
 
-tasks.configureEach { task ->
-  if (task.name.startsWith('pre') && !file('libs/UniClipboardEngine.aar').exists()) {
-    task.doFirst {
-      throw new GradleException('Missing UniClipboardEngine.aar; run scripts/update-unified-engine-core.sh')
-    }
-  }
+def verifyUcEngineRelease = tasks.register('verifyUcEngineRelease', Exec) {
+  workingDir rootProject.projectDir.parentFile
+  commandLine 'node', 'scripts/verify-unified-engine-core.mjs', '--prepared'
+}
+
+tasks.named('preBuild').configure {
+  dependsOn verifyUcEngineRelease
 }

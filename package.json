@@ -22,6 +22,8 @@
     "format-docs": "prettier --write \"**/*.{json,md}\"",
     "format-docs:check": "prettier --check \"**/*.{json,md}\"",
     "type-check": "tsc --noEmit",
+    "core:prepare": "bash scripts/update-unified-engine-core.sh",
+    "core:verify": "node scripts/verify-unified-engine-core.mjs --prepared",
     "check:quality": "npm run lint && npm run format:check && npm run type-check",
     "build:apk": "cd android && gradlew assembleRelease",
     "plugin:build": "cd plugins && tsc -p tsconfig.json",

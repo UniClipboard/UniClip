@@ -3,13 +3,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const config_plugins_1 = require("expo/config-plugins");
 /**
  * Configures Android ABI splits so that separate APKs are built for
- * each real-device CPU architecture (arm64-v8a, armeabi-v7a).
+ * the real-device CPU architecture published by the independent core Release.
  *
- * x86/x86_64 (emulator / ChromeOS) are intentionally excluded: they roughly
- * doubled the native (C++/NDK) compile time in CI while producing APKs nobody
- * ships to a real device. This must stay in sync with `reactNativeArchitectures`
- * in `withGradleBuildTuning.ts` — the split ABIs are a subset of the ABIs that
- * are actually compiled, otherwise a split APK ships with no native libraries.
+ * x86_64 remains available through a command-line architecture override for
+ * emulator builds. armeabi-v7a is excluded because the core Release does not
+ * publish a matching native library. This must stay in sync with
+ * `reactNativeArchitectures` in `withGradleBuildTuning.ts`.
  *
  * All variants share the same versionCode (no per-ABI offset).
  */
@@ -22,8 +21,8 @@ const withAbiSplits = (config) => {
         abi {
             enable true
             reset()
-            include "arm64-v8a", "armeabi-v7a"
-            universalApk true
+            include "arm64-v8a"
+            universalApk false
         }
     }
 `;
@@ -38,17 +37,18 @@ const withAbiSplits = (config) => {
         }
         else {
             // Splits already present (a re-prebuild without --clean). Rewrite the
-            // `include` line in place so a stale ABI list (e.g. a previously-generated
-            // x86_64) is dropped and stays in sync with the block above.
+            // `include` line in place so stale ABIs are dropped and stay in sync with
+            // the independent core Release.
             const includeRe = /include\s+"arm64-v8a"[^\n]*/;
             if (includeRe.test(contents)) {
-                config.modResults.contents = contents.replace(includeRe, 'include "arm64-v8a", "armeabi-v7a"');
+                config.modResults.contents = contents.replace(includeRe, 'include "arm64-v8a"');
                 console.log('✓ Updated splits include list in build.gradle');
             }
             else {
                 console.log('ℹ splits already configured in build.gradle');
             }
         }
+        config.modResults.contents = config.modResults.contents.replace(/universalApk\s+(true|false)/, 'universalApk false');
         return config;
     });
 };

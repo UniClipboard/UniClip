@@ -3,59 +3,59 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MODULE_DIR="$ROOT_DIR/modules/uc-engine"
-DIST_DIR="${1:-/tmp/uc-engine-uniffi-dist}"
 PIN_FILE="$MODULE_DIR/core-source.json"
-
-IOS_DIR="$DIST_DIR/ios"
-ANDROID_DIR="$DIST_DIR/android"
-
-for required in \
-  "$IOS_DIR/UniClipboardEngine.xcframework.zip" \
-  "$IOS_DIR/UniClipboardEngine.checksum.txt" \
-  "$IOS_DIR/uc_engine_uniffi.swift" \
-  "$IOS_DIR/core-version.txt" \
-  "$IOS_DIR/source-commit.txt" \
-  "$ANDROID_DIR/UniClipboardEngine.aar" \
-  "$ANDROID_DIR/UniClipboardEngine.checksum.txt" \
-  "$ANDROID_DIR/core-version.txt" \
-  "$ANDROID_DIR/source-commit.txt"; do
-  if [[ ! -f "$required" ]]; then
-    echo "Missing unified engine artifact: $required" >&2
-    exit 1
-  fi
-done
-
 pin_version="$(node -p 'require(process.argv[1]).version' "$PIN_FILE")"
 pin_commit="$(node -p 'require(process.argv[1]).sourceCommit' "$PIN_FILE")"
-pin_ios_hash="$(node -p 'require(process.argv[1]).iosSha256' "$PIN_FILE")"
-pin_android_hash="$(node -p 'require(process.argv[1]).androidSha256' "$PIN_FILE")"
+repository="$(node -p 'require(process.argv[1]).repository' "$PIN_FILE")"
+CACHE_DIR="$MODULE_DIR/.artifacts/$pin_version"
+BASE_URL="https://github.com/$repository/releases/download/$pin_version"
 
-ios_hash="$(shasum -a 256 "$IOS_DIR/UniClipboardEngine.xcframework.zip" | awk '{print $1}')"
-android_hash="$(shasum -a 256 "$ANDROID_DIR/UniClipboardEngine.aar" | awk '{print $1}')"
-ios_version="$(tr -d '\r\n' < "$IOS_DIR/core-version.txt")"
-android_version="$(tr -d '\r\n' < "$ANDROID_DIR/core-version.txt")"
-ios_commit="$(tr -d '\r\n' < "$IOS_DIR/source-commit.txt")"
-android_commit="$(tr -d '\r\n' < "$ANDROID_DIR/source-commit.txt")"
+assets=(
+  release-manifest.json
+  UniClipboardEngine.aar
+  UniClipboardEngine.aar.checksum.txt
+  UniClipboardEngine.pom
+  UniClipboardEngine.xcframework.checksum.txt
+  UniClipboardEngine.xcframework.zip
+  core-version.txt
+  runtime-dependencies.txt
+  source-commit.txt
+  uc_engine_uniffi.kt
+  uc_engine_uniffi.swift
+)
 
-if [[ "$ios_hash" != "$pin_ios_hash" || "$android_hash" != "$pin_android_hash" ]]; then
-  echo "Unified engine artifact checksum does not match core-source.json" >&2
-  exit 1
-fi
-if [[ "$ios_version" != "$pin_version" || "$android_version" != "$pin_version" ]]; then
-  echo "Unified engine core version does not match core-source.json" >&2
-  exit 1
-fi
-if [[ "$ios_commit" != "$pin_commit" || "$android_commit" != "$pin_commit" ]]; then
-  echo "Unified engine source commit does not match core-source.json" >&2
-  exit 1
-fi
+mkdir -p "$CACHE_DIR"
+for asset in "${assets[@]}"; do
+  destination="$CACHE_DIR/$asset"
+  expected="$(node -e '
+    const pin = require(process.argv[1]);
+    const name = process.argv[2];
+    process.stdout.write(name === "release-manifest.json" ? pin.releaseManifestSha256 : pin.artifacts[name]);
+  ' "$PIN_FILE" "$asset")"
+  if [[ -f "$destination" ]] && [[ "$(shasum -a 256 "$destination" | awk '{print $1}')" == "$expected" ]]; then
+    continue
+  fi
+  curl --fail --location --retry 3 --output "$destination.download" "$BASE_URL/$asset"
+  mv "$destination.download" "$destination"
+done
 
-mkdir -p "$MODULE_DIR/ios/Bindings" "$MODULE_DIR/android/libs"
-cp "$IOS_DIR/uc_engine_uniffi.swift" "$MODULE_DIR/ios/Bindings/uc_engine_uniffi.swift"
-perl -pi -e 's/[ \t]+$//' "$MODULE_DIR/ios/Bindings/uc_engine_uniffi.swift"
-rm -rf "$MODULE_DIR/ios/UniClipboardEngine.xcframework"
-unzip -q "$IOS_DIR/UniClipboardEngine.xcframework.zip" -d "$MODULE_DIR/ios"
+node "$ROOT_DIR/scripts/verify-unified-engine-core.mjs" --downloads "$CACHE_DIR"
+
+plain_version="${pin_version#core-v}"
+maven_dir="$MODULE_DIR/android/release-maven/app/uniclipboard/uniclipboard-engine/$plain_version"
+metadata_dir="$MODULE_DIR/android/release-metadata"
+mkdir -p "$maven_dir" "$metadata_dir" "$MODULE_DIR/ios/Bindings"
+cp "$CACHE_DIR/UniClipboardEngine.aar" "$maven_dir/uniclipboard-engine-$plain_version.aar"
+cp "$CACHE_DIR/UniClipboardEngine.pom" "$maven_dir/uniclipboard-engine-$plain_version.pom"
+cp "$CACHE_DIR/runtime-dependencies.txt" "$metadata_dir/runtime-dependencies.txt"
+cp "$CACHE_DIR/uc_engine_uniffi.kt" "$metadata_dir/uc_engine_uniffi.kt"
+cp "$CACHE_DIR/uc_engine_uniffi.swift" "$MODULE_DIR/ios/Bindings/uc_engine_uniffi.swift"
+
+find "$MODULE_DIR/ios/UniClipboardEngine.xcframework" -depth -delete 2>/dev/null || true
+unzip -q "$CACHE_DIR/UniClipboardEngine.xcframework.zip" -d "$MODULE_DIR/ios"
 find "$MODULE_DIR/ios/UniClipboardEngine.xcframework" -name '._*' -delete
-cp "$ANDROID_DIR/UniClipboardEngine.aar" "$MODULE_DIR/android/libs/UniClipboardEngine.aar"
 
-echo "Prepared $pin_version from $pin_commit for iOS and Android"
+node "$ROOT_DIR/scripts/verify-unified-engine-core.mjs" --record-prepared
+node "$ROOT_DIR/scripts/verify-unified-engine-core.mjs" --prepared
+
+echo "Prepared $pin_version from $pin_commit for Android and iOS"

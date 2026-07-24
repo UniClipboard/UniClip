@@ -9,6 +9,7 @@ ios/
 *.log
 .DS_Store
 coverage/
+modules/uc-engine/.artifacts/
 
 # Local agent state and external skill documentation
 .pi-subagents/

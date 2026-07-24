@@ -12,9 +12,9 @@ const config_plugins_1 = require("expo/config-plugins");
  * native stack (RN C++ + Hermes + the UniFFI `uc-core` `.so`) four times. In CI
  * that step alone took ~22 min.
  *
- * x86/x86_64 only matter for x86 emulators / ChromeOS — never for a shipped
- * device build, and Apple Silicon dev machines run arm64-v8a emulators anyway.
- * Restricting to the two real-device ABIs roughly halves native compile time.
+ * The independent core Release ships arm64-v8a for devices and x86_64 for
+ * emulators. Production builds must therefore ship only arm64-v8a. Emulator
+ * builds can still override this property with `-PreactNativeArchitectures=x86_64`.
  *
  * Keep this in sync with `withAbiSplits.ts`: the split/output ABIs must be a
  * subset of what is compiled here, or a split APK ships with no native libs.
@@ -22,7 +22,7 @@ const config_plugins_1 = require("expo/config-plugins");
  * Also enables the Gradle build cache so unchanged task outputs (Java/Kotlin/
  * resources) are reused across CI runs via the `setup-gradle` action cache.
  */
-const REAL_DEVICE_ABIS = 'armeabi-v7a,arm64-v8a';
+const RELEASE_DEVICE_ABIS = 'arm64-v8a';
 const withGradleBuildTuning = (config) => (0, config_plugins_1.withGradleProperties)(config, (config) => {
     const props = config.modResults;
     const setProperty = (key, value) => {
@@ -34,7 +34,7 @@ const withGradleBuildTuning = (config) => (0, config_plugins_1.withGradlePropert
             props.push({ type: 'property', key, value });
         }
     };
-    setProperty('reactNativeArchitectures', REAL_DEVICE_ABIS);
+    setProperty('reactNativeArchitectures', RELEASE_DEVICE_ABIS);
     setProperty('org.gradle.caching', 'true');
     return config;
 });

@@ -1,6 +1,20 @@
 {
-  "version": "core-v0.19.1",
-  "sourceCommit": "693bb50ffcb02d975e3356ccd42137a1b3e15624",
-  "iosSha256": "57f15f818fc64837005e0b1f749bbcc601071c8c5acf1468888e869d7533df2e",
-  "androidSha256": "7496ae3c6a13df3fcce4170c758fff8c546b229d4d2d20c101b809d32f2e2195"
+  "schemaVersion": 1,
+  "repository": "UniClipboard/core",
+  "version": "core-v0.20.0-rc.1",
+  "sourceCommit": "dcdccb234f020be49884bf92d886f25a0f192188",
+  "releaseManifestSha256": "b186994e4332611868959ae756fb2c64ff4aec552fdfb68b4c2f6a5fe9bc8edb",
+  "swiftPackageChecksum": "9bbaa50cee9805f958912dacbae71ca23885e0ef4c7412af7ee5b4b9d20cc05c",
+  "artifacts": {
+    "UniClipboardEngine.aar": "985116b8c591b83fa74e3ddf02c3f5630a046e274e051863337591411cc947d1",
+    "UniClipboardEngine.aar.checksum.txt": "64245b5ddbce883350b33c890db23e31fbb57eb86014db55ac08ff3c7f78773a",
+    "UniClipboardEngine.pom": "ab392feab5d63e647c2e8dd58d18987d71196b4eeda648aa859bfd105fa9088f",
+    "UniClipboardEngine.xcframework.checksum.txt": "c0e57dd835dcde1d8844e38965b4ecf08bcb4861175b023f04317927bd6e04d7",
+    "UniClipboardEngine.xcframework.zip": "9bbaa50cee9805f958912dacbae71ca23885e0ef4c7412af7ee5b4b9d20cc05c",
+    "core-version.txt": "da876074172ed325d501b07095f87e46ced7f0db352f450d7db8e2a35c3d555e",
+    "runtime-dependencies.txt": "b9e41a3759a188241696301e4595be76bb660bd5c0734ed852198baa70873403",
+    "source-commit.txt": "1755bb84f34a69579600ea61900bfbd31385cc419af370720a00bd718fb55ea3",
+    "uc_engine_uniffi.kt": "dbc8668cda89069cb9d92e66303890faad24b7c0a3e75a32e3764dc8ccbec561",
+    "uc_engine_uniffi.swift": "d7ffa3a21398c1964fa3879c14c572cb94adf86825dce8e68201f33dbc9a75d6"
+  }
 }
