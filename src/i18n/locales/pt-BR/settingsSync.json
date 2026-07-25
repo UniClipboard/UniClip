@@ -96,6 +96,7 @@
       "empty": "Nenhum outro dispositivo ainda",
       "online": "Online",
       "offline": "Offline",
+      "thisDevice": "Este dispositivo",
       "remove": "Remover dispositivo",
       "removeConfirm": "Remover este dispositivo do espaço?"
     },

@@ -104,6 +104,7 @@
       "empty": "No other devices yet",
       "online": "Online",
       "offline": "Offline",
+      "thisDevice": "This device",
       "remove": "Remove device",
       "removeConfirm": "Remove this device from the space?"
     },

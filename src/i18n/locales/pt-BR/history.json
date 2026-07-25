@@ -44,6 +44,7 @@
   },
   "delivery": {
     "delivered": "Entregue",
+    "partial": "{{accepted}} enviados, {{duplicate}} já presentes, {{offline}} offline, {{errored}} falharam, {{pending}} pendentes",
     "offline": "Dispositivo offline",
     "failed": "Falha no envio",
     "pending": "Enviando"

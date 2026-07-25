@@ -88,6 +88,18 @@ describe('unified P2P engine native module', () => {
     }
   });
 
+  it('preserves the local-device marker on JavaScript, iOS, and Android', () => {
+    const javascript = read('src/index.ts');
+    const swift = read('ios/UcEngineModule.swift');
+    const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
+
+    expect(javascript).toContain('isLocal: boolean');
+    expect(swift).toContain('let localDeviceId = try engine.queryLocalDevice().deviceId');
+    expect(swift).toContain('"isLocal": $0.deviceId == localDeviceId');
+    expect(kotlin).toContain('val localDeviceId = engine.queryLocalDevice().deviceId');
+    expect(kotlin).toContain('"isLocal" to (it.deviceId == localDeviceId)');
+  });
+
   it('uses Keychain and native app lifecycle on iOS without a file fallback', () => {
     const swift = `${read('ios/UcEngineModule.swift')}\n${read('ios/NativeSystemHost.swift')}`;
 
@@ -119,6 +131,20 @@ describe('unified P2P engine native module', () => {
     expect(kotlin).not.toContain('putString(key');
   });
 
+  it('keeps Android event polling off the serialized native operation queue', () => {
+    const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
+    const nextEventStart = kotlin.indexOf('AsyncFunction("nextEvent")');
+    const nextOperationStart = kotlin.indexOf(
+      'AsyncFunction("refreshPeerConnections")',
+      nextEventStart
+    );
+    const nextEventDefinition = kotlin.slice(nextEventStart, nextOperationStart);
+
+    expect(nextEventStart).toBeGreaterThan(-1);
+    expect(nextOperationStart).toBeGreaterThan(nextEventStart);
+    expect(nextEventDefinition).toContain('.runOnQueue(appContext.backgroundCoroutineScope)');
+  });
+
   it('installs the Android JNI context before starting the P2P engine', () => {
     const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
 
@@ -138,6 +164,18 @@ describe('unified P2P engine native module', () => {
       'UIPasteboard.general.url = try withHostBindingError { try self.files.url(handle) }'
     );
     expect(kotlin).toContain('createClipboardShareFile(context, representation.displayName)');
+  });
+
+  it('preserves selected file names when registering opaque input handles', () => {
+    const javascript = read('src/index.ts');
+    const swift = `${read('ios/UcEngineModule.swift')}\n${read('ios/NativeSystemHost.swift')}`;
+    const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
+
+    expect(javascript).toContain('registerInputFile(uri: string, displayName?: string)');
+    expect(swift).toContain('register(uri: uri, writable: false, displayName: displayName)');
+    expect(swift).toContain('displayName: target.displayName ?? target.url.lastPathComponent');
+    expect(kotlin).toContain('requireFiles().register(uri, false, displayName)');
+    expect(kotlin).toContain('target.displayName ?:');
   });
 
   it('pins both platform artifacts to the same core version and source commit', () => {

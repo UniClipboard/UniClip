@@ -5,7 +5,15 @@
 
 import { ClipboardContentType } from './api';
 
-export type P2pDeliveryState = 'delivered' | 'offline' | 'failed' | 'pending';
+export type P2pDeliveryState = 'delivered' | 'partial' | 'offline' | 'failed' | 'pending';
+
+export interface P2pDeliveryCounts {
+  accepted: number;
+  duplicate: number;
+  offline: number;
+  errored: number;
+  pending: number;
+}
 
 /**
  * 历史记录同步状态
@@ -104,6 +112,9 @@ export interface ClipboardItem {
 
   /** 最近一次 P2P 投递结果。 */
   p2pDeliveryState?: P2pDeliveryState;
+
+  /** 最近一次 P2P 投递的各类设备数量。 */
+  p2pDeliveryCounts?: P2pDeliveryCounts;
 }
 
 /**

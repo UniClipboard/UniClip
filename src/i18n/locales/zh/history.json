@@ -44,6 +44,7 @@
   },
   "delivery": {
     "delivered": "已送达",
+    "partial": "送达 {{accepted}}，已存在 {{duplicate}}，离线 {{offline}}，失败 {{errored}}，等待 {{pending}}",
     "offline": "设备离线",
     "failed": "发送失败",
     "pending": "发送中"

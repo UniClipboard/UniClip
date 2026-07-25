@@ -44,6 +44,7 @@
   },
   "delivery": {
     "delivered": "Delivered",
+    "partial": "{{accepted}} sent, {{duplicate}} already present, {{offline}} offline, {{errored}} failed, {{pending}} pending",
     "offline": "Device offline",
     "failed": "Send failed",
     "pending": "Sending"

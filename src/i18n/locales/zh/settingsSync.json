@@ -104,6 +104,7 @@
       "empty": "还没有其他设备",
       "online": "在线",
       "offline": "离线",
+      "thisDevice": "本机",
       "remove": "移除设备",
       "removeConfirm": "确定从空间中移除这台设备吗？"
     },

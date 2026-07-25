@@ -21,13 +21,26 @@ describe('P2P delivery UI wiring', () => {
 
     expect(card).toContain('p2pDeliveryState');
     expect(card).toContain('deliveryLabel');
+    expect(card).toContain('p2pDeliveryCounts');
+    expect(card).toContain('delivery.partial');
   });
 
   it('upgrades existing history databases with P2P delivery fields', () => {
     const database = source('src/services/db/database.ts');
 
-    expect(database).toContain('SCHEMA_VERSION = 3');
+    expect(database).toContain('SCHEMA_VERSION = 4');
     expect(database).toContain('ADD COLUMN p2pEntryId TEXT');
     expect(database).toContain('ADD COLUMN p2pDeliveryState TEXT');
+    expect(database).toContain('ADD COLUMN p2pDeliveryCounts TEXT');
+  });
+
+  it('provides partial-delivery wording in every supported language', () => {
+    for (const locale of ['en', 'pt-BR', 'ru', 'zh']) {
+      const history = JSON.parse(source(`src/i18n/locales/${locale}/history.json`));
+      const home = JSON.parse(source(`src/i18n/locales/${locale}/home.json`));
+
+      expect(history.delivery.partial).toEqual(expect.any(String));
+      expect(home.toast.p2pDelivery.partial).toEqual(expect.any(String));
+    }
   });
 });

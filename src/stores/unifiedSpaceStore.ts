@@ -4,6 +4,7 @@ import type { InvitationIssued, SpaceInvitation } from 'uc-engine';
 export interface UnifiedSpaceDevice {
   deviceId: string;
   displayName: string;
+  isLocal: boolean;
   online: boolean;
 }
 

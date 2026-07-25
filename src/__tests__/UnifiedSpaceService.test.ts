@@ -15,8 +15,8 @@ function createApi(overrides: Partial<UnifiedSpaceApi> = {}): UnifiedSpaceApi {
       deviceName: 'Phone',
     })),
     listDevices: jest.fn(async () => [
-      { deviceId: 'phone-1', displayName: 'Phone', online: true },
-      { deviceId: 'desktop-1', displayName: 'Desktop', online: false },
+      { deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true },
+      { deviceId: 'desktop-1', displayName: 'Desktop', isLocal: false, online: false },
     ]),
     createSpace: jest.fn(async () => ({
       spaceId: 'space-1',
@@ -48,6 +48,17 @@ function createApi(overrides: Partial<UnifiedSpaceApi> = {}): UnifiedSpaceApi {
     leaveSpace: jest.fn(async () => undefined),
     ...overrides,
   };
+}
+
+function deferred<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+} {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((complete) => {
+    resolve = complete;
+  });
+  return { promise, resolve };
 }
 
 describe('UnifiedSpaceService', () => {
@@ -156,8 +167,8 @@ describe('UnifiedSpaceService', () => {
         spaceId: 'space-1',
         deviceName: 'Phone',
         devices: [
-          { deviceId: 'phone-1', displayName: 'Phone', online: true },
-          { deviceId: 'desktop-1', displayName: 'Desktop', online: false },
+          { deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true },
+          { deviceId: 'desktop-1', displayName: 'Desktop', isLocal: false, online: false },
         ],
       })
     );
@@ -208,6 +219,73 @@ describe('UnifiedSpaceService', () => {
     expect(api.leaveSpace).toHaveBeenCalledTimes(1);
     expect(snapshots.at(-1)).toEqual(
       expect.objectContaining({ status: 'empty', spaceId: null, devices: [] })
+    );
+  });
+
+  it('does not restore an old space when a refresh finishes after leaving', async () => {
+    const pendingState = deferred<Awaited<ReturnType<UnifiedSpaceApi['querySpaceState']>>>();
+    const snapshots: UnifiedSpaceSnapshot[] = [];
+    const api = createApi({
+      querySpaceState: jest.fn(() => pendingState.promise),
+    });
+    const service = new UnifiedSpaceService(api, (snapshot) => snapshots.push(snapshot));
+
+    const staleRefresh = service.refresh();
+    await service.leaveSpace();
+    pendingState.resolve({
+      hasCompleted: true,
+      spaceId: 'old-space',
+      currentInvitation: null,
+      deviceName: 'Old Phone',
+    });
+    await staleRefresh;
+
+    expect(snapshots.at(-1)).toEqual(
+      expect.objectContaining({ status: 'empty', spaceId: null, devices: [] })
+    );
+  });
+
+  it('does not replace a newly joined space when an older refresh finishes later', async () => {
+    const pendingState = deferred<Awaited<ReturnType<UnifiedSpaceApi['querySpaceState']>>>();
+    const snapshots: UnifiedSpaceSnapshot[] = [];
+    const api = createApi({
+      querySpaceState: jest.fn(() => pendingState.promise),
+      joinSpace: jest.fn(async () => ({
+        sponsorDeviceId: 'new-desktop',
+        sponsorIdentityFingerprint: 'new-sponsor-fingerprint',
+        spaceId: 'new-space',
+        selfDeviceId: 'new-phone',
+        selfIdentityFingerprint: 'new-phone-fingerprint',
+        migratedRecords: 0,
+      })),
+      listDevices: jest
+        .fn<UnifiedSpaceApi['listDevices']>()
+        .mockResolvedValueOnce([
+          { deviceId: 'new-phone', displayName: 'New Phone', isLocal: true, online: true },
+        ])
+        .mockResolvedValueOnce([
+          { deviceId: 'old-phone', displayName: 'Old Phone', isLocal: true, online: false },
+        ]),
+    });
+    const service = new UnifiedSpaceService(api, (snapshot) => snapshots.push(snapshot));
+
+    const staleRefresh = service.refresh();
+    await service.joinSpace('new-invitation', 'New Phone', 'passphrase');
+    pendingState.resolve({
+      hasCompleted: true,
+      spaceId: 'old-space',
+      currentInvitation: null,
+      deviceName: 'Old Phone',
+    });
+    await staleRefresh;
+
+    expect(snapshots.at(-1)).toEqual(
+      expect.objectContaining({
+        status: 'ready',
+        spaceId: 'new-space',
+        deviceName: 'New Phone',
+        devices: [{ deviceId: 'new-phone', displayName: 'New Phone', isLocal: true, online: true }],
+      })
     );
   });
 });

@@ -1,5 +1,5 @@
 import { ClipboardContentType } from '@/types/api';
-import { ClipboardItem, HistorySyncStatus } from '@/types/clipboard';
+import { ClipboardItem, HistorySyncStatus, type P2pDeliveryCounts } from '@/types/clipboard';
 import { getDisplayKind } from '@/utils/displayKind';
 
 /**
@@ -33,6 +33,7 @@ export interface HistoryRow {
   contentId: string | null;
   p2pEntryId: string | null;
   p2pDeliveryState: string | null;
+  p2pDeliveryCounts: string | null;
 }
 
 /** 列顺序(单一事实源):INSERT / UPDATE / rowValues 都据此对齐 */
@@ -63,11 +64,30 @@ export const HISTORY_COLUMNS: (keyof HistoryRow)[] = [
   'contentId',
   'p2pEntryId',
   'p2pDeliveryState',
+  'p2pDeliveryCounts',
 ];
 
 const bool = (v: boolean | undefined | null): number => (v ? 1 : 0);
 const optBool = (v: boolean | undefined | null): number | null =>
   v === undefined || v === null ? null : v ? 1 : 0;
+
+function parseP2pDeliveryCounts(value: string | null): P2pDeliveryCounts | undefined {
+  if (!value) return undefined;
+  try {
+    const parsed = JSON.parse(value) as Partial<P2pDeliveryCounts>;
+    const values = [
+      parsed.accepted,
+      parsed.duplicate,
+      parsed.offline,
+      parsed.errored,
+      parsed.pending,
+    ];
+    if (!values.every((count) => Number.isInteger(count) && Number(count) >= 0)) return undefined;
+    return parsed as P2pDeliveryCounts;
+  } catch {
+    return undefined;
+  }
+}
 
 /** ClipboardItem → 行对象(写入时物化 displayKind) */
 export function toRow(item: ClipboardItem): HistoryRow {
@@ -99,6 +119,7 @@ export function toRow(item: ClipboardItem): HistoryRow {
     contentId: item.contentId ?? null,
     p2pEntryId: item.p2pEntryId ?? null,
     p2pDeliveryState: item.p2pDeliveryState ?? null,
+    p2pDeliveryCounts: item.p2pDeliveryCounts ? JSON.stringify(item.p2pDeliveryCounts) : null,
   };
 }
 
@@ -130,6 +151,7 @@ export function fromRow(row: HistoryRow): ClipboardItem {
     contentId: row.contentId ?? undefined,
     p2pEntryId: row.p2pEntryId ?? undefined,
     p2pDeliveryState: (row.p2pDeliveryState as ClipboardItem['p2pDeliveryState']) ?? undefined,
+    p2pDeliveryCounts: parseP2pDeliveryCounts(row.p2pDeliveryCounts),
   };
 }
 

@@ -40,12 +40,61 @@ describe('P2P delivery history', () => {
       timestamp: 1,
       p2pEntryId: 'entry-1',
       p2pDeliveryState: 'offline',
+      p2pDeliveryCounts: {
+        accepted: 0,
+        duplicate: 0,
+        offline: 1,
+        errored: 0,
+        pending: 0,
+      },
     });
 
     expect(fromRow(toRow(item))).toMatchObject({
       p2pEntryId: 'entry-1',
       p2pDeliveryState: 'offline',
+      p2pDeliveryCounts: {
+        accepted: 0,
+        duplicate: 0,
+        offline: 1,
+        errored: 0,
+        pending: 0,
+      },
     });
+  });
+
+  it('persists mixed delivery counts as a partial result', async () => {
+    mockedRepository.getByProfileHash.mockResolvedValue(
+      createDefaultClipboardItem({
+        type: 'Text',
+        text: 'mixed delivery',
+        profileHash: 'MIXED_HASH',
+        hasData: false,
+        timestamp: 1,
+      })
+    );
+
+    await persistP2pDeliveryReport('MIXED_HASH', {
+      entryId: 'entry-mixed',
+      totalAccepted: 1,
+      totalDuplicate: 2,
+      totalOffline: 3,
+      totalErrored: 4,
+      totalPending: 5,
+    });
+
+    expect(mockedHistoryStorage.updateItem).toHaveBeenCalledWith(
+      'MIXED_HASH',
+      expect.objectContaining({
+        p2pDeliveryState: 'partial',
+        p2pDeliveryCounts: {
+          accepted: 1,
+          duplicate: 2,
+          offline: 3,
+          errored: 4,
+          pending: 5,
+        },
+      })
+    );
   });
 
   it('offers resend only for locally sent P2P items that are not delivered', () => {

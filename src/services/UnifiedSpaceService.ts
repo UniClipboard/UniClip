@@ -79,6 +79,7 @@ function passphrase(value: string): string {
 
 export class UnifiedSpaceService {
   private snapshot = createInitialUnifiedSpaceSnapshot();
+  private operationRevision = 0;
 
   constructor(
     private readonly api: UnifiedSpaceApi,
@@ -91,15 +92,18 @@ export class UnifiedSpaceService {
   }
 
   async refresh(): Promise<UnifiedSpaceSnapshot> {
+    const revision = this.beginOperation();
     this.updateSnapshot({ status: 'loading', lastError: null });
     try {
       const state = await this.api.querySpaceState();
+      if (!this.isCurrentOperation(revision)) return this.snapshot;
       if (!state.hasCompleted || !state.spaceId) {
         this.snapshot = createInitialUnifiedSpaceSnapshot('empty');
         this.publishSnapshot();
         return this.snapshot;
       }
       const devices = await this.api.listDevices();
+      if (!this.isCurrentOperation(revision)) return this.snapshot;
       this.snapshot = {
         status: 'ready',
         spaceId: state.spaceId,
@@ -111,7 +115,7 @@ export class UnifiedSpaceService {
       this.publishSnapshot();
       return this.snapshot;
     } catch (error) {
-      this.fail(error);
+      if (this.isCurrentOperation(revision)) this.fail(error);
       throw error;
     }
   }
@@ -119,12 +123,14 @@ export class UnifiedSpaceService {
   async createSpace(deviceName: string, secret: string): Promise<SpaceCreationResult> {
     const normalizedName = required(deviceName, 'deviceNameRequired');
     const normalizedPassphrase = passphrase(secret);
+    const revision = this.beginOperation();
     this.updateSnapshot({ status: 'loading', lastError: null });
     try {
       return await this.runSetup(async () => {
         const space = await this.api.createSpace(normalizedName, normalizedPassphrase);
         const invitation = await this.api.issueInvitation();
         const devices = await this.api.listDevices();
+        if (!this.isCurrentOperation(revision)) return { ...space, invitation };
         this.snapshot = {
           status: 'ready',
           spaceId: space.spaceId,
@@ -137,7 +143,7 @@ export class UnifiedSpaceService {
         return { ...space, invitation };
       });
     } catch (error) {
-      this.fail(error);
+      if (this.isCurrentOperation(revision)) this.fail(error);
       throw error;
     }
   }
@@ -156,6 +162,7 @@ export class UnifiedSpaceService {
     const normalizedInvitation = required(invitationCode, 'invitationCodeRequired');
     const normalizedName = required(deviceName, 'deviceNameRequired');
     const normalizedPassphrase = passphrase(secret);
+    const revision = this.beginOperation();
     this.updateSnapshot({ status: 'loading', lastError: null });
     try {
       return await this.runSetup(async () => {
@@ -165,6 +172,7 @@ export class UnifiedSpaceService {
           normalizedPassphrase
         );
         const devices = await this.api.listDevices();
+        if (!this.isCurrentOperation(revision)) return joined;
         this.snapshot = {
           status: 'ready',
           spaceId: joined.spaceId,
@@ -177,7 +185,7 @@ export class UnifiedSpaceService {
         return joined;
       });
     } catch (error) {
-      this.fail(error);
+      if (this.isCurrentOperation(revision)) this.fail(error);
       throw error;
     }
   }
@@ -193,9 +201,20 @@ export class UnifiedSpaceService {
   }
 
   async leaveSpace(): Promise<void> {
+    const revision = this.beginOperation();
     await this.api.leaveSpace();
+    if (!this.isCurrentOperation(revision)) return;
     this.snapshot = createInitialUnifiedSpaceSnapshot('empty');
     this.publishSnapshot();
+  }
+
+  private beginOperation(): number {
+    this.operationRevision += 1;
+    return this.operationRevision;
+  }
+
+  private isCurrentOperation(revision: number): boolean {
+    return revision === this.operationRevision;
   }
 
   private fail(error: unknown): void {

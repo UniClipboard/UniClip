@@ -77,6 +77,18 @@ describe('unified space setup UI', () => {
     }
   });
 
+  it('shows the local device as online without a remove action and refreshes live presence', () => {
+    const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
+    const ios = source('screens/settings/ios/SpacePage.tsx');
+
+    for (const platform of [android, ios]) {
+      expect(platform).toContain('device.isLocal');
+      expect(platform).toContain('space.devices.thisDevice');
+      expect(platform).toContain('useUnifiedEngineStore');
+      expect(platform).toContain('refreshRevision');
+    }
+  });
+
   it('gives the iOS space page a compact overview and manageable device rows', () => {
     const ios = source('screens/settings/ios/SpacePage.tsx');
 
@@ -112,6 +124,7 @@ describe('unified space setup UI', () => {
       expect(messages.space.invitation.crossNetwork).toEqual(expect.any(String));
       expect(messages.space.devices.title).toEqual(expect.any(String));
       expect(messages.space.devices.remove).toEqual(expect.any(String));
+      expect(messages.space.devices.thisDevice).toEqual(expect.any(String));
       expect(messages.space.leave.action).toEqual(expect.any(String));
       expect(messages.space.leave.confirm).toEqual(expect.any(String));
       expect(messages.space.status.currentDevice).toEqual(expect.any(String));

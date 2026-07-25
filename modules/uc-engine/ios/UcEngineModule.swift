@@ -120,8 +120,15 @@ public final class UcEngineModule: Module {
     }
 
     AsyncFunction("listDevices") { () -> [[String: Any]] in
-      try self.requireEngine().listDevices().map {
-        ["deviceId": $0.deviceId, "displayName": $0.displayName, "online": $0.online]
+      let engine = try self.requireEngine()
+      let localDeviceId = try engine.queryLocalDevice().deviceId
+      return try engine.listDevices().map {
+        [
+          "deviceId": $0.deviceId,
+          "displayName": $0.displayName,
+          "isLocal": $0.deviceId == localDeviceId,
+          "online": $0.online,
+        ]
       }
     }
 
@@ -157,8 +164,10 @@ public final class UcEngineModule: Module {
       )
     }
 
-    Function("registerInputFile") { (uri: String) in
-      try withHostBindingError { try self.files.register(uri: uri, writable: false) }
+    Function("registerInputFile") { (uri: String, displayName: String?) in
+      try withHostBindingError {
+        try self.files.register(uri: uri, writable: false, displayName: displayName)
+      }
     }
     Function("registerOutputFile") { (uri: String) in
       try withHostBindingError { try self.files.register(uri: uri, writable: true) }

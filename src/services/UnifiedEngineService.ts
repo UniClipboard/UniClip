@@ -163,6 +163,12 @@ export class UnifiedEngineService {
         });
         break;
       case 'peerPresenceChanged':
+        this.updateSnapshot({
+          lastEvent: event,
+          lastChangedKind: event.type,
+          refreshRevision: this.snapshot.refreshRevision + 1,
+        });
+        break;
       case 'transferProgress':
         this.updateSnapshot({ lastEvent: event, lastChangedKind: event.type });
         break;

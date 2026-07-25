@@ -40,6 +40,7 @@ import { useTranslation } from 'react-i18next';
 
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
 import { getUnifiedSpaceService, UnifiedSpaceInputError } from '@/services/UnifiedSpaceService';
+import { useUnifiedEngineStore } from '@/stores/unifiedEngineStore';
 import { useUnifiedSpaceStore, type UnifiedSpaceDevice } from '@/stores/unifiedSpaceStore';
 import {
   HeaderCircleButton,
@@ -106,6 +107,7 @@ function SpaceDeviceRow({
   device,
   removing,
   removeLabel,
+  thisDeviceLabel,
   onlineLabel,
   offlineLabel,
   onRemove,
@@ -113,11 +115,13 @@ function SpaceDeviceRow({
   device: UnifiedSpaceDevice;
   removing: boolean;
   removeLabel: string;
+  thisDeviceLabel: string;
   onlineLabel: string;
   offlineLabel: string;
   onRemove: () => void;
 }) {
-  const statusColor = device.online ? statusGreen : settingsTileColors.gray;
+  const online = device.isLocal || device.online;
+  const statusColor = online ? statusGreen : settingsTileColors.gray;
 
   return (
     <HStack spacing={12} alignment="center" modifiers={[frame({ maxWidth: Infinity })]}>
@@ -127,12 +131,12 @@ function SpaceDeviceRow({
         <HStack spacing={5} alignment="center">
           <Image systemName="circle.fill" size={7} color={statusColor} />
           <SwiftUIText modifiers={[font({ size: 13 }), foregroundStyle('secondary')]}>
-            {device.online ? onlineLabel : offlineLabel}
+            {device.isLocal ? thisDeviceLabel : online ? onlineLabel : offlineLabel}
           </SwiftUIText>
         </HStack>
       </VStack>
       <Spacer />
-      {removing ? (
+      {device.isLocal ? null : removing ? (
         <ProgressView />
       ) : (
         <SwiftUIButton
@@ -163,6 +167,7 @@ export function SpacePage({ onBack }: { onBack: () => void }) {
   const [invitation, setInvitation] = useState<InvitationIssued | null>(null);
   const [copiedValue, setCopiedValue] = useState<string | null>(null);
   const space = useUnifiedSpaceStore();
+  const refreshRevision = useUnifiedEngineStore((state) => state.refreshRevision);
 
   const deviceNameRef = useRef<TextFieldRef>(null);
   const invitationCodeRef = useRef<TextFieldRef>(null);
@@ -172,7 +177,7 @@ export function SpacePage({ onBack }: { onBack: () => void }) {
     void getUnifiedSpaceService()
       .refresh()
       .catch((cause) => setError(operationError(cause, t)));
-  }, [t]);
+  }, [refreshRevision, t]);
 
   const clearSensitiveInput = () => {
     setPassphrase('');
@@ -443,6 +448,7 @@ export function SpacePage({ onBack }: { onBack: () => void }) {
                     device={device}
                     removing={pending === `remove:${device.deviceId}`}
                     removeLabel={t('space.devices.remove')}
+                    thisDeviceLabel={t('space.devices.thisDevice')}
                     onlineLabel={t('space.devices.online')}
                     offlineLabel={t('space.devices.offline')}
                     onRemove={() => removeMember(device.deviceId)}

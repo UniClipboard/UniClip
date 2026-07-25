@@ -64,6 +64,7 @@
     "savedLocally": "Salvo localmente",
     "p2pDelivery": {
       "delivered": "Entregue aos outros dispositivos",
+      "partial": "Entrega parcial: {{accepted}} enviados, {{duplicate}} já presentes, {{offline}} offline, {{errored}} falharam, {{pending}} pendentes",
       "offline": "Salvo aqui; o outro dispositivo está offline",
       "failed": "Salvo aqui; falha no envio",
       "pending": "Salvo aqui; ainda enviando"

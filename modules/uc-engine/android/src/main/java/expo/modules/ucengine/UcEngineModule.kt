@@ -212,11 +212,12 @@ internal fun clipDataForSnapshot(
   files: FileHandleRegistry,
   representations: List<BindingClipboardRepresentation>
 ): ClipData {
+  val displayNames = clipboardDisplayNames(representations)
   val first = representations.firstOrNull {
     it !is BindingClipboardRepresentation.Inline ||
       (it.format != FILE_DISPLAY_METADATA_FORMAT && it.mimeType != FILE_DISPLAY_METADATA_MIME)
   } ?: return ClipData.newPlainText("", "")
-  return clipDataForRepresentation(context, files, first, clipboardDisplayNames(representations))
+  return clipDataForRepresentation(context, files, first, displayNames)
 }
 
 class UcEngineModule : Module() {
@@ -308,7 +309,7 @@ class UcEngineModule : Module() {
     }
     AsyncFunction("nextEvent") { timeoutMs: Long ->
       requireEngine().nextEvent(timeoutMs.toULong())?.let(::eventMap)
-    }
+    }.runOnQueue(appContext.backgroundCoroutineScope)
     AsyncFunction("refreshPeerConnections") {
       val result = requireEngine().refreshPeerConnections()
       mapOf(
@@ -330,8 +331,15 @@ class UcEngineModule : Module() {
       )
     }
     AsyncFunction("listDevices") {
-      requireEngine().listDevices().map {
-        mapOf("deviceId" to it.deviceId, "displayName" to it.displayName, "online" to it.online)
+      val engine = requireEngine()
+      val localDeviceId = engine.queryLocalDevice().deviceId
+      engine.listDevices().map {
+        mapOf(
+          "deviceId" to it.deviceId,
+          "displayName" to it.displayName,
+          "isLocal" to (it.deviceId == localDeviceId),
+          "online" to it.online
+        )
       }
     }
     AsyncFunction("removeMember") { deviceId: String ->
@@ -349,7 +357,9 @@ class UcEngineModule : Module() {
     AsyncFunction("sendImage") { bytes: ByteArray, mimeType: String, targetDevices: List<String> ->
       sendReportMap(requireEngine().sendImage(bytes, mimeType, targetDevices))
     }
-    Function("registerInputFile") { uri: String -> requireFiles().register(uri, false) }
+    Function("registerInputFile") { uri: String, displayName: String? ->
+      requireFiles().register(uri, false, displayName)
+    }
     Function("registerOutputFile") { uri: String -> requireFiles().register(uri, true) }
     Function("releaseFileHandle") { handle: String -> requireFiles().remove(handle) }
     AsyncFunction("sendFiles") { fileHandles: List<String>, targetDevices: List<String> ->
@@ -742,14 +752,14 @@ internal class KeystoreSecureStorage(
 }
 
 internal class FileHandleRegistry(private val context: Context) {
-  private data class Entry(val uri: Uri, val writable: Boolean)
+  private data class Entry(val uri: Uri, val writable: Boolean, val displayName: String?)
   private val entries = ConcurrentHashMap<String, Entry>()
 
-  fun register(value: String, writable: Boolean): String {
+  fun register(value: String, writable: Boolean, displayName: String? = null): String {
     val parsed = Uri.parse(value)
     val uri = if (parsed.scheme == null) Uri.fromFile(File(value)) else parsed
     val handle = UUID.randomUUID().toString()
-    entries[handle] = Entry(uri, writable)
+    entries[handle] = Entry(uri, writable, displayName)
     return handle
   }
 
@@ -758,14 +768,16 @@ internal class FileHandleRegistry(private val context: Context) {
   fun uri(handle: String): Uri = entry(handle).uri
 
   fun metadata(handle: String): BindingFileMetadata {
-    val uri = entry(handle).uri
+    val target = entry(handle)
+    val uri = target.uri
     try {
-      var name = uri.lastPathSegment ?: "file"
+      var name = target.displayName ?: uri.lastPathSegment ?: "file"
       var size = -1L
       context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)
         ?.use { cursor ->
           if (cursor.moveToFirst()) {
-            cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME).takeIf { it >= 0 }?.let {
+            cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+              .takeIf { target.displayName == null && it >= 0 }?.let {
               name = cursor.getString(it) ?: name
             }
             cursor.getColumnIndex(OpenableColumns.SIZE).takeIf { it >= 0 && !cursor.isNull(it) }?.let {

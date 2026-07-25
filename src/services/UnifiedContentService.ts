@@ -7,7 +7,7 @@ import { p2pDeliveryStateFromReport } from './P2pDeliveryState';
 export interface UnifiedContentApi {
   sendText(text: string, targetDevices: string[]): Promise<SendReport>;
   sendImage(bytes: Uint8Array, mimeType: string, targetDevices: string[]): Promise<SendReport>;
-  registerInputFile(uri: string): string;
+  registerInputFile(uri: string, displayName?: string): string;
   sendFiles(fileHandles: string[], targetDevices: string[]): Promise<SendReport>;
   releaseFileHandle(handle: string): void;
 }
@@ -15,6 +15,7 @@ export interface UnifiedContentApi {
 export interface ImportedContentAsset {
   kind: 'image' | 'file';
   uri: string;
+  fileName?: string;
   mimeType?: string | null;
 }
 
@@ -117,7 +118,7 @@ export class UnifiedContentService {
         if (!content.fileUri) {
           throw new UnifiedContentError('fileUnavailable', 'The clipboard file is unavailable');
         }
-        return this.sendP2pFile(content.fileUri, content.profileHash);
+        return this.sendP2pFile(content.fileUri, content.profileHash, content.fileName);
       default:
         throw new UnifiedContentError(
           'clipboardUnsupported',
@@ -145,11 +146,15 @@ export class UnifiedContentService {
       return this.p2pResult(report, profileHash);
     }
 
-    return this.sendP2pFile(asset.uri, profileHash);
+    return this.sendP2pFile(asset.uri, profileHash, asset.fileName);
   }
 
-  private async sendP2pFile(uri: string, profileHash?: string): Promise<UnifiedContentResult> {
-    const handle = this.deps.p2p.registerInputFile(uri);
+  private async sendP2pFile(
+    uri: string,
+    profileHash?: string,
+    displayName?: string
+  ): Promise<UnifiedContentResult> {
+    const handle = this.deps.p2p.registerInputFile(uri, displayName);
     try {
       return this.p2pResult(await this.deps.p2p.sendFiles([handle], []), profileHash);
     } finally {
@@ -161,7 +166,7 @@ export class UnifiedContentService {
     const deliveryState = p2pDeliveryStateFromReport(report);
     return {
       channel: 'p2p',
-      success: deliveryState === 'delivered',
+      success: deliveryState === 'delivered' || deliveryState === 'partial',
       entryId: report.entryId,
       profileHash,
       deliveryState,
@@ -175,7 +180,8 @@ function createDefaultDependencies(): UnifiedContentDependencies {
     sendText: (text, targetDevices) => require('uc-engine').sendText(text, targetDevices),
     sendImage: (bytes, mimeType, targetDevices) =>
       require('uc-engine').sendImage(bytes, mimeType, targetDevices),
-    registerInputFile: (uri) => require('uc-engine').registerInputFile(uri),
+    registerInputFile: (uri, displayName) =>
+      require('uc-engine').registerInputFile(uri, displayName),
     sendFiles: (fileHandles, targetDevices) =>
       require('uc-engine').sendFiles(fileHandles, targetDevices),
     releaseFileHandle: (handle) => require('uc-engine').releaseFileHandle(handle),

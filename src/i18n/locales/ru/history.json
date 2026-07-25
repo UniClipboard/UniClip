@@ -44,6 +44,7 @@
   },
   "delivery": {
     "delivered": "Доставлено",
+    "partial": "Отправлено: {{accepted}}, уже есть: {{duplicate}}, не в сети: {{offline}}, ошибок: {{errored}}, ожидают: {{pending}}",
     "offline": "Устройство не в сети",
     "failed": "Не удалось отправить",
     "pending": "Отправка"

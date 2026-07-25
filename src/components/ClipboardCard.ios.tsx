@@ -35,6 +35,7 @@ import { getDomainGradient, getDomainInitial, type DomainGradient } from '@/util
 import { getFileExtension, getExtensionColor, stripExtension } from '@/utils/fileTypeColor';
 import { formatFileSize } from '@/utils';
 import type { HistoryDirectionIndicator } from '@/utils/historyDirection';
+import { p2pDeliveryTranslationOptions } from '@/services/P2pDeliveryState';
 import type { ClipboardCardProps } from './ClipboardCard.types';
 
 export const ClipboardCard: React.FC<ClipboardCardProps> = React.memo(
@@ -196,7 +197,12 @@ function BottomRow({
 }) {
   const { t } = useTranslation('history');
   const dirColor = overlay ? 'rgba(255,255,255,0.7)' : iosColors!.secondaryLabel;
-  const deliveryLabel = item.p2pDeliveryState ? t(`delivery.${item.p2pDeliveryState}`) : '';
+  const deliveryLabel =
+    item.p2pDeliveryState === 'partial' && item.p2pDeliveryCounts
+      ? t('delivery.partial', p2pDeliveryTranslationOptions(item.p2pDeliveryCounts))
+      : item.p2pDeliveryState
+      ? t(`delivery.${item.p2pDeliveryState}`)
+      : '';
   const bottomMeta = [meta, deliveryLabel].filter(Boolean).join(' · ');
   return (
     <View style={styles.bottomRow}>
@@ -208,7 +214,13 @@ function BottomRow({
         <ArrowUp size={10} color={dirColor} />
       )}
       {bottomMeta ? (
-        <Text style={[styles.bottomMeta, { color: iosColors!.tertiaryLabel }]}>{bottomMeta}</Text>
+        <Text
+          style={[styles.bottomMeta, { color: iosColors!.tertiaryLabel }]}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
+          {bottomMeta}
+        </Text>
       ) : null}
       <View style={styles.bottomSpacer} />
       {isLatest && (
@@ -684,6 +696,7 @@ const styles = StyleSheet.create({
   bottomMeta: {
     fontSize: 11,
     marginLeft: 5,
+    flexShrink: 1,
   },
   headerRow: {
     flexDirection: 'row',

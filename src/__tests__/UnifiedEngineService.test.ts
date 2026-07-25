@@ -161,6 +161,37 @@ describe('UnifiedEngineService', () => {
     expect(failed.lastChangedKind).toBe('deliveryStatusChanged');
   });
 
+  it('requests a visible roster refresh when peer presence changes', async () => {
+    const events: EngineEvent[] = [
+      {
+        type: 'peerPresenceChanged',
+        deviceId: 'device-2',
+        state: 'online',
+        atMs: 123_456,
+      },
+      {
+        type: 'fatal',
+        failure: { code: 7001, category: 'runtime', retryable: false },
+      },
+    ];
+    const snapshots: UnifiedEngineSnapshot[] = [];
+    const service = new UnifiedEngineService(
+      {
+        start: async () => undefined,
+        shutdown: async () => undefined,
+        nextEvent: async () => events.shift() ?? null,
+      },
+      (snapshot) => snapshots.push(snapshot),
+      0
+    );
+
+    await service.start(config());
+    const failed = await waitForSnapshot(snapshots, (state) => state.status === 'failed');
+
+    expect(failed.refreshRevision).toBe(1);
+    expect(failed.lastChangedKind).toBe('peerPresenceChanged');
+  });
+
   it('publishes a failed state when native startup rejects', async () => {
     const snapshots: UnifiedEngineSnapshot[] = [];
     const nextEvent = jest.fn<UnifiedEngineApi['nextEvent']>();

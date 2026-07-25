@@ -25,7 +25,10 @@ import { historyStorage } from '@/services';
 import { getUnifiedContentService } from '@/services/UnifiedContentService';
 import { getUnifiedSpaceService } from '@/services/UnifiedSpaceService';
 import {
+  p2pDeliveryCountsFromReport,
+  p2pDeliveryCountsFromResend,
   p2pDeliveryStateFromResend,
+  p2pDeliveryTranslationOptions,
   p2pDeliveryUpdates,
   persistP2pDeliveryReport,
 } from '@/services/P2pDeliveryState';
@@ -465,13 +468,22 @@ export function useHomeController(onOpenSettings: () => void) {
           try {
             const outcome = await getUnifiedSpaceService().resendEntry(item.p2pEntryId);
             const deliveryState = p2pDeliveryStateFromResend(outcome);
+            const deliveryCounts =
+              outcome.kind === 'completed' ? p2pDeliveryCountsFromResend(outcome) : undefined;
             await historyStorage.updateItem(
               item.profileHash,
-              p2pDeliveryUpdates(item.p2pEntryId, deliveryState)
+              p2pDeliveryUpdates(item.p2pEntryId, deliveryState, deliveryCounts)
             );
             showMessage(
-              t(`toast.p2pDelivery.${deliveryState}`),
-              deliveryState === 'delivered' ? 'success' : 'error'
+              t(
+                `toast.p2pDelivery.${deliveryState}`,
+                p2pDeliveryTranslationOptions(deliveryCounts)
+              ),
+              deliveryState === 'delivered'
+                ? 'success'
+                : deliveryState === 'partial' || deliveryState === 'pending'
+                ? 'info'
+                : 'error'
             );
           } catch (error) {
             log.error('[HomeView] Failed to resend P2P content:', error);
@@ -597,8 +609,15 @@ export function useHomeController(onOpenSettings: () => void) {
         await persistP2pDeliveryReport(result.profileHash, result.report);
         await loadItems();
         showMessage(
-          t(`toast.p2pDelivery.${result.deliveryState}`),
-          result.success ? 'success' : 'error'
+          t(
+            `toast.p2pDelivery.${result.deliveryState}`,
+            p2pDeliveryTranslationOptions(p2pDeliveryCountsFromReport(result.report))
+          ),
+          result.deliveryState === 'delivered'
+            ? 'success'
+            : result.deliveryState === 'partial' || result.deliveryState === 'pending'
+            ? 'info'
+            : 'error'
         );
       } else if (result.success) {
         showMessage(t('toast.uploadedToServer'), 'success');
@@ -637,6 +656,7 @@ export function useHomeController(onOpenSettings: () => void) {
           {
             kind: result.contentType === 'Image' ? 'image' : 'file',
             uri: result.fileUri,
+            fileName: result.fileName,
             mimeType: payload.mimeType,
           },
           result.profileHash
@@ -645,8 +665,15 @@ export function useHomeController(onOpenSettings: () => void) {
           await persistP2pDeliveryReport(sendResult.profileHash, sendResult.report);
           await loadItems();
           showMessage(
-            t(`toast.p2pDelivery.${sendResult.deliveryState}`),
-            sendResult.success ? 'success' : 'error'
+            t(
+              `toast.p2pDelivery.${sendResult.deliveryState}`,
+              p2pDeliveryTranslationOptions(p2pDeliveryCountsFromReport(sendResult.report))
+            ),
+            sendResult.deliveryState === 'delivered'
+              ? 'success'
+              : sendResult.deliveryState === 'partial' || sendResult.deliveryState === 'pending'
+              ? 'info'
+              : 'error'
           );
         } else {
           showMessage(t('toast.savedLocally'), 'success');

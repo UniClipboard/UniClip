@@ -66,6 +66,7 @@ export interface SpaceState {
 export interface Device {
   deviceId: string;
   displayName: string;
+  isLocal: boolean;
   online: boolean;
 }
 
@@ -173,7 +174,7 @@ interface UcEngineNativeModule {
   leaveSpace(): Promise<void>;
   sendText(text: string, targetDevices: string[]): Promise<SendReport>;
   sendImage(bytes: Uint8Array, mimeType: string, targetDevices: string[]): Promise<SendReport>;
-  registerInputFile(uri: string): string;
+  registerInputFile(uri: string, displayName: string | null): string;
   registerOutputFile(uri: string): string;
   releaseFileHandle(handle: string): void;
   sendFiles(fileHandles: string[], targetDevices: string[]): Promise<SendReport>;
@@ -264,8 +265,8 @@ export function sendImage(
   return NativeModule.sendImage(bytes, mimeType, targetDevices);
 }
 
-export function registerInputFile(uri: string): string {
-  return NativeModule.registerInputFile(uri);
+export function registerInputFile(uri: string, displayName?: string): string {
+  return NativeModule.registerInputFile(uri, displayName ?? null);
 }
 
 export function registerOutputFile(uri: string): string {

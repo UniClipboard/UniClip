@@ -84,10 +84,10 @@ describe('UnifiedContentService', () => {
 
     await expect(new UnifiedContentService(deps).sendCurrentClipboard()).resolves.toEqual({
       channel: 'p2p',
-      success: false,
+      success: true,
       entryId: 'entry-1',
       profileHash: undefined,
-      deliveryState: 'failed',
+      deliveryState: 'partial',
       report: detailedReport,
     });
   });
@@ -141,13 +141,17 @@ describe('UnifiedContentService', () => {
       readClipboard: jest.fn(async () => ({
         type: 'File',
         fileUri: 'content://documents/private-file',
+        fileName: 'original-current-file.txt',
       })),
     });
     const service = new UnifiedContentService(deps);
 
     await expect(service.sendCurrentClipboard()).rejects.toThrow('offline');
 
-    expect(native.registerInputFile).toHaveBeenCalledWith('content://documents/private-file');
+    expect(native.registerInputFile).toHaveBeenCalledWith(
+      'content://documents/private-file',
+      'original-current-file.txt'
+    );
     expect(native.sendFiles).toHaveBeenCalledWith(['opaque-file-1'], []);
     expect(native.releaseFileHandle).toHaveBeenCalledWith('opaque-file-1');
     expect(deps.enqueueLanUpload).not.toHaveBeenCalled();
@@ -191,11 +195,19 @@ describe('UnifiedContentService', () => {
     const service = new UnifiedContentService(deps);
 
     await service.sendImportedAsset(
-      { kind: 'file', uri: 'content://documents/report.pdf', mimeType: 'application/pdf' },
+      {
+        kind: 'file',
+        uri: 'file:///private/history/CONTENT_HASH',
+        fileName: 'quarterly-report.pdf',
+        mimeType: 'application/pdf',
+      },
       'local-profile-2'
     );
 
-    expect(deps.p2p.registerInputFile).toHaveBeenCalledWith('content://documents/report.pdf');
+    expect(deps.p2p.registerInputFile).toHaveBeenCalledWith(
+      'file:///private/history/CONTENT_HASH',
+      'quarterly-report.pdf'
+    );
     expect(deps.p2p.sendFiles).toHaveBeenCalledWith(['opaque-file-1'], []);
     expect(deps.p2p.releaseFileHandle).toHaveBeenCalledWith('opaque-file-1');
     expect(deps.enqueueLanUpload).not.toHaveBeenCalled();

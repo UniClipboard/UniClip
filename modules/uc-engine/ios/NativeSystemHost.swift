@@ -275,24 +275,27 @@ final class AppleFileHandleRegistry: @unchecked Sendable {
   private struct Entry {
     let url: URL
     let writable: Bool
+    let displayName: String?
   }
 
   private let lock = NSLock()
   private var entries: [String: Entry] = [:]
 
-  func register(uri: String, writable: Bool) throws -> String {
+  func register(uri: String, writable: Bool, displayName: String? = nil) throws -> String {
     let url: URL
     if let parsed = URL(string: uri), parsed.isFileURL {
       url = parsed
     } else {
       url = URL(fileURLWithPath: uri)
     }
-    return register(url: url, writable: writable)
+    return register(url: url, writable: writable, displayName: displayName)
   }
 
-  func register(url: URL, writable: Bool) -> String {
+  func register(url: URL, writable: Bool, displayName: String? = nil) -> String {
     let handle = UUID().uuidString
-    lock.withLock { entries[handle] = Entry(url: url, writable: writable) }
+    lock.withLock {
+      entries[handle] = Entry(url: url, writable: writable, displayName: displayName)
+    }
     return handle
   }
 
@@ -316,7 +319,7 @@ final class AppleFileHandleRegistry: @unchecked Sendable {
     return try scoped(target.url) {
       let values = try target.url.resourceValues(forKeys: [.fileSizeKey, .contentTypeKey])
       return AppleFileMetadata(
-        displayName: target.url.lastPathComponent,
+        displayName: target.displayName ?? target.url.lastPathComponent,
         sizeBytes: UInt64(values.fileSize ?? 0),
         mimeType: values.contentType?.preferredMIMEType
       )

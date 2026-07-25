@@ -30,6 +30,7 @@ import {
 import { useTranslation } from 'react-i18next';
 
 import { getUnifiedSpaceService, UnifiedSpaceInputError } from '@/services/UnifiedSpaceService';
+import { useUnifiedEngineStore } from '@/stores/unifiedEngineStore';
 import { useUnifiedSpaceStore, type UnifiedSpaceDevice } from '@/stores/unifiedSpaceStore';
 import { SettingsSectionItem } from './SettingsSectionItem';
 
@@ -99,7 +100,8 @@ function SpaceDeviceRow({
 }) {
   const { t } = useTranslation('settingsSync');
   const colors = useMaterialColors();
-  const statusColor = device.online ? colors.primary : colors.outline;
+  const online = device.isLocal || device.online;
+  const statusColor = online ? colors.primary : colors.outline;
 
   return (
     <ListItem>
@@ -114,12 +116,18 @@ function SpaceDeviceRow({
           <Icon source={ICONS.status} size={8} tint={statusColor} />
           <Spacer modifiers={[widthModifier(6)]} />
           <ComposeText color={statusColor}>
-            {t(device.online ? 'space.devices.online' : 'space.devices.offline')}
+            {t(
+              device.isLocal
+                ? 'space.devices.thisDevice'
+                : online
+                ? 'space.devices.online'
+                : 'space.devices.offline'
+            )}
           </ComposeText>
         </Row>
       </ListItem.SupportingContent>
       <ListItem.TrailingContent>
-        {removing ? (
+        {device.isLocal ? null : removing ? (
           <CircularProgressIndicator modifiers={[widthModifier(24), heightModifier(24)]} />
         ) : (
           <IconButton onClick={onRemove}>
@@ -150,6 +158,7 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
   const [removeDeviceId, setRemoveDeviceId] = useState<string | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const space = useUnifiedSpaceStore();
+  const refreshRevision = useUnifiedEngineStore((state) => state.refreshRevision);
 
   const deviceNameState = useNativeState(deviceName);
   const passphraseState = useNativeState(passphrase);
@@ -159,7 +168,7 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
     void getUnifiedSpaceService()
       .refresh()
       .catch((cause) => setError(operationError(cause, t)));
-  }, [t]);
+  }, [refreshRevision, t]);
 
   const resetInputs = () => {
     setDeviceName('');

@@ -64,6 +64,7 @@
     "savedLocally": "已保存到本地",
     "p2pDelivery": {
       "delivered": "已送达到其他设备",
+      "partial": "部分送达：送达 {{accepted}}，已存在 {{duplicate}}，离线 {{offline}}，失败 {{errored}}，等待 {{pending}}",
       "offline": "已保存在本机，其他设备离线",
       "failed": "已保存在本机，发送失败",
       "pending": "已保存在本机，正在发送"

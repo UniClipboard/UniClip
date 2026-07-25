@@ -17,7 +17,7 @@ const APP_GROUP_DB_SUBDIR = 'Databases';
  * Schema 版本。与 AsyncStorage 的 HISTORY_VERSION 解耦——
  * 这里管理的是 SQLite 表结构的演进,用 PRAGMA user_version 持久化。
  */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /** 历史记录表名 */
 export const TABLE_HISTORY = 'clipboard_history';
@@ -140,6 +140,12 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
     version = 3;
   }
 
+  if (version === 3) {
+    await migrateToV4(db);
+    log.info('[DB] applied schema v4 (P2P delivery counts)');
+    version = 4;
+  }
+
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 }
 
@@ -216,6 +222,13 @@ async function migrateToV3(db: SQLite.SQLiteDatabase): Promise<void> {
   }
   if (!cols.some((c) => c.name === 'p2pDeliveryState')) {
     await db.execAsync(`ALTER TABLE ${TABLE_HISTORY} ADD COLUMN p2pDeliveryState TEXT`);
+  }
+}
+
+async function migrateToV4(db: SQLite.SQLiteDatabase): Promise<void> {
+  const cols = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${TABLE_HISTORY})`);
+  if (!cols.some((c) => c.name === 'p2pDeliveryCounts')) {
+    await db.execAsync(`ALTER TABLE ${TABLE_HISTORY} ADD COLUMN p2pDeliveryCounts TEXT`);
   }
 }
 
