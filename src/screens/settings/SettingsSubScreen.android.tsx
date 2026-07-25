@@ -20,6 +20,7 @@ import { SettingsToastProvider } from './SettingsToastContext';
 import { ServerSection } from './ServerSection';
 import { ServerModals } from './ServerModals';
 import { SyncSettingsSection } from './SyncSettingsSection';
+import { UnifiedSpaceSetup } from './UnifiedSpaceSetup';
 import { HistorySection } from './HistorySection';
 import { BackgroundSection } from './BackgroundSection';
 import { AppearanceSection } from './AppearanceSection';
@@ -58,6 +59,8 @@ const SettingsSubScreenInner = memo(function SettingsSubScreenInner() {
               <SyncSettingsSection />
             </>
           )}
+
+          {section === 'space' && <UnifiedSpaceSetup />}
 
           {section === 'history' && <HistorySection />}
 

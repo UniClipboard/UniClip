@@ -35,6 +35,7 @@ import { SettingsSectionItem } from './settings/SettingsSectionItem';
 // XML 矢量图标(Material Icons 路径),由 @expo/ui Icon 在原生侧解析渲染。
 const ICONS: Record<SettingsSubSection | 'chevron', number> = {
   sync: require('../assets/icons/dns.xml'),
+  space: require('../assets/icons/groups.xml'),
   history: require('../assets/icons/history.xml'),
   background: require('../assets/icons/layers.xml'),
   sms: require('../assets/icons/sms.xml'),
@@ -149,7 +150,7 @@ const ClipboardSyncDirectionGroup = memo(function ClipboardSyncDirectionGroup() 
   );
 });
 
-/** 「同步」组:服务器与同步 / 历史记录。 */
+/** 「同步」组:P2P Space / 兼容设置 / 历史记录。 */
 const SyncHubGroup = memo(function SyncHubGroup({ iconTint, onNavigate }: HubGroupProps) {
   const { t } = useTranslation('settings');
   const legacyLanEligible = useSettingsStore((s) => s.config?.legacyLanEligible ?? false);
@@ -176,14 +177,24 @@ const SyncHubGroup = memo(function SyncHubGroup({ iconTint, onNavigate }: HubGro
   return (
     <SettingsSectionItem title={t('category.sync')}>
       <HubRow
-        section="sync"
-        label={
-          legacyLanEligible ? t('hub.rows.serverLabel') : t('space.title', { ns: 'settingsSync' })
-        }
-        summary={serverSummary}
+        section="space"
+        label={t('space.title', { ns: 'settingsSync' })}
+        summary={t('connection.p2pDescription', { ns: 'settingsSync' })}
         iconTint={iconTint}
         onNavigate={onNavigate}
       />
+      {legacyLanEligible ? (
+        <>
+          <HorizontalDivider />
+          <HubRow
+            section="sync"
+            label={t('hub.rows.serverLabel')}
+            summary={serverSummary}
+            iconTint={iconTint}
+            onNavigate={onNavigate}
+          />
+        </>
+      ) : null}
       <HorizontalDivider />
       <HubRow
         section="history"

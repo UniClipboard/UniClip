@@ -23,7 +23,6 @@ import { useSettingsStore } from '@/stores';
 import { useSettingsToast } from './SettingsToastContext';
 import { useBlurCommit } from './useBlurCommit';
 import { SettingsSectionItem } from './SettingsSectionItem';
-import { UnifiedSpaceSetup } from './UnifiedSpaceSetup';
 
 const toMB = (bytes: number) => Math.round(bytes / (1024 * 1024));
 const filterPositiveInteger = (value: string): string => {
@@ -179,8 +178,6 @@ export const SyncSettingsSection = memo(function SyncSettingsSection() {
           <ComposeText>{t('connection.lanDeprecated')}</ComposeText>
         </SettingsSectionItem>
       ) : null}
-
-      {syncChannel === 'p2p' && <UnifiedSpaceSetup />}
 
       <SettingsSectionItem title={t('options.title')}>
         <ListItem>

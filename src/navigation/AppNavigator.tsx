@@ -22,6 +22,7 @@ import type { UpdateCheckResult } from '@/services/UpdateService';
 
 export type SettingsSubSection =
   | 'sync'
+  | 'space'
   | 'history'
   | 'background'
   | 'appearance'
@@ -82,6 +83,7 @@ export const AppNavigator = () => {
   // 子页面标题在组件内按当前语言构建(而非模块级常量),切换语言即时生效
   const subScreenTitles: Record<SettingsSubSection, string> = {
     sync: t('nav.sync'),
+    space: t('space.title', { ns: 'settingsSync' }),
     history: t('nav.history'),
     background: t('nav.background'),
     appearance: t('nav.appearance'),

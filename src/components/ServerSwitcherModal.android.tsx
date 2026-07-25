@@ -6,7 +6,7 @@ import ReanimatedSwipeable, {
   type SwipeableMethods,
 } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { Host, AlertDialog, TextButton, Text as ComposeText } from '@expo/ui/jetpack-compose';
-import { AppTopSheet } from '@/components/ui';
+import { AppBottomSheet } from '@/components/ui';
 import { useSettingsStore } from '@/stores';
 import {
   classifyURL,
@@ -255,7 +255,7 @@ export function ServerSwitcherModal({
 
   return (
     <>
-      <AppTopSheet visible={visible} onDismiss={onClose} containerColor={c.surface}>
+      <AppBottomSheet visible={visible} onDismiss={onClose} containerColor={c.surface}>
         <View style={[s.content, { maxHeight: windowHeight * 0.62 }]}>
           <View style={s.header}>
             <Pressable onPress={onClose} style={s.headerBtn} hitSlop={8}>
@@ -294,7 +294,7 @@ export function ServerSwitcherModal({
               : null}
           </ScrollView>
         </View>
-      </AppTopSheet>
+      </AppBottomSheet>
 
       {/* 删除确认 */}
       {deleteServerTarget && (

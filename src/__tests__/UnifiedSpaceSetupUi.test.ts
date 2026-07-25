@@ -26,7 +26,7 @@ describe('unified space setup UI', () => {
     const ios = source('screens/settings/ios/SpacePage.tsx');
     const combined = `${android}\n${ios}`;
 
-    expect(android).toContain("invitation.availability === 'sameLocalNetwork'");
+    expect(android).toContain("visibleInvitation.availability === 'sameLocalNetwork'");
     expect(ios).toContain("visibleInvitation.availability === 'sameLocalNetwork'");
     expect(combined).toContain('space.invitation.sameLocalNetwork');
     expect(combined).not.toContain('UnifiedSpaceProbe');
@@ -34,11 +34,18 @@ describe('unified space setup UI', () => {
 
   it('shows space setup only for the explicitly selected P2P channel', () => {
     const androidSettings = source('screens/settings/SyncSettingsSection.tsx');
+    const androidHub = source('screens/SettingsScreen.android.tsx');
+    const androidSubScreen = source('screens/settings/SettingsSubScreen.android.tsx');
+    const navigation = source('navigation/AppNavigator.tsx');
     const iosRoot = source('screens/settings/ios/SettingsRootPage.tsx');
     const iosScreen = source('screens/SettingsScreen.ios.tsx');
     const iosPages = source('screens/settings/ios/types.ts');
 
-    expect(androidSettings).toContain("syncChannel === 'p2p' && <UnifiedSpaceSetup />");
+    expect(androidSettings).not.toContain('UnifiedSpaceSetup');
+    expect(androidHub).toContain('section="space"');
+    expect(androidSubScreen).toContain("section === 'space' && <UnifiedSpaceSetup />");
+    expect(navigation).toContain("| 'space'");
+    expect(navigation).toContain("space: t('space.title', { ns: 'settingsSync' })");
     expect(iosRoot).toContain("config.syncChannel === 'p2p'");
     expect(iosRoot).toContain("onNavigate('space')");
     expect(iosScreen).toContain("page === 'space'");
@@ -81,6 +88,21 @@ describe('unified space setup UI', () => {
     expect(ios).toContain('lineLimit(1)');
     expect(ios).toContain('space.status.currentDevice');
     expect(ios).toContain('disabled(!canSubmit || pending !== null)');
+  });
+
+  it('gives the Android space page a compact overview and manageable device rows', () => {
+    const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
+
+    expect(android).toContain("import * as Clipboard from 'expo-clipboard'");
+    expect(android).toContain('SpaceDeviceRow');
+    expect(android).toContain('space.status.currentDevice');
+    expect(android).toContain('space.status.spaceId');
+    expect(android).toContain('space.devices.online');
+    expect(android).toContain('space.devices.offline');
+    expect(android).toContain('space.devices.remove');
+    expect(android).toContain('space.invitation.code');
+    expect(android).toContain('connection.invitationExpires');
+    expect(android).toContain('Clipboard.setStringAsync');
   });
 
   it('keeps invitation availability copy aligned in every supported language', () => {

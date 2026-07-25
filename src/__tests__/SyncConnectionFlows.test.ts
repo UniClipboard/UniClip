@@ -88,6 +88,14 @@ describe('unified sync connection flows', () => {
     expect(controller).toContain('selectSyncConnection(target)');
   });
 
+  it('presents the Android connection switcher from the bottom edge', () => {
+    const android = source('components/ServerSwitcherModal.android.tsx');
+
+    expect(android).toContain("import { AppBottomSheet } from '@/components/ui'");
+    expect(android).toContain('<AppBottomSheet');
+    expect(android).not.toContain('AppTopSheet');
+  });
+
   it('routes the home add action through the unified sheet while retaining the LAN editor', () => {
     const overlays = source('screens/HomeOverlays.tsx');
 
