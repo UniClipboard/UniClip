@@ -10,32 +10,28 @@ import {
   Icon,
   IconButton,
   ListItem,
-  ModalBottomSheet,
   OutlinedButton,
-  OutlinedTextField,
   Row,
   Spacer,
   Text as ComposeText,
   TextButton,
   useMaterialColors,
-  useNativeState,
 } from '@expo/ui/jetpack-compose';
 import {
   fillMaxWidth,
   height as heightModifier,
-  paddingAll,
-  verticalScroll,
   width as widthModifier,
 } from '@expo/ui/jetpack-compose/modifiers';
 import { useTranslation } from 'react-i18next';
 
+import { AddSyncConnectionSheet } from '@/components/AddSyncConnectionSheet';
+import type { AddSyncConnectionMode } from '@/components/AddSyncConnectionSheet.types';
 import { getUnifiedSpaceService, UnifiedSpaceInputError } from '@/services/UnifiedSpaceService';
 import { useUnifiedEngineStore } from '@/stores/unifiedEngineStore';
 import { useUnifiedSpaceStore, type UnifiedSpaceDevice } from '@/stores/unifiedSpaceStore';
 import { SettingsSectionItem } from './SettingsSectionItem';
 
-type SetupMode = 'create' | 'join';
-type PendingOperation = SetupMode | 'invite' | 'leave' | `remove:${string}` | null;
+type PendingOperation = 'invite' | 'leave' | `remove:${string}` | null;
 
 const ICONS = {
   space: require('../../assets/icons/groups.xml'),
@@ -45,8 +41,6 @@ const ICONS = {
   copy: require('../../assets/icons/content_copy.xml'),
   remove: require('../../assets/icons/delete.xml'),
 };
-
-const sheetTitleStyle = { typography: 'titleLarge' } as const;
 
 function operationError(error: unknown, t: (key: string) => string): string {
   if (error instanceof UnifiedSpaceInputError) return t(`space.error.${error.code}`);
@@ -147,10 +141,7 @@ function SpaceDeviceRow({
 export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
   const { t } = useTranslation('settingsSync');
   const colors = useMaterialColors();
-  const [mode, setMode] = useState<SetupMode | null>(null);
-  const [deviceName, setDeviceName] = useState('');
-  const [passphrase, setPassphrase] = useState('');
-  const [invitationCode, setInvitationCode] = useState('');
+  const [setupMode, setSetupMode] = useState<AddSyncConnectionMode | null>(null);
   const [pending, setPending] = useState<PendingOperation>(null);
   const [error, setError] = useState<string | null>(null);
   const [invitation, setInvitation] = useState<InvitationIssued | null>(null);
@@ -160,57 +151,11 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
   const space = useUnifiedSpaceStore();
   const refreshRevision = useUnifiedEngineStore((state) => state.refreshRevision);
 
-  const deviceNameState = useNativeState(deviceName);
-  const passphraseState = useNativeState(passphrase);
-  const invitationCodeState = useNativeState(invitationCode);
-
   useEffect(() => {
     void getUnifiedSpaceService()
       .refresh()
       .catch((cause) => setError(operationError(cause, t)));
   }, [refreshRevision, t]);
-
-  const resetInputs = () => {
-    setDeviceName('');
-    setPassphrase('');
-    setInvitationCode('');
-    deviceNameState.value = '';
-    passphraseState.value = '';
-    invitationCodeState.value = '';
-  };
-
-  const closeForm = () => {
-    if (pending) return;
-    resetInputs();
-    setError(null);
-    setMode(null);
-  };
-
-  const openForm = (nextMode: SetupMode) => {
-    resetInputs();
-    setError(null);
-    setMode(nextMode);
-  };
-
-  const submit = async () => {
-    if (!mode || pending) return;
-    setPending(mode);
-    setError(null);
-    try {
-      const service = getUnifiedSpaceService();
-      if (mode === 'create') {
-        await service.createSpace(deviceName, passphrase);
-      } else {
-        await service.joinSpace(invitationCode, deviceName, passphrase);
-      }
-      resetInputs();
-      setMode(null);
-    } catch (cause) {
-      setError(operationError(cause, t));
-    } finally {
-      setPending(null);
-    }
-  };
 
   const issueInvitation = async () => {
     if (pending) return;
@@ -281,86 +226,22 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
         }),
       })}`
     : invitationDescription;
-  const canSubmit =
-    deviceName.trim().length > 0 &&
-    passphrase.trim().length > 0 &&
-    (mode !== 'join' || invitationCode.trim().length > 0);
   const isInitialLoading =
     !spaceId && !pending && (space.status === 'idle' || space.status === 'loading');
 
   const dialogs = (
     <>
-      {mode ? (
-        <ModalBottomSheet onDismissRequest={closeForm} skipPartiallyExpanded initialFullyExpanded>
-          <Column modifiers={[paddingAll(24), fillMaxWidth(), verticalScroll()]}>
-            <ComposeText style={sheetTitleStyle}>{t(`space.${mode}.title`)}</ComposeText>
-            <Spacer modifiers={[heightModifier(16)]} />
-
-            {mode === 'join' ? (
-              <>
-                <OutlinedTextField
-                  value={invitationCodeState}
-                  onValueChange={setInvitationCode}
-                  singleLine
-                  keyboardOptions={{ capitalization: 'none', autoCorrectEnabled: false }}
-                  modifiers={[fillMaxWidth()]}
-                >
-                  <OutlinedTextField.Label>
-                    <ComposeText>{t('space.field.invitationCode')}</ComposeText>
-                  </OutlinedTextField.Label>
-                </OutlinedTextField>
-                <Spacer modifiers={[heightModifier(12)]} />
-              </>
-            ) : null}
-
-            <OutlinedTextField
-              value={deviceNameState}
-              onValueChange={setDeviceName}
-              singleLine
-              keyboardOptions={{ capitalization: 'words' }}
-              modifiers={[fillMaxWidth()]}
-            >
-              <OutlinedTextField.Label>
-                <ComposeText>{t('space.field.deviceName')}</ComposeText>
-              </OutlinedTextField.Label>
-            </OutlinedTextField>
-            <Spacer modifiers={[heightModifier(12)]} />
-
-            <OutlinedTextField
-              value={passphraseState}
-              onValueChange={setPassphrase}
-              singleLine
-              visualTransformation="password"
-              keyboardOptions={{ keyboardType: 'password', autoCorrectEnabled: false }}
-              modifiers={[fillMaxWidth()]}
-            >
-              <OutlinedTextField.Label>
-                <ComposeText>{t('space.field.passphrase')}</ComposeText>
-              </OutlinedTextField.Label>
-            </OutlinedTextField>
-
-            {error ? (
-              <>
-                <Spacer modifiers={[heightModifier(12)]} />
-                <ComposeText color={colors.error}>{error}</ComposeText>
-              </>
-            ) : null}
-
-            <Spacer modifiers={[heightModifier(20)]} />
-            <Row modifiers={[fillMaxWidth()]} horizontalArrangement="end">
-              <TextButton onClick={closeForm} enabled={!pending}>
-                <ComposeText>{t('action.cancel', { ns: 'common' })}</ComposeText>
-              </TextButton>
-              <Spacer modifiers={[widthModifier(8)]} />
-              <Button onClick={submit} enabled={canSubmit && !pending}>
-                <ComposeText>
-                  {pending ? t('space.working') : t(`space.${mode}.action`)}
-                </ComposeText>
-              </Button>
-            </Row>
-          </Column>
-        </ModalBottomSheet>
-      ) : null}
+      <AddSyncConnectionSheet
+        visible={setupMode !== null}
+        initialMode={setupMode ?? 'choose'}
+        legacyLanEligible={false}
+        onClose={() => setSetupMode(null)}
+        onOpenLegacyLan={() => {}}
+        onConnected={() => {
+          setSetupMode(null);
+          return true;
+        }}
+      />
 
       {removeDeviceId ? (
         <AlertDialog onDismissRequest={() => setRemoveDeviceId(null)}>
@@ -435,7 +316,7 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
             <ComposeText>{t('space.create.description')}</ComposeText>
           </ListItem.SupportingContent>
           <ListItem.TrailingContent>
-            <Button onClick={() => openForm('create')} enabled={!pending}>
+            <Button onClick={() => setSetupMode('create')}>
               <ComposeText>{t('space.create.action')}</ComposeText>
             </Button>
           </ListItem.TrailingContent>
@@ -452,7 +333,7 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
             <ComposeText>{error ?? t('space.join.description')}</ComposeText>
           </ListItem.SupportingContent>
           <ListItem.TrailingContent>
-            <OutlinedButton onClick={() => openForm('join')} enabled={!pending}>
+            <OutlinedButton onClick={() => setSetupMode('join')}>
               <ComposeText>{t('space.join.action')}</ComposeText>
             </OutlinedButton>
           </ListItem.TrailingContent>
@@ -463,11 +344,8 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
 
   return (
     <Column modifiers={[fillMaxWidth()]}>
-      <SettingsSectionItem
-        title={t('space.status.ready')}
-        footer={t('connection.p2pDescription')}
-        dialogs={dialogs}
-      >
+      {dialogs}
+      <SettingsSectionItem title={t('space.status.ready')} footer={t('connection.p2pDescription')}>
         <ListItem>
           <ListItem.LeadingContent>
             <Icon source={ICONS.space} size={28} tint={colors.primary} />

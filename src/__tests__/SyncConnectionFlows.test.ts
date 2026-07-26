@@ -17,6 +17,8 @@ describe('unified sync connection flows', () => {
     expect(android).toContain('Host,');
     expect(android).toMatch(/<Host[^>]*>\s*<ModalBottomSheet/);
     expect(android).toMatch(/<\/ModalBottomSheet>\s*<\/Host>/);
+    expect(android).not.toContain('initialFullyExpanded');
+    expect(android).not.toContain('skipPartiallyExpanded');
     for (const platform of [android, ios]) {
       expect(platform).toContain('.createSpace(');
       expect(platform).toContain('.joinSpace(');
@@ -30,13 +32,68 @@ describe('unified sync connection flows', () => {
     const ios = source('components/AddSyncConnectionSheet.ios.tsx');
 
     expect(ios).toContain('IosSheetPage');
-    expect(ios).toContain('ConnectionChoiceCard');
+    expect(ios).toContain('ConnectionChoice');
     expect(ios).toContain("t('space.create.description')");
     expect(ios).toContain("t('space.join.description')");
     expect(ios).toContain("t('connection.addSheetTitle')");
-    expect(ios).toContain('headerCircleButton');
-    expect(ios).toContain("presentationDetents(['medium'])");
-    expect(ios).toContain('disabled(!canSubmit || pending)');
+    expect(ios).toContain('HeaderCircleButton');
+    expect(ios).toContain("presentationDetents(['medium', 'large'], { selection: 'medium' })");
+    expect(ios).toContain('disabled(!canSubmitDetails || pending)');
+    expect(ios).toContain('iosDimensions.surfaceCornerRadius');
+  });
+
+  it('turns create and join into a staged connection experience on both platforms', () => {
+    const android = source('components/AddSyncConnectionSheet.android.tsx');
+    const ios = source('components/AddSyncConnectionSheet.ios.tsx');
+
+    for (const platform of [android, ios]) {
+      expect(platform).toContain("'joinCode'");
+      expect(platform).toContain("'joinDetails'");
+      expect(platform).toContain("'invitation'");
+      expect(platform).toContain("'success'");
+      expect(platform).toContain('space.flow.waitingTitle');
+      expect(platform).toContain('space.flow.successTitle');
+      expect(platform).toContain('normalizeInvitationCodeInput');
+      expect(platform).toContain('formatInvitationCode');
+    }
+
+    expect(android).toContain('space.flow.joinCodeTitle');
+    expect(android).not.toContain('space.flow.joinCodeSheetTitle');
+    expect(ios).toContain('space.flow.joinCodeSheetTitle');
+  });
+
+  it('accepts eight invitation characters without rewriting the active input', () => {
+    const android = source('components/AddSyncConnectionSheet.android.tsx');
+    const ios = source('components/AddSyncConnectionSheet.ios.tsx');
+
+    for (const platform of [android, ios]) {
+      expect(platform).toContain('maxLength={8}');
+      expect(platform).not.toContain('invitationCodeRef.current?.setText');
+    }
+  });
+
+  it('supports copy, share, expiry, and network scope while the creator waits', () => {
+    const android = source('components/AddSyncConnectionSheet.android.tsx');
+    const ios = source('components/AddSyncConnectionSheet.ios.tsx');
+
+    for (const platform of [android, ios]) {
+      expect(platform).toContain('Clipboard.setStringAsync');
+      expect(platform).toContain('Share.share');
+      expect(platform).toContain('invitation.expiresAtMs');
+      expect(platform).toContain("invitation.availability === 'sameLocalNetwork'");
+      expect(platform).toContain('space.flow.waitingForDevice');
+    }
+  });
+
+  it('uses the unified add sheet instead of duplicate setup forms in settings', () => {
+    const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
+    const ios = source('screens/settings/ios/SpacePage.tsx');
+
+    for (const platform of [android, ios]) {
+      expect(platform).toContain('AddSyncConnectionSheet');
+      expect(platform).not.toContain('.createSpace(');
+      expect(platform).not.toContain('.joinSpace(');
+    }
   });
 
   it('does not reset native fields after connection completion unmounts the sheet', () => {
@@ -54,18 +111,35 @@ describe('unified sync connection flows', () => {
     }
   });
 
-  it('clears iOS form values before switching between create and join', () => {
+  it('clears iOS sensitive fields and restores the default device name on reset', () => {
     const ios = source('components/AddSyncConnectionSheet.ios.tsx');
     const clearInputs = ios.slice(ios.indexOf('const clearInputs'), ios.indexOf('const reset'));
-    const backToChoose = ios.slice(
-      ios.indexOf('const backToChoose'),
-      ios.indexOf('const completeConnection')
-    );
 
-    expect(clearInputs).toContain("setDeviceName('')");
+    expect(clearInputs).toContain('setDeviceName(nextDeviceName)');
     expect(clearInputs).toContain("setPassphrase('')");
     expect(clearInputs).toContain("setInvitationCode('')");
-    expect(backToChoose).toContain('clearInputs()');
+    expect(clearInputs).toContain('passphraseRef.current?.clear()');
+    expect(clearInputs).toContain('invitationCodeRef.current?.clear()');
+  });
+
+  it('shows the default device name in both iOS setup fields', () => {
+    const ios = source('components/AddSyncConnectionSheet.ios.tsx');
+
+    expect(ios).toContain('useNativeState(defaultDeviceName)');
+    expect(ios.match(/text=\{deviceNameState\}/g)).toHaveLength(2);
+    expect(ios).toContain('deviceNameState.value = nextDeviceName');
+  });
+
+  it('uses the system device name as the setup default on both platforms', () => {
+    const android = source('components/AddSyncConnectionSheet.android.tsx');
+    const ios = source('components/AddSyncConnectionSheet.ios.tsx');
+
+    for (const platform of [android, ios]) {
+      expect(platform).toContain("import * as Device from 'expo-device'");
+      expect(platform).toContain('resolveDefaultDeviceName(');
+      expect(platform).toContain('Device.deviceName');
+      expect(platform).toContain('Device.modelName');
+    }
   });
 
   it('shows one P2P target plus deprecated LAN targets and selects them atomically', () => {
@@ -105,6 +179,22 @@ describe('unified sync connection flows', () => {
     expect(overlays).toContain('legacyLanEligible');
     expect(overlays).toContain('handleP2pConnected');
     expect(overlays).toContain('<AddServerSheet');
+  });
+
+  it('ships the staged connection copy in every supported language', () => {
+    for (const locale of ['en', 'pt-BR', 'ru', 'zh']) {
+      const messages = JSON.parse(source(`i18n/locales/${locale}/settingsSync.json`));
+
+      expect(messages.space.flow.joinCodeSheetTitle).toEqual(expect.any(String));
+      expect(messages.space.flow.joinCodeTitle).toEqual(expect.any(String));
+      expect(messages.space.flow.waitingTitle).toEqual(expect.any(String));
+      expect(messages.space.flow.waitingForDevice).toEqual(expect.any(String));
+      expect(messages.space.flow.successTitle).toEqual(expect.any(String));
+      expect(messages.space.error.invitationCodeInvalid).toEqual(expect.any(String));
+      expect(messages.space.error.invitationNotFound).toEqual(expect.any(String));
+      expect(messages.space.error.invitationExpired).toEqual(expect.any(String));
+      expect(messages.space.error.passphraseMismatch).toEqual(expect.any(String));
+    }
   });
 
   it('guards scanned legacy LAN handoff before opening the retained editor', () => {

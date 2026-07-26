@@ -49,7 +49,7 @@ describe('P2P onboarding and LAN migration UI', () => {
     expect(types).toContain('initialMode');
     for (const platform of [android, ios]) {
       expect(platform).toContain('initialMode');
-      expect(platform).toContain('setMode(initialMode)');
+      expect(platform).toContain('setMode(modeFromInitial(initialMode))');
     }
   });
 

@@ -2,6 +2,7 @@ import { describe, expect, it, jest } from '@jest/globals';
 import {
   UnifiedSpaceInputError,
   UnifiedSpaceService,
+  unifiedSpaceUserErrorCode,
   type UnifiedSpaceApi,
   type UnifiedSpaceSnapshot,
 } from '../services/UnifiedSpaceService';
@@ -24,7 +25,7 @@ function createApi(overrides: Partial<UnifiedSpaceApi> = {}): UnifiedSpaceApi {
       identityFingerprint: 'fingerprint',
     })),
     issueInvitation: jest.fn(async () => ({
-      invitationCode: 'invite-code',
+      invitationCode: '7K2M-8Q4R',
       expiresAtMs: 123_456,
       availability: 'crossNetwork' as const,
     })),
@@ -62,6 +63,26 @@ function deferred<T>(): {
 }
 
 describe('UnifiedSpaceService', () => {
+  it.each([
+    ['engine error 1233 (Unauthorized)', 'passphraseMismatch'],
+    ['BindingError.Engine(code: 1234, category: notFound, retryable: false)', 'invitationNotFound'],
+    ['BindingError.Engine(code: 1281, category: notFound, retryable: false)', 'invitationExpired'],
+    ['engine error 1236 (Unavailable)', 'sponsorUnreachable'],
+    ['engine error 1285 (DeadlineExceeded)', 'connectionTimedOut'],
+    ['engine error 1282 (Conflict)', 'invitationRejected'],
+    ['engine error 1283 (Unavailable)', 'serviceUnavailable'],
+    ['engine error 1284 (Unavailable)', 'connectionLost'],
+  ] as const)('maps native failure %s to %s', (message, expected) => {
+    expect(unifiedSpaceUserErrorCode(new Error(message))).toBe(expected);
+  });
+
+  it('keeps input validation errors and ignores unknown native failures', () => {
+    expect(unifiedSpaceUserErrorCode(new UnifiedSpaceInputError('invitationCodeInvalid'))).toBe(
+      'invitationCodeInvalid'
+    );
+    expect(unifiedSpaceUserErrorCode(new Error('unknown failure'))).toBeNull();
+  });
+
   it.each(['create', 'join'] as const)(
     'prepares the P2P runtime before a %s operation reaches the native engine',
     async (operation) => {
@@ -96,7 +117,7 @@ describe('UnifiedSpaceService', () => {
       if (operation === 'create') {
         await service.createSpace('Phone', 'passphrase');
       } else {
-        await service.joinSpace('invitation', 'Phone', 'passphrase');
+        await service.joinSpace('7K2M-8Q4R', 'Phone', 'passphrase');
       }
 
       expect(events.slice(0, 2)).toEqual(['prepare:p2p', `native:${operation}`]);
@@ -112,14 +133,32 @@ describe('UnifiedSpaceService', () => {
     expect(api.createSpace).toHaveBeenCalledWith('My Phone', ' secret with spaces ');
   });
 
-  it('normalizes the invitation and device name without rewriting the passphrase when joining', async () => {
+  it.each([
+    ['7k2m8q4r', '7K2M-8Q4R'],
+    ['  7k2m-8q4r  ', '7K2M-8Q4R'],
+    ['7k2m 8q4r', '7K2M-8Q4R'],
+    ['olk2-m8qr', '01K2-M8QR'],
+  ])('normalizes invitation %s for joining as %s', async (input, expected) => {
     const api = createApi();
     const service = new UnifiedSpaceService(api);
 
-    await service.joinSpace('  invite-code  ', '  Travel Phone  ', ' another secret ');
+    await service.joinSpace(input, '  Travel Phone  ', ' another secret ');
 
-    expect(api.joinSpace).toHaveBeenCalledWith('invite-code', 'Travel Phone', ' another secret ');
+    expect(api.joinSpace).toHaveBeenCalledWith(expected, 'Travel Phone', ' another secret ');
   });
+
+  it.each(['ABCD-123', 'ABCD-12345', 'ABCD-U234', '----'])(
+    'rejects incomplete or unsupported invitation %s before joining',
+    async (input) => {
+      const api = createApi();
+      const service = new UnifiedSpaceService(api);
+
+      await expect(service.joinSpace(input, 'Phone', 'passphrase')).rejects.toMatchObject({
+        code: 'invitationCodeInvalid',
+      });
+      expect(api.joinSpace).not.toHaveBeenCalled();
+    }
+  );
 
   it.each([
     ['deviceNameRequired', '', 'passphrase', undefined],
@@ -147,7 +186,7 @@ describe('UnifiedSpaceService', () => {
     const service = new UnifiedSpaceService(api);
 
     await expect(service.issueInvitation()).resolves.toEqual(
-      expect.objectContaining({ invitationCode: 'invite-code' })
+      expect.objectContaining({ invitationCode: '7K2M-8Q4R' })
     );
     expect(api.issueInvitation).toHaveBeenCalledTimes(1);
     expect(api.createSpace).not.toHaveBeenCalled();
@@ -183,7 +222,7 @@ describe('UnifiedSpaceService', () => {
 
     expect(api.createSpace).toHaveBeenCalledWith('Phone', 'correct horse battery staple');
     expect(api.issueInvitation).toHaveBeenCalledTimes(1);
-    expect(creation.invitation.invitationCode).toBe('invite-code');
+    expect(creation.invitation.invitationCode).toBe('7K2M-8Q4R');
     expect(snapshots.at(-1)).toEqual(
       expect.objectContaining({
         status: 'ready',
@@ -270,7 +309,7 @@ describe('UnifiedSpaceService', () => {
     const service = new UnifiedSpaceService(api, (snapshot) => snapshots.push(snapshot));
 
     const staleRefresh = service.refresh();
-    await service.joinSpace('new-invitation', 'New Phone', 'passphrase');
+    await service.joinSpace('9R3N-6W2X', 'New Phone', 'passphrase');
     pendingState.resolve({
       hasCompleted: true,
       spaceId: 'old-space',

@@ -5,6 +5,7 @@ import {
   type UnifiedSpaceDevice,
   type UnifiedSpaceSnapshot,
 } from '@/stores/unifiedSpaceStore';
+import { invitationCodeForSubmission } from '@/utils/invitationCode';
 import { getP2pSpaceSetupCoordinator } from './P2pSpaceSetupCoordinator';
 
 export type { UnifiedSpaceSnapshot } from '@/stores/unifiedSpaceStore';
@@ -56,7 +57,32 @@ const runWithoutSetupTransition: P2pSpaceSetupRunner = (operation) => operation(
 export type UnifiedSpaceInputErrorCode =
   | 'deviceNameRequired'
   | 'passphraseRequired'
-  | 'invitationCodeRequired';
+  | 'invitationCodeRequired'
+  | 'invitationCodeInvalid';
+
+export type UnifiedSpaceUserErrorCode =
+  | UnifiedSpaceInputErrorCode
+  | 'invitationNotFound'
+  | 'invitationExpired'
+  | 'passphraseMismatch'
+  | 'sponsorUnreachable'
+  | 'connectionTimedOut'
+  | 'invitationRejected'
+  | 'serviceUnavailable'
+  | 'connectionLost';
+
+const USER_ERROR_BY_ENGINE_CODE: Readonly<Record<number, UnifiedSpaceUserErrorCode>> = {
+  1233: 'passphraseMismatch',
+  1234: 'invitationNotFound',
+  1235: 'invitationRejected',
+  1236: 'sponsorUnreachable',
+  1237: 'connectionTimedOut',
+  1281: 'invitationExpired',
+  1282: 'invitationRejected',
+  1283: 'serviceUnavailable',
+  1284: 'connectionLost',
+  1285: 'connectionTimedOut',
+};
 
 export class UnifiedSpaceInputError extends Error {
   readonly name = 'UnifiedSpaceInputError';
@@ -64,6 +90,22 @@ export class UnifiedSpaceInputError extends Error {
   constructor(readonly code: UnifiedSpaceInputErrorCode) {
     super(code);
   }
+}
+
+export function unifiedSpaceUserErrorCode(cause: unknown): UnifiedSpaceUserErrorCode | null {
+  if (cause instanceof UnifiedSpaceInputError) return cause.code;
+
+  const details = [String(cause)];
+  if (cause && typeof cause === 'object') {
+    const error = cause as { code?: unknown; message?: unknown; cause?: unknown };
+    details.push(String(error.code ?? ''), String(error.message ?? ''), String(error.cause ?? ''));
+  }
+
+  for (const match of details.join(' ').matchAll(/\b\d{4}\b/g)) {
+    const mapped = USER_ERROR_BY_ENGINE_CODE[Number(match[0])];
+    if (mapped) return mapped;
+  }
+  return null;
 }
 
 function required(value: string, code: UnifiedSpaceInputErrorCode): string {
@@ -159,7 +201,9 @@ export class UnifiedSpaceService {
     deviceName: string,
     secret: string
   ): Promise<SpaceJoined> {
-    const normalizedInvitation = required(invitationCode, 'invitationCodeRequired');
+    required(invitationCode, 'invitationCodeRequired');
+    const normalizedInvitation = invitationCodeForSubmission(invitationCode);
+    if (!normalizedInvitation) throw new UnifiedSpaceInputError('invitationCodeInvalid');
     const normalizedName = required(deviceName, 'deviceNameRequired');
     const normalizedPassphrase = passphrase(secret);
     const revision = this.beginOperation();

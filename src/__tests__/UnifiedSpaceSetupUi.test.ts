@@ -8,17 +8,20 @@ function source(relativePath: string): string {
 }
 
 describe('unified space setup UI', () => {
-  it('keeps Android and iOS on native platform-specific form controls', () => {
+  it('opens the shared native connection flow instead of duplicating setup forms', () => {
     const entry = source('screens/settings/UnifiedSpaceSetup.tsx');
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
     const ios = source('screens/settings/ios/SpacePage.tsx');
 
     expect(entry).toContain("export * from './UnifiedSpaceSetup.android'");
-    expect(android).toContain('ModalBottomSheet');
-    expect(android).toContain('visualTransformation="password"');
+    expect(android).toContain('AddSyncConnectionSheet');
     expect(android).toContain('getUnifiedSpaceService');
-    expect(ios).toContain('SecureField');
+    expect(android).not.toContain('.createSpace(');
+    expect(android).not.toContain('.joinSpace(');
+    expect(ios).toContain('AddSyncConnectionSheet');
     expect(ios).toContain('getUnifiedSpaceService');
+    expect(ios).not.toContain('.createSpace(');
+    expect(ios).not.toContain('.joinSpace(');
   });
 
   it('shows when an invitation only works on the same local network', () => {
@@ -56,12 +59,15 @@ describe('unified space setup UI', () => {
   it('never writes the passphrase or invitation code to persistent settings', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
     const ios = source('screens/settings/ios/SpacePage.tsx');
-    const combined = `${android}\n${ios}`;
+    const androidFlow = source('components/AddSyncConnectionSheet.android.tsx');
+    const iosFlow = source('components/AddSyncConnectionSheet.ios.tsx');
+    const combined = `${android}\n${ios}\n${androidFlow}\n${iosFlow}`;
 
     expect(combined).not.toContain('AsyncStorage');
     expect(combined).not.toContain('updateConfig({ passphrase');
     expect(combined).not.toContain('updateConfig({ invitationCode');
-    expect(combined).toContain("setPassphrase('')");
+    expect(androidFlow).toContain("setPassphrase('')");
+    expect(iosFlow).toContain("setPassphrase('')");
   });
 
   it('supports device management and leaving the local space on both platforms', () => {
@@ -99,7 +105,7 @@ describe('unified space setup UI', () => {
     expect(ios).toContain('systemName="trash"');
     expect(ios).toContain('lineLimit(1)');
     expect(ios).toContain('space.status.currentDevice');
-    expect(ios).toContain('disabled(!canSubmit || pending !== null)');
+    expect(ios).toContain('AddSyncConnectionSheet');
   });
 
   it('gives the Android space page a compact overview and manageable device rows', () => {
