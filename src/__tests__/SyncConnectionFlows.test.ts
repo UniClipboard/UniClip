@@ -37,9 +37,19 @@ describe('unified sync connection flows', () => {
     expect(ios).toContain("t('space.join.description')");
     expect(ios).toContain("t('connection.addSheetTitle')");
     expect(ios).toContain('HeaderCircleButton');
-    expect(ios).toContain("presentationDetents(['medium', 'large'], { selection: 'medium' })");
+    expect(ios).toContain("presentationDetents(['medium', 'large']");
     expect(ios).toContain('disabled(!canSubmitDetails || pending)');
     expect(ios).toContain('iosDimensions.surfaceCornerRadius');
+  });
+
+  it('expands the created-space and success steps while keeping setup half-height', () => {
+    const ios = source('components/AddSyncConnectionSheet.ios.tsx');
+
+    expect(ios).toContain("useState<PresentationDetent>('medium')");
+    expect(ios).toContain("mode === 'invitation' || mode === 'success'");
+    expect(ios).toContain("setSheetDetent(fullHeight ? 'large' : 'medium')");
+    expect(ios).toContain('selection: sheetDetent');
+    expect(ios).toContain('onSelectionChange: setSheetDetent');
   });
 
   it('turns create and join into a staged connection experience on both platforms', () => {

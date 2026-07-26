@@ -3,10 +3,17 @@ import {
   buttonStyle,
   disabled as disabledModifier,
   frame,
-  tint,
   foregroundStyle,
+  tint,
 } from '@expo/ui/swift-ui/modifiers';
 import type { ColorValue } from 'react-native';
+
+import { iosOnSaturatedColor } from '@/theme/iosDesignTokens';
+import {
+  iosAccentButtonPalette,
+  iosProminentButtonModifiers,
+  iosSecondaryButtonModifiers,
+} from './iosButtonStyles.ios';
 
 export type AppButtonVariant = 'filled' | 'outlined' | 'tonal' | 'text';
 
@@ -22,13 +29,6 @@ export interface AppButtonProps {
   };
 }
 
-const STYLE_MAP = {
-  filled: 'borderedProminent',
-  outlined: 'bordered',
-  tonal: 'bordered',
-  text: 'plain',
-} as const;
-
 export function AppButton({
   title,
   onPress,
@@ -37,12 +37,29 @@ export function AppButton({
   disabled,
   colors,
 }: AppButtonProps) {
-  const modifiers = [
-    buttonStyle(STYLE_MAP[variant]),
-    ...(fullWidth ? [frame({ maxWidth: Infinity })] : []),
-    ...(disabled ? [disabledModifier(true)] : []),
-    ...(colors?.containerColor ? [tint(colors.containerColor as string)] : []),
-    ...(colors?.contentColor ? [foregroundStyle(colors.contentColor as string)] : []),
-  ];
+  const filledPalette = colors?.containerColor
+    ? {
+        background: colors.containerColor,
+        foreground: colors.contentColor ?? iosOnSaturatedColor,
+      }
+    : {
+        ...iosAccentButtonPalette,
+        ...(colors?.contentColor ? { foreground: colors.contentColor } : {}),
+      };
+  const variantModifiers =
+    variant === 'filled'
+      ? iosProminentButtonModifiers(filledPalette, { fullWidth })
+      : variant === 'outlined' || variant === 'tonal'
+      ? [
+          ...iosSecondaryButtonModifiers({ fullWidth }),
+          ...(colors?.containerColor ? [tint(colors.containerColor)] : []),
+          ...(colors?.contentColor ? [foregroundStyle(colors.contentColor)] : []),
+        ]
+      : [
+          buttonStyle('plain'),
+          ...(fullWidth ? [frame({ maxWidth: Infinity })] : []),
+          ...(colors?.contentColor ? [foregroundStyle(colors.contentColor)] : []),
+        ];
+  const modifiers = [...variantModifiers, ...(disabled ? [disabledModifier(true)] : [])];
   return <Button label={title} onPress={onPress} modifiers={modifiers} />;
 }

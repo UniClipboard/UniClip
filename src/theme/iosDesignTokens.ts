@@ -78,12 +78,22 @@ export const iosOnAccent = {
   dark: iosAccent.light,
 } as const;
 
+export const iosOnAccentColor: OpaqueColorValue | undefined =
+  Platform.OS === 'ios'
+    ? DynamicColorIOS({ light: iosOnAccent.light, dark: iosOnAccent.dark })
+    : undefined;
+
+/** Foreground for fixed saturated button fills in both appearances. */
+export const iosOnSaturatedColor = '#FFFFFF';
+
 // -- 系统色的明暗 hex 近似 --
 // 优先用上面的 iosColors(PlatformColor);只有 SwiftUI modifier(@expo/ui)和
 // CSS 渐变(experimental_backgroundImage)这类吃不了 PlatformColor 的出口才用这份。
 // 值对照 UIKit 的默认明暗解析结果,新增条目时同样成对给出 light/dark。
 
 export const iosSystemHex = {
+  /** label */
+  label: { light: '#000000', dark: '#FFFFFF' },
   /** systemGroupedBackground */
   groupedBackground: { light: '#F2F2F7', dark: '#000000' },
   /** secondarySystemGroupedBackground(分组页里的卡片/胶囊底色) */

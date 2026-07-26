@@ -38,6 +38,8 @@ import {
   listRowInsets,
   listRowSeparator,
   listStyle,
+  lineLimit,
+  minimumScaleFactor,
   multilineTextAlignment,
   opacity,
   padding,
@@ -47,12 +49,17 @@ import {
   shapes,
   textFieldStyle,
   textInputAutocapitalization,
-  tint,
+  type PresentationDetent,
 } from '@expo/ui/swift-ui/modifiers';
 import type { SFSymbol } from 'sf-symbols-typescript';
 import { useTranslation } from 'react-i18next';
 
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
+import {
+  iosProminentButtonModifiers,
+  iosSaturatedButtonPalette,
+  iosSecondaryButtonModifiers,
+} from '@/components/ui/iosButtonStyles.ios';
 import { getUnifiedSpaceService, unifiedSpaceUserErrorCode } from '@/services/UnifiedSpaceService';
 import { useUnifiedEngineStore } from '@/stores/unifiedEngineStore';
 import { useUnifiedSpaceStore } from '@/stores/unifiedSpaceStore';
@@ -113,6 +120,17 @@ function HeaderCircleButton({
         ]}
       />
     </SwiftUIButton>
+  );
+}
+
+function InvitationActionLabel({ systemName, title }: { systemName: SFSymbol; title: string }) {
+  return (
+    <HStack spacing={6} modifiers={[frame({ maxWidth: Infinity })]}>
+      <Spacer />
+      <Image systemName={systemName} size={16} />
+      <SwiftUIText modifiers={[lineLimit(1), minimumScaleFactor(0.72)]}>{title}</SwiftUIText>
+      <Spacer />
+    </HStack>
   );
 }
 
@@ -228,6 +246,7 @@ export function AddSyncConnectionSheet({
     t('space.flow.thisDevice')
   );
   const [mode, setMode] = useState<Mode>(() => modeFromInitial(initialMode));
+  const [sheetDetent, setSheetDetent] = useState<PresentationDetent>('medium');
   const [deviceName, setDeviceName] = useState(defaultDeviceName);
   const [passphrase, setPassphrase] = useState('');
   const [invitationCode, setInvitationCode] = useState('');
@@ -270,6 +289,11 @@ export function AddSyncConnectionSheet({
   useEffect(() => {
     if (visible) setMode(modeFromInitial(initialMode));
   }, [initialMode, visible]);
+
+  useEffect(() => {
+    const fullHeight = mode === 'invitation' || mode === 'success';
+    setSheetDetent(fullHeight ? 'large' : 'medium');
+  }, [mode]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -449,7 +473,10 @@ export function AddSyncConnectionSheet({
       >
         <Group
           modifiers={[
-            presentationDetents(['medium', 'large'], { selection: 'medium' }),
+            presentationDetents(['medium', 'large'], {
+              selection: sheetDetent,
+              onSelectionChange: setSheetDetent,
+            }),
             presentationDragIndicator('visible'),
           ]}
         >
@@ -528,9 +555,10 @@ export function AddSyncConnectionSheet({
                 <SwiftUIButton
                   onPress={submitCreate}
                   modifiers={[
-                    buttonStyle('borderedProminent'),
+                    ...iosProminentButtonModifiers(iosSaturatedButtonPalette(P2P_TINT), {
+                      fullWidth: true,
+                    }),
                     controlSize('large'),
-                    tint(P2P_TINT),
                     disabled(!canSubmitDetails || pending),
                     opacity(!canSubmitDetails || pending ? 0.32 : 1),
                     listRowBackground(SHEET_BACKGROUND),
@@ -573,9 +601,10 @@ export function AddSyncConnectionSheet({
                 <SwiftUIButton
                   onPress={continueFromCode}
                   modifiers={[
-                    buttonStyle('borderedProminent'),
+                    ...iosProminentButtonModifiers(iosSaturatedButtonPalette(JOIN_TINT), {
+                      fullWidth: true,
+                    }),
                     controlSize('large'),
-                    tint(JOIN_TINT),
                     disabled(!codeComplete),
                     opacity(codeComplete ? 1 : 0.32),
                     listRowBackground(SHEET_BACKGROUND),
@@ -627,9 +656,10 @@ export function AddSyncConnectionSheet({
                 <SwiftUIButton
                   onPress={submitJoin}
                   modifiers={[
-                    buttonStyle('borderedProminent'),
+                    ...iosProminentButtonModifiers(iosSaturatedButtonPalette(JOIN_TINT), {
+                      fullWidth: true,
+                    }),
                     controlSize('large'),
-                    tint(JOIN_TINT),
                     disabled(!canSubmitDetails || pending),
                     opacity(!canSubmitDetails || pending ? 0.32 : 1),
                     listRowBackground(SHEET_BACKGROUND),
@@ -709,7 +739,12 @@ export function AddSyncConnectionSheet({
                   {invitationExpired ? (
                     <SwiftUIButton
                       onPress={renewInvitation}
-                      modifiers={[buttonStyle('borderedProminent'), controlSize('large')]}
+                      modifiers={[
+                        ...iosProminentButtonModifiers(iosSaturatedButtonPalette(P2P_TINT), {
+                          fullWidth: true,
+                        }),
+                        controlSize('large'),
+                      ]}
                     >
                       <SwiftUIText>{t('space.invitation.action')}</SwiftUIText>
                     </SwiftUIButton>
@@ -717,17 +752,24 @@ export function AddSyncConnectionSheet({
                     <HStack spacing={10} modifiers={[frame({ maxWidth: Infinity })]}>
                       <SwiftUIButton
                         onPress={copyInvitation}
-                        modifiers={[buttonStyle('bordered'), controlSize('large')]}
+                        modifiers={[...iosSecondaryButtonModifiers(), controlSize('large')]}
                       >
-                        <Image systemName={copied ? 'checkmark' : 'doc.on.doc'} size={16} />
-                        <SwiftUIText>{t('space.flow.copyInvitation')}</SwiftUIText>
+                        <InvitationActionLabel
+                          systemName={copied ? 'checkmark' : 'doc.on.doc'}
+                          title={t('space.flow.copyInvitation')}
+                        />
                       </SwiftUIButton>
                       <SwiftUIButton
                         onPress={shareInvitation}
-                        modifiers={[buttonStyle('borderedProminent'), controlSize('large')]}
+                        modifiers={[
+                          ...iosProminentButtonModifiers(iosSaturatedButtonPalette(P2P_TINT)),
+                          controlSize('large'),
+                        ]}
                       >
-                        <Image systemName="square.and.arrow.up" size={16} />
-                        <SwiftUIText>{t('space.flow.shareInvitation')}</SwiftUIText>
+                        <InvitationActionLabel
+                          systemName="square.and.arrow.up"
+                          title={t('space.flow.shareInvitation')}
+                        />
                       </SwiftUIButton>
                     </HStack>
                   )}
@@ -768,9 +810,10 @@ export function AddSyncConnectionSheet({
                   <SwiftUIButton
                     onPress={() => void completeConnection()}
                     modifiers={[
-                      buttonStyle('borderedProminent'),
+                      ...iosProminentButtonModifiers(iosSaturatedButtonPalette(SUCCESS_TINT), {
+                        fullWidth: true,
+                      }),
                       controlSize('large'),
-                      tint(SUCCESS_TINT),
                     ]}
                   >
                     <HStack modifiers={[frame({ minHeight: 48, maxWidth: Infinity })]}>

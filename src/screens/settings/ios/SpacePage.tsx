@@ -24,13 +24,16 @@ import {
   minimumScaleFactor,
   opacity,
   textSelection,
-  tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { useTranslation } from 'react-i18next';
 
 import { AddSyncConnectionSheet } from '@/components/AddSyncConnectionSheet';
 import type { AddSyncConnectionMode } from '@/components/AddSyncConnectionSheet.types';
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
+import {
+  iosProminentButtonModifiers,
+  iosSaturatedButtonPalette,
+} from '@/components/ui/iosButtonStyles.ios';
 import { getUnifiedSpaceService, UnifiedSpaceInputError } from '@/services/UnifiedSpaceService';
 import { useUnifiedEngineStore } from '@/stores/unifiedEngineStore';
 import { useUnifiedSpaceStore, type UnifiedSpaceDevice } from '@/stores/unifiedSpaceStore';
@@ -276,9 +279,11 @@ export function SpacePage({ onBack }: { onBack: () => void }) {
                 <SwiftUIButton
                   onPress={() => setSetupMode('create')}
                   modifiers={[
-                    buttonStyle('borderedProminent'),
+                    ...iosProminentButtonModifiers(
+                      iosSaturatedButtonPalette(settingsTileColors.blue),
+                      { fullWidth: true }
+                    ),
                     controlSize('large'),
-                    tint(settingsTileColors.blue),
                   ]}
                 >
                   <HStack spacing={8} modifiers={[frame({ minHeight: 50, maxWidth: Infinity })]}>
