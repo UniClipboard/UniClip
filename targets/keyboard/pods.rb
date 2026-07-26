@@ -1,1 +1,1 @@
-pod 'UcEngine', :path => '../modules/uc-engine/ios'
+pod 'UcEngineCore', :path => '../modules/uc-engine/ios'

@@ -156,7 +156,7 @@ describe('unified P2P engine native module', () => {
   });
 
   it('preserves declared file names when native hosts write received files to the clipboard', () => {
-    const swift = read('ios/UcEngineModule.swift');
+    const swift = `${read('ios/UcEngineModule.swift')}\n${read('ios/SharedEngineHost.swift')}`;
     const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
 
     expect(swift).toContain('clipboardShares.create(displayName: displayName)');
@@ -168,7 +168,9 @@ describe('unified P2P engine native module', () => {
 
   it('preserves selected file names when registering opaque input handles', () => {
     const javascript = read('src/index.ts');
-    const swift = `${read('ios/UcEngineModule.swift')}\n${read('ios/NativeSystemHost.swift')}`;
+    const swift = `${read('ios/UcEngineModule.swift')}\n${read(
+      'ios/SharedEngineHost.swift'
+    )}\n${read('ios/NativeSystemHost.swift')}`;
     const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
 
     expect(javascript).toContain('registerInputFile(uri: string, displayName?: string)');

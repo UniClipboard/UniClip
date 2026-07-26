@@ -1,5 +1,5 @@
 import Foundation
-internal import UcEngine
+internal import UcEngineCore
 
 /// The extension-side counterpart of the main app's selected transport. There
 /// is deliberately no fallback: choosing P2P never sends a server request.

@@ -19,7 +19,9 @@ let package = Package(
         "Bindings",
         "Tests",
         "UcEngine.podspec",
+        "UcEngineCore.podspec",
         "UcEngineModule.swift",
+        "SharedEngineHost.swift",
         "UniClipboardEngine.xcframework",
       ],
       sources: ["NativeLifecycleHost.swift", "NativeSystemHost.swift"]

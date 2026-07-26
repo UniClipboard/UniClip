@@ -15,18 +15,7 @@ Pod::Spec.new do |s|
   s.source         = { git: 'https://github.com/UniClipboard/UniClipboard.git' }
   s.static_framework = true
 
+  s.dependency 'UcEngineCore'
   s.dependency 'ExpoModulesCore'
-  s.frameworks = 'Security', 'SystemConfiguration', 'UIKit', 'UniformTypeIdentifiers'
-  s.source_files = ['*.swift', 'Bindings/*.swift']
-  s.vendored_frameworks = 'UniClipboardEngine.xcframework'
-  s.exclude_files = 'Bindings/include/**'
-  s.script_phase = {
-    :name => 'Verify UniClipboard Engine Release',
-    :script => 'node "${PODS_TARGET_SRCROOT}/../../../scripts/verify-unified-engine-core.mjs" --prepared',
-    :execution_position => :before_compile,
-  }
-  s.pod_target_xcconfig = {
-    'DEFINES_MODULE' => 'YES',
-    'SWIFT_COMPILATION_MODE' => 'wholemodule',
-  }
+  s.source_files = ['UcEngineModule.swift', 'NativeLifecycleHost.swift']
 end
