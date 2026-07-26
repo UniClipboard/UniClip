@@ -25,6 +25,7 @@ struct ShareRootView: View {
     @State private var item: ShareItem?
     @State private var servers: ServerConfigList = ServerConfigList()
     @State private var trustInsecureCert: Bool = false
+    @State private var syncChannel: SyncChannel = .p2p
     @State private var selectedServerId: String?
     @State private var prefillNote: String? = nil
     /// Mirrors the user's appearance setting from the App Group so the
@@ -120,7 +121,7 @@ struct ShareRootView: View {
                 }
             }
 
-            if servers.configs.count > 1 {
+            if syncChannel == .lan, servers.configs.count > 1 {
                 Section(localization.string("发送到")) {
                     ForEach(servers.configs, id: \.id) { server in
                         Button {
@@ -146,7 +147,7 @@ struct ShareRootView: View {
                         }
                     }
                 }
-            } else if let only = servers.configs.first {
+            } else if syncChannel == .lan, let only = servers.configs.first {
                 Section(localization.string("发送到")) {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
@@ -161,7 +162,7 @@ struct ShareRootView: View {
                         Spacer()
                     }
                 }
-            } else {
+            } else if syncChannel == .lan {
                 Section {
                     Text(localization.string("尚未配置服务器,请先打开 UniClipboard 主程序添加"))
                         .foregroundStyle(.secondary)
@@ -250,7 +251,7 @@ struct ShareRootView: View {
     // MARK: - Helpers
 
     private var canSend: Bool {
-        item != nil && resolvedServer != nil
+        item != nil && (syncChannel == .p2p || resolvedServer != nil)
     }
 
     private var resolvedServer: ServerConfig? {
@@ -261,6 +262,7 @@ struct ShareRootView: View {
     }
 
     private var selectedServerName: String {
+        if syncChannel == .p2p { return "P2P" }
         if let server = resolvedServer { return server.displayLabel }
         return localization.string("未选择服务器")
     }
@@ -282,6 +284,7 @@ struct ShareRootView: View {
         let loadedSettings = store.loadAppSettings()
         servers = loadedServers
         trustInsecureCert = loadedSettings.trustInsecureCert
+        syncChannel = loadedSettings.syncChannel
         appearance = loadedSettings.appearance
         localization = ExtensionLocalization(preference: loadedSettings.language)
 
@@ -311,7 +314,7 @@ struct ShareRootView: View {
             // Direct-share fast path: the user already told iOS which
             // server to use, so skip the picker entirely. `send()` sets
             // `.uploading` itself.
-            if prefilledServerId != nil, prefillNote == nil, resolvedServer != nil {
+            if syncChannel == .lan, prefilledServerId != nil, prefillNote == nil, resolvedServer != nil {
                 await send()
             } else {
                 phase = .ready
@@ -329,7 +332,19 @@ struct ShareRootView: View {
     }
 
     private func send() async {
-        guard let item, var server = resolvedServer else { return }
+        guard let item else { return }
+        if syncChannel == .p2p {
+            phase = .uploading
+            do {
+                try ShareUploader().uploadP2p(item)
+                phase = .succeeded
+            } catch {
+                phase = .failed(message(for: error))
+            }
+            return
+        }
+
+        guard var server = resolvedServer else { return }
         // §5.3 from an extension: start from the last probe verdict (App
         // Group `live_urls`) over pure shape order. The uploader then runs a
         // short concurrent probe before the real PUTs.

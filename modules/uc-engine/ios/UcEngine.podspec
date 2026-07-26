@@ -16,7 +16,7 @@ Pod::Spec.new do |s|
   s.static_framework = true
 
   s.dependency 'ExpoModulesCore'
-  s.frameworks = 'Security', 'UIKit', 'UniformTypeIdentifiers'
+  s.frameworks = 'Security', 'SystemConfiguration', 'UIKit', 'UniformTypeIdentifiers'
   s.source_files = ['*.swift', 'Bindings/*.swift']
   s.vendored_frameworks = 'UniClipboardEngine.xcframework'
   s.exclude_files = 'Bindings/include/**'

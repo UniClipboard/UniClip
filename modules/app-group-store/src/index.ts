@@ -43,6 +43,7 @@ export interface ServerConfigListDTO {
 }
 
 export interface AppSettingsDTO {
+  syncChannel?: 'p2p' | 'lan';
   trustInsecureCert?: boolean;
   autoApplyServerChanges?: boolean;
   autoPushDeviceChanges?: boolean;

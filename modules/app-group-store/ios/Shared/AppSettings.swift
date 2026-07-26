@@ -14,6 +14,9 @@ public enum AppearanceMode: String, Codable, CaseIterable, Sendable {
 /// Spec: docs/SYNC_PROTOCOL.md §5.4. All keys are forward-compatible:
 /// missing keys are filled with defaults; unknown keys are tolerated.
 public struct AppSettings: Codable, Equatable, Hashable, Sendable {
+    /// Selected content transport, mirrored from the main application so
+    /// keyboard and share extensions never choose a server when P2P is active.
+    public var syncChannel: SyncChannel
     public var trustInsecureCert: Bool
     public var autoCheckUpdate: Bool
     public var manualUploadDialogShown: Bool
@@ -85,6 +88,7 @@ public struct AppSettings: Codable, Equatable, Hashable, Sendable {
     public var enhancementsPromptShown: Bool
 
     public static let defaults = AppSettings(
+        syncChannel: .p2p,
         trustInsecureCert: false,
         autoCheckUpdate: true,
         manualUploadDialogShown: false,
@@ -106,6 +110,7 @@ public struct AppSettings: Codable, Equatable, Hashable, Sendable {
     )
 
     public init(
+        syncChannel: SyncChannel = .p2p,
         trustInsecureCert: Bool = false,
         autoCheckUpdate: Bool = true,
         manualUploadDialogShown: Bool = false,
@@ -125,6 +130,7 @@ public struct AppSettings: Codable, Equatable, Hashable, Sendable {
         pastePermissionHintDismissed: Bool = false,
         enhancementsPromptShown: Bool = false
     ) {
+        self.syncChannel = syncChannel
         self.trustInsecureCert = trustInsecureCert
         self.autoCheckUpdate = autoCheckUpdate
         self.manualUploadDialogShown = manualUploadDialogShown
@@ -146,6 +152,7 @@ public struct AppSettings: Codable, Equatable, Hashable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
+        case syncChannel
         case trustInsecureCert, autoCheckUpdate, manualUploadDialogShown
         case downloadRelativePath, logViewLevelFilter, ignoredVersion
         case autoApplyServerChanges
@@ -161,6 +168,7 @@ public struct AppSettings: Codable, Equatable, Hashable, Sendable {
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let defaults = AppSettings.defaults
+        syncChannel              = try container.decodeIfPresent(SyncChannel.self, forKey: .syncChannel) ?? defaults.syncChannel
         trustInsecureCert       = try container.decodeIfPresent(Bool.self,   forKey: .trustInsecureCert)       ?? defaults.trustInsecureCert
         autoCheckUpdate         = try container.decodeIfPresent(Bool.self,   forKey: .autoCheckUpdate)         ?? defaults.autoCheckUpdate
         manualUploadDialogShown = try container.decodeIfPresent(Bool.self,   forKey: .manualUploadDialogShown) ?? defaults.manualUploadDialogShown
@@ -195,6 +203,7 @@ public struct AppSettings: Codable, Equatable, Hashable, Sendable {
 
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(syncChannel,              forKey: .syncChannel)
         try container.encode(trustInsecureCert,       forKey: .trustInsecureCert)
         try container.encode(autoCheckUpdate,         forKey: .autoCheckUpdate)
         try container.encode(manualUploadDialogShown, forKey: .manualUploadDialogShown)

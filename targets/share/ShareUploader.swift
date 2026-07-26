@@ -88,6 +88,21 @@ struct ShareUploader {
             return Clipboard.publishFile(name: name, bytes: bytes)
         }
     }
+
+    func uploadP2p(_ item: ShareItem) throws {
+        switch item {
+        case .text(let text):
+            try ExtensionSyncRouter.sendText(text)
+        case .image(let bytes, let ext):
+            try ExtensionSyncRouter.sendImage(bytes, ext: ext)
+        case .file(let name, let bytes):
+            let temporary = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString + "-" + Clipboard.sanitizedFilename(name))
+            try bytes.write(to: temporary, options: .atomic)
+            defer { try? FileManager.default.removeItem(at: temporary) }
+            try ExtensionSyncRouter.sendFile(temporary, displayName: Clipboard.sanitizedFilename(name))
+        }
+    }
 }
 
 private func logUploadStart(item: ShareItem, entry: Clipboard, server: ServerConfig) {

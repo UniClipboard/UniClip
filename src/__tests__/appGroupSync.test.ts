@@ -161,6 +161,7 @@ describe('App Group sync mapping', () => {
         })
       ).toEqual(
         expect.objectContaining({
+          syncChannel: DEFAULT_SETTINGS.syncChannel,
           autoApplyServerChanges: false,
           autoPushDeviceChanges: true,
           prefetchAttachments: false,
@@ -197,6 +198,7 @@ describe('App Group sync mapping', () => {
       });
 
       expect(result).toEqual({
+        syncChannel: DEFAULT_SETTINGS.syncChannel,
         trustInsecureCert: true,
         autoApplyServerChanges: DEFAULT_SETTINGS.autoApplyRemote,
         autoPushDeviceChanges: DEFAULT_SETTINGS.autoPushLocal,

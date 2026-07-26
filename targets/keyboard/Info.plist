@@ -23,6 +23,8 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<key>UCP2PKeychainAccessGroup</key>
+	<string>$(DEVELOPMENT_TEAM).app.uniclipboard.UniClipboard.dev.p2p</string>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionAttributes</key>

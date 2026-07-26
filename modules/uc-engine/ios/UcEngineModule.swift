@@ -1,4 +1,5 @@
 import ExpoModulesCore
+import Security
 import UIKit
 import UniformTypeIdentifiers
 
@@ -16,7 +17,7 @@ public final class UcEngineModule: Module {
     AsyncFunction("start") { (config: [String: String]) in
       let appVersion = config["appVersion"] ?? "unknown"
       let profileId = config["profileId"] ?? "default"
-      let host = AppleEngineHost(files: self.files)
+      let host = try AppleEngineHost(files: self.files, storageMode: .mainApplication)
       let started = try MobileEngine.start(
         config: BindingConfig(appVersion: appVersion, profileId: profileId),
         host: host
@@ -457,15 +458,171 @@ private final class AppleEngineLifecycle: NativeEngineLifecycle {
   }
 }
 
+/// Short-lived P2P sender for app extensions. The extensions have separate
+/// processes, so they start their own engine against the same protected store
+/// and shut it down as soon as the requested content has been queued.
+public final class ExtensionP2pClient: @unchecked Sendable {
+  private let files = AppleFileHandleRegistry()
+  private let engine: MobileEngine
+
+  public init(appVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown") throws {
+    let host = try AppleEngineHost(files: files, storageMode: .extensionHost)
+    let engine = try MobileEngine.start(
+      config: BindingConfig(appVersion: appVersion, profileId: "default"),
+      host: host
+    )
+    do {
+      _ = try engine.recoverSession(allowSecureStorageUnlock: true)
+      guard try engine.querySpaceState().hasCompleted else {
+        throw ExtensionP2pError.spaceUnavailable
+      }
+      self.engine = engine
+    } catch {
+      try? engine.shutdown(deadlineMs: 1_000)
+      throw error
+    }
+  }
+
+  deinit {
+    try? engine.shutdown(deadlineMs: 1_000)
+    files.removeAll()
+  }
+
+  public func sendText(_ text: String) throws -> SendReport {
+    try engine.sendText(text: text, targetDevices: [])
+  }
+
+  public func sendImage(_ bytes: Data, mimeType: String) throws -> SendReport {
+    try engine.sendImage(bytes: bytes, mimeType: mimeType, targetDevices: [])
+  }
+
+  public func sendFile(_ url: URL, displayName: String? = nil) throws -> SendReport {
+    let handle = files.register(url: url, writable: false, displayName: displayName)
+    defer { files.remove(handle) }
+    return try engine.sendFiles(fileHandles: [handle], targetDevices: [])
+  }
+}
+
+public enum ExtensionP2pError: LocalizedError {
+  case sharedStoreUnavailable
+  case spaceUnavailable
+
+  public var errorDescription: String? {
+    switch self {
+    case .sharedStoreUnavailable:
+      return "Open UniClip once to prepare P2P sharing for extensions."
+    case .spaceUnavailable:
+      return "No P2P space is available for this extension."
+    }
+  }
+}
+
+private enum P2pStorageMode: Equatable {
+  case mainApplication
+  case extensionHost
+}
+
+private enum P2pSharedStore {
+  private static let rootName = "p2p"
+  private static let readinessFilename = ".ready"
+  private static let extensionSuffixes = [".Keyboard", ".Share"]
+
+  static func sharedP2pDirectory(mode: P2pStorageMode) throws -> URL {
+    guard let appGroupID = appGroupID(),
+      let container = FileManager.default.containerURL(
+        forSecurityApplicationGroupIdentifier: appGroupID
+      )
+    else {
+      throw ExtensionP2pError.sharedStoreUnavailable
+    }
+
+    let root = container.appendingPathComponent(rootName, isDirectory: true)
+    let ready = root.appendingPathComponent(readinessFilename, isDirectory: false)
+    let fileManager = FileManager.default
+    if mode == .extensionHost {
+      guard fileManager.fileExists(atPath: ready.path) else {
+        // An extension must never initialize an empty store before the main
+        // app has had a chance to migrate its existing P2P identity.
+        throw ExtensionP2pError.sharedStoreUnavailable
+      }
+      return root
+    }
+
+    try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+    if !fileManager.fileExists(atPath: ready.path) {
+      try migrateLegacyDirectories(into: root)
+      try Data("ready".utf8).write(to: ready, options: .atomic)
+    }
+    return root
+  }
+
+  static func sharedKeychainService() throws -> String {
+    guard let appGroupID = appGroupID() else { throw ExtensionP2pError.sharedStoreUnavailable }
+    return "\(appGroupID).uc-engine"
+  }
+
+  static func sharedKeychainAccessGroup() throws -> String {
+    guard let group = Bundle.main.object(forInfoDictionaryKey: "UCP2PKeychainAccessGroup") as? String,
+      group.hasSuffix(".p2p"),
+      !group.contains("$(")
+    else {
+      throw ExtensionP2pError.sharedStoreUnavailable
+    }
+    return group
+  }
+
+  static func legacyKeychainService() -> String? {
+    guard var bundleID = Bundle.main.bundleIdentifier else { return nil }
+    for suffix in extensionSuffixes where bundleID.hasSuffix(suffix) {
+      bundleID.removeLast(suffix.count)
+      break
+    }
+    return "\(bundleID).engine"
+  }
+
+  private static func appGroupID() -> String? {
+    if let value = Bundle.main.object(forInfoDictionaryKey: "UCAppGroupIdentifier") as? String,
+      !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      return value
+    }
+    guard var bundleID = Bundle.main.bundleIdentifier else { return nil }
+    for suffix in extensionSuffixes where bundleID.hasSuffix(suffix) {
+      bundleID.removeLast(suffix.count)
+      break
+    }
+    return "group.\(bundleID)"
+  }
+
+  private static func migrateLegacyDirectories(into root: URL) throws {
+    let fileManager = FileManager.default
+    let oldData = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+      .appendingPathComponent("uc-engine", isDirectory: true)
+    let oldCache = fileManager.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+      .appendingPathComponent("uc-engine", isDirectory: true)
+    for (source, destination) in [
+      (oldData, root.appendingPathComponent("data", isDirectory: true)),
+      (oldCache, root.appendingPathComponent("cache", isDirectory: true)),
+    ] where fileManager.fileExists(atPath: source.path)
+      && !fileManager.fileExists(atPath: destination.path) {
+      try fileManager.copyItem(at: source, to: destination)
+    }
+  }
+}
+
 private final class AppleEngineHost: BindingHost, @unchecked Sendable {
   private let files: AppleFileHandleRegistry
   private let clipboardShares = AppleClipboardShareCache()
   private let secureStorage: AppleSecureStorage
+  private let p2pDirectory: URL
 
-  init(files: AppleFileHandleRegistry) {
+  init(files: AppleFileHandleRegistry, storageMode: P2pStorageMode) throws {
     self.files = files
-    let service = (Bundle.main.bundleIdentifier ?? "app.uniclipboard.mobile") + ".engine"
-    self.secureStorage = AppleSecureStorage(service: service)
+    self.p2pDirectory = try P2pSharedStore.sharedP2pDirectory(mode: storageMode)
+    self.secureStorage = AppleSecureStorage(
+      service: try P2pSharedStore.sharedKeychainService(),
+      accessGroup: try P2pSharedStore.sharedKeychainAccessGroup(),
+      legacyService: storageMode == .mainApplication ? P2pSharedStore.legacyKeychainService() : nil
+    )
   }
 
   func privateDataDirectory() throws -> String {
@@ -473,8 +630,7 @@ private final class AppleEngineHost: BindingHost, @unchecked Sendable {
   }
 
   func cacheDirectory() throws -> String {
-    let url = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-      .appendingPathComponent("uc-engine", isDirectory: true)
+    let url = p2pDirectory.appendingPathComponent("cache", isDirectory: true)
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     return url.path
   }
@@ -574,8 +730,8 @@ private final class AppleEngineHost: BindingHost, @unchecked Sendable {
           bytes: bytes,
           metadata: metadata,
           allowedRoots: [
-            try self.applicationSupportDirectory(),
-            FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0],
+          try self.applicationSupportDirectory(),
+            self.p2pDirectory.appendingPathComponent("cache", isDirectory: true),
             FileManager.default.temporaryDirectory,
           ]
         )
@@ -604,8 +760,7 @@ private final class AppleEngineHost: BindingHost, @unchecked Sendable {
   }
 
   private func applicationSupportDirectory() throws -> URL {
-    let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-    let url = root.appendingPathComponent("uc-engine", isDirectory: true)
+    let url = p2pDirectory.appendingPathComponent("data", isDirectory: true)
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     return url
   }

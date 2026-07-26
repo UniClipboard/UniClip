@@ -40,6 +40,7 @@ const NAME_SUFFIX = IS_PRODUCTION ? '' : ' Dev';
 
 const IOS_BUNDLE_ID = `app.uniclipboard.UniClipboard${ID_SUFFIX}`;
 const APP_GROUP = `group.app.uniclipboard.UniClipboard${ID_SUFFIX}`;
+const P2P_KEYCHAIN_GROUP = `$(AppIdentifierPrefix)${IOS_BUNDLE_ID}.p2p`;
 
 // The legacy group is a one-way migration source from the old native Swift
 // app; only the production install has data there, so keep it out of dev.
@@ -62,6 +63,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       entitlements: {
         ...(ios.entitlements ?? {}),
         'com.apple.security.application-groups': APP_GROUPS,
+        'keychain-access-groups': [P2P_KEYCHAIN_GROUP],
       },
       infoPlist: {
         ...(ios.infoPlist ?? {}),
@@ -69,6 +71,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         // fallback). Injected for BOTH variants so production also resolves a
         // concrete value rather than relying on the fallback.
         UCAppGroupIdentifier: APP_GROUP,
+        // iOS does not expose an API for reading keychain entitlements at
+        // runtime. Keep the signed, fully expanded value in each target's
+        // Info.plist so all three processes address the same P2P identity.
+        UCP2PKeychainAccessGroup: P2P_KEYCHAIN_GROUP,
       },
     },
     extra: {
@@ -87,6 +93,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
                   bundleIdentifier: `${IOS_BUNDLE_ID}.Share`,
                   entitlements: {
                     'com.apple.security.application-groups': APP_GROUPS,
+                    'keychain-access-groups': [P2P_KEYCHAIN_GROUP],
                   },
                 },
                 {
@@ -94,6 +101,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
                   bundleIdentifier: `${IOS_BUNDLE_ID}.Keyboard`,
                   entitlements: {
                     'com.apple.security.application-groups': APP_GROUPS,
+                    'keychain-access-groups': [P2P_KEYCHAIN_GROUP],
                   },
                 },
               ],

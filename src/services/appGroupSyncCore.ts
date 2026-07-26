@@ -19,6 +19,7 @@ export interface AppGroupServerConfigListDTO {
 }
 
 export interface AppGroupSettingsDTO {
+  syncChannel?: 'p2p' | 'lan';
   trustInsecureCert?: boolean;
   autoApplyServerChanges?: boolean;
   autoPushDeviceChanges?: boolean;
@@ -72,6 +73,7 @@ export function mapSettingsToAppGroupDTO(settings: AppSettings): AppGroupSetting
   const prefetch = mapAttachmentPrefetch(settings.attachmentAutoDownload);
 
   return {
+    syncChannel: settings.syncChannel,
     trustInsecureCert: settings.trustInsecureCert,
     autoApplyServerChanges: settings.autoApplyRemote,
     autoPushDeviceChanges: settings.autoPushLocal,

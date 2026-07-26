@@ -46,11 +46,22 @@ struct SystemKeychain: KeychainAccessing {
 
 final class AppleSecureStorage {
   private let service: String
+  private let accessGroup: String?
   private let keychain: any KeychainAccessing
+  private let legacyStorage: AppleSecureStorage?
 
-  init(service: String, keychain: any KeychainAccessing = SystemKeychain()) {
+  init(
+    service: String,
+    accessGroup: String? = nil,
+    keychain: any KeychainAccessing = SystemKeychain(),
+    legacyService: String? = nil
+  ) {
     self.service = service
+    self.accessGroup = accessGroup
     self.keychain = keychain
+    self.legacyStorage = legacyService.map {
+      AppleSecureStorage(service: $0, keychain: keychain)
+    }
   }
 
   func get(key: String) throws -> Data? {
@@ -60,7 +71,13 @@ final class AppleSecureStorage {
     ]) { _, new in new }
     switch keychain.copy(query: query) {
     case .success(let data): return data
-    case .missing: return nil
+    case .missing:
+      // Main-app upgrades used a bundle-specific service before the P2P
+      // engine became available to extensions. Lift the value once into the
+      // access-group-protected service; extensions never create this fallback.
+      guard let legacyStorage, let value = try legacyStorage.get(key: key) else { return nil }
+      try set(key: key, value: value)
+      return value
     case .failure(let status): throw Self.error(status)
     }
   }
@@ -89,12 +106,16 @@ final class AppleSecureStorage {
   }
 
   private func keychainQuery(key: String) -> [String: Any] {
-    [
+    var query: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: service,
       kSecAttrAccount as String: key,
       kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
     ]
+    if let accessGroup {
+      query[kSecAttrAccessGroup as String] = accessGroup
+    }
+    return query
   }
 
   private static func error(_ status: OSStatus) -> SystemHostError {

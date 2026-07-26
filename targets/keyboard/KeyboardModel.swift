@@ -417,6 +417,15 @@ final class KeyboardModel: ObservableObject {
         }
         reloadCards()
 
+        if case .p2p = ExtensionSyncRouter.channel(settings: settings) {
+            gate = .ok
+            serverLabel = ""
+            isSyncing = true
+            await syncP2pSnapshot(snap, changeCount: cc, force: force)
+            if gen == syncGeneration { isSyncing = false }
+            return
+        }
+
         // §5.3 from an extension: start from the last probe verdict
         // (`live_urls`, App Group) over pure shape order. Network calls then
         // refresh this with a short concurrent probe before real work.
@@ -535,6 +544,35 @@ final class KeyboardModel: ObservableObject {
         }
 
         if gen == syncGeneration { isSyncing = false }
+    }
+
+    /// P2P never resolves or probes a LAN server. The extension starts a
+    /// short-lived sender against the App Group-backed P2P store instead.
+    private func syncP2pSnapshot(
+        _ snapshot: DeviceClipboardSnapshot?,
+        changeCount: Int,
+        force: Bool
+    ) async {
+        guard let snapshot else {
+            store.saveLastSyncedChangeCount(changeCount)
+            pushStatus = .none
+            if force { flashSync(.success) }
+            return
+        }
+        do {
+            try ExtensionSyncRouter.sendKeyboardSnapshot(snapshot)
+            store.saveLastSyncedChangeCount(changeCount)
+            history.append(entry: snapshot.clipboard, direction: .pushed)
+            pushStatus = .pushed(summary(for: snapshot.clipboard))
+            lastPushedEntry = snapshot.clipboard
+            reloadCards()
+            flashSync(.success)
+        } catch {
+            store.saveLastSyncedChangeCount(changeCount)
+            pushStatus = .failed(message(for: error))
+            lastError = message(for: error)
+            flashSync(.failure)
+        }
     }
 
     /// Record the device pasteboard to the shared history log if it carries
