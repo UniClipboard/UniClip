@@ -13,3 +13,7 @@ jobs:
   android-build:
     needs: [code-style, unit-tests]
     uses: ./.github/workflows/android-build.yml
+
+  ios-build-check:
+    needs: [code-style, unit-tests]
+    uses: ./.github/workflows/ios-build-check.yml

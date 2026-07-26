@@ -48,7 +48,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 // The per-ABI APKs android-build.yml renames to `UniClip-<marketing>-<abi>.apk`.
-const ABIS = ['arm64-v8a', 'armeabi-v7a', 'universal'];
+const ABIS = ['arm64-v8a'];
 
 function fail(message) {
   console.error(`assemble-android-manifest failed: ${message}`);

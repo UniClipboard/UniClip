@@ -89,6 +89,11 @@ jobs:
     needs: [prepare]
     uses: ./.github/workflows/test.yml
 
+  ios-build-check:
+    if: ${{ github.event_name == 'push' }}
+    needs: [prepare, code-style, unit-tests]
+    uses: ./.github/workflows/ios-build-check.yml
+
   # Manual runs build iOS. A dev build may optionally upload directly to
   # TestFlight; a full release leaves uploading to release.yml after tagging.
   ios-build:

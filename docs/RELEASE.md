@@ -238,12 +238,11 @@ In GitHub Actions, open `build`, choose **Run workflow** on `main`, enable
 2. Runs style checks, unit tests, and both Android and iOS builds.
 3. Creates the derived tag only after every check and both builds succeed.
 4. Uploads the same validated iOS artifact to TestFlight.
-5. Publishes a GitHub Release with the APKs (`arm64-v8a`, `armeabi-v7a`,
-   `x86_64`, `universal`). This job does **not** wait for the Gitee jobs.
+5. Publishes a GitHub Release with the `arm64-v8a` APK supported by the unified
+   engine release. This job does **not** wait for the Gitee jobs.
 6. Mirrors the repository to Gitee and creates a matching release without
    deleting unrelated prior releases.
-7. Uploads 3 ABI APKs to Gitee (`universal` is skipped due to Gitee's
-   upload size limits).
+7. Uploads the same `arm64-v8a` APK to Gitee.
 
 Directly pushing a `v*` tag does not publish a release. If a publishing job
 fails after the tag was created, use **Re-run failed jobs** on the same Actions

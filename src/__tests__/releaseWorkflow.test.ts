@@ -1,7 +1,7 @@
 /// <reference types="node" />
 /// <reference types="jest" />
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const root = join(__dirname, '..', '..');
@@ -29,7 +29,19 @@ const codeStyleWorkflow = readFileSync(
   'utf8'
 );
 const iosBuildWorkflow = readFileSync(join(root, '.github', 'workflows', 'build-ios.yml'), 'utf8');
+const androidBuildWorkflow = readFileSync(
+  join(root, '.github', 'workflows', 'android-build.yml'),
+  'utf8'
+);
+const iosBuildCheckPath = join(root, '.github', 'workflows', 'ios-build-check.yml');
+const iosBuildCheckWorkflow = existsSync(iosBuildCheckPath)
+  ? readFileSync(iosBuildCheckPath, 'utf8')
+  : '';
 const releaseWorkflow = readFileSync(join(root, '.github', 'workflows', 'release.yml'), 'utf8');
+const androidManifestScript = readFileSync(
+  join(root, 'scripts', 'assemble-android-manifest.mjs'),
+  'utf8'
+);
 const testWorkflow = readFileSync(join(root, '.github', 'workflows', 'test.yml'), 'utf8');
 const eslintConfig = readFileSync(join(root, 'eslint.config.mjs'), 'utf8');
 const prettierIgnore = readFileSync(join(root, '.prettierignore'), 'utf8');
@@ -96,6 +108,38 @@ describe('validated release workflow', () => {
     expect(buildWorkflow).toContain('npm run release:validate');
     expect(iosBuildWorkflow).toContain('rust-core/source-ref');
     expect(iosBuildWorkflow).not.toMatch(/UC_CORE_REF:\s*[0-9a-f]{40}/);
+  });
+
+  it('prepares and verifies the pinned unified engine before both platform builds', () => {
+    expect(packageScripts['release:validate']).toContain('validate-unified-engine-core-source.mjs');
+    expect(androidBuildWorkflow).toContain('npm run core:prepare');
+    expect(androidBuildWorkflow).toContain('npm run core:verify');
+    expect(iosBuildWorkflow).toContain('npm run core:prepare');
+    expect(iosBuildWorkflow).toContain('npm run core:verify');
+  });
+
+  it('generates only the platform being built', () => {
+    expect(androidBuildWorkflow).toContain('npx expo prebuild -p android --no-install');
+    expect(iosBuildWorkflow).toContain('npx expo prebuild -p ios --clean --no-install');
+    expect(iosBuildCheckWorkflow).toContain('npx expo prebuild -p ios --clean --no-install');
+  });
+
+  it('compiles the iOS app and extensions without signing on pushes and pull requests', () => {
+    expect(buildWorkflow).toContain('uses: ./.github/workflows/ios-build-check.yml');
+    expect(pullRequestWorkflow).toContain('uses: ./.github/workflows/ios-build-check.yml');
+    expect(iosBuildCheckWorkflow).toContain('npm run core:prepare');
+    expect(iosBuildCheckWorkflow).toContain('npm run core:verify');
+    expect(iosBuildCheckWorkflow).toContain('generic/platform=iOS Simulator');
+    expect(iosBuildCheckWorkflow).toContain('CODE_SIGNING_ALLOWED=NO');
+  });
+
+  it('publishes only the Android ABI supported by the unified engine release', () => {
+    for (const releaseSurface of [androidBuildWorkflow, releaseWorkflow, androidManifestScript]) {
+      expect(releaseSurface).toContain('arm64-v8a');
+      expect(releaseSurface).not.toContain('armeabi-v7a');
+      expect(releaseSurface).not.toContain('universal');
+    }
+    expect(androidBuildWorkflow).toContain('if-no-files-found: error');
   });
 
   it('serializes full releases without cancelling one already in progress', () => {

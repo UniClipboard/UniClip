@@ -145,6 +145,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Prepare unified engine core
+        run: npm run core:prepare
+
+      - name: Verify unified engine core
+        run: npm run core:verify
+
       # Expo bakes app.json's expo.ios.buildNumber into Info.plist as a literal
       # value, so a CURRENT_PROJECT_VERSION build setting can't override it at
       # archive time — patch app.json before prebuild instead.
@@ -156,7 +162,7 @@ jobs:
           node -e "const fs=require('fs'),p='app.json',j=JSON.parse(fs.readFileSync(p,'utf8'));j.expo.ios=j.expo.ios||{};j.expo.ios.buildNumber=process.env.BN;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n');console.log('set expo.ios.buildNumber =',j.expo.ios.buildNumber)"
 
       - name: Expo prebuild (iOS)
-        run: npx expo prebuild -p ios --no-install
+        run: npx expo prebuild -p ios --clean --no-install
 
       - name: Get version name
         id: version

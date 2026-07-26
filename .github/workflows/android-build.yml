@@ -37,8 +37,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Prepare unified engine core
+        run: npm run core:prepare
+
+      - name: Verify unified engine core
+        run: npm run core:verify
+
       - name: Expo prebuild
-        run: npx expo prebuild --no-install
+        run: npx expo prebuild -p android --no-install
 
       - name: Grant execute permission for gradlew
         run: chmod +x android/gradlew
@@ -52,31 +58,15 @@ jobs:
           VERSION=$(node -p "require('./app.json').expo.version")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Rename APKs
+      - name: Rename APK
         run: |
           cd android/app/build/outputs/apk/release
           VERSION=${{ steps.version.outputs.version }}
-          for ABI in arm64-v8a armeabi-v7a universal; do
-            SRC="app-${ABI}-release.apk"
-            if [ -f "$SRC" ]; then
-              mv "$SRC" "UniClip-${VERSION}-${ABI}.apk"
-            fi
-          done
+          mv app-arm64-v8a-release.apk "UniClip-${VERSION}-arm64-v8a.apk"
 
       - name: Upload arm64-v8a APK
         uses: actions/upload-artifact@v7
         with:
           name: apk-arm64-v8a
           path: android/app/build/outputs/apk/release/UniClip-${{ steps.version.outputs.version }}-arm64-v8a.apk
-
-      - name: Upload armeabi-v7a APK
-        uses: actions/upload-artifact@v7
-        with:
-          name: apk-armeabi-v7a
-          path: android/app/build/outputs/apk/release/UniClip-${{ steps.version.outputs.version }}-armeabi-v7a.apk
-
-      - name: Upload universal APK
-        uses: actions/upload-artifact@v7
-        with:
-          name: apk-universal
-          path: android/app/build/outputs/apk/release/UniClip-${{ steps.version.outputs.version }}-universal.apk
+          if-no-files-found: error

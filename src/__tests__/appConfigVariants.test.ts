@@ -37,13 +37,20 @@ describe('Expo app config variants', () => {
     expect(config.ios.infoPlist.UCAppGroupIdentifier).toBe(
       'group.app.uniclipboard.UniClipboard.dev'
     );
+    expect(config.ios.infoPlist.UCP2PKeychainAccessGroup).toBe(
+      '$(AppIdentifierPrefix)app.uniclipboard.UniClipboard.dev.p2p'
+    );
     expect(appGroups).toEqual(['group.app.uniclipboard.UniClipboard.dev']);
+    expect(config.ios.entitlements['keychain-access-groups']).toEqual([
+      '$(AppIdentifierPrefix)app.uniclipboard.UniClipboard.dev.p2p',
+    ]);
     expect(extensions).toEqual([
       {
         targetName: 'share',
         bundleIdentifier: 'app.uniclipboard.UniClipboard.dev.Share',
         entitlements: {
           'com.apple.security.application-groups': ['group.app.uniclipboard.UniClipboard.dev'],
+          'keychain-access-groups': ['$(AppIdentifierPrefix)app.uniclipboard.UniClipboard.dev.p2p'],
         },
       },
       {
@@ -51,6 +58,7 @@ describe('Expo app config variants', () => {
         bundleIdentifier: 'app.uniclipboard.UniClipboard.dev.Keyboard',
         entitlements: {
           'com.apple.security.application-groups': ['group.app.uniclipboard.UniClipboard.dev'],
+          'keychain-access-groups': ['$(AppIdentifierPrefix)app.uniclipboard.UniClipboard.dev.p2p'],
         },
       },
     ]);
@@ -64,9 +72,15 @@ describe('Expo app config variants', () => {
     expect(config.name).toBe('UniClip');
     expect(config.ios.bundleIdentifier).toBe('app.uniclipboard.UniClipboard');
     expect(config.ios.infoPlist.UCAppGroupIdentifier).toBe('group.app.uniclipboard.UniClipboard');
+    expect(config.ios.infoPlist.UCP2PKeychainAccessGroup).toBe(
+      '$(AppIdentifierPrefix)app.uniclipboard.UniClipboard.p2p'
+    );
     expect(appGroups).toEqual([
       'group.app.uniclipboard.UniClipboard',
       'group.app.uniclipboard.ios',
+    ]);
+    expect(config.ios.entitlements['keychain-access-groups']).toEqual([
+      '$(AppIdentifierPrefix)app.uniclipboard.UniClipboard.p2p',
     ]);
     expect(extensions).toEqual([
       {
@@ -77,6 +91,7 @@ describe('Expo app config variants', () => {
             'group.app.uniclipboard.UniClipboard',
             'group.app.uniclipboard.ios',
           ],
+          'keychain-access-groups': ['$(AppIdentifierPrefix)app.uniclipboard.UniClipboard.p2p'],
         },
       },
       {
@@ -87,6 +102,7 @@ describe('Expo app config variants', () => {
             'group.app.uniclipboard.UniClipboard',
             'group.app.uniclipboard.ios',
           ],
+          'keychain-access-groups': ['$(AppIdentifierPrefix)app.uniclipboard.UniClipboard.p2p'],
         },
       },
     ]);
@@ -126,6 +142,22 @@ describe('Expo app config variants', () => {
       const source = readFileSync(path.join(process.cwd(), file), 'utf8');
       expect(source).not.toContain('UC_APP_GROUP');
       expect(source).not.toContain('withExtensionAppGroupBuildSetting');
+    }
+  });
+
+  it('resolves the extension P2P keychain group from the active app variant', () => {
+    const appJson = readFileSync(path.join(process.cwd(), 'app.json'), 'utf8');
+    const extensionPlists = ['targets/share/Info.plist', 'targets/keyboard/Info.plist'];
+
+    expect(appJson).toContain('./plugins/build/withExtensionP2PKeychainGroup.js');
+    expect(appJson.indexOf('./plugins/build/withExtensionP2PKeychainGroup.js')).toBeLessThan(
+      appJson.indexOf('@bacons/apple-targets')
+    );
+
+    for (const file of extensionPlists) {
+      const source = readFileSync(path.join(process.cwd(), file), 'utf8');
+      expect(source).toContain('<string>$(UCP2P_KEYCHAIN_ACCESS_GROUP)</string>');
+      expect(source).not.toContain('UniClipboard.dev.p2p');
     }
   });
 });

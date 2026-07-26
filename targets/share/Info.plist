@@ -24,7 +24,7 @@
 		<true/>
 	</dict>
 	<key>UCP2PKeychainAccessGroup</key>
-	<string>$(DEVELOPMENT_TEAM).app.uniclipboard.UniClipboard.dev.p2p</string>
+	<string>$(UCP2P_KEYCHAIN_ACCESS_GROUP)</string>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionAttributes</key>

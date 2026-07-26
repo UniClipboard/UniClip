@@ -273,24 +273,17 @@ jobs:
           PYEOF
 
   gitee-release-upload:
-    name: Upload APK to Gitee Release (${{ matrix.abi }})
+    name: Upload APK to Gitee Release
     needs: [gitee-release-create]
     runs-on: ubuntu-latest
     # A healthy upload takes under a minute; a hung connection would otherwise
     # hold the job for GitHub's 6-hour default.
     timeout-minutes: 30
-    strategy:
-      matrix:
-        # No universal here: the universal APK (~128MB) exceeds Gitee's 100MB
-        # per-attachment limit and has never uploaded successfully. Devices
-        # falling back to universal get it from the GitHub release instead.
-        abi: [arm64-v8a, armeabi-v7a]
-
     steps:
       - name: Download APK artifact
         uses: actions/download-artifact@v8
         with:
-          name: apk-${{ matrix.abi }}
+          name: apk-arm64-v8a
           path: apk/
 
       - name: Upload APK to Gitee Release

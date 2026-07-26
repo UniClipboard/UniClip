@@ -32,7 +32,7 @@
     "test:coverage": "jest --coverage",
     "test:ci": "npm test -- --runInBand && ruby scripts/asc_whats_to_test_test.rb && npm run test:coverage -- --runInBand",
     "check:ci": "npm run check:quality && npm run test:ci",
-    "release:validate": "node scripts/validate-release.mjs && node scripts/validate-uc-core-ref.mjs && node scripts/release-notes.mjs --check",
+    "release:validate": "node scripts/validate-release.mjs && node scripts/validate-uc-core-ref.mjs && node scripts/validate-unified-engine-core-source.mjs && node scripts/release-notes.mjs --check",
     "release:check": "npm run release:validate && npm run check:ci",
     "changelog:generate": "node scripts/release-notes.mjs --out-dir .",
     "release:build": "node scripts/bump-build.mjs",
