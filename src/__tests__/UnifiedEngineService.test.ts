@@ -219,6 +219,25 @@ describe('UnifiedEngineService', () => {
     );
   });
 
+  it('shuts down immediately when startup is still restoring a session', async () => {
+    const startup = deferred<void>();
+    const shutdown = jest.fn(async () => undefined);
+    const service = new UnifiedEngineService({
+      start: () => startup.promise,
+      shutdown,
+      nextEvent: async () => null,
+    });
+
+    const startPromise = service.start(config());
+    const stopPromise = service.stop();
+    await Promise.resolve();
+
+    expect(shutdown).toHaveBeenCalledTimes(1);
+
+    startup.resolve();
+    await Promise.all([startPromise, stopPromise]);
+  });
+
   it('can start again after the native engine reports that it stopped', async () => {
     const pendingEvent = deferred<EngineEvent | null>();
     const events: EngineEvent[] = [{ type: 'stateChanged', state: 'stopped' }];

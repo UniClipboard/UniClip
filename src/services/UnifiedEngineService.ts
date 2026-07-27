@@ -53,24 +53,38 @@ export class UnifiedEngineService {
     return attempt;
   }
 
+  isStarting(): boolean {
+    return this.startInFlight !== null;
+  }
+
   async stop(): Promise<void> {
     ++this.generation;
 
-    if (this.startInFlight) {
-      try {
-        await this.startInFlight;
-      } catch {
-        // The failed start already published its terminal state.
-      }
-    }
-
+    const startInFlight = this.startInFlight;
     let shutdownError: unknown;
-    if (this.nativeStarted) {
+
+    if (startInFlight || this.nativeStarted) {
       this.nativeStarted = false;
       try {
         await this.api.shutdown(SHUTDOWN_DEADLINE_MS);
       } catch (error) {
         shutdownError = error;
+      }
+    }
+
+    if (startInFlight) {
+      try {
+        await startInFlight;
+      } catch {
+        // The failed start already published its terminal state.
+      }
+
+      // Cover the narrow window where shutdown arrived before the native
+      // engine became visible to the module.
+      try {
+        await this.api.shutdown(SHUTDOWN_DEADLINE_MS);
+      } catch (error) {
+        shutdownError ??= error;
       }
     }
 
@@ -92,9 +106,9 @@ export class UnifiedEngineService {
   private async startNative(config: EngineConfig, generation: number): Promise<void> {
     try {
       await this.api.start(config);
-      this.nativeStarted = true;
       if (generation !== this.generation) return;
 
+      this.nativeStarted = true;
       this.updateSnapshot({ status: 'running', isStarted: true, lastError: null });
       const eventLoop = this.consumeEvents(generation);
       this.eventLoop = eventLoop;

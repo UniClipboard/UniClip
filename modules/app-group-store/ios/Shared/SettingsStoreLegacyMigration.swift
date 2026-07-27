@@ -14,6 +14,10 @@ public extension SettingsStore {
         }
 
         let sentinel = newURL.appendingPathComponent(legacyMigrationSentinel, isDirectory: false)
+        if fm.fileExists(atPath: sentinel.path) {
+            return (false, 0)
+        }
+
         var copied = 0
         if let oldURL = fm.containerURL(forSecurityApplicationGroupIdentifier: legacyAppGroupID),
            oldURL.path != newURL.path {

@@ -3,10 +3,9 @@ import Foundation
 internal import UcEngineCore
 
 public final class UcEngineModule: Module {
-  private let lock = NSLock()
   private let host = MainApplicationEngineHost()
   private lazy var lifecycle = NativeLifecycleHost(report: Self.reportLifecycleError)
-  private var engine: MobileEngine?
+  private let engines = NativeEngineRegistry<MobileEngine>()
 
   public func definition() -> ModuleDefinition {
     Name("UcEngine")
@@ -18,7 +17,12 @@ public final class UcEngineModule: Module {
       let profileId = config["profileId"] ?? "default"
       let started = try self.host.start(appVersion: appVersion, profileId: profileId)
       do {
-        try self.lifecycle.prepare(AppleEngineLifecycle(engine: started))
+        let installed = try self.engines.installBeforePreparing(started) { engine in
+          try self.lifecycle.prepare(AppleEngineLifecycle(engine: engine))
+        }
+        guard installed else {
+          throw UcEngineAlreadyStartedException()
+        }
       } catch {
         do {
           try started.shutdown(deadlineMs: 2_000)
@@ -27,19 +31,10 @@ public final class UcEngineModule: Module {
         }
         throw error
       }
-      let installed = self.lock.withLock {
-        guard self.engine == nil else { return false }
-        self.engine = started
-        return true
-      }
-      guard installed else { throw UcEngineAlreadyStartedException() }
     }
 
     AsyncFunction("shutdown") { (deadlineMs: UInt64) in
-      let active = self.lock.withLock { () -> MobileEngine? in
-        defer { self.engine = nil }
-        return self.engine
-      }
+      let active = self.engines.take()
       try active?.shutdown(deadlineMs: deadlineMs)
       self.host.removeAllFileHandles()
     }
@@ -208,7 +203,7 @@ public final class UcEngineModule: Module {
   }
 
   private func currentEngine() -> MobileEngine? {
-    lock.withLock { engine }
+    engines.current()
   }
 
   private func requireEngine() throws -> MobileEngine {
@@ -217,10 +212,7 @@ public final class UcEngineModule: Module {
   }
 
   private func shutdownForDestroy() {
-    let active = lock.withLock { () -> MobileEngine? in
-      defer { engine = nil }
-      return engine
-    }
+    let active = engines.take()
     do {
       try active?.shutdown(deadlineMs: 2_000)
     } catch {

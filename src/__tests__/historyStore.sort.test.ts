@@ -134,6 +134,43 @@ describe('historyStore handleStorageChange 排序', () => {
     expect(sort).toEqual({ field: 'lastAccessed', order: 'desc' });
   });
 
+  it('首屏只读取 50 条，继续滚动时从下一条接着读取', async () => {
+    const firstPage = Array.from({ length: 50 }, (_, index) =>
+      createItem(`first-${index}`, 1_000 - index)
+    );
+    const secondPage = [createItem('next-1', 900), createItem('next-2', 899)];
+    const searchItemsMock = historyStorage.searchItems as jest.MockedFunction<
+      typeof historyStorage.searchItems
+    >;
+    searchItemsMock
+      .mockResolvedValueOnce({ items: firstPage, total: 52 })
+      .mockResolvedValueOnce({ items: secondPage, total: 52 });
+
+    await useHistoryStore.getState().loadItems();
+
+    expect(searchItemsMock).toHaveBeenNthCalledWith(
+      1,
+      undefined,
+      { field: 'timestamp', order: 'desc' },
+      { limit: 50, offset: 0 }
+    );
+    expect(useHistoryStore.getState().items).toHaveLength(50);
+
+    await useHistoryStore.getState().loadMoreItems();
+
+    expect(searchItemsMock).toHaveBeenNthCalledWith(
+      2,
+      undefined,
+      { field: 'timestamp', order: 'desc' },
+      { limit: 50, offset: 50 }
+    );
+    expect(hashes(useHistoryStore.getState().items)).toEqual([
+      ...hashes(firstPage),
+      'next-1',
+      'next-2',
+    ]);
+  });
+
   it('searchItems 不传 sort 时，handleStorageChange update 仍按正确 sort 重排', async () => {
     const { setSort, searchItems, handleStorageChange } = useHistoryStore.getState();
 

@@ -1,5 +1,49 @@
 import Foundation
 
+final class NativeEngineRegistry<Engine: AnyObject> {
+  private let lock = NSLock()
+  private var engine: Engine?
+
+  func installBeforePreparing(
+    _ candidate: Engine,
+    prepare: (Engine) throws -> Void
+  ) rethrows -> Bool {
+    let installed = lock.withLock {
+      guard engine == nil else { return false }
+      engine = candidate
+      return true
+    }
+    guard installed else { return false }
+
+    do {
+      try prepare(candidate)
+      return true
+    } catch {
+      remove(candidate)
+      throw error
+    }
+  }
+
+  func current() -> Engine? {
+    lock.withLock { engine }
+  }
+
+  func take() -> Engine? {
+    lock.withLock {
+      defer { engine = nil }
+      return engine
+    }
+  }
+
+  private func remove(_ candidate: Engine) {
+    lock.withLock {
+      if engine === candidate {
+        engine = nil
+      }
+    }
+  }
+}
+
 enum NativeEngineLifecycleState: Equatable {
   case running
   case quiescing

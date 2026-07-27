@@ -114,6 +114,7 @@ export function HomeMasterGrid({
         paddingBottom={80}
         keyExtractor={c.keyExtractor}
         renderItem={renderCard}
+        onEndReached={c.loadMoreItems}
         refreshControl={
           <RefreshControl
             refreshing={c.refreshing}

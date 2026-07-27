@@ -40,6 +40,9 @@ interface AnimatedCardGridProps<T> {
   onScrollWorklet?: (y: number) => void;
   /** UI 线程滚动结束回调(必须是 worklet)。velocityY 非零表示拖拽松手后仍有惯性,终点以 momentumEnd(velocityY=0)为准 */
   onScrollEndWorklet?: (y: number, velocityY: number) => void;
+  /** Called once when each loaded batch is scrolled close to its end. */
+  onEndReached?: () => void;
+  onEndReachedThreshold?: number;
 }
 
 // 自研虚拟化网格：每张卡片的位置纯粹由它在 items 里的下标算出（行/列 = index / numColumns），
@@ -61,6 +64,8 @@ function AnimatedCardGridInner<T>(
     contentInsetTop = 0,
     onScrollWorklet,
     onScrollEndWorklet,
+    onEndReached,
+    onEndReachedThreshold = 400,
   }: AnimatedCardGridProps<T>,
   ref: React.Ref<AnimatedCardGridHandle>
 ) {
@@ -71,6 +76,16 @@ function AnimatedCardGridInner<T>(
   const cellSize = cardSize + spacing;
   const totalRows = Math.ceil(items.length / numColumns);
   const contentHeight = paddingTop + totalRows * cellSize + paddingBottom;
+  const endReachedBatchKey = useMemo(() => {
+    if (items.length === 0) return 'empty';
+    const middleIndex = Math.floor(items.length / 2);
+    return [
+      items.length,
+      keyExtractor(items[0]),
+      keyExtractor(items[middleIndex]),
+      keyExtractor(items[items.length - 1]),
+    ].join(':');
+  }, [items, keyExtractor]);
 
   // 渲染 key 经过出现序消歧:业务 key 出现重复(脏数据)时也保证 React key
   // 全局唯一,避免 key 冲突导致组件实例被过继给另一份副本(卡片乱飞/空洞)
@@ -91,6 +106,7 @@ function AnimatedCardGridInner<T>(
   // 渲染/状态更新而丢帧或延迟处理原生滚动事件，导致虚拟化窗口跟不上真实滚动位置，
   // 表现为卡片挂载/卸载错乱。UI 线程里做节流判断，只有跨过半行阈值才回传 JS 更新状态。
   const lastReportedScrollTop = useSharedValue(0);
+  const lastEndReachedBatchKey = useSharedValue('');
   const scrollHandler = useAnimatedScrollHandler(
     {
       onScroll: (event) => {
@@ -100,6 +116,16 @@ function AnimatedCardGridInner<T>(
           lastReportedScrollTop.value = y;
           scheduleOnRN(setScrollTop, y);
         }
+        if (
+          onEndReached &&
+          viewportHeight > 0 &&
+          contentHeight > viewportHeight &&
+          y + viewportHeight + onEndReachedThreshold >= contentHeight &&
+          lastEndReachedBatchKey.value !== endReachedBatchKey
+        ) {
+          lastEndReachedBatchKey.value = endReachedBatchKey;
+          scheduleOnRN(onEndReached);
+        }
       },
       onEndDrag: (event) => {
         onScrollEndWorklet?.(event.contentOffset.y, event.velocity?.y ?? 0);
@@ -108,7 +134,16 @@ function AnimatedCardGridInner<T>(
         onScrollEndWorklet?.(event.contentOffset.y, 0);
       },
     },
-    [onScrollWorklet, onScrollEndWorklet, cellSize]
+    [
+      onScrollWorklet,
+      onScrollEndWorklet,
+      onEndReached,
+      onEndReachedThreshold,
+      viewportHeight,
+      contentHeight,
+      endReachedBatchKey,
+      cellSize,
+    ]
   );
 
   const handleLayout = useCallback((e: LayoutChangeEvent) => {

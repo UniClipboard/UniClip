@@ -26,6 +26,7 @@ class BackgroundServiceManager {
   private heartbeatTag: string | null = null;
   private stopSub: { remove(): void } | null = null;
   private tempStopSub: { remove(): void } | null = null;
+  private appStateSub: { remove(): void } | null = null;
   /** 取消对 settingsStore 的订阅 */
   private settingsUnsub: (() => void) | null = null;
   private readonly syncChannels = new SyncChannelCoordinator(
@@ -89,6 +90,8 @@ class BackgroundServiceManager {
     if (!useSettingsStore.getState().isLoaded) {
       await useSettingsStore.getState().loadConfig();
     }
+
+    this._subscribeToAppState();
 
     // SMS 转发始终独立管理（Android 专属）
     if (Platform.OS === 'android') {
@@ -346,6 +349,34 @@ class BackgroundServiceManager {
     this.tempStopSub?.remove();
     this.stopSub = null;
     this.tempStopSub = null;
+  }
+
+  private _subscribeToAppState(): void {
+    if (this.appStateSub || Platform.OS !== 'ios') return;
+
+    this.appStateSub = AppState.addEventListener('change', (state) => {
+      const { useSettingsStore } = require('../stores/settingsStore');
+      if (useSettingsStore.getState().config?.syncChannel !== 'p2p') return;
+
+      const { getUnifiedEngineService } = require('./UnifiedEngineService');
+      const service = getUnifiedEngineService();
+      if (state === 'inactive' || state === 'background') {
+        if (service.isStarting()) {
+          service
+            .stop()
+            .catch((error: unknown) =>
+              log.error('[BackgroundServiceManager] Failed to stop starting P2P engine:', error)
+            );
+        }
+        return;
+      }
+
+      if (state === 'active') {
+        this.refresh().catch((error) =>
+          log.error('[BackgroundServiceManager] Failed to resume services:', error)
+        );
+      }
+    });
   }
 
   private _subscribeToConfigChanges(): void {

@@ -5,6 +5,18 @@ import XCTest
 @testable import UcEngineSystemHost
 
 final class NativeSystemHostTests: XCTestCase {
+  func testEngineIsVisibleWhileStartupPreparationRuns() throws {
+    let engine = FakeRegisteredEngine()
+    let registry = NativeEngineRegistry<FakeRegisteredEngine>()
+
+    let installed = registry.installBeforePreparing(engine) { candidate in
+      XCTAssertTrue(registry.current() === candidate)
+    }
+
+    XCTAssertTrue(installed)
+    XCTAssertTrue(registry.current() === engine)
+  }
+
   func testKeychainRoundTripUsesSystemKeychain() throws {
     let service = "app.uniclipboard.uc-engine.tests.\(UUID().uuidString)"
     let key = "identity"
@@ -181,6 +193,8 @@ final class NativeSystemHostTests: XCTestCase {
     XCTAssertNotNil(reported)
   }
 }
+
+private final class FakeRegisteredEngine {}
 
 private enum TestLifecycleError: Error {
   case failed

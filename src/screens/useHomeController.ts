@@ -73,6 +73,7 @@ export function useHomeController(onOpenSettings: () => void) {
   const selectedIds = useHistoryStore((s) => s.selectedIds);
   const lastAddedTimestamp = useHistoryStore((s) => s.lastAddedTimestamp);
   const loadItems = useHistoryStore((s) => s.loadItems);
+  const loadMoreItems = useHistoryStore((s) => s.loadMoreItems);
   const searchItems = useHistoryStore((s) => s.searchItems);
   const setSort = useHistoryStore((s) => s.setSort);
   const handleStorageChange = useHistoryStore((s) => s.handleStorageChange);
@@ -896,6 +897,7 @@ export function useHomeController(onOpenSettings: () => void) {
     handleItemLongPress,
     refreshing,
     handleRefresh,
+    loadMoreItems,
     // batch actions
     handleBatchCopy,
     handleBatchShare,

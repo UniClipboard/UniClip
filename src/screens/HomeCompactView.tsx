@@ -102,6 +102,7 @@ export function HomeCompactView({
             paddingBottom={80}
             keyExtractor={c.keyExtractor}
             renderItem={renderCard}
+            onEndReached={c.loadMoreItems}
             contentInsetTop={CHIP_ROW_GRID_METRICS.contentInsetTop}
             onScrollWorklet={chipRowCollapse.onScrollWorklet}
             onScrollEndWorklet={chipRowCollapse.onScrollEndWorklet}

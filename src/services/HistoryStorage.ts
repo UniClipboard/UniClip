@@ -62,6 +62,8 @@ const MIGRATIONS: Record<number, MigrationFunction> = {
   },
 };
 
+const APP_GROUP_PAYLOAD_REPAIR_KEY = '@syncclipboard:history:appgroup-payload-uris-repaired:v1';
+
 /**
  * 历史记录存储服务
  */
@@ -105,6 +107,8 @@ export class HistoryStorage {
   private initialized = false;
   private initializationPromise: Promise<void> | null = null;
   private initializationError: unknown = null;
+  private startupMaintenancePromise: Promise<void> | null = null;
+  private startupMaintenanceCompleted = false;
   private maxHistorySize = 1000;
   private changeCallbacks: Set<HistoryChangeCallback> = new Set();
   private pendingChanges: { items: ClipboardItem[]; action: 'add' | 'update' | 'delete' }[] = [];
@@ -230,11 +234,10 @@ export class HistoryStorage {
   // ─── 初始化 & 迁移导入 ──────────────────────────────────
 
   /**
-   * 初始化历史记录存储
+   * 打开历史数据库并完成必要的表结构升级。
    *
-   * 并发调用共享同一次初始化。失败后门闩住并对后续调用快速抛出首个错误——初始化流水线是确定性的
-   * (建库 + schema 迁移 + 一次性数据导入),立刻重跑不会有不同结果,只会让三十来个
-   * `if (!initialized) await initialize()` 守卫把整条重型 IO 流水线反复重放。恢复手段是重启 app。
+   * 首屏查询只等待这一步；旧数据导入、文件地址修复和清理由 runStartupMaintenance()
+   * 在首屏显示后执行。并发调用共享同一次初始化，失败后对后续调用快速抛出首个错误。
    */
   public async initialize(): Promise<void> {
     if (this.initialized) return;
@@ -254,6 +257,28 @@ export class HistoryStorage {
     return this.initializationPromise;
   }
 
+  /**
+   * Run legacy imports and file cleanup after the first history page is visible.
+   * Concurrent callers share one pass, and a completed pass is not repeated in
+   * the same app process.
+   */
+  public async runStartupMaintenance(): Promise<void> {
+    await this.initialize();
+    if (this.startupMaintenanceCompleted) return;
+
+    if (!this.startupMaintenancePromise) {
+      this.startupMaintenancePromise = this.runStartupMaintenanceOnce()
+        .then(() => {
+          this.startupMaintenanceCompleted = true;
+        })
+        .finally(() => {
+          this.startupMaintenancePromise = null;
+        });
+    }
+
+    return this.startupMaintenancePromise;
+  }
+
   private async initializeOnce(): Promise<void> {
     // 读不到配置不致命:退回默认 maxHistorySize
     try {
@@ -269,23 +294,33 @@ export class HistoryStorage {
     // 建库(含 schema 迁移)是唯一致命的一步:没有 DB 就没有历史功能,必须让调用方知道
     await getDatabase();
 
-    // 以下三步都是一次性数据搬运(旧 AsyncStorage 历史 / iOS App Group 遗留 JSON / payload URI 修复)。
-    // 失败只影响历史数据的完整性,DB 本身仍然可用——记录后继续,让 app 带着已有历史正常跑,
-    // 而不是因为搬不动遗留数据就把整个历史功能拖垮(App Group 读取失败在 iOS 上是有先例的)。
+    this.initialized = true;
+  }
+
+  private async runStartupMaintenanceOnce(): Promise<void> {
     try {
       await this.migrateFromAsyncStorageOnce();
-      await this.importAppGroupHistory();
-      await this.repairAppGroupPayloadUris();
     } catch (error) {
-      log.error('[HistoryStorage] History data import failed, continuing with existing DB:', error);
+      log.error('[HistoryStorage] AsyncStorage history migration failed:', error);
     }
 
-    this.initialized = true;
+    try {
+      await this.importAppGroupHistory();
+    } catch (error) {
+      log.error('[HistoryStorage] App Group history import failed:', error);
+    }
 
-    // 启动时清理孤儿数据
-    this.cleanupOrphanedData().catch((error) => {
+    try {
+      await this.repairAppGroupPayloadUris();
+    } catch (error) {
+      log.error('[HistoryStorage] App Group payload repair failed:', error);
+    }
+
+    try {
+      await this.cleanupOrphanedData();
+    } catch (error) {
       log.error('[HistoryStorage] Failed to cleanup orphaned data on startup:', error);
-    });
+    }
   }
 
   /**
@@ -394,11 +429,14 @@ export class HistoryStorage {
   }
 
   private async repairAppGroupPayloadUris(): Promise<void> {
+    if ((await AsyncStorage.getItem(APP_GROUP_PAYLOAD_REPAIR_KEY)) === '1') return;
+
     const existing = await historyRepository.getAll(this.sortConfig, { includeDeleted: true });
     const { items, repaired } = await repairAppGroupHistoryPayloadUris(existing);
-    if (repaired === 0) return;
-
-    await historyRepository.replaceMany(items.map(normalizeClipboardItem));
+    if (repaired > 0) {
+      await historyRepository.replaceMany(items.map(normalizeClipboardItem));
+    }
+    await AsyncStorage.setItem(APP_GROUP_PAYLOAD_REPAIR_KEY, '1');
   }
 
   /**
@@ -628,19 +666,29 @@ export class HistoryStorage {
   }
 
   /**
-   * 搜索和过滤历史记录（排除软删除）
-   * Phase 0:仍返回全部符合条件的记录(分页在 Phase 1 接入)。
+   * 搜索和过滤历史记录（排除软删除）。options 省略时保留原有的全量查询语义；
+   * 首页传入 limit/offset 做增量加载。
    */
   public async searchItems(
     filter?: HistoryFilter,
-    sort?: HistorySort
+    sort?: HistorySort,
+    options?: { limit: number; offset: number }
   ): Promise<{ items: ClipboardItem[]; total: number }> {
     if (!this.initialized) {
       await this.initialize();
     }
 
-    const items = await historyRepository.find(filter, sort, { includeDeleted: false });
-    return { items, total: items.length };
+    const queryOptions = { includeDeleted: false, ...options };
+    if (!options) {
+      const items = await historyRepository.find(filter, sort, queryOptions);
+      return { items, total: items.length };
+    }
+
+    const [items, total] = await Promise.all([
+      historyRepository.find(filter, sort, queryOptions),
+      historyRepository.count(filter, { includeDeleted: false }),
+    ]);
+    return { items, total };
   }
 
   /**

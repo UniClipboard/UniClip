@@ -10,6 +10,8 @@ import { historyStorage } from '../services';
 import { matchesHistoryFilter } from '@/utils/historyFilters';
 import { log } from '@/services/Logger';
 
+const HISTORY_PAGE_SIZE = 50;
+
 /**
  * 历史记录状态接口
  */
@@ -30,6 +32,12 @@ interface HistoryState {
   /** 是否正在加载 */
   isLoading: boolean;
 
+  /** 首次读取是否已经结束（成功或失败） */
+  isInitialLoadComplete: boolean;
+
+  /** 是否正在读取下一批 */
+  isLoadingMore: boolean;
+
   /** 错误信息 */
   error: string | null;
 
@@ -48,6 +56,9 @@ interface HistoryState {
   // 动作
   /** 加载历史记录 */
   loadItems: () => Promise<void>;
+
+  /** 加载下一批历史记录 */
+  loadMoreItems: () => Promise<void>;
 
   /** 搜索历史记录 */
   searchItems: (filter?: HistoryFilter, sort?: HistorySort) => Promise<void>;
@@ -122,6 +133,8 @@ const initialState = {
   filter: null,
   sort: null,
   isLoading: false,
+  isInitialLoadComplete: false,
+  isLoadingMore: false,
   error: null,
   selectedIds: new Set<string>(),
   lastAddedTimestamp: 0,
@@ -139,24 +152,60 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
 
   loadItems: async () => {
     const querySequence = ++historyQuerySequence;
-    set({ isLoading: true, error: null });
+    set({ isLoading: true, isLoadingMore: false, error: null });
 
     try {
       const { filter, sort } = get();
 
       const effectiveSort: HistorySort = sort || { field: 'timestamp', order: 'desc' };
 
-      const result = await historyStorage.searchItems(filter || undefined, effectiveSort);
+      const limit = Math.max(HISTORY_PAGE_SIZE, get().items.length);
+      const result = await historyStorage.searchItems(filter || undefined, effectiveSort, {
+        limit,
+        offset: 0,
+      });
       if (querySequence !== historyQuerySequence) return;
       set({
         items: result.items,
         totalCount: result.total,
         isLoading: false,
+        isInitialLoadComplete: true,
       });
     } catch (error) {
       if (querySequence !== historyQuerySequence) return;
       const errorMessage = error instanceof Error ? error.message : 'Failed to load history';
-      set({ error: errorMessage, isLoading: false });
+      set({ error: errorMessage, isLoading: false, isInitialLoadComplete: true });
+    }
+  },
+
+  loadMoreItems: async () => {
+    const state = get();
+    if (state.isLoading || state.isLoadingMore || state.items.length >= state.totalCount) return;
+
+    const querySequence = historyQuerySequence;
+    const effectiveSort: HistorySort = state.sort || { field: 'timestamp', order: 'desc' };
+    set({ isLoadingMore: true, error: null });
+
+    try {
+      const result = await historyStorage.searchItems(state.filter || undefined, effectiveSort, {
+        limit: HISTORY_PAGE_SIZE,
+        offset: state.items.length,
+      });
+      if (querySequence !== historyQuerySequence) return;
+
+      const existingHashes = new Set(get().items.map((item) => item.profileHash.toLowerCase()));
+      const nextItems = result.items.filter(
+        (item) => !existingHashes.has(item.profileHash.toLowerCase())
+      );
+      set((current) => ({
+        items: [...current.items, ...nextItems],
+        totalCount: result.total,
+        isLoadingMore: false,
+      }));
+    } catch (error) {
+      if (querySequence !== historyQuerySequence) return;
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load more history';
+      set({ error: errorMessage, isLoadingMore: false });
     }
   },
 
@@ -164,10 +213,13 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     const querySequence = ++historyQuerySequence;
     // 不传 sort 时保留当前 sort 配置，避免覆盖 loadSortSetting 设置的值
     const effectiveSort = sort !== undefined ? sort : get().sort;
-    set({ isLoading: true, error: null, filter, sort: effectiveSort });
+    set({ isLoading: true, isLoadingMore: false, error: null, filter, sort: effectiveSort });
 
     try {
-      const result = await historyStorage.searchItems(filter, effectiveSort || undefined);
+      const result = await historyStorage.searchItems(filter, effectiveSort || undefined, {
+        limit: HISTORY_PAGE_SIZE,
+        offset: 0,
+      });
       if (querySequence !== historyQuerySequence) return;
 
       set({

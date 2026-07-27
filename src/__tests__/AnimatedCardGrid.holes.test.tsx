@@ -138,7 +138,11 @@ const renderItem = (item: Item) =>
 
 function renderGrid(
   items: Item[],
-  opts?: { gridRef?: React.Ref<AnimatedCardGridHandle>; contentInsetTop?: number }
+  opts?: {
+    gridRef?: React.Ref<AnimatedCardGridHandle>;
+    contentInsetTop?: number;
+    onEndReached?: () => void;
+  }
 ) {
   return (
     <AnimatedCardGrid
@@ -153,6 +157,7 @@ function renderGrid(
       keyExtractor={keyExtractor}
       renderItem={renderItem}
       contentInsetTop={opts?.contentInsetTop}
+      onEndReached={opts?.onEndReached}
     />
   );
 }
@@ -274,6 +279,55 @@ describe('AnimatedCardGrid 空槽位模糊回路', () => {
       },
     };
   }
+
+  it('每批内容滚到末尾附近时只请求一次下一批', () => {
+    const onEndReached = jest.fn();
+    let items = Array.from({ length: 40 }, (_, index) => ({
+      id: index + 1,
+      hash: `hash-${index + 1}`,
+    }));
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(renderGrid(items, { onEndReached }));
+    });
+    const scrollView = () =>
+      renderer.root.findAll((node) => node.type === ('AnimatedScrollView' as any))[0];
+    act(() => {
+      scrollView().props.onLayout({ nativeEvent: { layout: { height: VIEWPORT } } });
+    });
+    act(() => {
+      scrollView().props.onScroll({ contentOffset: { y: 1_700 } });
+      scrollView().props.onScroll({ contentOffset: { y: 1_750 } });
+    });
+    expect(onEndReached).toHaveBeenCalledTimes(1);
+
+    items = [
+      ...items,
+      ...Array.from({ length: 20 }, (_, index) => ({
+        id: index + 41,
+        hash: `hash-${index + 41}`,
+      })),
+    ];
+    act(() => {
+      renderer.update(renderGrid(items, { onEndReached }));
+    });
+    act(() => {
+      scrollView().props.onScroll({ contentOffset: { y: 2_800 } });
+    });
+    expect(onEndReached).toHaveBeenCalledTimes(2);
+
+    items = Array.from({ length: 60 }, (_, index) => ({
+      id: index + 101,
+      hash: `filtered-hash-${index + 1}`,
+    }));
+    act(() => {
+      renderer.update(renderGrid(items, { onEndReached }));
+    });
+    act(() => {
+      scrollView().props.onScroll({ contentOffset: { y: 2_800 } });
+    });
+    expect(onEndReached).toHaveBeenCalledTimes(3);
+  });
 
   it('随机变更与滚动交错后,可视窗口内不出现空槽位/堆叠/错位', () => {
     const rng = makeRng(20260704);

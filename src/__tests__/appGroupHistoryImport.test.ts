@@ -62,6 +62,7 @@ const mockGetLegacyHistory = getLegacyHistory as jest.Mock;
 const mockGetPayloadFileUri = getPayloadFileUri as jest.Mock;
 const mockMigrateLegacyContainer = migrateLegacyContainer as jest.Mock;
 const APP_GROUP_HISTORY_IMPORT_KEY = '@syncclipboard:history:appgroup-imported';
+const APP_GROUP_PAYLOAD_REPAIR_KEY = '@syncclipboard:history:appgroup-payload-uris-repaired:v1';
 
 describe('App Group history import', () => {
   beforeEach(() => {
@@ -111,6 +112,10 @@ describe('App Group history import', () => {
     const storage = HistoryStorage.getInstance();
     await storage.initialize();
 
+    expect(mockMigrateLegacyContainer).not.toHaveBeenCalled();
+
+    await storage.runStartupMaintenance();
+
     expect(mockMigrateLegacyContainer).toHaveBeenCalled();
     const items = await storage.getAllItems();
     expect(items).toHaveLength(2);
@@ -151,6 +156,7 @@ describe('App Group history import', () => {
 
     const storage = HistoryStorage.getInstance();
     await storage.initialize();
+    await storage.runStartupMaintenance();
     expect(
       (await storage.getAllItems()).filter((item) => item.profileHash === 'TEXT01')
     ).toHaveLength(1);
@@ -160,6 +166,7 @@ describe('App Group history import', () => {
     (HistoryStorage as unknown as { instance: null }).instance = null;
     const storage2 = HistoryStorage.getInstance();
     await storage2.initialize();
+    await storage2.runStartupMaintenance();
 
     expect(mockGetLegacyHistory).toHaveBeenCalledTimes(2); // 每次启动都合并
     const items = await storage2.getAllItems();
@@ -167,7 +174,11 @@ describe('App Group history import', () => {
   });
 
   it('repairs imported image records that were saved before payloads were migrated', async () => {
+    let payloadRepairComplete = false;
     mockGetItem.mockImplementation((key: string) => {
+      if (key === APP_GROUP_PAYLOAD_REPAIR_KEY) {
+        return Promise.resolve(payloadRepairComplete ? '1' : null);
+      }
       if (key === APP_GROUP_HISTORY_IMPORT_KEY) return Promise.resolve('1');
       if (key === STORAGE_KEYS.HISTORY) {
         return Promise.resolve(
@@ -195,12 +206,18 @@ describe('App Group history import', () => {
       }
       return Promise.resolve(null);
     });
+    mockSetItem.mockImplementation(async (key: string) => {
+      if (key === APP_GROUP_PAYLOAD_REPAIR_KEY) payloadRepairComplete = true;
+    });
     mockGetPayloadFileUri.mockImplementation((profileId: string) =>
       profileId === 'Image-ABCDEF' ? Promise.resolve('file:///group/payloads/Image-ABCDEF') : null
     );
 
     const storage = HistoryStorage.getInstance();
     await storage.initialize();
+    expect(mockGetPayloadFileUri).not.toHaveBeenCalled();
+
+    await storage.runStartupMaintenance();
 
     const items = await storage.getAllItems();
     expect(items[0]).toEqual(
@@ -210,5 +227,12 @@ describe('App Group history import', () => {
       })
     );
     expect(mockMigrateLegacyContainer).toHaveBeenCalled();
+
+    (HistoryStorage as unknown as { instance: null }).instance = null;
+    const storage2 = HistoryStorage.getInstance();
+    await storage2.initialize();
+    await storage2.runStartupMaintenance();
+
+    expect(mockGetPayloadFileUri).toHaveBeenCalledTimes(1);
   });
 });

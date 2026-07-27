@@ -18,7 +18,7 @@ import { ShareReceiveScreen } from './src/screens/ShareReceiveScreen';
 import { ProcessTextScreen } from './src/screens/ProcessTextScreen';
 import { QrScannerHost } from './src/components/QrScannerHost';
 import { SyncDirection } from './src/types/sync';
-import { useSettingsStore, usePendingConnectStore } from './src/stores';
+import { useSettingsStore, usePendingConnectStore, useHistoryStore } from './src/stores';
 import i18n from './src/i18n';
 import { applyLanguagePreference } from './src/i18n/useAppLanguage';
 import { initLogger, setLogLevel } from './src/services/Logger';
@@ -26,6 +26,7 @@ import { useTheme } from './src/hooks/useTheme';
 import { setDynamicShortcuts } from 'shortcut';
 import { moveTaskToBack, setExcludeFromRecents } from 'android-util';
 import { getBackgroundServiceManager } from './src/services/BackgroundServiceManager';
+import { historyStorage } from './src/services/HistoryStorage';
 import { startAppGroupSync } from './src/services/appGroupSync';
 import { startNetworkContextMonitor } from './src/services/networkContext';
 import {
@@ -128,6 +129,7 @@ export default function App() {
     exitAfterSync: boolean;
   } | null>(null);
   const { config, loadConfig, isLoaded } = useSettingsStore();
+  const isInitialHistoryLoadComplete = useHistoryStore((state) => state.isInitialLoadComplete);
 
   useEffect(() => {
     initLogger();
@@ -175,17 +177,45 @@ export default function App() {
     return startNetworkContextMonitor();
   }, [isLoaded]);
 
-  // 启动所有服务（冷启动时保证剪贴板监控、远程同步、后台任务正常运行，后续由 BackgroundServiceManager 维护）
+  // 首批历史提交到界面后，再启动同步和旧数据整理，避免冷启动时争抢本地存储。
   useEffect(() => {
-    if (!isLoaded) return;
-    getBackgroundServiceManager()
-      .start()
-      .catch(() => {});
+    if (!isLoaded || !isInitialHistoryLoadComplete) return;
+
+    let cancelled = false;
+    let startupPromise: Promise<void> | null = null;
+    const runStartupWork = () => {
+      if (startupPromise || AppState.currentState !== 'active') return;
+      startupPromise = (async () => {
+        try {
+          await getBackgroundServiceManager().start();
+        } catch {
+          // Individual services report their own failures; history maintenance can still proceed.
+        }
+
+        if (cancelled || AppState.currentState !== 'active') return;
+        await historyStorage.runStartupMaintenance();
+        if (cancelled || AppState.currentState !== 'active') return;
+        await useHistoryStore.getState().loadItems();
+      })().finally(() => {
+        startupPromise = null;
+      });
+    };
+
+    runStartupWork();
+    const appStateSub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') runStartupWork();
+    });
+
     // 应用启动时恢复「最近任务隐藏」设置（仅 Android）
     if (Platform.OS === 'android' && config?.hideFromRecents) {
       setExcludeFromRecents(true);
     }
-  }, [isLoaded]);
+
+    return () => {
+      cancelled = true;
+      appStateSub.remove();
+    };
+  }, [config?.hideFromRecents, isInitialHistoryLoadComplete, isLoaded]);
 
   useEffect(() => {
     if (!isLoaded) return;

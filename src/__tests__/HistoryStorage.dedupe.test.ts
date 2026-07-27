@@ -2,7 +2,7 @@
  * HistoryStorage 重复记录自愈测试
  * 真机曾出现 AsyncStorage 中持久化了相同 profileHash 的多条历史记录
  * (早期导入/同步路径写入),导致 HomeView 网格 React key 冲突、
- * 快速滚动时卡片乱飞/空洞。loadHistory 必须在加载时去重合并并回写。
+ * 快速滚动时卡片乱飞/空洞。启动后的旧数据整理必须去重合并并写入新资料库。
  */
 
 import { HistoryStorage } from '../services/HistoryStorage';
@@ -92,6 +92,7 @@ async function initWithStoredHistory(items: ClipboardItem[]): Promise<HistorySto
   (HistoryStorage as unknown as { instance: null }).instance = null;
   const storage = HistoryStorage.getInstance();
   await storage.initialize();
+  await storage.runStartupMaintenance();
   return storage;
 }
 
