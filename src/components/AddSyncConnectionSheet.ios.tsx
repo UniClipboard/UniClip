@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Share, StyleSheet } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Device from 'expo-device';
@@ -84,6 +84,10 @@ const P2P_TINT = iosKindTints.text;
 const JOIN_TINT = iosKindTints.group;
 const SUCCESS_TINT = iosKindTints.image;
 const LAN_TINT = iosKindTints.file;
+
+function ConnectionSheetHost({ embedded, children }: { embedded: boolean; children: ReactNode }) {
+  return embedded ? <Group>{children}</Group> : <Host style={styles.host}>{children}</Host>;
+}
 
 function modeFromInitial(initialMode: AddSyncConnectionMode): Mode {
   return initialMode === 'join' ? 'joinCode' : initialMode;
@@ -235,6 +239,7 @@ export function AddSyncConnectionSheet({
   visible,
   legacyLanEligible,
   initialMode = 'choose',
+  embeddedInHost = false,
   onClose,
   onOpenLegacyLan,
   onConnected,
@@ -464,7 +469,7 @@ export function AddSyncConnectionSheet({
   const canGoBack = mode === 'create' || mode === 'joinCode' || mode === 'joinDetails';
 
   return (
-    <Host style={styles.host}>
+    <ConnectionSheetHost embedded={embeddedInHost}>
       <BottomSheet
         isPresented={visible}
         onIsPresentedChange={(presented) => {
@@ -842,7 +847,7 @@ export function AddSyncConnectionSheet({
           </IosSheetPage>
         </Group>
       </BottomSheet>
-    </Host>
+    </ConnectionSheetHost>
   );
 }
 

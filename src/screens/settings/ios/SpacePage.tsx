@@ -446,6 +446,7 @@ export function SpacePage({ onBack }: { onBack: () => void }) {
         visible={setupMode !== null}
         initialMode={setupMode ?? 'choose'}
         legacyLanEligible={false}
+        embeddedInHost
         onClose={() => setSetupMode(null)}
         onOpenLegacyLan={() => {}}
         onConnected={() => {

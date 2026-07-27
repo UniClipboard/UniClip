@@ -108,6 +108,18 @@ describe('unified space setup UI', () => {
     expect(ios).toContain('AddSyncConnectionSheet');
   });
 
+  it('keeps the iOS connection sheet inside the existing settings host', () => {
+    const iosPage = source('screens/settings/ios/SpacePage.tsx');
+    const iosSheet = source('components/AddSyncConnectionSheet.ios.tsx');
+    const sheetProps = source('components/AddSyncConnectionSheet.types.ts');
+
+    expect(iosPage).toContain('embeddedInHost');
+    expect(sheetProps).toContain('embeddedInHost?: boolean;');
+    expect(iosSheet).toContain('embeddedInHost = false');
+    expect(iosSheet).toContain('<ConnectionSheetHost embedded={embeddedInHost}>');
+    expect(iosSheet).toContain('embedded ? <Group>');
+  });
+
   it('gives the Android space page a compact overview and manageable device rows', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
 
