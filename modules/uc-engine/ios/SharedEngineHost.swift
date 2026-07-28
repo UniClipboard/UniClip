@@ -4,15 +4,36 @@ import UniformTypeIdentifiers
 
 public final class MainApplicationEngineHost: @unchecked Sendable {
   private let files = AppleFileHandleRegistry()
+  private let ownershipStateLock = NSLock()
+  private var ownership: P2pRuntimeOwnership?
 
   public init() {}
 
   public func start(appVersion: String, profileId: String) throws -> MobileEngine {
-    let host = try AppleEngineHost(files: files, storageMode: .mainApplication)
-    return try MobileEngine.start(
-      config: BindingConfig(appVersion: appVersion, profileId: profileId),
-      host: host
-    )
+    guard try P2pRuntimeHandoff.acquireForMainApplication(runtimeOwnership()) else {
+      throw ExtensionP2pError.runtimeBusy
+    }
+    do {
+      let host = try AppleEngineHost(files: files, storageMode: .mainApplication)
+      return try MobileEngine.start(
+        config: BindingConfig(appVersion: appVersion, profileId: profileId),
+        host: host
+      )
+    } catch {
+      releaseRuntimeOwnership()
+      throw error
+    }
+  }
+
+  public func acquireRuntimeOwnership(timeoutMs: UInt64) throws -> Bool {
+    try runtimeOwnership().acquire(timeoutMs: timeoutMs)
+  }
+
+  public func releaseRuntimeOwnership() {
+    ownershipStateLock.lock()
+    let current = ownership
+    ownershipStateLock.unlock()
+    current?.release()
   }
 
   public func registerInputFile(uri: String, displayName: String?) throws -> String {
@@ -32,35 +53,105 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
   public func removeAllFileHandles() {
     files.removeAll()
   }
+
+  private func runtimeOwnership() throws -> P2pRuntimeOwnership {
+    ownershipStateLock.lock()
+    defer { ownershipStateLock.unlock() }
+    if let ownership { return ownership }
+    let created = P2pRuntimeOwnership(
+      lockURL: try P2pSharedStore.runtimeLockURL(mode: .mainApplication)
+    )
+    ownership = created
+    return created
+  }
 }
 
-/// Short-lived P2P sender for app extensions. Each extension starts its own
-/// engine against the protected shared store and stops it after sending.
+/// P2P session for app extensions. Short-lived callers release it after one
+/// operation; the keyboard may retain it only while its input view is visible.
 public final class ExtensionP2pClient: @unchecked Sendable {
   private let files = AppleFileHandleRegistry()
   private let engine: MobileEngine
+  private let ownership: P2pRuntimeOwnership
+  private let localDeviceId: String
+  private let operationLock = NSLock()
+  private let coordinator: ExtensionSyncCoordinator
+  private var isClosed = false
 
-  public init(appVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown") throws {
-    let host = try AppleEngineHost(files: files, storageMode: .extensionHost)
-    let engine = try MobileEngine.start(
-      config: BindingConfig(appVersion: appVersion, profileId: "default"),
-      host: host
+  public init(
+    appVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
+      as? String ?? "unknown"
+  ) throws {
+    let ownership = P2pRuntimeOwnership(
+      lockURL: try P2pSharedStore.runtimeLockURL(mode: .extensionHost)
     )
+    guard try P2pRuntimeHandoff.acquireForExtension(ownership) else {
+      throw ExtensionP2pError.runtimeBusy
+    }
+    let host = try AppleEngineHost(files: files, storageMode: .extensionHost)
+    var started: MobileEngine?
     do {
+      let engine = try MobileEngine.start(
+        config: BindingConfig(appVersion: appVersion, profileId: "default"),
+        host: host
+      )
+      started = engine
       _ = try engine.recoverSession(allowSecureStorageUnlock: true)
       guard try engine.querySpaceState().hasCompleted else {
         throw ExtensionP2pError.spaceUnavailable
       }
       self.engine = engine
+      self.ownership = ownership
+      self.localDeviceId = try engine.queryLocalDevice().deviceId
+      self.coordinator = ExtensionSyncCoordinator(
+        engine: ExtensionMobileEngineAdapter(engine: engine, localDeviceId: self.localDeviceId)
+      )
     } catch {
-      try? engine.shutdown(deadlineMs: 1_000)
+      try? started?.shutdown(deadlineMs: 1_000)
+      ownership.release()
       throw error
     }
   }
 
   deinit {
-    try? engine.shutdown(deadlineMs: 1_000)
-    files.removeAll()
+    shutdown()
+  }
+
+  public func synchronize(
+    // The core coalesces peer-online resyncs for 1.5s before dispatching. Keep
+    // enough headroom for connection establishment and the inbound transfer.
+    receiveTimeoutMs: UInt64 = 3_000,
+    send: (() throws -> SendReport)? = nil
+  ) throws -> ExtensionSyncResult {
+    try operationLock.withLock {
+      guard !isClosed else { throw ExtensionP2pError.sessionClosed }
+      let sendOperation = send.map { operation in
+        { try operation().extensionDeliveryReport }
+      }
+      return try coordinator.synchronize(
+        send: sendOperation,
+        receiveTimeoutMs: receiveTimeoutMs
+      )
+    }
+  }
+
+  public func waitForRemoteChange(timeoutMs: UInt64 = 500) throws -> Bool {
+    try operationLock.withLock {
+      guard !isClosed else { throw ExtensionP2pError.sessionClosed }
+      return try coordinator.waitForRemoteChange(timeoutMs: timeoutMs)
+    }
+  }
+
+  public func shutdown() {
+    operationLock.withLock {
+      guard !isClosed else { return false }
+      isClosed = true
+      defer {
+        ownership.release()
+        files.removeAll()
+      }
+      try? engine.shutdown(deadlineMs: 1_000)
+      return true
+    }
   }
 
   public func sendText(_ text: String) throws -> SendReport {
@@ -81,6 +172,9 @@ public final class ExtensionP2pClient: @unchecked Sendable {
 public enum ExtensionP2pError: LocalizedError {
   case sharedStoreUnavailable
   case spaceUnavailable
+  case runtimeBusy
+  case sessionClosed
+  case deliveryIncomplete(ExtensionDeliveryState)
 
   public var errorDescription: String? {
     switch self {
@@ -88,6 +182,18 @@ public enum ExtensionP2pError: LocalizedError {
       return "Open UniClip once to prepare P2P sharing for extensions."
     case .spaceUnavailable:
       return "No P2P space is available for this extension."
+    case .runtimeBusy:
+      return "P2P sync is busy. Please try again."
+    case .sessionClosed:
+      return "This P2P extension session has ended."
+    case .deliveryIncomplete(let state):
+      switch state {
+      case .partial: return "Some devices have not received this content yet."
+      case .offline: return "The receiving device is offline."
+      case .pending: return "This content is waiting to be sent."
+      case .failed: return "P2P delivery failed."
+      case .delivered: return nil
+      }
     }
   }
 }
@@ -100,6 +206,7 @@ enum P2pStorageMode: Equatable {
 private enum P2pSharedStore {
   private static let rootName = "p2p"
   private static let readinessFilename = ".ready"
+  private static let runtimeLockFilename = ".runtime.lock"
   private static let extensionSuffixes = [".Keyboard", ".Share"]
 
   static func sharedP2pDirectory(mode: P2pStorageMode) throws -> URL {
@@ -136,8 +243,14 @@ private enum P2pSharedStore {
     return "\(appGroupID).uc-engine"
   }
 
+  static func runtimeLockURL(mode: P2pStorageMode) throws -> URL {
+    try sharedP2pDirectory(mode: mode)
+      .appendingPathComponent(runtimeLockFilename, isDirectory: false)
+  }
+
   static func sharedKeychainAccessGroup() throws -> String {
-    guard let group = Bundle.main.object(forInfoDictionaryKey: "UCP2PKeychainAccessGroup") as? String,
+    guard
+      let group = Bundle.main.object(forInfoDictionaryKey: "UCP2PKeychainAccessGroup") as? String,
       group.hasSuffix(".p2p"),
       !group.contains("$(")
     else {
@@ -157,7 +270,8 @@ private enum P2pSharedStore {
 
   private static func appGroupID() -> String? {
     if let value = Bundle.main.object(forInfoDictionaryKey: "UCAppGroupIdentifier") as? String,
-      !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    {
       return value
     }
     guard var bundleID = Bundle.main.bundleIdentifier else { return nil }
@@ -177,10 +291,66 @@ private enum P2pSharedStore {
     for (source, destination) in [
       (oldData, root.appendingPathComponent("data", isDirectory: true)),
       (oldCache, root.appendingPathComponent("cache", isDirectory: true)),
-    ] where fileManager.fileExists(atPath: source.path)
-      && !fileManager.fileExists(atPath: destination.path) {
+    ]
+    where fileManager.fileExists(atPath: source.path)
+      && !fileManager.fileExists(atPath: destination.path)
+    {
       try fileManager.copyItem(at: source, to: destination)
     }
+  }
+}
+
+private final class ExtensionMobileEngineAdapter: ExtensionSyncEngine {
+  private let engine: MobileEngine
+  private let localDeviceId: String
+
+  init(engine: MobileEngine, localDeviceId: String) {
+    self.engine = engine
+    self.localDeviceId = localDeviceId
+  }
+
+  func refreshPeerConnections() throws -> ExtensionPeerRefreshReport {
+    let report = try engine.refreshPeerConnections()
+    return ExtensionPeerRefreshReport(
+      total: report.total,
+      online: report.online,
+      offline: report.offline,
+      errors: report.errors
+    )
+  }
+
+  func queryCurrentRemoteClipboardEntryId() throws -> String? {
+    guard let active = try engine.queryActiveClipboard(), active.activatedBy != localDeviceId else {
+      return nil
+    }
+    return active.entryId
+  }
+
+  func nextEvent(timeoutMs: UInt64) throws -> ExtensionSyncEvent? {
+    guard let event = engine.nextEvent(timeoutMs: timeoutMs) else { return nil }
+    if case .activeClipboardChanged(_, let entryId, _, let activatedBy) = event,
+      activatedBy != localDeviceId
+    {
+      return .remoteActiveClipboardChanged(entryId: entryId)
+    }
+    return .other
+  }
+
+  func restoreRemoteClipboard(entryId: String) throws -> Bool {
+    try engine.restoreClipboard(entryId: entryId, mode: .standard) == .restored
+  }
+}
+
+extension SendReport {
+  fileprivate var extensionDeliveryReport: ExtensionDeliveryReport {
+    ExtensionDeliveryReport(
+      entryId: entryId,
+      accepted: totalAccepted,
+      duplicate: totalDuplicate,
+      offline: totalOffline,
+      errored: totalErrored,
+      pending: totalPending
+    )
   }
 }
 
@@ -290,10 +460,12 @@ final class AppleEngineHost: BindingHost, @unchecked Sendable {
         else { return nil as AppleClipboardDisplayMetadata? }
         return try? AppleClipboardDisplayMetadata(data: bytes)
       }.first
-      guard let first = snapshot.representations.first(where: { representation in
-        guard case .inline(let format, let mimeType, _) = representation else { return true }
-        return !AppleClipboardDisplayMetadata.matches(format: format, mimeType: mimeType)
-      }) else {
+      guard
+        let first = snapshot.representations.first(where: { representation in
+          guard case .inline(let format, let mimeType, _) = representation else { return true }
+          return !AppleClipboardDisplayMetadata.matches(format: format, mimeType: mimeType)
+        })
+      else {
         UIPasteboard.general.items = []
         return
       }
@@ -305,7 +477,7 @@ final class AppleEngineHost: BindingHost, @unchecked Sendable {
           bytes: bytes,
           metadata: metadata,
           allowedRoots: [
-          try self.applicationSupportDirectory(),
+            try self.applicationSupportDirectory(),
             self.p2pDirectory.appendingPathComponent("cache", isDirectory: true),
             FileManager.default.temporaryDirectory,
           ]
@@ -341,7 +513,6 @@ final class AppleEngineHost: BindingHost, @unchecked Sendable {
   }
 
 }
-
 
 private func withHostBindingError<T>(_ operation: () throws -> T) throws -> T {
   do {

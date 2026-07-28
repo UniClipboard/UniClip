@@ -18,7 +18,7 @@ public final class UcEngineModule: Module {
       let started = try self.host.start(appVersion: appVersion, profileId: profileId)
       do {
         let installed = try self.engines.installBeforePreparing(started) { engine in
-          try self.lifecycle.prepare(AppleEngineLifecycle(engine: engine))
+          try self.lifecycle.prepare(AppleEngineLifecycle(engine: engine, host: self.host))
         }
         guard installed else {
           throw UcEngineAlreadyStartedException()
@@ -29,18 +29,26 @@ public final class UcEngineModule: Module {
         } catch {
           Self.reportLifecycleError(error)
         }
+        if self.currentEngine() == nil {
+          self.host.releaseRuntimeOwnership()
+        }
         throw error
       }
     }
 
     AsyncFunction("shutdown") { (deadlineMs: UInt64) in
       let active = self.engines.take()
+      defer { self.host.releaseRuntimeOwnership() }
       try active?.shutdown(deadlineMs: deadlineMs)
       self.host.removeAllFileHandles()
     }
 
-    AsyncFunction("suspend") { try self.requireEngine().suspend() }
-    AsyncFunction("resume") { try self.requireEngine().resume() }
+    AsyncFunction("suspend") {
+      try AppleEngineLifecycle(engine: self.requireEngine(), host: self.host).suspend()
+    }
+    AsyncFunction("resume") {
+      try AppleEngineLifecycle(engine: self.requireEngine(), host: self.host).resume()
+    }
 
     AsyncFunction("createSpace") { (deviceName: String?, passphrase: String) -> [String: Any] in
       let result = try self.requireEngine().createSpace(
@@ -194,10 +202,14 @@ public final class UcEngineModule: Module {
     }
 
     OnAppEntersBackground {
-      self.lifecycle.enterBackground(self.currentEngine().map(AppleEngineLifecycle.init))
+      self.lifecycle.enterBackground(
+        self.currentEngine().map { AppleEngineLifecycle(engine: $0, host: self.host) }
+      )
     }
     OnAppEntersForeground {
-      self.lifecycle.enterForeground(self.currentEngine().map(AppleEngineLifecycle.init))
+      self.lifecycle.enterForeground(
+        self.currentEngine().map { AppleEngineLifecycle(engine: $0, host: self.host) }
+      )
     }
     OnAppContextDestroys { self.shutdownForDestroy() }
   }
@@ -213,6 +225,7 @@ public final class UcEngineModule: Module {
 
   private func shutdownForDestroy() {
     let active = engines.take()
+    defer { host.releaseRuntimeOwnership() }
     do {
       try active?.shutdown(deadlineMs: 2_000)
     } catch {
@@ -412,6 +425,33 @@ public final class UcEngineModule: Module {
 }
 
 private final class AppleEngineLifecycle: NativeEngineLifecycle {
+  private let owned: RuntimeOwnedNativeLifecycle
+
+  init(engine: MobileEngine, host: MainApplicationEngineHost) {
+    owned = RuntimeOwnedNativeLifecycle(
+      engine: AppleMobileEngineLifecycle(engine: engine),
+      ownership: MainApplicationRuntimeOwnership(host: host)
+    )
+  }
+
+  func recoverSession() throws -> NativeSessionRecovery {
+    try owned.recoverSession()
+  }
+
+  func lifecycleState() throws -> NativeEngineLifecycleState {
+    try owned.lifecycleState()
+  }
+
+  func suspend() throws {
+    try owned.suspend()
+  }
+
+  func resume() throws {
+    try owned.resume()
+  }
+}
+
+private final class AppleMobileEngineLifecycle: NativeEngineLifecycle {
   private let engine: MobileEngine
 
   init(engine: MobileEngine) {
@@ -440,6 +480,22 @@ private final class AppleEngineLifecycle: NativeEngineLifecycle {
 
   func resume() throws {
     try engine.resume()
+  }
+}
+
+private final class MainApplicationRuntimeOwnership: NativeRuntimeOwnership {
+  private let host: MainApplicationEngineHost
+
+  init(host: MainApplicationEngineHost) {
+    self.host = host
+  }
+
+  func acquire(timeoutMs: UInt64) throws -> Bool {
+    try host.acquireRuntimeOwnership(timeoutMs: timeoutMs)
+  }
+
+  func release() {
+    host.releaseRuntimeOwnership()
   }
 }
 

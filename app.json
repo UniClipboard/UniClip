@@ -53,6 +53,8 @@
       "./plugins/build/withRustCore.js",
       "./plugins/build/withAndroidBuildVersionName.js",
       "./plugins/build/withExtensionP2PKeychainGroup.js",
+      "./plugins/build/withXcode27SceneLifecycle.js",
+      "./plugins/build/withXcode27DeploymentTargets.js",
       "@bacons/apple-targets",
       ["expo-sharing", { "android": { "enabled": true, "singleShareMimeTypes": ["*/*"] } }],
       ["expo-camera", { "cameraPermission": "授权 UniClip 使用相机以扫描二维码接入服务器" }],

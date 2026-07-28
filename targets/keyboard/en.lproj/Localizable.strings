@@ -8,6 +8,10 @@
 "筛选" = "Filter";
 "同步成功" = "Synced";
 "同步失败" = "Sync Failed";
+"部分设备尚未收到" = "Some devices haven't received it yet";
+"设备离线" = "Device offline";
+"等待发送" = "Waiting to send";
+"发送失败" = "Send failed";
 "刷新" = "Refresh";
 "关闭筛选" = "Close filters";
 "正在同步…" = "Syncing…";

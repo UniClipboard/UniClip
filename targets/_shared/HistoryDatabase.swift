@@ -1,6 +1,7 @@
 import Foundation
 import OSLog
 import SQLite3
+internal import UcEngineCore
 
 private let log = Logger(subsystem: "app.uniclipboard", category: "historydb")
 
@@ -126,7 +127,7 @@ public final class HistoryDatabase {
             )
             let ms = sqlite3_column_int64(stmt, 6)
             items.append(ClipboardHistoryItem(
-                id: Self.stableUUID(fromHex: hash),
+                id: ExtensionStableIdentifier.uuid(for: hash),
                 entry: entry,
                 timestamp: Date(timeIntervalSince1970: Double(ms) / 1000),
                 // Direction isn't materialized in the table and no extension
@@ -323,22 +324,6 @@ public final class HistoryDatabase {
             else { return "text" }
             return "url"
         }
-    }
-
-    /// Deterministic UUID from the row's profileHash (64-hex SHA-256) so
-    /// SwiftUI identity is stable across reloads without storing a UUID.
-    private static func stableUUID(fromHex hash: String) -> UUID {
-        var bytes: [UInt8] = []
-        bytes.reserveCapacity(16)
-        var iter = hash.makeIterator()
-        while bytes.count < 16, let hi = iter.next(), let lo = iter.next() {
-            guard let h = hi.hexDigitValue, let l = lo.hexDigitValue else { break }
-            bytes.append(UInt8(h << 4 | l))
-        }
-        guard bytes.count == 16 else { return UUID() }
-        return UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5],
-                           bytes[6], bytes[7], bytes[8], bytes[9], bytes[10], bytes[11],
-                           bytes[12], bytes[13], bytes[14], bytes[15]))
     }
 
     private static func epochMs(_ date: Date) -> Int64 {

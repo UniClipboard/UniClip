@@ -8,6 +8,10 @@
 "筛选" = "Filtrar";
 "同步成功" = "Sincronizado";
 "同步失败" = "Falha na sincronização";
+"部分设备尚未收到" = "Alguns dispositivos ainda não receberam";
+"设备离线" = "Dispositivo offline";
+"等待发送" = "Aguardando envio";
+"发送失败" = "Falha ao enviar";
 "刷新" = "Atualizar";
 "关闭筛选" = "Fechar filtros";
 "正在同步…" = "Sincronizando…";

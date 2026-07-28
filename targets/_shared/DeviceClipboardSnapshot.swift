@@ -10,7 +10,7 @@ import Foundation
 /// push sequence through `SendClipboardIntent` — can name the same type
 /// without dragging in the UIKit-bound observer. Pure Foundation: the
 /// SwiftPM `UniClipboardModels` target compiles it without UIKit.
-struct DeviceClipboardSnapshot {
+struct DeviceClipboardSnapshot: Sendable {
     let clipboard: Clipboard
     let payload: Data?
 }

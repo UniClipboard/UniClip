@@ -24,7 +24,12 @@ let package = Package(
         "SharedEngineHost.swift",
         "UniClipboardEngine.xcframework",
       ],
-      sources: ["NativeLifecycleHost.swift", "NativeSystemHost.swift"]
+      sources: [
+        "ExtensionSyncCoordinator.swift",
+        "NativeLifecycleHost.swift",
+        "NativeSystemHost.swift",
+        "P2pRuntimeOwnership.swift",
+      ]
     ),
     .testTarget(
       name: "UcEngineSystemHostTests",

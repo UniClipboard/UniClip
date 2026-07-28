@@ -17,31 +17,61 @@ enum ExtensionSyncRouter {
         ExtensionSyncChannel(settings: settings)
     }
 
-    static func sendKeyboardSnapshot(_ snapshot: DeviceClipboardSnapshot) throws {
-        let client = try ExtensionP2pClient()
+    static func synchronizeKeyboardSnapshot(
+        _ snapshot: DeviceClipboardSnapshot?,
+        using client: ExtensionP2pClient
+    ) throws -> ExtensionSyncResult {
+        let send: (() throws -> SendReport)?
+        guard let snapshot else {
+            return try client.synchronize(receiveTimeoutMs: 0, send: nil)
+        }
         switch snapshot.clipboard.type {
         case .text:
             let text = snapshot.payload.flatMap { String(data: $0, encoding: .utf8) }
                 ?? snapshot.clipboard.text
-            _ = try client.sendText(text)
+            send = { try client.sendText(text) }
         case .image:
-            guard let bytes = snapshot.payload else { return }
-            _ = try client.sendImage(bytes, mimeType: imageMimeType(for: snapshot.clipboard.dataName))
+            guard let bytes = snapshot.payload else {
+                return try client.synchronize(send: nil)
+            }
+            send = {
+                try client.sendImage(
+                    bytes,
+                    mimeType: imageMimeType(for: snapshot.clipboard.dataName)
+                )
+            }
         case .file, .group:
-            return
+            send = nil
         }
+        return try client.synchronize(receiveTimeoutMs: 0, send: send)
     }
 
     static func sendText(_ text: String) throws {
-        _ = try ExtensionP2pClient().sendText(text)
+        let client = try ExtensionP2pClient()
+        try requireDelivered(client.synchronize { try client.sendText(text) })
     }
 
     static func sendImage(_ bytes: Data, ext: String) throws {
-        _ = try ExtensionP2pClient().sendImage(bytes, mimeType: imageMimeType(for: ext))
+        let client = try ExtensionP2pClient()
+        try requireDelivered(
+            client.synchronize { try client.sendImage(bytes, mimeType: imageMimeType(for: ext)) }
+        )
     }
 
     static func sendFile(_ url: URL, displayName: String) throws {
-        _ = try ExtensionP2pClient().sendFile(url, displayName: displayName)
+        let client = try ExtensionP2pClient()
+        try requireDelivered(
+            client.synchronize { try client.sendFile(url, displayName: displayName) }
+        )
+    }
+
+    private static func requireDelivered(_ result: ExtensionSyncResult) throws {
+        guard let delivery = result.delivery else {
+            throw ExtensionP2pError.deliveryIncomplete(.failed)
+        }
+        guard delivery.state == .delivered else {
+            throw ExtensionP2pError.deliveryIncomplete(delivery.state)
+        }
     }
 
     private static func imageMimeType(for source: String?) -> String {

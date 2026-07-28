@@ -1,12 +1,10 @@
 import UIKit
-import SwiftUI
 
 /// Principal class for the UniClip custom keyboard. iOS instantiates this
 /// (`NSExtensionPrincipalClass = $(PRODUCT_MODULE_NAME).KeyboardViewController`)
 /// when the user switches to the UniClip keyboard. It subclasses
-/// `UIInputViewController` — the keyboard analog of a view controller — and
-/// hosts a SwiftUI sheet via `UIHostingController`, mirroring the Share
-/// Extension's `ShareViewController` approach.
+/// `UIInputViewController` and owns a fixed-height UIKit surface so a newly
+/// created extension never has to bootstrap a second rendering runtime.
 ///
 /// The keyboard's job is clipboard *sync*, not text entry. On appear it:
 ///   1. reads the device pasteboard and pushes anything new to the active
@@ -22,14 +20,17 @@ import SwiftUI
 /// which is exactly what makes the auto-sync feel automatic.
 final class KeyboardViewController: UIInputViewController {
     private let model = KeyboardModel()
-    private var host: UIHostingController<KeyboardRootView>?
+    private var keyboardView: KeyboardRootView?
+    private var keyboardSurfaceHeightConstraint: NSLayoutConstraint?
+    private let controllerID = UUID().uuidString
+    private var lastLoggedLayoutSize = CGSize.zero
 
     /// Custom keyboard height, sized to *hug* its content so the card row sits
     /// snug between the top bar and the key row instead of floating in a tall
     /// frame. The Paste-style layout stacks a branded/search top bar, a row of
     /// clipboard cards, and the space/⌫/return key row — that's
     /// `KeyboardLayout.contentHeight`, **computed from the same constants the
-    /// SwiftUI layout consumes** (a hand-summed constant here once lagged a
+    /// UIKit layout consumes** (a hand-summed constant here once lagged a
     /// 2pt top-bar change and clipped the card row into looking like it had
     /// divider lines). The globe strip is added only when iOS needs an
     /// input-mode switch key (see `viewDidAppear`); without it the strip
@@ -45,8 +46,24 @@ final class KeyboardViewController: UIInputViewController {
         return constraint
     }()
 
+    override func loadView() {
+        let targetHeight = initialTargetHeight
+        let inputView = UIInputView(
+            frame: CGRect(x: 0, y: 0, width: 0, height: targetHeight),
+            inputViewStyle: .keyboard
+        )
+        inputView.allowsSelfSizing = true
+        inputView.backgroundColor = .clear
+        inputView.isOpaque = false
+        view = inputView
+        preferredContentSize.height = targetHeight
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
+        KeyboardDiagnostics.shared.record("controller.load", fields: [
+            "controllerID": controllerID,
+        ])
 
         // Wire the model's UI callbacks to the input controller. `unowned`
         // is safe: the model is owned by (and outlived by) this controller.
@@ -68,53 +85,49 @@ final class KeyboardViewController: UIInputViewController {
         model.playInputClick = {
             UIDevice.current.playInputClick()
         }
-        // Keep every layer *visually* transparent so the system-drawn keyboard
-        // tray (flat gray pre-iOS 26, Liquid Glass on iOS 26+) shows through.
-        // The controller's own view defaults opaque, and UIHostingController
-        // adds an opaque background of its own — both would hide the system
-        // tray and force us to fake a color that can't match Liquid Glass.
-        //
-        // But NOT alpha-zero: the system ignores touches that land on fully
-        // transparent points of a custom keyboard (documented keyboard-window
-        // behavior; see https://developer.apple.com/forums/thread/702798).
-        // The quiet-chrome top bar is bare glyphs, so most of its hit area is
-        // transparent pixels — with `.clear` here, taps beside the glyph
-        // strokes were silently dropped before SwiftUI ever saw them. A
-        // 0.001-alpha film is invisible over the tray but keeps every point
-        // of the keyboard touch-opaque (same trick as the switcher scrim).
-        view.backgroundColor = UIColor(white: 1, alpha: 0.001)
+        model.prepareForFirstPresentation(
+            fullAccess: hasFullAccess,
+            needsInputModeSwitchKey: needsInputModeSwitchKey,
+            returnKeyType: textDocumentProxy.returnKeyType
+        )
+        updateHeightConstraint()
+        heightConstraint.isActive = true
 
-        let root = KeyboardRootView(model: model)
-        let host = UIHostingController(rootView: root)
-        self.host = host
-        addChild(host)
-        host.view.translatesAutoresizingMaskIntoConstraints = false
-        host.view.backgroundColor = .clear
-        view.addSubview(host.view)
+        let keyboardView = KeyboardRootView(model: model)
+        keyboardView.onPreferredHeightChange = { [weak self] targetHeight in
+            self?.applyTargetHeight(targetHeight)
+        }
+        keyboardView.onOpenSettings = { [weak self] url in
+            self?.extensionContext?.open(url, completionHandler: nil)
+        }
+        self.keyboardView = keyboardView
+        view.addSubview(keyboardView)
+        let keyboardSurfaceHeightConstraint = keyboardView.heightAnchor.constraint(
+            equalToConstant: keyboardView.preferredHeight
+        )
+        self.keyboardSurfaceHeightConstraint = keyboardSurfaceHeightConstraint
         NSLayoutConstraint.activate([
-            host.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            host.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            host.view.topAnchor.constraint(equalTo: view.topAnchor),
-            host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            keyboardView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            keyboardView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            keyboardView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            keyboardSurfaceHeightConstraint,
         ])
-        host.didMove(toParent: self)
+        applyTargetHeight(keyboardView.preferredHeight)
     }
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        KeyboardDiagnostics.shared.record("controller.appear", fields: [
+            "controllerID": controllerID,
+            "animated": String(animated),
+            "fullAccess": String(hasFullAccess),
+            "needsInputModeSwitchKey": String(needsInputModeSwitchKey),
+        ])
         // `hasFullAccess` / `needsInputModeSwitchKey` are only reliable once
         // the input view is on screen — read them here, then drive the sync.
         model.needsInputModeSwitchKey = needsInputModeSwitchKey
         model.hasFullAccess = hasFullAccess
-        // Size to content: add the globe band only when the strip is shown, so a
-        // single-keyboard install doesn't leave the freed space floating the
-        // card row up off the keys.
-        let contentHeight = hasFullAccess
-            ? KeyboardLayout.contentHeight
-            : KeyboardLayout.restrictedContentHeight
-        heightConstraint.constant = contentHeight
-            + (needsInputModeSwitchKey ? KeyboardLayout.stripBandHeight : 0)
-        heightConstraint.isActive = true
+        updateHeightConstraint()
         model.setReturnKeyType(textDocumentProxy.returnKeyType)
         model.onAppear()
         if let group = UserDefaults(suiteName: SettingsStore.appGroupID) {
@@ -131,8 +144,55 @@ final class KeyboardViewController: UIInputViewController {
         model.setReturnKeyType(textDocumentProxy.returnKeyType)
     }
 
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        let size = view.bounds.size
+        guard abs(size.width - lastLoggedLayoutSize.width) >= 0.5
+                || abs(size.height - lastLoggedLayoutSize.height) >= 0.5 else { return }
+        lastLoggedLayoutSize = size
+        let keyboardSurfaceHeight = keyboardView?.bounds.height
+            ?? keyboardSurfaceHeightConstraint?.constant
+            ?? 0
+        KeyboardDiagnostics.shared.record("controller.layout", fields: [
+            "controllerID": controllerID,
+            "width": String(format: "%.1f", size.width),
+            "height": String(format: "%.1f", size.height),
+            "surfaceHeight": String(format: "%.1f", keyboardSurfaceHeight),
+        ])
+    }
+
+    private func updateHeightConstraint() {
+        // Size to content: add the globe band only when the strip is shown, so a
+        // single-keyboard install doesn't leave the freed space floating the
+        // card row up off the keys.
+        let contentHeight = hasFullAccess
+            ? KeyboardLayout.contentHeight
+            : KeyboardLayout.restrictedContentHeight
+        heightConstraint.constant = contentHeight
+            + (needsInputModeSwitchKey ? KeyboardLayout.stripBandHeight : 0)
+        preferredContentSize.height = heightConstraint.constant
+    }
+
+    private var initialTargetHeight: CGFloat {
+        let contentHeight = hasFullAccess
+            ? KeyboardLayout.contentHeight
+            : KeyboardLayout.restrictedContentHeight
+        return contentHeight
+            + (needsInputModeSwitchKey ? KeyboardLayout.stripBandHeight : 0)
+    }
+
+    private func applyTargetHeight(_ targetHeight: CGFloat) {
+        heightConstraint.constant = targetHeight
+        keyboardSurfaceHeightConstraint?.constant = targetHeight
+        preferredContentSize.height = targetHeight
+    }
+
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        KeyboardDiagnostics.shared.record("controller.disappear", fields: [
+            "controllerID": controllerID,
+            "animated": String(animated),
+        ])
         // Stop polling the pasteboard when the keyboard leaves the screen
         // (globe to another keyboard, dismissed, host app closed) so we don't
         // run a background timer the user can't see.

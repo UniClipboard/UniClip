@@ -4,12 +4,13 @@ import UIKit
 import ImageIO
 import Network
 import OSLog
+internal import UcEngineCore
 
 private let log = Logger(subsystem: "app.uniclipboard.keyboard", category: "sync")
 
 /// Observable state + sync logic backing the UniClip keyboard. Owned by
-/// `KeyboardViewController`; the SwiftUI `KeyboardRootView` reads its
-/// published properties and calls its actions.
+/// `KeyboardViewController`; the UIKit `KeyboardRootView` observes its narrow
+/// presentation objects and calls its actions.
 ///
 /// The screen is a compact clipboard-history browser, not a QWERTY: a
 /// horizontally-scrolling row of cards distilled from the App Group history
@@ -79,12 +80,25 @@ final class KeyboardModel: ObservableObject {
         /// Tabs this card belongs to. `链接` rides in the 文本 tab.
         var isText: Bool { kind == .text || kind == .link }
         var isImage: Bool { kind == .image }
+
+        static func == (lhs: Card, rhs: Card) -> Bool {
+            lhs.id == rhs.id
+                && lhs.kind == rhs.kind
+                && lhs.entry == rhs.entry
+                && lhs.title == rhs.title
+                && lhs.subtitle == rhs.subtitle
+                && lhs.sizeText == rhs.sizeText
+        }
     }
 
     // MARK: - Published state
 
-    var hasFullAccess: Bool = false
-    @Published var needsInputModeSwitchKey: Bool = true
+    var hasFullAccess: Bool = false {
+        didSet { layoutPresentation.setFullAccess(hasFullAccess) }
+    }
+    @Published var needsInputModeSwitchKey: Bool = true {
+        didSet { layoutPresentation.setNeedsInputModeSwitchKey(needsInputModeSwitchKey) }
+    }
 
     /// Key-feedback prefs, mirrored from `AppSettings` (App Group). Read
     /// once on appear and re-read on each sync pass so a change made in the
@@ -92,37 +106,62 @@ final class KeyboardModel: ObservableObject {
     /// so a fresh install feels like a stock keyboard.
     private(set) var soundFeedback = true
     private(set) var hapticFeedback = true
-    @Published private(set) var localization = ExtensionLocalization()
+    @Published private(set) var localization = ExtensionLocalization() {
+        didSet { layoutPresentation.setLocalization(localization) }
+    }
 
-    @Published private(set) var gate: Gate = .ok
-    /// Drives the header's refresh spinner. Independent of `cards` so a sync
-    /// pass never blanks out the already-visible row.
-    @Published private(set) var isSyncing: Bool = false
+    @Published private(set) var gate: Gate = .ok {
+        didSet {
+            topBarPresentation.setGate(gate)
+            cardListPresentation.setGate(gate)
+        }
+    }
+    let layoutPresentation = KeyboardLayoutPresentation()
+    let topBarPresentation = KeyboardTopBarPresentation()
+    let cardListPresentation = KeyboardCardListPresentation()
+    let cardActionPresentation = KeyboardCardActionPresentation()
+    /// Transient progress belongs to the refresh control, not the keyboard's
+    /// root observation surface. Keeping it separate prevents every spinner
+    /// frame / outcome change from invalidating the entire keyboard tree.
+    let syncPresentation = KeyboardSyncPresentation()
     /// Set on a failed pull / tap-fetch. Rendered as an inline chip (cards
     /// present) or a full hint + retry (no cards).
-    @Published private(set) var lastError: String?
-    @Published private(set) var cards: [Card] = []
+    @Published private(set) var lastError: String? {
+        didSet { cardListPresentation.setLastError(lastError) }
+    }
+    @Published private(set) var cards: [Card] = [] {
+        didSet {
+            topBarPresentation.setHasCards(!cards.isEmpty)
+            cardListPresentation.setCards(cards)
+        }
+    }
     private(set) var pushStatus: PushStatus = .none
     /// The entry the most recent uplink actually uploaded. Read by the
     /// downlink half to decide whether the server's latest is our own push
     /// (→ adopt its hash as watermark) or someone else's (→ treat as pull).
     private var lastPushedEntry: Clipboard?
-    /// Brief success/failure badge on the refresh button; auto-clears.
-    @Published private(set) var syncFlash: SyncFlash?
-    @Published private(set) var serverLabel: String = ""
+    @Published private(set) var serverLabel: String = "" {
+        didSet { topBarPresentation.setServerLabel(serverLabel) }
+    }
 
     /// The card whose deferred payload (long text / image) is being fetched,
     /// so just that card can show a spinner.
-    @Published private(set) var actingCardID: UUID?
+    @Published private(set) var actingCardID: UUID? {
+        didSet { cardActionPresentation.setActingCardID(actingCardID) }
+    }
     /// Briefly set right after an insert/copy so the tapped card can flash a
     /// "已插入 / 已复制" confirmation without a separate state machine.
-    @Published private(set) var actedCardID: UUID?
+    @Published private(set) var actedCardID: UUID? {
+        didSet { cardActionPresentation.setActedCardID(actedCardID) }
+    }
 
     /// Context-appropriate label for the Return key, derived from the host
     /// field's `returnKeyType` (发送 / 搜索 / …). `nil` ⇒ render the ↵ glyph.
     /// Set by the controller; a custom keyboard can read the type but can
     /// only ever *insert a newline*, which most single-line fields submit on.
-    @Published private(set) var returnKeyTitle: String?
+    @Published private(set) var returnKeyTitle: String? {
+        didSet { layoutPresentation.setReturnKeyTitle(returnKeyTitle) }
+    }
     private var returnKeyType: UIReturnKeyType?
 
     /// Server + trust resolved on the last sync pass, reused by a card tap to
@@ -163,12 +202,17 @@ final class KeyboardModel: ObservableObject {
     /// own eviction so a long-lived keyboard session can't grow unbounded.
     private let thumbnailCache = NSCache<NSString, UIImage>()
 
-    /// Monotonic token: only the *latest* sync pass is allowed to publish
-    /// state. A fast re-appear / manual ⟳ bumps this so a stale in-flight
-    /// pass that resumes after cancellation can't clobber fresh state (e.g.
-    /// flip `isSyncing` back off after a newer pass turned it on).
+    /// Monotonic token used to keep one task's completion paired with the run
+    /// that started it. The event gate serializes all sync sources and retains
+    /// at most one follow-up while the current bounded session is active.
     private var syncGeneration = 0
     private var syncTask: Task<Void, Never>?
+    private var syncEventGate = ExtensionSyncEventGate()
+    private var p2pClient: ExtensionP2pClient?
+    private var p2pReceiveTask: Task<Void, Never>?
+    private var p2pReceiveIdlePolls = 0
+    private var clipboardRevisionTracker = ExtensionClipboardRevisionTracker()
+    private var isVisible = false
     private var flashTask: Task<Void, Never>?
     /// Polls `UIPasteboard.changeCount` while the keyboard is on screen so a
     /// copy made *with the keyboard already open* auto-syncs without a manual
@@ -188,22 +232,58 @@ final class KeyboardModel: ObservableObject {
 
     // MARK: - Lifecycle
 
+    /// Restores all disk-backed presentation state before SwiftUI evaluates
+    /// the keyboard for the first time. iOS may recreate the input controller
+    /// after a Copy action even though the extension process stays alive; the
+    /// new controller must not render an empty/restricted frame first.
+    func prepareForFirstPresentation(
+        fullAccess: Bool,
+        needsInputModeSwitchKey: Bool,
+        returnKeyType: UIReturnKeyType?
+    ) {
+        loadFeedbackPrefs()
+        self.needsInputModeSwitchKey = needsInputModeSwitchKey
+        hasFullAccess = fullAccess
+        setReturnKeyType(returnKeyType)
+        if fullAccess {
+            publishGate(.ok)
+            reloadCards()
+        } else {
+            publishGate(.needsFullAccess)
+        }
+        KeyboardDiagnostics.shared.record("model.prepare", fields: [
+            "fullAccess": String(fullAccess),
+            "needsInputModeSwitchKey": String(needsInputModeSwitchKey),
+            "cardCount": String(cards.count),
+        ])
+    }
+
     /// Called from `viewDidAppear`. Gates on Full Access, shows cached
     /// history instantly, runs an initial sync pass, and starts watching the
     /// pasteboard for changes while open.
     func onAppear() {
+        isVisible = true
+        let storedRevision = store.loadLastSyncedChangeCount()
+        clipboardRevisionTracker = ExtensionClipboardRevisionTracker(
+            lastHandledRevision: storedRevision
+        )
+        KeyboardDiagnostics.shared.record("model.appear", fields: [
+            "fullAccess": String(hasFullAccess),
+            "pasteboardRevision": String(UIPasteboard.general.changeCount),
+            "storedRevision": storedRevision.map(String.init) ?? "nil",
+        ])
         // Load feedback prefs first — the space/⌫/return keys work (and so
         // should honor the click/haptic toggles) even before Full Access,
         // i.e. before the gate below short-circuits.
         loadFeedbackPrefs()
         impactGenerator.prepare()
         guard hasFullAccess else {
-            gate = .needsFullAccess
+            publishGate(.needsFullAccess)
             return
         }
         reloadCards()        // instant, offline — render before the network round-trip
         startPathMonitoring()
-        refresh()
+        requestSync(.appeared)
         startMonitoring()
     }
 
@@ -236,23 +316,77 @@ final class KeyboardModel: ObservableObject {
         }
     }
 
-    /// Re-run the sync pass. Cancels any in-flight pass first so a fast
-    /// re-appear (or a manual ⟳ tap) doesn't race two pulls.
-    ///
-    /// `force` bypasses the changeCount gate in the uplink — used by the
-    /// manual refresh button so the user can retry a failed push (or re-pull)
-    /// even when nothing new has been copied. Automatic triggers (appear,
-    /// poll) leave it false so reopening the keyboard never re-prompts.
-    func refresh(force: Bool = false) {
+    /// Queue a sync for one concrete event source. If a bounded session is
+    /// already active, the gate coalesces all new events into one prioritized
+    /// follow-up instead of cancelling native work or running sessions beside
+    /// each other.
+    func requestSync(_ trigger: ExtensionSyncTrigger) {
         guard hasFullAccess else {
-            gate = .needsFullAccess
+            recordSyncRequest(trigger, outcome: "ignored_no_full_access")
+            publishGate(.needsFullAccess)
             return
         }
+        guard isVisible else {
+            recordSyncRequest(trigger, outcome: "ignored_not_visible")
+            return
+        }
+        guard let accepted = syncEventGate.request(trigger) else {
+            recordSyncRequest(trigger, outcome: "merged")
+            return
+        }
+        recordSyncRequest(trigger, outcome: "accepted")
+        startSync(accepted)
+    }
+
+    private func recordSyncRequest(_ trigger: ExtensionSyncTrigger, outcome: String) {
+        KeyboardDiagnostics.shared.record("sync.request", fields: [
+            "trigger": trigger.diagnosticName,
+            "outcome": outcome,
+            "visible": String(isVisible),
+            "fullAccess": String(hasFullAccess),
+            "generation": String(syncGeneration),
+        ])
+    }
+
+    private func startSync(_ trigger: ExtensionSyncTrigger) {
         syncGeneration += 1
         let gen = syncGeneration
-        syncTask?.cancel()
+        KeyboardDiagnostics.shared.record("sync.start", fields: [
+            "trigger": trigger.diagnosticName,
+            "generation": String(gen),
+        ])
+        syncPresentation.setSyncing(trigger.showsSyncProgress)
         syncTask = Task { [weak self] in
-            await self?.sync(force: force, gen: gen)
+            guard let self else { return }
+            await self.sync(
+                force: trigger == .manual || trigger == .serverChanged,
+                publishHistoryChanges: trigger.shouldPublishHistoryImmediately,
+                showSyncFeedback: trigger.showsSyncProgress,
+                gen: gen
+            )
+            guard gen == self.syncGeneration else {
+                KeyboardDiagnostics.shared.record("sync.finish", fields: [
+                    "generation": String(gen),
+                    "outcome": "stale_or_cancelled",
+                ])
+                return
+            }
+            self.syncTask = nil
+            if let pending = self.syncEventGate.finish(), self.isVisible {
+                KeyboardDiagnostics.shared.record("sync.finish", fields: [
+                    "generation": String(gen),
+                    "outcome": "follow_up",
+                    "nextTrigger": pending.diagnosticName,
+                ])
+                self.startSync(pending)
+            } else {
+                KeyboardDiagnostics.shared.record("sync.finish", fields: [
+                    "generation": String(gen),
+                    "outcome": "idle",
+                    "visible": String(self.isVisible),
+                ])
+                self.syncPresentation.setSyncing(false)
+            }
         }
     }
 
@@ -261,7 +395,11 @@ final class KeyboardModel: ObservableObject {
     /// copied something new with the keyboard already up — fire an automatic
     /// sync. Idempotent; `stopMonitoring()` tears it down on disappear.
     func startMonitoring() {
-        guard hasFullAccess else { return }
+        guard hasFullAccess else {
+            KeyboardDiagnostics.shared.record("clipboard.monitor", fields: ["outcome": "not_started"])
+            return
+        }
+        KeyboardDiagnostics.shared.record("clipboard.monitor", fields: ["outcome": "started"])
         pollTask?.cancel()
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
@@ -273,8 +411,20 @@ final class KeyboardModel: ObservableObject {
     }
 
     func stopMonitoring() {
+        KeyboardDiagnostics.shared.record("model.stop", fields: [
+            "generation": String(syncGeneration),
+            "hadClient": String(p2pClient != nil),
+            "hadSyncTask": String(syncTask != nil),
+        ])
+        isVisible = false
         pollTask?.cancel()
         pollTask = nil
+        syncGeneration += 1
+        syncTask?.cancel()
+        syncTask = nil
+        syncEventGate.cancelAll()
+        syncPresentation.setSyncing(false)
+        stopP2pSession()
     }
 
     deinit { pathMonitor.cancel() }
@@ -306,7 +456,7 @@ final class KeyboardModel: ObservableObject {
                     self.pathInitialized = true
                     return
                 }
-                if changed, self.hasFullAccess { self.refresh() }
+                if changed, self.hasFullAccess, self.isVisible { self.requestSync(.networkChanged) }
             }
         }
         pathMonitor.start(queue: pathQueue)
@@ -336,15 +486,22 @@ final class KeyboardModel: ObservableObject {
         return NetworkContext(ssid: nil, isWifi: false, isCellular: false, isTailscale: tailscale)
     }
 
-    /// One poll iteration: if a sync isn't already running and the pasteboard
-    /// advanced past our last sync, kick off an automatic pass. `changeCount`
-    /// is free — only a genuine new copy triggers the (possibly-prompting)
-    /// content read inside the uplink.
+    /// One poll iteration compares only the pasteboard revision. It never runs
+    /// a periodic network pass: unchanged or synchronized writes are ignored.
     private func pollTick() {
-        guard hasFullAccess, gate == .ok, !isSyncing else { return }
         let cc = UIPasteboard.general.changeCount
-        if cc != store.loadLastSyncedChangeCount() {
-            refresh()
+        let changed = clipboardRevisionTracker.hasUnprocessedChange(cc)
+        KeyboardDiagnostics.shared.record("clipboard.poll", fields: [
+            "revision": String(cc),
+            "storedRevision": store.loadLastSyncedChangeCount().map(String.init) ?? "nil",
+            "changed": String(changed),
+            "fullAccess": String(hasFullAccess),
+            "gate": gate.diagnosticName,
+            "visible": String(isVisible),
+        ])
+        guard hasFullAccess, gate == .ok, isVisible else { return }
+        if changed {
+            requestSync(.localClipboardChanged)
         }
     }
 
@@ -366,8 +523,8 @@ final class KeyboardModel: ObservableObject {
         guard list.activeConfigId != id, list.configs.contains(where: { $0.id == id }) else { return }
         list.activeConfigId = id
         store.saveServers(list)
-        serverLabel = list.activeConfig?.displayLabel ?? ""
-        refresh(force: true)
+        publishServerLabel(list.activeConfig?.displayLabel ?? "")
+        requestSync(.serverChanged)
     }
 
     // MARK: - Return key
@@ -395,9 +552,15 @@ final class KeyboardModel: ObservableObject {
 
     // MARK: - Sync
 
-    private func sync(force: Bool, gen: Int) async {
+    private func sync(
+        force: Bool,
+        publishHistoryChanges: Bool,
+        showSyncFeedback: Bool,
+        gen: Int
+    ) async {
         let servers = store.loadServers()
         let settings = store.loadAppSettings()
+        let channel = ExtensionSyncRouter.channel(settings: settings)
         applyPreferences(settings)
 
         // Read the pasteboard once — the content read triggers iOS's
@@ -409,22 +572,38 @@ final class KeyboardModel: ObservableObject {
         let storedCC = store.loadLastSyncedChangeCount()
         let ccChanged = cc != storedCC
         let snap: DeviceClipboardSnapshot? = (ccChanged || force) ? PasteboardReader.snapshot() : nil
+        KeyboardDiagnostics.shared.record("sync.snapshot", fields: [
+            "revision": String(cc),
+            "storedRevision": storedCC.map(String.init) ?? "nil",
+            "changed": String(ccChanged),
+            "force": String(force),
+            "kind": snap?.clipboard.type.rawValue ?? "none",
+            "declaredBytes": snap?.clipboard.size.map(String.init) ?? "nil",
+            "payloadBytes": snap?.payload.map { String($0.count) } ?? "0",
+            "hasPayload": String(snap?.payload != nil),
+        ])
         log.info("sync: cc=\(cc) stored=\(storedCC ?? -1) ccChanged=\(ccChanged) force=\(force) snap=\(snap != nil) snapHash=\(snap?.clipboard.hash ?? "nil")")
 
         recordLocalClipboardIfNew(snap)
         if let snap, let payload = snap.payload, let hash = snap.clipboard.hash {
             store.saveImageData(hash: hash, data: payload)
         }
-        reloadCards()
+        if publishHistoryChanges || channel == .lan { reloadCards() }
 
-        if case .p2p = ExtensionSyncRouter.channel(settings: settings) {
-            gate = .ok
-            serverLabel = ""
-            isSyncing = true
-            await syncP2pSnapshot(snap, changeCount: cc, force: force)
-            if gen == syncGeneration { isSyncing = false }
+        if case .p2p = channel {
+            publishGate(.ok)
+            publishServerLabel("")
+            await syncP2pSnapshot(
+                snap,
+                changeCount: cc,
+                force: force,
+                publishHistoryChanges: publishHistoryChanges,
+                showSyncFeedback: showSyncFeedback
+            )
             return
         }
+
+        stopP2pSession()
 
         // §5.3 from an extension: start from the last probe verdict
         // (`live_urls`, App Group) over pure shape order. Network calls then
@@ -438,21 +617,18 @@ final class KeyboardModel: ObservableObject {
             return cfg
         }()
         guard let server else {
-            gate = .noServer
-            store.saveLastSyncedChangeCount(cc)
+            publishGate(.noServer)
+            recordHandledClipboardRevision(cc)
             if force {
-                lastError = localization.string("尚未配置服务器，请先在主程序中添加")
+                publishLastError(localization.string("尚未配置服务器，请先在主程序中添加"))
                 flashSync(.failure)
             }
-            if gen == syncGeneration { isSyncing = false }
             return
         }
-        gate = .ok
-        serverLabel = server.displayLabel
+        publishGate(.ok)
+        publishServerLabel(server.displayLabel)
         let trust = settings.trustInsecureCert
         ctx = (server, trust)
-
-        isSyncing = true
 
         // ---- Uplink: push the device pasteboard if it carries new content.
         await pushDeviceClipboardIfNew(
@@ -515,7 +691,7 @@ final class KeyboardModel: ObservableObject {
                     // nil for legacy servers — clearing it then is correct.
                     store.saveLastSyncedContentId(latest.contentId)
                 }
-                lastError = nil
+                publishLastError(nil)
                 flashSync(.success)
             } else {
                 // Normal pull — including the "we pushed but another device
@@ -533,46 +709,217 @@ final class KeyboardModel: ObservableObject {
                 let pulledNew = appendPulledIfNew(latest)
                 log.info("sync pull result: pulledNew=\(pulledNew)")
                 reloadCards()
-                lastError = nil
+                publishLastError(nil)
                 if force || didPush || pulledNew { flashSync(.success) }
             }
         } catch {
             guard gen == syncGeneration else { return }
             log.error("sync: failed — \(String(describing: error))")
-            lastError = message(for: error)
+            publishLastError(message(for: error))
             flashSync(.failure)
         }
-
-        if gen == syncGeneration { isSyncing = false }
     }
 
-    /// P2P never resolves or probes a LAN server. The extension starts a
-    /// short-lived sender against the App Group-backed P2P store instead.
+    /// P2P never resolves or probes a LAN server. The extension runs one
+    /// bounded send-and-receive session against the App Group-backed store.
     private func syncP2pSnapshot(
         _ snapshot: DeviceClipboardSnapshot?,
         changeCount: Int,
-        force: Bool
+        force: Bool,
+        publishHistoryChanges: Bool,
+        showSyncFeedback: Bool
     ) async {
-        guard let snapshot else {
-            store.saveLastSyncedChangeCount(changeCount)
-            pushStatus = .none
-            if force { flashSync(.success) }
+        clipboardRevisionTracker.markProcessing(changeCount)
+        defer { clipboardRevisionTracker.finishProcessing(changeCount) }
+        do {
+            let client = try await p2pSession()
+            let result = try await ExtensionSyncExecutor.run {
+                try ExtensionSyncRouter.synchronizeKeyboardSnapshot(snapshot, using: client)
+            }
+            guard isVisible, !Task.isCancelled else { return }
+            var deliveryFields = [
+                "hasSnapshot": String(snapshot != nil),
+                "receivedRemote": String(result.receivedRemoteChange),
+                "state": result.delivery?.state.diagnosticName ?? "none",
+                "refreshTotal": String(result.peerRefresh.total),
+                "refreshOnline": String(result.peerRefresh.online),
+                "refreshOffline": String(result.peerRefresh.offline),
+                "refreshErrors": String(result.peerRefresh.errors),
+            ]
+            if let delivery = result.delivery {
+                deliveryFields["accepted"] = String(delivery.accepted)
+                deliveryFields["duplicate"] = String(delivery.duplicate)
+                deliveryFields["offline"] = String(delivery.offline)
+                deliveryFields["errored"] = String(delivery.errored)
+                deliveryFields["pending"] = String(delivery.pending)
+            }
+            KeyboardDiagnostics.shared.record("p2p.send.result", fields: deliveryFields)
+            let currentChangeCount = result.receivedRemoteChange
+                ? UIPasteboard.general.changeCount
+                : changeCount
+            recordHandledClipboardRevision(currentChangeCount)
+
+            if let snapshot, let delivery = result.delivery {
+                switch delivery.state {
+                case .delivered:
+                    history.append(entry: snapshot.clipboard, direction: .pushed)
+                    pushStatus = .pushed(summary(for: snapshot.clipboard))
+                    lastPushedEntry = snapshot.clipboard
+                    publishLastError(nil)
+                case .partial:
+                    let message = localization.string("部分设备尚未收到")
+                    pushStatus = .failed(message)
+                    publishLastError(message)
+                case .offline:
+                    let message = localization.string("设备离线")
+                    pushStatus = .failed(message)
+                    publishLastError(message)
+                case .pending:
+                    let message = localization.string("等待发送")
+                    pushStatus = .failed(message)
+                    publishLastError(message)
+                case .failed:
+                    let message = localization.string("发送失败")
+                    pushStatus = .failed(message)
+                    publishLastError(message)
+                }
+            } else {
+                pushStatus = .none
+            }
+
+            let deliveryFailed = result.delivery.map { $0.state != .delivered } ?? false
+            if result.receivedRemoteChange {
+                publishP2pRemoteChange(clearError: !deliveryFailed)
+            } else if publishHistoryChanges {
+                reloadCards()
+            }
+
+            let deliverySucceeded = result.delivery?.state == .delivered
+            if showSyncFeedback {
+                if deliveryFailed {
+                    flashSync(.failure)
+                } else if force || deliverySucceeded || result.receivedRemoteChange {
+                    flashSync(.success)
+                }
+            }
+        } catch {
+            guard isVisible, !Task.isCancelled else { return }
+            KeyboardDiagnostics.shared.record("p2p.send.result", fields: [
+                "outcome": "failure",
+                "errorType": String(reflecting: type(of: error)),
+            ])
+            recordHandledClipboardRevision(changeCount)
+            pushStatus = .failed(message(for: error))
+            publishLastError(message(for: error))
+            if showSyncFeedback { flashSync(.failure) }
+        }
+    }
+
+    private func p2pSession() async throws -> ExtensionP2pClient {
+        if let p2pClient {
+            KeyboardDiagnostics.shared.record("p2p.connect.reuse")
+            return p2pClient
+        }
+        let started = DispatchTime.now().uptimeNanoseconds
+        KeyboardDiagnostics.shared.record("p2p.connect.start")
+        do {
+            let client = try await ExtensionSyncExecutor.run { try ExtensionP2pClient() }
+            guard isVisible, !Task.isCancelled else {
+                _ = try? await ExtensionSyncExecutor.run { client.shutdown() }
+                throw CancellationError()
+            }
+            p2pClient = client
+            KeyboardDiagnostics.shared.record("p2p.connect.success", fields: [
+                "durationMs": String(KeyboardDiagnostics.elapsedMilliseconds(since: started)),
+            ])
+            startP2pReceiving(client)
+            return client
+        } catch {
+            KeyboardDiagnostics.shared.record("p2p.connect.failure", fields: [
+                "durationMs": String(KeyboardDiagnostics.elapsedMilliseconds(since: started)),
+                "errorType": String(reflecting: type(of: error)),
+            ])
+            throw error
+        }
+    }
+
+    private func startP2pReceiving(_ client: ExtensionP2pClient) {
+        p2pReceiveTask?.cancel()
+        p2pReceiveIdlePolls = 0
+        KeyboardDiagnostics.shared.record("p2p.receive.wait", fields: ["phase": "started"])
+        p2pReceiveTask = Task { [weak self, client] in
+            while !Task.isCancelled {
+                do {
+                    let received = try await ExtensionSyncExecutor.run {
+                        try client.waitForRemoteChange(timeoutMs: 500)
+                    }
+                    guard !Task.isCancelled, let self, self.isVisible else { return }
+                    if received {
+                        KeyboardDiagnostics.shared.record("p2p.receive.change")
+                        self.p2pReceiveIdlePolls = 0
+                        self.publishP2pRemoteChange(clearError: true)
+                    } else {
+                        self.p2pReceiveIdlePolls += 1
+                        if self.p2pReceiveIdlePolls >= 20 {
+                            KeyboardDiagnostics.shared.record("p2p.receive.wait", fields: [
+                                "phase": "idle_summary",
+                                "polls": String(self.p2pReceiveIdlePolls),
+                            ])
+                            self.p2pReceiveIdlePolls = 0
+                        }
+                    }
+                    await Task.yield()
+                } catch {
+                    guard !Task.isCancelled, let self, self.isVisible else { return }
+                    KeyboardDiagnostics.shared.record("p2p.receive.failure", fields: [
+                        "errorType": String(reflecting: type(of: error)),
+                    ])
+                    self.publishLastError(self.message(for: error))
+                    return
+                }
+            }
+        }
+    }
+
+    private func stopP2pSession() {
+        p2pReceiveTask?.cancel()
+        p2pReceiveTask = nil
+        p2pReceiveIdlePolls = 0
+        guard let client = p2pClient else {
+            KeyboardDiagnostics.shared.record("p2p.close.start", fields: ["outcome": "no_client"])
             return
         }
-        do {
-            try ExtensionSyncRouter.sendKeyboardSnapshot(snapshot)
-            store.saveLastSyncedChangeCount(changeCount)
-            history.append(entry: snapshot.clipboard, direction: .pushed)
-            pushStatus = .pushed(summary(for: snapshot.clipboard))
-            lastPushedEntry = snapshot.clipboard
-            reloadCards()
-            flashSync(.success)
-        } catch {
-            store.saveLastSyncedChangeCount(changeCount)
-            pushStatus = .failed(message(for: error))
-            lastError = message(for: error)
-            flashSync(.failure)
+        p2pClient = nil
+        KeyboardDiagnostics.shared.record("p2p.close.start", fields: ["outcome": "scheduled"])
+        Task.detached(priority: .utility) {
+            client.shutdown()
+            KeyboardDiagnostics.shared.record("p2p.close.finish")
         }
+    }
+
+    private func publishP2pRemoteChange(clearError: Bool) {
+        let revision = UIPasteboard.general.changeCount
+        recordHandledClipboardRevision(revision)
+        guard let remote = PasteboardReader.snapshot() else {
+            KeyboardDiagnostics.shared.record("p2p.receive.change", fields: [
+                "outcome": "snapshot_missing",
+                "revision": String(revision),
+            ])
+            return
+        }
+        KeyboardDiagnostics.shared.record("p2p.receive.change", fields: [
+            "outcome": "published",
+            "revision": String(revision),
+            "kind": remote.clipboard.type.rawValue,
+            "declaredBytes": remote.clipboard.size.map(String.init) ?? "nil",
+            "payloadBytes": remote.payload.map { String($0.count) } ?? "0",
+        ])
+        if let payload = remote.payload, let hash = remote.clipboard.hash {
+            store.saveImageData(hash: hash, data: payload)
+        }
+        history.append(entry: remote.clipboard, direction: .pulled)
+        if clearError { publishLastError(nil) }
+        reloadCards()
     }
 
     /// Record the device pasteboard to the shared history log if it carries
@@ -598,14 +945,14 @@ final class KeyboardModel: ObservableObject {
     ) async {
         guard let snap, let hash = snap.clipboard.hash?.uppercased() else {
             log.info("push: snap nil or no hash → .none")
-            store.saveLastSyncedChangeCount(cc)
+            recordHandledClipboardRevision(cc)
             pushStatus = .none
             return
         }
         let lastHash = store.loadLastSyncedHash()?.uppercased()
         if hash == lastHash {
             log.info("push: hash==lastSyncedHash → .skipped (\(hash.prefix(16))…)")
-            store.saveLastSyncedChangeCount(cc)
+            recordHandledClipboardRevision(cc)
             pushStatus = .skipped
             return
         }
@@ -617,13 +964,13 @@ final class KeyboardModel: ObservableObject {
                 trustInsecureCert: trust,
                 network: network
             )
-            store.saveLastSyncedChangeCount(cc)
+            recordHandledClipboardRevision(cc)
             history.append(entry: snap.clipboard, direction: .pushed)
             pushStatus = .pushed(summary(for: snap.clipboard))
             lastPushedEntry = snap.clipboard
             log.info("push: success")
         } catch {
-            store.saveLastSyncedChangeCount(cc)
+            recordHandledClipboardRevision(cc)
             pushStatus = .failed(message(for: error))
             log.error("push: FAILED \(error)")
         }
@@ -697,19 +1044,79 @@ final class KeyboardModel: ObservableObject {
     /// Show a brief outcome badge on the refresh button, then clear it.
     /// Success lingers ~1.4s; failure a touch longer so it's noticed.
     private func flashSync(_ outcome: SyncFlash) {
-        syncFlash = outcome
+        syncPresentation.setFlash(outcome)
         flashTask?.cancel()
         flashTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(outcome == .success ? 1.4 : 2.0))
-            if !Task.isCancelled { self?.syncFlash = nil }
+            if !Task.isCancelled { self?.syncPresentation.setFlash(nil) }
         }
     }
 
+    private func publishGate(_ next: Gate) {
+        guard gate != next else { return }
+        gate = next
+    }
+
+    private func publishServerLabel(_ next: String) {
+        guard serverLabel != next else { return }
+        serverLabel = next
+    }
+
+    private func publishLastError(_ next: String?) {
+        guard lastError != next else { return }
+        lastError = next
+    }
+
+    private func recordHandledClipboardRevision(_ revision: Int) {
+        clipboardRevisionTracker.markSynchronizedWrite(revision)
+        store.saveLastSyncedChangeCount(revision)
+        KeyboardDiagnostics.shared.record("clipboard.revision.handled", fields: [
+            "revision": String(revision),
+        ])
+    }
+
     /// Rebuild the card row from the on-disk history log (newest-first,
-    /// text + image only). Cheap enough to call after every sync half.
+    /// text + image only). Publishing is skipped when the visible result did
+    /// not change so UIKit does not reload the card collection after a no-op sync.
     private func reloadCards() {
-        cards = history.loadRecent(limit: 100)
+        let nextCards = history.loadRecent(limit: 100)
             .compactMap { card(from: $0) }
+        let changed = nextCards != cards
+        let difference = cardDifference(from: cards, to: nextCards)
+        KeyboardDiagnostics.shared.record("history.reload", fields: [
+            "oldCount": String(cards.count),
+            "newCount": String(nextCards.count),
+            "changed": String(changed),
+            "firstID": nextCards.first?.id.uuidString ?? "nil",
+            "mismatchIndex": difference.index,
+            "changedFields": difference.fields,
+        ])
+        guard nextCards != cards else { return }
+        cards = nextCards
+    }
+
+    private func cardDifference(from current: [Card], to next: [Card]) -> (index: String, fields: String) {
+        guard current.count == next.count else { return ("count", "count") }
+        guard let index = current.indices.first(where: { current[$0] != next[$0] }) else {
+            return ("none", "none")
+        }
+        let old = current[index]
+        let new = next[index]
+        var fields: [String] = []
+        if old.id != new.id { fields.append("id") }
+        if old.kind != new.kind { fields.append("kind") }
+        if old.entry.type != new.entry.type { fields.append("entryType") }
+        if old.entry.hash != new.entry.hash { fields.append("entryHash") }
+        if old.entry.text != new.entry.text { fields.append("entryText") }
+        if old.entry.hasData != new.entry.hasData { fields.append("entryHasData") }
+        if old.entry.dataName != new.entry.dataName { fields.append("entryDataName") }
+        if old.entry.size != new.entry.size { fields.append("entrySize") }
+        if old.entry.contentId != new.entry.contentId { fields.append("entryContentId") }
+        if old.title != new.title { fields.append("title") }
+        if old.subtitle != new.subtitle { fields.append("subtitle") }
+        if old.time != new.time { fields.append("time") }
+        if old.sizeText != new.sizeText { fields.append("sizeText") }
+        return (String(index), fields.joined(separator: ","))
     }
 
     private func card(from item: ClipboardHistoryItem) -> Card? {
@@ -752,7 +1159,7 @@ final class KeyboardModel: ObservableObject {
     /// the auto-sync pass.
     ///
     /// Copying an image advances the pasteboard `changeCount`, and the
-    /// follow-up `refresh()` pushes it to the server through the normal
+    /// follow-up local-change event pushes it to the server through the normal
     /// uplink — same "copy = sync" semantics as tapping a card in the main
     /// app. The watermark advances through the push path, so the shared
     /// `lastSyncedHash` invariant ("server latest == device == this hash")
@@ -816,7 +1223,7 @@ final class KeyboardModel: ObservableObject {
         store.saveImageData(hash: Clipboard.computeBytesHash(data), data: data)
         history.touch(hash: card.entry.hash, legacyID: card.id)
         flashActed(card.id)
-        refresh()
+        requestSync(.localClipboardChanged)
     }
 
     /// Fetch a payload file by name from the last-synced server, then run
@@ -841,12 +1248,12 @@ final class KeyboardModel: ObservableObject {
                     return try await client.getFile(name: name)
                 }
                 if Task.isCancelled { return }
-                self.lastError = nil
+                self.publishLastError(nil)
                 body(data)
             } catch {
                 if Task.isCancelled { return }
                 log.error("fetchThen: getFile(name: \(name)) failed — \(error)")
-                self?.lastError = self?.message(for: error)
+                if let self { self.publishLastError(self.message(for: error)) }
                 self?.flashSync(.failure)
             }
         }
@@ -964,6 +1371,310 @@ final class KeyboardModel: ObservableObject {
 
 }
 
+@MainActor
+final class KeyboardLayoutPresentation: ObservableObject {
+    @Published private(set) var hasFullAccess = false
+    @Published private(set) var needsInputModeSwitchKey = true
+    @Published private(set) var localization = ExtensionLocalization()
+    @Published private(set) var returnKeyTitle: String?
+
+    func setFullAccess(_ next: Bool) {
+        guard hasFullAccess != next else { return }
+        recordPresentation("layout", field: "fullAccess", value: String(next))
+        hasFullAccess = next
+    }
+
+    func setNeedsInputModeSwitchKey(_ next: Bool) {
+        guard needsInputModeSwitchKey != next else { return }
+        recordPresentation("layout", field: "inputModeSwitch", value: String(next))
+        needsInputModeSwitchKey = next
+    }
+
+    func setLocalization(_ next: ExtensionLocalization) {
+        guard localization != next else { return }
+        recordPresentation("layout", field: "localization", value: "changed")
+        localization = next
+    }
+
+    func setReturnKeyTitle(_ next: String?) {
+        guard returnKeyTitle != next else { return }
+        recordPresentation("layout", field: "returnKeyTitle", value: next == nil ? "glyph" : "label")
+        returnKeyTitle = next
+    }
+}
+
+@MainActor
+final class KeyboardTopBarPresentation: ObservableObject {
+    @Published private(set) var gate: KeyboardModel.Gate = .ok
+    @Published private(set) var hasCards = false
+    @Published private(set) var serverLabel = ""
+
+    func setGate(_ next: KeyboardModel.Gate) {
+        guard gate != next else { return }
+        recordPresentation("topBar", field: "gate", value: next.diagnosticName)
+        gate = next
+    }
+
+    func setHasCards(_ next: Bool) {
+        guard hasCards != next else { return }
+        recordPresentation("topBar", field: "hasCards", value: String(next))
+        hasCards = next
+    }
+
+    func setServerLabel(_ next: String) {
+        guard serverLabel != next else { return }
+        recordPresentation("topBar", field: "serverLabel", value: next.isEmpty ? "empty" : "present")
+        serverLabel = next
+    }
+}
+
+@MainActor
+final class KeyboardCardListPresentation: ObservableObject {
+    @Published private(set) var gate: KeyboardModel.Gate = .ok
+    @Published private(set) var lastError: String?
+    @Published private(set) var cards: [KeyboardModel.Card] = []
+
+    func setGate(_ next: KeyboardModel.Gate) {
+        guard gate != next else { return }
+        recordPresentation("cardList", field: "gate", value: next.diagnosticName)
+        gate = next
+    }
+
+    func setLastError(_ next: String?) {
+        guard lastError != next else { return }
+        recordPresentation("cardList", field: "lastError", value: next == nil ? "clear" : "present")
+        lastError = next
+    }
+
+    func setCards(_ next: [KeyboardModel.Card]) {
+        guard cards != next else { return }
+        recordPresentation("cardList", field: "cards", value: String(next.count))
+        cards = next
+    }
+}
+
+@MainActor
+final class KeyboardCardActionPresentation: ObservableObject {
+    @Published private(set) var actingCardID: UUID?
+    @Published private(set) var actedCardID: UUID?
+
+    func setActingCardID(_ next: UUID?) {
+        guard actingCardID != next else { return }
+        recordPresentation("cardAction", field: "acting", value: next?.uuidString ?? "nil")
+        actingCardID = next
+    }
+
+    func setActedCardID(_ next: UUID?) {
+        guard actedCardID != next else { return }
+        recordPresentation("cardAction", field: "acted", value: next?.uuidString ?? "nil")
+        actedCardID = next
+    }
+}
+
+/// A deliberately narrow observation surface for the refresh control. The
+/// keyboard root observes content state; this object observes only progress
+/// and the brief result badge.
+@MainActor
+final class KeyboardSyncPresentation: ObservableObject {
+    @Published private(set) var isSyncing = false
+    @Published private(set) var flash: KeyboardModel.SyncFlash?
+
+    func setSyncing(_ next: Bool) {
+        guard isSyncing != next else { return }
+        recordPresentation("syncButton", field: "syncing", value: String(next))
+        isSyncing = next
+    }
+
+    func setFlash(_ next: KeyboardModel.SyncFlash?) {
+        guard flash != next else { return }
+        let value: String
+        switch next {
+        case .success: value = "success"
+        case .failure: value = "failure"
+        case nil: value = "nil"
+        }
+        recordPresentation("syncButton", field: "flash", value: value)
+        flash = next
+    }
+}
+
+@MainActor
+private func recordPresentation(_ surface: String, field: String, value: String) {
+    KeyboardDiagnostics.shared.record("presentation.publish", fields: [
+        "surface": surface,
+        "field": field,
+        "value": value,
+    ])
+}
+
+extension KeyboardModel.Gate {
+    var diagnosticName: String {
+        switch self {
+        case .ok: return "ok"
+        case .needsFullAccess: return "needs_full_access"
+        case .noServer: return "no_server"
+        }
+    }
+}
+
+extension KeyboardModel.SyncFlash {
+    var diagnosticName: String {
+        switch self {
+        case .success: return "success"
+        case .failure: return "failure"
+        }
+    }
+}
+
+private extension ExtensionSyncTrigger {
+    var diagnosticName: String {
+        switch self {
+        case .appeared: return "appeared"
+        case .networkChanged: return "network_changed"
+        case .localClipboardChanged: return "local_clipboard_changed"
+        case .serverChanged: return "server_changed"
+        case .manual: return "manual"
+        }
+    }
+}
+
+private extension ExtensionDeliveryState {
+    var diagnosticName: String {
+        switch self {
+        case .delivered: return "delivered"
+        case .partial: return "partial"
+        case .offline: return "offline"
+        case .pending: return "pending"
+        case .failed: return "failed"
+        }
+    }
+}
+
+final class KeyboardDiagnostics: @unchecked Sendable {
+    static let shared = KeyboardDiagnostics()
+
+    private struct Entry: Encodable {
+        let timestampMs: Int64
+        let sessionID: String
+        let processID: Int32
+        let event: String
+        let fields: [String: String]
+    }
+
+    private struct ViewState {
+        var signature: String
+        var lastEmission: UInt64
+        var suppressed: Int
+    }
+
+    private let queue = DispatchQueue(
+        label: "app.uniclipboard.keyboard.diagnostics",
+        qos: .utility
+    )
+    private let sessionID = UUID().uuidString
+    private let processID = ProcessInfo.processInfo.processIdentifier
+    private let maxFileBytes = 1_048_576
+    private let logURL: URL?
+    private var viewStates: [String: ViewState] = [:]
+
+    private init() {
+        logURL = FileManager.default
+            .containerURL(forSecurityApplicationGroupIdentifier: SettingsStore.appGroupID)?
+            .appendingPathComponent("Library/Caches/UniClipDiagnostics", isDirectory: true)
+            .appendingPathComponent("keyboard.jsonl", isDirectory: false)
+        record("diagnostics.session", fields: ["phase": "started"])
+    }
+
+    func record(_ event: String, fields: [String: String] = [:]) {
+        let timestampMs = Int64(Date().timeIntervalSince1970 * 1_000)
+        queue.async { [self] in
+            write(event: event, fields: fields, timestampMs: timestampMs)
+        }
+    }
+
+    func recordView(_ name: String, signature: String) {
+        let now = DispatchTime.now().uptimeNanoseconds
+        let timestampMs = Int64(Date().timeIntervalSince1970 * 1_000)
+        queue.async { [self] in
+            var state = viewStates[name] ?? ViewState(
+                signature: "",
+                lastEmission: 0,
+                suppressed: 0
+            )
+            let signatureChanged = state.signature != signature
+            let elapsed = now >= state.lastEmission ? now - state.lastEmission : UInt64.max
+            guard signatureChanged || elapsed >= 250_000_000 else {
+                state.suppressed += 1
+                viewStates[name] = state
+                return
+            }
+            write(
+                event: "view.evaluate",
+                fields: [
+                    "view": name,
+                    "signature": signature,
+                    "suppressed": String(state.suppressed),
+                ],
+                timestampMs: timestampMs
+            )
+            viewStates[name] = ViewState(
+                signature: signature,
+                lastEmission: now,
+                suppressed: 0
+            )
+        }
+    }
+
+    static func elapsedMilliseconds(since start: UInt64) -> UInt64 {
+        let now = DispatchTime.now().uptimeNanoseconds
+        return now >= start ? (now - start) / 1_000_000 : 0
+    }
+
+    private func write(event: String, fields: [String: String], timestampMs: Int64) {
+        guard let logURL else { return }
+        do {
+            try FileManager.default.createDirectory(
+                at: logURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            var line = try JSONEncoder().encode(Entry(
+                timestampMs: timestampMs,
+                sessionID: sessionID,
+                processID: processID,
+                event: event,
+                fields: fields
+            ))
+            line.append(0x0A)
+            try trimIfNeeded(at: logURL, incomingBytes: line.count)
+            if !FileManager.default.fileExists(atPath: logURL.path) {
+                FileManager.default.createFile(atPath: logURL.path, contents: nil)
+            }
+            let handle = try FileHandle(forWritingTo: logURL)
+            handle.seekToEndOfFile()
+            handle.write(line)
+            handle.closeFile()
+        } catch {
+            // Diagnostics must never affect the keyboard path they observe.
+        }
+    }
+
+    private func trimIfNeeded(at url: URL, incomingBytes: Int) throws {
+        let currentBytes = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size]
+            as? NSNumber)?.intValue ?? 0
+        guard currentBytes + incomingBytes > maxFileBytes else { return }
+        let existing = try Data(contentsOf: url)
+        let suffix = Data(existing.suffix(maxFileBytes / 2))
+        let retained: Data
+        if let newline = suffix.firstIndex(of: 0x0A) {
+            let start = suffix.index(after: newline)
+            retained = Data(suffix[start...])
+        } else {
+            retained = Data()
+        }
+        try retained.write(to: url, options: .atomic)
+    }
+}
+
 #if DEBUG
 extension KeyboardModel {
     /// Seeds a populated card row for Xcode Previews — the keyboard can only
@@ -974,7 +1685,7 @@ extension KeyboardModel {
         model.hasFullAccess = true
         model.gate = .ok
         model.serverLabel = "家里的 NAS"
-        model.syncFlash = .success
+        model.syncPresentation.setFlash(.success)
         model.cards = [
             Card(id: UUID(), kind: .text,
                  entry: Clipboard(type: .text, text: "明天上午 10 点开会,别忘了带上周的报表。", hasData: false, size: 18),

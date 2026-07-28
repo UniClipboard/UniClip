@@ -16,7 +16,7 @@ it('hides the editing key row until Full Access is enabled', () => {
     'utf8'
   );
 
-  expect(rootView).toMatch(/if model\.hasFullAccess\s*\{\s*keyRow\s*\}/);
+  expect(rootView).toContain('keyRowBand.isHidden = !layout.hasFullAccess');
   expect(rootView).toContain('static var restrictedContentHeight');
   expect(controller).toMatch(
     /hasFullAccess\s*\? KeyboardLayout\.contentHeight\s*: KeyboardLayout\.restrictedContentHeight/

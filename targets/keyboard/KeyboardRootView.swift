@@ -1,1000 +1,916 @@
-import SwiftUI
+import Combine
 import UIKit
+internal import UcEngineCore
 
-/// Vertical metrics shared with the controller's computed height constraint.
-/// (`contentHeight` / `stripBandHeight`), so a tweak here can no longer
-/// drift out of sync with a hand-summed constant — exactly that drift
-/// (top bar 36 → 38 without touching the controller's 252) once starved the
-/// card row by 2pt, and the clipped card edges read as faint "divider lines"
-/// above/below the cards and as the header covering them.
 enum KeyboardLayout {
-    /// iPad gets extra breathing room at the bottom: the input-switch /
-    /// dismiss controls sit right under the keyboard frame there, and a
-    /// flush key row makes them an easy mis-tap.
     static let isPad = UIDevice.current.userInterfaceIdiom == .pad
-
     static let topBarHeight: CGFloat = 38
     static let topBarVPad: CGFloat = 4
-
-    /// Single horizontal grid for all four bands (top bar, card row, key
-    /// row, globe strip). The bands used to sit on a 12/16/12/16 alternating
-    /// inset, and the 4pt misregistration of their leading edges read as
-    /// "header and cards are separate widgets".
     static let hMargin: CGFloat = 12
-
     static let cardHeight: CGFloat = 150
+    static let cardWidth: CGFloat = 152
+    static let cardSpacing: CGFloat = 12
     static let cardRowVPad: CGFloat = 4
-
     static let keyRowHeight: CGFloat = 46
     static let keyRowTopPad: CGFloat = 4
     static let keyRowBottomPad: CGFloat = isPad ? 14 : 4
-
     static let globeSize: CGFloat = isPad ? 34 : 28
     static let stripHeight: CGFloat = isPad ? 34 : 30
     static let stripTopPad: CGFloat = isPad ? 6 : 2
     static let stripBottomPad: CGFloat = isPad ? 12 : 8
 
-    /// Keyboard height without the globe strip. The middle band resolves to
-    /// exactly `cardHeight + 2 × cardRowVPad`, so the card row is never
-    /// clipped and never floats.
     static var contentHeight: CGFloat {
         topBarHeight + topBarVPad * 2
             + cardHeight + cardRowVPad * 2
             + keyRowTopPad + keyRowHeight + keyRowBottomPad
     }
-    static var restrictedContentHeight: CGFloat { contentHeight - keyRowTopPad - keyRowHeight - keyRowBottomPad }
 
-    /// Extra band added when iOS wants an input-mode switch key.
+    static var restrictedContentHeight: CGFloat {
+        contentHeight - keyRowTopPad - keyRowHeight - keyRowBottomPad
+    }
+
     static var stripBandHeight: CGFloat {
         stripTopPad + stripHeight + stripBottomPad
     }
 }
 
-/// Solid cap/card surface — a shade lighter than the keyboard tray in both
-/// schemes (white on light, mid-gray on dark). Shared by the key caps and
-/// the clipboard cards so all opaque surfaces on the tray read as one family.
-private let keyboardSurfaceColor = Color(uiColor: UIColor { trait in
-    trait.userInterfaceStyle == .dark
-        ? UIColor(white: 0.34, alpha: 1.0)
-        : UIColor.white
-})
+enum KeyboardSurface {
+    static let trayUIColor = UIColor.systemGray5
+    static let itemUIColor = UIColor { trait in
+        trait.userInterfaceStyle == .dark
+            ? UIColor(white: 0.34, alpha: 1)
+            : .white
+    }
+}
 
-/// The UniClip keyboard — a Paste-style hybrid: a top bar (🔍 + current
-/// server), a horizontally-scrolling row of flat clipboard cards, and
-/// a real key row (space / ⌫ / return) so light editing never forces a trip
-/// back to the system keyboard. Tapping a card inserts its text inline
-/// (downlink) or fetches + copies an image; a background pass auto-pushes
-/// newly-copied device content (uplink). The 🌐 strip returns to a typing
-/// keyboard.
-// One root keeps the keyboard bands' overlays, focus, and sizing coordinated.
-// swiftlint:disable:next type_body_length
-struct KeyboardRootView: View {
-    @ObservedObject var model: KeyboardModel
+@MainActor
+final class KeyboardRootView: UIView {
+    var onPreferredHeightChange: ((CGFloat) -> Void)?
+    var onOpenSettings: ((URL) -> Void)?
 
-    /// Search mode swaps the server-name bar for a type-scope filter strip
-    /// (a custom keyboard has no QWERTY, so 🔍 filters rather than queries).
-    @State private var searching = false
-    @State private var filter: Filter = .all
+    private enum Filter: Int, CaseIterable {
+        case all
+        case text
+        case link
+        case image
 
-    @State private var switchingServer = false
-    @State private var serverChoices: [ServerConfig] = []
-    @State private var activeServerId: String?
-
-    enum Filter: Int, CaseIterable, Identifiable {
-        case all, text, link, image
-        var id: Int { rawValue }
-        var title: LocalizedStringKey {
-            switch self {
-            case .all:   "全部"
-            case .text:  "文本"
-            case .link:  "链接"
-            case .image: "图片"
-            }
-        }
         func matches(_ card: KeyboardModel.Card) -> Bool {
             switch self {
-            case .all:   true
-            case .text:  card.kind == .text
-            case .link:  card.kind == .link
+            case .all: true
+            case .text: card.kind == .text
+            case .link: card.kind == .link
             case .image: card.kind == .image
             }
         }
     }
 
-    var body: some View {
-        ZStack(alignment: .top) {
-            VStack(spacing: 0) {
-                topBar
-                    .padding(.horizontal, KeyboardLayout.hMargin)
-                    // Symmetric, snug vertical insets so the bar hugs the card
-                    // row beneath it — anything larger reads as a loose, empty
-                    // band between the three stacked sections.
-                    .padding(.vertical, KeyboardLayout.topBarVPad)
-                content
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                if model.hasFullAccess { keyRow }
-                bottomStrip
-            }
+    private enum Section: Hashable { case main }
 
-            // Server switcher rides above the whole keyboard so its scrim
-            // catches taps anywhere — top bar, cards, keys — not just the
-            // card area.
-            if switchingServer {
-                serverSwitcherOverlay
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .environment(\.locale, model.localization.locale)
-        // Deliberately NO opaque background: the system already draws the
-        // keyboard tray (flat gray pre-iOS 26, Liquid Glass on iOS 26+) and it
-        // auto-adapts to appearance + OS version. We keep the surface clear and
-        // let that backdrop show through (the controller clears
-        // UIHostingController's default opaque background). We also don't force
-        // an appearance override — the UIKit tray follows the *system* scheme
-        // and ignores preferredColorScheme, so following the system keeps our
-        // content and the tray consistent.
-        .tint(.accentColor)
+    private let model: KeyboardModel
+    private var cancellables = Set<AnyCancellable>()
+    private var filter: Filter = .all
+    private var isFiltering = false
+    private var displayedCards: [KeyboardModel.Card] = []
+    private var cardsByID: [UUID: KeyboardModel.Card] = [:]
+    private var deleteRepeatTask: Task<Void, Never>?
+
+    private let rootStack = UIStackView()
+    private let topBar = UIView()
+    private let standardTopBar = UIView()
+    private let filterTopBar = UIView()
+    private let searchButton = UIButton(type: .system)
+    private let serverButton = UIButton(type: .system)
+    private let refreshButton = UIButton(type: .system)
+    private let refreshSpinner = UIActivityIndicatorView(style: .medium)
+    private let closeFilterButton = UIButton(type: .system)
+    private let filterControl = UISegmentedControl(items: [])
+    private let cardArea = UIView()
+    private let stateView = KeyboardStateView()
+    private let keyRowBand = UIView()
+    private let keyRow = UIStackView()
+    private let rightKeyRow = UIStackView()
+    private let spaceButton = UIButton(type: .system)
+    private let deleteButton = KeyboardRepeatButton(type: .system)
+    private let returnButton = UIButton(type: .system)
+    private let globeBand = UIView()
+    private let globeButton = UIButton(type: .system)
+
+    private lazy var collectionView: UICollectionView = {
+        let layout = UICollectionViewFlowLayout()
+        layout.scrollDirection = .horizontal
+        layout.itemSize = CGSize(width: KeyboardLayout.cardWidth, height: KeyboardLayout.cardHeight)
+        layout.minimumLineSpacing = KeyboardLayout.cardSpacing
+        layout.minimumInteritemSpacing = KeyboardLayout.cardSpacing
+        layout.sectionInset = UIEdgeInsets(
+            top: KeyboardLayout.cardRowVPad,
+            left: KeyboardLayout.hMargin,
+            bottom: KeyboardLayout.cardRowVPad,
+            right: KeyboardLayout.hMargin
+        )
+        let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.backgroundColor = .clear
+        view.showsHorizontalScrollIndicator = false
+        view.alwaysBounceHorizontal = true
+        view.decelerationRate = .fast
+        view.delegate = self
+        view.register(KeyboardCardCell.self, forCellWithReuseIdentifier: KeyboardCardCell.reuseIdentifier)
+        return view
+    }()
+
+    private lazy var dataSource = UICollectionViewDiffableDataSource<Section, UUID>(
+        collectionView: collectionView
+    ) { [weak self] collectionView, indexPath, id in
+        guard let self,
+              let card = self.cardsByID[id],
+              let cell = collectionView.dequeueReusableCell(
+                  withReuseIdentifier: KeyboardCardCell.reuseIdentifier,
+                  for: indexPath
+              ) as? KeyboardCardCell else { return UICollectionViewCell() }
+        cell.configure(
+            model: self.model,
+            card: card,
+            isActing: self.model.cardActionPresentation.actingCardID == id,
+            didAct: self.model.cardActionPresentation.actedCardID == id
+        )
+        return cell
     }
 
-    // MARK: - Top bar
+    init(model: KeyboardModel) {
+        self.model = model
+        super.init(frame: .zero)
+        isOpaque = true
+        backgroundColor = KeyboardSurface.trayUIColor
+        buildHierarchy()
+        bindModel()
+        renderAll()
+    }
 
-    @ViewBuilder
-    private var topBar: some View {
-        if searching {
-            filterBar
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    deinit { deleteRepeatTask?.cancel() }
+
+    override var intrinsicContentSize: CGSize {
+        CGSize(width: UIView.noIntrinsicMetric, height: preferredHeight)
+    }
+
+    var preferredHeight: CGFloat {
+        let layout = model.layoutPresentation
+        let content = layout.hasFullAccess
+            ? KeyboardLayout.contentHeight
+            : KeyboardLayout.restrictedContentHeight
+        return content + (layout.needsInputModeSwitchKey ? KeyboardLayout.stripBandHeight : 0)
+    }
+
+    private func buildHierarchy() {
+        translatesAutoresizingMaskIntoConstraints = false
+        rootStack.axis = .vertical
+        rootStack.spacing = 0
+        rootStack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(rootStack)
+        NSLayoutConstraint.activate([
+            rootStack.leadingAnchor.constraint(equalTo: leadingAnchor),
+            rootStack.trailingAnchor.constraint(equalTo: trailingAnchor),
+            rootStack.topAnchor.constraint(equalTo: topAnchor),
+            rootStack.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+
+        buildTopBar()
+        buildCardArea()
+        buildKeyRow()
+        buildGlobeBand()
+
+        rootStack.addArrangedSubview(topBar)
+        rootStack.addArrangedSubview(cardArea)
+        rootStack.addArrangedSubview(keyRowBand)
+        rootStack.addArrangedSubview(globeBand)
+        topBar.heightAnchor.constraint(
+            equalToConstant: KeyboardLayout.topBarHeight + KeyboardLayout.topBarVPad * 2
+        ).isActive = true
+        cardArea.heightAnchor.constraint(
+            equalToConstant: KeyboardLayout.cardHeight + KeyboardLayout.cardRowVPad * 2
+        ).isActive = true
+        keyRowBand.heightAnchor.constraint(
+            equalToConstant: KeyboardLayout.keyRowTopPad
+                + KeyboardLayout.keyRowHeight
+                + KeyboardLayout.keyRowBottomPad
+        ).isActive = true
+        globeBand.heightAnchor.constraint(equalToConstant: KeyboardLayout.stripBandHeight).isActive = true
+    }
+
+    private func buildTopBar() {
+        topBar.backgroundColor = .clear
+        [standardTopBar, filterTopBar].forEach {
+            $0.translatesAutoresizingMaskIntoConstraints = false
+            topBar.addSubview($0)
+            NSLayoutConstraint.activate([
+                $0.leadingAnchor.constraint(equalTo: topBar.leadingAnchor, constant: KeyboardLayout.hMargin),
+                $0.trailingAnchor.constraint(equalTo: topBar.trailingAnchor, constant: -KeyboardLayout.hMargin),
+                $0.topAnchor.constraint(equalTo: topBar.topAnchor, constant: KeyboardLayout.topBarVPad),
+                $0.bottomAnchor.constraint(equalTo: topBar.bottomAnchor, constant: -KeyboardLayout.topBarVPad),
+            ])
+        }
+
+        configureIconButton(searchButton, symbol: "magnifyingglass")
+        configureIconButton(refreshButton, symbol: "arrow.clockwise")
+        configureIconButton(closeFilterButton, symbol: "xmark")
+        searchButton.addTarget(self, action: #selector(openFilter), for: .touchUpInside)
+        refreshButton.addTarget(self, action: #selector(refresh), for: .touchUpInside)
+        closeFilterButton.addTarget(self, action: #selector(closeFilter), for: .touchUpInside)
+
+        serverButton.translatesAutoresizingMaskIntoConstraints = false
+        serverButton.titleLabel?.font = .preferredFont(forTextStyle: .subheadline).withWeight(.semibold)
+        serverButton.setTitleColor(.label, for: .normal)
+        serverButton.showsMenuAsPrimaryAction = true
+
+        refreshSpinner.translatesAutoresizingMaskIntoConstraints = false
+        refreshSpinner.hidesWhenStopped = true
+        standardTopBar.addSubview(searchButton)
+        standardTopBar.addSubview(serverButton)
+        standardTopBar.addSubview(refreshButton)
+        standardTopBar.addSubview(refreshSpinner)
+        NSLayoutConstraint.activate([
+            searchButton.leadingAnchor.constraint(equalTo: standardTopBar.leadingAnchor),
+            searchButton.centerYAnchor.constraint(equalTo: standardTopBar.centerYAnchor),
+            serverButton.centerXAnchor.constraint(equalTo: standardTopBar.centerXAnchor),
+            serverButton.centerYAnchor.constraint(equalTo: standardTopBar.centerYAnchor),
+            serverButton.leadingAnchor.constraint(greaterThanOrEqualTo: searchButton.trailingAnchor, constant: 8),
+            serverButton.trailingAnchor.constraint(lessThanOrEqualTo: refreshButton.leadingAnchor, constant: -8),
+            refreshButton.trailingAnchor.constraint(equalTo: standardTopBar.trailingAnchor),
+            refreshButton.centerYAnchor.constraint(equalTo: standardTopBar.centerYAnchor),
+            refreshSpinner.centerXAnchor.constraint(equalTo: refreshButton.centerXAnchor),
+            refreshSpinner.centerYAnchor.constraint(equalTo: refreshButton.centerYAnchor),
+        ])
+
+        closeFilterButton.translatesAutoresizingMaskIntoConstraints = false
+        filterControl.translatesAutoresizingMaskIntoConstraints = false
+        filterControl.addTarget(self, action: #selector(filterChanged), for: .valueChanged)
+        filterTopBar.addSubview(closeFilterButton)
+        filterTopBar.addSubview(filterControl)
+        NSLayoutConstraint.activate([
+            closeFilterButton.leadingAnchor.constraint(equalTo: filterTopBar.leadingAnchor),
+            closeFilterButton.centerYAnchor.constraint(equalTo: filterTopBar.centerYAnchor),
+            filterControl.leadingAnchor.constraint(equalTo: closeFilterButton.trailingAnchor, constant: 8),
+            filterControl.trailingAnchor.constraint(lessThanOrEqualTo: filterTopBar.trailingAnchor),
+            filterControl.centerYAnchor.constraint(equalTo: filterTopBar.centerYAnchor),
+        ])
+        filterTopBar.isHidden = true
+    }
+
+    private func buildCardArea() {
+        cardArea.backgroundColor = .clear
+        cardArea.addSubview(collectionView)
+        stateView.translatesAutoresizingMaskIntoConstraints = false
+        cardArea.addSubview(stateView)
+        NSLayoutConstraint.activate([
+            collectionView.leadingAnchor.constraint(equalTo: cardArea.leadingAnchor),
+            collectionView.trailingAnchor.constraint(equalTo: cardArea.trailingAnchor),
+            collectionView.topAnchor.constraint(equalTo: cardArea.topAnchor),
+            collectionView.bottomAnchor.constraint(equalTo: cardArea.bottomAnchor),
+            stateView.leadingAnchor.constraint(equalTo: cardArea.leadingAnchor, constant: KeyboardLayout.hMargin),
+            stateView.trailingAnchor.constraint(equalTo: cardArea.trailingAnchor, constant: -KeyboardLayout.hMargin),
+            stateView.topAnchor.constraint(equalTo: cardArea.topAnchor),
+            stateView.bottomAnchor.constraint(equalTo: cardArea.bottomAnchor),
+        ])
+    }
+
+    private func buildKeyRow() {
+        keyRowBand.backgroundColor = .clear
+        keyRow.axis = .horizontal
+        keyRow.spacing = 7
+        keyRow.translatesAutoresizingMaskIntoConstraints = false
+        rightKeyRow.axis = .horizontal
+        rightKeyRow.spacing = 7
+        rightKeyRow.distribution = .fillEqually
+
+        configureKeyButton(spaceButton)
+        configureKeyButton(deleteButton)
+        configureKeyButton(returnButton, emphasized: true)
+        spaceButton.addTarget(self, action: #selector(insertSpace), for: .touchUpInside)
+        returnButton.addTarget(self, action: #selector(insertReturn), for: .touchUpInside)
+        deleteButton.onTouchDown = { [weak self] in self?.startDeleting() }
+        deleteButton.onTouchUp = { [weak self] in self?.stopDeleting() }
+        rightKeyRow.addArrangedSubview(deleteButton)
+        rightKeyRow.addArrangedSubview(returnButton)
+        keyRow.addArrangedSubview(spaceButton)
+        keyRow.addArrangedSubview(rightKeyRow)
+        spaceButton.widthAnchor.constraint(equalTo: rightKeyRow.widthAnchor).isActive = true
+        keyRowBand.addSubview(keyRow)
+        NSLayoutConstraint.activate([
+            keyRow.leadingAnchor.constraint(equalTo: keyRowBand.leadingAnchor, constant: KeyboardLayout.hMargin),
+            keyRow.trailingAnchor.constraint(equalTo: keyRowBand.trailingAnchor, constant: -KeyboardLayout.hMargin),
+            keyRow.topAnchor.constraint(equalTo: keyRowBand.topAnchor, constant: KeyboardLayout.keyRowTopPad),
+            keyRow.heightAnchor.constraint(equalToConstant: KeyboardLayout.keyRowHeight),
+        ])
+    }
+
+    private func buildGlobeBand() {
+        globeBand.backgroundColor = .clear
+        configureIconButton(
+            globeButton,
+            symbol: "globe",
+            symbolSize: KeyboardLayout.isPad ? 19 : 16,
+            width: KeyboardLayout.globeSize,
+            height: KeyboardLayout.stripHeight
+        )
+        globeButton.addTarget(self, action: #selector(advanceInputMode), for: .touchUpInside)
+        globeBand.addSubview(globeButton)
+        NSLayoutConstraint.activate([
+            globeButton.leadingAnchor.constraint(equalTo: globeBand.leadingAnchor, constant: KeyboardLayout.hMargin),
+            globeButton.topAnchor.constraint(equalTo: globeBand.topAnchor, constant: KeyboardLayout.stripTopPad),
+        ])
+    }
+
+    private func bindModel() {
+        let layout = model.layoutPresentation
+        layout.$hasFullAccess.sink { [weak self] _ in self?.renderLayout() }.store(in: &cancellables)
+        layout.$needsInputModeSwitchKey.sink { [weak self] _ in self?.renderLayout() }.store(in: &cancellables)
+        layout.$localization.sink { [weak self] _ in self?.renderLocalizedText() }.store(in: &cancellables)
+        layout.$returnKeyTitle.sink { [weak self] _ in self?.renderReturnKey() }.store(in: &cancellables)
+
+        let top = model.topBarPresentation
+        top.$gate.sink { [weak self] _ in self?.renderTopBar() }.store(in: &cancellables)
+        top.$hasCards.sink { [weak self] _ in self?.renderTopBar() }.store(in: &cancellables)
+        top.$serverLabel.sink { [weak self] _ in self?.renderTopBar() }.store(in: &cancellables)
+
+        let cards = model.cardListPresentation
+        Publishers.CombineLatest3(cards.$gate, cards.$lastError, cards.$cards)
+            .sink { [weak self] gate, lastError, cards in
+                self?.renderCards(gate: gate, lastError: lastError, cards: cards)
+            }
+            .store(in: &cancellables)
+
+        let actions = model.cardActionPresentation
+        actions.$actingCardID.sink { [weak self] _ in self?.renderCardActions() }.store(in: &cancellables)
+        actions.$actedCardID.sink { [weak self] _ in self?.renderCardActions() }.store(in: &cancellables)
+
+        let sync = model.syncPresentation
+        sync.$isSyncing.sink { [weak self] _ in self?.renderSyncButton() }.store(in: &cancellables)
+        sync.$flash.sink { [weak self] _ in self?.renderSyncButton() }.store(in: &cancellables)
+    }
+
+    private func renderAll() {
+        renderLocalizedText()
+        renderLayout()
+        renderTopBar()
+        renderCards()
+        renderSyncButton()
+        renderCardActions()
+    }
+
+    private func renderLayout() {
+        let layout = model.layoutPresentation
+        keyRowBand.isHidden = !layout.hasFullAccess
+        globeBand.isHidden = !layout.needsInputModeSwitchKey
+        invalidateIntrinsicContentSize()
+        onPreferredHeightChange?(preferredHeight)
+        KeyboardDiagnostics.shared.record("view.render", fields: [
+            "surface": "layout",
+            "height": String(format: "%.1f", preferredHeight),
+        ])
+    }
+
+    private func renderLocalizedText() {
+        let localize = model.localization.string
+        searchButton.accessibilityLabel = localize("筛选")
+        refreshButton.accessibilityLabel = localize("刷新")
+        closeFilterButton.accessibilityLabel = localize("关闭筛选")
+        serverButton.accessibilityLabel = localize("切换服务器")
+        globeButton.accessibilityLabel = localize("切换键盘")
+        deleteButton.accessibilityLabel = localize("删除")
+        returnButton.accessibilityLabel = localize("回车")
+        spaceButton.setTitle(localize("空格"), for: .normal)
+        rebuildFilterSegments()
+        renderReturnKey()
+        renderTopBar()
+        renderCards()
+    }
+
+    private func renderReturnKey() {
+        let title = model.layoutPresentation.returnKeyTitle
+        returnButton.setTitle(title, for: .normal)
+        returnButton.setImage(title == nil ? UIImage(systemName: "return") : nil, for: .normal)
+    }
+
+    private func renderTopBar() {
+        let presentation = model.topBarPresentation
+        searchButton.isHidden = presentation.gate == .needsFullAccess || !presentation.hasCards
+        refreshButton.isHidden = presentation.gate == .needsFullAccess
+        refreshSpinner.isHidden = presentation.gate == .needsFullAccess
+        let title = presentation.gate == .ok && !presentation.serverLabel.isEmpty
+            ? presentation.serverLabel
+            : "UniClip"
+        serverButton.setTitle(title + (presentation.gate == .ok ? " ⌄" : ""), for: .normal)
+        serverButton.isEnabled = presentation.gate == .ok
+        rebuildServerMenu()
+    }
+
+    private func renderCards() {
+        let presentation = model.cardListPresentation
+        renderCards(
+            gate: presentation.gate,
+            lastError: presentation.lastError,
+            cards: presentation.cards
+        )
+    }
+
+    private func renderCards(
+        gate: KeyboardModel.Gate,
+        lastError: String?,
+        cards: [KeyboardModel.Card]
+    ) {
+        if gate == .needsFullAccess {
+            collectionView.isHidden = true
+            stateView.isHidden = false
+            stateView.configure(
+                symbol: "lock.shield",
+                title: model.localization.string("需要「完全访问权限」"),
+                message: model.localization.string(
+                    "在 设置 › 通用 › 键盘 › UniClip 中开启「允许完全访问」,即可在打开键盘时自动同步剪贴板。"
+                ),
+                actionTitle: KeyboardSettingsURL.destination == nil
+                    ? nil
+                    : model.localization.string("前往设置 ›")
+            ) { [weak self] in
+                guard let self, let url = KeyboardSettingsURL.destination else { return }
+                self.onOpenSettings?(url)
+            }
+            return
+        }
+
+        displayedCards = isFiltering ? cards.filter(filter.matches) : cards
+        if !displayedCards.isEmpty {
+            stateView.isHidden = true
+            collectionView.isHidden = false
+            cardsByID = Dictionary(uniqueKeysWithValues: displayedCards.map { ($0.id, $0) })
+            var snapshot = NSDiffableDataSourceSnapshot<Section, UUID>()
+            snapshot.appendSections([.main])
+            snapshot.appendItems(displayedCards.map(\.id), toSection: .main)
+            dataSource.apply(snapshot, animatingDifferences: false)
+            KeyboardDiagnostics.shared.record("view.render", fields: [
+                "surface": "cards",
+                "count": String(displayedCards.count),
+            ])
+            return
+        }
+
+        collectionView.isHidden = true
+        stateView.isHidden = false
+        if let error = lastError {
+            stateView.configure(
+                symbol: "exclamationmark.triangle",
+                title: model.localization.string("同步失败"),
+                message: error,
+                actionTitle: model.localization.string("重试")
+            ) { [weak self] in self?.refresh() }
         } else {
-            serverBar
-        }
-    }
-
-    private var serverBar: some View {
-        ZStack {
-            // Centered server name (tap → inline switcher). Bare text +
-            // chevron — no resting surface (see the quiet-chrome note on
-            // ChromePressStyle); the chevron carries the tap affordance.
-            if model.gate == .ok {
-                Button { openSwitcher() } label: {
-                    HStack(spacing: 4) {
-                        Text(verbatim: serverTitle)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .rotationEffect(.degrees(switchingServer ? 180 : 0))
-                    }
-                    .padding(.horizontal, 10)
-                    .frame(height: 34)
-                }
-                .buttonStyle(ChromePressStyle(shape: Capsule(style: .continuous), hitOutset: 5))
-                .accessibilityLabel(Text(model.localization.string("切换服务器")))
-            } else {
-                Text(verbatim: "UniClip")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-            }
-
-            HStack(spacing: 0) {
-                if model.gate != .needsFullAccess, !model.cards.isEmpty {
-                    circleButton(system: "magnifyingglass") {
-                        withAnimation(.snappy(duration: 0.22)) { searching = true }
-                    }
-                    .accessibilityLabel(Text(model.localization.string("筛选")))
-                }
-                Spacer(minLength: 0)
-                if model.gate != .needsFullAccess {
-                    syncButton
-                        .animation(.snappy(duration: 0.28), value: model.isSyncing)
-                        .animation(.snappy(duration: 0.28), value: model.syncFlash)
-                }
-            }
-        }
-        .frame(height: KeyboardLayout.topBarHeight)
-    }
-
-    /// Top-right control: spinner while syncing, a brief green ✓ / amber !
-    /// right after a pass that moved data or failed, otherwise the refresh
-    /// glyph. The outcome badge is the elegant replacement for the old
-    /// "已发送本机内容…" text chip.
-    @ViewBuilder
-    private var syncButton: some View {
-        if model.isSyncing {
-            ProgressView()
-                .controlSize(.small)
-                .frame(width: 34, height: 34)
-                .transition(.opacity)
-        } else if let flash = model.syncFlash {
-            Button {
-                model.keyFeedback()
-                model.refresh(force: true)
-            } label: {
-                Image(systemName: flash == .success ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(flash == .success ? Color.green : Color.orange)
-                    .frame(width: 34, height: 34)
-            }
-            .buttonStyle(ChromePressStyle(shape: Circle(), hitOutset: 5))
-            .transition(.scale(scale: 0.6).combined(with: .opacity))
-            .accessibilityLabel(
-                Text(model.localization.string(flash == .success ? "同步成功" : "同步失败"))
+            stateView.configure(
+                symbol: emptyFilterSymbol,
+                title: emptyFilterTitle,
+                message: model.localization.string("复制文本或图片后回到这里即可发送"),
+                actionTitle: nil,
+                action: nil
             )
-        } else {
-            circleButton(system: "arrow.clockwise") {
-                model.refresh(force: true)
-            }
-            .accessibilityLabel(Text(model.localization.string("刷新")))
-            .transition(.opacity)
         }
     }
 
-    private var filterBar: some View {
-        HStack(spacing: 8) {
-            // 14pt: the ✕ sits beside footnote chip labels — the default 16
-            // read heavier than the chips and pulled focus.
-            circleButton(system: "xmark", size: 14) {
-                withAnimation(.snappy(duration: 0.22)) {
-                    searching = false
-                    filter = .all
-                }
-            }
-            .accessibilityLabel(Text(model.localization.string("关闭筛选")))
-
-            // Plain HStack, NOT a ScrollView: four fixed chips always fit
-            // (even at 320pt width), and on iOS 26 a scrollable ScrollView
-            // carries a scroll edge effect — a backdrop layer that the glass
-            // tray renders as a translucent band across the whole viewport
-            // (glass can't sample glass; same artifact family as glassEffect).
-            HStack(spacing: 6) {
-                ForEach(Filter.allCases) { filterOption in
-                    let isOn = filterOption == filter
-                    Button {
-                        model.keyFeedback()
-                        withAnimation(.snappy(duration: 0.2)) { filter = filterOption }
-                    } label: {
-                        Text(filterOption.title, bundle: model.localization.bundle)
-                            .font(.footnote.weight(.semibold))
-                            // Selected chip is a tinted capsule, so the label
-                            // is fixed white (accentColor resolves to system
-                            // blue here — see returnKey). Unselected chips are
-                            // bare chrome in primary, QuickType-style — the
-                            // tray sits too close to .secondary for legibility.
-                            .foregroundStyle(isOn ? .white : Color.primary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background {
-                                if isOn {
-                                    Capsule().fill(Color.accentColor)
-                                }
-                            }
-                    }
-                    .buttonStyle(ChromePressStyle(shape: Capsule(style: .continuous)))
-                }
-            }
-            Spacer(minLength: 0)
+    private func renderSyncButton() {
+        let presentation = model.syncPresentation
+        if presentation.isSyncing {
+            refreshButton.isHidden = true
+            refreshSpinner.isHidden = false
+            refreshSpinner.startAnimating()
+            return
         }
-        .frame(height: KeyboardLayout.topBarHeight)
-    }
-
-    private var serverTitle: String {
-        model.serverLabel.isEmpty ? "UniClip" : model.serverLabel
-    }
-
-    // MARK: - Middle (cards / states + switcher overlay)
-
-    private var displayedCards: [KeyboardModel.Card] {
-        searching ? model.cards.filter(filter.matches) : model.cards
-    }
-
-    @ViewBuilder
-    private var content: some View {
-        switch model.gate {
-        case .needsFullAccess:
-            fullAccessHint
-        case .noServer:
-            cardArea
-        case .ok:
-            cardArea
+        refreshSpinner.stopAnimating()
+        refreshButton.isHidden = model.topBarPresentation.gate == .needsFullAccess
+        let symbol: String
+        let color: UIColor
+        switch presentation.flash {
+        case .success:
+            symbol = "checkmark.circle.fill"
+            color = .systemGreen
+        case .failure:
+            symbol = "exclamationmark.circle.fill"
+            color = .systemOrange
+        case nil:
+            symbol = "arrow.clockwise"
+            color = .secondaryLabel
         }
+        refreshButton.setImage(UIImage(systemName: symbol), for: .normal)
+        refreshButton.tintColor = color
     }
 
-    @ViewBuilder
-    private var cardArea: some View {
-        let cards = displayedCards
-        if !cards.isEmpty {
-            ScrollView(.horizontal, showsIndicators: false) {
-                // Lazy so off-screen image cards don't all fire their
-                // thumbnail fetch at once — bounds concurrent network + decode
-                // work to what's near the viewport (keyboard memory).
-                LazyHStack(spacing: 12) {
-                    ForEach(cards) { card in
-                        CardView(model: model, card: card)
-                    }
-                }
-                .keyboardCardRowLayout(hMargin: KeyboardLayout.hMargin)
-                .padding(.vertical, KeyboardLayout.cardRowVPad)
-            }
-            // On iOS 17+ contentMargins (not padding inside the stack) keeps
-            // the resting first card on the shared hMargin grid while still
-            // letting cards bleed to the screen edge mid-scroll; iOS 16 gets
-            // the resting inset from the row's own horizontal padding instead
-            // (see keyboardCardRowLayout / keyboardCardScrollBehavior).
-            .keyboardCardScrollBehavior(hMargin: KeyboardLayout.hMargin)
-            .keyboardScrollEdgeEffectHidden()
-            .frame(maxHeight: .infinity)
-        } else if model.isSyncing {
-            centered {
-                HStack(spacing: 8) {
-                    ProgressView()
-                    Text(model.localization.string("正在同步…"))
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        } else if let err = model.lastError {
-            centered {
-                VStack(spacing: 10) {
-                    infoBlock(
-                        system: "exclamationmark.triangle",
-                        title: model.localization.string("同步失败"),
-                        message: err
-                    )
-                    Button {
-                        model.keyFeedback()
-                        model.refresh(force: true)
-                    } label: {
-                        Label(
-                            model.localization.string("重试"),
-                            systemImage: "arrow.clockwise"
-                        )
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
-            }
-        } else {
-            centered {
-                infoBlock(
-                    system: searching ? emptyFilterIcon : "tray",
-                    title: searching
-                        ? emptyFilterTitle
-                        : model.localization.string("暂无剪贴板记录"),
-                    message: model.localization.string("复制文本或图片后回到这里即可发送")
-                )
+    private func renderCardActions() {
+        collectionView.isUserInteractionEnabled = model.cardActionPresentation.actingCardID == nil
+        var snapshot = dataSource.snapshot()
+        let ids = snapshot.itemIdentifiers
+        guard !ids.isEmpty else { return }
+        snapshot.reconfigureItems(ids)
+        dataSource.apply(snapshot, animatingDifferences: false)
+    }
+
+    private func rebuildFilterSegments() {
+        let titles = ["全部", "文本", "链接", "图片"].map {
+            model.localization.string($0)
+        }
+        filterControl.removeAllSegments()
+        for (index, title) in titles.enumerated() {
+            filterControl.insertSegment(withTitle: title, at: index, animated: false)
+        }
+        filterControl.selectedSegmentIndex = filter.rawValue
+    }
+
+    private func rebuildServerMenu() {
+        let choices = model.serverChoices()
+        let actions = choices.servers.map { server in
+            UIAction(
+                title: server.displayLabel,
+                state: server.id == choices.activeId ? .on : .off
+            ) { [weak self] _ in
+                guard let self else { return }
+                self.model.keyFeedback()
+                self.model.setActiveServer(server.id)
             }
         }
+        serverButton.menu = UIMenu(children: actions)
     }
 
-    private var emptyFilterIcon: String {
+    private var emptyFilterSymbol: String {
+        guard isFiltering else { return "tray" }
         switch filter {
-        case .all:   "tray"
-        case .text:  "doc.text"
-        case .link:  "link"
-        case .image: "photo.on.rectangle"
+        case .all: return "tray"
+        case .text: return "doc.text"
+        case .link: return "link"
+        case .image: return "photo.on.rectangle"
         }
     }
 
     private var emptyFilterTitle: String {
+        guard isFiltering else { return model.localization.string("暂无剪贴板记录") }
         switch filter {
-        case .all: model.localization.string("暂无剪贴板记录")
-        case .text: model.localization.string("暂无文本记录")
-        case .link: model.localization.string("暂无链接记录")
-        case .image: model.localization.string("暂无图片记录")
+        case .all: return model.localization.string("暂无剪贴板记录")
+        case .text: return model.localization.string("暂无文本记录")
+        case .link: return model.localization.string("暂无链接记录")
+        case .image: return model.localization.string("暂无图片记录")
         }
     }
 
-    // MARK: - Server switcher overlay
-
-    private func openSwitcher() {
-        let choices = model.serverChoices()
-        serverChoices = choices.servers
-        activeServerId = choices.activeId
-        withAnimation(.snappy(duration: 0.22)) { switchingServer = true }
+    private func configureIconButton(
+        _ button: UIButton,
+        symbol: String,
+        symbolSize: CGFloat = 16,
+        width: CGFloat = 34,
+        height: CGFloat = 34
+    ) {
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.setImage(UIImage(systemName: symbol), for: .normal)
+        button.tintColor = .secondaryLabel
+        button.imageView?.preferredSymbolConfiguration = UIImage.SymbolConfiguration(
+            pointSize: symbolSize,
+            weight: .medium
+        )
+        NSLayoutConstraint.activate([
+            button.widthAnchor.constraint(equalToConstant: width),
+            button.heightAnchor.constraint(equalToConstant: height),
+        ])
     }
 
-    private func closeSwitcher() {
-        withAnimation(.snappy(duration: 0.2)) { switchingServer = false }
+    private func configureKeyButton(_ button: UIButton, emphasized: Bool = false) {
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.titleLabel?.font = emphasized
+            ? .preferredFont(forTextStyle: .callout).withWeight(.semibold)
+            : .preferredFont(forTextStyle: .callout)
+        button.setTitleColor(emphasized ? .white : .secondaryLabel, for: .normal)
+        button.tintColor = emphasized ? .white : .label
+        button.backgroundColor = emphasized ? .systemBlue : KeyboardSurface.itemUIColor
+        button.layer.cornerRadius = 9
+        button.layer.cornerCurve = .continuous
     }
 
-    private var serverSwitcherOverlay: some View {
-        ZStack(alignment: .top) {
-            // Full-surface tap-to-dismiss scrim: covers the top bar, cards and
-            // key row, so a tap anywhere outside the panel closes the switcher.
-            Color.black.opacity(0.001)
-                .contentShape(Rectangle())
-                .onTapGesture { closeSwitcher() }
-
-            VStack(spacing: 2) {
-                ForEach(serverChoices) { server in
-                    Button {
-                        model.keyFeedback()
-                        if server.id != activeServerId { model.setActiveServer(server.id) }
-                        closeSwitcher()
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: server.id == activeServerId ? "checkmark.circle.fill" : "circle")
-                                .font(.body)
-                                .foregroundStyle(server.id == activeServerId ? Color.green : Color.secondary)
-                            Text(verbatim: server.displayLabel)
-                                .font(.callout)
-                                .foregroundStyle(.primary)
-                                .lineLimit(1)
-                            Spacer(minLength: 0)
-                        }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.vertical, 6)
-            .frame(maxWidth: 260)
-            // Opaque panel + shadow for elevation (no glass/material — see
-            // flatSurface); the hairline keeps it separated in dark mode
-            // where the shadow alone is too weak.
-            .flatCard()
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.08))
-            )
-            .shadow(color: .black.opacity(0.18), radius: 16, y: 6)
-            // Drop below the top bar so it reads as a dropdown from the
-            // server-name capsule rather than overlapping it.
-            .padding(.top, 50)
-            .transition(.move(edge: .top).combined(with: .opacity))
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    @objc private func openFilter() {
+        model.keyFeedback()
+        isFiltering = true
+        standardTopBar.isHidden = true
+        filterTopBar.isHidden = false
+        renderCards()
     }
 
-    // MARK: - Key row
-
-    private var keyRow: some View {
-        HStack(spacing: 7) {
-            spaceKey.frame(maxWidth: .infinity)
-            HStack(spacing: 7) {
-                BackspaceKey(model: model).frame(maxWidth: .infinity)
-                returnKey.frame(maxWidth: .infinity)
-            }
-            .frame(maxWidth: .infinity)
-        }
-        .frame(height: KeyboardLayout.keyRowHeight)
-        .padding(.horizontal, KeyboardLayout.hMargin)
-        .padding(.top, KeyboardLayout.keyRowTopPad)
-        // Breathing room below the keys. On iPad the system parks its
-        // input-switch / dismiss controls right under the keyboard frame, and
-        // a flush key row made them an easy mis-tap — hence the wider inset
-        // there. On iPhone a slim gap to the globe strip / bottom edge is
-        // enough.
-        .padding(.bottom, KeyboardLayout.keyRowBottomPad)
+    @objc private func closeFilter() {
+        model.keyFeedback()
+        isFiltering = false
+        filter = .all
+        filterControl.selectedSegmentIndex = filter.rawValue
+        standardTopBar.isHidden = false
+        filterTopBar.isHidden = true
+        renderCards()
     }
 
-    private var spaceKey: some View {
-        Button {
+    @objc private func filterChanged() {
+        model.keyFeedback()
+        filter = Filter(rawValue: filterControl.selectedSegmentIndex) ?? .all
+        renderCards()
+    }
+
+    @objc private func refresh() {
+        model.keyFeedback()
+        model.requestSync(.manual)
+    }
+
+    @objc private func insertSpace() {
+        model.keyFeedback()
+        model.insertText(" ")
+    }
+
+    @objc private func insertReturn() {
+        model.keyFeedback()
+        model.insertText("\n")
+    }
+
+    @objc private func advanceInputMode() {
+        model.keyFeedback()
+        model.advanceInputMode()
+    }
+
+    private func startDeleting() {
+        deleteRepeatTask?.cancel()
+        deleteRepeatTask = Task { @MainActor [weak self] in
+            guard let self else { return }
             model.keyFeedback()
-            model.insertText(" ")
-        } label: {
-            // Labeled like the system space bar — a blank white cap next to
-            // the labeled 发送 key read as a broken placeholder.
-            Text(model.localization.string("空格"))
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .flatKey()
-                .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var returnKey: some View {
-        Button {
-            model.keyFeedback()
-            model.insertText("\n")
-        } label: {
-            Group {
-                if let title = model.returnKeyTitle {
-                    Text(title).font(.callout.weight(.semibold))
-                } else {
-                    Image(systemName: "return").font(.system(size: 18, weight: .medium))
-                }
-            }
-            // Return is an emphasized solid key. The cap is Color.accentColor,
-            // which in THIS extension resolves to the system blue: the appex
-            // bundle doesn't carry the app's AccentColor asset (it lives under
-            // UniClipboard/, which the keyboard target doesn't compile), so the
-            // app's dark-ink / ivory pair never applies here. A fixed white
-            // glyph reads cleanly on that blue in both schemes — the old
-            // systemBackground glyph went black in dark mode (black-on-blue).
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text(model.localization.string("回车")))
-    }
-
-    // MARK: - Bottom strip (globe / dismiss)
-
-    @ViewBuilder
-    private var bottomStrip: some View {
-        // Only the globe lives down here. When iOS doesn't need a keyboard
-        // switch key (e.g. UniClip is the only third-party keyboard) the
-        // whole strip collapses so the keyboard ends right under the key row
-        // instead of leaving a tall empty band above the home indicator.
-        if model.needsInputModeSwitchKey {
-            HStack(spacing: 0) {
-                glyphButton(system: "globe", size: KeyboardLayout.globeSize) { model.advanceInputMode() }
-                    .accessibilityLabel(Text(model.localization.string("切换键盘")))
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, KeyboardLayout.hMargin)
-            // The fixed frame comes FIRST, paddings after — the old order
-            // (paddings inside a 30pt frame) silently overflowed the frame by
-            // ±4pt, letting the globe creep up toward the key row.
-            .frame(height: KeyboardLayout.stripHeight)
-            .padding(.top, KeyboardLayout.stripTopPad)
-            // Keep a little breathing room above the home indicator — flush
-            // against the bottom edge reads as cramped.
-            .padding(.bottom, KeyboardLayout.stripBottomPad)
-        }
-    }
-
-    // MARK: - Full-access hint
-
-    private var fullAccessHint: some View {
-        centered {
-            VStack(spacing: 12) {
-                Image(systemName: "lock.shield")
-                    .font(.largeTitle)
-                    .foregroundStyle(.tint)
-                Text(model.localization.string("需要「完全访问权限」"))
-                    .font(.headline)
-                Text(
-                    model.localization.string(
-                        "在 设置 › 通用 › 键盘 › UniClip 中开启「允许完全访问」,即可在打开键盘时自动同步剪贴板。"
-                    )
-                )
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 24)
-                if let settingsURL = KeyboardSettingsURL.destination {
-                    Link(model.localization.string("前往设置 ›"), destination: settingsURL)
-                        .buttonStyle(.borderedProminent)
-                        .foregroundStyle(Color(.systemBackground))
-                }
-            }
-        }
-    }
-
-    // MARK: - Small building blocks
-
-    private func infoBlock(system: String, title: String, message: String) -> some View {
-        VStack(spacing: 8) {
-            Image(systemName: system)
-                .font(.title2)
-                .foregroundStyle(.secondary)
-            Text(title)
-                .font(.callout.weight(.medium))
-            Text(message)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
-        }
-    }
-
-    private func glyphButton(system: String, size: CGFloat, action: @escaping () -> Void) -> some View {
-        Button {
-            model.keyFeedback()
-            action()
-        } label: {
-            Image(systemName: system)
-                .font(.system(size: KeyboardLayout.isPad ? 19 : 16, weight: .medium))
-                .foregroundStyle(.secondary)
-                .frame(width: size, height: size)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    /// Bare circular button for the top bar — same chrome grammar as the
-    /// globe key in the bottom strip (secondary glyph, no resting surface,
-    /// highlight only while pressed), so 🔍 / ⟳ / ✕ read as tray chrome
-    /// rather than competing with the card surfaces below.
-    private func circleButton(system: String, size: CGFloat = 16, action: @escaping () -> Void) -> some View {
-        Button {
-            model.keyFeedback()
-            action()
-        } label: {
-            Image(systemName: system)
-                .font(.system(size: size, weight: .medium))
-                .foregroundStyle(.secondary)
-                .frame(width: 34, height: 34)
-        }
-        .buttonStyle(ChromePressStyle(shape: Circle(), hitOutset: 5))
-    }
-
-    private func centered<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        VStack {
-            Spacer(minLength: 0)
-            content()
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
-// MARK: - Backspace key (hold-to-repeat)
-
-/// Backspace with press-and-hold auto-repeat: one delete on touch-down, then
-/// after a short hold it repeats on an accelerating interval (like the system
-/// keyboard). Uses `onLongPressGesture`'s `onPressingChanged` to bracket the
-/// press; the repeat loop is a cancellable `Task` torn down on release /
-/// disappear, with an iteration cap as a runaway backstop.
-private struct BackspaceKey: View {
-    let model: KeyboardModel
-
-    @State private var pressing = false
-    @State private var repeatTask: Task<Void, Never>?
-
-    var body: some View {
-        Image(systemName: "delete.left")
-            .font(.system(size: 18, weight: .medium))
-            .foregroundStyle(.primary)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .flatKey()
-            .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-            .opacity(pressing ? 0.55 : 1)
-            .animation(.easeOut(duration: 0.08), value: pressing)
-            // minimumDuration 0 ⇒ onPressingChanged(true) on touch-down; the
-            // large maximumDistance keeps a slight finger slide from cancelling.
-            .onLongPressGesture(minimumDuration: 0, maximumDistance: 1000) {
-                // perform — no-op; the press lifecycle is handled below.
-            } onPressingChanged: { isPressing in
-                pressing = isPressing
-                if isPressing { startRepeating() } else { stopRepeating() }
-            }
-            .onDisappear { stopRepeating() }
-            .accessibilityLabel(Text(model.localization.string("删除")))
-            .accessibilityAddTraits(.isButton)
-    }
-
-    private func startRepeating() {
-        repeatTask?.cancel()
-        repeatTask = Task { @MainActor in
-            model.keyFeedback()                           // tactile confirm on touch-down
-            model.deleteBackward()                        // immediate first delete
-            try? await Task.sleep(for: .seconds(0.45))    // hold before auto-repeat kicks in
-            var interval: Double = 0.11
+            model.deleteBackward()
+            try? await Task.sleep(for: .seconds(0.45))
+            var interval = 0.11
             var count = 0
-            while !Task.isCancelled, count < 600 {        // cap: runaway backstop
-                model.keyFeedback(haptic: false)          // click on each repeat, no buzz
+            while !Task.isCancelled, count < 600 {
+                model.keyFeedback(haptic: false)
                 model.deleteBackward()
                 count += 1
                 try? await Task.sleep(for: .seconds(interval))
-                interval = max(0.035, interval * 0.90)    // accelerate toward ~28/s
+                interval = max(0.035, interval * 0.90)
             }
         }
     }
 
-    private func stopRepeating() {
-        repeatTask?.cancel()
-        repeatTask = nil
+    private func stopDeleting() {
+        deleteRepeatTask?.cancel()
+        deleteRepeatTask = nil
     }
 }
 
-// MARK: - Card
+extension KeyboardRootView: UICollectionViewDelegate {
+    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        guard indexPath.item < displayedCards.count else { return }
+        model.activate(displayedCards[indexPath.item])
+    }
+}
 
-private struct CardView: View {
-    @ObservedObject var model: KeyboardModel
-    let card: KeyboardModel.Card
+@MainActor
+private final class KeyboardStateView: UIView {
+    private let iconView = UIImageView()
+    private let titleLabel = UILabel()
+    private let messageLabel = UILabel()
+    private let actionButton = UIButton(type: .system)
+    private var action: (() -> Void)?
 
-    private var isActing: Bool { model.actingCardID == card.id }
-    private var didAct: Bool { model.actedCardID == card.id }
-
-    var body: some View {
-        Button {
-            model.activate(card)
-        } label: {
-            VStack(alignment: .leading, spacing: 8) {
-                header
-                content
-            }
-            .padding(12)
-            .frame(width: 152, height: KeyboardLayout.cardHeight, alignment: .topLeading)
-            // Deliberately NOT Liquid Glass: cards are *content* surfaces
-            // sitting directly on the system keyboard tray, which is itself
-            // glass on iOS 26+ — and glass cannot sample other glass, so
-            // stacking them rendered noisy edges that read as faint divider
-            // lines. A solid cap-colored fill keeps the card row and the key
-            // caps reading as one continuous family on the tray.
-            .flatCard()
-            .overlay(alignment: .center) {
-                if didAct { actedOverlay }
-            }
-            // The card IS the button: without an explicit content shape, a
-            // .plain button only hit-tests its rendered subviews (the text
-            // glyphs), so the empty area below short text and the image
-            // padding felt dead. Pin the hit target to the whole card.
-            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .disabled(model.actingCardID != nil)
-        .animation(.easeInOut(duration: 0.2), value: didAct)
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        let stack = UIStackView(arrangedSubviews: [iconView, titleLabel, messageLabel, actionButton])
+        stack.axis = .vertical
+        stack.alignment = .center
+        stack.spacing = 6
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 16),
+            stack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -16),
+            stack.centerXAnchor.constraint(equalTo: centerXAnchor),
+            stack.centerYAnchor.constraint(equalTo: centerYAnchor),
+        ])
+        iconView.tintColor = .secondaryLabel
+        iconView.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 22, weight: .medium)
+        titleLabel.font = .preferredFont(forTextStyle: .callout).withWeight(.semibold)
+        titleLabel.textColor = .label
+        messageLabel.font = .preferredFont(forTextStyle: .footnote)
+        messageLabel.textColor = .secondaryLabel
+        messageLabel.textAlignment = .center
+        messageLabel.numberOfLines = 2
+        actionButton.titleLabel?.font = .preferredFont(forTextStyle: .footnote).withWeight(.semibold)
+        actionButton.addTarget(self, action: #selector(runAction), for: .touchUpInside)
     }
 
-    // "Text  3m" left, activity spinner right — mirrors Paste's card header.
-    private var header: some View {
-        HStack(spacing: 6) {
-            Image(systemName: kindIcon)
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(kindTint)
-            Text(kindLabel, bundle: model.localization.bundle)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(kindTint)
-            Text(card.time)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-            Spacer(minLength: 4)
-            if isActing { ProgressView().controlSize(.mini) }
-        }
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func configure(
+        symbol: String,
+        title: String,
+        message: String,
+        actionTitle: String?,
+        action: (() -> Void)?
+    ) {
+        iconView.image = UIImage(systemName: symbol)
+        titleLabel.text = title
+        messageLabel.text = message
+        actionButton.setTitle(actionTitle, for: .normal)
+        actionButton.isHidden = actionTitle == nil
+        self.action = action
     }
 
-    @ViewBuilder
-    private var content: some View {
+    @objc private func runAction() { action?() }
+}
+
+@MainActor
+private final class KeyboardRepeatButton: UIButton {
+    var onTouchDown: (() -> Void)?
+    var onTouchUp: (() -> Void)?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        addTarget(self, action: #selector(touchDown), for: .touchDown)
+        addTarget(
+            self,
+            action: #selector(touchUp),
+            for: [.touchUpInside, .touchUpOutside, .touchCancel, .touchDragExit]
+        )
+        setImage(UIImage(systemName: "delete.left"), for: .normal)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    @objc private func touchDown() { onTouchDown?() }
+    @objc private func touchUp() { onTouchUp?() }
+}
+
+@MainActor
+private final class KeyboardCardCell: UICollectionViewCell {
+    static let reuseIdentifier = "KeyboardCardCell"
+
+    private let headerStack = UIStackView()
+    private let kindIcon = UIImageView()
+    private let kindLabel = UILabel()
+    private let timeLabel = UILabel()
+    private let activity = UIActivityIndicatorView(style: .medium)
+    private let titleLabel = UILabel()
+    private let subtitleLabel = UILabel()
+    private let imageView = UIImageView()
+    private let actedOverlay = UIView()
+    private let actedLabel = UILabel()
+    private var thumbnailTask: Task<Void, Never>?
+    private var representedID: UUID?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        contentView.backgroundColor = KeyboardSurface.itemUIColor
+        contentView.layer.cornerRadius = 18
+        contentView.layer.cornerCurve = .continuous
+        contentView.clipsToBounds = true
+
+        headerStack.axis = .horizontal
+        headerStack.spacing = 5
+        headerStack.alignment = .center
+        headerStack.translatesAutoresizingMaskIntoConstraints = false
+        kindIcon.contentMode = .scaleAspectFit
+        kindIcon.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 11, weight: .bold)
+        kindIcon.widthAnchor.constraint(equalToConstant: 13).isActive = true
+        kindLabel.font = .preferredFont(forTextStyle: .caption1).withWeight(.semibold)
+        timeLabel.font = .preferredFont(forTextStyle: .caption2)
+        timeLabel.textColor = .tertiaryLabel
+        activity.hidesWhenStopped = true
+        headerStack.addArrangedSubview(kindIcon)
+        headerStack.addArrangedSubview(kindLabel)
+        headerStack.addArrangedSubview(timeLabel)
+        headerStack.addArrangedSubview(UIView())
+        headerStack.addArrangedSubview(activity)
+
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        titleLabel.font = .preferredFont(forTextStyle: .callout)
+        titleLabel.textColor = .label
+        titleLabel.numberOfLines = 5
+        titleLabel.textAlignment = .left
+        subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
+        subtitleLabel.font = .preferredFont(forTextStyle: .caption2)
+        subtitleLabel.textColor = .systemBlue
+        subtitleLabel.lineBreakMode = .byTruncatingMiddle
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        imageView.contentMode = .scaleAspectFill
+        imageView.clipsToBounds = true
+        imageView.layer.cornerRadius = 10
+        imageView.layer.cornerCurve = .continuous
+        imageView.tintColor = .secondaryLabel
+        imageView.backgroundColor = UIColor.systemOrange.withAlphaComponent(0.12)
+
+        actedOverlay.translatesAutoresizingMaskIntoConstraints = false
+        actedOverlay.backgroundColor = KeyboardSurface.itemUIColor.withAlphaComponent(0.94)
+        actedOverlay.isHidden = true
+        actedLabel.translatesAutoresizingMaskIntoConstraints = false
+        actedLabel.font = .preferredFont(forTextStyle: .subheadline).withWeight(.semibold)
+        actedLabel.textColor = .systemGreen
+        actedLabel.textAlignment = .center
+        actedOverlay.addSubview(actedLabel)
+
+        [headerStack, titleLabel, subtitleLabel, imageView, actedOverlay].forEach(contentView.addSubview)
+        NSLayoutConstraint.activate([
+            headerStack.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 12),
+            headerStack.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -12),
+            headerStack.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 12),
+            titleLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 12),
+            titleLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -12),
+            titleLabel.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: 8),
+            titleLabel.bottomAnchor.constraint(lessThanOrEqualTo: contentView.bottomAnchor, constant: -12),
+            subtitleLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 12),
+            subtitleLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -12),
+            subtitleLabel.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -12),
+            imageView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 12),
+            imageView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -12),
+            imageView.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: 8),
+            imageView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -12),
+            actedOverlay.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            actedOverlay.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            actedOverlay.topAnchor.constraint(equalTo: contentView.topAnchor),
+            actedOverlay.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+            actedLabel.centerXAnchor.constraint(equalTo: actedOverlay.centerXAnchor),
+            actedLabel.centerYAnchor.constraint(equalTo: actedOverlay.centerYAnchor),
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        thumbnailTask?.cancel()
+        thumbnailTask = nil
+        representedID = nil
+        imageView.image = nil
+        activity.stopAnimating()
+        actedOverlay.isHidden = true
+    }
+
+    func configure(
+        model: KeyboardModel,
+        card: KeyboardModel.Card,
+        isActing: Bool,
+        didAct: Bool
+    ) {
+        representedID = card.id
+        timeLabel.text = card.time
+        titleLabel.text = card.title
+        subtitleLabel.text = card.subtitle.map { "⌁ \($0)" }
+        activity.setAnimating(isActing)
+        actedOverlay.isHidden = !didAct
+        actedLabel.text = "✓ " + model.localization.string(card.kind == .image ? "已复制" : "已插入")
+
+        let symbol: String
+        let kind: String
+        let tint: UIColor
         switch card.kind {
         case .text:
-            Text(card.title)
-                .font(.callout)
-                .foregroundStyle(.primary)
-                .lineLimit(5)
-                .multilineTextAlignment(.leading)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            symbol = "text.alignleft"
+            kind = model.localization.string("文本")
+            tint = .secondaryLabel
         case .link:
-            VStack(alignment: .leading, spacing: 6) {
-                Text(card.title)
-                    .font(.callout)
-                    .foregroundStyle(.primary)
-                    .lineLimit(3)
-                    .multilineTextAlignment(.leading)
-                if let host = card.subtitle {
-                    HStack(spacing: 4) {
-                        Image(systemName: "link").font(.system(size: 10, weight: .semibold))
-                        Text(host).font(.caption2).lineLimit(1).truncationMode(.middle)
-                    }
-                    .foregroundStyle(.tint)
-                }
-                Spacer(minLength: 0)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            symbol = "link"
+            kind = model.localization.string("链接")
+            tint = .systemBlue
         case .image:
-            CardThumbnail(model: model, card: card)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            symbol = "photo"
+            kind = model.localization.string("图片")
+            tint = .systemOrange
         }
-    }
+        kindIcon.image = UIImage(systemName: symbol)
+        kindIcon.tintColor = tint
+        kindLabel.text = kind
+        kindLabel.textColor = tint
+        subtitleLabel.isHidden = card.kind != .link
+        imageView.isHidden = card.kind != .image
+        titleLabel.isHidden = card.kind == .image
 
-    private var actedOverlay: some View {
-        ZStack {
-            // Flat frost, not material — the keyboard avoids backdrop-effect
-            // surfaces entirely (see the flat-surface helpers note).
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(keyboardSurfaceColor.opacity(0.92))
-            Label(
-                model.localization.string(card.kind == .image ? "已复制" : "已插入"),
-                systemImage: "checkmark.circle.fill"
-            )
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.green)
-                .labelStyle(.titleAndIcon)
-        }
-        .transition(.opacity)
-    }
-
-    private var kindIcon: String {
-        switch card.kind {
-        case .text:  "text.alignleft"
-        case .link:  "link"
-        case .image: "photo"
-        }
-    }
-
-    private var kindLabel: LocalizedStringKey {
-        switch card.kind {
-        case .text:  "文本"
-        case .link:  "链接"
-        case .image: "图片"
-        }
-    }
-
-    private var kindTint: Color {
-        switch card.kind {
-        case .text:  .secondary
-        case .link:  .accentColor
-        case .image: .orange
-        }
-    }
-
-}
-
-// MARK: - Lazy image thumbnail
-
-/// Image card body: a rounded placeholder that fills in with a downsampled
-/// thumbnail once `KeyboardModel.thumbnail(for:)` resolves. Keyed on the card
-/// id so reused slots reload; failures / oversize originals leave the
-/// placeholder in place.
-private struct CardThumbnail: View {
-    let model: KeyboardModel
-    let card: KeyboardModel.Card
-
-    @State private var image: UIImage?
-    @State private var didLoad = false
-
-    private let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
-
-    var body: some View {
-        // The gradient fill is the PRIMARY view, so it alone defines the
-        // layout size (a Shape fills exactly the proposed slot). The thumbnail
-        // rides as an `.overlay`: overlays never resize their primary, so
-        // `scaledToFill`'s deliberately-oversized measurement can't grow the
-        // card the way it did inside a ZStack (a flexible `.frame` won't clamp
-        // it either — `max:.infinity` lets the oversize through). `clipShape`
-        // then trims the overflow to a centered crop.
-        shape
-            .fill(
-                LinearGradient(
-                    colors: [Color.orange.opacity(0.18), Color.pink.opacity(0.12)],
-                    startPoint: .topLeading, endPoint: .bottomTrailing
-                )
-            )
-            .overlay {
-                if let image {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                        .transition(.opacity)
-                } else {
-                    Image(systemName: didLoad ? "photo" : "photo.badge.arrow.down")
-                        .font(.title2)
-                        .foregroundStyle(.secondary)
-                        .keyboardPulse(!didLoad)
-                }
-            }
-            .clipShape(shape)
-            .task(id: card.id) {
-                didLoad = false
-                image = await model.thumbnail(for: card)
-                didLoad = true
-            }
-            .animation(.easeInOut(duration: 0.2), value: image)
-    }
-}
-
-// MARK: - Chrome press style
-
-/// Quiet-chrome press feedback. The keyboard's chrome (top bar, globe strip)
-/// carries **no resting surface** — bare glyphs and text sit directly on the
-/// system tray, exactly like the system keyboard's QuickType bar and globe
-/// key. Surfaces are reserved for *content* (cards) and *keys* (caps); giving
-/// chrome its own opaque islands split the header off from the card row as a
-/// second, sparser surface band. A soft highlight that exists only while
-/// pressed keeps the tap affordance without re-introducing that band.
-private struct ChromePressStyle<S: InsettableShape>: ButtonStyle {
-    let shape: S
-
-    /// Extra hit-test halo beyond the visual bounds. Top-bar controls draw at
-    /// 34pt for visual rhythm, but HIG wants ≥44pt targets — and with no
-    /// resting surface the eye aims at the ~14pt glyph, so finger scatter is
-    /// wider than it was against a filled circle. Only the hit shape grows;
-    /// the press highlight stays at the drawn size. The top-bar band is 46pt
-    /// tall (4+38+4), so a 44pt hit circle still lands inside the keyboard.
-    var hitOutset: CGFloat = 0
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .background(shape.fill(Color.primary.opacity(configuration.isPressed ? 0.08 : 0)))
-            .contentShape(shape.inset(by: -hitOutset))
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
-    }
-}
-
-// MARK: - Flat surface helpers
-
-/// The keyboard deliberately carries **no Liquid Glass and no material
-/// surfaces of its own**. The tray behind us (`UIInputView.Style.keyboard`)
-/// is already a system blur — Liquid Glass on iOS 26+ — and glass cannot
-/// sample other glass: `glassEffect` elements hosted here rendered a
-/// translucent backdrop band around the top bar plus a hairline where the
-/// band ended, which read as "the header occludes the cards". The surfaces
-/// we do draw — cards, key caps, the switcher panel — are flat opaque fills,
-/// the same treatment the system keyboard gives its own key caps inside the
-/// blurred tray; chrome (top bar, globe strip) draws no resting surface at
-/// all (see ChromePressStyle).
-private extension View {
-    /// Flat, opaque surface in the given shape — the keyboard's only
-    /// surface treatment (white on light, mid-gray on dark).
-    func flatSurface<S: Shape>(in shape: S) -> some View {
-        background(keyboardSurfaceColor, in: shape)
-    }
-
-    /// Key cap for the space / ⌫ keys.
-    func flatKey() -> some View {
-        flatSurface(in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-    }
-
-    /// Clipboard-card / panel surface — same fill, larger radius, so cards
-    /// and key caps read as one continuous family on the tray.
-    func flatCard() -> some View {
-        flatSurface(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-
-    /// iOS 26 attaches a scroll edge effect — a backdrop layer — to
-    /// scrollable ScrollViews. Hosted on the keyboard's glass tray that
-    /// backdrop degenerates into the translucent-band artifact (glass can't
-    /// sample glass — same family as glassEffect), so the keyboard hides it
-    /// on every ScrollView it keeps.
-    @ViewBuilder
-    func keyboardScrollEdgeEffectHidden() -> some View {
-        if #available(iOS 26, *) {
-            scrollEdgeEffectHidden(true)
-        } else {
-            self
-        }
-    }
-
-    /// Marks the card row as the scroll snap container on iOS 17+ (paged,
-    /// view-aligned scrolling). iOS 16 has no `scrollTargetLayout`, so the row
-    /// falls back to plain horizontal padding by `hMargin` — no snapping, but
-    /// the resting first card still lands on the shared horizontal grid (the
-    /// iOS 17 path gets that inset from `contentMargins` instead, which also
-    /// lets cards bleed to the screen edge mid-scroll).
-    @ViewBuilder
-    func keyboardCardRowLayout(hMargin: CGFloat) -> some View {
-        if #available(iOS 17, *) {
-            scrollTargetLayout()
-        } else {
-            padding(.horizontal, hMargin)
-        }
-    }
-
-    /// iOS 17+ symmetric content insets + view-aligned snapping for the card
-    /// ScrollView. No-op on iOS 16, where the row's own horizontal padding
-    /// (see keyboardCardRowLayout) supplies the resting inset.
-    @ViewBuilder
-    func keyboardCardScrollBehavior(hMargin: CGFloat) -> some View {
-        if #available(iOS 17, *) {
-            contentMargins(.horizontal, hMargin, for: .scrollContent)
-                .scrollTargetBehavior(.viewAligned)
-        } else {
-            self
-        }
-    }
-
-    /// iOS 17+ symbol pulse while `active`. No-op on iOS 16 (static glyph) —
-    /// `symbolEffect` is unavailable there.
-    @ViewBuilder
-    func keyboardPulse(_ active: Bool) -> some View {
-        if #available(iOS 17, *) {
-            symbolEffect(.pulse, isActive: active)
-        } else {
-            self
+        thumbnailTask?.cancel()
+        thumbnailTask = nil
+        guard card.kind == .image else { return }
+        imageView.image = UIImage(systemName: "photo.badge.arrow.down")
+        thumbnailTask = Task { @MainActor [weak self, weak model] in
+            guard let model else { return }
+            let image = await model.thumbnail(for: card)
+            guard !Task.isCancelled, self?.representedID == card.id else { return }
+            self?.imageView.image = image ?? UIImage(systemName: "photo")
         }
     }
 }
 
-// MARK: - Preview
-
-#if DEBUG
-#Preview("Keyboard — 卡片流") {
-    KeyboardRootView(model: .previewReady())
-        .frame(height: KeyboardLayout.contentHeight + KeyboardLayout.stripBandHeight)
-        .background(Color(.systemGray5))
+private extension UIFont {
+    func withWeight(_ weight: UIFont.Weight) -> UIFont {
+        let descriptor = fontDescriptor.addingAttributes([
+            .traits: [UIFontDescriptor.TraitKey.weight: weight],
+        ])
+        return UIFont(descriptor: descriptor, size: pointSize)
+    }
 }
 
-#Preview("Keyboard — 空状态") {
-    KeyboardRootView(model: .previewEmpty())
-        .frame(height: KeyboardLayout.contentHeight + KeyboardLayout.stripBandHeight)
-        .background(Color(.systemGray5))
+private extension UIActivityIndicatorView {
+    func setAnimating(_ animating: Bool) {
+        animating ? startAnimating() : stopAnimating()
+    }
 }
-#endif

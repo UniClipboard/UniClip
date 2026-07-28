@@ -23,7 +23,9 @@
     "format-docs:check": "prettier --check \"**/*.{json,md}\"",
     "type-check": "tsc --noEmit",
     "core:prepare": "bash scripts/update-unified-engine-core.sh",
+    "core:prepare:local:ios": "bash scripts/prepare-local-unified-engine-core.sh",
     "core:verify": "node scripts/verify-unified-engine-core.mjs --prepared",
+    "core:verify:local:ios": "node scripts/verify-unified-engine-core.mjs --local-prepared",
     "check:quality": "npm run lint && npm run format:check && npm run type-check",
     "build:apk": "cd android && gradlew assembleRelease",
     "plugin:build": "cd plugins && tsc -p tsconfig.json",
@@ -37,6 +39,7 @@
     "changelog:generate": "node scripts/release-notes.mjs --out-dir .",
     "release:build": "node scripts/bump-build.mjs",
     "release:version": "node scripts/bump-version.mjs",
+    "postinstall": "node scripts/patch-expo-modules-jsi-xcode27.cjs",
     "prepare": "husky"
   },
   "lint-staged": {

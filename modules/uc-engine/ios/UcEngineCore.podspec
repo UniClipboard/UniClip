@@ -16,12 +16,24 @@ Pod::Spec.new do |s|
   s.static_framework = true
 
   s.frameworks = 'Security', 'SystemConfiguration', 'UIKit', 'UniformTypeIdentifiers'
-  s.source_files = ['NativeSystemHost.swift', 'SharedEngineHost.swift', 'Bindings/*.swift']
+  s.source_files = [
+    'ExtensionSyncCoordinator.swift',
+    'NativeSystemHost.swift',
+    'P2pRuntimeOwnership.swift',
+    'SharedEngineHost.swift',
+    'Bindings/*.swift',
+  ]
   s.vendored_frameworks = 'UniClipboardEngine.xcframework'
   s.exclude_files = 'Bindings/include/**'
   s.script_phase = {
     :name => 'Verify UniClipboard Engine Release',
-    :script => 'node "${PODS_TARGET_SRCROOT}/../../../scripts/verify-unified-engine-core.mjs" --prepared',
+    :script => <<~'SCRIPT',
+      if [ "${UC_ENGINE_LOCAL_CORE:-0}" = "1" ]; then
+        node "${PODS_TARGET_SRCROOT}/../../../scripts/verify-unified-engine-core.mjs" --local-prepared
+      else
+        node "${PODS_TARGET_SRCROOT}/../../../scripts/verify-unified-engine-core.mjs" --prepared
+      fi
+    SCRIPT
     :execution_position => :before_compile,
   }
   s.pod_target_xcconfig = {

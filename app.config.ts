@@ -60,6 +60,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ios: {
       ...ios,
       bundleIdentifier: IOS_BUNDLE_ID,
+      deploymentTarget: '16.4',
       entitlements: {
         ...(ios.entitlements ?? {}),
         'com.apple.security.application-groups': APP_GROUPS,
@@ -67,6 +68,17 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       },
       infoPlist: {
         ...(ios.infoPlist ?? {}),
+        UIApplicationSceneManifest: {
+          UIApplicationSupportsMultipleScenes: false,
+          UISceneConfigurations: {
+            UIWindowSceneSessionRoleApplication: [
+              {
+                UISceneConfigurationName: 'Default Configuration',
+                UISceneDelegateClassName: '$(PRODUCT_MODULE_NAME).SceneDelegate',
+              },
+            ],
+          },
+        },
         // Read at runtime by the Swift App Group resolvers (with a hardcoded
         // fallback). Injected for BOTH variants so production also resolves a
         // concrete value rather than relying on the fallback.

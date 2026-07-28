@@ -35,11 +35,12 @@ it('links to the containing app settings from the keyboard extension', () => {
     true
   );
   expect(keyboardRootView).toContain('KeyboardSettingsURL.destination');
-  expect(keyboardRootView).toContain('Link(');
+  expect(keyboardRootView).toContain('onOpenSettings?(url)');
   expect(settingsURL).toContain('App-prefs:');
   expect(settingsURL).toContain('UIApplication.openSettingsURLString');
   expect(`${keyboardRootView}\n${settingsURL}`).not.toContain('prefs:root');
-  expect(controller).not.toContain('extensionContext?.open');
+  expect(controller).toContain('extensionContext?.open(url, completionHandler: nil)');
   expect(controller).not.toContain('sel_registerName("openURL:")');
+  expect(controller).not.toContain('UIApplication.shared.open');
   expect(`${keyboardRootView}\n${controller}`).not.toContain('App-prefs:');
 });

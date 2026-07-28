@@ -160,4 +160,16 @@ describe('Expo app config variants', () => {
       expect(source).not.toContain('UniClipboard.dev.p2p');
     }
   });
+
+  it('keeps generated iOS projects compatible with Xcode 27', () => {
+    const config = readExpoConfig('development');
+    const appJson = JSON.parse(readFileSync(path.join(process.cwd(), 'app.json'), 'utf8'));
+    const plugins = appJson.expo.plugins;
+
+    expect(config.ios.deploymentTarget).toBe('16.4');
+    expect(plugins).toContain('./plugins/build/withXcode27DeploymentTargets.js');
+    expect(plugins.indexOf('./plugins/build/withXcode27DeploymentTargets.js')).toBeLessThan(
+      plugins.indexOf('@bacons/apple-targets')
+    );
+  });
 });

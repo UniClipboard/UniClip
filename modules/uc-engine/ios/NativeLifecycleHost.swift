@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(UcEngineCore)
+internal import UcEngineCore
+#endif
 
 final class NativeEngineRegistry<Engine: AnyObject> {
   private let lock = NSLock()
@@ -65,8 +68,50 @@ protocol NativeEngineLifecycle {
   func resume() throws
 }
 
-enum NativeLifecycleError: Error {
+enum NativeLifecycleError: Error, Equatable {
   case incompleteRecovery
+  case runtimeOwnershipUnavailable
+}
+
+final class RuntimeOwnedNativeLifecycle: NativeEngineLifecycle {
+  private let engine: any NativeEngineLifecycle
+  private let ownership: any NativeRuntimeOwnership
+  private let acquisitionTimeoutMs: UInt64
+
+  init(
+    engine: any NativeEngineLifecycle,
+    ownership: any NativeRuntimeOwnership,
+    acquisitionTimeoutMs: UInt64 = 1_000
+  ) {
+    self.engine = engine
+    self.ownership = ownership
+    self.acquisitionTimeoutMs = acquisitionTimeoutMs
+  }
+
+  func recoverSession() throws -> NativeSessionRecovery {
+    try engine.recoverSession()
+  }
+
+  func lifecycleState() throws -> NativeEngineLifecycleState {
+    try engine.lifecycleState()
+  }
+
+  func suspend() throws {
+    try engine.suspend()
+    ownership.release()
+  }
+
+  func resume() throws {
+    guard try ownership.acquire(timeoutMs: acquisitionTimeoutMs) else {
+      throw NativeLifecycleError.runtimeOwnershipUnavailable
+    }
+    do {
+      try engine.resume()
+    } catch {
+      ownership.release()
+      throw error
+    }
+  }
 }
 
 final class NativeLifecycleHost {

@@ -1,7 +1,14 @@
 #!/usr/bin/env node
 import { createHash } from 'node:crypto';
-import { createReadStream, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import {
+  createReadStream,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import { dirname, resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
 const moduleRoot = resolve(root, 'modules/uc-engine');
@@ -9,6 +16,8 @@ const pin = JSON.parse(readFileSync(resolve(moduleRoot, 'core-source.json'), 'ut
 const cacheRoot = resolve(moduleRoot, '.artifacts', pin.version);
 const downloadsRoot = resolve(readArg('--downloads') ?? cacheRoot);
 const markerPath = resolve(cacheRoot, 'prepared.json');
+const localMarkerPath = resolve(moduleRoot, '.artifacts/local/local-prepared.json');
+const swiftBindingPath = resolve(moduleRoot, 'ios/Bindings/uc_engine_uniffi.swift');
 const moduleVersion = pin.version.replace(/^core-v/, '');
 
 function fail(message) {
@@ -90,7 +99,11 @@ async function verifyDownloads() {
 
 const frameworkFiles = [
   'Info.plist',
+  'ios-arm64/Headers/module.modulemap',
+  'ios-arm64/Headers/uc_engine_uniffiFFI.h',
   'ios-arm64/libuc_engine_uniffi.a',
+  'ios-arm64_x86_64-simulator/Headers/module.modulemap',
+  'ios-arm64_x86_64-simulator/Headers/uc_engine_uniffiFFI.h',
   'ios-arm64_x86_64-simulator/libuc_engine_uniffi.a',
 ];
 
@@ -159,7 +172,65 @@ async function verifyPrepared() {
     fail('module package version does not match core release');
 }
 
-if (process.argv.includes('--record-prepared')) {
+function requireSha256(value, label) {
+  if (!/^[0-9a-f]{64}$/.test(value ?? '')) fail(`${label} must be a lowercase SHA-256 hash`);
+  return value;
+}
+
+async function recordLocalPrepared() {
+  const sourceCommit = readArg('--source-commit');
+  const sourceStateSha256 = requireSha256(readArg('--source-state-sha256'), 'local source state');
+  if (!/^[0-9a-f]{40}$/.test(sourceCommit ?? '')) {
+    fail('local source commit must be a full lowercase Git commit');
+  }
+
+  const marker = {
+    schemaVersion: 1,
+    sourceCommit,
+    sourceStateSha256,
+    bindingSha256: await sha256(swiftBindingPath),
+    frameworkFiles: await currentFrameworkHashes(),
+  };
+  mkdirSync(dirname(localMarkerPath), { recursive: true });
+  writeFileSync(localMarkerPath, `${JSON.stringify(marker, null, 2)}\n`);
+}
+
+async function verifyLocalPrepared() {
+  if (!existsSync(localMarkerPath)) {
+    fail('local prepared marker is missing; run npm run core:prepare:local:ios');
+  }
+  const marker = JSON.parse(readFileSync(localMarkerPath, 'utf8'));
+  if (marker.schemaVersion !== 1 || !/^[0-9a-f]{40}$/.test(marker.sourceCommit ?? '')) {
+    fail('local prepared marker has invalid source metadata');
+  }
+  requireSha256(marker.sourceStateSha256, 'local source state');
+  await verifyHash(
+    swiftBindingPath,
+    requireSha256(marker.bindingSha256, 'local Swift binding'),
+    'local prepared Swift binding'
+  );
+
+  const currentHashes = await currentFrameworkHashes();
+  for (const [file, expected] of Object.entries(marker.frameworkFiles ?? {})) {
+    if (currentHashes[file] !== requireSha256(expected, `local XCFramework file ${file}`)) {
+      fail(`local prepared XCFramework file ${file} was modified`);
+    }
+  }
+  if (Object.keys(marker.frameworkFiles ?? {}).length !== frameworkFiles.length) {
+    fail('local prepared marker does not cover every XCFramework input');
+  }
+
+  return marker;
+}
+
+if (process.argv.includes('--record-local')) {
+  await recordLocalPrepared();
+  const marker = await verifyLocalPrepared();
+  console.log(`Recorded local iOS engine from ${marker.sourceCommit}`);
+} else if (process.argv.includes('--local-prepared')) {
+  const marker = await verifyLocalPrepared();
+  console.log(`Verified local iOS engine from ${marker.sourceCommit}`);
+} else if (process.argv.includes('--record-prepared')) {
   await recordPrepared();
   console.log(`Recorded prepared ${pin.version} from ${pin.sourceCommit}`);
 } else if (process.argv.includes('--prepared')) {
