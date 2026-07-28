@@ -29,7 +29,7 @@ final class KeyboardViewController: UIInputViewController {
     /// snug between the top bar and the key row instead of floating in a tall
     /// frame. The Paste-style layout stacks a branded/search top bar, a row of
     /// clipboard cards, and the space/⌫/return key row — that's
-    /// `KeyboardLayout.contentHeight`, **computed from the same constants the
+    /// `KeyboardLayoutMetrics.contentHeight`, **computed from the same constants the
     /// UIKit layout consumes** (a hand-summed constant here once lagged a
     /// 2pt top-bar change and clipped the card row into looking like it had
     /// divider lines). The globe strip is added only when iOS needs an
@@ -40,7 +40,7 @@ final class KeyboardViewController: UIInputViewController {
     /// on the input view.
     private lazy var heightConstraint: NSLayoutConstraint = {
         let constraint = view.heightAnchor.constraint(
-            equalToConstant: KeyboardLayout.contentHeight
+            equalToConstant: KeyboardLayoutMetrics.contentHeight
         )
         constraint.priority = UILayoutPriority(999)
         return constraint
@@ -50,7 +50,7 @@ final class KeyboardViewController: UIInputViewController {
         let targetHeight = initialTargetHeight
         let inputView = UIInputView(
             frame: CGRect(x: 0, y: 0, width: 0, height: targetHeight),
-            inputViewStyle: .keyboard
+            inputViewStyle: .default
         )
         inputView.allowsSelfSizing = true
         inputView.backgroundColor = .clear
@@ -79,6 +79,10 @@ final class KeyboardViewController: UIInputViewController {
         model.dismiss = { [unowned self] in
             self.dismissKeyboard()
         }
+        model.openSettings = { [unowned self] in
+            guard let url = KeyboardSettingsURL.destination else { return }
+            self.extensionContext?.open(url, completionHandler: nil)
+        }
         // The click only sounds when our input view adopts
         // `UIInputViewAudioFeedback` (below) and the user has 键盘点击音 on —
         // so the model can call this unconditionally and let iOS decide.
@@ -93,12 +97,9 @@ final class KeyboardViewController: UIInputViewController {
         updateHeightConstraint()
         heightConstraint.isActive = true
 
-        let keyboardView = KeyboardRootView(model: model)
+        let keyboardView = KeyboardRootView(viewStore: model)
         keyboardView.onPreferredHeightChange = { [weak self] targetHeight in
             self?.applyTargetHeight(targetHeight)
-        }
-        keyboardView.onOpenSettings = { [weak self] url in
-            self?.extensionContext?.open(url, completionHandler: nil)
         }
         self.keyboardView = keyboardView
         view.addSubview(keyboardView)
@@ -162,23 +163,18 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func updateHeightConstraint() {
-        // Size to content: add the globe band only when the strip is shown, so a
-        // single-keyboard install doesn't leave the freed space floating the
-        // card row up off the keys.
-        let contentHeight = hasFullAccess
-            ? KeyboardLayout.contentHeight
-            : KeyboardLayout.restrictedContentHeight
-        heightConstraint.constant = contentHeight
-            + (needsInputModeSwitchKey ? KeyboardLayout.stripBandHeight : 0)
+        heightConstraint.constant = KeyboardLayoutMetrics.targetHeight(
+            hasFullAccess: hasFullAccess,
+            needsInputModeSwitchKey: needsInputModeSwitchKey
+        )
         preferredContentSize.height = heightConstraint.constant
     }
 
     private var initialTargetHeight: CGFloat {
-        let contentHeight = hasFullAccess
-            ? KeyboardLayout.contentHeight
-            : KeyboardLayout.restrictedContentHeight
-        return contentHeight
-            + (needsInputModeSwitchKey ? KeyboardLayout.stripBandHeight : 0)
+        KeyboardLayoutMetrics.targetHeight(
+            hasFullAccess: hasFullAccess,
+            needsInputModeSwitchKey: needsInputModeSwitchKey
+        )
     }
 
     private func applyTargetHeight(_ targetHeight: CGFloat) {

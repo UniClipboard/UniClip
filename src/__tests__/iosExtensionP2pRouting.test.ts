@@ -88,6 +88,7 @@ describe('iOS extension P2P routing', () => {
   it('coalesces keyboard sync events by source and runs at most one follow-up', () => {
     const keyboard = readProjectFile('targets/keyboard/KeyboardModel.swift');
     const rootView = readProjectFile('targets/keyboard/KeyboardRootView.swift');
+    const viewStore = readProjectFile('targets/keyboard/KeyboardModel+ViewStore.swift');
 
     expect(keyboard).toContain('private var syncEventGate = ExtensionSyncEventGate()');
     expect(keyboard).toContain('func requestSync(_ trigger: ExtensionSyncTrigger)');
@@ -97,8 +98,11 @@ describe('iOS extension P2P routing', () => {
     expect(keyboard).toContain('requestSync(.networkChanged)');
     expect(keyboard).toContain('requestSync(.localClipboardChanged)');
     expect(keyboard).toContain('requestSync(.serverChanged)');
-    expect(rootView).toContain('internal import UcEngineCore');
-    expect(rootView).toContain('model.requestSync(.manual)');
+    expect(keyboard).toContain('internal import UcEngineCore');
+    expect(viewStore).toContain('case .refresh:');
+    expect(viewStore).toContain('requestSync(.manual)');
+    expect(rootView).not.toContain('UcEngineCore');
+    expect(rootView).not.toContain('KeyboardModel');
     expect(keyboard).not.toContain('guard syncTask == nil else { return }');
   });
 
@@ -106,7 +110,6 @@ describe('iOS extension P2P routing', () => {
     const keyboard = readProjectFile('targets/keyboard/KeyboardModel.swift');
     const p2pSync = keyboard.match(/private func syncP2pSnapshot\([\s\S]*?\n    \}/)?.[0];
 
-    expect(keyboard).toContain('syncPresentation.setSyncing(trigger.showsSyncProgress)');
     expect(keyboard).toContain('publishHistoryChanges: trigger.shouldPublishHistoryImmediately');
     expect(p2pSync).toBeDefined();
     expect(p2pSync).toContain('publishHistoryChanges: Bool');
@@ -126,10 +129,10 @@ describe('iOS extension P2P routing', () => {
     expect(preparation).toContain('reloadCards()');
     expect(viewDidLoad).toContain('model.prepareForFirstPresentation(');
     expect(viewDidLoad?.indexOf('model.prepareForFirstPresentation(')).toBeLessThan(
-      viewDidLoad?.indexOf('KeyboardRootView(model: model)') ?? -1
+      viewDidLoad?.indexOf('KeyboardRootView(viewStore: model)') ?? -1
     );
     expect(viewDidLoad?.indexOf('heightConstraint.isActive = true')).toBeLessThan(
-      viewDidLoad?.indexOf('KeyboardRootView(model: model)') ?? -1
+      viewDidLoad?.indexOf('KeyboardRootView(viewStore: model)') ?? -1
     );
   });
 
@@ -142,20 +145,11 @@ describe('iOS extension P2P routing', () => {
     expect(rootView).not.toContain('struct KeyboardRootView: View');
     expect(controller).toContain('override func loadView()');
     expect(controller).toContain('UIInputView(');
+    expect(controller).toContain('inputViewStyle: .default');
     expect(controller).toContain('allowsSelfSizing = true');
     expect(controller).toContain('preferredContentSize.height = targetHeight');
     expect(controller).not.toContain('import SwiftUI');
     expect(controller).not.toContain('UIHostingController');
-  });
-
-  it('renders the values delivered by Combine instead of rereading stale published storage', () => {
-    const rootView = readProjectFile('targets/keyboard/KeyboardRootView.swift');
-
-    expect(rootView).toContain(
-      'Publishers.CombineLatest3(cards.$gate, cards.$lastError, cards.$cards)'
-    );
-    expect(rootView).toContain('self?.renderCards(gate: gate, lastError: lastError, cards: cards)');
-    expect(rootView).not.toContain('cards.$cards.sink { [weak self] _ in self?.renderCards() }');
   });
 
   it('publishes a copied item to the open keyboard without showing automatic progress', () => {
@@ -165,13 +159,17 @@ describe('iOS extension P2P routing', () => {
     expect(coordinator).toContain('case .localClipboardChanged: return false');
   });
 
-  it('keeps the opaque keyboard surface bounded to keyboard height during system resizing', () => {
+  it('covers the complete system keyboard frame with the dynamic tray surface', () => {
     const controller = readProjectFile('targets/keyboard/KeyboardViewController.swift');
     const rootView = readProjectFile('targets/keyboard/KeyboardRootView.swift');
 
     expect(rootView).toContain('enum KeyboardSurface');
-    expect(rootView).toContain('static let trayUIColor = UIColor.systemGray5');
-    expect(rootView).toContain('backgroundColor = KeyboardSurface.trayUIColor');
+    expect(rootView).toContain('static let trayUIColor = UIColor { trait in');
+    expect(rootView).toContain('trait.userInterfaceStyle == .dark');
+    expect(rootView).toContain('? .systemGray6');
+    expect(rootView).toContain(': .systemGray5');
+    expect(rootView).toContain('isOpaque = false');
+    expect(rootView).toContain('backgroundColor = .clear');
     expect(controller).toContain('inputView.backgroundColor = .clear');
     expect(controller).toContain('inputView.isOpaque = false');
     expect(controller).toMatch(
@@ -184,6 +182,16 @@ describe('iOS extension P2P routing', () => {
     expect(controller).not.toContain('keyboardView.topAnchor.constraint(equalTo: view.topAnchor)');
     expect(controller).not.toContain('alpha: 0.001');
     expect(controller).not.toContain('UIHostingController');
+  });
+
+  it('keeps the card row free of the iOS 26 scroll-edge transition', () => {
+    const cardList = readProjectFile('targets/keyboard/KeyboardCardListView.swift');
+
+    expect(cardList).toContain('if #available(iOS 26.0, *)');
+    expect(cardList).toContain('view.topEdgeEffect.isHidden = true');
+    expect(cardList).toContain('view.bottomEdgeEffect.isHidden = true');
+    expect(cardList).toContain('view.leftEdgeEffect.isHidden = true');
+    expect(cardList).toContain('view.rightEdgeEffect.isHidden = true');
   });
 
   it('records synchronized clipboard writes and skips unchanged card publication', () => {
@@ -213,42 +221,6 @@ describe('iOS extension P2P routing', () => {
     expect(history).not.toContain('guard bytes.count == 16 else { return UUID() }');
   });
 
-  it('keeps transient sync progress from invalidating the whole keyboard view', () => {
-    const keyboard = readProjectFile('targets/keyboard/KeyboardModel.swift');
-    const rootView = readProjectFile('targets/keyboard/KeyboardRootView.swift');
-    const keyboardModel = keyboard.match(
-      /final class KeyboardModel: ObservableObject \{[\s\S]*?\/\/\/ A deliberately narrow observation surface/
-    )?.[0];
-
-    expect(keyboardModel).toBeDefined();
-    expect(keyboard).toContain('let syncPresentation = KeyboardSyncPresentation()');
-    expect(keyboardModel).not.toContain('@Published private(set) var isSyncing');
-    expect(keyboardModel).not.toContain('@Published private(set) var syncFlash');
-    expect(rootView).toContain('sync.$isSyncing.sink');
-    expect(rootView).toContain('sync.$flash.sink');
-    expect(rootView).toContain('private func renderSyncButton()');
-    expect(rootView).not.toContain('model.$isSyncing');
-    expect(rootView).not.toContain('model.$syncFlash');
-  });
-
-  it('publishes top-bar, card-list, and card-action changes independently', () => {
-    const keyboard = readProjectFile('targets/keyboard/KeyboardModel.swift');
-    const rootView = readProjectFile('targets/keyboard/KeyboardRootView.swift');
-    expect(keyboard).toContain('let topBarPresentation = KeyboardTopBarPresentation()');
-    expect(keyboard).toContain('let cardListPresentation = KeyboardCardListPresentation()');
-    expect(keyboard).toContain('let cardActionPresentation = KeyboardCardActionPresentation()');
-    expect(rootView).toContain('top.$serverLabel.sink');
-    expect(rootView).toContain(
-      'Publishers.CombineLatest3(cards.$gate, cards.$lastError, cards.$cards)'
-    );
-    expect(rootView).toContain('actions.$actingCardID.sink');
-    expect(rootView).toContain('private func renderTopBar()');
-    expect(rootView).toContain('private func renderCards()');
-    expect(rootView).toContain('private func renderCardActions()');
-    expect(rootView).not.toContain('KeyboardContentPresentation');
-    expect(rootView).not.toContain('@ObservedObject');
-  });
-
   it('keeps one P2P session alive only while the keyboard is visible', () => {
     const host = readProjectFile('modules/uc-engine/ios/SharedEngineHost.swift');
     const router = readProjectFile('targets/_shared/ExtensionSyncRouter.swift');
@@ -271,7 +243,6 @@ describe('iOS extension P2P routing', () => {
     const host = readProjectFile('modules/uc-engine/ios/SharedEngineHost.swift');
     const keyboard = readProjectFile('targets/keyboard/KeyboardModel.swift');
     const controller = readProjectFile('targets/keyboard/KeyboardViewController.swift');
-    const rootView = readProjectFile('targets/keyboard/KeyboardRootView.swift');
 
     expect(keyboard).toContain('final class KeyboardDiagnostics');
     expect(keyboard).toContain('Library/Caches/UniClipDiagnostics');
@@ -304,7 +275,6 @@ describe('iOS extension P2P routing', () => {
       'p2p.receive.failure',
       'p2p.close.start',
       'history.reload',
-      'presentation.publish',
     ]) {
       expect(keyboard).toContain(`"${event}"`);
     }
@@ -317,10 +287,6 @@ describe('iOS extension P2P routing', () => {
     ]) {
       expect(controller).toContain(`"${event}"`);
     }
-
-    expect(rootView).toContain('KeyboardDiagnostics.shared.record("view.render"');
-    expect(rootView).toContain('"surface": "layout"');
-    expect(rootView).toContain('"surface": "cards"');
 
     expect(keyboard).not.toContain('snapshot.clipboard.text');
     expect(keyboard).not.toContain('fields: ["server"');

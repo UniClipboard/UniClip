@@ -93,12 +93,8 @@ final class KeyboardModel: ObservableObject {
 
     // MARK: - Published state
 
-    var hasFullAccess: Bool = false {
-        didSet { layoutPresentation.setFullAccess(hasFullAccess) }
-    }
-    @Published var needsInputModeSwitchKey: Bool = true {
-        didSet { layoutPresentation.setNeedsInputModeSwitchKey(needsInputModeSwitchKey) }
-    }
+    @Published var hasFullAccess: Bool = false
+    @Published var needsInputModeSwitchKey: Bool = true
 
     /// Key-feedback prefs, mirrored from `AppSettings` (App Group). Read
     /// once on appear and re-read on each sync pass so a change made in the
@@ -106,63 +102,36 @@ final class KeyboardModel: ObservableObject {
     /// so a fresh install feels like a stock keyboard.
     private(set) var soundFeedback = true
     private(set) var hapticFeedback = true
-    @Published private(set) var localization = ExtensionLocalization() {
-        didSet { layoutPresentation.setLocalization(localization) }
-    }
+    @Published private(set) var localization = ExtensionLocalization()
 
-    @Published private(set) var gate: Gate = .ok {
-        didSet {
-            topBarPresentation.setGate(gate)
-            cardListPresentation.setGate(gate)
-        }
-    }
-    let layoutPresentation = KeyboardLayoutPresentation()
-    let topBarPresentation = KeyboardTopBarPresentation()
-    let cardListPresentation = KeyboardCardListPresentation()
-    let cardActionPresentation = KeyboardCardActionPresentation()
-    /// Transient progress belongs to the refresh control, not the keyboard's
-    /// root observation surface. Keeping it separate prevents every spinner
-    /// frame / outcome change from invalidating the entire keyboard tree.
-    let syncPresentation = KeyboardSyncPresentation()
+    @Published private(set) var gate: Gate = .ok
     /// Set on a failed pull / tap-fetch. Rendered as an inline chip (cards
     /// present) or a full hint + retry (no cards).
-    @Published private(set) var lastError: String? {
-        didSet { cardListPresentation.setLastError(lastError) }
-    }
-    @Published private(set) var cards: [Card] = [] {
-        didSet {
-            topBarPresentation.setHasCards(!cards.isEmpty)
-            cardListPresentation.setCards(cards)
-        }
-    }
+    @Published private(set) var lastError: String?
+    @Published private(set) var cards: [Card] = []
     private(set) var pushStatus: PushStatus = .none
     /// The entry the most recent uplink actually uploaded. Read by the
     /// downlink half to decide whether the server's latest is our own push
     /// (→ adopt its hash as watermark) or someone else's (→ treat as pull).
     private var lastPushedEntry: Clipboard?
-    @Published private(set) var serverLabel: String = "" {
-        didSet { topBarPresentation.setServerLabel(serverLabel) }
-    }
+    @Published private(set) var serverLabel: String = ""
 
     /// The card whose deferred payload (long text / image) is being fetched,
     /// so just that card can show a spinner.
-    @Published private(set) var actingCardID: UUID? {
-        didSet { cardActionPresentation.setActingCardID(actingCardID) }
-    }
+    @Published private(set) var actingCardID: UUID?
     /// Briefly set right after an insert/copy so the tapped card can flash a
     /// "已插入 / 已复制" confirmation without a separate state machine.
-    @Published private(set) var actedCardID: UUID? {
-        didSet { cardActionPresentation.setActedCardID(actedCardID) }
-    }
+    @Published private(set) var actedCardID: UUID?
 
     /// Context-appropriate label for the Return key, derived from the host
     /// field's `returnKeyType` (发送 / 搜索 / …). `nil` ⇒ render the ↵ glyph.
     /// Set by the controller; a custom keyboard can read the type but can
     /// only ever *insert a newline*, which most single-line fields submit on.
-    @Published private(set) var returnKeyTitle: String? {
-        didSet { layoutPresentation.setReturnKeyTitle(returnKeyTitle) }
-    }
+    @Published private(set) var returnKeyTitle: String?
     private var returnKeyType: UIReturnKeyType?
+
+    @Published private(set) var isSyncing = false
+    @Published private(set) var syncFlash: SyncFlash?
 
     /// Server + trust resolved on the last sync pass, reused by a card tap to
     /// fetch its deferred payload / thumbnail without re-reading the store.
@@ -174,6 +143,7 @@ final class KeyboardModel: ObservableObject {
     var deleteBackward: () -> Void = {}
     var advanceInputMode: () -> Void = {}
     var dismiss: () -> Void = {}
+    var openSettings: () -> Void = {}
     /// Plays the system key-click sound. Wired by the controller to
     /// `UIDevice.current.playInputClick()` — which only fires when the
     /// input view adopts `UIInputViewAudioFeedback` AND the user has
@@ -355,7 +325,7 @@ final class KeyboardModel: ObservableObject {
             "trigger": trigger.diagnosticName,
             "generation": String(gen),
         ])
-        syncPresentation.setSyncing(trigger.showsSyncProgress)
+        setSyncing(trigger.showsSyncProgress)
         syncTask = Task { [weak self] in
             guard let self else { return }
             await self.sync(
@@ -385,7 +355,7 @@ final class KeyboardModel: ObservableObject {
                     "outcome": "idle",
                     "visible": String(self.isVisible),
                 ])
-                self.syncPresentation.setSyncing(false)
+                self.setSyncing(false)
             }
         }
     }
@@ -423,7 +393,7 @@ final class KeyboardModel: ObservableObject {
         syncTask?.cancel()
         syncTask = nil
         syncEventGate.cancelAll()
-        syncPresentation.setSyncing(false)
+        setSyncing(false)
         stopP2pSession()
     }
 
@@ -1044,12 +1014,22 @@ final class KeyboardModel: ObservableObject {
     /// Show a brief outcome badge on the refresh button, then clear it.
     /// Success lingers ~1.4s; failure a touch longer so it's noticed.
     private func flashSync(_ outcome: SyncFlash) {
-        syncPresentation.setFlash(outcome)
+        setSyncFlash(outcome)
         flashTask?.cancel()
         flashTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(outcome == .success ? 1.4 : 2.0))
-            if !Task.isCancelled { self?.syncPresentation.setFlash(nil) }
+            if !Task.isCancelled { self?.setSyncFlash(nil) }
         }
+    }
+
+    private func setSyncing(_ next: Bool) {
+        guard isSyncing != next else { return }
+        isSyncing = next
+    }
+
+    private func setSyncFlash(_ next: SyncFlash?) {
+        guard syncFlash != next else { return }
+        syncFlash = next
     }
 
     private func publishGate(_ next: Gate) {
@@ -1371,142 +1351,6 @@ final class KeyboardModel: ObservableObject {
 
 }
 
-@MainActor
-final class KeyboardLayoutPresentation: ObservableObject {
-    @Published private(set) var hasFullAccess = false
-    @Published private(set) var needsInputModeSwitchKey = true
-    @Published private(set) var localization = ExtensionLocalization()
-    @Published private(set) var returnKeyTitle: String?
-
-    func setFullAccess(_ next: Bool) {
-        guard hasFullAccess != next else { return }
-        recordPresentation("layout", field: "fullAccess", value: String(next))
-        hasFullAccess = next
-    }
-
-    func setNeedsInputModeSwitchKey(_ next: Bool) {
-        guard needsInputModeSwitchKey != next else { return }
-        recordPresentation("layout", field: "inputModeSwitch", value: String(next))
-        needsInputModeSwitchKey = next
-    }
-
-    func setLocalization(_ next: ExtensionLocalization) {
-        guard localization != next else { return }
-        recordPresentation("layout", field: "localization", value: "changed")
-        localization = next
-    }
-
-    func setReturnKeyTitle(_ next: String?) {
-        guard returnKeyTitle != next else { return }
-        recordPresentation("layout", field: "returnKeyTitle", value: next == nil ? "glyph" : "label")
-        returnKeyTitle = next
-    }
-}
-
-@MainActor
-final class KeyboardTopBarPresentation: ObservableObject {
-    @Published private(set) var gate: KeyboardModel.Gate = .ok
-    @Published private(set) var hasCards = false
-    @Published private(set) var serverLabel = ""
-
-    func setGate(_ next: KeyboardModel.Gate) {
-        guard gate != next else { return }
-        recordPresentation("topBar", field: "gate", value: next.diagnosticName)
-        gate = next
-    }
-
-    func setHasCards(_ next: Bool) {
-        guard hasCards != next else { return }
-        recordPresentation("topBar", field: "hasCards", value: String(next))
-        hasCards = next
-    }
-
-    func setServerLabel(_ next: String) {
-        guard serverLabel != next else { return }
-        recordPresentation("topBar", field: "serverLabel", value: next.isEmpty ? "empty" : "present")
-        serverLabel = next
-    }
-}
-
-@MainActor
-final class KeyboardCardListPresentation: ObservableObject {
-    @Published private(set) var gate: KeyboardModel.Gate = .ok
-    @Published private(set) var lastError: String?
-    @Published private(set) var cards: [KeyboardModel.Card] = []
-
-    func setGate(_ next: KeyboardModel.Gate) {
-        guard gate != next else { return }
-        recordPresentation("cardList", field: "gate", value: next.diagnosticName)
-        gate = next
-    }
-
-    func setLastError(_ next: String?) {
-        guard lastError != next else { return }
-        recordPresentation("cardList", field: "lastError", value: next == nil ? "clear" : "present")
-        lastError = next
-    }
-
-    func setCards(_ next: [KeyboardModel.Card]) {
-        guard cards != next else { return }
-        recordPresentation("cardList", field: "cards", value: String(next.count))
-        cards = next
-    }
-}
-
-@MainActor
-final class KeyboardCardActionPresentation: ObservableObject {
-    @Published private(set) var actingCardID: UUID?
-    @Published private(set) var actedCardID: UUID?
-
-    func setActingCardID(_ next: UUID?) {
-        guard actingCardID != next else { return }
-        recordPresentation("cardAction", field: "acting", value: next?.uuidString ?? "nil")
-        actingCardID = next
-    }
-
-    func setActedCardID(_ next: UUID?) {
-        guard actedCardID != next else { return }
-        recordPresentation("cardAction", field: "acted", value: next?.uuidString ?? "nil")
-        actedCardID = next
-    }
-}
-
-/// A deliberately narrow observation surface for the refresh control. The
-/// keyboard root observes content state; this object observes only progress
-/// and the brief result badge.
-@MainActor
-final class KeyboardSyncPresentation: ObservableObject {
-    @Published private(set) var isSyncing = false
-    @Published private(set) var flash: KeyboardModel.SyncFlash?
-
-    func setSyncing(_ next: Bool) {
-        guard isSyncing != next else { return }
-        recordPresentation("syncButton", field: "syncing", value: String(next))
-        isSyncing = next
-    }
-
-    func setFlash(_ next: KeyboardModel.SyncFlash?) {
-        guard flash != next else { return }
-        let value: String
-        switch next {
-        case .success: value = "success"
-        case .failure: value = "failure"
-        case nil: value = "nil"
-        }
-        recordPresentation("syncButton", field: "flash", value: value)
-        flash = next
-    }
-}
-
-@MainActor
-private func recordPresentation(_ surface: String, field: String, value: String) {
-    KeyboardDiagnostics.shared.record("presentation.publish", fields: [
-        "surface": surface,
-        "field": field,
-        "value": value,
-    ])
-}
-
 extension KeyboardModel.Gate {
     var diagnosticName: String {
         switch self {
@@ -1685,7 +1529,7 @@ extension KeyboardModel {
         model.hasFullAccess = true
         model.gate = .ok
         model.serverLabel = "家里的 NAS"
-        model.syncPresentation.setFlash(.success)
+        model.syncFlash = .success
         model.cards = [
             Card(id: UUID(), kind: .text,
                  entry: Clipboard(type: .text, text: "明天上午 10 点开会,别忘了带上周的报表。", hasData: false, size: 18),
