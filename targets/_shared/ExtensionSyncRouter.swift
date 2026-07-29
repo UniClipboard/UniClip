@@ -13,6 +13,8 @@ enum ExtensionSyncChannel {
 }
 
 enum ExtensionSyncRouter {
+    private static let outboundDeliveryTimeoutMs: UInt64 = 5 * 60 * 1_000
+
     static func channel(settings: AppSettings) -> ExtensionSyncChannel {
         ExtensionSyncChannel(settings: settings)
     }
@@ -48,30 +50,52 @@ enum ExtensionSyncRouter {
 
     static func sendText(_ text: String) throws {
         let client = try ExtensionP2pClient()
-        try requireDelivered(client.synchronize { try client.sendText(text) })
+        defer { client.shutdown() }
+        _ = try requireDelivered(
+            client.synchronize(receiveTimeoutMs: 0) { try client.sendText(text) }
+        )
     }
 
     static func sendImage(_ bytes: Data, ext: String) throws {
         let client = try ExtensionP2pClient()
-        try requireDelivered(
-            client.synchronize { try client.sendImage(bytes, mimeType: imageMimeType(for: ext)) }
+        defer { client.shutdown() }
+        let delivery = try requireDelivered(
+            client.synchronize(receiveTimeoutMs: 0) {
+                try client.sendImage(bytes, mimeType: imageMimeType(for: ext))
+            }
+        )
+        guard ExtensionOutboundDeliveryPolicy.requiresRemoteDownloadForImage(byteCount: bytes.count)
+        else { return }
+        try client.waitForOutboundDelivery(
+            entryId: delivery.entryId,
+            expectedReceiverCount: delivery.accepted,
+            timeoutMs: outboundDeliveryTimeoutMs
         )
     }
 
     static func sendFile(_ url: URL, displayName: String) throws {
         let client = try ExtensionP2pClient()
-        try requireDelivered(
-            client.synchronize { try client.sendFile(url, displayName: displayName) }
+        defer { client.shutdown() }
+        let delivery = try requireDelivered(
+            client.synchronize(receiveTimeoutMs: 0) {
+                try client.sendFile(url, displayName: displayName)
+            }
+        )
+        try client.waitForOutboundDelivery(
+            entryId: delivery.entryId,
+            expectedReceiverCount: delivery.accepted,
+            timeoutMs: outboundDeliveryTimeoutMs
         )
     }
 
-    private static func requireDelivered(_ result: ExtensionSyncResult) throws {
+    private static func requireDelivered(_ result: ExtensionSyncResult) throws -> ExtensionDeliveryReport {
         guard let delivery = result.delivery else {
             throw ExtensionP2pError.deliveryIncomplete(.failed)
         }
         guard delivery.state == .delivered else {
             throw ExtensionP2pError.deliveryIncomplete(delivery.state)
         }
+        return delivery
     }
 
     private static func imageMimeType(for source: String?) -> String {

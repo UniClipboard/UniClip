@@ -1,4 +1,5 @@
 import Foundation
+internal import UcEngineCore
 import OSLog
 
 private let log = Logger(subsystem: "app.uniclipboard", category: "share")
@@ -89,18 +90,25 @@ struct ShareUploader {
         }
     }
 
-    func uploadP2p(_ item: ShareItem) throws {
-        switch item {
-        case .text(let text):
-            try ExtensionSyncRouter.sendText(text)
-        case .image(let bytes, let ext):
-            try ExtensionSyncRouter.sendImage(bytes, ext: ext)
-        case .file(let name, let bytes):
-            let temporary = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString + "-" + Clipboard.sanitizedFilename(name))
-            try bytes.write(to: temporary, options: .atomic)
-            defer { try? FileManager.default.removeItem(at: temporary) }
-            try ExtensionSyncRouter.sendFile(temporary, displayName: Clipboard.sanitizedFilename(name))
+    func uploadP2p(_ item: ShareItem) async throws {
+        try await ExtensionSyncExecutor.run {
+            switch item {
+            case .text(let text):
+                try ExtensionSyncRouter.sendText(text)
+            case .image(let bytes, let ext):
+                try ExtensionSyncRouter.sendImage(bytes, ext: ext)
+            case .file(let name, let bytes):
+                let temporary = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(
+                        UUID().uuidString + "-" + Clipboard.sanitizedFilename(name)
+                    )
+                try bytes.write(to: temporary, options: .atomic)
+                defer { try? FileManager.default.removeItem(at: temporary) }
+                try ExtensionSyncRouter.sendFile(
+                    temporary,
+                    displayName: Clipboard.sanitizedFilename(name)
+                )
+            }
         }
     }
 }

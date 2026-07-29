@@ -291,6 +291,158 @@ final class ExtensionSyncCoordinatorTests: XCTestCase {
     XCTAssertEqual(report().state, .failed)
   }
 
+  func testOutboundDeliveryWaitsForEveryAcceptedPeer() throws {
+    let engine = FakeExtensionSyncEngine(events: [
+      .outboundTransferProgress(entryId: "shared-entry", peerId: "peer-1"),
+      .outboundTransferStatusChanged(
+        entryId: "shared-entry",
+        peerId: "peer-1",
+        status: "completed",
+        reason: nil
+      ),
+      .outboundTransferProgress(entryId: "shared-entry", peerId: "peer-2"),
+      .outboundTransferStatusChanged(
+        entryId: "shared-entry",
+        peerId: "peer-2",
+        status: "completed",
+        reason: nil
+      ),
+    ])
+    let coordinator = ExtensionSyncCoordinator(engine: engine)
+
+    try coordinator.waitForOutboundDelivery(
+      entryId: "shared-entry",
+      expectedReceiverCount: 2,
+      timeoutMs: 1_000
+    )
+
+    XCTAssertEqual(engine.eventTimeouts.count, 4)
+    XCTAssertEqual(engine.remainingEventCount, 0)
+  }
+
+  func testOutboundDeliveryIgnoresDuplicateAndUnrelatedCompletionEvents() throws {
+    let engine = FakeExtensionSyncEngine(events: [
+      .outboundTransferStatusChanged(
+        entryId: "other-entry",
+        peerId: "peer-other",
+        status: "completed",
+        reason: nil
+      ),
+      .outboundTransferStatusChanged(
+        entryId: "shared-entry",
+        peerId: "peer-1",
+        status: "completed",
+        reason: nil
+      ),
+      .outboundTransferStatusChanged(
+        entryId: "shared-entry",
+        peerId: "peer-1",
+        status: "completed",
+        reason: nil
+      ),
+      .outboundTransferStatusChanged(
+        entryId: "shared-entry",
+        peerId: "peer-2",
+        status: "completed",
+        reason: nil
+      ),
+    ])
+    let coordinator = ExtensionSyncCoordinator(engine: engine)
+
+    try coordinator.waitForOutboundDelivery(
+      entryId: "shared-entry",
+      expectedReceiverCount: 2,
+      timeoutMs: 1_000
+    )
+
+    XCTAssertEqual(engine.eventTimeouts.count, 4)
+  }
+
+  func testOutboundDeliverySurfacesReceiverFailure() {
+    let engine = FakeExtensionSyncEngine(events: [
+      .outboundTransferStatusChanged(
+        entryId: "shared-entry",
+        peerId: "peer-1",
+        status: "failed",
+        reason: "receiver fetch failed"
+      )
+    ])
+    let coordinator = ExtensionSyncCoordinator(engine: engine)
+
+    XCTAssertThrowsError(
+      try coordinator.waitForOutboundDelivery(
+        entryId: "shared-entry",
+        expectedReceiverCount: 1,
+        timeoutMs: 1_000
+      )
+    ) { error in
+      XCTAssertEqual(
+        error as? ExtensionOutboundDeliveryError,
+        .failed(reason: "receiver fetch failed")
+      )
+    }
+  }
+
+  func testOutboundDeliverySurfacesReceiverCancellation() {
+    let engine = FakeExtensionSyncEngine(events: [
+      .outboundTransferStatusChanged(
+        entryId: "shared-entry",
+        peerId: "peer-1",
+        status: "cancelled",
+        reason: "remote_peer"
+      )
+    ])
+    let coordinator = ExtensionSyncCoordinator(engine: engine)
+
+    XCTAssertThrowsError(
+      try coordinator.waitForOutboundDelivery(
+        entryId: "shared-entry",
+        expectedReceiverCount: 1,
+        timeoutMs: 1_000
+      )
+    ) { error in
+      XCTAssertEqual(
+        error as? ExtensionOutboundDeliveryError,
+        .cancelled(reason: "remote_peer")
+      )
+    }
+  }
+
+  func testOutboundDeliveryTimesOutWithoutTerminalEvent() {
+    let engine = FakeExtensionSyncEngine(events: [])
+    let coordinator = ExtensionSyncCoordinator(engine: engine)
+
+    XCTAssertThrowsError(
+      try coordinator.waitForOutboundDelivery(
+        entryId: "shared-entry",
+        expectedReceiverCount: 1,
+        timeoutMs: 1_000
+      )
+    ) { error in
+      XCTAssertEqual(error as? ExtensionOutboundDeliveryError, .timedOut)
+    }
+  }
+
+  func testOutboundDeliveryWithoutAcceptedReceiversReturnsImmediately() throws {
+    let engine = FakeExtensionSyncEngine(events: [])
+    let coordinator = ExtensionSyncCoordinator(engine: engine)
+
+    try coordinator.waitForOutboundDelivery(
+      entryId: "shared-entry",
+      expectedReceiverCount: 0,
+      timeoutMs: 1_000
+    )
+
+    XCTAssertTrue(engine.eventTimeouts.isEmpty)
+  }
+
+  func testDeferredDownloadRequirementMatchesCoreImageThreshold() {
+    XCTAssertFalse(ExtensionOutboundDeliveryPolicy.requiresRemoteDownloadForImage(byteCount: 64 * 1024))
+    XCTAssertTrue(
+      ExtensionOutboundDeliveryPolicy.requiresRemoteDownloadForImage(byteCount: 64 * 1024 + 1)
+    )
+  }
+
   private func report(
     accepted: UInt64 = 0,
     duplicate: UInt64 = 0,
@@ -318,6 +470,8 @@ private final class FakeExtensionSyncEngine: ExtensionSyncEngine {
   private(set) var eventTimeouts: [UInt64] = []
   private(set) var restoredEntryIds: [String] = []
   let refreshReport: ExtensionPeerRefreshReport
+
+  var remainingEventCount: Int { events.count }
 
   init(
     events: [ExtensionSyncEvent],

@@ -9,6 +9,28 @@ enum SystemHostError: Error, Equatable {
   case io
 }
 
+enum AppleFileReadRetry {
+  private static let maximumAttempts = 3
+
+  static func run<T>(
+    beforeRetry: () -> Void = { Thread.sleep(forTimeInterval: 0.02) },
+    operation: () throws -> T
+  ) throws -> T {
+    var attempt = 1
+    while true {
+      do {
+        return try operation()
+      } catch let error as SystemHostError {
+        guard attempt < maximumAttempts, error == .io || error == .unavailable else {
+          throw error
+        }
+        attempt += 1
+        beforeRetry()
+      }
+    }
+  }
+}
+
 enum KeychainCopyResult {
   case success(Data)
   case missing
@@ -299,8 +321,29 @@ final class AppleFileHandleRegistry: @unchecked Sendable {
     let displayName: String?
   }
 
+  private struct ReadDiagnostic {
+    var stage = "registered"
+    var sizeBytes: UInt64?
+    var readCalls = 0
+    var readEnd: UInt64 = 0
+    var offset: UInt64 = 0
+    var requested: UInt32 = 0
+    var returned = 0
+    var error = "none"
+  }
+
+  private struct RetainedInputOperationError: LocalizedError {
+    let underlying: Error
+    let diagnostic: String
+
+    var errorDescription: String? {
+      "P2P file send failed [\(diagnostic)]"
+    }
+  }
+
   private let lock = NSLock()
   private var entries: [String: Entry] = [:]
+  private var readDiagnostics: [String: ReadDiagnostic] = [:]
 
   func register(uri: String, writable: Bool, displayName: String? = nil) throws -> String {
     let url: URL
@@ -316,16 +359,38 @@ final class AppleFileHandleRegistry: @unchecked Sendable {
     let handle = UUID().uuidString
     lock.withLock {
       entries[handle] = Entry(url: url, writable: writable, displayName: displayName)
+      readDiagnostics[handle] = ReadDiagnostic()
     }
     return handle
   }
 
+  func withRetainedInputFile<T>(
+    url: URL,
+    displayName: String? = nil,
+    operation: (String) throws -> T
+  ) throws -> T {
+    let handle = register(url: url, writable: false, displayName: displayName)
+    do {
+      return try operation(handle)
+    } catch {
+      let diagnostic = diagnosticSummary(handle)
+      remove(handle)
+      throw RetainedInputOperationError(underlying: error, diagnostic: diagnostic)
+    }
+  }
+
   func remove(_ handle: String) {
-    _ = lock.withLock { entries.removeValue(forKey: handle) }
+    lock.withLock {
+      entries.removeValue(forKey: handle)
+      readDiagnostics.removeValue(forKey: handle)
+    }
   }
 
   func removeAll() {
-    lock.withLock { entries.removeAll() }
+    lock.withLock {
+      entries.removeAll()
+      readDiagnostics.removeAll()
+    }
   }
 
   func url(_ handle: String) throws -> URL {
@@ -337,23 +402,62 @@ final class AppleFileHandleRegistry: @unchecked Sendable {
 
   func metadata(_ handle: String) throws -> AppleFileMetadata {
     let target = try entry(handle)
-    return try scoped(target.url) {
-      let values = try target.url.resourceValues(forKeys: [.fileSizeKey, .contentTypeKey])
-      return AppleFileMetadata(
-        displayName: target.displayName ?? target.url.lastPathComponent,
-        sizeBytes: UInt64(values.fileSize ?? 0),
-        mimeType: values.contentType?.preferredMIMEType
-      )
+    do {
+      let metadata = try AppleFileReadRetry.run {
+        try scoped(target.url) {
+          let values = try target.url.resourceValues(forKeys: [.fileSizeKey, .contentTypeKey])
+          return AppleFileMetadata(
+            displayName: target.displayName ?? target.url.lastPathComponent,
+            sizeBytes: UInt64(values.fileSize ?? 0),
+            mimeType: values.contentType?.preferredMIMEType
+          )
+        }
+      }
+      updateDiagnostic(handle) {
+        $0.stage = "metadata-ok"
+        $0.sizeBytes = metadata.sizeBytes
+        $0.error = "none"
+      }
+      return metadata
+    } catch {
+      updateDiagnostic(handle) {
+        $0.stage = "metadata-failed"
+        $0.error = diagnosticErrorKind(error)
+      }
+      throw error
     }
   }
 
   func read(_ handle: String, offset: UInt64, maxBytes: UInt32) throws -> Data {
     let target = try entry(handle)
-    return try scoped(target.url) {
-      let file = try FileHandle(forReadingFrom: target.url)
-      defer { try? file.close() }
-      try file.seek(toOffset: offset)
-      return try file.read(upToCount: Int(maxBytes)) ?? Data()
+    do {
+      let data = try AppleFileReadRetry.run {
+        try scoped(target.url) {
+          let file = try FileHandle(forReadingFrom: target.url)
+          defer { try? file.close() }
+          try file.seek(toOffset: offset)
+          return try file.read(upToCount: Int(maxBytes)) ?? Data()
+        }
+      }
+      updateDiagnostic(handle) {
+        $0.stage = "read-ok"
+        $0.readCalls += 1
+        $0.offset = offset
+        $0.requested = maxBytes
+        $0.returned = data.count
+        $0.readEnd = max($0.readEnd, offset + UInt64(data.count))
+        $0.error = "none"
+      }
+      return data
+    } catch {
+      updateDiagnostic(handle) {
+        $0.stage = "read-failed"
+        $0.offset = offset
+        $0.requested = maxBytes
+        $0.returned = 0
+        $0.error = diagnosticErrorKind(error)
+      }
+      throw error
     }
   }
 
@@ -391,6 +495,39 @@ final class AppleFileHandleRegistry: @unchecked Sendable {
       throw SystemHostError.invalidHandle
     }
     return value
+  }
+
+  private func updateDiagnostic(_ handle: String, update: (inout ReadDiagnostic) -> Void) {
+    lock.withLock {
+      guard var diagnostic = readDiagnostics[handle] else { return }
+      update(&diagnostic)
+      readDiagnostics[handle] = diagnostic
+    }
+  }
+
+  private func diagnosticSummary(_ handle: String) -> String {
+    let diagnostic = lock.withLock { readDiagnostics[handle] } ?? ReadDiagnostic()
+    let size = diagnostic.sizeBytes.map(String.init) ?? "unknown"
+    return [
+      "file-stage=\(diagnostic.stage)",
+      "file-size=\(size)",
+      "file-read-end=\(diagnostic.readEnd)",
+      "file-read-calls=\(diagnostic.readCalls)",
+      "file-offset=\(diagnostic.offset)",
+      "file-requested=\(diagnostic.requested)",
+      "file-returned=\(diagnostic.returned)",
+      "file-error=\(diagnostic.error)",
+    ].joined(separator: " ")
+  }
+
+  private func diagnosticErrorKind(_ error: Error) -> String {
+    guard let error = error as? SystemHostError else { return "unknown" }
+    switch error {
+    case .unavailable: return "unavailable"
+    case .permissionDenied: return "permission-denied"
+    case .invalidHandle: return "invalid-handle"
+    case .io: return "io"
+    }
   }
 
   private func scoped<T>(_ url: URL, operation: () throws -> T) throws -> T {

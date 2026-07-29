@@ -336,7 +336,7 @@ struct ShareRootView: View {
         if syncChannel == .p2p {
             phase = .uploading
             do {
-                try ShareUploader().uploadP2p(item)
+                try await ShareUploader().uploadP2p(item)
                 phase = .succeeded
             } catch {
                 phase = .failed(message(for: error))

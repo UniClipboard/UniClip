@@ -141,8 +141,23 @@ public final class ExtensionP2pClient: @unchecked Sendable {
     }
   }
 
+  public func waitForOutboundDelivery(
+    entryId: String,
+    expectedReceiverCount: UInt64,
+    timeoutMs: UInt64
+  ) throws {
+    try operationLock.withLock {
+      guard !isClosed else { throw ExtensionP2pError.sessionClosed }
+      try coordinator.waitForOutboundDelivery(
+        entryId: entryId,
+        expectedReceiverCount: expectedReceiverCount,
+        timeoutMs: timeoutMs
+      )
+    }
+  }
+
   public func shutdown() {
-    operationLock.withLock {
+    _ = operationLock.withLock {
       guard !isClosed else { return false }
       isClosed = true
       defer {
@@ -163,9 +178,9 @@ public final class ExtensionP2pClient: @unchecked Sendable {
   }
 
   public func sendFile(_ url: URL, displayName: String? = nil) throws -> SendReport {
-    let handle = files.register(url: url, writable: false, displayName: displayName)
-    defer { files.remove(handle) }
-    return try engine.sendFiles(fileHandles: [handle], targetDevices: [])
+    try files.withRetainedInputFile(url: url, displayName: displayName) { handle in
+      try engine.sendFiles(fileHandles: [handle], targetDevices: [])
+    }
   }
 }
 
@@ -303,6 +318,7 @@ private enum P2pSharedStore {
 private final class ExtensionMobileEngineAdapter: ExtensionSyncEngine {
   private let engine: MobileEngine
   private let localDeviceId: String
+  private var latestOutboundPeerByEntryId: [String: String] = [:]
 
   init(engine: MobileEngine, localDeviceId: String) {
     self.engine = engine
@@ -328,12 +344,32 @@ private final class ExtensionMobileEngineAdapter: ExtensionSyncEngine {
 
   func nextEvent(timeoutMs: UInt64) throws -> ExtensionSyncEvent? {
     guard let event = engine.nextEvent(timeoutMs: timeoutMs) else { return nil }
-    if case .activeClipboardChanged(_, let entryId, _, let activatedBy) = event,
-      activatedBy != localDeviceId
-    {
+    switch event {
+    case .activeClipboardChanged(_, let entryId, _, let activatedBy)
+    where activatedBy != localDeviceId:
       return .remoteActiveClipboardChanged(entryId: entryId)
+    case .transferProgress(
+      _,
+      let entryId,
+      _,
+      let peerId,
+      let direction,
+      _,
+      _
+    ) where direction == .sending:
+      guard let entryId else { return .other }
+      latestOutboundPeerByEntryId[entryId] = peerId
+      return .outboundTransferProgress(entryId: entryId, peerId: peerId)
+    case .transferStatusChanged(_, let entryId, _, let status, let reason):
+      return .outboundTransferStatusChanged(
+        entryId: entryId,
+        peerId: latestOutboundPeerByEntryId.removeValue(forKey: entryId),
+        status: status,
+        reason: reason
+      )
+    default:
+      return .other
     }
-    return .other
   }
 
   func restoreRemoteClipboard(entryId: String) throws -> Bool {

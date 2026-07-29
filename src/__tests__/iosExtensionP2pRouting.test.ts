@@ -238,6 +238,40 @@ describe('iOS extension P2P routing', () => {
     expect(keyboard).toMatch(/func stopMonitoring\(\)[\s\S]*?stopP2pSession\(\)/);
   });
 
+  it('keeps the Share P2P session alive until deferred downloads finish', () => {
+    const coordinator = readProjectFile('modules/uc-engine/ios/ExtensionSyncCoordinator.swift');
+    const host = readProjectFile('modules/uc-engine/ios/SharedEngineHost.swift');
+    const router = readProjectFile('targets/_shared/ExtensionSyncRouter.swift');
+    const uploader = readProjectFile('targets/share/ShareUploader.swift');
+    const rootView = readProjectFile('targets/share/ShareRootView.swift');
+
+    expect(coordinator).toContain('waitForOutboundDelivery(');
+    expect(host).toContain('case .transferProgress(');
+    expect(host).toContain('case .transferStatusChanged(');
+    expect(host).toContain('public func waitForOutboundDelivery(');
+    expect(router).toContain('defer { client.shutdown() }');
+    expect(router).toContain('expectedReceiverCount: delivery.accepted');
+    expect(router).toContain('requiresRemoteDownloadForImage(byteCount: bytes.count)');
+    expect(uploader).toContain('func uploadP2p(_ item: ShareItem) async throws');
+    expect(uploader).toContain('try await ExtensionSyncExecutor.run');
+    expect(rootView).toContain('try await ShareUploader().uploadP2p(item)');
+    expect(rootView).not.toContain('try ShareUploader().uploadP2p(item)');
+  });
+
+  it('keeps outbound file handles readable until the Share P2P session shuts down', () => {
+    const host = readProjectFile('modules/uc-engine/ios/SharedEngineHost.swift');
+    const sendFile = host.match(
+      /public func sendFile\(_ url: URL, displayName: String\? = nil\) throws -> SendReport \{[\s\S]*?\n  \}/
+    )?.[0];
+    const shutdown = host.match(/public func shutdown\(\) \{[\s\S]*?\n  \}/)?.[0];
+
+    expect(sendFile).toBeDefined();
+    expect(sendFile).toContain('files.withRetainedInputFile(');
+    expect(sendFile).not.toContain('defer { files.remove(handle) }');
+    expect(shutdown).toBeDefined();
+    expect(shutdown).toContain('files.removeAll()');
+  });
+
   it('persists privacy-safe keyboard diagnostics across the full sync and render path', () => {
     const coordinator = readProjectFile('modules/uc-engine/ios/ExtensionSyncCoordinator.swift');
     const host = readProjectFile('modules/uc-engine/ios/SharedEngineHost.swift');

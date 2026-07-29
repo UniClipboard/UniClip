@@ -62,6 +62,121 @@ final class NativeSystemHostTests: XCTestCase {
     XCTAssertFalse(handle.contains(destination.path))
   }
 
+  func testInputHandleReadsTwentyMegabytesAcrossAllChunks() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent("uc-engine-large-host-tests-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let source = directory.appendingPathComponent("twenty-megabytes.bin")
+    let expected = Data(repeating: 0xA5, count: 20 * 1024 * 1024)
+    try expected.write(to: source)
+    let files = AppleFileHandleRegistry()
+    let handle = files.register(url: source, writable: false)
+    var actual = Data()
+    var offset: UInt64 = 0
+
+    while offset < UInt64(expected.count) {
+      let chunk = try files.read(handle, offset: offset, maxBytes: 64 * 1024)
+      XCTAssertFalse(chunk.isEmpty)
+      actual.append(chunk)
+      offset += UInt64(chunk.count)
+    }
+
+    XCTAssertEqual(actual, expected)
+  }
+
+  func testTransientHostFileReadRetriesBeforeSurfacingFailure() throws {
+    var attempts = 0
+
+    let result: Data = try AppleFileReadRetry.run(beforeRetry: {}) {
+      attempts += 1
+      if attempts == 1 { throw SystemHostError.io }
+      return Data("recovered".utf8)
+    }
+
+    XCTAssertEqual(result, Data("recovered".utf8))
+    XCTAssertEqual(attempts, 2)
+  }
+
+  func testDeferredInputHandleRemainsReadableUntilSessionCleanup() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent("uc-engine-retained-host-tests-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let source = directory.appendingPathComponent("deferred.bin")
+    let expected = Data(repeating: 0x5A, count: 128 * 1024)
+    try expected.write(to: source)
+    let files = AppleFileHandleRegistry()
+
+    let handle = try files.withRetainedInputFile(url: source, displayName: "deferred.bin") {
+      XCTAssertEqual(try files.metadata($0).sizeBytes, UInt64(expected.count))
+      return $0
+    }
+
+    XCTAssertEqual(
+      try files.read(handle, offset: 64 * 1024, maxBytes: 64 * 1024),
+      expected.suffix(64 * 1024)
+    )
+    files.removeAll()
+    XCTAssertThrowsError(try files.read(handle, offset: 0, maxBytes: 1)) { error in
+      XCTAssertEqual(error as? SystemHostError, .invalidHandle)
+    }
+  }
+
+  func testRetainedInputFailureReportsPrivacySafeReadProgress() throws {
+    struct ProbeFailure: Error {}
+
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent("uc-engine-diagnostic-tests-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let source = directory.appendingPathComponent("private-name.bin")
+    try Data(repeating: 0x33, count: 128 * 1024).write(to: source)
+    let files = AppleFileHandleRegistry()
+
+    XCTAssertThrowsError(
+      try files.withRetainedInputFile(url: source, displayName: "private-name.bin") { handle in
+        _ = try files.metadata(handle)
+        _ = try files.read(handle, offset: 0, maxBytes: 64 * 1024)
+        throw ProbeFailure()
+      }
+    ) { error in
+      let message = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
+      XCTAssertTrue(message.contains("file-stage=read-ok"))
+      XCTAssertTrue(message.contains("file-size=131072"))
+      XCTAssertTrue(message.contains("file-read-end=65536"))
+      XCTAssertTrue(message.contains("file-read-calls=1"))
+      XCTAssertFalse(message.contains("private-name.bin"))
+      XCTAssertFalse(message.contains(directory.path))
+    }
+  }
+
+  func testFileReadFailureReportsOffsetWithoutPath() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent("uc-engine-read-failure-tests-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let source = directory.appendingPathComponent("private-missing.bin")
+    try Data(repeating: 0x44, count: 128 * 1024).write(to: source)
+    let files = AppleFileHandleRegistry()
+
+    XCTAssertThrowsError(
+      try files.withRetainedInputFile(url: source, displayName: "private-missing.bin") { handle in
+        _ = try files.metadata(handle)
+        try FileManager.default.removeItem(at: source)
+        return try files.read(handle, offset: 64 * 1024, maxBytes: 64 * 1024)
+      }
+    ) { error in
+      let message = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
+      XCTAssertTrue(message.contains("file-stage=read-failed"))
+      XCTAssertTrue(message.contains("file-offset=65536"))
+      XCTAssertTrue(message.contains("file-requested=65536"))
+      XCTAssertTrue(message.contains("file-error=io"))
+      XCTAssertFalse(message.contains("private-missing.bin"))
+      XCTAssertFalse(message.contains(directory.path))
+    }
+  }
+
   func testClipboardSharePreservesDisplayNameAndContent() throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent("uc-engine-clipboard-tests-\(UUID().uuidString)", isDirectory: true)

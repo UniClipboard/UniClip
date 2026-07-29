@@ -5,7 +5,7 @@ import UIKit
 /// What we actually push to the server, after extracting one attachment
 /// from the system share sheet. Mirrors the three publish paths on
 /// `Clipboard`: `publishText`, `publishImage`, `publishFile`.
-enum ShareItem: Equatable {
+enum ShareItem: Equatable, Sendable {
     case text(String)
     case image(Data, ext: String)
     case file(name: String, bytes: Data)
