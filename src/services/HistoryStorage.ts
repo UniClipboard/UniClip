@@ -12,7 +12,7 @@ import { Platform } from 'react-native';
 import { ClipboardItem, HistorySyncStatus } from '../types/clipboard';
 import { HistoryFilter, HistorySort, STORAGE_KEYS } from '../types/storage';
 import { getHistoryFileDir, saveHistoryFile } from '../utils/fileStorage';
-import { File, Directory } from 'expo-file-system';
+import { File } from 'expo-file-system';
 import { log } from './Logger';
 import {
   importHistoryFromAppGroup,
@@ -1186,23 +1186,12 @@ export class HistoryStorage {
     // 一并清掉旧 AsyncStorage JSON(回滚数据)
     await AsyncStorage.removeItem(STORAGE_KEYS.HISTORY);
 
-    // 删除历史记录文件夹下的所有文件
+    // Delegate layout-specific cleanup to file storage. iOS history lives in
+    // the App Group payload cache rather than the Expo document directory.
     try {
-      const { initFileStorage } = await import('../utils/fileStorage');
-      await initFileStorage();
-
-      const { HISTORY_BASE_DIR } = await import('../utils/fileStorage');
-      if (HISTORY_BASE_DIR.exists) {
-        const entries = HISTORY_BASE_DIR.list();
-        for (const entry of entries) {
-          try {
-            entry.delete();
-          } catch (error) {
-            log.error('[HistoryStorage] Failed to delete history entry:', error);
-          }
-        }
-        log.info('[HistoryStorage] History files cleared');
-      }
+      const { clearHistoryFiles } = await import('../utils/fileStorage');
+      await clearHistoryFiles();
+      log.info('[HistoryStorage] History files cleared');
     } catch (error) {
       log.error('[HistoryStorage] Failed to clear history files:', error);
     }
@@ -1306,35 +1295,9 @@ export class HistoryStorage {
     let cleanedCount = 0;
 
     try {
-      const { initFileStorage, HISTORY_BASE_DIR } = await import('../utils/fileStorage');
-      await initFileStorage();
-
-      if (!HISTORY_BASE_DIR.exists) {
-        return 0;
-      }
-
+      const { cleanupOrphanedHistoryFiles } = await import('../utils/fileStorage');
       const validProfileHashes = await historyRepository.allProfileHashesLower();
-
-      const typeDirs = HISTORY_BASE_DIR.list();
-      for (const typeDir of typeDirs) {
-        if (!('isDirectory' in typeDir) || !typeDir.isDirectory) continue;
-
-        const hashDirs = (typeDir as Directory).list();
-        for (const hashDir of hashDirs) {
-          if (!('isDirectory' in hashDir) || !hashDir.isDirectory) continue;
-
-          const hashFromDir = (hashDir as Directory).name?.toLowerCase();
-          if (hashFromDir && !validProfileHashes.has(hashFromDir)) {
-            try {
-              (hashDir as Directory).delete();
-              cleanedCount++;
-              log.info(`[HistoryStorage] Cleaned orphaned directory: ${hashDir.uri}`);
-            } catch (error) {
-              log.error('[HistoryStorage] Failed to delete orphaned directory:', error);
-            }
-          }
-        }
-      }
+      cleanedCount = await cleanupOrphanedHistoryFiles(validProfileHashes);
 
       if (cleanedCount > 0) {
         log.info(`[HistoryStorage] Cleaned ${cleanedCount} orphaned data directories`);

@@ -6,8 +6,11 @@
  * 细粒度订阅，互不牵连重渲。
  */
 import { create } from 'zustand';
-import { Paths, Directory } from 'expo-file-system';
-import { calculateDirectorySize, CLIPBOARD_TEMP_DIR } from '@/utils/fileStorage';
+import {
+  calculateDirectorySize,
+  CLIPBOARD_TEMP_DIR,
+  getHistoryStorageSize,
+} from '@/utils/fileStorage';
 import { calculateLogSize } from '@/services';
 import { log } from '@/services/Logger';
 
@@ -30,10 +33,9 @@ export const useStorageSizesStore = create<StorageSizesState>((set) => ({
       // 让出一帧，避免目录遍历阻塞首屏
       await new Promise((resolve) => setTimeout(resolve, 100));
       const cacheDir = CLIPBOARD_TEMP_DIR;
-      const historyDir = new Directory(Paths.document, 'clipboards', 'history');
       set({
         cacheSize: calculateDirectorySize(cacheDir),
-        historySize: calculateDirectorySize(historyDir),
+        historySize: await getHistoryStorageSize(),
         logSize: calculateLogSize(),
       });
     } catch (error) {

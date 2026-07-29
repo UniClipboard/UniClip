@@ -38,7 +38,7 @@ describe('fileStorage App Group compatibility', () => {
     }));
 
     const { getPayloadFileUri } = require('app-group-store');
-    const { getHistoryFileUri } = require('../utils/fileStorage');
+    const { getHistoryFileUri } = require('../utils/fileStorage.ios');
 
     await expect(getHistoryFileUri('Image', 'ABC', 'image.png')).resolves.toBe(
       'file:///group/payloads/Image-ABC'
@@ -73,7 +73,7 @@ describe('fileStorage App Group compatibility', () => {
     }));
 
     const { getPayloadFileUri } = require('app-group-store');
-    const { prepareHistoryFileUri } = require('../utils/fileStorage');
+    const { prepareHistoryFileUri } = require('../utils/fileStorage.ios');
 
     await expect(prepareHistoryFileUri('Image', 'ABC', 'image.png')).resolves.toBe(
       'file:///group/payloads/Image-ABC'
@@ -107,12 +107,53 @@ describe('fileStorage App Group compatibility', () => {
     }));
 
     const { writePayload } = require('app-group-store');
-    const { saveHistoryFile } = require('../utils/fileStorage');
+    const { saveHistoryFile } = require('../utils/fileStorage.ios');
 
     await expect(
       saveHistoryFile('Image', 'ABC', 'image.png', new Uint8Array([1, 2]).buffer)
     ).resolves.toBe('file:///group/payloads/Image-ABC');
     expect(writePayload).toHaveBeenCalledWith('Image-ABC', new Uint8Array([1, 2]));
+  });
+
+  it('clears iOS history from the shared App Group payload cache', async () => {
+    jest.doMock('react-native', () => ({
+      Platform: { OS: 'ios' },
+    }));
+    jest.doMock('app-group-store', () => ({
+      clearPayloads: jest.fn().mockResolvedValue(undefined),
+    }));
+    jest.doMock('expo-file-system', () => ({
+      Paths: { document: 'file:///documents', cache: 'file:///cache' },
+      Directory: jest.fn().mockImplementation((_base: unknown, name?: string) => ({
+        exists: true,
+        uri: `file:///documents/${name ?? ''}`,
+        create: jest.fn(),
+        delete: jest.fn(),
+        list: jest.fn(() => []),
+      })),
+      File: jest.fn(),
+    }));
+
+    const { clearPayloads } = require('app-group-store');
+    const { clearHistoryFiles } = require('../utils/fileStorage.ios');
+
+    await expect(clearHistoryFiles()).resolves.toBeUndefined();
+    expect(clearPayloads).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports iOS history size from the shared App Group payload cache', async () => {
+    jest.doMock('app-group-store', () => ({
+      getPayloadStats: jest.fn().mockResolvedValue({ count: 2, totalSize: 3456 }),
+    }));
+    jest.doMock('expo-file-system', () => ({
+      Paths: { document: 'file:///documents', cache: 'file:///cache' },
+      Directory: jest.fn(),
+      File: jest.fn(),
+    }));
+
+    const { getHistoryStorageSize } = require('../utils/fileStorage.ios');
+
+    await expect(getHistoryStorageSize()).resolves.toBe(3456);
   });
 
   it('keeps Android history payload lookups in the Expo document directory', async () => {
@@ -145,7 +186,7 @@ describe('fileStorage App Group compatibility', () => {
     }));
 
     const { getPayloadFileUri } = require('app-group-store');
-    const { getHistoryFileUri } = require('../utils/fileStorage');
+    const { getHistoryFileUri } = require('../utils/fileStorage.android');
 
     await expect(getHistoryFileUri('Image', 'ABC', 'image.png')).resolves.toBe(
       'file:///documents/clipboards/history/Image-ABC/image.png'
