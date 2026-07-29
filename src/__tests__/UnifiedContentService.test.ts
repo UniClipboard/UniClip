@@ -1,5 +1,6 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import type { SendReport } from 'uc-engine';
+import type { OutboundDeliveryOutcome } from '../services/OutboundDeliveryCoordinator';
 import {
   UnifiedContentError,
   UnifiedContentService,
@@ -27,6 +28,14 @@ function api(): jest.Mocked<UnifiedContentApi> {
   };
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 function dependencies(
   channel: 'p2p' | 'lan',
   overrides: Partial<UnifiedContentDependencies> = {}
@@ -38,6 +47,17 @@ function dependencies(
     p2p: api(),
     uploadLanClipboard: jest.fn(async () => ({ success: true })),
     enqueueLanUpload: jest.fn(),
+    completeOutboundDelivery: jest.fn(async (send: () => Promise<SendReport>) => {
+      const sent = await send();
+      return {
+        report: sent,
+        completed: sent.totalAccepted,
+        failed: 0,
+        cancelled: 0,
+        pending: 0,
+        reasons: [],
+      } satisfies OutboundDeliveryOutcome;
+    }),
     ...overrides,
   };
 }
@@ -187,7 +207,31 @@ describe('UnifiedContentService', () => {
     );
 
     expect(deps.p2p.sendImage).toHaveBeenCalledWith(new Uint8Array([1, 2, 3]), 'image/webp', []);
+    expect(deps.completeOutboundDelivery).not.toHaveBeenCalled();
     expect(deps.enqueueLanUpload).not.toHaveBeenCalled();
+  });
+
+  it('waits for remote download completion for a pull-based imported image', async () => {
+    const deps = dependencies('p2p', {
+      readFileBytes: jest.fn(async () => new Uint8Array(64 * 1024 + 1)),
+    });
+    const service = new UnifiedContentService(deps);
+
+    await service.sendImportedAsset(
+      {
+        kind: 'image',
+        uri: 'file:///private/picked.webp',
+        mimeType: 'image/webp',
+      },
+      'local-profile-1'
+    );
+
+    expect(deps.completeOutboundDelivery).toHaveBeenCalledTimes(1);
+    expect(deps.p2p.sendImage).toHaveBeenCalledWith(
+      expect.objectContaining({ byteLength: 64 * 1024 + 1 }),
+      'image/webp',
+      []
+    );
   });
 
   it('sends an imported file through an opaque P2P handle and releases it', async () => {
@@ -211,6 +255,133 @@ describe('UnifiedContentService', () => {
     expect(deps.p2p.sendFiles).toHaveBeenCalledWith(['opaque-file-1'], []);
     expect(deps.p2p.releaseFileHandle).toHaveBeenCalledWith('opaque-file-1');
     expect(deps.enqueueLanUpload).not.toHaveBeenCalled();
+  });
+
+  it('keeps an imported file handle until remote download completion', async () => {
+    const completion = deferred<OutboundDeliveryOutcome>();
+    const native = api();
+    const completeOutboundDelivery = jest.fn(
+      async (send: () => Promise<SendReport>): Promise<OutboundDeliveryOutcome> => {
+        await send();
+        expect(native.releaseFileHandle).not.toHaveBeenCalled();
+        return completion.promise;
+      }
+    );
+    const deps = dependencies('p2p', {
+      p2p: native,
+      completeOutboundDelivery,
+    });
+    const service = new UnifiedContentService(deps);
+
+    const resultPromise = service.sendImportedAsset(
+      {
+        kind: 'file',
+        uri: 'file:///private/history/CONTENT_HASH',
+        fileName: 'quarterly-report.pdf',
+      },
+      'local-profile-2'
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(completeOutboundDelivery).toHaveBeenCalledTimes(1);
+    expect(native.releaseFileHandle).not.toHaveBeenCalled();
+
+    completion.resolve({
+      report,
+      completed: 1,
+      failed: 0,
+      cancelled: 0,
+      pending: 0,
+      reasons: [],
+    });
+
+    await expect(resultPromise).resolves.toMatchObject({
+      deliveryState: 'delivered',
+    });
+    expect(native.releaseFileHandle).toHaveBeenCalledWith('opaque-file-1');
+  });
+
+  it.each([
+    {
+      name: 'partial when one of two peers fails',
+      outcome: { completed: 1, failed: 1, cancelled: 0, pending: 0 },
+      expectedState: 'partial',
+      expectedCounts: { accepted: 1, errored: 1, pending: 0 },
+    },
+    {
+      name: 'failed when no peer completes and one fails',
+      outcome: { completed: 0, failed: 1, cancelled: 0, pending: 1 },
+      expectedState: 'failed',
+      expectedCounts: { accepted: 0, errored: 1, pending: 1 },
+    },
+    {
+      name: 'pending when every accepted peer times out',
+      outcome: { completed: 0, failed: 0, cancelled: 0, pending: 2 },
+      expectedState: 'pending',
+      expectedCounts: { accepted: 0, errored: 0, pending: 2 },
+    },
+  ])('reports remote pull as $name', async ({ outcome, expectedState, expectedCounts }) => {
+    const initialReport = { ...report, totalAccepted: 2 };
+    const deps = dependencies('p2p', {
+      completeOutboundDelivery: jest.fn(async (send: () => Promise<SendReport>) => {
+        await send();
+        return {
+          report: initialReport,
+          ...outcome,
+          reasons: [],
+        };
+      }),
+    });
+
+    const result = await new UnifiedContentService(deps).sendImportedAsset(
+      { kind: 'file', uri: 'file:///private/history/CONTENT_HASH' },
+      'local-profile-2'
+    );
+
+    expect(result).toMatchObject({
+      channel: 'p2p',
+      deliveryState: expectedState,
+      report: {
+        totalAccepted: expectedCounts.accepted,
+        totalErrored: expectedCounts.errored,
+        totalPending: expectedCounts.pending,
+      },
+    });
+  });
+
+  it('moves a pending dispatch into completed after that peer finishes pulling', async () => {
+    const pendingReport = {
+      ...report,
+      totalAccepted: 0,
+      totalPending: 1,
+    };
+    const deps = dependencies('p2p', {
+      completeOutboundDelivery: jest.fn(async (send: () => Promise<SendReport>) => {
+        await send();
+        return {
+          report: pendingReport,
+          completed: 1,
+          failed: 0,
+          cancelled: 0,
+          pending: 0,
+          reasons: [],
+        };
+      }),
+    });
+
+    await expect(
+      new UnifiedContentService(deps).sendImportedAsset(
+        { kind: 'file', uri: 'file:///private/history/CONTENT_HASH' },
+        'local-profile-2'
+      )
+    ).resolves.toMatchObject({
+      deliveryState: 'delivered',
+      report: {
+        totalAccepted: 1,
+        totalPending: 0,
+      },
+    });
   });
 
   it('keeps imported assets on the existing LAN queue when LAN is selected', async () => {

@@ -13,6 +13,7 @@ export interface UnifiedEngineApi {
 }
 
 type SnapshotPublisher = (snapshot: UnifiedEngineSnapshot) => void;
+type EngineEventSubscriber = (event: EngineEvent) => void;
 
 const DEFAULT_EVENT_TIMEOUT_MS = 250;
 const SHUTDOWN_DEADLINE_MS = 5_000;
@@ -27,6 +28,7 @@ export class UnifiedEngineService {
   private nativeStarted = false;
   private startInFlight: Promise<void> | null = null;
   private eventLoop: Promise<void> | null = null;
+  private readonly eventSubscribers = new Set<EngineEventSubscriber>();
 
   constructor(
     private readonly api: UnifiedEngineApi,
@@ -55,6 +57,11 @@ export class UnifiedEngineService {
 
   isStarting(): boolean {
     return this.startInFlight !== null;
+  }
+
+  subscribeEvents(subscriber: EngineEventSubscriber): () => void {
+    this.eventSubscribers.add(subscriber);
+    return () => this.eventSubscribers.delete(subscriber);
   }
 
   async stop(): Promise<void> {
@@ -146,6 +153,14 @@ export class UnifiedEngineService {
   }
 
   private applyEvent(event: EngineEvent): void {
+    for (const subscriber of this.eventSubscribers) {
+      try {
+        subscriber(event);
+      } catch (error) {
+        log.error('[UnifiedEngineService] A P2P event subscriber failed:', error);
+      }
+    }
+
     switch (event.type) {
       case 'stateChanged':
         if (event.state === 'stopped') this.nativeStarted = false;

@@ -3,6 +3,7 @@ import type { ClipboardContent } from '@/types/clipboard';
 import type { SyncChannel } from '@/types/settings';
 import type { P2pDeliveryState } from '@/types/clipboard';
 import { p2pDeliveryStateFromReport } from './P2pDeliveryState';
+import type { OutboundDeliveryOutcome } from './OutboundDeliveryCoordinator';
 
 export interface UnifiedContentApi {
   sendText(text: string, targetDevices: string[]): Promise<SendReport>;
@@ -31,6 +32,7 @@ export interface UnifiedContentDependencies {
   p2p: UnifiedContentApi;
   uploadLanClipboard(): Promise<LanUploadResult>;
   enqueueLanUpload(profileHash: string): void;
+  completeOutboundDelivery(send: () => Promise<SendReport>): Promise<OutboundDeliveryOutcome>;
 }
 
 export type UnifiedContentResult =
@@ -68,6 +70,7 @@ const IMAGE_MIME_BY_EXTENSION: Record<string, string> = {
   svg: 'image/svg+xml',
   webp: 'image/webp',
 };
+const MAX_INLINE_IMAGE_BYTES = 64 * 1024;
 
 function imageMimeType(uri: string, supplied?: string | null): string {
   const path = uri.split(/[?#]/, 1)[0].toLowerCase();
@@ -109,10 +112,7 @@ export class UnifiedContentService {
         }
         const bytes = await this.deps.readFileBytes(content.fileUri);
         const mimeType = imageMimeType(content.fileUri, undefined);
-        return this.p2pResult(
-          await this.deps.p2p.sendImage(bytes, mimeType, []),
-          content.profileHash
-        );
+        return this.sendP2pImage(bytes, mimeType, content.profileHash);
       }
       case 'File':
         if (!content.fileUri) {
@@ -138,15 +138,23 @@ export class UnifiedContentService {
 
     if (asset.kind === 'image') {
       const bytes = await this.deps.readFileBytes(asset.uri);
-      const report = await this.deps.p2p.sendImage(
-        bytes,
-        imageMimeType(asset.uri, asset.mimeType),
-        []
-      );
-      return this.p2pResult(report, profileHash);
+      return this.sendP2pImage(bytes, imageMimeType(asset.uri, asset.mimeType), profileHash);
     }
 
     return this.sendP2pFile(asset.uri, profileHash, asset.fileName);
+  }
+
+  private async sendP2pImage(
+    bytes: Uint8Array,
+    mimeType: string,
+    profileHash?: string
+  ): Promise<UnifiedContentResult> {
+    const send = () => this.deps.p2p.sendImage(bytes, mimeType, []);
+    if (bytes.byteLength <= MAX_INLINE_IMAGE_BYTES) {
+      return this.p2pResult(await send(), profileHash);
+    }
+    const outcome = await this.deps.completeOutboundDelivery(send);
+    return this.p2pResult(reportAfterOutboundDelivery(outcome), profileHash);
   }
 
   private async sendP2pFile(
@@ -156,7 +164,10 @@ export class UnifiedContentService {
   ): Promise<UnifiedContentResult> {
     const handle = this.deps.p2p.registerInputFile(uri, displayName);
     try {
-      return this.p2pResult(await this.deps.p2p.sendFiles([handle], []), profileHash);
+      const outcome = await this.deps.completeOutboundDelivery(() =>
+        this.deps.p2p.sendFiles([handle], [])
+      );
+      return this.p2pResult(reportAfterOutboundDelivery(outcome), profileHash);
     } finally {
       this.deps.p2p.releaseFileHandle(handle);
     }
@@ -173,6 +184,15 @@ export class UnifiedContentService {
       report,
     };
   }
+}
+
+function reportAfterOutboundDelivery(outcome: OutboundDeliveryOutcome): SendReport {
+  return {
+    ...outcome.report,
+    totalAccepted: outcome.completed,
+    totalErrored: outcome.report.totalErrored + outcome.failed + outcome.cancelled,
+    totalPending: outcome.pending,
+  };
 }
 
 function createDefaultDependencies(): UnifiedContentDependencies {
@@ -200,6 +220,8 @@ function createDefaultDependencies(): UnifiedContentDependencies {
       require('./ClipboardSyncService').getClipboardSyncService().triggerUpload(),
     enqueueLanUpload: (profileHash) =>
       require('./BackgroundUploadManager').BackgroundUploadManager.enqueue(profileHash),
+    completeOutboundDelivery: (send) =>
+      require('./OutboundDeliveryCoordinator').getOutboundDeliveryCoordinator().run(send),
   };
 }
 

@@ -161,6 +161,59 @@ describe('UnifiedEngineService', () => {
     expect(failed.lastChangedKind).toBe('deliveryStatusChanged');
   });
 
+  it('publishes every native event to active delivery subscribers only', async () => {
+    const events: EngineEvent[] = [
+      {
+        type: 'transferProgress',
+        transferId: 'transfer-1',
+        entryId: 'entry-1',
+        attemptId: null,
+        peerId: 'peer-1',
+        direction: 'sending',
+        completedBytes: 5,
+        totalBytes: 10,
+      },
+      {
+        type: 'transferStatusChanged',
+        transferId: 'transfer-1',
+        entryId: 'entry-1',
+        attemptId: null,
+        status: 'completed',
+        reason: null,
+      },
+      {
+        type: 'fatal',
+        failure: { code: 7001, category: 'runtime', retryable: false },
+      },
+    ];
+    const activeEvents: EngineEvent[] = [];
+    const removedEvents: EngineEvent[] = [];
+    const snapshots: UnifiedEngineSnapshot[] = [];
+    const service = new UnifiedEngineService(
+      {
+        start: async () => undefined,
+        shutdown: async () => undefined,
+        nextEvent: async () => events.shift() ?? null,
+      },
+      (snapshot) => snapshots.push(snapshot),
+      0
+    );
+
+    const removeInactive = service.subscribeEvents((event) => removedEvents.push(event));
+    removeInactive();
+    service.subscribeEvents((event) => activeEvents.push(event));
+
+    await service.start(config());
+    await waitForSnapshot(snapshots, (state) => state.status === 'failed');
+
+    expect(removedEvents).toEqual([]);
+    expect(activeEvents.map((event) => event.type)).toEqual([
+      'transferProgress',
+      'transferStatusChanged',
+      'fatal',
+    ]);
+  });
+
   it('requests a visible roster refresh when peer presence changes', async () => {
     const events: EngineEvent[] = [
       {

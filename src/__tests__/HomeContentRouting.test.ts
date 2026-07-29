@@ -18,6 +18,12 @@ describe('home content routing', () => {
     expect(controller).not.toContain('BackgroundUploadManager.enqueue(');
   });
 
+  it('waits for imported asset delivery before showing its final result', () => {
+    expect(controller).toContain(
+      'const sendResult = await getUnifiedContentService().sendImportedAsset('
+    );
+  });
+
   it('derives status and refresh from the selected sync connection', () => {
     expect(controller).toContain('deriveP2pConnectionStatus');
     expect(controller).toContain('refreshSelectedConnection');
