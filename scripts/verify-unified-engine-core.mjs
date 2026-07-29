@@ -18,7 +18,8 @@ const downloadsRoot = resolve(readArg('--downloads') ?? cacheRoot);
 const markerPath = resolve(cacheRoot, 'prepared.json');
 const localMarkerPath = resolve(moduleRoot, '.artifacts/local/local-prepared.json');
 const swiftBindingPath = resolve(moduleRoot, 'ios/Bindings/uc_engine_uniffi.swift');
-const moduleVersion = pin.version.replace(/^core-v/, '');
+const moduleVersion = pin.version.replace(/^(?:core-)?v/, '');
+const versionArtifact = ['version.txt', 'core-version.txt'].find((name) => pin.artifacts[name]);
 
 function fail(message) {
   console.error(`Unified engine release verification failed: ${message}`);
@@ -87,8 +88,9 @@ async function verifyDownloads() {
   if (androidChecksum !== pin.artifacts['UniClipboardEngine.aar']) {
     fail('Android checksum file does not match the pinned AAR');
   }
-  if (readFileSync(resolve(downloadsRoot, 'core-version.txt'), 'utf8').trim() !== pin.version) {
-    fail('core-version.txt does not match pin');
+  if (!versionArtifact) fail('release pin does not declare a supported version file');
+  if (readFileSync(resolve(downloadsRoot, versionArtifact), 'utf8').trim() !== pin.version) {
+    fail(`${versionArtifact} does not match pin`);
   }
   if (
     readFileSync(resolve(downloadsRoot, 'source-commit.txt'), 'utf8').trim() !== pin.sourceCommit

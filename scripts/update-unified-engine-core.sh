@@ -7,6 +7,12 @@ PIN_FILE="$MODULE_DIR/core-source.json"
 pin_version="$(node -p 'require(process.argv[1]).version' "$PIN_FILE")"
 pin_commit="$(node -p 'require(process.argv[1]).sourceCommit' "$PIN_FILE")"
 repository="$(node -p 'require(process.argv[1]).repository' "$PIN_FILE")"
+version_asset="$(node -e '
+  const pin = require(process.argv[1]);
+  const name = ["version.txt", "core-version.txt"].find((candidate) => pin.artifacts[candidate]);
+  if (!name) process.exit(1);
+  process.stdout.write(name);
+' "$PIN_FILE")"
 CACHE_DIR="$MODULE_DIR/.artifacts/$pin_version"
 BASE_URL="https://github.com/$repository/releases/download/$pin_version"
 
@@ -17,7 +23,7 @@ assets=(
   UniClipboardEngine.pom
   UniClipboardEngine.xcframework.checksum.txt
   UniClipboardEngine.xcframework.zip
-  core-version.txt
+  "$version_asset"
   runtime-dependencies.txt
   source-commit.txt
   uc_engine_uniffi.kt
@@ -42,6 +48,7 @@ done
 node "$ROOT_DIR/scripts/verify-unified-engine-core.mjs" --downloads "$CACHE_DIR"
 
 plain_version="${pin_version#core-v}"
+plain_version="${plain_version#v}"
 maven_dir="$MODULE_DIR/android/release-maven/app/uniclipboard/uniclipboard-engine/$plain_version"
 metadata_dir="$MODULE_DIR/android/release-metadata"
 mkdir -p "$maven_dir" "$metadata_dir" "$MODULE_DIR/ios/Bindings"

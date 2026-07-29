@@ -9,12 +9,12 @@ const requiredArtifacts = [
   'UniClipboardEngine.pom',
   'UniClipboardEngine.xcframework.checksum.txt',
   'UniClipboardEngine.xcframework.zip',
-  'core-version.txt',
   'runtime-dependencies.txt',
   'source-commit.txt',
   'uc_engine_uniffi.kt',
   'uc_engine_uniffi.swift',
 ];
+const versionArtifacts = ['version.txt', 'core-version.txt'];
 
 function fail(message) {
   console.error(`Unified engine source validation failed: ${message}`);
@@ -49,8 +49,8 @@ if (pin.schemaVersion !== 1) fail('unsupported core-source.json schema version')
 if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(pin.repository ?? '')) {
   fail('repository must be an owner/name pair');
 }
-if (!/^core-v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(pin.version ?? '')) {
-  fail('version must be a core-v semantic version');
+if (!/^(?:core-)?v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(pin.version ?? '')) {
+  fail('version must be a v or core-v semantic version');
 }
 if (!/^[0-9a-f]{40}$/.test(pin.sourceCommit ?? '')) {
   fail('sourceCommit must be a full lowercase commit SHA');
@@ -58,6 +58,11 @@ if (!/^[0-9a-f]{40}$/.test(pin.sourceCommit ?? '')) {
 requireHash(pin.releaseManifestSha256, 'releaseManifestSha256');
 requireHash(pin.swiftPackageChecksum, 'swiftPackageChecksum');
 for (const name of requiredArtifacts) requireHash(pin.artifacts?.[name], `artifacts.${name}`);
+const presentVersionArtifacts = versionArtifacts.filter((name) => pin.artifacts?.[name]);
+if (presentVersionArtifacts.length !== 1) {
+  fail('artifacts must contain exactly one supported version file');
+}
+requireHash(pin.artifacts[presentVersionArtifacts[0]], `artifacts.${presentVersionArtifacts[0]}`);
 if (pin.swiftPackageChecksum !== pin.artifacts['UniClipboardEngine.xcframework.zip']) {
   fail('swiftPackageChecksum does not match the XCFramework archive');
 }
@@ -96,7 +101,7 @@ const manifestArtifacts = new Map(
     artifact,
   ])
 );
-for (const name of requiredArtifacts) {
+for (const name of [...requiredArtifacts, presentVersionArtifacts[0]]) {
   const declared = manifestArtifacts.get(name);
   if (!declared) fail(`release manifest does not declare ${name}`);
   if (declared.sha256 !== pin.artifacts[name]) {

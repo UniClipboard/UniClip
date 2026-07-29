@@ -4,7 +4,7 @@ plugins {
 }
 
 def coreSource = new groovy.json.JsonSlurper().parse(file('../core-source.json'))
-def coreVersion = coreSource.version.replace('core-v', '')
+def coreVersion = coreSource.version.replaceFirst(/^(core-)?v/, '')
 
 group = 'expo.modules.ucengine'
 version = coreVersion

@@ -12,7 +12,6 @@ const requiredArtifacts = [
   'UniClipboardEngine.pom',
   'UniClipboardEngine.xcframework.checksum.txt',
   'UniClipboardEngine.xcframework.zip',
-  'core-version.txt',
   'runtime-dependencies.txt',
   'source-commit.txt',
   'uc_engine_uniffi.kt',
@@ -31,16 +30,26 @@ describe('unified engine core source validation', () => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  function writeFixture(options: { mismatchedArtifact?: string } = {}) {
-    const version = 'core-v1.2.3-rc.4';
+  function writeFixture(
+    options: {
+      mismatchedArtifact?: string;
+      repository?: string;
+      version?: string;
+      versionArtifact?: 'version.txt' | 'core-version.txt';
+    } = {}
+  ) {
+    const repository = options.repository ?? 'UniClipboard/core';
+    const version = options.version ?? 'core-v1.2.3-rc.4';
+    const versionArtifact = options.versionArtifact ?? 'core-version.txt';
     const sourceCommit = 'a'.repeat(40);
+    const artifacts = [...requiredArtifacts, versionArtifact];
     const artifactHashes = Object.fromEntries(
-      requiredArtifacts.map((name, index) => [name, (index + 1).toString(16).repeat(64)])
+      artifacts.map((name, index) => [name, (index + 1).toString(16).repeat(64)])
     );
     const manifest = {
       schemaVersion: 1,
       release: { version, commit: sourceCommit },
-      artifacts: requiredArtifacts.map((name) => ({
+      artifacts: artifacts.map((name) => ({
         name,
         sha256: name === options.mismatchedArtifact ? 'f'.repeat(64) : artifactHashes[name],
         size: 1,
@@ -55,7 +64,7 @@ describe('unified engine core source validation', () => {
       `${JSON.stringify(
         {
           schemaVersion: 1,
-          repository: 'UniClipboard/core',
+          repository,
           version,
           sourceCommit,
           releaseManifestSha256: createHash('sha256').update(manifestText).digest('hex'),
@@ -81,6 +90,19 @@ describe('unified engine core source validation', () => {
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('Unified engine source is available: core-v1.2.3-rc.4');
+  });
+
+  it('accepts the standalone Engine release format', () => {
+    const result = validate(
+      writeFixture({
+        repository: 'UniClipboard/Engine',
+        version: 'v1.2.3-rc.4',
+        versionArtifact: 'version.txt',
+      })
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('Unified engine source is available: v1.2.3-rc.4');
   });
 
   it('rejects a release manifest whose artifact checksum differs from the pin', () => {

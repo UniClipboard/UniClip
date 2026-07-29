@@ -180,7 +180,7 @@ describe('unified P2P engine native module', () => {
     expect(kotlin).toContain('target.displayName ?:');
   });
 
-  it('pins both platform artifacts to the same core version and source commit', () => {
+  it('pins both platform artifacts to the same engine version and source commit', () => {
     const pin = JSON.parse(read('core-source.json')) as {
       repository: string;
       version: string;
@@ -189,8 +189,8 @@ describe('unified P2P engine native module', () => {
       artifacts: Record<string, string>;
     };
 
-    expect(pin.repository).toBe('UniClipboard/core');
-    expect(pin.version).toMatch(/^core-v\d+\.\d+\.\d+(?:-[a-z0-9.]+)?$/);
+    expect(pin.repository).toBe('UniClipboard/Engine');
+    expect(pin.version).toMatch(/^v\d+\.\d+\.\d+(?:-[a-z0-9.]+)?$/);
     expect(pin.sourceCommit).toMatch(/^[a-f0-9]{40}$/);
     for (const artifact of [
       'UniClipboardEngine.aar',
