@@ -181,10 +181,16 @@ class BackgroundServiceManager {
   private async _startUnifiedEngine(): Promise<void> {
     const { getUnifiedEngineService } = require('./UnifiedEngineService');
     const Application = require('expo-application');
-    await getUnifiedEngineService().start({
+    const service = getUnifiedEngineService();
+    await service.start({
       appVersion: Application.nativeApplicationVersion ?? 'unknown',
       profileId: 'default',
     });
+    void service
+      .refreshPeerConnections()
+      .catch((error: unknown) =>
+        log.error('[BackgroundServiceManager] Failed to refresh P2P peer connections:', error)
+      );
     const { getUnifiedSpaceService } = require('./UnifiedSpaceService');
     await getUnifiedSpaceService().refresh();
   }

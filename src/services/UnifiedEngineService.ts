@@ -1,4 +1,4 @@
-import type { EngineConfig, EngineEvent } from 'uc-engine';
+import type { EngineConfig, EngineEvent, PeerConnectionRefresh } from 'uc-engine';
 import { log } from './Logger';
 import {
   createInitialUnifiedEngineSnapshot,
@@ -10,6 +10,7 @@ export interface UnifiedEngineApi {
   start(config: EngineConfig): Promise<void>;
   shutdown(deadlineMs?: number): Promise<void>;
   nextEvent(timeoutMs?: number): Promise<EngineEvent | null>;
+  refreshPeerConnections(): Promise<PeerConnectionRefresh>;
 }
 
 type SnapshotPublisher = (snapshot: UnifiedEngineSnapshot) => void;
@@ -57,6 +58,10 @@ export class UnifiedEngineService {
 
   isStarting(): boolean {
     return this.startInFlight !== null;
+  }
+
+  refreshPeerConnections(): Promise<PeerConnectionRefresh> {
+    return this.api.refreshPeerConnections();
   }
 
   subscribeEvents(subscriber: EngineEventSubscriber): () => void {

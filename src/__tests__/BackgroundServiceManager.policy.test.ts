@@ -8,6 +8,12 @@ const mockLanStart = jest.fn<() => Promise<void>>(async () => undefined);
 const mockLanStop = jest.fn<() => void>();
 const mockP2pStart = jest.fn<() => Promise<void>>(async () => undefined);
 const mockP2pStop = jest.fn<() => Promise<void>>(async () => undefined);
+const mockP2pRefreshPeerConnections = jest.fn(async () => ({
+  total: 0,
+  online: 0,
+  offline: 0,
+  errors: 0,
+}));
 const mockSpaceRefresh = jest.fn(async () => undefined);
 const mockStartMonitoring = jest.fn(async () => undefined);
 const mockStopMonitoring = jest.fn();
@@ -58,6 +64,7 @@ jest.mock('../services/UnifiedEngineService', () => ({
   getUnifiedEngineService: () => ({
     start: mockP2pStart,
     stop: mockP2pStop,
+    refreshPeerConnections: mockP2pRefreshPeerConnections,
   }),
 }));
 
@@ -111,6 +118,18 @@ describe('BackgroundServiceManager background policy', () => {
 
     expect(mockP2pStart).toHaveBeenCalledTimes(1);
     expect(mockSpaceRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('immediately refreshes peer connections after activating P2P', async () => {
+    settingsState.config.syncChannel = 'p2p';
+
+    await getBackgroundServiceManager().activateSelectedSyncChannel();
+
+    expect(mockP2pStart).toHaveBeenCalledTimes(1);
+    expect(mockP2pRefreshPeerConnections).toHaveBeenCalledTimes(1);
+    expect(mockP2pStart.mock.invocationCallOrder[0]).toBeLessThan(
+      mockP2pRefreshPeerConnections.mock.invocationCallOrder[0]
+    );
   });
 
   it('stops LAN before starting the explicitly selected P2P channel', async () => {
