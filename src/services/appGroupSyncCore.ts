@@ -4,6 +4,7 @@ import { getServers, saveServers, saveSettings } from 'app-group-store';
 import type { ServerConfig } from '../types/api';
 import { DEFAULT_SETTINGS, type AppSettings } from '../types/settings';
 import { CONFIG_USER_STATE_KEY } from './ConfigStorage';
+import { getEffectiveServerUrls } from './serverRouteSelector';
 
 export interface AppGroupServerConfigDTO {
   id: string;
@@ -132,7 +133,7 @@ function mapServerToAppGroupDTO(
   server: ServerConfig,
   idCounts: Map<string, number>
 ): AppGroupServerConfigDTO | null {
-  const urls = normalizeServerUrls(server);
+  const urls = getEffectiveServerUrls(server);
   if (urls.length === 0) return null;
   const id = makeUniqueConfigId(urls[0], idCounts);
 
@@ -149,36 +150,6 @@ function makeUniqueConfigId(baseId: string, counts: Map<string, number>): string
   const count = counts.get(baseId) ?? 0;
   counts.set(baseId, count + 1);
   return count === 0 ? baseId : `${baseId}#${count + 1}`;
-}
-
-function normalizeServerUrls(server: ServerConfig): string[] {
-  const candidates = server.urls && server.urls.length > 0 ? server.urls : [server.url];
-  const seen = new Set<string>();
-  const urls: string[] = [];
-
-  for (const candidate of candidates) {
-    const normalized = normalizeBaseURL(candidate);
-    if (!normalized || seen.has(normalized)) continue;
-    seen.add(normalized);
-    urls.push(normalized);
-  }
-
-  return urls;
-}
-
-function normalizeBaseURL(raw: string): string | null {
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-
-  try {
-    const url = new URL(trimmed);
-    url.protocol = url.protocol.toLowerCase();
-    url.hostname = url.hostname.toLowerCase();
-    url.pathname = url.pathname.replace(/\/+$/, '');
-    return url.toString().replace(/\/+$/, '');
-  } catch {
-    return trimmed.replace(/\/+$/, '') || null;
-  }
 }
 
 function mapAttachmentPrefetch(value: AppSettings['attachmentAutoDownload']): {

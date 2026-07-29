@@ -24,13 +24,25 @@ jest.mock('app-group-store', () => ({
   saveSettings: jest.fn().mockResolvedValue(undefined),
 }));
 
+jest.mock('../services/serverRouteSelector', () => {
+  const actual = jest.requireActual('../services/serverRouteSelector');
+  return {
+    ...actual,
+    getEffectiveServerUrls: jest.fn(actual.getEffectiveServerUrls),
+  };
+});
+
 import { getServers, saveServers, saveSettings } from 'app-group-store';
+import { getEffectiveServerUrls } from '../services/serverRouteSelector';
 
 const CONFIG_USER_STATE_KEY = '@syncclipboard:config:user-state';
+const actualGetEffectiveServerUrls = jest.requireActual('../services/serverRouteSelector')
+  .getEffectiveServerUrls as typeof getEffectiveServerUrls;
 
 describe('App Group sync mapping', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.mocked(getEffectiveServerUrls).mockImplementation(actualGetEffectiveServerUrls);
     (getServers as jest.Mock).mockResolvedValue({ configs: [], activeConfigId: null });
     (saveServers as jest.Mock).mockResolvedValue(undefined);
     (saveSettings as jest.Mock).mockResolvedValue(undefined);
@@ -38,6 +50,28 @@ describe('App Group sync mapping', () => {
   });
 
   describe('mapServersToAppGroupDTO', () => {
+    it('uses the canonical server address list', () => {
+      const server = {
+        type: 'syncclipboard' as const,
+        url: 'https://primary.example.com',
+        urls: ['https://primary.example.com', 'https://backup.example.com'],
+      };
+      jest.mocked(getEffectiveServerUrls).mockReturnValue(['https://canonical.example.com']);
+
+      expect(mapServersToAppGroupDTO([server], 0)).toEqual({
+        configs: [
+          {
+            id: 'https://canonical.example.com',
+            urls: ['https://canonical.example.com'],
+            username: '',
+            password: '',
+          },
+        ],
+        activeConfigId: 'https://canonical.example.com',
+      });
+      expect(getEffectiveServerUrls).toHaveBeenCalledWith(server);
+    });
+
     it('keeps only SyncClipboard servers and derives ids from normalized canonical urls', () => {
       const result = mapServersToAppGroupDTO(
         [
