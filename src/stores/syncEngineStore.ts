@@ -230,6 +230,7 @@ async function applyToDevice(meta: ClipboardMeta, payload?: ArrayBuffer): Promis
         hasData: meta.hasData,
         fileName: meta.dataName ?? undefined,
         fileSize: meta.size,
+        fileUri,
       });
     } catch {
       // store not initialized yet

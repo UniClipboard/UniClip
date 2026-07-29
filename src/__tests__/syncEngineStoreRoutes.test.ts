@@ -7,6 +7,7 @@ import { SyncEngine } from '../services/SyncEngine';
 import { AppState } from 'react-native';
 
 const mockObserveClipboardChange = jest.fn(async () => null);
+const mockSetRemoteContent = jest.fn();
 
 interface CapturedEngineOptions {
   getActiveServer: () => unknown;
@@ -87,6 +88,12 @@ jest.mock('@/stores/historyStore', () => ({
     getState: () => ({
       addItem: jest.fn(async (item: unknown) => item),
     }),
+  },
+}));
+
+jest.mock('@/stores/ClipboardSyncServiceStore', () => ({
+  useClipboardSyncServiceStore: {
+    getState: () => ({ setRemoteContent: mockSetRemoteContent }),
   },
 }));
 
@@ -471,6 +478,31 @@ describe('syncEngineStore route config', () => {
       localClipboardHash: 'HASH_T',
     });
     expect(activateRepository.upsert).not.toHaveBeenCalled();
+  });
+
+  it('shows a received file as available immediately after saving it locally', async () => {
+    await useSyncEngineStore.getState().start();
+    const engineOptions = getEngineOptions();
+
+    await engineOptions.applyToDevice(
+      {
+        kind: 'File',
+        text: 'report.zip',
+        dataName: 'report.zip',
+        hash: 'REMOTE_FILE_HASH',
+        hasData: true,
+        size: 2048,
+      },
+      new ArrayBuffer(8)
+    );
+
+    expect(mockSetRemoteContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        profileHash: 'REMOTE_FILE_HASH',
+        fileName: 'report.zip',
+        fileUri: 'file:///history/a.zip',
+      })
+    );
   });
 
   it('keeps an early clipboard change local without retaining it for a later retry', async () => {
