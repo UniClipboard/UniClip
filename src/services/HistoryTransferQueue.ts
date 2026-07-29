@@ -32,14 +32,24 @@ export interface TransferTask {
   errorMessage?: string;
   failureCount: number;
   isImmediateTask: boolean;
-  abortController: AbortController;
   userCancelled?: boolean;
+}
+
+interface ManagedTransferTask extends TransferTask {
+  abortController: AbortController;
 }
 
 export interface TransferQueueConfig {
   maxConcurrency: number;
   maxConsecutiveFailures: number;
   retryDelayMs: number;
+}
+
+export interface TransferQueueSnapshot {
+  tasks: TransferTask[];
+  pendingCount: number;
+  activeCount: number;
+  hasTasks: boolean;
 }
 
 export interface TaskStatusChangedCallback {
@@ -56,8 +66,8 @@ export class HistoryTransferQueue {
   private historyStorage: HistoryStorage;
   private historyAPI: IHistoryAPI | null = null;
 
-  private pendingTasks: TransferTask[] = [];
-  private activeTasks: Map<string, TransferTask> = new Map();
+  private pendingTasks: ManagedTransferTask[] = [];
+  private activeTasks: Map<string, ManagedTransferTask> = new Map();
   private taskStatusCallbacks: Set<TaskStatusChangedCallback> = new Set();
 
   private config: TransferQueueConfig;
@@ -158,7 +168,7 @@ export class HistoryTransferQueue {
       if (isImmediate && !existingTask.isImmediateTask) {
         existingTask.isImmediateTask = true;
       }
-      return existingTask;
+      return this.snapshot(existingTask);
     }
 
     const { parseProfileId } = await import('./HistoryAPI');
@@ -166,7 +176,7 @@ export class HistoryTransferQueue {
     const item = parsed ? await this.historyStorage.getItem(parsed.hash) : null;
     const displayName = item?.text || profileId;
 
-    const task: TransferTask = {
+    const task: ManagedTransferTask = {
       profileId,
       displayName,
       type: 'download',
@@ -184,7 +194,7 @@ export class HistoryTransferQueue {
     this.signalQueue();
 
     log.info(`[HistoryTransferQueue] Added download task: ${profileId}`);
-    return task;
+    return this.snapshot(task);
   }
 
   /**
@@ -196,7 +206,7 @@ export class HistoryTransferQueue {
       if (isImmediate && !existingTask.isImmediateTask) {
         existingTask.isImmediateTask = true;
       }
-      return existingTask;
+      return this.snapshot(existingTask);
     }
 
     const { parseProfileId } = await import('./HistoryAPI');
@@ -204,7 +214,7 @@ export class HistoryTransferQueue {
     const item = parsed ? await this.historyStorage.getItem(parsed.hash) : null;
     const displayName = item?.text || profileId;
 
-    const task: TransferTask = {
+    const task: ManagedTransferTask = {
       profileId,
       displayName,
       type: 'upload',
@@ -222,7 +232,7 @@ export class HistoryTransferQueue {
     this.signalQueue();
 
     log.info(`[HistoryTransferQueue] Added upload task: ${profileId}`);
-    return task;
+    return this.snapshot(task);
   }
 
   /**
@@ -252,25 +262,19 @@ export class HistoryTransferQueue {
     return true;
   }
 
-  /**
-   * 获取所有活动任务
-   */
-  getActiveTasks(): TransferTask[] {
-    return Array.from(this.activeTasks.values());
-  }
+  getSnapshot(): TransferQueueSnapshot {
+    const tasks = [...this.pendingTasks, ...this.activeTasks.values()]
+      .filter((task) => task.status !== 'completed' && task.status !== 'cancelled')
+      .map((task) => this.snapshot(task));
 
-  /**
-   * 获取待处理任务数量
-   */
-  getPendingCount(): number {
-    return this.pendingTasks.length;
-  }
-
-  /**
-   * 获取活动任务数量
-   */
-  getActiveCount(): number {
-    return this.activeTasks.size;
+    return {
+      tasks,
+      pendingCount: tasks.filter(
+        (task) => task.status === 'pending' || task.status === 'waitForRetry'
+      ).length,
+      activeCount: tasks.filter((task) => task.status === 'running').length,
+      hasTasks: tasks.length > 0,
+    };
   }
 
   /**
@@ -343,7 +347,7 @@ export class HistoryTransferQueue {
   /**
    * 执行任务
    */
-  private async executeTask(task: TransferTask): Promise<void> {
+  private async executeTask(task: ManagedTransferTask): Promise<void> {
     // 用户取消的任务不执行
     if (task.userCancelled || task.status === 'cancelled') {
       log.info(`[HistoryTransferQueue] Task was cancelled, skipping: ${task.profileId}`);
@@ -405,7 +409,7 @@ export class HistoryTransferQueue {
   /**
    * 执行下载任务
    */
-  private async executeDownloadTask(task: TransferTask): Promise<void> {
+  private async executeDownloadTask(task: ManagedTransferTask): Promise<void> {
     if (!this.historyAPI) {
       throw new Error('History API not initialized');
     }
@@ -475,7 +479,7 @@ export class HistoryTransferQueue {
    * 2. 如果存在，直接标记为已同步
    * 3. 如果不存在，执行上传
    */
-  private async executeUploadTask(task: TransferTask): Promise<void> {
+  private async executeUploadTask(task: ManagedTransferTask): Promise<void> {
     if (!this.historyAPI) {
       throw new Error('History API not initialized');
     }
@@ -552,7 +556,7 @@ export class HistoryTransferQueue {
   /**
    * 查找任务
    */
-  private findTask(profileId: string, type: TransferType): TransferTask | undefined {
+  private findTask(profileId: string, type: TransferType): ManagedTransferTask | undefined {
     const key = this.getTaskKey(profileId, type);
     const activeTask = this.activeTasks.get(key);
     if (activeTask) return activeTask;
@@ -570,14 +574,21 @@ export class HistoryTransferQueue {
   /**
    * 通知状态变化
    */
-  private notifyStatusChanged(task: TransferTask): void {
+  private notifyStatusChanged(task: ManagedTransferTask): void {
+    const snapshot = this.snapshot(task);
     for (const callback of this.taskStatusCallbacks) {
       try {
-        callback(task);
+        callback(snapshot);
       } catch (error) {
         log.error('[HistoryTransferQueue] Callback error:', error);
       }
     }
+  }
+
+  private snapshot(task: ManagedTransferTask): TransferTask {
+    const { abortController, ...snapshot } = task;
+    void abortController;
+    return { ...snapshot };
   }
 
   /**

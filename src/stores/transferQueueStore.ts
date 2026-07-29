@@ -32,33 +32,12 @@ export const useTransferQueueStore = create<TransferQueueState>((set, get) => ({
   subscribe: () => {
     const queue = getHistoryTransferQueue();
 
+    const syncSnapshot = () => {
+      set(queue.getSnapshot());
+    };
+
     const handleTaskStatusChanged = (task: TransferTask) => {
-      const currentTasks = get().tasks;
-      const existingIndex = currentTasks.findIndex(
-        (t) => t.profileId === task.profileId && t.type === task.type
-      );
-
-      let newTasks: TransferTask[];
-      if (existingIndex >= 0) {
-        newTasks = [...currentTasks];
-        newTasks[existingIndex] = task;
-      } else {
-        newTasks = [...currentTasks, task];
-      }
-
-      newTasks = newTasks.filter((t) => t.status !== 'completed' && t.status !== 'cancelled');
-
-      const pendingCount = newTasks.filter(
-        (t) => t.status === 'pending' || t.status === 'waitForRetry'
-      ).length;
-      const activeCount = newTasks.filter((t) => t.status === 'running').length;
-
-      set({
-        tasks: newTasks,
-        pendingCount,
-        activeCount,
-        hasTasks: newTasks.length > 0,
-      });
+      syncSnapshot();
 
       if (task.status === 'failed' && task.errorMessage && !task.userCancelled) {
         const operationName =
@@ -77,20 +56,7 @@ export const useTransferQueueStore = create<TransferQueueState>((set, get) => ({
     };
 
     queue.onTaskStatusChanged(handleTaskStatusChanged);
-
-    const activeTasks = queue.getActiveTasks();
-    const initialTasks = activeTasks.filter(
-      (t) => t.status !== 'completed' && t.status !== 'cancelled'
-    );
-
-    set({
-      tasks: initialTasks,
-      pendingCount: initialTasks.filter(
-        (t) => t.status === 'pending' || t.status === 'waitForRetry'
-      ).length,
-      activeCount: initialTasks.filter((t) => t.status === 'running').length,
-      hasTasks: initialTasks.length > 0,
-    });
+    syncSnapshot();
 
     return () => {
       queue.offTaskStatusChanged(handleTaskStatusChanged);
