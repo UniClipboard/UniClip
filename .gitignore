@@ -109,6 +109,10 @@ task_plan.md
 findings.md
 progress.md
 
+# Local simulator credentials and generated Xcode test projects
+.planning/**/simulator-driver/.env.local
+.planning/**/simulator-driver/SimulatorDriver.xcodeproj/
+
 # Rust Core (iOS xcframework too large to commit; build locally)
 modules/uc-core/ios/UniClipboardCore.xcframework/
 modules/uc-core/ios/Bindings/
