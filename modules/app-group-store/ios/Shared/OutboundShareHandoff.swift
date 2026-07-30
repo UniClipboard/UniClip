@@ -21,6 +21,9 @@ struct OutboundShareJob: Codable, Equatable, Sendable {
     let mimeType: String?
     let channel: OutboundShareChannel
     let serverId: String?
+    /// Nil keeps handoffs created by earlier app versions compatible and
+    /// retains their legacy all-recipients behavior.
+    let targetDeviceIds: [String]?
     let createdAtMs: Int64
 }
 
@@ -137,7 +140,8 @@ final class OutboundShareStore: @unchecked Sendable {
     func enqueue(
         _ staged: StagedShareFile,
         channel: OutboundShareChannel,
-        serverId: String?
+        serverId: String?,
+        targetDeviceIds: [String] = []
     ) throws -> OutboundShareJob {
         guard fileManager.fileExists(atPath: staged.url.path) else {
             throw OutboundShareHandoffError.missingPayload
@@ -149,6 +153,7 @@ final class OutboundShareStore: @unchecked Sendable {
             mimeType: staged.mimeType,
             channel: channel,
             serverId: serverId,
+            targetDeviceIds: targetDeviceIds.isEmpty ? nil : Array(Set(targetDeviceIds)).sorted(),
             createdAtMs: Self.nowMs
         )
         let data = try encoder.encode(job)

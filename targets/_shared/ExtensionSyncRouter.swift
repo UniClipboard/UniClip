@@ -31,7 +31,7 @@ enum ExtensionSyncRouter {
         case .text:
             let text = snapshot.payload.flatMap { String(data: $0, encoding: .utf8) }
                 ?? snapshot.clipboard.text
-            send = { try client.sendText(text) }
+            send = { try client.sendText(text, targetDevices: []) }
         case .image:
             guard let bytes = snapshot.payload else {
                 return try client.synchronize(send: nil)
@@ -39,7 +39,8 @@ enum ExtensionSyncRouter {
             send = {
                 try client.sendImage(
                     bytes,
-                    mimeType: imageMimeType(for: snapshot.clipboard.dataName)
+                    mimeType: imageMimeType(for: snapshot.clipboard.dataName),
+                    targetDevices: []
                 )
             }
         case .file, .group:
@@ -50,6 +51,7 @@ enum ExtensionSyncRouter {
 
     static func sendText(
         _ text: String,
+        targetDevices: [String],
         progress: @escaping (ExtensionSendProgress) -> Void = { _ in },
         onPeerRefresh: @escaping (ExtensionPeerRefreshReport) -> Void = { _ in },
         onDelivery: @escaping (ExtensionDeliveryReport) -> Void = { _ in }
@@ -62,7 +64,7 @@ enum ExtensionSyncRouter {
                 progress: progress,
                 onPeerRefresh: onPeerRefresh
             ) {
-                try client.sendText(text)
+                try client.sendText(text, targetDevices: targetDevices)
             }
         )
         onDelivery(delivery)
@@ -72,9 +74,11 @@ enum ExtensionSyncRouter {
     static func sendImage(
         _ bytes: Data,
         ext: String,
+        targetDevices: [String],
         progress: @escaping (ExtensionSendProgress) -> Void = { _ in },
         onPeerRefresh: @escaping (ExtensionPeerRefreshReport) -> Void = { _ in },
-        onDelivery: @escaping (ExtensionDeliveryReport) -> Void = { _ in }
+        onDelivery: @escaping (ExtensionDeliveryReport) -> Void = { _ in },
+        onTransferProgress: @escaping (ExtensionTransferProgress) -> Void = { _ in }
     ) throws {
         let client = try ExtensionP2pClient()
         defer { client.shutdown() }
@@ -84,7 +88,11 @@ enum ExtensionSyncRouter {
                 progress: progress,
                 onPeerRefresh: onPeerRefresh
             ) {
-                try client.sendImage(bytes, mimeType: imageMimeType(for: ext))
+                try client.sendImage(
+                    bytes,
+                    mimeType: imageMimeType(for: ext),
+                    targetDevices: targetDevices
+                )
             }
         )
         onDelivery(delivery)
@@ -93,16 +101,22 @@ enum ExtensionSyncRouter {
             progress(.sent)
             return
         }
-        try waitForDelivery(delivery, using: client)
+        try waitForDelivery(
+            delivery,
+            using: client,
+            onTransferProgress: onTransferProgress
+        )
         progress(.sent)
     }
 
     static func sendFile(
         _ url: URL,
         displayName: String,
+        targetDevices: [String],
         progress: @escaping (ExtensionSendProgress) -> Void = { _ in },
         onPeerRefresh: @escaping (ExtensionPeerRefreshReport) -> Void = { _ in },
-        onDelivery: @escaping (ExtensionDeliveryReport) -> Void = { _ in }
+        onDelivery: @escaping (ExtensionDeliveryReport) -> Void = { _ in },
+        onTransferProgress: @escaping (ExtensionTransferProgress) -> Void = { _ in }
     ) throws {
         let client = try ExtensionP2pClient()
         defer { client.shutdown() }
@@ -112,22 +126,32 @@ enum ExtensionSyncRouter {
                 progress: progress,
                 onPeerRefresh: onPeerRefresh
             ) {
-                try client.sendFile(url, displayName: displayName)
+                try client.sendFile(
+                    url,
+                    displayName: displayName,
+                    targetDevices: targetDevices
+                )
             }
         )
         onDelivery(delivery)
-        try waitForDelivery(delivery, using: client)
+        try waitForDelivery(
+            delivery,
+            using: client,
+            onTransferProgress: onTransferProgress
+        )
         progress(.sent)
     }
 
     private static func waitForDelivery(
         _ delivery: ExtensionDeliveryReport,
-        using client: ExtensionP2pClient
+        using client: ExtensionP2pClient,
+        onTransferProgress: @escaping (ExtensionTransferProgress) -> Void
     ) throws {
         try client.waitForOutboundDelivery(
             entryId: delivery.entryId,
             expectedReceiverCount: delivery.accepted,
-            timeoutMs: outboundDeliveryTimeoutMs
+            timeoutMs: outboundDeliveryTimeoutMs,
+            onTransferProgress: onTransferProgress
         )
     }
 

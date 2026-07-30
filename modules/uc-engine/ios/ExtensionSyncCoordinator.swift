@@ -125,7 +125,12 @@ public enum ExtensionStableIdentifier {
 
 public enum ExtensionSyncEvent: Equatable, Sendable {
   case remoteActiveClipboardChanged(entryId: String)
-  case outboundTransferProgress(entryId: String, peerId: String)
+  case outboundTransferProgress(
+    entryId: String,
+    peerId: String,
+    completedBytes: UInt64,
+    totalBytes: UInt64?
+  )
   case outboundTransferStatusChanged(
     entryId: String,
     peerId: String?,
@@ -169,6 +174,18 @@ public enum ExtensionSendProgress: Int, Equatable, Sendable {
   case connected
   case sending
   case sent
+}
+
+public struct ExtensionTransferProgress: Equatable, Sendable {
+  public let peerId: String
+  public let completedBytes: UInt64
+  public let totalBytes: UInt64?
+
+  public init(peerId: String, completedBytes: UInt64, totalBytes: UInt64?) {
+    self.peerId = peerId
+    self.completedBytes = completedBytes
+    self.totalBytes = totalBytes
+  }
 }
 
 public enum ExtensionPeerConnectionError: Error, Equatable, LocalizedError, Sendable {
@@ -386,7 +403,8 @@ public final class ExtensionSyncCoordinator {
   public func waitForOutboundDelivery(
     entryId: String,
     expectedReceiverCount: UInt64,
-    timeoutMs: UInt64
+    timeoutMs: UInt64,
+    onTransferProgress: ((ExtensionTransferProgress) -> Void)? = nil
   ) throws {
     guard expectedReceiverCount > 0 else { return }
     guard timeoutMs > 0 else { throw ExtensionOutboundDeliveryError.timedOut }
@@ -404,6 +422,19 @@ public final class ExtensionSyncCoordinator {
       let remainingMs = wholeMilliseconds + (remainingNanoseconds % 1_000_000 == 0 ? 0 : 1)
       guard let event = try engine.nextEvent(timeoutMs: remainingMs) else {
         throw ExtensionOutboundDeliveryError.timedOut
+      }
+      if case .outboundTransferProgress(
+        let eventEntryId,
+        let peerId,
+        let completedBytes,
+        let totalBytes
+      ) = event, eventEntryId == entryId {
+        onTransferProgress?(ExtensionTransferProgress(
+          peerId: peerId,
+          completedBytes: completedBytes,
+          totalBytes: totalBytes
+        ))
+        continue
       }
       guard
         case .outboundTransferStatusChanged(

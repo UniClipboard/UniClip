@@ -79,6 +79,21 @@ final class OutboundShareHandoffTests: XCTestCase {
     XCTAssertFalse(FileManager.default.fileExists(atPath: staged.url.path))
   }
 
+  func testPendingJobPreservesTheSelectedTargetDevices() throws {
+    let staged = try store.stageData(Data([1]), displayName: "selected.bin", mimeType: nil)
+    let job = try store.enqueue(
+      staged,
+      channel: .p2p,
+      serverId: nil,
+      targetDeviceIds: ["desktop-2", "desktop-1", "desktop-2"]
+    )
+
+    let claimed = try store.claimPendingJobs()
+
+    XCTAssertEqual(job.targetDeviceIds, ["desktop-1", "desktop-2"])
+    XCTAssertEqual(claimed.first?.job.targetDeviceIds, ["desktop-1", "desktop-2"])
+  }
+
   func testExpiredJobRemovesRecordAndPayload() throws {
     let staged = try store.stageData(Data([1, 2, 3]), displayName: "old.bin", mimeType: nil)
     let job = try store.enqueue(staged, channel: .p2p, serverId: nil)

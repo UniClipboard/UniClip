@@ -142,8 +142,10 @@ struct ShareUploader {
 
     func uploadP2p(
         _ item: ShareItem,
+        targetDevices: [String],
         diagnostics: ShareDiagnosticRecorder?,
-        onStage: @escaping @MainActor @Sendable (ShareUploadStage) -> Void
+        onStage: @escaping @MainActor @Sendable (ShareUploadStage) -> Void,
+        onTransferProgress: @escaping @MainActor @Sendable (ExtensionTransferProgress) -> Void
     ) async throws {
         if let diagnostics {
             diagnostics.record(stage: .engineStarting)
@@ -185,10 +187,16 @@ struct ShareUploader {
                                 diagnostics?.record(stage: .deliveryWaiting)
                             }
                         }
+                        let transferProgress: @Sendable (ExtensionTransferProgress) -> Void = { progress in
+                            Task { @MainActor in
+                                onTransferProgress(progress)
+                            }
+                        }
                         switch item {
                         case .text(let text):
                             try ExtensionSyncRouter.sendText(
                                 text,
+                                targetDevices: targetDevices,
                                 progress: progress,
                                 onPeerRefresh: onPeerRefresh,
                                 onDelivery: onDelivery
@@ -197,17 +205,21 @@ struct ShareUploader {
                             try ExtensionSyncRouter.sendImage(
                                 bytes,
                                 ext: ext,
+                                targetDevices: targetDevices,
                                 progress: progress,
                                 onPeerRefresh: onPeerRefresh,
-                                onDelivery: onDelivery
+                                onDelivery: onDelivery,
+                                onTransferProgress: transferProgress
                             )
                         case .file(let staged):
                             try ExtensionSyncRouter.sendFile(
                                 staged.url,
                                 displayName: Clipboard.sanitizedFilename(staged.displayName),
+                                targetDevices: targetDevices,
                                 progress: progress,
                                 onPeerRefresh: onPeerRefresh,
-                                onDelivery: onDelivery
+                                onDelivery: onDelivery,
+                                onTransferProgress: transferProgress
                             )
                         }
                     }
@@ -260,54 +272,64 @@ private extension ShareDiagnosticDelivery {
 
 private extension ShareDiagnosticError {
     init(_ error: Error) {
-        switch error {
-        case ExtensionPeerConnectionError.noOnlinePeer:
-            self.init(code: .receiverOffline)
-        case ExtensionPeerConnectionError.connectionTimedOut:
-            self.init(code: .connectTimeout)
-        case ExtensionP2pError.sharedStoreUnavailable:
-            self.init(code: .sharedStoreUnavailable)
-        case ExtensionP2pError.spaceUnavailable:
-            self.init(code: .spaceUnavailable)
-        case ExtensionP2pError.runtimeBusy:
-            self.init(code: .runtimeBusy)
-        case ExtensionP2pError.sessionClosed:
-            self.init(code: .sessionClosed)
-        case ExtensionP2pError.deliveryIncomplete(let state):
-            self.init(code: state.diagnosticErrorCode)
-        case ExtensionOutboundDeliveryError.timedOut:
-            self.init(code: .deliveryTimedOut)
-        case ExtensionOutboundDeliveryError.failed:
-            self.init(code: .deliveryDownloadFailed)
-        case ExtensionOutboundDeliveryError.cancelled:
-            self.init(code: .deliveryCancelled)
-        case BindingError.Engine(let code, let category, let retryable):
+        if let error = error as? ExtensionPeerConnectionError {
+            self.init(connectionError: error)
+        } else if let error = error as? ExtensionP2pError {
+            self.init(p2pError: error)
+        } else if let error = error as? ExtensionOutboundDeliveryError {
+            self.init(deliveryError: error)
+        } else if let error = error as? BindingError {
+            self.init(bindingError: error)
+        } else if let error = error as? SyncError {
+            self.init(code: error.kind.diagnosticErrorCode)
+        } else if error is CancellationError {
+            self.init(code: .cancelled)
+        } else {
+            self.init(code: .unknown)
+        }
+    }
+
+    init(connectionError: ExtensionPeerConnectionError) {
+        switch connectionError {
+        case .noOnlinePeer: self.init(code: .receiverOffline)
+        case .connectionTimedOut: self.init(code: .connectTimeout)
+        }
+    }
+
+    init(p2pError: ExtensionP2pError) {
+        switch p2pError {
+        case .sharedStoreUnavailable: self.init(code: .sharedStoreUnavailable)
+        case .spaceUnavailable: self.init(code: .spaceUnavailable)
+        case .runtimeBusy: self.init(code: .runtimeBusy)
+        case .sessionClosed: self.init(code: .sessionClosed)
+        case .deliveryIncomplete(let state): self.init(code: state.diagnosticErrorCode)
+        }
+    }
+
+    init(deliveryError: ExtensionOutboundDeliveryError) {
+        switch deliveryError {
+        case .timedOut: self.init(code: .deliveryTimedOut)
+        case .failed: self.init(code: .deliveryDownloadFailed)
+        case .cancelled: self.init(code: .deliveryCancelled)
+        }
+    }
+
+    init(bindingError: BindingError) {
+        switch bindingError {
+        case .Engine(let code, let category, let retryable):
             self.init(
                 code: .engine,
                 engineCode: code,
                 engineCategory: ShareDiagnosticEngineCategory(category),
                 retryable: retryable
             )
-        case BindingError.HostUnavailable:
-            self.init(code: .hostUnavailable)
-        case BindingError.HostPermissionDenied:
-            self.init(code: .hostPermissionDenied)
-        case BindingError.HostInvalidHandle:
-            self.init(code: .hostInvalidHandle)
-        case BindingError.HostIo:
-            self.init(code: .hostIO)
-        case BindingError.RuntimeUnavailable:
-            self.init(code: .runtimeUnavailable)
-        case BindingError.AlreadyStopped:
-            self.init(code: .alreadyStopped)
-        case BindingError.UnexpectedResult:
-            self.init(code: .unexpectedEngineResult)
-        case let sync as SyncError:
-            self.init(code: sync.kind.diagnosticErrorCode)
-        case is CancellationError:
-            self.init(code: .cancelled)
-        default:
-            self.init(code: .unknown)
+        case .HostUnavailable: self.init(code: .hostUnavailable)
+        case .HostPermissionDenied: self.init(code: .hostPermissionDenied)
+        case .HostInvalidHandle: self.init(code: .hostInvalidHandle)
+        case .HostIo: self.init(code: .hostIO)
+        case .RuntimeUnavailable: self.init(code: .runtimeUnavailable)
+        case .AlreadyStopped: self.init(code: .alreadyStopped)
+        case .UnexpectedResult: self.init(code: .unexpectedEngineResult)
         }
     }
 }

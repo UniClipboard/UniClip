@@ -1,4 +1,6 @@
-import type { OutboundShareJobDTO } from 'app-group-store';
+/// <reference types="jest" />
+
+import type { OutboundShareJobDTO } from '../../modules/app-group-store/src/index';
 import { OutboundShareHandoffManager } from '../services/OutboundShareHandoffManager';
 
 const job: OutboundShareJobDTO = {
@@ -9,6 +11,7 @@ const job: OutboundShareJobDTO = {
   mimeType: 'application/zip',
   channel: 'p2p',
   serverId: null,
+  targetDeviceIds: ['desktop-1'],
   createdAtMs: 1_700_000_000_000,
 };
 
@@ -50,7 +53,13 @@ describe('OutboundShareHandoffManager', () => {
     expect(deps.sendImportedAsset).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'file', fileName: 'archive.zip' }),
       'HASH',
-      { channel: 'p2p', awaitLanDelivery: true, serverId: null, byteCount: job.byteCount }
+      {
+        channel: 'p2p',
+        awaitLanDelivery: true,
+        serverId: null,
+        targetDeviceIds: ['desktop-1'],
+        byteCount: job.byteCount,
+      }
     );
     expect(deps.completeJob).toHaveBeenCalledWith('job-1');
     expect(deps.releaseJob).not.toHaveBeenCalled();

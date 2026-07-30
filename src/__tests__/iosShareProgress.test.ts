@@ -1,3 +1,5 @@
+/// <reference types="jest" />
+
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -19,6 +21,35 @@ describe('iOS Share direct-send progress', () => {
     expect(rootView).toContain('Image(systemName: "circle")');
     expect(rootView).toContain('updateShareStage(stage)');
     expect(rootView).toContain('shareStage = .connecting');
+  });
+
+  it('requires selecting recipient devices before P2P connection and preserves those targets', () => {
+    const rootView = read('targets/share/ShareRootView.swift');
+    const uploader = read('targets/share/ShareUploader.swift');
+    const handoff = read('targets/share/OutboundShareHandoff.swift');
+    const manager = read('src/services/OutboundShareHandoffManager.ts');
+
+    expect(rootView).toContain('selectedRecipientIds');
+    expect(rootView).toContain('选择设备后才会连接和发送');
+    expect(rootView).toContain('return !selectedRecipientIds.isEmpty');
+    expect(rootView).toContain('if recipients.count == 1, let recipient = recipients.first');
+    expect(rootView).toContain('selectedRecipientIds = [recipient.deviceId]');
+    expect(uploader).toContain('targetDevices: targetDevices');
+    expect(handoff).toContain('targetDeviceIds: [String]');
+    expect(manager).toContain('targetDeviceIds: job.targetDeviceIds');
+  });
+
+  it('renders byte progress when P2P transfers report it', () => {
+    const rootView = read('targets/share/ShareRootView.swift');
+    const coordinator = read('modules/uc-engine/ios/ExtensionSyncCoordinator.swift');
+
+    expect(rootView).toContain('Form {');
+    expect(rootView).toContain('progressHero');
+    expect(rootView).toContain('发送状态');
+    expect(rootView).toContain('传输进度');
+    expect(rootView).toContain('已发送 %@ / %@');
+    expect(coordinator).toContain('completedBytes: UInt64');
+    expect(coordinator).toContain('onTransferProgress');
   });
 
   it('confirms a receiver connection before reporting that sending began', () => {

@@ -38,3 +38,15 @@
 "保存待发送文件失败" = "Não foi possível salvar o arquivo para envio posterior.";
 "没有可用的接收设备" = "Nenhum dispositivo receptor está configurado.";
 "连接恢复超时，请稍后重试" = "Não foi possível restaurar a conexão a tempo. Tente novamente mais tarde.";
+"接收设备" = "Dispositivos de destino";
+"选择设备后才会连接和发送" = "O app só se conectará e enviará depois que você escolher os dispositivos.";
+"没有已配对的接收设备" = "Não há dispositivos de destino pareados.";
+"上次状态：在线" = "Último estado: online";
+"上次状态：离线" = "Último estado: offline";
+"已选择 %lld 台设备" = "%lld dispositivos selecionados";
+"未选择接收设备" = "Nenhum dispositivo de destino selecionado";
+"已发送 %@ / %@" = "%@ de %@ enviados";
+"正在等待传输进度" = "Aguardando o progresso da transferência";
+"无法读取接收设备" = "Não foi possível carregar os dispositivos de destino.";
+"发送状态" = "Status do envio";
+"传输进度" = "Progresso da transferência";

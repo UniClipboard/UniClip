@@ -75,39 +75,12 @@ public class AppGroupStoreModule: Module {
       await PayloadCache.shared.purgeAll()
     }
 
-    AsyncFunction("getPayloadStats") { () async -> [String: Int] in
-      let directory = AppGroupStoreModule.payloadDirectory()
-      let urls = (try? FileManager.default.contentsOfDirectory(
-        at: directory,
-        includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey]
-      )) ?? []
-
-      var count = 0
-      var totalSize = 0
-      for url in urls {
-        guard let values = try? url.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey]),
-              values.isRegularFile == true
-        else { continue }
-        count += 1
-        totalSize += values.fileSize ?? 0
-      }
-      return ["count": count, "totalSize": totalSize]
+    AsyncFunction("getPayloadStats") { () -> [String: Int] in
+      self.payloadStats()
     }
 
     AsyncFunction("claimOutboundShareJobs") { () throws -> [[String: Any]] in
-      try OutboundShareStore().claimPendingJobs().map { claimed in
-        let job = claimed.job
-        return [
-          "id": job.id,
-          "fileUri": claimed.fileURL.absoluteString,
-          "displayName": job.displayName,
-          "byteCount": job.byteCount,
-          "mimeType": job.mimeType ?? NSNull(),
-          "channel": job.channel.rawValue,
-          "serverId": job.serverId ?? NSNull(),
-          "createdAtMs": job.createdAtMs,
-        ]
-      }
+      try self.claimOutboundShareJobs()
     }
 
     AsyncFunction("completeOutboundShareJob") { (id: String) throws -> Void in
@@ -119,31 +92,7 @@ public class AppGroupStoreModule: Module {
     }
 
     AsyncFunction("importPayloadFile") { (profileId: String, sourceUri: String) throws -> String? in
-      guard AppGroupStoreModule.isValidPayloadKey(profileId),
-            let sourceURL = URL(string: sourceUri),
-            sourceURL.isFileURL
-      else { return nil }
-
-      let targetURL = AppGroupStoreModule.payloadDirectory()
-        .appendingPathComponent(profileId, isDirectory: false)
-      if FileManager.default.fileExists(atPath: targetURL.path) {
-        return targetURL.absoluteString
-      }
-
-      let temporaryURL = targetURL.deletingLastPathComponent()
-        .appendingPathComponent(".\(profileId).\(UUID().uuidString).importing")
-      defer { try? FileManager.default.removeItem(at: temporaryURL) }
-      try FileManager.default.copyItem(at: sourceURL, to: temporaryURL)
-      try FileManager.default.setAttributes(
-        [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
-        ofItemAtPath: temporaryURL.path
-      )
-      do {
-        try FileManager.default.moveItem(at: temporaryURL, to: targetURL)
-      } catch where FileManager.default.fileExists(atPath: targetURL.path) {
-        // Another importer won the content-addressed race; its payload is equivalent.
-      }
-      return targetURL.absoluteString
+      try self.importPayloadFile(profileId: profileId, sourceUri: sourceUri)
     }
 
     AsyncFunction("sendOutboundLanFile") {
@@ -154,55 +103,13 @@ public class AppGroupStoreModule: Module {
         byteCount: Int64,
         serverId: String?
       ) async throws -> Void in
-      guard let sourceURL = URL(string: sourceUri), sourceURL.isFileURL,
-            FileManager.default.fileExists(atPath: sourceURL.path)
-      else { throw OutboundShareHandoffError.invalidSource }
-
-      let servers = self.store.loadServers()
-      let selected: ServerConfig?
-      if let serverId {
-        selected = servers.configs.first(where: { $0.id == serverId })
-      } else {
-        selected = servers.activeConfig
-      }
-      guard let server = selected else { throw SyncError(kind: .networkUnreachable) }
-      let settings = self.store.loadAppSettings()
-      let network = await NetworkContextDetector.current(store: self.store)
-      let safeName = Clipboard.sanitizedFilename(displayName)
-      let entry = Clipboard(
-        type: .file,
-        hash: profileHash,
-        text: safeName,
-        hasData: true,
-        dataName: safeName,
-        size: Int(clamping: byteCount)
+      try await self.sendOutboundLanFile(
+        sourceUri: sourceUri,
+        displayName: displayName,
+        profileHash: profileHash,
+        byteCount: byteCount,
+        serverId: serverId
       )
-
-      try await ServerRouteExecutor(store: self.store).run(
-        server: server,
-        network: network,
-        probe: { routed in
-          let client = try SyncClipboardClient(
-            server: routed,
-            trustInsecureCert: settings.trustInsecureCert
-          )
-          try await client.probeReachability()
-        },
-        operation: { routed in
-          let client = try SyncClipboardClient(
-            server: routed,
-            trustInsecureCert: settings.trustInsecureCert
-          )
-          try await client.putFile(
-            name: safeName,
-            fileURL: sourceURL,
-            byteCount: byteCount
-          )
-          try await client.putClipboard(entry)
-        }
-      )
-      self.store.saveLastSyncedHash(profileHash)
-      self.store.saveLastSyncedContentId(nil)
     }
 
     AsyncFunction("getLastSyncedHash") { () -> String? in
@@ -227,32 +134,139 @@ public class AppGroupStoreModule: Module {
     }
 
     AsyncFunction("getKeyboardStatus") { () -> [String: Any] in
-      var status: [String: Any] = [:]
-
-      // Live check against the system keyboard list. `AppleKeyboards` holds the
-      // bundle ids of every enabled keyboard; absent (nil) on OS versions that
-      // stopped exposing it, in which case the key is omitted and JS falls back
-      // to the app-group heartbeat below.
-      if let keyboards = UserDefaults.standard.object(forKey: "AppleKeyboards") as? [String],
-         let bundleId = Bundle.main.bundleIdentifier {
-        // System entries carry layout suffixes ("en_US@sw=QWERTY"); match the
-        // extension bundle id with or without one.
-        let keyboardBundleId = bundleId + ".Keyboard"
-        status["enabledInSystem"] = keyboards.contains {
-          $0 == keyboardBundleId || $0.hasPrefix(keyboardBundleId + "@")
-        }
-      }
-
-      // Heartbeat flags the keyboard extension writes on every viewDidAppear.
-      // `lastKnownFullAccess` is the state as of the keyboard's last appearance,
-      // not necessarily the current Settings value.
-      let group = UserDefaults(suiteName: SettingsStore.appGroupID)
-      status["everUsed"] =
-        group?.bool(forKey: AppSettings.PersistenceKey.keyboardExtensionEnabled) ?? false
-      status["lastKnownFullAccess"] =
-        group?.bool(forKey: AppSettings.PersistenceKey.keyboardExtensionFullAccess) ?? false
-      return status
+      self.keyboardStatus()
     }
+  }
+
+  private func payloadStats() -> [String: Int] {
+    let directory = AppGroupStoreModule.payloadDirectory()
+    let urls = (try? FileManager.default.contentsOfDirectory(
+      at: directory,
+      includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey]
+    )) ?? []
+
+    var count = 0
+    var totalSize = 0
+    for url in urls {
+      guard let values = try? url.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey]),
+            values.isRegularFile == true
+      else { continue }
+      count += 1
+      totalSize += values.fileSize ?? 0
+    }
+    return ["count": count, "totalSize": totalSize]
+  }
+
+  private func claimOutboundShareJobs() throws -> [[String: Any]] {
+    try OutboundShareStore().claimPendingJobs().map { claimed in
+      let job = claimed.job
+      return [
+        "id": job.id,
+        "fileUri": claimed.fileURL.absoluteString,
+        "displayName": job.displayName,
+        "byteCount": job.byteCount,
+        "mimeType": job.mimeType ?? NSNull(),
+        "channel": job.channel.rawValue,
+        "serverId": job.serverId ?? NSNull(),
+        "targetDeviceIds": job.targetDeviceIds ?? [],
+        "createdAtMs": job.createdAtMs,
+      ]
+    }
+  }
+
+  private func importPayloadFile(profileId: String, sourceUri: String) throws -> String? {
+    guard AppGroupStoreModule.isValidPayloadKey(profileId),
+          let sourceURL = URL(string: sourceUri),
+          sourceURL.isFileURL
+    else { return nil }
+
+    let targetURL = AppGroupStoreModule.payloadDirectory()
+      .appendingPathComponent(profileId, isDirectory: false)
+    if FileManager.default.fileExists(atPath: targetURL.path) {
+      return targetURL.absoluteString
+    }
+
+    let temporaryURL = targetURL.deletingLastPathComponent()
+      .appendingPathComponent(".\(profileId).\(UUID().uuidString).importing")
+    defer { try? FileManager.default.removeItem(at: temporaryURL) }
+    try FileManager.default.copyItem(at: sourceURL, to: temporaryURL)
+    try FileManager.default.setAttributes(
+      [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+      ofItemAtPath: temporaryURL.path
+    )
+    do {
+      try FileManager.default.moveItem(at: temporaryURL, to: targetURL)
+    } catch where FileManager.default.fileExists(atPath: targetURL.path) {
+      // Another importer won the content-addressed race; its payload is equivalent.
+    }
+    return targetURL.absoluteString
+  }
+
+  private func sendOutboundLanFile(
+    sourceUri: String,
+    displayName: String,
+    profileHash: String,
+    byteCount: Int64,
+    serverId: String?
+  ) async throws {
+    guard let sourceURL = URL(string: sourceUri), sourceURL.isFileURL,
+          FileManager.default.fileExists(atPath: sourceURL.path)
+    else { throw OutboundShareHandoffError.invalidSource }
+
+    let servers = store.loadServers()
+    let server = serverId.flatMap { id in servers.configs.first(where: { $0.id == id }) }
+      ?? servers.activeConfig
+    guard let server else { throw SyncError(kind: .networkUnreachable) }
+    let settings = store.loadAppSettings()
+    let network = await NetworkContextDetector.current(store: store)
+    let safeName = Clipboard.sanitizedFilename(displayName)
+    let entry = Clipboard(
+      type: .file,
+      hash: profileHash,
+      text: safeName,
+      hasData: true,
+      dataName: safeName,
+      size: Int(clamping: byteCount)
+    )
+
+    try await ServerRouteExecutor(store: store).run(
+      server: server,
+      network: network,
+      probe: { routed in
+        let client = try SyncClipboardClient(
+          server: routed,
+          trustInsecureCert: settings.trustInsecureCert
+        )
+        try await client.probeReachability()
+      },
+      operation: { routed in
+        let client = try SyncClipboardClient(
+          server: routed,
+          trustInsecureCert: settings.trustInsecureCert
+        )
+        try await client.putFile(name: safeName, fileURL: sourceURL, byteCount: byteCount)
+        try await client.putClipboard(entry)
+      }
+    )
+    store.saveLastSyncedHash(profileHash)
+    store.saveLastSyncedContentId(nil)
+  }
+
+  private func keyboardStatus() -> [String: Any] {
+    var status: [String: Any] = [:]
+    if let keyboards = UserDefaults.standard.object(forKey: "AppleKeyboards") as? [String],
+       let bundleId = Bundle.main.bundleIdentifier {
+      let keyboardBundleId = bundleId + ".Keyboard"
+      status["enabledInSystem"] = keyboards.contains {
+        $0 == keyboardBundleId || $0.hasPrefix(keyboardBundleId + "@")
+      }
+    }
+    let group = UserDefaults(suiteName: SettingsStore.appGroupID)
+    status["everUsed"] =
+      group?.bool(forKey: AppSettings.PersistenceKey.keyboardExtensionEnabled) ?? false
+    status["lastKnownFullAccess"] =
+      group?.bool(forKey: AppSettings.PersistenceKey.keyboardExtensionFullAccess) ?? false
+    return status
   }
 
   private static func payloadDirectory() -> URL {

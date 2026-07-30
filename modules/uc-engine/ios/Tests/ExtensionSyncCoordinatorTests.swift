@@ -206,6 +206,9 @@ final class ExtensionSyncCoordinatorTests: XCTestCase {
     XCTAssertEqual(engine.eventTimeouts, [1_000])
   }
 
+}
+
+extension ExtensionSyncCoordinatorTests {
   func testDeliveryReportPreservesAllTargetOutcomes() throws {
     let engine = FakeExtensionSyncEngine(events: [])
     let report = ExtensionDeliveryReport(
@@ -347,14 +350,24 @@ final class ExtensionSyncCoordinatorTests: XCTestCase {
 
   func testOutboundDeliveryWaitsForEveryAcceptedPeer() throws {
     let engine = FakeExtensionSyncEngine(events: [
-      .outboundTransferProgress(entryId: "shared-entry", peerId: "peer-1"),
+      .outboundTransferProgress(
+        entryId: "shared-entry",
+        peerId: "peer-1",
+        completedBytes: 64,
+        totalBytes: 128
+      ),
       .outboundTransferStatusChanged(
         entryId: "shared-entry",
         peerId: "peer-1",
         status: "completed",
         reason: nil
       ),
-      .outboundTransferProgress(entryId: "shared-entry", peerId: "peer-2"),
+      .outboundTransferProgress(
+        entryId: "shared-entry",
+        peerId: "peer-2",
+        completedBytes: 128,
+        totalBytes: 128
+      ),
       .outboundTransferStatusChanged(
         entryId: "shared-entry",
         peerId: "peer-2",
@@ -372,6 +385,37 @@ final class ExtensionSyncCoordinatorTests: XCTestCase {
 
     XCTAssertEqual(engine.eventTimeouts.count, 4)
     XCTAssertEqual(engine.remainingEventCount, 0)
+  }
+
+  func testOutboundDeliveryReportsByteProgressForTheSelectedReceiver() throws {
+    let engine = FakeExtensionSyncEngine(events: [
+      .outboundTransferProgress(
+        entryId: "shared-entry",
+        peerId: "peer-1",
+        completedBytes: 64,
+        totalBytes: 128
+      ),
+      .outboundTransferStatusChanged(
+        entryId: "shared-entry",
+        peerId: "peer-1",
+        status: "completed",
+        reason: nil
+      ),
+    ])
+    let coordinator = ExtensionSyncCoordinator(engine: engine)
+    var progress: [ExtensionTransferProgress] = []
+
+    try coordinator.waitForOutboundDelivery(
+      entryId: "shared-entry",
+      expectedReceiverCount: 1,
+      timeoutMs: 1_000,
+      onTransferProgress: { progress.append($0) }
+    )
+
+    XCTAssertEqual(
+      progress,
+      [ExtensionTransferProgress(peerId: "peer-1", completedBytes: 64, totalBytes: 128)]
+    )
   }
 
   func testOutboundDeliveryIgnoresDuplicateAndUnrelatedCompletionEvents() throws {

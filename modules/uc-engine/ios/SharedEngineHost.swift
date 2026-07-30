@@ -79,6 +79,18 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
   }
 }
 
+public struct ExtensionP2pRecipient: Equatable, Sendable {
+  public let deviceId: String
+  public let displayName: String
+  public let wasLastKnownOnline: Bool
+
+  public init(deviceId: String, displayName: String, wasLastKnownOnline: Bool) {
+    self.deviceId = deviceId
+    self.displayName = displayName
+    self.wasLastKnownOnline = wasLastKnownOnline
+  }
+}
+
 /// P2P session for app extensions. Short-lived callers release it after one
 /// operation; the keyboard may retain it only while its input view is visible.
 public final class ExtensionP2pClient: @unchecked Sendable {
@@ -161,14 +173,16 @@ public final class ExtensionP2pClient: @unchecked Sendable {
   public func waitForOutboundDelivery(
     entryId: String,
     expectedReceiverCount: UInt64,
-    timeoutMs: UInt64
+    timeoutMs: UInt64,
+    onTransferProgress: ((ExtensionTransferProgress) -> Void)? = nil
   ) throws {
     try operationLock.withLock {
       guard !isClosed else { throw ExtensionP2pError.sessionClosed }
       try coordinator.waitForOutboundDelivery(
         entryId: entryId,
         expectedReceiverCount: expectedReceiverCount,
-        timeoutMs: timeoutMs
+        timeoutMs: timeoutMs,
+        onTransferProgress: onTransferProgress
       )
     }
   }
@@ -186,17 +200,39 @@ public final class ExtensionP2pClient: @unchecked Sendable {
     }
   }
 
-  public func sendText(_ text: String) throws -> SendReport {
-    try engine.sendText(text: text, targetDevices: [])
+  /// Reads the persisted space membership only. It intentionally does not
+  /// refresh peer connections, so sharing can collect a recipient choice before
+  /// opening a network connection.
+  public func recipients() throws -> [ExtensionP2pRecipient] {
+    try engine.listDevices().compactMap { device in
+      guard device.deviceId != localDeviceId else { return nil }
+      return ExtensionP2pRecipient(
+        deviceId: device.deviceId,
+        displayName: device.displayName,
+        wasLastKnownOnline: device.online
+      )
+    }
   }
 
-  public func sendImage(_ bytes: Data, mimeType: String) throws -> SendReport {
-    try engine.sendImage(bytes: bytes, mimeType: mimeType, targetDevices: [])
+  public func sendText(_ text: String, targetDevices: [String]) throws -> SendReport {
+    try engine.sendText(text: text, targetDevices: targetDevices)
   }
 
-  public func sendFile(_ url: URL, displayName: String? = nil) throws -> SendReport {
+  public func sendImage(
+    _ bytes: Data,
+    mimeType: String,
+    targetDevices: [String]
+  ) throws -> SendReport {
+    try engine.sendImage(bytes: bytes, mimeType: mimeType, targetDevices: targetDevices)
+  }
+
+  public func sendFile(
+    _ url: URL,
+    displayName: String? = nil,
+    targetDevices: [String]
+  ) throws -> SendReport {
     try files.withRetainedInputFile(url: url, displayName: displayName) { handle in
-      try engine.sendFiles(fileHandles: [handle], targetDevices: [])
+      try engine.sendFiles(fileHandles: [handle], targetDevices: targetDevices)
     }
   }
 }
@@ -371,12 +407,17 @@ private final class ExtensionMobileEngineAdapter: ExtensionSyncEngine {
       _,
       let peerId,
       let direction,
-      _,
-      _
+      let completedBytes,
+      let totalBytes
     ) where direction == .sending:
       guard let entryId else { return .other }
       latestOutboundPeerByEntryId[entryId] = peerId
-      return .outboundTransferProgress(entryId: entryId, peerId: peerId)
+      return .outboundTransferProgress(
+        entryId: entryId,
+        peerId: peerId,
+        completedBytes: completedBytes,
+        totalBytes: totalBytes
+      )
     case .transferStatusChanged(_, let entryId, _, let status, let reason):
       return .outboundTransferStatusChanged(
         entryId: entryId,

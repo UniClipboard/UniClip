@@ -27,6 +27,9 @@ struct ShareRootView: View {
     @State private var servers: ServerConfigList = ServerConfigList()
     @State private var trustInsecureCert: Bool = false
     @State private var syncChannel: SyncChannel = .p2p
+    @State private var p2pRecipients: [ExtensionP2pRecipient] = []
+    @State private var selectedRecipientIds = Set<String>()
+    @State private var recipientLoadError: String?
     @State private var selectedServerId: String?
     @State private var prefillNote: String? = nil
     /// Mirrors the user's appearance setting from the App Group so the
@@ -35,6 +38,7 @@ struct ShareRootView: View {
     @State private var appearance: AppearanceMode = .system
     @State private var localization = ExtensionLocalization()
     @State private var shareStage: ShareUploadStage = .connecting
+    @State private var transferProgress: ExtensionTransferProgress?
 
     enum Phase: Equatable {
         case loadingAttachment
@@ -103,6 +107,9 @@ struct ShareRootView: View {
         .preferredColorScheme(appearance.colorScheme)
     }
 
+}
+
+private extension ShareRootView {
     // MARK: - Subviews
 
     @ViewBuilder
@@ -121,7 +128,54 @@ struct ShareRootView: View {
                 }
             }
 
-            if syncChannel == .lan, servers.configs.count > 1 {
+            if syncChannel == .p2p {
+                Section(
+                    header: Text(localization.string("接收设备")),
+                    footer: Text(localization.string("选择设备后才会连接和发送"))
+                ) {
+                    if let recipientLoadError {
+                        Text(recipientLoadError)
+                            .foregroundStyle(.secondary)
+                    } else if p2pRecipients.isEmpty {
+                        Text(localization.string("没有已配对的接收设备"))
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(p2pRecipients, id: \.deviceId) { recipient in
+                            Button {
+                                toggleRecipient(recipient.deviceId)
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "desktopcomputer")
+                                        .foregroundStyle(.tint)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(recipient.displayName)
+                                            .foregroundStyle(.primary)
+                                        Text(localization.string(
+                                            recipient.wasLastKnownOnline
+                                                ? "上次状态：在线"
+                                                : "上次状态：离线"
+                                        ))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    if selectedRecipientIds.contains(recipient.deviceId) {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundStyle(.tint)
+                                    } else {
+                                        Image(systemName: "circle")
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityAddTraits(
+                                selectedRecipientIds.contains(recipient.deviceId) ? .isSelected : []
+                            )
+                        }
+                    }
+                }
+            } else if syncChannel == .lan, servers.configs.count > 1 {
                 Section(localization.string("发送到")) {
                     ForEach(servers.configs, id: \.id) { server in
                         Button {
@@ -219,26 +273,95 @@ struct ShareRootView: View {
     }
 
     private var shareProgressView: some View {
-        centered {
-            VStack(alignment: .leading, spacing: 18) {
-                Text(localization.string("发送到 %@", selectedServerName))
-                    .font(.headline)
+        Form {
+            Section {
+                progressHero
+            }
 
-                VStack(alignment: .leading, spacing: 14) {
-                    ForEach(ShareUploadStage.allCases, id: \.self) { stage in
-                        HStack(spacing: 12) {
-                            shareStageIcon(for: stage)
-                                .frame(width: 22, height: 22)
-                            Text(label(for: stage))
-                                .font(.subheadline)
-                                .foregroundStyle(stage.rawValue <= shareStage.rawValue ? .primary : .secondary)
-                        }
-                    }
+            if let item {
+                Section(localization.string("内容")) {
+                    contentRow(for: item)
                 }
             }
-            .frame(maxWidth: 260, alignment: .leading)
-            .padding(.horizontal, 24)
+
+            Section(localization.string("发送状态")) {
+                ForEach(ShareUploadStage.allCases, id: \.self) { stage in
+                    stageRow(for: stage)
+                }
+            }
+
+            if shareStage == .sending {
+                Section(localization.string("传输进度")) {
+                    transferProgressView
+                }
+            }
         }
+    }
+
+    private var progressHero: some View {
+        VStack(spacing: 8) {
+            if shareStage == .sent {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 52, weight: .semibold))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.green)
+            } else {
+                Image(systemName: "paperplane.circle.fill")
+                    .font(.system(size: 52, weight: .semibold))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.tint)
+            }
+            Text(label(for: shareStage))
+                .font(.title3.weight(.semibold))
+            Text(localization.string("发送到 %@", selectedDestinationName))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+    }
+
+    @ViewBuilder
+    private func stageRow(for stage: ShareUploadStage) -> some View {
+        HStack(spacing: 12) {
+            shareStageIcon(for: stage)
+                .frame(width: 22, height: 22)
+            Text(label(for: stage))
+                .foregroundStyle(stage.rawValue <= shareStage.rawValue ? .primary : .secondary)
+            Spacer()
+            if stage.rawValue < shareStage.rawValue || shareStage == .sent {
+                Image(systemName: "checkmark")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.green)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var transferProgressView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let transferProgress, let totalBytes = transferProgress.totalBytes, totalBytes > 0 {
+                ProgressView(
+                    value: Double(transferProgress.completedBytes),
+                    total: Double(totalBytes)
+                )
+                Text(localization.string(
+                    "已发送 %@ / %@",
+                    localization.byteCount(Int(clamping: transferProgress.completedBytes)),
+                    localization.byteCount(Int(clamping: totalBytes))
+                ))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                HStack(spacing: 10) {
+                    ProgressView()
+                    Text(localization.string("正在等待传输进度"))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(.vertical, 4)
     }
 
     @ViewBuilder
@@ -297,7 +420,11 @@ struct ShareRootView: View {
     // MARK: - Helpers
 
     private var canSend: Bool {
-        item != nil && (syncChannel == .p2p || resolvedServer != nil)
+        guard item != nil else { return false }
+        if syncChannel == .p2p {
+            return !selectedRecipientIds.isEmpty
+        }
+        return resolvedServer != nil
     }
 
     private var resolvedServer: ServerConfig? {
@@ -307,10 +434,27 @@ struct ShareRootView: View {
         return servers.activeConfig
     }
 
-    private var selectedServerName: String {
-        if syncChannel == .p2p { return "P2P" }
+    private var selectedDestinationName: String {
+        if syncChannel == .p2p {
+            let names = p2pRecipients
+                .filter { selectedRecipientIds.contains($0.deviceId) }
+                .map(\.displayName)
+            if names.count == 1, let name = names.first { return name }
+            if !names.isEmpty {
+                return localization.string("已选择 %lld 台设备", Int64(names.count))
+            }
+            return localization.string("未选择接收设备")
+        }
         if let server = resolvedServer { return server.displayLabel }
         return localization.string("未选择服务器")
+    }
+
+    private func toggleRecipient(_ id: String) {
+        if selectedRecipientIds.contains(id) {
+            selectedRecipientIds.remove(id)
+        } else {
+            selectedRecipientIds.insert(id)
+        }
     }
 
     private func centered<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
@@ -337,6 +481,10 @@ struct ShareRootView: View {
         // Resolve initial selection: Sharing-Suggestions tap takes
         // priority; if the tapped server has since been deleted we note
         // it and fall back to the user's active server / first server.
+        if syncChannel == .p2p {
+            await loadP2pRecipients()
+        }
+
         if let pre = prefilledServerId {
             if loadedServers.configs.contains(where: { $0.id == pre }) {
                 selectedServerId = pre
@@ -377,13 +525,31 @@ struct ShareRootView: View {
         }
     }
 
+    private func loadP2pRecipients() async {
+        do {
+            let recipients = try await ExtensionSyncExecutor.run {
+                let client = try ExtensionP2pClient()
+                defer { client.shutdown() }
+                return try client.recipients()
+            }
+            p2pRecipients = recipients
+            if recipients.count == 1, let recipient = recipients.first {
+                selectedRecipientIds = [recipient.deviceId]
+            }
+        } catch {
+            recipientLoadError = localization.string("无法读取接收设备")
+        }
+    }
+
     private func send() async {
         guard let item else { return }
+        let targetDevices = selectedRecipientIds.sorted()
+        if syncChannel == .p2p, targetDevices.isEmpty { return }
         let diagnostics = makeShareDiagnostics(for: item)
         diagnostics?.record(stage: .attemptStarted)
         if case .file(let staged) = item,
            !OutboundShareStore.shouldSendDirectly(byteCount: staged.byteCount) {
-            handoffFileToApp(staged, diagnostics: diagnostics)
+            handoffFileToApp(staged, targetDeviceIds: targetDevices, diagnostics: diagnostics)
             return
         }
         let store = SettingsStore()
@@ -399,10 +565,19 @@ struct ShareRootView: View {
         if syncChannel == .p2p {
             phase = .uploading
             shareStage = .connecting
+            transferProgress = nil
             do {
-                try await ShareUploader().uploadP2p(item, diagnostics: diagnostics) { stage in
-                    updateShareStage(stage)
-                }
+                try await ShareUploader().uploadP2p(
+                    item,
+                    targetDevices: targetDevices,
+                    diagnostics: diagnostics,
+                    onStage: { stage in
+                        updateShareStage(stage)
+                    },
+                    onTransferProgress: { progress in
+                        updateTransferProgress(progress)
+                    }
+                )
                 discardStagedFileIfNeeded()
                 phase = .succeeded
             } catch {
@@ -415,7 +590,7 @@ struct ShareRootView: View {
                     itemIsFile: itemIsFile,
                     connectionTimedOut: connectionTimedOut
                 ), case .file(let staged) = item {
-                    handoffFileToApp(staged, diagnostics: diagnostics)
+                    handoffFileToApp(staged, targetDeviceIds: targetDevices, diagnostics: diagnostics)
                     return
                 }
                 phase = .failed(message(for: error))
@@ -423,6 +598,15 @@ struct ShareRootView: View {
             return
         }
 
+        await sendLan(item, store: store, network: network, diagnostics: diagnostics)
+    }
+
+    private func sendLan(
+        _ item: ShareItem,
+        store: SettingsStore,
+        network: NetworkContext,
+        diagnostics: ShareDiagnosticRecorder?
+    ) async {
         guard var server = resolvedServer else {
             diagnostics?.record(
                 stage: .failed,
@@ -459,6 +643,7 @@ struct ShareRootView: View {
         )
         phase = .uploading
         shareStage = .connecting
+        transferProgress = nil
         do {
             let uploader = ShareUploader()
             try await uploader.upload(
@@ -495,6 +680,7 @@ struct ShareRootView: View {
 
     private func handoffFileToApp(
         _ staged: StagedShareFile,
+        targetDeviceIds: [String],
         diagnostics: ShareDiagnosticRecorder?
     ) {
         diagnostics?.record(stage: .handoffStarted)
@@ -503,7 +689,8 @@ struct ShareRootView: View {
             try OutboundShareStore().enqueue(
                 staged,
                 channel: channel,
-                serverId: channel == .lan ? selectedServerId : nil
+                serverId: channel == .lan ? selectedServerId : nil,
+                targetDeviceIds: targetDeviceIds
             )
             diagnostics?.record(stage: .handoffQueued)
             phase = .handedOff
@@ -523,6 +710,10 @@ struct ShareRootView: View {
 
     private func updateShareStage(_ stage: ShareUploadStage) {
         shareStage = stage
+    }
+
+    private func updateTransferProgress(_ progress: ExtensionTransferProgress) {
+        transferProgress = progress
     }
 
     private func cancelAndCleanup() {

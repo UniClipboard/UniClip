@@ -46,6 +46,7 @@ export interface ImportedAssetSendOptions {
   channel?: SyncChannel;
   awaitLanDelivery?: boolean;
   serverId?: string | null;
+  targetDeviceIds?: string[];
   byteCount?: number;
 }
 
@@ -167,18 +168,24 @@ export class UnifiedContentService {
 
     if (asset.kind === 'image') {
       const bytes = await this.deps.readFileBytes(asset.uri);
-      return this.sendP2pImage(bytes, imageMimeType(asset.uri, asset.mimeType), profileHash);
+      return this.sendP2pImage(
+        bytes,
+        imageMimeType(asset.uri, asset.mimeType),
+        profileHash,
+        options?.targetDeviceIds ?? []
+      );
     }
 
-    return this.sendP2pFile(asset.uri, profileHash, asset.fileName);
+    return this.sendP2pFile(asset.uri, profileHash, asset.fileName, options?.targetDeviceIds ?? []);
   }
 
   private async sendP2pImage(
     bytes: Uint8Array,
     mimeType: string,
-    profileHash?: string
+    profileHash?: string,
+    targetDeviceIds: string[] = []
   ): Promise<UnifiedContentResult> {
-    const send = () => this.deps.p2p.sendImage(bytes, mimeType, []);
+    const send = () => this.deps.p2p.sendImage(bytes, mimeType, targetDeviceIds);
     if (bytes.byteLength <= MAX_INLINE_IMAGE_BYTES) {
       return this.p2pResult(await send(), profileHash);
     }
@@ -189,12 +196,13 @@ export class UnifiedContentService {
   private async sendP2pFile(
     uri: string,
     profileHash?: string,
-    displayName?: string
+    displayName?: string,
+    targetDeviceIds: string[] = []
   ): Promise<UnifiedContentResult> {
     const handle = this.deps.p2p.registerInputFile(uri, displayName);
     try {
       const outcome = await this.deps.completeOutboundDelivery(() =>
-        this.deps.p2p.sendFiles([handle], [])
+        this.deps.p2p.sendFiles([handle], targetDeviceIds)
       );
       return this.p2pResult(reportAfterOutboundDelivery(outcome), profileHash);
     } finally {

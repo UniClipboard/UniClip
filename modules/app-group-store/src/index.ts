@@ -164,6 +164,7 @@ export interface OutboundShareJobDTO {
   mimeType: string | null;
   channel: 'p2p' | 'lan';
   serverId: string | null;
+  targetDeviceIds: string[];
   createdAtMs: number;
 }
 

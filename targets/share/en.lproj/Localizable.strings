@@ -38,3 +38,15 @@
 "保存待发送文件失败" = "Failed to save the file for later sending.";
 "没有可用的接收设备" = "No receiving device is configured.";
 "连接恢复超时，请稍后重试" = "The connection could not be restored in time. Try again later.";
+"接收设备" = "Recipient Devices";
+"选择设备后才会连接和发送" = "The app will connect and send after you choose devices.";
+"没有已配对的接收设备" = "No paired recipient devices.";
+"上次状态：在线" = "Last known: online";
+"上次状态：离线" = "Last known: offline";
+"已选择 %lld 台设备" = "%lld devices selected";
+"未选择接收设备" = "No recipient selected";
+"已发送 %@ / %@" = "%@ of %@ sent";
+"正在等待传输进度" = "Waiting for transfer progress";
+"无法读取接收设备" = "Unable to load recipient devices.";
+"发送状态" = "Sending Status";
+"传输进度" = "Transfer Progress";

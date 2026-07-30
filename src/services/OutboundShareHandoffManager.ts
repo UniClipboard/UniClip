@@ -80,6 +80,7 @@ export class OutboundShareHandoffManager {
             channel: job.channel,
             awaitLanDelivery: true,
             serverId: job.serverId,
+            targetDeviceIds: job.targetDeviceIds,
             byteCount: job.byteCount,
           }
         );
