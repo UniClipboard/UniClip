@@ -254,8 +254,8 @@ describe('iOS extension P2P routing', () => {
     expect(router).toContain('requiresRemoteDownloadForImage(byteCount: bytes.count)');
     expect(uploader).toMatch(/func uploadP2p\([\s\S]*?_ item: ShareItem,[\s\S]*?onStage:/);
     expect(uploader).toContain('try await ExtensionSyncExecutor.run');
-    expect(rootView).toContain(
-      'try await ShareUploader().uploadP2p(item, diagnostics: diagnostics) { stage in'
+    expect(rootView).toMatch(
+      /try await ShareUploader\(\)\.uploadP2p\([\s\S]*?item,[\s\S]*?targetDevices: targetDevices,[\s\S]*?diagnostics: diagnostics/
     );
     expect(rootView).not.toContain('try ShareUploader().uploadP2p(item)');
   });
@@ -263,7 +263,7 @@ describe('iOS extension P2P routing', () => {
   it('keeps outbound file handles readable until the Share P2P session shuts down', () => {
     const host = readProjectFile('modules/uc-engine/ios/SharedEngineHost.swift');
     const sendFile = host.match(
-      /public func sendFile\(_ url: URL, displayName: String\? = nil\) throws -> SendReport \{[\s\S]*?\n  \}/
+      /public func sendFile\([\s\S]*?targetDevices: \[String\][\s\S]*?\) throws -> SendReport \{[\s\S]*?\n  \}/
     )?.[0];
     const shutdown = host.match(/public func shutdown\(\) \{[\s\S]*?\n  \}/)?.[0];
 
