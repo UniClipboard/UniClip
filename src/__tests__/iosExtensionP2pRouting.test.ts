@@ -252,9 +252,11 @@ describe('iOS extension P2P routing', () => {
     expect(router).toContain('defer { client.shutdown() }');
     expect(router).toContain('expectedReceiverCount: delivery.accepted');
     expect(router).toContain('requiresRemoteDownloadForImage(byteCount: bytes.count)');
-    expect(uploader).toContain('func uploadP2p(_ item: ShareItem) async throws');
+    expect(uploader).toMatch(/func uploadP2p\([\s\S]*?_ item: ShareItem,[\s\S]*?onStage:/);
     expect(uploader).toContain('try await ExtensionSyncExecutor.run');
-    expect(rootView).toContain('try await ShareUploader().uploadP2p(item)');
+    expect(rootView).toContain(
+      'try await ShareUploader().uploadP2p(item, diagnostics: diagnostics) { stage in'
+    );
     expect(rootView).not.toContain('try ShareUploader().uploadP2p(item)');
   });
 

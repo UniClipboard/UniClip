@@ -8,7 +8,7 @@ import UIKit
 enum ShareItem: Equatable, Sendable {
     case text(String)
     case image(Data, ext: String)
-    case file(name: String, bytes: Data)
+    case file(StagedShareFile)
 
     var displayName: String {
         switch self {
@@ -17,15 +17,15 @@ enum ShareItem: Equatable, Sendable {
             if trimmed.count <= 80 { return trimmed }
             return String(trimmed.prefix(80)) + "…"
         case .image(_, let ext):  return "image.\(ext)"
-        case .file(let name, _):  return name
+        case .file(let staged):  return staged.displayName
         }
     }
 
-    var byteCount: Int {
+    var byteCount: Int64 {
         switch self {
-        case .text(let text):           return text.utf8.count
-        case .image(let data, _):        return data.count
-        case .file(_, let bytes):        return bytes.count
+        case .text(let text):      return Int64(text.utf8.count)
+        case .image(let data, _):  return Int64(data.count)
+        case .file(let staged):    return staged.byteCount
         }
     }
 
@@ -35,6 +35,14 @@ enum ShareItem: Equatable, Sendable {
         case .text:  return "text"
         case .image: return "image"
         case .file:  return "file"
+        }
+    }
+
+    var diagnosticKind: ShareDiagnosticItemKind {
+        switch self {
+        case .text: return .text
+        case .image: return .image
+        case .file: return .file
         }
     }
 }
@@ -75,11 +83,11 @@ enum ShareItemExtractor {
         // the highest-signal text on iOS.
         for provider in providers
         where provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
-            if let url = try await loadURL(provider) {
-                if url.isFileURL {
-                    return try await readFileURL(url)
+            if let loaded = try await loadURL(provider, uti: UTType.url.identifier) {
+                switch loaded {
+                case .remote(let value): return .text(value)
+                case .file(let staged): return .file(staged)
                 }
-                return .text(url.absoluteString)
             }
         }
 
@@ -120,12 +128,22 @@ enum ShareItemExtractor {
         for provider in providers {
             for uti in [UTType.fileURL.identifier, UTType.data.identifier]
             where provider.hasItemConformingToTypeIdentifier(uti) {
-                if let url = try await loadURL(provider), url.isFileURL {
-                    return try await readFileURL(url)
+                if let staged = try await loadFileRepresentation(provider, uti: uti) {
+                    return .file(staged)
                 }
-                if let bytes = try await loadBytes(provider, uti: uti) {
-                    let suggestedName = provider.suggestedName ?? "file"
-                    return .file(name: suggestedName, bytes: bytes)
+                if let loaded = try await loadURL(provider, uti: uti) {
+                    switch loaded {
+                    case .remote(let value): return .text(value)
+                    case .file(let staged): return .file(staged)
+                    }
+                }
+                if let data = try await loadData(provider, uti: uti) {
+                    let staged = try OutboundShareStore().stageData(
+                        data,
+                        displayName: provider.suggestedName ?? "file",
+                        mimeType: UTType(uti)?.preferredMIMEType
+                    )
+                    return .file(staged)
                 }
             }
         }
@@ -135,11 +153,62 @@ enum ShareItemExtractor {
 
     // MARK: - NSItemProvider async wrappers
 
-    private static func loadURL(_ provider: NSItemProvider) async throws -> URL? {
-        try await withCheckedThrowingContinuation { continuation in
-            provider.loadItem(forTypeIdentifier: UTType.url.identifier, options: nil) { value, err in
+    private enum LoadedURL {
+        case remote(String)
+        case file(StagedShareFile)
+    }
+
+    private static func loadURL(_ provider: NSItemProvider, uti: String) async throws -> LoadedURL? {
+        let suggestedName = provider.suggestedName
+        let mimeType = UTType(uti)?.preferredMIMEType
+        return try await withCheckedThrowingContinuation { continuation in
+            provider.loadItem(forTypeIdentifier: uti, options: nil) { value, err in
                 if let err { continuation.resume(throwing: ShareItemError.loadFailed("\(err)")); return }
-                continuation.resume(returning: value as? URL)
+                guard let url = value as? URL else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                guard url.isFileURL else {
+                    continuation.resume(returning: .remote(url.absoluteString))
+                    return
+                }
+                do {
+                    let staged = try OutboundShareStore().stageFile(
+                        at: url,
+                        displayName: suggestedName ?? url.lastPathComponent,
+                        mimeType: mimeType
+                    )
+                    continuation.resume(returning: .file(staged))
+                } catch {
+                    continuation.resume(throwing: ShareItemError.loadFailed("\(error)"))
+                }
+            }
+        }
+    }
+
+    private static func loadFileRepresentation(
+        _ provider: NSItemProvider,
+        uti: String
+    ) async throws -> StagedShareFile? {
+        let suggestedName = provider.suggestedName
+        let mimeType = UTType(uti)?.preferredMIMEType
+        return try await withCheckedThrowingContinuation { continuation in
+            provider.loadFileRepresentation(forTypeIdentifier: uti) { url, err in
+                if let err { continuation.resume(throwing: ShareItemError.loadFailed("\(err)")); return }
+                guard let url else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                do {
+                    let staged = try OutboundShareStore().stageFile(
+                        at: url,
+                        displayName: suggestedName ?? url.lastPathComponent,
+                        mimeType: mimeType
+                    )
+                    continuation.resume(returning: staged)
+                } catch {
+                    continuation.resume(throwing: ShareItemError.loadFailed("\(error)"))
+                }
             }
         }
     }
@@ -186,21 +255,12 @@ enum ShareItemExtractor {
         }
     }
 
-    private static func readFileURL(_ url: URL) async throws -> ShareItem {
-        do {
-            let bytes = try Data(contentsOf: url)
-            let name = url.lastPathComponent
-            // If it's an image extension, surface as image so the server
-            // stores it under `Image` kind and the main app applies it to
-            // the pasteboard. Otherwise it's a generic file.
-            let ext = url.pathExtension.lowercased()
-            if ["png", "jpg", "jpeg", "heic", "heif", "gif"].contains(ext) {
-                let normalized = ext == "jpeg" ? "jpg" : (ext == "heif" ? "heic" : ext)
-                return .image(bytes, ext: normalized)
+    private static func loadData(_ provider: NSItemProvider, uti: String) async throws -> Data? {
+        try await withCheckedThrowingContinuation { continuation in
+            provider.loadDataRepresentation(forTypeIdentifier: uti) { data, err in
+                if let err { continuation.resume(throwing: ShareItemError.loadFailed("\(err)")); return }
+                continuation.resume(returning: data)
             }
-            return .file(name: name, bytes: bytes)
-        } catch {
-            throw ShareItemError.loadFailed("\(error)")
         }
     }
 }

@@ -1,6 +1,7 @@
 import * as Application from 'expo-application';
 import { File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
+import { getShareDiagnostics } from 'app-group-store';
 
 import type { ServerConfig } from '@/types/api';
 import type { SharedSettings } from '@/types/settings';
@@ -8,7 +9,7 @@ import type { SyncEngineState } from './SyncEngine';
 import { classifyDiagnosticEvent, type DiagnosticReason } from './DiagnosticEventClassifier';
 import { getLogFileUris } from './Logger';
 
-const DIAGNOSTIC_SCHEMA_VERSION = 2;
+const DIAGNOSTIC_SCHEMA_VERSION = 3;
 const MAX_RECENT_EVENTS = 100;
 const MAX_LOG_BYTES_PER_FILE = 512 * 1024;
 
@@ -306,6 +307,7 @@ export async function createDiagnosticPackage(
 ): Promise<DiagnosticArtifact> {
   const fileName = `uniclip_diagnostics_${formatFileTimestamp(now)}.json`;
   const artifact = new File(Paths.cache, fileName);
+  const shareDiagnostics = await getShareDiagnostics();
   const payload = {
     schemaVersion: DIAGNOSTIC_SCHEMA_VERSION,
     generatedAt: now.toISOString(),
@@ -320,9 +322,12 @@ export async function createDiagnosticPackage(
     settings: input.settings,
     sync: input.sync,
     logs: await readDiagnosticLogs(),
+    extensions: {
+      share: shareDiagnostics,
+    },
     coverage: {
       rawMessagesIncluded: false,
-      nativeExtensionLogsIncluded: false,
+      nativeExtensionLogsIncluded: shareDiagnostics !== null,
       eventClassification: 'fixed_events_and_categorized_reasons_v1',
     },
   };

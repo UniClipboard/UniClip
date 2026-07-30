@@ -1,6 +1,11 @@
 "正在读取分享内容…" = "Lendo conteúdo compartilhado…";
 "正在发送到 %@…" = "Enviando para %@…";
 "已发送" = "Enviado";
+"发送到 %@" = "Enviando para %@";
+"正在连接" = "Conectando";
+"已连接" = "Conectado";
+"正在发送" = "Enviando";
+"发送完成" = "Enviado";
 "发送失败" = "Falha ao enviar";
 "分享到 UniClipboard" = "Compartilhar com o UniClipboard";
 "取消" = "Cancelar";
@@ -29,3 +34,7 @@
 "服务器尚未发布剪贴板" = "O servidor ainda não publicou conteúdo da área de transferência.";
 "内容校验失败 — 文件可能损坏" = "Falha ao verificar o conteúdo. O arquivo pode estar corrompido.";
 "请求已取消" = "A solicitação foi cancelada.";
+"文件已保存，请打开 UniClip 继续发送" = "Arquivo salvo. Abra o UniClip para continuar o envio.";
+"保存待发送文件失败" = "Não foi possível salvar o arquivo para envio posterior.";
+"没有可用的接收设备" = "Nenhum dispositivo receptor está configurado.";
+"连接恢复超时，请稍后重试" = "Não foi possível restaurar a conexão a tempo. Tente novamente mais tarde.";

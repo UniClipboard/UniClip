@@ -76,9 +76,9 @@
       "appVersion": "App 版本",
       "logRange": "日志范围",
       "lastThreeDays": "最近 3 天",
-      "extensions": "原生扩展日志",
-      "notIncluded": "未包含",
-      "footer": "诊断包仅包含应用状态和脱敏后的日志统计，不包含剪贴板内容、凭据、原始日志消息或原生扩展日志。"
+      "shareAttempts": "分享记录",
+      "included": "已包含",
+      "footer": "诊断包包含应用状态、脱敏后的日志统计和经过隐私处理的分享记录，不包含剪贴板内容、凭据、原始日志消息或其他原生扩展日志。"
     },
     "action": {
       "generate": "生成并分享",

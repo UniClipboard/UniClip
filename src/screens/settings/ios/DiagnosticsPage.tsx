@@ -100,13 +100,13 @@ export function DiagnosticsPage({ onBack }: { onBack: () => void }) {
           <LabeledContent
             label={
               <Label
-                title={t('diagnostics.package.extensions')}
+                title={t('diagnostics.package.shareAttempts')}
                 systemImage="puzzlepiece.extension"
               />
             }
           >
             <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-              {t('diagnostics.package.notIncluded')}
+              {t('diagnostics.package.included')}
             </SwiftUIText>
           </LabeledContent>
         </Section>

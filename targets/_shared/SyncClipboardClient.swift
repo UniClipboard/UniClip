@@ -239,6 +239,34 @@ public final class SyncClipboardClient: @unchecked Sendable {
         try checkStatus(response, op: "putFile")
     }
 
+    /// File-backed upload used by extensions so payload bytes never enter the process heap.
+    public func putFile(name: String, fileURL: URL, byteCount: Int64) async throws {
+        guard !name.isEmpty, !name.contains("/"), !name.contains("\\"), fileURL.isFileURL else {
+            throw SyncError(kind: .invalidURL, underlying: "invalid file upload")
+        }
+        if wasCancelled {
+            throw SyncError(kind: .cancelled, underlying: "client cancelled via cancelInFlight()")
+        }
+        let url = baseURL
+            .appendingPathComponent("file")
+            .appendingPathComponent(name)
+        var req = URLRequest(url: url)
+        req.httpMethod = "PUT"
+        req.setValue(authHeader, forHTTPHeaderField: "Authorization")
+        req.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
+        req.setValue("\(byteCount)", forHTTPHeaderField: "Content-Length")
+        do {
+            let (_, response) = try await session.upload(for: req, fromFile: fileURL)
+            try checkStatus(response, op: "putFile")
+        } catch let error as SyncError {
+            throw error
+        } catch let error as URLError {
+            throw SyncError.mapURLError(error)
+        } catch {
+            throw SyncError(kind: .networkUnreachable, underlying: "\(error)")
+        }
+    }
+
     // MARK: - Internals
 
     /// Map non-2xx statuses to `SyncError` and log them — HTTP-level

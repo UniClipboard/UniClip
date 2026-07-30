@@ -29,6 +29,7 @@ import { getBackgroundServiceManager } from './src/services/BackgroundServiceMan
 import { historyStorage } from './src/services/HistoryStorage';
 import { startAppGroupSync } from './src/services/appGroupSync';
 import { startNetworkContextMonitor } from './src/services/networkContext';
+import { resumeOutboundShareHandoffs } from './src/services/OutboundShareHandoffManager';
 import {
   parseConnectUri,
   CONNECT_URI_ERROR_MESSAGES,
@@ -194,6 +195,8 @@ export default function App() {
 
         if (cancelled || AppState.currentState !== 'active') return;
         await historyStorage.runStartupMaintenance();
+        if (cancelled || AppState.currentState !== 'active') return;
+        await resumeOutboundShareHandoffs();
         if (cancelled || AppState.currentState !== 'active') return;
         await useHistoryStore.getState().loadItems();
       })().finally(() => {

@@ -49,6 +49,15 @@ public class AppGroupStoreModule: Module {
       return String(data: data, encoding: .utf8)
     }
 
+    AsyncFunction("getShareDiagnostics") { () throws -> String? in
+      guard let containerURL = FileManager.default.containerURL(
+        forSecurityApplicationGroupIdentifier: SettingsStore.appGroupID
+      ) else { return nil }
+      let archive = try ShareDiagnosticsStore(containerURL: containerURL).loadArchive()
+      let data = try self.encoder.encode(archive)
+      return String(data: data, encoding: .utf8)
+    }
+
     AsyncFunction("getPayloadFileUri") { (profileId: String) -> String? in
       AppGroupStoreModule.payloadURL(profileId: profileId)?.absoluteString
     }
@@ -83,6 +92,117 @@ public class AppGroupStoreModule: Module {
         totalSize += values.fileSize ?? 0
       }
       return ["count": count, "totalSize": totalSize]
+    }
+
+    AsyncFunction("claimOutboundShareJobs") { () throws -> [[String: Any]] in
+      try OutboundShareStore().claimPendingJobs().map { claimed in
+        let job = claimed.job
+        return [
+          "id": job.id,
+          "fileUri": claimed.fileURL.absoluteString,
+          "displayName": job.displayName,
+          "byteCount": job.byteCount,
+          "mimeType": job.mimeType ?? NSNull(),
+          "channel": job.channel.rawValue,
+          "serverId": job.serverId ?? NSNull(),
+          "createdAtMs": job.createdAtMs,
+        ]
+      }
+    }
+
+    AsyncFunction("completeOutboundShareJob") { (id: String) throws -> Void in
+      try OutboundShareStore().completeJob(id: id)
+    }
+
+    AsyncFunction("releaseOutboundShareJob") { (id: String) throws -> Void in
+      try OutboundShareStore().releaseJob(id: id)
+    }
+
+    AsyncFunction("importPayloadFile") { (profileId: String, sourceUri: String) throws -> String? in
+      guard AppGroupStoreModule.isValidPayloadKey(profileId),
+            let sourceURL = URL(string: sourceUri),
+            sourceURL.isFileURL
+      else { return nil }
+
+      let targetURL = AppGroupStoreModule.payloadDirectory()
+        .appendingPathComponent(profileId, isDirectory: false)
+      if FileManager.default.fileExists(atPath: targetURL.path) {
+        return targetURL.absoluteString
+      }
+
+      let temporaryURL = targetURL.deletingLastPathComponent()
+        .appendingPathComponent(".\(profileId).\(UUID().uuidString).importing")
+      defer { try? FileManager.default.removeItem(at: temporaryURL) }
+      try FileManager.default.copyItem(at: sourceURL, to: temporaryURL)
+      try FileManager.default.setAttributes(
+        [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+        ofItemAtPath: temporaryURL.path
+      )
+      do {
+        try FileManager.default.moveItem(at: temporaryURL, to: targetURL)
+      } catch where FileManager.default.fileExists(atPath: targetURL.path) {
+        // Another importer won the content-addressed race; its payload is equivalent.
+      }
+      return targetURL.absoluteString
+    }
+
+    AsyncFunction("sendOutboundLanFile") {
+      (
+        sourceUri: String,
+        displayName: String,
+        profileHash: String,
+        byteCount: Int64,
+        serverId: String?
+      ) async throws -> Void in
+      guard let sourceURL = URL(string: sourceUri), sourceURL.isFileURL,
+            FileManager.default.fileExists(atPath: sourceURL.path)
+      else { throw OutboundShareHandoffError.invalidSource }
+
+      let servers = self.store.loadServers()
+      let selected: ServerConfig?
+      if let serverId {
+        selected = servers.configs.first(where: { $0.id == serverId })
+      } else {
+        selected = servers.activeConfig
+      }
+      guard let server = selected else { throw SyncError(kind: .networkUnreachable) }
+      let settings = self.store.loadAppSettings()
+      let network = await NetworkContextDetector.current(store: self.store)
+      let safeName = Clipboard.sanitizedFilename(displayName)
+      let entry = Clipboard(
+        type: .file,
+        hash: profileHash,
+        text: safeName,
+        hasData: true,
+        dataName: safeName,
+        size: Int(clamping: byteCount)
+      )
+
+      try await ServerRouteExecutor(store: self.store).run(
+        server: server,
+        network: network,
+        probe: { routed in
+          let client = try SyncClipboardClient(
+            server: routed,
+            trustInsecureCert: settings.trustInsecureCert
+          )
+          try await client.probeReachability()
+        },
+        operation: { routed in
+          let client = try SyncClipboardClient(
+            server: routed,
+            trustInsecureCert: settings.trustInsecureCert
+          )
+          try await client.putFile(
+            name: safeName,
+            fileURL: sourceURL,
+            byteCount: byteCount
+          )
+          try await client.putClipboard(entry)
+        }
+      )
+      self.store.saveLastSyncedHash(profileHash)
+      self.store.saveLastSyncedContentId(nil)
     }
 
     AsyncFunction("getLastSyncedHash") { () -> String? in

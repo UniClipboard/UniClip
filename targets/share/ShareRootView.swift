@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import OSLog
+internal import UcEngineCore
 
 private let log = Logger(subsystem: "app.uniclipboard", category: "share")
 
@@ -33,12 +34,14 @@ struct ShareRootView: View {
     /// whatever the system happens to be set to.
     @State private var appearance: AppearanceMode = .system
     @State private var localization = ExtensionLocalization()
+    @State private var shareStage: ShareUploadStage = .connecting
 
     enum Phase: Equatable {
         case loadingAttachment
         case ready
         case uploading
         case succeeded
+        case handedOff
         case failed(String)
     }
 
@@ -51,22 +54,19 @@ struct ShareRootView: View {
                 case .ready:
                     readyForm
                 case .uploading:
-                    centered {
-                        VStack(spacing: 12) {
-                            ProgressView()
-                            Text(localization.string("正在发送到 %@…", selectedServerName))
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
+                    shareProgressView
                 case .succeeded:
+                    shareProgressView
+                case .handedOff:
                     centered {
                         VStack(spacing: 12) {
-                            Image(systemName: "checkmark.circle.fill")
+                            Image(systemName: "arrow.down.doc.fill")
                                 .font(.largeTitle)
-                                .foregroundStyle(.green)
-                            Text(localization.string("已发送"))
+                                .foregroundStyle(.blue)
+                            Text(localization.string("文件已保存，请打开 UniClip 继续发送"))
                                 .font(.headline)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 24)
                         }
                     }
                 case .failed(let msg):
@@ -90,7 +90,7 @@ struct ShareRootView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button(localization.string("取消")) { onCancel() }
+                    Button(localization.string("取消")) { cancelAndCleanup() }
                         .disabled(phase == .uploading)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -218,6 +218,52 @@ struct ShareRootView: View {
         }
     }
 
+    private var shareProgressView: some View {
+        centered {
+            VStack(alignment: .leading, spacing: 18) {
+                Text(localization.string("发送到 %@", selectedServerName))
+                    .font(.headline)
+
+                VStack(alignment: .leading, spacing: 14) {
+                    ForEach(ShareUploadStage.allCases, id: \.self) { stage in
+                        HStack(spacing: 12) {
+                            shareStageIcon(for: stage)
+                                .frame(width: 22, height: 22)
+                            Text(label(for: stage))
+                                .font(.subheadline)
+                                .foregroundStyle(stage.rawValue <= shareStage.rawValue ? .primary : .secondary)
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: 260, alignment: .leading)
+            .padding(.horizontal, 24)
+        }
+    }
+
+    @ViewBuilder
+    private func shareStageIcon(for stage: ShareUploadStage) -> some View {
+        if shareStage == .sent || stage.rawValue < shareStage.rawValue {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+        } else if stage == shareStage {
+            ProgressView()
+                .controlSize(.small)
+        } else {
+            Image(systemName: "circle")
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    private func label(for stage: ShareUploadStage) -> String {
+        switch stage {
+        case .connecting: return localization.string("正在连接")
+        case .connected: return localization.string("已连接")
+        case .sending: return localization.string("正在发送")
+        case .sent: return localization.string("发送完成")
+        }
+    }
+
     private func sizeLabel(for item: ShareItem) -> String {
         switch item {
         case .text(let text):
@@ -228,16 +274,16 @@ struct ShareRootView: View {
                 ext.uppercased(),
                 localization.byteCount(bytes.count)
             )
-        case .file(_, let bytes):
-            return localization.string("文件 · %@", localization.byteCount(bytes.count))
+        case .file(let staged):
+            return localization.string("文件 · %@", localization.byteCount(Int(staged.byteCount)))
         }
     }
 
     @ViewBuilder
     private var trailingButton: some View {
         switch phase {
-        case .succeeded, .failed:
-            Button(localization.string("完成")) { onFinish() }
+        case .succeeded, .handedOff, .failed:
+            Button(localization.string("完成")) { finishAndCleanup() }
                 .bold()
         case .ready:
             Button(localization.string("发送")) { Task { await send() } }
@@ -333,26 +379,70 @@ struct ShareRootView: View {
 
     private func send() async {
         guard let item else { return }
+        let diagnostics = makeShareDiagnostics(for: item)
+        diagnostics?.record(stage: .attemptStarted)
+        if case .file(let staged) = item,
+           !OutboundShareStore.shouldSendDirectly(byteCount: staged.byteCount) {
+            handoffFileToApp(staged, diagnostics: diagnostics)
+            return
+        }
+        let store = SettingsStore()
+        let network = await NetworkContextDetector.current(store: store)
+        diagnostics?.record(
+            stage: .networkObserved,
+            network: ShareDiagnosticNetwork(
+                wifi: network.isWifi,
+                cellular: network.isCellular,
+                tailscale: network.isTailscale
+            )
+        )
         if syncChannel == .p2p {
             phase = .uploading
+            shareStage = .connecting
             do {
-                try await ShareUploader().uploadP2p(item)
+                try await ShareUploader().uploadP2p(item, diagnostics: diagnostics) { stage in
+                    updateShareStage(stage)
+                }
+                discardStagedFileIfNeeded()
                 phase = .succeeded
             } catch {
+                let connectionTimedOut =
+                    (error as? ExtensionPeerConnectionError)
+                    == ExtensionPeerConnectionError.connectionTimedOut
+                let itemIsFile: Bool
+                if case .file = item { itemIsFile = true } else { itemIsFile = false }
+                if OutboundShareFallbackPolicy.shouldHandoff(
+                    itemIsFile: itemIsFile,
+                    connectionTimedOut: connectionTimedOut
+                ), case .file(let staged) = item {
+                    handoffFileToApp(staged, diagnostics: diagnostics)
+                    return
+                }
                 phase = .failed(message(for: error))
             }
             return
         }
 
-        guard var server = resolvedServer else { return }
+        guard var server = resolvedServer else {
+            diagnostics?.record(
+                stage: .failed,
+                error: ShareDiagnosticError(code: .networkUnreachable)
+            )
+            return
+        }
         // §5.3 from an extension: start from the last probe verdict (App
         // Group `live_urls`) over pure shape order. The uploader then runs a
         // short concurrent probe before the real PUTs.
-        let store = SettingsStore()
-        let network = await NetworkContextDetector.current(store: store)
         let liveURL = store.loadLiveURL(configId: server.id)
         let originalURLs = server.urls
         server.urls = server.preferredURLs(live: liveURL, network: network)
+        diagnostics?.record(
+            stage: .routePrepared,
+            route: ShareDiagnosticRoute(
+                candidateCount: server.urls.count,
+                hadRememberedLiveRoute: liveURL != nil
+            )
+        )
         log.error(
             """
             [share-route-v3] prepare server=\(server.id, privacy: .public) \
@@ -368,14 +458,20 @@ struct ShareRootView: View {
             """
         )
         phase = .uploading
+        shareStage = .connecting
         do {
             let uploader = ShareUploader()
             try await uploader.upload(
                 item,
                 to: server,
                 trustInsecureCert: trustInsecureCert,
-                network: network
+                network: network,
+                diagnostics: diagnostics,
+                onStage: { stage in
+                    updateShareStage(stage)
+                }
             )
+            discardStagedFileIfNeeded()
             log.info("send: upload succeeded \(item.kindLabel, privacy: .public) bytes=\(item.byteCount, privacy: .public)")
             phase = .succeeded
         } catch {
@@ -385,7 +481,69 @@ struct ShareRootView: View {
         }
     }
 
+    private func makeShareDiagnostics(for item: ShareItem) -> ShareDiagnosticRecorder? {
+        guard let containerURL = FileManager.default.containerURL(
+            forSecurityApplicationGroupIdentifier: SettingsStore.appGroupID
+        ), let store = try? ShareDiagnosticsStore(containerURL: containerURL)
+        else { return nil }
+        return try? store.startAttempt(
+            channel: syncChannel == .p2p ? .p2p : .lan,
+            itemKind: item.diagnosticKind,
+            byteCount: Int(clamping: item.byteCount)
+        )
+    }
+
+    private func handoffFileToApp(
+        _ staged: StagedShareFile,
+        diagnostics: ShareDiagnosticRecorder?
+    ) {
+        diagnostics?.record(stage: .handoffStarted)
+        do {
+            let channel: OutboundShareChannel = syncChannel == .p2p ? .p2p : .lan
+            try OutboundShareStore().enqueue(
+                staged,
+                channel: channel,
+                serverId: channel == .lan ? selectedServerId : nil
+            )
+            diagnostics?.record(stage: .handoffQueued)
+            phase = .handedOff
+        } catch {
+            diagnostics?.record(
+                stage: .failed,
+                error: ShareDiagnosticError(code: .handoffFailed)
+            )
+            phase = .failed(localization.string("保存待发送文件失败"))
+        }
+    }
+
+    private func discardStagedFileIfNeeded() {
+        guard case .file(let staged) = item else { return }
+        try? OutboundShareStore().discardStagedFile(staged)
+    }
+
+    private func updateShareStage(_ stage: ShareUploadStage) {
+        shareStage = stage
+    }
+
+    private func cancelAndCleanup() {
+        if phase != .handedOff { discardStagedFileIfNeeded() }
+        onCancel()
+    }
+
+    private func finishAndCleanup() {
+        if phase != .handedOff { discardStagedFileIfNeeded() }
+        onFinish()
+    }
+
     private func message(for error: Error) -> String {
+        if let connectionError = error as? ExtensionPeerConnectionError {
+            switch connectionError {
+            case .noOnlinePeer:
+                return localization.string("没有可用的接收设备")
+            case .connectionTimedOut:
+                return localization.string("连接恢复超时，请稍后重试")
+            }
+        }
         guard let syncError = error as? SyncError else {
             return (error as? LocalizedError)?.errorDescription
                 ?? localization.string("同步失败")

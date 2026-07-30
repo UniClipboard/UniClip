@@ -91,6 +91,7 @@ DerivedData/
 coverage/
 .nyc_output/
 modules/uc-engine/.build/
+modules/app-group-store/.build/
 
 # Temporary files
 *.tmp

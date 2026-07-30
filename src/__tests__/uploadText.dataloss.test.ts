@@ -46,6 +46,7 @@ describe('分享上传:import*ToHistory 本地优先,不丢数据 + anti-echo', 
     mockAddItem.mockClear();
     mockUpdateItem.mockClear();
     mockSetLastUploadedHash.mockClear();
+    jest.mocked(require('@/utils/hash').calculateFileProfileHash).mockClear();
   });
 
   describe('文本 importTextToHistory', () => {
@@ -98,6 +99,37 @@ describe('分享上传:import*ToHistory 本地优先,不丢数据 + anti-echo', 
       });
       // 文件分享同样会 echo,落库时必须预置 lastUploadedHash
       expect(mockSetLastUploadedHash).toHaveBeenCalledWith('HASH_FILE_ABC');
+    });
+  });
+
+  describe('iOS 已保存文件接管', () => {
+    const originalOS = Platform.OS;
+    beforeAll(() => {
+      Object.defineProperty(Platform, 'OS', { value: 'ios', configurable: true });
+    });
+    afterAll(() => {
+      Object.defineProperty(Platform, 'OS', { value: originalOS, configurable: true });
+    });
+
+    it('直接计算共享文件并把历史副本作为后续发送来源', async () => {
+      mockAddItem.mockImplementationOnce(async (item: unknown) => ({
+        ...(item as Record<string, unknown>),
+        fileUri: 'file:///group/payloads/File-HASH',
+      }));
+
+      const result = await importFileToHistory(
+        'file:///group/outbound-handoff/files/job-1.payload',
+        'archive.zip',
+        'application/zip',
+        100 * 1024 * 1024 + 1,
+        { skipInitialCopyOnIOS: true }
+      );
+
+      expect(jest.mocked(require('@/utils/hash').calculateFileProfileHash)).toHaveBeenCalledWith(
+        'file://group/outbound-handoff/files/job-1.payload',
+        'archive.zip'
+      );
+      expect(result.fileUri).toBe('file:///group/payloads/File-HASH');
     });
   });
 });

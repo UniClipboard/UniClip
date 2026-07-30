@@ -9,6 +9,27 @@ beforeEach(() => {
 });
 
 describe('app-group-store JS wrapper', () => {
+  it('parses the native Share diagnostics archive', async () => {
+    const mockNativeModule = {
+      getShareDiagnostics: jest.fn().mockResolvedValue(
+        JSON.stringify({
+          schemaVersion: 1,
+          attempts: [{ id: 'attempt-a', channel: 'p2p', events: [] }],
+        })
+      ),
+    };
+    jest.doMock('expo-modules-core', () => ({
+      requireOptionalNativeModule: jest.fn(() => mockNativeModule),
+    }));
+
+    const { getShareDiagnostics } = require('./index');
+
+    await expect(getShareDiagnostics()).resolves.toEqual({
+      schemaVersion: 1,
+      attempts: [{ id: 'attempt-a', channel: 'p2p', events: [] }],
+    });
+  });
+
   it('stringifies write payloads and parses read payloads', async () => {
     const mockNativeModule = {
       saveServers: jest.fn(),
@@ -27,6 +48,11 @@ describe('app-group-store JS wrapper', () => {
       getLiveUrl: jest.fn(),
       saveLiveUrl: jest.fn(),
       migrateLegacyContainer: jest.fn(),
+      claimOutboundShareJobs: jest.fn(),
+      completeOutboundShareJob: jest.fn(),
+      releaseOutboundShareJob: jest.fn(),
+      importPayloadFile: jest.fn(),
+      sendOutboundLanFile: jest.fn(),
     };
     jest.doMock('expo-modules-core', () => ({
       requireOptionalNativeModule: jest.fn(() => mockNativeModule),
@@ -40,6 +66,11 @@ describe('app-group-store JS wrapper', () => {
       getPayloadFileUri,
       getPayloadStats,
       migrateLegacyContainer,
+      claimOutboundShareJobs,
+      completeOutboundShareJob,
+      releaseOutboundShareJob,
+      importPayloadFile,
+      sendOutboundLanFile,
       getLiveUrl,
       getLastSyncedContentId,
       clearPayloads,
@@ -78,6 +109,19 @@ describe('app-group-store JS wrapper', () => {
     mockNativeModule.getLiveUrl.mockResolvedValue('https://example.com');
     mockNativeModule.getLastSyncedContentId.mockResolvedValue('blake3v1:abc');
     mockNativeModule.migrateLegacyContainer.mockResolvedValue({ migrated: true, keys: 2 });
+    mockNativeModule.claimOutboundShareJobs.mockResolvedValue([
+      {
+        id: 'job-1',
+        fileUri: 'file:///group/outbound-handoff/files/job-1.payload',
+        displayName: 'archive.zip',
+        byteCount: 104857601,
+        mimeType: 'application/zip',
+        channel: 'p2p',
+        serverId: null,
+      },
+    ]);
+    mockNativeModule.importPayloadFile.mockResolvedValue('file:///group/payloads/File-HASH');
+    mockNativeModule.sendOutboundLanFile.mockResolvedValue(undefined);
 
     await saveServers(servers);
     await saveSettings(settings);
@@ -86,6 +130,15 @@ describe('app-group-store JS wrapper', () => {
     await writePayload('Image-ABC', bytes);
     await deletePayload('Image-ABC');
     await clearPayloads();
+    await completeOutboundShareJob('job-1');
+    await releaseOutboundShareJob('job-2');
+    await sendOutboundLanFile(
+      'file:///group/payloads/File-HASH',
+      'archive.zip',
+      'HASH',
+      104857601,
+      'server-a'
+    );
 
     expect(mockNativeModule.saveServers).toHaveBeenCalledWith(JSON.stringify(servers));
     expect(mockNativeModule.saveSettings).toHaveBeenCalledWith(JSON.stringify(settings));
@@ -96,6 +149,15 @@ describe('app-group-store JS wrapper', () => {
     expect(mockNativeModule.writePayload).toHaveBeenCalledWith('Image-ABC', bytes);
     expect(mockNativeModule.deletePayload).toHaveBeenCalledWith('Image-ABC');
     expect(mockNativeModule.clearPayloads).toHaveBeenCalled();
+    expect(mockNativeModule.completeOutboundShareJob).toHaveBeenCalledWith('job-1');
+    expect(mockNativeModule.releaseOutboundShareJob).toHaveBeenCalledWith('job-2');
+    expect(mockNativeModule.sendOutboundLanFile).toHaveBeenCalledWith(
+      'file:///group/payloads/File-HASH',
+      'archive.zip',
+      'HASH',
+      104857601,
+      'server-a'
+    );
     await expect(getServers()).resolves.toEqual(servers);
     await expect(getSettings()).resolves.toEqual(settings);
     await expect(getContainerUrl()).resolves.toBe('file:///group');
@@ -105,6 +167,12 @@ describe('app-group-store JS wrapper', () => {
     await expect(getLiveUrl('https://example.com')).resolves.toBe('https://example.com');
     await expect(getLastSyncedContentId()).resolves.toBe('blake3v1:abc');
     await expect(migrateLegacyContainer()).resolves.toEqual({ migrated: true, keys: 2 });
+    await expect(claimOutboundShareJobs()).resolves.toEqual([
+      expect.objectContaining({ id: 'job-1', channel: 'p2p', byteCount: 104857601 }),
+    ]);
+    await expect(importPayloadFile('File-HASH', 'file:///group/source')).resolves.toBe(
+      'file:///group/payloads/File-HASH'
+    );
 
     mockNativeModule.getServers.mockResolvedValue('{broken');
     mockNativeModule.getSettings.mockResolvedValue('{broken');
@@ -125,9 +193,15 @@ describe('app-group-store JS wrapper', () => {
       getSettings,
       getContainerUrl,
       getLegacyHistory,
+      getShareDiagnostics,
       getPayloadFileUri,
       getPayloadStats,
       migrateLegacyContainer,
+      claimOutboundShareJobs,
+      completeOutboundShareJob,
+      releaseOutboundShareJob,
+      importPayloadFile,
+      sendOutboundLanFile,
       clearPayloads,
       deletePayload,
       saveLiveUrl,
@@ -146,11 +220,19 @@ describe('app-group-store JS wrapper', () => {
     await expect(getSettings()).resolves.toEqual({});
     await expect(getContainerUrl()).resolves.toBeNull();
     await expect(getLegacyHistory()).resolves.toBeNull();
+    await expect(getShareDiagnostics()).resolves.toBeNull();
     await expect(getPayloadFileUri('Image-ABC')).resolves.toBeNull();
     await expect(getPayloadStats()).resolves.toEqual({ count: 0, totalSize: 0 });
     await expect(getLastSyncedHash()).resolves.toBeNull();
     await expect(getLastSyncedContentId()).resolves.toBeNull();
     await expect(getLiveUrl('server')).resolves.toBeNull();
     await expect(migrateLegacyContainer()).resolves.toEqual({ migrated: false, keys: 0 });
+    await expect(claimOutboundShareJobs()).resolves.toEqual([]);
+    await expect(completeOutboundShareJob('job-1')).resolves.toBeUndefined();
+    await expect(releaseOutboundShareJob('job-1')).resolves.toBeUndefined();
+    await expect(importPayloadFile('File-HASH', 'file:///source')).resolves.toBeNull();
+    await expect(sendOutboundLanFile('file:///source', 'a.bin', 'HASH', 1, null)).rejects.toThrow(
+      'App Group store is unavailable'
+    );
   });
 });

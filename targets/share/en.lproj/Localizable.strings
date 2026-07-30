@@ -1,6 +1,11 @@
 "正在读取分享内容…" = "Reading shared content…";
 "正在发送到 %@…" = "Sending to %@…";
 "已发送" = "Sent";
+"发送到 %@" = "Sending to %@";
+"正在连接" = "Connecting";
+"已连接" = "Connected";
+"正在发送" = "Sending";
+"发送完成" = "Sent";
 "发送失败" = "Send Failed";
 "分享到 UniClipboard" = "Share to UniClipboard";
 "取消" = "Cancel";
@@ -29,3 +34,7 @@
 "服务器尚未发布剪贴板" = "The server has not published a clipboard yet.";
 "内容校验失败 — 文件可能损坏" = "Content verification failed. The file may be damaged.";
 "请求已取消" = "The request was cancelled.";
+"文件已保存，请打开 UniClip 继续发送" = "File saved. Open UniClip to continue sending.";
+"保存待发送文件失败" = "Failed to save the file for later sending.";
+"没有可用的接收设备" = "No receiving device is configured.";
+"连接恢复超时，请稍后重试" = "The connection could not be restored in time. Try again later.";

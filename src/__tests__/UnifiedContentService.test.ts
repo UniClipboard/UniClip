@@ -47,6 +47,8 @@ function dependencies(
     p2p: api(),
     uploadLanClipboard: jest.fn(async () => ({ success: true })),
     enqueueLanUpload: jest.fn(),
+    pushLanUpload: jest.fn(async () => {}),
+    pushLanFile: jest.fn(async () => {}),
     completeOutboundDelivery: jest.fn(async (send: () => Promise<SendReport>) => {
       const sent = await send();
       return {
@@ -397,6 +399,44 @@ describe('UnifiedContentService', () => {
 
     expect(deps.enqueueLanUpload).toHaveBeenCalledWith('local-profile-3');
     expect(deps.p2p.registerInputFile).not.toHaveBeenCalled();
+  });
+
+  it('uses the handoff channel even when the current setting changed', async () => {
+    const deps = dependencies('p2p');
+    const service = new UnifiedContentService(deps);
+
+    await expect(
+      service.sendImportedAsset(
+        { kind: 'file', uri: 'file:///group/outbound-handoff/archive.zip' },
+        'HANDOFF_HASH',
+        { channel: 'lan', awaitLanDelivery: true, serverId: 'server-a', byteCount: 104857601 }
+      )
+    ).resolves.toEqual({ channel: 'lan', success: true });
+
+    expect(deps.pushLanFile).toHaveBeenCalledWith(
+      expect.objectContaining({ uri: 'file:///group/outbound-handoff/archive.zip' }),
+      'HANDOFF_HASH',
+      'server-a',
+      104857601
+    );
+    expect(deps.pushLanUpload).not.toHaveBeenCalled();
+    expect(deps.enqueueLanUpload).not.toHaveBeenCalled();
+    expect(deps.p2p.registerInputFile).not.toHaveBeenCalled();
+  });
+
+  it('can resume a P2P handoff while LAN is currently selected', async () => {
+    const deps = dependencies('lan');
+    const service = new UnifiedContentService(deps);
+
+    await service.sendImportedAsset(
+      { kind: 'file', uri: 'file:///group/outbound-handoff/archive.zip' },
+      'HANDOFF_HASH',
+      { channel: 'p2p', awaitLanDelivery: true }
+    );
+
+    expect(deps.p2p.registerInputFile).toHaveBeenCalled();
+    expect(deps.enqueueLanUpload).not.toHaveBeenCalled();
+    expect(deps.pushLanUpload).not.toHaveBeenCalled();
   });
 
   it('rejects an empty P2P clipboard without falling back to LAN', async () => {

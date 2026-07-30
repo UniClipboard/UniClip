@@ -1,5 +1,5 @@
 import type { SendReport } from 'uc-engine';
-import type { ClipboardContent } from '@/types/clipboard';
+import { HistorySyncStatus, type ClipboardContent } from '@/types/clipboard';
 import type { SyncChannel } from '@/types/settings';
 import type { P2pDeliveryState } from '@/types/clipboard';
 import { p2pDeliveryStateFromReport } from './P2pDeliveryState';
@@ -32,7 +32,21 @@ export interface UnifiedContentDependencies {
   p2p: UnifiedContentApi;
   uploadLanClipboard(): Promise<LanUploadResult>;
   enqueueLanUpload(profileHash: string): void;
+  pushLanUpload(profileHash: string): Promise<void>;
+  pushLanFile(
+    asset: ImportedContentAsset,
+    profileHash: string,
+    serverId: string | null,
+    byteCount: number
+  ): Promise<void>;
   completeOutboundDelivery(send: () => Promise<SendReport>): Promise<OutboundDeliveryOutcome>;
+}
+
+export interface ImportedAssetSendOptions {
+  channel?: SyncChannel;
+  awaitLanDelivery?: boolean;
+  serverId?: string | null;
+  byteCount?: number;
 }
 
 export type UnifiedContentResult =
@@ -129,9 +143,24 @@ export class UnifiedContentService {
 
   async sendImportedAsset(
     asset: ImportedContentAsset,
-    profileHash: string
+    profileHash: string,
+    options?: ImportedAssetSendOptions
   ): Promise<UnifiedContentResult> {
-    if (this.deps.getChannel() === 'lan') {
+    const channel = options?.channel ?? this.deps.getChannel();
+    if (channel === 'lan') {
+      if (options?.awaitLanDelivery) {
+        if (asset.kind === 'file' && options.byteCount !== undefined) {
+          await this.deps.pushLanFile(
+            asset,
+            profileHash,
+            options.serverId ?? null,
+            options.byteCount
+          );
+        } else {
+          await this.deps.pushLanUpload(profileHash);
+        }
+        return { channel: 'lan', success: true };
+      }
       this.deps.enqueueLanUpload(profileHash);
       return { channel: 'lan', success: true };
     }
@@ -220,6 +249,21 @@ function createDefaultDependencies(): UnifiedContentDependencies {
       require('./ClipboardSyncService').getClipboardSyncService().triggerUpload(),
     enqueueLanUpload: (profileHash) =>
       require('./BackgroundUploadManager').BackgroundUploadManager.enqueue(profileHash),
+    pushLanUpload: (profileHash) =>
+      require('@/stores/syncEngineStore').pushHistoryRecordViaEngine(profileHash),
+    pushLanFile: async (asset, profileHash, serverId, byteCount) => {
+      await require('app-group-store').sendOutboundLanFile(
+        asset.uri,
+        asset.fileName ?? 'file',
+        profileHash,
+        byteCount,
+        serverId
+      );
+      await require('@/stores/historyStore').useHistoryStore.getState().updateItem(profileHash, {
+        syncStatus: HistorySyncStatus.Synced,
+        hasRemoteData: false,
+      });
+    },
     completeOutboundDelivery: (send) =>
       require('./OutboundDeliveryCoordinator').getOutboundDeliveryCoordinator().run(send),
   };

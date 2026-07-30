@@ -11,8 +11,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { ClipboardItem, HistorySyncStatus } from '../types/clipboard';
 import { HistoryFilter, HistorySort, STORAGE_KEYS } from '../types/storage';
-import { getHistoryFileDir, saveHistoryFile } from '../utils/fileStorage';
+import { getHistoryFileDir } from '../utils/fileStorage';
 import { File } from 'expo-file-system';
+import { importPayloadFile } from 'app-group-store';
 import { log } from './Logger';
 import {
   importHistoryFromAppGroup,
@@ -486,13 +487,12 @@ export class HistoryStorage {
           const sourceFile = new File(processedItem.fileUri);
           if (sourceFile.exists) {
             if (Platform.OS === 'ios') {
-              const data = await sourceFile.arrayBuffer();
-              processedItem.fileUri = await saveHistoryFile(
-                processedItem.type,
-                processedItem.profileHash,
-                processedItem.dataName,
-                data
+              const importedUri = await importPayloadFile(
+                `${processedItem.type}-${processedItem.profileHash}`,
+                sourceFile.uri
               );
+              if (!importedUri) throw new Error('App Group payload import is unavailable');
+              processedItem.fileUri = importedUri;
               log.info('[HistoryStorage] File saved to history storage:', processedItem.fileUri);
             } else {
               const dir = getHistoryFileDir(processedItem.type, processedItem.profileHash);

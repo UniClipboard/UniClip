@@ -74,9 +74,9 @@
       "appVersion": "Versão do app",
       "logRange": "Período dos registros",
       "lastThreeDays": "Últimos 3 dias",
-      "extensions": "Registros das extensões",
-      "notIncluded": "Não incluídos",
-      "footer": "O pacote contém o estado do app e estatísticas de registros sem dados sensíveis. Conteúdo da área de transferência, credenciais, mensagens brutas e registros das extensões não são incluídos."
+      "shareAttempts": "Registros de compartilhamento",
+      "included": "Incluídos",
+      "footer": "O pacote contém o estado do app, estatísticas sem dados sensíveis e registros de compartilhamento que preservam a privacidade. Conteúdo da área de transferência, credenciais, mensagens brutas e registros de outras extensões não são incluídos."
     },
     "action": {
       "generate": "Gerar e compartilhar",

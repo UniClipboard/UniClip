@@ -76,9 +76,9 @@
       "appVersion": "App version",
       "logRange": "Log range",
       "lastThreeDays": "Last 3 days",
-      "extensions": "Native extension logs",
-      "notIncluded": "Not included",
-      "footer": "The package contains app state and redacted log statistics. Clipboard contents, credentials, raw log messages, and native extension logs are excluded."
+      "shareAttempts": "Share attempt records",
+      "included": "Included",
+      "footer": "The package contains app state, redacted log statistics, and privacy-safe Share attempt records. Clipboard contents, credentials, raw log messages, and other native extension logs are excluded."
     },
     "action": {
       "generate": "Generate and share",

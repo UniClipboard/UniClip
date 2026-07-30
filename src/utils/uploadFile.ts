@@ -32,6 +32,7 @@ function guessContentType(mimeType: string | null | undefined): ClipboardContent
 export interface UploadFileOptions {
   signal?: AbortSignal;
   onProgress?: (stage: string, progress?: ProgressInfo) => void;
+  skipInitialCopyOnIOS?: boolean;
 }
 
 export interface ImportResult {
@@ -71,19 +72,23 @@ export async function importFileToHistory(
   fileName = sanitizeDataName(fileName);
 
   const contentType: ClipboardContentType = guessContentType(mimeType);
-  const tempPath = prepareTempFilePath(fileName);
   const sourceFile = new File(sourceUri);
-  options?.onProgress?.(i18n.t('share:upload.copying'));
-  // nativeCopyFile 仅 Android 可用(FileChannel 流式拷贝,不占 JS 堆);
-  // iOS 该原生模块不存在,改走 expo-file-system 的 File.copy,否则整条落库路径抛错「保存失败」。
-  if (Platform.OS === 'android') {
-    await nativeCopyFile(sourceFile.uri, tempPath);
-  } else {
-    await sourceFile.copy(new File(tempPath), { overwrite: true });
+  let workingUri = sourceFile.uri;
+  if (!(Platform.OS === 'ios' && options?.skipInitialCopyOnIOS)) {
+    const tempPath = prepareTempFilePath(fileName);
+    options?.onProgress?.(i18n.t('share:upload.copying'));
+    // nativeCopyFile 仅 Android 可用(FileChannel 流式拷贝,不占 JS 堆);
+    // iOS 该原生模块不存在,改走 expo-file-system 的 File.copy,否则整条落库路径抛错「保存失败」。
+    if (Platform.OS === 'android') {
+      await nativeCopyFile(sourceFile.uri, tempPath);
+    } else {
+      await sourceFile.copy(new File(tempPath), { overwrite: true });
+    }
+    workingUri = tempPath;
   }
 
   options?.onProgress?.(i18n.t('share:upload.hashing'));
-  const profileHash = await calculateFileProfileHash(tempPath, fileName);
+  const profileHash = await calculateFileProfileHash(workingUri, fileName);
   const resolvedSize = fileSize ?? sourceFile.size;
 
   const savedItem = await useHistoryStore.getState().addItem(
@@ -95,16 +100,19 @@ export async function importFileToHistory(
       dataName: fileName,
       size: resolvedSize,
       timestamp: Date.now(),
-      fileUri: tempPath,
+      fileUri: workingUri,
     })
   );
+  if (Platform.OS === 'ios' && options?.skipInitialCopyOnIOS && savedItem.fileUri === workingUri) {
+    throw new Error('Failed to persist the staged file in history storage');
+  }
 
   // 预先设置 hash，避免轮询/SSE 拉取时把自己刚落库的内容误判为新远程内容触发下载
   SyncManager.getInstance().setLastUploadedHash(profileHash);
 
   return {
     profileHash,
-    fileUri: savedItem.fileUri ?? tempPath,
+    fileUri: savedItem.fileUri ?? workingUri,
     fileName,
     fileSize: resolvedSize,
     contentType,

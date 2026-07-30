@@ -7,6 +7,7 @@ interface AppGroupStoreNativeModule {
   getSettings(): Promise<string>;
   getContainerUrl(): Promise<string | null>;
   getLegacyHistory(): Promise<string | null>;
+  getShareDiagnostics(): Promise<string | null>;
   getPayloadFileUri(profileId: string): Promise<string | null>;
   writePayload(profileId: string, bytes: Uint8Array): Promise<string | null>;
   deletePayload(profileId: string): Promise<void>;
@@ -19,6 +20,17 @@ interface AppGroupStoreNativeModule {
   migrateLegacyContainer(): Promise<LegacyMigrationResult>;
   getKeyboardStatus(): Promise<NativeKeyboardStatus>;
   getPasteboardChangeCount(): number;
+  claimOutboundShareJobs(): Promise<OutboundShareJobDTO[]>;
+  completeOutboundShareJob(id: string): Promise<void>;
+  releaseOutboundShareJob(id: string): Promise<void>;
+  importPayloadFile(profileId: string, sourceUri: string): Promise<string | null>;
+  sendOutboundLanFile(
+    sourceUri: string,
+    displayName: string,
+    profileHash: string,
+    byteCount: number,
+    serverId: string | null
+  ): Promise<void>;
 }
 
 interface NativeKeyboardStatus {
@@ -86,6 +98,75 @@ export interface PayloadStats {
   totalSize: number;
 }
 
+export interface ShareDiagnosticNetworkDTO {
+  wifi: boolean;
+  cellular: boolean;
+  tailscale: boolean;
+}
+
+export interface ShareDiagnosticRouteDTO {
+  candidateCount: number;
+  hadRememberedLiveRoute: boolean;
+}
+
+export interface ShareDiagnosticPeerRefreshDTO {
+  total: number;
+  online: number;
+  offline: number;
+  errors: number;
+}
+
+export interface ShareDiagnosticDeliveryDTO {
+  accepted: number;
+  duplicate: number;
+  offline: number;
+  errored: number;
+  pending: number;
+}
+
+export interface ShareDiagnosticErrorDTO {
+  code: string;
+  engineCode?: number;
+  engineCategory?: string;
+  retryable?: boolean;
+}
+
+export interface ShareDiagnosticEventDTO {
+  timestampMs: number;
+  elapsedMs: number;
+  stage: string;
+  network?: ShareDiagnosticNetworkDTO;
+  route?: ShareDiagnosticRouteDTO;
+  peerRefresh?: ShareDiagnosticPeerRefreshDTO;
+  delivery?: ShareDiagnosticDeliveryDTO;
+  error?: ShareDiagnosticErrorDTO;
+}
+
+export interface ShareDiagnosticAttemptDTO {
+  id: string;
+  startedAtMs: number;
+  channel: 'p2p' | 'lan';
+  itemKind: 'text' | 'image' | 'file';
+  byteCount: number;
+  events: ShareDiagnosticEventDTO[];
+}
+
+export interface ShareDiagnosticsArchiveDTO {
+  schemaVersion: 1;
+  attempts: ShareDiagnosticAttemptDTO[];
+}
+
+export interface OutboundShareJobDTO {
+  id: string;
+  fileUri: string;
+  displayName: string;
+  byteCount: number;
+  mimeType: string | null;
+  channel: 'p2p' | 'lan';
+  serverId: string | null;
+  createdAtMs: number;
+}
+
 const EMPTY_SERVERS: ServerConfigListDTO = { configs: [], activeConfigId: null };
 const EMPTY_MIGRATION: LegacyMigrationResult = { migrated: false, keys: 0 };
 const EMPTY_PAYLOAD_STATS: PayloadStats = { count: 0, totalSize: 0 };
@@ -134,6 +215,12 @@ export function getLegacyHistory(): Promise<string | null> {
   return NativeModule?.getLegacyHistory() ?? Promise.resolve(null);
 }
 
+export async function getShareDiagnostics(): Promise<ShareDiagnosticsArchiveDTO | null> {
+  if (typeof NativeModule?.getShareDiagnostics !== 'function') return null;
+  const json = await NativeModule.getShareDiagnostics();
+  return parseNativeJson<ShareDiagnosticsArchiveDTO | null>(json ?? undefined, null);
+}
+
 export function getPayloadFileUri(profileId: string): Promise<string | null> {
   return NativeModule?.getPayloadFileUri(profileId) ?? Promise.resolve(null);
 }
@@ -152,6 +239,39 @@ export function clearPayloads(): Promise<void> {
 
 export function getPayloadStats(): Promise<PayloadStats> {
   return NativeModule?.getPayloadStats() ?? Promise.resolve(EMPTY_PAYLOAD_STATS);
+}
+
+export function claimOutboundShareJobs(): Promise<OutboundShareJobDTO[]> {
+  if (typeof NativeModule?.claimOutboundShareJobs !== 'function') return Promise.resolve([]);
+  return NativeModule.claimOutboundShareJobs();
+}
+
+export function completeOutboundShareJob(id: string): Promise<void> {
+  if (typeof NativeModule?.completeOutboundShareJob !== 'function') return Promise.resolve();
+  return NativeModule.completeOutboundShareJob(id);
+}
+
+export function releaseOutboundShareJob(id: string): Promise<void> {
+  if (typeof NativeModule?.releaseOutboundShareJob !== 'function') return Promise.resolve();
+  return NativeModule.releaseOutboundShareJob(id);
+}
+
+export function importPayloadFile(profileId: string, sourceUri: string): Promise<string | null> {
+  if (typeof NativeModule?.importPayloadFile !== 'function') return Promise.resolve(null);
+  return NativeModule.importPayloadFile(profileId, sourceUri);
+}
+
+export function sendOutboundLanFile(
+  sourceUri: string,
+  displayName: string,
+  profileHash: string,
+  byteCount: number,
+  serverId: string | null
+): Promise<void> {
+  if (typeof NativeModule?.sendOutboundLanFile !== 'function') {
+    return Promise.reject(new Error('App Group store is unavailable'));
+  }
+  return NativeModule.sendOutboundLanFile(sourceUri, displayName, profileHash, byteCount, serverId);
 }
 
 export function getLastSyncedHash(): Promise<string | null> {
