@@ -1,16 +1,21 @@
-import type { UnifiedEngineStatus } from '@/stores/unifiedEngineStore';
+import type { PeerConnectionStatus, UnifiedEngineStatus } from '@/stores/unifiedEngineStore';
 import type { SyncChannel } from '@/types/settings';
 import type { ConnectionStatus } from '@/utils/connectionStatus';
 
 export function deriveP2pConnectionStatus(
   status: UnifiedEngineStatus,
+  peerStatus: PeerConnectionStatus,
   hasSpace: boolean
 ): ConnectionStatus {
   if (!hasSpace) return 'unconfigured';
 
   switch (status) {
     case 'running':
-      return 'online';
+      return peerStatus === 'online'
+        ? 'online'
+        : peerStatus === 'offline'
+        ? 'offline'
+        : 'connecting';
     case 'starting':
     case 'quiescing':
     case 'quiesced':

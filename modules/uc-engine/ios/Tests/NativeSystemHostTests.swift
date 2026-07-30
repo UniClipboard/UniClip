@@ -297,6 +297,17 @@ final class NativeSystemHostTests: XCTestCase {
     XCTAssertEqual(engine.resumeCalls, 1)
   }
 
+  func testLifecycleHostMakesRepeatedForegroundRecoveryIdempotent() throws {
+    let engine = FakeNativeEngineLifecycle(state: .suspended)
+    let host = NativeLifecycleHost(report: { _ in XCTFail("Transition must not fail") })
+
+    try host.resumeIfNeeded(engine)
+    try host.resumeIfNeeded(engine)
+
+    XCTAssertEqual(engine.resumeCalls, 1)
+    XCTAssertEqual(engine.state, .running)
+  }
+
   func testLifecycleHostReportsTransitionFailures() throws {
     let engine = FakeNativeEngineLifecycle(state: .running)
     engine.transitionError = TestLifecycleError.failed
@@ -337,11 +348,13 @@ private final class FakeNativeEngineLifecycle: NativeEngineLifecycle {
   func suspend() throws {
     suspendCalls += 1
     if let transitionError { throw transitionError }
+    state = .suspended
   }
 
   func resume() throws {
     resumeCalls += 1
     if let transitionError { throw transitionError }
+    state = .running
   }
 }
 

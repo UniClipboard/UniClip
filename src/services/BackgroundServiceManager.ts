@@ -29,6 +29,7 @@ class BackgroundServiceManager {
   private appStateSub: { remove(): void } | null = null;
   /** 取消对 settingsStore 的订阅 */
   private settingsUnsub: (() => void) | null = null;
+  private currentAppState = AppState.currentState;
   private readonly syncChannels = new SyncChannelCoordinator(
     {
       start: () => this._startUnifiedEngine(),
@@ -182,22 +183,44 @@ class BackgroundServiceManager {
     const { getUnifiedEngineService } = require('./UnifiedEngineService');
     const Application = require('expo-application');
     const service = getUnifiedEngineService();
+    const startedAt = Date.now();
+    log.info('[P2PStartup] Starting native engine');
     await service.start({
       appVersion: Application.nativeApplicationVersion ?? 'unknown',
       profileId: 'default',
     });
-    void service
-      .refreshPeerConnections()
-      .catch((error: unknown) =>
-        log.error('[BackgroundServiceManager] Failed to refresh P2P peer connections:', error)
-      );
+    log.info(`[P2PStartup] Native engine started in ${Date.now() - startedAt}ms`);
+    if (Platform.OS === 'ios') {
+      if (this.currentAppState !== 'active') return;
+      const resumeStartedAt = Date.now();
+      log.info('[P2PStartup] Resuming foreground session');
+      await service.resume();
+      log.info(`[P2PStartup] Foreground session resumed in ${Date.now() - resumeStartedAt}ms`);
+    }
     const { getUnifiedSpaceService } = require('./UnifiedSpaceService');
-    await getUnifiedSpaceService().refresh();
+    const space = await getUnifiedSpaceService().refresh();
+    log.info('[P2PStartup] Space devices', space.devices);
+    log.info(`[P2PStartup] Selected P2P channel ready in ${Date.now() - startedAt}ms`);
+    if (Platform.OS === 'ios' && this.currentAppState !== 'active') return;
+
+    const recoveryStartedAt = Date.now();
+    log.info('[P2PStartup] Recovering receiver connections');
+    void service.recoverPeerConnections().then(
+      (report: { online: number }) =>
+        log.info(
+          `[P2PStartup] Receiver recovery finished in ${Date.now() - recoveryStartedAt}ms`,
+          report
+        ),
+      (error: unknown) =>
+        log.error('[BackgroundServiceManager] Failed to recover P2P peer connections:', error)
+    );
   }
 
   private async _stopUnifiedEngine(): Promise<void> {
     const { getUnifiedEngineService } = require('./UnifiedEngineService');
-    await getUnifiedEngineService().stop();
+    const service = getUnifiedEngineService();
+    service.cancelPeerRecovery();
+    await service.stop();
   }
 
   private async _startLanSync(): Promise<void> {
@@ -361,12 +384,14 @@ class BackgroundServiceManager {
     if (this.appStateSub || Platform.OS !== 'ios') return;
 
     this.appStateSub = AppState.addEventListener('change', (state) => {
+      this.currentAppState = state;
       const { useSettingsStore } = require('../stores/settingsStore');
       if (useSettingsStore.getState().config?.syncChannel !== 'p2p') return;
 
       const { getUnifiedEngineService } = require('./UnifiedEngineService');
       const service = getUnifiedEngineService();
       if (state === 'inactive' || state === 'background') {
+        service.cancelPeerRecovery();
         if (service.isStarting()) {
           service
             .stop()

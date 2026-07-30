@@ -224,62 +224,116 @@ final class ExtensionSyncCoordinatorTests: XCTestCase {
     XCTAssertEqual(result.delivery?.state, .partial)
   }
 
-  func testSuccessfulDeliveryDoesNotRefreshConnectionsFirst() throws {
+  func testSendConfirmsConnectionBeforeReportingTransmission() throws {
     let engine = FakeExtensionSyncEngine(events: [])
     let coordinator = ExtensionSyncCoordinator(engine: engine)
     var sendCalls = 0
+    var progress: [ExtensionSendProgress] = []
+    var observedRefreshes: [ExtensionPeerRefreshReport] = []
 
     let result = try coordinator.synchronize(
       send: {
         sendCalls += 1
         return self.report(accepted: 1)
       },
-      receiveTimeoutMs: 0
+      receiveTimeoutMs: 0,
+      progress: { progress.append($0) },
+      onPeerRefresh: { observedRefreshes.append($0) }
     )
 
     XCTAssertEqual(sendCalls, 1)
-    XCTAssertEqual(engine.refreshCalls, 0)
-    XCTAssertEqual(result.delivery?.state, .delivered)
-    XCTAssertEqual(
-      result.peerRefresh,
-      ExtensionPeerRefreshReport(total: 1, online: 1, offline: 0, errors: 0)
-    )
-  }
-
-  func testOfflineDeliveryRefreshesAndRetriesOnceWhenPeerReturnsOnline() throws {
-    let engine = FakeExtensionSyncEngine(events: [])
-    let coordinator = ExtensionSyncCoordinator(engine: engine)
-    var reports = [report(offline: 1), report(accepted: 1)]
-
-    let result = try coordinator.synchronize(
-      send: { reports.removeFirst() },
-      receiveTimeoutMs: 0
-    )
-
-    XCTAssertTrue(reports.isEmpty)
     XCTAssertEqual(engine.refreshCalls, 1)
+    XCTAssertEqual(progress, [.connecting, .connected, .sending])
+    XCTAssertEqual(observedRefreshes, [engine.refreshReport])
     XCTAssertEqual(result.delivery?.state, .delivered)
     XCTAssertEqual(result.peerRefresh, engine.refreshReport)
   }
 
-  func testOfflineDeliveryDoesNotRetryWhenRefreshStillShowsOffline() throws {
+  func testSendDoesNotBeginWhenConnectionRefreshBudgetExpires() throws {
     let refresh = ExtensionPeerRefreshReport(total: 1, online: 0, offline: 1, errors: 0)
     let engine = FakeExtensionSyncEngine(events: [], refreshReport: refresh)
     let coordinator = ExtensionSyncCoordinator(engine: engine)
     var sendCalls = 0
+    var progress: [ExtensionSendProgress] = []
 
-    let result = try coordinator.synchronize(
-      send: {
-        sendCalls += 1
-        return self.report(offline: 1)
-      },
-      receiveTimeoutMs: 0
+    XCTAssertThrowsError(
+      try coordinator.synchronize(
+        send: {
+          sendCalls += 1
+          return self.report(accepted: 1)
+        },
+        receiveTimeoutMs: 0,
+        progress: { progress.append($0) }
+      )
     )
 
-    XCTAssertEqual(sendCalls, 1)
-    XCTAssertEqual(engine.refreshCalls, 1)
-    XCTAssertEqual(result.delivery?.state, .offline)
-    XCTAssertEqual(result.peerRefresh, refresh)
+    XCTAssertEqual(sendCalls, 0)
+    XCTAssertEqual(engine.refreshCalls, 3)
+    XCTAssertEqual(progress, [.connecting])
+  }
+
+  func testSendKeepsConnectingUntilAReceiverComesOnline() throws {
+    let offline = ExtensionPeerRefreshReport(total: 1, online: 0, offline: 1, errors: 0)
+    let online = ExtensionPeerRefreshReport(total: 1, online: 1, offline: 0, errors: 0)
+    let engine = FakeExtensionSyncEngine(
+      events: [],
+      refreshReports: [offline, offline, online]
+    )
+    let coordinator = ExtensionSyncCoordinator(
+      engine: engine,
+      peerConnectionPolicy: ExtensionPeerConnectionPolicy(
+        maxAttempts: 3,
+        retryDelayMs: 0
+      )
+    )
+    var progress: [ExtensionSendProgress] = []
+    var observedRefreshes: [ExtensionPeerRefreshReport] = []
+
+    let result = try coordinator.synchronize(
+      send: { self.report(accepted: 1) },
+      receiveTimeoutMs: 0,
+      progress: { progress.append($0) },
+      onPeerRefresh: { observedRefreshes.append($0) }
+    )
+
+    XCTAssertEqual(engine.refreshCalls, 3)
+    XCTAssertEqual(observedRefreshes, [offline, offline, online])
+    XCTAssertEqual(progress, [.connecting, .connected, .sending])
+    XCTAssertEqual(result.delivery?.state, .delivered)
+  }
+
+  func testSendTimesOutOnlyAfterTheConnectionAttemptBudgetIsExhausted() {
+    let offline = ExtensionPeerRefreshReport(total: 1, online: 0, offline: 1, errors: 0)
+    let engine = FakeExtensionSyncEngine(
+      events: [],
+      refreshReports: [offline, offline, offline]
+    )
+    let coordinator = ExtensionSyncCoordinator(
+      engine: engine,
+      peerConnectionPolicy: ExtensionPeerConnectionPolicy(
+        maxAttempts: 3,
+        retryDelayMs: 0
+      )
+    )
+    var sendCalls = 0
+    var progress: [ExtensionSendProgress] = []
+
+    XCTAssertThrowsError(
+      try coordinator.synchronize(
+        send: {
+          sendCalls += 1
+          return self.report(accepted: 1)
+        },
+        receiveTimeoutMs: 0,
+        progress: { progress.append($0) }
+      )
+    ) { error in
+      XCTAssertEqual(error as? ExtensionPeerConnectionError, .connectionTimedOut)
+    }
+
+    XCTAssertEqual(engine.refreshCalls, 3)
+    XCTAssertEqual(sendCalls, 0)
+    XCTAssertEqual(progress, [.connecting])
   }
 
   func testDeliveryStateDoesNotTreatOfflineOrPendingAsSuccess() {
@@ -469,6 +523,7 @@ private final class FakeExtensionSyncEngine: ExtensionSyncEngine {
   private(set) var currentRemoteEntryQueries = 0
   private(set) var eventTimeouts: [UInt64] = []
   private(set) var restoredEntryIds: [String] = []
+  private var refreshReports: [ExtensionPeerRefreshReport]
   let refreshReport: ExtensionPeerRefreshReport
 
   var remainingEventCount: Int { events.count }
@@ -482,12 +537,14 @@ private final class FakeExtensionSyncEngine: ExtensionSyncEngine {
       online: 1,
       offline: 0,
       errors: 0
-    )
+    ),
+    refreshReports: [ExtensionPeerRefreshReport]? = nil
   ) {
     self.events = events
     self.currentRemoteEntryId = currentRemoteEntryId
     self.restoreResults = restoreResults
     self.refreshReport = refreshReport
+    self.refreshReports = refreshReports ?? [refreshReport]
   }
 
   func queryCurrentRemoteClipboardEntryId() throws -> String? {
@@ -497,7 +554,8 @@ private final class FakeExtensionSyncEngine: ExtensionSyncEngine {
 
   func refreshPeerConnections() throws -> ExtensionPeerRefreshReport {
     refreshCalls += 1
-    return refreshReport
+    guard refreshReports.count > 1 else { return refreshReports[0] }
+    return refreshReports.removeFirst()
   }
 
   func nextEvent(timeoutMs: UInt64) throws -> ExtensionSyncEvent? {

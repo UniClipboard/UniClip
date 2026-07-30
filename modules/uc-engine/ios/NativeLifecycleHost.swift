@@ -116,6 +116,7 @@ final class RuntimeOwnedNativeLifecycle: NativeEngineLifecycle {
 
 final class NativeLifecycleHost {
   private let report: (Error) -> Void
+  private let transitionLock = NSLock()
 
   init(report: @escaping (Error) -> Void) {
     self.report = report
@@ -131,12 +132,7 @@ final class NativeLifecycleHost {
   func enterBackground(_ engine: (any NativeEngineLifecycle)?) {
     guard let engine else { return }
     do {
-      switch try engine.lifecycleState() {
-      case .running, .quiesced:
-        try engine.suspend()
-      case .quiescing, .suspended, .shuttingDown, .stopped:
-        return
-      }
+      try suspendIfNeeded(engine)
     } catch {
       report(error)
     }
@@ -145,10 +141,27 @@ final class NativeLifecycleHost {
   func enterForeground(_ engine: (any NativeEngineLifecycle)?) {
     guard let engine else { return }
     do {
-      guard try engine.lifecycleState() == .suspended else { return }
-      try engine.resume()
+      try resumeIfNeeded(engine)
     } catch {
       report(error)
+    }
+  }
+
+  func suspendIfNeeded(_ engine: any NativeEngineLifecycle) throws {
+    try transitionLock.withLock {
+      switch try engine.lifecycleState() {
+      case .running, .quiesced:
+        try engine.suspend()
+      case .quiescing, .suspended, .shuttingDown, .stopped:
+        return
+      }
+    }
+  }
+
+  func resumeIfNeeded(_ engine: any NativeEngineLifecycle) throws {
+    try transitionLock.withLock {
+      guard try engine.lifecycleState() == .suspended else { return }
+      try engine.resume()
     }
   }
 }

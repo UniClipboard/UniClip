@@ -10,16 +10,29 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
   public init() {}
 
   public func start(appVersion: String, profileId: String) throws -> MobileEngine {
+    let startedAt = ProcessInfo.processInfo.systemUptime
+    NSLog("[UcEngineStartup] Waiting for shared runtime ownership")
     guard try P2pRuntimeHandoff.acquireForMainApplication(runtimeOwnership()) else {
       throw ExtensionP2pError.runtimeBusy
     }
+    NSLog(
+      "[UcEngineStartup] Shared runtime ownership acquired in %.0fms",
+      (ProcessInfo.processInfo.systemUptime - startedAt) * 1_000
+    )
     do {
       let host = try AppleEngineHost(files: files, storageMode: .mainApplication)
-      return try MobileEngine.start(
+      NSLog("[UcEngineStartup] Starting core engine")
+      let engine = try MobileEngine.start(
         config: BindingConfig(appVersion: appVersion, profileId: profileId),
         host: host
       )
+      NSLog(
+        "[UcEngineStartup] Core engine started in %.0fms",
+        (ProcessInfo.processInfo.systemUptime - startedAt) * 1_000
+      )
+      return engine
     } catch {
+      NSLog("[UcEngineStartup] Engine host start failed: %@", String(describing: error))
       releaseRuntimeOwnership()
       throw error
     }
@@ -120,6 +133,8 @@ public final class ExtensionP2pClient: @unchecked Sendable {
     // The core coalesces peer-online resyncs for 1.5s before dispatching. Keep
     // enough headroom for connection establishment and the inbound transfer.
     receiveTimeoutMs: UInt64 = 3_000,
+    progress: ((ExtensionSendProgress) -> Void)? = nil,
+    onPeerRefresh: ((ExtensionPeerRefreshReport) -> Void)? = nil,
     send: (() throws -> SendReport)? = nil
   ) throws -> ExtensionSyncResult {
     try operationLock.withLock {
@@ -129,7 +144,9 @@ public final class ExtensionP2pClient: @unchecked Sendable {
       }
       return try coordinator.synchronize(
         send: sendOperation,
-        receiveTimeoutMs: receiveTimeoutMs
+        receiveTimeoutMs: receiveTimeoutMs,
+        progress: progress,
+        onPeerRefresh: onPeerRefresh
       )
     }
   }

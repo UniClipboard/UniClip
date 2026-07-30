@@ -164,6 +164,37 @@ public enum ExtensionDeliveryState: Equatable, Sendable {
   case failed
 }
 
+public enum ExtensionSendProgress: Int, Equatable, Sendable {
+  case connecting
+  case connected
+  case sending
+  case sent
+}
+
+public enum ExtensionPeerConnectionError: Error, Equatable, LocalizedError, Sendable {
+  case noOnlinePeer
+  case connectionTimedOut
+
+  public var errorDescription: String? {
+    switch self {
+    case .noOnlinePeer:
+      return "No receiving device is configured."
+    case .connectionTimedOut:
+      return "The connection could not be restored in time."
+    }
+  }
+}
+
+public struct ExtensionPeerConnectionPolicy: Equatable, Sendable {
+  public let maxAttempts: Int
+  public let retryDelayMs: UInt64
+
+  public init(maxAttempts: Int = 3, retryDelayMs: UInt64 = 250) {
+    self.maxAttempts = max(1, maxAttempts)
+    self.retryDelayMs = retryDelayMs
+  }
+}
+
 public enum ExtensionOutboundDeliveryPolicy {
   public static let maxInlineImageBytes = 64 * 1024
 
@@ -242,29 +273,34 @@ public enum ExtensionSyncExecutor {
 
 public final class ExtensionSyncCoordinator {
   private let engine: any ExtensionSyncEngine
+  private let peerConnectionPolicy: ExtensionPeerConnectionPolicy
   private var lastRestoredRemoteEntryId: String?
 
-  public init(engine: any ExtensionSyncEngine) {
+  public init(
+    engine: any ExtensionSyncEngine,
+    peerConnectionPolicy: ExtensionPeerConnectionPolicy = ExtensionPeerConnectionPolicy()
+  ) {
     self.engine = engine
+    self.peerConnectionPolicy = peerConnectionPolicy
   }
 
   public func synchronize(
     send: (() throws -> ExtensionDeliveryReport)?,
-    receiveTimeoutMs: UInt64
+    receiveTimeoutMs: UInt64,
+    progress: ((ExtensionSendProgress) -> Void)? = nil,
+    onPeerRefresh: ((ExtensionPeerRefreshReport) -> Void)? = nil
   ) throws -> ExtensionSyncResult {
     let delivery: ExtensionDeliveryReport?
     let peerRefresh: ExtensionPeerRefreshReport
     if let send {
-      let initialDelivery = try send()
-      if initialDelivery.state == .offline {
-        peerRefresh = try engine.refreshPeerConnections()
-        delivery = peerRefresh.online > 0 ? try send() : initialDelivery
-      } else {
-        delivery = initialDelivery
-        peerRefresh = initialDelivery.peerRefreshSummary
-      }
+      progress?(.connecting)
+      peerRefresh = try refreshPeersForSend(onPeerRefresh: onPeerRefresh)
+      progress?(.connected)
+      progress?(.sending)
+      delivery = try send()
     } else {
       peerRefresh = try engine.refreshPeerConnections()
+      onPeerRefresh?(peerRefresh)
       delivery = nil
     }
     var pendingRemoteEntryId = try engine.queryCurrentRemoteClipboardEntryId()
@@ -402,16 +438,28 @@ public final class ExtensionSyncCoordinator {
     lastRestoredRemoteEntryId = entryId
     return true
   }
-}
 
-extension ExtensionDeliveryReport {
-  fileprivate var peerRefreshSummary: ExtensionPeerRefreshReport {
-    let total = accepted + duplicate + offline + errored + pending
-    return ExtensionPeerRefreshReport(
-      total: total,
-      online: total - offline,
-      offline: offline,
-      errors: errored
-    )
+  private func refreshPeersForSend(
+    onPeerRefresh: ((ExtensionPeerRefreshReport) -> Void)?
+  ) throws -> ExtensionPeerRefreshReport {
+    for attempt in 1...peerConnectionPolicy.maxAttempts {
+      let report = try engine.refreshPeerConnections()
+      onPeerRefresh?(report)
+      if report.online > 0 {
+        return report
+      }
+      if report.total == 0 && report.errors == 0 {
+        throw ExtensionPeerConnectionError.noOnlinePeer
+      }
+      guard attempt < peerConnectionPolicy.maxAttempts else {
+        throw ExtensionPeerConnectionError.connectionTimedOut
+      }
+      if peerConnectionPolicy.retryDelayMs > 0 {
+        Thread.sleep(
+          forTimeInterval: Double(peerConnectionPolicy.retryDelayMs) / 1_000
+        )
+      }
+    }
+    throw ExtensionPeerConnectionError.connectionTimedOut
   }
 }

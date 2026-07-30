@@ -3,12 +3,14 @@ import { log } from './Logger';
 import {
   createInitialUnifiedEngineSnapshot,
   publishUnifiedEngineSnapshot,
+  type PeerConnectionStatus,
   type UnifiedEngineSnapshot,
 } from '@/stores/unifiedEngineStore';
 
 export interface UnifiedEngineApi {
   start(config: EngineConfig): Promise<void>;
   shutdown(deadlineMs?: number): Promise<void>;
+  resume(): Promise<void>;
   nextEvent(timeoutMs?: number): Promise<EngineEvent | null>;
   refreshPeerConnections(): Promise<PeerConnectionRefresh>;
 }
@@ -18,6 +20,29 @@ type EngineEventSubscriber = (event: EngineEvent) => void;
 
 const DEFAULT_EVENT_TIMEOUT_MS = 250;
 const SHUTDOWN_DEADLINE_MS = 5_000;
+const DEFAULT_PEER_RECOVERY_TIMEOUT_MS = 30_000;
+const DEFAULT_PEER_RECOVERY_RETRY_DELAY_MS = 1_000;
+
+export interface PeerRecoveryOptions {
+  timeoutMs?: number;
+  retryDelayMs?: number;
+}
+
+type PeerRecoverySignal = 'online' | 'cancelled';
+
+function emptyPeerRefresh(): PeerConnectionRefresh {
+  return { total: 0, online: 0, offline: 0, errors: 0 };
+}
+
+function onlinePeerRefresh(): PeerConnectionRefresh {
+  return { total: 1, online: 1, offline: 0, errors: 0 };
+}
+
+function delay(ms: number): Promise<'elapsed'> {
+  return new Promise((resolve) => {
+    setTimeout(() => resolve('elapsed'), ms);
+  });
+}
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -29,6 +54,12 @@ export class UnifiedEngineService {
   private nativeStarted = false;
   private startInFlight: Promise<void> | null = null;
   private eventLoop: Promise<void> | null = null;
+  private peerRecoveryGeneration = 0;
+  private peerRecoveryInFlight: Promise<PeerConnectionRefresh> | null = null;
+  private peerRecoverySignal: {
+    generation: number;
+    resolve: (signal: PeerRecoverySignal) => void;
+  } | null = null;
   private readonly eventSubscribers = new Set<EngineEventSubscriber>();
 
   constructor(
@@ -61,7 +92,58 @@ export class UnifiedEngineService {
   }
 
   refreshPeerConnections(): Promise<PeerConnectionRefresh> {
-    return this.api.refreshPeerConnections();
+    if (this.peerRecoveryInFlight) return this.peerRecoveryInFlight;
+    this.updatePeerConnectionStatus('connecting');
+    return this.api.refreshPeerConnections().then(
+      (report) => {
+        this.updatePeerConnectionStatus(report.online > 0 ? 'online' : 'offline');
+        return report;
+      },
+      (error) => {
+        this.updatePeerConnectionStatus('offline');
+        throw error;
+      }
+    );
+  }
+
+  recoverPeerConnections(options: PeerRecoveryOptions = {}): Promise<PeerConnectionRefresh> {
+    if (this.peerRecoveryInFlight) return this.peerRecoveryInFlight;
+
+    const generation = ++this.peerRecoveryGeneration;
+    let resolveSignal!: (signal: PeerRecoverySignal) => void;
+    const signal = new Promise<PeerRecoverySignal>((resolve) => {
+      resolveSignal = resolve;
+    });
+    this.peerRecoverySignal = { generation, resolve: resolveSignal };
+    this.updatePeerConnectionStatus('connecting');
+
+    const recovery = this.runPeerRecovery(
+      generation,
+      signal,
+      Math.max(0, options.timeoutMs ?? DEFAULT_PEER_RECOVERY_TIMEOUT_MS),
+      Math.max(0, options.retryDelayMs ?? DEFAULT_PEER_RECOVERY_RETRY_DELAY_MS)
+    );
+    this.peerRecoveryInFlight = recovery;
+    void recovery.then(
+      () => this.clearPeerRecovery(recovery, generation),
+      () => this.clearPeerRecovery(recovery, generation)
+    );
+    return recovery;
+  }
+
+  cancelPeerRecovery(): void {
+    ++this.peerRecoveryGeneration;
+    this.peerRecoverySignal?.resolve('cancelled');
+    this.peerRecoverySignal = null;
+    this.peerRecoveryInFlight = null;
+    if (this.snapshot.peerConnectionStatus === 'connecting') {
+      this.updatePeerConnectionStatus('idle');
+    }
+  }
+
+  resume(): Promise<void> {
+    if (!this.nativeStarted) return Promise.resolve();
+    return this.api.resume();
   }
 
   subscribeEvents(subscriber: EngineEventSubscriber): () => void {
@@ -70,6 +152,7 @@ export class UnifiedEngineService {
   }
 
   async stop(): Promise<void> {
+    this.cancelPeerRecovery();
     ++this.generation;
 
     const startInFlight = this.startInFlight;
@@ -200,8 +283,10 @@ export class UnifiedEngineService {
         this.updateSnapshot({
           lastEvent: event,
           lastChangedKind: event.type,
+          ...(event.state === 'online' ? { peerConnectionStatus: 'online' as const } : {}),
           refreshRevision: this.snapshot.refreshRevision + 1,
         });
+        if (event.state === 'online') this.peerRecoverySignal?.resolve('online');
         break;
       case 'transferProgress':
         this.updateSnapshot({ lastEvent: event, lastChangedKind: event.type });
@@ -229,6 +314,71 @@ export class UnifiedEngineService {
   private updateSnapshot(updates: Partial<UnifiedEngineSnapshot>): void {
     this.snapshot = { ...this.snapshot, ...updates };
     this.publishSnapshot();
+  }
+
+  private async runPeerRecovery(
+    generation: number,
+    signal: Promise<PeerRecoverySignal>,
+    timeoutMs: number,
+    retryDelayMs: number
+  ): Promise<PeerConnectionRefresh> {
+    const deadline = Date.now() + timeoutMs;
+    let lastReport = emptyPeerRefresh();
+
+    while (generation === this.peerRecoveryGeneration) {
+      const remainingMs = Math.max(0, deadline - Date.now());
+      if (remainingMs === 0) break;
+
+      const outcome = await Promise.race([
+        this.api.refreshPeerConnections().then(
+          (report) => ({ kind: 'report' as const, report }),
+          (error: unknown) => ({ kind: 'error' as const, error })
+        ),
+        signal.then((value) =>
+          value === 'online' ? ({ kind: 'online' } as const) : ({ kind: 'cancelled' } as const)
+        ),
+        delay(remainingMs).then(() => ({ kind: 'timeout' as const })),
+      ]);
+
+      if (generation !== this.peerRecoveryGeneration || outcome.kind === 'cancelled') {
+        return lastReport;
+      }
+      if (outcome.kind === 'online') {
+        return onlinePeerRefresh();
+      }
+      if (outcome.kind === 'timeout') break;
+      if (outcome.kind === 'report') {
+        lastReport = outcome.report;
+        if (outcome.report.online > 0) {
+          this.updatePeerConnectionStatus('online');
+          return outcome.report;
+        }
+      } else {
+        log.warn('[UnifiedEngineService] Peer recovery refresh failed:', outcome.error);
+      }
+
+      const delayMs = Math.min(retryDelayMs, Math.max(0, deadline - Date.now()));
+      if (delayMs === 0) break;
+      const waitOutcome = await Promise.race([signal, delay(delayMs)]);
+      if (generation !== this.peerRecoveryGeneration || waitOutcome === 'cancelled') {
+        return lastReport;
+      }
+      if (waitOutcome === 'online') return onlinePeerRefresh();
+    }
+
+    if (generation === this.peerRecoveryGeneration) this.updatePeerConnectionStatus('offline');
+    return lastReport;
+  }
+
+  private updatePeerConnectionStatus(status: PeerConnectionStatus): void {
+    if (this.snapshot.peerConnectionStatus !== status) {
+      this.updateSnapshot({ peerConnectionStatus: status });
+    }
+  }
+
+  private clearPeerRecovery(recovery: Promise<PeerConnectionRefresh>, generation: number): void {
+    if (this.peerRecoveryInFlight === recovery) this.peerRecoveryInFlight = null;
+    if (this.peerRecoverySignal?.generation === generation) this.peerRecoverySignal = null;
   }
 
   private publishSnapshot(): void {

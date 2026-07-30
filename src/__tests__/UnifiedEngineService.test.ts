@@ -1,5 +1,5 @@
 import { describe, expect, it, jest } from '@jest/globals';
-import type { EngineConfig, EngineEvent } from 'uc-engine';
+import type { EngineConfig, EngineEvent, PeerConnectionRefresh } from 'uc-engine';
 import { UnifiedEngineService, type UnifiedEngineApi } from '../services/UnifiedEngineService';
 import type { UnifiedEngineSnapshot } from '../stores/unifiedEngineStore';
 
@@ -27,7 +27,149 @@ function config(): EngineConfig {
   return { appVersion: '1.2.3', profileId: 'default' };
 }
 
+function refreshReport(online: number): PeerConnectionRefresh {
+  return {
+    total: 1,
+    online,
+    offline: online > 0 ? 0 : 1,
+    errors: 0,
+  };
+}
+
 describe('UnifiedEngineService', () => {
+  it('keeps connecting after an offline refresh and becomes online on a later refresh', async () => {
+    jest.useFakeTimers();
+    const pendingEvent = deferred<EngineEvent | null>();
+    const snapshots: UnifiedEngineSnapshot[] = [];
+    const refreshPeerConnections = jest
+      .fn<UnifiedEngineApi['refreshPeerConnections']>()
+      .mockResolvedValueOnce(refreshReport(0))
+      .mockResolvedValueOnce(refreshReport(1));
+    const service = new UnifiedEngineService(
+      {
+        start: async () => undefined,
+        shutdown: async () => pendingEvent.resolve(null),
+        resume: async () => undefined,
+        nextEvent: () => pendingEvent.promise,
+        refreshPeerConnections,
+      },
+      (snapshot) => snapshots.push(snapshot)
+    );
+
+    await service.start(config());
+    const recovery = service.recoverPeerConnections({ timeoutMs: 5_000, retryDelayMs: 1_000 });
+    await Promise.resolve();
+
+    expect(snapshots.at(-1)?.peerConnectionStatus).toBe('connecting');
+    expect(refreshPeerConnections).toHaveBeenCalledTimes(1);
+
+    await jest.advanceTimersByTimeAsync(1_000);
+    await expect(recovery).resolves.toEqual(refreshReport(1));
+    expect(refreshPeerConnections).toHaveBeenCalledTimes(2);
+    expect(snapshots.at(-1)?.peerConnectionStatus).toBe('online');
+    await service.stop();
+    jest.useRealTimers();
+  });
+
+  it('finishes recovery immediately when a peer becomes online', async () => {
+    jest.useFakeTimers();
+    const event = deferred<EngineEvent | null>();
+    const refresh = deferred<PeerConnectionRefresh>();
+    const snapshots: UnifiedEngineSnapshot[] = [];
+    const service = new UnifiedEngineService(
+      {
+        start: async () => undefined,
+        shutdown: async () => event.resolve(null),
+        resume: async () => undefined,
+        nextEvent: () => event.promise,
+        refreshPeerConnections: () => refresh.promise,
+      },
+      (snapshot) => snapshots.push(snapshot)
+    );
+
+    await service.start(config());
+    const recovery = service.recoverPeerConnections({ timeoutMs: 5_000, retryDelayMs: 1_000 });
+    event.resolve({
+      type: 'peerPresenceChanged',
+      deviceId: 'desktop-device-id',
+      state: 'online',
+      atMs: 123_456,
+    });
+    await expect(recovery).resolves.toEqual(expect.objectContaining({ online: 1 }));
+    expect(snapshots.at(-1)?.peerConnectionStatus).toBe('online');
+
+    refresh.resolve(refreshReport(0));
+    await service.stop();
+    jest.useRealTimers();
+  });
+
+  it('reports offline only after the foreground recovery budget expires', async () => {
+    jest.useFakeTimers();
+    const pendingEvent = deferred<EngineEvent | null>();
+    const snapshots: UnifiedEngineSnapshot[] = [];
+    const service = new UnifiedEngineService(
+      {
+        start: async () => undefined,
+        shutdown: async () => pendingEvent.resolve(null),
+        resume: async () => undefined,
+        nextEvent: () => pendingEvent.promise,
+        refreshPeerConnections: async () => refreshReport(0),
+      },
+      (snapshot) => snapshots.push(snapshot)
+    );
+
+    await service.start(config());
+    const recovery = service.recoverPeerConnections({ timeoutMs: 2_000, retryDelayMs: 1_000 });
+    await Promise.resolve();
+    expect(snapshots.at(-1)?.peerConnectionStatus).toBe('connecting');
+
+    await jest.advanceTimersByTimeAsync(2_000);
+    await expect(recovery).resolves.toEqual(refreshReport(0));
+    expect(snapshots.at(-1)?.peerConnectionStatus).toBe('offline');
+    await service.stop();
+    jest.useRealTimers();
+  });
+
+  it('does not let a cancelled recovery overwrite a newer online result', async () => {
+    jest.useFakeTimers();
+    const pendingEvent = deferred<EngineEvent | null>();
+    const staleRefresh = deferred<PeerConnectionRefresh>();
+    const snapshots: UnifiedEngineSnapshot[] = [];
+    const refreshPeerConnections = jest
+      .fn<UnifiedEngineApi['refreshPeerConnections']>()
+      .mockImplementationOnce(() => staleRefresh.promise)
+      .mockResolvedValueOnce(refreshReport(1));
+    const service = new UnifiedEngineService(
+      {
+        start: async () => undefined,
+        shutdown: async () => pendingEvent.resolve(null),
+        resume: async () => undefined,
+        nextEvent: () => pendingEvent.promise,
+        refreshPeerConnections,
+      },
+      (snapshot) => snapshots.push(snapshot)
+    );
+
+    await service.start(config());
+    const staleRecovery = service.recoverPeerConnections({
+      timeoutMs: 5_000,
+      retryDelayMs: 1_000,
+    });
+    service.cancelPeerRecovery();
+    const currentRecovery = service.recoverPeerConnections({
+      timeoutMs: 5_000,
+      retryDelayMs: 1_000,
+    });
+
+    await expect(staleRecovery).resolves.toEqual(expect.objectContaining({ online: 0 }));
+    await expect(currentRecovery).resolves.toEqual(refreshReport(1));
+    staleRefresh.resolve(refreshReport(0));
+    await Promise.resolve();
+    expect(snapshots.at(-1)?.peerConnectionStatus).toBe('online');
+
+    await service.stop();
+    jest.useRealTimers();
+  });
   it('starts once, publishes native state changes, and shuts down cleanly', async () => {
     const pendingEvent = deferred<EngineEvent | null>();
     const start = jest.fn(async () => undefined);

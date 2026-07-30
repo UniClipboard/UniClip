@@ -48,39 +48,82 @@ enum ExtensionSyncRouter {
         return try client.synchronize(receiveTimeoutMs: 0, send: send)
     }
 
-    static func sendText(_ text: String) throws {
-        let client = try ExtensionP2pClient()
-        defer { client.shutdown() }
-        _ = try requireDelivered(
-            client.synchronize(receiveTimeoutMs: 0) { try client.sendText(text) }
-        )
-    }
-
-    static func sendImage(_ bytes: Data, ext: String) throws {
+    static func sendText(
+        _ text: String,
+        progress: @escaping (ExtensionSendProgress) -> Void = { _ in },
+        onPeerRefresh: @escaping (ExtensionPeerRefreshReport) -> Void = { _ in },
+        onDelivery: @escaping (ExtensionDeliveryReport) -> Void = { _ in }
+    ) throws {
         let client = try ExtensionP2pClient()
         defer { client.shutdown() }
         let delivery = try requireDelivered(
-            client.synchronize(receiveTimeoutMs: 0) {
+            client.synchronize(
+                receiveTimeoutMs: 0,
+                progress: progress,
+                onPeerRefresh: onPeerRefresh
+            ) {
+                try client.sendText(text)
+            }
+        )
+        onDelivery(delivery)
+        progress(.sent)
+    }
+
+    static func sendImage(
+        _ bytes: Data,
+        ext: String,
+        progress: @escaping (ExtensionSendProgress) -> Void = { _ in },
+        onPeerRefresh: @escaping (ExtensionPeerRefreshReport) -> Void = { _ in },
+        onDelivery: @escaping (ExtensionDeliveryReport) -> Void = { _ in }
+    ) throws {
+        let client = try ExtensionP2pClient()
+        defer { client.shutdown() }
+        let delivery = try requireDelivered(
+            client.synchronize(
+                receiveTimeoutMs: 0,
+                progress: progress,
+                onPeerRefresh: onPeerRefresh
+            ) {
                 try client.sendImage(bytes, mimeType: imageMimeType(for: ext))
             }
         )
+        onDelivery(delivery)
         guard ExtensionOutboundDeliveryPolicy.requiresRemoteDownloadForImage(byteCount: bytes.count)
-        else { return }
-        try client.waitForOutboundDelivery(
-            entryId: delivery.entryId,
-            expectedReceiverCount: delivery.accepted,
-            timeoutMs: outboundDeliveryTimeoutMs
-        )
+        else {
+            progress(.sent)
+            return
+        }
+        try waitForDelivery(delivery, using: client)
+        progress(.sent)
     }
 
-    static func sendFile(_ url: URL, displayName: String) throws {
+    static func sendFile(
+        _ url: URL,
+        displayName: String,
+        progress: @escaping (ExtensionSendProgress) -> Void = { _ in },
+        onPeerRefresh: @escaping (ExtensionPeerRefreshReport) -> Void = { _ in },
+        onDelivery: @escaping (ExtensionDeliveryReport) -> Void = { _ in }
+    ) throws {
         let client = try ExtensionP2pClient()
         defer { client.shutdown() }
         let delivery = try requireDelivered(
-            client.synchronize(receiveTimeoutMs: 0) {
+            client.synchronize(
+                receiveTimeoutMs: 0,
+                progress: progress,
+                onPeerRefresh: onPeerRefresh
+            ) {
                 try client.sendFile(url, displayName: displayName)
             }
         )
+        onDelivery(delivery)
+        try waitForDelivery(delivery, using: client)
+        progress(.sent)
+    }
+
+    private static func waitForDelivery(
+        _ delivery: ExtensionDeliveryReport,
+        using client: ExtensionP2pClient
+    ) throws {
         try client.waitForOutboundDelivery(
             entryId: delivery.entryId,
             expectedReceiverCount: delivery.accepted,

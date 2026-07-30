@@ -23,6 +23,7 @@ import {
 } from '@/services/SelectedSyncConnection';
 import { historyStorage } from '@/services';
 import { getUnifiedContentService } from '@/services/UnifiedContentService';
+import { getUnifiedEngineService } from '@/services/UnifiedEngineService';
 import { getUnifiedSpaceService } from '@/services/UnifiedSpaceService';
 import {
   p2pDeliveryCountsFromReport,
@@ -108,18 +109,28 @@ export function useHomeController(onOpenSettings: () => void) {
   const stagedEntry = useSyncEngineStore((s) => s.status.stagedEntry);
   const visibleSyncState = syncChannel === 'lan' ? syncState : 'Idle';
   const p2pStatus = useUnifiedEngineStore((s) => s.status);
+  const p2pPeerStatus = useUnifiedEngineStore((s) => s.peerConnectionStatus);
   const p2pRefreshRevision = useUnifiedEngineStore((s) => s.refreshRevision);
   const connectionStatus = useMemo(
     () =>
       syncChannel === 'p2p'
-        ? deriveP2pConnectionStatus(p2pStatus, p2pSpaceId !== null)
+        ? deriveP2pConnectionStatus(p2pStatus, p2pPeerStatus, p2pSpaceId !== null)
         : deriveConnectionStatus({
             hasServer: !!activeServer,
             state: syncState,
             isExplicitlyRefreshing: syncRefreshing,
             hasSyncedOnce: syncLastSyncedAt != null,
           }),
-    [activeServer, p2pSpaceId, p2pStatus, syncChannel, syncState, syncRefreshing, syncLastSyncedAt]
+    [
+      activeServer,
+      p2pPeerStatus,
+      p2pSpaceId,
+      p2pStatus,
+      syncChannel,
+      syncState,
+      syncRefreshing,
+      syncLastSyncedAt,
+    ]
   );
 
   // HasNewUnwritten banner 的预览文案：按 stagedEntry.kind 取摘要，Text 直接秀内容
@@ -562,7 +573,7 @@ export function useHomeController(onOpenSettings: () => void) {
     setRefreshing(true);
     try {
       await refreshSelectedConnection(syncChannel, {
-        refreshP2p: () => require('uc-engine').refreshPeerConnections(),
+        refreshP2p: () => getUnifiedEngineService().refreshPeerConnections(),
         refreshLan: () => useSyncEngineStore.getState().forceSync(),
       });
       await loadItems();
@@ -589,7 +600,7 @@ export function useHomeController(onOpenSettings: () => void) {
     setIsSyncing(true);
     try {
       await refreshSelectedConnection(syncChannel, {
-        refreshP2p: () => require('uc-engine').refreshPeerConnections(),
+        refreshP2p: () => getUnifiedEngineService().refreshPeerConnections(),
         refreshLan: () => useSyncEngineStore.getState().forceSync(),
       });
       await loadItems();

@@ -8,13 +8,14 @@ const mockLanStart = jest.fn<() => Promise<void>>(async () => undefined);
 const mockLanStop = jest.fn<() => void>();
 const mockP2pStart = jest.fn<() => Promise<void>>(async () => undefined);
 const mockP2pStop = jest.fn<() => Promise<void>>(async () => undefined);
-const mockP2pRefreshPeerConnections = jest.fn(async () => ({
+const mockP2pRecoverPeerConnections = jest.fn(async () => ({
   total: 0,
   online: 0,
   offline: 0,
   errors: 0,
 }));
-const mockSpaceRefresh = jest.fn(async () => undefined);
+const mockP2pCancelPeerRecovery = jest.fn();
+const mockSpaceRefresh = jest.fn(async () => ({ devices: [] }));
 const mockStartMonitoring = jest.fn(async () => undefined);
 const mockStopMonitoring = jest.fn();
 const mockSetStaticReceiverEnabled = jest.fn();
@@ -64,7 +65,8 @@ jest.mock('../services/UnifiedEngineService', () => ({
   getUnifiedEngineService: () => ({
     start: mockP2pStart,
     stop: mockP2pStop,
-    refreshPeerConnections: mockP2pRefreshPeerConnections,
+    recoverPeerConnections: mockP2pRecoverPeerConnections,
+    cancelPeerRecovery: mockP2pCancelPeerRecovery,
   }),
 }));
 
@@ -120,15 +122,15 @@ describe('BackgroundServiceManager background policy', () => {
     expect(mockSpaceRefresh).toHaveBeenCalledTimes(1);
   });
 
-  it('immediately refreshes peer connections after activating P2P', async () => {
+  it('immediately starts bounded peer recovery after activating P2P', async () => {
     settingsState.config.syncChannel = 'p2p';
 
     await getBackgroundServiceManager().activateSelectedSyncChannel();
 
     expect(mockP2pStart).toHaveBeenCalledTimes(1);
-    expect(mockP2pRefreshPeerConnections).toHaveBeenCalledTimes(1);
+    expect(mockP2pRecoverPeerConnections).toHaveBeenCalledTimes(1);
     expect(mockP2pStart.mock.invocationCallOrder[0]).toBeLessThan(
-      mockP2pRefreshPeerConnections.mock.invocationCallOrder[0]
+      mockP2pRecoverPeerConnections.mock.invocationCallOrder[0]
     );
   });
 
