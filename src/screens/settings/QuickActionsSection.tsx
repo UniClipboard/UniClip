@@ -6,7 +6,7 @@
  */
 import React, { memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ListItem, Button, HorizontalDivider, Text as ComposeText } from '@expo/ui/jetpack-compose';
+import { ListItem, Button, Text as ComposeText } from '@expo/ui/jetpack-compose';
 import { ShortcutService } from '@/services';
 import { useSettingsToast } from './SettingsToastContext';
 import { SettingsSectionItem } from './SettingsSectionItem';
@@ -14,14 +14,6 @@ import { SettingsSectionItem } from './SettingsSectionItem';
 export const QuickActionsSection = memo(function QuickActionsSection() {
   const { t } = useTranslation('settingsPermissions');
   const showMessage = useSettingsToast();
-
-  const handleAddDownloadShortcut = async () => {
-    try {
-      await ShortcutService.addDownloadShortcut();
-    } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : t('quickActions.addFailed'), 'error');
-    }
-  };
 
   const handleAddUploadShortcut = async () => {
     try {
@@ -33,19 +25,6 @@ export const QuickActionsSection = memo(function QuickActionsSection() {
 
   return (
     <SettingsSectionItem title={t('quickActions.title')}>
-      <ListItem>
-        <ListItem.HeadlineContent>
-          <ComposeText>{t('quickActions.addDownloadShortcut')}</ComposeText>
-        </ListItem.HeadlineContent>
-        <ListItem.TrailingContent>
-          <Button onClick={handleAddDownloadShortcut}>
-            <ComposeText>{t('action.add', { ns: 'common' })}</ComposeText>
-          </Button>
-        </ListItem.TrailingContent>
-      </ListItem>
-
-      <HorizontalDivider />
-
       <ListItem>
         <ListItem.HeadlineContent>
           <ComposeText>{t('quickActions.addUploadShortcut')}</ComposeText>

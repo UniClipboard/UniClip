@@ -27,17 +27,12 @@
   "share": {
     "dialogTitle": "分享文件"
   },
-  "urlClass": {
-    "lan": "局域网",
-    "tailscale": "Tailscale",
-    "wan": "公网"
-  },
   "refresh": {
     "failed": "刷新失败"
   },
   "connect": {
     "failed": "连接失败",
-    "cannotReach": "无法连接到服务器"
+    "cannotReach": "无法连接到其他设备"
   },
   "notification": {
     "uploaded": "已上传",
@@ -46,10 +41,6 @@
   },
   "sync": {
     "networkErrorQueued": "网络错误，已添加到队列: {{error}}"
-  },
-  "server": {
-    "errorWithBody": "服务器返回错误 (HTTP {{status}}):\n\n{{body}}",
-    "errorWithMessage": "服务器返回错误 (HTTP {{status}}): {{message}}"
   },
   "upload": {
     "failedSavedLocal": "上传失败,内容已存到本地"

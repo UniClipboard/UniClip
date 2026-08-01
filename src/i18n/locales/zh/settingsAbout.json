@@ -69,15 +69,6 @@
     "updateNoLimitLabel": "更新检查不限次数",
     "updateNoLimitDesc": "开启后每次启动均检查更新，不限每天一次"
   },
-  "sms": {
-    "title": "测试验证码短信",
-    "placeholder": "输入短信内容...",
-    "test": "测试",
-    "extractSuccessTitle": "提取成功",
-    "extractFailTitle": "提取失败",
-    "codeResult": "验证码: {{code}}",
-    "extractFailMessage": "未能从输入文本中提取到验证码"
-  },
   "stats": {
     "title": "统计信息",
     "view": "查看",

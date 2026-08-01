@@ -13,31 +13,25 @@ manual iOS dev build   ──▶ build-ios (optional TestFlight upload)
 manual full release    ──▶ validate + both builds ──▶ create tag ──▶ release
 ```
 
-| Workflow            | Runs on                       | Does                                                                                                                                  |
-| ------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `android-build.yml` | every push / manual release   | Build release APKs (all ABIs) → artifacts                                                                                             |
-| `build-ios.yml`     | manual dev build / release    | Build the uc-mobile xcframework from pinned source, prebuild, archive, export a **distribution-signed `.ipa`** → artifact (no upload) |
-| `release.yml`       | validated manual release only | Upload the `.ipa` to **TestFlight**; publish APKs to **GitHub Release** + **Gitee**                                                   |
+| Workflow            | Runs on                       | Does                                                                                                                 |
+| ------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `android-build.yml` | every push / manual release   | Build release APKs (all ABIs) → artifacts                                                                            |
+| `build-ios.yml`     | manual dev build / release    | Prepare the pinned unified engine, prebuild, archive, export a **distribution-signed `.ipa`** → artifact (no upload) |
+| `release.yml`       | validated manual release only | Upload the `.ipa` to **TestFlight**; publish APKs to **GitHub Release** + **Gitee**                                  |
 
 All publishing lives in `release.yml`, so a failed lint / test / iOS build
 blocks the GitHub/Gitee release _and_ the TestFlight upload.
 
-## The uc-mobile xcframework
+## The unified engine
 
-`modules/uc-core/ios/UniClipboardCore.xcframework` (293 MB, single `.a` >
-GitHub's 100 MB file limit) and its `Bindings/` are gitignored, so they are not
-in the checkout. `build-ios.yml` rebuilds them in CI from a **pinned commit** of
-the source monorepo (`UniClipboard/UniClipboard`) via a shallow clone into the
-runner temp dir — the app repo carries **no submodule**.
+`modules/uc-engine/core-source.json` pins the engine release and source revision.
+The platform artifacts are prepared by `npm run core:prepare` and checked by
+`npm run core:verify` before Expo prebuild runs. The app repository does not
+carry a source submodule.
 
-The pin is `UC_CORE_REF` at the top of `build-ios.yml`. It must stay compatible
-with the committed `modules/uc-core/ios/UcCoreModule.swift` wrapper (the UniFFI
-binding `uc_mobile.swift` is regenerated from the same commit, so it always
-matches the compiled lib; only the hand-written wrapper is version-sensitive).
-
-**To adopt a new uc-mobile version:** update `UC_CORE_REF` to the new full SHA,
-and if the FFI surface changed, update `UcCoreModule.swift` (and the Kotlin /
-JS bindings) to match.
+To adopt a new engine release, update the pinned source through the repository's
+engine preparation workflow, then verify both platform artifacts before changing
+the app wrappers.
 
 ## Required repository secrets
 
@@ -126,6 +120,6 @@ App Store Connect app record. The distinction is by channel:
   ensure it has the **App Manager** role (not Developer).
 - **Duplicate build number rejected on upload** — step 1 was skipped; bump
   `expo.ios.buildNumber`, update both changelog files, and start a new release.
-- **`Unresolved reference` / link errors compiling `UcCoreModule.swift`** — the
-  `UC_CORE_REF` pin drifted from the committed wrapper; realign the pin or the
-  wrapper.
+- **Link errors compiling `UcEngineModule.swift`** — the prepared engine artifact
+  and the committed wrapper are out of sync; re-run preparation and verification,
+  then align the wrapper if the engine interface changed.

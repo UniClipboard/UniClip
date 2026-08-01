@@ -23,12 +23,12 @@ describe('DiagnosticEventClassifier', () => {
 
   it('classifies a known operation without returning its sensitive detail', () => {
     const message =
-      '[SyncEngine] op error: TLS certificate failure at https://alice:secret@example.test';
+      '[UnifiedEngineService] Failed to start the P2P engine: TLS certificate failure at https://alice:secret@example.test';
 
     const event = classifyDiagnosticEvent(message, 'error');
 
     expect(event).toEqual({
-      eventCode: 'sync.operation_failed',
+      eventCode: 'p2p.engine_start_failed',
       reason: 'tls_or_certificate',
     });
     expect(JSON.stringify(event)).not.toContain('alice');
@@ -36,11 +36,13 @@ describe('DiagnosticEventClassifier', () => {
     expect(JSON.stringify(event)).not.toContain('example.test');
   });
 
-  it('does not mislabel a missing active-server configuration as a remote not-found error', () => {
-    expect(classifyDiagnosticEvent('[SyncEngineStore] Active server: none', 'info')).toEqual({
-      eventCode: 'sync.active_server_missing',
-      reason: null,
-    });
+  it('classifies P2P peer recovery without retaining its detail', () => {
+    expect(
+      classifyDiagnosticEvent(
+        '[UnifiedEngineService] Peer recovery refresh failed: connection refused',
+        'warn'
+      )
+    ).toEqual({ eventCode: 'p2p.peer_recovery_failed', reason: 'network_unreachable' });
   });
 
   it('keeps a categorized unknown issue but drops arbitrary unknown text', () => {

@@ -2,15 +2,6 @@
   "action": {
     "openSettings": "Open settings"
   },
-  "smsAutomation": {
-    "title": "SMS automation",
-    "autoUpload": "Auto-upload SMS verification codes",
-    "permissionRequiredTitle": "SMS permission required",
-    "permissionRequiredMessage": "Auto-uploading verification codes needs SMS receive permission. Please allow it in system settings.",
-    "enabledToast": "Auto-upload of SMS verification codes enabled",
-    "disabledToast": "Auto-upload of SMS verification codes disabled",
-    "saveFailed": "Failed to save settings"
-  },
   "quickActions": {
     "title": "Quick actions",
     "addDownloadShortcut": "Add home screen shortcut: Download",

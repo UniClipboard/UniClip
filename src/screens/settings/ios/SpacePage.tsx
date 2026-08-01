@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import type { InvitationIssued } from 'uc-engine';
@@ -159,10 +159,21 @@ export function SpacePage({ onBack }: { onBack: () => void }) {
   const [copiedValue, setCopiedValue] = useState<string | null>(null);
   const space = useUnifiedSpaceStore();
   const refreshRevision = useUnifiedEngineStore((state) => state.refreshRevision);
+  const hasLoadedSpace = useRef(false);
 
   useEffect(() => {
     void getUnifiedSpaceService()
       .refresh()
+      .catch((cause) => setError(operationError(cause, t)))
+      .finally(() => {
+        hasLoadedSpace.current = true;
+      });
+  }, [t]);
+
+  useEffect(() => {
+    if (!hasLoadedSpace.current) return;
+    void getUnifiedSpaceService()
+      .refreshDevices()
       .catch((cause) => setError(operationError(cause, t)));
   }, [refreshRevision, t]);
 
@@ -445,10 +456,8 @@ export function SpacePage({ onBack }: { onBack: () => void }) {
       <AddSyncConnectionSheet
         visible={setupMode !== null}
         initialMode={setupMode ?? 'choose'}
-        legacyLanEligible={false}
         embeddedInHost
         onClose={() => setSetupMode(null)}
-        onOpenLegacyLan={() => {}}
         onConnected={() => {
           setSetupMode(null);
           return true;

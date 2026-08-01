@@ -31,7 +31,7 @@ describe('iOS Share direct-send progress', () => {
 
     expect(rootView).toContain('selectedRecipientIds');
     expect(rootView).toContain('选择设备后才会连接和发送');
-    expect(rootView).toContain('return !selectedRecipientIds.isEmpty');
+    expect(rootView).toContain('item != nil && !selectedRecipientIds.isEmpty');
     expect(rootView).toContain('if recipients.count == 1, let recipient = recipients.first');
     expect(rootView).toContain('selectedRecipientIds = [recipient.deviceId]');
     expect(uploader).toContain('targetDevices: targetDevices');
@@ -93,7 +93,7 @@ describe('iOS Share direct-send progress', () => {
     expect(uploader).toContain('diagnostics.record(stage: .engineStarting');
     expect(uploader).toContain('ShareDiagnosticError(error)');
     expect(rootView).toContain('ShareDiagnosticsStore');
-    expect(rootView).toContain('stage: .networkObserved');
+    expect(diagnostics).not.toContain('networkObserved');
     expect(nativeModule).toContain('getShareDiagnostics');
   });
 });

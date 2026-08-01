@@ -1,7 +1,0 @@
-{
-  "platforms": ["android"],
-  "name": "sms-forwarder",
-  "android": {
-    "modules": ["expo.modules.smsforwarder.SmsForwarderModule"]
-  }
-}

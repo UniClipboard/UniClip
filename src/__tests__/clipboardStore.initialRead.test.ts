@@ -49,7 +49,7 @@ describe('clipboardStore initial clipboard read', () => {
       },
     }));
 
-    jest.doMock('../stores/syncEngineStore', () => ({
+    jest.doMock('../services/P2pClipboardObserver', () => ({
       notifyDeviceClipboardChanged,
     }));
   });
@@ -57,7 +57,7 @@ describe('clipboardStore initial clipboard read', () => {
   afterEach(() => {
     jest.dontMock('../services');
     jest.dontMock('../stores/historyStore');
-    jest.dontMock('../stores/syncEngineStore');
+    jest.dontMock('../services/P2pClipboardObserver');
   });
 
   it('stores the current clipboard content immediately when monitoring starts', async () => {

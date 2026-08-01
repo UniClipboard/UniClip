@@ -10,7 +10,7 @@ import { SelectModeBottomBar } from '@/components/HomeBottomBar';
 import { AddActionsFab } from '@/components/AddActionsFab';
 import { ClipboardCard } from '@/components/ClipboardCard';
 import { ClipboardItem } from '@/types/clipboard';
-import { HomeTopBarArea, HomeSyncBanners } from './HomeChrome';
+import { HomeTopBarArea } from './HomeChrome';
 import { HomeOverlays } from './HomeOverlays';
 import { CHIP_ROW_GRID_METRICS } from './chipRowGridMetrics';
 import { useChipRowCollapse } from './useChipRowCollapse';
@@ -72,7 +72,6 @@ export function HomeCompactView({
       />
 
       <HomeTopBarArea c={c} />
-      <HomeSyncBanners c={c} />
 
       {/*
        * 网格区:筛选 chip 行以 overlay 覆盖在网格顶部(网格内容用 paddingTop 预留同等

@@ -28,14 +28,13 @@ Covers **Android**, **iOS**, and desktop.
   - iOS share extension and custom keyboard extension
   - Automatic background sync
 - Copy-to-sync: on Android, granting `READ_LOGS` enables event-driven monitoring instead of 1 Hz polling (falls back to polling when the permission is absent)
-- Automatic forwarding of SMS verification codes
 
 ### Easy onboarding
 
-- QR pairing: scan a QR code with the camera to quickly add a server
-- First-run onboarding flow
-- Deep links: the `connect` deep link pre-fills the "Add Server" form directly
-- Full internationalization (Simplified Chinese / English)
+- Create or join an encrypted space with an invitation code
+- First-run onboarding can create a space, join a space, or defer setup
+- Upgraded users without a space go directly to Join Space
+- Full internationalization (Simplified Chinese / English / Portuguese / Russian)
 
 ## Screenshots
 
@@ -45,13 +44,13 @@ Covers **Android**, **iOS**, and desktop.
 
 ## Architecture overview
 
-- **Sync core**: the Rust `uc-mobile` crate (UniFFI) is compiled to a static/dynamic library and exposed to the TS layer through the local Expo module `modules/uc-core`, so Android and iOS share the same sync logic. See [docs/RUST_CORE_INTEGRATION.md](./docs/RUST_CORE_INTEGRATION.md).
-- **Real-time push**: SSE (Server-Sent Events) provided by the Rust core drives instant downstream updates — while online the periodic tick becomes a fallback, and on disconnect it falls back to 1 Hz polling.
+- **Sync engine**: `uc-engine` owns spaces, device identity, encryption, and cross-device delivery, with the same behavior on Android and iOS.
+- **Connection model**: devices join the same space using invitation codes, without self-hosted server configuration.
 - **Local storage**: history is persisted to SQLite; on iOS a shared App Group shares data between the main app and its extensions.
 - **Platform-split UI**: every component that differs across platforms is split via Metro platform files —
   - iOS: Liquid Glass / SwiftUI (`@expo/ui`, `expo-glass-effect`, `lucide-react-native`)
   - Android: Material Design 3 / Jetpack Compose (`@expo/ui/jetpack-compose`, Ionicons)
-- **In-house native modules** (`modules/`): `uc-core`, `foreground-service`, `native-timer`, `clipboard-overlay`, `app-group-store`, `android-util`, `qr-scanner`, `shortcut`, `sms-forwarder`.
+- **In-house native modules** (`modules/`): `uc-engine`, `foreground-service`, `native-timer`, `clipboard-overlay`, `app-group-store`, `android-util`, `document-exporter`, `shizuku-clipboard`, and `shortcut`.
 
 ## Development
 

@@ -15,7 +15,7 @@ Pod::Spec.new do |s|
   s.source         = { git: 'https://github.com/UniClipboard/UniClipboard.git' }
   s.static_framework = true
 
-  s.frameworks = 'Security', 'SystemConfiguration', 'UIKit', 'UniformTypeIdentifiers'
+  s.frameworks = 'Network', 'Security', 'SystemConfiguration', 'UIKit', 'UniformTypeIdentifiers'
   s.source_files = [
     'ExtensionSyncCoordinator.swift',
     'NativeSystemHost.swift',

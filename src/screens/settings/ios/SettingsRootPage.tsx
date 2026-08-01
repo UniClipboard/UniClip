@@ -65,7 +65,7 @@ export function SettingsRootPage({
   active?: boolean;
 }) {
   const { t } = useTranslation('settings');
-  const { config, updateConfig, selectSyncConnection } = useSettingsStore();
+  const { config, updateConfig } = useSettingsStore();
   const { setThemeMode } = useTheme();
   const { preference: languagePref, setLanguage } = useAppLanguage();
   const keyboard = useKeyboardStatus();
@@ -79,8 +79,6 @@ export function SettingsRootPage({
 
   if (!config) return null;
 
-  const servers = config.servers ?? [];
-
   const keyboardHint =
     keyboard.state === 'ready'
       ? { value: t('state.enabled', { ns: 'common' }), color: statusGreen }
@@ -90,61 +88,20 @@ export function SettingsRootPage({
           ? { value: t('ios.keyboardHint.notEnabled'), color: undefined }
           : { value: undefined, color: undefined };
 
-  const handleSyncChannel = (value: string) => {
-    if (value === 'p2p') {
-      void selectSyncConnection({ kind: 'p2p' });
-      return;
-    }
-    if (!config.legacyLanEligible || config.activeServerIndex < 0) return;
-    void selectSyncConnection({
-      kind: 'lan',
-      serverIndex: config.activeServerIndex,
-    });
-  };
-
   return (
     <IosSheetPage title={t('action.settings', { ns: 'common' })}>
       <IosSheetForm>
-        {/* ── 服务器 ── */}
-        {config.legacyLanEligible ? (
-          <Section footer={<SwiftUIText>{t('connection.lanDeprecated', { ns: 'settingsSync' })}</SwiftUIText>}>
-            <SettingsNavRow
-              icon="server.rack"
-              iconColor={settingsTileColors.blue}
-              title={t('category.server')}
-              value={t('server.count', { count: servers.length })}
-              onPress={() => onNavigate('servers')}
-            />
-          </Section>
-        ) : null}
-
         {/* ── 同步 ── */}
         <Section
           header={<SwiftUIText>{t('category.sync')}</SwiftUIText>}
           footer={<SwiftUIText>{t('ios.sync.footer')}</SwiftUIText>}
         >
-          {config.legacyLanEligible ? (
-            <HStack spacing={12} modifiers={[frame({ maxWidth: Infinity })]}>
-              <SettingsIconTile systemName="network" color={settingsTileColors.blue} />
-              <Picker
-                label={t('syncChannel.title')}
-                selection={config.syncChannel}
-                onSelectionChange={handleSyncChannel}
-                modifiers={[pickerStyle('segmented')]}
-              >
-                <SwiftUIText modifiers={[tag('p2p')]}>{t('syncChannel.p2p')}</SwiftUIText>
-                <SwiftUIText modifiers={[tag('lan')]}>{t('syncChannel.lan')}</SwiftUIText>
-              </Picker>
-            </HStack>
-          ) : null}
-          {config.syncChannel === 'p2p' ? (
-            <SettingsNavRow
-              icon="person.2"
-              iconColor={settingsTileColors.indigo}
-              title={t('space.title', { ns: 'settingsSync' })}
-              onPress={() => onNavigate('space')}
-            />
-          ) : null}
+          <SettingsNavRow
+            icon="person.2"
+            iconColor={settingsTileColors.indigo}
+            title={t('space.title', { ns: 'settingsSync' })}
+            onPress={() => onNavigate('space')}
+          />
           <IconToggleRow
             icon="arrow.down.doc"
             iconColor={settingsTileColors.green}
@@ -158,13 +115,6 @@ export function SettingsRootPage({
             label={t('ios.sync.autoPush')}
             isOn={config.autoPushLocal}
             onIsOnChange={(v) => updateConfig({ autoPushLocal: v })}
-          />
-          <IconToggleRow
-            icon="bolt.horizontal"
-            iconColor={settingsTileColors.orange}
-            label={t('ios.sync.sse')}
-            isOn={config.enableSse}
-            onIsOnChange={(v) => useSettingsStore.getState().setEnableSse(v)}
           />
         </Section>
 

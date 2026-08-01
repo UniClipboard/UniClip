@@ -5,6 +5,7 @@ const mockP2pStart = jest.fn<() => Promise<void>>();
 const mockP2pStop = jest.fn(async () => undefined);
 const mockP2pIsStarting = jest.fn(() => true);
 const mockP2pResume = jest.fn(async () => undefined);
+const mockP2pSetBackgroundSyncPolicy = jest.fn(async () => undefined);
 const mockP2pCancelPeerRecovery = jest.fn();
 const mockP2pRecoverPeerConnections = jest.fn(async () => ({
   total: 1,
@@ -49,7 +50,7 @@ jest.mock('../stores/settingsStore', () => ({
   useSettingsStore: {
     getState: () => ({
       isLoaded: true,
-      config: { syncChannel: 'p2p' },
+      config: {},
       isTempDisabledBackgroundTasks: false,
     }),
     subscribe: jest.fn(() => jest.fn()),
@@ -74,6 +75,7 @@ jest.mock('../services/UnifiedEngineService', () => ({
     stop: mockP2pStop,
     isStarting: mockP2pIsStarting,
     resume: mockP2pResume,
+    setBackgroundSyncPolicy: mockP2pSetBackgroundSyncPolicy,
     recoverPeerConnections: mockP2pRecoverPeerConnections,
     cancelPeerRecovery: mockP2pCancelPeerRecovery,
   }),

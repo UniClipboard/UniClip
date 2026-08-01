@@ -66,8 +66,8 @@ describe('iOS Share large-file handoff', () => {
     expect(nativeModule).toContain('completeOutboundShareJob');
     expect(nativeModule).toContain('releaseOutboundShareJob');
     expect(nativeModule).toContain('importPayloadFile');
-    expect(nativeModule).toContain('sendOutboundLanFile');
-    expect(nativeModule).toContain('fileURL: sourceURL');
+    expect(nativeModule).not.toContain('sendOutboundLanFile');
+    expect(nativeModule).toContain('copyItem(at: sourceURL, to: temporaryURL)');
     expect(historyStorage).toContain('importPayloadFile');
     expect(historyStorage).not.toContain('const data = await sourceFile.arrayBuffer()');
     expect(app).toContain('resumeOutboundShareHandoffs');

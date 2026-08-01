@@ -15,13 +15,10 @@ import {
   Switch as ComposeSwitch,
   Button,
   TextButton,
-  OutlinedTextField,
-  AlertDialog,
   ModalBottomSheet,
   Spacer,
   HorizontalDivider,
   Text as ComposeText,
-  useNativeState,
 } from '@expo/ui/jetpack-compose';
 import {
   fillMaxWidth,
@@ -30,7 +27,6 @@ import {
   height as heightModifier,
 } from '@expo/ui/jetpack-compose/modifiers';
 import { useSettingsStore } from '@/stores';
-import { extractVerificationCode } from '@/tasks/SmsUploadTask';
 import { useSettingsToast } from './SettingsToastContext';
 import { SettingsSectionItem } from './SettingsSectionItem';
 
@@ -45,14 +41,8 @@ export const DebugSection = memo(function DebugSection() {
     (s) => s.config?.debugUpdateCheckNoLimit ?? false
   );
 
-  const [showSmsTestModal, setShowSmsTestModal] = useState(false);
-  const [smsTestInput, setSmsTestInput] = useState('');
-  const [smsTestResult, setSmsTestResult] = useState<{ title: string; message: string } | null>(
-    null
-  );
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [statsText, setStatsText] = useState('');
-  const smsTestNativeState = useNativeState(smsTestInput);
 
   const handleToggleDebugMode = async (enabled: boolean) => {
     try {
@@ -91,15 +81,6 @@ export const DebugSection = memo(function DebugSection() {
     }
   };
 
-  const handleTestSmsCode = () => {
-    const code = extractVerificationCode(smsTestInput);
-    setSmsTestResult(
-      code
-        ? { title: t('sms.extractSuccessTitle'), message: t('sms.codeResult', { code }) }
-        : { title: t('sms.extractFailTitle'), message: t('sms.extractFailMessage') }
-    );
-  };
-
   const handleShowStatistics = async () => {
     const { useStatisticsStore } = await import('@/stores/statisticsStore');
     const store = useStatisticsStore.getState();
@@ -122,35 +103,6 @@ export const DebugSection = memo(function DebugSection() {
       title={t('debug.title')}
       dialogs={
         <>
-          {/* 测试验证码短信底部表单 */}
-          {showSmsTestModal && (
-            <ModalBottomSheet onDismissRequest={() => setShowSmsTestModal(false)}>
-              <Column modifiers={[paddingAll(24), fillMaxWidth()]}>
-                <ComposeText style={{ typography: 'titleLarge' }}>{t('sms.title')}</ComposeText>
-                <Spacer modifiers={[heightModifier(16)]} />
-                <OutlinedTextField
-                  value={smsTestNativeState}
-                  onValueChange={setSmsTestInput}
-                  modifiers={[fillMaxWidth()]}
-                >
-                  <OutlinedTextField.Placeholder>
-                    <ComposeText>{t('sms.placeholder')}</ComposeText>
-                  </OutlinedTextField.Placeholder>
-                </OutlinedTextField>
-                <Spacer modifiers={[heightModifier(16)]} />
-                <Row modifiers={[fillMaxWidth()]} horizontalArrangement="end">
-                  <TextButton onClick={() => setShowSmsTestModal(false)}>
-                    <ComposeText>{t('action.cancel', { ns: 'common' })}</ComposeText>
-                  </TextButton>
-                  <Spacer modifiers={[widthModifier(8)]} />
-                  <Button onClick={handleTestSmsCode}>
-                    <ComposeText>{t('sms.test')}</ComposeText>
-                  </Button>
-                </Row>
-              </Column>
-            </ModalBottomSheet>
-          )}
-
           {/* 统计信息底部表单 */}
           {showStatsModal && (
             <ModalBottomSheet onDismissRequest={() => setShowStatsModal(false)}>
@@ -170,23 +122,6 @@ export const DebugSection = memo(function DebugSection() {
                 </Row>
               </Column>
             </ModalBottomSheet>
-          )}
-
-          {/* 短信提取结果 */}
-          {smsTestResult && (
-            <AlertDialog onDismissRequest={() => setSmsTestResult(null)}>
-              <AlertDialog.Title>
-                <ComposeText>{smsTestResult.title}</ComposeText>
-              </AlertDialog.Title>
-              <AlertDialog.Text>
-                <ComposeText>{smsTestResult.message}</ComposeText>
-              </AlertDialog.Text>
-              <AlertDialog.ConfirmButton>
-                <TextButton onClick={() => setSmsTestResult(null)}>
-                  <ComposeText>{t('action.confirm', { ns: 'common' })}</ComposeText>
-                </TextButton>
-              </AlertDialog.ConfirmButton>
-            </AlertDialog>
           )}
         </>
       }
@@ -229,27 +164,6 @@ export const DebugSection = memo(function DebugSection() {
             </ListItem.HeadlineContent>
             <ListItem.TrailingContent>
               <ComposeSwitch value={debugUrlScheme} onCheckedChange={handleToggleDebugUrlScheme} />
-            </ListItem.TrailingContent>
-          </ListItem>
-        </>
-      )}
-
-      {debugMode && (
-        <>
-          <HorizontalDivider />
-          <ListItem>
-            <ListItem.HeadlineContent>
-              <ComposeText>{t('sms.title')}</ComposeText>
-            </ListItem.HeadlineContent>
-            <ListItem.TrailingContent>
-              <Button
-                onClick={() => {
-                  setSmsTestInput('');
-                  setShowSmsTestModal(true);
-                }}
-              >
-                <ComposeText>{t('sms.test')}</ComposeText>
-              </Button>
             </ListItem.TrailingContent>
           </ListItem>
         </>

@@ -69,15 +69,6 @@
     "updateNoLimitLabel": "Проверять обновления без ограничений",
     "updateNoLimitDesc": "Если включено, обновления проверяются при каждом запуске, а не раз в день"
   },
-  "sms": {
-    "title": "Тест SMS с кодом",
-    "placeholder": "Введите текст SMS...",
-    "test": "Проверить",
-    "extractSuccessTitle": "Извлечение выполнено",
-    "extractFailTitle": "Ошибка извлечения",
-    "codeResult": "Код: {{code}}",
-    "extractFailMessage": "Не удалось найти код в введённом тексте"
-  },
   "stats": {
     "title": "Статистика",
     "view": "Показать",

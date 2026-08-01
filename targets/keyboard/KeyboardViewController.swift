@@ -8,8 +8,8 @@ import UIKit
 ///
 /// The keyboard's job is clipboard *sync*, not text entry. On appear it:
 ///   1. reads the device pasteboard and pushes anything new to the active
-///      server (**uplink** — "open keyboard = auto-sync"); and
-///   2. pulls the server's latest clipboard and offers it as a one-tap
+///      current space; and
+///   2. receives the space's latest clipboard and offers it as a one-tap
 ///      insert candidate (**downlink** — `insertText`, no pasteboard hop).
 ///
 /// Both halves need **Full Access** (`RequestsOpenAccess=YES` + the user's

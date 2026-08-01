@@ -79,7 +79,6 @@ final class KeyboardRootView: UIView {
 
     private func routeRegionActions() {
         topBarView.onRefresh = { [weak self] in self?.viewStore.send(.refresh) }
-        topBarView.onSelectServer = { [weak self] id in self?.viewStore.send(.selectServer(id)) }
         topBarView.onFeedback = { [weak self] in self?.viewStore.send(.feedback) }
         topBarView.onFilterPresentationChange = { [weak self] presentation in
             self?.cardListView.applyFilterPresentation(presentation)

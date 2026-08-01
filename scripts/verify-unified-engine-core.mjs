@@ -10,7 +10,7 @@ import {
 } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
-const root = resolve(import.meta.dirname, '..');
+const root = resolve(readArg('--root') ?? resolve(import.meta.dirname, '..'));
 const moduleRoot = resolve(root, 'modules/uc-engine');
 const pin = JSON.parse(readFileSync(resolve(moduleRoot, 'core-source.json'), 'utf8'));
 const cacheRoot = resolve(moduleRoot, '.artifacts', pin.version);
@@ -20,6 +20,7 @@ const localMarkerPath = resolve(moduleRoot, '.artifacts/local/local-prepared.jso
 const swiftBindingPath = resolve(moduleRoot, 'ios/Bindings/uc_engine_uniffi.swift');
 const moduleVersion = pin.version.replace(/^(?:core-)?v/, '');
 const versionArtifact = ['version.txt', 'core-version.txt'].find((name) => pin.artifacts[name]);
+const isLocalBuild = pin.artifactSource === 'local-build';
 
 function fail(message) {
   console.error(`Unified engine release verification failed: ${message}`);
@@ -119,6 +120,26 @@ async function currentFrameworkHashes() {
 }
 
 async function recordPrepared() {
+  if (isLocalBuild) {
+    const marker = {
+      version: pin.version,
+      sourceCommit: pin.sourceCommit,
+      sourceStateSha256: requireSha256(pin.sourceStateSha256, 'local source state'),
+      artifacts: Object.fromEntries(
+        await Promise.all(
+          Object.entries(preparedArtifacts()).map(async ([name, filePath]) => [
+            name,
+            await sha256(filePath),
+          ])
+        )
+      ),
+      frameworkFiles: await currentFrameworkHashes(),
+    };
+    mkdirSync(dirname(markerPath), { recursive: true });
+    writeFileSync(markerPath, `${JSON.stringify(marker, null, 2)}\n`);
+    return;
+  }
+
   await verifyDownloads();
   const marker = {
     version: pin.version,
@@ -130,6 +151,11 @@ async function recordPrepared() {
 }
 
 async function verifyPrepared() {
+  if (isLocalBuild) {
+    await verifyLocalBuildPrepared();
+    return;
+  }
+
   await verifyDownloads();
   if (!existsSync(markerPath)) fail('prepared marker is missing; run npm run core:prepare');
   const marker = JSON.parse(readFileSync(markerPath, 'utf8'));
@@ -141,23 +167,7 @@ async function verifyPrepared() {
     fail('prepared marker does not match core-source.json');
   }
 
-  const preparedArtifacts = {
-    'UniClipboardEngine.aar': resolve(
-      moduleRoot,
-      `android/release-maven/app/uniclipboard/uniclipboard-engine/${moduleVersion}/uniclipboard-engine-${moduleVersion}.aar`
-    ),
-    'UniClipboardEngine.pom': resolve(
-      moduleRoot,
-      `android/release-maven/app/uniclipboard/uniclipboard-engine/${moduleVersion}/uniclipboard-engine-${moduleVersion}.pom`
-    ),
-    'runtime-dependencies.txt': resolve(
-      moduleRoot,
-      'android/release-metadata/runtime-dependencies.txt'
-    ),
-    'uc_engine_uniffi.kt': resolve(moduleRoot, 'android/release-metadata/uc_engine_uniffi.kt'),
-    'uc_engine_uniffi.swift': resolve(moduleRoot, 'ios/Bindings/uc_engine_uniffi.swift'),
-  };
-  for (const [name, filePath] of Object.entries(preparedArtifacts)) {
+  for (const [name, filePath] of Object.entries(preparedArtifacts())) {
     await verifyHash(filePath, pin.artifacts[name], `prepared ${name}`);
   }
 
@@ -174,9 +184,64 @@ async function verifyPrepared() {
     fail('module package version does not match core release');
 }
 
+function preparedArtifacts() {
+  return {
+    'UniClipboardEngine.aar': resolve(
+      moduleRoot,
+      `android/release-maven/app/uniclipboard/uniclipboard-engine/${moduleVersion}/uniclipboard-engine-${moduleVersion}.aar`
+    ),
+    'UniClipboardEngine.pom': resolve(
+      moduleRoot,
+      `android/release-maven/app/uniclipboard/uniclipboard-engine/${moduleVersion}/uniclipboard-engine-${moduleVersion}.pom`
+    ),
+    'runtime-dependencies.txt': resolve(
+      moduleRoot,
+      'android/release-metadata/runtime-dependencies.txt'
+    ),
+    'uc_engine_uniffi.kt': resolve(moduleRoot, 'android/release-metadata/uc_engine_uniffi.kt'),
+    'uc_engine_uniffi.swift': resolve(moduleRoot, 'ios/Bindings/uc_engine_uniffi.swift'),
+  };
+}
+
 function requireSha256(value, label) {
   if (!/^[0-9a-f]{64}$/.test(value ?? '')) fail(`${label} must be a lowercase SHA-256 hash`);
   return value;
+}
+
+async function verifyLocalBuildPrepared() {
+  if (!existsSync(markerPath)) {
+    fail('prepared local marker is missing; rebuild the local engine bundle');
+  }
+  const marker = JSON.parse(readFileSync(markerPath, 'utf8'));
+  if (
+    marker.version !== pin.version ||
+    marker.sourceCommit !== pin.sourceCommit ||
+    marker.sourceStateSha256 !== requireSha256(pin.sourceStateSha256, 'local source state')
+  ) {
+    fail('prepared local marker does not match core-source.json');
+  }
+  for (const [name, filePath] of Object.entries(preparedArtifacts())) {
+    const expected = requireSha256(pin.artifacts?.[name], `local source ${name}`);
+    if (marker.artifacts?.[name] !== expected) {
+      fail(`prepared local marker checksum for ${name} does not match core-source.json`);
+    }
+    await verifyHash(filePath, expected, `local prepared ${name}`);
+  }
+
+  const currentHashes = await currentFrameworkHashes();
+  for (const [file, expected] of Object.entries(marker.frameworkFiles ?? {})) {
+    if (currentHashes[file] !== requireSha256(expected, `local XCFramework file ${file}`)) {
+      fail(`local prepared XCFramework file ${file} was modified`);
+    }
+  }
+  if (Object.keys(marker.frameworkFiles ?? {}).length !== frameworkFiles.length) {
+    fail('local prepared marker does not cover every XCFramework input');
+  }
+
+  const packageJson = JSON.parse(readFileSync(resolve(moduleRoot, 'package.json'), 'utf8'));
+  if (packageJson.version !== moduleVersion) {
+    fail('module package version does not match local engine build');
+  }
 }
 
 async function recordLocalPrepared() {

@@ -1,9 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Share, StyleSheet } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
+import { StyleSheet } from 'react-native';
 import * as Device from 'expo-device';
-import * as Haptics from 'expo-haptics';
-import type { InvitationIssued } from 'uc-engine';
 import {
   BottomSheet,
   Button as SwiftUIButton,
@@ -60,43 +57,20 @@ import {
   iosSaturatedButtonPalette,
   iosSecondaryButtonModifiers,
 } from '@/components/ui/iosButtonStyles.ios';
-import { getUnifiedSpaceService, unifiedSpaceUserErrorCode } from '@/services/UnifiedSpaceService';
-import { useUnifiedEngineStore } from '@/stores/unifiedEngineStore';
-import { useUnifiedSpaceStore } from '@/stores/unifiedSpaceStore';
 import { hexToRgba, iosColors, iosDimensions, iosKindTints } from '@/theme/iosDesignTokens';
 import { resolveDefaultDeviceName } from '@/utils/deviceName';
-import {
-  formatInvitationCode,
-  invitationCodeInputValue,
-  isInvitationCodeComplete,
-  normalizeInvitationCodeInput,
-} from '@/utils/invitationCode';
-import type {
-  AddSyncConnectionMode,
-  AddSyncConnectionSheetProps,
-} from './AddSyncConnectionSheet.types';
-
-type Mode = 'choose' | 'create' | 'joinCode' | 'joinDetails' | 'invitation' | 'success';
+import { formatInvitationCode, normalizeInvitationCodeInput } from '@/utils/invitationCode';
+import type { AddSyncConnectionSheetProps } from './AddSyncConnectionSheet.types';
+import { useAddSyncConnectionFlow } from './useAddSyncConnectionFlow';
 
 const SHEET_BACKGROUND = iosColors?.systemGroupedBackground ?? '#F2F2F7';
 const CARD_BACKGROUND = iosColors?.secondarySystemGroupedBackground ?? '#FFFFFF';
 const P2P_TINT = iosKindTints.text;
 const JOIN_TINT = iosKindTints.group;
 const SUCCESS_TINT = iosKindTints.image;
-const LAN_TINT = iosKindTints.file;
 
 function ConnectionSheetHost({ embedded, children }: { embedded: boolean; children: ReactNode }) {
   return embedded ? <Group>{children}</Group> : <Host style={styles.host}>{children}</Host>;
-}
-
-function modeFromInitial(initialMode: AddSyncConnectionMode): Mode {
-  return initialMode === 'join' ? 'joinCode' : initialMode;
-}
-
-function remainingTime(expiresAtMs: number, nowMs: number): string {
-  const seconds = Math.max(0, Math.ceil((expiresAtMs - nowMs) / 1000));
-  const minutes = Math.floor(seconds / 60);
-  return `${minutes}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
 function HeaderCircleButton({
@@ -237,11 +211,9 @@ function ConnectionStatus({
 
 export function AddSyncConnectionSheet({
   visible,
-  legacyLanEligible,
   initialMode = 'choose',
   embeddedInHost = false,
   onClose,
-  onOpenLegacyLan,
   onConnected,
 }: AddSyncConnectionSheetProps) {
   const { t } = useTranslation('settingsSync');
@@ -250,210 +222,59 @@ export function AddSyncConnectionSheet({
     Device.modelName,
     t('space.flow.thisDevice')
   );
-  const [mode, setMode] = useState<Mode>(() => modeFromInitial(initialMode));
   const [sheetDetent, setSheetDetent] = useState<PresentationDetent>('medium');
-  const [deviceName, setDeviceName] = useState(defaultDeviceName);
-  const [passphrase, setPassphrase] = useState('');
-  const [invitationCode, setInvitationCode] = useState('');
-  const [invitation, setInvitation] = useState<InvitationIssued | null>(null);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [nowMs, setNowMs] = useState(Date.now());
-  const mountedRef = useRef(true);
   const invitationCodeRef = useRef<TextFieldRef>(null);
   const deviceNameState = useNativeState(defaultDeviceName);
   const passphraseRef = useRef<SecureFieldRef>(null);
-  const space = useUnifiedSpaceStore();
-  const refreshRevision = useUnifiedEngineStore((state) => state.refreshRevision);
-
-  const errorMessage = (cause: unknown): string => {
-    const code = unifiedSpaceUserErrorCode(cause);
-    if (code) return t(`space.error.${code}`);
-    return t('space.error.operationFailed');
-  };
-
-  const clearInputs = () => {
-    const nextDeviceName = defaultDeviceName;
-    setDeviceName(nextDeviceName);
-    setPassphrase('');
-    setInvitationCode('');
-    setInvitation(null);
-    setError(null);
-    setCopied(false);
-    deviceNameState.value = nextDeviceName;
-    void passphraseRef.current?.clear();
-    void invitationCodeRef.current?.clear();
-  };
-
-  const reset = () => {
-    setMode(modeFromInitial(initialMode));
-    clearInputs();
-  };
-
-  useEffect(() => {
-    if (visible) setMode(modeFromInitial(initialMode));
-  }, [initialMode, visible]);
+  const { state, actions } = useAddSyncConnectionFlow({
+    visible,
+    initialMode,
+    defaultDeviceName,
+    onClose,
+    onConnected,
+    resetNativeFields: (nextDeviceName) => {
+      deviceNameState.value = nextDeviceName;
+      void passphraseRef.current?.clear();
+      void invitationCodeRef.current?.clear();
+    },
+    clearNativePassphrase: () => {
+      void passphraseRef.current?.clear();
+    },
+  });
+  const {
+    mode,
+    deviceName,
+    invitationCode,
+    invitation,
+    pending,
+    error,
+    copied,
+    canSubmitDetails,
+    codeComplete,
+    invitationExpired,
+    invitationTimeRemaining,
+    remoteDeviceName,
+  } = state;
+  const {
+    setDeviceName,
+    setPassphrase,
+    updateInvitationCode,
+    continueFromCode,
+    selectMode,
+    back,
+    close,
+    submitCreate,
+    submitJoin,
+    renewInvitation,
+    copyInvitation,
+    shareInvitation,
+    completeConnection,
+  } = actions;
 
   useEffect(() => {
     const fullHeight = mode === 'invitation' || mode === 'success';
     setSheetDetent(fullHeight ? 'large' : 'medium');
   }, [mode]);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!visible || mode !== 'invitation') return;
-    setNowMs(Date.now());
-    const timer = setInterval(() => setNowMs(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [mode, visible]);
-
-  useEffect(() => {
-    if (!visible || mode !== 'invitation') return;
-    void getUnifiedSpaceService()
-      .refresh()
-      .then((snapshot) => {
-        if (!mountedRef.current || !snapshot.devices.some((device) => !device.isLocal)) return;
-        setMode('success');
-        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      })
-      .catch(() => undefined);
-  }, [mode, refreshRevision, visible]);
-
-  const completeConnection = async () => {
-    if ((await onConnected?.()) === false) return;
-    if (!mountedRef.current) return;
-    reset();
-    onClose();
-  };
-
-  const close = () => {
-    if (pending) return;
-    if (mode === 'invitation' || mode === 'success') {
-      void completeConnection();
-      return;
-    }
-    reset();
-    onClose();
-  };
-
-  const openLegacyLan = () => {
-    reset();
-    onClose();
-    onOpenLegacyLan();
-  };
-
-  const back = () => {
-    setError(null);
-    if (mode === 'joinDetails') {
-      setMode('joinCode');
-      return;
-    }
-    if (initialMode === 'choose') {
-      setMode('choose');
-      return;
-    }
-    close();
-  };
-
-  const selectMode = (nextMode: 'create' | 'joinCode') => {
-    setError(null);
-    setPassphrase('');
-    void passphraseRef.current?.clear();
-    setMode(nextMode);
-  };
-
-  const updateInvitationCode = (value: string) => {
-    const nextValue = invitationCodeInputValue(value);
-    setInvitationCode(nextValue);
-    setError(null);
-    if (nextValue.length === 4 || nextValue.length === 8) void Haptics.selectionAsync();
-  };
-
-  const continueFromCode = () => {
-    if (!isInvitationCodeComplete(invitationCode)) {
-      setError(t('space.error.invitationCodeInvalid'));
-      return;
-    }
-    setError(null);
-    setMode('joinDetails');
-  };
-
-  const submitCreate = async () => {
-    if (pending) return;
-    setPending(true);
-    setError(null);
-    try {
-      const created = await getUnifiedSpaceService().createSpace(deviceName, passphrase);
-      setInvitation(created.invitation);
-      setNowMs(Date.now());
-      setMode('invitation');
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (cause) {
-      setError(errorMessage(cause));
-    } finally {
-      setPending(false);
-    }
-  };
-
-  const submitJoin = async () => {
-    if (pending) return;
-    setPending(true);
-    setError(null);
-    try {
-      await getUnifiedSpaceService().joinSpace(
-        formatInvitationCode(invitationCode),
-        deviceName,
-        passphrase
-      );
-      setMode('success');
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (cause) {
-      setError(errorMessage(cause));
-    } finally {
-      setPending(false);
-    }
-  };
-
-  const renewInvitation = async () => {
-    if (pending) return;
-    setPending(true);
-    setError(null);
-    try {
-      setInvitation(await getUnifiedSpaceService().issueInvitation());
-      setNowMs(Date.now());
-      setCopied(false);
-    } catch (cause) {
-      setError(errorMessage(cause));
-    } finally {
-      setPending(false);
-    }
-  };
-
-  const copyInvitation = async () => {
-    if (!invitation) return;
-    await Clipboard.setStringAsync(invitation.invitationCode);
-    setCopied(true);
-    void Haptics.selectionAsync();
-  };
-
-  const shareInvitation = async () => {
-    if (!invitation) return;
-    await Share.share({
-      message: t('space.flow.shareMessage', { code: invitation.invitationCode }),
-    });
-  };
-
-  const canSubmitDetails = deviceName.trim().length > 0 && passphrase.trim().length > 0;
-  const codeComplete = isInvitationCodeComplete(invitationCode);
-  const invitationExpired = invitation ? invitation.expiresAtMs <= nowMs : false;
-  const remoteDevice = space.devices.find((device) => !device.isLocal);
   const title =
     mode === 'create'
       ? t('space.create.title')
@@ -520,20 +341,6 @@ export function AddSyncConnectionSheet({
                     onPress={() => selectMode('joinCode')}
                   />
                 </Section>
-                {legacyLanEligible ? (
-                  <Section
-                    title={t('connection.compatibilityTitle')}
-                    footer={<SwiftUIText>{t('connection.lanDeprecated')}</SwiftUIText>}
-                  >
-                    <ConnectionChoice
-                      title={t('connection.legacyLanAction')}
-                      description={t('connection.legacyLanDescription')}
-                      systemImage="server.rack"
-                      color={LAN_TINT}
-                      onPress={openLegacyLan}
-                    />
-                  </Section>
-                ) : null}
               </List>
             ) : null}
 
@@ -720,7 +527,7 @@ export function AddSyncConnectionSheet({
                       {invitationExpired
                         ? t('space.flow.expired')
                         : t('space.flow.expiresIn', {
-                            time: remainingTime(invitation.expiresAtMs, nowMs),
+                            time: invitationTimeRemaining,
                           })}
                     </SwiftUIText>
                   </HStack>
@@ -795,7 +602,7 @@ export function AddSyncConnectionSheet({
                 <Section>
                   <ConnectionStatus
                     localName={deviceName}
-                    remoteName={remoteDevice?.displayName ?? t('space.flow.otherDevice')}
+                    remoteName={remoteDeviceName ?? t('space.flow.otherDevice')}
                     complete
                   />
                   <VStack

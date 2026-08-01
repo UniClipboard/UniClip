@@ -21,12 +21,10 @@ import { SettingsSubScreen } from '@/screens/settings/SettingsSubScreen';
 import type { UpdateCheckResult } from '@/services/UpdateService';
 
 export type SettingsSubSection =
-  | 'sync'
   | 'space'
   | 'history'
   | 'background'
   | 'appearance'
-  | 'sms'
   | 'storage'
   | 'about'
   | 'developer';
@@ -54,12 +52,7 @@ function MainScreen() {
   return <HomeView onOpenSettings={openSettings} onOpenAbout={openAbout} />;
 }
 
-/**
- * 首启引导容器:落库 onboardingCompleted,再把用户送到 Main。
- * 扫码成功(paired)时凭据已由 QrScannerModal 写入 pendingConnectStore,HomeView 挂载后
- * 自行消费并弹出预填「添加服务器」表单——无需再中转整个 Settings 面板(那会多叠一层 sheet)。
- * 暂不配对 → 同样进 Main,无 pendingConnect 即不弹表单。
- */
+/** 首启引导容器:落库 onboardingCompleted,再把用户送到 Main。 */
 function OnboardingGate() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'Onboarding'>>();
   const updateConfig = useSettingsStore((s) => s.updateConfig);
@@ -75,19 +68,14 @@ export const AppNavigator = () => {
   const { t } = useTranslation('home');
   const config = useSettingsStore((s) => s.config);
 
-  // 首启引导:仅对「未完成引导且尚无任何服务器」的全新安装展示;
-  // 既有用户(已配置 server)自动跳过,无需 schema 迁移。
-  const showOnboarding =
-    !!config && !config.onboardingCompleted && (config.servers?.length ?? 0) === 0;
+  const showOnboarding = !!config && !config.onboardingCompleted;
 
   // 子页面标题在组件内按当前语言构建(而非模块级常量),切换语言即时生效
   const subScreenTitles: Record<SettingsSubSection, string> = {
-    sync: t('nav.sync'),
     space: t('space.title', { ns: 'settingsSync' }),
     history: t('nav.history'),
     background: t('nav.background'),
     appearance: t('nav.appearance'),
-    sms: t('nav.sms'),
     storage: t('nav.storage'),
     about: t('nav.about'),
     developer: t('nav.developer'),

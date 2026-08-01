@@ -5,11 +5,12 @@ import {
   startNetworkContextMonitor,
   stopNetworkContextMonitor,
 } from '@/services/networkContext';
-import { notifyNetworkChanged } from '@/stores/syncEngineStore';
 import { isTailscaleActive } from 'android-util';
 
-jest.mock('@/stores/syncEngineStore', () => ({
-  notifyNetworkChanged: jest.fn(),
+const mockBackgroundServiceRefresh = jest.fn<() => Promise<void>>(async () => undefined);
+
+jest.mock('@/services/BackgroundServiceManager', () => ({
+  getBackgroundServiceManager: () => ({ refresh: mockBackgroundServiceRefresh }),
 }));
 
 describe('networkContext', () => {
@@ -101,7 +102,7 @@ describe('networkContext', () => {
     expect(applyNetInfoState(state)).toBe(false);
   });
 
-  it('notifies the sync engine when the subscribed network state changes', () => {
+  it('refreshes background policy when the subscribed network state changes', () => {
     let listener: ((state: any) => void) | undefined;
     (NetInfo.addEventListener as jest.Mock).mockImplementation((nextListener) => {
       listener = nextListener;
@@ -116,6 +117,6 @@ describe('networkContext', () => {
       details: { ssid: 'Office WiFi' },
     });
 
-    expect(notifyNetworkChanged).toHaveBeenCalledTimes(1);
+    expect(mockBackgroundServiceRefresh).toHaveBeenCalledTimes(1);
   });
 });

@@ -10,10 +10,8 @@ import UniClipboardModels
 /// overflow bodies). Lives in the App Group container so both the main app and
 /// the Share Extension can read/write the same files.
 ///
-/// Files are named by §2.8 `profileId` (`"<Type>-<HASH>"`) — same form
-/// `HistoryRecord.profileId` produces and `SyncClipboardClient.getHistoryPayload`
-/// consumes. Lookup is therefore stable across the device-local round-trip
-/// without any extra mapping table.
+/// Files are named by `profileId` (`"<Type>-<HASH>"`), matching the local
+/// history key. Lookup is stable without an extra mapping table.
 ///
 /// Eviction is LRU by file mtime: every read touches the file's modification
 /// date, and `write` runs an inline sweep that deletes the oldest files until
@@ -23,8 +21,8 @@ import UniClipboardModels
 /// Concurrency: an `actor` rather than a `@MainActor` class so the Share
 /// Extension can use it without bouncing through the main thread. A small
 /// internal `Semaphore` bounds concurrent in-flight fetches to 3 — enough
-/// to overlap a handful of pulls without saturating the link, low enough
-/// that a burst of history-sync entries can't queue dozens of TCP streams.
+/// to overlap a handful of fetches without saturating the link, low enough
+/// that a burst of history entries can't queue dozens of network requests.
 /// Concurrent `fetchAndStore` callers for the same `profileId` dedup: the
 /// first caller's `Task` is stored in `pending` and subsequent callers
 /// `await` its value instead of starting a second download.

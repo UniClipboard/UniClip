@@ -1,7 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useWindowDimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useTranslation } from 'react-i18next';
 import { Host, BottomSheet, Group, VStack, ZStack } from '@expo/ui/swift-ui';
 import {
   presentationDetents,
@@ -14,16 +13,9 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 
 import { iosAccentColor } from '@/theme/iosDesignTokens';
-import { AddServerSheet } from '@/components';
-import type { AddServerSaveData } from '@/components/AddServerSheet.types';
-import { useSettingsStore, usePendingConnectStore } from '@/stores';
-import {
-  buildServerConfigFromAddServerData,
-  getAddServerInitialData,
-} from './settings/serverFormAdapter';
+import { useSettingsStore } from '@/stores';
 import type { SettingsPage } from './settings/ios/types';
 import { SettingsRootPage } from './settings/ios/SettingsRootPage';
-import { ServerListPage } from './settings/ios/ServerListPage';
 import { StoragePage } from './settings/ios/StoragePage';
 import { KeyboardPage } from './settings/ios/KeyboardPage';
 import { SharePage } from './settings/ios/SharePage';
@@ -67,42 +59,16 @@ function SubPageSlide({
  * push/pop parallax, mimicking a native navigation stack.
  */
 export const SettingsScreen = () => {
-  const { t } = useTranslation('settings');
   const navigation = useNavigation();
   const { width } = useWindowDimensions();
-  const { config, isLoaded, loadConfig, addServer, updateServer } = useSettingsStore();
+  const { config, isLoaded, loadConfig } = useSettingsStore();
 
   const [presented, setPresented] = useState(true);
   const [page, setPage] = useState<SettingsPage>('root');
-  const [showServerForm, setShowServerForm] = useState(false);
-  const [editingServerIndex, setEditingServerIndex] = useState<number | null>(null);
-  // 扫码/深链预填数据（新增服务器场景，区别于 editingServer 的编辑场景）
-  const [prefillData, setPrefillData] = useState<AddServerSaveData | undefined>(undefined);
-  const consumePendingConnect = usePendingConnectStore((s) => s.consume);
-  const pendingConnectIntent = usePendingConnectStore((s) => s.intent);
-  const legacyLanEligible = config?.legacyLanEligible ?? false;
 
   useEffect(() => {
     if (!isLoaded) loadConfig();
   }, [isLoaded, loadConfig]);
-
-  // 扫码/深链凭据（pendingConnectStore）消费：切到服务器子页并弹出预填「添加服务器」表单。
-  // Android 侧对应逻辑在 ServerModals；iOS 设置页用本地 state 驱动子页，故在此消费。
-  useEffect(() => {
-    if (!isLoaded || !pendingConnectIntent || showServerForm) return;
-    const intent = consumePendingConnect();
-    if (!intent) return;
-    if (!legacyLanEligible) return;
-    setEditingServerIndex(null);
-    setPrefillData({
-      name: intent.label ?? '',
-      urls: intent.urls && intent.urls.length > 0 ? intent.urls : [intent.url],
-      username: intent.user,
-      password: intent.pwd,
-    });
-    setPage('servers');
-    setShowServerForm(true);
-  }, [pendingConnectIntent, showServerForm, consumePendingConnect, isLoaded, legacyLanEligible]);
 
   const handleDismiss = useCallback(
     (p: boolean) => {
@@ -115,44 +81,6 @@ export const SettingsScreen = () => {
   );
 
   const backToRoot = useCallback(() => setPage('root'), []);
-
-  const servers = config?.servers ?? [];
-  const editingServer = editingServerIndex !== null ? servers[editingServerIndex] : undefined;
-  const serverFormInitialData = useMemo(
-    () => (editingServer ? getAddServerInitialData(editingServer) : prefillData),
-    [editingServer, prefillData]
-  );
-
-  const openAddServer = useCallback(() => {
-    if (!legacyLanEligible) return;
-    setEditingServerIndex(null);
-    setShowServerForm(true);
-  }, [legacyLanEligible]);
-
-  const openEditServer = useCallback((index: number) => {
-    setEditingServerIndex(index);
-    setShowServerForm(true);
-  }, []);
-
-  const closeServerForm = useCallback(() => {
-    setShowServerForm(false);
-    setEditingServerIndex(null);
-    setPrefillData(undefined);
-  }, []);
-
-  const handleSaveServer = useCallback(
-    async (data: AddServerSaveData) => {
-      if (editingServerIndex !== null) {
-        const existing = servers[editingServerIndex];
-        await updateServer(editingServerIndex, buildServerConfigFromAddServerData(data, existing));
-      } else {
-        const result = await addServer(buildServerConfigFromAddServerData(data));
-        if (!result.ok) return;
-      }
-      closeServerForm();
-    },
-    [editingServerIndex, servers, updateServer, addServer, closeServerForm]
-  );
 
   if (!isLoaded || !config) return null;
 
@@ -175,13 +103,6 @@ export const SettingsScreen = () => {
                 <SettingsRootPage onNavigate={setPage} active={atRoot} />
               </VStack>
 
-              <SubPageSlide active={page === 'servers'} width={width}>
-                <ServerListPage
-                  onBack={backToRoot}
-                  onAddServer={openAddServer}
-                  onEditServer={openEditServer}
-                />
-              </SubPageSlide>
               <SubPageSlide active={page === 'space'} width={width}>
                 <SpacePage onBack={backToRoot} />
               </SubPageSlide>
@@ -201,15 +122,6 @@ export const SettingsScreen = () => {
                 <DiagnosticsPage onBack={backToRoot} />
               </SubPageSlide>
             </ZStack>
-
-            <AddServerSheet
-              visible={showServerForm && legacyLanEligible}
-              title={editingServerIndex !== null ? t('server.editTitle') : t('server.addTitle')}
-              initialData={serverFormInitialData}
-              embeddedInHost
-              onClose={closeServerForm}
-              onSave={handleSaveServer}
-            />
           </VStack>
         </Group>
       </BottomSheet>

@@ -1,8 +1,6 @@
 import { requireOptionalNativeModule } from 'expo-modules-core';
 
 interface AppGroupStoreNativeModule {
-  saveServers(json: string): Promise<void>;
-  getServers(): Promise<string>;
   saveSettings(json: string): Promise<void>;
   getSettings(): Promise<string>;
   getContainerUrl(): Promise<string | null>;
@@ -13,24 +11,14 @@ interface AppGroupStoreNativeModule {
   deletePayload(profileId: string): Promise<void>;
   clearPayloads(): Promise<void>;
   getPayloadStats(): Promise<PayloadStats>;
-  getLastSyncedHash(): Promise<string | null>;
-  getLastSyncedContentId(): Promise<string | null>;
-  getLiveUrl(configId: string): Promise<string | null>;
-  saveLiveUrl(configId: string, url: string | null): Promise<void>;
   migrateLegacyContainer(): Promise<LegacyMigrationResult>;
+  clearLegacyLanConfiguration(): Promise<void>;
   getKeyboardStatus(): Promise<NativeKeyboardStatus>;
   getPasteboardChangeCount(): number;
   claimOutboundShareJobs(): Promise<OutboundShareJobDTO[]>;
   completeOutboundShareJob(id: string): Promise<void>;
   releaseOutboundShareJob(id: string): Promise<void>;
   importPayloadFile(profileId: string, sourceUri: string): Promise<string | null>;
-  sendOutboundLanFile(
-    sourceUri: string,
-    displayName: string,
-    profileHash: string,
-    byteCount: number,
-    serverId: string | null
-  ): Promise<void>;
 }
 
 interface NativeKeyboardStatus {
@@ -41,22 +29,9 @@ interface NativeKeyboardStatus {
 
 const NativeModule = requireOptionalNativeModule<AppGroupStoreNativeModule>('AppGroupStore');
 
-export interface ServerConfigDTO {
-  id: string;
-  name?: string;
-  urls: string[];
-  username: string;
-  password: string;
-}
-
-export interface ServerConfigListDTO {
-  configs: ServerConfigDTO[];
-  activeConfigId: string | null;
-}
-
 export interface AppSettingsDTO {
-  syncChannel?: 'p2p' | 'lan';
-  trustInsecureCert?: boolean;
+  autoApplyRemoteChanges?: boolean;
+  /** Accepted while importing settings written by older app versions. */
   autoApplyServerChanges?: boolean;
   autoPushDeviceChanges?: boolean;
   prefetchAttachments?: boolean;
@@ -145,7 +120,6 @@ export interface ShareDiagnosticEventDTO {
 export interface ShareDiagnosticAttemptDTO {
   id: string;
   startedAtMs: number;
-  channel: 'p2p' | 'lan';
   itemKind: 'text' | 'image' | 'file';
   byteCount: number;
   events: ShareDiagnosticEventDTO[];
@@ -162,13 +136,10 @@ export interface OutboundShareJobDTO {
   displayName: string;
   byteCount: number;
   mimeType: string | null;
-  channel: 'p2p' | 'lan';
-  serverId: string | null;
   targetDeviceIds: string[];
   createdAtMs: number;
 }
 
-const EMPTY_SERVERS: ServerConfigListDTO = { configs: [], activeConfigId: null };
 const EMPTY_MIGRATION: LegacyMigrationResult = { migrated: false, keys: 0 };
 const EMPTY_PAYLOAD_STATS: PayloadStats = { count: 0, totalSize: 0 };
 
@@ -179,15 +150,6 @@ function parseNativeJson<T>(json: string | undefined, fallback: T): T {
   } catch {
     return fallback;
   }
-}
-
-export function saveServers(list: ServerConfigListDTO): Promise<void> {
-  return NativeModule?.saveServers(JSON.stringify(list)) ?? Promise.resolve();
-}
-
-export async function getServers(): Promise<ServerConfigListDTO> {
-  const json = await NativeModule?.getServers();
-  return parseNativeJson(json, EMPTY_SERVERS);
 }
 
 export function saveSettings(settings: AppSettingsDTO): Promise<void> {
@@ -262,45 +224,13 @@ export function importPayloadFile(profileId: string, sourceUri: string): Promise
   return NativeModule.importPayloadFile(profileId, sourceUri);
 }
 
-export function sendOutboundLanFile(
-  sourceUri: string,
-  displayName: string,
-  profileHash: string,
-  byteCount: number,
-  serverId: string | null
-): Promise<void> {
-  if (typeof NativeModule?.sendOutboundLanFile !== 'function') {
-    return Promise.reject(new Error('App Group store is unavailable'));
-  }
-  return NativeModule.sendOutboundLanFile(sourceUri, displayName, profileHash, byteCount, serverId);
-}
-
-export function getLastSyncedHash(): Promise<string | null> {
-  return NativeModule?.getLastSyncedHash() ?? Promise.resolve(null);
-}
-
-/**
- * The opaque server identity (`blake3v1:<hex>`) paired with the App Group
- * last-synced hash watermark, or null when absent (legacy server, freshly
- * pushed and not re-learned, or no extension activity). Written verbatim by
- * the keyboard extension once it learns the identity from a GET; the main
- * app reads it alongside {@link getLastSyncedHash} so its SyncEngine prefers
- * contentId over hash for dedup (stable across server re-encodes).
- */
-export function getLastSyncedContentId(): Promise<string | null> {
-  return NativeModule?.getLastSyncedContentId() ?? Promise.resolve(null);
-}
-
-export function getLiveUrl(configId: string): Promise<string | null> {
-  return NativeModule?.getLiveUrl(configId) ?? Promise.resolve(null);
-}
-
-export function saveLiveUrl(configId: string, url: string | null): Promise<void> {
-  return NativeModule?.saveLiveUrl(configId, url) ?? Promise.resolve();
-}
-
 export function migrateLegacyContainer(): Promise<LegacyMigrationResult> {
   return NativeModule?.migrateLegacyContainer() ?? Promise.resolve(EMPTY_MIGRATION);
+}
+
+export function clearLegacyLanConfiguration(): Promise<void> {
+  if (typeof NativeModule?.clearLegacyLanConfiguration !== 'function') return Promise.resolve();
+  return NativeModule.clearLegacyLanConfiguration();
 }
 
 const EMPTY_KEYBOARD_STATUS: KeyboardStatusDTO = {

@@ -22,106 +22,44 @@ interface EventRule {
 }
 
 const EVENT_RULES: EventRule[] = [
-  // Sync engine lifecycle and transport.
-  { pattern: /\[SyncEngineStore\] Starting SyncEngine/, eventCode: 'sync.engine_starting' },
+  // P2P engine lifecycle and peer recovery.
   {
-    pattern: /\[SyncEngineStore\] Active server:.*\b(?:none|null|undefined)\b/i,
-    eventCode: 'sync.active_server_missing',
-  },
-  { pattern: /\[SyncEngineStore\] Active server:/, eventCode: 'sync.active_server_available' },
-  { pattern: /\[SyncEngine\] start\b/, eventCode: 'sync.started' },
-  {
-    pattern: /\[SyncEngine\] engineInit failed:/,
-    eventCode: 'sync.engine_init_failed',
-  },
-  { pattern: /\[SyncEngine\] engineInit @/, eventCode: 'sync.engine_initialized' },
-  {
-    pattern: /\[SyncEngine\] engineSetServer failed:/,
-    eventCode: 'sync.server_configuration_failed',
-  },
-  { pattern: /\[SyncEngine\] engineSetServer @/, eventCode: 'sync.server_configured' },
-  {
-    pattern: /\[SyncEngine\] engineApplyStaged threw:/,
-    eventCode: 'sync.apply_staged_failed',
+    pattern: /\[UnifiedEngineService\] Failed to start the P2P engine:/,
+    eventCode: 'p2p.engine_start_failed',
   },
   {
-    pattern: /\[SyncEngine\] engineAcknowledgeLoopDetected threw:/,
-    eventCode: 'sync.loop_acknowledge_failed',
+    pattern: /\[UnifiedEngineService\] Failed to stop the P2P engine:/,
+    eventCode: 'p2p.engine_stop_failed',
   },
   {
-    pattern: /\[SyncEngine\] engineSetSettings threw:/,
-    eventCode: 'sync.settings_update_failed',
+    pattern: /\[UnifiedEngineService\] Failed to read a P2P engine event:/,
+    eventCode: 'p2p.event_read_failed',
   },
   {
-    pattern: /\[SyncEngine\] engineHandleNetworkRouteChanged threw:/,
-    eventCode: 'sync.network_route_update_failed',
+    pattern: /\[UnifiedEngineService\] A P2P event subscriber failed:/,
+    eventCode: 'p2p.subscriber_failed',
+  },
+  {
+    pattern: /\[UnifiedEngineService\] The P2P engine reported a fatal failure:/,
+    eventCode: 'p2p.fatal_failure',
+  },
+  {
+    pattern: /\[UnifiedEngineService\] The P2P engine failed to /,
+    eventCode: 'p2p.lifecycle_failed',
+  },
+  {
+    pattern: /\[UnifiedEngineService\] Peer recovery refresh failed:/,
+    eventCode: 'p2p.peer_recovery_failed',
     fallbackReason: 'network_unreachable',
   },
   {
-    pattern: /\[SyncEngine\] SSE route resolve failed:/,
-    eventCode: 'sync.sse_route_resolve_failed',
+    pattern: /\[BackgroundServiceManager\] Failed to recover P2P peer connections:/,
+    eventCode: 'p2p.background_peer_recovery_failed',
     fallbackReason: 'network_unreachable',
   },
   {
-    pattern: /\[SyncEngine\] SSE subscribe threw:/,
-    eventCode: 'sync.sse_subscribe_failed',
-    fallbackReason: 'network_unreachable',
-  },
-  { pattern: /\[SyncEngine\] SSE subscribing /, eventCode: 'sync.sse_subscribing' },
-  { pattern: /\[SyncEngine\] SSE hello /, eventCode: 'sync.sse_connected' },
-  { pattern: /\[SyncEngine\] SSE update -> pull/, eventCode: 'sync.sse_update_received' },
-  { pattern: /\[SyncEngine\] SSE resync ->/, eventCode: 'sync.sse_resync_received' },
-  {
-    pattern: /\[SyncEngine\] SSE unavailable after /,
-    eventCode: 'sync.sse_fallback_to_polling',
-    fallbackReason: 'network_unreachable',
-  },
-  {
-    pattern: /\[SyncEngine\] SSE disconnected /,
-    eventCode: 'sync.sse_disconnected',
-    fallbackReason: 'network_unreachable',
-  },
-  {
-    pattern: /\[SyncEngine\] server unreachable /,
-    eventCode: 'sync.server_offline',
-    fallbackReason: 'network_unreachable',
-  },
-  { pattern: /\[SyncEngine\] server reachable again/, eventCode: 'sync.server_online' },
-  {
-    pattern: /\[SyncEngine\] op error \(auth\):/,
-    eventCode: 'sync.authentication_failed',
-    fallbackReason: 'authentication',
-  },
-  { pattern: /\[SyncEngine\] op error:/, eventCode: 'sync.operation_failed' },
-  {
-    pattern: /\[SyncEngine\] buildLocalContent failed:/,
-    eventCode: 'sync.local_content_build_failed',
-  },
-  {
-    pattern: /\[SyncEngine\] applyToDevice failed:/,
-    eventCode: 'sync.apply_to_device_failed',
-  },
-  {
-    pattern: /\[SyncEngine\] applied server->device:/,
-    eventCode: 'sync.apply_to_device_succeeded',
-  },
-  {
-    pattern: /\[SyncEngine(?:Store)?\] getDeviceClipboard failed:/,
-    eventCode: 'sync.device_clipboard_read_failed',
-  },
-  {
-    pattern: /\[SyncEngine\] Failed to write applied image to system clipboard:/,
-    eventCode: 'sync.image_clipboard_write_failed',
-  },
-  {
-    pattern: /\[SyncEngine\] Failed to add to history:/,
-    eventCode: 'sync.history_add_failed',
-    fallbackReason: 'storage',
-  },
-  {
-    pattern: /\[SyncEngine\] Failed to mark pushed history item:/,
-    eventCode: 'sync.history_mark_pushed_failed',
-    fallbackReason: 'storage',
+    pattern: /\[P2pClipboardObserver\] Clipboard observation failed; kept local:/,
+    eventCode: 'p2p.clipboard_observation_failed',
   },
 
   // Clipboard observation and writes.
@@ -189,46 +127,6 @@ const EVENT_RULES: EventRule[] = [
       /\[ClipboardMonitor\] Failed to (?:load|persist|clear) (?:persisted hash|denied changeCount):/,
     eventCode: 'clipboard.monitor_state_failed',
     fallbackReason: 'storage',
-  },
-
-  // Legacy sync service paths still active for some backends.
-  {
-    pattern: /\[ClipboardSyncService\].*Silent fetch failed:/,
-    eventCode: 'sync.fetch_failed',
-  },
-  {
-    pattern: /\[ClipboardSyncService\].*foreground history refresh failed:/,
-    eventCode: 'sync.history_refresh_failed',
-    fallbackReason: 'storage',
-  },
-  {
-    pattern: /\[ClipboardSyncService\].*Failed to (?:initialize|destroy) SyncManager:/,
-    eventCode: 'sync.manager_lifecycle_failed',
-  },
-  {
-    pattern: /\[ClipboardSyncService\].*Failed to start polling:/,
-    eventCode: 'sync.polling_start_failed',
-  },
-  {
-    pattern: /\[ClipboardSyncService\].*Auto-download failed:/,
-    eventCode: 'sync.auto_download_failed',
-  },
-  {
-    pattern: /\[ClipboardSyncService\].*Failed to add (?:to history|history item before download):/,
-    eventCode: 'sync.history_add_failed',
-    fallbackReason: 'storage',
-  },
-  {
-    pattern: /\[ClipboardSyncService\].*(?:Auto-copy|Copy) failed:/,
-    eventCode: 'sync.auto_copy_failed',
-  },
-  {
-    pattern: /\[ClipboardSyncService\].*Auto-download completed/,
-    eventCode: 'sync.auto_download_succeeded',
-  },
-  {
-    pattern: /\[ClipboardSyncService\].*Copied to local clipboard/,
-    eventCode: 'sync.auto_copy_succeeded',
   },
 
   // History and local persistence.
@@ -316,22 +214,6 @@ const EVENT_RULES: EventRule[] = [
   {
     pattern: /\[HomeView\] saveAndPush failed:/,
     eventCode: 'home.save_and_push_failed',
-  },
-
-  // Unscoped shared-service failures that otherwise appear as `general`.
-  {
-    pattern: /Failed to add auth header:/,
-    eventCode: 'network.authorization_header_failed',
-    fallbackReason: 'authentication',
-  },
-  {
-    pattern: /\[APIClient\] HTTP Error - Status:/,
-    eventCode: 'network.http_error',
-  },
-  {
-    pattern: /Failed to (?:save|load|delete) credentials:/,
-    eventCode: 'authentication.credential_storage_failed',
-    fallbackReason: 'storage',
   },
 ];
 

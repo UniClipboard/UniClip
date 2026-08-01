@@ -26,7 +26,6 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
 import { useSettingsStore } from '@/stores';
 import { APP_VERSION } from '@/constants';
-import type { ServerConfig } from '@/types/api';
 import type { SettingsSubSection } from '@/navigation/AppNavigator';
 import { settingsStyles as styles } from './settings/settingsStyles';
 import { SettingsToastProvider, useSettingsToast } from './settings/SettingsToastContext';
@@ -34,25 +33,14 @@ import { SettingsSectionItem } from './settings/SettingsSectionItem';
 
 // XML 矢量图标(Material Icons 路径),由 @expo/ui Icon 在原生侧解析渲染。
 const ICONS: Record<SettingsSubSection | 'chevron', number> = {
-  sync: require('../assets/icons/dns.xml'),
   space: require('../assets/icons/groups.xml'),
   history: require('../assets/icons/history.xml'),
   background: require('../assets/icons/layers.xml'),
-  sms: require('../assets/icons/sms.xml'),
   appearance: require('../assets/icons/palette.xml'),
   storage: require('../assets/icons/storage.xml'),
   about: require('../assets/icons/info.xml'),
   developer: require('../assets/icons/code.xml'),
   chevron: require('../assets/icons/chevron_right.xml'),
-};
-
-const getServerDisplayName = (config: ServerConfig): string => {
-  if (config.name) return config.name;
-  try {
-    return new URL(config.url).hostname;
-  } catch {
-    return config.url;
-  }
 };
 
 /** 分类入口行:图标 + 标题 + 动态摘要 + chevron。 */
@@ -150,26 +138,9 @@ const ClipboardSyncDirectionGroup = memo(function ClipboardSyncDirectionGroup() 
   );
 });
 
-/** 「同步」组:P2P Space / 兼容设置 / 历史记录。 */
+/** 「同步」组:P2P Space / 历史记录。 */
 const SyncHubGroup = memo(function SyncHubGroup({ iconTint, onNavigate }: HubGroupProps) {
   const { t } = useTranslation('settings');
-  const legacyLanEligible = useSettingsStore((s) => s.config?.legacyLanEligible ?? false);
-  const serverSummary = useSettingsStore((s) => {
-    const c = s.config;
-    if (!c?.legacyLanEligible) return t('connection.p2pDescription', { ns: 'settingsSync' });
-    if (c.syncChannel === 'p2p') {
-      return t('connection.p2pDescription', { ns: 'settingsSync' });
-    }
-    const servers = c?.servers ?? [];
-    if (servers.length === 0) return t('hub.summary.serverNone');
-    const active = servers[c?.activeServerIndex ?? -1];
-    return active
-      ? t('hub.summary.serverActive', {
-          name: getServerDisplayName(active),
-          count: servers.length,
-        })
-      : t('hub.summary.serverCount', { count: servers.length });
-  });
   const historySummary = useSettingsStore((s) =>
     t('hub.summary.history', { count: s.config?.maxHistoryItems ?? 1000 })
   );
@@ -183,18 +154,6 @@ const SyncHubGroup = memo(function SyncHubGroup({ iconTint, onNavigate }: HubGro
         iconTint={iconTint}
         onNavigate={onNavigate}
       />
-      {legacyLanEligible ? (
-        <>
-          <HorizontalDivider />
-          <HubRow
-            section="sync"
-            label={t('hub.rows.serverLabel')}
-            summary={serverSummary}
-            iconTint={iconTint}
-            onNavigate={onNavigate}
-          />
-        </>
-      ) : null}
       <HorizontalDivider />
       <HubRow
         section="history"
@@ -207,7 +166,7 @@ const SyncHubGroup = memo(function SyncHubGroup({ iconTint, onNavigate }: HubGro
   );
 });
 
-/** 「通用」组:后台运行 / 短信转发 / 外观 / 存储。 */
+/** 「通用」组:后台运行 / 外观 / 存储。 */
 const GeneralHubGroup = memo(function GeneralHubGroup({ iconTint, onNavigate }: HubGroupProps) {
   const { t } = useTranslation('settings');
   const { themeMode } = useTheme();
@@ -217,9 +176,6 @@ const GeneralHubGroup = memo(function GeneralHubGroup({ iconTint, onNavigate }: 
       ? t('hub.summary.backgroundOn')
       : t('hub.summary.backgroundOff');
   });
-  const smsSummary = useSettingsStore((s) =>
-    s.config?.enableSmsForwarding ?? false ? t('hub.summary.smsOn') : t('hub.summary.smsOff')
-  );
   const appearanceSummary =
     themeMode === 'light'
       ? t('appearance.mode.light')
@@ -233,14 +189,6 @@ const GeneralHubGroup = memo(function GeneralHubGroup({ iconTint, onNavigate }: 
         section="background"
         label={t('category.background')}
         summary={backgroundSummary}
-        iconTint={iconTint}
-        onNavigate={onNavigate}
-      />
-      <HorizontalDivider />
-      <HubRow
-        section="sms"
-        label={t('category.sms')}
-        summary={smsSummary}
         iconTint={iconTint}
         onNavigate={onNavigate}
       />

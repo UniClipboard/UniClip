@@ -7,9 +7,9 @@
 import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QuickLoadingPage } from '@/components/QuickLoadingPage';
-import { useSettingsStore } from '@/stores/settingsStore';
+import { getUnifiedContentService } from '@/services/UnifiedContentService';
+import { persistP2pDeliveryReport } from '@/services/P2pDeliveryState';
 import { importTextToHistory } from '@/utils/uploadFile';
-import { pushHistoryRecordViaEngine } from '@/stores/syncEngineStore';
 
 interface ProcessTextScreenProps {
   text: string;
@@ -18,15 +18,14 @@ interface ProcessTextScreenProps {
 
 export const ProcessTextScreen: React.FC<ProcessTextScreenProps> = ({ text, onComplete }) => {
   const { t } = useTranslation('share');
-  const activeServer = useSettingsStore((s) => s.getActiveServer());
 
   const task = useCallback(
     async (signal: AbortSignal) => {
-      if (!activeServer) throw new Error(t('processText.noServer'));
       const { profileHash } = await importTextToHistory(text, { signal });
-      await pushHistoryRecordViaEngine(profileHash);
+      const result = await getUnifiedContentService().sendImportedText(text, profileHash);
+      await persistP2pDeliveryReport(result.profileHash, result.report);
     },
-    [text, activeServer, t]
+    [text]
   );
 
   return (

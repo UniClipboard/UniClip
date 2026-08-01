@@ -103,11 +103,12 @@ describe('validated release workflow', () => {
     expect(buildWorkflow).toContain('bash scripts/create-release-tag.sh');
   });
 
-  it('validates the pinned uc-mobile source before starting release builds', () => {
-    expect(packageScripts['release:validate']).toContain('validate-uc-core-ref.mjs');
+  it('does not rebuild the retired mobile core during iOS releases', () => {
+    expect(packageScripts['release:validate']).not.toContain('validate-uc-core-ref.mjs');
     expect(buildWorkflow).toContain('npm run release:validate');
-    expect(iosBuildWorkflow).toContain('rust-core/source-ref');
-    expect(iosBuildWorkflow).not.toMatch(/UC_CORE_REF:\s*[0-9a-f]{40}/);
+    expect(iosBuildWorkflow).not.toContain('rust-core/source-ref');
+    expect(iosBuildWorkflow).not.toContain('modules/uc-core');
+    expect(iosBuildCheckWorkflow).not.toContain('modules/uc-core');
   });
 
   it('prepares and verifies the pinned unified engine before both platform builds', () => {

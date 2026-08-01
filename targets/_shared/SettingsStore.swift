@@ -3,8 +3,8 @@ import OSLog
 
 private let log = Logger(subsystem: "app.uniclipboard", category: "store")
 
-/// Persists `ServerConfigList` and `AppSettings` under the keys defined in
-/// `AppSettings.PersistenceKey` (spec: `docs/SYNC_PROTOCOL.md` §5.4, §5.5).
+/// Persists extension settings and local history under the keys defined in
+/// `AppSettings.PersistenceKey`.
 ///
 /// Pure Foundation — lives in the SwiftPM `Models` target so it can be
 /// unit-tested via `swift test`.
@@ -50,49 +50,22 @@ public final class SettingsStore: @unchecked Sendable {
         return value.isEmpty || value.contains("$(") ? nil : value
     }
 
-    /// Filename of the file-backed `last_synced_content_hash` under
-    /// `containerURL`. Plain text, UTF-8, contains a single uppercase
-    /// 64-char hex SHA-256 (or is absent for `nil`). The file lives outside
-    /// `UserDefaults` because `cfprefsd` caches the App Group suite
-    /// per-process and lags cross-process writes — the Share Extension's
-    /// `saveLastSyncedHash` would otherwise not be visible to the main
-    /// app's `SyncEngine` for an indeterminate window after the
-    /// extension's PUT, letting the engine pull the just-pushed entry back
-    /// to the device (the §5.4 cross-process ping-pong this key exists
-    /// to prevent). `Data.write(to:options:.atomic)` is `tmp + rename`,
-    /// so concurrent readers see either the old value or the new one,
-    /// never a half-written file.
-    static let lastSyncedHashFilename = "last_synced_hash"
+    static let legacyLanFilenames = [
+        "last_synced_hash",
+        "last_synced_content_id",
+        "last_known_ssid",
+        "live_urls",
+    ]
 
-    /// Filename of the file-backed `last_synced_content_id` under
-    /// `containerURL`. Plain UTF-8, holds one opaque server identity
-    /// (`blake3v1:<hex>`) or is absent for `nil`. Lives alongside
-    /// `lastSyncedHashFilename` and is written/cleared atomically with it so
-    /// the two form a single cross-process watermark snapshot: extensions
-    /// that learn a `contentId` from a GET surface it to the main app's
-    /// `SyncEngine`, which prefers `contentId` over `hash` for dedup (stable
-    /// across server re-encodes). Same `cfprefsd`-lag reason for being a file
-    /// rather than `UserDefaults`. Unlike the hash, the value is NOT
-    /// upper-cased — the identity is opaque and compared verbatim.
-    static let lastSyncedContentIdFilename = "last_synced_content_id"
+    private static let legacyLanDefaultsKeys = [
+        "server_config_list",
+        "server_config",
+        "last_synced_content_hash",
+        "history_modified_after",
+        "last_history_sync_at",
+    ]
 
-    /// Filename of the file-backed `last_known_ssid` under `containerURL`.
-    /// Plain UTF-8, holds one normalized SSID (§5.1) or is absent for "no
-    /// Wi-Fi / unknown". File-backed (not `UserDefaults`) for the same
-    /// cross-process-freshness reason as `lastSyncedHashFilename`: the main
-    /// app writes it on every SSID change and the keyboard extension reads
-    /// it to resolve the on-demand active server, and `cfprefsd` caches the
-    /// App Group suite per-process.
-    static let lastKnownSSIDFilename = "last_known_ssid"
-
-    /// Filename of the file-backed live-URL map under `containerURL`. JSON
-    /// `{configId: url}` — for each profile, the candidate URL the most
-    /// recent §5.3 probe confirmed reachable. App extensions may refresh it
-    /// while sending, and otherwise read it as a best guess before falling
-    /// back to pure shape order. File-
-    /// backed (not `UserDefaults`) for the same cross-process-freshness
-    /// reason as the two files above.
-    static let liveURLsFilename = "live_urls"
+    private static let legacyAppGroupIDs = ["group.app.uniclipboard.ios"]
 
     private let defaults: UserDefaults
     private let containerURL: URL
@@ -145,10 +118,6 @@ public final class SettingsStore: @unchecked Sendable {
         self.encoder = JSONEncoder()
         self.decoder = JSONDecoder()
 
-        // One-shot UserDefaults → file migration for `last_synced_hash`.
-        // Idempotent: only fires when the file is absent AND the legacy key
-        // is present, so a re-launch after the migration is a no-op.
-        migrateLastSyncedHashToFileIfNeeded()
     }
 
     /// One-shot migration from `.standard` to the App Group suite. Runs
@@ -159,10 +128,11 @@ public final class SettingsStore: @unchecked Sendable {
     /// overridden by a stale `.standard` blob.
     private static func migrateFromStandardIfNeeded(into suite: UserDefaults) {
         let keys = [
-            AppSettings.PersistenceKey.serverConfigList,
             AppSettings.PersistenceKey.appSettings,
-            AppSettings.PersistenceKey.lastSyncedContentHash,
-            AppSettings.PersistenceKey.legacyServerConfig,
+            AppSettings.PersistenceKey.clipboardHistory,
+            AppSettings.PersistenceKey.keyboardExtensionEnabled,
+            AppSettings.PersistenceKey.keyboardExtensionFullAccess,
+            AppSettings.PersistenceKey.lastSyncedChangeCount,
         ]
         for key in keys where suite.object(forKey: key) != nil {
             return
@@ -180,70 +150,42 @@ public final class SettingsStore: @unchecked Sendable {
         }
     }
 
-    /// One-shot lift of `last_synced_content_hash` from `UserDefaults` to
-    /// the file backend. Runs at every `init` but is idempotent: the file's
-    /// presence alone short-circuits the copy, and the legacy key is
-    /// cleared only after the file write succeeds so a crash mid-migration
-    /// retries on next launch instead of losing the hash.
-    private func migrateLastSyncedHashToFileIfNeeded() {
-        let url = lastSyncedHashFileURL
-        if (try? url.checkResourceIsReachable()) == true { return }
-        guard let legacy = defaults.string(forKey: AppSettings.PersistenceKey.lastSyncedContentHash) else {
-            return
-        }
-        let normalized = legacy.uppercased()
-        guard writeLastSyncedHashFile(normalized) else { return }
-        defaults.removeObject(forKey: AppSettings.PersistenceKey.lastSyncedContentHash)
-    }
+    /// Removes obsolete server credentials and routing state from every
+    /// container used by previous app versions. Safe to call on every launch.
+    public static func clearLegacyLanConfiguration() {
+        let defaultsStores = [UserDefaults.standard]
+            + ([appGroupID] + legacyAppGroupIDs).compactMap(UserDefaults.init(suiteName:))
 
-    private var lastSyncedHashFileURL: URL {
-        containerURL.appendingPathComponent(SettingsStore.lastSyncedHashFilename, isDirectory: false)
-    }
-
-    @discardableResult
-    private func writeLastSyncedHashFile(_ hash: String) -> Bool {
-        let data = Data(hash.utf8)
-        do {
-            try data.write(to: lastSyncedHashFileURL, options: [.atomic])
-            return true
-        } catch {
-            return false
-        }
-    }
-
-    // MARK: - ServerConfigList
-
-    /// Load the server list, performing one-shot legacy migration (§5.5)
-    /// if `server_config_list` is absent and `server_config` is present.
-    public func loadServers() -> ServerConfigList {
-        defaults.synchronize()
-        if let data = defaults.data(forKey: AppSettings.PersistenceKey.serverConfigList) {
-            if let list = try? decoder.decode(ServerConfigList.self, from: data) {
-                return list
+        for store in defaultsStores {
+            for key in legacyLanDefaultsKeys {
+                store.removeObject(forKey: key)
             }
-            // Corruption policy returns the empty default — but losing the
-            // whole server list is the worst silent failure this store can
-            // produce, so leave a loud trace.
-            log.fault("loadServers: server_config_list blob (\(data.count, privacy: .public) bytes) failed to decode — returning empty list")
-            return ServerConfigList()
+            sanitizeAppSettings(in: store)
+            store.synchronize()
         }
 
-        if let legacyData = defaults.data(forKey: AppSettings.PersistenceKey.legacyServerConfig),
-           let legacy = try? decoder.decode(LegacyServerConfig.self, from: legacyData) {
-            let migrated = legacy.migrated()
-            saveServers(migrated)
-            defaults.removeObject(forKey: AppSettings.PersistenceKey.legacyServerConfig)
-            log.info("loadServers: migrated legacy server_config to server_config_list (§5.5)")
-            return migrated
+        let fileManager = FileManager.default
+        for groupID in [appGroupID] + legacyAppGroupIDs {
+            guard let container = fileManager.containerURL(
+                forSecurityApplicationGroupIdentifier: groupID
+            ) else { continue }
+            for filename in legacyLanFilenames {
+                try? fileManager.removeItem(
+                    at: container.appendingPathComponent(filename, isDirectory: false)
+                )
+            }
         }
-
-        return ServerConfigList()
     }
 
-    public func saveServers(_ list: ServerConfigList) {
-        guard let data = try? encoder.encode(list) else { return }
-        defaults.set(data, forKey: AppSettings.PersistenceKey.serverConfigList)
-        defaults.synchronize()
+    private static func sanitizeAppSettings(in defaults: UserDefaults) {
+        let key = AppSettings.PersistenceKey.appSettings
+        guard let data = defaults.data(forKey: key),
+              var object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return }
+        object.removeValue(forKey: "syncChannel")
+        object.removeValue(forKey: "trustInsecureCert")
+        guard let sanitized = try? JSONSerialization.data(withJSONObject: object) else { return }
+        defaults.set(sanitized, forKey: key)
     }
 
     // MARK: - AppSettings
@@ -264,140 +206,6 @@ public final class SettingsStore: @unchecked Sendable {
         guard let data = try? encoder.encode(settings) else { return }
         defaults.set(data, forKey: AppSettings.PersistenceKey.appSettings)
         defaults.synchronize()
-    }
-
-    // MARK: - Last-synced content hash (cycle 9)
-
-    /// Load the most-recent content hash the sync engine confirmed both
-    /// sides shared. `nil` on first launch or after the engine resets.
-    ///
-    /// Backed by a plain-text file under the App Group container, not
-    /// `UserDefaults`. See `lastSyncedHashFilename` for why.
-    public func loadLastSyncedHash() -> String? {
-        guard let data = try? Data(contentsOf: lastSyncedHashFileURL),
-              let raw = String(data: data, encoding: .utf8) else {
-            return nil
-        }
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed.uppercased()
-    }
-
-    /// Persist the latest synced-content hash. Pass `nil` to clear it (e.g.
-    /// when the user switches active server).
-    ///
-    /// Atomic write — readers in other processes see either the prior value
-    /// or the new one, never a partial file. This is the cross-process
-    /// half of the §5.4 anti-ping-pong guard; the temporal half (writing
-    /// the hash *before* publishing the entry to the server) lives in the
-    /// caller (e.g. `ShareUploader.upload`).
-    public func saveLastSyncedHash(_ hash: String?) {
-        if let hash, !hash.isEmpty {
-            writeLastSyncedHashFile(hash.uppercased())
-        } else {
-            try? FileManager.default.removeItem(at: lastSyncedHashFileURL)
-        }
-    }
-
-    private var lastSyncedContentIdFileURL: URL {
-        containerURL.appendingPathComponent(SettingsStore.lastSyncedContentIdFilename, isDirectory: false)
-    }
-
-    /// Load the opaque `contentId` paired with the last synced content, or
-    /// `nil` when absent. Returned VERBATIM (no upper-casing) — the identity
-    /// is compared as a whole. Empty / whitespace-only ⇒ `nil` (treated as
-    /// absent, mirroring the harden-watermark `""` rule).
-    public func loadLastSyncedContentId() -> String? {
-        guard let data = try? Data(contentsOf: lastSyncedContentIdFileURL),
-              let raw = String(data: data, encoding: .utf8) else {
-            return nil
-        }
-        return raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : raw
-    }
-
-    /// Persist the opaque `contentId` watermark. Pass `nil` (or an empty /
-    /// whitespace-only string) to clear it — e.g. right after a push, whose
-    /// uploaded entry has no server identity yet (it is re-learned on the
-    /// next GET). Atomic write, same cross-process guarantee as the hash.
-    /// Callers update this together with `saveLastSyncedHash` so the pair
-    /// never goes stale single-sided.
-    public func saveLastSyncedContentId(_ contentId: String?) {
-        if let contentId, !contentId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            try? Data(contentId.utf8).write(to: lastSyncedContentIdFileURL, options: [.atomic])
-        } else {
-            try? FileManager.default.removeItem(at: lastSyncedContentIdFileURL)
-        }
-    }
-
-    // MARK: - Last-known Wi-Fi SSID (auto-switch overlay, cross-process)
-
-    private var lastKnownSSIDFileURL: URL {
-        containerURL.appendingPathComponent(SettingsStore.lastKnownSSIDFilename, isDirectory: false)
-    }
-
-    /// The most recent normalized Wi-Fi SSID the main app observed. The app
-    /// writes it whenever the SSID changes (`AppViewModel.handleSSIDChanged`);
-    /// the keyboard extension reads it to pick the on-demand active server
-    /// (`ServerConfigList.effectiveActiveConfig`) without itself holding the
-    /// wifi-info entitlement or Location authorization. `nil` ⇒ no Wi-Fi /
-    /// unknown / never written. Re-normalized on read so a value that no
-    /// longer passes §5.1 (shouldn't happen — we normalize on write) is
-    /// treated as absent.
-    public func loadLastKnownSSID() -> String? {
-        guard let data = try? Data(contentsOf: lastKnownSSIDFileURL),
-              let raw = String(data: data, encoding: .utf8) else {
-            return nil
-        }
-        return ServerConfig.normalizeSSID(raw)
-    }
-
-    /// Persist the current Wi-Fi SSID. Normalized per §5.1; pass `nil`/empty
-    /// (or anything that normalizes to `nil`, e.g. an Android privacy
-    /// placeholder) to clear it — which a reader then sees as "no network",
-    /// collapsing `effectiveActiveConfig` to the manual baseline. Atomic
-    /// write so a cross-process reader never sees a half-written name.
-    public func saveLastKnownSSID(_ ssid: String?) {
-        if let normalized = ServerConfig.normalizeSSID(ssid) {
-            try? Data(normalized.utf8).write(to: lastKnownSSIDFileURL, options: [.atomic])
-        } else {
-            try? FileManager.default.removeItem(at: lastKnownSSIDFileURL)
-        }
-    }
-
-    // MARK: - Live URL per profile (§5.3 probe result, cross-process)
-
-    private var liveURLsFileURL: URL {
-        containerURL.appendingPathComponent(SettingsStore.liveURLsFilename, isDirectory: false)
-    }
-
-    /// The probe-confirmed URL for `configId`, or nil when the last probe
-    /// found nothing reachable (or never ran). Readers must validate the
-    /// value against the config's current `urls` — an edit may have removed
-    /// the candidate since the probe wrote it.
-    public func loadLiveURL(configId: String) -> String? {
-        loadLiveURLMap()[configId]
-    }
-
-    /// Persist (or with nil, clear) the probe-confirmed URL for `configId`.
-    /// Atomic write, same
-    /// guarantee as the sibling files: a cross-process reader sees either
-    /// the old map or the new one.
-    public func saveLiveURL(configId: String, _ url: String?) {
-        var map = loadLiveURLMap()
-        if map[configId] == url { return }
-        map[configId] = url
-        if map.isEmpty {
-            try? FileManager.default.removeItem(at: liveURLsFileURL)
-            return
-        }
-        guard let data = try? encoder.encode(map) else { return }
-        try? data.write(to: liveURLsFileURL, options: [.atomic])
-    }
-
-    private func loadLiveURLMap() -> [String: String] {
-        guard let data = try? Data(contentsOf: liveURLsFileURL) else { return [:] }
-        // Corruption policy as everywhere in this store: an undecodable
-        // blob reads as "no live URL known", never blocks the caller.
-        return (try? decoder.decode([String: String].self, from: data)) ?? [:]
     }
 
     // MARK: - Clipboard history (cycle 11)
@@ -488,57 +296,6 @@ public final class SettingsStore: @unchecked Sendable {
         defaults.set(value, forKey: AppSettings.PersistenceKey.lastSyncedChangeCount)
     }
 
-    /// Load the incremental-sync watermark (the largest `lastModified`
-    /// seen on any prior §2.7 page). Returns `nil` on cold launch or if
-    /// the stored string fails to parse — both are treated as "fetch
-    /// everything next round".
-    public func loadHistoryWatermark() -> Date? {
-        guard let s = defaults.string(forKey: AppSettings.PersistenceKey.historyModifiedAfter),
-              !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        else { return nil }
-        if let d = Self.fractionalISOFormatter.date(from: s) { return d }
-        if let d = Self.plainISOFormatter.date(from: s) { return d }
-        return nil
-    }
-
-    /// Persist the watermark. Pass `nil` to clear (e.g. when switching
-    /// servers — the new server's `lastModified` timeline is unrelated
-    /// to the old one).
-    public func saveHistoryWatermark(_ date: Date?) {
-        if let date {
-            defaults.set(Self.fractionalISOFormatter.string(from: date),
-                         forKey: AppSettings.PersistenceKey.historyModifiedAfter)
-        } else {
-            defaults.removeObject(forKey: AppSettings.PersistenceKey.historyModifiedAfter)
-        }
-    }
-
-    /// Load the "we last ran the §2.7 throttle window at" timestamp.
-    /// `nil` means "we've never run it (or just switched servers)" —
-    /// the engine treats nil as immediately-due. Unlike the watermark,
-    /// this is purely a rate-limit hint; out-of-date values just cause
-    /// one extra (incremental) pull, not data loss.
-    public func loadLastHistorySyncAt() -> Date? {
-        guard let s = defaults.string(forKey: AppSettings.PersistenceKey.lastHistorySyncAt),
-              !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        else { return nil }
-        if let d = Self.fractionalISOFormatter.date(from: s) { return d }
-        if let d = Self.plainISOFormatter.date(from: s) { return d }
-        return nil
-    }
-
-    /// Persist the §2.7 throttle timestamp. Pass `nil` to clear (server
-    /// switch — the new server's history should be pulled immediately
-    /// even if the old server's throttle window hasn't elapsed).
-    public func saveLastHistorySyncAt(_ date: Date?) {
-        if let date {
-            defaults.set(Self.fractionalISOFormatter.string(from: date),
-                         forKey: AppSettings.PersistenceKey.lastHistorySyncAt)
-        } else {
-            defaults.removeObject(forKey: AppSettings.PersistenceKey.lastHistorySyncAt)
-        }
-    }
-
     // MARK: - Image data cache (App Group, shared with keyboard)
 
     private var imageCacheDir: URL {
@@ -556,17 +313,4 @@ public final class SettingsStore: @unchecked Sendable {
         try? data.write(to: file, options: .atomic)
     }
 
-    // MARK: - ISO formatters (shared between watermark + future date keys)
-
-    private static let fractionalISOFormatter: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return f
-    }()
-
-    private static let plainISOFormatter: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime]
-        return f
-    }()
 }

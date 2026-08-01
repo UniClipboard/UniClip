@@ -23,10 +23,4 @@ if (Platform.OS === 'android') {
 
   // Separate entry point for the ServiceRestartActivity (service restarted by system)
   AppRegistry.registerComponent('serviceRestart', () => ServiceRestartApp);
-
-  // Headless JS task for SMS verification code upload (runs without UI)
-  AppRegistry.registerHeadlessTask(
-    'SmsUploadTask',
-    () => require('./src/tasks/SmsUploadTask').default
-  );
 }

@@ -17,6 +17,10 @@
       "title": "Ignorar otimização de bateria",
       "desc": "Impede que a economia de bateria interrompa a sincronização em segundo plano"
     },
+    "network": {
+      "title": "Continuar a sincronização em segundo plano com dados móveis",
+      "desc": "Quando desativado, a sincronização em segundo plano funciona apenas no Wi-Fi"
+    },
     "download": {
       "title": "Baixar do remoto",
       "desc": "Recebe novo conteúdo remoto em segundo plano quando Gravar automaticamente está ativado"

@@ -19,8 +19,6 @@ struct KeyboardViewState: Equatable {
         let title: String
         let showsSearch: Bool
         let showsRefresh: Bool
-        let isServerEnabled: Bool
-        let servers: [KeyboardViewServerChoice]
     }
 
     struct Content: Equatable {
@@ -47,7 +45,6 @@ struct KeyboardViewState: Equatable {
         let searchLabel: String
         let refreshLabel: String
         let closeFilterLabel: String
-        let serverLabel: String
         let globeLabel: String
         let deleteLabel: String
         let returnLabel: String
@@ -72,12 +69,6 @@ struct KeyboardViewState: Equatable {
     let content: Content
     let strings: Strings
     let sync: Sync
-}
-
-struct KeyboardViewServerChoice: Equatable {
-    let id: String
-    let title: String
-    let isActive: Bool
 }
 
 struct KeyboardViewMessage: Equatable {
@@ -109,7 +100,6 @@ struct KeyboardViewCard: Identifiable, Equatable {
 
 enum KeyboardViewAction: Equatable {
     case refresh
-    case selectServer(String)
     case activateCard(UUID)
     case insertSpace
     case insertReturn

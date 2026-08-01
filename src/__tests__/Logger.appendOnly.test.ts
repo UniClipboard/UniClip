@@ -3,7 +3,7 @@
  *
  * 回归背景：customFileTransport 曾对每条日志执行 textSync() 全量读取 +
  * 全文件重写。日志文件增长到数 MB 后，每条日志都在 JS 线程上同步阻塞
- * ~100ms+（文件越大越久）；叠加 SyncEngine 每秒一条 tick 日志，表现为
+ * ~100ms+（文件越大越久）；叠加每秒产生的高频日志后，表现为
  * 全应用每秒"顿住"一次（浮层打开动画、滚动、点按均受影响）。
  */
 const textSyncCalls: string[] = [];

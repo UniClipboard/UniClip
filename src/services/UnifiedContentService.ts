@@ -1,6 +1,5 @@
 import type { SendReport } from 'uc-engine';
-import { HistorySyncStatus, type ClipboardContent } from '@/types/clipboard';
-import type { SyncChannel } from '@/types/settings';
+import type { ClipboardContent } from '@/types/clipboard';
 import type { P2pDeliveryState } from '@/types/clipboard';
 import { p2pDeliveryStateFromReport } from './P2pDeliveryState';
 import type { OutboundDeliveryOutcome } from './OutboundDeliveryCoordinator';
@@ -20,46 +19,25 @@ export interface ImportedContentAsset {
   mimeType?: string | null;
 }
 
-interface LanUploadResult {
-  success: boolean;
-  error?: string;
-}
-
 export interface UnifiedContentDependencies {
-  getChannel(): SyncChannel;
   readClipboard(): Promise<ClipboardContent | null>;
   readFileBytes(uri: string): Promise<Uint8Array>;
   p2p: UnifiedContentApi;
-  uploadLanClipboard(): Promise<LanUploadResult>;
-  enqueueLanUpload(profileHash: string): void;
-  pushLanUpload(profileHash: string): Promise<void>;
-  pushLanFile(
-    asset: ImportedContentAsset,
-    profileHash: string,
-    serverId: string | null,
-    byteCount: number
-  ): Promise<void>;
   completeOutboundDelivery(send: () => Promise<SendReport>): Promise<OutboundDeliveryOutcome>;
 }
 
 export interface ImportedAssetSendOptions {
-  channel?: SyncChannel;
-  awaitLanDelivery?: boolean;
-  serverId?: string | null;
   targetDeviceIds?: string[];
-  byteCount?: number;
 }
 
-export type UnifiedContentResult =
-  | {
-      channel: 'p2p';
-      success: boolean;
-      entryId: string;
-      profileHash: string | undefined;
-      deliveryState: P2pDeliveryState;
-      report: SendReport;
-    }
-  | { channel: 'lan'; success: boolean; error?: string };
+export interface UnifiedContentResult {
+  channel: 'p2p';
+  success: boolean;
+  entryId: string;
+  profileHash: string | undefined;
+  deliveryState: P2pDeliveryState;
+  report: SendReport;
+}
 
 export type UnifiedContentErrorCode =
   | 'clipboardEmpty'
@@ -99,12 +77,11 @@ function imageMimeType(uri: string, supplied?: string | null): string {
 export class UnifiedContentService {
   constructor(private readonly deps: UnifiedContentDependencies) {}
 
-  async sendCurrentClipboard(): Promise<UnifiedContentResult> {
-    if (this.deps.getChannel() === 'lan') {
-      const result = await this.deps.uploadLanClipboard();
-      return { channel: 'lan', success: result.success, error: result.error };
-    }
+  async sendImportedText(text: string, profileHash: string): Promise<UnifiedContentResult> {
+    return this.p2pResult(await this.deps.p2p.sendText(text, []), profileHash);
+  }
 
+  async sendCurrentClipboard(): Promise<UnifiedContentResult> {
     const content = await this.deps.readClipboard();
     if (!content) {
       throw new UnifiedContentError('clipboardEmpty', 'The clipboard is empty');
@@ -147,25 +124,6 @@ export class UnifiedContentService {
     profileHash: string,
     options?: ImportedAssetSendOptions
   ): Promise<UnifiedContentResult> {
-    const channel = options?.channel ?? this.deps.getChannel();
-    if (channel === 'lan') {
-      if (options?.awaitLanDelivery) {
-        if (asset.kind === 'file' && options.byteCount !== undefined) {
-          await this.deps.pushLanFile(
-            asset,
-            profileHash,
-            options.serverId ?? null,
-            options.byteCount
-          );
-        } else {
-          await this.deps.pushLanUpload(profileHash);
-        }
-        return { channel: 'lan', success: true };
-      }
-      this.deps.enqueueLanUpload(profileHash);
-      return { channel: 'lan', success: true };
-    }
-
     if (asset.kind === 'image') {
       const bytes = await this.deps.readFileBytes(asset.uri);
       return this.sendP2pImage(
@@ -245,33 +203,12 @@ function createDefaultDependencies(): UnifiedContentDependencies {
   };
 
   return {
-    getChannel: () =>
-      require('@/stores/settingsStore').useSettingsStore.getState().config?.syncChannel ?? 'lan',
     readClipboard: () => require('./ClipboardManager').clipboardManager.getClipboardContent(),
     readFileBytes: async (uri) => {
       const { File } = require('expo-file-system');
       return new File(uri).bytes();
     },
     p2p,
-    uploadLanClipboard: () =>
-      require('./ClipboardSyncService').getClipboardSyncService().triggerUpload(),
-    enqueueLanUpload: (profileHash) =>
-      require('./BackgroundUploadManager').BackgroundUploadManager.enqueue(profileHash),
-    pushLanUpload: (profileHash) =>
-      require('@/stores/syncEngineStore').pushHistoryRecordViaEngine(profileHash),
-    pushLanFile: async (asset, profileHash, serverId, byteCount) => {
-      await require('app-group-store').sendOutboundLanFile(
-        asset.uri,
-        asset.fileName ?? 'file',
-        profileHash,
-        byteCount,
-        serverId
-      );
-      await require('@/stores/historyStore').useHistoryStore.getState().updateItem(profileHash, {
-        syncStatus: HistorySyncStatus.Synced,
-        hasRemoteData: false,
-      });
-    },
     completeOutboundDelivery: (send) =>
       require('./OutboundDeliveryCoordinator').getOutboundDeliveryCoordinator().run(send),
   };

@@ -168,6 +168,35 @@ class NativeSystemHostTest {
   }
 
   @Test
+  fun plainTextClipboardRepresentationsStayAsText() {
+    val expected = "Text copied on macOS"
+    val representations = listOf(
+      BindingClipboardRepresentation.Inline(
+        "text/plain; charset=utf-8",
+        "text/plain; charset=utf-8",
+        expected.toByteArray()
+      ),
+      BindingClipboardRepresentation.Inline(
+        "public.utf8-plain-text",
+        "text/plain",
+        expected.toByteArray()
+      ),
+      BindingClipboardRepresentation.Inline(
+        "text",
+        null,
+        expected.toByteArray()
+      )
+    )
+
+    representations.forEach { representation ->
+      val clip = clipDataForRepresentation(context, FileHandleRegistry(context), representation)
+
+      assertNull(clip.getItemAt(0).uri)
+      assertEquals(expected, clip.getItemAt(0).text.toString())
+    }
+  }
+
+  @Test
   fun fileClipboardRepresentationPreservesItsDisplayName() {
     val source = File(
       context.cacheDir,
@@ -300,6 +329,24 @@ class NativeSystemHostTest {
   }
 
   @Test
+  fun lifecycleHostKeepsP2pRunningOnlyWhileBackgroundSyncIsAllowed() {
+    val engine = FakeEngineLifecycle(EngineLifecycleState.RUNNING)
+    val host = NativeLifecycleHost { throw AssertionError("Transition must not fail") }
+
+    host.setBackgroundSyncEnabled(engine, enabled = true, isBackground = false)
+    host.enterBackground(engine)
+    assertEquals(0, engine.suspendCalls)
+
+    host.setBackgroundSyncEnabled(engine, enabled = false, isBackground = true)
+    assertEquals(1, engine.suspendCalls)
+    assertEquals(EngineLifecycleState.SUSPENDED, engine.state)
+
+    host.setBackgroundSyncEnabled(engine, enabled = true, isBackground = true)
+    assertEquals(1, engine.resumeCalls)
+    assertEquals(EngineLifecycleState.RUNNING, engine.state)
+  }
+
+  @Test
   fun lifecycleHostReportsTransitionFailures() {
     val engine = FakeEngineLifecycle(EngineLifecycleState.RUNNING).apply {
       transitionError = IllegalStateException("failed")
@@ -330,10 +377,12 @@ private class FakeEngineLifecycle(var state: EngineLifecycleState) : EngineLifec
   override fun suspend() {
     suspendCalls += 1
     transitionError?.let { throw it }
+    state = EngineLifecycleState.SUSPENDED
   }
 
   override fun resume() {
     resumeCalls += 1
     transitionError?.let { throw it }
+    state = EngineLifecycleState.RUNNING
   }
 }

@@ -91,23 +91,16 @@ function readWrittenPayload(uri: string): Record<string, unknown> {
 
 const input: DiagnosticPackageInput = {
   settings: {
-    configuredServerCount: 2,
-    activeServerConfigured: true,
-    activeServerType: 'syncclipboard',
-    activeServerAddressCount: 2,
-    trustInsecureCert: false,
     autoApplyRemote: true,
     autoPushLocal: false,
-    enableSse: true,
     attachmentAutoDownload: 'wifi',
     logLevel: 'info',
   },
   sync: {
-    isRunning: true,
-    state: 'OfflineRetrying',
-    isExplicitlyRefreshing: false,
-    hasStagedEntry: false,
-    lastSyncedAt: 1_784_240_000_000,
+    status: 'running',
+    peerConnectionStatus: 'offline',
+    hasSpace: true,
+    deviceCount: 2,
     lastErrorReason: 'network_unreachable',
   },
 };
@@ -123,9 +116,9 @@ describe('DiagnosticPackage', () => {
 
   it('derives useful log telemetry without retaining raw messages', () => {
     const rawLogs = [
-      '2026-07-17 10:00:00 INFO: 2026-07-17T02:00:00.000Z | INFO : [SyncEngine] SSE subscribing to https://user:secret@example.test/private',
-      '2026-07-17 10:00:01 INFO: [SyncEngine] SSE subscribing to https://example.test/retry',
-      '2026-07-17 10:00:02 ERROR: [SyncEngine] op error: NetworkUnreachable while sending clipboard payload hunter2',
+      '2026-07-17 10:00:00 INFO: [P2pClipboardObserver] Clipboard observation failed; kept local: https://user:secret@example.test/private',
+      '2026-07-17 10:00:01 INFO: [P2pClipboardObserver] Clipboard observation failed; kept local: https://example.test/retry',
+      '2026-07-17 10:00:02 ERROR: [UnifiedEngineService] Failed to start the P2P engine: NetworkUnreachable hunter2',
       '2026-07-17 10:00:03 WARN: [HistoryStorage] Failed to move file to history directory: permission denied for /private/user/document.txt',
       '2026-07-17 10:00:04 DEBUG: unscoped plaintext should not survive',
       'not a log line containing another-secret',
@@ -140,7 +133,12 @@ describe('DiagnosticPackage', () => {
       parsedEntryCount: 5,
       unparsedLineCount: 1,
       byLevel: { debug: 1, info: 2, warn: 1, error: 1 },
-      byComponent: { general: 1, HistoryStorage: 1, SyncEngine: 3 },
+      byComponent: {
+        general: 1,
+        HistoryStorage: 1,
+        P2pClipboardObserver: 2,
+        UnifiedEngineService: 1,
+      },
     });
     expect(summary).toMatchObject({
       eventSummary: {
@@ -148,8 +146,8 @@ describe('DiagnosticPackage', () => {
         unclassifiedIssueCount: 0,
         byEventCode: {
           'history.file_move_failed': 1,
-          'sync.operation_failed': 1,
-          'sync.sse_subscribing': 2,
+          'p2p.clipboard_observation_failed': 2,
+          'p2p.engine_start_failed': 1,
         },
         byReason: {
           network_unreachable: 1,
@@ -161,8 +159,8 @@ describe('DiagnosticPackage', () => {
             lastAt: new Date(2026, 6, 17, 10, 0, 1).toISOString(),
             occurrences: 2,
             level: 'info',
-            component: 'SyncEngine',
-            eventCode: 'sync.sse_subscribing',
+            component: 'P2pClipboardObserver',
+            eventCode: 'p2p.clipboard_observation_failed',
             reason: null,
           },
           {
@@ -170,8 +168,8 @@ describe('DiagnosticPackage', () => {
             lastAt: new Date(2026, 6, 17, 10, 0, 2).toISOString(),
             occurrences: 1,
             level: 'error',
-            component: 'SyncEngine',
-            eventCode: 'sync.operation_failed',
+            component: 'UnifiedEngineService',
+            eventCode: 'p2p.engine_start_failed',
             reason: 'network_unreachable',
           },
           {
@@ -196,9 +194,9 @@ describe('DiagnosticPackage', () => {
   it('keeps unclassified issues as boundaries between repeated events', () => {
     const summary = summarizeDiagnosticLogs([
       [
-        '2026-07-17 10:00:00 INFO: [SyncEngine] SSE subscribing to https://example.test/one',
+        '2026-07-17 10:00:00 INFO: [P2pClipboardObserver] Clipboard observation failed; kept local: one',
         '2026-07-17 10:00:01 ERROR: arbitrary private issue with no safe category',
-        '2026-07-17 10:00:02 INFO: [SyncEngine] SSE subscribing to https://example.test/two',
+        '2026-07-17 10:00:02 INFO: [P2pClipboardObserver] Clipboard observation failed; kept local: two',
       ].join('\n'),
     ]);
 
@@ -208,13 +206,13 @@ describe('DiagnosticPackage', () => {
         firstAt: new Date(2026, 6, 17, 10, 0, 0).toISOString(),
         lastAt: new Date(2026, 6, 17, 10, 0, 0).toISOString(),
         occurrences: 1,
-        eventCode: 'sync.sse_subscribing',
+        eventCode: 'p2p.clipboard_observation_failed',
       }),
       expect.objectContaining({
         firstAt: new Date(2026, 6, 17, 10, 0, 2).toISOString(),
         lastAt: new Date(2026, 6, 17, 10, 0, 2).toISOString(),
         occurrences: 1,
-        eventCode: 'sync.sse_subscribing',
+        eventCode: 'p2p.clipboard_observation_failed',
       }),
     ]);
   });
@@ -224,7 +222,7 @@ describe('DiagnosticPackage', () => {
     mockGetLogFileUris.mockReturnValue([logUri]);
     mockLogContents.set(
       logUri,
-      '2026-07-17 10:00:01 ERROR: [SyncEngine] op error (auth): unauthorized https://alice:password@example.test'
+      '2026-07-17 10:00:01 ERROR: [UnifiedEngineService] Failed to start the P2P engine: unauthorized https://alice:password@example.test'
     );
 
     const artifact = await createDiagnosticPackage(input, new Date('2026-07-17T10:30:00.000Z'));
@@ -246,9 +244,9 @@ describe('DiagnosticPackage', () => {
         fileCount: 1,
         parsedEntryCount: 1,
         byLevel: { debug: 0, info: 0, warn: 0, error: 1 },
-        byComponent: { SyncEngine: 1 },
+        byComponent: { UnifiedEngineService: 1 },
         eventSummary: expect.objectContaining({
-          byEventCode: { 'sync.authentication_failed': 1 },
+          byEventCode: { 'p2p.engine_start_failed': 1 },
           byReason: { authentication: 1 },
         }),
       }),
@@ -322,7 +320,7 @@ describe('DiagnosticPackage', () => {
     const logUri = 'file://documents/logs/oversized.txt';
     const discardedPrefix = `discarded-sensitive-value\n${'x'.repeat(512 * 1024)}`;
     const retainedIssue =
-      '2026-07-17 10:00:01 ERROR: [SyncEngine] op error: timeout without exported details';
+      '2026-07-17 10:00:01 ERROR: [UnifiedEngineService] Failed to start the P2P engine: timeout without exported details';
     mockGetLogFileUris.mockReturnValue([logUri]);
     mockLogContents.set(logUri, `${discardedPrefix}\n${retainedIssue}`);
 
@@ -334,7 +332,7 @@ describe('DiagnosticPackage', () => {
       fileCount: 1,
       truncatedFileCount: 1,
       byteCount: 512 * 1024,
-      byComponent: { SyncEngine: 1 },
+      byComponent: { UnifiedEngineService: 1 },
     });
     expect(serialized).not.toContain('discarded-sensitive-value');
     expect(serialized).not.toContain('without exported details');

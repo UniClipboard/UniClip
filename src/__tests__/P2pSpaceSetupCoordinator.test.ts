@@ -3,28 +3,20 @@ import {
   P2pSpaceSetupCoordinator,
   type P2pSpaceSetupDependencies,
 } from '../services/P2pSpaceSetupCoordinator';
-import type { SyncConnectionTarget } from '../types/settings';
 
-function createDependencies(initialTarget: SyncConnectionTarget = { kind: 'p2p' }) {
-  let selectedTarget = initialTarget;
+function createDependencies() {
   const events: string[] = [];
   const dependencies: P2pSpaceSetupDependencies = {
-    getSelectedTarget: () => selectedTarget,
-    select: jest.fn(async (target) => {
-      selectedTarget = target;
-      events.push(target.kind === 'p2p' ? 'select:p2p' : `select:lan:${target.serverIndex}`);
-      return { ok: true as const };
-    }),
-    activateSelected: jest.fn(async () => {
-      events.push(selectedTarget.kind === 'p2p' ? 'activate:p2p' : 'activate:lan');
+    activate: jest.fn(async () => {
+      events.push('activate');
     }),
   };
   return { dependencies, events };
 }
 
 describe('P2pSpaceSetupCoordinator', () => {
-  it('switches an existing LAN user to P2P before setup and keeps it after success', async () => {
-    const { dependencies, events } = createDependencies({ kind: 'lan', serverIndex: 2 });
+  it('activates the P2P runtime before setup', async () => {
+    const { dependencies, events } = createDependencies();
     const coordinator = new P2pSpaceSetupCoordinator(dependencies);
 
     await expect(
@@ -34,11 +26,11 @@ describe('P2pSpaceSetupCoordinator', () => {
       })
     ).resolves.toBe('created');
 
-    expect(events).toEqual(['select:p2p', 'activate:p2p', 'setup']);
+    expect(events).toEqual(['activate', 'setup']);
   });
 
-  it('restores the previous LAN connection when setup fails', async () => {
-    const { dependencies, events } = createDependencies({ kind: 'lan', serverIndex: 2 });
+  it('propagates setup failures without changing transport state', async () => {
+    const { dependencies, events } = createDependencies();
     const coordinator = new P2pSpaceSetupCoordinator(dependencies);
 
     await expect(
@@ -48,30 +40,20 @@ describe('P2pSpaceSetupCoordinator', () => {
       })
     ).rejects.toThrow('invalid invitation');
 
-    expect(events).toEqual(['select:p2p', 'activate:p2p', 'setup', 'select:lan:2', 'activate:lan']);
+    expect(events).toEqual(['activate', 'setup']);
   });
 
-  it('does not run setup when P2P cannot be selected', async () => {
-    const { dependencies, events } = createDependencies({ kind: 'lan', serverIndex: 0 });
-    dependencies.select = jest.fn(async () => ({ ok: false as const, error: 'save failed' }));
+  it('does not run setup when P2P activation fails', async () => {
+    const { dependencies, events } = createDependencies();
+    dependencies.activate = jest.fn(async () => {
+      throw new Error('engine unavailable');
+    });
     const setup = jest.fn(async () => 'created');
     const coordinator = new P2pSpaceSetupCoordinator(dependencies);
 
-    await expect(coordinator.run(setup)).rejects.toThrow('save failed');
+    await expect(coordinator.run(setup)).rejects.toThrow('engine unavailable');
 
     expect(setup).not.toHaveBeenCalled();
     expect(events).toEqual([]);
-  });
-
-  it('ensures an already selected P2P runtime is active before setup', async () => {
-    const { dependencies, events } = createDependencies();
-    const coordinator = new P2pSpaceSetupCoordinator(dependencies);
-
-    await coordinator.run(async () => {
-      events.push('setup');
-    });
-
-    expect(dependencies.select).not.toHaveBeenCalled();
-    expect(events).toEqual(['activate:p2p', 'setup']);
   });
 });

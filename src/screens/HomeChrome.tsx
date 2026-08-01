@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { DefaultTopBar, SearchTopBar, SelectModeTopBar } from '@/components/HomeTopBar';
-import { SyncStatusBanner } from '@/components/SyncStatusBanner';
 import type { HomeController } from './useHomeController';
 
 /**
@@ -34,9 +33,10 @@ export function HomeTopBarArea({ c }: { c: HomeController }) {
         />
       ) : (
         <DefaultTopBar
-          serverLabel={c.activeServerLabel}
-          connectionStatus={c.connectionStatus}
-          onSwitchServer={() => c.setShowServerPicker(true)}
+          onOpenSpace={() => {
+            if (c.p2pSpaceId) c.setShowMySpace(true);
+            else c.setShowAddConnection(true);
+          }}
           onSearch={c.openSearch}
           onSettings={c.onOpenSettings}
           theme={c.theme}
@@ -47,39 +47,6 @@ export function HomeTopBarArea({ c }: { c: HomeController }) {
         />
       )}
     </View>
-  );
-}
-
-/**
- * 同步状态 banner:HasNewUnwritten(待应用) / LoopDetected(循环已暂停)。全宽,两种布局共用。
- */
-export function HomeSyncBanners({ c }: { c: HomeController }) {
-  return (
-    <>
-      {c.syncState === 'HasNewUnwritten' && (
-        <SyncStatusBanner
-          variant="staged"
-          title={c.t('banner.staged.title', { ns: 'sync' })}
-          subtitle={c.stagedPreviewText}
-          actionLabel={c.t(c.isApplyingStaged ? 'banner.staged.applying' : 'banner.staged.apply', {
-            ns: 'sync',
-          })}
-          isActionBusy={c.isApplyingStaged}
-          onAction={c.handleApplyStagedEntry}
-          theme={c.theme}
-        />
-      )}
-      {c.syncState === 'LoopDetected' && (
-        <SyncStatusBanner
-          variant="loop"
-          title={c.t('banner.loop.title', { ns: 'sync' })}
-          subtitle={c.t('banner.loop.subtitle', { ns: 'sync' })}
-          actionLabel={c.t('banner.loop.dismiss', { ns: 'sync' })}
-          onAction={c.handleDismissLoop}
-          theme={c.theme}
-        />
-      )}
-    </>
   );
 }
 

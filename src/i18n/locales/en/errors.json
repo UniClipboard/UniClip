@@ -27,17 +27,12 @@
   "share": {
     "dialogTitle": "Share File"
   },
-  "urlClass": {
-    "lan": "LAN",
-    "tailscale": "Tailscale",
-    "wan": "Internet"
-  },
   "refresh": {
     "failed": "Refresh failed"
   },
   "connect": {
     "failed": "Connection failed",
-    "cannotReach": "Unable to connect to the server"
+    "cannotReach": "Unable to connect to other devices"
   },
   "notification": {
     "uploaded": "Uploaded",
@@ -46,10 +41,6 @@
   },
   "sync": {
     "networkErrorQueued": "Network error, added to queue: {{error}}"
-  },
-  "server": {
-    "errorWithBody": "Server returned an error (HTTP {{status}}):\n\n{{body}}",
-    "errorWithMessage": "Server returned an error (HTTP {{status}}): {{message}}"
   },
   "upload": {
     "failedSavedLocal": "Upload failed; content saved locally"

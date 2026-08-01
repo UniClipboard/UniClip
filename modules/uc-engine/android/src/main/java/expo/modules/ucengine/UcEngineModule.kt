@@ -43,7 +43,11 @@ import uniffi.uc_engine_uniffi.BindingLifecycleAction
 import uniffi.uc_engine_uniffi.EntryNotResendableReason
 import uniffi.uc_engine_uniffi.HostBindingException
 import uniffi.uc_engine_uniffi.InvitationAvailability
+import uniffi.uc_engine_uniffi.LegacyMemberRemovalOutcome
+import uniffi.uc_engine_uniffi.LegacyMemberRemovalResult
 import uniffi.uc_engine_uniffi.MobileEngine
+import uniffi.uc_engine_uniffi.MemberRevocationOutcome
+import uniffi.uc_engine_uniffi.MemberRevocationResult
 import uniffi.uc_engine_uniffi.ResendEntryOutcome
 import uniffi.uc_engine_uniffi.SendReport
 import uniffi.uc_engine_uniffi.coreVersion
@@ -74,6 +78,34 @@ private fun uriListFile(
   if (allowedRoots.none { source.toPath().startsWith(it.toPath()) }) return null
   return source.takeIf { it.isFile }
 }
+
+private fun isPlainTextRepresentation(format: String): Boolean {
+  val normalizedFormat = format.substringBefore(';').trim()
+  return normalizedFormat.equals("text/plain", ignoreCase = true) ||
+    normalizedFormat.equals("public.utf8-plain-text", ignoreCase = true) ||
+    normalizedFormat.equals("text", ignoreCase = true)
+}
+
+private fun memberRevocationResultMap(result: MemberRevocationResult): Map<String, Any?> = mapOf(
+  "revocationId" to result.revocationId,
+  "outcome" to when (result.outcome) {
+    MemberRevocationOutcome.LOCAL_ONLY -> "localOnly"
+    MemberRevocationOutcome.APPLIED -> "applied"
+    MemberRevocationOutcome.COMPLETE -> "complete"
+    MemberRevocationOutcome.RECOVERY_REQUIRED -> "recoveryRequired"
+  },
+  "pendingRecipients" to result.pendingRecipients.toLong()
+)
+
+private fun legacyMemberRemovalResultMap(result: LegacyMemberRemovalResult): Map<String, Any?> = mapOf(
+  "bootstrapId" to result.bootstrapId,
+  "outcome" to when (result.outcome) {
+    LegacyMemberRemovalOutcome.AWAITING_READMISSION -> "awaitingReadmission"
+    LegacyMemberRemovalOutcome.COMPLETE -> "complete"
+    LegacyMemberRemovalOutcome.RECOVERY_REQUIRED -> "recoveryRequired"
+  },
+  "pendingReadmission" to result.pendingReadmission.toLong()
+)
 
 private const val CLIPBOARD_SHARE_MAX_ENTRIES = 64
 private const val CLIPBOARD_SHARE_MAX_AGE_MS = 7L * 24 * 60 * 60 * 1_000
@@ -185,7 +217,7 @@ internal fun clipDataForRepresentation(
       }
       val uri = clipboardUri(context, target)
       ClipData.newUri(context.contentResolver, displayName, uri)
-    } else if (representation.format == "text/plain") {
+    } else if (isPlainTextRepresentation(representation.format)) {
       ClipData.newPlainText("", representation.bytes.toString(Charsets.UTF_8))
     } else {
       val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(representation.mimeType)
@@ -275,6 +307,13 @@ class UcEngineModule : Module() {
     AsyncFunction("shutdown") { deadlineMs: Long -> shutdown(deadlineMs) }
     AsyncFunction("suspend") { requireEngine().suspend() }
     AsyncFunction("resume") { requireEngine().resume() }
+    AsyncFunction("setBackgroundSyncEnabled") { enabled: Boolean, appIsBackground: Boolean ->
+      lifecycle.setBackgroundSyncEnabled(
+        currentEngine()?.let(::AndroidEngineLifecycle),
+        enabled,
+        appIsBackground
+      )
+    }
 
     AsyncFunction("createSpace") { deviceName: String?, passphrase: String ->
       val result = requireEngine().createSpace(deviceName, passphrase)
@@ -343,7 +382,10 @@ class UcEngineModule : Module() {
       }
     }
     AsyncFunction("removeMember") { deviceId: String ->
-      requireEngine().removeMember(deviceId)
+      memberRevocationResultMap(requireEngine().removeMember(deviceId))
+    }
+    AsyncFunction("secureRemoveLegacyMember") { deviceId: String ->
+      legacyMemberRemovalResultMap(requireEngine().secureRemoveLegacyMember(deviceId))
     }
     AsyncFunction("resendEntry") { entryId: String, targetDevices: List<String> ->
       resendOutcomeMap(requireEngine().resendEntry(entryId, targetDevices))

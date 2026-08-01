@@ -7,7 +7,6 @@ final class ExtensionSyncCoordinatorTests: XCTestCase {
     var gate = ExtensionSyncEventGate()
 
     XCTAssertEqual(gate.request(.appeared), .appeared)
-    XCTAssertNil(gate.request(.networkChanged))
     XCTAssertNil(gate.request(.localClipboardChanged))
 
     XCTAssertEqual(gate.finish(), .localClipboardChanged)
@@ -19,10 +18,8 @@ final class ExtensionSyncCoordinatorTests: XCTestCase {
     var gate = ExtensionSyncEventGate()
 
     XCTAssertEqual(gate.request(.appeared), .appeared)
-    XCTAssertNil(gate.request(.networkChanged))
-    XCTAssertNil(gate.request(.serverChanged))
-    XCTAssertNil(gate.request(.manual))
     XCTAssertNil(gate.request(.localClipboardChanged))
+    XCTAssertNil(gate.request(.manual))
 
     XCTAssertEqual(gate.finish(), .manual)
   }
@@ -40,11 +37,9 @@ final class ExtensionSyncCoordinatorTests: XCTestCase {
 
   func testAutomaticLocalClipboardSyncPublishesTheCardWithoutShowingProgress() {
     XCTAssertFalse(ExtensionSyncTrigger.appeared.showsSyncProgress)
-    XCTAssertFalse(ExtensionSyncTrigger.networkChanged.showsSyncProgress)
     XCTAssertTrue(ExtensionSyncTrigger.localClipboardChanged.shouldPublishHistoryImmediately)
     XCTAssertFalse(ExtensionSyncTrigger.localClipboardChanged.showsSyncProgress)
 
-    XCTAssertTrue(ExtensionSyncTrigger.serverChanged.showsSyncProgress)
     XCTAssertTrue(ExtensionSyncTrigger.manual.shouldPublishHistoryImmediately)
     XCTAssertTrue(ExtensionSyncTrigger.manual.showsSyncProgress)
   }

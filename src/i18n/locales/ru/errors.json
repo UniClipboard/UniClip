@@ -27,17 +27,12 @@
   "share": {
     "dialogTitle": "Поделиться файлом"
   },
-  "urlClass": {
-    "lan": "Локальная сеть",
-    "tailscale": "Tailscale",
-    "wan": "Интернет"
-  },
   "refresh": {
     "failed": "Ошибка обновления"
   },
   "connect": {
     "failed": "Ошибка подключения",
-    "cannotReach": "Не удалось подключиться к серверу"
+    "cannotReach": "Не удалось подключиться к другим устройствам"
   },
   "notification": {
     "uploaded": "Отправлено",
@@ -46,10 +41,6 @@
   },
   "sync": {
     "networkErrorQueued": "Ошибка сети, добавлено в очередь: {{error}}"
-  },
-  "server": {
-    "errorWithBody": "Сервер вернул ошибку (HTTP {{status}}):\n\n{{body}}",
-    "errorWithMessage": "Сервер вернул ошибку (HTTP {{status}}): {{message}}"
   },
   "upload": {
     "failedSavedLocal": "Не удалось отправить, содержимое сохранено локально"

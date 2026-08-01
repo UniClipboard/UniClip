@@ -6,32 +6,18 @@ internal import UcEngineCore
 private let log = Logger(subsystem: "app.uniclipboard", category: "share")
 
 /// The Share Extension's only screen. Loads the shared payload, lets the
-/// user confirm which server to push to (if more than one is configured),
-/// runs the upload, then dismisses. The whole flow is asynchronous; the
-/// state machine below is what keeps the SwiftUI side honest.
+/// user select recipients in the current space, sends over P2P, then dismisses.
 @MainActor
 struct ShareRootView: View {
     let context: ShareExtensionContext?
-    /// Server id pre-selected by iOS when the user tapped a Sharing
-    /// Suggestions tile. When non-nil and matching a known server, we
-    /// skip the picker UI and go straight to upload (`.uploading`)
-    /// the moment attachment loading finishes. When non-nil but stale
-    /// (server was deleted), we fall back to the picker and surface a
-    /// note so the user knows why the shortcut didn't fire.
-    var prefilledServerId: String? = nil
     let onFinish: () -> Void
     let onCancel: () -> Void
 
     @State private var phase: Phase = .loadingAttachment
     @State private var item: ShareItem?
-    @State private var servers: ServerConfigList = ServerConfigList()
-    @State private var trustInsecureCert: Bool = false
-    @State private var syncChannel: SyncChannel = .p2p
     @State private var p2pRecipients: [ExtensionP2pRecipient] = []
     @State private var selectedRecipientIds = Set<String>()
     @State private var recipientLoadError: String?
-    @State private var selectedServerId: String?
-    @State private var prefillNote: String? = nil
     /// Mirrors the user's appearance setting from the App Group so the
     /// share sheet matches the main app instead of always rendering in
     /// whatever the system happens to be set to.
@@ -115,112 +101,56 @@ private extension ShareRootView {
     @ViewBuilder
     private var readyForm: some View {
         Form {
-            if let note = prefillNote {
-                Section {
-                    Label(note, systemImage: "info.circle")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-            }
             Section(localization.string("内容")) {
                 if let item {
                     contentRow(for: item)
                 }
             }
 
-            if syncChannel == .p2p {
-                Section(
-                    header: Text(localization.string("接收设备")),
-                    footer: Text(localization.string("选择设备后才会连接和发送"))
-                ) {
-                    if let recipientLoadError {
-                        Text(recipientLoadError)
-                            .foregroundStyle(.secondary)
-                    } else if p2pRecipients.isEmpty {
-                        Text(localization.string("没有已配对的接收设备"))
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(p2pRecipients, id: \.deviceId) { recipient in
-                            Button {
-                                toggleRecipient(recipient.deviceId)
-                            } label: {
-                                HStack(spacing: 12) {
-                                    Image(systemName: "desktopcomputer")
-                                        .foregroundStyle(.tint)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(recipient.displayName)
-                                            .foregroundStyle(.primary)
-                                        Text(localization.string(
-                                            recipient.wasLastKnownOnline
-                                                ? "上次状态：在线"
-                                                : "上次状态：离线"
-                                        ))
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    Spacer()
-                                    if selectedRecipientIds.contains(recipient.deviceId) {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .foregroundStyle(.tint)
-                                    } else {
-                                        Image(systemName: "circle")
-                                            .foregroundStyle(.tertiary)
-                                    }
-                                }
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityAddTraits(
-                                selectedRecipientIds.contains(recipient.deviceId) ? .isSelected : []
-                            )
-                        }
-                    }
-                }
-            } else if syncChannel == .lan, servers.configs.count > 1 {
-                Section(localization.string("发送到")) {
-                    ForEach(servers.configs, id: \.id) { server in
+            Section(
+                header: Text(localization.string("接收设备")),
+                footer: Text(localization.string("选择设备后才会连接和发送"))
+            ) {
+                if let recipientLoadError {
+                    Text(recipientLoadError)
+                        .foregroundStyle(.secondary)
+                } else if p2pRecipients.isEmpty {
+                    Text(localization.string("没有已配对的接收设备"))
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(p2pRecipients, id: \.deviceId) { recipient in
                         Button {
-                            selectedServerId = server.id
+                            toggleRecipient(recipient.deviceId)
                         } label: {
-                            HStack {
+                            HStack(spacing: 12) {
+                                Image(systemName: "desktopcomputer")
+                                    .foregroundStyle(.tint)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(server.displayLabel)
+                                    Text(recipient.displayName)
                                         .foregroundStyle(.primary)
-                                    if server.name?.isEmpty == false {
-                                        Text(server.url)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(1)
-                                    }
+                                    Text(localization.string(
+                                        recipient.wasLastKnownOnline
+                                            ? "上次状态：在线"
+                                            : "上次状态：离线"
+                                    ))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
                                 }
                                 Spacer()
-                                if server.id == selectedServerId {
-                                    Image(systemName: "checkmark")
+                                if selectedRecipientIds.contains(recipient.deviceId) {
+                                    Image(systemName: "checkmark.circle.fill")
                                         .foregroundStyle(.tint)
+                                } else {
+                                    Image(systemName: "circle")
+                                        .foregroundStyle(.tertiary)
                                 }
                             }
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(
+                            selectedRecipientIds.contains(recipient.deviceId) ? .isSelected : []
+                        )
                     }
-                }
-            } else if syncChannel == .lan, let only = servers.configs.first {
-                Section(localization.string("发送到")) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(only.displayLabel)
-                            if only.name?.isEmpty == false {
-                                Text(only.url)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                            }
-                        }
-                        Spacer()
-                    }
-                }
-            } else if syncChannel == .lan {
-                Section {
-                    Text(localization.string("尚未配置服务器,请先打开 UniClipboard 主程序添加"))
-                        .foregroundStyle(.secondary)
-                        .font(.footnote)
                 }
             }
         }
@@ -420,33 +350,18 @@ private extension ShareRootView {
     // MARK: - Helpers
 
     private var canSend: Bool {
-        guard item != nil else { return false }
-        if syncChannel == .p2p {
-            return !selectedRecipientIds.isEmpty
-        }
-        return resolvedServer != nil
-    }
-
-    private var resolvedServer: ServerConfig? {
-        if let id = selectedServerId {
-            return servers.configs.first(where: { $0.id == id })
-        }
-        return servers.activeConfig
+        item != nil && !selectedRecipientIds.isEmpty
     }
 
     private var selectedDestinationName: String {
-        if syncChannel == .p2p {
-            let names = p2pRecipients
-                .filter { selectedRecipientIds.contains($0.deviceId) }
-                .map(\.displayName)
-            if names.count == 1, let name = names.first { return name }
-            if !names.isEmpty {
-                return localization.string("已选择 %lld 台设备", Int64(names.count))
-            }
-            return localization.string("未选择接收设备")
+        let names = p2pRecipients
+            .filter { selectedRecipientIds.contains($0.deviceId) }
+            .map(\.displayName)
+        if names.count == 1, let name = names.first { return name }
+        if !names.isEmpty {
+            return localization.string("已选择 %lld 台设备", Int64(names.count))
         }
-        if let server = resolvedServer { return server.displayLabel }
-        return localization.string("未选择服务器")
+        return localization.string("未选择接收设备")
     }
 
     private func toggleRecipient(_ id: String) {
@@ -470,31 +385,10 @@ private extension ShareRootView {
 
     private func loadEverything() async {
         let store = SettingsStore()
-        let loadedServers = store.loadServers()
         let loadedSettings = store.loadAppSettings()
-        servers = loadedServers
-        trustInsecureCert = loadedSettings.trustInsecureCert
-        syncChannel = loadedSettings.syncChannel
         appearance = loadedSettings.appearance
         localization = ExtensionLocalization(preference: loadedSettings.language)
-
-        // Resolve initial selection: Sharing-Suggestions tap takes
-        // priority; if the tapped server has since been deleted we note
-        // it and fall back to the user's active server / first server.
-        if syncChannel == .p2p {
-            await loadP2pRecipients()
-        }
-
-        if let pre = prefilledServerId {
-            if loadedServers.configs.contains(where: { $0.id == pre }) {
-                selectedServerId = pre
-            } else {
-                selectedServerId = loadedServers.activeConfigId ?? loadedServers.configs.first?.id
-                prefillNote = localization.string("原服务器已不可用,已切换到当前活动服务器")
-            }
-        } else {
-            selectedServerId = loadedServers.activeConfigId ?? loadedServers.configs.first?.id
-        }
+        await loadP2pRecipients()
 
         guard let ctx = context else {
             log.error("loadEverything: no extension context")
@@ -505,14 +399,7 @@ private extension ShareRootView {
             let extracted = try await ShareItemExtractor.extract(from: ctx)
             log.info("loadEverything: extracted \(extracted.kindLabel, privacy: .public) bytes=\(extracted.byteCount, privacy: .public)")
             item = extracted
-            // Direct-share fast path: the user already told iOS which
-            // server to use, so skip the picker entirely. `send()` sets
-            // `.uploading` itself.
-            if syncChannel == .lan, prefilledServerId != nil, prefillNote == nil, resolvedServer != nil {
-                await send()
-            } else {
-                phase = .ready
-            }
+            phase = .ready
         } catch {
             // The activation rule matched but extraction failed — the
             // source app advertised a UTI it couldn't fulfill, or our
@@ -544,7 +431,7 @@ private extension ShareRootView {
     private func send() async {
         guard let item else { return }
         let targetDevices = selectedRecipientIds.sorted()
-        if syncChannel == .p2p, targetDevices.isEmpty { return }
+        if targetDevices.isEmpty { return }
         let diagnostics = makeShareDiagnostics(for: item)
         diagnostics?.record(stage: .attemptStarted)
         if case .file(let staged) = item,
@@ -552,116 +439,36 @@ private extension ShareRootView {
             handoffFileToApp(staged, targetDeviceIds: targetDevices, diagnostics: diagnostics)
             return
         }
-        let store = SettingsStore()
-        let network = await NetworkContextDetector.current(store: store)
-        diagnostics?.record(
-            stage: .networkObserved,
-            network: ShareDiagnosticNetwork(
-                wifi: network.isWifi,
-                cellular: network.isCellular,
-                tailscale: network.isTailscale
-            )
-        )
-        if syncChannel == .p2p {
-            phase = .uploading
-            shareStage = .connecting
-            transferProgress = nil
-            do {
-                try await ShareUploader().uploadP2p(
-                    item,
-                    targetDevices: targetDevices,
-                    diagnostics: diagnostics,
-                    onStage: { stage in
-                        updateShareStage(stage)
-                    },
-                    onTransferProgress: { progress in
-                        updateTransferProgress(progress)
-                    }
-                )
-                discardStagedFileIfNeeded()
-                phase = .succeeded
-            } catch {
-                let connectionTimedOut =
-                    (error as? ExtensionPeerConnectionError)
-                    == ExtensionPeerConnectionError.connectionTimedOut
-                let itemIsFile: Bool
-                if case .file = item { itemIsFile = true } else { itemIsFile = false }
-                if OutboundShareFallbackPolicy.shouldHandoff(
-                    itemIsFile: itemIsFile,
-                    connectionTimedOut: connectionTimedOut
-                ), case .file(let staged) = item {
-                    handoffFileToApp(staged, targetDeviceIds: targetDevices, diagnostics: diagnostics)
-                    return
-                }
-                phase = .failed(message(for: error))
-            }
-            return
-        }
-
-        await sendLan(item, store: store, network: network, diagnostics: diagnostics)
-    }
-
-    private func sendLan(
-        _ item: ShareItem,
-        store: SettingsStore,
-        network: NetworkContext,
-        diagnostics: ShareDiagnosticRecorder?
-    ) async {
-        guard var server = resolvedServer else {
-            diagnostics?.record(
-                stage: .failed,
-                error: ShareDiagnosticError(code: .networkUnreachable)
-            )
-            return
-        }
-        // §5.3 from an extension: start from the last probe verdict (App
-        // Group `live_urls`) over pure shape order. The uploader then runs a
-        // short concurrent probe before the real PUTs.
-        let liveURL = store.loadLiveURL(configId: server.id)
-        let originalURLs = server.urls
-        server.urls = server.preferredURLs(live: liveURL, network: network)
-        diagnostics?.record(
-            stage: .routePrepared,
-            route: ShareDiagnosticRoute(
-                candidateCount: server.urls.count,
-                hadRememberedLiveRoute: liveURL != nil
-            )
-        )
-        log.error(
-            """
-            [share-route-v3] prepare server=\(server.id, privacy: .public) \
-            wifi=\(network.isWifi, privacy: .public) \
-            cellular=\(network.isCellular, privacy: .public) \
-            tailscale=\(network.isTailscale, privacy: .public) \
-            ssid=\(network.ssid ?? "nil", privacy: .private) \
-            live=\(liveURL ?? "nil", privacy: .public) \
-            originalCount=\(originalURLs.count, privacy: .public) \
-            original=\(originalURLs.joined(separator: " | "), privacy: .public) \
-            orderedCount=\(server.urls.count, privacy: .public) \
-            ordered=\(server.urls.joined(separator: " | "), privacy: .public)
-            """
-        )
         phase = .uploading
         shareStage = .connecting
         transferProgress = nil
         do {
-            let uploader = ShareUploader()
-            try await uploader.upload(
+            try await ShareUploader().uploadP2p(
                 item,
-                to: server,
-                trustInsecureCert: trustInsecureCert,
-                network: network,
+                targetDevices: targetDevices,
                 diagnostics: diagnostics,
                 onStage: { stage in
                     updateShareStage(stage)
+                },
+                onTransferProgress: { progress in
+                    updateTransferProgress(progress)
                 }
             )
             discardStagedFileIfNeeded()
-            log.info("send: upload succeeded \(item.kindLabel, privacy: .public) bytes=\(item.byteCount, privacy: .public)")
             phase = .succeeded
         } catch {
-            let kind = (error as? SyncError).map { String(describing: $0.kind) } ?? String(describing: type(of: error))
-            log.error("send: upload failed \(kind, privacy: .public): \(String(describing: error), privacy: .private)")
+            let connectionTimedOut =
+                (error as? ExtensionPeerConnectionError)
+                == ExtensionPeerConnectionError.connectionTimedOut
+            let itemIsFile: Bool
+            if case .file = item { itemIsFile = true } else { itemIsFile = false }
+            if OutboundShareFallbackPolicy.shouldHandoff(
+                itemIsFile: itemIsFile,
+                connectionTimedOut: connectionTimedOut
+            ), case .file(let staged) = item {
+                handoffFileToApp(staged, targetDeviceIds: targetDevices, diagnostics: diagnostics)
+                return
+            }
             phase = .failed(message(for: error))
         }
     }
@@ -672,7 +479,6 @@ private extension ShareRootView {
         ), let store = try? ShareDiagnosticsStore(containerURL: containerURL)
         else { return nil }
         return try? store.startAttempt(
-            channel: syncChannel == .p2p ? .p2p : .lan,
             itemKind: item.diagnosticKind,
             byteCount: Int(clamping: item.byteCount)
         )
@@ -685,11 +491,8 @@ private extension ShareRootView {
     ) {
         diagnostics?.record(stage: .handoffStarted)
         do {
-            let channel: OutboundShareChannel = syncChannel == .p2p ? .p2p : .lan
             try OutboundShareStore().enqueue(
                 staged,
-                channel: channel,
-                serverId: channel == .lan ? selectedServerId : nil,
                 targetDeviceIds: targetDeviceIds
             )
             diagnostics?.record(stage: .handoffQueued)
@@ -735,24 +538,7 @@ private extension ShareRootView {
                 return localization.string("连接恢复超时，请稍后重试")
             }
         }
-        guard let syncError = error as? SyncError else {
-            return (error as? LocalizedError)?.errorDescription
-                ?? localization.string("同步失败")
-        }
-        switch syncError.kind {
-        case .authFailed: return localization.string("认证失败 — 请检查用户名和密码")
-        case .connectTimeout: return localization.string("连接超时 — 请检查服务器地址")
-        case .receiveTimeout: return localization.string("接收超时 — 请稍后重试")
-        case .networkUnreachable: return localization.string("无法连接 — 请检查网络和 URL")
-        case .invalidURL: return localization.string("服务器地址无效")
-        case .decodingFailed: return localization.string("服务器返回的数据无法解析")
-        case .protocolError(let code):
-            return localization.string("服务器返回 HTTP %lld", Int64(code))
-        case .serverError(let code):
-            return localization.string("服务器错误 %lld", Int64(code))
-        case .notFound: return localization.string("服务器尚未发布剪贴板")
-        case .hashMismatch: return localization.string("内容校验失败 — 文件可能损坏")
-        case .cancelled: return localization.string("请求已取消")
-        }
+        return (error as? LocalizedError)?.errorDescription
+            ?? localization.string("同步失败")
     }
 }

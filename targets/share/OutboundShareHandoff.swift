@@ -9,18 +9,11 @@ struct StagedShareFile: Equatable, Sendable {
     let mimeType: String?
 }
 
-enum OutboundShareChannel: String, Codable, Sendable {
-    case p2p
-    case lan
-}
-
 struct OutboundShareJob: Codable, Equatable, Sendable {
     let id: String
     let displayName: String
     let byteCount: Int64
     let mimeType: String?
-    let channel: OutboundShareChannel
-    let serverId: String?
     /// Nil keeps handoffs created by earlier app versions compatible and
     /// retains their legacy all-recipients behavior.
     let targetDeviceIds: [String]?
@@ -139,8 +132,6 @@ final class OutboundShareStore: @unchecked Sendable {
     @discardableResult
     func enqueue(
         _ staged: StagedShareFile,
-        channel: OutboundShareChannel,
-        serverId: String?,
         targetDeviceIds: [String] = []
     ) throws -> OutboundShareJob {
         guard fileManager.fileExists(atPath: staged.url.path) else {
@@ -151,8 +142,6 @@ final class OutboundShareStore: @unchecked Sendable {
             displayName: staged.displayName,
             byteCount: staged.byteCount,
             mimeType: staged.mimeType,
-            channel: channel,
-            serverId: serverId,
             targetDeviceIds: targetDeviceIds.isEmpty ? nil : Array(Set(targetDeviceIds)).sorted(),
             createdAtMs: Self.nowMs
         )

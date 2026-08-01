@@ -3,14 +3,13 @@ import UIKit
 @MainActor
 final class KeyboardTopBarView: UIView {
     var onRefresh: (() -> Void)?
-    var onSelectServer: ((String) -> Void)?
     var onFilterPresentationChange: ((KeyboardFilterPresentation) -> Void)?
     var onFeedback: (() -> Void)?
 
     private let standardBar = UIView()
     private let filterBar = UIView()
     private let searchButton = UIButton(type: .system)
-    private let serverButton = UIButton(type: .system)
+    private let titleLabel = UILabel()
     private let refreshButton = UIButton(type: .system)
     private let refreshSpinner = UIActivityIndicatorView(style: .medium)
     private let closeFilterButton = UIButton(type: .system)
@@ -36,13 +35,10 @@ final class KeyboardTopBarView: UIView {
         searchButton.accessibilityLabel = strings.searchLabel
         refreshButton.accessibilityLabel = strings.refreshLabel
         closeFilterButton.accessibilityLabel = strings.closeFilterLabel
-        serverButton.accessibilityLabel = strings.serverLabel
         rebuildFilterSegments(strings.filterTitles)
 
         searchButton.isHidden = !topBar.showsSearch
-        serverButton.setTitle(topBar.title + (topBar.isServerEnabled ? " ⌄" : ""), for: .normal)
-        serverButton.isEnabled = topBar.isServerEnabled
-        rebuildServerMenu(topBar.servers)
+        titleLabel.text = topBar.title
         renderSync(sync, showsRefresh: topBar.showsRefresh)
 
         standardBar.isHidden = filterPresentation.isFiltering
@@ -68,24 +64,25 @@ final class KeyboardTopBarView: UIView {
         refreshButton.addTarget(self, action: #selector(refresh), for: .touchUpInside)
         closeFilterButton.addTarget(self, action: #selector(closeFilter), for: .touchUpInside)
 
-        serverButton.translatesAutoresizingMaskIntoConstraints = false
-        serverButton.titleLabel?.font = .preferredFont(forTextStyle: .subheadline).withWeight(.semibold)
-        serverButton.setTitleColor(.label, for: .normal)
-        serverButton.showsMenuAsPrimaryAction = true
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        titleLabel.font = .preferredFont(forTextStyle: .subheadline).withWeight(.semibold)
+        titleLabel.textColor = .label
+        titleLabel.textAlignment = .center
+        titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         refreshSpinner.translatesAutoresizingMaskIntoConstraints = false
         refreshSpinner.hidesWhenStopped = true
         standardBar.addSubview(searchButton)
-        standardBar.addSubview(serverButton)
+        standardBar.addSubview(titleLabel)
         standardBar.addSubview(refreshButton)
         standardBar.addSubview(refreshSpinner)
         NSLayoutConstraint.activate([
             searchButton.leadingAnchor.constraint(equalTo: standardBar.leadingAnchor),
             searchButton.centerYAnchor.constraint(equalTo: standardBar.centerYAnchor),
-            serverButton.centerXAnchor.constraint(equalTo: standardBar.centerXAnchor),
-            serverButton.centerYAnchor.constraint(equalTo: standardBar.centerYAnchor),
-            serverButton.leadingAnchor.constraint(greaterThanOrEqualTo: searchButton.trailingAnchor, constant: 8),
-            serverButton.trailingAnchor.constraint(lessThanOrEqualTo: refreshButton.leadingAnchor, constant: -8),
+            titleLabel.centerXAnchor.constraint(equalTo: standardBar.centerXAnchor),
+            titleLabel.centerYAnchor.constraint(equalTo: standardBar.centerYAnchor),
+            titleLabel.leadingAnchor.constraint(greaterThanOrEqualTo: searchButton.trailingAnchor, constant: 8),
+            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: refreshButton.leadingAnchor, constant: -8),
             refreshButton.trailingAnchor.constraint(equalTo: standardBar.trailingAnchor),
             refreshButton.centerYAnchor.constraint(equalTo: standardBar.centerYAnchor),
             refreshSpinner.centerXAnchor.constraint(equalTo: refreshButton.centerXAnchor),
@@ -139,14 +136,6 @@ final class KeyboardTopBarView: UIView {
             filterControl.insertSegment(withTitle: title, at: index, animated: false)
         }
         filterControl.selectedSegmentIndex = filterPresentation.filter.rawValue
-    }
-
-    private func rebuildServerMenu(_ servers: [KeyboardViewServerChoice]) {
-        serverButton.menu = UIMenu(children: servers.map { server in
-            UIAction(title: server.title, state: server.isActive ? .on : .off) { [weak self] _ in
-                self?.onSelectServer?(server.id)
-            }
-        })
     }
 
     private func configureIconButton(

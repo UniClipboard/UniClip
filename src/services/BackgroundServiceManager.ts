@@ -3,9 +3,8 @@
  * 统一管理所有 JS 侧后台服务的生命周期。
  *
  * 负责管理：
- * - ClipboardSyncService（远程内容显示、WebDAV/S3 轮询、SyncManager、自动上传/下载）
+ * - P2P engine
  * - 前台服务（常驻通知）
- * - 短信验证码服务
  * - 剪贴板监控（startMonitoring）
  * - 统计心跳
  * - 通知栏停止/临时停止监听
@@ -16,8 +15,8 @@
 
 import { AppState, Platform } from 'react-native';
 import { log } from './Logger';
-import { canAutoPushInBackground, shouldRunBackgroundSync } from '@/utils/syncDirectionPolicy';
-import { SyncChannelCoordinator } from './SyncChannelCoordinator';
+import { shouldRunBackgroundSync } from '@/utils/syncDirectionPolicy';
+import { getCurrentNetworkContext } from './networkContext';
 
 class BackgroundServiceManager {
   private static instance: BackgroundServiceManager | null = null;
@@ -30,17 +29,6 @@ class BackgroundServiceManager {
   /** 取消对 settingsStore 的订阅 */
   private settingsUnsub: (() => void) | null = null;
   private currentAppState = AppState.currentState;
-  private readonly syncChannels = new SyncChannelCoordinator(
-    {
-      start: () => this._startUnifiedEngine(),
-      stop: () => this._stopUnifiedEngine(),
-    },
-    {
-      start: () => this._startLanSync(),
-      stop: () => this._stopLanSync(),
-    }
-  );
-
   private constructor() {}
 
   static getInstance(): BackgroundServiceManager {
@@ -57,22 +45,7 @@ class BackgroundServiceManager {
     const state = useSettingsStore.getState();
     const config = state.config;
     const tempDisabled = state.isTempDisabledBackgroundTasks;
-    return shouldRunBackgroundSync(config, tempDisabled);
-  }
-
-  /**
-   * 更新静态短信接收器状态。
-   * SMS 转发不受后台任务总开关控制，仅由 enableSmsForwarding 决定。
-   */
-  private _updateSmsReceiver(): void {
-    try {
-      const { useSettingsStore } = require('../stores/settingsStore');
-      const config = useSettingsStore.getState().config;
-      const { setStaticReceiverEnabled } = require('sms-forwarder');
-      setStaticReceiverEnabled(!!config?.enableSmsForwarding);
-    } catch (e) {
-      log.error('[BackgroundServiceManager] Failed to toggle SMS receiver:', e);
-    }
+    return shouldRunBackgroundSync(config, tempDisabled, getCurrentNetworkContext());
   }
 
   // ─── 公开 API ─────────────────────────────────────────────
@@ -81,7 +54,7 @@ class BackgroundServiceManager {
    * 启动所有服务（幂等）。
    * 由任意 Activity 入口调用。
    * - 始终启动剪贴板监控（前台 UI 需要）
-   * - 始终启动 ClipboardSyncService（前台 UI + 后台同步）
+   * - 始终启动 P2P engine
    * - 仅在后台任务启用时才启动前台通知和心跳
    * - 始终订阅配置变化以支持动态重启
    */
@@ -94,11 +67,6 @@ class BackgroundServiceManager {
 
     this._subscribeToAppState();
 
-    // SMS 转发始终独立管理（Android 专属）
-    if (Platform.OS === 'android') {
-      this._updateSmsReceiver();
-    }
-
     // 始终启动剪贴板监控（无论是否启用后台任务，UI 需要感知本地剪贴板变化）
     try {
       const { useClipboardStore } = require('../stores');
@@ -107,7 +75,7 @@ class BackgroundServiceManager {
       log.error('[BackgroundServiceManager] Failed to start clipboard monitoring:', e);
     }
 
-    await this._reconcileSelectedSyncChannel();
+    await this._startUnifiedEngine();
 
     // 后台专用服务（前台通知 + 心跳，Android 专属）
     if (Platform.OS === 'android') {
@@ -127,7 +95,7 @@ class BackgroundServiceManager {
 
   /**
    * 停止后台专用服务（前台通知、心跳）。
-   * 注意：ClipboardSyncService 不在此处停止，由 refresh() 统一管理。
+   * P2P engine 由应用生命周期统一管理。
    */
   async stop(): Promise<void> {
     await this._stopBackgroundOnlyServices();
@@ -137,12 +105,7 @@ class BackgroundServiceManager {
    * 配置变化时重新评估所有服务状态（由内部订阅自动触发）。
    */
   async refresh(): Promise<void> {
-    // SMS 转发（Android 专属）
-    if (Platform.OS === 'android') {
-      this._updateSmsReceiver();
-    }
-
-    await this._reconcileSelectedSyncChannel();
+    await this._startUnifiedEngine();
 
     // 后台专用服务（Android 专属）
     if (Platform.OS === 'android') {
@@ -159,25 +122,11 @@ class BackgroundServiceManager {
     }
   }
 
-  /** Wait until the currently selected sync transport is active. */
-  async activateSelectedSyncChannel(): Promise<void> {
-    const { useSettingsStore } = require('../stores/settingsStore');
-    const channel = useSettingsStore.getState().config?.syncChannel ?? 'lan';
-    await this.syncChannels.select(channel);
+  async activateP2p(): Promise<void> {
+    await this._startUnifiedEngine();
   }
 
   // ─── 私有实现 ─────────────────────────────────────────────
-
-  private async _reconcileSelectedSyncChannel(): Promise<void> {
-    const { useSettingsStore } = require('../stores/settingsStore');
-    const channel = useSettingsStore.getState().config?.syncChannel ?? 'lan';
-
-    try {
-      await this.activateSelectedSyncChannel();
-    } catch (e) {
-      log.error(`[BackgroundServiceManager] Failed to start selected ${channel} channel:`, e);
-    }
-  }
 
   private async _startUnifiedEngine(): Promise<void> {
     const { getUnifiedEngineService } = require('./UnifiedEngineService');
@@ -189,6 +138,7 @@ class BackgroundServiceManager {
       appVersion: Application.nativeApplicationVersion ?? 'unknown',
       profileId: 'default',
     });
+    await service.setBackgroundSyncPolicy(this.getShouldRunBackground());
     log.info(`[P2PStartup] Native engine started in ${Date.now() - startedAt}ms`);
     if (Platform.OS === 'ios') {
       if (this.currentAppState !== 'active') return;
@@ -216,76 +166,7 @@ class BackgroundServiceManager {
     );
   }
 
-  private async _stopUnifiedEngine(): Promise<void> {
-    const { getUnifiedEngineService } = require('./UnifiedEngineService');
-    const service = getUnifiedEngineService();
-    service.cancelPeerRecovery();
-    await service.stop();
-  }
-
-  private async _startLanSync(): Promise<void> {
-    await this._reconcileSyncExecution();
-    await this._startSyncEngine();
-    await this._startRemoteSync();
-  }
-
-  private async _stopLanSync(): Promise<void> {
-    const { useSyncEngineStore } = require('../stores/syncEngineStore');
-    useSyncEngineStore.getState().stop();
-
-    const { getClipboardSyncService } = require('./ClipboardSyncService');
-    await getClipboardSyncService().stop();
-  }
-
-  /** 启动/刷新 ClipboardSyncService */
-  private async _startRemoteSync(): Promise<void> {
-    try {
-      const { getClipboardSyncService } = require('./ClipboardSyncService');
-      await getClipboardSyncService().refresh();
-    } catch (e) {
-      log.error('[BackgroundServiceManager] Failed to start/refresh remote sync:', e);
-    }
-  }
-
-  /** 启动 Rust-driven SyncEngine（新同步引擎） */
-  private async _startSyncEngine(): Promise<void> {
-    try {
-      const { useSyncEngineStore } = require('../stores/syncEngineStore');
-      const store = useSyncEngineStore.getState();
-      if (!store.isRunning) {
-        await store.start();
-      }
-    } catch (e) {
-      log.error('[BackgroundServiceManager] Failed to start SyncEngine:', e);
-    }
-  }
-
-  /** 按当前 AppState 和后台策略重评估新引擎与本地剪贴板监听。 */
-  private async _reconcileSyncExecution(): Promise<void> {
-    try {
-      const { reconcileSyncEngineAppState } = require('../stores/syncEngineStore');
-      reconcileSyncEngineAppState();
-    } catch (e) {
-      log.error('[BackgroundServiceManager] Failed to reconcile SyncEngine:', e);
-    }
-
-    if (AppState.currentState === 'active') return;
-
-    try {
-      const { useSettingsStore } = require('../stores/settingsStore');
-      const settings = useSettingsStore.getState();
-      const { useClipboardStore } = require('../stores/clipboardStore');
-      if (canAutoPushInBackground(settings.config, settings.isTempDisabledBackgroundTasks)) {
-        await useClipboardStore.getState().startMonitoring();
-      } else {
-        useClipboardStore.getState().stopMonitoring();
-      }
-    } catch (e) {
-      log.error('[BackgroundServiceManager] Failed to reconcile clipboard monitoring:', e);
-    }
-  }
-
-  /** 启动后台专用服务（前台通知、心跳、剪贴板监控） */
+  /** 启动 Android 后台专用服务（前台通知、统计心跳） */
   private async _startBackgroundOnlyServices(): Promise<void> {
     const { useSettingsStore } = require('../stores/settingsStore');
     const config = useSettingsStore.getState().config;
@@ -385,9 +266,6 @@ class BackgroundServiceManager {
 
     this.appStateSub = AppState.addEventListener('change', (state) => {
       this.currentAppState = state;
-      const { useSettingsStore } = require('../stores/settingsStore');
-      if (useSettingsStore.getState().config?.syncChannel !== 'p2p') return;
-
       const { getUnifiedEngineService } = require('./UnifiedEngineService');
       const service = getUnifiedEngineService();
       if (state === 'inactive' || state === 'background') {

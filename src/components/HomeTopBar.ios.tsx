@@ -1,13 +1,5 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  Pressable,
-  PlatformColor,
-  type ColorValue,
-} from 'react-native';
+import { View, Text, TextInput, StyleSheet, Pressable } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown, Ellipsis, ListFilter, Search, X, XCircle } from 'lucide-react-native';
 import { Menu, Button as SwiftUIButton, Host } from '@expo/ui/swift-ui';
@@ -19,62 +11,38 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { GlassContainer } from '@/components/ui';
-import { ServerStatusDot } from '@/components/ServerStatusDot';
 import { iosDimensions } from '@/theme/iosDesignTokens';
 import type {
   DefaultTopBarProps,
   SearchTopBarProps,
   SelectModeTopBarProps,
 } from './HomeTopBar.types';
-import { CONNECTION_STATUS_TEXT, type ConnectionStatus } from '@/utils/connectionStatus';
 import { HistoryFilterTags } from '@/components/HistoryFilterTags';
 
 const BTN = iosDimensions.floatingButtonSize;
 
-// iOS 系统语义色：随浅/深色与辅助功能自动适配（记忆：iOS 必须用 PlatformColor）
-const STATUS_STYLE: Record<ConnectionStatus, { color: ColorValue; pulse: boolean; glow: boolean }> =
-  {
-    online: { color: PlatformColor('systemGreen'), pulse: false, glow: true },
-    connecting: { color: PlatformColor('systemOrange'), pulse: true, glow: false },
-    offline: { color: PlatformColor('systemGray'), pulse: false, glow: false },
-    error: { color: PlatformColor('systemRed'), pulse: true, glow: false },
-    unconfigured: { color: PlatformColor('systemGray3'), pulse: false, glow: false },
-  };
-
 export function DefaultTopBar({
-  serverLabel,
-  connectionStatus,
-  onSwitchServer,
+  onOpenSpace,
   onSearch,
   onSettings,
   onSelectMode,
   theme,
 }: DefaultTopBarProps) {
   const { t } = useTranslation('home');
-  const dot = STATUS_STYLE[connectionStatus];
-  const dimmed = connectionStatus === 'unconfigured' || connectionStatus === 'offline';
   return (
     <View style={s.row}>
       <Pressable
-        onPress={onSwitchServer}
-        style={s.serverPress}
+        onPress={onOpenSpace}
+        style={s.spacePress}
         accessibilityRole="button"
-        accessibilityLabel={t('topBar.switchServerA11y', {
-          server: serverLabel,
-          status: CONNECTION_STATUS_TEXT[connectionStatus],
-        })}
+        accessibilityLabel={t('topBar.openSpaceA11y')}
       >
-        <GlassContainer shape="capsule" interactive style={s.serverPill}>
-          <ServerStatusDot color={dot.color} pulse={dot.pulse} glow={dot.glow} />
+        <GlassContainer shape="capsule" interactive style={s.spacePill}>
           <Text
-            style={[
-              s.label,
-              s.labelShrink,
-              { color: dimmed ? theme.colors.textSecondary : theme.colors.textPrimary },
-            ]}
+            style={[s.label, s.labelShrink, { color: theme.colors.textPrimary }]}
             numberOfLines={1}
           >
-            {serverLabel}
+            {t('topBar.mySpace')}
           </Text>
           <ChevronDown size={15} color={theme.colors.textSecondary} />
         </GlassContainer>
@@ -267,9 +235,9 @@ export function SelectModeTopBar({
 
 const s = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 52 },
-  serverPress: { flexShrink: 1 },
-  serverPill: {
-    height: 40,
+  spacePress: { flexShrink: 1 },
+  spacePill: {
+    height: BTN,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,

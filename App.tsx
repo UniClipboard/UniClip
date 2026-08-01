@@ -6,20 +6,15 @@ import {
   StatusBar,
   View,
   Platform,
-  Alert,
   AppState,
 } from 'react-native';
 import { useEffect, useState } from 'react';
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
-import { navigateWhenReady } from './src/navigation/navigationRef';
 import { QuickTileLoadingScreen } from './src/screens/QuickTileLoadingScreen';
 import { ShareReceiveScreen } from './src/screens/ShareReceiveScreen';
 import { ProcessTextScreen } from './src/screens/ProcessTextScreen';
-import { QrScannerHost } from './src/components/QrScannerHost';
-import { SyncDirection } from './src/types/sync';
-import { useSettingsStore, usePendingConnectStore, useHistoryStore } from './src/stores';
-import i18n from './src/i18n';
+import { useSettingsStore, useHistoryStore } from './src/stores';
 import { applyLanguagePreference } from './src/i18n/useAppLanguage';
 import { initLogger, setLogLevel } from './src/services/Logger';
 import { useTheme } from './src/hooks/useTheme';
@@ -30,61 +25,9 @@ import { historyStorage } from './src/services/HistoryStorage';
 import { startAppGroupSync } from './src/services/appGroupSync';
 import { startNetworkContextMonitor } from './src/services/networkContext';
 import { resumeOutboundShareHandoffs } from './src/services/OutboundShareHandoffManager';
-import {
-  parseConnectUri,
-  CONNECT_URI_ERROR_MESSAGES,
-  CONNECT_URI_SCHEME,
-  CONNECT_URI_HOST,
-} from './src/utils/connectUri';
 
 const QUICK_UPLOAD_URL = 'uniclipboard://quick-upload';
-const QUICK_DOWNLOAD_URL = 'uniclipboard://quick-download';
 const PROCESS_TEXT_URL = 'uniclipboard://process-text';
-const CONNECT_URL_PREFIX = `${CONNECT_URI_SCHEME}://${CONNECT_URI_HOST}`;
-
-/**
- * 检测并处理 uniclipboard://connect 接入凭据 URI。
- * 解析成功 → 写入 pendingConnectStore + 导航到服务器配置页，由 ServerModals(Android) /
- * SettingsScreen(iOS) 消费凭据弹出预填表单。
- * 解析失败 → 弹 Alert 提示错误文案。
- *
- * 安全：本函数绝不 log URI 原文或 payload。
- * 返回值：true 表示本 URL 是 connect URI（无论成败，主流程应短路）。
- */
-function handleConnectUrlIfMatched(url: string | null | undefined): boolean {
-  if (!url || !url.startsWith(CONNECT_URL_PREFIX)) return false;
-  const parsed = parseConnectUri(url);
-  if (!parsed.ok) {
-    console.log(`[QR][deeplink] failed: ${parsed.error}`);
-    Alert.alert(i18n.t('connect:scanFailed'), CONNECT_URI_ERROR_MESSAGES[parsed.error]);
-    return true;
-  }
-  const legacyLanEligible = useSettingsStore.getState().config?.legacyLanEligible ?? false;
-  if (!legacyLanEligible) {
-    Alert.alert(
-      i18n.t('settingsSync:migration.title'),
-      i18n.t('settingsSync:connection.lanDeprecated')
-    );
-    return true;
-  }
-  console.log('[QR][deeplink] succeeded');
-  usePendingConnectStore.getState().set({
-    url: parsed.value.url,
-    urls: parsed.value.urls.length > 0 ? parsed.value.urls : undefined,
-    user: parsed.value.user,
-    pwd: parsed.value.pwd,
-    ...(parsed.value.label !== undefined ? { label: parsed.value.label } : {}),
-  });
-  // iOS 走 BottomSheet（SettingsScreen.ios 的内部子页），导航到 Settings 即可，凭据由其自身消费；
-  // Android 直达同步子页 SettingsSub{sync}——ServerModals 只在此挂载，是唯一消费 pendingConnect 的地方。
-  if (Platform.OS === 'ios') {
-    navigateWhenReady('Settings');
-  } else {
-    navigateWhenReady('SettingsSub', { section: 'sync' });
-  }
-  return true;
-}
-
 function parseProcessTextUrl(url: string | null): string | null {
   if (!url || !url.startsWith(PROCESS_TEXT_URL)) return null;
   try {
@@ -94,19 +37,25 @@ function parseProcessTextUrl(url: string | null): string | null {
   }
 }
 
-function parseQuickTileUrl(url: string | null): {
-  isQuickTile: boolean;
+function parseQuickUploadUrl(url: string | null): {
+  isQuickUpload: boolean;
   fromForeground: boolean;
-  direction: SyncDirection;
 } {
-  if (!url) return { isQuickTile: false, fromForeground: false, direction: SyncDirection.Download };
-  const fromForeground = url.includes('fg=1');
-  // Check upload first — its URL is a superset of the download prefix
-  if (url.startsWith(QUICK_UPLOAD_URL))
-    return { isQuickTile: true, fromForeground, direction: SyncDirection.Upload };
-  if (url.startsWith(QUICK_DOWNLOAD_URL))
-    return { isQuickTile: true, fromForeground, direction: SyncDirection.Download };
-  return { isQuickTile: false, fromForeground: false, direction: SyncDirection.Download };
+  if (!url) return { isQuickUpload: false, fromForeground: false };
+  return {
+    isQuickUpload: url.startsWith(QUICK_UPLOAD_URL),
+    fromForeground: url.includes('fg=1'),
+  };
+}
+
+function debugUrlLabel(url: string | null): string {
+  if (!url) return 'null';
+  try {
+    const parsed = new URL(url);
+    return `${parsed.protocol}//${parsed.host}${parsed.pathname}`;
+  } catch {
+    return 'invalid-url';
+  }
 }
 
 function isShareIntentUrl(url: string | null): boolean {
@@ -126,7 +75,6 @@ export default function App() {
   const [shareReceiveOverlay, setShareReceiveOverlay] = useState(false);
   const [processTextOverlay, setProcessTextOverlay] = useState<string | null>(null);
   const [quickActionOverlay, setQuickActionOverlay] = useState<{
-    direction: SyncDirection;
     exitAfterSync: boolean;
   } | null>(null);
   const { config, loadConfig, isLoaded } = useSettingsStore();
@@ -226,14 +174,7 @@ export default function App() {
     // Cold start: app launched via URL scheme
     Linking.getInitialURL().then((url) => {
       if (config?.debugUrlScheme && Platform.OS === 'android') {
-        const safeForDebug =
-          url && url.startsWith(CONNECT_URL_PREFIX) ? `${CONNECT_URL_PREFIX}?<redacted>` : url;
-        ToastAndroid.show(`getInitialURL: ${safeForDebug ?? 'null'}`, ToastAndroid.LONG);
-      }
-      // connect URI 优先短路，进 home 模式让 SettingsScreen 挂载
-      if (handleConnectUrlIfMatched(url)) {
-        setAppMode('home');
-        return;
+        ToastAndroid.show(`getInitialURL: ${debugUrlLabel(url)}`, ToastAndroid.LONG);
       }
       if (isShareIntentUrl(url)) {
         setAppMode('home');
@@ -246,24 +187,19 @@ export default function App() {
         setProcessTextOverlay(processText);
         return;
       }
-      const { isQuickTile, fromForeground, direction } = parseQuickTileUrl(url);
+      const { isQuickUpload, fromForeground } = parseQuickUploadUrl(url);
       // 始终进入 home 模式（挂载 AppNavigator/HomeScreen 以启动后台任务）
       setAppMode('home');
-      if (isQuickTile) {
+      if (isQuickUpload) {
         // fg=1 完成后留在 app，fg=0/无fg 完成后退出
-        setQuickActionOverlay({ direction, exitAfterSync: !fromForeground });
+        setQuickActionOverlay({ exitAfterSync: !fromForeground });
       }
     });
 
     // Hot start: app already running, receives URL deep link event
     const urlSub = Linking.addEventListener('url', ({ url }) => {
       if (config?.debugUrlScheme && Platform.OS === 'android') {
-        const safeForDebug =
-          url && url.startsWith(CONNECT_URL_PREFIX) ? `${CONNECT_URL_PREFIX}?<redacted>` : url;
-        ToastAndroid.show(`addEventListener url: ${safeForDebug ?? 'null'}`, ToastAndroid.LONG);
-      }
-      if (handleConnectUrlIfMatched(url)) {
-        return;
+        ToastAndroid.show(`addEventListener url: ${debugUrlLabel(url)}`, ToastAndroid.LONG);
       }
       if (isShareIntentUrl(url)) {
         setShareReceiveOverlay(true);
@@ -274,10 +210,10 @@ export default function App() {
         setProcessTextOverlay(processText);
         return;
       }
-      const { isQuickTile, fromForeground, direction } = parseQuickTileUrl(url);
-      if (isQuickTile) {
+      const { isQuickUpload, fromForeground } = parseQuickUploadUrl(url);
+      if (isQuickUpload) {
         // fg=1 完成后留在 app，fg=0/无fg 完成后退出
-        setQuickActionOverlay({ direction, exitAfterSync: !fromForeground });
+        setQuickActionOverlay({ exitAfterSync: !fromForeground });
       }
     });
 
@@ -289,7 +225,6 @@ export default function App() {
       <ThemeProvider>
         <ThemedStatusBar />
         {appMode === 'checking' ? null : <AppNavigator />}
-        <QrScannerHost />
         {shareReceiveOverlay && (
           <View style={StyleSheet.absoluteFill}>
             <ShareReceiveScreen
@@ -311,7 +246,6 @@ export default function App() {
         {quickActionOverlay && (
           <View style={StyleSheet.absoluteFill}>
             <QuickTileLoadingScreen
-              direction={quickActionOverlay.direction}
               onLoadingComplete={() => {
                 const shouldExit = quickActionOverlay.exitAfterSync;
                 setQuickActionOverlay(null);

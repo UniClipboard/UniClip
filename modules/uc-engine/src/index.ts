@@ -70,6 +70,24 @@ export interface Device {
   online: boolean;
 }
 
+export type MemberRevocationOutcome = 'localOnly' | 'applied' | 'complete' | 'recoveryRequired';
+
+export interface MemberRevocationResult {
+  revocationId: string | null;
+  outcome: MemberRevocationOutcome;
+  pendingRecipients: number;
+}
+
+export type LegacyMemberRemovalOutcome = 'awaitingReadmission' | 'complete' | 'recoveryRequired';
+
+export interface LegacyMemberRemovalResult {
+  bootstrapId: string;
+  outcome: LegacyMemberRemovalOutcome;
+  pendingReadmission: number;
+}
+
+export type MemberRemovalResult = MemberRevocationResult | LegacyMemberRemovalResult;
+
 export type ResendEntryOutcome =
   | {
       kind: 'completed';
@@ -158,6 +176,7 @@ interface UcEngineNativeModule {
   shutdown(deadlineMs: number): Promise<void>;
   suspend(): Promise<void>;
   resume(): Promise<void>;
+  setBackgroundSyncEnabled(enabled: boolean, appIsBackground: boolean): Promise<void>;
   createSpace(deviceName: string | null, passphrase: string): Promise<SpaceCreated>;
   issueInvitation(): Promise<InvitationIssued>;
   joinSpace(
@@ -169,7 +188,8 @@ interface UcEngineNativeModule {
   refreshPeerConnections(): Promise<PeerConnectionRefresh>;
   querySpaceState(): Promise<SpaceState>;
   listDevices(): Promise<Device[]>;
-  removeMember(deviceId: string): Promise<void>;
+  removeMember(deviceId: string): Promise<MemberRevocationResult>;
+  secureRemoveLegacyMember(deviceId: string): Promise<LegacyMemberRemovalResult>;
   resendEntry(entryId: string, targetDevices: string[]): Promise<ResendEntryOutcome>;
   leaveSpace(): Promise<void>;
   sendText(text: string, targetDevices: string[]): Promise<SendReport>;
@@ -206,6 +226,13 @@ export function resume(): Promise<void> {
   return NativeModule.resume();
 }
 
+export function setBackgroundSyncEnabled(
+  enabled: boolean,
+  appIsBackground: boolean
+): Promise<void> {
+  return NativeModule.setBackgroundSyncEnabled(enabled, appIsBackground);
+}
+
 export function createSpace(deviceName: string | null, passphrase: string): Promise<SpaceCreated> {
   return NativeModule.createSpace(deviceName, passphrase);
 }
@@ -238,8 +265,12 @@ export function listDevices(): Promise<Device[]> {
   return NativeModule.listDevices();
 }
 
-export function removeMember(deviceId: string): Promise<void> {
+export function removeMember(deviceId: string): Promise<MemberRevocationResult> {
   return NativeModule.removeMember(deviceId);
+}
+
+export function secureRemoveLegacyMember(deviceId: string): Promise<LegacyMemberRemovalResult> {
+  return NativeModule.secureRemoveLegacyMember(deviceId);
 }
 
 export function resendEntry(

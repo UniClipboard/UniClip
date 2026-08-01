@@ -1,7 +1,7 @@
 import Foundation
 import CryptoKit
 
-/// On-the-wire clipboard snapshot. Spec: docs/SYNC_PROTOCOL.md §3.
+/// Clipboard snapshot shared between the app and its extensions.
 public struct Clipboard: Codable, Equatable, Hashable, Sendable {
     public enum Kind: String, Codable, CaseIterable, Sendable {
         case text  = "Text"
@@ -17,12 +17,12 @@ public struct Clipboard: Codable, Equatable, Hashable, Sendable {
     public var dataName: String?
     public var size: Int?
 
-    /// Server-assigned opaque content identity (`blake3v1:<hex>`). Present
-    /// only on GET responses; uploads / legacy servers carry `nil`. Compared
+    /// Engine-assigned opaque content identity (`blake3v1:<hex>`). Present
+    /// on received snapshots while local observations carry `nil`. Compared
     /// verbatim as a whole — never parsed, case-folded, or normalized beyond
     /// "empty string ⇒ absent" (a harden-watermark fix can emit `""`, which
     /// must NOT short-circuit a same-content check). It is stable across
-    /// server-side re-encodes (JPEG→PNG changes `hash` but not `contentId`),
+    /// remote re-encodes (JPEG→PNG changes `hash` but not `contentId`),
     /// which is exactly what lets dedup survive re-encoding.
     public var contentId: String?
 
@@ -67,7 +67,7 @@ public struct Clipboard: Codable, Equatable, Hashable, Sendable {
         try c.encode(hasData, forKey: .hasData)
         try c.encodeIfPresent(dataName, forKey: .dataName)
         try c.encodeIfPresent(size, forKey: .size)
-        // contentId is GET-only server identity — never published on PUT.
+        // contentId describes received content and is never published with local content.
     }
 
     /// §3.1 — empty / whitespace-only hash is normalized to nil so the encoder omits the key.
@@ -108,8 +108,7 @@ public extension Clipboard {
     /// §4.1/§4.2 — SHA-256 of raw bytes, uppercase hex. The text-overflow
     /// hash is `computeBytesHash(Data(text.utf8))`; image/file hashes are
     /// `computeBytesHash(payload)`. The filename does NOT participate
-    /// (real SyncClipboard servers hash raw bytes — the basename-bound
-    /// variant an earlier spec revision described never matched reality).
+    /// (the content engine hashes raw bytes; filenames do not participate).
     static func computeBytesHash(_ data: Data) -> String {
         sha256Upper(data)
     }
@@ -162,9 +161,9 @@ public extension Clipboard {
 
     /// §3.3 + §4.2 — produce the publishable Clipboard + payload bytes for
     /// an arbitrary file (used by the Share Extension when the user shares
-    /// a Files-app document). `name` is sanitized to a bytewise basename —
-    /// `SyncClipboardClient.putFile` rejects `/` and `\`. `text` mirrors
-    /// the basename per §3.3 (non-text `text` = label). Hash is raw-bytes
+    /// a Files-app document). `name` is sanitized to a bytewise basename so
+    /// it is safe as a cache key. `text` mirrors the basename for compatibility.
+    /// Hash is raw-bytes
     /// SHA-256 per §4.2; `hasData=true`; `size` is the byte length.
     static func publishFile(name: String, bytes: Data) -> (clipboard: Clipboard, payload: Data) {
         let safe = sanitizedFilename(name)

@@ -18,15 +18,20 @@ import {
   type DiagnosticArtifact,
 } from '@/services/DiagnosticPackage';
 import { classifyDiagnosticReason } from '@/services/DiagnosticEventClassifier';
-import { useSettingsStore, useSyncEngineStore } from '@/stores';
+import { useSettingsStore } from '@/stores';
+import { useUnifiedEngineStore } from '@/stores/unifiedEngineStore';
+import { useUnifiedSpaceStore } from '@/stores/unifiedSpaceStore';
 import { shareFile } from '@/utils/fileActions';
 import { HeaderCircleButton } from './common';
 
 export function DiagnosticsPage({ onBack }: { onBack: () => void }) {
   const { t } = useTranslation('settingsIos');
   const config = useSettingsStore((state) => state.config);
-  const syncStatus = useSyncEngineStore((state) => state.status);
-  const isSyncEngineRunning = useSyncEngineStore((state) => state.isRunning);
+  const engineStatus = useUnifiedEngineStore((state) => state.status);
+  const peerConnectionStatus = useUnifiedEngineStore((state) => state.peerConnectionStatus);
+  const engineError = useUnifiedEngineStore((state) => state.lastError);
+  const spaceId = useUnifiedSpaceStore((state) => state.spaceId);
+  const deviceCount = useUnifiedSpaceStore((state) => state.devices.length);
   const [isGenerating, setIsGenerating] = useState(false);
 
   const handleGenerateAndShare = useCallback(async () => {
@@ -35,33 +40,19 @@ export function DiagnosticsPage({ onBack }: { onBack: () => void }) {
     setIsGenerating(true);
     let artifact: DiagnosticArtifact | null = null;
     try {
-      const activeServer = config.servers[config.activeServerIndex];
-      const candidateAddressCount = activeServer?.urls?.filter(Boolean).length ?? 0;
-      const activeServerAddressCount = activeServer
-        ? candidateAddressCount || (activeServer.url ? 1 : 0)
-        : 0;
       artifact = await createDiagnosticPackage({
         settings: {
-          configuredServerCount: config.servers.length,
-          activeServerConfigured: activeServer !== undefined,
-          activeServerType: activeServer?.type ?? null,
-          activeServerAddressCount,
-          trustInsecureCert: config.trustInsecureCert,
           autoApplyRemote: config.autoApplyRemote,
           autoPushLocal: config.autoPushLocal,
-          enableSse: config.enableSse,
           attachmentAutoDownload: config.attachmentAutoDownload,
           logLevel: config.logLevel,
         },
         sync: {
-          isRunning: isSyncEngineRunning,
-          state: syncStatus.state,
-          isExplicitlyRefreshing: syncStatus.isExplicitlyRefreshing,
-          hasStagedEntry: syncStatus.stagedEntry !== null,
-          lastSyncedAt: syncStatus.lastSyncedAt,
-          lastErrorReason: syncStatus.lastError
-            ? classifyDiagnosticReason(syncStatus.lastError)
-            : null,
+          status: engineStatus,
+          peerConnectionStatus,
+          hasSpace: spaceId !== null,
+          deviceCount,
+          lastErrorReason: engineError ? classifyDiagnosticReason(engineError) : null,
         },
       });
       await shareFile(artifact.uri, artifact.fileName);
@@ -71,7 +62,7 @@ export function DiagnosticsPage({ onBack }: { onBack: () => void }) {
       if (artifact) deleteDiagnosticPackage(artifact.uri);
       setIsGenerating(false);
     }
-  }, [config, isGenerating, isSyncEngineRunning, syncStatus, t]);
+  }, [config, deviceCount, engineError, engineStatus, isGenerating, peerConnectionStatus, spaceId, t]);
 
   return (
     <IosSheetPage

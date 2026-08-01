@@ -69,9 +69,13 @@ jest.mock('@/utils/uploadFile', () => ({
   importFileToHistory: (...args: unknown[]) => mockImportFile(...args),
 }));
 
-const mockEnqueue = jest.fn();
-jest.mock('@/services/BackgroundUploadManager', () => ({
-  BackgroundUploadManager: { enqueue: (...args: unknown[]) => mockEnqueue(...args) },
+const mockSendImportedText = jest.fn(async () => ({ channel: 'p2p', success: true }));
+const mockSendImportedAsset = jest.fn(async () => ({ channel: 'p2p', success: true }));
+jest.mock('@/services/UnifiedContentService', () => ({
+  getUnifiedContentService: () => ({
+    sendImportedText: (...args: unknown[]) => mockSendImportedText(...args),
+    sendImportedAsset: (...args: unknown[]) => mockSendImportedAsset(...args),
+  }),
 }));
 
 const mockShowMessage = jest.fn();
@@ -126,7 +130,7 @@ describe('ShareReceiveScreen 分享落库时序', () => {
     };
   });
 
-  it('文字分享:解析未完成前不落库,解析完成后恰好落库一次并入队推送', async () => {
+  it('文字分享:解析未完成前不落库,解析完成后恰好落库一次并走选中的同步通道', async () => {
     // 冷启动瞬间:原生已存有未解析 payload,但解析尚未开始(isResolving 仍为 false)
     mockShare.state = {
       sharedPayloads: [{ value: 'hi', shareType: 'text', mimeType: 'text/plain' }],
@@ -167,11 +171,11 @@ describe('ShareReceiveScreen 分享落库时序', () => {
     expect(mockImportText).toHaveBeenCalledTimes(1);
     expect(mockImportText).toHaveBeenCalledWith('hi');
     expect(mockImportFile).not.toHaveBeenCalled();
-    expect(mockEnqueue).toHaveBeenCalledWith('hash-text');
+    expect(mockSendImportedText).toHaveBeenCalledWith('hi', 'hash-text');
     expect(mockShowMessage).not.toHaveBeenCalled();
   });
 
-  it('文件分享:解析完成后用 contentUri 落库并入队推送', async () => {
+  it('文件分享:解析完成后用 contentUri 落库并走选中的同步通道', async () => {
     mockShare.state = {
       sharedPayloads: [{ value: 'content://x', shareType: 'image', mimeType: 'image/jpeg' }],
       resolvedSharedPayloads: [],
@@ -214,7 +218,15 @@ describe('ShareReceiveScreen 分享落库时序', () => {
       'image/jpeg',
       undefined
     );
-    expect(mockEnqueue).toHaveBeenCalledWith('hash-file');
+    expect(mockSendImportedAsset).toHaveBeenCalledWith(
+      {
+        kind: 'image',
+        uri: 'file:///tmp/x',
+        fileName: 'x',
+        mimeType: 'image/jpeg',
+      },
+      'hash-file'
+    );
     expect(mockShowMessage).not.toHaveBeenCalled();
   });
 });

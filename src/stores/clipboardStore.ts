@@ -10,8 +10,8 @@ import { useHistoryStore } from './historyStore';
 import { log } from '@/services/Logger';
 import { canAutoPushInBackground } from '@/utils/syncDirectionPolicy';
 
-function notifySyncEngine(content: ClipboardContent): void {
-  const { notifyDeviceClipboardChanged } = require('./syncEngineStore');
+function notifyP2pClipboardChanged(content: ClipboardContent): void {
+  const { notifyDeviceClipboardChanged } = require('@/services/P2pClipboardObserver');
   notifyDeviceClipboardChanged(content);
 }
 
@@ -128,7 +128,7 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
           localClipboardHash: content.localClipboardHash,
         });
         await useHistoryStore.getState().addItem(historyItem);
-        notifySyncEngine(content);
+        notifyP2pClipboardChanged(content);
       }
     } catch (error) {
       const errorMessage =
@@ -167,7 +167,7 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
         localClipboardHash: content.localClipboardHash,
       });
       await useHistoryStore.getState().addItem(historyItem);
-      notifySyncEngine(content);
+      notifyP2pClipboardChanged(content);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Failed to set clipboard content';
@@ -199,7 +199,7 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
           localClipboardHash: content.localClipboardHash,
         });
         await useHistoryStore.getState().addItem(historyItem);
-        notifySyncEngine(content);
+        notifyP2pClipboardChanged(content);
       } else {
         set({ isLoading: false });
       }
@@ -233,7 +233,7 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
           localClipboardHash: content.localClipboardHash,
         });
         await useHistoryStore.getState().addItem(historyItem);
-        notifySyncEngine(content);
+        notifyP2pClipboardChanged(content);
       } else {
         set({ isLoading: false });
       }
@@ -273,7 +273,7 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
           localClipboardHash: content.localClipboardHash,
         });
         await useHistoryStore.getState().addItem(historyItem);
-        notifySyncEngine(content);
+        notifyP2pClipboardChanged(content);
       });
       storeMonitorCallbackRegistered = true;
     }

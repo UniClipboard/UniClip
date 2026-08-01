@@ -27,17 +27,12 @@
   "share": {
     "dialogTitle": "Compartilhar arquivo"
   },
-  "urlClass": {
-    "lan": "LAN",
-    "tailscale": "Tailscale",
-    "wan": "Internet"
-  },
   "refresh": {
     "failed": "Falha ao atualizar"
   },
   "connect": {
     "failed": "Falha na conexão",
-    "cannotReach": "Não foi possível conectar ao servidor"
+    "cannotReach": "Não foi possível conectar aos outros dispositivos"
   },
   "notification": {
     "uploaded": "Enviado",
@@ -46,10 +41,6 @@
   },
   "sync": {
     "networkErrorQueued": "Erro de rede, adicionado à fila: {{error}}"
-  },
-  "server": {
-    "errorWithBody": "O servidor retornou um erro (HTTP {{status}}):\n\n{{body}}",
-    "errorWithMessage": "O servidor retornou um erro (HTTP {{status}}): {{message}}"
   },
   "upload": {
     "failedSavedLocal": "Falha no envio; conteúdo salvo localmente"

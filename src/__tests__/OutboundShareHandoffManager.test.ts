@@ -9,8 +9,6 @@ const job: OutboundShareJobDTO = {
   displayName: 'archive.zip',
   byteCount: 100 * 1024 * 1024 + 1,
   mimeType: 'application/zip',
-  channel: 'p2p',
-  serverId: null,
   targetDeviceIds: ['desktop-1'],
   createdAtMs: 1_700_000_000_000,
 };
@@ -28,7 +26,6 @@ function dependencies(overrides: Record<string, unknown> = {}) {
       contentType: 'File' as const,
     })),
     sendImportedAsset: jest.fn(async () => ({
-      channel: 'p2p' as const,
       success: true,
       deliveryState: 'delivered' as const,
     })),
@@ -37,7 +34,7 @@ function dependencies(overrides: Record<string, unknown> = {}) {
 }
 
 describe('OutboundShareHandoffManager', () => {
-  it('imports and sends a claimed file through its recorded channel before completing it', async () => {
+  it('imports and sends a claimed file to its selected devices before completing it', async () => {
     const deps = dependencies();
     const manager = new OutboundShareHandoffManager(deps);
 
@@ -54,11 +51,7 @@ describe('OutboundShareHandoffManager', () => {
       expect.objectContaining({ kind: 'file', fileName: 'archive.zip' }),
       'HASH',
       {
-        channel: 'p2p',
-        awaitLanDelivery: true,
-        serverId: null,
         targetDeviceIds: ['desktop-1'],
-        byteCount: job.byteCount,
       }
     );
     expect(deps.completeJob).toHaveBeenCalledWith('job-1');
@@ -70,7 +63,6 @@ describe('OutboundShareHandoffManager', () => {
     async (deliveryState) => {
       const deps = dependencies({
         sendImportedAsset: jest.fn(async () => ({
-          channel: 'p2p' as const,
           success: false,
           deliveryState,
         })),
@@ -85,22 +77,6 @@ describe('OutboundShareHandoffManager', () => {
       expect(deps.completeJob).not.toHaveBeenCalled();
     }
   );
-
-  it('sends a LAN job to its recorded server even when the active server changed', async () => {
-    const lanJob = { ...job, channel: 'lan' as const, serverId: 'server-a' };
-    const deps = dependencies({
-      claimJobs: jest.fn(async () => [lanJob]),
-    });
-
-    await new OutboundShareHandoffManager(deps).resume();
-
-    expect(deps.sendImportedAsset).toHaveBeenCalledWith(
-      expect.any(Object),
-      'HASH',
-      expect.objectContaining({ channel: 'lan', serverId: 'server-a' })
-    );
-    expect(deps.completeJob).toHaveBeenCalledWith('job-1');
-  });
 
   it('releases a job after an import or send error and coalesces concurrent resumes', async () => {
     let rejectImport!: (error: Error) => void;

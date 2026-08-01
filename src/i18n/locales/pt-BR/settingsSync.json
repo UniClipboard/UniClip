@@ -1,62 +1,9 @@
 {
-  "options": {
-    "title": "Opções de sincronização",
-    "syncToast": {
-      "title": "Notificações de sincronização",
-      "desc": "Mostra uma notificação quando um envio ou download é concluído"
-    },
-    "autoSize": {
-      "title": "Limite de tamanho para sincronização automática",
-      "desc": "Arquivos menores que este limite são baixados automaticamente"
-    }
-  },
-  "advanced": {
-    "title": "Avançado",
-    "sse": {
-      "title": "Envio ao vivo (SSE)",
-      "desc": "O servidor envia alterações da área de transferência para uma sincronização instantânea e econômica em bateria; usa consulta periódica quando não há suporte"
-    },
-    "remotePolling": {
-      "title": "Intervalo de consulta remota",
-      "desc": "Com que frequência buscar a área de transferência remota"
-    },
-    "localPolling": {
-      "title": "Intervalo de consulta local",
-      "desc": "Com que frequência verificar alterações na área de transferência deste dispositivo"
-    }
-  },
-  "unit": { "seconds": "s" },
-  "server": {
-    "title": "Servidores",
-    "empty": {
-      "title": "Nenhum servidor configurado",
-      "desc": "Toque abaixo para adicionar seu primeiro servidor"
-    },
-    "deleteDialog": { "title": "Confirmar exclusão", "message": "Excluir o servidor \"{{name}}\"?" }
-  },
-  "form": { "addTitle": "Adicionar servidor", "editTitle": "Editar servidor" },
-  "toast": {
-    "connectionSwitched": "Conexao de sincronizacao alterada",
-    "serverSwitched": "Servidor alterado",
-    "serverDeleted": "Servidor excluído",
-    "serverAdded": "Servidor adicionado",
-    "serverUpdated": "Configurações do servidor atualizadas"
-  },
   "connection": {
     "addTitle": "Adicionar conexão de sincronização",
     "addSheetTitle": "Nova conexão",
     "p2pDescription": "Espaço com criptografia de ponta a ponta",
-    "compatibilityTitle": "Compatibilidade",
-    "lanDeprecated": "A LAN está obsoleta e permanece temporariamente disponível apenas para usuários existentes. Ela será removida em uma versão futura.",
-    "legacyLanAction": "Adicionar conexão LAN antiga",
-    "legacyLanDescription": "Para configurações LAN existentes durante a transição",
     "invitationExpires": "O convite expira às {{time}}"
-  },
-  "migration": {
-    "title": "Migrar para sincronização P2P",
-    "body": "A sincronização por LAN será removida em uma versão futura. Você já pode criar ou entrar em um espaço criptografado, enquanto a conexão LAN atual continua disponível durante a transição.",
-    "setUpP2p": "Configurar P2P",
-    "later": "Lembrar depois"
   },
   "space": {
     "title": "Espaço P2P",
@@ -142,13 +89,5 @@
       "connectionLost": "A conexão foi interrompida. Tente novamente",
       "operationFailed": "A operação falhou. Verifique os dados e tente novamente."
     }
-  },
-  "error": {
-    "updateFailed": "Falha na atualização",
-    "invalidNumber": "Insira um número válido",
-    "minOneSecond": "Insira um número igual ou superior a 1",
-    "switchFailed": "Falha ao alternar",
-    "deleteFailed": "Falha ao excluir",
-    "operationFailed": "Falha na operação"
   }
 }

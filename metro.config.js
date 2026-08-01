@@ -10,7 +10,6 @@ const WEB_STUBBED_MODULES = new Set([
   'android-util',
   'native-timer',
   'clipboard-overlay',
-  'sms-forwarder',
   'foreground-service',
   'shortcut',
   'uc-engine',

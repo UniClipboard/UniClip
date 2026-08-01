@@ -8,12 +8,11 @@ import { ConfigPlugin, withGradleProperties } from 'expo/config-plugins';
  * `assembleRelease` is dominated by native (C++/NDK) compilation, and that cost
  * scales linearly with the number of ABIs. The React Native template default,
  * `reactNativeArchitectures=armeabi-v7a,arm64-v8a,x86,x86_64`, compiles the full
- * native stack (RN C++ + Hermes + the UniFFI `uc-core` `.so`) four times. In CI
+ * native stack (RN C++ + Hermes + the unified engine) four times. In CI
  * that step alone took ~22 min.
  *
- * The independent core Release ships arm64-v8a for devices and x86_64 for
- * emulators. Production builds must therefore ship only arm64-v8a. Emulator
- * builds can still override this property with `-PreactNativeArchitectures=x86_64`.
+ * Production builds ship only arm64-v8a. Emulator builds can still override
+ * this property with `-PreactNativeArchitectures=x86_64`.
  *
  * Keep this in sync with `withAbiSplits.ts`: the split/output ABIs must be a
  * subset of what is compiled here, or a split APK ships with no native libs.

@@ -17,7 +17,7 @@
     "fullAccess": "Acesso Total",
     "enableSteps": {
       "title": "Etapas de configuração",
-      "footer": "Permitir Acesso Total permite que o teclado leia a área de transferência e se conecte ao seu servidor; isso é necessário para sincronizar. O conteúdo é enviado apenas ao servidor que você configurar.",
+      "footer": "O Acesso Total permite que o teclado leia o clipboard e se conecte aos outros dispositivos do espaço. O conteúdo só é enviado dentro do espaço atual.",
       "step1": "Abra o UniClip nos Ajustes e toque em Teclados",
       "step2": "Ative o Teclado UniClip",
       "step3": "Ative Permitir Acesso Total e confirme"
@@ -38,7 +38,7 @@
     "title": "Compartilhar",
     "testMessage": "Teste de compartilhamento do UniClip",
     "intro": {
-      "footer": "Em qualquer app, toque em Compartilhar e escolha UniClip para enviar o conteúdo diretamente ao servidor da sua área de transferência; não é necessário copiar e voltar ao UniClip antes."
+      "footer": "Em qualquer app, toque em Compartilhar e escolha o UniClip para enviar o conteúdo diretamente aos outros dispositivos do espaço."
     },
     "supportedContent": {
       "label": "Conteúdo compatível",
@@ -53,20 +53,6 @@
       "step4": "Arraste-o para a frente e toque em OK"
     },
     "tryButton": "Abrir a folha de compartilhamento para experimentar"
-  },
-  "serverList": {
-    "title": "Servidores",
-    "footer": "Toque em um servidor para editar seu endereço, nome e credenciais. Os servidores adicionados aparecem nesta lista.",
-    "empty": { "label": "Ainda não há servidores" },
-    "addShort": "Adicionar",
-    "addressCount_one": "{{count}} endereço",
-    "addressCount_other": "{{count}} endereços",
-    "addServer": "Adicionar servidor",
-    "connection": {
-      "title": "Conexão",
-      "footer": "Permitir certificados inseguros é necessário apenas quando o servidor usa um certificado HTTPS autoassinado; HTTP simples não precisa disso.",
-      "allowInsecure": "Permitir certificados inseguros"
-    }
   },
   "diagnostics": {
     "title": "Diagnóstico",

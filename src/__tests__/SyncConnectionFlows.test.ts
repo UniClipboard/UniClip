@@ -8,24 +8,39 @@ function source(relativePath: string): string {
 }
 
 describe('unified sync connection flows', () => {
-  it('provides platform-specific create, join, and eligible legacy LAN branches', () => {
+  it('provides platform-specific create and join flows', () => {
     const entry = source('components/AddSyncConnectionSheet.tsx');
     const android = source('components/AddSyncConnectionSheet.android.tsx');
     const ios = source('components/AddSyncConnectionSheet.ios.tsx');
+    const flow = source('components/useAddSyncConnectionFlow.ts');
 
     expect(entry).toContain("export * from './AddSyncConnectionSheet.android'");
     expect(android).toContain('Host,');
-    expect(android).toMatch(/<Host[^>]*>\s*<ModalBottomSheet/);
-    expect(android).toMatch(/<\/ModalBottomSheet>\s*<\/Host>/);
+    expect(android).toMatch(/<Host[^>]*>\s*<AddSyncConnectionSheetContent/);
+    expect(android).toMatch(/<AddSyncConnectionSheetContent[^>]*\/>\s*<\/Host>/);
     expect(android).not.toContain('initialFullyExpanded');
     expect(android).not.toContain('skipPartiallyExpanded');
     for (const platform of [android, ios]) {
-      expect(platform).toContain('.createSpace(');
-      expect(platform).toContain('.joinSpace(');
-      expect(platform).toContain('legacyLanEligible');
-      expect(platform).toContain('onOpenLegacyLan');
+      expect(platform).toContain('useAddSyncConnectionFlow');
       expect(platform).toContain('completeConnection');
+      expect(platform).not.toContain('legacyLan');
+      expect(platform).not.toContain('onOpenLegacyLan');
     }
+    expect(flow).toContain('.createSpace(');
+    expect(flow).toContain('.joinSpace(');
+    expect(flow).toContain('completeConnection');
+  });
+
+  it('applies the selected app theme to the Android add-connection sheet', () => {
+    const android = source('components/AddSyncConnectionSheet.android.tsx');
+
+    expect(android).toContain("import { useTheme } from '@/hooks/useTheme'");
+    expect(android).toMatch(
+      /<Host\s+colorScheme=\{theme\.isDark \? 'dark' : 'light'\}\s+seedColor=\{theme\.colors\.accent\}\s*>[\s\S]*<AddSyncConnectionSheetContent/
+    );
+    expect(android).toMatch(
+      /function AddSyncConnectionSheetContent[\s\S]*const colors = useMaterialColors\(\)/
+    );
   });
 
   it('gives the iOS add sheet a native hierarchy instead of a flat button list', () => {
@@ -85,14 +100,18 @@ describe('unified sync connection flows', () => {
   it('supports copy, share, expiry, and network scope while the creator waits', () => {
     const android = source('components/AddSyncConnectionSheet.android.tsx');
     const ios = source('components/AddSyncConnectionSheet.ios.tsx');
+    const flow = source('components/useAddSyncConnectionFlow.ts');
 
     for (const platform of [android, ios]) {
-      expect(platform).toContain('Clipboard.setStringAsync');
-      expect(platform).toContain('Share.share');
-      expect(platform).toContain('invitation.expiresAtMs');
+      expect(platform).toContain('copyInvitation');
+      expect(platform).toContain('shareInvitation');
+      expect(platform).toContain('invitationExpired');
       expect(platform).toContain("invitation.availability === 'sameLocalNetwork'");
       expect(platform).toContain('space.flow.waitingForDevice');
     }
+    expect(flow).toContain('Clipboard.setStringAsync');
+    expect(flow).toContain('Share.share');
+    expect(flow).toContain('invitation.expiresAtMs');
   });
 
   it('uses the unified add sheet instead of duplicate setup forms in settings', () => {
@@ -107,29 +126,27 @@ describe('unified sync connection flows', () => {
   });
 
   it('does not reset native fields after connection completion unmounts the sheet', () => {
-    const android = source('components/AddSyncConnectionSheet.android.tsx');
-    const ios = source('components/AddSyncConnectionSheet.ios.tsx');
+    const flow = source('components/useAddSyncConnectionFlow.ts');
+    const completion = flow.slice(
+      flow.indexOf('const completeConnection'),
+      flow.indexOf('const close')
+    );
 
-    for (const platform of [android, ios]) {
-      const completion = platform.slice(
-        platform.indexOf('const completeConnection'),
-        platform.indexOf('const openLegacyLan')
-      );
-
-      expect(platform).toContain('mountedRef');
-      expect(completion).toMatch(/if \(!mountedRef\.current\) return;[\s\S]*reset\(\)/);
-    }
+    expect(flow).toContain('mountedRef');
+    expect(completion).toMatch(/if \(!mountedRef\.current\) return;[\s\S]*reset\(\)/);
   });
 
   it('clears iOS sensitive fields and restores the default device name on reset', () => {
     const ios = source('components/AddSyncConnectionSheet.ios.tsx');
-    const clearInputs = ios.slice(ios.indexOf('const clearInputs'), ios.indexOf('const reset'));
+    const flow = source('components/useAddSyncConnectionFlow.ts');
 
-    expect(clearInputs).toContain('setDeviceName(nextDeviceName)');
-    expect(clearInputs).toContain("setPassphrase('')");
-    expect(clearInputs).toContain("setInvitationCode('')");
-    expect(clearInputs).toContain('passphraseRef.current?.clear()');
-    expect(clearInputs).toContain('invitationCodeRef.current?.clear()');
+    expect(ios).toContain('resetNativeFields: (nextDeviceName)');
+    expect(ios).toContain('deviceNameState.value = nextDeviceName');
+    expect(ios).toContain('passphraseRef.current?.clear()');
+    expect(ios).toContain('invitationCodeRef.current?.clear()');
+    expect(flow).toContain('setDeviceName(defaultDeviceName)');
+    expect(flow).toContain("setPassphrase('')");
+    expect(flow).toContain("setInvitationCode('')");
   });
 
   it('shows the default device name in both iOS setup fields', () => {
@@ -152,43 +169,15 @@ describe('unified sync connection flows', () => {
     }
   });
 
-  it('shows one P2P target plus deprecated LAN targets and selects them atomically', () => {
-    const types = source('components/ServerSwitcherModal.types.ts');
-    const android = source('components/ServerSwitcherModal.android.tsx');
-    const ios = source('components/ServerSwitcherModal.ios.tsx');
-    const controller = source('screens/useHomeController.ts');
-
-    expect(types).toContain('SyncConnectionTarget');
-    expect(types).toContain('selectedChannel');
-    expect(types).toContain('legacyLanEligible');
-    expect(types).toContain('p2pSpaceId');
-    for (const platform of [android, ios]) {
-      expect(platform).toContain("kind: 'p2p'");
-      expect(platform).toContain("kind: 'lan'");
-      expect(platform).toContain('connection.lanDeprecated');
-      expect(platform).toContain('legacyLanEligible');
-      expect(platform).toContain('onAdd');
-    }
-    expect(controller).toContain('selectSyncConnection(target)');
-  });
-
-  it('presents the Android connection switcher from the bottom edge', () => {
-    const android = source('components/ServerSwitcherModal.android.tsx');
-
-    expect(android).toContain("import { AppBottomSheet } from '@/components/ui'");
-    expect(android).toContain('<AppBottomSheet');
-    expect(android).not.toContain('AppTopSheet');
-  });
-
-  it('routes the home add action through the unified sheet while retaining the LAN editor', () => {
+  it('routes the upgraded Home add action directly into Join Space', () => {
     const overlays = source('screens/HomeOverlays.tsx');
 
     expect(overlays).toContain('AddSyncConnectionSheet');
     expect(overlays).toContain('showAddConnection');
-    expect(overlays).toContain('onOpenLegacyLan');
-    expect(overlays).toContain('legacyLanEligible');
+    expect(overlays).toContain('initialMode="join"');
     expect(overlays).toContain('handleP2pConnected');
-    expect(overlays).toContain('<AddServerSheet');
+    expect(overlays).not.toContain('legacyLan');
+    expect(overlays).not.toContain('AddServer');
   });
 
   it('ships the staged connection copy in every supported language', () => {
@@ -205,34 +194,5 @@ describe('unified sync connection flows', () => {
       expect(messages.space.error.invitationExpired).toEqual(expect.any(String));
       expect(messages.space.error.passphraseMismatch).toEqual(expect.any(String));
     }
-  });
-
-  it('guards scanned legacy LAN handoff before opening the retained editor', () => {
-    const controller = source('screens/useHomeController.ts');
-    const androidModals = source('screens/settings/ServerModals.tsx');
-    const iosSettings = source('screens/SettingsScreen.ios.tsx');
-
-    expect(controller).toContain('config?.legacyLanEligible');
-    expect(controller).toContain('if (!legacyLanEligible)');
-    expect(controller).toContain('setShowAddServer(true)');
-    expect(androidModals).toContain('legacyLanEligible');
-    expect(androidModals).toContain('if (!legacyLanEligible)');
-    expect(iosSettings).toContain('config?.legacyLanEligible');
-    expect(iosSettings).toContain('if (!legacyLanEligible)');
-  });
-
-  it('hides legacy LAN settings from new installs and selects eligible targets atomically', () => {
-    const androidScreen = source('screens/settings/SettingsSubScreen.android.tsx');
-    const androidServers = source('screens/settings/ServerSection.tsx');
-    const iosRoot = source('screens/settings/ios/SettingsRootPage.tsx');
-    const iosServers = source('screens/settings/ios/ServerListPage.tsx');
-
-    expect(androidScreen).toContain('legacyLanEligible && <ServerSection />');
-    expect(androidScreen).toContain('legacyLanEligible && <ServerModals />');
-    expect(androidServers).toContain("selectSyncConnection({ kind: 'lan', serverIndex: index })");
-    expect(iosRoot).toContain('config.legacyLanEligible ?');
-    expect(iosRoot).toContain("selectSyncConnection({ kind: 'p2p' })");
-    expect(iosRoot).toContain("kind: 'lan'");
-    expect(iosServers).toContain('connection.lanDeprecated');
   });
 });

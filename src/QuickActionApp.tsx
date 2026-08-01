@@ -10,21 +10,15 @@ import { StyleSheet, StatusBar, Platform, BackHandler } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { QuickTileLoadingScreen } from './screens/QuickTileLoadingScreen';
-import { SyncDirection } from './types/sync';
 import { useSettingsStore } from './stores';
 import { initLogger } from './services/Logger';
 import { getBackgroundServiceManager } from './services/BackgroundServiceManager';
 
 interface QuickActionAppProps {
-  direction?: string;
   systemTheme?: 'light' | 'dark';
 }
 
-export default function QuickActionApp({
-  direction = 'download',
-  systemTheme,
-}: QuickActionAppProps) {
-  const syncDirection = direction === 'upload' ? SyncDirection.Upload : SyncDirection.Download;
+export default function QuickActionApp({ systemTheme }: QuickActionAppProps) {
   const { loadConfig, isLoaded } = useSettingsStore();
 
   useEffect(() => {
@@ -55,11 +49,7 @@ export default function QuickActionApp({
     <GestureHandlerRootView style={styles.container}>
       <ThemeProvider systemColorSchemeOverride={systemTheme}>
         <StatusBar backgroundColor="transparent" translucent barStyle="light-content" />
-        <QuickTileLoadingScreen
-          direction={syncDirection}
-          onLoadingComplete={handleComplete}
-          overlayMode
-        />
+        <QuickTileLoadingScreen onLoadingComplete={handleComplete} overlayMode />
       </ThemeProvider>
     </GestureHandlerRootView>
   );

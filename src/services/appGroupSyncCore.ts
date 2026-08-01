@@ -1,28 +1,9 @@
 import { Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getServers, saveServers, saveSettings } from 'app-group-store';
-import type { ServerConfig } from '../types/api';
-import { DEFAULT_SETTINGS, type AppSettings } from '../types/settings';
-import { CONFIG_USER_STATE_KEY } from './ConfigStorage';
-import { getEffectiveServerUrls } from './serverRouteSelector';
-
-export interface AppGroupServerConfigDTO {
-  id: string;
-  name?: string;
-  urls: string[];
-  username: string;
-  password: string;
-}
-
-export interface AppGroupServerConfigListDTO {
-  configs: AppGroupServerConfigDTO[];
-  activeConfigId: string | null;
-}
+import { clearLegacyLanConfiguration, saveSettings } from 'app-group-store';
+import type { AppSettings } from '../types/settings';
 
 export interface AppGroupSettingsDTO {
-  syncChannel?: 'p2p' | 'lan';
-  trustInsecureCert?: boolean;
-  autoApplyServerChanges?: boolean;
+  autoApplyRemoteChanges?: boolean;
   autoPushDeviceChanges?: boolean;
   prefetchAttachments?: boolean;
   prefetchOnCellular?: boolean;
@@ -37,46 +18,11 @@ export interface AppGroupSettingsDTO {
   keyboardHapticFeedback?: boolean;
 }
 
-type SettingsSlice = {
-  servers: ServerConfig[];
-  activeServerIndex: number;
-  settings: AppSettings;
-};
-
-export function mapServersToAppGroupDTO(
-  servers: ServerConfig[],
-  activeServerIndex: number
-): AppGroupServerConfigListDTO {
-  const activeServer = servers[activeServerIndex] ?? null;
-  const idCounts = new Map<string, number>();
-  const configs: AppGroupServerConfigDTO[] = [];
-  let activeConfigId: string | null = null;
-
-  for (const server of servers) {
-    if (server.type !== 'syncclipboard') continue;
-
-    const mapped = mapServerToAppGroupDTO(server, idCounts);
-    if (!mapped) continue;
-
-    if (server === activeServer) {
-      activeConfigId = mapped.id;
-    }
-    configs.push(mapped);
-  }
-
-  return {
-    configs,
-    activeConfigId,
-  };
-}
-
 export function mapSettingsToAppGroupDTO(settings: AppSettings): AppGroupSettingsDTO {
   const prefetch = mapAttachmentPrefetch(settings.attachmentAutoDownload);
 
   return {
-    syncChannel: settings.syncChannel,
-    trustInsecureCert: settings.trustInsecureCert,
-    autoApplyServerChanges: settings.autoApplyRemote,
+    autoApplyRemoteChanges: settings.autoApplyRemote,
     autoPushDeviceChanges: settings.autoPushLocal,
     prefetchAttachments: prefetch.attachments,
     prefetchOnCellular: prefetch.cellular,
@@ -93,63 +39,15 @@ export function mapSettingsToAppGroupDTO(settings: AppSettings): AppGroupSetting
 }
 
 export function getAppGroupSyncSnapshot(config: AppSettings | null): string | null {
-  const slice = selectSettingsSlice(config);
-  if (!slice) return null;
-
-  return JSON.stringify({
-    servers: mapServersToAppGroupDTO(slice.servers, slice.activeServerIndex),
-    settings: mapSettingsToAppGroupDTO(slice.settings),
-  });
+  if (!config) return null;
+  return JSON.stringify(mapSettingsToAppGroupDTO(config));
 }
 
 export async function syncConfigToAppGroup(config: AppSettings | null): Promise<void> {
-  if (Platform.OS !== 'ios') return;
-  const slice = selectSettingsSlice(config);
-  if (!slice) return;
+  if (Platform.OS !== 'ios' || !config) return;
 
-  const servers = mapServersToAppGroupDTO(slice.servers, slice.activeServerIndex);
-  const settings = mapSettingsToAppGroupDTO(slice.settings);
-  if (await shouldSkipEmptyDefaultServerOverwrite(slice.settings, servers)) {
-    const existingServers = await getServers();
-    if (existingServers.configs.length > 0) {
-      await saveSettings(settings);
-      return;
-    }
-  }
-
-  await Promise.all([saveServers(servers), saveSettings(settings)]);
-}
-
-function selectSettingsSlice(config: AppSettings | null): SettingsSlice | null {
-  if (!config) return null;
-  return {
-    servers: config.servers,
-    activeServerIndex: config.activeServerIndex,
-    settings: config,
-  };
-}
-
-function mapServerToAppGroupDTO(
-  server: ServerConfig,
-  idCounts: Map<string, number>
-): AppGroupServerConfigDTO | null {
-  const urls = getEffectiveServerUrls(server);
-  if (urls.length === 0) return null;
-  const id = makeUniqueConfigId(urls[0], idCounts);
-
-  return {
-    id,
-    ...(server.name ? { name: server.name } : {}),
-    urls,
-    username: server.username ?? '',
-    password: server.password ?? '',
-  };
-}
-
-function makeUniqueConfigId(baseId: string, counts: Map<string, number>): string {
-  const count = counts.get(baseId) ?? 0;
-  counts.set(baseId, count + 1);
-  return count === 0 ? baseId : `${baseId}#${count + 1}`;
+  await clearLegacyLanConfiguration();
+  await saveSettings(mapSettingsToAppGroupDTO(config));
 }
 
 function mapAttachmentPrefetch(value: AppSettings['attachmentAutoDownload']): {
@@ -164,27 +62,4 @@ function mapAttachmentPrefetch(value: AppSettings['attachmentAutoDownload']): {
     case 'off':
       return { attachments: false, cellular: false };
   }
-}
-
-function shouldSkipEmptyDefaultServerOverwrite(
-  settings: AppSettings,
-  servers: AppGroupServerConfigListDTO
-): Promise<boolean> {
-  if (
-    !(
-      servers.configs.length === 0 &&
-      servers.activeConfigId === null &&
-      settings.servers.length === 0 &&
-      settings.activeServerIndex === -1 &&
-      isFreshDefaultConfig(settings)
-    )
-  ) {
-    return Promise.resolve(false);
-  }
-
-  return AsyncStorage.getItem(CONFIG_USER_STATE_KEY).then((state) => state !== '1');
-}
-
-function isFreshDefaultConfig(settings: AppSettings): boolean {
-  return JSON.stringify(settings) === JSON.stringify(DEFAULT_SETTINGS);
 }

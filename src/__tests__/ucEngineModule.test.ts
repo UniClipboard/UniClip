@@ -29,6 +29,7 @@ describe('unified P2P engine native module', () => {
       'shutdown',
       'suspend',
       'resume',
+      'setBackgroundSyncEnabled',
       'createSpace',
       'issueInvitation',
       'joinSpace',
@@ -88,6 +89,27 @@ describe('unified P2P engine native module', () => {
     }
   });
 
+  it('converts structured member-removal results for both native platforms', () => {
+    const javascript = read('src/index.ts');
+    const swift = read('ios/UcEngineModule.swift');
+    const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
+
+    expect(javascript).toContain('export interface MemberRevocationResult');
+    expect(javascript).toContain('removeMember(deviceId: string): Promise<MemberRevocationResult>');
+    expect(kotlin).toContain('memberRevocationResultMap(requireEngine().removeMember(deviceId))');
+    expect(swift).toContain('Self.memberRevocationResultMap(try self.requireEngine().removeMember');
+  });
+
+  it('exposes secure removal for legacy spaces on both native platforms', () => {
+    const javascript = read('src/index.ts');
+    const swift = read('ios/UcEngineModule.swift');
+    const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
+
+    expect(javascript).toContain('export function secureRemoveLegacyMember');
+    expect(swift).toContain('AsyncFunction("secureRemoveLegacyMember")');
+    expect(kotlin).toContain('AsyncFunction("secureRemoveLegacyMember")');
+  });
+
   it('preserves the local-device marker on JavaScript, iOS, and Android', () => {
     const javascript = read('src/index.ts');
     const swift = read('ios/UcEngineModule.swift');
@@ -124,6 +146,7 @@ describe('unified P2P engine native module', () => {
     expect(kotlin).toContain('OnActivityEntersBackground');
     expect(kotlin).toContain('OnActivityEntersForeground');
     expect(kotlin).toContain('NativeLifecycleHost');
+    expect(kotlin).toContain('AsyncFunction("setBackgroundSyncEnabled")');
     expect(kotlin).toContain('recoverSession(true)');
     expect(kotlin).not.toContain('runCatching { currentEngine()?.suspend() }');
     expect(kotlin).not.toContain('runCatching { currentEngine()?.resume() }');
@@ -164,6 +187,15 @@ describe('unified P2P engine native module', () => {
       'UIPasteboard.general.url = try withHostBindingError { try self.files.url(handle) }'
     );
     expect(kotlin).toContain('createClipboardShareFile(context, representation.displayName)');
+  });
+
+  it('restores every core plain-text representation as Android text', () => {
+    const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
+
+    expect(kotlin).toContain('isPlainTextRepresentation');
+    expect(kotlin).toContain('"public.utf8-plain-text"');
+    expect(kotlin).toContain('format.substringBefore');
+    expect(kotlin).toContain('normalizedFormat.equals("text", ignoreCase = true)');
   });
 
   it('preserves selected file names when registering opaque input handles', () => {

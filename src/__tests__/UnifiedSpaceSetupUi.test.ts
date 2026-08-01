@@ -35,8 +35,7 @@ describe('unified space setup UI', () => {
     expect(combined).not.toContain('UnifiedSpaceProbe');
   });
 
-  it('shows space setup only for the explicitly selected P2P channel', () => {
-    const androidSettings = source('screens/settings/SyncSettingsSection.tsx');
+  it('keeps space setup directly available on both platforms', () => {
     const androidHub = source('screens/SettingsScreen.android.tsx');
     const androidSubScreen = source('screens/settings/SettingsSubScreen.android.tsx');
     const navigation = source('navigation/AppNavigator.tsx');
@@ -44,13 +43,12 @@ describe('unified space setup UI', () => {
     const iosScreen = source('screens/SettingsScreen.ios.tsx');
     const iosPages = source('screens/settings/ios/types.ts');
 
-    expect(androidSettings).not.toContain('UnifiedSpaceSetup');
     expect(androidHub).toContain('section="space"');
     expect(androidSubScreen).toContain("section === 'space' && <UnifiedSpaceSetup />");
     expect(navigation).toContain("| 'space'");
     expect(navigation).toContain("space: t('space.title', { ns: 'settingsSync' })");
-    expect(iosRoot).toContain("config.syncChannel === 'p2p'");
     expect(iosRoot).toContain("onNavigate('space')");
+    expect(iosRoot).not.toContain('syncChannel');
     expect(iosScreen).toContain("page === 'space'");
     expect(iosScreen).toContain('<SpacePage');
     expect(iosPages).toContain("| 'space'");
@@ -61,13 +59,15 @@ describe('unified space setup UI', () => {
     const ios = source('screens/settings/ios/SpacePage.tsx');
     const androidFlow = source('components/AddSyncConnectionSheet.android.tsx');
     const iosFlow = source('components/AddSyncConnectionSheet.ios.tsx');
-    const combined = `${android}\n${ios}\n${androidFlow}\n${iosFlow}`;
+    const sharedFlow = source('components/useAddSyncConnectionFlow.ts');
+    const combined = `${android}\n${ios}\n${androidFlow}\n${iosFlow}\n${sharedFlow}`;
 
     expect(combined).not.toContain('AsyncStorage');
     expect(combined).not.toContain('updateConfig({ passphrase');
     expect(combined).not.toContain('updateConfig({ invitationCode');
-    expect(androidFlow).toContain("setPassphrase('')");
-    expect(iosFlow).toContain("setPassphrase('')");
+    expect(androidFlow).toContain("passphraseState.value = ''");
+    expect(iosFlow).toContain('passphraseRef.current?.clear()');
+    expect(sharedFlow).toContain("setPassphrase('')");
   });
 
   it('supports device management and leaving the local space on both platforms', () => {
@@ -92,6 +92,7 @@ describe('unified space setup UI', () => {
       expect(platform).toContain('space.devices.thisDevice');
       expect(platform).toContain('useUnifiedEngineStore');
       expect(platform).toContain('refreshRevision');
+      expect(platform).toContain('.refreshDevices()');
     }
   });
 

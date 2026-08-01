@@ -18,20 +18,13 @@
     "sectionTitle": "通用",
     "theme": "主题"
   },
-  "syncChannel": {
-    "title": "同步通道",
-    "p2p": "P2P",
-    "lan": "局域网"
-  },
   "category": {
     "sync": "同步",
     "about": "关于",
     "other": "其他",
     "storage": "存储",
-    "server": "服务器",
     "history": "历史记录",
     "background": "后台运行",
-    "sms": "短信转发",
     "developer": "开发者选项",
     "extensions": "扩展与权限"
   },
@@ -40,41 +33,29 @@
       "title": "剪贴板同步",
       "autoApply": {
         "title": "自动写入本机剪贴板",
-        "desc": "服务器有新内容时，自动写入本机系统剪贴板"
+        "desc": "空间中有新内容时，自动写入本机系统剪贴板"
       },
       "autoPush": {
         "title": "自动推送本机剪贴板",
-        "desc": "本机复制内容或使用历史记录后，自动推送到服务器"
+        "desc": "本机复制内容或使用历史记录后，自动发送到空间中的其他设备"
       },
       "footer": "以上选项控制同步方向；后台执行能力由“后台运行”设置单独控制",
       "updateFailed": "设置失败"
     },
-    "rows": {
-      "serverLabel": "服务器与同步"
-    },
+    "rows": {},
     "summary": {
-      "serverNone": "未配置服务器",
-      "serverActive": "当前:{{name}} · 共 {{count}} 台",
-      "serverCount": "共 {{count}} 台服务器",
       "history": "最多保留 {{count}} 条",
       "backgroundTempDisabled": "已临时停止,重启应用后恢复",
       "backgroundOn": "后台任务已开启",
       "backgroundOff": "后台任务已关闭",
-      "smsOn": "验证码自动上传已开启",
-      "smsOff": "验证码自动上传已关闭",
       "storage": "缓存、日志与历史记录占用",
       "about": "当前版本 {{version}}",
       "developer": "日志、调试与快捷方式"
     }
   },
-  "server": {
-    "addTitle": "添加服务器",
-    "editTitle": "编辑服务器",
-    "count": "{{count}} 个"
-  },
   "ios": {
     "sync": {
-      "footer": "开启「自动写入」后，服务器有新内容时会立即覆盖本机剪贴板；关闭则只在主页高亮提示。",
+      "footer": "开启自动写入后，空间中的新内容会立即写入本机剪贴板；关闭后，内容只会在首页提示。",
       "autoApply": "自动写入本机剪贴板",
       "autoPush": "自动推送本机剪贴板",
       "sse": "实时推送 (SSE)"

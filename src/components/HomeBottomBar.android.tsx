@@ -1,35 +1,7 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Pressable, StyleSheet } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import type { DefaultBottomBarProps, SelectModeBottomBarProps } from './HomeBottomBar.types';
-
-export function DefaultBottomBar({
-  serverLabel,
-  isSyncing,
-  onServerPicker,
-  onSync,
-  theme,
-}: DefaultBottomBarProps) {
-  const bg = { backgroundColor: theme.colors.surfaceHigh };
-  return (
-    <View style={s.row}>
-      <Pressable onPress={onServerPicker} style={[s.pill, bg]}>
-        <Ionicons name="time-outline" size={16} color={theme.colors.textPrimary} />
-        <Text style={[s.pillText, { color: theme.colors.textPrimary }]} numberOfLines={1}>
-          {serverLabel}
-        </Text>
-        <Ionicons name="chevron-expand-outline" size={12} color={theme.colors.textSecondary} />
-      </Pressable>
-      <Pressable onPress={onSync} disabled={isSyncing} style={[s.circle, bg]}>
-        <Ionicons
-          name="sync"
-          size={20}
-          color={isSyncing ? theme.colors.textSecondary : theme.colors.textPrimary}
-        />
-      </Pressable>
-    </View>
-  );
-}
+import type { SelectModeBottomBarProps } from './HomeBottomBar.types';
 
 export function SelectModeBottomBar({
   disabled,
@@ -60,7 +32,6 @@ export function SelectModeBottomBar({
 }
 
 const s = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   circle: {
     width: 44,
     height: 44,
@@ -73,20 +44,5 @@ const s = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
   },
-  pill: {
-    flex: 1,
-    height: 44,
-    borderRadius: 22,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 6,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-  },
-  pillText: { fontSize: 14, fontWeight: '500' },
   selectRow: { flexDirection: 'row', justifyContent: 'center', gap: 24 },
 });

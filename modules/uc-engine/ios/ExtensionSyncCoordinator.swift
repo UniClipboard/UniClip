@@ -3,10 +3,8 @@ import Foundation
 
 public enum ExtensionSyncTrigger: Int, Equatable, Sendable {
   case appeared = 0
-  case networkChanged = 1
-  case localClipboardChanged = 2
-  case serverChanged = 3
-  case manual = 4
+  case localClipboardChanged = 1
+  case manual = 2
 
   public var shouldPublishHistoryImmediately: Bool {
     switch self {
@@ -18,8 +16,8 @@ public enum ExtensionSyncTrigger: Int, Equatable, Sendable {
   public var showsSyncProgress: Bool {
     switch self {
     case .localClipboardChanged: return false
-    case .serverChanged, .manual: return true
-    case .appeared, .networkChanged: return false
+    case .manual: return true
+    case .appeared: return false
     }
   }
 }

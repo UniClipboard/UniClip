@@ -4,13 +4,10 @@
  * 覆盖三处刚修过、且回归后症状隐蔽的行为:
  * 1. HistoryStorage.initialize() —— 并发调用共享一次初始化;失败后门闩住,不再重放整条重型 IO 流水线
  * 2. historyRepository 批量写 —— 同一批内相同 profileHash 必须后写者胜(顺序执行,不能并发下发)
- * 3. 扫码凭据交接 —— qrScannerStore 与 pendingConnectStore 的一次性 drop-box 契约
  */
 import { HistoryStorage } from '../services/HistoryStorage';
 import { historyRepository } from '../services/db/historyRepository';
 import { createDefaultClipboardItem, type ClipboardItem } from '../types/clipboard';
-import { usePendingConnectStore } from '../stores/pendingConnectStore';
-import { useQrScannerStore } from '../stores/qrScannerStore';
 import { useHistoryStore } from '../stores/historyStore';
 
 // 只影响 historyStore 走的 `@/services` 桶文件;上面几个直接路径 import 仍是真实实现
@@ -244,49 +241,5 @@ describe('搜索防抖所依赖的前提', () => {
   it('store.filter 初值为 falsy,首次进入搜索态无需重查', () => {
     useHistoryStore.setState({ filter: null });
     expect(useHistoryStore.getState().filter).toBeFalsy();
-  });
-});
-
-describe('扫码凭据交接', () => {
-  beforeEach(() => {
-    useQrScannerStore.setState({ isVisible: false });
-    usePendingConnectStore.getState().clear();
-  });
-
-  it('扫码器可见性由 store 驱动,让宿主渲染在表单 Modal 之外', () => {
-    expect(useQrScannerStore.getState().isVisible).toBe(false);
-
-    useQrScannerStore.getState().open();
-    expect(useQrScannerStore.getState().isVisible).toBe(true);
-
-    useQrScannerStore.getState().close();
-    expect(useQrScannerStore.getState().isVisible).toBe(false);
-  });
-
-  it('凭据在扫码器关闭后仍可被消费一次', () => {
-    // 扫码器写入后自行关闭;发起方要等 isVisible 落回 false 才消费
-    useQrScannerStore.getState().open();
-    usePendingConnectStore.getState().set({
-      url: 'https://box.lan:5033',
-      urls: ['https://box.lan:5033'],
-      user: 'alice',
-      pwd: 'secret',
-      label: 'Box',
-    });
-    useQrScannerStore.getState().close();
-
-    const intent = usePendingConnectStore.getState().consume();
-    expect(intent).toMatchObject({ url: 'https://box.lan:5033', user: 'alice', label: 'Box' });
-
-    // 一次性 drop-box:先到先得,消费后立即清空,不会被第二个消费方抢到
-    expect(usePendingConnectStore.getState().consume()).toBeNull();
-    expect(usePendingConnectStore.getState().intent).toBeNull();
-  });
-
-  it('扫码取消时没有凭据可消费', () => {
-    useQrScannerStore.getState().open();
-    useQrScannerStore.getState().close();
-
-    expect(usePendingConnectStore.getState().consume()).toBeNull();
   });
 });

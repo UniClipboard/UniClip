@@ -2,60 +2,35 @@ import { View, Text, TextInput, StyleSheet, Pressable } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { TopRightMenu } from './TopRightMenu';
-import { ServerStatusDot } from './ServerStatusDot';
 import type {
   DefaultTopBarProps,
   SearchTopBarProps,
   SelectModeTopBarProps,
 } from './HomeTopBar.types';
-import { CONNECTION_STATUS_TEXT, type ConnectionStatus } from '@/utils/connectionStatus';
 import { HistoryFilterTags } from '@/components/HistoryFilterTags';
 
-// Material 语义色板：在线绿 / 连接中橙 / 离线灰 / 异常红 / 未配置浅灰
-const STATUS_STYLE: Record<ConnectionStatus, { color: string; pulse: boolean; glow: boolean }> = {
-  online: { color: '#4CAF50', pulse: false, glow: true },
-  connecting: { color: '#FB8C00', pulse: true, glow: false },
-  offline: { color: '#9E9E9E', pulse: false, glow: false },
-  error: { color: '#E53935', pulse: true, glow: false },
-  unconfigured: { color: '#BDBDBD', pulse: false, glow: false },
-};
-
 export function DefaultTopBar({
-  serverLabel,
-  connectionStatus,
-  onSwitchServer,
+  onOpenSpace,
   onSearch,
   onSettings,
   onSelectMode,
   theme,
 }: DefaultTopBarProps) {
   const { t } = useTranslation('home');
-  const dot = STATUS_STYLE[connectionStatus];
-  const dimmed = connectionStatus === 'unconfigured' || connectionStatus === 'offline';
   return (
     <View style={s.row}>
       <Pressable
-        onPress={onSwitchServer}
+        onPress={onOpenSpace}
         style={({ pressed }) => [
-          s.serverStatus,
+          s.spaceStatus,
           { backgroundColor: theme.colors.surfaceHigh },
           pressed && { opacity: 0.7 },
         ]}
         accessibilityRole="button"
-        accessibilityLabel={t('topBar.switchServerA11y', {
-          server: serverLabel,
-          status: CONNECTION_STATUS_TEXT[connectionStatus],
-        })}
+        accessibilityLabel={t('topBar.openSpaceA11y')}
       >
-        <ServerStatusDot color={dot.color} pulse={dot.pulse} glow={dot.glow} />
-        <Text
-          style={[
-            s.label,
-            { color: dimmed ? theme.colors.textSecondary : theme.colors.textPrimary },
-          ]}
-          numberOfLines={1}
-        >
-          {serverLabel}
+        <Text style={[s.label, { color: theme.colors.textPrimary }]} numberOfLines={1}>
+          {t('topBar.mySpace')}
         </Text>
         <Ionicons name="chevron-down" size={16} color={theme.colors.textSecondary} />
       </Pressable>
@@ -176,7 +151,7 @@ export function SelectModeTopBar({
 
 const s = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 52 },
-  serverStatus: {
+  spaceStatus: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,

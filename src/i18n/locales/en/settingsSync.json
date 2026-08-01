@@ -1,70 +1,9 @@
 {
-  "options": {
-    "title": "Sync options",
-    "syncToast": {
-      "title": "Sync toast notifications",
-      "desc": "Show a toast when an upload or download completes"
-    },
-    "autoSize": {
-      "title": "Auto-sync size limit",
-      "desc": "Files smaller than this are downloaded automatically"
-    }
-  },
-  "advanced": {
-    "title": "Advanced",
-    "sse": {
-      "title": "Live push (SSE)",
-      "desc": "The server pushes clipboard changes for instant, battery-friendly sync; falls back to polling when unsupported"
-    },
-    "remotePolling": {
-      "title": "Remote polling interval",
-      "desc": "How often to fetch the remote clipboard"
-    },
-    "localPolling": {
-      "title": "Local polling interval",
-      "desc": "How often to check this device's clipboard for changes"
-    }
-  },
-  "unit": {
-    "seconds": "s"
-  },
-  "server": {
-    "title": "Servers",
-    "empty": {
-      "title": "No servers configured yet",
-      "desc": "Tap below to add your first server"
-    },
-    "deleteDialog": {
-      "title": "Confirm deletion",
-      "message": "Delete server \"{{name}}\"?"
-    }
-  },
-  "form": {
-    "addTitle": "Add server",
-    "editTitle": "Edit server"
-  },
-  "toast": {
-    "connectionSwitched": "Sync connection switched",
-    "serverSwitched": "Server switched",
-    "serverDeleted": "Server deleted",
-    "serverAdded": "Server added",
-    "serverUpdated": "Server settings updated"
-  },
   "connection": {
     "addTitle": "Add sync connection",
     "addSheetTitle": "Add connection",
     "p2pDescription": "End-to-end encrypted space",
-    "compatibilityTitle": "Compatibility",
-    "lanDeprecated": "LAN is deprecated and remains temporarily available only to existing users. It will be removed in a future release.",
-    "legacyLanAction": "Add legacy LAN connection",
-    "legacyLanDescription": "For existing LAN setups during the transition",
     "invitationExpires": "Invitation expires at {{time}}"
-  },
-  "migration": {
-    "title": "Move to P2P sync",
-    "body": "LAN sync will be removed in a future release. You can create or join an encrypted space now, while your existing LAN connection remains available during the transition.",
-    "setUpP2p": "Set up P2P",
-    "later": "Remind me later"
   },
   "space": {
     "title": "P2P space",
@@ -150,13 +89,5 @@
       "connectionLost": "The connection was interrupted. Try again",
       "operationFailed": "The operation failed. Check your input and try again."
     }
-  },
-  "error": {
-    "updateFailed": "Update failed",
-    "invalidNumber": "Please enter a valid number",
-    "minOneSecond": "Please enter a number of 1 or greater",
-    "switchFailed": "Switch failed",
-    "deleteFailed": "Delete failed",
-    "operationFailed": "Operation failed"
   }
 }

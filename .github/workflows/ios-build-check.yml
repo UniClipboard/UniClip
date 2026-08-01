@@ -4,7 +4,6 @@ on:
   workflow_call:
 
 env:
-  UC_CORE_REPO: https://github.com/UniClipboard/UniClipboard.git
   APP_VARIANT: production
 
 jobs:
@@ -16,11 +15,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Set derived paths
-        run: |
-          echo "UC_CORE_REF=$(tr -d '\r\n' < rust-core/source-ref)" >> "$GITHUB_ENV"
-          echo "UC_SRC=$RUNNER_TEMP/uc-core-src" >> "$GITHUB_ENV"
-
       - name: Select latest Xcode 26
         run: |
           XCODE_APP="$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
@@ -31,38 +25,6 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version-file: '.nvmrc'
-
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios,aarch64-apple-darwin
-
-      - name: Prepend cargo bin to PATH
-        run: echo "${CARGO_HOME:-$HOME/.cargo}/bin" >> "$GITHUB_PATH"
-
-      - name: Build legacy LAN core from pinned source
-        run: |
-          set -euo pipefail
-          rm -rf "$UC_SRC"; mkdir -p "$UC_SRC"
-          git -C "$UC_SRC" init -q
-          git -C "$UC_SRC" remote add origin "$UC_CORE_REPO"
-          git -C "$UC_SRC" fetch -q --depth 1 origin "$UC_CORE_REF"
-          git -C "$UC_SRC" checkout -q FETCH_HEAD
-          git -C "$UC_SRC" submodule update --init --recursive
-
-          ( cd "$UC_SRC"
-            TC=$(rustup show active-toolchain | awk '{print $1}')
-            rustup target add --toolchain "$TC" \
-              aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios aarch64-apple-darwin
-            UC_MOBILE_BUILD_LOCKED=1 bash crates/uc-mobile/scripts/build-ios-xcframework.sh
-          )
-
-          DEST="modules/uc-core/ios"
-          rm -rf "$DEST/UniClipboardCore.xcframework" "$DEST/Bindings"
-          cp -R "$UC_SRC/target/UniClipboardCore.xcframework" "$DEST/UniClipboardCore.xcframework"
-          mkdir -p "$DEST/Bindings/include"
-          cp "$UC_SRC/target/uniffi-bindings/uc_mobile.swift" "$DEST/Bindings/uc_mobile.swift"
-          cp -R "$UC_SRC/target/uniffi-bindings/include/." "$DEST/Bindings/include/"
 
       - name: Install dependencies
         run: npm ci

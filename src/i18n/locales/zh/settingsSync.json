@@ -1,70 +1,9 @@
 {
-  "options": {
-    "title": "同步选项",
-    "syncToast": {
-      "title": "同步 Toast 通知",
-      "desc": "上传/下载完成后显示 Toast 提示"
-    },
-    "autoSize": {
-      "title": "允许自动同步的数据大小",
-      "desc": "小于此大小的文件将自动下载"
-    }
-  },
-  "advanced": {
-    "title": "高级",
-    "sse": {
-      "title": "实时推送(SSE)",
-      "desc": "服务端推送剪贴板变化,更省电更即时;不支持时自动回退轮询"
-    },
-    "remotePolling": {
-      "title": "远程轮询间隔",
-      "desc": "拉取远程剪贴板的频率"
-    },
-    "localPolling": {
-      "title": "本地轮询间隔",
-      "desc": "检测本机剪贴板变化的频率"
-    }
-  },
-  "unit": {
-    "seconds": "秒"
-  },
-  "server": {
-    "title": "服务器",
-    "empty": {
-      "title": "还没有配置服务器",
-      "desc": "点击下方添加第一个服务器"
-    },
-    "deleteDialog": {
-      "title": "确认删除",
-      "message": "确定要删除服务器 \"{{name}}\" 吗？"
-    }
-  },
-  "form": {
-    "addTitle": "添加服务器",
-    "editTitle": "编辑服务器"
-  },
-  "toast": {
-    "connectionSwitched": "已切换同步连接",
-    "serverSwitched": "已切换服务器",
-    "serverDeleted": "服务器已删除",
-    "serverAdded": "服务器已添加",
-    "serverUpdated": "服务器配置已更新"
-  },
   "connection": {
     "addTitle": "新增同步连接",
     "addSheetTitle": "新增连接",
     "p2pDescription": "端到端加密空间",
-    "compatibilityTitle": "兼容模式",
-    "lanDeprecated": "LAN 已弃用，只为升级前已有配置的用户暂时保留，未来版本会删除。",
-    "legacyLanAction": "添加旧 LAN 连接",
-    "legacyLanDescription": "仅供已有 LAN 配置的用户在过渡期间使用",
     "invitationExpires": "邀请码将在 {{time}} 到期"
-  },
-  "migration": {
-    "title": "切换到 P2P 同步",
-    "body": "LAN 同步将在未来版本删除。现在可以创建或加入加密空间；在迁移完成前，现有 LAN 连接仍可继续使用。",
-    "setUpP2p": "设置 P2P",
-    "later": "以后再说"
   },
   "space": {
     "title": "P2P 空间",
@@ -150,13 +89,5 @@
       "connectionLost": "连接已中断，请重试",
       "operationFailed": "操作失败,请检查输入后重试"
     }
-  },
-  "error": {
-    "updateFailed": "设置失败",
-    "invalidNumber": "请输入有效的数字",
-    "minOneSecond": "请输入大于等于1的数字",
-    "switchFailed": "切换失败",
-    "deleteFailed": "删除失败",
-    "operationFailed": "操作失败"
   }
 }

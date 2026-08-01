@@ -1,23 +1,8 @@
 import Foundation
 internal import UcEngineCore
 
-/// The extension-side counterpart of the main app's selected transport. There
-/// is deliberately no fallback: choosing P2P never sends a server request.
-enum ExtensionSyncChannel {
-    case p2p
-    case lan
-
-    init(settings: AppSettings) {
-        self = settings.syncChannel == .p2p ? .p2p : .lan
-    }
-}
-
 enum ExtensionSyncRouter {
     private static let outboundDeliveryTimeoutMs: UInt64 = 5 * 60 * 1_000
-
-    static func channel(settings: AppSettings) -> ExtensionSyncChannel {
-        ExtensionSyncChannel(settings: settings)
-    }
 
     static func synchronizeKeyboardSnapshot(
         _ snapshot: DeviceClipboardSnapshot?,

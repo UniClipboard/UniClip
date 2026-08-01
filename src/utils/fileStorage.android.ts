@@ -22,7 +22,7 @@ const IMAGE_DIR = new Directory(BASE_DIR, 'images');
 const FILE_DIR = new Directory(BASE_DIR, 'files');
 export const HISTORY_BASE_DIR = new Directory(BASE_DIR, 'history');
 
-// 临时剪贴板文件存储目录（供 ClipboardManager 和 SyncManager 共用）
+// 临时剪贴板文件存储目录（供剪贴板读取和发送共用）
 export const CLIPBOARD_TEMP_DIR = new Directory(Paths.cache, 'temp_files');
 
 /**

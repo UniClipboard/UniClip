@@ -55,6 +55,10 @@ if (!/^(?:core-)?v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(pin.version ?? '')) {
 if (!/^[0-9a-f]{40}$/.test(pin.sourceCommit ?? '')) {
   fail('sourceCommit must be a full lowercase commit SHA');
 }
+if (pin.artifactSource === 'local-build') {
+  requireHash(pin.sourceStateSha256, 'sourceStateSha256');
+  fail('local engine builds cannot validate a release');
+}
 requireHash(pin.releaseManifestSha256, 'releaseManifestSha256');
 requireHash(pin.swiftPackageChecksum, 'swiftPackageChecksum');
 for (const name of requiredArtifacts) requireHash(pin.artifacts?.[name], `artifacts.${name}`);

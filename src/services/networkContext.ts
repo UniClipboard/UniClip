@@ -1,6 +1,12 @@
-import type { NetworkContext } from './serverRouteSelector';
 import NetInfo, { type NetInfoState } from '@react-native-community/netinfo';
 import { isTailscaleActive } from 'android-util';
+
+export interface NetworkContext {
+  isWifi: boolean;
+  isCellular: boolean;
+  isTailscale: boolean;
+  ssid?: string | null;
+}
 
 let currentNetworkContext: NetworkContext = {
   isWifi: false,
@@ -68,9 +74,9 @@ function networkContextEquals(a: NetworkContext, b: NetworkContext): boolean {
 
 function notifyRouteNetworkChanged(): void {
   try {
-    const { notifyNetworkChanged } = require('@/stores/syncEngineStore');
-    notifyNetworkChanged();
+    const { getBackgroundServiceManager } = require('@/services/BackgroundServiceManager');
+    void getBackgroundServiceManager().refresh();
   } catch {
-    // SyncEngine may not be initialized yet.
+    // Background services may not be initialized yet.
   }
 }

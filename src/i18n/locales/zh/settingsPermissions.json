@@ -2,15 +2,6 @@
   "action": {
     "openSettings": "前往设置"
   },
-  "smsAutomation": {
-    "title": "短信自动化",
-    "autoUpload": "自动上传短信验证码",
-    "permissionRequiredTitle": "需要短信权限",
-    "permissionRequiredMessage": "自动上传验证码需要短信接收权限，请在系统设置中允许",
-    "enabledToast": "已启用自动上传短信验证码",
-    "disabledToast": "已禁用自动上传短信验证码",
-    "saveFailed": "设置失败"
-  },
   "quickActions": {
     "title": "快捷操作",
     "addDownloadShortcut": "添加桌面快捷方式：下载",

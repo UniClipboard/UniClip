@@ -38,6 +38,11 @@ function createApi(overrides: Partial<UnifiedSpaceApi> = {}): UnifiedSpaceApi {
       migratedRecords: 0,
     })),
     removeMember: jest.fn(async () => undefined),
+    secureRemoveLegacyMember: jest.fn(async () => ({
+      bootstrapId: 'bootstrap-1',
+      outcome: 'complete' as const,
+      pendingReadmission: 0,
+    })),
     resendEntry: jest.fn(async () => ({
       kind: 'completed' as const,
       accepted: 1,
@@ -245,6 +250,89 @@ describe('UnifiedSpaceService', () => {
       pending: 0,
     });
     expect(api.resendEntry).toHaveBeenCalledWith('entry-1', []);
+  });
+
+  it('returns the member-removal result and refreshes the roster', async () => {
+    const removal = {
+      revocationId: 'revocation-1',
+      outcome: 'applied' as const,
+      pendingRecipients: 1,
+    };
+    const snapshots: UnifiedSpaceSnapshot[] = [];
+    const api = createApi({
+      removeMember: jest.fn(async () => removal) as unknown as UnifiedSpaceApi['removeMember'],
+      listDevices: jest.fn(async () => [
+        { deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true },
+      ]),
+    });
+    const service = new UnifiedSpaceService(api, (snapshot) => snapshots.push(snapshot));
+
+    await service.refresh();
+
+    await expect(service.removeMember('desktop-1')).resolves.toEqual(removal);
+    expect(api.removeMember).toHaveBeenCalledWith('desktop-1');
+    expect(api.listDevices).toHaveBeenCalledTimes(2);
+    expect(snapshots.at(-1)?.devices).toEqual([
+      { deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true },
+    ]);
+  });
+
+  it('refreshes devices without reloading the whole space', async () => {
+    const snapshots: UnifiedSpaceSnapshot[] = [];
+    const api = createApi({
+      listDevices: jest
+        .fn<UnifiedSpaceApi['listDevices']>()
+        .mockResolvedValueOnce([
+          { deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true },
+          { deviceId: 'desktop-1', displayName: 'Desktop', isLocal: false, online: true },
+        ])
+        .mockResolvedValueOnce([
+          { deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true },
+          { deviceId: 'desktop-1', displayName: 'Desktop', isLocal: false, online: false },
+        ]),
+    });
+    const service = new UnifiedSpaceService(api, (snapshot) => snapshots.push(snapshot));
+
+    await service.refresh();
+    await service.refreshDevices();
+
+    expect(api.querySpaceState).toHaveBeenCalledTimes(1);
+    expect(snapshots.at(-1)).toEqual(
+      expect.objectContaining({
+        status: 'ready',
+        devices: [
+          { deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true },
+          { deviceId: 'desktop-1', displayName: 'Desktop', isLocal: false, online: false },
+        ],
+      })
+    );
+  });
+
+  it('uses secure removal for legacy spaces and refreshes the roster', async () => {
+    const secureRemoval = {
+      bootstrapId: 'bootstrap-1',
+      outcome: 'awaitingReadmission' as const,
+      pendingReadmission: 1,
+    };
+    const api = {
+      ...createApi({
+        removeMember: jest.fn(async () => {
+          throw new Error('Engine error 1388');
+        }) as unknown as UnifiedSpaceApi['removeMember'],
+        listDevices: jest.fn(async () => [
+          { deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true },
+        ]),
+      }),
+      secureRemoveLegacyMember: jest.fn(async () => secureRemoval),
+    };
+    const service = new UnifiedSpaceService(api, () => undefined);
+
+    await service.refresh();
+
+    await expect(service.removeMember('desktop-1')).resolves.toEqual(secureRemoval);
+    expect(api.removeMember).toHaveBeenCalledWith('desktop-1');
+    expect(api.secureRemoveLegacyMember).toHaveBeenCalledWith('desktop-1');
+    expect(api.listDevices).toHaveBeenCalledTimes(2);
   });
 
   it('leaves the space without invoking any history deletion', async () => {

@@ -78,6 +78,7 @@ export const BackgroundSection = memo(function BackgroundSection() {
   const autoPushLocal = useSettingsStore((s) => s.config?.autoPushLocal ?? true);
   const backgroundDownload = useSettingsStore((s) => s.config?.enableBackgroundDownload ?? false);
   const backgroundUpload = useSettingsStore((s) => s.config?.enableBackgroundUpload ?? false);
+  const backgroundSyncNetwork = useSettingsStore((s) => s.config?.backgroundSyncNetwork ?? 'any');
   const clipboardAccessMethod = useSettingsStore(
     (s) => s.config?.clipboardAccessMethod ?? 'overlay-polling'
   );
@@ -276,6 +277,16 @@ export const BackgroundSection = memo(function BackgroundSection() {
     try {
       await useSettingsStore.getState().setEnableBackgroundUpload(false);
       showMessage(t('toast.uploadDisabled'), 'success');
+    } catch (error: unknown) {
+      showMessage(error instanceof Error ? error.message : t('toast.setFailed'), 'error');
+    }
+  };
+
+  const handleToggleCellularBackgroundSync = async (enabled: boolean) => {
+    try {
+      await useSettingsStore
+        .getState()
+        .updateConfig({ backgroundSyncNetwork: enabled ? 'any' : 'wifi' });
     } catch (error: unknown) {
       showMessage(error instanceof Error ? error.message : t('toast.setFailed'), 'error');
     }
@@ -489,6 +500,24 @@ export const BackgroundSection = memo(function BackgroundSection() {
             <ComposeSwitch
               value={backgroundTasksEnabled && foregroundNotification}
               onCheckedChange={handleToggleForegroundNotification}
+              enabled={backgroundTasksEnabled}
+            />
+          </ListItem.TrailingContent>
+        </ListItem>
+
+        <HorizontalDivider />
+
+        <ListItem>
+          <ListItem.HeadlineContent>
+            <ComposeText>{t('advanced.network.title')}</ComposeText>
+          </ListItem.HeadlineContent>
+          <ListItem.SupportingContent>
+            <ComposeText>{t('advanced.network.desc')}</ComposeText>
+          </ListItem.SupportingContent>
+          <ListItem.TrailingContent>
+            <ComposeSwitch
+              value={backgroundSyncNetwork === 'any'}
+              onCheckedChange={handleToggleCellularBackgroundSync}
               enabled={backgroundTasksEnabled}
             />
           </ListItem.TrailingContent>

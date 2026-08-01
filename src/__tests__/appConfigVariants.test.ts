@@ -112,7 +112,6 @@ describe('Expo app config variants', () => {
     const files = [
       'modules/app-group-store/ios/Shared/SettingsStore.swift',
       'targets/_shared/SettingsStore.swift',
-      'modules/uc-core/ios/UcCoreModule.swift',
     ];
 
     for (const file of files) {

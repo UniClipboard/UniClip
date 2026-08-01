@@ -10,19 +10,13 @@
   "processText": {
     "loading": "Uploading text…",
     "success": "Upload complete",
-    "failure": "Upload failed",
-    "noServer": "Please configure a server in Settings first"
+    "failure": "Upload failed"
   },
   "upload": {
     "copying": "Copying file…",
     "hashing": "Calculating hash…",
     "uploading": "Uploading…",
     "recordNotFound": "Record not found: {{hash}}"
-  },
-  "sms": {
-    "uploading": "Uploading code: {{code}}",
-    "retrying": "Retrying code upload: {{code}}\nAttempt {{attempt}} failed, retrying in {{seconds}}s…",
-    "failed": "Code upload failed: {{code}}\nRetried {{count}} times"
   },
   "serviceRestart": {
     "restored": "Service restored"

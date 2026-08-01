@@ -28,14 +28,13 @@
   - iOS 分享扩展与自定义键盘扩展
   - 后台自动同步
 - 复制即同步：Android 授予 `READ_LOGS` 后启用事件驱动监听，替代 1Hz 轮询空转（无权限时自动回落轮询）
-- 短信验证码自动转发上传
 
 ### 便捷接入
 
-- 扫码配对：摄像头扫描二维码快速添加服务器
-- 首次运行引导（Onboarding）
-- 深度链接：`connect` 深链直接预填「添加服务器」表单
-- 完整国际化（简体中文 / English）
+- 通过邀请码创建或加入加密空间
+- 首次运行可选择创建空间、加入空间或稍后设置
+- 升级用户没有空间时直接进入「加入空间」流程
+- 完整国际化（简体中文 / English / Português / Русский）
 
 ## 截图
 
@@ -45,13 +44,13 @@
 
 ## 架构概览
 
-- **同步核心**：Rust `uc-mobile`（UniFFI）编译为静态/动态库，通过本地 Expo 模块 `modules/uc-core` 暴露给 TS 层，Android / iOS 共用同一份同步逻辑。详见 [docs/RUST_CORE_INTEGRATION.md](./docs/RUST_CORE_INTEGRATION.md)。
-- **实时推送**：由 Rust 核心提供的 SSE（Server-Sent Events）驱动即时下行，在线时把周期 tick 降为兜底、断开时回落 1Hz 轮询。
+- **同步核心**：`uc-engine` 负责空间、设备身份、加密与跨设备传输，Android 和 iOS 共用同一套行为。
+- **连接方式**：设备通过邀请码加入同一个空间，不依赖自建服务器配置。
 - **本地存储**：历史记录持久化到 SQLite；iOS 通过共享 App Group 在主 App 与扩展之间共享数据。
 - **平台分离 UI**：所有跨平台差异的组件按 Metro 平台文件拆分——
   - iOS：Liquid Glass / SwiftUI（`@expo/ui`、`expo-glass-effect`、`lucide-react-native`）
   - Android：Material Design 3 / Jetpack Compose（`@expo/ui/jetpack-compose`、Ionicons）
-- **自研原生模块**（`modules/`）：`uc-core`、`foreground-service`、`native-timer`、`clipboard-overlay`、`app-group-store`、`android-util`、`qr-scanner`、`shortcut`、`sms-forwarder`。
+- **自研原生模块**（`modules/`）：`uc-engine`、`foreground-service`、`native-timer`、`clipboard-overlay`、`app-group-store`、`android-util`、`document-exporter`、`shizuku-clipboard`、`shortcut`。
 
 ## 开发
 

@@ -1,4 +1,5 @@
 import type { EngineConfig, EngineEvent, PeerConnectionRefresh } from 'uc-engine';
+import { AppState } from 'react-native';
 import { log } from './Logger';
 import {
   createInitialUnifiedEngineSnapshot,
@@ -11,6 +12,7 @@ export interface UnifiedEngineApi {
   start(config: EngineConfig): Promise<void>;
   shutdown(deadlineMs?: number): Promise<void>;
   resume(): Promise<void>;
+  setBackgroundSyncEnabled(enabled: boolean, appIsBackground: boolean): Promise<void>;
   nextEvent(timeoutMs?: number): Promise<EngineEvent | null>;
   refreshPeerConnections(): Promise<PeerConnectionRefresh>;
 }
@@ -144,6 +146,11 @@ export class UnifiedEngineService {
   resume(): Promise<void> {
     if (!this.nativeStarted) return Promise.resolve();
     return this.api.resume();
+  }
+
+  setBackgroundSyncPolicy(enabled: boolean): Promise<void> {
+    if (!this.nativeStarted) return Promise.resolve();
+    return this.api.setBackgroundSyncEnabled(enabled, AppState.currentState !== 'active');
   }
 
   subscribeEvents(subscriber: EngineEventSubscriber): () => void {

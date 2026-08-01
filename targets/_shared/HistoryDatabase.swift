@@ -14,7 +14,7 @@ private let sqliteTransient = unsafeBitCast(-1, to: sqlite3_destructor_type.self
 /// (`src/services/db/database.ts`, `clipboard_history` v1); this class makes
 /// that database the single source of truth on iOS — the app, keyboard, and
 /// share extension all touch the same rows, so a delete in the app vanishes
-/// from the keyboard, and the `isDeleted` tombstone stops a server pull from
+/// from the keyboard, and the `isDeleted` tombstone stops remote content from
 /// resurrecting deleted content.
 ///
 /// Ownership rules:
@@ -157,7 +157,7 @@ public final class HistoryDatabase {
     ///
     /// - Existing row, tombstoned, `direction == .pulled`: the user deleted
     ///   this content in the app — respect the tombstone, do nothing. This is
-    ///   the rule that stops server pulls from resurrecting deletions.
+    ///   the rule that stops remote updates from resurrecting deletions.
     /// - Existing row, any other case: surface it — undelete, bump the
     ///   timestamps (moves it to the head), mark synced for pushed/pulled.
     ///   A deliberate re-copy on this device (`.local`/`.pushed`) is a fresh
@@ -220,13 +220,13 @@ public final class HistoryDatabase {
         direction: ClipboardHistoryItem.Direction,
         at now: Date
     ) -> Bool {
-        // syncStatus: pushed/pulled content is on the server (1 = Synced);
+        // syncStatus: pushed/pulled content belongs to the space (1 = Synced);
         // a plain local observation keeps whatever status the row had.
         let sql = """
         UPDATE \(Self.table) SET
           isDeleted = 0, timestamp = ?, lastAccessed = ?, lastModified = ?,
           syncStatus = CASE WHEN ? = 1 THEN 1 ELSE syncStatus END,
-          "from" = CASE WHEN ? = 1 THEN 'server' ELSE "from" END
+          "from" = CASE WHEN ? = 1 THEN 'space' ELSE "from" END
         WHERE profileHash = ?
         """
         var stmt: OpaquePointer?
@@ -251,7 +251,7 @@ public final class HistoryDatabase {
         direction: ClipboardHistoryItem.Direction,
         at now: Date
     ) -> Bool {
-        // Preserve the row's server identity when the v2 column is available so
+        // Preserve the row's remote identity when the v2 column is available so
         // "user re-activates this pulled item" recovers its contentId in RN.
         let extraCol = hasContentId ? ", contentId" : ""
         let extraVal = hasContentId ? ", ?" : ""
@@ -289,7 +289,7 @@ public final class HistoryDatabase {
         sqlite3_bind_int64(stmt, 12, ms)
         sqlite3_bind_int(stmt, 13, entry.hasData ? (payloadURL != nil ? 1 : 0) : 1)
         sqlite3_bind_int(stmt, 14, direction == .local ? 0 : 1) // HistorySyncStatus: LocalOnly / Synced
-        bindOptionalText(stmt, 15, direction == .pulled ? "server" : nil)
+        bindOptionalText(stmt, 15, direction == .pulled ? "space" : nil)
         if hasContentId { bindOptionalText(stmt, 16, entry.contentId) }
 
         guard sqlite3_step(stmt) == SQLITE_DONE else { logError("insert step"); return false }

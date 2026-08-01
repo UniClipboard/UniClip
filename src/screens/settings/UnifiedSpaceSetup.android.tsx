@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import * as Clipboard from 'expo-clipboard';
 import type { InvitationIssued } from 'uc-engine';
 import {
@@ -150,10 +150,21 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
   const [confirmLeave, setConfirmLeave] = useState(false);
   const space = useUnifiedSpaceStore();
   const refreshRevision = useUnifiedEngineStore((state) => state.refreshRevision);
+  const hasLoadedSpace = useRef(false);
 
   useEffect(() => {
     void getUnifiedSpaceService()
       .refresh()
+      .catch((cause) => setError(operationError(cause, t)))
+      .finally(() => {
+        hasLoadedSpace.current = true;
+      });
+  }, [t]);
+
+  useEffect(() => {
+    if (!hasLoadedSpace.current) return;
+    void getUnifiedSpaceService()
+      .refreshDevices()
       .catch((cause) => setError(operationError(cause, t)));
   }, [refreshRevision, t]);
 
@@ -234,9 +245,7 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
       <AddSyncConnectionSheet
         visible={setupMode !== null}
         initialMode={setupMode ?? 'choose'}
-        legacyLanEligible={false}
         onClose={() => setSetupMode(null)}
-        onOpenLegacyLan={() => {}}
         onConnected={() => {
           setSetupMode(null);
           return true;

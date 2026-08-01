@@ -8,8 +8,12 @@
     "upToDate": "Você está na versão mais recente",
     "checkFailed": "Falha ao verificar atualizações; verifique sua conexão de rede"
   },
-  "autoCheck": { "label": "Verificar atualizações automaticamente" },
-  "updateToBeta": { "label": "Atualizar para beta" },
+  "autoCheck": {
+    "label": "Verificar atualizações automaticamente"
+  },
+  "updateToBeta": {
+    "label": "Atualizar para beta"
+  },
   "download": {
     "newVersionTitle": "Nova versão disponível",
     "latestVersion": "Versão mais recente: {{version}}",
@@ -29,11 +33,18 @@
     "confirm": "Cancelar download",
     "dismiss": "Continuar baixando"
   },
-  "error": { "saveFailed": "Falha ao salvar as configurações" },
+  "error": {
+    "saveFailed": "Falha ao salvar as configurações"
+  },
   "log": {
     "title": "Logs",
     "levelLabel": "Nível de log",
-    "level": { "debug": "Depuração", "info": "Informações", "warn": "Aviso", "error": "Erro" },
+    "level": {
+      "debug": "Depuração",
+      "info": "Informações",
+      "warn": "Aviso",
+      "error": "Erro"
+    },
     "setSuccess": "Nível de log definido como {{level}}",
     "setFailed": "Falha ao definir o nível de log",
     "exportLabel": "Exportar logs",
@@ -58,14 +69,9 @@
     "updateNoLimitLabel": "Verificações de atualização ilimitadas",
     "updateNoLimitDesc": "Quando ativado, verifica atualizações a cada inicialização, em vez de uma vez por dia"
   },
-  "sms": {
-    "title": "Testar SMS de verificação",
-    "placeholder": "Insira o conteúdo do SMS...",
-    "test": "Testar",
-    "extractSuccessTitle": "Extração concluída",
-    "extractFailTitle": "Falha na extração",
-    "codeResult": "Código: {{code}}",
-    "extractFailMessage": "Não foi possível extrair um código de verificação do texto informado"
-  },
-  "stats": { "title": "Estatísticas", "view": "Ver", "copied": "Estatísticas copiadas" }
+  "stats": {
+    "title": "Estatísticas",
+    "view": "Ver",
+    "copied": "Estatísticas copiadas"
+  }
 }

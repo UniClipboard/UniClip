@@ -5,6 +5,15 @@ import {
   shouldRunBackgroundSync,
 } from '../utils/syncDirectionPolicy';
 
+const wifi = { isWifi: true, isCellular: false, isTailscale: false };
+const cellular = { isWifi: false, isCellular: true, isTailscale: false };
+
+const shouldRunBackgroundSyncOnNetwork = shouldRunBackgroundSync as unknown as (
+  config: Record<string, unknown>,
+  temporarilyDisabled: boolean,
+  network: typeof wifi
+) => boolean;
+
 const backgroundCapabilities = {
   enableBackgroundTasks: true,
   enableBackgroundDownload: true,
@@ -85,5 +94,26 @@ describe('sync direction policy', () => {
         true
       )
     ).toBe(false);
+  });
+
+  it('keeps background sync enabled on mobile data by default', () => {
+    expect(
+      shouldRunBackgroundSyncOnNetwork(
+        { ...backgroundCapabilities, autoApplyRemote: true },
+        false,
+        cellular
+      )
+    ).toBe(true);
+  });
+
+  it('restricts background sync to Wi-Fi when mobile data is disabled', () => {
+    const wifiOnly = {
+      ...backgroundCapabilities,
+      autoApplyRemote: true,
+      backgroundSyncNetwork: 'wifi',
+    };
+
+    expect(shouldRunBackgroundSyncOnNetwork(wifiOnly, false, wifi)).toBe(true);
+    expect(shouldRunBackgroundSyncOnNetwork(wifiOnly, false, cellular)).toBe(false);
   });
 });

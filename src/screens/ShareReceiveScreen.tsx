@@ -2,9 +2,7 @@
  * Share Receive Screen
  * 接收分享文件页面 - 当其他 App 分享文件到本 App 时显示。
  *
- * 业务语义:分享 = 先落本地(瞬时、必成功) + 后台推送。解析完成后立即把内容落库
- * (LocalOnly),把上传交给 BackgroundUploadManager 异步重试,然后立刻返回来源 app——
- * 不再让用户在「上传中」界面干等,服务端离线也不阻塞(内容已在本地,卡片显示待上传角标)。
+ * 业务语义:分享 = 先落本地(瞬时、必成功),再交给 UnifiedContentService 发送到当前空间。
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -15,7 +13,7 @@ import { useIncomingShare, clearSharedPayloads, getSharedPayloads } from 'expo-s
 import { useTheme } from '@/hooks/useTheme';
 import { useMessageStore } from '@/stores/messageStore';
 import { importFileToHistory, importTextToHistory } from '@/utils/uploadFile';
-import { BackgroundUploadManager } from '@/services/BackgroundUploadManager';
+import { getUnifiedContentService } from '@/services/UnifiedContentService';
 import { log } from '@/services/Logger';
 
 interface ShareReceiveScreenProps {
@@ -98,7 +96,7 @@ export const ShareReceiveScreen: React.FC<ShareReceiveScreenProps> = ({ onComple
     onComplete(returnToSource);
   }, [resolvedSharedPayloads, onComplete]);
 
-  // 解析完成 → 落库(本地即完成) → 入队后台上传 → 立即返回。上传失败不阻塞分享,内容留在本地。
+  // 解析完成 → 落库 → 经选中的通道发送 → 返回来源 app。
   useEffect(() => {
     if (isResolving) {
       resolveStartedRef.current = true; // 记录解析确实开始过一轮
@@ -130,7 +128,7 @@ export const ShareReceiveScreen: React.FC<ShareReceiveScreenProps> = ({ onComple
           const text = payload.value?.trim() || '';
           if (!text) throw new Error(t('receive.emptyText'));
           const { profileHash } = await importTextToHistory(text);
-          BackgroundUploadManager.enqueue(profileHash);
+          await getUnifiedContentService().sendImportedText(text, profileHash);
         } else {
           // 文件分享
           const contentMime = payload.contentMimeType;
@@ -145,7 +143,15 @@ export const ShareReceiveScreen: React.FC<ShareReceiveScreenProps> = ({ onComple
             contentMime,
             undefined
           );
-          BackgroundUploadManager.enqueue(result.profileHash);
+          await getUnifiedContentService().sendImportedAsset(
+            {
+              kind: contentMime?.startsWith('image/') ? 'image' : 'file',
+              uri: result.fileUri,
+              fileName: result.fileName,
+              mimeType: contentMime,
+            },
+            result.profileHash
+          );
         }
         clearSharedPayloads();
       } catch (err) {

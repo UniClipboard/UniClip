@@ -2,31 +2,32 @@
   "empty": {
     "unconfigured": {
       "title": "Nenhum espaço P2P ainda",
-      "description": "Crie um espaço ou entre com um convite para começar a sincronizar. Seu histórico local continuará disponível."
+      "description": "Entre em um espaço com um convite para continuar sincronizando. Seu histórico local continuará disponível."
     },
     "connecting": {
       "title": "Conectando…",
-      "description": "Conectando a {{server}} na rede local."
+      "description": "Conectando aos dispositivos em {{space}}."
     },
     "online": {
       "title": "Sua área de transferência está sincronizada",
       "description": "Copie algo em qualquer dispositivo pareado e aparecerá aqui."
     },
     "offline": {
-      "title": "{{server}} não está acessível",
-      "description": "Não está respondendo nesta rede. Verifique se ele está ligado e na mesma rede Wi‑Fi."
+      "title": "Os dispositivos em {{space}} estão offline",
+      "description": "Os outros dispositivos estão indisponíveis. Verifique a conexão de rede deles."
     },
     "error": {
       "title": "A sincronização precisa de atenção",
-      "description": "O acesso foi recusado ou a sincronização foi pausada. Verifique as configurações do servidor para reconectar."
+      "description": "A sincronização está pausada. Verifique o espaço e a conexão de rede."
     }
   },
   "topBar": {
     "selectedCount": "{{n}} selecionados",
     "deselectAll": "Desmarcar tudo",
     "searchPlaceholder": "Pesquisar na área de transferência",
-    "switchServerA11y": "Trocar de servidor, atualmente {{server}}, {{status}}",
-    "serverUnconfigured": "Não configurado"
+    "mySpace": "Meu espaço",
+    "openSpaceA11y": "Abrir Meu espaço",
+    "spaceUnconfigured": "Não conectado"
   },
   "a11y": {
     "addContent": "Adicionar conteúdo",
@@ -38,12 +39,6 @@
     "pickFile": "Escolher arquivo",
     "uploadClipboard": "Enviar área de transferência",
     "syncNow": "Sincronizar agora"
-  },
-  "quickActions": {
-    "upload": "⬆️ Enviar",
-    "sync": "🔄 Sincronizar",
-    "syncing": "  Sincronizando...",
-    "download": "⬇️ Baixar"
   },
   "toast": {
     "copied": "Copiado para a área de transferência",
@@ -58,7 +53,6 @@
     "copiedSelected": "Itens selecionados copiados",
     "syncDone": "Sincronização concluída",
     "syncFailed": "Falha na sincronização",
-    "uploadedToServer": "Enviado ao servidor",
     "sentToPeers": "Enviado aos outros dispositivos",
     "uploadFailed": "Falha no envio",
     "savedLocally": "Salvo localmente",
@@ -72,9 +66,7 @@
     "pickFileFailed": "Falha ao escolher arquivo",
     "pickImageFailed": "Falha ao escolher imagem",
     "cameraPermissionNeeded": "Permissão de câmera necessária",
-    "takePhotoFailed": "Falha ao tirar foto",
-    "serverSwitched": "Servidor trocado",
-    "serverAdded": "Servidor adicionado"
+    "takePhotoFailed": "Falha ao tirar foto"
   },
   "detail": {
     "placeholderTitle": "Selecione um item",
@@ -91,15 +83,5 @@
   "rail": {
     "filters": "Filtros",
     "all": "Todos"
-  },
-  "nav": {
-    "sync": "Servidores e sincronização",
-    "history": "Histórico",
-    "background": "Segundo plano",
-    "appearance": "Aparência",
-    "sms": "Encaminhamento de SMS",
-    "storage": "Armazenamento",
-    "about": "Sobre",
-    "developer": "Opções de desenvolvedor"
   }
 }

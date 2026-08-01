@@ -1,31 +1,13 @@
 import { Platform } from 'react-native';
-import { ServerConfig } from './api';
-import { SyncMode, ConflictResolution } from './sync';
-
-export type SyncChannel = 'p2p' | 'lan';
-export type SyncConnectionTarget = { kind: 'p2p' } | { kind: 'lan'; serverIndex: number };
-
-export interface ServerData {
-  servers: ServerConfig[];
-  activeServerIndex: number;
-}
 
 export interface SharedSettings {
-  /** User-selected transport. P2P and LAN never run as automatic fallbacks for each other. */
-  syncChannel: SyncChannel;
-
   // Sync behavior
-  trustInsecureCert: boolean;
   autoApplyRemote: boolean;
   autoPushLocal: boolean;
-  syncOnStartup: boolean;
-  /** SSE 推送通道开关；实际是否生效还叠加 feature-detect（服务端不支持则自动回退轮询）。 */
-  enableSse: boolean;
 
   // Attachment & cache
   attachmentAutoDownload: 'wifi' | 'always' | 'off';
   payloadCacheMaxBytes: number;
-  autoDownloadMaxSize: number;
 
   // History
   maxHistoryItems: number;
@@ -54,10 +36,6 @@ export interface SharedSettings {
   // Onboarding
   /** 首次启动引导是否已完成(RN 侧门控,不供原生扩展消费)。 */
   onboardingCompleted: boolean;
-  /** Schema-v7 snapshot: this install already used LAN before LAN became upgrade-only. */
-  legacyLanEligible: boolean;
-  /** Last app version that showed the LAN-to-P2P migration prompt. */
-  lanMigrationPromptedVersion: string | null;
 }
 
 export type ClipboardAccessMethod = 'overlay-polling' | 'overlay-event' | 'shizuku';
@@ -67,9 +45,10 @@ export interface AndroidSettings {
   enableBackgroundTasks: boolean;
   enableBackgroundDownload: boolean;
   enableBackgroundUpload: boolean;
+  /** Whether background synchronization may use mobile data or requires Wi-Fi. */
+  backgroundSyncNetwork: 'any' | 'wifi';
   clipboardAccessMethod: ClipboardAccessMethod;
   enableClipboardOverlay: boolean;
-  enableSmsForwarding: boolean;
   enableForegroundNotification: boolean;
 
   // Notifications
@@ -80,48 +59,25 @@ export interface AndroidSettings {
   hideFromRecents: boolean;
   showImageCopyButton: boolean;
 
-  // Polling intervals
-  remotePollingInterval: number;
-  localPollingInterval: number;
-
   // Debug
   debugOverlayVisible: boolean;
   debugUrlScheme: boolean;
   debugUpdateCheckNoLimit: boolean;
-
-  // SyncManager internals (not exposed in settings UI, kept for runtime)
-  syncMode: SyncMode;
-  syncInterval: number;
-  conflictResolution: ConflictResolution;
-  enableOfflineQueue: boolean;
-  maxOfflineQueueSize: number;
-  syncLargeFiles: boolean;
-  largeFileThreshold: number;
 }
 
-export type AppSettings = ServerData & SharedSettings & AndroidSettings;
+export type AppSettings = SharedSettings & AndroidSettings;
 
 export interface RuntimeState {
   lastUpdateCheckDate: string;
   needsHistoryReorganize: boolean;
 }
 
-export const SERVER_DATA_DEFAULTS: ServerData = {
-  servers: [],
-  activeServerIndex: -1,
-};
-
 export const SHARED_DEFAULTS: SharedSettings = {
-  syncChannel: 'p2p',
-  trustInsecureCert: false,
   autoApplyRemote: true,
   autoPushLocal: true,
-  syncOnStartup: true,
-  enableSse: true,
 
   attachmentAutoDownload: 'wifi',
   payloadCacheMaxBytes: 200 * 1024 * 1024,
-  autoDownloadMaxSize: 5 * 1024 * 1024,
 
   maxHistoryItems: 1000,
 
@@ -141,17 +97,15 @@ export const SHARED_DEFAULTS: SharedSettings = {
   keyboardHapticFeedback: true,
 
   onboardingCompleted: false,
-  legacyLanEligible: false,
-  lanMigrationPromptedVersion: null,
 };
 
 export const ANDROID_DEFAULTS: AndroidSettings = {
   enableBackgroundTasks: false,
   enableBackgroundDownload: false,
   enableBackgroundUpload: false,
+  backgroundSyncNetwork: 'any',
   clipboardAccessMethod: 'overlay-polling',
   enableClipboardOverlay: false,
-  enableSmsForwarding: false,
   enableForegroundNotification: true,
 
   enableNotifications: true,
@@ -160,20 +114,9 @@ export const ANDROID_DEFAULTS: AndroidSettings = {
   hideFromRecents: false,
   showImageCopyButton: false,
 
-  remotePollingInterval: 3000,
-  localPollingInterval: 1000,
-
   debugOverlayVisible: false,
   debugUrlScheme: false,
   debugUpdateCheckNoLimit: false,
-
-  syncMode: SyncMode.Manual,
-  syncInterval: 5000,
-  conflictResolution: ConflictResolution.UseNewest,
-  enableOfflineQueue: true,
-  maxOfflineQueueSize: 100,
-  syncLargeFiles: true,
-  largeFileThreshold: 10 * 1024 * 1024,
 };
 
 export const IOS_DEFAULTS: Pick<SharedSettings, 'autoApplyRemote' | 'autoPushLocal'> = {
@@ -185,7 +128,6 @@ export function createDefaultSettings(platform: string): AppSettings {
   const platformDefaults = platform === 'ios' ? IOS_DEFAULTS : {};
 
   return {
-    ...SERVER_DATA_DEFAULTS,
     ...SHARED_DEFAULTS,
     ...ANDROID_DEFAULTS,
     ...platformDefaults,
@@ -199,4 +141,4 @@ export const RUNTIME_STATE_DEFAULTS: RuntimeState = {
   needsHistoryReorganize: false,
 };
 
-export const SETTINGS_SCHEMA_VERSION = 7;
+export const SETTINGS_SCHEMA_VERSION = 8;

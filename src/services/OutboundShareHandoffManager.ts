@@ -13,9 +13,8 @@ import {
 } from './UnifiedContentService';
 
 interface HandoffSendResult {
-  channel: 'p2p' | 'lan';
   success: boolean;
-  deliveryState?: string;
+  deliveryState: string;
 }
 
 interface OutboundShareHandoffDependencies {
@@ -77,17 +76,10 @@ export class OutboundShareHandoffManager {
           },
           imported.profileHash,
           {
-            channel: job.channel,
-            awaitLanDelivery: true,
-            serverId: job.serverId,
             targetDeviceIds: job.targetDeviceIds,
-            byteCount: job.byteCount,
           }
         );
-        const delivered =
-          result.channel === 'lan'
-            ? result.success
-            : result.success && result.deliveryState === 'delivered';
+        const delivered = result.success && result.deliveryState === 'delivered';
         if (!delivered) {
           await this.release(job.id);
           deferred += 1;

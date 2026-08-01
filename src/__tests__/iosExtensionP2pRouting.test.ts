@@ -34,15 +34,14 @@ describe('iOS extension P2P routing', () => {
     expect(corePodspec).toContain('s.vendored_frameworks');
   });
 
-  it('makes both extensions route through the selected sync channel', () => {
+  it('routes both extensions through P2P only', () => {
     const router = readProjectFile('targets/_shared/ExtensionSyncRouter.swift');
     const keyboard = readProjectFile('targets/keyboard/KeyboardModel.swift');
     const share = readProjectFile('targets/share/ShareUploader.swift');
 
-    expect(router).toContain('enum ExtensionSyncChannel');
-    expect(router).toContain('case p2p');
-    expect(router).toContain('case lan');
-    expect(router).toContain('settings.syncChannel');
+    expect(router).not.toContain('ExtensionSyncChannel');
+    expect(router).not.toContain('settings.syncChannel');
+    expect(router).not.toMatch(/\bLAN\b|\blan\b/);
     expect(keyboard).toContain('ExtensionSyncRouter');
     expect(share).toContain('ExtensionSyncRouter');
   });
@@ -95,9 +94,8 @@ describe('iOS extension P2P routing', () => {
     expect(keyboard).toContain('syncEventGate.request(trigger)');
     expect(keyboard).toContain('syncEventGate.finish()');
     expect(keyboard).toContain('requestSync(.appeared)');
-    expect(keyboard).toContain('requestSync(.networkChanged)');
     expect(keyboard).toContain('requestSync(.localClipboardChanged)');
-    expect(keyboard).toContain('requestSync(.serverChanged)');
+    expect(keyboard).not.toContain('requestSync(.serverChanged)');
     expect(keyboard).toContain('internal import UcEngineCore');
     expect(viewStore).toContain('case .refresh:');
     expect(viewStore).toContain('requestSync(.manual)');
@@ -114,7 +112,7 @@ describe('iOS extension P2P routing', () => {
     expect(p2pSync).toBeDefined();
     expect(p2pSync).toContain('publishHistoryChanges: Bool');
     expect(p2pSync).toContain('showSyncFeedback: Bool');
-    expect(keyboard).toContain('if publishHistoryChanges || channel == .lan { reloadCards() }');
+    expect(keyboard).toContain('if publishHistoryChanges { reloadCards() }');
     expect(p2pSync).toMatch(/else if publishHistoryChanges\s*\{\s*reloadCards\(\)/);
   });
 

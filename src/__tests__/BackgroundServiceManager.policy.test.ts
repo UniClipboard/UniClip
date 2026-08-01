@@ -1,43 +1,27 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { getBackgroundServiceManager } from '../services/BackgroundServiceManager';
 
-const mockRemoteRefresh = jest.fn<() => Promise<void>>(async () => undefined);
-const mockRemoteStop = jest.fn<() => void>();
-const mockReconcileSyncEngineAppState = jest.fn();
-const mockLanStart = jest.fn<() => Promise<void>>(async () => undefined);
-const mockLanStop = jest.fn<() => void>();
-const mockP2pStart = jest.fn<() => Promise<void>>(async () => undefined);
-const mockP2pStop = jest.fn<() => Promise<void>>(async () => undefined);
-const mockP2pRecoverPeerConnections = jest.fn(async () => ({
-  total: 0,
-  online: 0,
+const mockStart = jest.fn(async () => undefined);
+const mockSetBackgroundSyncPolicy = jest.fn(async () => undefined);
+const mockRecoverPeerConnections = jest.fn(async () => ({
+  total: 1,
+  online: 1,
   offline: 0,
   errors: 0,
 }));
-const mockP2pCancelPeerRecovery = jest.fn();
 const mockSpaceRefresh = jest.fn(async () => ({ devices: [] }));
-const mockStartMonitoring = jest.fn(async () => undefined);
-const mockStopMonitoring = jest.fn();
-const mockSetStaticReceiverEnabled = jest.fn();
 
 const settingsState = {
   config: {
-    syncChannel: 'lan' as 'p2p' | 'lan',
     autoApplyRemote: true,
     autoPushLocal: true,
     enableBackgroundTasks: true,
     enableBackgroundDownload: true,
     enableBackgroundUpload: true,
-    enableSmsForwarding: false,
+    backgroundSyncNetwork: 'any' as const,
   },
-  isTempDisabledBackgroundTasks: true,
+  isTempDisabledBackgroundTasks: false,
 };
-
-async function waitForRemoteRefreshToStart(isStarted: () => boolean): Promise<void> {
-  for (let attempt = 0; attempt < 10 && !isStarted(); attempt += 1) {
-    await Promise.resolve();
-  }
-}
 
 jest.mock('react-native', () => ({
   AppState: { currentState: 'background' },
@@ -50,23 +34,11 @@ jest.mock('../stores/settingsStore', () => ({
   },
 }));
 
-jest.mock('../services/ClipboardSyncService', () => ({
-  getClipboardSyncService: () => ({ refresh: mockRemoteRefresh, stop: mockRemoteStop }),
-}));
-
-jest.mock('../stores/syncEngineStore', () => ({
-  reconcileSyncEngineAppState: mockReconcileSyncEngineAppState,
-  useSyncEngineStore: {
-    getState: () => ({ isRunning: false, start: mockLanStart, stop: mockLanStop }),
-  },
-}));
-
 jest.mock('../services/UnifiedEngineService', () => ({
   getUnifiedEngineService: () => ({
-    start: mockP2pStart,
-    stop: mockP2pStop,
-    recoverPeerConnections: mockP2pRecoverPeerConnections,
-    cancelPeerRecovery: mockP2pCancelPeerRecovery,
+    start: mockStart,
+    setBackgroundSyncPolicy: mockSetBackgroundSyncPolicy,
+    recoverPeerConnections: mockRecoverPeerConnections,
   }),
 }));
 
@@ -74,138 +46,34 @@ jest.mock('../services/UnifiedSpaceService', () => ({
   getUnifiedSpaceService: () => ({ refresh: mockSpaceRefresh }),
 }));
 
-jest.mock('../stores/clipboardStore', () => ({
-  useClipboardStore: {
-    getState: () => ({
-      startMonitoring: mockStartMonitoring,
-      stopMonitoring: mockStopMonitoring,
-    }),
-  },
-}));
-
-jest.mock('sms-forwarder', () => ({
-  setStaticReceiverEnabled: mockSetStaticReceiverEnabled,
-}));
-
-jest.mock('../stores/statisticsStore', () => ({
-  useStatisticsStore: {
-    getState: () => ({
-      recordBackgroundTaskStart: jest.fn(async () => undefined),
-      updateHeartbeat: jest.fn(),
-    }),
-  },
-}));
-
-jest.mock('native-timer', () => ({
-  setTimer: jest.fn(() => 'test-heartbeat'),
-  clearTimer: jest.fn(),
-}));
-
-jest.mock('foreground-service', () => ({
-  stopService: jest.fn(),
-}));
-
-describe('BackgroundServiceManager background policy', () => {
+describe('BackgroundServiceManager P2P policy', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    settingsState.isTempDisabledBackgroundTasks = true;
-    settingsState.config.syncChannel = 'lan';
-    mockRemoteRefresh.mockResolvedValue(undefined);
-  });
-
-  it('can explicitly wait for the selected P2P runtime before a space setup operation', async () => {
-    settingsState.config.syncChannel = 'p2p';
-
-    await getBackgroundServiceManager().activateSelectedSyncChannel();
-
-    expect(mockP2pStart).toHaveBeenCalledTimes(1);
-    expect(mockSpaceRefresh).toHaveBeenCalledTimes(1);
-  });
-
-  it('immediately starts bounded peer recovery after activating P2P', async () => {
-    settingsState.config.syncChannel = 'p2p';
-
-    await getBackgroundServiceManager().activateSelectedSyncChannel();
-
-    expect(mockP2pStart).toHaveBeenCalledTimes(1);
-    expect(mockP2pRecoverPeerConnections).toHaveBeenCalledTimes(1);
-    expect(mockP2pStart.mock.invocationCallOrder[0]).toBeLessThan(
-      mockP2pRecoverPeerConnections.mock.invocationCallOrder[0]
-    );
-  });
-
-  it('stops LAN before starting the explicitly selected P2P channel', async () => {
-    await getBackgroundServiceManager().refresh();
-    jest.clearAllMocks();
-
-    settingsState.config.syncChannel = 'p2p';
-    await getBackgroundServiceManager().refresh();
-
-    expect(mockLanStop).toHaveBeenCalledTimes(1);
-    expect(mockRemoteStop).toHaveBeenCalledTimes(1);
-    expect(mockP2pStart).toHaveBeenCalledTimes(1);
-    expect(mockSpaceRefresh).toHaveBeenCalledTimes(1);
-    expect(mockRemoteRefresh).not.toHaveBeenCalled();
-    expect(mockReconcileSyncEngineAppState).not.toHaveBeenCalled();
-
-    jest.clearAllMocks();
-    settingsState.config.syncChannel = 'lan';
-    await getBackgroundServiceManager().refresh();
-
-    expect(mockP2pStop).toHaveBeenCalledTimes(1);
-    expect(mockLanStart).toHaveBeenCalledTimes(1);
-  });
-
-  it('stops clipboard monitoring and reconciles SyncEngine after temporary disable', async () => {
-    await getBackgroundServiceManager().refresh();
-
-    expect(mockRemoteRefresh).toHaveBeenCalledTimes(1);
-    expect(mockReconcileSyncEngineAppState).toHaveBeenCalledTimes(1);
-    expect(mockStopMonitoring).toHaveBeenCalledTimes(1);
-    expect(mockStartMonitoring).not.toHaveBeenCalled();
-  });
-
-  it('restores clipboard monitoring before a remote refresh can block', async () => {
     settingsState.isTempDisabledBackgroundTasks = false;
-    let finishRemoteRefresh: (() => void) | undefined;
-    mockRemoteRefresh.mockImplementationOnce(
-      () =>
-        new Promise<void>((resolve) => {
-          finishRemoteRefresh = resolve;
-        })
-    );
-
-    const refreshPromise = getBackgroundServiceManager().refresh();
-    await Promise.resolve();
-
-    expect(mockReconcileSyncEngineAppState).toHaveBeenCalledTimes(1);
-    expect(mockStartMonitoring).toHaveBeenCalledTimes(1);
-    expect(mockStopMonitoring).not.toHaveBeenCalled();
-
-    await waitForRemoteRefreshToStart(() => finishRemoteRefresh !== undefined);
-    expect(finishRemoteRefresh).toBeDefined();
-    finishRemoteRefresh?.();
-    await refreshPromise;
   });
 
-  it('reconciles the stop before a remote refresh can block', async () => {
-    let finishRemoteRefresh: (() => void) | undefined;
-    mockRemoteRefresh.mockImplementationOnce(
-      () =>
-        new Promise<void>((resolve) => {
-          finishRemoteRefresh = resolve;
-        })
+  it('starts the engine, refreshes space state, and recovers peer connections', async () => {
+    await getBackgroundServiceManager().activateP2p();
+
+    expect(mockStart).toHaveBeenCalledWith({ appVersion: '1.0.0', profileId: 'default' });
+    expect(mockSpaceRefresh).toHaveBeenCalledTimes(1);
+    expect(mockRecoverPeerConnections).toHaveBeenCalledTimes(1);
+    expect(mockStart.mock.invocationCallOrder[0]).toBeLessThan(
+      mockRecoverPeerConnections.mock.invocationCallOrder[0]
     );
+  });
 
-    const refreshPromise = getBackgroundServiceManager().refresh();
-    await Promise.resolve();
+  it('allows background sync when the user policy is enabled', async () => {
+    await getBackgroundServiceManager().activateP2p();
 
-    expect(mockReconcileSyncEngineAppState).toHaveBeenCalledTimes(1);
-    expect(mockStopMonitoring).toHaveBeenCalledTimes(1);
+    expect(mockSetBackgroundSyncPolicy).toHaveBeenCalledWith(true);
+  });
 
-    await waitForRemoteRefreshToStart(() => finishRemoteRefresh !== undefined);
-    expect(finishRemoteRefresh).toBeDefined();
-    finishRemoteRefresh?.();
-    await refreshPromise;
+  it('disables background sync while tasks are temporarily paused', async () => {
+    settingsState.isTempDisabledBackgroundTasks = true;
+
+    await getBackgroundServiceManager().activateP2p();
+
+    expect(mockSetBackgroundSyncPolicy).toHaveBeenCalledWith(false);
   });
 });

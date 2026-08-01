@@ -1,174 +1,142 @@
-# CONTEXT.md
+# Mobile Codebase Context
 
-Orientation document for the UniClip codebase. Read this before making changes;
-pair it with `AGENTS.md` (mandatory conventions) and `DESIGN.md` (UI design system).
+Use this document for repository orientation. Pair it with `AGENTS.md` for
+mandatory platform and storage rules and `DESIGN.md` for UI conventions.
 
-## What this is
+## Product Model
 
-UniClip is a cross-platform clipboard sync mobile client built with **Expo SDK 56 /
-React Native 0.85 / React 19**. Primary target is **Android** (shipping); **iOS** is
-a parallel native-feel implementation in progress. It syncs clipboard content (text,
-image, single file) and history across devices through a self-hosted server.
+UniClip is an Expo SDK 56 / React Native mobile client for encrypted clipboard
+sync across Android, iOS, and desktop devices.
 
-Supported server backends:
+Devices create or join a Space with an invitation code. The mobile app has no
+LAN server configuration, server credentials, transport selector, or LAN
+fallback. An upgraded user without an existing Space enters Join Space. Local
+history remains available while disconnected or before joining.
 
-- **SyncClipboard** protocol server (with SignalR push; see below)
-- **WebDAV**
-- **S3** object storage
+## Architecture
 
-App identity: `app.uniclipboard.android` / `app.uniclipboard.ios`, scheme `uniclipboard://`.
+```text
+React Native UI and navigation
+  -> UI-facing Zustand stores
+  -> focused application services
+  -> uc-engine native module
+  -> encrypted Space and device-to-device delivery
 
-## High-level architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  React Native UI (src/screens, src/components)               │
-│  — platform-split .android.tsx / .ios.tsx files              │
-├─────────────────────────────────────────────────────────────┤
-│  Zustand stores (src/stores) — UI-facing reactive state      │
-├─────────────────────────────────────────────────────────────┤
-│  Services (src/services) — I/O, orchestration, lifecycle     │
-│    SyncEngine, ClipboardManager, BackgroundServiceManager,   │
-│    HistorySyncService, API clients (SyncClipboard/WebDAV/S3) │
-├──────────────────────────┬──────────────────────────────────┤
-│  uc-core (Rust via UniFFI)│  Native Expo modules (modules/*) │
-│  — sync reducer, clipboard│  — foreground service, clipboard │
-│    protocol, history DB   │    monitor, SMS, QR, Shizuku...  │
-└──────────────────────────┴──────────────────────────────────┘
+Local SQLite history and platform file cache remain device-owned.
+iOS App Group storage shares settings, history, payloads, and P2P handoffs with
+the Share and Keyboard extensions.
 ```
 
-The core sync logic is a **Rust reducer** (`uc-core`). TypeScript owns I/O (network,
-clipboard, persistence) and UI; all sync _decisions_ route through Rust. This mirrors
-the native iOS app's `SyncEngine.swift` so behavior stays identical across platforms.
+`uc-engine` owns P2P identity, Space membership, peer state, invitations,
+delivery, and native lifecycle integration. TypeScript services expose smaller
+app-facing operations and keep UI components independent from native bindings.
 
-## Key directories
+## Key Directories
 
-| Path                         | Contents                                                                                                              |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `src/screens/`               | Screens: Home, History, Settings, ShareReceive, ProcessText, QuickTile, WordPicker. Platform-split where UI diverges. |
-| `src/components/`            | Reusable UI; many platform-split (`.android`/`.ios`/`.types`).                                                        |
-| `src/services/`              | Business logic & I/O. See "Services" below.                                                                           |
-| `src/stores/`                | Zustand stores (settings, clipboard, history, sync, transfer queue, etc.).                                            |
-| `src/theme/`                 | Material 3 tokens (`colors.ts`) + iOS tokens (`iosDesignTokens.ts`), spacing/radius/typography/motion/elevation.      |
-| `src/navigation/`            | React Navigation setup + `navigationRef` for imperative nav.                                                          |
-| `src/utils/`                 | Pure helpers: clipboard, hashing, URL classification, connect-URI parsing, file storage.                              |
-| `src/tasks/`                 | Background tasks (e.g. SMS code upload).                                                                              |
-| `modules/`                   | Local Expo native modules (Kotlin/Swift + TS). Each maps to a tsconfig path alias.                                    |
-| `rust-core/`                 | Build scripts that compile the upstream `uniclipboard` Rust crate into `modules/uc-core/`.                            |
-| `plugins/`                   | Expo config plugins (TS source → `plugins/build/*.js`); wire native manifest/permissions.                             |
-| `ios-shims/`                 | iOS stubs for Android-only `@expo/ui/jetpack-compose` imports.                                                        |
-| `web-stubs/` + `App.web.tsx` | Web build stubs (web is a secondary target).                                                                          |
+| Path                       | Purpose                                                                                     |
+| -------------------------- | ------------------------------------------------------------------------------------------- |
+| `src/screens/`             | App screens and platform-specific screen implementations.                                   |
+| `src/components/`          | Reusable UI, split by platform when behavior or presentation differs.                       |
+| `src/services/`            | Lifecycle, content delivery, Space setup, local history, storage, diagnostics, and updates. |
+| `src/stores/`              | UI-facing state for settings, history, clipboard, engine, and Space snapshots.              |
+| `src/navigation/`          | Native-stack navigation and route types.                                                    |
+| `src/utils/`               | Pure helpers and platform-specific file/action adapters.                                    |
+| `modules/uc-engine/`       | Native P2P engine wrapper and pinned engine artifacts.                                      |
+| `modules/app-group-store/` | iOS shared settings, history, cache, diagnostics, and handoff storage.                      |
+| `modules/`                 | Other focused Expo native modules.                                                          |
+| `targets/share/`           | iOS Share Extension.                                                                        |
+| `targets/keyboard/`        | iOS Keyboard Extension.                                                                     |
+| `targets/_shared/`         | Swift sources compiled by both iOS extensions.                                              |
+| `plugins/`                 | Expo config plugins; TypeScript source is compiled into `plugins/build/`.                   |
 
-## Path aliases (tsconfig)
+## Main Runtime Surfaces
 
-`@/*` → `src/*`, plus `@components`, `@screens`, `@services`, `@stores`, `@types`,
-`@utils`, `@constants`, `@navigation`, `@hooks`, `@assets`. Native modules import by
-bare name: `uc-core`, `android-util`, `shortcut`, `signalr-client`, `native-timer`,
-`clipboard-overlay`, `sms-forwarder`, `foreground-service`,
-`qr-scanner`.
+- `BackgroundServiceManager` starts and refreshes the P2P engine according to
+  app lifecycle and background policy.
+- `UnifiedEngineService` exposes engine state without leaking native bindings
+  into screens.
+- `UnifiedSpaceService` owns create, join, invitation, device, and leave-space
+  operations.
+- `UnifiedContentService` is the single outbound entry for text, images, files,
+  and the current clipboard.
+- `P2pClipboardObserver` and `ClipboardMonitor` coordinate inbound and local
+  clipboard changes.
+- `HistoryStorage` persists local history independently from settings and Space
+  membership.
+- `ConfigMigration` and App Group legacy cleanup may still read old LAN keys.
+  These names exist only to delete old credentials during upgrade; they are not
+  runtime compatibility paths.
 
-## Native modules (`modules/`)
+## Native Modules
 
-| Module               | Purpose                                                                                                                                                                                                                                        |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `uc-core`            | **Rust core** via UniFFI. Sync reducer, clipboard protocol client, history DB, hashing. Kotlin/Swift bindings auto-generated; `.so` committed, iOS xcframework built locally.                                                                  |
-| `foreground-service` | Android foreground service to keep clipboard monitoring alive.                                                                                                                                                                                 |
-| `clipboard-overlay`  | Clipboard read/write via overlay + event-driven monitor (ClipCascade-style: `OnPrimaryClipChangedListener` foreground, logcat `ClipboardService:E` background trigger gated by READ_LOGS). Android 10+ background clipboard access workaround. |
-| `native-timer`       | Native interval timer for the 1Hz sync tick.                                                                                                                                                                                                   |
-| `android-util`       | Misc Android utilities (`moveTaskToBack`, exclude-from-recents, etc.).                                                                                                                                                                         |
-| `shortcut`           | Dynamic app shortcuts / quick tiles.                                                                                                                                                                                                           |
-| `signalr-client`     | SignalR client for SyncClipboard push notifications.                                                                                                                                                                                           |
-| `sms-forwarder`      | SMS receiver for auto-forwarding verification codes.                                                                                                                                                                                           |
-| `qr-scanner`         | QR scanning for the `uniclipboard://connect` provisioning URI.                                                                                                                                                                                 |
+| Module               | Purpose                                                            |
+| -------------------- | ------------------------------------------------------------------ |
+| `uc-engine`          | Space identity, encryption, peer state, delivery, and lifecycle.   |
+| `app-group-store`    | Shared iOS settings, history, payloads, diagnostics, and handoffs. |
+| `foreground-service` | Android foreground lifecycle support.                              |
+| `clipboard-overlay`  | Android clipboard access and monitoring support.                   |
+| `shizuku-clipboard`  | Optional Android clipboard access through Shizuku.                 |
+| `native-timer`       | Native timer support used by background behavior.                  |
+| `android-util`       | Android system integrations.                                       |
+| `document-exporter`  | Native document export.                                            |
+| `shortcut`           | Android shortcuts and quick actions.                               |
 
-## Services (`src/services/`)
+## Platform Components
 
-- **`SyncEngine.ts`** — Rust-reducer-driven sync state machine. 1Hz foreground tick
-  converges device ↔ server clipboards. Conflict resolution is **server-wins**; hash
-  dedup (3-layer) prevents echo loops. The TS shell does I/O; `planPreamble` /
-  `planAfterServerGet` / `commit*` in Rust make all decisions.
-- **`ClipboardManager.ts`** / **`ClipboardMonitor.ts`** — read/write & watch the device clipboard.
-- **`BackgroundServiceManager.ts`** — boots & maintains all background services on cold start (called from `App.tsx`).
-- **`HistorySyncService.ts`** / **`HistoryAPI.ts`** / **`HistoryStorage.ts`** / **`HistoryTransferQueue.ts`** — history sync, storage, transfer queue.
-- **API clients** — `SyncClipboardClient.ts`, `WebDAVClient.ts`, `S3Client.ts`, `APIClient.ts`, `AuthService.ts`.
-- **Storage** — `ConfigStorage.ts`, `SecureStorage.ts`, `RuntimeStateStorage.ts`, `CacheManager.ts`, `ConfigMigration.ts`.
-- **`UpdateService.ts`** / **`ApkDownloadService.ts`** — in-app update (APK download/install).
-- **`URLMetadataService.ts`** — Open Graph metadata for link clipboard cards.
+Never branch on `Platform.OS` inside shared UI. Follow `AGENTS.md`:
 
-## Platform-split component pattern (CRITICAL)
-
-Per `AGENTS.md`: **never** use `Platform.OS` conditionals inside a shared component.
-Split into files:
-
-```
-Component.tsx          → export * from './Component.android';  (default/fallback)
-Component.android.tsx   → Android (Material 3 / Jetpack Compose via @expo/ui)
-Component.ios.tsx       → iOS (Liquid Glass / SwiftUI via @expo/ui)
-Component.types.ts      → shared props interface
+```text
+Component.tsx           -> exports the Android fallback
+Component.android.tsx   -> Android implementation
+Component.ios.tsx       -> iOS implementation
+Component.types.ts      -> shared props
 ```
 
-- Android: `@expo/ui/jetpack-compose`, M3 tokens from `@/theme/colors.ts`, Ionicons.
-- iOS: `@expo/ui/swift-ui`, `expo-glass-effect`/`expo-blur`, `lucide-react-native`, `PlatformColor()`, tokens from `@/theme/iosDesignTokens.ts`.
+Examples include `HomeTopBar.*`, `HomeBottomBar.*`,
+`AddSyncConnectionSheet.*`, and `ui/GlassContainer.*`.
 
-Examples: `HomeTopBar.*`, `HomeBottomBar.*`, `ServerSwitcherModal.*`, `ui/GlassContainer.*`.
+## Entry And Lifecycle
 
-## App entry & lifecycle (`App.tsx`)
+`App.tsx` loads settings, initializes local history and the engine, and mounts
+the native-stack navigator. Supported external entry points include Android
+quick upload, Process Text, system share flows, and the iOS extensions. There is
+no Add Server or quick-download route.
 
-- Loads config → starts `BackgroundServiceManager` → mounts `AppNavigator`.
-- Deep-link handling (cold start via `getInitialURL` + hot start via `Linking` event):
-  - `uniclipboard://connect?...` — provisioning URI (QR/scan); parsed into `pendingConnectStore`, routes to Settings. **Never logs URI/payload.**
-  - `uniclipboard://quick-upload` / `quick-download` — quick-tile sync overlays (exit via `moveTaskToBack` to keep Activity alive for background tasks).
-  - `uniclipboard://process-text` — Android "Process Text" selection action.
-  - share-intent (`expo-sharing`) — ShareReceive overlay.
+## Upgrade Contract
 
-## State management
+- Preserve local history, cached payloads, P2P identity, and joined Spaces.
+- Remove legacy server addresses, usernames, passwords, routing state, and iOS
+  shared-container copies.
+- Do not create a Space automatically.
+- Do not fall back to LAN.
+- When no Space exists after upgrade, open Join Space from the Home empty state.
 
-**Zustand** stores under `src/stores/` are the UI-facing reactive layer. Services push
-into stores; components subscribe. Settings/config persisted via `ConfigStorage` +
-`AsyncStorage`; secrets via `SecureStorage`.
+## Generated Native Projects
 
-## Build & native code
-
-- **Expo prebuild** generates `android/` & `ios/` (gitignored, regenerated). Config
-  plugins in `plugins/` inject native manifest entries & permissions at prebuild time
-  — must run `npm run plugin:build` after editing plugin TS.
-- **Rust core**: edit upstream `uniclipboard` crate, then `rust-core/scripts/update-bindings.sh`
-  to recompile `.so`/bindings into `modules/uc-core/`. Android `.so` committed; iOS
-  xcframework built locally (gitignored, ~70MB).
-- ABI splits enabled (`withAbiSplits`) for smaller APKs.
+`android/` and `ios/` are generated by Expo prebuild and are not the source of
+truth. Native behavior belongs in Expo modules, config plugins, or `targets/`.
+After changing native dependencies, regenerate or refresh the platform project
+before claiming a platform build is valid.
 
 ## Commands
 
 ```bash
-npm install            # deps (npm workspaces: modules/*)
-npm run prebuild       # expo prebuild --clean (regenerate native projects)
-npm run android        # run on Android
-npm run ios            # run on iOS
-npm run plugin:build   # compile config plugins (plugins/ → plugins/build/)
-npm run type-check     # tsc --noEmit
-npm run lint           # eslint
-npm run test           # jest
-npm run build:apk      # release APK
+npm install
+npm run type-check
+npm run lint
+npm test -- --runInBand
+npm run plugin:build
+npm run core:verify
+npx expo export
+npm run build:apk
 ```
 
-## Conventions & gotchas
+For iOS, prepare the engine, run Expo prebuild, install Pods, and build the
+generated workspace as described in `docs/ios-release-ci.md`.
 
-- **Read the versioned Expo docs** (`https://docs.expo.dev/versions/v56.0.0/`) — SDK 56 differs from older APIs.
-- **iOS storage compatibility**: iOS file cache must match the native Swift app at
-  `<native-ios-repo>/UniClipboard` (bundle IDs to be unified). Check its
-  `FileManager` paths before changing cache layout.
-- **Security**: connect-URI handling must never log the URI or payload.
-- **Switch components**: ON-track must be green (Android `success`, iOS system green) — not primary/accent.
-- iOS new screens must use theme tokens & reuse existing components — no hardcoded colors.
-- Conversational language with the user is Chinese; documentation is written in English.
+## References
 
-## Reference docs in repo
-
-- `AGENTS.md` — mandatory coding conventions (platform-split, iOS storage). `CLAUDE.md` re-exports it.
-- `DESIGN.md` — UI design system / tokens.
-- `README.md` — feature overview & dev setup (Chinese).
-- `docs/RELEASE.md` — release & versioning workflow.
-- `docs/prd-syncclipboard-originhash.md` — origin-hash PRD (in progress).
-- `task_plan.md` / `findings.md` / `progress.md` — active working notes (transient).
-  </content>
-  </invoke>
+- `AGENTS.md`: mandatory project conventions.
+- `DESIGN.md`: visual and interaction rules.
+- `docs/RELEASE.md`: release and versioning workflow.
+- `docs/ios-release-ci.md`: iOS CI, signing, and TestFlight workflow.

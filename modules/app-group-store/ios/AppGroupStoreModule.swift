@@ -10,16 +10,6 @@ public class AppGroupStoreModule: Module {
   public func definition() -> ModuleDefinition {
     Name("AppGroupStore")
 
-    AsyncFunction("saveServers") { (json: String) throws -> Void in
-      let list = try self.decoder.decode(ServerConfigList.self, from: Data(json.utf8))
-      self.store.saveServers(list)
-    }
-
-    AsyncFunction("getServers") { () throws -> String in
-      let data = try self.encoder.encode(self.store.loadServers())
-      return String(data: data, encoding: .utf8) ?? "{}"
-    }
-
     AsyncFunction("saveSettings") { (json: String) throws -> Void in
       let settings = try self.decoder.decode(AppSettings.self, from: Data(json.utf8))
       self.store.saveAppSettings(settings)
@@ -95,42 +85,13 @@ public class AppGroupStoreModule: Module {
       try self.importPayloadFile(profileId: profileId, sourceUri: sourceUri)
     }
 
-    AsyncFunction("sendOutboundLanFile") {
-      (
-        sourceUri: String,
-        displayName: String,
-        profileHash: String,
-        byteCount: Int64,
-        serverId: String?
-      ) async throws -> Void in
-      try await self.sendOutboundLanFile(
-        sourceUri: sourceUri,
-        displayName: displayName,
-        profileHash: profileHash,
-        byteCount: byteCount,
-        serverId: serverId
-      )
-    }
-
-    AsyncFunction("getLastSyncedHash") { () -> String? in
-      self.store.loadLastSyncedHash()
-    }
-
-    AsyncFunction("getLastSyncedContentId") { () -> String? in
-      self.store.loadLastSyncedContentId()
-    }
-
-    AsyncFunction("getLiveUrl") { (configId: String) -> String? in
-      self.store.loadLiveURL(configId: configId)
-    }
-
-    AsyncFunction("saveLiveUrl") { (configId: String, url: String?) -> Void in
-      self.store.saveLiveURL(configId: configId, url)
-    }
-
     AsyncFunction("migrateLegacyContainer") { () -> [String: Any] in
       let result = SettingsStore.migrateLegacyContainer()
       return ["migrated": result.migrated, "keys": result.keys]
+    }
+
+    AsyncFunction("clearLegacyLanConfiguration") { () -> Void in
+      SettingsStore.clearLegacyLanConfiguration()
     }
 
     AsyncFunction("getKeyboardStatus") { () -> [String: Any] in
@@ -166,8 +127,6 @@ public class AppGroupStoreModule: Module {
         "displayName": job.displayName,
         "byteCount": job.byteCount,
         "mimeType": job.mimeType ?? NSNull(),
-        "channel": job.channel.rawValue,
-        "serverId": job.serverId ?? NSNull(),
         "targetDeviceIds": job.targetDeviceIds ?? [],
         "createdAtMs": job.createdAtMs,
       ]
@@ -200,56 +159,6 @@ public class AppGroupStoreModule: Module {
       // Another importer won the content-addressed race; its payload is equivalent.
     }
     return targetURL.absoluteString
-  }
-
-  private func sendOutboundLanFile(
-    sourceUri: String,
-    displayName: String,
-    profileHash: String,
-    byteCount: Int64,
-    serverId: String?
-  ) async throws {
-    guard let sourceURL = URL(string: sourceUri), sourceURL.isFileURL,
-          FileManager.default.fileExists(atPath: sourceURL.path)
-    else { throw OutboundShareHandoffError.invalidSource }
-
-    let servers = store.loadServers()
-    let server = serverId.flatMap { id in servers.configs.first(where: { $0.id == id }) }
-      ?? servers.activeConfig
-    guard let server else { throw SyncError(kind: .networkUnreachable) }
-    let settings = store.loadAppSettings()
-    let network = await NetworkContextDetector.current(store: store)
-    let safeName = Clipboard.sanitizedFilename(displayName)
-    let entry = Clipboard(
-      type: .file,
-      hash: profileHash,
-      text: safeName,
-      hasData: true,
-      dataName: safeName,
-      size: Int(clamping: byteCount)
-    )
-
-    try await ServerRouteExecutor(store: store).run(
-      server: server,
-      network: network,
-      probe: { routed in
-        let client = try SyncClipboardClient(
-          server: routed,
-          trustInsecureCert: settings.trustInsecureCert
-        )
-        try await client.probeReachability()
-      },
-      operation: { routed in
-        let client = try SyncClipboardClient(
-          server: routed,
-          trustInsecureCert: settings.trustInsecureCert
-        )
-        try await client.putFile(name: safeName, fileURL: sourceURL, byteCount: byteCount)
-        try await client.putClipboard(entry)
-      }
-    )
-    store.saveLastSyncedHash(profileHash)
-    store.saveLastSyncedContentId(nil)
   }
 
   private func keyboardStatus() -> [String: Any] {

@@ -14,19 +14,8 @@ function addQuickSettingsTileService(androidManifest) {
     if (!application.service) {
         application.service = [];
     }
+    application.service = application.service.filter((service) => service.$?.['android:name'] !== '.quicksettings.DownloadTileService');
     const services = [
-        {
-            $: {
-                'android:name': '.quicksettings.DownloadTileService',
-                'android:exported': 'true',
-                'android:icon': '@drawable/ic_tile_download',
-                'android:label': '@string/tile_download_label',
-                'android:permission': 'android.permission.BIND_QUICK_SETTINGS_TILE',
-            },
-            'intent-filter': [
-                { action: [{ $: { 'android:name': 'android.service.quicksettings.action.QS_TILE' } }] },
-            ],
-        },
         {
             $: {
                 'android:name': '.quicksettings.UploadTileService',

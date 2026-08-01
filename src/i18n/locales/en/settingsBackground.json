@@ -17,6 +17,10 @@
       "title": "Ignore battery optimization",
       "desc": "Prevents battery saver from interrupting background sync"
     },
+    "network": {
+      "title": "Continue background sync on mobile data",
+      "desc": "When off, background sync runs only on Wi-Fi"
+    },
     "download": {
       "title": "Download from remote",
       "desc": "Receive new remote content in the background when Auto-write is on"

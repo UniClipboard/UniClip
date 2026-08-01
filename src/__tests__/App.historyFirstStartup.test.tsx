@@ -43,7 +43,6 @@ jest.mock('../navigation/navigationRef', () => ({ navigateWhenReady: jest.fn() }
 jest.mock('../screens/QuickTileLoadingScreen', () => ({ QuickTileLoadingScreen: () => null }));
 jest.mock('../screens/ShareReceiveScreen', () => ({ ShareReceiveScreen: () => null }));
 jest.mock('../screens/ProcessTextScreen', () => ({ ProcessTextScreen: () => null }));
-jest.mock('../components/QrScannerHost', () => ({ QrScannerHost: () => null }));
 jest.mock('../i18n', () => ({
   __esModule: true,
   default: { t: (key: string) => key },
@@ -65,12 +64,6 @@ jest.mock('../services/appGroupSync', () => ({ startAppGroupSync: jest.fn(() => 
 jest.mock('../services/networkContext', () => ({
   startNetworkContextMonitor: jest.fn(() => jest.fn()),
 }));
-jest.mock('../utils/connectUri', () => ({
-  parseConnectUri: jest.fn(() => ({ ok: false, error: 'invalid' })),
-  CONNECT_URI_ERROR_MESSAGES: { invalid: 'invalid' },
-  CONNECT_URI_SCHEME: 'uniclipboard',
-  CONNECT_URI_HOST: 'connect',
-}));
 jest.mock('../services/HistoryStorage', () => ({
   historyStorage: { runStartupMaintenance: () => mockRunMaintenance() },
 }));
@@ -87,7 +80,6 @@ jest.mock('../stores', () => {
       loadConfig: jest.fn(),
       isLoaded: true,
     }),
-    usePendingConnectStore: { getState: () => ({ set: jest.fn() }) },
     useHistoryStore,
   };
 });

@@ -4,10 +4,8 @@
  * 业务语义:上传 = 先落本地(瞬时、必成功) + 后台推送(可失败、可重试)。本文件只管落库:
  * - import*ToHistory():把内容复制/落库为 LocalOnly,立即返回 profileHash,**不碰网络**。
  *
- * 推送段已迁到 Rust 引擎直传:前台(HomeView FAB / ShareReceiveScreen)调 import* 落库后,
- * 把 profileHash 交给 BackgroundUploadManager → pushHistoryRecordViaEngine(uc-core putClipboard);
- * ProcessTextScreen 前台阻塞式路径同理(import* + pushHistoryRecordViaEngine)。服务端离线时
- * 内容已在本地(LocalOnly,卡片显示待上传角标),不会丢失、不阻塞界面。
+ * 前台发送入口先调用 import* 落库，再通过 UnifiedContentService 发送到当前空间。
+ * 网络不可用时内容仍保留在本地历史中，不会因发送失败而丢失。
  */
 
 import { Platform } from 'react-native';
@@ -19,7 +17,6 @@ import { prepareTempFilePath } from '@/utils/fileStorage';
 import { sanitizeDataName } from '@/utils/fileName';
 import { convertHeicToJpegIfNeeded } from '@/utils/heicToJpeg';
 import { useHistoryStore } from '@/stores/historyStore';
-import { SyncManager } from '@/services/SyncManager';
 import { createDefaultClipboardItem, HistorySyncStatus } from '@/types/clipboard';
 import type { ClipboardContentType } from '@/types/api';
 
@@ -47,10 +44,7 @@ export interface ImportResult {
  * 仅落库(文件/图片):复制到 temp、算 hash、写入历史(LocalOnly)。
  * 不碰网络;返回可用于后台推送的 profileHash。
  *
- * **调用方契约**:必须先 `await` 本函数(落库完成)再触发推送
- * (`BackgroundUploadManager.enqueue` / `pushHistoryRecordViaEngine`)。顺序颠倒——
- * 先推送后落库——会让推送侧按 hash 读不到记录(推空/报错),分享内容有丢失风险。
- * 落库与推送已解耦,不丢数据依赖的正是「落库先、且独立于网络」这一点。
+ * **调用方契约**:必须先 `await` 本函数完成落库，再触发空间发送。
  */
 export async function importFileToHistory(
   sourceUri: string,
@@ -107,9 +101,6 @@ export async function importFileToHistory(
     throw new Error('Failed to persist the staged file in history storage');
   }
 
-  // 预先设置 hash，避免轮询/SSE 拉取时把自己刚落库的内容误判为新远程内容触发下载
-  SyncManager.getInstance().setLastUploadedHash(profileHash);
-
   return {
     profileHash,
     fileUri: savedItem.fileUri ?? workingUri,
@@ -122,9 +113,7 @@ export async function importFileToHistory(
 /**
  * 仅落库(文本):算 hash、写入历史(LocalOnly)。不碰网络;返回 profileHash。
  *
- * **调用方契约**:必须先 `await` 本函数(落库完成)再触发推送
- * (`pushHistoryRecordViaEngine`)。顺序颠倒会推空/报错、分享文本有丢失风险——
- * 这正是当年 data-loss bug 的成因,见 `uploadText.dataloss.test.ts`。
+ * **调用方契约**:必须先 `await` 本函数完成落库，再触发空间发送。
  */
 export async function importTextToHistory(
   text: string,
@@ -143,9 +132,6 @@ export async function importTextToHistory(
       syncStatus: HistorySyncStatus.LocalOnly,
     })
   );
-
-  // 预先设置 hash，避免轮询/SSE 拉取时误判为新远程内容触发自动下载
-  SyncManager.getInstance().setLastUploadedHash(profileHash);
 
   return { profileHash };
 }

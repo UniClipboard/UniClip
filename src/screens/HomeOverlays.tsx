@@ -1,10 +1,8 @@
 import React from 'react';
 import { ConnectedMessageToast } from '@/components/ConnectedMessageToast';
 import { HistoryFilterSheet } from '@/components/HistoryFilterSheet';
-import { ServerSwitcherModal } from '@/components/ServerSwitcherModal';
 import { AddSyncConnectionSheet } from '@/components/AddSyncConnectionSheet';
-import { LanMigrationPrompt } from '@/components/LanMigrationPrompt';
-import { AddServerSheet } from '@/components/AddServerSheet';
+import { MySpaceSheet } from '@/components/MySpaceSheet';
 import { WordPickerOverlay } from '@/components/WordPickerOverlay';
 import { CardContextOverlay } from '@/components/CardContextOverlay';
 import type { HomeController } from './useHomeController';
@@ -29,52 +27,14 @@ export function HomeOverlays({ c }: { c: HomeController }) {
         theme={c.theme}
       />
 
-      <ServerSwitcherModal
-        visible={c.showServerPicker}
-        servers={c.servers}
-        activeIndex={c.activeServerIndex}
-        selectedChannel={c.syncChannel}
-        p2pSpaceId={c.p2pSpaceId}
-        legacyLanEligible={c.legacyLanEligible}
-        onSelect={c.handleSwitchConnection}
-        onClose={() => c.setShowServerPicker(false)}
-        onAdd={() => {
-          c.setShowServerPicker(false);
-          c.setShowAddConnection(true);
-        }}
-        theme={c.theme}
-      />
-
-      <LanMigrationPrompt
-        visible={c.showLanMigrationPrompt}
-        onSetUpP2p={() => {
-          c.setShowAddConnection(true);
-          void c.markLanMigrationPrompt();
-        }}
-        onRemindLater={() => void c.markLanMigrationPrompt()}
-      />
-
       <AddSyncConnectionSheet
         visible={c.showAddConnection}
-        legacyLanEligible={c.legacyLanEligible}
+        initialMode="join"
         onClose={() => c.setShowAddConnection(false)}
-        onOpenLegacyLan={() => {
-          c.setShowAddConnection(false);
-          c.setAddServerPrefill(undefined);
-          c.setShowAddServer(true);
-        }}
         onConnected={c.handleP2pConnected}
       />
 
-      <AddServerSheet
-        visible={c.showAddServer && c.legacyLanEligible}
-        initialData={c.addServerPrefill}
-        onClose={() => {
-          c.setShowAddServer(false);
-          c.setAddServerPrefill(undefined);
-        }}
-        onSave={c.handleAddServer}
-      />
+      <MySpaceSheet visible={c.showMySpace} onClose={() => c.setShowMySpace(false)} />
 
       {c.wordPickerTarget && (
         <WordPickerOverlay

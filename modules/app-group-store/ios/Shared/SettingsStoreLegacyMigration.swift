@@ -13,6 +13,7 @@ public extension SettingsStore {
             return (false, 0)
         }
 
+        clearLegacyLanConfiguration()
         let sentinel = newURL.appendingPathComponent(legacyMigrationSentinel, isDirectory: false)
         if fm.fileExists(atPath: sentinel.path) {
             return (false, 0)
@@ -36,6 +37,7 @@ public extension SettingsStore {
         }
 
         try? Data().write(to: sentinel, options: [.atomic])
+        clearLegacyLanConfiguration()
         return (copied > 0, copied)
     }
 
@@ -56,6 +58,9 @@ public extension SettingsStore {
 
         var copied = 0
         for source in contents {
+            if SettingsStore.legacyLanFilenames.contains(source.lastPathComponent) {
+                continue
+            }
             let destination = destinationDirectory.appendingPathComponent(source.lastPathComponent)
             let isDirectory = (try? source.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
 
@@ -79,13 +84,8 @@ public extension SettingsStore {
 
     private static var legacyMigrationKeys: [String] {
         [
-            AppSettings.PersistenceKey.serverConfigList,
             AppSettings.PersistenceKey.appSettings,
-            AppSettings.PersistenceKey.legacyServerConfig,
-            AppSettings.PersistenceKey.lastSyncedContentHash,
             AppSettings.PersistenceKey.clipboardHistory,
-            AppSettings.PersistenceKey.historyModifiedAfter,
-            AppSettings.PersistenceKey.lastHistorySyncAt,
             AppSettings.PersistenceKey.keyboardExtensionEnabled,
             AppSettings.PersistenceKey.keyboardExtensionFullAccess,
             AppSettings.PersistenceKey.lastSyncedChangeCount,

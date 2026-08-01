@@ -2,7 +2,6 @@ import Combine
 import Foundation
 import UIKit
 import ImageIO
-import Network
 import OSLog
 internal import UcEngineCore
 
@@ -17,12 +16,11 @@ private let log = Logger(subsystem: "app.uniclipboard.keyboard", category: "sync
 /// log (`SettingsStore.loadHistory()`), filterable by 最近 / 文本 / 图片.
 /// Tapping a card inserts its text inline (uplink-free) or fetches + copies
 /// an image to the pasteboard. A background sync pass pushes anything newly
-/// copied on the device (uplink) and pulls the server's latest entry
-/// (downlink) so the row stays live.
+/// copied on the device and receives the space's latest entry so the row stays live.
 ///
 /// MainActor-isolated (the target's default isolation). Pasteboard reads run
 /// on main; network work hops off via `await` on the non-isolated
-/// `SyncClipboardClient`.
+/// P2P work runs outside the main actor through the extension engine.
 ///
 /// Uses `ObservableObject` + `@Published` rather than the iOS 17 `@Observable`
 /// macro so the extension's deployment target can stay at iOS 16 — the
@@ -37,19 +35,16 @@ final class KeyboardModel: ObservableObject {
     // MARK: - Top-level gate
 
     /// What the content area should render *before* we even look at cards:
-    /// the two hard prerequisites (Full Access, a configured server) win over
-    /// any history we might have cached.
+    /// Full Access is required before the extension can read the pasteboard.
     enum Gate: Equatable {
         case ok
         case needsFullAccess
-        case noServer
     }
 
     /// Result of the uplink half of a sync pass. No longer shown as text —
     /// kept so a pass can tell whether it actually pushed (drives `syncFlash`).
     enum PushStatus: Equatable {
         case none                 // nothing on the device pasteboard
-        case skipped              // present, but already synced (== watermark)
         case pushed(String)       // pushed; payload is a short summary
         case failed(String)
     }
@@ -110,11 +105,6 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var lastError: String?
     @Published private(set) var cards: [Card] = []
     private(set) var pushStatus: PushStatus = .none
-    /// The entry the most recent uplink actually uploaded. Read by the
-    /// downlink half to decide whether the server's latest is our own push
-    /// (→ adopt its hash as watermark) or someone else's (→ treat as pull).
-    private var lastPushedEntry: Clipboard?
-    @Published private(set) var serverLabel: String = ""
 
     /// The card whose deferred payload (long text / image) is being fetched,
     /// so just that card can show a spinner.
@@ -132,10 +122,6 @@ final class KeyboardModel: ObservableObject {
 
     @Published private(set) var isSyncing = false
     @Published private(set) var syncFlash: SyncFlash?
-
-    /// Server + trust resolved on the last sync pass, reused by a card tap to
-    /// fetch its deferred payload / thumbnail without re-reading the store.
-    private var ctx: (server: ServerConfig, trust: Bool)?
 
     // MARK: - UI callbacks (wired by the controller)
 
@@ -189,17 +175,6 @@ final class KeyboardModel: ObservableObject {
     /// refresh tap. Reading `changeCount` is free and never prompts.
     private var pollTask: Task<Void, Never>?
 
-    /// Live network-path facts for §5.3 auto-switch, maintained by
-    /// `pathMonitor`. `NWPathMonitor` needs no entitlement (unlike SSID), so
-    /// the keyboard reads its own interface type; only the SSID *name* comes
-    /// from the App Group.
-    private var pathIsWifi = false
-    private var pathIsCellular = false
-    private var pathIsTailscale = false
-    private var pathMonitorStarted = false
-    private let pathMonitor = NWPathMonitor()
-    private let pathQueue = DispatchQueue(label: "app.uniclipboard.keyboard.path", qos: .utility)
-
     // MARK: - Lifecycle
 
     /// Restores all disk-backed presentation state before SwiftUI evaluates
@@ -252,7 +227,6 @@ final class KeyboardModel: ObservableObject {
             return
         }
         reloadCards()        // instant, offline — render before the network round-trip
-        startPathMonitoring()
         requestSync(.appeared)
         startMonitoring()
     }
@@ -329,10 +303,9 @@ final class KeyboardModel: ObservableObject {
         syncTask = Task { [weak self] in
             guard let self else { return }
             await self.sync(
-                force: trigger == .manual || trigger == .serverChanged,
+                force: trigger == .manual,
                 publishHistoryChanges: trigger.shouldPublishHistoryImmediately,
-                showSyncFeedback: trigger.showsSyncProgress,
-                gen: gen
+                showSyncFeedback: trigger.showsSyncProgress
             )
             guard gen == self.syncGeneration else {
                 KeyboardDiagnostics.shared.record("sync.finish", fields: [
@@ -397,65 +370,6 @@ final class KeyboardModel: ObservableObject {
         stopP2pSession()
     }
 
-    deinit { pathMonitor.cancel() }
-
-    /// Begin watching the network path (Wi-Fi / cellular / other). Needs no
-    /// entitlement — `NWPathMonitor` is free — so the keyboard reads interface
-    /// type itself; only the SSID *name* comes from the App Group. Started
-    /// once (the monitor can't restart after cancel) and torn down in
-    /// `deinit`. A change re-runs the sync so the §5.3 effective server
-    /// follows the network.
-    private var pathInitialized = false
-
-    private func startPathMonitoring() {
-        guard !pathMonitorStarted else { return }
-        pathMonitorStarted = true
-        pathMonitor.pathUpdateHandler = { [weak self] path in
-            let wifi = path.usesInterfaceType(.wifi)
-            let cellular = path.usesInterfaceType(.cellular)
-            let tailscale = TailscaleDetector.isActive()
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                let changed = self.pathIsWifi != wifi
-                    || self.pathIsCellular != cellular
-                    || self.pathIsTailscale != tailscale
-                self.pathIsWifi = wifi
-                self.pathIsCellular = cellular
-                self.pathIsTailscale = tailscale
-                guard self.pathInitialized else {
-                    self.pathInitialized = true
-                    return
-                }
-                if changed, self.hasFullAccess, self.isVisible { self.requestSync(.networkChanged) }
-            }
-        }
-        pathMonitor.start(queue: pathQueue)
-    }
-
-    /// The current §5.3 `NetworkContext`. Interface type comes from our own
-    /// `NWPathMonitor`; the SSID name from the App Group (the main app writes
-    /// it). On cellular we deliberately drop any `last_known_ssid` — there's
-    /// no Wi-Fi, and trusting a stale name would wrongly keep a Wi-Fi rule
-    /// active. This is what lets the keyboard follow a Wi-Fi→cellular switch
-    /// even when the main app hasn't run to clear the stored SSID.
-    private func currentNetworkContext() -> NetworkContext {
-        // Tailscale checked live — getifaddrs is cheap and needs no
-        // entitlement, so the keyboard follows Tailscale on its own.
-        let tailscale = TailscaleDetector.isActive()
-        if pathIsWifi {
-            return NetworkContext(
-                ssid: store.loadLastKnownSSID(),
-                isWifi: true,
-                isCellular: false,
-                isTailscale: tailscale
-            )
-        }
-        if pathIsCellular {
-            return NetworkContext(ssid: nil, isWifi: false, isCellular: true, isTailscale: tailscale)
-        }
-        return NetworkContext(ssid: nil, isWifi: false, isCellular: false, isTailscale: tailscale)
-    }
-
     /// One poll iteration compares only the pasteboard revision. It never runs
     /// a periodic network pass: unchanged or synchronized writes are ignored.
     private func pollTick() {
@@ -473,28 +387,6 @@ final class KeyboardModel: ObservableObject {
         if changed {
             requestSync(.localClipboardChanged)
         }
-    }
-
-    // MARK: - Server switching
-
-    /// Snapshot of the configured servers for the inline switcher overlay.
-    /// Read on demand (the store isn't observable); the overlay captures
-    /// the result when it opens.
-    func serverChoices() -> (servers: [ServerConfig], activeId: String?) {
-        let list = store.loadServers()
-        return (list.configs, list.activeConfig?.id)
-    }
-
-    /// Make `id` the active server (writes `activeConfigId` to the App Group,
-    /// same as the app's `setActiveServer`) and re-sync against it. The app
-    /// picks the change up on its next foreground read.
-    func setActiveServer(_ id: String) {
-        var list = store.loadServers()
-        guard list.activeConfigId != id, list.configs.contains(where: { $0.id == id }) else { return }
-        list.activeConfigId = id
-        store.saveServers(list)
-        publishServerLabel(list.activeConfig?.displayLabel ?? "")
-        requestSync(.serverChanged)
     }
 
     // MARK: - Return key
@@ -525,19 +417,14 @@ final class KeyboardModel: ObservableObject {
     private func sync(
         force: Bool,
         publishHistoryChanges: Bool,
-        showSyncFeedback: Bool,
-        gen: Int
+        showSyncFeedback: Bool
     ) async {
-        let servers = store.loadServers()
         let settings = store.loadAppSettings()
-        let channel = ExtensionSyncRouter.channel(settings: settings)
         applyPreferences(settings)
 
         // Read the pasteboard once — the content read triggers iOS's
         // "允许粘贴" prompt, so we gate on changeCount and share the
-        // snapshot between the record and push paths. changeCount is
-        // stamped only after the push completes (or in the no-server
-        // early return) to avoid the record path blocking the push.
+        // snapshot between the local-history and P2P paths.
         let cc = UIPasteboard.general.changeCount
         let storedCC = store.loadLastSyncedChangeCount()
         let ccChanged = cc != storedCC
@@ -558,140 +445,18 @@ final class KeyboardModel: ObservableObject {
         if let snap, let payload = snap.payload, let hash = snap.clipboard.hash {
             store.saveImageData(hash: hash, data: payload)
         }
-        if publishHistoryChanges || channel == .lan { reloadCards() }
-
-        if case .p2p = channel {
-            publishGate(.ok)
-            publishServerLabel("")
-            await syncP2pSnapshot(
-                snap,
-                changeCount: cc,
-                force: force,
-                publishHistoryChanges: publishHistoryChanges,
-                showSyncFeedback: showSyncFeedback
-            )
-            return
-        }
-
-        stopP2pSession()
-
-        // §5.3 from an extension: start from the last probe verdict
-        // (`live_urls`, App Group) over pure shape order. Network calls then
-        // refresh this with a short concurrent probe before real work.
-        let server: ServerConfig? = {
-            guard var cfg = servers.activeConfig else { return nil }
-            cfg.urls = cfg.preferredURLs(
-                live: store.loadLiveURL(configId: cfg.id),
-                network: currentNetworkContext()
-            )
-            return cfg
-        }()
-        guard let server else {
-            publishGate(.noServer)
-            recordHandledClipboardRevision(cc)
-            if force {
-                publishLastError(localization.string("尚未配置服务器，请先在主程序中添加"))
-                flashSync(.failure)
-            }
-            return
-        }
+        if publishHistoryChanges { reloadCards() }
         publishGate(.ok)
-        publishServerLabel(server.displayLabel)
-        let trust = settings.trustInsecureCert
-        ctx = (server, trust)
-
-        // ---- Uplink: push the device pasteboard if it carries new content.
-        await pushDeviceClipboardIfNew(
+        await syncP2pSnapshot(
             snap,
             changeCount: cc,
-            server: server,
-            trust: trust,
-            network: currentNetworkContext()
+            force: force,
+            publishHistoryChanges: publishHistoryChanges,
+            showSyncFeedback: showSyncFeedback
         )
-        guard gen == syncGeneration else { return }
-        let didPush: Bool = { if case .pushed = pushStatus { return true } else { return false } }()
-        log.info("sync uplink done: pushStatus=\(String(describing: self.pushStatus)) didPush=\(didPush)")
-        reloadCards()
-
-        // ---- Downlink: pull the server's latest *metadata* (small JSON) and
-        // fold it into the history log if it's new. The payload (image /
-        // overflow text) is fetched lazily on tap — never during this pass.
-        do {
-            let latest = try await ServerRouteExecutor(store: store).run(
-                server: server,
-                network: currentNetworkContext(),
-                probe: { routed in
-                    let client = try SyncClipboardClient(server: routed, trustInsecureCert: trust)
-                    try await client.probeReachability()
-                }
-            ) { routed in
-                let client = try SyncClipboardClient(server: routed, trustInsecureCert: trust)
-                return try await client.getClipboard()
-            }
-            guard gen == syncGeneration else { return }
-
-            if didPush, let pushed = lastPushedEntry, Self.isSameContent(latest, pushed) {
-                // The server's latest IS the entry we just pushed. The
-                // server may compute a different profile hash for images
-                // (it derives a different filename component), so we adopt
-                // the server's hash as our watermark. This prevents both
-                // this keyboard and the main app from re-pulling the same
-                // content as a "new" entry.
-                //
-                // `isSameContent` gates the adoption: if another device
-                // pushed between our PUT and this GET, blindly adopting the
-                // returned hash would mark content we've NEVER seen as
-                // "already synced" — swallowing it for the whole suite (the
-                // main app would skip it: server hash == watermark) AND
-                // letting the next push overwrite it on the server.
-                if let serverHash = latest.hash, !serverHash.isEmpty {
-                    log.info(
-                        """
-                        sync post-push: adopting server hash \(serverHash.prefix(16))… \
-                        contentId=\(latest.contentId?.prefix(24) ?? "nil") \
-                        (was \(self.store.loadLastSyncedHash()?.prefix(16) ?? "nil"))
-                        """
-                    )
-                    store.saveLastSyncedHash(serverHash)
-                    // Learn the server's opaque identity for this content (the
-                    // primary path — our pushed entry had none). Pair it with
-                    // the hash so the next GET's re-encoded variant (hash
-                    // changed, contentId unchanged) dedups instead of being
-                    // pulled back as a "new" entry. `latest.contentId` may be
-                    // nil for legacy servers — clearing it then is correct.
-                    store.saveLastSyncedContentId(latest.contentId)
-                }
-                publishLastError(nil)
-                flashSync(.success)
-            } else {
-                // Normal pull — including the "we pushed but another device
-                // pushed right after" race, where `latest` is genuinely new
-                // remote content that must surface, not be adopted.
-                let historyHeadHash = history.headHash()
-                log.info(
-                    """
-                    sync pull: serverHash=\(latest.hash ?? "nil") \
-                    serverType=\(latest.type.rawValue) \
-                    historyHeadHash=\(historyHeadHash ?? "nil") \
-                    lastSyncedHash=\(self.store.loadLastSyncedHash() ?? "nil")
-                    """
-                )
-                let pulledNew = appendPulledIfNew(latest)
-                log.info("sync pull result: pulledNew=\(pulledNew)")
-                reloadCards()
-                publishLastError(nil)
-                if force || didPush || pulledNew { flashSync(.success) }
-            }
-        } catch {
-            guard gen == syncGeneration else { return }
-            log.error("sync: failed — \(String(describing: error))")
-            publishLastError(message(for: error))
-            flashSync(.failure)
-        }
     }
 
-    /// P2P never resolves or probes a LAN server. The extension runs one
-    /// bounded send-and-receive session against the App Group-backed store.
+    /// Runs one bounded send-and-receive session against the App Group-backed store.
     private func syncP2pSnapshot(
         _ snapshot: DeviceClipboardSnapshot?,
         changeCount: Int,
@@ -734,7 +499,6 @@ final class KeyboardModel: ObservableObject {
                 case .delivered:
                     history.append(entry: snapshot.clipboard, direction: .pushed)
                     pushStatus = .pushed(summary(for: snapshot.clipboard))
-                    lastPushedEntry = snapshot.clipboard
                     publishLastError(nil)
                 case .partial:
                     let message = localization.string("部分设备尚未收到")
@@ -898,117 +662,8 @@ final class KeyboardModel: ObservableObject {
     /// blocked by the record path having already stamped it.
     private func recordLocalClipboardIfNew(_ snap: DeviceClipboardSnapshot?) {
         guard let snap, let hash = snap.clipboard.hash?.uppercased() else { return }
-        if hash == store.loadLastSyncedHash()?.uppercased() { return }
         if history.headHash()?.uppercased() == hash { return }
         history.append(entry: snap.clipboard, direction: .local)
-    }
-
-    /// Push the device pasteboard to the server if it carries new content.
-    /// Stamps the changeCount watermark on all exit paths so the poll tick
-    /// doesn't retry the same content.
-    private func pushDeviceClipboardIfNew(
-        _ snap: DeviceClipboardSnapshot?,
-        changeCount cc: Int,
-        server: ServerConfig,
-        trust: Bool,
-        network: NetworkContext
-    ) async {
-        guard let snap, let hash = snap.clipboard.hash?.uppercased() else {
-            log.info("push: snap nil or no hash → .none")
-            recordHandledClipboardRevision(cc)
-            pushStatus = .none
-            return
-        }
-        let lastHash = store.loadLastSyncedHash()?.uppercased()
-        if hash == lastHash {
-            log.info("push: hash==lastSyncedHash → .skipped (\(hash.prefix(16))…)")
-            recordHandledClipboardRevision(cc)
-            pushStatus = .skipped
-            return
-        }
-        log.info("push: uploading hash=\(hash.prefix(16))… lastSynced=\(lastHash?.prefix(16) ?? "nil") type=\(snap.clipboard.type.rawValue)")
-        do {
-            try await KeyboardUploader(store: store).upload(
-                snap,
-                to: server,
-                trustInsecureCert: trust,
-                network: network
-            )
-            recordHandledClipboardRevision(cc)
-            history.append(entry: snap.clipboard, direction: .pushed)
-            pushStatus = .pushed(summary(for: snap.clipboard))
-            lastPushedEntry = snap.clipboard
-            log.info("push: success")
-        } catch {
-            recordHandledClipboardRevision(cc)
-            pushStatus = .failed(message(for: error))
-            log.error("push: FAILED \(error)")
-        }
-    }
-
-    /// Whether the server's `latest` is plausibly the entry we just pushed.
-    /// Only consulted on the post-push downlink (`didPush`), so "the server
-    /// rewrote what we just sent" is the overwhelmingly likely case.
-    ///
-    /// Hash equality is conclusive. Otherwise: text compares the inline text;
-    /// images/files match on type alone. The previous `size` fallback for
-    /// binary content was actively wrong — a server-side re-encode (JPEG→PNG)
-    /// changes BOTH the hash and the byte size, so `size` comparison rejected
-    /// exactly the re-encode case it was meant to absorb, and the re-encoded
-    /// entry then came back down `appendPulledIfNew` as a duplicate. Dropping
-    /// the size check lets the caller adopt the server hash + contentId; any
-    /// genuinely-different concurrent push carries a different contentId and
-    /// is re-surfaced on the following tick.
-    private static func isSameContent(_ server: Clipboard, _ pushed: Clipboard) -> Bool {
-        guard server.type == pushed.type else { return false }
-        if let sh = server.hash, let ph = pushed.hash,
-           !sh.isEmpty, sh.uppercased() == ph.uppercased() {
-            return true
-        }
-        switch server.type {
-        case .text:          return server.text == pushed.text
-        case .image, .file:  return true
-        case .group:         return false
-        }
-    }
-
-    /// Fold the server's freshly-pulled latest into the history log when it's
-    /// genuinely new, so it surfaces as the head card. Skips kinds the
-    /// keyboard can't act on (file/group) and empty text. `appendHistory`
-    /// dedupes against the most-recent same-direction+hash entry; the extra
-    /// "is it already the newest?" guard here also catches the just-pushed
-    /// case (same hash, opposite direction) so a push isn't echoed as a pull.
-    /// Returns `true` iff a genuinely new entry was appended.
-    @discardableResult
-    private func appendPulledIfNew(_ latest: Clipboard) -> Bool {
-        guard let hash = latest.hash?.uppercased(), !hash.isEmpty else { return false }
-        switch latest.type {
-        case .text:
-            if !latest.hasData && latest.text.isEmpty { return false }
-        case .image:
-            guard latest.hasData, latest.dataName != nil else { return false }
-        case .file, .group:
-            return false
-        }
-        // contentId-first: when the server's opaque identity matches the
-        // watermark we already synced, this is the SAME logical content even
-        // if the server re-encoded it (hash differs). This is what stops a
-        // pushed image from coming back down as a duplicate "pull". Opaque
-        // whole-value compare — `latest.contentId` is already nil for an
-        // empty string, so a missing identity falls through to hash compare
-        // (legacy servers / not-yet-learned). See SettingsStore.
-        if let cid = latest.contentId, cid == store.loadLastSyncedContentId() {
-            return false
-        }
-        if history.headHash()?.uppercased() == hash {
-            return false
-        }
-        if hash == store.loadLastSyncedHash()?.uppercased() {
-            return false
-        }
-        // May still return false: the shared DB suppresses a pull whose row
-        // the user deleted in the main app (tombstone) — deletions stay dead.
-        return history.append(entry: latest, direction: .pulled)
     }
 
     /// Show a brief outcome badge on the refresh button, then clear it.
@@ -1035,11 +690,6 @@ final class KeyboardModel: ObservableObject {
     private func publishGate(_ next: Gate) {
         guard gate != next else { return }
         gate = next
-    }
-
-    private func publishServerLabel(_ next: String) {
-        guard serverLabel != next else { return }
-        serverLabel = next
     }
 
     private func publishLastError(_ next: String?) {
@@ -1133,36 +783,16 @@ final class KeyboardModel: ObservableObject {
 
     // MARK: - Card actions
 
-    /// Act on a tapped card: insert text inline, or fetch + copy an image to
+    /// Act on a tapped card: insert text inline, or copy a cached image to
     /// the system pasteboard (a text field can't host an image inline).
-    /// Long text / images fetch their payload here, on the tap, not during
-    /// the auto-sync pass.
-    ///
-    /// Copying an image advances the pasteboard `changeCount`, and the
-    /// follow-up local-change event pushes it to the server through the normal
-    /// uplink — same "copy = sync" semantics as tapping a card in the main
-    /// app. The watermark advances through the push path, so the shared
-    /// `lastSyncedHash` invariant ("server latest == device == this hash")
-    /// holds. The previous behavior wrote `saveLastSyncedHash` directly
-    /// WITHOUT pushing, which left the shared watermark pointing at content
-    /// the server never had as its latest — the main app's next tick would
-    /// then mistake the server's unchanged latest for new remote content,
-    /// re-pull it as a duplicate, and overwrite whatever the user had
-    /// copied in the meantime.
     func activate(_ card: Card) {
         guard actingCardID == nil else { return }
         keyFeedback()
         let entry = card.entry
         switch card.kind {
         case .text, .link:
-            if entry.hasData, let name = entry.dataName {
-                // §3.4 overflow: title shows only the preview; fetch the full
-                // text file, then insert.
-                fetchThen(card: card, name: name) { [weak self] data in
-                    guard let self, let text = String(data: data, encoding: .utf8) else { return }
-                    self.insertText(text)
-                    self.flashActed(card.id)
-                }
+            if entry.hasData {
+                publishPayloadUnavailable()
             } else {
                 insertText(entry.text)
                 flashActed(card.id)
@@ -1171,33 +801,18 @@ final class KeyboardModel: ObservableObject {
             guard let name = entry.dataName else { return }
             let rawExt = (name as NSString).pathExtension
             let ext = rawExt.isEmpty ? "png" : rawExt.lowercased()
-            // Local-cache-first, mirroring `thumbnail(for:)`. If the card's
-            // thumbnail rendered, the full original bytes are already in the
-            // App Group cache (`ImageData/<hash>.dat`) — copy straight from
-            // there, instantly and offline. Hitting `getFile(name:)` here was
-            // both wasteful (the bytes are already local) and fragile: the
-            // server's `file/<dataName>` is often gone by then, so the fetch
-            // failed and — failure being swallowed — the copy silently did
-            // nothing.
             if let hash = entry.hash, let local = store.loadImageData(hash: hash), !local.isEmpty {
                 copyImageToPasteboard(local, ext: ext, card: card)
             } else {
-                // No local bytes (e.g. a server-pulled metadata entry whose
-                // payload was never fetched) — fall back to the server, which
-                // now surfaces fetch failures instead of swallowing them.
-                fetchThen(card: card, name: name) { [weak self] data in
-                    guard let self, !data.isEmpty else { return }
-                    self.copyImageToPasteboard(data, ext: ext, card: card)
-                }
+                publishPayloadUnavailable()
             }
         }
     }
 
     /// Write image bytes to `UIPasteboard.general`, cache them under their
     /// content hash (so the app's offline preview finds them), surface the
-    /// card at the history head, and push through the normal uplink. Shared by
-    /// the local-cache-hit fast path and the server-fetch fallback in
-    /// `activate`. Reading back our own just-written pasteboard never prompts.
+    /// card at the history head, and send it through P2P. Reading back our own
+    /// just-written pasteboard never prompts.
     private func copyImageToPasteboard(_ data: Data, ext: String, card: Card) {
         UIPasteboard.general.setData(data, forPasteboardType: PasteboardReader.uti(forExt: ext))
         store.saveImageData(hash: Clipboard.computeBytesHash(data), data: data)
@@ -1206,37 +821,9 @@ final class KeyboardModel: ObservableObject {
         requestSync(.localClipboardChanged)
     }
 
-    /// Fetch a payload file by name from the last-synced server, then run
-    /// `body` with its bytes on the main actor. Surfaces fetch failures via
-    /// `lastError` (shown inline; the row stays put).
-    private func fetchThen(card: Card, name: String, _ body: @escaping (Data) -> Void) {
-        guard let ctx else { return }
-        actingCardID = card.id
-        Task { [weak self] in
-            defer { self?.actingCardID = nil }
-            do {
-                guard let self else { return }
-                let data = try await ServerRouteExecutor(store: self.store).run(
-                    server: ctx.server,
-                    network: self.currentNetworkContext(),
-                    probe: { routed in
-                        let client = try SyncClipboardClient(server: routed, trustInsecureCert: ctx.trust)
-                        try await client.probeReachability()
-                    }
-                ) { routed in
-                    let client = try SyncClipboardClient(server: routed, trustInsecureCert: ctx.trust)
-                    return try await client.getFile(name: name)
-                }
-                if Task.isCancelled { return }
-                self.publishLastError(nil)
-                body(data)
-            } catch {
-                if Task.isCancelled { return }
-                log.error("fetchThen: getFile(name: \(name)) failed — \(error)")
-                if let self { self.publishLastError(self.message(for: error)) }
-                self?.flashSync(.failure)
-            }
-        }
+    private func publishPayloadUnavailable() {
+        publishLastError(localization.string("内容未保存在本机"))
+        flashSync(.failure)
     }
 
     private func flashActed(_ id: UUID) {
@@ -1256,37 +843,12 @@ final class KeyboardModel: ObservableObject {
     /// bitmap is never realized.
     func thumbnail(for card: Card, maxPixel: CGFloat = 220) async -> UIImage? {
         guard card.kind == .image,
-              let name = card.entry.dataName,
               let hash = card.entry.hash else { return nil }
         let key = hash as NSString
         if let cached = thumbnailCache.object(forKey: key) { return cached }
         if let size = card.entry.size, size > 8 * 1024 * 1024 { return nil }
 
-        // Local cache first (App Group), then fall back to server.
-        let data: Data
-        if let local = store.loadImageData(hash: hash) {
-            data = local
-        } else {
-            guard let ctx else { return nil }
-            do {
-                data = try await ServerRouteExecutor(store: store).run(
-                    server: ctx.server,
-                    network: currentNetworkContext(),
-                    probe: { routed in
-                        let client = try SyncClipboardClient(server: routed, trustInsecureCert: ctx.trust)
-                        try await client.probeReachability()
-                    }
-                ) { routed in
-                    let client = try SyncClipboardClient(server: routed, trustInsecureCert: ctx.trust)
-                    return try await client.getFile(name: name)
-                }
-                if Task.isCancelled { return nil }
-                store.saveImageData(hash: hash, data: data)
-            } catch {
-                log.error("thumbnail: getFile failed — \(String(describing: error))")
-                return nil
-            }
-        }
+        guard let data = store.loadImageData(hash: hash) else { return nil }
         guard let img = Self.downsample(data: data, maxPixel: maxPixel) else { return nil }
         thumbnailCache.setObject(img, forKey: key)
         return img
@@ -1356,7 +918,6 @@ extension KeyboardModel.Gate {
         switch self {
         case .ok: return "ok"
         case .needsFullAccess: return "needs_full_access"
-        case .noServer: return "no_server"
         }
     }
 }
@@ -1374,9 +935,7 @@ private extension ExtensionSyncTrigger {
     var diagnosticName: String {
         switch self {
         case .appeared: return "appeared"
-        case .networkChanged: return "network_changed"
         case .localClipboardChanged: return "local_clipboard_changed"
-        case .serverChanged: return "server_changed"
         case .manual: return "manual"
         }
     }
@@ -1523,12 +1082,11 @@ final class KeyboardDiagnostics: @unchecked Sendable {
 extension KeyboardModel {
     /// Seeds a populated card row for Xcode Previews — the keyboard can only
     /// be exercised on a real device, so previews are how the layout gets
-    /// eyeballed. Thumbnails resolve to the placeholder (no `ctx`/network).
+    /// eyeballed. Thumbnails resolve to the placeholder without local bytes.
     static func previewReady() -> KeyboardModel {
         let model = KeyboardModel()
         model.hasFullAccess = true
         model.gate = .ok
-        model.serverLabel = "家里的 NAS"
         model.syncFlash = .success
         model.cards = [
             Card(id: UUID(), kind: .text,
@@ -1551,7 +1109,6 @@ extension KeyboardModel {
         let model = KeyboardModel()
         model.hasFullAccess = true
         model.gate = .ok
-        model.serverLabel = "家里的 NAS"
         return model
     }
 }

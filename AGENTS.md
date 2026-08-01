@@ -39,7 +39,7 @@ Examples in the codebase:
 
 - `src/components/HomeTopBar.{ios,android,types}.tsx`
 - `src/components/HomeBottomBar.{ios,android,types}.tsx`
-- `src/components/ServerSwitcherModal.{ios,android,types}.tsx`
+- `src/components/AddSyncConnectionSheet.{ios,android,types}.tsx`
 - `src/components/ui/GlassContainer.{ios,tsx}`
 
 # iOS Storage Compatibility

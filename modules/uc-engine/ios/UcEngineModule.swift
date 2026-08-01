@@ -70,6 +70,7 @@ public final class UcEngineModule: Module {
         AppleEngineLifecycle(engine: self.requireEngine(), host: self.host)
       )
     }
+    AsyncFunction("setBackgroundSyncEnabled") { (_: Bool, _: Bool) in }
 
     AsyncFunction("createSpace") { (deviceName: String?, passphrase: String) -> [String: Any] in
       let result = try self.requireEngine().createSpace(
@@ -152,8 +153,14 @@ public final class UcEngineModule: Module {
       }
     }
 
-    AsyncFunction("removeMember") { (deviceId: String) in
-      try self.requireEngine().removeMember(deviceId: deviceId)
+    AsyncFunction("removeMember") { (deviceId: String) -> [String: Any?] in
+      Self.memberRevocationResultMap(try self.requireEngine().removeMember(deviceId: deviceId))
+    }
+
+    AsyncFunction("secureRemoveLegacyMember") { (deviceId: String) -> [String: Any?] in
+      Self.legacyMemberRemovalResultMap(
+        try self.requireEngine().secureRemoveLegacyMember(deviceId: deviceId)
+      )
     }
 
     AsyncFunction("resendEntry") {
@@ -442,6 +449,37 @@ public final class UcEngineModule: Module {
     case .payloadUnavailable: "payloadUnavailable"
     case .notApplicable: "notApplicable"
     }
+  }
+
+  private static func memberRevocationResultMap(_ result: MemberRevocationResult) -> [String: Any?] {
+    let outcome: String
+    switch result.outcome {
+    case .localOnly: outcome = "localOnly"
+    case .applied: outcome = "applied"
+    case .complete: outcome = "complete"
+    case .recoveryRequired: outcome = "recoveryRequired"
+    }
+    return [
+      "revocationId": result.revocationId,
+      "outcome": outcome,
+      "pendingRecipients": result.pendingRecipients,
+    ]
+  }
+
+  private static func legacyMemberRemovalResultMap(
+    _ result: LegacyMemberRemovalResult
+  ) -> [String: Any?] {
+    let outcome: String
+    switch result.outcome {
+    case .awaitingReadmission: outcome = "awaitingReadmission"
+    case .complete: outcome = "complete"
+    case .recoveryRequired: outcome = "recoveryRequired"
+    }
+    return [
+      "bootstrapId": result.bootstrapId,
+      "outcome": outcome,
+      "pendingReadmission": result.pendingReadmission,
+    ]
   }
 }
 

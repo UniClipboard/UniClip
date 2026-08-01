@@ -91,8 +91,6 @@ describe('i18n resources', () => {
       defaultNS: 'settings',
     });
 
-    expect(instance.t('hub.summary.serverCount', { count: 1 })).toBe('1 servidor');
-    expect(instance.t('hub.summary.serverCount', { count: 2 })).toBe('2 servidores');
     expect(instance.t('hub.summary.history', { count: 1 })).toBe('Manter até 1 item');
     expect(instance.t('hub.summary.history', { count: 10 })).toBe('Manter até 10 itens');
   });

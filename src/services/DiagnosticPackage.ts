@@ -3,9 +3,8 @@ import { File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 import { getShareDiagnostics } from 'app-group-store';
 
-import type { ServerConfig } from '@/types/api';
 import type { SharedSettings } from '@/types/settings';
-import type { SyncEngineState } from './SyncEngine';
+import type { PeerConnectionStatus, UnifiedEngineStatus } from '@/stores/unifiedEngineStore';
 import { classifyDiagnosticEvent, type DiagnosticReason } from './DiagnosticEventClassifier';
 import { getLogFileUris } from './Logger';
 
@@ -14,7 +13,6 @@ const MAX_RECENT_EVENTS = 100;
 const MAX_LOG_BYTES_PER_FILE = 512 * 1024;
 
 const SAFE_COMPONENTS = new Set([
-  'APIClient',
   'AppGroupHistoryImport',
   'AppGroupSync',
   'BackgroundServiceManager',
@@ -23,21 +21,16 @@ const SAFE_COMPONENTS = new Set([
   'ClipboardManager',
   'ClipboardMonitor',
   'ClipboardStore',
-  'ClipboardSyncService',
   'ConfigStorage',
   'DB',
   'FileStorage',
   'HashUtils',
   'HistoryStorage',
-  'HistoryTransferQueue',
   'HomeView',
   'NetworkContext',
-  'S3Client',
-  'SecureStorage',
-  'SyncClipboardClient',
-  'SyncEngine',
-  'SyncEngineStore',
-  'WebDAVClient',
+  'P2pClipboardObserver',
+  'UnifiedEngineService',
+  'UnifiedSpaceService',
 ]);
 
 const LOG_LINE_PATTERN =
@@ -45,27 +38,18 @@ const LOG_LINE_PATTERN =
 const COMPONENT_PATTERN = /\[([A-Za-z][A-Za-z0-9]+)\]/;
 
 type DiagnosticLogLevel = 'debug' | 'info' | 'warn' | 'error';
-type DiagnosticServerType = ServerConfig['type'];
-
 export interface DiagnosticSettingsSnapshot {
-  configuredServerCount: number;
-  activeServerConfigured: boolean;
-  activeServerType: DiagnosticServerType | null;
-  activeServerAddressCount: number;
-  trustInsecureCert: SharedSettings['trustInsecureCert'];
   autoApplyRemote: SharedSettings['autoApplyRemote'];
   autoPushLocal: SharedSettings['autoPushLocal'];
-  enableSse: SharedSettings['enableSse'];
   attachmentAutoDownload: SharedSettings['attachmentAutoDownload'];
   logLevel: SharedSettings['logLevel'];
 }
 
 export interface DiagnosticSyncSnapshot {
-  isRunning: boolean;
-  state: SyncEngineState;
-  isExplicitlyRefreshing: boolean;
-  hasStagedEntry: boolean;
-  lastSyncedAt: number | null;
+  status: UnifiedEngineStatus;
+  peerConnectionStatus: PeerConnectionStatus;
+  hasSpace: boolean;
+  deviceCount: number;
   lastErrorReason: DiagnosticReason | null;
 }
 

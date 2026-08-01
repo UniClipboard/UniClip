@@ -18,20 +18,13 @@
     "sectionTitle": "Geral",
     "theme": "Tema"
   },
-  "syncChannel": {
-    "title": "Canal de sincronização",
-    "p2p": "P2P",
-    "lan": "Rede local"
-  },
   "category": {
     "sync": "Sincronização",
     "about": "Sobre",
     "other": "Outros",
     "storage": "Armazenamento",
-    "server": "Servidores",
     "history": "Histórico",
     "background": "Segundo plano",
-    "sms": "Encaminhamento de SMS",
     "developer": "Opções do desenvolvedor",
     "extensions": "Extensões e permissões"
   },
@@ -40,43 +33,30 @@
       "title": "Sincronização da área de transferência",
       "autoApply": {
         "title": "Gravar automaticamente na área de transferência",
-        "desc": "Grava o novo conteúdo do servidor na área de transferência do sistema deste dispositivo"
+        "desc": "Gravar automaticamente no clipboard deste dispositivo o conteúdo novo recebido do espaço"
       },
       "autoPush": {
         "title": "Enviar automaticamente a área de transferência",
-        "desc": "Envia cópias locais e itens reutilizados do histórico para o servidor"
+        "desc": "Enviar automaticamente cópias e itens do histórico aos outros dispositivos do espaço"
       },
       "footer": "Estas opções controlam a direção da sincronização; as configurações de segundo plano controlam onde ela pode ser executada",
       "updateFailed": "Falha na atualização"
     },
-    "rows": {
-      "serverLabel": "Servidores e sincronização"
-    },
+    "rows": {},
     "summary": {
-      "serverNone": "Nenhum servidor configurado",
-      "serverActive": "Atual: {{name}} · {{count}} no total",
-      "serverCount_one": "{{count}} servidor",
-      "serverCount_other": "{{count}} servidores",
       "history_one": "Manter até {{count}} item",
       "history_other": "Manter até {{count}} itens",
       "backgroundTempDisabled": "Pausado temporariamente; será retomado após reiniciar",
       "backgroundOn": "Tarefas em segundo plano ativadas",
       "backgroundOff": "Tarefas em segundo plano desativadas",
-      "smsOn": "Envio automático de códigos ativado",
-      "smsOff": "Envio automático de códigos desativado",
       "storage": "Uso de cache, logs e histórico",
       "about": "Versão {{version}}",
       "developer": "Logs, depuração e atalhos"
     }
   },
-  "server": {
-    "addTitle": "Adicionar servidor",
-    "editTitle": "Editar servidor",
-    "count": "{{count}}"
-  },
   "ios": {
     "sync": {
-      "footer": "Quando Gravar automaticamente está ativado, o novo conteúdo do servidor substitui imediatamente a área de transferência deste dispositivo; quando desativado, ele é apenas destacado na tela inicial.",
+      "footer": "Com a gravação automática ativada, o conteúdo novo do espaço é gravado imediatamente no clipboard deste dispositivo; quando desativada, ele só é destacado na tela inicial.",
       "autoApply": "Gravar automaticamente na área de transferência",
       "autoPush": "Enviar automaticamente a área de transferência",
       "sse": "Envio ao vivo (SSE)"

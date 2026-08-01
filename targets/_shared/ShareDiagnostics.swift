@@ -1,10 +1,5 @@
 import Foundation
 
-public enum ShareDiagnosticChannel: String, Codable, Equatable, Sendable {
-  case p2p
-  case lan
-}
-
 public enum ShareDiagnosticItemKind: String, Codable, Equatable, Sendable {
   case text
   case image
@@ -15,7 +10,6 @@ public enum ShareDiagnosticStage: String, Codable, Equatable, Sendable {
   case attemptStarted = "attempt_started"
   case handoffStarted = "handoff_started"
   case handoffQueued = "handoff_queued"
-  case networkObserved = "network_observed"
   case routePrepared = "route_prepared"
   case engineStarting = "engine_starting"
   case engineReady = "engine_ready"
@@ -166,7 +160,6 @@ public struct ShareDiagnosticEvent: Codable, Equatable, Sendable {
 public struct ShareDiagnosticAttempt: Codable, Equatable, Sendable {
   public let id: String
   public let startedAtMs: Int64
-  public let channel: ShareDiagnosticChannel
   public let itemKind: ShareDiagnosticItemKind
   public let byteCount: Int
   public fileprivate(set) var events: [ShareDiagnosticEvent]
@@ -206,7 +199,6 @@ public final class ShareDiagnosticsStore: @unchecked Sendable {
 
   public func startAttempt(
     id: String = UUID().uuidString.lowercased(),
-    channel: ShareDiagnosticChannel,
     itemKind: ShareDiagnosticItemKind,
     byteCount: Int,
     startedAtMs: Int64 = Int64(Date().timeIntervalSince1970 * 1_000)
@@ -217,7 +209,6 @@ public final class ShareDiagnosticsStore: @unchecked Sendable {
     let attempt = ShareDiagnosticAttempt(
       id: id,
       startedAtMs: startedAtMs,
-      channel: channel,
       itemKind: itemKind,
       byteCount: max(0, byteCount),
       events: []

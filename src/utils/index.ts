@@ -83,4 +83,3 @@ export * from './clipboard';
 export * from './fileStorage';
 
 // Export connect URI parser
-export * from './connectUri';

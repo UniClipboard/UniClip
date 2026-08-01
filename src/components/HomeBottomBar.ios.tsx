@@ -1,44 +1,11 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
-import { History, ChevronsUpDown, RefreshCw, Copy, Share2, Trash2 } from 'lucide-react-native';
+import { View, Pressable, StyleSheet } from 'react-native';
+import { Copy, Share2, Trash2 } from 'lucide-react-native';
 import { GlassContainer } from '@/components/ui';
 import { iosDimensions } from '@/theme/iosDesignTokens';
-import type { DefaultBottomBarProps, SelectModeBottomBarProps } from './HomeBottomBar.types';
+import type { SelectModeBottomBarProps } from './HomeBottomBar.types';
 
 const BTN = iosDimensions.floatingButtonSize;
-
-export function DefaultBottomBar({
-  serverLabel,
-  isSyncing,
-  onServerPicker,
-  onSync,
-  theme,
-}: DefaultBottomBarProps) {
-  const c = theme.colors.textPrimary;
-  return (
-    <View style={s.row}>
-      <Pressable onPress={onServerPicker} style={s.pillButton}>
-        <GlassContainer shape="capsule" interactive style={s.capsule}>
-          <History size={18} color={c} />
-          <Text style={[s.pillText, { color: c }]} numberOfLines={1}>
-            {serverLabel}
-          </Text>
-          <ChevronsUpDown size={12} color={theme.colors.textSecondary} />
-        </GlassContainer>
-      </Pressable>
-
-      <Pressable onPress={onSync} disabled={isSyncing}>
-        <GlassContainer shape="circle" interactive style={s.circle}>
-          {isSyncing ? (
-            <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-          ) : (
-            <RefreshCw size={22} color={c} />
-          )}
-        </GlassContainer>
-      </Pressable>
-    </View>
-  );
-}
 
 export function SelectModeBottomBar({
   disabled,
@@ -70,17 +37,6 @@ export function SelectModeBottomBar({
 }
 
 const s = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  pillButton: { flex: 1 },
   circle: { width: BTN, height: BTN, justifyContent: 'center', alignItems: 'center' },
-  capsule: {
-    height: BTN,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    gap: 6,
-  },
-  pillText: { fontSize: 15, fontWeight: '500' },
   selectRow: { flexDirection: 'row', justifyContent: 'center', gap: 24 },
 });

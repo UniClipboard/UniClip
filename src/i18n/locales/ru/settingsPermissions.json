@@ -2,15 +2,6 @@
   "action": {
     "openSettings": "Открыть настройки"
   },
-  "smsAutomation": {
-    "title": "Автоматизация SMS",
-    "autoUpload": "Автоотправка кодов из SMS",
-    "permissionRequiredTitle": "Нужен доступ к SMS",
-    "permissionRequiredMessage": "Для автоотправки кодов нужно разрешение на приём SMS. Разрешите его в настройках системы.",
-    "enabledToast": "Автоотправка кодов из SMS включена",
-    "disabledToast": "Автоотправка кодов из SMS выключена",
-    "saveFailed": "Не удалось сохранить"
-  },
   "quickActions": {
     "title": "Быстрые действия",
     "addDownloadShortcut": "Добавить ярлык на главный экран: скачать",

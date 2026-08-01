@@ -13,6 +13,7 @@ import * as ClipboardProxy from '@/utils/clipboardProxy';
 import { getBackgroundClipboardAdapter } from '@/utils/androidBackgroundClipboardAccess';
 import type { BackgroundClipboardAdapter } from '@/utils/backgroundClipboardAccess';
 import { canAutoPushInBackground } from '@/utils/syncDirectionPolicy';
+import { getCurrentNetworkContext } from '@/services/networkContext';
 
 const LAST_CLIPBOARD_HASH_KEY = '@last_clipboard_hash';
 const IOS_DENIED_CHANGE_COUNT_KEY = '@ios_pasteboard_denied_change_count';
@@ -505,7 +506,8 @@ export class ClipboardMonitor {
       const settings = useSettingsStore.getState();
       const bgUploadEnabled = canAutoPushInBackground(
         settings.config,
-        settings.isTempDisabledBackgroundTasks
+        settings.isTempDisabledBackgroundTasks,
+        getCurrentNetworkContext()
       );
       if (!bgUploadEnabled) {
         // 应用进入后台，停止监听

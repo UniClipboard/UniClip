@@ -20,14 +20,11 @@ describe('iOS sheet page shared background', () => {
   it('uses the shared sheet page wrapper for every iOS sheet with a header', () => {
     const iosSheetSources = [
       'screens/settings/ios/SettingsRootPage.tsx',
-      'screens/settings/ios/ServerListPage.tsx',
       'screens/settings/ios/StoragePage.tsx',
       'screens/settings/ios/KeyboardPage.tsx',
       'screens/settings/ios/SharePage.tsx',
       'screens/settings/ios/ClipboardAccessPage.tsx',
-      'components/AddServerSheet.ios.tsx',
       'components/HistoryFilterSheet.ios.tsx',
-      'components/ServerSwitcherModal.ios.tsx',
     ].map(readSource);
 
     for (const source of iosSheetSources) {
@@ -39,8 +36,6 @@ describe('iOS sheet page shared background', () => {
   it('keeps Form list backgrounds aligned through the shared form helper', () => {
     const formSheetSources = [
       'screens/settings/ios/SettingsRootPage.tsx',
-      'screens/settings/ios/ServerListPage.tsx',
-      'components/AddServerSheet.ios.tsx',
       'components/HistoryFilterSheet.ios.tsx',
     ].map(readSource);
 
@@ -69,45 +64,9 @@ describe('iOS sheet page shared background', () => {
     expect(indexSource).not.toContain('SheetHeaderIconButton');
   });
 
-  it('keeps text header actions adaptive instead of forcing them into icon slots', () => {
-    const headerSource = readSource('components/ui/SheetHeader.ios.tsx');
-    const addServerSource = readSource('components/AddServerSheet.ios.tsx');
-
-    expect(addServerSource).toContain('left={');
-    expect(addServerSource).toContain("t('action.cancel'");
-    expect(addServerSource).toContain('right={');
-    expect(addServerSource).toContain("t('action.save'");
-    expect(headerSource).toContain('renderAdaptiveHeaderSide');
-    expect(headerSource).toContain('leftSlots ?');
-    expect(headerSource).toContain('rightSlots ?');
-    expect(headerSource).toContain("renderHeaderButtonSlots(leftSlots, 'leading')");
-    expect(headerSource).toContain("renderHeaderButtonSlots(rightSlots, 'trailing')");
-    expect(headerSource).toContain('renderAdaptiveHeaderSide(left,');
-    expect(headerSource).toContain('renderAdaptiveHeaderSide(right,');
-    expect(headerSource).not.toContain('normalizeHeaderButtonSlots');
-  });
-
-  it('sizes add server text actions to match the sheet header controls', () => {
-    const addServerSource = readSource('components/AddServerSheet.ios.tsx');
-    const headerStart = addServerSource.indexOf('<IosSheetPage');
-    const headerEnd = addServerSource.indexOf('<IosSheetForm>', headerStart);
-    const headerSource = addServerSource.slice(headerStart, headerEnd);
-
-    expect(addServerSource).toContain('controlSize');
-    expect(headerSource).toContain("controlSize('large')");
-    expect(headerSource.match(/controlSize\('large'\)/g)).toHaveLength(2);
-    expect(headerSource).toContain("t('action.cancel'");
-    expect(headerSource).toContain("t('action.save'");
-  });
-
   it('routes icon-only sheet actions through fixed header slots', () => {
-    const serverSwitcherSource = readSource('components/ServerSwitcherModal.ios.tsx');
     const historyFilterSource = readSource('components/HistoryFilterSheet.ios.tsx');
 
-    expect(serverSwitcherSource).toContain('leftSlots={[');
-    expect(serverSwitcherSource).toContain('rightSlots={[');
-    expect(serverSwitcherSource).not.toMatch(/title="服务器"[\s\S]*?left=\{/);
-    expect(serverSwitcherSource).not.toMatch(/title="服务器"[\s\S]*?right=\{/);
     expect(historyFilterSource).toContain('rightSlots={[');
     expect(historyFilterSource).toContain('systemName="checkmark"');
   });

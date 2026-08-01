@@ -1,13 +1,6 @@
 {
-  "action": { "openSettings": "Abrir configurações" },
-  "smsAutomation": {
-    "title": "Automação de SMS",
-    "autoUpload": "Enviar códigos de verificação por SMS automaticamente",
-    "permissionRequiredTitle": "Permissão de SMS necessária",
-    "permissionRequiredMessage": "O envio automático de códigos de verificação requer permissão para receber SMS. Permita-a nas configurações do sistema.",
-    "enabledToast": "Envio automático de códigos de verificação por SMS ativado",
-    "disabledToast": "Envio automático de códigos de verificação por SMS desativado",
-    "saveFailed": "Falha ao salvar as configurações"
+  "action": {
+    "openSettings": "Abrir configurações"
   },
   "quickActions": {
     "title": "Ações rápidas",

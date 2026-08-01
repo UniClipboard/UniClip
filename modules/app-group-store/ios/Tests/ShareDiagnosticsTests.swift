@@ -21,18 +21,12 @@ final class ShareDiagnosticsTests: XCTestCase {
     let store = try ShareDiagnosticsStore(containerURL: containerURL)
     let recorder = try store.startAttempt(
       id: "attempt-a",
-      channel: .p2p,
       itemKind: .file,
       byteCount: 20 * 1024 * 1024,
       startedAtMs: 1_000
     )
 
     recorder.record(stage: .attemptStarted, timestampMs: 1_000)
-    recorder.record(
-      stage: .networkObserved,
-      network: ShareDiagnosticNetwork(wifi: false, cellular: true, tailscale: false),
-      timestampMs: 1_010
-    )
     recorder.record(
       stage: .peerRefresh,
       peerRefresh: ShareDiagnosticPeerRefresh(total: 1, online: 0, offline: 1, errors: 0),
@@ -48,13 +42,11 @@ final class ShareDiagnosticsTests: XCTestCase {
     let attempt = try XCTUnwrap(archive.attempts.first)
     XCTAssertEqual(archive.schemaVersion, 1)
     XCTAssertEqual(attempt.id, "attempt-a")
-    XCTAssertEqual(attempt.channel, .p2p)
     XCTAssertEqual(attempt.itemKind, .file)
     XCTAssertEqual(attempt.byteCount, 20 * 1024 * 1024)
-    XCTAssertEqual(attempt.events.map(\.elapsedMs), [0, 10, 100, 120])
-    XCTAssertEqual(attempt.events[1].network?.cellular, true)
-    XCTAssertEqual(attempt.events[2].peerRefresh?.online, 0)
-    XCTAssertEqual(attempt.events[3].error?.code, .receiverOffline)
+    XCTAssertEqual(attempt.events.map(\.elapsedMs), [0, 100, 120])
+    XCTAssertEqual(attempt.events[1].peerRefresh?.online, 0)
+    XCTAssertEqual(attempt.events[2].error?.code, .receiverOffline)
 
     let encoded = try JSONEncoder().encode(archive)
     let object = try XCTUnwrap(
@@ -76,7 +68,6 @@ final class ShareDiagnosticsTests: XCTestCase {
 
     _ = try store.startAttempt(
       id: "expired",
-      channel: .p2p,
       itemKind: .text,
       byteCount: 1,
       startedAtMs: nowMs - 3 * dayMs - 1
@@ -84,7 +75,6 @@ final class ShareDiagnosticsTests: XCTestCase {
     for index in 0..<52 {
       _ = try store.startAttempt(
         id: "recent-\(index)",
-        channel: .p2p,
         itemKind: .text,
         byteCount: index,
         startedAtMs: nowMs - Int64(52 - index)

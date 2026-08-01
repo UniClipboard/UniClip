@@ -139,6 +139,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
     setItem: jest.fn().mockResolvedValue(undefined),
     removeItem: jest.fn().mockResolvedValue(undefined),
     clear: jest.fn().mockResolvedValue(undefined),
+    getAllKeys: jest.fn().mockResolvedValue([]),
     multiGet: jest.fn().mockResolvedValue([]),
     multiSet: jest.fn().mockResolvedValue(undefined),
     multiRemove: jest.fn().mockResolvedValue(undefined),
@@ -162,10 +163,9 @@ jest.mock('@react-native-community/netinfo', () => ({
 }));
 
 jest.mock('app-group-store', () => ({
-  saveServers: jest.fn().mockResolvedValue(undefined),
-  getServers: jest.fn().mockResolvedValue({ configs: [], activeConfigId: null }),
   saveSettings: jest.fn().mockResolvedValue(undefined),
   getSettings: jest.fn().mockResolvedValue({}),
+  clearLegacyLanConfiguration: jest.fn().mockResolvedValue(undefined),
   getContainerUrl: jest.fn().mockResolvedValue(null),
   getLegacyHistory: jest.fn().mockResolvedValue(null),
   getPayloadFileUri: jest.fn().mockResolvedValue(null),
@@ -173,56 +173,8 @@ jest.mock('app-group-store', () => ({
   deletePayload: jest.fn().mockResolvedValue(undefined),
   clearPayloads: jest.fn().mockResolvedValue(undefined),
   getPayloadStats: jest.fn().mockResolvedValue({ count: 0, totalSize: 0 }),
-  getLastSyncedHash: jest.fn().mockResolvedValue(null),
-  getLastSyncedContentId: jest.fn().mockResolvedValue(null),
-  getLiveUrl: jest.fn().mockResolvedValue(null),
-  saveLiveUrl: jest.fn().mockResolvedValue(undefined),
   migrateLegacyContainer: jest.fn().mockResolvedValue({ migrated: false, keys: 0 }),
   getPasteboardChangeCount: jest.fn(() => null),
-}));
-
-jest.mock('uc-core', () => ({
-  parseConnectUri: jest.fn(),
-  getLatest: jest.fn(),
-  putClipboard: jest.fn(),
-  testConnection: jest.fn(),
-  queryHistory: jest.fn(),
-  getFile: jest.fn(),
-  putFile: jest.fn(),
-  getHistoryPayload: jest.fn(),
-  probe: jest.fn(),
-  hasHealthProbe: jest.fn(() => true),
-  healthProbe: jest.fn(),
-  cancelInFlight: jest.fn(),
-  // SSE subscription bridge
-  hasSse: jest.fn(() => false),
-  startSseSubscription: jest.fn(),
-  cancelSseSubscription: jest.fn(),
-  addSseListener: jest.fn(() => ({ remove: jest.fn() })),
-  // MobileSyncEngine (push/pull SDK)
-  hasEngine: jest.fn(() => true),
-  engineInit: jest.fn(),
-  engineDispose: jest.fn(),
-  enginePush: jest.fn(),
-  enginePull: jest.fn(),
-  engineApplyStaged: jest.fn(),
-  engineSetServer: jest.fn().mockResolvedValue(undefined),
-  engineHandleNetworkRouteChanged: jest.fn().mockResolvedValue(undefined),
-  engineSetSettings: jest.fn().mockResolvedValue(undefined),
-  engineAcknowledgeLoopDetected: jest.fn().mockResolvedValue(undefined),
-  // Sync config + cadence helpers (survivors from the pre-engine reducer design)
-  defaultSyncConfig: jest.fn(() => ({
-    normalCadenceSecs: 1.0,
-    inactiveCadenceSecs: 5.0,
-    offlineBackoffSecs: 5.0,
-    offlineBackoffMaxSecs: 60.0,
-    historySyncIntervalSecs: 30.0,
-    loopWindowSecs: 30.0,
-    loopFlipThreshold: 3,
-  })),
-  isHistorySyncDue: jest.fn(() => false),
-  isColdStart: jest.fn(() => false),
-  advanceWatermark: jest.fn(),
 }));
 
 global.setImmediate = jest.useRealTimers;

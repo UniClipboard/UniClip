@@ -1,4 +1,12 @@
-import type { InvitationIssued, SpaceCreated, SpaceInvitation, SpaceJoined } from 'uc-engine';
+import type {
+  InvitationIssued,
+  LegacyMemberRemovalResult,
+  MemberRemovalResult,
+  MemberRevocationResult,
+  SpaceCreated,
+  SpaceInvitation,
+  SpaceJoined,
+} from 'uc-engine';
 import {
   createInitialUnifiedSpaceSnapshot,
   publishUnifiedSpaceSnapshot,
@@ -45,7 +53,8 @@ export interface UnifiedSpaceApi {
     deviceName: string | null,
     passphrase: string
   ): Promise<SpaceJoined>;
-  removeMember(deviceId: string): Promise<void>;
+  removeMember(deviceId: string): Promise<MemberRevocationResult>;
+  secureRemoveLegacyMember(deviceId: string): Promise<LegacyMemberRemovalResult>;
   resendEntry(entryId: string, targetDevices: string[]): Promise<ResendEntryOutcome>;
   leaveSpace(): Promise<void>;
 }
@@ -106,6 +115,15 @@ export function unifiedSpaceUserErrorCode(cause: unknown): UnifiedSpaceUserError
     if (mapped) return mapped;
   }
   return null;
+}
+
+function hasEngineErrorCode(cause: unknown, expectedCode: number): boolean {
+  const details = [String(cause)];
+  if (cause && typeof cause === 'object') {
+    const error = cause as { code?: unknown; message?: unknown; cause?: unknown };
+    details.push(String(error.code ?? ''), String(error.message ?? ''), String(error.cause ?? ''));
+  }
+  return new RegExp(`\\b${expectedCode}\\b`).test(details.join(' '));
 }
 
 function required(value: string, code: UnifiedSpaceInputErrorCode): string {
@@ -196,6 +214,17 @@ export class UnifiedSpaceService {
     return invitation;
   }
 
+  async refreshDevices(): Promise<UnifiedSpaceSnapshot> {
+    if (!this.snapshot.spaceId) return this.snapshot;
+
+    const revision = this.beginOperation();
+    const devices = await this.api.listDevices();
+    if (!this.isCurrentOperation(revision)) return this.snapshot;
+
+    this.updateSnapshot({ devices, lastError: null });
+    return this.snapshot;
+  }
+
   async joinSpace(
     invitationCode: string,
     deviceName: string,
@@ -234,10 +263,19 @@ export class UnifiedSpaceService {
     }
   }
 
-  async removeMember(deviceId: string): Promise<void> {
-    await this.api.removeMember(required(deviceId, 'deviceNameRequired'));
+  async removeMember(deviceId: string): Promise<MemberRemovalResult> {
+    const targetDeviceId = required(deviceId, 'deviceNameRequired');
+    const revision = this.beginOperation();
+    let result: MemberRemovalResult;
+    try {
+      result = await this.api.removeMember(targetDeviceId);
+    } catch (error) {
+      if (!hasEngineErrorCode(error, 1388)) throw error;
+      result = await this.api.secureRemoveLegacyMember(targetDeviceId);
+    }
     const devices = await this.api.listDevices();
-    this.updateSnapshot({ devices, lastError: null });
+    if (this.isCurrentOperation(revision)) this.updateSnapshot({ devices, lastError: null });
+    return result;
   }
 
   resendEntry(entryId: string, targetDevices: string[] = []): Promise<ResendEntryOutcome> {

@@ -17,7 +17,7 @@
     "fullAccess": "Full Access",
     "enableSteps": {
       "title": "Setup steps",
-      "footer": "Allow Full Access lets the keyboard read the clipboard and connect to your server — it's required for syncing. Content is only sent to the server you configure.",
+      "footer": "Allow Full Access lets the keyboard read the clipboard and connect to the other devices in your space. Content is only sent within the current space.",
       "step1": "Open UniClip in Settings and tap Keyboards",
       "step2": "Turn on UniClip Keyboard",
       "step3": "Turn on Allow Full Access and confirm"
@@ -38,7 +38,7 @@
     "title": "Share",
     "testMessage": "Share test from UniClip 👋",
     "intro": {
-      "footer": "In any app, tap Share and choose UniClip to push content straight to your clipboard server — no need to copy and switch back to UniClip first."
+      "footer": "In any app, tap Share and choose UniClip to send content directly to the other devices in your space without switching back first."
     },
     "supportedContent": {
       "label": "Supported content",
@@ -53,22 +53,6 @@
       "step4": "Drag it to the front and tap Done"
     },
     "tryButton": "Open the share sheet to try"
-  },
-  "serverList": {
-    "title": "Servers",
-    "footer": "Tap a server to edit its address, name, and credentials. Servers you add appear in this list.",
-    "empty": {
-      "label": "No servers yet"
-    },
-    "addShort": "Add",
-    "addressCount_one": "{{count}} address",
-    "addressCount_other": "{{count}} addresses",
-    "addServer": "Add server",
-    "connection": {
-      "title": "Connection",
-      "footer": "Allow Insecure Certificates is only needed when the server uses a self-signed HTTPS certificate; plain HTTP doesn't require it.",
-      "allowInsecure": "Allow insecure certificates"
-    }
   },
   "diagnostics": {
     "title": "Diagnostics",

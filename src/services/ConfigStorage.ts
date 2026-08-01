@@ -1,13 +1,11 @@
 /**
  * Config Storage Service
- * 配置存储服务 - 管理应用配置和服务器配置
+ * 配置存储服务 - 管理应用偏好和升级迁移
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '../types/storage';
 import { AppSettings, DEFAULT_SETTINGS, SETTINGS_SCHEMA_VERSION } from '../types/settings';
-import { ServerConfig } from '../types/api';
-import { SyncMode } from '../types/sync';
 import { migrateConfig, extractRuntimeState } from './ConfigMigration';
 import { runtimeStateStorage } from './RuntimeStateStorage';
 import { log } from './Logger';
@@ -18,6 +16,20 @@ import { seedConfigFromAppGroup } from './appGroupSeed';
  */
 const SCHEMA_VERSION_KEY = '@syncclipboard:schema_version';
 export const CONFIG_USER_STATE_KEY = '@syncclipboard:config:user-state';
+const LEGACY_CREDENTIAL_KEY = '@syncclipboard:credentials';
+const LEGACY_SECURE_STORAGE_PREFIX = '@syncclipboard:secure:';
+
+async function removeLegacyCredentials(): Promise<void> {
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const legacyKeys = keys.filter(
+      (key) => key === LEGACY_CREDENTIAL_KEY || key.startsWith(LEGACY_SECURE_STORAGE_PREFIX)
+    );
+    if (legacyKeys.length > 0) await AsyncStorage.multiRemove(legacyKeys);
+  } catch (error) {
+    log.warn('[ConfigStorage] Failed to remove legacy credentials:', error);
+  }
+}
 
 export class ConfigStorage {
   private static instance: ConfigStorage | null = null;
@@ -59,6 +71,7 @@ export class ConfigStorage {
    * 加载配置
    */
   private async loadConfig(): Promise<void> {
+    await removeLegacyCredentials();
     const configJson = await AsyncStorage.getItem(STORAGE_KEYS.CONFIG);
     const versionStr = await AsyncStorage.getItem(SCHEMA_VERSION_KEY);
     const storedVersion = versionStr ? parseInt(versionStr, 10) : 1;
@@ -144,93 +157,6 @@ export class ConfigStorage {
     await AsyncStorage.setItem(CONFIG_USER_STATE_KEY, '1');
   }
 
-  // ========== 服务器配置管理 ==========
-
-  /**
-   * 获取所有服务器配置
-   */
-  public async getServers(): Promise<ServerConfig[]> {
-    const config = await this.getConfig();
-    return [...config.servers];
-  }
-
-  /**
-   * 获取当前激活的服务器配置
-   */
-  public async getActiveServer(): Promise<ServerConfig | null> {
-    const config = await this.getConfig();
-    if (config.activeServerIndex >= 0 && config.activeServerIndex < config.servers.length) {
-      return { ...config.servers[config.activeServerIndex] };
-    }
-    return null;
-  }
-
-  /**
-   * 添加服务器配置
-   */
-  public async addServer(server: ServerConfig): Promise<number> {
-    const config = await this.getConfig();
-    config.servers.push(server);
-
-    // 如果是第一个服务器，自动激活
-    if (config.servers.length === 1) {
-      config.activeServerIndex = 0;
-    }
-
-    await this.updateConfig(config);
-    return config.servers.length - 1;
-  }
-
-  /**
-   * 更新服务器配置
-   */
-  public async updateServer(index: number, updates: Partial<ServerConfig>): Promise<void> {
-    const config = await this.getConfig();
-
-    if (index < 0 || index >= config.servers.length) {
-      throw new Error(`Invalid server index: ${index}`);
-    }
-
-    config.servers[index] = { ...config.servers[index], ...updates };
-    await this.updateConfig(config);
-  }
-
-  /**
-   * 删除服务器配置
-   */
-  public async deleteServer(index: number): Promise<void> {
-    const config = await this.getConfig();
-
-    if (index < 0 || index >= config.servers.length) {
-      throw new Error(`Invalid server index: ${index}`);
-    }
-
-    config.servers.splice(index, 1);
-
-    // 调整当前激活索引
-    if (config.activeServerIndex === index) {
-      config.activeServerIndex = config.servers.length > 0 ? 0 : -1;
-    } else if (config.activeServerIndex > index) {
-      config.activeServerIndex--;
-    }
-
-    await this.updateConfig(config);
-  }
-
-  /**
-   * 设置激活的服务器
-   */
-  public async setActiveServer(index: number): Promise<void> {
-    const config = await this.getConfig();
-
-    if (index < -1 || index >= config.servers.length) {
-      throw new Error(`Invalid server index: ${index}`);
-    }
-
-    config.activeServerIndex = index;
-    await this.updateConfig(config);
-  }
-
   // ========== 主题管理 ==========
 
   /**
@@ -246,41 +172,6 @@ export class ConfigStorage {
    */
   public async setTheme(theme: 'system' | 'light' | 'dark'): Promise<void> {
     await this.updateConfig({ appearance: theme });
-  }
-
-  // ========== 同步设置管理 ==========
-
-  /**
-   * 获取同步模式
-   */
-  public async getSyncMode(): Promise<string> {
-    const config = await this.getConfig();
-    return config.syncMode;
-  }
-
-  /**
-   * 设置同步模式
-   */
-  public async setSyncMode(mode: string): Promise<void> {
-    await this.updateConfig({ syncMode: mode as SyncMode });
-  }
-
-  /**
-   * 获取同步间隔
-   */
-  public async getSyncInterval(): Promise<number> {
-    const config = await this.getConfig();
-    return config.syncInterval;
-  }
-
-  /**
-   * 设置同步间隔
-   */
-  public async setSyncInterval(interval: number): Promise<void> {
-    if (interval < 1000) {
-      throw new Error('Sync interval must be at least 1000ms');
-    }
-    await this.updateConfig({ syncInterval: interval });
   }
 
   // ========== 通知设置管理 ==========
@@ -316,10 +207,6 @@ export class ConfigStorage {
   public async importConfig(json: string): Promise<void> {
     try {
       const imported = JSON.parse(json);
-
-      if (!imported.servers || !Array.isArray(imported.servers)) {
-        throw new Error('Invalid config: missing servers array');
-      }
 
       this.config = migrateConfig(imported);
       await this.saveConfig();

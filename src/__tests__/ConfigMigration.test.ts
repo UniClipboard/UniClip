@@ -1,11 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 import { migrateConfig, extractRuntimeState } from '../services/ConfigMigration';
-import {
-  DEFAULT_SETTINGS,
-  RUNTIME_STATE_DEFAULTS,
-  SETTINGS_SCHEMA_VERSION,
-} from '../types/settings';
-import { SyncMode, ConflictResolution } from '../types/sync';
+import { DEFAULT_SETTINGS, RUNTIME_STATE_DEFAULTS } from '../types/settings';
 
 describe('migrateConfig', () => {
   it('returns defaults for null/undefined input', () => {
@@ -24,57 +19,28 @@ describe('migrateConfig', () => {
     expect(result.logLevel).toBe('debug');
   });
 
-  it('keeps existing installs on the LAN channel when upgrading from schema v5', () => {
-    const result = migrateConfig({ ...DEFAULT_SETTINGS, syncChannel: undefined }, 5);
+  it('drops legacy connection details while preserving current preferences', () => {
+    const result = migrateConfig({
+      ...DEFAULT_SETTINGS,
+      syncChannel: 'lan',
+      servers: [
+        {
+          type: 'syncclipboard',
+          url: 'http://home.test',
+          username: 'alice',
+          password: 'secret',
+        },
+      ],
+      activeServerIndex: 0,
+      legacyLanEligible: true,
+      autoApplyRemote: false,
+    });
 
-    expect(result.syncChannel).toBe('lan');
-  });
-
-  it('marks a pre-v7 install with an existing LAN server as legacy-LAN eligible', () => {
-    const result = migrateConfig(
-      {
-        ...DEFAULT_SETTINGS,
-        servers: [{ type: 'syncclipboard', name: 'Home', url: 'http://home.test' }],
-        syncChannel: 'lan',
-      },
-      6
-    );
-
-    expect(SETTINGS_SCHEMA_VERSION).toBe(7);
-    expect(result.legacyLanEligible).toBe(true);
-    expect(result.lanMigrationPromptedVersion).toBeNull();
-  });
-
-  it('does not grant legacy LAN eligibility to a pre-v7 install without a server', () => {
-    const result = migrateConfig({ ...DEFAULT_SETTINGS, servers: [], syncChannel: 'lan' }, 6);
-
-    expect(result.legacyLanEligible).toBe(false);
-  });
-
-  it('preserves recorded LAN migration state after schema v7', () => {
-    const result = migrateConfig(
-      {
-        ...DEFAULT_SETTINGS,
-        legacyLanEligible: true,
-        lanMigrationPromptedVersion: '1.4.0',
-      },
-      7
-    );
-
-    expect(result.legacyLanEligible).toBe(true);
-    expect(result.lanMigrationPromptedVersion).toBe('1.4.0');
-  });
-
-  it.each(['p2p', 'lan'] as const)('preserves the explicit sync channel %s', (syncChannel) => {
-    const result = migrateConfig({ ...DEFAULT_SETTINGS, syncChannel }, 6);
-
-    expect(result.syncChannel).toBe(syncChannel);
-  });
-
-  it('replaces an unknown sync channel with the P2P default', () => {
-    const result = migrateConfig({ ...DEFAULT_SETTINGS, syncChannel: 'unknown' }, 6);
-
-    expect(result.syncChannel).toBe('p2p');
+    expect(result.autoApplyRemote).toBe(false);
+    expect(result).not.toHaveProperty('syncChannel');
+    expect(result).not.toHaveProperty('servers');
+    expect(result).not.toHaveProperty('activeServerIndex');
+    expect(result).not.toHaveProperty('legacyLanEligible');
   });
 
   // --- autoSync → autoApplyRemote + autoPushLocal ---
@@ -153,11 +119,6 @@ describe('migrateConfig', () => {
 
   // --- new fields get defaults ---
 
-  it('adds trustInsecureCert with default when missing', () => {
-    const result = migrateConfig({ autoCheckUpdate: true });
-    expect(result.trustInsecureCert).toBe(false);
-  });
-
   it('adds payloadCacheMaxBytes with default when missing', () => {
     const result = migrateConfig({});
     expect(result.payloadCacheMaxBytes).toBe(200 * 1024 * 1024);
@@ -171,6 +132,10 @@ describe('migrateConfig', () => {
   it('adds downloadRelativePath with default when missing', () => {
     const result = migrateConfig({});
     expect(result.downloadRelativePath).toBe('');
+  });
+
+  it('keeps mobile data available for existing background-sync installs', () => {
+    expect(migrateConfig({ enableBackgroundTasks: true }).backgroundSyncNetwork).toBe('any');
   });
 
   it('uses overlay polling for installs without an explicit access method', () => {
@@ -199,18 +164,6 @@ describe('migrateConfig', () => {
   it('replaces an unknown clipboard access method with the default', () => {
     const result = migrateConfig({ clipboardAccessMethod: 'unknown' });
     expect(result.clipboardAccessMethod).toBe('overlay-polling');
-  });
-
-  // --- passthrough for SyncManager internals ---
-
-  it('preserves syncMode when present', () => {
-    const result = migrateConfig({ syncMode: SyncMode.Auto });
-    expect(result.syncMode).toBe(SyncMode.Auto);
-  });
-
-  it('preserves conflictResolution when present', () => {
-    const result = migrateConfig({ conflictResolution: ConflictResolution.UseLocal });
-    expect(result.conflictResolution).toBe(ConflictResolution.UseLocal);
   });
 
   // --- runtime state fields excluded ---
@@ -279,7 +232,6 @@ describe('migrateConfig', () => {
     expect(result.enableBackgroundTasks).toBe(false); // explicit value wins over syncInBackground
 
     // New fields with defaults
-    expect(result.trustInsecureCert).toBe(false);
     expect(result.payloadCacheMaxBytes).toBe(200 * 1024 * 1024);
     expect(result.ignoredVersion).toBeNull();
     expect(result.downloadRelativePath).toBe('');
@@ -297,6 +249,10 @@ describe('migrateConfig', () => {
     expect(result).not.toHaveProperty('theme');
     expect(result).not.toHaveProperty('historyImageAutoDownload');
     expect(result).not.toHaveProperty('syncInBackground');
+    expect(result).not.toHaveProperty('servers');
+    expect(result).not.toHaveProperty('activeServerIndex');
+    expect(result).not.toHaveProperty('syncMode');
+    expect(result).not.toHaveProperty('conflictResolution');
   });
 });
 

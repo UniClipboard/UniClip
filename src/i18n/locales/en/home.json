@@ -2,31 +2,32 @@
   "empty": {
     "unconfigured": {
       "title": "No P2P space yet",
-      "description": "Create a space or join one with an invitation to start syncing. Your local history stays available."
+      "description": "Join a space with an invitation to continue syncing. Your local history stays available."
     },
     "connecting": {
       "title": "Connecting…",
-      "description": "Reaching {{server}} on your local network."
+      "description": "Connecting to devices in {{space}}."
     },
     "online": {
       "title": "Your clipboard is in sync",
       "description": "Copy something on any paired device and it'll appear here."
     },
     "offline": {
-      "title": "Can't reach {{server}}",
-      "description": "It isn't responding on this network. Make sure it's awake and on the same Wi‑Fi."
+      "title": "Devices in {{space}} are offline",
+      "description": "Other devices are currently unreachable. Check their network connection."
     },
     "error": {
       "title": "Sync needs attention",
-      "description": "Access was refused or sync was paused. Check your server settings to reconnect."
+      "description": "Sync is paused. Check your space and network status."
     }
   },
   "topBar": {
     "selectedCount": "{{n}} selected",
     "deselectAll": "Deselect all",
     "searchPlaceholder": "Search clipboard",
-    "switchServerA11y": "Switch server, currently {{server}}, {{status}}",
-    "serverUnconfigured": "Not configured"
+    "mySpace": "My Space",
+    "openSpaceA11y": "Open My Space",
+    "spaceUnconfigured": "Not joined"
   },
   "a11y": {
     "addContent": "Add content",
@@ -38,12 +39,6 @@
     "pickFile": "Choose file",
     "uploadClipboard": "Upload clipboard",
     "syncNow": "Sync now"
-  },
-  "quickActions": {
-    "upload": "⬆️ Upload",
-    "sync": "🔄 Sync",
-    "syncing": "  Syncing...",
-    "download": "⬇️ Download"
   },
   "toast": {
     "copied": "Copied to clipboard",
@@ -58,7 +53,6 @@
     "copiedSelected": "Copied selected items",
     "syncDone": "Sync complete",
     "syncFailed": "Sync failed",
-    "uploadedToServer": "Uploaded to server",
     "sentToPeers": "Sent to your other devices",
     "uploadFailed": "Upload failed",
     "savedLocally": "Saved locally",
@@ -72,9 +66,7 @@
     "pickFileFailed": "Couldn't pick a file",
     "pickImageFailed": "Couldn't pick an image",
     "cameraPermissionNeeded": "Camera permission required",
-    "takePhotoFailed": "Couldn't take photo",
-    "serverSwitched": "Server switched",
-    "serverAdded": "Server added"
+    "takePhotoFailed": "Couldn't take photo"
   },
   "detail": {
     "placeholderTitle": "Select an item",
@@ -91,15 +83,5 @@
   "rail": {
     "filters": "Filter",
     "all": "All"
-  },
-  "nav": {
-    "sync": "Servers & Sync",
-    "history": "History",
-    "background": "Background",
-    "appearance": "Appearance",
-    "sms": "SMS Forwarding",
-    "storage": "Storage",
-    "about": "About",
-    "developer": "Developer Options"
   }
 }

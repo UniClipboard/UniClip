@@ -8,7 +8,7 @@ import { ClipboardDetailModal } from '@/components/ClipboardDetailModal';
 import { useHomeController } from './useHomeController';
 import { HomeMasterGrid } from './HomeMasterGrid';
 import { HomeFilterRail } from './HomeFilterRail';
-import { HomeTopBarArea, HomeSyncBanners } from './HomeChrome';
+import { HomeTopBarArea } from './HomeChrome';
 import { HomeOverlays } from './HomeOverlays';
 import { computeExpandedWorkspaceLayout } from '@/utils/gridLayout';
 import type { ClipboardItem } from '@/types/clipboard';
@@ -75,7 +75,6 @@ export function HomeExpandedView({
       />
 
       <HomeTopBarArea c={c} />
-      <HomeSyncBanners c={c} />
 
       <View style={[styles.split, { padding: GUTTER, gap: GUTTER }]}>
         {/* ── 导航轨(浮起面板)── */}

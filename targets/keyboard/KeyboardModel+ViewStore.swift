@@ -38,8 +38,6 @@ extension KeyboardModel: KeyboardViewStore {
             content = .init(mode: .empty, cards: [], message: nil)
         }
 
-        let choices = serverChoices()
-        let title = gate == .ok && !serverLabel.isEmpty ? serverLabel : "UniClip"
         return KeyboardViewState(
             layout: .init(
                 hasFullAccess: hasFullAccess,
@@ -47,24 +45,15 @@ extension KeyboardModel: KeyboardViewStore {
                 returnKeyTitle: returnKeyTitle
             ),
             topBar: .init(
-                title: title,
+                title: "UniClip",
                 showsSearch: gate != .needsFullAccess && !cards.isEmpty,
-                showsRefresh: gate != .needsFullAccess,
-                isServerEnabled: gate == .ok,
-                servers: choices.servers.map {
-                    KeyboardViewServerChoice(
-                        id: $0.id,
-                        title: $0.displayLabel,
-                        isActive: $0.id == choices.activeId
-                    )
-                }
+                showsRefresh: gate != .needsFullAccess
             ),
             content: content,
             strings: .init(
                 searchLabel: localization.string("筛选"),
                 refreshLabel: localization.string("刷新"),
                 closeFilterLabel: localization.string("关闭筛选"),
-                serverLabel: localization.string("切换服务器"),
                 globeLabel: localization.string("切换键盘"),
                 deleteLabel: localization.string("删除"),
                 returnLabel: localization.string("回车"),
@@ -98,7 +87,6 @@ extension KeyboardModel: KeyboardViewStore {
             $gate.map { _ in () }.eraseToAnyPublisher(),
             $lastError.map { _ in () }.eraseToAnyPublisher(),
             $cards.map { _ in () }.eraseToAnyPublisher(),
-            $serverLabel.map { _ in () }.eraseToAnyPublisher(),
             $actingCardID.map { _ in () }.eraseToAnyPublisher(),
             $actedCardID.map { _ in () }.eraseToAnyPublisher(),
             $isSyncing.map { _ in () }.eraseToAnyPublisher(),
@@ -116,9 +104,6 @@ extension KeyboardModel: KeyboardViewStore {
         case .refresh:
             keyFeedback()
             requestSync(.manual)
-        case .selectServer(let id):
-            keyFeedback()
-            setActiveServer(id)
         case .activateCard(let id):
             guard let card = cards.first(where: { $0.id == id }) else { return }
             activate(card)

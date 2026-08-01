@@ -18,20 +18,13 @@
     "sectionTitle": "General",
     "theme": "Theme"
   },
-  "syncChannel": {
-    "title": "Sync channel",
-    "p2p": "P2P",
-    "lan": "Local network"
-  },
   "category": {
     "sync": "Sync",
     "about": "About",
     "other": "Other",
     "storage": "Storage",
-    "server": "Servers",
     "history": "History",
     "background": "Background",
-    "sms": "SMS forwarding",
     "developer": "Developer options",
     "extensions": "Extensions & permissions"
   },
@@ -40,41 +33,29 @@
       "title": "Clipboard sync",
       "autoApply": {
         "title": "Auto-write to clipboard",
-        "desc": "Write new server content to this device's system clipboard"
+        "desc": "When new content arrives from your space, write it to this device clipboard automatically"
       },
       "autoPush": {
         "title": "Auto-push clipboard",
-        "desc": "Push local copies and reused history items to the server"
+        "desc": "When you copy or use a history item, send it to the other devices in your space automatically"
       },
       "footer": "These options control sync direction; Background settings control where it can run",
       "updateFailed": "Update failed"
     },
-    "rows": {
-      "serverLabel": "Servers & sync"
-    },
+    "rows": {},
     "summary": {
-      "serverNone": "No server configured",
-      "serverActive": "Current: {{name}} · {{count}} total",
-      "serverCount": "{{count}} servers",
       "history": "Keep up to {{count}} items",
       "backgroundTempDisabled": "Temporarily stopped, resumes after restart",
       "backgroundOn": "Background tasks on",
       "backgroundOff": "Background tasks off",
-      "smsOn": "Code auto-upload on",
-      "smsOff": "Code auto-upload off",
       "storage": "Cache, logs and history usage",
       "about": "Version {{version}}",
       "developer": "Logs, debugging and shortcuts"
     }
   },
-  "server": {
-    "addTitle": "Add server",
-    "editTitle": "Edit server",
-    "count": "{{count}}"
-  },
   "ios": {
     "sync": {
-      "footer": "When Auto-write is on, new server content immediately overwrites this device's clipboard; when off, it's only highlighted on the home screen.",
+      "footer": "When Auto-write is on, new content from your space is written to this device clipboard immediately; when off, it is only highlighted on Home.",
       "autoApply": "Auto-write to clipboard",
       "autoPush": "Auto-push clipboard",
       "sse": "Live push (SSE)"

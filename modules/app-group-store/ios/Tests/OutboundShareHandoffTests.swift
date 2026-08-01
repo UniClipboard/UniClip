@@ -65,7 +65,7 @@ final class OutboundShareHandoffTests: XCTestCase {
       displayName: "archive.zip",
       mimeType: "application/zip"
     )
-    let job = try store.enqueue(staged, channel: .lan, serverId: "server-a")
+    let job = try store.enqueue(staged)
 
     let firstClaim = try store.claimPendingJobs()
     XCTAssertEqual(firstClaim.map(\.job), [job])
@@ -83,8 +83,6 @@ final class OutboundShareHandoffTests: XCTestCase {
     let staged = try store.stageData(Data([1]), displayName: "selected.bin", mimeType: nil)
     let job = try store.enqueue(
       staged,
-      channel: .p2p,
-      serverId: nil,
       targetDeviceIds: ["desktop-2", "desktop-1", "desktop-2"]
     )
 
@@ -96,7 +94,7 @@ final class OutboundShareHandoffTests: XCTestCase {
 
   func testExpiredJobRemovesRecordAndPayload() throws {
     let staged = try store.stageData(Data([1, 2, 3]), displayName: "old.bin", mimeType: nil)
-    let job = try store.enqueue(staged, channel: .p2p, serverId: nil)
+    let job = try store.enqueue(staged)
 
     try store.removeExpiredJobs(nowMs: job.createdAtMs + Int64(8 * 24 * 60 * 60 * 1_000))
 
@@ -106,7 +104,7 @@ final class OutboundShareHandoffTests: XCTestCase {
 
   func testAbandonedProcessingJobReturnsToPending() throws {
     let staged = try store.stageData(Data([9, 8, 7]), displayName: "resume.bin", mimeType: nil)
-    let job = try store.enqueue(staged, channel: .p2p, serverId: nil)
+    let job = try store.enqueue(staged)
     XCTAssertEqual(try store.claimPendingJobs().map(\.job), [job])
 
     let processingRecord = containerURL

@@ -10,19 +10,13 @@
   "processText": {
     "loading": "Enviando texto…",
     "success": "Envio concluído",
-    "failure": "Falha no envio",
-    "noServer": "Configure um servidor nas Configurações primeiro"
+    "failure": "Falha no envio"
   },
   "upload": {
     "copying": "Copiando arquivo…",
     "hashing": "Calculando hash…",
     "uploading": "Enviando…",
     "recordNotFound": "Registro não encontrado: {{hash}}"
-  },
-  "sms": {
-    "uploading": "Enviando código: {{code}}",
-    "retrying": "Reenviando código: {{code}}\nTentativa {{attempt}} falhou, nova tentativa em {{seconds}}s…",
-    "failed": "Falha no envio do código: {{code}}\n{{count}} tentativas"
   },
   "serviceRestart": {
     "restored": "Serviço restaurado"

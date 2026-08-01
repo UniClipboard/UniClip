@@ -57,9 +57,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
       <AddSyncConnectionSheet
         visible={flow !== null}
         initialMode={flow ?? 'choose'}
-        legacyLanEligible={false}
         onClose={() => setFlow(null)}
-        onOpenLegacyLan={() => {}}
         onConnected={finishSetup}
       />
     </SafeAreaView>

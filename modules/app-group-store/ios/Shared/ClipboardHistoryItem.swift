@@ -2,12 +2,10 @@ import Foundation
 
 /// One row in the Home tab's time-descending clipboard list. A snapshot
 /// of a `Clipboard` (§3) with locally-attributed metadata: when this
-/// device observed it and which direction it flowed (server → device
-/// pull, or device → server push).
+/// device observed it and whether it arrived from or was sent to another
+/// device in the current space.
 ///
-/// Not part of the SyncClipboard wire protocol — the spec keeps exactly
-/// one record on the server for the live clipboard (§2.1) and clients
-/// accumulate their own observation log locally. Codable so the App
+/// This observation log is local to the device. Codable so the App
 /// Group's `SettingsStore` can persist it under
 /// `AppSettings.PersistenceKey.clipboardHistory`; surviving an app kill
 /// is the difference between "feels like a sync client" and "feels like
