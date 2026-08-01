@@ -318,6 +318,56 @@ final class NativeSystemHostTests: XCTestCase {
 
     XCTAssertNotNil(reported)
   }
+
+  func testBackgroundTransitionReturnsBeforeSuspendAndEndsActivityAfterCleanup() throws {
+    let suspendStarted = expectation(description: "suspend started")
+    let activityEnded = expectation(description: "background activity ended")
+    let continueSuspend = DispatchSemaphore(value: 0)
+    let events = LockedStringEvents()
+    let engine = FakeNativeEngineLifecycle(state: .running)
+    engine.onSuspend = {
+      suspendStarted.fulfill()
+      continueSuspend.wait()
+    }
+    let host = NativeLifecycleHost(report: { _ in XCTFail("Transition must not fail") })
+    let coordinator = NativeLifecycleTransitionCoordinator(
+      lifecycle: host,
+      queue: DispatchQueue(label: "NativeLifecycleTransitionCoordinatorTests"),
+      beginBackgroundActivity: {
+        events.append("begin")
+        return {
+          events.append("end")
+          activityEnded.fulfill()
+        }
+      }
+    )
+
+    coordinator.enterBackground(engine)
+
+    XCTAssertEqual(events.snapshot(), ["begin"])
+    wait(for: [suspendStarted], timeout: 1)
+    XCTAssertEqual(events.snapshot(), ["begin"])
+    continueSuspend.signal()
+    wait(for: [activityEnded], timeout: 1)
+    XCTAssertEqual(events.snapshot(), ["begin", "end"])
+  }
+}
+
+private final class LockedStringEvents: @unchecked Sendable {
+  private let lock = NSLock()
+  private var events: [String] = []
+
+  func append(_ event: String) {
+    lock.lock()
+    events.append(event)
+    lock.unlock()
+  }
+
+  func snapshot() -> [String] {
+    lock.lock()
+    defer { lock.unlock() }
+    return events
+  }
 }
 
 private final class FakeRegisteredEngine {}
@@ -333,6 +383,7 @@ private final class FakeNativeEngineLifecycle: NativeEngineLifecycle {
   var recoverCalls = 0
   var suspendCalls = 0
   var resumeCalls = 0
+  var onSuspend: (() -> Void)?
 
   init(state: NativeEngineLifecycleState) {
     self.state = state
@@ -347,6 +398,7 @@ private final class FakeNativeEngineLifecycle: NativeEngineLifecycle {
 
   func suspend() throws {
     suspendCalls += 1
+    onSuspend?()
     if let transitionError { throw transitionError }
     state = .suspended
   }

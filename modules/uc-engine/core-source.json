@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "repository": "UniClipboard/Engine",
   "version": "v0.20.0-rc.16",
-  "sourceCommit": "f856c2e283851c2874ee37cf4a44966799704a20",
+  "sourceCommit": "a17aa3f5042143cb7c59df39e26b5452c2158e67",
   "artifactSource": "local-build",
-  "sourceStateSha256": "58d0d56c118b627ff9190a0f200c94e8ecec27c630b60c3e01d54aa57041c386",
+  "sourceStateSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "swiftPackageChecksum": "b0f6c50b313111987ee2acf8ec797803f237ee220c7558d5dcc1234a3e53e987",
   "artifacts": {
     "UniClipboardEngine.aar": "dbc6f154cd205dde955910aaa1c4cebb8525bc9ef2a2edcb52e9921181439237",

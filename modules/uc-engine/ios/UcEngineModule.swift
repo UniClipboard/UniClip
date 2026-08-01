@@ -1,10 +1,16 @@
 import ExpoModulesCore
 import Foundation
+import UIKit
 internal import UcEngineCore
 
 public final class UcEngineModule: Module {
   private let host = MainApplicationEngineHost()
   private lazy var lifecycle = NativeLifecycleHost(report: Self.reportLifecycleError)
+  private lazy var lifecycleTransitions = NativeLifecycleTransitionCoordinator(
+    lifecycle: lifecycle,
+    queue: DispatchQueue(label: "app.uniclipboard.engine-lifecycle"),
+    beginBackgroundActivity: Self.beginBackgroundActivity
+  )
   private let engines = NativeEngineRegistry<MobileEngine>()
 
   public func definition() -> ModuleDefinition {
@@ -230,12 +236,12 @@ public final class UcEngineModule: Module {
     }
 
     OnAppEntersBackground {
-      self.lifecycle.enterBackground(
+      self.lifecycleTransitions.enterBackground(
         self.currentEngine().map { AppleEngineLifecycle(engine: $0, host: self.host) }
       )
     }
     OnAppEntersForeground {
-      self.lifecycle.enterForeground(
+      self.lifecycleTransitions.enterForeground(
         self.currentEngine().map { AppleEngineLifecycle(engine: $0, host: self.host) }
       )
     }
@@ -264,6 +270,12 @@ public final class UcEngineModule: Module {
 
   private static func reportLifecycleError(_ error: Error) {
     NSLog("UcEngine lifecycle transition failed: %@", String(describing: error))
+  }
+
+  private static func beginBackgroundActivity() -> @Sendable () -> Void {
+    let activity = UIKitBackgroundActivity()
+    activity.begin()
+    return { activity.end() }
   }
 
   private static func sendReportMap(_ report: SendReport) -> [String: Any] {
@@ -480,6 +492,30 @@ public final class UcEngineModule: Module {
       "outcome": outcome,
       "pendingReadmission": result.pendingReadmission,
     ]
+  }
+}
+
+private final class UIKitBackgroundActivity: @unchecked Sendable {
+  private let lock = NSLock()
+  private var identifier: UIBackgroundTaskIdentifier = .invalid
+
+  func begin() {
+    let identifier = UIApplication.shared.beginBackgroundTask(
+      withName: "UniClip Engine Suspend",
+      expirationHandler: { [weak self] in self?.end() }
+    )
+    lock.withLock { self.identifier = identifier }
+  }
+
+  func end() {
+    let active = lock.withLock {
+      defer { identifier = .invalid }
+      return identifier
+    }
+    guard active != .invalid else { return }
+    DispatchQueue.main.async {
+      UIApplication.shared.endBackgroundTask(active)
+    }
   }
 }
 

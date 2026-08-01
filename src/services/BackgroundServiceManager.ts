@@ -270,13 +270,6 @@ class BackgroundServiceManager {
       const service = getUnifiedEngineService();
       if (state === 'inactive' || state === 'background') {
         service.cancelPeerRecovery();
-        if (service.isStarting()) {
-          service
-            .stop()
-            .catch((error: unknown) =>
-              log.error('[BackgroundServiceManager] Failed to stop starting P2P engine:', error)
-            );
-        }
         return;
       }
 

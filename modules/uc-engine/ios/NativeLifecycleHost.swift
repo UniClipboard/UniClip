@@ -165,3 +165,65 @@ final class NativeLifecycleHost {
     }
   }
 }
+
+final class NativeLifecycleTransitionCoordinator {
+  typealias BeginBackgroundActivity = () -> @Sendable () -> Void
+
+  private let lifecycle: NativeLifecycleHost
+  private let queue: DispatchQueue
+  private let beginBackgroundActivity: BeginBackgroundActivity
+
+  init(
+    lifecycle: NativeLifecycleHost,
+    queue: DispatchQueue,
+    beginBackgroundActivity: @escaping BeginBackgroundActivity
+  ) {
+    self.lifecycle = lifecycle
+    self.queue = queue
+    self.beginBackgroundActivity = beginBackgroundActivity
+  }
+
+  func enterBackground(_ engine: (any NativeEngineLifecycle)?) {
+    let transition = NativeLifecycleTransition(
+      lifecycle: lifecycle,
+      engine: engine,
+      finish: beginBackgroundActivity()
+    )
+    queue.async { transition.enterBackground() }
+  }
+
+  func enterForeground(_ engine: (any NativeEngineLifecycle)?) {
+    let transition = NativeLifecycleTransition(
+      lifecycle: lifecycle,
+      engine: engine,
+      finish: {}
+    )
+    queue.async { transition.enterForeground() }
+  }
+}
+
+private final class NativeLifecycleTransition: @unchecked Sendable {
+  private let lifecycle: NativeLifecycleHost
+  private let engine: (any NativeEngineLifecycle)?
+  private let finish: @Sendable () -> Void
+
+  init(
+    lifecycle: NativeLifecycleHost,
+    engine: (any NativeEngineLifecycle)?,
+    finish: @escaping @Sendable () -> Void
+  ) {
+    self.lifecycle = lifecycle
+    self.engine = engine
+    self.finish = finish
+  }
+
+  func enterBackground() {
+    lifecycle.enterBackground(engine)
+    finish()
+  }
+
+  func enterForeground() {
+    lifecycle.enterForeground(engine)
+    finish()
+  }
+}

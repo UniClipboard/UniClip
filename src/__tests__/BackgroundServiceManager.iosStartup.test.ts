@@ -96,7 +96,7 @@ describe('BackgroundServiceManager iOS startup lifecycle', () => {
     mockP2pStart.mockResolvedValue(undefined);
   });
 
-  it('stops P2P immediately when the app backgrounds during startup', async () => {
+  it('leaves startup lifecycle control to the native host when the app backgrounds', async () => {
     let finishStart!: () => void;
     mockP2pStart.mockImplementationOnce(
       () =>
@@ -113,7 +113,7 @@ describe('BackgroundServiceManager iOS startup lifecycle', () => {
     appStateListener?.('inactive');
     await Promise.resolve();
 
-    expect(mockP2pStop).toHaveBeenCalledTimes(1);
+    expect(mockP2pStop).not.toHaveBeenCalled();
     expect(mockP2pCancelPeerRecovery).toHaveBeenCalledTimes(1);
 
     finishStart();
