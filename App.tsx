@@ -25,7 +25,6 @@ import { historyStorage } from './src/services/HistoryStorage';
 import { startAppGroupSync } from './src/services/appGroupSync';
 import { startNetworkContextMonitor } from './src/services/networkContext';
 import { resumeOutboundShareHandoffs } from './src/services/OutboundShareHandoffManager';
-import { dismissStartupHistoryPreview } from 'app-group-store';
 
 const QUICK_UPLOAD_URL = 'uniclipboard://quick-upload';
 const PROCESS_TEXT_URL = 'uniclipboard://process-text';
@@ -133,13 +132,6 @@ export default function App() {
     if (!isLoaded) return;
     return startNetworkContextMonitor();
   }, [isLoaded]);
-
-  // React has committed the first history result. The native cold-start preview
-  // can now fade away without exposing an empty frame underneath it.
-  useEffect(() => {
-    if (!isInitialHistoryLoadComplete || Platform.OS !== 'ios') return;
-    void dismissStartupHistoryPreview();
-  }, [isInitialHistoryLoadComplete]);
 
   // 首批历史提交到界面后，再启动同步和旧数据整理，避免冷启动时争抢本地存储。
   useEffect(() => {

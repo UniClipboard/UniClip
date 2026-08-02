@@ -95,21 +95,6 @@ describe('app-group-store JS wrapper', () => {
     await expect(store.migrateLegacyContainer()).resolves.toEqual({ migrated: true, keys: 2 });
   });
 
-  it('dismisses the native startup history preview when the real home is ready', () => {
-    const mockNativeModule = {
-      dismissStartupHistoryPreview: jest.fn(),
-    };
-    jest.doMock('expo-modules-core', () => ({
-      requireOptionalNativeModule: jest.fn(() => mockNativeModule),
-    }));
-
-    const store = require('./index');
-
-    store.dismissStartupHistoryPreview();
-
-    expect(mockNativeModule.dismissStartupHistoryPreview).toHaveBeenCalledTimes(1);
-  });
-
   it('falls back safely when the native module is unavailable', async () => {
     jest.doMock('expo-modules-core', () => ({
       requireOptionalNativeModule: jest.fn(() => null),
@@ -123,7 +108,6 @@ describe('app-group-store JS wrapper', () => {
     await expect(store.getContainerUrl()).resolves.toBeNull();
     await expect(store.getLegacyHistory()).resolves.toBeNull();
     await expect(store.getShareDiagnostics()).resolves.toBeNull();
-    expect(() => store.dismissStartupHistoryPreview()).not.toThrow();
     await expect(store.getPayloadStats()).resolves.toEqual({ count: 0, totalSize: 0 });
     await expect(store.claimOutboundShareJobs()).resolves.toEqual([]);
     await expect(store.migrateLegacyContainer()).resolves.toEqual({ migrated: false, keys: 0 });

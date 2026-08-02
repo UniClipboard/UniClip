@@ -14,8 +14,6 @@ Pod::Spec.new do |s|
   s.swift_version  = '5.9'
   s.source         = { git: 'https://github.com/nicepkg/uniclipboard.git' }
   s.static_framework = true
-  s.libraries = 'sqlite3'
-
   s.dependency 'ExpoModulesCore'
 
   s.source_files = ['*.swift', 'Shared/**/*.swift']

@@ -53,34 +53,18 @@ describe('Xcode 27 scene lifecycle', () => {
     expect(patched).not.toContain('#if os(iOS) || os(tvOS)');
   });
 
-  it('paints local history before starting React when a preview is available', () => {
+  it('starts the real React surface directly without installing a duplicate Home preview', () => {
     const patched = patchAppDelegateForXcode27(legacyAppDelegate);
-    const previewInstall = 'StartupHistoryPreviewSubscriber.prepareWindowForReact(window)';
-    const factoryCreation = 'appDelegate.createReactNativeFactory()';
-    const reactStart = 'factory.startReactNative(';
 
-    expect(patched).toContain('internal import AppGroupStore');
-    expect(patched).not.toMatch(/^import AppGroupStore$/m);
-    expect(patched).toContain(previewInstall);
-    expect(patched).toContain(factoryCreation);
-    expect(patched).toContain('private var pendingReactNativeLaunch: (() -> Void)?');
-    expect(patched).toContain('private var scheduledReactNativeLaunch: DispatchWorkItem?');
-    expect(patched).toContain('pendingReactNativeLaunch = launchReactNative');
-    expect(patched).toContain('schedulePendingReactNativeLaunch()');
-    expect(patched).toContain('scheduledReactNativeLaunch?.cancel()');
-    expect(patched).toContain('DispatchQueue.main.asyncAfter(deadline: .now() + 0.10');
-    expect(patched).not.toContain('DispatchQueue.main.asyncAfter(deadline: .now() + 0.05)');
-    expect(patched.indexOf(previewInstall)).toBeLessThan(patched.indexOf(factoryCreation));
-    expect(patched.indexOf(previewInstall)).toBeLessThan(patched.lastIndexOf(reactStart));
-
-    const launchCallback = patched.slice(
-      patched.indexOf('public override func application('),
-      patched.indexOf(
-        'return super.application(application, didFinishLaunchingWithOptions: launchOptions)'
-      )
+    expect(patched).not.toContain('AppGroupStore');
+    expect(patched).not.toContain('StartupHistoryPreview');
+    expect(patched).not.toContain('pendingReactNativeLaunch');
+    expect(patched).not.toContain('scheduledReactNativeLaunch');
+    expect(patched).not.toContain('DispatchQueue.main.asyncAfter');
+    expect(patched).toContain(
+      'guard let appDelegate, let factory = appDelegate.reactNativeFactory'
     );
-    expect(launchCallback).not.toContain('ExpoReactNativeFactory(delegate: delegate)');
-    expect(launchCallback).toContain('#if os(tvOS)\n    let factory = createReactNativeFactory()');
+    expect(patched).toContain('factory.startReactNative(');
   });
 
   it('is stable when Expo generates the project again', () => {

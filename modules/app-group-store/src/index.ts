@@ -15,7 +15,6 @@ interface AppGroupStoreNativeModule {
   clearLegacyLanConfiguration(): Promise<void>;
   getKeyboardStatus(): Promise<NativeKeyboardStatus>;
   getPasteboardChangeCount(): number;
-  dismissStartupHistoryPreview(): Promise<void>;
   claimOutboundShareJobs(): Promise<OutboundShareJobDTO[]>;
   completeOutboundShareJob(id: string): Promise<void>;
   releaseOutboundShareJob(id: string): Promise<void>;
@@ -169,10 +168,6 @@ export async function getSettings(): Promise<AppSettingsDTO> {
  */
 export function getPasteboardChangeCount(): number | null {
   return NativeModule?.getPasteboardChangeCount() ?? null;
-}
-
-export function dismissStartupHistoryPreview(): Promise<void> {
-  return NativeModule?.dismissStartupHistoryPreview() ?? Promise.resolve();
 }
 
 export function getContainerUrl(): Promise<string | null> {

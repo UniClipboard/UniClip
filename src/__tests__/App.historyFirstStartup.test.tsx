@@ -132,7 +132,7 @@ describe('App history-first startup', () => {
     expect(mockRunMaintenance).toHaveBeenCalledTimes(1);
     expect(mockResumeOutboundShareHandoffs).toHaveBeenCalledTimes(1);
     expect(mockReloadHistory).toHaveBeenCalledTimes(2);
-    expect(mockDismissStartupHistoryPreview).toHaveBeenCalledTimes(1);
+    expect(mockDismissStartupHistoryPreview).not.toHaveBeenCalled();
     expect(mockStartServices.mock.invocationCallOrder[0]).toBeLessThan(
       mockRunMaintenance.mock.invocationCallOrder[0]
     );
@@ -157,7 +157,7 @@ describe('App history-first startup', () => {
     expect(mockRunMaintenance).toHaveBeenCalledTimes(1);
     expect(mockResumeOutboundShareHandoffs).toHaveBeenCalledTimes(1);
     expect(mockReloadHistory).toHaveBeenCalledTimes(2);
-    expect(mockDismissStartupHistoryPreview).toHaveBeenCalledTimes(1);
+    expect(mockDismissStartupHistoryPreview).not.toHaveBeenCalled();
   });
 
   it('waits for foreground instead of starting work while already backgrounded', async () => {
