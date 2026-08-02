@@ -16,7 +16,7 @@ import Svg, {
   Rect as SvgRect,
   Pattern as SvgPattern,
 } from 'react-native-svg';
-import { ArrowDown, ArrowUp, Check, Circle, Clock, Image as ImageIcon } from 'lucide-react-native';
+import { Check, Circle, Image as ImageIcon } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
 import { useURLMetadata } from '@/hooks/useURLMetadata';
@@ -34,14 +34,11 @@ import { getURLDomain, getURLWithoutScheme, type DisplayKind } from '@/utils/dis
 import { getDomainGradient, getDomainInitial, type DomainGradient } from '@/utils/domainColor';
 import { getFileExtension, getExtensionColor, stripExtension } from '@/utils/fileTypeColor';
 import { formatFileSize } from '@/utils';
-import type { HistoryDirectionIndicator } from '@/utils/historyDirection';
-import { p2pDeliveryTranslationOptions } from '@/services/P2pDeliveryState';
 import type { ClipboardCardProps } from './ClipboardCard.types';
 
 export const ClipboardCard: React.FC<ClipboardCardProps> = React.memo(
   ({ item, isLatest, isSelected, isSelectMode, onPress, onLongPress, surfaceColor }) => {
-    const { displayKind, kindLabel, relativeTime, directionIndicator } =
-      useClipboardCardViewModel(item);
+    const { displayKind, kindLabel, relativeTime } = useClipboardCardViewModel(item);
     const kindColor = iosKindTints[displayKind];
 
     // 传入 surfaceColor = 双栏「凹陷」样式:卡片比面板暗，此时去掉下投阴影,否则凹陷块反显凸起。
@@ -96,7 +93,6 @@ export const ClipboardCard: React.FC<ClipboardCardProps> = React.memo(
             kindLabel={kindLabel}
             kindColor={kindColor}
             relativeTime={relativeTime}
-            directionIndicator={directionIndicator}
             isLatest={isLatest}
             surfaceColor={surfaceColor}
           />
@@ -123,7 +119,6 @@ interface CardBodyProps {
   kindLabel: string;
   kindColor: string;
   relativeTime: string;
-  directionIndicator: HistoryDirectionIndicator;
   isLatest: boolean;
   /** 覆盖的卡底色(与外层 Pressable 背景一致)。SVG 渐隐遮罩/折角缺口需要与卡底色
    *  严格一致,而 SVG 不认 PlatformColor,故仅当传入字符串色值时生效。 */
@@ -183,43 +178,23 @@ function HeaderRow({
 }
 
 function BottomRow({
-  item,
-  directionIndicator,
   isLatest,
   overlay,
   meta,
 }: {
-  item: ClipboardItem;
-  directionIndicator: HistoryDirectionIndicator;
   isLatest: boolean;
   overlay?: boolean;
   meta?: string;
 }) {
-  const { t } = useTranslation('history');
-  const dirColor = overlay ? 'rgba(255,255,255,0.7)' : iosColors!.secondaryLabel;
-  const deliveryLabel =
-    item.p2pDeliveryState === 'partial' && item.p2pDeliveryCounts
-      ? t('delivery.partial', p2pDeliveryTranslationOptions(item.p2pDeliveryCounts))
-      : item.p2pDeliveryState
-      ? t(`delivery.${item.p2pDeliveryState}`)
-      : '';
-  const bottomMeta = [meta, deliveryLabel].filter(Boolean).join(' · ');
   return (
     <View style={styles.bottomRow}>
-      {directionIndicator === 'download' ? (
-        <ArrowDown size={10} color={dirColor} />
-      ) : directionIndicator === 'pendingUpload' || directionIndicator === 'pendingSync' ? (
-        <Clock size={10} color={dirColor} />
-      ) : (
-        <ArrowUp size={10} color={dirColor} />
-      )}
-      {bottomMeta ? (
+      {meta ? (
         <Text
           style={[styles.bottomMeta, { color: iosColors!.tertiaryLabel }]}
           numberOfLines={1}
           ellipsizeMode="tail"
         >
-          {bottomMeta}
+          {meta}
         </Text>
       ) : null}
       <View style={styles.bottomSpacer} />
@@ -303,14 +278,7 @@ const QUOTE_MAX_CHARS = 26;
 // 超出可视区的文本对排版无贡献，截断以免超长剪贴内容拖慢布局
 const PARA_RENDER_CHARS = 400;
 
-function TextCardBody({
-  item,
-  kindLabel,
-  relativeTime,
-  directionIndicator,
-  isLatest,
-  surfaceColor,
-}: CardBodyProps) {
+function TextCardBody({ item, kindLabel, relativeTime, isLatest, surfaceColor }: CardBodyProps) {
   const { theme } = useTheme();
   const text = item.text.trim();
   const isQuote = text.length <= QUOTE_MAX_CHARS;
@@ -334,7 +302,7 @@ function TextCardBody({
           <TextFadeOut color={fadeColor} />
         </View>
       )}
-      <BottomRow item={item} directionIndicator={directionIndicator} isLatest={isLatest} />
+      <BottomRow isLatest={isLatest} />
     </View>
   );
 }
@@ -361,7 +329,6 @@ function FileCardBody({
   displayKind,
   kindLabel,
   relativeTime,
-  directionIndicator,
   isLatest,
   surfaceColor,
 }: CardBodyProps) {
@@ -415,24 +382,12 @@ function FileCardBody({
           </View>
         </View>
       </View>
-      <BottomRow
-        item={item}
-        directionIndicator={directionIndicator}
-        isLatest={isLatest}
-        meta={sizeLabel}
-      />
+      <BottomRow isLatest={isLatest} meta={sizeLabel} />
     </View>
   );
 }
 
-function ImageCardBody({
-  item,
-  kindColor,
-  kindLabel,
-  relativeTime,
-  directionIndicator,
-  isLatest,
-}: CardBodyProps) {
+function ImageCardBody({ item, kindColor, kindLabel, relativeTime, isLatest }: CardBodyProps) {
   const [loadFailed, setLoadFailed] = useState(false);
   const hasImage = item.isLocalFileReady && item.fileUri && !loadFailed;
   return (
@@ -455,12 +410,7 @@ function ImageCardBody({
       <View style={styles.imageOverlay}>
         <HeaderRow kindLabel={kindLabel} relativeTime={relativeTime} overlay />
         <View style={styles.spacer} />
-        <BottomRow
-          item={item}
-          directionIndicator={directionIndicator}
-          isLatest={isLatest}
-          overlay
-        />
+        <BottomRow isLatest={isLatest} overlay />
       </View>
     </View>
   );
@@ -468,20 +418,13 @@ function ImageCardBody({
 
 // 方案 A「沉浸全出血」：OG 图铺满整卡，底部 scrim 上叠 favicon + 域名 + 两行标题；
 // 无 OG 图时用域名派生色渐变 + 居中 favicon 兜底
-function URLCardBody({
-  item,
-  kindLabel,
-  relativeTime,
-  directionIndicator,
-  isLatest,
-}: CardBodyProps) {
+function URLCardBody({ item, kindLabel, relativeTime, isLatest }: CardBodyProps) {
   const metadata = useURLMetadata(item.text.trim());
   const domain = getURLDomain(item.text);
   const urlText = getURLWithoutScheme(item.text);
   const hasOgImage = !!metadata?.ogImageUrl;
   const displayTitle = metadata?.title || urlText;
   const gradient = getDomainGradient(domain);
-  const dirColor = 'rgba(255,255,255,0.7)';
 
   return (
     <View style={styles.urlBody}>
@@ -505,13 +448,6 @@ function URLCardBody({
             {domain}
           </Text>
           <View style={styles.bottomSpacer} />
-          {directionIndicator === 'download' ? (
-            <ArrowDown size={10} color={dirColor} />
-          ) : directionIndicator === 'pendingUpload' || directionIndicator === 'pendingSync' ? (
-            <Clock size={10} color={dirColor} />
-          ) : (
-            <ArrowUp size={10} color={dirColor} />
-          )}
           {isLatest && <View style={[styles.latestDot, styles.urlLatestDot]} />}
         </View>
         <Text style={styles.urlTitle} numberOfLines={2}>
@@ -695,7 +631,6 @@ const styles = StyleSheet.create({
   },
   bottomMeta: {
     fontSize: 11,
-    marginLeft: 5,
     flexShrink: 1,
   },
   headerRow: {

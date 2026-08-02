@@ -16,14 +16,21 @@ describe('P2P delivery UI wiring', () => {
     expect(controller).toContain('getUnifiedSpaceService().resendEntry');
   });
 
-  it.each(['android', 'ios'])('shows the saved P2P delivery state on %s cards', (platform) => {
-    const card = source(`src/components/ClipboardCard.${platform}.tsx`);
+  it.each(['android', 'ios'])(
+    'hides delivery and sync status from %s cards while retaining stored delivery data',
+    (platform) => {
+      const card = source(`src/components/ClipboardCard.${platform}.tsx`);
 
-    expect(card).toContain('p2pDeliveryState');
-    expect(card).toContain('deliveryLabel');
-    expect(card).toContain('p2pDeliveryCounts');
-    expect(card).toContain('delivery.partial');
-  });
+      expect(card).not.toContain('p2pDeliveryState');
+      expect(card).not.toContain('deliveryLabel');
+      expect(card).not.toContain('p2pDeliveryCounts');
+      expect(card).not.toContain('getHistoryDirectionIndicator');
+      expect(card).not.toContain('directionIndicator');
+      expect(card).not.toContain('pendingSync');
+      expect(card).toContain('formatFileSize');
+      expect(card).toContain('meta={sizeLabel}');
+    }
+  );
 
   it('upgrades existing history databases with P2P delivery fields', () => {
     const database = source('src/services/db/database.ts');

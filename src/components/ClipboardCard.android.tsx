@@ -18,7 +18,6 @@ import Svg, {
   Pattern as SvgPattern,
 } from 'react-native-svg';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { ArrowDown, ArrowUp } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
 import { useURLMetadata } from '@/hooks/useURLMetadata';
@@ -36,8 +35,6 @@ import {
 import { getDomainGradient, getDomainInitial, type DomainGradient } from '@/utils/domainColor';
 import { getFileExtension, getExtensionColor, stripExtension } from '@/utils/fileTypeColor';
 import { formatFileSize } from '@/utils';
-import { getHistoryDirectionIndicator } from '@/utils/historyDirection';
-import { p2pDeliveryTranslationOptions } from '@/services/P2pDeliveryState';
 import type { ClipboardCardProps } from './ClipboardCard.types';
 
 export const ClipboardCard: React.FC<ClipboardCardProps> = React.memo(
@@ -216,44 +213,25 @@ function HeaderRow({
 }
 
 function BottomRow({
-  item,
   isLatest,
   overlay,
   theme,
   meta,
 }: {
-  item: ClipboardItem;
   isLatest: boolean;
   overlay?: boolean;
   theme: CardBodyProps['theme'];
   meta?: string;
 }) {
-  const { t } = useTranslation('history');
-  const dirColor = overlay ? 'rgba(255,255,255,0.7)' : theme.colors.textSecondary;
-  const indicator = getHistoryDirectionIndicator(item);
-  const deliveryLabel =
-    item.p2pDeliveryState === 'partial' && item.p2pDeliveryCounts
-      ? t('delivery.partial', p2pDeliveryTranslationOptions(item.p2pDeliveryCounts))
-      : item.p2pDeliveryState
-      ? t(`delivery.${item.p2pDeliveryState}`)
-      : '';
-  const bottomMeta = [meta, deliveryLabel].filter(Boolean).join(' · ');
   return (
     <View style={styles.bottomRow}>
-      {indicator === 'download' ? (
-        <ArrowDown size={10} color={dirColor} />
-      ) : indicator === 'pendingUpload' || indicator === 'pendingSync' ? (
-        <Ionicons name="time-outline" size={10} color={dirColor} />
-      ) : (
-        <ArrowUp size={10} color={dirColor} />
-      )}
-      {bottomMeta ? (
+      {meta ? (
         <Text
           style={[styles.bottomMeta, { color: theme.colors.border }]}
           numberOfLines={1}
           ellipsizeMode="tail"
         >
-          {bottomMeta}
+          {meta}
         </Text>
       ) : null}
       <View style={styles.bottomSpacer} />
@@ -358,7 +336,7 @@ function TextCardBody({ item, kindLabel, relativeTime, isLatest, theme }: CardBo
           <TextFadeOut color={theme.colors.surfaceLow} />
         </View>
       )}
-      <BottomRow item={item} isLatest={isLatest} theme={theme} />
+      <BottomRow isLatest={isLatest} theme={theme} />
     </View>
   );
 }
@@ -434,7 +412,7 @@ function FileCardBody({
           </View>
         </View>
       </View>
-      <BottomRow item={item} isLatest={isLatest} theme={theme} meta={sizeLabel} />
+      <BottomRow isLatest={isLatest} theme={theme} meta={sizeLabel} />
     </View>
   );
 }
@@ -493,7 +471,7 @@ function ImageCardBody({
       <View style={styles.imageOverlay}>
         <HeaderRow kindLabel={kindLabel} relativeTime={relativeTime} overlay theme={theme} />
         <View style={styles.spacer} />
-        <BottomRow item={item} isLatest={isLatest} overlay theme={theme} />
+        <BottomRow isLatest={isLatest} overlay theme={theme} />
       </View>
     </View>
   );
@@ -514,8 +492,6 @@ function URLCardBody({
   const hasOgImage = !!metadata?.ogImageUrl;
   const displayTitle = metadata?.title || urlText;
   const gradient = getDomainGradient(domain);
-  const indicator = getHistoryDirectionIndicator(item);
-  const dirColor = 'rgba(255,255,255,0.7)';
 
   return (
     <View style={styles.urlBody}>
@@ -539,13 +515,6 @@ function URLCardBody({
             {domain}
           </Text>
           <View style={styles.bottomSpacer} />
-          {indicator === 'download' ? (
-            <ArrowDown size={10} color={dirColor} />
-          ) : indicator === 'pendingUpload' || indicator === 'pendingSync' ? (
-            <Ionicons name="time-outline" size={10} color={dirColor} />
-          ) : (
-            <ArrowUp size={10} color={dirColor} />
-          )}
           {isLatest && <View style={[styles.latestDot, styles.urlLatestDot]} />}
         </View>
         <Text style={styles.urlTitle} numberOfLines={2}>
@@ -729,7 +698,6 @@ const styles = StyleSheet.create({
   },
   bottomMeta: {
     fontSize: 11,
-    marginLeft: 5,
     flexShrink: 1,
   },
   headerRow: {
