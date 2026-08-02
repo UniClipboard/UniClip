@@ -64,10 +64,10 @@ export function useHomeController(onOpenSettings: () => void) {
   const items = useHistoryStore((s) => s.items);
   const selectedIds = useHistoryStore((s) => s.selectedIds);
   const lastAddedTimestamp = useHistoryStore((s) => s.lastAddedTimestamp);
+  const isInitialHistoryLoadComplete = useHistoryStore((s) => s.isInitialLoadComplete);
   const loadItems = useHistoryStore((s) => s.loadItems);
   const loadMoreItems = useHistoryStore((s) => s.loadMoreItems);
   const searchItems = useHistoryStore((s) => s.searchItems);
-  const setSort = useHistoryStore((s) => s.setSort);
   const handleStorageChange = useHistoryStore((s) => s.handleStorageChange);
   const toggleSelection = useHistoryStore((s) => s.toggleSelection);
   const selectAll = useHistoryStore((s) => s.selectAll);
@@ -158,13 +158,6 @@ export function useHomeController(onOpenSettings: () => void) {
   }, [connectionStatus, activeSpaceLabel, t, theme.colors.textSecondary, theme.colors.error]);
 
   const listRef = useRef<AnimatedCardGridHandle>(null);
-
-  // Load history on mount —— 首页固定按活动时间(lastAccessed)排序，
-  // 与 HistoryStorage 的 sortConfig 保持一致，复制后才能正确触发重新定位
-  useEffect(() => {
-    setSort({ field: 'lastAccessed', order: 'desc' });
-    loadItems();
-  }, [setSort, loadItems]);
 
   useEffect(() => {
     if (p2pRefreshRevision > 0) {
@@ -678,6 +671,7 @@ export function useHomeController(onOpenSettings: () => void) {
     onOpenSettings,
     // data
     items,
+    isInitialHistoryLoadComplete,
     latestId,
     emptyContent,
     // selection / mode

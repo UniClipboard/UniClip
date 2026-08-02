@@ -26,6 +26,10 @@ public class AppGroupStoreModule: Module {
       UIPasteboard.general.changeCount
     }
 
+    AsyncFunction("dismissStartupHistoryPreview") { () async -> Void in
+      await StartupHistoryPreviewCoordinator.dismiss()
+    }
+
     AsyncFunction("getContainerUrl") { () -> String? in
       FileManager.default
         .containerURL(forSecurityApplicationGroupIdentifier: SettingsStore.appGroupID)?

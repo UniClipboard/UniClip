@@ -8,6 +8,8 @@ const mockStartServices = jest.fn(async () => undefined);
 const mockRunMaintenance = jest.fn(async () => undefined);
 const mockResumeOutboundShareHandoffs = jest.fn(async () => ({ completed: 0, deferred: 0 }));
 const mockReloadHistory = jest.fn(async () => undefined);
+const mockSetHistorySort = jest.fn();
+const mockDismissStartupHistoryPreview = jest.fn();
 
 jest.mock('react-native-gesture-handler', () => ({
   GestureHandlerRootView: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -70,10 +72,16 @@ jest.mock('../services/HistoryStorage', () => ({
 jest.mock('../services/OutboundShareHandoffManager', () => ({
   resumeOutboundShareHandoffs: () => mockResumeOutboundShareHandoffs(),
 }));
+jest.mock('app-group-store', () => ({
+  dismissStartupHistoryPreview: () => mockDismissStartupHistoryPreview(),
+}));
 jest.mock('../stores', () => {
   const useHistoryStore = (selector: (state: { isInitialLoadComplete: boolean }) => unknown) =>
     selector({ isInitialLoadComplete: mockInitialHistoryComplete });
-  useHistoryStore.getState = () => ({ loadItems: mockReloadHistory });
+  useHistoryStore.getState = () => ({
+    loadItems: mockReloadHistory,
+    setSort: mockSetHistorySort,
+  });
   return {
     useSettingsStore: () => ({
       config: { language: 'system' },
@@ -95,6 +103,7 @@ async function flushEffects(): Promise<void> {
 describe('App history-first startup', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockStartServices.mockResolvedValue(undefined);
     mockInitialHistoryComplete = false;
     mockAppStateCurrent = 'active';
     mockAppStateListener = undefined;
@@ -107,8 +116,11 @@ describe('App history-first startup', () => {
     });
     await flushEffects();
 
+    expect(mockReloadHistory).toHaveBeenCalledTimes(1);
+    expect(mockSetHistorySort).toHaveBeenCalledWith({ field: 'lastAccessed', order: 'desc' });
     expect(mockStartServices).not.toHaveBeenCalled();
     expect(mockRunMaintenance).not.toHaveBeenCalled();
+    expect(mockDismissStartupHistoryPreview).not.toHaveBeenCalled();
 
     mockInitialHistoryComplete = true;
     act(() => {
@@ -119,7 +131,8 @@ describe('App history-first startup', () => {
     expect(mockStartServices).toHaveBeenCalledTimes(1);
     expect(mockRunMaintenance).toHaveBeenCalledTimes(1);
     expect(mockResumeOutboundShareHandoffs).toHaveBeenCalledTimes(1);
-    expect(mockReloadHistory).toHaveBeenCalledTimes(1);
+    expect(mockReloadHistory).toHaveBeenCalledTimes(2);
+    expect(mockDismissStartupHistoryPreview).toHaveBeenCalledTimes(1);
     expect(mockStartServices.mock.invocationCallOrder[0]).toBeLessThan(
       mockRunMaintenance.mock.invocationCallOrder[0]
     );
@@ -127,8 +140,24 @@ describe('App history-first startup', () => {
       mockResumeOutboundShareHandoffs.mock.invocationCallOrder[0]
     );
     expect(mockResumeOutboundShareHandoffs.mock.invocationCallOrder[0]).toBeLessThan(
-      mockReloadHistory.mock.invocationCallOrder[0]
+      mockReloadHistory.mock.invocationCallOrder[1]
     );
+
+    mockAppStateCurrent = 'background';
+    act(() => {
+      mockAppStateListener?.('background');
+    });
+    mockAppStateCurrent = 'active';
+    act(() => {
+      mockAppStateListener?.('active');
+    });
+    await flushEffects();
+
+    expect(mockStartServices).toHaveBeenCalledTimes(1);
+    expect(mockRunMaintenance).toHaveBeenCalledTimes(1);
+    expect(mockResumeOutboundShareHandoffs).toHaveBeenCalledTimes(1);
+    expect(mockReloadHistory).toHaveBeenCalledTimes(2);
+    expect(mockDismissStartupHistoryPreview).toHaveBeenCalledTimes(1);
   });
 
   it('waits for foreground instead of starting work while already backgrounded', async () => {
@@ -148,5 +177,34 @@ describe('App history-first startup', () => {
     await flushEffects();
 
     expect(mockStartServices).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries only failed services after returning to the foreground', async () => {
+    mockInitialHistoryComplete = true;
+    mockStartServices.mockRejectedValueOnce(new Error('startup failed'));
+    act(() => {
+      TestRenderer.create(<App />);
+    });
+    await flushEffects();
+
+    expect(mockStartServices).toHaveBeenCalledTimes(1);
+    expect(mockRunMaintenance).toHaveBeenCalledTimes(1);
+    expect(mockResumeOutboundShareHandoffs).toHaveBeenCalledTimes(1);
+    expect(mockReloadHistory).toHaveBeenCalledTimes(2);
+
+    mockAppStateCurrent = 'background';
+    act(() => {
+      mockAppStateListener?.('background');
+    });
+    mockAppStateCurrent = 'active';
+    act(() => {
+      mockAppStateListener?.('active');
+    });
+    await flushEffects();
+
+    expect(mockStartServices).toHaveBeenCalledTimes(2);
+    expect(mockRunMaintenance).toHaveBeenCalledTimes(1);
+    expect(mockResumeOutboundShareHandoffs).toHaveBeenCalledTimes(1);
+    expect(mockReloadHistory).toHaveBeenCalledTimes(2);
   });
 });

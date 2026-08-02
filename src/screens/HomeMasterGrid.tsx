@@ -87,15 +87,17 @@ export function HomeMasterGrid({
   if (items.length === 0) {
     return (
       <View style={styles.container}>
-        <View style={styles.emptyState}>
-          <Ionicons name={c.emptyContent.icon} size={48} color={c.emptyContent.tint} />
-          <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>
-            {c.emptyContent.title}
-          </Text>
-          <Text style={[styles.emptyDesc, { color: theme.colors.textSecondary }]}>
-            {c.emptyContent.description}
-          </Text>
-        </View>
+        {c.isInitialHistoryLoadComplete ? (
+          <View style={styles.emptyState}>
+            <Ionicons name={c.emptyContent.icon} size={48} color={c.emptyContent.tint} />
+            <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>
+              {c.emptyContent.title}
+            </Text>
+            <Text style={[styles.emptyDesc, { color: theme.colors.textSecondary }]}>
+              {c.emptyContent.description}
+            </Text>
+          </View>
+        ) : null}
       </View>
     );
   }

@@ -29,6 +29,10 @@ class BackgroundServiceManager {
   /** 取消对 settingsStore 的订阅 */
   private settingsUnsub: (() => void) | null = null;
   private currentAppState = AppState.currentState;
+  private hasStarted = false;
+  private startPromise: Promise<void> | null = null;
+  private refreshPromise: Promise<void> | null = null;
+  private refreshPending = false;
   private constructor() {}
 
   static getInstance(): BackgroundServiceManager {
@@ -59,6 +63,21 @@ class BackgroundServiceManager {
    * - 始终订阅配置变化以支持动态重启
    */
   async start(): Promise<void> {
+    if (this.startPromise) return this.startPromise;
+
+    // The formal startup reads the latest route state, so an earlier route
+    // notification does not need to be replayed after startup.
+    this.refreshPending = false;
+    const startPromise = this._performStart();
+    this.startPromise = startPromise;
+    try {
+      await startPromise;
+    } finally {
+      if (this.startPromise === startPromise) this.startPromise = null;
+    }
+  }
+
+  private async _performStart(): Promise<void> {
     // 等待配置加载完成
     const { useSettingsStore } = require('../stores/settingsStore');
     if (!useSettingsStore.getState().isLoaded) {
@@ -91,6 +110,11 @@ class BackgroundServiceManager {
 
     // 始终订阅配置变化（不再因 getShouldRunBackground() 为 false 而跳过）
     this._subscribeToConfigChanges();
+    this.hasStarted = true;
+
+    if (this.refreshPending) {
+      await this._drainRefreshes();
+    }
   }
 
   /**
@@ -105,21 +129,13 @@ class BackgroundServiceManager {
    * 配置变化时重新评估所有服务状态（由内部订阅自动触发）。
    */
   async refresh(): Promise<void> {
-    await this._startUnifiedEngine();
-
-    // 后台专用服务（Android 专属）
-    if (Platform.OS === 'android') {
-      if (this.getShouldRunBackground()) {
-        if (!this.running) {
-          this.running = true;
-          await this._startBackgroundOnlyServices();
-        } else {
-          await this._updateBackgroundOnlyServices();
-        }
-      } else {
-        await this._stopBackgroundOnlyServices();
-      }
+    this.refreshPending = true;
+    if (this.startPromise) {
+      await this.startPromise;
+      return;
     }
+    if (!this.hasStarted) return;
+    await this._drainRefreshes();
   }
 
   async activateP2p(): Promise<void> {
@@ -138,8 +154,14 @@ class BackgroundServiceManager {
       appVersion: Application.nativeApplicationVersion ?? 'unknown',
       profileId: 'default',
     });
-    await service.setBackgroundSyncPolicy(this.getShouldRunBackground());
     log.info(`[P2PStartup] Native engine started in ${Date.now() - startedAt}ms`);
+    await this._refreshUnifiedEngine(startedAt);
+  }
+
+  private async _refreshUnifiedEngine(startedAt = Date.now()): Promise<void> {
+    const { getUnifiedEngineService } = require('./UnifiedEngineService');
+    const service = getUnifiedEngineService();
+    await service.setBackgroundSyncPolicy(this.getShouldRunBackground());
     if (Platform.OS === 'ios') {
       if (this.currentAppState !== 'active') return;
       const resumeStartedAt = Date.now();
@@ -164,6 +186,36 @@ class BackgroundServiceManager {
       (error: unknown) =>
         log.error('[BackgroundServiceManager] Failed to recover P2P peer connections:', error)
     );
+  }
+
+  private async _drainRefreshes(): Promise<void> {
+    if (this.refreshPromise) return this.refreshPromise;
+
+    const refreshPromise = (async () => {
+      while (this.refreshPending) {
+        this.refreshPending = false;
+        await this._refreshUnifiedEngine();
+
+        if (Platform.OS === 'android') {
+          if (this.getShouldRunBackground()) {
+            if (!this.running) {
+              this.running = true;
+              await this._startBackgroundOnlyServices();
+            } else {
+              await this._updateBackgroundOnlyServices();
+            }
+          } else {
+            await this._stopBackgroundOnlyServices();
+          }
+        }
+      }
+    })();
+    this.refreshPromise = refreshPromise;
+    try {
+      await refreshPromise;
+    } finally {
+      if (this.refreshPromise === refreshPromise) this.refreshPromise = null;
+    }
   }
 
   /** 启动 Android 后台专用服务（前台通知、统计心跳） */

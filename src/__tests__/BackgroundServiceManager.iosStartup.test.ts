@@ -96,6 +96,12 @@ describe('BackgroundServiceManager iOS startup lifecycle', () => {
     mockP2pStart.mockResolvedValue(undefined);
   });
 
+  it('does not let an early network refresh start the engine', async () => {
+    await getBackgroundServiceManager().refresh();
+
+    expect(mockP2pStart).not.toHaveBeenCalled();
+  });
+
   it('leaves startup lifecycle control to the native host when the app backgrounds', async () => {
     let finishStart!: () => void;
     mockP2pStart.mockImplementationOnce(
@@ -160,5 +166,26 @@ describe('BackgroundServiceManager iOS startup lifecycle', () => {
         online: false,
       },
     ]);
+  });
+
+  it('coalesces network refreshes while the formal startup is in progress', async () => {
+    let finishStart!: () => void;
+    mockP2pStart.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishStart = resolve;
+        })
+    );
+
+    const manager = getBackgroundServiceManager();
+    const startPromise = manager.start();
+    await Promise.resolve();
+    await Promise.resolve();
+    const refreshes = [manager.refresh(), manager.refresh(), manager.start()];
+
+    finishStart();
+    await Promise.all([startPromise, ...refreshes]);
+
+    expect(mockP2pStart).toHaveBeenCalledTimes(1);
   });
 });

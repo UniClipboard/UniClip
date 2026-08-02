@@ -58,6 +58,72 @@ function item(profileHash: string): ClipboardItem {
 }
 
 describe('HomeMasterGrid 详情选择', () => {
+  it('首次历史还没读完时不显示空状态', () => {
+    const controller = {
+      theme: {
+        colors: {
+          accent: '#6750a4',
+          textPrimary: '#111111',
+          textSecondary: '#666666',
+        },
+      },
+      items: [],
+      isInitialHistoryLoadComplete: false,
+      selectedIds: new Set<string>(),
+      isSelectMode: false,
+      detailItem: null,
+      emptyContent: {
+        icon: 'clipboard-outline',
+        title: 'empty-title',
+        description: 'empty-description',
+        tint: '#666666',
+      },
+    } as unknown as HomeController;
+
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(<HomeMasterGrid c={controller} paneWidth={900} />);
+    });
+
+    expect(renderer.root.findAllByType('Ionicons' as never)).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ children: 'empty-title' })).toHaveLength(0);
+  });
+
+  it('首次历史读完后确实无数据时显示空状态', () => {
+    const controller = {
+      theme: {
+        colors: {
+          accent: '#6750a4',
+          textPrimary: '#111111',
+          textSecondary: '#666666',
+        },
+      },
+      items: [],
+      isInitialHistoryLoadComplete: true,
+      selectedIds: new Set<string>(),
+      isSelectMode: false,
+      detailItem: null,
+      emptyContent: {
+        icon: 'clipboard-outline',
+        title: 'empty-title',
+        description: 'empty-description',
+        tint: '#666666',
+      },
+    } as unknown as HomeController;
+
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(<HomeMasterGrid c={controller} paneWidth={900} />);
+    });
+
+    expect(renderer.root.findAllByType('Ionicons' as never)).toHaveLength(1);
+    expect(
+      renderer.root.findAll(
+        (node) => node.type === ('Text' as never) && node.props.children === 'empty-title'
+      )
+    ).toHaveLength(1);
+  });
+
   it('点击非首项时记录为用户主动选择', () => {
     const first = item('first');
     const second = item('second');

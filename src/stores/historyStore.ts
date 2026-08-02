@@ -10,7 +10,7 @@ import { historyStorage } from '../services';
 import { matchesHistoryFilter } from '@/utils/historyFilters';
 import { log } from '@/services/Logger';
 
-const HISTORY_PAGE_SIZE = 50;
+const HISTORY_PAGE_SIZE = 20;
 
 /**
  * 历史记录状态接口

@@ -25,6 +25,7 @@ import { historyStorage } from './src/services/HistoryStorage';
 import { startAppGroupSync } from './src/services/appGroupSync';
 import { startNetworkContextMonitor } from './src/services/networkContext';
 import { resumeOutboundShareHandoffs } from './src/services/OutboundShareHandoffManager';
+import { dismissStartupHistoryPreview } from 'app-group-store';
 
 const QUICK_UPLOAD_URL = 'uniclipboard://quick-upload';
 const PROCESS_TEXT_URL = 'uniclipboard://process-text';
@@ -85,6 +86,13 @@ export default function App() {
     setDynamicShortcuts();
   }, []);
 
+  // Start the local history query before settings, networking, and navigation finish loading.
+  useEffect(() => {
+    const history = useHistoryStore.getState();
+    history.setSort({ field: 'lastAccessed', order: 'desc' });
+    void history.loadItems();
+  }, []);
+
   useEffect(() => {
     if (!isLoaded) {
       loadConfig();
@@ -126,27 +134,55 @@ export default function App() {
     return startNetworkContextMonitor();
   }, [isLoaded]);
 
+  // React has committed the first history result. The native cold-start preview
+  // can now fade away without exposing an empty frame underneath it.
+  useEffect(() => {
+    if (!isInitialHistoryLoadComplete || Platform.OS !== 'ios') return;
+    void dismissStartupHistoryPreview();
+  }, [isInitialHistoryLoadComplete]);
+
   // 首批历史提交到界面后，再启动同步和旧数据整理，避免冷启动时争抢本地存储。
   useEffect(() => {
     if (!isLoaded || !isInitialHistoryLoadComplete) return;
 
     let cancelled = false;
     let startupPromise: Promise<void> | null = null;
+    let servicesStarted = false;
+    let maintenanceComplete = false;
+    let handoffResumeComplete = false;
+    let historyReloadComplete = false;
     const runStartupWork = () => {
-      if (startupPromise || AppState.currentState !== 'active') return;
+      if (
+        startupPromise ||
+        (servicesStarted && historyReloadComplete) ||
+        AppState.currentState !== 'active'
+      )
+        return;
       startupPromise = (async () => {
-        try {
-          await getBackgroundServiceManager().start();
-        } catch {
-          // Individual services report their own failures; history maintenance can still proceed.
+        if (!servicesStarted) {
+          try {
+            await getBackgroundServiceManager().start();
+            servicesStarted = true;
+          } catch {
+            // Individual services report their own failures; history maintenance can still proceed.
+          }
         }
 
         if (cancelled || AppState.currentState !== 'active') return;
-        await historyStorage.runStartupMaintenance();
+        if (!maintenanceComplete) {
+          await historyStorage.runStartupMaintenance();
+          maintenanceComplete = true;
+        }
         if (cancelled || AppState.currentState !== 'active') return;
-        await resumeOutboundShareHandoffs();
+        if (!handoffResumeComplete) {
+          await resumeOutboundShareHandoffs();
+          handoffResumeComplete = true;
+        }
         if (cancelled || AppState.currentState !== 'active') return;
-        await useHistoryStore.getState().loadItems();
+        if (!historyReloadComplete) {
+          await useHistoryStore.getState().loadItems();
+          historyReloadComplete = true;
+        }
       })().finally(() => {
         startupPromise = null;
       });
@@ -157,16 +193,16 @@ export default function App() {
       if (state === 'active') runStartupWork();
     });
 
-    // 应用启动时恢复「最近任务隐藏」设置（仅 Android）
-    if (Platform.OS === 'android' && config?.hideFromRecents) {
-      setExcludeFromRecents(true);
-    }
-
     return () => {
       cancelled = true;
       appStateSub.remove();
     };
-  }, [config?.hideFromRecents, isInitialHistoryLoadComplete, isLoaded]);
+  }, [isInitialHistoryLoadComplete, isLoaded]);
+
+  useEffect(() => {
+    if (!isLoaded || Platform.OS !== 'android' || !config?.hideFromRecents) return;
+    setExcludeFromRecents(true);
+  }, [config?.hideFromRecents, isLoaded]);
 
   useEffect(() => {
     if (!isLoaded) return;

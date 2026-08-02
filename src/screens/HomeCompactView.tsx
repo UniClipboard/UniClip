@@ -79,7 +79,7 @@ export function HomeCompactView({
        * 挂载:三种模式共享同一份筛选状态,且网格 paddingTop 恒定,卡片坐标不因模式切换跳变。
        */}
       <View style={styles.gridArea}>
-        {items.length === 0 ? (
+        {items.length === 0 && c.isInitialHistoryLoadComplete ? (
           <View style={styles.emptyState}>
             <Ionicons name={c.emptyContent.icon} size={48} color={c.emptyContent.tint} />
             <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>
@@ -89,7 +89,7 @@ export function HomeCompactView({
               {c.emptyContent.description}
             </Text>
           </View>
-        ) : (
+        ) : items.length > 0 ? (
           <AnimatedCardGrid
             ref={c.listRef}
             items={items}
@@ -115,7 +115,7 @@ export function HomeCompactView({
               />
             }
           />
-        )}
+        ) : null}
 
         <Animated.View
           style={[styles.chipRowOverlay, { backgroundColor }, chipRowCollapse.rowStyle]}

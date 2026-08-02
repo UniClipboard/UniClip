@@ -9,16 +9,43 @@ const LEGACY_WINDOW_STARTUP = `#if os(iOS) || os(tvOS)
       in: window,
       launchOptions: launchOptions)
 #endif`;
+const LEGACY_FACTORY_CREATION = `    let delegate = ReactNativeDelegate()
+    let factory = ExpoReactNativeFactory(delegate: delegate)
+    delegate.dependencyProvider = RCTAppDependencyProvider()
+
+    reactNativeDelegate = delegate
+    reactNativeFactory = factory
+`;
 const TVOS_WINDOW_STARTUP = `#if os(tvOS)
+    let factory = createReactNativeFactory()
     window = UIWindow(frame: UIScreen.main.bounds)
     factory.startReactNative(
       withModuleName: "main",
       in: window,
       launchOptions: launchOptions)
 #endif`;
-const SCENE_DELEGATE = `@objc(SceneDelegate)
+const SCENE_DELEGATE = `extension AppDelegate {
+  @MainActor
+  func createReactNativeFactory() -> RCTReactNativeFactory {
+    if let reactNativeFactory {
+      return reactNativeFactory
+    }
+
+    let delegate = ReactNativeDelegate()
+    let factory = ExpoReactNativeFactory(delegate: delegate)
+    delegate.dependencyProvider = RCTAppDependencyProvider()
+
+    reactNativeDelegate = delegate
+    reactNativeFactory = factory
+    return factory
+  }
+}
+
+@objc(SceneDelegate)
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
   var window: UIWindow?
+  private var pendingReactNativeLaunch: (() -> Void)?
+  private var scheduledReactNativeLaunch: DispatchWorkItem?
 
   private var appDelegate: AppDelegate? {
     UIApplication.shared.delegate as? AppDelegate
@@ -32,31 +59,44 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     guard let windowScene = scene as? UIWindowScene else {
       return
     }
-    guard let appDelegate, let factory = appDelegate.reactNativeFactory else {
-      fatalError("SceneDelegate could not access the React Native factory")
+    guard let appDelegate else {
+      fatalError("SceneDelegate could not access the app delegate")
     }
 
     let window = UIWindow(windowScene: windowScene)
     self.window = window
     appDelegate.window = window
+    let hasStartupPreview = StartupHistoryPreviewSubscriber.prepareWindowForReact(window)
 
     let browsingWebActivity = connectionOptions.userActivities.first {
       $0.activityType == NSUserActivityTypeBrowsingWeb
     }
-    factory.startReactNative(
-      withModuleName: "main",
-      in: window,
-      launchOptions: Self.launchOptions(
-        url: connectionOptions.urlContexts.first?.url,
-        userActivity: browsingWebActivity
+    let launchReactNative = {
+      let factory = appDelegate.createReactNativeFactory()
+      factory.startReactNative(
+        withModuleName: "main",
+        in: window,
+        launchOptions: Self.launchOptions(
+          url: connectionOptions.urlContexts.first?.url,
+          userActivity: browsingWebActivity
+        )
       )
-    )
 
-    Self.route(urlContexts: connectionOptions.urlContexts)
-    connectionOptions.userActivities.forEach { Self.route(userActivity: $0) }
+      Self.route(urlContexts: connectionOptions.urlContexts)
+      connectionOptions.userActivities.forEach { Self.route(userActivity: $0) }
+    }
+
+    if hasStartupPreview {
+      pendingReactNativeLaunch = launchReactNative
+    } else {
+      launchReactNative()
+    }
   }
 
   func sceneDidDisconnect(_ scene: UIScene) {
+    scheduledReactNativeLaunch?.cancel()
+    scheduledReactNativeLaunch = nil
+    pendingReactNativeLaunch = nil
     if appDelegate?.window === window {
       appDelegate?.window = nil
     }
@@ -65,9 +105,12 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
   func sceneDidBecomeActive(_ scene: UIScene) {
     appDelegate?.applicationDidBecomeActive(UIApplication.shared)
+    schedulePendingReactNativeLaunch()
   }
 
   func sceneWillResignActive(_ scene: UIScene) {
+    scheduledReactNativeLaunch?.cancel()
+    scheduledReactNativeLaunch = nil
     appDelegate?.applicationWillResignActive(UIApplication.shared)
   }
 
@@ -85,6 +128,20 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
   func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
     Self.route(userActivity: userActivity)
+  }
+
+  private func schedulePendingReactNativeLaunch() {
+    guard let pendingReactNativeLaunch else { return }
+
+    scheduledReactNativeLaunch?.cancel()
+    let workItem = DispatchWorkItem { [weak self] in
+      guard let self, self.pendingReactNativeLaunch != nil else { return }
+      self.pendingReactNativeLaunch = nil
+      self.scheduledReactNativeLaunch = nil
+      pendingReactNativeLaunch()
+    }
+    scheduledReactNativeLaunch = workItem
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.10, execute: workItem)
   }
 
   private static func launchOptions(
@@ -152,11 +209,16 @@ const patchAppDelegateForXcode27 = (contents) => {
         return contents;
     }
     const windowStartupOccurrences = contents.split(LEGACY_WINDOW_STARTUP).length - 1;
+    const factoryCreationOccurrences = contents.split(LEGACY_FACTORY_CREATION).length - 1;
     const delegateAnchorOccurrences = contents.split(REACT_NATIVE_DELEGATE_ANCHOR).length - 1;
-    if (windowStartupOccurrences !== 1 || delegateAnchorOccurrences !== 1) {
-        throw new Error(`Unsupported Expo AppDelegate.swift: expected one window startup and one ReactNativeDelegate anchor, found ${windowStartupOccurrences} and ${delegateAnchorOccurrences}`);
+    if (windowStartupOccurrences !== 1 ||
+        factoryCreationOccurrences !== 1 ||
+        delegateAnchorOccurrences !== 1) {
+        throw new Error(`Unsupported Expo AppDelegate.swift: expected one factory creation, one window startup, and one ReactNativeDelegate anchor, found ${factoryCreationOccurrences}, ${windowStartupOccurrences}, and ${delegateAnchorOccurrences}`);
     }
     return contents
+        .replace('internal import Expo\n', 'internal import Expo\ninternal import AppGroupStore\n')
+        .replace(LEGACY_FACTORY_CREATION, '')
         .replace(LEGACY_WINDOW_STARTUP, TVOS_WINDOW_STARTUP)
         .replace(REACT_NATIVE_DELEGATE_ANCHOR, `\n${SCENE_DELEGATE}\n\nclass ReactNativeDelegate:`);
 };

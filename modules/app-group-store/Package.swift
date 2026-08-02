@@ -15,7 +15,12 @@ let package = Package(
     .target(
       name: "OutboundShareHandoffCore",
       path: "ios/Shared",
-      sources: ["OutboundShareHandoff.swift", "ShareDiagnostics.swift"]
+      sources: [
+        "OutboundShareHandoff.swift",
+        "ShareDiagnostics.swift",
+        "StartupHistoryPreviewReader.swift",
+      ],
+      linkerSettings: [.linkedLibrary("sqlite3")]
     ),
     .testTarget(
       name: "OutboundShareHandoffCoreTests",

@@ -134,8 +134,8 @@ describe('historyStore handleStorageChange 排序', () => {
     expect(sort).toEqual({ field: 'lastAccessed', order: 'desc' });
   });
 
-  it('首屏只读取 50 条，继续滚动时从下一条接着读取', async () => {
-    const firstPage = Array.from({ length: 50 }, (_, index) =>
+  it('首屏只读取 20 条，继续滚动时从下一条接着读取', async () => {
+    const firstPage = Array.from({ length: 20 }, (_, index) =>
       createItem(`first-${index}`, 1_000 - index)
     );
     const secondPage = [createItem('next-1', 900), createItem('next-2', 899)];
@@ -152,9 +152,9 @@ describe('historyStore handleStorageChange 排序', () => {
       1,
       undefined,
       { field: 'timestamp', order: 'desc' },
-      { limit: 50, offset: 0 }
+      { limit: 20, offset: 0 }
     );
-    expect(useHistoryStore.getState().items).toHaveLength(50);
+    expect(useHistoryStore.getState().items).toHaveLength(20);
 
     await useHistoryStore.getState().loadMoreItems();
 
@@ -162,7 +162,7 @@ describe('historyStore handleStorageChange 排序', () => {
       2,
       undefined,
       { field: 'timestamp', order: 'desc' },
-      { limit: 50, offset: 50 }
+      { limit: 20, offset: 20 }
     );
     expect(hashes(useHistoryStore.getState().items)).toEqual([
       ...hashes(firstPage),
