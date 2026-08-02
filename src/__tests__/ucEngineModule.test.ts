@@ -168,6 +168,28 @@ describe('unified P2P engine native module', () => {
     expect(nextEventDefinition).toContain('.runOnQueue(appContext.backgroundCoroutineScope)');
   });
 
+  it('keeps blocking iOS engine work off the shared Expo async-function queue', () => {
+    const swift = read('ios/UcEngineModule.swift');
+    const nextEventStart = swift.indexOf('AsyncFunction("nextEvent")');
+    const nextOperationStart = swift.indexOf(
+      'AsyncFunction("refreshPeerConnections")',
+      nextEventStart
+    );
+    const nextEventDefinition = swift.slice(nextEventStart, nextOperationStart);
+
+    expect(swift).toContain(
+      'private let engineOperationQueue = DispatchQueue(label: "app.uniclipboard.uc-engine")'
+    );
+    expect(swift).toContain(
+      'private let engineEventQueue = DispatchQueue(label: "app.uniclipboard.uc-engine-events")'
+    );
+    expect(swift).toMatch(/AsyncFunction\("start"\)[\s\S]*?\.runOnQueue\(engineOperationQueue\)/);
+    expect(nextEventDefinition).toContain('.runOnQueue(engineEventQueue)');
+    expect(swift.slice(nextOperationStart)).toMatch(
+      /AsyncFunction\("refreshPeerConnections"\)[\s\S]*?\.runOnQueue\(engineOperationQueue\)/
+    );
+  });
+
   it('installs the Android JNI context before starting the P2P engine', () => {
     const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
 

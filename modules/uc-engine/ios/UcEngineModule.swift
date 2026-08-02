@@ -11,6 +11,8 @@ public final class UcEngineModule: Module {
     queue: DispatchQueue(label: "app.uniclipboard.engine-lifecycle"),
     beginBackgroundActivity: Self.beginBackgroundActivity
   )
+  private let engineOperationQueue = DispatchQueue(label: "app.uniclipboard.uc-engine")
+  private let engineEventQueue = DispatchQueue(label: "app.uniclipboard.uc-engine-events")
   private let engines = NativeEngineRegistry<MobileEngine>()
 
   public func definition() -> ModuleDefinition {
@@ -57,26 +59,27 @@ public final class UcEngineModule: Module {
         }
         throw error
       }
-    }
+    }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("shutdown") { (deadlineMs: UInt64) in
       let active = self.engines.take()
       defer { self.host.releaseRuntimeOwnership() }
       try active?.shutdown(deadlineMs: deadlineMs)
       self.host.removeAllFileHandles()
-    }
+    }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("suspend") {
       try self.lifecycle.suspendIfNeeded(
         AppleEngineLifecycle(engine: self.requireEngine(), host: self.host)
       )
-    }
+    }.runOnQueue(engineOperationQueue)
     AsyncFunction("resume") {
       try self.lifecycle.resumeIfNeeded(
         AppleEngineLifecycle(engine: self.requireEngine(), host: self.host)
       )
-    }
+    }.runOnQueue(engineOperationQueue)
     AsyncFunction("setBackgroundSyncEnabled") { (_: Bool, _: Bool) in }
+      .runOnQueue(engineOperationQueue)
 
     AsyncFunction("createSpace") { (deviceName: String?, passphrase: String) -> [String: Any] in
       let result = try self.requireEngine().createSpace(
@@ -88,7 +91,7 @@ public final class UcEngineModule: Module {
         "selfDeviceId": result.selfDeviceId,
         "identityFingerprint": result.identityFingerprint,
       ]
-    }
+    }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("issueInvitation") { () -> [String: Any] in
       let result = try self.requireEngine().issueInvitation()
@@ -101,7 +104,7 @@ public final class UcEngineModule: Module {
         "expiresAtMs": result.expiresAtMs,
         "availability": availability,
       ]
-    }
+    }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("joinSpace") {
       (invitationCode: String, deviceName: String?, passphrase: String) -> [String: Any] in
@@ -118,11 +121,11 @@ public final class UcEngineModule: Module {
         "selfIdentityFingerprint": result.selfIdentityFingerprint,
         "migratedRecords": result.migratedRecords ?? 0,
       ]
-    }
+    }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("nextEvent") { (timeoutMs: UInt64) -> [String: Any?]? in
       try self.requireEngine().nextEvent(timeoutMs: timeoutMs).map(Self.eventMap)
-    }
+    }.runOnQueue(engineEventQueue)
 
     AsyncFunction("refreshPeerConnections") { () -> [String: Any] in
       let result = try self.requireEngine().refreshPeerConnections()
@@ -132,7 +135,7 @@ public final class UcEngineModule: Module {
         "offline": result.offline,
         "errors": result.errors,
       ]
-    }
+    }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("querySpaceState") { () -> [String: Any?] in
       let result = try self.requireEngine().querySpaceState()
@@ -144,7 +147,7 @@ public final class UcEngineModule: Module {
         },
         "deviceName": result.deviceName,
       ]
-    }
+    }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("listDevices") { () -> [[String: Any]] in
       let engine = try self.requireEngine()
@@ -157,34 +160,34 @@ public final class UcEngineModule: Module {
           "online": $0.online,
         ]
       }
-    }
+    }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("removeMember") { (deviceId: String) -> [String: Any?] in
       Self.memberRevocationResultMap(try self.requireEngine().removeMember(deviceId: deviceId))
-    }
+    }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("secureRemoveLegacyMember") { (deviceId: String) -> [String: Any?] in
       Self.legacyMemberRemovalResultMap(
         try self.requireEngine().secureRemoveLegacyMember(deviceId: deviceId)
       )
-    }
+    }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("resendEntry") {
       (entryId: String, targetDevices: [String]) -> [String: Any] in
       Self.resendOutcomeMap(
         try self.requireEngine().resendEntry(entryId: entryId, targetDevices: targetDevices)
       )
-    }
+    }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("leaveSpace") {
       try self.requireEngine().leaveSpace()
-    }
+    }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("sendText") { (text: String, targetDevices: [String]) -> [String: Any] in
       Self.sendReportMap(
         try self.requireEngine().sendText(text: text, targetDevices: targetDevices)
       )
-    }
+    }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("sendImage") {
       (bytes: Data, mimeType: String, targetDevices: [String]) -> [String: Any] in
@@ -195,7 +198,7 @@ public final class UcEngineModule: Module {
           targetDevices: targetDevices
         )
       )
-    }
+    }.runOnQueue(engineOperationQueue)
 
     Function("registerInputFile") { (uri: String, displayName: String?) in
       try self.host.registerInputFile(uri: uri, displayName: displayName)
@@ -213,27 +216,27 @@ public final class UcEngineModule: Module {
           targetDevices: targetDevices
         )
       )
-    }
+    }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("captureCurrentClipboard") { () -> String? in
       try self.requireEngine().captureCurrentClipboard()
-    }
+    }.runOnQueue(engineOperationQueue)
     AsyncFunction("observeClipboardChange") { (dispatch: Bool) -> [String: Any]? in
       try self.requireEngine().observeClipboardChange(dispatch: dispatch).map(Self.sendReportMap)
-    }
+    }.runOnQueue(engineOperationQueue)
     AsyncFunction("restoreClipboard") { (entryId: String, mode: String) -> String in
       let result = try self.requireEngine().restoreClipboard(
         entryId: entryId,
         mode: Self.restoreMode(mode)
       )
       return Self.restoreOutcome(result)
-    }
+    }.runOnQueue(engineOperationQueue)
     AsyncFunction("exportEntry") { (entryId: String, destinationHandle: String) in
       try self.requireEngine().exportEntry(
         entryId: entryId,
         destinationHandle: destinationHandle
       )
-    }
+    }.runOnQueue(engineOperationQueue)
 
     OnAppEntersBackground {
       self.lifecycleTransitions.enterBackground(
