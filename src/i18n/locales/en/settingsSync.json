@@ -6,10 +6,19 @@
     "invitationExpires": "Invitation expires at {{time}}"
   },
   "space": {
-    "title": "P2P space",
+    "title": "My Space",
     "footer": "The device name, passphrase, and invitation code are used only for this operation and are not saved in app settings.",
     "mode": "Setup method",
     "working": "Working...",
+    "empty": {
+      "title": "Start with My Space",
+      "body": "Securely sync clipboard content between your devices."
+    },
+    "overview": {
+      "title": "Status",
+      "syncHealthy": "Sync is active",
+      "deviceSummary": "{{online}} online · {{offline}} offline"
+    },
     "create": {
       "title": "Create a new space",
       "description": "Start a new encrypted space on this device",
@@ -71,13 +80,15 @@
       "offline": "Offline",
       "thisDevice": "This device",
       "remove": "Remove device",
-      "removeConfirm": "Remove this device from the space?"
+      "removeConfirm": "Remove this device from the space?",
+      "manageHint": "Opens device management"
     },
     "leave": {
       "action": "Leave space",
       "confirm": "Your local history will stay on this device. Create or join a space again to resume syncing."
     },
     "error": {
+      "title": "Space needs attention",
       "deviceNameRequired": "Enter a device name",
       "passphraseRequired": "Enter the space passphrase",
       "invitationCodeRequired": "Enter an invitation code",

@@ -6,10 +6,19 @@
     "invitationExpires": "邀请码将在 {{time}} 到期"
   },
   "space": {
-    "title": "P2P 空间",
+    "title": "我的空间",
     "footer": "设备名、口令和邀请码仅用于本次操作，不会保存到应用设置中。",
     "mode": "设置方式",
     "working": "处理中...",
+    "empty": {
+      "title": "开始使用我的空间",
+      "body": "在你的设备之间安全同步剪贴板内容。"
+    },
+    "overview": {
+      "title": "当前状态",
+      "syncHealthy": "同步正常",
+      "deviceSummary": "{{online}} 台在线 · {{offline}} 台离线"
+    },
     "create": {
       "title": "创建新空间",
       "description": "在这台设备上建立一个新的加密空间",
@@ -71,13 +80,15 @@
       "offline": "离线",
       "thisDevice": "本机",
       "remove": "移除设备",
-      "removeConfirm": "确定从空间中移除这台设备吗？"
+      "removeConfirm": "确定从空间中移除这台设备吗？",
+      "manageHint": "打开设备管理"
     },
     "leave": {
       "action": "离开空间",
       "confirm": "离开后本地历史仍会保留，但需要重新创建或加入空间才能继续同步。"
     },
     "error": {
+      "title": "空间需要处理",
       "deviceNameRequired": "请输入设备名称",
       "passphraseRequired": "请输入空间口令",
       "invitationCodeRequired": "请输入邀请码",

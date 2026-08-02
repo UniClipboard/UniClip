@@ -54,8 +54,14 @@ type MySpaceSheetState = ReturnType<typeof useMySpaceSheet>;
 let currentSheet!: MySpaceSheetState;
 let activeRenderer: ReactTestRenderer | null = null;
 
-function Harness({ visible = true }: { visible?: boolean }) {
-  currentSheet = useMySpaceSheet(visible);
+function Harness({
+  visible = true,
+  issueOnOpen = false,
+}: {
+  visible?: boolean;
+  issueOnOpen?: boolean;
+}) {
+  currentSheet = useMySpaceSheet(visible, { issueOnOpen });
   return null;
 }
 
@@ -140,6 +146,28 @@ describe('My Space sheet invitation flow', () => {
       resolveInvitation(invitation);
       await Promise.all([firstRequest, secondRequest]);
     });
+  });
+
+  it('creates one invitation automatically each time a focused invitation sheet opens', async () => {
+    await act(async () => {
+      activeRenderer = TestRenderer.create(<Harness issueOnOpen />);
+      await Promise.resolve();
+    });
+
+    expect(mockIssueInvitation).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      activeRenderer?.update(<Harness issueOnOpen />);
+      await Promise.resolve();
+    });
+    expect(mockIssueInvitation).toHaveBeenCalledTimes(1);
+
+    act(() => activeRenderer?.update(<Harness visible={false} issueOnOpen />));
+    await act(async () => {
+      activeRenderer?.update(<Harness issueOnOpen />);
+      await Promise.resolve();
+    });
+    expect(mockIssueInvitation).toHaveBeenCalledTimes(2);
   });
 
   it('reports the newly paired device after the engine refreshes the device list', async () => {

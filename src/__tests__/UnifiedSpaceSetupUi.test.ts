@@ -7,6 +7,11 @@ function source(relativePath: string): string {
   return fs.readFileSync(path.join(root, relativePath), 'utf8');
 }
 
+function optionalSource(relativePath: string): string {
+  const absolutePath = path.join(root, relativePath);
+  return fs.existsSync(absolutePath) ? fs.readFileSync(absolutePath, 'utf8') : '';
+}
+
 describe('unified space setup UI', () => {
   it('opens the shared native connection flow instead of duplicating setup forms', () => {
     const entry = source('screens/settings/UnifiedSpaceSetup.tsx');
@@ -25,12 +30,12 @@ describe('unified space setup UI', () => {
   });
 
   it('shows when an invitation only works on the same local network', () => {
-    const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
-    const ios = source('screens/settings/ios/SpacePage.tsx');
+    const android = source('components/SpaceInvitationSheet.android.tsx');
+    const ios = source('components/SpaceInvitationSheet.ios.tsx');
     const combined = `${android}\n${ios}`;
 
-    expect(android).toContain("visibleInvitation.availability === 'sameLocalNetwork'");
-    expect(ios).toContain("visibleInvitation.availability === 'sameLocalNetwork'");
+    expect(android).toContain("invitation.availability === 'sameLocalNetwork'");
+    expect(ios).toContain("invitation.availability === 'sameLocalNetwork'");
     expect(combined).toContain('space.invitation.sameLocalNetwork');
     expect(combined).not.toContain('UnifiedSpaceProbe');
   });
@@ -83,6 +88,74 @@ describe('unified space setup UI', () => {
     }
   });
 
+  it('puts connection health and devices ahead of leaving the space', () => {
+    const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
+    const ios = source('screens/settings/ios/SpacePage.tsx');
+
+    for (const platform of [android, ios]) {
+      expect(platform).toMatch(
+        /space\.overview\.syncHealthy[\s\S]*space\.devices\.title[\s\S]*space\.leave\.action/
+      );
+      expect(platform).toContain('space.overview.deviceSummary');
+      expect(platform).not.toContain('space.details');
+    }
+  });
+
+  it('opens a focused invitation sheet instead of keeping invitations in the settings page', () => {
+    const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
+    const ios = source('screens/settings/ios/SpacePage.tsx');
+    const iosSettings = source('screens/SettingsScreen.ios.tsx');
+    const sheetEntry = optionalSource('components/SpaceInvitationSheet.tsx');
+    const sheetTypes = optionalSource('components/SpaceInvitationSheet.types.ts');
+    const androidSheet = optionalSource('components/SpaceInvitationSheet.android.tsx');
+    const iosSheet = optionalSource('components/SpaceInvitationSheet.ios.tsx');
+
+    expect(sheetEntry).toContain("export * from './SpaceInvitationSheet.android'");
+    expect(sheetTypes).toContain('export interface SpaceInvitationSheetProps');
+    expect(androidSheet).toContain('ModalBottomSheet');
+    expect(iosSheet).toContain('BottomSheet');
+
+    for (const sheet of [androidSheet, iosSheet]) {
+      expect(sheet).toContain('issueOnOpen: true');
+      expect(sheet).toContain('invitation.invitationCode');
+      expect(sheet).toContain('space.flow.shareInvitation');
+      expect(sheet).toContain('space.flow.copyInvitation');
+      expect(sheet).toContain('invitationTimeRemaining');
+      expect(sheet).toContain('pairedDeviceName');
+    }
+
+    expect(android).toContain('SpaceInvitationSheet');
+    expect(iosSettings).toContain('SpaceInvitationSheet');
+
+    for (const platform of [android, ios]) {
+      expect(platform).not.toContain('space.invitation.title');
+      expect(platform).not.toContain('visibleInvitation');
+    }
+  });
+
+  it('presents the iOS invitation from the settings sheet instead of the sliding space page', () => {
+    const iosPage = source('screens/settings/ios/SpacePage.tsx');
+    const iosSettings = source('screens/SettingsScreen.ios.tsx');
+
+    expect(iosPage).not.toContain('SpaceInvitationSheet');
+    expect(iosPage).toContain('onOpenInvitation');
+    expect(iosSettings).toContain('showSpaceInvitation');
+    expect(iosSettings).toContain('onOpenInvitation={() => setShowSpaceInvitation(true)}');
+    expect(iosSettings).toContain('<SpaceInvitationSheet');
+  });
+
+  it('uses device rows for management without permanent action buttons', () => {
+    const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
+    const ios = source('screens/settings/ios/SpacePage.tsx');
+
+    expect(android).not.toContain('ICONS.remove');
+    expect(ios).not.toContain('systemName="trash"');
+    for (const platform of [android, ios]) {
+      expect(platform).toContain('space.devices.manageHint');
+      expect(platform).not.toContain('space.devices.inviteOnlyDevice');
+    }
+  });
+
   it('shows the local device as online without a remove action and refreshes live presence', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
     const ios = source('screens/settings/ios/SpacePage.tsx');
@@ -99,13 +172,8 @@ describe('unified space setup UI', () => {
   it('gives the iOS space page a compact overview and manageable device rows', () => {
     const ios = source('screens/settings/ios/SpacePage.tsx');
 
-    expect(ios).toContain('CopyableValue');
-    expect(ios).toContain('Clipboard.setStringAsync');
     expect(ios).toContain('SettingsIconTile');
     expect(ios).toContain('SpaceDeviceRow');
-    expect(ios).toContain('systemName="trash"');
-    expect(ios).toContain('lineLimit(1)');
-    expect(ios).toContain('space.status.currentDevice');
     expect(ios).toContain('AddSyncConnectionSheet');
   });
 
@@ -124,16 +192,10 @@ describe('unified space setup UI', () => {
   it('gives the Android space page a compact overview and manageable device rows', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
 
-    expect(android).toContain("import * as Clipboard from 'expo-clipboard'");
     expect(android).toContain('SpaceDeviceRow');
-    expect(android).toContain('space.status.currentDevice');
-    expect(android).toContain('space.status.spaceId');
     expect(android).toContain('space.devices.online');
     expect(android).toContain('space.devices.offline');
     expect(android).toContain('space.devices.remove');
-    expect(android).toContain('space.invitation.code');
-    expect(android).toContain('connection.invitationExpires');
-    expect(android).toContain('Clipboard.setStringAsync');
   });
 
   it('keeps invitation availability copy aligned in every supported language', () => {
@@ -147,6 +209,11 @@ describe('unified space setup UI', () => {
       expect(messages.space.leave.action).toEqual(expect.any(String));
       expect(messages.space.leave.confirm).toEqual(expect.any(String));
       expect(messages.space.status.currentDevice).toEqual(expect.any(String));
+      expect(messages.space.overview.syncHealthy).toEqual(expect.any(String));
+      expect(messages.space.overview.deviceSummary).toEqual(expect.any(String));
+      expect(messages.space.empty.title).toEqual(expect.any(String));
+      expect(messages.space.empty.body).toEqual(expect.any(String));
+      expect(messages.space.devices.manageHint).toEqual(expect.any(String));
     }
   });
 });

@@ -22,6 +22,7 @@ import {
   padding,
   shapes,
   tint,
+  accessibilityLabel as accessibilityLabelModifier,
 } from '@expo/ui/swift-ui/modifiers';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
@@ -152,9 +153,11 @@ export function StatusValue({ text, tone }: { text: string; tone: 'ok' | 'warn' 
 export function HeaderCircleButton({
   systemName,
   onPress,
+  accessibilityLabel,
 }: {
   systemName: SFSymbol;
   onPress: () => void;
+  accessibilityLabel?: string;
 }) {
   return (
     <SwiftUIButton
@@ -162,6 +165,7 @@ export function HeaderCircleButton({
       modifiers={[
         buttonStyle('plain'),
         glassEffect({ glass: { variant: 'regular', interactive: true }, shape: 'circle' }),
+        ...(accessibilityLabel ? [accessibilityLabelModifier(accessibilityLabel)] : []),
       ]}
     >
       <Image

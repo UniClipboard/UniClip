@@ -14,7 +14,7 @@ function remainingTime(expiresAtMs: number, nowMs: number): string {
   return `${minutes}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
-export function useMySpaceSheet(visible: boolean) {
+export function useMySpaceSheet(visible: boolean, options?: { issueOnOpen?: boolean }) {
   const { t } = useTranslation('settingsSync');
   const devices = useUnifiedSpaceStore((state) => state.devices);
   const spaceId = useUnifiedSpaceStore((state) => state.spaceId);
@@ -29,6 +29,7 @@ export function useMySpaceSheet(visible: boolean) {
   const [pairedDeviceName, setPairedDeviceName] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(Date.now());
   const invitationPendingRef = useRef(false);
+  const issuedOnOpenRef = useRef(false);
   const awaitingPairingRef = useRef(false);
   const deviceIdsBeforeInvitationRef = useRef<Set<string>>(new Set());
 
@@ -54,6 +55,7 @@ export function useMySpaceSheet(visible: boolean) {
   useEffect(() => {
     if (!visible) {
       invitationPendingRef.current = false;
+      issuedOnOpenRef.current = false;
       awaitingPairingRef.current = false;
       setInvitation(null);
       setInvitationPending(false);
@@ -82,7 +84,7 @@ export function useMySpaceSheet(visible: boolean) {
     setPairedDeviceName(pairedDevice.displayName);
   }, [devices, invitation, visible]);
 
-  const issueInvitation = async () => {
+  const issueInvitation = useCallback(async () => {
     if (invitationPendingRef.current) return;
     invitationPendingRef.current = true;
     deviceIdsBeforeInvitationRef.current = new Set(devices.map((device) => device.deviceId));
@@ -102,7 +104,13 @@ export function useMySpaceSheet(visible: boolean) {
       invitationPendingRef.current = false;
       setInvitationPending(false);
     }
-  };
+  }, [devices, t]);
+
+  useEffect(() => {
+    if (!visible || !options?.issueOnOpen || issuedOnOpenRef.current) return;
+    issuedOnOpenRef.current = true;
+    void issueInvitation();
+  }, [issueInvitation, options?.issueOnOpen, visible]);
 
   const copyInvitation = async () => {
     if (!invitation) return;

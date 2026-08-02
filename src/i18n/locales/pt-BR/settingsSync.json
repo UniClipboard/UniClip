@@ -6,10 +6,19 @@
     "invitationExpires": "O convite expira às {{time}}"
   },
   "space": {
-    "title": "Espaço P2P",
+    "title": "Meu Espaço",
     "footer": "O nome do dispositivo, a senha e o código de convite são usados apenas nesta operação e não são salvos nas configurações.",
     "mode": "Forma de configuração",
     "working": "Processando...",
+    "empty": {
+      "title": "Comece com o Meu Espaço",
+      "body": "Sincronize a área de transferência com segurança entre seus dispositivos."
+    },
+    "overview": {
+      "title": "Status",
+      "syncHealthy": "A sincronização está ativa",
+      "deviceSummary": "{{online}} online · {{offline}} offline"
+    },
     "create": {
       "title": "Criar um novo espaço",
       "description": "Iniciar um novo espaço criptografado neste dispositivo",
@@ -71,13 +80,15 @@
       "offline": "Offline",
       "thisDevice": "Este dispositivo",
       "remove": "Remover dispositivo",
-      "removeConfirm": "Remover este dispositivo do espaço?"
+      "removeConfirm": "Remover este dispositivo do espaço?",
+      "manageHint": "Abre o gerenciamento do dispositivo"
     },
     "leave": {
       "action": "Sair do espaço",
       "confirm": "O histórico local será mantido. Crie ou entre em um espaço novamente para retomar a sincronização."
     },
     "error": {
+      "title": "O espaço precisa de atenção",
       "deviceNameRequired": "Informe o nome do dispositivo",
       "passphraseRequired": "Informe a senha do espaço",
       "invitationCodeRequired": "Informe um código de convite",

@@ -1,6 +1,4 @@
 import { memo, useEffect, useRef, useState } from 'react';
-import * as Clipboard from 'expo-clipboard';
-import type { InvitationIssued } from 'uc-engine';
 import {
   AlertDialog,
   Button,
@@ -18,28 +16,34 @@ import {
   useMaterialColors,
 } from '@expo/ui/jetpack-compose';
 import {
+  clickable,
   fillMaxWidth,
   height as heightModifier,
+  padding,
   width as widthModifier,
 } from '@expo/ui/jetpack-compose/modifiers';
 import { useTranslation } from 'react-i18next';
 
 import { AddSyncConnectionSheet } from '@/components/AddSyncConnectionSheet';
 import type { AddSyncConnectionMode } from '@/components/AddSyncConnectionSheet.types';
+import { SpaceInvitationSheet } from '@/components/SpaceInvitationSheet';
 import { getUnifiedSpaceService, UnifiedSpaceInputError } from '@/services/UnifiedSpaceService';
 import { useUnifiedEngineStore } from '@/stores/unifiedEngineStore';
 import { useUnifiedSpaceStore, type UnifiedSpaceDevice } from '@/stores/unifiedSpaceStore';
 import { SettingsSectionItem } from './SettingsSectionItem';
 
-type PendingOperation = 'invite' | 'leave' | `remove:${string}` | null;
+type PendingOperation = 'leave' | `remove:${string}` | null;
+
+const EMPTY_TITLE_STYLE = { fontSize: 22, fontWeight: '600', letterSpacing: 0 } as const;
+const EMPTY_BODY_STYLE = { textAlign: 'center' } as const;
 
 const ICONS = {
-  space: require('../../assets/icons/groups.xml'),
+  add: require('../../assets/icons/add.xml'),
+  chevron: require('../../assets/icons/chevron_right.xml'),
   device: require('../../assets/icons/account_circle.xml'),
   ready: require('../../assets/icons/check_circle.xml'),
+  space: require('../../assets/icons/groups.xml'),
   status: require('../../assets/icons/circle.xml'),
-  copy: require('../../assets/icons/content_copy.xml'),
-  remove: require('../../assets/icons/delete.xml'),
 };
 
 function operationError(error: unknown, t: (key: string) => string): string {
@@ -47,58 +51,23 @@ function operationError(error: unknown, t: (key: string) => string): string {
   return t('space.error.operationFailed');
 }
 
-function CopyableValue({
-  label,
-  value,
-  copied,
-  onCopy,
-}: {
-  label: string;
-  value: string;
-  copied: boolean;
-  onCopy: () => void;
-}) {
-  const { t } = useTranslation('settingsSync');
-  const colors = useMaterialColors();
-
-  return (
-    <ListItem>
-      <ListItem.HeadlineContent>
-        <ComposeText>{label}</ComposeText>
-      </ListItem.HeadlineContent>
-      <ListItem.SupportingContent>
-        <ComposeText>{value}</ComposeText>
-      </ListItem.SupportingContent>
-      <ListItem.TrailingContent>
-        <IconButton onClick={onCopy}>
-          <Icon
-            source={copied ? ICONS.ready : ICONS.copy}
-            size={20}
-            tint={copied ? colors.primary : colors.onSurfaceVariant}
-            contentDescription={t('action.copy', { ns: 'common' })}
-          />
-        </IconButton>
-      </ListItem.TrailingContent>
-    </ListItem>
-  );
-}
-
 function SpaceDeviceRow({
   device,
   removing,
-  onRemove,
+  onManage,
 }: {
   device: UnifiedSpaceDevice;
   removing: boolean;
-  onRemove: () => void;
+  onManage: () => void;
 }) {
   const { t } = useTranslation('settingsSync');
   const colors = useMaterialColors();
   const online = device.isLocal || device.online;
   const statusColor = online ? colors.primary : colors.outline;
+  const modifiers = !device.isLocal && !removing ? [clickable(onManage)] : [];
 
   return (
-    <ListItem>
+    <ListItem modifiers={modifiers}>
       <ListItem.LeadingContent>
         <Icon source={ICONS.device} size={28} tint={colors.primary} />
       </ListItem.LeadingContent>
@@ -120,20 +89,20 @@ function SpaceDeviceRow({
           </ComposeText>
         </Row>
       </ListItem.SupportingContent>
-      <ListItem.TrailingContent>
-        {device.isLocal ? null : removing ? (
-          <CircularProgressIndicator modifiers={[widthModifier(24), heightModifier(24)]} />
-        ) : (
-          <IconButton onClick={onRemove}>
+      {!device.isLocal ? (
+        <ListItem.TrailingContent>
+          {removing ? (
+            <CircularProgressIndicator modifiers={[widthModifier(24), heightModifier(24)]} />
+          ) : (
             <Icon
-              source={ICONS.remove}
+              source={ICONS.chevron}
               size={20}
-              tint={colors.error}
-              contentDescription={t('space.devices.remove')}
+              tint={colors.onSurfaceVariant}
+              contentDescription={t('space.devices.manageHint')}
             />
-          </IconButton>
-        )}
-      </ListItem.TrailingContent>
+          )}
+        </ListItem.TrailingContent>
+      ) : null}
     </ListItem>
   );
 }
@@ -144,10 +113,9 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
   const [setupMode, setSetupMode] = useState<AddSyncConnectionMode | null>(null);
   const [pending, setPending] = useState<PendingOperation>(null);
   const [error, setError] = useState<string | null>(null);
-  const [invitation, setInvitation] = useState<InvitationIssued | null>(null);
-  const [copiedValue, setCopiedValue] = useState<string | null>(null);
   const [removeDeviceId, setRemoveDeviceId] = useState<string | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [showInvitation, setShowInvitation] = useState(false);
   const space = useUnifiedSpaceStore();
   const refreshRevision = useUnifiedEngineStore((state) => state.refreshRevision);
   const hasLoadedSpace = useRef(false);
@@ -167,25 +135,6 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
       .refreshDevices()
       .catch((cause) => setError(operationError(cause, t)));
   }, [refreshRevision, t]);
-
-  const issueInvitation = async () => {
-    if (pending) return;
-    setPending('invite');
-    setError(null);
-    setCopiedValue(null);
-    try {
-      setInvitation(await getUnifiedSpaceService().issueInvitation());
-    } catch (cause) {
-      setError(operationError(cause, t));
-    } finally {
-      setPending(null);
-    }
-  };
-
-  const copyValue = async (value: string) => {
-    await Clipboard.setStringAsync(value);
-    setCopiedValue(value);
-  };
 
   const removeDevice = async () => {
     if (!removeDeviceId || pending) return;
@@ -209,8 +158,6 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
     setError(null);
     try {
       await getUnifiedSpaceService().leaveSpace();
-      setInvitation(null);
-      setCopiedValue(null);
     } catch (cause) {
       setError(operationError(cause, t));
     } finally {
@@ -219,24 +166,13 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
   };
 
   const spaceId = space.spaceId;
-  const visibleInvitation = invitation ?? space.invitation;
-  const invitationDescription = visibleInvitation
-    ? 'availability' in visibleInvitation
-      ? t(
-          visibleInvitation.availability === 'sameLocalNetwork'
-            ? 'space.invitation.sameLocalNetwork'
-            : 'space.invitation.crossNetwork'
-        )
-      : t('space.invitation.description')
-    : t('space.invitation.description');
-  const invitationFooter = visibleInvitation
-    ? `${invitationDescription}\n${t('connection.invitationExpires', {
-        time: new Date(visibleInvitation.expiresAtMs).toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-      })}`
-    : invitationDescription;
+  const devices = [...space.devices].sort((left, right) => {
+    const leftRank = left.isLocal ? 0 : left.online ? 1 : 2;
+    const rightRank = right.isLocal ? 0 : right.online ? 1 : 2;
+    return leftRank - rightRank;
+  });
+  const onlineCount = devices.filter((device) => device.isLocal || device.online).length;
+  const offlineCount = devices.length - onlineCount;
   const isInitialLoading =
     !spaceId && !pending && (space.status === 'idle' || space.status === 'loading');
 
@@ -251,6 +187,8 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
           return true;
         }}
       />
+
+      <SpaceInvitationSheet visible={showInvitation} onClose={() => setShowInvitation(false)} />
 
       {removeDeviceId ? (
         <AlertDialog onDismissRequest={() => setRemoveDeviceId(null)}>
@@ -313,40 +251,28 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
 
   if (!spaceId) {
     return (
-      <SettingsSectionItem title={t('space.mode')} footer={t('space.footer')} dialogs={dialogs}>
-        <ListItem>
-          <ListItem.LeadingContent>
-            <Icon source={ICONS.space} size={26} tint={colors.primary} />
-          </ListItem.LeadingContent>
-          <ListItem.HeadlineContent>
+      <SettingsSectionItem title={t('space.title')} footer={t('space.footer')} dialogs={dialogs}>
+        <Column horizontalAlignment="center" modifiers={[fillMaxWidth(), padding(24, 28, 24, 28)]}>
+          <Icon source={ICONS.space} size={52} tint={colors.primary} />
+          <Spacer modifiers={[heightModifier(16)]} />
+          <ComposeText style={EMPTY_TITLE_STYLE}>{t('space.empty.title')}</ComposeText>
+          <Spacer modifiers={[heightModifier(8)]} />
+          <ComposeText color={colors.onSurfaceVariant} style={EMPTY_BODY_STYLE}>
+            {error ?? t('space.empty.body')}
+          </ComposeText>
+          <Spacer modifiers={[heightModifier(24)]} />
+          <Button onClick={() => setSetupMode('create')} modifiers={[fillMaxWidth()]}>
+            <Icon source={ICONS.space} size={18} tint={colors.onPrimary} />
+            <Spacer modifiers={[widthModifier(8)]} />
             <ComposeText>{t('space.create.title')}</ComposeText>
-          </ListItem.HeadlineContent>
-          <ListItem.SupportingContent>
-            <ComposeText>{t('space.create.description')}</ComposeText>
-          </ListItem.SupportingContent>
-          <ListItem.TrailingContent>
-            <Button onClick={() => setSetupMode('create')}>
-              <ComposeText>{t('space.create.action')}</ComposeText>
-            </Button>
-          </ListItem.TrailingContent>
-        </ListItem>
-        <HorizontalDivider />
-        <ListItem>
-          <ListItem.LeadingContent>
-            <Icon source={ICONS.device} size={26} tint={colors.secondary} />
-          </ListItem.LeadingContent>
-          <ListItem.HeadlineContent>
+          </Button>
+          <Spacer modifiers={[heightModifier(10)]} />
+          <OutlinedButton onClick={() => setSetupMode('join')} modifiers={[fillMaxWidth()]}>
+            <Icon source={ICONS.device} size={18} tint={colors.primary} />
+            <Spacer modifiers={[widthModifier(8)]} />
             <ComposeText>{t('space.join.title')}</ComposeText>
-          </ListItem.HeadlineContent>
-          <ListItem.SupportingContent>
-            <ComposeText>{error ?? t('space.join.description')}</ComposeText>
-          </ListItem.SupportingContent>
-          <ListItem.TrailingContent>
-            <OutlinedButton onClick={() => setSetupMode('join')}>
-              <ComposeText>{t('space.join.action')}</ComposeText>
-            </OutlinedButton>
-          </ListItem.TrailingContent>
-        </ListItem>
+          </OutlinedButton>
+        </Column>
       </SettingsSectionItem>
     );
   }
@@ -354,44 +280,60 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
   return (
     <Column modifiers={[fillMaxWidth()]}>
       {dialogs}
-      <SettingsSectionItem title={t('space.status.ready')} footer={t('connection.p2pDescription')}>
+
+      {error ? (
+        <SettingsSectionItem title={t('space.error.title')}>
+          <ListItem>
+            <ListItem.LeadingContent>
+              <Icon source={ICONS.space} size={24} tint={colors.error} />
+            </ListItem.LeadingContent>
+            <ListItem.HeadlineContent>
+              <ComposeText color={colors.error}>{error}</ComposeText>
+            </ListItem.HeadlineContent>
+          </ListItem>
+        </SettingsSectionItem>
+      ) : null}
+
+      {error ? <Spacer modifiers={[heightModifier(16)]} /> : null}
+      <SettingsSectionItem
+        title={t('space.overview.title')}
+        footer={t('connection.p2pDescription')}
+      >
         <ListItem>
           <ListItem.LeadingContent>
-            <Icon source={ICONS.space} size={28} tint={colors.primary} />
+            <Icon source={ICONS.ready} size={30} tint={colors.primary} />
           </ListItem.LeadingContent>
           <ListItem.HeadlineContent>
-            <ComposeText>{t('space.status.ready')}</ComposeText>
+            <ComposeText>{t('space.overview.syncHealthy')}</ComposeText>
           </ListItem.HeadlineContent>
-          {space.deviceName ? (
-            <ListItem.SupportingContent>
-              <ComposeText>
-                {t('space.status.currentDevice', { name: space.deviceName })}
-              </ComposeText>
-            </ListItem.SupportingContent>
-          ) : null}
+          <ListItem.SupportingContent>
+            <ComposeText color={colors.onSurfaceVariant}>
+              {t('space.overview.deviceSummary', { online: onlineCount, offline: offlineCount })}
+            </ComposeText>
+          </ListItem.SupportingContent>
           <ListItem.TrailingContent>
-            <Icon source={ICONS.ready} size={24} tint={colors.primary} />
+            <IconButton onClick={() => setShowInvitation(true)}>
+              <Icon
+                source={ICONS.add}
+                size={24}
+                tint={colors.primary}
+                contentDescription={t('space.invitation.addA11y')}
+              />
+            </IconButton>
           </ListItem.TrailingContent>
         </ListItem>
-        <HorizontalDivider />
-        <CopyableValue
-          label={t('space.status.spaceId')}
-          value={spaceId}
-          copied={copiedValue === spaceId}
-          onCopy={() => void copyValue(spaceId)}
-        />
       </SettingsSectionItem>
 
       <Spacer modifiers={[heightModifier(16)]} />
-      <SettingsSectionItem title={`${t('space.devices.title')} (${space.devices.length})`}>
-        {space.devices.length ? (
-          space.devices.map((device, index) => (
+      <SettingsSectionItem title={`${t('space.devices.title')} (${devices.length})`}>
+        {devices.length ? (
+          devices.map((device, index) => (
             <Column key={device.deviceId} modifiers={[fillMaxWidth()]}>
               {index > 0 ? <HorizontalDivider /> : null}
               <SpaceDeviceRow
                 device={device}
                 removing={pending === `remove:${device.deviceId}`}
-                onRemove={() => setRemoveDeviceId(device.deviceId)}
+                onManage={() => setRemoveDeviceId(device.deviceId)}
               />
             </Column>
           ))
@@ -408,47 +350,17 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
       </SettingsSectionItem>
 
       <Spacer modifiers={[heightModifier(16)]} />
-      <SettingsSectionItem title={t('space.invitation.title')} footer={invitationFooter}>
-        {visibleInvitation ? (
-          <>
-            <CopyableValue
-              label={t('space.invitation.code')}
-              value={visibleInvitation.invitationCode}
-              copied={copiedValue === visibleInvitation.invitationCode}
-              onCopy={() => void copyValue(visibleInvitation.invitationCode)}
-            />
-            <HorizontalDivider />
-          </>
-        ) : null}
-        <ListItem>
-          <ListItem.HeadlineContent>
-            <ComposeText>{t('space.invitation.description')}</ComposeText>
-          </ListItem.HeadlineContent>
-          {error ? (
-            <ListItem.SupportingContent>
-              <ComposeText color={colors.error}>{error}</ComposeText>
-            </ListItem.SupportingContent>
-          ) : null}
-          <ListItem.TrailingContent>
-            <OutlinedButton onClick={issueInvitation} enabled={!pending}>
-              <ComposeText>
-                {pending === 'invite' ? t('space.working') : t('space.invitation.action')}
-              </ComposeText>
-            </OutlinedButton>
-          </ListItem.TrailingContent>
-        </ListItem>
-      </SettingsSectionItem>
-
-      <Spacer modifiers={[heightModifier(16)]} />
       <SettingsSectionItem title={t('space.leave.action')} footer={t('space.leave.confirm')}>
-        <ListItem>
+        <ListItem modifiers={[clickable(() => setConfirmLeave(true))]}>
           <ListItem.HeadlineContent>
             <ComposeText color={colors.error}>{t('space.leave.action')}</ComposeText>
           </ListItem.HeadlineContent>
           <ListItem.TrailingContent>
-            <TextButton onClick={() => setConfirmLeave(true)} enabled={!pending}>
-              <ComposeText>{t('space.leave.action')}</ComposeText>
-            </TextButton>
+            {pending === 'leave' ? (
+              <CircularProgressIndicator modifiers={[widthModifier(24), heightModifier(24)]} />
+            ) : (
+              <Icon source={ICONS.chevron} size={20} tint={colors.error} />
+            )}
           </ListItem.TrailingContent>
         </ListItem>
       </SettingsSectionItem>

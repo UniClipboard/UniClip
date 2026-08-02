@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
-import type { InvitationIssued } from 'uc-engine';
 import {
   Button as SwiftUIButton,
   HStack,
@@ -13,17 +11,18 @@ import {
   VStack,
 } from '@expo/ui/swift-ui';
 import {
+  accessibilityHint,
   accessibilityLabel,
   buttonStyle,
+  contentShape,
   controlSize,
   disabled,
   font,
   foregroundStyle,
   frame,
-  lineLimit,
-  minimumScaleFactor,
+  onTapGesture,
   opacity,
-  textSelection,
+  shapes,
 } from '@expo/ui/swift-ui/modifiers';
 import { useTranslation } from 'react-i18next';
 
@@ -40,86 +39,53 @@ import { useUnifiedSpaceStore, type UnifiedSpaceDevice } from '@/stores/unifiedS
 import {
   HeaderCircleButton,
   SettingsIconTile,
+  chevronColor,
   settingsTileColors,
   statusGreen,
 } from './common';
 
-type PendingOperation = 'invite' | 'leave' | `remove:${string}` | null;
+type PendingOperation = 'leave' | `remove:${string}` | null;
 
 function operationError(error: unknown, t: (key: string) => string): string {
   if (error instanceof UnifiedSpaceInputError) return t(`space.error.${error.code}`);
   return t('space.error.operationFailed');
 }
 
-function CopyableValue({
-  label,
-  value,
-  copied,
-  copyLabel,
-  onCopy,
-}: {
-  label: string;
-  value: string;
-  copied: boolean;
-  copyLabel: string;
-  onCopy: () => void;
-}) {
-  return (
-    <VStack alignment="leading" spacing={5} modifiers={[frame({ maxWidth: Infinity })]}>
-      <SwiftUIText modifiers={[font({ size: 13 }), foregroundStyle('secondary')]}>
-        {label}
-      </SwiftUIText>
-      <HStack spacing={8} alignment="center" modifiers={[frame({ maxWidth: Infinity })]}>
-        <SwiftUIText
-          modifiers={[
-            font({ size: 13, design: 'monospaced' }),
-            lineLimit(1),
-            minimumScaleFactor(0.7),
-            textSelection(true),
-          ]}
-        >
-          {value}
-        </SwiftUIText>
-        <Spacer />
-        <SwiftUIButton
-          onPress={onCopy}
-          modifiers={[buttonStyle('borderless'), accessibilityLabel(copyLabel)]}
-        >
-          <Image
-            systemName={copied ? 'checkmark' : 'doc.on.doc'}
-            size={16}
-            color={copied ? statusGreen : settingsTileColors.gray}
-            modifiers={[frame({ width: 28, height: 28 })]}
-          />
-        </SwiftUIButton>
-      </HStack>
-    </VStack>
-  );
-}
-
 function SpaceDeviceRow({
   device,
   removing,
   removeLabel,
+  manageHint,
   thisDeviceLabel,
   onlineLabel,
   offlineLabel,
-  onRemove,
+  onManage,
 }: {
   device: UnifiedSpaceDevice;
   removing: boolean;
   removeLabel: string;
+  manageHint: string;
   thisDeviceLabel: string;
   onlineLabel: string;
   offlineLabel: string;
-  onRemove: () => void;
+  onManage: () => void;
 }) {
   const online = device.isLocal || device.online;
   const statusColor = online ? statusGreen : settingsTileColors.gray;
+  const rowModifiers = [frame({ maxWidth: Infinity })];
+
+  if (!device.isLocal && !removing) {
+    rowModifiers.push(
+      contentShape(shapes.rectangle()),
+      onTapGesture(onManage),
+      accessibilityLabel(`${device.displayName}, ${removeLabel}`),
+      accessibilityHint(manageHint)
+    );
+  }
 
   return (
-    <HStack spacing={12} alignment="center" modifiers={[frame({ maxWidth: Infinity })]}>
-      <Image systemName="person.crop.circle" size={28} color={settingsTileColors.indigo} />
+    <HStack spacing={12} alignment="center" modifiers={rowModifiers}>
+      <Image systemName="person.crop.circle" size={30} color={settingsTileColors.indigo} />
       <VStack alignment="leading" spacing={3}>
         <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>{device.displayName}</SwiftUIText>
         <HStack spacing={5} alignment="center">
@@ -130,33 +96,28 @@ function SpaceDeviceRow({
         </HStack>
       </VStack>
       <Spacer />
-      {device.isLocal ? null : removing ? (
-        <ProgressView />
-      ) : (
-        <SwiftUIButton
-          role="destructive"
-          onPress={onRemove}
-          modifiers={[buttonStyle('plain'), accessibilityLabel(removeLabel)]}
-        >
-          <Image
-            systemName="trash"
-            size={16}
-            color={settingsTileColors.red}
-            modifiers={[frame({ width: 32, height: 32 })]}
-          />
-        </SwiftUIButton>
-      )}
+      {!device.isLocal ? (
+        removing ? (
+          <ProgressView />
+        ) : (
+          <Image systemName="chevron.right" size={12} color={chevronColor} />
+        )
+      ) : null}
     </HStack>
   );
 }
 
-export function SpacePage({ onBack }: { onBack: () => void }) {
+export function SpacePage({
+  onBack,
+  onOpenInvitation,
+}: {
+  onBack: () => void;
+  onOpenInvitation: () => void;
+}) {
   const { t } = useTranslation('settingsSync');
   const [setupMode, setSetupMode] = useState<AddSyncConnectionMode | null>(null);
   const [pending, setPending] = useState<PendingOperation>(null);
   const [error, setError] = useState<string | null>(null);
-  const [invitation, setInvitation] = useState<InvitationIssued | null>(null);
-  const [copiedValue, setCopiedValue] = useState<string | null>(null);
   const space = useUnifiedSpaceStore();
   const refreshRevision = useUnifiedEngineStore((state) => state.refreshRevision);
   const hasLoadedSpace = useRef(false);
@@ -180,28 +141,7 @@ export function SpacePage({ onBack }: { onBack: () => void }) {
   const handleBack = () => {
     if (pending) return;
     setError(null);
-    setInvitation(null);
-    setCopiedValue(null);
     onBack();
-  };
-
-  const issueInvitation = async () => {
-    if (pending) return;
-    setPending('invite');
-    setError(null);
-    setCopiedValue(null);
-    try {
-      setInvitation(await getUnifiedSpaceService().issueInvitation());
-    } catch (cause) {
-      setError(operationError(cause, t));
-    } finally {
-      setPending(null);
-    }
-  };
-
-  const copyValue = async (value: string) => {
-    await Clipboard.setStringAsync(value);
-    setCopiedValue(value);
   };
 
   const removeMember = (deviceId: string) => {
@@ -212,6 +152,7 @@ export function SpacePage({ onBack }: { onBack: () => void }) {
         style: 'destructive',
         onPress: () => {
           setPending(`remove:${deviceId}`);
+          setError(null);
           void getUnifiedSpaceService()
             .removeMember(deviceId)
             .catch((cause) => setError(operationError(cause, t)))
@@ -229,12 +170,9 @@ export function SpacePage({ onBack }: { onBack: () => void }) {
         style: 'destructive',
         onPress: () => {
           setPending('leave');
+          setError(null);
           void getUnifiedSpaceService()
             .leaveSpace()
-            .then(() => {
-              setInvitation(null);
-              setCopiedValue(null);
-            })
             .catch((cause) => setError(operationError(cause, t)))
             .finally(() => setPending(null));
         },
@@ -243,24 +181,13 @@ export function SpacePage({ onBack }: { onBack: () => void }) {
   };
 
   const spaceId = space.spaceId;
-  const visibleInvitation = invitation ?? space.invitation;
-  const invitationDescription = visibleInvitation
-    ? 'availability' in visibleInvitation
-      ? t(
-          visibleInvitation.availability === 'sameLocalNetwork'
-            ? 'space.invitation.sameLocalNetwork'
-            : 'space.invitation.crossNetwork'
-        )
-      : t('space.invitation.description')
-    : t('space.invitation.description');
-  const invitationFooter = visibleInvitation
-    ? `${invitationDescription}\n${t('connection.invitationExpires', {
-        time: new Date(visibleInvitation.expiresAtMs).toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-      })}`
-    : invitationDescription;
+  const devices = [...space.devices].sort((left, right) => {
+    const leftRank = left.isLocal ? 0 : left.online ? 1 : 2;
+    const rightRank = right.isLocal ? 0 : right.online ? 1 : 2;
+    return leftRank - rightRank;
+  });
+  const onlineCount = devices.filter((device) => device.isLocal || device.online).length;
+  const offlineCount = devices.length - onlineCount;
   const isInitialLoading =
     !spaceId && !pending && (space.status === 'idle' || space.status === 'loading');
 
@@ -271,6 +198,18 @@ export function SpacePage({ onBack }: { onBack: () => void }) {
         leftSlots={[
           <HeaderCircleButton key="back" systemName="chevron.left" onPress={handleBack} />,
         ]}
+        rightSlots={
+          spaceId
+            ? [
+                <HeaderCircleButton
+                  key="invite"
+                  systemName="plus"
+                  accessibilityLabel={t('space.invitation.addA11y')}
+                  onPress={onOpenInvitation}
+                />,
+              ]
+            : undefined
+        }
       >
         <IosSheetForm>
           {isInitialLoading ? (
@@ -285,53 +224,42 @@ export function SpacePage({ onBack }: { onBack: () => void }) {
           ) : null}
 
           {!spaceId && !isInitialLoading ? (
-            <>
-              <Section footer={<SwiftUIText>{t('space.footer')}</SwiftUIText>}>
+            <Section footer={<SwiftUIText>{t('space.footer')}</SwiftUIText>}>
+              <VStack spacing={12} alignment="center" modifiers={[frame({ maxWidth: Infinity })]}>
+                <Image systemName="person.2.wave.2.fill" size={48} color={settingsTileColors.indigo} />
+                <SwiftUIText modifiers={[font({ size: 22, weight: 'bold' })]}>
+                  {t('space.empty.title')}
+                </SwiftUIText>
+                <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
+                  {error ?? t('space.empty.body')}
+                </SwiftUIText>
                 <SwiftUIButton
+                  systemImage="plus.circle.fill"
+                  label={t('space.create.title')}
                   onPress={() => setSetupMode('create')}
                   modifiers={[
                     ...iosProminentButtonModifiers(
-                      iosSaturatedButtonPalette(settingsTileColors.blue),
+                      iosSaturatedButtonPalette(settingsTileColors.indigo),
                       { fullWidth: true }
                     ),
                     controlSize('large'),
                   ]}
-                >
-                  <HStack spacing={8} modifiers={[frame({ minHeight: 50, maxWidth: Infinity })]}>
-                    <Spacer />
-                    <Image systemName="plus.circle.fill" size={17} />
-                    <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>
-                      {t('space.create.title')}
-                    </SwiftUIText>
-                    <Spacer />
-                  </HStack>
-                </SwiftUIButton>
+                />
                 <SwiftUIButton
+                  systemImage="link.circle.fill"
+                  label={t('space.join.title')}
                   onPress={() => setSetupMode('join')}
-                  modifiers={[buttonStyle('bordered'), controlSize('large')]}
-                >
-                  <HStack spacing={8} modifiers={[frame({ minHeight: 50, maxWidth: Infinity })]}>
-                    <Spacer />
-                    <Image systemName="link.circle.fill" size={17} />
-                    <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>
-                      {t('space.join.title')}
-                    </SwiftUIText>
-                    <Spacer />
-                  </HStack>
-                </SwiftUIButton>
-              </Section>
-            </>
+                  modifiers={[buttonStyle('bordered'), controlSize('large'), frame({ maxWidth: Infinity })]}
+                />
+              </VStack>
+            </Section>
           ) : null}
 
-          {error ? (
+          {spaceId && error ? (
             <Section>
               <HStack spacing={8}>
-                <Image
-                  systemName="exclamationmark.circle.fill"
-                  size={17}
-                  color={settingsTileColors.red}
-                />
-                <SwiftUIText modifiers={[foregroundStyle('red')]}>{error}</SwiftUIText>
+                <Image systemName="exclamationmark.circle.fill" size={17} color={settingsTileColors.red} />
+                <SwiftUIText modifiers={[foregroundStyle(settingsTileColors.red)]}>{error}</SwiftUIText>
               </HStack>
             </Section>
           ) : null}
@@ -343,24 +271,18 @@ export function SpacePage({ onBack }: { onBack: () => void }) {
                   <SettingsIconTile systemName="person.2.fill" color={settingsTileColors.indigo} />
                   <VStack alignment="leading" spacing={3}>
                     <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>
-                      {t('space.status.ready')}
+                      {t('space.overview.syncHealthy')}
                     </SwiftUIText>
-                    {space.deviceName ? (
-                      <SwiftUIText modifiers={[font({ size: 13 }), foregroundStyle('secondary')]}>
-                        {t('space.status.currentDevice', { name: space.deviceName })}
-                      </SwiftUIText>
-                    ) : null}
+                    <SwiftUIText modifiers={[font({ size: 13 }), foregroundStyle('secondary')]}>
+                      {t('space.overview.deviceSummary', {
+                        online: onlineCount,
+                        offline: offlineCount,
+                      })}
+                    </SwiftUIText>
                   </VStack>
                   <Spacer />
                   <Image systemName="checkmark.circle.fill" size={22} color={statusGreen} />
                 </HStack>
-                <CopyableValue
-                  label={t('space.status.spaceId')}
-                  value={spaceId}
-                  copied={copiedValue === spaceId}
-                  copyLabel={t('action.copy', { ns: 'common' })}
-                  onCopy={() => void copyValue(spaceId)}
-                />
               </Section>
 
               <Section
@@ -369,22 +291,23 @@ export function SpacePage({ onBack }: { onBack: () => void }) {
                     <SwiftUIText>{t('space.devices.title')}</SwiftUIText>
                     <Spacer />
                     <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-                      {space.devices.length}
+                      {devices.length}
                     </SwiftUIText>
                   </HStack>
                 }
               >
-                {space.devices.length ? (
-                  space.devices.map((device) => (
+                {devices.length ? (
+                  devices.map((device) => (
                     <SpaceDeviceRow
                       key={device.deviceId}
                       device={device}
                       removing={pending === `remove:${device.deviceId}`}
                       removeLabel={t('space.devices.remove')}
+                      manageHint={t('space.devices.manageHint')}
                       thisDeviceLabel={t('space.devices.thisDevice')}
                       onlineLabel={t('space.devices.online')}
                       offlineLabel={t('space.devices.offline')}
-                      onRemove={() => removeMember(device.deviceId)}
+                      onManage={() => removeMember(device.deviceId)}
                     />
                   ))
                 ) : (
@@ -395,40 +318,6 @@ export function SpacePage({ onBack }: { onBack: () => void }) {
                     </SwiftUIText>
                   </HStack>
                 )}
-              </Section>
-
-              <Section
-                header={<SwiftUIText>{t('space.invitation.title')}</SwiftUIText>}
-                footer={<SwiftUIText>{invitationFooter}</SwiftUIText>}
-              >
-                {visibleInvitation ? (
-                  <CopyableValue
-                    label={t('space.invitation.code')}
-                    value={visibleInvitation.invitationCode}
-                    copied={copiedValue === visibleInvitation.invitationCode}
-                    copyLabel={t('action.copy', { ns: 'common' })}
-                    onCopy={() => void copyValue(visibleInvitation.invitationCode)}
-                  />
-                ) : null}
-                <SwiftUIButton
-                  onPress={() => void issueInvitation()}
-                  modifiers={[
-                    buttonStyle('bordered'),
-                    disabled(pending !== null),
-                    opacity(pending !== null ? 0.35 : 1),
-                  ]}
-                >
-                  <HStack spacing={7} modifiers={[frame({ maxWidth: Infinity })]}>
-                    <Spacer />
-                    {pending === 'invite' ? (
-                      <ProgressView />
-                    ) : (
-                      <Image systemName="person.badge.plus" size={16} />
-                    )}
-                    <SwiftUIText>{t('space.invitation.action')}</SwiftUIText>
-                    <Spacer />
-                  </HStack>
-                </SwiftUIButton>
               </Section>
 
               <Section footer={<SwiftUIText>{t('space.leave.confirm')}</SwiftUIText>}>

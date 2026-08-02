@@ -14,6 +14,7 @@ import {
 
 import { iosAccentColor } from '@/theme/iosDesignTokens';
 import { useSettingsStore } from '@/stores';
+import { SpaceInvitationSheet } from '@/components/SpaceInvitationSheet';
 import type { SettingsPage } from './settings/ios/types';
 import { SettingsRootPage } from './settings/ios/SettingsRootPage';
 import { StoragePage } from './settings/ios/StoragePage';
@@ -65,6 +66,7 @@ export const SettingsScreen = () => {
 
   const [presented, setPresented] = useState(true);
   const [page, setPage] = useState<SettingsPage>('root');
+  const [showSpaceInvitation, setShowSpaceInvitation] = useState(false);
 
   useEffect(() => {
     if (!isLoaded) loadConfig();
@@ -80,7 +82,10 @@ export const SettingsScreen = () => {
     [navigation]
   );
 
-  const backToRoot = useCallback(() => setPage('root'), []);
+  const backToRoot = useCallback(() => {
+    setShowSpaceInvitation(false);
+    setPage('root');
+  }, []);
 
   if (!isLoaded || !config) return null;
 
@@ -104,7 +109,10 @@ export const SettingsScreen = () => {
               </VStack>
 
               <SubPageSlide active={page === 'space'} width={width}>
-                <SpacePage onBack={backToRoot} />
+                <SpacePage
+                  onBack={backToRoot}
+                  onOpenInvitation={() => setShowSpaceInvitation(true)}
+                />
               </SubPageSlide>
               <SubPageSlide active={page === 'storage'} width={width}>
                 <StoragePage onBack={backToRoot} active={page === 'storage'} />
@@ -121,6 +129,10 @@ export const SettingsScreen = () => {
               <SubPageSlide active={page === 'diagnostics'} width={width}>
                 <DiagnosticsPage onBack={backToRoot} />
               </SubPageSlide>
+              <SpaceInvitationSheet
+                visible={showSpaceInvitation}
+                onClose={() => setShowSpaceInvitation(false)}
+              />
             </ZStack>
           </VStack>
         </Group>
