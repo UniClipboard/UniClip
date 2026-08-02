@@ -171,6 +171,82 @@ describe('historyStore handleStorageChange 排序', () => {
     ]);
   });
 
+  it('图片本地文件就绪后立即进入列表，不等待长期保存完成', async () => {
+    let finishPersistence!: (item: ClipboardItem) => void;
+    const persistence = new Promise<ClipboardItem>((resolve) => {
+      finishPersistence = resolve;
+    });
+    const addItemMock = historyStorage.addItem as jest.MockedFunction<
+      typeof historyStorage.addItem
+    >;
+    addItemMock.mockReturnValueOnce(persistence);
+    const image = createItem('image-fast', 500, {
+      type: 'Image',
+      text: '',
+      hasData: true,
+      dataName: 'clipboard.png',
+      fileUri: 'file://cache/clipboard.png',
+    });
+
+    const saving = useHistoryStore.getState().addItem(image);
+
+    expect(hashes(useHistoryStore.getState().items)).toEqual(['image-fast']);
+    expect(useHistoryStore.getState().items[0].fileUri).toBe('file://cache/clipboard.png');
+
+    finishPersistence({ ...image, fileUri: 'file://history/image-fast/clipboard.png' });
+    await saving;
+
+    expect(useHistoryStore.getState().items[0].fileUri).toBe(
+      'file://history/image-fast/clipboard.png'
+    );
+  });
+
+  it('长期保存失败时撤回尚未落稳的图片卡片', async () => {
+    const addItemMock = historyStorage.addItem as jest.MockedFunction<
+      typeof historyStorage.addItem
+    >;
+    addItemMock.mockRejectedValueOnce(new Error('disk full'));
+    const image = createItem('image-failed', 500, {
+      type: 'Image',
+      text: '',
+      hasData: true,
+      dataName: 'clipboard.png',
+      fileUri: 'file://cache/clipboard.png',
+    });
+
+    await useHistoryStore.getState().addItem(image);
+
+    expect(useHistoryStore.getState().items).toEqual([]);
+    expect(useHistoryStore.getState().error).toBe('disk full');
+  });
+
+  it('更新已有记录但长期保存失败时恢复原内容', async () => {
+    const original = createItem('same-image', 400, {
+      type: 'Image',
+      text: '',
+      hasData: true,
+      dataName: 'original.png',
+      fileUri: 'file://history/same-image/original.png',
+    });
+    useHistoryStore.setState({ items: [original], totalCount: 1 });
+    const addItemMock = historyStorage.addItem as jest.MockedFunction<
+      typeof historyStorage.addItem
+    >;
+    addItemMock.mockRejectedValueOnce(new Error('disk full'));
+    const replacement = {
+      ...original,
+      timestamp: 500,
+      dataName: 'replacement.png',
+      fileUri: 'file://cache/replacement.png',
+    };
+
+    await useHistoryStore.getState().addItem(replacement);
+
+    expect(useHistoryStore.getState().items).toEqual([original]);
+    expect(useHistoryStore.getState().totalCount).toBe(1);
+    expect(useHistoryStore.getState().error).toBe('disk full');
+  });
+
   it('searchItems 不传 sort 时，handleStorageChange update 仍按正确 sort 重排', async () => {
     const { setSort, searchItems, handleStorageChange } = useHistoryStore.getState();
 

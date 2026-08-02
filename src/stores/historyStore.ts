@@ -237,17 +237,24 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
   addItem: async (item: ClipboardItem) => {
     set({ error: null });
 
+    const existingItem = get().items.find(
+      (current) => current.profileHash.toLowerCase() === item.profileHash.toLowerCase()
+    );
+    get().handleStorageChange([item], existingItem ? 'update' : 'add');
+
     try {
       const savedItem = await historyStorage.addItem(item);
 
-      // 更新最后添加时间戳
-      set({ lastAddedTimestamp: Date.now() });
-
-      // 刷新当前页
-      await get().refresh();
+      // 持久化可能把临时文件移动到长期目录；用最终记录无感替换乐观项。
+      get().handleStorageChange([savedItem], 'update');
 
       return savedItem;
     } catch (error) {
+      if (existingItem) {
+        get().handleStorageChange([existingItem], 'update');
+      } else {
+        get().handleStorageChange([item], 'delete');
+      }
       const errorMessage = error instanceof Error ? error.message : 'Failed to add item';
       set({ error: errorMessage });
       return item;
