@@ -57,7 +57,10 @@
       "title": "Invite another device",
       "description": "Generate a time-limited invitation for the current space.",
       "action": "Generate invitation",
+      "addA11y": "Invite a new device",
       "code": "Invitation code",
+      "pairingInstructions": "Enter this invitation on the new device to join this space and finish pairing.",
+      "pairedDevice": "{{device}} joined this space.",
       "crossNetwork": "This invitation can be used by a device on another network.",
       "sameLocalNetwork": "This invitation only works while both devices are on the same local network."
     },

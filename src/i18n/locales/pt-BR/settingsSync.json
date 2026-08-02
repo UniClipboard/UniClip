@@ -57,7 +57,10 @@
       "title": "Convidar outro dispositivo",
       "description": "Gerar um convite temporário para o espaço atual.",
       "action": "Gerar convite",
+      "addA11y": "Convidar um novo dispositivo",
       "code": "Código de convite",
+      "pairingInstructions": "Digite este convite no novo dispositivo para entrar neste espaço e concluir o pareamento.",
+      "pairedDevice": "{{device}} entrou neste espaço.",
       "crossNetwork": "Este convite pode ser usado por um dispositivo em outra rede.",
       "sameLocalNetwork": "Este convite só funciona enquanto os dois dispositivos estiverem na mesma rede local."
     },

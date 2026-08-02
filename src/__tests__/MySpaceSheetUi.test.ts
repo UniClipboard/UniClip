@@ -93,4 +93,77 @@ describe('home My Space sheet', () => {
     expect(mySpaceSheetHook).toContain('refreshRevision');
     expect(mySpaceSheetHook).toContain('if (!visible) return');
   });
+
+  it('uses the header plus action to create an invitation inside the sheet', () => {
+    expect(mySpaceSheets[0]).toContain('ICONS.add');
+    expect(mySpaceSheets[0]).not.toContain('ICONS.close');
+    expect(mySpaceSheets[1]).toContain('systemName="plus"');
+    expect(mySpaceSheets[1]).not.toContain('systemName="xmark"');
+
+    for (const sheet of mySpaceSheets) {
+      expect(sheet).toContain('issueInvitation');
+      expect(sheet).toContain("'space.invitation.pairingInstructions'");
+      expect(sheet).toContain('invitation.invitationCode');
+      expect(sheet).toContain("'space.flow.copyInvitation'");
+      expect(sheet).toContain("'space.flow.shareInvitation'");
+      expect(sheet).toContain('invitationTimeRemaining');
+      expect(sheet).toContain('pairedDeviceName');
+    }
+  });
+
+  it('shows invitation progress only in the header action', () => {
+    expect(mySpaceSheets[0]).toContain('invitationPending ?');
+    expect(mySpaceSheets[0]).toContain('<CircularProgressIndicator');
+    expect(mySpaceSheets[0]).toContain(
+      'const invitationHeight = invitation ? 248 : invitationError ? 72 : 0;'
+    );
+    expect(mySpaceSheets[0]).not.toContain('invitationPending || invitationError');
+    expect(mySpaceSheets[1]).toContain('pending ?');
+    expect(mySpaceSheets[1]).toContain('<ProgressView modifiers={[padding()]} />');
+
+    for (const sheet of mySpaceSheets) {
+      expect(sheet).not.toContain('invitationPending && !invitation');
+      expect(sheet).not.toContain("t('space.working'");
+    }
+  });
+
+  it('animates Android sheet height changes when invitation content appears', () => {
+    expect(mySpaceSheets[0]).toContain('animateContentSize');
+    expect(mySpaceSheets[0]).toContain(
+      '<Column modifiers={[fillMaxWidth(), animateContentSize()]}'
+    );
+  });
+
+  it('keeps the iOS sheet at half height while loading and expands when the invitation appears', () => {
+    expect(mySpaceSheets[1]).toContain("useState<PresentationDetent>('medium')");
+    expect(mySpaceSheets[1]).toContain("if (!visible) setSheetDetent('medium')");
+    expect(mySpaceSheets[1]).toContain("if (invitation) setSheetDetent('large')");
+    expect(mySpaceSheets[1]).toContain(
+      "const presentedSheetDetent = invitation ? 'large' : sheetDetent"
+    );
+    expect(mySpaceSheets[1]).toContain('selection: presentedSheetDetent');
+    expect(mySpaceSheets[1]).toContain('onSelectionChange: setSheetDetent');
+
+    const issueHandler = mySpaceSheets[1].match(
+      /const handleIssueInvitation = \(\) => \{[\s\S]*?\n  \};/
+    )?.[0];
+    expect(issueHandler).toBeDefined();
+    expect(issueHandler).not.toContain("setSheetDetent('large')");
+  });
+
+  it('localizes the invitation guidance and header action in every supported language', () => {
+    for (const locale of ['en', 'pt-BR', 'ru', 'zh']) {
+      const settingsSync = JSON.parse(read(`i18n/locales/${locale}/settingsSync.json`));
+      expect(settingsSync.space.invitation.pairingInstructions).toEqual(expect.any(String));
+      expect(settingsSync.space.invitation.pairingInstructions.length).toBeGreaterThan(0);
+      expect(settingsSync.space.invitation.addA11y).toEqual(expect.any(String));
+      expect(settingsSync.space.invitation.addA11y.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('uses the space translations by default for Android invitation content', () => {
+    expect(mySpaceSheets[0]).toMatch(
+      /function MySpaceSheetContent[\s\S]*?const \{ t \} = useTranslation\('settingsSync'\)/
+    );
+  });
 });

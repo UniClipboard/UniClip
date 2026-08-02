@@ -57,7 +57,10 @@
       "title": "邀请其他设备",
       "description": "为已有空间生成一个限时邀请码。",
       "action": "生成邀请码",
+      "addA11y": "邀请新设备",
       "code": "邀请码",
+      "pairingInstructions": "请在新设备输入此邀请码，加入空间并完成配对。",
+      "pairedDevice": "{{device}} 已加入这个空间。",
       "crossNetwork": "此邀请码可用于其他网络中的设备。",
       "sameLocalNetwork": "此邀请码仅在两台设备连接同一局域网时有效。"
     },
