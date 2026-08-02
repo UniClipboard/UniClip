@@ -49,9 +49,6 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
           <Ionicons name="link-outline" size={20} color={c.textPrimary as string} />
           <Text style={[s.secondaryText, { color: c.textPrimary }]}>{t('setup.join')}</Text>
         </Pressable>
-        <Pressable style={s.skip} onPress={() => void onComplete()}>
-          <Text style={[s.skipText, { color: c.textSecondary }]}>{t('setup.skip')}</Text>
-        </Pressable>
       </View>
 
       <AddSyncConnectionSheet
@@ -92,6 +89,4 @@ const s = StyleSheet.create({
     gap: 9,
   },
   secondaryText: { fontSize: 16, fontWeight: '600' },
-  skip: { height: 44, alignItems: 'center', justifyContent: 'center' },
-  skipText: { fontSize: 15, fontWeight: '600' },
 });

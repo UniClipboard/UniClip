@@ -3,10 +3,9 @@
   "continue": "Continue",
   "setup": {
     "title": "Start syncing",
-    "body": "Create a new encrypted space or join one with an invitation. You can also skip setup and keep using local history.",
+    "body": "Create a new encrypted space or join an existing one with an invitation.",
     "create": "Create new space",
-    "join": "Join existing space",
-    "skip": "Skip for now"
+    "join": "Join existing space"
   },
   "welcome": {
     "wordmark": "UniClip",

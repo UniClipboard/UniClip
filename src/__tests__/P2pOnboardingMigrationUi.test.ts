@@ -9,35 +9,30 @@ function source(relativePath: string): string {
 }
 
 describe('P2P onboarding and upgrade UI', () => {
-  it('offers create, join, and skip without a legacy LAN scanner on both platforms', () => {
+  it('offers exactly create and join without a skip or legacy LAN scanner', () => {
     const types = source('screens/OnboardingScreen.types.ts');
     const android = source('screens/OnboardingScreen.android.tsx');
     const ios = source('screens/OnboardingScreen.ios.tsx');
 
     expect(types).toContain("'create'");
     expect(types).toContain("'join'");
+    expect(types).not.toContain("'skip'");
     for (const platform of [android, ios]) {
       expect(platform).toContain('AddSyncConnectionSheet');
       expect(platform).toContain("setFlow('create')");
       expect(platform).toContain("setFlow('join')");
       expect(platform).toContain('onComplete');
+      expect(platform).not.toContain("t('setup.skip')");
+      expect(platform).not.toContain('style={s.skip}');
       expect(platform).not.toContain('QrScannerModal');
       expect(platform).not.toContain('LanArt');
     }
   });
 
-  it('keeps the skipped-setup empty state P2P-first in every locale', () => {
-    const expectedDescriptions = {
-      en: 'Join a space with an invitation to continue syncing. Your local history stays available.',
-      'pt-BR':
-        'Entre em um espaço com um convite para continuar sincronizando. Seu histórico local continuará disponível.',
-      ru: 'Присоединитесь к пространству по приглашению, чтобы продолжить синхронизацию. Локальная история останется доступна.',
-      zh: '使用邀请码加入空间即可继续同步。本地历史会继续保留。',
-    };
-
-    for (const [locale, description] of Object.entries(expectedDescriptions)) {
-      const home = JSON.parse(source(`i18n/locales/${locale}/home.json`));
-      expect(home.empty.unconfigured.description).toBe(description);
+  it('describes only the two required setup choices in every locale', () => {
+    for (const locale of ['en', 'pt-BR', 'ru', 'zh']) {
+      const onboarding = JSON.parse(source(`i18n/locales/${locale}/onboarding.json`));
+      expect(Object.keys(onboarding.setup).sort()).toEqual(['body', 'create', 'join', 'title']);
     }
   });
 
@@ -55,11 +50,13 @@ describe('P2P onboarding and upgrade UI', () => {
     expect(flow).toContain('setMode(modeFromInitial(initialMode))');
   });
 
-  it('sends upgraded users without a space directly into Join Space', () => {
+  it('keeps setup out of Home because authoritative no-Space state is an onboarding gate', () => {
     const overlays = source('screens/HomeOverlays.tsx');
+    const navigator = source('navigation/AppNavigator.tsx');
 
-    expect(overlays).toContain('initialMode="join"');
+    expect(overlays).not.toContain('AddSyncConnectionSheet');
     expect(overlays).not.toContain('LanMigrationPrompt');
     expect(overlays).not.toContain('legacyLan');
+    expect(navigator).toContain("spaceStatus === 'empty'");
   });
 });

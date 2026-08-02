@@ -1,6 +1,6 @@
-export type OnboardingAction = 'create' | 'join' | 'skip';
+export type OnboardingAction = 'create' | 'join';
 
 export interface OnboardingScreenProps {
-  /** Marks onboarding complete after P2P setup or an explicit skip. */
+  /** Marks onboarding complete after P2P setup succeeds. */
   onComplete: () => void | Promise<void>;
 }

@@ -33,10 +33,7 @@ export function HomeTopBarArea({ c }: { c: HomeController }) {
         />
       ) : (
         <DefaultTopBar
-          onOpenSpace={() => {
-            if (c.p2pSpaceId) c.setShowMySpace(true);
-            else c.setShowAddConnection(true);
-          }}
+          onOpenSpace={() => c.setShowMySpace(true)}
           onSearch={c.openSearch}
           onSettings={c.onOpenSettings}
           theme={c.theme}

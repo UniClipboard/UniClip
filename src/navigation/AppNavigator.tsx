@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import {
   NavigationContainer,
   DefaultTheme,
@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { navigationRef, flushPendingNavigation } from './navigationRef';
 import { useTheme } from '@/hooks/useTheme';
 import { useSettingsStore } from '@/stores';
+import { useUnifiedSpaceStore } from '@/stores/unifiedSpaceStore';
 import { HomeView } from '@/screens/HomeView';
 import { OnboardingScreen } from '@/screens/OnboardingScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
@@ -67,8 +68,16 @@ export const AppNavigator = () => {
   const { theme } = useTheme();
   const { t } = useTranslation('home');
   const config = useSettingsStore((s) => s.config);
+  const updateConfig = useSettingsStore((s) => s.updateConfig);
+  const spaceStatus = useUnifiedSpaceStore((s) => s.status);
 
-  const showOnboarding = !!config && !config.onboardingCompleted;
+  useEffect(() => {
+    if (spaceStatus === 'empty' && config?.onboardingCompleted) {
+      void updateConfig({ onboardingCompleted: false });
+    }
+  }, [config?.onboardingCompleted, spaceStatus, updateConfig]);
+
+  const showOnboarding = !!config && (!config.onboardingCompleted || spaceStatus === 'empty');
 
   // 子页面标题在组件内按当前语言构建(而非模块级常量),切换语言即时生效
   const subScreenTitles: Record<SettingsSubSection, string> = {
@@ -112,6 +121,7 @@ export const AppNavigator = () => {
       onReady={flushPendingNavigation}
     >
       <Stack.Navigator
+        key={showOnboarding ? 'onboarding' : 'main'}
         initialRouteName={showOnboarding ? 'Onboarding' : 'Main'}
         screenOptions={{ headerShown: false }}
       >

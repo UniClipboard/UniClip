@@ -169,13 +169,11 @@ describe('unified sync connection flows', () => {
     }
   });
 
-  it('routes the upgraded Home add action directly into Join Space', () => {
+  it('keeps connection setup out of Home overlays', () => {
     const overlays = source('screens/HomeOverlays.tsx');
 
-    expect(overlays).toContain('AddSyncConnectionSheet');
-    expect(overlays).toContain('showAddConnection');
-    expect(overlays).toContain('initialMode="join"');
-    expect(overlays).toContain('handleP2pConnected');
+    expect(overlays).not.toContain('AddSyncConnectionSheet');
+    expect(overlays).toContain('MySpaceSheet');
     expect(overlays).not.toContain('legacyLan');
     expect(overlays).not.toContain('AddServer');
   });

@@ -3,10 +3,9 @@
   "continue": "Continuar",
   "setup": {
     "title": "Começar a sincronizar",
-    "body": "Crie um novo espaço criptografado ou entre em um espaço com um convite. Você também pode pular e usar apenas o histórico local.",
+    "body": "Crie um novo espaço criptografado ou entre em um espaço existente com um convite.",
     "create": "Criar novo espaço",
-    "join": "Entrar em um espaço",
-    "skip": "Pular por enquanto"
+    "join": "Entrar em um espaço"
   },
   "welcome": {
     "wordmark": "UniClip",

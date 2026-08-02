@@ -58,9 +58,6 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
             {t('setup.join')}
           </Text>
         </Pressable>
-        <Pressable style={s.skip} onPress={() => void onComplete()}>
-          <Text style={[s.skipText, { color: theme.colors.textSecondary }]}>{t('setup.skip')}</Text>
-        </Pressable>
       </View>
 
       <AddSyncConnectionSheet
@@ -103,6 +100,4 @@ const s = StyleSheet.create({
     gap: 9,
   },
   secondaryText: { fontSize: 16, fontWeight: '600' },
-  skip: { height: 44, alignItems: 'center', justifyContent: 'center' },
-  skipText: { fontSize: 15, fontWeight: '600' },
 });

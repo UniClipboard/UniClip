@@ -102,7 +102,6 @@ export function useHomeController(onOpenSettings: () => void) {
     anchor: CardAnchorRect | null;
   } | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [showAddConnection, setShowAddConnection] = useState(false);
   const [showMySpace, setShowMySpace] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
 
@@ -658,11 +657,6 @@ export function useHomeController(onOpenSettings: () => void) {
 
   const allSelected = items.length > 0 && selectedIds.size === items.length;
 
-  const handleP2pConnected = useCallback(async () => {
-    setShowAddConnection(false);
-    return true;
-  }, []);
-
   return {
     // env
     t,
@@ -704,9 +698,6 @@ export function useHomeController(onOpenSettings: () => void) {
     p2pSpaceId,
     showMySpace,
     setShowMySpace,
-    showAddConnection,
-    setShowAddConnection,
-    handleP2pConnected,
     // grid
     listRef,
     keyExtractor,

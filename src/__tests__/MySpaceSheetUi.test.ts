@@ -52,13 +52,15 @@ describe('home My Space sheet', () => {
     expect(topBars[1]).toMatch(/spacePill: \{[^}]*height: BTN/);
   });
 
-  it('opens My Space for configured users and keeps Join Space for unconfigured users', () => {
-    expect(homeChrome).toContain('if (c.p2pSpaceId) c.setShowMySpace(true)');
-    expect(homeChrome).toContain('else c.setShowAddConnection(true)');
+  it('always opens the same My Space surface without routing from partially loaded state', () => {
+    expect(homeChrome).toContain('onOpenSpace={() => c.setShowMySpace(true)}');
+    expect(homeChrome).not.toContain('if (c.p2pSpaceId)');
+    expect(homeChrome).not.toContain('setShowAddConnection');
     expect(homeController).toContain('const [showMySpace, setShowMySpace] = useState(false)');
     expect(homeController).toContain('showMySpace,');
     expect(homeController).toContain('setShowMySpace,');
     expect(homeOverlays).toContain('<MySpaceSheet');
+    expect(homeOverlays).not.toContain('<AddSyncConnectionSheet');
     expect(homeOverlays).toContain('visible={c.showMySpace}');
     expect(homeOverlays).toContain('onClose={() => c.setShowMySpace(false)}');
   });

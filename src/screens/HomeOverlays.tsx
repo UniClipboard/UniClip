@@ -1,7 +1,6 @@
 import React from 'react';
 import { ConnectedMessageToast } from '@/components/ConnectedMessageToast';
 import { HistoryFilterSheet } from '@/components/HistoryFilterSheet';
-import { AddSyncConnectionSheet } from '@/components/AddSyncConnectionSheet';
 import { MySpaceSheet } from '@/components/MySpaceSheet';
 import { WordPickerOverlay } from '@/components/WordPickerOverlay';
 import { CardContextOverlay } from '@/components/CardContextOverlay';
@@ -25,13 +24,6 @@ export function HomeOverlays({ c }: { c: HomeController }) {
         onClear={c.handleClearFilters}
         onClose={() => c.setShowFilterSheet(false)}
         theme={c.theme}
-      />
-
-      <AddSyncConnectionSheet
-        visible={c.showAddConnection}
-        initialMode="join"
-        onClose={() => c.setShowAddConnection(false)}
-        onConnected={c.handleP2pConnected}
       />
 
       <MySpaceSheet visible={c.showMySpace} onClose={() => c.setShowMySpace(false)} />

@@ -20,4 +20,14 @@ describe('AppNavigator native stack', () => {
     expect(packageJson.dependencies['@react-navigation/native-stack']).toBeDefined();
     expect(packageJson.dependencies['@react-navigation/stack']).toBeUndefined();
   });
+
+  it('returns authoritative no-Space users to mandatory onboarding without guessing while loading', () => {
+    const navigatorSource = readSource('navigation/AppNavigator.tsx');
+
+    expect(navigatorSource).toContain('useUnifiedSpaceStore');
+    expect(navigatorSource).toContain("spaceStatus === 'empty'");
+    expect(navigatorSource).toContain('onboardingCompleted: false');
+    expect(navigatorSource).toContain("key={showOnboarding ? 'onboarding' : 'main'}");
+    expect(navigatorSource).not.toContain("spaceStatus === 'loading' || spaceStatus === 'failed'");
+  });
 });
