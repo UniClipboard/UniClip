@@ -16,6 +16,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useSettingsStore } from '@/stores';
 import { useUnifiedSpaceStore } from '@/stores/unifiedSpaceStore';
 import { HomeView } from '@/screens/HomeView';
+import { LegacyPairingGuide } from '@/screens/LegacyPairingGuide';
 import { OnboardingScreen } from '@/screens/OnboardingScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
 import { SettingsSubScreen } from '@/screens/settings/SettingsSubScreen';
@@ -32,6 +33,7 @@ export type SettingsSubSection =
 
 export type RootStackParamList = {
   Onboarding: undefined;
+  Migration: undefined;
   Main: undefined;
   Settings: undefined;
   SettingsSub: { section: SettingsSubSection; update?: UpdateCheckResult };
@@ -53,6 +55,21 @@ function MainScreen() {
   return <HomeView onOpenSettings={openSettings} onOpenAbout={openAbout} />;
 }
 
+function MigrationGuideGate() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'Migration'>>();
+  const updateConfig = useSettingsStore((s) => s.updateConfig);
+  const onComplete = useCallback(async () => {
+    const result = await updateConfig({
+      onboardingCompleted: true,
+      legacyPairingGuide: 'none',
+    });
+    if (!result.ok) return false;
+    navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+    return true;
+  }, [navigation, updateConfig]);
+  return <LegacyPairingGuide onComplete={onComplete} />;
+}
+
 /** 首启引导容器:落库 onboardingCompleted,再把用户送到 Main。 */
 function OnboardingGate() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'Onboarding'>>();
@@ -72,12 +89,24 @@ export const AppNavigator = () => {
   const spaceStatus = useUnifiedSpaceStore((s) => s.status);
 
   useEffect(() => {
-    if (spaceStatus === 'empty' && config?.onboardingCompleted) {
+    if (config && spaceStatus === 'ready' && config.legacyPairingGuide === 'pending') {
+      void updateConfig({ legacyPairingGuide: 'none', onboardingCompleted: true });
+    } else if (
+      spaceStatus === 'empty' &&
+      config?.onboardingCompleted &&
+      config.legacyPairingGuide === 'none'
+    ) {
       void updateConfig({ onboardingCompleted: false });
     }
-  }, [config?.onboardingCompleted, spaceStatus, updateConfig]);
+  }, [config?.legacyPairingGuide, config?.onboardingCompleted, spaceStatus, updateConfig]);
 
-  const showOnboarding = !!config && (!config.onboardingCompleted || spaceStatus === 'empty');
+  const showMigration =
+    !!config && config.legacyPairingGuide === 'pending' && spaceStatus === 'empty';
+  const showOnboarding =
+    !!config && !showMigration && (!config.onboardingCompleted || spaceStatus === 'empty');
+  const rootMode = showMigration ? 'migration' : showOnboarding ? 'onboarding' : 'main';
+  const initialRouteName =
+    rootMode === 'migration' ? 'Migration' : rootMode === 'onboarding' ? 'Onboarding' : 'Main';
 
   // 子页面标题在组件内按当前语言构建(而非模块级常量),切换语言即时生效
   const subScreenTitles: Record<SettingsSubSection, string> = {
@@ -121,11 +150,12 @@ export const AppNavigator = () => {
       onReady={flushPendingNavigation}
     >
       <Stack.Navigator
-        key={showOnboarding ? 'onboarding' : 'main'}
-        initialRouteName={showOnboarding ? 'Onboarding' : 'Main'}
+        key={rootMode}
+        initialRouteName={initialRouteName}
         screenOptions={{ headerShown: false }}
       >
         <Stack.Screen name="Onboarding" component={OnboardingGate} />
+        <Stack.Screen name="Migration" component={MigrationGuideGate} />
         <Stack.Screen name="Main" component={MainScreen} />
         <Stack.Screen
           name="Settings"

@@ -66,6 +66,15 @@ export function migrateConfig(
     result.language = 'system';
   }
 
+  const upgradedFromLan =
+    sourceSchemaVersion < SETTINGS_SCHEMA_VERSION &&
+    (old.syncChannel === 'lan' ||
+      old.legacyLanEligible === true ||
+      (Array.isArray(old.servers) && old.servers.length > 0));
+  if (upgradedFromLan) {
+    result.legacyPairingGuide = 'pending';
+  }
+
   // Builds before schema v3 exposed Shizuku as a standalone boolean. New installs and
   // legacy overlay-only installs default to no-ADB polling. The v4 `overlay` value meant
   // READ_LOGS event detection, so preserve that behavior when upgrading to schema v5.

@@ -27,7 +27,19 @@ describe('AppNavigator native stack', () => {
     expect(navigatorSource).toContain('useUnifiedSpaceStore');
     expect(navigatorSource).toContain("spaceStatus === 'empty'");
     expect(navigatorSource).toContain('onboardingCompleted: false');
-    expect(navigatorSource).toContain("key={showOnboarding ? 'onboarding' : 'main'}");
+    expect(navigatorSource).toContain('key={rootMode}');
+    expect(navigatorSource).toContain('initialRouteName={initialRouteName}');
     expect(navigatorSource).not.toContain("spaceStatus === 'loading' || spaceStatus === 'failed'");
+  });
+
+  it('sends upgraded LAN users to a join-only recovery screen', () => {
+    const navigatorSource = readSource('navigation/AppNavigator.tsx');
+
+    expect(navigatorSource).toContain('LegacyPairingGuide');
+    expect(navigatorSource).toContain("legacyPairingGuide === 'pending'");
+    expect(navigatorSource).toContain("spaceStatus === 'ready'");
+    expect(navigatorSource).toContain("if (config && spaceStatus === 'ready'");
+    expect(navigatorSource).toContain('name="Migration"');
+    expect(navigatorSource).not.toContain('onDefer');
   });
 });

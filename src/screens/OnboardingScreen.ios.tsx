@@ -8,7 +8,6 @@ import { AddSyncConnectionSheet } from '@/components/AddSyncConnectionSheet';
 import type { AddSyncConnectionMode } from '@/components/AddSyncConnectionSheet.types';
 import { useTheme } from '@/hooks/useTheme';
 import { iosAccent } from '@/theme/iosDesignTokens';
-import { BrandMark } from './onboarding/Illustrations';
 import { OnboardingPile } from './onboarding/OnboardingPile';
 import type { OnboardingScreenProps } from './OnboardingScreen.types';
 
@@ -29,13 +28,6 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
       style={[s.root, { backgroundColor: theme.colors.background }]}
       edges={['top', 'bottom']}
     >
-      <View style={s.brand}>
-        <BrandMark color={ink} size={34} />
-        <Text style={[s.wordmark, { color: theme.colors.textPrimary }]}>
-          {t('welcome.wordmark')}
-        </Text>
-      </View>
-
       <View style={s.main}>
         <View style={s.art}>
           <OnboardingPile />
@@ -72,8 +64,6 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
 
 const s = StyleSheet.create({
   root: { flex: 1, paddingHorizontal: 24 },
-  brand: { height: 60, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  wordmark: { fontSize: 16, fontWeight: '700' },
   main: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   art: { minHeight: 150, justifyContent: 'center', marginBottom: 18 },
   title: { fontSize: 29, lineHeight: 35, fontWeight: '700', textAlign: 'center' },

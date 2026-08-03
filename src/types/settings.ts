@@ -36,6 +36,8 @@ export interface SharedSettings {
   // Onboarding
   /** 首次启动引导是否已完成(RN 侧门控,不供原生扩展消费)。 */
   onboardingCompleted: boolean;
+  /** One-time recovery state for users upgraded from the removed LAN connection flow. */
+  legacyPairingGuide: 'none' | 'pending';
 }
 
 export type ClipboardAccessMethod = 'overlay-polling' | 'overlay-event' | 'shizuku';
@@ -97,6 +99,7 @@ export const SHARED_DEFAULTS: SharedSettings = {
   keyboardHapticFeedback: true,
 
   onboardingCompleted: false,
+  legacyPairingGuide: 'none',
 };
 
 export const ANDROID_DEFAULTS: AndroidSettings = {
@@ -141,4 +144,4 @@ export const RUNTIME_STATE_DEFAULTS: RuntimeState = {
   needsHistoryReorganize: false,
 };
 
-export const SETTINGS_SCHEMA_VERSION = 8;
+export const SETTINGS_SCHEMA_VERSION = 9;

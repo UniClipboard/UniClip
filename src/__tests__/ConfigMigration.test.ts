@@ -1,6 +1,10 @@
 import { describe, expect, it } from '@jest/globals';
 import { migrateConfig, extractRuntimeState } from '../services/ConfigMigration';
-import { DEFAULT_SETTINGS, RUNTIME_STATE_DEFAULTS } from '../types/settings';
+import {
+  DEFAULT_SETTINGS,
+  RUNTIME_STATE_DEFAULTS,
+  SETTINGS_SCHEMA_VERSION,
+} from '../types/settings';
 
 describe('migrateConfig', () => {
   it('returns defaults for null/undefined input', () => {
@@ -41,6 +45,31 @@ describe('migrateConfig', () => {
     expect(result).not.toHaveProperty('servers');
     expect(result).not.toHaveProperty('activeServerIndex');
     expect(result).not.toHaveProperty('legacyLanEligible');
+  });
+
+  it('marks an upgraded LAN user for mandatory re-pairing before dropping LAN details', () => {
+    const result = migrateConfig(
+      {
+        ...DEFAULT_SETTINGS,
+        syncChannel: 'lan',
+        servers: [{ name: 'Home', url: 'http://192.168.1.8:5033' }],
+        legacyLanEligible: true,
+        onboardingCompleted: true,
+      },
+      7
+    );
+
+    expect(SETTINGS_SCHEMA_VERSION).toBeGreaterThan(8);
+    expect(result.legacyPairingGuide).toBe('pending');
+    expect(result.onboardingCompleted).toBe(true);
+    expect(result).not.toHaveProperty('servers');
+  });
+
+  it('does not mark fresh installs or current settings for legacy re-pairing', () => {
+    expect(migrateConfig(DEFAULT_SETTINGS).legacyPairingGuide).toBe('none');
+    expect(migrateConfig({ ...DEFAULT_SETTINGS }, SETTINGS_SCHEMA_VERSION)).toEqual(
+      DEFAULT_SETTINGS
+    );
   });
 
   // --- autoSync → autoApplyRemote + autoPushLocal ---

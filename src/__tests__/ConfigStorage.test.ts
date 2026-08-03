@@ -54,6 +54,7 @@ describe('ConfigStorage', () => {
 
     const config = await storage.getConfig();
     expect(config.language).toBe('ru');
+    expect(config.legacyPairingGuide).toBe('pending');
     expect(config).not.toHaveProperty('syncChannel');
     expect(config).not.toHaveProperty('servers');
     expect(mockSetItem).toHaveBeenCalledWith(

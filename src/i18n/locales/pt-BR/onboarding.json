@@ -7,6 +7,12 @@
     "create": "Criar novo espaço",
     "join": "Entrar em um espaço"
   },
+  "migration": {
+    "title": "Reconecte ao seu computador",
+    "body": "A sincronização por LAN não está mais disponível. Seu histórico local continua aqui, mas este dispositivo precisa ser emparelhado novamente com o computador.",
+    "desktopHint": "No computador, abra Meu espaço e gere um código de convite.",
+    "join": "Parear novo dispositivo"
+  },
   "welcome": {
     "wordmark": "UniClip",
     "title": "A área de transferência\nem cada dispositivo",
