@@ -1,0 +1,233 @@
+name: Adopt Engine release
+
+on:
+  repository_dispatch:
+    types: [engine_release_published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: adopt-engine-${{ github.event.client_payload.version }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Generate Engine update
+    if: ${{ github.event.client_payload.repository == 'UniClipboard/Engine' }}
+    runs-on: ubuntu-latest
+    outputs:
+      base_sha: ${{ steps.base.outputs.sha }}
+      changed: ${{ steps.change.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - id: base
+        name: Record the validated base
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Generate the release pin
+        env:
+          ENGINE_VERSION: ${{ github.event.client_payload.version }}
+          ENGINE_COMMIT: ${{ github.event.client_payload.source_commit }}
+        run: node scripts/adopt-unified-engine-release.mjs --version "$ENGINE_VERSION" --source-commit "$ENGINE_COMMIT"
+
+      - id: change
+        name: Detect the proposed update
+        run: |
+          paths=(modules/uc-engine/core-source.json modules/uc-engine/package.json package-lock.json)
+          if git diff --quiet -- "${paths[@]}"; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git diff --binary -- "${paths[@]}" > engine-adoption.patch
+          fi
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ steps.change.outputs.changed == 'true' }}
+        with:
+          name: engine-adoption-patch
+          path: engine-adoption.patch
+          if-no-files-found: error
+          retention-days: 1
+
+  quality:
+    name: Run mobile checks
+    needs: prepare
+    if: ${{ needs.prepare.outputs.changed == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.base_sha }}
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: engine-adoption-patch
+
+      - run: git apply engine-adoption.patch
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+
+      - run: npm ci
+      - run: npm run core:prepare
+      - run: npm run core:verify
+      - run: npm run release:check
+
+  android:
+    name: Prepare Android package
+    needs: prepare
+    if: ${{ needs.prepare.outputs.changed == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      APP_VARIANT: production
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.base_sha }}
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: engine-adoption-patch
+
+      - run: git apply engine-adoption.patch
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - run: npm ci
+      - run: npm run core:prepare
+      - run: npm run core:verify
+      - run: npx expo prebuild -p android --no-install
+      - run: chmod +x android/gradlew
+      - run: cd android && ./gradlew assembleRelease
+
+  ios:
+    name: Prepare iOS package
+    needs: prepare
+    if: ${{ needs.prepare.outputs.changed == 'true' }}
+    runs-on: macos-26
+    env:
+      APP_VARIANT: production
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.base_sha }}
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: engine-adoption-patch
+
+      - run: git apply engine-adoption.patch
+
+      - name: Select latest Xcode 26
+        run: |
+          XCODE_APP="$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
+          sudo xcode-select -s "$XCODE_APP"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+
+      - run: npm ci
+      - run: npm run core:prepare
+      - run: npm run core:verify
+      - run: npx expo prebuild -p ios --clean --no-install
+      - run: cd ios && pod install
+      - name: Build iOS app and extensions
+        run: >-
+          xcodebuild build
+          -workspace ios/UniClip.xcworkspace
+          -scheme UniClip
+          -configuration Release
+          -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO
+          CODE_SIGNING_REQUIRED=NO
+
+  create-pull-request:
+    name: Create or update adoption pull request
+    needs: [prepare, quality, android, ios]
+    if: ${{ needs.prepare.outputs.changed == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      BRANCH: automation/adopt-engine-${{ github.event.client_payload.version }}
+      ENGINE_VERSION: ${{ github.event.client_payload.version }}
+      ENGINE_COMMIT: ${{ github.event.client_payload.source_commit }}
+    steps:
+      - id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.ENGINE_RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.ENGINE_RELEASE_APP_PRIVATE_KEY }}
+          owner: UniClipboard
+          repositories: UniClip
+          permission-contents: write
+          permission-pull-requests: write
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.base_sha }}
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: engine-adoption-patch
+
+      - run: git apply --index engine-adoption.patch
+
+      - name: Push the deterministic branch
+        run: |
+          git config user.name "uniclipboard-engine-release[bot]"
+          git config user.email "uniclipboard-engine-release[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git commit -m "chore(engine): adopt $ENGINE_VERSION"
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            git fetch origin "refs/heads/$BRANCH:refs/remotes/origin/$BRANCH"
+            lease=$(git rev-parse "refs/remotes/origin/$BRANCH")
+            git push --force-with-lease="refs/heads/$BRANCH:$lease" origin "HEAD:refs/heads/$BRANCH"
+          else
+            git push origin "HEAD:refs/heads/$BRANCH"
+          fi
+
+      - name: Create or update the pull request
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          title="chore(engine): adopt $ENGINE_VERSION"
+          body=$(cat <<EOF
+          Adopt Engine $ENGINE_VERSION from source commit $ENGINE_COMMIT.
+
+          Verified before this pull request was created:
+          - public release manifest and artifact checksums
+          - mobile release checks
+          - Android release package build
+          - iOS app and extension build without signing
+          EOF
+          )
+          record=$(gh pr list --head "$BRANCH" --state all --json number,state --jq '.[0] | "\(.number // "") \(.state // "")"')
+          read -r number state <<<"$record"
+          if [[ "$state" == "OPEN" ]]; then
+            gh pr edit "$number" --title "$title" --body "$body"
+          elif [[ "$state" == "CLOSED" ]]; then
+            gh pr reopen "$number"
+            gh pr edit "$number" --title "$title" --body "$body"
+          else
+            gh pr create --base main --head "$BRANCH" --title "$title" --body "$body"
+          fi

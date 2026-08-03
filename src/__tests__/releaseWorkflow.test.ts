@@ -38,6 +38,10 @@ const iosBuildCheckWorkflow = existsSync(iosBuildCheckPath)
   ? readFileSync(iosBuildCheckPath, 'utf8')
   : '';
 const releaseWorkflow = readFileSync(join(root, '.github', 'workflows', 'release.yml'), 'utf8');
+const engineAdoptionWorkflowPath = join(root, '.github', 'workflows', 'adopt-engine-release.yml');
+const engineAdoptionWorkflow = existsSync(engineAdoptionWorkflowPath)
+  ? readFileSync(engineAdoptionWorkflowPath, 'utf8')
+  : '';
 const androidManifestScript = readFileSync(
   join(root, 'scripts', 'assemble-android-manifest.mjs'),
   'utf8'
@@ -163,5 +167,27 @@ describe('validated release workflow', () => {
   it('does not delete unrelated previous releases before publishing', () => {
     expect(releaseWorkflow).not.toContain('Delete existing releases in same channel');
     expect(releaseWorkflow).toContain('Reusing Gitee release');
+  });
+
+  it('validates both platform packages before creating one Engine adoption pull request', () => {
+    expect(existsSync(engineAdoptionWorkflowPath)).toBe(true);
+    expect(engineAdoptionWorkflow).toContain('types: [engine_release_published]');
+    expect(engineAdoptionWorkflow).toContain(
+      'automation/adopt-engine-${{ github.event.client_payload.version }}'
+    );
+    expect(engineAdoptionWorkflow).toMatch(/android:[\s\S]*npm run core:verify/);
+    expect(engineAdoptionWorkflow).toMatch(/ios:[\s\S]*npm run core:verify/);
+    expect(engineAdoptionWorkflow).toMatch(
+      /create-pull-request:[\s\S]*needs:\s*\[prepare, quality, android, ios\]/
+    );
+    expect(engineAdoptionWorkflow).toContain('changed: ${{ steps.change.outputs.changed }}');
+    expect(engineAdoptionWorkflow).toContain("if: ${{ needs.prepare.outputs.changed == 'true' }}");
+    expect(engineAdoptionWorkflow).toContain('--state all');
+    expect(engineAdoptionWorkflow).toContain('gh pr reopen');
+    expect(engineAdoptionWorkflow).toContain('actions/create-github-app-token@v3');
+    expect(engineAdoptionWorkflow).toContain('permission-pull-requests: write');
+    expect(engineAdoptionWorkflow).toContain('repositories: UniClip');
+    expect(engineAdoptionWorkflow).toContain('GH_TOKEN: ${{ steps.app-token.outputs.token }}');
+    expect(engineAdoptionWorkflow).not.toContain('GH_TOKEN: ${{ github.token }}');
   });
 });
