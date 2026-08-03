@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       APP_VARIANT: production
+      POSTHOG_PROJECT_KEY: ${{ secrets.UC_POSTHOG_PROJECT_KEY }}
     outputs:
       version: ${{ steps.version.outputs.version }}
 

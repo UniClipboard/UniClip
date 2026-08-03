@@ -78,5 +78,17 @@
       "version": "版本"
     }
   },
-  "openSystemSettings": "打开系统设置"
+  "openSystemSettings": "打开系统设置",
+  "analytics": {
+    "sectionTitle": "隐私",
+    "consentTitle": "分享匿名使用统计",
+    "consentDescription": "帮助改进 UniClip，不收集剪贴板内容或名称",
+    "footer": "可能发送应用版本、系统、地区、会话、设备数量和匿名空间分组。",
+    "reset": "重置",
+    "resetTitle": "重置统计身份",
+    "resetMessage": "这会删除待发送的统计数据，并创建新的匿名身份。",
+    "resetConfirm": "重置身份",
+    "resetDone": "统计身份已重置",
+    "error": "无法更新统计设置"
+  }
 }

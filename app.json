@@ -49,6 +49,7 @@
       "./plugins/build/withGradleBuildTuning.js",
       "./plugins/build/withUnifiedEngineRelease.js",
       "./plugins/build/withAndroidBuildVersionName.js",
+      "./plugins/build/withPostHogAnalytics.js",
       "./plugins/build/withExtensionP2PKeychainGroup.js",
       "./plugins/build/withXcode27SceneLifecycle.js",
       "./plugins/build/withXcode27DeploymentTargets.js",

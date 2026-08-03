@@ -35,6 +35,7 @@ import {
 } from './common';
 import { useKeyboardStatus } from './useKeyboardStatus';
 import type { SettingsPage } from './types';
+import { AnalyticsConsentControl } from '../AnalyticsConsentControl';
 
 function IconToggleRow({
   icon,
@@ -210,6 +211,8 @@ export function SettingsRootPage({
             onIsOnChange={(v) => updateConfig({ autoCheckUpdate: v })}
           />
         </Section>
+
+        <AnalyticsConsentControl />
 
         {/* ── 关于 ── */}
         <Section header={<SwiftUIText>{t('category.about')}</SwiftUIText>}>

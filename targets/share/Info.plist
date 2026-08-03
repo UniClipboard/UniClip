@@ -25,6 +25,8 @@
 	</dict>
 	<key>UCP2PKeychainAccessGroup</key>
 	<string>$(UCP2P_KEYCHAIN_ACCESS_GROUP)</string>
+	<key>UCPostHogProjectKey</key>
+	<string>$(UC_POSTHOG_PROJECT_KEY)</string>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionAttributes</key>

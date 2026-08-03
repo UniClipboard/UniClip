@@ -26,6 +26,8 @@ let package = Package(
       ],
       sources: [
         "ExtensionSyncCoordinator.swift",
+        "AnalyticsBindingCompatibility.swift",
+        "NativeAnalyticsHost.swift",
         "NativeLifecycleHost.swift",
         "NativeSystemHost.swift",
         "P2pRuntimeOwnership.swift",

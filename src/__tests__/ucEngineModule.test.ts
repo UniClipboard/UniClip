@@ -109,8 +109,10 @@ describe('unified P2P engine native module', () => {
 
     expect(javascript).toContain('export interface MemberRevocationResult');
     expect(javascript).toContain('removeMember(deviceId: string): Promise<MemberRevocationResult>');
-    expect(kotlin).toContain('memberRevocationResultMap(requireEngine().removeMember(deviceId))');
-    expect(swift).toContain('Self.memberRevocationResultMap(try self.requireEngine().removeMember');
+    expect(kotlin).toContain('val result = engine.removeMember(deviceId)');
+    expect(kotlin).toContain('refreshAnalyticsContext(engine)');
+    expect(swift).toContain('let result = try engine.removeMember(deviceId: deviceId)');
+    expect(swift).toContain('self.host.refreshAnalyticsContext(engine: engine)');
   });
 
   it('exposes secure removal for legacy spaces on both native platforms', () => {
@@ -207,7 +209,7 @@ describe('unified P2P engine native module', () => {
     const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
 
     const installContext = kotlin.indexOf('nativeInstallAndroidContext(context)');
-    const startEngine = kotlin.indexOf('MobileEngine.start(');
+    const startEngine = kotlin.indexOf('MobileEngine.startWithAnalytics(');
 
     expect(installContext).toBeGreaterThan(-1);
     expect(startEngine).toBeGreaterThan(installContext);

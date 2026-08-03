@@ -43,6 +43,7 @@ on:
 env:
   APPLE_TEAM_ID: 8XG39X5CL8
   APP_VARIANT: production
+  POSTHOG_PROJECT_KEY: ${{ secrets.UC_POSTHOG_PROJECT_KEY }}
 
 jobs:
   build:

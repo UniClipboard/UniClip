@@ -30,6 +30,7 @@ import type { SettingsSubSection } from '@/navigation/AppNavigator';
 import { settingsStyles as styles } from './settings/settingsStyles';
 import { SettingsToastProvider, useSettingsToast } from './settings/SettingsToastContext';
 import { SettingsSectionItem } from './settings/SettingsSectionItem';
+import { AnalyticsConsentControl } from './settings/AnalyticsConsentControl';
 
 // XML 矢量图标(Material Icons 路径),由 @expo/ui Icon 在原生侧解析渲染。
 const ICONS: Record<SettingsSubSection | 'chevron', number> = {
@@ -291,6 +292,7 @@ const SettingsScreenInner = () => {
           <ClipboardSyncDirectionGroup />
           <SyncHubGroup iconTint={iconTint} onNavigate={handleNavigate} />
           <GeneralHubGroup iconTint={iconTint} onNavigate={handleNavigate} />
+          <AnalyticsConsentControl />
           <OtherHubGroup iconTint={iconTint} onNavigate={handleNavigate} />
         </LazyColumn>
       </Host>

@@ -18,6 +18,7 @@ Pod::Spec.new do |s|
   s.frameworks = 'Network', 'Security', 'SystemConfiguration', 'UIKit', 'UniformTypeIdentifiers'
   s.source_files = [
     'ExtensionSyncCoordinator.swift',
+    'NativeAnalyticsHost.swift',
     'NativeSystemHost.swift',
     'P2pRuntimeOwnership.swift',
     'SharedEngineHost.swift',

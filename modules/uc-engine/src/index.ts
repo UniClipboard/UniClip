@@ -178,6 +178,9 @@ interface UcEngineNativeModule {
   suspend(): Promise<void>;
   resume(): Promise<void>;
   setBackgroundSyncEnabled(enabled: boolean, appIsBackground: boolean): Promise<void>;
+  getAnalyticsConsent(): Promise<boolean>;
+  setAnalyticsConsent(enabled: boolean): Promise<void>;
+  resetAnalyticsIdentity(): Promise<void>;
   createSpace(deviceName: string | null, passphrase: string): Promise<SpaceCreated>;
   issueInvitation(): Promise<InvitationIssued>;
   joinSpace(
@@ -233,6 +236,18 @@ export function setBackgroundSyncEnabled(
   appIsBackground: boolean
 ): Promise<void> {
   return NativeModule.setBackgroundSyncEnabled(enabled, appIsBackground);
+}
+
+export function getAnalyticsConsent(): Promise<boolean> {
+  return NativeModule.getAnalyticsConsent();
+}
+
+export function setAnalyticsConsent(enabled: boolean): Promise<void> {
+  return NativeModule.setAnalyticsConsent(enabled);
+}
+
+export function resetAnalyticsIdentity(): Promise<void> {
+  return NativeModule.resetAnalyticsIdentity();
 }
 
 export function createSpace(deviceName: string | null, passphrase: string): Promise<SpaceCreated> {

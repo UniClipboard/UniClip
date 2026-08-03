@@ -5,7 +5,9 @@ import UniformTypeIdentifiers
 public final class MainApplicationEngineHost: @unchecked Sendable {
   private let files = AppleFileHandleRegistry()
   private let ownershipStateLock = NSLock()
+  private let analyticsStateLock = NSLock()
   private var ownership: P2pRuntimeOwnership?
+  private var analytics: ApplePostHogAnalyticsHost?
 
   public init() {}
 
@@ -22,9 +24,11 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
     do {
       let host = try AppleEngineHost(files: files, storageMode: .mainApplication)
       NSLog("[UcEngineStartup] Starting core engine")
-      let engine = try MobileEngine.start(
+      let analytics = try analyticsHost(appVersion: appVersion)
+      let engine = try MobileEngine.startWithAnalytics(
         config: BindingConfig(appVersion: appVersion, profileId: profileId),
-        host: host
+        host: host,
+        analytics: analytics
       )
       NSLog(
         "[UcEngineStartup] Core engine started in %.0fms",
@@ -65,6 +69,42 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
 
   public func removeAllFileHandles() {
     files.removeAll()
+  }
+
+  public func refreshAnalyticsContext(engine: MobileEngine) {
+    guard let analytics = try? analyticsHost(appVersion: nil) else { return }
+    let count = (try? engine.listDevices().count) ?? 0
+    analytics.updateApplicationContext(appVersion: currentAppVersion(), activeDeviceCount: count)
+    let spaceID = try? engine.querySpaceState().spaceId
+    try? analytics.ensureSpaceContext(spaceID: spaceID ?? nil, activeDeviceCount: count)
+  }
+
+  public func analyticsConsentEnabled() throws -> Bool {
+    try analyticsHost(appVersion: nil).consentEnabled()
+  }
+
+  public func setAnalyticsConsentEnabled(_ enabled: Bool) throws {
+    try analyticsHost(appVersion: nil).setConsentEnabled(enabled)
+  }
+
+  public func resetAnalyticsIdentity() throws {
+    try analyticsHost(appVersion: nil).resetAndIdentify()
+  }
+
+  private func analyticsHost(appVersion: String?) throws -> ApplePostHogAnalyticsHost {
+    analyticsStateLock.lock()
+    defer { analyticsStateLock.unlock() }
+    if let analytics {
+      if let appVersion { analytics.updateApplicationContext(appVersion: appVersion, activeDeviceCount: 0) }
+      return analytics
+    }
+    let created = try ApplePostHogAnalyticsHost(appVersion: appVersion ?? "unknown")
+    analytics = created
+    return created
+  }
+
+  private func currentAppVersion() -> String {
+    Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
   }
 
   private func runtimeOwnership() throws -> P2pRuntimeOwnership {
@@ -115,9 +155,11 @@ public final class ExtensionP2pClient: @unchecked Sendable {
     let host = try AppleEngineHost(files: files, storageMode: .extensionHost)
     var started: MobileEngine?
     do {
-      let engine = try MobileEngine.start(
+      let analytics = try ApplePostHogAnalyticsHost(appVersion: appVersion)
+      let engine = try MobileEngine.startWithAnalytics(
         config: BindingConfig(appVersion: appVersion, profileId: "default"),
-        host: host
+        host: host,
+        analytics: analytics
       )
       started = engine
       _ = try engine.recoverSession(allowSecureStorageUnlock: true)
@@ -127,6 +169,13 @@ public final class ExtensionP2pClient: @unchecked Sendable {
       self.engine = engine
       self.ownership = ownership
       self.localDeviceId = try engine.queryLocalDevice().deviceId
+      analytics.updateApplicationContext(
+        appVersion: appVersion,
+        activeDeviceCount: (try? engine.listDevices().count) ?? 0
+      )
+      let count = (try? engine.listDevices().count) ?? 0
+      let spaceID = try? engine.querySpaceState().spaceId
+      try? analytics.ensureSpaceContext(spaceID: spaceID ?? nil, activeDeviceCount: count)
       self.coordinator = ExtensionSyncCoordinator(
         engine: ExtensionMobileEngineAdapter(engine: engine, localDeviceId: self.localDeviceId)
       )

@@ -79,5 +79,17 @@
       "version": "Versão"
     }
   },
-  "openSystemSettings": "Abrir configurações do sistema"
+  "openSystemSettings": "Abrir configurações do sistema",
+  "analytics": {
+    "sectionTitle": "Privacidade",
+    "consentTitle": "Compartilhar estatísticas anônimas de uso",
+    "consentDescription": "Ajuda a melhorar o UniClip sem coletar conteúdo da área de transferência ou nomes",
+    "footer": "Podem ser enviados versão do app, sistema, região, sessão, número de dispositivos e grupo anônimo do espaço.",
+    "reset": "Redefinir",
+    "resetTitle": "Redefinir identidade estatística",
+    "resetMessage": "As estatísticas pendentes serão removidas e uma nova identidade anônima será criada.",
+    "resetConfirm": "Redefinir identidade",
+    "resetDone": "Identidade estatística redefinida",
+    "error": "Não foi possível atualizar as configurações de estatísticas"
+  }
 }

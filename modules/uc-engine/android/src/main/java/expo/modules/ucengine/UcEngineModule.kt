@@ -266,6 +266,7 @@ class UcEngineModule : Module() {
   private val lifecycle = NativeLifecycleHost(::reportLifecycleError)
   private var engine: MobileEngine? = null
   private var files: FileHandleRegistry? = null
+  private var analytics: AndroidPostHogAnalyticsHost? = null
 
   override fun definition() = ModuleDefinition {
     Name("UcEngine")
@@ -276,15 +277,19 @@ class UcEngineModule : Module() {
       val context = requireContext()
       check(nativeInstallAndroidContext(context)) { "Failed to initialize the Android P2P runtime" }
       val registry = FileHandleRegistry(context)
-      val started = MobileEngine.start(
+      val appVersion = config["appVersion"] ?: "unknown"
+      val analytics = analyticsHost(context, appVersion)
+      val started = MobileEngine.startWithAnalytics(
         BindingConfig(
-          config["appVersion"] ?: "unknown",
+          appVersion,
           config["profileId"] ?: "default"
         ),
-        AndroidEngineHost(context, registry)
+        AndroidEngineHost(context, registry),
+        analytics
       )
       try {
         lifecycle.prepare(AndroidEngineLifecycle(started))
+        refreshAnalyticsContext(started, appVersion)
       } catch (error: Throwable) {
         try {
           started.shutdown(2_000u)
@@ -314,9 +319,20 @@ class UcEngineModule : Module() {
         appIsBackground
       )
     }
+    AsyncFunction("getAnalyticsConsent") {
+      analyticsHost(requireContext()).consentEnabled()
+    }
+    AsyncFunction("setAnalyticsConsent") { enabled: Boolean ->
+      analyticsHost(requireContext()).setConsentEnabled(enabled)
+    }
+    AsyncFunction("resetAnalyticsIdentity") {
+      analyticsHost(requireContext()).resetAndIdentify()
+    }
 
     AsyncFunction("createSpace") { deviceName: String?, passphrase: String ->
-      val result = requireEngine().createSpace(deviceName, passphrase)
+      val engine = requireEngine()
+      val result = engine.createSpace(deviceName, passphrase)
+      refreshAnalyticsContext(engine)
       mapOf(
         "spaceId" to result.spaceId,
         "selfDeviceId" to result.selfDeviceId,
@@ -336,12 +352,14 @@ class UcEngineModule : Module() {
       )
     }
     AsyncFunction("joinSpace") { invitationCode: String, deviceName: String?, passphrase: String, preserveUnreadableHistory: Boolean ->
-      val result = requireEngine().joinSpace(
+      val engine = requireEngine()
+      val result = engine.joinSpace(
         invitationCode,
         deviceName,
         passphrase,
         preserveUnreadableHistory
       )
+      refreshAnalyticsContext(engine)
       mapOf(
         "sponsorDeviceId" to result.sponsorDeviceId,
         "sponsorIdentityFingerprint" to result.sponsorIdentityFingerprint,
@@ -377,6 +395,7 @@ class UcEngineModule : Module() {
     }
     AsyncFunction("listDevices") {
       val engine = requireEngine()
+      refreshAnalyticsContext(engine)
       val localDeviceId = engine.queryLocalDevice().deviceId
       engine.listDevices().map {
         mapOf(
@@ -388,16 +407,24 @@ class UcEngineModule : Module() {
       }
     }
     AsyncFunction("removeMember") { deviceId: String ->
-      memberRevocationResultMap(requireEngine().removeMember(deviceId))
+      val engine = requireEngine()
+      val result = engine.removeMember(deviceId)
+      refreshAnalyticsContext(engine)
+      memberRevocationResultMap(result)
     }
     AsyncFunction("secureRemoveLegacyMember") { deviceId: String ->
-      legacyMemberRemovalResultMap(requireEngine().secureRemoveLegacyMember(deviceId))
+      val engine = requireEngine()
+      val result = engine.secureRemoveLegacyMember(deviceId)
+      refreshAnalyticsContext(engine)
+      legacyMemberRemovalResultMap(result)
     }
     AsyncFunction("resendEntry") { entryId: String, targetDevices: List<String> ->
       resendOutcomeMap(requireEngine().resendEntry(entryId, targetDevices))
     }
     AsyncFunction("leaveSpace") {
-      requireEngine().leaveSpace()
+      val engine = requireEngine()
+      engine.leaveSpace()
+      refreshAnalyticsContext(engine)
     }
     AsyncFunction("sendText") { text: String, targetDevices: List<String> ->
       sendReportMap(requireEngine().sendText(text, targetDevices))
@@ -438,6 +465,25 @@ class UcEngineModule : Module() {
       }
     }
   }
+
+  private fun analyticsHost(context: Context, appVersion: String? = null): AndroidPostHogAnalyticsHost =
+    synchronized(lock) {
+      analytics?.also { host -> appVersion?.let { host.updateApplicationContext(it, 0) } }
+        ?: AndroidPostHogAnalyticsHost(context, appVersion ?: applicationVersion())
+          .also { analytics = it }
+    }
+
+  private fun refreshAnalyticsContext(engine: MobileEngine, appVersion: String? = null) {
+    val count = runCatching { engine.listDevices().size }.getOrDefault(0)
+    analytics?.updateApplicationContext(appVersion ?: applicationVersion(), count)
+    val spaceId = runCatching { engine.querySpaceState().spaceId }.getOrNull()
+    analytics?.ensureSpaceContext(spaceId, count)
+  }
+
+  private fun applicationVersion(): String = runCatching {
+    val context = requireContext()
+    context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
+  }.getOrDefault("unknown")
 
   private fun requireContext(): Context =
     appContext.reactContext?.applicationContext ?: throw UcEngineUnavailableException()

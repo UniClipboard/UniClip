@@ -89,6 +89,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       APP_VARIANT: production
+      POSTHOG_PROJECT_KEY: ${{ secrets.UC_POSTHOG_PROJECT_KEY }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -125,6 +126,7 @@ jobs:
     runs-on: macos-26
     env:
       APP_VARIANT: production
+      POSTHOG_PROJECT_KEY: ${{ secrets.UC_POSTHOG_PROJECT_KEY }}
     steps:
       - uses: actions/checkout@v6
         with:

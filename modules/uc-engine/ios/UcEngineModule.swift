@@ -35,6 +35,7 @@ public final class UcEngineModule: Module {
           let recoveryStartedAt = ProcessInfo.processInfo.systemUptime
           NSLog("[UcEngineStartup] Recovering persisted session")
           try self.lifecycle.prepare(AppleEngineLifecycle(engine: engine, host: self.host))
+          self.host.refreshAnalyticsContext(engine: engine)
           NSLog(
             "[UcEngineStartup] Persisted session recovered in %.0fms",
             (ProcessInfo.processInfo.systemUptime - recoveryStartedAt) * 1_000
@@ -81,11 +82,21 @@ public final class UcEngineModule: Module {
     AsyncFunction("setBackgroundSyncEnabled") { (_: Bool, _: Bool) in }
       .runOnQueue(engineOperationQueue)
 
+    AsyncFunction("getAnalyticsConsent") { try self.host.analyticsConsentEnabled() }
+      .runOnQueue(engineOperationQueue)
+    AsyncFunction("setAnalyticsConsent") { (enabled: Bool) in
+      try self.host.setAnalyticsConsentEnabled(enabled)
+    }.runOnQueue(engineOperationQueue)
+    AsyncFunction("resetAnalyticsIdentity") { try self.host.resetAnalyticsIdentity() }
+      .runOnQueue(engineOperationQueue)
+
     AsyncFunction("createSpace") { (deviceName: String?, passphrase: String) -> [String: Any] in
-      let result = try self.requireEngine().createSpace(
+      let engine = try self.requireEngine()
+      let result = try engine.createSpace(
         deviceName: deviceName,
         passphrase: passphrase
       )
+      self.host.refreshAnalyticsContext(engine: engine)
       return [
         "spaceId": result.spaceId,
         "selfDeviceId": result.selfDeviceId,
@@ -113,12 +124,14 @@ public final class UcEngineModule: Module {
         passphrase: String,
         preserveUnreadableHistory: Bool
       ) -> [String: Any] in
-      let result = try self.requireEngine().joinSpace(
+      let engine = try self.requireEngine()
+      let result = try engine.joinSpace(
         invitationCode: invitationCode,
         deviceName: deviceName,
         passphrase: passphrase,
         preserveUnreadableHistory: preserveUnreadableHistory
       )
+      self.host.refreshAnalyticsContext(engine: engine)
       return [
         "sponsorDeviceId": result.sponsorDeviceId,
         "sponsorIdentityFingerprint": result.sponsorIdentityFingerprint,
@@ -158,6 +171,7 @@ public final class UcEngineModule: Module {
 
     AsyncFunction("listDevices") { () -> [[String: Any]] in
       let engine = try self.requireEngine()
+      self.host.refreshAnalyticsContext(engine: engine)
       let localDeviceId = try engine.queryLocalDevice().deviceId
       return try engine.listDevices().map {
         [
@@ -170,13 +184,17 @@ public final class UcEngineModule: Module {
     }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("removeMember") { (deviceId: String) -> [String: Any?] in
-      Self.memberRevocationResultMap(try self.requireEngine().removeMember(deviceId: deviceId))
+      let engine = try self.requireEngine()
+      let result = try engine.removeMember(deviceId: deviceId)
+      self.host.refreshAnalyticsContext(engine: engine)
+      return Self.memberRevocationResultMap(result)
     }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("secureRemoveLegacyMember") { (deviceId: String) -> [String: Any?] in
-      Self.legacyMemberRemovalResultMap(
-        try self.requireEngine().secureRemoveLegacyMember(deviceId: deviceId)
-      )
+      let engine = try self.requireEngine()
+      let result = try engine.secureRemoveLegacyMember(deviceId: deviceId)
+      self.host.refreshAnalyticsContext(engine: engine)
+      return Self.legacyMemberRemovalResultMap(result)
     }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("resendEntry") {
@@ -187,7 +205,9 @@ public final class UcEngineModule: Module {
     }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("leaveSpace") {
-      try self.requireEngine().leaveSpace()
+      let engine = try self.requireEngine()
+      try engine.leaveSpace()
+      self.host.refreshAnalyticsContext(engine: engine)
     }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("sendText") { (text: String, targetDevices: [String]) -> [String: Any] in
