@@ -89,6 +89,19 @@ describe('unified P2P engine native module', () => {
     }
   });
 
+  it('passes unreadable-history confirmation and result counts on both platforms', () => {
+    const javascript = read('src/index.ts');
+    const swift = read('ios/UcEngineModule.swift');
+    const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
+
+    expect(javascript).toContain('preserveUnreadableHistory: boolean');
+    expect(javascript).toContain('preservedUnreadableRecords: number');
+    expect(swift).toContain('preserveUnreadableHistory: Bool');
+    expect(swift).toContain('"preservedUnreadableRecords"');
+    expect(kotlin).toContain('preserveUnreadableHistory: Boolean');
+    expect(kotlin).toContain('"preservedUnreadableRecords"');
+  });
+
   it('converts structured member-removal results for both native platforms', () => {
     const javascript = read('src/index.ts');
     const swift = read('ios/UcEngineModule.swift');

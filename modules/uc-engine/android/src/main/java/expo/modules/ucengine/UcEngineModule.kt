@@ -335,15 +335,21 @@ class UcEngineModule : Module() {
         "availability" to availability
       )
     }
-    AsyncFunction("joinSpace") { invitationCode: String, deviceName: String?, passphrase: String ->
-      val result = requireEngine().joinSpace(invitationCode, deviceName, passphrase)
+    AsyncFunction("joinSpace") { invitationCode: String, deviceName: String?, passphrase: String, preserveUnreadableHistory: Boolean ->
+      val result = requireEngine().joinSpace(
+        invitationCode,
+        deviceName,
+        passphrase,
+        preserveUnreadableHistory
+      )
       mapOf(
         "sponsorDeviceId" to result.sponsorDeviceId,
         "sponsorIdentityFingerprint" to result.sponsorIdentityFingerprint,
         "spaceId" to result.spaceId,
         "selfDeviceId" to result.selfDeviceId,
         "selfIdentityFingerprint" to result.selfIdentityFingerprint,
-        "migratedRecords" to result.migratedRecords?.toLong()
+        "migratedRecords" to (result.migratedRecords?.toLong() ?: 0L),
+        "preservedUnreadableRecords" to (result.preservedUnreadableRecords?.toLong() ?: 0L)
       )
     }
     AsyncFunction("nextEvent") { timeoutMs: Long ->

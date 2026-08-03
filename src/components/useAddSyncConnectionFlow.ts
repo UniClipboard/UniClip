@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Share } from 'react-native';
+import { Alert, Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import type { InvitationIssued } from 'uc-engine';
@@ -229,11 +229,48 @@ export function useAddSyncConnectionFlow({
       await getUnifiedSpaceService().joinSpace(
         formatInvitationCode(invitationCode),
         deviceName,
-        passphrase
+        passphrase,
+        false
       );
       setMode('success');
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (cause) {
+      if (unifiedSpaceUserErrorCode(cause) === 'unreadableHistoryRequiresConfirmation') {
+        Alert.alert(t('space.unreadableHistory.title'), t('space.unreadableHistory.body'), [
+          {
+            text: t('action.cancel', { ns: 'common' }),
+            style: 'cancel',
+          },
+          {
+            text: t('space.unreadableHistory.continue'),
+            style: 'destructive',
+            onPress: () => {
+              setPending(true);
+              setError(null);
+              void getUnifiedSpaceService()
+                .joinSpace(formatInvitationCode(invitationCode), deviceName, passphrase, true)
+                .then(() => {
+                  if (!mountedRef.current) return;
+                  setMode('success');
+                  void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                })
+                .catch((retryCause) => {
+                  if (!mountedRef.current) return;
+                  const retryCode = unifiedSpaceUserErrorCode(retryCause);
+                  setError(
+                    retryCode === 'unreadableHistoryRequiresConfirmation'
+                      ? t('space.error.operationFailed')
+                      : errorMessage(retryCause)
+                  );
+                })
+                .finally(() => {
+                  if (mountedRef.current) setPending(false);
+                });
+            },
+          },
+        ]);
+        return;
+      }
       setError(errorMessage(cause));
     } finally {
       setPending(false);

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Share } from 'react-native';
+import { Alert, Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import TestRenderer, { act, type ReactTestRenderer } from 'react-test-renderer';
@@ -141,12 +141,47 @@ describe('add sync connection flow', () => {
     await act(async () => currentFlow.actions.submitJoin());
 
     expect(mockJoinSpace).toHaveBeenCalledTimes(1);
-    expect(mockJoinSpace).toHaveBeenCalledWith('AB12-CD34', '  Laptop  ', 'secret');
+    expect(mockJoinSpace).toHaveBeenCalledWith('AB12-CD34', '  Laptop  ', 'secret', false);
     expect(currentFlow.state.mode).toBe('success');
 
     await act(async () => currentFlow.actions.completeConnection());
     expect(props.resetNativeFields).toHaveBeenCalledWith('Phone');
     expect(props.onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('requires confirmation before preserving unreadable history and retrying', async () => {
+    createHarness('join');
+    const confirmationError = new Error('engine 1292');
+    mockJoinSpace.mockRejectedValueOnce(confirmationError).mockResolvedValueOnce({
+      spaceId: 'space-2',
+      preservedUnreadableRecords: 1,
+    });
+    mockUnifiedSpaceUserErrorCode.mockReturnValueOnce('unreadableHistoryRequiresConfirmation');
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+
+    act(() => currentFlow.actions.updateInvitationCode('ab12cd34'));
+    act(() => currentFlow.actions.continueFromCode());
+    act(() => currentFlow.actions.setPassphrase('secret'));
+
+    await act(async () => currentFlow.actions.submitJoin());
+
+    expect(mockJoinSpace).toHaveBeenNthCalledWith(1, 'AB12-CD34', 'Phone', 'secret', false);
+    expect(alert).toHaveBeenCalledWith(
+      'space.unreadableHistory.title',
+      'space.unreadableHistory.body',
+      expect.any(Array)
+    );
+    expect(currentFlow.state.mode).toBe('joinDetails');
+
+    const buttons = alert.mock.calls[0]?.[2];
+    const continueButton = buttons?.find(
+      (button) => button.text === 'space.unreadableHistory.continue'
+    );
+    await act(async () => continueButton?.onPress?.());
+
+    expect(mockJoinSpace).toHaveBeenNthCalledWith(2, 'AB12-CD34', 'Phone', 'secret', true);
+    expect(currentFlow.state.mode).toBe('success');
+    alert.mockRestore();
   });
 
   it('owns invitation creation, renewal, copy, and share behavior', async () => {

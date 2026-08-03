@@ -37,6 +37,7 @@ function createApi(overrides: Partial<UnifiedSpaceApi> = {}): UnifiedSpaceApi {
       selfDeviceId: 'phone-1',
       selfIdentityFingerprint: 'phone-fingerprint',
       migratedRecords: 0,
+      preservedUnreadableRecords: 0,
     })),
     removeMember: jest.fn(async () => undefined),
     secureRemoveLegacyMember: jest.fn(async () => ({
@@ -78,6 +79,7 @@ describe('UnifiedSpaceService', () => {
     ['engine error 1282 (Conflict)', 'invitationRejected'],
     ['engine error 1283 (Unavailable)', 'serviceUnavailable'],
     ['engine error 1284 (Unavailable)', 'connectionLost'],
+    ['engine error 1292 (Conflict)', 'unreadableHistoryRequiresConfirmation'],
   ] as const)('maps native failure %s to %s', (message, expected) => {
     expect(unifiedSpaceUserErrorCode(new Error(message))).toBe(expected);
   });
@@ -111,6 +113,7 @@ describe('UnifiedSpaceService', () => {
             selfDeviceId: 'phone-1',
             selfIdentityFingerprint: 'phone-fingerprint',
             migratedRecords: 0,
+            preservedUnreadableRecords: 0,
           };
         }),
       });
@@ -150,8 +153,70 @@ describe('UnifiedSpaceService', () => {
 
     await service.joinSpace(input, '  Travel Phone  ', ' another secret ');
 
-    expect(api.joinSpace).toHaveBeenCalledWith(expected, 'Travel Phone', ' another secret ');
+    expect(api.joinSpace).toHaveBeenCalledWith(expected, 'Travel Phone', ' another secret ', false);
   });
+
+  it('passes explicit unreadable-history confirmation to the native engine', async () => {
+    const api = createApi();
+    const service = new UnifiedSpaceService(api);
+
+    await service.joinSpace('7K2M-8Q4R', 'Phone', 'passphrase', true);
+
+    expect(api.joinSpace).toHaveBeenCalledWith('7K2M-8Q4R', 'Phone', 'passphrase', true);
+  });
+
+  it.each([
+    ['requestJoin', true],
+    ['refreshDevices', false],
+  ] as const)(
+    'logs a redacted %s failure with enough context to diagnose joining',
+    async (expectedStage, failJoinRequest) => {
+      const logError = jest.spyOn(log, 'error').mockImplementation(() => undefined);
+      const invitation = '7K2M-8Q4R';
+      const deviceName = 'Private Phone';
+      const secret = 'secret with spaces';
+      const privatePath = '/private/var/mobile/Containers/Data/Application/SECRET/history.db';
+      const nativeError = Object.assign(
+        new Error(
+          `Engine error 1283 while joining ${invitation} as ${deviceName} using ${secret} at ${privatePath}`
+        ),
+        { code: 1283 }
+      );
+      const api = createApi({
+        joinSpace: failJoinRequest
+          ? jest.fn(async () => {
+              throw nativeError;
+            })
+          : createApi().joinSpace,
+        listDevices: failJoinRequest
+          ? createApi().listDevices
+          : jest.fn(async () => {
+              throw nativeError;
+            }),
+      });
+      const service = new UnifiedSpaceService(api, () => undefined);
+
+      await expect(service.joinSpace(invitation, deviceName, secret)).rejects.toBe(nativeError);
+
+      expect(logError).toHaveBeenCalledWith(
+        '[UnifiedSpaceService] Join space failed',
+        expect.objectContaining({
+          stage: expectedStage,
+          hadExistingSpace: false,
+          errorName: 'Error',
+          errorCode: 1283,
+          userErrorCode: 'serviceUnavailable',
+        })
+      );
+      expect(logError.mock.calls[0]?.[1]).not.toHaveProperty('errorMessage');
+      const logged = JSON.stringify(logError.mock.calls);
+      expect(logged).not.toContain(invitation);
+      expect(logged).not.toContain(deviceName);
+      expect(logged).not.toContain(secret);
+      expect(logged).not.toContain(privatePath);
+      logError.mockRestore();
+    }
+  );
 
   it.each(['ABCD-123', 'ABCD-12345', 'ABCD-U234', '----'])(
     'rejects incomplete or unsupported invitation %s before joining',

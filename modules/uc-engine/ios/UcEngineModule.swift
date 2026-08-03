@@ -107,11 +107,17 @@ public final class UcEngineModule: Module {
     }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("joinSpace") {
-      (invitationCode: String, deviceName: String?, passphrase: String) -> [String: Any] in
+      (
+        invitationCode: String,
+        deviceName: String?,
+        passphrase: String,
+        preserveUnreadableHistory: Bool
+      ) -> [String: Any] in
       let result = try self.requireEngine().joinSpace(
         invitationCode: invitationCode,
         deviceName: deviceName,
-        passphrase: passphrase
+        passphrase: passphrase,
+        preserveUnreadableHistory: preserveUnreadableHistory
       )
       return [
         "sponsorDeviceId": result.sponsorDeviceId,
@@ -120,6 +126,7 @@ public final class UcEngineModule: Module {
         "selfDeviceId": result.selfDeviceId,
         "selfIdentityFingerprint": result.selfIdentityFingerprint,
         "migratedRecords": result.migratedRecords ?? 0,
+        "preservedUnreadableRecords": result.preservedUnreadableRecords ?? 0,
       ]
     }.runOnQueue(engineOperationQueue)
 

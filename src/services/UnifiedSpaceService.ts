@@ -52,7 +52,8 @@ export interface UnifiedSpaceApi {
   joinSpace(
     invitationCode: string,
     deviceName: string | null,
-    passphrase: string
+    passphrase: string,
+    preserveUnreadableHistory: boolean
   ): Promise<SpaceJoined>;
   removeMember(deviceId: string): Promise<MemberRevocationResult>;
   secureRemoveLegacyMember(deviceId: string): Promise<LegacyMemberRemovalResult>;
@@ -79,7 +80,8 @@ export type UnifiedSpaceUserErrorCode =
   | 'connectionTimedOut'
   | 'invitationRejected'
   | 'serviceUnavailable'
-  | 'connectionLost';
+  | 'connectionLost'
+  | 'unreadableHistoryRequiresConfirmation';
 
 const USER_ERROR_BY_ENGINE_CODE: Readonly<Record<number, UnifiedSpaceUserErrorCode>> = {
   1233: 'passphraseMismatch',
@@ -92,7 +94,18 @@ const USER_ERROR_BY_ENGINE_CODE: Readonly<Record<number, UnifiedSpaceUserErrorCo
   1283: 'serviceUnavailable',
   1284: 'connectionLost',
   1285: 'connectionTimedOut',
+  1292: 'unreadableHistoryRequiresConfirmation',
 };
+
+type JoinSpaceStage = 'prepareP2p' | 'requestJoin' | 'refreshDevices';
+
+interface JoinSpaceFailureDetails {
+  stage: JoinSpaceStage;
+  hadExistingSpace: boolean;
+  errorName: string;
+  errorCode: number | null;
+  userErrorCode: UnifiedSpaceUserErrorCode | null;
+}
 
 export class UnifiedSpaceInputError extends Error {
   readonly name = 'UnifiedSpaceInputError';
@@ -116,6 +129,35 @@ export function unifiedSpaceUserErrorCode(cause: unknown): UnifiedSpaceUserError
     if (mapped) return mapped;
   }
   return null;
+}
+
+function engineErrorCode(cause: unknown): number | null {
+  const details: unknown[] = [cause];
+  if (cause && typeof cause === 'object') {
+    const error = cause as { code?: unknown; message?: unknown; cause?: unknown };
+    details.push(error.code, error.message, error.cause);
+  }
+
+  for (const detail of details) {
+    if (typeof detail === 'number' && Number.isFinite(detail)) return detail;
+    const match = String(detail ?? '').match(/\b\d{4}\b/);
+    if (match) return Number(match[0]);
+  }
+  return null;
+}
+
+function joinSpaceFailureDetails(
+  cause: unknown,
+  stage: JoinSpaceStage,
+  hadExistingSpace: boolean
+): JoinSpaceFailureDetails {
+  return {
+    stage,
+    hadExistingSpace,
+    errorName: cause instanceof Error ? 'Error' : typeof cause,
+    errorCode: engineErrorCode(cause),
+    userErrorCode: unifiedSpaceUserErrorCode(cause),
+  };
 }
 
 function hasEngineErrorCode(cause: unknown, expectedCode: number): boolean {
@@ -229,22 +271,28 @@ export class UnifiedSpaceService {
   async joinSpace(
     invitationCode: string,
     deviceName: string,
-    secret: string
+    secret: string,
+    preserveUnreadableHistory = false
   ): Promise<SpaceJoined> {
     required(invitationCode, 'invitationCodeRequired');
     const normalizedInvitation = invitationCodeForSubmission(invitationCode);
     if (!normalizedInvitation) throw new UnifiedSpaceInputError('invitationCodeInvalid');
     const normalizedName = required(deviceName, 'deviceNameRequired');
     const normalizedPassphrase = passphrase(secret);
+    const hadExistingSpace = Boolean(this.snapshot.spaceId);
+    let stage: JoinSpaceStage = 'prepareP2p';
     const revision = this.beginOperation();
     this.updateSnapshot({ status: 'loading', lastError: null });
     try {
       return await this.runSetup(async () => {
+        stage = 'requestJoin';
         const joined = await this.api.joinSpace(
           normalizedInvitation,
           normalizedName,
-          normalizedPassphrase
+          normalizedPassphrase,
+          preserveUnreadableHistory
         );
+        stage = 'refreshDevices';
         const devices = await this.api.listDevices();
         if (!this.isCurrentOperation(revision)) return joined;
         this.snapshot = {
@@ -259,6 +307,10 @@ export class UnifiedSpaceService {
         return joined;
       });
     } catch (error) {
+      log.error(
+        '[UnifiedSpaceService] Join space failed',
+        joinSpaceFailureDetails(error, stage, hadExistingSpace)
+      );
       if (this.isCurrentOperation(revision)) this.fail(error);
       throw error;
     }

@@ -32,6 +32,7 @@ export interface SpaceJoined {
   selfDeviceId: string;
   selfIdentityFingerprint: string;
   migratedRecords: number;
+  preservedUnreadableRecords: number;
 }
 
 export interface SendReport {
@@ -182,7 +183,8 @@ interface UcEngineNativeModule {
   joinSpace(
     invitationCode: string,
     deviceName: string | null,
-    passphrase: string
+    passphrase: string,
+    preserveUnreadableHistory: boolean
   ): Promise<SpaceJoined>;
   nextEvent(timeoutMs: number): Promise<EngineEvent | null>;
   refreshPeerConnections(): Promise<PeerConnectionRefresh>;
@@ -244,9 +246,10 @@ export function issueInvitation(): Promise<InvitationIssued> {
 export function joinSpace(
   invitationCode: string,
   deviceName: string | null,
-  passphrase: string
+  passphrase: string,
+  preserveUnreadableHistory = false
 ): Promise<SpaceJoined> {
-  return NativeModule.joinSpace(invitationCode, deviceName, passphrase);
+  return NativeModule.joinSpace(invitationCode, deviceName, passphrase, preserveUnreadableHistory);
 }
 
 export function nextEvent(timeoutMs = 1_000): Promise<EngineEvent | null> {

@@ -87,6 +87,11 @@
       "action": "Sair do espaço",
       "confirm": "O histórico local será mantido. Crie ou entre em um espaço novamente para retomar a sincronização."
     },
+    "unreadableHistory": {
+      "title": "Parte do histórico local não pode ser aberta",
+      "body": "Esses itens continuarão criptografados neste dispositivo, mas ficarão indisponíveis. O restante do histórico será movido para o novo espaço. Continuar?",
+      "continue": "Manter e continuar"
+    },
     "error": {
       "title": "O espaço precisa de atenção",
       "deviceNameRequired": "Informe o nome do dispositivo",

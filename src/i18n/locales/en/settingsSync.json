@@ -87,6 +87,11 @@
       "action": "Leave space",
       "confirm": "Your local history will stay on this device. Create or join a space again to resume syncing."
     },
+    "unreadableHistory": {
+      "title": "Some local history can't be opened",
+      "body": "Those items will remain encrypted on this device but won't be available. The rest of your history will move to the new space. Continue?",
+      "continue": "Keep and continue"
+    },
     "error": {
       "title": "Space needs attention",
       "deviceNameRequired": "Enter a device name",
