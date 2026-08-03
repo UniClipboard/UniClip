@@ -1,4 +1,5 @@
 import { describe, expect, it, jest } from '@jest/globals';
+import { log } from '../services/Logger';
 import {
   UnifiedSpaceInputError,
   UnifiedSpaceService,
@@ -333,6 +334,30 @@ describe('UnifiedSpaceService', () => {
     expect(api.removeMember).toHaveBeenCalledWith('desktop-1');
     expect(api.secureRemoveLegacyMember).toHaveBeenCalledWith('desktop-1');
     expect(api.listDevices).toHaveBeenCalledTimes(2);
+  });
+
+  it('logs the final member-removal failure after legacy fallback handling', async () => {
+    const logError = jest.spyOn(log, 'error').mockImplementation(() => undefined);
+    const finalError = new Error('Engine error 1410: prepared revocation epoch mismatch');
+    const api = {
+      ...createApi({
+        removeMember: jest.fn(async () => {
+          throw new Error('Engine error 1388');
+        }) as unknown as UnifiedSpaceApi['removeMember'],
+      }),
+      secureRemoveLegacyMember: jest.fn(async () => {
+        throw finalError;
+      }),
+    };
+    const service = new UnifiedSpaceService(api, () => undefined);
+
+    await expect(service.removeMember('desktop-1')).rejects.toBe(finalError);
+
+    expect(logError).toHaveBeenCalledWith(
+      '[UnifiedSpaceService] Failed to remove a space member:',
+      finalError
+    );
+    logError.mockRestore();
   });
 
   it('leaves the space without invoking any history deletion', async () => {

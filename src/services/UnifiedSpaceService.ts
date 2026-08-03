@@ -14,6 +14,7 @@ import {
   type UnifiedSpaceSnapshot,
 } from '@/stores/unifiedSpaceStore';
 import { invitationCodeForSubmission } from '@/utils/invitationCode';
+import { log } from './Logger';
 import { getP2pSpaceSetupCoordinator } from './P2pSpaceSetupCoordinator';
 
 export type { UnifiedSpaceSnapshot } from '@/stores/unifiedSpaceStore';
@@ -268,10 +269,15 @@ export class UnifiedSpaceService {
     const revision = this.beginOperation();
     let result: MemberRemovalResult;
     try {
-      result = await this.api.removeMember(targetDeviceId);
+      try {
+        result = await this.api.removeMember(targetDeviceId);
+      } catch (error) {
+        if (!hasEngineErrorCode(error, 1388)) throw error;
+        result = await this.api.secureRemoveLegacyMember(targetDeviceId);
+      }
     } catch (error) {
-      if (!hasEngineErrorCode(error, 1388)) throw error;
-      result = await this.api.secureRemoveLegacyMember(targetDeviceId);
+      log.error('[UnifiedSpaceService] Failed to remove a space member:', error);
+      throw error;
     }
     const devices = await this.api.listDevices();
     if (this.isCurrentOperation(revision)) this.updateSnapshot({ devices, lastError: null });
