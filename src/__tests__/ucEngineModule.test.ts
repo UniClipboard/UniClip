@@ -109,10 +109,27 @@ describe('unified P2P engine native module', () => {
     const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
 
     expect(javascript).toContain('export interface MemberRevocationResult');
+    expect(javascript).toContain('removedDeviceIds: string[]');
+    expect(javascript).toContain('pendingRecipientDeviceIds: string[]');
+    expect(javascript).toContain('updatedAtMs: number');
     expect(javascript).toContain('removeMember(deviceId: string): Promise<MemberRevocationResult>');
+    expect(javascript).toContain(
+      'queryCurrentMemberRevocation(): Promise<MemberRevocationResult | null>'
+    );
+    expect(javascript).toContain(
+      'continueMemberRevocation(\n  revocationId: string,\n  permanentlyLostDeviceIds: string[]\n)'
+    );
     expect(kotlin).toContain('val result = engine.removeMember(deviceId)');
+    expect(kotlin).toContain('engine.queryCurrentMemberRevocation()');
+    expect(kotlin).toContain(
+      'engine.continueMemberRevocation(revocationId, permanentlyLostDeviceIds)'
+    );
     expect(kotlin).toContain('refreshAnalyticsContext(engine)');
     expect(swift).toContain('let result = try engine.removeMember(deviceId: deviceId)');
+    expect(swift).toContain('try engine.queryCurrentMemberRevocation()');
+    expect(swift).toContain(
+      'try engine.continueMemberRevocation(\n        revocationId: revocationId,\n        permanentlyLostDeviceIds: permanentlyLostDeviceIds\n      )'
+    );
     expect(swift).toContain('self.host.refreshAnalyticsContext(engine: engine)');
   });
 

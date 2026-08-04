@@ -32,7 +32,7 @@ import { useUnifiedEngineStore } from '@/stores/unifiedEngineStore';
 import { useUnifiedSpaceStore, type UnifiedSpaceDevice } from '@/stores/unifiedSpaceStore';
 import { SettingsSectionItem } from './SettingsSectionItem';
 
-type PendingOperation = 'leave' | `remove:${string}` | null;
+type PendingOperation = 'leave' | `remove:${string}` | `recover:${string}` | null;
 
 const EMPTY_TITLE_STYLE = { fontSize: 22, fontWeight: '600', letterSpacing: 0 } as const;
 const EMPTY_BODY_STYLE = { textAlign: 'center' } as const;
@@ -114,6 +114,7 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
   const [pending, setPending] = useState<PendingOperation>(null);
   const [error, setError] = useState<string | null>(null);
   const [removeDeviceId, setRemoveDeviceId] = useState<string | null>(null);
+  const [permanentlyLostDeviceId, setPermanentlyLostDeviceId] = useState<string | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [showInvitation, setShowInvitation] = useState(false);
   const space = useUnifiedSpaceStore();
@@ -151,6 +152,23 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
     }
   };
 
+  const continueMemberRemoval = async () => {
+    const deviceId = permanentlyLostDeviceId;
+    const revocationId = space.memberRemoval?.revocationId;
+    if (!deviceId || !revocationId || pending) return;
+
+    setPermanentlyLostDeviceId(null);
+    setPending(`recover:${deviceId}`);
+    setError(null);
+    try {
+      await getUnifiedSpaceService().continueMemberRevocation(revocationId, [deviceId]);
+    } catch (cause) {
+      setError(operationError(cause, t));
+    } finally {
+      setPending(null);
+    }
+  };
+
   const leaveSpace = async () => {
     if (pending) return;
     setConfirmLeave(false);
@@ -166,6 +184,7 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
   };
 
   const spaceId = space.spaceId;
+  const memberRemoval = space.memberRemoval;
   const devices = [...space.devices].sort((left, right) => {
     const leftRank = left.isLocal ? 0 : left.online ? 1 : 2;
     const rightRank = right.isLocal ? 0 : right.online ? 1 : 2;
@@ -173,6 +192,8 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
   });
   const onlineCount = devices.filter((device) => device.isLocal || device.online).length;
   const offlineCount = devices.length - onlineCount;
+  const removalDeviceName = (deviceId: string) =>
+    devices.find((device) => device.deviceId === deviceId)?.displayName ?? deviceId;
   const isInitialLoading =
     !spaceId && !pending && (space.status === 'idle' || space.status === 'loading');
 
@@ -205,6 +226,31 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
           </AlertDialog.ConfirmButton>
           <AlertDialog.DismissButton>
             <TextButton onClick={() => setRemoveDeviceId(null)}>
+              <ComposeText>{t('action.cancel', { ns: 'common' })}</ComposeText>
+            </TextButton>
+          </AlertDialog.DismissButton>
+        </AlertDialog>
+      ) : null}
+
+      {permanentlyLostDeviceId ? (
+        <AlertDialog onDismissRequest={() => setPermanentlyLostDeviceId(null)}>
+          <AlertDialog.Title>
+            <ComposeText>{t('space.removal.permanentLossTitle')}</ComposeText>
+          </AlertDialog.Title>
+          <AlertDialog.Text>
+            <ComposeText>
+              {t('space.removal.permanentLossConfirm', {
+                device: removalDeviceName(permanentlyLostDeviceId),
+              })}
+            </ComposeText>
+          </AlertDialog.Text>
+          <AlertDialog.ConfirmButton>
+            <TextButton onClick={() => void continueMemberRemoval()}>
+              <ComposeText>{t('space.removal.permanentLossAction')}</ComposeText>
+            </TextButton>
+          </AlertDialog.ConfirmButton>
+          <AlertDialog.DismissButton>
+            <TextButton onClick={() => setPermanentlyLostDeviceId(null)}>
               <ComposeText>{t('action.cancel', { ns: 'common' })}</ComposeText>
             </TextButton>
           </AlertDialog.DismissButton>
@@ -323,6 +369,56 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
           </ListItem.TrailingContent>
         </ListItem>
       </SettingsSectionItem>
+
+      {memberRemoval ? (
+        <>
+          <Spacer modifiers={[heightModifier(16)]} />
+          <SettingsSectionItem
+            title={t('space.removal.title')}
+            footer={
+              memberRemoval.outcome === 'complete' || memberRemoval.outcome === 'localOnly'
+                ? t('space.removal.complete')
+                : memberRemoval.outcome === 'recoveryRequired'
+                ? t('space.removal.recoveryRequired')
+                : t('space.removal.waiting')
+            }
+          >
+            {memberRemoval.pendingRecipientDeviceIds.map((deviceId, index) => (
+              <Column key={deviceId} modifiers={[fillMaxWidth()]}>
+                {index > 0 ? <HorizontalDivider /> : null}
+                <ListItem>
+                  <ListItem.LeadingContent>
+                    <Icon source={ICONS.device} size={24} tint={colors.primary} />
+                  </ListItem.LeadingContent>
+                  <ListItem.HeadlineContent>
+                    <ComposeText>{removalDeviceName(deviceId)}</ComposeText>
+                  </ListItem.HeadlineContent>
+                  <ListItem.SupportingContent>
+                    <ComposeText color={colors.onSurfaceVariant}>
+                      {t('space.removal.pendingDevice')}
+                    </ComposeText>
+                  </ListItem.SupportingContent>
+                  {memberRemoval.outcome === 'recoveryRequired' ? (
+                    <ListItem.TrailingContent>
+                      {pending === `recover:${deviceId}` ? (
+                        <CircularProgressIndicator
+                          modifiers={[widthModifier(24), heightModifier(24)]}
+                        />
+                      ) : (
+                        <TextButton onClick={() => setPermanentlyLostDeviceId(deviceId)}>
+                          <ComposeText color={colors.error}>
+                            {t('space.removal.permanentLossAction')}
+                          </ComposeText>
+                        </TextButton>
+                      )}
+                    </ListItem.TrailingContent>
+                  ) : null}
+                </ListItem>
+              </Column>
+            ))}
+          </SettingsSectionItem>
+        </>
+      ) : null}
 
       <Spacer modifiers={[heightModifier(16)]} />
       <SettingsSectionItem title={`${t('space.devices.title')} (${devices.length})`}>

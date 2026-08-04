@@ -1,7 +1,6 @@
 import type {
   InvitationIssued,
   LegacyMemberRemovalResult,
-  MemberRemovalResult,
   MemberRevocationResult,
   SpaceCreated,
   SpaceInvitation,
@@ -56,6 +55,11 @@ export interface UnifiedSpaceApi {
     preserveUnreadableHistory: boolean
   ): Promise<SpaceJoined>;
   removeMember(deviceId: string): Promise<MemberRevocationResult>;
+  queryCurrentMemberRevocation(): Promise<MemberRevocationResult | null>;
+  continueMemberRevocation(
+    revocationId: string,
+    permanentlyLostDeviceIds: string[]
+  ): Promise<MemberRevocationResult>;
   secureRemoveLegacyMember(deviceId: string): Promise<LegacyMemberRemovalResult>;
   resendEntry(entryId: string, targetDevices: string[]): Promise<ResendEntryOutcome>;
   leaveSpace(): Promise<void>;
@@ -160,15 +164,6 @@ function joinSpaceFailureDetails(
   };
 }
 
-function hasEngineErrorCode(cause: unknown, expectedCode: number): boolean {
-  const details = [String(cause)];
-  if (cause && typeof cause === 'object') {
-    const error = cause as { code?: unknown; message?: unknown; cause?: unknown };
-    details.push(String(error.code ?? ''), String(error.message ?? ''), String(error.cause ?? ''));
-  }
-  return new RegExp(`\\b${expectedCode}\\b`).test(details.join(' '));
-}
-
 function required(value: string, code: UnifiedSpaceInputErrorCode): string {
   const normalized = value.trim();
   if (!normalized) throw new UnifiedSpaceInputError(code);
@@ -205,7 +200,10 @@ export class UnifiedSpaceService {
         this.publishSnapshot();
         return this.snapshot;
       }
-      const devices = await this.api.listDevices();
+      const [devices, memberRemoval] = await Promise.all([
+        this.api.listDevices(),
+        this.api.queryCurrentMemberRevocation(),
+      ]);
       if (!this.isCurrentOperation(revision)) return this.snapshot;
       this.snapshot = {
         status: 'ready',
@@ -213,6 +211,7 @@ export class UnifiedSpaceService {
         deviceName: state.deviceName,
         invitation: state.currentInvitation,
         devices,
+        memberRemoval,
         lastError: null,
       };
       this.publishSnapshot();
@@ -240,6 +239,7 @@ export class UnifiedSpaceService {
           deviceName: normalizedName,
           invitation,
           devices,
+          memberRemoval: null,
           lastError: null,
         };
         this.publishSnapshot();
@@ -261,10 +261,13 @@ export class UnifiedSpaceService {
     if (!this.snapshot.spaceId) return this.snapshot;
 
     const revision = this.beginOperation();
-    const devices = await this.api.listDevices();
+    const [devices, memberRemoval] = await Promise.all([
+      this.api.listDevices(),
+      this.api.queryCurrentMemberRevocation(),
+    ]);
     if (!this.isCurrentOperation(revision)) return this.snapshot;
 
-    this.updateSnapshot({ devices, lastError: null });
+    this.updateSnapshot({ devices, memberRemoval, lastError: null });
     return this.snapshot;
   }
 
@@ -301,6 +304,7 @@ export class UnifiedSpaceService {
           deviceName: normalizedName,
           invitation: null,
           devices,
+          memberRemoval: null,
           lastError: null,
         };
         this.publishSnapshot();
@@ -316,23 +320,33 @@ export class UnifiedSpaceService {
     }
   }
 
-  async removeMember(deviceId: string): Promise<MemberRemovalResult> {
+  async removeMember(deviceId: string): Promise<MemberRevocationResult> {
     const targetDeviceId = required(deviceId, 'deviceNameRequired');
     const revision = this.beginOperation();
-    let result: MemberRemovalResult;
+    let result: MemberRevocationResult;
     try {
-      try {
-        result = await this.api.removeMember(targetDeviceId);
-      } catch (error) {
-        if (!hasEngineErrorCode(error, 1388)) throw error;
-        result = await this.api.secureRemoveLegacyMember(targetDeviceId);
-      }
+      result = await this.api.removeMember(targetDeviceId);
     } catch (error) {
       log.error('[UnifiedSpaceService] Failed to remove a space member:', error);
       throw error;
     }
     const devices = await this.api.listDevices();
-    if (this.isCurrentOperation(revision)) this.updateSnapshot({ devices, lastError: null });
+    if (this.isCurrentOperation(revision)) {
+      this.updateSnapshot({ devices, memberRemoval: result, lastError: null });
+    }
+    return result;
+  }
+
+  async continueMemberRevocation(
+    revocationId: string,
+    permanentlyLostDeviceIds: string[]
+  ): Promise<MemberRevocationResult> {
+    const revision = this.beginOperation();
+    const result = await this.api.continueMemberRevocation(revocationId, permanentlyLostDeviceIds);
+    const devices = await this.api.listDevices();
+    if (this.isCurrentOperation(revision)) {
+      this.updateSnapshot({ devices, memberRemoval: result, lastError: null });
+    }
     return result;
   }
 

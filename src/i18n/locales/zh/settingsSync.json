@@ -83,6 +83,16 @@
       "removeConfirm": "确定从空间中移除这台设备吗？",
       "manageHint": "打开设备管理"
     },
+    "removal": {
+      "title": "移除进度",
+      "waiting": "正在等待其余设备确认这次移除。",
+      "pendingDevice": "等待确认",
+      "recoveryRequired": "有设备尚未确认。只有在确定设备不会再回来时，才能将其标记为永久失联。",
+      "permanentLossTitle": "标记设备永久失联？",
+      "permanentLossConfirm": "系统会把 {{device}} 视为永久失联，且此操作无法撤销。",
+      "permanentLossAction": "确认永久失联",
+      "complete": "其余设备已全部确认这次移除。"
+    },
     "leave": {
       "action": "离开空间",
       "confirm": "离开后本地历史仍会保留，但需要重新创建或加入空间才能继续同步。"

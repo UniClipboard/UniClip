@@ -77,6 +77,9 @@ export interface MemberRevocationResult {
   revocationId: string | null;
   outcome: MemberRevocationOutcome;
   pendingRecipients: number;
+  removedDeviceIds: string[];
+  pendingRecipientDeviceIds: string[];
+  updatedAtMs: number;
 }
 
 export type LegacyMemberRemovalOutcome = 'awaitingReadmission' | 'complete' | 'recoveryRequired';
@@ -206,6 +209,11 @@ interface UcEngineNativeModule {
   querySpaceState(): Promise<SpaceState>;
   listDevices(): Promise<Device[]>;
   removeMember(deviceId: string): Promise<MemberRevocationResult>;
+  queryCurrentMemberRevocation(): Promise<MemberRevocationResult | null>;
+  continueMemberRevocation(
+    revocationId: string,
+    permanentlyLostDeviceIds: string[]
+  ): Promise<MemberRevocationResult>;
   secureRemoveLegacyMember(deviceId: string): Promise<LegacyMemberRemovalResult>;
   resendEntry(entryId: string, targetDevices: string[]): Promise<ResendEntryOutcome>;
   leaveSpace(): Promise<void>;
@@ -335,6 +343,17 @@ export function listDevices(): Promise<Device[]> {
 
 export function removeMember(deviceId: string): Promise<MemberRevocationResult> {
   return NativeModule.removeMember(deviceId);
+}
+
+export function queryCurrentMemberRevocation(): Promise<MemberRevocationResult | null> {
+  return NativeModule.queryCurrentMemberRevocation();
+}
+
+export function continueMemberRevocation(
+  revocationId: string,
+  permanentlyLostDeviceIds: string[]
+): Promise<MemberRevocationResult> {
+  return NativeModule.continueMemberRevocation(revocationId, permanentlyLostDeviceIds);
 }
 
 export function secureRemoveLegacyMember(deviceId: string): Promise<LegacyMemberRemovalResult> {

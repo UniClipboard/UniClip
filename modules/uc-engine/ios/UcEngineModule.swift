@@ -192,6 +192,22 @@ public final class UcEngineModule: Module {
       return Self.memberRevocationResultMap(result)
     }.runOnQueue(engineOperationQueue)
 
+    AsyncFunction("queryCurrentMemberRevocation") { () -> [String: Any?]? in
+      let engine = try self.requireEngine()
+      return try engine.queryCurrentMemberRevocation().map(Self.memberRevocationResultMap)
+    }.runOnQueue(engineOperationQueue)
+
+    AsyncFunction("continueMemberRevocation") {
+      (revocationId: String, permanentlyLostDeviceIds: [String]) -> [String: Any?] in
+      let engine = try self.requireEngine()
+      let result = try engine.continueMemberRevocation(
+        revocationId: revocationId,
+        permanentlyLostDeviceIds: permanentlyLostDeviceIds
+      )
+      self.host.refreshAnalyticsContext(engine: engine)
+      return Self.memberRevocationResultMap(result)
+    }.runOnQueue(engineOperationQueue)
+
     AsyncFunction("secureRemoveLegacyMember") { (deviceId: String) -> [String: Any?] in
       let engine = try self.requireEngine()
       let result = try engine.secureRemoveLegacyMember(deviceId: deviceId)
@@ -509,6 +525,9 @@ public final class UcEngineModule: Module {
       "revocationId": result.revocationId,
       "outcome": outcome,
       "pendingRecipients": result.pendingRecipients,
+      "removedDeviceIds": result.removedDeviceIds,
+      "pendingRecipientDeviceIds": result.pendingRecipientDeviceIds,
+      "updatedAtMs": result.updatedAtMs,
     ]
   }
 

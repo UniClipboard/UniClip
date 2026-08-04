@@ -44,7 +44,7 @@ import {
   statusGreen,
 } from './common';
 
-type PendingOperation = 'leave' | `remove:${string}` | null;
+type PendingOperation = 'leave' | `remove:${string}` | `recover:${string}` | null;
 
 function operationError(error: unknown, t: (key: string) => string): string {
   if (error instanceof UnifiedSpaceInputError) return t(`space.error.${error.code}`);
@@ -180,7 +180,34 @@ export function SpacePage({
     ]);
   };
 
+  const continueMemberRemoval = (deviceId: string) => {
+    const revocationId = space.memberRemoval?.revocationId;
+    if (!revocationId || pending) return;
+
+    const deviceName = space.devices.find((device) => device.deviceId === deviceId)?.displayName ?? deviceId;
+    Alert.alert(
+      t('space.removal.permanentLossTitle'),
+      t('space.removal.permanentLossConfirm', { device: deviceName }),
+      [
+        { text: t('action.cancel', { ns: 'common' }), style: 'cancel' },
+        {
+          text: t('space.removal.permanentLossAction'),
+          style: 'destructive',
+          onPress: () => {
+            setPending(`recover:${deviceId}`);
+            setError(null);
+            void getUnifiedSpaceService()
+              .continueMemberRevocation(revocationId, [deviceId])
+              .catch((cause) => setError(operationError(cause, t)))
+              .finally(() => setPending(null));
+          },
+        },
+      ]
+    );
+  };
+
   const spaceId = space.spaceId;
+  const memberRemoval = space.memberRemoval;
   const devices = [...space.devices].sort((left, right) => {
     const leftRank = left.isLocal ? 0 : left.online ? 1 : 2;
     const rightRank = right.isLocal ? 0 : right.online ? 1 : 2;
@@ -188,6 +215,8 @@ export function SpacePage({
   });
   const onlineCount = devices.filter((device) => device.isLocal || device.online).length;
   const offlineCount = devices.length - onlineCount;
+  const removalDeviceName = (deviceId: string) =>
+    devices.find((device) => device.deviceId === deviceId)?.displayName ?? deviceId;
   const isInitialLoading =
     !spaceId && !pending && (space.status === 'idle' || space.status === 'loading');
 
@@ -284,6 +313,48 @@ export function SpacePage({
                   <Image systemName="checkmark.circle.fill" size={22} color={statusGreen} />
                 </HStack>
               </Section>
+
+              {memberRemoval ? (
+                <Section
+                  header={<SwiftUIText>{t('space.removal.title')}</SwiftUIText>}
+                  footer={
+                    <SwiftUIText>
+                      {memberRemoval.outcome === 'complete' || memberRemoval.outcome === 'localOnly'
+                        ? t('space.removal.complete')
+                        : memberRemoval.outcome === 'recoveryRequired'
+                        ? t('space.removal.recoveryRequired')
+                        : t('space.removal.waiting')}
+                    </SwiftUIText>
+                  }
+                >
+                  {memberRemoval.pendingRecipientDeviceIds.map((deviceId) => (
+                    <HStack key={deviceId} spacing={10} modifiers={[frame({ maxWidth: Infinity })]}>
+                      <Image systemName="desktopcomputer" size={17} color={settingsTileColors.indigo} />
+                      <VStack alignment="leading" spacing={2}>
+                        <SwiftUIText>{removalDeviceName(deviceId)}</SwiftUIText>
+                        <SwiftUIText
+                          modifiers={[font({ size: 13 }), foregroundStyle('secondary')]}
+                        >
+                          {t('space.removal.pendingDevice')}
+                        </SwiftUIText>
+                      </VStack>
+                      <Spacer />
+                      {memberRemoval.outcome === 'recoveryRequired' ? (
+                        pending === `recover:${deviceId}` ? (
+                          <ProgressView />
+                        ) : (
+                          <SwiftUIButton
+                            role="destructive"
+                            label={t('space.removal.permanentLossAction')}
+                            onPress={() => continueMemberRemoval(deviceId)}
+                            modifiers={[buttonStyle('bordered'), controlSize('small')]}
+                          />
+                        )
+                      ) : null}
+                    </HStack>
+                  ))}
+                </Section>
+              ) : null}
 
               <Section
                 header={

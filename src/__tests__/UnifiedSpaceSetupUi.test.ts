@@ -88,6 +88,18 @@ describe('unified space setup UI', () => {
     }
   });
 
+  it('shows retained-device removal progress and requires an explicit permanent-loss action', () => {
+    const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
+    const ios = source('screens/settings/ios/SpacePage.tsx');
+
+    for (const platform of [android, ios]) {
+      expect(platform).toContain('memberRemoval');
+      expect(platform).toContain('pendingRecipientDeviceIds');
+      expect(platform).toContain("memberRemoval.outcome === 'recoveryRequired'");
+      expect(platform).toContain('.continueMemberRevocation(');
+    }
+  });
+
   it('puts connection health and devices ahead of leaving the space', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
     const ios = source('screens/settings/ios/SpacePage.tsx');

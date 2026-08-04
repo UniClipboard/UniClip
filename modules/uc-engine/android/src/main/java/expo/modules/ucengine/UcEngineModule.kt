@@ -94,7 +94,10 @@ private fun memberRevocationResultMap(result: MemberRevocationResult): Map<Strin
     MemberRevocationOutcome.COMPLETE -> "complete"
     MemberRevocationOutcome.RECOVERY_REQUIRED -> "recoveryRequired"
   },
-  "pendingRecipients" to result.pendingRecipients.toLong()
+  "pendingRecipients" to result.pendingRecipients.toLong(),
+  "removedDeviceIds" to result.removedDeviceIds,
+  "pendingRecipientDeviceIds" to result.pendingRecipientDeviceIds,
+  "updatedAtMs" to result.updatedAtMs
 )
 
 private fun legacyMemberRemovalResultMap(result: LegacyMemberRemovalResult): Map<String, Any?> = mapOf(
@@ -412,6 +415,18 @@ class UcEngineModule : Module() {
     AsyncFunction("removeMember") { deviceId: String ->
       val engine = requireEngine()
       val result = engine.removeMember(deviceId)
+      refreshAnalyticsContext(engine)
+      memberRevocationResultMap(result)
+    }
+    AsyncFunction("queryCurrentMemberRevocation") {
+      val engine = requireEngine()
+      engine.queryCurrentMemberRevocation()?.let(::memberRevocationResultMap)
+    }
+    AsyncFunction("continueMemberRevocation") {
+      revocationId: String,
+      permanentlyLostDeviceIds: List<String> ->
+      val engine = requireEngine()
+      val result = engine.continueMemberRevocation(revocationId, permanentlyLostDeviceIds)
       refreshAnalyticsContext(engine)
       memberRevocationResultMap(result)
     }

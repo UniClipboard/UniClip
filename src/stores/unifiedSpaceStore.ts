@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { InvitationIssued, SpaceInvitation } from 'uc-engine';
+import type { InvitationIssued, MemberRevocationResult, SpaceInvitation } from 'uc-engine';
 
 export interface UnifiedSpaceDevice {
   deviceId: string;
@@ -16,6 +16,7 @@ export interface UnifiedSpaceSnapshot {
   deviceName: string | null;
   invitation: InvitationIssued | SpaceInvitation | null;
   devices: UnifiedSpaceDevice[];
+  memberRemoval: MemberRevocationResult | null;
   lastError: string | null;
 }
 
@@ -28,6 +29,7 @@ export function createInitialUnifiedSpaceSnapshot(
     deviceName: null,
     invitation: null,
     devices: [],
+    memberRemoval: null,
     lastError: null,
   };
 }

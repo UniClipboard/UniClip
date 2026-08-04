@@ -83,6 +83,16 @@
       "removeConfirm": "Remover este dispositivo do espaço?",
       "manageHint": "Abre o gerenciamento do dispositivo"
     },
+    "removal": {
+      "title": "Remoção de dispositivo",
+      "waiting": "Aguardando os dispositivos restantes confirmarem esta remoção.",
+      "pendingDevice": "Confirmação pendente",
+      "recoveryRequired": "Um ou mais dispositivos não confirmaram. Marque um dispositivo como permanentemente indisponível somente se tiver certeza de que ele não voltará.",
+      "permanentLossTitle": "Marcar o dispositivo como permanentemente indisponível?",
+      "permanentLossConfirm": "{{device}} será tratado como permanentemente indisponível. Não é possível desfazer isso.",
+      "permanentLossAction": "Confirmar perda permanente",
+      "complete": "Todos os dispositivos restantes confirmaram a remoção."
+    },
     "leave": {
       "action": "Sair do espaço",
       "confirm": "O histórico local será mantido. Crie ou entre em um espaço novamente para retomar a sincronização."
