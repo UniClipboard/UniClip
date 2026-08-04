@@ -97,6 +97,13 @@
       "action": "Leave space",
       "confirm": "Your local history will stay on this device. Create or join a space again to resume syncing."
     },
+    "switch": {
+      "title": "Switch space",
+      "description": "Use an invitation code to join another space",
+      "confirmTitle": "Switch space",
+      "confirm": "This device will leave the current space and join a new one. Your local history will stay, and it will only sync with the new space.",
+      "confirmAction": "Switch space"
+    },
     "unreadableHistory": {
       "title": "Some local history can't be opened",
       "body": "Those items will remain encrypted on this device but won't be available. The rest of your history will move to the new space. Continue?",

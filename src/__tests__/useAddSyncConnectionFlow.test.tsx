@@ -69,7 +69,7 @@ const remoteSnapshot: UnifiedSpaceSnapshot = {
 };
 
 interface HarnessProps {
-  initialMode?: 'choose' | 'create' | 'join';
+  initialMode?: 'choose' | 'create' | 'join' | 'switch';
   onClose: jest.Mock;
   onConnected: jest.Mock;
   resetNativeFields: jest.Mock;
@@ -181,6 +181,33 @@ describe('add sync connection flow', () => {
     await act(async () => continueButton?.onPress?.());
 
     expect(mockJoinSpace).toHaveBeenNthCalledWith(2, 'AB12-CD34', 'Phone', 'secret', true);
+    expect(currentFlow.state.mode).toBe('success');
+    alert.mockRestore();
+  });
+
+  it('requires confirmation before replacing the active space', async () => {
+    createHarness('switch');
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+
+    expect(currentFlow.state.mode).toBe('joinCode');
+    act(() => currentFlow.actions.updateInvitationCode('ab12cd34'));
+    act(() => currentFlow.actions.continueFromCode());
+    act(() => currentFlow.actions.setPassphrase('secret'));
+
+    await act(async () => currentFlow.actions.submitJoin());
+
+    expect(mockJoinSpace).not.toHaveBeenCalled();
+    expect(alert).toHaveBeenCalledWith(
+      'space.switch.confirmTitle',
+      'space.switch.confirm',
+      expect.any(Array)
+    );
+
+    const buttons = alert.mock.calls[0]?.[2];
+    const confirmButton = buttons?.find((button) => button.text === 'space.switch.confirmAction');
+    await act(async () => confirmButton?.onPress?.());
+
+    expect(mockJoinSpace).toHaveBeenCalledWith('AB12-CD34', 'Phone', 'secret', false);
     expect(currentFlow.state.mode).toBe('success');
     alert.mockRestore();
   });

@@ -71,7 +71,7 @@ export interface AddSyncConnectionFlow {
 }
 
 function modeFromInitial(initialMode: AddSyncConnectionMode): AddSyncConnectionFlowMode {
-  return initialMode === 'join' ? 'joinCode' : initialMode;
+  return initialMode === 'join' || initialMode === 'switch' ? 'joinCode' : initialMode;
 }
 
 function remainingTime(expiresAtMs: number, nowMs: number): string {
@@ -221,7 +221,7 @@ export function useAddSyncConnectionFlow({
     }
   };
 
-  const submitJoin = async () => {
+  const joinWithCurrentInputs = async () => {
     if (pending) return;
     setPending(true);
     setError(null);
@@ -275,6 +275,27 @@ export function useAddSyncConnectionFlow({
     } finally {
       setPending(false);
     }
+  };
+
+  const submitJoin = async () => {
+    if (pending) return;
+    if (initialMode === 'switch') {
+      Alert.alert(t('space.switch.confirmTitle'), t('space.switch.confirm'), [
+        {
+          text: t('action.cancel', { ns: 'common' }),
+          style: 'cancel',
+        },
+        {
+          text: t('space.switch.confirmAction'),
+          style: 'destructive',
+          onPress: () => {
+            void joinWithCurrentInputs();
+          },
+        },
+      ]);
+      return;
+    }
+    await joinWithCurrentInputs();
   };
 
   const renewInvitation = async () => {

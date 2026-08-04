@@ -446,6 +446,21 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
       </SettingsSectionItem>
 
       <Spacer modifiers={[heightModifier(16)]} />
+      <SettingsSectionItem title={t('space.switch.title')} footer={t('space.switch.description')}>
+        <ListItem modifiers={[clickable(() => setSetupMode('switch'))]}>
+          <ListItem.LeadingContent>
+            <Icon source={ICONS.space} size={24} tint={colors.primary} />
+          </ListItem.LeadingContent>
+          <ListItem.HeadlineContent>
+            <ComposeText>{t('space.switch.title')}</ComposeText>
+          </ListItem.HeadlineContent>
+          <ListItem.TrailingContent>
+            <Icon source={ICONS.chevron} size={20} tint={colors.onSurfaceVariant} />
+          </ListItem.TrailingContent>
+        </ListItem>
+      </SettingsSectionItem>
+
+      <Spacer modifiers={[heightModifier(16)]} />
       <SettingsSectionItem title={t('space.leave.action')} footer={t('space.leave.confirm')}>
         <ListItem modifiers={[clickable(() => setConfirmLeave(true))]}>
           <ListItem.HeadlineContent>

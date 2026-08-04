@@ -391,6 +391,20 @@ export function SpacePage({
                 )}
               </Section>
 
+              <Section footer={<SwiftUIText>{t('space.switch.description')}</SwiftUIText>}>
+                <SwiftUIButton
+                  onPress={() => setSetupMode('switch')}
+                  modifiers={[buttonStyle('plain'), disabled(pending !== null)]}
+                >
+                  <HStack modifiers={[frame({ maxWidth: Infinity })]}>
+                    <Image systemName="arrow.triangle.2.circlepath" size={16} />
+                    <SwiftUIText>{t('space.switch.title')}</SwiftUIText>
+                    <Spacer />
+                    <Image systemName="chevron.right" size={12} color={chevronColor} />
+                  </HStack>
+                </SwiftUIButton>
+              </Section>
+
               <Section footer={<SwiftUIText>{t('space.leave.confirm')}</SwiftUIText>}>
                 <SwiftUIButton
                   role="destructive"

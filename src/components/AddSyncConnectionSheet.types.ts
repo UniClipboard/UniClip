@@ -1,4 +1,4 @@
-export type AddSyncConnectionMode = 'choose' | 'create' | 'join';
+export type AddSyncConnectionMode = 'choose' | 'create' | 'join' | 'switch';
 
 export interface AddSyncConnectionSheetProps {
   visible: boolean;

@@ -88,6 +88,20 @@ describe('unified space setup UI', () => {
     }
   });
 
+  it('lets an active space join another space before offering leave', () => {
+    const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
+    const ios = source('screens/settings/ios/SpacePage.tsx');
+    const sheetProps = source('components/AddSyncConnectionSheet.types.ts');
+
+    expect(sheetProps).toContain("| 'switch'");
+    for (const platform of [android, ios]) {
+      expect(platform).toContain("setSetupMode('switch')");
+      expect(platform).toContain('space.switch.title');
+      expect(platform).toContain('space.switch.description');
+      expect(platform).toMatch(/space\.switch\.title[\s\S]*space\.leave\.action/);
+    }
+  });
+
   it('shows retained-device removal progress and requires an explicit permanent-loss action', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
     const ios = source('screens/settings/ios/SpacePage.tsx');
@@ -220,6 +234,11 @@ describe('unified space setup UI', () => {
       expect(messages.space.devices.thisDevice).toEqual(expect.any(String));
       expect(messages.space.leave.action).toEqual(expect.any(String));
       expect(messages.space.leave.confirm).toEqual(expect.any(String));
+      expect(messages.space.switch.title).toEqual(expect.any(String));
+      expect(messages.space.switch.description).toEqual(expect.any(String));
+      expect(messages.space.switch.confirmTitle).toEqual(expect.any(String));
+      expect(messages.space.switch.confirm).toEqual(expect.any(String));
+      expect(messages.space.switch.confirmAction).toEqual(expect.any(String));
       expect(messages.space.status.currentDevice).toEqual(expect.any(String));
       expect(messages.space.overview.syncHealthy).toEqual(expect.any(String));
       expect(messages.space.overview.deviceSummary).toEqual(expect.any(String));

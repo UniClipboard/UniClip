@@ -191,6 +191,9 @@ describe('unified sync connection flows', () => {
       expect(messages.space.error.invitationNotFound).toEqual(expect.any(String));
       expect(messages.space.error.invitationExpired).toEqual(expect.any(String));
       expect(messages.space.error.passphraseMismatch).toEqual(expect.any(String));
+      expect(messages.space.switch.confirmTitle).toEqual(expect.any(String));
+      expect(messages.space.switch.confirm).toEqual(expect.any(String));
+      expect(messages.space.switch.confirmAction).toEqual(expect.any(String));
     }
   });
 });

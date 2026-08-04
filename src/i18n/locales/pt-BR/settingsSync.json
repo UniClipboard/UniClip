@@ -97,6 +97,13 @@
       "action": "Sair do espaço",
       "confirm": "O histórico local será mantido. Crie ou entre em um espaço novamente para retomar a sincronização."
     },
+    "switch": {
+      "title": "Trocar de espaço",
+      "description": "Use um código de convite para entrar em outro espaço",
+      "confirmTitle": "Trocar de espaço",
+      "confirm": "Este dispositivo sairá do espaço atual e entrará em um novo. O histórico local será mantido e a sincronização continuará apenas no novo espaço.",
+      "confirmAction": "Confirmar troca"
+    },
     "unreadableHistory": {
       "title": "Parte do histórico local não pode ser aberta",
       "body": "Esses itens continuarão criptografados neste dispositivo, mas ficarão indisponíveis. O restante do histórico será movido para o novo espaço. Continuar?",
