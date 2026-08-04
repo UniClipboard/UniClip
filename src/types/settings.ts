@@ -33,9 +33,6 @@ export interface SharedSettings {
   keyboardSoundFeedback: boolean;
   keyboardHapticFeedback: boolean;
 
-  // Onboarding
-  /** 首次启动引导是否已完成(RN 侧门控,不供原生扩展消费)。 */
-  onboardingCompleted: boolean;
   /** One-time recovery state for users upgraded from the removed LAN connection flow. */
   legacyPairingGuide: 'none' | 'pending';
 }
@@ -98,7 +95,6 @@ export const SHARED_DEFAULTS: SharedSettings = {
   keyboardSoundFeedback: true,
   keyboardHapticFeedback: true,
 
-  onboardingCompleted: false,
   legacyPairingGuide: 'none',
 };
 

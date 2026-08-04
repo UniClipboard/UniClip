@@ -21,15 +21,16 @@ describe('AppNavigator native stack', () => {
     expect(packageJson.dependencies['@react-navigation/stack']).toBeUndefined();
   });
 
-  it('returns authoritative no-Space users to mandatory onboarding without guessing while loading', () => {
+  it('returns only authoritative no-Space users to mandatory onboarding', () => {
     const navigatorSource = readSource('navigation/AppNavigator.tsx');
 
     expect(navigatorSource).toContain('useUnifiedSpaceStore');
-    expect(navigatorSource).toContain("spaceStatus === 'empty'");
-    expect(navigatorSource).toContain('onboardingCompleted: false');
+    expect(navigatorSource).toContain(
+      "const showOnboarding = !!config && !showMigration && spaceStatus === 'empty';"
+    );
+    expect(navigatorSource).not.toContain('onboardingCompleted');
     expect(navigatorSource).toContain('key={rootMode}');
     expect(navigatorSource).toContain('initialRouteName={initialRouteName}');
-    expect(navigatorSource).not.toContain("spaceStatus === 'loading' || spaceStatus === 'failed'");
   });
 
   it('sends upgraded LAN users to a join-only recovery screen', () => {

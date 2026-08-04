@@ -60,10 +60,7 @@ function MigrationGuideGate() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'Migration'>>();
   const updateConfig = useSettingsStore((s) => s.updateConfig);
   const onComplete = useCallback(async () => {
-    const result = await updateConfig({
-      onboardingCompleted: true,
-      legacyPairingGuide: 'none',
-    });
+    const result = await updateConfig({ legacyPairingGuide: 'none' });
     if (!result.ok) return false;
     navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
     return true;
@@ -71,14 +68,11 @@ function MigrationGuideGate() {
   return <LegacyPairingGuide onComplete={onComplete} />;
 }
 
-/** 首启引导容器:落库 onboardingCompleted,再把用户送到 Main。 */
 function OnboardingGate() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'Onboarding'>>();
-  const updateConfig = useSettingsStore((s) => s.updateConfig);
   const onComplete = useCallback(async () => {
-    await updateConfig({ onboardingCompleted: true });
     navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
-  }, [navigation, updateConfig]);
+  }, [navigation]);
   return <OnboardingScreen onComplete={onComplete} />;
 }
 
@@ -91,20 +85,13 @@ export const AppNavigator = () => {
 
   useEffect(() => {
     if (config && spaceStatus === 'ready' && config.legacyPairingGuide === 'pending') {
-      void updateConfig({ legacyPairingGuide: 'none', onboardingCompleted: true });
-    } else if (
-      spaceStatus === 'empty' &&
-      config?.onboardingCompleted &&
-      config.legacyPairingGuide === 'none'
-    ) {
-      void updateConfig({ onboardingCompleted: false });
+      void updateConfig({ legacyPairingGuide: 'none' });
     }
-  }, [config?.legacyPairingGuide, config?.onboardingCompleted, spaceStatus, updateConfig]);
+  }, [config?.legacyPairingGuide, spaceStatus, updateConfig]);
 
   const showMigration =
     !!config && config.legacyPairingGuide === 'pending' && spaceStatus === 'empty';
-  const showOnboarding =
-    !!config && !showMigration && (!config.onboardingCompleted || spaceStatus === 'empty');
+  const showOnboarding = !!config && !showMigration && spaceStatus === 'empty';
   const rootMode = showMigration ? 'migration' : showOnboarding ? 'onboarding' : 'main';
   const initialRouteName =
     rootMode === 'migration' ? 'Migration' : rootMode === 'onboarding' ? 'Onboarding' : 'Main';
