@@ -103,6 +103,7 @@ const USER_ERROR_BY_ENGINE_CODE: Readonly<Record<number, UnifiedSpaceUserErrorCo
 };
 
 type JoinSpaceStage = 'prepareP2p' | 'requestJoin' | 'refreshDevices';
+type SpaceRefreshStage = 'querySpaceState' | 'listDevices' | 'queryCurrentMemberRevocation';
 
 interface JoinSpaceFailureDetails {
   stage: JoinSpaceStage;
@@ -110,6 +111,12 @@ interface JoinSpaceFailureDetails {
   errorName: string;
   errorCode: number | null;
   userErrorCode: UnifiedSpaceUserErrorCode | null;
+}
+
+interface SpaceRefreshFailureDetails {
+  stage: SpaceRefreshStage;
+  errorName: string;
+  errorCode: number | null;
 }
 
 export class UnifiedSpaceInputError extends Error {
@@ -165,6 +172,17 @@ function joinSpaceFailureDetails(
   };
 }
 
+function spaceRefreshFailureDetails(
+  cause: unknown,
+  stage: SpaceRefreshStage
+): SpaceRefreshFailureDetails {
+  return {
+    stage,
+    errorName: cause instanceof Error ? 'Error' : typeof cause,
+    errorCode: engineErrorCode(cause),
+  };
+}
+
 function required(value: string, code: UnifiedSpaceInputErrorCode): string {
   const normalized = value.trim();
   if (!normalized) throw new UnifiedSpaceInputError(code);
@@ -194,7 +212,7 @@ export class UnifiedSpaceService {
     const revision = this.beginOperation();
     this.updateSnapshot({ status: 'loading', lastError: null });
     try {
-      const state = await this.api.querySpaceState();
+      const state = await this.runRefreshStep('querySpaceState', () => this.api.querySpaceState());
       if (!this.isCurrentOperation(revision)) return this.snapshot;
       if (!state.hasCompleted || !state.spaceId) {
         this.snapshot = createInitialUnifiedSpaceSnapshot('empty');
@@ -202,8 +220,10 @@ export class UnifiedSpaceService {
         return this.snapshot;
       }
       const [devices, memberRemoval] = await Promise.all([
-        this.api.listDevices(),
-        this.api.queryCurrentMemberRevocation(),
+        this.runRefreshStep('listDevices', () => this.api.listDevices()),
+        this.runRefreshStep('queryCurrentMemberRevocation', () =>
+          this.api.queryCurrentMemberRevocation()
+        ),
       ]);
       if (!this.isCurrentOperation(revision)) return this.snapshot;
       this.snapshot = {
@@ -263,8 +283,10 @@ export class UnifiedSpaceService {
 
     const revision = this.beginOperation();
     const [devices, memberRemoval] = await Promise.all([
-      this.api.listDevices(),
-      this.api.queryCurrentMemberRevocation(),
+      this.runRefreshStep('listDevices', () => this.api.listDevices()),
+      this.runRefreshStep('queryCurrentMemberRevocation', () =>
+        this.api.queryCurrentMemberRevocation()
+      ),
     ]);
     if (!this.isCurrentOperation(revision)) return this.snapshot;
 
@@ -383,6 +405,18 @@ export class UnifiedSpaceService {
 
   private publishSnapshot(): void {
     this.publish({ ...this.snapshot, devices: [...this.snapshot.devices] });
+  }
+
+  private async runRefreshStep<T>(
+    stage: SpaceRefreshStage,
+    operation: () => Promise<T>
+  ): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      log.error('Space refresh failed', spaceRefreshFailureDetails(error, stage));
+      throw error;
+    }
   }
 }
 

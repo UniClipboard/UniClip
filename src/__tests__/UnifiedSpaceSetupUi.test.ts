@@ -102,6 +102,20 @@ describe('unified space setup UI', () => {
     }
   });
 
+  it('keeps space actions visually distinct on iOS', () => {
+    const ios = source('screens/settings/ios/SpacePage.tsx');
+
+    expect(ios).toMatch(
+      /arrow\.triangle\.2\.circlepath[\s\S]*?<SwiftUIText>\{t\('space\.switch\.title'\)\}<\/SwiftUIText>/
+    );
+    expect(ios).toMatch(
+      /rectangle\.portrait\.and\.arrow\.right[\s\S]*?color=\{settingsTileColors\.red\}[\s\S]*?foregroundStyle\(settingsTileColors\.red\)[\s\S]*?space\.leave\.action/
+    );
+    expect(
+      ios.match(/<HStack spacing=\{8\} modifiers=\{\[frame\(\{ maxWidth: Infinity \}\)\]\}>/g)
+    ).toHaveLength(2);
+  });
+
   it('shows retained-device removal progress and requires an explicit permanent-loss action', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
     const ios = source('screens/settings/ios/SpacePage.tsx');

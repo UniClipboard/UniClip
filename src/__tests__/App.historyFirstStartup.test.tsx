@@ -65,6 +65,7 @@ jest.mock('android-util', () => ({
   setExcludeFromRecents: jest.fn(),
 }));
 jest.mock('../app/runtime/composition', () => ({
+  configureAppRuntime: jest.fn(),
   getAppRuntime: () => ({ start: mockStartServices }),
 }));
 jest.mock('../platform/app-group', () => ({ startAppGroupSync: jest.fn(() => jest.fn()) }));
@@ -112,6 +113,25 @@ describe('App history-first startup', () => {
     mockInitialHistoryComplete = false;
     mockAppStateCurrent = 'active';
     mockAppStateListener = undefined;
+  });
+
+  it('configures application services before starting analytics', async () => {
+    act(() => {
+      TestRenderer.create(<App />);
+    });
+    await flushEffects();
+
+    const { configureAppRuntime } = jest.requireMock('../app/runtime/composition') as {
+      configureAppRuntime: jest.Mock;
+    };
+    const { startPostHogAnalytics } = jest.requireMock('../support/observability') as {
+      startPostHogAnalytics: jest.Mock;
+    };
+    expect(configureAppRuntime).toHaveBeenCalledTimes(1);
+    expect(startPostHogAnalytics).toHaveBeenCalledTimes(1);
+    expect(configureAppRuntime.mock.invocationCallOrder[0]).toBeLessThan(
+      startPostHogAnalytics.mock.invocationCallOrder[0]
+    );
   });
 
   it('starts services and maintenance only after the first history page is ready', async () => {

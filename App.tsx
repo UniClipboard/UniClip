@@ -20,7 +20,7 @@ import { initLogger, setLogLevel } from './src/support/observability';
 import { useTheme } from './src/hooks/useTheme';
 import { setDynamicShortcuts } from 'shortcut';
 import { moveTaskToBack, setExcludeFromRecents } from 'android-util';
-import { getAppRuntime } from './src/app/runtime/composition';
+import { configureAppRuntime, getAppRuntime } from './src/app/runtime/composition';
 import { historyStorage } from './src/features/history';
 import { startAppGroupSync } from './src/platform/app-group';
 import { startNetworkContextMonitor } from './src/platform/network';
@@ -82,6 +82,7 @@ export default function App() {
   const isInitialHistoryLoadComplete = useHistoryStore((state) => state.isInitialLoadComplete);
 
   useEffect(() => {
+    configureAppRuntime();
     initLogger();
     setDynamicShortcuts();
   }, []);

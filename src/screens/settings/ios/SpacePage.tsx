@@ -396,7 +396,7 @@ export function SpacePage({
                   onPress={() => setSetupMode('switch')}
                   modifiers={[buttonStyle('plain'), disabled(pending !== null)]}
                 >
-                  <HStack modifiers={[frame({ maxWidth: Infinity })]}>
+                  <HStack spacing={8} modifiers={[frame({ maxWidth: Infinity })]}>
                     <Image systemName="arrow.triangle.2.circlepath" size={16} />
                     <SwiftUIText>{t('space.switch.title')}</SwiftUIText>
                     <Spacer />
@@ -415,9 +415,15 @@ export function SpacePage({
                     opacity(pending !== null ? 0.35 : 1),
                   ]}
                 >
-                  <HStack modifiers={[frame({ maxWidth: Infinity })]}>
-                    <Image systemName="rectangle.portrait.and.arrow.right" size={16} />
-                    <SwiftUIText>{t('space.leave.action')}</SwiftUIText>
+                  <HStack spacing={8} modifiers={[frame({ maxWidth: Infinity })]}>
+                    <Image
+                      systemName="rectangle.portrait.and.arrow.right"
+                      size={16}
+                      color={settingsTileColors.red}
+                    />
+                    <SwiftUIText modifiers={[foregroundStyle(settingsTileColors.red)]}>
+                      {t('space.leave.action')}
+                    </SwiftUIText>
                     <Spacer />
                   </HStack>
                 </SwiftUIButton>

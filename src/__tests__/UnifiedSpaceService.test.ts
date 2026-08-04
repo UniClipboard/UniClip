@@ -295,6 +295,43 @@ describe('UnifiedSpaceService', () => {
     );
   });
 
+  it.each([
+    [
+      'querySpaceState',
+      {
+        querySpaceState: jest.fn(async () => {
+          throw new Error('Engine error 1322');
+        }),
+      },
+    ],
+    [
+      'listDevices',
+      {
+        listDevices: jest.fn(async () => {
+          throw new Error('Engine error 1383');
+        }),
+      },
+    ],
+    [
+      'queryCurrentMemberRevocation',
+      {
+        queryCurrentMemberRevocation: jest.fn(async () => {
+          throw new Error('Engine error 1387');
+        }),
+      },
+    ],
+  ] as const)('logs the failed %s step while refreshing a space', async (stage, overrides) => {
+    const logError = jest.spyOn(log, 'error').mockImplementation(() => undefined);
+    const service = new UnifiedSpaceService(createApi(overrides), () => undefined);
+
+    await expect(service.refresh()).rejects.toThrow('Engine error');
+
+    expect(logError).toHaveBeenCalledWith(
+      'Space refresh failed',
+      expect.objectContaining({ stage, errorCode: expect.any(Number) })
+    );
+  });
+
   it('creates a space and immediately issues an invitation', async () => {
     const snapshots: UnifiedSpaceSnapshot[] = [];
     const api = createApi();

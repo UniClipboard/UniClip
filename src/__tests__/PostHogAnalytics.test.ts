@@ -265,6 +265,7 @@ describe('React Native PostHog analytics', () => {
 
     expect(app).toContain('startPostHogAnalytics');
     expect(app).toContain('stopPostHogAnalytics');
+    expect(app).toContain('configureAppRuntime();');
     expect(navigator).toContain('capturePostHogScreen');
     expect(navigator).toContain('onStateChange={captureCurrentScreen}');
     expect(navigator).toContain('navigationRef.getCurrentRoute()');
