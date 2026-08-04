@@ -171,6 +171,16 @@ export type EngineEvent =
 export type ClipboardRestoreMode = 'standard' | 'plainText' | 'filePaths';
 export type ClipboardRestoreOutcome = 'restored' | 'payloadUnavailable' | 'notApplicable';
 
+export interface AnalyticsState {
+  projectKey: string;
+  consentEnabled: boolean;
+  distinctId: string;
+  anonymousId: string;
+  deviceId: string;
+  spaceGroupKey: string | null;
+  isIdentified: boolean;
+}
+
 interface UcEngineNativeModule {
   coreVersion(): string;
   start(config: EngineConfig): Promise<void>;
@@ -179,6 +189,7 @@ interface UcEngineNativeModule {
   resume(): Promise<void>;
   setBackgroundSyncEnabled(enabled: boolean, appIsBackground: boolean): Promise<void>;
   getAnalyticsConsent(): Promise<boolean>;
+  getAnalyticsState(): Promise<AnalyticsState>;
   setAnalyticsConsent(enabled: boolean): Promise<void>;
   resetAnalyticsIdentity(): Promise<void>;
   createSpace(deviceName: string | null, passphrase: string): Promise<SpaceCreated>;
@@ -211,12 +222,32 @@ interface UcEngineNativeModule {
 
 const NativeModule = requireNativeModule<UcEngineNativeModule>('UcEngine');
 
+export type AnalyticsStateChangeReason = 'refresh' | 'reset';
+export type AnalyticsStateListener = (reason: AnalyticsStateChangeReason) => void;
+
+const analyticsStateListeners = new Set<AnalyticsStateListener>();
+
+async function publishAnalyticsState(reason: AnalyticsStateChangeReason): Promise<void> {
+  try {
+    await NativeModule.getAnalyticsState();
+  } catch {
+    return;
+  }
+  for (const listener of analyticsStateListeners) listener(reason);
+}
+
+export function subscribeAnalyticsState(listener: AnalyticsStateListener): () => void {
+  analyticsStateListeners.add(listener);
+  return () => analyticsStateListeners.delete(listener);
+}
+
 export function coreVersion(): string {
   return NativeModule.coreVersion();
 }
 
-export function start(config: EngineConfig): Promise<void> {
-  return NativeModule.start(config);
+export async function start(config: EngineConfig): Promise<void> {
+  await NativeModule.start(config);
+  await publishAnalyticsState('refresh');
 }
 
 export function shutdown(deadlineMs = 5_000): Promise<void> {
@@ -242,29 +273,47 @@ export function getAnalyticsConsent(): Promise<boolean> {
   return NativeModule.getAnalyticsConsent();
 }
 
-export function setAnalyticsConsent(enabled: boolean): Promise<void> {
-  return NativeModule.setAnalyticsConsent(enabled);
+export function getAnalyticsState(): Promise<AnalyticsState> {
+  return NativeModule.getAnalyticsState();
 }
 
-export function resetAnalyticsIdentity(): Promise<void> {
-  return NativeModule.resetAnalyticsIdentity();
+export async function setAnalyticsConsent(enabled: boolean): Promise<void> {
+  await NativeModule.setAnalyticsConsent(enabled);
+  await publishAnalyticsState('refresh');
 }
 
-export function createSpace(deviceName: string | null, passphrase: string): Promise<SpaceCreated> {
-  return NativeModule.createSpace(deviceName, passphrase);
+export async function resetAnalyticsIdentity(): Promise<void> {
+  await NativeModule.resetAnalyticsIdentity();
+  await publishAnalyticsState('reset');
+}
+
+export async function createSpace(
+  deviceName: string | null,
+  passphrase: string
+): Promise<SpaceCreated> {
+  const result = await NativeModule.createSpace(deviceName, passphrase);
+  await publishAnalyticsState('refresh');
+  return result;
 }
 
 export function issueInvitation(): Promise<InvitationIssued> {
   return NativeModule.issueInvitation();
 }
 
-export function joinSpace(
+export async function joinSpace(
   invitationCode: string,
   deviceName: string | null,
   passphrase: string,
   preserveUnreadableHistory = false
 ): Promise<SpaceJoined> {
-  return NativeModule.joinSpace(invitationCode, deviceName, passphrase, preserveUnreadableHistory);
+  const result = await NativeModule.joinSpace(
+    invitationCode,
+    deviceName,
+    passphrase,
+    preserveUnreadableHistory
+  );
+  await publishAnalyticsState('refresh');
+  return result;
 }
 
 export function nextEvent(timeoutMs = 1_000): Promise<EngineEvent | null> {
@@ -298,8 +347,9 @@ export function resendEntry(
   return NativeModule.resendEntry(entryId, targetDevices);
 }
 
-export function leaveSpace(): Promise<void> {
-  return NativeModule.leaveSpace();
+export async function leaveSpace(): Promise<void> {
+  await NativeModule.leaveSpace();
+  await publishAnalyticsState('refresh');
 }
 
 export function sendText(text: string, targetDevices: string[] = []): Promise<SendReport> {

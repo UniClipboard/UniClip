@@ -21,6 +21,7 @@ import { OnboardingScreen } from '@/screens/OnboardingScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
 import { SettingsSubScreen } from '@/screens/settings/SettingsSubScreen';
 import type { UpdateCheckResult } from '@/services/UpdateService';
+import { capturePostHogScreen } from '@/services/PostHogAnalytics';
 
 export type SettingsSubSection =
   | 'space'
@@ -108,6 +109,16 @@ export const AppNavigator = () => {
   const initialRouteName =
     rootMode === 'migration' ? 'Migration' : rootMode === 'onboarding' ? 'Onboarding' : 'Main';
 
+  const captureCurrentScreen = useCallback(() => {
+    const screenName = (navigationRef.getCurrentRoute() as { name?: string } | undefined)?.name;
+    if (screenName) capturePostHogScreen(screenName);
+  }, []);
+
+  const handleNavigationReady = useCallback(() => {
+    flushPendingNavigation();
+    captureCurrentScreen();
+  }, [captureCurrentScreen]);
+
   // 子页面标题在组件内按当前语言构建(而非模块级常量),切换语言即时生效
   const subScreenTitles: Record<SettingsSubSection, string> = {
     space: t('space.title', { ns: 'settingsSync' }),
@@ -147,7 +158,8 @@ export const AppNavigator = () => {
     <NavigationContainer
       ref={navigationRef}
       theme={navigationTheme}
-      onReady={flushPendingNavigation}
+      onReady={handleNavigationReady}
+      onStateChange={captureCurrentScreen}
     >
       <Stack.Navigator
         key={rootMode}

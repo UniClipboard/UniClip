@@ -84,6 +84,8 @@ public final class UcEngineModule: Module {
 
     AsyncFunction("getAnalyticsConsent") { try self.host.analyticsConsentEnabled() }
       .runOnQueue(engineOperationQueue)
+    AsyncFunction("getAnalyticsState") { try self.host.getAnalyticsState() }
+      .runOnQueue(engineOperationQueue)
     AsyncFunction("setAnalyticsConsent") { (enabled: Bool) in
       try self.host.setAnalyticsConsentEnabled(enabled)
     }.runOnQueue(engineOperationQueue)

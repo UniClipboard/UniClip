@@ -25,6 +25,7 @@ import { historyStorage } from './src/services/HistoryStorage';
 import { startAppGroupSync } from './src/services/appGroupSync';
 import { startNetworkContextMonitor } from './src/services/networkContext';
 import { resumeOutboundShareHandoffs } from './src/services/OutboundShareHandoffManager';
+import { startPostHogAnalytics, stopPostHogAnalytics } from './src/services/PostHogAnalytics';
 
 const QUICK_UPLOAD_URL = 'uniclipboard://quick-upload';
 const PROCESS_TEXT_URL = 'uniclipboard://process-text';
@@ -83,6 +84,13 @@ export default function App() {
   useEffect(() => {
     initLogger();
     setDynamicShortcuts();
+  }, []);
+
+  useEffect(() => {
+    void startPostHogAnalytics().catch(() => undefined);
+    return () => {
+      void stopPostHogAnalytics().catch(() => undefined);
+    };
   }, []);
 
   // Start the local history query before settings, networking, and navigation finish loading.

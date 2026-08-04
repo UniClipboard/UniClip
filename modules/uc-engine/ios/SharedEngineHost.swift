@@ -83,6 +83,10 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
     try analyticsHost(appVersion: nil).consentEnabled()
   }
 
+  public func getAnalyticsState() throws -> [String: Any?] {
+    try analyticsHost(appVersion: nil).getAnalyticsState()
+  }
+
   public func setAnalyticsConsentEnabled(_ enabled: Bool) throws {
     try analyticsHost(appVersion: nil).setConsentEnabled(enabled)
   }

@@ -80,6 +80,19 @@ internal class AndroidPostHogAnalyticsHost(
     resetTelemetryIdentity()
   }
 
+  fun getAnalyticsState(): Map<String, Any?> {
+    val spacePersonId = preferences.getString("space_person_id", null)
+    return mapOf(
+      "projectKey" to projectKey,
+      "consentEnabled" to consentEnabled(),
+      "distinctId" to currentDistinctId(),
+      "anonymousId" to identifier("anonymous_user_id"),
+      "deviceId" to identifier("analytics_device_id"),
+      "spaceGroupKey" to preferences.getString("space_id_hash", null),
+      "isIdentified" to (spacePersonId != null)
+    )
+  }
+
   fun ensureSpaceContext(spaceId: String?, activeDeviceCount: Int) {
     if (spaceId.isNullOrEmpty()) {
       if (!preferences.edit().remove("space_id_hash").remove("space_group_identified").commit()) {

@@ -88,6 +88,7 @@
     "i18next": "^26.3.4",
     "js-sha256": "^0.11.1",
     "lucide-react-native": "^1.16.0",
+    "posthog-react-native": "^4.61.4",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-i18next": "^17.0.8",

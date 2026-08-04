@@ -16,7 +16,6 @@ describe('native Engine analytics hosts', () => {
     const kotlinModule = read(
       'modules/uc-engine/android/src/main/java/expo/modules/ucengine/UcEngineModule.kt'
     );
-
     expect(swiftHost.match(/MobileEngine\.startWithAnalytics/g)).toHaveLength(2);
     expect(kotlinModule).toContain('MobileEngine.startWithAnalytics(');
     expect(swiftHost).toContain('ApplePostHogAnalyticsHost');
@@ -142,5 +141,45 @@ describe('native Engine analytics hosts', () => {
     expect(ios).toContain("from '@expo/ui/swift-ui'");
     expect(ios).toContain('setAnalyticsConsent');
     expect(ios).toContain('resetAnalyticsIdentity');
+  });
+
+  it('exposes one native analytics state for the React Native client', () => {
+    const javascript = read('modules/uc-engine/src/index.ts');
+    const swiftModule = read('modules/uc-engine/ios/UcEngineModule.swift');
+    const swiftHost = read('modules/uc-engine/ios/SharedEngineHost.swift');
+    const swiftAnalytics = read('modules/uc-engine/ios/NativeAnalyticsHost.swift');
+    const kotlinModule = read(
+      'modules/uc-engine/android/src/main/java/expo/modules/ucengine/UcEngineModule.kt'
+    );
+    const kotlinAnalytics = read(
+      'modules/uc-engine/android/src/main/java/expo/modules/ucengine/NativeAnalyticsHost.kt'
+    );
+
+    for (const source of [javascript, swiftModule, swiftHost, kotlinModule]) {
+      expect(source).toContain('getAnalyticsState');
+    }
+    for (const property of [
+      'projectKey',
+      'consentEnabled',
+      'distinctId',
+      'anonymousId',
+      'deviceId',
+      'spaceGroupKey',
+      'isIdentified',
+    ]) {
+      expect(javascript).toContain(property);
+      expect(swiftAnalytics).toContain(property);
+      expect(kotlinAnalytics).toContain(property);
+    }
+  });
+
+  it('notifies the React Native client after consent, reset, and space identity changes', () => {
+    const javascript = read('modules/uc-engine/src/index.ts');
+
+    expect(javascript).toContain('export function subscribeAnalyticsState');
+    expect(javascript).toContain("publishAnalyticsState('reset')");
+    expect(javascript.match(/publishAnalyticsState\('refresh'\)/g)?.length).toBeGreaterThanOrEqual(
+      5
+    );
   });
 });

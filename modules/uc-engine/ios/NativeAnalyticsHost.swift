@@ -227,6 +227,19 @@ final class ApplePostHogAnalyticsHost: BindingAnalyticsHost, @unchecked Sendable
     _ = try resetTelemetryIdentity()
   }
 
+  func getAnalyticsState() throws -> [String: Any?] {
+    let spacePersonID = store.currentSpacePersonID()
+    return [
+      "projectKey": projectKey,
+      "consentEnabled": store.isEnabled,
+      "distinctId": try store.currentDistinctID(),
+      "anonymousId": try store.anonymousID(),
+      "deviceId": try store.deviceID(),
+      "spaceGroupKey": store.currentSpaceGroupKey(),
+      "isIdentified": spacePersonID != nil,
+    ]
+  }
+
   func ensureSpaceContext(spaceID: String?, activeDeviceCount: Int) throws {
     guard let spaceID, !spaceID.isEmpty else {
       try store.clearSpaceGroup()

@@ -322,6 +322,9 @@ class UcEngineModule : Module() {
     AsyncFunction("getAnalyticsConsent") {
       analyticsHost(requireContext()).consentEnabled()
     }
+    AsyncFunction("getAnalyticsState") {
+      analyticsHost(requireContext()).getAnalyticsState()
+    }
     AsyncFunction("setAnalyticsConsent") { enabled: Boolean ->
       analyticsHost(requireContext()).setConsentEnabled(enabled)
     }

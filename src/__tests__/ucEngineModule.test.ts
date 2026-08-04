@@ -46,7 +46,7 @@ describe('unified P2P engine native module', () => {
       'exportEntry',
       'releaseFileHandle',
     ]) {
-      expect(javascript).toContain(`export function ${operation}`);
+      expect(javascript).toMatch(new RegExp(`export (?:async )?function ${operation}\\b`));
     }
   });
 
@@ -83,7 +83,7 @@ describe('unified P2P engine native module', () => {
       'resendEntry',
       'leaveSpace',
     ]) {
-      expect(javascript).toContain(`export function ${operation}`);
+      expect(javascript).toMatch(new RegExp(`export (?:async )?function ${operation}\\b`));
       expect(swift).toContain(`AsyncFunction("${operation}")`);
       expect(kotlin).toContain(`AsyncFunction("${operation}")`);
     }

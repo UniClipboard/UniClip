@@ -72,6 +72,10 @@ jest.mock('../services/HistoryStorage', () => ({
 jest.mock('../services/OutboundShareHandoffManager', () => ({
   resumeOutboundShareHandoffs: () => mockResumeOutboundShareHandoffs(),
 }));
+jest.mock('../services/PostHogAnalytics', () => ({
+  startPostHogAnalytics: jest.fn(async () => undefined),
+  stopPostHogAnalytics: jest.fn(async () => undefined),
+}));
 jest.mock('app-group-store', () => ({
   dismissStartupHistoryPreview: () => mockDismissStartupHistoryPreview(),
 }));
