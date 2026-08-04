@@ -1,30 +1,19 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { createDefaultClipboardItem } from '../types/clipboard';
-import { fromRow, toRow } from '../services/db/rowMapper';
+import { fromRow, toRow } from '../features/history/internal/rowMapper';
 import { getClipboardCardActionDescriptors } from '../utils/actionMenuItems';
-import { persistP2pDeliveryReport } from '../services/P2pDeliveryState';
-import { historyRepository } from '../services/db/historyRepository';
-import { historyStorage } from '../services/HistoryStorage';
+import { persistP2pDeliveryReport } from '../features/transfer';
+import { updateHistoryItem } from '../features/history';
 
 jest.mock('@/i18n', () => ({
   t: (key: string) => key,
 }));
 
-jest.mock('../services/db/historyRepository', () => ({
-  historyRepository: {
-    getByProfileHash: jest.fn(),
-    replace: jest.fn(),
-  },
+jest.mock('../features/history', () => ({
+  updateHistoryItem: jest.fn(async () => true),
 }));
 
-jest.mock('../services/HistoryStorage', () => ({
-  historyStorage: {
-    updateItem: jest.fn(),
-  },
-}));
-
-const mockedRepository = historyRepository as jest.Mocked<typeof historyRepository>;
-const mockedHistoryStorage = historyStorage as jest.Mocked<typeof historyStorage>;
+const mockedUpdateHistoryItem = updateHistoryItem as jest.MockedFunction<typeof updateHistoryItem>;
 
 describe('P2P delivery history', () => {
   beforeEach(() => {
@@ -63,16 +52,6 @@ describe('P2P delivery history', () => {
   });
 
   it('persists mixed delivery counts as a partial result', async () => {
-    mockedRepository.getByProfileHash.mockResolvedValue(
-      createDefaultClipboardItem({
-        type: 'Text',
-        text: 'mixed delivery',
-        profileHash: 'MIXED_HASH',
-        hasData: false,
-        timestamp: 1,
-      })
-    );
-
     await persistP2pDeliveryReport('MIXED_HASH', {
       entryId: 'entry-mixed',
       totalAccepted: 1,
@@ -82,7 +61,7 @@ describe('P2P delivery history', () => {
       totalPending: 5,
     });
 
-    expect(mockedHistoryStorage.updateItem).toHaveBeenCalledWith(
+    expect(mockedUpdateHistoryItem).toHaveBeenCalledWith(
       'MIXED_HASH',
       expect.objectContaining({
         p2pDeliveryState: 'partial',
@@ -119,16 +98,6 @@ describe('P2P delivery history', () => {
   });
 
   it('publishes delivery changes through history storage so mounted cards refresh', async () => {
-    mockedRepository.getByProfileHash.mockResolvedValue(
-      createDefaultClipboardItem({
-        type: 'File',
-        text: 'retry.txt',
-        profileHash: 'RETRY_HASH',
-        hasData: true,
-        timestamp: 1,
-      })
-    );
-
     await persistP2pDeliveryReport('RETRY_HASH', {
       entryId: 'entry-2',
       totalAccepted: 1,
@@ -138,7 +107,7 @@ describe('P2P delivery history', () => {
       totalPending: 0,
     });
 
-    expect(mockedHistoryStorage.updateItem).toHaveBeenCalledWith(
+    expect(mockedUpdateHistoryItem).toHaveBeenCalledWith(
       'RETRY_HASH',
       expect.objectContaining({
         p2pEntryId: 'entry-2',

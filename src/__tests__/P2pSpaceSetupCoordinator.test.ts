@@ -2,7 +2,7 @@ import { describe, expect, it, jest } from '@jest/globals';
 import {
   P2pSpaceSetupCoordinator,
   type P2pSpaceSetupDependencies,
-} from '../services/P2pSpaceSetupCoordinator';
+} from '../app/runtime/p2pSpaceSetupCoordinator';
 
 function createDependencies() {
   const events: string[] = [];

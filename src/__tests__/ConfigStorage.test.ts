@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSettings } from 'app-group-store';
-import { CONFIG_USER_STATE_KEY, ConfigStorage } from '../services/ConfigStorage';
-import { DEFAULT_SETTINGS, SETTINGS_SCHEMA_VERSION, type AppSettings } from '../types/settings';
+import { CONFIG_USER_STATE_KEY, ConfigStorage } from '../features/settings';
+import { DEFAULT_SETTINGS, type AppSettings } from '../types/settings';
 import { STORAGE_KEYS } from '../types/storage';
 
 jest.mock('react-native', () => {
@@ -28,39 +28,20 @@ describe('ConfigStorage', () => {
     (storage as unknown as ConfigStoragePrivate).config = null;
     mockSetItem.mockResolvedValue(undefined);
     mockGetSettings.mockResolvedValue({});
-    (AsyncStorage.getAllKeys as jest.Mock).mockResolvedValue([]);
-    (AsyncStorage.multiRemove as jest.Mock).mockResolvedValue(undefined);
   });
 
-  it('drops legacy connection credentials while preserving user preferences', async () => {
-    const legacy = {
+  it('loads the current settings format without a schema migration', async () => {
+    const current = {
       ...DEFAULT_SETTINGS,
       language: 'ru',
-      syncChannel: 'lan',
-      servers: [
-        {
-          type: 'syncclipboard',
-          url: 'http://home.test',
-          username: 'alice',
-          password: 'secret',
-        },
-      ],
     };
-    mockGetItem.mockImplementation((key) =>
-      Promise.resolve(key === STORAGE_KEYS.CONFIG ? JSON.stringify(legacy) : '7')
-    );
+    mockGetItem.mockResolvedValue(JSON.stringify(current));
 
     await storage.initialize();
 
     const config = await storage.getConfig();
     expect(config.language).toBe('ru');
-    expect(config.legacyPairingGuide).toBe('pending');
-    expect(config).not.toHaveProperty('syncChannel');
-    expect(config).not.toHaveProperty('servers');
-    expect(mockSetItem).toHaveBeenCalledWith(
-      '@syncclipboard:schema_version',
-      String(SETTINGS_SCHEMA_VERSION)
-    );
+    expect(mockSetItem).not.toHaveBeenCalled();
   });
 
   it('seeds only current shared preferences on first launch', async () => {
@@ -89,11 +70,7 @@ describe('ConfigStorage', () => {
 
   it('marks explicit updates and returns defensive copies', async () => {
     mockGetItem.mockImplementation((key) =>
-      Promise.resolve(
-        key === STORAGE_KEYS.CONFIG
-          ? JSON.stringify(DEFAULT_SETTINGS)
-          : String(SETTINGS_SCHEMA_VERSION)
-      )
+      Promise.resolve(key === STORAGE_KEYS.CONFIG ? JSON.stringify(DEFAULT_SETTINGS) : null)
     );
 
     await storage.updateConfig({ autoApplyRemote: false });

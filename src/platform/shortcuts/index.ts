@@ -1,0 +1,1 @@
+export { ShortcutService } from './shortcutService';

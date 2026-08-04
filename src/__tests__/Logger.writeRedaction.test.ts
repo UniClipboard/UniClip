@@ -35,7 +35,7 @@ jest.mock('expo-file-system', () => {
   };
 });
 
-import { log } from '../services/Logger';
+import { createLogger } from '../support/observability';
 
 describe('Logger structured write redaction', () => {
   beforeEach(() => {
@@ -43,6 +43,7 @@ describe('Logger structured write redaction', () => {
   });
 
   it('sanitizes nested logger arguments before serialization', () => {
+    const log = createLogger('Sync');
     log.error('sync failed', {
       status: 401,
       config: {
@@ -53,6 +54,7 @@ describe('Logger structured write redaction', () => {
     });
 
     const serialized = JSON.stringify(mockError.mock.calls[0][0]);
+    expect(serialized).toContain('[Sync] sync failed');
     expect(serialized).toContain('sync failed');
     expect(serialized).toContain('status');
     expect(serialized).not.toContain('structured-token');

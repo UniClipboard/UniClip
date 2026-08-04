@@ -7,7 +7,7 @@
 import React, { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListItem, Button, Text as ComposeText } from '@expo/ui/jetpack-compose';
-import { ShortcutService } from '@/services';
+import { ShortcutService } from '@/platform/shortcuts';
 import { useSettingsToast } from './SettingsToastContext';
 import { SettingsSectionItem } from './SettingsSectionItem';
 

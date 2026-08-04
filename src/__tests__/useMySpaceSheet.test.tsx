@@ -8,7 +8,7 @@ import {
   createInitialUnifiedEngineSnapshot,
   useUnifiedEngineStore,
 } from '@/stores/unifiedEngineStore';
-import { useUnifiedSpaceStore, type UnifiedSpaceSnapshot } from '@/stores/unifiedSpaceStore';
+import { useUnifiedSpaceStore, type UnifiedSpaceSnapshot } from '@/features/space/store';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -16,7 +16,8 @@ const mockIssueInvitation = jest.fn();
 const mockRefreshDevices = jest.fn();
 const mockUnifiedSpaceUserErrorCode = jest.fn();
 
-jest.mock('@/services/UnifiedSpaceService', () => ({
+jest.mock('@/features/space', () => ({
+  ...jest.requireActual('@/features/space/store'),
   getUnifiedSpaceService: () => ({
     issueInvitation: mockIssueInvitation,
     refreshDevices: mockRefreshDevices,

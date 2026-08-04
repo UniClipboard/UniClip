@@ -33,9 +33,9 @@ import {
   iosProminentButtonModifiers,
   iosSaturatedButtonPalette,
 } from '@/components/ui/iosButtonStyles.ios';
-import { getUnifiedSpaceService, UnifiedSpaceInputError } from '@/services/UnifiedSpaceService';
+import { getUnifiedSpaceService, UnifiedSpaceInputError } from '@/features/space';
 import { useUnifiedEngineStore } from '@/stores/unifiedEngineStore';
-import { useUnifiedSpaceStore, type UnifiedSpaceDevice } from '@/stores/unifiedSpaceStore';
+import { useUnifiedSpaceStore, type UnifiedSpaceDevice } from '@/features/space';
 import {
   HeaderCircleButton,
   SettingsIconTile,

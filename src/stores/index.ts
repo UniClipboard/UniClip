@@ -3,7 +3,7 @@
  * Exports all Zustand stores
  */
 
-export { useClipboardStore } from './clipboardStore';
-export { useHistoryStore } from './historyStore';
-export { useSettingsStore } from './settingsStore';
+export { useClipboardStore } from '@/features/clipboard';
+export { useHistoryStore } from '@/features/history';
+export { useSettingsStore } from '@/features/settings';
 export { useUnifiedEngineStore } from './unifiedEngineStore';

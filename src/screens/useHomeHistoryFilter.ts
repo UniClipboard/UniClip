@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import type { DisplayKind } from '@/utils/displayKind';
 import { createHistorySearchFilter, type HistoryDateFilter } from '@/utils/historyFilters';
 import type { HistoryFilter, HistorySort } from '@/types/storage';
-import { useHistoryStore } from '@/stores/historyStore';
+import { useHistoryStore } from '@/features/history';
 
 type SearchItems = (filter?: HistoryFilter, sort?: HistorySort) => Promise<void>;
 

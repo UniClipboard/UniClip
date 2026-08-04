@@ -39,7 +39,7 @@ import {
   iosSaturatedButtonPalette,
   iosSecondaryButtonModifiers,
 } from '@/components/ui/iosButtonStyles.ios';
-import type { UnifiedSpaceDevice } from '@/stores/unifiedSpaceStore';
+import type { UnifiedSpaceDevice } from '@/features/space';
 import type { MySpaceSheetProps } from './MySpaceSheet.types';
 import { useMySpaceSheet } from './useMySpaceSheet';
 

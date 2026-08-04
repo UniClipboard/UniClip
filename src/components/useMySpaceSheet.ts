@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import type { InvitationIssued } from 'uc-engine';
+import type { InvitationIssued } from '@/platform/engine';
 import { useTranslation } from 'react-i18next';
 
-import { getUnifiedSpaceService, unifiedSpaceUserErrorCode } from '@/services/UnifiedSpaceService';
+import { getUnifiedSpaceService, unifiedSpaceUserErrorCode } from '@/features/space';
 import { useUnifiedEngineStore } from '@/stores/unifiedEngineStore';
-import { useUnifiedSpaceStore } from '@/stores/unifiedSpaceStore';
+import { useUnifiedSpaceStore } from '@/features/space';
 
 function remainingTime(expiresAtMs: number, nowMs: number): string {
   const seconds = Math.max(0, Math.ceil((expiresAtMs - nowMs) / 1000));

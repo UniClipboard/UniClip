@@ -11,8 +11,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { QuickTileLoadingScreen } from './screens/QuickTileLoadingScreen';
 import { useSettingsStore } from './stores';
-import { initLogger } from './services/Logger';
-import { getBackgroundServiceManager } from './services/BackgroundServiceManager';
+import { initLogger } from './support/observability';
+import { getAppRuntime } from './app/runtime/composition';
 
 interface QuickActionAppProps {
   systemTheme?: 'light' | 'dark';
@@ -34,7 +34,7 @@ export default function QuickActionApp({ systemTheme }: QuickActionAppProps) {
   // 启动所有后台服务（冷启动 / 快速操作时保证后台任务正常运行）
   useEffect(() => {
     if (!isLoaded || Platform.OS !== 'android') return;
-    getBackgroundServiceManager()
+    getAppRuntime()
       .start()
       .catch(() => {});
   }, [isLoaded]);

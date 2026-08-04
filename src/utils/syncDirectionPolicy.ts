@@ -1,5 +1,5 @@
 import type { AppConfig } from '@/types/storage';
-import type { NetworkContext } from '@/services/networkContext';
+import type { NetworkContext } from '@/platform/network';
 
 type DirectionConfig = Pick<
   AppConfig,

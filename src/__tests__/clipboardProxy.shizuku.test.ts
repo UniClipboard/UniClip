@@ -30,7 +30,7 @@ describe('clipboardProxy background adapter routing', () => {
     jest.doMock('@/utils/androidBackgroundClipboardAccess', () => ({
       getBackgroundClipboardAdapter: jest.fn(() => (adapterReady ? backgroundAdapter : null)),
     }));
-    jest.doMock('@/stores/settingsStore', () => ({
+    jest.doMock('@/features/settings', () => ({
       useSettingsStore: { getState: () => ({ config: {} }) },
     }));
     jest.doMock('clipboard-overlay', () => ({

@@ -7,7 +7,7 @@ import { HomeCompactView } from './HomeCompactView';
 import { HomeExpandedView } from './HomeExpandedView';
 import type { HomeViewProps } from './HomeView.types';
 import { APP_VERSION } from '@/constants';
-import { checkForAutomaticUpdate } from '@/services';
+import { checkForAutomaticUpdate } from '@/features/updates';
 import { useSettingsStore } from '@/stores';
 
 /**

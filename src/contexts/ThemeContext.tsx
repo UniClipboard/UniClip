@@ -7,7 +7,9 @@ import React, { createContext, useEffect, useState, useCallback } from 'react';
 import { Appearance, useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createTheme, type Theme, type ThemeMode } from '@/theme';
-import { log } from '@/services/Logger';
+import { createLogger } from '@/support/observability';
+
+const log = createLogger('ThemeContext');
 
 const THEME_STORAGE_KEY = '@syncclipboard:theme_mode';
 

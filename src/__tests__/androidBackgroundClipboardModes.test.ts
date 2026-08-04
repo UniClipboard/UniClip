@@ -25,7 +25,7 @@ describe('Android background clipboard modes', () => {
       setTimer: jest.fn(),
       clearTimer: jest.fn(),
     }));
-    jest.doMock('@/stores/settingsStore', () => ({
+    jest.doMock('@/features/settings', () => ({
       useSettingsStore: {
         getState: () => ({
           config: {

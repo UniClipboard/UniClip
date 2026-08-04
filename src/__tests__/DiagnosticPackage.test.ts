@@ -15,7 +15,7 @@ jest.mock('expo-application', () => ({
   nativeBuildVersion: '162',
 }));
 
-jest.mock('../services/Logger', () => ({
+jest.mock('../support/observability', () => ({
   getLogFileUris: () => mockGetLogFileUris(),
 }));
 
@@ -77,7 +77,7 @@ import {
   deleteDiagnosticPackage,
   summarizeDiagnosticLogs,
   type DiagnosticPackageInput,
-} from '../services/DiagnosticPackage';
+} from '../support/diagnostics';
 
 function readWrittenPayload(uri: string): Record<string, unknown> {
   const content = mockWrittenFiles.get(uri);

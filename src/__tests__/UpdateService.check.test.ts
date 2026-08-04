@@ -1,6 +1,6 @@
 /// <reference types="jest" />
 
-import { checkForUpdate } from '../services/UpdateService';
+import { checkForUpdate } from '../features/updates';
 
 const R2_BASE = 'https://release.uniclipboard.app/android';
 

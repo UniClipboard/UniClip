@@ -9,8 +9,8 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, Text, BackHandler, StatusBar, Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from './stores';
-import { initLogger } from './services/Logger';
-import { getBackgroundServiceManager } from './services/BackgroundServiceManager';
+import { initLogger } from './support/observability';
+import { getAppRuntime } from './app/runtime/composition';
 
 interface ServiceRestartAppProps {
   systemTheme?: 'light' | 'dark';
@@ -36,7 +36,7 @@ export default function ServiceRestartApp({ systemTheme }: ServiceRestartAppProp
   useEffect(() => {
     if (!isLoaded || Platform.OS !== 'android') return;
 
-    getBackgroundServiceManager()
+    getAppRuntime()
       .start()
       .finally(() => setReady(true));
   }, [isLoaded]);

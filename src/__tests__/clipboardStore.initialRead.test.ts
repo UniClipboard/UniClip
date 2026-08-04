@@ -25,10 +25,13 @@ describe('clipboardStore initial clipboard read', () => {
     addCallback = jest.fn();
     notifyDeviceClipboardChanged = jest.fn();
 
-    jest.doMock('../services', () => ({
+    jest.doMock('../features/clipboard/internal/clipboardManager', () => ({
       clipboardManager: {
         getClipboardContent,
       },
+    }));
+
+    jest.doMock('../features/clipboard/internal/clipboardMonitor', () => ({
       clipboardMonitor: {
         addCallback,
         removeCallback: jest.fn(),
@@ -41,7 +44,7 @@ describe('clipboardStore initial clipboard read', () => {
       },
     }));
 
-    jest.doMock('../stores/historyStore', () => ({
+    jest.doMock('../features/history', () => ({
       useHistoryStore: {
         getState: () => ({
           addItem,
@@ -49,19 +52,20 @@ describe('clipboardStore initial clipboard read', () => {
       },
     }));
 
-    jest.doMock('../services/P2pClipboardObserver', () => ({
+    jest.doMock('../features/transfer', () => ({
       notifyDeviceClipboardChanged,
     }));
   });
 
   afterEach(() => {
-    jest.dontMock('../services');
-    jest.dontMock('../stores/historyStore');
-    jest.dontMock('../services/P2pClipboardObserver');
+    jest.dontMock('../features/clipboard/internal/clipboardManager');
+    jest.dontMock('../features/clipboard/internal/clipboardMonitor');
+    jest.dontMock('../features/history');
+    jest.dontMock('../features/transfer');
   });
 
   it('stores the current clipboard content immediately when monitoring starts', async () => {
-    const { useClipboardStore } = require('../stores/clipboardStore');
+    const { useClipboardStore } = require('../features/clipboard/store');
 
     await useClipboardStore.getState().startMonitoring();
 
@@ -90,7 +94,7 @@ describe('clipboardStore initial clipboard read', () => {
   });
 
   it('force restarts monitoring without registering the store callback twice', async () => {
-    const { useClipboardStore } = require('../stores/clipboardStore');
+    const { useClipboardStore } = require('../features/clipboard/store');
 
     await useClipboardStore.getState().startMonitoring();
     await useClipboardStore.getState().restartMonitoring();
@@ -102,7 +106,7 @@ describe('clipboardStore initial clipboard read', () => {
   });
 
   it('coalesces concurrent monitoring restart requests', async () => {
-    const { useClipboardStore } = require('../stores/clipboardStore');
+    const { useClipboardStore } = require('../features/clipboard/store');
 
     await useClipboardStore.getState().startMonitoring();
     await Promise.all([

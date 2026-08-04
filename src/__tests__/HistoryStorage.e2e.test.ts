@@ -8,11 +8,11 @@
  * 最终都走 historyStorage.addItem → SQLite,故在存储层统一验证全类型。
  */
 import { ClipboardItem, createDefaultClipboardItem, HistorySyncStatus } from '../types/clipboard';
-import { HistoryStorage } from '../services/HistoryStorage';
+import { HistoryStorage } from '../features/history';
 import { File } from 'expo-file-system';
 import { Platform } from 'react-native';
 
-jest.mock('../utils/fileStorage', () => ({
+jest.mock('../platform/files', () => ({
   getHistoryFileDir: jest.fn(() => ({ uri: 'file://history', exists: true, create: jest.fn() })),
   saveHistoryFile: jest.fn(async () => 'file://history/saved'),
   deleteHistoryFileDir: jest.fn(async () => {}),
@@ -20,12 +20,12 @@ jest.mock('../utils/fileStorage', () => ({
   HISTORY_BASE_DIR: { exists: false, list: jest.fn(() => []) },
 }));
 
-jest.mock('../services/ConfigStorage', () => ({
+jest.mock('../features/settings', () => ({
   configStorage: { getConfig: jest.fn().mockResolvedValue({ maxHistoryItems: 1000 }) },
 }));
 
-jest.mock('../services/Logger', () => ({
-  log: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
+jest.mock('../support/observability', () => ({
+  createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }),
 }));
 
 /** 重置单例 + 打开全新 :memory: DB(afterEach 由 jest.setup 关库) */

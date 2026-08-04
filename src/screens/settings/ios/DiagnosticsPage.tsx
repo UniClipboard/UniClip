@@ -13,14 +13,14 @@ import { disabled, foregroundStyle } from '@expo/ui/swift-ui/modifiers';
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
 import { APP_VERSION } from '@/constants';
 import {
+  classifyDiagnosticReason,
   createDiagnosticPackage,
   deleteDiagnosticPackage,
   type DiagnosticArtifact,
-} from '@/services/DiagnosticPackage';
-import { classifyDiagnosticReason } from '@/services/DiagnosticEventClassifier';
+} from '@/support/diagnostics';
 import { useSettingsStore } from '@/stores';
 import { useUnifiedEngineStore } from '@/stores/unifiedEngineStore';
-import { useUnifiedSpaceStore } from '@/stores/unifiedSpaceStore';
+import { useUnifiedSpaceStore } from '@/features/space';
 import { shareFile } from '@/utils/fileActions';
 import { HeaderCircleButton } from './common';
 

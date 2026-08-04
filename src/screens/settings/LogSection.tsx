@@ -32,7 +32,7 @@ import {
   setLogLevel as setLoggerLogLevel,
   type ExportedLogArchive,
   type LogLevel,
-} from '@/services';
+} from '@/support/observability';
 import { shareFile } from '@/utils/fileActions';
 import { useSettingsToast } from './SettingsToastContext';
 import { SettingsSectionItem } from './SettingsSectionItem';

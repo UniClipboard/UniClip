@@ -43,11 +43,13 @@ import {
   type ReleaseAssetInfo,
   type ApkSource,
   type UpdateCheckResult,
-} from '@/services';
+} from '@/features/updates';
 import { useSettingsStore } from '@/stores';
 import { useSettingsToast } from './SettingsToastContext';
 import { SettingsSectionItem } from './SettingsSectionItem';
-import { log } from '@/services/Logger';
+import { createLogger } from '@/support/observability';
+
+const log = createLogger('UpdateDownload');
 
 const appVersion = APP_VERSION;
 
@@ -108,8 +110,6 @@ export const AboutSection = memo(function AboutSection({ initialUpdate }: AboutS
   const runUpdateCheck = async (showNoUpdateToast: boolean, includeBeta?: boolean) => {
     setIsCheckingUpdate(true);
     try {
-      const today = new Date().toISOString().slice(0, 10);
-      await useSettingsStore.getState().setLastUpdateCheckDate(today);
       const useBeta = includeBeta ?? useSettingsStore.getState().config?.updateToBeta ?? false;
       const result = await checkForUpdate(appVersion, useBeta, activeLanguage);
       if (result.hasUpdate) {
@@ -165,7 +165,7 @@ export const AboutSection = memo(function AboutSection({ initialUpdate }: AboutS
       const abis = getSupportedAbis();
       preferredAbi = getPreferredAbi(abis);
     } catch (e) {
-      log.warn('[UpdateDownload] getSupportedAbis failed:', e);
+      log.warn('getSupportedAbis failed:', e);
     }
 
     const asset = findAssetForAbi(assets, preferredAbi as Parameters<typeof findAssetForAbi>[1]);
@@ -195,7 +195,7 @@ export const AboutSection = memo(function AboutSection({ initialUpdate }: AboutS
       const abis = getSupportedAbis();
       preferredAbi = getPreferredAbi(abis);
     } catch (e) {
-      log.warn('[UpdateDownload] getSupportedAbis failed:', e);
+      log.warn('getSupportedAbis failed:', e);
     }
 
     const asset = findAssetForAbi(assets, preferredAbi as Parameters<typeof findAssetForAbi>[1]);
@@ -231,7 +231,7 @@ export const AboutSection = memo(function AboutSection({ initialUpdate }: AboutS
       setLatestVersion(null);
       await installApk(fileUri);
     } catch (err) {
-      log.error('[UpdateDownload] error:', err);
+      log.error('error:', err);
       if (err instanceof Error && err.name === 'AbortError') {
         showMessage(t('download.canceled'), 'info');
       } else {

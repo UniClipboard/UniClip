@@ -27,7 +27,7 @@ import {
 import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/hooks/useTheme';
-import type { UnifiedSpaceDevice } from '@/stores/unifiedSpaceStore';
+import type { UnifiedSpaceDevice } from '@/features/space';
 import type { MySpaceSheetProps } from './MySpaceSheet.types';
 import { useMySpaceSheet } from './useMySpaceSheet';
 

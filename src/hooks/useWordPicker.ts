@@ -12,7 +12,7 @@ import {
 import { scheduleOnRN } from 'react-native-worklets';
 import * as Haptics from 'expo-haptics';
 import i18n from '@/i18n';
-import { log } from '@/services/Logger';
+import { createLogger } from '@/support/observability';
 import { useMessageStore } from '@/stores/messageStore';
 import {
   buildCopyText,
@@ -23,6 +23,8 @@ import {
   truncateForPicker,
   type SegToken,
 } from '@/utils/wordSegmentation';
+
+const log = createLogger('WordPicker');
 
 export type WordGranularity = 'word' | 'char';
 
@@ -276,7 +278,7 @@ export function useWordPicker(text: string, close: (after?: () => void) => void)
       const Clipboard = await import('expo-clipboard');
       await Clipboard.setStringAsync(previewText);
     } catch (e) {
-      log.error('[WordPicker] Copy to clipboard failed:', e);
+      log.error('Copy to clipboard failed:', e);
       useMessageStore.getState().showMessage(i18n.t('history:wordPicker.copyFailed'), 'error');
       return;
     }

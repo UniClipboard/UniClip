@@ -19,7 +19,7 @@ jest.mock('../utils/hash', () => ({
   calculateFileHash: (...args: unknown[]) => mockCalculateFileHash(...args),
 }));
 
-import { ClipboardManager } from '../services/ClipboardManager';
+import { ClipboardManager } from '../features/clipboard/internal/clipboardManager';
 import { Platform } from 'react-native';
 
 describe('ClipboardManager file reads', () => {

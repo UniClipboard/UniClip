@@ -5,7 +5,9 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { log } from '@/services/Logger';
+import { createLogger } from '@/support/observability';
+
+const log = createLogger('HistoryDisplaySettings');
 
 const STORAGE_KEY = '@syncclipboard:history_display_settings';
 
@@ -36,7 +38,7 @@ export function useHistoryDisplaySettings() {
         setSettings({ ...DEFAULT_SETTINGS, ...parsed });
       }
     } catch (error) {
-      log.error('[HistoryDisplaySettings] Failed to load settings:', error);
+      log.error('Failed to load settings:', error);
     } finally {
       setIsLoading(false);
     }
@@ -51,7 +53,7 @@ export function useHistoryDisplaySettings() {
       try {
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newSettings));
       } catch (error) {
-        log.error('[HistoryDisplaySettings] Failed to save settings:', error);
+        log.error('Failed to save settings:', error);
       }
     },
     [settings]
@@ -65,7 +67,7 @@ export function useHistoryDisplaySettings() {
       try {
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newSettings));
       } catch (error) {
-        log.error('[HistoryDisplaySettings] Failed to save settings:', error);
+        log.error('Failed to save settings:', error);
       }
     },
     [settings]

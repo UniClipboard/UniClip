@@ -9,7 +9,7 @@ describe('Android background clipboard setup', () => {
     jest.doMock('expo-application', () => ({ applicationId: 'app.uniclipboard.android.dev' }));
     jest.doMock('expo-clipboard', () => ({ setStringAsync: jest.fn().mockResolvedValue(true) }));
     jest.doMock('native-timer', () => ({ setTimer: jest.fn(), clearTimer: jest.fn() }));
-    jest.doMock('@/stores/settingsStore', () => ({
+    jest.doMock('@/features/settings', () => ({
       useSettingsStore: {
         getState: () => ({
           config: { clipboardAccessMethod: 'shizuku' },

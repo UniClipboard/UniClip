@@ -3,7 +3,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import * as analytics from '../services/PostHogAnalytics';
+import * as analytics from '../support/observability';
 
 type TestAnalyticsState = Parameters<typeof analytics.createPostHogOptions>[0];
 
@@ -35,7 +35,9 @@ function postHogClient() {
 
 describe('React Native PostHog analytics', () => {
   it('provides a dedicated foreground analytics service', () => {
-    expect(fs.existsSync(path.join(process.cwd(), 'src/services/PostHogAnalytics.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(process.cwd(), 'src/support/observability/index.ts'))).toBe(
+      true
+    );
   });
 
   it('keeps SDK configuration, filtering, startup, and screen capture behind one service', () => {

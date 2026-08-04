@@ -14,14 +14,14 @@ import { useTranslation } from 'react-i18next';
 import { navigationRef, flushPendingNavigation } from './navigationRef';
 import { useTheme } from '@/hooks/useTheme';
 import { useSettingsStore } from '@/stores';
-import { useUnifiedSpaceStore } from '@/stores/unifiedSpaceStore';
+import { useUnifiedSpaceStore } from '@/features/space';
 import { HomeView } from '@/screens/HomeView';
 import { LegacyPairingGuide } from '@/screens/LegacyPairingGuide';
 import { OnboardingScreen } from '@/screens/OnboardingScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
 import { SettingsSubScreen } from '@/screens/settings/SettingsSubScreen';
-import type { UpdateCheckResult } from '@/services/UpdateService';
-import { capturePostHogScreen } from '@/services/PostHogAnalytics';
+import type { UpdateCheckResult } from '@/features/updates';
+import { capturePostHogScreen } from '@/support/observability';
 
 export type SettingsSubSection =
   | 'space'

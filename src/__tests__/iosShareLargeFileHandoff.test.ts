@@ -59,7 +59,7 @@ describe('iOS Share large-file handoff', () => {
 
   it('lets the main app claim handoffs without loading history files into memory', () => {
     const nativeModule = read('modules/app-group-store/ios/AppGroupStoreModule.swift');
-    const historyStorage = read('src/services/HistoryStorage.ts');
+    const historyStorage = read('src/features/history/internal/historyStorage.ts');
     const app = read('App.tsx');
 
     expect(nativeModule).toContain('claimOutboundShareJobs');

@@ -5,7 +5,7 @@
  * 快速滚动时卡片乱飞/空洞。启动后的旧数据整理必须去重合并并写入新资料库。
  */
 
-import { HistoryStorage } from '../services/HistoryStorage';
+import { HistoryStorage } from '../features/history';
 import { ClipboardItem, HistorySyncStatus } from '../types/clipboard';
 import { STORAGE_KEYS } from '../types/storage';
 
@@ -36,7 +36,7 @@ jest.mock('expo-file-system', () => ({
   })),
 }));
 
-jest.mock('../utils/fileStorage', () => ({
+jest.mock('../platform/files', () => ({
   getHistoryFileDir: jest.fn().mockReturnValue({
     uri: 'file://test/history',
     exists: true,
@@ -44,19 +44,19 @@ jest.mock('../utils/fileStorage', () => ({
   }),
 }));
 
-jest.mock('../services/ConfigStorage', () => ({
+jest.mock('../features/settings', () => ({
   configStorage: {
     getConfig: jest.fn().mockResolvedValue({ maxHistoryItems: 1000 }),
   },
 }));
 
-jest.mock('../services/Logger', () => ({
-  log: {
+jest.mock('../support/observability', () => ({
+  createLogger: () => ({
     error: jest.fn(),
     warn: jest.fn(),
     info: jest.fn(),
     debug: jest.fn(),
-  },
+  }),
 }));
 
 function createItem(

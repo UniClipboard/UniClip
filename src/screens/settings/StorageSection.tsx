@@ -16,8 +16,8 @@ import {
   HorizontalDivider,
   Text as ComposeText,
 } from '@expo/ui/jetpack-compose';
-import { clearDirectory, CLIPBOARD_TEMP_DIR } from '@/utils/fileStorage';
-import { clearLogs } from '@/services';
+import { clearDirectory, CLIPBOARD_TEMP_DIR } from '@/platform/files';
+import { clearLogs } from '@/support/observability';
 import { useSettingsToast } from './SettingsToastContext';
 import { SettingsSectionItem } from './SettingsSectionItem';
 import { useStorageSizesStore } from './storageSizes';

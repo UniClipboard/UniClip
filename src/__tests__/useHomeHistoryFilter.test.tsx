@@ -8,7 +8,7 @@ import { useHomeHistoryFilter } from '@/screens/useHomeHistoryFilter';
 
 let mockStoredFilter: HistoryFilter | null = null;
 
-jest.mock('@/stores/historyStore', () => ({
+jest.mock('@/features/history', () => ({
   useHistoryStore: {
     getState: () => ({ filter: mockStoredFilter }),
   },

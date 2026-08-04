@@ -1,7 +1,7 @@
 /// <reference types="jest" />
 
 import type { OutboundShareJobDTO } from '../../modules/app-group-store/src/index';
-import { OutboundShareHandoffManager } from '../services/OutboundShareHandoffManager';
+import { OutboundShareHandoffManager } from '../features/transfer/internal/outboundShareHandoffManager';
 
 const job: OutboundShareJobDTO = {
   id: 'job-1',

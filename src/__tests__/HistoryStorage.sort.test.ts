@@ -3,7 +3,7 @@
  * 验证历史记录插入、更新后排序行为符合预期
  */
 
-import { HistoryStorage } from '../services/HistoryStorage';
+import { HistoryStorage } from '../features/history';
 import { ClipboardItem, HistorySyncStatus } from '../types/clipboard';
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
@@ -25,7 +25,7 @@ jest.mock('expo-file-system', () => ({
   })),
 }));
 
-jest.mock('../utils/fileStorage', () => ({
+jest.mock('../platform/files', () => ({
   getHistoryFileDir: jest.fn().mockReturnValue({
     uri: 'file://test/history',
     exists: true,
@@ -33,19 +33,19 @@ jest.mock('../utils/fileStorage', () => ({
   }),
 }));
 
-jest.mock('../services/ConfigStorage', () => ({
+jest.mock('../features/settings', () => ({
   configStorage: {
     getConfig: jest.fn().mockResolvedValue({ maxHistoryItems: 1000 }),
   },
 }));
 
-jest.mock('../services/Logger', () => ({
-  log: {
+jest.mock('../support/observability', () => ({
+  createLogger: () => ({
     error: jest.fn(),
     warn: jest.fn(),
     info: jest.fn(),
     debug: jest.fn(),
-  },
+  }),
 }));
 
 // cleanupByCount 中有 dynamic import，需要 mock 整个类型模块

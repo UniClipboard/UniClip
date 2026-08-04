@@ -13,10 +13,10 @@ import { File } from 'expo-file-system';
 import { nativeCopyFile, type ProgressInfo } from 'android-util';
 import i18n from '@/i18n';
 import { calculateFileProfileHash, calculateTextHash } from '@/utils/hash';
-import { prepareTempFilePath } from '@/utils/fileStorage';
+import { prepareTempFilePath } from '@/platform/files';
 import { sanitizeDataName } from '@/utils/fileName';
 import { convertHeicToJpegIfNeeded } from '@/utils/heicToJpeg';
-import { useHistoryStore } from '@/stores/historyStore';
+import { useHistoryStore } from '@/features/history';
 import { createDefaultClipboardItem, HistorySyncStatus } from '@/types/clipboard';
 import type { ClipboardContentType } from '@/types/api';
 

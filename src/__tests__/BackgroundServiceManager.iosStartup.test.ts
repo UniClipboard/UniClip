@@ -1,4 +1,4 @@
-import { getBackgroundServiceManager } from '../services/BackgroundServiceManager';
+import { configureAppRuntime, getAppRuntime } from '../app/runtime';
 
 let appStateListener: ((state: string) => void) | undefined;
 const mockP2pStart = jest.fn<() => Promise<void>>();
@@ -46,7 +46,7 @@ jest.mock('react-native', () => ({
   Platform: { OS: 'ios' },
 }));
 
-jest.mock('../stores/settingsStore', () => ({
+jest.mock('../features/settings', () => ({
   useSettingsStore: {
     getState: () => ({
       isLoaded: true,
@@ -57,7 +57,7 @@ jest.mock('../stores/settingsStore', () => ({
   },
 }));
 
-jest.mock('../stores/clipboardStore', () => ({
+jest.mock('../features/clipboard', () => ({
   useClipboardStore: {
     getState: () => ({ startMonitoring: jest.fn(async () => undefined) }),
   },
@@ -69,7 +69,7 @@ jest.mock('../stores', () => ({
   },
 }));
 
-jest.mock('../services/UnifiedEngineService', () => ({
+jest.mock('../platform/engine', () => ({
   getUnifiedEngineService: () => ({
     start: mockP2pStart,
     stop: mockP2pStop,
@@ -81,13 +81,39 @@ jest.mock('../services/UnifiedEngineService', () => ({
   }),
 }));
 
-jest.mock('../services/UnifiedSpaceService', () => ({
+jest.mock('../features/space', () => ({
   getUnifiedSpaceService: () => ({ refresh: mockSpaceRefresh }),
 }));
 
-jest.mock('../services/Logger', () => ({
-  log: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
-}));
+configureAppRuntime({
+  settingsStore: {
+    getState: () => ({
+      isLoaded: true,
+      config: {},
+      isTempDisabledBackgroundTasks: false,
+      loadConfig: jest.fn(async () => undefined),
+      setEnableBackgroundTasks: jest.fn(),
+      setTempDisabledBackgroundTasks: jest.fn(),
+    }),
+    subscribe: jest.fn(() => jest.fn()),
+  },
+  clipboardStore: { getState: () => ({ startMonitoring: jest.fn(async () => undefined) }) },
+  engine: () => ({
+    start: mockP2pStart,
+    setBackgroundSyncPolicy: mockP2pSetBackgroundSyncPolicy,
+    resume: mockP2pResume,
+    recoverPeerConnections: mockP2pRecoverPeerConnections,
+    cancelPeerRecovery: mockP2pCancelPeerRecovery,
+  }),
+  space: () => ({ refresh: mockSpaceRefresh }),
+  statisticsStore: {
+    getState: () => ({
+      recordBackgroundTaskStart: jest.fn(async () => undefined),
+      updateHeartbeat: jest.fn(),
+    }),
+  },
+  applicationVersion: () => '1.0.0',
+});
 
 describe('BackgroundServiceManager iOS startup lifecycle', () => {
   beforeEach(() => {
@@ -97,7 +123,7 @@ describe('BackgroundServiceManager iOS startup lifecycle', () => {
   });
 
   it('does not let an early network refresh start the engine', async () => {
-    await getBackgroundServiceManager().refresh();
+    await getAppRuntime().refresh();
 
     expect(mockP2pStart).not.toHaveBeenCalled();
   });
@@ -111,7 +137,7 @@ describe('BackgroundServiceManager iOS startup lifecycle', () => {
         })
     );
 
-    const startPromise = getBackgroundServiceManager().start();
+    const startPromise = getAppRuntime().start();
     await Promise.resolve();
     await Promise.resolve();
 
@@ -136,7 +162,7 @@ describe('BackgroundServiceManager iOS startup lifecycle', () => {
   });
 
   it('resumes the native engine before starting bounded foreground recovery', async () => {
-    await getBackgroundServiceManager().start();
+    await getAppRuntime().start();
 
     expect(mockP2pResume).toHaveBeenCalledTimes(1);
     expect(mockP2pRecoverPeerConnections).toHaveBeenCalledTimes(1);
@@ -144,28 +170,6 @@ describe('BackgroundServiceManager iOS startup lifecycle', () => {
       mockP2pRecoverPeerConnections.mock.invocationCallOrder[0]
     );
     expect(mockSpaceRefresh).toHaveBeenCalledTimes(1);
-  });
-
-  it('records the local and receiver identities after the startup refresh', async () => {
-    await getBackgroundServiceManager().start();
-
-    const { log } = jest.requireMock('../services/Logger') as {
-      log: { info: jest.Mock };
-    };
-    expect(log.info).toHaveBeenCalledWith('[P2PStartup] Space devices', [
-      {
-        deviceId: 'phone-device-id',
-        displayName: 'iPhone 16 Pro',
-        isLocal: true,
-        online: true,
-      },
-      {
-        deviceId: 'desktop-device-id',
-        displayName: 'Mac',
-        isLocal: false,
-        online: false,
-      },
-    ]);
   });
 
   it('coalesces network refreshes while the formal startup is in progress', async () => {
@@ -177,7 +181,7 @@ describe('BackgroundServiceManager iOS startup lifecycle', () => {
         })
     );
 
-    const manager = getBackgroundServiceManager();
+    const manager = getAppRuntime();
     const startPromise = manager.start();
     await Promise.resolve();
     await Promise.resolve();

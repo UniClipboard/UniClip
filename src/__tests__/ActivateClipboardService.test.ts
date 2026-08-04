@@ -1,11 +1,11 @@
-import { writeActivate, clearActivate, noteApplied } from '@/services/ActivateClipboardService';
+import { writeActivate, clearActivate, noteApplied } from '@/features/clipboard/commands';
 import type { ClipboardContent } from '@/types/clipboard';
 
 // 进程内的 activate 单行寄存器 + history Map,让 writeActivate/clearActivate 走真实逻辑。
 let mockActivateRow: any = null;
 const mockHistoryMap = new Map<string, any>();
 
-jest.mock('@/services/db/activateRepository', () => ({
+jest.mock('@/features/clipboard/internal/activateRepository', () => ({
   activateRepository: {
     get: jest.fn(async () => mockActivateRow),
     upsert: jest.fn(
@@ -19,13 +19,15 @@ jest.mock('@/services/db/activateRepository', () => ({
   },
 }));
 
-jest.mock('@/services/db/historyRepository', () => ({
-  historyRepository: {
-    getByProfileHash: jest.fn(async (h: string) => mockHistoryMap.get(h.toLowerCase()) ?? null),
-    replace: jest.fn(async (item: any) => {
-      mockHistoryMap.set(item.profileHash.toLowerCase(), item);
-    }),
-  },
+jest.mock('@/features/history', () => ({
+  ensureHistoryItem: jest.fn(async (item: ClipboardContent) => {
+    const profileHash = item.profileHash!;
+    const existing = mockHistoryMap.get(profileHash.toLowerCase());
+    if (existing) return existing;
+    const created = { profileHash, contentId: null };
+    mockHistoryMap.set(profileHash.toLowerCase(), created);
+    return created;
+  }),
 }));
 
 const content = (profileHash: string, text = 'x'): ClipboardContent => ({
@@ -49,14 +51,14 @@ describe('ActivateClipboardService', () => {
   });
 
   it('writeActivate 对相同 profileHash 去重:第二次是 no-op(不再 upsert)', async () => {
-    const { activateRepository } = require('@/services/db/activateRepository');
+    const { activateRepository } = require('@/features/clipboard/internal/activateRepository');
     await writeActivate(content('AAA'));
     await writeActivate(content('AAA'));
     expect(activateRepository.upsert).toHaveBeenCalledTimes(1);
   });
 
   it('anti-echo:等于刚应用的远端 hash 时不写入(不制造陈旧 re-push)', async () => {
-    const { activateRepository } = require('@/services/db/activateRepository');
+    const { activateRepository } = require('@/features/clipboard/internal/activateRepository');
     noteApplied('YYY');
     await writeActivate(content('YYY'));
     expect(activateRepository.upsert).not.toHaveBeenCalled();

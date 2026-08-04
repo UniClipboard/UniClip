@@ -6,7 +6,9 @@
 
 import { Platform } from 'react-native';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
-import { log } from '@/services/Logger';
+import { createLogger } from '@/support/observability';
+
+const log = createLogger('HeicToJpeg');
 
 const HEIC_EXT_RE = /\.(heic|heif)$/i;
 
@@ -60,7 +62,7 @@ export async function convertHeicToJpegIfNeeded(
       converted: true,
     };
   } catch (error) {
-    log.warn('[heicToJpeg] HEIC→JPEG 转换失败，按原文件发送：', error);
+    log.warn('HEIC→JPEG 转换失败，按原文件发送：', error);
     return { uri, fileName, mimeType, fileSize, converted: false };
   }
 }

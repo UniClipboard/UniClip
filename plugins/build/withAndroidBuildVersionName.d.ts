@@ -5,7 +5,7 @@ import { ConfigPlugin } from 'expo/config-plugins';
  *
  * ## Why
  *
- * The in-app self-updater (`src/services/UpdateService.ts`) is the ONLY update
+ * The in-app self-updater (`src/features/updates`) is the ONLY update
  * channel on Android: it fetches the latest GitHub release, parses its tag
  * (`vX.Y.Z.B`) and compares it against the *installed* app's version string,
  * which it reads from `Application.nativeApplicationVersion` — i.e. the Android

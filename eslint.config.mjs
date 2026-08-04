@@ -75,6 +75,24 @@ export default [
       'react-native/no-color-literals': 'warn',
       'react-native/no-raw-text': 'off',
       'no-console': 'off',
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '@/services/**',
+                'src/services/**',
+                '@/support/*/internal/**',
+                '@/features/*/internal/**',
+                '@/platform/*/internal/**',
+              ],
+              message:
+                'Import module public entry points instead of internal implementation files.',
+            },
+          ],
+        },
+      ],
     },
     settings: {
       react: {

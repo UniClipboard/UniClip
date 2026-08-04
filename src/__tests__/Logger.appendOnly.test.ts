@@ -33,7 +33,7 @@ jest.mock('expo-file-system', () => {
   };
 });
 
-import { customFileTransport } from '@/services/Logger';
+import { customFileTransport } from '@/support/observability';
 
 describe('Logger 文件传输器', () => {
   beforeEach(() => {

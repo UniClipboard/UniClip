@@ -27,9 +27,9 @@ import { useTranslation } from 'react-i18next';
 import { AddSyncConnectionSheet } from '@/components/AddSyncConnectionSheet';
 import type { AddSyncConnectionMode } from '@/components/AddSyncConnectionSheet.types';
 import { SpaceInvitationSheet } from '@/components/SpaceInvitationSheet';
-import { getUnifiedSpaceService, UnifiedSpaceInputError } from '@/services/UnifiedSpaceService';
+import { getUnifiedSpaceService, UnifiedSpaceInputError } from '@/features/space';
 import { useUnifiedEngineStore } from '@/stores/unifiedEngineStore';
-import { useUnifiedSpaceStore, type UnifiedSpaceDevice } from '@/stores/unifiedSpaceStore';
+import { useUnifiedSpaceStore, type UnifiedSpaceDevice } from '@/features/space';
 import { SettingsSectionItem } from './SettingsSectionItem';
 
 type PendingOperation = 'leave' | `remove:${string}` | `recover:${string}` | null;

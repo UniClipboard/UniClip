@@ -3,12 +3,12 @@
  * 验证 update 事件到达 store 后，items 列表重排
  */
 
-import { useHistoryStore } from '../stores/historyStore';
+import { useHistoryStore } from '../features/history';
 import { ClipboardItem, HistorySyncStatus } from '../types/clipboard';
-import { historyStorage } from '../services';
+import { historyStorage } from '../features/history/commands';
 
 // Mock historyStorage，避免真实 AsyncStorage 依赖
-jest.mock('../services', () => ({
+jest.mock('../features/history/commands', () => ({
   historyStorage: {
     searchItems: jest.fn().mockResolvedValue({ items: [], total: 0 }),
     addItem: jest.fn(),

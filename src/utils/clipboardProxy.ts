@@ -12,9 +12,11 @@ import {
   nativeSaveClipboardFileToFile,
   type ClipboardFileInfo,
 } from 'android-util';
-import { log } from '@/services/Logger';
+import { createLogger } from '@/support/observability';
 import { getBackgroundClipboardAdapter } from '@/utils/androidBackgroundClipboardAccess';
 import { sanitizeDataName } from '@/utils/fileName';
+
+const log = createLogger('ClipboardProxy');
 
 /**
  * 获取剪贴板文本
@@ -25,7 +27,7 @@ export async function getStringAsync(options?: Clipboard.GetStringOptions): Prom
     try {
       return await adapter.getString();
     } catch (e) {
-      log.warn('[ClipboardProxy] Background getStringAsync failed, falling back:', e);
+      log.warn('Background getStringAsync failed, falling back:', e);
     }
   }
   return Clipboard.getStringAsync(options);
@@ -47,9 +49,9 @@ export async function setStringAsync(
     try {
       const ok = await adapter.setString(text);
       if (ok) return true;
-      log.warn('[ClipboardProxy] Background setStringAsync verify failed, falling back');
+      log.warn('Background setStringAsync verify failed, falling back');
     } catch (e) {
-      log.warn('[ClipboardProxy] Background setStringAsync failed, falling back:', e);
+      log.warn('Background setStringAsync failed, falling back:', e);
     }
   }
   return Clipboard.setStringAsync(text, options);
@@ -64,7 +66,7 @@ export async function hasStringAsync(): Promise<boolean> {
     try {
       return await adapter.hasString();
     } catch (e) {
-      log.warn('[ClipboardProxy] Background hasStringAsync failed, falling back:', e);
+      log.warn('Background hasStringAsync failed, falling back:', e);
     }
   }
   return Clipboard.hasStringAsync();
@@ -79,7 +81,7 @@ export async function hasImageAsync(): Promise<boolean> {
     try {
       return await adapter.hasImage();
     } catch (e) {
-      log.warn('[ClipboardProxy] Background hasImageAsync failed, falling back:', e);
+      log.warn('Background hasImageAsync failed, falling back:', e);
     }
   }
   return Clipboard.hasImageAsync();
@@ -108,7 +110,7 @@ export async function saveImageToFileAsync(
       const result = await adapter.saveImageToFile(destDirPath);
       if (result) return result;
     } catch (e) {
-      log.warn('[ClipboardProxy] Background saveImageToFileAsync failed, falling back:', e);
+      log.warn('Background saveImageToFileAsync failed, falling back:', e);
     }
   }
   // Android 前台：android-util 直接读取系统剪贴板并写入文件（不经过 JS 内存）
@@ -139,7 +141,7 @@ export async function saveImageToFileAsync(
 
       return { filePath, mimeType: 'image/png' };
     } catch (e) {
-      log.warn('[ClipboardProxy] iOS getImageAsync failed:', e);
+      log.warn('iOS getImageAsync failed:', e);
       return null;
     }
   }

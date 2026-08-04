@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import type { EngineEvent, SendReport } from 'uc-engine';
-import { OutboundDeliveryCoordinator } from '../services/OutboundDeliveryCoordinator';
+import { OutboundDeliveryCoordinator } from '../features/transfer/internal/outboundDeliveryCoordinator';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;

@@ -1,6 +1,6 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import type { EngineConfig, EngineEvent, PeerConnectionRefresh } from 'uc-engine';
-import { UnifiedEngineService, type UnifiedEngineApi } from '../services/UnifiedEngineService';
+import { UnifiedEngineService, type UnifiedEngineApi } from '../platform/engine';
 import type { UnifiedEngineSnapshot } from '../stores/unifiedEngineStore';
 
 function deferred<T>() {

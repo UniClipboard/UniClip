@@ -1,4 +1,4 @@
-import type { UpdateCheckResult } from '@/services/UpdateService';
+import type { UpdateCheckResult } from '@/features/updates';
 
 export interface HomeViewProps {
   onOpenSettings: () => void;

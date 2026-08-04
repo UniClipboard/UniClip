@@ -27,7 +27,7 @@ describe('iOS Share direct-send progress', () => {
     const rootView = read('targets/share/ShareRootView.swift');
     const uploader = read('targets/share/ShareUploader.swift');
     const handoff = read('targets/share/OutboundShareHandoff.swift');
-    const manager = read('src/services/OutboundShareHandoffManager.ts');
+    const manager = read('src/features/transfer/internal/outboundShareHandoffManager.ts');
 
     expect(rootView).toContain('selectedRecipientIds');
     expect(rootView).toContain('选择设备后才会连接和发送');

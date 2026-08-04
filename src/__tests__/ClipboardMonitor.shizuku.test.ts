@@ -20,7 +20,7 @@ describe('ClipboardMonitor Shizuku events', () => {
       Platform: { OS: 'android' },
     }));
     jest.doMock('native-timer', () => ({ setTimer, clearTimer: jest.fn() }));
-    jest.doMock('@/stores/settingsStore', () => ({
+    jest.doMock('@/features/settings', () => ({
       useSettingsStore: {
         getState: () => ({ config: { clipboardAccessMethod: 'shizuku' } }),
       },
@@ -51,7 +51,7 @@ describe('ClipboardMonitor Shizuku events', () => {
       startClipboardMonitor: jest.fn(),
       stopClipboardMonitor: jest.fn(),
     }));
-    jest.doMock('@/services/ClipboardManager', () => ({
+    jest.doMock('@/features/clipboard/internal/clipboardManager', () => ({
       ClipboardManager: jest.fn(),
       clipboardManager: {
         getClipboardContent: jest.fn().mockResolvedValue(null),
@@ -63,7 +63,7 @@ describe('ClipboardMonitor Shizuku events', () => {
   afterEach(() => jest.resetModules());
 
   it('starts Shizuku events instead of the polling fallback', async () => {
-    const { ClipboardMonitor } = require('@/services/ClipboardMonitor');
+    const { ClipboardMonitor } = require('@/features/clipboard/internal/clipboardMonitor');
     const manager = {
       getClipboardContent: jest.fn().mockResolvedValue(null),
       buildTextContent: jest.fn(),
@@ -82,7 +82,7 @@ describe('ClipboardMonitor Shizuku events', () => {
   });
 
   it('reads the clipboard immediately when Android returns to the foreground', async () => {
-    const { ClipboardMonitor } = require('@/services/ClipboardMonitor');
+    const { ClipboardMonitor } = require('@/features/clipboard/internal/clipboardMonitor');
     const manager = {
       getClipboardContent: jest.fn().mockResolvedValue(null),
       buildTextContent: jest.fn(),

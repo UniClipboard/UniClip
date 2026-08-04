@@ -13,8 +13,10 @@ import { useIncomingShare, clearSharedPayloads, getSharedPayloads } from 'expo-s
 import { useTheme } from '@/hooks/useTheme';
 import { useMessageStore } from '@/stores/messageStore';
 import { importFileToHistory, importTextToHistory } from '@/utils/uploadFile';
-import { getUnifiedContentService } from '@/services/UnifiedContentService';
-import { log } from '@/services/Logger';
+import { getUnifiedContentService } from '@/features/transfer';
+import { createLogger } from '@/support/observability';
+
+const log = createLogger('ShareReceiveScreen');
 
 interface ShareReceiveScreenProps {
   /**
@@ -88,9 +90,7 @@ export const ShareReceiveScreen: React.FC<ShareReceiveScreenProps> = ({ onComple
     const returnToSource = !isScreenshotShare(originalUri);
     if (__DEV__) {
       log.info(
-        `[share] authority=${
-          getContentAuthority(originalUri) ?? 'none'
-        } returnToSource=${returnToSource}`
+        `authority=${getContentAuthority(originalUri) ?? 'none'} returnToSource=${returnToSource}`
       );
     }
     onComplete(returnToSource);

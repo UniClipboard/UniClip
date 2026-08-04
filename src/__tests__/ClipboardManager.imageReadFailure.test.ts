@@ -7,13 +7,13 @@ const mockSaveFileToFileAsync = jest.fn();
 
 jest.mock('expo-image-picker', () => ({}));
 
-jest.mock('../services/Logger', () => ({
-  log: {
+jest.mock('../support/observability', () => ({
+  createLogger: () => ({
     debug: jest.fn(),
     info: jest.fn(),
     warn: jest.fn(),
     error: (...args: unknown[]) => mockLogError(...args),
-  },
+  }),
 }));
 
 jest.mock('../utils/clipboardProxy', () => ({
@@ -24,7 +24,7 @@ jest.mock('../utils/clipboardProxy', () => ({
   saveFileToFileAsync: (...args: unknown[]) => mockSaveFileToFileAsync(...args),
 }));
 
-import { ClipboardManager } from '../services/ClipboardManager';
+import { ClipboardManager } from '../features/clipboard/internal/clipboardManager';
 
 describe('ClipboardManager image read failures', () => {
   beforeEach(() => {
@@ -44,10 +44,7 @@ describe('ClipboardManager image read failures', () => {
 
     expect(mockSaveImageToFileAsync).toHaveBeenCalledTimes(2);
     expect(mockLogError).toHaveBeenCalledTimes(1);
-    expect(mockLogError).toHaveBeenCalledWith(
-      '[ClipboardManager] Failed to get image:',
-      'native image export failed'
-    );
+    expect(mockLogError).toHaveBeenCalledWith('Failed to get image:', 'native image export failed');
   });
 
   it('logs again after the clipboard leaves the failing image state', async () => {

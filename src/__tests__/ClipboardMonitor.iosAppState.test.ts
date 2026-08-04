@@ -25,7 +25,7 @@ describe('ClipboardMonitor iOS app state handling', () => {
       Platform: { OS: 'ios' },
     }));
 
-    jest.doMock('@/stores/settingsStore', () => ({
+    jest.doMock('@/features/settings', () => ({
       useSettingsStore: {
         getState: () => ({
           config: {
@@ -36,7 +36,7 @@ describe('ClipboardMonitor iOS app state handling', () => {
       },
     }));
 
-    jest.doMock('../services/ClipboardManager', () => ({
+    jest.doMock('../features/clipboard/internal/clipboardManager', () => ({
       ClipboardManager: jest.fn(),
       clipboardManager: {
         getClipboardContent: jest.fn().mockResolvedValue(null),
@@ -48,12 +48,12 @@ describe('ClipboardMonitor iOS app state handling', () => {
   afterEach(() => {
     jest.dontMock('native-timer');
     jest.dontMock('react-native');
-    jest.dontMock('@/stores/settingsStore');
-    jest.dontMock('../services/ClipboardManager');
+    jest.dontMock('@/features/settings');
+    jest.dontMock('../features/clipboard/internal/clipboardManager');
   });
 
   it('does not pause polling for the transient inactive state caused by the iOS paste prompt', async () => {
-    const { ClipboardMonitor } = require('../services/ClipboardMonitor');
+    const { ClipboardMonitor } = require('../features/clipboard/internal/clipboardMonitor');
     const manager = {
       getClipboardContent: jest.fn().mockResolvedValue(null),
       resetLastProfileHash: jest.fn(),
@@ -77,7 +77,7 @@ describe('ClipboardMonitor iOS app state handling', () => {
   });
 
   it('reads the clipboard immediately when the app returns to the foreground', async () => {
-    const { ClipboardMonitor } = require('../services/ClipboardMonitor');
+    const { ClipboardMonitor } = require('../features/clipboard/internal/clipboardMonitor');
     const manager = {
       getClipboardContent: jest.fn().mockResolvedValue(null),
       resetLastProfileHash: jest.fn(),

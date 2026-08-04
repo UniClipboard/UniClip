@@ -4,14 +4,16 @@ import * as Clipboard from 'expo-clipboard';
 import { Button as SwiftUIButton, Section, Text as SwiftUIText } from '@expo/ui/swift-ui';
 
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
-import { log } from '@/services/Logger';
-import { useSettingsStore } from '@/stores';
+import { createLogger } from '@/support/observability';import { useSettingsStore } from '@/stores';
 import {
   GuideStepRow,
   HeaderCircleButton,
   OpenSystemSettingsButton,
   SettingsToggle,
 } from './common';
+
+const log = createLogger("ClipboardAccess");
+
 
 /**
  * "Paste from Other Apps" permission guide. iOS 16+ prompts on every
@@ -43,10 +45,10 @@ export function ClipboardAccessPage({ onBack }: { onBack: () => void }) {
       await Clipboard.getStringAsync();
       // 用户显式重新触发授权：清除监听器里「已拒绝」的记忆，让轮询恢复读取
       // （若用户这次点了「允许」，下一个 tick 即可正常同步当前内容）。
-      const { clipboardMonitor } = await import('@/services/ClipboardMonitor');
+      const { clipboardMonitor } = await import('@/features/clipboard');
       await clipboardMonitor.clearDenial();
     } catch (e) {
-      log.warn('[ClipboardAccess] trigger paste read failed:', e);
+      log.warn("trigger paste read failed:", e);
     } finally {
       setTriggered(true);
     }

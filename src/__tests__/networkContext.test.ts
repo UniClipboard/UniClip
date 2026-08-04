@@ -1,21 +1,21 @@
 import NetInfo from '@react-native-community/netinfo';
 import {
   applyNetInfoState,
+  configureNetworkContextChangeListener,
   getCurrentNetworkContext,
   startNetworkContextMonitor,
   stopNetworkContextMonitor,
-} from '@/services/networkContext';
+} from '@/platform/network';
 import { isTailscaleActive } from 'android-util';
 
 const mockBackgroundServiceRefresh = jest.fn<() => Promise<void>>(async () => undefined);
 
-jest.mock('@/services/BackgroundServiceManager', () => ({
-  getBackgroundServiceManager: () => ({ refresh: mockBackgroundServiceRefresh }),
-}));
-
 describe('networkContext', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    configureNetworkContextChangeListener(() => {
+      void mockBackgroundServiceRefresh();
+    });
     (isTailscaleActive as jest.Mock).mockReturnValue(false);
     stopNetworkContextMonitor();
     applyNetInfoState({

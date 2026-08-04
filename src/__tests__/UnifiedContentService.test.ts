@@ -4,7 +4,7 @@ import {
   UnifiedContentService,
   type UnifiedContentApi,
   type UnifiedContentDependencies,
-} from '../services/UnifiedContentService';
+} from '../features/transfer';
 
 const report: SendReport = {
   entryId: 'entry-1',
@@ -42,6 +42,7 @@ function dependencies(
       pending: 0,
       reasons: [],
     })),
+    persistDelivery: jest.fn(async () => undefined),
     ...overrides,
   };
 }

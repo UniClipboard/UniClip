@@ -71,7 +71,7 @@ jest.mock('@/utils/uploadFile', () => ({
 
 const mockSendImportedText = jest.fn(async () => ({ channel: 'p2p', success: true }));
 const mockSendImportedAsset = jest.fn(async () => ({ channel: 'p2p', success: true }));
-jest.mock('@/services/UnifiedContentService', () => ({
+jest.mock('@/features/transfer', () => ({
   getUnifiedContentService: () => ({
     sendImportedText: (...args: unknown[]) => mockSendImportedText(...args),
     sendImportedAsset: (...args: unknown[]) => mockSendImportedAsset(...args),
@@ -93,8 +93,8 @@ jest.mock('@/hooks/useTheme', () => ({
   }),
 }));
 
-jest.mock('@/services/Logger', () => ({
-  log: { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
+jest.mock('@/support/observability', () => ({
+  createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));
 
 jest.mock('@expo/ui/jetpack-compose', () => {

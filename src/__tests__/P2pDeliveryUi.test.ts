@@ -10,7 +10,7 @@ describe('P2P delivery UI wiring', () => {
   it('persists manual send reports and wires resend through the existing card menu', () => {
     const controller = source('src/screens/useHomeController.ts');
 
-    expect(controller).toContain('persistP2pDeliveryReport');
+    expect(controller).not.toContain('persistP2pDeliveryReport');
     expect(controller).toContain('p2pDeliveryStateFromResend');
     expect(controller).toContain('onResend:');
     expect(controller).toContain('getUnifiedSpaceService().resendEntry');
@@ -33,7 +33,7 @@ describe('P2P delivery UI wiring', () => {
   );
 
   it('upgrades existing history databases with P2P delivery fields', () => {
-    const database = source('src/services/db/database.ts');
+    const database = source('src/platform/database/sqliteDatabase.ts');
 
     expect(database).toContain('SCHEMA_VERSION = 4');
     expect(database).toContain('ADD COLUMN p2pEntryId TEXT');

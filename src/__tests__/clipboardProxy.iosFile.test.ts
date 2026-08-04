@@ -42,8 +42,8 @@ describe('clipboardProxy iOS file reads', () => {
     jest.doMock('@/utils/androidBackgroundClipboardAccess', () => ({
       getBackgroundClipboardAdapter: jest.fn(() => null),
     }));
-    jest.doMock('@/services/Logger', () => ({
-      log: { warn: jest.fn() },
+    jest.doMock('@/support/observability', () => ({
+      createLogger: () => ({ warn: jest.fn() }),
     }));
     jest.doMock('android-util', () => ({
       nativeSaveClipboardImageToFile: jest.fn(),

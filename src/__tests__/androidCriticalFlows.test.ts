@@ -5,20 +5,20 @@
  * 1. HistoryStorage.initialize() —— 并发调用共享一次初始化;失败后门闩住,不再重放整条重型 IO 流水线
  * 2. historyRepository 批量写 —— 同一批内相同 profileHash 必须后写者胜(顺序执行,不能并发下发)
  */
-import { HistoryStorage } from '../services/HistoryStorage';
-import { historyRepository } from '../services/db/historyRepository';
+import { HistoryStorage } from '../features/history/internal/historyStorage';
+import { historyRepository } from '../features/history/internal/historyRepository';
 import { createDefaultClipboardItem, type ClipboardItem } from '../types/clipboard';
-import { useHistoryStore } from '../stores/historyStore';
+import { useHistoryStore } from '../features/history/store';
 
 // 只影响 historyStore 走的 `@/services` 桶文件;上面几个直接路径 import 仍是真实实现
-jest.mock('../services', () => ({
+jest.mock('../features/history/commands', () => ({
   historyStorage: {
     searchItems: jest.fn().mockResolvedValue({ items: [], total: 0 }),
     setSortConfig: jest.fn(),
   },
 }));
 
-jest.mock('../utils/fileStorage', () => ({
+jest.mock('../platform/files', () => ({
   getHistoryFileDir: jest.fn(() => ({ uri: 'file://history', exists: true, create: jest.fn() })),
   saveHistoryFile: jest.fn(async () => 'file://history/saved'),
   deleteHistoryFileDir: jest.fn(async () => {}),
@@ -26,22 +26,22 @@ jest.mock('../utils/fileStorage', () => ({
   HISTORY_BASE_DIR: { exists: false, list: jest.fn(() => []) },
 }));
 
-jest.mock('../services/ConfigStorage', () => ({
+jest.mock('../features/settings', () => ({
   configStorage: { getConfig: jest.fn().mockResolvedValue({ maxHistoryItems: 1000 }) },
 }));
 
-jest.mock('../services/Logger', () => ({
-  log: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
+jest.mock('../support/observability', () => ({
+  createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }),
 }));
 
 // 默认转发真实实现;个别用例用 mockResolvedValueOnce 注入假 db 来观测 statement 的执行时序
-jest.mock('../services/db/database', () => {
-  const actual = jest.requireActual('../services/db/database');
+jest.mock('../platform/database', () => {
+  const actual = jest.requireActual('../platform/database');
   return { ...actual, getDatabase: jest.fn(actual.getDatabase) };
 });
 
-const { configStorage } = jest.requireMock('../services/ConfigStorage');
-const { getDatabase } = jest.requireMock('../services/db/database');
+const { configStorage } = jest.requireMock('../features/settings');
+const { getDatabase } = jest.requireMock('../platform/database');
 const AsyncStorage = jest.requireMock('@react-native-async-storage/async-storage').default;
 
 /** 重置单例,拿到一个尚未初始化的实例(afterEach 由 jest.setup 关库) */

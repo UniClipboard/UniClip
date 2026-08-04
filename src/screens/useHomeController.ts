@@ -6,28 +6,27 @@ import { useTheme } from '@/hooks/useTheme';
 import * as Haptics from 'expo-haptics';
 import type { CardAnchorRect } from '@/components/CardContextOverlay.types';
 import { AnimatedCardGridHandle } from '@/components/AnimatedCardGrid';
-import { useHistoryStore } from '@/stores/historyStore';
-import { useClipboardStore } from '@/stores/clipboardStore';
+import { useHistoryStore } from '@/features/history';
+import { useClipboardStore } from '@/features/clipboard';
 import { useSettingsStore } from '@/stores';
-import { log } from '@/services/Logger';
+import { createLogger } from '@/support/observability';
 import { useMessageStore } from '@/stores/messageStore';
 import { useErrorStore } from '@/stores/errorStore';
-import { notifyDeviceClipboardChanged } from '@/services/P2pClipboardObserver';
+import { notifyDeviceClipboardChanged } from '@/features/transfer';
 import { useUnifiedEngineStore } from '@/stores/unifiedEngineStore';
-import { useUnifiedSpaceStore } from '@/stores/unifiedSpaceStore';
+import { useUnifiedSpaceStore } from '@/features/space';
 import { deriveP2pConnectionStatus } from '@/utils/connectionStatus';
-import { historyStorage } from '@/services';
-import { getUnifiedContentService } from '@/services/UnifiedContentService';
-import { getUnifiedEngineService } from '@/services/UnifiedEngineService';
-import { getUnifiedSpaceService } from '@/services/UnifiedSpaceService';
+import { historyStorage } from '@/features/history';
+import { getUnifiedContentService } from '@/features/transfer';
+import { getUnifiedEngineService } from '@/platform/engine';
+import { getUnifiedSpaceService } from '@/features/space';
 import {
   p2pDeliveryCountsFromReport,
   p2pDeliveryCountsFromResend,
   p2pDeliveryStateFromResend,
   p2pDeliveryTranslationOptions,
   p2pDeliveryUpdates,
-  persistP2pDeliveryReport,
-} from '@/services/P2pDeliveryState';
+} from '@/features/transfer';
 import { ClipboardItem, ClipboardContent } from '@/types/clipboard';
 import { importFileToHistory } from '@/utils/uploadFile';
 import { copyToLocalClipboard } from '@/utils/clipboard';
@@ -38,6 +37,8 @@ import { HistoryDateFilter } from '@/utils/historyFilters';
 import { useHomeHistoryFilter } from './useHomeHistoryFilter';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
+
+const log = createLogger('HomeView');
 
 function getErrorCode(error: unknown): string {
   if (typeof error !== 'object' || error === null || !('code' in error)) return 'UNKNOWN';
@@ -166,13 +167,11 @@ export function useHomeController(onOpenSettings: () => void) {
 
   // Listen for storage changes
   useEffect(() => {
-    const { HistoryStorage } = require('@/services/HistoryStorage');
-    const storage = HistoryStorage.getInstance();
     const handleChange = (changedItems: ClipboardItem[], action: 'add' | 'update' | 'delete') => {
       handleStorageChange(changedItems, action);
     };
-    storage.addChangeCallback(handleChange);
-    return () => storage.removeChangeCallback(handleChange);
+    historyStorage.addChangeCallback(handleChange);
+    return () => historyStorage.removeChangeCallback(handleChange);
   }, [handleStorageChange]);
 
   // Scroll to top on new items
@@ -357,7 +356,7 @@ export function useHomeController(onOpenSettings: () => void) {
             await saveToGallery(item.fileUri!, item.dataName);
             showMessage(t('toast.savedToGallery'), 'success');
           } catch (error) {
-            log.error(`[HomeView] saveToGallery failed (${getErrorCode(error)})`);
+            log.error(`saveToGallery failed (${getErrorCode(error)})`);
             showMessage(t('toast.saveFailed'), 'error');
           }
         },
@@ -368,7 +367,7 @@ export function useHomeController(onOpenSettings: () => void) {
               showMessage(t('toast.savedFile'), 'success');
             }
           } catch (e) {
-            log.error('[HomeView] saveFile failed:', e);
+            log.error('saveFile failed:', e);
             showMessage(t('toast.saveFailed'), 'error');
           }
         },
@@ -395,7 +394,7 @@ export function useHomeController(onOpenSettings: () => void) {
                 : 'error'
             );
           } catch (error) {
-            log.error('[HomeView] Failed to resend P2P content:', error);
+            log.error('Failed to resend P2P content:', error);
             showMessage(t('toast.p2pDelivery.failed'), 'error');
           }
         },
@@ -495,7 +494,6 @@ export function useHomeController(onOpenSettings: () => void) {
     try {
       clearError();
       const result = await getUnifiedContentService().sendCurrentClipboard();
-      await persistP2pDeliveryReport(result.profileHash, result.report);
       await loadItems();
       showMessage(
         t(
@@ -530,7 +528,7 @@ export function useHomeController(onOpenSettings: () => void) {
           payload.fileSize
         );
       } catch (error) {
-        log.error('[HomeView] Failed to save imported content:', error);
+        log.error('Failed to save imported content:', error);
         showMessage(t('toast.saveFailed'), 'error');
         return;
       }
@@ -545,7 +543,6 @@ export function useHomeController(onOpenSettings: () => void) {
           },
           result.profileHash
         );
-        await persistP2pDeliveryReport(sendResult.profileHash, sendResult.report);
         await loadItems();
         showMessage(
           t(
@@ -559,7 +556,7 @@ export function useHomeController(onOpenSettings: () => void) {
             : 'error'
         );
       } catch (error) {
-        log.error('[HomeView] Failed to send imported content:', error);
+        log.error('Failed to send imported content:', error);
         showMessage(t('toast.uploadFailed'), 'error');
       }
     },

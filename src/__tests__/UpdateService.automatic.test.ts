@@ -1,5 +1,5 @@
-import * as updateService from '../services/UpdateService';
-import type { UpdateCheckResult } from '../services/UpdateService';
+import * as updateService from '../features/updates';
+import type { UpdateCheckResult } from '../features/updates';
 
 const availableUpdate: UpdateCheckResult = {
   hasUpdate: true,

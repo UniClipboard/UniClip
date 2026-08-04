@@ -2,13 +2,13 @@ describe('fileStorage App Group compatibility', () => {
   beforeEach(() => {
     jest.resetModules();
     jest.clearAllMocks();
-    jest.doMock('../services/Logger', () => ({
-      log: {
+    jest.doMock('../support/observability', () => ({
+      createLogger: () => ({
         error: jest.fn(),
         warn: jest.fn(),
         info: jest.fn(),
         debug: jest.fn(),
-      },
+      }),
     }));
   });
 
@@ -38,7 +38,7 @@ describe('fileStorage App Group compatibility', () => {
     }));
 
     const { getPayloadFileUri } = require('app-group-store');
-    const { getHistoryFileUri } = require('../utils/fileStorage.ios');
+    const { getHistoryFileUri } = require('../platform/files/fileStorage.ios');
 
     await expect(getHistoryFileUri('Image', 'ABC', 'image.png')).resolves.toBe(
       'file:///group/payloads/Image-ABC'
@@ -73,7 +73,7 @@ describe('fileStorage App Group compatibility', () => {
     }));
 
     const { getPayloadFileUri } = require('app-group-store');
-    const { prepareHistoryFileUri } = require('../utils/fileStorage.ios');
+    const { prepareHistoryFileUri } = require('../platform/files/fileStorage.ios');
 
     await expect(prepareHistoryFileUri('Image', 'ABC', 'image.png')).resolves.toBe(
       'file:///group/payloads/Image-ABC'
@@ -107,7 +107,7 @@ describe('fileStorage App Group compatibility', () => {
     }));
 
     const { writePayload } = require('app-group-store');
-    const { saveHistoryFile } = require('../utils/fileStorage.ios');
+    const { saveHistoryFile } = require('../platform/files/fileStorage.ios');
 
     await expect(
       saveHistoryFile('Image', 'ABC', 'image.png', new Uint8Array([1, 2]).buffer)
@@ -135,7 +135,7 @@ describe('fileStorage App Group compatibility', () => {
     }));
 
     const { clearPayloads } = require('app-group-store');
-    const { clearHistoryFiles } = require('../utils/fileStorage.ios');
+    const { clearHistoryFiles } = require('../platform/files/fileStorage.ios');
 
     await expect(clearHistoryFiles()).resolves.toBeUndefined();
     expect(clearPayloads).toHaveBeenCalledTimes(1);
@@ -151,7 +151,7 @@ describe('fileStorage App Group compatibility', () => {
       File: jest.fn(),
     }));
 
-    const { getHistoryStorageSize } = require('../utils/fileStorage.ios');
+    const { getHistoryStorageSize } = require('../platform/files/fileStorage.ios');
 
     await expect(getHistoryStorageSize()).resolves.toBe(3456);
   });
@@ -186,7 +186,7 @@ describe('fileStorage App Group compatibility', () => {
     }));
 
     const { getPayloadFileUri } = require('app-group-store');
-    const { getHistoryFileUri } = require('../utils/fileStorage.android');
+    const { getHistoryFileUri } = require('../platform/files/fileStorage.android');
 
     await expect(getHistoryFileUri('Image', 'ABC', 'image.png')).resolves.toBe(
       'file:///documents/clipboards/history/Image-ABC/image.png'

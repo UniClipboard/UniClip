@@ -7,8 +7,7 @@
 import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QuickLoadingPage } from '@/components/QuickLoadingPage';
-import { getUnifiedContentService } from '@/services/UnifiedContentService';
-import { persistP2pDeliveryReport } from '@/services/P2pDeliveryState';
+import { getUnifiedContentService } from '@/features/transfer';
 import { importTextToHistory } from '@/utils/uploadFile';
 
 interface ProcessTextScreenProps {
@@ -22,8 +21,7 @@ export const ProcessTextScreen: React.FC<ProcessTextScreenProps> = ({ text, onCo
   const task = useCallback(
     async (signal: AbortSignal) => {
       const { profileHash } = await importTextToHistory(text, { signal });
-      const result = await getUnifiedContentService().sendImportedText(text, profileHash);
-      await persistP2pDeliveryReport(result.profileHash, result.report);
+      await getUnifiedContentService().sendImportedText(text, profileHash);
     },
     [text]
   );

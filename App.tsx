@@ -16,16 +16,16 @@ import { ShareReceiveScreen } from './src/screens/ShareReceiveScreen';
 import { ProcessTextScreen } from './src/screens/ProcessTextScreen';
 import { useSettingsStore, useHistoryStore } from './src/stores';
 import { applyLanguagePreference } from './src/i18n/useAppLanguage';
-import { initLogger, setLogLevel } from './src/services/Logger';
+import { initLogger, setLogLevel } from './src/support/observability';
 import { useTheme } from './src/hooks/useTheme';
 import { setDynamicShortcuts } from 'shortcut';
 import { moveTaskToBack, setExcludeFromRecents } from 'android-util';
-import { getBackgroundServiceManager } from './src/services/BackgroundServiceManager';
-import { historyStorage } from './src/services/HistoryStorage';
-import { startAppGroupSync } from './src/services/appGroupSync';
-import { startNetworkContextMonitor } from './src/services/networkContext';
-import { resumeOutboundShareHandoffs } from './src/services/OutboundShareHandoffManager';
-import { startPostHogAnalytics, stopPostHogAnalytics } from './src/services/PostHogAnalytics';
+import { getAppRuntime } from './src/app/runtime/composition';
+import { historyStorage } from './src/features/history';
+import { startAppGroupSync } from './src/platform/app-group';
+import { startNetworkContextMonitor } from './src/platform/network';
+import { resumeOutboundShareHandoffs } from './src/features/transfer';
+import { startPostHogAnalytics, stopPostHogAnalytics } from './src/support/observability';
 
 const QUICK_UPLOAD_URL = 'uniclipboard://quick-upload';
 const PROCESS_TEXT_URL = 'uniclipboard://process-text';
@@ -161,7 +161,7 @@ export default function App() {
       startupPromise = (async () => {
         if (!servicesStarted) {
           try {
-            await getBackgroundServiceManager().start();
+            await getAppRuntime().start();
             servicesStarted = true;
           } catch {
             // Individual services report their own failures; history maintenance can still proceed.

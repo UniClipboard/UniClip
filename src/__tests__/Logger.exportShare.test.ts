@@ -129,7 +129,7 @@ jest.mock('expo-file-system/legacy', () => ({
   },
 }));
 
-import * as LoggerService from '../services/Logger';
+import * as LoggerService from '../support/observability';
 
 describe('Logger shareable export', () => {
   beforeEach(() => {

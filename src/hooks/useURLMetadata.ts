@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { fetchURLMetadata, type URLCardMetadata } from '@/services/URLMetadataService';
+import { fetchURLMetadata, type URLCardMetadata } from '@/features/history/links';
 
 export function useURLMetadata(url: string | null): URLCardMetadata | null {
   const [metadata, setMetadata] = useState<URLCardMetadata | null>(null);

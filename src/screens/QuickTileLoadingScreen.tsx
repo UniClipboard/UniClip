@@ -1,8 +1,7 @@
 import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QuickLoadingPage } from '@/components/QuickLoadingPage';
-import { getUnifiedContentService } from '@/services/UnifiedContentService';
-import { persistP2pDeliveryReport } from '@/services/P2pDeliveryState';
+import { getUnifiedContentService } from '@/features/transfer';
 
 interface QuickTileLoadingScreenProps {
   onLoadingComplete: () => void;
@@ -16,8 +15,7 @@ export const QuickTileLoadingScreen: React.FC<QuickTileLoadingScreenProps> = ({
   const { t } = useTranslation('sync');
 
   const task = useCallback(async () => {
-    const result = await getUnifiedContentService().sendCurrentClipboard();
-    await persistP2pDeliveryReport(result.profileHash, result.report);
+    await getUnifiedContentService().sendCurrentClipboard();
   }, []);
 
   return (

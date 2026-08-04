@@ -9,7 +9,11 @@ import {
 } from '@expo/ui/jetpack-compose';
 import { useTranslation } from 'react-i18next';
 
-import { getAnalyticsConsent, resetAnalyticsIdentity, setAnalyticsConsent } from 'uc-engine';
+import {
+  getAnalyticsConsent,
+  resetAnalyticsIdentity,
+  setAnalyticsConsent,
+} from '@/features/settings';
 import { SettingsSectionItem } from './SettingsSectionItem';
 import type { AnalyticsConsentControlProps } from './AnalyticsConsentControl.types';
 

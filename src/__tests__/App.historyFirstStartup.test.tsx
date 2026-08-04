@@ -50,7 +50,12 @@ jest.mock('../i18n', () => ({
   default: { t: (key: string) => key },
 }));
 jest.mock('../i18n/useAppLanguage', () => ({ applyLanguagePreference: jest.fn() }));
-jest.mock('../services/Logger', () => ({ initLogger: jest.fn(), setLogLevel: jest.fn() }));
+jest.mock('../support/observability', () => ({
+  initLogger: jest.fn(),
+  setLogLevel: jest.fn(),
+  startPostHogAnalytics: jest.fn(async () => undefined),
+  stopPostHogAnalytics: jest.fn(async () => undefined),
+}));
 jest.mock('../hooks/useTheme', () => ({
   useTheme: () => ({ theme: { isDark: false, colors: { surface: '#fff' } } }),
 }));
@@ -59,22 +64,18 @@ jest.mock('android-util', () => ({
   moveTaskToBack: jest.fn(),
   setExcludeFromRecents: jest.fn(),
 }));
-jest.mock('../services/BackgroundServiceManager', () => ({
-  getBackgroundServiceManager: () => ({ start: mockStartServices }),
+jest.mock('../app/runtime/composition', () => ({
+  getAppRuntime: () => ({ start: mockStartServices }),
 }));
-jest.mock('../services/appGroupSync', () => ({ startAppGroupSync: jest.fn(() => jest.fn()) }));
-jest.mock('../services/networkContext', () => ({
+jest.mock('../platform/app-group', () => ({ startAppGroupSync: jest.fn(() => jest.fn()) }));
+jest.mock('../platform/network', () => ({
   startNetworkContextMonitor: jest.fn(() => jest.fn()),
 }));
-jest.mock('../services/HistoryStorage', () => ({
+jest.mock('../features/history', () => ({
   historyStorage: { runStartupMaintenance: () => mockRunMaintenance() },
 }));
-jest.mock('../services/OutboundShareHandoffManager', () => ({
+jest.mock('../features/transfer', () => ({
   resumeOutboundShareHandoffs: () => mockResumeOutboundShareHandoffs(),
-}));
-jest.mock('../services/PostHogAnalytics', () => ({
-  startPostHogAnalytics: jest.fn(async () => undefined),
-  stopPostHogAnalytics: jest.fn(async () => undefined),
 }));
 jest.mock('app-group-store', () => ({
   dismissStartupHistoryPreview: () => mockDismissStartupHistoryPreview(),

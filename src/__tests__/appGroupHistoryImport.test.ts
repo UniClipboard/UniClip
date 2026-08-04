@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getLegacyHistory, getPayloadFileUri, migrateLegacyContainer } from 'app-group-store';
-import { HistoryStorage } from '../services/HistoryStorage';
+import { HistoryStorage } from '../features/history';
 import { HistorySyncStatus } from '../types/clipboard';
 import { STORAGE_KEYS } from '../types/storage';
 
@@ -41,19 +41,19 @@ jest.mock('expo-file-system', () => ({
   })),
 }));
 
-jest.mock('../services/ConfigStorage', () => ({
+jest.mock('../features/settings', () => ({
   configStorage: {
     getConfig: jest.fn().mockResolvedValue({ maxHistoryItems: 1000 }),
   },
 }));
 
-jest.mock('../services/Logger', () => ({
-  log: {
+jest.mock('../support/observability', () => ({
+  createLogger: () => ({
     error: jest.fn(),
     warn: jest.fn(),
     info: jest.fn(),
     debug: jest.fn(),
-  },
+  }),
 }));
 
 const mockGetItem = AsyncStorage.getItem as jest.Mock;

@@ -21,7 +21,7 @@ import {
 
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
 import { useSettingsStore } from '@/stores';
-import { calculateDirectorySize, clearDirectory, CLIPBOARD_TEMP_DIR } from '@/utils/fileStorage';
+import { calculateDirectorySize, clearDirectory, CLIPBOARD_TEMP_DIR } from '@/platform/files';
 import { HeaderCircleButton, SettingsToggle } from './common';
 
 const CACHE_CAP_OPTIONS = [

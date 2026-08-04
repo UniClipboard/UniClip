@@ -67,7 +67,7 @@ export const HistorySection = memo(function HistorySection() {
         return;
       }
       await useSettingsStore.getState().updateConfig({ maxHistoryItems: maxItems });
-      const { historyStorage } = await import('@/services');
+      const { historyStorage } = await import('@/features/history');
       historyStorage.setMaxHistorySize(maxItems);
     } catch (error: unknown) {
       resetToCurrent();

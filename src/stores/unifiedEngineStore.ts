@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { EngineEvent, EngineState } from 'uc-engine';
+import type { EngineEvent, EngineState } from '@/platform/engine';
 
 export type UnifiedEngineStatus = EngineState | 'starting' | 'failed';
 export type PeerConnectionStatus = 'idle' | 'connecting' | 'online' | 'offline';

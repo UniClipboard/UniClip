@@ -4,8 +4,10 @@
 
 import { ClipboardContent, ClipboardContentType } from '@/types';
 import { isTextInvalid } from './textUtils';
-import { log } from '@/services/Logger';
+import { createLogger } from '@/support/observability';
 import i18n from '@/i18n';
+
+const log = createLogger('Clipboard');
 
 /** 从 MIME 类型获取文件扩展名。 */
 export function getExtensionFromMimeType(mimeType: string): string {
@@ -154,14 +156,14 @@ export async function copyClipboardItem(
 
     return { success: false, message: i18n.t('errors:copy.unsupportedType') };
   } catch (error) {
-    log.error('[copyClipboardItem] Failed to copy:', error);
+    log.error('Failed to copy:', error);
 
     // 提取错误信息
     let errorMessage = i18n.t('errors:copy.failed');
     if (error instanceof Error) {
       // 将整个错误转为字符串进行检查（包括多层堆栈）
       const fullErrorString = error.toString() + ' ' + error.message;
-      log.info('[copyClipboardItem] Full error string:', fullErrorString);
+      log.info('Full error string:', fullErrorString);
 
       if (fullErrorString.includes('TransactionTooLargeException')) {
         errorMessage = i18n.t('errors:copy.textTooLarge');
@@ -185,7 +187,7 @@ export async function copyClipboardItem(
  * 调用者负责在成功后更新 UI 状态。
  */
 export async function copyToLocalClipboard(content: ClipboardContent): Promise<CopyResult> {
-  const { clipboardManager, clipboardMonitor } = await import('@/services');
+  const { clipboardManager, clipboardMonitor } = await import('@/features/clipboard');
 
   clipboardMonitor.pausePolling();
   try {
@@ -195,14 +197,14 @@ export async function copyToLocalClipboard(content: ClipboardContent): Promise<C
         const response = await fetch(content.fileUri);
         const completeText = await response.text();
         log.info(
-          `[copyToLocalClipboard] Read complete text from file for profileHash: ${content.profileHash}, length: ${completeText.length}`
+          `Read complete local text for profileHash: ${content.profileHash}, length: ${completeText.length}`
         );
         contentToCopy = {
           ...content,
           text: completeText,
         };
       } catch (error) {
-        log.error('[copyToLocalClipboard] Failed to read text file:', error);
+        log.error('Failed to read local text file:', error);
         if (isTextInvalid(content.text)) {
           return { success: false, message: i18n.t('errors:copy.cannotReadFullText') };
         }
@@ -215,7 +217,7 @@ export async function copyToLocalClipboard(content: ClipboardContent): Promise<C
     }
     return result;
   } catch (error) {
-    log.error('[copyToLocalClipboard] Failed to copy:', error);
+    log.error('Failed to copy locally:', error);
     return { success: false, message: i18n.t('errors:copy.failed') };
   } finally {
     clipboardMonitor.resumePolling();

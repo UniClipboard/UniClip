@@ -4,7 +4,11 @@ import { Button, HStack, Section, Spacer, Text as SwiftUIText } from '@expo/ui/s
 import { disabled, frame } from '@expo/ui/swift-ui/modifiers';
 import { useTranslation } from 'react-i18next';
 
-import { getAnalyticsConsent, resetAnalyticsIdentity, setAnalyticsConsent } from 'uc-engine';
+import {
+  getAnalyticsConsent,
+  resetAnalyticsIdentity,
+  setAnalyticsConsent,
+} from '@/features/settings';
 import { SettingsIconTile, SettingsToggle, settingsTileColors } from './ios/common';
 import type { AnalyticsConsentControlProps } from './AnalyticsConsentControl.types';
 

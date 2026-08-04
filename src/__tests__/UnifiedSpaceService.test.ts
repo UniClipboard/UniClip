@@ -1,12 +1,14 @@
 import { describe, expect, it, jest } from '@jest/globals';
-import { log } from '../services/Logger';
+import { createLogger } from '../support/observability';
 import {
   UnifiedSpaceInputError,
   UnifiedSpaceService,
   unifiedSpaceUserErrorCode,
   type UnifiedSpaceApi,
   type UnifiedSpaceSnapshot,
-} from '../services/UnifiedSpaceService';
+} from '../features/space';
+
+const log = createLogger('UnifiedSpaceService');
 
 function createApi(overrides: Partial<UnifiedSpaceApi> = {}): UnifiedSpaceApi {
   return {
@@ -208,7 +210,7 @@ describe('UnifiedSpaceService', () => {
       await expect(service.joinSpace(invitation, deviceName, secret)).rejects.toBe(nativeError);
 
       expect(logError).toHaveBeenCalledWith(
-        '[UnifiedSpaceService] Join space failed',
+        'Join space failed',
         expect.objectContaining({
           stage: expectedStage,
           hadExistingSpace: false,
@@ -509,10 +511,7 @@ describe('UnifiedSpaceService', () => {
 
     await expect(service.removeMember('desktop-1')).rejects.toBe(finalError);
 
-    expect(logError).toHaveBeenCalledWith(
-      '[UnifiedSpaceService] Failed to remove a space member:',
-      finalError
-    );
+    expect(logError).toHaveBeenCalledWith('Failed to remove a space member:', finalError);
     expect(api.secureRemoveLegacyMember).not.toHaveBeenCalled();
     logError.mockRestore();
   });

@@ -2,12 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { Alert, Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
-import type { InvitationIssued } from 'uc-engine';
+import type { InvitationIssued } from '@/platform/engine';
 import { useTranslation } from 'react-i18next';
 
-import { getUnifiedSpaceService, unifiedSpaceUserErrorCode } from '@/services/UnifiedSpaceService';
+import { getUnifiedSpaceService, unifiedSpaceUserErrorCode } from '@/features/space';
 import { useUnifiedEngineStore } from '@/stores/unifiedEngineStore';
-import { useUnifiedSpaceStore } from '@/stores/unifiedSpaceStore';
+import { useUnifiedSpaceStore } from '@/features/space';
 import {
   formatInvitationCode,
   invitationCodeInputValue,

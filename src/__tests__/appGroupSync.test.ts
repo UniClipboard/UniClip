@@ -1,7 +1,10 @@
-import { clearLegacyLanConfiguration, saveSettings } from 'app-group-store';
+import { saveSettings } from 'app-group-store';
 import { DEFAULT_SETTINGS } from '../types/settings';
-import { mapSettingsToAppGroupDTO, syncConfigToAppGroup } from '../services/appGroupSyncCore';
-import { seedConfigFromAppGroup } from '../services/appGroupSeed';
+import {
+  mapSettingsToAppGroupDTO,
+  seedConfigFromAppGroup,
+  syncConfigToAppGroup,
+} from '../platform/app-group';
 
 jest.mock('react-native', () => {
   const actual = jest.requireActual('react-native');
@@ -35,22 +38,15 @@ describe('App Group settings sync', () => {
     );
   });
 
-  it('clears old connection data before publishing settings', async () => {
+  it('publishes settings without retaining old connection cleanup', async () => {
     await syncConfigToAppGroup({ ...DEFAULT_SETTINGS });
 
-    expect(clearLegacyLanConfiguration).toHaveBeenCalledTimes(1);
     expect(saveSettings).toHaveBeenCalledTimes(1);
-    expect((clearLegacyLanConfiguration as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
-      (saveSettings as jest.Mock).mock.invocationCallOrder[0]
-    );
   });
 
-  it('reads the new remote-content key and tolerates the old key during upgrade', async () => {
+  it('reads only the current remote-content key', async () => {
     const store = require('app-group-store');
     (store.getSettings as jest.Mock).mockResolvedValueOnce({ autoApplyRemoteChanges: false });
-    await expect(seedConfigFromAppGroup()).resolves.toMatchObject({ autoApplyRemote: false });
-
-    (store.getSettings as jest.Mock).mockResolvedValueOnce({ autoApplyServerChanges: false });
     await expect(seedConfigFromAppGroup()).resolves.toMatchObject({ autoApplyRemote: false });
   });
 });

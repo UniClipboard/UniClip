@@ -80,6 +80,6 @@ export * from './hash';
 export * from './clipboard';
 
 // Export file storage utilities
-export * from './fileStorage';
+export * from '@/platform/files';
 
 // Export connect URI parser

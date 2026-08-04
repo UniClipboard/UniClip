@@ -10,9 +10,10 @@ import {
   calculateDirectorySize,
   CLIPBOARD_TEMP_DIR,
   getHistoryStorageSize,
-} from '@/utils/fileStorage';
-import { calculateLogSize } from '@/services';
-import { log } from '@/services/Logger';
+} from '@/platform/files';
+import { calculateLogSize, createLogger } from '@/support/observability';
+
+const log = createLogger('StorageSizes');
 
 interface StorageSizesState {
   cacheSize: number;

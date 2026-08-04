@@ -1,6 +1,6 @@
 import TestRenderer, { act } from 'react-test-renderer';
 import { Alert } from 'react-native';
-import type { UpdateCheckResult } from '../services/UpdateService';
+import type { UpdateCheckResult } from '../features/updates';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -17,7 +17,7 @@ const mockCheckForAutomaticUpdate = jest.fn<Promise<UpdateCheckResult | null>, u
   async () => updateResult
 );
 
-jest.mock('@/services', () => ({
+jest.mock('@/features/updates', () => ({
   checkForAutomaticUpdate: (currentVersion: string, settings: unknown) =>
     mockCheckForAutomaticUpdate(currentVersion, settings),
 }));

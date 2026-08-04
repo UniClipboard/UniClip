@@ -2,7 +2,7 @@ import { AppState, Linking, Platform } from 'react-native';
 import * as Application from 'expo-application';
 import * as Clipboard from 'expo-clipboard';
 import { setTimer, clearTimer } from 'native-timer';
-import { useSettingsStore } from '@/stores/settingsStore';
+import { useSettingsStore } from '@/features/settings';
 import type { ClipboardAccessMethod } from '@/types/settings';
 import {
   changeBackgroundClipboardMethod,

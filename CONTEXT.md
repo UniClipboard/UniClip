@@ -33,21 +33,21 @@ app-facing operations and keep UI components independent from native bindings.
 
 ## Key Directories
 
-| Path                       | Purpose                                                                                     |
-| -------------------------- | ------------------------------------------------------------------------------------------- |
-| `src/screens/`             | App screens and platform-specific screen implementations.                                   |
-| `src/components/`          | Reusable UI, split by platform when behavior or presentation differs.                       |
-| `src/services/`            | Lifecycle, content delivery, Space setup, local history, storage, diagnostics, and updates. |
-| `src/stores/`              | UI-facing state for settings, history, clipboard, engine, and Space snapshots.              |
-| `src/navigation/`          | Native-stack navigation and route types.                                                    |
-| `src/utils/`               | Pure helpers and platform-specific file/action adapters.                                    |
-| `modules/uc-engine/`       | Native P2P engine wrapper and pinned engine artifacts.                                      |
-| `modules/app-group-store/` | iOS shared settings, history, cache, diagnostics, and handoff storage.                      |
-| `modules/`                 | Other focused Expo native modules.                                                          |
-| `targets/share/`           | iOS Share Extension.                                                                        |
-| `targets/keyboard/`        | iOS Keyboard Extension.                                                                     |
-| `targets/_shared/`         | Swift sources compiled by both iOS extensions.                                              |
-| `plugins/`                 | Expo config plugins; TypeScript source is compiled into `plugins/build/`.                   |
+| Path                                                                 | Purpose                                                                        |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `src/screens/`                                                       | App screens and platform-specific screen implementations.                      |
+| `src/components/`                                                    | Reusable UI, split by platform when behavior or presentation differs.          |
+| `src/features/`, `src/platform/`, `src/support/`, `src/app/runtime/` | User workflows, platform access, diagnostics, and application lifecycle.       |
+| `src/stores/`                                                        | UI-facing state for settings, history, clipboard, engine, and Space snapshots. |
+| `src/navigation/`                                                    | Native-stack navigation and route types.                                       |
+| `src/utils/`                                                         | Pure helpers and platform-specific file/action adapters.                       |
+| `modules/uc-engine/`                                                 | Native P2P engine wrapper and pinned engine artifacts.                         |
+| `modules/app-group-store/`                                           | iOS shared settings, history, cache, diagnostics, and handoff storage.         |
+| `modules/`                                                           | Other focused Expo native modules.                                             |
+| `targets/share/`                                                     | iOS Share Extension.                                                           |
+| `targets/keyboard/`                                                  | iOS Keyboard Extension.                                                        |
+| `targets/_shared/`                                                   | Swift sources compiled by both iOS extensions.                                 |
+| `plugins/`                                                           | Expo config plugins; TypeScript source is compiled into `plugins/build/`.      |
 
 ## Main Runtime Surfaces
 
