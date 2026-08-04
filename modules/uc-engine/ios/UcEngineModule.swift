@@ -456,6 +456,8 @@ public final class UcEngineModule: Module {
         "activatedAtMs": activatedAtMs,
         "activatedBy": activatedBy,
       ]
+    case .memberRevocationChanged(let revocation):
+      return ["type": "memberRevocationChanged", "revocation": memberRevocationResultMap(revocation)]
     case .changed(let kind):
       return ["type": "changed", "kind": kind]
     }

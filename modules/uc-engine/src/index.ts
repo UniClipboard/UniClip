@@ -166,6 +166,7 @@ export type EngineEvent =
       activatedAtMs: number;
       activatedBy: string;
     }
+  | { type: 'memberRevocationChanged'; revocation: MemberRevocationResult }
   | { type: 'changed'; kind: string };
 
 export type ClipboardRestoreMode = 'standard' | 'plainText' | 'filePaths';

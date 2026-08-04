@@ -634,6 +634,10 @@ class UcEngineModule : Module() {
       "activatedAtMs" to event.activatedAtMs,
       "activatedBy" to event.activatedBy
     )
+    is BindingEvent.MemberRevocationChanged -> mapOf(
+      "type" to "memberRevocationChanged",
+      "revocation" to memberRevocationResultMap(event.revocation)
+    )
     is BindingEvent.Changed -> mapOf("type" to "changed", "kind" to event.kind)
   }
 

@@ -280,6 +280,7 @@ export class UnifiedEngineService {
       case 'deliveryStatusChanged':
       case 'transferStatusChanged':
       case 'activeClipboardChanged':
+      case 'memberRevocationChanged':
         this.updateSnapshot({
           lastEvent: event,
           lastChangedKind: event.type,
