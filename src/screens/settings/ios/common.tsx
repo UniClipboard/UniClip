@@ -12,14 +12,19 @@ import {
 import {
   background,
   buttonStyle,
+  contentShape,
   cornerRadius,
+  disabled as disabledModifier,
   font,
   foregroundStyle,
   frame,
   glassEffect,
   listRowBackground,
   padding,
+  opacity,
+  shapes,
   tint,
+  accessibilityHint as accessibilityHintModifier,
   accessibilityLabel as accessibilityLabelModifier,
 } from '@expo/ui/swift-ui/modifiers';
 import type { SFSymbol } from 'sf-symbols-typescript';
@@ -77,6 +82,11 @@ export interface SettingsNavRowProps {
   value?: string;
   /** Hex color for the trailing text; defaults to secondary label. */
   valueColor?: string;
+  destructive?: boolean;
+  disabled?: boolean;
+  showsChevron?: boolean;
+  showsPressFeedback?: boolean;
+  accessibilityHint?: string;
   onPress: () => void;
 }
 
@@ -87,12 +97,22 @@ export function SettingsNavRow({
   title,
   value,
   valueColor,
+  destructive = false,
+  disabled = false,
+  showsChevron = true,
+  showsPressFeedback = true,
+  accessibilityHint,
   onPress,
 }: SettingsNavRowProps) {
   const [isPressed, setIsPressed] = useState(false);
 
   const handlePress = () => {
-    if (isPressed) return;
+    if (disabled || isPressed) return;
+
+    if (!showsPressFeedback) {
+      onPress();
+      return;
+    }
 
     setIsPressed(true);
     setTimeout(() => {
@@ -103,12 +123,18 @@ export function SettingsNavRow({
 
   return (
     <SwiftUIButton
+      role={destructive ? 'destructive' : undefined}
       onPress={handlePress}
-      modifiers={isPressed ? [listRowBackground(settingsRowPressedColor)] : []}
+      modifiers={[
+        ...(isPressed ? [listRowBackground(settingsRowPressedColor)] : []),
+        disabledModifier(disabled),
+        opacity(disabled ? 0.35 : 1),
+        ...(accessibilityHint ? [accessibilityHintModifier(accessibilityHint)] : []),
+      ]}
     >
-      <HStack spacing={12} modifiers={[frame({ maxWidth: Infinity })]}>
+      <HStack spacing={12} modifiers={[frame({ maxWidth: Infinity }), contentShape(shapes.rectangle())]}>
         <SettingsIconTile systemName={icon} color={iconColor} />
-        <SwiftUIText modifiers={[foregroundStyle('primary')]}>{title}</SwiftUIText>
+        <SwiftUIText modifiers={[foregroundStyle(destructive ? settingsTileColors.red : 'primary')]}>{title}</SwiftUIText>
         <Spacer />
         {value ? (
           <SwiftUIText
@@ -117,7 +143,7 @@ export function SettingsNavRow({
             {value}
           </SwiftUIText>
         ) : null}
-        <Image systemName="chevron.right" size={12} color={chevronColor} />
+        {showsChevron ? <Image systemName="chevron.right" size={12} color={chevronColor} /> : null}
       </HStack>
     </SwiftUIButton>
   );

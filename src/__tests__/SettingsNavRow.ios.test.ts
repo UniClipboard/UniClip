@@ -29,4 +29,25 @@ describe('iOS settings navigation rows', () => {
     expect(row).toContain('onPress();');
     expect(row).not.toContain('minHeight');
   });
+
+  it('supports immediate and destructive settings actions without a separate row implementation', () => {
+    const row = settingsCommon.match(/export function SettingsNavRow[\s\S]*?\n}\n\n\/\*\*/)?.[0];
+
+    expect(settingsCommon).toContain('destructive?: boolean;');
+    expect(settingsCommon).toContain('disabled?: boolean;');
+    expect(settingsCommon).toContain('showsChevron?: boolean;');
+    expect(settingsCommon).toContain('showsPressFeedback?: boolean;');
+    expect(row).toContain('if (!showsPressFeedback) {');
+    expect(row).toContain("role={destructive ? 'destructive' : undefined}");
+    expect(row).toContain('disabledModifier(disabled)');
+    expect(row).toContain('{showsChevron ? <Image');
+  });
+
+  it('makes the full row label tappable, including empty trailing space', () => {
+    const row = settingsCommon.match(/export function SettingsNavRow[\s\S]*?\n}\n\n\/\*\*/)?.[0];
+
+    expect(row).toMatch(
+      /<HStack spacing=\{12\} modifiers=\{\[frame\(\{ maxWidth: Infinity \}\), contentShape\(shapes\.rectangle\(\)\)\]\}/
+    );
+  });
 });

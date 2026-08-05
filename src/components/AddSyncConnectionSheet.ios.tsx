@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, type NativeSyntheticEvent } from 'react-native';
 import * as Device from 'expo-device';
+import { requireNativeView } from 'expo';
 import {
   BottomSheet,
   Button as SwiftUIButton,
@@ -19,6 +20,7 @@ import {
   type TextFieldRef,
   useNativeState,
   VStack,
+  type BottomSheetProps,
 } from '@expo/ui/swift-ui';
 import {
   autocorrectionDisabled,
@@ -71,6 +73,44 @@ const SUCCESS_TINT = iosKindTints.image;
 
 function ConnectionSheetHost({ embedded, children }: { embedded: boolean; children: ReactNode }) {
   return embedded ? <Group>{children}</Group> : <Host style={styles.host}>{children}</Host>;
+}
+
+type NativeBottomSheetProps = Omit<BottomSheetProps, 'onIsPresentedChange' | 'onDismiss'> & {
+  onIsPresentedChange: (event: NativeSyntheticEvent<{ isPresented: boolean }>) => void;
+  onDismiss: () => void;
+  onGlobalEvent?: (event: NativeSyntheticEvent<Record<string, unknown>>) => void;
+};
+
+const PersistentBottomSheetNativeView = requireNativeView<NativeBottomSheetProps>(
+  'ExpoUI',
+  'BottomSheetView'
+);
+
+function PersistentBottomSheet({
+  modifiers,
+  onIsPresentedChange,
+  onDismiss,
+  ...restProps
+}: BottomSheetProps) {
+  const modifierListeners = new Map<string, (value: unknown) => void>();
+
+  for (const modifier of modifiers ?? []) {
+    if (modifier.eventListener) modifierListeners.set(modifier.$type, modifier.eventListener);
+  }
+
+  return (
+    <PersistentBottomSheetNativeView
+      modifiers={modifiers}
+      {...restProps}
+      onGlobalEvent={({ nativeEvent }) => {
+        for (const [eventName, value] of Object.entries(nativeEvent)) {
+          modifierListeners.get(eventName)?.(value);
+        }
+      }}
+      onIsPresentedChange={({ nativeEvent: { isPresented } }) => onIsPresentedChange(isPresented)}
+      onDismiss={() => onDismiss?.()}
+    />
+  );
 }
 
 function HeaderCircleButton({
@@ -213,6 +253,7 @@ export function AddSyncConnectionSheet({
   visible,
   initialMode = 'choose',
   embeddedInHost = false,
+  persistentPresentation = false,
   onClose,
   onConnected,
 }: AddSyncConnectionSheetProps) {
@@ -288,10 +329,11 @@ export function AddSyncConnectionSheet({
       ? t('space.flow.successTitle')
       : t('connection.addSheetTitle');
   const canGoBack = mode === 'create' || mode === 'joinCode' || mode === 'joinDetails';
+  const Sheet = persistentPresentation ? PersistentBottomSheet : BottomSheet;
 
   return (
     <ConnectionSheetHost embedded={embeddedInHost}>
-      <BottomSheet
+      <Sheet
         isPresented={visible}
         onIsPresentedChange={(presented) => {
           if (!presented) close();
@@ -653,7 +695,7 @@ export function AddSyncConnectionSheet({
             ) : null}
           </IosSheetPage>
         </Group>
-      </BottomSheet>
+      </Sheet>
     </ConnectionSheetHost>
   );
 }

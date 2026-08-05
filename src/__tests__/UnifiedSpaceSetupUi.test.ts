@@ -17,13 +17,15 @@ describe('unified space setup UI', () => {
     const entry = source('screens/settings/UnifiedSpaceSetup.tsx');
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
     const ios = source('screens/settings/ios/SpacePage.tsx');
+    const iosSettings = source('screens/SettingsScreen.ios.tsx');
 
     expect(entry).toContain("export * from './UnifiedSpaceSetup.android'");
     expect(android).toContain('AddSyncConnectionSheet');
     expect(android).toContain('getUnifiedSpaceService');
     expect(android).not.toContain('.createSpace(');
     expect(android).not.toContain('.joinSpace(');
-    expect(ios).toContain('AddSyncConnectionSheet');
+    expect(ios).toContain('onOpenSetup');
+    expect(iosSettings).toContain('AddSyncConnectionSheet');
     expect(ios).toContain('getUnifiedSpaceService');
     expect(ios).not.toContain('.createSpace(');
     expect(ios).not.toContain('.joinSpace(');
@@ -54,7 +56,7 @@ describe('unified space setup UI', () => {
     expect(navigation).toContain("space: t('space.title', { ns: 'settingsSync' })");
     expect(iosRoot).toContain("onNavigate('space')");
     expect(iosRoot).not.toContain('syncChannel');
-    expect(iosScreen).toContain("page === 'space'");
+    expect(iosScreen).toContain("activePage === 'space'");
     expect(iosScreen).toContain('<SpacePage');
     expect(iosPages).toContain("| 'space'");
   });
@@ -95,25 +97,36 @@ describe('unified space setup UI', () => {
 
     expect(sheetProps).toContain("| 'switch'");
     for (const platform of [android, ios]) {
-      expect(platform).toContain("setSetupMode('switch')");
       expect(platform).toContain('space.switch.title');
       expect(platform).toContain('space.switch.description');
       expect(platform).toMatch(/space\.switch\.title[\s\S]*space\.leave\.action/);
     }
+    expect(ios).toContain("onPress={() => onOpenSetup('switch')}");
   });
 
   it('keeps space actions visually distinct on iOS', () => {
     const ios = source('screens/settings/ios/SpacePage.tsx');
+    const switchSectionStart = ios.lastIndexOf(
+      '<Section',
+      ios.lastIndexOf('space.switch.description')
+    );
+    const switchSection = ios.slice(
+      switchSectionStart,
+      ios.indexOf('</Section>', switchSectionStart)
+    );
+    const leaveSectionStart = ios.lastIndexOf('<Section', ios.lastIndexOf('space.leave.confirm'));
+    const leaveSection = ios.slice(leaveSectionStart, ios.indexOf('</Section>', leaveSectionStart));
 
-    expect(ios).toMatch(
-      /arrow\.triangle\.2\.circlepath[\s\S]*?<SwiftUIText>\{t\('space\.switch\.title'\)\}<\/SwiftUIText>/
-    );
-    expect(ios).toMatch(
-      /rectangle\.portrait\.and\.arrow\.right[\s\S]*?color=\{settingsTileColors\.red\}[\s\S]*?foregroundStyle\(settingsTileColors\.red\)[\s\S]*?space\.leave\.action/
-    );
-    expect(
-      ios.match(/<HStack spacing=\{8\} modifiers=\{\[frame\(\{ maxWidth: Infinity \}\)\]\}>/g)
-    ).toHaveLength(2);
+    expect(switchSection).toContain('<SettingsNavRow');
+    expect(switchSection).toContain('icon="arrow.triangle.2.circlepath"');
+    expect(switchSection).toContain("title={t('space.switch.title')}");
+    expect(switchSection).toContain('showsPressFeedback={false}');
+    expect(switchSection).not.toContain('onTapGesture');
+    expect(leaveSection).toContain('<SettingsNavRow');
+    expect(leaveSection).toContain('icon="rectangle.portrait.and.arrow.right"');
+    expect(leaveSection).toContain("title={t('space.leave.action')}");
+    expect(leaveSection).toContain('destructive');
+    expect(leaveSection).toContain('showsChevron={false}');
   });
 
   it('shows retained-device removal progress and requires an explicit permanent-loss action', () => {
@@ -214,15 +227,17 @@ describe('unified space setup UI', () => {
 
     expect(ios).toContain('SettingsIconTile');
     expect(ios).toContain('SpaceDeviceRow');
-    expect(ios).toContain('AddSyncConnectionSheet');
+    expect(ios).toContain('onOpenSetup');
   });
 
   it('keeps the iOS connection sheet inside the existing settings host', () => {
     const iosPage = source('screens/settings/ios/SpacePage.tsx');
     const iosSheet = source('components/AddSyncConnectionSheet.ios.tsx');
+    const iosSettings = source('screens/SettingsScreen.ios.tsx');
     const sheetProps = source('components/AddSyncConnectionSheet.types.ts');
 
-    expect(iosPage).toContain('embeddedInHost');
+    expect(iosPage).not.toContain('<AddSyncConnectionSheet');
+    expect(iosSettings).toContain('embeddedInHost');
     expect(sheetProps).toContain('embeddedInHost?: boolean;');
     expect(iosSheet).toContain('embeddedInHost = false');
     expect(iosSheet).toContain('<ConnectionSheetHost embedded={embeddedInHost}>');

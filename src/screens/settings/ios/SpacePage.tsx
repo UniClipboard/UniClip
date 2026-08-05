@@ -16,17 +16,14 @@ import {
   buttonStyle,
   contentShape,
   controlSize,
-  disabled,
   font,
   foregroundStyle,
   frame,
   onTapGesture,
-  opacity,
   shapes,
 } from '@expo/ui/swift-ui/modifiers';
 import { useTranslation } from 'react-i18next';
 
-import { AddSyncConnectionSheet } from '@/components/AddSyncConnectionSheet';
 import type { AddSyncConnectionMode } from '@/components/AddSyncConnectionSheet.types';
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
 import {
@@ -39,6 +36,7 @@ import { useUnifiedSpaceStore, type UnifiedSpaceDevice } from '@/features/space'
 import {
   HeaderCircleButton,
   SettingsIconTile,
+  SettingsNavRow,
   chevronColor,
   settingsTileColors,
   statusGreen,
@@ -110,12 +108,13 @@ function SpaceDeviceRow({
 export function SpacePage({
   onBack,
   onOpenInvitation,
+  onOpenSetup,
 }: {
   onBack: () => void;
   onOpenInvitation: () => void;
+  onOpenSetup: (mode: AddSyncConnectionMode) => void;
 }) {
   const { t } = useTranslation('settingsSync');
-  const [setupMode, setSetupMode] = useState<AddSyncConnectionMode | null>(null);
   const [pending, setPending] = useState<PendingOperation>(null);
   const [error, setError] = useState<string | null>(null);
   const space = useUnifiedSpaceStore();
@@ -265,7 +264,7 @@ export function SpacePage({
                 <SwiftUIButton
                   systemImage="plus.circle.fill"
                   label={t('space.create.title')}
-                  onPress={() => setSetupMode('create')}
+                  onPress={() => onOpenSetup('create')}
                   modifiers={[
                     ...iosProminentButtonModifiers(
                       iosSaturatedButtonPalette(settingsTileColors.indigo),
@@ -277,7 +276,7 @@ export function SpacePage({
                 <SwiftUIButton
                   systemImage="link.circle.fill"
                   label={t('space.join.title')}
-                  onPress={() => setSetupMode('join')}
+                  onPress={() => onOpenSetup('join')}
                   modifiers={[buttonStyle('bordered'), controlSize('large'), frame({ maxWidth: Infinity })]}
                 />
               </VStack>
@@ -392,57 +391,35 @@ export function SpacePage({
               </Section>
 
               <Section footer={<SwiftUIText>{t('space.switch.description')}</SwiftUIText>}>
-                <SwiftUIButton
-                  onPress={() => setSetupMode('switch')}
-                  modifiers={[buttonStyle('plain'), disabled(pending !== null)]}
-                >
-                  <HStack spacing={8} modifiers={[frame({ maxWidth: Infinity })]}>
-                    <Image systemName="arrow.triangle.2.circlepath" size={16} />
-                    <SwiftUIText>{t('space.switch.title')}</SwiftUIText>
-                    <Spacer />
-                    <Image systemName="chevron.right" size={12} color={chevronColor} />
-                  </HStack>
-                </SwiftUIButton>
+                <SettingsNavRow
+                  icon="arrow.triangle.2.circlepath"
+                  iconColor={settingsTileColors.indigo}
+                  title={t('space.switch.title')}
+                  accessibilityHint={t('space.switch.description')}
+                  onPress={() => onOpenSetup('switch')}
+                  disabled={pending !== null}
+                  showsPressFeedback={false}
+                />
               </Section>
 
               <Section footer={<SwiftUIText>{t('space.leave.confirm')}</SwiftUIText>}>
-                <SwiftUIButton
-                  role="destructive"
+                <SettingsNavRow
+                  icon="rectangle.portrait.and.arrow.right"
+                  iconColor={settingsTileColors.red}
+                  title={t('space.leave.action')}
+                  accessibilityHint={t('space.leave.confirm')}
                   onPress={leaveSpace}
-                  modifiers={[
-                    buttonStyle('plain'),
-                    disabled(pending !== null),
-                    opacity(pending !== null ? 0.35 : 1),
-                  ]}
-                >
-                  <HStack spacing={8} modifiers={[frame({ maxWidth: Infinity })]}>
-                    <Image
-                      systemName="rectangle.portrait.and.arrow.right"
-                      size={16}
-                      color={settingsTileColors.red}
-                    />
-                    <SwiftUIText modifiers={[foregroundStyle(settingsTileColors.red)]}>
-                      {t('space.leave.action')}
-                    </SwiftUIText>
-                    <Spacer />
-                  </HStack>
-                </SwiftUIButton>
+                  destructive
+                  disabled={pending !== null}
+                  showsChevron={false}
+                  showsPressFeedback={false}
+                />
               </Section>
             </>
           ) : null}
         </IosSheetForm>
       </IosSheetPage>
 
-      <AddSyncConnectionSheet
-        visible={setupMode !== null}
-        initialMode={setupMode ?? 'choose'}
-        embeddedInHost
-        onClose={() => setSetupMode(null)}
-        onConnected={() => {
-          setSetupMode(null);
-          return true;
-        }}
-      />
     </>
   );
 }

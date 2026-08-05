@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useWindowDimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Host, BottomSheet, Group, VStack, ZStack } from '@expo/ui/swift-ui';
 import {
@@ -6,10 +7,15 @@ import {
   presentationDragIndicator,
   frame,
   tint,
+  offset,
+  animation,
+  Animation,
 } from '@expo/ui/swift-ui/modifiers';
 
 import { iosAccentColor } from '@/theme/iosDesignTokens';
 import { useSettingsStore } from '@/stores';
+import { AddSyncConnectionSheet } from '@/components/AddSyncConnectionSheet';
+import type { AddSyncConnectionMode } from '@/components/AddSyncConnectionSheet.types';
 import { SpaceInvitationSheet } from '@/components/SpaceInvitationSheet';
 import type { SettingsPage } from './settings/ios/types';
 import { SettingsRootPage } from './settings/ios/SettingsRootPage';
@@ -21,6 +27,46 @@ import { DiagnosticsPage } from './settings/ios/DiagnosticsPage';
 import { SpacePage } from './settings/ios/SpacePage';
 
 const fillModifier = frame({ maxWidth: Infinity, maxHeight: Infinity });
+const PUSH_SPRING = Animation.spring({ response: 0.38, dampingFraction: 0.92 });
+const PAGE_TRANSITION_DURATION_MS = 400;
+
+type SettingsSubPage = Exclude<SettingsPage, 'root'>;
+
+function SettingsSubPageOverlay({
+  isLeaving,
+  onExited,
+  children,
+}: {
+  isLeaving: boolean;
+  onExited: () => void;
+  children: React.ReactNode;
+}) {
+  const { width } = useWindowDimensions();
+  const [isPresented, setIsPresented] = useState(false);
+
+  useEffect(() => {
+    const frameId = requestAnimationFrame(() => setIsPresented(!isLeaving));
+    return () => cancelAnimationFrame(frameId);
+  }, [isLeaving]);
+
+  useEffect(() => {
+    if (!isLeaving) return;
+    const timeoutId = setTimeout(onExited, PAGE_TRANSITION_DURATION_MS);
+    return () => clearTimeout(timeoutId);
+  }, [isLeaving, onExited]);
+
+  return (
+    <VStack
+      modifiers={[
+        fillModifier,
+        offset({ x: isPresented ? 0 : width }),
+        animation(PUSH_SPRING, isPresented),
+      ]}
+    >
+      {children}
+    </VStack>
+  );
+}
 
 /**
  * iOS settings sheet. The root Form stays stationary behind at most one active
@@ -31,8 +77,10 @@ export const SettingsScreen = () => {
   const { config, isLoaded, loadConfig } = useSettingsStore();
 
   const [presented, setPresented] = useState(true);
-  const [page, setPage] = useState<SettingsPage>('root');
+  const [activePage, setActivePage] = useState<SettingsSubPage | null>(null);
+  const [isLeavingPage, setIsLeavingPage] = useState(false);
   const [showSpaceInvitation, setShowSpaceInvitation] = useState(false);
+  const [spaceSetupMode, setSpaceSetupMode] = useState<AddSyncConnectionMode | null>(null);
 
   useEffect(() => {
     if (!isLoaded) loadConfig();
@@ -48,10 +96,19 @@ export const SettingsScreen = () => {
     [navigation]
   );
 
+  const openSubPage = useCallback((page: SettingsPage) => {
+    if (page === 'root') return;
+    setActivePage(page);
+    setIsLeavingPage(false);
+  }, []);
+
   const backToRoot = useCallback(() => {
     setShowSpaceInvitation(false);
-    setPage('root');
+    setSpaceSetupMode(null);
+    setIsLeavingPage(true);
   }, []);
+
+  const removeSubPage = useCallback(() => setActivePage(null), []);
 
   if (!isLoaded || !config) return null;
 
@@ -61,21 +118,37 @@ export const SettingsScreen = () => {
         <Group modifiers={[presentationDetents(['large']), presentationDragIndicator('visible')]}>
           <VStack modifiers={[fillModifier, ...(iosAccentColor ? [tint(iosAccentColor)] : [])]}>
             <ZStack modifiers={[fillModifier]}>
-              <SettingsRootPage onNavigate={setPage} />
-              {page === 'space' ? (
-                <SpacePage
-                  onBack={backToRoot}
-                  onOpenInvitation={() => setShowSpaceInvitation(true)}
-                />
+              <SettingsRootPage onNavigate={openSubPage} />
+              {activePage ? (
+                <SettingsSubPageOverlay isLeaving={isLeavingPage} onExited={removeSubPage}>
+                  {activePage === 'space' ? (
+                    <SpacePage
+                      onBack={backToRoot}
+                      onOpenInvitation={() => setShowSpaceInvitation(true)}
+                      onOpenSetup={setSpaceSetupMode}
+                    />
+                  ) : null}
+                  {activePage === 'storage' ? <StoragePage onBack={backToRoot} /> : null}
+                  {activePage === 'keyboard' ? <KeyboardPage onBack={backToRoot} /> : null}
+                  {activePage === 'share' ? <SharePage onBack={backToRoot} /> : null}
+                  {activePage === 'clipboard' ? <ClipboardAccessPage onBack={backToRoot} /> : null}
+                  {activePage === 'diagnostics' ? <DiagnosticsPage onBack={backToRoot} /> : null}
+                </SettingsSubPageOverlay>
               ) : null}
-              {page === 'storage' ? <StoragePage onBack={backToRoot} /> : null}
-              {page === 'keyboard' ? <KeyboardPage onBack={backToRoot} /> : null}
-              {page === 'share' ? <SharePage onBack={backToRoot} /> : null}
-              {page === 'clipboard' ? <ClipboardAccessPage onBack={backToRoot} /> : null}
-              {page === 'diagnostics' ? <DiagnosticsPage onBack={backToRoot} /> : null}
               <SpaceInvitationSheet
                 visible={showSpaceInvitation}
                 onClose={() => setShowSpaceInvitation(false)}
+              />
+              <AddSyncConnectionSheet
+                visible={spaceSetupMode !== null}
+                initialMode={spaceSetupMode ?? 'choose'}
+                embeddedInHost
+                persistentPresentation
+                onClose={() => setSpaceSetupMode(null)}
+                onConnected={() => {
+                  setSpaceSetupMode(null);
+                  return true;
+                }}
               />
             </ZStack>
           </VStack>

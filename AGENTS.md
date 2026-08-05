@@ -42,6 +42,22 @@ Examples in the codebase:
 - `src/components/AddSyncConnectionSheet.{ios,android,types}.tsx`
 - `src/components/ui/GlassContainer.{ios,tsx}`
 
+# UI Reuse Is Mandatory
+
+Before implementing or changing any frontend UI, first inspect existing components in
+`src/components/ui/`, the relevant platform's shared screen components, and nearby
+same-purpose UI. If a reusable component already exists, use it.
+
+- Do not create a one-off UI implementation when an existing component can represent
+  the behavior with a small, coherent extension.
+- Extend the existing component's platform-specific implementation for genuine variants
+  such as destructive styling, disabled state, trailing content, or press behavior.
+- Keep page code responsible only for the action taken after a press; shared layout,
+  touch target, accessibility, and visual feedback belong in the reusable component.
+- A new UI component is allowed only for materially distinct behavior with no suitable
+  existing component. It must have a clear reuse boundary, not be an orphan copy of a
+  nearby pattern.
+
 # iOS Storage Compatibility
 
 On iOS, this Expo app's local file cache **must be compatible** with the native Swift app at `<native-ios-repo>/UniClipboard`. Although the current bundle identifiers differ, they will be unified in the future. When implementing file/image caching on iOS:
