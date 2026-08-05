@@ -170,6 +170,12 @@ export type EngineEvent =
       activatedBy: string;
     }
   | { type: 'memberRevocationChanged'; revocation: MemberRevocationResult }
+  | {
+      type: 'networkRecoveryChanged';
+      phase: string;
+      retryable: boolean;
+      nextRetryInMs: number | null;
+    }
   | { type: 'changed'; kind: string };
 
 export type ClipboardRestoreMode = 'standard' | 'plainText' | 'filePaths';

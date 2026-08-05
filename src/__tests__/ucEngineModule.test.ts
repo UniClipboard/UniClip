@@ -65,6 +65,7 @@ describe('unified P2P engine native module', () => {
       'transferStatusChanged',
       'activeClipboardChanged',
       'memberRevocationChanged',
+      'networkRecoveryChanged',
     ]) {
       expect(javascript).toContain(`type: '${eventType}'`);
       expect(swift).toContain(`"type": "${eventType}"`);

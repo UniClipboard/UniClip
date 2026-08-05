@@ -701,6 +701,12 @@ class UcEngineModule : Module() {
       "type" to "memberRevocationChanged",
       "revocation" to memberRevocationResultMap(event.revocation)
     )
+    is BindingEvent.NetworkRecoveryChanged -> mapOf(
+      "type" to "networkRecoveryChanged",
+      "phase" to event.phase,
+      "retryable" to event.retryable,
+      "nextRetryInMs" to event.nextRetryInMs?.toLong()
+    )
     is BindingEvent.Changed -> mapOf("type" to "changed", "kind" to event.kind)
   }
 

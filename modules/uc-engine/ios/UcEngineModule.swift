@@ -514,6 +514,13 @@ public final class UcEngineModule: Module {
       ]
     case .memberRevocationChanged(let revocation):
       return ["type": "memberRevocationChanged", "revocation": memberRevocationResultMap(revocation)]
+    case .networkRecoveryChanged(let phase, let retryable, let nextRetryInMs):
+      return [
+        "type": "networkRecoveryChanged",
+        "phase": phase,
+        "retryable": retryable,
+        "nextRetryInMs": nextRetryInMs,
+      ]
     case .changed(let kind):
       return ["type": "changed", "kind": kind]
     }
