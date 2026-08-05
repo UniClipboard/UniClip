@@ -36,12 +36,13 @@ rule is simple:
 > Every published tag bumps the build counter by 1;
 > `versionCode` and `ios.buildNumber` are both set to it.
 
-| Release    | expo.version (iOS marketing) | build counter | Android versionName | iOS review? |
-| ---------- | ---------------------------- | ------------- | ------------------- | ----------- |
-| v1.3.0.156 | 1.3.0 (frozen)               | 156           | 1.3.0.156           | no          |
-| v1.3.0.157 | 1.3.0 (frozen)               | 157           | 1.3.0.157           | no          |
-| v1.4.0.158 | 1.4.0 (bumped)               | 158           | 1.4.0.158           | **yes**     |
-| v1.4.0.159 | 1.4.0 (frozen)               | 159           | 1.4.0.159           | no          |
+| Release            | expo.version (iOS marketing) | build counter | Android versionName | iOS review? |
+| ------------------ | ---------------------------- | ------------- | ------------------- | ----------- |
+| v1.3.0.156         | 1.3.0 (frozen)               | 156           | 1.3.0.156           | no          |
+| v1.3.0.157         | 1.3.0 (frozen)               | 157           | 1.3.0.157           | no          |
+| v1.4.0.158         | 1.4.0 (bumped)               | 158           | 1.4.0.158           | **yes**     |
+| v1.4.0.159         | 1.4.0 (frozen)               | 159           | 1.4.0.159           | no          |
+| v1.4.0.160-alpha.1 | 1.4.0 (frozen)               | 160           | 1.4.0.160-alpha.1   | no          |
 
 ### Android self-update depends on the tag — do NOT change its shape
 
@@ -50,24 +51,25 @@ compares the **installed `versionName`** against the **latest GitHub release
 tag**. Two hard constraints follow:
 
 - The Android `versionName` MUST carry the build counter as a 4th segment
-  (`1.3.0.156`). This is injected at prebuild by
+  (`1.3.0.156`), followed by `-alpha.N` for an Alpha release. This is injected at prebuild by
   `plugins/withAndroidBuildVersionName.ts` (from `expo.version` +
   `expo.android.versionCode`). Without it, a user already on the newest build
   compares `1.3.0` against tag `v1.3.0.156` and sees a **permanent false
   "update available"**.
-- The tag MUST be a form `parseVersion` accepts: `vX.Y.Z`, `vX.Y.Z.B`, or
-  `...-betaN`. Separators like `v1.3.0-b5` or `v1.3.0+5` **fail to parse** and
+- The tag MUST be a form the app accepts: `vX.Y.Z.B` or
+  `vX.Y.Z.B-alpha.N`. Separators like `v1.3.0-b5` or `v1.3.0+5` **fail to parse** and
   silently disable update detection.
 
 ### Tag Naming
 
 - **Stable:** `vX.Y.Z.B` (e.g. `v1.3.0.156`) — the `.B` is the build counter.
-- **Pre-release:** `vX.Y.Z.B-betaN` (e.g. `v1.3.0.156-beta1`).
+- **Alpha:** `vX.Y.Z.B-alpha.N` (e.g. `v1.3.0.156-alpha.1`).
 
-The CI workflow detects the channel via `contains(github.ref_name, 'beta')` and
-marks the GitHub Release accordingly. iOS reads its marketing version from
-`app.json` `expo.version` (always 3-segment), so the tag's 4th segment never
-reaches the iOS `CFBundleShortVersionString`.
+An Alpha tag publishes an Android test build and an iOS TestFlight build. iOS
+always reads its marketing version from `app.json` `expo.version` (three
+segments only), so TestFlight shows `1.3.0 (156)` rather than an unsupported
+`1.3.0-alpha` version. The Alpha label remains in the release tag and the
+TestFlight testing notes.
 
 ## Localized Changelog Format
 
@@ -192,7 +194,7 @@ independent.
 
 - [ ] All upstream fixes intended for this release have been ported and
       recorded in both changelog files.
-- [ ] Beta build (if one was published) has been verified on a physical
+- [ ] Alpha build (if one was published) has been verified on a physical
       device, including any long-running scenarios mentioned in the
       changelog.
 - [ ] `CHANGES.md` and `CHANGES.en.md` top sections contain equivalent final
@@ -213,7 +215,10 @@ iOS review):
 # 1a. Build-only release (frequent): bump the counter, keep expo.version frozen.
 npm run release:build            # add --dry-run first to preview
 
-# 1b. OR marketing-version release (rare, re-triggers iOS review):
+# 1b. Alpha release: creates the next monotonic build and Alpha tag.
+npm run release:alpha             # add --dry-run first to preview
+
+# 1c. OR marketing-version release (rare, re-triggers iOS review):
 npm run release:version -- 1.4.0
 ```
 
@@ -248,15 +253,14 @@ Directly pushing a `v*` tag does not publish a release. If a publishing job
 fails after the tag was created, use **Re-run failed jobs** on the same Actions
 run so successful builds and destinations are not repeated.
 
-### Beta Release
+### Alpha Release
 
-Use `vX.Y.Z.B-betaN` (for example `v1.3.0.156-beta1`) as the first line of the
-top sections of both changelog files, then use the same manual
-`publish_release` flow. The
-`.B` build-counter segment is required so the derived tag matches
-[Tag Naming](#tag-naming) and stays compatible with `parseVersion` / Android
-update detection. CI marks the release as a prerelease when the derived tag
-contains `beta`.
+Run `npm run release:alpha` to create the next build metadata and the next
+Alpha sequence. It prints a tag such as `v1.3.0.166-alpha.1`; use that exact
+tag as the first line of both changelog files, then use the normal manual
+`publish_release` flow. Android Alpha installs automatically use the test
+update channel on first launch, so they receive the next Alpha or stable build.
+CI marks Alpha tags as prereleases and uploads the iOS build to TestFlight.
 
 ## Identifier Reference
 

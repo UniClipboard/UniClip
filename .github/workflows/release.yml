@@ -106,7 +106,7 @@ jobs:
         with:
           allowUpdates: true
           tag: ${{ inputs.tag_name }}
-          prerelease: ${{ contains(inputs.tag_name, '-beta') }}
+          prerelease: ${{ contains(inputs.tag_name, '-alpha.') || contains(inputs.tag_name, '-beta') }}
           bodyFile: release-notes-github.md
           artifacts: apk/*.apk
 
@@ -148,7 +148,7 @@ jobs:
           node scripts/assemble-android-manifest.mjs \
             --tag "${{ inputs.tag_name }}" \
             --marketing-version "$MARKETING_VERSION" \
-            --prerelease "${{ contains(inputs.tag_name, '-beta') }}" \
+            --prerelease "${{ contains(inputs.tag_name, '-alpha.') || contains(inputs.tag_name, '-beta') }}" \
             --apk-dir apk \
             --changelog-dir changelogs \
             --out-dir manifests
@@ -230,7 +230,7 @@ jobs:
           GITEE_OWNER: ${{ vars.GITEE_OWNER }}
           GITEE_REPO: ${{ vars.GITEE_REPO }}
           TAG_NAME: ${{ inputs.tag_name }}
-          IS_PRERELEASE: ${{ contains(inputs.tag_name, '-beta') }}
+          IS_PRERELEASE: ${{ contains(inputs.tag_name, '-alpha.') || contains(inputs.tag_name, '-beta') }}
         run: |
           python3 - <<'PYEOF'
           import json, os, urllib.parse, urllib.request

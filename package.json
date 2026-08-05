@@ -41,6 +41,7 @@
     "release:check": "npm run release:validate && npm run check:ci",
     "changelog:generate": "node scripts/release-notes.mjs --out-dir .",
     "release:build": "node scripts/bump-build.mjs",
+    "release:alpha": "node scripts/bump-build.mjs --alpha",
     "release:version": "node scripts/bump-version.mjs",
     "postinstall": "node scripts/patch-expo-modules-jsi-xcode27.cjs",
     "prepare": "husky"

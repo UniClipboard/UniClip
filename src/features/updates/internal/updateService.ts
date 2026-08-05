@@ -24,6 +24,7 @@ export interface ParsedVersion {
   minor: number;
   patch: number;
   build?: number;
+  alpha?: number;
   beta?: number;
 }
 
@@ -43,30 +44,34 @@ export interface ReleaseAssetInfo {
 export function versionToStr(v: ParsedVersion): string {
   let s = `${v.major}.${v.minor}.${v.patch}`;
   if (v.build !== undefined) s += `.${v.build}`;
+  if (v.alpha !== undefined) s += `-alpha.${v.alpha}`;
   if (v.beta !== undefined) s += `-beta${v.beta}`;
   return s;
 }
 
 /**
  * 解析版本字符串，支持格式：
- *   v1.2.3, 1.2.3, v1.2.3.4, v1.2.3-beta1, 1.2.3.4-beta2
+ *   v1.2.3, 1.2.3, v1.2.3.4, v1.2.3-alpha.1, 1.2.3.4-beta2
  */
 export function parseVersion(versionStr: string): ParsedVersion | null {
-  const match = versionStr.trim().match(/^v?(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?(?:-beta(\d+))?$/i);
+  const match = versionStr
+    .trim()
+    .match(/^v?(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?(?:-(?:alpha\.(\d+)|beta(\d+)))?$/i);
   if (!match) return null;
   return {
     major: parseInt(match[1], 10),
     minor: parseInt(match[2], 10),
     patch: parseInt(match[3], 10),
     build: match[4] !== undefined ? parseInt(match[4], 10) : undefined,
-    beta: match[5] !== undefined ? parseInt(match[5], 10) : undefined,
+    alpha: match[5] !== undefined ? parseInt(match[5], 10) : undefined,
+    beta: match[6] !== undefined ? parseInt(match[6], 10) : undefined,
   };
 }
 
 /**
  * 比较两个版本，返回:
  *   正数 => a > b，负数 => a < b，0 => 相等
- * 规则与 AppVersion.cs 一致：正式版 > beta 版
+ * 规则：正式版 > beta 版 > alpha 版
  */
 export function compareVersions(a: ParsedVersion, b: ParsedVersion): number {
   const nums: (keyof ParsedVersion)[] = ['major', 'minor', 'patch'];
@@ -86,11 +91,24 @@ export function compareVersions(a: ParsedVersion, b: ParsedVersion): number {
     return aBuild - bBuild;
   }
 
-  // beta：正式版 (beta === undefined) > beta 版
-  if (a.beta === undefined && b.beta === undefined) return 0;
-  if (a.beta === undefined) return 1; // a 是正式版，更大
-  if (b.beta === undefined) return -1; // b 是正式版，更大
-  return a.beta - b.beta;
+  // 正式版 > beta > alpha；同一内测渠道按序号比较。
+  const channelRank = (v: ParsedVersion) => {
+    if (v.alpha !== undefined) return 1;
+    if (v.beta !== undefined) return 2;
+    return 3;
+  };
+  const aRank = channelRank(a);
+  const bRank = channelRank(b);
+  if (aRank !== bRank) return aRank - bRank;
+  if (a.alpha !== undefined && b.alpha !== undefined) return a.alpha - b.alpha;
+  if (a.beta !== undefined && b.beta !== undefined) return a.beta - b.beta;
+  return 0;
+}
+
+/** Alpha and beta installations should subscribe to the test update channel on first launch. */
+export function isTestBuildVersion(versionStr: string): boolean {
+  const version = parseVersion(versionStr);
+  return version?.alpha !== undefined || version?.beta !== undefined;
 }
 
 function getChangelogLanguage(language: string): 'zh' | 'en' {
@@ -156,7 +174,7 @@ function pickManifestNotes(
 
 /**
  * 从 R2 渠道 manifest 获取最新版本并与当前版本比较
- * @param currentVersionStr 当前版本字符串（4 段式 Android versionName）
+ * @param currentVersionStr 当前版本字符串（含可选 Alpha 后缀的 Android versionName）
  * @param includeBeta 是否接受预发布版本（beta 渠道），默认 false
  * @param language 当前界面语言，用于从 manifest 选取对应语言的更新说明
  */

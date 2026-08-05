@@ -102,6 +102,19 @@ describe('checkForUpdate via R2 manifest', () => {
     expect(result.releaseNotes).toBeUndefined();
   });
 
+  it('orders Alpha builds below beta and stable builds with the same build counter', async () => {
+    jest
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(
+        jsonResponse({ ...manifest, version: '1.4.0.200-beta1', tagName: 'v1.4.0.200-beta1' })
+      );
+
+    await expect(checkForUpdate('1.4.0.200-alpha.1', true, 'en')).resolves.toMatchObject({
+      hasUpdate: true,
+      latestVersion: '1.4.0.200-beta1',
+    });
+  });
+
   it('omits release notes when the manifest has none for the language', async () => {
     jest
       .spyOn(globalThis, 'fetch')

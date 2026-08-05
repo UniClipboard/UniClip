@@ -2,8 +2,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const config_plugins_1 = require("expo/config-plugins");
 /**
- * Rewrites the Android `versionName` to a 4-segment string
- * `${expo.version}.${expo.android.versionCode}` (e.g. `1.3.0.156`).
+ * Rewrites the Android `versionName` to the release version (for example,
+ * `1.3.0.156` or `1.3.0.156-alpha.1`).
  *
  * ## Why
  *
@@ -37,7 +37,13 @@ const config_plugins_1 = require("expo/config-plugins");
 const withAndroidBuildVersionName = (config) => {
     const version = config.version ?? '0.0.0';
     const versionCode = config.android?.versionCode ?? 1;
-    const versionName = `${version}.${versionCode}`;
+    const releaseChannel = config.extra?.releaseChannel;
+    const alphaSuffix = releaseChannel?.name === 'alpha' &&
+        Number.isSafeInteger(releaseChannel.number) &&
+        releaseChannel.number > 0
+        ? `-alpha.${releaseChannel.number}`
+        : '';
+    const versionName = `${version}.${versionCode}${alphaSuffix}`;
     return (0, config_plugins_1.withAppBuildGradle)(config, (config) => {
         const contents = config.modResults.contents;
         // Expo's version mod emits `versionName "1.3.0"` in defaultConfig; match

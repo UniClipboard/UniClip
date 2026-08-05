@@ -94,7 +94,7 @@ via `asc_profiles.rb install`.
 - `build_number` (optional) overrides the CFBundleVersion for this run.
 
 To ship both platforms, enable `publish_release`. CI requires matching tags in
-`CHANGES.md` and `CHANGES.en.md`; a tag containing `beta` marks the
+`CHANGES.md` and `CHANGES.en.md`; an Alpha tag (`-alpha.N`) marks the
 GitHub/Gitee release as a prerelease. The iOS side always goes to TestFlight,
 with localized "What to Test" notes for `zh-Hans` and `en-US`; missing build
 localizations are created automatically.
@@ -107,7 +107,7 @@ App Store Connect app record. The distinction is by channel:
 - **iOS**: every build from this pipeline goes to **TestFlight** (Apple's beta
   channel). Promoting a build to the public App Store is a manual submit-for-
   review step in App Store Connect; it is not automated here.
-- **Android**: a `beta` tag → GitHub/Gitee **prerelease**; a plain `v*` tag →
+- **Android**: an Alpha tag → GitHub/Gitee **prerelease**; a plain `v*` tag →
   the normal "latest" release.
 
 ## Troubleshooting

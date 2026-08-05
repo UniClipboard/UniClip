@@ -10,6 +10,7 @@ function createReleaseFixture(options?: {
   iosBuild?: string;
   changelogTag?: string;
   englishChangelogTag?: string;
+  releaseChannel?: { name: 'alpha'; number: number };
 }): string {
   const root = mkdtempSync(join(tmpdir(), 'uniclip-release-metadata-'));
   const androidBuild = options?.androidBuild ?? 156;
@@ -23,6 +24,7 @@ function createReleaseFixture(options?: {
         version: '1.3.0',
         android: { versionCode: androidBuild },
         ios: { buildNumber: iosBuild },
+        extra: options?.releaseChannel ? { releaseChannel: options.releaseChannel } : {},
       },
     })
   );
@@ -61,6 +63,21 @@ describe('release metadata validation', () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain(`tag=${tag}`);
     expect(result.stdout).toContain(prereleaseLine);
+  });
+
+  it('accepts an Alpha tag only when app metadata identifies the same Alpha build', () => {
+    const tag = 'v1.3.0.156-alpha.1';
+    const root = createReleaseFixture({
+      changelogTag: tag,
+      releaseChannel: { name: 'alpha', number: 1 },
+    });
+    fixtureRoots.push(root);
+
+    const result = validate(root);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain(`tag=${tag}`);
+    expect(result.stdout).toContain('prerelease=true');
   });
 
   it('rejects localized changelogs whose release tags drift apart', () => {

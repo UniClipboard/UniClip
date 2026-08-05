@@ -1,7 +1,7 @@
 import { ConfigPlugin } from 'expo/config-plugins';
 /**
- * Rewrites the Android `versionName` to a 4-segment string
- * `${expo.version}.${expo.android.versionCode}` (e.g. `1.3.0.156`).
+ * Rewrites the Android `versionName` to the release version (for example,
+ * `1.3.0.156` or `1.3.0.156-alpha.1`).
  *
  * ## Why
  *

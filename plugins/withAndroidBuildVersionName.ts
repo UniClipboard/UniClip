@@ -1,8 +1,8 @@
 import { ConfigPlugin, withAppBuildGradle } from 'expo/config-plugins';
 
 /**
- * Rewrites the Android `versionName` to a 4-segment string
- * `${expo.version}.${expo.android.versionCode}` (e.g. `1.3.0.156`).
+ * Rewrites the Android `versionName` to the release version (for example,
+ * `1.3.0.156` or `1.3.0.156-alpha.1`).
  *
  * ## Why
  *
@@ -36,7 +36,14 @@ import { ConfigPlugin, withAppBuildGradle } from 'expo/config-plugins';
 const withAndroidBuildVersionName: ConfigPlugin = (config) => {
   const version = config.version ?? '0.0.0';
   const versionCode = config.android?.versionCode ?? 1;
-  const versionName = `${version}.${versionCode}`;
+  const releaseChannel = config.extra?.releaseChannel;
+  const alphaSuffix =
+    releaseChannel?.name === 'alpha' &&
+    Number.isSafeInteger(releaseChannel.number) &&
+    releaseChannel.number > 0
+      ? `-alpha.${releaseChannel.number}`
+      : '';
+  const versionName = `${version}.${versionCode}${alphaSuffix}`;
 
   return withAppBuildGradle(config, (config) => {
     const contents = config.modResults.contents;

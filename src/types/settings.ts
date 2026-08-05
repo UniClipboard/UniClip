@@ -1,4 +1,6 @@
 import { Platform } from 'react-native';
+import * as Application from 'expo-application';
+import { isTestBuildVersion } from '@/features/updates';
 
 export interface SharedSettings {
   // Sync behavior
@@ -123,17 +125,22 @@ export const IOS_DEFAULTS: Pick<SharedSettings, 'autoApplyRemote' | 'autoPushLoc
   autoPushLocal: true,
 };
 
-export function createDefaultSettings(platform: string): AppSettings {
+export function createDefaultSettings(platform: string, appVersion = ''): AppSettings {
   const platformDefaults = platform === 'ios' ? IOS_DEFAULTS : {};
+  const updateToBeta = platform === 'android' && isTestBuildVersion(appVersion);
 
   return {
     ...SHARED_DEFAULTS,
     ...ANDROID_DEFAULTS,
     ...platformDefaults,
+    updateToBeta,
   };
 }
 
-export const DEFAULT_SETTINGS: AppSettings = createDefaultSettings(Platform.OS);
+export const DEFAULT_SETTINGS: AppSettings = createDefaultSettings(
+  Platform.OS,
+  Application.nativeApplicationVersion ?? ''
+);
 
 export const RUNTIME_STATE_DEFAULTS: RuntimeState = {
   lastUpdateCheckDate: '',

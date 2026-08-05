@@ -23,7 +23,7 @@
  *
  * Channel promotion mirrors the desktop model:
  *   - stable release  → newest stable AND newest overall → write BOTH manifests
- *   - prerelease/beta → newest overall only              → write beta.json only
+ *   - prerelease/Alpha → newest overall only             → write beta.json only
  *
  * Manifest shape (must stay in sync with UpdateService.ts / worker types.ts):
  *   {

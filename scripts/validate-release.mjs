@@ -46,6 +46,7 @@ const version = String(expo.version ?? '');
 const androidBuild = Number(expo.android?.versionCode);
 const iosBuildText = String(expo.ios?.buildNumber ?? '');
 const iosBuild = Number(iosBuildText);
+const releaseChannel = expo.extra?.releaseChannel;
 const changelogTags = new Map([
   ['CHANGES.md', readChangelogTag(root, 'CHANGES.md')],
   ['CHANGES.en.md', readChangelogTag(root, 'CHANGES.en.md')],
@@ -65,11 +66,29 @@ if (androidBuild !== iosBuild) {
 }
 
 const escapedVersion = version.replaceAll('.', '\\.');
-const tagPattern = new RegExp(`^v${escapedVersion}\\.${androidBuild}(?:-beta[1-9]\\d*)?$`);
+const baseTag = `v${version}.${androidBuild}`;
+let expectedTag = baseTag;
+if (releaseChannel !== undefined) {
+  if (
+    typeof releaseChannel !== 'object' ||
+    releaseChannel === null ||
+    releaseChannel.name !== 'alpha' ||
+    !Number.isSafeInteger(releaseChannel.number) ||
+    releaseChannel.number < 1
+  ) {
+    fail('app.json expo.extra.releaseChannel must be { name: "alpha", number: positive integer }');
+  }
+  expectedTag = `${baseTag}-alpha.${releaseChannel.number}`;
+}
+
+const legacyBetaTagPattern = new RegExp(`^${baseTag}-beta[1-9]\\d*$`);
 for (const [filename, tag] of changelogTags) {
-  if (!tagPattern.test(tag)) {
+  const validLegacyBetaTag = releaseChannel === undefined && legacyBetaTagPattern.test(tag);
+  if (tag !== expectedTag && !validLegacyBetaTag) {
     fail(
-      `${filename} must start with v${version}.${androidBuild} or v${version}.${androidBuild}-betaN`
+      `${filename} must start with ${expectedTag}${
+        releaseChannel === undefined ? ` or ${baseTag}-betaN` : ''
+      }`
     );
   }
 }
@@ -80,7 +99,7 @@ if (changelogTag !== englishChangelogTag) {
   fail(`CHANGES.en.md must start with the same tag as CHANGES.md (${changelogTag})`);
 }
 
-const prerelease = changelogTag.includes('-beta');
+const prerelease = changelogTag.includes('-alpha.') || changelogTag.includes('-beta');
 const output = `tag=${changelogTag}\nprerelease=${prerelease}\n`;
 process.stdout.write(output);
 

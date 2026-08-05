@@ -18,7 +18,7 @@
  * do NOT parse and silently disable update detection.
  *
  * Usage:
- *   node scripts/bump-build.mjs [--dry-run]
+ *   node scripts/bump-build.mjs [--alpha] [--dry-run]
  *   npm run release:build
  */
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -29,6 +29,7 @@ import { format, resolveConfig } from 'prettier';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const appJsonPath = join(root, 'app.json');
 const dryRun = process.argv.includes('--dry-run');
+const alpha = process.argv.includes('--alpha');
 
 let app;
 try {
@@ -54,17 +55,30 @@ if (!Number.isFinite(prevCode) || !Number.isFinite(prevIosBuild)) {
 
 // One monotonic counter for both platforms; max() protects against any drift.
 const next = Math.max(prevCode, prevIosBuild) + 1;
-const tag = `v${version}.${next}`;
+const previousAlphaNumber =
+  expo.extra?.releaseChannel?.name === 'alpha' &&
+  Number.isSafeInteger(expo.extra.releaseChannel.number)
+    ? expo.extra.releaseChannel.number
+    : 0;
+const alphaNumber = alpha ? previousAlphaNumber + 1 : 0;
+const tag = `v${version}.${next}${alpha ? `-alpha.${alphaNumber}` : ''}`;
 
 expo.android = expo.android ?? {};
 expo.ios = expo.ios ?? {};
+expo.extra = expo.extra ?? {};
 expo.android.versionCode = next;
 expo.ios.buildNumber = String(next);
+if (alpha) {
+  expo.extra.releaseChannel = { name: 'alpha', number: alphaNumber };
+} else {
+  delete expo.extra.releaseChannel;
+}
 
 if (dryRun) {
   console.log(`[dry-run] marketing version (frozen): ${version}`);
   console.log(`[dry-run] build counter: ${prevCode}/${prevIosBuild} -> ${next}`);
   console.log(`[dry-run] android.versionCode -> ${next}, ios.buildNumber -> "${next}"`);
+  if (alpha) console.log(`[dry-run] release channel -> alpha.${alphaNumber}`);
   console.log(`[dry-run] tag -> ${tag}`);
   process.exit(0);
 }
@@ -75,7 +89,9 @@ writeFileSync(
   await format(JSON.stringify(app), { ...prettierConfig, filepath: appJsonPath })
 );
 
-console.log(`✓ build ${next}  (marketing version ${version} frozen)`);
+console.log(
+  `✓ ${alpha ? `Alpha ${alphaNumber} ` : ''}build ${next}  (marketing version ${version} frozen)`
+);
 console.log(`  android.versionCode = ${next}, ios.buildNumber = "${next}"`);
 console.log('');
 console.log('Next steps:');

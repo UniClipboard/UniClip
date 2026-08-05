@@ -66,8 +66,10 @@ const tag = `v${newVersion}.${next}`;
 expo.version = newVersion;
 expo.android = expo.android ?? {};
 expo.ios = expo.ios ?? {};
+expo.extra = expo.extra ?? {};
 expo.android.versionCode = next;
 expo.ios.buildNumber = String(next);
+delete expo.extra.releaseChannel;
 
 if (dryRun) {
   console.log(

@@ -158,6 +158,10 @@ describe('validated release workflow', () => {
     expect(releaseWorkflow).not.toContain('github.ref_name');
   });
 
+  it('marks Alpha tags as prereleases for every public release surface', () => {
+    expect(releaseWorkflow).toContain("contains(inputs.tag_name, '-alpha.')");
+  });
+
   it('publishes localized TestFlight notes', () => {
     expect(releaseWorkflow).toContain('release-notes-testflight.txt');
     expect(releaseWorkflow).toContain('release-notes-testflight.en.txt');

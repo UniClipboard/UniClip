@@ -2,6 +2,7 @@ export {
   checkForAutomaticUpdate,
   checkForUpdate,
   compareVersions,
+  isTestBuildVersion,
   versionToStr,
   parseVersion,
 } from './internal/updateService';
