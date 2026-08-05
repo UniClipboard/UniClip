@@ -1,6 +1,6 @@
 {
   "name": "uc-engine",
-  "version": "1.0.0-rc.1",
+  "version": "1.0.0-rc.5",
   "main": "build/index.js",
   "types": "build/index.d.ts",
   "scripts": {
