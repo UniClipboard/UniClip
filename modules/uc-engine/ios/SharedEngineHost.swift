@@ -2,6 +2,29 @@ import Foundation
 import UIKit
 import UniformTypeIdentifiers
 
+private func analyticsContext() -> BindingAnalyticsContext {
+  var system = utsname()
+  uname(&system)
+  let machineSize = MemoryLayout.size(ofValue: system.machine)
+  let architecture = withUnsafePointer(to: &system.machine) {
+    $0.withMemoryRebound(to: CChar.self, capacity: machineSize) {
+      String(cString: $0)
+    }
+  }
+  #if DEBUG
+    let appChannel = "development"
+  #else
+    let appChannel = "production"
+  #endif
+  return BindingAnalyticsContext(
+    os: .ios,
+    osVersion: UIDevice.current.systemVersion,
+    deviceType: .mobile,
+    arch: architecture,
+    appChannel: appChannel
+  )
+}
+
 public final class MainApplicationEngineHost: @unchecked Sendable {
   private let files = AppleFileHandleRegistry()
   private let ownershipStateLock = NSLock()
@@ -28,7 +51,8 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
       let engine = try MobileEngine.startWithAnalytics(
         config: BindingConfig(appVersion: appVersion, profileId: profileId),
         host: host,
-        analytics: analytics
+        analytics: analytics,
+        context: analyticsContext()
       )
       NSLog(
         "[UcEngineStartup] Core engine started in %.0fms",
@@ -163,7 +187,8 @@ public final class ExtensionP2pClient: @unchecked Sendable {
       let engine = try MobileEngine.startWithAnalytics(
         config: BindingConfig(appVersion: appVersion, profileId: "default"),
         host: host,
-        analytics: analytics
+        analytics: analytics,
+        context: analyticsContext()
       )
       started = engine
       _ = try engine.recoverSession(allowSecureStorageUnlock: true)

@@ -233,6 +233,16 @@ describe('unified P2P engine native module', () => {
     expect(startEngine).toBeGreaterThan(installContext);
   });
 
+  it('supplies platform analytics context when each native engine starts', () => {
+    const swift = read('ios/SharedEngineHost.swift');
+    const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
+
+    expect(swift).toContain('context: analyticsContext()');
+    expect(swift).toContain('os: .ios');
+    expect(kotlin).toContain('analyticsContext()');
+    expect(kotlin).toContain('BindingAnalyticsOs.ANDROID');
+  });
+
   it('preserves declared file names when native hosts write received files to the clipboard', () => {
     const swift = `${read('ios/UcEngineModule.swift')}\n${read('ios/SharedEngineHost.swift')}`;
     const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');

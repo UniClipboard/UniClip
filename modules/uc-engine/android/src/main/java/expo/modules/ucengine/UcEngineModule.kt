@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.net.Uri
+import android.os.Build
 import android.provider.OpenableColumns
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyPermanentlyInvalidatedException
@@ -33,6 +34,9 @@ import uniffi.uc_engine_uniffi.BindingClipboardRepresentation
 import uniffi.uc_engine_uniffi.BindingClipboardRestoreMode
 import uniffi.uc_engine_uniffi.BindingClipboardRestoreOutcome
 import uniffi.uc_engine_uniffi.BindingClipboardSnapshot
+import uniffi.uc_engine_uniffi.BindingAnalyticsContext
+import uniffi.uc_engine_uniffi.BindingAnalyticsDeviceType
+import uniffi.uc_engine_uniffi.BindingAnalyticsOs
 import uniffi.uc_engine_uniffi.BindingConfig
 import uniffi.uc_engine_uniffi.BindingEngineState
 import uniffi.uc_engine_uniffi.BindingEvent
@@ -86,6 +90,14 @@ private fun isPlainTextRepresentation(format: String): Boolean {
     normalizedFormat.equals("public.utf8-plain-text", ignoreCase = true) ||
     normalizedFormat.equals("text", ignoreCase = true)
 }
+
+private fun analyticsContext(): BindingAnalyticsContext = BindingAnalyticsContext(
+  BindingAnalyticsOs.ANDROID,
+  Build.VERSION.RELEASE,
+  BindingAnalyticsDeviceType.MOBILE,
+  Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown",
+  if (BuildConfig.DEBUG) "development" else "production"
+)
 
 private fun memberRevocationResultMap(result: MemberRevocationResult): Map<String, Any?> = mapOf(
   "revocationId" to result.revocationId,
@@ -289,7 +301,8 @@ class UcEngineModule : Module() {
           config["profileId"] ?: "default"
         ),
         AndroidEngineHost(context, registry),
-        analytics
+        analytics,
+        analyticsContext()
       )
       try {
         lifecycle.prepare(AndroidEngineLifecycle(started))
