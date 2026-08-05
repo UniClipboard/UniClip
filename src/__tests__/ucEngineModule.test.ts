@@ -120,13 +120,13 @@ describe('unified P2P engine native module', () => {
       'continueMemberRevocation(\n  revocationId: string,\n  permanentlyLostDeviceIds: string[]\n)'
     );
     expect(kotlin).toContain('val result = engine.removeMember(deviceId)');
-    expect(kotlin).toContain('engine.queryCurrentMemberRevocation()');
+    expect(kotlin).toContain('requireEngine().queryCurrentMemberRevocation()');
     expect(kotlin).toContain(
       'engine.continueMemberRevocation(revocationId, permanentlyLostDeviceIds)'
     );
     expect(kotlin).toContain('refreshAnalyticsContext(engine)');
     expect(swift).toContain('let result = try engine.removeMember(deviceId: deviceId)');
-    expect(swift).toContain('try engine.queryCurrentMemberRevocation()');
+    expect(swift).toContain('try self.requireEngine().queryCurrentMemberRevocation()');
     expect(swift).toContain(
       'try engine.continueMemberRevocation(\n        revocationId: revocationId,\n        permanentlyLostDeviceIds: permanentlyLostDeviceIds\n      )'
     );
