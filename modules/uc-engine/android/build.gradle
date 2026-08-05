@@ -5,6 +5,8 @@ plugins {
 
 def coreSource = new groovy.json.JsonSlurper().parse(file('../core-source.json'))
 def coreVersion = coreSource.version.replaceFirst(/^(core-)?v/, '')
+def localEngineAar = System.getenv('UC_ENGINE_LOCAL_AAR')
+def useLocalEngineAar = localEngineAar != null && !localEngineAar.trim().isEmpty()
 
 group = 'expo.modules.ucengine'
 version = coreVersion
@@ -26,7 +28,12 @@ android {
 }
 
 dependencies {
-  implementation "app.uniclipboard:uniclipboard-engine:${coreVersion}"
+  implementation useLocalEngineAar
+    ? files(localEngineAar)
+    : "app.uniclipboard:uniclipboard-engine:${coreVersion}"
+  if (useLocalEngineAar) {
+    implementation 'net.java.dev.jna:jna:5.14.0@aar'
+  }
   androidTestImplementation 'androidx.test:core:1.6.1'
   androidTestImplementation 'androidx.test.ext:junit:1.2.1'
   androidTestImplementation 'androidx.test:runner:1.6.2'
@@ -38,5 +45,7 @@ def verifyUcEngineRelease = tasks.register('verifyUcEngineRelease', Exec) {
 }
 
 tasks.named('preBuild').configure {
-  dependsOn verifyUcEngineRelease
+  if (!useLocalEngineAar) {
+    dependsOn verifyUcEngineRelease
+  }
 }
