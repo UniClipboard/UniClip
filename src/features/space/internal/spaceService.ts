@@ -221,9 +221,7 @@ export class UnifiedSpaceService {
       }
       const [devices, memberRemoval] = await Promise.all([
         this.runRefreshStep('listDevices', () => this.api.listDevices()),
-        this.runRefreshStep('queryCurrentMemberRevocation', () =>
-          this.api.queryCurrentMemberRevocation()
-        ),
+        this.currentMemberRemoval(),
       ]);
       if (!this.isCurrentOperation(revision)) return this.snapshot;
       this.snapshot = {
@@ -284,9 +282,7 @@ export class UnifiedSpaceService {
     const revision = this.beginOperation();
     const [devices, memberRemoval] = await Promise.all([
       this.runRefreshStep('listDevices', () => this.api.listDevices()),
-      this.runRefreshStep('queryCurrentMemberRevocation', () =>
-        this.api.queryCurrentMemberRevocation()
-      ),
+      this.currentMemberRemoval(),
     ]);
     if (!this.isCurrentOperation(revision)) return this.snapshot;
 
@@ -416,6 +412,16 @@ export class UnifiedSpaceService {
     } catch (error) {
       log.error('Space refresh failed', spaceRefreshFailureDetails(error, stage));
       throw error;
+    }
+  }
+
+  private async currentMemberRemoval(): Promise<MemberRevocationResult | null> {
+    try {
+      return await this.runRefreshStep('queryCurrentMemberRevocation', () =>
+        this.api.queryCurrentMemberRevocation()
+      );
+    } catch {
+      return this.snapshot.memberRemoval;
     }
   }
 }

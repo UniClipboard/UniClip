@@ -36,6 +36,7 @@ import uniffi.uc_engine_uniffi.BindingClipboardSnapshot
 import uniffi.uc_engine_uniffi.BindingConfig
 import uniffi.uc_engine_uniffi.BindingEngineState
 import uniffi.uc_engine_uniffi.BindingEvent
+import uniffi.uc_engine_uniffi.BindingException
 import uniffi.uc_engine_uniffi.BindingFailure
 import uniffi.uc_engine_uniffi.BindingFileMetadata
 import uniffi.uc_engine_uniffi.BindingHost
@@ -389,7 +390,11 @@ class UcEngineModule : Module() {
       )
     }
     AsyncFunction("querySpaceState") {
-      val result = requireEngine().querySpaceState()
+      val result = runSpaceRead("querySpaceState") { requireEngine().querySpaceState() }
+      Log.i(
+        "UcEngine",
+        "space_read operation=querySpaceState outcome=success hasCompleted=${result.hasCompleted} hasSpace=${result.spaceId != null} hasInvitation=${result.currentInvitation != null}"
+      )
       mapOf(
         "hasCompleted" to result.hasCompleted,
         "spaceId" to result.spaceId,
@@ -401,16 +406,20 @@ class UcEngineModule : Module() {
     }
     AsyncFunction("listDevices") {
       val engine = requireEngine()
-      refreshAnalyticsContext(engine)
-      val localDeviceId = engine.queryLocalDevice().deviceId
-      engine.listDevices().map {
-        mapOf(
-          "deviceId" to it.deviceId,
-          "displayName" to it.displayName,
-          "isLocal" to (it.deviceId == localDeviceId),
-          "online" to it.online
-        )
+      val devices = runSpaceRead("listDevices") {
+        refreshAnalyticsContext(engine)
+        val localDeviceId = engine.queryLocalDevice().deviceId
+        engine.listDevices().map {
+          mapOf(
+            "deviceId" to it.deviceId,
+            "displayName" to it.displayName,
+            "isLocal" to (it.deviceId == localDeviceId),
+            "online" to it.online
+          )
+        }
       }
+      Log.i("UcEngine", "space_read operation=listDevices outcome=success deviceCount=${devices.size}")
+      devices
     }
     AsyncFunction("removeMember") { deviceId: String ->
       val engine = requireEngine()
@@ -419,8 +428,14 @@ class UcEngineModule : Module() {
       memberRevocationResultMap(result)
     }
     AsyncFunction("queryCurrentMemberRevocation") {
-      val engine = requireEngine()
-      engine.queryCurrentMemberRevocation()?.let(::memberRevocationResultMap)
+      val result = runSpaceRead("queryCurrentMemberRevocation") {
+        requireEngine().queryCurrentMemberRevocation()
+      }
+      Log.i(
+        "UcEngine",
+        "space_read operation=queryCurrentMemberRevocation outcome=success hasRevocation=${result != null}"
+      )
+      result?.let(::memberRevocationResultMap)
     }
     AsyncFunction("continueMemberRevocation") {
       revocationId: String,
@@ -512,6 +527,26 @@ class UcEngineModule : Module() {
 
   private fun requireFiles(): FileHandleRegistry =
     synchronized(lock) { files } ?: throw UcEngineNotStartedException()
+
+  private fun <T> runSpaceRead(operation: String, read: () -> T): T = try {
+    read()
+  } catch (error: Throwable) {
+    reportSpaceReadError(operation, error)
+    throw error
+  }
+
+  private fun reportSpaceReadError(operation: String, error: Throwable) {
+    when (error) {
+      is BindingException.Engine -> Log.e(
+        "UcEngine",
+        "space_read operation=$operation outcome=failure errorKind=engine errorCode=${error.code} errorCategory=${error.category} retryable=${error.retryable}"
+      )
+      else -> Log.e(
+        "UcEngine",
+        "space_read operation=$operation outcome=failure errorKind=${error.javaClass.simpleName}"
+      )
+    }
+  }
 
   private fun reportLifecycleError(error: Throwable) {
     Log.e("UcEngine", "P2P engine lifecycle transition failed", error)

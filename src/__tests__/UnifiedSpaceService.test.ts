@@ -295,6 +295,36 @@ describe('UnifiedSpaceService', () => {
     );
   });
 
+  it('keeps the active space when member-removal status cannot be read', async () => {
+    const snapshots: UnifiedSpaceSnapshot[] = [];
+    const logError = jest.spyOn(log, 'error').mockImplementation(() => undefined);
+    const api = createApi({
+      queryCurrentMemberRevocation: jest.fn(async () => {
+        throw new Error('Engine error 1387');
+      }),
+    });
+    const service = new UnifiedSpaceService(api, (snapshot) => snapshots.push(snapshot));
+
+    await expect(service.refresh()).resolves.toEqual(
+      expect.objectContaining({
+        status: 'ready',
+        spaceId: 'space-1',
+        devices: [
+          { deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true },
+          { deviceId: 'desktop-1', displayName: 'Desktop', isLocal: false, online: false },
+        ],
+        memberRemoval: null,
+      })
+    );
+    expect(logError).toHaveBeenCalledWith(
+      'Space refresh failed',
+      expect.objectContaining({ stage: 'queryCurrentMemberRevocation', errorCode: 1387 })
+    );
+    expect(snapshots.at(-1)).toEqual(
+      expect.objectContaining({ status: 'ready', spaceId: 'space-1' })
+    );
+  });
+
   it.each([
     [
       'querySpaceState',
@@ -309,14 +339,6 @@ describe('UnifiedSpaceService', () => {
       {
         listDevices: jest.fn(async () => {
           throw new Error('Engine error 1383');
-        }),
-      },
-    ],
-    [
-      'queryCurrentMemberRevocation',
-      {
-        queryCurrentMemberRevocation: jest.fn(async () => {
-          throw new Error('Engine error 1387');
         }),
       },
     ],

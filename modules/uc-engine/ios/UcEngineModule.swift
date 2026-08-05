@@ -1,9 +1,11 @@
 import ExpoModulesCore
 import Foundation
+import OSLog
 import UIKit
 internal import UcEngineCore
 
 public final class UcEngineModule: Module {
+  private static let spaceReadLog = Logger(subsystem: "app.uniclipboard", category: "space-read")
   private let host = MainApplicationEngineHost()
   private lazy var lifecycle = NativeLifecycleHost(report: Self.reportLifecycleError)
   private lazy var lifecycleTransitions = NativeLifecycleTransitionCoordinator(
@@ -160,7 +162,12 @@ public final class UcEngineModule: Module {
     }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("querySpaceState") { () -> [String: Any?] in
-      let result = try self.requireEngine().querySpaceState()
+      let result = try self.runSpaceRead("querySpaceState") {
+        try self.requireEngine().querySpaceState()
+      }
+      Self.spaceReadLog.info(
+        "space_read operation=querySpaceState outcome=success hasCompleted=\(result.hasCompleted, privacy: .public) hasSpace=\(result.spaceId != nil, privacy: .public) hasInvitation=\(result.currentInvitation != nil, privacy: .public)"
+      )
       return [
         "hasCompleted": result.hasCompleted,
         "spaceId": result.spaceId,
@@ -173,16 +180,22 @@ public final class UcEngineModule: Module {
 
     AsyncFunction("listDevices") { () -> [[String: Any]] in
       let engine = try self.requireEngine()
-      self.host.refreshAnalyticsContext(engine: engine)
-      let localDeviceId = try engine.queryLocalDevice().deviceId
-      return try engine.listDevices().map {
-        [
-          "deviceId": $0.deviceId,
-          "displayName": $0.displayName,
-          "isLocal": $0.deviceId == localDeviceId,
-          "online": $0.online,
-        ]
+      let devices = try self.runSpaceRead("listDevices") {
+        self.host.refreshAnalyticsContext(engine: engine)
+        let localDeviceId = try engine.queryLocalDevice().deviceId
+        return try engine.listDevices().map {
+          [
+            "deviceId": $0.deviceId,
+            "displayName": $0.displayName,
+            "isLocal": $0.deviceId == localDeviceId,
+            "online": $0.online,
+          ]
+        }
       }
+      Self.spaceReadLog.info(
+        "space_read operation=listDevices outcome=success deviceCount=\(devices.count, privacy: .public)"
+      )
+      return devices
     }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("removeMember") { (deviceId: String) -> [String: Any?] in
@@ -193,8 +206,13 @@ public final class UcEngineModule: Module {
     }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("queryCurrentMemberRevocation") { () -> [String: Any?]? in
-      let engine = try self.requireEngine()
-      return try engine.queryCurrentMemberRevocation().map(Self.memberRevocationResultMap)
+      let result = try self.runSpaceRead("queryCurrentMemberRevocation") {
+        try self.requireEngine().queryCurrentMemberRevocation()
+      }
+      Self.spaceReadLog.info(
+        "space_read operation=queryCurrentMemberRevocation outcome=success hasRevocation=\(result != nil, privacy: .public)"
+      )
+      return result.map(Self.memberRevocationResultMap)
     }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("continueMemberRevocation") {
@@ -303,6 +321,28 @@ public final class UcEngineModule: Module {
   private func requireEngine() throws -> MobileEngine {
     guard let active = currentEngine() else { throw UcEngineNotStartedException() }
     return active
+  }
+
+  private func runSpaceRead<T>(_ operation: String, read: () throws -> T) throws -> T {
+    do {
+      return try read()
+    } catch {
+      Self.reportSpaceReadError(operation, error: error)
+      throw error
+    }
+  }
+
+  private static func reportSpaceReadError(_ operation: String, error: Error) {
+    if let bindingError = error as? BindingError,
+       case let .Engine(code, category, retryable) = bindingError {
+      spaceReadLog.error(
+        "space_read operation=\(operation, privacy: .public) outcome=failure errorKind=engine errorCode=\(code, privacy: .public) errorCategory=\(String(describing: category), privacy: .public) retryable=\(retryable, privacy: .public)"
+      )
+      return
+    }
+    spaceReadLog.error(
+      "space_read operation=\(operation, privacy: .public) outcome=failure errorKind=\(String(describing: type(of: error)), privacy: .public)"
+    )
   }
 
   private func shutdownForDestroy() {
