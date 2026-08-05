@@ -33,6 +33,43 @@ describe('P2P onboarding and upgrade UI', () => {
     for (const locale of ['en', 'pt-BR', 'ru', 'zh']) {
       const onboarding = JSON.parse(source(`i18n/locales/${locale}/onboarding.json`));
       expect(Object.keys(onboarding.setup).sort()).toEqual(['body', 'create', 'join', 'title']);
+      expect(Object.keys(onboarding.result).sort()).toEqual(['body', 'enter', 'title']);
+    }
+  });
+
+  it('shows one platform-native result page after create or join closes its sheet', () => {
+    const entry = source('screens/SpaceSetupResult.tsx');
+    const types = source('screens/SpaceSetupResult.types.ts');
+    const resultScreens = [
+      source('screens/SpaceSetupResult.android.tsx'),
+      source('screens/SpaceSetupResult.ios.tsx'),
+    ];
+    const setupScreens = [
+      source('screens/OnboardingScreen.android.tsx'),
+      source('screens/OnboardingScreen.ios.tsx'),
+      source('screens/LegacyPairingGuide.android.tsx'),
+      source('screens/LegacyPairingGuide.ios.tsx'),
+    ];
+
+    expect(entry).toContain("export * from './SpaceSetupResult.android'");
+    expect(types).toContain('onEnter');
+    for (const platform of resultScreens) {
+      expect(platform).toContain("t('result.title')");
+      expect(platform).toContain("t('result.body')");
+      expect(platform).toContain("t('result.enter')");
+    }
+    for (const platform of setupScreens) {
+      expect(platform).toContain('SpaceSetupResult');
+      expect(platform).toContain('completedConnectionRef');
+      expect(platform).toContain('showResult');
+    }
+
+    const settingsScreens = [
+      source('screens/settings/UnifiedSpaceSetup.android.tsx'),
+      source('screens/settings/ios/SpacePage.tsx'),
+    ];
+    for (const platform of settingsScreens) {
+      expect(platform).not.toContain('SpaceSetupResult');
     }
   });
 
@@ -66,14 +103,14 @@ describe('P2P onboarding and upgrade UI', () => {
     expect(flow).toContain('setMode(modeFromInitial(initialMode))');
   });
 
-  it('keeps setup out of Home because authoritative no-Space state is an onboarding gate', () => {
+  it('keeps setup out of Home because persistent incomplete state is an onboarding gate', () => {
     const overlays = source('screens/HomeOverlays.tsx');
     const navigator = source('navigation/AppNavigator.tsx');
 
     expect(overlays).not.toContain('AddSyncConnectionSheet');
     expect(overlays).not.toContain('LanMigrationPrompt');
     expect(overlays).not.toContain('legacyLan');
-    expect(navigator).toContain("spaceStatus === 'empty'");
+    expect(navigator).toContain("completionStatus === 'incomplete'");
   });
 
   it('provides a dedicated platform-native LAN recovery guide that opens Join Space directly', () => {

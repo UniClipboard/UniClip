@@ -7,6 +7,11 @@
     "create": "Criar novo espaço",
     "join": "Entrar em um espaço"
   },
+  "result": {
+    "title": "Seu espaço está pronto",
+    "body": "Este dispositivo agora pode sincronizar sua área de transferência com segurança pelo espaço.",
+    "enter": "Entrar"
+  },
   "migration": {
     "title": "Reconecte ao seu computador",
     "body": "A sincronização por LAN não está mais disponível. Seu histórico local continua aqui, mas este dispositivo precisa ser emparelhado novamente com o computador.",

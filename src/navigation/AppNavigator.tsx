@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import {
   NavigationContainer,
   DefaultTheme,
@@ -9,12 +9,12 @@ import {
   createNativeStackNavigator,
   type NativeStackNavigationProp,
 } from '@react-navigation/native-stack';
-import { Platform } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { navigationRef, flushPendingNavigation } from './navigationRef';
 import { useTheme } from '@/hooks/useTheme';
 import { useSettingsStore } from '@/stores';
-import { useUnifiedSpaceStore } from '@/features/space';
+import { useSpaceSetupCompletionStore, useUnifiedSpaceStore } from '@/features/space';
 import { HomeView } from '@/screens/HomeView';
 import { LegacyPairingGuide } from '@/screens/LegacyPairingGuide';
 import { OnboardingScreen } from '@/screens/OnboardingScreen';
@@ -41,6 +41,8 @@ export type RootStackParamList = {
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+type SetupSession = 'onboarding' | 'migration';
+const CompleteSetupSessionContext = createContext<() => void>(() => undefined);
 
 function MainScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'Main'>>();
@@ -59,20 +61,24 @@ function MainScreen() {
 function MigrationGuideGate() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'Migration'>>();
   const updateConfig = useSettingsStore((s) => s.updateConfig);
+  const completeSetupSession = useContext(CompleteSetupSessionContext);
   const onComplete = useCallback(async () => {
     const result = await updateConfig({ legacyPairingGuide: 'none' });
     if (!result.ok) return false;
+    completeSetupSession();
     navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
     return true;
-  }, [navigation, updateConfig]);
+  }, [completeSetupSession, navigation, updateConfig]);
   return <LegacyPairingGuide onComplete={onComplete} />;
 }
 
 function OnboardingGate() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'Onboarding'>>();
+  const completeSetupSession = useContext(CompleteSetupSessionContext);
   const onComplete = useCallback(async () => {
+    completeSetupSession();
     navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
-  }, [navigation]);
+  }, [completeSetupSession, navigation]);
   return <OnboardingScreen onComplete={onComplete} />;
 }
 
@@ -82,6 +88,8 @@ export const AppNavigator = () => {
   const config = useSettingsStore((s) => s.config);
   const updateConfig = useSettingsStore((s) => s.updateConfig);
   const spaceStatus = useUnifiedSpaceStore((s) => s.status);
+  const completionStatus = useSpaceSetupCompletionStore((s) => s.status);
+  const [setupSession, setSetupSession] = useState<SetupSession | null>(null);
 
   useEffect(() => {
     if (config && spaceStatus === 'ready' && config.legacyPairingGuide === 'pending') {
@@ -89,10 +97,19 @@ export const AppNavigator = () => {
     }
   }, [config?.legacyPairingGuide, spaceStatus, updateConfig]);
 
-  const showMigration =
-    !!config && config.legacyPairingGuide === 'pending' && spaceStatus === 'empty';
-  const showOnboarding = !!config && !showMigration && spaceStatus === 'empty';
-  const rootMode = showMigration ? 'migration' : showOnboarding ? 'onboarding' : 'main';
+  const requestedSetup: SetupSession | null =
+    config && completionStatus === 'incomplete'
+      ? config.legacyPairingGuide === 'pending'
+        ? 'migration'
+        : 'onboarding'
+      : null;
+
+  useEffect(() => {
+    if (!setupSession && requestedSetup) setSetupSession(requestedSetup);
+  }, [requestedSetup, setupSession]);
+
+  const activeSetup = setupSession ?? requestedSetup;
+  const rootMode = activeSetup ?? 'main';
   const initialRouteName =
     rootMode === 'migration' ? 'Migration' : rootMode === 'onboarding' ? 'Onboarding' : 'Main';
 
@@ -141,61 +158,68 @@ export const AppNavigator = () => {
         },
       };
 
+  if (!config || completionStatus === 'unknown') {
+    return <View style={[styles.loading, { backgroundColor: theme.colors.background }]} />;
+  }
+
   return (
-    <NavigationContainer
-      ref={navigationRef}
-      theme={navigationTheme}
-      onReady={handleNavigationReady}
-      onStateChange={captureCurrentScreen}
-    >
-      <Stack.Navigator
+    <CompleteSetupSessionContext.Provider value={() => setSetupSession(null)}>
+      <NavigationContainer
         key={rootMode}
-        initialRouteName={initialRouteName}
-        screenOptions={{ headerShown: false }}
+        ref={navigationRef}
+        theme={navigationTheme}
+        onReady={handleNavigationReady}
+        onStateChange={captureCurrentScreen}
       >
-        <Stack.Screen name="Onboarding" component={OnboardingGate} />
-        <Stack.Screen name="Migration" component={MigrationGuideGate} />
-        <Stack.Screen name="Main" component={MainScreen} />
-        <Stack.Screen
-          name="Settings"
-          component={SettingsScreen}
-          options={
-            Platform.OS === 'ios'
-              ? {
-                  headerShown: false,
-                  presentation: 'transparentModal',
-                  animation: 'none',
-                  contentStyle: { backgroundColor: 'transparent' },
-                }
-              : {
-                  headerShown: true,
-                  title: t('action.settings', { ns: 'common' }),
-                  presentation: 'card',
-                  animation: 'slide_from_right',
-                  headerStyle: {
-                    backgroundColor: theme.colors.surface as string,
-                  },
-                  headerShadowVisible: false,
-                  headerTintColor: theme.colors.textPrimary as string,
-                }
-          }
-        />
-        <Stack.Screen
-          name="SettingsSub"
-          component={SettingsSubScreen}
-          options={({ route }) => ({
-            headerShown: true,
-            title: subScreenTitles[route.params.section],
-            presentation: 'card',
-            animation: 'slide_from_right',
-            headerStyle: {
-              backgroundColor: theme.colors.surface as string,
-            },
-            headerShadowVisible: false,
-            headerTintColor: theme.colors.textPrimary as string,
-          })}
-        />
-      </Stack.Navigator>
-    </NavigationContainer>
+        <Stack.Navigator initialRouteName={initialRouteName} screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="Onboarding" component={OnboardingGate} />
+          <Stack.Screen name="Migration" component={MigrationGuideGate} />
+          <Stack.Screen name="Main" component={MainScreen} />
+          <Stack.Screen
+            name="Settings"
+            component={SettingsScreen}
+            options={
+              Platform.OS === 'ios'
+                ? {
+                    headerShown: false,
+                    presentation: 'transparentModal',
+                    animation: 'none',
+                    contentStyle: { backgroundColor: 'transparent' },
+                  }
+                : {
+                    headerShown: true,
+                    title: t('action.settings', { ns: 'common' }),
+                    presentation: 'card',
+                    animation: 'slide_from_right',
+                    headerStyle: {
+                      backgroundColor: theme.colors.surface as string,
+                    },
+                    headerShadowVisible: false,
+                    headerTintColor: theme.colors.textPrimary as string,
+                  }
+            }
+          />
+          <Stack.Screen
+            name="SettingsSub"
+            component={SettingsSubScreen}
+            options={({ route }) => ({
+              headerShown: true,
+              title: subScreenTitles[route.params.section],
+              presentation: 'card',
+              animation: 'slide_from_right',
+              headerStyle: {
+                backgroundColor: theme.colors.surface as string,
+              },
+              headerShadowVisible: false,
+              headerTintColor: theme.colors.textPrimary as string,
+            })}
+          />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </CompleteSetupSessionContext.Provider>
   );
 };
+
+const styles = StyleSheet.create({
+  loading: { flex: 1 },
+});

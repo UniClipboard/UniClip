@@ -10,3 +10,10 @@ export {
 } from './internal/spaceService';
 export { useUnifiedSpaceStore } from './store';
 export type { UnifiedSpaceDevice, UnifiedSpaceSnapshot } from './store';
+export {
+  getSpaceSetupCompletion,
+  SpaceSetupCompletionState,
+  useSpaceSetupCompletionStore,
+  type SpaceSetupCompletionReporter,
+  type SpaceSetupCompletionStatus,
+} from './internal/spaceSetupCompletion';

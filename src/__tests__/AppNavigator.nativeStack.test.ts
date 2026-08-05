@@ -21,16 +21,23 @@ describe('AppNavigator native stack', () => {
     expect(packageJson.dependencies['@react-navigation/stack']).toBeUndefined();
   });
 
-  it('returns only authoritative no-Space users to mandatory onboarding', () => {
+  it('returns only persistently incomplete users to mandatory onboarding', () => {
     const navigatorSource = readSource('navigation/AppNavigator.tsx');
+    const appSource = fs.readFileSync(path.join(__dirname, '..', '..', 'App.tsx'), 'utf8');
 
-    expect(navigatorSource).toContain('useUnifiedSpaceStore');
-    expect(navigatorSource).toContain(
-      "const showOnboarding = !!config && !showMigration && spaceStatus === 'empty';"
+    expect(navigatorSource).toContain('useSpaceSetupCompletionStore');
+    expect(navigatorSource).toContain("completionStatus === 'unknown'");
+    expect(navigatorSource).toContain("completionStatus === 'incomplete'");
+    expect(navigatorSource).toContain('setupSession');
+    expect(navigatorSource).not.toContain(
+      "showOnboarding = !!config && !showMigration && spaceStatus === 'empty'"
     );
     expect(navigatorSource).not.toContain('onboardingCompleted');
-    expect(navigatorSource).toContain('key={rootMode}');
+    expect(navigatorSource).toMatch(/<NavigationContainer\s+key=\{rootMode\}/);
     expect(navigatorSource).toContain('initialRouteName={initialRouteName}');
+    expect(appSource).toContain('getSpaceSetupCompletion()');
+    expect(appSource).toContain('completion.load()');
+    expect(appSource).toContain('retryPendingWrite()');
   });
 
   it('sends upgraded LAN users to a join-only recovery screen', () => {

@@ -14,6 +14,7 @@ import {
 } from '../store';
 import { invitationCodeForSubmission } from '@/utils/invitationCode';
 import { createLogger } from '@/support/observability';
+import { getSpaceSetupCompletion, type SpaceSetupCompletionReporter } from './spaceSetupCompletion';
 
 const log = createLogger('UnifiedSpaceService');
 
@@ -196,24 +197,30 @@ function passphrase(value: string): string {
 
 export class UnifiedSpaceService {
   private snapshot = createInitialUnifiedSpaceSnapshot();
-  private operationRevision = 0;
+  private mutationRevision = 0;
+  private activeMutationRevision: number | null = null;
+  private refreshRevision = 0;
 
   constructor(
     private readonly api: UnifiedSpaceApi,
     private readonly publish: (
       snapshot: UnifiedSpaceSnapshot
     ) => void = publishUnifiedSpaceSnapshot,
-    private readonly runSetup: P2pSpaceSetupRunner = runWithoutSetupTransition
+    private readonly runSetup: P2pSpaceSetupRunner = runWithoutSetupTransition,
+    private readonly completion: SpaceSetupCompletionReporter = getSpaceSetupCompletion()
   ) {
     this.publishSnapshot();
   }
 
   async refresh(): Promise<UnifiedSpaceSnapshot> {
-    const revision = this.beginOperation();
-    this.updateSnapshot({ status: 'loading', lastError: null });
+    const revision = this.beginRefresh();
+    if (this.canPublishRefresh(revision)) {
+      this.updateSnapshot({ status: 'loading', lastError: null });
+    }
     try {
       const state = await this.runRefreshStep('querySpaceState', () => this.api.querySpaceState());
-      if (!this.isCurrentOperation(revision)) return this.snapshot;
+      await this.completion.resolveFromCore(Boolean(state.hasCompleted && state.spaceId));
+      if (!this.canPublishRefresh(revision)) return this.snapshot;
       if (!state.hasCompleted || !state.spaceId) {
         this.snapshot = createInitialUnifiedSpaceSnapshot('empty');
         this.publishSnapshot();
@@ -223,7 +230,7 @@ export class UnifiedSpaceService {
         this.runRefreshStep('listDevices', () => this.api.listDevices()),
         this.currentMemberRemoval(),
       ]);
-      if (!this.isCurrentOperation(revision)) return this.snapshot;
+      if (!this.canPublishRefresh(revision)) return this.snapshot;
       this.snapshot = {
         status: 'ready',
         spaceId: state.spaceId,
@@ -236,7 +243,7 @@ export class UnifiedSpaceService {
       this.publishSnapshot();
       return this.snapshot;
     } catch (error) {
-      if (this.isCurrentOperation(revision)) this.fail(error);
+      if (this.canPublishRefresh(revision)) this.fail(error);
       throw error;
     }
   }
@@ -244,14 +251,16 @@ export class UnifiedSpaceService {
   async createSpace(deviceName: string, secret: string): Promise<SpaceCreationResult> {
     const normalizedName = required(deviceName, 'deviceNameRequired');
     const normalizedPassphrase = passphrase(secret);
-    const revision = this.beginOperation();
-    this.updateSnapshot({ status: 'loading', lastError: null });
+    let revision: number | null = null;
     try {
       return await this.runSetup(async () => {
+        revision = this.beginMutation();
+        this.updateSnapshot({ status: 'loading', lastError: null });
         const space = await this.api.createSpace(normalizedName, normalizedPassphrase);
         const invitation = await this.api.issueInvitation();
         const devices = await this.api.listDevices();
-        if (!this.isCurrentOperation(revision)) return { ...space, invitation };
+        await this.completion.markComplete();
+        if (!this.isCurrentMutation(revision)) return { ...space, invitation };
         this.snapshot = {
           status: 'ready',
           spaceId: space.spaceId,
@@ -265,8 +274,10 @@ export class UnifiedSpaceService {
         return { ...space, invitation };
       });
     } catch (error) {
-      if (this.isCurrentOperation(revision)) this.fail(error);
+      if (revision === null || this.isCurrentMutation(revision)) this.fail(error);
       throw error;
+    } finally {
+      if (revision !== null) this.endMutation(revision);
     }
   }
 
@@ -279,12 +290,12 @@ export class UnifiedSpaceService {
   async refreshDevices(): Promise<UnifiedSpaceSnapshot> {
     if (!this.snapshot.spaceId) return this.snapshot;
 
-    const revision = this.beginOperation();
+    const revision = this.beginRefresh();
     const [devices, memberRemoval] = await Promise.all([
       this.runRefreshStep('listDevices', () => this.api.listDevices()),
       this.currentMemberRemoval(),
     ]);
-    if (!this.isCurrentOperation(revision)) return this.snapshot;
+    if (!this.canPublishRefresh(revision)) return this.snapshot;
 
     this.updateSnapshot({ devices, memberRemoval, lastError: null });
     return this.snapshot;
@@ -303,10 +314,11 @@ export class UnifiedSpaceService {
     const normalizedPassphrase = passphrase(secret);
     const hadExistingSpace = Boolean(this.snapshot.spaceId);
     let stage: JoinSpaceStage = 'prepareP2p';
-    const revision = this.beginOperation();
-    this.updateSnapshot({ status: 'loading', lastError: null });
+    let revision: number | null = null;
     try {
       return await this.runSetup(async () => {
+        revision = this.beginMutation();
+        this.updateSnapshot({ status: 'loading', lastError: null });
         stage = 'requestJoin';
         const joined = await this.api.joinSpace(
           normalizedInvitation,
@@ -316,7 +328,8 @@ export class UnifiedSpaceService {
         );
         stage = 'refreshDevices';
         const devices = await this.api.listDevices();
-        if (!this.isCurrentOperation(revision)) return joined;
+        await this.completion.markComplete();
+        if (!this.isCurrentMutation(revision)) return joined;
         this.snapshot = {
           status: 'ready',
           spaceId: joined.spaceId,
@@ -331,39 +344,49 @@ export class UnifiedSpaceService {
       });
     } catch (error) {
       log.error('Join space failed', joinSpaceFailureDetails(error, stage, hadExistingSpace));
-      if (this.isCurrentOperation(revision)) this.fail(error);
+      if (revision === null || this.isCurrentMutation(revision)) this.fail(error);
       throw error;
+    } finally {
+      if (revision !== null) this.endMutation(revision);
     }
   }
 
   async removeMember(deviceId: string): Promise<MemberRevocationResult> {
     const targetDeviceId = required(deviceId, 'deviceNameRequired');
-    const revision = this.beginOperation();
-    let result: MemberRevocationResult;
+    const revision = this.beginMutation();
     try {
-      result = await this.api.removeMember(targetDeviceId);
+      const result = await this.api.removeMember(targetDeviceId);
+      const devices = await this.api.listDevices();
+      if (this.isCurrentMutation(revision)) {
+        this.updateSnapshot({ devices, memberRemoval: result, lastError: null });
+      }
+      return result;
     } catch (error) {
       log.error('Failed to remove a space member:', error);
       throw error;
+    } finally {
+      this.endMutation(revision);
     }
-    const devices = await this.api.listDevices();
-    if (this.isCurrentOperation(revision)) {
-      this.updateSnapshot({ devices, memberRemoval: result, lastError: null });
-    }
-    return result;
   }
 
   async continueMemberRevocation(
     revocationId: string,
     permanentlyLostDeviceIds: string[]
   ): Promise<MemberRevocationResult> {
-    const revision = this.beginOperation();
-    const result = await this.api.continueMemberRevocation(revocationId, permanentlyLostDeviceIds);
-    const devices = await this.api.listDevices();
-    if (this.isCurrentOperation(revision)) {
-      this.updateSnapshot({ devices, memberRemoval: result, lastError: null });
+    const revision = this.beginMutation();
+    try {
+      const result = await this.api.continueMemberRevocation(
+        revocationId,
+        permanentlyLostDeviceIds
+      );
+      const devices = await this.api.listDevices();
+      if (this.isCurrentMutation(revision)) {
+        this.updateSnapshot({ devices, memberRemoval: result, lastError: null });
+      }
+      return result;
+    } finally {
+      this.endMutation(revision);
     }
-    return result;
   }
 
   resendEntry(entryId: string, targetDevices: string[] = []): Promise<ResendEntryOutcome> {
@@ -371,20 +394,57 @@ export class UnifiedSpaceService {
   }
 
   async leaveSpace(): Promise<void> {
-    const revision = this.beginOperation();
-    await this.api.leaveSpace();
-    if (!this.isCurrentOperation(revision)) return;
-    this.snapshot = createInitialUnifiedSpaceSnapshot('empty');
-    this.publishSnapshot();
+    const revision = this.beginMutation();
+    try {
+      await this.api.leaveSpace();
+      await this.completion.markIncomplete();
+      if (!this.isCurrentMutation(revision)) return;
+      this.snapshot = createInitialUnifiedSpaceSnapshot('empty');
+      this.publishSnapshot();
+    } finally {
+      this.endMutation(revision);
+    }
   }
 
-  private beginOperation(): number {
-    this.operationRevision += 1;
-    return this.operationRevision;
+  private beginMutation(): number {
+    this.mutationRevision += 1;
+    this.refreshRevision += 1;
+    this.activeMutationRevision = this.mutationRevision;
+    return this.mutationRevision;
   }
 
-  private isCurrentOperation(revision: number): boolean {
-    return revision === this.operationRevision;
+  private endMutation(revision: number): void {
+    if (this.activeMutationRevision === revision) this.activeMutationRevision = null;
+  }
+
+  private isCurrentMutation(revision: number): boolean {
+    return revision === this.mutationRevision;
+  }
+
+  private beginRefresh(): {
+    refreshRevision: number;
+    mutationRevision: number;
+    startedDuringMutation: boolean;
+  } {
+    this.refreshRevision += 1;
+    return {
+      refreshRevision: this.refreshRevision,
+      mutationRevision: this.mutationRevision,
+      startedDuringMutation: this.activeMutationRevision !== null,
+    };
+  }
+
+  private canPublishRefresh(revision: {
+    refreshRevision: number;
+    mutationRevision: number;
+    startedDuringMutation: boolean;
+  }): boolean {
+    return (
+      !revision.startedDuringMutation &&
+      this.activeMutationRevision === null &&
+      revision.refreshRevision === this.refreshRevision &&
+      revision.mutationRevision === this.mutationRevision
+    );
   }
 
   private fail(error: unknown): void {

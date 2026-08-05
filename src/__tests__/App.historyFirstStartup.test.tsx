@@ -10,6 +10,8 @@ const mockResumeOutboundShareHandoffs = jest.fn(async () => ({ completed: 0, def
 const mockReloadHistory = jest.fn(async () => undefined);
 const mockSetHistorySort = jest.fn();
 const mockDismissStartupHistoryPreview = jest.fn();
+const mockLoadSpaceSetupCompletion = jest.fn(async () => 'unknown');
+const mockRetrySpaceSetupCompletion = jest.fn(async () => undefined);
 
 jest.mock('react-native-gesture-handler', () => ({
   GestureHandlerRootView: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -78,6 +80,12 @@ jest.mock('../features/history', () => ({
 jest.mock('../features/transfer', () => ({
   resumeOutboundShareHandoffs: () => mockResumeOutboundShareHandoffs(),
 }));
+jest.mock('../features/space', () => ({
+  getSpaceSetupCompletion: () => ({
+    load: mockLoadSpaceSetupCompletion,
+    retryPendingWrite: mockRetrySpaceSetupCompletion,
+  }),
+}));
 jest.mock('app-group-store', () => ({
   dismissStartupHistoryPreview: () => mockDismissStartupHistoryPreview(),
 }));
@@ -113,6 +121,8 @@ describe('App history-first startup', () => {
     mockInitialHistoryComplete = false;
     mockAppStateCurrent = 'active';
     mockAppStateListener = undefined;
+    mockLoadSpaceSetupCompletion.mockResolvedValue('unknown');
+    mockRetrySpaceSetupCompletion.mockResolvedValue(undefined);
   });
 
   it('configures application services before starting analytics', async () => {
@@ -132,6 +142,7 @@ describe('App history-first startup', () => {
     expect(configureAppRuntime.mock.invocationCallOrder[0]).toBeLessThan(
       startPostHogAnalytics.mock.invocationCallOrder[0]
     );
+    expect(mockLoadSpaceSetupCompletion).toHaveBeenCalledTimes(1);
   });
 
   it('starts services and maintenance only after the first history page is ready', async () => {

@@ -80,6 +80,29 @@ function deferred<T>(): {
   return { promise, resolve };
 }
 
+function createCompletionReporter() {
+  return {
+    resolveFromCore: jest.fn(async () => undefined),
+    markComplete: jest.fn(async () => undefined),
+    markIncomplete: jest.fn(async () => undefined),
+  };
+}
+
+function createServiceWithCompletion(
+  api: UnifiedSpaceApi,
+  publish: (snapshot: UnifiedSpaceSnapshot) => void,
+  runSetup: <T>(operation: () => Promise<T>) => Promise<T>,
+  completion: ReturnType<typeof createCompletionReporter>
+): UnifiedSpaceService {
+  const Service = UnifiedSpaceService as unknown as new (
+    api: UnifiedSpaceApi,
+    publish: (snapshot: UnifiedSpaceSnapshot) => void,
+    runSetup: <T>(operation: () => Promise<T>) => Promise<T>,
+    completion: ReturnType<typeof createCompletionReporter>
+  ) => UnifiedSpaceService;
+  return new Service(api, publish, runSetup, completion);
+}
+
 describe('UnifiedSpaceService', () => {
   it.each([
     ['engine error 1233 (Unauthorized)', 'passphraseMismatch'],
@@ -295,6 +318,20 @@ describe('UnifiedSpaceService', () => {
     );
   });
 
+  it('uses the local Core completion record to resolve startup setup state', async () => {
+    const completion = createCompletionReporter();
+    const service = createServiceWithCompletion(
+      createApi(),
+      () => undefined,
+      async (operation) => operation(),
+      completion
+    );
+
+    await service.refresh();
+
+    expect(completion.resolveFromCore).toHaveBeenCalledWith(true);
+  });
+
   it('keeps the active space when member-removal status cannot be read', async () => {
     const snapshots: UnifiedSpaceSnapshot[] = [];
     const logError = jest.spyOn(log, 'error').mockImplementation(() => undefined);
@@ -372,6 +409,28 @@ describe('UnifiedSpaceService', () => {
       })
     );
   });
+
+  it.each(['create', 'join'] as const)(
+    'marks setup complete after a successful %s',
+    async (kind) => {
+      const completion = createCompletionReporter();
+      const service = createServiceWithCompletion(
+        createApi(),
+        () => undefined,
+        async (operation) => operation(),
+        completion
+      );
+
+      if (kind === 'create') {
+        await service.createSpace('Phone', 'passphrase');
+      } else {
+        await service.joinSpace('7K2M-8Q4R', 'Phone', 'passphrase');
+      }
+
+      expect(completion.markComplete).toHaveBeenCalledTimes(1);
+      expect(completion.markIncomplete).not.toHaveBeenCalled();
+    }
+  );
 
   it('preserves every resend outcome count', async () => {
     const api = createApi();
@@ -572,6 +631,9 @@ describe('UnifiedSpaceService', () => {
 
     expect(logError).toHaveBeenCalledWith('Failed to remove a space member:', finalError);
     expect(api.secureRemoveLegacyMember).not.toHaveBeenCalled();
+    await expect(service.refresh()).resolves.toEqual(
+      expect.objectContaining({ status: 'ready', spaceId: 'space-1' })
+    );
     logError.mockRestore();
   });
 
@@ -587,6 +649,29 @@ describe('UnifiedSpaceService', () => {
     expect(snapshots.at(-1)).toEqual(
       expect.objectContaining({ status: 'empty', spaceId: null, devices: [] })
     );
+  });
+
+  it('marks setup incomplete only after leave succeeds', async () => {
+    const completion = createCompletionReporter();
+    const leaveFailure = new Error('leave failed');
+    const api = createApi({
+      leaveSpace: jest
+        .fn<UnifiedSpaceApi['leaveSpace']>()
+        .mockRejectedValueOnce(leaveFailure)
+        .mockResolvedValueOnce(undefined),
+    });
+    const service = createServiceWithCompletion(
+      api,
+      () => undefined,
+      async (operation) => operation(),
+      completion
+    );
+
+    await expect(service.leaveSpace()).rejects.toBe(leaveFailure);
+    expect(completion.markIncomplete).not.toHaveBeenCalled();
+
+    await service.leaveSpace();
+    expect(completion.markIncomplete).toHaveBeenCalledTimes(1);
   });
 
   it('does not restore an old space when a refresh finishes after leaving', async () => {
@@ -653,6 +738,80 @@ describe('UnifiedSpaceService', () => {
         deviceName: 'New Phone',
         devices: [{ deviceId: 'new-phone', displayName: 'New Phone', isLocal: true, online: true }],
       })
+    );
+  });
+
+  it('does not let activation refresh invalidate the setup that starts immediately after it', async () => {
+    const snapshots: UnifiedSpaceSnapshot[] = [];
+    const api = createApi({
+      querySpaceState: jest.fn(async () => ({
+        hasCompleted: false,
+        spaceId: null,
+        currentInvitation: null,
+        deviceName: null,
+      })),
+      listDevices: jest.fn(async () => [
+        { deviceId: 'new-phone', displayName: 'New Phone', isLocal: true, online: true },
+      ]),
+      joinSpace: jest.fn(async () => ({
+        sponsorDeviceId: 'new-desktop',
+        sponsorIdentityFingerprint: 'new-sponsor-fingerprint',
+        spaceId: 'new-space',
+        selfDeviceId: 'new-phone',
+        selfIdentityFingerprint: 'new-phone-fingerprint',
+        migratedRecords: 0,
+        preservedUnreadableRecords: 0,
+      })),
+    });
+    let service!: UnifiedSpaceService;
+    const runSetup = async <T>(operation: () => Promise<T>) => {
+      await service.refresh();
+      return operation();
+    };
+    service = new UnifiedSpaceService(api, (snapshot) => snapshots.push(snapshot), runSetup);
+
+    await service.joinSpace('9R3N-6W2X', 'New Phone', 'passphrase');
+
+    expect(snapshots.at(-1)).toEqual(
+      expect.objectContaining({ status: 'ready', spaceId: 'new-space' })
+    );
+  });
+
+  it('does not let a refresh started during join overwrite the successful join result', async () => {
+    const joinResult = deferred<Awaited<ReturnType<UnifiedSpaceApi['joinSpace']>>>();
+    const refreshState = deferred<Awaited<ReturnType<UnifiedSpaceApi['querySpaceState']>>>();
+    const snapshots: UnifiedSpaceSnapshot[] = [];
+    const api = createApi({
+      querySpaceState: jest.fn(() => refreshState.promise),
+      joinSpace: jest.fn(() => joinResult.promise),
+      listDevices: jest.fn(async () => [
+        { deviceId: 'new-phone', displayName: 'New Phone', isLocal: true, online: true },
+      ]),
+    });
+    const service = new UnifiedSpaceService(api, (snapshot) => snapshots.push(snapshot));
+
+    const joining = service.joinSpace('9R3N-6W2X', 'New Phone', 'passphrase');
+    const refresh = service.refresh();
+    joinResult.resolve({
+      sponsorDeviceId: 'new-desktop',
+      sponsorIdentityFingerprint: 'new-sponsor-fingerprint',
+      spaceId: 'new-space',
+      selfDeviceId: 'new-phone',
+      selfIdentityFingerprint: 'new-phone-fingerprint',
+      migratedRecords: 0,
+      preservedUnreadableRecords: 0,
+    });
+    await joining;
+    refreshState.resolve({
+      hasCompleted: false,
+      spaceId: null,
+      currentInvitation: null,
+      deviceName: null,
+    });
+    await refresh;
+
+    expect(snapshots.at(-1)).toEqual(
+      expect.objectContaining({ status: 'ready', spaceId: 'new-space' })
     );
   });
 });

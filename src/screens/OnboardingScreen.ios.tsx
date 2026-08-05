@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Link, PlusCircle } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,6 +9,7 @@ import type { AddSyncConnectionMode } from '@/components/AddSyncConnectionSheet.
 import { useTheme } from '@/hooks/useTheme';
 import { iosAccent } from '@/theme/iosDesignTokens';
 import { OnboardingPile } from './onboarding/OnboardingPile';
+import { SpaceSetupResult } from './SpaceSetupResult';
 import type { OnboardingScreenProps } from './OnboardingScreen.types';
 
 export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
@@ -17,11 +18,22 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const ink = theme.isDark ? iosAccent.dark : iosAccent.light;
   const onInk = theme.isDark ? iosAccent.light : iosAccent.dark;
   const [flow, setFlow] = useState<AddSyncConnectionMode | null>(null);
+  const [showResult, setShowResult] = useState(false);
+  const completedConnectionRef = useRef(false);
 
   const finishSetup = async () => {
-    await onComplete();
+    completedConnectionRef.current = true;
     return true;
   };
+
+  const closeSheet = () => {
+    setFlow(null);
+    if (!completedConnectionRef.current) return;
+    completedConnectionRef.current = false;
+    setShowResult(true);
+  };
+
+  if (showResult) return <SpaceSetupResult onEnter={onComplete} />;
 
   return (
     <SafeAreaView
@@ -55,7 +67,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
       <AddSyncConnectionSheet
         visible={flow !== null}
         initialMode={flow ?? 'choose'}
-        onClose={() => setFlow(null)}
+        onClose={closeSheet}
         onConnected={finishSetup}
       />
     </SafeAreaView>

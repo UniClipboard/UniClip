@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Button, Host, Text as ComposeText } from '@expo/ui/jetpack-compose';
 import { fillMaxWidth } from '@expo/ui/jetpack-compose/modifiers';
@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { AddSyncConnectionSheet } from '@/components/AddSyncConnectionSheet';
 import { useTheme } from '@/hooks/useTheme';
 import { CompanionArt } from './onboarding/Illustrations';
+import { SpaceSetupResult } from './SpaceSetupResult';
 import type { LegacyPairingGuideProps } from './LegacyPairingGuide.types';
 
 export function LegacyPairingGuide({ onComplete }: LegacyPairingGuideProps) {
@@ -15,6 +16,17 @@ export function LegacyPairingGuide({ onComplete }: LegacyPairingGuideProps) {
   const { theme } = useTheme();
   const c = theme.colors;
   const [joinVisible, setJoinVisible] = useState(false);
+  const [showResult, setShowResult] = useState(false);
+  const completedConnectionRef = useRef(false);
+
+  const closeSheet = () => {
+    setJoinVisible(false);
+    if (!completedConnectionRef.current) return;
+    completedConnectionRef.current = false;
+    setShowResult(true);
+  };
+
+  if (showResult) return <SpaceSetupResult onEnter={onComplete} />;
 
   return (
     <SafeAreaView style={[s.root, { backgroundColor: c.background }]} edges={['top', 'bottom']}>
@@ -43,8 +55,11 @@ export function LegacyPairingGuide({ onComplete }: LegacyPairingGuideProps) {
       <AddSyncConnectionSheet
         visible={joinVisible}
         initialMode="join"
-        onClose={() => setJoinVisible(false)}
-        onConnected={onComplete}
+        onClose={closeSheet}
+        onConnected={() => {
+          completedConnectionRef.current = true;
+          return true;
+        }}
       />
     </SafeAreaView>
   );

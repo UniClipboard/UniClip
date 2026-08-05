@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Button, Host } from '@expo/ui/swift-ui';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,6 +9,7 @@ import { iosProminentButtonModifiers } from '@/components/ui/iosButtonStyles.ios
 import { useTheme } from '@/hooks/useTheme';
 import { iosAccent, iosOnAccent } from '@/theme/iosDesignTokens';
 import { CompanionArt } from './onboarding/Illustrations';
+import { SpaceSetupResult } from './SpaceSetupResult';
 import type { LegacyPairingGuideProps } from './LegacyPairingGuide.types';
 
 export function LegacyPairingGuide({ onComplete }: LegacyPairingGuideProps) {
@@ -17,6 +18,17 @@ export function LegacyPairingGuide({ onComplete }: LegacyPairingGuideProps) {
   const ink = theme.isDark ? iosAccent.dark : iosAccent.light;
   const onInk = theme.isDark ? iosOnAccent.dark : iosOnAccent.light;
   const [joinVisible, setJoinVisible] = useState(false);
+  const [showResult, setShowResult] = useState(false);
+  const completedConnectionRef = useRef(false);
+
+  const closeSheet = () => {
+    setJoinVisible(false);
+    if (!completedConnectionRef.current) return;
+    completedConnectionRef.current = false;
+    setShowResult(true);
+  };
+
+  if (showResult) return <SpaceSetupResult onEnter={onComplete} />;
 
   return (
     <SafeAreaView
@@ -55,8 +67,11 @@ export function LegacyPairingGuide({ onComplete }: LegacyPairingGuideProps) {
       <AddSyncConnectionSheet
         visible={joinVisible}
         initialMode="join"
-        onClose={() => setJoinVisible(false)}
-        onConnected={onComplete}
+        onClose={closeSheet}
+        onConnected={() => {
+          completedConnectionRef.current = true;
+          return true;
+        }}
       />
     </SafeAreaView>
   );

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,6 +8,7 @@ import { AddSyncConnectionSheet } from '@/components/AddSyncConnectionSheet';
 import type { AddSyncConnectionMode } from '@/components/AddSyncConnectionSheet.types';
 import { useTheme } from '@/hooks/useTheme';
 import { OnboardingPile } from './onboarding/OnboardingPile';
+import { SpaceSetupResult } from './SpaceSetupResult';
 import type { OnboardingScreenProps } from './OnboardingScreen.types';
 
 export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
@@ -15,11 +16,22 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const { theme } = useTheme();
   const c = theme.colors;
   const [flow, setFlow] = useState<AddSyncConnectionMode | null>(null);
+  const [showResult, setShowResult] = useState(false);
+  const completedConnectionRef = useRef(false);
 
   const finishSetup = async () => {
-    await onComplete();
+    completedConnectionRef.current = true;
     return true;
   };
+
+  const closeSheet = () => {
+    setFlow(null);
+    if (!completedConnectionRef.current) return;
+    completedConnectionRef.current = false;
+    setShowResult(true);
+  };
+
+  if (showResult) return <SpaceSetupResult onEnter={onComplete} />;
 
   return (
     <SafeAreaView style={[s.root, { backgroundColor: c.background }]} edges={['top', 'bottom']}>
@@ -48,7 +60,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
       <AddSyncConnectionSheet
         visible={flow !== null}
         initialMode={flow ?? 'choose'}
-        onClose={() => setFlow(null)}
+        onClose={closeSheet}
         onConnected={finishSetup}
       />
     </SafeAreaView>

@@ -26,6 +26,7 @@ import { startAppGroupSync } from './src/platform/app-group';
 import { startNetworkContextMonitor } from './src/platform/network';
 import { resumeOutboundShareHandoffs } from './src/features/transfer';
 import { startPostHogAnalytics, stopPostHogAnalytics } from './src/support/observability';
+import { getSpaceSetupCompletion } from './src/features/space';
 
 const QUICK_UPLOAD_URL = 'uniclipboard://quick-upload';
 const PROCESS_TEXT_URL = 'uniclipboard://process-text';
@@ -85,6 +86,15 @@ export default function App() {
     configureAppRuntime();
     initLogger();
     setDynamicShortcuts();
+  }, []);
+
+  useEffect(() => {
+    const completion = getSpaceSetupCompletion();
+    void completion.load();
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void completion.retryPendingWrite();
+    });
+    return () => subscription.remove();
   }, []);
 
   useEffect(() => {

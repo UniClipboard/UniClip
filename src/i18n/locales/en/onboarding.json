@@ -7,6 +7,11 @@
     "create": "Create new space",
     "join": "Join existing space"
   },
+  "result": {
+    "title": "Your space is ready",
+    "body": "This device can now sync your clipboard securely through the space.",
+    "enter": "Enter"
+  },
   "migration": {
     "title": "Reconnect to your computer",
     "body": "LAN sync is no longer available. Your local history is still here, but this device needs to be paired with your computer again.",

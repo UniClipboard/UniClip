@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Linking, PlatformColor } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import {
@@ -12,19 +12,19 @@ import {
 import {
   background,
   buttonStyle,
-  contentShape,
   cornerRadius,
   font,
   foregroundStyle,
   frame,
   glassEffect,
-  onTapGesture,
+  listRowBackground,
   padding,
-  shapes,
   tint,
   accessibilityLabel as accessibilityLabelModifier,
 } from '@expo/ui/swift-ui/modifiers';
 import type { SFSymbol } from 'sf-symbols-typescript';
+
+import { iosColors } from '@/theme/iosDesignTokens';
 
 /** iOS system palette for settings icon tiles (iOS Settings app style). */
 export const settingsTileColors = {
@@ -42,6 +42,9 @@ export const chevronColor = '#8E8E93';
 export const headerIconColor = '#AEAEB2';
 export const statusGreen = settingsTileColors.green;
 export const statusOrange = settingsTileColors.orange;
+
+const settingsNavigationDelayMs = 120;
+const settingsRowPressedColor = iosColors?.tertiarySystemFill ?? 'gray';
 
 /**
  * iOS 系统绿开关。设置界面根 VStack 级联了墨色 accent tint(SettingsScreen.ios.tsx),
@@ -86,27 +89,37 @@ export function SettingsNavRow({
   valueColor,
   onPress,
 }: SettingsNavRowProps) {
+  const [isPressed, setIsPressed] = useState(false);
+
+  const handlePress = () => {
+    if (isPressed) return;
+
+    setIsPressed(true);
+    setTimeout(() => {
+      setIsPressed(false);
+      onPress();
+    }, settingsNavigationDelayMs);
+  };
+
   return (
-    <HStack
-      spacing={12}
-      modifiers={[
-        frame({ maxWidth: Infinity }),
-        contentShape(shapes.rectangle()),
-        onTapGesture(onPress),
-      ]}
+    <SwiftUIButton
+      onPress={handlePress}
+      modifiers={isPressed ? [listRowBackground(settingsRowPressedColor)] : []}
     >
-      <SettingsIconTile systemName={icon} color={iconColor} />
-      <SwiftUIText>{title}</SwiftUIText>
-      <Spacer />
-      {value ? (
-        <SwiftUIText
-          modifiers={valueColor ? [foregroundStyle(valueColor)] : [foregroundStyle('secondary')]}
-        >
-          {value}
-        </SwiftUIText>
-      ) : null}
-      <Image systemName="chevron.right" size={12} color={chevronColor} />
-    </HStack>
+      <HStack spacing={12} modifiers={[frame({ maxWidth: Infinity })]}>
+        <SettingsIconTile systemName={icon} color={iconColor} />
+        <SwiftUIText modifiers={[foregroundStyle('primary')]}>{title}</SwiftUIText>
+        <Spacer />
+        {value ? (
+          <SwiftUIText
+            modifiers={valueColor ? [foregroundStyle(valueColor)] : [foregroundStyle('secondary')]}
+          >
+            {value}
+          </SwiftUIText>
+        ) : null}
+        <Image systemName="chevron.right" size={12} color={chevronColor} />
+      </HStack>
+    </SwiftUIButton>
   );
 }
 

@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import {
   HStack,
   Image,
@@ -60,23 +59,14 @@ function IconToggleRow({
 
 export function SettingsRootPage({
   onNavigate,
-  active = true,
 }: {
   onNavigate: (page: SettingsPage) => void;
-  active?: boolean;
 }) {
   const { t } = useTranslation('settings');
   const { config, updateConfig } = useSettingsStore();
   const { setThemeMode } = useTheme();
   const { preference: languagePref, setLanguage } = useAppLanguage();
   const keyboard = useKeyboardStatus();
-  const refreshKeyboard = keyboard.refresh;
-
-  // The page stays mounted while sub-pages are shown; re-check the keyboard
-  // hint when the user slides back (they may have just finished the setup).
-  useEffect(() => {
-    if (active) refreshKeyboard();
-  }, [active, refreshKeyboard]);
 
   if (!config) return null;
 
