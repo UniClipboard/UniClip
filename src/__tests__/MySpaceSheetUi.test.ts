@@ -86,6 +86,15 @@ describe('home My Space sheet', () => {
     }
   });
 
+  it('groups Android device entries in a rounded list with dividers', () => {
+    expect(mySpaceSheets[0]).toContain('function SpaceDeviceRow');
+    expect(mySpaceSheets[0]).toContain('<Surface');
+    expect(mySpaceSheets[0]).toContain('const DEVICE_LIST_SHAPE = Shape.RoundedCorner');
+    expect(mySpaceSheets[0]).toContain('shape={DEVICE_LIST_SHAPE}');
+    expect(mySpaceSheets[0]).toContain('<HorizontalDivider');
+    expect(mySpaceSheets[0]).toContain('border={{ color: colors.outlineVariant }}');
+  });
+
   it('refreshes device presence when the sheet opens and when engine presence changes', () => {
     expect(mySpaceSheetHook).toContain('useUnifiedSpaceStore');
     expect(mySpaceSheetHook).toContain('useUnifiedEngineStore');

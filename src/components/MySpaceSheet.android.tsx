@@ -3,6 +3,7 @@ import {
   Button,
   CircularProgressIndicator,
   Column,
+  HorizontalDivider,
   Host,
   Icon,
   IconButton,
@@ -11,7 +12,9 @@ import {
   ModalBottomSheet,
   OutlinedButton,
   Row,
+  Shape,
   Spacer,
+  Surface,
   Text as ComposeText,
   TextButton,
   useMaterialColors,
@@ -44,6 +47,9 @@ const ICONS = {
 
 const TITLE_STYLE = { fontSize: 20, fontWeight: '600' } as const;
 const INVITATION_STYLE = { typography: 'headlineLarge' } as const;
+const DEVICE_LIST_SHAPE = Shape.RoundedCorner({
+  cornerRadii: { topStart: 20, topEnd: 20, bottomStart: 20, bottomEnd: 20 },
+});
 
 function SpaceDeviceRow({ device }: { device: UnifiedSpaceDevice }) {
   const { t } = useTranslation('settingsSync');
@@ -258,9 +264,28 @@ function MySpaceSheetContent({ visible, onClose }: MySpaceSheetProps) {
             </ListItem>
           ) : null}
 
-          {devices.map((device) => (
-            <SpaceDeviceRow key={device.deviceId} device={device} />
-          ))}
+          {devices.length ? (
+            <Surface
+              color={colors.surfaceContainerLow}
+              border={{ color: colors.outlineVariant }}
+              shape={DEVICE_LIST_SHAPE}
+              modifiers={[fillMaxWidth()]}
+            >
+              <Column>
+                {devices.map((device, index) => (
+                  <React.Fragment key={device.deviceId}>
+                    <SpaceDeviceRow device={device} />
+                    {index < devices.length - 1 ? (
+                      <HorizontalDivider
+                        color={colors.outlineVariant}
+                        modifiers={[padding(72, 0, 0, 0)]}
+                      />
+                    ) : null}
+                  </React.Fragment>
+                ))}
+              </Column>
+            </Surface>
+          ) : null}
         </LazyColumn>
       </Column>
     </ModalBottomSheet>
