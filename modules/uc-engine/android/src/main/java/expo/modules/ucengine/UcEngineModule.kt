@@ -490,6 +490,13 @@ class UcEngineModule : Module() {
     AsyncFunction("observeClipboardChange") { dispatch: Boolean ->
       requireEngine().observeClipboardChange(dispatch)?.let(::sendReportMap)
     }
+    AsyncFunction("observeClipboardTextChange") { text: String, dispatch: Boolean ->
+      if (dispatch) {
+        sendReportMap(requireEngine().sendText(text, emptyList()))
+      } else {
+        requireEngine().observeClipboardChange(false)?.let(::sendReportMap)
+      }
+    }
     AsyncFunction("restoreClipboard") { entryId: String, mode: String ->
       restoreOutcome(requireEngine().restoreClipboard(entryId, restoreMode(mode)))
     }

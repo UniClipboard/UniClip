@@ -42,6 +42,7 @@ describe('unified P2P engine native module', () => {
       'sendFiles',
       'captureCurrentClipboard',
       'observeClipboardChange',
+      'observeClipboardTextChange',
       'restoreClipboard',
       'exportEntry',
       'releaseFileHandle',

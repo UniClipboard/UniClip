@@ -54,7 +54,11 @@ export function configureAppRuntime(): void {
     sendImportedAsset: (asset, profileHash, options) =>
       getUnifiedContentService().sendImportedAsset(asset, profileHash, options),
   });
-  configureClipboardObserver((dispatch) => nativeEngine.observeClipboardChange(dispatch));
+  configureClipboardObserver((content, dispatch) =>
+    content.type === 'Text' && content.text
+      ? nativeEngine.observeClipboardTextChange(content.text, dispatch)
+      : nativeEngine.observeClipboardChange(dispatch)
+  );
   configureP2pSpaceActivation(() => getUnconfiguredAppRuntime().activateP2p());
   configureUnifiedSpaceService(nativeEngine, (operation) =>
     getP2pSpaceSetupCoordinator().run(operation)
