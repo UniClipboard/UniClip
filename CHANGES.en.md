@@ -1,3 +1,20 @@
+v1.3.0.173-alpha.1
+
+### Common
+
+- Feature: Require creating or joining a space before entering the app, with invitations for adding other devices
+- Improvement: Make sync state more reliable during network recovery, membership changes, and startup, with clearer diagnostics when something goes wrong
+- Fix: Preserve the active space and existing content when a connection or history read is unavailable instead of incorrectly returning to initial setup
+
+### iOS
+
+- Fix: Keep settings navigation stable during transitions and reduce issues around startup and background changes
+
+### Android
+
+- Feature: Show and manage more connection details in the space device list
+- Fix: Correctly sync clipboard text captured in the background
+
 v1.3.0.165
 
 ### Common
