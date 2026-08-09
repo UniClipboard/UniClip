@@ -12,7 +12,7 @@ import { useEffect, useState } from 'react';
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { QuickTileLoadingScreen } from './src/screens/QuickTileLoadingScreen';
-import { ShareReceiveScreen } from './src/screens/ShareReceiveScreen';
+import { ShareReceiveRedirector } from './src/screens/ShareReceiveRedirector';
 import { ProcessTextScreen } from './src/screens/ProcessTextScreen';
 import { useSettingsStore, useHistoryStore } from './src/stores';
 import { applyLanguagePreference } from './src/i18n/useAppLanguage';
@@ -24,12 +24,16 @@ import { configureAppRuntime, getAppRuntime } from './src/app/runtime/compositio
 import { historyStorage } from './src/features/history';
 import { startAppGroupSync } from './src/platform/app-group';
 import { startNetworkContextMonitor } from './src/platform/network';
-import { resumeOutboundShareHandoffs } from './src/features/transfer';
 import { startPostHogAnalytics, stopPostHogAnalytics } from './src/support/observability';
 import { getSpaceSetupCompletion } from './src/features/space';
+import { useShareSheetStore } from './src/stores/shareSheetStore';
 
 const QUICK_UPLOAD_URL = 'uniclipboard://quick-upload';
 const PROCESS_TEXT_URL = 'uniclipboard://process-text';
+const SHARE_URLS = ['uniclipboard://share', 'uniclipboard-dev://share'];
+function isShareUrl(url: string | null): boolean {
+  return url != null && SHARE_URLS.some((scheme) => url.startsWith(scheme));
+}
 function parseProcessTextUrl(url: string | null): string | null {
   if (!url || !url.startsWith(PROCESS_TEXT_URL)) return null;
   try {
@@ -111,6 +115,15 @@ export default function App() {
     void history.loadItems();
   }, []);
 
+  // A Share extension can update the shared iOS history while this process is
+  // backgrounded. Refresh the visible list whenever the user returns to the app.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void useHistoryStore.getState().loadItems();
+    });
+    return () => subscription.remove();
+  }, []);
+
   useEffect(() => {
     if (!isLoaded) {
       loadConfig();
@@ -160,7 +173,6 @@ export default function App() {
     let startupPromise: Promise<void> | null = null;
     let servicesStarted = false;
     let maintenanceComplete = false;
-    let handoffResumeComplete = false;
     let historyReloadComplete = false;
     const runStartupWork = () => {
       if (
@@ -183,11 +195,6 @@ export default function App() {
         if (!maintenanceComplete) {
           await historyStorage.runStartupMaintenance();
           maintenanceComplete = true;
-        }
-        if (cancelled || AppState.currentState !== 'active') return;
-        if (!handoffResumeComplete) {
-          await resumeOutboundShareHandoffs();
-          handoffResumeComplete = true;
         }
         if (cancelled || AppState.currentState !== 'active') return;
         if (!historyReloadComplete) {
@@ -228,6 +235,12 @@ export default function App() {
         setShareReceiveOverlay(true);
         return;
       }
+      if (isShareUrl(url)) {
+        // iOS 哑扩展暂存完成后的唤醒:打开分享弹层(冷启动)
+        setAppMode('home');
+        useShareSheetStore.getState().open();
+        return;
+      }
       const processText = parseProcessTextUrl(url);
       if (processText) {
         setAppMode('home');
@@ -252,6 +265,11 @@ export default function App() {
         setShareReceiveOverlay(true);
         return;
       }
+      if (isShareUrl(url)) {
+        // iOS 哑扩展暂存完成后的唤醒:打开分享弹层(热启动)
+        useShareSheetStore.getState().open();
+        return;
+      }
       const processText = parseProcessTextUrl(url);
       if (processText) {
         setProcessTextOverlay(processText);
@@ -274,18 +292,10 @@ export default function App() {
         {appMode === 'checking' ? null : <AppNavigator />}
         {shareReceiveOverlay && (
           <View style={StyleSheet.absoluteFill}>
-            <ShareReceiveScreen
-              onComplete={(returnToSource) => {
-                // 先关 overlay 露出底层主界面。
+            <ShareReceiveRedirector
+              onComplete={() => {
+                // 先关 overlay 露出底层主界面;分享弹层由 useShareSheetStore 打开。
                 setShareReceiveOverlay(false);
-                // 外部 app（相册/浏览器/文件等）发起的分享 → moveTaskToBack 把 task 退到后台，
-                // 系统显示 task 栈中 UniClip 下方的来源 app，符合「分享目标」的标准行为。
-                // 截图等系统 UI 发起的分享 → returnToSource=false，留在 app 内
-                //（这类分享 moveTaskToBack 会退到桌面，体验差）。
-                // 用 moveTaskToBack 而非 exitApp，保持 Activity 存活以维持后台同步任务。
-                if (returnToSource) {
-                  moveTaskToBack();
-                }
               }}
             />
           </View>

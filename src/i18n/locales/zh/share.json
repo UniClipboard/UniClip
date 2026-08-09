@@ -20,5 +20,25 @@
   },
   "serviceRestart": {
     "restored": "服务已恢复"
+  },
+  "send": {
+    "title": "分享",
+    "empty": "暂无待发送内容",
+    "claimFailed": "加载待发送内容失败，请稍后重试",
+    "devices": "发送到设备",
+    "noDevices": "暂无设备",
+    "sendAll": "发送",
+    "done": "完成",
+    "cancel": "取消",
+    "retry": "重试",
+    "delete": "删除",
+    "deleteConfirmTitle": "删除分享内容？",
+    "deleteConfirmMessage": "删除后不可恢复。",
+    "sending": "发送中…",
+    "success": "发送成功",
+    "failed": "发送失败",
+    "selectHint": "选择要发送的设备",
+    "localDevice": "本机",
+    "allDevices": "全部设备"
   }
 }

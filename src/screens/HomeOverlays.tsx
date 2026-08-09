@@ -2,8 +2,10 @@ import React from 'react';
 import { ConnectedMessageToast } from '@/components/ConnectedMessageToast';
 import { HistoryFilterSheet } from '@/components/HistoryFilterSheet';
 import { MySpaceSheet } from '@/components/MySpaceSheet';
+import { ShareSendSheet } from '@/components/ShareSendSheet';
 import { WordPickerOverlay } from '@/components/WordPickerOverlay';
 import { CardContextOverlay } from '@/components/CardContextOverlay';
+import { useShareSheetStore } from '@/stores/shareSheetStore';
 import type { HomeController } from './useHomeController';
 
 /**
@@ -11,6 +13,7 @@ import type { HomeController } from './useHomeController';
  * 不参与主体布局,放在一处避免两个布局各写一份。各浮层组件本身已按平台拆分。
  */
 export function HomeOverlays({ c }: { c: HomeController }) {
+  const shareVisible = useShareSheetStore((s) => s.visible);
   return (
     <>
       <ConnectedMessageToast />
@@ -27,6 +30,11 @@ export function HomeOverlays({ c }: { c: HomeController }) {
       />
 
       <MySpaceSheet visible={c.showMySpace} onClose={() => c.setShowMySpace(false)} />
+
+      <ShareSendSheet
+        visible={shareVisible}
+        onClose={() => useShareSheetStore.getState().close()}
+      />
 
       {c.wordPickerTarget && (
         <WordPickerOverlay

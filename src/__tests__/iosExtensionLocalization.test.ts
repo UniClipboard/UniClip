@@ -2,9 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const locales = ['zh-Hans', 'en', 'ru', 'pt-BR'] as const;
-const extensionTargets = ['share', 'keyboard'] as const;
+// The dumb Share extension ships no UI strings anymore; only the keyboard
+// extension still has localized resources.
+const extensionTargets = ['keyboard'] as const;
 const swiftSources = {
-  share: ['ShareRootView.swift', 'ShareItem.swift'],
   keyboard: ['KeyboardRootView.swift', 'KeyboardModel.swift', 'KeyboardModel+Localization.swift'],
 } as const;
 

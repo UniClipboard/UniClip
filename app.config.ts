@@ -57,6 +57,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   return {
     ...(config as ExpoConfig),
     name: `${config.name ?? 'UniClip'}${NAME_SUFFIX}`,
+    scheme: IS_PRODUCTION ? 'uniclipboard' : 'uniclipboard-dev',
     ios: {
       ...ios,
       bundleIdentifier: IOS_BUNDLE_ID,

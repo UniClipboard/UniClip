@@ -4,5 +4,5 @@
 
 export { OnboardingScreen } from './OnboardingScreen';
 export { SettingsScreen } from './SettingsScreen';
-export { ShareReceiveScreen } from './ShareReceiveScreen';
+export { ShareReceiveRedirector } from './ShareReceiveRedirector';
 export { ProcessTextScreen } from './ProcessTextScreen';

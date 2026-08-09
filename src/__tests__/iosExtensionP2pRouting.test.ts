@@ -22,11 +22,13 @@ describe('iOS extension P2P routing', () => {
     expect(module).toContain('import UcEngineCore');
     expect(router).toContain('import UcEngineCore');
 
-    for (const target of ['keyboard', 'share']) {
-      const pods = readProjectFile(`targets/${target}/pods.rb`);
-      expect(pods).toContain("pod 'UcEngineCore'");
-      expect(pods).not.toMatch(/pod 'UcEngine',/);
-    }
+    // The keyboard extension links the engine core; the dumb Share extension
+    // must build without it (spec AC7).
+    const keyboardPods = readProjectFile('targets/keyboard/pods.rb');
+    expect(keyboardPods).toContain("pod 'UcEngineCore'");
+    expect(keyboardPods).not.toMatch(/pod 'UcEngine',/);
+    const sharePods = readProjectFile('targets/share/pods.rb');
+    expect(sharePods).not.toContain('UcEngineCore');
 
     const corePodspec = readProjectFile('modules/uc-engine/ios/UcEngineCore.podspec');
     expect(corePodspec).not.toContain('ExpoModulesCore');
@@ -34,16 +36,16 @@ describe('iOS extension P2P routing', () => {
     expect(corePodspec).toContain('s.vendored_frameworks');
   });
 
-  it('routes both extensions through P2P only', () => {
+  it('routes the keyboard extension through P2P only, and keeps the Share target P2P-free', () => {
     const router = readProjectFile('targets/_shared/ExtensionSyncRouter.swift');
     const keyboard = readProjectFile('targets/keyboard/KeyboardModel.swift');
-    const share = readProjectFile('targets/share/ShareUploader.swift');
+    const shareController = readProjectFile('targets/share/ShareViewController.swift');
 
     expect(router).not.toContain('ExtensionSyncChannel');
     expect(router).not.toContain('settings.syncChannel');
     expect(router).not.toMatch(/\bLAN\b|\blan\b/);
     expect(keyboard).toContain('ExtensionSyncRouter');
-    expect(share).toContain('ExtensionSyncRouter');
+    expect(shareController).not.toMatch(/ExtensionSyncRouter|ExtensionP2pClient|UcEngineCore/);
   });
 
   it('uses one protected P2P store for the app and both extensions', () => {
@@ -236,26 +238,22 @@ describe('iOS extension P2P routing', () => {
     expect(keyboard).toMatch(/func stopMonitoring\(\)[\s\S]*?stopP2pSession\(\)/);
   });
 
-  it('keeps the Share P2P session alive until deferred downloads finish', () => {
+  it('keeps no Share P2P session: the extension only extracts, stages, and wakes the app', () => {
     const coordinator = readProjectFile('modules/uc-engine/ios/ExtensionSyncCoordinator.swift');
     const host = readProjectFile('modules/uc-engine/ios/SharedEngineHost.swift');
     const router = readProjectFile('targets/_shared/ExtensionSyncRouter.swift');
-    const uploader = readProjectFile('targets/share/ShareUploader.swift');
-    const rootView = readProjectFile('targets/share/ShareRootView.swift');
+    const viewController = readProjectFile('targets/share/ShareViewController.swift');
+    const item = readProjectFile('targets/share/ShareItem.swift');
 
+    // The engine still supports outbound delivery for the keyboard; the Share
+    // target no longer references any of it.
     expect(coordinator).toContain('waitForOutboundDelivery(');
-    expect(host).toContain('case .transferProgress(');
-    expect(host).toContain('case .transferStatusChanged(');
     expect(host).toContain('public func waitForOutboundDelivery(');
     expect(router).toContain('defer { client.shutdown() }');
-    expect(router).toContain('expectedReceiverCount: delivery.accepted');
-    expect(router).toContain('requiresRemoteDownloadForImage(byteCount: bytes.count)');
-    expect(uploader).toMatch(/func uploadP2p\([\s\S]*?_ item: ShareItem,[\s\S]*?onStage:/);
-    expect(uploader).toContain('try await ExtensionSyncExecutor.run');
-    expect(rootView).toMatch(
-      /try await ShareUploader\(\)\.uploadP2p\([\s\S]*?item,[\s\S]*?targetDevices: targetDevices,[\s\S]*?diagnostics: diagnostics/
+    expect(viewController).not.toMatch(
+      /ShareUploader|uploadP2p|ExtensionSyncExecutor|ExtensionSyncRouter/
     );
-    expect(rootView).not.toContain('try ShareUploader().uploadP2p(item)');
+    expect(item).not.toMatch(/ExtensionSyncRouter|UcEngineCore/);
   });
 
   it('keeps outbound file handles readable until the Share P2P session shuts down', () => {

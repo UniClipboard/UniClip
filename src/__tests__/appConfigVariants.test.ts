@@ -33,6 +33,7 @@ describe('Expo app config variants', () => {
     const extensions = config.extra.eas.build.experimental.ios.appExtensions;
 
     expect(config.name).toBe('UniClip Dev');
+    expect(config.scheme).toBe('uniclipboard-dev');
     expect(config.ios.bundleIdentifier).toBe('app.uniclipboard.UniClipboard.dev');
     expect(config.ios.infoPlist.UCAppGroupIdentifier).toBe(
       'group.app.uniclipboard.UniClipboard.dev'
@@ -70,6 +71,7 @@ describe('Expo app config variants', () => {
     const extensions = config.extra.eas.build.experimental.ios.appExtensions;
 
     expect(config.name).toBe('UniClip');
+    expect(config.scheme).toBe('uniclipboard');
     expect(config.ios.bundleIdentifier).toBe('app.uniclipboard.UniClipboard');
     expect(config.ios.infoPlist.UCAppGroupIdentifier).toBe('group.app.uniclipboard.UniClipboard');
     expect(config.ios.infoPlist.UCP2PKeychainAccessGroup).toBe(
@@ -142,6 +144,12 @@ describe('Expo app config variants', () => {
       expect(source).not.toContain('UC_APP_GROUP');
       expect(source).not.toContain('withExtensionAppGroupBuildSetting');
     }
+  });
+
+  it('keeps the checked-in development iOS project on its isolated URL scheme', () => {
+    const infoPlist = readFileSync(path.join(process.cwd(), 'ios/UniClipDev/Info.plist'), 'utf8');
+    expect(infoPlist).toContain('<string>uniclipboard-dev</string>');
+    expect(infoPlist).not.toContain('<string>uniclipboard</string>');
   });
 
   it('resolves the extension P2P keychain group from the active app variant', () => {

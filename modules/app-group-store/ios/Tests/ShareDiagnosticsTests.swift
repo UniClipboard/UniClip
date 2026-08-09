@@ -61,6 +61,32 @@ final class ShareDiagnosticsTests: XCTestCase {
     XCTAssertFalse(serialized.contains("peerId"))
   }
 
+  func testRecordAppendsToAnExistingAttemptById() throws {
+    let store = try ShareDiagnosticsStore(containerURL: containerURL)
+    _ = try store.startAttempt(
+      id: "attempt-cont",
+      itemKind: .image,
+      byteCount: 1024,
+      startedAtMs: 5_000
+    )
+
+    store.record(stage: .staged, for: "attempt-cont", timestampMs: 5_500)
+    store.record(
+      stage: .failed,
+      error: ShareDiagnosticError(code: .handoffFailed),
+      for: "attempt-cont",
+      timestampMs: 5_600
+    )
+    // Unknown attempt ids must not create or corrupt anything.
+    store.record(stage: .sent, for: "no-such-attempt")
+
+    let attempt = try XCTUnwrap(store.loadArchive(nowMs: 6_000).attempts.first)
+    XCTAssertEqual(attempt.id, "attempt-cont")
+    XCTAssertEqual(attempt.events.map(\.stage), [.staged, .failed])
+    XCTAssertEqual(attempt.events.map(\.elapsedMs), [500, 600])
+    XCTAssertEqual(attempt.events[1].error?.code, .handoffFailed)
+  }
+
   func testRetentionKeepsNewestFiftyAttemptsFromLastThreeDays() throws {
     let dayMs: Int64 = 24 * 60 * 60 * 1_000
     let nowMs: Int64 = 10 * dayMs

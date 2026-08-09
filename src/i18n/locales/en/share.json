@@ -20,5 +20,25 @@
   },
   "serviceRestart": {
     "restored": "Service restored"
+  },
+  "send": {
+    "title": "Share",
+    "empty": "Nothing to send yet",
+    "claimFailed": "Couldn't load pending shares. Please try again later.",
+    "devices": "Send to devices",
+    "noDevices": "No devices yet",
+    "sendAll": "Send",
+    "done": "Done",
+    "cancel": "Cancel",
+    "retry": "Retry",
+    "delete": "Delete",
+    "deleteConfirmTitle": "Delete shared content?",
+    "deleteConfirmMessage": "This cannot be undone.",
+    "sending": "Sending…",
+    "success": "Sent",
+    "failed": "Send failed",
+    "selectHint": "Choose devices to send to",
+    "localDevice": "This device",
+    "allDevices": "All devices"
   }
 }

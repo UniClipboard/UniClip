@@ -1,98 +1,73 @@
 /// <reference types="jest" />
 
-import type { OutboundShareJobDTO } from '../../modules/app-group-store/src/index';
+import type {
+  PendingShareJob,
+  PendingShareStore,
+} from '../features/transfer/internal/pendingShareStore';
 import { OutboundShareHandoffManager } from '../features/transfer/internal/outboundShareHandoffManager';
 
-const job: OutboundShareJobDTO = {
+const job: PendingShareJob = {
   id: 'job-1',
+  kind: 'file',
   fileUri: 'file:///group/outbound-handoff/files/job-1.payload',
   displayName: 'archive.zip',
   byteCount: 100 * 1024 * 1024 + 1,
   mimeType: 'application/zip',
-  targetDeviceIds: ['desktop-1'],
   createdAtMs: 1_700_000_000_000,
 };
 
-function dependencies(overrides: Record<string, unknown> = {}) {
+function store(overrides: Record<string, unknown> = {}): PendingShareStore {
   return {
-    claimJobs: jest.fn(async () => [job]),
+    claimPending: jest.fn(async () => [job]),
     completeJob: jest.fn(async () => {}),
     releaseJob: jest.fn(async () => {}),
-    importFile: jest.fn(async () => ({
-      profileHash: 'HASH',
-      fileUri: 'file:///group/payloads/File-HASH',
-      fileName: 'archive.zip',
-      fileSize: job.byteCount,
-      contentType: 'File' as const,
-    })),
-    sendImportedAsset: jest.fn(async () => ({
-      success: true,
-      deliveryState: 'delivered' as const,
-    })),
+    stageText: jest.fn(async () => job),
+    stageAsset: jest.fn(async () => job),
+    cleanup: jest.fn(async () => {}),
+    contentPersistedOnStage: true,
     ...overrides,
-  };
+  } as unknown as PendingShareStore;
 }
 
 describe('OutboundShareHandoffManager', () => {
-  it('imports and sends a claimed file to its selected devices before completing it', async () => {
-    const deps = dependencies();
+  it('claims pending jobs once and coalesces concurrent claims', async () => {
+    const deps = store();
     const manager = new OutboundShareHandoffManager(deps);
 
-    await expect(manager.resume()).resolves.toEqual({ completed: 1, deferred: 0 });
+    const first = manager.claimPending();
+    const second = manager.claimPending();
 
-    expect(deps.importFile).toHaveBeenCalledWith(
-      job.fileUri,
-      job.displayName,
-      job.mimeType,
-      job.byteCount,
-      { skipInitialCopyOnIOS: true }
-    );
-    expect(deps.sendImportedAsset).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'file', fileName: 'archive.zip' }),
-      'HASH',
-      {
-        targetDeviceIds: ['desktop-1'],
-      }
-    );
-    expect(deps.completeJob).toHaveBeenCalledWith('job-1');
-    expect(deps.releaseJob).not.toHaveBeenCalled();
+    await expect(first).resolves.toEqual([job]);
+    await expect(second).resolves.toEqual([job]);
+    expect(deps.claimPending).toHaveBeenCalledTimes(1);
   });
 
-  it.each(['partial', 'pending', 'failed', 'offline'] as const)(
-    'releases a P2P job when delivery is %s',
-    async (deliveryState) => {
-      const deps = dependencies({
-        sendImportedAsset: jest.fn(async () => ({
-          success: false,
-          deliveryState,
-        })),
-      });
-
-      await expect(new OutboundShareHandoffManager(deps).resume()).resolves.toEqual({
-        completed: 0,
-        deferred: 1,
-      });
-
-      expect(deps.releaseJob).toHaveBeenCalledWith('job-1');
-      expect(deps.completeJob).not.toHaveBeenCalled();
-    }
-  );
-
-  it('releases a job after an import or send error and coalesces concurrent resumes', async () => {
-    let rejectImport!: (error: Error) => void;
-    const importPromise = new Promise<never>((_resolve, reject) => {
-      rejectImport = reject;
-    });
-    const deps = dependencies({ importFile: jest.fn(() => importPromise) });
+  it('re-claims after the previous claim settles', async () => {
+    const deps = store();
     const manager = new OutboundShareHandoffManager(deps);
 
-    const first = manager.resume();
-    const second = manager.resume();
-    rejectImport(new Error('disk unavailable'));
+    await expect(manager.claimPending()).resolves.toEqual([job]);
+    await expect(manager.claimPending()).resolves.toEqual([job]);
+    expect(deps.claimPending).toHaveBeenCalledTimes(2);
+  });
 
-    await expect(first).resolves.toEqual({ completed: 0, deferred: 1 });
-    await expect(second).resolves.toEqual({ completed: 0, deferred: 1 });
-    expect(deps.claimJobs).toHaveBeenCalledTimes(1);
+  it('surfaces claim failures to the caller', async () => {
+    const deps = store({ claimPending: jest.fn(async () => Promise.reject(new Error('busy'))) });
+    const manager = new OutboundShareHandoffManager(deps);
+
+    await expect(manager.claimPending()).rejects.toThrow('busy');
+  });
+
+  it('delegates complete and release to the store without throwing on store errors', async () => {
+    const deps = store({
+      completeJob: jest.fn(async () => Promise.reject(new Error('disk unavailable'))),
+      releaseJob: jest.fn(async () => Promise.reject(new Error('disk unavailable'))),
+    });
+    const manager = new OutboundShareHandoffManager(deps);
+
+    await expect(manager.completeJob('job-1')).resolves.toBeUndefined();
+    await expect(manager.releaseJob('job-1')).resolves.toBeUndefined();
+    expect(deps.completeJob).toHaveBeenCalledWith('job-1');
     expect(deps.releaseJob).toHaveBeenCalledWith('job-1');
   });
 });

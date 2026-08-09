@@ -20,43 +20,53 @@ final class OutboundShareHandoffTests: XCTestCase {
     containerURL = nil
   }
 
-  func testDirectSendLimitIncludesExactlyOneHundredMiB() {
-    let limit = Int64(100 * 1024 * 1024)
-    XCTAssertTrue(OutboundShareStore.shouldSendDirectly(byteCount: limit))
-    XCTAssertFalse(OutboundShareStore.shouldSendDirectly(byteCount: limit + 1))
+  func testStageTextWritesUtf8PayloadWithTextKind() throws {
+    let staged = try store.stageText("你好,世界")
+
+    XCTAssertEqual(staged.kind, .text)
+    XCTAssertEqual(staged.displayName, "分享的文本.txt")
+    XCTAssertEqual(staged.mimeType, "text/plain")
+    XCTAssertEqual(try Data(contentsOf: staged.url), Data("你好,世界".utf8))
+    XCTAssertEqual(staged.byteCount, Int64("你好,世界".utf8.count))
   }
 
-  func testConnectionTimeoutHandsOffOnlyFiles() {
-    XCTAssertTrue(
-      OutboundShareFallbackPolicy.shouldHandoff(
-        itemIsFile: true,
-        connectionTimedOut: true
-      )
+  func testStageDataAndStageFileCarryTheirJobKinds() throws {
+    let image = try store.stageData(
+      Data([0xFF, 0xD8]),
+      displayName: "photo.jpg",
+      mimeType: "image/jpeg",
+      kind: .image
     )
-    XCTAssertFalse(
-      OutboundShareFallbackPolicy.shouldHandoff(
-        itemIsFile: false,
-        connectionTimedOut: true
-      )
-    )
-    XCTAssertFalse(
-      OutboundShareFallbackPolicy.shouldHandoff(
-        itemIsFile: true,
-        connectionTimedOut: false
-      )
-    )
-  }
+    XCTAssertEqual(image.kind, .image)
 
-  func testStageFileCopiesEveryChunkAndPreservesContent() throws {
     let source = containerURL.appendingPathComponent("source.bin")
-    let expected = Data((0..<(2 * 1024 * 1024 + 73)).map { UInt8($0 % 251) })
-    try expected.write(to: source)
+    try Data([1, 2, 3]).write(to: source)
+    let file = try store.stageFile(at: source, displayName: "archive.bin")
+    XCTAssertEqual(file.kind, .file)
+  }
 
-    let staged = try store.stageFile(at: source, displayName: "../archive.bin")
+  func testEnqueuedJobPersistsKindAndLegacyJsonDefaultsToFile() throws {
+    let staged = try store.stageText("legacy compat")
+    let job = try store.enqueue(staged)
+    XCTAssertEqual(job.kind, .text)
+    XCTAssertEqual(try store.claimPendingJobs().map(\.job), [job])
+    try store.completeJob(id: job.id)
 
-    XCTAssertEqual(staged.displayName, "archive.bin")
-    XCTAssertEqual(staged.byteCount, Int64(expected.count))
-    XCTAssertEqual(try Data(contentsOf: staged.url), expected)
+    let legacyRecord = containerURL
+      .appendingPathComponent("outbound-handoff/pending/legacy-1.json")
+    let recentMs = Int64(Date().timeIntervalSince1970 * 1_000)
+    let legacyJSON = """
+    {"id":"legacy-1","displayName":"old.bin","byteCount":3,"mimeType":null,
+     "targetDeviceIds":["desktop-1"],"createdAtMs":\(recentMs)}
+    """
+    try Data(legacyJSON.utf8).write(to: legacyRecord, options: .atomic)
+    try Data([1, 2, 3]).write(
+      to: containerURL.appendingPathComponent("outbound-handoff/files/legacy-1.payload")
+    )
+
+    let claimed = try store.claimPendingJobs()
+    XCTAssertEqual(claimed.map(\.job.kind), [.file])
+    XCTAssertEqual(claimed.first?.job.targetDeviceIds, ["desktop-1"])
   }
 
   func testPendingJobCanBeClaimedReleasedClaimedAndCompleted() throws {

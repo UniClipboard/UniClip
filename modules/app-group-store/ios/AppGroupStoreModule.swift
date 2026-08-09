@@ -107,6 +107,18 @@ public class AppGroupStoreModule: Module {
       try OutboundShareStore().releaseJob(id: id)
     }
 
+    AsyncFunction("recordShareDiagnosticStage") {
+      (attemptId: String, stage: String, errorCode: String?) throws -> Void in
+      guard let containerURL = FileManager.default.containerURL(
+        forSecurityApplicationGroupIdentifier: SettingsStore.appGroupID
+      ) else { return }
+      let store = try ShareDiagnosticsStore(containerURL: containerURL)
+      guard let stage = ShareDiagnosticStage(rawValue: stage) else { return }
+      let error = errorCode.flatMap { ShareDiagnosticErrorCode(rawValue: $0) }
+        .map { ShareDiagnosticError(code: $0) }
+      store.record(stage: stage, error: error, for: attemptId)
+    }
+
     AsyncFunction("importPayloadFile") { (profileId: String, sourceUri: String) throws -> String? in
       try self.importPayloadFile(profileId: profileId, sourceUri: sourceUri)
     }
@@ -149,6 +161,7 @@ public class AppGroupStoreModule: Module {
       let job = claimed.job
       return [
         "id": job.id,
+        "kind": job.kind.rawValue,
         "fileUri": claimed.fileURL.absoluteString,
         "displayName": job.displayName,
         "byteCount": job.byteCount,

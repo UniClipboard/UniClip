@@ -20,5 +20,25 @@
   },
   "serviceRestart": {
     "restored": "Serviço restaurado"
+  },
+  "send": {
+    "title": "Compartilhar",
+    "empty": "Nada para enviar ainda",
+    "claimFailed": "Não foi possível carregar os compartilhamentos pendentes. Tente novamente mais tarde.",
+    "devices": "Enviar para dispositivos",
+    "noDevices": "Nenhum dispositivo ainda",
+    "sendAll": "Enviar",
+    "done": "Concluído",
+    "cancel": "Cancelar",
+    "retry": "Tentar novamente",
+    "delete": "Excluir",
+    "deleteConfirmTitle": "Excluir conteúdo compartilhado?",
+    "deleteConfirmMessage": "Esta ação não pode ser desfeita.",
+    "sending": "Enviando…",
+    "success": "Enviado",
+    "failed": "Falha no envio",
+    "selectHint": "Escolha os dispositivos de destino",
+    "localDevice": "Este dispositivo",
+    "allDevices": "Todos os dispositivos"
   }
 }

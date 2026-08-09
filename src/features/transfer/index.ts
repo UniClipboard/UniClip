@@ -20,10 +20,19 @@ export {
 } from './internal/outboundDeliveryCoordinator';
 export {
   configureOutboundShareHandoffManager,
+  getOutboundShareHandoffManager,
   OutboundShareHandoffManager,
-  resumeOutboundShareHandoffs,
-  type OutboundShareResumeSummary,
+  resetOutboundShareHandoffManagerForTest,
 } from './internal/outboundShareHandoffManager';
+export {
+  AndroidPendingShareStore,
+  createPendingShareStore,
+  IosPendingShareStore,
+  resetPendingShareStoreForTest,
+  type PendingShareJob,
+  type PendingShareKind,
+  type PendingShareStore,
+} from './internal/pendingShareStore';
 export {
   p2pDeliveryCountsFromReport,
   p2pDeliveryCountsFromResend,

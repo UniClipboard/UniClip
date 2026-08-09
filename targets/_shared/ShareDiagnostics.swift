@@ -8,6 +8,8 @@ public enum ShareDiagnosticItemKind: String, Codable, Equatable, Sendable {
 
 public enum ShareDiagnosticStage: String, Codable, Equatable, Sendable {
   case attemptStarted = "attempt_started"
+  case staged
+  case stagedFailed = "staged_failed"
   case handoffStarted = "handoff_started"
   case handoffQueued = "handoff_queued"
   case routePrepared = "route_prepared"
@@ -155,6 +157,26 @@ public struct ShareDiagnosticEvent: Codable, Equatable, Sendable {
   public let peerRefresh: ShareDiagnosticPeerRefresh?
   public let delivery: ShareDiagnosticDelivery?
   public let error: ShareDiagnosticError?
+
+  public init(
+    timestampMs: Int64,
+    elapsedMs: Int64,
+    stage: ShareDiagnosticStage,
+    network: ShareDiagnosticNetwork? = nil,
+    route: ShareDiagnosticRoute? = nil,
+    peerRefresh: ShareDiagnosticPeerRefresh? = nil,
+    delivery: ShareDiagnosticDelivery? = nil,
+    error: ShareDiagnosticError? = nil
+  ) {
+    self.timestampMs = timestampMs
+    self.elapsedMs = elapsedMs
+    self.stage = stage
+    self.network = network
+    self.route = route
+    self.peerRefresh = peerRefresh
+    self.delivery = delivery
+    self.error = error
+  }
 }
 
 public struct ShareDiagnosticAttempt: Codable, Equatable, Sendable {
@@ -242,6 +264,33 @@ public final class ShareDiagnosticsStore: @unchecked Sendable {
   fileprivate func persist(_ attempt: ShareDiagnosticAttempt) throws {
     let data = try encoder.encode(attempt)
     try data.write(to: fileURL(for: attempt.id), options: .atomic)
+  }
+
+  /// Appends an event to an already-started attempt (for example, the main
+  /// app continuing a share attempt that the extension staged). No-op when
+  /// the attempt id is unknown or invalid.
+  public func record(
+    stage: ShareDiagnosticStage,
+    error: ShareDiagnosticError? = nil,
+    for attemptID: String,
+    timestampMs: Int64 = Int64(Date().timeIntervalSince1970 * 1_000)
+  ) {
+    guard Self.isValidAttemptID(attemptID),
+          var attempt = loadAttempt(id: attemptID)
+    else { return }
+    attempt.events.append(ShareDiagnosticEvent(
+      timestampMs: timestampMs,
+      elapsedMs: max(0, timestampMs - attempt.startedAtMs),
+      stage: stage,
+      error: error
+    ))
+    try? persist(attempt)
+  }
+
+  private func loadAttempt(id: String) -> ShareDiagnosticAttempt? {
+    let url = fileURL(for: id)
+    guard let data = try? Data(contentsOf: url) else { return nil }
+    return try? decoder.decode(ShareDiagnosticAttempt.self, from: data)
   }
 
   private func prune(nowMs: Int64) {

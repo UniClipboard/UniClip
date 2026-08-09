@@ -14,10 +14,8 @@ import { configureUnifiedSpaceService, getUnifiedSpaceService } from '@/features
 import {
   configureClipboardObserver,
   configureOutboundDeliveryCoordinator,
-  configureOutboundShareHandoffManager,
   configureUnifiedContentService,
   getOutboundDeliveryCoordinator,
-  getUnifiedContentService,
 } from '@/features/transfer';
 import { clipboardManager, useClipboardStore } from '@/features/clipboard';
 import { persistP2pDeliveryReport } from '@/features/transfer';
@@ -26,12 +24,7 @@ import { configureRelaySettings } from '@/features/relaySettings';
 import { configureNetworkContextChangeListener } from '@/platform/network';
 import { configurePostHogAnalytics } from '@/support/observability';
 import { useStatisticsStore } from '@/stores/statisticsStore';
-import { importFileToHistory } from '@/utils/uploadFile';
-import {
-  claimOutboundShareJobs,
-  completeOutboundShareJob,
-  releaseOutboundShareJob,
-} from 'app-group-store';
+import { configureOutboundShareHandoffManager, createPendingShareStore } from '@/features/transfer';
 
 let configured = false;
 
@@ -47,14 +40,7 @@ export function configureAppRuntime(): void {
     completeOutboundDelivery: (send) => getOutboundDeliveryCoordinator().run(send),
     persistDelivery: persistP2pDeliveryReport,
   });
-  configureOutboundShareHandoffManager({
-    claimJobs: claimOutboundShareJobs,
-    completeJob: completeOutboundShareJob,
-    releaseJob: releaseOutboundShareJob,
-    importFile: importFileToHistory,
-    sendImportedAsset: (asset, profileHash, options) =>
-      getUnifiedContentService().sendImportedAsset(asset, profileHash, options),
-  });
+  configureOutboundShareHandoffManager(createPendingShareStore());
   configureClipboardObserver((content, dispatch) =>
     content.type === 'Text' && content.text
       ? nativeEngine.observeClipboardTextChange(content.text, dispatch)

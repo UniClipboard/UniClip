@@ -19,6 +19,11 @@ interface AppGroupStoreNativeModule {
   claimOutboundShareJobs(): Promise<OutboundShareJobDTO[]>;
   completeOutboundShareJob(id: string): Promise<void>;
   releaseOutboundShareJob(id: string): Promise<void>;
+  recordShareDiagnosticStage?(
+    attemptId: string,
+    stage: string,
+    errorCode: string | null
+  ): Promise<void>;
   importPayloadFile(profileId: string, sourceUri: string): Promise<string | null>;
 }
 
@@ -133,6 +138,11 @@ export interface ShareDiagnosticsArchiveDTO {
 
 export interface OutboundShareJobDTO {
   id: string;
+  /**
+   * Content kind carried by the payload file. Records written by older app
+   * versions carry no key and decode as `'file'` (kept claimable).
+   */
+  kind: 'text' | 'image' | 'file';
   fileUri: string;
   displayName: string;
   byteCount: number;
@@ -216,9 +226,11 @@ export function getPayloadStats(): Promise<PayloadStats> {
   return NativeModule?.getPayloadStats() ?? Promise.resolve(EMPTY_PAYLOAD_STATS);
 }
 
-export function claimOutboundShareJobs(): Promise<OutboundShareJobDTO[]> {
-  if (typeof NativeModule?.claimOutboundShareJobs !== 'function') return Promise.resolve([]);
-  return NativeModule.claimOutboundShareJobs();
+export async function claimOutboundShareJobs(): Promise<OutboundShareJobDTO[]> {
+  if (typeof NativeModule?.claimOutboundShareJobs !== 'function') return [];
+  const jobs = await NativeModule.claimOutboundShareJobs();
+  // 旧版扩展入队的 job 无 kind 字段:按 §3.1 兼容契约默认 'file'。
+  return jobs.map((job) => ({ ...job, kind: job.kind ?? ('file' as const) }));
 }
 
 export function completeOutboundShareJob(id: string): Promise<void> {
@@ -229,6 +241,20 @@ export function completeOutboundShareJob(id: string): Promise<void> {
 export function releaseOutboundShareJob(id: string): Promise<void> {
   if (typeof NativeModule?.releaseOutboundShareJob !== 'function') return Promise.resolve();
   return NativeModule.releaseOutboundShareJob(id);
+}
+
+/**
+ * Appends one diagnostic event to an existing share attempt (started by the
+ * share extension with the same attempt id as the job id). No-op when the
+ * native module is unavailable or the attempt id is unknown.
+ */
+export function recordShareDiagnosticStage(
+  attemptId: string,
+  stage: string,
+  errorCode?: string
+): Promise<void> {
+  if (typeof NativeModule?.recordShareDiagnosticStage !== 'function') return Promise.resolve();
+  return NativeModule.recordShareDiagnosticStage(attemptId, stage, errorCode ?? null);
 }
 
 export function importPayloadFile(profileId: string, sourceUri: string): Promise<string | null> {

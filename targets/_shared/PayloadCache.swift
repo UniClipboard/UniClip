@@ -84,6 +84,30 @@ public actor PayloadCache {
         return url
     }
 
+    /// Copy an already-staged payload without materializing it in memory.
+    /// Share extensions use this for images and files before exposing the
+    /// corresponding history row to the main app.
+    @discardableResult
+    public func writeFile(profileId: String, from sourceURL: URL) throws -> URL {
+        guard isValidKey(profileId), sourceURL.isFileURL else {
+            throw CacheError.invalidKey(profileId)
+        }
+
+        var targetURL = directory.appendingPathComponent(profileId)
+        let temporaryURL = directory.appendingPathComponent("\(profileId).staging")
+        try? FileManager.default.removeItem(at: temporaryURL)
+        defer { try? FileManager.default.removeItem(at: temporaryURL) }
+
+        try FileManager.default.copyItem(at: sourceURL, to: temporaryURL)
+        try? FileManager.default.removeItem(at: targetURL)
+        try FileManager.default.moveItem(at: temporaryURL, to: targetURL)
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        try? targetURL.setResourceValues(values)
+        evictIfOverCapacity()
+        return targetURL
+    }
+
     /// Remove one entry. No-op if missing.
     public func delete(profileId: String) {
         guard isValidKey(profileId) else { return }

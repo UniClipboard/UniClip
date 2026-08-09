@@ -51,24 +51,17 @@ enum ShareItem: Equatable, Sendable {
 /// type identifiers in priority order: URL > text > image > file. The
 /// system already filtered to types declared in our `NSExtensionActivationRule`,
 /// so the failure mode here is "the source app advertised a UTI it can't
-/// fulfill" which we surface to the user as `.noUsableAttachment`.
+/// fulfill" which surfaces as `.noUsableAttachment`.
 enum ShareItemError: Error, LocalizedError {
     case noInputItems
     case noUsableAttachment
     case loadFailed(String)
 
     var errorDescription: String? {
-        message(using: ExtensionLocalization())
-    }
-
-    func message(using localization: ExtensionLocalization) -> String {
         switch self {
-        case .noInputItems:
-            return localization.string("没有可分享的内容")
-        case .noUsableAttachment:
-            return localization.string("暂不支持这种内容")
-        case .loadFailed(let reason):
-            return localization.string("读取分享内容失败: %@", reason)
+        case .noInputItems: return "noInputItems"
+        case .noUsableAttachment: return "noUsableAttachment"
+        case .loadFailed(let reason): return "loadFailed: \(reason)"
         }
     }
 }
@@ -149,6 +142,18 @@ enum ShareItemExtractor {
         }
 
         throw ShareItemError.noUsableAttachment
+    }
+
+    // MARK: - Staging dispatch (dumb extension)
+
+    fileprivate static func imageMimeType(forExtension ext: String) -> String? {
+        switch ext.lowercased() {
+        case "png": return "image/png"
+        case "heic": return "image/heic"
+        case "jpg", "jpeg": return "image/jpeg"
+        case "gif": return "image/gif"
+        default: return nil
+        }
     }
 
     // MARK: - NSItemProvider async wrappers
@@ -261,6 +266,28 @@ enum ShareItemExtractor {
                 if let err { continuation.resume(throwing: ShareItemError.loadFailed("\(err)")); return }
                 continuation.resume(returning: data)
             }
+        }
+    }
+}
+
+/// Dumb-extension staging: dispatches a shared item by kind into the
+/// outbound queue (spec §5.1). Text becomes a UTF-8 payload file; images are
+/// staged as raw bytes; files reuse the file already staged during extraction
+/// (no double copy).
+extension OutboundShareStore {
+    func stage(_ item: ShareItem) throws -> StagedShareFile {
+        switch item {
+        case .text(let text):
+            return try stageText(text)
+        case .image(let data, let ext):
+            return try stageData(
+                data,
+                displayName: "image.\(ext)",
+                mimeType: ShareItemExtractor.imageMimeType(forExtension: ext),
+                kind: .image
+            )
+        case .file(let staged):
+            return staged
         }
     }
 }

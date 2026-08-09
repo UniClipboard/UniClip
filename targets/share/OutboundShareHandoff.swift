@@ -1,23 +1,62 @@
 import CryptoKit
 import Foundation
 
+enum JobKind: String, Codable, Sendable {
+    case text
+    case image
+    case file
+}
+
 struct StagedShareFile: Equatable, Sendable {
     let id: String
     let url: URL
     let displayName: String
     let byteCount: Int64
     let mimeType: String?
+    let kind: JobKind
 }
 
 struct OutboundShareJob: Codable, Equatable, Sendable {
     let id: String
+    /// Records written by earlier app versions carry no `kind` key; the
+    /// custom decoder defaults them to `.file` so old handoffs stay claimable.
+    let kind: JobKind
     let displayName: String
     let byteCount: Int64
     let mimeType: String?
-    /// Nil keeps handoffs created by earlier app versions compatible and
-    /// retains their legacy all-recipients behavior.
+    /// Kept as metadata only — the main app must never auto-send based on it.
+    /// Nil keeps handoffs created by earlier app versions compatible.
     let targetDeviceIds: [String]?
     let createdAtMs: Int64
+
+    init(
+        id: String,
+        kind: JobKind,
+        displayName: String,
+        byteCount: Int64,
+        mimeType: String?,
+        targetDeviceIds: [String]?,
+        createdAtMs: Int64
+    ) {
+        self.id = id
+        self.kind = kind
+        self.displayName = displayName
+        self.byteCount = byteCount
+        self.mimeType = mimeType
+        self.targetDeviceIds = targetDeviceIds
+        self.createdAtMs = createdAtMs
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        kind = try container.decodeIfPresent(JobKind.self, forKey: .kind) ?? .file
+        displayName = try container.decode(String.self, forKey: .displayName)
+        byteCount = try container.decode(Int64.self, forKey: .byteCount)
+        mimeType = try container.decodeIfPresent(String.self, forKey: .mimeType)
+        targetDeviceIds = try container.decodeIfPresent([String].self, forKey: .targetDeviceIds)
+        createdAtMs = try container.decode(Int64.self, forKey: .createdAtMs)
+    }
 }
 
 struct ClaimedOutboundShareJob: Equatable, Sendable {
@@ -33,14 +72,7 @@ enum OutboundShareHandoffError: Error {
     case missingPayload
 }
 
-enum OutboundShareFallbackPolicy {
-    static func shouldHandoff(itemIsFile: Bool, connectionTimedOut: Bool) -> Bool {
-        itemIsFile && connectionTimedOut
-    }
-}
-
 final class OutboundShareStore: @unchecked Sendable {
-    static let directSendLimitBytes: Int64 = 100 * 1024 * 1024
     static let copyBufferBytes = 1 * 1024 * 1024
 
     private static let processingLeaseMs: Int64 = 15 * 60 * 1_000
@@ -74,14 +106,11 @@ final class OutboundShareStore: @unchecked Sendable {
         try createDirectories()
     }
 
-    static func shouldSendDirectly(byteCount: Int64) -> Bool {
-        byteCount <= directSendLimitBytes
-    }
-
     func stageFile(
         at sourceURL: URL,
         displayName: String? = nil,
-        mimeType: String? = nil
+        mimeType: String? = nil,
+        kind: JobKind = .file
     ) throws -> StagedShareFile {
         guard sourceURL.isFileURL else { throw OutboundShareHandoffError.invalidSource }
 
@@ -107,11 +136,17 @@ final class OutboundShareStore: @unchecked Sendable {
             url: payloadURL,
             displayName: Self.safeDisplayName(displayName ?? sourceURL.lastPathComponent),
             byteCount: copiedSize,
-            mimeType: mimeType
+            mimeType: mimeType,
+            kind: kind
         )
     }
 
-    func stageData(_ data: Data, displayName: String, mimeType: String?) throws -> StagedShareFile {
+    func stageData(
+        _ data: Data,
+        displayName: String,
+        mimeType: String?,
+        kind: JobKind = .file
+    ) throws -> StagedShareFile {
         let id = UUID().uuidString.lowercased()
         let temporaryURL = filesURL.appendingPathComponent("\(id).staging")
         let payloadURL = filesURL.appendingPathComponent("\(id).payload")
@@ -125,7 +160,23 @@ final class OutboundShareStore: @unchecked Sendable {
             url: payloadURL,
             displayName: Self.safeDisplayName(displayName),
             byteCount: Int64(data.count),
-            mimeType: mimeType
+            mimeType: mimeType,
+            kind: kind
+        )
+    }
+
+    /// Stages shared text as a UTF-8 payload file (the "text" payload contract).
+    func stageText(
+        _ text: String,
+        displayName: String = "分享的文本.txt",
+        mimeType: String? = "text/plain"
+    ) throws -> StagedShareFile {
+        let data = Data(text.utf8)
+        return try stageData(
+            data,
+            displayName: displayName,
+            mimeType: mimeType,
+            kind: .text
         )
     }
 
@@ -139,6 +190,7 @@ final class OutboundShareStore: @unchecked Sendable {
         }
         let job = OutboundShareJob(
             id: staged.id,
+            kind: staged.kind,
             displayName: staged.displayName,
             byteCount: staged.byteCount,
             mimeType: staged.mimeType,

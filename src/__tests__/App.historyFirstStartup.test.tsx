@@ -1,12 +1,13 @@
 import React from 'react';
+import fs from 'node:fs';
+import path from 'node:path';
 import TestRenderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 
 let mockInitialHistoryComplete = false;
 let mockAppStateCurrent = 'active';
-let mockAppStateListener: ((state: string) => void) | undefined;
+let mockAppStateListeners: Array<(state: string) => void> = [];
 const mockStartServices = jest.fn(async () => undefined);
 const mockRunMaintenance = jest.fn(async () => undefined);
-const mockResumeOutboundShareHandoffs = jest.fn(async () => ({ completed: 0, deferred: 0 }));
 const mockReloadHistory = jest.fn(async () => undefined);
 const mockSetHistorySort = jest.fn();
 const mockDismissStartupHistoryPreview = jest.fn();
@@ -33,7 +34,7 @@ jest.mock('react-native', () => ({
       return mockAppStateCurrent;
     },
     addEventListener: jest.fn((_event: string, listener: (state: string) => void) => {
-      mockAppStateListener = listener;
+      mockAppStateListeners.push(listener);
       return { remove: jest.fn() };
     }),
   },
@@ -45,7 +46,7 @@ jest.mock('../contexts/ThemeContext', () => ({
 jest.mock('../navigation/AppNavigator', () => ({ AppNavigator: () => null }));
 jest.mock('../navigation/navigationRef', () => ({ navigateWhenReady: jest.fn() }));
 jest.mock('../screens/QuickTileLoadingScreen', () => ({ QuickTileLoadingScreen: () => null }));
-jest.mock('../screens/ShareReceiveScreen', () => ({ ShareReceiveScreen: () => null }));
+jest.mock('../screens/ShareReceiveRedirector', () => ({ ShareReceiveRedirector: () => null }));
 jest.mock('../screens/ProcessTextScreen', () => ({ ProcessTextScreen: () => null }));
 jest.mock('../i18n', () => ({
   __esModule: true,
@@ -76,9 +77,6 @@ jest.mock('../platform/network', () => ({
 }));
 jest.mock('../features/history', () => ({
   historyStorage: { runStartupMaintenance: () => mockRunMaintenance() },
-}));
-jest.mock('../features/transfer', () => ({
-  resumeOutboundShareHandoffs: () => mockResumeOutboundShareHandoffs(),
 }));
 jest.mock('../features/space', () => ({
   getSpaceSetupCompletion: () => ({
@@ -120,7 +118,7 @@ describe('App history-first startup', () => {
     mockStartServices.mockResolvedValue(undefined);
     mockInitialHistoryComplete = false;
     mockAppStateCurrent = 'active';
-    mockAppStateListener = undefined;
+    mockAppStateListeners = [];
     mockLoadSpaceSetupCompletion.mockResolvedValue('unknown');
     mockRetrySpaceSetupCompletion.mockResolvedValue(undefined);
   });
@@ -166,33 +164,28 @@ describe('App history-first startup', () => {
 
     expect(mockStartServices).toHaveBeenCalledTimes(1);
     expect(mockRunMaintenance).toHaveBeenCalledTimes(1);
-    expect(mockResumeOutboundShareHandoffs).toHaveBeenCalledTimes(1);
     expect(mockReloadHistory).toHaveBeenCalledTimes(2);
     expect(mockDismissStartupHistoryPreview).not.toHaveBeenCalled();
     expect(mockStartServices.mock.invocationCallOrder[0]).toBeLessThan(
       mockRunMaintenance.mock.invocationCallOrder[0]
     );
     expect(mockRunMaintenance.mock.invocationCallOrder[0]).toBeLessThan(
-      mockResumeOutboundShareHandoffs.mock.invocationCallOrder[0]
-    );
-    expect(mockResumeOutboundShareHandoffs.mock.invocationCallOrder[0]).toBeLessThan(
       mockReloadHistory.mock.invocationCallOrder[1]
     );
 
     mockAppStateCurrent = 'background';
     act(() => {
-      mockAppStateListener?.('background');
+      mockAppStateListeners.forEach((listener) => listener('background'));
     });
     mockAppStateCurrent = 'active';
     act(() => {
-      mockAppStateListener?.('active');
+      mockAppStateListeners.forEach((listener) => listener('active'));
     });
     await flushEffects();
 
     expect(mockStartServices).toHaveBeenCalledTimes(1);
     expect(mockRunMaintenance).toHaveBeenCalledTimes(1);
-    expect(mockResumeOutboundShareHandoffs).toHaveBeenCalledTimes(1);
-    expect(mockReloadHistory).toHaveBeenCalledTimes(2);
+    expect(mockReloadHistory).toHaveBeenCalledTimes(3);
     expect(mockDismissStartupHistoryPreview).not.toHaveBeenCalled();
   });
 
@@ -208,7 +201,7 @@ describe('App history-first startup', () => {
 
     mockAppStateCurrent = 'active';
     act(() => {
-      mockAppStateListener?.('active');
+      mockAppStateListeners.forEach((listener) => listener('active'));
     });
     await flushEffects();
 
@@ -225,22 +218,28 @@ describe('App history-first startup', () => {
 
     expect(mockStartServices).toHaveBeenCalledTimes(1);
     expect(mockRunMaintenance).toHaveBeenCalledTimes(1);
-    expect(mockResumeOutboundShareHandoffs).toHaveBeenCalledTimes(1);
     expect(mockReloadHistory).toHaveBeenCalledTimes(2);
 
     mockAppStateCurrent = 'background';
     act(() => {
-      mockAppStateListener?.('background');
+      mockAppStateListeners.forEach((listener) => listener('background'));
     });
     mockAppStateCurrent = 'active';
     act(() => {
-      mockAppStateListener?.('active');
+      mockAppStateListeners.forEach((listener) => listener('active'));
     });
     await flushEffects();
 
     expect(mockStartServices).toHaveBeenCalledTimes(2);
     expect(mockRunMaintenance).toHaveBeenCalledTimes(1);
-    expect(mockResumeOutboundShareHandoffs).toHaveBeenCalledTimes(1);
-    expect(mockReloadHistory).toHaveBeenCalledTimes(2);
+    expect(mockReloadHistory).toHaveBeenCalledTimes(3);
+  });
+
+  it('reloads shared history whenever the app returns to the foreground', () => {
+    const appSource = fs.readFileSync(path.join(process.cwd(), 'App.tsx'), 'utf8');
+
+    expect(appSource).toContain(
+      "if (state === 'active') void useHistoryStore.getState().loadItems()"
+    );
   });
 });
