@@ -100,7 +100,7 @@ async function verifyDownloads() {
   }
 }
 
-const frameworkFiles = [
+const allFrameworkFiles = [
   'Info.plist',
   'ios-arm64/Headers/module.modulemap',
   'ios-arm64/Headers/uc_engine_uniffiFFI.h',
@@ -109,6 +109,16 @@ const frameworkFiles = [
   'ios-arm64_x86_64-simulator/Headers/uc_engine_uniffiFFI.h',
   'ios-arm64_x86_64-simulator/libuc_engine_uniffi.a',
 ];
+
+const frameworkSlice = process.env.UC_ENGINE_UNIFFI_SLICE ?? 'universal';
+const frameworkFiles =
+  frameworkSlice === 'simulator'
+    ? allFrameworkFiles.filter((file) => !file.startsWith('ios-arm64/'))
+    : frameworkSlice === 'device'
+      ? allFrameworkFiles.filter(
+          (file) => file === 'Info.plist' || file.startsWith('ios-arm64/')
+        )
+      : allFrameworkFiles;
 
 async function currentFrameworkHashes() {
   const frameworkRoot = resolve(moduleRoot, 'ios/UniClipboardEngine.xcframework');
