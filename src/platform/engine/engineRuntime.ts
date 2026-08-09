@@ -1,6 +1,7 @@
 import type { EngineConfig, EngineEvent, PeerConnectionRefresh } from './contracts';
 import { AppState } from 'react-native';
 import { createLogger } from '@/support/observability';
+import { useSettingsStore } from '@/features/settings';
 import {
   createInitialUnifiedEngineSnapshot,
   publishUnifiedEngineSnapshot,
@@ -52,6 +53,11 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function relayContext(): string {
+  const url = useSettingsStore.getState().config?.customRelayUrl ?? '';
+  return url ? `customRelayConfigured=true customRelayUrl=${url}` : 'customRelayConfigured=false';
+}
+
 export class UnifiedEngineService {
   private snapshot = createInitialUnifiedEngineSnapshot();
   private generation = 0;
@@ -101,6 +107,13 @@ export class UnifiedEngineService {
     return this.api.refreshPeerConnections().then(
       (report) => {
         this.updatePeerConnectionStatus(report.online > 0 ? 'online' : 'offline');
+        if (report.online > 0) {
+          log.info(
+            `peer connections online total=${report.total} online=${
+              report.online
+            } ${relayContext()} (actual relay url is logged by the engine)`
+          );
+        }
         return report;
       },
       (error) => {
@@ -297,7 +310,14 @@ export class UnifiedEngineService {
           ...(event.state === 'online' ? { peerConnectionStatus: 'online' as const } : {}),
           refreshRevision: this.snapshot.refreshRevision + 1,
         });
-        if (event.state === 'online') this.peerRecoverySignal?.resolve('online');
+        if (event.state === 'online') {
+          log.info(
+            `peer connected deviceId=${
+              event.deviceId
+            } ${relayContext()} (actual relay url is logged by the engine)`
+          );
+          this.peerRecoverySignal?.resolve('online');
+        }
         break;
       case 'transferProgress':
         this.updateSnapshot({ lastEvent: event, lastChangedKind: event.type });

@@ -3,6 +3,33 @@ import type { EngineConfig, EngineEvent, PeerConnectionRefresh } from 'uc-engine
 import { UnifiedEngineService, type UnifiedEngineApi } from '../platform/engine';
 import type { UnifiedEngineSnapshot } from '../stores/unifiedEngineStore';
 
+interface LoggerMock {
+  debug: jest.Mock;
+  info: jest.Mock;
+  warn: jest.Mock;
+  error: jest.Mock;
+}
+
+jest.mock('@/support/observability', () => {
+  const testLogger: LoggerMock = {
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  };
+  return {
+    createLogger: () => testLogger,
+    __unifiedEngineTestLogger: testLogger,
+  };
+});
+
+import * as observability from '@/support/observability';
+
+function engineLogger(): LoggerMock {
+  return (observability as unknown as { __unifiedEngineTestLogger: LoggerMock })
+    .__unifiedEngineTestLogger;
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((done) => {
@@ -97,6 +124,12 @@ describe('UnifiedEngineService', () => {
     });
     await expect(recovery).resolves.toEqual(expect.objectContaining({ online: 1 }));
     expect(snapshots.at(-1)?.peerConnectionStatus).toBe('online');
+    expect(engineLogger().info).toHaveBeenCalledWith(
+      expect.stringContaining('peer connected deviceId=desktop-device-id')
+    );
+    expect(engineLogger().info).toHaveBeenCalledWith(
+      expect.stringContaining('customRelayConfigured=false')
+    );
 
     refresh.resolve(refreshReport(0));
     await service.stop();
