@@ -5,6 +5,17 @@
     "p2pDescription": "Espaço com criptografia de ponta a ponta",
     "invitationExpires": "O convite expira às {{time}}"
   },
+  "relay": {
+    "title": "Relay personalizado",
+    "url": "Endereço do relay",
+    "token": "Token de acesso (opcional)",
+    "save": "Salvar relay",
+    "remove": "Remover relay",
+    "footer": "Use um endereço HTTP ou HTTPS. O token fica apenas no armazenamento seguro deste dispositivo.",
+    "error": {
+      "saveFailed": "Não foi possível salvar o relay"
+    }
+  },
   "space": {
     "title": "Meu Espaço",
     "footer": "O nome do dispositivo, a senha e o código de convite são usados apenas nesta operação e não são salvos nas configurações.",

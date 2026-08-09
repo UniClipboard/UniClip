@@ -103,6 +103,7 @@ private fun memberRevocationResultMap(result: MemberRevocationResult): Map<Strin
   "revocationId" to result.revocationId,
   "outcome" to when (result.outcome) {
     MemberRevocationOutcome.LOCAL_ONLY -> "localOnly"
+    MemberRevocationOutcome.RECOVERING -> "recovering"
     MemberRevocationOutcome.APPLIED -> "applied"
     MemberRevocationOutcome.COMPLETE -> "complete"
     MemberRevocationOutcome.RECOVERY_REQUIRED -> "recoveryRequired"
@@ -401,6 +402,11 @@ class UcEngineModule : Module() {
         "offline" to result.offline.toLong(),
         "errors" to result.errors.toLong()
       )
+    }
+    AsyncFunction("saveCustomRelayNode") {
+      url: String, accessToken: String, previousUrl: String? ->
+      val result = requireEngine().saveCustomRelay(url, accessToken, previousUrl)
+      mapOf("configured" to result.configured)
     }
     AsyncFunction("querySpaceState") {
       val result = runSpaceRead("querySpaceState") { requireEngine().querySpaceState() }
@@ -708,6 +714,8 @@ class UcEngineModule : Module() {
       "type" to "memberRevocationChanged",
       "revocation" to memberRevocationResultMap(event.revocation)
     )
+    is BindingEvent.SharedDeviceRefreshChanged ->
+      mapOf("type" to "changed", "kind" to "sharedDeviceRefreshChanged")
     is BindingEvent.NetworkRecoveryChanged -> mapOf(
       "type" to "networkRecoveryChanged",
       "phase" to event.phase,

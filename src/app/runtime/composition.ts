@@ -22,6 +22,7 @@ import {
 import { clipboardManager, useClipboardStore } from '@/features/clipboard';
 import { persistP2pDeliveryReport } from '@/features/transfer';
 import { configureAnalyticsConsent, useSettingsStore } from '@/features/settings';
+import { configureRelaySettings } from '@/features/relaySettings';
 import { configureNetworkContextChangeListener } from '@/platform/network';
 import { configurePostHogAnalytics } from '@/support/observability';
 import { useStatisticsStore } from '@/stores/statisticsStore';
@@ -64,6 +65,14 @@ export function configureAppRuntime(): void {
     getP2pSpaceSetupCoordinator().run(operation)
   );
   configureAnalyticsConsent(nativeEngine);
+  configureRelaySettings({
+    saveCustomRelayNode: nativeEngine.saveCustomRelayNode,
+    async rebuildRelayEndpoint(): Promise<void> {
+      const engine = getUnifiedEngineService();
+      await engine.stop();
+      await getUnconfiguredAppRuntime().activateP2p();
+    },
+  });
   configurePostHogAnalytics({
     loadState: () => nativeEngine.getAnalyticsState(),
     subscribe: (listener) => nativeEngine.subscribeAnalyticsState(listener),

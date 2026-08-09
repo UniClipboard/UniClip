@@ -30,6 +30,7 @@ import { SpaceInvitationSheet } from '@/components/SpaceInvitationSheet';
 import { getUnifiedSpaceService, UnifiedSpaceInputError } from '@/features/space';
 import { useUnifiedEngineStore } from '@/stores/unifiedEngineStore';
 import { useUnifiedSpaceStore, type UnifiedSpaceDevice } from '@/features/space';
+import { CustomRelaySection } from './CustomRelaySection';
 import { SettingsSectionItem } from './SettingsSectionItem';
 
 type PendingOperation = 'leave' | `remove:${string}` | `recover:${string}` | null;
@@ -444,6 +445,9 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
           </ListItem>
         )}
       </SettingsSectionItem>
+
+      <Spacer modifiers={[heightModifier(16)]} />
+      <CustomRelaySection />
 
       <Spacer modifiers={[heightModifier(16)]} />
       <SettingsSectionItem title={t('space.switch.title')} footer={t('space.switch.description')}>

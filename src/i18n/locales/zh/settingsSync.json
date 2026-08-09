@@ -5,6 +5,17 @@
     "p2pDescription": "端到端加密空间",
     "invitationExpires": "邀请码将在 {{time}} 到期"
   },
+  "relay": {
+    "title": "自定义中继节点",
+    "url": "中继地址",
+    "token": "访问令牌（可选）",
+    "save": "保存中继节点",
+    "remove": "移除中继节点",
+    "footer": "仅使用 HTTP 或 HTTPS 地址。访问令牌只保存在设备的安全区域。",
+    "error": {
+      "saveFailed": "无法保存中继节点"
+    }
+  },
   "space": {
     "title": "我的空间",
     "footer": "设备名、口令和邀请码仅用于本次操作，不会保存到应用设置中。",

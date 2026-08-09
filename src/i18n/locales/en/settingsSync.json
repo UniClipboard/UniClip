@@ -5,6 +5,17 @@
     "p2pDescription": "End-to-end encrypted space",
     "invitationExpires": "Invitation expires at {{time}}"
   },
+  "relay": {
+    "title": "Custom relay",
+    "url": "Relay address",
+    "token": "Access token (optional)",
+    "save": "Save relay",
+    "remove": "Remove relay",
+    "footer": "Use an HTTP or HTTPS address. The access token is kept only in this device's secure storage.",
+    "error": {
+      "saveFailed": "Could not save relay"
+    }
+  },
   "space": {
     "title": "My Space",
     "footer": "The device name, passphrase, and invitation code are used only for this operation and are not saved in app settings.",

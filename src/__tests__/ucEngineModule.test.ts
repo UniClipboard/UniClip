@@ -51,6 +51,26 @@ describe('unified P2P engine native module', () => {
     }
   });
 
+  it('exposes custom relay saving on JavaScript, iOS, and Android', () => {
+    const javascript = read('src/index.ts');
+    const swift = read('ios/UcEngineModule.swift');
+    const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
+
+    expect(javascript).toContain('saveCustomRelayNode');
+    expect(swift).toContain('AsyncFunction("saveCustomRelayNode")');
+    expect(kotlin).toContain('AsyncFunction("saveCustomRelayNode")');
+  });
+
+  it('maps current member-removal and shared-device refresh states on both native platforms', () => {
+    const swift = read('ios/UcEngineModule.swift');
+    const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
+
+    for (const nativeSource of [swift, kotlin]) {
+      expect(nativeSource).toContain('recovering');
+      expect(nativeSource).toContain('sharedDeviceRefreshChanged');
+    }
+  });
+
   it('maps detailed clipboard, delivery, transfer, and presence events on both platforms', () => {
     const javascript = read('src/index.ts');
     const swift = read('ios/UcEngineModule.swift');

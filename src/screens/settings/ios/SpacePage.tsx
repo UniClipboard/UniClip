@@ -41,6 +41,7 @@ import {
   settingsTileColors,
   statusGreen,
 } from './common';
+import { CustomRelaySection } from '../CustomRelaySection';
 
 type PendingOperation = 'leave' | `remove:${string}` | `recover:${string}` | null;
 
@@ -389,6 +390,8 @@ export function SpacePage({
                   </HStack>
                 )}
               </Section>
+
+              <CustomRelaySection />
 
               <Section footer={<SwiftUIText>{t('space.switch.description')}</SwiftUIText>}>
                 <SettingsNavRow

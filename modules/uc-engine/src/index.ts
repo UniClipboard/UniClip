@@ -5,6 +5,10 @@ export interface EngineConfig {
   profileId: string;
 }
 
+export interface RelaySaveResult {
+  configured: boolean;
+}
+
 export type EngineState =
   | 'running'
   | 'quiescing'
@@ -194,6 +198,11 @@ export interface AnalyticsState {
 interface UcEngineNativeModule {
   coreVersion(): string;
   start(config: EngineConfig): Promise<void>;
+  saveCustomRelayNode(
+    url: string,
+    accessToken: string,
+    previousUrl?: string
+  ): Promise<RelaySaveResult>;
   shutdown(deadlineMs: number): Promise<void>;
   suspend(): Promise<void>;
   resume(): Promise<void>;
@@ -264,6 +273,14 @@ export function coreVersion(): string {
 export async function start(config: EngineConfig): Promise<void> {
   await NativeModule.start(config);
   await publishAnalyticsState('refresh');
+}
+
+export function saveCustomRelayNode(
+  url: string,
+  accessToken: string,
+  previousUrl?: string
+): Promise<RelaySaveResult> {
+  return NativeModule.saveCustomRelayNode(url, accessToken, previousUrl);
 }
 
 export function shutdown(deadlineMs = 5_000): Promise<void> {

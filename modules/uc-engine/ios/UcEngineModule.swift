@@ -161,6 +161,16 @@ public final class UcEngineModule: Module {
       ]
     }.runOnQueue(engineOperationQueue)
 
+    AsyncFunction("saveCustomRelayNode") {
+      (url: String, accessToken: String, previousUrl: String?) -> [String: Any] in
+      let result = try self.requireEngine().saveCustomRelay(
+        url: url,
+        accessToken: accessToken,
+        previousUrl: previousUrl
+      )
+      return ["configured": result.configured]
+    }.runOnQueue(engineOperationQueue)
+
     AsyncFunction("querySpaceState") { () -> [String: Any?] in
       let result = try self.runSpaceRead("querySpaceState") {
         try self.requireEngine().querySpaceState()
@@ -520,6 +530,8 @@ public final class UcEngineModule: Module {
       ]
     case .memberRevocationChanged(let revocation):
       return ["type": "memberRevocationChanged", "revocation": memberRevocationResultMap(revocation)]
+    case .sharedDeviceRefreshChanged:
+      return ["type": "changed", "kind": "sharedDeviceRefreshChanged"]
     case .networkRecoveryChanged(let phase, let retryable, let nextRetryInMs):
       return [
         "type": "networkRecoveryChanged",
@@ -570,6 +582,7 @@ public final class UcEngineModule: Module {
     let outcome: String
     switch result.outcome {
     case .localOnly: outcome = "localOnly"
+    case .recovering: outcome = "recovering"
     case .applied: outcome = "applied"
     case .complete: outcome = "complete"
     case .recoveryRequired: outcome = "recoveryRequired"
