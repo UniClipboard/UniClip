@@ -6,6 +6,7 @@ interface AppGroupStoreNativeModule {
   getContainerUrl(): Promise<string | null>;
   getLegacyHistory(): Promise<string | null>;
   getShareDiagnostics(): Promise<string | null>;
+  getEngineLogFileUris(): string[];
   getPayloadFileUri(profileId: string): Promise<string | null>;
   writePayload(profileId: string, bytes: Uint8Array): Promise<string | null>;
   deletePayload(profileId: string): Promise<void>;
@@ -182,6 +183,17 @@ export async function getShareDiagnostics(): Promise<ShareDiagnosticsArchiveDTO 
   if (typeof NativeModule?.getShareDiagnostics !== 'function') return null;
   const json = await NativeModule.getShareDiagnostics();
   return parseNativeJson<ShareDiagnosticsArchiveDTO | null>(json ?? undefined, null);
+}
+
+/**
+ * Absolute paths of the engine trace files in the shared P2P cache
+ * (`p2p/cache/logs/engine.*.txt`). Empty when the native module is
+ * unavailable (Android / Expo Go) — Android hosts the engine logs under the
+ * app cache directory instead.
+ */
+export function getEngineLogFileUris(): string[] {
+  if (typeof NativeModule?.getEngineLogFileUris !== 'function') return [];
+  return NativeModule.getEngineLogFileUris();
 }
 
 export function getPayloadFileUri(profileId: string): Promise<string | null> {

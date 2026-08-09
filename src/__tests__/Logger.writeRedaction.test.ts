@@ -17,6 +17,10 @@ jest.mock('react-native', () => ({
   Platform: { OS: 'ios', Version: '18.0' },
 }));
 
+jest.mock('app-group-store', () => ({
+  getEngineLogFileUris: () => [],
+}));
+
 jest.mock('expo-file-system', () => {
   class MockDirectory {
     exists = true;

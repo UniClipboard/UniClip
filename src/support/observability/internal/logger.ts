@@ -8,14 +8,45 @@ import { Paths, Directory, File } from 'expo-file-system';
 import { deleteAsync, StorageAccessFramework } from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 import { nativeCopyFile, nativeZipFiles } from 'android-util';
+import { getEngineLogFileUris as getNativeEngineLogFileUris } from 'app-group-store';
 import * as Application from 'expo-application';
 import i18n from '@/i18n';
 import { redactLogText, redactLogValue } from './logRedaction';
 
 const LOG_DIR = new Directory(Paths.document, 'logs');
+const ENGINE_LOG_DIR = new Directory(Paths.cache, 'uc-engine/logs');
 const LOG_EXPORT_DIR = new Directory(Paths.cache, 'log_exports');
 const MAX_LOG_DAYS = 3;
 const LOG_EXPORT_RETENTION_MS = 24 * 60 * 60 * 1000;
+
+function listAppLogFiles(): File[] {
+  return LOG_DIR.exists
+    ? LOG_DIR.list().filter(
+        (entry): entry is File => entry instanceof File && entry.name.endsWith('.txt')
+      )
+    : [];
+}
+
+function listEngineLogFiles(): File[] {
+  if (Platform.OS === 'ios') {
+    try {
+      return getNativeEngineLogFileUris().map((uri) => new File(uri));
+    } catch {
+      // Log collection is best-effort; an unavailable native module must
+      // never break app startup or log export.
+      return [];
+    }
+  }
+  return ENGINE_LOG_DIR.exists
+    ? ENGINE_LOG_DIR.list().filter(
+        (entry): entry is File => entry instanceof File && entry.name.endsWith('.txt')
+      )
+    : [];
+}
+
+function listLogFiles(): File[] {
+  return [...listAppLogFiles(), ...listEngineLogFiles()];
+}
 
 function formatLocalDate(date: Date): string {
   const year = date.getFullYear();
@@ -150,6 +181,15 @@ export function initLogger(config?: Partial<LogConfig>): void {
     cleanExportedLogArchives();
   }
   logSystemInfo();
+  logEngineLogSummary();
+}
+
+function logEngineLogSummary(): void {
+  const files = listEngineLogFiles();
+  if (files.length === 0) return;
+  logInstance.info(
+    `Engine log files: ${files.length} (${files.map((file) => file.name).join(', ')})`
+  );
 }
 
 function logSystemInfo(): void {
@@ -187,33 +227,18 @@ export function getLogDirectory(): Directory {
 }
 
 export function getLogFilePaths(): string[] {
-  if (!LOG_DIR.exists) {
-    return [];
-  }
-
-  const files = LOG_DIR.list();
-  return files
-    .filter((entry): entry is File => entry instanceof File)
-    .filter((file) => file.name.endsWith('.txt'))
-    .map((file) => file.uri);
+  return listLogFiles().map((file) => file.uri);
 }
 
 export function calculateLogSize(): number {
-  if (!LOG_DIR.exists) {
-    return 0;
-  }
-
   let totalSize = 0;
-  const files = LOG_DIR.list();
 
-  for (const entry of files) {
-    if (entry instanceof File) {
-      try {
-        const info = entry.info();
-        totalSize += info.size || 0;
-      } catch {
-        // ignore
-      }
+  for (const entry of listLogFiles()) {
+    try {
+      const info = entry.info();
+      totalSize += info.size || 0;
+    } catch {
+      // ignore
     }
   }
 
@@ -221,41 +246,29 @@ export function calculateLogSize(): number {
 }
 
 export function clearLogs(): void {
-  if (LOG_DIR.exists) {
-    const files = LOG_DIR.list();
-    for (const entry of files) {
-      try {
-        if (entry instanceof File) {
-          entry.delete();
-        }
-      } catch {
-        // ignore
-      }
+  for (const entry of listLogFiles()) {
+    try {
+      entry.delete();
+    } catch {
+      // ignore
     }
   }
 }
 
 export function cleanOldLogs(): void {
-  if (!LOG_DIR.exists) {
-    return;
-  }
-
   const today = new Date();
   const cutoffDate = new Date(today);
   cutoffDate.setDate(cutoffDate.getDate() - MAX_LOG_DAYS);
 
-  const files = LOG_DIR.list();
-  for (const entry of files) {
-    if (entry instanceof File && entry.name.endsWith('.txt')) {
-      const match = entry.name.match(/app_(\d{4}-\d{2}-\d{2})\.txt/);
-      if (match) {
-        const fileDate = new Date(match[1]);
-        if (fileDate < cutoffDate) {
-          try {
-            entry.delete();
-          } catch {
-            // ignore
-          }
+  for (const entry of listLogFiles()) {
+    const match = entry.name.match(/(?:app_|engine\.)(\d{4}-\d{2}-\d{2})\.txt/);
+    if (match) {
+      const fileDate = new Date(match[1]);
+      if (fileDate < cutoffDate) {
+        try {
+          entry.delete();
+        } catch {
+          // ignore
         }
       }
     }
@@ -295,13 +308,11 @@ export function createLogger(source: string): AppLogger {
 }
 
 export function getLogFileUris(): string[] {
-  if (!LOG_DIR.exists) {
-    return [];
-  }
+  return listLogFiles().map((file) => file.uri);
+}
 
-  return LOG_DIR.list()
-    .filter((entry): entry is File => entry instanceof File && entry.name.endsWith('.txt'))
-    .map((file) => file.uri);
+export function getEngineLogFileUris(): string[] {
+  return listEngineLogFiles().map((file) => file.uri);
 }
 
 function createExportAbortError(): Error {

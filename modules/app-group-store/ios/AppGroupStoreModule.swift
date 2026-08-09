@@ -48,6 +48,32 @@ public class AppGroupStoreModule: Module {
       return String(data: data, encoding: .utf8)
     }
 
+    // Engine trace files live in the shared P2P cache (`p2p/cache/logs`),
+    // which the JS side cannot enumerate through the app sandbox; the engine
+    // writes them there so the native Swift app and this app share storage.
+    Function("getEngineLogFileUris") { () -> [String] in
+      guard let containerURL = FileManager.default.containerURL(
+        forSecurityApplicationGroupIdentifier: SettingsStore.appGroupID
+      ) else { return [] }
+      let logsDirectory = containerURL
+        .appendingPathComponent("p2p", isDirectory: true)
+        .appendingPathComponent("cache", isDirectory: true)
+        .appendingPathComponent("logs", isDirectory: true)
+      let urls = (try? FileManager.default.contentsOfDirectory(
+        at: logsDirectory,
+        includingPropertiesForKeys: [.isRegularFileKey],
+        options: [.skipsHiddenFiles]
+      )) ?? []
+      return urls
+        .filter { url in
+          guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey]) else {
+            return false
+          }
+          return values.isRegularFile == true && url.pathExtension == "txt"
+        }
+        .map(\.path)
+    }
+
     AsyncFunction("getPayloadFileUri") { (profileId: String) -> String? in
       AppGroupStoreModule.payloadURL(profileId: profileId)?.absoluteString
     }

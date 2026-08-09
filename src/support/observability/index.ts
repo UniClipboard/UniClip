@@ -7,6 +7,7 @@ export {
   customFileTransport,
   deleteExportedLogArchive,
   getLogDirectory,
+  getEngineLogFileUris,
   getLogFilePaths,
   getLogFileUris,
   getLogger,

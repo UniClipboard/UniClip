@@ -69,8 +69,11 @@ jest.mock('expo-file-system', () => {
       }
     });
     list = jest.fn(() => {
-      if (this.name === 'logs') {
+      if (this.uri === 'file://documents/logs') {
         return [new MockFile(this, 'app_2026-07-16.txt')];
+      }
+      if (this.uri === 'file://cache/uc-engine/logs') {
+        return [new MockFile(this, 'engine.2026-07-16.txt')];
       }
       if (this.name === 'log_exports') {
         return [new MockFile(this, 'logs_old.zip')];
@@ -129,6 +132,10 @@ jest.mock('expo-file-system/legacy', () => ({
   },
 }));
 
+jest.mock('app-group-store', () => ({
+  getEngineLogFileUris: () => [],
+}));
+
 import * as LoggerService from '../support/observability';
 
 describe('Logger shareable export', () => {
@@ -183,6 +190,34 @@ describe('Logger shareable export', () => {
     expect(mockCopyFile).toHaveBeenCalledWith(localUri, 'content://exports/logs.zip');
     expect(mockDeletedLocalUris).toContain(localUri);
     expect(result).toBeUndefined();
+  });
+
+  it('includes engine log files from the cache logs directory in the export', async () => {
+    mockExistingDirectoryUris.add('file://cache/uc-engine/logs');
+    mockFileContents.set(
+      'file://cache/uc-engine/logs/engine.2026-07-16.txt',
+      '2026-07-16 12:00:00 INFO peer connected via relay device_id="device-a" relay_url="https://relay.example.com/"'
+    );
+
+    await LoggerService.createLogArchive();
+
+    const sanitizedUris = mockZipFiles.mock.calls[0][0];
+    expect(sanitizedUris).toHaveLength(2);
+    expect(sanitizedUris).toEqual([
+      expect.stringMatching(/^file:\/\/cache\/log_exports\/sanitized_.+\/app_2026-07-16\.txt$/),
+      expect.stringMatching(/^file:\/\/cache\/log_exports\/sanitized_.+\/engine\.2026-07-16\.txt$/),
+    ]);
+    const engineContent = mockFileContents.get(sanitizedUris[1]);
+    expect(engineContent).toContain('relay_url="https://relay.example.com/"');
+  });
+
+  it('removes expired app and engine log files across both log directories', async () => {
+    mockExistingDirectoryUris.add('file://cache/uc-engine/logs');
+
+    LoggerService.cleanOldLogs();
+
+    expect(mockDeletedLocalUris).toContain('file://cache/uc-engine/logs/engine.2026-07-16.txt');
+    expect(mockDeletedLocalUris).toContain('file://documents/logs/app_2026-07-16.txt');
   });
 
   it('deletes expired share archives before creating another archive', async () => {
