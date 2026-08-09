@@ -5,10 +5,10 @@ import { getShareDiagnostics } from 'app-group-store';
 
 import type { SharedSettings } from '@/types/settings';
 import type { PeerConnectionStatus, UnifiedEngineStatus } from '@/stores/unifiedEngineStore';
-import { getLogFileUris } from '@/support/observability';
+import { getEngineLogFileUris, getLogFileUris } from '@/support/observability';
 import { classifyDiagnosticEvent, type DiagnosticReason } from './diagnosticEventClassifier';
 
-const DIAGNOSTIC_SCHEMA_VERSION = 3;
+const DIAGNOSTIC_SCHEMA_VERSION = 4;
 const MAX_RECENT_EVENTS = 100;
 const MAX_LOG_BYTES_PER_FILE = 512 * 1024;
 
@@ -285,6 +285,34 @@ async function readDiagnosticLogs(): Promise<DiagnosticLogSummary> {
   );
 }
 
+export interface EngineLogFileContent {
+  name: string;
+  content: string;
+  truncated: boolean;
+}
+
+async function readEngineLogFiles(): Promise<EngineLogFileContent[]> {
+  const files: EngineLogFileContent[] = [];
+  for (const uri of getEngineLogFileUris()) {
+    try {
+      const file = new File(uri);
+      const size = file.size;
+      if (size > MAX_LOG_BYTES_PER_FILE) {
+        files.push({
+          name: file.name,
+          content: await file.slice(size - MAX_LOG_BYTES_PER_FILE).text(),
+          truncated: true,
+        });
+      } else {
+        files.push({ name: file.name, content: await file.text(), truncated: false });
+      }
+    } catch {
+      // Unreadable engine trace files are omitted; the summary still counts them.
+    }
+  }
+  return files;
+}
+
 export async function createDiagnosticPackage(
   input: DiagnosticPackageInput,
   now = new Date()
@@ -306,12 +334,14 @@ export async function createDiagnosticPackage(
     settings: input.settings,
     sync: input.sync,
     logs: await readDiagnosticLogs(),
+    engineLogs: await readEngineLogFiles(),
     extensions: {
       share: shareDiagnostics,
     },
     coverage: {
       rawMessagesIncluded: false,
       nativeExtensionLogsIncluded: shareDiagnostics !== null,
+      engineLogsIncluded: true,
       eventClassification: 'fixed_events_and_categorized_reasons_v1',
     },
   };

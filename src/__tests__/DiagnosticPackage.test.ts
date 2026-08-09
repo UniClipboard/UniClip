@@ -4,6 +4,7 @@ const mockLogContents = new Map<string, string>();
 const mockWrittenFiles = new Map<string, string>();
 const mockDeletedFiles: string[] = [];
 const mockGetLogFileUris = jest.fn<string[], []>();
+const mockGetEngineLogFileUris = jest.fn<string[], []>();
 const mockGetShareDiagnostics = jest.fn();
 
 jest.mock('react-native', () => ({
@@ -17,6 +18,7 @@ jest.mock('expo-application', () => ({
 
 jest.mock('../support/observability', () => ({
   getLogFileUris: () => mockGetLogFileUris(),
+  getEngineLogFileUris: () => mockGetEngineLogFileUris(),
 }));
 
 jest.mock('app-group-store', () => ({
@@ -29,7 +31,9 @@ jest.mock('expo-file-system', () => {
     name: string;
 
     constructor(...parts: unknown[]) {
-      this.name = String(parts[parts.length - 1] ?? '');
+      this.name = String(parts[parts.length - 1] ?? '')
+        .split('/')
+        .at(-1)!;
       this.uri = parts
         .map((part) => (typeof part === 'string' ? part : (part as { uri?: string })?.uri ?? ''))
         .join('/');
@@ -111,6 +115,8 @@ describe('DiagnosticPackage', () => {
     mockLogContents.clear();
     mockWrittenFiles.clear();
     mockDeletedFiles.length = 0;
+    mockGetLogFileUris.mockReturnValue([]);
+    mockGetEngineLogFileUris.mockReturnValue([]);
     mockGetShareDiagnostics.mockResolvedValue({ schemaVersion: 1, attempts: [] });
   });
 
@@ -234,7 +240,7 @@ describe('DiagnosticPackage', () => {
       fileName: 'uniclip_diagnostics_2026-07-17_10-30-00.json',
     });
     expect(payload).toEqual({
-      schemaVersion: 3,
+      schemaVersion: 4,
       generatedAt: '2026-07-17T10:30:00.000Z',
       app: { version: '1.3.0', build: '162' },
       system: { platform: 'ios', osVersion: '26.0' },
@@ -250,12 +256,14 @@ describe('DiagnosticPackage', () => {
           byReason: { authentication: 1 },
         }),
       }),
+      engineLogs: [],
       extensions: {
         share: { schemaVersion: 1, attempts: [] },
       },
       coverage: {
         rawMessagesIncluded: false,
         nativeExtensionLogsIncluded: true,
+        engineLogsIncluded: true,
         eventClassification: 'fixed_events_and_categorized_reasons_v1',
       },
     });
@@ -314,6 +322,27 @@ describe('DiagnosticPackage', () => {
 
     expect(payload.logs).toMatchObject({ fileCount: 1, unreadableFileCount: 1 });
     expect(JSON.stringify(payload)).not.toContain('unreadable.txt');
+  });
+
+  it('includes raw engine trace files with relay URLs for support', async () => {
+    const engineUri = '/containers/p2p/cache/logs/engine.2026-07-17.txt';
+    mockGetEngineLogFileUris.mockReturnValue([engineUri]);
+    mockLogContents.set(
+      engineUri,
+      '2026-07-17T10:00:01.000Z  INFO peer connected via relay device_id="device-a" relay_url="https://relay.example.com/"'
+    );
+
+    const artifact = await createDiagnosticPackage(input, new Date('2026-07-17T10:30:00.000Z'));
+    const payload = readWrittenPayload(artifact.uri);
+
+    expect(payload.engineLogs).toEqual([
+      {
+        name: 'engine.2026-07-17.txt',
+        content: expect.stringContaining('relay_url="https://relay.example.com/"'),
+        truncated: false,
+      },
+    ]);
+    expect(payload.coverage).toMatchObject({ engineLogsIncluded: true });
   });
 
   it('samples only the tail of oversized logs', async () => {
