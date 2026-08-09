@@ -48,5 +48,8 @@
 "已发送 %@ / %@" = "%@ of %@ sent";
 "正在等待传输进度" = "Waiting for transfer progress";
 "无法读取接收设备" = "Unable to load recipient devices.";
+"主程序正在同步，请稍后重试" = "UniClip is syncing. Please try again in a moment.";
+"请先打开 UniClip 主程序完成设置" = "Open UniClip first to set up sharing.";
+"尚未加入空间，请先打开 UniClip 主程序加入" = "No space joined yet. Open UniClip to join one.";
 "发送状态" = "Sending Status";
 "传输进度" = "Transfer Progress";

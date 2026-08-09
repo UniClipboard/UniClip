@@ -48,5 +48,8 @@
 "已发送 %@ / %@" = "%@ de %@ enviados";
 "正在等待传输进度" = "Aguardando o progresso da transferência";
 "无法读取接收设备" = "Não foi possível carregar os dispositivos de destino.";
+"主程序正在同步，请稍后重试" = "O UniClip está sincronizando. Tente novamente em instantes.";
+"请先打开 UniClip 主程序完成设置" = "Abra o UniClip primeiro para configurar o compartilhamento.";
+"尚未加入空间，请先打开 UniClip 主程序加入" = "Nenhum espaço foi adicionado ainda. Abra o UniClip para entrar em um.";
 "发送状态" = "Status do envio";
 "传输进度" = "Progresso da transferência";

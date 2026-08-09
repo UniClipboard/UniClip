@@ -424,7 +424,13 @@ private extension ShareRootView {
                 selectedRecipientIds = [recipient.deviceId]
             }
         } catch {
-            recipientLoadError = localization.string("无法读取接收设备")
+            let category = RecipientLoadErrorPresentation.category(for: error)
+            // Privacy-safe: log only the coarse category, never recipients,
+            // device IDs, addresses, content, paths, or tokens.
+            log.error("loadP2pRecipients failed: category=\(category.rawValue, privacy: .public)")
+            recipientLoadError = localization.string(
+                RecipientLoadErrorPresentation.messageKey(for: category)
+            )
         }
     }
 
