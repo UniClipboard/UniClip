@@ -21,6 +21,7 @@ import {
 import { useSettingsStore } from '@/stores';
 import { useUnifiedEngineStore } from '@/stores/unifiedEngineStore';
 import { useUnifiedSpaceStore } from '@/features/space';
+import { getLogger } from '@/support/observability';
 import { shareFile } from '@/utils/fileActions';
 import { HeaderCircleButton } from './common';
 
@@ -56,7 +57,12 @@ export function DiagnosticsPage({ onBack }: { onBack: () => void }) {
         },
       });
       await shareFile(artifact.uri, artifact.fileName);
-    } catch {
+    } catch (error) {
+      getLogger().error('DiagnosticsPage: diagnostic package failed', {
+        errorName: error instanceof Error ? error.name : String(error),
+        errorMessage: error instanceof Error ? error.message : String(error),
+        artifactUri: artifact?.uri ?? null,
+      });
       Alert.alert(t('diagnostics.error.title'), t('diagnostics.error.message'));
     } finally {
       if (artifact) deleteDiagnosticPackage(artifact.uri);
