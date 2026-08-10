@@ -143,7 +143,7 @@ describe('App history-first startup', () => {
     expect(mockLoadSpaceSetupCompletion).toHaveBeenCalledTimes(1);
   });
 
-  it('starts services and maintenance only after the first history page is ready', async () => {
+  it('starts services as soon as settings load, and maintenance after the first history page is ready', async () => {
     let renderer!: ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(<App />);
@@ -152,7 +152,7 @@ describe('App history-first startup', () => {
 
     expect(mockReloadHistory).toHaveBeenCalledTimes(1);
     expect(mockSetHistorySort).toHaveBeenCalledWith({ field: 'lastAccessed', order: 'desc' });
-    expect(mockStartServices).not.toHaveBeenCalled();
+    expect(mockStartServices).toHaveBeenCalledTimes(1);
     expect(mockRunMaintenance).not.toHaveBeenCalled();
     expect(mockDismissStartupHistoryPreview).not.toHaveBeenCalled();
 

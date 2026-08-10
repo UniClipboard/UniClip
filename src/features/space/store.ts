@@ -10,6 +10,8 @@ export interface UnifiedSpaceDevice {
 
 export type UnifiedSpaceStatus = 'idle' | 'loading' | 'empty' | 'ready' | 'failed';
 
+export type DeviceListRefreshStatus = 'idle' | 'refreshing' | 'failed';
+
 export interface UnifiedSpaceSnapshot {
   status: UnifiedSpaceStatus;
   spaceId: string | null;
@@ -18,6 +20,8 @@ export interface UnifiedSpaceSnapshot {
   devices: UnifiedSpaceDevice[];
   memberRemoval: MemberRevocationResult | null;
   lastError: string | null;
+  hasResolvedDeviceList: boolean;
+  deviceListRefreshStatus: DeviceListRefreshStatus;
 }
 
 export function createInitialUnifiedSpaceSnapshot(
@@ -31,6 +35,8 @@ export function createInitialUnifiedSpaceSnapshot(
     devices: [],
     memberRemoval: null,
     lastError: null,
+    hasResolvedDeviceList: false,
+    deviceListRefreshStatus: 'idle',
   };
 }
 

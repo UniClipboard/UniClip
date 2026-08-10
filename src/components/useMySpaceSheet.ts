@@ -5,7 +5,6 @@ import type { InvitationIssued } from '@/platform/engine';
 import { useTranslation } from 'react-i18next';
 
 import { getUnifiedSpaceService, unifiedSpaceUserErrorCode } from '@/features/space';
-import { useUnifiedEngineStore } from '@/stores/unifiedEngineStore';
 import { useUnifiedSpaceStore } from '@/features/space';
 
 function remainingTime(expiresAtMs: number, nowMs: number): string {
@@ -17,11 +16,10 @@ function remainingTime(expiresAtMs: number, nowMs: number): string {
 export function useMySpaceSheet(visible: boolean, options?: { issueOnOpen?: boolean }) {
   const { t } = useTranslation('settingsSync');
   const devices = useUnifiedSpaceStore((state) => state.devices);
-  const spaceId = useUnifiedSpaceStore((state) => state.spaceId);
   const spaceStatus = useUnifiedSpaceStore((state) => state.status);
-  const refreshRevision = useUnifiedEngineStore((state) => state.refreshRevision);
-  const [refreshing, setRefreshing] = useState(false);
-  const [refreshFailed, setRefreshFailed] = useState(false);
+  const hasResolvedDeviceList = useUnifiedSpaceStore((state) => state.hasResolvedDeviceList);
+  const deviceListRefreshStatus = useUnifiedSpaceStore((state) => state.deviceListRefreshStatus);
+  const [isUserRefreshing, setIsUserRefreshing] = useState(false);
   const [invitation, setInvitation] = useState<InvitationIssued | null>(null);
   const [invitationPending, setInvitationPending] = useState(false);
   const [invitationError, setInvitationError] = useState<string | null>(null);
@@ -34,23 +32,16 @@ export function useMySpaceSheet(visible: boolean, options?: { issueOnOpen?: bool
   const deviceIdsBeforeInvitationRef = useRef<Set<string>>(new Set());
 
   const refresh = useCallback(async () => {
-    if (!spaceId) return;
-
-    setRefreshing(true);
-    setRefreshFailed(false);
+    setIsUserRefreshing(true);
     try {
-      await getUnifiedSpaceService().refreshDevices();
+      await getUnifiedSpaceService().refresh();
     } catch {
-      setRefreshFailed(true);
+      // The failure state is published to the unified snapshot; the caller
+      // only needs the promise to settle so native progress can dismiss.
     } finally {
-      setRefreshing(false);
+      setIsUserRefreshing(false);
     }
-  }, [spaceId]);
-
-  useEffect(() => {
-    if (!visible) return;
-    void refresh();
-  }, [refresh, refreshRevision, visible]);
+  }, []);
 
   useEffect(() => {
     if (!visible) {
@@ -129,9 +120,11 @@ export function useMySpaceSheet(visible: boolean, options?: { issueOnOpen?: bool
 
   return {
     devices,
-    isLoading:
-      devices.length === 0 && (refreshing || spaceStatus === 'idle' || spaceStatus === 'loading'),
-    refreshFailed,
+    isInitialLoading: !hasResolvedDeviceList && spaceStatus !== 'failed' && spaceStatus !== 'empty',
+    isInitialFailed: !hasResolvedDeviceList && spaceStatus === 'failed',
+    isKnownEmpty: (hasResolvedDeviceList || spaceStatus === 'empty') && devices.length === 0,
+    deviceListFailed: hasResolvedDeviceList && deviceListRefreshStatus === 'failed',
+    isUserRefreshing,
     refresh,
     invitation,
     invitationPending,

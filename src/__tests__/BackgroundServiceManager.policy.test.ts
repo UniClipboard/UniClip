@@ -10,6 +10,8 @@ const mockRecoverPeerConnections = jest.fn(async () => ({
   errors: 0,
 }));
 const mockSpaceRefresh = jest.fn(async () => ({ devices: [] }));
+const mockSpaceRefreshDevices = jest.fn(async () => ({ devices: [] }));
+const mockSubscribeEvents = jest.fn(() => jest.fn());
 
 const settingsState = {
   config: {
@@ -47,11 +49,15 @@ jest.mock('../platform/engine', () => ({
     start: mockStart,
     setBackgroundSyncPolicy: mockSetBackgroundSyncPolicy,
     recoverPeerConnections: mockRecoverPeerConnections,
+    subscribeEvents: mockSubscribeEvents,
   }),
 }));
 
 jest.mock('../features/space', () => ({
-  getUnifiedSpaceService: () => ({ refresh: mockSpaceRefresh }),
+  getUnifiedSpaceService: () => ({
+    refresh: mockSpaceRefresh,
+    refreshDevices: mockSpaceRefreshDevices,
+  }),
 }));
 
 configureAppRuntime({
@@ -72,8 +78,9 @@ configureAppRuntime({
     resume: jest.fn(async () => undefined),
     recoverPeerConnections: mockRecoverPeerConnections,
     cancelPeerRecovery: jest.fn(),
+    subscribeEvents: mockSubscribeEvents,
   }),
-  space: () => ({ refresh: mockSpaceRefresh }),
+  space: () => ({ refresh: mockSpaceRefresh, refreshDevices: mockSpaceRefreshDevices }),
   statisticsStore,
   applicationVersion: () => '1.0.0',
 });

@@ -34,6 +34,8 @@ const mockSpaceRefresh = jest.fn(async () => ({
   ],
   lastError: null,
 }));
+const mockSpaceRefreshDevices = jest.fn(async () => mockSpaceRefresh());
+const mockSubscribeEvents = jest.fn(() => jest.fn());
 
 jest.mock('react-native', () => ({
   AppState: {
@@ -78,11 +80,15 @@ jest.mock('../platform/engine', () => ({
     setBackgroundSyncPolicy: mockP2pSetBackgroundSyncPolicy,
     recoverPeerConnections: mockP2pRecoverPeerConnections,
     cancelPeerRecovery: mockP2pCancelPeerRecovery,
+    subscribeEvents: mockSubscribeEvents,
   }),
 }));
 
 jest.mock('../features/space', () => ({
-  getUnifiedSpaceService: () => ({ refresh: mockSpaceRefresh }),
+  getUnifiedSpaceService: () => ({
+    refresh: mockSpaceRefresh,
+    refreshDevices: mockSpaceRefreshDevices,
+  }),
 }));
 
 configureAppRuntime({
@@ -104,8 +110,9 @@ configureAppRuntime({
     resume: mockP2pResume,
     recoverPeerConnections: mockP2pRecoverPeerConnections,
     cancelPeerRecovery: mockP2pCancelPeerRecovery,
+    subscribeEvents: mockSubscribeEvents,
   }),
-  space: () => ({ refresh: mockSpaceRefresh }),
+  space: () => ({ refresh: mockSpaceRefresh, refreshDevices: mockSpaceRefreshDevices }),
   statisticsStore: {
     getState: () => ({
       recordBackgroundTaskStart: jest.fn(async () => undefined),

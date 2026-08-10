@@ -28,6 +28,7 @@ import {
   padding,
   presentationDetents,
   presentationDragIndicator,
+  refreshable,
   scrollContentBackground,
   type PresentationDetent,
 } from '@expo/ui/swift-ui/modifiers';
@@ -108,8 +109,11 @@ export function MySpaceSheet({ visible, onClose }: MySpaceSheetProps) {
   const [sheetDetent, setSheetDetent] = useState<PresentationDetent>('medium');
   const {
     devices,
-    isLoading,
-    refreshFailed,
+    isInitialLoading,
+    isInitialFailed,
+    isKnownEmpty,
+    deviceListFailed,
+    isUserRefreshing,
     refresh,
     invitation,
     invitationPending,
@@ -165,7 +169,13 @@ export function MySpaceSheet({ visible, onClose }: MySpaceSheetProps) {
               />,
             ]}
           >
-            <List modifiers={[listStyle('insetGrouped'), scrollContentBackground('hidden')]}>
+            <List
+              modifiers={[
+                listStyle('insetGrouped'),
+                scrollContentBackground('hidden'),
+                refreshable(() => refresh()),
+              ]}
+            >
               {pairedDeviceName ? (
                 <Section>
                   <HStack spacing={12} alignment="center">
@@ -303,7 +313,7 @@ export function MySpaceSheet({ visible, onClose }: MySpaceSheetProps) {
                   </HStack>
                 }
               >
-                {isLoading ? (
+                {isInitialLoading ? (
                   <HStack spacing={10} alignment="center">
                     <ProgressView />
                     <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
@@ -312,7 +322,7 @@ export function MySpaceSheet({ visible, onClose }: MySpaceSheetProps) {
                   </HStack>
                 ) : null}
 
-                {refreshFailed ? (
+                {isInitialFailed ? (
                   <SwiftUIButton onPress={() => void refresh()} modifiers={[buttonStyle('plain')]}>
                     <HStack spacing={10} modifiers={[frame({ maxWidth: Infinity })]}>
                       <Image
@@ -331,7 +341,26 @@ export function MySpaceSheet({ visible, onClose }: MySpaceSheetProps) {
                   </SwiftUIButton>
                 ) : null}
 
-                {!isLoading && devices.length === 0 ? (
+                {deviceListFailed ? (
+                  <SwiftUIButton onPress={() => void refresh()} modifiers={[buttonStyle('plain')]}>
+                    <HStack spacing={10} modifiers={[frame({ maxWidth: Infinity })]}>
+                      <Image
+                        systemName="exclamationmark.circle.fill"
+                        size={18}
+                        color={ERROR_COLOR}
+                      />
+                      <SwiftUIText modifiers={[foregroundStyle(ERROR_COLOR)]}>
+                        {t('space.devices.refreshFailed', { ns: 'settingsSync' })}
+                      </SwiftUIText>
+                      <Spacer />
+                      <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
+                        {t('action.retry', { ns: 'common' })}
+                      </SwiftUIText>
+                    </HStack>
+                  </SwiftUIButton>
+                ) : null}
+
+                {isKnownEmpty ? (
                   <HStack spacing={10}>
                     <Image systemName="person.2" size={18} color={OFFLINE_COLOR} />
                     <SwiftUIText modifiers={[foregroundStyle('secondary')]}>

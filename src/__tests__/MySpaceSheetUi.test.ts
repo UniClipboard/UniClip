@@ -95,12 +95,34 @@ describe('home My Space sheet', () => {
     expect(mySpaceSheets[0]).toContain('border={{ color: colors.outlineVariant }}');
   });
 
-  it('refreshes device presence when the sheet opens and when engine presence changes', () => {
+  it('consumes the unified snapshot without refreshing when the sheet opens', () => {
     expect(mySpaceSheetHook).toContain('useUnifiedSpaceStore');
-    expect(mySpaceSheetHook).toContain('useUnifiedEngineStore');
-    expect(mySpaceSheetHook).toContain('.refreshDevices()');
-    expect(mySpaceSheetHook).toContain('refreshRevision');
-    expect(mySpaceSheetHook).toContain('if (!visible) return');
+    expect(mySpaceSheetHook).not.toContain('useUnifiedEngineStore');
+    expect(mySpaceSheetHook).not.toContain('.refreshDevices()');
+    expect(mySpaceSheetHook).not.toContain('refreshRevision');
+    expect(mySpaceSheetHook).not.toContain('if (!visible) return;\n    void refresh()');
+    expect(mySpaceSheetHook).toContain('hasResolvedDeviceList');
+    expect(mySpaceSheetHook).toContain('deviceListRefreshStatus');
+    expect(mySpaceSheetHook).toContain('getUnifiedSpaceService().refresh()');
+  });
+
+  it('uses native pull-to-refresh on both platforms bound only to user requests', () => {
+    expect(mySpaceSheets[0]).toContain('PullToRefreshBox');
+    expect(mySpaceSheets[0]).toContain('isRefreshing={isUserRefreshing}');
+    expect(mySpaceSheets[0]).toContain('onRefresh');
+    expect(mySpaceSheets[1]).toContain('refreshable(');
+    expect(mySpaceSheets[1]).toContain('refreshable(() => refresh())');
+  });
+
+  it('keeps loading, error, empty, and row states mutually exclusive on both platforms', () => {
+    for (const sheet of mySpaceSheets) {
+      expect(sheet).toContain('isInitialLoading');
+      expect(sheet).toContain('isInitialFailed');
+      expect(sheet).toContain('deviceListFailed');
+      expect(sheet).toContain('isKnownEmpty');
+      expect(sheet).not.toContain('!isInitialLoading && devices.length === 0');
+      expect(sheet).not.toContain('!isLoading && devices.length === 0');
+    }
   });
 
   it('uses the header plus action to create an invitation inside the sheet', () => {
@@ -167,6 +189,8 @@ describe('home My Space sheet', () => {
       expect(settingsSync.space.invitation.pairingInstructions.length).toBeGreaterThan(0);
       expect(settingsSync.space.invitation.addA11y).toEqual(expect.any(String));
       expect(settingsSync.space.invitation.addA11y.length).toBeGreaterThan(0);
+      expect(settingsSync.space.devices.refreshFailed).toEqual(expect.any(String));
+      expect(settingsSync.space.devices.refreshFailed.length).toBeGreaterThan(0);
     }
   });
 

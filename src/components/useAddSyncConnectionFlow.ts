@@ -6,7 +6,6 @@ import type { InvitationIssued } from '@/platform/engine';
 import { useTranslation } from 'react-i18next';
 
 import { getUnifiedSpaceService, unifiedSpaceUserErrorCode } from '@/features/space';
-import { useUnifiedEngineStore } from '@/stores/unifiedEngineStore';
 import { useUnifiedSpaceStore } from '@/features/space';
 import {
   formatInvitationCode,
@@ -100,7 +99,6 @@ export function useAddSyncConnectionFlow({
   const [copied, setCopied] = useState(false);
   const [nowMs, setNowMs] = useState(Date.now());
   const mountedRef = useRef(true);
-  const refreshRevision = useUnifiedEngineStore((state) => state.refreshRevision);
   const remoteDeviceName = useUnifiedSpaceStore(
     (state) => state.devices.find((device) => !device.isLocal)?.displayName ?? null
   );
@@ -141,15 +139,10 @@ export function useAddSyncConnectionFlow({
 
   useEffect(() => {
     if (!visible || mode !== 'invitation') return;
-    void getUnifiedSpaceService()
-      .refresh()
-      .then((snapshot) => {
-        if (!mountedRef.current || !snapshot.devices.some((device) => !device.isLocal)) return;
-        setMode('success');
-        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      })
-      .catch(() => undefined);
-  }, [mode, refreshRevision, visible]);
+    if (!remoteDeviceName) return;
+    setMode('success');
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [mode, remoteDeviceName, visible]);
 
   const completeConnection = async () => {
     if ((await onConnected?.()) === false) return;

@@ -200,6 +200,8 @@ export class UnifiedSpaceService {
   private mutationRevision = 0;
   private activeMutationRevision: number | null = null;
   private refreshRevision = 0;
+  private fullRefreshInFlight: Promise<UnifiedSpaceSnapshot> | null = null;
+  private deviceRefreshInFlight: Promise<UnifiedSpaceSnapshot> | null = null;
 
   constructor(
     private readonly api: UnifiedSpaceApi,
@@ -212,10 +214,28 @@ export class UnifiedSpaceService {
     this.publishSnapshot();
   }
 
-  async refresh(): Promise<UnifiedSpaceSnapshot> {
+  refresh(): Promise<UnifiedSpaceSnapshot> {
+    if (this.fullRefreshInFlight) return this.fullRefreshInFlight;
+
     const revision = this.beginRefresh();
+    const refresh = this.performFullRefresh(revision);
+    this.fullRefreshInFlight = refresh;
+    void refresh.then(
+      () => this.clearFullRefresh(refresh),
+      () => this.clearFullRefresh(refresh)
+    );
+    return refresh;
+  }
+
+  private async performFullRefresh(
+    revision: ReturnType<UnifiedSpaceService['beginRefresh']>
+  ): Promise<UnifiedSpaceSnapshot> {
     if (this.canPublishRefresh(revision)) {
-      this.updateSnapshot({ status: 'loading', lastError: null });
+      this.updateSnapshot({
+        status: 'loading',
+        lastError: null,
+        deviceListRefreshStatus: 'refreshing',
+      });
     }
     try {
       const state = await this.runRefreshStep('querySpaceState', () => this.api.querySpaceState());
@@ -239,11 +259,13 @@ export class UnifiedSpaceService {
         devices,
         memberRemoval,
         lastError: null,
+        hasResolvedDeviceList: true,
+        deviceListRefreshStatus: 'idle',
       };
       this.publishSnapshot();
       return this.snapshot;
     } catch (error) {
-      if (this.canPublishRefresh(revision)) this.fail(error);
+      if (this.canPublishRefresh(revision)) this.failFullRefresh(error);
       throw error;
     }
   }
@@ -269,6 +291,8 @@ export class UnifiedSpaceService {
           devices,
           memberRemoval: null,
           lastError: null,
+          hasResolvedDeviceList: true,
+          deviceListRefreshStatus: 'idle',
         };
         this.publishSnapshot();
         return { ...space, invitation };
@@ -287,18 +311,47 @@ export class UnifiedSpaceService {
     return invitation;
   }
 
-  async refreshDevices(): Promise<UnifiedSpaceSnapshot> {
-    if (!this.snapshot.spaceId) return this.snapshot;
+  refreshDevices(): Promise<UnifiedSpaceSnapshot> {
+    if (this.fullRefreshInFlight) return this.fullRefreshInFlight;
+    if (!this.snapshot.spaceId) return Promise.resolve(this.snapshot);
+    if (this.deviceRefreshInFlight) return this.deviceRefreshInFlight;
 
     const revision = this.beginRefresh();
-    const [devices, memberRemoval] = await Promise.all([
-      this.runRefreshStep('listDevices', () => this.api.listDevices()),
-      this.currentMemberRemoval(),
-    ]);
-    if (!this.canPublishRefresh(revision)) return this.snapshot;
+    const refresh = this.performDeviceRefresh(revision);
+    this.deviceRefreshInFlight = refresh;
+    void refresh.then(
+      () => this.clearDeviceRefresh(refresh),
+      () => this.clearDeviceRefresh(refresh)
+    );
+    return refresh;
+  }
 
-    this.updateSnapshot({ devices, memberRemoval, lastError: null });
-    return this.snapshot;
+  private async performDeviceRefresh(
+    revision: ReturnType<UnifiedSpaceService['beginRefresh']>
+  ): Promise<UnifiedSpaceSnapshot> {
+    if (this.canPublishRefresh(revision)) {
+      this.updateSnapshot({ lastError: null, deviceListRefreshStatus: 'refreshing' });
+    }
+    try {
+      const [devices, memberRemoval] = await Promise.all([
+        this.runRefreshStep('listDevices', () => this.api.listDevices()),
+        this.currentMemberRemoval(),
+      ]);
+      if (!this.canPublishRefresh(revision)) return this.snapshot;
+
+      this.updateSnapshot({
+        status: this.snapshot.status === 'failed' ? 'ready' : this.snapshot.status,
+        devices,
+        memberRemoval,
+        lastError: null,
+        hasResolvedDeviceList: true,
+        deviceListRefreshStatus: 'idle',
+      });
+      return this.snapshot;
+    } catch (error) {
+      if (this.canPublishRefresh(revision)) this.failDeviceRefresh(error);
+      throw error;
+    }
   }
 
   async joinSpace(
@@ -338,6 +391,8 @@ export class UnifiedSpaceService {
           devices,
           memberRemoval: null,
           lastError: null,
+          hasResolvedDeviceList: true,
+          deviceListRefreshStatus: 'idle',
         };
         this.publishSnapshot();
         return joined;
@@ -358,7 +413,13 @@ export class UnifiedSpaceService {
       const result = await this.api.removeMember(targetDeviceId);
       const devices = await this.api.listDevices();
       if (this.isCurrentMutation(revision)) {
-        this.updateSnapshot({ devices, memberRemoval: result, lastError: null });
+        this.updateSnapshot({
+          devices,
+          memberRemoval: result,
+          lastError: null,
+          hasResolvedDeviceList: true,
+          deviceListRefreshStatus: 'idle',
+        });
       }
       return result;
     } catch (error) {
@@ -381,7 +442,13 @@ export class UnifiedSpaceService {
       );
       const devices = await this.api.listDevices();
       if (this.isCurrentMutation(revision)) {
-        this.updateSnapshot({ devices, memberRemoval: result, lastError: null });
+        this.updateSnapshot({
+          devices,
+          memberRemoval: result,
+          lastError: null,
+          hasResolvedDeviceList: true,
+          deviceListRefreshStatus: 'idle',
+        });
       }
       return result;
     } finally {
@@ -410,11 +477,16 @@ export class UnifiedSpaceService {
     this.mutationRevision += 1;
     this.refreshRevision += 1;
     this.activeMutationRevision = this.mutationRevision;
+    this.fullRefreshInFlight = null;
+    this.deviceRefreshInFlight = null;
     return this.mutationRevision;
   }
 
   private endMutation(revision: number): void {
-    if (this.activeMutationRevision === revision) this.activeMutationRevision = null;
+    if (this.activeMutationRevision !== revision) return;
+    this.activeMutationRevision = null;
+    this.fullRefreshInFlight = null;
+    this.deviceRefreshInFlight = null;
   }
 
   private isCurrentMutation(revision: number): boolean {
@@ -454,6 +526,21 @@ export class UnifiedSpaceService {
     });
   }
 
+  private failFullRefresh(error: unknown): void {
+    this.updateSnapshot({
+      status: 'failed',
+      lastError: error instanceof Error ? error.message : String(error),
+      deviceListRefreshStatus: 'failed',
+    });
+  }
+
+  private failDeviceRefresh(error: unknown): void {
+    this.updateSnapshot({
+      deviceListRefreshStatus: 'failed',
+      lastError: error instanceof Error ? error.message : String(error),
+    });
+  }
+
   private updateSnapshot(updates: Partial<UnifiedSpaceSnapshot>): void {
     this.snapshot = { ...this.snapshot, ...updates };
     this.publishSnapshot();
@@ -461,6 +548,14 @@ export class UnifiedSpaceService {
 
   private publishSnapshot(): void {
     this.publish({ ...this.snapshot, devices: [...this.snapshot.devices] });
+  }
+
+  private clearFullRefresh(refresh: Promise<UnifiedSpaceSnapshot>): void {
+    if (this.fullRefreshInFlight === refresh) this.fullRefreshInFlight = null;
+  }
+
+  private clearDeviceRefresh(refresh: Promise<UnifiedSpaceSnapshot>): void {
+    if (this.deviceRefreshInFlight === refresh) this.deviceRefreshInFlight = null;
   }
 
   private async runRefreshStep<T>(

@@ -814,4 +814,304 @@ describe('UnifiedSpaceService', () => {
       expect.objectContaining({ status: 'ready', spaceId: 'new-space' })
     );
   });
+
+  it('starts with an unresolved device list and resolves it even when the list is empty', async () => {
+    const snapshots: UnifiedSpaceSnapshot[] = [];
+    const api = createApi({
+      listDevices: jest.fn(async () => []),
+    });
+    const service = new UnifiedSpaceService(api, (snapshot) => snapshots.push(snapshot));
+
+    expect(snapshots[0]).toEqual(
+      expect.objectContaining({ hasResolvedDeviceList: false, deviceListRefreshStatus: 'idle' })
+    );
+
+    await service.refreshDevices();
+    expect(api.listDevices).not.toHaveBeenCalled();
+
+    await service.refresh();
+
+    expect(snapshots.at(-1)).toEqual(
+      expect.objectContaining({
+        hasResolvedDeviceList: true,
+        deviceListRefreshStatus: 'idle',
+        devices: [],
+        status: 'ready',
+      })
+    );
+  });
+
+  it('keeps existing devices when a full refresh starts and fails', async () => {
+    const snapshots: UnifiedSpaceSnapshot[] = [];
+    const api = createApi({
+      querySpaceState: jest
+        .fn<UnifiedSpaceApi['querySpaceState']>()
+        .mockResolvedValueOnce({
+          hasCompleted: true,
+          spaceId: 'space-1',
+          currentInvitation: null,
+          deviceName: 'Phone',
+        })
+        .mockImplementationOnce(() => Promise.reject(new Error('Engine error 1322'))),
+    });
+    const service = new UnifiedSpaceService(api, (snapshot) => snapshots.push(snapshot));
+    await service.refresh();
+
+    const refresh = service.refresh();
+    const inFlight = snapshots.at(-1);
+    expect(inFlight).toEqual(
+      expect.objectContaining({
+        status: 'loading',
+        devices: [
+          { deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true },
+          { deviceId: 'desktop-1', displayName: 'Desktop', isLocal: false, online: false },
+        ],
+        hasResolvedDeviceList: true,
+        deviceListRefreshStatus: 'refreshing',
+      })
+    );
+
+    await expect(refresh).rejects.toThrow('Engine error 1322');
+
+    expect(snapshots.at(-1)).toEqual(
+      expect.objectContaining({
+        status: 'failed',
+        devices: [
+          { deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true },
+          { deviceId: 'desktop-1', displayName: 'Desktop', isLocal: false, online: false },
+        ],
+        spaceId: 'space-1',
+        hasResolvedDeviceList: true,
+        deviceListRefreshStatus: 'failed',
+      })
+    );
+  });
+
+  it('publishes a failed list status without failing the whole space when device refresh fails', async () => {
+    const snapshots: UnifiedSpaceSnapshot[] = [];
+    const api = createApi({
+      listDevices: jest
+        .fn<UnifiedSpaceApi['listDevices']>()
+        .mockResolvedValueOnce([
+          { deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true },
+        ])
+        .mockRejectedValueOnce(new Error('Engine error 1383')),
+    });
+    const service = new UnifiedSpaceService(api, (snapshot) => snapshots.push(snapshot));
+    await service.refresh();
+
+    await expect(service.refreshDevices()).rejects.toThrow('Engine error 1383');
+
+    expect(snapshots.at(-1)).toEqual(
+      expect.objectContaining({
+        status: 'ready',
+        spaceId: 'space-1',
+        devices: [{ deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true }],
+        hasResolvedDeviceList: true,
+        deviceListRefreshStatus: 'failed',
+      })
+    );
+  });
+
+  it('really executes the next request after a failed refresh and restores idle', async () => {
+    const snapshots: UnifiedSpaceSnapshot[] = [];
+    const api = createApi({
+      listDevices: jest
+        .fn<UnifiedSpaceApi['listDevices']>()
+        .mockResolvedValueOnce([
+          { deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true },
+        ])
+        .mockRejectedValueOnce(new Error('Engine error 1383'))
+        .mockResolvedValueOnce([
+          { deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true },
+          { deviceId: 'desktop-1', displayName: 'Desktop', isLocal: false, online: true },
+        ]),
+    });
+    const service = new UnifiedSpaceService(api, (snapshot) => snapshots.push(snapshot));
+    await service.refresh();
+
+    await expect(service.refreshDevices()).rejects.toThrow('Engine error 1383');
+    expect(api.listDevices).toHaveBeenCalledTimes(2);
+
+    await service.refreshDevices();
+
+    expect(api.listDevices).toHaveBeenCalledTimes(3);
+    expect(snapshots.at(-1)).toEqual(
+      expect.objectContaining({
+        status: 'ready',
+        deviceListRefreshStatus: 'idle',
+        devices: [
+          { deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true },
+          { deviceId: 'desktop-1', displayName: 'Desktop', isLocal: false, online: true },
+        ],
+      })
+    );
+  });
+
+  it('runs a single Engine query for two concurrent full refreshes', async () => {
+    const pendingState = deferred<Awaited<ReturnType<UnifiedSpaceApi['querySpaceState']>>>();
+    const api = createApi({
+      querySpaceState: jest.fn(() => pendingState.promise),
+    });
+    const service = new UnifiedSpaceService(api, () => undefined);
+
+    const first = service.refresh();
+    const second = service.refresh();
+    expect(second).toBe(first);
+
+    pendingState.resolve({
+      hasCompleted: true,
+      spaceId: 'space-1',
+      currentInvitation: null,
+      deviceName: 'Phone',
+    });
+    await first;
+    await second;
+
+    expect(api.querySpaceState).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs a single listDevices for two concurrent device refreshes', async () => {
+    const pendingDevices = deferred<Awaited<ReturnType<UnifiedSpaceApi['listDevices']>>>();
+    const api = createApi({
+      listDevices: jest
+        .fn<UnifiedSpaceApi['listDevices']>()
+        .mockResolvedValueOnce([
+          { deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true },
+        ])
+        .mockImplementationOnce(() => pendingDevices.promise),
+    });
+    const service = new UnifiedSpaceService(api, () => undefined);
+    await service.refresh();
+
+    const first = service.refreshDevices();
+    const second = service.refreshDevices();
+    expect(second).toBe(first);
+
+    pendingDevices.resolve([
+      { deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true },
+    ]);
+    await first;
+    await second;
+
+    expect(api.listDevices).toHaveBeenCalledTimes(2);
+  });
+
+  it('joins an in-flight full refresh when a device refresh arrives and never stays loading', async () => {
+    const pendingState = deferred<Awaited<ReturnType<UnifiedSpaceApi['querySpaceState']>>>();
+    const snapshots: UnifiedSpaceSnapshot[] = [];
+    const api = createApi({
+      querySpaceState: jest.fn(() => pendingState.promise),
+    });
+    const service = new UnifiedSpaceService(api, (snapshot) => snapshots.push(snapshot));
+
+    const full = service.refresh();
+    const device = service.refreshDevices();
+    expect(device).toBe(full);
+
+    pendingState.resolve({
+      hasCompleted: true,
+      spaceId: 'space-1',
+      currentInvitation: null,
+      deviceName: 'Phone',
+    });
+    await full;
+
+    expect(api.querySpaceState).toHaveBeenCalledTimes(1);
+    expect(api.listDevices).toHaveBeenCalledTimes(1);
+    expect(snapshots.at(-1)).toEqual(
+      expect.objectContaining({ status: 'ready', deviceListRefreshStatus: 'idle' })
+    );
+  });
+
+  it('lets a full refresh started during a device refresh win in the end', async () => {
+    const pendingDevices = deferred<Awaited<ReturnType<UnifiedSpaceApi['listDevices']>>>();
+    const pendingState = deferred<Awaited<ReturnType<UnifiedSpaceApi['querySpaceState']>>>();
+    const snapshots: UnifiedSpaceSnapshot[] = [];
+    const api = createApi({
+      querySpaceState: jest
+        .fn<UnifiedSpaceApi['querySpaceState']>()
+        .mockResolvedValueOnce({
+          hasCompleted: true,
+          spaceId: 'space-1',
+          currentInvitation: null,
+          deviceName: 'Phone',
+        })
+        .mockImplementationOnce(() => pendingState.promise),
+      listDevices: jest
+        .fn<UnifiedSpaceApi['listDevices']>()
+        .mockResolvedValueOnce([
+          { deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true },
+        ])
+        .mockImplementationOnce(() => pendingDevices.promise)
+        .mockResolvedValueOnce([
+          { deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true },
+          { deviceId: 'desktop-1', displayName: 'Desktop', isLocal: false, online: false },
+        ]),
+    });
+    const service = new UnifiedSpaceService(api, (snapshot) => snapshots.push(snapshot));
+    await service.refresh();
+
+    const device = service.refreshDevices();
+    const full = service.refresh();
+    expect(full).not.toBe(device);
+
+    pendingDevices.resolve([
+      { deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true },
+      { deviceId: 'desktop-1', displayName: 'Desktop', isLocal: false, online: true },
+    ]);
+    await device;
+    expect(snapshots.at(-1)).not.toEqual(
+      expect.objectContaining({ deviceListRefreshStatus: 'idle' })
+    );
+
+    pendingState.resolve({
+      hasCompleted: true,
+      spaceId: 'space-1',
+      currentInvitation: null,
+      deviceName: 'Phone',
+    });
+    await full;
+
+    expect(snapshots.at(-1)).toEqual(
+      expect.objectContaining({
+        status: 'ready',
+        deviceListRefreshStatus: 'idle',
+        devices: [
+          { deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true },
+          { deviceId: 'desktop-1', displayName: 'Desktop', isLocal: false, online: false },
+        ],
+      })
+    );
+  });
+
+  it('publishes a resolved device list after create, join, remove, and continue removal', async () => {
+    const snapshots: UnifiedSpaceSnapshot[] = [];
+    const api = createApi({
+      listDevices: jest.fn(async () => [
+        { deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true },
+      ]),
+    });
+    const service = new UnifiedSpaceService(api, (snapshot) => snapshots.push(snapshot));
+
+    await service.createSpace('Phone', 'passphrase');
+    expect(snapshots.at(-1)).toEqual(
+      expect.objectContaining({ hasResolvedDeviceList: true, deviceListRefreshStatus: 'idle' })
+    );
+
+    await service.leaveSpace();
+    expect(snapshots.at(-1)).toEqual(
+      expect.objectContaining({ hasResolvedDeviceList: false, deviceListRefreshStatus: 'idle' })
+    );
+
+    await service.joinSpace('9R3N-6W2X', 'Phone', 'passphrase');
+    expect(snapshots.at(-1)).toEqual(
+      expect.objectContaining({ hasResolvedDeviceList: true, deviceListRefreshStatus: 'idle' })
+    );
+
+    await service.removeMember('desktop-1');
+    expect(snapshots.at(-1)).toEqual(
+      expect.objectContaining({ hasResolvedDeviceList: true, deviceListRefreshStatus: 'idle' })
+    );
+  });
 });

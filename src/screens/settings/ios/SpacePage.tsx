@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 import {
   Button as SwiftUIButton,
@@ -31,7 +31,6 @@ import {
   iosSaturatedButtonPalette,
 } from '@/components/ui/iosButtonStyles.ios';
 import { getUnifiedSpaceService, UnifiedSpaceInputError } from '@/features/space';
-import { useUnifiedEngineStore } from '@/stores/unifiedEngineStore';
 import { useUnifiedSpaceStore, type UnifiedSpaceDevice } from '@/features/space';
 import {
   HeaderCircleButton,
@@ -119,24 +118,12 @@ export function SpacePage({
   const [pending, setPending] = useState<PendingOperation>(null);
   const [error, setError] = useState<string | null>(null);
   const space = useUnifiedSpaceStore();
-  const refreshRevision = useUnifiedEngineStore((state) => state.refreshRevision);
-  const hasLoadedSpace = useRef(false);
 
   useEffect(() => {
     void getUnifiedSpaceService()
       .refresh()
-      .catch((cause) => setError(operationError(cause, t)))
-      .finally(() => {
-        hasLoadedSpace.current = true;
-      });
-  }, [t]);
-
-  useEffect(() => {
-    if (!hasLoadedSpace.current) return;
-    void getUnifiedSpaceService()
-      .refreshDevices()
       .catch((cause) => setError(operationError(cause, t)));
-  }, [refreshRevision, t]);
+  }, [t]);
 
   const handleBack = () => {
     if (pending) return;

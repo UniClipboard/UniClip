@@ -87,6 +87,7 @@
     "devices": {
       "title": "Dispositivos do espaço",
       "empty": "Nenhum outro dispositivo ainda",
+      "refreshFailed": "Não foi possível atualizar os dispositivos, mostrando a lista anterior.",
       "online": "Online",
       "offline": "Offline",
       "thisDevice": "Este dispositivo",

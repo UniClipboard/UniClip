@@ -9,10 +9,6 @@ import {
   type AddSyncConnectionFlow,
 } from '@/components/useAddSyncConnectionFlow';
 import {
-  createInitialUnifiedEngineSnapshot,
-  useUnifiedEngineStore,
-} from '@/stores/unifiedEngineStore';
-import {
   createInitialUnifiedSpaceSnapshot,
   useUnifiedSpaceStore,
   type UnifiedSpaceSnapshot,
@@ -23,7 +19,6 @@ import {
 const mockCreateSpace = jest.fn();
 const mockJoinSpace = jest.fn();
 const mockIssueInvitation = jest.fn();
-const mockRefresh = jest.fn();
 const mockUnifiedSpaceUserErrorCode = jest.fn();
 
 jest.mock('@/features/space', () => ({
@@ -32,7 +27,6 @@ jest.mock('@/features/space', () => ({
     createSpace: mockCreateSpace,
     joinSpace: mockJoinSpace,
     issueInvitation: mockIssueInvitation,
-    refresh: mockRefresh,
   }),
   unifiedSpaceUserErrorCode: (cause: unknown) => mockUnifiedSpaceUserErrorCode(cause),
 }));
@@ -54,18 +48,6 @@ const invitation = {
   invitationCode: 'ABCD-1234',
   expiresAtMs: Date.now() + 60_000,
   availability: 'crossNetwork' as const,
-};
-
-const remoteSnapshot: UnifiedSpaceSnapshot = {
-  status: 'ready',
-  spaceId: 'space-1',
-  deviceName: 'Phone',
-  invitation,
-  devices: [
-    { deviceId: 'local', displayName: 'Phone', isLocal: true, online: true },
-    { deviceId: 'remote', displayName: 'Laptop', isLocal: false, online: true },
-  ],
-  lastError: null,
 };
 
 interface HarnessProps {
@@ -110,9 +92,7 @@ function createHarness(initialMode?: HarnessProps['initialMode']) {
 describe('add sync connection flow', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    useUnifiedEngineStore.setState(createInitialUnifiedEngineSnapshot(), true);
     useUnifiedSpaceStore.setState(createInitialUnifiedSpaceSnapshot(), true);
-    mockRefresh.mockResolvedValue(createInitialUnifiedSpaceSnapshot('ready'));
     mockIssueInvitation.mockResolvedValue(invitation);
     mockCreateSpace.mockResolvedValue({ spaceId: 'space-1', invitation });
     mockJoinSpace.mockResolvedValue({ spaceId: 'space-1' });
@@ -242,13 +222,8 @@ describe('add sync connection flow', () => {
     shareSpy.mockRestore();
   });
 
-  it('moves a waiting creator to success when refresh discovers another device', async () => {
+  it('moves a waiting creator to success when the unified list gains another device', async () => {
     createHarness('create');
-    mockRefresh.mockResolvedValueOnce(createInitialUnifiedSpaceSnapshot('ready'));
-    mockRefresh.mockImplementationOnce(async () => {
-      useUnifiedSpaceStore.setState(remoteSnapshot, true);
-      return remoteSnapshot;
-    });
 
     act(() => currentFlow.actions.setDeviceName('Phone'));
     act(() => currentFlow.actions.setPassphrase('secret'));
@@ -256,7 +231,15 @@ describe('add sync connection flow', () => {
     expect(currentFlow.state.mode).toBe('invitation');
 
     await act(async () => {
-      useUnifiedEngineStore.setState({ refreshRevision: 1 });
+      useUnifiedSpaceStore.setState(
+        {
+          devices: [
+            { deviceId: 'local', displayName: 'Phone', isLocal: true, online: true },
+            { deviceId: 'remote', displayName: 'Laptop', isLocal: false, online: true },
+          ],
+        },
+        true
+      );
       await Promise.resolve();
     });
 

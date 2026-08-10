@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import {
   AlertDialog,
   Button,
@@ -28,7 +28,6 @@ import { AddSyncConnectionSheet } from '@/components/AddSyncConnectionSheet';
 import type { AddSyncConnectionMode } from '@/components/AddSyncConnectionSheet.types';
 import { SpaceInvitationSheet } from '@/components/SpaceInvitationSheet';
 import { getUnifiedSpaceService, UnifiedSpaceInputError } from '@/features/space';
-import { useUnifiedEngineStore } from '@/stores/unifiedEngineStore';
 import { useUnifiedSpaceStore, type UnifiedSpaceDevice } from '@/features/space';
 import { CustomRelaySection } from './CustomRelaySection';
 import { SettingsSectionItem } from './SettingsSectionItem';
@@ -119,24 +118,12 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [showInvitation, setShowInvitation] = useState(false);
   const space = useUnifiedSpaceStore();
-  const refreshRevision = useUnifiedEngineStore((state) => state.refreshRevision);
-  const hasLoadedSpace = useRef(false);
 
   useEffect(() => {
     void getUnifiedSpaceService()
       .refresh()
-      .catch((cause) => setError(operationError(cause, t)))
-      .finally(() => {
-        hasLoadedSpace.current = true;
-      });
-  }, [t]);
-
-  useEffect(() => {
-    if (!hasLoadedSpace.current) return;
-    void getUnifiedSpaceService()
-      .refreshDevices()
       .catch((cause) => setError(operationError(cause, t)));
-  }, [refreshRevision, t]);
+  }, [t]);
 
   const removeDevice = async () => {
     if (!removeDeviceId || pending) return;

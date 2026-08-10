@@ -209,16 +209,17 @@ describe('unified space setup UI', () => {
     }
   });
 
-  it('shows the local device as online without a remove action and refreshes live presence', () => {
+  it('shows the local device as online without a remove action and consumes the unified snapshot', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
     const ios = source('screens/settings/ios/SpacePage.tsx');
 
     for (const platform of [android, ios]) {
       expect(platform).toContain('device.isLocal');
       expect(platform).toContain('space.devices.thisDevice');
-      expect(platform).toContain('useUnifiedEngineStore');
-      expect(platform).toContain('refreshRevision');
-      expect(platform).toContain('.refreshDevices()');
+      expect(platform).toContain('useUnifiedSpaceStore');
+      expect(platform).not.toContain('useUnifiedEngineStore');
+      expect(platform).not.toContain('refreshRevision');
+      expect(platform).not.toContain('.refreshDevices()');
     }
   });
 

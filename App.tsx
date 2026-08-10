@@ -165,32 +165,42 @@ export default function App() {
     return startNetworkContextMonitor();
   }, [isLoaded]);
 
-  // 首批历史提交到界面后，再启动同步和旧数据整理，避免冷启动时争抢本地存储。
+  // 引擎与首屏历史并行启动:设置加载完成后立即恢复空间(前台时),让
+  // “我的空间”的名单在用户打开面板前尽可能就绪。历史维护仍等首屏历史完成。
+  useEffect(() => {
+    if (!isLoaded) return;
+    let cancelled = false;
+    let servicesStarted = false;
+    const startServices = () => {
+      if (cancelled || servicesStarted || AppState.currentState !== 'active') return;
+      servicesStarted = true;
+      getAppRuntime()
+        .start()
+        .catch(() => {
+          servicesStarted = false;
+        });
+    };
+    startServices();
+    const appStateSub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') startServices();
+    });
+    return () => {
+      cancelled = true;
+      appStateSub.remove();
+    };
+  }, [isLoaded]);
+
+  // 首批历史提交到界面后,再启动旧数据整理,避免冷启动时争抢本地存储。
   useEffect(() => {
     if (!isLoaded || !isInitialHistoryLoadComplete) return;
 
     let cancelled = false;
     let startupPromise: Promise<void> | null = null;
-    let servicesStarted = false;
     let maintenanceComplete = false;
     let historyReloadComplete = false;
     const runStartupWork = () => {
-      if (
-        startupPromise ||
-        (servicesStarted && historyReloadComplete) ||
-        AppState.currentState !== 'active'
-      )
-        return;
+      if (startupPromise || historyReloadComplete || AppState.currentState !== 'active') return;
       startupPromise = (async () => {
-        if (!servicesStarted) {
-          try {
-            await getAppRuntime().start();
-            servicesStarted = true;
-          } catch {
-            // Individual services report their own failures; history maintenance can still proceed.
-          }
-        }
-
         if (cancelled || AppState.currentState !== 'active') return;
         if (!maintenanceComplete) {
           await historyStorage.runStartupMaintenance();

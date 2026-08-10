@@ -18,9 +18,18 @@ import { createLogger } from '@/support/observability';
 import { shouldRunBackgroundSync } from '@/utils/syncDirectionPolicy';
 import { getCurrentNetworkContext } from '@/platform/network';
 import type { AppSettings } from '@/types/settings';
-import type { UnifiedEngineService } from '@/platform/engine';
+import type { EngineEvent, UnifiedEngineService } from '@/platform/engine';
 
 const log = createLogger('AppRuntime');
+
+export function isDeviceListRefreshEvent(event: EngineEvent): boolean {
+  return (
+    event.type === 'refreshRequired' ||
+    event.type === 'peerPresenceChanged' ||
+    event.type === 'memberRevocationChanged' ||
+    (event.type === 'changed' && event.kind === 'pairing_completed')
+  );
+}
 
 type RuntimeSettingsState = {
   config: AppSettings | null;
@@ -42,9 +51,14 @@ export interface AppRuntimeDependencies {
   clipboardStore: { getState(): { startMonitoring(): Promise<void> } };
   engine(): Pick<
     UnifiedEngineService,
-    'start' | 'setBackgroundSyncPolicy' | 'resume' | 'recoverPeerConnections' | 'cancelPeerRecovery'
+    | 'start'
+    | 'setBackgroundSyncPolicy'
+    | 'resume'
+    | 'recoverPeerConnections'
+    | 'cancelPeerRecovery'
+    | 'subscribeEvents'
   >;
-  space(): { refresh(): Promise<{ devices: unknown[] }> };
+  space(): { refresh(): Promise<{ devices: unknown[] }>; refreshDevices(): Promise<unknown> };
   statisticsStore: {
     getState(): { recordBackgroundTaskStart(): Promise<void>; updateHeartbeat(): void };
   };
@@ -68,6 +82,8 @@ export class AppRuntime {
   private appStateSub: { remove(): void } | null = null;
   /** 取消对 settingsStore 的订阅 */
   private settingsUnsub: (() => void) | null = null;
+  /** 取消对 Engine 事件的订阅 */
+  private engineEventsUnsub: (() => void) | null = null;
   private currentAppState = AppState.currentState;
   private hasStarted = false;
   private startPromise: Promise<void> | null = null;
@@ -127,6 +143,7 @@ export class AppRuntime {
     }
 
     this._subscribeToAppState();
+    this._subscribeToEngineEvents();
 
     // 始终启动剪贴板监控（无论是否启用后台任务，UI 需要感知本地剪贴板变化）
     try {
@@ -344,19 +361,32 @@ export class AppRuntime {
   }
 
   private _subscribeToAppState(): void {
-    if (this.appStateSub || Platform.OS !== 'ios') return;
+    if (this.appStateSub) return;
 
     this.appStateSub = AppState.addEventListener('change', (state) => {
+      const previousState = this.currentAppState;
       this.currentAppState = state;
-      const service = this.dependencies.engine();
-      if (state === 'inactive' || state === 'background') {
-        service.cancelPeerRecovery();
+
+      if (Platform.OS === 'ios' && (state === 'inactive' || state === 'background')) {
+        this.dependencies.engine().cancelPeerRecovery();
         return;
       }
 
-      if (state === 'active') {
+      if (state === 'active' && previousState !== 'active') {
         this.refresh().catch((error) => log.error('Failed to resume services:', error));
       }
+    });
+  }
+
+  private _subscribeToEngineEvents(): void {
+    if (this.engineEventsUnsub) return;
+    this.engineEventsUnsub = this.dependencies.engine().subscribeEvents((event) => {
+      if (!isDeviceListRefreshEvent(event)) return;
+      if (this.currentAppState !== 'active') return;
+      this.dependencies
+        .space()
+        .refreshDevices()
+        .catch((error) => log.error('Failed to refresh devices after an engine event:', error));
     });
   }
 

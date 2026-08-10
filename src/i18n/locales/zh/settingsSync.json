@@ -87,6 +87,7 @@
     "devices": {
       "title": "空间设备",
       "empty": "还没有其他设备",
+      "refreshFailed": "无法更新设备，当前显示的是上次结果。",
       "online": "在线",
       "offline": "离线",
       "thisDevice": "本机",

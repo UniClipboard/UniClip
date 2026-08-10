@@ -11,6 +11,7 @@ import {
   ListItem,
   ModalBottomSheet,
   OutlinedButton,
+  PullToRefreshBox,
   Row,
   Shape,
   Spacer,
@@ -83,8 +84,11 @@ function MySpaceSheetContent({ visible, onClose }: MySpaceSheetProps) {
   const colors = useMaterialColors();
   const {
     devices,
-    isLoading,
-    refreshFailed,
+    isInitialLoading,
+    isInitialFailed,
+    isKnownEmpty,
+    deviceListFailed,
+    isUserRefreshing,
     refresh,
     invitation,
     invitationPending,
@@ -125,168 +129,194 @@ function MySpaceSheetContent({ visible, onClose }: MySpaceSheetProps) {
           </IconButton>
         </Row>
 
-        <LazyColumn
-          contentPadding={{ start: 12, end: 12, bottom: 20 }}
+        <PullToRefreshBox
+          isRefreshing={isUserRefreshing}
+          onRefresh={() => void refresh()}
           modifiers={[fillMaxWidth(), height(listHeight)]}
         >
-          {pairedDeviceName ? (
-            <ListItem>
-              <ListItem.LeadingContent>
-                <Icon source={ICONS.paired} size={24} tint={colors.primary} />
-              </ListItem.LeadingContent>
-              <ListItem.HeadlineContent>
-                <ComposeText>{t('space.flow.successTitle')}</ComposeText>
-              </ListItem.HeadlineContent>
-              <ListItem.SupportingContent>
-                <ComposeText color={colors.onSurfaceVariant}>
-                  {t('space.invitation.pairedDevice', { device: pairedDeviceName })}
-                </ComposeText>
-              </ListItem.SupportingContent>
-            </ListItem>
-          ) : null}
-
-          {invitationError ? (
-            <ListItem>
-              <ListItem.LeadingContent>
-                <Icon source={ICONS.error} size={22} tint={colors.error} />
-              </ListItem.LeadingContent>
-              <ListItem.HeadlineContent>
-                <ComposeText color={colors.error}>{invitationError}</ComposeText>
-              </ListItem.HeadlineContent>
-              <ListItem.TrailingContent>
-                <TextButton onClick={() => void issueInvitation()}>
-                  <ComposeText>{t('action.retry', { ns: 'common' })}</ComposeText>
-                </TextButton>
-              </ListItem.TrailingContent>
-            </ListItem>
-          ) : null}
-
-          {invitation ? (
-            <>
+          <LazyColumn
+            contentPadding={{ start: 12, end: 12, bottom: 20 }}
+            modifiers={[fillMaxWidth(), height(listHeight)]}
+          >
+            {pairedDeviceName ? (
               <ListItem>
                 <ListItem.LeadingContent>
-                  <Icon source={ICONS.empty} size={24} tint={colors.primary} />
+                  <Icon source={ICONS.paired} size={24} tint={colors.primary} />
                 </ListItem.LeadingContent>
                 <ListItem.HeadlineContent>
-                  <ComposeText style={INVITATION_STYLE}>{invitation.invitationCode}</ComposeText>
+                  <ComposeText>{t('space.flow.successTitle')}</ComposeText>
                 </ListItem.HeadlineContent>
                 <ListItem.SupportingContent>
-                  <Column>
-                    <ComposeText color={colors.onSurfaceVariant}>
-                      {t('space.invitation.pairingInstructions')}
-                    </ComposeText>
-                    <ComposeText color={invitationExpired ? colors.error : colors.onSurfaceVariant}>
-                      {invitationExpired
-                        ? t('space.flow.expired')
-                        : t('space.flow.expiresIn', { time: invitationTimeRemaining })}
-                    </ComposeText>
-                    <ComposeText color={colors.onSurfaceVariant}>
-                      {t(
-                        invitation.availability === 'sameLocalNetwork'
-                          ? 'space.invitation.sameLocalNetwork'
-                          : 'space.invitation.crossNetwork'
-                      )}
-                    </ComposeText>
-                  </Column>
+                  <ComposeText color={colors.onSurfaceVariant}>
+                    {t('space.invitation.pairedDevice', { device: pairedDeviceName })}
+                  </ComposeText>
                 </ListItem.SupportingContent>
               </ListItem>
-              {invitationExpired ? (
-                <Button
-                  onClick={() => void issueInvitation()}
-                  enabled={!invitationPending}
-                  modifiers={[fillMaxWidth(), padding(16, 0, 16, 8)]}
-                >
-                  <ComposeText>{t('space.invitation.action')}</ComposeText>
-                </Button>
-              ) : (
-                <Row modifiers={[fillMaxWidth(), padding(16, 0, 16, 8)]}>
-                  <OutlinedButton onClick={() => void copyInvitation()} modifiers={[weight(1)]}>
-                    <Icon
-                      source={invitationCopied ? ICONS.paired : ICONS.copy}
-                      size={18}
-                      tint={colors.primary}
-                    />
-                    <Spacer modifiers={[width(6)]} />
-                    <ComposeText>{t('space.flow.copyInvitation')}</ComposeText>
-                  </OutlinedButton>
-                  <Spacer modifiers={[width(8)]} />
-                  <Button onClick={() => void shareInvitation()} modifiers={[weight(1)]}>
-                    <Icon source={ICONS.share} size={18} tint={colors.onPrimary} />
-                    <Spacer modifiers={[width(6)]} />
-                    <ComposeText>{t('space.flow.shareInvitation')}</ComposeText>
+            ) : null}
+
+            {invitationError ? (
+              <ListItem>
+                <ListItem.LeadingContent>
+                  <Icon source={ICONS.error} size={22} tint={colors.error} />
+                </ListItem.LeadingContent>
+                <ListItem.HeadlineContent>
+                  <ComposeText color={colors.error}>{invitationError}</ComposeText>
+                </ListItem.HeadlineContent>
+                <ListItem.TrailingContent>
+                  <TextButton onClick={() => void issueInvitation()}>
+                    <ComposeText>{t('action.retry', { ns: 'common' })}</ComposeText>
+                  </TextButton>
+                </ListItem.TrailingContent>
+              </ListItem>
+            ) : null}
+
+            {invitation ? (
+              <>
+                <ListItem>
+                  <ListItem.LeadingContent>
+                    <Icon source={ICONS.empty} size={24} tint={colors.primary} />
+                  </ListItem.LeadingContent>
+                  <ListItem.HeadlineContent>
+                    <ComposeText style={INVITATION_STYLE}>{invitation.invitationCode}</ComposeText>
+                  </ListItem.HeadlineContent>
+                  <ListItem.SupportingContent>
+                    <Column>
+                      <ComposeText color={colors.onSurfaceVariant}>
+                        {t('space.invitation.pairingInstructions')}
+                      </ComposeText>
+                      <ComposeText
+                        color={invitationExpired ? colors.error : colors.onSurfaceVariant}
+                      >
+                        {invitationExpired
+                          ? t('space.flow.expired')
+                          : t('space.flow.expiresIn', { time: invitationTimeRemaining })}
+                      </ComposeText>
+                      <ComposeText color={colors.onSurfaceVariant}>
+                        {t(
+                          invitation.availability === 'sameLocalNetwork'
+                            ? 'space.invitation.sameLocalNetwork'
+                            : 'space.invitation.crossNetwork'
+                        )}
+                      </ComposeText>
+                    </Column>
+                  </ListItem.SupportingContent>
+                </ListItem>
+                {invitationExpired ? (
+                  <Button
+                    onClick={() => void issueInvitation()}
+                    enabled={!invitationPending}
+                    modifiers={[fillMaxWidth(), padding(16, 0, 16, 8)]}
+                  >
+                    <ComposeText>{t('space.invitation.action')}</ComposeText>
                   </Button>
-                </Row>
-              )}
-            </>
-          ) : null}
-
-          {isLoading ? (
-            <ListItem>
-              <ListItem.LeadingContent>
-                <CircularProgressIndicator modifiers={[width(24), height(24)]} />
-              </ListItem.LeadingContent>
-              <ListItem.HeadlineContent>
-                <ComposeText color={colors.onSurfaceVariant}>
-                  {t('state.loading', { ns: 'common' })}
-                </ComposeText>
-              </ListItem.HeadlineContent>
-            </ListItem>
-          ) : null}
-
-          {refreshFailed ? (
-            <ListItem>
-              <ListItem.LeadingContent>
-                <Icon source={ICONS.error} size={22} tint={colors.error} />
-              </ListItem.LeadingContent>
-              <ListItem.HeadlineContent>
-                <ComposeText color={colors.error}>
-                  {t('space.error.operationFailed', { ns: 'settingsSync' })}
-                </ComposeText>
-              </ListItem.HeadlineContent>
-              <ListItem.TrailingContent>
-                <TextButton onClick={() => void refresh()}>
-                  <ComposeText>{t('action.retry', { ns: 'common' })}</ComposeText>
-                </TextButton>
-              </ListItem.TrailingContent>
-            </ListItem>
-          ) : null}
-
-          {!isLoading && devices.length === 0 ? (
-            <ListItem>
-              <ListItem.LeadingContent>
-                <Icon source={ICONS.empty} size={24} tint={colors.outline} />
-              </ListItem.LeadingContent>
-              <ListItem.HeadlineContent>
-                <ComposeText color={colors.onSurfaceVariant}>
-                  {t('space.devices.empty', { ns: 'settingsSync' })}
-                </ComposeText>
-              </ListItem.HeadlineContent>
-            </ListItem>
-          ) : null}
-
-          {devices.length ? (
-            <Surface
-              color={colors.surfaceContainerLow}
-              border={{ color: colors.outlineVariant }}
-              shape={DEVICE_LIST_SHAPE}
-              modifiers={[fillMaxWidth()]}
-            >
-              <Column>
-                {devices.map((device, index) => (
-                  <React.Fragment key={device.deviceId}>
-                    <SpaceDeviceRow device={device} />
-                    {index < devices.length - 1 ? (
-                      <HorizontalDivider
-                        color={colors.outlineVariant}
-                        modifiers={[padding(72, 0, 0, 0)]}
+                ) : (
+                  <Row modifiers={[fillMaxWidth(), padding(16, 0, 16, 8)]}>
+                    <OutlinedButton onClick={() => void copyInvitation()} modifiers={[weight(1)]}>
+                      <Icon
+                        source={invitationCopied ? ICONS.paired : ICONS.copy}
+                        size={18}
+                        tint={colors.primary}
                       />
-                    ) : null}
-                  </React.Fragment>
-                ))}
-              </Column>
-            </Surface>
-          ) : null}
-        </LazyColumn>
+                      <Spacer modifiers={[width(6)]} />
+                      <ComposeText>{t('space.flow.copyInvitation')}</ComposeText>
+                    </OutlinedButton>
+                    <Spacer modifiers={[width(8)]} />
+                    <Button onClick={() => void shareInvitation()} modifiers={[weight(1)]}>
+                      <Icon source={ICONS.share} size={18} tint={colors.onPrimary} />
+                      <Spacer modifiers={[width(6)]} />
+                      <ComposeText>{t('space.flow.shareInvitation')}</ComposeText>
+                    </Button>
+                  </Row>
+                )}
+              </>
+            ) : null}
+
+            {isInitialLoading ? (
+              <ListItem>
+                <ListItem.LeadingContent>
+                  <CircularProgressIndicator modifiers={[width(24), height(24)]} />
+                </ListItem.LeadingContent>
+                <ListItem.HeadlineContent>
+                  <ComposeText color={colors.onSurfaceVariant}>
+                    {t('state.loading', { ns: 'common' })}
+                  </ComposeText>
+                </ListItem.HeadlineContent>
+              </ListItem>
+            ) : null}
+
+            {isInitialFailed ? (
+              <ListItem>
+                <ListItem.LeadingContent>
+                  <Icon source={ICONS.error} size={22} tint={colors.error} />
+                </ListItem.LeadingContent>
+                <ListItem.HeadlineContent>
+                  <ComposeText color={colors.error}>
+                    {t('space.error.operationFailed', { ns: 'settingsSync' })}
+                  </ComposeText>
+                </ListItem.HeadlineContent>
+                <ListItem.TrailingContent>
+                  <TextButton onClick={() => void refresh()}>
+                    <ComposeText>{t('action.retry', { ns: 'common' })}</ComposeText>
+                  </TextButton>
+                </ListItem.TrailingContent>
+              </ListItem>
+            ) : null}
+
+            {deviceListFailed ? (
+              <ListItem>
+                <ListItem.LeadingContent>
+                  <Icon source={ICONS.error} size={22} tint={colors.error} />
+                </ListItem.LeadingContent>
+                <ListItem.HeadlineContent>
+                  <ComposeText color={colors.error}>
+                    {t('space.devices.refreshFailed', { ns: 'settingsSync' })}
+                  </ComposeText>
+                </ListItem.HeadlineContent>
+                <ListItem.TrailingContent>
+                  <TextButton onClick={() => void refresh()}>
+                    <ComposeText>{t('action.retry', { ns: 'common' })}</ComposeText>
+                  </TextButton>
+                </ListItem.TrailingContent>
+              </ListItem>
+            ) : null}
+
+            {isKnownEmpty ? (
+              <ListItem>
+                <ListItem.LeadingContent>
+                  <Icon source={ICONS.empty} size={24} tint={colors.outline} />
+                </ListItem.LeadingContent>
+                <ListItem.HeadlineContent>
+                  <ComposeText color={colors.onSurfaceVariant}>
+                    {t('space.devices.empty', { ns: 'settingsSync' })}
+                  </ComposeText>
+                </ListItem.HeadlineContent>
+              </ListItem>
+            ) : null}
+
+            {devices.length ? (
+              <Surface
+                color={colors.surfaceContainerLow}
+                border={{ color: colors.outlineVariant }}
+                shape={DEVICE_LIST_SHAPE}
+                modifiers={[fillMaxWidth()]}
+              >
+                <Column>
+                  {devices.map((device, index) => (
+                    <React.Fragment key={device.deviceId}>
+                      <SpaceDeviceRow device={device} />
+                      {index < devices.length - 1 ? (
+                        <HorizontalDivider
+                          color={colors.outlineVariant}
+                          modifiers={[padding(72, 0, 0, 0)]}
+                        />
+                      ) : null}
+                    </React.Fragment>
+                  ))}
+                </Column>
+              </Surface>
+            ) : null}
+          </LazyColumn>
+        </PullToRefreshBox>
       </Column>
     </ModalBottomSheet>
   );
