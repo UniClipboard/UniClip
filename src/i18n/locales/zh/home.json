@@ -35,7 +35,7 @@
   },
   "fab": {
     "takePhoto": "拍照",
-    "pickImage": "相册图片",
+    "pickImage": "相册",
     "pickFile": "选择文件",
     "uploadClipboard": "上传剪贴板",
     "syncNow": "立即同步"

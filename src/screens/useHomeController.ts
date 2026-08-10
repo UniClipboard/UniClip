@@ -581,11 +581,11 @@ export function useHomeController(onOpenSettings: () => void) {
     }
   }, [saveAndPush, showMessage, t]);
 
-  // Upload image
+  // 从相册选择照片或视频上传
   const handleUploadImage = useCallback(async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
+        mediaTypes: ['images', 'videos'],
         quality: 1,
       });
       if (result.canceled) return;
@@ -593,7 +593,7 @@ export function useHomeController(onOpenSettings: () => void) {
       if (!asset) return;
       await saveAndPush({
         uri: asset.uri,
-        fileName: asset.fileName || `image_${Date.now()}.jpg`,
+        fileName: asset.fileName || `asset_${Date.now()}`,
         mimeType: asset.mimeType,
         fileSize: asset.fileSize,
       });
@@ -602,7 +602,8 @@ export function useHomeController(onOpenSettings: () => void) {
     }
   }, [saveAndPush, showMessage, t]);
 
-  // 拍照上传 —— 相机权限已在 app.json 声明(Android CAMERA / iOS expo-camera）
+  // 拍照/录像上传 —— mediaTypes 同时含图片与视频,iOS 原生相机自带照片/视频切换;
+  // 相机权限已在 app.json 声明(Android CAMERA / iOS expo-camera）
   const handleTakePhoto = useCallback(async () => {
     try {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
@@ -610,13 +611,18 @@ export function useHomeController(onOpenSettings: () => void) {
         showMessage(t('toast.cameraPermissionNeeded'), 'error');
         return;
       }
-      const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1 });
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images', 'videos'],
+        quality: 1,
+      });
       if (result.canceled) return;
       const asset = result.assets?.[0];
       if (!asset) return;
+      const isVideo = asset.mimeType?.startsWith('video/') || asset.type === 'video';
       await saveAndPush({
         uri: asset.uri,
-        fileName: asset.fileName || `photo_${Date.now()}.jpg`,
+        fileName:
+          asset.fileName || (isVideo ? `video_${Date.now()}.mov` : `photo_${Date.now()}.jpg`),
         mimeType: asset.mimeType,
         fileSize: asset.fileSize,
       });

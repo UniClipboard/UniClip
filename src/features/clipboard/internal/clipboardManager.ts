@@ -583,7 +583,7 @@ export class ClipboardManager {
   }
 
   /**
-   * 从相册选择图片
+   * 从相册选择图片或视频
    */
   async pickImageFromGallery(): Promise<ClipboardContent | null> {
     try {
@@ -593,9 +593,9 @@ export class ClipboardManager {
         throw new Error('Permission to access media library denied');
       }
 
-      // 选择图片
+      // 选择图片/视频
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
+        mediaTypes: ['images', 'videos'],
         allowsEditing: false,
         quality: 1,
       });
@@ -606,22 +606,23 @@ export class ClipboardManager {
 
       const asset = result.assets[0];
       const profileHash = await calculateTextHash(asset.uri);
+      const isVideo = asset.mimeType?.startsWith('video/') || asset.type === 'video';
 
       return {
-        type: 'Image',
+        type: isVideo ? 'File' : 'Image',
         text: i18n.t('errors:contentPlaceholder.image'),
         fileUri: asset.uri,
         fileSize: asset.fileSize,
         profileHash,
       };
     } catch (error) {
-      log.error('Failed to pick image:', error);
+      log.error('Failed to pick media:', error);
       return null;
     }
   }
 
   /**
-   * 拍照
+   * 拍照或录像 —— iOS 原生相机在允许图片+视频时自带照片/视频切换
    */
   async takePhoto(): Promise<ClipboardContent | null> {
     try {
@@ -631,10 +632,11 @@ export class ClipboardManager {
         throw new Error('Permission to access camera denied');
       }
 
-      // 拍照
+      // 拍照/录像
       const result = await ImagePicker.launchCameraAsync({
         allowsEditing: false,
         quality: 1,
+        mediaTypes: ['images', 'videos'],
       });
 
       if (result.canceled || !result.assets || result.assets.length === 0) {
@@ -643,16 +645,17 @@ export class ClipboardManager {
 
       const asset = result.assets[0];
       const profileHash = await calculateTextHash(asset.uri);
+      const isVideo = asset.mimeType?.startsWith('video/') || asset.type === 'video';
 
       return {
-        type: 'Image',
+        type: isVideo ? 'File' : 'Image',
         text: i18n.t('errors:contentPlaceholder.image'),
         fileUri: asset.uri,
         fileSize: asset.fileSize,
         profileHash,
       };
     } catch (error) {
-      log.error('Failed to take photo:', error);
+      log.error('Failed to take photo or video:', error);
       return null;
     }
   }
