@@ -15,7 +15,7 @@ function source(relativePath: string): string {
 }
 
 describe('custom relay settings', () => {
-  it('saves a normalized relay address with its optional access token', async () => {
+  it('adds a normalized relay address without replacing the configured nodes', async () => {
     const saveCustomRelayNode = jest
       .fn<RelaySettingsApi['saveCustomRelayNode']>()
       .mockResolvedValue({
@@ -28,8 +28,12 @@ describe('custom relay settings', () => {
       saveCustomRelay({
         url: ' https://relay.example.com/ ',
         accessToken: ' private-token ',
+        currentUrls: ['https://relay-a.example.com'],
       })
-    ).resolves.toEqual({ configured: true });
+    ).resolves.toEqual({
+      configured: true,
+      urls: ['https://relay-a.example.com', 'https://relay.example.com'],
+    });
 
     expect(saveCustomRelayNode).toHaveBeenCalledWith('https://relay.example.com', 'private-token');
     expect(rebuildRelayEndpoint).toHaveBeenCalledTimes(1);
@@ -38,7 +42,7 @@ describe('custom relay settings', () => {
     );
   });
 
-  it('removes the configured relay when its address is cleared', async () => {
+  it('removes only the selected relay node', async () => {
     const saveCustomRelayNode = jest
       .fn<RelaySettingsApi['saveCustomRelayNode']>()
       .mockResolvedValue({
@@ -47,11 +51,16 @@ describe('custom relay settings', () => {
     const rebuildRelayEndpoint = jest.fn<RelaySettingsApi['rebuildRelayEndpoint']>();
     configureRelaySettings({ saveCustomRelayNode, rebuildRelayEndpoint });
 
-    await expect(saveCustomRelay({ url: '', accessToken: '' })).resolves.toEqual({
-      configured: false,
-    });
+    await expect(
+      saveCustomRelay({
+        url: '',
+        accessToken: '',
+        previousUrl: 'https://relay-a.example.com',
+        currentUrls: ['https://relay-a.example.com', 'https://relay-b.example.com'],
+      })
+    ).resolves.toEqual({ configured: false, urls: ['https://relay-b.example.com'] });
 
-    expect(saveCustomRelayNode).toHaveBeenCalledWith('', '');
+    expect(saveCustomRelayNode).toHaveBeenCalledWith('', '', 'https://relay-a.example.com');
     expect(rebuildRelayEndpoint).toHaveBeenCalledTimes(1);
   });
 
@@ -61,7 +70,11 @@ describe('custom relay settings', () => {
     configureRelaySettings({ saveCustomRelayNode, rebuildRelayEndpoint });
 
     await expect(
-      saveCustomRelay({ url: 'ftp://relay.example.com', accessToken: '' })
+      saveCustomRelay({
+        url: 'ftp://relay.example.com',
+        accessToken: '',
+        currentUrls: [],
+      })
     ).rejects.toThrow('Relay address must use HTTP or HTTPS');
 
     expect(saveCustomRelayNode).not.toHaveBeenCalled();
@@ -72,13 +85,42 @@ describe('custom relay settings', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
     const ios = source('screens/settings/ios/SpacePage.tsx');
 
-    for (const platform of [android, ios]) {
-      expect(platform.indexOf('space.devices.title')).toBeLessThan(
-        platform.indexOf('<CustomRelaySection />')
-      );
-      expect(platform.indexOf('<CustomRelaySection />')).toBeLessThan(
-        platform.indexOf('space.switch.title')
-      );
+    expect(android.indexOf('space.devices.otherTitle')).toBeLessThan(
+      android.indexOf('<CustomRelaySection />')
+    );
+    expect(android.indexOf('<CustomRelaySection />')).toBeLessThan(
+      android.indexOf('space.switch.title')
+    );
+    expect(ios.indexOf('space.devices.title')).toBeLessThan(ios.indexOf('<CustomRelaySection />'));
+    expect(ios.indexOf('<CustomRelaySection />')).toBeLessThan(ios.indexOf('space.switch.title'));
+  });
+
+  it('keeps the Android relay form in an advanced settings sheet', () => {
+    const androidRelay = source('screens/settings/CustomRelaySection.android.tsx');
+
+    expect(androidRelay).toContain('showRelaySettings');
+    expect(androidRelay).toContain('<ModalBottomSheet');
+    expect(androidRelay).toContain('relay.summary');
+  });
+
+  it('animates between the Android relay list and editor within the same sheet', () => {
+    const androidRelay = source('screens/settings/CustomRelaySection.android.tsx');
+
+    expect(androidRelay).toContain('<SheetPageTransition');
+  });
+
+  it('shows every configured relay node and provides per-node editing on both platforms', () => {
+    for (const relativePath of [
+      'screens/settings/CustomRelaySection.android.tsx',
+      'screens/settings/CustomRelaySection.ios.tsx',
+    ]) {
+      const relay = source(relativePath);
+
+      expect(relay).toContain('customRelayUrls');
+      expect(relay).toContain('EMPTY_RELAY_URLS');
+      expect(relay).toContain('configuredUrls.map');
+      expect(relay).toContain('openAddRelay');
+      expect(relay).toContain("save('')");
     }
   });
 });

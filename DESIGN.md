@@ -341,6 +341,12 @@ motion:
     accelerate: cubic-bezier(0.4, 0.0, 1, 1)
     decelerate: cubic-bezier(0.0, 0.0, 0.2, 1)
     emphasized: cubic-bezier(0.2, 0.0, 0.0, 1)
+  sheet-page-transition:
+    android-component: SheetPageTransition
+    scope: Same Android bottom sheet, list-to-detail or list-to-form navigation
+    forward: First page fades and moves 12% left; second page fades in from 12% right
+    back: Reverse the forward direction
+    container: Smoothly follows the active page height
 ---
 
 ## Overview
@@ -477,6 +483,12 @@ Metro resolves `.ios.tsx` on iOS automatically.
 - **Action sheets**: `ClipboardCardActionSheet.android.tsx` — preview header + action rows.
 - **Icons**: `@expo/vector-icons/Ionicons`.
 - **Theme**: All colors from `useTheme().theme.colors.*`.
+
+### Sheet page transition
+
+When an Android bottom sheet changes between a list and its detail or form, keep one sheet open and use `SheetPageTransition` from `src/components/ui/`. The first page leaves to the left and the second page enters from the right; returning reverses that direction. The sheet height follows the active page smoothly.
+
+Do not close and reopen a sheet for this navigation, and do not switch the content instantly. This is the shared Android pattern for all same-sheet drill-down flows. On iOS, use the platform-native page transition for the equivalent flow.
 
 ### iOS components
 

@@ -6,8 +6,8 @@ export interface SharedSettings {
   // Sync behavior
   autoApplyRemote: boolean;
   autoPushLocal: boolean;
-  /** The address is non-sensitive; the optional access token stays in native secure storage. */
-  customRelayUrl: string;
+  /** Relay addresses are non-sensitive; access tokens stay in native secure storage. */
+  customRelayUrls: string[];
 
   // Attachment & cache
   attachmentAutoDownload: 'wifi' | 'always' | 'off';
@@ -78,7 +78,7 @@ export interface RuntimeState {
 export const SHARED_DEFAULTS: SharedSettings = {
   autoApplyRemote: true,
   autoPushLocal: true,
-  customRelayUrl: '',
+  customRelayUrls: [],
 
   attachmentAutoDownload: 'wifi',
   payloadCacheMaxBytes: 200 * 1024 * 1024,

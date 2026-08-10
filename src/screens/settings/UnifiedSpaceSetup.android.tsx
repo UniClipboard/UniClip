@@ -1,16 +1,19 @@
-import { memo, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
+import { BackHandler } from 'react-native';
 import {
   AlertDialog,
   Button,
   CircularProgressIndicator,
   Column,
+  FilledTonalButton,
   HorizontalDivider,
   Icon,
-  IconButton,
   ListItem,
-  OutlinedButton,
+  ModalBottomSheet,
   Row,
+  Shape,
   Spacer,
+  Surface,
   Text as ComposeText,
   TextButton,
   useMaterialColors,
@@ -20,6 +23,8 @@ import {
   fillMaxWidth,
   height as heightModifier,
   padding,
+  size,
+  weight,
   width as widthModifier,
 } from '@expo/ui/jetpack-compose/modifiers';
 import { useTranslation } from 'react-i18next';
@@ -29,6 +34,7 @@ import type { AddSyncConnectionMode } from '@/components/AddSyncConnectionSheet.
 import { SpaceInvitationSheet } from '@/components/SpaceInvitationSheet';
 import { getUnifiedSpaceService, UnifiedSpaceInputError } from '@/features/space';
 import { useUnifiedSpaceStore, type UnifiedSpaceDevice } from '@/features/space';
+import { useTheme } from '@/hooks/useTheme';
 import { CustomRelaySection } from './CustomRelaySection';
 import { SettingsSectionItem } from './SettingsSectionItem';
 
@@ -36,12 +42,19 @@ type PendingOperation = 'leave' | `remove:${string}` | `recover:${string}` | nul
 
 const EMPTY_TITLE_STYLE = { fontSize: 22, fontWeight: '600', letterSpacing: 0 } as const;
 const EMPTY_BODY_STYLE = { textAlign: 'center' } as const;
+const HERO_TITLE_STYLE = { fontSize: 16, fontWeight: '600' } as const;
+const HERO_SHAPE = Shape.RoundedCorner({
+  cornerRadii: { topStart: 28, topEnd: 28, bottomStart: 28, bottomEnd: 28 },
+});
+const CIRCLE_SHAPE = Shape.RoundedCorner({
+  cornerRadii: { topStart: 50, topEnd: 50, bottomStart: 50, bottomEnd: 50 },
+});
 
 const ICONS = {
   add: require('../../assets/icons/add.xml'),
   chevron: require('../../assets/icons/chevron_right.xml'),
+  delete: require('../../assets/icons/delete.xml'),
   device: require('../../assets/icons/account_circle.xml'),
-  ready: require('../../assets/icons/check_circle.xml'),
   space: require('../../assets/icons/groups.xml'),
   status: require('../../assets/icons/circle.xml'),
 };
@@ -51,20 +64,45 @@ function operationError(error: unknown, t: (key: string) => string): string {
   return t('space.error.operationFailed');
 }
 
+function deviceStatusLabel(
+  device: UnifiedSpaceDevice,
+  removalPending: boolean,
+  t: (key: string) => string
+): string {
+  const base = device.isLocal
+    ? t('space.devices.thisDevice')
+    : device.online
+    ? t('space.devices.online')
+    : t('space.devices.offline');
+  return removalPending ? `${base} · ${t('space.removal.pendingDevice')}` : base;
+}
+
 function SpaceDeviceRow({
   device,
+  removalPending,
+  removalNeedsRecovery,
+  recovering,
   removing,
+  manageable,
+  onRecover,
   onManage,
 }: {
   device: UnifiedSpaceDevice;
+  removalPending: boolean;
+  removalNeedsRecovery: boolean;
+  recovering: boolean;
   removing: boolean;
+  manageable: boolean;
+  onRecover: () => void;
   onManage: () => void;
 }) {
   const { t } = useTranslation('settingsSync');
   const colors = useMaterialColors();
+  const { theme } = useTheme();
   const online = device.isLocal || device.online;
-  const statusColor = online ? colors.primary : colors.outline;
-  const modifiers = !device.isLocal && !removing ? [clickable(onManage)] : [];
+  const statusColor = online ? (theme.colors.success as string) : colors.outline;
+  const showRecover = removalPending && removalNeedsRecovery && !device.isLocal;
+  const modifiers = manageable && !removing ? [clickable(onManage)] : [];
 
   return (
     <ListItem modifiers={modifiers}>
@@ -79,20 +117,20 @@ function SpaceDeviceRow({
           <Icon source={ICONS.status} size={8} tint={statusColor} />
           <Spacer modifiers={[widthModifier(6)]} />
           <ComposeText color={statusColor}>
-            {t(
-              device.isLocal
-                ? 'space.devices.thisDevice'
-                : online
-                ? 'space.devices.online'
-                : 'space.devices.offline'
-            )}
+            {deviceStatusLabel(device, removalPending, t)}
           </ComposeText>
         </Row>
       </ListItem.SupportingContent>
       {!device.isLocal ? (
         <ListItem.TrailingContent>
-          {removing ? (
+          {removing || recovering ? (
             <CircularProgressIndicator modifiers={[widthModifier(24), heightModifier(24)]} />
+          ) : showRecover ? (
+            <TextButton onClick={onRecover}>
+              <ComposeText color={colors.error}>
+                {t('space.removal.permanentLossAction')}
+              </ComposeText>
+            </TextButton>
           ) : (
             <Icon
               source={ICONS.chevron}
@@ -107,34 +145,80 @@ function SpaceDeviceRow({
   );
 }
 
+function SkeletonBar({ fraction, barHeight }: { fraction: number; barHeight: number }) {
+  const colors = useMaterialColors();
+  return (
+    <Surface
+      color={colors.surfaceContainerHigh}
+      shape={HERO_SHAPE}
+      modifiers={[fillMaxWidth(fraction), heightModifier(barHeight)]}
+    />
+  );
+}
+
+function SkeletonRow() {
+  const colors = useMaterialColors();
+  return (
+    <ListItem>
+      <ListItem.LeadingContent>
+        <Surface
+          color={colors.surfaceContainerHigh}
+          shape={CIRCLE_SHAPE}
+          modifiers={[size(30, 30)]}
+        />
+      </ListItem.LeadingContent>
+      <ListItem.HeadlineContent>
+        <SkeletonBar fraction={0.6} barHeight={14} />
+      </ListItem.HeadlineContent>
+      <ListItem.SupportingContent>
+        <SkeletonBar fraction={0.4} barHeight={12} />
+      </ListItem.SupportingContent>
+    </ListItem>
+  );
+}
+
 export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
   const { t } = useTranslation('settingsSync');
   const colors = useMaterialColors();
+  const { theme } = useTheme();
   const [setupMode, setSetupMode] = useState<AddSyncConnectionMode | null>(null);
   const [pending, setPending] = useState<PendingOperation>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [deviceOperationError, setDeviceOperationError] = useState<string | null>(null);
+  const [spaceOperationError, setSpaceOperationError] = useState<string | null>(null);
+  const [manageDeviceId, setManageDeviceId] = useState<string | null>(null);
   const [removeDeviceId, setRemoveDeviceId] = useState<string | null>(null);
   const [permanentlyLostDeviceId, setPermanentlyLostDeviceId] = useState<string | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [showInvitation, setShowInvitation] = useState(false);
   const space = useUnifiedSpaceStore();
 
-  useEffect(() => {
+  const refresh = useCallback(() => {
+    setRefreshError(null);
     void getUnifiedSpaceService()
       .refresh()
-      .catch((cause) => setError(operationError(cause, t)));
+      .catch((cause) => setRefreshError(operationError(cause, t)));
   }, [t]);
+
+  useEffect(() => refresh(), [refresh]);
+
+  // 操作进行中拦截返回键,避免中途离开页面导致状态不一致(与 iOS handleBack 对齐)
+  useEffect(() => {
+    if (!pending) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => true);
+    return () => subscription.remove();
+  }, [pending]);
 
   const removeDevice = async () => {
     if (!removeDeviceId || pending) return;
     const deviceId = removeDeviceId;
     setRemoveDeviceId(null);
     setPending(`remove:${deviceId}`);
-    setError(null);
+    setDeviceOperationError(null);
     try {
       await getUnifiedSpaceService().removeMember(deviceId);
     } catch (cause) {
-      setError(operationError(cause, t));
+      setDeviceOperationError(operationError(cause, t));
     } finally {
       setPending(null);
     }
@@ -147,11 +231,11 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
 
     setPermanentlyLostDeviceId(null);
     setPending(`recover:${deviceId}`);
-    setError(null);
+    setDeviceOperationError(null);
     try {
       await getUnifiedSpaceService().continueMemberRevocation(revocationId, [deviceId]);
     } catch (cause) {
-      setError(operationError(cause, t));
+      setDeviceOperationError(operationError(cause, t));
     } finally {
       setPending(null);
     }
@@ -161,11 +245,11 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
     if (pending) return;
     setConfirmLeave(false);
     setPending('leave');
-    setError(null);
+    setSpaceOperationError(null);
     try {
       await getUnifiedSpaceService().leaveSpace();
     } catch (cause) {
-      setError(operationError(cause, t));
+      setSpaceOperationError(operationError(cause, t));
     } finally {
       setPending(null);
     }
@@ -173,15 +257,58 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
 
   const spaceId = space.spaceId;
   const memberRemoval = space.memberRemoval;
+  const removalPendingIds = new Set(memberRemoval?.pendingRecipientDeviceIds ?? []);
+  const removalNeedsRecovery = memberRemoval ? memberRemoval.outcome === 'recoveryRequired' : false;
   const devices = [...space.devices].sort((left, right) => {
     const leftRank = left.isLocal ? 0 : left.online ? 1 : 2;
     const rightRank = right.isLocal ? 0 : right.online ? 1 : 2;
     return leftRank - rightRank;
   });
-  const onlineCount = devices.filter((device) => device.isLocal || device.online).length;
-  const offlineCount = devices.length - onlineCount;
+  const localDevice = devices.find((device) => device.isLocal) ?? null;
+  const otherDevices = devices.filter((device) => !device.isLocal);
+  // 移除确认中的设备若已不在列表里,仍补一行占位,保证恢复入口可达
+  const removalOnlyIds = [...removalPendingIds].filter(
+    (deviceId) => !devices.some((device) => device.deviceId === deviceId)
+  );
+  const otherDeviceCount = otherDevices.length + removalOnlyIds.length;
+  const onlineCount = otherDevices.filter((device) => device.online).length;
+  const offlineCount = otherDeviceCount - onlineCount;
+  const hasOnlineDevice = onlineCount > 0;
+  const localDeviceName =
+    localDevice?.displayName ?? space.deviceName ?? t('space.devices.thisDevice');
   const removalDeviceName = (deviceId: string) =>
     devices.find((device) => device.deviceId === deviceId)?.displayName ?? deviceId;
+  const manageDevice = manageDeviceId
+    ? devices.find((device) => device.deviceId === manageDeviceId) ?? null
+    : null;
+  const syncFailed = space.deviceListRefreshStatus === 'failed' || Boolean(refreshError);
+  const isRefreshing = space.deviceListRefreshStatus === 'refreshing';
+  const overviewTitle = syncFailed
+    ? t('space.overview.statusUnavailable')
+    : hasOnlineDevice
+    ? t('space.overview.devicesAvailable')
+    : otherDeviceCount
+    ? t('space.overview.noDevicesOnline')
+    : t('space.overview.noOtherDevices');
+  const overviewBody = syncFailed
+    ? refreshError ?? t('space.devices.refreshFailed')
+    : hasOnlineDevice
+    ? t('space.overview.deviceSummary', { online: onlineCount, offline: offlineCount })
+    : otherDeviceCount
+    ? t('space.overview.otherDevicesOffline', { count: otherDeviceCount })
+    : t('space.devices.empty');
+  const overviewColor = syncFailed
+    ? colors.error
+    : hasOnlineDevice
+    ? theme.colors.success
+    : colors.outline;
+  const removalFooter = !memberRemoval
+    ? undefined
+    : memberRemoval.outcome === 'complete' || memberRemoval.outcome === 'localOnly'
+    ? t('space.removal.complete')
+    : removalNeedsRecovery
+    ? t('space.removal.recoveryRequired')
+    : t('space.removal.waiting');
   const isInitialLoading =
     !spaceId && !pending && (space.status === 'idle' || space.status === 'loading');
 
@@ -198,6 +325,43 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
       />
 
       <SpaceInvitationSheet visible={showInvitation} onClose={() => setShowInvitation(false)} />
+
+      {manageDevice ? (
+        <ModalBottomSheet onDismissRequest={() => setManageDeviceId(null)}>
+          <Column modifiers={[fillMaxWidth(), padding(24, 8, 24, 24)]}>
+            <Row verticalAlignment="center" modifiers={[fillMaxWidth(), padding(0, 12, 0, 4)]}>
+              <Icon source={ICONS.device} size={40} tint={colors.primary} />
+              <Spacer modifiers={[widthModifier(16)]} />
+              <Column>
+                <ComposeText style={HERO_TITLE_STYLE}>{manageDevice.displayName}</ComposeText>
+                <ComposeText color={colors.onSurfaceVariant}>
+                  {deviceStatusLabel(manageDevice, removalPendingIds.has(manageDevice.deviceId), t)}
+                  {' · '}
+                  {t('space.devices.idLabel', { id: manageDevice.deviceId.slice(0, 8) })}
+                </ComposeText>
+              </Column>
+            </Row>
+            <Spacer modifiers={[heightModifier(12)]} />
+            <HorizontalDivider color={colors.outlineVariant} />
+            <ListItem
+              modifiers={[
+                clickable(() => {
+                  const deviceId = manageDevice.deviceId;
+                  setManageDeviceId(null);
+                  setRemoveDeviceId(deviceId);
+                }),
+              ]}
+            >
+              <ListItem.LeadingContent>
+                <Icon source={ICONS.delete} size={24} tint={colors.error} />
+              </ListItem.LeadingContent>
+              <ListItem.HeadlineContent>
+                <ComposeText color={colors.error}>{t('space.devices.remove')}</ComposeText>
+              </ListItem.HeadlineContent>
+            </ListItem>
+          </Column>
+        </ModalBottomSheet>
+      ) : null}
 
       {removeDeviceId ? (
         <AlertDialog onDismissRequest={() => setRemoveDeviceId(null)}>
@@ -271,14 +435,8 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
   if (isInitialLoading) {
     return (
       <SettingsSectionItem title={t('space.title')} dialogs={dialogs}>
-        <ListItem>
-          <ListItem.LeadingContent>
-            <CircularProgressIndicator modifiers={[widthModifier(24), heightModifier(24)]} />
-          </ListItem.LeadingContent>
-          <ListItem.HeadlineContent>
-            <ComposeText>{t('state.loading', { ns: 'common' })}</ComposeText>
-          </ListItem.HeadlineContent>
-        </ListItem>
+        <SkeletonRow />
+        <SkeletonRow />
       </SettingsSectionItem>
     );
   }
@@ -287,13 +445,22 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
     return (
       <SettingsSectionItem title={t('space.title')} footer={t('space.footer')} dialogs={dialogs}>
         <Column horizontalAlignment="center" modifiers={[fillMaxWidth(), padding(24, 28, 24, 28)]}>
-          <Icon source={ICONS.space} size={52} tint={colors.primary} />
+          <Surface color={colors.surfaceContainerHighest} shape={CIRCLE_SHAPE}>
+            <Column modifiers={[padding(24, 24, 24, 24)]}>
+              <Icon source={ICONS.space} size={48} tint={colors.primary} />
+            </Column>
+          </Surface>
           <Spacer modifiers={[heightModifier(16)]} />
           <ComposeText style={EMPTY_TITLE_STYLE}>{t('space.empty.title')}</ComposeText>
           <Spacer modifiers={[heightModifier(8)]} />
           <ComposeText color={colors.onSurfaceVariant} style={EMPTY_BODY_STYLE}>
-            {error ?? t('space.empty.body')}
+            {refreshError ?? t('space.empty.body')}
           </ComposeText>
+          {refreshError ? (
+            <TextButton onClick={refresh}>
+              <ComposeText>{t('action.retry', { ns: 'common' })}</ComposeText>
+            </TextButton>
+          ) : null}
           <Spacer modifiers={[heightModifier(24)]} />
           <Button onClick={() => setSetupMode('create')} modifiers={[fillMaxWidth()]}>
             <Icon source={ICONS.space} size={18} tint={colors.onPrimary} />
@@ -301,11 +468,11 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
             <ComposeText>{t('space.create.title')}</ComposeText>
           </Button>
           <Spacer modifiers={[heightModifier(10)]} />
-          <OutlinedButton onClick={() => setSetupMode('join')} modifiers={[fillMaxWidth()]}>
-            <Icon source={ICONS.device} size={18} tint={colors.primary} />
+          <FilledTonalButton onClick={() => setSetupMode('join')} modifiers={[fillMaxWidth()]}>
+            <Icon source={ICONS.device} size={18} tint={colors.onSecondaryContainer} />
             <Spacer modifiers={[widthModifier(8)]} />
             <ComposeText>{t('space.join.title')}</ComposeText>
-          </OutlinedButton>
+          </FilledTonalButton>
         </Column>
       </SettingsSectionItem>
     );
@@ -315,112 +482,107 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
     <Column modifiers={[fillMaxWidth()]}>
       {dialogs}
 
-      {error ? (
-        <SettingsSectionItem title={t('space.error.title')}>
-          <ListItem>
-            <ListItem.LeadingContent>
-              <Icon source={ICONS.space} size={24} tint={colors.error} />
-            </ListItem.LeadingContent>
-            <ListItem.HeadlineContent>
-              <ComposeText color={colors.error}>{error}</ComposeText>
-            </ListItem.HeadlineContent>
-          </ListItem>
-        </SettingsSectionItem>
-      ) : null}
-
-      {error ? <Spacer modifiers={[heightModifier(16)]} /> : null}
-      <SettingsSectionItem
-        title={t('space.overview.title')}
-        footer={t('connection.p2pDescription')}
+      <Surface
+        color={syncFailed ? colors.errorContainer : colors.surfaceContainerHigh}
+        shape={HERO_SHAPE}
+        modifiers={[fillMaxWidth()]}
       >
+        <Column modifiers={[fillMaxWidth(), padding(20, 16, 20, 20)]}>
+          <Row verticalAlignment="center" modifiers={[fillMaxWidth()]}>
+            <Icon source={ICONS.status} size={10} tint={overviewColor} />
+            <Spacer modifiers={[widthModifier(10)]} />
+            <Column modifiers={[weight(1)]}>
+              <ComposeText
+                color={syncFailed ? colors.onErrorContainer : undefined}
+                style={HERO_TITLE_STYLE}
+              >
+                {overviewTitle}
+              </ComposeText>
+              <ComposeText color={syncFailed ? colors.onErrorContainer : colors.onSurfaceVariant}>
+                {overviewBody}
+              </ComposeText>
+            </Column>
+            {isRefreshing ? (
+              <CircularProgressIndicator modifiers={[widthModifier(24), heightModifier(24)]} />
+            ) : (
+              <TextButton onClick={refresh}>
+                <ComposeText>{t('action.retry', { ns: 'common' })}</ComposeText>
+              </TextButton>
+            )}
+          </Row>
+          <Spacer modifiers={[heightModifier(16)]} />
+          <Button onClick={() => setShowInvitation(true)} modifiers={[fillMaxWidth()]}>
+            <Icon source={ICONS.add} size={18} tint={colors.onPrimary} />
+            <Spacer modifiers={[widthModifier(8)]} />
+            <ComposeText>{t('space.invitation.addAction')}</ComposeText>
+          </Button>
+        </Column>
+      </Surface>
+
+      <Spacer modifiers={[heightModifier(16)]} />
+      <SettingsSectionItem title={t('space.devices.thisDevice')}>
         <ListItem>
           <ListItem.LeadingContent>
-            <Icon source={ICONS.ready} size={30} tint={colors.primary} />
+            <Icon source={ICONS.device} size={28} tint={colors.primary} />
           </ListItem.LeadingContent>
           <ListItem.HeadlineContent>
-            <ComposeText>{t('space.overview.syncHealthy')}</ComposeText>
+            <ComposeText>{localDeviceName}</ComposeText>
           </ListItem.HeadlineContent>
           <ListItem.SupportingContent>
-            <ComposeText color={colors.onSurfaceVariant}>
-              {t('space.overview.deviceSummary', { online: onlineCount, offline: offlineCount })}
-            </ComposeText>
+            <Row verticalAlignment="center">
+              <Icon source={ICONS.status} size={8} tint={theme.colors.success as string} />
+              <Spacer modifiers={[widthModifier(6)]} />
+              <ComposeText color={theme.colors.success as string}>
+                {t('space.devices.thisDevice')}
+              </ComposeText>
+            </Row>
           </ListItem.SupportingContent>
-          <ListItem.TrailingContent>
-            <IconButton onClick={() => setShowInvitation(true)}>
-              <Icon
-                source={ICONS.add}
-                size={24}
-                tint={colors.primary}
-                contentDescription={t('space.invitation.addA11y')}
-              />
-            </IconButton>
-          </ListItem.TrailingContent>
         </ListItem>
       </SettingsSectionItem>
 
-      {memberRemoval ? (
-        <>
-          <Spacer modifiers={[heightModifier(16)]} />
-          <SettingsSectionItem
-            title={t('space.removal.title')}
-            footer={
-              memberRemoval.outcome === 'complete' || memberRemoval.outcome === 'localOnly'
-                ? t('space.removal.complete')
-                : memberRemoval.outcome === 'recoveryRequired'
-                ? t('space.removal.recoveryRequired')
-                : t('space.removal.waiting')
-            }
-          >
-            {memberRemoval.pendingRecipientDeviceIds.map((deviceId, index) => (
-              <Column key={deviceId} modifiers={[fillMaxWidth()]}>
+      <Spacer modifiers={[heightModifier(16)]} />
+      <SettingsSectionItem
+        title={`${t('space.devices.otherTitle')} (${otherDeviceCount})`}
+        footer={removalFooter}
+      >
+        {otherDevices.length || removalOnlyIds.length ? (
+          <>
+            {otherDevices.map((device, index) => (
+              <Column key={device.deviceId} modifiers={[fillMaxWidth()]}>
                 {index > 0 ? <HorizontalDivider /> : null}
-                <ListItem>
-                  <ListItem.LeadingContent>
-                    <Icon source={ICONS.device} size={24} tint={colors.primary} />
-                  </ListItem.LeadingContent>
-                  <ListItem.HeadlineContent>
-                    <ComposeText>{removalDeviceName(deviceId)}</ComposeText>
-                  </ListItem.HeadlineContent>
-                  <ListItem.SupportingContent>
-                    <ComposeText color={colors.onSurfaceVariant}>
-                      {t('space.removal.pendingDevice')}
-                    </ComposeText>
-                  </ListItem.SupportingContent>
-                  {memberRemoval.outcome === 'recoveryRequired' ? (
-                    <ListItem.TrailingContent>
-                      {pending === `recover:${deviceId}` ? (
-                        <CircularProgressIndicator
-                          modifiers={[widthModifier(24), heightModifier(24)]}
-                        />
-                      ) : (
-                        <TextButton onClick={() => setPermanentlyLostDeviceId(deviceId)}>
-                          <ComposeText color={colors.error}>
-                            {t('space.removal.permanentLossAction')}
-                          </ComposeText>
-                        </TextButton>
-                      )}
-                    </ListItem.TrailingContent>
-                  ) : null}
-                </ListItem>
+                <SpaceDeviceRow
+                  device={device}
+                  removalPending={removalPendingIds.has(device.deviceId)}
+                  removalNeedsRecovery={removalNeedsRecovery}
+                  recovering={pending === `recover:${device.deviceId}`}
+                  removing={pending === `remove:${device.deviceId}`}
+                  manageable
+                  onRecover={() => setPermanentlyLostDeviceId(device.deviceId)}
+                  onManage={() => setManageDeviceId(device.deviceId)}
+                />
               </Column>
             ))}
-          </SettingsSectionItem>
-        </>
-      ) : null}
-
-      <Spacer modifiers={[heightModifier(16)]} />
-      <SettingsSectionItem title={`${t('space.devices.title')} (${devices.length})`}>
-        {devices.length ? (
-          devices.map((device, index) => (
-            <Column key={device.deviceId} modifiers={[fillMaxWidth()]}>
-              {index > 0 ? <HorizontalDivider /> : null}
-              <SpaceDeviceRow
-                device={device}
-                removing={pending === `remove:${device.deviceId}`}
-                onManage={() => setRemoveDeviceId(device.deviceId)}
-              />
-            </Column>
-          ))
+            {removalOnlyIds.map((deviceId, index) => (
+              <Column key={deviceId} modifiers={[fillMaxWidth()]}>
+                {index > 0 || otherDevices.length ? <HorizontalDivider /> : null}
+                <SpaceDeviceRow
+                  device={{
+                    deviceId,
+                    displayName: removalDeviceName(deviceId),
+                    isLocal: false,
+                    online: false,
+                  }}
+                  removalPending
+                  removalNeedsRecovery={removalNeedsRecovery}
+                  recovering={pending === `recover:${deviceId}`}
+                  removing={false}
+                  manageable={false}
+                  onRecover={() => setPermanentlyLostDeviceId(deviceId)}
+                  onManage={() => undefined}
+                />
+              </Column>
+            ))}
+          </>
         ) : (
           <ListItem>
             <ListItem.LeadingContent>
@@ -432,12 +594,18 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
           </ListItem>
         )}
       </SettingsSectionItem>
+      {deviceOperationError ? (
+        <>
+          <Spacer modifiers={[heightModifier(6)]} />
+          <ComposeText color={colors.error}>{deviceOperationError}</ComposeText>
+        </>
+      ) : null}
 
       <Spacer modifiers={[heightModifier(16)]} />
       <CustomRelaySection />
 
       <Spacer modifiers={[heightModifier(16)]} />
-      <SettingsSectionItem title={t('space.switch.title')} footer={t('space.switch.description')}>
+      <SettingsSectionItem title={t('space.manage.title')} footer={t('space.switch.description')}>
         <ListItem modifiers={[clickable(() => setSetupMode('switch'))]}>
           <ListItem.LeadingContent>
             <Icon source={ICONS.space} size={24} tint={colors.primary} />
@@ -452,19 +620,28 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
       </SettingsSectionItem>
 
       <Spacer modifiers={[heightModifier(16)]} />
-      <SettingsSectionItem title={t('space.leave.action')} footer={t('space.leave.confirm')}>
+      <SettingsSectionItem title={t('space.danger.title')} footer={t('space.leave.confirm')}>
         <ListItem modifiers={[clickable(() => setConfirmLeave(true))]}>
+          <ListItem.LeadingContent>
+            <Icon source={ICONS.delete} size={24} tint={colors.error} />
+          </ListItem.LeadingContent>
           <ListItem.HeadlineContent>
             <ComposeText color={colors.error}>{t('space.leave.action')}</ComposeText>
           </ListItem.HeadlineContent>
           <ListItem.TrailingContent>
             {pending === 'leave' ? (
               <CircularProgressIndicator modifiers={[widthModifier(24), heightModifier(24)]} />
-            ) : (
-              <Icon source={ICONS.chevron} size={20} tint={colors.error} />
-            )}
+            ) : null}
           </ListItem.TrailingContent>
         </ListItem>
+        {spaceOperationError ? (
+          <>
+            <HorizontalDivider />
+            <Column modifiers={[padding(16, 12, 16, 12)]}>
+              <ComposeText color={colors.error}>{spaceOperationError}</ComposeText>
+            </Column>
+          </>
+        ) : null}
       </SettingsSectionItem>
     </Column>
   );

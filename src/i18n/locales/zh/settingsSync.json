@@ -11,6 +11,11 @@
     "token": "访问令牌（可选）",
     "save": "保存中继节点",
     "remove": "移除中继节点",
+    "add": "添加中继节点",
+    "edit": "编辑中继节点",
+    "summary": "未设置",
+    "configured": "已设置",
+    "configuredCount": "已设置 {{count}} 个节点",
     "footer": "仅使用 HTTP 或 HTTPS 地址。访问令牌只保存在设备的安全区域。",
     "error": {
       "saveFailed": "无法保存中继节点"
@@ -28,7 +33,13 @@
     "overview": {
       "title": "当前状态",
       "syncHealthy": "同步正常",
-      "deviceSummary": "{{online}} 台在线 · {{offline}} 台离线"
+      "deviceSummary": "{{online}} 台在线 · {{offline}} 台离线",
+      "syncError": "同步异常",
+      "devicesAvailable": "可同步",
+      "noDevicesOnline": "暂无可同步设备",
+      "noOtherDevices": "还没有其他设备",
+      "otherDevicesOffline": "{{count}} 台其他设备暂时离线",
+      "statusUnavailable": "设备状态未更新"
     },
     "create": {
       "title": "创建新空间",
@@ -77,6 +88,7 @@
       "title": "邀请其他设备",
       "description": "为已有空间生成一个限时邀请码。",
       "action": "生成邀请码",
+      "addAction": "添加设备",
       "addA11y": "邀请新设备",
       "code": "邀请码",
       "pairingInstructions": "请在新设备输入此邀请码，加入空间并完成配对。",
@@ -91,9 +103,11 @@
       "online": "在线",
       "offline": "离线",
       "thisDevice": "本机",
+      "otherTitle": "其他设备",
       "remove": "移除设备",
       "removeConfirm": "确定从空间中移除这台设备吗？",
-      "manageHint": "打开设备管理"
+      "manageHint": "打开设备管理",
+      "idLabel": "设备 ID {{id}}"
     },
     "removal": {
       "title": "移除进度",
@@ -136,6 +150,9 @@
       "serviceUnavailable": "连接服务暂时不可用，请稍后重试",
       "connectionLost": "连接已中断，请重试",
       "operationFailed": "操作失败,请检查输入后重试"
-    }
+    },
+    "manage": { "title": "空间操作" },
+    "advanced": { "title": "高级设置" },
+    "danger": { "title": "危险操作" }
   }
 }

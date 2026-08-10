@@ -85,9 +85,10 @@ describe('unified space setup UI', () => {
       expect(platform).toContain('useUnifiedSpaceStore');
       expect(platform).toContain('.removeMember(');
       expect(platform).toContain('.leaveSpace()');
-      expect(platform).toContain('space.devices.title');
       expect(platform).toContain('space.leave.action');
     }
+    expect(android).toContain('space.devices.otherTitle');
+    expect(ios).toContain('space.devices.title');
   });
 
   it('lets an active space join another space before offering leave', () => {
@@ -141,17 +142,24 @@ describe('unified space setup UI', () => {
     }
   });
 
-  it('puts connection health and devices ahead of leaving the space', () => {
+  it('puts the Android page status, adding devices, and device management ahead of leaving', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
+    const androidRelay = source('screens/settings/CustomRelaySection.android.tsx');
     const ios = source('screens/settings/ios/SpacePage.tsx');
 
-    for (const platform of [android, ios]) {
-      expect(platform).toMatch(
-        /space\.overview\.syncHealthy[\s\S]*space\.devices\.title[\s\S]*space\.leave\.action/
-      );
-      expect(platform).toContain('space.overview.deviceSummary');
-      expect(platform).not.toContain('space.details');
-    }
+    expect(android).toMatch(
+      /space\.overview\.noDevicesOnline[\s\S]*space\.invitation\.addAction[\s\S]*space\.devices\.thisDevice[\s\S]*space\.devices\.otherTitle[\s\S]*space\.leave\.action/
+    );
+    expect(android).toContain('space.overview.devicesAvailable');
+    expect(androidRelay).toContain('space.advanced.title');
+    expect(android).toContain('space.danger.title');
+    expect(android).not.toContain('Boolean(error)');
+
+    expect(ios).toMatch(
+      /space\.overview\.syncHealthy[\s\S]*space\.devices\.title[\s\S]*space\.leave\.action/
+    );
+    expect(ios).toContain('space.overview.deviceSummary');
+    expect(ios).not.toContain('space.details');
   });
 
   it('opens a focused invitation sheet instead of keeping invitations in the settings page', () => {
@@ -254,6 +262,20 @@ describe('unified space setup UI', () => {
     expect(android).toContain('space.devices.remove');
   });
 
+  it('presents the Android space page as status, device actions, then separate space controls', () => {
+    const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
+
+    expect(android).toContain('space.overview.noDevicesOnline');
+    expect(android).toContain('space.invitation.addAction');
+    expect(android).toContain('localDevice');
+    expect(android).toContain('ModalBottomSheet');
+    expect(android).toContain('manageDeviceId');
+    expect(android).toContain('space.devices.idLabel');
+    expect(android).toContain('space.manage.title');
+    expect(android).toContain('space.danger.title');
+    expect(android).toContain('BackHandler');
+  });
+
   it('keeps invitation availability copy aligned in every supported language', () => {
     for (const locale of ['en', 'pt-BR', 'ru', 'zh']) {
       const messages = JSON.parse(source(`i18n/locales/${locale}/settingsSync.json`));
@@ -275,6 +297,16 @@ describe('unified space setup UI', () => {
       expect(messages.space.empty.title).toEqual(expect.any(String));
       expect(messages.space.empty.body).toEqual(expect.any(String));
       expect(messages.space.devices.manageHint).toEqual(expect.any(String));
+      expect(messages.space.overview.syncError).toEqual(expect.any(String));
+      expect(messages.space.manage.title).toEqual(expect.any(String));
+      expect(messages.space.devices.idLabel).toEqual(expect.any(String));
+      expect(messages.space.overview.noDevicesOnline).toEqual(expect.any(String));
+      expect(messages.space.overview.devicesAvailable).toEqual(expect.any(String));
+      expect(messages.space.invitation.addAction).toEqual(expect.any(String));
+      expect(messages.space.devices.otherTitle).toEqual(expect.any(String));
+      expect(messages.space.advanced.title).toEqual(expect.any(String));
+      expect(messages.space.danger.title).toEqual(expect.any(String));
+      expect(messages.relay.summary).toEqual(expect.any(String));
     }
   });
 });

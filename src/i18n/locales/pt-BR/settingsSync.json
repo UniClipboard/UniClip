@@ -11,6 +11,11 @@
     "token": "Token de acesso (opcional)",
     "save": "Salvar relay",
     "remove": "Remover relay",
+    "add": "Adicionar nó relay",
+    "edit": "Editar nó relay",
+    "summary": "Não configurado",
+    "configured": "Configurado",
+    "configuredCount": "{{count}} nós configurados",
     "footer": "Use um endereço HTTP ou HTTPS. O token fica apenas no armazenamento seguro deste dispositivo.",
     "error": {
       "saveFailed": "Não foi possível salvar o relay"
@@ -28,7 +33,13 @@
     "overview": {
       "title": "Status",
       "syncHealthy": "A sincronização está ativa",
-      "deviceSummary": "{{online}} online · {{offline}} offline"
+      "deviceSummary": "{{online}} online · {{offline}} offline",
+      "syncError": "Problema de sincronização",
+      "devicesAvailable": "Dispositivos disponíveis",
+      "noDevicesOnline": "Nenhum dispositivo disponível para sincronizar",
+      "noOtherDevices": "Ainda não há outros dispositivos",
+      "otherDevicesOffline": "{{count}} outros dispositivos estão off-line",
+      "statusUnavailable": "O status dos dispositivos não está disponível"
     },
     "create": {
       "title": "Criar um novo espaço",
@@ -77,6 +88,7 @@
       "title": "Convidar outro dispositivo",
       "description": "Gerar um convite temporário para o espaço atual.",
       "action": "Gerar convite",
+      "addAction": "Adicionar dispositivo",
       "addA11y": "Convidar um novo dispositivo",
       "code": "Código de convite",
       "pairingInstructions": "Digite este convite no novo dispositivo para entrar neste espaço e concluir o pareamento.",
@@ -91,9 +103,11 @@
       "online": "Online",
       "offline": "Offline",
       "thisDevice": "Este dispositivo",
+      "otherTitle": "Outros dispositivos",
       "remove": "Remover dispositivo",
       "removeConfirm": "Remover este dispositivo do espaço?",
-      "manageHint": "Abre o gerenciamento do dispositivo"
+      "manageHint": "Abre o gerenciamento do dispositivo",
+      "idLabel": "ID do dispositivo {{id}}"
     },
     "removal": {
       "title": "Remoção de dispositivo",
@@ -136,6 +150,9 @@
       "serviceUnavailable": "O serviço de conexão está indisponível. Tente mais tarde",
       "connectionLost": "A conexão foi interrompida. Tente novamente",
       "operationFailed": "A operação falhou. Verifique os dados e tente novamente."
-    }
+    },
+    "manage": { "title": "Ações do espaço" },
+    "advanced": { "title": "Avançado" },
+    "danger": { "title": "Zona de perigo" }
   }
 }

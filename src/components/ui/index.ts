@@ -40,6 +40,9 @@ export type { AppBottomSheetProps } from './AppBottomSheet';
 export { AppTopSheet } from './AppTopSheet';
 export type { AppTopSheetProps } from './AppTopSheet';
 
+export { SheetPageTransition } from './SheetPageTransition';
+export type { SheetPageTransitionProps } from './SheetPageTransition.types';
+
 export { AppDropdown } from './AppDropdown';
 export type { AppDropdownProps, AppDropdownOption } from './AppDropdown';
 

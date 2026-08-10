@@ -11,6 +11,11 @@
     "token": "Access token (optional)",
     "save": "Save relay",
     "remove": "Remove relay",
+    "add": "Add relay node",
+    "edit": "Edit relay node",
+    "summary": "Not configured",
+    "configured": "Configured",
+    "configuredCount": "{{count}} nodes configured",
     "footer": "Use an HTTP or HTTPS address. The access token is kept only in this device's secure storage.",
     "error": {
       "saveFailed": "Could not save relay"
@@ -28,7 +33,13 @@
     "overview": {
       "title": "Status",
       "syncHealthy": "Sync is active",
-      "deviceSummary": "{{online}} online · {{offline}} offline"
+      "deviceSummary": "{{online}} online · {{offline}} offline",
+      "syncError": "Sync issue",
+      "devicesAvailable": "Devices available",
+      "noDevicesOnline": "No devices available to sync",
+      "noOtherDevices": "No other devices yet",
+      "otherDevicesOffline": "{{count}} other devices are offline",
+      "statusUnavailable": "Device status is unavailable"
     },
     "create": {
       "title": "Create a new space",
@@ -77,6 +88,7 @@
       "title": "Invite another device",
       "description": "Generate a time-limited invitation for the current space.",
       "action": "Generate invitation",
+      "addAction": "Add device",
       "addA11y": "Invite a new device",
       "code": "Invitation code",
       "pairingInstructions": "Enter this invitation on the new device to join this space and finish pairing.",
@@ -91,9 +103,11 @@
       "online": "Online",
       "offline": "Offline",
       "thisDevice": "This device",
+      "otherTitle": "Other devices",
       "remove": "Remove device",
       "removeConfirm": "Remove this device from the space?",
-      "manageHint": "Opens device management"
+      "manageHint": "Opens device management",
+      "idLabel": "Device ID {{id}}"
     },
     "removal": {
       "title": "Device removal",
@@ -136,6 +150,9 @@
       "serviceUnavailable": "The connection service is unavailable. Try again later",
       "connectionLost": "The connection was interrupted. Try again",
       "operationFailed": "The operation failed. Check your input and try again."
-    }
+    },
+    "manage": { "title": "Space actions" },
+    "advanced": { "title": "Advanced" },
+    "danger": { "title": "Danger zone" }
   }
 }

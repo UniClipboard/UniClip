@@ -4,6 +4,10 @@ export interface RelaySaveResult {
   configured: boolean;
 }
 
+export interface RelaySaveOutcome extends RelaySaveResult {
+  urls: string[];
+}
+
 export interface RelaySettingsApi {
   saveCustomRelayNode(
     url: string,
@@ -47,13 +51,41 @@ function normalizeRelayUrl(value: string): string {
   return parsed.href.replace(/\/$/, '');
 }
 
+function nextRelayUrls(input: {
+  currentUrls: string[];
+  url: string;
+  previousUrl?: string;
+}): string[] {
+  const currentUrls = [...input.currentUrls];
+  if (input.previousUrl === undefined) {
+    if (!input.url) return currentUrls;
+    if (currentUrls.includes(input.url)) throw new Error('Relay address is already configured');
+    return [...currentUrls, input.url];
+  }
+
+  const index = currentUrls.indexOf(input.previousUrl);
+  if (index === -1) throw new Error('Relay node is no longer configured');
+  if (!input.url) return currentUrls.filter((_, currentIndex) => currentIndex !== index);
+  if (input.url !== input.previousUrl && currentUrls.includes(input.url)) {
+    throw new Error('Relay address is already configured');
+  }
+  currentUrls[index] = input.url;
+  return currentUrls;
+}
+
 export async function saveCustomRelay(input: {
   url: string;
   accessToken: string;
   previousUrl?: string;
-}): Promise<RelaySaveResult> {
+  currentUrls: string[];
+}): Promise<RelaySaveOutcome> {
   const url = normalizeRelayUrl(input.url);
   const accessToken = input.accessToken.trim();
+  const urls = nextRelayUrls({
+    currentUrls: input.currentUrls,
+    url,
+    previousUrl: input.previousUrl,
+  });
   const result = await (input.previousUrl === undefined
     ? configuredApi().saveCustomRelayNode(url, accessToken)
     : configuredApi().saveCustomRelayNode(url, accessToken, input.previousUrl));
@@ -67,5 +99,5 @@ export async function saveCustomRelay(input: {
       Date.now() - rebuildStartedAt
     }`
   );
-  return result;
+  return { ...result, urls };
 }

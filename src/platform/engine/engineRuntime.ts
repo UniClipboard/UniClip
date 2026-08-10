@@ -54,8 +54,10 @@ function errorMessage(error: unknown): string {
 }
 
 function relayContext(): string {
-  const url = useSettingsStore.getState().config?.customRelayUrl ?? '';
-  return url ? `customRelayConfigured=true customRelayUrl=${url}` : 'customRelayConfigured=false';
+  const urls = useSettingsStore.getState().config?.customRelayUrls ?? [];
+  return urls.length > 0
+    ? `customRelayConfigured=true customRelayCount=${urls.length}`
+    : 'customRelayConfigured=false';
 }
 
 export class UnifiedEngineService {
