@@ -13,6 +13,7 @@ export default [
       '.expo/**',
       'dist/**',
       '**/build/**',
+      '**/.artifacts/**',
       '.pi-subagents/**',
       'android/**',
       'ios/**',
