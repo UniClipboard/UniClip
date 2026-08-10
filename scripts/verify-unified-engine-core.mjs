@@ -115,10 +115,8 @@ const frameworkFiles =
   frameworkSlice === 'simulator'
     ? allFrameworkFiles.filter((file) => !file.startsWith('ios-arm64/'))
     : frameworkSlice === 'device'
-      ? allFrameworkFiles.filter(
-          (file) => file === 'Info.plist' || file.startsWith('ios-arm64/')
-        )
-      : allFrameworkFiles;
+    ? allFrameworkFiles.filter((file) => file === 'Info.plist' || file.startsWith('ios-arm64/'))
+    : allFrameworkFiles;
 
 async function currentFrameworkHashes() {
   const frameworkRoot = resolve(moduleRoot, 'ios/UniClipboardEngine.xcframework');
