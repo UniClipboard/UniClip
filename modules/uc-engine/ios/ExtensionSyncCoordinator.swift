@@ -77,11 +77,14 @@ public struct ExtensionClipboardRevisionTracker: Sendable {
   }
 
   public mutating func markSynchronizedWrite(_ revision: Int) {
-    lastHandledRevision = revision
-    finishProcessing(revision)
+    guard processingRevision == revision else { return }
+    processingRevision = nil
   }
 }
 
+// Mirror of `targets/_shared/ExtensionStableIdentifier.swift`: the extension
+// targets cannot import this pod, so they compile their own copy. Keep the
+// UUID derivation in sync in both places.
 public enum ExtensionStableIdentifier {
   public static func uuid(for value: String) -> UUID {
     let digest: String

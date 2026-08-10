@@ -1,7 +1,6 @@
 import Foundation
 import OSLog
 import SQLite3
-internal import UcEngineCore
 
 private let log = Logger(subsystem: "app.uniclipboard", category: "historydb")
 

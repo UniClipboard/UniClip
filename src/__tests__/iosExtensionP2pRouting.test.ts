@@ -14,7 +14,7 @@ describe('iOS extension P2P routing', () => {
   it('gives extensions only the P2P engine core without the Expo app bridge', () => {
     const podspec = readProjectFile('modules/uc-engine/ios/UcEngine.podspec');
     const module = readProjectFile('modules/uc-engine/ios/UcEngineModule.swift');
-    const router = readProjectFile('targets/_shared/ExtensionSyncRouter.swift');
+    const router = readProjectFile('targets/keyboard/ExtensionSyncRouter.swift');
 
     expect(podspec).toContain("s.dependency 'UcEngineCore'");
     expect(podspec).toContain("s.dependency 'ExpoModulesCore'");
@@ -37,7 +37,7 @@ describe('iOS extension P2P routing', () => {
   });
 
   it('routes the keyboard extension through P2P only, and keeps the Share target P2P-free', () => {
-    const router = readProjectFile('targets/_shared/ExtensionSyncRouter.swift');
+    const router = readProjectFile('targets/keyboard/ExtensionSyncRouter.swift');
     const keyboard = readProjectFile('targets/keyboard/KeyboardModel.swift');
     const shareController = readProjectFile('targets/share/ShareViewController.swift');
 
@@ -62,7 +62,7 @@ describe('iOS extension P2P routing', () => {
     const ownership = readProjectFile('modules/uc-engine/ios/P2pRuntimeOwnership.swift');
     const host = readProjectFile('modules/uc-engine/ios/SharedEngineHost.swift');
     const module = readProjectFile('modules/uc-engine/ios/UcEngineModule.swift');
-    const router = readProjectFile('targets/_shared/ExtensionSyncRouter.swift');
+    const router = readProjectFile('targets/keyboard/ExtensionSyncRouter.swift');
     const keyboard = readProjectFile('targets/keyboard/KeyboardModel.swift');
 
     expect(coordinator).toContain('refreshPeerConnections()');
@@ -223,7 +223,7 @@ describe('iOS extension P2P routing', () => {
 
   it('keeps one P2P session alive only while the keyboard is visible', () => {
     const host = readProjectFile('modules/uc-engine/ios/SharedEngineHost.swift');
-    const router = readProjectFile('targets/_shared/ExtensionSyncRouter.swift');
+    const router = readProjectFile('targets/keyboard/ExtensionSyncRouter.swift');
     const keyboard = readProjectFile('targets/keyboard/KeyboardModel.swift');
 
     expect(host).not.toContain('defer { close() }');
@@ -241,7 +241,7 @@ describe('iOS extension P2P routing', () => {
   it('keeps no Share P2P session: the extension only extracts, stages, and wakes the app', () => {
     const coordinator = readProjectFile('modules/uc-engine/ios/ExtensionSyncCoordinator.swift');
     const host = readProjectFile('modules/uc-engine/ios/SharedEngineHost.swift');
-    const router = readProjectFile('targets/_shared/ExtensionSyncRouter.swift');
+    const router = readProjectFile('targets/keyboard/ExtensionSyncRouter.swift');
     const viewController = readProjectFile('targets/share/ShareViewController.swift');
     const item = readProjectFile('targets/share/ShareItem.swift');
 
