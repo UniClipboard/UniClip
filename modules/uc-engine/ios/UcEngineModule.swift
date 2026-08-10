@@ -6,6 +6,7 @@ internal import UcEngineCore
 
 public final class UcEngineModule: Module {
   private static let spaceReadLog = Logger(subsystem: "app.uniclipboard", category: "space-read")
+  private static let startupLog = Logger(subsystem: "app.uniclipboard", category: "uc-startup")
   private let host = MainApplicationEngineHost()
   private lazy var lifecycle = NativeLifecycleHost(report: Self.reportLifecycleError)
   private lazy var lifecycleTransitions = NativeLifecycleTransitionCoordinator(
@@ -26,32 +27,29 @@ public final class UcEngineModule: Module {
       let startedAt = ProcessInfo.processInfo.systemUptime
       let appVersion = config["appVersion"] ?? "unknown"
       let profileId = config["profileId"] ?? "default"
-      NSLog("[UcEngineStartup] Native module start requested")
+      Self.startupLog.info("Native module start requested")
       let started = try self.host.start(appVersion: appVersion, profileId: profileId)
-      NSLog(
-        "[UcEngineStartup] Engine host started in %.0fms",
-        (ProcessInfo.processInfo.systemUptime - startedAt) * 1_000
+      Self.startupLog.info(
+        "Engine host started in \(Int((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000))ms"
       )
       do {
         let installed = try self.engines.installBeforePreparing(started) { engine in
           let recoveryStartedAt = ProcessInfo.processInfo.systemUptime
-          NSLog("[UcEngineStartup] Recovering persisted session")
+          Self.startupLog.info("Recovering persisted session")
           try self.lifecycle.prepare(AppleEngineLifecycle(engine: engine, host: self.host))
           self.host.refreshAnalyticsContext(engine: engine)
-          NSLog(
-            "[UcEngineStartup] Persisted session recovered in %.0fms",
-            (ProcessInfo.processInfo.systemUptime - recoveryStartedAt) * 1_000
+          Self.startupLog.info(
+            "Persisted session recovered in \(Int((ProcessInfo.processInfo.systemUptime - recoveryStartedAt) * 1_000))ms"
           )
         }
         guard installed else {
           throw UcEngineAlreadyStartedException()
         }
-        NSLog(
-          "[UcEngineStartup] Native module ready in %.0fms",
-          (ProcessInfo.processInfo.systemUptime - startedAt) * 1_000
+        Self.startupLog.info(
+          "Native module ready in \(Int((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000))ms"
         )
       } catch {
-        NSLog("[UcEngineStartup] Native module start failed: %@", String(describing: error))
+        Self.startupLog.error("Native module start failed: \(String(describing: error))")
         do {
           try started.shutdown(deadlineMs: 2_000)
         } catch {
@@ -373,7 +371,7 @@ public final class UcEngineModule: Module {
   }
 
   private static func reportLifecycleError(_ error: Error) {
-    NSLog("UcEngine lifecycle transition failed: %@", String(describing: error))
+    Self.startupLog.error("UcEngine lifecycle transition failed: \(String(describing: error))")
   }
 
   private static func beginBackgroundActivity() -> @Sendable () -> Void {

@@ -1,6 +1,9 @@
 import Foundation
+import OSLog
 import UIKit
 import UniformTypeIdentifiers
+
+private let startupLog = Logger(subsystem: "app.uniclipboard", category: "uc-startup")
 
 private func analyticsContext() -> BindingAnalyticsContext {
   var system = utsname()
@@ -36,17 +39,16 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
 
   public func start(appVersion: String, profileId: String) throws -> MobileEngine {
     let startedAt = ProcessInfo.processInfo.systemUptime
-    NSLog("[UcEngineStartup] Waiting for shared runtime ownership")
+    startupLog.info("Waiting for shared runtime ownership")
     guard try P2pRuntimeHandoff.acquireForMainApplication(runtimeOwnership()) else {
       throw ExtensionP2pError.runtimeBusy
     }
-    NSLog(
-      "[UcEngineStartup] Shared runtime ownership acquired in %.0fms",
-      (ProcessInfo.processInfo.systemUptime - startedAt) * 1_000
+    startupLog.info(
+      "Shared runtime ownership acquired in \(Int((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000))ms"
     )
     do {
       let host = try AppleEngineHost(files: files, storageMode: .mainApplication)
-      NSLog("[UcEngineStartup] Starting core engine")
+      startupLog.info("Starting core engine")
       let analytics = try analyticsHost(appVersion: appVersion)
       let engine = try MobileEngine.startWithAnalytics(
         config: BindingConfig(appVersion: appVersion, profileId: profileId),
@@ -54,13 +56,12 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
         analytics: analytics,
         context: analyticsContext()
       )
-      NSLog(
-        "[UcEngineStartup] Core engine started in %.0fms",
-        (ProcessInfo.processInfo.systemUptime - startedAt) * 1_000
+      startupLog.info(
+        "Core engine started in \(Int((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000))ms"
       )
       return engine
     } catch {
-      NSLog("[UcEngineStartup] Engine host start failed: %@", String(describing: error))
+      startupLog.error("Engine host start failed: \(String(describing: error))")
       releaseRuntimeOwnership()
       throw error
     }
