@@ -93,13 +93,7 @@ async function loadPreview(job: PendingShareJob): Promise<ShareJobView> {
 export function useShareSendController(onClose: () => void, active: boolean) {
   const { t } = useTranslation('share');
   const spaceDevices = useUnifiedSpaceStore((s) => s.devices);
-  const devices = useMemo(
-    () =>
-      spaceDevices
-        .filter((device) => !device.isLocal)
-        .sort((a, b) => Number(b.online) - Number(a.online)),
-    [spaceDevices]
-  );
+  const devices = useMemo(() => spaceDevices.filter((device) => !device.isLocal), [spaceDevices]);
 
   const [phase, setPhase] = useState<Phase>({ kind: 'claiming' });
   const [jobViews, setJobViews] = useState<ShareJobView[]>([]);

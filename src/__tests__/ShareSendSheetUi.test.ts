@@ -62,4 +62,18 @@ describe('ShareSendSheet presentation', () => {
     expect(ios).toContain('contentShape(shapes.rectangle())');
     expect(ios).toContain('accessibilityValue(selected ?');
   });
+
+  it('shows share recipients by name without connection status on both platforms', () => {
+    const iosDeviceRow = ios.match(/function DeviceRow[\s\S]*?\n}\n\nconst styles/)?.[0];
+    const androidDeviceRow = android.match(/function DeviceRow[\s\S]*?\n}\n\nconst styles/)?.[0];
+
+    expect(iosDeviceRow).toContain('device.displayName');
+    expect(androidDeviceRow).toContain('device.displayName');
+    expect(iosDeviceRow).not.toContain('space.devices.online');
+    expect(iosDeviceRow).not.toContain('space.devices.offline');
+    expect(androidDeviceRow).not.toContain('space.devices.online');
+    expect(androidDeviceRow).not.toContain('space.devices.offline');
+    expect(iosDeviceRow).not.toContain('Image systemName="circle.fill" size={9}');
+    expect(androidDeviceRow).not.toContain('styles.statusDot');
+  });
 });

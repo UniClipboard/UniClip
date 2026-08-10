@@ -291,9 +291,6 @@ function DeviceRow({
   selected: boolean;
   onToggle: (deviceId: string) => void;
 }) {
-  const { t } = useTranslation('settingsSync');
-  const statusColor = device.online ? iosKindTints.image : TERTIARY_LABEL;
-
   return (
     <SwiftUIButton
       onPress={() => onToggle(device.deviceId)}
@@ -312,15 +309,9 @@ function DeviceRow({
           padding({ vertical: 12 }),
         ]}
       >
-        <Image systemName="circle.fill" size={9} color={statusColor} />
-        <VStack alignment="leading" spacing={1}>
-          <SwiftUIText modifiers={[font({ size: 16 }), foregroundStyle('primary')]}>
-            {device.displayName}
-          </SwiftUIText>
-          <SwiftUIText modifiers={[font({ size: 12 }), foregroundStyle(statusColor)]}>
-            {t(device.online ? 'space.devices.online' : 'space.devices.offline')}
-          </SwiftUIText>
-        </VStack>
+        <SwiftUIText modifiers={[font({ size: 16 }), foregroundStyle('primary')]}>
+          {device.displayName}
+        </SwiftUIText>
         <Spacer />
         {selected ? (
           <Image systemName="checkmark.circle.fill" size={22} color={iosKindTints.text} />

@@ -233,20 +233,30 @@ describe('useShareSendController', () => {
     expect(current.canSend).toBe(false);
   });
 
-  it('shows remote devices online first and omits the local device', async () => {
+  it('keeps remote device order when connection status changes', async () => {
     mockClaimPending.mockResolvedValue([textJob]);
     useUnifiedSpaceStore.setState({
       devices: [
         { deviceId: 'local', displayName: 'Phone', isLocal: true, online: true },
-        { deviceId: 'offline', displayName: 'iPad', isLocal: false, online: false },
-        { deviceId: 'online', displayName: 'MacBook', isLocal: false, online: true },
+        { deviceId: 'first', displayName: 'iPad', isLocal: false, online: false },
+        { deviceId: 'second', displayName: 'MacBook', isLocal: false, online: false },
       ],
     });
 
     renderHarness(jest.fn());
     await settle();
 
-    expect(current.devices.map((device) => device.deviceId)).toEqual(['online', 'offline']);
+    act(() => {
+      useUnifiedSpaceStore.setState({
+        devices: [
+          { deviceId: 'local', displayName: 'Phone', isLocal: true, online: true },
+          { deviceId: 'first', displayName: 'iPad', isLocal: false, online: false },
+          { deviceId: 'second', displayName: 'MacBook', isLocal: false, online: true },
+        ],
+      });
+    });
+
+    expect(current.devices.map((device) => device.deviceId)).toEqual(['first', 'second']);
   });
 
   it('preselects the only remote device for a new share session', async () => {

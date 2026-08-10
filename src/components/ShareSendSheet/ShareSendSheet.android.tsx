@@ -239,9 +239,6 @@ function DeviceRow({
   onToggle: (deviceId: string) => void;
   theme: ColorScheme;
 }) {
-  const { t } = useTranslation('settingsSync');
-  const statusColor = device.online ? theme.success : theme.textDisabled;
-
   return (
     <Pressable
       onPress={() => onToggle(device.deviceId)}
@@ -257,15 +254,9 @@ function DeviceRow({
       accessibilityState={{ selected }}
     >
       <View style={styles.deviceLeft}>
-        <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-        <View style={styles.deviceMeta}>
-          <Text style={[styles.deviceName, { color: theme.textPrimary }]} numberOfLines={1}>
-            {device.displayName}
-          </Text>
-          <Text style={[styles.deviceStatus, { color: statusColor }]}>
-            {t(device.online ? 'space.devices.online' : 'space.devices.offline')}
-          </Text>
-        </View>
+        <Text style={[styles.deviceName, { color: theme.textPrimary }]} numberOfLines={1}>
+          {device.displayName}
+        </Text>
       </View>
       <Ionicons
         name={selected ? 'checkbox' : 'square-outline'}
@@ -324,8 +315,5 @@ const styles = StyleSheet.create({
   },
   deviceRowSelected: { borderWidth: 2 },
   deviceLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
-  deviceMeta: { flex: 1, gap: 1 },
-  deviceName: { fontSize: 15 },
-  deviceStatus: { fontSize: 12 },
+  deviceName: { flex: 1, fontSize: 15 },
 });
