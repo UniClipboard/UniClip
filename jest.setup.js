@@ -40,6 +40,18 @@ jest.mock('expo-localization', () => ({
   ],
 }));
 
+// expo-image-manipulator 同样会拉入 expo-modules-core(node 测试环境下缺 EventEmitter 而抛错)。
+jest.mock('expo-image-manipulator', () => ({
+  ImageManipulator: {
+    manipulate: jest.fn(() => ({
+      renderAsync: jest.fn().mockResolvedValue({
+        saveAsync: jest.fn().mockResolvedValue({ uri: 'file://rendered.jpg' }),
+      }),
+    })),
+  },
+  SaveFormat: { JPEG: 'jpeg', PNG: 'png', WEBP: 'webp' },
+}));
+
 jest.mock('react-native-logs', () => ({
   consoleTransport: jest.fn(),
   logger: {
