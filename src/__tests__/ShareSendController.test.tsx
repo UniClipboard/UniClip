@@ -9,6 +9,8 @@
  * - 取消/完成 → 未发送 job releaseJob 后返回。
  */
 import React, { useEffect, useRef } from 'react';
+import { Alert } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import TestRenderer, { act } from 'react-test-renderer';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -52,6 +54,11 @@ jest.mock('@/utils/uploadFile', () => ({
 
 jest.mock('app-group-store', () => ({
   recordShareDiagnosticStage: (...args: unknown[]) => mockRecordShareDiagnosticStage(...args),
+}));
+
+jest.mock('expo-haptics', () => ({
+  NotificationFeedbackType: { Success: 'success' },
+  notificationAsync: jest.fn(async () => undefined),
 }));
 
 jest.mock('@/support/observability', () => ({
@@ -271,11 +278,48 @@ describe('useShareSendController', () => {
     });
 
     expect(mockImportTextToHistory).toHaveBeenCalledWith('hello world');
-    expect(mockSendImportedText).toHaveBeenCalledWith('hello world', 'HASH-T');
+    expect(mockSendImportedText).toHaveBeenCalledWith('hello world', 'HASH-T', {
+      targetDeviceIds: ['desktop-1'],
+    });
     expect(mockRecordShareDiagnosticStage).toHaveBeenCalledWith('text-1', 'sent', undefined);
     expect(mockCompleteJob).toHaveBeenCalledWith('text-1');
     expect(current.jobViews[0].sendState).toBe('success');
     expect(current.phase.kind).toBe('done');
+  });
+
+  it('shows success feedback and closes the sheet 600ms after every job is delivered', async () => {
+    mockClaimPending.mockResolvedValue([textJob]);
+    const onClose = jest.fn();
+    renderHarness(onClose);
+    await settle();
+    act(() => {
+      current.toggleDevice('desktop-1');
+    });
+
+    jest.useFakeTimers();
+    try {
+      await act(async () => {
+        await current.sendAll();
+      });
+
+      expect(Haptics.notificationAsync).toHaveBeenCalledWith(
+        Haptics.NotificationFeedbackType.Success
+      );
+      expect(current.phase.kind).toBe('done');
+      expect(onClose).not.toHaveBeenCalled();
+
+      act(() => {
+        jest.advanceTimersByTime(599);
+      });
+      expect(onClose).not.toHaveBeenCalled();
+
+      act(() => {
+        jest.advanceTimersByTime(1);
+      });
+      expect(onClose).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('sends image jobs to the selected devices and completes them', async () => {
@@ -336,6 +380,42 @@ describe('useShareSendController', () => {
     expect(mockClaimPending).toHaveBeenCalledTimes(1);
     expect(mockCompleteJob).toHaveBeenCalledWith('text-1');
     expect(current.jobViews[0].sendState).toBe('success');
+  });
+
+  it('explains when the selected device is offline', async () => {
+    mockClaimPending.mockResolvedValue([textJob]);
+    mockSendImportedText.mockResolvedValue({ success: false, deliveryState: 'offline' });
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
+    renderHarness(jest.fn());
+    await settle();
+    act(() => {
+      current.toggleDevice('laptop-1');
+    });
+
+    await act(async () => {
+      await current.sendAll();
+    });
+
+    expect(alert).toHaveBeenCalledWith('send.offlineTitle', 'send.offline');
+    alert.mockRestore();
+  });
+
+  it('keeps a partially delivered job retryable instead of marking it complete', async () => {
+    mockClaimPending.mockResolvedValue([textJob]);
+    mockSendImportedText.mockResolvedValue({ success: true, deliveryState: 'partial' });
+    renderHarness(jest.fn());
+    await settle();
+    act(() => {
+      current.toggleDevice('desktop-1');
+    });
+
+    await act(async () => {
+      await current.sendAll();
+    });
+
+    expect(mockCompleteJob).not.toHaveBeenCalled();
+    expect(mockRecordShareDiagnosticStage).toHaveBeenCalledWith('text-1', 'failed', 'partial');
+    expect(current.jobViews[0].sendState).toBe('failed');
   });
 
   it('deletes a job permanently (record + payload) and removes it from the list', async () => {

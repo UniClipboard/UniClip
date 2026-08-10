@@ -57,6 +57,16 @@ describe('UnifiedContentService', () => {
     expect(deps.p2p.sendText).toHaveBeenCalledWith('shared text', []);
   });
 
+  it('sends imported text only to the selected devices', async () => {
+    const deps = dependencies();
+
+    await new UnifiedContentService(deps).sendImportedText('shared text', 'TEXT_HASH', {
+      targetDeviceIds: ['desktop-1'],
+    });
+
+    expect(deps.p2p.sendText).toHaveBeenCalledWith('shared text', ['desktop-1']);
+  });
+
   it('rejects an empty clipboard', async () => {
     const service = new UnifiedContentService(dependencies());
 

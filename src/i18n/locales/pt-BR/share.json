@@ -37,6 +37,8 @@
     "sending": "Enviando…",
     "success": "Enviado",
     "failed": "Falha no envio",
+    "offlineTitle": "Não foi possível enviar",
+    "offline": "O dispositivo está offline. Tente novamente quando ele estiver online.",
     "selectHint": "Escolha os dispositivos de destino",
     "localDevice": "Este dispositivo",
     "allDevices": "Todos os dispositivos"

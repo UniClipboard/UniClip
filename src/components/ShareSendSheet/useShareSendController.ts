@@ -19,6 +19,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useTranslation } from 'react-i18next';
 import { File } from 'expo-file-system';
 import { recordShareDiagnosticStage } from 'app-group-store';
@@ -58,6 +60,7 @@ export interface ShareJobView {
 }
 
 const TEXT_PREVIEW_MAX_CHARS = 80;
+const SUCCESS_CLOSE_DELAY_MS = 600;
 
 /** 与处理租约一致的陈旧判定:iOS 侧超过该时长的 job 只可能是中断会话的残留。 */
 const STALE_JOB_AGE_MS = 15 * 60 * 1_000;
@@ -103,6 +106,7 @@ export function useShareSendController(onClose: () => void, active: boolean) {
   const [selectedDeviceIds, setSelectedDeviceIds] = useState<Set<string>>(new Set());
   const sendingRef = useRef(false);
   const hasAppliedDefaultSelectionRef = useRef(false);
+  const successCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const updateJob = useCallback((jobId: string, patch: Partial<ShareJobView>) => {
     setJobViews((views) =>
@@ -167,6 +171,12 @@ export function useShareSendController(onClose: () => void, active: boolean) {
   }, [active, claim]);
 
   useEffect(() => {
+    if (active || !successCloseTimerRef.current) return;
+    clearTimeout(successCloseTimerRef.current);
+    successCloseTimerRef.current = null;
+  }, [active]);
+
+  useEffect(() => {
     if (!active || hasAppliedDefaultSelectionRef.current || devices.length === 0) return;
     hasAppliedDefaultSelectionRef.current = true;
     if (devices.length === 1) {
@@ -174,11 +184,11 @@ export function useShareSendController(onClose: () => void, active: boolean) {
     }
   }, [active, devices]);
 
-  // 发送投递后的统一收尾:成功(含 partial)→ completeJob;失败 → 标记可重试
+  // 发送投递后的统一收尾:只有所有目标确认送达才出队;其他结果保留重试。
   const finishSend = useCallback(
     async (jobId: string, send: () => Promise<{ deliveryState: string; success: boolean }>) => {
       const result = await send();
-      const delivered = result.success;
+      const delivered = result.success && result.deliveryState === 'delivered';
       void recordShareDiagnosticStage(
         jobId,
         delivered ? 'sent' : 'failed',
@@ -189,7 +199,11 @@ export function useShareSendController(onClose: () => void, active: boolean) {
         updateJob(jobId, { sendState: 'success' });
         return { jobId, success: true, deliveryState: result.deliveryState };
       }
-      const message = t('send.failed');
+      const offline = result.deliveryState === 'offline';
+      const message = t(offline ? 'send.offline' : 'send.failed');
+      if (offline) {
+        Alert.alert(t('send.offlineTitle'), message);
+      }
       updateJob(jobId, { sendState: 'failed', errorMessage: message });
       return { jobId, success: false, deliveryState: result.deliveryState, errorMessage: message };
     },
@@ -208,7 +222,7 @@ export function useShareSendController(onClose: () => void, active: boolean) {
           const { profileHash } = await importTextToHistory(text);
           setPhase({ kind: 'sending', jobId: job.id, stage: 'sending' });
           return await finishSend(job.id, () =>
-            getUnifiedContentService().sendImportedText(text, profileHash)
+            getUnifiedContentService().sendImportedText(text, profileHash, { targetDeviceIds })
           );
         }
         const imported = await importFileToHistory(
@@ -252,10 +266,17 @@ export function useShareSendController(onClose: () => void, active: boolean) {
         results.push(await sendOne(view, targets));
       }
       setPhase({ kind: 'done', results });
+      if (results.every((result) => result.success)) {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        successCloseTimerRef.current = setTimeout(() => {
+          successCloseTimerRef.current = null;
+          onClose();
+        }, SUCCESS_CLOSE_DELAY_MS);
+      }
     } finally {
       sendingRef.current = false;
     }
-  }, [jobViews, selectedDeviceIds, sendOne]);
+  }, [jobViews, onClose, selectedDeviceIds, sendOne]);
 
   // 重试单个 job(无需重新认领)
   const retryJob = useCallback(

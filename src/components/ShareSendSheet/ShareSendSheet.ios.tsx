@@ -41,6 +41,7 @@ import { IosSheetForm, SheetHeader } from '@/components/ui';
 import {
   iosProminentButtonModifiers,
   iosSecondaryButtonModifiers,
+  iosSaturatedButtonPalette,
 } from '@/components/ui/iosButtonStyles.ios';
 import { iosColors, iosKindTints } from '@/theme/iosDesignTokens';
 import type { UnifiedSpaceDevice } from '@/features/space';
@@ -50,6 +51,7 @@ import { useShareSendController, formatBytes, type ShareJobView } from './useSha
 const TERTIARY_LABEL = iosColors?.tertiaryLabel ?? '#8E8E93';
 const IMAGE_PREVIEW_SIZE = 64;
 const SELECTED_ROW_BACKGROUND = iosColors?.tertiarySystemFill ?? '#E5E5EA';
+const SHEET_BACKGROUND = iosColors?.systemGroupedBackground ?? '#F2F2F7';
 
 /**
  * iOS 分享弹层默认全屏展开，内容与设备列表由原生 Form 滚动。
@@ -66,7 +68,13 @@ export function ShareSendSheet({ visible, onClose }: ShareSendSheetProps) {
         }}
       >
         <Group modifiers={[presentationDetents(['large']), presentationDragIndicator('visible')]}>
-          <VStack spacing={0} modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity })]}>
+          <VStack
+            spacing={0}
+            modifiers={[
+              frame({ maxWidth: Infinity, maxHeight: Infinity }),
+              background(SHEET_BACKGROUND),
+            ]}
+          >
             <SheetHeader title={t('send.title')} />
             <Body c={c} />
           </VStack>
@@ -131,14 +139,18 @@ function Body({ c }: { c: ReturnType<typeof useShareSendController> }) {
 function SendFooter({ c }: { c: ReturnType<typeof useShareSendController> }) {
   const { t } = useTranslation('share');
   const hasFailed = c.jobViews.some((view) => view.sendState === 'failed');
-  const label = c.isDone ? t('send.done') : hasFailed ? t('send.retry') : t('send.sendAll');
+  const successful = c.isDone && !hasFailed;
+  const label = successful ? t('send.success') : hasFailed ? t('send.retry') : t('send.sendAll');
   const enabled = c.isDone || hasFailed || c.canSend;
 
   return (
     <SwiftUIButton
       onPress={c.isDone && !hasFailed ? c.handleClose : c.sendAll}
       modifiers={[
-        ...iosProminentButtonModifiers(undefined, { fullWidth: true }),
+        ...iosProminentButtonModifiers(
+          successful ? iosSaturatedButtonPalette(iosKindTints.image) : undefined,
+          { fullWidth: true }
+        ),
         controlSize('large'),
         disabled(!enabled || c.isSending),
         opacity(enabled && !c.isSending ? 1 : 0.38),
@@ -148,6 +160,7 @@ function SendFooter({ c }: { c: ReturnType<typeof useShareSendController> }) {
       <HStack spacing={8} modifiers={[frame({ minHeight: 48, maxWidth: Infinity })]}>
         <Spacer />
         {c.isSending ? <ProgressView /> : null}
+        {successful ? <Image systemName="checkmark.circle.fill" size={18} color="#FFFFFF" /> : null}
         <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>{label}</SwiftUIText>
         <Spacer />
       </HStack>

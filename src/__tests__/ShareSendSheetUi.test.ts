@@ -13,6 +13,13 @@ describe('ShareSendSheet presentation', () => {
     expect(ios).not.toContain('fitToContents');
   });
 
+  it('uses one sheet background behind the header, content, and footer on iOS', () => {
+    expect(ios).toContain(
+      "const SHEET_BACKGROUND = iosColors?.systemGroupedBackground ?? '#F2F2F7';"
+    );
+    expect(ios).toContain('background(SHEET_BACKGROUND)');
+  });
+
   it('puts the shared-content section before device selection on both platforms', () => {
     expect(ios.indexOf('<ContentSection')).toBeLessThan(ios.indexOf('<DeviceSection'));
     expect(android.indexOf('<ContentSection')).toBeLessThan(android.indexOf('<DeviceSection'));
@@ -25,6 +32,15 @@ describe('ShareSendSheet presentation', () => {
     expect(ios).toContain('clipped()');
     expect(ios).toContain('<SendFooter c={c} />');
     expect(ios).not.toContain('function HeaderSendButton');
+  });
+
+  it('shows a filled success button while the iOS sheet is closing after a send', () => {
+    const footer = ios.match(/function SendFooter[\s\S]*?\n}\n\nfunction ContentSection/)?.[0];
+
+    expect(footer).toContain("t('send.success')");
+    expect(footer).toContain('iosSaturatedButtonPalette(iosKindTints.image)');
+    expect(footer).toContain('checkmark.circle.fill');
+    expect(footer).not.toContain("t('send.done')");
   });
 
   it('anchors iOS device information left and the selection control right', () => {

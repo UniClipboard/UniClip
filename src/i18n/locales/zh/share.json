@@ -37,6 +37,8 @@
     "sending": "发送中…",
     "success": "发送成功",
     "failed": "发送失败",
+    "offlineTitle": "无法发送",
+    "offline": "设备不在线，请在设备上线后重试",
     "selectHint": "选择要发送的设备",
     "localDevice": "本机",
     "allDevices": "全部设备"

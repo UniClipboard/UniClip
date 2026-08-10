@@ -78,8 +78,15 @@ function imageMimeType(uri: string, supplied?: string | null): string {
 export class UnifiedContentService {
   constructor(private readonly deps: UnifiedContentDependencies) {}
 
-  async sendImportedText(text: string, profileHash: string): Promise<UnifiedContentResult> {
-    return this.p2pResult(await this.deps.p2p.sendText(text, []), profileHash);
+  async sendImportedText(
+    text: string,
+    profileHash: string,
+    options?: ImportedAssetSendOptions
+  ): Promise<UnifiedContentResult> {
+    return this.p2pResult(
+      await this.deps.p2p.sendText(text, options?.targetDeviceIds ?? []),
+      profileHash
+    );
   }
 
   async sendCurrentClipboard(): Promise<UnifiedContentResult> {
