@@ -18,4 +18,7 @@ Pod::Spec.new do |s|
   s.dependency 'UcEngineCore'
   s.dependency 'ExpoModulesCore'
   s.source_files = ['UcEngineModule.swift', 'NativeLifecycleHost.swift']
+  s.pod_target_xcconfig = {
+    'SWIFT_ACTIVE_COMPILATION_CONDITIONS' => ENV['UC_ENGINE_LOCAL_CORE'] == '1' ? '$(inherited) UC_ENGINE_LOCAL_CORE' : '$(inherited)',
+  }
 end

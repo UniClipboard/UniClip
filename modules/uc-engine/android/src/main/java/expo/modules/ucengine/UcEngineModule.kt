@@ -714,8 +714,6 @@ class UcEngineModule : Module() {
       "type" to "memberRevocationChanged",
       "revocation" to memberRevocationResultMap(event.revocation)
     )
-    is BindingEvent.SharedDeviceRefreshChanged ->
-      mapOf("type" to "changed", "kind" to "sharedDeviceRefreshChanged")
     is BindingEvent.NetworkRecoveryChanged -> mapOf(
       "type" to "networkRecoveryChanged",
       "phase" to event.phase,
@@ -723,6 +721,11 @@ class UcEngineModule : Module() {
       "nextRetryInMs" to event.nextRetryInMs?.toLong()
     )
     is BindingEvent.Changed -> mapOf("type" to "changed", "kind" to event.kind)
+    // The local Engine worktree still exposes SharedDeviceRefreshChanged while
+    // the pinned rc.6 release does not. Translate it to a generic changed
+    // event; the JavaScript device refresh policy keys off `pairing_completed`
+    // only. This branch is unreachable against the pinned release binding.
+    else -> mapOf("type" to "changed", "kind" to "sharedDeviceRefreshChanged")
   }
 
   private fun lifecycleActionName(action: BindingLifecycleAction): String = when (action) {

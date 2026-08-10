@@ -61,14 +61,26 @@ describe('unified P2P engine native module', () => {
     expect(kotlin).toContain('AsyncFunction("saveCustomRelayNode")');
   });
 
-  it('maps current member-removal and shared-device refresh states on both native platforms', () => {
+  it('maps current member-removal states and generic changed kinds on both native platforms', () => {
     const swift = read('ios/UcEngineModule.swift');
     const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
 
-    for (const nativeSource of [swift, kotlin]) {
-      expect(nativeSource).toContain('recovering');
-      expect(nativeSource).toContain('sharedDeviceRefreshChanged');
-    }
+    expect(swift).toContain('recovering');
+    expect(swift).toContain('case .changed(let kind):');
+    expect(swift).toContain('"type": "changed", "kind": kind');
+    // The local Engine worktree keeps the shared-device refresh event while the
+    // pinned rc.6 release removes it, so the host adapts it conditionally.
+    expect(swift).toContain('#if UC_ENGINE_LOCAL_CORE');
+    expect(swift).toContain('case .sharedDeviceRefreshChanged(refresh:):');
+    expect(swift).toContain('"kind": "sharedDeviceRefreshChanged"');
+
+    expect(kotlin).toContain('recovering');
+    expect(kotlin).not.toContain('BindingEvent.SharedDeviceRefreshChanged');
+    expect(kotlin).toContain('is BindingEvent.Changed ->');
+    expect(kotlin).toContain('"kind" to event.kind');
+    expect(kotlin).toContain(
+      'else -> mapOf("type" to "changed", "kind" to "sharedDeviceRefreshChanged")'
+    );
   });
 
   it('maps detailed clipboard, delivery, transfer, and presence events on both platforms', () => {

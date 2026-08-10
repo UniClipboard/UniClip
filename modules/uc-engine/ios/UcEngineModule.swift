@@ -530,8 +530,13 @@ public final class UcEngineModule: Module {
       ]
     case .memberRevocationChanged(let revocation):
       return ["type": "memberRevocationChanged", "revocation": memberRevocationResultMap(revocation)]
-    case .sharedDeviceRefreshChanged:
+#if UC_ENGINE_LOCAL_CORE
+    // The local Engine worktree still exposes the shared-device refresh event
+    // with a progress payload. Translate it to a generic changed event; the
+    // JavaScript device refresh policy keys off `pairing_completed` only.
+    case .sharedDeviceRefreshChanged(refresh:):
       return ["type": "changed", "kind": "sharedDeviceRefreshChanged"]
+#endif
     case .networkRecoveryChanged(let phase, let retryable, let nextRetryInMs):
       return [
         "type": "networkRecoveryChanged",

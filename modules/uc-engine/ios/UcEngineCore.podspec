@@ -40,5 +40,6 @@ Pod::Spec.new do |s|
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',
     'SWIFT_COMPILATION_MODE' => 'wholemodule',
+    'SWIFT_ACTIVE_COMPILATION_CONDITIONS' => ENV['UC_ENGINE_LOCAL_CORE'] == '1' ? '$(inherited) UC_ENGINE_LOCAL_CORE' : '$(inherited)',
   }
 end
