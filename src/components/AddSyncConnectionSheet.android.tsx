@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import * as Device from 'expo-device';
 import {
   Button,
@@ -10,9 +10,12 @@ import {
   OutlinedButton,
   OutlinedTextField,
   Row,
+  Shape,
   Spacer,
+  Surface,
   Text as ComposeText,
   TextButton,
+  type ModalBottomSheetRef,
   type TextFieldRef,
   useMaterialColors,
   useNativeState,
@@ -20,8 +23,10 @@ import {
 import {
   fillMaxWidth,
   height as heightModifier,
+  padding,
   paddingAll,
   verticalScroll,
+  weight,
   width as widthModifier,
 } from '@expo/ui/jetpack-compose/modifiers';
 import { useTranslation } from 'react-i18next';
@@ -37,11 +42,21 @@ const ICONS = {
   device: require('../assets/icons/account_circle.xml'),
   ready: require('../assets/icons/check_circle.xml'),
   copy: require('../assets/icons/content_copy.xml'),
+  share: require('../assets/icons/share.xml'),
+  clock: require('../assets/icons/clock.xml'),
+  wifi: require('../assets/icons/wifi.xml'),
+  public: require('../assets/icons/public.xml'),
 };
 
 const TITLE_STYLE = { typography: 'titleLarge' } as const;
 const CODE_REVIEW_STYLE = { typography: 'headlineMedium' } as const;
-const INVITATION_STYLE = { typography: 'headlineLarge' } as const;
+const INVITATION_STYLE = {
+  typography: 'displaySmall',
+  fontFamily: 'monospace',
+  fontWeight: '700',
+  letterSpacing: 0,
+  textAlign: 'center',
+} as const;
 const CODE_INPUT_STYLE = {
   textAlign: 'center',
   fontFamily: 'monospace',
@@ -49,6 +64,11 @@ const CODE_INPUT_STYLE = {
   fontWeight: '600',
   letterSpacing: 0,
 } as const;
+const DEVICE_NAME_STYLE = { fontSize: 12, textAlign: 'center' } as const;
+const WAITING_STYLE = { textAlign: 'center' } as const;
+const CARD_SHAPE = Shape.RoundedCorner({
+  cornerRadii: { topStart: 24, topEnd: 24, bottomStart: 24, bottomEnd: 24 },
+});
 
 function AddSyncConnectionSheetContent({
   visible,
@@ -124,10 +144,21 @@ function AddSyncConnectionSheetContent({
       ? t('space.flow.successTitle')
       : t('connection.addSheetTitle');
 
+  const sheetRef = useRef<ModalBottomSheetRef>(null);
+
+  useEffect(() => {
+    if (!visible) return;
+    if (mode === 'invitation') {
+      void sheetRef.current?.expand();
+    } else if (mode === 'success') {
+      void sheetRef.current?.partialExpand();
+    }
+  }, [mode, visible]);
+
   if (!visible) return null;
 
   return (
-    <ModalBottomSheet onDismissRequest={close}>
+    <ModalBottomSheet ref={sheetRef} onDismissRequest={close}>
       <Column modifiers={[paddingAll(24), fillMaxWidth(), verticalScroll()]}>
         <ComposeText style={TITLE_STYLE}>{title}</ComposeText>
         <Spacer modifiers={[heightModifier(8)]} />
@@ -302,41 +333,96 @@ function AddSyncConnectionSheetContent({
 
         {mode === 'invitation' && invitation ? (
           <Column modifiers={[fillMaxWidth()]}>
-            <ComposeText color={colors.onSurfaceVariant}>{t('space.flow.waitingBody')}</ComposeText>
-            <Spacer modifiers={[heightModifier(24)]} />
-            <Row verticalAlignment="center" modifiers={[fillMaxWidth()]}>
-              <Column horizontalAlignment="center">
-                <Icon source={ICONS.device} size={36} tint={colors.primary} />
-                <ComposeText>{deviceName}</ComposeText>
-              </Column>
-              <Spacer modifiers={[widthModifier(24)]} />
-              <CircularProgressIndicator modifiers={[widthModifier(30), heightModifier(30)]} />
-              <Spacer modifiers={[widthModifier(24)]} />
-              <Column horizontalAlignment="center">
-                <Icon source={ICONS.device} size={36} tint={colors.outline} />
-                <ComposeText color={colors.onSurfaceVariant}>
-                  {t('space.flow.otherDevice')}
+            <Surface
+              color={colors.surfaceContainerHigh}
+              shape={CARD_SHAPE}
+              modifiers={[fillMaxWidth()]}
+            >
+              <Column
+                horizontalAlignment="center"
+                modifiers={[fillMaxWidth(), padding(20, 16, 20, 20)]}
+              >
+                <Row verticalAlignment="center" modifiers={[fillMaxWidth()]}>
+                  <Column horizontalAlignment="center" modifiers={[weight(1)]}>
+                    <Icon source={ICONS.device} size={36} tint={colors.primary} />
+                    <Spacer modifiers={[heightModifier(8)]} />
+                    <ComposeText style={DEVICE_NAME_STYLE} maxLines={1}>
+                      {deviceName}
+                    </ComposeText>
+                  </Column>
+                  <CircularProgressIndicator modifiers={[widthModifier(30), heightModifier(30)]} />
+                  <Column horizontalAlignment="center" modifiers={[weight(1)]}>
+                    <Icon source={ICONS.device} size={36} tint={colors.outline} />
+                    <Spacer modifiers={[heightModifier(8)]} />
+                    <ComposeText
+                      style={DEVICE_NAME_STYLE}
+                      color={colors.onSurfaceVariant}
+                      maxLines={1}
+                    >
+                      {t('space.flow.otherDevice')}
+                    </ComposeText>
+                  </Column>
+                </Row>
+                <Spacer modifiers={[heightModifier(14)]} />
+                <ComposeText color={colors.primary} style={WAITING_STYLE}>
+                  {t('space.flow.waitingForDevice')}
+                </ComposeText>
+                <Spacer modifiers={[heightModifier(4)]} />
+                <ComposeText color={colors.onSurfaceVariant} style={WAITING_STYLE}>
+                  {t('space.flow.waitingBody')}
                 </ComposeText>
               </Column>
-            </Row>
-            <ComposeText color={colors.primary}>{t('space.flow.waitingForDevice')}</ComposeText>
-            <Spacer modifiers={[heightModifier(24)]} />
-            <ComposeText style={INVITATION_STYLE}>{invitation.invitationCode}</ComposeText>
-            <Spacer modifiers={[heightModifier(8)]} />
-            <ComposeText color={invitationExpired ? colors.error : colors.onSurfaceVariant}>
-              {invitationExpired
-                ? t('space.flow.expired')
-                : t('space.flow.expiresIn', {
-                    time: invitationTimeRemaining,
-                  })}
-            </ComposeText>
-            <ComposeText color={colors.onSurfaceVariant}>
-              {t(
-                invitation.availability === 'sameLocalNetwork'
-                  ? 'space.invitation.sameLocalNetwork'
-                  : 'space.invitation.crossNetwork'
-              )}
-            </ComposeText>
+            </Surface>
+
+            <Spacer modifiers={[heightModifier(16)]} />
+
+            <Surface
+              color={colors.surfaceContainerHigh}
+              shape={CARD_SHAPE}
+              modifiers={[fillMaxWidth()]}
+            >
+              <Column
+                horizontalAlignment="center"
+                modifiers={[fillMaxWidth(), padding(20, 16, 20, 20)]}
+              >
+                <ComposeText style={INVITATION_STYLE}>{invitation.invitationCode}</ComposeText>
+                <Spacer modifiers={[heightModifier(14)]} />
+                <Row verticalAlignment="center">
+                  <Icon
+                    source={ICONS.clock}
+                    size={16}
+                    tint={invitationExpired ? colors.error : colors.onSurfaceVariant}
+                  />
+                  <Spacer modifiers={[widthModifier(6)]} />
+                  <ComposeText color={invitationExpired ? colors.error : colors.onSurfaceVariant}>
+                    {invitationExpired
+                      ? t('space.flow.expired')
+                      : t('space.flow.expiresIn', {
+                          time: invitationTimeRemaining,
+                        })}
+                  </ComposeText>
+                </Row>
+                <Spacer modifiers={[heightModifier(6)]} />
+                <Row verticalAlignment="center">
+                  <Icon
+                    source={
+                      invitation.availability === 'sameLocalNetwork' ? ICONS.wifi : ICONS.public
+                    }
+                    size={16}
+                    tint={colors.onSurfaceVariant}
+                  />
+                  <Spacer modifiers={[widthModifier(6)]} />
+                  <ComposeText color={colors.onSurfaceVariant}>
+                    {t(
+                      invitation.availability === 'sameLocalNetwork'
+                        ? 'space.invitation.sameLocalNetwork'
+                        : 'space.invitation.crossNetwork'
+                    )}
+                  </ComposeText>
+                </Row>
+              </Column>
+            </Surface>
+
             <Spacer modifiers={[heightModifier(20)]} />
             {invitationExpired ? (
               <Button onClick={renewInvitation} enabled={!pending} modifiers={[fillMaxWidth()]}>
@@ -344,7 +430,7 @@ function AddSyncConnectionSheetContent({
               </Button>
             ) : (
               <Row modifiers={[fillMaxWidth()]}>
-                <OutlinedButton onClick={copyInvitation} modifiers={[fillMaxWidth(0.5)]}>
+                <OutlinedButton onClick={copyInvitation} modifiers={[weight(1)]}>
                   <Icon
                     source={copied ? ICONS.ready : ICONS.copy}
                     size={18}
@@ -354,8 +440,8 @@ function AddSyncConnectionSheetContent({
                   <ComposeText>{t('space.flow.copyInvitation')}</ComposeText>
                 </OutlinedButton>
                 <Spacer modifiers={[widthModifier(10)]} />
-                <Button onClick={shareInvitation} modifiers={[fillMaxWidth()]}>
-                  <Icon source={ICONS.space} size={18} tint={colors.onPrimary} />
+                <Button onClick={shareInvitation} modifiers={[weight(1)]}>
+                  <Icon source={ICONS.share} size={18} tint={colors.onPrimary} />
                   <Spacer modifiers={[widthModifier(6)]} />
                   <ComposeText>{t('space.flow.shareInvitation')}</ComposeText>
                 </Button>
