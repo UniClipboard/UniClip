@@ -31,14 +31,22 @@
   },
   "a11y": {
     "addContent": "Adicionar conteúdo",
-    "closeMenu": "Fechar menu"
+    "closeMenu": "Fechar menu",
+    "closeCamera": "Fechar câmera",
+    "switchCamera": "Alternar câmera",
+    "toggleFlash": "Alternar flash",
+    "takePicture": "Tirar foto",
+    "startRecording": "Iniciar gravação",
+    "stopRecording": "Parar gravação"
   },
   "fab": {
     "takePhoto": "Tirar foto",
     "pickImage": "Fotos",
     "pickFile": "Escolher arquivo",
     "uploadClipboard": "Enviar área de transferência",
-    "syncNow": "Sincronizar agora"
+    "syncNow": "Sincronizar agora",
+    "photoMode": "Foto",
+    "videoMode": "Vídeo"
   },
   "toast": {
     "copied": "Copiado para a área de transferência",
@@ -66,7 +74,10 @@
     "pickFileFailed": "Falha ao escolher arquivo",
     "pickImageFailed": "Falha ao escolher imagem",
     "cameraPermissionNeeded": "Permissão de câmera necessária",
-    "takePhotoFailed": "Falha ao tirar foto"
+    "micPermissionNeeded": "Permissão de microfone necessária",
+    "takePhotoFailed": "Falha ao tirar foto",
+    "takeVideoFailed": "Falha ao gravar vídeo",
+    "cameraUnavailable": "Câmera indisponível"
   },
   "detail": {
     "placeholderTitle": "Selecione um item",

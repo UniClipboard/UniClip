@@ -31,14 +31,22 @@
   },
   "a11y": {
     "addContent": "Add content",
-    "closeMenu": "Close menu"
+    "closeMenu": "Close menu",
+    "closeCamera": "Close camera",
+    "switchCamera": "Switch camera",
+    "toggleFlash": "Toggle flash",
+    "takePicture": "Take picture",
+    "startRecording": "Start recording",
+    "stopRecording": "Stop recording"
   },
   "fab": {
     "takePhoto": "Take photo",
     "pickImage": "Photo library",
     "pickFile": "Choose file",
     "uploadClipboard": "Upload clipboard",
-    "syncNow": "Sync now"
+    "syncNow": "Sync now",
+    "photoMode": "Photo",
+    "videoMode": "Video"
   },
   "toast": {
     "copied": "Copied to clipboard",
@@ -66,7 +74,10 @@
     "pickFileFailed": "Couldn't pick a file",
     "pickImageFailed": "Couldn't pick an image",
     "cameraPermissionNeeded": "Camera permission required",
-    "takePhotoFailed": "Couldn't take photo"
+    "micPermissionNeeded": "Microphone permission required",
+    "takePhotoFailed": "Couldn't take photo",
+    "takeVideoFailed": "Couldn't record video",
+    "cameraUnavailable": "Camera unavailable"
   },
   "detail": {
     "placeholderTitle": "Select an item",

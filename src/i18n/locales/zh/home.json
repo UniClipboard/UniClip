@@ -31,14 +31,22 @@
   },
   "a11y": {
     "addContent": "添加内容",
-    "closeMenu": "关闭菜单"
+    "closeMenu": "关闭菜单",
+    "closeCamera": "关闭相机",
+    "switchCamera": "切换前后摄像头",
+    "toggleFlash": "切换闪光灯",
+    "takePicture": "拍照",
+    "startRecording": "开始录像",
+    "stopRecording": "停止录像"
   },
   "fab": {
     "takePhoto": "拍照",
     "pickImage": "相册",
     "pickFile": "选择文件",
     "uploadClipboard": "上传剪贴板",
-    "syncNow": "立即同步"
+    "syncNow": "立即同步",
+    "photoMode": "照片",
+    "videoMode": "录像"
   },
   "toast": {
     "copied": "已复制到剪贴板",
@@ -66,7 +74,10 @@
     "pickFileFailed": "选择文件失败",
     "pickImageFailed": "选择图片失败",
     "cameraPermissionNeeded": "需要相机权限",
-    "takePhotoFailed": "拍照失败"
+    "micPermissionNeeded": "需要麦克风权限",
+    "takePhotoFailed": "拍照失败",
+    "takeVideoFailed": "录像失败",
+    "cameraUnavailable": "相机不可用"
   },
   "detail": {
     "placeholderTitle": "选择一项查看详情",

@@ -5,6 +5,7 @@ import { MySpaceSheet } from '@/components/MySpaceSheet';
 import { ShareSendSheet } from '@/components/ShareSendSheet';
 import { WordPickerOverlay } from '@/components/WordPickerOverlay';
 import { CardContextOverlay } from '@/components/CardContextOverlay';
+import { CameraCaptureSheet } from '@/components/CameraCaptureSheet';
 import { useShareSheetStore } from '@/stores/shareSheetStore';
 import type { HomeController } from './useHomeController';
 
@@ -17,6 +18,14 @@ export function HomeOverlays({ c }: { c: HomeController }) {
   return (
     <>
       <ConnectedMessageToast />
+
+      {/* Android 自绘相机页(iOS 恒不展示,走系统相机) */}
+      <CameraCaptureSheet
+        visible={c.cameraOpen}
+        onClose={() => c.setCameraOpen(false)}
+        onCapture={c.handleCameraCapture}
+        theme={c.theme}
+      />
 
       <HistoryFilterSheet
         visible={c.showFilterSheet}

@@ -31,14 +31,22 @@
   },
   "a11y": {
     "addContent": "Добавить содержимое",
-    "closeMenu": "Закрыть меню"
+    "closeMenu": "Закрыть меню",
+    "closeCamera": "Закрыть камеру",
+    "switchCamera": "Переключить камеру",
+    "toggleFlash": "Переключить вспышку",
+    "takePicture": "Сделать фото",
+    "startRecording": "Начать запись",
+    "stopRecording": "Остановить запись"
   },
   "fab": {
     "takePhoto": "Сделать фото",
     "pickImage": "Выбрать фото",
     "pickFile": "Выбрать файл",
     "uploadClipboard": "Отправить буфер обмена",
-    "syncNow": "Синхронизировать"
+    "syncNow": "Синхронизировать",
+    "photoMode": "Фото",
+    "videoMode": "Видео"
   },
   "toast": {
     "copied": "Скопировано в буфер обмена",
@@ -66,7 +74,10 @@
     "pickFileFailed": "Не удалось выбрать файл",
     "pickImageFailed": "Не удалось выбрать изображение",
     "cameraPermissionNeeded": "Нужен доступ к камере",
-    "takePhotoFailed": "Не удалось сделать фото"
+    "micPermissionNeeded": "Нужен доступ к микрофону",
+    "takePhotoFailed": "Не удалось сделать фото",
+    "takeVideoFailed": "Не удалось записать видео",
+    "cameraUnavailable": "Камера недоступна"
   },
   "detail": {
     "placeholderTitle": "Выберите элемент",

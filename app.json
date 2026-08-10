@@ -55,7 +55,13 @@
       "./plugins/build/withXcode27DeploymentTargets.js",
       "@bacons/apple-targets",
       ["expo-sharing", { "android": { "enabled": true, "singleShareMimeTypes": ["*/*"] } }],
-      ["expo-camera", { "cameraPermission": "授权 UniClip 使用相机以扫描二维码接入服务器" }],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "授权 UniClip 使用相机以扫描二维码接入服务器",
+          "microphonePermission": "授权 UniClip 在录像时使用麦克风"
+        }
+      ],
       "expo-sqlite",
       [
         "expo-localization",

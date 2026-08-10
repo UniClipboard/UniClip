@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { Share, Linking, BackHandler } from 'react-native';
+import { Share, Linking, BackHandler, Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
@@ -37,6 +37,7 @@ import { HistoryDateFilter } from '@/utils/historyFilters';
 import { useHomeHistoryFilter } from './useHomeHistoryFilter';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
+import type { CameraCaptureResult } from '@/components/CameraCaptureSheet.types';
 
 const log = createLogger('HomeView');
 
@@ -105,6 +106,7 @@ export function useHomeController(onOpenSettings: () => void) {
   const [isSyncing, setIsSyncing] = useState(false);
   const [showMySpace, setShowMySpace] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
 
   // Expanded 双栏专用:右栏当前展示的条目。Compact 不使用。
   const [detailItem, setDetailItem] = useState<ClipboardItem | null>(null);
@@ -602,9 +604,14 @@ export function useHomeController(onOpenSettings: () => void) {
     }
   }, [saveAndPush, showMessage, t]);
 
-  // 拍照/录像上传 —— mediaTypes 同时含图片与视频,iOS 原生相机自带照片/视频切换;
-  // 相机权限已在 app.json 声明(Android CAMERA / iOS expo-camera）
+  // 拍照/录像上传 —— iOS 原生相机在同时允许图片与视频时自带照片/视频切换,直接走系统相机;
+  // Android 的系统相机 intent 只支持拍照或录像之一(MediaStore 的
+  // ACTION_IMAGE_CAPTURE / ACTION_VIDEO_CAPTURE 互斥),改用自绘相机页提供照片/视频切换。
   const handleTakePhoto = useCallback(async () => {
+    if (Platform.OS === 'android') {
+      setCameraOpen(true);
+      return;
+    }
     try {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) {
@@ -630,6 +637,20 @@ export function useHomeController(onOpenSettings: () => void) {
       showMessage(t('toast.takePhotoFailed'), 'error');
     }
   }, [saveAndPush, showMessage, t]);
+
+  // 自绘相机页(Android)拍摄/录制完成:收起相机页并落库。
+  const handleCameraCapture = useCallback(
+    (result: CameraCaptureResult) => {
+      setCameraOpen(false);
+      void saveAndPush({
+        uri: result.uri,
+        fileName: result.fileName,
+        mimeType: result.mimeType,
+        fileSize: result.fileSize,
+      });
+    },
+    [saveAndPush]
+  );
 
   // Search
   const openSearch = useCallback(() => setIsSearching(true), []);
@@ -721,6 +742,10 @@ export function useHomeController(onOpenSettings: () => void) {
     handleUploadFile,
     handleUpload,
     handleSyncHistory,
+    // camera sheet (android)
+    cameraOpen,
+    setCameraOpen,
+    handleCameraCapture,
     // word picker
     wordPickerTarget,
     setWordPickerTarget,
