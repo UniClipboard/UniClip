@@ -9,13 +9,12 @@
  *            ↘ error(认领失败,空态可重试)
  *
  * 生命周期语义:
- *   - 取消 / 完成:未发送 job 按 staging 侧是否已入历史处置 —— iOS 扩展已把内容
- *     写入主页历史,直接 completeJob 出队,保证每次分享页都是崭新的一次分享;
- *     Android 内容仅存在于队列,releaseJob 保留以便下次打开重新认领;
+ *   - 取消 / 完成:两端都会在创建待发送记录前写入主页历史,未发送 job 直接
+ *     completeJob 出队,保证每次分享页都是崭新的一次分享;
  *   - 删除:二次确认后 completeJob(记录 + payload 一并清除,不可恢复);
  *   - 发送成功:completeJob;
  *   - 认领时的陈旧清理:超过处理租约(15 分钟)的 job 只可能是中断会话的残留
- *     (iOS 内容已在主页历史),认领后立即出队。
+ *     (两端内容均已在主页历史),认领后立即出队。
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -62,7 +61,7 @@ export interface ShareJobView {
 const TEXT_PREVIEW_MAX_CHARS = 80;
 const SUCCESS_CLOSE_DELAY_MS = 600;
 
-/** 与处理租约一致的陈旧判定:iOS 侧超过该时长的 job 只可能是中断会话的残留。 */
+/** 与处理租约一致的陈旧判定:超过该时长的 job 只可能是中断会话的残留。 */
 const STALE_JOB_AGE_MS = 15 * 60 * 1_000;
 
 export function formatBytes(byteCount: number): string {
@@ -120,20 +119,15 @@ export function useShareSendController(onClose: () => void, active: boolean) {
       await store.cleanup();
       const jobs = await getOutboundShareHandoffManager().claimPending();
 
-      // iOS:内容已由扩展写入主页历史,超过处理租约的陈旧 job 只可能是中断
-      // 会话的残留,直接出队,保证每次分享都是崭新的一次;
-      // Android:内容仅存在于队列,不做清理。
+      // 两端在入队前都已把内容写入主页历史。超过处理租约的 job 只可能是
+      // 中断会话的残留,直接出队,保证每次分享都是崭新的一次。
       const now = Date.now();
-      if (store.contentPersistedOnStage) {
-        for (const job of jobs) {
-          if (now - job.createdAtMs > STALE_JOB_AGE_MS) {
-            await getOutboundShareHandoffManager().completeJob(job.id);
-          }
+      for (const job of jobs) {
+        if (now - job.createdAtMs > STALE_JOB_AGE_MS) {
+          await getOutboundShareHandoffManager().completeJob(job.id);
         }
       }
-      const freshJobs = store.contentPersistedOnStage
-        ? jobs.filter((job) => now - job.createdAtMs <= STALE_JOB_AGE_MS)
-        : jobs;
+      const freshJobs = jobs.filter((job) => now - job.createdAtMs <= STALE_JOB_AGE_MS);
       const views = await Promise.all(freshJobs.map(loadPreview));
       setJobViews(views);
       setPhase({ kind: 'ready' });
@@ -303,18 +297,11 @@ export function useShareSendController(onClose: () => void, active: boolean) {
     });
   }, []);
 
-  // 取消 / 完成:未发送 job 按平台出队或保留,返回上一页
+  // 取消 / 完成:内容已保存,未发送 job 直接出队,返回上一页
   const handleClose = useCallback(() => {
-    const store = createPendingShareStore();
     const unsent = jobViews.filter((view) => view.sendState !== 'success');
     for (const view of unsent) {
-      if (store.contentPersistedOnStage) {
-        // iOS:内容已在主页历史,关闭即出队,避免历史未发送内容堆积
-        void getOutboundShareHandoffManager().completeJob(view.job.id);
-      } else {
-        // Android:内容仅存在于队列,保留以便下次打开重新认领
-        void getOutboundShareHandoffManager().releaseJob(view.job.id);
-      }
+      void getOutboundShareHandoffManager().completeJob(view.job.id);
     }
     onClose();
   }, [jobViews, onClose]);

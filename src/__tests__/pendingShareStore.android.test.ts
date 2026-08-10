@@ -10,6 +10,8 @@
  */
 
 const DOCUMENT = 'file:///documents';
+const mockImportTextToHistory = jest.fn();
+const mockImportFileToHistory = jest.fn();
 
 type FakeEntry = { type: 'dir' | 'file'; content?: string; modified: number };
 
@@ -139,6 +141,10 @@ describe('AndroidPendingShareStore', () => {
       Directory: fs.Directory,
       File: fs.File,
     }));
+    jest.doMock('@/utils/uploadFile', () => ({
+      importTextToHistory: (...args: unknown[]) => mockImportTextToHistory(...args),
+      importFileToHistory: (...args: unknown[]) => mockImportFileToHistory(...args),
+    }));
     const module =
       require('../features/transfer/internal/pendingShareStore') as typeof import('../features/transfer/internal/pendingShareStore');
     AndroidPendingShareStore = module.AndroidPendingShareStore;
@@ -148,6 +154,7 @@ describe('AndroidPendingShareStore', () => {
 
   afterEach(() => {
     jest.dontMock('expo-file-system');
+    jest.dontMock('@/utils/uploadFile');
     resetPendingShareStoreForTest();
   });
 
@@ -197,6 +204,8 @@ describe('AndroidPendingShareStore', () => {
         .map((e) => e.name)
     ).toEqual([`${job.id}.payload`]);
     expect(pendingIds()).toEqual([`${job.id}.json`]);
+    expect(mockImportTextToHistory).toHaveBeenCalledWith('你好,world');
+    expect(store.contentPersistedOnStage).toBe(true);
   });
 
   it('stages assets by copying bytes and derives image kind from the mime prefix', async () => {
@@ -209,7 +218,14 @@ describe('AndroidPendingShareStore', () => {
     );
     expect(image.kind).toBe('image');
     expect(image.displayName).toBe('photo.jpg');
+    expect(image.byteCount).toBe('JPEG-BYTES'.length);
     expect(fs.file(`pending-share/files/${image.id}.payload`).textSync()).toBe('JPEG-BYTES');
+    expect(mockImportFileToHistory).toHaveBeenCalledWith(
+      image.fileUri,
+      'photo.jpg',
+      'image/jpeg',
+      'JPEG-BYTES'.length
+    );
 
     fs.file('sources/archive.zip').write('ZIP-BYTES');
     const file = await store.stageAsset(
@@ -225,6 +241,18 @@ describe('AndroidPendingShareStore', () => {
     expect(unnamed.displayName).toMatch(/^shared_\d+$/);
   });
 
+  it('does not enqueue a shared asset when saving it to the app fails', async () => {
+    fs.file('sources/photo.jpg').write('JPEG-BYTES');
+    mockImportFileToHistory.mockRejectedValueOnce(new Error('history unavailable'));
+
+    await expect(
+      store.stageAsset('file:///documents/sources/photo.jpg', 'photo.jpg', 'image/jpeg')
+    ).rejects.toThrow('history unavailable');
+
+    expect(pendingIds()).toEqual([]);
+    expect(fs.dir('pending-share/files').list()).toEqual([]);
+  });
+
   it('claims pending jobs by moving records into processing, oldest first', async () => {
     await store.stageText('first');
     await store.stageText('second');
@@ -238,6 +266,33 @@ describe('AndroidPendingShareStore', () => {
     expect(claimed[0].createdAtMs).toBeLessThanOrEqual(claimed[1].createdAtMs);
     expect(pendingIds()).toEqual([]);
     expect(processingIds()).toEqual(before);
+  });
+
+  it('returns an already claimed asset when the share sheet mounts again', async () => {
+    fs.file('sources/photo.jpg').write('JPEG-BYTES');
+    const staged = await store.stageAsset(
+      'file:///documents/sources/photo.jpg',
+      'photo.jpg',
+      'image/jpeg'
+    );
+
+    await store.claimPending();
+
+    await expect(store.claimPending()).resolves.toEqual([
+      expect.objectContaining({ id: staged.id, kind: 'image', displayName: 'photo.jpg' }),
+    ]);
+  });
+
+  it('clears pending and claimed files before a new Android share starts', async () => {
+    await store.stageText('previous pending share');
+    await store.stageText('previous claimed share');
+    await store.claimPending();
+
+    await store.clearPending();
+
+    expect(pendingIds()).toEqual([]);
+    expect(processingIds()).toEqual([]);
+    expect(fs.dir('pending-share/files').list()).toEqual([]);
   });
 
   it('skips and clears records whose payload is missing', async () => {

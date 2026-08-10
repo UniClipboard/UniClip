@@ -58,6 +58,18 @@ describe('ShareSendSheet presentation', () => {
     expect(android).toContain('selected && styles.deviceRowSelected');
   });
 
+  it('keeps Android share sheet content in the React Native view tree', () => {
+    expect(android).not.toContain('AppCard');
+    expect(android).not.toContain('AppProgressIndicator');
+    expect(android).not.toContain('AppButton');
+  });
+
+  it('uses a full-screen Android share page that stays visible while parsing', () => {
+    expect(android).toContain('<Modal');
+    expect(android).toContain('isParsing');
+    expect(android).not.toContain('AppBottomSheet');
+  });
+
   it('uses the native full-row hit shape for iOS device selection', () => {
     expect(ios).toContain('contentShape(shapes.rectangle())');
     expect(ios).toContain('accessibilityValue(selected ?');

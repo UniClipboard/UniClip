@@ -10,8 +10,8 @@
  * 本测试用受控的 `useIncomingShare` mock 复现真实时序(false → true → false+payload),
  * 断言:
  *   1. 解析尚未产出结果时,绝不转存、不报错、不导航;
- *   2. 解析完成后恰好转存一次,文本/文件分流正确,然后清空 payload 并导航到分享页;
- *   3. 转存失败保留 toast 提示,仍导航到分享页;
+ *   2. 解析完成后先清除上一次待发送内容,恰好转存一次,然后清空 payload 并打开分享页;
+ *   3. 转存失败保留 toast 提示,但不打开空分享页;
  *   4. 重复 intent/重复渲染不重复入队(幂等)。
  */
 import React from 'react';
@@ -32,6 +32,7 @@ const mockShare: { state: ShareState; notify: () => void } = {
   notify: () => {},
 };
 const mockClearSharedPayloads = jest.fn();
+const mockClearPending = jest.fn(async () => undefined);
 
 jest.mock('expo-sharing', () => ({
   __esModule: true,
@@ -77,6 +78,7 @@ const mockStageAsset = jest.fn(async () => ({
 }));
 jest.mock('@/features/transfer', () => ({
   createPendingShareStore: () => ({
+    clearPending: (...args: unknown[]) => mockClearPending(...args),
     stageText: (...args: unknown[]) => mockStageText(...args),
     stageAsset: (...args: unknown[]) => mockStageAsset(...args),
     claimPending: jest.fn(async () => []),
@@ -86,10 +88,14 @@ jest.mock('@/features/transfer', () => ({
   }),
 }));
 
-const mockOpenShareSheet = jest.fn();
+const mockCompleteParsing = jest.fn();
+const mockFailParsing = jest.fn();
 jest.mock('@/stores/shareSheetStore', () => ({
   useShareSheetStore: {
-    getState: () => ({ open: (...args: unknown[]) => mockOpenShareSheet(...args) }),
+    getState: () => ({
+      completeParsing: (...args: unknown[]) => mockCompleteParsing(...args),
+      failParsing: (...args: unknown[]) => mockFailParsing(...args),
+    }),
   },
 }));
 
@@ -137,14 +143,14 @@ describe('ShareReceiveRedirector 转存时序', () => {
     const onComplete = jest.fn();
 
     act(() => {
-      TestRenderer.create(<ShareReceiveRedirector onComplete={onComplete} />);
+      TestRenderer.create(<ShareReceiveRedirector sessionId={1} onComplete={onComplete} />);
     });
     await flush();
 
     // 首帧:解析尚未产出 → 旧 bug 会在此拿空 payload 报错并返回;修复后应静默等待
     expect(mockStageText).not.toHaveBeenCalled();
     expect(mockShowMessage).not.toHaveBeenCalled();
-    expect(mockOpenShareSheet).not.toHaveBeenCalled();
+    expect(mockCompleteParsing).not.toHaveBeenCalled();
     expect(onComplete).not.toHaveBeenCalled();
 
     // 解析开始
@@ -167,9 +173,13 @@ describe('ShareReceiveRedirector 转存时序', () => {
 
     expect(mockStageText).toHaveBeenCalledTimes(1);
     expect(mockStageText).toHaveBeenCalledWith('hi');
+    expect(mockClearPending).toHaveBeenCalledTimes(1);
+    expect(mockClearPending.mock.invocationCallOrder[0]).toBeLessThan(
+      mockStageText.mock.invocationCallOrder[0]
+    );
     expect(mockStageAsset).not.toHaveBeenCalled();
     expect(mockClearSharedPayloads).toHaveBeenCalledTimes(1);
-    expect(mockOpenShareSheet).toHaveBeenCalled();
+    expect(mockCompleteParsing).toHaveBeenCalledWith(1);
     expect(onComplete).toHaveBeenCalledTimes(1);
     expect(mockShowMessage).not.toHaveBeenCalled();
   });
@@ -184,7 +194,7 @@ describe('ShareReceiveRedirector 转存时序', () => {
     const onComplete = jest.fn();
 
     act(() => {
-      TestRenderer.create(<ShareReceiveRedirector onComplete={onComplete} />);
+      TestRenderer.create(<ShareReceiveRedirector sessionId={1} onComplete={onComplete} />);
     });
     await flush();
     expect(mockStageAsset).not.toHaveBeenCalled();
@@ -211,9 +221,13 @@ describe('ShareReceiveRedirector 转存时序', () => {
     await flush();
 
     expect(mockStageAsset).toHaveBeenCalledTimes(1);
+    expect(mockClearPending).toHaveBeenCalledTimes(1);
+    expect(mockClearPending.mock.invocationCallOrder[0]).toBeLessThan(
+      mockStageAsset.mock.invocationCallOrder[0]
+    );
     expect(mockStageAsset).toHaveBeenCalledWith('content://media/pic.jpg', 'pic.jpg', 'image/jpeg');
     expect(mockStageText).not.toHaveBeenCalled();
-    expect(mockOpenShareSheet).toHaveBeenCalled();
+    expect(mockCompleteParsing).toHaveBeenCalledWith(1);
     expect(onComplete).toHaveBeenCalledTimes(1);
   });
 
@@ -225,7 +239,7 @@ describe('ShareReceiveRedirector 转存时序', () => {
       error: null,
     };
     act(() => {
-      TestRenderer.create(<ShareReceiveRedirector onComplete={jest.fn()} />);
+      TestRenderer.create(<ShareReceiveRedirector sessionId={1} onComplete={jest.fn()} />);
     });
     await flush();
     act(() => {
@@ -251,7 +265,7 @@ describe('ShareReceiveRedirector 转存时序', () => {
     expect(mockStageAsset).not.toHaveBeenCalled();
   });
 
-  it('转存失败保留 toast 提示,仍清空 payload 并导航到分享页', async () => {
+  it('转存失败保留 toast 提示,清空 payload 但不打开空分享页', async () => {
     mockShare.state = {
       sharedPayloads: [{ value: '', shareType: 'text', mimeType: 'text/plain' }],
       resolvedSharedPayloads: [],
@@ -261,7 +275,7 @@ describe('ShareReceiveRedirector 转存时序', () => {
     const onComplete = jest.fn();
 
     act(() => {
-      TestRenderer.create(<ShareReceiveRedirector onComplete={onComplete} />);
+      TestRenderer.create(<ShareReceiveRedirector sessionId={1} onComplete={onComplete} />);
     });
     await flush();
     act(() => {
@@ -281,7 +295,8 @@ describe('ShareReceiveRedirector 转存时序', () => {
     expect(mockStageText).not.toHaveBeenCalled();
     expect(mockShowMessage).toHaveBeenCalledTimes(1);
     expect(mockClearSharedPayloads).toHaveBeenCalledTimes(1);
-    expect(mockOpenShareSheet).toHaveBeenCalled();
+    expect(mockCompleteParsing).not.toHaveBeenCalled();
+    expect(mockFailParsing).toHaveBeenCalledWith(1);
     expect(onComplete).toHaveBeenCalledTimes(1);
   });
 
@@ -296,7 +311,9 @@ describe('ShareReceiveRedirector 转存时序', () => {
 
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => {
-      renderer = TestRenderer.create(<ShareReceiveRedirector onComplete={onComplete} />);
+      renderer = TestRenderer.create(
+        <ShareReceiveRedirector sessionId={1} onComplete={onComplete} />
+      );
     });
     await flush();
     act(() => {
@@ -316,24 +333,24 @@ describe('ShareReceiveRedirector 转存时序', () => {
 
     // 同一 intent 引起的额外渲染不触发第二次转存
     act(() => {
-      renderer.update(<ShareReceiveRedirector onComplete={onComplete} />);
+      renderer.update(<ShareReceiveRedirector sessionId={1} onComplete={onComplete} />);
     });
     await flush();
     expect(mockStageText).toHaveBeenCalledTimes(1);
-    expect(mockOpenShareSheet).toHaveBeenCalledTimes(1);
+    expect(mockCompleteParsing).toHaveBeenCalledTimes(1);
   });
 
   it('挂载时无分享内容直接结束,不转存不导航', async () => {
     const onComplete = jest.fn();
 
     act(() => {
-      TestRenderer.create(<ShareReceiveRedirector onComplete={onComplete} />);
+      TestRenderer.create(<ShareReceiveRedirector sessionId={1} onComplete={onComplete} />);
     });
     await flush();
 
     expect(mockStageText).not.toHaveBeenCalled();
     expect(mockStageAsset).not.toHaveBeenCalled();
-    expect(mockOpenShareSheet).not.toHaveBeenCalled();
+    expect(mockCompleteParsing).not.toHaveBeenCalled();
     expect(mockClearSharedPayloads).toHaveBeenCalledTimes(1);
     expect(onComplete).toHaveBeenCalledTimes(1);
   });

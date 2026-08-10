@@ -22,8 +22,6 @@ const mockClaimPending = jest.fn();
 const mockCompleteJob = jest.fn(async () => undefined);
 const mockReleaseJob = jest.fn(async () => undefined);
 const mockCleanup = jest.fn(async () => undefined);
-/** 模拟 PendingShareStore 的 contentPersistedOnStage 能力(iOS true / Android false)。 */
-let mockContentPersistedOnStage = true;
 
 const mockSendImportedText = jest.fn();
 const mockSendImportedAsset = jest.fn();
@@ -39,7 +37,6 @@ jest.mock('@/features/transfer', () => ({
   }),
   createPendingShareStore: () => ({
     cleanup: (...args: unknown[]) => mockCleanup(...args),
-    contentPersistedOnStage: mockContentPersistedOnStage,
   }),
   getUnifiedContentService: () => ({
     sendImportedText: (...args: unknown[]) => mockSendImportedText(...args),
@@ -174,7 +171,6 @@ describe('useShareSendController', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockContentPersistedOnStage = true;
     mockClaimPending.mockResolvedValue([]);
     mockSendImportedText.mockResolvedValue({ success: true, deliveryState: 'delivered' });
     mockSendImportedAsset.mockResolvedValue({ success: true, deliveryState: 'delivered' });
@@ -467,8 +463,7 @@ describe('useShareSendController', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('releases unsent jobs on close when content lives only in the queue (Android)', async () => {
-    mockContentPersistedOnStage = false;
+  it('completes unsent jobs on close after Android staged content is saved', async () => {
     mockClaimPending.mockResolvedValue([textJob]);
     const onClose = jest.fn();
     renderHarness(onClose);
@@ -478,9 +473,8 @@ describe('useShareSendController', () => {
       current.handleClose();
     });
 
-    expect(mockCompleteJob).not.toHaveBeenCalled();
-    expect(mockReleaseJob).toHaveBeenCalledTimes(1);
-    expect(mockReleaseJob).toHaveBeenCalledWith('text-1');
+    expect(mockReleaseJob).not.toHaveBeenCalled();
+    expect(mockCompleteJob).toHaveBeenCalledWith('text-1');
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
@@ -496,14 +490,13 @@ describe('useShareSendController', () => {
     expect(current.phase.kind).toBe('ready');
   });
 
-  it('keeps stale jobs claimable when content is not persisted on stage (Android)', async () => {
-    mockContentPersistedOnStage = false;
+  it('clears stale Android jobs because their content has already been saved', async () => {
     mockClaimPending.mockResolvedValue([textJob, staleJob]);
     renderHarness(jest.fn());
     await settle();
 
-    expect(mockCompleteJob).not.toHaveBeenCalled();
-    expect(current.jobViews.map((v) => v.job.id)).toEqual(['text-1', 'stale-1']);
+    expect(mockCompleteJob).toHaveBeenCalledWith('stale-1');
+    expect(current.jobViews.map((v) => v.job.id)).toEqual(['text-1']);
   });
 
   it('shows the error phase when claiming fails and retries on demand', async () => {

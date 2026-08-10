@@ -1,123 +1,209 @@
 import React from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
-import { AppBottomSheet, AppButton, AppCard, AppProgressIndicator } from '@/components/ui';
 import { useTheme } from '@/hooks/useTheme';
 import type { ColorScheme } from '@/theme/colors.types';
 import type { UnifiedSpaceDevice } from '@/features/space';
+import { useShareSheetStore } from '@/stores/shareSheetStore';
 import type { ShareSendSheetProps } from './ShareSendSheet.types';
 import { useShareSendController, formatBytes, type ShareJobView } from './useShareSendController';
 
-/**
- * Android 分享弹层:复用 AppBottomSheet(M3 scrim 淡入 + 面板滑升)。
- * 逻辑全在 useShareSendController,两端共享。
- */
+/** Android 外部分享独立页面。解析与发送都在同一全屏页面完成。 */
 export function ShareSendSheet({ visible, onClose }: ShareSendSheetProps) {
-  const c = useShareSendController(onClose, visible);
+  const isParsing = useShareSheetStore((state) => state.isParsing);
+  const c = useShareSendController(onClose, visible && !isParsing);
   const { theme } = useTheme();
   const { t } = useTranslation('share');
-  const hasFailed = c.jobViews.some((v) => v.sendState === 'failed');
+  const insets = useSafeAreaInsets();
 
   return (
-    <AppBottomSheet visible={visible} onDismiss={onClose} containerColor={theme.colors.surfaceLow}>
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.colors.textPrimary }]}>{t('send.title')}</Text>
-        <HeaderSendButton
-          theme={theme.colors}
-          done={c.isDone}
-          canSend={c.canSend}
-          sending={c.isSending}
-          hasFailed={hasFailed}
-          hasContent={c.jobViews.length > 0}
-          onPress={c.isDone && !hasFailed ? c.handleClose : c.sendAll}
-        />
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="fullScreen"
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
+      <View
+        style={[
+          styles.page,
+          { backgroundColor: theme.colors.surfaceLow, paddingTop: Math.max(insets.top, 16) },
+        ]}
+      >
+        <PageHeader title={t('send.title')} onClose={onClose} theme={theme.colors} />
+        {isParsing ? <ParsingState /> : <ShareBody c={c} theme={theme.colors} />}
       </View>
+    </Modal>
+  );
+}
 
-      <View style={styles.body}>
-        {c.phase.kind === 'claiming' ? (
-          <View style={styles.centerBox}>
-            <AppProgressIndicator color={theme.colors.accent} />
-          </View>
-        ) : c.phase.kind === 'error' ? (
-          <View style={styles.centerBox}>
-            <Ionicons name="alert-circle-outline" size={40} color={theme.colors.textSecondary} />
-            <Text style={[styles.errorText, { color: theme.colors.textSecondary }]}>
-              {c.phase.message}
-            </Text>
-            <AppButton title={t('send.retry')} onPress={c.handleRetryClaim} variant="tonal" />
-          </View>
-        ) : c.jobViews.length === 0 ? (
-          <View style={styles.centerBox}>
-            <Ionicons name="file-tray-outline" size={40} color={theme.colors.textSecondary} />
-            <Text style={[styles.errorText, { color: theme.colors.textSecondary }]}>
+function PageHeader({
+  title,
+  onClose,
+  theme,
+}: {
+  title: string;
+  onClose: () => void;
+  theme: ColorScheme;
+}) {
+  const { t } = useTranslation('history');
+  return (
+    <View style={styles.header}>
+      <Pressable
+        onPress={onClose}
+        style={styles.iconButton}
+        accessibilityRole="button"
+        accessibilityLabel={t('action.close', { ns: 'common' })}
+      >
+        <Ionicons name="close" size={25} color={theme.textPrimary} />
+      </Pressable>
+      <Text style={[styles.title, { color: theme.textPrimary }]} numberOfLines={1}>
+        {title}
+      </Text>
+      <View style={styles.iconButton} />
+    </View>
+  );
+}
+
+function ParsingState() {
+  const { t } = useTranslation('share');
+  const { theme } = useTheme();
+  return (
+    <View style={styles.centerBox}>
+      <ActivityIndicator size="large" color={theme.colors.accent} />
+      <Text style={[styles.parsingText, { color: theme.colors.textPrimary }]}>
+        {t('receive.parsing')}
+      </Text>
+    </View>
+  );
+}
+
+function ShareBody({
+  c,
+  theme,
+}: {
+  c: ReturnType<typeof useShareSendController>;
+  theme: ColorScheme;
+}) {
+  const { t } = useTranslation('share');
+  const hasFailed = c.jobViews.some((view) => view.sendState === 'failed');
+
+  if (c.phase.kind === 'claiming') {
+    return (
+      <View style={styles.centerBox}>
+        <ActivityIndicator size="large" color={theme.accent} />
+      </View>
+    );
+  }
+
+  if (c.phase.kind === 'error') {
+    return (
+      <View style={styles.centerBox}>
+        <Ionicons name="alert-circle-outline" size={42} color={theme.textSecondary} />
+        <Text style={[styles.errorText, { color: theme.textSecondary }]}>{c.phase.message}</Text>
+        <Pressable
+          onPress={c.handleRetryClaim}
+          style={[styles.retryButton, { backgroundColor: theme.accentContainer }]}
+          accessibilityRole="button"
+          accessibilityLabel={t('send.retry')}
+        >
+          <Text style={[styles.retryButtonText, { color: theme.onAccentContainer }]}>
+            {t('send.retry')}
+          </Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {c.jobViews.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="file-tray-outline" size={42} color={theme.textSecondary} />
+            <Text style={[styles.errorText, { color: theme.textSecondary }]}>
               {t('send.empty')}
             </Text>
           </View>
         ) : (
-          <ScrollView
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
+          <>
             <ContentSection
               views={c.jobViews}
-              theme={theme.colors}
+              theme={theme}
               label={`${t('send.title')} (${c.jobViews.length})`}
             />
             <DeviceSection
               devices={c.devices}
               selectedDeviceIds={c.selectedDeviceIds}
               onToggle={c.toggleDevice}
-              theme={theme.colors}
+              theme={theme}
               label={t('send.devices')}
               emptyLabel={t('send.noDevices')}
             />
-          </ScrollView>
+          </>
         )}
-      </View>
-    </AppBottomSheet>
+      </ScrollView>
+      <SendFooter c={c} hasFailed={hasFailed} theme={theme} />
+    </>
   );
 }
 
-/** Header 右上角发送按钮:状态机与 iOS 一致 —— 发送中转圈、失败红色感叹号
- * (点击重试)、全部成功绿色勾(点击关闭)、默认纸飞机(发送)。 */
-function HeaderSendButton({
-  theme,
-  done,
-  canSend,
-  sending,
+function SendFooter({
+  c,
   hasFailed,
-  hasContent,
-  onPress,
+  theme,
 }: {
-  theme: ColorScheme;
-  done: boolean;
-  canSend: boolean;
-  sending: boolean;
+  c: ReturnType<typeof useShareSendController>;
   hasFailed: boolean;
-  hasContent: boolean;
-  onPress: () => void;
+  theme: ColorScheme;
 }) {
   const { t } = useTranslation('share');
-  const enabled = done || hasFailed || canSend;
-  const active = enabled && !sending && hasContent;
-  const icon = done ? 'checkmark-circle' : hasFailed ? 'alert-circle' : 'paper-plane';
-  const color = done ? theme.success : hasFailed ? theme.error : theme.textPrimary;
+  const done = c.isDone && !hasFailed;
+  const enabled = done || hasFailed || c.canSend;
+  const label = done ? t('send.success') : hasFailed ? t('send.retry') : t('send.sendAll');
+  const icon = done ? 'checkmark' : hasFailed ? 'refresh' : 'paper-plane';
+  const onPress = done ? c.handleClose : c.sendAll;
 
   return (
-    <Pressable
-      onPress={onPress}
-      disabled={!active}
-      style={[styles.closeButton, active ? null : styles.closeButtonDisabled]}
-      accessibilityRole="button"
-      accessibilityLabel={done ? t('send.done') : hasFailed ? t('send.retry') : t('send.sendAll')}
-    >
-      {sending ? (
-        <AppProgressIndicator color={theme.textSecondary} />
-      ) : (
-        <Ionicons name={icon as never} size={22} color={color} />
-      )}
-    </Pressable>
+    <View style={[styles.footer, { borderTopColor: theme.separator }]}>
+      <Pressable
+        onPress={onPress}
+        disabled={!enabled || c.isSending}
+        style={[
+          styles.sendButton,
+          { backgroundColor: enabled ? theme.accent : theme.surfaceHigh },
+          (!enabled || c.isSending) && styles.sendButtonDisabled,
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+      >
+        {c.isSending ? (
+          <ActivityIndicator color={theme.onAccent} />
+        ) : (
+          <Ionicons
+            name={icon as never}
+            size={20}
+            color={enabled ? theme.onAccent : theme.textSecondary}
+          />
+        )}
+        <Text
+          style={[styles.sendButtonText, { color: enabled ? theme.onAccent : theme.textSecondary }]}
+        >
+          {label}
+        </Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -181,50 +267,43 @@ function DeviceSection({
 
 function JobCard({ view, theme }: { view: ShareJobView; theme: ColorScheme }) {
   const { job } = view;
-
   return (
-    <AppCard containerColor={theme.surfaceHigh} elevation={0} fullWidth>
-      <View style={styles.card}>
-        <View style={styles.cardMain}>
-          {job.kind === 'text' ? (
-            <View style={styles.textBox}>
+    <View style={[styles.card, { backgroundColor: theme.surfaceHigh }]}>
+      <View style={styles.cardMain}>
+        {job.kind === 'text' ? (
+          <View style={styles.textBox}>
+            <Text style={[styles.cardName, { color: theme.textPrimary }]} numberOfLines={2}>
+              {view.previewText || job.displayName}
+            </Text>
+            <Text style={[styles.cardDetail, { color: theme.textSecondary }]}>
+              {formatBytes(job.byteCount)}
+            </Text>
+          </View>
+        ) : (
+          <>
+            {job.kind === 'image' ? (
+              <Image source={{ uri: job.fileUri }} style={styles.thumbnail} resizeMode="contain" />
+            ) : (
+              <View style={[styles.fileIconBox, { backgroundColor: theme.accentContainer }]}>
+                <Ionicons name="document-outline" size={20} color={theme.onAccentContainer} />
+              </View>
+            )}
+            <View style={styles.cardMeta}>
               <Text style={[styles.cardName, { color: theme.textPrimary }]} numberOfLines={1}>
-                {view.previewText || job.displayName}
+                {job.displayName}
               </Text>
               <Text style={[styles.cardDetail, { color: theme.textSecondary }]} numberOfLines={1}>
-                {formatBytes(job.byteCount)}
+                {job.kind === 'image'
+                  ? `${job.mimeType ?? 'image'} · ${formatBytes(job.byteCount)}`
+                  : `${job.mimeType ?? ''}${job.mimeType ? ' · ' : ''}${formatBytes(
+                      job.byteCount
+                    )}`}
               </Text>
             </View>
-          ) : (
-            <>
-              {job.kind === 'image' ? (
-                <Image
-                  source={{ uri: job.fileUri }}
-                  style={styles.thumbnail}
-                  resizeMode="contain"
-                />
-              ) : (
-                <View style={[styles.fileIconBox, { backgroundColor: theme.accentContainer }]}>
-                  <Ionicons name="document-outline" size={18} color={theme.onAccentContainer} />
-                </View>
-              )}
-              <View style={styles.cardMeta}>
-                <Text style={[styles.cardName, { color: theme.textPrimary }]} numberOfLines={1}>
-                  {job.displayName}
-                </Text>
-                <Text style={[styles.cardDetail, { color: theme.textSecondary }]} numberOfLines={1}>
-                  {job.kind === 'image'
-                    ? `${job.mimeType ?? 'image'} · ${formatBytes(job.byteCount)}`
-                    : `${job.mimeType ?? ''}${job.mimeType ? ' · ' : ''}${formatBytes(
-                        job.byteCount
-                      )}`}
-                </Text>
-              </View>
-            </>
-          )}
-        </View>
+          </>
+        )}
       </View>
-    </AppCard>
+    </View>
   );
 }
 
@@ -253,14 +332,12 @@ function DeviceRow({
       accessibilityRole="button"
       accessibilityState={{ selected }}
     >
-      <View style={styles.deviceLeft}>
-        <Text style={[styles.deviceName, { color: theme.textPrimary }]} numberOfLines={1}>
-          {device.displayName}
-        </Text>
-      </View>
+      <Text style={[styles.deviceName, { color: theme.textPrimary }]} numberOfLines={1}>
+        {device.displayName}
+      </Text>
       <Ionicons
         name={selected ? 'checkbox' : 'square-outline'}
-        size={22}
+        size={23}
         color={selected ? theme.accent : theme.textSecondary}
       />
     </Pressable>
@@ -268,52 +345,65 @@ function DeviceRow({
 }
 
 const styles = StyleSheet.create({
+  page: { flex: 1 },
   header: {
+    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
   },
-  title: { fontSize: 18, fontWeight: '600' },
-  closeButton: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-  closeButtonDisabled: { opacity: 0.45 },
-  body: { flex: 1 },
-  centerBox: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
+  title: { flex: 1, fontSize: 18, fontWeight: '600', textAlign: 'center' },
+  iconButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  centerBox: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
+  parsingText: { fontSize: 16, fontWeight: '500' },
   errorText: { fontSize: 15, textAlign: 'center' },
-  scrollContent: { paddingHorizontal: 16, paddingBottom: 16, gap: 8 },
-  sectionLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    marginTop: 12,
-    marginBottom: 4,
-    opacity: 0.8,
+  retryButton: {
+    minHeight: 44,
+    paddingHorizontal: 20,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  card: { gap: 10 },
-  cardMain: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  textBox: { flex: 1, gap: 2 },
-  thumbnail: { width: 80, height: 80, borderRadius: 8 },
+  retryButtonText: { fontSize: 14, fontWeight: '600' },
+  scrollContent: { flexGrow: 1, paddingHorizontal: 20, paddingBottom: 20, gap: 10 },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  sectionLabel: { fontSize: 13, fontWeight: '600', marginTop: 14, marginBottom: 2 },
+  card: { borderRadius: 12, padding: 14 },
+  cardMain: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  textBox: { flex: 1, gap: 4 },
+  thumbnail: { width: 88, height: 88, borderRadius: 8 },
   fileIconBox: {
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cardMeta: { flex: 1, justifyContent: 'center', gap: 2 },
+  cardMeta: { flex: 1, gap: 4 },
   cardName: { fontSize: 15, fontWeight: '500' },
   cardDetail: { fontSize: 12 },
-  noDevices: { fontSize: 14, textAlign: 'center', paddingVertical: 16 },
+  noDevices: { fontSize: 14, textAlign: 'center', paddingVertical: 20 },
   deviceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    borderRadius: 14,
+    gap: 12,
+    borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    padding: 12,
-    minHeight: 56,
+    paddingHorizontal: 14,
+    minHeight: 58,
   },
   deviceRowSelected: { borderWidth: 2 },
-  deviceLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   deviceName: { flex: 1, fontSize: 15 },
+  footer: { borderTopWidth: StyleSheet.hairlineWidth, padding: 16 },
+  sendButton: {
+    minHeight: 52,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  sendButtonDisabled: { opacity: 0.55 },
+  sendButtonText: { fontSize: 16, fontWeight: '600' },
 });

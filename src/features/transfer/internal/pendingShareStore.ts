@@ -4,7 +4,7 @@
  * 统一两端「分享接收 → 主应用分享页」之间的持久队列:
  * - iOS 由分享扩展负责 stage(写 App Group `outbound-handoff`),JS 侧仅委托
  *   `app-group-store` 原生模块做 claim/complete/release;
- * - Android 由应用内 redirector 转存到应用私有目录 `pending-share/`
+ * - Android 由应用内 redirector 先保存到软件历史,再转存到应用私有目录 `pending-share/`
  *   (`files/{id}.payload` + `pending|processing/{id}.json`,原子写),
  *   实现同语义的租约与 7 天过期。
  *
@@ -18,6 +18,7 @@ import {
   completeOutboundShareJob,
   releaseOutboundShareJob,
 } from 'app-group-store';
+import { importFileToHistory, importTextToHistory } from '@/utils/uploadFile';
 import { createLogger } from '@/support/observability';
 
 const log = createLogger('PendingShareStore');
@@ -37,6 +38,8 @@ export interface PendingShareJob {
 
 export interface PendingShareStore {
   claimPending(): Promise<PendingShareJob[]>;
+  /** Android 新分享开始前清空上一轮待发送内容；内容已在历史中，不会丢失。 */
+  clearPending(): Promise<void>;
   completeJob(id: string): Promise<void>;
   releaseJob(id: string): Promise<void>;
   /** Android 转存专用:把分享文本暂存为 UTF-8 payload。iOS 由扩展完成,JS 侧不可用。 */
@@ -46,10 +49,8 @@ export interface PendingShareStore {
   /** 过期清理(7 天),启动/分享页挂载时调用。 */
   cleanup(): Promise<void>;
   /**
-   * staging 侧是否已把内容写入主页历史后再入队:
-   * - iOS:分享扩展先写历史再 enqueue(有 job 记录必有历史),因此关闭分享页或
-   *   清除陈旧 job 可以直接出队,内容不丢失(每次分享页都是崭新的一次分享);
-   * - Android:redirector 只入队,内容尚未入历史,取消时必须保留(releaseJob)。
+   * staging 侧是否已把内容写入主页历史后再入队。两端均为 true,因此关闭
+   * 分享页或清除陈旧 job 可以直接出队。
    */
   readonly contentPersistedOnStage: boolean;
 }
@@ -65,6 +66,10 @@ export class IosPendingShareStore implements PendingShareStore {
 
   claimPending(): Promise<PendingShareJob[]> {
     return claimOutboundShareJobs();
+  }
+
+  clearPending(): Promise<void> {
+    return Promise.resolve();
   }
 
   completeJob(id: string): Promise<void> {
@@ -142,8 +147,8 @@ function parseStoredJob(json: string): StoredJob | null {
  * `OutboundShareJob` 一致;原子写 = 先写 `{id}.tmp` 再 move。
  */
 export class AndroidPendingShareStore implements PendingShareStore {
-  /** Android redirector 只入队不写历史,内容仅存在于队列,不可随意清除。 */
-  readonly contentPersistedOnStage = false;
+  /** 与 iOS 一样,内容在写入待发送记录前已保存到软件历史。 */
+  readonly contentPersistedOnStage = true;
 
   private readonly root = new Directory(Paths.document, 'pending-share');
   private readonly files = new Directory(this.root, 'files');
@@ -214,6 +219,12 @@ export class AndroidPendingShareStore implements PendingShareStore {
       byteCount: new TextEncoder().encode(text).byteLength,
       mimeType: 'text/plain' as const,
     };
+    try {
+      await importTextToHistory(text);
+    } catch (error) {
+      if (target.exists) target.delete();
+      throw error;
+    }
     this.writeRecordAtomic(this.pending, id, this.serializeJob(job, createdAtMs));
     return this.toJob({ ...job, createdAtMs }, target.uri);
   }
@@ -235,9 +246,15 @@ export class AndroidPendingShareStore implements PendingShareStore {
       id,
       kind: (mimeType?.startsWith('image/') ? 'image' : 'file') as 'image' | 'file',
       displayName: displayName || `shared_${Date.now()}`,
-      byteCount: 0,
+      byteCount: target.size,
       mimeType,
     };
+    try {
+      await importFileToHistory(target.uri, job.displayName, mimeType, job.byteCount);
+    } catch (error) {
+      if (target.exists) target.delete();
+      throw error;
+    }
     this.writeRecordAtomic(this.pending, id, this.serializeJob(job, createdAtMs));
     return this.toJob({ ...job, createdAtMs }, target.uri);
   }
@@ -248,6 +265,27 @@ export class AndroidPendingShareStore implements PendingShareStore {
     this.removeExpiredJobs();
 
     const claimed: PendingShareJob[] = [];
+    const addClaimedJob = (record: File, id: string): void => {
+      const stored = parseStoredJob(record.textSync());
+      if (!stored || !this.payload(id).exists) {
+        try {
+          record.delete();
+        } catch {
+          // 记录损坏/缺 payload,尽力清除
+        }
+        return;
+      }
+      claimed.push(this.toJob(stored, this.payload(id).uri));
+    };
+
+    // 分享页可能在首屏建立过程中重新挂载。已领取但尚未发送的 Android 内容
+    // 仍归当前应用会话所有，必须继续交给新页面，不能等租约过期后才可见。
+    for (const entry of this.processing.list()) {
+      if (!(entry instanceof File) || !entry.name.endsWith('.json')) continue;
+      const id = entry.name.slice(0, -'.json'.length);
+      addClaimedJob(entry, id);
+    }
+
     for (const entry of this.pending.list()) {
       if (!(entry instanceof File) || !entry.name.endsWith('.json')) continue;
       const id = entry.name.slice(0, -'.json'.length);
@@ -257,18 +295,22 @@ export class AndroidPendingShareStore implements PendingShareStore {
       } catch {
         continue;
       }
-      const stored = parseStoredJob(processingRecord.textSync());
-      if (!stored || !this.payload(id).exists) {
-        try {
-          processingRecord.delete();
-        } catch {
-          // 记录损坏/缺 payload,尽力清除
-        }
-        continue;
-      }
-      claimed.push(this.toJob(stored, this.payload(id).uri));
+      addClaimedJob(processingRecord, id);
     }
     return claimed.sort((a, b) => a.createdAtMs - b.createdAtMs);
+  }
+
+  async clearPending(): Promise<void> {
+    this.ensureDirectories();
+    for (const dir of [this.pending, this.processing, this.files]) {
+      for (const entry of dir.list()) {
+        try {
+          entry.delete();
+        } catch {
+          // 尽力清理上一轮的待发送内容；下次新分享会再次清理。
+        }
+      }
+    }
   }
 
   releaseJob(id: string): Promise<void> {

@@ -78,7 +78,7 @@ type AppMode = 'checking' | 'home';
 export default function App() {
   const [appMode, setAppMode] = useState<AppMode>('checking');
   // 快速操作覆盖层：始终以 overlay 形式显示，不卸载 AppNavigator/HomeScreen
-  const [shareReceiveOverlay, setShareReceiveOverlay] = useState(false);
+  const [shareReceiveOverlay, setShareReceiveOverlay] = useState<number | null>(null);
   const [processTextOverlay, setProcessTextOverlay] = useState<string | null>(null);
   const [quickActionOverlay, setQuickActionOverlay] = useState<{
     exitAfterSync: boolean;
@@ -242,7 +242,7 @@ export default function App() {
       }
       if (isShareIntentUrl(url)) {
         setAppMode('home');
-        setShareReceiveOverlay(true);
+        setShareReceiveOverlay(useShareSheetStore.getState().beginParsing());
         return;
       }
       if (isShareUrl(url)) {
@@ -272,7 +272,7 @@ export default function App() {
         ToastAndroid.show(`addEventListener url: ${debugUrlLabel(url)}`, ToastAndroid.LONG);
       }
       if (isShareIntentUrl(url)) {
-        setShareReceiveOverlay(true);
+        setShareReceiveOverlay(useShareSheetStore.getState().beginParsing());
         return;
       }
       if (isShareUrl(url)) {
@@ -300,12 +300,15 @@ export default function App() {
       <ThemeProvider>
         <ThemedStatusBar />
         {appMode === 'checking' ? null : <AppNavigator />}
-        {shareReceiveOverlay && (
+        {shareReceiveOverlay !== null && (
           <View style={StyleSheet.absoluteFill}>
             <ShareReceiveRedirector
+              key={shareReceiveOverlay}
+              sessionId={shareReceiveOverlay}
               onComplete={() => {
-                // 先关 overlay 露出底层主界面;分享弹层由 useShareSheetStore 打开。
-                setShareReceiveOverlay(false);
+                setShareReceiveOverlay((current) =>
+                  current === shareReceiveOverlay ? null : current
+                );
               }}
             />
           </View>
