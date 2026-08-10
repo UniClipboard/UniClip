@@ -45,6 +45,7 @@
       "./plugins/build/withClipboardOverlayPermission.js",
       "./plugins/build/withNativeUtilPermission.js",
       "./plugins/build/withForegroundService.js",
+      "./plugins/build/withDarkSplashScreen.js",
       "./plugins/build/withAbiSplits.js",
       "./plugins/build/withGradleBuildTuning.js",
       "./plugins/build/withUnifiedEngineRelease.js",

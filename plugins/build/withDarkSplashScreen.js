@@ -36,23 +36,61 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const config_plugins_1 = require("expo/config-plugins");
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
-const NIGHT_COLORS = `<resources>
-  <color name="splashscreen_background">#000000</color>
-</resources>
-`;
+const SPLASH_RES_DIR = 'plugins/assets/android-splash';
+// Directories that are copied verbatim from the template into the generated
+// android/app/src/main/res/ tree. All files inside are overwritten on prebuild.
+const RES_SUBDIRS = [
+    'drawable',
+    'drawable-mdpi',
+    'drawable-hdpi',
+    'drawable-xhdpi',
+    'drawable-xxhdpi',
+    'drawable-xxxhdpi',
+    'drawable-night',
+    'drawable-night-mdpi',
+    'drawable-night-hdpi',
+    'drawable-night-xhdpi',
+    'drawable-night-xxhdpi',
+    'drawable-night-xxxhdpi',
+    'values-night',
+];
+const copySplashResources = async (projectRoot, platformProjectRoot) => {
+    const templateDir = path.join(projectRoot, SPLASH_RES_DIR);
+    const resDir = path.join(platformProjectRoot, 'app/src/main/res');
+    for (const subdir of RES_SUBDIRS) {
+        const srcDir = path.join(templateDir, subdir);
+        const destDir = path.join(resDir, subdir);
+        if (!fs.existsSync(srcDir))
+            continue;
+        fs.mkdirSync(destDir, { recursive: true });
+        for (const file of fs.readdirSync(srcDir)) {
+            fs.copyFileSync(path.join(srcDir, file), path.join(destDir, file));
+        }
+    }
+};
 const withDarkSplashScreen = (config) => {
     config = (0, config_plugins_1.withDangerousMod)(config, [
         'android',
         async (config) => {
-            const nightValuesDir = path.join(config.modRequest.platformProjectRoot, 'app/src/main/res/values-night');
-            if (!fs.existsSync(nightValuesDir)) {
-                fs.mkdirSync(nightValuesDir, { recursive: true });
-            }
-            const colorsPath = path.join(nightValuesDir, 'colors.xml');
-            fs.writeFileSync(colorsPath, NIGHT_COLORS, 'utf-8');
+            await copySplashResources(config.modRequest.projectRoot, config.modRequest.platformProjectRoot);
             return config;
         },
     ]);
+    // The Expo template points `android:windowBackground` at the raw bitmap
+    // (@drawable/splashscreen_logo), which stretches it full-screen. Point it at
+    // the layer-list (background color + centered logo) instead.
+    config = (0, config_plugins_1.withAndroidStyles)(config, (config) => {
+        const styles = config_plugins_1.AndroidConfig.Styles.setStylesItem({
+            xml: config.modResults,
+            parent: { name: 'Theme.App.SplashScreen' },
+            item: config_plugins_1.AndroidConfig.Resources.buildResourceItem({
+                name: 'android:windowBackground',
+                value: '@drawable/splashscreen',
+            }),
+        });
+        config.modResults = styles;
+        return config;
+    });
     return config;
 };
 exports.default = (0, config_plugins_1.createRunOncePlugin)(withDarkSplashScreen, 'withDarkSplashScreen', '1.0.0');
