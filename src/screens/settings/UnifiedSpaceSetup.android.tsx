@@ -38,7 +38,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { CustomRelaySection } from './CustomRelaySection';
 import { SettingsSectionItem } from './SettingsSectionItem';
 
-type PendingOperation = 'leave' | `remove:${string}` | `recover:${string}` | null;
+type PendingOperation = 'leave' | `remove:${string}` | null;
 
 const EMPTY_TITLE_STYLE = { fontSize: 22, fontWeight: '600', letterSpacing: 0 } as const;
 const EMPTY_BODY_STYLE = { textAlign: 'center' } as const;
@@ -66,7 +66,7 @@ function operationError(error: unknown, t: (key: string) => string): string {
 
 function deviceStatusLabel(
   device: UnifiedSpaceDevice,
-  removalPending: boolean,
+  waitingForConvergence: boolean,
   t: (key: string) => string
 ): string {
   const base = device.isLocal
@@ -74,26 +74,20 @@ function deviceStatusLabel(
     : device.online
     ? t('space.devices.online')
     : t('space.devices.offline');
-  return removalPending ? `${base} · ${t('space.removal.pendingDevice')}` : base;
+  return waitingForConvergence ? `${base} · ${t('space.convergence.pendingDevice')}` : base;
 }
 
 function SpaceDeviceRow({
   device,
-  removalPending,
-  removalNeedsRecovery,
-  recovering,
+  waitingForConvergence,
   removing,
   manageable,
-  onRecover,
   onManage,
 }: {
   device: UnifiedSpaceDevice;
-  removalPending: boolean;
-  removalNeedsRecovery: boolean;
-  recovering: boolean;
+  waitingForConvergence: boolean;
   removing: boolean;
   manageable: boolean;
-  onRecover: () => void;
   onManage: () => void;
 }) {
   const { t } = useTranslation('settingsSync');
@@ -101,7 +95,6 @@ function SpaceDeviceRow({
   const { theme } = useTheme();
   const online = device.isLocal || device.online;
   const statusColor = online ? (theme.colors.success as string) : colors.outline;
-  const showRecover = removalPending && removalNeedsRecovery && !device.isLocal;
   const modifiers = manageable && !removing ? [clickable(onManage)] : [];
 
   return (
@@ -117,20 +110,14 @@ function SpaceDeviceRow({
           <Icon source={ICONS.status} size={8} tint={statusColor} />
           <Spacer modifiers={[widthModifier(6)]} />
           <ComposeText color={statusColor}>
-            {deviceStatusLabel(device, removalPending, t)}
+            {deviceStatusLabel(device, waitingForConvergence, t)}
           </ComposeText>
         </Row>
       </ListItem.SupportingContent>
       {!device.isLocal ? (
         <ListItem.TrailingContent>
-          {removing || recovering ? (
+          {removing ? (
             <CircularProgressIndicator modifiers={[widthModifier(24), heightModifier(24)]} />
-          ) : showRecover ? (
-            <TextButton onClick={onRecover}>
-              <ComposeText color={colors.error}>
-                {t('space.removal.permanentLossAction')}
-              </ComposeText>
-            </TextButton>
           ) : (
             <Icon
               source={ICONS.chevron}
@@ -188,7 +175,6 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
   const [spaceOperationError, setSpaceOperationError] = useState<string | null>(null);
   const [manageDeviceId, setManageDeviceId] = useState<string | null>(null);
   const [removeDeviceId, setRemoveDeviceId] = useState<string | null>(null);
-  const [permanentlyLostDeviceId, setPermanentlyLostDeviceId] = useState<string | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [showInvitation, setShowInvitation] = useState(false);
   const space = useUnifiedSpaceStore();
@@ -224,23 +210,6 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
     }
   };
 
-  const continueMemberRemoval = async () => {
-    const deviceId = permanentlyLostDeviceId;
-    const revocationId = space.memberRemoval?.revocationId;
-    if (!deviceId || !revocationId || pending) return;
-
-    setPermanentlyLostDeviceId(null);
-    setPending(`recover:${deviceId}`);
-    setDeviceOperationError(null);
-    try {
-      await getUnifiedSpaceService().continueMemberRevocation(revocationId, [deviceId]);
-    } catch (cause) {
-      setDeviceOperationError(operationError(cause, t));
-    } finally {
-      setPending(null);
-    }
-  };
-
   const leaveSpace = async () => {
     if (pending) return;
     setConfirmLeave(false);
@@ -256,9 +225,8 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
   };
 
   const spaceId = space.spaceId;
-  const memberRemoval = space.memberRemoval;
-  const removalPendingIds = new Set(memberRemoval?.pendingRecipientDeviceIds ?? []);
-  const removalNeedsRecovery = memberRemoval ? memberRemoval.outcome === 'recoveryRequired' : false;
+  const workspaceConvergence = space.workspaceConvergence;
+  const waitingMemberIds = new Set(workspaceConvergence?.waitingMemberDeviceIds ?? []);
   const devices = [...space.devices].sort((left, right) => {
     const leftRank = left.isLocal ? 0 : left.online ? 1 : 2;
     const rightRank = right.isLocal ? 0 : right.online ? 1 : 2;
@@ -266,18 +234,12 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
   });
   const localDevice = devices.find((device) => device.isLocal) ?? null;
   const otherDevices = devices.filter((device) => !device.isLocal);
-  // 移除确认中的设备若已不在列表里,仍补一行占位,保证恢复入口可达
-  const removalOnlyIds = [...removalPendingIds].filter(
-    (deviceId) => !devices.some((device) => device.deviceId === deviceId)
-  );
-  const otherDeviceCount = otherDevices.length + removalOnlyIds.length;
+  const otherDeviceCount = otherDevices.length;
   const onlineCount = otherDevices.filter((device) => device.online).length;
   const offlineCount = otherDeviceCount - onlineCount;
   const hasOnlineDevice = onlineCount > 0;
   const localDeviceName =
     localDevice?.displayName ?? space.deviceName ?? t('space.devices.thisDevice');
-  const removalDeviceName = (deviceId: string) =>
-    devices.find((device) => device.deviceId === deviceId)?.displayName ?? deviceId;
   const manageDevice = manageDeviceId
     ? devices.find((device) => device.deviceId === manageDeviceId) ?? null
     : null;
@@ -302,13 +264,13 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
     : hasOnlineDevice
     ? theme.colors.success
     : colors.outline;
-  const removalFooter = !memberRemoval
+  const convergenceFooter = !workspaceConvergence
     ? undefined
-    : memberRemoval.outcome === 'complete' || memberRemoval.outcome === 'localOnly'
-    ? t('space.removal.complete')
-    : removalNeedsRecovery
-    ? t('space.removal.recoveryRequired')
-    : t('space.removal.waiting');
+    : workspaceConvergence.phase === 'complete'
+    ? t('space.convergence.complete')
+    : workspaceConvergence.phase === 'recoveryRequired'
+    ? t('space.convergence.recoveryRequired')
+    : t('space.convergence.waiting');
   const isInitialLoading =
     !spaceId && !pending && (space.status === 'idle' || space.status === 'loading');
 
@@ -335,7 +297,7 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
               <Column>
                 <ComposeText style={HERO_TITLE_STYLE}>{manageDevice.displayName}</ComposeText>
                 <ComposeText color={colors.onSurfaceVariant}>
-                  {deviceStatusLabel(manageDevice, removalPendingIds.has(manageDevice.deviceId), t)}
+                  {deviceStatusLabel(manageDevice, waitingMemberIds.has(manageDevice.deviceId), t)}
                   {' · '}
                   {t('space.devices.idLabel', { id: manageDevice.deviceId.slice(0, 8) })}
                 </ComposeText>
@@ -378,31 +340,6 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
           </AlertDialog.ConfirmButton>
           <AlertDialog.DismissButton>
             <TextButton onClick={() => setRemoveDeviceId(null)}>
-              <ComposeText>{t('action.cancel', { ns: 'common' })}</ComposeText>
-            </TextButton>
-          </AlertDialog.DismissButton>
-        </AlertDialog>
-      ) : null}
-
-      {permanentlyLostDeviceId ? (
-        <AlertDialog onDismissRequest={() => setPermanentlyLostDeviceId(null)}>
-          <AlertDialog.Title>
-            <ComposeText>{t('space.removal.permanentLossTitle')}</ComposeText>
-          </AlertDialog.Title>
-          <AlertDialog.Text>
-            <ComposeText>
-              {t('space.removal.permanentLossConfirm', {
-                device: removalDeviceName(permanentlyLostDeviceId),
-              })}
-            </ComposeText>
-          </AlertDialog.Text>
-          <AlertDialog.ConfirmButton>
-            <TextButton onClick={() => void continueMemberRemoval()}>
-              <ComposeText>{t('space.removal.permanentLossAction')}</ComposeText>
-            </TextButton>
-          </AlertDialog.ConfirmButton>
-          <AlertDialog.DismissButton>
-            <TextButton onClick={() => setPermanentlyLostDeviceId(null)}>
               <ComposeText>{t('action.cancel', { ns: 'common' })}</ComposeText>
             </TextButton>
           </AlertDialog.DismissButton>
@@ -543,42 +480,19 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
       <Spacer modifiers={[heightModifier(16)]} />
       <SettingsSectionItem
         title={`${t('space.devices.otherTitle')} (${otherDeviceCount})`}
-        footer={removalFooter}
+        footer={convergenceFooter}
       >
-        {otherDevices.length || removalOnlyIds.length ? (
+        {otherDevices.length ? (
           <>
             {otherDevices.map((device, index) => (
               <Column key={device.deviceId} modifiers={[fillMaxWidth()]}>
                 {index > 0 ? <HorizontalDivider /> : null}
                 <SpaceDeviceRow
                   device={device}
-                  removalPending={removalPendingIds.has(device.deviceId)}
-                  removalNeedsRecovery={removalNeedsRecovery}
-                  recovering={pending === `recover:${device.deviceId}`}
+                  waitingForConvergence={waitingMemberIds.has(device.deviceId)}
                   removing={pending === `remove:${device.deviceId}`}
                   manageable
-                  onRecover={() => setPermanentlyLostDeviceId(device.deviceId)}
                   onManage={() => setManageDeviceId(device.deviceId)}
-                />
-              </Column>
-            ))}
-            {removalOnlyIds.map((deviceId, index) => (
-              <Column key={deviceId} modifiers={[fillMaxWidth()]}>
-                {index > 0 || otherDevices.length ? <HorizontalDivider /> : null}
-                <SpaceDeviceRow
-                  device={{
-                    deviceId,
-                    displayName: removalDeviceName(deviceId),
-                    isLocal: false,
-                    online: false,
-                  }}
-                  removalPending
-                  removalNeedsRecovery={removalNeedsRecovery}
-                  recovering={pending === `recover:${deviceId}`}
-                  removing={false}
-                  manageable={false}
-                  onRecover={() => setPermanentlyLostDeviceId(deviceId)}
-                  onManage={() => undefined}
                 />
               </Column>
             ))}

@@ -61,26 +61,16 @@ describe('unified P2P engine native module', () => {
     expect(kotlin).toContain('AsyncFunction("saveCustomRelayNode")');
   });
 
-  it('maps current member-removal states and generic changed kinds on both native platforms', () => {
+  it('maps workspace convergence state on both native platforms', () => {
     const swift = read('ios/UcEngineModule.swift');
     const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
 
-    expect(swift).toContain('recovering');
-    expect(swift).toContain('case .changed(let kind):');
-    expect(swift).toContain('"type": "changed", "kind": kind');
-    // The local Engine worktree keeps the shared-device refresh event while the
-    // pinned rc.6 release removes it, so the host adapts it conditionally.
-    expect(swift).toContain('#if UC_ENGINE_LOCAL_CORE');
-    expect(swift).toContain('case .sharedDeviceRefreshChanged(refresh:):');
-    expect(swift).toContain('"kind": "sharedDeviceRefreshChanged"');
-
-    expect(kotlin).toContain('recovering');
-    expect(kotlin).not.toContain('BindingEvent.SharedDeviceRefreshChanged');
-    expect(kotlin).toContain('is BindingEvent.Changed ->');
-    expect(kotlin).toContain('"kind" to event.kind');
-    expect(kotlin).toContain(
-      'else -> mapOf("type" to "changed", "kind" to "sharedDeviceRefreshChanged")'
-    );
+    expect(swift).toContain('case .workspaceConvergenceChanged(let convergence):');
+    expect(swift).toContain('"type": "workspaceConvergenceChanged"');
+    expect(swift).toContain('workspaceConvergenceMap(convergence)');
+    expect(kotlin).toContain('is BindingEvent.WorkspaceConvergenceChanged ->');
+    expect(kotlin).toContain('"type" to "workspaceConvergenceChanged"');
+    expect(kotlin).toContain('workspaceConvergenceMap(event.convergence)');
   });
 
   it('maps detailed clipboard, delivery, transfer, and presence events on both platforms', () => {
@@ -97,7 +87,7 @@ describe('unified P2P engine native module', () => {
       'transferProgress',
       'transferStatusChanged',
       'activeClipboardChanged',
-      'memberRevocationChanged',
+      'workspaceConvergenceChanged',
       'networkRecoveryChanged',
     ]) {
       expect(javascript).toContain(`type: '${eventType}'`);
@@ -114,6 +104,7 @@ describe('unified P2P engine native module', () => {
     for (const operation of [
       'querySpaceState',
       'listDevices',
+      'queryWorkspaceConvergence',
       'removeMember',
       'resendEntry',
       'leaveSpace',
@@ -137,44 +128,23 @@ describe('unified P2P engine native module', () => {
     expect(kotlin).toContain('"preservedUnreadableRecords"');
   });
 
-  it('converts structured member-removal results for both native platforms', () => {
+  it('converts workspace convergence results for both native platforms', () => {
     const javascript = read('src/index.ts');
     const swift = read('ios/UcEngineModule.swift');
     const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
 
-    expect(javascript).toContain('export interface MemberRevocationResult');
-    expect(javascript).toContain('removedDeviceIds: string[]');
-    expect(javascript).toContain('pendingRecipientDeviceIds: string[]');
+    expect(javascript).toContain('export interface WorkspaceConvergence');
+    expect(javascript).toContain('waitingMemberDeviceIds: string[]');
+    expect(javascript).toContain('failureCategory: WorkspaceConvergenceFailureCategory | null');
     expect(javascript).toContain('updatedAtMs: number');
-    expect(javascript).toContain('removeMember(deviceId: string): Promise<MemberRevocationResult>');
-    expect(javascript).toContain(
-      'queryCurrentMemberRevocation(): Promise<MemberRevocationResult | null>'
-    );
-    expect(javascript).toContain(
-      'continueMemberRevocation(\n  revocationId: string,\n  permanentlyLostDeviceIds: string[]\n)'
-    );
+    expect(javascript).toContain('removeMember(deviceId: string): Promise<WorkspaceConvergence>');
+    expect(javascript).toContain('queryWorkspaceConvergence(): Promise<WorkspaceConvergence>');
     expect(kotlin).toContain('val result = engine.removeMember(deviceId)');
-    expect(kotlin).toContain('requireEngine().queryCurrentMemberRevocation()');
-    expect(kotlin).toContain(
-      'engine.continueMemberRevocation(revocationId, permanentlyLostDeviceIds)'
-    );
+    expect(kotlin).toContain('requireEngine().queryWorkspaceConvergence()');
     expect(kotlin).toContain('refreshAnalyticsContext(engine)');
     expect(swift).toContain('let result = try engine.removeMember(deviceId: deviceId)');
-    expect(swift).toContain('try self.requireEngine().queryCurrentMemberRevocation()');
-    expect(swift).toContain(
-      'try engine.continueMemberRevocation(\n        revocationId: revocationId,\n        permanentlyLostDeviceIds: permanentlyLostDeviceIds\n      )'
-    );
+    expect(swift).toContain('try self.requireEngine().queryWorkspaceConvergence()');
     expect(swift).toContain('self.host.refreshAnalyticsContext(engine: engine)');
-  });
-
-  it('exposes secure removal for legacy spaces on both native platforms', () => {
-    const javascript = read('src/index.ts');
-    const swift = read('ios/UcEngineModule.swift');
-    const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
-
-    expect(javascript).toContain('export function secureRemoveLegacyMember');
-    expect(swift).toContain('AsyncFunction("secureRemoveLegacyMember")');
-    expect(kotlin).toContain('AsyncFunction("secureRemoveLegacyMember")');
   });
 
   it('preserves the local-device marker on JavaScript, iOS, and Android', () => {
@@ -311,26 +281,29 @@ describe('unified P2P engine native module', () => {
     expect(kotlin).toContain('target.displayName ?:');
   });
 
-  it('pins both platform artifacts to the same engine version and source commit', () => {
+  it('pins both platform artifacts to the same locally built engine commit', () => {
     const pin = JSON.parse(read('core-source.json')) as {
       repository: string;
       version: string;
       sourceCommit: string;
-      swiftPackageChecksum: string;
+      artifactSource: string;
+      sourceStateSha256: string;
       artifacts: Record<string, string>;
     };
 
     expect(pin.repository).toBe('UniClipboard/Engine');
     expect(pin.version).toMatch(/^v\d+\.\d+\.\d+(?:-[a-z0-9.]+)?$/);
     expect(pin.sourceCommit).toMatch(/^[a-f0-9]{40}$/);
+    expect(pin.artifactSource).toBe('local-build');
+    expect(pin.sourceStateSha256).toMatch(/^[a-f0-9]{64}$/);
     for (const artifact of [
       'UniClipboardEngine.aar',
-      'UniClipboardEngine.xcframework.zip',
+      'UniClipboardEngine.pom',
+      'runtime-dependencies.txt',
       'uc_engine_uniffi.kt',
       'uc_engine_uniffi.swift',
     ]) {
       expect(pin.artifacts[artifact]).toMatch(/^[a-f0-9]{64}$/);
     }
-    expect(pin.swiftPackageChecksum).toBe(pin.artifacts['UniClipboardEngine.xcframework.zip']);
   });
 });

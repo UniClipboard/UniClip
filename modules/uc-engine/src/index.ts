@@ -75,26 +75,37 @@ export interface Device {
   online: boolean;
 }
 
-export type MemberRevocationOutcome = 'localOnly' | 'applied' | 'complete' | 'recoveryRequired';
+export type WorkspaceConvergencePhase =
+  | 'locallyApplied'
+  | 'converging'
+  | 'waitingForOfflineMember'
+  | 'complete'
+  | 'recoveryRequired';
 
-export interface MemberRevocationResult {
-  revocationId: string | null;
-  outcome: MemberRevocationOutcome;
-  pendingRecipients: number;
-  removedDeviceIds: string[];
-  pendingRecipientDeviceIds: string[];
+export type WorkspaceConvergenceFailureCategory =
+  | 'spaceMismatch'
+  | 'continuityGap'
+  | 'identityMismatch'
+  | 'digestConflict'
+  | 'unauthorized'
+  | 'versionIncompatible'
+  | 'noEffectiveMembers'
+  | 'storage';
+
+export interface WorkspaceConvergence {
+  phase: WorkspaceConvergencePhase;
+  revision: number;
+  changeCount: number;
+  removalIntentCount: number;
+  effectiveMemberCount: number;
+  confirmedMemberCount: number;
+  waitingMemberDeviceIds: string[];
+  waitingMemberCount: number;
+  convergenceDigest: string | null;
+  removed: boolean;
   updatedAtMs: number;
+  failureCategory: WorkspaceConvergenceFailureCategory | null;
 }
-
-export type LegacyMemberRemovalOutcome = 'awaitingReadmission' | 'complete' | 'recoveryRequired';
-
-export interface LegacyMemberRemovalResult {
-  bootstrapId: string;
-  outcome: LegacyMemberRemovalOutcome;
-  pendingReadmission: number;
-}
-
-export type MemberRemovalResult = MemberRevocationResult | LegacyMemberRemovalResult;
 
 export type ResendEntryOutcome =
   | {
@@ -173,7 +184,7 @@ export type EngineEvent =
       activatedAtMs: number;
       activatedBy: string;
     }
-  | { type: 'memberRevocationChanged'; revocation: MemberRevocationResult }
+  | { type: 'workspaceConvergenceChanged'; convergence: WorkspaceConvergence }
   | {
       type: 'networkRecoveryChanged';
       phase: string;
@@ -223,13 +234,8 @@ interface UcEngineNativeModule {
   refreshPeerConnections(): Promise<PeerConnectionRefresh>;
   querySpaceState(): Promise<SpaceState>;
   listDevices(): Promise<Device[]>;
-  removeMember(deviceId: string): Promise<MemberRevocationResult>;
-  queryCurrentMemberRevocation(): Promise<MemberRevocationResult | null>;
-  continueMemberRevocation(
-    revocationId: string,
-    permanentlyLostDeviceIds: string[]
-  ): Promise<MemberRevocationResult>;
-  secureRemoveLegacyMember(deviceId: string): Promise<LegacyMemberRemovalResult>;
+  queryWorkspaceConvergence(): Promise<WorkspaceConvergence>;
+  removeMember(deviceId: string): Promise<WorkspaceConvergence>;
   resendEntry(entryId: string, targetDevices: string[]): Promise<ResendEntryOutcome>;
   leaveSpace(): Promise<void>;
   sendText(text: string, targetDevices: string[]): Promise<SendReport>;
@@ -365,23 +371,12 @@ export function listDevices(): Promise<Device[]> {
   return NativeModule.listDevices();
 }
 
-export function removeMember(deviceId: string): Promise<MemberRevocationResult> {
+export function queryWorkspaceConvergence(): Promise<WorkspaceConvergence> {
+  return NativeModule.queryWorkspaceConvergence();
+}
+
+export function removeMember(deviceId: string): Promise<WorkspaceConvergence> {
   return NativeModule.removeMember(deviceId);
-}
-
-export function queryCurrentMemberRevocation(): Promise<MemberRevocationResult | null> {
-  return NativeModule.queryCurrentMemberRevocation();
-}
-
-export function continueMemberRevocation(
-  revocationId: string,
-  permanentlyLostDeviceIds: string[]
-): Promise<MemberRevocationResult> {
-  return NativeModule.continueMemberRevocation(revocationId, permanentlyLostDeviceIds);
-}
-
-export function secureRemoveLegacyMember(deviceId: string): Promise<LegacyMemberRemovalResult> {
-  return NativeModule.secureRemoveLegacyMember(deviceId);
 }
 
 export function resendEntry(

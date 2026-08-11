@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { InvitationIssued, MemberRevocationResult, SpaceInvitation } from '@/platform/engine';
+import type { InvitationIssued, SpaceInvitation, WorkspaceConvergence } from '@/platform/engine';
 
 export interface UnifiedSpaceDevice {
   deviceId: string;
@@ -18,7 +18,7 @@ export interface UnifiedSpaceSnapshot {
   deviceName: string | null;
   invitation: InvitationIssued | SpaceInvitation | null;
   devices: UnifiedSpaceDevice[];
-  memberRemoval: MemberRevocationResult | null;
+  workspaceConvergence: WorkspaceConvergence | null;
   lastError: string | null;
   hasResolvedDeviceList: boolean;
   deviceListRefreshStatus: DeviceListRefreshStatus;
@@ -33,7 +33,7 @@ export function createInitialUnifiedSpaceSnapshot(
     deviceName: null,
     invitation: null,
     devices: [],
-    memberRemoval: null,
+    workspaceConvergence: null,
     lastError: null,
     hasResolvedDeviceList: false,
     deviceListRefreshStatus: 'idle',

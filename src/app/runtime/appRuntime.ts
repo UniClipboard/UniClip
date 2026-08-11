@@ -26,7 +26,7 @@ export function isDeviceListRefreshEvent(event: EngineEvent): boolean {
   return (
     event.type === 'refreshRequired' ||
     event.type === 'peerPresenceChanged' ||
-    event.type === 'memberRevocationChanged' ||
+    event.type === 'workspaceConvergenceChanged' ||
     (event.type === 'changed' && event.kind === 'pairing_completed')
   );
 }

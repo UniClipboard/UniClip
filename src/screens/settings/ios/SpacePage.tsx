@@ -42,7 +42,7 @@ import {
 } from './common';
 import { CustomRelaySection } from '../CustomRelaySection';
 
-type PendingOperation = 'leave' | `remove:${string}` | `recover:${string}` | null;
+type PendingOperation = 'leave' | `remove:${string}` | null;
 
 function operationError(error: unknown, t: (key: string) => string): string {
   if (error instanceof UnifiedSpaceInputError) return t(`space.error.${error.code}`);
@@ -167,34 +167,8 @@ export function SpacePage({
     ]);
   };
 
-  const continueMemberRemoval = (deviceId: string) => {
-    const revocationId = space.memberRemoval?.revocationId;
-    if (!revocationId || pending) return;
-
-    const deviceName = space.devices.find((device) => device.deviceId === deviceId)?.displayName ?? deviceId;
-    Alert.alert(
-      t('space.removal.permanentLossTitle'),
-      t('space.removal.permanentLossConfirm', { device: deviceName }),
-      [
-        { text: t('action.cancel', { ns: 'common' }), style: 'cancel' },
-        {
-          text: t('space.removal.permanentLossAction'),
-          style: 'destructive',
-          onPress: () => {
-            setPending(`recover:${deviceId}`);
-            setError(null);
-            void getUnifiedSpaceService()
-              .continueMemberRevocation(revocationId, [deviceId])
-              .catch((cause) => setError(operationError(cause, t)))
-              .finally(() => setPending(null));
-          },
-        },
-      ]
-    );
-  };
-
   const spaceId = space.spaceId;
-  const memberRemoval = space.memberRemoval;
+  const workspaceConvergence = space.workspaceConvergence;
   const devices = [...space.devices].sort((left, right) => {
     const leftRank = left.isLocal ? 0 : left.online ? 1 : 2;
     const rightRank = right.isLocal ? 0 : right.online ? 1 : 2;
@@ -202,7 +176,7 @@ export function SpacePage({
   });
   const onlineCount = devices.filter((device) => device.isLocal || device.online).length;
   const offlineCount = devices.length - onlineCount;
-  const removalDeviceName = (deviceId: string) =>
+  const convergenceDeviceName = (deviceId: string) =>
     devices.find((device) => device.deviceId === deviceId)?.displayName ?? deviceId;
   const isInitialLoading =
     !spaceId && !pending && (space.status === 'idle' || space.status === 'loading');
@@ -301,43 +275,31 @@ export function SpacePage({
                 </HStack>
               </Section>
 
-              {memberRemoval ? (
+              {workspaceConvergence ? (
                 <Section
-                  header={<SwiftUIText>{t('space.removal.title')}</SwiftUIText>}
+                  header={<SwiftUIText>{t('space.convergence.title')}</SwiftUIText>}
                   footer={
                     <SwiftUIText>
-                      {memberRemoval.outcome === 'complete' || memberRemoval.outcome === 'localOnly'
-                        ? t('space.removal.complete')
-                        : memberRemoval.outcome === 'recoveryRequired'
-                        ? t('space.removal.recoveryRequired')
-                        : t('space.removal.waiting')}
+                      {workspaceConvergence.phase === 'complete'
+                        ? t('space.convergence.complete')
+                        : workspaceConvergence.phase === 'recoveryRequired'
+                        ? t('space.convergence.recoveryRequired')
+                        : t('space.convergence.waiting')}
                     </SwiftUIText>
                   }
                 >
-                  {memberRemoval.pendingRecipientDeviceIds.map((deviceId) => (
+                  {workspaceConvergence.waitingMemberDeviceIds.map((deviceId) => (
                     <HStack key={deviceId} spacing={10} modifiers={[frame({ maxWidth: Infinity })]}>
                       <Image systemName="desktopcomputer" size={17} color={settingsTileColors.indigo} />
                       <VStack alignment="leading" spacing={2}>
-                        <SwiftUIText>{removalDeviceName(deviceId)}</SwiftUIText>
+                        <SwiftUIText>{convergenceDeviceName(deviceId)}</SwiftUIText>
                         <SwiftUIText
                           modifiers={[font({ size: 13 }), foregroundStyle('secondary')]}
                         >
-                          {t('space.removal.pendingDevice')}
+                          {t('space.convergence.pendingDevice')}
                         </SwiftUIText>
                       </VStack>
                       <Spacer />
-                      {memberRemoval.outcome === 'recoveryRequired' ? (
-                        pending === `recover:${deviceId}` ? (
-                          <ProgressView />
-                        ) : (
-                          <SwiftUIButton
-                            role="destructive"
-                            label={t('space.removal.permanentLossAction')}
-                            onPress={() => continueMemberRemoval(deviceId)}
-                            modifiers={[buttonStyle('bordered'), controlSize('small')]}
-                          />
-                        )
-                      ) : null}
                     </HStack>
                   ))}
                 </Section>

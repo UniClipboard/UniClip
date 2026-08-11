@@ -109,15 +109,12 @@
       "manageHint": "打开设备管理",
       "idLabel": "设备 ID {{id}}"
     },
-    "removal": {
-      "title": "移除进度",
-      "waiting": "正在等待其余设备确认这次移除。",
-      "pendingDevice": "等待确认",
-      "recoveryRequired": "有设备尚未确认。只有在确定设备不会再回来时，才能将其标记为永久失联。",
-      "permanentLossTitle": "标记设备永久失联？",
-      "permanentLossConfirm": "系统会把 {{device}} 视为永久失联，且此操作无法撤销。",
-      "permanentLossAction": "确认永久失联",
-      "complete": "其余设备已全部确认这次移除。"
+    "convergence": {
+      "title": "同步状态",
+      "waiting": "正在等待空间中的设备完成同步。",
+      "pendingDevice": "等待同步",
+      "recoveryRequired": "同步需要恢复，请等待设备重新连接。",
+      "complete": "空间中的设备已完成同步。"
     },
     "leave": {
       "action": "离开空间",

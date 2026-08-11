@@ -168,11 +168,11 @@ export interface UnifiedSpaceSnapshot {
 | 影响连接策略的设置变化              | 完整 `refresh()`   | 保留现有 AppRuntime 路径                     |
 | `refreshRequired`                   | `refreshDevices()` | Engine 明确要求消费者重读状态                |
 | `peerPresenceChanged`               | `refreshDevices()` | 更新在线状态                                 |
-| `memberRevocationChanged`           | `refreshDevices()` | 更新成员和移除进度                           |
+| `workspaceConvergenceChanged`       | `refreshDevices()` | 更新成员和空间同步状态                       |
 | `changed(kind='pairing_completed')` | `refreshDevices()` | 固定 Engine 版本的配对终态；成功后名单会变化 |
 | 用户下拉刷新                        | 完整 `refresh()`   | 同时覆盖首次恢复失败和已有空间更新           |
 | 用户点击错误行“重试”                | 完整 `refresh()`   | 与下拉刷新共用同一方法                       |
-| 创建、加入、移除、继续移除、离开    | 不另发刷新         | 各操作继续直接发布自己的权威结果             |
+| 创建、加入、移除、离开              | 不另发刷新         | 各操作继续直接发布自己的权威结果             |
 
 ### 6.2 明确不触发
 
@@ -355,7 +355,7 @@ Home 可见
 ### 12.2 已有名单时收到设备事件
 
 ```text
-Engine event(peerPresence/memberRevocation/pairing/refreshRequired)
+Engine event(peerPresence/workspaceConvergence/pairing/refreshRequired)
   -> AppRuntime 过滤
   -> UnifiedSpaceService.refreshDevices(single-flight)
   -> 旧设备行继续可见
@@ -410,13 +410,13 @@ Engine event(peerPresence/memberRevocation/pairing/refreshRequired)
 - 完整恢复在途时，设备刷新加入完整恢复，不增加 native 调用，不使状态停在 loading。
 - 设备刷新在途时启动完整恢复，完整恢复最终结果生效。
 - join/leave/switch 继续使旧结果失效。
-- 创建、加入、移除和继续移除成功发布已解析名单。
+- 创建、加入和移除成功发布已解析名单。
 
 ### 14.2 AppRuntime 测试
 
 - iOS 与 Android 都只在非 active -> active 时提出一次完整刷新。
 - iOS inactive/background 继续取消 peer recovery；Android 不执行 iOS 专属动作。
-- `refreshRequired`、`peerPresenceChanged`、`memberRevocationChanged` 和
+- `refreshRequired`、`peerPresenceChanged`、`workspaceConvergenceChanged` 和
   `pairing_completed` 触发设备刷新。
 - 配对、presence 等事件连发时由服务只执行一轮在途刷新。
 - 内容、剪贴板、发送、传输、network recovery 和其他 changed kind 不刷新名单。

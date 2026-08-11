@@ -206,39 +206,18 @@ public final class UcEngineModule: Module {
       return devices
     }.runOnQueue(engineOperationQueue)
 
+    AsyncFunction("queryWorkspaceConvergence") { () -> [String: Any?] in
+      let result = try self.runSpaceRead("queryWorkspaceConvergence") {
+        try self.requireEngine().queryWorkspaceConvergence()
+      }
+      return Self.workspaceConvergenceMap(result)
+    }.runOnQueue(engineOperationQueue)
+
     AsyncFunction("removeMember") { (deviceId: String) -> [String: Any?] in
       let engine = try self.requireEngine()
       let result = try engine.removeMember(deviceId: deviceId)
       self.host.refreshAnalyticsContext(engine: engine)
-      return Self.memberRevocationResultMap(result)
-    }.runOnQueue(engineOperationQueue)
-
-    AsyncFunction("queryCurrentMemberRevocation") { () -> [String: Any?]? in
-      let result = try self.runSpaceRead("queryCurrentMemberRevocation") {
-        try self.requireEngine().queryCurrentMemberRevocation()
-      }
-      Self.spaceReadLog.info(
-        "space_read operation=queryCurrentMemberRevocation outcome=success hasRevocation=\(result != nil, privacy: .public)"
-      )
-      return result.map(Self.memberRevocationResultMap)
-    }.runOnQueue(engineOperationQueue)
-
-    AsyncFunction("continueMemberRevocation") {
-      (revocationId: String, permanentlyLostDeviceIds: [String]) -> [String: Any?] in
-      let engine = try self.requireEngine()
-      let result = try engine.continueMemberRevocation(
-        revocationId: revocationId,
-        permanentlyLostDeviceIds: permanentlyLostDeviceIds
-      )
-      self.host.refreshAnalyticsContext(engine: engine)
-      return Self.memberRevocationResultMap(result)
-    }.runOnQueue(engineOperationQueue)
-
-    AsyncFunction("secureRemoveLegacyMember") { (deviceId: String) -> [String: Any?] in
-      let engine = try self.requireEngine()
-      let result = try engine.secureRemoveLegacyMember(deviceId: deviceId)
-      self.host.refreshAnalyticsContext(engine: engine)
-      return Self.legacyMemberRemovalResultMap(result)
+      return Self.workspaceConvergenceMap(result)
     }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("resendEntry") {
@@ -526,15 +505,11 @@ public final class UcEngineModule: Module {
         "activatedAtMs": activatedAtMs,
         "activatedBy": activatedBy,
       ]
-    case .memberRevocationChanged(let revocation):
-      return ["type": "memberRevocationChanged", "revocation": memberRevocationResultMap(revocation)]
-#if UC_ENGINE_LOCAL_CORE
-    // The local Engine worktree still exposes the shared-device refresh event
-    // with a progress payload. Translate it to a generic changed event; the
-    // JavaScript device refresh policy keys off `pairing_completed` only.
-    case .sharedDeviceRefreshChanged(refresh:):
-      return ["type": "changed", "kind": "sharedDeviceRefreshChanged"]
-#endif
+    case .workspaceConvergenceChanged(let convergence):
+      return [
+        "type": "workspaceConvergenceChanged",
+        "convergence": workspaceConvergenceMap(convergence),
+      ]
     case .networkRecoveryChanged(let phase, let retryable, let nextRetryInMs):
       return [
         "type": "networkRecoveryChanged",
@@ -581,38 +556,40 @@ public final class UcEngineModule: Module {
     }
   }
 
-  private static func memberRevocationResultMap(_ result: MemberRevocationResult) -> [String: Any?] {
-    let outcome: String
-    switch result.outcome {
-    case .localOnly: outcome = "localOnly"
-    case .recovering: outcome = "recovering"
-    case .applied: outcome = "applied"
-    case .complete: outcome = "complete"
-    case .recoveryRequired: outcome = "recoveryRequired"
+  private static func workspaceConvergenceMap(_ convergence: WorkspaceConvergence) -> [String: Any?] {
+    let phase: String
+    switch convergence.phase {
+    case .locallyApplied: phase = "locallyApplied"
+    case .converging: phase = "converging"
+    case .waitingForOfflineMember: phase = "waitingForOfflineMember"
+    case .complete: phase = "complete"
+    case .recoveryRequired: phase = "recoveryRequired"
+    }
+    let failureCategory: String?
+    switch convergence.failureCategory {
+    case .spaceMismatch: failureCategory = "spaceMismatch"
+    case .continuityGap: failureCategory = "continuityGap"
+    case .identityMismatch: failureCategory = "identityMismatch"
+    case .digestConflict: failureCategory = "digestConflict"
+    case .unauthorized: failureCategory = "unauthorized"
+    case .versionIncompatible: failureCategory = "versionIncompatible"
+    case .noEffectiveMembers: failureCategory = "noEffectiveMembers"
+    case .storage: failureCategory = "storage"
+    case nil: failureCategory = nil
     }
     return [
-      "revocationId": result.revocationId,
-      "outcome": outcome,
-      "pendingRecipients": result.pendingRecipients,
-      "removedDeviceIds": result.removedDeviceIds,
-      "pendingRecipientDeviceIds": result.pendingRecipientDeviceIds,
-      "updatedAtMs": result.updatedAtMs,
-    ]
-  }
-
-  private static func legacyMemberRemovalResultMap(
-    _ result: LegacyMemberRemovalResult
-  ) -> [String: Any?] {
-    let outcome: String
-    switch result.outcome {
-    case .awaitingReadmission: outcome = "awaitingReadmission"
-    case .complete: outcome = "complete"
-    case .recoveryRequired: outcome = "recoveryRequired"
-    }
-    return [
-      "bootstrapId": result.bootstrapId,
-      "outcome": outcome,
-      "pendingReadmission": result.pendingReadmission,
+      "phase": phase,
+      "revision": convergence.revision,
+      "changeCount": convergence.changeCount,
+      "removalIntentCount": convergence.removalIntentCount,
+      "effectiveMemberCount": convergence.effectiveMemberCount,
+      "confirmedMemberCount": convergence.confirmedMemberCount,
+      "waitingMemberDeviceIds": convergence.waitingMemberDeviceIds,
+      "waitingMemberCount": convergence.waitingMemberCount,
+      "convergenceDigest": convergence.convergenceDigest,
+      "removed": convergence.removed,
+      "updatedAtMs": convergence.updatedAtMs,
+      "failureCategory": failureCategory,
     ]
   }
 }

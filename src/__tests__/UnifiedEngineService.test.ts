@@ -336,6 +336,48 @@ describe('UnifiedEngineService', () => {
     expect(failed.lastChangedKind).toBe('deliveryStatusChanged');
   });
 
+  it('requests a roster refresh when workspace convergence changes', async () => {
+    const events = [
+      {
+        type: 'workspaceConvergenceChanged',
+        convergence: {
+          phase: 'converging',
+          revision: 7,
+          changeCount: 2,
+          removalIntentCount: 1,
+          effectiveMemberCount: 2,
+          confirmedMemberCount: 1,
+          waitingMemberDeviceIds: ['desktop-1'],
+          waitingMemberCount: 1,
+          convergenceDigest: null,
+          removed: false,
+          updatedAtMs: 123_456,
+          failureCategory: null,
+        },
+      },
+      {
+        type: 'fatal',
+        failure: { code: 7001, category: 'runtime', retryable: false },
+      },
+    ] as unknown as EngineEvent[];
+    const snapshots: UnifiedEngineSnapshot[] = [];
+    const service = new UnifiedEngineService(
+      {
+        start: async () => undefined,
+        shutdown: async () => undefined,
+        nextEvent: async () => events.shift() ?? null,
+      },
+      (snapshot) => snapshots.push(snapshot),
+      0
+    );
+
+    await service.start(config());
+    const failed = await waitForSnapshot(snapshots, (state) => state.status === 'failed');
+
+    expect(failed.refreshRevision).toBe(1);
+    expect(failed.lastChangedKind).toBe('workspaceConvergenceChanged');
+  });
+
   it('publishes every native event to active delivery subscribers only', async () => {
     const events: EngineEvent[] = [
       {

@@ -297,7 +297,7 @@ export class UnifiedEngineService {
       case 'deliveryStatusChanged':
       case 'transferStatusChanged':
       case 'activeClipboardChanged':
-      case 'memberRevocationChanged':
+      case 'workspaceConvergenceChanged':
       case 'networkRecoveryChanged':
         this.updateSnapshot({
           lastEvent: event,

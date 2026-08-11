@@ -109,15 +109,12 @@
       "manageHint": "Opens device management",
       "idLabel": "Device ID {{id}}"
     },
-    "removal": {
-      "title": "Device removal",
-      "waiting": "Waiting for the remaining devices to confirm this removal.",
-      "pendingDevice": "Confirmation pending",
-      "recoveryRequired": "One or more devices have not confirmed. Mark a device as permanently unavailable only when you are certain it cannot return.",
-      "permanentLossTitle": "Mark device permanently unavailable?",
-      "permanentLossConfirm": "{{device}} will be treated as permanently unavailable. This cannot be undone.",
-      "permanentLossAction": "Confirm permanent loss",
-      "complete": "All remaining devices confirmed the removal."
+    "convergence": {
+      "title": "Sync status",
+      "waiting": "Waiting for devices in this space to finish syncing.",
+      "pendingDevice": "Sync pending",
+      "recoveryRequired": "Sync needs recovery. Wait for the device to reconnect.",
+      "complete": "Devices in this space have finished syncing."
     },
     "leave": {
       "action": "Leave space",

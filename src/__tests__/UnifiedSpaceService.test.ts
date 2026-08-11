@@ -41,20 +41,33 @@ function createApi(overrides: Partial<UnifiedSpaceApi> = {}): UnifiedSpaceApi {
       migratedRecords: 0,
       preservedUnreadableRecords: 0,
     })),
-    removeMember: jest.fn(async () => undefined),
-    queryCurrentMemberRevocation: jest.fn(async () => null),
-    continueMemberRevocation: jest.fn(async () => ({
-      revocationId: 'revocation-1',
-      outcome: 'complete' as const,
-      pendingRecipients: 0,
-      removedDeviceIds: ['desktop-1'],
-      pendingRecipientDeviceIds: [],
+    queryWorkspaceConvergence: jest.fn(async () => ({
+      phase: 'complete' as const,
+      revision: 1,
+      changeCount: 0,
+      removalIntentCount: 0,
+      effectiveMemberCount: 2,
+      confirmedMemberCount: 2,
+      waitingMemberDeviceIds: [],
+      waitingMemberCount: 0,
+      convergenceDigest: 'digest-1',
+      removed: false,
       updatedAtMs: 123_456,
+      failureCategory: null,
     })),
-    secureRemoveLegacyMember: jest.fn(async () => ({
-      bootstrapId: 'bootstrap-1',
-      outcome: 'complete' as const,
-      pendingReadmission: 0,
+    removeMember: jest.fn(async () => ({
+      phase: 'converging' as const,
+      revision: 2,
+      changeCount: 1,
+      removalIntentCount: 1,
+      effectiveMemberCount: 1,
+      confirmedMemberCount: 1,
+      waitingMemberDeviceIds: ['laptop-1'],
+      waitingMemberCount: 1,
+      convergenceDigest: 'digest-2',
+      removed: false,
+      updatedAtMs: 123_457,
+      failureCategory: null,
     })),
     resendEntry: jest.fn(async () => ({
       kind: 'completed' as const,
@@ -332,11 +345,11 @@ describe('UnifiedSpaceService', () => {
     expect(completion.resolveFromCore).toHaveBeenCalledWith(true);
   });
 
-  it('keeps the active space when member-removal status cannot be read', async () => {
+  it('keeps the active space when workspace convergence cannot be read', async () => {
     const snapshots: UnifiedSpaceSnapshot[] = [];
     const logError = jest.spyOn(log, 'error').mockImplementation(() => undefined);
     const api = createApi({
-      queryCurrentMemberRevocation: jest.fn(async () => {
+      queryWorkspaceConvergence: jest.fn(async () => {
         throw new Error('Engine error 1387');
       }),
     });
@@ -350,12 +363,12 @@ describe('UnifiedSpaceService', () => {
           { deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true },
           { deviceId: 'desktop-1', displayName: 'Desktop', isLocal: false, online: false },
         ],
-        memberRemoval: null,
+        workspaceConvergence: null,
       })
     );
     expect(logError).toHaveBeenCalledWith(
       'Space refresh failed',
-      expect.objectContaining({ stage: 'queryCurrentMemberRevocation', errorCode: 1387 })
+      expect.objectContaining({ stage: 'queryWorkspaceConvergence', errorCode: 1387 })
     );
     expect(snapshots.at(-1)).toEqual(
       expect.objectContaining({ status: 'ready', spaceId: 'space-1' })
@@ -447,18 +460,24 @@ describe('UnifiedSpaceService', () => {
     expect(api.resendEntry).toHaveBeenCalledWith('entry-1', []);
   });
 
-  it('returns the member-removal result and refreshes the roster', async () => {
-    const removal = {
-      revocationId: 'revocation-1',
-      outcome: 'applied' as const,
-      pendingRecipients: 1,
-      removedDeviceIds: ['desktop-1'],
-      pendingRecipientDeviceIds: ['laptop-1'],
+  it('returns workspace convergence and refreshes the roster after removing a device', async () => {
+    const convergence = {
+      phase: 'converging' as const,
+      revision: 2,
+      changeCount: 1,
+      removalIntentCount: 1,
+      effectiveMemberCount: 1,
+      confirmedMemberCount: 1,
+      waitingMemberDeviceIds: ['laptop-1'],
+      waitingMemberCount: 1,
+      convergenceDigest: 'digest-2',
+      removed: false,
       updatedAtMs: 123_456,
+      failureCategory: null,
     };
     const snapshots: UnifiedSpaceSnapshot[] = [];
     const api = createApi({
-      removeMember: jest.fn(async () => removal) as unknown as UnifiedSpaceApi['removeMember'],
+      removeMember: jest.fn(async () => convergence) as unknown as UnifiedSpaceApi['removeMember'],
       listDevices: jest.fn(async () => [
         { deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true },
       ]),
@@ -467,30 +486,34 @@ describe('UnifiedSpaceService', () => {
 
     await service.refresh();
 
-    await expect(service.removeMember('desktop-1')).resolves.toEqual(removal);
+    await expect(service.removeMember('desktop-1')).resolves.toEqual(convergence);
     expect(api.removeMember).toHaveBeenCalledWith('desktop-1');
     expect(api.listDevices).toHaveBeenCalledTimes(2);
     expect(snapshots.at(-1)?.devices).toEqual([
       { deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true },
     ]);
-    expect(
-      (snapshots.at(-1) as UnifiedSpaceSnapshot & { memberRemoval?: unknown }).memberRemoval
-    ).toEqual(removal);
+    expect(snapshots.at(-1)?.workspaceConvergence).toEqual(convergence);
   });
 
-  it('restores a pending member removal after an app restart', async () => {
-    const pendingRemoval = {
-      revocationId: 'revocation-1',
-      outcome: 'applied' as const,
-      pendingRecipients: 1,
-      removedDeviceIds: ['desktop-1'],
-      pendingRecipientDeviceIds: ['laptop-1'],
+  it('restores workspace convergence after an app restart', async () => {
+    const convergence = {
+      phase: 'waitingForOfflineMember' as const,
+      revision: 3,
+      changeCount: 1,
+      removalIntentCount: 1,
+      effectiveMemberCount: 1,
+      confirmedMemberCount: 1,
+      waitingMemberDeviceIds: ['laptop-1'],
+      waitingMemberCount: 1,
+      convergenceDigest: 'digest-3',
+      removed: false,
       updatedAtMs: 123_456,
+      failureCategory: null,
     };
     const snapshots: UnifiedSpaceSnapshot[] = [];
     const api = {
       ...createApi(),
-      queryCurrentMemberRevocation: jest.fn(async () => pendingRemoval),
+      queryWorkspaceConvergence: jest.fn(async () => convergence),
     };
     const service = new UnifiedSpaceService(api as UnifiedSpaceApi, (snapshot) =>
       snapshots.push(snapshot)
@@ -498,25 +521,29 @@ describe('UnifiedSpaceService', () => {
 
     await service.refresh();
 
-    expect(api.queryCurrentMemberRevocation).toHaveBeenCalledTimes(1);
-    expect(
-      (snapshots.at(-1) as UnifiedSpaceSnapshot & { memberRemoval?: unknown }).memberRemoval
-    ).toEqual(pendingRemoval);
+    expect(api.queryWorkspaceConvergence).toHaveBeenCalledTimes(1);
+    expect(snapshots.at(-1)?.workspaceConvergence).toEqual(convergence);
   });
 
-  it('refreshes a pending member removal when the engine reports a status change', async () => {
-    const pendingRemoval = {
-      revocationId: 'revocation-1',
-      outcome: 'applied' as const,
-      pendingRecipients: 1,
-      removedDeviceIds: ['desktop-1'],
-      pendingRecipientDeviceIds: ['laptop-1'],
+  it('refreshes workspace convergence with the device list', async () => {
+    const convergence = {
+      phase: 'converging' as const,
+      revision: 4,
+      changeCount: 1,
+      removalIntentCount: 1,
+      effectiveMemberCount: 1,
+      confirmedMemberCount: 1,
+      waitingMemberDeviceIds: ['laptop-1'],
+      waitingMemberCount: 1,
+      convergenceDigest: 'digest-4',
+      removed: false,
       updatedAtMs: 123_456,
+      failureCategory: null,
     };
     const snapshots: UnifiedSpaceSnapshot[] = [];
     const api = {
       ...createApi(),
-      queryCurrentMemberRevocation: jest.fn(async () => pendingRemoval),
+      queryWorkspaceConvergence: jest.fn(async () => convergence),
     };
     const service = new UnifiedSpaceService(api as UnifiedSpaceApi, (snapshot) =>
       snapshots.push(snapshot)
@@ -525,40 +552,8 @@ describe('UnifiedSpaceService', () => {
     await service.refresh();
     await service.refreshDevices();
 
-    expect(api.queryCurrentMemberRevocation).toHaveBeenCalledTimes(2);
-    expect(
-      (snapshots.at(-1) as UnifiedSpaceSnapshot & { memberRemoval?: unknown }).memberRemoval
-    ).toEqual(pendingRemoval);
-  });
-
-  it('continues permanent-loss recovery only through the native engine', async () => {
-    const completedRemoval = {
-      revocationId: 'revocation-1',
-      outcome: 'complete' as const,
-      pendingRecipients: 0,
-      removedDeviceIds: ['desktop-1'],
-      pendingRecipientDeviceIds: [],
-      updatedAtMs: 234_567,
-    };
-    const api = {
-      ...createApi(),
-      continueMemberRevocation: jest.fn(async () => completedRemoval),
-    };
-    const service = new UnifiedSpaceService(api as UnifiedSpaceApi, () => undefined);
-    const continueMemberRevocation = (
-      service as unknown as {
-        continueMemberRevocation: (
-          revocationId: string,
-          permanentlyLostDeviceIds: string[]
-        ) => Promise<typeof completedRemoval>;
-      }
-    ).continueMemberRevocation;
-
-    expect(continueMemberRevocation).toEqual(expect.any(Function));
-    await expect(
-      continueMemberRevocation.call(service, 'revocation-1', ['laptop-1'])
-    ).resolves.toEqual(completedRemoval);
-    expect(api.continueMemberRevocation).toHaveBeenCalledWith('revocation-1', ['laptop-1']);
+    expect(api.queryWorkspaceConvergence).toHaveBeenCalledTimes(2);
+    expect(snapshots.at(-1)?.workspaceConvergence).toEqual(convergence);
   });
 
   it('refreshes devices without reloading the whole space', async () => {
@@ -592,45 +587,19 @@ describe('UnifiedSpaceService', () => {
     );
   });
 
-  it('does not retry member removal through legacy security operations', async () => {
-    const api = {
-      ...createApi({
-        removeMember: jest.fn(async () => {
-          throw new Error('Engine error 1388');
-        }) as unknown as UnifiedSpaceApi['removeMember'],
-        listDevices: jest.fn(async () => [
-          { deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true },
-        ]),
-      }),
-      secureRemoveLegacyMember: jest.fn(),
-    };
-    const service = new UnifiedSpaceService(api, () => undefined);
-
-    await service.refresh();
-
-    await expect(service.removeMember('desktop-1')).rejects.toThrow('Engine error 1388');
-    expect(api.removeMember).toHaveBeenCalledWith('desktop-1');
-    expect(api.secureRemoveLegacyMember).not.toHaveBeenCalled();
-    expect(api.listDevices).toHaveBeenCalledTimes(1);
-  });
-
-  it('logs a member-removal failure without starting a legacy recovery flow', async () => {
+  it('reports a device-removal failure without starting another flow', async () => {
     const logError = jest.spyOn(log, 'error').mockImplementation(() => undefined);
     const finalError = new Error('Engine error 1410: prepared revocation epoch mismatch');
-    const api = {
-      ...createApi({
-        removeMember: jest.fn(async () => {
-          throw finalError;
-        }) as unknown as UnifiedSpaceApi['removeMember'],
-      }),
-      secureRemoveLegacyMember: jest.fn(),
-    };
+    const api = createApi({
+      removeMember: jest.fn(async () => {
+        throw finalError;
+      }) as unknown as UnifiedSpaceApi['removeMember'],
+    });
     const service = new UnifiedSpaceService(api, () => undefined);
 
     await expect(service.removeMember('desktop-1')).rejects.toBe(finalError);
 
     expect(logError).toHaveBeenCalledWith('Failed to remove a space member:', finalError);
-    expect(api.secureRemoveLegacyMember).not.toHaveBeenCalled();
     await expect(service.refresh()).resolves.toEqual(
       expect.objectContaining({ status: 'ready', spaceId: 'space-1' })
     );

@@ -124,20 +124,26 @@ describe('AppRuntime device list refresh routing on iOS', () => {
     expect(mockSubscribeEvents).toHaveBeenCalledTimes(1);
   });
 
-  it('refreshes devices for refreshRequired, presence, revocation, and pairing_completed', async () => {
+  it('refreshes devices for refreshRequired, presence, convergence, and pairing_completed', async () => {
     await getAppRuntime().start();
 
     emit({ type: 'refreshRequired', reason: 'consumerLagged' });
     emit({ type: 'peerPresenceChanged', deviceId: 'desktop-1', state: 'online', atMs: 1 });
     emit({
-      type: 'memberRevocationChanged',
-      revocation: {
-        revocationId: 'revocation-1',
-        outcome: 'applied',
-        pendingRecipients: 1,
-        removedDeviceIds: [],
-        pendingRecipientDeviceIds: [],
+      type: 'workspaceConvergenceChanged',
+      convergence: {
+        phase: 'converging',
+        revision: 1,
+        changeCount: 1,
+        removalIntentCount: 1,
+        effectiveMemberCount: 1,
+        confirmedMemberCount: 1,
+        waitingMemberDeviceIds: ['desktop-1'],
+        waitingMemberCount: 1,
+        convergenceDigest: null,
+        removed: false,
         updatedAtMs: 1,
+        failureCategory: null,
       },
     });
     emit({ type: 'changed', kind: 'pairing_completed' });

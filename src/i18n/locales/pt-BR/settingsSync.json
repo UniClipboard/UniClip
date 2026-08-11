@@ -109,15 +109,12 @@
       "manageHint": "Abre o gerenciamento do dispositivo",
       "idLabel": "ID do dispositivo {{id}}"
     },
-    "removal": {
-      "title": "Remoção de dispositivo",
-      "waiting": "Aguardando os dispositivos restantes confirmarem esta remoção.",
-      "pendingDevice": "Confirmação pendente",
-      "recoveryRequired": "Um ou mais dispositivos não confirmaram. Marque um dispositivo como permanentemente indisponível somente se tiver certeza de que ele não voltará.",
-      "permanentLossTitle": "Marcar o dispositivo como permanentemente indisponível?",
-      "permanentLossConfirm": "{{device}} será tratado como permanentemente indisponível. Não é possível desfazer isso.",
-      "permanentLossAction": "Confirmar perda permanente",
-      "complete": "Todos os dispositivos restantes confirmaram a remoção."
+    "convergence": {
+      "title": "Status da sincronização",
+      "waiting": "Aguardando os dispositivos deste espaço concluírem a sincronização.",
+      "pendingDevice": "Sincronização pendente",
+      "recoveryRequired": "A sincronização precisa de recuperação. Aguarde o dispositivo se reconectar.",
+      "complete": "Os dispositivos deste espaço concluíram a sincronização."
     },
     "leave": {
       "action": "Sair do espaço",

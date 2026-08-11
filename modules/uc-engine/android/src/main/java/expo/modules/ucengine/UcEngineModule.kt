@@ -48,13 +48,12 @@ import uniffi.uc_engine_uniffi.BindingLifecycleAction
 import uniffi.uc_engine_uniffi.EntryNotResendableReason
 import uniffi.uc_engine_uniffi.HostBindingException
 import uniffi.uc_engine_uniffi.InvitationAvailability
-import uniffi.uc_engine_uniffi.LegacyMemberRemovalOutcome
-import uniffi.uc_engine_uniffi.LegacyMemberRemovalResult
 import uniffi.uc_engine_uniffi.MobileEngine
-import uniffi.uc_engine_uniffi.MemberRevocationOutcome
-import uniffi.uc_engine_uniffi.MemberRevocationResult
 import uniffi.uc_engine_uniffi.ResendEntryOutcome
 import uniffi.uc_engine_uniffi.SendReport
+import uniffi.uc_engine_uniffi.WorkspaceConvergence
+import uniffi.uc_engine_uniffi.WorkspaceConvergenceFailureCategory
+import uniffi.uc_engine_uniffi.WorkspaceConvergencePhase
 import uniffi.uc_engine_uniffi.coreVersion
 
 private fun uriListFile(
@@ -99,29 +98,35 @@ private fun analyticsContext(): BindingAnalyticsContext = BindingAnalyticsContex
   if (BuildConfig.DEBUG) "development" else "production"
 )
 
-private fun memberRevocationResultMap(result: MemberRevocationResult): Map<String, Any?> = mapOf(
-  "revocationId" to result.revocationId,
-  "outcome" to when (result.outcome) {
-    MemberRevocationOutcome.LOCAL_ONLY -> "localOnly"
-    MemberRevocationOutcome.RECOVERING -> "recovering"
-    MemberRevocationOutcome.APPLIED -> "applied"
-    MemberRevocationOutcome.COMPLETE -> "complete"
-    MemberRevocationOutcome.RECOVERY_REQUIRED -> "recoveryRequired"
+private fun workspaceConvergenceMap(convergence: WorkspaceConvergence): Map<String, Any?> = mapOf(
+  "phase" to when (convergence.phase) {
+    WorkspaceConvergencePhase.LOCALLY_APPLIED -> "locallyApplied"
+    WorkspaceConvergencePhase.CONVERGING -> "converging"
+    WorkspaceConvergencePhase.WAITING_FOR_OFFLINE_MEMBER -> "waitingForOfflineMember"
+    WorkspaceConvergencePhase.COMPLETE -> "complete"
+    WorkspaceConvergencePhase.RECOVERY_REQUIRED -> "recoveryRequired"
   },
-  "pendingRecipients" to result.pendingRecipients.toLong(),
-  "removedDeviceIds" to result.removedDeviceIds,
-  "pendingRecipientDeviceIds" to result.pendingRecipientDeviceIds,
-  "updatedAtMs" to result.updatedAtMs
-)
-
-private fun legacyMemberRemovalResultMap(result: LegacyMemberRemovalResult): Map<String, Any?> = mapOf(
-  "bootstrapId" to result.bootstrapId,
-  "outcome" to when (result.outcome) {
-    LegacyMemberRemovalOutcome.AWAITING_READMISSION -> "awaitingReadmission"
-    LegacyMemberRemovalOutcome.COMPLETE -> "complete"
-    LegacyMemberRemovalOutcome.RECOVERY_REQUIRED -> "recoveryRequired"
-  },
-  "pendingReadmission" to result.pendingReadmission.toLong()
+  "revision" to convergence.revision.toLong(),
+  "changeCount" to convergence.changeCount.toLong(),
+  "removalIntentCount" to convergence.removalIntentCount.toLong(),
+  "effectiveMemberCount" to convergence.effectiveMemberCount.toLong(),
+  "confirmedMemberCount" to convergence.confirmedMemberCount.toLong(),
+  "waitingMemberDeviceIds" to convergence.waitingMemberDeviceIds,
+  "waitingMemberCount" to convergence.waitingMemberCount.toLong(),
+  "convergenceDigest" to convergence.convergenceDigest,
+  "removed" to convergence.removed,
+  "updatedAtMs" to convergence.updatedAtMs,
+  "failureCategory" to when (convergence.failureCategory) {
+    WorkspaceConvergenceFailureCategory.SPACE_MISMATCH -> "spaceMismatch"
+    WorkspaceConvergenceFailureCategory.CONTINUITY_GAP -> "continuityGap"
+    WorkspaceConvergenceFailureCategory.IDENTITY_MISMATCH -> "identityMismatch"
+    WorkspaceConvergenceFailureCategory.DIGEST_CONFLICT -> "digestConflict"
+    WorkspaceConvergenceFailureCategory.UNAUTHORIZED -> "unauthorized"
+    WorkspaceConvergenceFailureCategory.VERSION_INCOMPATIBLE -> "versionIncompatible"
+    WorkspaceConvergenceFailureCategory.NO_EFFECTIVE_MEMBERS -> "noEffectiveMembers"
+    WorkspaceConvergenceFailureCategory.STORAGE -> "storage"
+    null -> null
+  }
 )
 
 private const val CLIPBOARD_SHARE_MAX_ENTRIES = 64
@@ -440,35 +445,16 @@ class UcEngineModule : Module() {
       Log.i("UcEngine", "space_read operation=listDevices outcome=success deviceCount=${devices.size}")
       devices
     }
+    AsyncFunction("queryWorkspaceConvergence") {
+      workspaceConvergenceMap(
+        runSpaceRead("queryWorkspaceConvergence") { requireEngine().queryWorkspaceConvergence() }
+      )
+    }
     AsyncFunction("removeMember") { deviceId: String ->
       val engine = requireEngine()
       val result = engine.removeMember(deviceId)
       refreshAnalyticsContext(engine)
-      memberRevocationResultMap(result)
-    }
-    AsyncFunction("queryCurrentMemberRevocation") {
-      val result = runSpaceRead("queryCurrentMemberRevocation") {
-        requireEngine().queryCurrentMemberRevocation()
-      }
-      Log.i(
-        "UcEngine",
-        "space_read operation=queryCurrentMemberRevocation outcome=success hasRevocation=${result != null}"
-      )
-      result?.let(::memberRevocationResultMap)
-    }
-    AsyncFunction("continueMemberRevocation") {
-      revocationId: String,
-      permanentlyLostDeviceIds: List<String> ->
-      val engine = requireEngine()
-      val result = engine.continueMemberRevocation(revocationId, permanentlyLostDeviceIds)
-      refreshAnalyticsContext(engine)
-      memberRevocationResultMap(result)
-    }
-    AsyncFunction("secureRemoveLegacyMember") { deviceId: String ->
-      val engine = requireEngine()
-      val result = engine.secureRemoveLegacyMember(deviceId)
-      refreshAnalyticsContext(engine)
-      legacyMemberRemovalResultMap(result)
+      workspaceConvergenceMap(result)
     }
     AsyncFunction("resendEntry") { entryId: String, targetDevices: List<String> ->
       resendOutcomeMap(requireEngine().resendEntry(entryId, targetDevices))
@@ -710,9 +696,9 @@ class UcEngineModule : Module() {
       "activatedAtMs" to event.activatedAtMs,
       "activatedBy" to event.activatedBy
     )
-    is BindingEvent.MemberRevocationChanged -> mapOf(
-      "type" to "memberRevocationChanged",
-      "revocation" to memberRevocationResultMap(event.revocation)
+    is BindingEvent.WorkspaceConvergenceChanged -> mapOf(
+      "type" to "workspaceConvergenceChanged",
+      "convergence" to workspaceConvergenceMap(event.convergence)
     )
     is BindingEvent.NetworkRecoveryChanged -> mapOf(
       "type" to "networkRecoveryChanged",
@@ -721,11 +707,6 @@ class UcEngineModule : Module() {
       "nextRetryInMs" to event.nextRetryInMs?.toLong()
     )
     is BindingEvent.Changed -> mapOf("type" to "changed", "kind" to event.kind)
-    // The local Engine worktree still exposes SharedDeviceRefreshChanged while
-    // the pinned rc.6 release does not. Translate it to a generic changed
-    // event; the JavaScript device refresh policy keys off `pairing_completed`
-    // only. This branch is unreachable against the pinned release binding.
-    else -> mapOf("type" to "changed", "kind" to "sharedDeviceRefreshChanged")
   }
 
   private fun lifecycleActionName(action: BindingLifecycleAction): String = when (action) {

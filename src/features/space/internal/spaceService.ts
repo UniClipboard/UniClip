@@ -1,10 +1,9 @@
 import type {
   InvitationIssued,
-  LegacyMemberRemovalResult,
-  MemberRevocationResult,
   SpaceCreated,
   SpaceInvitation,
   SpaceJoined,
+  WorkspaceConvergence,
 } from '@/platform/engine';
 import {
   createInitialUnifiedSpaceSnapshot,
@@ -56,13 +55,8 @@ export interface UnifiedSpaceApi {
     passphrase: string,
     preserveUnreadableHistory: boolean
   ): Promise<SpaceJoined>;
-  removeMember(deviceId: string): Promise<MemberRevocationResult>;
-  queryCurrentMemberRevocation(): Promise<MemberRevocationResult | null>;
-  continueMemberRevocation(
-    revocationId: string,
-    permanentlyLostDeviceIds: string[]
-  ): Promise<MemberRevocationResult>;
-  secureRemoveLegacyMember(deviceId: string): Promise<LegacyMemberRemovalResult>;
+  queryWorkspaceConvergence(): Promise<WorkspaceConvergence>;
+  removeMember(deviceId: string): Promise<WorkspaceConvergence>;
   resendEntry(entryId: string, targetDevices: string[]): Promise<ResendEntryOutcome>;
   leaveSpace(): Promise<void>;
 }
@@ -104,7 +98,7 @@ const USER_ERROR_BY_ENGINE_CODE: Readonly<Record<number, UnifiedSpaceUserErrorCo
 };
 
 type JoinSpaceStage = 'prepareP2p' | 'requestJoin' | 'refreshDevices';
-type SpaceRefreshStage = 'querySpaceState' | 'listDevices' | 'queryCurrentMemberRevocation';
+type SpaceRefreshStage = 'querySpaceState' | 'listDevices' | 'queryWorkspaceConvergence';
 
 interface JoinSpaceFailureDetails {
   stage: JoinSpaceStage;
@@ -246,9 +240,9 @@ export class UnifiedSpaceService {
         this.publishSnapshot();
         return this.snapshot;
       }
-      const [devices, memberRemoval] = await Promise.all([
+      const [devices, workspaceConvergence] = await Promise.all([
         this.runRefreshStep('listDevices', () => this.api.listDevices()),
-        this.currentMemberRemoval(),
+        this.currentWorkspaceConvergence(),
       ]);
       if (!this.canPublishRefresh(revision)) return this.snapshot;
       this.snapshot = {
@@ -257,7 +251,7 @@ export class UnifiedSpaceService {
         deviceName: state.deviceName,
         invitation: state.currentInvitation,
         devices,
-        memberRemoval,
+        workspaceConvergence,
         lastError: null,
         hasResolvedDeviceList: true,
         deviceListRefreshStatus: 'idle',
@@ -289,7 +283,7 @@ export class UnifiedSpaceService {
           deviceName: normalizedName,
           invitation,
           devices,
-          memberRemoval: null,
+          workspaceConvergence: null,
           lastError: null,
           hasResolvedDeviceList: true,
           deviceListRefreshStatus: 'idle',
@@ -333,16 +327,16 @@ export class UnifiedSpaceService {
       this.updateSnapshot({ lastError: null, deviceListRefreshStatus: 'refreshing' });
     }
     try {
-      const [devices, memberRemoval] = await Promise.all([
+      const [devices, workspaceConvergence] = await Promise.all([
         this.runRefreshStep('listDevices', () => this.api.listDevices()),
-        this.currentMemberRemoval(),
+        this.currentWorkspaceConvergence(),
       ]);
       if (!this.canPublishRefresh(revision)) return this.snapshot;
 
       this.updateSnapshot({
         status: this.snapshot.status === 'failed' ? 'ready' : this.snapshot.status,
         devices,
-        memberRemoval,
+        workspaceConvergence,
         lastError: null,
         hasResolvedDeviceList: true,
         deviceListRefreshStatus: 'idle',
@@ -389,7 +383,7 @@ export class UnifiedSpaceService {
           deviceName: normalizedName,
           invitation: null,
           devices,
-          memberRemoval: null,
+          workspaceConvergence: null,
           lastError: null,
           hasResolvedDeviceList: true,
           deviceListRefreshStatus: 'idle',
@@ -406,7 +400,7 @@ export class UnifiedSpaceService {
     }
   }
 
-  async removeMember(deviceId: string): Promise<MemberRevocationResult> {
+  async removeMember(deviceId: string): Promise<WorkspaceConvergence> {
     const targetDeviceId = required(deviceId, 'deviceNameRequired');
     const revision = this.beginMutation();
     try {
@@ -415,7 +409,7 @@ export class UnifiedSpaceService {
       if (this.isCurrentMutation(revision)) {
         this.updateSnapshot({
           devices,
-          memberRemoval: result,
+          workspaceConvergence: result,
           lastError: null,
           hasResolvedDeviceList: true,
           deviceListRefreshStatus: 'idle',
@@ -425,32 +419,6 @@ export class UnifiedSpaceService {
     } catch (error) {
       log.error('Failed to remove a space member:', error);
       throw error;
-    } finally {
-      this.endMutation(revision);
-    }
-  }
-
-  async continueMemberRevocation(
-    revocationId: string,
-    permanentlyLostDeviceIds: string[]
-  ): Promise<MemberRevocationResult> {
-    const revision = this.beginMutation();
-    try {
-      const result = await this.api.continueMemberRevocation(
-        revocationId,
-        permanentlyLostDeviceIds
-      );
-      const devices = await this.api.listDevices();
-      if (this.isCurrentMutation(revision)) {
-        this.updateSnapshot({
-          devices,
-          memberRemoval: result,
-          lastError: null,
-          hasResolvedDeviceList: true,
-          deviceListRefreshStatus: 'idle',
-        });
-      }
-      return result;
     } finally {
       this.endMutation(revision);
     }
@@ -570,13 +538,13 @@ export class UnifiedSpaceService {
     }
   }
 
-  private async currentMemberRemoval(): Promise<MemberRevocationResult | null> {
+  private async currentWorkspaceConvergence(): Promise<WorkspaceConvergence | null> {
     try {
-      return await this.runRefreshStep('queryCurrentMemberRevocation', () =>
-        this.api.queryCurrentMemberRevocation()
+      return await this.runRefreshStep('queryWorkspaceConvergence', () =>
+        this.api.queryWorkspaceConvergence()
       );
     } catch {
-      return this.snapshot.memberRemoval;
+      return this.snapshot.workspaceConvergence;
     }
   }
 }

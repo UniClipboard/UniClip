@@ -130,15 +130,15 @@ describe('unified space setup UI', () => {
     expect(leaveSection).toContain('showsChevron={false}');
   });
 
-  it('shows retained-device removal progress and requires an explicit permanent-loss action', () => {
+  it('shows Engine-owned workspace convergence without a permanent-loss action', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
     const ios = source('screens/settings/ios/SpacePage.tsx');
 
     for (const platform of [android, ios]) {
-      expect(platform).toContain('memberRemoval');
-      expect(platform).toContain('pendingRecipientDeviceIds');
-      expect(platform).toContain("memberRemoval.outcome === 'recoveryRequired'");
-      expect(platform).toContain('.continueMemberRevocation(');
+      expect(platform).toContain('workspaceConvergence');
+      expect(platform).toContain('waitingMemberDeviceIds');
+      expect(platform).toContain("workspaceConvergence.phase === 'recoveryRequired'");
+      expect(platform).not.toContain('.continueMemberRevocation(');
     }
   });
 
