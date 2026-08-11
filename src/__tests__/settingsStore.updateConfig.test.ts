@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { configStorage, ConfigStorage } from '../features/settings';
-import { syncConfigToAppGroup } from '../platform/app-group';
+import { syncConfigToAppGroup } from '../platform/app-group/appGroupAdapter';
 import { useSettingsStore } from '../features/settings';
 import { DEFAULT_SETTINGS } from '../types/settings';
 import { STORAGE_KEYS } from '../types/storage';
 
-jest.mock('../platform/app-group', () => ({
+jest.mock('../platform/app-group/appGroupAdapter', () => ({
   syncConfigToAppGroup: jest.fn(async () => undefined),
 }));
 

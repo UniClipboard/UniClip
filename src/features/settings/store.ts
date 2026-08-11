@@ -6,7 +6,7 @@
 import { create } from 'zustand';
 import { AppConfig } from '@/types/storage';
 import { configStorage } from './internal/configStorage';
-import { syncConfigToAppGroup } from '@/platform/app-group';
+import { syncConfigToAppGroup } from '@/platform/app-group/appGroupAdapter';
 
 export type UpdateConfigResult = { ok: true } | { ok: false; error: string };
 

@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
-import { useSettingsStore } from '@/features/settings';
-import { getAppGroupSyncSnapshot, syncConfigToAppGroup } from '@/platform/app-group';
+import { useSettingsStore } from '@/features/settings/store';
+import { getAppGroupSyncSnapshot, syncConfigToAppGroup } from './appGroupAdapter';
 import { createLogger } from '@/support/observability';
 
 const log = createLogger('AppGroupSync');

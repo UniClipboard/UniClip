@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '@/types/storage';
 import { AppSettings, DEFAULT_SETTINGS } from '@/types/settings';
 import { createLogger } from '@/support/observability';
-import { seedConfigFromAppGroup } from '@/platform/app-group';
+import { seedConfigFromAppGroup } from '@/platform/app-group/appGroupSeed';
 
 const log = createLogger('ConfigStorage');
 
