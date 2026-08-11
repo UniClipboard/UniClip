@@ -36,6 +36,8 @@
     "plugins": [
       "./plugins/build/withNativeLogger.js",
       "./plugins/build/withIosSettingsBundle.js",
+      "./plugins/build/withIosOrientation.js",
+      "./plugins/build/withAndroidOrientation.js",
       "./plugins/build/withNetworkSecurityConfig.js",
       "./plugins/build/withQuickSettingsTileManifest.js",
       "./plugins/build/withProcessTextManifest.js",
