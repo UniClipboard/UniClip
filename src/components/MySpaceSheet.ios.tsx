@@ -40,7 +40,7 @@ import {
   iosSaturatedButtonPalette,
   iosSecondaryButtonModifiers,
 } from '@/components/ui/iosButtonStyles.ios';
-import type { UnifiedSpaceDevice } from '@/features/space';
+import type { DeviceTrustDeviceView } from '@/features/space';
 import type { MySpaceSheetProps } from './MySpaceSheet.types';
 import { useMySpaceSheet } from './useMySpaceSheet';
 
@@ -82,10 +82,14 @@ function AddDeviceButton({
   );
 }
 
-function SpaceDeviceRow({ device }: { device: UnifiedSpaceDevice }) {
+function SpaceDeviceRow({ device }: { device: DeviceTrustDeviceView }) {
   const { t } = useTranslation('settingsSync');
-  const online = device.isLocal || device.online;
-  const statusColor = online ? ONLINE_COLOR : OFFLINE_COLOR;
+  const online = device.isLocal || device.reachability === 'online';
+  const trustStatus = device.primaryStatus !== 'usable' && device.primaryStatus !== 'unknown';
+  const statusColor = trustStatus ? ERROR_COLOR : online ? ONLINE_COLOR : OFFLINE_COLOR;
+  const statusLabel = trustStatus
+    ? t(`space.deviceTrust.status.${device.primaryStatus}`)
+    : t(online ? 'space.devices.online' : 'space.devices.offline');
 
   return (
     <HStack spacing={12} alignment="center" modifiers={[frame({ maxWidth: Infinity })]}>
@@ -95,7 +99,7 @@ function SpaceDeviceRow({ device }: { device: UnifiedSpaceDevice }) {
         <HStack spacing={6} alignment="center">
           <Image systemName="circle.fill" size={7} color={statusColor} />
           <SwiftUIText modifiers={[font({ size: 13 }), foregroundStyle(statusColor)]}>
-            {t(online ? 'space.devices.online' : 'space.devices.offline')}
+            {statusLabel}
           </SwiftUIText>
         </HStack>
       </VStack>
@@ -113,7 +117,6 @@ export function MySpaceSheet({ visible, onClose }: MySpaceSheetProps) {
     isInitialFailed,
     isKnownEmpty,
     deviceListFailed,
-    isUserRefreshing,
     refresh,
     invitation,
     invitationPending,

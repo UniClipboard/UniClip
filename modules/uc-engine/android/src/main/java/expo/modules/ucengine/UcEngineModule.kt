@@ -45,6 +45,7 @@ import uniffi.uc_engine_uniffi.BindingFailure
 import uniffi.uc_engine_uniffi.BindingFileMetadata
 import uniffi.uc_engine_uniffi.BindingHost
 import uniffi.uc_engine_uniffi.BindingLifecycleAction
+import uniffi.uc_engine_uniffi.DeviceTrustChoice
 import uniffi.uc_engine_uniffi.EntryNotResendableReason
 import uniffi.uc_engine_uniffi.HostBindingException
 import uniffi.uc_engine_uniffi.InvitationAvailability
@@ -102,17 +103,16 @@ private fun workspaceConvergenceMap(convergence: WorkspaceConvergence): Map<Stri
   "phase" to when (convergence.phase) {
     WorkspaceConvergencePhase.LOCALLY_APPLIED -> "locallyApplied"
     WorkspaceConvergencePhase.CONVERGING -> "converging"
-    WorkspaceConvergencePhase.WAITING_FOR_OFFLINE_MEMBER -> "waitingForOfflineMember"
     WorkspaceConvergencePhase.COMPLETE -> "complete"
     WorkspaceConvergencePhase.RECOVERY_REQUIRED -> "recoveryRequired"
   },
   "revision" to convergence.revision.toLong(),
-  "changeCount" to convergence.changeCount.toLong(),
-  "removalIntentCount" to convergence.removalIntentCount.toLong(),
+  "historyEventCount" to convergence.historyEventCount.toLong(),
   "effectiveMemberCount" to convergence.effectiveMemberCount.toLong(),
-  "confirmedMemberCount" to convergence.confirmedMemberCount.toLong(),
-  "waitingMemberDeviceIds" to convergence.waitingMemberDeviceIds,
-  "waitingMemberCount" to convergence.waitingMemberCount.toLong(),
+  "pendingRemovalDecisionDeviceIds" to convergence.pendingRemovalDecisionDeviceIds,
+  "pendingRemovalDecisionEventId" to convergence.pendingRemovalDecisionEventId,
+  "divergedPeerDeviceIds" to convergence.divergedPeerDeviceIds,
+  "upgradeRequiredPeerDeviceIds" to convergence.upgradeRequiredPeerDeviceIds,
   "convergenceDigest" to convergence.convergenceDigest,
   "removed" to convergence.removed,
   "updatedAtMs" to convergence.updatedAtMs,
@@ -445,9 +445,15 @@ class UcEngineModule : Module() {
       Log.i("UcEngine", "space_read operation=listDevices outcome=success deviceCount=${devices.size}")
       devices
     }
-    AsyncFunction("queryWorkspaceConvergence") {
-      workspaceConvergenceMap(
-        runSpaceRead("queryWorkspaceConvergence") { requireEngine().queryWorkspaceConvergence() }
+    AsyncFunction("queryDeviceTrust") {
+      runSpaceRead("queryDeviceTrust") { requireEngine().queryDeviceTrust() }
+    }
+    AsyncFunction("decideDeviceTrustChange") {
+      changeId: String, choice: String, confirmLocalRemoval: Boolean ->
+      requireEngine().decideDeviceTrustChange(
+        changeId,
+        deviceTrustChoice(choice),
+        confirmLocalRemoval
       )
     }
     AsyncFunction("removeMember") { deviceId: String ->
@@ -597,6 +603,7 @@ class UcEngineModule : Module() {
       "errored" to outcome.errored.toLong(),
       "pending" to outcome.pending.toLong()
     )
+    ResendEntryOutcome.SynchronizationDisabled -> mapOf("kind" to "synchronizationDisabled")
     is ResendEntryOutcome.EntryNotFound ->
       mapOf("kind" to "entryNotFound", "entryId" to outcome.entryId)
     is ResendEntryOutcome.EntryNotResendable -> mapOf(
@@ -696,9 +703,9 @@ class UcEngineModule : Module() {
       "activatedAtMs" to event.activatedAtMs,
       "activatedBy" to event.activatedBy
     )
-    is BindingEvent.WorkspaceConvergenceChanged -> mapOf(
-      "type" to "workspaceConvergenceChanged",
-      "convergence" to workspaceConvergenceMap(event.convergence)
+    is BindingEvent.DeviceTrustChanged -> mapOf(
+      "type" to "deviceTrustChanged",
+      "revision" to event.revision.toLong()
     )
     is BindingEvent.NetworkRecoveryChanged -> mapOf(
       "type" to "networkRecoveryChanged",
@@ -712,6 +719,12 @@ class UcEngineModule : Module() {
   private fun lifecycleActionName(action: BindingLifecycleAction): String = when (action) {
     BindingLifecycleAction.SUSPEND -> "suspend"
     BindingLifecycleAction.RESUME -> "resume"
+  }
+
+  private fun deviceTrustChoice(value: String): DeviceTrustChoice = when (value) {
+    "applyChange" -> DeviceTrustChoice.APPLY_CHANGE
+    "keepCurrentDeviceGroup" -> DeviceTrustChoice.KEEP_CURRENT_DEVICE_GROUP
+    else -> throw UcEngineInvalidInputException()
   }
 
   private fun stateName(state: BindingEngineState): String = when (state) {
@@ -1016,3 +1029,4 @@ internal class FileHandleRegistry(private val context: Context) {
 private class UcEngineNotStartedException : CodedException("The shared P2P engine has not been started")
 private class UcEngineAlreadyStartedException : CodedException("The shared P2P engine is already running")
 private class UcEngineUnavailableException : CodedException("The Android application context is unavailable")
+private class UcEngineInvalidInputException : CodedException("The device trust choice is invalid")

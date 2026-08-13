@@ -109,6 +109,36 @@
       "manageHint": "打开设备管理",
       "idLabel": "设备 ID {{id}}"
     },
+    "deviceTrust": {
+      "title": "核对设备变化",
+      "body": "{{source}} 更改了这个空间中的设备。请选择本机要信任哪一组设备。",
+      "targets": "涉及设备：{{devices}}",
+      "apply": "使用变更后的设备组",
+      "leave": "退出这个空间",
+      "keep": "保留本机设备组",
+      "continues": "继续同步：{{devices}}",
+      "stops": "停止同步：{{devices}}",
+      "none": "无",
+      "confirmKeepTitle": "保留本机设备组？",
+      "confirmKeepBody": "本机将停止与已采用另一设备组的设备同步，直到它们重新加入。",
+      "confirmLeaveTitle": "退出这个空间？",
+      "confirmLeaveBody": "本机将停止与这个空间同步，本地历史仍会保留。",
+      "confirm": "确认",
+      "notificationTitle": "请核对设备变化",
+      "notificationBody": "打开 UniClip，核对哪些设备可以继续同步。",
+      "notificationChannel": "设备变化",
+      "stateChanged": "设备状态已经变化，请核对最新结果。",
+      "error": "无法保存选择。当前已显示最新设备状态，请重试。",
+      "status": {
+        "waitingForLocalDecision": "等待你选择",
+        "unverifiable": "无法核验设备资料",
+        "upgradeRequired": "需要更新",
+        "differentSpace": "不同空间",
+        "removed": "已移除",
+        "usable": "可同步",
+        "unknown": "状态不可用"
+      }
+    },
     "convergence": {
       "title": "同步状态",
       "waiting": "正在等待空间中的设备完成同步。",

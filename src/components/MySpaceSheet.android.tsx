@@ -31,7 +31,7 @@ import {
 import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/hooks/useTheme';
-import type { UnifiedSpaceDevice } from '@/features/space';
+import type { DeviceTrustDeviceView } from '@/features/space';
 import type { MySpaceSheetProps } from './MySpaceSheet.types';
 import { useMySpaceSheet } from './useMySpaceSheet';
 
@@ -52,11 +52,15 @@ const DEVICE_LIST_SHAPE = Shape.RoundedCorner({
   cornerRadii: { topStart: 20, topEnd: 20, bottomStart: 20, bottomEnd: 20 },
 });
 
-function SpaceDeviceRow({ device }: { device: UnifiedSpaceDevice }) {
+function SpaceDeviceRow({ device }: { device: DeviceTrustDeviceView }) {
   const { t } = useTranslation('settingsSync');
   const colors = useMaterialColors();
-  const online = device.isLocal || device.online;
-  const statusColor = online ? colors.primary : colors.outline;
+  const online = device.isLocal || device.reachability === 'online';
+  const trustStatus = device.primaryStatus !== 'usable' && device.primaryStatus !== 'unknown';
+  const statusColor = trustStatus ? colors.error : online ? colors.primary : colors.outline;
+  const statusLabel = trustStatus
+    ? t(`space.deviceTrust.status.${device.primaryStatus}`)
+    : t(online ? 'space.devices.online' : 'space.devices.offline');
 
   return (
     <ListItem>
@@ -70,9 +74,7 @@ function SpaceDeviceRow({ device }: { device: UnifiedSpaceDevice }) {
         <Row verticalAlignment="center">
           <Icon source={ICONS.status} size={8} tint={statusColor} />
           <Spacer modifiers={[width(6)]} />
-          <ComposeText color={statusColor}>
-            {t(online ? 'space.devices.online' : 'space.devices.offline')}
-          </ComposeText>
+          <ComposeText color={statusColor}>{statusLabel}</ComposeText>
         </Row>
       </ListItem.SupportingContent>
     </ListItem>

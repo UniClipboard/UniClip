@@ -77,13 +77,15 @@ describe('home My Space sheet', () => {
     expect(mySpaceSheets[1]).toContain('List');
   });
 
-  it('renders every paired device name with a current online or offline state', () => {
+  it('prioritizes Engine trust state while retaining online and offline fallback', () => {
     for (const sheet of mySpaceSheets) {
       expect(sheet).toContain('device.displayName');
       expect(sheet).toContain("'space.devices.online'");
       expect(sheet).toContain("'space.devices.offline'");
-      expect(sheet).toContain('device.isLocal || device.online');
+      expect(sheet).toContain("device.reachability === 'online'");
+      expect(sheet).toContain('space.deviceTrust.status.${device.primaryStatus}');
     }
+    expect(mySpaceSheetHook).toContain('buildDeviceTrustDeviceViews');
   });
 
   it('groups Android device entries in a rounded list with dividers', () => {

@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 
 import { getUnifiedSpaceService, unifiedSpaceUserErrorCode } from '@/features/space';
 import { useUnifiedSpaceStore } from '@/features/space';
+import { buildDeviceTrustDeviceViews } from '@/features/space/deviceTrustPresentation';
 
 function remainingTime(expiresAtMs: number, nowMs: number): string {
   const seconds = Math.max(0, Math.ceil((expiresAtMs - nowMs) / 1000));
@@ -15,7 +16,9 @@ function remainingTime(expiresAtMs: number, nowMs: number): string {
 
 export function useMySpaceSheet(visible: boolean, options?: { issueOnOpen?: boolean }) {
   const { t } = useTranslation('settingsSync');
-  const devices = useUnifiedSpaceStore((state) => state.devices);
+  const rosterDevices = useUnifiedSpaceStore((state) => state.devices);
+  const deviceTrust = useUnifiedSpaceStore((state) => state.deviceTrust);
+  const devices = buildDeviceTrustDeviceViews(deviceTrust, rosterDevices);
   const spaceStatus = useUnifiedSpaceStore((state) => state.status);
   const hasResolvedDeviceList = useUnifiedSpaceStore((state) => state.hasResolvedDeviceList);
   const deviceListRefreshStatus = useUnifiedSpaceStore((state) => state.deviceListRefreshStatus);
@@ -64,7 +67,7 @@ export function useMySpaceSheet(visible: boolean, options?: { issueOnOpen?: bool
 
   useEffect(() => {
     if (!visible || !invitation || !awaitingPairingRef.current) return;
-    const pairedDevice = devices.find(
+    const pairedDevice = rosterDevices.find(
       (device) => !device.isLocal && !deviceIdsBeforeInvitationRef.current.has(device.deviceId)
     );
     if (!pairedDevice) return;
@@ -73,12 +76,12 @@ export function useMySpaceSheet(visible: boolean, options?: { issueOnOpen?: bool
     setInvitation(null);
     setInvitationCopied(false);
     setPairedDeviceName(pairedDevice.displayName);
-  }, [devices, invitation, visible]);
+  }, [invitation, rosterDevices, visible]);
 
   const issueInvitation = useCallback(async () => {
     if (invitationPendingRef.current) return;
     invitationPendingRef.current = true;
-    deviceIdsBeforeInvitationRef.current = new Set(devices.map((device) => device.deviceId));
+    deviceIdsBeforeInvitationRef.current = new Set(rosterDevices.map((device) => device.deviceId));
     setInvitationPending(true);
     setInvitationError(null);
     setInvitationCopied(false);
@@ -95,7 +98,7 @@ export function useMySpaceSheet(visible: boolean, options?: { issueOnOpen?: bool
       invitationPendingRef.current = false;
       setInvitationPending(false);
     }
-  }, [devices, t]);
+  }, [rosterDevices, t]);
 
   useEffect(() => {
     if (!visible || !options?.issueOnOpen || issuedOnOpenRef.current) return;

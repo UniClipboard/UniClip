@@ -109,6 +109,36 @@
       "manageHint": "Abre o gerenciamento do dispositivo",
       "idLabel": "ID do dispositivo {{id}}"
     },
+    "deviceTrust": {
+      "title": "Revise uma alteração de dispositivos",
+      "body": "{{source}} alterou os dispositivos deste espaço. Escolha em qual grupo este dispositivo deve confiar.",
+      "targets": "Dispositivos afetados: {{devices}}",
+      "apply": "Usar o grupo alterado",
+      "leave": "Sair deste espaço",
+      "keep": "Manter este grupo",
+      "continues": "Continua sincronizando: {{devices}}",
+      "stops": "Para de sincronizar: {{devices}}",
+      "none": "Nenhum",
+      "confirmKeepTitle": "Manter este grupo?",
+      "confirmKeepBody": "A sincronização com dispositivos que aceitaram o outro grupo será interrompida até que eles entrem novamente.",
+      "confirmLeaveTitle": "Sair deste espaço?",
+      "confirmLeaveBody": "Este dispositivo deixará de sincronizar com o espaço. O histórico local será mantido.",
+      "confirm": "Confirmar",
+      "notificationTitle": "Revise uma alteração de dispositivos",
+      "notificationBody": "Abra o UniClip para revisar quais dispositivos podem continuar sincronizando.",
+      "notificationChannel": "Alterações de dispositivos",
+      "stateChanged": "O estado dos dispositivos mudou. Revise o resultado mais recente.",
+      "error": "Não foi possível salvar a escolha. O estado mais recente está sendo mostrado; tente novamente.",
+      "status": {
+        "waitingForLocalDecision": "Aguardando sua escolha",
+        "unverifiable": "Não foi possível verificar os dados",
+        "upgradeRequired": "Atualização necessária",
+        "differentSpace": "Espaço diferente",
+        "removed": "Removido",
+        "usable": "Disponível",
+        "unknown": "Status indisponível"
+      }
+    },
     "convergence": {
       "title": "Status da sincronização",
       "waiting": "Aguardando os dispositivos deste espaço concluírem a sincronização.",

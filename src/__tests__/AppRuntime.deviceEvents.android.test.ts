@@ -14,6 +14,7 @@ const mockP2pRecoverPeerConnections = jest.fn(async () => ({
 }));
 const mockSpaceRefresh = jest.fn(async () => ({ devices: [] }));
 const mockSpaceRefreshDevices = jest.fn(async () => ({ devices: [] }));
+const mockSpaceRefreshDeviceTrust = jest.fn(async () => ({ devices: [] }));
 const mockSubscribeEvents = jest.fn((subscriber: (event: unknown) => void) => {
   engineEventSubscribers.push(subscriber);
   return jest.fn();
@@ -75,6 +76,7 @@ jest.mock('../features/space', () => ({
   getUnifiedSpaceService: () => ({
     refresh: mockSpaceRefresh,
     refreshDevices: mockSpaceRefreshDevices,
+    refreshDeviceTrust: mockSpaceRefreshDeviceTrust,
   }),
 }));
 
@@ -99,7 +101,11 @@ configureAppRuntime({
     cancelPeerRecovery: mockP2pCancelPeerRecovery,
     subscribeEvents: mockSubscribeEvents,
   }),
-  space: () => ({ refresh: mockSpaceRefresh, refreshDevices: mockSpaceRefreshDevices }),
+  space: () => ({
+    refresh: mockSpaceRefresh,
+    refreshDevices: mockSpaceRefreshDevices,
+    refreshDeviceTrust: mockSpaceRefreshDeviceTrust,
+  }),
   statisticsStore: {
     getState: () => ({
       recordBackgroundTaskStart: jest.fn(async () => undefined),
@@ -125,6 +131,16 @@ describe('AppRuntime device list refresh routing on Android', () => {
 
     expect(mockSpaceRefreshDevices).toHaveBeenCalledTimes(3);
     expect(mockSpaceRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('queries the complete device trust snapshot for a revision-only trust event', async () => {
+    await getAppRuntime().start();
+
+    emit({ type: 'deviceTrustChanged', revision: 9 });
+    await flushMicrotasks();
+
+    expect(mockSpaceRefreshDeviceTrust).toHaveBeenCalledTimes(1);
+    expect(mockSpaceRefreshDevices).not.toHaveBeenCalled();
   });
 
   it('does not refresh devices for unrelated events', async () => {
@@ -162,8 +178,10 @@ describe('AppRuntime device list refresh routing on Android', () => {
 
     appStateListener?.('background');
     emit({ type: 'changed', kind: 'pairing_completed' });
+    emit({ type: 'deviceTrustChanged', revision: 10 });
     await flushMicrotasks();
     expect(mockSpaceRefreshDevices).not.toHaveBeenCalled();
+    expect(mockSpaceRefreshDeviceTrust).not.toHaveBeenCalled();
 
     appStateListener?.('active');
     await flushMicrotasks();

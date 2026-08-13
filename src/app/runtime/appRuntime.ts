@@ -26,7 +26,6 @@ export function isDeviceListRefreshEvent(event: EngineEvent): boolean {
   return (
     event.type === 'refreshRequired' ||
     event.type === 'peerPresenceChanged' ||
-    event.type === 'workspaceConvergenceChanged' ||
     (event.type === 'changed' && event.kind === 'pairing_completed')
   );
 }
@@ -58,7 +57,11 @@ export interface AppRuntimeDependencies {
     | 'cancelPeerRecovery'
     | 'subscribeEvents'
   >;
-  space(): { refresh(): Promise<{ devices: unknown[] }>; refreshDevices(): Promise<unknown> };
+  space(): {
+    refresh(): Promise<{ devices: unknown[] }>;
+    refreshDevices(): Promise<unknown>;
+    refreshDeviceTrust(): Promise<unknown>;
+  };
   statisticsStore: {
     getState(): { recordBackgroundTaskStart(): Promise<void>; updateHeartbeat(): void };
   };
@@ -381,6 +384,16 @@ export class AppRuntime {
   private _subscribeToEngineEvents(): void {
     if (this.engineEventsUnsub) return;
     this.engineEventsUnsub = this.dependencies.engine().subscribeEvents((event) => {
+      if (event.type === 'deviceTrustChanged') {
+        if (this.currentAppState !== 'active') return;
+        this.dependencies
+          .space()
+          .refreshDeviceTrust()
+          .catch((error) =>
+            log.error('Failed to refresh device trust after an engine event:', error)
+          );
+        return;
+      }
       if (!isDeviceListRefreshEvent(event)) return;
       if (this.currentAppState !== 'active') return;
       this.dependencies

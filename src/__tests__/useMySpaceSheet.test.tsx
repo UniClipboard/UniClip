@@ -5,6 +5,7 @@ import TestRenderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 
 import { useMySpaceSheet } from '@/components/useMySpaceSheet';
 import { useUnifiedSpaceStore, type UnifiedSpaceSnapshot } from '@/features/space/store';
+import type { DeviceTrustSnapshot } from '@/platform/engine';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -46,6 +47,55 @@ const initialSnapshot: UnifiedSpaceSnapshot = {
   lastError: null,
   hasResolvedDeviceList: true,
   deviceListRefreshStatus: 'idle',
+};
+
+const trustSnapshot: DeviceTrustSnapshot = {
+  revision: 3,
+  localDeviceId: 'local',
+  localMembership: 'active',
+  currentChange: null,
+  devices: [
+    {
+      deviceId: 'local',
+      displayName: 'Phone',
+      isLocal: true,
+      reachability: 'online',
+      membership: 'active',
+      groupRelationship: 'sameGroup',
+      compatibility: 'compatible',
+      syncRelationship: 'usable',
+      availableActions: [],
+      blockedReason: null,
+    },
+    {
+      deviceId: 'existing',
+      displayName: 'Desktop',
+      isLocal: false,
+      reachability: 'online',
+      membership: 'active',
+      groupRelationship: 'sameGroup',
+      compatibility: 'compatible',
+      syncRelationship: 'usable',
+      availableActions: [],
+      blockedReason: null,
+    },
+    {
+      deviceId: 'diverged',
+      displayName: 'Tablet',
+      isLocal: false,
+      reachability: 'online',
+      membership: 'active',
+      groupRelationship: 'differentGroup',
+      compatibility: 'compatible',
+      syncRelationship: 'pausedGroupDiverged',
+      availableActions: [],
+      blockedReason: null,
+    },
+  ],
+  recovery: 'notAvailableInThisVersion',
+  allowedActions: [],
+  blockedReason: null,
+  updatedAtMs: 10,
 };
 
 type MySpaceSheetState = ReturnType<typeof useMySpaceSheet>;
@@ -285,6 +335,18 @@ describe('My Space sheet device list state', () => {
 
     expect(currentSheet.isInitialLoading).toBe(false);
     expect(currentSheet.devices.length).toBe(2);
+  });
+
+  it('keeps Engine-known devices visible and prioritizes their trust relationship', () => {
+    useUnifiedSpaceStore.setState({ ...initialSnapshot, deviceTrust: trustSnapshot }, true);
+    createHarness();
+
+    expect(currentSheet.devices).toHaveLength(3);
+    expect(currentSheet.devices.find((device) => device.deviceId === 'diverged')).toMatchObject({
+      displayName: 'Tablet',
+      reachability: 'online',
+      primaryStatus: 'differentSpace',
+    });
   });
 
   it('does not mistake a known empty list for first load', () => {

@@ -48,6 +48,10 @@ jest.mock('../navigation/navigationRef', () => ({ navigateWhenReady: jest.fn() }
 jest.mock('../screens/QuickTileLoadingScreen', () => ({ QuickTileLoadingScreen: () => null }));
 jest.mock('../screens/ShareReceiveRedirector', () => ({ ShareReceiveRedirector: () => null }));
 jest.mock('../screens/ProcessTextScreen', () => ({ ProcessTextScreen: () => null }));
+jest.mock('../components/DeviceTrustDecision', () => ({ DeviceTrustDecision: () => null }));
+jest.mock('../components/DeviceTrustNotificationObserver', () => ({
+  DeviceTrustNotificationObserver: () => null,
+}));
 jest.mock('../i18n', () => ({
   __esModule: true,
   default: { t: (key: string) => key },

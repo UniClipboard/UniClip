@@ -136,7 +136,7 @@ describe('unified space setup UI', () => {
 
     for (const platform of [android, ios]) {
       expect(platform).toContain('workspaceConvergence');
-      expect(platform).toContain('waitingMemberDeviceIds');
+      expect(platform).toContain('pendingRemovalDecisionDeviceIds');
       expect(platform).toContain("workspaceConvergence.phase === 'recoveryRequired'");
       expect(platform).not.toContain('.continueMemberRevocation(');
     }
@@ -260,6 +260,17 @@ describe('unified space setup UI', () => {
     expect(android).toContain('space.devices.online');
     expect(android).toContain('space.devices.offline');
     expect(android).toContain('space.devices.remove');
+  });
+
+  it('uses Engine trust relationships in both device lists without exposing stale remove actions', () => {
+    const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
+    const ios = source('screens/settings/ios/SpacePage.tsx');
+
+    for (const platform of [android, ios]) {
+      expect(platform).toContain('buildDeviceTrustDeviceViews');
+      expect(platform).toContain('space.deviceTrust.status.${device.primaryStatus}');
+      expect(platform).toContain('rosterDeviceIds.has(device.deviceId)');
+    }
   });
 
   it('presents the Android space page as status, device actions, then separate space controls', () => {

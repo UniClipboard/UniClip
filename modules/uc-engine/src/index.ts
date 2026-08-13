@@ -78,7 +78,6 @@ export interface Device {
 export type WorkspaceConvergencePhase =
   | 'locallyApplied'
   | 'converging'
-  | 'waitingForOfflineMember'
   | 'complete'
   | 'recoveryRequired';
 
@@ -95,17 +94,19 @@ export type WorkspaceConvergenceFailureCategory =
 export interface WorkspaceConvergence {
   phase: WorkspaceConvergencePhase;
   revision: number;
-  changeCount: number;
-  removalIntentCount: number;
+  historyEventCount: number;
   effectiveMemberCount: number;
-  confirmedMemberCount: number;
-  waitingMemberDeviceIds: string[];
-  waitingMemberCount: number;
+  pendingRemovalDecisionDeviceIds: string[];
+  pendingRemovalDecisionEventId: string | null;
+  divergedPeerDeviceIds: string[];
+  upgradeRequiredPeerDeviceIds: string[];
   convergenceDigest: string | null;
   removed: boolean;
   updatedAtMs: number;
   failureCategory: WorkspaceConvergenceFailureCategory | null;
 }
+
+export type DeviceTrustChoice = 'applyChange' | 'keepCurrentDeviceGroup';
 
 export type ResendEntryOutcome =
   | {
@@ -116,6 +117,7 @@ export type ResendEntryOutcome =
       errored: number;
       pending: number;
     }
+  | { kind: 'synchronizationDisabled' }
   | { kind: 'entryNotFound'; entryId: string }
   | { kind: 'entryNotResendable'; entryId: string; reason: 'remoteOrigin' | 'payloadLost' }
   | { kind: 'targetNotTrusted'; deviceId: string }
@@ -184,7 +186,7 @@ export type EngineEvent =
       activatedAtMs: number;
       activatedBy: string;
     }
-  | { type: 'workspaceConvergenceChanged'; convergence: WorkspaceConvergence }
+  | { type: 'deviceTrustChanged'; revision: number }
   | {
       type: 'networkRecoveryChanged';
       phase: string;
@@ -234,7 +236,12 @@ interface UcEngineNativeModule {
   refreshPeerConnections(): Promise<PeerConnectionRefresh>;
   querySpaceState(): Promise<SpaceState>;
   listDevices(): Promise<Device[]>;
-  queryWorkspaceConvergence(): Promise<WorkspaceConvergence>;
+  queryDeviceTrust(): Promise<string>;
+  decideDeviceTrustChange(
+    changeId: string,
+    choice: DeviceTrustChoice,
+    confirmLocalRemoval: boolean
+  ): Promise<string>;
   removeMember(deviceId: string): Promise<WorkspaceConvergence>;
   resendEntry(entryId: string, targetDevices: string[]): Promise<ResendEntryOutcome>;
   leaveSpace(): Promise<void>;
@@ -371,8 +378,16 @@ export function listDevices(): Promise<Device[]> {
   return NativeModule.listDevices();
 }
 
-export function queryWorkspaceConvergence(): Promise<WorkspaceConvergence> {
-  return NativeModule.queryWorkspaceConvergence();
+export function queryDeviceTrust(): Promise<string> {
+  return NativeModule.queryDeviceTrust();
+}
+
+export function decideDeviceTrustChange(
+  changeId: string,
+  choice: DeviceTrustChoice,
+  confirmLocalRemoval: boolean
+): Promise<string> {
+  return NativeModule.decideDeviceTrustChange(changeId, choice, confirmLocalRemoval);
 }
 
 export function removeMember(deviceId: string): Promise<WorkspaceConvergence> {

@@ -32,8 +32,13 @@ import { useTranslation } from 'react-i18next';
 import { AddSyncConnectionSheet } from '@/components/AddSyncConnectionSheet';
 import type { AddSyncConnectionMode } from '@/components/AddSyncConnectionSheet.types';
 import { SpaceInvitationSheet } from '@/components/SpaceInvitationSheet';
-import { getUnifiedSpaceService, UnifiedSpaceInputError } from '@/features/space';
-import { useUnifiedSpaceStore, type UnifiedSpaceDevice } from '@/features/space';
+import {
+  buildDeviceTrustDeviceViews,
+  getUnifiedSpaceService,
+  UnifiedSpaceInputError,
+  useUnifiedSpaceStore,
+  type DeviceTrustDeviceView,
+} from '@/features/space';
 import { useTheme } from '@/hooks/useTheme';
 import { CustomRelaySection } from './CustomRelaySection';
 import { SettingsSectionItem } from './SettingsSectionItem';
@@ -65,13 +70,16 @@ function operationError(error: unknown, t: (key: string) => string): string {
 }
 
 function deviceStatusLabel(
-  device: UnifiedSpaceDevice,
+  device: DeviceTrustDeviceView,
   waitingForConvergence: boolean,
   t: (key: string) => string
 ): string {
+  if (device.primaryStatus !== 'usable' && device.primaryStatus !== 'unknown') {
+    return t(`space.deviceTrust.status.${device.primaryStatus}`);
+  }
   const base = device.isLocal
     ? t('space.devices.thisDevice')
-    : device.online
+    : device.reachability === 'online'
     ? t('space.devices.online')
     : t('space.devices.offline');
   return waitingForConvergence ? `${base} · ${t('space.convergence.pendingDevice')}` : base;
@@ -84,7 +92,7 @@ function SpaceDeviceRow({
   manageable,
   onManage,
 }: {
-  device: UnifiedSpaceDevice;
+  device: DeviceTrustDeviceView;
   waitingForConvergence: boolean;
   removing: boolean;
   manageable: boolean;
@@ -93,8 +101,13 @@ function SpaceDeviceRow({
   const { t } = useTranslation('settingsSync');
   const colors = useMaterialColors();
   const { theme } = useTheme();
-  const online = device.isLocal || device.online;
-  const statusColor = online ? (theme.colors.success as string) : colors.outline;
+  const online = device.isLocal || device.reachability === 'online';
+  const trustStatus = device.primaryStatus !== 'usable' && device.primaryStatus !== 'unknown';
+  const statusColor = trustStatus
+    ? colors.error
+    : online
+    ? (theme.colors.success as string)
+    : colors.outline;
   const modifiers = manageable && !removing ? [clickable(onManage)] : [];
 
   return (
@@ -114,7 +127,7 @@ function SpaceDeviceRow({
           </ComposeText>
         </Row>
       </ListItem.SupportingContent>
-      {!device.isLocal ? (
+      {manageable ? (
         <ListItem.TrailingContent>
           {removing ? (
             <CircularProgressIndicator modifiers={[widthModifier(24), heightModifier(24)]} />
@@ -226,22 +239,27 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
 
   const spaceId = space.spaceId;
   const workspaceConvergence = space.workspaceConvergence;
-  const waitingMemberIds = new Set(workspaceConvergence?.waitingMemberDeviceIds ?? []);
-  const devices = [...space.devices].sort((left, right) => {
-    const leftRank = left.isLocal ? 0 : left.online ? 1 : 2;
-    const rightRank = right.isLocal ? 0 : right.online ? 1 : 2;
-    return leftRank - rightRank;
-  });
+  const waitingMemberIds = new Set(workspaceConvergence?.pendingRemovalDecisionDeviceIds ?? []);
+  const rosterDeviceIds = new Set(space.devices.map((device) => device.deviceId));
+  const devices = buildDeviceTrustDeviceViews(space.deviceTrust, space.devices).sort(
+    (left, right) => {
+      const leftRank = left.isLocal ? 0 : left.reachability === 'online' ? 1 : 2;
+      const rightRank = right.isLocal ? 0 : right.reachability === 'online' ? 1 : 2;
+      return leftRank - rightRank;
+    }
+  );
   const localDevice = devices.find((device) => device.isLocal) ?? null;
   const otherDevices = devices.filter((device) => !device.isLocal);
   const otherDeviceCount = otherDevices.length;
-  const onlineCount = otherDevices.filter((device) => device.online).length;
+  const onlineCount = otherDevices.filter((device) => device.reachability === 'online').length;
   const offlineCount = otherDeviceCount - onlineCount;
   const hasOnlineDevice = onlineCount > 0;
   const localDeviceName =
     localDevice?.displayName ?? space.deviceName ?? t('space.devices.thisDevice');
   const manageDevice = manageDeviceId
-    ? devices.find((device) => device.deviceId === manageDeviceId) ?? null
+    ? devices.find(
+        (device) => device.deviceId === manageDeviceId && rosterDeviceIds.has(device.deviceId)
+      ) ?? null
     : null;
   const syncFailed = space.deviceListRefreshStatus === 'failed' || Boolean(refreshError);
   const isRefreshing = space.deviceListRefreshStatus === 'refreshing';
@@ -458,23 +476,21 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
 
       <Spacer modifiers={[heightModifier(16)]} />
       <SettingsSectionItem title={t('space.devices.thisDevice')}>
-        <ListItem>
-          <ListItem.LeadingContent>
-            <Icon source={ICONS.device} size={28} tint={colors.primary} />
-          </ListItem.LeadingContent>
-          <ListItem.HeadlineContent>
-            <ComposeText>{localDeviceName}</ComposeText>
-          </ListItem.HeadlineContent>
-          <ListItem.SupportingContent>
-            <Row verticalAlignment="center">
-              <Icon source={ICONS.status} size={8} tint={theme.colors.success as string} />
-              <Spacer modifiers={[widthModifier(6)]} />
-              <ComposeText color={theme.colors.success as string}>
-                {t('space.devices.thisDevice')}
-              </ComposeText>
-            </Row>
-          </ListItem.SupportingContent>
-        </ListItem>
+        {localDevice ? (
+          <SpaceDeviceRow
+            device={localDevice}
+            waitingForConvergence={waitingMemberIds.has(localDevice.deviceId)}
+            removing={false}
+            manageable={false}
+            onManage={() => undefined}
+          />
+        ) : (
+          <ListItem>
+            <ListItem.HeadlineContent>
+              <ComposeText>{localDeviceName}</ComposeText>
+            </ListItem.HeadlineContent>
+          </ListItem>
+        )}
       </SettingsSectionItem>
 
       <Spacer modifiers={[heightModifier(16)]} />
@@ -491,7 +507,7 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup() {
                   device={device}
                   waitingForConvergence={waitingMemberIds.has(device.deviceId)}
                   removing={pending === `remove:${device.deviceId}`}
-                  manageable
+                  manageable={rosterDeviceIds.has(device.deviceId)}
                   onManage={() => setManageDeviceId(device.deviceId)}
                 />
               </Column>

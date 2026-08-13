@@ -27,6 +27,8 @@ import { startNetworkContextMonitor } from './src/platform/network';
 import { startPostHogAnalytics, stopPostHogAnalytics } from './src/support/observability';
 import { getSpaceSetupCompletion } from './src/features/space';
 import { useShareSheetStore } from './src/stores/shareSheetStore';
+import { DeviceTrustDecision } from './src/components/DeviceTrustDecision';
+import { DeviceTrustNotificationObserver } from './src/components/DeviceTrustNotificationObserver';
 
 const QUICK_UPLOAD_URL = 'uniclipboard://quick-upload';
 const PROCESS_TEXT_URL = 'uniclipboard://process-text';
@@ -299,6 +301,7 @@ export default function App() {
     <GestureHandlerRootView style={styles.container}>
       <ThemeProvider>
         <ThemedStatusBar />
+        <DeviceTrustNotificationObserver />
         {appMode === 'checking' ? null : <AppNavigator />}
         {shareReceiveOverlay !== null && (
           <View style={StyleSheet.absoluteFill}>
@@ -340,6 +343,7 @@ export default function App() {
             />
           </View>
         )}
+        <DeviceTrustDecision />
       </ThemeProvider>
     </GestureHandlerRootView>
   );

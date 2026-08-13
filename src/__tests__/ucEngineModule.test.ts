@@ -61,16 +61,47 @@ describe('unified P2P engine native module', () => {
     expect(kotlin).toContain('AsyncFunction("saveCustomRelayNode")');
   });
 
-  it('maps workspace convergence state on both native platforms', () => {
+  it('does not expose the removed workspace convergence query or event', () => {
+    const javascript = read('src/index.ts');
     const swift = read('ios/UcEngineModule.swift');
     const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
 
-    expect(swift).toContain('case .workspaceConvergenceChanged(let convergence):');
-    expect(swift).toContain('"type": "workspaceConvergenceChanged"');
-    expect(swift).toContain('workspaceConvergenceMap(convergence)');
-    expect(kotlin).toContain('is BindingEvent.WorkspaceConvergenceChanged ->');
-    expect(kotlin).toContain('"type" to "workspaceConvergenceChanged"');
-    expect(kotlin).toContain('workspaceConvergenceMap(event.convergence)');
+    expect(javascript).not.toContain('queryWorkspaceConvergence');
+    expect(javascript).not.toContain("type: 'workspaceConvergenceChanged'");
+    expect(swift).not.toContain('AsyncFunction("queryWorkspaceConvergence")');
+    expect(swift).not.toContain('case .workspaceConvergenceChanged');
+    expect(kotlin).not.toContain('AsyncFunction("queryWorkspaceConvergence")');
+    expect(kotlin).not.toContain('BindingEvent.WorkspaceConvergenceChanged');
+  });
+
+  it('exposes device trust query and decision on JavaScript, iOS, and Android', () => {
+    const javascript = read('src/index.ts');
+    const swift = read('ios/UcEngineModule.swift');
+    const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
+
+    for (const operation of ['queryDeviceTrust', 'decideDeviceTrustChange']) {
+      expect(javascript).toMatch(new RegExp(`export (?:async )?function ${operation}\\b`));
+      expect(swift).toContain(`AsyncFunction("${operation}")`);
+      expect(kotlin).toContain(`AsyncFunction("${operation}")`);
+    }
+
+    expect(javascript).toContain('choice: DeviceTrustChoice');
+    expect(javascript).toContain('confirmLocalRemoval: boolean');
+    expect(swift).toContain('choice: String, confirmLocalRemoval: Bool');
+    expect(kotlin).toContain('choice: String, confirmLocalRemoval: Boolean');
+  });
+
+  it('maps device trust changes to a revision-only event on both native platforms', () => {
+    const javascript = read('src/index.ts');
+    const swift = read('ios/UcEngineModule.swift');
+    const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
+
+    expect(javascript).toContain("type: 'deviceTrustChanged'; revision: number");
+    expect(swift).toContain('case .deviceTrustChanged(let revision):');
+    expect(swift).toContain('["type": "deviceTrustChanged", "revision": revision]');
+    expect(kotlin).toContain('is BindingEvent.DeviceTrustChanged -> mapOf(');
+    expect(kotlin).toContain('"type" to "deviceTrustChanged"');
+    expect(kotlin).toContain('"revision" to event.revision.toLong()');
   });
 
   it('maps detailed clipboard, delivery, transfer, and presence events on both platforms', () => {
@@ -87,7 +118,6 @@ describe('unified P2P engine native module', () => {
       'transferProgress',
       'transferStatusChanged',
       'activeClipboardChanged',
-      'workspaceConvergenceChanged',
       'networkRecoveryChanged',
     ]) {
       expect(javascript).toContain(`type: '${eventType}'`);
@@ -104,7 +134,6 @@ describe('unified P2P engine native module', () => {
     for (const operation of [
       'querySpaceState',
       'listDevices',
-      'queryWorkspaceConvergence',
       'removeMember',
       'resendEntry',
       'leaveSpace',
@@ -134,17 +163,28 @@ describe('unified P2P engine native module', () => {
     const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
 
     expect(javascript).toContain('export interface WorkspaceConvergence');
-    expect(javascript).toContain('waitingMemberDeviceIds: string[]');
+    expect(javascript).toContain('pendingRemovalDecisionDeviceIds: string[]');
+    expect(javascript).toContain('divergedPeerDeviceIds: string[]');
+    expect(javascript).toContain('upgradeRequiredPeerDeviceIds: string[]');
     expect(javascript).toContain('failureCategory: WorkspaceConvergenceFailureCategory | null');
     expect(javascript).toContain('updatedAtMs: number');
     expect(javascript).toContain('removeMember(deviceId: string): Promise<WorkspaceConvergence>');
-    expect(javascript).toContain('queryWorkspaceConvergence(): Promise<WorkspaceConvergence>');
     expect(kotlin).toContain('val result = engine.removeMember(deviceId)');
-    expect(kotlin).toContain('requireEngine().queryWorkspaceConvergence()');
+    expect(kotlin).toContain('"historyEventCount" to convergence.historyEventCount.toLong()');
     expect(kotlin).toContain('refreshAnalyticsContext(engine)');
     expect(swift).toContain('let result = try engine.removeMember(deviceId: deviceId)');
-    expect(swift).toContain('try self.requireEngine().queryWorkspaceConvergence()');
+    expect(swift).toContain('"historyEventCount": convergence.historyEventCount');
     expect(swift).toContain('self.host.refreshAnalyticsContext(engine: engine)');
+  });
+
+  it('maps the synchronization-disabled resend result on both native platforms', () => {
+    const javascript = read('src/index.ts');
+    const swift = read('ios/UcEngineModule.swift');
+    const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
+
+    expect(javascript).toContain("kind: 'synchronizationDisabled'");
+    expect(swift).toContain('case .synchronizationDisabled:');
+    expect(kotlin).toContain('ResendEntryOutcome.SynchronizationDisabled');
   });
 
   it('preserves the local-device marker on JavaScript, iOS, and Android', () => {

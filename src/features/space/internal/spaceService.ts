@@ -1,4 +1,7 @@
 import type {
+  DeviceTrustChoice,
+  DeviceTrustDecision,
+  DeviceTrustSnapshot,
   InvitationIssued,
   SpaceCreated,
   SpaceInvitation,
@@ -36,6 +39,7 @@ export type ResendEntryOutcome =
       pending: number;
     }
   | { kind: 'entryNotFound'; entryId: string }
+  | { kind: 'synchronizationDisabled' }
   | { kind: 'entryNotResendable'; entryId: string; reason: string }
   | { kind: 'targetNotTrusted'; deviceId: string }
   | { kind: 'noEligibleTargets' };
@@ -55,7 +59,12 @@ export interface UnifiedSpaceApi {
     passphrase: string,
     preserveUnreadableHistory: boolean
   ): Promise<SpaceJoined>;
-  queryWorkspaceConvergence(): Promise<WorkspaceConvergence>;
+  queryDeviceTrust(): Promise<DeviceTrustSnapshot>;
+  decideDeviceTrustChange(
+    changeId: string,
+    choice: DeviceTrustChoice,
+    confirmLocalRemoval: boolean
+  ): Promise<DeviceTrustDecision>;
   removeMember(deviceId: string): Promise<WorkspaceConvergence>;
   resendEntry(entryId: string, targetDevices: string[]): Promise<ResendEntryOutcome>;
   leaveSpace(): Promise<void>;
@@ -98,7 +107,17 @@ const USER_ERROR_BY_ENGINE_CODE: Readonly<Record<number, UnifiedSpaceUserErrorCo
 };
 
 type JoinSpaceStage = 'prepareP2p' | 'requestJoin' | 'refreshDevices';
-type SpaceRefreshStage = 'querySpaceState' | 'listDevices' | 'queryWorkspaceConvergence';
+type SpaceRefreshStage = 'querySpaceState' | 'listDevices' | 'queryDeviceTrust';
+
+export type DeviceTrustDecisionInputErrorCode = 'noCurrentChange' | 'choiceNotAllowed';
+
+export class DeviceTrustDecisionInputError extends Error {
+  readonly name = 'DeviceTrustDecisionInputError';
+
+  constructor(readonly code: DeviceTrustDecisionInputErrorCode) {
+    super(code);
+  }
+}
 
 interface JoinSpaceFailureDetails {
   stage: JoinSpaceStage;
@@ -196,6 +215,8 @@ export class UnifiedSpaceService {
   private refreshRevision = 0;
   private fullRefreshInFlight: Promise<UnifiedSpaceSnapshot> | null = null;
   private deviceRefreshInFlight: Promise<UnifiedSpaceSnapshot> | null = null;
+  private deviceTrustRefreshInFlight: Promise<UnifiedSpaceSnapshot> | null = null;
+  private deviceTrustDecisionInFlight: Promise<DeviceTrustDecision> | null = null;
 
   constructor(
     private readonly api: UnifiedSpaceApi,
@@ -240,9 +261,9 @@ export class UnifiedSpaceService {
         this.publishSnapshot();
         return this.snapshot;
       }
-      const [devices, workspaceConvergence] = await Promise.all([
+      const [devices, deviceTrust] = await Promise.all([
         this.runRefreshStep('listDevices', () => this.api.listDevices()),
-        this.currentWorkspaceConvergence(),
+        this.runRefreshStep('queryDeviceTrust', () => this.api.queryDeviceTrust()),
       ]);
       if (!this.canPublishRefresh(revision)) return this.snapshot;
       this.snapshot = {
@@ -251,7 +272,11 @@ export class UnifiedSpaceService {
         deviceName: state.deviceName,
         invitation: state.currentInvitation,
         devices,
-        workspaceConvergence,
+        workspaceConvergence: this.snapshot.workspaceConvergence,
+        deviceTrust,
+        deviceTrustDecisionStatus: 'idle',
+        deviceTrustDecisionError: null,
+        deviceTrustDecisionOutcome: null,
         lastError: null,
         hasResolvedDeviceList: true,
         deviceListRefreshStatus: 'idle',
@@ -284,6 +309,10 @@ export class UnifiedSpaceService {
           invitation,
           devices,
           workspaceConvergence: null,
+          deviceTrust: null,
+          deviceTrustDecisionStatus: 'idle',
+          deviceTrustDecisionError: null,
+          deviceTrustDecisionOutcome: null,
           lastError: null,
           hasResolvedDeviceList: true,
           deviceListRefreshStatus: 'idle',
@@ -327,16 +356,17 @@ export class UnifiedSpaceService {
       this.updateSnapshot({ lastError: null, deviceListRefreshStatus: 'refreshing' });
     }
     try {
-      const [devices, workspaceConvergence] = await Promise.all([
+      const [devices, deviceTrust] = await Promise.all([
         this.runRefreshStep('listDevices', () => this.api.listDevices()),
-        this.currentWorkspaceConvergence(),
+        this.runRefreshStep('queryDeviceTrust', () => this.api.queryDeviceTrust()),
       ]);
       if (!this.canPublishRefresh(revision)) return this.snapshot;
 
       this.updateSnapshot({
         status: this.snapshot.status === 'failed' ? 'ready' : this.snapshot.status,
         devices,
-        workspaceConvergence,
+        deviceTrust,
+        deviceTrustDecisionError: null,
         lastError: null,
         hasResolvedDeviceList: true,
         deviceListRefreshStatus: 'idle',
@@ -384,6 +414,10 @@ export class UnifiedSpaceService {
           invitation: null,
           devices,
           workspaceConvergence: null,
+          deviceTrust: null,
+          deviceTrustDecisionStatus: 'idle',
+          deviceTrustDecisionError: null,
+          deviceTrustDecisionOutcome: null,
           lastError: null,
           hasResolvedDeviceList: true,
           deviceListRefreshStatus: 'idle',
@@ -424,6 +458,110 @@ export class UnifiedSpaceService {
     }
   }
 
+  refreshDeviceTrust(): Promise<UnifiedSpaceSnapshot> {
+    if (this.deviceTrustRefreshInFlight) return this.deviceTrustRefreshInFlight;
+    const revision = this.beginRefresh();
+    const refresh = this.performDeviceTrustRefresh(revision);
+    this.deviceTrustRefreshInFlight = refresh;
+    void refresh.then(
+      () => this.clearDeviceTrustRefresh(refresh),
+      () => this.clearDeviceTrustRefresh(refresh)
+    );
+    return refresh;
+  }
+
+  private async performDeviceTrustRefresh(
+    revision: ReturnType<UnifiedSpaceService['beginRefresh']>
+  ): Promise<UnifiedSpaceSnapshot> {
+    try {
+      const deviceTrust = await this.runRefreshStep('queryDeviceTrust', () =>
+        this.api.queryDeviceTrust()
+      );
+      if (!this.canPublishRefresh(revision)) return this.snapshot;
+      this.updateSnapshot({ deviceTrust, deviceTrustDecisionError: null });
+      return this.snapshot;
+    } catch (error) {
+      if (this.canPublishRefresh(revision)) {
+        this.updateSnapshot({
+          deviceTrustDecisionError: error instanceof Error ? error.message : String(error),
+        });
+      }
+      throw error;
+    }
+  }
+
+  decideDeviceTrust(
+    choice: DeviceTrustChoice,
+    confirmLocalRemoval: boolean
+  ): Promise<DeviceTrustDecision> {
+    if (this.deviceTrustDecisionInFlight) return this.deviceTrustDecisionInFlight;
+
+    const change = this.snapshot.deviceTrust?.currentChange;
+    if (!change) return Promise.reject(new DeviceTrustDecisionInputError('noCurrentChange'));
+    if (!change.allowedChoices.includes(choice)) {
+      return Promise.reject(new DeviceTrustDecisionInputError('choiceNotAllowed'));
+    }
+
+    const revision = this.beginMutation();
+    this.updateSnapshot({
+      deviceTrustDecisionStatus: 'submitting',
+      deviceTrustDecisionError: null,
+      deviceTrustDecisionOutcome: null,
+    });
+    const decision = this.performDeviceTrustDecision(
+      revision,
+      change.changeId,
+      choice,
+      confirmLocalRemoval
+    );
+    this.deviceTrustDecisionInFlight = decision;
+    void decision.then(
+      () => this.clearDeviceTrustDecision(decision),
+      () => this.clearDeviceTrustDecision(decision)
+    );
+    return decision;
+  }
+
+  private async performDeviceTrustDecision(
+    revision: number,
+    changeId: string,
+    choice: DeviceTrustChoice,
+    confirmLocalRemoval: boolean
+  ): Promise<DeviceTrustDecision> {
+    try {
+      const result = await this.api.decideDeviceTrustChange(changeId, choice, confirmLocalRemoval);
+      if (this.isCurrentMutation(revision)) {
+        this.updateSnapshot({
+          deviceTrust: result.snapshot,
+          deviceTrustDecisionStatus: 'idle',
+          deviceTrustDecisionError: null,
+          deviceTrustDecisionOutcome: result.kind,
+        });
+      }
+      return result;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.endMutation(revision);
+      try {
+        await this.refreshDeviceTrust();
+      } catch {
+        // The original decision failure is the actionable error shown to the user.
+      }
+      this.updateSnapshot({
+        deviceTrustDecisionStatus: 'idle',
+        deviceTrustDecisionError: message,
+        deviceTrustDecisionOutcome: null,
+      });
+      throw error;
+    } finally {
+      this.endMutation(revision);
+    }
+  }
+
+  getSnapshot(): UnifiedSpaceSnapshot {
+    return this.snapshot;
+  }
+
   resendEntry(entryId: string, targetDevices: string[] = []): Promise<ResendEntryOutcome> {
     return this.api.resendEntry(entryId, targetDevices);
   }
@@ -447,6 +585,7 @@ export class UnifiedSpaceService {
     this.activeMutationRevision = this.mutationRevision;
     this.fullRefreshInFlight = null;
     this.deviceRefreshInFlight = null;
+    this.deviceTrustRefreshInFlight = null;
     return this.mutationRevision;
   }
 
@@ -455,6 +594,7 @@ export class UnifiedSpaceService {
     this.activeMutationRevision = null;
     this.fullRefreshInFlight = null;
     this.deviceRefreshInFlight = null;
+    this.deviceTrustRefreshInFlight = null;
   }
 
   private isCurrentMutation(revision: number): boolean {
@@ -526,6 +666,14 @@ export class UnifiedSpaceService {
     if (this.deviceRefreshInFlight === refresh) this.deviceRefreshInFlight = null;
   }
 
+  private clearDeviceTrustRefresh(refresh: Promise<UnifiedSpaceSnapshot>): void {
+    if (this.deviceTrustRefreshInFlight === refresh) this.deviceTrustRefreshInFlight = null;
+  }
+
+  private clearDeviceTrustDecision(decision: Promise<DeviceTrustDecision>): void {
+    if (this.deviceTrustDecisionInFlight === decision) this.deviceTrustDecisionInFlight = null;
+  }
+
   private async runRefreshStep<T>(
     stage: SpaceRefreshStage,
     operation: () => Promise<T>
@@ -535,16 +683,6 @@ export class UnifiedSpaceService {
     } catch (error) {
       log.error('Space refresh failed', spaceRefreshFailureDetails(error, stage));
       throw error;
-    }
-  }
-
-  private async currentWorkspaceConvergence(): Promise<WorkspaceConvergence | null> {
-    try {
-      return await this.runRefreshStep('queryWorkspaceConvergence', () =>
-        this.api.queryWorkspaceConvergence()
-      );
-    } catch {
-      return this.snapshot.workspaceConvergence;
     }
   }
 }

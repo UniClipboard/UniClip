@@ -30,8 +30,13 @@ import {
   iosProminentButtonModifiers,
   iosSaturatedButtonPalette,
 } from '@/components/ui/iosButtonStyles.ios';
-import { getUnifiedSpaceService, UnifiedSpaceInputError } from '@/features/space';
-import { useUnifiedSpaceStore, type UnifiedSpaceDevice } from '@/features/space';
+import {
+  buildDeviceTrustDeviceViews,
+  getUnifiedSpaceService,
+  UnifiedSpaceInputError,
+  useUnifiedSpaceStore,
+  type DeviceTrustDeviceView,
+} from '@/features/space';
 import {
   HeaderCircleButton,
   SettingsIconTile,
@@ -57,22 +62,37 @@ function SpaceDeviceRow({
   thisDeviceLabel,
   onlineLabel,
   offlineLabel,
+  manageable,
   onManage,
 }: {
-  device: UnifiedSpaceDevice;
+  device: DeviceTrustDeviceView;
   removing: boolean;
   removeLabel: string;
   manageHint: string;
   thisDeviceLabel: string;
   onlineLabel: string;
   offlineLabel: string;
+  manageable: boolean;
   onManage: () => void;
 }) {
-  const online = device.isLocal || device.online;
-  const statusColor = online ? statusGreen : settingsTileColors.gray;
+  const { t } = useTranslation('settingsSync');
+  const online = device.isLocal || device.reachability === 'online';
+  const trustStatus = device.primaryStatus !== 'usable' && device.primaryStatus !== 'unknown';
+  const statusColor = trustStatus
+    ? settingsTileColors.red
+    : online
+    ? statusGreen
+    : settingsTileColors.gray;
+  const statusLabel = trustStatus
+    ? t(`space.deviceTrust.status.${device.primaryStatus}`)
+    : device.isLocal
+    ? thisDeviceLabel
+    : online
+    ? onlineLabel
+    : offlineLabel;
   const rowModifiers = [frame({ maxWidth: Infinity })];
 
-  if (!device.isLocal && !removing) {
+  if (manageable && !removing) {
     rowModifiers.push(
       contentShape(shapes.rectangle()),
       onTapGesture(onManage),
@@ -89,12 +109,12 @@ function SpaceDeviceRow({
         <HStack spacing={5} alignment="center">
           <Image systemName="circle.fill" size={7} color={statusColor} />
           <SwiftUIText modifiers={[font({ size: 13 }), foregroundStyle('secondary')]}>
-            {device.isLocal ? thisDeviceLabel : online ? onlineLabel : offlineLabel}
+            {statusLabel}
           </SwiftUIText>
         </HStack>
       </VStack>
       <Spacer />
-      {!device.isLocal ? (
+      {manageable ? (
         removing ? (
           <ProgressView />
         ) : (
@@ -169,12 +189,17 @@ export function SpacePage({
 
   const spaceId = space.spaceId;
   const workspaceConvergence = space.workspaceConvergence;
-  const devices = [...space.devices].sort((left, right) => {
-    const leftRank = left.isLocal ? 0 : left.online ? 1 : 2;
-    const rightRank = right.isLocal ? 0 : right.online ? 1 : 2;
+  const rosterDeviceIds = new Set(space.devices.map((device) => device.deviceId));
+  const devices = buildDeviceTrustDeviceViews(space.deviceTrust, space.devices).sort(
+    (left, right) => {
+    const leftRank = left.isLocal ? 0 : left.reachability === 'online' ? 1 : 2;
+    const rightRank = right.isLocal ? 0 : right.reachability === 'online' ? 1 : 2;
     return leftRank - rightRank;
-  });
-  const onlineCount = devices.filter((device) => device.isLocal || device.online).length;
+    }
+  );
+  const onlineCount = devices.filter(
+    (device) => device.isLocal || device.reachability === 'online'
+  ).length;
   const offlineCount = devices.length - onlineCount;
   const convergenceDeviceName = (deviceId: string) =>
     devices.find((device) => device.deviceId === deviceId)?.displayName ?? deviceId;
@@ -288,7 +313,7 @@ export function SpacePage({
                     </SwiftUIText>
                   }
                 >
-                  {workspaceConvergence.waitingMemberDeviceIds.map((deviceId) => (
+                  {workspaceConvergence.pendingRemovalDecisionDeviceIds.map((deviceId) => (
                     <HStack key={deviceId} spacing={10} modifiers={[frame({ maxWidth: Infinity })]}>
                       <Image systemName="desktopcomputer" size={17} color={settingsTileColors.indigo} />
                       <VStack alignment="leading" spacing={2}>
@@ -327,6 +352,9 @@ export function SpacePage({
                       thisDeviceLabel={t('space.devices.thisDevice')}
                       onlineLabel={t('space.devices.online')}
                       offlineLabel={t('space.devices.offline')}
+                      manageable={
+                        !device.isLocal && rosterDeviceIds.has(device.deviceId)
+                      }
                       onManage={() => removeMember(device.deviceId)}
                     />
                   ))

@@ -1,0 +1,77 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  buildDeviceTrustDecisionView,
+  getUnifiedSpaceService,
+  initialDeviceTrustChoice,
+  useUnifiedSpaceStore,
+} from '@/features/space';
+import type { DeviceTrustChoice } from '@/platform/engine';
+
+export function useDeviceTrustDecision() {
+  const deviceTrust = useUnifiedSpaceStore((state) => state.deviceTrust);
+  const status = useUnifiedSpaceStore((state) => state.deviceTrustDecisionStatus);
+  const error = useUnifiedSpaceStore((state) => state.deviceTrustDecisionError);
+  const outcome = useUnifiedSpaceStore((state) => state.deviceTrustDecisionOutcome);
+  const [selection, setSelection] = useState<{
+    changeId: string | null;
+    choice: DeviceTrustChoice | null;
+  }>({ changeId: null, choice: null });
+  const [confirmingChoice, setConfirmingChoice] = useState<DeviceTrustChoice | null>(null);
+
+  useEffect(() => {
+    const next = initialDeviceTrustChoice(deviceTrust, selection.changeId, selection.choice);
+    if (next.changeId === selection.changeId && next.choice === selection.choice) return;
+    setSelection(next);
+    setConfirmingChoice(null);
+  }, [deviceTrust, selection.changeId, selection.choice]);
+
+  const view = useMemo(() => buildDeviceTrustDecisionView(deviceTrust), [deviceTrust]);
+
+  const choose = useCallback(
+    async (choice: DeviceTrustChoice) => {
+      const change = deviceTrust?.currentChange;
+      if (!change || status === 'submitting' || !change.allowedChoices.includes(choice)) return;
+      setSelection({ changeId: change.changeId, choice });
+      if (choice === 'keepCurrentDeviceGroup' || change.includesLocalDevice) {
+        setConfirmingChoice(choice);
+        return;
+      }
+      try {
+        await getUnifiedSpaceService().decideDeviceTrust(choice, false);
+      } catch {
+        // The space service publishes the actionable error for this modal.
+      }
+    },
+    [deviceTrust, status]
+  );
+
+  const confirm = useCallback(async () => {
+    const change = deviceTrust?.currentChange;
+    const choice = confirmingChoice;
+    if (!change || !choice || status === 'submitting') return;
+    setConfirmingChoice(null);
+    try {
+      await getUnifiedSpaceService().decideDeviceTrust(
+        choice,
+        choice === 'applyChange' && change.includesLocalDevice
+      );
+    } catch {
+      // The space service publishes the actionable error for this modal.
+    }
+  }, [confirmingChoice, deviceTrust, status]);
+
+  const cancelConfirmation = useCallback(() => setConfirmingChoice(null), []);
+
+  return {
+    view,
+    changeId: view?.changeId ?? null,
+    selectedChoice: selection.choice,
+    confirmingChoice,
+    submitting: status === 'submitting',
+    error,
+    outcome,
+    choose,
+    confirm,
+    cancelConfirmation,
+  };
+}

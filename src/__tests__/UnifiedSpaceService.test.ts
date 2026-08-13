@@ -7,8 +7,63 @@ import {
   type UnifiedSpaceApi,
   type UnifiedSpaceSnapshot,
 } from '../features/space';
+import type { DeviceTrustDecision, DeviceTrustSnapshot } from '../platform/engine';
 
 const log = createLogger('UnifiedSpaceService');
+
+function deviceTrustSnapshot(
+  revision = 1,
+  changeId: string | null = 'change-1',
+  allowedChoices: DeviceTrustSnapshot['currentChange'] extends infer _T
+    ? ('applyChange' | 'keepCurrentDeviceGroup')[]
+    : never = ['applyChange', 'keepCurrentDeviceGroup']
+): DeviceTrustSnapshot {
+  return {
+    revision,
+    localDeviceId: 'phone-1',
+    localMembership: 'active',
+    currentChange: changeId
+      ? {
+          changeId,
+          proposedByDeviceId: 'desktop-1',
+          targetDeviceIds: ['tablet-1'],
+          includesLocalDevice: false,
+          applyImpact: {
+            usableDeviceIds: ['phone-1', 'desktop-1'],
+            pausedDeviceIds: ['tablet-1'],
+            localDeviceOutcome: 'active',
+            requiresRejoinDeviceIds: ['tablet-1'],
+          },
+          keepCurrentImpact: {
+            usableDeviceIds: ['phone-1', 'tablet-1'],
+            pausedDeviceIds: ['desktop-1'],
+            localDeviceOutcome: 'active',
+            requiresRejoinDeviceIds: ['desktop-1'],
+          },
+          allowedChoices,
+          blockedReason: null,
+        }
+      : null,
+    devices: [
+      {
+        deviceId: 'phone-1',
+        displayName: 'Phone',
+        isLocal: true,
+        reachability: 'online',
+        membership: 'active',
+        groupRelationship: changeId ? 'pendingLocalDecision' : 'consistent',
+        compatibility: 'compatible',
+        syncRelationship: changeId ? 'waitingForLocalDecision' : 'usable',
+        availableActions: [],
+        blockedReason: null,
+      },
+    ],
+    recovery: 'notAvailableInThisVersion',
+    allowedActions: changeId ? ['applyCurrentChange', 'keepCurrentDeviceGroup'] : [],
+    blockedReason: null,
+    updatedAtMs: 123_456 + revision,
+  };
+}
 
 function createApi(overrides: Partial<UnifiedSpaceApi> = {}): UnifiedSpaceApi {
   return {
@@ -41,29 +96,21 @@ function createApi(overrides: Partial<UnifiedSpaceApi> = {}): UnifiedSpaceApi {
       migratedRecords: 0,
       preservedUnreadableRecords: 0,
     })),
-    queryWorkspaceConvergence: jest.fn(async () => ({
-      phase: 'complete' as const,
-      revision: 1,
-      changeCount: 0,
-      removalIntentCount: 0,
-      effectiveMemberCount: 2,
-      confirmedMemberCount: 2,
-      waitingMemberDeviceIds: [],
-      waitingMemberCount: 0,
-      convergenceDigest: 'digest-1',
-      removed: false,
-      updatedAtMs: 123_456,
-      failureCategory: null,
+    queryDeviceTrust: jest.fn(async () => deviceTrustSnapshot()),
+    decideDeviceTrustChange: jest.fn(async () => ({
+      kind: 'applied' as const,
+      changeId: 'change-1',
+      snapshot: deviceTrustSnapshot(2, null),
     })),
     removeMember: jest.fn(async () => ({
       phase: 'converging' as const,
       revision: 2,
-      changeCount: 1,
-      removalIntentCount: 1,
+      historyEventCount: 1,
       effectiveMemberCount: 1,
-      confirmedMemberCount: 1,
-      waitingMemberDeviceIds: ['laptop-1'],
-      waitingMemberCount: 1,
+      pendingRemovalDecisionDeviceIds: ['laptop-1'],
+      pendingRemovalDecisionEventId: 'event-1',
+      divergedPeerDeviceIds: [],
+      upgradeRequiredPeerDeviceIds: [],
       convergenceDigest: 'digest-2',
       removed: false,
       updatedAtMs: 123_457,
@@ -117,6 +164,152 @@ function createServiceWithCompletion(
 }
 
 describe('UnifiedSpaceService', () => {
+  it('loads the complete device trust snapshot during a full refresh', async () => {
+    const snapshots: UnifiedSpaceSnapshot[] = [];
+    const trust = deviceTrustSnapshot(4, 'pending-4');
+    const api = createApi({ queryDeviceTrust: jest.fn(async () => trust) });
+    const service = new UnifiedSpaceService(api, (snapshot) => snapshots.push(snapshot));
+
+    await service.refresh();
+
+    expect(api.queryDeviceTrust).toHaveBeenCalledTimes(1);
+    expect(snapshots.at(-1)?.deviceTrust).toEqual(trust);
+  });
+
+  it('does not retain device trust after the space becomes empty', async () => {
+    const api = createApi({
+      querySpaceState: jest
+        .fn<UnifiedSpaceApi['querySpaceState']>()
+        .mockResolvedValueOnce({
+          hasCompleted: true,
+          spaceId: 'space-1',
+          currentInvitation: null,
+          deviceName: 'Phone',
+        })
+        .mockResolvedValueOnce({
+          hasCompleted: false,
+          spaceId: null,
+          currentInvitation: null,
+          deviceName: null,
+        }),
+    });
+    const service = new UnifiedSpaceService(api);
+
+    expect((await service.refresh()).deviceTrust).not.toBeNull();
+    expect((await service.refresh()).deviceTrust).toBeNull();
+  });
+
+  it('publishes only the newest device trust refresh when reads finish out of order', async () => {
+    const oldTrust = deferred<DeviceTrustSnapshot>();
+    const newTrust = deferred<DeviceTrustSnapshot>();
+    const snapshots: UnifiedSpaceSnapshot[] = [];
+    const api = createApi({
+      queryDeviceTrust: jest
+        .fn<UnifiedSpaceApi['queryDeviceTrust']>()
+        .mockImplementationOnce(() => oldTrust.promise)
+        .mockImplementationOnce(() => newTrust.promise),
+    });
+    const service = new UnifiedSpaceService(api, (snapshot) => snapshots.push(snapshot));
+
+    const oldRefresh = service.refresh();
+    for (let index = 0; index < 4; index += 1) await Promise.resolve();
+    expect(api.queryDeviceTrust).toHaveBeenCalledTimes(1);
+    const newRefresh = service.refreshDeviceTrust();
+    newTrust.resolve(deviceTrustSnapshot(2, 'new-change'));
+    await newRefresh;
+    oldTrust.resolve(deviceTrustSnapshot(1, 'old-change'));
+    await oldRefresh;
+
+    expect(snapshots.at(-1)?.deviceTrust?.currentChange?.changeId).toBe('new-change');
+  });
+
+  it('publishes a decision result even when a read started during the decision finishes later', async () => {
+    const decision = deferred<DeviceTrustDecision>();
+    const staleTrust = deferred<DeviceTrustSnapshot>();
+    const snapshots: UnifiedSpaceSnapshot[] = [];
+    const api = createApi({
+      decideDeviceTrustChange: jest.fn(() => decision.promise),
+      queryDeviceTrust: jest
+        .fn<UnifiedSpaceApi['queryDeviceTrust']>()
+        .mockResolvedValueOnce(deviceTrustSnapshot())
+        .mockImplementationOnce(() => staleTrust.promise),
+    });
+    const service = new UnifiedSpaceService(api, (snapshot) => snapshots.push(snapshot));
+    await service.refresh();
+
+    const deciding = service.decideDeviceTrust('applyChange', false);
+    const reading = service.refreshDeviceTrust();
+    decision.resolve({
+      kind: 'applied',
+      changeId: 'change-1',
+      snapshot: deviceTrustSnapshot(3, null),
+    });
+    await deciding;
+    staleTrust.resolve(deviceTrustSnapshot(2, 'stale-change'));
+    await reading;
+
+    expect(snapshots.at(-1)?.deviceTrust?.revision).toBe(3);
+    expect(snapshots.at(-1)?.deviceTrust?.currentChange).toBeNull();
+  });
+
+  it('shares one in-flight decision for repeated taps', async () => {
+    const pending = deferred<DeviceTrustDecision>();
+    const api = createApi({ decideDeviceTrustChange: jest.fn(() => pending.promise) });
+    const service = new UnifiedSpaceService(api);
+    await service.refresh();
+
+    const first = service.decideDeviceTrust('applyChange', false);
+    const second = service.decideDeviceTrust('applyChange', false);
+    expect(second).toBe(first);
+    pending.resolve({
+      kind: 'applied',
+      changeId: 'change-1',
+      snapshot: deviceTrustSnapshot(2, null),
+    });
+    await first;
+
+    expect(api.decideDeviceTrustChange).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a choice that the current Engine snapshot does not allow', async () => {
+    const api = createApi({
+      queryDeviceTrust: jest.fn(async () => deviceTrustSnapshot(1, 'change-1', ['applyChange'])),
+    });
+    const service = new UnifiedSpaceService(api);
+    await service.refresh();
+
+    await expect(service.decideDeviceTrust('keepCurrentDeviceGroup', false)).rejects.toMatchObject({
+      code: 'choiceNotAllowed',
+    });
+    expect(api.decideDeviceTrustChange).not.toHaveBeenCalled();
+  });
+
+  it('does not retry a failed decision, refreshes once, and keeps the error visible', async () => {
+    const failure = new Error('Engine decision failed');
+    const api = createApi({
+      decideDeviceTrustChange: jest.fn(async () => {
+        throw failure;
+      }),
+      queryDeviceTrust: jest
+        .fn<UnifiedSpaceApi['queryDeviceTrust']>()
+        .mockResolvedValueOnce(deviceTrustSnapshot())
+        .mockResolvedValueOnce(deviceTrustSnapshot(2, 'change-2')),
+    });
+    const service = new UnifiedSpaceService(api);
+    await service.refresh();
+
+    await expect(service.decideDeviceTrust('applyChange', false)).rejects.toBe(failure);
+
+    expect(api.decideDeviceTrustChange).toHaveBeenCalledTimes(1);
+    expect(api.queryDeviceTrust).toHaveBeenCalledTimes(2);
+    expect(service.getSnapshot()).toEqual(
+      expect.objectContaining({
+        deviceTrust: expect.objectContaining({ revision: 2 }),
+        deviceTrustDecisionStatus: 'idle',
+        deviceTrustDecisionError: 'Engine decision failed',
+      })
+    );
+  });
   it.each([
     ['engine error 1233 (Unauthorized)', 'passphraseMismatch'],
     ['BindingError.Engine(code: 1234, category: notFound, retryable: false)', 'invitationNotFound'],
@@ -345,36 +538,6 @@ describe('UnifiedSpaceService', () => {
     expect(completion.resolveFromCore).toHaveBeenCalledWith(true);
   });
 
-  it('keeps the active space when workspace convergence cannot be read', async () => {
-    const snapshots: UnifiedSpaceSnapshot[] = [];
-    const logError = jest.spyOn(log, 'error').mockImplementation(() => undefined);
-    const api = createApi({
-      queryWorkspaceConvergence: jest.fn(async () => {
-        throw new Error('Engine error 1387');
-      }),
-    });
-    const service = new UnifiedSpaceService(api, (snapshot) => snapshots.push(snapshot));
-
-    await expect(service.refresh()).resolves.toEqual(
-      expect.objectContaining({
-        status: 'ready',
-        spaceId: 'space-1',
-        devices: [
-          { deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true },
-          { deviceId: 'desktop-1', displayName: 'Desktop', isLocal: false, online: false },
-        ],
-        workspaceConvergence: null,
-      })
-    );
-    expect(logError).toHaveBeenCalledWith(
-      'Space refresh failed',
-      expect.objectContaining({ stage: 'queryWorkspaceConvergence', errorCode: 1387 })
-    );
-    expect(snapshots.at(-1)).toEqual(
-      expect.objectContaining({ status: 'ready', spaceId: 'space-1' })
-    );
-  });
-
   it.each([
     [
       'querySpaceState',
@@ -464,12 +627,12 @@ describe('UnifiedSpaceService', () => {
     const convergence = {
       phase: 'converging' as const,
       revision: 2,
-      changeCount: 1,
-      removalIntentCount: 1,
+      historyEventCount: 1,
       effectiveMemberCount: 1,
-      confirmedMemberCount: 1,
-      waitingMemberDeviceIds: ['laptop-1'],
-      waitingMemberCount: 1,
+      pendingRemovalDecisionDeviceIds: ['laptop-1'],
+      pendingRemovalDecisionEventId: 'event-1',
+      divergedPeerDeviceIds: [],
+      upgradeRequiredPeerDeviceIds: [],
       convergenceDigest: 'digest-2',
       removed: false,
       updatedAtMs: 123_456,
@@ -492,67 +655,6 @@ describe('UnifiedSpaceService', () => {
     expect(snapshots.at(-1)?.devices).toEqual([
       { deviceId: 'phone-1', displayName: 'Phone', isLocal: true, online: true },
     ]);
-    expect(snapshots.at(-1)?.workspaceConvergence).toEqual(convergence);
-  });
-
-  it('restores workspace convergence after an app restart', async () => {
-    const convergence = {
-      phase: 'waitingForOfflineMember' as const,
-      revision: 3,
-      changeCount: 1,
-      removalIntentCount: 1,
-      effectiveMemberCount: 1,
-      confirmedMemberCount: 1,
-      waitingMemberDeviceIds: ['laptop-1'],
-      waitingMemberCount: 1,
-      convergenceDigest: 'digest-3',
-      removed: false,
-      updatedAtMs: 123_456,
-      failureCategory: null,
-    };
-    const snapshots: UnifiedSpaceSnapshot[] = [];
-    const api = {
-      ...createApi(),
-      queryWorkspaceConvergence: jest.fn(async () => convergence),
-    };
-    const service = new UnifiedSpaceService(api as UnifiedSpaceApi, (snapshot) =>
-      snapshots.push(snapshot)
-    );
-
-    await service.refresh();
-
-    expect(api.queryWorkspaceConvergence).toHaveBeenCalledTimes(1);
-    expect(snapshots.at(-1)?.workspaceConvergence).toEqual(convergence);
-  });
-
-  it('refreshes workspace convergence with the device list', async () => {
-    const convergence = {
-      phase: 'converging' as const,
-      revision: 4,
-      changeCount: 1,
-      removalIntentCount: 1,
-      effectiveMemberCount: 1,
-      confirmedMemberCount: 1,
-      waitingMemberDeviceIds: ['laptop-1'],
-      waitingMemberCount: 1,
-      convergenceDigest: 'digest-4',
-      removed: false,
-      updatedAtMs: 123_456,
-      failureCategory: null,
-    };
-    const snapshots: UnifiedSpaceSnapshot[] = [];
-    const api = {
-      ...createApi(),
-      queryWorkspaceConvergence: jest.fn(async () => convergence),
-    };
-    const service = new UnifiedSpaceService(api as UnifiedSpaceApi, (snapshot) =>
-      snapshots.push(snapshot)
-    );
-
-    await service.refresh();
-    await service.refreshDevices();
-
-    expect(api.queryWorkspaceConvergence).toHaveBeenCalledTimes(2);
     expect(snapshots.at(-1)?.workspaceConvergence).toEqual(convergence);
   });
 

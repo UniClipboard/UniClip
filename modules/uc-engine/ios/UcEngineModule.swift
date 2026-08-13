@@ -206,11 +206,19 @@ public final class UcEngineModule: Module {
       return devices
     }.runOnQueue(engineOperationQueue)
 
-    AsyncFunction("queryWorkspaceConvergence") { () -> [String: Any?] in
-      let result = try self.runSpaceRead("queryWorkspaceConvergence") {
-        try self.requireEngine().queryWorkspaceConvergence()
+    AsyncFunction("queryDeviceTrust") { () -> String in
+      try self.runSpaceRead("queryDeviceTrust") {
+        try self.requireEngine().queryDeviceTrust()
       }
-      return Self.workspaceConvergenceMap(result)
+    }.runOnQueue(engineOperationQueue)
+
+    AsyncFunction("decideDeviceTrustChange") {
+      (changeId: String, choice: String, confirmLocalRemoval: Bool) -> String in
+      try self.requireEngine().decideDeviceTrustChange(
+        changeId: changeId,
+        choice: try Self.deviceTrustChoice(choice),
+        confirmLocalRemoval: confirmLocalRemoval
+      )
     }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("removeMember") { (deviceId: String) -> [String: Any?] in
@@ -382,6 +390,8 @@ public final class UcEngineModule: Module {
         "errored": errored,
         "pending": pending,
       ]
+    case .synchronizationDisabled:
+      return ["kind": "synchronizationDisabled"]
     case .entryNotFound(let entryId):
       return ["kind": "entryNotFound", "entryId": entryId]
     case .entryNotResendable(let entryId, let reason):
@@ -505,11 +515,8 @@ public final class UcEngineModule: Module {
         "activatedAtMs": activatedAtMs,
         "activatedBy": activatedBy,
       ]
-    case .workspaceConvergenceChanged(let convergence):
-      return [
-        "type": "workspaceConvergenceChanged",
-        "convergence": workspaceConvergenceMap(convergence),
-      ]
+    case .deviceTrustChanged(let revision):
+      return ["type": "deviceTrustChanged", "revision": revision]
     case .networkRecoveryChanged(let phase, let retryable, let nextRetryInMs):
       return [
         "type": "networkRecoveryChanged",
@@ -526,6 +533,14 @@ public final class UcEngineModule: Module {
     switch action {
     case .suspend: "suspend"
     case .resume: "resume"
+    }
+  }
+
+  private static func deviceTrustChoice(_ value: String) throws -> DeviceTrustChoice {
+    switch value {
+    case "applyChange": .applyChange
+    case "keepCurrentDeviceGroup": .keepCurrentDeviceGroup
+    default: throw UcEngineInvalidInputException()
     }
   }
 
@@ -561,7 +576,6 @@ public final class UcEngineModule: Module {
     switch convergence.phase {
     case .locallyApplied: phase = "locallyApplied"
     case .converging: phase = "converging"
-    case .waitingForOfflineMember: phase = "waitingForOfflineMember"
     case .complete: phase = "complete"
     case .recoveryRequired: phase = "recoveryRequired"
     }
@@ -580,12 +594,12 @@ public final class UcEngineModule: Module {
     return [
       "phase": phase,
       "revision": convergence.revision,
-      "changeCount": convergence.changeCount,
-      "removalIntentCount": convergence.removalIntentCount,
+      "historyEventCount": convergence.historyEventCount,
       "effectiveMemberCount": convergence.effectiveMemberCount,
-      "confirmedMemberCount": convergence.confirmedMemberCount,
-      "waitingMemberDeviceIds": convergence.waitingMemberDeviceIds,
-      "waitingMemberCount": convergence.waitingMemberCount,
+      "pendingRemovalDecisionDeviceIds": convergence.pendingRemovalDecisionDeviceIds,
+      "pendingRemovalDecisionEventId": convergence.pendingRemovalDecisionEventId,
+      "divergedPeerDeviceIds": convergence.divergedPeerDeviceIds,
+      "upgradeRequiredPeerDeviceIds": convergence.upgradeRequiredPeerDeviceIds,
       "convergenceDigest": convergence.convergenceDigest,
       "removed": convergence.removed,
       "updatedAtMs": convergence.updatedAtMs,
@@ -699,6 +713,10 @@ private final class UcEngineNotStartedException: Exception, @unchecked Sendable 
 
 private final class UcEngineAlreadyStartedException: Exception, @unchecked Sendable {
   override var reason: String { "The shared P2P engine is already running" }
+}
+
+private final class UcEngineInvalidInputException: Exception, @unchecked Sendable {
+  override var reason: String { "The device trust choice is invalid" }
 }
 
 private extension NSLock {

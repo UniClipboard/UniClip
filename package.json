@@ -85,6 +85,7 @@
     "expo-localization": "~56.0.6",
     "expo-media-library": "~56.0.7",
     "expo-module-scripts": "~56.0.3",
+    "expo-notifications": "~56.0.23",
     "expo-sharing": "~56.0.18",
     "expo-sqlite": "~56.0.5",
     "expo-status-bar": "~56.0.4",
@@ -127,6 +128,7 @@
     "husky": "^9.1.7",
     "lint-staged": "^17.0.8",
     "prettier": "^3.8.1",
+    "react-test-renderer": "^19.2.3",
     "typescript": "~6.0.3"
   },
   "private": true

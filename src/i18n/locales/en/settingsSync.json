@@ -109,6 +109,36 @@
       "manageHint": "Opens device management",
       "idLabel": "Device ID {{id}}"
     },
+    "deviceTrust": {
+      "title": "Review a device change",
+      "body": "{{source}} changed which devices belong to this space. Choose which device group this device should trust.",
+      "targets": "Devices affected: {{devices}}",
+      "apply": "Use the changed device group",
+      "leave": "Leave this space",
+      "keep": "Keep this device group",
+      "continues": "Continues syncing: {{devices}}",
+      "stops": "Stops syncing: {{devices}}",
+      "none": "None",
+      "confirmKeepTitle": "Keep this device group?",
+      "confirmKeepBody": "This device will stop syncing with devices that accepted the other group until they rejoin.",
+      "confirmLeaveTitle": "Leave this space?",
+      "confirmLeaveBody": "This device will stop syncing with this space. Local history will remain on this device.",
+      "confirm": "Confirm",
+      "notificationTitle": "Review a device change",
+      "notificationBody": "Open UniClip to review which devices can continue syncing.",
+      "notificationChannel": "Device changes",
+      "stateChanged": "The device state changed. Review the latest result.",
+      "error": "The choice could not be saved. The latest device state is shown; try again.",
+      "status": {
+        "waitingForLocalDecision": "Waiting for your choice",
+        "unverifiable": "Device details cannot be verified",
+        "upgradeRequired": "Update required",
+        "differentSpace": "Different space",
+        "removed": "Removed",
+        "usable": "Available",
+        "unknown": "Status unavailable"
+      }
+    },
     "convergence": {
       "title": "Sync status",
       "waiting": "Waiting for devices in this space to finish syncing.",
