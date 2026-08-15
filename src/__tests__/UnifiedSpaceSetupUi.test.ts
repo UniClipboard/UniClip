@@ -82,14 +82,18 @@ describe('unified space setup UI', () => {
   it('supports device management and leaving the local space on both platforms', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
     const ios = source('screens/settings/ios/SpacePage.tsx');
+    const iosSettings = source('screens/SettingsScreen.ios.tsx');
 
     for (const platform of [android, ios]) {
       expect(platform).toContain('useUnifiedSpaceStore');
-      expect(platform).toContain('useSpaceDeviceManagement');
-      expect(platform).toContain('<SpaceDeviceDetail');
       expect(platform).toContain('.leaveSpace()');
       expect(platform).toContain('space.leave.action');
     }
+    expect(android).toContain('useSpaceDeviceManagement');
+    expect(android).toContain('<SpaceDeviceDetail');
+    expect(iosSettings).toContain('useSpaceDeviceManagement({ allowHighImpactActions: true })');
+    expect(iosSettings).toContain('<SpaceDeviceDetail');
+    expect(ios).not.toContain('<SpaceDeviceDetail');
     expect(android).toContain('space.devices.otherTitle');
     expect(ios).toContain('space.devices.title');
   });
