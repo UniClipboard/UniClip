@@ -57,6 +57,8 @@
       "./plugins/build/withXcode27SceneLifecycle.js",
       "./plugins/build/withXcode27DeploymentTargets.js",
       "@bacons/apple-targets",
+      "./plugins/build/withLocalNotificationsOnly.js",
+      "expo-notifications",
       ["expo-sharing", { "android": { "enabled": true, "singleShareMimeTypes": ["*/*"] } }],
       [
         "expo-camera",

@@ -4,8 +4,11 @@ import path from 'path';
 
 jest.setTimeout(30000);
 
-const readExpoConfig = (variant: 'development' | 'production') => {
-  const result = spawnSync('npx', ['expo', 'config', '--type', 'public', '--json'], {
+const readExpoConfig = (
+  variant: 'development' | 'production',
+  type: 'public' | 'introspect' = 'public'
+) => {
+  const result = spawnSync('npx', ['expo', 'config', '--type', type, '--json'], {
     cwd: process.cwd(),
     encoding: 'utf8',
     env: {
@@ -108,6 +111,12 @@ describe('Expo app config variants', () => {
         },
       },
     ]);
+  });
+
+  it('does not declare remote push capability for local-only notifications', () => {
+    const config = readExpoConfig('production', 'introspect');
+
+    expect(config.ios.entitlements['aps-environment']).toBeUndefined();
   });
 
   it('makes native App Group resolution follow the active app variant', () => {

@@ -12,6 +12,7 @@ v2.0.0.175-alpha.1
 
 - Improvement: Use system-aligned pages for space settings and device details
 - Fix: Make space device details and settings actions fully tappable and avoid flashing back while opening details
+- Fix: Keep local notifications from requesting remote-push access and blocking iOS package publication
 
 ### Android
 
