@@ -45,7 +45,12 @@ const SettingsSubScreenInner = memo(function SettingsSubScreenInner() {
           contentPadding={{ start: 16, end: 16, top: 16, bottom: 40 }}
           verticalArrangement={{ spacedBy: 16 }}
         >
-          {section === 'space' && <UnifiedSpaceSetup />}
+          {section === 'space' && (
+            <UnifiedSpaceSetup
+              initialDeviceId={route.params.deviceId}
+              notificationNavigationRequestId={route.params.notificationNavigationRequestId}
+            />
+          )}
 
           {section === 'history' && <HistorySection />}
 

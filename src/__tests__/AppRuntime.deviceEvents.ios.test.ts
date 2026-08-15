@@ -142,13 +142,15 @@ describe('AppRuntime device list refresh routing on iOS', () => {
     expect(mockSpaceRefresh).toHaveBeenCalledTimes(1);
   });
 
-  it('queries the complete device trust snapshot for a revision-only trust event', async () => {
+  it('refreshes the complete space snapshot for a revision-only trust event', async () => {
     await getAppRuntime().start();
 
     emit({ type: 'deviceTrustChanged', revision: 9 });
     await flushMicrotasks();
 
-    expect(mockSpaceRefreshDeviceTrust).toHaveBeenCalledTimes(1);
+    expect(mockSpaceRefresh).toHaveBeenCalledTimes(2);
+    expect(mockSpaceRefresh).toHaveBeenLastCalledWith({ afterInvalidation: true });
+    expect(mockSpaceRefreshDeviceTrust).not.toHaveBeenCalled();
     expect(mockSpaceRefreshDevices).not.toHaveBeenCalled();
   });
 

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWindowDimensions } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { Host, BottomSheet, Group, VStack, ZStack } from '@expo/ui/swift-ui';
 import {
   presentationDetents,
@@ -25,6 +25,7 @@ import { SharePage } from './settings/ios/SharePage';
 import { ClipboardAccessPage } from './settings/ios/ClipboardAccessPage';
 import { DiagnosticsPage } from './settings/ios/DiagnosticsPage';
 import { SpacePage } from './settings/ios/SpacePage';
+import type { RootStackParamList } from '@/navigation/AppNavigator';
 
 const fillModifier = frame({ maxWidth: Infinity, maxHeight: Infinity });
 const PUSH_SPRING = Animation.spring({ response: 0.38, dampingFraction: 0.92 });
@@ -74,6 +75,8 @@ function SettingsSubPageOverlay({
  */
 export const SettingsScreen = () => {
   const navigation = useNavigation();
+  const route = useRoute<RouteProp<RootStackParamList, 'Settings'>>();
+  const notificationRouteHandled = useRef<number | null>(null);
   const { config, isLoaded, loadConfig } = useSettingsStore();
 
   const [presented, setPresented] = useState(true);
@@ -85,6 +88,19 @@ export const SettingsScreen = () => {
   useEffect(() => {
     if (!isLoaded) loadConfig();
   }, [isLoaded, loadConfig]);
+
+  useEffect(() => {
+    const requestId = route.params?.notificationNavigationRequestId;
+    if (
+      requestId == null ||
+      notificationRouteHandled.current === requestId ||
+      route.params?.section !== 'space'
+    )
+      return;
+    notificationRouteHandled.current = requestId;
+    setActivePage('space');
+    setIsLeavingPage(false);
+  }, [route.params?.notificationNavigationRequestId, route.params?.section]);
 
   const handleDismiss = useCallback(
     (p: boolean) => {
@@ -123,6 +139,10 @@ export const SettingsScreen = () => {
                 <SettingsSubPageOverlay isLeaving={isLeavingPage} onExited={removeSubPage}>
                   {activePage === 'space' ? (
                     <SpacePage
+                      initialDeviceId={route.params?.deviceId}
+                      notificationNavigationRequestId={
+                        route.params?.notificationNavigationRequestId
+                      }
                       onBack={backToRoot}
                       onOpenInvitation={() => setShowSpaceInvitation(true)}
                       onOpenSetup={setSpaceSetupMode}

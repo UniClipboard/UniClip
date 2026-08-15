@@ -89,7 +89,13 @@ function trust(changeId = 'change-1', includesLocalDevice = false): DeviceTrustS
 
 function publish(deviceTrust: DeviceTrustSnapshot | null) {
   useUnifiedSpaceStore.setState(
-    { ...createInitialUnifiedSpaceSnapshot('ready'), spaceId: 'space-1', deviceTrust },
+    {
+      ...createInitialUnifiedSpaceSnapshot('ready'),
+      spaceId: 'space-1',
+      deviceTrustQuery: deviceTrust
+        ? { kind: 'ready', snapshot: deviceTrust }
+        : { kind: 'notApplicable' },
+    },
     true
   );
 }
@@ -180,5 +186,31 @@ describe('useDeviceTrustDecision', () => {
 
     expect(currentDecision.changeId).toBe('change-2');
     expect(currentDecision.confirmingChoice).toBeNull();
+  });
+
+  it('holds the next decision behind the current operation result', () => {
+    const current = trust('next-change');
+    publish(current);
+    useUnifiedSpaceStore.setState({
+      operationState: {
+        kind: 'result',
+        result: {
+          kind: 'applyChange',
+          spaceId: 'space-1',
+          targetDeviceId: null,
+          localDeviceInSpace: true,
+          usableDevices: [],
+          separatedDevices: [],
+          continuingSpaceDevices: [],
+          verification: 'verified',
+          hasOfflineDevices: false,
+          decisionOutcome: 'applied',
+        },
+      },
+    });
+
+    createHarness();
+
+    expect(currentDecision.view).toBeNull();
   });
 });

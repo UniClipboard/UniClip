@@ -1,4 +1,7 @@
-import type { DeviceTrustChoice as NativeDeviceTrustChoice } from 'uc-engine';
+import type {
+  DeviceTrustChoice as NativeDeviceTrustChoice,
+  DeviceTrustQueryResult as NativeDeviceTrustQueryResult,
+} from 'uc-engine';
 
 export type DeviceMembership = 'active' | 'removed' | 'unavailable' | 'unknown';
 export type DeviceReachability = 'online' | 'offline' | 'unknown';
@@ -252,6 +255,13 @@ export function parseDeviceTrustSnapshot(value: string): DeviceTrustSnapshot {
   } catch {
     throw new Error('Invalid device trust snapshot');
   }
+}
+
+export function parseDeviceTrustQueryResult(
+  result: NativeDeviceTrustQueryResult
+): DeviceTrustSnapshot {
+  if (result.ok) return parseDeviceTrustSnapshot(result.value);
+  throw Object.assign(new Error('Device trust query failed'), result.failure);
 }
 
 export function parseDeviceTrustDecision(value: string): DeviceTrustDecision {

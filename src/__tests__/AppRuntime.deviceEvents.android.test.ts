@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { configureAppRuntime, getAppRuntime } from '../app/runtime';
 
 let appStateListener: ((state: string) => void) | undefined;
@@ -133,13 +135,15 @@ describe('AppRuntime device list refresh routing on Android', () => {
     expect(mockSpaceRefresh).toHaveBeenCalledTimes(1);
   });
 
-  it('queries the complete device trust snapshot for a revision-only trust event', async () => {
+  it('refreshes the complete space snapshot for a revision-only trust event', async () => {
     await getAppRuntime().start();
 
     emit({ type: 'deviceTrustChanged', revision: 9 });
     await flushMicrotasks();
 
-    expect(mockSpaceRefreshDeviceTrust).toHaveBeenCalledTimes(1);
+    expect(mockSpaceRefresh).toHaveBeenCalledTimes(2);
+    expect(mockSpaceRefresh).toHaveBeenLastCalledWith({ afterInvalidation: true });
+    expect(mockSpaceRefreshDeviceTrust).not.toHaveBeenCalled();
     expect(mockSpaceRefreshDevices).not.toHaveBeenCalled();
   });
 
@@ -210,5 +214,11 @@ describe('AppRuntime device list refresh routing on Android', () => {
     appStateListener?.('active');
     await flushMicrotasks();
     expect(mockSpaceRefresh).toHaveBeenCalledTimes(2);
+  });
+
+  it('never writes device identities from the space roster to logs', () => {
+    const runtime = readFileSync(join(process.cwd(), 'src/app/runtime/appRuntime.ts'), 'utf8');
+
+    expect(runtime).not.toContain("log.info('P2P space devices', space.devices)");
   });
 });

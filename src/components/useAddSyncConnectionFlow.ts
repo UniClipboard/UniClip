@@ -79,6 +79,15 @@ function remainingTime(expiresAtMs: number, nowMs: number): string {
   return `${minutes}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
+function canReplaceCurrentSpace(): boolean {
+  const state = useUnifiedSpaceStore.getState();
+  return (
+    state.deviceTrustQuery.kind === 'ready' &&
+    state.deviceTrustQuery.snapshot.currentChange === null &&
+    state.operationState.kind === 'idle'
+  );
+}
+
 export function useAddSyncConnectionFlow({
   visible,
   initialMode = 'choose',
@@ -216,6 +225,10 @@ export function useAddSyncConnectionFlow({
 
   const joinWithCurrentInputs = async () => {
     if (pending) return;
+    if (initialMode === 'switch' && !canReplaceCurrentSpace()) {
+      setError(t('space.error.operationFailed'));
+      return;
+    }
     setPending(true);
     setError(null);
     try {

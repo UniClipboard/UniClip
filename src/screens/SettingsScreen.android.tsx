@@ -7,7 +7,7 @@
  * <LazyColumn>,转场结束
  * 后再挂载 Host,避免滑入期间抢占 JS 线程。
  */
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { View, ActivityIndicator, InteractionManager } from 'react-native';
 import {
   Host,
@@ -21,12 +21,12 @@ import {
 } from '@expo/ui/jetpack-compose';
 import { fillMaxSize, clickable } from '@expo/ui/jetpack-compose/modifiers';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
 import { useSettingsStore } from '@/stores';
 import { APP_VERSION } from '@/constants';
-import type { SettingsSubSection } from '@/navigation/AppNavigator';
+import type { RootStackParamList, SettingsSubSection } from '@/navigation/AppNavigator';
 import { settingsStyles as styles } from './settings/settingsStyles';
 import { SettingsToastProvider, useSettingsToast } from './settings/SettingsToastContext';
 import { SettingsSectionItem } from './settings/SettingsSectionItem';
@@ -240,6 +240,8 @@ const OtherHubGroup = memo(function OtherHubGroup({ iconTint, onNavigate }: HubG
 const SettingsScreenInner = () => {
   const { theme } = useTheme();
   const navigation = useNavigation<any>();
+  const route = useRoute<RouteProp<RootStackParamList, 'Settings'>>();
+  const notificationRouteHandled = useRef<number | null>(null);
   // Host 外部也使用同一 seed,避免图标色与 Host 内的 Compose 色板不一致。
   const appColorScheme = theme.isDark ? 'dark' : 'light';
   const colors = useMaterialColors({
@@ -260,6 +262,27 @@ const SettingsScreenInner = () => {
   useEffect(() => {
     if (!isLoaded) loadConfig();
   }, [isLoaded, loadConfig]);
+
+  useEffect(() => {
+    const requestId = route.params?.notificationNavigationRequestId;
+    if (
+      requestId == null ||
+      notificationRouteHandled.current === requestId ||
+      route.params?.section !== 'space'
+    )
+      return;
+    notificationRouteHandled.current = requestId;
+    navigation.navigate('SettingsSub', {
+      section: 'space',
+      deviceId: route.params.deviceId,
+      notificationNavigationRequestId: requestId,
+    });
+  }, [
+    navigation,
+    route.params?.deviceId,
+    route.params?.notificationNavigationRequestId,
+    route.params?.section,
+  ]);
 
   if (!contentReady) {
     return (

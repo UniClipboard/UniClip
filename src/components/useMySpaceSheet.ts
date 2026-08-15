@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 
 import { getUnifiedSpaceService, unifiedSpaceUserErrorCode } from '@/features/space';
 import { useUnifiedSpaceStore } from '@/features/space';
-import { buildDeviceTrustDeviceViews } from '@/features/space/deviceTrustPresentation';
+import { useSpaceDeviceManagement } from './useSpaceDeviceManagement';
 
 function remainingTime(expiresAtMs: number, nowMs: number): string {
   const seconds = Math.max(0, Math.ceil((expiresAtMs - nowMs) / 1000));
@@ -17,8 +17,8 @@ function remainingTime(expiresAtMs: number, nowMs: number): string {
 export function useMySpaceSheet(visible: boolean, options?: { issueOnOpen?: boolean }) {
   const { t } = useTranslation('settingsSync');
   const rosterDevices = useUnifiedSpaceStore((state) => state.devices);
-  const deviceTrust = useUnifiedSpaceStore((state) => state.deviceTrust);
-  const devices = buildDeviceTrustDeviceViews(deviceTrust, rosterDevices);
+  const deviceManagement = useSpaceDeviceManagement({ allowHighImpactActions: false });
+  const devices = deviceManagement.devices;
   const spaceStatus = useUnifiedSpaceStore((state) => state.status);
   const hasResolvedDeviceList = useUnifiedSpaceStore((state) => state.hasResolvedDeviceList);
   const deviceListRefreshStatus = useUnifiedSpaceStore((state) => state.deviceListRefreshStatus);
@@ -33,6 +33,7 @@ export function useMySpaceSheet(visible: boolean, options?: { issueOnOpen?: bool
   const issuedOnOpenRef = useRef(false);
   const awaitingPairingRef = useRef(false);
   const deviceIdsBeforeInvitationRef = useRef<Set<string>>(new Set());
+  const canIssueInvitation = deviceManagement.highImpactActionsAvailable;
 
   const refresh = useCallback(async () => {
     setIsUserRefreshing(true);
@@ -79,7 +80,7 @@ export function useMySpaceSheet(visible: boolean, options?: { issueOnOpen?: bool
   }, [invitation, rosterDevices, visible]);
 
   const issueInvitation = useCallback(async () => {
-    if (invitationPendingRef.current) return;
+    if (!canIssueInvitation || invitationPendingRef.current) return;
     invitationPendingRef.current = true;
     deviceIdsBeforeInvitationRef.current = new Set(rosterDevices.map((device) => device.deviceId));
     setInvitationPending(true);
@@ -98,7 +99,7 @@ export function useMySpaceSheet(visible: boolean, options?: { issueOnOpen?: bool
       invitationPendingRef.current = false;
       setInvitationPending(false);
     }
-  }, [rosterDevices, t]);
+  }, [canIssueInvitation, rosterDevices, t]);
 
   useEffect(() => {
     if (!visible || !options?.issueOnOpen || issuedOnOpenRef.current) return;
@@ -123,6 +124,7 @@ export function useMySpaceSheet(visible: boolean, options?: { issueOnOpen?: bool
 
   return {
     devices,
+    deviceManagement,
     isInitialLoading: !hasResolvedDeviceList && spaceStatus !== 'failed' && spaceStatus !== 'empty',
     isInitialFailed: !hasResolvedDeviceList && spaceStatus === 'failed',
     isKnownEmpty: (hasResolvedDeviceList || spaceStatus === 'empty') && devices.length === 0,
@@ -131,6 +133,7 @@ export function useMySpaceSheet(visible: boolean, options?: { issueOnOpen?: bool
     refresh,
     invitation,
     invitationPending,
+    canIssueInvitation,
     invitationError,
     invitationCopied,
     invitationExpired,

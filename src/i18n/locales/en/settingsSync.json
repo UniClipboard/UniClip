@@ -39,7 +39,17 @@
       "noDevicesOnline": "No devices available to sync",
       "noOtherDevices": "No other devices yet",
       "otherDevicesOffline": "{{count}} other devices are offline",
-      "statusUnavailable": "Device status is unavailable"
+      "statusUnavailable": "Device status is unavailable",
+      "memberCount": "{{count}} devices in this space",
+      "status": {
+        "decisionRequired": "Review a device change",
+        "unverifiable": "Device details cannot be verified",
+        "updateRequired": "A device needs an update",
+        "updating": "Updating space",
+        "refreshing": "Updating device status",
+        "healthy": "Devices can sync",
+        "empty": "No space devices"
+      }
     },
     "create": {
       "title": "Create a new space",
@@ -106,26 +116,110 @@
       "otherTitle": "Other devices",
       "remove": "Remove device",
       "removeConfirm": "Remove this device from the space?",
+      "removeConfirmNamed": "Remove {{device}} from this space? Sharing to this device stops immediately, and it will need a new invitation to join again. Other offline devices may ask you to review this change when they return.",
+      "removeEffect": "Sharing to this device stops immediately, and it will need a new invitation to join again. Other offline devices may ask you to review this change when they return.",
       "manageHint": "Opens device management",
       "idLabel": "Device ID {{id}}"
     },
+    "deviceDetail": {
+      "title": "Device details",
+      "updateAction": "Check for updates",
+      "identity": {
+        "label": "Device identity",
+        "local": "This device",
+        "remote": "Other device"
+      },
+      "blockedReason": {
+        "noCurrentChange": "There is no device change to review.",
+        "changeNoLongerCurrent": "This device change is no longer current. Refresh and try again.",
+        "localDeviceConfirmationRequired": "Confirm the change for this device first.",
+        "localDeviceRemoved": "This device is no longer part of the space.",
+        "recoveryNotAvailableInThisVersion": "This version cannot recover the space.",
+        "peerUpgradeRequired": "The related devices need to be updated first.",
+        "deviceFactsUnverifiable": "This device's details cannot be verified right now.",
+        "engineUnavailable": "Space device details are unavailable right now."
+      },
+      "reachability": {
+        "label": "Connection",
+        "online": "Online",
+        "offline": "Offline",
+        "unknown": "Unknown"
+      },
+      "groupRelationship": {
+        "label": "Space",
+        "consistent": "Current space",
+        "pendingLocalDecision": "Waiting for your choice",
+        "diverged": "Different space",
+        "unverifiable": "Cannot verify",
+        "unknown": "Unknown"
+      },
+      "syncRelationship": {
+        "label": "Sync",
+        "usable": "Available",
+        "waitingForLocalDecision": "Waiting for your choice",
+        "pausedGroupDiverged": "Stopped for a different space",
+        "pausedUpgradeRequired": "Paused until update",
+        "pausedUnverifiable": "Paused while details are checked",
+        "removedLocalDevice": "This device left",
+        "removedPeerDevice": "Device removed",
+        "unknown": "Unknown"
+      },
+      "compatibility": {
+        "label": "Version",
+        "compatible": "Compatible",
+        "upgradeRequired": "Update required",
+        "unknown": "Unknown"
+      }
+    },
+    "operation": {
+      "title": {
+        "removeMember": "Device removed",
+        "applyChange": "Device change applied",
+        "keepCurrentSpace": "Current space kept",
+        "leaveSpace": "Space left",
+        "stateChanged": "Space status changed"
+      },
+      "outcome": {
+        "stateChanged": "The space changed before this choice was saved. The current result is shown below.",
+        "alreadyCompleted": "This change was already handled elsewhere. The result that actually completed is shown below."
+      },
+      "none": "None",
+      "verified": "The latest device state has been verified.",
+      "unverified": "The change was accepted, but the latest device details cannot be verified yet.",
+      "localStatus": {
+        "inSpace": "This device is still in the original space.",
+        "leftSpace": "This device has left the original space. Local history is still available."
+      },
+      "usable": "Can continue syncing: {{devices}}",
+      "separated": "No longer syncing together: {{devices}}",
+      "continuing": "Still in the original space: {{devices}}",
+      "offlinePending": "Some devices are offline. Their final delivery status is not being claimed yet.",
+      "done": "Done"
+    },
     "deviceTrust": {
       "title": "Review a device change",
-      "body": "{{source}} changed which devices belong to this space. Choose which device group this device should trust.",
+      "body": "{{source}} changed which devices belong to this space. Choose which devices this device should continue syncing with.",
       "targets": "Devices affected: {{devices}}",
-      "apply": "Use the changed device group",
+      "apply": "Apply this space change",
       "leave": "Leave this space",
-      "keep": "Keep this device group",
+      "keep": "Keep this device's current space",
       "continues": "Continues syncing: {{devices}}",
       "stops": "Stops syncing: {{devices}}",
+      "requiresRejoin": "A new invitation will be required to rejoin: {{devices}}",
       "none": "None",
-      "confirmKeepTitle": "Keep this device group?",
-      "confirmKeepBody": "This device will stop syncing with devices that accepted the other group until they rejoin.",
+      "confirmKeepTitle": "Keep this device's current space?",
+      "confirmKeepBody": "This device will keep its current space and stop syncing with devices that accepted a different space change until they rejoin.",
       "confirmLeaveTitle": "Leave this space?",
       "confirmLeaveBody": "This device will stop syncing with this space. Local history will remain on this device.",
       "confirm": "Confirm",
       "notificationTitle": "Review a device change",
       "notificationBody": "Open UniClip to review which devices can continue syncing.",
+      "notificationReviewTitle": "Review a device change",
+      "notificationReviewBody": "Open UniClip to choose which devices can continue syncing.",
+      "notificationUpgradeTitle": "A device needs an update",
+      "notificationUpgradeBody": "Open UniClip to review the current space status.",
+      "notificationUnverifiableTitle": "Device details need attention",
+      "notificationUnverifiableBody": "Open UniClip to review the current space status.",
       "notificationChannel": "Device changes",
       "stateChanged": "The device state changed. Review the latest result.",
       "error": "The choice could not be saved. The latest device state is shown; try again.",
@@ -133,6 +227,7 @@
         "waitingForLocalDecision": "Waiting for your choice",
         "unverifiable": "Device details cannot be verified",
         "upgradeRequired": "Update required",
+        "updating": "Updating space",
         "differentSpace": "Different space",
         "removed": "Removed",
         "usable": "Available",
@@ -148,7 +243,7 @@
     },
     "leave": {
       "action": "Leave space",
-      "confirm": "Your local history will stay on this device. Create or join a space again to resume syncing."
+      "confirm": "Only this phone will leave; the other devices will continue using the original space. Local history will remain, and a new invitation will be required to join again."
     },
     "switch": {
       "title": "Switch space",

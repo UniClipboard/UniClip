@@ -51,7 +51,9 @@ describe('unified space setup UI', () => {
     const iosPages = source('screens/settings/ios/types.ts');
 
     expect(androidHub).toContain('section="space"');
-    expect(androidSubScreen).toContain("section === 'space' && <UnifiedSpaceSetup />");
+    expect(androidSubScreen).toContain("section === 'space' && (");
+    expect(androidSubScreen).toContain('<UnifiedSpaceSetup');
+    expect(androidSubScreen).toContain('initialDeviceId={route.params.deviceId}');
     expect(navigation).toContain("| 'space'");
     expect(navigation).toContain("space: t('space.title', { ns: 'settingsSync' })");
     expect(iosRoot).toContain("onNavigate('space')");
@@ -83,7 +85,8 @@ describe('unified space setup UI', () => {
 
     for (const platform of [android, ios]) {
       expect(platform).toContain('useUnifiedSpaceStore');
-      expect(platform).toContain('.removeMember(');
+      expect(platform).toContain('useSpaceDeviceManagement');
+      expect(platform).toContain('<SpaceDeviceDetail');
       expect(platform).toContain('.leaveSpace()');
       expect(platform).toContain('space.leave.action');
     }
@@ -130,14 +133,14 @@ describe('unified space setup UI', () => {
     expect(leaveSection).toContain('showsChevron={false}');
   });
 
-  it('shows Engine-owned workspace convergence without a permanent-loss action', () => {
+  it('uses the current device relationship instead of the legacy convergence summary', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
     const ios = source('screens/settings/ios/SpacePage.tsx');
 
     for (const platform of [android, ios]) {
-      expect(platform).toContain('workspaceConvergence');
-      expect(platform).toContain('pendingRemovalDecisionDeviceIds');
-      expect(platform).toContain("workspaceConvergence.phase === 'recoveryRequired'");
+      expect(platform).toContain('deviceManagement.overview');
+      expect(platform).not.toContain('workspaceConvergence');
+      expect(platform).not.toContain('pendingRemovalDecisionDeviceIds');
       expect(platform).not.toContain('.continueMemberRevocation(');
     }
   });
@@ -148,17 +151,17 @@ describe('unified space setup UI', () => {
     const ios = source('screens/settings/ios/SpacePage.tsx');
 
     expect(android).toMatch(
-      /space\.overview\.noDevicesOnline[\s\S]*space\.invitation\.addAction[\s\S]*space\.devices\.thisDevice[\s\S]*space\.devices\.otherTitle[\s\S]*space\.leave\.action/
+      /space\.overview\.status[\s\S]*space\.invitation\.addAction[\s\S]*space\.devices\.thisDevice[\s\S]*space\.devices\.otherTitle[\s\S]*space\.leave\.action/
     );
-    expect(android).toContain('space.overview.devicesAvailable');
+    expect(android).toContain('space.overview.memberCount');
     expect(androidRelay).toContain('space.advanced.title');
     expect(android).toContain('space.danger.title');
     expect(android).not.toContain('Boolean(error)');
 
     expect(ios).toMatch(
-      /space\.overview\.syncHealthy[\s\S]*space\.devices\.title[\s\S]*space\.leave\.action/
+      /space\.overview\.status[\s\S]*space\.devices\.title[\s\S]*space\.leave\.action/
     );
-    expect(ios).toContain('space.overview.deviceSummary');
+    expect(ios).toContain('space.overview.memberCount');
     expect(ios).not.toContain('space.details');
   });
 
@@ -259,7 +262,7 @@ describe('unified space setup UI', () => {
     expect(android).toContain('SpaceDeviceRow');
     expect(android).toContain('space.devices.online');
     expect(android).toContain('space.devices.offline');
-    expect(android).toContain('space.devices.remove');
+    expect(android).toContain('SpaceDeviceDetail');
   });
 
   it('uses Engine trust relationships in both device lists without exposing stale remove actions', () => {
@@ -267,21 +270,33 @@ describe('unified space setup UI', () => {
     const ios = source('screens/settings/ios/SpacePage.tsx');
 
     for (const platform of [android, ios]) {
-      expect(platform).toContain('buildDeviceTrustDeviceViews');
+      expect(platform).toContain('deviceManagement.devices');
+      expect(platform).toContain('deviceManagement.openDevice');
       expect(platform).toContain('space.deviceTrust.status.${device.primaryStatus}');
-      expect(platform).toContain('rosterDeviceIds.has(device.deviceId)');
+      expect(platform).not.toContain('workspaceConvergence');
+    }
+  });
+
+  it('disables conflicting space actions while a decision or operation is active', () => {
+    const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
+    const ios = source('screens/settings/ios/SpacePage.tsx');
+
+    for (const platform of [android, ios]) {
+      expect(platform).toContain('highImpactActionsDisabled');
+      expect(platform).toContain('deviceManagement.operationInProgress');
+      expect(platform).toContain('deviceManagement.overview.hasPendingDecision');
+      expect(platform).toContain('!deviceManagement.highImpactActionsAvailable');
     }
   });
 
   it('presents the Android space page as status, device actions, then separate space controls', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
 
-    expect(android).toContain('space.overview.noDevicesOnline');
+    expect(android).toContain('const overview = deviceManagement.overview');
+    expect(android).toContain('overview.primaryStatus');
     expect(android).toContain('space.invitation.addAction');
     expect(android).toContain('localDevice');
-    expect(android).toContain('ModalBottomSheet');
-    expect(android).toContain('manageDeviceId');
-    expect(android).toContain('space.devices.idLabel');
+    expect(android).toContain('SpaceDeviceDetail');
     expect(android).toContain('space.manage.title');
     expect(android).toContain('space.danger.title');
     expect(android).toContain('BackHandler');
@@ -294,6 +309,8 @@ describe('unified space setup UI', () => {
       expect(messages.space.invitation.crossNetwork).toEqual(expect.any(String));
       expect(messages.space.devices.title).toEqual(expect.any(String));
       expect(messages.space.devices.remove).toEqual(expect.any(String));
+      expect(messages.space.devices.removeConfirmNamed).toEqual(expect.any(String));
+      expect(messages.space.devices.removeEffect).toEqual(expect.any(String));
       expect(messages.space.devices.thisDevice).toEqual(expect.any(String));
       expect(messages.space.leave.action).toEqual(expect.any(String));
       expect(messages.space.leave.confirm).toEqual(expect.any(String));
@@ -304,6 +321,26 @@ describe('unified space setup UI', () => {
       expect(messages.space.switch.confirmAction).toEqual(expect.any(String));
       expect(messages.space.status.currentDevice).toEqual(expect.any(String));
       expect(messages.space.overview.syncHealthy).toEqual(expect.any(String));
+      for (const status of [
+        'decisionRequired',
+        'unverifiable',
+        'updateRequired',
+        'updating',
+        'refreshing',
+        'healthy',
+        'empty',
+      ]) {
+        expect(messages.space.overview.status[status]).toEqual(expect.any(String));
+      }
+      expect(messages.space.deviceTrust.status.updating).toEqual(expect.any(String));
+      for (const fact of [
+        'reachability',
+        'groupRelationship',
+        'syncRelationship',
+        'compatibility',
+      ]) {
+        expect(messages.space.deviceDetail[fact].label).toEqual(expect.any(String));
+      }
       expect(messages.space.overview.deviceSummary).toEqual(expect.any(String));
       expect(messages.space.empty.title).toEqual(expect.any(String));
       expect(messages.space.empty.body).toEqual(expect.any(String));
@@ -319,5 +356,22 @@ describe('unified space setup UI', () => {
       expect(messages.space.danger.title).toEqual(expect.any(String));
       expect(messages.relay.summary).toEqual(expect.any(String));
     }
+  });
+
+  it('uses Space language and fully explains removal and leaving consequences', () => {
+    const messages = JSON.parse(source('i18n/locales/zh/settingsSync.json'));
+
+    expect(JSON.stringify(messages.space.deviceTrust)).not.toContain('设备组');
+    expect(messages.space.operation.title.keepCurrentSpace).not.toContain('设备组');
+    expect(messages.space.devices.removeConfirmNamed).toContain('离线');
+    expect(messages.space.leave.confirm).toContain('其他设备');
+    expect(messages.space.leave.confirm).toContain('本地历史');
+    expect(messages.space.leave.confirm).toContain('新的邀请');
+  });
+
+  it('does not offer a manual retry for an unverifiable device relationship', () => {
+    const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
+
+    expect(android.match(/t\('action\.retry'/g)).toHaveLength(1);
   });
 });

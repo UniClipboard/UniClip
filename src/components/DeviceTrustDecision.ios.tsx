@@ -45,6 +45,13 @@ function ImpactSummary({ choice }: { choice: DeviceTrustChoiceView }) {
           devices: choice.stopSyncNames.join(', ') || none,
         })}
       </SwiftUIText>
+      {choice.requiresRejoinNames.length ? (
+        <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
+          {t('space.deviceTrust.requiresRejoin', {
+            devices: choice.requiresRejoinNames.join(', '),
+          })}
+        </SwiftUIText>
+      ) : null}
     </VStack>
   );
 }

@@ -9,7 +9,6 @@ import {
   IconButton,
   LazyColumn,
   ListItem,
-  ModalBottomSheet,
   OutlinedButton,
   PullToRefreshBox,
   Row,
@@ -22,6 +21,7 @@ import {
 } from '@expo/ui/jetpack-compose';
 import {
   animateContentSize,
+  clickable,
   fillMaxWidth,
   height,
   padding,
@@ -29,10 +29,13 @@ import {
   width,
 } from '@expo/ui/jetpack-compose/modifiers';
 import { useTranslation } from 'react-i18next';
+import { StyleSheet } from 'react-native';
 
 import { useTheme } from '@/hooks/useTheme';
 import type { DeviceTrustDeviceView } from '@/features/space';
+import { AppBottomSheet } from './ui';
 import type { MySpaceSheetProps } from './MySpaceSheet.types';
+import { SpaceDeviceDetail } from './SpaceDeviceDetail';
 import { useMySpaceSheet } from './useMySpaceSheet';
 
 const ICONS = {
@@ -52,7 +55,13 @@ const DEVICE_LIST_SHAPE = Shape.RoundedCorner({
   cornerRadii: { topStart: 20, topEnd: 20, bottomStart: 20, bottomEnd: 20 },
 });
 
-function SpaceDeviceRow({ device }: { device: DeviceTrustDeviceView }) {
+function SpaceDeviceRow({
+  device,
+  onPress,
+}: {
+  device: DeviceTrustDeviceView;
+  onPress: () => void;
+}) {
   const { t } = useTranslation('settingsSync');
   const colors = useMaterialColors();
   const online = device.isLocal || device.reachability === 'online';
@@ -63,7 +72,7 @@ function SpaceDeviceRow({ device }: { device: DeviceTrustDeviceView }) {
     : t(online ? 'space.devices.online' : 'space.devices.offline');
 
   return (
-    <ListItem>
+    <ListItem modifiers={[clickable(onPress)]}>
       <ListItem.LeadingContent>
         <Icon source={ICONS.device} size={30} tint={colors.primary} />
       </ListItem.LeadingContent>
@@ -81,11 +90,12 @@ function SpaceDeviceRow({ device }: { device: DeviceTrustDeviceView }) {
   );
 }
 
-function MySpaceSheetContent({ visible, onClose }: MySpaceSheetProps) {
+function MySpaceSheetContent({ visible }: MySpaceSheetProps) {
   const { t } = useTranslation('settingsSync');
   const colors = useMaterialColors();
   const {
     devices,
+    deviceManagement,
     isInitialLoading,
     isInitialFailed,
     isKnownEmpty,
@@ -94,6 +104,7 @@ function MySpaceSheetContent({ visible, onClose }: MySpaceSheetProps) {
     refresh,
     invitation,
     invitationPending,
+    canIssueInvitation,
     invitationError,
     invitationCopied,
     invitationExpired,
@@ -111,13 +122,13 @@ function MySpaceSheetContent({ visible, onClose }: MySpaceSheetProps) {
   );
 
   return (
-    <ModalBottomSheet onDismissRequest={onClose}>
+    <>
       <Column modifiers={[fillMaxWidth(), animateContentSize()]}>
         <Row verticalAlignment="center" modifiers={[fillMaxWidth(), padding(24, 0, 12, 8)]}>
           <ComposeText style={TITLE_STYLE}>{t('topBar.mySpace', { ns: 'home' })}</ComposeText>
           <Spacer modifiers={[weight(1)]} />
           <ComposeText color={colors.onSurfaceVariant}>{devices.length}</ComposeText>
-          <IconButton onClick={() => void issueInvitation()} enabled={!invitationPending}>
+          <IconButton onClick={() => void issueInvitation()} enabled={canIssueInvitation}>
             {invitationPending ? (
               <CircularProgressIndicator modifiers={[width(24), height(24)]} />
             ) : (
@@ -140,6 +151,34 @@ function MySpaceSheetContent({ visible, onClose }: MySpaceSheetProps) {
             contentPadding={{ start: 12, end: 12, bottom: 20 }}
             modifiers={[fillMaxWidth(), height(listHeight)]}
           >
+            {deviceManagement.overview.primaryStatus !== 'updateRequired' ? (
+              <ListItem>
+                <ListItem.LeadingContent>
+                  <Icon
+                    source={ICONS.status}
+                    size={10}
+                    tint={
+                      deviceManagement.overview.primaryStatus === 'healthy'
+                        ? colors.primary
+                        : colors.error
+                    }
+                  />
+                </ListItem.LeadingContent>
+                <ListItem.HeadlineContent>
+                  <ComposeText>
+                    {t(`space.overview.status.${deviceManagement.overview.primaryStatus}`)}
+                  </ComposeText>
+                </ListItem.HeadlineContent>
+                <ListItem.SupportingContent>
+                  <ComposeText color={colors.onSurfaceVariant}>
+                    {t('space.overview.memberCount', {
+                      count: deviceManagement.overview.memberCount,
+                    })}
+                  </ComposeText>
+                </ListItem.SupportingContent>
+              </ListItem>
+            ) : null}
+
             {pairedDeviceName ? (
               <ListItem>
                 <ListItem.LeadingContent>
@@ -165,7 +204,7 @@ function MySpaceSheetContent({ visible, onClose }: MySpaceSheetProps) {
                   <ComposeText color={colors.error}>{invitationError}</ComposeText>
                 </ListItem.HeadlineContent>
                 <ListItem.TrailingContent>
-                  <TextButton onClick={() => void issueInvitation()}>
+                  <TextButton onClick={() => void issueInvitation()} enabled={canIssueInvitation}>
                     <ComposeText>{t('action.retry', { ns: 'common' })}</ComposeText>
                   </TextButton>
                 </ListItem.TrailingContent>
@@ -206,7 +245,7 @@ function MySpaceSheetContent({ visible, onClose }: MySpaceSheetProps) {
                 {invitationExpired ? (
                   <Button
                     onClick={() => void issueInvitation()}
-                    enabled={!invitationPending}
+                    enabled={canIssueInvitation}
                     modifiers={[fillMaxWidth(), padding(16, 0, 16, 8)]}
                   >
                     <ComposeText>{t('space.invitation.action')}</ComposeText>
@@ -305,7 +344,10 @@ function MySpaceSheetContent({ visible, onClose }: MySpaceSheetProps) {
                 <Column>
                   {devices.map((device, index) => (
                     <React.Fragment key={device.deviceId}>
-                      <SpaceDeviceRow device={device} />
+                      <SpaceDeviceRow
+                        device={device}
+                        onPress={() => deviceManagement.openDevice(device.deviceId)}
+                      />
                       {index < devices.length - 1 ? (
                         <HorizontalDivider
                           color={colors.outlineVariant}
@@ -320,18 +362,38 @@ function MySpaceSheetContent({ visible, onClose }: MySpaceSheetProps) {
           </LazyColumn>
         </PullToRefreshBox>
       </Column>
-    </ModalBottomSheet>
+      <SpaceDeviceDetail
+        device={deviceManagement.selectedDevice}
+        canRemove={deviceManagement.canRemoveSelected}
+        confirmingRemoval={deviceManagement.confirmingRemoval}
+        removing={deviceManagement.removing}
+        removeErrorMessage={deviceManagement.removeError ? t('space.error.operationFailed') : null}
+        onClose={deviceManagement.closeDevice}
+        onRequestRemove={deviceManagement.requestRemove}
+        onCancelRemove={deviceManagement.cancelRemove}
+        onConfirmRemove={() => void deviceManagement.confirmRemove()}
+      />
+    </>
   );
 }
 
 export function MySpaceSheet(props: MySpaceSheetProps) {
   const { theme } = useTheme();
 
-  if (!props.visible) return null;
-
   return (
-    <Host colorScheme={theme.isDark ? 'dark' : 'light'} seedColor={theme.colors.accent}>
-      <MySpaceSheetContent {...props} />
-    </Host>
+    <AppBottomSheet visible={props.visible} onDismiss={props.onClose}>
+      <Host
+        colorScheme={theme.isDark ? 'dark' : 'light'}
+        seedColor={theme.colors.accent}
+        matchContents={{ vertical: true }}
+        style={styles.host}
+      >
+        <MySpaceSheetContent {...props} />
+      </Host>
+    </AppBottomSheet>
   );
 }
+
+const styles = StyleSheet.create({
+  host: { width: '100%' },
+});

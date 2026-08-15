@@ -108,6 +108,13 @@ export interface WorkspaceConvergence {
 
 export type DeviceTrustChoice = 'applyChange' | 'keepCurrentDeviceGroup';
 
+export type DeviceTrustQueryResult =
+  | { ok: true; value: string }
+  | {
+      ok: false;
+      failure: { code: number; category: string; retryable: boolean };
+    };
+
 export type ResendEntryOutcome =
   | {
       kind: 'completed';
@@ -236,7 +243,7 @@ interface UcEngineNativeModule {
   refreshPeerConnections(): Promise<PeerConnectionRefresh>;
   querySpaceState(): Promise<SpaceState>;
   listDevices(): Promise<Device[]>;
-  queryDeviceTrust(): Promise<string>;
+  queryDeviceTrust(): Promise<DeviceTrustQueryResult>;
   decideDeviceTrustChange(
     changeId: string,
     choice: DeviceTrustChoice,
@@ -378,7 +385,7 @@ export function listDevices(): Promise<Device[]> {
   return NativeModule.listDevices();
 }
 
-export function queryDeviceTrust(): Promise<string> {
+export function queryDeviceTrust(): Promise<DeviceTrustQueryResult> {
   return NativeModule.queryDeviceTrust();
 }
 

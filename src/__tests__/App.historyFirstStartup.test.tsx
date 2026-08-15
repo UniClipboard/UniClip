@@ -49,6 +49,7 @@ jest.mock('../screens/QuickTileLoadingScreen', () => ({ QuickTileLoadingScreen: 
 jest.mock('../screens/ShareReceiveRedirector', () => ({ ShareReceiveRedirector: () => null }));
 jest.mock('../screens/ProcessTextScreen', () => ({ ProcessTextScreen: () => null }));
 jest.mock('../components/DeviceTrustDecision', () => ({ DeviceTrustDecision: () => null }));
+jest.mock('../components/SpaceOperationResult', () => ({ SpaceOperationResult: () => null }));
 jest.mock('../components/DeviceTrustNotificationObserver', () => ({
   DeviceTrustNotificationObserver: () => null,
 }));

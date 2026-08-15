@@ -1,4 +1,8 @@
-import { parseDeviceTrustDecision, parseDeviceTrustSnapshot } from '../platform/engine/deviceTrust';
+import {
+  parseDeviceTrustDecision,
+  parseDeviceTrustQueryResult,
+  parseDeviceTrustSnapshot,
+} from '../platform/engine/deviceTrust';
 
 function snapshotJson(overrides: Record<string, unknown> = {}): string {
   return JSON.stringify({
@@ -48,6 +52,21 @@ function snapshotJson(overrides: Record<string, unknown> = {}): string {
 }
 
 describe('device trust Engine contract', () => {
+  it('parses a successful structured device trust query', () => {
+    expect(parseDeviceTrustQueryResult({ ok: true, value: snapshotJson() })).toEqual(
+      expect.objectContaining({ revision: 7, localDeviceId: 'phone-1' })
+    );
+  });
+
+  it('throws structured Engine metadata from a failed device trust query', () => {
+    expect(() =>
+      parseDeviceTrustQueryResult({
+        ok: false,
+        failure: { code: 1393, category: 'invalidState', retryable: false },
+      })
+    ).toThrow(expect.objectContaining({ code: 1393, category: 'invalidState', retryable: false }));
+  });
+
   it('parses a complete Engine snapshot into the application contract', () => {
     expect(parseDeviceTrustSnapshot(snapshotJson())).toEqual(
       expect.objectContaining({

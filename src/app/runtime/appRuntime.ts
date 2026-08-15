@@ -58,7 +58,7 @@ export interface AppRuntimeDependencies {
     | 'subscribeEvents'
   >;
   space(): {
-    refresh(): Promise<{ devices: unknown[] }>;
+    refresh(options?: { afterInvalidation?: boolean }): Promise<{ devices: unknown[] }>;
     refreshDevices(): Promise<unknown>;
     refreshDeviceTrust(): Promise<unknown>;
   };
@@ -228,7 +228,7 @@ export class AppRuntime {
       log.info(`P2P foreground session resumed in ${Date.now() - resumeStartedAt}ms`);
     }
     const space = await this.dependencies.space().refresh();
-    log.info('P2P space devices', space.devices);
+    log.info('P2P space state', { deviceCount: space.devices.length });
     log.info(`Selected P2P channel ready in ${Date.now() - startedAt}ms`);
     if (Platform.OS === 'ios' && this.currentAppState !== 'active') return;
 
@@ -388,9 +388,9 @@ export class AppRuntime {
         if (this.currentAppState !== 'active') return;
         this.dependencies
           .space()
-          .refreshDeviceTrust()
+          .refresh({ afterInvalidation: true })
           .catch((error) =>
-            log.error('Failed to refresh device trust after an engine event:', error)
+            log.error('Failed to refresh space after a device trust event:', error)
           );
         return;
       }

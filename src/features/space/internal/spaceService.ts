@@ -13,9 +13,12 @@ import {
   publishUnifiedSpaceSnapshot,
   type UnifiedSpaceDevice,
   type UnifiedSpaceSnapshot,
+  type DeviceTrustFailure,
+  type DeviceTrustQueryState,
 } from '../store';
 import { invitationCodeForSubmission } from '@/utils/invitationCode';
 import { createLogger } from '@/support/observability';
+import { buildSpaceOperationContext, buildSpaceOperationResult } from '../deviceTrustPresentation';
 import { getSpaceSetupCompletion, type SpaceSetupCompletionReporter } from './spaceSetupCompletion';
 
 const log = createLogger('UnifiedSpaceService');
@@ -72,6 +75,10 @@ export interface UnifiedSpaceApi {
 
 export type P2pSpaceSetupRunner = <T>(operation: () => Promise<T>) => Promise<T>;
 
+export interface UnifiedSpaceRefreshOptions {
+  afterInvalidation?: boolean;
+}
+
 const runWithoutSetupTransition: P2pSpaceSetupRunner = (operation) => operation();
 
 export type UnifiedSpaceInputErrorCode =
@@ -109,6 +116,22 @@ const USER_ERROR_BY_ENGINE_CODE: Readonly<Record<number, UnifiedSpaceUserErrorCo
 type JoinSpaceStage = 'prepareP2p' | 'requestJoin' | 'refreshDevices';
 type SpaceRefreshStage = 'querySpaceState' | 'listDevices' | 'queryDeviceTrust';
 
+type DeviceListReadResult = { kind: 'ready'; devices: UnifiedSpaceDevice[] } | { kind: 'failed' };
+
+type PostOperationSpaceRead =
+  | {
+      kind: 'ready';
+      state: CoreSpaceState & { spaceId: string };
+      devices: DeviceListReadResult;
+      deviceTrustQuery: DeviceTrustQueryState;
+    }
+  | {
+      kind: 'empty';
+      devices: DeviceListReadResult;
+      deviceTrustQuery: DeviceTrustQueryState;
+    }
+  | { kind: 'failed' };
+
 export type DeviceTrustDecisionInputErrorCode = 'noCurrentChange' | 'choiceNotAllowed';
 
 export class DeviceTrustDecisionInputError extends Error {
@@ -116,6 +139,14 @@ export class DeviceTrustDecisionInputError extends Error {
 
   constructor(readonly code: DeviceTrustDecisionInputErrorCode) {
     super(code);
+  }
+}
+
+export class SpaceOperationInProgressError extends Error {
+  readonly name = 'SpaceOperationInProgressError';
+
+  constructor() {
+    super('spaceOperationInProgress');
   }
 }
 
@@ -129,6 +160,12 @@ interface JoinSpaceFailureDetails {
 
 interface SpaceRefreshFailureDetails {
   stage: SpaceRefreshStage;
+  errorName: string;
+  errorCode: number | null;
+}
+
+interface SpaceOperationFailureDetails {
+  operation: 'removeMember';
   errorName: string;
   errorCode: number | null;
 }
@@ -197,6 +234,56 @@ function spaceRefreshFailureDetails(
   };
 }
 
+function spaceOperationFailureDetails(
+  cause: unknown,
+  operation: SpaceOperationFailureDetails['operation']
+): SpaceOperationFailureDetails {
+  return {
+    operation,
+    errorName: cause instanceof Error ? 'Error' : typeof cause,
+    errorCode: engineErrorCode(cause),
+  };
+}
+
+function structuredDeviceTrustFailure(cause: unknown): DeviceTrustFailure {
+  const source = cause && typeof cause === 'object' ? cause : null;
+  const code = source && 'code' in source && typeof source.code === 'number' ? source.code : null;
+  const category =
+    source && 'category' in source && typeof source.category === 'string' ? source.category : null;
+  const retryable =
+    source && 'retryable' in source && typeof source.retryable === 'boolean'
+      ? source.retryable
+      : false;
+  return { operation: 'queryDeviceTrust', code, category, retryable };
+}
+
+function failedDeviceTrustQuery(cause: unknown): DeviceTrustQueryState {
+  const failure = structuredDeviceTrustFailure(cause);
+  if (failure.code === 1392) return { kind: 'unavailable', failure };
+  if (failure.code === 1394) return { kind: 'corrupt', failure };
+  return { kind: 'failed', failure };
+}
+
+function deviceTrustSnapshot(query: DeviceTrustQueryState): DeviceTrustSnapshot | null {
+  if (query.kind === 'ready') return query.snapshot;
+  if (query.kind === 'loading') return query.previous;
+  return null;
+}
+
+function newestReadyDeviceTrustQuery(
+  current: DeviceTrustQueryState,
+  fallback: DeviceTrustQueryState
+): DeviceTrustQueryState {
+  if (
+    current.kind === 'ready' &&
+    fallback.kind === 'ready' &&
+    fallback.snapshot.revision > current.snapshot.revision
+  ) {
+    return fallback;
+  }
+  return current;
+}
+
 function required(value: string, code: UnifiedSpaceInputErrorCode): string {
   const normalized = value.trim();
   if (!normalized) throw new UnifiedSpaceInputError(code);
@@ -229,8 +316,16 @@ export class UnifiedSpaceService {
     this.publishSnapshot();
   }
 
-  refresh(): Promise<UnifiedSpaceSnapshot> {
-    if (this.fullRefreshInFlight) return this.fullRefreshInFlight;
+  refresh(options: UnifiedSpaceRefreshOptions = {}): Promise<UnifiedSpaceSnapshot> {
+    if (this.fullRefreshInFlight) {
+      if (!options.afterInvalidation) return this.fullRefreshInFlight;
+      this.refreshRevision += 1;
+      const current = this.fullRefreshInFlight;
+      return current.then(
+        () => this.refresh(),
+        () => this.refresh()
+      );
+    }
 
     const revision = this.beginRefresh();
     const refresh = this.performFullRefresh(revision);
@@ -250,6 +345,10 @@ export class UnifiedSpaceService {
         status: 'loading',
         lastError: null,
         deviceListRefreshStatus: 'refreshing',
+        deviceTrustQuery: {
+          kind: 'loading',
+          previous: deviceTrustSnapshot(this.snapshot.deviceTrustQuery),
+        },
       });
     }
     try {
@@ -257,29 +356,55 @@ export class UnifiedSpaceService {
       await this.completion.resolveFromCore(Boolean(state.hasCompleted && state.spaceId));
       if (!this.canPublishRefresh(revision)) return this.snapshot;
       if (!state.hasCompleted || !state.spaceId) {
-        this.snapshot = createInitialUnifiedSpaceSnapshot('empty');
-        this.publishSnapshot();
-        return this.snapshot;
+        return this.publishNoCurrentSpace();
       }
-      const [devices, deviceTrust] = await Promise.all([
-        this.runRefreshStep('listDevices', () => this.api.listDevices()),
-        this.runRefreshStep('queryDeviceTrust', () => this.api.queryDeviceTrust()),
+      const [devicesResult, deviceTrustQuery] = await Promise.all([
+        this.runRefreshStep('listDevices', () => this.api.listDevices()).then(
+          (devices) => ({ kind: 'ready' as const, devices }),
+          (error: unknown) => ({ kind: 'failed' as const, error })
+        ),
+        this.queryDeviceTrustState(),
       ]);
       if (!this.canPublishRefresh(revision)) return this.snapshot;
+      if (
+        deviceTrustQuery.kind === 'ready' &&
+        deviceTrustQuery.snapshot.localMembership === 'removed'
+      ) {
+        return this.publishNoCurrentSpace();
+      }
+      const sameSpace = state.spaceId === this.snapshot.spaceId;
+      const devices =
+        devicesResult.kind === 'ready'
+          ? devicesResult.devices
+          : sameSpace
+          ? this.snapshot.devices
+          : [];
       this.snapshot = {
         status: 'ready',
         spaceId: state.spaceId,
         deviceName: state.deviceName,
         invitation: state.currentInvitation,
         devices,
-        workspaceConvergence: this.snapshot.workspaceConvergence,
-        deviceTrust,
+        workspaceConvergence: sameSpace ? this.snapshot.workspaceConvergence : null,
+        deviceTrustQuery,
         deviceTrustDecisionStatus: 'idle',
         deviceTrustDecisionError: null,
         deviceTrustDecisionOutcome: null,
-        lastError: null,
-        hasResolvedDeviceList: true,
-        deviceListRefreshStatus: 'idle',
+        operationState:
+          state.spaceId === this.snapshot.spaceId ? this.snapshot.operationState : { kind: 'idle' },
+        lastError:
+          devicesResult.kind === 'failed'
+            ? devicesResult.error instanceof Error
+              ? devicesResult.error.message
+              : String(devicesResult.error)
+            : null,
+        hasResolvedDeviceList:
+          devicesResult.kind === 'ready'
+            ? true
+            : sameSpace
+            ? this.snapshot.hasResolvedDeviceList
+            : false,
+        deviceListRefreshStatus: devicesResult.kind === 'ready' ? 'idle' : 'failed',
       };
       this.publishSnapshot();
       return this.snapshot;
@@ -309,10 +434,11 @@ export class UnifiedSpaceService {
           invitation,
           devices,
           workspaceConvergence: null,
-          deviceTrust: null,
+          deviceTrustQuery: { kind: 'idle' },
           deviceTrustDecisionStatus: 'idle',
           deviceTrustDecisionError: null,
           deviceTrustDecisionOutcome: null,
+          operationState: { kind: 'idle' },
           lastError: null,
           hasResolvedDeviceList: true,
           deviceListRefreshStatus: 'idle',
@@ -321,7 +447,12 @@ export class UnifiedSpaceService {
         return { ...space, invitation };
       });
     } catch (error) {
-      if (revision === null || this.isCurrentMutation(revision)) this.fail(error);
+      if (
+        !(error instanceof SpaceOperationInProgressError) &&
+        (revision === null || this.isCurrentMutation(revision))
+      ) {
+        this.fail(error);
+      }
       throw error;
     } finally {
       if (revision !== null) this.endMutation(revision);
@@ -353,23 +484,46 @@ export class UnifiedSpaceService {
     revision: ReturnType<UnifiedSpaceService['beginRefresh']>
   ): Promise<UnifiedSpaceSnapshot> {
     if (this.canPublishRefresh(revision)) {
-      this.updateSnapshot({ lastError: null, deviceListRefreshStatus: 'refreshing' });
+      this.updateSnapshot({
+        lastError: null,
+        deviceListRefreshStatus: 'refreshing',
+        deviceTrustQuery: {
+          kind: 'loading',
+          previous: deviceTrustSnapshot(this.snapshot.deviceTrustQuery),
+        },
+      });
     }
     try {
-      const [devices, deviceTrust] = await Promise.all([
-        this.runRefreshStep('listDevices', () => this.api.listDevices()),
-        this.runRefreshStep('queryDeviceTrust', () => this.api.queryDeviceTrust()),
+      const [devicesResult, deviceTrustQuery] = await Promise.all([
+        this.runRefreshStep('listDevices', () => this.api.listDevices()).then(
+          (devices) => ({ kind: 'ready' as const, devices }),
+          (error: unknown) => ({ kind: 'failed' as const, error })
+        ),
+        this.queryDeviceTrustState(),
       ]);
       if (!this.canPublishRefresh(revision)) return this.snapshot;
-
+      if (
+        deviceTrustQuery.kind === 'ready' &&
+        deviceTrustQuery.snapshot.localMembership === 'removed'
+      ) {
+        return this.publishNoCurrentSpace();
+      }
+      const devices =
+        devicesResult.kind === 'ready' ? devicesResult.devices : this.snapshot.devices;
       this.updateSnapshot({
         status: this.snapshot.status === 'failed' ? 'ready' : this.snapshot.status,
         devices,
-        deviceTrust,
+        deviceTrustQuery,
         deviceTrustDecisionError: null,
-        lastError: null,
-        hasResolvedDeviceList: true,
-        deviceListRefreshStatus: 'idle',
+        lastError:
+          devicesResult.kind === 'failed'
+            ? devicesResult.error instanceof Error
+              ? devicesResult.error.message
+              : String(devicesResult.error)
+            : null,
+        hasResolvedDeviceList:
+          devicesResult.kind === 'ready' ? true : this.snapshot.hasResolvedDeviceList,
+        deviceListRefreshStatus: devicesResult.kind === 'ready' ? 'idle' : 'failed',
       });
       return this.snapshot;
     } catch (error) {
@@ -414,10 +568,11 @@ export class UnifiedSpaceService {
           invitation: null,
           devices,
           workspaceConvergence: null,
-          deviceTrust: null,
+          deviceTrustQuery: { kind: 'idle' },
           deviceTrustDecisionStatus: 'idle',
           deviceTrustDecisionError: null,
           deviceTrustDecisionOutcome: null,
+          operationState: { kind: 'idle' },
           lastError: null,
           hasResolvedDeviceList: true,
           deviceListRefreshStatus: 'idle',
@@ -427,7 +582,12 @@ export class UnifiedSpaceService {
       });
     } catch (error) {
       log.error('Join space failed', joinSpaceFailureDetails(error, stage, hadExistingSpace));
-      if (revision === null || this.isCurrentMutation(revision)) this.fail(error);
+      if (
+        !(error instanceof SpaceOperationInProgressError) &&
+        (revision === null || this.isCurrentMutation(revision))
+      ) {
+        this.fail(error);
+      }
       throw error;
     } finally {
       if (revision !== null) this.endMutation(revision);
@@ -436,22 +596,38 @@ export class UnifiedSpaceService {
 
   async removeMember(deviceId: string): Promise<WorkspaceConvergence> {
     const targetDeviceId = required(deviceId, 'deviceNameRequired');
-    const revision = this.beginMutation();
+    const spaceId = this.snapshot.spaceId;
+    const operation = buildSpaceOperationContext(
+      'removeMember',
+      spaceId,
+      this.snapshot.deviceTrustQuery,
+      this.snapshot.devices,
+      targetDeviceId
+    );
+    let revision: number;
+    try {
+      revision = this.beginMutation();
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    this.updateSnapshot({ operationState: { kind: 'submitting', operation } });
     try {
       const result = await this.api.removeMember(targetDeviceId);
-      const devices = await this.api.listDevices();
-      if (this.isCurrentMutation(revision)) {
-        this.updateSnapshot({
-          devices,
-          workspaceConvergence: result,
-          lastError: null,
-          hasResolvedDeviceList: true,
-          deviceListRefreshStatus: 'idle',
-        });
-      }
+      await this.completeAcceptedOperation(revision, operation, {
+        fallbackDeviceTrustQuery: this.snapshot.deviceTrustQuery,
+        fallbackDevices: this.snapshot.devices,
+        workspaceConvergence: result,
+        decisionOutcome: null,
+      });
       return result;
     } catch (error) {
-      log.error('Failed to remove a space member:', error);
+      if (this.isCurrentMutation(revision)) {
+        this.updateSnapshot({ operationState: { kind: 'idle' } });
+      }
+      log.error(
+        'Failed to remove a space member',
+        spaceOperationFailureDetails(error, 'removeMember')
+      );
       throw error;
     } finally {
       this.endMutation(revision);
@@ -460,6 +636,7 @@ export class UnifiedSpaceService {
 
   refreshDeviceTrust(): Promise<UnifiedSpaceSnapshot> {
     if (this.deviceTrustRefreshInFlight) return this.deviceTrustRefreshInFlight;
+    if (!this.snapshot.spaceId) return Promise.resolve(this.snapshot);
     const revision = this.beginRefresh();
     const refresh = this.performDeviceTrustRefresh(revision);
     this.deviceTrustRefreshInFlight = refresh;
@@ -474,11 +651,18 @@ export class UnifiedSpaceService {
     revision: ReturnType<UnifiedSpaceService['beginRefresh']>
   ): Promise<UnifiedSpaceSnapshot> {
     try {
-      const deviceTrust = await this.runRefreshStep('queryDeviceTrust', () =>
-        this.api.queryDeviceTrust()
-      );
+      const deviceTrustQuery = await this.queryDeviceTrustState();
       if (!this.canPublishRefresh(revision)) return this.snapshot;
-      this.updateSnapshot({ deviceTrust, deviceTrustDecisionError: null });
+      if (
+        deviceTrustQuery.kind === 'ready' &&
+        deviceTrustQuery.snapshot.localMembership === 'removed'
+      ) {
+        return this.publishNoCurrentSpace();
+      }
+      this.updateSnapshot({
+        deviceTrustQuery,
+        deviceTrustDecisionError: null,
+      });
       return this.snapshot;
     } catch (error) {
       if (this.canPublishRefresh(revision)) {
@@ -496,23 +680,38 @@ export class UnifiedSpaceService {
   ): Promise<DeviceTrustDecision> {
     if (this.deviceTrustDecisionInFlight) return this.deviceTrustDecisionInFlight;
 
-    const change = this.snapshot.deviceTrust?.currentChange;
+    const change = deviceTrustSnapshot(this.snapshot.deviceTrustQuery)?.currentChange;
     if (!change) return Promise.reject(new DeviceTrustDecisionInputError('noCurrentChange'));
     if (!change.allowedChoices.includes(choice)) {
       return Promise.reject(new DeviceTrustDecisionInputError('choiceNotAllowed'));
     }
+    const spaceId = this.snapshot.spaceId;
+    if (!spaceId) return Promise.reject(new DeviceTrustDecisionInputError('noCurrentChange'));
+    const operation = buildSpaceOperationContext(
+      choice === 'applyChange' ? 'applyChange' : 'keepCurrentSpace',
+      spaceId,
+      this.snapshot.deviceTrustQuery,
+      this.snapshot.devices
+    );
 
-    const revision = this.beginMutation();
+    let revision: number;
+    try {
+      revision = this.beginMutation();
+    } catch (error) {
+      return Promise.reject(error);
+    }
     this.updateSnapshot({
       deviceTrustDecisionStatus: 'submitting',
       deviceTrustDecisionError: null,
       deviceTrustDecisionOutcome: null,
+      operationState: { kind: 'submitting', operation },
     });
     const decision = this.performDeviceTrustDecision(
       revision,
       change.changeId,
       choice,
-      confirmLocalRemoval
+      confirmLocalRemoval,
+      operation
     );
     this.deviceTrustDecisionInFlight = decision;
     void decision.then(
@@ -526,32 +725,96 @@ export class UnifiedSpaceService {
     revision: number,
     changeId: string,
     choice: DeviceTrustChoice,
-    confirmLocalRemoval: boolean
+    confirmLocalRemoval: boolean,
+    operation: ReturnType<typeof buildSpaceOperationContext>
   ): Promise<DeviceTrustDecision> {
     try {
       const result = await this.api.decideDeviceTrustChange(changeId, choice, confirmLocalRemoval);
       if (this.isCurrentMutation(revision)) {
-        this.updateSnapshot({
-          deviceTrust: result.snapshot,
-          deviceTrustDecisionStatus: 'idle',
-          deviceTrustDecisionError: null,
-          deviceTrustDecisionOutcome: result.kind,
+        if (result.kind === 'localDeviceConfirmationRequired') {
+          this.updateSnapshot({
+            deviceTrustQuery: { kind: 'ready', snapshot: result.snapshot },
+            deviceTrustDecisionStatus: 'idle',
+            deviceTrustDecisionError: 'localDeviceConfirmationRequired',
+            deviceTrustDecisionOutcome: result.kind,
+            operationState: { kind: 'idle' },
+          });
+          return result;
+        }
+        const completedChoice =
+          result.kind === 'applied'
+            ? 'applyChange'
+            : result.kind === 'keptCurrentDeviceGroup'
+            ? 'keepCurrentDeviceGroup'
+            : result.kind === 'alreadyCompleted'
+            ? result.completedChoice
+            : choice;
+        const completedOperation = {
+          ...operation,
+          kind:
+            completedChoice === 'applyChange'
+              ? ('applyChange' as const)
+              : ('keepCurrentSpace' as const),
+        };
+        const fallbackDevices = this.snapshot.devices;
+        const fallbackDeviceTrustQuery = { kind: 'ready', snapshot: result.snapshot } as const;
+        const operationResult = buildSpaceOperationResult(
+          completedOperation,
+          fallbackDeviceTrustQuery,
+          fallbackDevices,
+          'verified',
+          result.kind
+        );
+        if (result.snapshot.localMembership === 'removed') {
+          this.snapshot = {
+            ...createInitialUnifiedSpaceSnapshot('empty'),
+            deviceTrustDecisionOutcome: result.kind,
+            operationState: { kind: 'result', result: operationResult },
+          };
+          this.publishSnapshot();
+        } else {
+          this.updateSnapshot({
+            deviceTrustQuery: fallbackDeviceTrustQuery,
+            deviceTrustDecisionStatus: 'idle',
+            deviceTrustDecisionError: null,
+            deviceTrustDecisionOutcome: result.kind,
+            operationState: {
+              kind: 'result',
+              result: operationResult,
+            },
+          });
+        }
+        await this.completeAcceptedOperation(revision, completedOperation, {
+          fallbackDeviceTrustQuery,
+          fallbackDevices,
+          workspaceConvergence: this.snapshot.workspaceConvergence,
+          decisionOutcome: result.kind,
         });
       }
       return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      this.endMutation(revision);
-      try {
-        await this.refreshDeviceTrust();
-      } catch {
-        // The original decision failure is the actionable error shown to the user.
+      const deviceTrustQuery = await this.queryDeviceTrustState();
+      if (this.isCurrentMutation(revision)) {
+        if (
+          deviceTrustQuery.kind === 'ready' &&
+          deviceTrustQuery.snapshot.localMembership === 'removed'
+        ) {
+          this.snapshot = {
+            ...createInitialUnifiedSpaceSnapshot('empty'),
+            deviceTrustDecisionError: message,
+          };
+          this.publishSnapshot();
+        } else {
+          this.updateSnapshot({
+            deviceTrustQuery,
+            deviceTrustDecisionStatus: 'idle',
+            deviceTrustDecisionError: message,
+            deviceTrustDecisionOutcome: null,
+            operationState: { kind: 'idle' },
+          });
+        }
       }
-      this.updateSnapshot({
-        deviceTrustDecisionStatus: 'idle',
-        deviceTrustDecisionError: message,
-        deviceTrustDecisionOutcome: null,
-      });
       throw error;
     } finally {
       this.endMutation(revision);
@@ -567,19 +830,186 @@ export class UnifiedSpaceService {
   }
 
   async leaveSpace(): Promise<void> {
+    const spaceId = this.snapshot.spaceId;
+    const operation = buildSpaceOperationContext(
+      'leaveSpace',
+      spaceId,
+      this.snapshot.deviceTrustQuery,
+      this.snapshot.devices
+    );
     const revision = this.beginMutation();
+    this.updateSnapshot({ operationState: { kind: 'submitting', operation } });
     try {
       await this.api.leaveSpace();
-      await this.completion.markIncomplete();
       if (!this.isCurrentMutation(revision)) return;
-      this.snapshot = createInitialUnifiedSpaceSnapshot('empty');
+      const fallbackDevices = this.snapshot.devices;
+      this.snapshot = {
+        ...createInitialUnifiedSpaceSnapshot('empty'),
+        operationState: {
+          kind: 'result',
+          result: buildSpaceOperationResult(operation, { kind: 'notApplicable' }, [], 'verified'),
+        },
+      };
       this.publishSnapshot();
+      await this.completeAcceptedOperation(revision, operation, {
+        fallbackDeviceTrustQuery: { kind: 'notApplicable' },
+        fallbackDevices,
+        workspaceConvergence: null,
+        decisionOutcome: null,
+      });
+    } catch (error) {
+      if (this.isCurrentMutation(revision)) {
+        this.updateSnapshot({ operationState: { kind: 'idle' } });
+      }
+      throw error;
     } finally {
       this.endMutation(revision);
     }
   }
 
+  clearOperationResult(): void {
+    if (this.snapshot.operationState.kind !== 'result') return;
+    this.updateSnapshot({ operationState: { kind: 'idle' } });
+  }
+
+  private async completeAcceptedOperation(
+    revision: number,
+    operation: ReturnType<typeof buildSpaceOperationContext>,
+    fallback: {
+      fallbackDeviceTrustQuery: DeviceTrustQueryState;
+      fallbackDevices: UnifiedSpaceDevice[];
+      workspaceConvergence: WorkspaceConvergence | null;
+      decisionOutcome: DeviceTrustDecision['kind'] | null;
+    }
+  ): Promise<void> {
+    const read = await this.readPostOperationSpace();
+    if (!this.isCurrentMutation(revision)) return;
+
+    if (read.kind === 'failed') {
+      const operationResult = buildSpaceOperationResult(
+        operation,
+        fallback.fallbackDeviceTrustQuery,
+        fallback.fallbackDevices,
+        'unverified',
+        fallback.decisionOutcome
+      );
+      if (
+        operation.kind === 'leaveSpace' ||
+        (fallback.fallbackDeviceTrustQuery.kind === 'ready' &&
+          fallback.fallbackDeviceTrustQuery.snapshot.localMembership === 'removed')
+      ) {
+        this.snapshot = {
+          ...createInitialUnifiedSpaceSnapshot('empty'),
+          operationState: { kind: 'result', result: operationResult },
+          deviceListRefreshStatus: 'failed',
+        };
+        this.publishSnapshot();
+        return;
+      }
+      this.updateSnapshot({
+        deviceTrustQuery: fallback.fallbackDeviceTrustQuery,
+        deviceTrustDecisionStatus: 'idle',
+        deviceTrustDecisionError: null,
+        deviceTrustDecisionOutcome: fallback.decisionOutcome,
+        deviceListRefreshStatus: 'failed',
+        operationState: { kind: 'result', result: operationResult },
+      });
+      return;
+    }
+
+    const sameSpace = read.kind === 'ready' && read.state.spaceId === operation.spaceId;
+    const deviceTrustQuery = sameSpace
+      ? newestReadyDeviceTrustQuery(read.deviceTrustQuery, fallback.fallbackDeviceTrustQuery)
+      : read.deviceTrustQuery;
+    const devices = read.devices.kind === 'ready' ? read.devices.devices : fallback.fallbackDevices;
+    const verification =
+      read.devices.kind === 'ready' && deviceTrustQuery.kind === 'ready'
+        ? 'verified'
+        : 'unverified';
+    const operationResult = buildSpaceOperationResult(
+      operation,
+      deviceTrustQuery,
+      devices,
+      read.kind === 'empty'
+        ? 'verified'
+        : operation.kind === 'leaveSpace'
+        ? 'unverified'
+        : verification,
+      fallback.decisionOutcome
+    );
+
+    if (
+      read.kind === 'empty' ||
+      (deviceTrustQuery.kind === 'ready' &&
+        deviceTrustQuery.snapshot.localMembership === 'removed') ||
+      (operation.kind === 'leaveSpace' && sameSpace)
+    ) {
+      this.snapshot = {
+        ...createInitialUnifiedSpaceSnapshot('empty'),
+        operationState: { kind: 'result', result: operationResult },
+        deviceListRefreshStatus: read.devices.kind === 'ready' ? 'idle' : 'failed',
+      };
+      this.publishSnapshot();
+      return;
+    }
+
+    this.snapshot = {
+      status: 'ready',
+      spaceId: read.state.spaceId,
+      deviceName: read.state.deviceName,
+      invitation: read.state.currentInvitation,
+      devices: read.devices.kind === 'ready' ? read.devices.devices : sameSpace ? devices : [],
+      workspaceConvergence: sameSpace ? fallback.workspaceConvergence : null,
+      deviceTrustQuery,
+      deviceTrustDecisionStatus: 'idle',
+      deviceTrustDecisionError: null,
+      deviceTrustDecisionOutcome: sameSpace ? fallback.decisionOutcome : null,
+      operationState: sameSpace ? { kind: 'result', result: operationResult } : { kind: 'idle' },
+      lastError: null,
+      hasResolvedDeviceList:
+        read.devices.kind === 'ready'
+          ? true
+          : sameSpace
+          ? this.snapshot.hasResolvedDeviceList
+          : false,
+      deviceListRefreshStatus: read.devices.kind === 'ready' ? 'idle' : 'failed',
+    };
+    this.publishSnapshot();
+  }
+
+  private async readPostOperationSpace(): Promise<PostOperationSpaceRead> {
+    try {
+      const state = await this.runRefreshStep('querySpaceState', () => this.api.querySpaceState());
+      await this.completion.resolveFromCore(Boolean(state.hasCompleted && state.spaceId));
+      if (!state.hasCompleted || !state.spaceId) {
+        return {
+          kind: 'empty',
+          devices: { kind: 'ready', devices: [] },
+          deviceTrustQuery: { kind: 'notApplicable' },
+        };
+      }
+      const [devices, deviceTrustQuery] = await Promise.all([
+        this.runRefreshStep('listDevices', () => this.api.listDevices()).then(
+          (entries) => ({ kind: 'ready' as const, devices: entries }),
+          () => ({ kind: 'failed' as const })
+        ),
+        this.queryDeviceTrustState(),
+      ]);
+      return {
+        kind: 'ready',
+        state: { ...state, spaceId: state.spaceId },
+        devices,
+        deviceTrustQuery,
+      };
+    } catch {
+      return { kind: 'failed' };
+    }
+  }
+
   private beginMutation(): number {
+    if (this.activeMutationRevision !== null) {
+      throw new SpaceOperationInProgressError();
+    }
     this.mutationRevision += 1;
     this.refreshRevision += 1;
     this.activeMutationRevision = this.mutationRevision;
@@ -654,6 +1084,19 @@ export class UnifiedSpaceService {
     this.publishSnapshot();
   }
 
+  private publishNoCurrentSpace(): UnifiedSpaceSnapshot {
+    const operationState =
+      this.snapshot.operationState.kind === 'result'
+        ? this.snapshot.operationState
+        : ({ kind: 'idle' } as const);
+    this.snapshot = {
+      ...createInitialUnifiedSpaceSnapshot('empty'),
+      operationState,
+    };
+    this.publishSnapshot();
+    return this.snapshot;
+  }
+
   private publishSnapshot(): void {
     this.publish({ ...this.snapshot, devices: [...this.snapshot.devices] });
   }
@@ -683,6 +1126,17 @@ export class UnifiedSpaceService {
     } catch (error) {
       log.error('Space refresh failed', spaceRefreshFailureDetails(error, stage));
       throw error;
+    }
+  }
+
+  private async queryDeviceTrustState(): Promise<DeviceTrustQueryState> {
+    try {
+      const snapshot = await this.runRefreshStep('queryDeviceTrust', () =>
+        this.api.queryDeviceTrust()
+      );
+      return { kind: 'ready', snapshot };
+    } catch (error) {
+      return failedDeviceTrustQuery(error);
     }
   }
 }

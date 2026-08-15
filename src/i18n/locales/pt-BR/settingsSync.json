@@ -39,7 +39,17 @@
       "noDevicesOnline": "Nenhum dispositivo disponível para sincronizar",
       "noOtherDevices": "Ainda não há outros dispositivos",
       "otherDevicesOffline": "{{count}} outros dispositivos estão off-line",
-      "statusUnavailable": "O status dos dispositivos não está disponível"
+      "statusUnavailable": "O status dos dispositivos não está disponível",
+      "memberCount": "{{count}} dispositivos neste espaço",
+      "status": {
+        "decisionRequired": "Revise uma alteração de dispositivos",
+        "unverifiable": "Não foi possível verificar os dispositivos",
+        "updateRequired": "Um dispositivo precisa ser atualizado",
+        "updating": "Atualizando o espaço",
+        "refreshing": "Atualizando o status dos dispositivos",
+        "healthy": "Os dispositivos podem sincronizar",
+        "empty": "Nenhum dispositivo no espaço"
+      }
     },
     "create": {
       "title": "Criar um novo espaço",
@@ -106,26 +116,110 @@
       "otherTitle": "Outros dispositivos",
       "remove": "Remover dispositivo",
       "removeConfirm": "Remover este dispositivo do espaço?",
+      "removeConfirmNamed": "Remover {{device}} deste espaço? O compartilhamento com este dispositivo será interrompido imediatamente e um novo convite será necessário para entrar novamente. Outros dispositivos off-line poderão solicitar a confirmação desta alteração quando voltarem.",
+      "removeEffect": "O compartilhamento com este dispositivo será interrompido imediatamente e um novo convite será necessário para entrar novamente. Outros dispositivos off-line poderão solicitar a confirmação desta alteração quando voltarem.",
       "manageHint": "Abre o gerenciamento do dispositivo",
       "idLabel": "ID do dispositivo {{id}}"
     },
+    "deviceDetail": {
+      "title": "Detalhes do dispositivo",
+      "updateAction": "Verificar atualizações",
+      "identity": {
+        "label": "Identidade do dispositivo",
+        "local": "Este dispositivo",
+        "remote": "Outro dispositivo"
+      },
+      "blockedReason": {
+        "noCurrentChange": "Não há nenhuma alteração de dispositivo para revisar.",
+        "changeNoLongerCurrent": "Esta alteração não é mais a atual. Atualize e tente novamente.",
+        "localDeviceConfirmationRequired": "Confirme primeiro a alteração deste dispositivo.",
+        "localDeviceRemoved": "Este dispositivo não faz mais parte do espaço.",
+        "recoveryNotAvailableInThisVersion": "Esta versão não consegue recuperar o espaço.",
+        "peerUpgradeRequired": "Os dispositivos relacionados precisam ser atualizados primeiro.",
+        "deviceFactsUnverifiable": "Não foi possível verificar agora os dados deste dispositivo.",
+        "engineUnavailable": "Os dados dos dispositivos do espaço estão indisponíveis agora."
+      },
+      "reachability": {
+        "label": "Conexão",
+        "online": "Online",
+        "offline": "Offline",
+        "unknown": "Desconhecida"
+      },
+      "groupRelationship": {
+        "label": "Espaço",
+        "consistent": "Espaço atual",
+        "pendingLocalDecision": "Aguardando sua escolha",
+        "diverged": "Espaço diferente",
+        "unverifiable": "Não foi possível verificar",
+        "unknown": "Desconhecido"
+      },
+      "syncRelationship": {
+        "label": "Sincronização",
+        "usable": "Disponível",
+        "waitingForLocalDecision": "Aguardando sua escolha",
+        "pausedGroupDiverged": "Interrompida por espaço diferente",
+        "pausedUpgradeRequired": "Pausada até a atualização",
+        "pausedUnverifiable": "Pausada durante a verificação",
+        "removedLocalDevice": "Este dispositivo saiu",
+        "removedPeerDevice": "Dispositivo removido",
+        "unknown": "Desconhecida"
+      },
+      "compatibility": {
+        "label": "Versão",
+        "compatible": "Compatível",
+        "upgradeRequired": "Atualização necessária",
+        "unknown": "Desconhecida"
+      }
+    },
+    "operation": {
+      "title": {
+        "removeMember": "Dispositivo removido",
+        "applyChange": "Alteração aplicada",
+        "keepCurrentSpace": "Espaço atual mantido",
+        "leaveSpace": "Você saiu do espaço",
+        "stateChanged": "O estado do espaço mudou"
+      },
+      "outcome": {
+        "stateChanged": "O espaço mudou antes que esta escolha fosse salva. O resultado atual aparece abaixo.",
+        "alreadyCompleted": "Esta alteração já foi tratada em outro lugar. O resultado realmente concluído aparece abaixo."
+      },
+      "none": "Nenhum",
+      "verified": "O estado mais recente dos dispositivos foi verificado.",
+      "unverified": "A alteração foi aceita, mas os dados mais recentes ainda não puderam ser verificados.",
+      "localStatus": {
+        "inSpace": "Este dispositivo continua no espaço original.",
+        "leftSpace": "Este dispositivo saiu do espaço original. O histórico local continua disponível."
+      },
+      "usable": "Podem continuar sincronizando: {{devices}}",
+      "separated": "Não sincronizam mais entre si: {{devices}}",
+      "continuing": "Continuam no espaço original: {{devices}}",
+      "offlinePending": "Alguns dispositivos estão off-line; o estado final de entrega ainda não foi confirmado.",
+      "done": "Concluir"
+    },
     "deviceTrust": {
       "title": "Revise uma alteração de dispositivos",
-      "body": "{{source}} alterou os dispositivos deste espaço. Escolha em qual grupo este dispositivo deve confiar.",
+      "body": "{{source}} alterou os dispositivos deste espaço. Escolha com quais dispositivos este aparelho deve continuar sincronizando.",
       "targets": "Dispositivos afetados: {{devices}}",
-      "apply": "Usar o grupo alterado",
+      "apply": "Aplicar esta alteração do espaço",
       "leave": "Sair deste espaço",
-      "keep": "Manter este grupo",
+      "keep": "Manter o espaço atual deste aparelho",
       "continues": "Continua sincronizando: {{devices}}",
       "stops": "Para de sincronizar: {{devices}}",
+      "requiresRejoin": "Um novo convite será necessário para entrar novamente: {{devices}}",
       "none": "Nenhum",
-      "confirmKeepTitle": "Manter este grupo?",
-      "confirmKeepBody": "A sincronização com dispositivos que aceitaram o outro grupo será interrompida até que eles entrem novamente.",
+      "confirmKeepTitle": "Manter o espaço atual deste aparelho?",
+      "confirmKeepBody": "Este aparelho manterá o espaço atual e deixará de sincronizar com dispositivos que aceitaram outra alteração do espaço até que eles entrem novamente.",
       "confirmLeaveTitle": "Sair deste espaço?",
       "confirmLeaveBody": "Este dispositivo deixará de sincronizar com o espaço. O histórico local será mantido.",
       "confirm": "Confirmar",
       "notificationTitle": "Revise uma alteração de dispositivos",
       "notificationBody": "Abra o UniClip para revisar quais dispositivos podem continuar sincronizando.",
+      "notificationReviewTitle": "Revise uma alteração de dispositivos",
+      "notificationReviewBody": "Abra o UniClip para escolher quais dispositivos podem continuar sincronizando.",
+      "notificationUpgradeTitle": "Um dispositivo precisa ser atualizado",
+      "notificationUpgradeBody": "Abra o UniClip para revisar o estado atual do espaço.",
+      "notificationUnverifiableTitle": "Os dados do dispositivo precisam de atenção",
+      "notificationUnverifiableBody": "Abra o UniClip para revisar o estado atual do espaço.",
       "notificationChannel": "Alterações de dispositivos",
       "stateChanged": "O estado dos dispositivos mudou. Revise o resultado mais recente.",
       "error": "Não foi possível salvar a escolha. O estado mais recente está sendo mostrado; tente novamente.",
@@ -133,6 +227,7 @@
         "waitingForLocalDecision": "Aguardando sua escolha",
         "unverifiable": "Não foi possível verificar os dados",
         "upgradeRequired": "Atualização necessária",
+        "updating": "Atualizando o espaço",
         "differentSpace": "Espaço diferente",
         "removed": "Removido",
         "usable": "Disponível",
@@ -148,7 +243,7 @@
     },
     "leave": {
       "action": "Sair do espaço",
-      "confirm": "O histórico local será mantido. Crie ou entre em um espaço novamente para retomar a sincronização."
+      "confirm": "Somente este celular sairá; os outros dispositivos continuarão no espaço original. O histórico local será mantido, e será necessário um novo convite para entrar novamente."
     },
     "switch": {
       "title": "Trocar de espaço",

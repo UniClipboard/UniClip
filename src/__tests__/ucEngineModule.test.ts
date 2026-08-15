@@ -91,6 +91,19 @@ describe('unified P2P engine native module', () => {
     expect(kotlin).toContain('choice: String, confirmLocalRemoval: Boolean');
   });
 
+  it('returns structured device trust query failures on both native platforms', () => {
+    const javascript = read('src/index.ts');
+    const swift = read('ios/UcEngineModule.swift');
+    const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
+
+    expect(javascript).toContain('export type DeviceTrustQueryResult');
+    expect(javascript).toContain('queryDeviceTrust(): Promise<DeviceTrustQueryResult>');
+    expect(swift).toContain('case let .Engine(code, category, retryable)');
+    expect(swift).toContain('"failure": Self.engineFailureMap(');
+    expect(kotlin).toContain('is BindingException.Engine -> mapOf(');
+    expect(kotlin).toContain('"failure" to engineFailureMap(error)');
+  });
+
   it('maps device trust changes to a revision-only event on both native platforms', () => {
     const javascript = read('src/index.ts');
     const swift = read('ios/UcEngineModule.swift');

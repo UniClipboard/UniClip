@@ -13,6 +13,7 @@ import {
   useUnifiedSpaceStore,
   type UnifiedSpaceSnapshot,
 } from '@/features/space/store';
+import type { DeviceTrustSnapshot } from '@/platform/engine';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -49,6 +50,18 @@ const invitation = {
   expiresAtMs: Date.now() + 60_000,
   availability: 'crossNetwork' as const,
 };
+
+const readyTrust = {
+  revision: 1,
+  localDeviceId: 'phone-1',
+  localMembership: 'active',
+  currentChange: null,
+  devices: [],
+  recovery: 'notAvailableInThisVersion',
+  allowedActions: [],
+  blockedReason: null,
+  updatedAtMs: 1,
+} satisfies DeviceTrustSnapshot;
 
 interface HarnessProps {
   initialMode?: 'choose' | 'create' | 'join' | 'switch';
@@ -166,6 +179,11 @@ describe('add sync connection flow', () => {
   });
 
   it('requires confirmation before replacing the active space', async () => {
+    useUnifiedSpaceStore.setState({
+      ...createInitialUnifiedSpaceSnapshot('ready'),
+      spaceId: 'space-1',
+      deviceTrustQuery: { kind: 'ready', snapshot: readyTrust },
+    });
     createHarness('switch');
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
 
@@ -189,6 +207,42 @@ describe('add sync connection flow', () => {
 
     expect(mockJoinSpace).toHaveBeenCalledWith('AB12-CD34', 'Phone', 'secret', false);
     expect(currentFlow.state.mode).toBe('success');
+    alert.mockRestore();
+  });
+
+  it('does not replace the active space when relationships become unverifiable before confirmation', async () => {
+    useUnifiedSpaceStore.setState({
+      ...createInitialUnifiedSpaceSnapshot('ready'),
+      spaceId: 'space-1',
+      deviceTrustQuery: { kind: 'ready', snapshot: readyTrust },
+    });
+    createHarness('switch');
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+
+    act(() => currentFlow.actions.updateInvitationCode('ab12cd34'));
+    act(() => currentFlow.actions.continueFromCode());
+    act(() => currentFlow.actions.setPassphrase('secret'));
+    await act(async () => currentFlow.actions.submitJoin());
+
+    const buttons = alert.mock.calls[0]?.[2];
+    const confirmButton = buttons?.find((button) => button.text === 'space.switch.confirmAction');
+    act(() => {
+      useUnifiedSpaceStore.setState({
+        deviceTrustQuery: {
+          kind: 'failed',
+          failure: {
+            operation: 'queryDeviceTrust',
+            code: 1393,
+            category: 'invalidState',
+            retryable: false,
+          },
+        },
+      });
+    });
+    await act(async () => confirmButton?.onPress?.());
+
+    expect(mockJoinSpace).not.toHaveBeenCalled();
+    expect(currentFlow.state.error).toBe('space.error.operationFailed');
     alert.mockRestore();
   });
 

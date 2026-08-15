@@ -22,6 +22,7 @@ import {
   foregroundStyle,
   frame,
   glassEffect,
+  contentShape,
   listStyle,
   lineLimit,
   minimumScaleFactor,
@@ -30,6 +31,8 @@ import {
   presentationDragIndicator,
   refreshable,
   scrollContentBackground,
+  onTapGesture,
+  shapes,
   type PresentationDetent,
 } from '@expo/ui/swift-ui/modifiers';
 import { useTranslation } from 'react-i18next';
@@ -42,6 +45,7 @@ import {
 } from '@/components/ui/iosButtonStyles.ios';
 import type { DeviceTrustDeviceView } from '@/features/space';
 import type { MySpaceSheetProps } from './MySpaceSheet.types';
+import { SpaceDeviceDetail } from './SpaceDeviceDetail';
 import { useMySpaceSheet } from './useMySpaceSheet';
 
 const DEVICE_COLOR = '#5856D6';
@@ -53,17 +57,19 @@ function AddDeviceButton({
   label,
   onPress,
   pending,
+  enabled,
 }: {
   label: string;
   onPress: () => void;
   pending: boolean;
+  enabled: boolean;
 }) {
   return (
     <SwiftUIButton
       onPress={onPress}
       modifiers={[
         buttonStyle('plain'),
-        disabled(pending),
+        disabled(!enabled || pending),
         accessibilityLabel(label),
         glassEffect({ glass: { variant: 'regular', interactive: true }, shape: 'circle' }),
       ]}
@@ -82,7 +88,13 @@ function AddDeviceButton({
   );
 }
 
-function SpaceDeviceRow({ device }: { device: DeviceTrustDeviceView }) {
+function SpaceDeviceRow({
+  device,
+  onPress,
+}: {
+  device: DeviceTrustDeviceView;
+  onPress: () => void;
+}) {
   const { t } = useTranslation('settingsSync');
   const online = device.isLocal || device.reachability === 'online';
   const trustStatus = device.primaryStatus !== 'usable' && device.primaryStatus !== 'unknown';
@@ -92,7 +104,15 @@ function SpaceDeviceRow({ device }: { device: DeviceTrustDeviceView }) {
     : t(online ? 'space.devices.online' : 'space.devices.offline');
 
   return (
-    <HStack spacing={12} alignment="center" modifiers={[frame({ maxWidth: Infinity })]}>
+    <HStack
+      spacing={12}
+      alignment="center"
+      modifiers={[
+        frame({ maxWidth: Infinity }),
+        contentShape(shapes.rectangle()),
+        onTapGesture(onPress),
+      ]}
+    >
       <Image systemName="person.crop.circle" size={30} color={DEVICE_COLOR} />
       <VStack alignment="leading" spacing={4}>
         <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>{device.displayName}</SwiftUIText>
@@ -104,6 +124,7 @@ function SpaceDeviceRow({ device }: { device: DeviceTrustDeviceView }) {
         </HStack>
       </VStack>
       <Spacer />
+      <Image systemName="chevron.right" size={12} color={OFFLINE_COLOR} />
     </HStack>
   );
 }
@@ -113,6 +134,7 @@ export function MySpaceSheet({ visible, onClose }: MySpaceSheetProps) {
   const [sheetDetent, setSheetDetent] = useState<PresentationDetent>('medium');
   const {
     devices,
+    deviceManagement,
     isInitialLoading,
     isInitialFailed,
     isKnownEmpty,
@@ -120,6 +142,7 @@ export function MySpaceSheet({ visible, onClose }: MySpaceSheetProps) {
     refresh,
     invitation,
     invitationPending,
+    canIssueInvitation,
     invitationError,
     invitationCopied,
     invitationExpired,
@@ -145,242 +168,310 @@ export function MySpaceSheet({ visible, onClose }: MySpaceSheetProps) {
   const presentedSheetDetent = invitation ? 'large' : sheetDetent;
 
   return (
-    <Host style={styles.host}>
-      <BottomSheet
-        isPresented={visible}
-        onIsPresentedChange={(presented) => {
-          if (!presented) onClose();
-        }}
-      >
-        <Group
-          modifiers={[
-            presentationDetents(['medium', 'large'], {
-              selection: presentedSheetDetent,
-              onSelectionChange: setSheetDetent,
-            }),
-            presentationDragIndicator('visible'),
-          ]}
+    <>
+      <Host style={styles.host}>
+        <BottomSheet
+          isPresented={visible}
+          onIsPresentedChange={(presented) => {
+            if (!presented) onClose();
+          }}
         >
-          <IosSheetPage
-            title={t('topBar.mySpace', { ns: 'home' })}
-            rightSlots={[
-              <AddDeviceButton
-                key="add"
-                label={t('space.invitation.addA11y', { ns: 'settingsSync' })}
-                onPress={handleIssueInvitation}
-                pending={invitationPending}
-              />,
+          <Group
+            modifiers={[
+              presentationDetents(['medium', 'large'], {
+                selection: presentedSheetDetent,
+                onSelectionChange: setSheetDetent,
+              }),
+              presentationDragIndicator('visible'),
             ]}
           >
-            <List
-              modifiers={[
-                listStyle('insetGrouped'),
-                scrollContentBackground('hidden'),
-                refreshable(() => refresh()),
+            <IosSheetPage
+              title={t('topBar.mySpace', { ns: 'home' })}
+              rightSlots={[
+                <AddDeviceButton
+                  key="add"
+                  label={t('space.invitation.addA11y', { ns: 'settingsSync' })}
+                  onPress={handleIssueInvitation}
+                  pending={invitationPending}
+                  enabled={canIssueInvitation}
+                />,
               ]}
             >
-              {pairedDeviceName ? (
-                <Section>
-                  <HStack spacing={12} alignment="center">
-                    <Image systemName="checkmark.circle.fill" size={28} color={ONLINE_COLOR} />
-                    <VStack alignment="leading" spacing={4}>
-                      <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>
-                        {t('space.flow.successTitle', { ns: 'settingsSync' })}
-                      </SwiftUIText>
-                      <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-                        {t('space.invitation.pairedDevice', {
-                          ns: 'settingsSync',
-                          device: pairedDeviceName,
-                        })}
-                      </SwiftUIText>
-                    </VStack>
-                  </HStack>
-                </Section>
-              ) : null}
-
-              {invitationError ? (
-                <Section>
-                  <SwiftUIButton onPress={handleIssueInvitation} modifiers={[buttonStyle('plain')]}>
+              <List
+                modifiers={[
+                  listStyle('insetGrouped'),
+                  scrollContentBackground('hidden'),
+                  refreshable(() => refresh()),
+                ]}
+              >
+                {deviceManagement.overview.primaryStatus !== 'updateRequired' ? (
+                  <Section>
                     <HStack spacing={10} modifiers={[frame({ maxWidth: Infinity })]}>
                       <Image
-                        systemName="exclamationmark.circle.fill"
-                        size={18}
-                        color={ERROR_COLOR}
+                        systemName={
+                          deviceManagement.overview.primaryStatus === 'healthy'
+                            ? 'checkmark.circle.fill'
+                            : 'exclamationmark.circle.fill'
+                        }
+                        size={20}
+                        color={
+                          deviceManagement.overview.primaryStatus === 'healthy'
+                            ? ONLINE_COLOR
+                            : ERROR_COLOR
+                        }
                       />
-                      <SwiftUIText modifiers={[foregroundStyle(ERROR_COLOR)]}>
-                        {invitationError}
-                      </SwiftUIText>
-                      <Spacer />
-                      <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-                        {t('action.retry', { ns: 'common' })}
-                      </SwiftUIText>
+                      <VStack alignment="leading" spacing={3}>
+                        <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>
+                          {t(`space.overview.status.${deviceManagement.overview.primaryStatus}`, {
+                            ns: 'settingsSync',
+                          })}
+                        </SwiftUIText>
+                        <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
+                          {t('space.overview.memberCount', {
+                            ns: 'settingsSync',
+                            count: deviceManagement.overview.memberCount,
+                          })}
+                        </SwiftUIText>
+                      </VStack>
                     </HStack>
-                  </SwiftUIButton>
-                </Section>
-              ) : null}
+                  </Section>
+                ) : null}
 
-              {invitation ? (
-                <Section
-                  header={
-                    <SwiftUIText>{t('space.invitation.title', { ns: 'settingsSync' })}</SwiftUIText>
-                  }
-                  footer={
-                    <SwiftUIText>
-                      {t(
-                        invitation.availability === 'sameLocalNetwork'
-                          ? 'space.invitation.sameLocalNetwork'
-                          : 'space.invitation.crossNetwork',
-                        { ns: 'settingsSync' }
-                      )}
-                    </SwiftUIText>
-                  }
-                >
-                  <VStack spacing={10} alignment="leading">
-                    <SwiftUIText
-                      modifiers={[font({ size: 30, weight: 'bold', design: 'monospaced' })]}
-                    >
-                      {invitation.invitationCode}
-                    </SwiftUIText>
-                    <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-                      {t('space.invitation.pairingInstructions', { ns: 'settingsSync' })}
-                    </SwiftUIText>
-                    <HStack spacing={7}>
-                      <Image systemName="clock" size={15} />
-                      <SwiftUIText
-                        modifiers={[foregroundStyle(invitationExpired ? ERROR_COLOR : 'secondary')]}
-                      >
-                        {invitationExpired
-                          ? t('space.flow.expired', { ns: 'settingsSync' })
-                          : t('space.flow.expiresIn', {
-                              ns: 'settingsSync',
-                              time: invitationTimeRemaining,
-                            })}
-                      </SwiftUIText>
+                {pairedDeviceName ? (
+                  <Section>
+                    <HStack spacing={12} alignment="center">
+                      <Image systemName="checkmark.circle.fill" size={28} color={ONLINE_COLOR} />
+                      <VStack alignment="leading" spacing={4}>
+                        <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>
+                          {t('space.flow.successTitle', { ns: 'settingsSync' })}
+                        </SwiftUIText>
+                        <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
+                          {t('space.invitation.pairedDevice', {
+                            ns: 'settingsSync',
+                            device: pairedDeviceName,
+                          })}
+                        </SwiftUIText>
+                      </VStack>
                     </HStack>
-                  </VStack>
-                  {invitationExpired ? (
+                  </Section>
+                ) : null}
+
+                {invitationError ? (
+                  <Section>
                     <SwiftUIButton
                       onPress={handleIssueInvitation}
-                      modifiers={[buttonStyle('bordered')]}
+                      modifiers={[buttonStyle('plain')]}
                     >
-                      <HStack spacing={7}>
-                        <Image systemName="arrow.clockwise" size={16} />
-                        <SwiftUIText>
-                          {t('space.invitation.action', { ns: 'settingsSync' })}
+                      <HStack spacing={10} modifiers={[frame({ maxWidth: Infinity })]}>
+                        <Image
+                          systemName="exclamationmark.circle.fill"
+                          size={18}
+                          color={ERROR_COLOR}
+                        />
+                        <SwiftUIText modifiers={[foregroundStyle(ERROR_COLOR)]}>
+                          {invitationError}
+                        </SwiftUIText>
+                        <Spacer />
+                        <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
+                          {t('action.retry', { ns: 'common' })}
                         </SwiftUIText>
                       </HStack>
                     </SwiftUIButton>
-                  ) : (
-                    <HStack spacing={10} modifiers={[frame({ maxWidth: Infinity })]}>
-                      <SwiftUIButton
-                        onPress={() => void copyInvitation()}
-                        modifiers={iosSecondaryButtonModifiers({ fullWidth: true })}
-                      >
-                        <HStack spacing={7}>
-                          <Image
-                            systemName={invitationCopied ? 'checkmark' : 'doc.on.doc'}
-                            size={16}
-                          />
-                          <SwiftUIText modifiers={[lineLimit(1), minimumScaleFactor(0.72)]}>
-                            {t('space.flow.copyInvitation', { ns: 'settingsSync' })}
-                          </SwiftUIText>
-                        </HStack>
-                      </SwiftUIButton>
-                      <SwiftUIButton
-                        onPress={() => void shareInvitation()}
-                        modifiers={iosProminentButtonModifiers(
-                          iosSaturatedButtonPalette(DEVICE_COLOR),
-                          { fullWidth: true }
+                  </Section>
+                ) : null}
+
+                {invitation ? (
+                  <Section
+                    header={
+                      <SwiftUIText>
+                        {t('space.invitation.title', { ns: 'settingsSync' })}
+                      </SwiftUIText>
+                    }
+                    footer={
+                      <SwiftUIText>
+                        {t(
+                          invitation.availability === 'sameLocalNetwork'
+                            ? 'space.invitation.sameLocalNetwork'
+                            : 'space.invitation.crossNetwork',
+                          { ns: 'settingsSync' }
                         )}
+                      </SwiftUIText>
+                    }
+                  >
+                    <VStack spacing={10} alignment="leading">
+                      <SwiftUIText
+                        modifiers={[font({ size: 30, weight: 'bold', design: 'monospaced' })]}
+                      >
+                        {invitation.invitationCode}
+                      </SwiftUIText>
+                      <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
+                        {t('space.invitation.pairingInstructions', { ns: 'settingsSync' })}
+                      </SwiftUIText>
+                      <HStack spacing={7}>
+                        <Image systemName="clock" size={15} />
+                        <SwiftUIText
+                          modifiers={[
+                            foregroundStyle(invitationExpired ? ERROR_COLOR : 'secondary'),
+                          ]}
+                        >
+                          {invitationExpired
+                            ? t('space.flow.expired', { ns: 'settingsSync' })
+                            : t('space.flow.expiresIn', {
+                                ns: 'settingsSync',
+                                time: invitationTimeRemaining,
+                              })}
+                        </SwiftUIText>
+                      </HStack>
+                    </VStack>
+                    {invitationExpired ? (
+                      <SwiftUIButton
+                        onPress={handleIssueInvitation}
+                        modifiers={[buttonStyle('bordered')]}
                       >
                         <HStack spacing={7}>
-                          <Image systemName="square.and.arrow.up" size={16} />
-                          <SwiftUIText modifiers={[lineLimit(1), minimumScaleFactor(0.72)]}>
-                            {t('space.flow.shareInvitation', { ns: 'settingsSync' })}
+                          <Image systemName="arrow.clockwise" size={16} />
+                          <SwiftUIText>
+                            {t('space.invitation.action', { ns: 'settingsSync' })}
                           </SwiftUIText>
                         </HStack>
                       </SwiftUIButton>
+                    ) : (
+                      <HStack spacing={10} modifiers={[frame({ maxWidth: Infinity })]}>
+                        <SwiftUIButton
+                          onPress={() => void copyInvitation()}
+                          modifiers={iosSecondaryButtonModifiers({ fullWidth: true })}
+                        >
+                          <HStack spacing={7}>
+                            <Image
+                              systemName={invitationCopied ? 'checkmark' : 'doc.on.doc'}
+                              size={16}
+                            />
+                            <SwiftUIText modifiers={[lineLimit(1), minimumScaleFactor(0.72)]}>
+                              {t('space.flow.copyInvitation', { ns: 'settingsSync' })}
+                            </SwiftUIText>
+                          </HStack>
+                        </SwiftUIButton>
+                        <SwiftUIButton
+                          onPress={() => void shareInvitation()}
+                          modifiers={iosProminentButtonModifiers(
+                            iosSaturatedButtonPalette(DEVICE_COLOR),
+                            { fullWidth: true }
+                          )}
+                        >
+                          <HStack spacing={7}>
+                            <Image systemName="square.and.arrow.up" size={16} />
+                            <SwiftUIText modifiers={[lineLimit(1), minimumScaleFactor(0.72)]}>
+                              {t('space.flow.shareInvitation', { ns: 'settingsSync' })}
+                            </SwiftUIText>
+                          </HStack>
+                        </SwiftUIButton>
+                      </HStack>
+                    )}
+                  </Section>
+                ) : null}
+
+                <Section
+                  header={
+                    <HStack modifiers={[frame({ maxWidth: Infinity })]}>
+                      <SwiftUIText>{t('space.devices.title', { ns: 'settingsSync' })}</SwiftUIText>
+                      <Spacer />
+                      <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
+                        {devices.length}
+                      </SwiftUIText>
                     </HStack>
-                  )}
+                  }
+                >
+                  {isInitialLoading ? (
+                    <HStack spacing={10} alignment="center">
+                      <ProgressView />
+                      <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
+                        {t('state.loading', { ns: 'common' })}
+                      </SwiftUIText>
+                    </HStack>
+                  ) : null}
+
+                  {isInitialFailed ? (
+                    <SwiftUIButton
+                      onPress={() => void refresh()}
+                      modifiers={[buttonStyle('plain')]}
+                    >
+                      <HStack spacing={10} modifiers={[frame({ maxWidth: Infinity })]}>
+                        <Image
+                          systemName="exclamationmark.circle.fill"
+                          size={18}
+                          color={ERROR_COLOR}
+                        />
+                        <SwiftUIText modifiers={[foregroundStyle(ERROR_COLOR)]}>
+                          {t('space.error.operationFailed', { ns: 'settingsSync' })}
+                        </SwiftUIText>
+                        <Spacer />
+                        <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
+                          {t('action.retry', { ns: 'common' })}
+                        </SwiftUIText>
+                      </HStack>
+                    </SwiftUIButton>
+                  ) : null}
+
+                  {deviceListFailed ? (
+                    <SwiftUIButton
+                      onPress={() => void refresh()}
+                      modifiers={[buttonStyle('plain')]}
+                    >
+                      <HStack spacing={10} modifiers={[frame({ maxWidth: Infinity })]}>
+                        <Image
+                          systemName="exclamationmark.circle.fill"
+                          size={18}
+                          color={ERROR_COLOR}
+                        />
+                        <SwiftUIText modifiers={[foregroundStyle(ERROR_COLOR)]}>
+                          {t('space.devices.refreshFailed', { ns: 'settingsSync' })}
+                        </SwiftUIText>
+                        <Spacer />
+                        <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
+                          {t('action.retry', { ns: 'common' })}
+                        </SwiftUIText>
+                      </HStack>
+                    </SwiftUIButton>
+                  ) : null}
+
+                  {isKnownEmpty ? (
+                    <HStack spacing={10}>
+                      <Image systemName="person.2" size={18} color={OFFLINE_COLOR} />
+                      <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
+                        {t('space.devices.empty', { ns: 'settingsSync' })}
+                      </SwiftUIText>
+                    </HStack>
+                  ) : null}
+
+                  {devices.map((device) => (
+                    <SpaceDeviceRow
+                      key={device.deviceId}
+                      device={device}
+                      onPress={() => deviceManagement.openDevice(device.deviceId)}
+                    />
+                  ))}
                 </Section>
-              ) : null}
-
-              <Section
-                header={
-                  <HStack modifiers={[frame({ maxWidth: Infinity })]}>
-                    <SwiftUIText>{t('space.devices.title', { ns: 'settingsSync' })}</SwiftUIText>
-                    <Spacer />
-                    <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-                      {devices.length}
-                    </SwiftUIText>
-                  </HStack>
-                }
-              >
-                {isInitialLoading ? (
-                  <HStack spacing={10} alignment="center">
-                    <ProgressView />
-                    <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-                      {t('state.loading', { ns: 'common' })}
-                    </SwiftUIText>
-                  </HStack>
-                ) : null}
-
-                {isInitialFailed ? (
-                  <SwiftUIButton onPress={() => void refresh()} modifiers={[buttonStyle('plain')]}>
-                    <HStack spacing={10} modifiers={[frame({ maxWidth: Infinity })]}>
-                      <Image
-                        systemName="exclamationmark.circle.fill"
-                        size={18}
-                        color={ERROR_COLOR}
-                      />
-                      <SwiftUIText modifiers={[foregroundStyle(ERROR_COLOR)]}>
-                        {t('space.error.operationFailed', { ns: 'settingsSync' })}
-                      </SwiftUIText>
-                      <Spacer />
-                      <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-                        {t('action.retry', { ns: 'common' })}
-                      </SwiftUIText>
-                    </HStack>
-                  </SwiftUIButton>
-                ) : null}
-
-                {deviceListFailed ? (
-                  <SwiftUIButton onPress={() => void refresh()} modifiers={[buttonStyle('plain')]}>
-                    <HStack spacing={10} modifiers={[frame({ maxWidth: Infinity })]}>
-                      <Image
-                        systemName="exclamationmark.circle.fill"
-                        size={18}
-                        color={ERROR_COLOR}
-                      />
-                      <SwiftUIText modifiers={[foregroundStyle(ERROR_COLOR)]}>
-                        {t('space.devices.refreshFailed', { ns: 'settingsSync' })}
-                      </SwiftUIText>
-                      <Spacer />
-                      <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-                        {t('action.retry', { ns: 'common' })}
-                      </SwiftUIText>
-                    </HStack>
-                  </SwiftUIButton>
-                ) : null}
-
-                {isKnownEmpty ? (
-                  <HStack spacing={10}>
-                    <Image systemName="person.2" size={18} color={OFFLINE_COLOR} />
-                    <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-                      {t('space.devices.empty', { ns: 'settingsSync' })}
-                    </SwiftUIText>
-                  </HStack>
-                ) : null}
-
-                {devices.map((device) => (
-                  <SpaceDeviceRow key={device.deviceId} device={device} />
-                ))}
-              </Section>
-            </List>
-          </IosSheetPage>
-        </Group>
-      </BottomSheet>
-    </Host>
+              </List>
+            </IosSheetPage>
+          </Group>
+        </BottomSheet>
+      </Host>
+      <SpaceDeviceDetail
+        device={deviceManagement.selectedDevice}
+        canRemove={deviceManagement.canRemoveSelected}
+        confirmingRemoval={deviceManagement.confirmingRemoval}
+        removing={deviceManagement.removing}
+        removeErrorMessage={
+          deviceManagement.removeError
+            ? t('space.error.operationFailed', { ns: 'settingsSync' })
+            : null
+        }
+        onClose={deviceManagement.closeDevice}
+        onRequestRemove={deviceManagement.requestRemove}
+        onCancelRemove={deviceManagement.cancelRemove}
+        onConfirmRemove={() => void deviceManagement.confirmRemove()}
+      />
+    </>
   );
 }
 

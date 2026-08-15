@@ -29,6 +29,7 @@ import { getSpaceSetupCompletion } from './src/features/space';
 import { useShareSheetStore } from './src/stores/shareSheetStore';
 import { DeviceTrustDecision } from './src/components/DeviceTrustDecision';
 import { DeviceTrustNotificationObserver } from './src/components/DeviceTrustNotificationObserver';
+import { SpaceOperationResult } from './src/components/SpaceOperationResult';
 
 const QUICK_UPLOAD_URL = 'uniclipboard://quick-upload';
 const PROCESS_TEXT_URL = 'uniclipboard://process-text';
@@ -344,6 +345,7 @@ export default function App() {
           </View>
         )}
         <DeviceTrustDecision />
+        <SpaceOperationResult />
       </ThemeProvider>
     </GestureHandlerRootView>
   );

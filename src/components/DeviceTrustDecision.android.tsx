@@ -53,6 +53,13 @@ function ImpactSummary({ choice }: { choice: DeviceTrustChoiceView }) {
           devices: choice.stopSyncNames.join(', ') || none,
         })}
       </ComposeText>
+      {choice.requiresRejoinNames.length ? (
+        <ComposeText color={colors.onSurfaceVariant}>
+          {t('space.deviceTrust.requiresRejoin', {
+            devices: choice.requiresRejoinNames.join(', '),
+          })}
+        </ComposeText>
+      ) : null}
     </Column>
   );
 }

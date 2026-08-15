@@ -1,10 +1,10 @@
 import * as nativeEngine from 'uc-engine';
-import { parseDeviceTrustDecision, parseDeviceTrustSnapshot } from './deviceTrust';
+import { parseDeviceTrustDecision, parseDeviceTrustQueryResult } from './deviceTrust';
 
 const parsedNativeEngine = {
   ...nativeEngine,
   async queryDeviceTrust() {
-    return parseDeviceTrustSnapshot(await nativeEngine.queryDeviceTrust());
+    return parseDeviceTrustQueryResult(await nativeEngine.queryDeviceTrust());
   },
   async decideDeviceTrustChange(
     changeId: string,

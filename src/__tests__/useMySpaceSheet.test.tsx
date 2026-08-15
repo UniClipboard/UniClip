@@ -4,7 +4,11 @@ import * as Clipboard from 'expo-clipboard';
 import TestRenderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 
 import { useMySpaceSheet } from '@/components/useMySpaceSheet';
-import { useUnifiedSpaceStore, type UnifiedSpaceSnapshot } from '@/features/space/store';
+import {
+  createInitialUnifiedSpaceSnapshot,
+  useUnifiedSpaceStore,
+  type UnifiedSpaceSnapshot,
+} from '@/features/space/store';
 import type { DeviceTrustSnapshot } from '@/platform/engine';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -15,6 +19,7 @@ const mockUnifiedSpaceUserErrorCode = jest.fn();
 
 jest.mock('@/features/space', () => ({
   ...jest.requireActual('@/features/space/store'),
+  ...jest.requireActual('@/features/space/deviceTrustPresentation'),
   getUnifiedSpaceService: () => ({
     issueInvitation: mockIssueInvitation,
     refresh: mockRefresh,
@@ -36,6 +41,7 @@ let invitation = {
 };
 
 const initialSnapshot: UnifiedSpaceSnapshot = {
+  ...createInitialUnifiedSpaceSnapshot('ready'),
   status: 'ready',
   spaceId: 'space-1',
   deviceName: 'Phone',
@@ -61,7 +67,7 @@ const trustSnapshot: DeviceTrustSnapshot = {
       isLocal: true,
       reachability: 'online',
       membership: 'active',
-      groupRelationship: 'sameGroup',
+      groupRelationship: 'consistent',
       compatibility: 'compatible',
       syncRelationship: 'usable',
       availableActions: [],
@@ -73,7 +79,7 @@ const trustSnapshot: DeviceTrustSnapshot = {
       isLocal: false,
       reachability: 'online',
       membership: 'active',
-      groupRelationship: 'sameGroup',
+      groupRelationship: 'consistent',
       compatibility: 'compatible',
       syncRelationship: 'usable',
       availableActions: [],
@@ -85,7 +91,7 @@ const trustSnapshot: DeviceTrustSnapshot = {
       isLocal: false,
       reachability: 'online',
       membership: 'active',
-      groupRelationship: 'differentGroup',
+      groupRelationship: 'diverged',
       compatibility: 'compatible',
       syncRelationship: 'pausedGroupDiverged',
       availableActions: [],
@@ -123,7 +129,10 @@ function createHarness() {
 describe('My Space sheet invitation flow', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    useUnifiedSpaceStore.setState(initialSnapshot, true);
+    useUnifiedSpaceStore.setState(
+      { ...initialSnapshot, deviceTrustQuery: { kind: 'ready', snapshot: trustSnapshot } },
+      true
+    );
     mockRefresh.mockResolvedValue(initialSnapshot);
     invitation = {
       invitationCode: 'ABCD-1234',
@@ -196,6 +205,69 @@ describe('My Space sheet invitation flow', () => {
     });
   });
 
+  it('does not create an invitation while a device change requires a decision', async () => {
+    useUnifiedSpaceStore.setState(
+      {
+        ...initialSnapshot,
+        deviceTrustQuery: {
+          kind: 'ready',
+          snapshot: {
+            ...trustSnapshot,
+            currentChange: {
+              changeId: 'change-1',
+              proposedByDeviceId: 'existing',
+              targetDeviceIds: ['existing'],
+              includesLocalDevice: false,
+              applyImpact: {
+                usableDeviceIds: ['local'],
+                pausedDeviceIds: ['existing'],
+                localDeviceOutcome: 'active',
+                requiresRejoinDeviceIds: ['existing'],
+              },
+              keepCurrentImpact: {
+                usableDeviceIds: ['local', 'existing'],
+                pausedDeviceIds: [],
+                localDeviceOutcome: 'active',
+                requiresRejoinDeviceIds: [],
+              },
+              allowedChoices: ['applyChange', 'keepCurrentDeviceGroup'],
+              blockedReason: null,
+            },
+          },
+        },
+      },
+      true
+    );
+    createHarness();
+
+    expect(currentSheet.canIssueInvitation).toBe(false);
+    await act(async () => currentSheet.issueInvitation());
+    expect(mockIssueInvitation).not.toHaveBeenCalled();
+  });
+
+  it('does not create an invitation when current device relationships cannot be verified', async () => {
+    useUnifiedSpaceStore.setState(
+      {
+        ...initialSnapshot,
+        deviceTrustQuery: {
+          kind: 'failed',
+          failure: {
+            operation: 'queryDeviceTrust',
+            code: 1393,
+            category: 'workspace_convergence_failed',
+            retryable: true,
+          },
+        },
+      },
+      true
+    );
+    createHarness();
+
+    expect(currentSheet.canIssueInvitation).toBe(false);
+    await act(async () => currentSheet.issueInvitation());
+    expect(mockIssueInvitation).not.toHaveBeenCalled();
+  });
+
   it('creates one invitation automatically each time a focused invitation sheet opens', async () => {
     await act(async () => {
       activeRenderer = TestRenderer.create(<Harness issueOnOpen />);
@@ -230,7 +302,7 @@ describe('My Space sheet invitation flow', () => {
             { deviceId: 'new', displayName: 'New iPhone', isLocal: false, online: true },
           ],
         },
-        true
+        false
       );
       await Promise.resolve();
     });
@@ -338,15 +410,17 @@ describe('My Space sheet device list state', () => {
   });
 
   it('keeps Engine-known devices visible and prioritizes their trust relationship', () => {
-    useUnifiedSpaceStore.setState({ ...initialSnapshot, deviceTrust: trustSnapshot }, true);
+    useUnifiedSpaceStore.setState(
+      {
+        ...initialSnapshot,
+        deviceTrustQuery: { kind: 'ready', snapshot: trustSnapshot },
+      },
+      true
+    );
     createHarness();
 
-    expect(currentSheet.devices).toHaveLength(3);
-    expect(currentSheet.devices.find((device) => device.deviceId === 'diverged')).toMatchObject({
-      displayName: 'Tablet',
-      reachability: 'online',
-      primaryStatus: 'differentSpace',
-    });
+    expect(currentSheet.devices).toHaveLength(2);
+    expect(currentSheet.devices.find((device) => device.deviceId === 'diverged')).toBeUndefined();
   });
 
   it('does not mistake a known empty list for first load', () => {

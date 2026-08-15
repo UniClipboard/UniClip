@@ -36,8 +36,15 @@ export type RootStackParamList = {
   Onboarding: undefined;
   Migration: undefined;
   Main: undefined;
-  Settings: undefined;
-  SettingsSub: { section: SettingsSubSection; update?: UpdateCheckResult };
+  Settings:
+    | { section?: 'space'; deviceId?: string; notificationNavigationRequestId?: number }
+    | undefined;
+  SettingsSub: {
+    section: SettingsSubSection;
+    update?: UpdateCheckResult;
+    deviceId?: string;
+    notificationNavigationRequestId?: number;
+  };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();

@@ -193,16 +193,19 @@ export function HeaderCircleButton({
   systemName,
   onPress,
   accessibilityLabel,
+  disabled = false,
 }: {
   systemName: SFSymbol;
   onPress: () => void;
   accessibilityLabel?: string;
+  disabled?: boolean;
 }) {
   return (
     <SwiftUIButton
       onPress={onPress}
       modifiers={[
         buttonStyle('plain'),
+        disabledModifier(disabled),
         glassEffect({ glass: { variant: 'regular', interactive: true }, shape: 'circle' }),
         ...(accessibilityLabel ? [accessibilityLabelModifier(accessibilityLabel)] : []),
       ]}

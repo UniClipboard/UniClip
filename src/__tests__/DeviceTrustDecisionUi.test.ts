@@ -52,6 +52,20 @@ describe('global device trust decision UI', () => {
     }
   });
 
+  it('explains which devices need a new invitation after each choice', () => {
+    const android = read('components/DeviceTrustDecision.android.tsx');
+    const ios = read('components/DeviceTrustDecision.ios.tsx');
+
+    for (const platform of [android, ios]) {
+      expect(platform).toContain('choice.requiresRejoinNames');
+      expect(platform).toContain('space.deviceTrust.requiresRejoin');
+    }
+    for (const locale of ['en', 'pt-BR', 'ru', 'zh']) {
+      const messages = JSON.parse(read(`i18n/locales/${locale}/settingsSync.json`));
+      expect(messages.space.deviceTrust.requiresRejoin).toEqual(expect.any(String));
+    }
+  });
+
   it('keeps platform branching out of the shared component contract', () => {
     const entry = read('components/DeviceTrustDecision.tsx');
     const types = read('components/DeviceTrustDecision.types.ts');

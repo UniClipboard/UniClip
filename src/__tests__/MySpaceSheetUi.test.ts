@@ -71,7 +71,8 @@ describe('home My Space sheet', () => {
     expect(mySpaceSheetTypes).toContain('onClose: () => void');
     expect(read('components/MySpaceSheet.tsx')).toContain("export * from './MySpaceSheet.android'");
 
-    expect(mySpaceSheets[0]).toContain('ModalBottomSheet');
+    expect(mySpaceSheets[0]).toContain('<AppBottomSheet');
+    expect(mySpaceSheets[0]).not.toContain('ModalBottomSheet');
     expect(mySpaceSheets[0]).toContain('LazyColumn');
     expect(mySpaceSheets[1]).toContain('BottomSheet');
     expect(mySpaceSheets[1]).toContain('List');
@@ -85,7 +86,25 @@ describe('home My Space sheet', () => {
       expect(sheet).toContain("device.reachability === 'online'");
       expect(sheet).toContain('space.deviceTrust.status.${device.primaryStatus}');
     }
-    expect(mySpaceSheetHook).toContain('buildDeviceTrustDeviceViews');
+    expect(mySpaceSheetHook).toContain('useSpaceDeviceManagement');
+    expect(mySpaceSheetHook).toContain('deviceManagement.devices');
+  });
+
+  it('opens the shared read-only detail and renders the shared space overview', () => {
+    for (const sheet of mySpaceSheets) {
+      expect(sheet).toContain('<SpaceDeviceDetail');
+      expect(sheet).toContain('deviceManagement.openDevice');
+      expect(sheet).toContain('deviceManagement.overview.primaryStatus');
+      expect(sheet).toContain('canRemove={deviceManagement.canRemoveSelected}');
+    }
+    expect(mySpaceSheetHook).toContain('allowHighImpactActions: false');
+  });
+
+  it('hides only the update-required overview card while retaining device status rows', () => {
+    for (const sheet of mySpaceSheets) {
+      expect(sheet).toContain("deviceManagement.overview.primaryStatus !== 'updateRequired'");
+      expect(sheet).toContain('space.deviceTrust.status.${device.primaryStatus}');
+    }
   });
 
   it('groups Android device entries in a rounded list with dividers', () => {
@@ -142,6 +161,14 @@ describe('home My Space sheet', () => {
       expect(sheet).toContain('invitationTimeRemaining');
       expect(sheet).toContain('pairedDeviceName');
     }
+  });
+
+  it('disables the add action while a decision or another space operation is active', () => {
+    for (const sheet of mySpaceSheets) {
+      expect(sheet).toContain('canIssueInvitation');
+    }
+    expect(mySpaceSheets[0]).toContain('enabled={canIssueInvitation}');
+    expect(mySpaceSheets[1]).toContain('enabled={canIssueInvitation}');
   });
 
   it('shows invitation progress only in the header action', () => {

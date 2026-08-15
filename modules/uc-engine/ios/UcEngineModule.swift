@@ -206,9 +206,26 @@ public final class UcEngineModule: Module {
       return devices
     }.runOnQueue(engineOperationQueue)
 
-    AsyncFunction("queryDeviceTrust") { () -> String in
-      try self.runSpaceRead("queryDeviceTrust") {
-        try self.requireEngine().queryDeviceTrust()
+    AsyncFunction("queryDeviceTrust") { () -> [String: Any] in
+      do {
+        return [
+          "ok": true,
+          "value": try self.runSpaceRead("queryDeviceTrust") {
+            try self.requireEngine().queryDeviceTrust()
+          },
+        ]
+      } catch let bindingError as BindingError {
+        if case let .Engine(code, category, retryable) = bindingError {
+          return [
+            "ok": false,
+            "failure": Self.engineFailureMap(
+              code: code,
+              category: category,
+              retryable: retryable
+            ),
+          ]
+        }
+        throw bindingError
       }
     }.runOnQueue(engineOperationQueue)
 
@@ -412,6 +429,18 @@ public final class UcEngineModule: Module {
       "code": failure.code,
       "category": String(describing: failure.category),
       "retryable": failure.retryable,
+    ]
+  }
+
+  private static func engineFailureMap(
+    code: UInt32,
+    category: BindingErrorCategory,
+    retryable: Bool
+  ) -> [String: Any] {
+    [
+      "code": code,
+      "category": String(describing: category),
+      "retryable": retryable,
     ]
   }
 

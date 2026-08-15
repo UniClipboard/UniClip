@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   buildDeviceTrustDecisionView,
+  deviceTrustSnapshotFromQuery,
   getUnifiedSpaceService,
   initialDeviceTrustChoice,
   useUnifiedSpaceStore,
@@ -8,10 +9,12 @@ import {
 import type { DeviceTrustChoice } from '@/platform/engine';
 
 export function useDeviceTrustDecision() {
-  const deviceTrust = useUnifiedSpaceStore((state) => state.deviceTrust);
+  const deviceTrustQuery = useUnifiedSpaceStore((state) => state.deviceTrustQuery);
+  const deviceTrust = deviceTrustSnapshotFromQuery(deviceTrustQuery);
   const status = useUnifiedSpaceStore((state) => state.deviceTrustDecisionStatus);
   const error = useUnifiedSpaceStore((state) => state.deviceTrustDecisionError);
   const outcome = useUnifiedSpaceStore((state) => state.deviceTrustDecisionOutcome);
+  const operationState = useUnifiedSpaceStore((state) => state.operationState);
   const [selection, setSelection] = useState<{
     changeId: string | null;
     choice: DeviceTrustChoice | null;
@@ -25,7 +28,10 @@ export function useDeviceTrustDecision() {
     setConfirmingChoice(null);
   }, [deviceTrust, selection.changeId, selection.choice]);
 
-  const view = useMemo(() => buildDeviceTrustDecisionView(deviceTrust), [deviceTrust]);
+  const view = useMemo(
+    () => (operationState.kind === 'result' ? null : buildDeviceTrustDecisionView(deviceTrust)),
+    [deviceTrust, operationState.kind]
+  );
 
   const choose = useCallback(
     async (choice: DeviceTrustChoice) => {

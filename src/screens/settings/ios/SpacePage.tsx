@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import {
   Button as SwiftUIButton,
@@ -25,13 +25,14 @@ import {
 import { useTranslation } from 'react-i18next';
 
 import type { AddSyncConnectionMode } from '@/components/AddSyncConnectionSheet.types';
+import { SpaceDeviceDetail } from '@/components/SpaceDeviceDetail';
+import { useSpaceDeviceManagement } from '@/components/useSpaceDeviceManagement';
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
 import {
   iosProminentButtonModifiers,
   iosSaturatedButtonPalette,
 } from '@/components/ui/iosButtonStyles.ios';
 import {
-  buildDeviceTrustDeviceViews,
   getUnifiedSpaceService,
   UnifiedSpaceInputError,
   useUnifiedSpaceStore,
@@ -47,7 +48,7 @@ import {
 } from './common';
 import { CustomRelaySection } from '../CustomRelaySection';
 
-type PendingOperation = 'leave' | `remove:${string}` | null;
+type PendingOperation = 'leave' | null;
 
 function operationError(error: unknown, t: (key: string) => string): string {
   if (error instanceof UnifiedSpaceInputError) return t(`space.error.${error.code}`);
@@ -57,7 +58,6 @@ function operationError(error: unknown, t: (key: string) => string): string {
 function SpaceDeviceRow({
   device,
   removing,
-  removeLabel,
   manageHint,
   thisDeviceLabel,
   onlineLabel,
@@ -67,7 +67,6 @@ function SpaceDeviceRow({
 }: {
   device: DeviceTrustDeviceView;
   removing: boolean;
-  removeLabel: string;
   manageHint: string;
   thisDeviceLabel: string;
   onlineLabel: string;
@@ -96,7 +95,7 @@ function SpaceDeviceRow({
     rowModifiers.push(
       contentShape(shapes.rectangle()),
       onTapGesture(onManage),
-      accessibilityLabel(`${device.displayName}, ${removeLabel}`),
+      accessibilityLabel(device.displayName),
       accessibilityHint(manageHint)
     );
   }
@@ -126,10 +125,14 @@ function SpaceDeviceRow({
 }
 
 export function SpacePage({
+  initialDeviceId,
+  notificationNavigationRequestId,
   onBack,
   onOpenInvitation,
   onOpenSetup,
 }: {
+  initialDeviceId?: string;
+  notificationNavigationRequestId?: number;
   onBack: () => void;
   onOpenInvitation: () => void;
   onOpenSetup: (mode: AddSyncConnectionMode) => void;
@@ -138,6 +141,8 @@ export function SpacePage({
   const [pending, setPending] = useState<PendingOperation>(null);
   const [error, setError] = useState<string | null>(null);
   const space = useUnifiedSpaceStore();
+  const deviceManagement = useSpaceDeviceManagement({ allowHighImpactActions: true });
+  const initialDeviceHandled = useRef<number | null>(null);
 
   useEffect(() => {
     void getUnifiedSpaceService()
@@ -145,31 +150,36 @@ export function SpacePage({
       .catch((cause) => setError(operationError(cause, t)));
   }, [t]);
 
+  useEffect(() => {
+    if (
+      notificationNavigationRequestId == null ||
+      initialDeviceHandled.current === notificationNavigationRequestId
+    )
+      return;
+    if (!initialDeviceId) {
+      initialDeviceHandled.current = notificationNavigationRequestId;
+      deviceManagement.closeDevice();
+      return;
+    }
+    if (!deviceManagement.devices.some((device) => device.deviceId === initialDeviceId)) return;
+    initialDeviceHandled.current = notificationNavigationRequestId;
+    deviceManagement.openDevice(initialDeviceId);
+  }, [
+    deviceManagement.closeDevice,
+    deviceManagement.devices,
+    deviceManagement.openDevice,
+    initialDeviceId,
+    notificationNavigationRequestId,
+  ]);
+
   const handleBack = () => {
     if (pending) return;
     setError(null);
     onBack();
   };
 
-  const removeMember = (deviceId: string) => {
-    Alert.alert(t('space.devices.remove'), t('space.devices.removeConfirm'), [
-      { text: t('action.cancel', { ns: 'common' }), style: 'cancel' },
-      {
-        text: t('space.devices.remove'),
-        style: 'destructive',
-        onPress: () => {
-          setPending(`remove:${deviceId}`);
-          setError(null);
-          void getUnifiedSpaceService()
-            .removeMember(deviceId)
-            .catch((cause) => setError(operationError(cause, t)))
-            .finally(() => setPending(null));
-        },
-      },
-    ]);
-  };
-
   const leaveSpace = () => {
+    if (highImpactActionsDisabled) return;
     Alert.alert(t('space.leave.action'), t('space.leave.confirm'), [
       { text: t('action.cancel', { ns: 'common' }), style: 'cancel' },
       {
@@ -188,21 +198,33 @@ export function SpacePage({
   };
 
   const spaceId = space.spaceId;
-  const workspaceConvergence = space.workspaceConvergence;
-  const rosterDeviceIds = new Set(space.devices.map((device) => device.deviceId));
-  const devices = buildDeviceTrustDeviceViews(space.deviceTrust, space.devices).sort(
+  const devices = [...deviceManagement.devices].sort(
     (left, right) => {
     const leftRank = left.isLocal ? 0 : left.reachability === 'online' ? 1 : 2;
     const rightRank = right.isLocal ? 0 : right.reachability === 'online' ? 1 : 2;
     return leftRank - rightRank;
     }
   );
-  const onlineCount = devices.filter(
-    (device) => device.isLocal || device.reachability === 'online'
-  ).length;
-  const offlineCount = devices.length - onlineCount;
-  const convergenceDeviceName = (deviceId: string) =>
-    devices.find((device) => device.deviceId === deviceId)?.displayName ?? deviceId;
+  const overview = deviceManagement.overview;
+  const highImpactActionsDisabled =
+    !deviceManagement.highImpactActionsAvailable ||
+    deviceManagement.operationInProgress ||
+    deviceManagement.overview.hasPendingDecision;
+  const overviewColor =
+    overview.primaryStatus === 'healthy'
+      ? statusGreen
+      : overview.primaryStatus === 'unverifiable' ||
+        overview.primaryStatus === 'decisionRequired'
+      ? settingsTileColors.red
+      : settingsTileColors.indigo;
+  const overviewIcon =
+    overview.primaryStatus === 'healthy'
+      ? 'checkmark.circle.fill'
+      : overview.primaryStatus === 'updateRequired'
+      ? 'arrow.down.circle.fill'
+      : overview.primaryStatus === 'refreshing'
+      ? 'arrow.clockwise.circle.fill'
+      : 'exclamationmark.circle.fill';
   const isInitialLoading =
     !spaceId && !pending && (space.status === 'idle' || space.status === 'loading');
 
@@ -221,6 +243,7 @@ export function SpacePage({
                   systemName="plus"
                   accessibilityLabel={t('space.invitation.addA11y')}
                   onPress={onOpenInvitation}
+                  disabled={highImpactActionsDisabled}
                 />,
               ]
             : undefined
@@ -286,49 +309,16 @@ export function SpacePage({
                   <SettingsIconTile systemName="person.2.fill" color={settingsTileColors.indigo} />
                   <VStack alignment="leading" spacing={3}>
                     <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>
-                      {t('space.overview.syncHealthy')}
+                      {t(`space.overview.status.${deviceManagement.overview.primaryStatus}`)}
                     </SwiftUIText>
                     <SwiftUIText modifiers={[font({ size: 13 }), foregroundStyle('secondary')]}>
-                      {t('space.overview.deviceSummary', {
-                        online: onlineCount,
-                        offline: offlineCount,
-                      })}
+                      {t('space.overview.memberCount', { count: overview.memberCount })}
                     </SwiftUIText>
                   </VStack>
                   <Spacer />
-                  <Image systemName="checkmark.circle.fill" size={22} color={statusGreen} />
+                  <Image systemName={overviewIcon} size={22} color={overviewColor} />
                 </HStack>
               </Section>
-
-              {workspaceConvergence ? (
-                <Section
-                  header={<SwiftUIText>{t('space.convergence.title')}</SwiftUIText>}
-                  footer={
-                    <SwiftUIText>
-                      {workspaceConvergence.phase === 'complete'
-                        ? t('space.convergence.complete')
-                        : workspaceConvergence.phase === 'recoveryRequired'
-                        ? t('space.convergence.recoveryRequired')
-                        : t('space.convergence.waiting')}
-                    </SwiftUIText>
-                  }
-                >
-                  {workspaceConvergence.pendingRemovalDecisionDeviceIds.map((deviceId) => (
-                    <HStack key={deviceId} spacing={10} modifiers={[frame({ maxWidth: Infinity })]}>
-                      <Image systemName="desktopcomputer" size={17} color={settingsTileColors.indigo} />
-                      <VStack alignment="leading" spacing={2}>
-                        <SwiftUIText>{convergenceDeviceName(deviceId)}</SwiftUIText>
-                        <SwiftUIText
-                          modifiers={[font({ size: 13 }), foregroundStyle('secondary')]}
-                        >
-                          {t('space.convergence.pendingDevice')}
-                        </SwiftUIText>
-                      </VStack>
-                      <Spacer />
-                    </HStack>
-                  ))}
-                </Section>
-              ) : null}
 
               <Section
                 header={
@@ -346,16 +336,13 @@ export function SpacePage({
                     <SpaceDeviceRow
                       key={device.deviceId}
                       device={device}
-                      removing={pending === `remove:${device.deviceId}`}
-                      removeLabel={t('space.devices.remove')}
+                      removing={deviceManagement.removing}
                       manageHint={t('space.devices.manageHint')}
                       thisDeviceLabel={t('space.devices.thisDevice')}
                       onlineLabel={t('space.devices.online')}
                       offlineLabel={t('space.devices.offline')}
-                      manageable={
-                        !device.isLocal && rosterDeviceIds.has(device.deviceId)
-                      }
-                      onManage={() => removeMember(device.deviceId)}
+                      manageable
+                      onManage={() => deviceManagement.openDevice(device.deviceId)}
                     />
                   ))
                 ) : (
@@ -377,7 +364,7 @@ export function SpacePage({
                   title={t('space.switch.title')}
                   accessibilityHint={t('space.switch.description')}
                   onPress={() => onOpenSetup('switch')}
-                  disabled={pending !== null}
+                  disabled={pending !== null || highImpactActionsDisabled}
                   showsPressFeedback={false}
                 />
               </Section>
@@ -390,7 +377,7 @@ export function SpacePage({
                   accessibilityHint={t('space.leave.confirm')}
                   onPress={leaveSpace}
                   destructive
-                  disabled={pending !== null}
+                  disabled={pending !== null || highImpactActionsDisabled}
                   showsChevron={false}
                   showsPressFeedback={false}
                 />
@@ -399,7 +386,19 @@ export function SpacePage({
           ) : null}
         </IosSheetForm>
       </IosSheetPage>
-
+      <SpaceDeviceDetail
+        device={deviceManagement.selectedDevice}
+        canRemove={deviceManagement.canRemoveSelected}
+        confirmingRemoval={deviceManagement.confirmingRemoval}
+        removing={deviceManagement.removing}
+        removeErrorMessage={
+          deviceManagement.removeError ? t('space.error.operationFailed') : null
+        }
+        onClose={deviceManagement.closeDevice}
+        onRequestRemove={deviceManagement.requestRemove}
+        onCancelRemove={deviceManagement.cancelRemove}
+        onConfirmRemove={() => void deviceManagement.confirmRemove()}
+      />
     </>
   );
 }

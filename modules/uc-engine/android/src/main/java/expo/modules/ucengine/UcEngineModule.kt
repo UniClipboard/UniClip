@@ -446,7 +446,20 @@ class UcEngineModule : Module() {
       devices
     }
     AsyncFunction("queryDeviceTrust") {
-      runSpaceRead("queryDeviceTrust") { requireEngine().queryDeviceTrust() }
+      try {
+        mapOf(
+          "ok" to true,
+          "value" to runSpaceRead("queryDeviceTrust") { requireEngine().queryDeviceTrust() }
+        )
+      } catch (error: Throwable) {
+        when (error) {
+          is BindingException.Engine -> mapOf(
+            "ok" to false,
+            "failure" to engineFailureMap(error)
+          )
+          else -> throw error
+        }
+      }
     }
     AsyncFunction("decideDeviceTrustChange") {
       changeId: String, choice: String, confirmLocalRemoval: Boolean ->
@@ -620,6 +633,12 @@ class UcEngineModule : Module() {
   }
 
   private fun failureMap(failure: BindingFailure): Map<String, Any> = mapOf(
+    "code" to failure.code.toLong(),
+    "category" to failure.category.name,
+    "retryable" to failure.retryable
+  )
+
+  private fun engineFailureMap(failure: BindingException.Engine): Map<String, Any> = mapOf(
     "code" to failure.code.toLong(),
     "category" to failure.category.name,
     "retryable" to failure.retryable
