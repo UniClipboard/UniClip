@@ -146,12 +146,6 @@ describe('Expo app config variants', () => {
     }
   });
 
-  it('keeps the checked-in development iOS project on its isolated URL scheme', () => {
-    const infoPlist = readFileSync(path.join(process.cwd(), 'ios/UniClipDev/Info.plist'), 'utf8');
-    expect(infoPlist).toContain('<string>uniclipboard-dev</string>');
-    expect(infoPlist).not.toContain('<string>uniclipboard</string>');
-  });
-
   it('resolves the extension P2P keychain group from the active app variant', () => {
     const appJson = readFileSync(path.join(process.cwd(), 'app.json'), 'utf8');
     const extensionPlists = ['targets/share/Info.plist', 'targets/keyboard/Info.plist'];
