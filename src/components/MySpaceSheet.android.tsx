@@ -50,6 +50,7 @@ const ICONS = {
 };
 
 const TITLE_STYLE = { fontSize: 20, fontWeight: '600' } as const;
+const SECTION_TITLE_STYLE = { fontSize: 14, fontWeight: '500' } as const;
 const INVITATION_STYLE = { typography: 'headlineLarge' } as const;
 const DEVICE_LIST_SHAPE = Shape.RoundedCorner({
   cornerRadii: { topStart: 20, topEnd: 20, bottomStart: 20, bottomEnd: 20 },
@@ -117,7 +118,7 @@ function MySpaceSheetContent({ visible }: MySpaceSheetProps) {
   const invitationHeight = invitation ? 248 : invitationError ? 72 : 0;
   const pairedHeight = pairedDeviceName ? 72 : 0;
   const listHeight = Math.min(
-    Math.max(devices.length * 72 + invitationHeight + pairedHeight + 72, 216),
+    Math.max(devices.length * 72 + invitationHeight + pairedHeight + 44, 216),
     520
   );
 
@@ -127,7 +128,6 @@ function MySpaceSheetContent({ visible }: MySpaceSheetProps) {
         <Row verticalAlignment="center" modifiers={[fillMaxWidth(), padding(24, 0, 12, 8)]}>
           <ComposeText style={TITLE_STYLE}>{t('topBar.mySpace', { ns: 'home' })}</ComposeText>
           <Spacer modifiers={[weight(1)]} />
-          <ComposeText color={colors.onSurfaceVariant}>{devices.length}</ComposeText>
           <IconButton onClick={() => void issueInvitation()} enabled={canIssueInvitation}>
             {invitationPending ? (
               <CircularProgressIndicator modifiers={[width(24), height(24)]} />
@@ -151,34 +151,6 @@ function MySpaceSheetContent({ visible }: MySpaceSheetProps) {
             contentPadding={{ start: 12, end: 12, bottom: 20 }}
             modifiers={[fillMaxWidth(), height(listHeight)]}
           >
-            {deviceManagement.overview.primaryStatus !== 'updateRequired' ? (
-              <ListItem>
-                <ListItem.LeadingContent>
-                  <Icon
-                    source={ICONS.status}
-                    size={10}
-                    tint={
-                      deviceManagement.overview.primaryStatus === 'healthy'
-                        ? colors.primary
-                        : colors.error
-                    }
-                  />
-                </ListItem.LeadingContent>
-                <ListItem.HeadlineContent>
-                  <ComposeText>
-                    {t(`space.overview.status.${deviceManagement.overview.primaryStatus}`)}
-                  </ComposeText>
-                </ListItem.HeadlineContent>
-                <ListItem.SupportingContent>
-                  <ComposeText color={colors.onSurfaceVariant}>
-                    {t('space.overview.memberCount', {
-                      count: deviceManagement.overview.memberCount,
-                    })}
-                  </ComposeText>
-                </ListItem.SupportingContent>
-              </ListItem>
-            ) : null}
-
             {pairedDeviceName ? (
               <ListItem>
                 <ListItem.LeadingContent>
@@ -271,6 +243,16 @@ function MySpaceSheetContent({ visible }: MySpaceSheetProps) {
                 )}
               </>
             ) : null}
+
+            <Row modifiers={[fillMaxWidth(), padding(16, 12, 16, 8)]}>
+              <ComposeText style={SECTION_TITLE_STYLE} color={colors.onSurfaceVariant}>
+                {t('space.devices.title')}
+              </ComposeText>
+              <Spacer modifiers={[weight(1)]} />
+              <ComposeText style={SECTION_TITLE_STYLE} color={colors.onSurfaceVariant}>
+                {devices.length}
+              </ComposeText>
+            </Row>
 
             {isInitialLoading ? (
               <ListItem>

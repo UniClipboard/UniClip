@@ -90,21 +90,30 @@ describe('home My Space sheet', () => {
     expect(mySpaceSheetHook).toContain('deviceManagement.devices');
   });
 
-  it('opens the shared read-only detail and renders the shared space overview', () => {
+  it('opens the shared read-only device detail', () => {
     for (const sheet of mySpaceSheets) {
       expect(sheet).toContain('<SpaceDeviceDetail');
       expect(sheet).toContain('deviceManagement.openDevice');
-      expect(sheet).toContain('deviceManagement.overview.primaryStatus');
       expect(sheet).toContain('canRemove={deviceManagement.canRemoveSelected}');
     }
     expect(mySpaceSheetHook).toContain('allowHighImpactActions: false');
   });
 
-  it('hides only the update-required overview card while retaining device status rows', () => {
+  it('starts with a counted device list instead of a space overview card', () => {
     for (const sheet of mySpaceSheets) {
-      expect(sheet).toContain("deviceManagement.overview.primaryStatus !== 'updateRequired'");
+      expect(sheet).toContain('space.devices.title');
+      expect(sheet).toMatch(/space\.devices\.title[\s\S]*\{devices\.length\}/);
+      expect(sheet).not.toContain('space.overview.status');
+      expect(sheet).not.toContain('space.overview.memberCount');
+      expect(sheet).not.toContain('deviceManagement.overview.primaryStatus');
       expect(sheet).toContain('space.deviceTrust.status.${device.primaryStatus}');
     }
+
+    const androidPageHeader = mySpaceSheets[0].match(
+      /<Row verticalAlignment="center"[\s\S]*?<\/Row>/
+    )?.[0];
+    expect(androidPageHeader).toBeDefined();
+    expect(androidPageHeader).not.toContain('{devices.length}');
   });
 
   it('groups Android device entries in a rounded list with dividers', () => {

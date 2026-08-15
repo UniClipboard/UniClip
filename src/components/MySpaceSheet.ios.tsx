@@ -204,39 +204,6 @@ export function MySpaceSheet({ visible, onClose }: MySpaceSheetProps) {
                   refreshable(() => refresh()),
                 ]}
               >
-                {deviceManagement.overview.primaryStatus !== 'updateRequired' ? (
-                  <Section>
-                    <HStack spacing={10} modifiers={[frame({ maxWidth: Infinity })]}>
-                      <Image
-                        systemName={
-                          deviceManagement.overview.primaryStatus === 'healthy'
-                            ? 'checkmark.circle.fill'
-                            : 'exclamationmark.circle.fill'
-                        }
-                        size={20}
-                        color={
-                          deviceManagement.overview.primaryStatus === 'healthy'
-                            ? ONLINE_COLOR
-                            : ERROR_COLOR
-                        }
-                      />
-                      <VStack alignment="leading" spacing={3}>
-                        <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>
-                          {t(`space.overview.status.${deviceManagement.overview.primaryStatus}`, {
-                            ns: 'settingsSync',
-                          })}
-                        </SwiftUIText>
-                        <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-                          {t('space.overview.memberCount', {
-                            ns: 'settingsSync',
-                            count: deviceManagement.overview.memberCount,
-                          })}
-                        </SwiftUIText>
-                      </VStack>
-                    </HStack>
-                  </Section>
-                ) : null}
-
                 {pairedDeviceName ? (
                   <Section>
                     <HStack spacing={12} alignment="center">
