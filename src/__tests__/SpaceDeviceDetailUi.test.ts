@@ -17,7 +17,8 @@ describe('shared Space device detail UI', () => {
     expect(types).toContain('device: DeviceTrustDeviceView | null');
     expect(android).toContain('ModalBottomSheet');
     expect(android).toContain('AlertDialog');
-    expect(ios).toContain('presentationStyle="pageSheet"');
+    expect(ios).toContain('<BottomSheet');
+    expect(ios).not.toContain('<Modal');
     expect(android).toContain('device.blockedReason');
     expect(ios).toContain('device.blockedReason');
     expect(android).toContain("space.deviceDetail.identity.${device.isLocal ? 'local' : 'remote'}");
@@ -88,5 +89,28 @@ describe('shared Space device detail UI', () => {
     expect(android).toContain('space.deviceDetail.updateAction');
     expect(androidSettings).toContain("section: 'about'");
     expect(ios).not.toContain('space.deviceDetail.updateAction');
+  });
+
+  it('uses the full-width settings row for the iOS remove-device action', () => {
+    const android = source('components/SpaceDeviceDetail.android.tsx');
+    const ios = source('components/SpaceDeviceDetail.ios.tsx');
+    const iosRemoveAction = ios.match(/\{props\.canRemove \? \([\s\S]*?\n\s+\) : null\}/)?.[0];
+
+    expect(android).toContain('containerColor: colors.error');
+    expect(iosRemoveAction).toContain('<SettingsNavRow');
+    expect(iosRemoveAction).toContain('destructive');
+    expect(iosRemoveAction).toContain('showsChevron={false}');
+  });
+
+  it('keeps the iOS detail sheet in the existing SwiftUI host to avoid parent-page flashes', () => {
+    const homeSheet = source('components/MySpaceSheet.ios.tsx');
+    const settings = source('screens/SettingsScreen.ios.tsx');
+    const spacePage = source('screens/settings/ios/SpacePage.tsx');
+    const host = homeSheet.match(/<Host[\s\S]*?<\/Host>/)?.[0];
+
+    expect(host).toContain('<SpaceDeviceDetail');
+    expect(settings).toContain('useSpaceDeviceManagement({ allowHighImpactActions: true })');
+    expect(settings).toContain('<SpaceDeviceDetail');
+    expect(spacePage).not.toContain('<SpaceDeviceDetail');
   });
 });

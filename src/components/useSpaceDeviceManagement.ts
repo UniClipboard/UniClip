@@ -121,3 +121,5 @@ export function useSpaceDeviceManagement({
     confirmRemove,
   };
 }
+
+export type SpaceDeviceManagementController = ReturnType<typeof useSpaceDeviceManagement>;

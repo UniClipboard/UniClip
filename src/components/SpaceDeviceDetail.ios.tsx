@@ -1,8 +1,8 @@
-import { Modal, StyleSheet } from 'react-native';
 import {
   Alert,
+  BottomSheet,
   Button as SwiftUIButton,
-  Host,
+  Group,
   HStack,
   Image,
   List,
@@ -12,18 +12,23 @@ import {
   VStack,
 } from '@expo/ui/swift-ui';
 import {
-  buttonStyle,
-  disabled,
   font,
   foregroundStyle,
   frame,
+  interactiveDismissDisabled,
   listStyle,
+  presentationDetents,
+  presentationDragIndicator,
   scrollContentBackground,
 } from '@expo/ui/swift-ui/modifiers';
 import { useTranslation } from 'react-i18next';
 
 import { IosSheetPage } from '@/components/ui';
-import { HeaderCircleButton, settingsTileColors } from '@/screens/settings/ios/common';
+import {
+  HeaderCircleButton,
+  SettingsNavRow,
+  settingsTileColors,
+} from '@/screens/settings/ios/common';
 import type { DeviceTrustDeviceView } from '@/features/space';
 import type { SpaceDeviceDetailProps } from './SpaceDeviceDetail.types';
 
@@ -40,14 +45,20 @@ export function SpaceDeviceDetail(props: SpaceDeviceDetailProps) {
   const facts = ['reachability', 'groupRelationship', 'syncRelationship', 'compatibility'] as const;
 
   return (
-    <Modal
-      visible={device !== null}
-      presentationStyle="pageSheet"
-      animationType="slide"
-      onRequestClose={props.removing ? () => undefined : props.onClose}
+    <BottomSheet
+      isPresented={device !== null}
+      onIsPresentedChange={(presented) => {
+        if (!presented && !props.removing) props.onClose();
+      }}
     >
-      {device ? (
-        <Host style={styles.host}>
+      <Group
+        modifiers={[
+          presentationDetents(['large']),
+          presentationDragIndicator('visible'),
+          interactiveDismissDisabled(props.removing),
+        ]}
+      >
+        {device ? (
           <IosSheetPage
             title={t('space.deviceDetail.title')}
             rightSlots={[
@@ -123,11 +134,13 @@ export function SpaceDeviceDetail(props: SpaceDeviceDetailProps) {
                     }}
                   >
                     <Alert.Trigger>
-                      <SwiftUIButton
-                        label={t('space.devices.remove')}
-                        role="destructive"
+                      <SettingsNavRow
+                        title={t('space.devices.remove')}
                         onPress={props.onRequestRemove}
-                        modifiers={[buttonStyle('plain'), disabled(props.removing)]}
+                        destructive
+                        disabled={props.removing}
+                        showsChevron={false}
+                        showsPressFeedback={false}
                       />
                     </Alert.Trigger>
                     <Alert.Actions>
@@ -152,12 +165,8 @@ export function SpaceDeviceDetail(props: SpaceDeviceDetailProps) {
               ) : null}
             </List>
           </IosSheetPage>
-        </Host>
-      ) : null}
-    </Modal>
+        ) : null}
+      </Group>
+    </BottomSheet>
   );
 }
-
-const styles = StyleSheet.create({
-  host: { flex: 1 },
-});

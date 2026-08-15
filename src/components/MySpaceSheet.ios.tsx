@@ -455,22 +455,22 @@ export function MySpaceSheet({ visible, onClose }: MySpaceSheetProps) {
             </IosSheetPage>
           </Group>
         </BottomSheet>
+        <SpaceDeviceDetail
+          device={deviceManagement.selectedDevice}
+          canRemove={deviceManagement.canRemoveSelected}
+          confirmingRemoval={deviceManagement.confirmingRemoval}
+          removing={deviceManagement.removing}
+          removeErrorMessage={
+            deviceManagement.removeError
+              ? t('space.error.operationFailed', { ns: 'settingsSync' })
+              : null
+          }
+          onClose={deviceManagement.closeDevice}
+          onRequestRemove={deviceManagement.requestRemove}
+          onCancelRemove={deviceManagement.cancelRemove}
+          onConfirmRemove={() => void deviceManagement.confirmRemove()}
+        />
       </Host>
-      <SpaceDeviceDetail
-        device={deviceManagement.selectedDevice}
-        canRemove={deviceManagement.canRemoveSelected}
-        confirmingRemoval={deviceManagement.confirmingRemoval}
-        removing={deviceManagement.removing}
-        removeErrorMessage={
-          deviceManagement.removeError
-            ? t('space.error.operationFailed', { ns: 'settingsSync' })
-            : null
-        }
-        onClose={deviceManagement.closeDevice}
-        onRequestRemove={deviceManagement.requestRemove}
-        onCancelRemove={deviceManagement.cancelRemove}
-        onConfirmRemove={() => void deviceManagement.confirmRemove()}
-      />
     </>
   );
 }

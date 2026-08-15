@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWindowDimensions } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { Host, BottomSheet, Group, VStack, ZStack } from '@expo/ui/swift-ui';
+import { useTranslation } from 'react-i18next';
 import {
   presentationDetents,
   presentationDragIndicator,
@@ -17,6 +18,8 @@ import { useSettingsStore } from '@/stores';
 import { AddSyncConnectionSheet } from '@/components/AddSyncConnectionSheet';
 import type { AddSyncConnectionMode } from '@/components/AddSyncConnectionSheet.types';
 import { SpaceInvitationSheet } from '@/components/SpaceInvitationSheet';
+import { SpaceDeviceDetail } from '@/components/SpaceDeviceDetail';
+import { useSpaceDeviceManagement } from '@/components/useSpaceDeviceManagement';
 import type { SettingsPage } from './settings/ios/types';
 import { SettingsRootPage } from './settings/ios/SettingsRootPage';
 import { StoragePage } from './settings/ios/StoragePage';
@@ -74,6 +77,7 @@ function SettingsSubPageOverlay({
  * sub-page, preserving its scroll position when the user goes back.
  */
 export const SettingsScreen = () => {
+  const { t } = useTranslation('settingsSync');
   const navigation = useNavigation();
   const route = useRoute<RouteProp<RootStackParamList, 'Settings'>>();
   const notificationRouteHandled = useRef<number | null>(null);
@@ -84,6 +88,7 @@ export const SettingsScreen = () => {
   const [isLeavingPage, setIsLeavingPage] = useState(false);
   const [showSpaceInvitation, setShowSpaceInvitation] = useState(false);
   const [spaceSetupMode, setSpaceSetupMode] = useState<AddSyncConnectionMode | null>(null);
+  const deviceManagement = useSpaceDeviceManagement({ allowHighImpactActions: true });
 
   useEffect(() => {
     if (!isLoaded) loadConfig();
@@ -105,11 +110,12 @@ export const SettingsScreen = () => {
   const handleDismiss = useCallback(
     (p: boolean) => {
       if (!p) {
+        deviceManagement.closeDevice();
         setPresented(false);
         navigation.goBack();
       }
     },
-    [navigation]
+    [deviceManagement.closeDevice, navigation]
   );
 
   const openSubPage = useCallback((page: SettingsPage) => {
@@ -119,10 +125,11 @@ export const SettingsScreen = () => {
   }, []);
 
   const backToRoot = useCallback(() => {
+    deviceManagement.closeDevice();
     setShowSpaceInvitation(false);
     setSpaceSetupMode(null);
     setIsLeavingPage(true);
-  }, []);
+  }, [deviceManagement.closeDevice]);
 
   const removeSubPage = useCallback(() => setActivePage(null), []);
 
@@ -146,6 +153,7 @@ export const SettingsScreen = () => {
                       onBack={backToRoot}
                       onOpenInvitation={() => setShowSpaceInvitation(true)}
                       onOpenSetup={setSpaceSetupMode}
+                      deviceManagement={deviceManagement}
                     />
                   ) : null}
                   {activePage === 'storage' ? <StoragePage onBack={backToRoot} /> : null}
@@ -158,6 +166,19 @@ export const SettingsScreen = () => {
               <SpaceInvitationSheet
                 visible={showSpaceInvitation}
                 onClose={() => setShowSpaceInvitation(false)}
+              />
+              <SpaceDeviceDetail
+                device={deviceManagement.selectedDevice}
+                canRemove={deviceManagement.canRemoveSelected}
+                confirmingRemoval={deviceManagement.confirmingRemoval}
+                removing={deviceManagement.removing}
+                removeErrorMessage={
+                  deviceManagement.removeError ? t('space.error.operationFailed') : null
+                }
+                onClose={deviceManagement.closeDevice}
+                onRequestRemove={deviceManagement.requestRemove}
+                onCancelRemove={deviceManagement.cancelRemove}
+                onConfirmRemove={() => void deviceManagement.confirmRemove()}
               />
               <AddSyncConnectionSheet
                 visible={spaceSetupMode !== null}

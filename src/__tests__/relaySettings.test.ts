@@ -123,4 +123,15 @@ describe('custom relay settings', () => {
       expect(relay).toContain("save('')");
     }
   });
+
+  it('shows the iOS add-relay action as a full row with a plus icon', () => {
+    const iosRelay = source('screens/settings/CustomRelaySection.ios.tsx');
+    const addAction = iosRelay.match(
+      /<SettingsNavRow[\s\S]*?title=\{t\('relay\.add'\)\}[\s\S]*?\/>/
+    )?.[0];
+
+    expect(addAction).toContain('icon="plus"');
+    expect(addAction).toContain('iconColor={settingsTileColors.green}');
+    expect(addAction).toContain('showsChevron={false}');
+  });
 });

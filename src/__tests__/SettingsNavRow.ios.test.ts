@@ -50,4 +50,12 @@ describe('iOS settings navigation rows', () => {
       /<HStack spacing=\{12\} modifiers=\{\[frame\(\{ maxWidth: Infinity \}\), contentShape\(shapes\.rectangle\(\)\)\]\}/
     );
   });
+
+  it('can represent a text-only action row without duplicating the row behavior', () => {
+    const row = settingsCommon.match(/export function SettingsNavRow[\s\S]*?\n}\n\n\/\*\*/)?.[0];
+
+    expect(settingsCommon).toContain('icon?: SFSymbol;');
+    expect(settingsCommon).toContain('iconColor?: string;');
+    expect(row).toContain('icon && iconColor ? (');
+  });
 });

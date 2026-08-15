@@ -58,6 +58,43 @@ same-purpose UI. If a reusable component already exists, use it.
   existing component. It must have a clear reuse boundary, not be an orphan copy of a
   nearby pattern.
 
+# Full-Row Interaction Is Mandatory
+
+When an action or navigation item is visually presented as a list/settings row, the
+entire visible row must be interactive, including empty trailing space. A text label or
+icon with only its intrinsic bounds tappable is not an acceptable row implementation.
+
+- Reuse the platform's existing full-row component first. For iOS Settings-style pages,
+  prefer `SettingsNavRow` and extend it coherently when a row needs a new variant such as
+  no leading icon, destructive styling, disabled state, or no chevron.
+- Do not place a bare intrinsic-size `Button` label inside a `Section` or `ListItem` when
+  the surrounding layout reads as one tappable row.
+- If a native custom row is necessary, its button content must expand to the available
+  width and define a rectangular hit shape. Android row actions must likewise attach the
+  click behavior to the full row rather than only to child text or icons.
+- Before considering the UI complete, verify that tapping empty trailing space triggers
+  the same action as tapping the label. Add or update a regression test that preserves
+  full-row interaction and shared-component reuse.
+
+# iOS Nested Sheet Ownership Is Mandatory
+
+An iOS sheet or modal opened from an animated sub-page must be owned and rendered by the
+nearest stable screen or `Host` that owns that sub-page. Render the sheet as a sibling of
+the animated sub-page, never inside the sub-page itself. Otherwise presenting the sheet
+can temporarily remove the sub-page and expose the stationary parent page underneath.
+
+- The sub-page only reports the user's action through a callback. The stable parent owns
+  the selected item, presentation state, and sheet component.
+- Pass one shared controller/state object into the sub-page. Do not create a second
+  controller in the sub-page or duplicate presentation state between parent and child.
+- Reuse the existing `Host` and the established sibling-sheet pattern. In iOS Settings,
+  use `SpaceInvitationSheet` in `SettingsScreen.ios.tsx` as the ownership reference.
+- Do not place a React Native `Modal`, another `Host`, or a SwiftUI `BottomSheet` inside an
+  animated Settings sub-page when the surrounding screen already provides a stable host.
+- Add a regression check that asserts the sheet is rendered by the stable parent and not
+  by the sub-page. Then verify the real transition on an iOS simulator frame by frame;
+  the stationary parent page must never appear during sheet presentation or dismissal.
+
 # iOS Storage Compatibility
 
 On iOS, this Expo app's local file cache **must be compatible** with the native Swift app at `<native-ios-repo>/UniClipboard`. Although the current bundle identifiers differ, they will be unified in the future. When implementing file/image caching on iOS:

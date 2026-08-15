@@ -25,8 +25,7 @@ import {
 import { useTranslation } from 'react-i18next';
 
 import type { AddSyncConnectionMode } from '@/components/AddSyncConnectionSheet.types';
-import { SpaceDeviceDetail } from '@/components/SpaceDeviceDetail';
-import { useSpaceDeviceManagement } from '@/components/useSpaceDeviceManagement';
+import type { SpaceDeviceManagementController } from '@/components/useSpaceDeviceManagement';
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
 import {
   iosProminentButtonModifiers,
@@ -130,18 +129,19 @@ export function SpacePage({
   onBack,
   onOpenInvitation,
   onOpenSetup,
+  deviceManagement,
 }: {
   initialDeviceId?: string;
   notificationNavigationRequestId?: number;
   onBack: () => void;
   onOpenInvitation: () => void;
   onOpenSetup: (mode: AddSyncConnectionMode) => void;
+  deviceManagement: SpaceDeviceManagementController;
 }) {
   const { t } = useTranslation('settingsSync');
   const [pending, setPending] = useState<PendingOperation>(null);
   const [error, setError] = useState<string | null>(null);
   const space = useUnifiedSpaceStore();
-  const deviceManagement = useSpaceDeviceManagement({ allowHighImpactActions: true });
   const initialDeviceHandled = useRef<number | null>(null);
 
   useEffect(() => {
@@ -229,8 +229,7 @@ export function SpacePage({
     !spaceId && !pending && (space.status === 'idle' || space.status === 'loading');
 
   return (
-    <>
-      <IosSheetPage
+    <IosSheetPage
         title={t('space.title')}
         leftSlots={[
           <HeaderCircleButton key="back" systemName="chevron.left" onPress={handleBack} />,
@@ -385,20 +384,6 @@ export function SpacePage({
             </>
           ) : null}
         </IosSheetForm>
-      </IosSheetPage>
-      <SpaceDeviceDetail
-        device={deviceManagement.selectedDevice}
-        canRemove={deviceManagement.canRemoveSelected}
-        confirmingRemoval={deviceManagement.confirmingRemoval}
-        removing={deviceManagement.removing}
-        removeErrorMessage={
-          deviceManagement.removeError ? t('space.error.operationFailed') : null
-        }
-        onClose={deviceManagement.closeDevice}
-        onRequestRemove={deviceManagement.requestRemove}
-        onCancelRemove={deviceManagement.cancelRemove}
-        onConfirmRemove={() => void deviceManagement.confirmRemove()}
-      />
-    </>
+    </IosSheetPage>
   );
 }

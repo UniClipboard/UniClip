@@ -75,8 +75,8 @@ export function SettingsIconTile({ systemName, color }: { systemName: SFSymbol; 
 }
 
 export interface SettingsNavRowProps {
-  icon: SFSymbol;
-  iconColor: string;
+  icon?: SFSymbol;
+  iconColor?: string;
   title: string;
   /** Trailing secondary text (count, status, …). */
   value?: string;
@@ -90,7 +90,7 @@ export interface SettingsNavRowProps {
   onPress: () => void;
 }
 
-/** Full-width tappable row: icon tile + title … value + chevron. */
+/** Full-width tappable row: optional icon tile + title … value + chevron. */
 export function SettingsNavRow({
   icon,
   iconColor,
@@ -133,7 +133,9 @@ export function SettingsNavRow({
       ]}
     >
       <HStack spacing={12} modifiers={[frame({ maxWidth: Infinity }), contentShape(shapes.rectangle())]}>
-        <SettingsIconTile systemName={icon} color={iconColor} />
+        {icon && iconColor ? (
+          <SettingsIconTile systemName={icon} color={iconColor} />
+        ) : null}
         <SwiftUIText modifiers={[foregroundStyle(destructive ? settingsTileColors.red : 'primary')]}>{title}</SwiftUIText>
         <Spacer />
         {value ? (
