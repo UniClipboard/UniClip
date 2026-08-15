@@ -1,14 +1,17 @@
-v2.0.0.174-alpha.1
+v2.0.0.175-alpha.1
 
 ### Common
 
 - Feature: Add space device management for viewing device status, reconnecting, and removing devices when needed
 - Improvement: Present clear choices for device trust changes and refresh the device list after completion
+- Improvement: Open My Space directly on a counted device list and remove the redundant overall status summary
 - Fix: Preserve existing content and provide recovery guidance when connections or trust status fail after upgrading a legacy space
+- Fix: Route automatic clipboard changes through engine source detection to preserve duplicate-content protection
 
 ### iOS
 
 - Improvement: Use system-aligned pages for space settings and device details
+- Fix: Make space device details and settings actions fully tappable and avoid flashing back while opening details
 
 ### Android
 
