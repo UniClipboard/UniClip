@@ -3,13 +3,18 @@
   "repository": "UniClipboard/Engine",
   "version": "v1.1.0-rc.2",
   "sourceCommit": "49976d5ea21c5d448d9ef5df2c581b77abeb52cf",
-  "artifactSource": "local-build",
-  "sourceStateSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "releaseManifestSha256": "9a7b1474781ec9efd21196b4b8b58fbb992f9a5680937fb445d57ad2f8b1ca97",
+  "swiftPackageChecksum": "cfec3758e45a61f4bf92dbce9b5624861e35a1d47f48ab1a97a788a722676bcb",
   "artifacts": {
-    "UniClipboardEngine.aar": "a5b2603ab813890b23745269387db675b356c2901a142668670e59e5c06a3b54",
+    "UniClipboardEngine.aar": "b7c9b1ddc6c2795a3637f9d8b5b2a8643a1aed1d2a9d622e61d9e7cd4b67d86d",
+    "UniClipboardEngine.aar.checksum.txt": "714e0d4f14180a5bc064135bc3a4038d6accb623d8ce05b94e6a43ff544905ef",
     "UniClipboardEngine.pom": "7ba241191488f50c1298fd577612259face108398e71ea4f3eb21ea636e49288",
+    "UniClipboardEngine.xcframework.checksum.txt": "7ce24691566b3cf263c18f57d34c40609f2e180bd451d09049cf3da46313dfe7",
+    "UniClipboardEngine.xcframework.zip": "cfec3758e45a61f4bf92dbce9b5624861e35a1d47f48ab1a97a788a722676bcb",
     "runtime-dependencies.txt": "b9e41a3759a188241696301e4595be76bb660bd5c0734ed852198baa70873403",
+    "source-commit.txt": "426aac9ae22c7a35d9c68ff08ebe67284c2d6c6d1dd8cd8f4b7911409375a086",
     "uc_engine_uniffi.kt": "0f04ff9b43f726050fd7b455823286aacc9454054a1032ace458801d56365a18",
-    "uc_engine_uniffi.swift": "3942720e64ab2af181a28f3658727744925980b5ae647ba7da76d9222b7d41e3"
+    "uc_engine_uniffi.swift": "3942720e64ab2af181a28f3658727744925980b5ae647ba7da76d9222b7d41e3",
+    "version.txt": "a9910880bc2c6979de04543de3908e54b847ce031c9f580617ca8f6b72a2e866"
   }
 }

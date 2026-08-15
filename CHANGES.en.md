@@ -1,3 +1,19 @@
+v2.0.0.174-alpha.1
+
+### Common
+
+- Feature: Add space device management for viewing device status, reconnecting, and removing devices when needed
+- Improvement: Present clear choices for device trust changes and refresh the device list after completion
+- Fix: Preserve existing content and provide recovery guidance when connections or trust status fail after upgrading a legacy space
+
+### iOS
+
+- Improvement: Use system-aligned pages for space settings and device details
+
+### Android
+
+- Improvement: Make current status clearer across space settings, device details, and operation results
+
 v1.3.0.173-alpha.1
 
 ### Common

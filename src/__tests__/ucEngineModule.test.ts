@@ -334,27 +334,32 @@ describe('unified P2P engine native module', () => {
     expect(kotlin).toContain('target.displayName ?:');
   });
 
-  it('pins both platform artifacts to the same locally built engine commit', () => {
+  it('pins both platform artifacts to the same published engine release', () => {
     const pin = JSON.parse(read('core-source.json')) as {
       repository: string;
       version: string;
       sourceCommit: string;
-      artifactSource: string;
-      sourceStateSha256: string;
+      releaseManifestSha256: string;
+      swiftPackageChecksum: string;
       artifacts: Record<string, string>;
     };
 
     expect(pin.repository).toBe('UniClipboard/Engine');
     expect(pin.version).toMatch(/^v\d+\.\d+\.\d+(?:-[a-z0-9.]+)?$/);
     expect(pin.sourceCommit).toMatch(/^[a-f0-9]{40}$/);
-    expect(pin.artifactSource).toBe('local-build');
-    expect(pin.sourceStateSha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(pin.releaseManifestSha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(pin.swiftPackageChecksum).toBe(pin.artifacts['UniClipboardEngine.xcframework.zip']);
     for (const artifact of [
       'UniClipboardEngine.aar',
+      'UniClipboardEngine.aar.checksum.txt',
       'UniClipboardEngine.pom',
+      'UniClipboardEngine.xcframework.checksum.txt',
+      'UniClipboardEngine.xcframework.zip',
       'runtime-dependencies.txt',
+      'source-commit.txt',
       'uc_engine_uniffi.kt',
       'uc_engine_uniffi.swift',
+      'version.txt',
     ]) {
       expect(pin.artifacts[artifact]).toMatch(/^[a-f0-9]{64}$/);
     }
