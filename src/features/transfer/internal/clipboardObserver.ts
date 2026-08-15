@@ -9,12 +9,10 @@ import { createLogger } from '@/support/observability';
 
 const log = createLogger('P2pClipboardObserver');
 
-let observeClipboardChange:
-  | ((content: ClipboardContent, dispatch: boolean) => Promise<SendReport | null>)
-  | null = null;
+let observeClipboardChange: ((dispatch: boolean) => Promise<SendReport | null>) | null = null;
 
 export function configureClipboardObserver(
-  observe: (content: ClipboardContent, dispatch: boolean) => Promise<SendReport | null>
+  observe: (dispatch: boolean) => Promise<SendReport | null>
 ): void {
   observeClipboardChange = observe;
 }
@@ -37,7 +35,7 @@ export async function notifyDeviceClipboardChanged(
 
   try {
     if (!observeClipboardChange) throw new Error('The clipboard observer is not configured');
-    const report = await observeClipboardChange(content, dispatch);
+    const report = await observeClipboardChange(dispatch);
     if (report) await persistP2pDeliveryReport(content.profileHash, report);
     return report;
   } catch (error) {

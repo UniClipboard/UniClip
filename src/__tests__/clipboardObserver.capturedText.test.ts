@@ -24,21 +24,29 @@ describe('captured clipboard dispatch', () => {
     }));
   });
 
-  it('passes captured text to the engine instead of asking it to read the clipboard again', async () => {
-    const {
-      configureClipboardObserver,
-      notifyDeviceClipboardChanged,
-    } = require('@/features/transfer/internal/clipboardObserver');
-    const observe = jest.fn().mockResolvedValue(null);
-    const content = {
+  it.each([
+    {
       type: 'Text',
       text: 'already captured while Android allowed the read',
-      profileHash: 'local-content',
-    };
+      profileHash: 'local-text',
+    },
+    {
+      type: 'Image',
+      fileUri: 'file:///clipboard.png',
+      profileHash: 'local-image',
+    },
+  ])(
+    'asks the engine to observe a changed $type clipboard through the system clipboard',
+    async (content) => {
+      const {
+        configureClipboardObserver,
+        notifyDeviceClipboardChanged,
+      } = require('@/features/transfer/internal/clipboardObserver');
+      const observe = jest.fn().mockResolvedValue(null);
+      configureClipboardObserver(observe);
+      await notifyDeviceClipboardChanged(content);
 
-    configureClipboardObserver(observe);
-    await notifyDeviceClipboardChanged(content);
-
-    expect(observe).toHaveBeenCalledWith(content, true);
-  });
+      expect(observe).toHaveBeenCalledWith(true);
+    }
+  );
 });

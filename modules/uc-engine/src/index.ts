@@ -260,7 +260,6 @@ interface UcEngineNativeModule {
   sendFiles(fileHandles: string[], targetDevices: string[]): Promise<SendReport>;
   captureCurrentClipboard(): Promise<string | null>;
   observeClipboardChange(dispatch: boolean): Promise<SendReport | null>;
-  observeClipboardTextChange(text: string, dispatch: boolean): Promise<SendReport | null>;
   restoreClipboard(entryId: string, mode: ClipboardRestoreMode): Promise<ClipboardRestoreOutcome>;
   exportEntry(entryId: string, destinationHandle: string): Promise<void>;
 }
@@ -450,13 +449,6 @@ export function captureCurrentClipboard(): Promise<string | null> {
 
 export function observeClipboardChange(dispatch: boolean): Promise<SendReport | null> {
   return NativeModule.observeClipboardChange(dispatch);
-}
-
-export function observeClipboardTextChange(
-  text: string,
-  dispatch: boolean
-): Promise<SendReport | null> {
-  return NativeModule.observeClipboardTextChange(text, dispatch);
 }
 
 export function restoreClipboard(

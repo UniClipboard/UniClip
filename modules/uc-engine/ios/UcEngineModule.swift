@@ -299,12 +299,6 @@ public final class UcEngineModule: Module {
     AsyncFunction("observeClipboardChange") { (dispatch: Bool) -> [String: Any]? in
       try self.requireEngine().observeClipboardChange(dispatch: dispatch).map(Self.sendReportMap)
     }.runOnQueue(engineOperationQueue)
-    AsyncFunction("observeClipboardTextChange") { (text: String, dispatch: Bool) -> [String: Any]? in
-      if dispatch {
-        return Self.sendReportMap(try self.requireEngine().sendText(text: text, targetDevices: []))
-      }
-      return try self.requireEngine().observeClipboardChange(dispatch: false).map(Self.sendReportMap)
-    }.runOnQueue(engineOperationQueue)
     AsyncFunction("restoreClipboard") { (entryId: String, mode: String) -> String in
       let result = try self.requireEngine().restoreClipboard(
         entryId: entryId,

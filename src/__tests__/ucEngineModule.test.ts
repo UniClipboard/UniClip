@@ -42,13 +42,22 @@ describe('unified P2P engine native module', () => {
       'sendFiles',
       'captureCurrentClipboard',
       'observeClipboardChange',
-      'observeClipboardTextChange',
       'restoreClipboard',
       'exportEntry',
       'releaseFileHandle',
     ]) {
       expect(javascript).toMatch(new RegExp(`export (?:async )?function ${operation}\\b`));
     }
+  });
+
+  it('keeps automatic clipboard observation on the engine-owned source check', () => {
+    const javascript = read('src/index.ts');
+    const swift = read('ios/UcEngineModule.swift');
+    const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
+
+    expect(javascript).not.toContain('observeClipboardTextChange');
+    expect(swift).not.toContain('AsyncFunction("observeClipboardTextChange")');
+    expect(kotlin).not.toContain('AsyncFunction("observeClipboardTextChange")');
   });
 
   it('exposes custom relay saving on JavaScript, iOS, and Android', () => {

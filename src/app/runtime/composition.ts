@@ -41,11 +41,7 @@ export function configureAppRuntime(): void {
     persistDelivery: persistP2pDeliveryReport,
   });
   configureOutboundShareHandoffManager(createPendingShareStore());
-  configureClipboardObserver((content, dispatch) =>
-    content.type === 'Text' && content.text
-      ? nativeEngine.observeClipboardTextChange(content.text, dispatch)
-      : nativeEngine.observeClipboardChange(dispatch)
-  );
+  configureClipboardObserver((dispatch) => nativeEngine.observeClipboardChange(dispatch));
   configureP2pSpaceActivation(() => getUnconfiguredAppRuntime().activateP2p());
   configureUnifiedSpaceService(nativeEngine, (operation) =>
     getP2pSpaceSetupCoordinator().run(operation)
