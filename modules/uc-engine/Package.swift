@@ -25,6 +25,7 @@ let package = Package(
         "UniClipboardEngine.xcframework",
       ],
       sources: [
+        "ExtensionRuntimeLifecycle.swift",
         "ExtensionSyncCoordinator.swift",
         "AnalyticsBindingCompatibility.swift",
         "NativeAnalyticsHost.swift",

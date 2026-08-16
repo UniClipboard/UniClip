@@ -165,6 +165,7 @@ final class KeyboardModel: ObservableObject {
     private var syncTask: Task<Void, Never>?
     private var syncEventGate = ExtensionSyncEventGate()
     private var p2pClient: ExtensionP2pClient?
+    private var p2pSessionController: ExtensionP2pClientController?
     private var p2pReceiveTask: Task<Void, Never>?
     private var p2pReceiveIdlePolls = 0
     private var clipboardRevisionTracker = ExtensionClipboardRevisionTracker()
@@ -556,10 +557,16 @@ final class KeyboardModel: ObservableObject {
         }
         let started = DispatchTime.now().uptimeNanoseconds
         KeyboardDiagnostics.shared.record("p2p.connect.start")
+        let controller = try ExtensionP2pClientController()
+        p2pSessionController = controller
         do {
-            let client = try await ExtensionSyncExecutor.run { try ExtensionP2pClient() }
-            guard isVisible, !Task.isCancelled else {
-                _ = try? await ExtensionSyncExecutor.run { client.shutdown() }
+            let client = try await ExtensionSyncExecutor.run {
+                try ExtensionP2pClient(controller: controller)
+            }
+            guard isVisible,
+                  !Task.isCancelled,
+                  p2pSessionController === controller else {
+                client.shutdown()
                 throw CancellationError()
             }
             p2pClient = client
@@ -569,6 +576,10 @@ final class KeyboardModel: ObservableObject {
             startP2pReceiving(client)
             return client
         } catch {
+            if p2pSessionController === controller {
+                p2pSessionController = nil
+            }
+            controller.stopForSuspension()
             KeyboardDiagnostics.shared.record("p2p.connect.failure", fields: [
                 "durationMs": String(KeyboardDiagnostics.elapsedMilliseconds(since: started)),
                 "errorType": String(reflecting: type(of: error)),
@@ -619,16 +630,21 @@ final class KeyboardModel: ObservableObject {
         p2pReceiveTask?.cancel()
         p2pReceiveTask = nil
         p2pReceiveIdlePolls = 0
-        guard let client = p2pClient else {
+        let client = p2pClient
+        let controller = p2pSessionController
+        p2pClient = nil
+        p2pSessionController = nil
+        guard client != nil || controller != nil else {
             KeyboardDiagnostics.shared.record("p2p.close.start", fields: ["outcome": "no_client"])
             return
         }
-        p2pClient = nil
-        KeyboardDiagnostics.shared.record("p2p.close.start", fields: ["outcome": "scheduled"])
-        Task.detached(priority: .utility) {
+        KeyboardDiagnostics.shared.record("p2p.close.start", fields: ["outcome": "suspending"])
+        if let client {
             client.shutdown()
-            KeyboardDiagnostics.shared.record("p2p.close.finish")
+        } else {
+            controller?.stopForSuspension()
         }
+        KeyboardDiagnostics.shared.record("p2p.close.finish")
     }
 
     private func publishP2pRemoteChange(clearError: Bool) {

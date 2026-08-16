@@ -238,6 +238,18 @@ describe('iOS extension P2P routing', () => {
     expect(keyboard).toMatch(/func stopMonitoring\(\)[\s\S]*?stopP2pSession\(\)/);
   });
 
+  it('stops an established or starting P2P session before keyboard suspension', () => {
+    const keyboard = readProjectFile('targets/keyboard/KeyboardModel.swift');
+    const stopSession = keyboard.match(/private func stopP2pSession\(\) \{[\s\S]*?\n    \}/)?.[0];
+
+    expect(keyboard).toContain('private var p2pSessionController: ExtensionP2pClientController?');
+    expect(keyboard).toContain('ExtensionP2pClient(controller: controller)');
+    expect(stopSession).toBeDefined();
+    expect(stopSession).toContain('client.shutdown()');
+    expect(stopSession).toContain('controller?.stopForSuspension()');
+    expect(stopSession).not.toContain('Task.detached');
+  });
+
   it('keeps no Share P2P session: the extension only extracts, stages, and wakes the app', () => {
     const coordinator = readProjectFile('modules/uc-engine/ios/ExtensionSyncCoordinator.swift');
     const host = readProjectFile('modules/uc-engine/ios/SharedEngineHost.swift');

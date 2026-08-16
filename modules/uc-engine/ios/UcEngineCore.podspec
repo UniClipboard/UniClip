@@ -17,6 +17,7 @@ Pod::Spec.new do |s|
 
   s.frameworks = 'Network', 'Security', 'SystemConfiguration', 'UIKit', 'UniformTypeIdentifiers'
   s.source_files = [
+    'ExtensionRuntimeLifecycle.swift',
     'ExtensionSyncCoordinator.swift',
     'NativeAnalyticsHost.swift',
     'NativeSystemHost.swift',

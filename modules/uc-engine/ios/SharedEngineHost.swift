@@ -162,56 +162,89 @@ public struct ExtensionP2pRecipient: Equatable, Sendable {
 
 /// P2P session for app extensions. Short-lived callers release it after one
 /// operation; the keyboard may retain it only while its input view is visible.
-public final class ExtensionP2pClient: @unchecked Sendable {
-  private let files = AppleFileHandleRegistry()
-  private let engine: MobileEngine
-  private let ownership: P2pRuntimeOwnership
-  private let localDeviceId: String
-  private let operationLock = NSLock()
-  private let coordinator: ExtensionSyncCoordinator
-  private var isClosed = false
+public final class ExtensionP2pClientController: @unchecked Sendable {
+  fileprivate let lifecycle: ExtensionRuntimeLifecycle<MobileEngine>
 
-  public init(
-    appVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
-      as? String ?? "unknown"
-  ) throws {
+  public init() throws {
     let ownership = P2pRuntimeOwnership(
       lockURL: try P2pSharedStore.runtimeLockURL(mode: .extensionHost)
     )
-    guard try P2pRuntimeHandoff.acquireForExtension(ownership) else {
-      throw ExtensionP2pError.runtimeBusy
-    }
-    let host = try AppleEngineHost(files: files, storageMode: .extensionHost)
-    var started: MobileEngine?
+    lifecycle = ExtensionRuntimeLifecycle(
+      ownership: ownership,
+      suspend: { try $0.suspend() },
+      shutdown: { try? $0.shutdown(deadlineMs: 1_000) }
+    )
+  }
+
+  public func stopForSuspension() {
+    try? lifecycle.stopForSuspension()
+  }
+}
+
+public final class ExtensionP2pClient: @unchecked Sendable {
+  private let files: AppleFileHandleRegistry
+  private let engine: MobileEngine
+  private let controller: ExtensionP2pClientController
+  private let localDeviceId: String
+  private let operationLock = NSLock()
+  private let coordinator: ExtensionSyncCoordinator
+
+  public convenience init(
+    appVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
+      as? String ?? "unknown"
+  ) throws {
+    try self.init(appVersion: appVersion, controller: ExtensionP2pClientController())
+  }
+
+  public init(
+    appVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
+      as? String ?? "unknown",
+    controller: ExtensionP2pClientController
+  ) throws {
+    let files = AppleFileHandleRegistry()
     do {
-      let analytics = try ApplePostHogAnalyticsHost(appVersion: appVersion)
-      let engine = try MobileEngine.startWithAnalytics(
-        config: BindingConfig(appVersion: appVersion, profileId: "default"),
-        host: host,
-        analytics: analytics,
-        context: analyticsContext()
-      )
-      started = engine
+      var analytics: ApplePostHogAnalyticsHost?
+      let engine = try controller.lifecycle.startEngine {
+        let host = try AppleEngineHost(files: files, storageMode: .extensionHost)
+        let createdAnalytics = try ApplePostHogAnalyticsHost(appVersion: appVersion)
+        analytics = createdAnalytics
+        return try MobileEngine.startWithAnalytics(
+          config: BindingConfig(appVersion: appVersion, profileId: "default"),
+          host: host,
+          analytics: createdAnalytics,
+          context: analyticsContext()
+        )
+      }
       _ = try engine.recoverSession(allowSecureStorageUnlock: true)
+      try controller.lifecycle.ensureStartupCanFinish()
       guard try engine.querySpaceState().hasCompleted else {
         throw ExtensionP2pError.spaceUnavailable
       }
-      self.engine = engine
-      self.ownership = ownership
-      self.localDeviceId = try engine.queryLocalDevice().deviceId
-      analytics.updateApplicationContext(
+      let localDeviceId = try engine.queryLocalDevice().deviceId
+      analytics?.updateApplicationContext(
         appVersion: appVersion,
         activeDeviceCount: (try? engine.listDevices().count) ?? 0
       )
       let count = (try? engine.listDevices().count) ?? 0
       let spaceID = try? engine.querySpaceState().spaceId
-      try? analytics.ensureSpaceContext(spaceID: spaceID ?? nil, activeDeviceCount: count)
+      try? analytics?.ensureSpaceContext(spaceID: spaceID ?? nil, activeDeviceCount: count)
+      try controller.lifecycle.finishStartup()
+
+      self.files = files
+      self.engine = engine
+      self.controller = controller
+      self.localDeviceId = localDeviceId
       self.coordinator = ExtensionSyncCoordinator(
-        engine: ExtensionMobileEngineAdapter(engine: engine, localDeviceId: self.localDeviceId)
+        engine: ExtensionMobileEngineAdapter(engine: engine, localDeviceId: localDeviceId)
       )
     } catch {
-      try? started?.shutdown(deadlineMs: 1_000)
-      ownership.release()
+      controller.stopForSuspension()
+      if let lifecycleError = error as? ExtensionRuntimeLifecycleError {
+        switch lifecycleError {
+        case .runtimeOwnershipUnavailable: throw ExtensionP2pError.runtimeBusy
+        case .sessionClosed: throw ExtensionP2pError.sessionClosed
+        }
+      }
       throw error
     }
   }
@@ -229,23 +262,25 @@ public final class ExtensionP2pClient: @unchecked Sendable {
     send: (() throws -> SendReport)? = nil
   ) throws -> ExtensionSyncResult {
     try operationLock.withLock {
-      guard !isClosed else { throw ExtensionP2pError.sessionClosed }
-      let sendOperation = send.map { operation in
-        { try operation().extensionDeliveryReport }
+      try withActiveSession {
+        let sendOperation = send.map { operation in
+          { try operation().extensionDeliveryReport }
+        }
+        return try coordinator.synchronize(
+          send: sendOperation,
+          receiveTimeoutMs: receiveTimeoutMs,
+          progress: progress,
+          onPeerRefresh: onPeerRefresh
+        )
       }
-      return try coordinator.synchronize(
-        send: sendOperation,
-        receiveTimeoutMs: receiveTimeoutMs,
-        progress: progress,
-        onPeerRefresh: onPeerRefresh
-      )
     }
   }
 
   public func waitForRemoteChange(timeoutMs: UInt64 = 500) throws -> Bool {
     try operationLock.withLock {
-      guard !isClosed else { throw ExtensionP2pError.sessionClosed }
-      return try coordinator.waitForRemoteChange(timeoutMs: timeoutMs)
+      try withActiveSession {
+        try coordinator.waitForRemoteChange(timeoutMs: timeoutMs)
+      }
     }
   }
 
@@ -256,45 +291,40 @@ public final class ExtensionP2pClient: @unchecked Sendable {
     onTransferProgress: ((ExtensionTransferProgress) -> Void)? = nil
   ) throws {
     try operationLock.withLock {
-      guard !isClosed else { throw ExtensionP2pError.sessionClosed }
-      try coordinator.waitForOutboundDelivery(
-        entryId: entryId,
-        expectedReceiverCount: expectedReceiverCount,
-        timeoutMs: timeoutMs,
-        onTransferProgress: onTransferProgress
-      )
+      try withActiveSession {
+        try coordinator.waitForOutboundDelivery(
+          entryId: entryId,
+          expectedReceiverCount: expectedReceiverCount,
+          timeoutMs: timeoutMs,
+          onTransferProgress: onTransferProgress
+        )
+      }
     }
   }
 
   public func shutdown() {
-    _ = operationLock.withLock {
-      guard !isClosed else { return false }
-      isClosed = true
-      defer {
-        ownership.release()
-        files.removeAll()
-      }
-      try? engine.shutdown(deadlineMs: 1_000)
-      return true
-    }
+    controller.stopForSuspension()
+    files.removeAll()
   }
 
   /// Reads the persisted space membership only. It intentionally does not
   /// refresh peer connections, so sharing can collect a recipient choice before
   /// opening a network connection.
   public func recipients() throws -> [ExtensionP2pRecipient] {
-    try engine.listDevices().compactMap { device in
-      guard device.deviceId != localDeviceId else { return nil }
-      return ExtensionP2pRecipient(
-        deviceId: device.deviceId,
-        displayName: device.displayName,
-        wasLastKnownOnline: device.online
-      )
+    try withActiveSession {
+      try engine.listDevices().compactMap { device in
+        guard device.deviceId != localDeviceId else { return nil }
+        return ExtensionP2pRecipient(
+          deviceId: device.deviceId,
+          displayName: device.displayName,
+          wasLastKnownOnline: device.online
+        )
+      }
     }
   }
 
   public func sendText(_ text: String, targetDevices: [String]) throws -> SendReport {
-    try engine.sendText(text: text, targetDevices: targetDevices)
+    try withActiveSession { try engine.sendText(text: text, targetDevices: targetDevices) }
   }
 
   public func sendImage(
@@ -302,7 +332,9 @@ public final class ExtensionP2pClient: @unchecked Sendable {
     mimeType: String,
     targetDevices: [String]
   ) throws -> SendReport {
-    try engine.sendImage(bytes: bytes, mimeType: mimeType, targetDevices: targetDevices)
+    try withActiveSession {
+      try engine.sendImage(bytes: bytes, mimeType: mimeType, targetDevices: targetDevices)
+    }
   }
 
   public func sendFile(
@@ -310,8 +342,18 @@ public final class ExtensionP2pClient: @unchecked Sendable {
     displayName: String? = nil,
     targetDevices: [String]
   ) throws -> SendReport {
-    try files.withRetainedInputFile(url: url, displayName: displayName) { handle in
-      try engine.sendFiles(fileHandles: [handle], targetDevices: targetDevices)
+    try withActiveSession {
+      try files.withRetainedInputFile(url: url, displayName: displayName) { handle in
+        try engine.sendFiles(fileHandles: [handle], targetDevices: targetDevices)
+      }
+    }
+  }
+
+  private func withActiveSession<Result>(_ operation: () throws -> Result) throws -> Result {
+    do {
+      return try controller.lifecycle.withOperation(operation)
+    } catch ExtensionRuntimeLifecycleError.sessionClosed {
+      throw ExtensionP2pError.sessionClosed
     }
   }
 }
