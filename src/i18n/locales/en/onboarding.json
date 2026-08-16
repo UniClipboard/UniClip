@@ -13,10 +13,12 @@
     "enter": "Enter"
   },
   "migration": {
-    "title": "Reconnect to your computer",
-    "body": "LAN sync is no longer available. Your local history is still here, but this device needs to be paired with your computer again.",
+    "title": "Syncing has been upgraded",
+    "body": "UniClip v2 upgrades LAN sync to end-to-end encrypted sync. Your devices can now sync securely across different networks.",
+    "historyKept": "Your local clipboard history is still here",
+    "repairReason": "To establish the new secure connection, pair with your computer again once.",
     "desktopHint": "On your computer, open My Space and generate an invitation code.",
-    "join": "Pair new device"
+    "join": "Start re-pairing"
   },
   "welcome": {
     "wordmark": "UniClip",

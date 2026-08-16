@@ -140,6 +140,123 @@ export function CompanionArt({
   );
 }
 
+/** v1 局域网同步升级到 v2 端到端安全连接。 */
+export function SyncUpgradeArt({
+  accent,
+  line,
+  surface,
+  bg,
+  fg2,
+  width = 286,
+}: ArtColors & { width?: number }) {
+  const h = Math.round((width * 142) / 286);
+  return (
+    <Svg width={width} height={h} viewBox="0 0 286 142">
+      <G opacity={0.52}>
+        <Circle cx={61} cy={72} r={48} fill={surface} />
+        <Path
+          d="M43 55 a25 25 0 0 1 36 0 M49 62 a17 17 0 0 1 24 0 M57 69 a6 6 0 0 1 8 0"
+          stroke={fg2}
+          strokeWidth={2}
+          strokeLinecap="round"
+          fill="none"
+        />
+        <Rect
+          x={29}
+          y={79}
+          width={20}
+          height={32}
+          rx={5}
+          fill={bg}
+          stroke={fg2}
+          strokeWidth={1.8}
+        />
+        <Rect
+          x={72}
+          y={78}
+          width={31}
+          height={22}
+          rx={4}
+          fill={bg}
+          stroke={fg2}
+          strokeWidth={1.8}
+        />
+        <Line x1={87.5} y1={100} x2={87.5} y2={108} stroke={fg2} strokeWidth={1.8} />
+        <Line
+          x1={81}
+          y1={109}
+          x2={94}
+          y2={109}
+          stroke={fg2}
+          strokeWidth={1.8}
+          strokeLinecap="round"
+        />
+      </G>
+
+      <Path d="M119 72 H153" stroke={line} strokeWidth={2} strokeLinecap="round" />
+      <Path
+        d="M145 64 L153 72 L145 80"
+        stroke={accent}
+        strokeWidth={2.6}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+
+      <Circle cx={224} cy={72} r={54} fill={surface} />
+      <Path
+        d="M187 93 C198 55 246 48 261 82"
+        stroke={accent}
+        strokeWidth={3}
+        strokeLinecap="round"
+        fill="none"
+      />
+      <Circle cx={187} cy={93} r={4} fill={accent} />
+      <Circle cx={261} cy={82} r={4} fill={accent} />
+      <Rect
+        x={174}
+        y={78}
+        width={24}
+        height={38}
+        rx={6}
+        fill={bg}
+        stroke={accent}
+        strokeWidth={2}
+      />
+      <Rect
+        x={248}
+        y={68}
+        width={34}
+        height={24}
+        rx={4}
+        fill={bg}
+        stroke={accent}
+        strokeWidth={2}
+      />
+      <Line x1={265} y1={92} x2={265} y2={101} stroke={accent} strokeWidth={2} />
+      <Line
+        x1={258}
+        y1={102}
+        x2={272}
+        y2={102}
+        stroke={accent}
+        strokeWidth={2}
+        strokeLinecap="round"
+      />
+      <Circle cx={224} cy={70} r={19} fill={accent} />
+      <Path d="M224 57 L235 61 V69 C235 77 230 82 224 85 C218 82 213 77 213 69 V61 Z" fill={bg} />
+      <Path
+        d="M219 70 L223 74 L230 66"
+        stroke={accent}
+        strokeWidth={2.4}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </Svg>
+  );
+}
+
 /** 局域网直连:手机 + 电脑两个节点,虚线链路,顶部 Wi-Fi 弧 */
 export function LanArt({
   accent,

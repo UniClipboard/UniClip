@@ -13,10 +13,12 @@
     "enter": "Entrar"
   },
   "migration": {
-    "title": "Reconecte ao seu computador",
-    "body": "A sincronização por LAN não está mais disponível. Seu histórico local continua aqui, mas este dispositivo precisa ser emparelhado novamente com o computador.",
+    "title": "A sincronização foi atualizada",
+    "body": "O UniClip v2 evoluiu da sincronização em rede local para a sincronização com criptografia de ponta a ponta. Seus dispositivos agora sincronizam com segurança em redes diferentes.",
+    "historyKept": "Seu histórico local da área de transferência foi mantido",
+    "repairReason": "Para criar a nova conexão segura, pareie novamente com o computador uma vez.",
     "desktopHint": "No computador, abra Meu espaço e gere um código de convite.",
-    "join": "Parear novo dispositivo"
+    "join": "Iniciar novo pareamento"
   },
   "welcome": {
     "wordmark": "UniClip",

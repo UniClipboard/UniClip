@@ -1,8 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSettings } from 'app-group-store';
 import { CONFIG_USER_STATE_KEY, ConfigStorage } from '../features/settings';
-import { DEFAULT_SETTINGS, type AppSettings } from '../types/settings';
+import { DEFAULT_SETTINGS, SETTINGS_SCHEMA_VERSION, type AppSettings } from '../types/settings';
 import { STORAGE_KEYS } from '../types/storage';
+
+const SETTINGS_SCHEMA_VERSION_KEY = '@syncclipboard:schema_version';
 
 jest.mock('react-native', () => {
   const actual = jest.requireActual('react-native');
@@ -35,13 +37,64 @@ describe('ConfigStorage', () => {
       ...DEFAULT_SETTINGS,
       language: 'ru',
     };
-    mockGetItem.mockResolvedValue(JSON.stringify(current));
+    mockGetItem.mockImplementation((key) =>
+      Promise.resolve(
+        key === SETTINGS_SCHEMA_VERSION_KEY
+          ? String(SETTINGS_SCHEMA_VERSION)
+          : JSON.stringify(current)
+      )
+    );
 
     await storage.initialize();
 
     const config = await storage.getConfig();
     expect(config.language).toBe('ru');
     expect(mockSetItem).not.toHaveBeenCalled();
+  });
+
+  it('marks a configured v1 LAN install for the one-time re-pairing guide', async () => {
+    const legacyConfig = {
+      servers: [{ name: 'Home', url: 'http://192.168.1.8:5033' }],
+      activeServerIndex: 0,
+      autoApplyRemote: false,
+      onboardingCompleted: true,
+      language: 'zh-CN',
+    };
+    mockGetItem.mockImplementation((key) => {
+      if (key === STORAGE_KEYS.CONFIG) return Promise.resolve(JSON.stringify(legacyConfig));
+      if (key === SETTINGS_SCHEMA_VERSION_KEY) return Promise.resolve('5');
+      return Promise.resolve(null);
+    });
+
+    await storage.initialize();
+
+    await expect(storage.getConfig()).resolves.toEqual(
+      expect.objectContaining({
+        autoApplyRemote: false,
+        language: 'zh-CN',
+        legacyPairingGuide: 'pending',
+      })
+    );
+    expect(mockSetItem).toHaveBeenCalledWith(
+      SETTINGS_SCHEMA_VERSION_KEY,
+      String(SETTINGS_SCHEMA_VERSION)
+    );
+  });
+
+  it('does not mark an unused v1 install as needing re-pairing', async () => {
+    mockGetItem.mockImplementation((key) => {
+      if (key === STORAGE_KEYS.CONFIG) {
+        return Promise.resolve(JSON.stringify({ servers: [], activeServerIndex: -1 }));
+      }
+      if (key === SETTINGS_SCHEMA_VERSION_KEY) return Promise.resolve('5');
+      return Promise.resolve(null);
+    });
+
+    await storage.initialize();
+
+    await expect(storage.getConfig()).resolves.toEqual(
+      expect.objectContaining({ legacyPairingGuide: 'none' })
+    );
   });
 
   it('seeds only current shared preferences on first launch', async () => {

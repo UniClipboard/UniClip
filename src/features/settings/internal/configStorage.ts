@@ -5,11 +5,13 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '@/types/storage';
-import { AppSettings, DEFAULT_SETTINGS } from '@/types/settings';
+import { AppSettings, DEFAULT_SETTINGS, SETTINGS_SCHEMA_VERSION } from '@/types/settings';
 import { createLogger } from '@/support/observability';
 import { seedConfigFromAppGroup } from '@/platform/app-group/appGroupSeed';
+import { migrateStoredSettings } from './migrateStoredSettings';
 
 const log = createLogger('ConfigStorage');
+const SETTINGS_SCHEMA_VERSION_KEY = '@syncclipboard:schema_version';
 
 /**
  * 配置存储服务
@@ -56,18 +58,32 @@ export class ConfigStorage {
    * 加载配置
    */
   private async loadConfig(): Promise<void> {
-    const configJson = await AsyncStorage.getItem(STORAGE_KEYS.CONFIG);
+    const [configJson, versionValue] = await Promise.all([
+      AsyncStorage.getItem(STORAGE_KEYS.CONFIG),
+      AsyncStorage.getItem(SETTINGS_SCHEMA_VERSION_KEY),
+    ]);
 
     if (configJson) {
+      let savedConfig: unknown;
       try {
-        this.config = JSON.parse(configJson) as AppSettings;
+        savedConfig = JSON.parse(configJson);
       } catch (error) {
         throw new Error('Stored config is not valid JSON', { cause: error });
+      }
+
+      const parsedVersion = Number.parseInt(versionValue ?? '', 10);
+      const storedVersion = Number.isFinite(parsedVersion) ? parsedVersion : 1;
+      this.config = migrateStoredSettings(savedConfig, storedVersion);
+
+      if (storedVersion < SETTINGS_SCHEMA_VERSION) {
+        await this.saveConfig();
+        await AsyncStorage.setItem(SETTINGS_SCHEMA_VERSION_KEY, String(SETTINGS_SCHEMA_VERSION));
       }
     } else {
       const seed = await seedConfigFromAppGroup();
       this.config = seed ? { ...DEFAULT_SETTINGS, ...seed } : { ...DEFAULT_SETTINGS };
       await this.saveConfig();
+      await AsyncStorage.setItem(SETTINGS_SCHEMA_VERSION_KEY, String(SETTINGS_SCHEMA_VERSION));
     }
   }
 

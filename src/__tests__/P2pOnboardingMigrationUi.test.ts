@@ -113,7 +113,7 @@ describe('P2P onboarding and upgrade UI', () => {
     expect(navigator).toContain("completionStatus === 'incomplete'");
   });
 
-  it('provides a dedicated platform-native LAN recovery guide that opens Join Space directly', () => {
+  it('provides a dedicated platform-native upgrade guide that opens Join Space directly', () => {
     const entry = source('screens/LegacyPairingGuide.tsx');
     const types = source('screens/LegacyPairingGuide.types.ts');
     const android = source('screens/LegacyPairingGuide.android.tsx');
@@ -123,15 +123,18 @@ describe('P2P onboarding and upgrade UI', () => {
     expect(types).toContain('onComplete');
     expect(types).not.toContain('onDefer');
     for (const platform of [android, ios]) {
-      expect(platform).toContain('CompanionArt');
       expect(platform).toContain('AddSyncConnectionSheet');
       expect(platform).toContain('initialMode="join"');
       expect(platform).toContain("t('migration.title')");
+      expect(platform).toContain("t('migration.body')");
+      expect(platform).toContain("t('migration.historyKept')");
+      expect(platform).toContain("t('migration.repairReason')");
       expect(platform).toContain("t('migration.desktopHint')");
       expect(platform).toContain("t('migration.join')");
       expect(platform).not.toContain("'create'");
       expect(platform).not.toContain("'choose'");
     }
+    expect(android).toContain('SyncUpgradeArt');
   });
 
   it('ships the recovery explanation and desktop invitation prompt in every language', () => {
@@ -141,12 +144,16 @@ describe('P2P onboarding and upgrade UI', () => {
       expect(Object.keys(onboarding.migration).sort()).toEqual([
         'body',
         'desktopHint',
+        'historyKept',
         'join',
+        'repairReason',
         'title',
       ]);
     }
 
     const zh = JSON.parse(source('i18n/locales/zh/onboarding.json'));
-    expect(zh.migration.join).toBe('配对新设备');
+    expect(zh.migration.title).toBe('同步方式已升级');
+    expect(zh.migration.historyKept).toBe('本地剪贴板历史仍然保留');
+    expect(zh.migration.join).toBe('开始重新配对');
   });
 });

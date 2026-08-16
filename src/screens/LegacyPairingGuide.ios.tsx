@@ -48,6 +48,12 @@ export function LegacyPairingGuide({ onComplete }: LegacyPairingGuideProps) {
         </View>
         <Text style={[s.title, { color: theme.colors.textPrimary }]}>{t('migration.title')}</Text>
         <Text style={[s.body, { color: theme.colors.textSecondary }]}>{t('migration.body')}</Text>
+        <Text style={[s.history, { color: theme.colors.textPrimary }]}>
+          {t('migration.historyKept')}
+        </Text>
+        <Text style={[s.reason, { color: theme.colors.textSecondary }]}>
+          {t('migration.repairReason')}
+        </Text>
         <Text style={[s.hint, { color: theme.colors.textPrimary }]}>
           {t('migration.desktopHint')}
         </Text>
@@ -83,9 +89,11 @@ const s = StyleSheet.create({
   art: { minHeight: 158, justifyContent: 'center', marginBottom: 20 },
   title: { fontSize: 29, lineHeight: 35, fontWeight: '700', textAlign: 'center' },
   body: { maxWidth: 340, marginTop: 12, fontSize: 16, lineHeight: 23, textAlign: 'center' },
+  history: { maxWidth: 340, marginTop: 18, fontSize: 15, lineHeight: 21, fontWeight: '600' },
+  reason: { maxWidth: 340, marginTop: 14, fontSize: 15, lineHeight: 21, textAlign: 'center' },
   hint: {
     maxWidth: 340,
-    marginTop: 14,
+    marginTop: 8,
     fontSize: 15,
     lineHeight: 21,
     fontWeight: '600',
