@@ -47,7 +47,7 @@ describe('checkForUpdate via R2 manifest', () => {
     expect(fetchSpy).toHaveBeenCalledWith(`${R2_BASE}/beta.json`, expect.anything());
   });
 
-  it('derives R2, GitHub and Gitee download URLs from the tag and filename', async () => {
+  it('derives only R2 and GitHub download URLs from the tag and filename', async () => {
     jest.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse(manifest));
 
     const result = await checkForUpdate('1.3.0.163', false, 'en');
@@ -59,9 +59,8 @@ describe('checkForUpdate via R2 manifest', () => {
     expect(arm.githubDownloadUrl).toBe(
       'https://github.com/UniClipboard/uc-android/releases/download/v1.4.0.200/UniClip-1.4.0-arm64-v8a.apk'
     );
-    expect(arm.giteeDownloadUrl).toBe(
-      'https://gitee.com/uni-clipboard/uc-android/releases/download/v1.4.0.200/UniClip-1.4.0-arm64-v8a.apk'
-    );
+    expect(arm).not.toHaveProperty('giteeDownloadUrl');
+    expect(result).not.toHaveProperty('giteeReleaseUrl');
     // sha256 is normalized to lowercase for the on-device hash comparison.
     expect(arm.sha256).toBe('aabbcc');
   });

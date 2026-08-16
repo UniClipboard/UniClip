@@ -222,8 +222,8 @@ jobs:
           path: ${{ env.EXPORT_PATH }}/*.ipa
           if-no-files-found: error
 
-      # Opt-in direct upload for manual dev builds (no tag, no Android/Gitee
-      # release). Tagged releases skip this and upload from the artifact in
+      # Opt-in direct upload for manual dev builds (no tag or Android release).
+      # Tagged releases skip this and upload from the artifact in
       # release.yml instead.
       - name: Upload to TestFlight (dev build)
         if: ${{ inputs.upload_testflight }}

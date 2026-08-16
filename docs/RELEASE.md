@@ -100,7 +100,7 @@ The generator produces:
   notes for that platform. The Android updater fetches the file from the exact
   release tag; it does not read the GitHub Release body. Non-Chinese app
   languages currently use the English file.
-- **GitHub / Gitee Release body:** visible `[zh-CN] 简体中文` and `[en] English`
+- **GitHub Release body:** visible `[zh-CN] 简体中文` and `[en] English`
   sections for people viewing the release page, each containing Android and iOS
   notes.
 - **TestFlight "What to Test":** Chinese iOS notes for `zh-Hans` and English
@@ -244,10 +244,8 @@ In GitHub Actions, open `build`, choose **Run workflow** on `main`, enable
 3. Creates the derived tag only after every check and both builds succeed.
 4. Uploads the same validated iOS artifact to TestFlight.
 5. Publishes a GitHub Release with the `arm64-v8a` APK supported by the unified
-   engine release. This job does **not** wait for the Gitee jobs.
-6. Mirrors the repository to Gitee and creates a matching release without
-   deleting unrelated prior releases.
-7. Uploads the same `arm64-v8a` APK to Gitee.
+   engine release.
+6. Uploads the Android APK and update manifest to Cloudflare R2.
 
 Directly pushing a `v*` tag does not publish a release. If a publishing job
 fails after the tag was created, use **Re-run failed jobs** on the same Actions

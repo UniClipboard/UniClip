@@ -22,4 +22,12 @@ describe('Android About update sheet', () => {
   it('keeps download actions reachable when release notes are long', () => {
     expect(getDownloadSourceSheetSource()).toContain('verticalScroll()');
   });
+
+  it('offers only R2 and GitHub download sources', () => {
+    const sheet = getDownloadSourceSheetSource();
+
+    expect(sheet).toContain("handleDownloadApk('r2'");
+    expect(sheet).toContain("handleDownloadApk('github'");
+    expect(sheet).not.toMatch(/gitee/i);
+  });
 });

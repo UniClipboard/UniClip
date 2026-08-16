@@ -74,7 +74,7 @@ export function cleanOldApkCache(currentVersion: string): void {
   }
 }
 
-export type ApkSource = 'r2' | 'github' | 'gitee';
+export type ApkSource = 'r2' | 'github';
 
 /** 按下载源从 asset 上取对应的直链 URL。 */
 function resolveDownloadUrl(asset: ReleaseAssetInfo, source: ApkSource): string {
@@ -83,8 +83,6 @@ function resolveDownloadUrl(asset: ReleaseAssetInfo, source: ApkSource): string 
       return asset.r2DownloadUrl;
     case 'github':
       return asset.githubDownloadUrl;
-    case 'gitee':
-      return asset.giteeDownloadUrl;
   }
 }
 

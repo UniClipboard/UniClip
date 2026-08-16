@@ -9,7 +9,6 @@ const updateResult: UpdateCheckResult = {
   latestVersion: '1.4.0',
   tagName: 'v1.4.0',
   releaseUrl: 'https://example.com/release',
-  giteeReleaseUrl: 'https://example.com/gitee-release',
   assets: [],
 };
 

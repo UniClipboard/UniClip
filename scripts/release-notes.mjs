@@ -3,7 +3,7 @@
  * release-notes — split the top version blocks of CHANGES.md and
  * CHANGES.en.md into localized, per-platform release notes.
  *
- * The GitHub / Gitee body contains visible Simplified Chinese and English
+ * The GitHub Release body contains visible Simplified Chinese and English
  * sections, each split into Android and iOS. TestFlight gets localized iOS-only
  * notes.
  *

@@ -20,7 +20,6 @@
     "currentVersion": "Текущая версия: {{version}}",
     "releaseNotes": "Что нового:\n{{notes}}",
     "r2": "Скачать (рекомендуется)",
-    "gitee": "Скачать с Gitee",
     "github": "Скачать с GitHub",
     "downloading": "Скачивание {{percent}}%",
     "canceled": "Скачивание отменено",

@@ -10,14 +10,10 @@ import { loadLastUpdateCheckDate, recordUpdateCheckDate } from './updateCheckSta
 //   GET /android/{stable,beta}.json          → 渠道 manifest
 //   GET /android/artifacts/{tag}/{file}.apk  → APK 下载
 const R2_UPDATE_BASE = 'https://release.uniclipboard.app/android';
-// GitHub / Gitee 仍作为下载镜像保留(R2 为主)。两者的 release 附件下载 URL 都采用
+// GitHub 作为备用下载源保留(R2 为主)。release 附件下载 URL 采用
 // /releases/download/<tag>/<file> 模式,由 manifest 里的 tagName + asset 名推导。
 const RELEASES_PAGE_URL = 'https://github.com/UniClipboard/uc-android/releases';
 const GITHUB_DOWNLOAD_BASE = 'https://github.com/UniClipboard/uc-android/releases/download';
-// Gitee 仓库路径由 CI 的 GITEE_OWNER/GITEE_REPO 决定(uni-clipboard/uc-android),
-// 与 GitHub 侧的 UniClipboard/uc-android 大小写/写法不同,勿直接沿用 GitHub 命名空间。
-const GITEE_RELEASES_PAGE_URL = 'https://gitee.com/uni-clipboard/uc-android/releases';
-const GITEE_DOWNLOAD_BASE = 'https://gitee.com/uni-clipboard/uc-android/releases/download';
 
 export interface ParsedVersion {
   major: number;
@@ -35,8 +31,6 @@ export interface ReleaseAssetInfo {
   r2DownloadUrl: string;
   /** GitHub 直接下载 URL（镜像） */
   githubDownloadUrl: string;
-  /** Gitee 直接下载 URL（镜像） */
-  giteeDownloadUrl: string;
   /** SHA-256 哈希值（十六进制小写），来自 manifest 的 sha256 字段，可能为 undefined */
   sha256?: string;
 }
@@ -120,7 +114,6 @@ export interface UpdateCheckResult {
   latestVersion: string;
   tagName: string;
   releaseUrl: string;
-  giteeReleaseUrl: string;
   /** APK 资源列表（含各 ABI 的下载 URL 和哈希值） */
   assets: ReleaseAssetInfo[];
   /** 对应版本、平台和语言的静态 Markdown 更新说明 */
@@ -197,16 +190,14 @@ export async function checkForUpdate(
   const manifest: AndroidUpdateManifest = await response.json();
   const tag = manifest.tagName;
   const githubReleaseUrl = `${RELEASES_PAGE_URL}/tag/${tag}`;
-  const giteeReleaseUrl = `${GITEE_RELEASES_PAGE_URL}/tag/${tag}`;
 
-  // R2 为主下载源；GitHub / Gitee 按同一套 /releases/download/<tag>/<file> 规则推导为镜像。
+  // R2 为主下载源；GitHub 按 /releases/download/<tag>/<file> 规则推导为备用源。
   const apkAssets: ReleaseAssetInfo[] = (manifest.assets ?? [])
     .filter((a) => a.name.endsWith('.apk'))
     .map((a) => ({
       name: a.name,
       r2DownloadUrl: `${R2_UPDATE_BASE}/artifacts/${tag}/${a.name}`,
       githubDownloadUrl: `${GITHUB_DOWNLOAD_BASE}/${tag}/${a.name}`,
-      giteeDownloadUrl: `${GITEE_DOWNLOAD_BASE}/${tag}/${a.name}`,
       sha256: a.sha256?.toLowerCase(),
     }));
 
@@ -219,7 +210,6 @@ export async function checkForUpdate(
       latestVersion: manifest.version,
       tagName: tag,
       releaseUrl: githubReleaseUrl,
-      giteeReleaseUrl,
       assets: apkAssets,
       releaseNotes: undefined,
     };
@@ -232,7 +222,6 @@ export async function checkForUpdate(
     latestVersion: versionToStr(latestParsed),
     tagName: tag,
     releaseUrl: githubReleaseUrl,
-    giteeReleaseUrl,
     assets: apkAssets,
     releaseNotes,
   };

@@ -2,7 +2,7 @@
 # the same run and does all the publishing:
 #   - testflight        upload the iOS .ipa to App Store Connect (TestFlight)
 #   - github-release     publish the Android APKs to a GitHub Release
-#   - sync-to-gitee / gitee-release-*   mirror + release the APKs on Gitee
+#   - r2-upload          publish Android updates to Cloudflare R2
 #
 # Called by build.yml only after validation, both builds, and tag creation.
 
@@ -97,9 +97,8 @@ jobs:
       - name: Download APK artifacts
         uses: actions/download-artifact@v8
         with:
-          pattern: apk-*
+          name: apk-arm64-v8a
           path: apk/
-          merge-multiple: true
 
       - name: Publish Release
         uses: ncipollo/release-action@v1
@@ -113,8 +112,8 @@ jobs:
   # Mirror the APKs and a channel manifest into the shared Cloudflare R2 bucket
   # (`uniclipboard-releases`, also used by the desktop app) under an `android/`
   # prefix, then let the update-server Worker at release.uniclipboard.app serve
-  # them. This is the primary update source the app polls; the GitHub + Gitee
-  # releases above stay as download mirrors.
+  # them. This is the primary update source the app polls; the GitHub release
+  # above stays as the fallback download source.
   #
   # Requires repo secrets CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID (the same
   # credentials the desktop repo uses to publish to this bucket).
@@ -135,9 +134,8 @@ jobs:
       - name: Download APK artifacts
         uses: actions/download-artifact@v8
         with:
-          pattern: apk-*
+          name: apk-arm64-v8a
           path: apk/
-          merge-multiple: true
 
       - name: Generate versioned changelogs
         run: node scripts/release-notes.mjs
@@ -183,122 +181,3 @@ jobs:
               --content-type "application/json" \
               --remote
           done
-
-  sync-to-gitee:
-    name: Sync to Gitee
-    runs-on: ubuntu-latest
-    steps:
-      - name: Setup SSH for Gitee
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.GITEE_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan gitee.com >> ~/.ssh/known_hosts
-
-      - name: Bare clone from GitHub
-        run: |
-          git clone --bare https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git bare-repo
-
-      - name: Mirror push to Gitee
-        run: |
-          cd bare-repo
-          git push git@gitee.com:${{ vars.GITEE_OWNER }}/${{ vars.GITEE_REPO }}.git \
-            '+refs/heads/*:refs/heads/*' \
-            '+refs/tags/*:refs/tags/*' \
-            --prune
-
-  gitee-release-create:
-    name: Create Gitee Release
-    needs: [sync-to-gitee]
-    runs-on: ubuntu-latest
-    outputs:
-      release_id: ${{ steps.create_release.outputs.release_id }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ inputs.tag_name }}
-
-      - name: Generate per-platform release notes
-        run: node scripts/release-notes.mjs
-
-      - name: Create Gitee Release
-        id: create_release
-        env:
-          GITEE_TOKEN: ${{ secrets.GITEE_ACCESS_TOKEN }}
-          GITEE_OWNER: ${{ vars.GITEE_OWNER }}
-          GITEE_REPO: ${{ vars.GITEE_REPO }}
-          TAG_NAME: ${{ inputs.tag_name }}
-          IS_PRERELEASE: ${{ contains(inputs.tag_name, '-alpha.') || contains(inputs.tag_name, '-beta') }}
-        run: |
-          python3 - <<'PYEOF'
-          import json, os, urllib.parse, urllib.request
-
-          token = os.environ["GITEE_TOKEN"]
-          owner = os.environ["GITEE_OWNER"]
-          repo = os.environ["GITEE_REPO"]
-          tag = os.environ["TAG_NAME"]
-          base_url = f"https://gitee.com/api/v5/repos/{owner}/{repo}/releases"
-
-          query = urllib.parse.urlencode({"access_token": token, "page": 1, "per_page": 100})
-          with urllib.request.urlopen(f"{base_url}?{query}") as response:
-              releases = json.loads(response.read())
-
-          existing = next((release for release in releases if release.get("tag_name") == tag), None)
-          if existing:
-              release = existing
-              print(f"Reusing Gitee release {release['id']} for {tag}")
-          else:
-              data = {
-                  "access_token": os.environ["GITEE_TOKEN"],
-                  "tag_name": tag,
-                  "name": tag,
-                  "body": open("release-notes-github.md").read(),
-                  "prerelease": os.environ["IS_PRERELEASE"] == "true",
-                  "target_commitish": "main"
-              }
-              request = urllib.request.Request(
-                  base_url,
-                  data=json.dumps(data).encode(),
-                  headers={"Content-Type": "application/json"},
-                  method="POST",
-              )
-              with urllib.request.urlopen(request) as response:
-                  release = json.loads(response.read())
-              print(f"Created Gitee release {release['id']} for {tag}")
-
-          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
-              output.write(f"release_id={release['id']}\n")
-          PYEOF
-
-  gitee-release-upload:
-    name: Upload APK to Gitee Release
-    needs: [gitee-release-create]
-    runs-on: ubuntu-latest
-    # A healthy upload takes under a minute; a hung connection would otherwise
-    # hold the job for GitHub's 6-hour default.
-    timeout-minutes: 30
-    steps:
-      - name: Download APK artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: apk-arm64-v8a
-          path: apk/
-
-      - name: Upload APK to Gitee Release
-        env:
-          GITEE_TOKEN: ${{ secrets.GITEE_ACCESS_TOKEN }}
-          GITEE_OWNER: ${{ vars.GITEE_OWNER }}
-          GITEE_REPO: ${{ vars.GITEE_REPO }}
-          RELEASE_ID: ${{ needs.gitee-release-create.outputs.release_id }}
-        run: |
-          APK=$(ls apk/*.apk | head -1)
-          echo "Uploading $APK..."
-          curl -s --fail-with-body -X POST \
-            --connect-timeout 30 --max-time 600 \
-            --retry 3 --retry-all-errors \
-            "https://gitee.com/api/v5/repos/${GITEE_OWNER}/${GITEE_REPO}/releases/${RELEASE_ID}/attach_files" \
-            -F "access_token=${GITEE_TOKEN}" \
-            -F "file=@${APK}"
-          echo ""

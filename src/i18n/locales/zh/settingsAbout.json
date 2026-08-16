@@ -20,7 +20,6 @@
     "currentVersion": "当前版本：{{version}}",
     "releaseNotes": "更新说明：\n{{notes}}",
     "r2": "官方直连下载（推荐）",
-    "gitee": "Gitee 下载",
     "github": "GitHub 下载",
     "downloading": "下载中 {{percent}}%",
     "canceled": "已取消下载",

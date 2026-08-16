@@ -17,10 +17,10 @@ manual full release    ──▶ validate + both builds ──▶ create tag ─
 | ------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `android-build.yml` | every push / manual release   | Build release APKs (all ABIs) → artifacts                                                                            |
 | `build-ios.yml`     | manual dev build / release    | Prepare the pinned unified engine, prebuild, archive, export a **distribution-signed `.ipa`** → artifact (no upload) |
-| `release.yml`       | validated manual release only | Upload the `.ipa` to **TestFlight**; publish APKs to **GitHub Release** + **Gitee**                                  |
+| `release.yml`       | validated manual release only | Upload the `.ipa` to **TestFlight**; publish APKs to **GitHub Release** and **Cloudflare R2**                        |
 
 All publishing lives in `release.yml`, so a failed lint / test / iOS build
-blocks the GitHub/Gitee release _and_ the TestFlight upload.
+blocks the GitHub release, R2 upload, and TestFlight upload.
 
 ## The unified engine
 
@@ -49,9 +49,6 @@ bundle ids), so the certs / key / profiles are shared.
 | `DEV_CERT_P12_BASE64`  | base64 of the Apple **Development** cert + key `.p12`   |
 | `DEV_CERT_PASSWORD`    | password of that `.p12`                                 |
 
-Already configured for the Android release path (reused as-is): `GITEE_PRIVATE_KEY`,
-`GITEE_ACCESS_TOKEN` (secrets) and `GITEE_OWNER`, `GITEE_REPO` (variables).
-
 ## One-time setup: App Store provisioning profiles
 
 Export uses **manual** signing against three pre-created App Store profiles
@@ -78,7 +75,7 @@ via `asc_profiles.rb install`.
    leave the dev-build inputs empty.
 4. CI validates metadata and both localized release-note sections, builds
    Android + iOS, creates the tag only after both builds succeed, then uploads
-   the `.ipa` to TestFlight and publishes the APKs to GitHub + Gitee.
+   the `.ipa` to TestFlight and publishes the APKs to GitHub and R2.
 5. In App Store Connect → TestFlight: wait for processing, answer export
    compliance, add the build to a testing group.
 
@@ -86,16 +83,16 @@ via `asc_profiles.rb install`.
 
 - leave `upload_testflight` unchecked → runs `build-ios` only: rebuild
   xcframework, archive, export a signed `.ipa` artifact. No upload, no
-  GitHub/Gitee release. Use it to validate the whole iOS toolchain or grab an
+  GitHub release or R2 upload. Use it to validate the whole iOS toolchain or grab an
   `.ipa`.
 - check `upload_testflight` → additionally uploads that build straight to
-  **TestFlight**, without touching the Android / Gitee release. This is the
+  **TestFlight**, without touching the Android release. This is the
   clean "ship an iOS dev build to try" path.
 - `build_number` (optional) overrides the CFBundleVersion for this run.
 
 To ship both platforms, enable `publish_release`. CI requires matching tags in
 `CHANGES.md` and `CHANGES.en.md`; an Alpha tag (`-alpha.N`) marks the
-GitHub/Gitee release as a prerelease. The iOS side always goes to TestFlight,
+GitHub release as a prerelease. The iOS side always goes to TestFlight,
 with localized "What to Test" notes for `zh-Hans` and `en-US`; missing build
 localizations are created automatically.
 
@@ -107,7 +104,7 @@ App Store Connect app record. The distinction is by channel:
 - **iOS**: every build from this pipeline goes to **TestFlight** (Apple's beta
   channel). Promoting a build to the public App Store is a manual submit-for-
   review step in App Store Connect; it is not automated here.
-- **Android**: an Alpha tag → GitHub/Gitee **prerelease**; a plain `v*` tag →
+- **Android**: an Alpha tag → GitHub **prerelease**; a plain `v*` tag →
   the normal "latest" release.
 
 ## Troubleshooting

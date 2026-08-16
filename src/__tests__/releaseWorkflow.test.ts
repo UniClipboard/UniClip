@@ -162,6 +162,10 @@ describe('validated release workflow', () => {
     expect(releaseWorkflow).toContain("contains(inputs.tag_name, '-alpha.')");
   });
 
+  it('publishes Android updates only to R2 and GitHub', () => {
+    expect(releaseWorkflow).not.toMatch(/gitee/i);
+  });
+
   it('publishes localized TestFlight notes', () => {
     expect(releaseWorkflow).toContain('release-notes-testflight.txt');
     expect(releaseWorkflow).toContain('release-notes-testflight.en.txt');
@@ -170,7 +174,7 @@ describe('validated release workflow', () => {
 
   it('does not delete unrelated previous releases before publishing', () => {
     expect(releaseWorkflow).not.toContain('Delete existing releases in same channel');
-    expect(releaseWorkflow).toContain('Reusing Gitee release');
+    expect(releaseWorkflow).toContain('allowUpdates: true');
   });
 
   it('validates both platform packages before creating one Engine adoption pull request', () => {
