@@ -1,14 +1,13 @@
 export {
-  createDiagnosticPackage,
-  deleteDiagnosticPackage,
-  summarizeDiagnosticLogs,
+  createDiagnosticArchive,
+  deleteDiagnosticArchive,
+  scheduleDiagnosticArchiveCleanup,
+  DiagnosticArchiveError,
 } from './internal/diagnosticPackage';
 export type {
   DiagnosticArtifact,
-  DiagnosticEvent,
-  DiagnosticEventSummary,
-  DiagnosticLogSummary,
-  DiagnosticPackageInput,
+  DiagnosticArchiveErrorCode,
+  DiagnosticArchiveInput,
   DiagnosticSettingsSnapshot,
   DiagnosticSyncSnapshot,
 } from './internal/diagnosticPackage';

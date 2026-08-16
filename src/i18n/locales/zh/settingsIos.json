@@ -58,11 +58,15 @@
     "title": "诊断",
     "package": {
       "appVersion": "App 版本",
+      "format": "文件格式",
+      "zipArchive": "ZIP 压缩包",
       "logRange": "日志范围",
       "lastThreeDays": "最近 3 天",
+      "appLogs": "应用日志",
+      "engineLogs": "Engine 日志",
       "shareAttempts": "分享记录",
       "included": "已包含",
-      "footer": "诊断包包含应用状态、脱敏后的日志统计和经过隐私处理的分享记录，不包含剪贴板内容、凭据、原始日志消息或其他原生扩展日志。"
+      "footer": "ZIP 包含清理敏感信息后的应用日志、Engine 日志、应用状态和分享记录，不包含剪贴板内容或凭据。"
     },
     "action": {
       "generate": "生成并分享",
@@ -70,7 +74,9 @@
     },
     "error": {
       "title": "无法生成诊断包",
-      "message": "请稍后重试。"
+      "message": "请稍后重试。",
+      "engineLogsMissing": "Engine 正在运行，但没有找到 Engine 日志。请重启 UniClip 后再试。",
+      "engineLogsUnreadable": "找到了 Engine 日志，但无法读取。请重启 UniClip 后再试。"
     }
   }
 }

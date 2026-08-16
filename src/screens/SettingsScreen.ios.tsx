@@ -26,7 +26,7 @@ import { StoragePage } from './settings/ios/StoragePage';
 import { KeyboardPage } from './settings/ios/KeyboardPage';
 import { SharePage } from './settings/ios/SharePage';
 import { ClipboardAccessPage } from './settings/ios/ClipboardAccessPage';
-import { DiagnosticsPage } from './settings/ios/DiagnosticsPage';
+import { LogSection } from './settings/LogSection';
 import { SpacePage } from './settings/ios/SpacePage';
 import type { RootStackParamList } from '@/navigation/AppNavigator';
 
@@ -160,7 +160,7 @@ export const SettingsScreen = () => {
                   {activePage === 'keyboard' ? <KeyboardPage onBack={backToRoot} /> : null}
                   {activePage === 'share' ? <SharePage onBack={backToRoot} /> : null}
                   {activePage === 'clipboard' ? <ClipboardAccessPage onBack={backToRoot} /> : null}
-                  {activePage === 'diagnostics' ? <DiagnosticsPage onBack={backToRoot} /> : null}
+                  {activePage === 'diagnostics' ? <LogSection onBack={backToRoot} /> : null}
                 </SettingsSubPageOverlay>
               ) : null}
               <SpaceInvitationSheet

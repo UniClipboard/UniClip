@@ -86,6 +86,13 @@ export function redactLogText(text: string): string {
     (_match, prefix: string) => `${prefix}${LOG_REDACTED}`
   );
 
+  redacted = redacted.replace(/\b(?:file|content):\/\/[^\s,;)}\]]+/gi, LOG_REDACTED);
+
+  redacted = redacted.replace(
+    /(?:\/[A-Za-z0-9._-]+){2,}|\b[A-Za-z]:\\(?:[^\s,;)}\]]+\\?)+[^\s,;)}\]]*/g,
+    LOG_REDACTED
+  );
+
   return redacted;
 }
 

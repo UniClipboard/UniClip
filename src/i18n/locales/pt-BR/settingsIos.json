@@ -58,11 +58,15 @@
     "title": "Diagnóstico",
     "package": {
       "appVersion": "Versão do app",
+      "format": "Formato do arquivo",
+      "zipArchive": "Arquivo ZIP",
       "logRange": "Período dos registros",
       "lastThreeDays": "Últimos 3 dias",
+      "appLogs": "Registros do app",
+      "engineLogs": "Registros do Engine",
       "shareAttempts": "Registros de compartilhamento",
       "included": "Incluídos",
-      "footer": "O pacote contém o estado do app, estatísticas sem dados sensíveis e registros de compartilhamento que preservam a privacidade. Conteúdo da área de transferência, credenciais, mensagens brutas e registros de outras extensões não são incluídos."
+      "footer": "O ZIP contém registros do app e do Engine sem dados sensíveis, o estado do app e registros de compartilhamento. O conteúdo da área de transferência e as credenciais não são incluídos."
     },
     "action": {
       "generate": "Gerar e compartilhar",
@@ -70,7 +74,9 @@
     },
     "error": {
       "title": "Não foi possível criar o diagnóstico",
-      "message": "Tente novamente mais tarde."
+      "message": "Tente novamente mais tarde.",
+      "engineLogsMissing": "O Engine está em execução, mas nenhum registro foi encontrado. Reinicie o UniClip e tente novamente.",
+      "engineLogsUnreadable": "Os registros do Engine foram encontrados, mas não puderam ser lidos. Reinicie o UniClip e tente novamente."
     }
   }
 }

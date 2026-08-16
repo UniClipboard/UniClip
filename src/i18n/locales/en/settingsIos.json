@@ -58,11 +58,15 @@
     "title": "Diagnostics",
     "package": {
       "appVersion": "App version",
+      "format": "File format",
+      "zipArchive": "ZIP archive",
       "logRange": "Log range",
       "lastThreeDays": "Last 3 days",
+      "appLogs": "App logs",
+      "engineLogs": "Engine logs",
       "shareAttempts": "Share attempt records",
       "included": "Included",
-      "footer": "The package contains app state, redacted log statistics, and privacy-safe Share attempt records. Clipboard contents, credentials, raw log messages, and other native extension logs are excluded."
+      "footer": "The ZIP contains redacted app logs, Engine logs, app state, and Share attempt records. Clipboard contents and credentials are excluded."
     },
     "action": {
       "generate": "Generate and share",
@@ -70,7 +74,9 @@
     },
     "error": {
       "title": "Couldn't create diagnostics",
-      "message": "Please try again later."
+      "message": "Please try again later.",
+      "engineLogsMissing": "The Engine is running, but no Engine logs were found. Restart UniClip and try again.",
+      "engineLogsUnreadable": "Engine logs were found but couldn't be read. Restart UniClip and try again."
     }
   }
 }

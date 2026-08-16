@@ -311,6 +311,10 @@ export function getLogFileUris(): string[] {
   return listLogFiles().map((file) => file.uri);
 }
 
+export function getAppLogFileUris(): string[] {
+  return listAppLogFiles().map((file) => file.uri);
+}
+
 export function getEngineLogFileUris(): string[] {
   return listEngineLogFiles().map((file) => file.uri);
 }

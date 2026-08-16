@@ -6,6 +6,7 @@ export {
   createLogArchive,
   customFileTransport,
   deleteExportedLogArchive,
+  getAppLogFileUris,
   getLogDirectory,
   getEngineLogFileUris,
   getLogFilePaths,
@@ -16,6 +17,7 @@ export {
   scheduleExportedLogArchiveCleanup,
   setLogLevel,
 } from './internal/logger';
+export { redactLogText } from './internal/logRedaction';
 export type { AppLogger, ExportedLogArchive, LogConfig, LogLevel } from './internal/logger';
 
 export {

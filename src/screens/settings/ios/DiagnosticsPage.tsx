@@ -14,8 +14,9 @@ import { IosSheetForm, IosSheetPage } from '@/components/ui';
 import { APP_VERSION } from '@/constants';
 import {
   classifyDiagnosticReason,
-  createDiagnosticPackage,
-  deleteDiagnosticPackage,
+  createDiagnosticArchive,
+  deleteDiagnosticArchive,
+  DiagnosticArchiveError,
   type DiagnosticArtifact,
 } from '@/support/diagnostics';
 import { useSettingsStore } from '@/stores';
@@ -41,7 +42,7 @@ export function DiagnosticsPage({ onBack }: { onBack: () => void }) {
     setIsGenerating(true);
     let artifact: DiagnosticArtifact | null = null;
     try {
-      artifact = await createDiagnosticPackage({
+      artifact = await createDiagnosticArchive({
         settings: {
           autoApplyRemote: config.autoApplyRemote,
           autoPushLocal: config.autoPushLocal,
@@ -63,9 +64,17 @@ export function DiagnosticsPage({ onBack }: { onBack: () => void }) {
         errorMessage: error instanceof Error ? error.message : String(error),
         artifactUri: artifact?.uri ?? null,
       });
-      Alert.alert(t('diagnostics.error.title'), t('diagnostics.error.message'));
+      let message = t('diagnostics.error.message');
+      if (error instanceof DiagnosticArchiveError) {
+        if (error.code === 'engine_logs_missing') {
+          message = t('diagnostics.error.engineLogsMissing');
+        } else if (error.code === 'engine_logs_unreadable') {
+          message = t('diagnostics.error.engineLogsUnreadable');
+        }
+      }
+      Alert.alert(t('diagnostics.error.title'), message);
     } finally {
-      if (artifact) deleteDiagnosticPackage(artifact.uri);
+      if (artifact) deleteDiagnosticArchive(artifact.uri);
       setIsGenerating(false);
     }
   }, [config, deviceCount, engineError, engineStatus, isGenerating, peerConnectionStatus, spaceId, t]);
@@ -83,6 +92,13 @@ export function DiagnosticsPage({ onBack }: { onBack: () => void }) {
             <SwiftUIText modifiers={[foregroundStyle('secondary')]}>{APP_VERSION}</SwiftUIText>
           </LabeledContent>
           <LabeledContent
+            label={<Label title={t('diagnostics.package.format')} systemImage="doc.zipper" />}
+          >
+            <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
+              {t('diagnostics.package.zipArchive')}
+            </SwiftUIText>
+          </LabeledContent>
+          <LabeledContent
             label={
               <Label
                 title={t('diagnostics.package.logRange')}
@@ -93,6 +109,16 @@ export function DiagnosticsPage({ onBack }: { onBack: () => void }) {
             <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
               {t('diagnostics.package.lastThreeDays')}
             </SwiftUIText>
+          </LabeledContent>
+          <LabeledContent
+            label={<Label title={t('diagnostics.package.appLogs')} systemImage="doc.text" />}
+          >
+            <SwiftUIText modifiers={[foregroundStyle('secondary')]}>{t('diagnostics.package.included')}</SwiftUIText>
+          </LabeledContent>
+          <LabeledContent
+            label={<Label title={t('diagnostics.package.engineLogs')} systemImage="gearshape.2" />}
+          >
+            <SwiftUIText modifiers={[foregroundStyle('secondary')]}>{t('diagnostics.package.included')}</SwiftUIText>
           </LabeledContent>
           <LabeledContent
             label={

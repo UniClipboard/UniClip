@@ -1,9 +1,11 @@
 /// <reference types="jest" />
 
+import { strFromU8, unzipSync } from 'fflate';
+
 const mockLogContents = new Map<string, string>();
-const mockWrittenFiles = new Map<string, string>();
+const mockWrittenFiles = new Map<string, string | Uint8Array>();
 const mockDeletedFiles: string[] = [];
-const mockGetLogFileUris = jest.fn<string[], []>();
+const mockGetAppLogFileUris = jest.fn<string[], []>();
 const mockGetEngineLogFileUris = jest.fn<string[], []>();
 const mockGetShareDiagnostics = jest.fn();
 
@@ -12,13 +14,14 @@ jest.mock('react-native', () => ({
 }));
 
 jest.mock('expo-application', () => ({
-  nativeApplicationVersion: '1.3.0',
-  nativeBuildVersion: '162',
+  nativeApplicationVersion: '2.0.0',
+  nativeBuildVersion: '177',
 }));
 
 jest.mock('../support/observability', () => ({
-  getLogFileUris: () => mockGetLogFileUris(),
+  getAppLogFileUris: () => mockGetAppLogFileUris(),
   getEngineLogFileUris: () => mockGetEngineLogFileUris(),
+  redactLogText: jest.requireActual('../support/observability/internal/logRedaction').redactLogText,
 }));
 
 jest.mock('app-group-store', () => ({
@@ -49,8 +52,8 @@ jest.mock('expo-file-system', () => {
     }
 
     async text() {
-      const content = mockLogContents.get(this.uri);
-      if (content === undefined) throw new Error('unreadable');
+      const content = mockLogContents.get(this.uri) ?? mockWrittenFiles.get(this.uri);
+      if (typeof content !== 'string') throw new Error('unreadable');
       return content;
     }
 
@@ -61,7 +64,7 @@ jest.mock('expo-file-system', () => {
     }
 
     write(content: string | Uint8Array) {
-      mockWrittenFiles.set(this.uri, String(content));
+      mockWrittenFiles.set(this.uri, content);
     }
 
     delete() {
@@ -77,23 +80,13 @@ jest.mock('expo-file-system', () => {
 });
 
 import {
-  createDiagnosticPackage,
-  deleteDiagnosticPackage,
-  summarizeDiagnosticLogs,
-  type DiagnosticPackageInput,
+  createDiagnosticArchive,
+  deleteDiagnosticArchive,
+  DiagnosticArchiveError,
+  type DiagnosticArchiveInput,
 } from '../support/diagnostics';
 
-function readWrittenPayload(uri: string): Record<string, unknown> {
-  const content = mockWrittenFiles.get(uri);
-  if (!content) throw new Error(`No diagnostic package was written at ${uri}`);
-  try {
-    return JSON.parse(content) as Record<string, unknown>;
-  } catch (error) {
-    throw new Error(`Diagnostic package is not valid JSON: ${String(error)}`);
-  }
-}
-
-const input: DiagnosticPackageInput = {
+const input: DiagnosticArchiveInput = {
   settings: {
     autoApplyRemote: true,
     autoPushLocal: false,
@@ -102,276 +95,163 @@ const input: DiagnosticPackageInput = {
   },
   sync: {
     status: 'running',
-    peerConnectionStatus: 'offline',
+    peerConnectionStatus: 'online',
     hasSpace: true,
-    deviceCount: 2,
-    lastErrorReason: 'network_unreachable',
+    deviceCount: 4,
+    lastErrorReason: null,
   },
 };
 
-describe('DiagnosticPackage', () => {
+function readArchive(uri: string): Record<string, string> {
+  const bytes = mockWrittenFiles.get(uri);
+  if (!(bytes instanceof Uint8Array)) throw new Error(`No ZIP archive was written at ${uri}`);
+  return Object.fromEntries(
+    Object.entries(unzipSync(bytes)).map(([name, content]) => [name, strFromU8(content)])
+  );
+}
+
+describe('DiagnosticArchive', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockLogContents.clear();
     mockWrittenFiles.clear();
     mockDeletedFiles.length = 0;
-    mockGetLogFileUris.mockReturnValue([]);
+    mockGetAppLogFileUris.mockReturnValue([]);
     mockGetEngineLogFileUris.mockReturnValue([]);
     mockGetShareDiagnostics.mockResolvedValue({ schemaVersion: 1, attempts: [] });
   });
 
-  it('derives useful log telemetry without retaining raw messages', () => {
-    const rawLogs = [
-      '2026-07-17 10:00:00 INFO: [P2pClipboardObserver] Clipboard observation failed; kept local: https://user:secret@example.test/private',
-      '2026-07-17 10:00:01 INFO: [P2pClipboardObserver] Clipboard observation failed; kept local: https://example.test/retry',
-      '2026-07-17 10:00:02 ERROR: [UnifiedEngineService] Failed to start the P2P engine: NetworkUnreachable hunter2',
-      '2026-07-17 10:00:03 WARN: [HistoryStorage] Failed to move file to history directory: permission denied for /private/user/document.txt',
-      '2026-07-17 10:00:04 DEBUG: unscoped plaintext should not survive',
-      'not a log line containing another-secret',
-    ].join('\n');
-
-    const summary = summarizeDiagnosticLogs([rawLogs]);
-    const serialized = JSON.stringify(summary);
-
-    expect(summary).toMatchObject({
-      fileCount: 1,
-      unreadableFileCount: 0,
-      parsedEntryCount: 5,
-      unparsedLineCount: 1,
-      byLevel: { debug: 1, info: 2, warn: 1, error: 1 },
-      byComponent: {
-        general: 1,
-        HistoryStorage: 1,
-        P2pClipboardObserver: 2,
-        UnifiedEngineService: 1,
-      },
-    });
-    expect(summary).toMatchObject({
-      eventSummary: {
-        classifiedEventCount: 4,
-        unclassifiedIssueCount: 0,
-        byEventCode: {
-          'history.file_move_failed': 1,
-          'p2p.clipboard_observation_failed': 2,
-          'p2p.engine_start_failed': 1,
-        },
-        byReason: {
-          network_unreachable: 1,
-          permission_denied: 1,
-        },
-        recentEvents: [
-          {
-            firstAt: new Date(2026, 6, 17, 10, 0, 0).toISOString(),
-            lastAt: new Date(2026, 6, 17, 10, 0, 1).toISOString(),
-            occurrences: 2,
-            level: 'info',
-            component: 'P2pClipboardObserver',
-            eventCode: 'p2p.clipboard_observation_failed',
-            reason: null,
-          },
-          {
-            firstAt: new Date(2026, 6, 17, 10, 0, 2).toISOString(),
-            lastAt: new Date(2026, 6, 17, 10, 0, 2).toISOString(),
-            occurrences: 1,
-            level: 'error',
-            component: 'UnifiedEngineService',
-            eventCode: 'p2p.engine_start_failed',
-            reason: 'network_unreachable',
-          },
-          {
-            firstAt: new Date(2026, 6, 17, 10, 0, 3).toISOString(),
-            lastAt: new Date(2026, 6, 17, 10, 0, 3).toISOString(),
-            occurrences: 1,
-            level: 'warn',
-            component: 'HistoryStorage',
-            eventCode: 'history.file_move_failed',
-            reason: 'permission_denied',
-          },
-        ],
-      },
-    });
-    expect(serialized).not.toContain('secret');
-    expect(serialized).not.toContain('hunter2');
-    expect(serialized).not.toContain('example.test');
-    expect(serialized).not.toContain('document.txt');
-    expect(serialized).not.toContain('plaintext');
-  });
-
-  it('keeps unclassified issues as boundaries between repeated events', () => {
-    const summary = summarizeDiagnosticLogs([
-      [
-        '2026-07-17 10:00:00 INFO: [P2pClipboardObserver] Clipboard observation failed; kept local: one',
-        '2026-07-17 10:00:01 ERROR: arbitrary private issue with no safe category',
-        '2026-07-17 10:00:02 INFO: [P2pClipboardObserver] Clipboard observation failed; kept local: two',
-      ].join('\n'),
-    ]);
-
-    expect(summary.eventSummary.unclassifiedIssueCount).toBe(1);
-    expect(summary.eventSummary.recentEvents).toEqual([
-      expect.objectContaining({
-        firstAt: new Date(2026, 6, 17, 10, 0, 0).toISOString(),
-        lastAt: new Date(2026, 6, 17, 10, 0, 0).toISOString(),
-        occurrences: 1,
-        eventCode: 'p2p.clipboard_observation_failed',
-      }),
-      expect.objectContaining({
-        firstAt: new Date(2026, 6, 17, 10, 0, 2).toISOString(),
-        lastAt: new Date(2026, 6, 17, 10, 0, 2).toISOString(),
-        occurrences: 1,
-        eventCode: 'p2p.clipboard_observation_failed',
-      }),
-    ]);
-  });
-
-  it('writes an allowlisted JSON package to cache', async () => {
-    const logUri = 'file://documents/logs/app_2026-07-17.txt';
-    mockGetLogFileUris.mockReturnValue([logUri]);
-    mockLogContents.set(
-      logUri,
-      '2026-07-17 10:00:01 ERROR: [UnifiedEngineService] Failed to start the P2P engine: unauthorized https://alice:password@example.test'
-    );
-
-    const artifact = await createDiagnosticPackage(input, new Date('2026-07-17T10:30:00.000Z'));
-    const payload = readWrittenPayload(artifact.uri);
-    const serialized = JSON.stringify(payload);
-
-    expect(artifact).toEqual({
-      uri: 'file://cache/uniclip_diagnostics_2026-07-17_10-30-00.json',
-      fileName: 'uniclip_diagnostics_2026-07-17_10-30-00.json',
-    });
-    expect(payload).toEqual({
-      schemaVersion: 4,
-      generatedAt: '2026-07-17T10:30:00.000Z',
-      app: { version: '1.3.0', build: '162' },
-      system: { platform: 'ios', osVersion: '26.0' },
-      settings: input.settings,
-      sync: input.sync,
-      logs: expect.objectContaining({
-        fileCount: 1,
-        parsedEntryCount: 1,
-        byLevel: { debug: 0, info: 0, warn: 0, error: 1 },
-        byComponent: { UnifiedEngineService: 1 },
-        eventSummary: expect.objectContaining({
-          byEventCode: { 'p2p.engine_start_failed': 1 },
-          byReason: { authentication: 1 },
-        }),
-      }),
-      engineLogs: [],
-      extensions: {
-        share: { schemaVersion: 1, attempts: [] },
-      },
-      coverage: {
-        rawMessagesIncluded: false,
-        nativeExtensionLogsIncluded: true,
-        engineLogsIncluded: true,
-        eventClassification: 'fixed_events_and_categorized_reasons_v1',
-      },
-    });
-    expect(serialized).not.toContain('alice');
-    expect(serialized).not.toContain('password');
-    expect(serialized).not.toContain('example.test');
-    expect(serialized).not.toContain(logUri);
-  });
-
-  it('exports correlated Share attempts without raw extension messages', async () => {
-    mockGetLogFileUris.mockReturnValue([]);
-    mockGetShareDiagnostics.mockResolvedValue({
-      schemaVersion: 1,
-      attempts: [
-        {
-          id: 'attempt-a',
-          startedAtMs: 1_000,
-          channel: 'p2p',
-          itemKind: 'file',
-          byteCount: 20 * 1024 * 1024,
-          events: [
-            {
-              timestampMs: 1_100,
-              elapsedMs: 100,
-              stage: 'peer_refresh',
-              peerRefresh: { total: 1, online: 0, offline: 1, errors: 0 },
-            },
-            {
-              timestampMs: 1_120,
-              elapsedMs: 120,
-              stage: 'failed',
-              error: { code: 'receiver_offline' },
-            },
-          ],
-        },
-      ],
-    });
-
-    const artifact = await createDiagnosticPackage(input, new Date('2026-07-17T10:30:00.000Z'));
-    const payload = readWrittenPayload(artifact.uri);
-
-    expect(payload.extensions).toEqual({
-      share: expect.objectContaining({
-        schemaVersion: 1,
-        attempts: [expect.objectContaining({ id: 'attempt-a', channel: 'p2p' })],
-      }),
-    });
-    expect(payload.coverage).toMatchObject({ nativeExtensionLogsIncluded: true });
-  });
-
-  it('counts unreadable log files without exposing their paths', async () => {
-    mockGetLogFileUris.mockReturnValue(['file://documents/logs/unreadable.txt']);
-
-    const artifact = await createDiagnosticPackage(input, new Date('2026-07-17T10:30:00.000Z'));
-    const payload = readWrittenPayload(artifact.uri);
-
-    expect(payload.logs).toMatchObject({ fileCount: 1, unreadableFileCount: 1 });
-    expect(JSON.stringify(payload)).not.toContain('unreadable.txt');
-  });
-
-  it('includes raw engine trace files with relay URLs for support', async () => {
-    const engineUri = '/containers/p2p/cache/logs/engine.2026-07-17.txt';
+  it('creates a ZIP containing redacted app logs, Engine logs, manifest, and Share attempts', async () => {
+    const appUri = 'file://documents/logs/app_2026-08-16.txt';
+    const engineUri = '/shared/p2p/cache/logs/engine.2026-08-16.txt';
+    mockGetAppLogFileUris.mockReturnValue([appUri]);
     mockGetEngineLogFileUris.mockReturnValue([engineUri]);
+    mockLogContents.set(appUri, '2026-08-16 11:00:00 ERROR: request failed token=app-secret\n');
     mockLogContents.set(
       engineUri,
-      '2026-07-17T10:00:01.000Z  INFO peer connected via relay device_id="device-a" relay_url="https://relay.example.com/"'
+      '2026-08-16T11:00:01Z INFO relay connected relay_url="https://relay.example.test" token="engine-secret"\n'
     );
-
-    const artifact = await createDiagnosticPackage(input, new Date('2026-07-17T10:30:00.000Z'));
-    const payload = readWrittenPayload(artifact.uri);
-
-    expect(payload.engineLogs).toEqual([
-      {
-        name: 'engine.2026-07-17.txt',
-        content: expect.stringContaining('relay_url="https://relay.example.com/"'),
-        truncated: false,
-      },
-    ]);
-    expect(payload.coverage).toMatchObject({ engineLogsIncluded: true });
-  });
-
-  it('samples only the tail of oversized logs', async () => {
-    const logUri = 'file://documents/logs/oversized.txt';
-    const discardedPrefix = `discarded-sensitive-value\n${'x'.repeat(512 * 1024)}`;
-    const retainedIssue =
-      '2026-07-17 10:00:01 ERROR: [UnifiedEngineService] Failed to start the P2P engine: timeout without exported details';
-    mockGetLogFileUris.mockReturnValue([logUri]);
-    mockLogContents.set(logUri, `${discardedPrefix}\n${retainedIssue}`);
-
-    const artifact = await createDiagnosticPackage(input, new Date('2026-07-17T10:30:00.000Z'));
-    const payload = readWrittenPayload(artifact.uri);
-    const serialized = JSON.stringify(payload);
-
-    expect(payload.logs).toMatchObject({
-      fileCount: 1,
-      truncatedFileCount: 1,
-      byteCount: 512 * 1024,
-      byComponent: { UnifiedEngineService: 1 },
+    mockGetShareDiagnostics.mockResolvedValue({
+      schemaVersion: 1,
+      attempts: [{ id: 'attempt-a', events: [{ stage: 'failed', error: { code: 'timeout' } }] }],
     });
-    expect(serialized).not.toContain('discarded-sensitive-value');
-    expect(serialized).not.toContain('without exported details');
+
+    const artifact = await createDiagnosticArchive(input, new Date('2026-08-16T11:32:31.000Z'));
+    const archive = readArchive(artifact.uri);
+
+    expect(artifact).toEqual({
+      uri: 'file://cache/uniclip_diagnostics_2026-08-16_11-32-31.zip',
+      fileName: 'uniclip_diagnostics_2026-08-16_11-32-31.zip',
+    });
+    expect(Object.keys(archive).sort()).toEqual([
+      'extensions/share_attempts.json',
+      'logs/app/app_2026-08-16.txt',
+      'logs/engine/engine.2026-08-16.txt',
+      'manifest.json',
+    ]);
+    expect(archive['logs/app/app_2026-08-16.txt']).toContain('request failed');
+    expect(archive['logs/app/app_2026-08-16.txt']).not.toContain('app-secret');
+    expect(archive['logs/engine/engine.2026-08-16.txt']).toContain(
+      'relay_url="https://relay.example.test"'
+    );
+    expect(archive['logs/engine/engine.2026-08-16.txt']).not.toContain('engine-secret');
+    expect(JSON.parse(archive['extensions/share_attempts.json'])).toEqual(
+      expect.objectContaining({ attempts: [expect.objectContaining({ id: 'attempt-a' })] })
+    );
+    expect(JSON.parse(archive['manifest.json'])).toMatchObject({
+      schemaVersion: 1,
+      app: { version: '2.0.0', build: '177' },
+      collection: {
+        appLogs: { status: 'included', discoveredFileCount: 1, includedFileCount: 1 },
+        engineLogs: { status: 'included', discoveredFileCount: 1, includedFileCount: 1 },
+        shareAttempts: { status: 'included', attemptCount: 1 },
+      },
+    });
   });
 
-  it('deletes a generated package explicitly', async () => {
-    mockGetLogFileUris.mockReturnValue([]);
-    const artifact = await createDiagnosticPackage(input, new Date('2026-07-17T10:30:00.000Z'));
+  it('removes local file locations from archived logs', async () => {
+    const appUri = 'file://documents/logs/app_2026-08-16.txt';
+    const engineUri = '/shared/p2p/cache/logs/engine.2026-08-16.txt';
+    mockGetAppLogFileUris.mockReturnValue([appUri]);
+    mockGetEngineLogFileUris.mockReturnValue([engineUri]);
+    mockLogContents.set(
+      appUri,
+      'INFO File saved to history storage: file:///private/var/mobile/Documents/payroll.xlsx\n'
+    );
+    mockLogContents.set(engineUri, 'INFO engine started\n');
 
-    deleteDiagnosticPackage(artifact.uri);
+    const artifact = await createDiagnosticArchive(input);
+    const archive = readArchive(artifact.uri);
+
+    expect(archive['logs/app/app_2026-08-16.txt']).not.toContain(
+      'file:///private/var/mobile/Documents/payroll.xlsx'
+    );
+    expect(archive['logs/app/app_2026-08-16.txt']).toContain('[REDACTED]');
+  });
+
+  it('keeps only the tail of an oversized log and records the truncation', async () => {
+    const appUri = 'file://documents/logs/app_2026-08-16.txt';
+    const engineUri = '/shared/p2p/cache/logs/engine.2026-08-16.txt';
+    mockGetAppLogFileUris.mockReturnValue([appUri]);
+    mockGetEngineLogFileUris.mockReturnValue([engineUri]);
+    mockLogContents.set(appUri, `discarded-prefix\n${'x'.repeat(512 * 1024)}\nretained-tail`);
+    mockLogContents.set(engineUri, 'INFO engine started\n');
+
+    const artifact = await createDiagnosticArchive(input);
+    const archive = readArchive(artifact.uri);
+    const manifest = JSON.parse(archive['manifest.json']);
+
+    expect(archive['logs/app/app_2026-08-16.txt']).not.toContain('discarded-prefix');
+    expect(archive['logs/app/app_2026-08-16.txt']).toContain('retained-tail');
+    expect(manifest.collection.appLogs).toMatchObject({ truncatedFileCount: 1 });
+  });
+
+  it('refuses to claim success when a running Engine has no log files', async () => {
+    mockGetAppLogFileUris.mockReturnValue(['file://documents/logs/app_2026-08-16.txt']);
+    mockLogContents.set('file://documents/logs/app_2026-08-16.txt', 'app log');
+
+    await expect(createDiagnosticArchive(input)).rejects.toMatchObject<DiagnosticArchiveError>({
+      code: 'engine_logs_missing',
+    });
+    expect(mockWrittenFiles.size).toBe(0);
+  });
+
+  it('refuses to claim success when every discovered Engine log is unreadable', async () => {
+    mockGetAppLogFileUris.mockReturnValue(['file://documents/logs/app_2026-08-16.txt']);
+    mockGetEngineLogFileUris.mockReturnValue(['/shared/p2p/cache/logs/engine.2026-08-16.txt']);
+    mockLogContents.set('file://documents/logs/app_2026-08-16.txt', 'app log');
+
+    await expect(createDiagnosticArchive(input)).rejects.toMatchObject<DiagnosticArchiveError>({
+      code: 'engine_logs_unreadable',
+    });
+    expect(mockWrittenFiles.size).toBe(0);
+  });
+
+  it('allows a stopped Engine to be reported as unavailable', async () => {
+    mockGetAppLogFileUris.mockReturnValue(['file://documents/logs/app_2026-08-16.txt']);
+    mockLogContents.set('file://documents/logs/app_2026-08-16.txt', 'app log');
+
+    const artifact = await createDiagnosticArchive({
+      ...input,
+      sync: { ...input.sync, status: 'stopped' },
+    });
+    const manifest = JSON.parse(readArchive(artifact.uri)['manifest.json']);
+
+    expect(manifest.collection.engineLogs).toMatchObject({
+      status: 'missing',
+      discoveredFileCount: 0,
+      includedFileCount: 0,
+    });
+  });
+
+  it('deletes a generated archive explicitly', async () => {
+    mockGetAppLogFileUris.mockReturnValue(['file://documents/logs/app_2026-08-16.txt']);
+    mockGetEngineLogFileUris.mockReturnValue(['/shared/p2p/cache/logs/engine.2026-08-16.txt']);
+    mockLogContents.set('file://documents/logs/app_2026-08-16.txt', 'app log');
+    mockLogContents.set('/shared/p2p/cache/logs/engine.2026-08-16.txt', 'engine log');
+    const artifact = await createDiagnosticArchive(input);
+
+    deleteDiagnosticArchive(artifact.uri);
 
     expect(mockDeletedFiles).toContain(artifact.uri);
     expect(mockWrittenFiles.has(artifact.uri)).toBe(false);

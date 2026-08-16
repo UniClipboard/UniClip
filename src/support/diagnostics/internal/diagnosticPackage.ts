@@ -1,43 +1,18 @@
 import * as Application from 'expo-application';
 import { File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
+import { strToU8, zipSync } from 'fflate';
 import { getShareDiagnostics } from 'app-group-store';
 
 import type { SharedSettings } from '@/types/settings';
 import type { PeerConnectionStatus, UnifiedEngineStatus } from '@/stores/unifiedEngineStore';
-import { getEngineLogFileUris, getLogFileUris } from '@/support/observability';
-import { classifyDiagnosticEvent, type DiagnosticReason } from './diagnosticEventClassifier';
+import { getAppLogFileUris, getEngineLogFileUris, redactLogText } from '@/support/observability';
+import type { DiagnosticReason } from './diagnosticEventClassifier';
 
-const DIAGNOSTIC_SCHEMA_VERSION = 4;
-const MAX_RECENT_EVENTS = 100;
+const DIAGNOSTIC_ARCHIVE_SCHEMA_VERSION = 1;
 const MAX_LOG_BYTES_PER_FILE = 512 * 1024;
+const DIAGNOSTIC_ARCHIVE_RETENTION_MS = 24 * 60 * 60 * 1000;
 
-const SAFE_COMPONENTS = new Set([
-  'AppGroupHistoryImport',
-  'AppGroupSync',
-  'AppRuntime',
-  'CacheManager',
-  'ClipboardAccess',
-  'ClipboardManager',
-  'ClipboardMonitor',
-  'ClipboardStore',
-  'ConfigStorage',
-  'DB',
-  'FileStorage',
-  'HashUtils',
-  'HistoryStorage',
-  'HomeView',
-  'NetworkContext',
-  'P2pClipboardObserver',
-  'UnifiedEngineService',
-  'UnifiedSpaceService',
-]);
-
-const LOG_LINE_PATTERN =
-  /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) (DEBUG|INFO|WARN|ERROR)(?: \[[^\]]+\])?: (.*)$/;
-const COMPONENT_PATTERN = /\[([A-Za-z][A-Za-z0-9]+)\]/;
-
-type DiagnosticLogLevel = 'debug' | 'info' | 'warn' | 'error';
 export interface DiagnosticSettingsSnapshot {
   autoApplyRemote: SharedSettings['autoApplyRemote'];
   autoPushLocal: SharedSettings['autoPushLocal'];
@@ -53,7 +28,7 @@ export interface DiagnosticSyncSnapshot {
   lastErrorReason: DiagnosticReason | null;
 }
 
-export interface DiagnosticPackageInput {
+export interface DiagnosticArchiveInput {
   settings: DiagnosticSettingsSnapshot;
   sync: DiagnosticSyncSnapshot;
 }
@@ -63,49 +38,21 @@ export interface DiagnosticArtifact {
   fileName: string;
 }
 
-export interface DiagnosticEvent {
-  firstAt: string;
-  lastAt: string;
-  occurrences: number;
-  level: DiagnosticLogLevel;
-  component: string;
-  eventCode: string;
-  reason: DiagnosticReason | null;
+export type DiagnosticArchiveErrorCode = 'engine_logs_missing' | 'engine_logs_unreadable';
+
+export class DiagnosticArchiveError extends Error {
+  constructor(public readonly code: DiagnosticArchiveErrorCode) {
+    super(code);
+    this.name = 'DiagnosticArchiveError';
+  }
 }
 
-interface ParsedDiagnosticEvent
-  extends Omit<DiagnosticEvent, 'firstAt' | 'lastAt' | 'occurrences'> {
-  kind: 'event';
-  timestamp: string;
-}
-
-interface DiagnosticTimelineSeparator {
-  kind: 'separator';
-  timestamp: string;
-}
-
-type DiagnosticTimelineEntry = ParsedDiagnosticEvent | DiagnosticTimelineSeparator;
-
-export interface DiagnosticEventSummary {
-  classifiedEventCount: number;
-  unclassifiedIssueCount: number;
-  byEventCode: Record<string, number>;
-  byReason: Partial<Record<DiagnosticReason, number>>;
-  recentEvents: DiagnosticEvent[];
-}
-
-export interface DiagnosticLogSummary {
-  fileCount: number;
+interface CollectedLogFiles {
+  entries: Record<string, Uint8Array>;
+  discoveredFileCount: number;
+  includedFileCount: number;
   unreadableFileCount: number;
   truncatedFileCount: number;
-  byteCount: number;
-  parsedEntryCount: number;
-  unparsedLineCount: number;
-  firstEntryAt: string | null;
-  lastEntryAt: string | null;
-  byLevel: Record<DiagnosticLogLevel, number>;
-  byComponent: Record<string, number>;
-  eventSummary: DiagnosticEventSummary;
 }
 
 function formatFileTimestamp(date: Date): string {
@@ -113,215 +60,87 @@ function formatFileTimestamp(date: Date): string {
   return `${calendarDate}_${time.replace(/:/g, '-').replace(/\.\d{3}Z$/, '')}`;
 }
 
-function parseLocalLogTimestamp(value: string): string | null {
-  const date = new Date(value.replace(' ', 'T'));
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+function safeFileName(name: string): string {
+  const safeName = name.replace(/[^A-Za-z0-9._-]/g, '_');
+  return safeName.length > 0 ? safeName : 'log.txt';
 }
 
-function safeComponent(message: string): string {
-  const component = message.match(COMPONENT_PATTERN)?.[1];
-  if (!component) return 'general';
-  return SAFE_COMPONENTS.has(component) ? component : 'other';
+function createArchiveAbortError(): Error {
+  const error = new Error('Diagnostic archive creation was aborted');
+  error.name = 'AbortError';
+  return error;
 }
 
-function incrementCounter(record: Record<string, number>, key: string): void {
-  record[key] = (record[key] ?? 0) + 1;
+function throwIfArchiveAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw createArchiveAbortError();
 }
 
-function collapseConsecutiveEvents(entries: DiagnosticTimelineEntry[]): DiagnosticEvent[] {
-  const collapsed: DiagnosticEvent[] = [];
-  let canCollapseWithPrevious = false;
-  for (const entry of entries) {
-    if (entry.kind === 'separator') {
-      canCollapseWithPrevious = false;
-      continue;
-    }
-
-    const previous = collapsed.at(-1);
-    if (
-      canCollapseWithPrevious &&
-      previous &&
-      previous.level === entry.level &&
-      previous.component === entry.component &&
-      previous.eventCode === entry.eventCode &&
-      previous.reason === entry.reason
-    ) {
-      previous.lastAt = entry.timestamp;
-      previous.occurrences += 1;
-      continue;
-    }
-    collapsed.push({
-      firstAt: entry.timestamp,
-      lastAt: entry.timestamp,
-      occurrences: 1,
-      level: entry.level,
-      component: entry.component,
-      eventCode: entry.eventCode,
-      reason: entry.reason,
-    });
-    canCollapseWithPrevious = true;
-  }
-  return collapsed;
-}
-
-export function summarizeDiagnosticLogs(
-  contents: string[],
-  fileCount = contents.length,
-  unreadableFileCount = 0,
-  truncatedFileCount = 0
-): DiagnosticLogSummary {
-  const byLevel: Record<DiagnosticLogLevel, number> = {
-    debug: 0,
-    info: 0,
-    warn: 0,
-    error: 0,
-  };
-  const byComponent: Record<string, number> = {};
-  const byEventCode: Record<string, number> = {};
-  const byReason: Partial<Record<DiagnosticReason, number>> = {};
-  const timelineEntries: DiagnosticTimelineEntry[] = [];
-  let classifiedEventCount = 0;
-  let unclassifiedIssueCount = 0;
-  let byteCount = 0;
-  let parsedEntryCount = 0;
-  let unparsedLineCount = 0;
-  let firstEntryAt: string | null = null;
-  let lastEntryAt: string | null = null;
-
-  for (const content of contents) {
-    byteCount += new TextEncoder().encode(content).byteLength;
-    for (const line of content.split('\n')) {
-      if (line.length === 0) continue;
-      const match = line.match(LOG_LINE_PATTERN);
-      if (!match) {
-        unparsedLineCount += 1;
-        continue;
-      }
-
-      const level = match[2].toLowerCase() as DiagnosticLogLevel;
-      const timestamp = parseLocalLogTimestamp(match[1]);
-      const message = match[3];
-      const component = safeComponent(message);
-      const event = classifyDiagnosticEvent(message, level);
-
-      parsedEntryCount += 1;
-      byLevel[level] += 1;
-      incrementCounter(byComponent, component);
-
-      if (event) {
-        classifiedEventCount += 1;
-        incrementCounter(byEventCode, event.eventCode);
-        if (event.reason) incrementCounter(byReason, event.reason);
-        if (timestamp) {
-          timelineEntries.push({ kind: 'event', timestamp, level, component, ...event });
-        }
-      } else if (level === 'warn' || level === 'error') {
-        unclassifiedIssueCount += 1;
-        if (timestamp) timelineEntries.push({ kind: 'separator', timestamp });
-      }
-
-      if (timestamp) {
-        if (firstEntryAt === null || timestamp < firstEntryAt) firstEntryAt = timestamp;
-        if (lastEntryAt === null || timestamp > lastEntryAt) lastEntryAt = timestamp;
-      }
-    }
-  }
-
-  timelineEntries.sort((left, right) => left.timestamp.localeCompare(right.timestamp));
-  const recentEvents = collapseConsecutiveEvents(timelineEntries).slice(-MAX_RECENT_EVENTS);
-
-  return {
-    fileCount,
-    unreadableFileCount,
-    truncatedFileCount,
-    byteCount,
-    parsedEntryCount,
-    unparsedLineCount,
-    firstEntryAt,
-    lastEntryAt,
-    byLevel,
-    byComponent: Object.fromEntries(
-      Object.entries(byComponent).sort(([left], [right]) => left.localeCompare(right))
-    ),
-    eventSummary: {
-      classifiedEventCount,
-      unclassifiedIssueCount,
-      byEventCode: Object.fromEntries(
-        Object.entries(byEventCode).sort(([left], [right]) => left.localeCompare(right))
-      ),
-      byReason: Object.fromEntries(
-        Object.entries(byReason).sort(([left], [right]) => left.localeCompare(right))
-      ),
-      recentEvents,
-    },
-  };
-}
-
-async function readDiagnosticLogs(): Promise<DiagnosticLogSummary> {
-  const fileUris = getLogFileUris();
-  const contents: string[] = [];
+async function collectLogFiles(
+  fileUris: string[],
+  directory: string,
+  signal?: AbortSignal
+): Promise<CollectedLogFiles> {
+  const entries: Record<string, Uint8Array> = {};
   let unreadableFileCount = 0;
   let truncatedFileCount = 0;
 
   for (const uri of fileUris) {
+    throwIfArchiveAborted(signal);
     try {
       const file = new File(uri);
-      if (file.size > MAX_LOG_BYTES_PER_FILE) {
-        contents.push(await file.slice(file.size - MAX_LOG_BYTES_PER_FILE).text());
-        truncatedFileCount += 1;
-      } else {
-        contents.push(await file.text());
-      }
+      const content =
+        file.size > MAX_LOG_BYTES_PER_FILE
+          ? await file.slice(file.size - MAX_LOG_BYTES_PER_FILE).text()
+          : await file.text();
+      if (file.size > MAX_LOG_BYTES_PER_FILE) truncatedFileCount += 1;
+      entries[`${directory}/${safeFileName(file.name)}`] = strToU8(redactLogText(content));
+      throwIfArchiveAborted(signal);
     } catch {
       unreadableFileCount += 1;
     }
   }
 
-  return summarizeDiagnosticLogs(
-    contents,
-    fileUris.length,
+  return {
+    entries,
+    discoveredFileCount: fileUris.length,
+    includedFileCount: Object.keys(entries).length,
     unreadableFileCount,
-    truncatedFileCount
-  );
+    truncatedFileCount,
+  };
 }
 
-export interface EngineLogFileContent {
-  name: string;
-  content: string;
-  truncated: boolean;
+function collectionStatus(result: CollectedLogFiles): 'included' | 'partial' | 'missing' {
+  if (result.includedFileCount === 0) return 'missing';
+  return result.unreadableFileCount > 0 ? 'partial' : 'included';
 }
 
-async function readEngineLogFiles(): Promise<EngineLogFileContent[]> {
-  const files: EngineLogFileContent[] = [];
-  for (const uri of getEngineLogFileUris()) {
-    try {
-      const file = new File(uri);
-      const size = file.size;
-      if (size > MAX_LOG_BYTES_PER_FILE) {
-        files.push({
-          name: file.name,
-          content: await file.slice(size - MAX_LOG_BYTES_PER_FILE).text(),
-          truncated: true,
-        });
-      } else {
-        files.push({ name: file.name, content: await file.text(), truncated: false });
-      }
-    } catch {
-      // Unreadable engine trace files are omitted; the summary still counts them.
-    }
-  }
-  return files;
-}
-
-export async function createDiagnosticPackage(
-  input: DiagnosticPackageInput,
-  now = new Date()
+export async function createDiagnosticArchive(
+  input: DiagnosticArchiveInput,
+  now = new Date(),
+  signal?: AbortSignal
 ): Promise<DiagnosticArtifact> {
-  const fileName = `uniclip_diagnostics_${formatFileTimestamp(now)}.json`;
+  throwIfArchiveAborted(signal);
+  const fileName = `uniclip_diagnostics_${formatFileTimestamp(now)}.zip`;
   const artifact = new File(Paths.cache, fileName);
+  const appLogs = await collectLogFiles(getAppLogFileUris(), 'logs/app', signal);
+  const engineLogs = await collectLogFiles(getEngineLogFileUris(), 'logs/engine', signal);
+
+  if (input.sync.status === 'running' && engineLogs.discoveredFileCount === 0) {
+    throw new DiagnosticArchiveError('engine_logs_missing');
+  }
+  if (
+    input.sync.status === 'running' &&
+    engineLogs.discoveredFileCount > 0 &&
+    engineLogs.includedFileCount === 0
+  ) {
+    throw new DiagnosticArchiveError('engine_logs_unreadable');
+  }
+
   const shareDiagnostics = await getShareDiagnostics();
-  const payload = {
-    schemaVersion: DIAGNOSTIC_SCHEMA_VERSION,
+  throwIfArchiveAborted(signal);
+  const shareArchive = shareDiagnostics ?? { schemaVersion: 1, attempts: [] };
+  const manifest = {
+    schemaVersion: DIAGNOSTIC_ARCHIVE_SCHEMA_VERSION,
     generatedAt: now.toISOString(),
     app: {
       version: Application.nativeApplicationVersion ?? 'unknown',
@@ -333,22 +152,37 @@ export async function createDiagnosticPackage(
     },
     settings: input.settings,
     sync: input.sync,
-    logs: await readDiagnosticLogs(),
-    engineLogs: await readEngineLogFiles(),
-    extensions: {
-      share: shareDiagnostics,
+    collection: {
+      appLogs: {
+        status: collectionStatus(appLogs),
+        discoveredFileCount: appLogs.discoveredFileCount,
+        includedFileCount: appLogs.includedFileCount,
+        unreadableFileCount: appLogs.unreadableFileCount,
+        truncatedFileCount: appLogs.truncatedFileCount,
+      },
+      engineLogs: {
+        status: collectionStatus(engineLogs),
+        discoveredFileCount: engineLogs.discoveredFileCount,
+        includedFileCount: engineLogs.includedFileCount,
+        unreadableFileCount: engineLogs.unreadableFileCount,
+        truncatedFileCount: engineLogs.truncatedFileCount,
+      },
+      shareAttempts: {
+        status: shareDiagnostics === null ? 'missing' : 'included',
+        attemptCount: shareArchive.attempts.length,
+      },
     },
-    coverage: {
-      rawMessagesIncluded: false,
-      nativeExtensionLogsIncluded: shareDiagnostics !== null,
-      engineLogsIncluded: true,
-      eventClassification: 'fixed_events_and_categorized_reasons_v1',
-    },
+  };
+  const entries = {
+    ...appLogs.entries,
+    ...engineLogs.entries,
+    'extensions/share_attempts.json': strToU8(`${JSON.stringify(shareArchive, null, 2)}\n`),
+    'manifest.json': strToU8(`${JSON.stringify(manifest, null, 2)}\n`),
   };
 
   try {
     if (artifact.exists) artifact.delete();
-    artifact.write(`${JSON.stringify(payload, null, 2)}\n`);
+    artifact.write(zipSync(entries, { level: 6 }));
     return { uri: artifact.uri, fileName };
   } catch (error) {
     if (artifact.exists) artifact.delete();
@@ -356,11 +190,15 @@ export async function createDiagnosticPackage(
   }
 }
 
-export function deleteDiagnosticPackage(uri: string): void {
+export function deleteDiagnosticArchive(uri: string): void {
   try {
     const artifact = new File(uri);
     if (artifact.exists) artifact.delete();
   } catch {
     // Cache cleanup is best-effort and must never leave the diagnostics UI stuck.
   }
+}
+
+export function scheduleDiagnosticArchiveCleanup(uri: string): void {
+  setTimeout(() => deleteDiagnosticArchive(uri), DIAGNOSTIC_ARCHIVE_RETENTION_MS);
 }
