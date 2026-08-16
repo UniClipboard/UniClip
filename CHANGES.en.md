@@ -1,3 +1,9 @@
+v2.0.0.176-alpha.1
+
+### Common
+
+- Fix: Prevent removed devices from reappearing in the device list after upgrading a legacy space
+
 v2.0.0.175-alpha.1
 
 ### Common
