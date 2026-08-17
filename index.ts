@@ -15,8 +15,8 @@ registerRootComponent(App);
 // 在 web 平台上即使模块被 stub,顶层副作用(如 new Directory(Paths.document, 'logs'))
 // 也会抛错导致白屏,所以必须守卫掉。
 if (Platform.OS === 'android') {
-  const QuickActionApp = require('./src/QuickActionApp').default;
-  const ServiceRestartApp = require('./src/ServiceRestartApp').default;
+  const QuickActionApp = require('./src/app/android/QuickActionApp').default;
+  const ServiceRestartApp = require('./src/app/android/ServiceRestartApp').default;
 
   // Separate entry point for the transparent QuickActionActivity
   AppRegistry.registerComponent('quickAction', () => QuickActionApp);

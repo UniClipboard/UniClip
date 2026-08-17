@@ -2,21 +2,41 @@
 
 Read the exact versioned docs at https://docs.expo.dev/versions/v56.0.0/ before writing any code.
 
-# Platform-Specific Component Pattern
+# Platform-Specific UI Pattern
 
-This project uses Metro's platform file resolution for all UI that differs between iOS and Android. **Never use `Platform.OS` conditionals inside a shared component.** Instead, split into platform files:
+Make platform ownership explicit, but only split at a real boundary. **Never use
+`Platform.OS` conditionals inside a shared UI component.** Choose the smallest of
+these three patterns:
 
-```
-ComponentName.tsx           → export * from './ComponentName.android';
-ComponentName.android.tsx   → Android implementation (M3 / Jetpack Compose)
-ComponentName.ios.tsx        → iOS implementation (Liquid Glass / SwiftUI)
-ComponentName.types.ts      → Shared props interface (imported by both platforms)
-```
+1. **A UI component exists on both platforms and differs materially.** Use Metro
+   platform files:
 
-- The base `.tsx` re-exports from `.android` — this is the default/fallback.
-- Metro automatically resolves `.ios.tsx` on iOS, so the base file is never loaded there.
-- Shared props live in `.types.ts` to keep both implementations in sync.
-- Each platform file owns its own styles (`StyleSheet.create`) — no shared style objects across platforms.
+   ```
+   ComponentName.tsx           → export * from './ComponentName.android';
+   ComponentName.android.tsx   → Android implementation (M3 / Jetpack Compose)
+   ComponentName.ios.tsx       → iOS implementation (Liquid Glass / SwiftUI)
+   ComponentName.types.ts      → Shared props interface (imported by both platforms)
+   ```
+
+   The base `.tsx` re-exports Android as the default/fallback. Shared props live
+   in `.types.ts`, and each platform file owns its own styles.
+
+2. **A UI component or app entry exists on only one platform.** Put it directly
+   under an explicit platform directory, such as `src/screens/settings/android/`
+   or `src/app/android/`, and import it only from that platform's parent. Do not
+   add an empty counterpart, a base re-export, or a fake shared component.
+
+3. **A mostly shared UI has one small platform-specific policy or presentation
+   difference.** Keep the shared UI in one file and put only the differing policy
+   in a clearly named platform-resolved helper, for example
+   `useSettingsScreenOptions.android.ts` and `useSettingsScreenOptions.ios.ts`.
+   The shared UI may import that helper, but must not inspect the platform itself.
+   Do not wrap the entire shared UI in `.android` / `.ios` files just to pass a
+   small option object through another layer.
+
+Do not create a `.shared.tsx` UI wrapper solely to satisfy file naming. Shared
+logic belongs in ordinary shared hooks, services, or helpers; only extract it when
+it has a meaningful reuse boundary.
 
 **iOS components** use:
 

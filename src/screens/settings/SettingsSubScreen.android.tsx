@@ -16,12 +16,12 @@ import type { RootStackParamList } from '@/navigation/AppNavigator';
 import { SettingsToastProvider } from './SettingsToastContext';
 import { UnifiedSpaceSetup } from './UnifiedSpaceSetup';
 import { HistorySection } from './HistorySection';
-import { BackgroundSection } from './BackgroundSection';
-import { AppearanceSection } from './AppearanceSection';
+import { BackgroundSection } from './android/BackgroundSection';
+import { AppearanceSection } from './android/AppearanceSection';
 import { StorageSection } from './StorageSection';
 import { AboutSection } from './AboutSection';
 import { LogSection } from './LogSection';
-import { DebugSection } from './DebugSection';
+import { DebugSection } from './android/DebugSection';
 import { QuickActionsSection } from './QuickActionsSection';
 import { ClipboardAccessMethodSheetProvider } from './ClipboardAccessMethodSheet';
 

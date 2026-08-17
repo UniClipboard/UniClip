@@ -4,18 +4,8 @@
  */
 
 import React, { useState, useRef, useCallback } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Modal,
-  Pressable,
-  Platform,
-  ActionSheetIOS,
-} from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, Pressable } from 'react-native';
 import { MoreVertical, ChevronRight } from 'react-native-feather';
-import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
 import { spacing, radius, typography, elevation } from '@/theme';
 
@@ -35,7 +25,6 @@ interface TopRightMenuProps {
 }
 
 export const TopRightMenu: React.FC<TopRightMenuProps> = ({ items, onClose }) => {
-  const { t } = useTranslation('common');
   const { theme } = useTheme();
   const [showMenu, setShowMenu] = useState(false);
   const [submenuItems, setSubmenuItems] = useState<MenuItemConfig[] | null>(null);
@@ -43,58 +32,17 @@ export const TopRightMenu: React.FC<TopRightMenuProps> = ({ items, onClose }) =>
   const menuButtonRef = useRef<React.ComponentRef<typeof TouchableOpacity>>(null);
 
   const handleOpenMenu = useCallback(() => {
-    if (Platform.OS === 'ios') {
-      const options = [
-        t('action.cancel'),
-        ...items.map((item) => (item.submenu ? `${item.label} ▸` : item.label)),
-      ];
-      const cancelButtonIndex = 0;
-
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options,
-          cancelButtonIndex,
-          destructiveButtonIndex: items.findIndex((item) => item.destructive) + 1,
-          tintColor: theme.colors.accent,
-        },
-        (buttonIndex) => {
-          if (buttonIndex > 0 && buttonIndex <= items.length) {
-            const item = items[buttonIndex - 1];
-            if (item.submenu) {
-              const submenuOptions = [t('action.back'), ...item.submenu.map((sub) => sub.label)];
-              ActionSheetIOS.showActionSheetWithOptions(
-                {
-                  options: submenuOptions,
-                  cancelButtonIndex: 0,
-                  tintColor: theme.colors.accent,
-                },
-                (subIndex) => {
-                  if (subIndex > 0 && subIndex <= item.submenu!.length) {
-                    item.submenu![subIndex - 1].onPress?.();
-                    onClose?.();
-                  }
-                }
-              );
-            } else {
-              item.onPress?.();
-              onClose?.();
-            }
-          }
+    if (menuButtonRef.current) {
+      menuButtonRef.current.measure(
+        (_x: number, _y: number, _w: number, h: number, _pageX: number, pageY: number) => {
+          setMenuTopOffset(pageY + h + 4);
+          setShowMenu(true);
         }
       );
     } else {
-      if (menuButtonRef.current) {
-        menuButtonRef.current.measure(
-          (_x: number, _y: number, _w: number, h: number, _pageX: number, pageY: number) => {
-            setMenuTopOffset(pageY + h + 4);
-            setShowMenu(true);
-          }
-        );
-      } else {
-        setShowMenu(true);
-      }
+      setShowMenu(true);
     }
-  }, [items, theme.colors.accent, onClose, t]);
+  }, []);
 
   const handleMenuItemPress = (item: MenuItemConfig) => {
     if (item.disabled) return;
@@ -191,27 +139,25 @@ export const TopRightMenu: React.FC<TopRightMenuProps> = ({ items, onClose }) =>
         <MoreVertical color={theme.colors.textPrimary} width={24} height={24} />
       </TouchableOpacity>
 
-      {Platform.OS === 'android' && (
-        <Modal visible={showMenu} transparent animationType="none" onRequestClose={handleCloseMenu}>
-          <Pressable style={styles.menuOverlay} onPress={handleCloseMenu}>
-            <View
-              style={[
-                styles.floatingMenu,
-                {
-                  backgroundColor: theme.colors.surfaceHigh,
-                  top: menuTopOffset,
-                },
-              ]}
-            >
-              {submenuItems
-                ? submenuItems.map((item, index) =>
-                    renderSubmenuItem(item, index, submenuItems.length)
-                  )
-                : items.map((item, index) => renderMenuItem(item, index, items.length))}
-            </View>
-          </Pressable>
-        </Modal>
-      )}
+      <Modal visible={showMenu} transparent animationType="none" onRequestClose={handleCloseMenu}>
+        <Pressable style={styles.menuOverlay} onPress={handleCloseMenu}>
+          <View
+            style={[
+              styles.floatingMenu,
+              {
+                backgroundColor: theme.colors.surfaceHigh,
+                top: menuTopOffset,
+              },
+            ]}
+          >
+            {submenuItems
+              ? submenuItems.map((item, index) =>
+                  renderSubmenuItem(item, index, submenuItems.length)
+                )
+              : items.map((item, index) => renderMenuItem(item, index, items.length))}
+          </View>
+        </Pressable>
+      </Modal>
     </>
   );
 };

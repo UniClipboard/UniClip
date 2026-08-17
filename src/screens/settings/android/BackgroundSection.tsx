@@ -11,7 +11,7 @@
  */
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Platform, Linking, AppState } from 'react-native';
+import { Linking, AppState, PermissionsAndroid } from 'react-native';
 import {
   ListItem,
   Switch as ComposeSwitch,
@@ -31,10 +31,10 @@ import {
   getBackgroundClipboardSetupState,
   refreshBackgroundClipboardAuthorization,
 } from '@/utils/backgroundClipboardAccess';
-import { useSettingsToast } from './SettingsToastContext';
-import { SettingsSectionItem } from './SettingsSectionItem';
-import { useClipboardAccessMethodSheet } from './ClipboardAccessMethodSheet';
-import { resolveAdbAuthorizationCheck } from './ClipboardAccessMethodSheet.state';
+import { useSettingsToast } from '../SettingsToastContext';
+import { SettingsSectionItem } from '../SettingsSectionItem';
+import { useClipboardAccessMethodSheet } from '../ClipboardAccessMethodSheet';
+import { resolveAdbAuthorizationCheck } from '../ClipboardAccessMethodSheet.state';
 
 interface BgDialog {
   title: string;
@@ -93,7 +93,6 @@ export const BackgroundSection = memo(function BackgroundSection() {
   const hasBatteryOptRequested = useRef(false);
 
   const refreshBatteryPermission = () => {
-    if (Platform.OS !== 'android') return;
     import('android-util')
       .then(({ isIgnoringBatteryOptimizations }) => {
         setPermBattery(isIgnoringBatteryOptimizations());
@@ -108,7 +107,6 @@ export const BackgroundSection = memo(function BackgroundSection() {
   }, [clipboardAccessMethod]);
 
   useEffect(() => {
-    if (Platform.OS !== 'android') return;
     refreshBatteryPermission();
     refreshClipboardAccessState();
     const sub = AppState.addEventListener('change', (state) => {
@@ -226,20 +224,17 @@ export const BackgroundSection = memo(function BackgroundSection() {
 
     try {
       await useSettingsStore.getState().updateConfig({ enableForegroundNotification: true });
-      if (Platform.OS === 'android') {
-        const { PermissionsAndroid } = require('react-native');
-        const granted = await PermissionsAndroid.check(
-          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
-        );
-        if (!granted) {
-          setDialog({
-            title: t('dialog.missingNotificationPermission.title'),
-            text: t('dialog.missingNotificationPermission.text'),
-            confirmLabel: t('dialog.missingNotificationPermission.confirm'),
-            dismissLabel: t('dialog.missingNotificationPermission.dismiss'),
-            onConfirm: () => Linking.openSettings(),
-          });
-        }
+      const granted = await PermissionsAndroid.check(
+        PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+      );
+      if (!granted) {
+        setDialog({
+          title: t('dialog.missingNotificationPermission.title'),
+          text: t('dialog.missingNotificationPermission.text'),
+          confirmLabel: t('dialog.missingNotificationPermission.confirm'),
+          dismissLabel: t('dialog.missingNotificationPermission.dismiss'),
+          onConfirm: () => Linking.openSettings(),
+        });
       }
     } catch (error: unknown) {
       showMessage(error instanceof Error ? error.message : t('toast.setFailed'), 'error');
@@ -431,8 +426,6 @@ export const BackgroundSection = memo(function BackgroundSection() {
     requestIgnoreBatteryOptimizations();
     hasBatteryOptRequested.current = true;
   };
-
-  if (Platform.OS !== 'android') return null;
 
   return (
     <>

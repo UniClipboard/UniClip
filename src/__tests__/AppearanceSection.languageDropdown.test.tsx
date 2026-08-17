@@ -79,7 +79,7 @@ jest.mock('../screens/settings/SettingsSectionItem', () => ({
   SettingsSectionItem: ({ children }: { children?: React.ReactNode }) => children,
 }));
 
-import { AppearanceSection } from '../screens/settings/AppearanceSection';
+import { AppearanceSection } from '../screens/settings/android/AppearanceSection';
 
 describe('AppearanceSection compact dropdowns', () => {
   beforeEach(() => {

@@ -7,7 +7,6 @@
  */
 import React, { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Platform } from 'react-native';
 import {
   Column,
   Row,
@@ -27,8 +26,8 @@ import {
   height as heightModifier,
 } from '@expo/ui/jetpack-compose/modifiers';
 import { useSettingsStore } from '@/stores';
-import { useSettingsToast } from './SettingsToastContext';
-import { SettingsSectionItem } from './SettingsSectionItem';
+import { useSettingsToast } from '../SettingsToastContext';
+import { SettingsSectionItem } from '../SettingsSectionItem';
 
 export const DebugSection = memo(function DebugSection() {
   const { t } = useTranslation('settingsAbout');
@@ -135,7 +134,7 @@ export const DebugSection = memo(function DebugSection() {
         </ListItem.TrailingContent>
       </ListItem>
 
-      {debugMode && Platform.OS === 'android' && (
+      {debugMode && (
         <>
           <HorizontalDivider />
           <ListItem>

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, BackHandler, Platform } from 'react-native';
+import { View, Text, Pressable, StyleSheet, BackHandler } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Animated, {
@@ -91,7 +91,7 @@ export function AddActionsFab({
       Haptics.selectionAsync().catch(() => {});
       onOpenChange(false);
       // 收起动画同时触发系统 picker;Android intent 是新 activity,短延迟即可
-      setTimeout(fn, Platform.OS === 'ios' ? 350 : 130);
+      setTimeout(fn, 130);
     },
     [onOpenChange]
   );

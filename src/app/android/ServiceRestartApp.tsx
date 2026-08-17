@@ -6,11 +6,11 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Text, BackHandler, StatusBar, Platform } from 'react-native';
+import { StyleSheet, View, Text, BackHandler, StatusBar } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useSettingsStore } from './stores';
-import { initLogger } from './support/observability';
-import { getAppRuntime } from './app/runtime/composition';
+import { useSettingsStore } from '@/stores';
+import { initLogger } from '@/support/observability';
+import { getAppRuntime } from '@/app/runtime/composition';
 
 interface ServiceRestartAppProps {
   systemTheme?: 'light' | 'dark';
@@ -34,7 +34,7 @@ export default function ServiceRestartApp({ systemTheme }: ServiceRestartAppProp
 
   // 启动所有后台服务（和主界面一致）
   useEffect(() => {
-    if (!isLoaded || Platform.OS !== 'android') return;
+    if (!isLoaded) return;
 
     getAppRuntime()
       .start()

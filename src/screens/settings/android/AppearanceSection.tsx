@@ -6,7 +6,6 @@
  * 由父级单 Host 统一组合。
  */
 import React, { memo } from 'react';
-import { Platform } from 'react-native';
 import {
   ListItem,
   Switch as ComposeSwitch,
@@ -24,8 +23,8 @@ import {
   type LanguagePreference,
   SUPPORTED_LANGUAGES,
 } from '@/i18n/languages';
-import { useSettingsToast } from './SettingsToastContext';
-import { SettingsSectionItem } from './SettingsSectionItem';
+import { useSettingsToast } from '../SettingsToastContext';
+import { SettingsSectionItem } from '../SettingsSectionItem';
 
 export const AppearanceSection = memo(function AppearanceSection() {
   const { t } = useTranslation('settings');
@@ -69,10 +68,8 @@ export const AppearanceSection = memo(function AppearanceSection() {
 
   const handleToggleHideFromRecents = async (enabled: boolean) => {
     try {
-      if (Platform.OS === 'android') {
-        const { setExcludeFromRecents } = await import('android-util');
-        setExcludeFromRecents(enabled);
-      }
+      const { setExcludeFromRecents } = await import('android-util');
+      setExcludeFromRecents(enabled);
       await useSettingsStore.getState().updateConfig({ hideFromRecents: enabled });
     } catch (error: unknown) {
       // 失败时 store 已回滚 config，开关回弹
@@ -113,25 +110,20 @@ export const AppearanceSection = memo(function AppearanceSection() {
         </ListItem.TrailingContent>
       </ListItem>
 
-      {Platform.OS === 'android' && (
-        <>
-          <HorizontalDivider />
-          <ListItem>
-            <ListItem.HeadlineContent>
-              <ComposeText>{t('appearance.hideFromRecents.title')}</ComposeText>
-            </ListItem.HeadlineContent>
-            <ListItem.SupportingContent>
-              <ComposeText>{t('appearance.hideFromRecents.desc')}</ComposeText>
-            </ListItem.SupportingContent>
-            <ListItem.TrailingContent>
-              <ComposeSwitch
-                value={hideFromRecents}
-                onCheckedChange={handleToggleHideFromRecents}
-              />
-            </ListItem.TrailingContent>
-          </ListItem>
-        </>
-      )}
+      <>
+        <HorizontalDivider />
+        <ListItem>
+          <ListItem.HeadlineContent>
+            <ComposeText>{t('appearance.hideFromRecents.title')}</ComposeText>
+          </ListItem.HeadlineContent>
+          <ListItem.SupportingContent>
+            <ComposeText>{t('appearance.hideFromRecents.desc')}</ComposeText>
+          </ListItem.SupportingContent>
+          <ListItem.TrailingContent>
+            <ComposeSwitch value={hideFromRecents} onCheckedChange={handleToggleHideFromRecents} />
+          </ListItem.TrailingContent>
+        </ListItem>
+      </>
     </SettingsSectionItem>
   );
 });

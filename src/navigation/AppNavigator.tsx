@@ -9,7 +9,7 @@ import {
   createNativeStackNavigator,
   type NativeStackNavigationProp,
 } from '@react-navigation/native-stack';
-import { Platform, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { navigationRef, flushPendingNavigation } from './navigationRef';
 import { useTheme } from '@/hooks/useTheme';
@@ -22,30 +22,10 @@ import { SettingsScreen } from '@/screens/SettingsScreen';
 import { SettingsSubScreen } from '@/screens/settings/SettingsSubScreen';
 import type { UpdateCheckResult } from '@/features/updates';
 import { capturePostHogScreen } from '@/support/observability';
+import type { RootStackParamList, SettingsSubSection } from './AppNavigator.types';
+import { useSettingsScreenOptions } from './useSettingsScreenOptions';
 
-export type SettingsSubSection =
-  | 'space'
-  | 'history'
-  | 'background'
-  | 'appearance'
-  | 'storage'
-  | 'about'
-  | 'developer';
-
-export type RootStackParamList = {
-  Onboarding: undefined;
-  Migration: undefined;
-  Main: undefined;
-  Settings:
-    | { section?: 'space'; deviceId?: string; notificationNavigationRequestId?: number }
-    | undefined;
-  SettingsSub: {
-    section: SettingsSubSection;
-    update?: UpdateCheckResult;
-    deviceId?: string;
-    notificationNavigationRequestId?: number;
-  };
-};
+export type { RootStackParamList, SettingsSubSection } from './AppNavigator.types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 type SetupSession = 'onboarding' | 'migration';
@@ -92,6 +72,7 @@ function OnboardingGate() {
 export const AppNavigator = () => {
   const { theme } = useTheme();
   const { t } = useTranslation('home');
+  const settingsOptions = useSettingsScreenOptions();
   const config = useSettingsStore((s) => s.config);
   const updateConfig = useSettingsStore((s) => s.updateConfig);
   const spaceStatus = useUnifiedSpaceStore((s) => s.status);
@@ -182,30 +163,7 @@ export const AppNavigator = () => {
           <Stack.Screen name="Onboarding" component={OnboardingGate} />
           <Stack.Screen name="Migration" component={MigrationGuideGate} />
           <Stack.Screen name="Main" component={MainScreen} />
-          <Stack.Screen
-            name="Settings"
-            component={SettingsScreen}
-            options={
-              Platform.OS === 'ios'
-                ? {
-                    headerShown: false,
-                    presentation: 'transparentModal',
-                    animation: 'none',
-                    contentStyle: { backgroundColor: 'transparent' },
-                  }
-                : {
-                    headerShown: true,
-                    title: t('action.settings', { ns: 'common' }),
-                    presentation: 'card',
-                    animation: 'slide_from_right',
-                    headerStyle: {
-                      backgroundColor: theme.colors.surface as string,
-                    },
-                    headerShadowVisible: false,
-                    headerTintColor: theme.colors.textPrimary as string,
-                  }
-            }
-          />
+          <Stack.Screen name="Settings" component={SettingsScreen} options={settingsOptions} />
           <Stack.Screen
             name="SettingsSub"
             component={SettingsSubScreen}

@@ -46,6 +46,7 @@ describe('unified space setup UI', () => {
     const androidHub = source('screens/SettingsScreen.android.tsx');
     const androidSubScreen = source('screens/settings/SettingsSubScreen.android.tsx');
     const navigation = source('navigation/AppNavigator.tsx');
+    const navigationTypes = source('navigation/AppNavigator.types.ts');
     const iosRoot = source('screens/settings/ios/SettingsRootPage.tsx');
     const iosScreen = source('screens/SettingsScreen.ios.tsx');
     const iosPages = source('screens/settings/ios/types.ts');
@@ -54,7 +55,7 @@ describe('unified space setup UI', () => {
     expect(androidSubScreen).toContain("section === 'space' && (");
     expect(androidSubScreen).toContain('<UnifiedSpaceSetup');
     expect(androidSubScreen).toContain('initialDeviceId={route.params.deviceId}');
-    expect(navigation).toContain("| 'space'");
+    expect(navigationTypes).toContain("| 'space'");
     expect(navigation).toContain("space: t('space.title', { ns: 'settingsSync' })");
     expect(iosRoot).toContain("onNavigate('space')");
     expect(iosRoot).not.toContain('syncChannel');

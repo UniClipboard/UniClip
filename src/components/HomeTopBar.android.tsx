@@ -1,7 +1,7 @@
 import { View, Text, TextInput, StyleSheet, Pressable } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { TopRightMenu } from './TopRightMenu';
+import { TopRightMenu } from './android/TopRightMenu';
 import type {
   DefaultTopBarProps,
   SearchTopBarProps,

@@ -7,6 +7,8 @@ const readSource = (relativePath: string) =>
 describe('AppNavigator native stack', () => {
   it('uses the platform-native stack without retaining the JS stack dependency', () => {
     const navigatorSource = readSource('navigation/AppNavigator.tsx');
+    const androidOptionsSource = readSource('navigation/useSettingsScreenOptions.android.ts');
+    const iosOptionsSource = readSource('navigation/useSettingsScreenOptions.ios.ts');
     const packageJson = JSON.parse(
       fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8')
     ) as { dependencies: Record<string, string> };
@@ -14,9 +16,10 @@ describe('AppNavigator native stack', () => {
     expect(navigatorSource).toContain("from '@react-navigation/native-stack'");
     expect(navigatorSource).toContain('createNativeStackNavigator<RootStackParamList>()');
     expect(navigatorSource).not.toContain("from '@react-navigation/stack'");
-    expect(navigatorSource).toContain("contentStyle: { backgroundColor: 'transparent' }");
-    expect(navigatorSource).toContain('headerShadowVisible: false');
-    expect(navigatorSource.match(/animation: 'slide_from_right'/g) ?? []).toHaveLength(2);
+    expect(iosOptionsSource).toContain("contentStyle: { backgroundColor: 'transparent' }");
+    expect(androidOptionsSource).toContain('headerShadowVisible: false');
+    expect(navigatorSource).toContain("animation: 'slide_from_right'");
+    expect(androidOptionsSource).toContain("animation: 'slide_from_right'");
     expect(packageJson.dependencies['@react-navigation/native-stack']).toBeDefined();
     expect(packageJson.dependencies['@react-navigation/stack']).toBeUndefined();
   });
