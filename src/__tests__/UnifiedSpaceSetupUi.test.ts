@@ -42,6 +42,23 @@ describe('unified space setup UI', () => {
     expect(combined).not.toContain('UnifiedSpaceProbe');
   });
 
+  it('uses the adaptive iOS accent for space actions instead of purple action colors', () => {
+    const spacePage = source('screens/settings/ios/SpacePage.tsx');
+    const invitationSheet = source('components/SpaceInvitationSheet.ios.tsx');
+    const connectionSheet = source('components/AddSyncConnectionSheet.ios.tsx');
+
+    expect(spacePage).toContain('iosProminentButtonModifiers(undefined,');
+    expect(spacePage).not.toContain('iosSaturatedButtonPalette(settingsTileColors.indigo)');
+    expect(spacePage).toContain(': settingsTileColors.blue;');
+
+    expect(invitationSheet.match(/iosProminentButtonModifiers\(undefined,/g)).toHaveLength(2);
+    expect(invitationSheet).not.toContain('iosSaturatedButtonPalette(settingsTileColors.indigo)');
+
+    expect(connectionSheet).toContain('const JOIN_TINT = iosAccentColor ?? iosAccent.light;');
+    expect(connectionSheet.match(/iosProminentButtonModifiers\(undefined,/g)).toHaveLength(2);
+    expect(connectionSheet).not.toContain('iosSaturatedButtonPalette(JOIN_TINT)');
+  });
+
   it('keeps space setup directly available on both platforms', () => {
     const androidHub = source('screens/SettingsScreen.android.tsx');
     const androidSubScreen = source('screens/settings/SettingsSubScreen.android.tsx');

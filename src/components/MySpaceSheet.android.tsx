@@ -41,7 +41,6 @@ import { useMySpaceSheet } from './useMySpaceSheet';
 const ICONS = {
   add: require('../assets/icons/add.xml'),
   copy: require('../assets/icons/content_copy.xml'),
-  device: require('../assets/icons/account_circle.xml'),
   empty: require('../assets/icons/groups.xml'),
   error: require('../assets/icons/info.xml'),
   paired: require('../assets/icons/check_circle.xml'),
@@ -50,7 +49,6 @@ const ICONS = {
 };
 
 const TITLE_STYLE = { fontSize: 20, fontWeight: '600' } as const;
-const SECTION_TITLE_STYLE = { fontSize: 14, fontWeight: '500' } as const;
 const INVITATION_STYLE = { typography: 'headlineLarge' } as const;
 const DEVICE_LIST_SHAPE = Shape.RoundedCorner({
   cornerRadii: { topStart: 20, topEnd: 20, bottomStart: 20, bottomEnd: 20 },
@@ -74,9 +72,6 @@ function SpaceDeviceRow({
 
   return (
     <ListItem modifiers={[clickable(onPress)]}>
-      <ListItem.LeadingContent>
-        <Icon source={ICONS.device} size={30} tint={colors.primary} />
-      </ListItem.LeadingContent>
       <ListItem.HeadlineContent>
         <ComposeText>{device.displayName}</ComposeText>
       </ListItem.HeadlineContent>
@@ -118,7 +113,7 @@ function MySpaceSheetContent({ visible }: MySpaceSheetProps) {
   const invitationHeight = invitation ? 248 : invitationError ? 72 : 0;
   const pairedHeight = pairedDeviceName ? 72 : 0;
   const listHeight = Math.min(
-    Math.max(devices.length * 72 + invitationHeight + pairedHeight + 44, 216),
+    Math.max(devices.length * 72 + invitationHeight + pairedHeight, 216),
     520
   );
 
@@ -126,7 +121,9 @@ function MySpaceSheetContent({ visible }: MySpaceSheetProps) {
     <>
       <Column modifiers={[fillMaxWidth(), animateContentSize()]}>
         <Row verticalAlignment="center" modifiers={[fillMaxWidth(), padding(24, 0, 12, 8)]}>
-          <ComposeText style={TITLE_STYLE}>{t('topBar.mySpace', { ns: 'home' })}</ComposeText>
+          <ComposeText style={TITLE_STYLE} color={colors.onSurface}>
+            {t('topBar.mySpace', { ns: 'home' })}
+          </ComposeText>
           <Spacer modifiers={[weight(1)]} />
           <IconButton onClick={() => void issueInvitation()} enabled={canIssueInvitation}>
             {invitationPending ? (
@@ -244,16 +241,6 @@ function MySpaceSheetContent({ visible }: MySpaceSheetProps) {
               </>
             ) : null}
 
-            <Row modifiers={[fillMaxWidth(), padding(16, 12, 16, 8)]}>
-              <ComposeText style={SECTION_TITLE_STYLE} color={colors.onSurfaceVariant}>
-                {t('space.devices.title')}
-              </ComposeText>
-              <Spacer modifiers={[weight(1)]} />
-              <ComposeText style={SECTION_TITLE_STYLE} color={colors.onSurfaceVariant}>
-                {devices.length}
-              </ComposeText>
-            </Row>
-
             {isInitialLoading ? (
               <ListItem>
                 <ListItem.LeadingContent>
@@ -333,7 +320,7 @@ function MySpaceSheetContent({ visible }: MySpaceSheetProps) {
                       {index < devices.length - 1 ? (
                         <HorizontalDivider
                           color={colors.outlineVariant}
-                          modifiers={[padding(72, 0, 0, 0)]}
+                          modifiers={[fillMaxWidth()]}
                         />
                       ) : null}
                     </React.Fragment>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { StyleSheet, type NativeSyntheticEvent } from 'react-native';
+import { StyleSheet, type ColorValue, type NativeSyntheticEvent } from 'react-native';
 import * as Device from 'expo-device';
 import { requireNativeView } from 'expo';
 import {
@@ -59,7 +59,14 @@ import {
   iosSaturatedButtonPalette,
   iosSecondaryButtonModifiers,
 } from '@/components/ui/iosButtonStyles.ios';
-import { hexToRgba, iosColors, iosDimensions, iosKindTints } from '@/theme/iosDesignTokens';
+import {
+  hexToRgba,
+  iosAccent,
+  iosAccentColor,
+  iosColors,
+  iosDimensions,
+  iosKindTints,
+} from '@/theme/iosDesignTokens';
 import { resolveDefaultDeviceName } from '@/utils/deviceName';
 import { formatInvitationCode, normalizeInvitationCodeInput } from '@/utils/invitationCode';
 import type { AddSyncConnectionSheetProps } from './AddSyncConnectionSheet.types';
@@ -68,7 +75,7 @@ import { useAddSyncConnectionFlow } from './useAddSyncConnectionFlow';
 const SHEET_BACKGROUND = iosColors?.systemGroupedBackground ?? '#F2F2F7';
 const CARD_BACKGROUND = iosColors?.secondarySystemGroupedBackground ?? '#FFFFFF';
 const P2P_TINT = iosKindTints.text;
-const JOIN_TINT = iosKindTints.group;
+const JOIN_TINT = iosAccentColor ?? iosAccent.light;
 const SUCCESS_TINT = iosKindTints.image;
 
 function ConnectionSheetHost({ embedded, children }: { embedded: boolean; children: ReactNode }) {
@@ -157,14 +164,18 @@ function ConnectionChoice({
   description,
   systemImage,
   color,
+  colorBackground,
   emphasized,
+  emphasizedBackground,
   onPress,
 }: {
   title: string;
   description: string;
   systemImage: SFSymbol;
-  color: string;
+  color: ColorValue;
+  colorBackground: ColorValue;
   emphasized?: boolean;
+  emphasizedBackground?: ColorValue;
   onPress: () => void;
 }) {
   return (
@@ -184,7 +195,7 @@ function ConnectionChoice({
           padding({ horizontal: 16, vertical: 16 }),
           frame({ maxWidth: Infinity }),
           background(
-            emphasized ? hexToRgba(color, 0.1) : CARD_BACKGROUND,
+            emphasized ? emphasizedBackground ?? CARD_BACKGROUND : CARD_BACKGROUND,
             shapes.roundedRectangle({ cornerRadius: iosDimensions.surfaceCornerRadius })
           ),
         ]}
@@ -193,7 +204,7 @@ function ConnectionChoice({
           alignment="center"
           modifiers={[
             frame({ width: 44, height: 44 }),
-            background(hexToRgba(color, emphasized ? 0.18 : 0.12), shapes.circle()),
+            background(colorBackground, shapes.circle()),
           ]}
         >
           <Image systemName={systemImage} size={21} color={color} />
@@ -372,7 +383,9 @@ export function AddSyncConnectionSheet({
                     description={t('space.create.description')}
                     systemImage="plus"
                     color={P2P_TINT}
+                    colorBackground={hexToRgba(P2P_TINT, 0.18)}
                     emphasized
+                    emphasizedBackground={hexToRgba(P2P_TINT, 0.1)}
                     onPress={() => selectMode('create')}
                   />
                   <ConnectionChoice
@@ -380,6 +393,7 @@ export function AddSyncConnectionSheet({
                     description={t('space.join.description')}
                     systemImage="link"
                     color={JOIN_TINT}
+                    colorBackground={iosColors?.tertiarySystemFill ?? CARD_BACKGROUND}
                     onPress={() => selectMode('joinCode')}
                   />
                 </Section>
@@ -455,7 +469,7 @@ export function AddSyncConnectionSheet({
                 <SwiftUIButton
                   onPress={continueFromCode}
                   modifiers={[
-                    ...iosProminentButtonModifiers(iosSaturatedButtonPalette(JOIN_TINT), {
+                    ...iosProminentButtonModifiers(undefined, {
                       fullWidth: true,
                     }),
                     controlSize('large'),
@@ -510,7 +524,7 @@ export function AddSyncConnectionSheet({
                 <SwiftUIButton
                   onPress={submitJoin}
                   modifiers={[
-                    ...iosProminentButtonModifiers(iosSaturatedButtonPalette(JOIN_TINT), {
+                    ...iosProminentButtonModifiers(undefined, {
                       fullWidth: true,
                     }),
                     controlSize('large'),

@@ -27,10 +27,7 @@ import { useTranslation } from 'react-i18next';
 import type { AddSyncConnectionMode } from '@/components/AddSyncConnectionSheet.types';
 import type { SpaceDeviceManagementController } from '@/components/useSpaceDeviceManagement';
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
-import {
-  iosProminentButtonModifiers,
-  iosSaturatedButtonPalette,
-} from '@/components/ui/iosButtonStyles.ios';
+import { iosProminentButtonModifiers } from '@/components/ui/iosButtonStyles.ios';
 import {
   getUnifiedSpaceService,
   UnifiedSpaceInputError,
@@ -216,7 +213,7 @@ export function SpacePage({
       : overview.primaryStatus === 'unverifiable' ||
         overview.primaryStatus === 'decisionRequired'
       ? settingsTileColors.red
-      : settingsTileColors.indigo;
+      : settingsTileColors.blue;
   const overviewIcon =
     overview.primaryStatus === 'healthy'
       ? 'checkmark.circle.fill'
@@ -275,10 +272,7 @@ export function SpacePage({
                   label={t('space.create.title')}
                   onPress={() => onOpenSetup('create')}
                   modifiers={[
-                    ...iosProminentButtonModifiers(
-                      iosSaturatedButtonPalette(settingsTileColors.indigo),
-                      { fullWidth: true }
-                    ),
+                    ...iosProminentButtonModifiers(undefined, { fullWidth: true }),
                     controlSize('large'),
                   ]}
                 />

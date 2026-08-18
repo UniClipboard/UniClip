@@ -99,21 +99,28 @@ describe('home My Space sheet', () => {
     expect(mySpaceSheetHook).toContain('allowHighImpactActions: false');
   });
 
-  it('starts with a counted device list instead of a space overview card', () => {
+  it('starts with the device list instead of a space overview card', () => {
     for (const sheet of mySpaceSheets) {
-      expect(sheet).toContain('space.devices.title');
-      expect(sheet).toMatch(/space\.devices\.title[\s\S]*\{devices\.length\}/);
       expect(sheet).not.toContain('space.overview.status');
       expect(sheet).not.toContain('space.overview.memberCount');
       expect(sheet).not.toContain('deviceManagement.overview.primaryStatus');
       expect(sheet).toContain('space.deviceTrust.status.${device.primaryStatus}');
     }
 
-    const androidPageHeader = mySpaceSheets[0].match(
-      /<Row verticalAlignment="center"[\s\S]*?<\/Row>/
-    )?.[0];
-    expect(androidPageHeader).toBeDefined();
-    expect(androidPageHeader).not.toContain('{devices.length}');
+    for (const sheet of mySpaceSheets) {
+      expect(sheet).not.toContain('space.devices.title');
+    }
+  });
+
+  it('does not reserve an empty Android row where the device section label was', () => {
+    expect(mySpaceSheets[0]).not.toContain('SECTION_TITLE_STYLE');
+    expect(mySpaceSheets[0]).not.toContain('pairedHeight + 44');
+  });
+
+  it('uses the Android theme foreground color for the My Space title', () => {
+    expect(mySpaceSheets[0]).toContain(
+      '<ComposeText style={TITLE_STYLE} color={colors.onSurface}>'
+    );
   });
 
   it('groups Android device entries in a rounded list with dividers', () => {
@@ -123,6 +130,28 @@ describe('home My Space sheet', () => {
     expect(mySpaceSheets[0]).toContain('shape={DEVICE_LIST_SHAPE}');
     expect(mySpaceSheets[0]).toContain('<HorizontalDivider');
     expect(mySpaceSheets[0]).toContain('border={{ color: colors.outlineVariant }}');
+  });
+
+  it('draws Android device dividers at one consistent color across the full row', () => {
+    const androidDivider = mySpaceSheets[0].match(/<HorizontalDivider[\s\S]*?\/>/)?.[0];
+
+    expect(androidDivider).toBeDefined();
+    expect(androidDivider).toContain('modifiers={[fillMaxWidth()]}');
+    expect(androidDivider).not.toContain('padding(72, 0, 0, 0)');
+  });
+
+  it('does not show avatar icons in device rows', () => {
+    const androidDeviceRow = mySpaceSheets[0].match(
+      /function SpaceDeviceRow[\s\S]*?\n}\n\nfunction MySpaceSheetContent/
+    )?.[0];
+    const iosDeviceRow = mySpaceSheets[1].match(
+      /function SpaceDeviceRow[\s\S]*?\n}\n\nexport function MySpaceSheet/
+    )?.[0];
+
+    expect(androidDeviceRow).toBeDefined();
+    expect(androidDeviceRow).not.toContain('ICONS.device');
+    expect(iosDeviceRow).toBeDefined();
+    expect(iosDeviceRow).not.toContain('systemName="person.crop.circle"');
   });
 
   it('consumes the unified snapshot without refreshing when the sheet opens', () => {
@@ -170,6 +199,13 @@ describe('home My Space sheet', () => {
       expect(sheet).toContain('invitationTimeRemaining');
       expect(sheet).toContain('pairedDeviceName');
     }
+  });
+
+  it('uses the adaptive iOS accent for invitation actions instead of the device color', () => {
+    expect(mySpaceSheets[1]).toContain('color={iosAccentColor}');
+    expect(mySpaceSheets[1]).toContain('iosProminentButtonModifiers(undefined,');
+    expect(mySpaceSheets[1]).not.toContain('DEVICE_COLOR');
+    expect(mySpaceSheets[1]).not.toContain('iosSaturatedButtonPalette');
   });
 
   it('disables the add action while a decision or another space operation is active', () => {

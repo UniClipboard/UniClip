@@ -26,7 +26,6 @@ import { useTranslation } from 'react-i18next';
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
 import {
   iosProminentButtonModifiers,
-  iosSaturatedButtonPalette,
   iosSecondaryButtonModifiers,
 } from '@/components/ui/iosButtonStyles.ios';
 import { HeaderCircleButton, settingsTileColors, statusGreen } from '@/screens/settings/ios/common';
@@ -137,10 +136,7 @@ export function SpaceInvitationSheet({ visible, onClose }: SpaceInvitationSheetP
                   <SwiftUIButton
                     label={t('action.done', { ns: 'common' })}
                     onPress={onClose}
-                    modifiers={iosProminentButtonModifiers(
-                      iosSaturatedButtonPalette(settingsTileColors.indigo),
-                      { fullWidth: true }
-                    )}
+                    modifiers={iosProminentButtonModifiers(undefined, { fullWidth: true })}
                   />
                 </VStack>
               </Section>
@@ -210,10 +206,7 @@ export function SpaceInvitationSheet({ visible, onClose }: SpaceInvitationSheetP
                     </SwiftUIButton>
                     <SwiftUIButton
                       onPress={() => void shareInvitation()}
-                      modifiers={iosProminentButtonModifiers(
-                        iosSaturatedButtonPalette(settingsTileColors.indigo),
-                        { fullWidth: true }
-                      )}
+                      modifiers={iosProminentButtonModifiers(undefined, { fullWidth: true })}
                     >
                       <HStack spacing={7}>
                         <Image systemName="square.and.arrow.up" size={16} />

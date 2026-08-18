@@ -40,15 +40,14 @@ import { useTranslation } from 'react-i18next';
 import { IosSheetPage } from '@/components/ui';
 import {
   iosProminentButtonModifiers,
-  iosSaturatedButtonPalette,
   iosSecondaryButtonModifiers,
 } from '@/components/ui/iosButtonStyles.ios';
 import type { DeviceTrustDeviceView } from '@/features/space';
+import { iosAccentColor } from '@/theme/iosDesignTokens';
 import type { MySpaceSheetProps } from './MySpaceSheet.types';
 import { SpaceDeviceDetail } from './SpaceDeviceDetail';
 import { useMySpaceSheet } from './useMySpaceSheet';
 
-const DEVICE_COLOR = '#5856D6';
 const ONLINE_COLOR = '#34C759';
 const OFFLINE_COLOR = '#8E8E93';
 const ERROR_COLOR = '#FF3B30';
@@ -80,7 +79,7 @@ function AddDeviceButton({
         <Image
           systemName="plus"
           size={18}
-          color={DEVICE_COLOR}
+          color={iosAccentColor}
           modifiers={[font({ weight: 'semibold' }), padding()]}
         />
       )}
@@ -113,7 +112,6 @@ function SpaceDeviceRow({
         onTapGesture(onPress),
       ]}
     >
-      <Image systemName="person.crop.circle" size={30} color={DEVICE_COLOR} />
       <VStack alignment="leading" spacing={4}>
         <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>{device.displayName}</SwiftUIText>
         <HStack spacing={6} alignment="center">
@@ -320,10 +318,7 @@ export function MySpaceSheet({ visible, onClose }: MySpaceSheetProps) {
                         </SwiftUIButton>
                         <SwiftUIButton
                           onPress={() => void shareInvitation()}
-                          modifiers={iosProminentButtonModifiers(
-                            iosSaturatedButtonPalette(DEVICE_COLOR),
-                            { fullWidth: true }
-                          )}
+                          modifiers={iosProminentButtonModifiers(undefined, { fullWidth: true })}
                         >
                           <HStack spacing={7}>
                             <Image systemName="square.and.arrow.up" size={16} />
@@ -337,17 +332,7 @@ export function MySpaceSheet({ visible, onClose }: MySpaceSheetProps) {
                   </Section>
                 ) : null}
 
-                <Section
-                  header={
-                    <HStack modifiers={[frame({ maxWidth: Infinity })]}>
-                      <SwiftUIText>{t('space.devices.title', { ns: 'settingsSync' })}</SwiftUIText>
-                      <Spacer />
-                      <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-                        {devices.length}
-                      </SwiftUIText>
-                    </HStack>
-                  }
-                >
+                <Section>
                   {isInitialLoading ? (
                     <HStack spacing={10} alignment="center">
                       <ProgressView />
