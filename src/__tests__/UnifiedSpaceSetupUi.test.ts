@@ -282,16 +282,20 @@ describe('unified space setup UI', () => {
     }
   });
 
-  it('disables conflicting space actions while a decision or operation is active', () => {
+  it('keeps switching guarded by verified device details while leaving only waits for an active operation on Android', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
     const ios = source('screens/settings/ios/SpacePage.tsx');
 
-    for (const platform of [android, ios]) {
-      expect(platform).toContain('highImpactActionsDisabled');
-      expect(platform).toContain('deviceManagement.operationInProgress');
-      expect(platform).toContain('deviceManagement.overview.hasPendingDecision');
-      expect(platform).toContain('!deviceManagement.highImpactActionsAvailable');
-    }
+    expect(android).toContain('highImpactActionsDisabled');
+    expect(android).toContain('space.switch.unavailable');
+    expect(android).toContain(
+      'const leaveSpaceDisabled = pending !== null || deviceManagement.operationInProgress;'
+    );
+    expect(android).toContain(
+      'leaveSpaceDisabled ? undefined : [clickable(() => setConfirmLeave(true))]'
+    );
+    expect(ios).toContain('highImpactActionsDisabled');
+    expect(ios).toContain('!deviceManagement.highImpactActionsAvailable');
   });
 
   it('presents the Android space page as status, device actions, then separate space controls', () => {
@@ -321,6 +325,7 @@ describe('unified space setup UI', () => {
       expect(messages.space.leave.confirm).toEqual(expect.any(String));
       expect(messages.space.switch.title).toEqual(expect.any(String));
       expect(messages.space.switch.description).toEqual(expect.any(String));
+      expect(messages.space.switch.unavailable).toEqual(expect.any(String));
       expect(messages.space.switch.confirmTitle).toEqual(expect.any(String));
       expect(messages.space.switch.confirm).toEqual(expect.any(String));
       expect(messages.space.switch.confirmAction).toEqual(expect.any(String));
@@ -374,9 +379,10 @@ describe('unified space setup UI', () => {
     expect(messages.space.leave.confirm).toContain('新的邀请');
   });
 
-  it('does not offer a manual retry for an unverifiable device relationship', () => {
+  it('offers a retry from the Android status when device details cannot be verified', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
 
-    expect(android.match(/t\('action\.retry'/g)).toHaveLength(1);
+    expect(android).toContain('syncFailed && !isRefreshing');
+    expect(android.match(/t\('action\.retry'/g)).toHaveLength(2);
   });
 });

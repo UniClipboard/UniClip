@@ -87,15 +87,7 @@ function createApi(overrides: Partial<UnifiedSpaceApi> = {}): UnifiedSpaceApi {
       expiresAtMs: 123_456,
       availability: 'crossNetwork' as const,
     })),
-    joinSpace: jest.fn(async () => ({
-      sponsorDeviceId: 'desktop-1',
-      sponsorIdentityFingerprint: 'sponsor-fingerprint',
-      spaceId: 'space-1',
-      selfDeviceId: 'phone-1',
-      selfIdentityFingerprint: 'phone-fingerprint',
-      migratedRecords: 0,
-      preservedUnreadableRecords: 0,
-    })),
+    joinSpace: jest.fn(async () => activeJoinStatus()),
     queryDeviceTrust: jest.fn(async () => deviceTrustSnapshot()),
     decideDeviceTrustChange: jest.fn(async () => ({
       kind: 'applied' as const,
@@ -126,6 +118,33 @@ function createApi(overrides: Partial<UnifiedSpaceApi> = {}): UnifiedSpaceApi {
     })),
     leaveSpace: jest.fn(async () => undefined),
     ...overrides,
+  };
+}
+
+function activeJoinStatus(
+  joinedSpace: Partial<{
+    sponsorDeviceId: string;
+    sponsorIdentityFingerprint: string;
+    spaceId: string;
+    selfDeviceId: string;
+    selfIdentityFingerprint: string;
+    migratedRecords: number;
+    preservedUnreadableRecords: number;
+  }> = {}
+) {
+  return {
+    type: 'active' as const,
+    joinId: 'join-1',
+    joinedSpace: {
+      sponsorDeviceId: 'desktop-1',
+      sponsorIdentityFingerprint: 'sponsor-fingerprint',
+      spaceId: 'space-1',
+      selfDeviceId: 'phone-1',
+      selfIdentityFingerprint: 'phone-fingerprint',
+      migratedRecords: 0,
+      preservedUnreadableRecords: 0,
+      ...joinedSpace,
+    },
   };
 }
 
@@ -834,15 +853,7 @@ describe('UnifiedSpaceService', () => {
         }),
         joinSpace: jest.fn(async () => {
           events.push('native:join');
-          return {
-            sponsorDeviceId: 'desktop-1',
-            sponsorIdentityFingerprint: 'sponsor-fingerprint',
-            spaceId: 'space-1',
-            selfDeviceId: 'phone-1',
-            selfIdentityFingerprint: 'phone-fingerprint',
-            migratedRecords: 0,
-            preservedUnreadableRecords: 0,
-          };
+          return activeJoinStatus();
         }),
       });
       const runSetup = async <T>(setup: () => Promise<T>): Promise<T> => {
@@ -892,6 +903,52 @@ describe('UnifiedSpaceService', () => {
 
     expect(api.joinSpace).toHaveBeenCalledWith('7K2M-8Q4R', 'Phone', 'passphrase', true);
   });
+
+  it.each([
+    [
+      'pending',
+      {
+        type: 'pending',
+        joinId: 'join-1',
+        targetSpaceId: 'space-1',
+        sponsorDeviceId: 'desktop-1',
+        sponsorIdentityFingerprint: 'sponsor-fingerprint',
+        cancelRequested: false,
+      },
+      'serviceUnavailable',
+    ],
+    [
+      'rejected',
+      { type: 'rejected', joinId: 'join-1', reason: 'authenticationRejected' },
+      'passphraseMismatch',
+    ],
+  ] as const)(
+    'does not complete setup when the Engine reports a %s join',
+    async (_status, joinStatus, expectedCode) => {
+      const api = createApi({
+        joinSpace: jest.fn(
+          async () => joinStatus as unknown as Awaited<ReturnType<UnifiedSpaceApi['joinSpace']>>
+        ),
+      });
+      const completion = createCompletionReporter();
+      const service = createServiceWithCompletion(
+        api,
+        () => {},
+        async (operation) => operation(),
+        completion
+      );
+
+      await expect(service.joinSpace('7K2M-8Q4R', 'Phone', 'passphrase')).rejects.toMatchObject({
+        code: expectedCode,
+      });
+
+      expect(api.listDevices).not.toHaveBeenCalled();
+      expect(completion.markComplete).not.toHaveBeenCalled();
+      expect(service.getSnapshot()).toEqual(
+        expect.objectContaining({ status: 'failed', spaceId: null })
+      );
+    }
+  );
 
   it.each([
     ['requestJoin', true],
@@ -1555,14 +1612,15 @@ describe('UnifiedSpaceService', () => {
     const snapshots: UnifiedSpaceSnapshot[] = [];
     const api = createApi({
       querySpaceState: jest.fn(() => pendingState.promise),
-      joinSpace: jest.fn(async () => ({
-        sponsorDeviceId: 'new-desktop',
-        sponsorIdentityFingerprint: 'new-sponsor-fingerprint',
-        spaceId: 'new-space',
-        selfDeviceId: 'new-phone',
-        selfIdentityFingerprint: 'new-phone-fingerprint',
-        migratedRecords: 0,
-      })),
+      joinSpace: jest.fn(async () =>
+        activeJoinStatus({
+          sponsorDeviceId: 'new-desktop',
+          sponsorIdentityFingerprint: 'new-sponsor-fingerprint',
+          spaceId: 'new-space',
+          selfDeviceId: 'new-phone',
+          selfIdentityFingerprint: 'new-phone-fingerprint',
+        })
+      ),
       listDevices: jest
         .fn<UnifiedSpaceApi['listDevices']>()
         .mockResolvedValueOnce([
@@ -1606,15 +1664,15 @@ describe('UnifiedSpaceService', () => {
       listDevices: jest.fn(async () => [
         { deviceId: 'new-phone', displayName: 'New Phone', isLocal: true, online: true },
       ]),
-      joinSpace: jest.fn(async () => ({
-        sponsorDeviceId: 'new-desktop',
-        sponsorIdentityFingerprint: 'new-sponsor-fingerprint',
-        spaceId: 'new-space',
-        selfDeviceId: 'new-phone',
-        selfIdentityFingerprint: 'new-phone-fingerprint',
-        migratedRecords: 0,
-        preservedUnreadableRecords: 0,
-      })),
+      joinSpace: jest.fn(async () =>
+        activeJoinStatus({
+          sponsorDeviceId: 'new-desktop',
+          sponsorIdentityFingerprint: 'new-sponsor-fingerprint',
+          spaceId: 'new-space',
+          selfDeviceId: 'new-phone',
+          selfIdentityFingerprint: 'new-phone-fingerprint',
+        })
+      ),
     });
     let service!: UnifiedSpaceService;
     const runSetup = async <T>(operation: () => Promise<T>) => {
@@ -1645,15 +1703,15 @@ describe('UnifiedSpaceService', () => {
 
     const joining = service.joinSpace('9R3N-6W2X', 'New Phone', 'passphrase');
     const refresh = service.refresh();
-    joinResult.resolve({
-      sponsorDeviceId: 'new-desktop',
-      sponsorIdentityFingerprint: 'new-sponsor-fingerprint',
-      spaceId: 'new-space',
-      selfDeviceId: 'new-phone',
-      selfIdentityFingerprint: 'new-phone-fingerprint',
-      migratedRecords: 0,
-      preservedUnreadableRecords: 0,
-    });
+    joinResult.resolve(
+      activeJoinStatus({
+        sponsorDeviceId: 'new-desktop',
+        sponsorIdentityFingerprint: 'new-sponsor-fingerprint',
+        spaceId: 'new-space',
+        selfDeviceId: 'new-phone',
+        selfIdentityFingerprint: 'new-phone-fingerprint',
+      })
+    );
     await joining;
     refreshState.resolve({
       hasCompleted: false,

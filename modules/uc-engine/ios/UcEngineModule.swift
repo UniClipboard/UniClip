@@ -134,15 +134,44 @@ public final class UcEngineModule: Module {
         preserveUnreadableHistory: preserveUnreadableHistory
       )
       self.host.refreshAnalyticsContext(engine: engine)
-      return [
-        "sponsorDeviceId": result.sponsorDeviceId,
-        "sponsorIdentityFingerprint": result.sponsorIdentityFingerprint,
-        "spaceId": result.spaceId,
-        "selfDeviceId": result.selfDeviceId,
-        "selfIdentityFingerprint": result.selfIdentityFingerprint,
-        "migratedRecords": result.migratedRecords ?? 0,
-        "preservedUnreadableRecords": result.preservedUnreadableRecords ?? 0,
-      ]
+      switch result {
+      case let .active(joinId, joinedSpace):
+        return [
+          "type": "active",
+          "joinId": joinId,
+          "joinedSpace": [
+            "sponsorDeviceId": joinedSpace.sponsorDeviceId,
+            "sponsorIdentityFingerprint": joinedSpace.sponsorIdentityFingerprint,
+            "spaceId": joinedSpace.spaceId,
+            "selfDeviceId": joinedSpace.selfDeviceId,
+            "selfIdentityFingerprint": joinedSpace.selfIdentityFingerprint,
+            "migratedRecords": joinedSpace.migratedRecords ?? 0,
+            "preservedUnreadableRecords": joinedSpace.preservedUnreadableRecords ?? 0,
+          ],
+        ]
+      case let .pending(joinId, targetSpaceId, sponsorDeviceId, sponsorIdentityFingerprint, cancelRequested):
+        return [
+          "type": "pending",
+          "joinId": joinId,
+          "targetSpaceId": targetSpaceId,
+          "sponsorDeviceId": sponsorDeviceId,
+          "sponsorIdentityFingerprint": sponsorIdentityFingerprint,
+          "cancelRequested": cancelRequested,
+        ]
+      case let .rejected(joinId, reason):
+        let rejectionReason = switch reason {
+        case .invitationUnavailable: "invitationUnavailable"
+        case .authenticationRejected: "authenticationRejected"
+        case .identityConflict: "identityConflict"
+        case .baseHistoryChanged: "baseHistoryChanged"
+        case .joinerHistoryAhead: "joinerHistoryAhead"
+        case .historyConflict: "historyConflict"
+        case .peerUpgradeRequired: "peerUpgradeRequired"
+        case .cancelled: "cancelled"
+        case .removedBeforeActivation: "removedBeforeActivation"
+        }
+        return ["type": "rejected", "joinId": joinId, "reason": rejectionReason]
+      }
     }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("nextEvent") { (timeoutMs: UInt64) -> [String: Any?]? in

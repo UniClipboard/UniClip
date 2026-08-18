@@ -248,6 +248,7 @@
     "switch": {
       "title": "切换空间",
       "description": "使用邀请码加入其他空间",
+      "unavailable": "设备资料暂时无法核验，暂时不能切换空间。请稍后重试。",
       "confirmTitle": "切换空间",
       "confirm": "这台设备将离开当前空间并加入新空间。本地历史会保留，之后只与新空间同步。",
       "confirmAction": "确认切换"

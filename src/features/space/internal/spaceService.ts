@@ -3,9 +3,11 @@ import type {
   DeviceTrustDecision,
   DeviceTrustSnapshot,
   InvitationIssued,
+  JoinedSpace,
+  JoinSpaceRejectionReason,
+  JoinSpaceStatus,
   SpaceCreated,
   SpaceInvitation,
-  SpaceJoined,
   WorkspaceConvergence,
 } from '@/platform/engine';
 import {
@@ -61,7 +63,7 @@ export interface UnifiedSpaceApi {
     deviceName: string | null,
     passphrase: string,
     preserveUnreadableHistory: boolean
-  ): Promise<SpaceJoined>;
+  ): Promise<JoinSpaceStatus>;
   queryDeviceTrust(): Promise<DeviceTrustSnapshot>;
   decideDeviceTrustChange(
     changeId: string,
@@ -178,8 +180,17 @@ export class UnifiedSpaceInputError extends Error {
   }
 }
 
+class UnifiedSpaceJoinResultError extends Error {
+  readonly name = 'UnifiedSpaceJoinResultError';
+
+  constructor(readonly code: UnifiedSpaceUserErrorCode) {
+    super(code);
+  }
+}
+
 export function unifiedSpaceUserErrorCode(cause: unknown): UnifiedSpaceUserErrorCode | null {
   if (cause instanceof UnifiedSpaceInputError) return cause.code;
+  if (cause instanceof UnifiedSpaceJoinResultError) return cause.code;
 
   const details = [String(cause)];
   if (cause && typeof cause === 'object') {
@@ -192,6 +203,34 @@ export function unifiedSpaceUserErrorCode(cause: unknown): UnifiedSpaceUserError
     if (mapped) return mapped;
   }
   return null;
+}
+
+function rejectedJoinErrorCode(reason: JoinSpaceRejectionReason): UnifiedSpaceUserErrorCode {
+  switch (reason) {
+    case 'authenticationRejected':
+      return 'passphraseMismatch';
+    case 'peerUpgradeRequired':
+    case 'baseHistoryChanged':
+    case 'joinerHistoryAhead':
+    case 'historyConflict':
+      return 'serviceUnavailable';
+    case 'invitationUnavailable':
+    case 'identityConflict':
+    case 'cancelled':
+    case 'removedBeforeActivation':
+      return 'invitationRejected';
+  }
+}
+
+function requireActiveJoinedSpace(status: JoinSpaceStatus): JoinedSpace {
+  switch (status.type) {
+    case 'active':
+      return status.joinedSpace;
+    case 'pending':
+      throw new UnifiedSpaceJoinResultError('serviceUnavailable');
+    case 'rejected':
+      throw new UnifiedSpaceJoinResultError(rejectedJoinErrorCode(status.reason));
+  }
 }
 
 function engineErrorCode(cause: unknown): number | null {
@@ -537,7 +576,7 @@ export class UnifiedSpaceService {
     deviceName: string,
     secret: string,
     preserveUnreadableHistory = false
-  ): Promise<SpaceJoined> {
+  ): Promise<JoinedSpace> {
     required(invitationCode, 'invitationCodeRequired');
     const normalizedInvitation = invitationCodeForSubmission(invitationCode);
     if (!normalizedInvitation) throw new UnifiedSpaceInputError('invitationCodeInvalid');
@@ -551,12 +590,13 @@ export class UnifiedSpaceService {
         revision = this.beginMutation();
         this.updateSnapshot({ status: 'loading', lastError: null });
         stage = 'requestJoin';
-        const joined = await this.api.joinSpace(
+        const joinStatus = await this.api.joinSpace(
           normalizedInvitation,
           normalizedName,
           normalizedPassphrase,
           preserveUnreadableHistory
         );
+        const joined = requireActiveJoinedSpace(joinStatus);
         stage = 'refreshDevices';
         const devices = await this.api.listDevices();
         await this.completion.markComplete();

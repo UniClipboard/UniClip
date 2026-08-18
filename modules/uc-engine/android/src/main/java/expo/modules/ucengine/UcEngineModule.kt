@@ -49,6 +49,8 @@ import uniffi.uc_engine_uniffi.DeviceTrustChoice
 import uniffi.uc_engine_uniffi.EntryNotResendableReason
 import uniffi.uc_engine_uniffi.HostBindingException
 import uniffi.uc_engine_uniffi.InvitationAvailability
+import uniffi.uc_engine_uniffi.JoinSpaceRejectionReason
+import uniffi.uc_engine_uniffi.JoinSpaceStatus
 import uniffi.uc_engine_uniffi.MobileEngine
 import uniffi.uc_engine_uniffi.ResendEntryOutcome
 import uniffi.uc_engine_uniffi.SendReport
@@ -386,15 +388,44 @@ class UcEngineModule : Module() {
         preserveUnreadableHistory
       )
       refreshAnalyticsContext(engine)
-      mapOf(
-        "sponsorDeviceId" to result.sponsorDeviceId,
-        "sponsorIdentityFingerprint" to result.sponsorIdentityFingerprint,
-        "spaceId" to result.spaceId,
-        "selfDeviceId" to result.selfDeviceId,
-        "selfIdentityFingerprint" to result.selfIdentityFingerprint,
-        "migratedRecords" to (result.migratedRecords?.toLong() ?: 0L),
-        "preservedUnreadableRecords" to (result.preservedUnreadableRecords?.toLong() ?: 0L)
-      )
+      when (result) {
+        is JoinSpaceStatus.Active -> mapOf(
+          "type" to "active",
+          "joinId" to result.joinId,
+          "joinedSpace" to mapOf(
+            "sponsorDeviceId" to result.joinedSpace.sponsorDeviceId,
+            "sponsorIdentityFingerprint" to result.joinedSpace.sponsorIdentityFingerprint,
+            "spaceId" to result.joinedSpace.spaceId,
+            "selfDeviceId" to result.joinedSpace.selfDeviceId,
+            "selfIdentityFingerprint" to result.joinedSpace.selfIdentityFingerprint,
+            "migratedRecords" to (result.joinedSpace.migratedRecords?.toLong() ?: 0L),
+            "preservedUnreadableRecords" to (result.joinedSpace.preservedUnreadableRecords?.toLong() ?: 0L)
+          )
+        )
+        is JoinSpaceStatus.Pending -> mapOf(
+          "type" to "pending",
+          "joinId" to result.joinId,
+          "targetSpaceId" to result.targetSpaceId,
+          "sponsorDeviceId" to result.sponsorDeviceId,
+          "sponsorIdentityFingerprint" to result.sponsorIdentityFingerprint,
+          "cancelRequested" to result.cancelRequested
+        )
+        is JoinSpaceStatus.Rejected -> mapOf(
+          "type" to "rejected",
+          "joinId" to result.joinId,
+          "reason" to when (result.reason) {
+            JoinSpaceRejectionReason.INVITATION_UNAVAILABLE -> "invitationUnavailable"
+            JoinSpaceRejectionReason.AUTHENTICATION_REJECTED -> "authenticationRejected"
+            JoinSpaceRejectionReason.IDENTITY_CONFLICT -> "identityConflict"
+            JoinSpaceRejectionReason.BASE_HISTORY_CHANGED -> "baseHistoryChanged"
+            JoinSpaceRejectionReason.JOINER_HISTORY_AHEAD -> "joinerHistoryAhead"
+            JoinSpaceRejectionReason.HISTORY_CONFLICT -> "historyConflict"
+            JoinSpaceRejectionReason.PEER_UPGRADE_REQUIRED -> "peerUpgradeRequired"
+            JoinSpaceRejectionReason.CANCELLED -> "cancelled"
+            JoinSpaceRejectionReason.REMOVED_BEFORE_ACTIVATION -> "removedBeforeActivation"
+          }
+        )
+      }
     }
     AsyncFunction("nextEvent") { timeoutMs: Long ->
       requireEngine().nextEvent(timeoutMs.toULong())?.let(::eventMap)

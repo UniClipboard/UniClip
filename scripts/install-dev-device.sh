@@ -6,7 +6,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
 ENGINE_ROOT="${UC_ENGINE_REPOSITORY:-$PROJECT_ROOT/../Engine}"
 LOCAL_ENGINE_ROOT="$PROJECT_ROOT/modules/uc-engine/.artifacts/local"
 LOCAL_ENGINE_BUILD_ROOT="$LOCAL_ENGINE_ROOT/build"
-ENGINE_PREPARED=false
+LATEST_ENGINE_COMMIT=""
 DEFAULT_IOS_DEVICE="marks iPhone"
 DEFAULT_ANDROID_DEVICE="7bac761b"
 
@@ -61,21 +61,14 @@ assert_development_project() {
   fi
 }
 
-read_json_source_commit() {
-  node -p 'require(process.argv[1]).sourceCommit' "$1" 2>/dev/null || true
-}
-
 prepare_latest_engine() {
-  local ios_marker="$LOCAL_ENGINE_ROOT/local-prepared.json"
-  local android_commit_file="$LOCAL_ENGINE_BUILD_ROOT/uc-engine-uniffi-dist/android/source-commit.txt"
-  local ios_commit
-  local android_commit
+  local platform="$1"
+  local ios_marker="$LOCAL_ENGINE_BUILD_ROOT/uc-engine-uniffi-dist/ios/source-commit.txt"
+  local android_marker="$LOCAL_ENGINE_BUILD_ROOT/uc-engine-uniffi-dist/android/source-commit.txt"
+  local marker_file
+  local prepared_commit
   local latest_commit
   local worktree
-
-  if [ "$ENGINE_PREPARED" = true ]; then
-    return
-  fi
 
   require_command git
   require_command node
@@ -86,31 +79,45 @@ prepare_latest_engine() {
   fi
 
   mkdir -p "$LOCAL_ENGINE_ROOT"
-  git -C "$ENGINE_ROOT" fetch origin main
-  latest_commit="$(git -C "$ENGINE_ROOT" rev-parse origin/main)"
-  ios_commit="$(read_json_source_commit "$ios_marker")"
-  android_commit="$(cat "$android_commit_file" 2>/dev/null || true)"
-  if [ "$ios_commit" = "$latest_commit" ] && [ "$android_commit" = "$latest_commit" ]; then
-    ENGINE_PREPARED=true
+  if [ -z "$LATEST_ENGINE_COMMIT" ]; then
+    git -C "$ENGINE_ROOT" fetch origin main
+    LATEST_ENGINE_COMMIT="$(git -C "$ENGINE_ROOT" rev-parse origin/main)"
+  fi
+  latest_commit="$LATEST_ENGINE_COMMIT"
+  case "$platform" in
+    ios) marker_file="$ios_marker" ;;
+    android) marker_file="$android_marker" ;;
+    *)
+      echo "Unsupported Engine platform: $platform" >&2
+      exit 2
+      ;;
+  esac
+  prepared_commit="$(cat "$marker_file" 2>/dev/null || true)"
+  if [ "$prepared_commit" = "$latest_commit" ]; then
     return
   fi
 
-  echo "Preparing Engine from origin/main ($latest_commit)"
+  echo "Preparing $platform Engine from origin/main ($latest_commit)"
   worktree="$(mktemp -d "$LOCAL_ENGINE_ROOT/engine-main.XXXXXX")"
   rmdir "$worktree"
   git -C "$ENGINE_ROOT" worktree add --detach "$worktree" "$latest_commit"
   trap 'git -C "$ENGINE_ROOT" worktree remove --force "$worktree"' RETURN
-  UC_ENGINE_LOCAL_TARGET_DIR="$LOCAL_ENGINE_BUILD_ROOT" \
-    bash "$SCRIPT_DIR/prepare-local-unified-engine-core.sh" "$worktree"
-  (
-    cd "$worktree"
-    UC_ENGINE_UNIFFI_TARGET_DIR="$LOCAL_ENGINE_BUILD_ROOT" \
-      UC_ENGINE_UNIFFI_BUILD_LOCKED=1 \
-      bindings/uc-engine-uniffi/scripts/build-android-aar.sh
-  )
+  case "$platform" in
+    ios)
+      UC_ENGINE_LOCAL_TARGET_DIR="$LOCAL_ENGINE_BUILD_ROOT" \
+        bash "$SCRIPT_DIR/prepare-local-unified-engine-core.sh" "$worktree"
+      ;;
+    android)
+      (
+        cd "$worktree"
+        UC_ENGINE_UNIFFI_TARGET_DIR="$LOCAL_ENGINE_BUILD_ROOT" \
+          UC_ENGINE_UNIFFI_BUILD_LOCKED=1 \
+          bindings/uc-engine-uniffi/scripts/build-android-aar.sh
+      )
+      ;;
+  esac
   trap - RETURN
   git -C "$ENGINE_ROOT" worktree remove --force "$worktree"
-  ENGINE_PREPARED=true
 }
 
 install_ios() {
@@ -124,7 +131,7 @@ install_ios() {
   fi
 
   assert_development_project ios
-  prepare_latest_engine
+  prepare_latest_engine ios
   UC_ENGINE_LOCAL_CORE=1 APP_VARIANT=development npx expo run:ios --device "$device" --no-bundler
 }
 
@@ -141,7 +148,7 @@ install_android() {
   fi
 
   assert_development_project android
-  prepare_latest_engine
+  prepare_latest_engine android
   if [ ! -f "$engine_aar" ]; then
     echo "The local Android engine is missing: $engine_aar" >&2
     echo "Prepare the local Android engine before installing." >&2

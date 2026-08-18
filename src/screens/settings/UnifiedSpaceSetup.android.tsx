@@ -258,6 +258,7 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
     !deviceManagement.highImpactActionsAvailable ||
     deviceManagement.operationInProgress ||
     deviceManagement.overview.hasPendingDecision;
+  const leaveSpaceDisabled = pending !== null || deviceManagement.operationInProgress;
   const syncFailed =
     overview.primaryStatus === 'unverifiable' || overview.primaryStatus === 'decisionRequired';
   const isRefreshing = overview.isRefreshing;
@@ -402,6 +403,11 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
             ) : null}
           </Row>
           <Spacer modifiers={[heightModifier(16)]} />
+          {syncFailed && !isRefreshing ? (
+            <TextButton onClick={refresh} modifiers={[fillMaxWidth()]}>
+              <ComposeText>{t('action.retry', { ns: 'common' })}</ComposeText>
+            </TextButton>
+          ) : null}
           <Button
             onClick={() => setShowInvitation(true)}
             enabled={!highImpactActionsDisabled}
@@ -463,7 +469,12 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
       <CustomRelaySection />
 
       <Spacer modifiers={[heightModifier(16)]} />
-      <SettingsSectionItem title={t('space.manage.title')} footer={t('space.switch.description')}>
+      <SettingsSectionItem
+        title={t('space.manage.title')}
+        footer={
+          highImpactActionsDisabled ? t('space.switch.unavailable') : t('space.switch.description')
+        }
+      >
         <ListItem
           modifiers={
             highImpactActionsDisabled ? undefined : [clickable(() => setSetupMode('switch'))]
@@ -484,9 +495,7 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
       <Spacer modifiers={[heightModifier(16)]} />
       <SettingsSectionItem title={t('space.danger.title')} footer={t('space.leave.confirm')}>
         <ListItem
-          modifiers={
-            highImpactActionsDisabled ? undefined : [clickable(() => setConfirmLeave(true))]
-          }
+          modifiers={leaveSpaceDisabled ? undefined : [clickable(() => setConfirmLeave(true))]}
         >
           <ListItem.LeadingContent>
             <Icon source={ICONS.delete} size={24} tint={colors.error} />

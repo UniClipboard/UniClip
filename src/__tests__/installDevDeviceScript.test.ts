@@ -51,4 +51,18 @@ describe('install-dev-device.sh', () => {
     expect(script).toContain('prepare-local-unified-engine-core.sh');
     expect(script).toContain('build-android-aar.sh');
   });
+
+  it('prepares only the Engine artifacts required by the requested platform', () => {
+    const script = readFileSync(scriptPath, 'utf8');
+
+    expect(script).toContain('prepare_latest_engine() {\n  local platform="$1"');
+    expect(script).toContain(
+      'ios_marker="$LOCAL_ENGINE_BUILD_ROOT/uc-engine-uniffi-dist/ios/source-commit.txt"'
+    );
+    expect(script).toContain(
+      'android_marker="$LOCAL_ENGINE_BUILD_ROOT/uc-engine-uniffi-dist/android/source-commit.txt"'
+    );
+    expect(script).toContain('prepare_latest_engine ios');
+    expect(script).toContain('prepare_latest_engine android');
+  });
 });

@@ -29,7 +29,7 @@ export interface InvitationIssued {
   availability: 'crossNetwork' | 'sameLocalNetwork';
 }
 
-export interface SpaceJoined {
+export interface JoinedSpace {
   sponsorDeviceId: string;
   sponsorIdentityFingerprint: string;
   spaceId: string;
@@ -38,6 +38,29 @@ export interface SpaceJoined {
   migratedRecords: number;
   preservedUnreadableRecords: number;
 }
+
+export type JoinSpaceRejectionReason =
+  | 'invitationUnavailable'
+  | 'authenticationRejected'
+  | 'identityConflict'
+  | 'baseHistoryChanged'
+  | 'joinerHistoryAhead'
+  | 'historyConflict'
+  | 'peerUpgradeRequired'
+  | 'cancelled'
+  | 'removedBeforeActivation';
+
+export type JoinSpaceStatus =
+  | { type: 'active'; joinId: string; joinedSpace: JoinedSpace }
+  | {
+      type: 'pending';
+      joinId: string;
+      targetSpaceId: string | null;
+      sponsorDeviceId: string | null;
+      sponsorIdentityFingerprint: string | null;
+      cancelRequested: boolean;
+    }
+  | { type: 'rejected'; joinId: string; reason: JoinSpaceRejectionReason };
 
 export interface SendReport {
   entryId: string;
@@ -238,7 +261,7 @@ interface UcEngineNativeModule {
     deviceName: string | null,
     passphrase: string,
     preserveUnreadableHistory: boolean
-  ): Promise<SpaceJoined>;
+  ): Promise<JoinSpaceStatus>;
   nextEvent(timeoutMs: number): Promise<EngineEvent | null>;
   refreshPeerConnections(): Promise<PeerConnectionRefresh>;
   querySpaceState(): Promise<SpaceState>;
@@ -357,7 +380,7 @@ export async function joinSpace(
   deviceName: string | null,
   passphrase: string,
   preserveUnreadableHistory = false
-): Promise<SpaceJoined> {
+): Promise<JoinSpaceStatus> {
   const result = await NativeModule.joinSpace(
     invitationCode,
     deviceName,

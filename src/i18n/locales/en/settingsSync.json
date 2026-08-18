@@ -248,6 +248,7 @@
     "switch": {
       "title": "Switch space",
       "description": "Use an invitation code to join another space",
+      "unavailable": "Device details cannot be verified yet, so switching spaces is unavailable. Try again later.",
       "confirmTitle": "Switch space",
       "confirm": "This device will leave the current space and join a new one. Your local history will stay, and it will only sync with the new space.",
       "confirmAction": "Switch space"

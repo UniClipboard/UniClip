@@ -248,6 +248,7 @@
     "switch": {
       "title": "Trocar de espaço",
       "description": "Use um código de convite para entrar em outro espaço",
+      "unavailable": "Ainda não foi possível verificar os dispositivos, por isso não é possível trocar de espaço. Tente novamente mais tarde.",
       "confirmTitle": "Trocar de espaço",
       "confirm": "Este dispositivo sairá do espaço atual e entrará em um novo. O histórico local será mantido e a sincronização continuará apenas no novo espaço.",
       "confirmAction": "Confirmar troca"
