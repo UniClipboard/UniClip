@@ -5,6 +5,7 @@
 
 import * as Crypto from 'expo-crypto';
 import { sha256 } from 'js-sha256';
+import { Platform } from 'react-native';
 import type { ClipboardContent } from '@/types';
 import { isNativeHashModuleAvailable, nativeCalculateFileHash } from 'android-util';
 
@@ -130,7 +131,10 @@ export async function calculateBase64ContentHash(
  * [内部] JS 实现的文件哈希（降级备用）
  * 流式读取文件，分块计算，周期性 yield 保持 UI 响应
  */
-async function calculateFileHashJS(fileUri: string, signal?: AbortSignal): Promise<string> {
+async function calculateFileHashWithModernReader(
+  fileUri: string,
+  signal?: AbortSignal
+): Promise<string> {
   const { File } = await import('expo-file-system');
   const file = new File(fileUri);
 
@@ -172,6 +176,23 @@ async function calculateFileHashJS(fileUri: string, signal?: AbortSignal): Promi
   }
 
   return hasher.hex().toUpperCase();
+}
+
+async function calculateFileHashJS(fileUri: string, signal?: AbortSignal): Promise<string> {
+  try {
+    return await calculateFileHashWithModernReader(fileUri, signal);
+  } catch (error) {
+    if (Platform.OS !== 'ios') {
+      throw error;
+    }
+
+    // The legacy reader remains available in an already-installed iOS build where
+    // the newer File shared object fails to initialize.
+    log.warn('Modern iOS file reader unavailable; using compatible reader:', error);
+    const { readAsStringAsync, EncodingType } = await import('expo-file-system/legacy');
+    const base64 = await readAsStringAsync(fileUri, { encoding: EncodingType.Base64 });
+    return calculateBase64ContentHash(base64, signal);
+  }
 }
 
 /**
