@@ -7,8 +7,9 @@ import {
   useUnifiedSpaceStore,
 } from '@/features/space';
 import type { DeviceTrustChoice } from '@/platform/engine';
+import type { DeviceTrustDecisionSession } from './DeviceTrustDecisionSession';
 
-export function useDeviceTrustDecision() {
+export function useDeviceTrustDecision(): DeviceTrustDecisionSession {
   const deviceTrustQuery = useUnifiedSpaceStore((state) => state.deviceTrustQuery);
   const deviceTrust = deviceTrustSnapshotFromQuery(deviceTrustQuery);
   const status = useUnifiedSpaceStore((state) => state.deviceTrustDecisionStatus);
@@ -38,18 +39,38 @@ export function useDeviceTrustDecision() {
       const change = deviceTrust?.currentChange;
       if (!change || status === 'submitting' || !change.allowedChoices.includes(choice)) return;
       setSelection({ changeId: change.changeId, choice });
-      if (choice === 'keepCurrentDeviceGroup' || change.includesLocalDevice) {
-        setConfirmingChoice(choice);
-        return;
-      }
-      try {
-        await getUnifiedSpaceService().decideDeviceTrust(choice, false);
-      } catch {
-        // The space service publishes the actionable error for this modal.
-      }
+      setConfirmingChoice(null);
     },
     [deviceTrust, status]
   );
+
+  const proceed = useCallback(async () => {
+    const change = deviceTrust?.currentChange;
+    const choice = selection.choice;
+    if (
+      !change ||
+      !choice ||
+      selection.changeId !== change.changeId ||
+      status === 'submitting' ||
+      !change.allowedChoices.includes(choice)
+    ) {
+      return;
+    }
+    const selectedView = view?.choices.find((candidate) => candidate.choice === choice);
+    if (
+      choice === 'keepCurrentDeviceGroup' ||
+      change.includesLocalDevice ||
+      Boolean(selectedView?.stopSyncNames.length)
+    ) {
+      setConfirmingChoice(choice);
+      return;
+    }
+    try {
+      await getUnifiedSpaceService().decideDeviceTrust(choice, false);
+    } catch {
+      // The space service publishes the actionable error for this modal.
+    }
+  }, [deviceTrust, selection.changeId, selection.choice, status, view]);
 
   const confirm = useCallback(async () => {
     const change = deviceTrust?.currentChange;
@@ -77,7 +98,9 @@ export function useDeviceTrustDecision() {
     error,
     outcome,
     choose,
+    proceed,
     confirm,
     cancelConfirmation,
+    dismiss: null,
   };
 }

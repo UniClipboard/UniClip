@@ -35,6 +35,7 @@ import {
 import { useKeyboardStatus } from './useKeyboardStatus';
 import type { SettingsPage } from './types';
 import { AnalyticsConsentControl } from '../AnalyticsConsentControl';
+import { isDeviceTrustPreviewAvailable } from '@/devtools/deviceTrustPreviewCoordinator';
 
 function IconToggleRow({
   icon,
@@ -67,6 +68,7 @@ export function SettingsRootPage({
   const { setThemeMode } = useTheme();
   const { preference: languagePref, setLanguage } = useAppLanguage();
   const keyboard = useKeyboardStatus();
+  const deviceTrustPreviewAvailable = isDeviceTrustPreviewAvailable();
 
   if (!config) return null;
 
@@ -233,6 +235,17 @@ export function SettingsRootPage({
             <SwiftUIText modifiers={[foregroundStyle('secondary')]}>{APP_VERSION}</SwiftUIText>
           </LabeledContent>
         </Section>
+
+        {deviceTrustPreviewAvailable ? (
+          <Section header={<SwiftUIText>{t('category.developer')}</SwiftUIText>}>
+            <SettingsNavRow
+              icon="wrench.and.screwdriver"
+              iconColor={settingsTileColors.indigo}
+              title={t('debug.deviceTrustPreview.label', { ns: 'settingsAbout' })}
+              onPress={() => onNavigate('developer')}
+            />
+          </Section>
+        ) : null}
       </IosSheetForm>
     </IosSheetPage>
   );

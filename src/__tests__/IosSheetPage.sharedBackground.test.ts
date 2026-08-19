@@ -64,6 +64,17 @@ describe('iOS sheet page shared background', () => {
     expect(indexSource).not.toContain('SheetHeaderIconButton');
   });
 
+  it('supports a compact one-button header without changing the default layout', () => {
+    const headerSource = readSource('components/ui/SheetHeader.ios.tsx');
+    const decisionSource = readSource('components/DeviceTrustDecision.ios.tsx');
+
+    expect(headerSource).toContain('compactSides?: boolean');
+    expect(headerSource).toContain(
+      'const sideMinWidth = compactSides ? HEADER_BUTTON_SLOT_SIZE : HEADER_SIDE_MIN_WIDTH'
+    );
+    expect(decisionSource).toContain('compactSides');
+  });
+
   it('routes icon-only sheet actions through fixed header slots', () => {
     const historyFilterSource = readSource('components/HistoryFilterSheet.ios.tsx');
 

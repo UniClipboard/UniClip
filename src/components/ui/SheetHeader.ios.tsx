@@ -8,6 +8,7 @@ export interface SheetHeaderProps {
   right?: React.ReactNode;
   leftSlots?: [React.ReactNode?, React.ReactNode?];
   rightSlots?: [React.ReactNode?, React.ReactNode?];
+  compactSides?: boolean;
 }
 
 const HEADER_BUTTON_SLOT_COUNT = 2;
@@ -41,13 +42,17 @@ function renderHeaderButtonSlots(
   ));
 }
 
-function renderAdaptiveHeaderSide(content: React.ReactNode, fillFrom: 'leading' | 'trailing') {
+function renderAdaptiveHeaderSide(
+  content: React.ReactNode,
+  fillFrom: 'leading' | 'trailing',
+  minWidth: number
+) {
   return (
     <HStack
       alignment="center"
       modifiers={[
         frame({
-          minWidth: HEADER_SIDE_MIN_WIDTH,
+          minWidth,
           alignment: fillFrom === 'leading' ? 'leading' : 'trailing',
         }),
       ]}
@@ -57,7 +62,16 @@ function renderAdaptiveHeaderSide(content: React.ReactNode, fillFrom: 'leading' 
   );
 }
 
-export function SheetHeader({ title, left, right, leftSlots, rightSlots }: SheetHeaderProps) {
+export function SheetHeader({
+  title,
+  left,
+  right,
+  leftSlots,
+  rightSlots,
+  compactSides = false,
+}: SheetHeaderProps) {
+  const sideMinWidth = compactSides ? HEADER_BUTTON_SLOT_SIZE : HEADER_SIDE_MIN_WIDTH;
+
   return (
     <HStack
       alignment="center"
@@ -66,7 +80,7 @@ export function SheetHeader({ title, left, right, leftSlots, rightSlots }: Sheet
       {leftSlots ? (
         <HStack alignment="center">{renderHeaderButtonSlots(leftSlots, 'leading')}</HStack>
       ) : (
-        renderAdaptiveHeaderSide(left, 'leading')
+        renderAdaptiveHeaderSide(left, 'leading', sideMinWidth)
       )}
       <Spacer />
       <SwiftUIText modifiers={[font({ weight: 'bold', size: 17 })]}>{title}</SwiftUIText>
@@ -74,7 +88,7 @@ export function SheetHeader({ title, left, right, leftSlots, rightSlots }: Sheet
       {rightSlots ? (
         <HStack alignment="center">{renderHeaderButtonSlots(rightSlots, 'trailing')}</HStack>
       ) : (
-        renderAdaptiveHeaderSide(right, 'trailing')
+        renderAdaptiveHeaderSide(right, 'trailing', sideMinWidth)
       )}
     </HStack>
   );

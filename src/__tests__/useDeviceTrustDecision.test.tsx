@@ -126,10 +126,32 @@ describe('useDeviceTrustDecision', () => {
     activeRenderer = null;
   });
 
-  it('submits a non-local apply choice directly', async () => {
+  it('requires confirmation before applying a choice that stops syncing a remote device', async () => {
     createHarness();
 
     await act(async () => currentDecision.choose('applyChange'));
+
+    expect(mockDecideDeviceTrust).not.toHaveBeenCalled();
+    expect(currentDecision.selectedChoice).toBe('applyChange');
+
+    await act(async () => currentDecision.proceed());
+
+    expect(mockDecideDeviceTrust).not.toHaveBeenCalled();
+    expect(currentDecision.confirmingChoice).toBe('applyChange');
+
+    await act(async () => currentDecision.confirm());
+    expect(mockDecideDeviceTrust).toHaveBeenCalledWith('applyChange', false);
+  });
+
+  it('applies a choice directly when no device will stop syncing', async () => {
+    const safe = trust();
+    safe.currentChange!.applyImpact.pausedDeviceIds = [];
+    safe.currentChange!.applyImpact.requiresRejoinDeviceIds = [];
+    publish(safe);
+    createHarness();
+
+    await act(async () => currentDecision.choose('applyChange'));
+    await act(async () => currentDecision.proceed());
 
     expect(mockDecideDeviceTrust).toHaveBeenCalledWith('applyChange', false);
     expect(currentDecision.confirmingChoice).toBeNull();
@@ -140,6 +162,9 @@ describe('useDeviceTrustDecision', () => {
 
     await act(async () => currentDecision.choose('keepCurrentDeviceGroup'));
     expect(mockDecideDeviceTrust).not.toHaveBeenCalled();
+    expect(currentDecision.confirmingChoice).toBeNull();
+
+    await act(async () => currentDecision.proceed());
     expect(currentDecision.confirmingChoice).toBe('keepCurrentDeviceGroup');
 
     await act(async () => currentDecision.confirm());
@@ -152,16 +177,23 @@ describe('useDeviceTrustDecision', () => {
 
     await act(async () => currentDecision.choose('applyChange'));
     expect(mockDecideDeviceTrust).not.toHaveBeenCalled();
+    await act(async () => currentDecision.proceed());
+    expect(mockDecideDeviceTrust).not.toHaveBeenCalled();
     await act(async () => currentDecision.confirm());
     expect(mockDecideDeviceTrust).toHaveBeenCalledWith('applyChange', true);
   });
 
   it('keeps a failed direct decision inside the decision UI', async () => {
     mockDecideDeviceTrust.mockRejectedValueOnce(new Error('decision failed'));
+    const safe = trust();
+    safe.currentChange!.applyImpact.pausedDeviceIds = [];
+    safe.currentChange!.applyImpact.requiresRejoinDeviceIds = [];
+    publish(safe);
     createHarness();
 
+    await act(async () => currentDecision.choose('applyChange'));
     await act(async () => {
-      await expect(currentDecision.choose('applyChange')).resolves.toBeUndefined();
+      await expect(currentDecision.proceed()).resolves.toBeUndefined();
     });
     expect(mockDecideDeviceTrust).toHaveBeenCalledWith('applyChange', false);
   });
@@ -172,6 +204,7 @@ describe('useDeviceTrustDecision', () => {
     createHarness();
 
     await act(async () => currentDecision.choose('applyChange'));
+    await act(async () => currentDecision.proceed());
     await act(async () => {
       await expect(currentDecision.confirm()).resolves.toBeUndefined();
     });
@@ -181,10 +214,22 @@ describe('useDeviceTrustDecision', () => {
   it('clears confirmation when Engine switches to another change', async () => {
     createHarness();
     await act(async () => currentDecision.choose('keepCurrentDeviceGroup'));
+    await act(async () => currentDecision.proceed());
 
     act(() => publish(trust('change-2')));
 
     expect(currentDecision.changeId).toBe('change-2');
+    expect(currentDecision.selectedChoice).toBeNull();
+    expect(currentDecision.confirmingChoice).toBeNull();
+  });
+
+  it('does nothing when the user continues before choosing between two options', async () => {
+    createHarness();
+
+    expect(currentDecision.selectedChoice).toBeNull();
+    await act(async () => currentDecision.proceed());
+
+    expect(mockDecideDeviceTrust).not.toHaveBeenCalled();
     expect(currentDecision.confirmingChoice).toBeNull();
   });
 

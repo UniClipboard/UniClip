@@ -66,7 +66,24 @@
     "overlayHiddenToast": "Sobreposição oculta",
     "urlSchemeLabel": "Mostrar chamadas de esquema de URL",
     "updateNoLimitLabel": "Verificações de atualização ilimitadas",
-    "updateNoLimitDesc": "Quando ativado, verifica atualizações a cada inicialização, em vez de uma vez por dia"
+    "updateNoLimitDesc": "Quando ativado, verifica atualizações a cada inicialização, em vez de uma vez por dia",
+    "deviceTrustPreview": {
+      "label": "Pré-visualizar decisão de relação entre dispositivos",
+      "description": "Abra o diálogo real com dados de exemplo seguros",
+      "pickerTitle": "Escolha um cenário de pré-visualização",
+      "pickerDescription": "As ações de pré-visualização ficam neste dispositivo e não alteram relações reais.",
+      "unavailable": "Conclua a ação atual de relação entre dispositivos antes de abrir a pré-visualização",
+      "scenarios": {
+        "standard": "Duas opções disponíveis",
+        "singleChoice": "Apenas uma opção disponível",
+        "confirmKeepCurrent": "Confirmar manutenção do grupo atual",
+        "confirmLeaveCurrent": "Confirmar saída do grupo atual",
+        "submitting": "Enviando",
+        "failedRetry": "Falhou, pronto para tentar novamente",
+        "stateChanged": "Estado alterado em outro dispositivo",
+        "longScrollable": "Nomes longos e muitos dispositivos"
+      }
+    }
   },
   "stats": {
     "title": "Estatísticas",

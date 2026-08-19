@@ -5,4 +5,5 @@ export type SettingsPage =
   | 'keyboard'
   | 'share'
   | 'clipboard'
-  | 'diagnostics';
+  | 'diagnostics'
+  | 'developer';

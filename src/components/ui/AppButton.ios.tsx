@@ -1,12 +1,13 @@
-import { Button } from '@expo/ui/swift-ui';
+import { Button, HStack, Spacer, Text } from '@expo/ui/swift-ui';
 import {
+  buttonBorderShape,
   buttonStyle,
+  controlSize,
   disabled as disabledModifier,
   frame,
   foregroundStyle,
   tint,
 } from '@expo/ui/swift-ui/modifiers';
-import type { ColorValue } from 'react-native';
 
 import { iosOnSaturatedColor } from '@/theme/iosDesignTokens';
 import {
@@ -14,26 +15,16 @@ import {
   iosProminentButtonModifiers,
   iosSecondaryButtonModifiers,
 } from './iosButtonStyles.ios';
+import type { AppButtonProps } from './AppButton.types';
 
-export type AppButtonVariant = 'filled' | 'outlined' | 'tonal' | 'text';
-
-export interface AppButtonProps {
-  title: string;
-  onPress: () => void;
-  variant?: AppButtonVariant;
-  fullWidth?: boolean;
-  disabled?: boolean;
-  colors?: {
-    containerColor?: ColorValue;
-    contentColor?: ColorValue;
-  };
-}
+export type { AppButtonProps, AppButtonVariant } from './AppButton.types';
 
 export function AppButton({
   title,
   onPress,
   variant = 'filled',
   fullWidth,
+  size = 'regular',
   disabled,
   colors,
 }: AppButtonProps) {
@@ -60,6 +51,24 @@ export function AppButton({
           ...(fullWidth ? [frame({ maxWidth: Infinity })] : []),
           ...(colors?.contentColor ? [foregroundStyle(colors.contentColor)] : []),
         ];
-  const modifiers = [...variantModifiers, ...(disabled ? [disabledModifier(true)] : [])];
+  const modifiers = [
+    ...variantModifiers,
+    controlSize(size),
+    ...(size === 'large' ? [buttonBorderShape('capsule')] : []),
+    ...(disabled ? [disabledModifier(true)] : []),
+  ];
+
+  if (fullWidth && size === 'large') {
+    return (
+      <Button onPress={onPress} modifiers={modifiers}>
+        <HStack modifiers={[frame({ maxWidth: Infinity, minHeight: 50 })]}>
+          <Spacer />
+          <Text>{title}</Text>
+          <Spacer />
+        </HStack>
+      </Button>
+    );
+  }
+
   return <Button label={title} onPress={onPress} modifiers={modifiers} />;
 }

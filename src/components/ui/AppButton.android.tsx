@@ -6,21 +6,10 @@ import {
   Text as ComposeText,
 } from '@expo/ui/jetpack-compose';
 import { fillMaxWidth } from '@expo/ui/jetpack-compose/modifiers';
-import type { ColorValue } from 'react-native';
 
-export type AppButtonVariant = 'filled' | 'outlined' | 'tonal' | 'text';
+import type { AppButtonProps } from './AppButton.types';
 
-export interface AppButtonProps {
-  title: string;
-  onPress: () => void;
-  variant?: AppButtonVariant;
-  fullWidth?: boolean;
-  disabled?: boolean;
-  colors?: {
-    containerColor?: ColorValue;
-    contentColor?: ColorValue;
-  };
-}
+export type { AppButtonProps, AppButtonVariant } from './AppButton.types';
 
 const VARIANT_MAP = {
   filled: Button,

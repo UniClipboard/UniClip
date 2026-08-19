@@ -104,7 +104,7 @@ function snapshot(): DeviceTrustSnapshot {
 }
 
 describe('device trust presentation', () => {
-  it('shows only Engine-allowed choices and their exact impact groups', () => {
+  it('shows only remote devices in each Engine-allowed choice impact group', () => {
     const view = buildDeviceTrustDecisionView(snapshot());
 
     expect(view?.sourceName).toBe('Work · 12345678');
@@ -112,7 +112,7 @@ describe('device trust presentation', () => {
     expect(view?.choices).toEqual([
       expect.objectContaining({
         choice: 'keepCurrentDeviceGroup',
-        continueSyncNames: ['Phone', 'Work · abcdef12'],
+        continueSyncNames: ['Work · abcdef12'],
         stopSyncNames: ['Work · 12345678'],
       }),
     ]);
@@ -122,6 +122,17 @@ describe('device trust presentation', () => {
     expect(initialDeviceTrustChoice(snapshot(), 'old-change', 'applyChange')).toEqual({
       changeId: 'change-1',
       choice: 'keepCurrentDeviceGroup',
+    });
+  });
+
+  it('does not preselect when the user must compare two choices', () => {
+    const current = snapshot();
+    if (!current.currentChange) throw new Error('fixture must contain a change');
+    current.currentChange.allowedChoices = ['applyChange', 'keepCurrentDeviceGroup'];
+
+    expect(initialDeviceTrustChoice(current, 'old-change', 'applyChange')).toEqual({
+      changeId: 'change-1',
+      choice: null,
     });
   });
 

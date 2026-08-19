@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useWindowDimensions } from 'react-native';
+import { StyleSheet, useWindowDimensions } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Host, BottomSheet, Group, VStack, ZStack } from '@expo/ui/swift-ui';
 import { useTranslation } from 'react-i18next';
 import {
@@ -28,6 +29,12 @@ import { SharePage } from './settings/ios/SharePage';
 import { ClipboardAccessPage } from './settings/ios/ClipboardAccessPage';
 import { LogSection } from './settings/LogSection';
 import { SpacePage } from './settings/ios/SpacePage';
+import { DeveloperPage } from './settings/ios/DeveloperPage';
+import {
+  canOpenDeviceTrustPreview,
+  openDeviceTrustPreview,
+} from '@/devtools/deviceTrustPreviewCoordinator';
+import type { DeviceTrustPreviewScenarioId } from '@/devtools/deviceTrustPreviewSession';
 import type { RootStackParamList } from '@/navigation/AppNavigator';
 
 const fillModifier = frame({ maxWidth: Infinity, maxHeight: Infinity });
@@ -78,9 +85,10 @@ function SettingsSubPageOverlay({
  */
 export const SettingsScreen = () => {
   const { t } = useTranslation('settingsSync');
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'Settings'>>();
   const route = useRoute<RouteProp<RootStackParamList, 'Settings'>>();
   const notificationRouteHandled = useRef<number | null>(null);
+  const pendingDeviceTrustPreview = useRef<DeviceTrustPreviewScenarioId | null>(null);
   const { config, isLoaded, loadConfig } = useSettingsStore();
 
   const [presented, setPresented] = useState(true);
@@ -107,16 +115,17 @@ export const SettingsScreen = () => {
     setIsLeavingPage(false);
   }, [route.params?.notificationNavigationRequestId, route.params?.section]);
 
-  const handleDismiss = useCallback(
-    (p: boolean) => {
-      if (!p) {
-        deviceManagement.closeDevice();
-        setPresented(false);
-        navigation.goBack();
-      }
-    },
-    [deviceManagement.closeDevice, navigation]
-  );
+  const handlePresentedChange = useCallback((isPresented: boolean) => {
+    setPresented(isPresented);
+  }, []);
+
+  const handleSheetDismiss = useCallback(() => {
+    const pendingPreview = pendingDeviceTrustPreview.current;
+    pendingDeviceTrustPreview.current = null;
+    deviceManagement.closeDevice();
+    if (pendingPreview) openDeviceTrustPreview(pendingPreview);
+    navigation.goBack();
+  }, [deviceManagement.closeDevice, navigation]);
 
   const openSubPage = useCallback((page: SettingsPage) => {
     if (page === 'root') return;
@@ -133,11 +142,22 @@ export const SettingsScreen = () => {
 
   const removeSubPage = useCallback(() => setActivePage(null), []);
 
+  const openPreview = useCallback((scenarioId: DeviceTrustPreviewScenarioId) => {
+    if (!canOpenDeviceTrustPreview()) return false;
+    pendingDeviceTrustPreview.current = scenarioId;
+    setPresented(false);
+    return true;
+  }, []);
+
   if (!isLoaded || !config) return null;
 
   return (
-    <Host style={{ position: 'absolute', bottom: 0, left: 0, width: 1, height: 1 }}>
-      <BottomSheet isPresented={presented} onIsPresentedChange={handleDismiss}>
+    <Host style={styles.hostAnchor}>
+      <BottomSheet
+        isPresented={presented}
+        onIsPresentedChange={handlePresentedChange}
+        onDismiss={handleSheetDismiss}
+      >
         <Group modifiers={[presentationDetents(['large']), presentationDragIndicator('visible')]}>
           <VStack modifiers={[fillModifier, ...(iosAccentColor ? [tint(iosAccentColor)] : [])]}>
             <ZStack modifiers={[fillModifier]}>
@@ -161,6 +181,9 @@ export const SettingsScreen = () => {
                   {activePage === 'share' ? <SharePage onBack={backToRoot} /> : null}
                   {activePage === 'clipboard' ? <ClipboardAccessPage onBack={backToRoot} /> : null}
                   {activePage === 'diagnostics' ? <LogSection onBack={backToRoot} /> : null}
+                  {activePage === 'developer' ? (
+                    <DeveloperPage onBack={backToRoot} onOpenPreview={openPreview} />
+                  ) : null}
                 </SettingsSubPageOverlay>
               ) : null}
               <SpaceInvitationSheet
@@ -198,3 +221,13 @@ export const SettingsScreen = () => {
     </Host>
   );
 };
+
+const styles = StyleSheet.create({
+  hostAnchor: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    width: 1,
+    height: 1,
+  },
+});

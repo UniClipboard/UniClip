@@ -108,14 +108,20 @@ function names(ids: string[], labels: Map<string, string>): string[] {
 function choiceView(
   choice: DeviceTrustChoice,
   impact: DeviceTrustImpact,
-  labels: Map<string, string>
+  labels: Map<string, string>,
+  localDeviceId: string
 ): DeviceTrustChoiceView {
+  const remoteNames = (ids: string[]) =>
+    names(
+      ids.filter((id) => id !== localDeviceId),
+      labels
+    );
   return {
     choice,
     exitsCurrentSpace: impact.localDeviceOutcome === 'removed',
-    continueSyncNames: names(impact.usableDeviceIds, labels),
-    stopSyncNames: names(impact.pausedDeviceIds, labels),
-    requiresRejoinNames: names(impact.requiresRejoinDeviceIds, labels),
+    continueSyncNames: remoteNames(impact.usableDeviceIds),
+    stopSyncNames: remoteNames(impact.pausedDeviceIds),
+    requiresRejoinNames: remoteNames(impact.requiresRejoinDeviceIds),
   };
 }
 
@@ -133,7 +139,8 @@ export function buildDeviceTrustDecisionView(
       choiceView(
         choice,
         choice === 'applyChange' ? change.applyImpact : change.keepCurrentImpact,
-        labels
+        labels,
+        snapshot.localDeviceId
       )
     ),
   };
@@ -151,7 +158,10 @@ export function initialDeviceTrustChoice(
       return { changeId: change.changeId, choice: previousChoice };
     }
   }
-  return { changeId: change.changeId, choice: change.allowedChoices[0] ?? null };
+  return {
+    changeId: change.changeId,
+    choice: change.allowedChoices.length === 1 ? change.allowedChoices[0] ?? null : null,
+  };
 }
 
 function primaryStatus(sync: DeviceSyncRelationship): DeviceTrustPrimaryStatus {

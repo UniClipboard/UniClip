@@ -66,7 +66,24 @@
     "overlayHiddenToast": "悬浮窗已隐藏",
     "urlSchemeLabel": "显示 URL Scheme 调用",
     "updateNoLimitLabel": "更新检查不限次数",
-    "updateNoLimitDesc": "开启后每次启动均检查更新，不限每天一次"
+    "updateNoLimitDesc": "开启后每次启动均检查更新，不限每天一次",
+    "deviceTrustPreview": {
+      "label": "预览设备关系决定",
+      "description": "使用安全的示例数据打开正式弹窗",
+      "pickerTitle": "选择预览场景",
+      "pickerDescription": "预览操作只保留在本机，不会改变任何真实设备关系。",
+      "unavailable": "请先完成当前设备关系操作，再打开预览",
+      "scenarios": {
+        "standard": "两个选择均可用",
+        "singleChoice": "只有一个选择",
+        "confirmKeepCurrent": "确认保留当前设备组",
+        "confirmLeaveCurrent": "确认退出当前设备组",
+        "submitting": "正在提交",
+        "failedRetry": "失败后重试",
+        "stateChanged": "状态已在其他设备变化",
+        "longScrollable": "长名称和多设备滚动"
+      }
+    }
   },
   "stats": {
     "title": "统计信息",

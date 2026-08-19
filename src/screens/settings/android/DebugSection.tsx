@@ -20,14 +20,26 @@ import {
   Text as ComposeText,
 } from '@expo/ui/jetpack-compose';
 import {
+  clickable,
   fillMaxWidth,
   width as widthModifier,
   paddingAll,
   height as heightModifier,
+  verticalScroll,
 } from '@expo/ui/jetpack-compose/modifiers';
+import {
+  DEVICE_TRUST_PREVIEW_SCENARIOS,
+  type DeviceTrustPreviewScenarioId,
+} from '@/devtools/deviceTrustPreviewSession';
+import {
+  isDeviceTrustPreviewAvailable,
+  openDeviceTrustPreview,
+} from '@/devtools/deviceTrustPreviewCoordinator';
 import { useSettingsStore } from '@/stores';
 import { useSettingsToast } from '../SettingsToastContext';
 import { SettingsSectionItem } from '../SettingsSectionItem';
+
+const TITLE_STYLE = { typography: 'titleLarge' } as const;
 
 export const DebugSection = memo(function DebugSection() {
   const { t } = useTranslation('settingsAbout');
@@ -41,7 +53,19 @@ export const DebugSection = memo(function DebugSection() {
   );
 
   const [showStatsModal, setShowStatsModal] = useState(false);
+  const [showDeviceTrustPreviewPicker, setShowDeviceTrustPreviewPicker] = useState(false);
   const [statsText, setStatsText] = useState('');
+  const deviceTrustPreviewAvailable = isDeviceTrustPreviewAvailable();
+
+  const openDeviceTrustPreviewPicker = () => setShowDeviceTrustPreviewPicker(true);
+
+  const handleOpenDeviceTrustPreview = (scenario: DeviceTrustPreviewScenarioId) => {
+    if (!openDeviceTrustPreview(scenario)) {
+      showMessage(t('debug.deviceTrustPreview.unavailable'), 'error');
+      return;
+    }
+    setShowDeviceTrustPreviewPicker(false);
+  };
 
   const handleToggleDebugMode = async (enabled: boolean) => {
     try {
@@ -106,7 +130,7 @@ export const DebugSection = memo(function DebugSection() {
           {showStatsModal && (
             <ModalBottomSheet onDismissRequest={() => setShowStatsModal(false)}>
               <Column modifiers={[paddingAll(24), fillMaxWidth()]}>
-                <ComposeText style={{ typography: 'titleLarge' }}>{t('stats.title')}</ComposeText>
+                <ComposeText style={TITLE_STYLE}>{t('stats.title')}</ComposeText>
                 <Spacer modifiers={[heightModifier(16)]} />
                 <ComposeText>{statsText}</ComposeText>
                 <Spacer modifiers={[heightModifier(16)]} />
@@ -122,6 +146,34 @@ export const DebugSection = memo(function DebugSection() {
               </Column>
             </ModalBottomSheet>
           )}
+          {showDeviceTrustPreviewPicker && (
+            <ModalBottomSheet
+              onDismissRequest={() => setShowDeviceTrustPreviewPicker(false)}
+              properties={{ shouldDismissOnBackPress: true, shouldDismissOnClickOutside: true }}
+            >
+              <Column modifiers={[fillMaxWidth(), verticalScroll(), paddingAll(12)]}>
+                <ComposeText style={TITLE_STYLE}>
+                  {t('debug.deviceTrustPreview.pickerTitle')}
+                </ComposeText>
+                <Spacer modifiers={[heightModifier(8)]} />
+                <ComposeText>{t('debug.deviceTrustPreview.pickerDescription')}</ComposeText>
+                <Spacer modifiers={[heightModifier(12)]} />
+                {DEVICE_TRUST_PREVIEW_SCENARIOS.map((scenario) => (
+                  <ListItem
+                    key={scenario.id}
+                    modifiers={[
+                      clickable(() => handleOpenDeviceTrustPreview(scenario.id)),
+                      fillMaxWidth(),
+                    ]}
+                  >
+                    <ListItem.HeadlineContent>
+                      <ComposeText>{t(scenario.labelKey)}</ComposeText>
+                    </ListItem.HeadlineContent>
+                  </ListItem>
+                ))}
+              </Column>
+            </ModalBottomSheet>
+          )}
         </>
       }
     >
@@ -133,6 +185,20 @@ export const DebugSection = memo(function DebugSection() {
           <ComposeSwitch value={debugMode} onCheckedChange={handleToggleDebugMode} />
         </ListItem.TrailingContent>
       </ListItem>
+
+      {deviceTrustPreviewAvailable ? (
+        <>
+          <HorizontalDivider />
+          <ListItem modifiers={[clickable(openDeviceTrustPreviewPicker)]}>
+            <ListItem.HeadlineContent>
+              <ComposeText>{t('debug.deviceTrustPreview.label')}</ComposeText>
+            </ListItem.HeadlineContent>
+            <ListItem.SupportingContent>
+              <ComposeText>{t('debug.deviceTrustPreview.description')}</ComposeText>
+            </ListItem.SupportingContent>
+          </ListItem>
+        </>
+      ) : null}
 
       {debugMode && (
         <>

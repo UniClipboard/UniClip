@@ -66,7 +66,24 @@
     "overlayHiddenToast": "Overlay hidden",
     "urlSchemeLabel": "Show URL Scheme calls",
     "updateNoLimitLabel": "Unlimited update checks",
-    "updateNoLimitDesc": "When on, checks for updates on every launch instead of once a day"
+    "updateNoLimitDesc": "When on, checks for updates on every launch instead of once a day",
+    "deviceTrustPreview": {
+      "label": "Preview device relationship decision",
+      "description": "Open the real dialog with safe sample data",
+      "pickerTitle": "Choose a preview scenario",
+      "pickerDescription": "Preview actions stay on this device and do not change any real device relationship.",
+      "unavailable": "Finish the current device relationship action before opening a preview",
+      "scenarios": {
+        "standard": "Two available choices",
+        "singleChoice": "Only one available choice",
+        "confirmKeepCurrent": "Confirm keeping the current group",
+        "confirmLeaveCurrent": "Confirm leaving the current group",
+        "submitting": "Submitting",
+        "failedRetry": "Failed, ready to retry",
+        "stateChanged": "State changed elsewhere",
+        "longScrollable": "Long names and many devices"
+      }
+    }
   },
   "stats": {
     "title": "Statistics",
