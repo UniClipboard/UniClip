@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { configureAppRuntime, getAppRuntime } from '../app/runtime';
+import {
+  configureAppRuntime,
+  getAppRuntime,
+  normalizeEngineApplicationVersion,
+} from '../app/runtime';
 
 const mockStart = jest.fn(async () => undefined);
 const mockSetBackgroundSyncPolicy = jest.fn(async () => undefined);
@@ -89,6 +93,12 @@ describe('BackgroundServiceManager P2P policy', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     settingsState.isTempDisabledBackgroundTasks = false;
+  });
+
+  it('converts Android release version names to valid engine versions', () => {
+    expect(normalizeEngineApplicationVersion('2.0.0.177-alpha.2')).toBe('2.0.0-alpha.2+build.177');
+    expect(normalizeEngineApplicationVersion('2.0.0.177')).toBe('2.0.0+build.177');
+    expect(normalizeEngineApplicationVersion('2.0.0')).toBe('2.0.0');
   });
 
   it('starts the engine, refreshes space state, and recovers peer connections', async () => {

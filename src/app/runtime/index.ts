@@ -1,1 +1,6 @@
-export { AppRuntime, configureAppRuntime, getAppRuntime } from './appRuntime';
+export {
+  AppRuntime,
+  configureAppRuntime,
+  getAppRuntime,
+  normalizeEngineApplicationVersion,
+} from './appRuntime';

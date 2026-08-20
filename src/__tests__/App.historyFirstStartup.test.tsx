@@ -13,6 +13,7 @@ const mockSetHistorySort = jest.fn();
 const mockDismissStartupHistoryPreview = jest.fn();
 const mockLoadSpaceSetupCompletion = jest.fn(async () => 'unknown');
 const mockRetrySpaceSetupCompletion = jest.fn(async () => undefined);
+const mockGetInitialURL = jest.fn<Promise<string | null>, []>(async () => null);
 
 jest.mock('react-native-gesture-handler', () => ({
   GestureHandlerRootView: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -21,7 +22,7 @@ jest.mock('react-native-gesture-handler', () => ({
 jest.mock('react-native', () => ({
   StyleSheet: { create: (styles: unknown) => styles, absoluteFill: {} },
   Linking: {
-    getInitialURL: jest.fn(async () => null),
+    getInitialURL: () => mockGetInitialURL(),
     addEventListener: jest.fn(() => ({ remove: jest.fn() })),
   },
   ToastAndroid: { show: jest.fn(), LONG: 1 },
@@ -43,7 +44,9 @@ jest.mock('react-native', () => ({
 jest.mock('../contexts/ThemeContext', () => ({
   ThemeProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
-jest.mock('../navigation/AppNavigator', () => ({ AppNavigator: () => null }));
+jest.mock('../navigation/AppNavigator', () => ({
+  AppNavigator: () => require('react').createElement('AppNavigator'),
+}));
 jest.mock('../navigation/navigationRef', () => ({ navigateWhenReady: jest.fn() }));
 jest.mock('../screens/QuickTileLoadingScreen', () => ({ QuickTileLoadingScreen: () => null }));
 jest.mock('../screens/ShareReceiveRedirector', () => ({ ShareReceiveRedirector: () => null }));
@@ -126,6 +129,7 @@ describe('App history-first startup', () => {
     mockAppStateListeners = [];
     mockLoadSpaceSetupCompletion.mockResolvedValue('unknown');
     mockRetrySpaceSetupCompletion.mockResolvedValue(undefined);
+    mockGetInitialURL.mockResolvedValue(null);
   });
 
   it('configures application services before starting analytics', async () => {
@@ -146,6 +150,17 @@ describe('App history-first startup', () => {
       startPostHogAnalytics.mock.invocationCallOrder[0]
     );
     expect(mockLoadSpaceSetupCompletion).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders the home navigator while the initial URL is still pending', () => {
+    mockGetInitialURL.mockImplementation(() => new Promise(() => undefined));
+
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(<App />);
+    });
+
+    expect(renderer.root.findAllByType('AppNavigator' as never)).toHaveLength(1);
   });
 
   it('starts services as soon as settings load, and maintenance after the first history page is ready', async () => {

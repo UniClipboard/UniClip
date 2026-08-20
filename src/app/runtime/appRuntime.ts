@@ -22,6 +22,14 @@ import type { EngineEvent, UnifiedEngineService } from '@/platform/engine';
 
 const log = createLogger('AppRuntime');
 
+export function normalizeEngineApplicationVersion(version: string): string {
+  const androidRelease = version.match(/^(\d+\.\d+\.\d+)\.(\d+)(-[0-9A-Za-z.-]+)?$/);
+  if (!androidRelease) return version;
+
+  const [, marketingVersion, buildNumber, prerelease = ''] = androidRelease;
+  return `${marketingVersion}${prerelease}+build.${buildNumber}`;
+}
+
 export function isDeviceListRefreshEvent(event: EngineEvent): boolean {
   return (
     event.type === 'refreshRequired' ||
@@ -209,8 +217,9 @@ export class AppRuntime {
     const service = this.dependencies.engine();
     const startedAt = Date.now();
     log.info('Starting native P2P engine');
+    const applicationVersion = this.dependencies.applicationVersion() ?? 'unknown';
     await service.start({
-      appVersion: this.dependencies.applicationVersion() ?? 'unknown',
+      appVersion: normalizeEngineApplicationVersion(applicationVersion),
       profileId: 'default',
     });
     log.info(`Native P2P engine started in ${Date.now() - startedAt}ms`);

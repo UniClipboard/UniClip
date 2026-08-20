@@ -76,10 +76,7 @@ function isShareIntentUrl(url: string | null): boolean {
   }
 }
 
-type AppMode = 'checking' | 'home';
-
 export default function App() {
-  const [appMode, setAppMode] = useState<AppMode>('checking');
   // 快速操作覆盖层：始终以 overlay 形式显示，不卸载 AppNavigator/HomeScreen
   const [shareReceiveOverlay, setShareReceiveOverlay] = useState<number | null>(null);
   const [processTextOverlay, setProcessTextOverlay] = useState<string | null>(null);
@@ -244,25 +241,20 @@ export default function App() {
         ToastAndroid.show(`getInitialURL: ${debugUrlLabel(url)}`, ToastAndroid.LONG);
       }
       if (isShareIntentUrl(url)) {
-        setAppMode('home');
         setShareReceiveOverlay(useShareSheetStore.getState().beginParsing());
         return;
       }
       if (isShareUrl(url)) {
         // iOS 哑扩展暂存完成后的唤醒:打开分享弹层(冷启动)
-        setAppMode('home');
         useShareSheetStore.getState().open();
         return;
       }
       const processText = parseProcessTextUrl(url);
       if (processText) {
-        setAppMode('home');
         setProcessTextOverlay(processText);
         return;
       }
       const { isQuickUpload, fromForeground } = parseQuickUploadUrl(url);
-      // 始终进入 home 模式（挂载 AppNavigator/HomeScreen 以启动后台任务）
-      setAppMode('home');
       if (isQuickUpload) {
         // fg=1 完成后留在 app，fg=0/无fg 完成后退出
         setQuickActionOverlay({ exitAfterSync: !fromForeground });
@@ -303,7 +295,7 @@ export default function App() {
       <ThemeProvider>
         <ThemedStatusBar />
         <DeviceTrustNotificationObserver />
-        {appMode === 'checking' ? null : <AppNavigator />}
+        <AppNavigator />
         {shareReceiveOverlay !== null && (
           <View style={StyleSheet.absoluteFill}>
             <ShareReceiveRedirector
