@@ -207,6 +207,7 @@ public final class UcEngineModule: Module {
       )
       return [
         "hasCompleted": result.hasCompleted,
+        "rePairingRequired": result.rePairingRequired,
         "spaceId": result.spaceId,
         "currentInvitation": result.currentInvitation.map {
           ["invitationCode": $0.invitationCode, "expiresAtMs": $0.expiresAtMs]
@@ -569,6 +570,11 @@ public final class UcEngineModule: Module {
       ]
     case .deviceTrustChanged(let revision):
       return ["type": "deviceTrustChanged", "revision": revision]
+    case .rePairingRequired(let scope):
+      let scopeName = switch scope {
+      case .allDevices: "allDevices"
+      }
+      return ["type": "rePairingRequired", "scope": scopeName]
     case .networkRecoveryChanged(let phase, let retryable, let nextRetryInMs):
       return [
         "type": "networkRecoveryChanged",

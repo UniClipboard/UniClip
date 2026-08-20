@@ -86,6 +86,7 @@ export interface SpaceInvitation {
 
 export interface SpaceState {
   hasCompleted: boolean;
+  rePairingRequired: boolean;
   spaceId: string | null;
   currentInvitation: SpaceInvitation | null;
   deviceName: string | null;
@@ -217,6 +218,7 @@ export type EngineEvent =
       activatedBy: string;
     }
   | { type: 'deviceTrustChanged'; revision: number }
+  | { type: 'rePairingRequired'; scope: 'allDevices' }
   | {
       type: 'networkRecoveryChanged';
       phase: string;

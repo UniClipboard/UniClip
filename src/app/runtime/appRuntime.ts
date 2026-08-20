@@ -384,7 +384,7 @@ export class AppRuntime {
   private _subscribeToEngineEvents(): void {
     if (this.engineEventsUnsub) return;
     this.engineEventsUnsub = this.dependencies.engine().subscribeEvents((event) => {
-      if (event.type === 'deviceTrustChanged') {
+      if (event.type === 'deviceTrustChanged' || event.type === 'rePairingRequired') {
         if (this.currentAppState !== 'active') return;
         this.dependencies
           .space()

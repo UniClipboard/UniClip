@@ -298,6 +298,7 @@ export class UnifiedEngineService {
       case 'transferStatusChanged':
       case 'activeClipboardChanged':
       case 'deviceTrustChanged':
+      case 'rePairingRequired':
       case 'networkRecoveryChanged':
         this.updateSnapshot({
           lastEvent: event,

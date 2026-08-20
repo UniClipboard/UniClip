@@ -126,6 +126,21 @@ describe('unified P2P engine native module', () => {
     expect(kotlin).toContain('"revision" to event.revision.toLong()');
   });
 
+  it('maps the re-pairing state and event on both native platforms', () => {
+    const javascript = read('src/index.ts');
+    const swift = read('ios/UcEngineModule.swift');
+    const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
+
+    expect(javascript).toContain('rePairingRequired: boolean');
+    expect(javascript).toContain("type: 'rePairingRequired'; scope: 'allDevices'");
+    expect(swift).toContain('"rePairingRequired": result.rePairingRequired');
+    expect(swift).toContain('case .rePairingRequired(let scope):');
+    expect(swift).toContain('"type": "rePairingRequired"');
+    expect(kotlin).toContain('"rePairingRequired" to result.rePairingRequired');
+    expect(kotlin).toContain('is BindingEvent.RePairingRequired -> mapOf(');
+    expect(kotlin).toContain('"type" to "rePairingRequired"');
+  });
+
   it('maps detailed clipboard, delivery, transfer, and presence events on both platforms', () => {
     const javascript = read('src/index.ts');
     const swift = read('ios/UcEngineModule.swift');

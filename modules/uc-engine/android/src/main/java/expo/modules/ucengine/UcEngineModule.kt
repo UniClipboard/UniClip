@@ -45,6 +45,7 @@ import uniffi.uc_engine_uniffi.BindingFailure
 import uniffi.uc_engine_uniffi.BindingFileMetadata
 import uniffi.uc_engine_uniffi.BindingHost
 import uniffi.uc_engine_uniffi.BindingLifecycleAction
+import uniffi.uc_engine_uniffi.BindingRePairingScope
 import uniffi.uc_engine_uniffi.DeviceTrustChoice
 import uniffi.uc_engine_uniffi.EntryNotResendableReason
 import uniffi.uc_engine_uniffi.HostBindingException
@@ -452,6 +453,7 @@ class UcEngineModule : Module() {
       )
       mapOf(
         "hasCompleted" to result.hasCompleted,
+        "rePairingRequired" to result.rePairingRequired,
         "spaceId" to result.spaceId,
         "currentInvitation" to result.currentInvitation?.let {
           mapOf("invitationCode" to it.invitationCode, "expiresAtMs" to it.expiresAtMs)
@@ -749,6 +751,12 @@ class UcEngineModule : Module() {
     is BindingEvent.DeviceTrustChanged -> mapOf(
       "type" to "deviceTrustChanged",
       "revision" to event.revision.toLong()
+    )
+    is BindingEvent.RePairingRequired -> mapOf(
+      "type" to "rePairingRequired",
+      "scope" to when (event.scope) {
+        BindingRePairingScope.ALL_DEVICES -> "allDevices"
+      }
     )
     is BindingEvent.NetworkRecoveryChanged -> mapOf(
       "type" to "networkRecoveryChanged",

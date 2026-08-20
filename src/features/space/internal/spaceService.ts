@@ -29,6 +29,7 @@ export type { UnifiedSpaceSnapshot } from '../store';
 
 export interface CoreSpaceState {
   hasCompleted: boolean;
+  rePairingRequired?: boolean;
   spaceId: string | null;
   currentInvitation: SpaceInvitation | null;
   deviceName: string | null;
@@ -392,9 +393,11 @@ export class UnifiedSpaceService {
     }
     try {
       const state = await this.runRefreshStep('querySpaceState', () => this.api.querySpaceState());
-      await this.completion.resolveFromCore(Boolean(state.hasCompleted && state.spaceId));
+      await this.completion.resolveFromCore(
+        Boolean(state.hasCompleted && !state.rePairingRequired && state.spaceId)
+      );
       if (!this.canPublishRefresh(revision)) return this.snapshot;
-      if (!state.hasCompleted || !state.spaceId) {
+      if (!state.hasCompleted || state.rePairingRequired || !state.spaceId) {
         return this.publishNoCurrentSpace();
       }
       const [devicesResult, deviceTrustQuery] = await Promise.all([
@@ -1020,8 +1023,10 @@ export class UnifiedSpaceService {
   private async readPostOperationSpace(): Promise<PostOperationSpaceRead> {
     try {
       const state = await this.runRefreshStep('querySpaceState', () => this.api.querySpaceState());
-      await this.completion.resolveFromCore(Boolean(state.hasCompleted && state.spaceId));
-      if (!state.hasCompleted || !state.spaceId) {
+      await this.completion.resolveFromCore(
+        Boolean(state.hasCompleted && !state.rePairingRequired && state.spaceId)
+      );
+      if (!state.hasCompleted || state.rePairingRequired || !state.spaceId) {
         return {
           kind: 'empty',
           devices: { kind: 'ready', devices: [] },

@@ -183,6 +183,25 @@ function createServiceWithCompletion(
 }
 
 describe('UnifiedSpaceService', () => {
+  it('returns to setup when Engine requires every device to pair again', async () => {
+    const api = createApi({
+      querySpaceState: jest.fn(async () => ({
+        hasCompleted: true,
+        rePairingRequired: true,
+        spaceId: 'legacy-space',
+        currentInvitation: null,
+        deviceName: 'Phone',
+      })),
+    });
+    const service = new UnifiedSpaceService(api);
+
+    await service.refresh();
+
+    expect(service.getSnapshot().status).toBe('empty');
+    expect(service.getSnapshot().spaceId).toBeNull();
+    expect(api.listDevices).not.toHaveBeenCalled();
+  });
+
   it('loads the complete device trust snapshot during a full refresh', async () => {
     const snapshots: UnifiedSpaceSnapshot[] = [];
     const trust = deviceTrustSnapshot(4, 'pending-4');

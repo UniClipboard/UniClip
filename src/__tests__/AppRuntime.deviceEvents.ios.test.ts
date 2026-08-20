@@ -154,6 +154,17 @@ describe('AppRuntime device list refresh routing on iOS', () => {
     expect(mockSpaceRefreshDevices).not.toHaveBeenCalled();
   });
 
+  it('refreshes the complete space snapshot when re-pairing is required', async () => {
+    await getAppRuntime().start();
+
+    emit({ type: 'rePairingRequired', scope: 'allDevices' });
+    await flushMicrotasks();
+
+    expect(mockSpaceRefresh).toHaveBeenCalledTimes(2);
+    expect(mockSpaceRefresh).toHaveBeenLastCalledWith({ afterInvalidation: true });
+    expect(mockSpaceRefreshDevices).not.toHaveBeenCalled();
+  });
+
   it('does not refresh devices for content, clipboard, transfer, or unrelated changed events', async () => {
     await getAppRuntime().start();
 
