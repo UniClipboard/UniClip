@@ -245,7 +245,14 @@ In GitHub Actions, open `build`, choose **Run workflow** on `main`, enable
 4. Uploads the same validated iOS artifact to TestFlight.
 5. Publishes a GitHub Release with the `arm64-v8a` APK supported by the unified
    engine release.
-6. Uploads the Android APK and update manifest to Cloudflare R2.
+6. Uploads the immutable Android APK to Cloudflare R2 and registers a Ready release in FlareRelease.
+7. Leaves Stable and Beta unchanged until a maintainer explicitly promotes the release in FlareRelease.
+
+FlareRelease registration uses the `UniClipboard` organization's
+`FLARE_RELEASE_ACCESS_CLIENT_ID` and `FLARE_RELEASE_ACCESS_CLIENT_SECRET`
+GitHub Actions secrets. The organization secrets must grant this repository
+access. Registration never selects a channel; release approval and channel
+changes remain explicit operations in FlareRelease.
 
 Directly pushing a `v*` tag does not publish a release. If a publishing job
 fails after the tag was created, use **Re-run failed jobs** on the same Actions

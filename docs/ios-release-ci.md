@@ -13,11 +13,11 @@ manual iOS dev build   ──▶ build-ios (optional TestFlight upload)
 manual full release    ──▶ validate + both builds ──▶ create tag ──▶ release
 ```
 
-| Workflow            | Runs on                       | Does                                                                                                                 |
-| ------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `android-build.yml` | every push / manual release   | Build release APKs (all ABIs) → artifacts                                                                            |
-| `build-ios.yml`     | manual dev build / release    | Prepare the pinned unified engine, prebuild, archive, export a **distribution-signed `.ipa`** → artifact (no upload) |
-| `release.yml`       | validated manual release only | Upload the `.ipa` to **TestFlight**; publish APKs to **GitHub Release** and **Cloudflare R2**                        |
+| Workflow            | Runs on                       | Does                                                                                                                                |
+| ------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `android-build.yml` | every push / manual release   | Build release APKs (all ABIs) → artifacts                                                                                           |
+| `build-ios.yml`     | manual dev build / release    | Prepare the pinned unified engine, prebuild, archive, export a **distribution-signed `.ipa`** → artifact (no upload)                |
+| `release.yml`       | validated manual release only | Upload the `.ipa` to **TestFlight**; publish APKs to **GitHub Release** and **Cloudflare R2**; register Android in **FlareRelease** |
 
 All publishing lives in `release.yml`, so a failed lint / test / iOS build
 blocks the GitHub release, R2 upload, and TestFlight upload.

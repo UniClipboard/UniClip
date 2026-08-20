@@ -46,6 +46,10 @@ const androidManifestScript = readFileSync(
   join(root, 'scripts', 'assemble-android-manifest.mjs'),
   'utf8'
 );
+const flareReleaseRegistrationScript = readFileSync(
+  join(root, 'scripts', 'build-flare-release-registration.mjs'),
+  'utf8'
+);
 const testWorkflow = readFileSync(join(root, '.github', 'workflows', 'test.yml'), 'utf8');
 const eslintConfig = readFileSync(join(root, 'eslint.config.mjs'), 'utf8');
 const prettierIgnore = readFileSync(join(root, '.prettierignore'), 'utf8');
@@ -164,6 +168,17 @@ describe('validated release workflow', () => {
 
   it('publishes Android updates only to R2 and GitHub', () => {
     expect(releaseWorkflow).not.toMatch(/gitee/i);
+  });
+
+  it('registers Android releases with FlareRelease without changing a channel', () => {
+    expect(releaseWorkflow).toContain('build-flare-release-registration.mjs');
+    expect(releaseWorkflow).toContain('/api/releases/register');
+    expect(releaseWorkflow).toContain('FLARE_RELEASE_ACCESS_CLIENT_ID');
+    expect(releaseWorkflow).toContain('FLARE_RELEASE_ACCESS_CLIENT_SECRET');
+    expect(releaseWorkflow).not.toContain('uniclipboard-releases/android/${channel}.json');
+    expect(releaseWorkflow).not.toContain('/api/channels/');
+    expect(flareReleaseRegistrationScript).toContain("product: 'android'");
+    expect(flareReleaseRegistrationScript).not.toMatch(/channel\s*:/);
   });
 
   it('publishes localized TestFlight notes', () => {
