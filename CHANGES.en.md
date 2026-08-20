@@ -1,3 +1,22 @@
+v2.0.0.177-alpha.2
+
+### Common
+
+- Feature: Present clearer choices and outcomes when device trust changes
+- Improvement: Preserve pending and rejected space-join outcomes instead of entering the app incorrectly
+- Fix: Return legacy spaces that can no longer be used safely to pairing and require re-pairing
+- Fix: Make the legacy upgrade guide and platform UI boundaries more reliable
+
+### iOS
+
+- Fix: Add reliable content identification when sharing images so image cards can sync
+- Fix: Stop keyboard synchronization before suspension to reduce background failures
+- Improvement: Bound diagnostic archive size and redact sensitive information
+
+### Android
+
+- Improvement: Refresh and display device trust and space state correctly
+
 v2.0.0.176-alpha.1
 
 ### Common
