@@ -365,14 +365,21 @@ describe('unified P2P engine native module', () => {
       sourceCommit: string;
       artifactSource?: string;
       sourceStateSha256?: string;
+      releaseManifestSha256?: string;
+      swiftPackageChecksum?: string;
       artifacts: Record<string, string>;
     };
 
     expect(pin.repository).toBe('UniClipboard/Engine');
     expect(pin.version).toMatch(/^v\d+\.\d+\.\d+(?:-[a-z0-9.]+)?$/);
     expect(pin.sourceCommit).toMatch(/^[a-f0-9]{40}$/);
-    expect(pin.artifactSource).toBe('local-build');
-    expect(pin.sourceStateSha256).toMatch(/^[a-f0-9]{64}$/);
+    if (pin.artifactSource === 'local-build') {
+      expect(pin.sourceStateSha256).toMatch(/^[a-f0-9]{64}$/);
+    } else {
+      expect(pin.artifactSource).toBeUndefined();
+      expect(pin.releaseManifestSha256).toMatch(/^[a-f0-9]{64}$/);
+      expect(pin.swiftPackageChecksum).toBe(pin.artifacts['UniClipboardEngine.xcframework.zip']);
+    }
     for (const artifact of [
       'UniClipboardEngine.aar',
       'UniClipboardEngine.pom',
@@ -381,6 +388,18 @@ describe('unified P2P engine native module', () => {
       'uc_engine_uniffi.swift',
     ]) {
       expect(pin.artifacts[artifact]).toMatch(/^[a-f0-9]{64}$/);
+    }
+
+    if (pin.artifactSource !== 'local-build') {
+      for (const artifact of [
+        'UniClipboardEngine.aar.checksum.txt',
+        'UniClipboardEngine.xcframework.checksum.txt',
+        'UniClipboardEngine.xcframework.zip',
+        'source-commit.txt',
+        'version.txt',
+      ]) {
+        expect(pin.artifacts[artifact]).toMatch(/^[a-f0-9]{64}$/);
+      }
     }
   });
 });
