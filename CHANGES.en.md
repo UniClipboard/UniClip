@@ -1,3 +1,13 @@
+v2.0.0.179-alpha.3
+
+### Common
+
+- Improvement: Update the sync engine to v1.1.0-rc.5 for compatibility with newer devices
+
+### Android
+
+- Fix: Prevent an occasional white screen when opening the app for the first time
+
 v2.0.0.177-alpha.2
 
 ### Common
