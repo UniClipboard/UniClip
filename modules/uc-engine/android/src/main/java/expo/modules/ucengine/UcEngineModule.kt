@@ -46,7 +46,6 @@ import uniffi.uc_engine_uniffi.BindingFileMetadata
 import uniffi.uc_engine_uniffi.BindingHost
 import uniffi.uc_engine_uniffi.BindingLifecycleAction
 import uniffi.uc_engine_uniffi.BindingRePairingScope
-import uniffi.uc_engine_uniffi.DeviceTrustChoice
 import uniffi.uc_engine_uniffi.EntryNotResendableReason
 import uniffi.uc_engine_uniffi.HostBindingException
 import uniffi.uc_engine_uniffi.InvitationAvailability
@@ -58,6 +57,9 @@ import uniffi.uc_engine_uniffi.SendReport
 import uniffi.uc_engine_uniffi.WorkspaceConvergence
 import uniffi.uc_engine_uniffi.WorkspaceConvergenceFailureCategory
 import uniffi.uc_engine_uniffi.WorkspaceConvergencePhase
+import uniffi.uc_engine_uniffi.BindingObservabilityConfig
+import uniffi.uc_engine_uniffi.BindingDeploymentEnvironment
+import uniffi.uc_engine_uniffi.installProcessObservability
 import uniffi.uc_engine_uniffi.coreVersion
 
 private fun uriListFile(
@@ -304,12 +306,23 @@ class UcEngineModule : Module() {
       val registry = FileHandleRegistry(context)
       val appVersion = config["appVersion"] ?: "unknown"
       val analytics = analyticsHost(context, appVersion)
+      val host = AndroidEngineHost(context, registry)
+      installProcessObservability(
+        BindingObservabilityConfig(
+          serviceVersion = appVersion,
+          environment = if (BuildConfig.DEBUG) BindingDeploymentEnvironment.DEVELOPMENT else BindingDeploymentEnvironment.PRODUCTION,
+          appChannel = analyticsContext().appChannel,
+          remoteDiagnosticsEnabled = false,
+          collector = null
+        ),
+        host
+      )
       val started = MobileEngine.startWithAnalytics(
         BindingConfig(
           appVersion,
           config["profileId"] ?: "default"
         ),
-        AndroidEngineHost(context, registry),
+        host,
         analytics,
         analyticsContext()
       )
@@ -376,6 +389,7 @@ class UcEngineModule : Module() {
       }
       mapOf(
         "invitationCode" to result.invitationCode,
+        "fullInvitation" to result.fullInvitation,
         "expiresAtMs" to result.expiresAtMs,
         "availability" to availability
       )
@@ -392,6 +406,7 @@ class UcEngineModule : Module() {
       when (result) {
         is JoinSpaceStatus.Active -> mapOf(
           "type" to "active",
+          "peerUpgradeRequired" to result.peerUpgradeRequired,
           "joinId" to result.joinId,
           "joinedSpace" to mapOf(
             "sponsorDeviceId" to result.joinedSpace.sponsorDeviceId,
@@ -405,6 +420,7 @@ class UcEngineModule : Module() {
         )
         is JoinSpaceStatus.Pending -> mapOf(
           "type" to "pending",
+          "peerUpgradeRequired" to result.peerUpgradeRequired,
           "joinId" to result.joinId,
           "targetSpaceId" to result.targetSpaceId,
           "sponsorDeviceId" to result.sponsorDeviceId,
@@ -456,7 +472,7 @@ class UcEngineModule : Module() {
         "rePairingRequired" to result.rePairingRequired,
         "spaceId" to result.spaceId,
         "currentInvitation" to result.currentInvitation?.let {
-          mapOf("invitationCode" to it.invitationCode, "expiresAtMs" to it.expiresAtMs)
+          mapOf("invitationCode" to it.invitationCode, "fullInvitation" to it.fullInvitation, "expiresAtMs" to it.expiresAtMs)
         },
         "deviceName" to result.deviceName
       )
@@ -478,11 +494,11 @@ class UcEngineModule : Module() {
       Log.i("UcEngine", "space_read operation=listDevices outcome=success deviceCount=${devices.size}")
       devices
     }
-    AsyncFunction("queryDeviceTrust") {
+    AsyncFunction("queryDeviceGroupChoices") {
       try {
         mapOf(
           "ok" to true,
-          "value" to runSpaceRead("queryDeviceTrust") { requireEngine().queryDeviceTrust() }
+          "value" to runSpaceRead("queryDeviceGroupChoices") { requireEngine().queryDeviceGroupChoices() }
         )
       } catch (error: Throwable) {
         when (error) {
@@ -494,13 +510,10 @@ class UcEngineModule : Module() {
         }
       }
     }
-    AsyncFunction("decideDeviceTrustChange") {
-      changeId: String, choice: String, confirmLocalRemoval: Boolean ->
-      requireEngine().decideDeviceTrustChange(
-        changeId,
-        deviceTrustChoice(choice),
-        confirmLocalRemoval
-      )
+    AsyncFunction("chooseDeviceGroup") {
+      issueId: String, choiceId: String, expectedRevision: Long, confirmLocalRemoval: Boolean ->
+      require(expectedRevision >= 0) { "Invalid device group revision" }
+      requireEngine().chooseDeviceGroup(issueId, choiceId, expectedRevision.toULong(), confirmLocalRemoval)
     }
     AsyncFunction("removeMember") { deviceId: String ->
       val engine = requireEngine()
@@ -770,12 +783,6 @@ class UcEngineModule : Module() {
   private fun lifecycleActionName(action: BindingLifecycleAction): String = when (action) {
     BindingLifecycleAction.SUSPEND -> "suspend"
     BindingLifecycleAction.RESUME -> "resume"
-  }
-
-  private fun deviceTrustChoice(value: String): DeviceTrustChoice = when (value) {
-    "applyChange" -> DeviceTrustChoice.APPLY_CHANGE
-    "keepCurrentDeviceGroup" -> DeviceTrustChoice.KEEP_CURRENT_DEVICE_GROUP
-    else -> throw UcEngineInvalidInputException()
   }
 
   private fun stateName(state: BindingEngineState): String = when (state) {

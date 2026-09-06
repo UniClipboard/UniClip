@@ -28,6 +28,24 @@ private func analyticsContext() -> BindingAnalyticsContext {
   )
 }
 
+private func installEngineObservability(appVersion: String, host: AppleEngineHost) throws {
+  #if DEBUG
+    let environment = BindingDeploymentEnvironment.development
+  #else
+    let environment = BindingDeploymentEnvironment.production
+  #endif
+  _ = try installProcessObservability(
+    config: BindingObservabilityConfig(
+      serviceVersion: appVersion,
+      environment: environment,
+      appChannel: analyticsContext().appChannel,
+      remoteDiagnosticsEnabled: false,
+      collector: nil
+    ),
+    host: host
+  )
+}
+
 public final class MainApplicationEngineHost: @unchecked Sendable {
   private let files = AppleFileHandleRegistry()
   private let ownershipStateLock = NSLock()
@@ -48,6 +66,7 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
     )
     do {
       let host = try AppleEngineHost(files: files, storageMode: .mainApplication)
+      try installEngineObservability(appVersion: appVersion, host: host)
       startupLog.info("Starting core engine")
       let analytics = try analyticsHost(appVersion: appVersion)
       let engine = try MobileEngine.startWithAnalytics(
@@ -206,6 +225,7 @@ public final class ExtensionP2pClient: @unchecked Sendable {
       var analytics: ApplePostHogAnalyticsHost?
       let engine = try controller.lifecycle.startEngine {
         let host = try AppleEngineHost(files: files, storageMode: .extensionHost)
+        try installEngineObservability(appVersion: appVersion, host: host)
         let createdAnalytics = try ApplePostHogAnalyticsHost(appVersion: appVersion)
         analytics = createdAnalytics
         return try MobileEngine.startWithAnalytics(

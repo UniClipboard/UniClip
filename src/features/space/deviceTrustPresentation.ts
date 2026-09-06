@@ -33,6 +33,8 @@ export type DeviceTrustPrimaryStatus =
 
 export interface DeviceTrustChoiceView {
   choice: DeviceTrustChoice;
+  isCurrentGroup?: boolean;
+  membersComplete?: boolean;
   exitsCurrentSpace: boolean;
   continueSyncNames: string[];
   stopSyncNames: string[];
@@ -41,6 +43,8 @@ export interface DeviceTrustChoiceView {
 
 export interface DeviceTrustDecisionView {
   changeId: string;
+  isGroupChoice?: boolean;
+  reviewId?: string;
   sourceName: string;
   targetNames: string[];
   choices: DeviceTrustChoiceView[];
@@ -128,6 +132,42 @@ function choiceView(
 export function buildDeviceTrustDecisionView(
   snapshot: DeviceTrustSnapshot | null
 ): DeviceTrustDecisionView | null {
+  const issue = snapshot?.groupChoices?.issues[0];
+  if (snapshot?.groupChoices) {
+    if (!issue) return null;
+    const labels = displayNames(snapshot);
+    return {
+      changeId: issue.issueId,
+      reviewId: JSON.stringify([issue.issueId, snapshot.groupChoices.revision]),
+      isGroupChoice: true,
+      sourceName: '',
+      targetNames: [],
+      choices: issue.choices.map((option) => ({
+        choice: option.choiceId,
+        isCurrentGroup: option.isCurrentGroup,
+        membersComplete: option.membersComplete,
+        exitsCurrentSpace: option.requiresRePairing,
+        continueSyncNames: names(
+          option.memberDeviceIds.filter((id) => id !== snapshot.localDeviceId),
+          labels
+        ),
+        stopSyncNames: option.membersComplete
+          ? names(
+              snapshot.devices
+                .filter(
+                  (device) =>
+                    !device.isLocal &&
+                    device.membership !== 'removed' &&
+                    !option.memberDeviceIds.includes(device.deviceId)
+                )
+                .map((device) => device.deviceId),
+              labels
+            )
+          : [],
+        requiresRejoinNames: [],
+      })),
+    };
+  }
   const change = snapshot?.currentChange;
   if (!snapshot || !change) return null;
   const labels = displayNames(snapshot);
@@ -151,16 +191,19 @@ export function initialDeviceTrustChoice(
   previousChangeId: string | null,
   previousChoice: DeviceTrustChoice | null
 ): { changeId: string | null; choice: DeviceTrustChoice | null } {
-  const change = snapshot?.currentChange;
-  if (!change) return { changeId: null, choice: null };
-  if (change.changeId === previousChangeId && previousChoice) {
-    if (change.allowedChoices.includes(previousChoice)) {
-      return { changeId: change.changeId, choice: previousChoice };
-    }
+  const view = buildDeviceTrustDecisionView(snapshot);
+  if (!view) return { changeId: null, choice: null };
+  const reviewId = view.reviewId ?? view.changeId;
+  if (
+    reviewId === previousChangeId &&
+    previousChoice &&
+    view.choices.some((choice) => choice.choice === previousChoice)
+  ) {
+    return { changeId: reviewId, choice: previousChoice };
   }
   return {
-    changeId: change.changeId,
-    choice: change.allowedChoices.length === 1 ? change.allowedChoices[0] ?? null : null,
+    changeId: reviewId,
+    choice: view.choices.length === 1 ? view.choices[0]?.choice ?? null : null,
   };
 }
 
@@ -206,7 +249,7 @@ export function buildDeviceTrustDeviceViews(
     }));
   }
   const labels = displayNames(snapshot);
-  const hasPendingDecision = snapshot.currentChange !== null;
+  const hasPendingDecision = buildDeviceTrustDecisionView(snapshot) !== null;
   return snapshot.devices
     .filter(
       (device) =>
@@ -225,8 +268,12 @@ export function buildDeviceTrustDeviceViews(
       groupRelationship: device.groupRelationship,
       compatibility: device.compatibility,
       syncRelationship: device.syncRelationship,
-      primaryStatus: primaryStatus(device.syncRelationship),
-      canSync: device.syncRelationship === 'usable',
+      primaryStatus:
+        device.groupRelationship === 'confirmationPending'
+          ? 'updating'
+          : primaryStatus(device.syncRelationship),
+      canSync:
+        device.groupRelationship !== 'confirmationPending' && device.syncRelationship === 'usable',
       canRemove:
         !device.isLocal &&
         device.membership === 'active' &&
@@ -266,8 +313,7 @@ export function buildSpaceOverviewView(
 ): SpaceOverviewView {
   const snapshot = deviceTrustSnapshotFromQuery(query);
   const devices = buildCurrentSpaceDeviceViews(query, rosterDevices, operationState);
-  const hasPendingDecision =
-    snapshot?.currentChange !== null && snapshot?.currentChange !== undefined;
+  const hasPendingDecision = buildDeviceTrustDecisionView(snapshot) !== null;
   const isRefreshing = query.kind === 'loading' || deviceListRefreshStatus === 'refreshing';
   let primaryStatus: SpaceOverviewPrimaryStatus;
 
@@ -294,7 +340,10 @@ export function buildSpaceOverviewView(
     )
   ) {
     primaryStatus = 'updateRequired';
-  } else if (operationState.kind === 'submitting') {
+  } else if (
+    operationState.kind === 'submitting' ||
+    devices.some((device) => device.groupRelationship === 'confirmationPending')
+  ) {
     primaryStatus = 'updating';
   } else if (isRefreshing || spaceStatus === 'loading' || query.kind === 'idle') {
     primaryStatus = 'refreshing';

@@ -212,3 +212,27 @@ describe('global device trust decision UI', () => {
     );
   });
 });
+
+describe('rc.6 group choice presentation', () => {
+  it.each(['ios', 'android'])(
+    'keeps unknown members and unfinished outcomes explicit on %s',
+    (platform) => {
+      const source = readFileSync(
+        join(process.cwd(), `src/components/DeviceTrustDecision.${platform}.tsx`),
+        'utf8'
+      );
+      expect(source).toContain('membersUnknown');
+      expect(source).toContain('decision.pending');
+      expect(source).toContain('choice.isCurrentGroup');
+      expect(source).toContain('groupChoiceBody');
+    }
+  );
+});
+
+it('gives new device-list choices enough room for unfinished-state explanations', () => {
+  expect(read('components/DeviceTrustDecision.ios.tsx')).toContain('view.isGroupChoice === true');
+});
+
+it('does not show a success checkmark for unknown device-list membership', () => {
+  expect(read('components/DeviceTrustDecision.ios.tsx')).toContain("? 'questionmark.circle.fill'");
+});

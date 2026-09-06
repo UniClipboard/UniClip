@@ -88,7 +88,8 @@
       "expired": "This invitation has expired",
       "finishLater": "Finish later",
       "thisDevice": "This device",
-      "otherDevice": "Other device"
+      "otherDevice": "Other device",
+      "peerUpgradeRequired": "Joined. Update UniClip on the other devices to continue syncing."
     },
     "status": {
       "ready": "Space is ready",
@@ -249,6 +250,14 @@
         "removed": "Removed",
         "usable": "Available",
         "unknown": "Status unavailable"
+      },
+      "groupChoiceBody": "Choose which device group this phone should use.",
+      "currentGroup": "Keep current device group",
+      "otherGroup": "Device group {{number}}",
+      "membersUnknown": "The full membership of this group is not yet confirmed.",
+      "rePairingBody": "A new invitation will be needed to join again and resume syncing.",
+      "decision": {
+        "pending": "Your choice was submitted. Waiting for the other devices to confirm."
       }
     },
     "convergence": {
@@ -289,11 +298,18 @@
       "invitationRejected": "The other device did not accept this invitation",
       "serviceUnavailable": "The connection service is unavailable. Try again later",
       "connectionLost": "The connection was interrupted. Try again",
-      "operationFailed": "The operation failed. Check your input and try again."
+      "operationFailed": "The operation failed. Check your input and try again.",
+      "peerUpgradeRequired": "Update UniClip on the other device, then try again."
     },
-    "manage": { "title": "Space actions" },
-    "advanced": { "title": "Advanced" },
-    "danger": { "title": "Danger zone" }
+    "manage": {
+      "title": "Space actions"
+    },
+    "advanced": {
+      "title": "Advanced"
+    },
+    "danger": {
+      "title": "Danger zone"
+    }
   },
   "lan": {
     "title": "Connection settings",

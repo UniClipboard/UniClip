@@ -46,6 +46,7 @@ interface AddSyncConnectionFlowState {
   invitationExpired: boolean;
   invitationTimeRemaining: string;
   remoteDeviceName: string | null;
+  peerUpgradeRequired: boolean;
 }
 
 interface AddSyncConnectionFlowActions {
@@ -84,6 +85,7 @@ function canReplaceCurrentSpace(): boolean {
   return (
     state.deviceTrustQuery.kind === 'ready' &&
     state.deviceTrustQuery.snapshot.currentChange === null &&
+    !state.deviceTrustQuery.snapshot.groupChoices?.issues.length &&
     state.operationState.kind === 'idle'
   );
 }
@@ -106,6 +108,7 @@ export function useAddSyncConnectionFlow({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [peerUpgradeRequired, setPeerUpgradeRequired] = useState(false);
   const [nowMs, setNowMs] = useState(Date.now());
   const mountedRef = useRef(true);
   const remoteDeviceName = useUnifiedSpaceStore(
@@ -126,6 +129,7 @@ export function useAddSyncConnectionFlow({
     setInvitation(null);
     setError(null);
     setCopied(false);
+    setPeerUpgradeRequired(false);
   };
 
   useEffect(() => {
@@ -232,12 +236,13 @@ export function useAddSyncConnectionFlow({
     setPending(true);
     setError(null);
     try {
-      await getUnifiedSpaceService().joinSpace(
+      const joined = await getUnifiedSpaceService().joinSpace(
         formatInvitationCode(invitationCode),
         deviceName,
         passphrase,
         false
       );
+      setPeerUpgradeRequired(joined.peerUpgradeRequired === true);
       setMode('success');
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (cause) {
@@ -255,8 +260,9 @@ export function useAddSyncConnectionFlow({
               setError(null);
               void getUnifiedSpaceService()
                 .joinSpace(formatInvitationCode(invitationCode), deviceName, passphrase, true)
-                .then(() => {
+                .then((joined) => {
                   if (!mountedRef.current) return;
+                  setPeerUpgradeRequired(joined.peerUpgradeRequired === true);
                   setMode('success');
                   void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 })
@@ -312,6 +318,7 @@ export function useAddSyncConnectionFlow({
       setInvitation(await getUnifiedSpaceService().issueInvitation());
       setNowMs(Date.now());
       setCopied(false);
+      setPeerUpgradeRequired(false);
     } catch (cause) {
       setError(errorMessage(cause));
     } finally {
@@ -348,6 +355,7 @@ export function useAddSyncConnectionFlow({
       invitationExpired: invitation ? invitation.expiresAtMs <= nowMs : false,
       invitationTimeRemaining: invitation ? remainingTime(invitation.expiresAtMs, nowMs) : '0:00',
       remoteDeviceName,
+      peerUpgradeRequired,
     },
     actions: {
       setDeviceName,

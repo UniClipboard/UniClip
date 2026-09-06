@@ -1,0 +1,1 @@
+Verified against checksum-matched rc.6 release source: RemoveMember produces DeviceTrust; mobile worker maps only WorkspaceMembership; successful removal therefore returns UnexpectedResult to both iOS and Android. Static source proof, no device reproduction.

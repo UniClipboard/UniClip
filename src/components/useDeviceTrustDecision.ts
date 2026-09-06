@@ -36,56 +36,84 @@ export function useDeviceTrustDecision(): DeviceTrustDecisionSession {
 
   const choose = useCallback(
     async (choice: DeviceTrustChoice) => {
-      const change = deviceTrust?.currentChange;
-      if (!change || status === 'submitting' || !change.allowedChoices.includes(choice)) return;
-      setSelection({ changeId: change.changeId, choice });
+      const change = buildDeviceTrustDecisionView(deviceTrust);
+      if (
+        !change ||
+        status === 'submitting' ||
+        !change.choices.some((option) => option.choice === choice)
+      )
+        return;
+      setSelection({ changeId: change.reviewId ?? change.changeId, choice });
       setConfirmingChoice(null);
     },
     [deviceTrust, status]
   );
 
   const proceed = useCallback(async () => {
-    const change = deviceTrust?.currentChange;
+    const change = buildDeviceTrustDecisionView(deviceTrust);
     const choice = selection.choice;
     if (
       !change ||
       !choice ||
-      selection.changeId !== change.changeId ||
+      selection.changeId !== (change.reviewId ?? change.changeId) ||
       status === 'submitting' ||
-      !change.allowedChoices.includes(choice)
+      !change.choices.some((option) => option.choice === choice)
     ) {
       return;
     }
     const selectedView = view?.choices.find((candidate) => candidate.choice === choice);
     if (
+      selectedView?.isCurrentGroup ||
       choice === 'keepCurrentDeviceGroup' ||
-      change.includesLocalDevice ||
+      selectedView?.exitsCurrentSpace ||
       Boolean(selectedView?.stopSyncNames.length)
     ) {
       setConfirmingChoice(choice);
       return;
     }
     try {
-      await getUnifiedSpaceService().decideDeviceTrust(choice, false);
+      if (deviceTrust?.groupChoices) {
+        await getUnifiedSpaceService().decideDeviceTrust(
+          choice,
+          false,
+          deviceTrust.groupChoices.revision
+        );
+      } else {
+        await getUnifiedSpaceService().decideDeviceTrust(choice, false);
+      }
     } catch {
       // The space service publishes the actionable error for this modal.
     }
   }, [deviceTrust, selection.changeId, selection.choice, status, view]);
 
   const confirm = useCallback(async () => {
-    const change = deviceTrust?.currentChange;
+    const change = buildDeviceTrustDecisionView(deviceTrust);
     const choice = confirmingChoice;
-    if (!change || !choice || status === 'submitting') return;
+    if (
+      !change ||
+      !choice ||
+      status === 'submitting' ||
+      selection.changeId !== (change.reviewId ?? change.changeId)
+    )
+      return;
     setConfirmingChoice(null);
     try {
-      await getUnifiedSpaceService().decideDeviceTrust(
-        choice,
-        choice === 'applyChange' && change.includesLocalDevice
+      const removesLocal = Boolean(
+        change.choices.find((option) => option.choice === choice)?.exitsCurrentSpace
       );
+      if (deviceTrust?.groupChoices) {
+        await getUnifiedSpaceService().decideDeviceTrust(
+          choice,
+          removesLocal,
+          deviceTrust.groupChoices.revision
+        );
+      } else {
+        await getUnifiedSpaceService().decideDeviceTrust(choice, removesLocal);
+      }
     } catch {
       // The space service publishes the actionable error for this modal.
     }
-  }, [confirmingChoice, deviceTrust, status]);
+  }, [confirmingChoice, deviceTrust, status, selection.changeId]);
 
   const cancelConfirmation = useCallback(() => setConfirmingChoice(null), []);
 

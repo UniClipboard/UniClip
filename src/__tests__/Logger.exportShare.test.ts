@@ -73,7 +73,7 @@ jest.mock('expo-file-system', () => {
         return [new MockFile(this, 'app_2026-07-16.txt')];
       }
       if (this.uri === 'file://cache/uc-engine/logs') {
-        return [new MockFile(this, 'engine.2026-07-16.txt')];
+        return [new MockFile(this, 'engine.2026-07-16.jsonl')];
       }
       if (this.name === 'log_exports') {
         return [new MockFile(this, 'logs_old.zip')];
@@ -195,7 +195,7 @@ describe('Logger shareable export', () => {
   it('includes engine log files from the cache logs directory in the export', async () => {
     mockExistingDirectoryUris.add('file://cache/uc-engine/logs');
     mockFileContents.set(
-      'file://cache/uc-engine/logs/engine.2026-07-16.txt',
+      'file://cache/uc-engine/logs/engine.2026-07-16.jsonl',
       '2026-07-16 12:00:00 INFO peer connected via relay device_id="device-a" relay_url="https://relay.example.com/"'
     );
 
@@ -205,7 +205,9 @@ describe('Logger shareable export', () => {
     expect(sanitizedUris).toHaveLength(2);
     expect(sanitizedUris).toEqual([
       expect.stringMatching(/^file:\/\/cache\/log_exports\/sanitized_.+\/app_2026-07-16\.txt$/),
-      expect.stringMatching(/^file:\/\/cache\/log_exports\/sanitized_.+\/engine\.2026-07-16\.txt$/),
+      expect.stringMatching(
+        /^file:\/\/cache\/log_exports\/sanitized_.+\/engine\.2026-07-16\.jsonl$/
+      ),
     ]);
     const engineContent = mockFileContents.get(sanitizedUris[1]);
     expect(engineContent).toContain('relay_url="https://relay.example.com/"');
@@ -216,7 +218,7 @@ describe('Logger shareable export', () => {
 
     LoggerService.cleanOldLogs();
 
-    expect(mockDeletedLocalUris).toContain('file://cache/uc-engine/logs/engine.2026-07-16.txt');
+    expect(mockDeletedLocalUris).toContain('file://cache/uc-engine/logs/engine.2026-07-16.jsonl');
     expect(mockDeletedLocalUris).toContain('file://documents/logs/app_2026-07-16.txt');
   });
 

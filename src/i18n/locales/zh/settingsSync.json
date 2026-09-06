@@ -88,7 +88,8 @@
       "expired": "这个邀请码已过期",
       "finishLater": "稍后完成",
       "thisDevice": "这台设备",
-      "otherDevice": "另一台设备"
+      "otherDevice": "另一台设备",
+      "peerUpgradeRequired": "已加入。请升级其他设备上的 UniClip，以便继续同步。"
     },
     "status": {
       "ready": "空间已就绪",
@@ -249,6 +250,14 @@
         "removed": "已移除",
         "usable": "可同步",
         "unknown": "状态不可用"
+      },
+      "groupChoiceBody": "请选择这台手机接下来使用的设备列表。",
+      "currentGroup": "保留当前设备列表",
+      "otherGroup": "设备列表 {{number}}",
+      "membersUnknown": "这个设备列表的完整成员尚未确认。",
+      "rePairingBody": "选择后需要新的邀请才能重新加入并恢复同步。",
+      "decision": {
+        "pending": "选择已提交，正在等待其他设备确认。"
       }
     },
     "convergence": {
@@ -289,11 +298,18 @@
       "invitationRejected": "另一台设备没有接受这次加入",
       "serviceUnavailable": "连接服务暂时不可用，请稍后重试",
       "connectionLost": "连接已中断，请重试",
-      "operationFailed": "操作失败,请检查输入后重试"
+      "operationFailed": "操作失败,请检查输入后重试",
+      "peerUpgradeRequired": "请先升级对方设备上的 UniClip，然后重试。"
     },
-    "manage": { "title": "空间操作" },
-    "advanced": { "title": "高级设置" },
-    "danger": { "title": "危险操作" }
+    "manage": {
+      "title": "空间操作"
+    },
+    "advanced": {
+      "title": "高级设置"
+    },
+    "danger": {
+      "title": "危险操作"
+    }
   },
   "lan": {
     "title": "连接设置",

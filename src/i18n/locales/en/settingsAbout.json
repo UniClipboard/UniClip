@@ -81,7 +81,8 @@
         "submitting": "Submitting",
         "failedRetry": "Failed, ready to retry",
         "stateChanged": "State changed elsewhere",
-        "longScrollable": "Long names and many devices"
+        "longScrollable": "Long names and many devices",
+        "groupChoices": "Updated device lists and unconfirmed members"
       }
     }
   },

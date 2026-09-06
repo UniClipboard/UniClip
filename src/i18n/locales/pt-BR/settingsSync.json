@@ -88,7 +88,8 @@
       "expired": "Este convite expirou",
       "finishLater": "Concluir depois",
       "thisDevice": "Este dispositivo",
-      "otherDevice": "Outro dispositivo"
+      "otherDevice": "Outro dispositivo",
+      "peerUpgradeRequired": "Conectado. Atualize o UniClip nos outros dispositivos para continuar sincronizando."
     },
     "status": {
       "ready": "O espaço está pronto",
@@ -249,6 +250,14 @@
         "removed": "Removido",
         "usable": "Disponível",
         "unknown": "Status indisponível"
+      },
+      "groupChoiceBody": "Escolha o grupo de dispositivos para este celular.",
+      "currentGroup": "Manter o grupo atual",
+      "otherGroup": "Grupo de dispositivos {{number}}",
+      "membersUnknown": "Os membros deste grupo ainda não foram totalmente confirmados.",
+      "rePairingBody": "Será necessário um novo convite para entrar novamente e retomar a sincronização.",
+      "decision": {
+        "pending": "Sua escolha foi enviada. Aguardando a confirmação dos outros dispositivos."
       }
     },
     "convergence": {
@@ -289,11 +298,18 @@
       "invitationRejected": "O outro dispositivo não aceitou este convite",
       "serviceUnavailable": "O serviço de conexão está indisponível. Tente mais tarde",
       "connectionLost": "A conexão foi interrompida. Tente novamente",
-      "operationFailed": "A operação falhou. Verifique os dados e tente novamente."
+      "operationFailed": "A operação falhou. Verifique os dados e tente novamente.",
+      "peerUpgradeRequired": "Atualize o UniClip no outro dispositivo e tente novamente."
     },
-    "manage": { "title": "Ações do espaço" },
-    "advanced": { "title": "Avançado" },
-    "danger": { "title": "Zona de perigo" }
+    "manage": {
+      "title": "Ações do espaço"
+    },
+    "advanced": {
+      "title": "Avançado"
+    },
+    "danger": {
+      "title": "Zona de perigo"
+    }
   },
   "lan": {
     "title": "Configurações da conexão",

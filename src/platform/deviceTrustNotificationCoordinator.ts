@@ -104,7 +104,7 @@ function episodes(query: DeviceTrustQueryState): DeviceTrustNotificationEpisode[
   const snapshot = snapshotFromQuery(query);
   if (!snapshot) return [];
   const result: DeviceTrustNotificationEpisode[] = [];
-  const changeId = snapshot.currentChange?.changeId;
+  const changeId = snapshot.groupChoices?.issues[0]?.issueId ?? snapshot.currentChange?.changeId;
   if (changeId) {
     result.push({
       kind: 'reviewCurrentChange',
@@ -147,7 +147,7 @@ export function resolveSpaceNavigationIntent(
   if (!spaceId || query.kind === 'notApplicable') return { kind: 'home' };
   const snapshot = snapshotFromQuery(query);
   if (intent.kind === 'reviewCurrentChange') {
-    return snapshot?.currentChange
+    return snapshot?.groupChoices?.issues.length || snapshot?.currentChange
       ? { kind: 'reviewCurrentChange' }
       : { kind: 'openSpaceManagement' };
   }

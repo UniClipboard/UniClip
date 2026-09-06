@@ -81,7 +81,8 @@
         "submitting": "Enviando",
         "failedRetry": "Falhou, pronto para tentar novamente",
         "stateChanged": "Estado alterado em outro dispositivo",
-        "longScrollable": "Nomes longos e muitos dispositivos"
+        "longScrollable": "Nomes longos e muitos dispositivos",
+        "groupChoices": "Listas atualizadas e membros não confirmados"
       }
     }
   },

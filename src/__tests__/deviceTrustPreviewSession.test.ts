@@ -21,6 +21,7 @@ describe('device trust preview session', () => {
   it('provides every ADR preview branch as a fixed scenario', () => {
     expect(DEVICE_TRUST_PREVIEW_SCENARIOS.map(({ id }) => id)).toEqual([
       'standard',
+      'groupChoices',
       'singleChoice',
       'confirmKeepCurrent',
       'confirmLeaveCurrent',

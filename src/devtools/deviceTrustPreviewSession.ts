@@ -9,6 +9,7 @@ import type {
 
 export type DeviceTrustPreviewScenarioId =
   | 'standard'
+  | 'groupChoices'
   | 'singleChoice'
   | 'confirmKeepCurrent'
   | 'confirmLeaveCurrent'
@@ -22,6 +23,7 @@ export const DEVICE_TRUST_PREVIEW_SCENARIOS: ReadonlyArray<{
   labelKey: string;
 }> = [
   { id: 'standard', labelKey: 'debug.deviceTrustPreview.scenarios.standard' },
+  { id: 'groupChoices', labelKey: 'debug.deviceTrustPreview.scenarios.groupChoices' },
   { id: 'singleChoice', labelKey: 'debug.deviceTrustPreview.scenarios.singleChoice' },
   {
     id: 'confirmKeepCurrent',
@@ -96,6 +98,28 @@ function scenarios(): Record<DeviceTrustPreviewScenarioId, ScenarioState> {
     standard: {
       view: standardView,
       selectedChoice: null,
+    },
+    groupChoices: {
+      view: {
+        changeId: 'preview-group-choices',
+        isGroupChoice: true,
+        sourceName: '',
+        targetNames: [],
+        choices: [
+          {
+            ...choice('current-list', { continues: ['Studio desktop'] }),
+            isCurrentGroup: true,
+            membersComplete: true,
+          },
+          {
+            ...choice('other-list', { continues: [], exitsCurrentSpace: true }),
+            isCurrentGroup: false,
+            membersComplete: false,
+          },
+        ],
+      },
+      selectedChoice: null,
+      outcome: 'pending',
     },
     singleChoice: {
       view: {
@@ -230,6 +254,7 @@ async function proceed(): Promise<void> {
 
   if (
     selected !== 'keepCurrentDeviceGroup' &&
+    !selectedView.isCurrentGroup &&
     !selectedView.exitsCurrentSpace &&
     selectedView.stopSyncNames.length === 0
   ) {

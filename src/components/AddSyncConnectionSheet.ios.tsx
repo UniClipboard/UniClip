@@ -385,6 +385,7 @@ export function AddSyncConnectionSheet({
     invitationExpired,
     invitationTimeRemaining,
     remoteDeviceName,
+    peerUpgradeRequired,
   } = state;
   const {
     setDeviceName,
@@ -773,7 +774,11 @@ export function AddSyncConnectionSheet({
                       {t('space.flow.successTitle')}
                     </SwiftUIText>
                     <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-                      {t('space.flow.successBody')}
+                      {t(
+                        peerUpgradeRequired
+                          ? 'space.flow.peerUpgradeRequired'
+                          : 'space.flow.successBody'
+                      )}
                     </SwiftUIText>
                   </VStack>
                 </Section>

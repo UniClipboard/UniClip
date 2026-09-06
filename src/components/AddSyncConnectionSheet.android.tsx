@@ -115,6 +115,7 @@ function AddSyncConnectionSheetContent({
     invitationExpired,
     invitationTimeRemaining,
     remoteDeviceName,
+    peerUpgradeRequired,
   } = state;
   const {
     setDeviceName,
@@ -461,7 +462,9 @@ function AddSyncConnectionSheetContent({
             <ComposeText style={TITLE_STYLE}>
               {remoteDeviceName ?? t('space.flow.otherDevice')}
             </ComposeText>
-            <ComposeText color={colors.onSurfaceVariant}>{t('space.flow.successBody')}</ComposeText>
+            <ComposeText color={colors.onSurfaceVariant}>
+              {t(peerUpgradeRequired ? 'space.flow.peerUpgradeRequired' : 'space.flow.successBody')}
+            </ComposeText>
             <Spacer modifiers={[heightModifier(24)]} />
             <Button onClick={() => void completeConnection()} modifiers={[fillMaxWidth()]}>
               <ComposeText>{t('action.done', { ns: 'common' })}</ComposeText>

@@ -59,7 +59,9 @@ function decisionNeedsExpandedSheet(view: DeviceTrustDecisionView): boolean {
     view.sourceName,
     ...view.choices.flatMap((choice) => [...choice.continueSyncNames, ...choice.stopSyncNames]),
   ];
-  return visibleLabels.length > 7 || visibleLabels.join('').length > 180;
+  return (
+    view.isGroupChoice === true || visibleLabels.length > 7 || visibleLabels.join('').length > 180
+  );
 }
 
 function HeaderActionButton({
@@ -138,7 +140,9 @@ function ChoiceRow({
             {title}
           </SwiftUIText>
           <SwiftUIText modifiers={[font({ size: 14 }), foregroundStyle('secondary')]}>
-            {t('space.deviceTrust.continues', { devices })}
+            {choice.membersComplete === false
+              ? t('space.deviceTrust.membersUnknown')
+              : t('space.deviceTrust.continues', { devices })}
           </SwiftUIText>
         </VStack>
         <Spacer />
@@ -162,12 +166,20 @@ function SelectedImpactSection({ choice }: { choice: DeviceTrustChoiceView }) {
     <Section title={t('space.deviceTrust.changesTitle')}>
       <HStack spacing={10} alignment="top">
         <Image
-          systemName={hasStops ? 'xmark.circle.fill' : 'checkmark.circle.fill'}
+          systemName={
+            choice.membersComplete === false
+              ? 'questionmark.circle.fill'
+              : hasStops
+              ? 'xmark.circle.fill'
+              : 'checkmark.circle.fill'
+          }
           size={17}
-          color={hasStops ? DESTRUCTIVE : POSITIVE}
+          color={choice.membersComplete === false ? WARNING : hasStops ? DESTRUCTIVE : POSITIVE}
         />
         <SwiftUIText modifiers={[foregroundStyle('primary')]}>
-          {hasStops
+          {choice.membersComplete === false
+            ? t('space.deviceTrust.membersUnknown')
+            : hasStops
             ? t('space.deviceTrust.stops', { devices: choice.stopSyncNames.join(', ') })
             : t('space.deviceTrust.noStops')}
         </SwiftUIText>
@@ -181,6 +193,14 @@ function ConfirmationImpactSummary({ choice }: { choice: DeviceTrustChoiceView }
 
   return (
     <Section title={t('space.deviceTrust.changesTitle')}>
+      {choice.membersComplete === false ? (
+        <HStack spacing={10} alignment="top">
+          <Image systemName="questionmark.circle.fill" size={17} color={WARNING} />
+          <SwiftUIText modifiers={[foregroundStyle('primary')]}>
+            {t('space.deviceTrust.membersUnknown')}
+          </SwiftUIText>
+        </HStack>
+      ) : null}
       {choice.stopSyncNames.length ? (
         <HStack spacing={10} alignment="top">
           <Image systemName="xmark.circle.fill" size={17} color={DESTRUCTIVE} />
@@ -212,6 +232,7 @@ function selectedActionLabel(
   if (!selectedChoice || !selectedView) return t('space.deviceTrust.chooseAction');
   if (selectedView.exitsCurrentSpace) return t('space.deviceTrust.reviewLeaveAction');
   if (selectedView.stopSyncNames.length) return t('space.deviceTrust.reviewStopAction');
+  if (selectedView.isCurrentGroup !== undefined) return t('space.deviceTrust.continue');
   return selectedChoice === 'applyChange'
     ? t('space.deviceTrust.applyAction', { source: sourceName })
     : t('space.deviceTrust.keepAction');
@@ -282,7 +303,9 @@ function DeviceTrustDecisionContent({ decision }: { decision: DeviceTrustDecisio
                 </SwiftUIText>
                 <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
                   {t(
-                    confirmLeave
+                    view.isGroupChoice && confirmLeave
+                      ? 'space.deviceTrust.rePairingBody'
+                      : confirmLeave
                       ? 'space.deviceTrust.confirmLeaveBody'
                       : 'space.deviceTrust.confirmStopBody'
                   )}
@@ -300,6 +323,17 @@ function DeviceTrustDecisionContent({ decision }: { decision: DeviceTrustDecisio
                 </SwiftUIText>
               </Section>
             ) : null}
+            {decision.outcome === 'pending' || decision.outcome === 'rePairingRequired' ? (
+              <Section>
+                <SwiftUIText modifiers={[foregroundStyle(WARNING)]}>
+                  {t(
+                    decision.outcome === 'pending'
+                      ? 'space.deviceTrust.decision.pending'
+                      : 'space.deviceTrust.rePairingBody'
+                  )}
+                </SwiftUIText>
+              </Section>
+            ) : null}
             {decision.error ? (
               <Section>
                 <SwiftUIText modifiers={[foregroundStyle(DESTRUCTIVE)]}>
@@ -310,12 +344,24 @@ function DeviceTrustDecisionContent({ decision }: { decision: DeviceTrustDecisio
             <Section
               header={
                 <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-                  {t('space.deviceTrust.sheetBody', { source: view.sourceName })}
+                  {t(
+                    view.isGroupChoice
+                      ? 'space.deviceTrust.groupChoiceBody'
+                      : 'space.deviceTrust.sheetBody',
+                    { source: view.sourceName }
+                  )}
                 </SwiftUIText>
               }
             >
               {view.choices.map((choice) => {
-                const title = choice.exitsCurrentSpace
+                const title = view.isGroupChoice
+                  ? t(
+                      choice.isCurrentGroup
+                        ? 'space.deviceTrust.currentGroup'
+                        : 'space.deviceTrust.otherGroup',
+                      { number: view.choices.indexOf(choice) + 1 }
+                    )
+                  : choice.exitsCurrentSpace
                   ? t('space.deviceTrust.leave', { source: view.sourceName })
                   : t(
                       choice.choice === 'applyChange'

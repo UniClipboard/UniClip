@@ -20,7 +20,11 @@ import {
 } from '../store';
 import { invitationCodeForSubmission } from '@/utils/invitationCode';
 import { createLogger } from '@/support/observability';
-import { buildSpaceOperationContext, buildSpaceOperationResult } from '../deviceTrustPresentation';
+import {
+  buildSpaceOperationContext,
+  buildSpaceOperationResult,
+  buildDeviceTrustDecisionView,
+} from '../deviceTrustPresentation';
 import { getSpaceSetupCompletion, type SpaceSetupCompletionReporter } from './spaceSetupCompletion';
 
 const log = createLogger('UnifiedSpaceService');
@@ -69,7 +73,8 @@ export interface UnifiedSpaceApi {
   decideDeviceTrustChange(
     changeId: string,
     choice: DeviceTrustChoice,
-    confirmLocalRemoval: boolean
+    confirmLocalRemoval: boolean,
+    expectedRevision: number
   ): Promise<DeviceTrustDecision>;
   removeMember(deviceId: string): Promise<WorkspaceConvergence>;
   resendEntry(entryId: string, targetDevices: string[]): Promise<ResendEntryOutcome>;
@@ -99,6 +104,7 @@ export type UnifiedSpaceUserErrorCode =
   | 'connectionTimedOut'
   | 'invitationRejected'
   | 'serviceUnavailable'
+  | 'peerUpgradeRequired'
   | 'connectionLost'
   | 'unreadableHistoryRequiresConfirmation';
 
@@ -211,6 +217,7 @@ function rejectedJoinErrorCode(reason: JoinSpaceRejectionReason): UnifiedSpaceUs
     case 'authenticationRejected':
       return 'passphraseMismatch';
     case 'peerUpgradeRequired':
+      return 'peerUpgradeRequired';
     case 'baseHistoryChanged':
     case 'joinerHistoryAhead':
     case 'historyConflict':
@@ -226,9 +233,13 @@ function rejectedJoinErrorCode(reason: JoinSpaceRejectionReason): UnifiedSpaceUs
 function requireActiveJoinedSpace(status: JoinSpaceStatus): JoinedSpace {
   switch (status.type) {
     case 'active':
-      return status.joinedSpace;
+      return status.peerUpgradeRequired
+        ? { ...status.joinedSpace, peerUpgradeRequired: true }
+        : status.joinedSpace;
     case 'pending':
-      throw new UnifiedSpaceJoinResultError('serviceUnavailable');
+      throw new UnifiedSpaceJoinResultError(
+        status.peerUpgradeRequired ? 'peerUpgradeRequired' : 'serviceUnavailable'
+      );
     case 'rejected':
       throw new UnifiedSpaceJoinResultError(rejectedJoinErrorCode(status.reason));
   }
@@ -719,19 +730,36 @@ export class UnifiedSpaceService {
 
   decideDeviceTrust(
     choice: DeviceTrustChoice,
-    confirmLocalRemoval: boolean
+    confirmLocalRemoval: boolean,
+    reviewedRevision?: number
   ): Promise<DeviceTrustDecision> {
     if (this.deviceTrustDecisionInFlight) return this.deviceTrustDecisionInFlight;
 
-    const change = deviceTrustSnapshot(this.snapshot.deviceTrustQuery)?.currentChange;
-    if (!change) return Promise.reject(new DeviceTrustDecisionInputError('noCurrentChange'));
-    if (!change.allowedChoices.includes(choice)) {
+    const trust = deviceTrustSnapshot(this.snapshot.deviceTrustQuery);
+    const change = buildDeviceTrustDecisionView(trust);
+    if (!change || !trust)
+      return Promise.reject(new DeviceTrustDecisionInputError('noCurrentChange'));
+    if (reviewedRevision !== undefined && reviewedRevision !== trust.groupChoices?.revision) {
+      this.updateSnapshot({
+        deviceTrustDecisionOutcome: 'stateChanged',
+        operationState: { kind: 'idle' },
+      });
+      return Promise.resolve({
+        kind: 'stateChanged',
+        currentChangeId: change.changeId,
+        snapshot: trust,
+      });
+    }
+    const selected = change.choices.find((option) => option.choice === choice);
+    if (!selected) {
       return Promise.reject(new DeviceTrustDecisionInputError('choiceNotAllowed'));
     }
     const spaceId = this.snapshot.spaceId;
     if (!spaceId) return Promise.reject(new DeviceTrustDecisionInputError('noCurrentChange'));
     const operation = buildSpaceOperationContext(
-      choice === 'applyChange' ? 'applyChange' : 'keepCurrentSpace',
+      selected.isCurrentGroup ?? choice === 'keepCurrentDeviceGroup'
+        ? 'keepCurrentSpace'
+        : 'applyChange',
       spaceId,
       this.snapshot.deviceTrustQuery,
       this.snapshot.devices
@@ -754,7 +782,8 @@ export class UnifiedSpaceService {
       change.changeId,
       choice,
       confirmLocalRemoval,
-      operation
+      operation,
+      trust.groupChoices?.revision ?? trust.revision
     );
     this.deviceTrustDecisionInFlight = decision;
     void decision.then(
@@ -769,11 +798,31 @@ export class UnifiedSpaceService {
     changeId: string,
     choice: DeviceTrustChoice,
     confirmLocalRemoval: boolean,
-    operation: ReturnType<typeof buildSpaceOperationContext>
+    operation: ReturnType<typeof buildSpaceOperationContext>,
+    expectedRevision: number
   ): Promise<DeviceTrustDecision> {
     try {
-      const result = await this.api.decideDeviceTrustChange(changeId, choice, confirmLocalRemoval);
+      const result = await this.api.decideDeviceTrustChange(
+        changeId,
+        choice,
+        confirmLocalRemoval,
+        expectedRevision
+      );
       if (this.isCurrentMutation(revision)) {
+        if (
+          result.kind === 'pending' ||
+          result.kind === 'rePairingRequired' ||
+          (result.kind === 'stateChanged' && result.snapshot.groupChoices)
+        ) {
+          this.updateSnapshot({
+            deviceTrustQuery: { kind: 'ready', snapshot: result.snapshot },
+            deviceTrustDecisionStatus: 'idle',
+            deviceTrustDecisionError: null,
+            deviceTrustDecisionOutcome: result.kind,
+            operationState: { kind: 'idle' },
+          });
+          return result;
+        }
         if (result.kind === 'localDeviceConfirmationRequired') {
           this.updateSnapshot({
             deviceTrustQuery: { kind: 'ready', snapshot: result.snapshot },
@@ -794,10 +843,11 @@ export class UnifiedSpaceService {
             : choice;
         const completedOperation = {
           ...operation,
-          kind:
-            completedChoice === 'applyChange'
-              ? ('applyChange' as const)
-              : ('keepCurrentSpace' as const),
+          kind: result.snapshot.groupChoices
+            ? operation.kind
+            : completedChoice === 'applyChange'
+            ? ('applyChange' as const)
+            : ('keepCurrentSpace' as const),
         };
         const fallbackDevices = this.snapshot.devices;
         const fallbackDeviceTrustQuery = { kind: 'ready', snapshot: result.snapshot } as const;

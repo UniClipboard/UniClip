@@ -81,7 +81,8 @@
         "submitting": "正在提交",
         "failedRetry": "失败后重试",
         "stateChanged": "状态已在其他设备变化",
-        "longScrollable": "长名称和多设备滚动"
+        "longScrollable": "长名称和多设备滚动",
+        "groupChoices": "新版设备列表与待确认成员"
       }
     }
   },

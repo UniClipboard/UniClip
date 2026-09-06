@@ -49,6 +49,11 @@ function ImpactSummary({ choice }: { choice: DeviceTrustChoiceView }) {
 
   return (
     <Column>
+      {choice.membersComplete === false ? (
+        <ComposeText color={colors.onSurfaceVariant}>
+          {t('space.deviceTrust.membersUnknown')}
+        </ComposeText>
+      ) : null}
       {choice.continueSyncNames.length ? (
         <ComposeText color={colors.onSurfaceVariant}>
           {t('space.deviceTrust.continues', {
@@ -103,7 +108,9 @@ function DeviceTrustDecisionContent({ decision }: { decision: DeviceTrustDecisio
               <Spacer modifiers={[heightModifier(12)]} />
               <ComposeText color={colors.onSurfaceVariant}>
                 {t(
-                  confirmLeave
+                  view.isGroupChoice && confirmLeave
+                    ? 'space.deviceTrust.rePairingBody'
+                    : confirmLeave
                     ? 'space.deviceTrust.confirmLeaveBody'
                     : 'space.deviceTrust.confirmKeepBody'
                 )}
@@ -144,7 +151,12 @@ function DeviceTrustDecisionContent({ decision }: { decision: DeviceTrustDecisio
               <ComposeText style={TITLE_STYLE}>{t('space.deviceTrust.title')}</ComposeText>
               <Spacer modifiers={[heightModifier(8)]} />
               <ComposeText color={colors.onSurfaceVariant}>
-                {t('space.deviceTrust.body', { source: view.sourceName })}
+                {t(
+                  view.isGroupChoice
+                    ? 'space.deviceTrust.groupChoiceBody'
+                    : 'space.deviceTrust.body',
+                  { source: view.sourceName }
+                )}
               </ComposeText>
 
               {decision.outcome === 'stateChanged' || decision.outcome === 'alreadyCompleted' ? (
@@ -154,6 +166,15 @@ function DeviceTrustDecisionContent({ decision }: { decision: DeviceTrustDecisio
                     {t('space.deviceTrust.stateChanged')}
                   </ComposeText>
                 </>
+              ) : null}
+              {decision.outcome === 'pending' || decision.outcome === 'rePairingRequired' ? (
+                <ComposeText color={colors.onSurfaceVariant}>
+                  {t(
+                    decision.outcome === 'pending'
+                      ? 'space.deviceTrust.decision.pending'
+                      : 'space.deviceTrust.rePairingBody'
+                  )}
+                </ComposeText>
               ) : null}
               {decision.error ? (
                 <>
@@ -165,7 +186,14 @@ function DeviceTrustDecisionContent({ decision }: { decision: DeviceTrustDecisio
               <Spacer modifiers={[heightModifier(16)]} />
               <Column modifiers={[fillMaxWidth(), selectableGroup()]}>
                 {view.choices.map((choice, index) => {
-                  const title = choice.exitsCurrentSpace
+                  const title = view.isGroupChoice
+                    ? t(
+                        choice.isCurrentGroup
+                          ? 'space.deviceTrust.currentGroup'
+                          : 'space.deviceTrust.otherGroup',
+                        { number: view.choices.indexOf(choice) + 1 }
+                      )
+                    : choice.exitsCurrentSpace
                     ? t('space.deviceTrust.leave', { source: view.sourceName })
                     : t(
                         choice.choice === 'applyChange'

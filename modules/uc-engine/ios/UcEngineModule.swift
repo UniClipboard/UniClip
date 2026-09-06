@@ -114,6 +114,7 @@ public final class UcEngineModule: Module {
       }
       return [
         "invitationCode": result.invitationCode,
+        "fullInvitation": result.fullInvitation,
         "expiresAtMs": result.expiresAtMs,
         "availability": availability,
       ]
@@ -135,9 +136,10 @@ public final class UcEngineModule: Module {
       )
       self.host.refreshAnalyticsContext(engine: engine)
       switch result {
-      case let .active(joinId, joinedSpace):
+      case let .active(joinId, joinedSpace, peerUpgradeRequired):
         return [
           "type": "active",
+          "peerUpgradeRequired": peerUpgradeRequired,
           "joinId": joinId,
           "joinedSpace": [
             "sponsorDeviceId": joinedSpace.sponsorDeviceId,
@@ -149,9 +151,10 @@ public final class UcEngineModule: Module {
             "preservedUnreadableRecords": joinedSpace.preservedUnreadableRecords ?? 0,
           ],
         ]
-      case let .pending(joinId, targetSpaceId, sponsorDeviceId, sponsorIdentityFingerprint, cancelRequested):
+      case let .pending(joinId, targetSpaceId, sponsorDeviceId, sponsorIdentityFingerprint, cancelRequested, peerUpgradeRequired):
         return [
           "type": "pending",
+          "peerUpgradeRequired": peerUpgradeRequired,
           "joinId": joinId,
           "targetSpaceId": targetSpaceId,
           "sponsorDeviceId": sponsorDeviceId,
@@ -210,7 +213,7 @@ public final class UcEngineModule: Module {
         "rePairingRequired": result.rePairingRequired,
         "spaceId": result.spaceId,
         "currentInvitation": result.currentInvitation.map {
-          ["invitationCode": $0.invitationCode, "expiresAtMs": $0.expiresAtMs]
+          ["invitationCode": $0.invitationCode, "fullInvitation": $0.fullInvitation, "expiresAtMs": $0.expiresAtMs]
         },
         "deviceName": result.deviceName,
       ]
@@ -236,12 +239,12 @@ public final class UcEngineModule: Module {
       return devices
     }.runOnQueue(engineOperationQueue)
 
-    AsyncFunction("queryDeviceTrust") { () -> [String: Any] in
+    AsyncFunction("queryDeviceGroupChoices") { () -> [String: Any] in
       do {
         return [
           "ok": true,
-          "value": try self.runSpaceRead("queryDeviceTrust") {
-            try self.requireEngine().queryDeviceTrust()
+          "value": try self.runSpaceRead("queryDeviceGroupChoices") {
+            try self.requireEngine().queryDeviceGroupChoices()
           },
         ]
       } catch let bindingError as BindingError {
@@ -259,11 +262,12 @@ public final class UcEngineModule: Module {
       }
     }.runOnQueue(engineOperationQueue)
 
-    AsyncFunction("decideDeviceTrustChange") {
-      (changeId: String, choice: String, confirmLocalRemoval: Bool) -> String in
-      try self.requireEngine().decideDeviceTrustChange(
-        changeId: changeId,
-        choice: try Self.deviceTrustChoice(choice),
+    AsyncFunction("chooseDeviceGroup") {
+      (issueId: String, choiceId: String, expectedRevision: UInt64, confirmLocalRemoval: Bool) -> String in
+      try self.requireEngine().chooseDeviceGroup(
+        issueId: issueId,
+        choiceId: choiceId,
+        expectedRevision: expectedRevision,
         confirmLocalRemoval: confirmLocalRemoval
       )
     }.runOnQueue(engineOperationQueue)
@@ -591,14 +595,6 @@ public final class UcEngineModule: Module {
     switch action {
     case .suspend: "suspend"
     case .resume: "resume"
-    }
-  }
-
-  private static func deviceTrustChoice(_ value: String) throws -> DeviceTrustChoice {
-    switch value {
-    case "applyChange": .applyChange
-    case "keepCurrentDeviceGroup": .keepCurrentDeviceGroup
-    default: throw UcEngineInvalidInputException()
     }
   }
 

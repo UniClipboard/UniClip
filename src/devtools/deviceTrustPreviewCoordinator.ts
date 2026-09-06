@@ -1,6 +1,6 @@
 import * as Application from 'expo-application';
 
-import { deviceTrustSnapshotFromQuery } from '@/features/space';
+import { deviceTrustSnapshotFromQuery, buildDeviceTrustDecisionView } from '@/features/space';
 import { useUnifiedSpaceStore, type UnifiedSpaceSnapshot } from '@/features/space/store';
 import {
   deviceTrustPreviewSession,
@@ -20,7 +20,7 @@ export function canOpenDeviceTrustPreview(): boolean {
 
 export function hasAuthoritativeDeviceTrustWork(state: UnifiedSpaceSnapshot): boolean {
   return (
-    deviceTrustSnapshotFromQuery(state.deviceTrustQuery)?.currentChange != null ||
+    buildDeviceTrustDecisionView(deviceTrustSnapshotFromQuery(state.deviceTrustQuery)) != null ||
     state.deviceTrustDecisionStatus === 'submitting' ||
     state.deviceTrustDecisionError !== null ||
     state.deviceTrustDecisionOutcome !== null ||

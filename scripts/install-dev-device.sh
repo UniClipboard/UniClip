@@ -106,6 +106,39 @@ restore_cached_local_ios_engine() {
   node "$SCRIPT_DIR/verify-unified-engine-core.mjs" --local-prepared
 }
 
+prepare_local_cargo_home() {
+  local cargo_home="$LOCAL_ENGINE_BUILD_ROOT/cargo-home"
+  local host_cargo_home="${CARGO_HOME:-${HOME:-}/.cargo}"
+  local cache_name
+
+  mkdir -p "$cargo_home"
+  for cache_name in registry git; do
+    if [ ! -e "$cargo_home/$cache_name" ] && [ -d "$host_cargo_home/$cache_name" ]; then
+      ln -s "$host_cargo_home/$cache_name" "$cargo_home/$cache_name"
+    fi
+  done
+  if [ ! -f "$cargo_home/config.toml" ]; then
+    {
+      printf '%s\n' '[build]'
+      if command -v sccache >/dev/null 2>&1; then
+        printf '%s\n' 'rustc-wrapper = "sccache"'
+      fi
+    } > "$cargo_home/config.toml"
+  fi
+  export CARGO_HOME="$cargo_home"
+}
+
+prepare_local_engine_cargo_config() {
+  local worktree="$1"
+  local cargo_config="$worktree/.cargo/config.toml"
+
+  {
+    printf '\n%s\n' '[patch."https://github.com/UniClipboard/Engine.git"]'
+    printf 'uc-engine = { path = "%s/crates/uc-engine" }\n' "$worktree"
+    printf 'uc-observability-contract = { path = "%s/crates/uc-observability-contract" }\n' "$worktree"
+  } >> "$cargo_config"
+}
+
 prepare_latest_engine() {
   local platform="$1"
   local ios_marker="$LOCAL_ENGINE_BUILD_ROOT/uc-engine-uniffi-dist/ios/source-commit.txt"
@@ -124,6 +157,7 @@ prepare_latest_engine() {
   fi
 
   mkdir -p "$LOCAL_ENGINE_ROOT"
+  prepare_local_cargo_home
   if [ -z "$LATEST_ENGINE_COMMIT" ]; then
     git -C "$ENGINE_ROOT" fetch origin main
     LATEST_ENGINE_COMMIT="$(git -C "$ENGINE_ROOT" rev-parse origin/main)"
@@ -155,6 +189,7 @@ prepare_latest_engine() {
   worktree="$(mktemp -d "$LOCAL_ENGINE_ROOT/engine-main.XXXXXX")"
   rmdir "$worktree"
   git -C "$ENGINE_ROOT" worktree add --detach "$worktree" "$latest_commit"
+  prepare_local_engine_cargo_config "$worktree"
   trap 'git -C "$ENGINE_ROOT" worktree remove --force "$worktree"' RETURN
   case "$platform" in
     ios)
@@ -186,7 +221,7 @@ install_ios() {
   fi
 
   assert_development_project ios
-  trap restore_pinned_ios_engine EXIT
+  trap 'status=$?; if restore_pinned_ios_engine; then restore_status=0; else restore_status=$?; fi; if [ "$status" -eq 0 ] && [ "$restore_status" -ne 0 ]; then status="$restore_status"; fi; exit "$status"' EXIT
   prepare_latest_engine ios
   UC_ENGINE_LOCAL_CORE=1 APP_VARIANT=development npx expo run:ios --device "$device" --no-bundler
   restore_pinned_ios_engine

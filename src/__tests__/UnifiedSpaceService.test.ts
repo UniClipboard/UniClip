@@ -2071,3 +2071,115 @@ describe('UnifiedSpaceService', () => {
     );
   });
 });
+
+describe('rc.6 group decisions', () => {
+  const snapshot = (): DeviceTrustSnapshot => ({
+    ...deviceTrustSnapshot(7, null),
+    groupChoices: {
+      revision: 12,
+      issues: [
+        {
+          issueId: 'opaque-issue',
+          choices: [
+            {
+              choiceId: 'opaque-choice',
+              isCurrentGroup: true,
+              requiresRePairing: false,
+              memberDeviceIds: ['phone-1'],
+              membersComplete: true,
+            },
+          ],
+        },
+      ],
+    },
+  });
+
+  it('submits the exact issue, choice and revision the user reviewed', async () => {
+    const api = createApi({ queryDeviceTrust: jest.fn(async () => snapshot()) });
+    const service = new UnifiedSpaceService(api);
+    await service.refresh();
+    await service.decideDeviceTrust('opaque-choice', false);
+    expect(api.decideDeviceTrustChange).toHaveBeenCalledWith(
+      'opaque-issue',
+      'opaque-choice',
+      false,
+      12
+    );
+  });
+
+  it.each(['pending', 'stateChanged', 'rePairingRequired'] as const)(
+    'does not show success for %s',
+    async (kind) => {
+      const api = createApi({
+        queryDeviceTrust: jest.fn(async () => snapshot()),
+        decideDeviceTrustChange: jest.fn(async () => ({
+          kind,
+          currentChangeId: 'opaque-issue',
+          snapshot: snapshot(),
+        })),
+      });
+      const service = new UnifiedSpaceService(api);
+      await service.refresh();
+      await service.decideDeviceTrust('opaque-choice', false);
+      expect(service.getSnapshot().operationState.kind).toBe('idle');
+      expect(service.getSnapshot().deviceTrustDecisionOutcome).toBe(kind);
+    }
+  );
+});
+
+it('keeps the peer upgrade warning when joining has already succeeded', async () => {
+  const api = createApi({
+    joinSpace: jest.fn(async () => ({ ...activeJoinStatus(), peerUpgradeRequired: true })),
+  });
+  const service = new UnifiedSpaceService(api);
+  const joined = await service.joinSpace('7K2M-8Q4R', 'Phone', 'secret');
+  expect(joined.peerUpgradeRequired).toBe(true);
+});
+
+it('reports peer upgrade instead of service unavailable for a pending join', async () => {
+  const api = createApi({
+    joinSpace: jest.fn(async () => ({
+      type: 'pending' as const,
+      joinId: 'join',
+      targetSpaceId: null,
+      sponsorDeviceId: null,
+      sponsorIdentityFingerprint: null,
+      cancelRequested: false,
+      peerUpgradeRequired: true,
+    })),
+  });
+  const service = new UnifiedSpaceService(api);
+  await expect(service.joinSpace('7K2M-8Q4R', 'Phone', 'secret')).rejects.toMatchObject({
+    code: 'peerUpgradeRequired',
+  });
+});
+
+it('rejects a choice reviewed before the latest group revision', async () => {
+  const trust = {
+    ...deviceTrustSnapshot(7, null),
+    groupChoices: {
+      revision: 13,
+      issues: [
+        {
+          issueId: 'issue',
+          choices: [
+            {
+              choiceId: 'choice',
+              isCurrentGroup: true,
+              requiresRePairing: false,
+              memberDeviceIds: ['phone-1'],
+              membersComplete: true,
+            },
+          ],
+        },
+      ],
+    },
+  };
+  const api = createApi({ queryDeviceTrust: jest.fn(async () => trust) });
+  const service = new UnifiedSpaceService(api);
+  await service.refresh();
+  await expect(service.decideDeviceTrust('choice', false, 12)).resolves.toMatchObject({
+    kind: 'stateChanged',
+  });
+  expect(api.decideDeviceTrustChange).not.toHaveBeenCalled();
+});

@@ -7,6 +7,7 @@ export type DeviceMembership = 'active' | 'removed' | 'unavailable' | 'unknown';
 export type DeviceReachability = 'online' | 'offline' | 'unknown';
 export type DeviceGroupRelationship =
   | 'consistent'
+  | 'confirmationPending'
   | 'pendingLocalDecision'
   | 'diverged'
   | 'unverifiable'
@@ -69,7 +70,22 @@ export interface DeviceTrustRelationship {
   blockedReason: DeviceTrustUnavailableReason | null;
 }
 
+export interface DeviceGroupChoiceOption {
+  choiceId: string;
+  isCurrentGroup: boolean;
+  requiresRePairing: boolean;
+  memberDeviceIds: string[];
+  membersComplete: boolean;
+}
+
+export interface DeviceGroupChoiceIssue {
+  issueId: string;
+  choices: DeviceGroupChoiceOption[];
+}
+
 export interface DeviceTrustSnapshot {
+  groupChoices?: { revision: number; issues: DeviceGroupChoiceIssue[] };
+
   revision: number;
   localDeviceId: string;
   localMembership: DeviceMembership;
@@ -82,6 +98,7 @@ export interface DeviceTrustSnapshot {
 }
 
 export type DeviceTrustDecision =
+  | { kind: 'completed' | 'pending' | 'rePairingRequired'; snapshot: DeviceTrustSnapshot }
   | { kind: 'applied'; changeId: string; snapshot: DeviceTrustSnapshot }
   | { kind: 'keptCurrentDeviceGroup'; changeId: string; snapshot: DeviceTrustSnapshot }
   | {
@@ -112,6 +129,7 @@ const MEMBERSHIP = {
 const REACHABILITY = { online: 'online', offline: 'offline', unknown: 'unknown' } as const;
 const GROUP_RELATIONSHIP = {
   consistent: 'consistent',
+  confirmation_pending: 'confirmationPending',
   pending_local_decision: 'pendingLocalDecision',
   diverged: 'diverged',
   unverifiable: 'unverifiable',
@@ -304,5 +322,61 @@ export function parseDeviceTrustDecision(value: string): DeviceTrustDecision {
     }
   } catch {
     throw new Error('Invalid device trust decision');
+  }
+}
+
+export function parseDeviceGroupChoices(result: NativeDeviceTrustQueryResult): DeviceTrustSnapshot {
+  if (!result.ok) throw Object.assign(new Error('Device trust query failed'), result.failure);
+  try {
+    const source = object(JSON.parse(result.value));
+    const issues = array(source.issues, (value): DeviceGroupChoiceIssue => {
+      const issue = object(value);
+      const choices = array(issue.choices, (value): DeviceGroupChoiceOption => {
+        const choice = object(value);
+        return {
+          choiceId: nonemptyString(choice.choice_id),
+          isCurrentGroup: boolean(choice.is_current_group),
+          requiresRePairing: boolean(choice.requires_re_pairing),
+          memberDeviceIds: array(choice.member_device_ids, string),
+          membersComplete: boolean(choice.members_complete),
+        };
+      });
+      if (new Set(choices.map((choice) => choice.choiceId)).size !== choices.length)
+        throw new Error();
+      return { issueId: nonemptyString(issue.issue_id), choices };
+    });
+    if (new Set(issues.map((issue) => issue.issueId)).size !== issues.length) throw new Error();
+    return {
+      ...snapshot(source.device_trust),
+      groupChoices: { revision: integer(source.revision, 0), issues },
+    };
+  } catch {
+    throw new Error('Invalid device group choices');
+  }
+}
+
+function nonemptyString(value: unknown): string {
+  const result = string(value);
+  if (!result.trim()) throw new Error();
+  return result;
+}
+
+export function parseDeviceGroupChoiceResult(value: string) {
+  try {
+    const source = object(JSON.parse(value));
+    return {
+      outcome: enumValue(source.outcome, {
+        completed: 'completed',
+        pending: 'pending',
+        re_pairing_required: 'rePairingRequired',
+        already_completed: 'alreadyCompleted',
+        state_changed: 'stateChanged',
+        local_device_confirmation_required: 'localDeviceConfirmationRequired',
+      } as const),
+      currentRevision:
+        source.current_revision === null ? null : integer(source.current_revision, 0),
+    };
+  } catch {
+    throw new Error('Invalid device group choice result');
   }
 }

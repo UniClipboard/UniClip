@@ -25,11 +25,13 @@ export interface SpaceCreated {
 
 export interface InvitationIssued {
   invitationCode: string;
+  fullInvitation: string;
   expiresAtMs: number;
   availability: 'crossNetwork' | 'sameLocalNetwork';
 }
 
 export interface JoinedSpace {
+  peerUpgradeRequired?: boolean;
   sponsorDeviceId: string;
   sponsorIdentityFingerprint: string;
   spaceId: string;
@@ -51,7 +53,7 @@ export type JoinSpaceRejectionReason =
   | 'removedBeforeActivation';
 
 export type JoinSpaceStatus =
-  | { type: 'active'; joinId: string; joinedSpace: JoinedSpace }
+  | { type: 'active'; joinId: string; joinedSpace: JoinedSpace; peerUpgradeRequired: boolean }
   | {
       type: 'pending';
       joinId: string;
@@ -59,6 +61,7 @@ export type JoinSpaceStatus =
       sponsorDeviceId: string | null;
       sponsorIdentityFingerprint: string | null;
       cancelRequested: boolean;
+      peerUpgradeRequired: boolean;
     }
   | { type: 'rejected'; joinId: string; reason: JoinSpaceRejectionReason };
 
@@ -81,6 +84,7 @@ export interface PeerConnectionRefresh {
 
 export interface SpaceInvitation {
   invitationCode: string;
+  fullInvitation: string;
   expiresAtMs: number;
 }
 
@@ -130,7 +134,7 @@ export interface WorkspaceConvergence {
   failureCategory: WorkspaceConvergenceFailureCategory | null;
 }
 
-export type DeviceTrustChoice = 'applyChange' | 'keepCurrentDeviceGroup';
+export type DeviceTrustChoice = string;
 
 export type DeviceTrustQueryResult =
   | { ok: true; value: string }
@@ -268,10 +272,11 @@ interface UcEngineNativeModule {
   refreshPeerConnections(): Promise<PeerConnectionRefresh>;
   querySpaceState(): Promise<SpaceState>;
   listDevices(): Promise<Device[]>;
-  queryDeviceTrust(): Promise<DeviceTrustQueryResult>;
-  decideDeviceTrustChange(
-    changeId: string,
-    choice: DeviceTrustChoice,
+  queryDeviceGroupChoices(): Promise<DeviceTrustQueryResult>;
+  chooseDeviceGroup(
+    issueId: string,
+    choiceId: string,
+    expectedRevision: number,
     confirmLocalRemoval: boolean
   ): Promise<string>;
   removeMember(deviceId: string): Promise<WorkspaceConvergence>;
@@ -409,16 +414,20 @@ export function listDevices(): Promise<Device[]> {
   return NativeModule.listDevices();
 }
 
-export function queryDeviceTrust(): Promise<DeviceTrustQueryResult> {
-  return NativeModule.queryDeviceTrust();
+export function queryDeviceGroupChoices(): Promise<DeviceTrustQueryResult> {
+  return NativeModule.queryDeviceGroupChoices();
 }
 
-export function decideDeviceTrustChange(
-  changeId: string,
-  choice: DeviceTrustChoice,
+export function chooseDeviceGroup(
+  issueId: string,
+  choiceId: string,
+  expectedRevision: number,
   confirmLocalRemoval: boolean
 ): Promise<string> {
-  return NativeModule.decideDeviceTrustChange(changeId, choice, confirmLocalRemoval);
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
+    return Promise.reject(new Error('Invalid device group revision'));
+  }
+  return NativeModule.chooseDeviceGroup(issueId, choiceId, expectedRevision, confirmLocalRemoval);
 }
 
 export function removeMember(deviceId: string): Promise<WorkspaceConvergence> {

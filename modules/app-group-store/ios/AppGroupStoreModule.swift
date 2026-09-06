@@ -99,7 +99,7 @@ public class AppGroupStoreModule: Module {
           guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey]) else {
             return false
           }
-          return values.isRegularFile == true && url.pathExtension == "txt"
+          return values.isRegularFile == true && (url.pathExtension == "txt" || (url.lastPathComponent.hasPrefix("engine.") && url.pathExtension == "jsonl"))
         }
         .map(\.path)
     }

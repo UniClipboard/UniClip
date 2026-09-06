@@ -88,16 +88,16 @@ describe('unified P2P engine native module', () => {
     const swift = read('ios/UcEngineModule.swift');
     const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
 
-    for (const operation of ['queryDeviceTrust', 'decideDeviceTrustChange']) {
+    for (const operation of ['queryDeviceGroupChoices', 'chooseDeviceGroup']) {
       expect(javascript).toMatch(new RegExp(`export (?:async )?function ${operation}\\b`));
       expect(swift).toContain(`AsyncFunction("${operation}")`);
       expect(kotlin).toContain(`AsyncFunction("${operation}")`);
     }
 
-    expect(javascript).toContain('choice: DeviceTrustChoice');
+    expect(javascript).toContain('choiceId: string');
     expect(javascript).toContain('confirmLocalRemoval: boolean');
-    expect(swift).toContain('choice: String, confirmLocalRemoval: Bool');
-    expect(kotlin).toContain('choice: String, confirmLocalRemoval: Boolean');
+    expect(swift).toContain('expectedRevision: UInt64, confirmLocalRemoval: Bool');
+    expect(kotlin).toContain('expectedRevision: Long, confirmLocalRemoval: Boolean');
   });
 
   it('returns structured device trust query failures on both native platforms', () => {
@@ -106,7 +106,7 @@ describe('unified P2P engine native module', () => {
     const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
 
     expect(javascript).toContain('export type DeviceTrustQueryResult');
-    expect(javascript).toContain('queryDeviceTrust(): Promise<DeviceTrustQueryResult>');
+    expect(javascript).toContain('queryDeviceGroupChoices(): Promise<DeviceTrustQueryResult>');
     expect(swift).toContain('case let .Engine(code, category, retryable)');
     expect(swift).toContain('"failure": Self.engineFailureMap(');
     expect(kotlin).toContain('is BindingException.Engine -> mapOf(');
@@ -400,6 +400,53 @@ describe('unified P2P engine native module', () => {
       ]) {
         expect(pin.artifacts[artifact]).toMatch(/^[a-f0-9]{64}$/);
       }
+    }
+  });
+});
+
+describe('Engine rc.6 host contract', () => {
+  it('installs process observability before each Apple engine entry point', () => {
+    const host = read('ios/SharedEngineHost.swift');
+    expect(host).toContain('installProcessObservability(');
+    expect(
+      host.match(/try installEngineObservability\(appVersion: appVersion, host: host\)/g)
+    ).toHaveLength(2);
+    expect(host).toContain('remoteDiagnosticsEnabled: false');
+    expect(host).not.toContain('shutdownProcessObservability(');
+  });
+
+  it('installs Android context then observability before engine creation', () => {
+    const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
+    const start = kotlin.slice(kotlin.indexOf('AsyncFunction("start")'));
+    expect(start.indexOf('installProcessObservability(')).toBeGreaterThan(
+      start.indexOf('nativeInstallAndroidContext(context)')
+    );
+    expect(start.indexOf('installProcessObservability(')).toBeLessThan(
+      start.indexOf('MobileEngine.startWithAnalytics(')
+    );
+  });
+
+  it('exposes revision-checked device group choices on both platforms', () => {
+    for (const path of [
+      'ios/UcEngineModule.swift',
+      'android/src/main/java/expo/modules/ucengine/UcEngineModule.kt',
+    ]) {
+      const source = read(path);
+      expect(source).toContain('AsyncFunction("queryDeviceGroupChoices")');
+      expect(source).toContain('AsyncFunction("chooseDeviceGroup")');
+      expect(source).toContain('expectedRevision');
+      expect(source).not.toContain('AsyncFunction("decideDeviceTrustChange")');
+    }
+  });
+
+  it('preserves full invitations and peer upgrade status', () => {
+    for (const path of [
+      'ios/UcEngineModule.swift',
+      'android/src/main/java/expo/modules/ucengine/UcEngineModule.kt',
+    ]) {
+      const source = read(path);
+      expect(source).toContain('"fullInvitation"');
+      expect(source).toContain('"peerUpgradeRequired"');
     }
   });
 });

@@ -39,7 +39,9 @@ function listEngineLogFiles(): File[] {
   }
   return ENGINE_LOG_DIR.exists
     ? ENGINE_LOG_DIR.list().filter(
-        (entry): entry is File => entry instanceof File && entry.name.endsWith('.txt')
+        (entry): entry is File =>
+          entry instanceof File &&
+          (entry.name.endsWith('.txt') || /^engine\.\d{4}-\d{2}-\d{2}\.jsonl$/.test(entry.name))
       )
     : [];
 }
@@ -261,7 +263,7 @@ export function cleanOldLogs(): void {
   cutoffDate.setDate(cutoffDate.getDate() - MAX_LOG_DAYS);
 
   for (const entry of listLogFiles()) {
-    const match = entry.name.match(/(?:app_|engine\.)(\d{4}-\d{2}-\d{2})\.txt/);
+    const match = entry.name.match(/(?:app_|engine\.)(\d{4}-\d{2}-\d{2})\.(?:txt|jsonl)$/);
     if (match) {
       const fileDate = new Date(match[1]);
       if (fileDate < cutoffDate) {

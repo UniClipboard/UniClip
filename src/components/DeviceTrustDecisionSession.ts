@@ -2,6 +2,9 @@ import type { DeviceTrustDecisionView } from '@/features/space';
 
 export type DeviceTrustDecisionChoice = DeviceTrustDecisionView['choices'][number]['choice'];
 export type DeviceTrustDecisionOutcome =
+  | 'completed'
+  | 'pending'
+  | 'rePairingRequired'
   | 'applied'
   | 'keptCurrentDeviceGroup'
   | 'alreadyCompleted'
