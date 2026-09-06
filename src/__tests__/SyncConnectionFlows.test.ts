@@ -87,30 +87,34 @@ describe('unified sync connection flows', () => {
     expect(ios).toContain('space.flow.joinCodeSheetTitle');
   });
 
-  it('accepts eight invitation characters without rewriting the active input', () => {
+  it('accepts formatted codes without silently truncating pasted input', () => {
     const android = source('components/AddSyncConnectionSheet.android.tsx');
     const ios = source('components/AddSyncConnectionSheet.ios.tsx');
 
     for (const platform of [android, ios]) {
-      expect(platform).toContain('maxLength={8}');
+      expect(platform).not.toMatch(/maxLength=\{[68]\}/);
       expect(platform).not.toContain('invitationCodeRef.current?.setText');
     }
   });
 
-  it('presents the iOS invitation input as an eight-cell OTP field', () => {
+  it('presents the iOS invitation input as a six-cell numeric field', () => {
     const ios = source('components/AddSyncConnectionSheet.ios.tsx');
     const joinCodeStart = ios.indexOf("{mode === 'joinCode' ? (");
     const joinDetailsStart = ios.indexOf("{mode === 'joinDetails' ? (", joinCodeStart);
     const joinCodeStep = ios.slice(joinCodeStart, joinDetailsStart);
 
     expect(ios).toContain('function InvitationCodeField');
-    expect(ios).toContain('Array.from({ length: 8 }');
-    expect(ios).toContain('slice(0, 4)');
-    expect(ios).toContain('slice(4, 8)');
+    expect(ios).toContain('Array.from({ length: 6 }');
+    expect(ios).toContain('slice(0, 3)');
+    expect(ios).toContain('slice(3, 6)');
     expect(ios).toContain('inputRef.current?.focus()');
     expect(ios).toContain('<InvitationCodeField');
     expect(ios).toContain('code={invitationCode}');
-    expect(ios).toContain('maxLength={8}');
+    expect(ios).toContain('if (normalized !== value) invitationCodeState.value = normalized');
+    expect(ios).toContain("keyboardType('numeric')");
+    expect(source('components/AddSyncConnectionSheet.android.tsx')).toContain(
+      "keyboardType: 'number'"
+    );
     expect(ios).toContain('autoFocus');
     expect(ios).toContain('ClipboardProxy.getStringAsync()');
     expect(ios).toContain("t('space.flow.pasteInvitation')");

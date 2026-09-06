@@ -179,8 +179,8 @@ function InvitationCodeField({
   onTextChange: (value: string) => void;
 }) {
   const normalizedCode = normalizeInvitationCodeInput(code);
-  const codeCells = Array.from({ length: 8 }, (_, index) => index);
-  const groups = [codeCells.slice(0, 4), codeCells.slice(4, 8)];
+  const codeCells = Array.from({ length: 6 }, (_, index) => index);
+  const groups = [codeCells.slice(0, 3), codeCells.slice(3, 6)];
 
   return (
     <VStack spacing={4} modifiers={[frame({ maxWidth: Infinity })]}>
@@ -188,12 +188,12 @@ function InvitationCodeField({
         onPress={() => inputRef.current?.focus()}
         modifiers={[buttonStyle('plain'), accessibilityLabel(label)]}
       >
-        <HStack spacing={14} modifiers={[frame({ maxWidth: Infinity })]}>
+        <HStack spacing={24} modifiers={[frame({ maxWidth: Infinity })]}>
           {groups.map((group, groupIndex) => (
-            <HStack key={groupIndex} spacing={8}>
+            <HStack key={groupIndex} spacing={8} modifiers={[frame({ maxWidth: Infinity })]}>
               {group.map((index) => {
                 const character = normalizedCode[index] ?? ' ';
-                const isActive = normalizedCode.length < 8 && index === normalizedCode.length;
+                const isActive = normalizedCode.length < 6 && index === normalizedCode.length;
 
                 return (
                   <SwiftUIText
@@ -202,7 +202,7 @@ function InvitationCodeField({
                       font({ size: 22, weight: 'semibold', design: 'monospaced' }),
                       foregroundStyle(isActive ? 'white' : 'primary'),
                       multilineTextAlignment('center'),
-                      frame({ width: 36, height: 52 }),
+                      frame({ minWidth: 28, maxWidth: Infinity, minHeight: 56, maxHeight: 56 }),
                       background(
                         isActive ? JOIN_TINT : iosColors?.tertiarySystemFill ?? '#E5E5EA',
                         shapes.roundedRectangle({ cornerRadius: 8 })
@@ -221,11 +221,10 @@ function InvitationCodeField({
         ref={inputRef}
         text={nativeText}
         onTextChange={onTextChange}
-        maxLength={8}
         autoFocus
         modifiers={[
           textFieldStyle('plain'),
-          keyboardType('ascii-capable'),
+          keyboardType('numeric'),
           autocorrectionDisabled(),
           textInputAutocapitalization('characters'),
           frame({ height: 1, maxWidth: Infinity }),
@@ -405,7 +404,7 @@ export function AddSyncConnectionSheet({
 
   const handleInvitationCodeChange = (value: string) => {
     const normalized = invitationCodeInputValue(value);
-    invitationCodeState.value = normalized;
+    if (normalized !== value) invitationCodeState.value = normalized;
     updateInvitationCode(normalized);
   };
 
@@ -413,7 +412,7 @@ export function AddSyncConnectionSheet({
     const normalized = invitationCodeInputValue(await ClipboardProxy.getStringAsync());
     invitationCodeState.value = normalized;
     updateInvitationCode(normalized);
-    if (normalized.length < 8) void invitationCodeRef.current?.focus();
+    if (normalized.length < 6) void invitationCodeRef.current?.focus();
   };
 
   useEffect(() => {

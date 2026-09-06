@@ -246,11 +246,9 @@ function AddSyncConnectionSheetContent({
               onValueChange={updateInvitationCode}
               autoFocus
               singleLine
-              maxLength={8}
               keyboardOptions={{
-                capitalization: 'characters',
                 autoCorrectEnabled: false,
-                keyboardType: 'ascii',
+                keyboardType: 'number',
                 imeAction: 'next',
               }}
               textStyle={CODE_INPUT_STYLE}
@@ -261,7 +259,7 @@ function AddSyncConnectionSheetContent({
                 <ComposeText>{t('space.field.invitationCode')}</ComposeText>
               </OutlinedTextField.Label>
               <OutlinedTextField.Placeholder>
-                <ComposeText>XXXXXXXX</ComposeText>
+                <ComposeText>123-456</ComposeText>
               </OutlinedTextField.Placeholder>
             </OutlinedTextField>
             <Spacer modifiers={[heightModifier(20)]} />

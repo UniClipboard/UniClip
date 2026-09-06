@@ -46,7 +46,7 @@ jest.mock('react-i18next', () => ({
 }));
 
 const invitation = {
-  invitationCode: 'ABCD-1234',
+  invitationCode: '001-234',
   expiresAtMs: Date.now() + 60_000,
   availability: 'crossNetwork' as const,
 };
@@ -127,7 +127,7 @@ describe('add sync connection flow', () => {
     act(() => currentFlow.actions.continueFromCode());
     expect(currentFlow.state.error).toBe('space.error.invitationCodeInvalid');
 
-    act(() => currentFlow.actions.updateInvitationCode('ab12cd34'));
+    act(() => currentFlow.actions.updateInvitationCode('001234'));
     act(() => currentFlow.actions.continueFromCode());
     act(() => currentFlow.actions.setDeviceName('  Laptop  '));
     act(() => currentFlow.actions.setPassphrase('secret'));
@@ -135,7 +135,7 @@ describe('add sync connection flow', () => {
     await act(async () => currentFlow.actions.submitJoin());
 
     expect(mockJoinSpace).toHaveBeenCalledTimes(1);
-    expect(mockJoinSpace).toHaveBeenCalledWith('AB12-CD34', '  Laptop  ', 'secret', false);
+    expect(mockJoinSpace).toHaveBeenCalledWith('001-234', '  Laptop  ', 'secret', false);
     expect(currentFlow.state.mode).toBe('success');
 
     await act(async () => currentFlow.actions.completeConnection());
@@ -153,13 +153,13 @@ describe('add sync connection flow', () => {
     mockUnifiedSpaceUserErrorCode.mockReturnValueOnce('unreadableHistoryRequiresConfirmation');
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
 
-    act(() => currentFlow.actions.updateInvitationCode('ab12cd34'));
+    act(() => currentFlow.actions.updateInvitationCode('001234'));
     act(() => currentFlow.actions.continueFromCode());
     act(() => currentFlow.actions.setPassphrase('secret'));
 
     await act(async () => currentFlow.actions.submitJoin());
 
-    expect(mockJoinSpace).toHaveBeenNthCalledWith(1, 'AB12-CD34', 'Phone', 'secret', false);
+    expect(mockJoinSpace).toHaveBeenNthCalledWith(1, '001-234', 'Phone', 'secret', false);
     expect(alert).toHaveBeenCalledWith(
       'space.unreadableHistory.title',
       'space.unreadableHistory.body',
@@ -173,7 +173,7 @@ describe('add sync connection flow', () => {
     );
     await act(async () => continueButton?.onPress?.());
 
-    expect(mockJoinSpace).toHaveBeenNthCalledWith(2, 'AB12-CD34', 'Phone', 'secret', true);
+    expect(mockJoinSpace).toHaveBeenNthCalledWith(2, '001-234', 'Phone', 'secret', true);
     expect(currentFlow.state.mode).toBe('success');
     alert.mockRestore();
   });
@@ -188,7 +188,7 @@ describe('add sync connection flow', () => {
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
 
     expect(currentFlow.state.mode).toBe('joinCode');
-    act(() => currentFlow.actions.updateInvitationCode('ab12cd34'));
+    act(() => currentFlow.actions.updateInvitationCode('001234'));
     act(() => currentFlow.actions.continueFromCode());
     act(() => currentFlow.actions.setPassphrase('secret'));
 
@@ -205,7 +205,7 @@ describe('add sync connection flow', () => {
     const confirmButton = buttons?.find((button) => button.text === 'space.switch.confirmAction');
     await act(async () => confirmButton?.onPress?.());
 
-    expect(mockJoinSpace).toHaveBeenCalledWith('AB12-CD34', 'Phone', 'secret', false);
+    expect(mockJoinSpace).toHaveBeenCalledWith('001-234', 'Phone', 'secret', false);
     expect(currentFlow.state.mode).toBe('success');
     alert.mockRestore();
   });
@@ -219,7 +219,7 @@ describe('add sync connection flow', () => {
     createHarness('switch');
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
 
-    act(() => currentFlow.actions.updateInvitationCode('ab12cd34'));
+    act(() => currentFlow.actions.updateInvitationCode('001234'));
     act(() => currentFlow.actions.continueFromCode());
     act(() => currentFlow.actions.setPassphrase('secret'));
     await act(async () => currentFlow.actions.submitJoin());
@@ -248,7 +248,7 @@ describe('add sync connection flow', () => {
 
   it('owns invitation creation, renewal, copy, and share behavior', async () => {
     createHarness('create');
-    const renewedInvitation = { ...invitation, invitationCode: 'WXYZ-9876' };
+    const renewedInvitation = { ...invitation, invitationCode: '987-654' };
     mockIssueInvitation.mockResolvedValueOnce(renewedInvitation);
     const shareSpy = jest.spyOn(Share, 'share').mockResolvedValue({ action: 'sharedAction' });
 
@@ -264,12 +264,12 @@ describe('add sync connection flow', () => {
     expect(currentFlow.state.invitation).toEqual(renewedInvitation);
 
     await act(async () => currentFlow.actions.copyInvitation());
-    expect(Clipboard.setStringAsync).toHaveBeenCalledWith('WXYZ-9876');
+    expect(Clipboard.setStringAsync).toHaveBeenCalledWith('987-654');
     expect(currentFlow.state.copied).toBe(true);
 
     await act(async () => currentFlow.actions.shareInvitation());
     expect(shareSpy).toHaveBeenCalledWith({
-      message: 'space.flow.shareMessage:WXYZ-9876',
+      message: 'space.flow.shareMessage:987-654',
     });
     expect(Haptics.notificationAsync).toHaveBeenCalled();
 

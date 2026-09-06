@@ -83,7 +83,7 @@ function createApi(overrides: Partial<UnifiedSpaceApi> = {}): UnifiedSpaceApi {
       identityFingerprint: 'fingerprint',
     })),
     issueInvitation: jest.fn(async () => ({
-      invitationCode: '7K2M-8Q4R',
+      invitationCode: '072-834',
       expiresAtMs: 123_456,
       availability: 'crossNetwork' as const,
     })),
@@ -884,7 +884,7 @@ describe('UnifiedSpaceService', () => {
       if (operation === 'create') {
         await service.createSpace('Phone', 'passphrase');
       } else {
-        await service.joinSpace('7K2M-8Q4R', 'Phone', 'passphrase');
+        await service.joinSpace('072-834', 'Phone', 'passphrase');
       }
 
       expect(events.slice(0, 2)).toEqual(['prepare:p2p', `native:${operation}`]);
@@ -901,10 +901,10 @@ describe('UnifiedSpaceService', () => {
   });
 
   it.each([
-    ['7k2m8q4r', '7K2M-8Q4R'],
-    ['  7k2m-8q4r  ', '7K2M-8Q4R'],
-    ['7k2m 8q4r', '7K2M-8Q4R'],
-    ['olk2-m8qr', '01K2-M8QR'],
+    ['072834', '072-834'],
+    ['  072-834  ', '072-834'],
+    ['072 834', '072-834'],
+    ['０７２８３４', '072-834'],
   ])('normalizes invitation %s for joining as %s', async (input, expected) => {
     const api = createApi();
     const service = new UnifiedSpaceService(api);
@@ -918,9 +918,9 @@ describe('UnifiedSpaceService', () => {
     const api = createApi();
     const service = new UnifiedSpaceService(api);
 
-    await service.joinSpace('7K2M-8Q4R', 'Phone', 'passphrase', true);
+    await service.joinSpace('072-834', 'Phone', 'passphrase', true);
 
-    expect(api.joinSpace).toHaveBeenCalledWith('7K2M-8Q4R', 'Phone', 'passphrase', true);
+    expect(api.joinSpace).toHaveBeenCalledWith('072-834', 'Phone', 'passphrase', true);
   });
 
   it.each([
@@ -957,7 +957,7 @@ describe('UnifiedSpaceService', () => {
         completion
       );
 
-      await expect(service.joinSpace('7K2M-8Q4R', 'Phone', 'passphrase')).rejects.toMatchObject({
+      await expect(service.joinSpace('072-834', 'Phone', 'passphrase')).rejects.toMatchObject({
         code: expectedCode,
       });
 
@@ -976,7 +976,7 @@ describe('UnifiedSpaceService', () => {
     'logs a redacted %s failure with enough context to diagnose joining',
     async (expectedStage, failJoinRequest) => {
       const logError = jest.spyOn(log, 'error').mockImplementation(() => undefined);
-      const invitation = '7K2M-8Q4R';
+      const invitation = '072-834';
       const deviceName = 'Private Phone';
       const secret = 'secret with spaces';
       const privatePath = '/private/var/mobile/Containers/Data/Application/SECRET/history.db';
@@ -1022,7 +1022,7 @@ describe('UnifiedSpaceService', () => {
     }
   );
 
-  it.each(['ABCD-123', 'ABCD-12345', 'ABCD-U234', '----'])(
+  it.each(['ABCD-123', '001-2345', 'ABCD-U234', '----'])(
     'rejects incomplete or unsupported invitation %s before joining',
     async (input) => {
       const api = createApi();
@@ -1061,7 +1061,7 @@ describe('UnifiedSpaceService', () => {
     const service = new UnifiedSpaceService(api);
 
     await expect(service.issueInvitation()).resolves.toEqual(
-      expect.objectContaining({ invitationCode: '7K2M-8Q4R' })
+      expect.objectContaining({ invitationCode: '072-834' })
     );
     expect(api.issueInvitation).toHaveBeenCalledTimes(1);
     expect(api.createSpace).not.toHaveBeenCalled();
@@ -1157,7 +1157,7 @@ describe('UnifiedSpaceService', () => {
 
     expect(api.createSpace).toHaveBeenCalledWith('Phone', 'correct horse battery staple');
     expect(api.issueInvitation).toHaveBeenCalledTimes(1);
-    expect(creation.invitation.invitationCode).toBe('7K2M-8Q4R');
+    expect(creation.invitation.invitationCode).toBe('072-834');
     expect(snapshots.at(-1)).toEqual(
       expect.objectContaining({
         status: 'ready',
@@ -1181,7 +1181,7 @@ describe('UnifiedSpaceService', () => {
       if (kind === 'create') {
         await service.createSpace('Phone', 'passphrase');
       } else {
-        await service.joinSpace('7K2M-8Q4R', 'Phone', 'passphrase');
+        await service.joinSpace('072-834', 'Phone', 'passphrase');
       }
 
       expect(completion.markComplete).toHaveBeenCalledTimes(1);
@@ -1652,7 +1652,7 @@ describe('UnifiedSpaceService', () => {
     const service = new UnifiedSpaceService(api, (snapshot) => snapshots.push(snapshot));
 
     const staleRefresh = service.refresh();
-    await service.joinSpace('9R3N-6W2X', 'New Phone', 'passphrase');
+    await service.joinSpace('936-200', 'New Phone', 'passphrase');
     pendingState.resolve({
       hasCompleted: true,
       spaceId: 'old-space',
@@ -1700,7 +1700,7 @@ describe('UnifiedSpaceService', () => {
     };
     service = new UnifiedSpaceService(api, (snapshot) => snapshots.push(snapshot), runSetup);
 
-    await service.joinSpace('9R3N-6W2X', 'New Phone', 'passphrase');
+    await service.joinSpace('936-200', 'New Phone', 'passphrase');
 
     expect(snapshots.at(-1)).toEqual(
       expect.objectContaining({ status: 'ready', spaceId: 'new-space' })
@@ -1720,7 +1720,7 @@ describe('UnifiedSpaceService', () => {
     });
     const service = new UnifiedSpaceService(api, (snapshot) => snapshots.push(snapshot));
 
-    const joining = service.joinSpace('9R3N-6W2X', 'New Phone', 'passphrase');
+    const joining = service.joinSpace('936-200', 'New Phone', 'passphrase');
     const refresh = service.refresh();
     joinResult.resolve(
       activeJoinStatus({
@@ -2060,7 +2060,7 @@ describe('UnifiedSpaceService', () => {
       expect.objectContaining({ hasResolvedDeviceList: false, deviceListRefreshStatus: 'idle' })
     );
 
-    await service.joinSpace('9R3N-6W2X', 'Phone', 'passphrase');
+    await service.joinSpace('936-200', 'Phone', 'passphrase');
     expect(snapshots.at(-1)).toEqual(
       expect.objectContaining({ hasResolvedDeviceList: true, deviceListRefreshStatus: 'idle' })
     );
@@ -2132,7 +2132,7 @@ it('keeps the peer upgrade warning when joining has already succeeded', async ()
     joinSpace: jest.fn(async () => ({ ...activeJoinStatus(), peerUpgradeRequired: true })),
   });
   const service = new UnifiedSpaceService(api);
-  const joined = await service.joinSpace('7K2M-8Q4R', 'Phone', 'secret');
+  const joined = await service.joinSpace('072-834', 'Phone', 'secret');
   expect(joined.peerUpgradeRequired).toBe(true);
 });
 
@@ -2149,7 +2149,7 @@ it('reports peer upgrade instead of service unavailable for a pending join', asy
     })),
   });
   const service = new UnifiedSpaceService(api);
-  await expect(service.joinSpace('7K2M-8Q4R', 'Phone', 'secret')).rejects.toMatchObject({
+  await expect(service.joinSpace('072-834', 'Phone', 'secret')).rejects.toMatchObject({
     code: 'peerUpgradeRequired',
   });
 });

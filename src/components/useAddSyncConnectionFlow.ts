@@ -197,8 +197,9 @@ export function useAddSyncConnectionFlow({
   const updateInvitationCode = (value: string) => {
     const nextValue = invitationCodeInputValue(value);
     setInvitationCode(nextValue);
-    setError(null);
-    if (nextValue.length === 4 || nextValue.length === 8) void Haptics.selectionAsync();
+    setError(/^[0-9]{0,6}$/.test(nextValue) ? null : t('space.error.invitationCodeInvalid'));
+    if (nextValue.length === 3 || isInvitationCodeComplete(nextValue))
+      void Haptics.selectionAsync();
   };
 
   const continueFromCode = () => {
