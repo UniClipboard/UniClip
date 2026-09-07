@@ -42,7 +42,6 @@ export function SyncChannelPage({
         <Section>
           <SettingsNavRow
             title={t('syncChannel.lan')}
-            value={t('syncChannel.default')}
             selected={syncChannel === 'lan'}
             showsChevron={false}
             showsPressFeedback={false}

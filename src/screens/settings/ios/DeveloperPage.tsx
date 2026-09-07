@@ -18,6 +18,7 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
+import { iosAccentColor } from '@/theme/iosDesignTokens';
 import {
   DEVICE_TRUST_PREVIEW_SCENARIOS,
   type DeviceTrustPreviewScenarioId,
@@ -25,8 +26,6 @@ import {
 import {
   chevronColor,
   HeaderCircleButton,
-  SettingsIconTile,
-  settingsTileColors,
 } from './common';
 
 interface DeveloperPageProps {
@@ -66,9 +65,11 @@ export function DeveloperPage({ onBack, onOpenPreview }: DeveloperPageProps) {
                 spacing={12}
                 modifiers={[frame({ maxWidth: Infinity }), contentShape(shapes.rectangle())]}
               >
-                <SettingsIconTile
+                <Image
                   systemName="rectangle.stack.badge.play"
-                  color={settingsTileColors.indigo}
+                  size={22}
+                  color={iosAccentColor}
+                  modifiers={[frame({ width: 28, height: 28 })]}
                 />
                 <VStack
                   spacing={2}

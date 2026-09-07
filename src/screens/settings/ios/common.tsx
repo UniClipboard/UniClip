@@ -30,7 +30,7 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
-import { iosColors } from '@/theme/iosDesignTokens';
+import { iosAccentColor, iosColors } from '@/theme/iosDesignTokens';
 
 /** iOS system palette for settings icon tiles (iOS Settings app style). */
 export const settingsTileColors = {
@@ -142,6 +142,13 @@ export function SettingsNavRow({
       <HStack spacing={12} modifiers={[frame({ maxWidth: Infinity }), contentShape(shapes.rectangle())]}>
         {icon && iconColor ? (
           <SettingsIconTile systemName={icon} color={iconColor} />
+        ) : icon ? (
+          <Image
+            systemName={icon}
+            size={22}
+            color={destructive ? PlatformColor('systemRed') : iosAccentColor}
+            modifiers={[frame({ width: 28, height: 28 })]}
+          />
         ) : null}
         <VStack alignment="leading" spacing={2}>
           <SwiftUIText

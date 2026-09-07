@@ -23,7 +23,9 @@ import { useTranslation } from 'react-i18next';
 
 import type { AddSyncConnectionMode } from '@/components/AddSyncConnectionSheet.types';
 import type { SpaceDeviceManagementController } from '@/components/useSpaceDeviceManagement';
+import { useSpacePageRefresh } from '@/components/useSpacePageRefresh';
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
+import { iosColors } from '@/theme/iosDesignTokens';
 import {
   getUnifiedSpaceService,
   UnifiedSpaceInputError,
@@ -32,7 +34,6 @@ import {
 } from '@/features/space';
 import {
   HeaderCircleButton,
-  SettingsIconTile,
   SettingsNavRow,
   chevronColor,
   settingsTileColors,
@@ -94,7 +95,12 @@ function SpaceDeviceRow({
 
   return (
     <HStack spacing={12} alignment="center" modifiers={rowModifiers}>
-      <Image systemName="person.crop.circle" size={30} color={settingsTileColors.indigo} />
+      <Image
+        systemName="person.crop.circle"
+        size={28}
+        color={iosColors?.secondaryLabel}
+        modifiers={[frame({ width: 28, height: 28 })]}
+      />
       <VStack alignment="leading" spacing={3}>
         <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>{device.displayName}</SwiftUIText>
         <HStack spacing={5} alignment="center">
@@ -135,15 +141,12 @@ export function SpacePage({
 }) {
   const { t } = useTranslation('settingsSync');
   const [pending, setPending] = useState<PendingOperation>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [operationFailure, setError] = useState<string | null>(null);
+  const pageRefresh = useSpacePageRefresh();
+  const error =
+    operationFailure ?? (pageRefresh.error ? operationError(pageRefresh.error, t) : null);
   const space = useUnifiedSpaceStore();
   const initialDeviceHandled = useRef<number | null>(null);
-
-  useEffect(() => {
-    void getUnifiedSpaceService()
-      .refresh()
-      .catch((cause) => setError(operationError(cause, t)));
-  }, [t]);
 
   useEffect(() => {
     if (
@@ -221,7 +224,10 @@ export function SpacePage({
       ? 'arrow.clockwise.circle.fill'
       : 'exclamationmark.circle.fill';
   const isInitialLoading =
-    !spaceId && !pending && (space.status === 'idle' || space.status === 'loading');
+    !spaceId &&
+    !pending &&
+    !error &&
+    (pageRefresh.waiting || space.status === 'idle' || space.status === 'loading');
 
   const content = (
     <>
@@ -243,7 +249,6 @@ export function SpacePage({
         >
           <SettingsNavRow
             icon="plus"
-            iconColor={settingsTileColors.blue}
             title={t('space.create.title')}
             subtitle={t('space.create.description')}
             accessibilityHint={t('space.create.description')}
@@ -252,7 +257,6 @@ export function SpacePage({
           />
           <SettingsNavRow
             icon="link"
-            iconColor={settingsTileColors.green}
             title={t('space.join.title')}
             subtitle={t('space.join.description')}
             accessibilityHint={t('space.join.description')}
@@ -262,7 +266,7 @@ export function SpacePage({
         </Section>
       ) : null}
 
-      {spaceId && error ? (
+      {error ? (
         <Section>
           <HStack spacing={8}>
             <Image systemName="exclamationmark.circle.fill" size={17} color={settingsTileColors.red} />
@@ -275,7 +279,12 @@ export function SpacePage({
         <>
           <Section footer={<SwiftUIText>{t('connection.p2pDescription')}</SwiftUIText>}>
             <HStack spacing={12} alignment="center" modifiers={[frame({ maxWidth: Infinity })]}>
-              <SettingsIconTile systemName="person.2.fill" color={settingsTileColors.indigo} />
+              <Image
+                systemName="person.2.fill"
+                size={22}
+                color={iosColors?.secondaryLabel}
+                modifiers={[frame({ width: 28, height: 28 })]}
+              />
               <VStack alignment="leading" spacing={3}>
                 <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>
                   {t(`space.overview.status.${deviceManagement.overview.primaryStatus}`)}
@@ -298,6 +307,13 @@ export function SpacePage({
               </HStack>
             }
           >
+            <SettingsNavRow
+              icon="plus"
+              title={t('space.invitation.addAction')}
+              accessibilityHint={t('space.invitation.addA11y')}
+              onPress={onOpenInvitation}
+              disabled={highImpactActionsDisabled}
+            />
             {devices.length ? (
               devices.map((device) => (
                 <SpaceDeviceRow
@@ -327,7 +343,6 @@ export function SpacePage({
           <Section footer={<SwiftUIText>{t('space.switch.description')}</SwiftUIText>}>
             <SettingsNavRow
               icon="arrow.triangle.2.circlepath"
-              iconColor={settingsTileColors.indigo}
               title={t('space.switch.title')}
               accessibilityHint={t('space.switch.description')}
               onPress={() => onOpenSetup('switch')}
@@ -339,7 +354,6 @@ export function SpacePage({
           <Section footer={<SwiftUIText>{t('space.leave.confirm')}</SwiftUIText>}>
             <SettingsNavRow
               icon="rectangle.portrait.and.arrow.right"
-              iconColor={settingsTileColors.red}
               title={t('space.leave.action')}
               accessibilityHint={t('space.leave.confirm')}
               onPress={leaveSpace}

@@ -36,9 +36,6 @@ export const SyncChannelSection = memo(function SyncChannelSection() {
           <ListItem.HeadlineContent>
             <ComposeText>{t('syncChannel.lan')}</ComposeText>
           </ListItem.HeadlineContent>
-          <ListItem.SupportingContent>
-            <ComposeText>{t('syncChannel.default')}</ComposeText>
-          </ListItem.SupportingContent>
           <ListItem.TrailingContent>
             <RadioButton selected={syncChannel === 'lan'} />
           </ListItem.TrailingContent>

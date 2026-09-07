@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next';
 
 import { saveCustomRelay } from '@/features/relaySettings';
 import { useSettingsStore } from '@/stores';
-import { SettingsNavRow, settingsTileColors } from './ios/common';
+import { SettingsNavRow } from './ios/common';
 
 const EMPTY_RELAY_URLS: string[] = [];
 
@@ -98,7 +98,6 @@ export function CustomRelaySection() {
           ))}
           <SettingsNavRow
             icon="plus"
-            iconColor={settingsTileColors.green}
             title={t('relay.add')}
             onPress={openAddRelay}
             showsChevron={false}

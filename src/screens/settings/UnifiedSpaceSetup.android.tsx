@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { BackHandler } from 'react-native';
 import {
   AlertDialog,
@@ -34,6 +34,7 @@ import type { AddSyncConnectionMode } from '@/components/AddSyncConnectionSheet.
 import { SpaceDeviceDetail } from '@/components/SpaceDeviceDetail';
 import { SpaceInvitationSheet } from '@/components/SpaceInvitationSheet';
 import { useSpaceDeviceManagement } from '@/components/useSpaceDeviceManagement';
+import { useSpacePageRefresh } from '@/components/useSpacePageRefresh';
 import {
   getUnifiedSpaceService,
   UnifiedSpaceInputError,
@@ -182,22 +183,15 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
   const navigation = useNavigation<any>();
   const [setupMode, setSetupMode] = useState<AddSyncConnectionMode | null>(null);
   const [pending, setPending] = useState<PendingOperation>(null);
-  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const pageRefresh = useSpacePageRefresh();
+  const refreshError = pageRefresh.error ? operationError(pageRefresh.error, t) : null;
+  const refresh = pageRefresh.refresh;
   const [spaceOperationError, setSpaceOperationError] = useState<string | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [showInvitation, setShowInvitation] = useState(false);
   const space = useUnifiedSpaceStore();
   const deviceManagement = useSpaceDeviceManagement({ allowHighImpactActions: true });
   const initialDeviceHandled = useRef<number | null>(null);
-
-  const refresh = useCallback(() => {
-    setRefreshError(null);
-    void getUnifiedSpaceService()
-      .refresh()
-      .catch((cause) => setRefreshError(operationError(cause, t)));
-  }, [t]);
-
-  useEffect(() => refresh(), [refresh]);
 
   useEffect(() => {
     if (
@@ -273,7 +267,10 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
     ? colors.primary
     : colors.outline;
   const isInitialLoading =
-    !spaceId && !pending && (space.status === 'idle' || space.status === 'loading');
+    !spaceId &&
+    !pending &&
+    !refreshError &&
+    (pageRefresh.waiting || space.status === 'idle' || space.status === 'loading');
 
   const dialogs = (
     <>

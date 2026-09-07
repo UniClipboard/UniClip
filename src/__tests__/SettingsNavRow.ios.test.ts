@@ -59,6 +59,15 @@ describe('iOS settings navigation rows', () => {
     expect(row).toContain('icon && iconColor ? (');
   });
 
+  it('uses plain action icons while preserving colored category tiles and their alignment', () => {
+    expect(settingsCommon).toContain('<SettingsIconTile systemName={icon} color={iconColor} />');
+    expect(settingsCommon).toContain(') : icon ? (');
+    expect(settingsCommon).toContain(
+      "color={destructive ? PlatformColor('systemRed') : iosAccentColor}"
+    );
+    expect(settingsCommon).toContain('modifiers={[frame({ width: 28, height: 28 })]}');
+  });
+
   it('can show a native checkmark for a selected setting row', () => {
     const row = settingsCommon.match(/export function SettingsNavRow[\s\S]*?\n}\n\n\/\*\*/)?.[0];
 

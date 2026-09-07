@@ -47,8 +47,8 @@ describe('unified space setup UI', () => {
     const invitationSheet = source('components/SpaceInvitationSheet.ios.tsx');
     const connectionSheet = source('components/AddSyncConnectionSheet.ios.tsx');
 
-    expect(spacePage).toContain('iconColor={settingsTileColors.blue}');
-    expect(spacePage).toContain('iconColor={settingsTileColors.green}');
+    expect(spacePage).not.toContain('iconColor={settingsTileColors.');
+    expect(spacePage).toContain('color={iosColors?.secondaryLabel}');
     expect(spacePage).not.toContain('iosSaturatedButtonPalette(settingsTileColors.indigo)');
     expect(spacePage).toContain(': settingsTileColors.blue;');
 
@@ -164,7 +164,7 @@ describe('unified space setup UI', () => {
   it('uses full-width settings rows for the two empty-space choices on iOS', () => {
     const ios = source('screens/settings/ios/SpacePage.tsx');
     const emptyStateStart = ios.indexOf('!spaceId && !isInitialLoading');
-    const activeSpaceStart = ios.indexOf('{spaceId && error', emptyStateStart);
+    const activeSpaceStart = ios.indexOf('{error ? (', emptyStateStart);
     const emptyState = ios.slice(emptyStateStart, activeSpaceStart);
 
     expect(emptyState).toContain("title={t('space.create.title')}");
@@ -178,6 +178,16 @@ describe('unified space setup UI', () => {
     expect(emptyState.match(/<SettingsNavRow/g)).toHaveLength(2);
     expect(emptyState).not.toContain('<SwiftUIButton');
     expect(emptyState).not.toContain('error ??');
+  });
+
+  it('keeps the invitation row in embedded space content and the sheet in its stable owner', () => {
+    const ios = source('screens/settings/ios/SpacePage.tsx');
+    const content = ios.slice(0, ios.indexOf('if (embedded) return content;'));
+    expect(content).toMatch(
+      /<SettingsNavRow\s+icon="plus"[\s\S]*?title=\{t\('space.invitation.addAction'\)\}[\s\S]*?onPress=\{onOpenInvitation\}[\s\S]*?disabled=\{highImpactActionsDisabled\}/
+    );
+    expect(ios).not.toContain('<SpaceInvitationSheet');
+    expect(source('screens/SettingsScreen.ios.tsx')).toContain('<SpaceInvitationSheet');
   });
 
   it('uses the current device relationship instead of the legacy convergence summary', () => {
@@ -284,7 +294,7 @@ describe('unified space setup UI', () => {
   it('gives the iOS space page a compact overview and manageable device rows', () => {
     const ios = source('screens/settings/ios/SpacePage.tsx');
 
-    expect(ios).toContain('SettingsIconTile');
+    expect(ios).not.toContain('SettingsIconTile');
     expect(ios).toContain('SpaceDeviceRow');
     expect(ios).toContain('onOpenSetup');
   });
