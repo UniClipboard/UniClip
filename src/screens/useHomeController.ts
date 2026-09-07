@@ -61,6 +61,8 @@ export function useHomeController(onOpenSettings: () => void) {
   // totalCount / message / error 等)变化都重渲染整个 HomeView + 卡片网格。
   // action 引用稳定，订阅它们不会触发重渲染。
   const items = useHistoryStore((s) => s.items);
+  const resultCount = useHistoryStore((s) => s.totalCount);
+  const isHistoryLoading = useHistoryStore((s) => s.isLoading);
   const selectedIds = useHistoryStore((s) => s.selectedIds);
   const lastAddedTimestamp = useHistoryStore((s) => s.lastAddedTimestamp);
   const isInitialHistoryLoadComplete = useHistoryStore((s) => s.isInitialLoadComplete);
@@ -102,14 +104,18 @@ export function useHomeController(onOpenSettings: () => void) {
   // 详情会自动跟到新的第一张;若用户选的是非首项则为 false,新变化不打扰。用 ref 不触发重渲。
   const followFirstRef = useRef(true);
 
+  const hasSearchCriteria =
+    (isSearching && searchText.trim().length > 0) ||
+    selectedFilterKinds.length > 0 ||
+    selectedDateFilter !== 'all';
   const emptyContent = useMemo(
     () => ({
-      icon: 'clipboard-outline' as const,
-      title: t('empty.online.title'),
-      description: t('empty.online.description'),
+      icon: hasSearchCriteria ? ('search-outline' as const) : ('clipboard-outline' as const),
+      title: t(hasSearchCriteria ? 'search.emptyTitle' : 'empty.online.title'),
+      description: t(hasSearchCriteria ? 'search.emptyDescription' : 'empty.online.description'),
       tint: theme.colors.textSecondary,
     }),
-    [t, theme.colors.textSecondary]
+    [t, theme.colors.textSecondary, hasSearchCriteria]
   );
 
   const listRef = useRef<AnimatedCardGridHandle>(null);
@@ -634,7 +640,10 @@ export function useHomeController(onOpenSettings: () => void) {
   );
 
   // Search
-  const openSearch = useCallback(() => setIsSearching(true), []);
+  const openSearch = useCallback(() => {
+    setShowAddMenu(false);
+    setIsSearching(true);
+  }, []);
   const hasActiveFilters = selectedFilterKinds.length > 0 || selectedDateFilter !== 'all';
   // 类型筛选是全局单选(chip 行、搜索筛选弹层、平板 FilterRail 共用):点新类型替换,
   // 点已选类型取消(回到「全部」)。弹层里的 checkmark 行按 radio 语义理解,与同弹层的
@@ -652,11 +661,12 @@ export function useHomeController(onOpenSettings: () => void) {
   const closeSearch = useCallback(() => {
     setIsSearching(false);
     setSearchText('');
-    setSelectedFilterKinds([]);
-    setSelectedDateFilter('all');
     setShowFilterSheet(false);
-    searchItems(undefined);
-  }, [searchItems]);
+  }, []);
+  const resetSearch = useCallback(() => {
+    setSearchText('');
+    handleClearFilters();
+  }, [handleClearFilters]);
 
   const keyExtractor = useCallback((item: ClipboardItem) => item.profileHash, []);
 
@@ -670,6 +680,8 @@ export function useHomeController(onOpenSettings: () => void) {
     onOpenSettings,
     // data
     items,
+    resultCount,
+    isHistoryLoading,
     isInitialHistoryLoadComplete,
     latestId,
     emptyContent,
@@ -686,6 +698,7 @@ export function useHomeController(onOpenSettings: () => void) {
     isSearching,
     openSearch,
     closeSearch,
+    resetSearch,
     searchText,
     setSearchText,
     selectedFilterKinds,

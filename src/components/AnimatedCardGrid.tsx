@@ -176,6 +176,8 @@ function AnimatedCardGridInner<T>(
       scrollEventThrottle={1}
       refreshControl={refreshControl}
       showsVerticalScrollIndicator={false}
+      keyboardDismissMode="on-drag"
+      keyboardShouldPersistTaps="handled"
       contentInset={contentInsetTop > 0 ? { top: contentInsetTop } : undefined}
       contentOffset={contentInsetTop > 0 ? { x: 0, y: -contentInsetTop } : undefined}
       automaticallyAdjustContentInsets={false}

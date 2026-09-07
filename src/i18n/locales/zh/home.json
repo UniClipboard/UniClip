@@ -1,4 +1,15 @@
 {
+  "search": {
+    "recordCount": "{{count}} 条记录",
+    "allTypes": "全部类型",
+    "anyTime": "不限时间",
+    "clearFilters": "清除筛选",
+    "reset": "重置搜索",
+    "loading": "搜索中…",
+    "resultCount": "{{count}} 项结果",
+    "emptyTitle": "没有找到匹配内容",
+    "emptyDescription": "当前搜索条件下没有记录。"
+  },
   "empty": {
     "unconfigured": {
       "title": "尚未加入 P2P 空间",
@@ -24,7 +35,7 @@
   "topBar": {
     "selectedCount": "已选择 {{n}} 项",
     "deselectAll": "取消全选",
-    "searchPlaceholder": "搜索剪贴板"
+    "searchPlaceholder": "搜索"
   },
   "a11y": {
     "addContent": "添加内容",

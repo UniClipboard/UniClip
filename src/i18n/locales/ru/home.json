@@ -1,4 +1,21 @@
 {
+  "search": {
+    "recordCount_one": "{{count}} запись",
+    "recordCount_few": "{{count}} записи",
+    "recordCount_many": "{{count}} записей",
+    "recordCount_other": "{{count}} записи",
+    "allTypes": "Все типы",
+    "anyTime": "Любая дата",
+    "clearFilters": "Сбросить фильтры",
+    "reset": "Сбросить поиск",
+    "loading": "Поиск…",
+    "resultCount_one": "{{count}} результат",
+    "resultCount_few": "{{count}} результата",
+    "resultCount_many": "{{count}} результатов",
+    "resultCount_other": "{{count}} результата",
+    "emptyTitle": "Ничего не найдено",
+    "emptyDescription": "Нет записей по заданным условиям поиска."
+  },
   "empty": {
     "unconfigured": {
       "title": "Нет пространства P2P",

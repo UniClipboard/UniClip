@@ -5,6 +5,9 @@ import type { HistoryDateFilter } from '@/utils/historyFilters';
 export interface HomeFilterChipsRowProps {
   selectedKinds: DisplayKind[];
   selectedDate: HistoryDateFilter;
+  resultCount?: number;
+  isLoading?: boolean;
+  onResetSearch?: () => void;
   onToggleKind: (kind: DisplayKind) => void;
   /** 「全部」chip:只清类型选择,不动时间筛选 */
   onClearKinds: () => void;

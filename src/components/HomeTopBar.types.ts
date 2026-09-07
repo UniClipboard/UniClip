@@ -15,6 +15,9 @@ export interface SearchTopBarProps {
   selectedKinds: DisplayKind[];
   selectedDate: HistoryDateFilter;
   hasActiveFilters: boolean;
+  resultCount?: number;
+  isLoading?: boolean;
+  onReset?: () => void;
   onOpenFilters: () => void;
   onRemoveKind: (kind: DisplayKind) => void;
   onClearDateFilter: () => void;

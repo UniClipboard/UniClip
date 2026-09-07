@@ -29,10 +29,18 @@ export function HomeCompactView({
   c,
   screenWidth,
   refreshTintColor,
+  topBar,
+  bottomSearch,
+  showFilterRow = true,
+  overlayTopBarHeight = 0,
 }: {
   c: HomeController;
   screenWidth: number;
   refreshTintColor?: ColorValue;
+  topBar?: React.ReactNode;
+  bottomSearch?: React.ReactNode;
+  showFilterRow?: boolean;
+  overlayTopBarHeight?: number;
 }) {
   const { theme, items, selectedIds, isSelectMode } = c;
   const backgroundColor = iosColors?.systemGroupedBackground ?? theme.colors.background;
@@ -72,7 +80,7 @@ export function HomeCompactView({
         translucent
       />
 
-      <HomeTopBarArea c={c} />
+      {overlayTopBarHeight === 0 ? topBar ?? <HomeTopBarArea c={c} /> : null}
 
       {/*
        * 网格区:筛选 chip 行以 overlay 覆盖在网格顶部(网格内容用 paddingTop 预留同等
@@ -100,12 +108,14 @@ export function HomeCompactView({
             cardSize={cardSize}
             spacing={GRID_SPACING}
             paddingHorizontal={GRID_PADDING - GRID_SPACING / 2}
-            paddingTop={8 + CHIP_ROW_GRID_METRICS.paddingTopExtra}
+            paddingTop={8 + (showFilterRow ? CHIP_ROW_GRID_METRICS.paddingTopExtra : 0)}
             paddingBottom={isSelectMode ? selectionBarClearance : 80}
             keyExtractor={c.keyExtractor}
             renderItem={renderCard}
             onEndReached={c.loadMoreItems}
-            contentInsetTop={CHIP_ROW_GRID_METRICS.contentInsetTop}
+            contentInsetTop={
+              overlayTopBarHeight + (showFilterRow ? CHIP_ROW_GRID_METRICS.contentInsetTop : 0)
+            }
             onScrollWorklet={chipRowCollapse.onScrollWorklet}
             onScrollEndWorklet={chipRowCollapse.onScrollEndWorklet}
             refreshControl={
@@ -120,23 +130,36 @@ export function HomeCompactView({
           />
         ) : null}
 
-        <Animated.View
-          style={[styles.chipRowOverlay, { backgroundColor }, chipRowCollapse.rowStyle]}
-          accessibilityElementsHidden={chipRowCollapse.isFullyHidden}
-          importantForAccessibility={chipRowCollapse.isFullyHidden ? 'no-hide-descendants' : 'auto'}
-        >
-          <HomeFilterChipsRow
-            selectedKinds={c.selectedFilterKinds}
-            selectedDate={c.selectedDateFilter}
-            onToggleKind={c.handleToggleFilterKind}
-            onClearKinds={c.handleClearFilterKinds}
-            onSelectDate={c.setSelectedDateFilter}
-            theme={theme}
-          />
-        </Animated.View>
+        {showFilterRow && (
+          <Animated.View
+            style={[styles.chipRowOverlay, { backgroundColor }, chipRowCollapse.rowStyle]}
+            accessibilityElementsHidden={chipRowCollapse.isFullyHidden}
+            importantForAccessibility={
+              chipRowCollapse.isFullyHidden ? 'no-hide-descendants' : 'auto'
+            }
+          >
+            <HomeFilterChipsRow
+              resultCount={c.isSearching ? c.resultCount : undefined}
+              isLoading={c.isHistoryLoading}
+              onResetSearch={
+                c.isSearching && (c.searchText.length > 0 || c.hasActiveFilters)
+                  ? c.resetSearch
+                  : undefined
+              }
+              selectedKinds={c.selectedFilterKinds}
+              selectedDate={c.selectedDateFilter}
+              onToggleKind={c.handleToggleFilterKind}
+              onClearKinds={c.handleClearFilterKinds}
+              onSelectDate={c.setSelectedDateFilter}
+              theme={theme}
+            />
+          </Animated.View>
+        )}
       </View>
 
       {/* 多选底栏(默认态由右下 FAB 取代) */}
+      {overlayTopBarHeight > 0 ? <View style={styles.topBarOverlay}>{topBar}</View> : null}
+      {!isSelectMode && bottomSearch}
       {isSelectMode && (
         <View
           style={[
@@ -174,6 +197,7 @@ export function HomeCompactView({
 }
 
 const styles = StyleSheet.create({
+  topBarOverlay: { position: 'absolute', top: 0, left: 0, right: 0 },
   container: {
     flex: 1,
   },

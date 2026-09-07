@@ -1,4 +1,17 @@
 {
+  "search": {
+    "recordCount_one": "{{count}} registro",
+    "recordCount_other": "{{count}} registros",
+    "allTypes": "Todos os tipos",
+    "anyTime": "Qualquer data",
+    "clearFilters": "Limpar filtros",
+    "reset": "Redefinir busca",
+    "loading": "Buscando…",
+    "resultCount_one": "{{count}} resultado",
+    "resultCount_other": "{{count}} resultados",
+    "emptyTitle": "Nenhum item encontrado",
+    "emptyDescription": "Nenhum item corresponde a esta busca."
+  },
   "empty": {
     "unconfigured": {
       "title": "Nenhum espaço P2P ainda",

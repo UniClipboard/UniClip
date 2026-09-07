@@ -1,5 +1,15 @@
 import React from 'react';
-import { useWindowDimensions } from 'react-native';
+import { KeyboardAvoidingView, View, Keyboard, useWindowDimensions } from 'react-native';
+import { Host, Menu, Button } from '@expo/ui/swift-ui';
+import { Ellipsis, ListFilter } from 'lucide-react-native';
+import { GlassContainer } from '@/components/ui';
+import {
+  getHistoryFilterDateOptions,
+  HISTORY_FILTER_KIND_OPTIONS,
+} from '@/utils/historyFilterOptions';
+import { getDisplayKindLabel } from '@/utils/displayKind';
+import { SelectModeTopBar } from '@/components/HomeTopBar';
+import { HomeSearchDock } from './ios/HomeSearchDock';
 import { iosColors } from '@/theme/iosDesignTokens';
 import { useHomeController } from './useHomeController';
 import { getLayoutMode } from '@/hooks/useLayoutMode';
@@ -23,16 +33,163 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
   const mode = getLayoutMode(screenWidth);
 
   if (mode === 'compact') {
-    return <HomeCompactView c={c} screenWidth={screenWidth} refreshTintColor={undefined} />;
+    return (
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+        <HomeCompactView
+          c={c}
+          screenWidth={screenWidth}
+          refreshTintColor={undefined}
+          showFilterRow={false}
+          overlayTopBarHeight={c.insets.top + 56}
+          topBar={
+            <View
+              style={{
+                paddingTop: c.insets.top + 4,
+                paddingHorizontal: 16,
+                minHeight: c.insets.top + 56,
+              }}
+            >
+              {c.isSelectMode ? (
+                <SelectModeTopBar
+                  count={c.selectedIds.size}
+                  allSelected={c.allSelected}
+                  onSelectAll={c.handleSelectAll}
+                  onDone={c.exitSelectMode}
+                  theme={c.theme}
+                />
+              ) : (
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'flex-end',
+                    gap: 8,
+                  }}
+                >
+                  <Host style={{ width: 44, height: 44 }}>
+                    <Menu
+                      label={
+                        <GlassContainer
+                          shape="circle"
+                          interactive
+                          style={{
+                            width: 44,
+                            height: 44,
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <ListFilter size={22} color={c.theme.colors.textPrimary} />
+                          {c.hasActiveFilters ? (
+                            <View
+                              style={{
+                                position: 'absolute',
+                                right: 6,
+                                top: 6,
+                                width: 6,
+                                height: 6,
+                                borderRadius: 3,
+                                backgroundColor: c.theme.colors.accent,
+                              }}
+                            />
+                          ) : null}
+                        </GlassContainer>
+                      }
+                    >
+                      <Menu label={c.t('filter.section.kind', { ns: 'history' })}>
+                        <Button
+                          label={c.t('search.allTypes')}
+                          systemImage={c.selectedFilterKinds.length === 0 ? 'checkmark' : undefined}
+                          onPress={c.handleClearFilterKinds}
+                        />
+                        {HISTORY_FILTER_KIND_OPTIONS.map((kind) => (
+                          <Button
+                            key={kind}
+                            label={getDisplayKindLabel(kind)}
+                            systemImage={
+                              c.selectedFilterKinds.includes(kind) ? 'checkmark' : undefined
+                            }
+                            onPress={() => {
+                              Keyboard.dismiss();
+                              if (!c.selectedFilterKinds.includes(kind))
+                                c.handleToggleFilterKind(kind);
+                            }}
+                          />
+                        ))}
+                      </Menu>
+                      <Menu label={c.t('filter.section.date', { ns: 'history' })}>
+                        {getHistoryFilterDateOptions().map((option) => (
+                          <Button
+                            key={option.value}
+                            label={option.label}
+                            systemImage={
+                              c.selectedDateFilter === option.value ? 'checkmark' : undefined
+                            }
+                            onPress={() => {
+                              Keyboard.dismiss();
+                              c.setSelectedDateFilter(option.value);
+                            }}
+                          />
+                        ))}
+                      </Menu>
+                      <Button
+                        label={c.t('search.clearFilters')}
+                        systemImage="arrow.counterclockwise"
+                        onPress={c.handleClearFilters}
+                      />
+                    </Menu>
+                  </Host>
+                  <Host style={{ width: 44, height: 44, alignSelf: 'flex-end' }}>
+                    <Menu
+                      label={
+                        <GlassContainer
+                          shape="circle"
+                          interactive
+                          style={{
+                            width: 44,
+                            height: 44,
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <Ellipsis size={22} color={c.theme.colors.textPrimary} />
+                        </GlassContainer>
+                      }
+                    >
+                      <Button
+                        label={c.t('action.select', { ns: 'common' })}
+                        systemImage="checkmark.circle"
+                        onPress={() => {
+                          c.setIsSelectMode(true);
+                          c.clearSelection();
+                        }}
+                      />
+                      <Button
+                        label={c.t('action.settings', { ns: 'common' })}
+                        systemImage="gearshape"
+                        onPress={c.onOpenSettings}
+                      />
+                    </Menu>
+                  </Host>
+                </View>
+              )}
+            </View>
+          }
+          bottomSearch={<HomeSearchDock c={c} />}
+        />
+      </KeyboardAvoidingView>
+    );
   }
 
   return (
-    <HomeExpandedView
-      c={c}
-      screenWidth={screenWidth}
-      refreshTintColor={undefined}
-      gutterColor={iosColors?.systemGroupedBackground ?? (c.theme.colors.background as string)}
-      paneColor={iosColors?.secondarySystemGroupedBackground ?? c.theme.colors.surfaceLow}
-    />
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+      <HomeExpandedView
+        c={c}
+        screenWidth={screenWidth}
+        refreshTintColor={undefined}
+        gutterColor={iosColors?.systemGroupedBackground ?? (c.theme.colors.background as string)}
+        paneColor={iosColors?.secondarySystemGroupedBackground ?? c.theme.colors.surfaceLow}
+      />
+    </KeyboardAvoidingView>
   );
 }

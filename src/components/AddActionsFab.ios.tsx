@@ -127,7 +127,7 @@ export function AddActionsFab({
     },
   ];
 
-  const fabBottom = insets.bottom + 12;
+  const fabBottom = Math.max(0, insets.bottom - 4);
   const popBottom = fabBottom + FAB_SIZE + 12;
 
   return (

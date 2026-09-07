@@ -1,4 +1,17 @@
 {
+  "search": {
+    "recordCount_one": "{{count}} record",
+    "recordCount_other": "{{count}} records",
+    "allTypes": "All types",
+    "anyTime": "Any time",
+    "clearFilters": "Clear filters",
+    "reset": "Reset search",
+    "loading": "Searching…",
+    "resultCount_one": "{{count}} result",
+    "resultCount_other": "{{count}} results",
+    "emptyTitle": "No matching items",
+    "emptyDescription": "No items match the current search."
+  },
   "empty": {
     "unconfigured": {
       "title": "No P2P space yet",
