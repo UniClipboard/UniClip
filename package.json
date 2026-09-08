@@ -40,7 +40,8 @@
     "release:alpha": "node scripts/bump-build.mjs --alpha",
     "release:version": "node scripts/bump-version.mjs",
     "postinstall": "node scripts/patch-expo-modules-jsi-xcode27.cjs && node scripts/patch-expo-sharing-android.cjs",
-    "prepare": "husky"
+    "prepare": "husky",
+    "doctor": "npx react-doctor@latest"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": "eslint"
