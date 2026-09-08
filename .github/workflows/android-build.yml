@@ -13,7 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       APP_VARIANT: production
-      POSTHOG_PROJECT_KEY: ${{ secrets.UC_POSTHOG_PROJECT_KEY }}
     outputs:
       version: ${{ steps.version.outputs.version }}
 
@@ -36,7 +35,13 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
+
+      - name: Apply project dependency patches
+        run: npm run postinstall
+
+      - name: Build project modules without secrets
+        run: npm run prepare --workspaces --if-present
 
       - name: Prepare unified engine core
         run: npm run core:prepare
@@ -45,6 +50,8 @@ jobs:
         run: npm run core:verify
 
       - name: Expo prebuild
+        env:
+          POSTHOG_PROJECT_KEY: ${{ secrets.UC_POSTHOG_PROJECT_KEY }}
         run: npx expo prebuild -p android --no-install
 
       - name: Grant execute permission for gradlew

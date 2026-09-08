@@ -77,7 +77,11 @@ jobs:
         with:
           node-version-file: '.nvmrc'
 
-      - run: npm ci
+      - run: npm ci --ignore-scripts
+      - run: npm run postinstall
+      - run: npm run prepare --workspaces --if-present
+      - name: Build SQLite test dependency without secrets
+        run: npm rebuild better-sqlite3
       - run: npm run core:prepare
       - run: npm run core:verify
       - run: npm run release:check
@@ -89,7 +93,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       APP_VARIANT: production
-      POSTHOG_PROJECT_KEY: ${{ secrets.UC_POSTHOG_PROJECT_KEY }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -112,10 +115,14 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6
 
-      - run: npm ci
+      - run: npm ci --ignore-scripts
+      - run: npm run postinstall
+      - run: npm run prepare --workspaces --if-present
       - run: npm run core:prepare
       - run: npm run core:verify
       - run: npx expo prebuild -p android --no-install
+        env:
+          POSTHOG_PROJECT_KEY: ${{ secrets.UC_POSTHOG_PROJECT_KEY }}
       - run: chmod +x android/gradlew
       - run: cd android && ./gradlew assembleRelease
 
@@ -126,7 +133,6 @@ jobs:
     runs-on: macos-26
     env:
       APP_VARIANT: production
-      POSTHOG_PROJECT_KEY: ${{ secrets.UC_POSTHOG_PROJECT_KEY }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -147,10 +153,14 @@ jobs:
         with:
           node-version-file: '.nvmrc'
 
-      - run: npm ci
+      - run: npm ci --ignore-scripts
+      - run: npm run postinstall
+      - run: npm run prepare --workspaces --if-present
       - run: npm run core:prepare
       - run: npm run core:verify
       - run: npx expo prebuild -p ios --clean --no-install
+        env:
+          POSTHOG_PROJECT_KEY: ${{ secrets.UC_POSTHOG_PROJECT_KEY }}
       - run: cd ios && pod install
       - name: Build iOS app and extensions
         run: >-

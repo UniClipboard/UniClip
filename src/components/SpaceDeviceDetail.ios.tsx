@@ -32,6 +32,8 @@ import {
 import type { DeviceTrustDeviceView } from '@/features/space';
 import type { SpaceDeviceDetailProps } from './SpaceDeviceDetail.types';
 
+const facts = ['reachability', 'groupRelationship', 'syncRelationship', 'compatibility'] as const;
+
 function factValue(
   device: DeviceTrustDeviceView,
   fact: 'reachability' | 'groupRelationship' | 'syncRelationship' | 'compatibility'
@@ -42,7 +44,6 @@ function factValue(
 export function SpaceDeviceDetail(props: SpaceDeviceDetailProps) {
   const { t } = useTranslation('settingsSync');
   const device = props.device;
-  const facts = ['reachability', 'groupRelationship', 'syncRelationship', 'compatibility'] as const;
 
   return (
     <BottomSheet

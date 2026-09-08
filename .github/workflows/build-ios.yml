@@ -43,7 +43,6 @@ on:
 env:
   APPLE_TEAM_ID: 8XG39X5CL8
   APP_VARIANT: production
-  POSTHOG_PROJECT_KEY: ${{ secrets.UC_POSTHOG_PROJECT_KEY }}
 
 jobs:
   build:
@@ -65,20 +64,6 @@ jobs:
           echo "ASC_KEY_PATH=$RUNNER_TEMP/AuthKey.p8"        >> "$GITHUB_ENV"
           echo "KEYCHAIN_PATH=$RUNNER_TEMP/ci.keychain-db"   >> "$GITHUB_ENV"
 
-      # Signing preflight up front: writing the ASC key and installing the App
-      # Store profiles here (rather than only before export) fails a missing or
-      # misconfigured profile in ~1 min instead of after the 15-20 min archive.
-      - name: Write App Store Connect API key
-        env:
-          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
-        run: echo -n "$ASC_API_KEY_P8" | base64 --decode > "$ASC_KEY_PATH"
-
-      - name: Install App Store provisioning profiles
-        env:
-          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
-          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
-        run: ruby scripts/asc_profiles.rb install "$ASC_API_KEY_ID" "$ASC_API_ISSUER_ID" "$ASC_KEY_PATH"
-
       - name: Select latest Xcode 26
         run: |
           XCODE_APP="$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
@@ -91,7 +76,13 @@ jobs:
           node-version-file: '.nvmrc'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
+
+      - name: Apply project dependency patches
+        run: npm run postinstall
+
+      - name: Build project modules without secrets
+        run: npm run prepare --workspaces --if-present
 
       - name: Prepare unified engine core
         run: npm run core:prepare
@@ -110,6 +101,8 @@ jobs:
           node -e "const fs=require('fs'),p='app.json',j=JSON.parse(fs.readFileSync(p,'utf8'));j.expo.ios=j.expo.ios||{};j.expo.ios.buildNumber=process.env.BN;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n');console.log('set expo.ios.buildNumber =',j.expo.ios.buildNumber)"
 
       - name: Expo prebuild (iOS)
+        env:
+          POSTHOG_PROJECT_KEY: ${{ secrets.UC_POSTHOG_PROJECT_KEY }}
         run: npx expo prebuild -p ios --clean --no-install
 
       - name: Get version name
@@ -118,6 +111,18 @@ jobs:
 
       - name: CocoaPods install
         run: cd ios && pod install
+
+      # Materialize signing credentials only after dependency setup completes.
+      - name: Write App Store Connect API key
+        env:
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+        run: echo -n "$ASC_API_KEY_P8" | base64 --decode > "$ASC_KEY_PATH"
+
+      - name: Install App Store provisioning profiles
+        env:
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+        run: ruby scripts/asc_profiles.rb install "$ASC_API_KEY_ID" "$ASC_API_ISSUER_ID" "$ASC_KEY_PATH"
 
       - name: Install signing certificates
         env:

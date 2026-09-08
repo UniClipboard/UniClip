@@ -145,18 +145,20 @@ jobs:
             --changelog-dir changelogs \
             --out-dir manifests
 
+      - name: Install locked release tools without secrets
+        run: npm ci --ignore-scripts --prefix scripts/release-tools
+
       - name: Upload APKs to R2
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          npm install -g wrangler
           TAG="${{ inputs.tag_name }}"
 
           for file in apk/*.apk; do
             filename=$(basename "$file")
             echo "Uploading ${filename} to R2..."
-            wrangler r2 object put \
+            scripts/release-tools/node_modules/.bin/wrangler r2 object put \
               "uniclipboard-releases/android/artifacts/${TAG}/${filename}" \
               --file "$file" \
               --remote

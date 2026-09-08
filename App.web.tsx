@@ -575,6 +575,12 @@ function TopAppBar({ c }: { c: M3Scheme }) {
   );
 }
 
+const themeOptions: { v: ThemeMode; label: string }[] = [
+  { v: 'auto', label: '跟随系统' },
+  { v: 'light', label: '浅色' },
+  { v: 'dark', label: '深色' },
+];
+
 function SegmentedThemeSwitcher({
   c,
   value,
@@ -584,17 +590,12 @@ function SegmentedThemeSwitcher({
   value: ThemeMode;
   onChange: (v: ThemeMode) => void;
 }) {
-  const options: { v: ThemeMode; label: string }[] = [
-    { v: 'auto', label: '跟随系统' },
-    { v: 'light', label: '浅色' },
-    { v: 'dark', label: '深色' },
-  ];
   return (
     <View style={[styles.segmented, { borderColor: c.outline }]}>
-      {options.map((opt, i) => {
+      {themeOptions.map((opt, i) => {
         const active = value === opt.v;
         const isFirst = i === 0;
-        const isLast = i === options.length - 1;
+        const isLast = i === themeOptions.length - 1;
         return (
           <Pressable
             key={opt.v}
@@ -820,8 +821,9 @@ function ErrorCard({ c }: { c: M3Scheme }) {
   );
 }
 
+const filterChips = ['全部', '文本', '图片', '文件', '收藏'];
+
 function FilterChipsRow({ c }: { c: M3Scheme }) {
-  const chips = ['全部', '文本', '图片', '文件', '收藏'];
   const [active, setActive] = useState(0);
   return (
     <ScrollView
@@ -829,7 +831,7 @@ function FilterChipsRow({ c }: { c: M3Scheme }) {
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={{ gap: space(2), paddingHorizontal: 2 }}
     >
-      {chips.map((label, i) => {
+      {filterChips.map((label, i) => {
         const isActive = i === active;
         return (
           <Pressable
@@ -1197,22 +1199,23 @@ function ExtendedFAB({ c }: { c: M3Scheme }) {
   );
 }
 
+const tonalSwatches: { key: keyof M3Scheme; label: string }[] = [
+  { key: 'primary', label: 'primary' },
+  { key: 'primaryContainer', label: 'primaryContainer' },
+  { key: 'errorContainer', label: 'errorContainer' },
+  { key: 'surfaceContainerLowest', label: 'surfaceContainerLowest' },
+  { key: 'surfaceContainerLow', label: 'surfaceContainerLow' },
+  { key: 'surfaceContainer', label: 'surfaceContainer' },
+  { key: 'surfaceContainerHigh', label: 'surfaceContainerHigh' },
+  { key: 'surfaceContainerHighest', label: 'surfaceContainerHighest' },
+];
+
 function TonalPaletteGrid({ c }: { c: M3Scheme }) {
-  const swatches: { key: keyof M3Scheme; label: string }[] = [
-    { key: 'primary', label: 'primary' },
-    { key: 'primaryContainer', label: 'primaryContainer' },
-    { key: 'errorContainer', label: 'errorContainer' },
-    { key: 'surfaceContainerLowest', label: 'surfaceContainerLowest' },
-    { key: 'surfaceContainerLow', label: 'surfaceContainerLow' },
-    { key: 'surfaceContainer', label: 'surfaceContainer' },
-    { key: 'surfaceContainerHigh', label: 'surfaceContainerHigh' },
-    { key: 'surfaceContainerHighest', label: 'surfaceContainerHighest' },
-  ];
   return (
     <View
       style={{ borderRadius: shape.lg, overflow: 'hidden', backgroundColor: c.surfaceContainerLow }}
     >
-      {swatches.map((s) => {
+      {tonalSwatches.map((s) => {
         const isOnLight = !isDarkColor(c[s.key]);
         const textColor = isOnLight ? '#1D1B20' : '#FFFFFF';
         return (

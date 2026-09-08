@@ -24,6 +24,7 @@ const ICONS = {
   info: require('../assets/icons/info.xml'),
 };
 const DEVICE_TITLE_STYLE = { typography: 'titleLarge' } as const;
+const facts = ['reachability', 'groupRelationship', 'syncRelationship', 'compatibility'] as const;
 
 function factValue(
   device: DeviceTrustDeviceView,
@@ -37,8 +38,6 @@ function DeviceDetailContent(props: SpaceDeviceDetailProps) {
   const colors = useMaterialColors();
   const device = props.device;
   if (!device) return null;
-
-  const facts = ['reachability', 'groupRelationship', 'syncRelationship', 'compatibility'] as const;
 
   return (
     <>

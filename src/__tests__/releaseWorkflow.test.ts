@@ -2,6 +2,7 @@
 /// <reference types="jest" />
 
 import { existsSync, readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 
 const root = join(__dirname, '..', '..');
@@ -55,6 +56,13 @@ const eslintConfig = readFileSync(join(root, 'eslint.config.mjs'), 'utf8');
 const prePushHook = readFileSync(join(root, '.husky', 'pre-push'), 'utf8');
 
 describe('validated release workflow', () => {
+  it('keeps dependency installation separate from release credentials', () => {
+    execFileSync(process.execPath, ['--test', 'scripts/__tests__/build-secret-boundary.test.cjs'], {
+      cwd: root,
+      stdio: 'pipe',
+    });
+  });
+
   it('does not publish in response to a manually pushed tag', () => {
     expect(buildWorkflow).not.toMatch(/tags:\s*\n\s*- ['"]v\*['"]/);
     expect(buildWorkflow).not.toContain("startsWith(github.ref, 'refs/tags/')");
