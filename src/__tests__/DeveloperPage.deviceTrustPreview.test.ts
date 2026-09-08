@@ -18,9 +18,9 @@ describe('iOS device trust preview entry', () => {
     expect(settingsRoot).toContain("onNavigate('developer')");
     expect(settingsTypes).toContain("| 'developer'");
     expect(settingsScreen).toContain("activePage === 'developer'");
-    expect(settingsScreen).toContain(
-      '<DeveloperPage onBack={backToRoot} onOpenPreview={openPreview} />'
-    );
+    const developerPage = settingsScreen.match(/<DeveloperPage\b[\s\S]*?\/>/)?.[0];
+    expect(developerPage).toContain('onBack={backToRoot}');
+    expect(developerPage).toContain('onOpenPreview={openPreview}');
   });
 
   it('opens only fixed scenarios from a full-width native menu', () => {

@@ -64,7 +64,10 @@ describe('install-dev-device.sh', () => {
     const script = readFileSync(scriptPath, 'utf8');
 
     expect(script).toContain('restore_pinned_ios_engine()');
-    expect(script).toContain('trap restore_pinned_ios_engine EXIT');
+    const exitTrap = script.match(/trap '([^\n]+)' EXIT/)?.[1];
+    expect(exitTrap).toContain('restore_pinned_ios_engine');
+    expect(exitTrap).toContain('status=$?');
+    expect(exitTrap).toContain('exit "$status"');
     expect(script).toContain('UniClipboardEngine.xcframework.zip');
     expect(script).toContain('verify-unified-engine-core.mjs" --prepared');
   });

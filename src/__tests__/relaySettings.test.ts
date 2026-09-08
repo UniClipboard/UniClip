@@ -131,7 +131,7 @@ describe('custom relay settings', () => {
     )?.[0];
 
     expect(addAction).toContain('icon="plus"');
-    expect(addAction).toContain('iconColor={settingsTileColors.green}');
+    expect(addAction).toContain('onPress={openAddRelay}');
     expect(addAction).toContain('showsChevron={false}');
   });
 });
