@@ -82,7 +82,7 @@ def sync_build_localizations(build_id, localizations, localized_notes, requester
         data: {
           type: 'betaBuildLocalizations',
           id: localization['id'],
-          attributes: { whatsToTest: localized_notes.fetch(language) },
+          attributes: { whatsNew: localized_notes.fetch(language) },
         },
       }
     else
@@ -93,7 +93,7 @@ def sync_build_localizations(build_id, localizations, localized_notes, requester
           type: 'betaBuildLocalizations',
           attributes: {
             locale: locale,
-            whatsToTest: localized_notes.fetch(TARGET_LOCALIZATIONS.fetch(locale)),
+            whatsNew: localized_notes.fetch(TARGET_LOCALIZATIONS.fetch(locale)),
           },
           relationships: { build: { data: { type: 'builds', id: build_id } } },
         },
@@ -124,7 +124,7 @@ def main(argv = ARGV)
     abort "usage: #{$PROGRAM_NAME} <key_id> <issuer_id> <p8_path> <bundle_id> <build_number> <zh_notes_file> <en_notes_file>"
   end
 
-  # App Store Connect caps whatsToTest at 4000 characters.
+  # App Store Connect caps whatsNew at 4000 characters.
   localized_notes = {
     'zh' => File.read(zh_notes_file).strip[0, 4000],
     'en' => File.read(en_notes_file).strip[0, 4000],

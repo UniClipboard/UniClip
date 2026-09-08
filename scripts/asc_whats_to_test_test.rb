@@ -26,7 +26,8 @@ class AscWhatsToTestTest < Minitest::Test
 
     assert_empty errors
     assert_equal ['en-US', 'zh-Hans'], calls.map { |call| call.dig(:body, :data, :attributes, :locale) }
-    assert_equal ['English notes', '中文说明'], calls.map { |call| call.dig(:body, :data, :attributes, :whatsToTest) }
+    assert_equal ['English notes', '中文说明'], calls.map { |call| call.dig(:body, :data, :attributes, :whatsNew) }
+    refute calls.any? { |call| call.dig(:body, :data, :attributes).key?(:whatsToTest) }
     assert calls.all? { |call| call[:method] == 'POST' }
   end
 
@@ -63,7 +64,8 @@ class AscWhatsToTestTest < Minitest::Test
 
     assert_empty errors
     assert_equal ['PATCH', 'PATCH'], calls.map { |call| call[:method] }
-    assert_equal ['English notes', '中文说明'], calls.map { |call| call.dig(:body, :data, :attributes, :whatsToTest) }
+    assert_equal ['English notes', '中文说明'], calls.map { |call| call.dig(:body, :data, :attributes, :whatsNew) }
+    refute calls.any? { |call| call.dig(:body, :data, :attributes).key?(:whatsToTest) }
   end
 
   def test_continues_after_one_localization_request_returns_an_error

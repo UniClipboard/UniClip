@@ -1,0 +1,55 @@
+name: Update TestFlight notes
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Published release tag whose TestFlight notes should be updated'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  update-notes:
+    runs-on: macos-26
+    timeout-minutes: 25
+    steps:
+      - name: Require main and a release tag
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          test "$GITHUB_REF" = refs/heads/main
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(-alpha\.[0-9]+)?$ ]]
+
+      - name: Checkout current publishing scripts
+        uses: actions/checkout@v6
+
+      - name: Checkout release notes
+        uses: actions/checkout@v6
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          path: release-source
+
+      - name: Generate notes from the release
+        working-directory: release-source
+        run: node scripts/release-notes.mjs
+
+      - name: Update TestFlight notes
+        env:
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+        run: |
+          KEY_FILE=$(mktemp "$RUNNER_TEMP/testflight-key.XXXXXX")
+          trap 'rm -f "$KEY_FILE"' EXIT
+          printf '%s' "$ASC_API_KEY_P8" | base64 --decode > "$KEY_FILE"
+          BUNDLE_ID=$(node -p "require('./release-source/app.json').expo.ios.bundleIdentifier")
+          BUILD_NUMBER=$(node -p "require('./release-source/app.json').expo.ios.buildNumber")
+          ruby scripts/asc_whats_to_test.rb \
+            "$ASC_API_KEY_ID" "$ASC_API_ISSUER_ID" "$KEY_FILE" \
+            "$BUNDLE_ID" "$BUILD_NUMBER" \
+            release-source/release-notes-testflight.txt \
+            release-source/release-notes-testflight.en.txt | tee "$RUNNER_TEMP/testflight-notes.log"
+          grep -Fxq 'done.' "$RUNNER_TEMP/testflight-notes.log"
