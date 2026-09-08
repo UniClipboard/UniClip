@@ -5,12 +5,10 @@ import {
   mkdirSync,
   readFileSync,
   rmSync,
-  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
-import * as prettier from 'prettier';
 
 const projectRoot = join(__dirname, '..', '..');
 type ScriptName = 'bump-build.mjs' | 'bump-version.mjs';
@@ -20,8 +18,6 @@ function createFixture(scriptName: ScriptName): string {
   const fixtureScripts = join(fixtureRoot, 'scripts');
   mkdirSync(fixtureScripts);
   copyFileSync(join(projectRoot, 'scripts', scriptName), join(fixtureScripts, scriptName));
-  copyFileSync(join(projectRoot, '.prettierrc'), join(fixtureRoot, '.prettierrc'));
-  symlinkSync(join(projectRoot, 'node_modules'), join(fixtureRoot, 'node_modules'), 'dir');
 
   const app = {
     expo: {
@@ -60,18 +56,22 @@ describe.each([
     }
   });
 
-  it('keeps app.json compatible with the repository format check', async () => {
+  it('updates app.json without installed dependencies and preserves unrelated settings', () => {
     const fixtureRoot = createFixture(scriptName);
 
     try {
       execFileSync(process.execPath, [join(fixtureRoot, 'scripts', basename(scriptName)), ...args]);
       const appJsonPath = join(fixtureRoot, 'app.json');
       const result = readFileSync(appJsonPath, 'utf8');
-      const config = await prettier.resolveConfig(appJsonPath);
-
-      await expect(prettier.check(result, { ...config, filepath: appJsonPath })).resolves.toBe(
-        true
-      );
+      const app = JSON.parse(result);
+      expect(app.expo.version).toBe(scriptName === 'bump-version.mjs' ? '1.4.0' : '1.3.0');
+      expect(app.expo.ios.buildNumber).toBe('157');
+      expect(app.expo.android.versionCode).toBe(157);
+      expect(app.expo.android.permissions).toEqual([
+        'android.permission.REQUEST_INSTALL_PACKAGES',
+        'android.permission.CAMERA',
+      ]);
+      expect(result).toBe(`${JSON.stringify(app, null, 2)}\n`);
     } finally {
       rmSync(fixtureRoot, { recursive: true, force: true });
     }

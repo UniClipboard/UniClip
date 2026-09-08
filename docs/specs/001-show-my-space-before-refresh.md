@@ -453,7 +453,6 @@ npm run core:verify
 npm test -- --runInBand
 npm run type-check
 npm run lint
-npm run format-docs:check
 git diff --check
 ```
 

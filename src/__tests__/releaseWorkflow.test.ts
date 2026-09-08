@@ -52,7 +52,6 @@ const flareReleaseRegistrationScript = readFileSync(
 );
 const testWorkflow = readFileSync(join(root, '.github', 'workflows', 'test.yml'), 'utf8');
 const eslintConfig = readFileSync(join(root, 'eslint.config.mjs'), 'utf8');
-const prettierIgnore = readFileSync(join(root, '.prettierignore'), 'utf8');
 const prePushHook = readFileSync(join(root, '.husky', 'pre-push'), 'utf8');
 
 describe('validated release workflow', () => {
@@ -69,7 +68,7 @@ describe('validated release workflow', () => {
 
   it('uses the same quality gate locally, before push, and in CI', () => {
     expect(packageScripts['check:quality']).toBe(
-      'npm run lint && npm run format:check && npm run type-check'
+      'npm run lint && npm run type-check'
     );
     expect(packageScripts['test:ci']).toBe(
       'npm test -- --runInBand && ruby scripts/asc_whats_to_test_test.rb && npm run test:coverage -- --runInBand'
@@ -81,14 +80,13 @@ describe('validated release workflow', () => {
     expect(prePushHook.trim()).toBe('npm run release:check');
   });
 
-  it('uses Prettier CLI as the only formatter and ignores generated artifacts', () => {
-    expect(packageScripts['format:check']).toBe('prettier --check .');
-    expect(eslintConfig).not.toContain('eslint-plugin-prettier');
-    expect(eslintConfig).not.toContain('prettier/prettier');
-    expect(prettierIgnore).toContain('.pi-subagents/');
-    expect(prettierIgnore).toContain('android/');
-    expect(prettierIgnore).toContain('ios/');
-    expect(prettierIgnore).toContain('**/build/');
+  it('does not require Prettier for development or release checks', () => {
+    const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+    expect(JSON.stringify(packageJson.scripts)).not.toContain('prettier');
+    expect(packageJson['lint-staged']).toEqual({ '*.{ts,tsx,js,jsx}': 'eslint' });
+    expect(packageJson.devDependencies).not.toHaveProperty('prettier');
+    expect(packageJson.devDependencies).not.toHaveProperty('eslint-config-prettier');
+    expect(eslintConfig).not.toContain('prettier');
   });
 
   it('gates both platform builds on code style and unit tests', () => {

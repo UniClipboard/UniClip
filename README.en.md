@@ -97,9 +97,6 @@ npm run type-check
 npm run lint
 npm run lint:fix
 
-# Format docs (JSON / Markdown)
-npm run format-docs
-
 # Build the Expo native plugin
 npm run plugin:build
 ```

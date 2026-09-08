@@ -4,7 +4,6 @@ import tsParser from '@typescript-eslint/parser';
 import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
 import reactNativePlugin from 'eslint-plugin-react-native';
-import prettierConfig from 'eslint-config-prettier';
 
 export default [
   {
@@ -65,7 +64,6 @@ export default [
       'react-native': reactNativePlugin,
     },
     rules: {
-      ...prettierConfig.rules,
       'react/react-in-jsx-scope': 'off',
       'react/prop-types': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',

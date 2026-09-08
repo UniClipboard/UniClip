@@ -97,9 +97,6 @@ npm run type-check
 npm run lint
 npm run lint:fix
 
-# 格式化文档（JSON / Markdown）
-npm run format-docs
-
 # 构建 Expo 原生插件
 npm run plugin:build
 ```

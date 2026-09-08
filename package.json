@@ -20,16 +20,12 @@
     "web": "expo start --web",
     "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
     "lint:fix": "eslint . --ext .ts,.tsx,.js,.jsx --fix",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "format-docs": "prettier --write \"**/*.{json,md}\"",
-    "format-docs:check": "prettier --check \"**/*.{json,md}\"",
     "type-check": "tsc --noEmit",
     "core:prepare": "bash scripts/update-unified-engine-core.sh",
     "core:prepare:local:ios": "bash scripts/prepare-local-unified-engine-core.sh",
     "core:verify": "node scripts/verify-unified-engine-core.mjs --prepared",
     "core:verify:local:ios": "node scripts/verify-unified-engine-core.mjs --local-prepared",
-    "check:quality": "npm run lint && npm run format:check && npm run type-check",
+    "check:quality": "npm run lint && npm run type-check",
     "build:apk": "cd android && ./gradlew assembleRelease",
     "plugin:build": "cd plugins && tsc -p tsconfig.json",
     "test": "jest",
@@ -47,11 +43,7 @@
     "prepare": "husky"
   },
   "lint-staged": {
-    "*.{json,md,yml,yaml}": "prettier --write",
-    "*.{ts,tsx,js,jsx}": [
-      "prettier --write",
-      "eslint"
-    ]
+    "*.{ts,tsx,js,jsx}": "eslint"
   },
   "dependencies": {
     "@bacons/apple-targets": "^4.0.7",
@@ -128,13 +120,11 @@
     "babel-preset-expo": "~56.0.0",
     "better-sqlite3": "^12.11.1",
     "eslint": "^9.39.2",
-    "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-native": "^5.0.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.8",
-    "prettier": "^3.8.1",
     "react-test-renderer": "^19.2.3",
     "typescript": "~6.0.3"
   },
