@@ -75,6 +75,13 @@ function ImpactSummary({ choice }: { choice: DeviceTrustChoiceView }) {
           })}
         </ComposeText>
       ) : null}
+      {choice.pendingConfirmationNames?.length ? (
+        <ComposeText color={colors.onSurfaceVariant}>
+          {t('space.deviceTrust.pendingConfirmation', {
+            devices: choice.pendingConfirmationNames.join(', '),
+          })}
+        </ComposeText>
+      ) : null}
     </Column>
   );
 }
@@ -167,6 +174,11 @@ function DeviceTrustDecisionContent({ decision }: { decision: DeviceTrustDecisio
                   </ComposeText>
                 </>
               ) : null}
+              {view.reasonLines?.map((line, index) => (
+                <ComposeText key={index} color={colors.onSurfaceVariant}>
+                  {t(line.key, line.values)}
+                </ComposeText>
+              ))}
               {decision.outcome === 'pending' || decision.outcome === 'rePairingRequired' ? (
                 <ComposeText color={colors.onSurfaceVariant}>
                   {t(

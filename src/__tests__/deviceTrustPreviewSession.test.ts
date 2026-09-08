@@ -5,6 +5,12 @@ import {
 import { createInitialUnifiedSpaceSnapshot, useUnifiedSpaceStore } from '../features/space/store';
 
 describe('device trust preview session', () => {
+  it('previews new device group explanations and pending confirmations', () => {
+    deviceTrustPreviewSession.open('groupChoices');
+    const view = deviceTrustPreviewSession.getState().session?.view;
+    expect(view?.reasonLines?.length).toBeGreaterThan(0);
+    expect(view?.choices[0].pendingConfirmationNames).toEqual(['Travel tablet']);
+  });
   it('does not list the development phone as a device syncing with itself', () => {
     deviceTrustPreviewSession.open('standard');
 

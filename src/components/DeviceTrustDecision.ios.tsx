@@ -158,6 +158,21 @@ function ChoiceRow({
   );
 }
 
+function PendingConfirmationRow({ choice }: { choice: DeviceTrustChoiceView }) {
+  const { t } = useTranslation('settingsSync');
+  if (!choice.pendingConfirmationNames?.length) return null;
+  return (
+    <HStack spacing={10} alignment="top">
+      <Image systemName="clock" size={17} color={WARNING} />
+      <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
+        {t('space.deviceTrust.pendingConfirmation', {
+          devices: choice.pendingConfirmationNames.join(', '),
+        })}
+      </SwiftUIText>
+    </HStack>
+  );
+}
+
 function SelectedImpactSection({ choice }: { choice: DeviceTrustChoiceView }) {
   const { t } = useTranslation('settingsSync');
   const hasStops = choice.stopSyncNames.length > 0;
@@ -184,6 +199,7 @@ function SelectedImpactSection({ choice }: { choice: DeviceTrustChoiceView }) {
             : t('space.deviceTrust.noStops')}
         </SwiftUIText>
       </HStack>
+      <PendingConfirmationRow choice={choice} />
     </Section>
   );
 }
@@ -219,6 +235,7 @@ function ConfirmationImpactSummary({ choice }: { choice: DeviceTrustChoiceView }
           </SwiftUIText>
         </HStack>
       ) : null}
+      <PendingConfirmationRow choice={choice} />
     </Section>
   );
 }
@@ -344,12 +361,15 @@ function DeviceTrustDecisionContent({ decision }: { decision: DeviceTrustDecisio
             <Section
               header={
                 <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-                  {t(
-                    view.isGroupChoice
-                      ? 'space.deviceTrust.groupChoiceBody'
-                      : 'space.deviceTrust.sheetBody',
-                    { source: view.sourceName }
-                  )}
+                  {[
+                    t(
+                      view.isGroupChoice
+                        ? 'space.deviceTrust.groupChoiceBody'
+                        : 'space.deviceTrust.sheetBody',
+                      { source: view.sourceName }
+                    ),
+                    ...(view.reasonLines?.map((line) => t(line.key, line.values)) ?? []),
+                  ].join('\n')}
                 </SwiftUIText>
               }
             >

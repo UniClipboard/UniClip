@@ -199,6 +199,19 @@
       "done": "Done"
     },
     "deviceTrust": {
+      "pendingConfirmation": "Still waiting for confirmation: {{devices}}",
+      "reason": {
+        "unknown": "The devices have different device lists.",
+        "pending_removal": "A device removal is waiting for confirmation.",
+        "different_removals": "The devices removed different members.",
+        "removal_decision_disagreement": "The devices disagree about a removal.",
+        "diverged_history": "The device lists changed separately.",
+        "added_device": "{{actor}} added {{target}}.",
+        "removed_device": "{{actor}} removed {{target}}.",
+        "accepted": "{{actor}} accepted the removal of {{target}}.",
+        "rejected": "{{actor}} rejected the removal of {{target}}.",
+        "incomplete": "Some details are not yet available."
+      },
       "title": "Choose which devices this phone syncs with",
       "body": "{{source}} proposed an updated device list. Choose which list to use.",
       "sheetTitle": "Sync devices",

@@ -1,6 +1,7 @@
 import type {
   DeviceCompatibility,
   DeviceGroupRelationship,
+  DeviceGroupChoiceIssue,
   DeviceMembership,
   DeviceReachability,
   DeviceSyncRelationship,
@@ -39,6 +40,7 @@ export interface DeviceTrustChoiceView {
   continueSyncNames: string[];
   stopSyncNames: string[];
   requiresRejoinNames: string[];
+  pendingConfirmationNames?: string[];
 }
 
 export interface DeviceTrustDecisionView {
@@ -48,6 +50,7 @@ export interface DeviceTrustDecisionView {
   sourceName: string;
   targetNames: string[];
   choices: DeviceTrustChoiceView[];
+  reasonLines?: { key: string; values?: Record<string, string> }[];
 }
 
 export interface DeviceTrustDeviceView {
@@ -91,12 +94,24 @@ export function deviceTrustSnapshotFromQuery(
 }
 
 function displayNames(snapshot: DeviceTrustSnapshot): Map<string, string> {
+  const devices = new Map(snapshot.devices.map((device) => [device.deviceId, device]));
+  const extraDevices =
+    snapshot.groupChoices?.issues.flatMap((issue) => [
+      ...(issue.reason?.changes.flatMap((change) => [change.actor, change.target]) ?? []),
+      ...(issue.reason?.decisions.flatMap((decision) => [decision.device, decision.target]) ??
+        []),
+      ...issue.choices.flatMap((choice) => choice.members ?? []),
+    ]) ?? [];
+  const labels = new Map<string, { deviceId: string; displayName: string }>(devices);
+  for (const device of extraDevices) {
+    if (!devices.has(device.deviceId)) labels.set(device.deviceId, device);
+  }
   const counts = new Map<string, number>();
-  for (const device of snapshot.devices) {
+  for (const device of labels.values()) {
     counts.set(device.displayName, (counts.get(device.displayName) ?? 0) + 1);
   }
   return new Map(
-    snapshot.devices.map((device) => [
+    [...labels.values()].map((device) => [
       device.deviceId,
       counts.get(device.displayName) === 1
         ? device.displayName
@@ -129,6 +144,37 @@ function choiceView(
   };
 }
 
+function groupReasonLines(
+  issue: DeviceGroupChoiceIssue,
+  labels: Map<string, string>
+): DeviceTrustDecisionView['reasonLines'] {
+  const reason = issue.reason;
+  if (!reason) return undefined;
+  const lines: NonNullable<DeviceTrustDecisionView['reasonLines']> = [
+    { key: `space.deviceTrust.reason.${reason.kind}` },
+  ];
+  for (const change of reason.changes) {
+    lines.push({
+      key: `space.deviceTrust.reason.${change.kind}`,
+      values: {
+        actor: names([change.actor.deviceId], labels)[0],
+        target: names([change.target.deviceId], labels)[0],
+      },
+    });
+  }
+  for (const decision of reason.decisions) {
+    lines.push({
+      key: `space.deviceTrust.reason.${decision.decision}`,
+      values: {
+        actor: names([decision.device.deviceId], labels)[0],
+        target: names([decision.target.deviceId], labels)[0],
+      },
+    });
+  }
+  if (!reason.detailsComplete) lines.push({ key: 'space.deviceTrust.reason.incomplete' });
+  return lines;
+}
+
 export function buildDeviceTrustDecisionView(
   snapshot: DeviceTrustSnapshot | null
 ): DeviceTrustDecisionView | null {
@@ -136,36 +182,59 @@ export function buildDeviceTrustDecisionView(
   if (snapshot?.groupChoices) {
     if (!issue) return null;
     const labels = displayNames(snapshot);
+    const remoteNames = (ids: string[]) =>
+      names(ids.filter((id) => id !== snapshot.localDeviceId), labels);
     return {
       changeId: issue.issueId,
       reviewId: JSON.stringify([issue.issueId, snapshot.groupChoices.revision]),
       isGroupChoice: true,
+      reasonLines: groupReasonLines(issue, labels),
       sourceName: '',
       targetNames: [],
-      choices: issue.choices.map((option) => ({
-        choice: option.choiceId,
-        isCurrentGroup: option.isCurrentGroup,
-        membersComplete: option.membersComplete,
-        exitsCurrentSpace: option.requiresRePairing,
-        continueSyncNames: names(
-          option.memberDeviceIds.filter((id) => id !== snapshot.localDeviceId),
-          labels
-        ),
-        stopSyncNames: option.membersComplete
-          ? names(
-              snapshot.devices
-                .filter(
-                  (device) =>
-                    !device.isLocal &&
-                    device.membership !== 'removed' &&
-                    !option.memberDeviceIds.includes(device.deviceId)
+      choices: issue.choices.map((option) =>
+        option.impact !== undefined
+          ? {
+              choice: option.choiceId,
+              isCurrentGroup: option.isCurrentGroup,
+              membersComplete: option.membersComplete && option.impact !== null,
+              exitsCurrentSpace:
+                option.requiresRePairing || option.impact?.localDeviceOutcome === 'removed',
+              continueSyncNames: remoteNames(
+                (option.impact?.syncScopeDeviceIds ?? []).filter(
+                  (id) => !option.impact?.pendingConfirmationDeviceIds.includes(id)
                 )
-                .map((device) => device.deviceId),
-              labels
-            )
-          : [],
-        requiresRejoinNames: [],
-      })),
+              ),
+              stopSyncNames: remoteNames(option.impact?.pausedDeviceIds ?? []),
+              requiresRejoinNames: remoteNames(option.impact?.requiresRejoinDeviceIds ?? []),
+              pendingConfirmationNames: remoteNames(
+                option.impact?.pendingConfirmationDeviceIds ?? []
+              ),
+            }
+          : {
+              choice: option.choiceId,
+              isCurrentGroup: option.isCurrentGroup,
+              membersComplete: option.membersComplete,
+              exitsCurrentSpace: option.requiresRePairing,
+              continueSyncNames: names(
+                option.memberDeviceIds.filter((id) => id !== snapshot.localDeviceId),
+                labels
+              ),
+              stopSyncNames: option.membersComplete
+                ? names(
+                    snapshot.devices
+                      .filter(
+                        (device) =>
+                          !device.isLocal &&
+                          device.membership !== 'removed' &&
+                          !option.memberDeviceIds.includes(device.deviceId)
+                      )
+                      .map((device) => device.deviceId),
+                    labels
+                  )
+                : [],
+              requiresRejoinNames: [],
+            }
+      ),
     };
   }
   const change = snapshot?.currentChange;

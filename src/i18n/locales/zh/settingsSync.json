@@ -199,6 +199,19 @@
       "done": "完成"
     },
     "deviceTrust": {
+      "pendingConfirmation": "仍在等待确认：{{devices}}",
+      "reason": {
+        "unknown": "设备上的成员列表不一致。",
+        "pending_removal": "有设备移除操作等待确认。",
+        "different_removals": "不同设备移除了不同的成员。",
+        "removal_decision_disagreement": "设备对同一次移除作出了不同选择。",
+        "diverged_history": "设备列表分别发生了变化。",
+        "added_device": "{{actor}} 添加了 {{target}}。",
+        "removed_device": "{{actor}} 移除了 {{target}}。",
+        "accepted": "{{actor}} 同意移除 {{target}}。",
+        "rejected": "{{actor}} 拒绝移除 {{target}}。",
+        "incomplete": "部分详情尚未确认。"
+      },
       "title": "选择这台手机要同步的设备",
       "body": "{{source}} 提议更新设备列表。请选择要使用哪一份列表。",
       "sheetTitle": "选择同步设备",

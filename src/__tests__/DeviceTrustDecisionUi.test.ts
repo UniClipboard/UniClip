@@ -215,6 +215,33 @@ describe('global device trust decision UI', () => {
 
 describe('rc.6 group choice presentation', () => {
   it.each(['ios', 'android'])(
+    'shows pending confirmations and Engine explanations on %s',
+    (platform) => {
+      const source = read(`components/DeviceTrustDecision.${platform}.tsx`);
+      expect(source).toContain('choice.pendingConfirmationNames');
+      expect(source).toContain('space.deviceTrust.pendingConfirmation');
+      expect(source).toContain('view.reasonLines');
+      for (const locale of ['en', 'pt-BR', 'ru', 'zh']) {
+        const messages = JSON.parse(read(`i18n/locales/${locale}/settingsSync.json`));
+        expect(messages.space.deviceTrust.pendingConfirmation).toEqual(expect.any(String));
+        for (const key of [
+          'unknown',
+          'pending_removal',
+          'different_removals',
+          'removal_decision_disagreement',
+          'diverged_history',
+          'added_device',
+          'removed_device',
+          'accepted',
+          'rejected',
+          'incomplete',
+        ]) {
+          expect(messages.space.deviceTrust.reason[key]).toEqual(expect.any(String));
+        }
+      }
+    }
+  );
+  it.each(['ios', 'android'])(
     'keeps unknown members and unfinished outcomes explicit on %s',
     (platform) => {
       const source = readFileSync(

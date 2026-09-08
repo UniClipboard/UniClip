@@ -70,17 +70,53 @@ export interface DeviceTrustRelationship {
   blockedReason: DeviceTrustUnavailableReason | null;
 }
 
+export interface DeviceGroupChoiceDevice {
+  deviceId: string;
+  displayName: string;
+}
+
+export interface DeviceGroupChoiceReason {
+  kind:
+    | 'unknown'
+    | 'pending_removal'
+    | 'different_removals'
+    | 'removal_decision_disagreement'
+    | 'diverged_history';
+  detailsComplete: boolean;
+  changes: {
+    side: 'local' | 'remote';
+    kind: 'added_device' | 'removed_device';
+    actor: DeviceGroupChoiceDevice;
+    target: DeviceGroupChoiceDevice;
+  }[];
+  decisions: {
+    device: DeviceGroupChoiceDevice;
+    decision: 'accepted' | 'rejected';
+    target: DeviceGroupChoiceDevice;
+  }[];
+}
+
 export interface DeviceGroupChoiceOption {
   choiceId: string;
   isCurrentGroup: boolean;
   requiresRePairing: boolean;
   memberDeviceIds: string[];
   membersComplete: boolean;
+  members?: (DeviceGroupChoiceDevice & { isLocal: boolean; active: boolean })[];
+  sourceDeviceIds?: string[];
+  impact?: {
+    syncScopeDeviceIds: string[];
+    pausedDeviceIds: string[];
+    pendingConfirmationDeviceIds: string[];
+    requiresRejoinDeviceIds: string[];
+    localDeviceOutcome: DeviceMembership;
+  } | null;
 }
 
 export interface DeviceGroupChoiceIssue {
   issueId: string;
   choices: DeviceGroupChoiceOption[];
+  reason?: DeviceGroupChoiceReason;
 }
 
 export interface DeviceTrustSnapshot {
@@ -98,9 +134,16 @@ export interface DeviceTrustSnapshot {
 }
 
 export type DeviceTrustDecision =
-  | { kind: 'completed' | 'pending' | 'rePairingRequired'; snapshot: DeviceTrustSnapshot }
+  | {
+      kind: 'completed' | 'pending' | 'rePairingRequired';
+      snapshot: DeviceTrustSnapshot;
+    }
   | { kind: 'applied'; changeId: string; snapshot: DeviceTrustSnapshot }
-  | { kind: 'keptCurrentDeviceGroup'; changeId: string; snapshot: DeviceTrustSnapshot }
+  | {
+      kind: 'keptCurrentDeviceGroup';
+      changeId: string;
+      snapshot: DeviceTrustSnapshot;
+    }
   | {
       kind: 'alreadyCompleted';
       changeId: string;
@@ -126,7 +169,11 @@ const MEMBERSHIP = {
   unavailable: 'unavailable',
   unknown: 'unknown',
 } as const;
-const REACHABILITY = { online: 'online', offline: 'offline', unknown: 'unknown' } as const;
+const REACHABILITY = {
+  online: 'online',
+  offline: 'offline',
+  unknown: 'unknown',
+} as const;
 const GROUP_RELATIONSHIP = {
   consistent: 'consistent',
   confirmation_pending: 'confirmationPending',
@@ -288,7 +335,11 @@ export function parseDeviceTrustDecision(value: string): DeviceTrustDecision {
     const parsedSnapshot = snapshot(source.snapshot);
     switch (source.kind) {
       case 'applied':
-        return { kind: 'applied', changeId: string(source.change_id), snapshot: parsedSnapshot };
+        return {
+          kind: 'applied',
+          changeId: string(source.change_id),
+          snapshot: parsedSnapshot,
+        };
       case 'kept_current_device_group':
         return {
           kind: 'keptCurrentDeviceGroup',
@@ -325,7 +376,72 @@ export function parseDeviceTrustDecision(value: string): DeviceTrustDecision {
   }
 }
 
-export function parseDeviceGroupChoices(result: NativeDeviceTrustQueryResult): DeviceTrustSnapshot {
+function groupDevice(value: unknown): DeviceGroupChoiceDevice {
+  const source = object(value);
+  return {
+    deviceId: nonemptyString(source.device_id),
+    displayName: string(source.display_name),
+  };
+}
+
+function groupReason(value: unknown): DeviceGroupChoiceReason {
+  const source = object(value);
+  return {
+    kind: enumValue(source.kind, {
+      unknown: 'unknown',
+      pending_removal: 'pending_removal',
+      different_removals: 'different_removals',
+      removal_decision_disagreement: 'removal_decision_disagreement',
+      diverged_history: 'diverged_history',
+    } as const),
+    detailsComplete: boolean(source.details_complete),
+    changes: array(source.changes, (value) => {
+      const change = object(value);
+      return {
+        side: enumValue(change.side, {
+          local: 'local',
+          remote: 'remote',
+        } as const),
+        kind: enumValue(change.kind, {
+          added_device: 'added_device',
+          removed_device: 'removed_device',
+        } as const),
+        actor: groupDevice(change.actor),
+        target: groupDevice(change.target),
+      };
+    }),
+    decisions: array(source.decisions, (value) => {
+      const decision = object(value);
+      return {
+        device: groupDevice(decision.device),
+        target: groupDevice(decision.target),
+        decision: enumValue(decision.decision, {
+          accepted: 'accepted',
+          rejected: 'rejected',
+        } as const),
+      };
+    }),
+  };
+}
+
+function groupImpact(value: unknown): DeviceGroupChoiceOption['impact'] {
+  if (value === null) return null;
+  const source = object(value);
+  return {
+    syncScopeDeviceIds: array(source.sync_scope_device_ids, nonemptyString),
+    pausedDeviceIds: array(source.paused_device_ids, nonemptyString),
+    pendingConfirmationDeviceIds: array(
+      source.pending_confirmation_device_ids,
+      nonemptyString
+    ),
+    requiresRejoinDeviceIds: array(source.requires_rejoin_device_ids, nonemptyString),
+    localDeviceOutcome: enumValue(source.local_device_outcome, MEMBERSHIP),
+  };
+}
+
+export function parseDeviceGroupChoices(
+  result: NativeDeviceTrustQueryResult
+): DeviceTrustSnapshot {
   if (!result.ok) throw Object.assign(new Error('Device trust query failed'), result.failure);
   try {
     const source = object(JSON.parse(result.value));
@@ -339,13 +455,36 @@ export function parseDeviceGroupChoices(result: NativeDeviceTrustQueryResult): D
           requiresRePairing: boolean(choice.requires_re_pairing),
           memberDeviceIds: array(choice.member_device_ids, string),
           membersComplete: boolean(choice.members_complete),
+          ...(choice.members === undefined
+            ? {}
+            : {
+                members: array(choice.members, (value) => {
+                  const member = object(value);
+                  return {
+                    ...groupDevice(member),
+                    isLocal: boolean(member.is_local),
+                    active: boolean(member.active),
+                  };
+                }),
+              }),
+          ...(choice.source_device_ids === undefined
+            ? {}
+            : {
+                sourceDeviceIds: array(choice.source_device_ids, nonemptyString),
+              }),
+          ...(choice.impact === undefined ? {} : { impact: groupImpact(choice.impact) }),
         };
       });
       if (new Set(choices.map((choice) => choice.choiceId)).size !== choices.length)
         throw new Error();
-      return { issueId: nonemptyString(issue.issue_id), choices };
+      return {
+        issueId: nonemptyString(issue.issue_id),
+        choices,
+        ...(issue.reason === undefined ? {} : { reason: groupReason(issue.reason) }),
+      };
     });
-    if (new Set(issues.map((issue) => issue.issueId)).size !== issues.length) throw new Error();
+    if (new Set(issues.map((issue) => issue.issueId)).size !== issues.length)
+      throw new Error();
     return {
       ...snapshot(source.device_trust),
       groupChoices: { revision: integer(source.revision, 0), issues },

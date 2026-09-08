@@ -31,6 +31,11 @@ the Share and Keyboard extensions.
 delivery, and native lifecycle integration. TypeScript services expose smaller
 app-facing operations and keep UI components independent from native bindings.
 
+Device-group choice previews use Engine-provided member names, explanations,
+and impact. Pending confirmations are not shown as ready to sync, and an
+explicitly unavailable impact must not be reconstructed from the current roster.
+Legacy responses without the newer fields remain readable.
+
 ## Key Directories
 
 | Path                                                                 | Purpose                                                                        |

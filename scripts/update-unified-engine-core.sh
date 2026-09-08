@@ -18,10 +18,19 @@ if [[ "$artifact_source" == "local-build" ]]; then
     git -C "$engine_root" fetch origin "$pin_commit"
   fi
 
-  worktree="$(mktemp -d "$MODULE_DIR/.artifacts/local/engine-pin.XXXXXX")"
-  rmdir "$worktree"
+  # Cargo also discovers configuration in source ancestors, including the user's home.
+  scratch="$(mktemp -d /tmp/mobile-engine-pin.XXXXXX)"
+  worktree="$scratch/source"
+  original_cargo_home="${CARGO_HOME:-$HOME/.cargo}"
+  export CARGO_HOME="$scratch/cargo"
+  mkdir -p "$CARGO_HOME"
+  for cache in registry git; do
+    if [[ -d "$original_cargo_home/$cache" ]]; then
+      ln -s "$original_cargo_home/$cache" "$CARGO_HOME/$cache"
+    fi
+  done
+  trap 'git -C "$engine_root" worktree remove --force "$worktree"; rm -rf "$scratch"' EXIT
   git -C "$engine_root" worktree add --detach "$worktree" "$pin_commit"
-  trap 'git -C "$engine_root" worktree remove --force "$worktree"' EXIT
 
   local_target="${UC_ENGINE_LOCAL_TARGET_DIR:-$MODULE_DIR/.artifacts/pinned/$pin_commit}"
   UC_ENGINE_LOCAL_TARGET_DIR="$local_target" \
@@ -43,6 +52,10 @@ if [[ "$artifact_source" == "local-build" ]]; then
   cp "$dist_root/android/UniClipboardEngine.pom" "$maven_dir/uniclipboard-engine-$plain_version.pom"
   cp "$dist_root/android/runtime-dependencies.txt" "$metadata_dir/runtime-dependencies.txt"
   cp "$dist_root/android/uc_engine_uniffi.kt" "$metadata_dir/uc_engine_uniffi.kt"
+  cache_dir="$MODULE_DIR/.artifacts/$pin_version"
+  mkdir -p "$cache_dir"
+  cp "$dist_root/ios/UniClipboardEngine.xcframework.zip" "$cache_dir/"
+  cp "$dist_root/ios/uc_engine_uniffi.swift" "$cache_dir/"
 
   node "$ROOT_DIR/scripts/verify-unified-engine-core.mjs" --record-prepared
   node "$ROOT_DIR/scripts/verify-unified-engine-core.mjs" --prepared

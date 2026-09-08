@@ -103,11 +103,19 @@ function scenarios(): Record<DeviceTrustPreviewScenarioId, ScenarioState> {
       view: {
         changeId: 'preview-group-choices',
         isGroupChoice: true,
+        reasonLines: [
+          { key: 'space.deviceTrust.reason.pending_removal' },
+          {
+            key: 'space.deviceTrust.reason.removed_device',
+            values: { actor: 'Studio desktop', target: 'Travel tablet' },
+          },
+        ],
         sourceName: '',
         targetNames: [],
         choices: [
           {
             ...choice('current-list', { continues: ['Studio desktop'] }),
+            pendingConfirmationNames: ['Travel tablet'],
             isCurrentGroup: true,
             membersComplete: true,
           },
