@@ -26,7 +26,15 @@
     "experimental": "Experimental",
     "currentConnection": "Current connection",
     "connectionSettings": "Connection settings",
-    "notConfigured": "Not configured"
+    "notConfigured": "Not configured",
+    "confirmationTitle": "Use direct device sync?",
+    "confirmationDescription": "Devices can sync across networks without being connected to the same Wi-Fi.",
+    "confirmationCrossNetwork": "It supports syncing even when devices are not on the same Wi-Fi network.",
+    "confirmationExperimental": "This is an experimental feature and may be less stable than standard sync.",
+    "confirmationWarning": "This is experimental and may be less reliable.",
+    "confirmationCancel": "Cancel",
+    "confirmationConfirm": "Use direct sync",
+    "updateFailed": "Failed to change sync method"
   },
   "category": {
     "sync": "Sync",

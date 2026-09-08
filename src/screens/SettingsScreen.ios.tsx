@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { File } from 'expo-file-system';
-import { StyleSheet, useWindowDimensions } from 'react-native';
+import { Alert, StyleSheet, useWindowDimensions } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Host, BottomSheet, Group, VStack, ZStack } from '@expo/ui/swift-ui';
@@ -37,6 +37,7 @@ import { DeveloperPage } from './settings/ios/DeveloperPage';
 import { LanServersPage } from './settings/ios/LanServersPage';
 import { LanServerEditorSheet } from './settings/ios/LanServerEditorSheet';
 import { SyncChannelPage } from './settings/ios/SyncChannelPage';
+import { SyncChannelConfirmationSheet } from './settings/SyncChannelConfirmationSheet';
 import { usePendingLanConnectStore, type LanConnectIntent } from '@/features/lan-servers';
 import {
   canOpenDeviceTrustPreview,
@@ -122,6 +123,8 @@ export const SettingsScreen = () => {
   const activePage = pageStack[pageStack.length - 1] ?? null;
   const [isLeavingPage, setIsLeavingPage] = useState(false);
   const [showSpaceInvitation, setShowSpaceInvitation] = useState(false);
+  const [showSyncChannelConfirmation, setShowSyncChannelConfirmation] = useState(false);
+  const [isConfirmingP2p, setIsConfirmingP2p] = useState(false);
   const [spaceSetupMode, setSpaceSetupMode] = useState<AddSyncConnectionMode | null>(null);
   const [editingLanServerId, setEditingLanServerId] = useState<string | 'new' | null>(null);
   const [lanServerIntent, setLanServerIntent] = useState<LanConnectIntent | null>(null);
@@ -186,6 +189,7 @@ export const SettingsScreen = () => {
     setSpaceSetupMode(null);
     setEditingLanServerId(null);
     setLanServerIntent(null);
+    setShowSyncChannelConfirmation(false);
     setIsLeavingPage(true);
   }, [deviceManagement.closeDevice]);
 
@@ -195,12 +199,24 @@ export const SettingsScreen = () => {
     setSpaceSetupMode(null);
     setEditingLanServerId(null);
     setLanServerIntent(null);
+    setShowSyncChannelConfirmation(false);
     if (pageStack.length > 1) {
       setPageStack((current) => current.slice(0, -1));
       return;
     }
     setIsLeavingPage(true);
   }, [deviceManagement.closeDevice, pageStack.length]);
+
+  const confirmP2pSyncChannel = useCallback(async () => {
+    setIsConfirmingP2p(true);
+    const result = await useSettingsStore.getState().updateConfig({ syncChannel: 'p2p' });
+    setIsConfirmingP2p(false);
+    if (result.ok) {
+      setShowSyncChannelConfirmation(false);
+    } else {
+      Alert.alert(t('syncChannel.title'), t('syncChannel.updateFailed'));
+    }
+  }, [t]);
 
   const removeSubPage = useCallback(() => setPageStack([]), []);
 
@@ -239,6 +255,7 @@ export const SettingsScreen = () => {
                       }}
                       onOpenInvitation={() => setShowSpaceInvitation(true)}
                       onOpenSetup={setSpaceSetupMode}
+                      onRequestP2pConfirmation={() => setShowSyncChannelConfirmation(true)}
                       deviceManagement={deviceManagement}
                     />
                   ) : null}
@@ -328,6 +345,12 @@ export const SettingsScreen = () => {
                   setEditingLanServerId(null);
                   setLanServerIntent(null);
                 }}
+              />
+              <SyncChannelConfirmationSheet
+                visible={showSyncChannelConfirmation}
+                isConfirming={isConfirmingP2p}
+                onDismiss={() => setShowSyncChannelConfirmation(false)}
+                onConfirm={confirmP2pSyncChannel}
               />
             </ZStack>
           </VStack>

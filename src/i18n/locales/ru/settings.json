@@ -26,7 +26,15 @@
     "experimental": "Экспериментальная функция",
     "currentConnection": "Текущее подключение",
     "connectionSettings": "Настройки подключения",
-    "notConfigured": "Не настроено"
+    "notConfigured": "Не настроено",
+    "confirmationTitle": "Использовать прямую синхронизацию?",
+    "confirmationDescription": "Устройства могут синхронизироваться между сетями, даже если они не подключены к одному Wi-Fi.",
+    "confirmationCrossNetwork": "Синхронизация работает, даже если устройства подключены к разным сетям Wi-Fi.",
+    "confirmationExperimental": "Это экспериментальная функция, она может быть менее стабильной, чем обычная синхронизация.",
+    "confirmationWarning": "Это экспериментальная функция и может работать нестабильно.",
+    "confirmationCancel": "Отмена",
+    "confirmationConfirm": "Использовать",
+    "updateFailed": "Не удалось изменить способ синхронизации"
   },
   "category": {
     "sync": "Синхронизация",

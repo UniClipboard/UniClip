@@ -15,6 +15,7 @@ export function SyncChannelPage({
   onEditLanServer,
   onOpenInvitation,
   onOpenSetup,
+  onRequestP2pConfirmation,
   deviceManagement,
 }: {
   onBack(): void;
@@ -22,12 +23,13 @@ export function SyncChannelPage({
   onEditLanServer(serverId: string): void;
   onOpenInvitation(): void;
   onOpenSetup(mode: AddSyncConnectionMode): void;
+  onRequestP2pConfirmation(): void;
   deviceManagement: SpaceDeviceManagementController;
 }) {
   const { t } = useTranslation('settings');
   const syncChannel = useSettingsStore((state) => state.config?.syncChannel ?? 'lan');
 
-  const handleSyncChannel = async (channel: 'lan' | 'p2p') => {
+  const handleSyncChannel = async (channel: 'lan') => {
     if (channel === syncChannel) return;
     await useSettingsStore.getState().updateConfig({ syncChannel: channel });
   };
@@ -53,7 +55,7 @@ export function SyncChannelPage({
             selected={syncChannel === 'p2p'}
             showsChevron={false}
             showsPressFeedback={false}
-            onPress={() => void handleSyncChannel('p2p')}
+            onPress={onRequestP2pConfirmation}
           />
         </Section>
 

@@ -26,7 +26,15 @@
     "experimental": "实验功能",
     "currentConnection": "当前连接",
     "connectionSettings": "连接设置",
-    "notConfigured": "未配置"
+    "notConfigured": "未配置",
+    "confirmationTitle": "使用设备直连？",
+    "confirmationDescription": "设备可以跨网络同步，不需要连接到同一个 Wi-Fi。",
+    "confirmationCrossNetwork": "即使设备不在同一个 Wi-Fi 下，也支持跨网络同步。",
+    "confirmationExperimental": "这是实验功能，连接稳定性可能不如常规同步。",
+    "confirmationWarning": "这是实验功能，连接可能不稳定。",
+    "confirmationCancel": "取消",
+    "confirmationConfirm": "使用设备直连",
+    "updateFailed": "切换同步方式失败"
   },
   "category": {
     "sync": "同步",
