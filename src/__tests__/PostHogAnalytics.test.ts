@@ -28,6 +28,7 @@ function postHogClient() {
     reset: jest.fn(),
     setPersistedProperty: jest.fn(),
     screen: jest.fn(),
+    captureLog: jest.fn(),
     shutdown: jest.fn(async () => undefined),
     identify: jest.fn(),
   };

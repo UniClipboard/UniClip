@@ -12,6 +12,7 @@ import { getEngineLogFileUris as getNativeEngineLogFileUris } from 'app-group-st
 import * as Application from 'expo-application';
 import i18n from '@/i18n';
 import { redactLogText, redactLogValue } from './logRedaction';
+import { capturePostHogLog } from './postHogAnalytics';
 
 const LOG_DIR = new Directory(Paths.document, 'logs');
 const ENGINE_LOG_DIR = new Directory(Paths.cache, 'uc-engine/logs');
@@ -101,6 +102,8 @@ interface CustomTransportOptions {
 }
 
 let isInitialized = false;
+const LOG_SEVERITY = { debug: 0, info: 1, warn: 2, error: 3 };
+let currentLogLevel: LogLevel = __DEV__ ? 'debug' : 'info';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let logInstance: any = null;
 const scopedLoggers = new Map<string, AppLogger>();
@@ -155,6 +158,7 @@ export function initLogger(config?: Partial<LogConfig>): void {
     level: config?.level ?? (__DEV__ ? 'debug' : 'info'),
     enableConsole: config?.enableConsole ?? true,
   };
+  currentLogLevel = logConfig.level;
 
   const transports = logConfig.enableConsole
     ? [redactingConsoleTransport, customFileTransport]
@@ -219,6 +223,7 @@ export function getLogger(): any {
 }
 
 export function setLogLevel(level: LogLevel): void {
+  currentLogLevel = level;
   if (logInstance) {
     logInstance.setSeverity(level);
   }
@@ -288,6 +293,9 @@ function writeLog(
   const value = values.length === 1 ? values[0] : values;
 
   getLogger()[level](redactLogValue(value));
+  if (LOG_SEVERITY[level] >= LOG_SEVERITY[currentLogLevel]) {
+    capturePostHogLog(level, source, args);
+  }
 }
 
 export function createLogger(source: string): AppLogger {

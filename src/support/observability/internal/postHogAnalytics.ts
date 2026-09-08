@@ -5,6 +5,10 @@ import type {
   AnalyticsStateListener,
 } from '@/platform/engine';
 import type { PostHogCustomStorage, PostHogOptions } from 'posthog-react-native';
+import type PostHog from 'posthog-react-native';
+import * as Application from 'expo-application';
+import { createPostHogLog, filterPostHogLog } from './postHogLogs';
+import type { LogLevel } from './logger';
 
 type BeforeSend = Exclude<PostHogOptions['before_send'], unknown[] | undefined>;
 type BeforeSendEvent = NonNullable<Parameters<BeforeSend>[0]>;
@@ -37,6 +41,7 @@ type PostHogClient = {
   reset(): void;
   setPersistedProperty(key: string, value: unknown | null): void;
   screen(name: string, properties?: Record<string, unknown>): void;
+  captureLog: PostHog['captureLog'];
   shutdown(timeoutMs?: number): Promise<void>;
 };
 
@@ -121,6 +126,16 @@ export function createPostHogOptions(state: AnalyticsState): PostHogOptions {
       return safeProperties;
     },
     before_send: filterPostHogEvent,
+    logs: {
+      serviceName: 'uniclip-mobile',
+      serviceVersion: Application.nativeApplicationVersion ?? undefined,
+      environment: __DEV__ ? 'development' : 'production',
+      maxBufferSize: 50,
+      maxBatchRecordsPerPost: 50,
+      flushIntervalMs: 10_000,
+      rateCap: { maxLogs: 100, windowMs: 10_000 },
+      beforeSend: filterPostHogLog,
+    },
   };
 }
 
@@ -172,6 +187,16 @@ export class PostHogAnalyticsController {
     this.client.screen(name, properties);
   }
 
+  captureLog(level: LogLevel, source: string, args: unknown[]): void {
+    if (!this.started || !this.state?.consentEnabled || !this.client) return;
+    try {
+      const record = createPostHogLog(level, source, args);
+      if (record) this.client.captureLog(record);
+    } catch {
+      // Logging failures must not enter the console logger or interrupt the app.
+    }
+  }
+
   async stop(): Promise<void> {
     this.started = false;
     this.unsubscribe?.();
@@ -188,19 +213,25 @@ export class PostHogAnalyticsController {
     const state = await this.dependencies.loadState();
     this.state = state;
     const clearStoredData = reason === 'reset' || !state.consentEnabled;
-    await this.prepareStorage(state, clearStoredData, reason === 'reset');
 
     if (!state.consentEnabled || !state.projectKey) {
       this.pendingScreenName = null;
-      if (this.client) {
-        this.clearClientQueues(this.client);
-        await this.client.optOut();
-        await this.client.shutdown(2_000);
-      }
+      const client = this.client;
       this.client = null;
       this.clientProjectKey = null;
+      try {
+        if (client) {
+          this.clearClientQueues(client);
+          await client.optOut();
+          await client.shutdown(2_000);
+        }
+      } finally {
+        await this.prepareStorage(state, true, reason === 'reset');
+      }
       return;
     }
+
+    await this.prepareStorage(state, clearStoredData, reason === 'reset');
 
     if (this.client && this.clientProjectKey !== state.projectKey) {
       await this.client.shutdown(2_000);
@@ -319,4 +350,8 @@ export function stopPostHogAnalytics(): Promise<void> {
 
 export function capturePostHogScreen(name: string): void {
   configuredController().captureScreen(name);
+}
+
+export function capturePostHogLog(level: LogLevel, source: string, args: unknown[]): void {
+  controller?.captureLog(level, source, args);
 }

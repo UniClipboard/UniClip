@@ -101,12 +101,12 @@
   "openSystemSettings": "Open system settings",
   "analytics": {
     "sectionTitle": "Privacy",
-    "consentTitle": "Share anonymous usage statistics",
+    "consentTitle": "Share anonymous usage and diagnostics",
     "consentDescription": "Helps improve UniClip without collecting clipboard contents or names",
-    "footer": "App version, system, region, session, device count, and anonymous space grouping may be sent.",
+    "footer": "App version, system, region, session, device count, anonymous space grouping, and diagnostic records without contents or names may be sent. Turning this off stops collection and clears pending data.",
     "reset": "Reset",
     "resetTitle": "Reset statistics identity",
-    "resetMessage": "This removes pending statistics and creates a new anonymous identity.",
+    "resetMessage": "This removes pending statistics and diagnostics and creates a new anonymous identity.",
     "resetConfirm": "Reset identity",
     "resetDone": "Statistics identity reset",
     "error": "Could not update statistics settings"

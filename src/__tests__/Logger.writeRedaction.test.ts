@@ -1,4 +1,8 @@
 const mockError = jest.fn();
+const mockRemoteLog = jest.fn();
+jest.mock('../support/observability/internal/postHogAnalytics', () => ({
+  capturePostHogLog: (...args: unknown[]) => mockRemoteLog(...args),
+}));
 const mockLogInstance = {
   debug: jest.fn(),
   info: jest.fn(),
@@ -39,7 +43,7 @@ jest.mock('expo-file-system', () => {
   };
 });
 
-import { createLogger } from '../support/observability';
+import { createLogger, setLogLevel } from '../support/observability';
 
 describe('Logger structured write redaction', () => {
   beforeEach(() => {
@@ -64,5 +68,20 @@ describe('Logger structured write redaction', () => {
     expect(serialized).not.toContain('structured-token');
     expect(serialized).not.toContain('structured-password');
     expect(serialized).not.toContain('alice');
+  });
+
+  it('also offers scoped logs to the remote filter without replacing local logging', () => {
+    createLogger('UnifiedSpaceService').error('Join space failed', { errorCode: 1237 });
+    expect(mockError).toHaveBeenCalled();
+    expect(mockRemoteLog).toHaveBeenCalledWith('error', 'UnifiedSpaceService', [
+      'Join space failed', { errorCode: 1237 },
+    ]);
+  });
+
+  it('honors the selected log level for remote delivery', () => {
+    setLogLevel('error');
+    createLogger('P2pSyncAdapter').info('P2P space state', { deviceCount: 2 });
+    expect(mockRemoteLog).not.toHaveBeenCalled();
+    setLogLevel('info');
   });
 });
