@@ -177,6 +177,10 @@ public final class UcEngineModule: Module {
       }
     }.runOnQueue(engineOperationQueue)
 
+    AsyncFunction("cancelJoinSpace") { (joinId: String) in
+      _ = try self.requireEngine().cancelJoinSpace(joinId: joinId)
+    }.runOnQueue(engineOperationQueue)
+
     AsyncFunction("nextEvent") { (timeoutMs: UInt64) -> [String: Any?]? in
       try self.requireEngine().nextEvent(timeoutMs: timeoutMs).map(Self.eventMap)
     }.runOnQueue(engineEventQueue)

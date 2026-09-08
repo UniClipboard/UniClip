@@ -7,7 +7,7 @@ import {
   type UnifiedSpaceApi,
   type UnifiedSpaceSnapshot,
 } from '../features/space';
-import type { DeviceTrustDecision, DeviceTrustSnapshot } from '../platform/engine';
+import type { DeviceTrustDecision, DeviceTrustSnapshot, JoinSpaceStatus } from '../platform/engine';
 
 const log = createLogger('UnifiedSpaceService');
 
@@ -88,6 +88,7 @@ function createApi(overrides: Partial<UnifiedSpaceApi> = {}): UnifiedSpaceApi {
       availability: 'crossNetwork' as const,
     })),
     joinSpace: jest.fn(async () => activeJoinStatus()),
+    cancelJoinSpace: jest.fn(async () => undefined),
     queryDeviceTrust: jest.fn(async () => deviceTrustSnapshot()),
     decideDeviceTrustChange: jest.fn(async () => ({
       kind: 'applied' as const,
@@ -135,6 +136,7 @@ function activeJoinStatus(
   return {
     type: 'active' as const,
     joinId: 'join-1',
+    peerUpgradeRequired: false,
     joinedSpace: {
       sponsorDeviceId: 'desktop-1',
       sponsorIdentityFingerprint: 'sponsor-fingerprint',
@@ -925,18 +927,6 @@ describe('UnifiedSpaceService', () => {
 
   it.each([
     [
-      'pending',
-      {
-        type: 'pending',
-        joinId: 'join-1',
-        targetSpaceId: 'space-1',
-        sponsorDeviceId: 'desktop-1',
-        sponsorIdentityFingerprint: 'sponsor-fingerprint',
-        cancelRequested: false,
-      },
-      'serviceUnavailable',
-    ],
-    [
       'rejected',
       { type: 'rejected', joinId: 'join-1', reason: 'authenticationRejected' },
       'passphraseMismatch',
@@ -968,6 +958,187 @@ describe('UnifiedSpaceService', () => {
       );
     }
   );
+
+  it.each(['active', 'rejected'] as const)(
+    'waits through a pending join and a temporary read failure until it is %s',
+    async (outcome) => {
+      jest.useFakeTimers();
+      try {
+        const pending = {
+          type: 'pending' as const,
+          joinId: 'join-1',
+          targetSpaceId: null,
+          sponsorDeviceId: null,
+          sponsorIdentityFingerprint: null,
+          cancelRequested: false,
+          peerUpgradeRequired: false,
+        };
+        let currentJoin: JoinSpaceStatus | null = pending;
+        const api = createApi({
+          joinSpace: jest.fn(async () => pending),
+          queryDeviceTrust: jest.fn(async () => ({ ...deviceTrustSnapshot(), currentJoin })),
+        });
+        const service = new UnifiedSpaceService(api);
+        let settled = false;
+        const result = service.joinSpace('072-834', 'Phone', 'secret').then(
+          (value) => {
+            settled = true;
+            return value;
+          },
+          (error: unknown) => {
+            settled = true;
+            return error;
+          }
+        );
+        await jest.advanceTimersByTimeAsync(10_000);
+        expect(settled).toBe(false);
+        expect(service.getSnapshot()).toMatchObject({ status: 'loading', lastError: null });
+        await expect(service.joinSpace('072-834', 'Phone', 'secret')).rejects.toMatchObject({
+          name: 'SpaceOperationInProgressError',
+        });
+        expect(api.joinSpace).toHaveBeenCalledTimes(1);
+        jest
+          .mocked(api.queryDeviceTrust)
+          .mockRejectedValueOnce(new Error('temporarily unavailable'));
+        await jest.advanceTimersByTimeAsync(1_000);
+        expect(settled).toBe(false);
+        currentJoin =
+          outcome === 'active'
+            ? activeJoinStatus()
+            : { type: 'rejected', joinId: 'join-1', reason: 'authenticationRejected' };
+        await jest.advanceTimersByTimeAsync(1_000);
+        if (outcome === 'active') {
+          expect(await result).toEqual(activeJoinStatus().joinedSpace);
+          expect(service.getSnapshot()).toMatchObject({ status: 'ready', spaceId: 'space-1' });
+        } else {
+          expect(await result).toMatchObject({ code: 'passphraseMismatch' });
+          expect(api.listDevices).not.toHaveBeenCalled();
+        }
+        expect(jest.getTimerCount()).toBe(0);
+      } finally {
+        jest.useRealTimers();
+      }
+    }
+  );
+
+  it('does not confuse a missing join result or another join with success', async () => {
+    jest.useFakeTimers();
+    try {
+      const pending: JoinSpaceStatus = {
+        type: 'pending',
+        joinId: 'join-1',
+        targetSpaceId: null,
+        sponsorDeviceId: null,
+        sponsorIdentityFingerprint: null,
+        cancelRequested: false,
+        peerUpgradeRequired: false,
+      };
+      let currentJoin: JoinSpaceStatus | null = null;
+      const api = createApi({
+        joinSpace: jest.fn(async () => pending),
+        queryDeviceTrust: jest.fn(async () => ({ ...deviceTrustSnapshot(), currentJoin })),
+      });
+      const service = new UnifiedSpaceService(api);
+      let settled = false;
+      const result = service.joinSpace('072-834', 'Phone', 'secret').catch((error: unknown) => {
+        settled = true;
+        return error;
+      });
+      await jest.advanceTimersByTimeAsync(2000);
+      expect(settled).toBe(false);
+      currentJoin = { ...activeJoinStatus(), joinId: 'different-join' };
+      await jest.advanceTimersByTimeAsync(1000);
+      expect(await result).toMatchObject({ code: 'invitationRejected' });
+      expect(api.listDevices).not.toHaveBeenCalled();
+      expect(jest.getTimerCount()).toBe(0);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('waits for the submitted request before cancelling and confirms cancellation', async () => {
+    jest.useFakeTimers();
+    try {
+      const request = deferred<JoinSpaceStatus>();
+      const pending: JoinSpaceStatus = {
+        type: 'pending',
+        joinId: 'join-1',
+        targetSpaceId: null,
+        sponsorDeviceId: null,
+        sponsorIdentityFingerprint: null,
+        cancelRequested: false,
+        peerUpgradeRequired: false,
+      };
+      let currentJoin: JoinSpaceStatus = pending;
+      const api = createApi({
+        joinSpace: jest.fn(() => request.promise),
+        cancelJoinSpace: jest.fn(async () => {
+          currentJoin = { type: 'rejected', joinId: 'join-1', reason: 'cancelled' };
+        }),
+        queryDeviceTrust: jest.fn(async () => ({ ...deviceTrustSnapshot(), currentJoin })),
+      });
+      const service = new UnifiedSpaceService(api);
+      const result = service
+        .joinSpace('072-834', 'Phone', 'secret')
+        .catch((error: unknown) => error);
+      const cancellation = service.cancelJoin();
+      expect(api.cancelJoinSpace).not.toHaveBeenCalled();
+      request.resolve(pending);
+      await cancellation;
+      expect(api.cancelJoinSpace).toHaveBeenCalledWith('join-1');
+      await jest.advanceTimersByTimeAsync(1000);
+      expect(await result).toMatchObject({ code: 'joinCancelled' });
+      expect(service.getSnapshot()).toMatchObject({ status: 'empty', lastError: null });
+      expect(jest.getTimerCount()).toBe(0);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('keeps waiting when cancellation fails and accepts a subsequent success', async () => {
+    jest.useFakeTimers();
+    try {
+      const pending: JoinSpaceStatus = {
+        type: 'pending',
+        joinId: 'join-1',
+        targetSpaceId: null,
+        sponsorDeviceId: null,
+        sponsorIdentityFingerprint: null,
+        cancelRequested: false,
+        peerUpgradeRequired: false,
+      };
+      let currentJoin: JoinSpaceStatus = pending;
+      const api = createApi({
+        joinSpace: jest.fn(async () => pending),
+        cancelJoinSpace: jest.fn(async () => {
+          throw new Error('temporary cancellation failure');
+        }),
+        queryDeviceTrust: jest.fn(async () => ({ ...deviceTrustSnapshot(), currentJoin })),
+      });
+      const service = new UnifiedSpaceService(api);
+      const result = service.joinSpace('072-834', 'Phone', 'secret');
+      await expect(service.cancelJoin()).rejects.toThrow('temporary cancellation failure');
+      expect(service.getSnapshot()).toMatchObject({ status: 'loading', lastError: null });
+      currentJoin = activeJoinStatus();
+      await jest.advanceTimersByTimeAsync(1000);
+      expect(await result).toEqual(activeJoinStatus().joinedSpace);
+      expect(jest.getTimerCount()).toBe(0);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('keeps success when the request completes before cancellation reaches the Engine', async () => {
+    const request = deferred<JoinSpaceStatus>();
+    const api = createApi({ joinSpace: jest.fn(() => request.promise) });
+    const service = new UnifiedSpaceService(api);
+    const result = service.joinSpace('072-834', 'Phone', 'secret');
+    const cancellation = service.cancelJoin();
+    request.resolve(activeJoinStatus());
+    await cancellation;
+    expect(await result).toEqual(activeJoinStatus().joinedSpace);
+    expect(api.cancelJoinSpace).not.toHaveBeenCalled();
+  });
 
   it.each([
     ['requestJoin', true],

@@ -268,6 +268,7 @@ interface UcEngineNativeModule {
     passphrase: string,
     preserveUnreadableHistory: boolean
   ): Promise<JoinSpaceStatus>;
+  cancelJoinSpace(joinId: string): Promise<void>;
   nextEvent(timeoutMs: number): Promise<EngineEvent | null>;
   refreshPeerConnections(): Promise<PeerConnectionRefresh>;
   querySpaceState(): Promise<SpaceState>;
@@ -400,6 +401,10 @@ export async function joinSpace(
 
 export function nextEvent(timeoutMs = 1_000): Promise<EngineEvent | null> {
   return NativeModule.nextEvent(timeoutMs);
+}
+
+export function cancelJoinSpace(joinId: string): Promise<void> {
+  return NativeModule.cancelJoinSpace(joinId);
 }
 
 export function refreshPeerConnections(): Promise<PeerConnectionRefresh> {

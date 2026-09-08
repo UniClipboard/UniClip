@@ -19,6 +19,7 @@ import type { DeviceTrustSnapshot } from '@/platform/engine';
 
 const mockCreateSpace = jest.fn();
 const mockJoinSpace = jest.fn();
+const mockCancelJoin = jest.fn();
 const mockIssueInvitation = jest.fn();
 const mockUnifiedSpaceUserErrorCode = jest.fn();
 
@@ -27,6 +28,7 @@ jest.mock('@/features/space', () => ({
   getUnifiedSpaceService: () => ({
     createSpace: mockCreateSpace,
     joinSpace: mockJoinSpace,
+    cancelJoin: mockCancelJoin,
     issueInvitation: mockIssueInvitation,
   }),
   unifiedSpaceUserErrorCode: (cause: unknown) => mockUnifiedSpaceUserErrorCode(cause),
@@ -109,6 +111,7 @@ describe('add sync connection flow', () => {
     mockIssueInvitation.mockResolvedValue(invitation);
     mockCreateSpace.mockResolvedValue({ spaceId: 'space-1', invitation });
     mockJoinSpace.mockResolvedValue({ spaceId: 'space-1' });
+    mockCancelJoin.mockResolvedValue(undefined);
     mockUnifiedSpaceUserErrorCode.mockReturnValue(null);
   });
 
@@ -141,6 +144,117 @@ describe('add sync connection flow', () => {
     await act(async () => currentFlow.actions.completeConnection());
     expect(props.resetNativeFields).toHaveBeenCalledWith('Phone');
     expect(props.onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a slow join pending, blocks repeated taps and back, then shows success', async () => {
+    jest.useFakeTimers();
+    try {
+      createHarness('join');
+      act(() => currentFlow.actions.updateInvitationCode('001234'));
+      act(() => currentFlow.actions.continueFromCode());
+      act(() => currentFlow.actions.setPassphrase('secret'));
+      let resolve!: (value: { spaceId: string }) => void;
+      mockJoinSpace.mockReturnValue(
+        new Promise((done) => {
+          resolve = done;
+        })
+      );
+      let submission!: Promise<void>;
+      act(() => {
+        submission = currentFlow.actions.submitJoin();
+        void currentFlow.actions.submitJoin();
+      });
+      expect(mockJoinSpace).toHaveBeenCalledTimes(1);
+      act(() => currentFlow.actions.back());
+      expect(currentFlow.state.mode).toBe('joinDetails');
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(15_000);
+      });
+      expect(currentFlow.state).toMatchObject({
+        pending: true,
+        error: null,
+        joinTakingLonger: true,
+      });
+      await act(async () => {
+        resolve({ spaceId: 'space-1' });
+        await submission;
+      });
+      expect(currentFlow.state).toMatchObject({ pending: false, error: null, mode: 'success' });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('requests cancellation once and closes only after it is confirmed', async () => {
+    const props = createHarness('join');
+    act(() => currentFlow.actions.updateInvitationCode('001234'));
+    act(() => currentFlow.actions.continueFromCode());
+    act(() => currentFlow.actions.setPassphrase('secret'));
+    let reject!: (error: Error) => void;
+    mockJoinSpace.mockReturnValue(
+      new Promise((_resolve, fail) => {
+        reject = fail;
+      })
+    );
+    let submission!: Promise<void>;
+    act(() => {
+      submission = currentFlow.actions.submitJoin();
+    });
+    await act(async () => {
+      await currentFlow.actions.cancelJoin();
+      await currentFlow.actions.cancelJoin();
+    });
+    expect(mockCancelJoin).toHaveBeenCalledTimes(1);
+    expect(props.onClose).not.toHaveBeenCalled();
+    expect(currentFlow.state).toMatchObject({ pending: true, cancellingJoin: true });
+    mockUnifiedSpaceUserErrorCode.mockReturnValue('joinCancelled');
+    await act(async () => {
+      reject(new Error('joinCancelled'));
+      await submission;
+    });
+    expect(props.onClose).toHaveBeenCalledTimes(1);
+    expect(currentFlow.state).toMatchObject({ pending: false, error: null });
+  });
+
+  it('keeps waiting after a failed cancellation and clears its warning on success', async () => {
+    const props = createHarness('join');
+    act(() => currentFlow.actions.updateInvitationCode('001234'));
+    act(() => currentFlow.actions.continueFromCode());
+    act(() => currentFlow.actions.setPassphrase('secret'));
+    let resolve!: (value: { spaceId: string }) => void;
+    mockJoinSpace.mockReturnValue(
+      new Promise((done) => {
+        resolve = done;
+      })
+    );
+    mockCancelJoin.mockRejectedValueOnce(new Error('unavailable'));
+    let submission!: Promise<void>;
+    act(() => {
+      submission = currentFlow.actions.submitJoin();
+    });
+    await act(async () => {
+      await currentFlow.actions.cancelJoin();
+    });
+    expect(currentFlow.state).toMatchObject({
+      pending: true,
+      cancellingJoin: false,
+      error: 'space.join.cancelFailed',
+    });
+    await act(async () => {
+      await currentFlow.actions.cancelJoin();
+    });
+    expect(mockCancelJoin).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      resolve({ spaceId: 'space-1' });
+      await submission;
+    });
+    expect(props.onClose).not.toHaveBeenCalled();
+    expect(currentFlow.state).toMatchObject({
+      mode: 'success',
+      pending: false,
+      cancellingJoin: false,
+      error: null,
+    });
   });
 
   it('requires confirmation before preserving unreadable history and retrying', async () => {

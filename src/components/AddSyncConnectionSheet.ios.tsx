@@ -34,6 +34,7 @@ import {
   frame,
   glassEffect,
   keyboardType,
+  interactiveDismissDisabled,
   listRowBackground,
   listRowInsets,
   listRowSeparator,
@@ -129,15 +130,18 @@ function PersistentBottomSheet({
 function HeaderCircleButton({
   systemName,
   onPress,
+  isDisabled = false,
 }: {
   systemName: SFSymbol;
   onPress: () => void;
+  isDisabled?: boolean;
 }) {
   return (
     <SwiftUIButton
       onPress={onPress}
       modifiers={[
         buttonStyle('plain'),
+        disabled(isDisabled),
         glassEffect({ glass: { variant: 'regular', interactive: true }, shape: 'circle' }),
       ]}
     >
@@ -377,6 +381,8 @@ export function AddSyncConnectionSheet({
     invitationCode,
     invitation,
     pending,
+    joinTakingLonger,
+    cancellingJoin,
     error,
     copied,
     canSubmitDetails,
@@ -396,6 +402,7 @@ export function AddSyncConnectionSheet({
     close,
     submitCreate,
     submitJoin,
+    cancelJoin,
     renewInvitation,
     copyInvitation,
     shareInvitation,
@@ -449,6 +456,7 @@ export function AddSyncConnectionSheet({
               onSelectionChange: setSheetDetent,
             }),
             presentationDragIndicator('visible'),
+            interactiveDismissDisabled(pending),
           ]}
         >
           <IosSheetPage
@@ -459,11 +467,12 @@ export function AddSyncConnectionSheet({
                 key="leading"
                 systemName={canGoBack ? 'chevron.backward' : 'xmark'}
                 onPress={canGoBack ? back : close}
+                isDisabled={pending}
               />,
             ]}
             rightSlots={
               canGoBack
-                ? [<HeaderCircleButton key="close" systemName="xmark" onPress={close} />]
+                ? [<HeaderCircleButton key="close" systemName="xmark" onPress={close} isDisabled={pending} />]
                 : undefined
             }
           >
@@ -604,7 +613,14 @@ export function AddSyncConnectionSheet({
                       {formatInvitationCode(normalizeInvitationCodeInput(invitationCode))}
                     </SwiftUIText>
                   }
-                  footer={<SwiftUIText>{t('space.flow.joinDetailsBody')}</SwiftUIText>}
+                  footer={
+                    <SwiftUIText>
+                      {t(pending
+                        ? cancellingJoin ? 'space.join.cancelling'
+                          : joinTakingLonger ? 'space.join.takingLonger' : 'space.join.pending'
+                        : 'space.flow.joinDetailsBody')}
+                    </SwiftUIText>
+                  }
                 >
                   <SecureField
                     ref={passphraseRef}
@@ -642,11 +658,28 @@ export function AddSyncConnectionSheet({
                     <Spacer />
                     {pending ? <ProgressView /> : <Image systemName="link.circle.fill" size={17} />}
                     <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>
-                      {t('space.join.action')}
+                      {t(pending
+                        ? cancellingJoin ? 'space.join.cancelling' : 'space.join.pending'
+                        : 'space.join.action')}
                     </SwiftUIText>
                     <Spacer />
                   </HStack>
                 </SwiftUIButton>
+                {pending ? (
+                  <SwiftUIButton
+                    onPress={cancelJoin}
+                    modifiers={[
+                      ...iosSecondaryButtonModifiers({ fullWidth: true }),
+                      controlSize('large'),
+                      disabled(cancellingJoin),
+                      listRowBackground(SHEET_BACKGROUND),
+                      listRowSeparator('hidden'),
+                      listRowInsets({ top: 8, bottom: 8, leading: 16, trailing: 16 }),
+                    ]}
+                  >
+                    <InvitationActionLabel systemName="xmark" title={t('action.cancel', { ns: 'common' })} />
+                  </SwiftUIButton>
+                ) : null}
               </IosSheetForm>
             ) : null}
 

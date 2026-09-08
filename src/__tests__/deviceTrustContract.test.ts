@@ -2,6 +2,7 @@ import {
   parseDeviceTrustDecision,
   parseDeviceTrustQueryResult,
   parseDeviceTrustSnapshot,
+  parseDeviceGroupChoices,
 } from '../platform/engine/deviceTrust';
 
 function snapshotJson(overrides: Record<string, unknown> = {}): string {
@@ -52,6 +53,96 @@ function snapshotJson(overrides: Record<string, unknown> = {}): string {
 }
 
 describe('device trust Engine contract', () => {
+  it.each([
+    [
+      {
+        status: 'pending',
+        join_id: 'join-1',
+        target_space_id: null,
+        sponsor_device_id: null,
+        sponsor_identity_fingerprint: null,
+        cancel_requested: false,
+        peer_upgrade_required: false,
+      },
+      {
+        type: 'pending',
+        joinId: 'join-1',
+        targetSpaceId: null,
+        sponsorDeviceId: null,
+        sponsorIdentityFingerprint: null,
+        cancelRequested: false,
+        peerUpgradeRequired: false,
+      },
+    ],
+    [
+      { status: 'rejected', join_id: 'join-1', reason: 'authentication_rejected' },
+      { type: 'rejected', joinId: 'join-1', reason: 'authenticationRejected' },
+    ],
+    [
+      {
+        status: 'active',
+        join_id: 'join-1',
+        peer_upgrade_required: false,
+        joined_space: {
+          sponsor_device_id: 'desktop',
+          sponsor_identity_fingerprint: 'sponsor',
+          space_id: 'space',
+          self_device_id: 'phone',
+          self_identity_fingerprint: 'self',
+          migrated_records: null,
+          preserved_unreadable_records: null,
+        },
+      },
+      {
+        type: 'active',
+        joinId: 'join-1',
+        peerUpgradeRequired: false,
+        joinedSpace: {
+          sponsorDeviceId: 'desktop',
+          sponsorIdentityFingerprint: 'sponsor',
+          spaceId: 'space',
+          selfDeviceId: 'phone',
+          selfIdentityFingerprint: 'self',
+          migratedRecords: 0,
+          preservedUnreadableRecords: 0,
+        },
+      },
+    ],
+  ])('preserves the current join result from the Engine', (currentJoin, expected) => {
+    expect(parseDeviceTrustSnapshot(snapshotJson({ current_join: currentJoin }))).toEqual(
+      expect.objectContaining({ currentJoin: expected })
+    );
+    expect(
+      parseDeviceGroupChoices({
+        ok: true,
+        value: JSON.stringify({
+          revision: 7,
+          issues: [],
+          device_trust: JSON.parse(snapshotJson({ current_join: currentJoin })),
+        }),
+      })
+    ).toEqual(expect.objectContaining({ currentJoin: expected }));
+  });
+
+  it.each([undefined, null])(
+    'accepts an absent current join without inventing a result',
+    (value) => {
+      expect(parseDeviceTrustSnapshot(snapshotJson({ current_join: value }))).toEqual(
+        expect.objectContaining({ currentJoin: null })
+      );
+    }
+  );
+
+  it.each([
+    { status: 'active', join_id: 'join-1', joined_space: {} },
+    { status: 'rejected', join_id: 'join-1', reason: 'unknown' },
+    { status: 'unknown', join_id: 'join-1' },
+  ])('rejects a malformed current join', (value) => {
+    expect(() => parseDeviceTrustSnapshot(snapshotJson({ current_join: value }))).toThrow(
+      'Invalid device trust snapshot'
+    );
+  });
+
   it('parses a successful structured device trust query', () => {
     expect(parseDeviceTrustQueryResult({ ok: true, value: snapshotJson() })).toEqual(
       expect.objectContaining({ revision: 7, localDeviceId: 'phone-1' })

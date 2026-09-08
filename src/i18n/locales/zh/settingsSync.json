@@ -59,7 +59,11 @@
     "join": {
       "title": "加入已有空间",
       "description": "使用另一台设备生成的邀请码加入",
-      "action": "加入"
+      "action": "加入",
+      "pending": "正在加入",
+      "takingLonger": "连接较慢，仍在尝试加入。",
+      "cancelling": "正在取消加入",
+      "cancelFailed": "暂时无法取消，加入仍在进行。可以再次尝试取消。"
     },
     "field": {
       "deviceName": "设备名称",

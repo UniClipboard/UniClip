@@ -59,7 +59,11 @@
     "join": {
       "title": "Entrar em um espaço existente",
       "description": "Usar um convite gerado em outro dispositivo",
-      "action": "Entrar"
+      "action": "Entrar",
+      "pending": "Entrando",
+      "takingLonger": "A conexão está demorando. Ainda tentando entrar.",
+      "cancelling": "Cancelando entrada",
+      "cancelFailed": "Não foi possível cancelar ainda. A entrada continua em andamento. Tente cancelar novamente."
     },
     "field": {
       "deviceName": "Nome do dispositivo",

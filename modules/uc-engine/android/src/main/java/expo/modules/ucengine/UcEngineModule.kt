@@ -444,6 +444,10 @@ class UcEngineModule : Module() {
         )
       }
     }
+    AsyncFunction("cancelJoinSpace") { joinId: String ->
+      requireEngine().cancelJoinSpace(joinId)
+      Unit
+    }
     AsyncFunction("nextEvent") { timeoutMs: Long ->
       requireEngine().nextEvent(timeoutMs.toULong())?.let(::eventMap)
     }.runOnQueue(appContext.backgroundCoroutineScope)

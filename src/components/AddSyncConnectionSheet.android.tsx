@@ -108,6 +108,8 @@ function AddSyncConnectionSheetContent({
     invitationCode,
     invitation,
     pending,
+    joinTakingLonger,
+    cancellingJoin,
     error,
     copied,
     canSubmitDetails,
@@ -127,6 +129,7 @@ function AddSyncConnectionSheetContent({
     close,
     submitCreate,
     submitJoin,
+    cancelJoin,
     renewInvitation,
     copyInvitation,
     shareInvitation,
@@ -324,8 +327,14 @@ function AddSyncConnectionSheetContent({
                 <ComposeText>{t('space.join.action')}</ComposeText>
               )}
             </Button>
-            <TextButton onClick={back} enabled={!pending} modifiers={[fillMaxWidth()]}>
-              <ComposeText>{t('action.back', { ns: 'common' })}</ComposeText>
+            {pending ? (
+              <ComposeText color={colors.onSurfaceVariant}>
+                {t(cancellingJoin ? 'space.join.cancelling'
+                  : joinTakingLonger ? 'space.join.takingLonger' : 'space.join.pending')}
+              </ComposeText>
+            ) : null}
+            <TextButton onClick={pending ? cancelJoin : back} enabled={!cancellingJoin} modifiers={[fillMaxWidth()]}>
+              <ComposeText>{t(pending ? 'action.cancel' : 'action.back', { ns: 'common' })}</ComposeText>
             </TextButton>
           </Column>
         ) : null}

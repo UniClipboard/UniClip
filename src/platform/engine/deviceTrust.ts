@@ -1,6 +1,7 @@
 import type {
   DeviceTrustChoice as NativeDeviceTrustChoice,
   DeviceTrustQueryResult as NativeDeviceTrustQueryResult,
+  JoinSpaceStatus,
 } from 'uc-engine';
 
 export type DeviceMembership = 'active' | 'removed' | 'unavailable' | 'unknown';
@@ -120,6 +121,7 @@ export interface DeviceGroupChoiceIssue {
 }
 
 export interface DeviceTrustSnapshot {
+  currentJoin?: JoinSpaceStatus | null;
   groupChoices?: { revision: number; issues: DeviceGroupChoiceIssue[] };
 
   revision: number;
@@ -298,6 +300,68 @@ function relationship(value: unknown): DeviceTrustRelationship {
   };
 }
 
+function currentJoin(value: unknown): JoinSpaceStatus | null {
+  if (value == null) return null;
+  const source = object(value);
+  const joinId = nonemptyString(source.join_id);
+  switch (source.status) {
+    case 'pending':
+      return {
+        type: 'pending',
+        joinId,
+        targetSpaceId:
+          source.target_space_id === null ? null : nonemptyString(source.target_space_id),
+        sponsorDeviceId:
+          source.sponsor_device_id === null ? null : nonemptyString(source.sponsor_device_id),
+        sponsorIdentityFingerprint:
+          source.sponsor_identity_fingerprint === null
+            ? null
+            : nonemptyString(source.sponsor_identity_fingerprint),
+        cancelRequested: boolean(source.cancel_requested),
+        peerUpgradeRequired: boolean(source.peer_upgrade_required),
+      };
+    case 'active': {
+      const joined = object(source.joined_space);
+      return {
+        type: 'active',
+        joinId,
+        peerUpgradeRequired: boolean(source.peer_upgrade_required),
+        joinedSpace: {
+          sponsorDeviceId: nonemptyString(joined.sponsor_device_id),
+          sponsorIdentityFingerprint: nonemptyString(joined.sponsor_identity_fingerprint),
+          spaceId: nonemptyString(joined.space_id),
+          selfDeviceId: nonemptyString(joined.self_device_id),
+          selfIdentityFingerprint: nonemptyString(joined.self_identity_fingerprint),
+          migratedRecords:
+            joined.migrated_records === null ? 0 : integer(joined.migrated_records, 0),
+          preservedUnreadableRecords:
+            joined.preserved_unreadable_records === null
+              ? 0
+              : integer(joined.preserved_unreadable_records, 0),
+        },
+      };
+    }
+    case 'rejected':
+      return {
+        type: 'rejected',
+        joinId,
+        reason: enumValue(source.reason, {
+          invitation_unavailable: 'invitationUnavailable',
+          authentication_rejected: 'authenticationRejected',
+          identity_conflict: 'identityConflict',
+          base_history_changed: 'baseHistoryChanged',
+          joiner_history_ahead: 'joinerHistoryAhead',
+          history_conflict: 'historyConflict',
+          peer_upgrade_required: 'peerUpgradeRequired',
+          cancelled: 'cancelled',
+          removed_before_activation: 'removedBeforeActivation',
+        } as const),
+      };
+    default:
+      throw new Error();
+  }
+}
+
 function snapshot(value: unknown): DeviceTrustSnapshot {
   const source = object(value);
   if (source.recovery !== 'not_available_in_this_version') throw new Error();
@@ -306,6 +370,7 @@ function snapshot(value: unknown): DeviceTrustSnapshot {
     localDeviceId: string(source.local_device_id),
     localMembership: enumValue(source.local_membership, MEMBERSHIP),
     currentChange: change(source.current_change),
+    currentJoin: currentJoin(source.current_join),
     devices: array(source.devices, relationship),
     recovery: 'notAvailableInThisVersion',
     allowedActions: array(source.allowed_actions, (entry) => enumValue(entry, ACTION)),

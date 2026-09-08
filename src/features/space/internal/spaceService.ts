@@ -69,6 +69,7 @@ export interface UnifiedSpaceApi {
     passphrase: string,
     preserveUnreadableHistory: boolean
   ): Promise<JoinSpaceStatus>;
+  cancelJoinSpace(joinId: string): Promise<void>;
   queryDeviceTrust(): Promise<DeviceTrustSnapshot>;
   decideDeviceTrustChange(
     changeId: string,
@@ -106,6 +107,7 @@ export type UnifiedSpaceUserErrorCode =
   | 'serviceUnavailable'
   | 'peerUpgradeRequired'
   | 'connectionLost'
+  | 'joinCancelled'
   | 'unreadableHistoryRequiresConfirmation';
 
 const USER_ERROR_BY_ENGINE_CODE: Readonly<Record<number, UnifiedSpaceUserErrorCode>> = {
@@ -224,9 +226,10 @@ function rejectedJoinErrorCode(reason: JoinSpaceRejectionReason): UnifiedSpaceUs
       return 'serviceUnavailable';
     case 'invitationUnavailable':
     case 'identityConflict':
-    case 'cancelled':
     case 'removedBeforeActivation':
       return 'invitationRejected';
+    case 'cancelled':
+      return 'joinCancelled';
   }
 }
 
@@ -355,6 +358,7 @@ export class UnifiedSpaceService {
   private deviceRefreshInFlight: Promise<UnifiedSpaceSnapshot> | null = null;
   private deviceTrustRefreshInFlight: Promise<UnifiedSpaceSnapshot> | null = null;
   private deviceTrustDecisionInFlight: Promise<DeviceTrustDecision> | null = null;
+  private joinRequestInFlight: Promise<JoinSpaceStatus> | null = null;
 
   constructor(
     private readonly api: UnifiedSpaceApi,
@@ -594,58 +598,95 @@ export class UnifiedSpaceService {
     required(invitationCode, 'invitationCodeRequired');
     const normalizedInvitation = invitationCodeForSubmission(invitationCode);
     if (!normalizedInvitation) throw new UnifiedSpaceInputError('invitationCodeInvalid');
+    if (this.joinRequestInFlight) throw new SpaceOperationInProgressError();
     const normalizedName = required(deviceName, 'deviceNameRequired');
     const normalizedPassphrase = passphrase(secret);
     const hadExistingSpace = Boolean(this.snapshot.spaceId);
     let stage: JoinSpaceStage = 'prepareP2p';
     let revision: number | null = null;
     try {
-      return await this.runSetup(async () => {
+      this.joinRequestInFlight = this.runSetup(async () => {
         revision = this.beginMutation();
         this.updateSnapshot({ status: 'loading', lastError: null });
         stage = 'requestJoin';
-        const joinStatus = await this.api.joinSpace(
+        return this.api.joinSpace(
           normalizedInvitation,
           normalizedName,
           normalizedPassphrase,
           preserveUnreadableHistory
         );
-        const joined = requireActiveJoinedSpace(joinStatus);
-        stage = 'refreshDevices';
-        const devices = await this.api.listDevices();
-        await this.completion.markComplete();
-        if (!this.isCurrentMutation(revision)) return joined;
-        this.snapshot = {
-          status: 'ready',
-          spaceId: joined.spaceId,
-          deviceName: normalizedName,
-          invitation: null,
-          devices,
-          workspaceConvergence: null,
-          deviceTrustQuery: { kind: 'idle' },
-          deviceTrustDecisionStatus: 'idle',
-          deviceTrustDecisionError: null,
-          deviceTrustDecisionOutcome: null,
-          operationState: { kind: 'idle' },
-          lastError: null,
-          hasResolvedDeviceList: true,
-          deviceListRefreshStatus: 'idle',
-        };
-        this.publishSnapshot();
-        return joined;
       });
+      const joinStatus = await this.joinRequestInFlight;
+      const joined = await this.waitForJoinedSpace(joinStatus);
+      stage = 'refreshDevices';
+      const devices = await this.api.listDevices();
+      await this.completion.markComplete();
+      if (revision === null || !this.isCurrentMutation(revision)) return joined;
+      this.snapshot = {
+        status: 'ready',
+        spaceId: joined.spaceId,
+        deviceName: normalizedName,
+        invitation: null,
+        devices,
+        workspaceConvergence: null,
+        deviceTrustQuery: { kind: 'idle' },
+        deviceTrustDecisionStatus: 'idle',
+        deviceTrustDecisionError: null,
+        deviceTrustDecisionOutcome: null,
+        operationState: { kind: 'idle' },
+        lastError: null,
+        hasResolvedDeviceList: true,
+        deviceListRefreshStatus: 'idle',
+      };
+      this.publishSnapshot();
+      return joined;
     } catch (error) {
-      log.error('Join space failed', joinSpaceFailureDetails(error, stage, hadExistingSpace));
+      const cancelled = unifiedSpaceUserErrorCode(error) === 'joinCancelled';
+      if (!cancelled) {
+        log.error('Join space failed', joinSpaceFailureDetails(error, stage, hadExistingSpace));
+      }
       if (
         !(error instanceof SpaceOperationInProgressError) &&
         (revision === null || this.isCurrentMutation(revision))
       ) {
-        this.fail(error);
+        if (cancelled) {
+          this.updateSnapshot({ status: this.snapshot.spaceId ? 'ready' : 'empty', lastError: null });
+        } else {
+          this.fail(error);
+        }
       }
       throw error;
     } finally {
+      this.joinRequestInFlight = null;
       if (revision !== null) this.endMutation(revision);
     }
+  }
+
+  async cancelJoin(): Promise<void> {
+    const request = this.joinRequestInFlight;
+    if (!request) return;
+    const status = await request;
+    if (status.type === 'pending') await this.api.cancelJoinSpace(status.joinId);
+  }
+
+  private async waitForJoinedSpace(initial: JoinSpaceStatus): Promise<JoinedSpace> {
+    let status = initial;
+    while (status.type === 'pending' && !status.peerUpgradeRequired) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 1000));
+      let current: JoinSpaceStatus | null | undefined;
+      try {
+        current = (await this.api.queryDeviceTrust()).currentJoin;
+      } catch {
+        // A failed read does not cancel the Engine's ongoing admission.
+        continue;
+      }
+      if (!current) continue;
+      if (current.joinId !== initial.joinId) {
+        throw new UnifiedSpaceJoinResultError('invitationRejected');
+      }
+      status = current;
+    }
+    return requireActiveJoinedSpace(status);
   }
 
   async removeMember(deviceId: string): Promise<WorkspaceConvergence> {

@@ -33,6 +33,7 @@ describe('unified P2P engine native module', () => {
       'createSpace',
       'issueInvitation',
       'joinSpace',
+      'cancelJoinSpace',
       'nextEvent',
       'refreshPeerConnections',
       'sendText',
@@ -68,6 +69,13 @@ describe('unified P2P engine native module', () => {
     expect(javascript).toContain('saveCustomRelayNode');
     expect(swift).toContain('AsyncFunction("saveCustomRelayNode")');
     expect(kotlin).toContain('AsyncFunction("saveCustomRelayNode")');
+  });
+
+  it('forwards join cancellation to the Engine on both platforms', () => {
+    expect(read('src/index.ts')).toContain('return NativeModule.cancelJoinSpace(joinId)');
+    expect(read('ios/UcEngineModule.swift')).toContain('try self.requireEngine().cancelJoinSpace(joinId: joinId)');
+    expect(read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt'))
+      .toContain('requireEngine().cancelJoinSpace(joinId)');
   });
 
   it('does not expose the removed workspace convergence query or event', () => {

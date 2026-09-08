@@ -59,7 +59,11 @@
     "join": {
       "title": "Join an existing space",
       "description": "Use an invitation generated on another device",
-      "action": "Join"
+      "action": "Join",
+      "pending": "Joining",
+      "takingLonger": "The connection is taking longer. Still trying to join.",
+      "cancelling": "Cancelling join",
+      "cancelFailed": "Could not cancel yet. Joining is still in progress. You can try cancelling again."
     },
     "field": {
       "deviceName": "Device name",
