@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { File } from 'expo-file-system';
 import { StyleSheet, useWindowDimensions } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -15,6 +16,9 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 
 import { iosAccentColor } from '@/theme/iosDesignTokens';
+import { ShareSendSheet } from '@/components/ShareSendSheet';
+import { deleteDiagnosticArchive, type DiagnosticArtifact } from '@/support/diagnostics';
+import type { PendingShareJob } from '@/features/transfer';
 import { useSettingsStore } from '@/stores';
 import { AddSyncConnectionSheet } from '@/components/AddSyncConnectionSheet';
 import type { AddSyncConnectionMode } from '@/components/AddSyncConnectionSheet.types';
@@ -96,6 +100,24 @@ export const SettingsScreen = () => {
   const { config, isLoaded, loadConfig } = useSettingsStore();
 
   const [presented, setPresented] = useState(true);
+  const [diagnosticArchive, setDiagnosticArchive] = useState<DiagnosticArtifact | null>(null);
+  const diagnosticJobs = useMemo<PendingShareJob[] | undefined>(
+    () => diagnosticArchive ? [{
+      id: diagnosticArchive.uri,
+      kind: 'file',
+      displayName: diagnosticArchive.fileName,
+      fileUri: diagnosticArchive.uri,
+      byteCount: new File(diagnosticArchive.uri).size,
+      mimeType: 'application/zip',
+      createdAtMs: Date.now(),
+    }] : undefined,
+    [diagnosticArchive]
+  );
+  useEffect(() => {
+    return () => {
+      if (diagnosticArchive) deleteDiagnosticArchive(diagnosticArchive.uri);
+    };
+  }, [diagnosticArchive]);
   const [pageStack, setPageStack] = useState<SettingsSubPage[]>([]);
   const activePage = pageStack[pageStack.length - 1] ?? null;
   const [isLeavingPage, setIsLeavingPage] = useState(false);
@@ -249,7 +271,9 @@ export const SettingsScreen = () => {
                   {activePage === 'keyboard' ? <KeyboardPage onBack={backToRoot} /> : null}
                   {activePage === 'share' ? <SharePage onBack={backToRoot} /> : null}
                   {activePage === 'clipboard' ? <ClipboardAccessPage onBack={backToRoot} /> : null}
-                  {activePage === 'diagnostics' ? <LogSection onBack={backToRoot} /> : null}
+                  {activePage === 'diagnostics' ? (
+                    <LogSection onBack={backToRoot} onSendArchive={setDiagnosticArchive} />
+                  ) : null}
                   {activePage === 'developer' ? (
                     <DeveloperPage
                       onBack={backToRoot}
@@ -263,6 +287,12 @@ export const SettingsScreen = () => {
               <SpaceInvitationSheet
                 visible={showSpaceInvitation}
                 onClose={() => setShowSpaceInvitation(false)}
+              />
+              <ShareSendSheet
+                visible={diagnosticArchive !== null}
+                jobs={diagnosticJobs}
+                embeddedInHost
+                onClose={() => setDiagnosticArchive(null)}
               />
               <SpaceDeviceDetail
                 device={deviceManagement.selectedDevice}

@@ -24,9 +24,9 @@ import {
 } from './useShareSendController';
 
 /** Android 外部分享独立页面。解析与发送都在同一全屏页面完成。 */
-export function ShareSendSheet({ visible, onClose }: ShareSendSheetProps) {
+export function ShareSendSheet({ visible, onClose, jobs }: ShareSendSheetProps) {
   const isParsing = useShareSheetStore((state) => state.isParsing);
-  const c = useShareSendController(onClose, visible && !isParsing);
+  const c = useShareSendController(onClose, visible && !isParsing, jobs);
   const { theme } = useTheme();
   const { t } = useTranslation('share');
   const insets = useSafeAreaInsets();

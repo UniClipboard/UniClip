@@ -1,7 +1,7 @@
 import { DiagnosticsPage } from './ios/DiagnosticsPage';
 import type { LogSectionProps } from './LogSection.types';
 
-export function LogSection({ onBack }: LogSectionProps) {
-  if (!onBack) return null;
-  return <DiagnosticsPage onBack={onBack} />;
+export function LogSection({ onBack, onSendArchive }: LogSectionProps) {
+  if (!onBack || !onSendArchive) return null;
+  return <DiagnosticsPage onBack={onBack} onSendArchive={onSendArchive} />;
 }

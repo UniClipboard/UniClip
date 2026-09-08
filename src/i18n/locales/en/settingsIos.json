@@ -69,7 +69,8 @@
       "footer": "The ZIP contains redacted app logs, Engine logs, app state, and Share attempt records. Clipboard contents and credentials are excluded."
     },
     "action": {
-      "generate": "Generate and share",
+      "generate": "Export logs",
+      "sendTo": "Send to",
       "preparing": "Preparing..."
     },
     "error": {

@@ -69,7 +69,8 @@
       "footer": "O ZIP contém registros do app e do Engine sem dados sensíveis, o estado do app e registros de compartilhamento. O conteúdo da área de transferência e as credenciais não são incluídos."
     },
     "action": {
-      "generate": "Gerar e compartilhar",
+      "generate": "Exportar logs",
+      "sendTo": "Enviar para",
       "preparing": "Preparando..."
     },
     "error": {

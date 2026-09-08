@@ -98,7 +98,7 @@ async function loadPreview(job: PendingShareJob): Promise<ShareJobView> {
   }
 }
 
-export function useShareSendController(onClose: () => void, active: boolean) {
+export function useShareSendController(onClose: () => void, active: boolean, jobs?: PendingShareJob[]) {
   const { t } = useTranslation('share');
   const syncChannel = useSettingsStore((state) => state.config?.syncChannel ?? 'lan');
   const spaceDevices = useUnifiedSpaceStore((s) => s.devices);
@@ -126,6 +126,10 @@ export function useShareSendController(onClose: () => void, active: boolean) {
   const sendingRef = useRef(false);
   const hasAppliedDefaultSelectionRef = useRef(false);
   const successCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // App-provided files belong to the presenting screen, not the external share queue.
+  const completeJob = useCallback(async (jobId: string) => {
+    if (!jobs) await getOutboundShareHandoffManager().completeJob(jobId);
+  }, [jobs]);
 
   const updateJob = useCallback((jobId: string, patch: Partial<ShareJobView>) => {
     setJobViews((views) =>
@@ -143,19 +147,24 @@ export function useShareSendController(onClose: () => void, active: boolean) {
           .refreshDevices()
           .catch(() => undefined);
       }
+      if (jobs) {
+        setJobViews(await Promise.all(jobs.map(loadPreview)));
+        setPhase({ kind: 'ready' });
+        return;
+      }
       const store = createPendingShareStore();
       await store.cleanup();
-      const jobs = await getOutboundShareHandoffManager().claimPending();
+      const pendingJobs = await getOutboundShareHandoffManager().claimPending();
 
       // 两端在入队前都已把内容写入主页历史。超过处理租约的 job 只可能是
       // 中断会话的残留,直接出队,保证每次分享都是崭新的一次。
       const now = Date.now();
-      for (const job of jobs) {
+      for (const job of pendingJobs) {
         if (now - job.createdAtMs > STALE_JOB_AGE_MS) {
           await getOutboundShareHandoffManager().completeJob(job.id);
         }
       }
-      const freshJobs = jobs.filter((job) => now - job.createdAtMs <= STALE_JOB_AGE_MS);
+      const freshJobs = pendingJobs.filter((job) => now - job.createdAtMs <= STALE_JOB_AGE_MS);
       const views = await Promise.all(freshJobs.map(loadPreview));
       setJobViews(views);
       setPhase({ kind: 'ready' });
@@ -165,7 +174,7 @@ export function useShareSendController(onClose: () => void, active: boolean) {
       });
       setPhase({ kind: 'error', message: t('send.claimFailed') });
     }
-  }, [syncChannel, t]);
+  }, [jobs, syncChannel, t]);
 
   // 会话开关:active=false 结束会话(重置发送锁);true 开始新会话,
   // 重置状态并重新认领(组件常驻挂载,不依赖 mount)。lastActiveRef 保证
@@ -226,7 +235,7 @@ export function useShareSendController(onClose: () => void, active: boolean) {
         delivered ? undefined : result.state
       );
       if (delivered) {
-        await getOutboundShareHandoffManager().completeJob(jobId);
+        await completeJob(jobId);
         updateJob(jobId, { sendState: 'success' });
         return { jobId, success: true, deliveryState: result.state };
       }
@@ -238,7 +247,7 @@ export function useShareSendController(onClose: () => void, active: boolean) {
       updateJob(jobId, { sendState: 'failed', errorMessage: message });
       return { jobId, success: false, deliveryState: result.state, errorMessage: message };
     },
-    [updateJob, t]
+    [completeJob, updateJob, t]
   );
 
   // 发送单个 job(串行;不自动重试)
@@ -263,7 +272,7 @@ export function useShareSendController(onClose: () => void, active: boolean) {
           job.displayName,
           job.mimeType,
           job.byteCount,
-          { skipInitialCopyOnIOS: job.kind === 'file' }
+          { skipInitialCopyOnIOS: !jobs && job.kind === 'file' }
         );
         setPhase({ kind: 'sending', jobId: job.id, stage: 'sending' });
         return await finishSend(job.id, () =>
@@ -284,7 +293,7 @@ export function useShareSendController(onClose: () => void, active: boolean) {
         return { jobId: job.id, success: false, deliveryState: 'failed', errorMessage: message };
       }
     },
-    [finishSend, updateJob, t]
+    [finishSend, jobs, updateJob, t]
   );
 
   // 发送全部 job(串行,每项独立展示状态)
@@ -329,9 +338,9 @@ export function useShareSendController(onClose: () => void, active: boolean) {
 
   // 删除(显式):二次确认后清除记录 + payload,不可恢复
   const deleteJob = useCallback(async (jobId: string) => {
-    await getOutboundShareHandoffManager().completeJob(jobId);
+    await completeJob(jobId);
     setJobViews((views) => views.filter((view) => view.job.id !== jobId));
-  }, []);
+  }, [completeJob]);
 
   const toggleTarget = useCallback((targetId: string) => {
     setSelectedTargetIds((prev) => {
@@ -357,12 +366,13 @@ export function useShareSendController(onClose: () => void, active: boolean) {
 
   // 取消 / 完成:内容已保存,未发送 job 直接出队,返回上一页
   const handleClose = useCallback(() => {
+    if (sendingRef.current) return;
     const unsent = jobViews.filter((view) => view.sendState !== 'success');
     for (const view of unsent) {
-      void getOutboundShareHandoffManager().completeJob(view.job.id);
+      void completeJob(view.job.id);
     }
     onClose();
-  }, [jobViews, onClose]);
+  }, [completeJob, jobViews, onClose]);
 
   const handleRetryClaim = useCallback(() => {
     setPhase({ kind: 'claiming' });

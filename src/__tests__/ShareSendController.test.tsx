@@ -154,8 +154,8 @@ type ControllerState = ReturnType<typeof useShareSendController>;
 let current!: ControllerState;
 let renderedHarnesses: TestRenderer.ReactTestRenderer[] = [];
 
-function Harness({ onClose, active = true }: { onClose: () => void; active?: boolean }) {
-  const c = useShareSendController(onClose, active);
+function Harness({ onClose, active = true, jobs }: { onClose: () => void; active?: boolean; jobs?: PendingShareJob[] }) {
+  const c = useShareSendController(onClose, active, jobs);
   const ref = useRef<ControllerState | null>(null);
   ref.current = c;
   useEffect(() => {
@@ -186,6 +186,63 @@ const settle = async () => {
 };
 
 describe('useShareSendController', () => {
+  it('loads app-provided files without claiming or clearing external shares', async () => {
+    const onClose = jest.fn();
+    act(() => {
+      renderedHarnesses.push(TestRenderer.create(<Harness onClose={onClose} jobs={[imageJob]} />));
+    });
+    await settle();
+    expect(current.jobViews.map((view) => view.job)).toEqual([imageJob]);
+    expect(mockClaimPending).not.toHaveBeenCalled();
+    act(() => current.handleClose());
+    expect(mockCompleteJob).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('copies an app-provided ZIP into history and retries failed delivery without clearing the queue', async () => {
+    const job = { ...staleJob, id: 'diagnostics', createdAtMs: Date.now() };
+    const onClose = jest.fn();
+    mockSendImportedAsset.mockResolvedValueOnce({ success: false, state: 'failed' });
+    act(() => {
+      renderedHarnesses.push(TestRenderer.create(<Harness onClose={onClose} jobs={[job]} />));
+    });
+    await settle();
+    act(() => current.toggleTarget('desktop-1'));
+    await act(async () => { await current.sendAll(); });
+    expect(current.jobViews[0].sendState).toBe('failed');
+    expect(onClose).not.toHaveBeenCalled();
+    expect(mockImportFileToHistory).toHaveBeenCalledWith(
+      job.fileUri, job.displayName, job.mimeType, job.byteCount,
+      { skipInitialCopyOnIOS: false }
+    );
+    await act(async () => { await current.retryJob(job.id); });
+    expect(current.jobViews[0].sendState).toBe('success');
+    expect(mockSendImportedAsset).toHaveBeenLastCalledWith(
+      expect.objectContaining({ uri: 'file:///documents/clipboards/history/file' }),
+      'HASH-F', { targetIds: ['desktop-1'] }
+    );
+    expect(mockCompleteJob).not.toHaveBeenCalled();
+  });
+
+  it('keeps app-provided files owned by the parent while a send is in progress', async () => {
+    let finish!: (result: { success: boolean; state: string }) => void;
+    mockSendImportedAsset.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+    const onClose = jest.fn();
+    act(() => {
+      renderedHarnesses.push(TestRenderer.create(<Harness onClose={onClose} jobs={[imageJob]} />));
+    });
+    await settle();
+    act(() => current.toggleTarget('desktop-1'));
+    let sending!: Promise<void>;
+    await act(async () => { sending = current.sendAll(); await flush(); });
+    act(() => current.handleClose());
+    expect(onClose).not.toHaveBeenCalled();
+    await act(async () => { finish({ success: false, state: 'failed' }); await sending; });
+    act(() => current.handleClose());
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(mockCompleteJob).not.toHaveBeenCalled();
+  });
+
   afterEach(() => {
     act(() => {
       renderedHarnesses.forEach((renderer) => renderer.unmount());

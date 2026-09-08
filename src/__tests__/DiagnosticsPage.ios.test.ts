@@ -8,6 +8,23 @@ function source(relativePath: string): string {
 }
 
 describe('iOS diagnostics page', () => {
+  it('offers sharing and in-app sending from a full-width reusable row', () => {
+    const page = source('screens/settings/ios/DiagnosticsPage.tsx');
+    expect(page).toContain('<SettingsNavRow');
+    expect(page).toContain("t('action.share', { ns: 'common' })");
+    expect(page).toContain("t('diagnostics.action.sendTo')");
+    expect(page).toContain('onSendArchive(artifact)');
+    expect(page).not.toContain('<SwiftUIButton');
+  });
+
+  it('presents the existing send sheet from the stable settings parent', () => {
+    const screen = source('screens/SettingsScreen.ios.tsx');
+    const page = source('screens/settings/ios/DiagnosticsPage.tsx');
+    expect(screen).toContain('<ShareSendSheet');
+    expect(screen.indexOf('<ShareSendSheet')).toBeGreaterThan(screen.indexOf('</SettingsSubPageOverlay>'));
+    expect(screen).toContain('embeddedInHost');
+    expect(page).not.toContain('<ShareSendSheet');
+  });
   it('shares the ZIP archive and never falls back to the summary-only JSON package', () => {
     const page = source('screens/settings/ios/DiagnosticsPage.tsx');
 
@@ -32,7 +49,7 @@ describe('iOS diagnostics page', () => {
 
     expect(logSection).toContain("import { DiagnosticsPage } from './ios/DiagnosticsPage'");
     expect(settingsScreen).toContain("import { LogSection } from './settings/LogSection'");
-    expect(settingsScreen).toContain('<LogSection onBack={backToRoot} />');
+    expect(settingsScreen).toContain('onSendArchive={setDiagnosticArchive}');
   });
 
   it('describes the ZIP and both log sources in every supported language', () => {

@@ -35,6 +35,7 @@ import {
   accessibilityValue,
   listRowBackground,
   listRowInsets,
+  interactiveDismissDisabled,
 } from '@expo/ui/swift-ui/modifiers';
 import { useTranslation } from 'react-i18next';
 import { IosSheetForm, SheetHeader } from '@/components/ui';
@@ -60,32 +61,37 @@ const SHEET_BACKGROUND = iosColors?.systemGroupedBackground ?? '#F2F2F7';
 /**
  * iOS 分享弹层默认全屏展开，内容与设备列表由原生 Form 滚动。
  */
-export function ShareSendSheet({ visible, onClose }: ShareSendSheetProps) {
+export function ShareSendSheet({ visible, onClose, jobs, embeddedInHost = false }: ShareSendSheetProps) {
   const { t } = useTranslation('share');
-  const c = useShareSendController(onClose, visible);
-  return (
-    <Host style={styles.host}>
-      <BottomSheet
-        isPresented={visible}
-        onIsPresentedChange={(presented) => {
-          if (!presented) onClose();
-        }}
+  const c = useShareSendController(onClose, visible, jobs);
+  const sheet = (
+    <BottomSheet
+      isPresented={visible}
+      onIsPresentedChange={(presented) => {
+        if (!presented) c.handleClose();
+      }}
+    >
+      <Group
+        modifiers={[
+          presentationDetents(['large']),
+          presentationDragIndicator('visible'),
+          interactiveDismissDisabled(c.isSending),
+        ]}
       >
-        <Group modifiers={[presentationDetents(['large']), presentationDragIndicator('visible')]}>
-          <VStack
-            spacing={0}
-            modifiers={[
-              frame({ maxWidth: Infinity, maxHeight: Infinity }),
-              background(SHEET_BACKGROUND),
-            ]}
-          >
-            <SheetHeader title={t('send.title')} />
-            <Body c={c} />
-          </VStack>
-        </Group>
-      </BottomSheet>
-    </Host>
+        <VStack
+          spacing={0}
+          modifiers={[
+            frame({ maxWidth: Infinity, maxHeight: Infinity }),
+            background(SHEET_BACKGROUND),
+          ]}
+        >
+          <SheetHeader title={t('send.title')} />
+          <Body c={c} />
+        </VStack>
+      </Group>
+    </BottomSheet>
   );
+  return embeddedInHost ? sheet : <Host style={styles.host}>{sheet}</Host>;
 }
 
 function Body({ c }: { c: ReturnType<typeof useShareSendController> }) {

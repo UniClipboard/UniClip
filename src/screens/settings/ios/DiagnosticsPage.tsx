@@ -2,13 +2,12 @@ import { useCallback, useState } from 'react';
 import { Alert } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import {
-  Button as SwiftUIButton,
   Label,
   LabeledContent,
   Section,
   Text as SwiftUIText,
 } from '@expo/ui/swift-ui';
-import { disabled, foregroundStyle } from '@expo/ui/swift-ui/modifiers';
+import { foregroundStyle } from '@expo/ui/swift-ui/modifiers';
 
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
 import { APP_VERSION } from '@/constants';
@@ -24,9 +23,12 @@ import { useUnifiedEngineStore } from '@/stores/unifiedEngineStore';
 import { useUnifiedSpaceStore } from '@/features/space';
 import { getLogger } from '@/support/observability';
 import { shareFile } from '@/utils/fileActions';
-import { HeaderCircleButton } from './common';
+import { HeaderCircleButton, SettingsNavRow } from './common';
 
-export function DiagnosticsPage({ onBack }: { onBack: () => void }) {
+export function DiagnosticsPage({ onBack, onSendArchive }: {
+  onBack: () => void;
+  onSendArchive: (artifact: DiagnosticArtifact) => void;
+}) {
   const { t } = useTranslation('settingsIos');
   const config = useSettingsStore((state) => state.config);
   const engineStatus = useUnifiedEngineStore((state) => state.status);
@@ -36,7 +38,7 @@ export function DiagnosticsPage({ onBack }: { onBack: () => void }) {
   const deviceCount = useUnifiedSpaceStore((state) => state.devices.length);
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const handleGenerateAndShare = useCallback(async () => {
+  const handleExport = useCallback(async (method: 'share' | 'send') => {
     if (!config || isGenerating) return;
 
     setIsGenerating(true);
@@ -57,7 +59,12 @@ export function DiagnosticsPage({ onBack }: { onBack: () => void }) {
           lastErrorReason: engineError ? classifyDiagnosticReason(engineError) : null,
         },
       });
-      await shareFile(artifact.uri, artifact.fileName);
+      if (method === 'send') {
+        onSendArchive(artifact);
+        artifact = null;
+      } else {
+        await shareFile(artifact.uri, artifact.fileName);
+      }
     } catch (error) {
       getLogger().error('DiagnosticsPage: diagnostic package failed', {
         errorName: error instanceof Error ? error.name : String(error),
@@ -77,7 +84,15 @@ export function DiagnosticsPage({ onBack }: { onBack: () => void }) {
       if (artifact) deleteDiagnosticArchive(artifact.uri);
       setIsGenerating(false);
     }
-  }, [config, deviceCount, engineError, engineStatus, isGenerating, peerConnectionStatus, spaceId, t]);
+  }, [config, deviceCount, engineError, engineStatus, isGenerating, onSendArchive, peerConnectionStatus, spaceId, t]);
+
+  const chooseExportMethod = () => {
+    Alert.alert(t('diagnostics.action.generate'), undefined, [
+      { text: t('action.share', { ns: 'common' }), onPress: () => void handleExport('share') },
+      { text: t('diagnostics.action.sendTo'), onPress: () => void handleExport('send') },
+      { text: t('action.cancel', { ns: 'common' }), style: 'cancel' },
+    ]);
+  };
 
   return (
     <IosSheetPage
@@ -135,13 +150,14 @@ export function DiagnosticsPage({ onBack }: { onBack: () => void }) {
         </Section>
 
         <Section>
-          <SwiftUIButton
-            systemImage="square.and.arrow.up"
-            label={
+          <SettingsNavRow
+            icon="square.and.arrow.up"
+            title={
               isGenerating ? t('diagnostics.action.preparing') : t('diagnostics.action.generate')
             }
-            onPress={handleGenerateAndShare}
-            modifiers={[disabled(isGenerating || !config)]}
+            onPress={chooseExportMethod}
+            disabled={isGenerating || !config}
+            showsChevron={false}
           />
         </Section>
       </IosSheetForm>
