@@ -39,7 +39,7 @@
     "release:build": "node scripts/bump-build.mjs",
     "release:alpha": "node scripts/bump-build.mjs --alpha",
     "release:version": "node scripts/bump-version.mjs",
-    "postinstall": "node scripts/patch-expo-modules-jsi-xcode27.cjs",
+    "postinstall": "node scripts/patch-expo-modules-jsi-xcode27.cjs && node scripts/patch-expo-sharing-android.cjs",
     "prepare": "husky"
   },
   "lint-staged": {
@@ -128,5 +128,12 @@
     "react-test-renderer": "^19.2.3",
     "typescript": "~6.0.3"
   },
-  "private": true
+  "private": true,
+  "expo": {
+    "autolinking": {
+      "android": {
+        "buildFromSource": ["expo-sharing"]
+      }
+    }
+  }
 }
