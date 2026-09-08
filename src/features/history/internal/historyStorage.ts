@@ -500,7 +500,7 @@ export class HistoryStorage {
             } else {
               const dir = getHistoryFileDir(processedItem.type, processedItem.profileHash);
               if (!dir.exists) {
-                dir.create();
+                dir.create({ intermediates: true, idempotent: true });
               }
               const targetFile = new File(dir, processedItem.dataName);
               if (!targetFile.exists) {

@@ -344,7 +344,7 @@ describe('unified space setup UI', () => {
       'const leaveSpaceDisabled = pending !== null || deviceManagement.operationInProgress;'
     );
     expect(android).toContain(
-      'leaveSpaceDisabled ? undefined : [clickable(() => setConfirmLeave(true))]'
+      'leaveSpaceDisabled ? [] : [clickable(() => setConfirmLeave(true))]'
     );
     expect(ios).toContain('highImpactActionsDisabled');
     expect(ios).toContain('!deviceManagement.highImpactActionsAvailable');

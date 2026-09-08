@@ -9,8 +9,13 @@
  */
 import { ClipboardItem, createDefaultClipboardItem, HistorySyncStatus } from '../types/clipboard';
 import { HistoryStorage } from '../features/history';
-import { File } from 'expo-file-system';
+import { Directory, File } from 'expo-file-system';
 import { Platform } from 'react-native';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { getHistoryFileDir } from '../platform/files';
 
 jest.mock('../platform/files', () => ({
   getHistoryFileDir: jest.fn(() => ({ uri: 'file://history', exists: true, create: jest.fn() })),
@@ -79,6 +84,66 @@ function fileItem(hash: string, name: string, ts = T0): ClipboardItem {
 }
 
 const hashesOf = (items: ClipboardItem[]) => items.map((i) => i.profileHash);
+
+describe('Android history file directories', () => {
+  it.each(['first save', 'after clearing history', 'existing directory'])(
+    'persists image bytes and the permanent URI: %s',
+    async (scenario) => {
+      const root = mkdtempSync(join(tmpdir(), 'uniclip-history-'));
+      const destination = join(root, 'clipboards', 'history', 'Image-DIR_TEST');
+      const source = join(root, 'clipboard.png');
+      const bytes = Buffer.from('clipboard image bytes');
+      // The shared Expo mock collapses URI slashes, so compare filesystem paths.
+      const localPath = (uri: string) => uri.replace(/^file:\/+/, '/');
+      const originalOS = Platform.OS;
+      const mockedFile = File as unknown as { moveMock: jest.Mock; existsMock: jest.Mock };
+      const directoryMock = jest.mocked(getHistoryFileDir);
+      const originalDirectory = directoryMock.getMockImplementation();
+      Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
+
+      try {
+        const storage = await freshStorage();
+        if (scenario !== 'first save') mkdirSync(destination, { recursive: true });
+        if (scenario === 'after clearing history') {
+          rmSync(join(root, 'clipboards', 'history'), { recursive: true });
+        }
+        writeFileSync(source, bytes);
+        directoryMock.mockImplementation(() => ({
+          uri: pathToFileURL(destination).href,
+          get exists() { return existsSync(destination); },
+          create(options?: { intermediates?: boolean; idempotent?: boolean }) {
+            if (options?.idempotent && existsSync(destination)) return;
+            mkdirSync(destination, { recursive: options?.intermediates ?? false });
+          },
+        }) as Directory);
+        mockedFile.existsMock.mockImplementation((uri: string) => existsSync(localPath(uri)));
+        mockedFile.moveMock.mockImplementation((target: File) => {
+          renameSync(source, localPath(target.uri));
+        });
+
+        const result = await storage.addItem({
+          ...imageItem('DIR_TEST'),
+          fileUri: pathToFileURL(source).href,
+        });
+        const expectedPath = join(destination, 'DIR_TEST.png');
+        expect(localPath(result.fileUri!)).toBe(expectedPath);
+        expect(readFileSync(expectedPath)).toEqual(bytes);
+        expect((await storage.getItem('DIR_TEST'))?.fileUri).toBe(result.fileUri);
+
+        writeFileSync(source, Buffer.from('must not overwrite stored image'));
+        await storage.addItem({ ...imageItem('DIR_TEST'), fileUri: pathToFileURL(source).href });
+        expect(readFileSync(expectedPath)).toEqual(bytes);
+        expect(await storage.getCount()).toBe(1);
+      } finally {
+        directoryMock.mockImplementation(originalDirectory!);
+        mockedFile.existsMock.mockReset().mockReturnValue(true);
+        mockedFile.moveMock.mockReset();
+        Object.defineProperty(Platform, 'OS', { value: originalOS, configurable: true });
+        rmSync(root, { recursive: true, force: true });
+      }
+    }
+  );
+});
 
 describe('复制路径 → SQLite 各类型', () => {
   it('复制纯文本 → Text / displayKind=text', async () => {

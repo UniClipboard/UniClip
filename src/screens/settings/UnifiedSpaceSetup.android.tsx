@@ -474,7 +474,7 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
       >
         <ListItem
           modifiers={
-            highImpactActionsDisabled ? undefined : [clickable(() => setSetupMode('switch'))]
+            highImpactActionsDisabled ? [] : [clickable(() => setSetupMode('switch'))]
           }
         >
           <ListItem.LeadingContent>
@@ -492,7 +492,7 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
       <Spacer modifiers={[heightModifier(16)]} />
       <SettingsSectionItem title={t('space.danger.title')} footer={t('space.leave.confirm')}>
         <ListItem
-          modifiers={leaveSpaceDisabled ? undefined : [clickable(() => setConfirmLeave(true))]}
+          modifiers={leaveSpaceDisabled ? [] : [clickable(() => setConfirmLeave(true))]}
         >
           <ListItem.LeadingContent>
             <Icon source={ICONS.delete} size={24} tint={colors.error} />
