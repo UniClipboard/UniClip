@@ -1,4 +1,19 @@
 {
+  "pairing": {
+    "confirm": "Connect to this computer",
+    "method": "Sync method: standard sync",
+    "details": "Connection details",
+    "hideDetails": "Hide details",
+    "connect": "Connect",
+    "retry": "Retry",
+    "rescan": "Scan again",
+    "later": "Set up later",
+    "connecting": "Checking and saving the connection…",
+    "success": "Your connection is ready",
+    "successBody": "The connection check passed and the details are saved. You can get started now.",
+    "scanFailed": "Could not scan the code. Check camera access or scan the connection code on your computer again.",
+    "saveFailed": "Could not finish connection setup. Please retry."
+  },
   "intro": {
     "scan": "Scan to pair",
     "next": "Next",

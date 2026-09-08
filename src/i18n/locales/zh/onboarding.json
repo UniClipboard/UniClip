@@ -1,4 +1,19 @@
 {
+  "pairing": {
+    "confirm": "连接这台电脑",
+    "method": "同步方式：常规同步",
+    "details": "连接详情",
+    "hideDetails": "收起详情",
+    "connect": "连接",
+    "retry": "重试",
+    "rescan": "重新扫描",
+    "later": "稍后设置",
+    "connecting": "正在检查并保存连接…",
+    "success": "连接已准备好",
+    "successBody": "连接检查已通过，资料已保存。现在可以开始使用。",
+    "scanFailed": "暂时无法扫描二维码，请检查相机权限，或重新扫描电脑端的连接二维码。",
+    "saveFailed": "无法完成连接设置，请重试。"
+  },
   "intro": {
     "scan": "扫码配对",
     "next": "下一步",

@@ -15,6 +15,7 @@ export function configureProductionLanServerService(): void {
       async write(snapshot) {
         await configStorage.updateConfig({
           lanServers: snapshot.servers,
+          ...(snapshot.syncChannel ? { syncChannel: snapshot.syncChannel } : {}),
         });
       },
     },

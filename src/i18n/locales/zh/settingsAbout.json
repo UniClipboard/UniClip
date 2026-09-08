@@ -56,6 +56,8 @@
     "exportFailed": "导出日志失败"
   },
   "debug": {
+    "connectionPreview": "预览连接页面",
+    "connectionPreviewComputer": "示例电脑",
     "onboardingPreview": "查看引导页",
     "title": "调试",
     "modeLabel": "调试模式",

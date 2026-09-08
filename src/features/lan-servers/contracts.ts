@@ -12,6 +12,7 @@ export interface LanServerDraft {
 
 export interface LanServerSettingsSnapshot {
   servers: LanServerProfile[];
+  syncChannel?: 'lan';
 }
 
 export interface LanServerSettingsPort {

@@ -56,6 +56,8 @@
     "exportFailed": "Не удалось экспортировать журналы"
   },
   "debug": {
+    "connectionPreview": "Просмотр подключения",
+    "connectionPreviewComputer": "Пример компьютера",
     "onboardingPreview": "Просмотр вводных экранов",
     "title": "Отладка",
     "modeLabel": "Режим отладки",

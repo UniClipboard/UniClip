@@ -17,6 +17,7 @@ import { useSettingsStore } from '@/stores';
 import { HomeView } from '@/screens/HomeView';
 import { OnboardingScreen } from '@/screens/OnboardingScreen';
 import { OnboardingPreviewScreen } from '@/screens/OnboardingPreviewScreen';
+import { ConnectionPreviewScreen } from '@/screens/ConnectionPreviewScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
 import { SettingsSubScreen } from '@/screens/settings/SettingsSubScreen';
 import type { UpdateCheckResult } from '@/features/updates';
@@ -144,6 +145,11 @@ export const AppNavigator = () => {
             options={{ presentation: 'fullScreenModal' }}
           />
           <Stack.Screen name="Main" component={MainScreen} />
+          <Stack.Screen
+            name="ConnectionPreview"
+            component={ConnectionPreviewScreen}
+            options={{ presentation: 'fullScreenModal' }}
+          />
           <Stack.Screen name="Settings" component={SettingsScreen} options={settingsOptions} />
           <Stack.Screen
             name="SettingsSub"

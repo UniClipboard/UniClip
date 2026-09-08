@@ -14,7 +14,11 @@ export interface LanServerServiceDependencies {
 export class LanServerService {
   constructor(private readonly dependencies: LanServerServiceDependencies) {}
 
-  async save(draft: LanServerDraft, serverId?: string): Promise<LanServerProfile> {
+  async save(
+    draft: LanServerDraft,
+    serverId?: string,
+    options: { activate?: boolean } = {}
+  ): Promise<LanServerProfile> {
     const current = await this.dependencies.settings.read();
     const id = serverId ?? this.dependencies.createId();
     const existingIndex = current.servers.findIndex((server) => server.id === id);
@@ -29,6 +33,7 @@ export class LanServerService {
     try {
       await this.dependencies.settings.write({
         servers,
+        ...(options.activate ? { syncChannel: 'lan' as const } : {}),
       });
     } catch (error) {
       if (previousPassword !== null) {

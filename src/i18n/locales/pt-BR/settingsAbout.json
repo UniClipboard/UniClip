@@ -56,6 +56,8 @@
     "exportFailed": "Falha ao exportar logs"
   },
   "debug": {
+    "connectionPreview": "Prévia da conexão",
+    "connectionPreviewComputer": "Computador de exemplo",
     "onboardingPreview": "Prévia da introdução",
     "title": "Depuração",
     "modeLabel": "Modo de depuração",

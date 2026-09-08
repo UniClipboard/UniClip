@@ -33,9 +33,10 @@ interface DeveloperPageProps {
   onBack: () => void;
   onOpenPreview: (scenarioId: DeviceTrustPreviewScenarioId) => boolean;
   onOpenOnboardingPreview: () => void;
+  onOpenConnectionPreview: () => void;
 }
 
-export function DeveloperPage({ onBack, onOpenPreview, onOpenOnboardingPreview }: DeveloperPageProps) {
+export function DeveloperPage({ onBack, onOpenPreview, onOpenOnboardingPreview, onOpenConnectionPreview }: DeveloperPageProps) {
   const { t } = useTranslation(['settings', 'settingsAbout']);
   const [previewUnavailable, setPreviewUnavailable] = useState(false);
 
@@ -54,6 +55,11 @@ export function DeveloperPage({ onBack, onOpenPreview, onOpenOnboardingPreview }
             icon="rectangle.stack"
             title={t('debug.onboardingPreview', { ns: 'settingsAbout' })}
             onPress={onOpenOnboardingPreview}
+          />
+          <SettingsNavRow
+            icon="qrcode.viewfinder"
+            title={t('debug.connectionPreview', { ns: 'settingsAbout' })}
+            onPress={onOpenConnectionPreview}
           />
         </Section>
         <Section

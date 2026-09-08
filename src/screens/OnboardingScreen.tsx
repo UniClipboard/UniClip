@@ -7,6 +7,8 @@ import { AppButton, AppHost } from '@/components/ui';
 import { useTheme } from '@/hooks/useTheme';
 import { OnboardingArtwork } from './onboarding/OnboardingArtwork';
 import type { OnboardingScreenProps } from './OnboardingScreen.types';
+import { useOnboardingConnection } from './onboarding/useOnboardingConnection';
+import { OnboardingConnection } from './onboarding/OnboardingConnection';
 
 const PAGES = ['history', 'sync', 'settings'] as const;
 
@@ -21,10 +23,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
   const isLast = page === PAGES.length - 1;
-
-  const scanToPair = () => {
-    // TODO: Connect the scan-to-pair flow when its behavior is defined.
-  };
+  const connection = useOnboardingConnection();
 
   const finish = async () => {
     if (completing.current) return;
@@ -41,17 +40,28 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
     }
   };
 
+  if (connection.stage !== 'intro') {
+    return (
+      <OnboardingConnection
+        connection={connection}
+        onComplete={() => void finish()}
+        finishing={saving}
+        completionError={error}
+      />
+    );
+  }
+
   return (
     <SafeAreaView style={[s.root, { backgroundColor: c.background }]} edges={['top', 'bottom']}>
       <PagerView
         ref={pager}
         style={s.pager}
-        initialPage={0}
+        initialPage={page}
         onPageSelected={({ nativeEvent }) => setPage(nativeEvent.position)}
         onPageScroll={({ nativeEvent }) => {
           secondaryOpacity.setValue(Math.max(0, nativeEvent.position + nativeEvent.offset - 1));
         }}
-        scrollEnabled={!saving}
+        scrollEnabled={!saving && !connection.busy}
       >
         {PAGES.map((kind, index) => (
           <View key={kind} collapsable={false} style={s.page}>
@@ -86,13 +96,13 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
             />
           ))}
         </View>
-        {error && (
+        {(error || connection.error) && (
           <Text
             testID="welcome-error"
             accessibilityRole="alert"
             style={[s.error, { color: c.textSecondary }]}
           >
-            {t('intro.saveError')}
+            {connection.error || t('intro.saveError')}
           </Text>
         )}
         <View style={s.actions}>
@@ -103,8 +113,10 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
               colors={{ containerColor: c.accent, contentColor: c.onAccent }}
               fullWidth
               size="large"
-              disabled={saving}
-              onPress={isLast ? scanToPair : () => pager.current?.setPage(page + 1)}
+              disabled={saving || connection.busy}
+              onPress={
+                isLast ? () => void connection.scan() : () => pager.current?.setPage(page + 1)
+              }
             />
           </AppHost>
           <Animated.View
@@ -131,7 +143,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
                 colors={{ contentColor: c.accent }}
                 fullWidth
                 size="large"
-                disabled={saving}
+                disabled={saving || connection.busy}
                 onPress={() => void finish()}
               />
             </AppHost>

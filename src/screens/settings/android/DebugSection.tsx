@@ -41,7 +41,7 @@ import { SettingsSectionItem } from '../SettingsSectionItem';
 
 const TITLE_STYLE = { typography: 'titleLarge' } as const;
 
-export const DebugSection = memo(function DebugSection({ onOpenOnboardingPreview }: { onOpenOnboardingPreview: () => void }) {
+export const DebugSection = memo(function DebugSection({ onOpenOnboardingPreview, onOpenConnectionPreview }: { onOpenOnboardingPreview: () => void; onOpenConnectionPreview: () => void }) {
   const { t } = useTranslation('settingsAbout');
   const showMessage = useSettingsToast();
 
@@ -204,6 +204,12 @@ export const DebugSection = memo(function DebugSection({ onOpenOnboardingPreview
       <ListItem modifiers={[clickable(onOpenOnboardingPreview), fillMaxWidth()]}>
         <ListItem.HeadlineContent>
           <ComposeText>{t('debug.onboardingPreview')}</ComposeText>
+        </ListItem.HeadlineContent>
+      </ListItem>
+      <HorizontalDivider />
+      <ListItem modifiers={[clickable(onOpenConnectionPreview), fillMaxWidth()]}>
+        <ListItem.HeadlineContent>
+          <ComposeText>{t('debug.connectionPreview')}</ComposeText>
         </ListItem.HeadlineContent>
       </ListItem>
 

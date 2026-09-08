@@ -4,6 +4,13 @@ import { OnboardingScreen } from '@/screens/OnboardingScreen';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const mockSetPage = jest.fn();
+const mockScan = jest.fn();
+jest.mock('@/screens/onboarding/useOnboardingConnection', () => ({
+  useOnboardingConnection: () => ({ stage: 'intro', busy: false, error: null, scan: mockScan }),
+}));
+jest.mock('@/screens/onboarding/OnboardingConnection', () => ({
+  OnboardingConnection: () => null,
+}));
 jest.mock('react-native-pager-view', () => {
   const React = require('react') as typeof import('react');
   return React.forwardRef((props: { children: React.ReactNode }, ref) => {
@@ -88,13 +95,14 @@ describe('optional welcome tour', () => {
     expect(button('skip')).toBe(skip);
     expect(secondary.props.pointerEvents).toBe('none');
   });
-  it('offers primary scan and secondary skip on the last page without starting pairing yet', () => {
+  it('opens the scanner from the primary action without finishing onboarding', () => {
     select(2);
     const actions = renderer.root.findAllByType('button' as React.ElementType);
     expect(actions.map((node) => node.props.title)).toEqual(['intro.scan', 'skip']);
     expect(button('intro.scan').props.variant).toBe('filled');
     expect(button('skip').props.variant).toBe('text');
     act(() => button('intro.scan').props.onPress());
+    expect(mockScan).toHaveBeenCalledTimes(1);
     expect(finish).not.toHaveBeenCalled();
   });
   it('keeps swipe and button progress in sync in both directions', () => {

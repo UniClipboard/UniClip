@@ -1,4 +1,19 @@
 {
+  "pairing": {
+    "confirm": "Conectar a este computador",
+    "method": "Modo: sincronização padrão",
+    "details": "Detalhes da conexão",
+    "hideDetails": "Ocultar detalhes",
+    "connect": "Conectar",
+    "retry": "Tentar novamente",
+    "rescan": "Escanear novamente",
+    "later": "Configurar depois",
+    "connecting": "Verificando e salvando a conexão…",
+    "success": "Sua conexão está pronta",
+    "successBody": "A conexão foi verificada e os dados foram salvos. Você já pode começar.",
+    "scanFailed": "Não foi possível escanear. Verifique a permissão da câmera ou escaneie novamente o código no computador.",
+    "saveFailed": "Não foi possível concluir a configuração. Tente novamente."
+  },
   "intro": {
     "scan": "Escanear para parear",
     "next": "Próximo",

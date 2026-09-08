@@ -255,6 +255,7 @@ export const SettingsScreen = () => {
                       onBack={backToRoot}
                       onOpenPreview={openPreview}
                       onOpenOnboardingPreview={() => navigation.navigate('OnboardingPreview')}
+                      onOpenConnectionPreview={() => navigation.navigate('ConnectionPreview')}
                     />
                   ) : null}
                 </SettingsSubPageOverlay>

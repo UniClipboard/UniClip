@@ -56,6 +56,8 @@
     "exportFailed": "Failed to export logs"
   },
   "debug": {
+    "connectionPreview": "Preview connection screens",
+    "connectionPreviewComputer": "Example computer",
     "onboardingPreview": "Preview welcome tour",
     "title": "Debug",
     "modeLabel": "Debug mode",

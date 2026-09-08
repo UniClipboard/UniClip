@@ -75,6 +75,7 @@ const SettingsSubScreenInner = memo(function SettingsSubScreenInner() {
               <LogSection />
               <DebugSection
                 onOpenOnboardingPreview={() => navigation.navigate('OnboardingPreview')}
+                onOpenConnectionPreview={() => navigation.navigate('ConnectionPreview')}
               />
               <QuickActionsSection />
             </>
