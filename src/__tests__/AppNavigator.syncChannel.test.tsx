@@ -4,7 +4,7 @@ import { AppNavigator } from '@/navigation/AppNavigator';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-let mockConfig: { syncChannel: 'lan' | 'p2p' } | null;
+let mockConfig: { syncChannel: 'lan' | 'p2p'; welcomeCompleted?: boolean } | null;
 let mockCompletion: 'unknown' | 'incomplete' | 'complete';
 let mockMounts: number;
 let mockNavigate: (route: string) => void;
@@ -65,7 +65,7 @@ describe('sync channel navigation', () => {
   const currentRoute = () => renderer.root.findByType('route' as React.ElementType).props.name;
 
   beforeEach(() => {
-    mockConfig = { syncChannel: 'lan' };
+    mockConfig = { syncChannel: 'lan', welcomeCompleted: true };
     mockCompletion = 'incomplete';
     mockMounts = 0;
   });
@@ -92,14 +92,14 @@ describe('sync channel navigation', () => {
     }
   );
 
-  it('waits for startup data before opening mandatory direct-sync onboarding', () => {
+  it('shows the welcome for a new install without waiting for pairing', () => {
     mockConfig = null;
     mockCompletion = 'unknown';
     render();
     expect(mockMounts).toBe(0);
     mockConfig = { syncChannel: 'p2p' };
     refresh();
-    expect(mockMounts).toBe(0);
+    expect(currentRoute()).toBe('Onboarding');
     mockCompletion = 'incomplete';
     refresh();
     expect(currentRoute()).toBe('Onboarding');
@@ -109,10 +109,19 @@ describe('sync channel navigation', () => {
     expect(mockMounts).toBe(1);
   });
 
-  it('opens the main page for a completed direct-sync install', () => {
-    mockConfig = { syncChannel: 'p2p' };
-    mockCompletion = 'complete';
+  it.each(['unknown', 'incomplete', 'complete'] as const)(
+    'opens main after welcome with %s pairing',
+    (status) => {
+      mockConfig = { syncChannel: 'p2p', welcomeCompleted: true };
+      mockCompletion = status;
+      render();
+      expect(currentRoute()).toBe('Main');
+    }
+  );
+
+  it('shows the welcome on a fresh LAN install', () => {
+    mockConfig = { syncChannel: 'lan', welcomeCompleted: false };
     render();
-    expect(currentRoute()).toBe('Main');
+    expect(currentRoute()).toBe('Onboarding');
   });
 });

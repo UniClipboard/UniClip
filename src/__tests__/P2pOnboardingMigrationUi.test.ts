@@ -9,21 +9,18 @@ function source(relativePath: string): string {
 }
 
 describe('P2P onboarding and upgrade UI', () => {
-  it('offers exactly create and join without a skip or legacy LAN scanner', () => {
+  it('introduces the app without requiring create, join, or permissions', () => {
     const types = source('screens/OnboardingScreen.types.ts');
-    const android = source('screens/OnboardingScreen.android.tsx');
-    const ios = source('screens/OnboardingScreen.ios.tsx');
+    const screen = source('screens/OnboardingScreen.tsx');
 
-    expect(types).toContain("'create'");
-    expect(types).toContain("'join'");
-    expect(types).not.toContain("'skip'");
-    for (const platform of [android, ios]) {
-      expect(platform).toContain('AddSyncConnectionSheet');
-      expect(platform).toContain("setFlow('create')");
-      expect(platform).toContain("setFlow('join')");
+    expect(types).toContain('onComplete');
+    for (const platform of [screen]) {
+      expect(platform).not.toContain('AddSyncConnectionSheet');
+      expect(platform).not.toContain('requestPermission');
+      expect(platform).toContain("t('skip')");
+      expect(platform).toContain('PagerView');
       expect(platform).toContain('onComplete');
       expect(platform).not.toContain("t('setup.skip')");
-      expect(platform).not.toContain('style={s.skip}');
       expect(platform).not.toContain('QrScannerModal');
       expect(platform).not.toContain('LanArt');
     }
@@ -44,10 +41,6 @@ describe('P2P onboarding and upgrade UI', () => {
       source('screens/SpaceSetupResult.android.tsx'),
       source('screens/SpaceSetupResult.ios.tsx'),
     ];
-    const setupScreens = [
-      source('screens/OnboardingScreen.android.tsx'),
-      source('screens/OnboardingScreen.ios.tsx'),
-    ];
 
     expect(entry).toContain("export * from './SpaceSetupResult.android'");
     expect(types).toContain('onEnter');
@@ -56,11 +49,7 @@ describe('P2P onboarding and upgrade UI', () => {
       expect(platform).toContain("t('result.body')");
       expect(platform).toContain("t('result.enter')");
     }
-    for (const platform of setupScreens) {
-      expect(platform).toContain('SpaceSetupResult');
-      expect(platform).toContain('completedConnectionRef');
-      expect(platform).toContain('showResult');
-    }
+    expect(source('screens/OnboardingScreen.tsx')).not.toContain('SpaceSetupResult');
 
     const settingsScreens = [
       source('screens/settings/UnifiedSpaceSetup.android.tsx'),
@@ -71,18 +60,11 @@ describe('P2P onboarding and upgrade UI', () => {
     }
   });
 
-  it('omits the top brand from new-user onboarding', () => {
-    const screens = [
-      source('screens/OnboardingScreen.android.tsx'),
-      source('screens/OnboardingScreen.ios.tsx'),
-    ];
-
-    for (const screen of screens) {
-      expect(screen).not.toContain('BrandMark');
-      expect(screen).not.toContain("t('welcome.wordmark')");
-      expect(screen).not.toContain('s.brand');
-      expect(screen).not.toContain('s.wordmark');
-    }
+  it('omits the welcome header and its reserved space', () => {
+    const screen = source('screens/OnboardingScreen.tsx');
+    expect(screen).not.toContain('UniClipboard');
+    expect(screen).not.toContain('s.header');
+    expect(screen).not.toContain('s.logo');
   });
 
   it('lets the unified add sheet start directly in create or join mode', () => {
@@ -99,14 +81,14 @@ describe('P2P onboarding and upgrade UI', () => {
     expect(flow).toContain('setMode(modeFromInitial(initialMode))');
   });
 
-  it('keeps setup out of Home because persistent incomplete state is an onboarding gate', () => {
+  it('keeps setup in settings without blocking access to Home', () => {
     const overlays = source('screens/HomeOverlays.tsx');
     const navigator = source('navigation/AppNavigator.tsx');
 
     expect(overlays).not.toContain('AddSyncConnectionSheet');
     expect(overlays).not.toContain('LanMigrationPrompt');
     expect(overlays).not.toContain('legacyLan');
-    expect(navigator).toContain("completionStatus === 'incomplete'");
+    expect(navigator).not.toContain("completionStatus === 'incomplete'");
   });
 
   it('removes the obsolete mandatory re-pairing screens', () => {

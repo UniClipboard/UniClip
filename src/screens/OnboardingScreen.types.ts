@@ -1,6 +1,4 @@
-export type OnboardingAction = 'create' | 'join';
-
 export interface OnboardingScreenProps {
-  /** Marks onboarding complete after P2P setup succeeds. */
+  /** Saves completion for both skipping and finishing the product introduction. */
   onComplete: () => void | Promise<void>;
 }

@@ -56,6 +56,7 @@
     "exportFailed": "Failed to export logs"
   },
   "debug": {
+    "onboardingPreview": "Preview welcome tour",
     "title": "Debug",
     "modeLabel": "Debug mode",
     "modeEnabled": "Debug mode enabled",

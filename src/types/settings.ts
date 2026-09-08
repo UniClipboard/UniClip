@@ -6,6 +6,8 @@ import type { LanServerProfile } from './lan';
 export type SyncChannel = 'lan' | 'p2p';
 
 export interface SharedSettings {
+  /** Product introduction, independent of synchronization and Space setup. */
+  welcomeCompleted: boolean;
   /** User-selected transport. LAN and P2P never run as automatic fallbacks for each other. */
   syncChannel: SyncChannel;
 
@@ -80,6 +82,7 @@ export interface RuntimeState {
 }
 
 export const SHARED_DEFAULTS: SharedSettings = {
+  welcomeCompleted: false,
   syncChannel: 'lan',
   autoApplyRemote: true,
   autoPushLocal: true,

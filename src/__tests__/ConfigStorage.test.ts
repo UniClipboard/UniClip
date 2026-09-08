@@ -398,6 +398,24 @@ describe('ConfigStorage', () => {
     );
   });
 
+  it('persists welcome completion across launches without changing synchronization', async () => {
+    const values = new Map<string, string>();
+    mockGetItem.mockImplementation(async (key) => values.get(key) ?? null);
+    mockSetItem.mockImplementation(async (key, value) => {
+      values.set(key, value);
+    });
+    await storage.initialize();
+    await expect(storage.getConfig()).resolves.toMatchObject({ welcomeCompleted: false });
+    await storage.updateConfig({ welcomeCompleted: true });
+    (storage as unknown as ConfigStoragePrivate).initialized = false;
+    (storage as unknown as ConfigStoragePrivate).config = null;
+    await expect(storage.getConfig()).resolves.toMatchObject({
+      welcomeCompleted: true,
+      syncChannel: 'lan',
+      lanServers: [],
+    });
+  });
+
   it('marks explicit updates and returns defensive copies', async () => {
     mockGetItem.mockImplementation((key) =>
       Promise.resolve(key === STORAGE_KEYS.CONFIG ? JSON.stringify(DEFAULT_SETTINGS) : null)

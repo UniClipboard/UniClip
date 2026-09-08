@@ -1,4 +1,23 @@
 {
+  "intro": {
+    "scan": "Escanear para parear",
+    "next": "Próximo",
+    "start": "Começar a usar",
+    "progress": "Página {{current}} de {{total}}",
+    "saveError": "Não foi possível salvar. Tente novamente.",
+    "history": {
+      "title": "Guarde e encontre depois",
+      "body": "Guarde textos, imagens e arquivos no histórico da área de transferência para encontrá-los quando precisar."
+    },
+    "sync": {
+      "title": "Conecte seus dispositivos",
+      "body": "Conecte seu celular e computador para enviar textos, imagens e arquivos entre seus próprios dispositivos."
+    },
+    "settings": {
+      "title": "Comece por aqui",
+      "body": "Use os recursos locais agora. Quando precisar sincronizar, escolha o modo e conecte seus dispositivos nas configurações."
+    }
+  },
   "skip": "Pular",
   "continue": "Continuar",
   "setup": {

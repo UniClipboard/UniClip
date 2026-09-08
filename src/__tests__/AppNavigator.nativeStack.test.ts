@@ -24,14 +24,13 @@ describe('AppNavigator native stack', () => {
     expect(packageJson.dependencies['@react-navigation/stack']).toBeUndefined();
   });
 
-  it('returns only incomplete P2P users to mandatory onboarding', () => {
+  it('gates only the product welcome, independently of pairing', () => {
     const navigatorSource = readSource('navigation/AppNavigator.tsx');
     const appSource = fs.readFileSync(path.join(__dirname, '..', '..', 'App.tsx'), 'utf8');
 
-    expect(navigatorSource).toContain('useSpaceSetupCompletionStore');
-    expect(navigatorSource).toContain("completionStatus === 'unknown'");
-    expect(navigatorSource).toContain("completionStatus === 'incomplete'");
-    expect(navigatorSource).toContain("config.syncChannel === 'p2p'");
+    expect(navigatorSource).not.toContain('useSpaceSetupCompletionStore');
+    expect(navigatorSource).toContain('!config.welcomeCompleted');
+    expect(navigatorSource).toContain('updateConfig({ welcomeCompleted: true })');
     expect(navigatorSource).toContain('setupSession');
     expect(navigatorSource).not.toContain(
       "showOnboarding = !!config && !showMigration && spaceStatus === 'empty'"
@@ -52,6 +51,6 @@ describe('AppNavigator native stack', () => {
     expect(navigatorSource).not.toContain('legacyPairingGuide');
     expect(navigatorSource).not.toContain('name="Migration"');
     expect(navigatorTypes).not.toContain('Migration:');
-    expect(navigatorSource).toContain("config.syncChannel === 'p2p'");
+    expect(navigatorSource).not.toContain("config.syncChannel === 'p2p'");
   });
 });

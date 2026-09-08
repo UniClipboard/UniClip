@@ -26,14 +26,16 @@ import {
 import {
   chevronColor,
   HeaderCircleButton,
+  SettingsNavRow,
 } from './common';
 
 interface DeveloperPageProps {
   onBack: () => void;
   onOpenPreview: (scenarioId: DeviceTrustPreviewScenarioId) => boolean;
+  onOpenOnboardingPreview: () => void;
 }
 
-export function DeveloperPage({ onBack, onOpenPreview }: DeveloperPageProps) {
+export function DeveloperPage({ onBack, onOpenPreview, onOpenOnboardingPreview }: DeveloperPageProps) {
   const { t } = useTranslation(['settings', 'settingsAbout']);
   const [previewUnavailable, setPreviewUnavailable] = useState(false);
 
@@ -47,6 +49,13 @@ export function DeveloperPage({ onBack, onOpenPreview }: DeveloperPageProps) {
       leftSlots={[<HeaderCircleButton key="back" systemName="chevron.left" onPress={onBack} />]}
     >
       <IosSheetForm>
+        <Section>
+          <SettingsNavRow
+            icon="rectangle.stack"
+            title={t('debug.onboardingPreview', { ns: 'settingsAbout' })}
+            onPress={onOpenOnboardingPreview}
+          />
+        </Section>
         <Section
           footer={
             <SwiftUIText>

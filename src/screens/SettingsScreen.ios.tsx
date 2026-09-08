@@ -251,7 +251,11 @@ export const SettingsScreen = () => {
                   {activePage === 'clipboard' ? <ClipboardAccessPage onBack={backToRoot} /> : null}
                   {activePage === 'diagnostics' ? <LogSection onBack={backToRoot} /> : null}
                   {activePage === 'developer' ? (
-                    <DeveloperPage onBack={backToRoot} onOpenPreview={openPreview} />
+                    <DeveloperPage
+                      onBack={backToRoot}
+                      onOpenPreview={openPreview}
+                      onOpenOnboardingPreview={() => navigation.navigate('OnboardingPreview')}
+                    />
                   ) : null}
                 </SettingsSubPageOverlay>
               ) : null}

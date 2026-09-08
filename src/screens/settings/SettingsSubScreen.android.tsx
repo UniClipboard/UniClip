@@ -7,7 +7,8 @@
  */
 import React, { memo } from 'react';
 import { StyleSheet } from 'react-native';
-import { useRoute, type RouteProp } from '@react-navigation/native';
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Host, LazyColumn } from '@expo/ui/jetpack-compose';
 import { fillMaxSize } from '@expo/ui/jetpack-compose/modifiers';
@@ -29,6 +30,7 @@ import { SyncChannelSection } from './SyncChannelSection.android';
 
 const SettingsSubScreenInner = memo(function SettingsSubScreenInner() {
   const { theme } = useTheme();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, 'SettingsSub'>>();
   const section = route.params.section;
 
@@ -71,7 +73,9 @@ const SettingsSubScreenInner = memo(function SettingsSubScreenInner() {
           {section === 'developer' && (
             <>
               <LogSection />
-              <DebugSection />
+              <DebugSection
+                onOpenOnboardingPreview={() => navigation.navigate('OnboardingPreview')}
+              />
               <QuickActionsSection />
             </>
           )}

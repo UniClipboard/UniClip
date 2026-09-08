@@ -14,9 +14,9 @@ import { useTranslation } from 'react-i18next';
 import { navigationRef, flushPendingNavigation } from './navigationRef';
 import { useTheme } from '@/hooks/useTheme';
 import { useSettingsStore } from '@/stores';
-import { useSpaceSetupCompletionStore } from '@/features/space';
 import { HomeView } from '@/screens/HomeView';
 import { OnboardingScreen } from '@/screens/OnboardingScreen';
+import { OnboardingPreviewScreen } from '@/screens/OnboardingPreviewScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
 import { SettingsSubScreen } from '@/screens/settings/SettingsSubScreen';
 import type { UpdateCheckResult } from '@/features/updates';
@@ -48,6 +48,8 @@ function OnboardingGate() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'Onboarding'>>();
   const completeSetupSession = useContext(CompleteSetupSessionContext);
   const onComplete = useCallback(async () => {
+    const result = await useSettingsStore.getState().updateConfig({ welcomeCompleted: true });
+    if (!result.ok) throw new Error(result.error || 'Failed to save welcome completion');
     completeSetupSession();
     navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
   }, [completeSetupSession, navigation]);
@@ -59,14 +61,12 @@ export const AppNavigator = () => {
   const { t } = useTranslation('home');
   const settingsOptions = useSettingsScreenOptions();
   const config = useSettingsStore((s) => s.config);
-  const completionStatus = useSpaceSetupCompletionStore((s) => s.status);
   // Resolve the entry once; changing sync settings must not replace an active navigator.
   const [setupSession, setSetupSession] = useState<SetupSession | null | undefined>(undefined);
-  const waitingForStartup =
-    !config || (config.syncChannel === 'p2p' && completionStatus === 'unknown');
+  const waitingForStartup = !config;
 
   const requestedSetup: SetupSession | null =
-    config?.syncChannel === 'p2p' && completionStatus === 'incomplete' ? 'onboarding' : null;
+    config && !config.welcomeCompleted ? 'onboarding' : null;
 
   useEffect(() => {
     if (setupSession === undefined && !waitingForStartup) setSetupSession(requestedSetup);
@@ -138,6 +138,11 @@ export const AppNavigator = () => {
       >
         <Stack.Navigator initialRouteName={initialRouteName} screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Onboarding" component={OnboardingGate} />
+          <Stack.Screen
+            name="OnboardingPreview"
+            component={OnboardingPreviewScreen}
+            options={{ presentation: 'fullScreenModal' }}
+          />
           <Stack.Screen name="Main" component={MainScreen} />
           <Stack.Screen name="Settings" component={SettingsScreen} options={settingsOptions} />
           <Stack.Screen

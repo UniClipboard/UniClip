@@ -13,6 +13,7 @@ export type SettingsSubSection =
 
 export type RootStackParamList = {
   Onboarding: undefined;
+  OnboardingPreview: undefined;
   Main: undefined;
   Settings:
     | {

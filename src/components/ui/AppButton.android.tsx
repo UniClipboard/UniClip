@@ -5,7 +5,7 @@ import {
   TextButton,
   Text as ComposeText,
 } from '@expo/ui/jetpack-compose';
-import { fillMaxWidth } from '@expo/ui/jetpack-compose/modifiers';
+import { defaultMinSize, fillMaxWidth } from '@expo/ui/jetpack-compose/modifiers';
 
 import type { AppButtonProps } from './AppButton.types';
 
@@ -18,23 +18,30 @@ const VARIANT_MAP = {
   text: TextButton,
 } as const;
 
+const LARGE_LABEL_STYLE = { fontSize: 16 };
+
 export function AppButton({
   title,
   onPress,
   variant = 'filled',
   fullWidth,
+  size = 'regular',
   disabled,
   colors,
 }: AppButtonProps) {
   const Component = VARIANT_MAP[variant];
+  const modifiers = [
+    ...(fullWidth ? [fillMaxWidth()] : []),
+    ...(size === 'large' ? [defaultMinSize({ minHeight: 56 })] : []),
+  ];
   return (
     <Component
       onClick={onPress}
       enabled={disabled !== undefined ? !disabled : undefined}
       colors={colors}
-      modifiers={fullWidth ? [fillMaxWidth()] : undefined}
+      modifiers={modifiers.length ? modifiers : undefined}
     >
-      <ComposeText>{title}</ComposeText>
+      <ComposeText style={size === 'large' ? LARGE_LABEL_STYLE : undefined}>{title}</ComposeText>
     </Component>
   );
 }

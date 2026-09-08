@@ -56,6 +56,7 @@
     "exportFailed": "Falha ao exportar logs"
   },
   "debug": {
+    "onboardingPreview": "Prévia da introdução",
     "title": "Depuração",
     "modeLabel": "Modo de depuração",
     "modeEnabled": "Modo de depuração ativado",

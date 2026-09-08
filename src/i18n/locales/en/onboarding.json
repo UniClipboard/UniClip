@@ -1,4 +1,23 @@
 {
+  "intro": {
+    "scan": "Scan to pair",
+    "next": "Next",
+    "start": "Get started",
+    "progress": "Page {{current}} of {{total}}",
+    "saveError": "Could not save. Please try again.",
+    "history": {
+      "title": "Keep it. Find it again.",
+      "body": "Keep text, images and files in your clipboard history, ready to find when you need them."
+    },
+    "sync": {
+      "title": "Bring your devices together",
+      "body": "Connect your phone and computer to send text, images and files between your own devices."
+    },
+    "settings": {
+      "title": "Make yourself at home",
+      "body": "Start using local features now. When you need sync, choose a sync method and connect your devices in Settings."
+    }
+  },
   "skip": "Skip",
   "continue": "Continue",
   "setup": {
