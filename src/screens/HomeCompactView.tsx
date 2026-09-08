@@ -87,9 +87,35 @@ export function HomeCompactView({
        * 高度),随滚动 1:1 收展只动 transform/opacity,零布局重排。行在搜索/多选态也保持
        * 挂载:三种模式共享同一份筛选状态,且网格 paddingTop 恒定,卡片坐标不因模式切换跳变。
        */}
-      <View style={styles.gridArea}>
-        {items.length === 0 && c.isInitialHistoryLoadComplete ? (
-          <View style={styles.emptyState}>
+      {/* Keep header clearance outside the scroll view: recycled iOS scroll views can lose their inset. */}
+      <View style={[styles.gridArea, { paddingTop: overlayTopBarHeight }]}>
+        <AnimatedCardGrid
+          ref={c.listRef}
+          items={items}
+          numColumns={NUM_COLUMNS}
+          cardSize={cardSize}
+          spacing={GRID_SPACING}
+          paddingHorizontal={GRID_PADDING - GRID_SPACING / 2}
+          paddingTop={8 + (showFilterRow ? CHIP_ROW_GRID_METRICS.paddingTopExtra : 0)}
+          paddingBottom={isSelectMode ? selectionBarClearance : 80}
+          keyExtractor={c.keyExtractor}
+          renderItem={renderCard}
+          onEndReached={c.loadMoreItems}
+          contentInsetTop={showFilterRow ? CHIP_ROW_GRID_METRICS.contentInsetTop : 0}
+          onScrollWorklet={chipRowCollapse.onScrollWorklet}
+          onScrollEndWorklet={chipRowCollapse.onScrollEndWorklet}
+          refreshControl={
+            <RefreshControl
+              refreshing={c.refreshing}
+              onRefresh={c.handleRefresh}
+              tintColor={refreshTintColor}
+              colors={[theme.colors.accent]}
+              progressViewOffset={CHIP_ROW_GRID_METRICS.progressViewOffset || undefined}
+            />
+          }
+        />
+        {items.length === 0 && c.isInitialHistoryLoadComplete && (
+          <View pointerEvents="none" style={styles.emptyState}>
             <View style={[styles.emptyIcon, { backgroundColor: theme.colors.surfaceHigh }]}>
               <Ionicons name={c.emptyContent.icon} size={30} color={c.emptyContent.tint} />
             </View>
@@ -100,35 +126,7 @@ export function HomeCompactView({
               {c.emptyContent.description}
             </Text>
           </View>
-        ) : items.length > 0 ? (
-          <AnimatedCardGrid
-            ref={c.listRef}
-            items={items}
-            numColumns={NUM_COLUMNS}
-            cardSize={cardSize}
-            spacing={GRID_SPACING}
-            paddingHorizontal={GRID_PADDING - GRID_SPACING / 2}
-            paddingTop={8 + (showFilterRow ? CHIP_ROW_GRID_METRICS.paddingTopExtra : 0)}
-            paddingBottom={isSelectMode ? selectionBarClearance : 80}
-            keyExtractor={c.keyExtractor}
-            renderItem={renderCard}
-            onEndReached={c.loadMoreItems}
-            contentInsetTop={
-              overlayTopBarHeight + (showFilterRow ? CHIP_ROW_GRID_METRICS.contentInsetTop : 0)
-            }
-            onScrollWorklet={chipRowCollapse.onScrollWorklet}
-            onScrollEndWorklet={chipRowCollapse.onScrollEndWorklet}
-            refreshControl={
-              <RefreshControl
-                refreshing={c.refreshing}
-                onRefresh={c.handleRefresh}
-                tintColor={refreshTintColor}
-                colors={[theme.colors.accent]}
-                progressViewOffset={CHIP_ROW_GRID_METRICS.progressViewOffset || undefined}
-              />
-            }
-          />
-        ) : null}
+        )}
 
         {showFilterRow && (
           <Animated.View
@@ -215,7 +213,7 @@ const styles = StyleSheet.create({
     padding: GRID_SPACING / 2,
   },
   emptyState: {
-    flex: 1,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'center',
     alignItems: 'center',
     gap: 10,
