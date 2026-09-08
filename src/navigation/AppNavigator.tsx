@@ -60,16 +60,19 @@ export const AppNavigator = () => {
   const settingsOptions = useSettingsScreenOptions();
   const config = useSettingsStore((s) => s.config);
   const completionStatus = useSpaceSetupCompletionStore((s) => s.status);
-  const [setupSession, setSetupSession] = useState<SetupSession | null>(null);
+  // Resolve the entry once; changing sync settings must not replace an active navigator.
+  const [setupSession, setSetupSession] = useState<SetupSession | null | undefined>(undefined);
+  const waitingForStartup =
+    !config || (config.syncChannel === 'p2p' && completionStatus === 'unknown');
 
   const requestedSetup: SetupSession | null =
     config?.syncChannel === 'p2p' && completionStatus === 'incomplete' ? 'onboarding' : null;
 
   useEffect(() => {
-    if (!setupSession && requestedSetup) setSetupSession(requestedSetup);
-  }, [requestedSetup, setupSession]);
+    if (setupSession === undefined && !waitingForStartup) setSetupSession(requestedSetup);
+  }, [requestedSetup, setupSession, waitingForStartup]);
 
-  const activeSetup = setupSession ?? requestedSetup;
+  const activeSetup = setupSession === undefined ? requestedSetup : setupSession;
   const rootMode = activeSetup ?? 'main';
   const initialRouteName = rootMode === 'onboarding' ? 'Onboarding' : 'Main';
 
@@ -120,7 +123,7 @@ export const AppNavigator = () => {
         },
       };
 
-  if (!config || (config.syncChannel === 'p2p' && completionStatus === 'unknown')) {
+  if (setupSession === undefined && waitingForStartup) {
     return <View style={[styles.loading, { backgroundColor: theme.colors.background }]} />;
   }
 
