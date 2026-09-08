@@ -39,7 +39,7 @@
     "release:build": "node scripts/bump-build.mjs",
     "release:alpha": "node scripts/bump-build.mjs --alpha",
     "release:version": "node scripts/bump-version.mjs",
-    "postinstall": "node scripts/patch-expo-modules-jsi-xcode27.cjs && node scripts/patch-expo-sharing-android.cjs",
+    "postinstall": "node scripts/patch-expo-modules-jsi-xcode27.cjs && node scripts/patch-expo-sharing-android.cjs && node scripts/patch-apple-targets.cjs",
     "prepare": "husky",
     "doctor": "npx react-doctor@latest"
   },
@@ -133,7 +133,9 @@
   "expo": {
     "autolinking": {
       "android": {
-        "buildFromSource": ["expo-sharing"]
+        "buildFromSource": [
+          "expo-sharing"
+        ]
       }
     }
   }

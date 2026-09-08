@@ -17,3 +17,13 @@ test('iOS cleanup preserves the original install exit status', () => {
   assert.match(script, /restore_pinned_ios_engine/);
   assert.match(script, /exit "\$status"/);
 });
+
+test('iOS installation refreshes native configuration before preparing and building the Engine', () => {
+  const install = script.slice(script.indexOf('install_ios()'), script.indexOf('install_android()'));
+  const prebuild = install.indexOf('APP_VARIANT=development npx expo prebuild --platform ios --no-install');
+  assert.ok(prebuild > install.indexOf('assert_development_project ios'));
+  assert.ok(prebuild < install.indexOf('prepare_latest_engine ios'));
+  const pods = install.indexOf('UC_ENGINE_LOCAL_CORE=1 npx pod-install ios');
+  assert.ok(pods > install.indexOf('prepare_latest_engine ios'));
+  assert.ok(pods < install.indexOf('npx expo run:ios'));
+});

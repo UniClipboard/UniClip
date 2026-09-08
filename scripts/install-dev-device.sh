@@ -221,8 +221,10 @@ install_ios() {
   fi
 
   assert_development_project ios
+  APP_VARIANT=development npx expo prebuild --platform ios --no-install
   trap 'status=$?; if restore_pinned_ios_engine; then restore_status=0; else restore_status=$?; fi; if [ "$status" -eq 0 ] && [ "$restore_status" -ne 0 ]; then status="$restore_status"; fi; exit "$status"' EXIT
   prepare_latest_engine ios
+  UC_ENGINE_LOCAL_CORE=1 npx pod-install ios
   UC_ENGINE_LOCAL_CORE=1 APP_VARIANT=development npx expo run:ios --device "$device" --no-bundler
   restore_pinned_ios_engine
   trap - EXIT
