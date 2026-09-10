@@ -13,7 +13,8 @@ public enum LanServerCredentialStore {
         if let shared = try password(serverId: serverId) { return shared }
         guard let legacy = try read(serverId: serverId, accessGroup: nil) else { return nil }
         try setPassword(legacy, serverId: serverId)
-        try delete(serverId: serverId, accessGroup: nil)
+        // Keep the legacy copy until explicit removal. An unscoped delete would
+        // also match the shared copy we just saved.
         return legacy
     }
 
@@ -25,7 +26,7 @@ public enum LanServerCredentialStore {
         query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         let status = SecItemAdd(query as CFDictionary, nil)
         guard status == errSecSuccess else { throw credentialError(status) }
-        try? delete(serverId: serverId, accessGroup: nil)
+        // Never clean up with an unscoped query here: it includes this group.
     }
 
     public static func deletePassword(serverId: String, includeLegacy: Bool = false) throws {
