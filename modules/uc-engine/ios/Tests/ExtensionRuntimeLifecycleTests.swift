@@ -3,6 +3,21 @@ import XCTest
 @testable import UcEngineSystemHost
 
 final class ExtensionRuntimeLifecycleTests: XCTestCase {
+  func testStopFlushesBeforeReturningAndOnlyOnce() throws {
+    let recorder = LockedEventRecorder()
+    let lifecycle = ExtensionRuntimeLifecycle<FakeExtensionRuntimeEngine>(
+      ownership: FakeExtensionRuntimeOwnership(events: recorder),
+      suspend: { _ in recorder.append("suspend") },
+      shutdown: { _ in },
+      flushLogs: { recorder.append("flush") }
+    )
+    _ = try lifecycle.startEngine { FakeExtensionRuntimeEngine() }
+    try lifecycle.finishStartup()
+    try lifecycle.stopForSuspension()
+    try lifecycle.stopForSuspension()
+    XCTAssertEqual(recorder.snapshot(), ["ownership.acquire", "suspend", "ownership.release", "flush"])
+  }
+
   func testStopSuspendsAndReleasesBeforeSlowFinalShutdownFinishes() throws {
     let shutdownStarted = expectation(description: "final shutdown started")
     let allowShutdownToFinish = DispatchSemaphore(value: 0)

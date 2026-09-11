@@ -1,12 +1,13 @@
 import * as Application from 'expo-application';
 import { File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
-import { strToU8, zipSync } from 'fflate';
+import { strFromU8, strToU8, zipSync } from 'fflate';
 import { getShareDiagnostics } from 'app-group-store';
+import { coreVersion, flushEngineLogs, getEngineLogStatus, getNativeDiagnostics, type EngineLogStatus, type NativeDiagnosticsSnapshot } from 'uc-engine';
 
 import type { SharedSettings } from '@/types/settings';
 import type { PeerConnectionStatus, UnifiedEngineStatus } from '@/stores/unifiedEngineStore';
-import { getAppLogFileUris, getEngineLogFileUris, redactLogText } from '@/support/observability';
+import { flushAppLogs, getAppLogCaptureStatus, getAppLogFileUris, getEngineLogFileUris, redactLogText } from '@/support/observability';
 import type { DiagnosticReason } from './diagnosticEventClassifier';
 
 const DIAGNOSTIC_ARCHIVE_SCHEMA_VERSION = 1;
@@ -114,6 +115,62 @@ function collectionStatus(result: CollectedLogFiles): 'included' | 'partial' | '
   return result.unreadableFileCount > 0 ? 'partial' : 'included';
 }
 
+function nativeSourceCoverage(entries: Record<string, Uint8Array>, metadata: NativeDiagnosticsSnapshot | null) {
+  const roles = Platform.OS === 'ios' ? ['main', 'keyboard', 'share'] : ['main'];
+  return Object.fromEntries(roles.map((role) => {
+    let recordCount = 0;
+    let malformedRecordCount = 0;
+    const timestamps: string[] = [];
+    const sessions = new Set<string>();
+    for (const [name, bytes] of Object.entries(entries)) {
+      if (!name.startsWith(`logs/native/native-runtime.${role}.`)) continue;
+      for (const line of strFromU8(bytes).split('\n').filter(Boolean)) {
+        try {
+          const record = JSON.parse(line);
+          if (record.role !== role || typeof record.timestamp !== 'string' || !Number.isFinite(Date.parse(record.timestamp))) {
+            malformedRecordCount += 1;
+            continue;
+          }
+          recordCount += 1;
+          timestamps.push(record.timestamp);
+          if (typeof record.sessionId === 'string') sessions.add(record.sessionId);
+        } catch { malformedRecordCount += 1; }
+      }
+    }
+    timestamps.sort();
+    const discoveredFiles = metadata?.fileUris.filter((uri) => uri.split('/').at(-1)?.startsWith(`native-runtime.${role}.`)).length ?? 0;
+    const includedFiles = Object.keys(entries).filter((name) => name.startsWith(`logs/native/native-runtime.${role}.`)).length;
+    const unavailable = metadata?.discoveryStatus !== 'completed' || (metadata.writer.role === role && metadata.writer.writerStatus === 'unavailable');
+    const status = recordCount > 0
+      ? (malformedRecordCount > 0 || includedFiles < discoveredFiles ? 'partial' : 'included')
+      : metadata === null ? 'notCollected'
+      : discoveredFiles > includedFiles ? 'unreadable'
+      : malformedRecordCount > 0 ? 'invalidRecords'
+      : unavailable ? 'unavailable' : 'noRetainedEvents';
+    return [role, {
+      status, discoveredFileCount: discoveredFiles, includedFileCount: includedFiles,
+      unreadableFileCount: Math.max(0, discoveredFiles - includedFiles),
+      flushStatus: metadata?.writer.role === role ? metadata.flushStatus : 'notObserved',
+      recordingStatus: metadata?.writer.role === role ? metadata.writer.writerStatus : 'notObserved',
+      recordCount, malformedRecordCount, sessionCount: sessions.size,
+      firstRecordAt: timestamps[0] ?? null, lastRecordAt: timestamps.at(-1) ?? null,
+    }];
+  }));
+}
+
+function nativeWriterMetadata(snapshot: NativeDiagnosticsSnapshot | null) {
+  if (!snapshot) return null;
+  const writer = snapshot.writer;
+  return {
+    policy: writer.policy, effectiveLevel: writer.effectiveLevel, writerStatus: writer.writerStatus,
+    role: writer.role, sessionId: writer.sessionId, startedAt: writer.startedAt, capturedAt: writer.capturedAt,
+    droppedRecords: writer.droppedRecords, writeFailures: writer.writeFailures, prunedFiles: writer.prunedFiles,
+    filteredRecordCount: null, retentionDays: writer.retentionDays,
+    maxFileBytes: writer.maxFileBytes, maxFiles: writer.maxFiles,
+    counterScope: 'currentCaptureSession',
+  };
+}
+
 export async function createDiagnosticArchive(
   input: DiagnosticArchiveInput,
   now = new Date(),
@@ -122,23 +179,68 @@ export async function createDiagnosticArchive(
   throwIfArchiveAborted(signal);
   const fileName = `uniclip_diagnostics_${formatFileTimestamp(now)}.zip`;
   const artifact = new File(Paths.cache, fileName);
-  const appLogs = await collectLogFiles(getAppLogFileUris(), 'logs/app', signal);
+  let appFlushStatus: 'completed' | 'incomplete' | 'unavailable';
+  try { appFlushStatus = (await flushAppLogs()) ? 'completed' : 'incomplete'; }
+  catch { appFlushStatus = 'unavailable'; }
+  throwIfArchiveAborted(signal);
+  const appLogUris = getAppLogFileUris();
+  const eligibleAppLogUris = appLogUris.filter((uri) => !uri.split('/').at(-1)?.startsWith('kotlin_'));
+  const appLogs = await collectLogFiles(eligibleAppLogUris, 'logs/app', signal);
+  let appCapture: ReturnType<typeof getAppLogCaptureStatus> | null = null;
+  try { appCapture = getAppLogCaptureStatus(); } catch { /* Report unknown rather than guess. */ }
+  let engineFlushStatus: 'completed' | 'incomplete' | 'unavailable';
+  try {
+    engineFlushStatus = (await flushEngineLogs()) ? 'completed' : 'incomplete';
+  } catch {
+    engineFlushStatus = 'unavailable';
+  }
+  throwIfArchiveAborted(signal);
+  let engineLogStatus: EngineLogStatus = {
+    localFile: 'unavailable',
+    droppedLocalRecords: null,
+    installation: null,
+  };
+  try {
+    engineLogStatus = await getEngineLogStatus();
+  } catch {
+    // Preserve existing evidence even when native status is unavailable.
+  }
+  throwIfArchiveAborted(signal);
   const engineLogs = await collectLogFiles(getEngineLogFileUris(), 'logs/engine', signal);
 
-  if (input.sync.status === 'running' && engineLogs.discoveredFileCount === 0) {
-    throw new DiagnosticArchiveError('engine_logs_missing');
+  const engineLogIssues: DiagnosticArchiveErrorCode[] = [];
+  if (
+    engineFlushStatus === 'completed' &&
+    engineLogStatus.localFile === 'ready' &&
+    input.sync.status === 'running' &&
+    engineLogs.discoveredFileCount === 0
+  ) {
+    engineLogIssues.push('engine_logs_missing');
   }
   if (
+    engineFlushStatus === 'completed' &&
+    engineLogStatus.localFile === 'ready' &&
     input.sync.status === 'running' &&
     engineLogs.discoveredFileCount > 0 &&
     engineLogs.includedFileCount === 0
   ) {
-    throw new DiagnosticArchiveError('engine_logs_unreadable');
+    engineLogIssues.push('engine_logs_unreadable');
   }
 
-  const shareDiagnostics = await getShareDiagnostics();
+  let nativeDiagnostics: NativeDiagnosticsSnapshot | null = null;
+  try {
+    const snapshot = await getNativeDiagnostics();
+    if (snapshot?.writer && Array.isArray(snapshot.fileUris)) nativeDiagnostics = snapshot;
+  } catch { /* Keep other evidence. */ }
+  throwIfArchiveAborted(signal);
+  const nativeLogs = await collectLogFiles(nativeDiagnostics?.fileUris ?? [], 'logs/native', signal);
+  let engineVersion: string | null = null;
+  try { engineVersion = coreVersion(); } catch { /* Older native modules may not report a version. */ }
+  let shareDiagnostics: Awaited<ReturnType<typeof getShareDiagnostics>> = null;
+  try { shareDiagnostics = await getShareDiagnostics(); } catch { /* Preserve independently collected sources. */ }
   throwIfArchiveAborted(signal);
   const shareArchive = shareDiagnostics ?? { schemaVersion: 1, attempts: [] };
+  const nativeSources = nativeSourceCoverage(nativeLogs.entries, nativeDiagnostics);
   const manifest = {
     schemaVersion: DIAGNOSTIC_ARCHIVE_SCHEMA_VERSION,
     generatedAt: now.toISOString(),
@@ -150,25 +252,65 @@ export async function createDiagnosticArchive(
       platform: Platform.OS,
       osVersion: String(Platform.Version),
     },
+    coverage: {
+      complete: false,
+      systemLogs: 'notCollected',
+      legacyNativeDebugLogs: 'notCollected',
+      engineCapturePolicy: 'notReportedByEngine',
+      crossProcessEngineCorrelation: 'notReportedByEngine',
+      nativeNetworkScope: 'defaultNetworkPathOnly',
+    },
+    engineBuild: { version: engineVersion, sourceRevision: null, sourceRevisionStatus: 'notReportedByEngine' },
     settings: input.settings,
     sync: input.sync,
     collection: {
       appLogs: {
         status: collectionStatus(appLogs),
+        flushStatus: appFlushStatus,
+        capturePolicy: appCapture,
+        excludedLegacyNativeFileCount: appLogUris.length - eligibleAppLogUris.length,
         discoveredFileCount: appLogs.discoveredFileCount,
         includedFileCount: appLogs.includedFileCount,
         unreadableFileCount: appLogs.unreadableFileCount,
         truncatedFileCount: appLogs.truncatedFileCount,
       },
       engineLogs: {
+        flushStatus: engineFlushStatus,
+        flushScope: 'exportingProcess',
+        issues: engineLogIssues,
+        capturePolicy: {
+          status: 'notReportedByEngine', effectiveLevel: null, filteredRecordCount: null,
+          appLogLevelControlsEngine: false,
+        },
+        localFile: engineLogStatus.localFile,
+        droppedLocalRecords: engineLogStatus.droppedLocalRecords,
+        installation: engineLogStatus.installation ? {
+          localFile: engineLogStatus.installation.localFile,
+          droppedLocalRecords: engineLogStatus.installation.droppedLocalRecords,
+        } : null,
         status: collectionStatus(engineLogs),
         discoveredFileCount: engineLogs.discoveredFileCount,
         includedFileCount: engineLogs.includedFileCount,
         unreadableFileCount: engineLogs.unreadableFileCount,
         truncatedFileCount: engineLogs.truncatedFileCount,
       },
+      nativeLogs: {
+        status: nativeLogs.includedFileCount > 0 && (Object.values(nativeSources).some((source) => source.malformedRecordCount > 0) || nativeDiagnostics?.discoveryStatus === 'partial') ? 'partial' : collectionStatus(nativeLogs),
+        metadataStatus: nativeDiagnostics ? 'available' : 'unavailable',
+        discoveryStatus: nativeDiagnostics?.discoveryStatus ?? 'unavailable',
+        skippedFileCount: nativeDiagnostics?.skippedFileCount ?? null,
+        flushStatus: nativeDiagnostics?.flushStatus ?? 'unavailable',
+        flushScope: 'exportingProcess',
+        discoveredFileCount: nativeLogs.discoveredFileCount,
+        includedFileCount: nativeLogs.includedFileCount,
+        unreadableFileCount: nativeLogs.unreadableFileCount,
+        truncatedFileCount: nativeLogs.truncatedFileCount,
+        writer: nativeWriterMetadata(nativeDiagnostics),
+        sources: nativeSources,
+      },
       shareAttempts: {
         status: shareDiagnostics === null ? 'missing' : 'included',
+        sourceState: Platform.OS !== 'ios' ? 'notApplicable' : shareDiagnostics === null ? 'unavailable' : shareArchive.attempts.length === 0 ? 'noEvents' : 'available',
         attemptCount: shareArchive.attempts.length,
       },
     },
@@ -176,6 +318,7 @@ export async function createDiagnosticArchive(
   const entries = {
     ...appLogs.entries,
     ...engineLogs.entries,
+    ...nativeLogs.entries,
     'extensions/share_attempts.json': strToU8(`${JSON.stringify(shareArchive, null, 2)}\n`),
     'manifest.json': strToU8(`${JSON.stringify(manifest, null, 2)}\n`),
   };

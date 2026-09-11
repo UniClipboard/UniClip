@@ -18,6 +18,7 @@ final class ExtensionRuntimeLifecycle<Engine: AnyObject>: @unchecked Sendable {
   private let shutdownQueue: DispatchQueue
   private let suspendEngine: (Engine) throws -> Void
   private let shutdownEngine: (Engine) -> Void
+  private let flushLogs: () -> Void
   private let startupLock = NSLock()
   private let stopLock = NSLock()
   private let stateCondition = NSCondition()
@@ -34,13 +35,15 @@ final class ExtensionRuntimeLifecycle<Engine: AnyObject>: @unchecked Sendable {
       qos: .utility
     ),
     suspend: @escaping (Engine) throws -> Void,
-    shutdown: @escaping (Engine) -> Void
+    shutdown: @escaping (Engine) -> Void,
+    flushLogs: @escaping () -> Void = {}
   ) {
     self.ownership = ownership
     self.acquisitionTimeoutMs = acquisitionTimeoutMs
     self.shutdownQueue = shutdownQueue
     suspendEngine = suspend
     shutdownEngine = shutdown
+    self.flushLogs = flushLogs
   }
 
   func startEngine(_ create: () throws -> Engine) throws -> Engine {
@@ -108,6 +111,8 @@ final class ExtensionRuntimeLifecycle<Engine: AnyObject>: @unchecked Sendable {
       return true
     }
     guard shouldStop else { return }
+    // The extension may be suspended as soon as this method returns.
+    defer { flushLogs() }
 
     // Do not release ownership while engine creation can still begin touching
     // the shared store. Recovery runs after this critical section and is

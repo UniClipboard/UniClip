@@ -1,4 +1,5 @@
 import UIKit
+internal import UcEngineCore
 
 /// Principal class for the UniClip custom keyboard. iOS instantiates this
 /// (`NSExtensionPrincipalClass = $(PRODUCT_MODULE_NAME).KeyboardViewController`)
@@ -118,6 +119,8 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        AppleNativeDiagnostics.start()
+        AppleNativeDiagnostics.journal.record(.extensionVisible, trigger: .extensionVisible)
         KeyboardDiagnostics.shared.record("controller.appear", fields: [
             "controllerID": controllerID,
             "animated": String(animated),
@@ -185,6 +188,7 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        AppleNativeDiagnostics.journal.record(.extensionHidden, trigger: .extensionHidden)
         KeyboardDiagnostics.shared.record("controller.disappear", fields: [
             "controllerID": controllerID,
             "animated": String(animated),
@@ -193,6 +197,7 @@ final class KeyboardViewController: UIInputViewController {
         // (globe to another keyboard, dismissed, host app closed) so we don't
         // run a background timer the user can't see.
         model.stopMonitoring()
+        _ = AppleNativeDiagnostics.journal.flush(deadlineMs: 250)
     }
 }
 

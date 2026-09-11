@@ -60,6 +60,10 @@ import uniffi.uc_engine_uniffi.WorkspaceConvergencePhase
 import uniffi.uc_engine_uniffi.BindingObservabilityConfig
 import uniffi.uc_engine_uniffi.BindingDeploymentEnvironment
 import uniffi.uc_engine_uniffi.installProcessObservability
+import uniffi.uc_engine_uniffi.flushProcessObservability
+import uniffi.uc_engine_uniffi.queryProcessObservabilityHealth
+import uniffi.uc_engine_uniffi.BindingObservabilitySetup
+import uniffi.uc_engine_uniffi.BindingObservabilitySignalResult
 import uniffi.uc_engine_uniffi.coreVersion
 
 private fun uriListFile(
@@ -289,62 +293,90 @@ class UcEngineModule : Module() {
     private external fun nativeInstallAndroidContext(context: Context): Boolean
   }
 
+  private var logInstallation: BindingObservabilitySetup? = null
   private val lock = Any()
   private val lifecycle = NativeLifecycleHost(::reportLifecycleError)
+  private val diagnostics by lazy { AndroidNativeDiagnostics.get(requireContext()) }
   private var engine: MobileEngine? = null
   private var files: FileHandleRegistry? = null
   private var analytics: AndroidPostHogAnalyticsHost? = null
 
   override fun definition() = ModuleDefinition {
     Name("UcEngine")
+    OnCreate { AndroidNativeDiagnostics.get(requireContext()) }
 
     Function("coreVersion") { coreVersion() }
 
+    AsyncFunction("flushEngineLogs") {
+      val summary = flushProcessObservability(1_000uL)
+      summary.logs == BindingObservabilitySignalResult.COMPLETED
+    }
+
+    AsyncFunction("getNativeDiagnostics") { diagnostics.exportSnapshot() }
+
+    AsyncFunction("getEngineLogStatus") {
+      val health = runCatching { queryProcessObservabilityHealth() }.getOrNull()
+      val setup = synchronized(lock) { logInstallation }
+      mapOf(
+        "localFile" to (health?.localFile?.name?.lowercase(java.util.Locale.ROOT) ?: "unavailable"),
+        "droppedLocalRecords" to health?.droppedLocalRecords?.toDouble(),
+        "installation" to setup?.let {
+          mapOf(
+            "localFile" to it.localFile.name.lowercase(java.util.Locale.ROOT),
+            "droppedLocalRecords" to it.droppedLocalRecords.toDouble()
+          )
+        }
+      )
+    }
+
     AsyncFunction("start") { config: Map<String, String> ->
-      val context = requireContext()
-      check(nativeInstallAndroidContext(context)) { "Failed to initialize the Android P2P runtime" }
-      val registry = FileHandleRegistry(context)
-      val appVersion = config["appVersion"] ?: "unknown"
-      val analytics = analyticsHost(context, appVersion)
-      val host = AndroidEngineHost(context, registry)
-      installProcessObservability(
-        BindingObservabilityConfig(
-          serviceVersion = appVersion,
-          environment = if (BuildConfig.DEBUG) BindingDeploymentEnvironment.DEVELOPMENT else BindingDeploymentEnvironment.PRODUCTION,
-          appChannel = analyticsContext().appChannel,
-          remoteDiagnosticsEnabled = false,
-          collector = null
-        ),
-        host
-      )
-      val started = MobileEngine.startWithAnalytics(
-        BindingConfig(
-          appVersion,
-          config["profileId"] ?: "default"
-        ),
-        host,
-        analytics,
-        analyticsContext()
-      )
-      try {
-        lifecycle.prepare(AndroidEngineLifecycle(started))
-        refreshAnalyticsContext(started, appVersion)
-      } catch (error: Throwable) {
+      AndroidNativeDiagnostics.observe(diagnostics, NativeDiagnosticEvent.ENGINE_START, NativeDiagnosticTrigger.APP_STARTUP) {
+        val context = requireContext()
+        check(nativeInstallAndroidContext(context)) { "Failed to initialize the Android P2P runtime" }
+        val registry = FileHandleRegistry(context)
+        val appVersion = config["appVersion"] ?: "unknown"
+        val analytics = analyticsHost(context, appVersion)
+        val host = AndroidEngineHost(context, registry)
+        val logSetup = installProcessObservability(
+          BindingObservabilityConfig(
+            serviceVersion = appVersion,
+            environment = if (BuildConfig.DEBUG) BindingDeploymentEnvironment.DEVELOPMENT else BindingDeploymentEnvironment.PRODUCTION,
+            appChannel = analyticsContext().appChannel,
+            remoteDiagnosticsEnabled = false,
+            collector = null
+          ),
+          host
+        )
+        synchronized(lock) { logInstallation = logSetup }
+        val started = MobileEngine.startWithAnalytics(
+          BindingConfig(
+            appVersion,
+            config["profileId"] ?: "default"
+          ),
+          host,
+          analytics,
+          analyticsContext()
+        )
         try {
-          started.shutdown(2_000u)
-        } catch (shutdownError: Throwable) {
-          reportLifecycleError(shutdownError)
-        }
-        started.close()
-        throw error
-      }
-      synchronized(lock) {
-        if (engine != null) {
+          lifecycle.prepare(AndroidEngineLifecycle(started, diagnostics))
+          refreshAnalyticsContext(started, appVersion)
+        } catch (error: Throwable) {
+          try {
+            started.shutdown(2_000u)
+          } catch (shutdownError: Throwable) {
+            reportLifecycleError(shutdownError)
+          }
           started.close()
-          throw UcEngineAlreadyStartedException()
+          throw error
         }
-        files = registry
-        engine = started
+        synchronized(lock) {
+          if (engine != null) {
+            started.close()
+            throw UcEngineAlreadyStartedException()
+          }
+          files = registry
+          engine = started
+        }
       }
     }
 
@@ -353,7 +385,7 @@ class UcEngineModule : Module() {
     AsyncFunction("resume") { requireEngine().resume() }
     AsyncFunction("setBackgroundSyncEnabled") { enabled: Boolean, appIsBackground: Boolean ->
       lifecycle.setBackgroundSyncEnabled(
-        currentEngine()?.let(::AndroidEngineLifecycle),
+        currentEngine()?.let { AndroidEngineLifecycle(it, diagnostics) },
         enabled,
         appIsBackground
       )
@@ -559,10 +591,12 @@ class UcEngineModule : Module() {
     }
 
     OnActivityEntersBackground {
-      lifecycle.enterBackground(currentEngine()?.let(::AndroidEngineLifecycle))
+      diagnostics.record(NativeDiagnosticEvent.APP_BACKGROUND, NativeDiagnosticTrigger.APP_BACKGROUND)
+      lifecycle.enterBackground(currentEngine()?.let { AndroidEngineLifecycle(it, diagnostics) })
     }
     OnActivityEntersForeground {
-      lifecycle.enterForeground(currentEngine()?.let(::AndroidEngineLifecycle))
+      diagnostics.record(NativeDiagnosticEvent.APP_FOREGROUND, NativeDiagnosticTrigger.APP_FOREGROUND)
+      lifecycle.enterForeground(currentEngine()?.let { AndroidEngineLifecycle(it, diagnostics) })
     }
     OnDestroy {
       try {
@@ -635,9 +669,15 @@ class UcEngineModule : Module() {
       engine = null
       files = null
     }
-    active?.shutdown(deadlineMs.toULong())
-    active?.close()
-    registry?.removeAll()
+    try {
+      active?.let {
+        AndroidNativeDiagnostics.observe(diagnostics, NativeDiagnosticEvent.ENGINE_SHUTDOWN) {
+          it.shutdown(deadlineMs.toULong())
+        }
+      }
+      active?.close()
+      registry?.removeAll()
+    } finally { diagnostics.flush() }
   }
 
   private fun sendReportMap(report: SendReport): Map<String, Any> = mapOf(
@@ -811,9 +851,11 @@ class UcEngineModule : Module() {
   }
 }
 
-private class AndroidEngineLifecycle(private val engine: MobileEngine) : EngineLifecycle {
+private class AndroidEngineLifecycle(private val engine: MobileEngine, private val diagnostics: NativeRuntimeDiagnostics) : EngineLifecycle {
   override fun recoverSession(): EngineSessionRecovery {
-    val recovery = engine.recoverSession(true)
+    val recovery = AndroidNativeDiagnostics.observe(diagnostics, NativeDiagnosticEvent.SECURE_STATE_RECOVERY) {
+      engine.recoverSession(true)
+    }
     return EngineSessionRecovery(recovery.unlocked, recovery.resumed)
   }
 
@@ -826,9 +868,9 @@ private class AndroidEngineLifecycle(private val engine: MobileEngine) : EngineL
     BindingEngineState.STOPPED -> EngineLifecycleState.STOPPED
   }
 
-  override fun suspend() = engine.suspend()
+  override fun suspend() = AndroidNativeDiagnostics.observe(diagnostics, NativeDiagnosticEvent.ENGINE_SUSPEND) { engine.suspend() }
 
-  override fun resume() = engine.resume()
+  override fun resume() = AndroidNativeDiagnostics.observe(diagnostics, NativeDiagnosticEvent.ENGINE_RESUME) { engine.resume() }
 }
 
 private class AndroidEngineHost(

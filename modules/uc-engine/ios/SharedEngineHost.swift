@@ -28,13 +28,49 @@ private func analyticsContext() -> BindingAnalyticsContext {
   )
 }
 
+private final class EngineLogStatusStore: @unchecked Sendable {
+  private let lock = NSLock()
+  private var installation: BindingObservabilitySetup?
+
+  func record(_ setup: BindingObservabilitySetup) {
+    lock.withLock { installation = setup }
+  }
+
+  func snapshot() -> [String: Any] {
+    let setup = lock.withLock { installation }
+    let health = try? queryProcessObservabilityHealth()
+    var result: [String: Any] = [
+      "localFile": health.map { Self.logStatusName($0.localFile) } ?? "unavailable",
+      "droppedLocalRecords": health.map { NSNumber(value: $0.droppedLocalRecords) } ?? NSNull(),
+      "installation": NSNull(),
+    ]
+    if let setup {
+      result["installation"] = [
+        "localFile": Self.logStatusName(setup.localFile),
+        "droppedLocalRecords": NSNumber(value: setup.droppedLocalRecords),
+      ]
+    }
+    return result
+  }
+
+  private static func logStatusName(_ status: BindingObservabilitySetupStatus) -> String {
+    switch status {
+    case .disabled: return "disabled"
+    case .ready: return "ready"
+    case .unavailable: return "unavailable"
+    }
+  }
+}
+
+private let engineLogStatusStore = EngineLogStatusStore()
+
 private func installEngineObservability(appVersion: String, host: AppleEngineHost) throws {
   #if DEBUG
     let environment = BindingDeploymentEnvironment.development
   #else
     let environment = BindingDeploymentEnvironment.production
   #endif
-  _ = try installProcessObservability(
+  let setup = try installProcessObservability(
     config: BindingObservabilityConfig(
       serviceVersion: appVersion,
       environment: environment,
@@ -44,6 +80,7 @@ private func installEngineObservability(appVersion: String, host: AppleEngineHos
     ),
     host: host
   )
+  engineLogStatusStore.record(setup)
 }
 
 public final class MainApplicationEngineHost: @unchecked Sendable {
@@ -56,34 +93,41 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
   public init() {}
 
   public func start(appVersion: String, profileId: String) throws -> MobileEngine {
-    let startedAt = ProcessInfo.processInfo.systemUptime
-    startupLog.info("Waiting for shared runtime ownership")
-    guard try P2pRuntimeHandoff.acquireForMainApplication(runtimeOwnership()) else {
-      throw ExtensionP2pError.runtimeBusy
-    }
-    startupLog.info(
-      "Shared runtime ownership acquired in \(Int((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000))ms"
-    )
-    do {
-      let host = try AppleEngineHost(files: files, storageMode: .mainApplication)
-      try installEngineObservability(appVersion: appVersion, host: host)
-      startupLog.info("Starting core engine")
-      let analytics = try analyticsHost(appVersion: appVersion)
-      let engine = try MobileEngine.startWithAnalytics(
-        config: BindingConfig(appVersion: appVersion, profileId: profileId),
-        host: host,
-        analytics: analytics,
-        context: analyticsContext()
-      )
+    AppleNativeDiagnostics.start()
+    return try AppleNativeDiagnostics.observe(.engineStart, trigger: .appStartup) {
+      let startedAt = ProcessInfo.processInfo.systemUptime
+      startupLog.info("Waiting for shared runtime ownership")
+      guard try P2pRuntimeHandoff.acquireForMainApplication(runtimeOwnership()) else {
+        throw ExtensionP2pError.runtimeBusy
+      }
       startupLog.info(
-        "Core engine started in \(Int((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000))ms"
+        "Shared runtime ownership acquired in \(Int((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000))ms"
       )
-      return engine
-    } catch {
-      startupLog.error("Engine host start failed: \(String(describing: error))")
-      releaseRuntimeOwnership()
-      throw error
+      do {
+        let host = try AppleEngineHost(files: files, storageMode: .mainApplication)
+        try installEngineObservability(appVersion: appVersion, host: host)
+        startupLog.info("Starting core engine")
+        let analytics = try analyticsHost(appVersion: appVersion)
+        let engine = try MobileEngine.startWithAnalytics(
+          config: BindingConfig(appVersion: appVersion, profileId: profileId),
+          host: host,
+          analytics: analytics,
+          context: analyticsContext()
+        )
+        startupLog.info(
+          "Core engine started in \(Int((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000))ms"
+        )
+        return engine
+      } catch {
+        startupLog.error("Engine host start failed: \(String(describing: error))")
+        releaseRuntimeOwnership()
+        throw error
+      }
     }
+  }
+
+  public func getEngineLogStatus() -> [String: Any] {
+    engineLogStatusStore.snapshot()
   }
 
   public func acquireRuntimeOwnership(timeoutMs: UInt64) throws -> Bool {
@@ -160,7 +204,8 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
     defer { ownershipStateLock.unlock() }
     if let ownership { return ownership }
     let created = P2pRuntimeOwnership(
-      lockURL: try P2pSharedStore.runtimeLockURL(mode: .mainApplication)
+      lockURL: try P2pSharedStore.runtimeLockURL(mode: .mainApplication),
+      diagnostics: AppleNativeDiagnostics.journal
     )
     ownership = created
     return created
@@ -186,12 +231,27 @@ public final class ExtensionP2pClientController: @unchecked Sendable {
 
   public init() throws {
     let ownership = P2pRuntimeOwnership(
-      lockURL: try P2pSharedStore.runtimeLockURL(mode: .extensionHost)
+      lockURL: try P2pSharedStore.runtimeLockURL(mode: .extensionHost),
+      diagnostics: AppleNativeDiagnostics.journal
     )
     lifecycle = ExtensionRuntimeLifecycle(
       ownership: ownership,
-      suspend: { try $0.suspend() },
-      shutdown: { try? $0.shutdown(deadlineMs: 1_000) }
+      suspend: { engine in
+        try AppleNativeDiagnostics.observe(.engineSuspend, trigger: .extensionHidden) { try engine.suspend() }
+      },
+      shutdown: {
+        let engine = $0
+        try? AppleNativeDiagnostics.observe(.engineShutdown, trigger: .extensionHidden) {
+          try engine.shutdown(deadlineMs: 1_000)
+        }
+        // Final teardown can log after the synchronous suspension flush.
+        _ = try? flushProcessObservability(deadlineMs: 1_000)
+        _ = AppleNativeDiagnostics.journal.flush()
+      },
+      flushLogs: {
+        _ = try? flushProcessObservability(deadlineMs: 1_000)
+        _ = AppleNativeDiagnostics.journal.flush()
+      }
     )
   }
 
@@ -228,14 +288,19 @@ public final class ExtensionP2pClient: @unchecked Sendable {
         try installEngineObservability(appVersion: appVersion, host: host)
         let createdAnalytics = try ApplePostHogAnalyticsHost(appVersion: appVersion)
         analytics = createdAnalytics
-        return try MobileEngine.startWithAnalytics(
+        AppleNativeDiagnostics.start()
+        return try AppleNativeDiagnostics.observe(.engineStart, trigger: .extensionVisible) {
+          try MobileEngine.startWithAnalytics(
           config: BindingConfig(appVersion: appVersion, profileId: "default"),
           host: host,
           analytics: createdAnalytics,
           context: analyticsContext()
-        )
+          )
+        }
       }
-      _ = try engine.recoverSession(allowSecureStorageUnlock: true)
+      _ = try AppleNativeDiagnostics.observe(.secureStateRecovery, trigger: .extensionVisible) {
+        try engine.recoverSession(allowSecureStorageUnlock: true)
+      }
       try controller.lifecycle.ensureStartupCanFinish()
       guard try engine.querySpaceState().hasCompleted else {
         throw ExtensionP2pError.spaceUnavailable
@@ -412,11 +477,18 @@ enum P2pStorageMode: Equatable {
   case extensionHost
 }
 
-private enum P2pSharedStore {
+enum P2pSharedStore {
   private static let rootName = "p2p"
   private static let readinessFilename = ".ready"
   private static let runtimeLockFilename = ".runtime.lock"
   private static let extensionSuffixes = [".Keyboard", ".Share"]
+
+  static func diagnosticsDirectory() -> URL? {
+    guard let group = appGroupID(), let root = FileManager.default.containerURL(
+      forSecurityApplicationGroupIdentifier: group
+    ) else { return nil }
+    return root.appendingPathComponent("Library/Caches/UniClipDiagnostics", isDirectory: true)
+  }
 
   static func sharedP2pDirectory(mode: P2pStorageMode) throws -> URL {
     guard let appGroupID = appGroupID(),

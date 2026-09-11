@@ -8,6 +8,16 @@ const mockDeletedFiles: string[] = [];
 const mockGetAppLogFileUris = jest.fn<string[], []>();
 const mockGetEngineLogFileUris = jest.fn<string[], []>();
 const mockGetShareDiagnostics = jest.fn();
+const mockFlushAppLogs = jest.fn();
+const mockFlushEngineLogs = jest.fn();
+const mockGetEngineLogStatus = jest.fn();
+const mockGetNativeDiagnostics = jest.fn();
+jest.mock('uc-engine', () => ({
+  flushEngineLogs: () => mockFlushEngineLogs(),
+  getEngineLogStatus: () => mockGetEngineLogStatus(),
+  getNativeDiagnostics: () => mockGetNativeDiagnostics(),
+  coreVersion: () => "v1.1.0-test",
+}));
 
 jest.mock('react-native', () => ({
   Platform: { OS: 'ios', Version: '26.0' },
@@ -20,6 +30,8 @@ jest.mock('expo-application', () => ({
 
 jest.mock('../support/observability', () => ({
   getAppLogFileUris: () => mockGetAppLogFileUris(),
+  flushAppLogs: () => mockFlushAppLogs(),
+  getAppLogCaptureStatus: () => ({enabled: true, effectiveLevel: "info", filteredRecordCount: null}),
   getEngineLogFileUris: () => mockGetEngineLogFileUris(),
   redactLogText: jest.requireActual('../support/observability/internal/logRedaction').redactLogText,
 }));
@@ -82,7 +94,6 @@ jest.mock('expo-file-system', () => {
 import {
   createDiagnosticArchive,
   deleteDiagnosticArchive,
-  DiagnosticArchiveError,
   type DiagnosticArchiveInput,
 } from '../support/diagnostics';
 
@@ -113,12 +124,161 @@ function readArchive(uri: string): Record<string, string> {
 describe('DiagnosticArchive', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockFlushEngineLogs.mockReset().mockResolvedValue(true);
+    mockFlushAppLogs.mockReset().mockResolvedValue(true);
+    mockGetNativeDiagnostics.mockReset().mockRejectedValue(new Error("native diagnostics unavailable"));
+    mockGetEngineLogStatus.mockReset().mockResolvedValue({
+      localFile: 'ready', droppedLocalRecords: 3,
+      installation: { localFile: 'ready', droppedLocalRecords: 0 },
+    });
     mockLogContents.clear();
     mockWrittenFiles.clear();
     mockDeletedFiles.length = 0;
     mockGetAppLogFileUris.mockReturnValue([]);
     mockGetEngineLogFileUris.mockReturnValue([]);
     mockGetShareDiagnostics.mockResolvedValue({ schemaVersion: 1, attempts: [] });
+  });
+
+  it('waits for buffered records before discovering and reading Engine files', async () => {
+    mockGetEngineLogFileUris.mockReturnValue(['/logs/old.jsonl']);
+    mockLogContents.set('/logs/old.jsonl', 'old');
+    let finishFlush!: () => void;
+    mockFlushEngineLogs.mockImplementation(() => new Promise<boolean>((resolve) => {
+      finishFlush = () => {
+        mockGetEngineLogFileUris.mockReturnValue(['/logs/engine.jsonl']);
+        mockLogContents.set('/logs/engine.jsonl', '{"event":"authentication_failed"}');
+        resolve(true);
+      };
+    }));
+    const pending = createDiagnosticArchive(input);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mockFlushEngineLogs).toHaveBeenCalledTimes(1);
+    expect(mockGetEngineLogFileUris).not.toHaveBeenCalled();
+    finishFlush();
+    const archive = readArchive((await pending).uri);
+    expect(archive['logs/engine/engine.jsonl']).toContain('authentication_failed');
+    expect(JSON.parse(archive['manifest.json']).collection.engineLogs).toMatchObject({
+      flushStatus: 'completed', localFile: 'ready', droppedLocalRecords: 3,
+      installation: { localFile: 'ready', droppedLocalRecords: 0 },
+    });
+  });
+
+  it.each(['incomplete', 'unavailable'])('keeps existing evidence when flush is %s', async (status) => {
+    if (status === 'incomplete') mockFlushEngineLogs.mockResolvedValue(false);
+    else mockFlushEngineLogs.mockRejectedValue(new Error('private native error'));
+    mockGetEngineLogStatus.mockRejectedValue(new Error('private status error'));
+    mockGetEngineLogFileUris.mockReturnValue(['/logs/engine.jsonl']);
+    mockLogContents.set('/logs/engine.jsonl', 'connection_timeout');
+    const archive = readArchive((await createDiagnosticArchive(input)).uri);
+    expect(archive['logs/engine/engine.jsonl']).toContain('connection_timeout');
+    expect(JSON.parse(archive['manifest.json']).collection.engineLogs).toMatchObject({
+      flushStatus: status, localFile: 'unavailable', droppedLocalRecords: null,
+    });
+    expect(archive['manifest.json']).not.toContain('private');
+  });
+
+  it('exports app evidence even if Engine flush fails before any Engine file exists', async () => {
+    mockFlushEngineLogs.mockRejectedValue(new Error('not installed'));
+    mockGetAppLogFileUris.mockReturnValue(['/logs/app.txt']);
+    mockLogContents.set('/logs/app.txt', 'startup failed');
+    const archive = readArchive((await createDiagnosticArchive(input)).uri);
+    expect(archive['logs/app/app.txt']).toContain('startup failed');
+    expect(JSON.parse(archive['manifest.json']).collection.engineLogs).toMatchObject({
+      flushStatus: 'unavailable', status: 'missing',
+    });
+  });
+
+  it('exports installation failure even when an empty writer reports a completed flush', async () => {
+    mockGetEngineLogStatus.mockResolvedValue({
+      localFile: 'unavailable', droppedLocalRecords: 0,
+      installation: { localFile: 'unavailable', droppedLocalRecords: 0 },
+    });
+    const archive = readArchive((await createDiagnosticArchive(input)).uri);
+    expect(JSON.parse(archive['manifest.json']).collection.engineLogs).toMatchObject({
+      flushStatus: 'completed', status: 'missing', localFile: 'unavailable',
+      installation: { localFile: 'unavailable', droppedLocalRecords: 0 },
+    });
+  });
+
+  it('does not collect or publish after cancellation during flush', async () => {
+    const controller = new AbortController();
+    mockFlushEngineLogs.mockImplementation(async () => {
+      controller.abort();
+      return true;
+    });
+    await expect(createDiagnosticArchive(input, new Date(), controller.signal))
+      .rejects.toMatchObject({ name: 'AbortError' });
+    expect(mockGetEngineLogFileUris).not.toHaveBeenCalled();
+    expect(mockWrittenFiles.size).toBe(0);
+  });
+
+  it('exports native runtime records and distinguishes coverage from file inclusion', async () => {
+    mockGetEngineLogFileUris.mockReturnValue(['/logs/engine.jsonl']);
+    mockLogContents.set('/logs/engine.jsonl', '{"timestamp":"2026-09-10T11:00:00.000Z","target":"uc.telemetry"}');
+    const nativeUri = '/private/shared/native-runtime.main.00000000-0000-0000-0000-000000000001.0.jsonl';
+    mockLogContents.set(nativeUri, JSON.stringify({
+      schemaVersion: 1, role: 'main', sessionId: '00000000-0000-0000-0000-000000000001',
+      timestamp: '2026-09-10T11:00:00.000Z', event: 'engine.start', outcome: 'failed',
+      failure: {reason: 'engineFailure', code: 1214},
+    }) + '\n');
+    mockGetNativeDiagnostics.mockResolvedValue({
+      flushStatus: 'completed', discoveryStatus: 'completed', skippedFileCount: 0, fileUris: [nativeUri], writer: {
+        writerStatus: 'ready', policy: 'native-runtime-boundaries-v1', effectiveLevel: 'info',
+        droppedRecords: 0, writeFailures: 0, prunedFiles: 0, role: 'main',
+        sessionId: '00000000-0000-0000-0000-000000000001',
+        startedAt: '2026-09-10T11:00:00.000Z', capturedAt: '2026-09-10T11:00:01.000Z',
+        retentionDays: 3, maxFileBytes: 262144, maxFiles: 24,
+      },
+    });
+    const archive = readArchive((await createDiagnosticArchive(input)).uri);
+    expect(archive['logs/native/' + nativeUri.split('/').at(-1)]).toContain('engineFailure');
+    const manifest = JSON.parse(archive['manifest.json']);
+    expect(manifest.collection.nativeLogs).toMatchObject({
+      status: 'included', flushStatus: 'completed', includedFileCount: 1,
+      sources: {main: {status: 'included', recordCount: 1}, keyboard: {status: 'noRetainedEvents'}},
+    });
+    expect(manifest.collection.engineLogs.capturePolicy).toMatchObject({
+      status: 'notReportedByEngine', filteredRecordCount: null,
+    });
+    expect(manifest.coverage).toMatchObject({complete: false, systemLogs: 'notCollected'});
+    expect(archive['manifest.json']).not.toContain('/private/shared');
+  });
+
+  it('keeps other evidence when native collection is unavailable', async () => {
+    mockGetEngineLogFileUris.mockReturnValue(['/logs/engine.jsonl']);
+    mockLogContents.set('/logs/engine.jsonl', 'engine evidence');
+    const archive = readArchive((await createDiagnosticArchive(input)).uri);
+    expect(JSON.parse(archive['manifest.json']).collection.nativeLogs).toMatchObject({
+      metadataStatus: 'unavailable', flushStatus: 'unavailable', status: 'missing',
+    });
+    expect(archive['logs/engine/engine.jsonl']).toBe('engine evidence');
+  });
+
+  it('flushes app files before discovery and excludes unreviewed legacy native text', async () => {
+    mockGetEngineLogFileUris.mockReturnValue(['/logs/engine.jsonl']);
+    mockLogContents.set('/logs/engine.jsonl', 'engine evidence');
+    mockFlushAppLogs.mockImplementation(async () => {
+      mockGetAppLogFileUris.mockReturnValue(['/logs/app_2026-09-10.txt', '/logs/kotlin_2026-09-10.txt']);
+      mockLogContents.set('/logs/app_2026-09-10.txt', 'fresh app failure');
+      mockLogContents.set('/logs/kotlin_2026-09-10.txt', 'unreviewed private error payload');
+      return true;
+    });
+    const archive = readArchive((await createDiagnosticArchive(input)).uri);
+    expect(archive['logs/app/app_2026-09-10.txt']).toContain('fresh app failure');
+    expect(archive['logs/app/kotlin_2026-09-10.txt']).toBeUndefined();
+    expect(JSON.parse(archive['manifest.json']).collection.appLogs).toMatchObject({
+      flushStatus: 'completed', excludedLegacyNativeFileCount: 1,
+    });
+  });
+
+  it('exports other sources when share attempt collection fails', async () => {
+    mockGetShareDiagnostics.mockRejectedValue(new Error('private native error'));
+    mockGetEngineLogFileUris.mockReturnValue(['/logs/engine.jsonl']);
+    mockLogContents.set('/logs/engine.jsonl', 'retained evidence');
+    const archive = readArchive((await createDiagnosticArchive(input)).uri);
+    expect(archive['logs/engine/engine.jsonl']).toBe('retained evidence');
+    expect(JSON.parse(archive['manifest.json']).collection.shareAttempts.sourceState).toBe('unavailable');
+    expect(archive['manifest.json']).not.toContain('private native error');
   });
 
   it('creates a ZIP containing redacted app logs, Engine logs, manifest, and Share attempts', async () => {
@@ -206,25 +366,23 @@ describe('DiagnosticArchive', () => {
     expect(manifest.collection.appLogs).toMatchObject({ truncatedFileCount: 1 });
   });
 
-  it('refuses to claim success when a running Engine has no log files', async () => {
+  it('keeps available evidence and flags missing Engine files', async () => {
     mockGetAppLogFileUris.mockReturnValue(['file://documents/logs/app_2026-08-16.txt']);
     mockLogContents.set('file://documents/logs/app_2026-08-16.txt', 'app log');
 
-    await expect(createDiagnosticArchive(input)).rejects.toMatchObject<DiagnosticArchiveError>({
-      code: 'engine_logs_missing',
-    });
-    expect(mockWrittenFiles.size).toBe(0);
+    const manifest = JSON.parse(readArchive((await createDiagnosticArchive(input)).uri)['manifest.json']);
+    expect(manifest.collection.engineLogs.issues).toContain('engine_logs_missing');
+    expect(manifest.coverage.complete).toBe(false);
   });
 
-  it('refuses to claim success when every discovered Engine log is unreadable', async () => {
+  it('keeps available evidence and flags unreadable Engine files', async () => {
     mockGetAppLogFileUris.mockReturnValue(['file://documents/logs/app_2026-08-16.txt']);
     mockGetEngineLogFileUris.mockReturnValue(['/shared/p2p/cache/logs/engine.2026-08-16.txt']);
     mockLogContents.set('file://documents/logs/app_2026-08-16.txt', 'app log');
 
-    await expect(createDiagnosticArchive(input)).rejects.toMatchObject<DiagnosticArchiveError>({
-      code: 'engine_logs_unreadable',
-    });
-    expect(mockWrittenFiles.size).toBe(0);
+    const manifest = JSON.parse(readArchive((await createDiagnosticArchive(input)).uri)['manifest.json']);
+    expect(manifest.collection.engineLogs.issues).toContain('engine_logs_unreadable');
+    expect(manifest.collection.engineLogs.unreadableFileCount).toBe(1);
   });
 
   it('allows a stopped Engine to be reported as unavailable', async () => {

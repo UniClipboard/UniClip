@@ -68,15 +68,6 @@ function formatLocalDateTime(date: Date): string {
   return `${year}-${month}-${day}_${hours}-${minutes}-${seconds}`;
 }
 
-function formatLocalTimestamp(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const seconds = String(date.getSeconds()).padStart(2, '0');
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-}
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
@@ -99,6 +90,54 @@ export interface AppLogger {
 
 interface CustomTransportOptions {
   _custom?: string;
+}
+
+const pendingLogWrites = new Set<() => void>();
+const originalConsoleError = console.error.bind(console);
+let fileWriteFailures = 0;
+let callbackFailures = 0;
+let lastFileWriteSucceeded: boolean | null = null;
+let captureStartedAt: string | null = null;
+let levelSince: string | null = null;
+let activeLogTimestamp: Date | null = null;
+
+function scheduleLogWrite(callback: () => void): void {
+  const capturedAt = new Date();
+  const run = () => {
+    if (!pendingLogWrites.delete(run)) return;
+    const previous = activeLogTimestamp;
+    activeLogTimestamp = capturedAt;
+    try { callback(); } catch {
+      callbackFailures += 1;
+      lastFileWriteSucceeded = false;
+    } finally { activeLogTimestamp = previous; }
+  };
+  pendingLogWrites.add(run);
+  if (typeof globalThis.requestIdleCallback === 'function') globalThis.requestIdleCallback(run, {timeout: 100});
+  else setTimeout(run, 0);
+}
+
+export function flushAppLogs(): Promise<boolean> {
+  const failuresBefore = fileWriteFailures + callbackFailures;
+  const deadline = Date.now() + 1_000;
+  for (const run of [...pendingLogWrites]) {
+    if (Date.now() >= deadline) return Promise.resolve(false);
+    run();
+  }
+  return Promise.resolve(pendingLogWrites.size === 0 && failuresBefore === fileWriteFailures + callbackFailures);
+}
+
+export function getAppLogCaptureStatus() {
+  return {
+    policy: 'redacted-app-text-v1', enabled: isInitialized,
+    effectiveLevel: isInitialized ? currentLogLevel : null,
+    startedAt: captureStartedAt, levelSince, capturedAt: new Date().toISOString(),
+    writerStatus: lastFileWriteSucceeded === null ? 'notObserved' : lastFileWriteSucceeded ? 'ready' : 'unavailable',
+    pendingRecords: pendingLogWrites.size,
+    droppedRecords: fileWriteFailures + callbackFailures, writeFailures: fileWriteFailures,
+    filteredRecordCount: null, counterScope: 'currentCaptureSession', retentionDays: MAX_LOG_DAYS,
+    historicalPolicy: 'notRecorded',
+  };
 }
 
 let isInitialized = false;
@@ -129,12 +168,12 @@ export const customFileTransport = (props: {
       LOG_DIR.create();
     }
 
-    const today = new Date();
+    const today = activeLogTimestamp ?? new Date();
     const dateStr = formatLocalDate(today);
     const fileName = `app_${dateStr}.txt`;
     const logFile = new File(LOG_DIR, fileName);
 
-    const timestamp = formatLocalTimestamp(today);
+    const timestamp = today.toISOString();
     const level = props.level.text.toUpperCase();
     const extension = props.extension ? ` [${props.extension}]` : '';
     const message = redactLogText(props.msg);
@@ -144,8 +183,12 @@ export const customFileTransport = (props: {
     // 必须追加写。整读整写是 O(文件大小) 的同步 JS 阻塞，文件到数 MB 后
     // 每条日志都会冻结 JS 线程 100ms+（见 Logger.appendOnly.test.ts）
     logFile.write(logLine, { append: true });
-  } catch (error) {
-    console.error('Failed to write log file:', error);
+    lastFileWriteSucceeded = true;
+  } catch {
+    fileWriteFailures += 1;
+    lastFileWriteSucceeded = false;
+    // Never feed a failed file write back through the patched logging console.
+    originalConsoleError('Failed to write log file');
   }
 };
 
@@ -159,6 +202,8 @@ export function initLogger(config?: Partial<LogConfig>): void {
     enableConsole: config?.enableConsole ?? true,
   };
   currentLogLevel = logConfig.level;
+  captureStartedAt = new Date().toISOString();
+  levelSince = captureStartedAt;
 
   const transports = logConfig.enableConsole
     ? [redactingConsoleTransport, customFileTransport]
@@ -174,6 +219,7 @@ export function initLogger(config?: Partial<LogConfig>): void {
     severity: logConfig.level,
     transport: transports,
     async: true,
+    asyncFunc: scheduleLogWrite,
     dateFormat: 'iso',
     printLevel: true,
     printDate: true,
@@ -223,6 +269,7 @@ export function getLogger(): any {
 }
 
 export function setLogLevel(level: LogLevel): void {
+  if (currentLogLevel !== level) levelSince = new Date().toISOString();
   currentLogLevel = level;
   if (logInstance) {
     logInstance.setSeverity(level);

@@ -244,7 +244,41 @@ export interface AnalyticsState {
   isIdentified: boolean;
 }
 
+export interface EngineLogStatus {
+  localFile: 'disabled' | 'ready' | 'unavailable';
+  droppedLocalRecords: number | null;
+  installation: {
+    localFile: 'disabled' | 'ready' | 'unavailable';
+    droppedLocalRecords: number;
+  } | null;
+}
+
+export interface NativeDiagnosticsSnapshot {
+  discoveryStatus?: 'completed' | 'partial' | 'unavailable';
+  skippedFileCount?: number;
+  flushStatus: 'completed' | 'incomplete';
+  fileUris: string[];
+  writer: {
+    writerStatus: 'ready' | 'unavailable';
+    policy: string;
+    effectiveLevel: 'info';
+    droppedRecords: number;
+    writeFailures: number;
+    prunedFiles: number;
+    sessionId: string;
+    role: 'main' | 'keyboard' | 'share';
+    startedAt: string;
+    capturedAt: string;
+    retentionDays: number;
+    maxFileBytes: number;
+    maxFiles: number;
+  };
+}
+
 interface UcEngineNativeModule {
+  getNativeDiagnostics(): Promise<NativeDiagnosticsSnapshot>;
+  flushEngineLogs(): Promise<boolean>;
+  getEngineLogStatus(): Promise<EngineLogStatus>;
   coreVersion(): string;
   start(config: EngineConfig): Promise<void>;
   saveCustomRelayNode(
@@ -499,4 +533,16 @@ export function restoreClipboard(
 
 export function exportEntry(entryId: string, destinationHandle: string): Promise<void> {
   return NativeModule.exportEntry(entryId, destinationHandle);
+}
+
+export function flushEngineLogs(): Promise<boolean> {
+  return NativeModule.flushEngineLogs();
+}
+
+export function getEngineLogStatus(): Promise<EngineLogStatus> {
+  return NativeModule.getEngineLogStatus();
+}
+
+export function getNativeDiagnostics(): Promise<NativeDiagnosticsSnapshot> {
+  return NativeModule.getNativeDiagnostics();
 }

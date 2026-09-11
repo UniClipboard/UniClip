@@ -20,6 +20,8 @@ Pod::Spec.new do |s|
     'ExtensionRuntimeLifecycle.swift',
     'ExtensionSyncCoordinator.swift',
     'NativeAnalyticsHost.swift',
+    'NativeRuntimeDiagnostics.swift',
+    'AppleNativeDiagnostics.swift',
     'NativeSystemHost.swift',
     'P2pRuntimeOwnership.swift',
     'SharedEngineHost.swift',

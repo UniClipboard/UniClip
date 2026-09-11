@@ -9,6 +9,12 @@ import UIKit
 final class ShareViewController: UIViewController {
     private var isVisible = false
     private var pendingHandoffID: String?
+    private var nativeObservation: NativeDiagnosticOperation?
+    nonisolated private static let nativeDiagnostics = NativeRuntimeDiagnostics(
+        directory: FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: SettingsStore.appGroupID)?
+            .appendingPathComponent("Library/Caches/UniClipDiagnostics", isDirectory: true),
+        role: .shareExtension
+    )
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -20,6 +26,7 @@ final class ShareViewController: UIViewController {
         SentryBootstrap.start()
 
         guard let context = extensionContext else { return }
+        nativeObservation = Self.nativeDiagnostics.begin(.shareHandoff, trigger: .userRequest)
         let inputContext = ShareExtensionContext(context)
 
         Task.detached(priority: .userInitiated) { // 不在主线程,避免阻塞面板关闭
@@ -34,8 +41,9 @@ final class ShareViewController: UIViewController {
                 }
             } catch {
                 Self.recordDiagnostics(staged: nil)
-                await MainActor.run {
-                    context.completeRequest(returningItems: nil, completionHandler: nil)
+                await MainActor.run { [weak self] in
+                    self?.finishNativeObservation(succeeded: false)
+                    Self.completeRequest(context)
                 }
             }
         }
@@ -68,7 +76,8 @@ final class ShareViewController: UIViewController {
                 id: id,
                 error: ShareDiagnosticError(code: .handoffFailed)
             )
-            extensionContext?.completeRequest(returningItems: nil, completionHandler: nil)
+            finishNativeObservation(succeeded: false)
+            if let context = extensionContext { Self.completeRequest(context) }
             return
         }
 
@@ -78,7 +87,24 @@ final class ShareViewController: UIViewController {
                 id: id,
                 error: opened ? nil : ShareDiagnosticError(code: .handoffFailed)
             )
-            self?.extensionContext?.completeRequest(returningItems: nil, completionHandler: nil)
+            self?.finishNativeObservation(succeeded: opened)
+            if let context = self?.extensionContext { Self.completeRequest(context) }
+        }
+    }
+
+    private func finishNativeObservation(succeeded: Bool) {
+        guard let observation = nativeObservation else { return }
+        nativeObservation = nil
+        Self.nativeDiagnostics.finish(observation, outcome: succeeded ? .succeeded : .failed,
+            failure: succeeded ? nil : .init(reason: .nativeFailure))
+    }
+
+    nonisolated private static func completeRequest(_ context: NSExtensionContext) {
+        DispatchQueue.global(qos: .utility).async {
+            _ = nativeDiagnostics.flush(deadlineMs: 250)
+            DispatchQueue.main.async {
+                context.completeRequest(returningItems: nil, completionHandler: nil)
+            }
         }
     }
 

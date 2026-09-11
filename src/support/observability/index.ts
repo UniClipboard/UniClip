@@ -7,6 +7,8 @@ export {
   customFileTransport,
   deleteExportedLogArchive,
   getAppLogFileUris,
+  flushAppLogs,
+  getAppLogCaptureStatus,
   getLogDirectory,
   getEngineLogFileUris,
   getLogFilePaths,

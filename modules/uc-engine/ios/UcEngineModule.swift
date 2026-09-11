@@ -20,8 +20,20 @@ public final class UcEngineModule: Module {
 
   public func definition() -> ModuleDefinition {
     Name("UcEngine")
+    OnCreate { AppleNativeDiagnostics.start() }
 
     Function("coreVersion") { coreVersion() }
+
+    AsyncFunction("flushEngineLogs") { () -> Bool in
+      let summary = try flushProcessObservability(deadlineMs: 1_000)
+      return summary.logs == .completed
+    }.runOnQueue(engineOperationQueue)
+
+    AsyncFunction("getNativeDiagnostics") { AppleNativeDiagnostics.exportSnapshot() }
+      .runOnQueue(engineOperationQueue)
+
+    AsyncFunction("getEngineLogStatus") { self.host.getEngineLogStatus() }
+      .runOnQueue(engineOperationQueue)
 
     AsyncFunction("start") { (config: [String: String]) in
       let startedAt = ProcessInfo.processInfo.systemUptime
@@ -65,7 +77,9 @@ public final class UcEngineModule: Module {
     AsyncFunction("shutdown") { (deadlineMs: UInt64) in
       let active = self.engines.take()
       defer { self.host.releaseRuntimeOwnership() }
-      try active?.shutdown(deadlineMs: deadlineMs)
+      try AppleNativeDiagnostics.observe(.engineShutdown, trigger: .userRequest) {
+        try active?.shutdown(deadlineMs: deadlineMs)
+      }
       self.host.removeAllFileHandles()
     }.runOnQueue(engineOperationQueue)
 
@@ -352,11 +366,13 @@ public final class UcEngineModule: Module {
     }.runOnQueue(engineOperationQueue)
 
     OnAppEntersBackground {
+      AppleNativeDiagnostics.journal.record(.appBackground, trigger: .appBackground)
       self.lifecycleTransitions.enterBackground(
         self.currentEngine().map { AppleEngineLifecycle(engine: $0, host: self.host) }
       )
     }
     OnAppEntersForeground {
+      AppleNativeDiagnostics.journal.record(.appForeground, trigger: .appForeground)
       self.lifecycleTransitions.enterForeground(
         self.currentEngine().map { AppleEngineLifecycle(engine: $0, host: self.host) }
       )
@@ -399,11 +415,14 @@ public final class UcEngineModule: Module {
     let active = engines.take()
     defer { host.releaseRuntimeOwnership() }
     do {
-      try active?.shutdown(deadlineMs: 2_000)
+      try AppleNativeDiagnostics.observe(.engineShutdown, trigger: .contextDestroyed) {
+        try active?.shutdown(deadlineMs: 2_000)
+      }
     } catch {
       Self.reportLifecycleError(error)
     }
     host.removeAllFileHandles()
+    _ = AppleNativeDiagnostics.journal.flush()
   }
 
   private static func reportLifecycleError(_ error: Error) {
@@ -725,7 +744,9 @@ private final class AppleMobileEngineLifecycle: NativeEngineLifecycle {
   }
 
   func recoverSession() throws -> NativeSessionRecovery {
-    let recovery = try engine.recoverSession(allowSecureStorageUnlock: true)
+    let recovery = try AppleNativeDiagnostics.observe(.secureStateRecovery) {
+      try engine.recoverSession(allowSecureStorageUnlock: true)
+    }
     return NativeSessionRecovery(unlocked: recovery.unlocked, resumed: recovery.resumed)
   }
 
@@ -741,11 +762,11 @@ private final class AppleMobileEngineLifecycle: NativeEngineLifecycle {
   }
 
   func suspend() throws {
-    try engine.suspend()
+    try AppleNativeDiagnostics.observe(.engineSuspend) { try engine.suspend() }
   }
 
   func resume() throws {
-    try engine.resume()
+    try AppleNativeDiagnostics.observe(.engineResume) { try engine.resume() }
   }
 }
 

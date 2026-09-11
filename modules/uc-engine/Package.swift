@@ -22,6 +22,7 @@ let package = Package(
         "UcEngineCore.podspec",
         "UcEngineModule.swift",
         "SharedEngineHost.swift",
+        "AppleNativeDiagnostics.swift",
         "UniClipboardEngine.xcframework",
       ],
       sources: [
@@ -29,6 +30,7 @@ let package = Package(
         "ExtensionSyncCoordinator.swift",
         "AnalyticsBindingCompatibility.swift",
         "NativeAnalyticsHost.swift",
+        "NativeRuntimeDiagnostics.swift",
         "NativeLifecycleHost.swift",
         "NativeSystemHost.swift",
         "P2pRuntimeOwnership.swift",

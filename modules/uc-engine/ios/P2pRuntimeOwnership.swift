@@ -25,10 +25,12 @@ enum P2pRuntimeHandoff {
 public final class P2pRuntimeOwnership: NativeRuntimeOwnership, @unchecked Sendable {
   private let lockURL: URL
   private let stateLock = NSLock()
+  private let diagnostics: NativeRuntimeDiagnostics?
   private var descriptor: Int32 = -1
 
-  public init(lockURL: URL) {
+  public init(lockURL: URL, diagnostics: NativeRuntimeDiagnostics? = nil) {
     self.lockURL = lockURL
+    self.diagnostics = diagnostics
   }
 
   deinit {
@@ -37,6 +39,23 @@ public final class P2pRuntimeOwnership: NativeRuntimeOwnership, @unchecked Senda
 
   public func acquire(timeoutMs: UInt64) throws -> Bool {
     if stateLock.withLock({ descriptor >= 0 }) { return true }
+
+    let observation = diagnostics?.begin(.ownershipAcquire, trigger: .runtimeHandoff)
+    do {
+      let acquired = try acquireUnobserved(timeoutMs: timeoutMs)
+      if let observation { diagnostics?.finish(observation, outcome: acquired ? .succeeded : .notAcquired) }
+      return acquired
+    } catch {
+      if let observation {
+        diagnostics?.finish(observation, outcome: .failed, failure: .init(
+          reason: .nativeFailure, code: (error as? POSIXError).map { Int64($0.code.rawValue) }
+        ))
+      }
+      throw error
+    }
+  }
+
+  private func acquireUnobserved(timeoutMs: UInt64) throws -> Bool {
 
     let candidate = Darwin.open(lockURL.path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
     guard candidate >= 0 else { throw currentPOSIXError() }
@@ -79,6 +98,7 @@ public final class P2pRuntimeOwnership: NativeRuntimeOwnership, @unchecked Senda
     guard active >= 0 else { return }
     _ = systemFlock(active, LOCK_UN)
     Darwin.close(active)
+    diagnostics?.record(.ownershipRelease, trigger: .runtimeHandoff)
   }
 
   private func currentPOSIXError() -> POSIXError {
