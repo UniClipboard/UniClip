@@ -1,0 +1,42 @@
+appId: ${APP_ID}
+---
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: diagnostic-export
+          direction: DOWN
+      - tapOn:
+          id: diagnostic-export
+      - tapOn:
+          text: "Share"
+          below:
+            id: diagnostics-back
+          above: "Send to"
+      - extendedWaitUntil:
+          visible: "Copy"
+          timeout: 30000
+      - takeScreenshot: diagnostic-share-sheet
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: "Export"
+          direction: DOWN
+      - tapOn: "Export"
+      - tapOn: "Export file"
+      - runFlow:
+          when:
+            notVisible: "(?i)Documents"
+          commands:
+            - tapOn: "Show roots"
+            - tapOn: "sdk_gphone.*|(?i)Internal storage"
+      - tapOn: "(?i)Documents"
+      - tapOn: "(?i)USE THIS FOLDER"
+      - tapOn: "(?i)ALLOW"
+      - assertVisible: "Logs saved"
+      - takeScreenshot: diagnostic-file-saved

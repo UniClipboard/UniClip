@@ -23,6 +23,7 @@ let package = Package(
         "UcEngineModule.swift",
         "SharedEngineHost.swift",
         "AppleNativeDiagnostics.swift",
+        "EngineDiagnosticBridge.swift",
         "UniClipboardEngine.xcframework",
       ],
       sources: [

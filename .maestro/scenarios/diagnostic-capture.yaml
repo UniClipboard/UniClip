@@ -1,0 +1,18 @@
+appId: ${APP_ID}
+---
+- runFlow: ../lifecycle/launch.yaml
+- runFlow: ../actions/onboarding/complete.yaml
+- runFlow: ../actions/diagnostics/open.yaml
+- runFlow: ../actions/diagnostics/start.yaml
+- runFlow: ../actions/diagnostics/leave.yaml
+- runFlow: ../actions/diagnostics/open.yaml
+- runFlow: ../assertions/diagnostics/active.yaml
+- runFlow: ../actions/diagnostics/stop.yaml
+- runFlow: ../actions/diagnostics/start.yaml
+- runFlow: ../lifecycle/restart.yaml
+- runFlow: ../assertions/home-ready.yaml
+- runFlow: ../actions/diagnostics/open.yaml
+- runFlow: ../assertions/diagnostics/inactive.yaml
+- runFlow: ../actions/diagnostics/start.yaml
+- runFlow: ../actions/diagnostics/stop.yaml
+- runFlow: ../actions/diagnostics/export.yaml

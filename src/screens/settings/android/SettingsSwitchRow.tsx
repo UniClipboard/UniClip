@@ -1,21 +1,28 @@
 import { ListItem, Switch as ComposeSwitch, Text as ComposeText } from '@expo/ui/jetpack-compose';
-import { toggleable } from '@expo/ui/jetpack-compose/modifiers';
+import { testID as testIDModifier, toggleable } from '@expo/ui/jetpack-compose/modifiers';
 
 interface SettingsSwitchRowProps {
   title: string;
+  testID?: string;
   description?: string;
   value: boolean;
+  disabled?: boolean;
   onValueChange: (value: boolean) => void;
 }
 
 export function SettingsSwitchRow({
   title,
+  testID,
   description,
   value,
+  disabled = false,
   onValueChange,
 }: SettingsSwitchRowProps) {
+  const toggle = () => {
+    if (!disabled) onValueChange(!value);
+  };
   return (
-    <ListItem modifiers={[toggleable(value, () => onValueChange(!value), { role: 'switch' })]}>
+    <ListItem modifiers={[...(testID ? [testIDModifier(testID)] : []), toggleable(value, toggle, { role: 'switch' })]}>
       <ListItem.HeadlineContent>
         <ComposeText>{title}</ComposeText>
       </ListItem.HeadlineContent>
@@ -25,7 +32,7 @@ export function SettingsSwitchRow({
         </ListItem.SupportingContent>
       ) : null}
       <ListItem.TrailingContent>
-        <ComposeSwitch value={value} onCheckedChange={undefined} />
+        <ComposeSwitch enabled={!disabled} value={value} onCheckedChange={toggle} />
       </ListItem.TrailingContent>
     </ListItem>
   );

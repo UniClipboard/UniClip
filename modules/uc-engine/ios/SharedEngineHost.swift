@@ -81,6 +81,8 @@ private func installEngineObservability(appVersion: String, host: AppleEngineHos
     host: host
   )
   engineLogStatusStore.record(setup)
+  EngineDiagnosticBridge.register()
+  AppleNativeDiagnostics.replayNetworkToEngine()
 }
 
 public final class MainApplicationEngineHost: @unchecked Sendable {
@@ -108,12 +110,12 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
         try installEngineObservability(appVersion: appVersion, host: host)
         startupLog.info("Starting core engine")
         let analytics = try analyticsHost(appVersion: appVersion)
-        let engine = try MobileEngine.startWithAnalytics(
+        let engine = try EngineDiagnosticBridge.observe(.runtimeStart) { try MobileEngine.startWithAnalytics(
           config: BindingConfig(appVersion: appVersion, profileId: profileId),
           host: host,
           analytics: analytics,
           context: analyticsContext()
-        )
+        ) }
         startupLog.info(
           "Core engine started in \(Int((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000))ms"
         )
@@ -126,12 +128,30 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
     }
   }
 
+  // Installing the process logger does not start networking or open an Engine session.
+  public func prepareDiagnosticLogging() throws {
+    if (try? queryLocalDiagnosticStatus()) != nil { return }
+    let diagnosticHost = try AppleEngineHost(files: files, storageMode: .mainApplication)
+    try installEngineObservability(
+      appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown",
+      host: diagnosticHost
+    )
+  }
+
   public func getEngineLogStatus() -> [String: Any] {
     engineLogStatusStore.snapshot()
   }
 
   public func acquireRuntimeOwnership(timeoutMs: UInt64) throws -> Bool {
-    try runtimeOwnership().acquire(timeoutMs: timeoutMs)
+    let token = EngineDiagnosticBridge.begin(.ownershipAcquire)
+    do {
+      let acquired = try runtimeOwnership().acquire(timeoutMs: timeoutMs)
+      EngineDiagnosticBridge.finish(token, succeeded: acquired)
+      return acquired
+    } catch {
+      EngineDiagnosticBridge.finish(token, succeeded: false)
+      throw error
+    }
   }
 
   public func releaseRuntimeOwnership() {
@@ -139,6 +159,7 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
     let current = ownership
     ownershipStateLock.unlock()
     current?.release()
+    if current != nil { EngineDiagnosticBridge.record(.ownershipReleased) }
   }
 
   public func registerInputFile(uri: String, displayName: String?) throws -> String {
@@ -256,6 +277,7 @@ public final class ExtensionP2pClientController: @unchecked Sendable {
   }
 
   public func stopForSuspension() {
+    EngineDiagnosticBridge.record(.lifecycle(state: .background))
     try? lifecycle.stopForSuspension()
   }
 }
@@ -286,16 +308,17 @@ public final class ExtensionP2pClient: @unchecked Sendable {
       let engine = try controller.lifecycle.startEngine {
         let host = try AppleEngineHost(files: files, storageMode: .extensionHost)
         try installEngineObservability(appVersion: appVersion, host: host)
+        EngineDiagnosticBridge.record(.lifecycle(state: .foreground))
         let createdAnalytics = try ApplePostHogAnalyticsHost(appVersion: appVersion)
         analytics = createdAnalytics
         AppleNativeDiagnostics.start()
         return try AppleNativeDiagnostics.observe(.engineStart, trigger: .extensionVisible) {
-          try MobileEngine.startWithAnalytics(
+          try EngineDiagnosticBridge.observe(.runtimeStart) { try MobileEngine.startWithAnalytics(
           config: BindingConfig(appVersion: appVersion, profileId: "default"),
           host: host,
           analytics: createdAnalytics,
           context: analyticsContext()
-          )
+          ) }
         }
       }
       _ = try AppleNativeDiagnostics.observe(.secureStateRecovery, trigger: .extensionVisible) {

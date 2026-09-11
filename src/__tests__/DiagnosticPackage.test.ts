@@ -12,7 +12,9 @@ const mockFlushAppLogs = jest.fn();
 const mockFlushEngineLogs = jest.fn();
 const mockGetEngineLogStatus = jest.fn();
 const mockGetNativeDiagnostics = jest.fn();
+const mockPrepareEngineDiagnosticExport = jest.fn();
 jest.mock('uc-engine', () => ({
+  prepareEngineDiagnosticExport: () => mockPrepareEngineDiagnosticExport(),
   flushEngineLogs: () => mockFlushEngineLogs(),
   getEngineLogStatus: () => mockGetEngineLogStatus(),
   getNativeDiagnostics: () => mockGetNativeDiagnostics(),
@@ -124,6 +126,7 @@ function readArchive(uri: string): Record<string, string> {
 describe('DiagnosticArchive', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockPrepareEngineDiagnosticExport.mockReset().mockRejectedValue(new Error('old native module'));
     mockFlushEngineLogs.mockReset().mockResolvedValue(true);
     mockFlushAppLogs.mockReset().mockResolvedValue(true);
     mockGetNativeDiagnostics.mockReset().mockRejectedValue(new Error("native diagnostics unavailable"));
@@ -137,6 +140,26 @@ describe('DiagnosticArchive', () => {
     mockGetAppLogFileUris.mockReturnValue([]);
     mockGetEngineLogFileUris.mockReturnValue([]);
     mockGetShareDiagnostics.mockResolvedValue({ schemaVersion: 1, attempts: [] });
+  });
+
+  it.each(['completed', 'timedOut'])('exports the Engine report and existing files when flush is %s', async (flush) => {
+    const report = { flush, requestedAtUtc: '2026-09-11T01:00:00Z', completedAtUtc: '2026-09-11T01:00:01Z', otherProcessesFlushed: false,
+      status: { runId: 'run-one', capture: { mode: 'detailed', captureId: 'capture-one', remainingMs: 1000 }, engineVersion: 'new-engine', sourceCommit: 'a'.repeat(40), counterScope: 'typed_events_only', policyFilteredRecords: 7, observedRecords: 12, schemaRejectedRecords: 1, correlationLimitedRecords: 2, sources: [{source: 'connections', capability: 'supported', collection: 'enabled', observedCount: 12, policyFilteredCount: 7}], localFile: 'ready', closed: false },
+      files: [{source: 'connections', acceptedCount: 5, writtenCount: 4, queueDroppedCount: 1, quotaDroppedCount: 0, writeFailedCount: 0, lastWrittenAtMs: 1000}] };
+    mockPrepareEngineDiagnosticExport.mockImplementation(async () => {
+      mockGetEngineLogFileUris.mockReturnValue(['/logs/new.jsonl']);
+      mockLogContents.set('/logs/new.jsonl', '{"event":"new"}');
+      return report;
+    });
+    const archive = readArchive((await createDiagnosticArchive(input)).uri);
+    const manifest = JSON.parse(archive['manifest.json']);
+    expect(manifest.collection.engineLogs.flushStatus).toBe(flush === 'completed' ? 'completed' : 'incomplete');
+    expect(manifest.engineBuild.sourceRevision).toBe('a'.repeat(40));
+    expect(manifest.collection.engineLogs.exportReport).toEqual(report);
+    expect(manifest.collection.engineLogs.capturePolicy.filteredRecordCount).toBe(7);
+    expect(manifest.coverage.complete).toBe(false);
+    expect(mockFlushEngineLogs).not.toHaveBeenCalled();
+    expect(archive['logs/engine/new.jsonl']).toContain('new');
   });
 
   it('waits for buffered records before discovering and reading Engine files', async () => {

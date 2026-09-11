@@ -1,3 +1,5 @@
+import type { EngineCaptureStatus, EngineDiagnosticStatus, EngineDiagnosticExportReport } from './diagnostics';
+export type { EngineCaptureStatus, EngineDiagnosticStatus, EngineDiagnosticExportReport } from './diagnostics';
 import { requireNativeModule } from 'expo-modules-core';
 
 export interface EngineConfig {
@@ -276,6 +278,10 @@ export interface NativeDiagnosticsSnapshot {
 }
 
 interface UcEngineNativeModule {
+  startEngineDiagnosticCapture(durationMs: number): Promise<EngineCaptureStatus>;
+  stopEngineDiagnosticCapture(captureId: string): Promise<'stopped' | 'alreadyStopped' | 'differentCapture'>;
+  getEngineDiagnosticStatus(): Promise<EngineDiagnosticStatus>;
+  prepareEngineDiagnosticExport(): Promise<EngineDiagnosticExportReport>;
   getNativeDiagnostics(): Promise<NativeDiagnosticsSnapshot>;
   flushEngineLogs(): Promise<boolean>;
   getEngineLogStatus(): Promise<EngineLogStatus>;
@@ -545,4 +551,17 @@ export function getEngineLogStatus(): Promise<EngineLogStatus> {
 
 export function getNativeDiagnostics(): Promise<NativeDiagnosticsSnapshot> {
   return NativeModule.getNativeDiagnostics();
+}
+
+export function startEngineDiagnosticCapture(durationMs = 600_000): Promise<EngineCaptureStatus> {
+  return NativeModule.startEngineDiagnosticCapture(durationMs);
+}
+export function stopEngineDiagnosticCapture(captureId: string): Promise<'stopped' | 'alreadyStopped' | 'differentCapture'> {
+  return NativeModule.stopEngineDiagnosticCapture(captureId);
+}
+export function getEngineDiagnosticStatus(): Promise<EngineDiagnosticStatus> {
+  return NativeModule.getEngineDiagnosticStatus();
+}
+export function prepareEngineDiagnosticExport(): Promise<EngineDiagnosticExportReport> {
+  return NativeModule.prepareEngineDiagnosticExport();
 }

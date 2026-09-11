@@ -1,0 +1,16 @@
+appId: ${APP_ID}
+---
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - assertVisible:
+          id: engine-diagnostic-capture
+          text: ".*Stop detailed recording.*"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - assertVisible:
+          id: engine-diagnostic-capture
+          checked: true

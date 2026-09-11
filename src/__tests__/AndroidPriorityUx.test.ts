@@ -108,8 +108,8 @@ describe('Android priority UX regressions', () => {
     const appearance = read('src/screens/settings/android/AppearanceSection.tsx');
     const history = read('src/screens/settings/HistorySection.tsx');
 
-    expect(row).toContain("toggleable(value, () => onValueChange(!value), { role: 'switch' })");
-    expect(row).toContain('onCheckedChange={undefined}');
+    expect(row).toContain("toggleable(value, toggle, { role: 'switch' })");
+    expect(row).toContain('onCheckedChange={toggle}');
     expect(rootSettings.match(/<SettingsSwitchRow/g)).toHaveLength(2);
     expect(appearance).toContain('<SettingsSwitchRow');
     expect(history).toContain('<SettingsSwitchRow');

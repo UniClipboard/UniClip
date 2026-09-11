@@ -9,17 +9,22 @@ public enum AppleNativeDiagnostics {
   private static let network = NativeNetworkDiagnostics(journal: journal)
 
   public static func start() { network.start() }
+  public static func replayNetworkToEngine() { network.replayToEngine() }
 
   public static func observe<Result>(
     _ event: NativeDiagnosticEvent, trigger: NativeDiagnosticTrigger = .unspecified,
     _ operation: () throws -> Result
   ) rethrows -> Result {
+    let action: BindingHostDiagnosticAction? = event == .secureStateRecovery ? .securityPrepare : event == .engineShutdown ? .runtimeStop : nil
+    let token = action.flatMap { EngineDiagnosticBridge.begin($0) }
     let observation = journal.begin(event, trigger: trigger)
     do {
       let result = try operation()
+      EngineDiagnosticBridge.finish(token, succeeded: true)
       journal.finish(observation, outcome: .succeeded)
       return result
     } catch {
+      EngineDiagnosticBridge.finish(token, succeeded: false)
       journal.finish(observation, outcome: .failed, failure: failure(error))
       throw error
     }
@@ -63,8 +68,17 @@ private final class NativeNetworkDiagnostics: @unchecked Sendable {
   private let lock = NSLock()
   private var started = false
   private var hasObservedPath = false
+  private var lastNetwork: NativeDiagnosticNetwork?
 
   init(journal: NativeRuntimeDiagnostics) { self.journal = journal }
+
+  func replayToEngine() {
+    queue.async { [self] in
+      guard let next = lastNetwork else { return }
+      let kind: BindingHostNetworkKind = next.kind == .wifi ? .wifi : next.kind == .cellular ? .cellular : next.kind == .wired ? .ethernet : .other
+      EngineDiagnosticBridge.record(.networkChanged(kind: kind, available: next.available))
+    }
+  }
 
   func start() {
     let shouldStart = lock.withLock {
@@ -84,6 +98,9 @@ private final class NativeNetworkDiagnostics: @unchecked Sendable {
         expensive: path.isExpensive, constrained: path.isConstrained,
         change: hasObservedPath ? .pathUpdate : .initial)
       hasObservedPath = true
+      lastNetwork = next
+      let hostKind: BindingHostNetworkKind = kind == .wifi ? .wifi : kind == .cellular ? .cellular : kind == .wired ? .ethernet : kind == .none ? .unknown : .other
+      EngineDiagnosticBridge.record(.networkChanged(kind: hostKind, available: available))
       journal.record(.networkChanged, trigger: .networkChange, network: next)
     }
     monitor.start(queue: queue)

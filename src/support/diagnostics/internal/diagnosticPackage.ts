@@ -3,7 +3,7 @@ import { File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 import { strFromU8, strToU8, zipSync } from 'fflate';
 import { getShareDiagnostics } from 'app-group-store';
-import { coreVersion, flushEngineLogs, getEngineLogStatus, getNativeDiagnostics, type EngineLogStatus, type NativeDiagnosticsSnapshot } from 'uc-engine';
+import { prepareEngineDiagnosticExport, type EngineDiagnosticExportReport, coreVersion, flushEngineLogs, getEngineLogStatus, getNativeDiagnostics, type EngineLogStatus, type NativeDiagnosticsSnapshot } from 'uc-engine';
 
 import type { SharedSettings } from '@/types/settings';
 import type { PeerConnectionStatus, UnifiedEngineStatus } from '@/stores/unifiedEngineStore';
@@ -188,11 +188,14 @@ export async function createDiagnosticArchive(
   const appLogs = await collectLogFiles(eligibleAppLogUris, 'logs/app', signal);
   let appCapture: ReturnType<typeof getAppLogCaptureStatus> | null = null;
   try { appCapture = getAppLogCaptureStatus(); } catch { /* Report unknown rather than guess. */ }
+  let engineReport: EngineDiagnosticExportReport | null = null;
   let engineFlushStatus: 'completed' | 'incomplete' | 'unavailable';
   try {
-    engineFlushStatus = (await flushEngineLogs()) ? 'completed' : 'incomplete';
+    engineReport = await prepareEngineDiagnosticExport();
+    engineFlushStatus = engineReport.flush === 'completed' ? 'completed' : 'incomplete';
   } catch {
-    engineFlushStatus = 'unavailable';
+    try { engineFlushStatus = (await flushEngineLogs()) ? 'completed' : 'incomplete'; }
+    catch { engineFlushStatus = 'unavailable'; }
   }
   throwIfArchiveAborted(signal);
   let engineLogStatus: EngineLogStatus = {
@@ -256,11 +259,11 @@ export async function createDiagnosticArchive(
       complete: false,
       systemLogs: 'notCollected',
       legacyNativeDebugLogs: 'notCollected',
-      engineCapturePolicy: 'notReportedByEngine',
-      crossProcessEngineCorrelation: 'notReportedByEngine',
+      engineCapturePolicy: engineReport ? 'reportedByEngine' : 'notReportedByEngine',
+      crossProcessEngineCorrelation: engineReport ? 'processLocalOnly' : 'notReportedByEngine',
       nativeNetworkScope: 'defaultNetworkPathOnly',
     },
-    engineBuild: { version: engineVersion, sourceRevision: null, sourceRevisionStatus: 'notReportedByEngine' },
+    engineBuild: { version: engineReport?.status.engineVersion ?? engineVersion, sourceRevision: engineReport?.status.sourceCommit ?? null, sourceRevisionStatus: engineReport ? 'reportedByEngine' : 'notReportedByEngine' },
     settings: input.settings,
     sync: input.sync,
     collection: {
@@ -278,8 +281,12 @@ export async function createDiagnosticArchive(
         flushStatus: engineFlushStatus,
         flushScope: 'exportingProcess',
         issues: engineLogIssues,
+        exportReport: engineReport,
         capturePolicy: {
-          status: 'notReportedByEngine', effectiveLevel: null, filteredRecordCount: null,
+          status: engineReport ? 'reportedByEngine' : 'notReportedByEngine',
+          mode: engineReport?.status.capture.mode ?? null,
+          effectiveLevel: null, filteredRecordCount: engineReport?.status.policyFilteredRecords ?? null,
+          counterScope: engineReport?.status.counterScope ?? null,
           appLogLevelControlsEngine: false,
         },
         localFile: engineLogStatus.localFile,

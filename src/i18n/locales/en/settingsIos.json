@@ -78,6 +78,15 @@
       "message": "Please try again later.",
       "engineLogsMissing": "The Engine is running, but no Engine logs were found. Restart UniClip and try again.",
       "engineLogsUnreadable": "Engine logs were found but couldn't be read. Restart UniClip and try again."
+    },
+    "capture": {
+      "title": "Detailed diagnostics",
+      "start": "Start detailed recording (10 minutes)",
+      "stop": "Stop detailed recording",
+      "description": "Start recording before reproducing the issue, then export logs. Details stay on this device for a capture of up to 10 minutes. Earlier activity is not recovered, and other extensions are not enabled automatically.",
+      "remaining": "Recording, about {{count}} minutes left",
+      "failed": "Could not complete the action. Please try again.",
+      "unavailable": "Unavailable until the service is ready."
     }
   }
 }

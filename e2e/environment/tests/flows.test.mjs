@@ -93,3 +93,13 @@ test("a restart explicitly terminates once, while launching does not terminate a
   assert.equal(restart.filter((s) => s === "stopApp").length, 1);
   assert.equal(restart.find((s) => s.launchApp)?.launchApp.stopApp, false);
 });
+
+test("diagnostics regression covers capture, restart and export through reusable actions", () => {
+  const body = readFlow(resolve(root, "scenarios/diagnostic-capture.yaml"));
+  const text = JSON.stringify(body);
+  assert.ok(text.includes("diagnostics/start"));
+  assert.ok(text.includes("diagnostics/stop"));
+  assert.ok(text.includes("lifecycle/restart"));
+  assert.ok(text.includes("diagnostics/export"));
+  assert.ok(body.every((s) => !s.tapOn));
+});

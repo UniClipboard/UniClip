@@ -13,6 +13,7 @@ import { homedir, tmpdir } from "node:os";
 import { decodeSimulatorEntitlements } from "./entitlements.mjs";
 import { parseOptions, validateDeviceBudget } from "./options.mjs";
 import { command } from "./process.mjs";
+import { captureDiagnosticArchives } from "./diagnostic-artifacts.mjs";
 import { runScenario } from "./lifecycle.mjs";
 import { iosDevice } from "./ios.mjs";
 import { androidDevice } from "./android.mjs";
@@ -154,6 +155,9 @@ async function main() {
       device.capture = async () => {
         const captures = await Promise.allSettled([
           captureDevice(),
+          scenario === "diagnostic-capture.yaml" && device.id
+            ? captureDiagnosticArchives({ platform: options.platform, id: device.id, appId, output })
+            : Promise.resolve(),
           device.id
             ? command(maestro, ["--device", device.id, "hierarchy"], {
                 env,

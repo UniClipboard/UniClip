@@ -211,6 +211,7 @@ export function SettingsRootPage({
         {/* ── 关于 ── */}
         <Section header={<SwiftUIText>{t('category.about')}</SwiftUIText>}>
           <SettingsNavRow
+            testID="settings-diagnostics"
             icon="waveform.path.ecg"
             iconColor={settingsTileColors.red}
             title={t('diagnostics.title', { ns: 'settingsIos' })}

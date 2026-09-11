@@ -1,3 +1,4 @@
+import { useEngineDiagnosticCapture } from '@/support/diagnostics/useEngineDiagnosticCapture';
 import { useCallback, useState } from 'react';
 import { Alert } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -30,6 +31,7 @@ export function DiagnosticsPage({ onBack, onSendArchive }: {
   onSendArchive: (artifact: DiagnosticArtifact) => void;
 }) {
   const { t } = useTranslation('settingsIos');
+  const capture = useEngineDiagnosticCapture();
   const config = useSettingsStore((state) => state.config);
   const engineStatus = useUnifiedEngineStore((state) => state.status);
   const peerConnectionStatus = useUnifiedEngineStore((state) => state.peerConnectionStatus);
@@ -97,9 +99,20 @@ export function DiagnosticsPage({ onBack, onSendArchive }: {
   return (
     <IosSheetPage
       title={t('diagnostics.title')}
-      leftSlots={[<HeaderCircleButton key="back" systemName="chevron.left" onPress={onBack} />]}
+      leftSlots={[<HeaderCircleButton testID="diagnostics-back" key="back" systemName="chevron.left" onPress={onBack} />]}
     >
       <IosSheetForm>
+        <Section footer={<SwiftUIText>{t('diagnostics.capture.description')}</SwiftUIText>}>
+          <SettingsNavRow
+            testID="engine-diagnostic-capture"
+            icon="waveform.path"
+            title={capture.active ? t('diagnostics.capture.stop') : t('diagnostics.capture.start')}
+            subtitle={capture.failed ? t('diagnostics.capture.failed') : !capture.available ? t('diagnostics.capture.unavailable') : capture.active ? t('diagnostics.capture.remaining', { count: capture.remainingMinutes }) : undefined}
+            disabled={!capture.available || capture.busy}
+            showsChevron={false}
+            onPress={() => void capture.toggle()}
+          />
+        </Section>
         <Section footer={<SwiftUIText>{t('diagnostics.package.footer')}</SwiftUIText>}>
           <LabeledContent
             label={<Label title={t('diagnostics.package.appVersion')} systemImage="app.badge" />}
@@ -151,6 +164,7 @@ export function DiagnosticsPage({ onBack, onSendArchive }: {
 
         <Section>
           <SettingsNavRow
+            testID="diagnostic-export"
             icon="square.and.arrow.up"
             title={
               isGenerating ? t('diagnostics.action.preparing') : t('diagnostics.action.generate')

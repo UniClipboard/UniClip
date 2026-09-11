@@ -78,6 +78,15 @@
       "message": "请稍后重试。",
       "engineLogsMissing": "Engine 正在运行，但没有找到 Engine 日志。请重启 UniClip 后再试。",
       "engineLogsUnreadable": "找到了 Engine 日志，但无法读取。请重启 UniClip 后再试。"
+    },
+    "capture": {
+      "title": "详细诊断记录",
+      "start": "开启详细记录（10 分钟）",
+      "stop": "停止详细记录",
+      "description": "请先开启，再复现问题，最后导出日志。详细记录仅保存在本机，最长 10 分钟；不会补录之前的过程，也不会自动开启其他扩展的记录。",
+      "remaining": "正在记录，剩余约 {{count}} 分钟",
+      "failed": "操作未完成，请重试。",
+      "unavailable": "暂时无法开启，请等待服务就绪。"
     }
   }
 }

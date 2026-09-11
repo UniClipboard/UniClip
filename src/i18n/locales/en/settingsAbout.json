@@ -53,7 +53,16 @@
     "exportFile": "Export file",
     "shareFailed": "Failed to share logs",
     "exportCanceled": "Export canceled",
-    "exportFailed": "Failed to export logs"
+    "exportFailed": "Failed to export logs",
+    "capture": {
+      "title": "Detailed diagnostics",
+      "start": "Start detailed recording (10 minutes)",
+      "stop": "Stop detailed recording",
+      "description": "Start recording before reproducing the issue, then export logs. Details stay on this device for a capture of up to 10 minutes. Earlier activity is not recovered, and other extensions are not enabled automatically.",
+      "remaining": "Recording, about {{count}} minutes left",
+      "failed": "Could not complete the action. Please try again.",
+      "unavailable": "Unavailable until the service is ready."
+    }
   },
   "debug": {
     "connectionPreview": "Preview connection screens",

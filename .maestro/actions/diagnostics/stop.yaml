@@ -1,0 +1,8 @@
+appId: ${APP_ID}
+---
+- runFlow: ../../assertions/diagnostics/active.yaml
+- takeScreenshot: diagnostic-stop-row
+- tapOn:
+    id: engine-diagnostic-capture
+    point: "95%,50%"
+- runFlow: ../../assertions/diagnostics/inactive.yaml

@@ -20,9 +20,28 @@ public final class UcEngineModule: Module {
 
   public func definition() -> ModuleDefinition {
     Name("UcEngine")
-    OnCreate { AppleNativeDiagnostics.start() }
+    OnCreate {
+      AppleNativeDiagnostics.start()
+      self.engineOperationQueue.async { try? self.host.prepareDiagnosticLogging() }
+    }
 
     Function("coreVersion") { coreVersion() }
+
+    AsyncFunction("startEngineDiagnosticCapture") { (durationMs: UInt64) in
+      try self.host.prepareDiagnosticLogging()
+      return EngineDiagnosticBridge.map(try startLocalDiagnosticCapture(durationMs: durationMs))
+    }.runOnQueue(engineOperationQueue)
+    AsyncFunction("stopEngineDiagnosticCapture") { (captureId: String) in
+      String(describing: try stopLocalDiagnosticCapture(captureId: captureId))
+    }.runOnQueue(engineOperationQueue)
+    AsyncFunction("getEngineDiagnosticStatus") {
+      try self.host.prepareDiagnosticLogging()
+      return EngineDiagnosticBridge.map(try queryLocalDiagnosticStatus())
+    }.runOnQueue(engineOperationQueue)
+    AsyncFunction("prepareEngineDiagnosticExport") {
+      try self.host.prepareDiagnosticLogging()
+      return EngineDiagnosticBridge.map(try prepareLocalDiagnosticExport(deadlineMs: 1_000))
+    }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("flushEngineLogs") { () -> Bool in
       let summary = try flushProcessObservability(deadlineMs: 1_000)
@@ -366,12 +385,14 @@ public final class UcEngineModule: Module {
     }.runOnQueue(engineOperationQueue)
 
     OnAppEntersBackground {
+      EngineDiagnosticBridge.record(.lifecycle(state: .background))
       AppleNativeDiagnostics.journal.record(.appBackground, trigger: .appBackground)
       self.lifecycleTransitions.enterBackground(
         self.currentEngine().map { AppleEngineLifecycle(engine: $0, host: self.host) }
       )
     }
     OnAppEntersForeground {
+      EngineDiagnosticBridge.record(.lifecycle(state: .foreground))
       AppleNativeDiagnostics.journal.record(.appForeground, trigger: .appForeground)
       self.lifecycleTransitions.enterForeground(
         self.currentEngine().map { AppleEngineLifecycle(engine: $0, host: self.host) }

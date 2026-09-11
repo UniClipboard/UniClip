@@ -1,5 +1,7 @@
 package expo.modules.ucengine
 
+import kotlinx.coroutines.launch
+
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -64,6 +66,13 @@ import uniffi.uc_engine_uniffi.flushProcessObservability
 import uniffi.uc_engine_uniffi.queryProcessObservabilityHealth
 import uniffi.uc_engine_uniffi.BindingObservabilitySetup
 import uniffi.uc_engine_uniffi.BindingObservabilitySignalResult
+import uniffi.uc_engine_uniffi.BindingHostDiagnosticAction
+import uniffi.uc_engine_uniffi.BindingHostDiagnosticEvent
+import uniffi.uc_engine_uniffi.BindingHostLifecycleState
+import uniffi.uc_engine_uniffi.startLocalDiagnosticCapture
+import uniffi.uc_engine_uniffi.stopLocalDiagnosticCapture
+import uniffi.uc_engine_uniffi.queryLocalDiagnosticStatus
+import uniffi.uc_engine_uniffi.prepareLocalDiagnosticExport
 import uniffi.uc_engine_uniffi.coreVersion
 
 private fun uriListFile(
@@ -301,11 +310,41 @@ class UcEngineModule : Module() {
   private var files: FileHandleRegistry? = null
   private var analytics: AndroidPostHogAnalyticsHost? = null
 
+  // Process diagnostics are available before the first synchronization session.
+  private fun prepareDiagnosticLogging() {
+    if (runCatching { queryLocalDiagnosticStatus() }.isSuccess) return
+    val context = requireContext()
+    val version = context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
+    val setup = installProcessObservability(
+      BindingObservabilityConfig(engineServiceVersion(version),
+        if (BuildConfig.DEBUG) BindingDeploymentEnvironment.DEVELOPMENT else BindingDeploymentEnvironment.PRODUCTION,
+        analyticsContext().appChannel, false, null),
+      AndroidEngineHost(context, FileHandleRegistry(context))
+    )
+    synchronized(lock) { logInstallation = setup }
+    EngineDiagnosticBridge.register()
+    AndroidNativeDiagnostics.replayNetworkToEngine()
+  }
+
   override fun definition() = ModuleDefinition {
     Name("UcEngine")
-    OnCreate { AndroidNativeDiagnostics.get(requireContext()) }
+    OnCreate {
+      AndroidNativeDiagnostics.get(requireContext())
+      appContext.backgroundCoroutineScope.launch { runCatching { prepareDiagnosticLogging() } }
+    }
 
     Function("coreVersion") { coreVersion() }
+
+    AsyncFunction("startEngineDiagnosticCapture") { durationMs: Double ->
+      prepareDiagnosticLogging()
+      require(durationMs.isFinite() && durationMs >= 1_000 && durationMs <= 900_000)
+      EngineDiagnosticBridge.map(startLocalDiagnosticCapture(durationMs.toULong()))
+    }
+    AsyncFunction("stopEngineDiagnosticCapture") { captureId: String ->
+      EngineDiagnosticBridge.map(stopLocalDiagnosticCapture(captureId))
+    }
+    AsyncFunction("getEngineDiagnosticStatus") { prepareDiagnosticLogging(); EngineDiagnosticBridge.map(queryLocalDiagnosticStatus()) }
+    AsyncFunction("prepareEngineDiagnosticExport") { prepareDiagnosticLogging(); EngineDiagnosticBridge.map(prepareLocalDiagnosticExport(1_000uL)) }
 
     AsyncFunction("flushEngineLogs") {
       val summary = flushProcessObservability(1_000uL)
@@ -339,7 +378,7 @@ class UcEngineModule : Module() {
         val host = AndroidEngineHost(context, registry)
         val logSetup = installProcessObservability(
           BindingObservabilityConfig(
-            serviceVersion = appVersion,
+            serviceVersion = engineServiceVersion(appVersion),
             environment = if (BuildConfig.DEBUG) BindingDeploymentEnvironment.DEVELOPMENT else BindingDeploymentEnvironment.PRODUCTION,
             appChannel = analyticsContext().appChannel,
             remoteDiagnosticsEnabled = false,
@@ -348,7 +387,9 @@ class UcEngineModule : Module() {
           host
         )
         synchronized(lock) { logInstallation = logSetup }
-        val started = MobileEngine.startWithAnalytics(
+        EngineDiagnosticBridge.register()
+        AndroidNativeDiagnostics.replayNetworkToEngine()
+        val started = EngineDiagnosticBridge.observe(BindingHostDiagnosticAction.RUNTIME_START) { MobileEngine.startWithAnalytics(
           BindingConfig(
             appVersion,
             config["profileId"] ?: "default"
@@ -356,7 +397,7 @@ class UcEngineModule : Module() {
           host,
           analytics,
           analyticsContext()
-        )
+        ) }
         try {
           lifecycle.prepare(AndroidEngineLifecycle(started, diagnostics))
           refreshAnalyticsContext(started, appVersion)
@@ -591,10 +632,12 @@ class UcEngineModule : Module() {
     }
 
     OnActivityEntersBackground {
+      EngineDiagnosticBridge.record(BindingHostDiagnosticEvent.Lifecycle(BindingHostLifecycleState.BACKGROUND))
       diagnostics.record(NativeDiagnosticEvent.APP_BACKGROUND, NativeDiagnosticTrigger.APP_BACKGROUND)
       lifecycle.enterBackground(currentEngine()?.let { AndroidEngineLifecycle(it, diagnostics) })
     }
     OnActivityEntersForeground {
+      EngineDiagnosticBridge.record(BindingHostDiagnosticEvent.Lifecycle(BindingHostLifecycleState.FOREGROUND))
       diagnostics.record(NativeDiagnosticEvent.APP_FOREGROUND, NativeDiagnosticTrigger.APP_FOREGROUND)
       lifecycle.enterForeground(currentEngine()?.let { AndroidEngineLifecycle(it, diagnostics) })
     }

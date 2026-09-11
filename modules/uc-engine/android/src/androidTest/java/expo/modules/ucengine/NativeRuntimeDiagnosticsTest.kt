@@ -13,6 +13,15 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class NativeRuntimeDiagnosticsTest {
+  @Test fun engineVersionExcludesAndroidDisplayBuildSegment() {
+    assertEquals("2.0.0-alpha.3", engineServiceVersion("2.0.0.179-alpha.3"))
+    assertEquals("2.0.0", engineServiceVersion("2.0.0.180"))
+    assertEquals("2.0.0-rc.14", engineServiceVersion("2.0.0-rc.14"))
+    assertEquals("2.0.0", engineServiceVersion("2.0.0+180"))
+    assertEquals("2.0.0", engineServiceVersion("2.0.0"))
+    assertThrows(IllegalArgumentException::class.java) { engineServiceVersion("private-value") }
+  }
+
   @Test fun recordsBoundariesAndBoundsRotation() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val root = File(context.cacheDir, "native-diagnostics-test-${UUID.randomUUID()}")

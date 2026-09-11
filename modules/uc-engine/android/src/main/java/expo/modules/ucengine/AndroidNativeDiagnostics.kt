@@ -7,11 +7,13 @@ import android.net.LinkProperties
 import android.net.NetworkCapabilities
 import android.os.Build
 import java.io.File
-import uniffi.uc_engine_uniffi.BindingException
+import uniffi.uc_engine_uniffi.*
 
 /** Process-owned capture continues while the React runtime is unavailable. */
 internal object AndroidNativeDiagnostics {
   private var journal: NativeRuntimeDiagnostics? = null
+  private var lastEngineNetwork: BindingHostDiagnosticEvent.NetworkChanged? = null
+  @Synchronized fun replayNetworkToEngine() { lastEngineNetwork?.let { EngineDiagnosticBridge.record(it) } }
   private var callback: ConnectivityManager.NetworkCallback? = null
 
   @Synchronized fun get(context: Context): NativeRuntimeDiagnostics {
@@ -40,10 +42,17 @@ internal object AndroidNativeDiagnostics {
 
   fun <T> observe(journal: NativeRuntimeDiagnostics, event: NativeDiagnosticEvent,
                   trigger: NativeDiagnosticTrigger = NativeDiagnosticTrigger.UNSPECIFIED, block: () -> T): T {
+    val action = when (event) {
+      NativeDiagnosticEvent.SECURE_STATE_RECOVERY -> BindingHostDiagnosticAction.SECURITY_PREPARE
+      NativeDiagnosticEvent.ENGINE_SHUTDOWN -> BindingHostDiagnosticAction.RUNTIME_STOP
+      else -> null
+    }
+    val token = action?.let { EngineDiagnosticBridge.begin(it) }
     val observation = journal.begin(event, trigger)
     return try {
-      block().also { journal.finish(observation, NativeDiagnosticOutcome.SUCCEEDED) }
+      block().also { EngineDiagnosticBridge.finish(token, true); journal.finish(observation, NativeDiagnosticOutcome.SUCCEEDED) }
     } catch (error: Throwable) {
+      EngineDiagnosticBridge.finish(token, false)
       journal.finish(observation, NativeDiagnosticOutcome.FAILED, failure(error))
       throw error
     }
@@ -81,6 +90,16 @@ internal object AndroidNativeDiagnostics {
         if (currentNetwork != previousNetwork) previousProperties = null
         previousNetwork = currentNetwork
         previous = next
+        val hostKind = when (next.kind) {
+          NativeDiagnosticNetwork.Kind.WIFI -> BindingHostNetworkKind.WIFI
+          NativeDiagnosticNetwork.Kind.CELLULAR -> BindingHostNetworkKind.CELLULAR
+          NativeDiagnosticNetwork.Kind.WIRED -> BindingHostNetworkKind.ETHERNET
+          NativeDiagnosticNetwork.Kind.NONE -> BindingHostNetworkKind.UNKNOWN
+          else -> BindingHostNetworkKind.OTHER
+        }
+        val engineNetwork = BindingHostDiagnosticEvent.NetworkChanged(hostKind, next.available)
+        lastEngineNetwork = engineNetwork
+        EngineDiagnosticBridge.record(engineNetwork)
         journal.record(NativeDiagnosticEvent.NETWORK_CHANGED, NativeDiagnosticTrigger.NETWORK_CHANGE, network = next.copy(change = change))
       }
     }

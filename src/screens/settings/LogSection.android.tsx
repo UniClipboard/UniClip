@@ -1,3 +1,5 @@
+import { useEngineDiagnosticCapture } from '@/support/diagnostics/useEngineDiagnosticCapture';
+import { SettingsSwitchRow } from './android/SettingsSwitchRow';
 /**
  * 日志 section
  *
@@ -53,6 +55,7 @@ function LogLevelField({ label }: { label: string }) {
 
 export const LogSection = memo(function LogSection(_props: LogSectionProps) {
   const { t } = useTranslation('settingsAbout');
+  const capture = useEngineDiagnosticCapture();
   const showMessage = useSettingsToast();
 
   const config = useSettingsStore((s) => s.config);
@@ -209,6 +212,15 @@ export const LogSection = memo(function LogSection(_props: LogSectionProps) {
         ) : null
       }
     >
+      <SettingsSwitchRow
+        testID="engine-diagnostic-capture"
+        title={t('log.capture.title')}
+        description={capture.failed ? t('log.capture.failed') : !capture.available ? t('log.capture.unavailable') : capture.active ? t('log.capture.remaining', { count: capture.remainingMinutes }) : t('log.capture.description')}
+        value={capture.active}
+        disabled={!capture.available || capture.busy}
+        onValueChange={() => void capture.toggle()}
+      />
+      <HorizontalDivider />
       <ListItem>
         <ListItem.HeadlineContent>
           <ComposeText>{t('log.levelLabel')}</ComposeText>
