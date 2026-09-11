@@ -16,8 +16,16 @@ const pin = JSON.parse(readFileSync(resolve(moduleRoot, 'core-source.json'), 'ut
 const cacheRoot = resolve(moduleRoot, '.artifacts', pin.version);
 const downloadsRoot = resolve(readArg('--downloads') ?? cacheRoot);
 const markerPath = resolve(cacheRoot, 'prepared.json');
-const localMarkerPath = resolve(moduleRoot, '.artifacts/local/local-prepared.json');
-const swiftBindingPath = resolve(moduleRoot, 'ios/Bindings/uc_engine_uniffi.swift');
+const localArtifacts = readArg('--local-artifacts');
+if (localArtifacts && !process.argv.includes('--local-prepared')) {
+  fail('--local-artifacts requires --local-prepared');
+}
+const localMarkerPath = localArtifacts
+  ? resolve(localArtifacts, 'local-prepared.json')
+  : resolve(moduleRoot, '.artifacts/local/local-prepared.json');
+const swiftBindingPath = localArtifacts
+  ? resolve(localArtifacts, 'uc_engine_uniffi.swift')
+  : resolve(moduleRoot, 'ios/Bindings/uc_engine_uniffi.swift');
 const moduleVersion = pin.version.replace(/^(?:core-)?v/, '');
 const versionArtifact = ['version.txt', 'core-version.txt'].find((name) => pin.artifacts[name]);
 const isLocalBuild = pin.artifactSource === 'local-build';
@@ -119,7 +127,9 @@ const frameworkFiles =
     : allFrameworkFiles;
 
 async function currentFrameworkHashes() {
-  const frameworkRoot = resolve(moduleRoot, 'ios/UniClipboardEngine.xcframework');
+  const frameworkRoot = localArtifacts
+    ? resolve(localArtifacts, 'UniClipboardEngine.xcframework')
+    : resolve(moduleRoot, 'ios/UniClipboardEngine.xcframework');
   return Object.fromEntries(
     await Promise.all(
       frameworkFiles.map(async (file) => [file, await sha256(resolve(frameworkRoot, file))])
@@ -277,6 +287,10 @@ async function verifyLocalPrepared() {
   const marker = JSON.parse(readFileSync(localMarkerPath, 'utf8'));
   if (marker.schemaVersion !== 1 || !/^[0-9a-f]{40}$/.test(marker.sourceCommit ?? '')) {
     fail('local prepared marker has invalid source metadata');
+  }
+  const expectedCommit = readArg('--source-commit');
+  if (expectedCommit && marker.sourceCommit !== expectedCommit) {
+    fail('local prepared source commit does not match requested Engine commit');
   }
   requireSha256(marker.sourceStateSha256, 'local source state');
   await verifyHash(

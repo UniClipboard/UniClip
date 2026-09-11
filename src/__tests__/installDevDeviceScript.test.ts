@@ -57,7 +57,8 @@ describe('install-dev-device.sh', () => {
 
     expect(script).toContain('restore_cached_local_ios_engine()');
     expect(script).toContain('verify-unified-engine-core.mjs" --local-prepared');
-    expect(script).toContain('local dist_dir="$LOCAL_ENGINE_BUILD_ROOT/uc-engine-uniffi-dist/ios"');
+    expect(script).toContain('local cache_dir="$LOCAL_ENGINE_ROOT/ios-cache"');
+    expect(script).toContain('--source-commit "$expected_commit"');
   });
 
   it('restores the pinned iOS Engine after a physical-device install exits', () => {
@@ -76,9 +77,7 @@ describe('install-dev-device.sh', () => {
     const script = readFileSync(scriptPath, 'utf8');
 
     expect(script).toContain('prepare_latest_engine() {\n  local platform="$1"');
-    expect(script).toContain(
-      'ios_marker="$LOCAL_ENGINE_BUILD_ROOT/uc-engine-uniffi-dist/ios/source-commit.txt"'
-    );
+    expect(script).toContain('restore_cached_local_ios_engine "$latest_commit"');
     expect(script).toContain(
       'android_marker="$LOCAL_ENGINE_BUILD_ROOT/uc-engine-uniffi-dist/android/source-commit.txt"'
     );

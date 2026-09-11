@@ -3,9 +3,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
+source "$SCRIPT_DIR/engine-build-storage.sh"
 ENGINE_ROOT="${UC_ENGINE_REPOSITORY:-$PROJECT_ROOT/../Engine}"
 LOCAL_ENGINE_ROOT="$PROJECT_ROOT/modules/uc-engine/.artifacts/local"
-LOCAL_ENGINE_BUILD_ROOT="$LOCAL_ENGINE_ROOT/build"
+export PROJECT_ROOT SCRIPT_DIR LOCAL_ENGINE_BUILD_ROOT LOCAL_ENGINE_ROOT
 LATEST_ENGINE_COMMIT=""
 DEFAULT_IOS_DEVICE="marks iPhone"
 DEFAULT_ANDROID_DEVICE="7bac761b"
@@ -61,7 +62,7 @@ assert_development_project() {
   fi
 }
 
-restore_pinned_ios_engine() {
+restore_pinned_ios_engine_impl() {
   local module_dir="$PROJECT_ROOT/modules/uc-engine"
   local pinned_version
   local cache_dir
@@ -87,27 +88,55 @@ restore_pinned_ios_engine() {
   node "$SCRIPT_DIR/verify-unified-engine-core.mjs" --prepared
 }
 
-restore_cached_local_ios_engine() {
-  local dist_dir="$LOCAL_ENGINE_BUILD_ROOT/uc-engine-uniffi-dist/ios"
+restore_cached_local_ios_engine_impl() {
+  local expected_commit="$1"
+  local cache_dir="$LOCAL_ENGINE_ROOT/ios-cache"
   local module_dir="$PROJECT_ROOT/modules/uc-engine/ios"
-  local dist_framework="$dist_dir/UniClipboardEngine.xcframework"
   local module_framework="$module_dir/UniClipboardEngine.xcframework"
-  local dist_binding="$dist_dir/uc_engine_uniffi.swift"
+  local pending
 
-  if [ ! -d "$dist_framework" ] || [ ! -f "$dist_binding" ]; then
+  # The build output directory is temporary. Reuse verified published files first.
+  if node "$SCRIPT_DIR/verify-unified-engine-core.mjs" --local-prepared --source-commit "$expected_commit" >/dev/null 2>&1; then
+    if ! node "$SCRIPT_DIR/verify-unified-engine-core.mjs" --local-prepared --local-artifacts "$cache_dir" --source-commit "$expected_commit" >/dev/null 2>&1; then
+      pending="$(mktemp -d "$LOCAL_ENGINE_ROOT/ios-cache.XXXXXX")"
+      ditto "$module_framework" "$pending/UniClipboardEngine.xcframework"
+      cp "$module_dir/Bindings/uc_engine_uniffi.swift" "$pending/uc_engine_uniffi.swift"
+      cp "$LOCAL_ENGINE_ROOT/local-prepared.json" "$pending/local-prepared.json"
+      if ! node "$SCRIPT_DIR/verify-unified-engine-core.mjs" --local-prepared --local-artifacts "$pending" --source-commit "$expected_commit"; then
+        rm -rf "$pending"
+        return 1
+      fi
+      rm -rf "$cache_dir"
+      mv "$pending" "$cache_dir"
+    fi
+    echo "Using prepared iOS Engine ($expected_commit); skipping Engine compilation"
+    return
+  fi
+
+  if ! node "$SCRIPT_DIR/verify-unified-engine-core.mjs" --local-prepared --local-artifacts "$cache_dir" --source-commit "$expected_commit" >/dev/null 2>&1; then
     return 1
   fi
+  echo "Restoring cached iOS Engine ($expected_commit); skipping Engine compilation"
   mkdir -p "$module_dir/Bindings"
-  if [ -d "$module_framework" ]; then
-    find "$module_framework" -depth -delete
-  fi
-  ditto "$dist_framework" "$module_framework"
-  cp "$dist_binding" "$module_dir/Bindings/uc_engine_uniffi.swift"
-  node "$SCRIPT_DIR/verify-unified-engine-core.mjs" --local-prepared
+  find "$module_framework" -depth -delete 2>/dev/null || true
+  ditto "$cache_dir/UniClipboardEngine.xcframework" "$module_framework"
+  cp "$cache_dir/uc_engine_uniffi.swift" "$module_dir/Bindings/uc_engine_uniffi.swift"
+  cp "$cache_dir/local-prepared.json" "$LOCAL_ENGINE_ROOT/local-prepared.json"
+  node "$SCRIPT_DIR/verify-unified-engine-core.mjs" --local-prepared --source-commit "$expected_commit"
+}
+
+export -f restore_pinned_ios_engine_impl
+restore_pinned_ios_engine() {
+  uc_engine_publish "$PROJECT_ROOT" bash -euo pipefail -c restore_pinned_ios_engine_impl
+}
+
+export -f restore_cached_local_ios_engine_impl
+restore_cached_local_ios_engine() {
+  uc_engine_publish "$PROJECT_ROOT" bash -euo pipefail -c 'restore_cached_local_ios_engine_impl "$@"' _ "$@"
 }
 
 prepare_local_cargo_home() {
-  local cargo_home="$LOCAL_ENGINE_BUILD_ROOT/cargo-home"
+  local cargo_home="${UC_ENGINE_STORAGE_BUILD_DIR:-$LOCAL_ENGINE_BUILD_ROOT}/cargo-home"
   local host_cargo_home="${CARGO_HOME:-${HOME:-}/.cargo}"
   local cache_name
 
@@ -141,7 +170,6 @@ prepare_local_engine_cargo_config() {
 
 prepare_latest_engine() {
   local platform="$1"
-  local ios_marker="$LOCAL_ENGINE_BUILD_ROOT/uc-engine-uniffi-dist/ios/source-commit.txt"
   local android_marker="$LOCAL_ENGINE_BUILD_ROOT/uc-engine-uniffi-dist/android/source-commit.txt"
   local marker_file
   local prepared_commit
@@ -164,26 +192,23 @@ prepare_latest_engine() {
   fi
   latest_commit="$LATEST_ENGINE_COMMIT"
   case "$platform" in
-    ios) marker_file="$ios_marker" ;;
-    android) marker_file="$android_marker" ;;
+    ios)
+      if restore_cached_local_ios_engine "$latest_commit"; then
+        return
+      fi
+      ;;
+    android)
+      marker_file="$android_marker"
+      prepared_commit="$(cat "$marker_file" 2>/dev/null || true)"
+      if [ "$prepared_commit" = "$latest_commit" ]; then
+        return
+      fi
+      ;;
     *)
       echo "Unsupported Engine platform: $platform" >&2
       exit 2
       ;;
   esac
-  prepared_commit="$(cat "$marker_file" 2>/dev/null || true)"
-  if [ "$prepared_commit" = "$latest_commit" ]; then
-    if [ "$platform" != "ios" ]; then
-      return
-    fi
-    if node "$SCRIPT_DIR/verify-unified-engine-core.mjs" --local-prepared >/dev/null 2>&1; then
-      return
-    fi
-    echo "Restoring cached iOS Engine from origin/main ($latest_commit)"
-    if restore_cached_local_ios_engine; then
-      return
-    fi
-  fi
 
   echo "Preparing $platform Engine from origin/main ($latest_commit)"
   worktree="$(mktemp -d "$LOCAL_ENGINE_ROOT/engine-main.XXXXXX")"
@@ -195,13 +220,14 @@ prepare_latest_engine() {
     ios)
       UC_ENGINE_LOCAL_TARGET_DIR="$LOCAL_ENGINE_BUILD_ROOT" \
         bash "$SCRIPT_DIR/prepare-local-unified-engine-core.sh" "$worktree"
+      restore_cached_local_ios_engine "$latest_commit"
       ;;
     android)
       (
         cd "$worktree"
         UC_ENGINE_UNIFFI_TARGET_DIR="$LOCAL_ENGINE_BUILD_ROOT" \
           UC_ENGINE_UNIFFI_BUILD_LOCKED=1 \
-          bindings/uc-engine-uniffi/scripts/build-android-aar.sh
+          uc_engine_run_build bindings/uc-engine-uniffi/scripts/build-android-aar.sh
       )
       ;;
   esac
@@ -233,7 +259,7 @@ install_ios() {
 install_android() {
   local device="$1"
   local apk_path="$PROJECT_ROOT/android/app/build/outputs/apk/debug/app-arm64-v8a-debug.apk"
-  local engine_aar="$PROJECT_ROOT/modules/uc-engine/.artifacts/local/build/uc-engine-uniffi-dist/android/UniClipboardEngine.aar"
+  local engine_aar="$LOCAL_ENGINE_BUILD_ROOT/uc-engine-uniffi-dist/android/UniClipboardEngine.aar"
   require_command adb
 
   if [ "$(adb -s "$device" get-state 2>/dev/null || true)" != "device" ]; then
@@ -271,6 +297,15 @@ if [ "$device" = "--help" ] || [ "$device" = "-h" ]; then
   usage
   exit 0
 fi
+
+if [ "$platform" = "--help" ] || [ "$platform" = "-h" ]; then
+  usage
+  exit 0
+fi
+
+uc_engine_build_storage_enter "$PROJECT_ROOT" "${BASH_SOURCE[0]}" "$@"
+LOCAL_ENGINE_BUILD_ROOT="$(uc_engine_build_target "$ENGINE_ROOT")"
+export PROJECT_ROOT SCRIPT_DIR LOCAL_ENGINE_BUILD_ROOT
 
 case "$platform" in
   --help|-h)

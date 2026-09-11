@@ -2,8 +2,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT_DIR/scripts/engine-build-storage.sh"
+uc_engine_build_storage_enter "$ROOT_DIR" "${BASH_SOURCE[0]}" "$@"
 MODULE_DIR="$ROOT_DIR/modules/uc-engine"
-CORE_DIR="${1:-$ROOT_DIR/../core}"
+CORE_DIR="${1:-${UC_ENGINE_REPOSITORY:-$ROOT_DIR/../Engine}}"
 
 if [[ $# -gt 1 ]]; then
   echo "Usage: $0 [core-repository]" >&2
@@ -20,11 +22,7 @@ if [[ ! -x "$BUILD_SCRIPT" ]]; then
   exit 1
 fi
 
-if [[ -z "${DEVELOPER_DIR:-}" && -d /Applications/Xcode.app/Contents/Developer ]]; then
-  export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
-fi
-
-TARGET_DIR="${UC_ENGINE_LOCAL_TARGET_DIR:-$MODULE_DIR/.artifacts/local/build}"
+TARGET_DIR="$(uc_engine_build_target "$CORE_DIR")"
 export UC_ENGINE_UNIFFI_TARGET_DIR="$TARGET_DIR"
 export UC_ENGINE_UNIFFI_BUILD_LOCKED=1
 export UC_ENGINE_UNIFFI_IOS_DEPLOYMENT_TARGET=16.4
@@ -38,7 +36,7 @@ source_state_sha256="$({
   done < <(git -C "$CORE_DIR" ls-files --others --exclude-standard -z)
 } | shasum -a 256 | awk '{print $1}')"
 
-"$BUILD_SCRIPT"
+uc_engine_run_build "$BUILD_SCRIPT"
 
 DIST_DIR="$TARGET_DIR/uc-engine-uniffi-dist/ios"
 SWIFT_BINDING="$DIST_DIR/uc_engine_uniffi.swift"
@@ -48,6 +46,13 @@ if [[ ! -f "$SWIFT_BINDING" || ! -d "$XCFRAMEWORK" ]]; then
   exit 1
 fi
 
+if [[ "${UC_ENGINE_PREPARE_ONLY:-0}" == "1" ]]; then
+  exit 0
+fi
+
+publish_local_ios() {
+  local ROOT_DIR="$1" MODULE_DIR="$2" SWIFT_BINDING="$3" XCFRAMEWORK="$4"
+  local source_commit="$5" source_state_sha256="$6"
 mkdir -p "$MODULE_DIR/ios/Bindings"
 cp "$SWIFT_BINDING" "$MODULE_DIR/ios/Bindings/uc_engine_uniffi.swift"
 find "$MODULE_DIR/ios/UniClipboardEngine.xcframework" -depth -delete 2>/dev/null || true
@@ -59,3 +64,7 @@ node "$ROOT_DIR/scripts/verify-unified-engine-core.mjs" \
   --source-state-sha256 "$source_state_sha256"
 
 echo "Prepared local iOS engine from $source_commit"
+
+}
+export -f publish_local_ios
+uc_engine_publish "$ROOT_DIR" bash -euo pipefail -c 'publish_local_ios "$@"' _   "$ROOT_DIR" "$MODULE_DIR" "$SWIFT_BINDING" "$XCFRAMEWORK" "$source_commit" "$source_state_sha256"
