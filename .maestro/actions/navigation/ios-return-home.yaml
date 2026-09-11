@@ -1,0 +1,11 @@
+# Pre: iOS storage page. Post: settings sheet dismissed by native gesture.
+appId: ${APP_ID}
+---
+- tapOn:
+    id: storage-back
+- assertVisible:
+    id: settings-storage
+- swipe:
+    start: "50%,10%"
+    end: "50%,95%"
+    duration: 700

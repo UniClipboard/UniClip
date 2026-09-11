@@ -1,0 +1,12 @@
+# Pre: home ready. Post: settings storage row visible. Does not change settings.
+appId: ${APP_ID}
+---
+- runFlow: ../../assertions/home-ready.yaml
+- tapOn:
+    id: home-menu
+- tapOn: "Settings"
+- scrollUntilVisible:
+    element:
+      id: settings-storage
+    direction: DOWN
+    timeout: 20000

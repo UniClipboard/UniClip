@@ -76,6 +76,7 @@ export function SettingsIconTile({ systemName, color }: { systemName: SFSymbol; 
 }
 
 export interface SettingsNavRowProps {
+  testID?: string;
   icon?: SFSymbol;
   iconColor?: string;
   title: string;
@@ -96,6 +97,7 @@ export interface SettingsNavRowProps {
 
 /** Full-width tappable row: optional icon tile + title … value + chevron. */
 export function SettingsNavRow({
+  testID,
   icon,
   iconColor,
   title,
@@ -130,6 +132,7 @@ export function SettingsNavRow({
 
   return (
     <SwiftUIButton
+      testID={testID}
       role={destructive ? 'destructive' : undefined}
       onPress={handlePress}
       modifiers={[
@@ -233,11 +236,13 @@ export function StatusValue({ text, tone }: { text: string; tone: 'ok' | 'warn' 
 
 /** Glass circular header button (back chevron, add, …) matching the sheet header style. */
 export function HeaderCircleButton({
+  testID,
   systemName,
   onPress,
   accessibilityLabel,
   disabled = false,
 }: {
+  testID?: string;
   systemName: SFSymbol;
   onPress: () => void;
   accessibilityLabel?: string;
@@ -245,6 +250,7 @@ export function HeaderCircleButton({
 }) {
   return (
     <SwiftUIButton
+      testID={testID}
       onPress={onPress}
       modifiers={[
         buttonStyle('plain'),

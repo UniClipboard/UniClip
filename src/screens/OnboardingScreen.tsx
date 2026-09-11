@@ -108,6 +108,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
         <View style={s.actions}>
           <AppHost style={s.primaryHost} matchContents={{ vertical: true }}>
             <AppButton
+              testID={isLast ? 'onboarding-scan' : 'onboarding-next'}
               title={t(isLast ? 'intro.scan' : 'intro.next')}
               variant="filled"
               colors={{ containerColor: c.accent, contentColor: c.onAccent }}
@@ -138,6 +139,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
           >
             <AppHost style={s.secondaryHost} matchContents={{ vertical: true }}>
               <AppButton
+                testID="onboarding-skip"
                 title={t('skip')}
                 variant="text"
                 colors={{ contentColor: c.accent }}

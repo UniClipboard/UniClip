@@ -1,0 +1,10 @@
+# Real UI only; device isolation is owned by e2e/environment.
+appId: ${APP_ID}
+---
+- runFlow: ../lifecycle/launch.yaml
+- runFlow: ../actions/onboarding/complete.yaml
+- runFlow: ../actions/settings/open.yaml
+- runFlow: ../actions/settings/open-storage-from-trailing-space.yaml
+- runFlow: ../assertions/storage-visible.yaml
+- runFlow: ../actions/navigation/return-home.yaml
+- runFlow: ../assertions/home-ready.yaml

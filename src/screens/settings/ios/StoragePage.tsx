@@ -84,7 +84,7 @@ export function StoragePage({ onBack, active = true }: { onBack: () => void; act
   return (
     <IosSheetPage
       title={t('title')}
-      leftSlots={[<HeaderCircleButton key="back" systemName="chevron.left" onPress={onBack} />]}
+      leftSlots={[<HeaderCircleButton testID="storage-back" key="back" systemName="chevron.left" onPress={onBack} />]}
     >
       <IosSheetForm>
         {/* ── 预下载 ── */}

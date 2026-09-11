@@ -1,0 +1,10 @@
+# Pre: settings row visible. Post: storage page. Tap is inside row empty trailing area.
+appId: ${APP_ID}
+---
+- assertVisible:
+    id: settings-storage
+- takeScreenshot: storage-row-before-tap
+- tapOn:
+    id: settings-storage
+    point: "85%,50%"
+- runFlow: ../../assertions/storage-visible.yaml

@@ -1,0 +1,5 @@
+# Pre: running app. Post: relaunched with all persisted data retained.
+appId: ${APP_ID}
+---
+- stopApp
+- launchApp

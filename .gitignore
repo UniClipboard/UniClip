@@ -135,3 +135,6 @@ release-notes-ios.txt
 release-notes-ios.en.txt
 release-notes-testflight.txt
 release-notes-testflight.en.txt
+
+# Isolated E2E devices and evidence
+e2e/results/

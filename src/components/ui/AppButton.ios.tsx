@@ -21,6 +21,7 @@ export type { AppButtonProps, AppButtonVariant } from './AppButton.types';
 
 export function AppButton({
   title,
+  testID,
   onPress,
   variant = 'filled',
   fullWidth,
@@ -60,7 +61,7 @@ export function AppButton({
 
   if (fullWidth && size === 'large') {
     return (
-      <Button onPress={onPress} modifiers={modifiers}>
+      <Button testID={testID} onPress={onPress} modifiers={modifiers}>
         <HStack modifiers={[frame({ maxWidth: Infinity, minHeight: 50 })]}>
           <Spacer />
           <Text>{title}</Text>
@@ -70,5 +71,5 @@ export function AppButton({
     );
   }
 
-  return <Button label={title} onPress={onPress} modifiers={modifiers} />;
+  return <Button testID={testID} label={title} onPress={onPress} modifiers={modifiers} />;
 }

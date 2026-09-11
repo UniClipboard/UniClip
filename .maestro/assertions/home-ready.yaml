@@ -1,0 +1,11 @@
+# Real UI only; device isolation is owned by e2e/environment.
+appId: ${APP_ID}
+---
+- extendedWaitUntil:
+    visible:
+      id: home-menu
+    timeout: 90000
+- assertNotVisible:
+    id: settings-storage
+- assertNotVisible:
+    id: storage-back

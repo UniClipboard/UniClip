@@ -1,0 +1,11 @@
+# Pre: storage page. Post: home ready; only navigation state changes.
+appId: ${APP_ID}
+---
+- runFlow:
+    when:
+      platform: iOS
+    file: ios-return-home.yaml
+- runFlow:
+    when:
+      platform: Android
+    file: android-return-home.yaml

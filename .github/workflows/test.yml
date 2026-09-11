@@ -22,3 +22,6 @@ jobs:
 
       - name: Run CI tests
         run: npm run test:ci
+
+      - name: Validate E2E structure and device lifecycle
+        run: npm run test:e2e:environment

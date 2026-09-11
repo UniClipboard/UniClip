@@ -1,0 +1,11 @@
+# Real UI only; device isolation is owned by e2e/environment.
+appId: ${APP_ID}
+---
+- runFlow: ../lifecycle/launch.yaml
+- runFlow: ../assertions/onboarding-visible.yaml
+- runFlow: ../actions/onboarding/complete.yaml
+- runFlow: ../assertions/home-ready.yaml
+- runFlow: ../lifecycle/restart.yaml
+- runFlow: ../assertions/home-ready.yaml
+- assertNotVisible:
+    id: onboarding-next

@@ -29,6 +29,8 @@
     "build:apk": "cd android && ./gradlew assembleRelease",
     "plugin:build": "cd plugins && tsc -p tsconfig.json",
     "test": "jest",
+    "test:e2e": "node e2e/environment/run.mjs",
+    "test:e2e:environment": "node --test e2e/environment/tests/*.test.mjs",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:ci": "npm test -- --runInBand && ruby scripts/asc_whats_to_test_test.rb && npm run test:coverage -- --runInBand",
@@ -127,7 +129,8 @@
     "husky": "^9.1.7",
     "lint-staged": "^17.0.8",
     "react-test-renderer": "^19.2.3",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "yaml": "2.9.0"
   },
   "private": true,
   "expo": {

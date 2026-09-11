@@ -18,7 +18,7 @@ import {
   Text as ComposeText,
   useMaterialColors,
 } from '@expo/ui/jetpack-compose';
-import { fillMaxSize, clickable } from '@expo/ui/jetpack-compose/modifiers';
+import { fillMaxSize, clickable, testID } from '@expo/ui/jetpack-compose/modifiers';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -63,7 +63,7 @@ const HubRow = memo(function HubRow({
   onNavigate,
 }: HubRowProps) {
   return (
-    <ListItem modifiers={[clickable(() => onNavigate(section))]}>
+    <ListItem modifiers={[testID(`settings-${section}`), clickable(() => onNavigate(section))]}>
       <ListItem.LeadingContent>
         <Icon source={ICONS[section]} size={22} tint={iconTint} />
       </ListItem.LeadingContent>

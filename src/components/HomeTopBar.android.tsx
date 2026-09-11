@@ -34,6 +34,7 @@ export function DefaultTopBar({ onSearch, onSettings, onSelectMode, theme }: Def
           <Ionicons name="search" size={22} color={theme.colors.textPrimary} />
         </Pressable>
         <TopRightMenu
+          testID="home-menu"
           items={[{ label: t('action.settings', { ns: 'common' }), onPress: onSettings }]}
         />
       </View>

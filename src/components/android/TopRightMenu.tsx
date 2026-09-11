@@ -21,11 +21,12 @@ export interface MenuItemConfig {
 }
 
 interface TopRightMenuProps {
+  testID?: string;
   items: MenuItemConfig[];
   onClose?: () => void;
 }
 
-export const TopRightMenu: React.FC<TopRightMenuProps> = ({ items, onClose }) => {
+export const TopRightMenu: React.FC<TopRightMenuProps> = ({ items, onClose, testID }) => {
   const { theme } = useTheme();
   const { t } = useTranslation('common');
   const [showMenu, setShowMenu] = useState(false);
@@ -138,6 +139,7 @@ export const TopRightMenu: React.FC<TopRightMenuProps> = ({ items, onClose }) =>
     <>
       <Pressable
         ref={menuButtonRef}
+        testID={testID}
         onPress={handleOpenMenu}
         style={styles.headerButton}
         hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}

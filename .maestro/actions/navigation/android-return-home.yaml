@@ -1,0 +1,7 @@
+# Pre: Android storage page. Post: returned through settings to home.
+appId: ${APP_ID}
+---
+- back
+- assertVisible:
+    id: settings-storage
+- back

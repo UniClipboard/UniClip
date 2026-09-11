@@ -1,0 +1,4 @@
+# Real UI only; device isolation is owned by e2e/environment.
+appId: ${APP_ID}
+---
+- assertVisible: "Cache usage"

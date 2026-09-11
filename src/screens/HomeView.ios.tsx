@@ -141,6 +141,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
                   </Host>
                   <Host style={{ width: 44, height: 44, alignSelf: 'flex-end' }}>
                     <Menu
+                      testID="home-menu"
                       label={
                         <GlassContainer
                           shape="circle"

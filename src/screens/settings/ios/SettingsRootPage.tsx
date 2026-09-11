@@ -142,6 +142,7 @@ export function SettingsRootPage({
         {/* ── 存储 ── */}
         <Section>
           <SettingsNavRow
+            testID="settings-storage"
             icon="externaldrive"
             iconColor={settingsTileColors.purple}
             title={t('category.storage')}
