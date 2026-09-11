@@ -141,7 +141,7 @@ function CardPreview(props: PreviewProps) {
 function TextPreview({ item, maxWidth, maxHeight }: PreviewProps) {
   return (
     <View style={[s.previewCard, { maxWidth, maxHeight }]}>
-      <Text style={[s.previewText, { color: iosColors!.label }]} numberOfLines={24}>
+      <Text testID="history-preview-text" style={[s.previewText, { color: iosColors!.label }]} numberOfLines={24}>
         {item.text}
       </Text>
     </View>
@@ -267,6 +267,7 @@ function ActionMenu({
                   <View style={[s.rowSeparator, { backgroundColor: iosColors!.separator }]} />
                 )}
                 <Pressable
+                  testID={`history-action-${action.key}`}
                   onPress={() => onAction(action)}
                   accessibilityRole="button"
                   style={({ pressed }) => [

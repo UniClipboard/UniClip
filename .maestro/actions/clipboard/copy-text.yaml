@@ -1,0 +1,27 @@
+# CONTENT: text to copy. Uses the native edit menu; returns home with the real OS clipboard changed.
+appId: ${APP_ID}
+---
+- runFlow:
+    file: ../search/query.yaml
+    env:
+      QUERY: ${CONTENT}
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - doubleTapOn:
+          id: history-search-input
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - longPressOn:
+          id: history-search-input
+- runFlow:
+    when:
+      visible: "(?i)select all"
+    commands:
+      - tapOn: "(?i)select all"
+- takeScreenshot: native-copy-selection
+- tapOn: "(?i)copy"
+- runFlow: ../search/close.yaml

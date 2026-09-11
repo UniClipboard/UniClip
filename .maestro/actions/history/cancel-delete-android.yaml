@@ -1,0 +1,13 @@
+# Android cancellation policy: reject the real confirmation and verify the card remains; iOS deletes immediately.
+appId: ${APP_ID}
+---
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - runFlow: open-menu.yaml
+      - tapOn:
+          id: history-action-delete
+      - assertVisible: "Delete this history item?"
+      - tapOn: "(?i)cancel"
+      - runFlow: ../../assertions/history/one-card.yaml

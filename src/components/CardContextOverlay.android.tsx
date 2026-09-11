@@ -127,7 +127,7 @@ function TextPreview({ item, maxWidth, maxHeight, theme }: PreviewProps) {
     <View
       style={[s.previewCard, { maxWidth, maxHeight, backgroundColor: theme.colors.surfaceLow }]}
     >
-      <Text style={[s.previewText, { color: theme.colors.textPrimary }]} numberOfLines={24}>
+      <Text testID="history-preview-text" style={[s.previewText, { color: theme.colors.textPrimary }]} numberOfLines={24}>
         {item.text}
       </Text>
     </View>
@@ -278,6 +278,7 @@ function ActionMenu({
             return (
               <Pressable
                 key={action.key}
+                testID={`history-action-${action.key}`}
                 onPress={() => onAction(action)}
                 accessibilityRole="button"
                 android_ripple={{ color: theme.colors.separator }}

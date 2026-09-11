@@ -16,6 +16,7 @@ export function HomeSearchDock({ c }: { c: HomeController }) {
           <Search size={25} color={c.theme.colors.textPrimary} />
           {c.isSearching ? (
             <TextInput
+              testID="history-search-input"
               autoFocus
               value={c.searchText}
               onChangeText={c.setSearchText}
@@ -36,6 +37,7 @@ export function HomeSearchDock({ c }: { c: HomeController }) {
           {c.isSearching && c.searchText.length > 0 ? (
             <Pressable
               accessibilityRole="button"
+              testID="history-search-clear"
               accessibilityLabel={c.t('a11y.clearSearch')}
               onPress={() => c.setSearchText('')}
               style={styles.clear}
@@ -46,6 +48,7 @@ export function HomeSearchDock({ c }: { c: HomeController }) {
         </GlassContainer>
         {!c.isSearching ? (
           <Pressable
+            testID="history-search-open"
             style={StyleSheet.absoluteFill}
             accessibilityRole="button"
             accessibilityLabel={c.t('a11y.search')}
@@ -56,6 +59,7 @@ export function HomeSearchDock({ c }: { c: HomeController }) {
       {c.isSearching ? (
         <Pressable
           accessibilityRole="button"
+          testID="history-search-close"
           accessibilityLabel={c.t('action.cancel', { ns: 'common' })}
           onPress={() => {
             Keyboard.dismiss();

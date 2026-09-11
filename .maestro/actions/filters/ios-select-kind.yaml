@@ -1,0 +1,16 @@
+# iOS native menu policy for KIND; uses existing home filter controls.
+appId: ${APP_ID}
+---
+- tapOn:
+    id: history-filter-menu
+- tapOn: "Type"
+- tapOn: "All types"
+- runFlow:
+    when:
+      true: ${KIND != "all"}
+    commands:
+      - tapOn:
+          id: history-filter-menu
+      - tapOn: "Type"
+      - tapOn:
+          id: history-filter-${KIND}

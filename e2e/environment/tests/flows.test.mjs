@@ -19,13 +19,16 @@ function readFlow(path, stack = []) {
   const [header, body] = docs.map((d) => d.toJSON());
   assert.equal(header.appId, "${APP_ID}");
   assert.ok(Array.isArray(body));
-  for (const step of body) {
-    if (step.runFlow) {
+  function checkSteps(steps) {
+    for (const step of steps) {
+      if (!step.runFlow) continue;
       const target =
         typeof step.runFlow === "string" ? step.runFlow : step.runFlow.file;
       if (target) readFlow(resolve(dirname(path), target), [...stack, path]);
+      if (step.runFlow.commands) checkSteps(step.runFlow.commands);
     }
   }
+  checkSteps(body);
   return body;
 }
 test("every discovered scenario has valid, acyclic Maestro subflows and explicit assertions", () => {
@@ -36,7 +39,14 @@ test("every discovered scenario has valid, acyclic Maestro subflows and explicit
   const scenarios = readdirSync(resolve(root, "scenarios")).filter((f) =>
     f.endsWith(".yaml")
   );
-  assert.equal(scenarios.length, 2);
+  for (const required of [
+    "first-launch.yaml",
+    "settings-navigation.yaml",
+    "history-text-lifecycle.yaml",
+    "history-search-filter.yaml",
+  ]) {
+    assert.ok(scenarios.includes(required), `Missing scenario: ${required}`);
+  }
   for (const name of scenarios) {
     const body = readFlow(resolve(root, "scenarios", name));
     assert.ok(
@@ -59,4 +69,27 @@ test("storage regression taps inside the identified full row and records its lay
   assert.equal(tap.id, "settings-storage");
   assert.equal(tap.point, "85%,50%");
   assert.ok(body.find((s) => s.takeScreenshot));
+});
+
+test("clipboard fixtures use system Copy and lifecycle checks persist across restart", () => {
+  const copy = readFlow(resolve(root, "actions/clipboard/copy-text.yaml"));
+  assert.ok(JSON.stringify(copy).includes("doubleTapOn"));
+  assert.ok(JSON.stringify(copy).includes("longPressOn"));
+  assert.ok(copy.some((step) => step.tapOn === "(?i)copy"));
+  assert.ok(copy.every((step) => !step.setClipboard && !step.runScript));
+  const lifecycle = readFlow(
+    resolve(root, "scenarios/history-text-lifecycle.yaml")
+  );
+  assert.equal(
+    lifecycle.filter((s) => s.runFlow === "../lifecycle/restart.yaml").length,
+    2
+  );
+});
+
+test("a restart explicitly terminates once, while launching does not terminate an unused fresh app", () => {
+  const launch = readFlow(resolve(root, "lifecycle/launch.yaml"));
+  const restart = readFlow(resolve(root, "lifecycle/restart.yaml"));
+  assert.equal(launch.find((s) => s.launchApp)?.launchApp.stopApp, false);
+  assert.equal(restart.filter((s) => s === "stopApp").length, 1);
+  assert.equal(restart.find((s) => s.launchApp)?.launchApp.stopApp, false);
 });

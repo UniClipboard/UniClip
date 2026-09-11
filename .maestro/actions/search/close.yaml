@@ -1,0 +1,8 @@
+# Pre: search open. Post: search input gone and home ready; no clipboard writes.
+appId: ${APP_ID}
+---
+- tapOn:
+    id: history-search-close
+- assertNotVisible:
+    id: history-search-input
+- runFlow: ../../assertions/home-ready.yaml

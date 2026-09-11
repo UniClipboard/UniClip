@@ -1,0 +1,14 @@
+# Pre: one CedarAlpha card. Post: its actual content preview and actions are visible.
+appId: ${APP_ID}
+---
+- longPressOn:
+    id: "history-card-.*"
+    index: 0
+- assertVisible:
+    id: history-action-copy
+- assertVisible:
+    id: history-action-delete
+- assertVisible:
+    id: history-preview-text
+    text: CedarAlpha
+- takeScreenshot: history-preview

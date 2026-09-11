@@ -1,0 +1,11 @@
+# KIND: all/text/url. Pre: home with search closed. Resets the old kind before selecting the requested kind.
+appId: ${APP_ID}
+---
+- runFlow:
+    when:
+      platform: iOS
+    file: ios-select-kind.yaml
+- runFlow:
+    when:
+      platform: Android
+    file: android-select-kind.yaml

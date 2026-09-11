@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 import { homedir, tmpdir } from "node:os";
 import { decodeSimulatorEntitlements } from "./entitlements.mjs";
-import { parseOptions } from "./options.mjs";
+import { parseOptions, validateDeviceBudget } from "./options.mjs";
 import { command } from "./process.mjs";
 import { runScenario } from "./lifecycle.mjs";
 import { iosDevice } from "./ios.mjs";
@@ -121,6 +121,7 @@ async function main() {
     ? scenarios.filter((f) => f === `${options.scenario}.yaml`)
     : scenarios;
   if (!selected.length) throw new Error("No matching scenarios");
+  validateDeviceBudget(options.platform, selected.length, options.repeat);
   const runOutput = join(
     root,
     "e2e/results",

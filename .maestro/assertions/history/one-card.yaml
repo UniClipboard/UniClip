@@ -1,0 +1,11 @@
+# Uses actual UI and native Copy; no direct history writes.
+appId: ${APP_ID}
+---
+- extendedWaitUntil:
+    visible:
+      id: "history-card-.*"
+      index: 0
+    timeout: 15000
+- assertNotVisible:
+    id: "history-card-.*"
+    index: 1

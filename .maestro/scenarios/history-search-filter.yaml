@@ -1,0 +1,47 @@
+# Uses actual UI and native Copy; no direct history writes.
+appId: ${APP_ID}
+---
+- runFlow: ../lifecycle/launch.yaml
+- runFlow: ../actions/onboarding/complete.yaml
+- runFlow:
+    file: ../actions/clipboard/copy-text.yaml
+    env:
+      CONTENT: CedarAlpha
+- runFlow: ../assertions/history/one-card.yaml
+- runFlow:
+    file: ../actions/clipboard/copy-text.yaml
+    env:
+      CONTENT: "https://example.invalid/birch"
+- runFlow: ../assertions/history/two-cards.yaml
+- runFlow: ../assertions/history/url-content.yaml
+- runFlow:
+    file: ../actions/search/query.yaml
+    env:
+      QUERY: Cedar
+- runFlow: ../assertions/history/one-card.yaml
+- runFlow: ../assertions/history/text-content.yaml
+- runFlow:
+    file: ../actions/search/query.yaml
+    env:
+      QUERY: NoSuchEntry
+- runFlow: ../assertions/history/empty.yaml
+- assertVisible: "No matching items"
+- runFlow: ../actions/search/close.yaml
+- runFlow: ../assertions/history/two-cards.yaml
+- runFlow:
+    file: ../actions/filters/select-kind.yaml
+    env:
+      KIND: text
+- runFlow: ../assertions/history/one-card.yaml
+- runFlow: ../assertions/history/text-content.yaml
+- runFlow:
+    file: ../actions/filters/select-kind.yaml
+    env:
+      KIND: url
+- runFlow: ../assertions/history/one-card.yaml
+- runFlow: ../assertions/history/url-content.yaml
+- runFlow:
+    file: ../actions/filters/select-kind.yaml
+    env:
+      KIND: all
+- runFlow: ../assertions/history/two-cards.yaml

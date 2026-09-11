@@ -1,0 +1,13 @@
+# Pre: home with search closed. Post: the real search input is visible and focused.
+appId: ${APP_ID}
+---
+- tapOn:
+    id: history-search-open
+- assertVisible:
+    id: history-search-input
+- runFlow:
+    when:
+      platform: iOS
+      visible: "(?s)Speed up your typing.*"
+    commands:
+      - tapOn: Continue

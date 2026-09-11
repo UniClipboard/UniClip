@@ -1,0 +1,11 @@
+# Android chip policy for KIND; uses existing home filter controls.
+appId: ${APP_ID}
+---
+- tapOn:
+    id: history-filter-all
+- runFlow:
+    when:
+      true: ${KIND != "all"}
+    commands:
+      - tapOn:
+          id: history-filter-${KIND}

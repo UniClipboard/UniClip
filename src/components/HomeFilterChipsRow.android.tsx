@@ -54,6 +54,7 @@ export function HomeFilterChipsRow({
           contentContainerStyle={styles.scrollContent}
         >
           <Chip
+            testID="history-filter-all"
             label={t('filter.chip.all')}
             selected={selectedKinds.length === 0}
             onPress={onClearKinds}
@@ -62,6 +63,7 @@ export function HomeFilterChipsRow({
           {HISTORY_FILTER_KIND_OPTIONS.map((kind) => (
             <Chip
               key={kind}
+              testID={`history-filter-${kind}`}
               label={getDisplayKindLabel(kind)}
               selected={selectedKinds.includes(kind)}
               onPress={() => onToggleKind(kind)}
@@ -127,6 +129,7 @@ export function HomeFilterChipsRow({
 }
 
 interface ChipProps {
+  testID?: string;
   label: string;
   selected: boolean;
   onPress: () => void;
@@ -134,10 +137,11 @@ interface ChipProps {
   trailing?: React.ReactNode;
 }
 
-function Chip({ label, selected, onPress, theme, trailing }: ChipProps) {
+function Chip({ testID, label, selected, onPress, theme, trailing }: ChipProps) {
   const { colors } = theme;
   return (
     <Pressable
+      testID={testID}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected }}

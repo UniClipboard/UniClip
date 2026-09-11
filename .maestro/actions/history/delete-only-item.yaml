@@ -1,0 +1,13 @@
+# Pre: one CedarAlpha card. Deletes through the real action and platform confirmation; waits for removal.
+appId: ${APP_ID}
+---
+- runFlow: open-menu.yaml
+- tapOn:
+    id: history-action-delete
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - assertVisible: "Delete this history item?"
+      - tapOn: "(?i)delete"
+- runFlow: ../../assertions/history/empty.yaml

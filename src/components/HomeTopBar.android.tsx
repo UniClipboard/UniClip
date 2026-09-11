@@ -25,6 +25,7 @@ export function DefaultTopBar({ onSearch, onSettings, onSelectMode, theme }: Def
           </Text>
         </Pressable>
         <Pressable
+          testID="history-search-open"
           onPress={onSearch}
           style={s.iconBtn}
           hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
@@ -64,6 +65,7 @@ export function SearchTopBar({
           <View style={[s.searchBox, bg]}>
             <Ionicons name="search" size={16} color={theme.colors.textSecondary} />
             <TextInput
+              testID="history-search-input"
               style={[s.searchInput, { color: theme.colors.textPrimary }]}
               value={searchText}
               onChangeText={onChangeText}
@@ -76,6 +78,7 @@ export function SearchTopBar({
                 onPress={() => onChangeText('')}
                 hitSlop={8}
                 accessibilityRole="button"
+                testID="history-search-clear"
                 accessibilityLabel={t('a11y.clearSearch')}
               >
                 <Ionicons name="close-circle" size={16} color={theme.colors.textSecondary} />
@@ -96,6 +99,7 @@ export function SearchTopBar({
           />
         </Pressable>
         <Pressable
+          testID="history-search-close"
           onPress={onClose}
           style={[s.circle, bg]}
           accessibilityRole="button"

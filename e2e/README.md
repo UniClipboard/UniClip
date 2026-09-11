@@ -56,8 +56,17 @@ npm run test:e2e -- --platform ios --app /path/to/UniClipDev.app --repeat 3
 npm run test:e2e:environment
 ```
 
-`--scenario settings-navigation` runs the other independent scenario. Omitting the
-option discovers only `.maestro/scenarios/*.yaml`. Repetitions are limited to 1–7. A suite is run serially with a new
+`--scenario <name>` selects an independent scenario. Available scenarios:
+
+| Scenario | Coverage |
+| --- | --- |
+| `first-launch` | Onboarding and persistence across restart |
+| `settings-navigation` | Storage row trailing-space tap and return home |
+| `history-text-lifecycle` | Real clipboard capture, deduplication, preview, cancellation on Android, deletion and restart |
+| `history-search-filter` | Text and URL capture, query replacement, no results, clearing and type filters |
+
+ Omitting the
+option discovers only `.maestro/scenarios/*.yaml`. Repetitions are limited to 1–7. Android also checks the total selected scenarios × repeat against its 15 unique transport pairs before creating any devices; the four-scenario suite supports up to three rounds if enough pairs are available. A suite is run serially with a new
 device for each scenario, including each repetition. Calling Maestro directly is useful
 for debugging but does not provide the environment isolation of this entry point.
 
@@ -66,7 +75,7 @@ for debugging but does not provide the environment isolation of this entry point
 - `.maestro/scenarios`: user intent and explicit result checks.
 - `.maestro/actions`: reusable actions; platform branches only where behavior differs.
 - `.maestro/assertions`: visible application results.
-- `.maestro/lifecycle`: launch/restart without resetting persisted data.
+- `.maestro/lifecycle`: launch/restart without resetting persisted data. Initial launch assumes a freshly installed app; restart explicitly stops once. Both launch steps disable Maestro's redundant automatic stop.
 - `e2e/environment`: prepare owned device, run Maestro, collect evidence, dispose.
   It must not implement clicks or interpret flow commands.
 
@@ -110,3 +119,9 @@ The framework is not accepted until those runs are recorded. UI navigation succe
 not establish cross-device sync, background behavior, or frame-by-frame animation quality.
 Automatic CI execution is added only after local dual-platform acceptance; use these same
 commands, retaining evidence and an unconditional cleanup step on the dedicated runner.
+
+## History fixture ownership
+
+History scenarios type fixture text into the existing search field, use the native selection menu and **Copy**, then close search. This exercises the actual OS clipboard observer and history writes. Maestro `setClipboard` only sets internal test memory and `pasteText` types that memory; neither is a substitute for setting the OS clipboard in these tests. See the [Maestro clipboard documentation](https://docs.maestro.dev/reference/commands-available/setclipboard) and [pinned command implementation](https://github.com/mobile-dev-inc/Maestro/blob/cli-2.10.0/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt).
+
+Search, selection/copy, context actions, filters and history assertions remain reusable subflows. A card tap copies; phone content preview is opened by long press. iOS deletion is immediate, while Android additionally checks cancellation and confirmation. No artificial phone detail route or database seed is introduced. Fixture links use the reserved `example.invalid` domain.

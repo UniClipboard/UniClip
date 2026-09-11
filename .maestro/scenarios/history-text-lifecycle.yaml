@@ -1,0 +1,25 @@
+# Uses actual UI and native Copy; no direct history writes.
+appId: ${APP_ID}
+---
+- runFlow: ../lifecycle/launch.yaml
+- runFlow: ../actions/onboarding/complete.yaml
+- runFlow:
+    file: ../actions/clipboard/copy-text.yaml
+    env:
+      CONTENT: CedarAlpha
+- runFlow: ../assertions/history/one-card.yaml
+- runFlow: ../assertions/history/text-content.yaml
+- runFlow:
+    file: ../actions/clipboard/copy-text.yaml
+    env:
+      CONTENT: CedarAlpha
+- runFlow: ../lifecycle/restart.yaml
+- runFlow: ../assertions/home-ready.yaml
+- runFlow: ../assertions/history/one-card.yaml
+- runFlow: ../assertions/history/text-content.yaml
+- runFlow: ../actions/history/cancel-delete-android.yaml
+- runFlow: ../actions/history/delete-only-item.yaml
+- runFlow: ../lifecycle/restart.yaml
+- runFlow: ../assertions/home-ready.yaml
+- runFlow: ../assertions/history/empty.yaml
+- assertVisible: "Nothing here yet"

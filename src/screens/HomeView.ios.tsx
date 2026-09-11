@@ -68,6 +68,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
                 >
                   <Host style={{ width: 44, height: 44 }}>
                     <Menu
+                      testID="history-filter-menu"
                       label={
                         <GlassContainer
                           shape="circle"
@@ -96,8 +97,9 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
                         </GlassContainer>
                       }
                     >
-                      <Menu label={c.t('filter.section.kind', { ns: 'history' })}>
+                      <Menu testID="history-filter-types" label={c.t('filter.section.kind', { ns: 'history' })}>
                         <Button
+                          testID="history-filter-all"
                           label={c.t('search.allTypes')}
                           systemImage={c.selectedFilterKinds.length === 0 ? 'checkmark' : undefined}
                           onPress={c.handleClearFilterKinds}
@@ -105,6 +107,7 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
                         {HISTORY_FILTER_KIND_OPTIONS.map((kind) => (
                           <Button
                             key={kind}
+                            testID={`history-filter-${kind}`}
                             label={getDisplayKindLabel(kind)}
                             systemImage={
                               c.selectedFilterKinds.includes(kind) ? 'checkmark' : undefined

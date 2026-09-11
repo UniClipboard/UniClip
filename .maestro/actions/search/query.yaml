@@ -1,0 +1,18 @@
+# QUERY: replacement search text. Opens search if needed and uses the existing clear button; leaves search open.
+appId: ${APP_ID}
+---
+- runFlow:
+    when:
+      notVisible:
+        id: history-search-input
+    file: open.yaml
+- runFlow:
+    when:
+      visible:
+        id: history-search-clear
+    commands:
+      - tapOn:
+          id: history-search-clear
+- tapOn:
+    id: history-search-input
+- inputText: ${QUERY}

@@ -1,0 +1,4 @@
+# Uses actual UI and native Copy; no direct history writes.
+appId: ${APP_ID}
+---
+- assertVisible: "(?s).*CedarAlpha.*"

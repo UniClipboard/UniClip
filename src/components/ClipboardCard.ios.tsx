@@ -68,6 +68,7 @@ export const ClipboardCard: React.FC<ClipboardCardProps> = React.memo(
       <Animated.View style={[styles.fill, pressStyle]}>
         <Pressable
           ref={cardRef}
+          testID={`history-card-${item.profileHash}`}
           onPress={() => onPress(item)}
           onLongPress={handleLongPress}
           delayLongPress={350}

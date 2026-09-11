@@ -25,5 +25,15 @@ test("requires an explicit platform and app, refuses unknown options and travers
 });
 
 test("rejects repetitions that exhaust the recommended emulator port range", () => {
-  assert.throws(() => parseOptions(["--platform", "android", "--app", "a", "--repeat", "8"]));
+  assert.throws(() =>
+    parseOptions(["--platform", "android", "--app", "a", "--repeat", "8"])
+  );
+});
+
+test("checks the whole selected suite against Android device capacity before execution", async () => {
+  const { validateDeviceBudget } = await import("../options.mjs");
+  assert.equal(typeof validateDeviceBudget, "function");
+  assert.doesNotThrow(() => validateDeviceBudget("android", 4, 3));
+  assert.throws(() => validateDeviceBudget("android", 4, 4));
+  assert.doesNotThrow(() => validateDeviceBudget("ios", 4, 7));
 });

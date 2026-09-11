@@ -2,4 +2,5 @@
 appId: ${APP_ID}
 ---
 - stopApp
-- launchApp
+- launchApp:
+    stopApp: false

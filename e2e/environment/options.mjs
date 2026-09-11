@@ -1,3 +1,5 @@
+import { ANDROID_DEVICE_CAPACITY } from "./ports.mjs";
+
 export function parseOptions(args) {
   const options = { repeat: 1 };
   for (let i = 0; i < args.length; i += 2) {
@@ -21,4 +23,16 @@ export function parseOptions(args) {
   )
     throw new Error("repeat must be 1–7");
   return options;
+}
+
+/** An expanded suite must not exhaust unique supported Android transport pairs halfway through. */
+export function validateDeviceBudget(platform, scenarioCount, repeat) {
+  if (
+    platform === "android" &&
+    scenarioCount * repeat > ANDROID_DEVICE_CAPACITY
+  ) {
+    throw new Error(
+      "Selected scenarios × repeat exceeds 15 Android devices; select a smaller suite or lower --repeat"
+    );
+  }
 }

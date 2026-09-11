@@ -1,4 +1,5 @@
 # Pre: clean device with installed bundled app. Post: process launched; caller checks page.
 appId: ${APP_ID}
 ---
-- launchApp
+- launchApp:
+    stopApp: false
