@@ -32,7 +32,7 @@ function fixture(t) {
   record();
   // Exercise the actual preparation entry point, without a phone or application build.
   const script = readFileSync(join(repo, 'scripts/install-dev-device.sh'), 'utf8').split('platform="${1:-all}"')[0];
-  write(join(mobile, 'scripts/run-preparation.sh'), `${script}\nLOCAL_ENGINE_BUILD_ROOT="$(uc_engine_build_target "$ENGINE_ROOT")"\nexport LOCAL_ENGINE_BUILD_ROOT\nprepare_latest_engine ios\n`);
+  write(join(mobile, 'scripts/run-preparation.sh'), `${script}\nLOCAL_ENGINE_BUILD_ROOT="$(uc_engine_build_target "$ENGINE_ROOT")"\nexport LOCAL_ENGINE_BUILD_ROOT\nprepare_install_engine ios\n`);
   write(join(mobile, 'scripts/prepare-local-unified-engine-core.sh'), 'echo UNEXPECTED_ENGINE_BUILD >&2\nexit 99\n');
   let attempt = 0;
   const run = () => {
@@ -43,7 +43,7 @@ function fixture(t) {
       env: { ...process.env, UC_ENGINE_LOCAL_TARGET_DIR: staging, UC_ENGINE_STORAGE_BUILD_DIR: join(root, 'build'), UC_ENGINE_UNIFFI_SLICE: 'universal', PATH: `${dirname(process.execPath)}:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin` },
     });
   };
-  return { run, record, module, commit, mobile };
+  return { run, record, module, commit, mobile, engine, git };
 }
 
 test('reuses verified iOS output across two empty staging directories', (t) => {
@@ -110,4 +110,22 @@ node "$SCRIPT_DIR/verify-unified-engine-core.mjs" --record-local --source-commit
   const second = f.run();
   assert.equal(second.status, 0, second.stdout + second.stderr);
   assert.equal(readFileSync(join(f.mobile, 'build-count'), 'utf8'), 'built\n');
+});
+
+test('installation follows the mobile pin when required Engine APIs are not on origin/main', (t) => {
+  const f = fixture(t);
+  f.git('checkout', '-b', 'diagnostics');
+  write(join(f.engine, 'diagnostics-api'), 'new mobile API');
+  f.git('add', '.');
+  f.git('-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm', 'add diagnostic API');
+  const pinned = f.git('rev-parse', 'HEAD');
+  f.git('checkout', 'main');
+  const pinPath = join(f.module, 'core-source.json');
+  const pin = JSON.parse(readFileSync(pinPath, 'utf8'));
+  pin.sourceCommit = pinned;
+  write(pinPath, JSON.stringify(pin));
+  f.record(pinned);
+  const result = f.run();
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.doesNotMatch(result.stdout + result.stderr, /UNEXPECTED_ENGINE_BUILD/);
 });

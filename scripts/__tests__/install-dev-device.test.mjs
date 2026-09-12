@@ -37,8 +37,15 @@ test("iOS installation refreshes native configuration before preparing and build
     "APP_VARIANT=development npx expo prebuild --platform ios --no-install"
   );
   assert.ok(prebuild > install.indexOf("assert_development_project ios"));
-  assert.ok(prebuild < install.indexOf("prepare_latest_engine ios"));
+  assert.ok(prebuild < install.indexOf("prepare_install_engine ios"));
   const pods = install.indexOf("UC_ENGINE_LOCAL_CORE=1 npx pod-install ios");
-  assert.ok(pods > install.indexOf("prepare_latest_engine ios"));
-  assert.ok(pods < install.indexOf("npx expo run:ios"));
+  assert.ok(pods > install.indexOf("prepare_install_engine ios"));
+  assert.ok(pods < install.indexOf("prepare-ios-debug-frameworks.mjs"));
+  assert.ok(install.indexOf("prepare-ios-debug-frameworks.mjs") < install.indexOf("npx expo run:ios"));
+});
+
+test("physical iOS debug installs build Expo modules consistently from source", () => {
+  const install = script.slice(script.indexOf("install_ios()"), script.indexOf("install_android()"));
+  assert.match(install, /EXPO_USE_PRECOMPILED_MODULES=0 UC_ENGINE_LOCAL_CORE=1 npx pod-install ios/);
+  assert.match(install, /EXPO_USE_PRECOMPILED_MODULES=0 UC_ENGINE_LOCAL_CORE=1 APP_VARIANT=development npx expo run:ios/);
 });

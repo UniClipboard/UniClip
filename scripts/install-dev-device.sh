@@ -7,7 +7,7 @@ source "$SCRIPT_DIR/engine-build-storage.sh"
 ENGINE_ROOT="${UC_ENGINE_REPOSITORY:-$PROJECT_ROOT/../Engine}"
 LOCAL_ENGINE_ROOT="$PROJECT_ROOT/modules/uc-engine/.artifacts/local"
 export PROJECT_ROOT SCRIPT_DIR LOCAL_ENGINE_BUILD_ROOT LOCAL_ENGINE_ROOT
-LATEST_ENGINE_COMMIT=""
+INSTALL_ENGINE_COMMIT=""
 DEFAULT_IOS_DEVICE="marks iPhone"
 DEFAULT_ANDROID_DEVICE="7bac761b"
 
@@ -26,8 +26,8 @@ Defaults:
   Android: $DEFAULT_ANDROID_DEVICE
 
 The app is built as the separate development version and does not replace the
-production app. It checks the local Engine against origin/main and only rebuilds
-it when needed. This command does not start Metro; run npm start separately
+production app. It uses the Engine revision pinned in modules/uc-engine/core-source.json
+and reuses verified artifacts when available. This command does not start Metro; run npm start separately
 when you need to load JavaScript from this checkout.
 EOF
 }
@@ -94,6 +94,18 @@ restore_cached_local_ios_engine_impl() {
   local module_dir="$PROJECT_ROOT/modules/uc-engine/ios"
   local module_framework="$module_dir/UniClipboardEngine.xcframework"
   local pending
+
+  # The previous install may have restored the project's pinned framework while
+  # leaving a marker for another source revision. Verify the actual pinned files
+  # before recording them as the local input; never bless unverified files.
+  if ! node "$SCRIPT_DIR/verify-unified-engine-core.mjs" --local-prepared --source-commit "$expected_commit" >/dev/null 2>&1 &&
+      [ "$(node -p 'require(process.argv[1]).sourceCommit' "$PROJECT_ROOT/modules/uc-engine/core-source.json")" = "$expected_commit" ] &&
+      node "$SCRIPT_DIR/verify-unified-engine-core.mjs" --prepared >/dev/null 2>&1; then
+    local source_state
+    source_state="$(node -p 'require(process.argv[1]).sourceStateSha256 || "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"' "$PROJECT_ROOT/modules/uc-engine/core-source.json")"
+    node "$SCRIPT_DIR/verify-unified-engine-core.mjs" --record-local \
+      --source-commit "$expected_commit" --source-state-sha256 "$source_state"
+  fi
 
   # The build output directory is temporary. Reuse verified published files first.
   if node "$SCRIPT_DIR/verify-unified-engine-core.mjs" --local-prepared --source-commit "$expected_commit" >/dev/null 2>&1; then
@@ -168,12 +180,12 @@ prepare_local_engine_cargo_config() {
   } >> "$cargo_config"
 }
 
-prepare_latest_engine() {
+prepare_install_engine() {
   local platform="$1"
   local android_marker="$LOCAL_ENGINE_BUILD_ROOT/uc-engine-uniffi-dist/android/source-commit.txt"
   local marker_file
   local prepared_commit
-  local latest_commit
+  local source_commit
   local worktree
 
   require_command git
@@ -186,21 +198,23 @@ prepare_latest_engine() {
 
   mkdir -p "$LOCAL_ENGINE_ROOT"
   prepare_local_cargo_home
-  if [ -z "$LATEST_ENGINE_COMMIT" ]; then
-    git -C "$ENGINE_ROOT" fetch origin main
-    LATEST_ENGINE_COMMIT="$(git -C "$ENGINE_ROOT" rev-parse origin/main)"
+  if [ -z "$INSTALL_ENGINE_COMMIT" ]; then
+    INSTALL_ENGINE_COMMIT="$(node -p 'require(process.argv[1]).sourceCommit' "$PROJECT_ROOT/modules/uc-engine/core-source.json")"
+    if ! git -C "$ENGINE_ROOT" cat-file -e "$INSTALL_ENGINE_COMMIT^{commit}"; then
+      git -C "$ENGINE_ROOT" fetch origin "$INSTALL_ENGINE_COMMIT"
+    fi
   fi
-  latest_commit="$LATEST_ENGINE_COMMIT"
+  source_commit="$INSTALL_ENGINE_COMMIT"
   case "$platform" in
     ios)
-      if restore_cached_local_ios_engine "$latest_commit"; then
+      if restore_cached_local_ios_engine "$source_commit"; then
         return
       fi
       ;;
     android)
       marker_file="$android_marker"
       prepared_commit="$(cat "$marker_file" 2>/dev/null || true)"
-      if [ "$prepared_commit" = "$latest_commit" ]; then
+      if [ "$prepared_commit" = "$source_commit" ]; then
         return
       fi
       ;;
@@ -210,17 +224,17 @@ prepare_latest_engine() {
       ;;
   esac
 
-  echo "Preparing $platform Engine from origin/main ($latest_commit)"
-  worktree="$(mktemp -d "$LOCAL_ENGINE_ROOT/engine-main.XXXXXX")"
+  echo "Preparing $platform Engine pinned by mobile ($source_commit)"
+  worktree="$(mktemp -d "$LOCAL_ENGINE_ROOT/engine-install.XXXXXX")"
   rmdir "$worktree"
-  git -C "$ENGINE_ROOT" worktree add --detach "$worktree" "$latest_commit"
+  git -C "$ENGINE_ROOT" worktree add --detach "$worktree" "$source_commit"
   prepare_local_engine_cargo_config "$worktree"
   trap 'git -C "$ENGINE_ROOT" worktree remove --force "$worktree"' RETURN
   case "$platform" in
     ios)
       UC_ENGINE_LOCAL_TARGET_DIR="$LOCAL_ENGINE_BUILD_ROOT" \
         bash "$SCRIPT_DIR/prepare-local-unified-engine-core.sh" "$worktree"
-      restore_cached_local_ios_engine "$latest_commit"
+      restore_cached_local_ios_engine "$source_commit"
       ;;
     android)
       (
@@ -249,9 +263,11 @@ install_ios() {
   assert_development_project ios
   APP_VARIANT=development npx expo prebuild --platform ios --no-install
   trap 'status=$?; if restore_pinned_ios_engine; then restore_status=0; else restore_status=$?; fi; if [ "$status" -eq 0 ] && [ "$restore_status" -ne 0 ]; then status="$restore_status"; fi; exit "$status"' EXIT
-  prepare_latest_engine ios
-  UC_ENGINE_LOCAL_CORE=1 npx pod-install ios
-  UC_ENGINE_LOCAL_CORE=1 APP_VARIANT=development npx expo run:ios --device "$device" --no-bundler
+  prepare_install_engine ios
+  # Keep Expo C++ view layouts consistent with this Debug build and React Native.
+  EXPO_USE_PRECOMPILED_MODULES=0 UC_ENGINE_LOCAL_CORE=1 npx pod-install ios
+  node "$SCRIPT_DIR/prepare-ios-debug-frameworks.mjs" "$PROJECT_ROOT/ios/Pods"
+  EXPO_USE_PRECOMPILED_MODULES=0 UC_ENGINE_LOCAL_CORE=1 APP_VARIANT=development npx expo run:ios --device "$device" --no-bundler
   restore_pinned_ios_engine
   trap - EXIT
 }
@@ -269,7 +285,7 @@ install_android() {
   fi
 
   assert_development_project android
-  prepare_latest_engine android
+  prepare_install_engine android
   if [ ! -f "$engine_aar" ]; then
     echo "The local Android engine is missing: $engine_aar" >&2
     echo "Prepare the local Android engine before installing." >&2

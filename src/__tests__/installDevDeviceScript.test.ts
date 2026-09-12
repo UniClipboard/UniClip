@@ -43,11 +43,12 @@ describe('install-dev-device.sh', () => {
     expect(script).toContain('--no-bundler');
   });
 
-  it('reuses a current local Engine and otherwise prepares origin/main', () => {
+  it('reuses a current local Engine and otherwise prepares the mobile pin', () => {
     const script = readFileSync(scriptPath, 'utf8');
 
-    expect(script).toContain('git -C "$ENGINE_ROOT" fetch origin main');
-    expect(script).toContain('git -C "$ENGINE_ROOT" rev-parse origin/main');
+    expect(script).toContain('git -C "$ENGINE_ROOT" fetch origin "$INSTALL_ENGINE_COMMIT"');
+    expect(script).toContain('core-source.json');
+    expect(script).not.toContain('rev-parse origin/main');
     expect(script).toContain('prepare-local-unified-engine-core.sh');
     expect(script).toContain('build-android-aar.sh');
   });
@@ -76,12 +77,12 @@ describe('install-dev-device.sh', () => {
   it('prepares only the Engine artifacts required by the requested platform', () => {
     const script = readFileSync(scriptPath, 'utf8');
 
-    expect(script).toContain('prepare_latest_engine() {\n  local platform="$1"');
-    expect(script).toContain('restore_cached_local_ios_engine "$latest_commit"');
+    expect(script).toContain('prepare_install_engine() {\n  local platform="$1"');
+    expect(script).toContain('restore_cached_local_ios_engine "$source_commit"');
     expect(script).toContain(
       'android_marker="$LOCAL_ENGINE_BUILD_ROOT/uc-engine-uniffi-dist/android/source-commit.txt"'
     );
-    expect(script).toContain('prepare_latest_engine ios');
-    expect(script).toContain('prepare_latest_engine android');
+    expect(script).toContain('prepare_install_engine ios');
+    expect(script).toContain('prepare_install_engine android');
   });
 });

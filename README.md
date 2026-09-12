@@ -80,6 +80,8 @@ npm run ios
 
 ### 本地 Engine 编译文件
 
+开发版安装命令使用 `modules/uc-engine/core-source.json` 固定的 Engine 版本，不自动切换到远端 `main`，避免安装时替换掉应用所需的接口。iOS 开发版在安装前明确准备 Debug 版 React Native 库，并从源码构建 Expo 模块，避免真机调试时混用不兼容的预编译组件。
+
 [共用构建步骤的复用验证记录](docs/tests/engine-build-cache-reuse.md)。
 
 iOS 和 Android 的共用本机库统一保留最小调试信息，并在 Engine 构建子进程中使用同一套 Xcode 工具；显式设置会传给两端，外层应用环境保持原样。固定依赖缓存目录重复使用，不会在共享缓存中重复建立同名链接。
