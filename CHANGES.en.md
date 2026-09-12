@@ -1,3 +1,18 @@
+v2.0.0.181-alpha.5
+
+### Common
+
+- Improvement: Update the sync core to v1.1.0-rc.15 and attempt device connections when the app returns to the foreground or connectivity recovers
+- Feature: Add sync diagnostic capture controls and report export, with more complete logs and app lifecycle records
+
+### iOS
+
+- Fix: Preserve LAN server credentials after saving or migrating settings
+
+### Android
+
+- Fix: Keep the active space setup flow intact when the page refreshes
+
 v2.0.0.180-alpha.4
 
 ### Common
