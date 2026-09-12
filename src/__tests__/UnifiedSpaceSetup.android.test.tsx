@@ -2,6 +2,12 @@ import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { UnifiedSpaceSetup } from '@/screens/settings/UnifiedSpaceSetup.android';
 
+const mockSpace: { spaceId: string | null; deviceName: string; status: string } = {
+  spaceId: 'test-space',
+  deviceName: 'Phone',
+  status: 'ready',
+};
+
 const mockManagement = {
   devices: [],
   selectedDevice: null,
@@ -22,7 +28,7 @@ jest.mock('@/components/useSpacePageRefresh', () => ({
   }),
 }));
 jest.mock('@/features/space', () => ({
-  useUnifiedSpaceStore: () => ({ spaceId: 'test-space', deviceName: 'Phone' }),
+  useUnifiedSpaceStore: () => mockSpace,
 }));
 jest.mock('@/hooks/useTheme', () => ({
   useTheme: () => ({ theme: { colors: { success: 'green' } } }),
@@ -33,9 +39,17 @@ jest.mock('@react-navigation/native', () => ({
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
-jest.mock('@/components/AddSyncConnectionSheet', () => ({
-  AddSyncConnectionSheet: () => null,
-}));
+jest.mock('@/components/AddSyncConnectionSheet', () => {
+  const React = require('react');
+  return {
+    AddSyncConnectionSheet: ({ visible }: { visible: boolean }) => {
+      const [phase, setPhase] = React.useState('invitation');
+      return visible
+        ? React.createElement('SetupSheet', { phase, startJoining: () => setPhase('joining') })
+        : null;
+    },
+  };
+});
 jest.mock('@/components/SpaceInvitationSheet', () => ({
   SpaceInvitationSheet: () => null,
 }));
@@ -46,7 +60,18 @@ jest.mock('@/screens/settings/CustomRelaySection', () => ({
   CustomRelaySection: () => null,
 }));
 jest.mock('@/screens/settings/SettingsSectionItem', () => ({
-  SettingsSectionItem: ({ children }: { children: React.ReactNode }) => children,
+  SettingsSectionItem: ({
+    children,
+    dialogs,
+  }: {
+    children: React.ReactNode;
+    dialogs?: React.ReactNode;
+  }) => (
+    <>
+      {children}
+      {dialogs}
+    </>
+  ),
 }));
 jest.mock('@expo/ui/jetpack-compose', () => {
   const React = require('react');
@@ -118,5 +143,30 @@ it('keeps native row modifiers valid as space actions become unavailable and ava
   } finally {
     act(() => view.unmount());
     mockManagement.operationInProgress = false;
+  }
+});
+
+it('preserves an open join flow while the space changes from empty through loading to joined', () => {
+  mockSpace.spaceId = null;
+  let view: TestRenderer.ReactTestRenderer;
+  act(() => {
+    view = TestRenderer.create(<UnifiedSpaceSetup />);
+  });
+  try {
+    act(() => view.root.findByType('FilledTonalButton' as never).props.onClick());
+    act(() => view.root.findByType('SetupSheet' as never).props.startJoining());
+    for (const [index, state] of [
+      { spaceId: null, status: 'loading' },
+      { spaceId: 'joined-space', status: 'ready' },
+    ].entries()) {
+      Object.assign(mockSpace, state);
+      act(() => {
+        view.update(<UnifiedSpaceSetup notificationNavigationRequestId={index} />);
+      });
+      expect(view.root.findByType('SetupSheet' as never).props.phase).toBe('joining');
+    }
+  } finally {
+    act(() => view.unmount());
+    Object.assign(mockSpace, { spaceId: 'test-space', status: 'ready' });
   }
 });

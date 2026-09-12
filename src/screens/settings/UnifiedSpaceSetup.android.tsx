@@ -325,55 +325,46 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
     </>
   );
 
-  if (isInitialLoading) {
-    return (
-      <SettingsSectionItem title={t('space.title')} dialogs={dialogs}>
-        <SkeletonRow />
-        <SkeletonRow />
-      </SettingsSectionItem>
-    );
-  }
-
-  if (!spaceId) {
-    return (
-      <SettingsSectionItem title={t('space.title')} footer={t('space.footer')} dialogs={dialogs}>
-        <Column horizontalAlignment="center" modifiers={[fillMaxWidth(), padding(24, 28, 24, 28)]}>
-          <Surface color={colors.surfaceContainerHighest} shape={CIRCLE_SHAPE}>
-            <Column modifiers={[padding(24, 24, 24, 24)]}>
-              <Icon source={ICONS.space} size={48} tint={colors.primary} />
-            </Column>
-          </Surface>
-          <Spacer modifiers={[heightModifier(16)]} />
-          <ComposeText style={EMPTY_TITLE_STYLE}>{t('space.empty.title')}</ComposeText>
-          <Spacer modifiers={[heightModifier(8)]} />
-          <ComposeText color={colors.onSurfaceVariant} style={EMPTY_BODY_STYLE}>
-            {refreshError ?? t('space.empty.body')}
-          </ComposeText>
-          {refreshError ? (
-            <TextButton onClick={refresh}>
-              <ComposeText>{t('action.retry', { ns: 'common' })}</ComposeText>
-            </TextButton>
-          ) : null}
-          <Spacer modifiers={[heightModifier(24)]} />
-          <Button onClick={() => setSetupMode('create')} modifiers={[fillMaxWidth()]}>
-            <Icon source={ICONS.space} size={18} tint={colors.onPrimary} />
-            <Spacer modifiers={[widthModifier(8)]} />
-            <ComposeText>{t('space.create.title')}</ComposeText>
-          </Button>
-          <Spacer modifiers={[heightModifier(10)]} />
-          <FilledTonalButton onClick={() => setSetupMode('join')} modifiers={[fillMaxWidth()]}>
-            <Icon source={ICONS.device} size={18} tint={colors.onSecondaryContainer} />
-            <Spacer modifiers={[widthModifier(8)]} />
-            <ComposeText>{t('space.join.title')}</ComposeText>
-          </FilledTonalButton>
-        </Column>
-      </SettingsSectionItem>
-    );
-  }
-
-  return (
+  const content = isInitialLoading ? (
+    <SettingsSectionItem title={t('space.title')}>
+      <SkeletonRow />
+      <SkeletonRow />
+    </SettingsSectionItem>
+  ) : !spaceId ? (
+    <SettingsSectionItem title={t('space.title')} footer={t('space.footer')}>
+      <Column horizontalAlignment="center" modifiers={[fillMaxWidth(), padding(24, 28, 24, 28)]}>
+        <Surface color={colors.surfaceContainerHighest} shape={CIRCLE_SHAPE}>
+          <Column modifiers={[padding(24, 24, 24, 24)]}>
+            <Icon source={ICONS.space} size={48} tint={colors.primary} />
+          </Column>
+        </Surface>
+        <Spacer modifiers={[heightModifier(16)]} />
+        <ComposeText style={EMPTY_TITLE_STYLE}>{t('space.empty.title')}</ComposeText>
+        <Spacer modifiers={[heightModifier(8)]} />
+        <ComposeText color={colors.onSurfaceVariant} style={EMPTY_BODY_STYLE}>
+          {refreshError ?? t('space.empty.body')}
+        </ComposeText>
+        {refreshError ? (
+          <TextButton onClick={refresh}>
+            <ComposeText>{t('action.retry', { ns: 'common' })}</ComposeText>
+          </TextButton>
+        ) : null}
+        <Spacer modifiers={[heightModifier(24)]} />
+        <Button onClick={() => setSetupMode('create')} modifiers={[fillMaxWidth()]}>
+          <Icon source={ICONS.space} size={18} tint={colors.onPrimary} />
+          <Spacer modifiers={[widthModifier(8)]} />
+          <ComposeText>{t('space.create.title')}</ComposeText>
+        </Button>
+        <Spacer modifiers={[heightModifier(10)]} />
+        <FilledTonalButton onClick={() => setSetupMode('join')} modifiers={[fillMaxWidth()]}>
+          <Icon source={ICONS.device} size={18} tint={colors.onSecondaryContainer} />
+          <Spacer modifiers={[widthModifier(8)]} />
+          <ComposeText>{t('space.join.title')}</ComposeText>
+        </FilledTonalButton>
+      </Column>
+    </SettingsSectionItem>
+  ) : (
     <Column modifiers={[fillMaxWidth()]}>
-      {dialogs}
 
       <Surface
         color={syncFailed ? colors.errorContainer : colors.surfaceContainerHigh}
@@ -515,6 +506,14 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
           </>
         ) : null}
       </SettingsSectionItem>
+    </Column>
+  );
+
+  // Keep modal ownership stable when joining changes the surrounding space page.
+  return (
+    <Column modifiers={[fillMaxWidth()]}>
+      {dialogs}
+      {content}
     </Column>
   );
 });
