@@ -15,6 +15,7 @@ public final class UcEngineModule: Module {
     beginBackgroundActivity: Self.beginBackgroundActivity
   )
   private let engineOperationQueue = DispatchQueue(label: "app.uniclipboard.uc-engine")
+  private let engineConnectivityQueue = DispatchQueue(label: "app.uniclipboard.uc-engine-connectivity")
   private let engineEventQueue = DispatchQueue(label: "app.uniclipboard.uc-engine-events")
   private let engines = NativeEngineRegistry<MobileEngine>()
 
@@ -185,6 +186,16 @@ public final class UcEngineModule: Module {
       try self.requireEngine().nextEvent(timeoutMs: timeoutMs).map(Self.eventMap)
     }.runOnQueue(engineEventQueue)
 
+    AsyncFunction("notifyConnectivityOpportunity") { (reason: String) in
+      let opportunity: ConnectivityOpportunity
+      switch reason {
+      case "foreground": opportunity = .foreground
+      case "system_wake": opportunity = .systemWake
+      case "network_changed": opportunity = .networkChanged
+      default: throw UcEngineInvalidConnectivityOpportunityException()
+      }
+      try self.requireEngine().notifyConnectivityOpportunity(reason: opportunity)
+    }.runOnQueue(engineConnectivityQueue)
     AsyncFunction("refreshPeerConnections") { () -> [String: Any] in
       let result = try self.requireEngine().refreshPeerConnections()
       return [
@@ -715,6 +726,10 @@ private final class AppleEngineLifecycle: NativeEngineLifecycle {
   func resume() throws {
     try owned.resume()
   }
+
+  func notifyForegroundOpportunity() throws {
+    try owned.notifyForegroundOpportunity()
+  }
 }
 
 private final class AppleMobileEngineLifecycle: NativeEngineLifecycle {
@@ -746,6 +761,10 @@ private final class AppleMobileEngineLifecycle: NativeEngineLifecycle {
 
   func resume() throws {
     try engine.resume()
+  }
+
+  func notifyForegroundOpportunity() throws {
+    try engine.notifyConnectivityOpportunity(reason: .foreground)
   }
 }
 
@@ -783,4 +802,8 @@ private extension NSLock {
     defer { unlock() }
     return try operation()
   }
+}
+
+private final class UcEngineInvalidConnectivityOpportunityException: Exception, @unchecked Sendable {
+  override var reason: String { "Invalid connectivity opportunity" }
 }

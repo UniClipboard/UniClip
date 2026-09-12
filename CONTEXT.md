@@ -60,6 +60,10 @@ Legacy responses without the newer fields remain readable.
   app lifecycle and background policy.
 - `UnifiedEngineService` exposes engine state without leaking native bindings
   into screens.
+- Mobile reports connectivity opportunities after engine startup, foreground
+  entry, and network changes. Engine owns peer selection, retry, concurrency,
+  and cancellation. Manual refresh remains explicit; mobile does not run a
+  parallel retry loop or infer an overall refresh result from one online peer.
 - `UnifiedSpaceService` owns create, join, invitation, device, and leave-space
   operations.
 - `UnifiedContentService` is the single outbound entry for text, images, files,

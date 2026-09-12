@@ -106,6 +106,7 @@ private final class FakeRuntimeOwnership: NativeRuntimeOwnership {
 }
 
 private final class FakeOwnedEngine: NativeEngineLifecycle {
+  func notifyForegroundOpportunity() throws {}
   var state: NativeEngineLifecycleState = .running
   private(set) var resumeCalls = 0
   private let events: (String) -> Void

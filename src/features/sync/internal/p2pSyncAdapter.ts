@@ -1,4 +1,9 @@
-import type { EngineConfig, EngineEvent, SendReport } from '@/platform/engine';
+import type {
+  EngineConfig,
+  EngineEvent,
+  SendReport,
+  ConnectivityOpportunity,
+} from '@/platform/engine';
 import {
   p2pDeliveryCountsFromReport,
   p2pDeliveryStateFromReport,
@@ -25,9 +30,8 @@ interface P2pEnginePort {
   stop(): Promise<void>;
   setBackgroundSyncPolicy(enabled: boolean): Promise<void>;
   resume(): Promise<void>;
-  recoverPeerConnections(): Promise<unknown>;
+  notifyConnectivityOpportunity(reason: ConnectivityOpportunity): Promise<void>;
   refreshPeerConnections(): Promise<unknown>;
-  cancelPeerRecovery(): void;
   subscribeEvents(listener: (event: EngineEvent) => void): () => void;
 }
 
@@ -93,24 +97,16 @@ export class P2pSyncAdapter implements SyncAdapter {
     }
     const space = await this.dependencies.space.refresh();
     log.info('P2P space state', { deviceCount: space.devices.length });
-    void this.dependencies.engine.recoverPeerConnections().then(
-      (report) => log.info('P2P receiver recovery finished', report),
-      (error) => log.error('Failed to recover P2P peer connections:', error)
-    );
+    if (policy.appState === 'active') {
+      await this.dependencies.engine.notifyConnectivityOpportunity('foreground');
+    }
   }
 
   handleAppStateChange(policy: SyncRuntimePolicy): void {
     this.policy = policy;
-    if (
-      this.dependencies.platform === 'ios' &&
-      (policy.appState === 'inactive' || policy.appState === 'background')
-    ) {
-      this.dependencies.engine.cancelPeerRecovery();
-    }
   }
 
   async stop(): Promise<void> {
-    this.dependencies.engine.cancelPeerRecovery();
     this.engineEventsUnsubscribe?.();
     this.engineEventsUnsubscribe = null;
     await this.dependencies.engine.stop();
@@ -215,7 +211,10 @@ export class P2pSyncAdapter implements SyncAdapter {
     }
 
     if (event.type === 'fatal') {
-      this.publish({ type: 'failed', message: `${event.failure.category}:${event.failure.code}` });
+      this.publish({
+        type: 'failed',
+        message: `${event.failure.category}:${event.failure.code}`,
+      });
     }
   }
 
