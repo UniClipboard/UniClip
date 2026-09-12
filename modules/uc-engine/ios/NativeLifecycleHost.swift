@@ -66,6 +66,7 @@ protocol NativeEngineLifecycle {
   func lifecycleState() throws -> NativeEngineLifecycleState
   func suspend() throws
   func resume() throws
+  func notifyForegroundOpportunity() throws
 }
 
 enum NativeLifecycleError: Error, Equatable {
@@ -112,6 +113,10 @@ final class RuntimeOwnedNativeLifecycle: NativeEngineLifecycle {
       throw error
     }
   }
+  func notifyForegroundOpportunity() throws {
+    try engine.notifyForegroundOpportunity()
+  }
+
 }
 
 final class NativeLifecycleHost {
@@ -142,6 +147,7 @@ final class NativeLifecycleHost {
     guard let engine else { return }
     do {
       try resumeIfNeeded(engine)
+      if try engine.lifecycleState() == .running { try engine.notifyForegroundOpportunity() }
     } catch {
       report(error)
     }

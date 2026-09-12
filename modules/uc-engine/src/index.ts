@@ -1,5 +1,6 @@
 import type { EngineCaptureStatus, EngineDiagnosticStatus, EngineDiagnosticExportReport } from './diagnostics';
 export type { EngineCaptureStatus, EngineDiagnosticStatus, EngineDiagnosticExportReport } from './diagnostics';
+export type ConnectivityOpportunity = 'foreground' | 'system_wake' | 'network_changed';
 import { requireNativeModule } from 'expo-modules-core';
 
 export interface EngineConfig {
@@ -55,7 +56,12 @@ export type JoinSpaceRejectionReason =
   | 'removedBeforeActivation';
 
 export type JoinSpaceStatus =
-  | { type: 'active'; joinId: string; joinedSpace: JoinedSpace; peerUpgradeRequired: boolean }
+  | {
+      type: 'active';
+      joinId: string;
+      joinedSpace: JoinedSpace;
+      peerUpgradeRequired: boolean;
+    }
   | {
       type: 'pending';
       joinId: string;
@@ -156,7 +162,11 @@ export type ResendEntryOutcome =
     }
   | { kind: 'synchronizationDisabled' }
   | { kind: 'entryNotFound'; entryId: string }
-  | { kind: 'entryNotResendable'; entryId: string; reason: 'remoteOrigin' | 'payloadLost' }
+  | {
+      kind: 'entryNotResendable';
+      entryId: string;
+      reason: 'remoteOrigin' | 'payloadLost';
+    }
   | { kind: 'targetNotTrusted'; deviceId: string }
   | { kind: 'noEligibleTargets' };
 
@@ -174,7 +184,10 @@ export type EngineEvent =
       failure: { code: number; category: string; retryable: boolean };
     }
   | { type: 'refreshRequired'; reason: string }
-  | { type: 'fatal'; failure: { code: number; category: string; retryable: boolean } }
+  | {
+      type: 'fatal';
+      failure: { code: number; category: string; retryable: boolean };
+    }
   | {
       type: 'incomingEntry';
       entryId: string;
@@ -197,7 +210,12 @@ export type EngineEvent =
       state: string;
     }
   | { type: 'deliveryStatusChanged'; entryId: string; targetDeviceId: string }
-  | { type: 'peerPresenceChanged'; deviceId: string; state: string; atMs: number }
+  | {
+      type: 'peerPresenceChanged';
+      deviceId: string;
+      state: string;
+      atMs: number;
+    }
   | {
       type: 'transferProgress';
       transferId: string;
@@ -311,6 +329,7 @@ interface UcEngineNativeModule {
   cancelJoinSpace(joinId: string): Promise<void>;
   nextEvent(timeoutMs: number): Promise<EngineEvent | null>;
   refreshPeerConnections(): Promise<PeerConnectionRefresh>;
+  notifyConnectivityOpportunity(reason: ConnectivityOpportunity): Promise<void>;
   querySpaceState(): Promise<SpaceState>;
   listDevices(): Promise<Device[]>;
   queryDeviceGroupChoices(): Promise<DeviceTrustQueryResult>;
@@ -564,4 +583,8 @@ export function getEngineDiagnosticStatus(): Promise<EngineDiagnosticStatus> {
 }
 export function prepareEngineDiagnosticExport(): Promise<EngineDiagnosticExportReport> {
   return NativeModule.prepareEngineDiagnosticExport();
+}
+
+export function notifyConnectivityOpportunity(reason: ConnectivityOpportunity): Promise<void> {
+  return NativeModule.notifyConnectivityOpportunity(reason);
 }

@@ -129,3 +129,7 @@ UniClip 的移动端早期 fork 自 [Jeric-X/syncclipboard-mobile](https://githu
 - Copyright (c) 2026 mkdir700（UniClip）
 
 详见 [LICENSE](./LICENSE)。
+
+## 自动连接验收
+
+[宿主接入与测试记录](docs/tests/automatic-peer-connections.md)说明前台、网络变化及共享 Engine 自动重连的接入与验证边界。

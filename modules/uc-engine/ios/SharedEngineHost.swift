@@ -655,6 +655,7 @@ private final class ExtensionMobileEngineAdapter: ExtensionSyncEngine {
         totalBytes: totalBytes
       )
     case .transferStatusChanged(_, let entryId, _, let status, let reason):
+      guard let entryId else { return .other }
       return .outboundTransferStatusChanged(
         entryId: entryId,
         peerId: latestOutboundPeerByEntryId.removeValue(forKey: entryId),

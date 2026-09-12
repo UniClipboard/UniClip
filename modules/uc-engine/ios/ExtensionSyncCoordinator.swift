@@ -77,6 +77,7 @@ public struct ExtensionClipboardRevisionTracker: Sendable {
   }
 
   public mutating func markSynchronizedWrite(_ revision: Int) {
+    lastHandledRevision = revision
     guard processingRevision == revision else { return }
     processingRevision = nil
   }

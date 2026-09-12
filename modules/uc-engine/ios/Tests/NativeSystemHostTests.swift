@@ -295,6 +295,7 @@ final class NativeSystemHostTests: XCTestCase {
 
     XCTAssertEqual(engine.suspendCalls, 1)
     XCTAssertEqual(engine.resumeCalls, 1)
+    XCTAssertEqual(engine.foregroundOpportunities, 2)
   }
 
   func testLifecycleHostMakesRepeatedForegroundRecoveryIdempotent() throws {
@@ -383,6 +384,8 @@ private final class FakeNativeEngineLifecycle: NativeEngineLifecycle {
   var recoverCalls = 0
   var suspendCalls = 0
   var resumeCalls = 0
+  var foregroundOpportunities = 0
+  func notifyForegroundOpportunity() throws { foregroundOpportunities += 1 }
   var onSuspend: (() -> Void)?
 
   init(state: NativeEngineLifecycleState) {

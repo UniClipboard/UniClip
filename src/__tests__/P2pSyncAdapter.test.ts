@@ -42,8 +42,19 @@ function dependencies(platform: 'android' | 'ios' = 'ios') {
     stop: jest.fn(async () => undefined),
     setBackgroundSyncPolicy: jest.fn(async () => undefined),
     resume: jest.fn(async () => undefined),
-    recoverPeerConnections: jest.fn(async () => ({ total: 1, online: 1, offline: 0, errors: 0 })),
-    refreshPeerConnections: jest.fn(async () => ({ total: 1, online: 1, offline: 0, errors: 0 })),
+    notifyConnectivityOpportunity: jest.fn(async (_reason: string) => undefined),
+    recoverPeerConnections: jest.fn(async () => ({
+      total: 1,
+      online: 1,
+      offline: 0,
+      errors: 0,
+    })),
+    refreshPeerConnections: jest.fn(async () => ({
+      total: 1,
+      online: 1,
+      offline: 0,
+      errors: 0,
+    })),
     cancelPeerRecovery: jest.fn(),
     subscribeEvents: jest.fn((listener: (event: unknown) => void) => {
       engineEventListener = listener;
@@ -78,6 +89,19 @@ function dependencies(platform: 'android' | 'ios' = 'ios') {
 }
 
 describe('P2pSyncAdapter', () => {
+  it('reports foreground opportunity without running a product retry loop', async () => {
+    const { P2pSyncAdapter } = require('../features/sync/internal/p2pSyncAdapter');
+    const deps = dependencies('ios');
+    const adapter = new P2pSyncAdapter(deps);
+    await adapter.start({
+      appVersion: '2.0.0',
+      profileId: 'default',
+      policy: { appState: 'active', backgroundSyncEnabled: true },
+    });
+    expect(deps.engine.notifyConnectivityOpportunity).toHaveBeenCalledWith('foreground');
+    expect(deps.engine.recoverPeerConnections).not.toHaveBeenCalled();
+    expect(deps.engine.refreshPeerConnections).not.toHaveBeenCalled();
+  });
   it('starts and refreshes the existing P2P runtime', async () => {
     const P2pSyncAdapter = loadP2pSyncAdapter();
     expect(P2pSyncAdapter).toBeDefined();
@@ -102,7 +126,7 @@ describe('P2pSyncAdapter', () => {
     expect(deps.engine.setBackgroundSyncPolicy).toHaveBeenCalledWith(true);
     expect(deps.engine.resume).toHaveBeenCalledTimes(1);
     expect(deps.space.refresh).toHaveBeenCalledTimes(1);
-    expect(deps.engine.recoverPeerConnections).toHaveBeenCalledTimes(1);
+    expect(deps.engine.notifyConnectivityOpportunity).toHaveBeenCalledWith('foreground');
   });
 
   it('normalizes current clipboard delivery', async () => {
@@ -136,7 +160,9 @@ describe('P2pSyncAdapter', () => {
       ): Promise<unknown>;
     };
 
-    await adapter.sendImportedText('shared text', 'TEXT_HASH', { targetIds: ['desktop-1'] });
+    await adapter.sendImportedText('shared text', 'TEXT_HASH', {
+      targetIds: ['desktop-1'],
+    });
 
     expect(deps.content.sendImportedText).toHaveBeenCalledWith('shared text', 'TEXT_HASH', {
       targetDeviceIds: ['desktop-1'],
@@ -171,16 +197,22 @@ describe('P2pSyncAdapter', () => {
         options: { targetIds: string[] }
       ): Promise<unknown>;
     };
-    const asset = { kind: 'file' as const, uri: 'file:///archive.zip', fileName: 'archive.zip' };
+    const asset = {
+      kind: 'file' as const,
+      uri: 'file:///archive.zip',
+      fileName: 'archive.zip',
+    };
 
-    await adapter.sendImportedAsset(asset, 'FILE_HASH', { targetIds: ['desktop-1'] });
+    await adapter.sendImportedAsset(asset, 'FILE_HASH', {
+      targetIds: ['desktop-1'],
+    });
 
     expect(deps.content.sendImportedAsset).toHaveBeenCalledWith(asset, 'FILE_HASH', {
       targetDeviceIds: ['desktop-1'],
     });
   });
 
-  it('cancels peer recovery when iOS leaves the foreground', async () => {
+  it('leaves background suspension to the native lifecycle', async () => {
     const P2pSyncAdapter = loadP2pSyncAdapter();
     expect(P2pSyncAdapter).toBeDefined();
     if (!P2pSyncAdapter) return;
@@ -190,9 +222,12 @@ describe('P2pSyncAdapter', () => {
       handleAppStateChange(policy: { appState: 'inactive'; backgroundSyncEnabled: boolean }): void;
     };
 
-    adapter.handleAppStateChange({ appState: 'inactive', backgroundSyncEnabled: false });
+    adapter.handleAppStateChange({
+      appState: 'inactive',
+      backgroundSyncEnabled: false,
+    });
 
-    expect(deps.engine.cancelPeerRecovery).toHaveBeenCalledTimes(1);
+    expect(deps.engine.cancelPeerRecovery).not.toHaveBeenCalled();
   });
 
   it('refreshes P2P projections and publishes generic engine events', async () => {
@@ -213,13 +248,18 @@ describe('P2pSyncAdapter', () => {
       policy: { appState: 'active', backgroundSyncEnabled: true },
     });
 
-    deps.emitEngineEvent({ type: 'peerPresenceChanged', deviceId: 'desktop-1' });
+    deps.emitEngineEvent({
+      type: 'peerPresenceChanged',
+      deviceId: 'desktop-1',
+    });
     deps.emitEngineEvent({ type: 'deviceTrustChanged', revision: 2 });
     deps.emitEngineEvent({ type: 'incomingEntry', entryId: 'entry-1' });
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(deps.space.refreshDevices).toHaveBeenCalledTimes(1);
-    expect(deps.space.refresh).toHaveBeenLastCalledWith({ afterInvalidation: true });
+    expect(deps.space.refresh).toHaveBeenLastCalledWith({
+      afterInvalidation: true,
+    });
     expect(received).toEqual([
       { type: 'connectionChanged' },
       { type: 'configurationChanged' },
@@ -245,7 +285,7 @@ describe('P2pSyncAdapter', () => {
 
     await adapter.stop();
 
-    expect(deps.engine.cancelPeerRecovery).toHaveBeenCalledTimes(1);
+    expect(deps.engine.cancelPeerRecovery).not.toHaveBeenCalled();
     expect(deps.engineEventUnsubscribe).toHaveBeenCalledTimes(1);
     expect(deps.engine.stop).toHaveBeenCalledTimes(1);
   });
@@ -266,7 +306,10 @@ describe('P2pSyncAdapter', () => {
       policy: { appState: 'active', backgroundSyncEnabled: true },
     });
     await Promise.resolve();
-    deps.emitEngineEvent({ type: 'peerPresenceChanged', deviceId: 'desktop-1' });
+    deps.emitEngineEvent({
+      type: 'peerPresenceChanged',
+      deviceId: 'desktop-1',
+    });
     started.resolve();
     await start;
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -291,9 +334,15 @@ describe('P2pSyncAdapter', () => {
     });
     deps.space.refresh.mockClear();
     deps.space.refreshDevices.mockClear();
-    adapter.handleAppStateChange({ appState: 'background', backgroundSyncEnabled: false });
+    adapter.handleAppStateChange({
+      appState: 'background',
+      backgroundSyncEnabled: false,
+    });
 
-    deps.emitEngineEvent({ type: 'peerPresenceChanged', deviceId: 'desktop-1' });
+    deps.emitEngineEvent({
+      type: 'peerPresenceChanged',
+      deviceId: 'desktop-1',
+    });
     deps.emitEngineEvent({ type: 'deviceTrustChanged', revision: 3 });
     await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -311,7 +360,10 @@ describe('P2pSyncAdapter', () => {
       handleAppStateChange(policy: unknown): void;
     };
 
-    adapter.handleAppStateChange({ appState: 'background', backgroundSyncEnabled: false });
+    adapter.handleAppStateChange({
+      appState: 'background',
+      backgroundSyncEnabled: false,
+    });
 
     expect(deps.engine.cancelPeerRecovery).not.toHaveBeenCalled();
   });
@@ -325,7 +377,11 @@ describe('P2pSyncAdapter', () => {
     const adapter = new P2pSyncAdapter(deps) as unknown as {
       observeClipboardChange(content: unknown, dispatch: boolean): Promise<unknown>;
     };
-    const content = { type: 'Text', text: 'captured', profileHash: 'TEXT_HASH' };
+    const content = {
+      type: 'Text',
+      text: 'captured',
+      profileHash: 'TEXT_HASH',
+    };
 
     await expect(adapter.observeClipboardChange(content, true)).resolves.toEqual({
       success: true,
@@ -342,7 +398,9 @@ describe('P2pSyncAdapter', () => {
     if (!P2pSyncAdapter) return;
 
     const deps = dependencies();
-    const adapter = new P2pSyncAdapter(deps) as unknown as { synchronize(): Promise<void> };
+    const adapter = new P2pSyncAdapter(deps) as unknown as {
+      synchronize(): Promise<void>;
+    };
 
     await adapter.synchronize();
 

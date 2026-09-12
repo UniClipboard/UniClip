@@ -32,6 +32,7 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 import org.json.JSONObject
+import uniffi.uc_engine_uniffi.ConnectivityOpportunity
 import uniffi.uc_engine_uniffi.BindingClipboardRepresentation
 import uniffi.uc_engine_uniffi.BindingClipboardRestoreMode
 import uniffi.uc_engine_uniffi.BindingClipboardRestoreOutcome
@@ -524,6 +525,15 @@ class UcEngineModule : Module() {
     AsyncFunction("nextEvent") { timeoutMs: Long ->
       requireEngine().nextEvent(timeoutMs.toULong())?.let(::eventMap)
     }.runOnQueue(appContext.backgroundCoroutineScope)
+    AsyncFunction("notifyConnectivityOpportunity") { reason: String ->
+      val opportunity = when (reason) {
+        "foreground" -> ConnectivityOpportunity.FOREGROUND
+        "system_wake" -> ConnectivityOpportunity.SYSTEM_WAKE
+        "network_changed" -> ConnectivityOpportunity.NETWORK_CHANGED
+        else -> throw IllegalArgumentException("Invalid connectivity opportunity")
+      }
+      requireEngine().notifyConnectivityOpportunity(opportunity)
+    }
     AsyncFunction("refreshPeerConnections") {
       val result = requireEngine().refreshPeerConnections()
       mapOf(
