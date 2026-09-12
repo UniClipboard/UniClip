@@ -13,6 +13,7 @@ import android.os.IBinder
 import androidx.annotation.StringRes
 import androidx.core.app.NotificationCompat
 import expo.modules.nativeutil.NativeLogger
+import expo.modules.ucengine.BackgroundServiceDiagnostics
 
 class SyncForegroundService : Service() {
 
@@ -58,6 +59,7 @@ class SyncForegroundService : Service() {
                 // 以上两种情况：JS 不存在，不启动前台服务，仅发重启引导通知
                 if (intent == null || !ForegroundServiceModule.isJsRuntimeAlive()) {
                     NativeLogger.w(TAG, "Service restarted by system (intent=${intent?.action}, jsAlive=${ForegroundServiceModule.isJsRuntimeAlive()}), JS not running, showing restart notification")
+                    BackgroundServiceDiagnostics.systemRestarted(this)
                     showRestartNotification()
                     stoppedByUser = true  // 防止 onDestroy 再次发重启通知
                     stopSelf()
@@ -72,6 +74,7 @@ class SyncForegroundService : Service() {
                 }
                 NativeLogger.d(TAG, "startForeground called successfully")
                 isRunning = true
+                BackgroundServiceDiagnostics.started(this)
             }
             ACTION_STOP -> {
                 NativeLogger.d(TAG, "Stopping foreground service (permanent)")
@@ -87,6 +90,7 @@ class SyncForegroundService : Service() {
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 isRunning = false
+                BackgroundServiceDiagnostics.stoppedPermanently(this)
                 // Send event to JS to disable background tasks permanently
                 ForegroundServiceModule.sendStopEvent()
             }
@@ -104,6 +108,7 @@ class SyncForegroundService : Service() {
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 isRunning = false
+                BackgroundServiceDiagnostics.stoppedTemporarily(this)
                 // Send temp stop event to JS (no settings change, service restarts next time)
                 ForegroundServiceModule.sendTempStopEvent()
             }
@@ -119,6 +124,7 @@ class SyncForegroundService : Service() {
                     startForeground(NOTIFY_ID, notification)
                 }
                 isRunning = true
+                BackgroundServiceDiagnostics.started(this)
             }
         }
         return START_STICKY
@@ -147,6 +153,7 @@ class SyncForegroundService : Service() {
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
         isRunning = false
+        BackgroundServiceDiagnostics.timedOut(this)
         // 不调用 sendTempStopEvent()：此为系统强制超时，非用户主动停止。
         // 保持 JS 侧 isTempDisabledBackgroundTasks=false，
         // 用户打开 App 后 start() 可自动重试启动服务。
@@ -159,6 +166,7 @@ class SyncForegroundService : Service() {
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
         isRunning = false
+        BackgroundServiceDiagnostics.taskRemoved(this)
         ForegroundServiceModule.sendTempStopEvent()
     }
 
@@ -171,6 +179,7 @@ class SyncForegroundService : Service() {
             NativeLogger.w(TAG, "Service destroyed unexpectedly, showing restart notification")
             showRestartNotification()
         }
+        BackgroundServiceDiagnostics.destroyed(this, expected = stoppedByUser)
         stoppedByUser = false
         super.onDestroy()
     }

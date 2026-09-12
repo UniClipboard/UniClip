@@ -1,5 +1,5 @@
 import * as Application from 'expo-application';
-import { File, Paths } from 'expo-file-system';
+import { File, FileMode, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 import { strFromU8, strToU8, zipSync } from 'fflate';
 import { getShareDiagnostics } from 'app-group-store';
@@ -76,6 +76,23 @@ function throwIfArchiveAborted(signal?: AbortSignal): void {
   if (signal?.aborted) throw createArchiveAbortError();
 }
 
+function readBoundedLogTail(file: File): string {
+  const handle = file.open(FileMode.ReadOnly);
+  try {
+    const size = handle.size ?? 0;
+    const start = Math.max(0, size - MAX_LOG_BYTES_PER_FILE);
+    // Include the preceding byte so a tail starting exactly at a line boundary is preserved.
+    handle.offset = Math.max(0, start - 1);
+    const bytes = handle.readBytes(Math.min(size, MAX_LOG_BYTES_PER_FILE + 1));
+    if (start === 0) return strFromU8(bytes);
+    // Discard a clipped first record before decoding, including a possible partial UTF-8 character.
+    const boundary = bytes.indexOf(10);
+    return boundary < 0 ? '' : strFromU8(bytes.subarray(boundary + 1));
+  } finally {
+    handle.close();
+  }
+}
+
 async function collectLogFiles(
   fileUris: string[],
   directory: string,
@@ -89,11 +106,9 @@ async function collectLogFiles(
     throwIfArchiveAborted(signal);
     try {
       const file = new File(uri);
-      const content =
-        file.size > MAX_LOG_BYTES_PER_FILE
-          ? await file.slice(file.size - MAX_LOG_BYTES_PER_FILE).text()
-          : await file.text();
-      if (file.size > MAX_LOG_BYTES_PER_FILE) truncatedFileCount += 1;
+      const truncated = file.size > MAX_LOG_BYTES_PER_FILE;
+      const content = truncated ? readBoundedLogTail(file) : await file.text();
+      if (truncated) truncatedFileCount += 1;
       entries[`${directory}/${safeFileName(file.name)}`] = strToU8(redactLogText(content));
       throwIfArchiveAborted(signal);
     } catch {
@@ -112,7 +127,7 @@ async function collectLogFiles(
 
 function collectionStatus(result: CollectedLogFiles): 'included' | 'partial' | 'missing' {
   if (result.includedFileCount === 0) return 'missing';
-  return result.unreadableFileCount > 0 ? 'partial' : 'included';
+  return result.unreadableFileCount > 0 || result.truncatedFileCount > 0 ? 'partial' : 'included';
 }
 
 function nativeSourceCoverage(entries: Record<string, Uint8Array>, metadata: NativeDiagnosticsSnapshot | null) {

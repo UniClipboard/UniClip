@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Build
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import expo.modules.ucengine.BackgroundServiceDiagnostics
 
 class ForegroundServiceModule : Module() {
 
@@ -68,6 +69,7 @@ class ForegroundServiceModule : Module() {
             if (!SyncForegroundService.isRunning) return@Function true
             // 标记为用户主动停止，避免 onDestroy 中误发重启通知
             SyncForegroundService.stoppedByUser = true
+            BackgroundServiceDiagnostics.stoppedPermanently(context)
             val intent = Intent(context, SyncForegroundService::class.java)
             context.stopService(intent)
             true

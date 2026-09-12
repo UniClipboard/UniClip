@@ -23,13 +23,20 @@ internal enum class NativeDiagnosticEvent(val wire: String) {
   CAPTURE_STARTED("capture.started"), APP_FOREGROUND("app.foreground"), APP_BACKGROUND("app.background"),
   ENGINE_START("engine.start"), ENGINE_SUSPEND("engine.suspend"), ENGINE_RESUME("engine.resume"),
   ENGINE_SHUTDOWN("engine.shutdown"), SECURE_STATE_RECOVERY("security.recover"),
-  NETWORK_CHANGED("network.path_observed"), NETWORK_OBSERVATION("network.observation"), EXPORT_FLUSH("export.flush")
+  NETWORK_CHANGED("network.path_observed"), NETWORK_OBSERVATION("network.observation"), EXPORT_FLUSH("export.flush"),
+  BACKGROUND_SERVICE_STARTED("background_service.started"),
+  BACKGROUND_SERVICE_SYSTEM_RESTART("background_service.system_restart"),
+  BACKGROUND_SERVICE_STOPPED("background_service.stopped"),
+  BACKGROUND_SERVICE_TIMED_OUT("background_service.timed_out"),
+  BACKGROUND_SERVICE_TASK_REMOVED("background_service.task_removed"),
+  BACKGROUND_SERVICE_DESTROYED("background_service.destroyed")
 }
 
 internal enum class NativeDiagnosticTrigger(val wire: String) {
   APP_STARTUP("appStartup"), APP_FOREGROUND("appForeground"), APP_BACKGROUND("appBackground"),
   USER_REQUEST("userRequest"), CONTEXT_DESTROYED("contextDestroyed"), NETWORK_CHANGE("networkChange"),
-  EXPORT_REQUESTED("exportRequested"), UNSPECIFIED("unspecified")
+  EXPORT_REQUESTED("exportRequested"), SYSTEM_RESTART("systemRestart"), SYSTEM_TIMEOUT("systemTimeout"),
+  TASK_REMOVED("taskRemoved"), UNSPECIFIED("unspecified")
 }
 
 internal enum class NativeDiagnosticOutcome(val wire: String) {
@@ -140,8 +147,9 @@ internal class NativeRuntimeDiagnostics(
     var skipped = 0
     val files = candidates.filter {
       if (!it.name.matches(Regex("native-runtime\\.(main|keyboard|share)\\.[0-9a-f-]{36}\\.[0-9]+\\.jsonl"))) return@filter false
+      val parent = it.parentFile ?: run { skipped++; return@filter false }
       try {
-        val regular = it.isFile && it.canonicalFile == File(it.parentFile.canonicalFile, it.name)
+        val regular = it.isFile && it.canonicalFile == File(parent.canonicalFile, it.name)
         if (!regular) skipped++
         regular
       } catch (_: Exception) { skipped++; false }

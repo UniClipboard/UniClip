@@ -5,6 +5,8 @@ import { strFromU8, unzipSync } from 'fflate';
 const mockLogContents = new Map<string, string>();
 const mockWrittenFiles = new Map<string, string | Uint8Array>();
 const mockDeletedFiles: string[] = [];
+const mockLogHandles: Array<{ close: jest.Mock; readBytes: jest.Mock; mode: unknown }> = [];
+const mockFailLogReads = new Set<string>();
 const mockGetAppLogFileUris = jest.fn<string[], []>();
 const mockGetEngineLogFileUris = jest.fn<string[], []>();
 const mockGetShareDiagnostics = jest.fn();
@@ -62,7 +64,7 @@ jest.mock('expo-file-system', () => {
 
     get size() {
       const content = mockLogContents.get(this.uri) ?? mockWrittenFiles.get(this.uri) ?? '';
-      return new TextEncoder().encode(content).byteLength;
+      return typeof content === 'string' ? new TextEncoder().encode(content).byteLength : content.byteLength;
     }
 
     async text() {
@@ -71,10 +73,30 @@ jest.mock('expo-file-system', () => {
       return content;
     }
 
-    slice(start = 0, end?: number) {
+    slice() {
+      // Expo File.slice materializes a Blob from bytes; React Native rejects typed-array parts.
+      throw new Error("Creating blobs from 'ArrayBuffer' and 'ArrayBufferView' are not supported");
+    }
+
+    open(mode: unknown) {
       const content = mockLogContents.get(this.uri);
       if (content === undefined) throw new Error('unreadable');
-      return { text: async () => content.slice(start, end) };
+      const data = new TextEncoder().encode(content);
+      const uri = this.uri;
+      const handle = {
+        mode,
+        size: data.byteLength,
+        offset: 0,
+        close: jest.fn(),
+        readBytes: jest.fn((length: number) => {
+          if (mockFailLogReads.has(uri)) throw new Error('read failed');
+          const result = data.slice(handle.offset, handle.offset + length);
+          handle.offset += result.byteLength;
+          return result;
+        }),
+      };
+      mockLogHandles.push(handle);
+      return handle;
     }
 
     write(content: string | Uint8Array) {
@@ -89,6 +111,7 @@ jest.mock('expo-file-system', () => {
 
   return {
     File: MockFile,
+    FileMode: { ReadOnly: 'r' },
     Paths: { cache: 'file://cache' },
   };
 });
@@ -137,6 +160,8 @@ describe('DiagnosticArchive', () => {
     mockLogContents.clear();
     mockWrittenFiles.clear();
     mockDeletedFiles.length = 0;
+    mockLogHandles.length = 0;
+    mockFailLogReads.clear();
     mockGetAppLogFileUris.mockReturnValue([]);
     mockGetEngineLogFileUris.mockReturnValue([]);
     mockGetShareDiagnostics.mockResolvedValue({ schemaVersion: 1, attempts: [] });
@@ -160,6 +185,41 @@ describe('DiagnosticArchive', () => {
     expect(manifest.coverage.complete).toBe(false);
     expect(mockFlushEngineLogs).not.toHaveBeenCalled();
     expect(archive['logs/engine/new.jsonl']).toContain('new');
+  });
+
+  it.each([
+    ['standard', 'decrypt', 'content_key_missing'],
+    ['detailed', 'decrypt', 'content_key_epoch_mismatch'],
+    ['standard', 'policy', 'receive_disabled'],
+    ['standard', 'classification', 'content_type_disabled'],
+    ['standard', 'decode', 'invalid_content'],
+    ['standard', 'handoff', 'no_consumer'],
+    ['standard', 'settlement', 'receipt_dropped'],
+    ['standard', 'settlement', 'application_timeout'],
+    ['standard', 'apply', 'permission_denied'],
+  ])('preserves Engine receive reason %s/%s/%s in the actual ZIP', async (mode, phase, reason) => {
+    const record = {
+      timestamp: '2026-09-11T12:47:42.430813Z',
+      capture_mode: mode,
+      run_id: 'test-run',
+      trace_id: '9d3fc3af9f421c2fd1f864393385452a',
+      fields: {
+        'event.name': 'uc.operation.completed',
+        'uc.domain': 'clipboard',
+        'uc.operation': 'clipboard_receive',
+        'uc.role': 'server',
+        'uc.outcome': 'error',
+        'error.type': 'unavailable',
+        'error.phase': phase,
+        'error.reason': reason,
+        ...(phase === 'apply' ? { 'error.chain': ['clipboard_receive', 'apply', 'io', reason] } : {}),
+        duration_ms: 79,
+      },
+    };
+    mockGetEngineLogFileUris.mockReturnValue(['/logs/engine.jsonl']);
+    mockLogContents.set('/logs/engine.jsonl', JSON.stringify(record) + '\n');
+    const archive = readArchive((await createDiagnosticArchive(input)).uri);
+    expect(JSON.parse(archive['logs/engine/engine.jsonl'])).toEqual(record);
   });
 
   it('waits for buffered records before discovering and reading Engine files', async () => {
@@ -387,6 +447,48 @@ describe('DiagnosticArchive', () => {
     expect(archive['logs/app/app_2026-08-16.txt']).not.toContain('discarded-prefix');
     expect(archive['logs/app/app_2026-08-16.txt']).toContain('retained-tail');
     expect(manifest.collection.appLogs).toMatchObject({ truncatedFileCount: 1 });
+  });
+
+  it('exports a large Engine log as complete UTF-8 records without using Blob slices', async () => {
+    const uri = '/shared/engine.2026-09-12.jsonl';
+    const lastRecord = { event: 'receive.failed', detail: '最后记录', reason: 'apply_failed' };
+    const content = JSON.stringify({ event: 'oversized', detail: '界'.repeat(200_000) }) + '\n' + JSON.stringify(lastRecord) + '\n';
+    mockGetEngineLogFileUris.mockReturnValue([uri]);
+    mockLogContents.set(uri, content);
+    const archive = readArchive((await createDiagnosticArchive(input)).uri);
+    const lines = archive['logs/engine/engine.2026-09-12.jsonl'].trim().split('\n');
+    expect(lines.map(line => JSON.parse(line))).toEqual([lastRecord]);
+    expect(JSON.parse(archive['manifest.json']).collection.engineLogs).toMatchObject({
+      status: 'partial', includedFileCount: 1, unreadableFileCount: 0, truncatedFileCount: 1,
+    });
+    expect(mockLogHandles[0].mode).toBe('r');
+    expect(mockLogHandles[0].readBytes.mock.calls[0][0]).toBeLessThanOrEqual(512 * 1024 + 1);
+    expect(mockLogHandles[0].close).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves a complete record that starts exactly at the byte limit', async () => {
+    const uri = '/shared/boundary.jsonl';
+    const limit = 512 * 1024;
+    const base = JSON.stringify({ detail: '' }) + '\n';
+    const detail = 'x'.repeat(limit - new TextEncoder().encode(base).byteLength);
+    mockGetEngineLogFileUris.mockReturnValue([uri]);
+    mockLogContents.set(uri, 'discarded\n' + JSON.stringify({ detail }) + '\n');
+    const archive = readArchive((await createDiagnosticArchive(input)).uri);
+    expect(JSON.parse(archive['logs/engine/boundary.jsonl']).detail.length).toBe(detail.length);
+    expect(new TextEncoder().encode(archive['logs/engine/boundary.jsonl']).byteLength).toBe(limit);
+  });
+
+  it('closes a bounded file reader after a read failure and exports the other evidence', async () => {
+    const uri = '/shared/large.jsonl';
+    mockGetEngineLogFileUris.mockReturnValue([uri]);
+    mockLogContents.set(uri, 'x'.repeat(600_000));
+    mockFailLogReads.add(uri);
+    mockGetAppLogFileUris.mockReturnValue(['/logs/app.txt']);
+    mockLogContents.set('/logs/app.txt', 'retained app evidence');
+    const archive = readArchive((await createDiagnosticArchive(input)).uri);
+    expect(archive['logs/app/app.txt']).toContain('retained app evidence');
+    expect(JSON.parse(archive['manifest.json']).collection.engineLogs.unreadableFileCount).toBe(1);
+    expect(mockLogHandles[0].close).toHaveBeenCalledTimes(1);
   });
 
   it('keeps available evidence and flags missing Engine files', async () => {

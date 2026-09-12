@@ -4,8 +4,13 @@ import uniffi.uc_engine_uniffi.*
 import java.util.Locale
 
 internal object EngineDiagnosticBridge {
-  fun register() { runCatching { registerHostDiagnosticSource(BindingHostDiagnosticSource.APPLICATION, BindingSourceCapability.PARTIAL) } }
-  fun record(event: BindingHostDiagnosticEvent) { runCatching { recordHostDiagnostic(BindingHostDiagnosticSource.APPLICATION, event) } }
+  fun register(source: BindingHostDiagnosticSource = BindingHostDiagnosticSource.APPLICATION) {
+    runCatching { registerHostDiagnosticSource(source, BindingSourceCapability.PARTIAL) }
+  }
+  fun record(
+    event: BindingHostDiagnosticEvent,
+    source: BindingHostDiagnosticSource = BindingHostDiagnosticSource.APPLICATION
+  ) { runCatching { recordHostDiagnostic(source, event) } }
   fun begin(action: BindingHostDiagnosticAction): String? = runCatching {
     recordHostDiagnostic(BindingHostDiagnosticSource.APPLICATION, BindingHostDiagnosticEvent.Begin(action)).token
   }.getOrNull()
