@@ -29,6 +29,9 @@ appId: ${APP_ID}
           direction: DOWN
       - tapOn: "Export"
       - tapOn: "Export file"
+      - extendedWaitUntil:
+          visible: "(?i)USE THIS FOLDER"
+          timeout: 30000
       - runFlow:
           when:
             notVisible: "(?i)Documents"

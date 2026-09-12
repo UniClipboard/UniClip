@@ -11,10 +11,14 @@ import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 import { homedir, tmpdir } from "node:os";
 import { decodeSimulatorEntitlements } from "./entitlements.mjs";
-import { parseOptions, validateDeviceBudget } from "./options.mjs";
+import { parseOptions, validateDeviceBudget, NETWORK_SCENARIOS } from "./options.mjs";
 import { command } from "./process.mjs";
 import { captureDiagnosticArchives } from "./diagnostic-artifacts.mjs";
 import { runScenario } from "./lifecycle.mjs";
+import { runDiagnosticExtensions } from "../network/diagnostic-extensions.mjs";
+import { runDiagnosticLifecycle } from "../network/diagnostic-lifecycle.mjs";
+import { runDiagnosticFailure } from "../network/diagnostic-failure.mjs";
+import { runBidirectionalSync } from "../network/run.mjs";
 import { iosDevice } from "./ios.mjs";
 import { androidDevice } from "./android.mjs";
 
@@ -118,9 +122,12 @@ async function main() {
   const scenarios = (await readdir(join(root, ".maestro/scenarios")))
     .filter((f) => /^[a-z][a-z0-9-]*\.yaml$/.test(f))
     .sort();
-  const selected = options.scenario
-    ? scenarios.filter((f) => f === `${options.scenario}.yaml`)
-    : scenarios;
+  const selected =
+    NETWORK_SCENARIOS.includes(options.scenario)
+      ? [`${options.scenario}.yaml`]
+      : options.scenario
+      ? scenarios.filter((f) => f === `${options.scenario}.yaml`)
+      : scenarios;
   if (!selected.length) throw new Error("No matching scenarios");
   validateDeviceBudget(options.platform, selected.length, options.repeat);
   const runOutput = join(
@@ -147,16 +154,28 @@ async function main() {
         `${round}-${scenario.replace(".yaml", "")}`
       );
       await mkdir(output);
+      const scenarioStartedAt = new Date().toISOString();
       const device = (options.platform === "ios" ? iosDevice : androidDevice)({
         app,
         output,
+        network: options.peerCli ? "online" : "offline",
       });
       const captureDevice = device.capture.bind(device);
       device.capture = async () => {
         const captures = await Promise.allSettled([
           captureDevice(),
-          scenario === "diagnostic-capture.yaml" && device.id
-            ? captureDiagnosticArchives({ platform: options.platform, id: device.id, appId, output })
+          (scenario === "diagnostic-capture.yaml" || options.peerCli) && device.id
+            ? captureDiagnosticArchives({
+                platform: options.platform,
+                id: device.id,
+                appId,
+                output,
+                minimumRuns: scenario.startsWith("diagnostic-") && scenario !== "diagnostic-capture.yaml" ? 1 : 2,
+                requiredNativeRoles: scenario === "diagnostic-extensions.yaml" ? ["keyboard", "share"] : [],
+                captureMode: scenario === "diagnostic-extensions.yaml" ? null : scenario.startsWith("diagnostic-") && scenario !== "diagnostic-capture.yaml" ? "detailed" : "standard",
+                failureAfter: scenarioStartedAt,
+                requiredFailure: scenario === "diagnostic-auth-failure.yaml" ? "authentication_failed" : scenario === "diagnostic-connect-timeout.yaml" ? "timed_out" : null,
+              })
             : Promise.resolve(),
           device.id
             ? command(maestro, ["--device", device.id, "hierarchy"], {
@@ -183,6 +202,64 @@ async function main() {
           join(output, "device.json"),
           JSON.stringify({ id: device.id, ...device.metadata }, null, 2)
         );
+        if (options.peerCli) {
+          let phaseNumber = 0;
+          const executeNetwork = scenario === "bidirectional-sync.yaml" ? runBidirectionalSync : scenario === "diagnostic-lifecycle.yaml" ? runDiagnosticLifecycle : scenario === "diagnostic-extensions.yaml" ? runDiagnosticExtensions : runDiagnosticFailure;
+          await executeNetwork({
+            scenario: options.scenario,
+            platform: options.platform,
+            id: device.id,
+            cli: options.peerCli,
+            output,
+            runFlow: async (phase, variables) => {
+              const phaseOutput = join(output, `${++phaseNumber}-${phase}`);
+              await mkdir(phaseOutput, { recursive: true });
+              try {
+                const log = await command(
+                  maestro,
+                  [
+                    "--device",
+                    device.id,
+                    "test",
+                    "--format",
+                    "JUNIT",
+                    "--output",
+                    join(phaseOutput, "report.xml"),
+                    "--debug-output",
+                    phaseOutput,
+                    "--test-output-dir",
+                    phaseOutput,
+                    "-e",
+                    `APP_ID=${appId}`,
+                    "-e",
+                    "NETWORK_ACCEPTANCE=true",
+                    ...Object.entries(variables).flatMap(([key, value]) => [
+                      "-e",
+                      `${key}=${value}`,
+                    ]),
+                    join(root, ".maestro/network-scenarios", `${phase}.yaml`),
+                  ],
+                  {
+                    env,
+                    cwd: root,
+                    timeout: 300_000,
+                    signal: interrupted.signal,
+                  }
+                );
+                await writeFile(join(phaseOutput, "maestro.log"), log);
+              } catch (error) {
+                await writeFile(
+                  join(phaseOutput, "maestro.log"),
+                  `${error.stdout ?? ""}\n${error.stderr ?? ""}\n${
+                    error.message
+                  }`
+                );
+                throw error;
+              }
+            },
+          });
+          return;
+        }
         try {
           const log = await command(
             maestro,

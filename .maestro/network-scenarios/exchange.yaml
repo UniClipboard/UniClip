@@ -1,0 +1,13 @@
+appId: ${APP_ID}
+---
+- extendedWaitUntil:
+    visible: "(?s).*${INCOMING}.*"
+    timeout: 45000
+- takeScreenshot: incoming-sync-content
+- runFlow:
+    file: ../actions/clipboard/copy-text.yaml
+    env:
+      CONTENT: ${OUTGOING}
+- extendedWaitUntil:
+    visible: "(?s).*${OUTGOING}.*"
+    timeout: 30000

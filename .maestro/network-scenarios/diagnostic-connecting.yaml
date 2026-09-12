@@ -1,0 +1,12 @@
+appId: ${APP_ID}
+---
+- runFlow: ../lifecycle/launch.yaml
+- runFlow: ../actions/onboarding/complete.yaml
+- runFlow: ../actions/diagnostics/open.yaml
+- runFlow: ../actions/diagnostics/start.yaml
+- runFlow: ../actions/diagnostics/leave.yaml
+- runFlow: ../actions/settings/open.yaml
+- runFlow: ../actions/space/submit-invitation.yaml
+- extendedWaitUntil:
+    visible: "The connection is taking longer. Still trying to join."
+    timeout: 30000

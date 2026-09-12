@@ -1,0 +1,10 @@
+appId: ${APP_ID}
+---
+- launchApp:
+    stopApp: false
+- runFlow: ../actions/updates/dismiss.yaml
+- runFlow: ../assertions/home-ready.yaml
+- runFlow: ../actions/settings/open.yaml
+- runFlow: ../actions/space/join.yaml
+- runFlow: ../assertions/home-ready.yaml
+- runFlow: diagnostic-start.yaml

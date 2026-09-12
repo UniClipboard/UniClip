@@ -1,0 +1,6 @@
+# A network-enabled fresh install may offer an update; keep testing the supplied build.
+appId: ${APP_ID}
+---
+- tapOn:
+    text: "(?i)cancel"
+    optional: true

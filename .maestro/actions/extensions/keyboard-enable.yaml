@@ -1,0 +1,25 @@
+appId: ${APP_ID}
+---
+- launchApp:
+    appId: com.apple.Preferences
+    stopApp: false
+- scrollUntilVisible:
+    element:
+      text: "General"
+    direction: UP
+- tapOn: "General"
+- scrollUntilVisible:
+    element:
+      text: "Keyboard"
+    direction: DOWN
+- tapOn: "Keyboard"
+- tapOn:
+    id: KEYBOARDS
+- tapOn: "Add New Keyboard.*"
+- tapOn: "UniClip.*"
+- tapOn: "UniClip.*"
+- tapOn: "Allow Full Access"
+- tapOn: "Allow"
+- takeScreenshot: keyboard-full-access-enabled
+- launchApp:
+    stopApp: false

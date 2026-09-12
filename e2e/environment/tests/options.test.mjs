@@ -37,3 +37,38 @@ test("checks the whole selected suite against Android device capacity before exe
   assert.throws(() => validateDeviceBudget("android", 4, 4));
   assert.doesNotThrow(() => validateDeviceBudget("ios", 4, 7));
 });
+
+test("network acceptance requires an explicit isolated desktop peer executable", () => {
+  assert.throws(
+    () =>
+      parseOptions([
+        "--platform",
+        "ios",
+        "--app",
+        "/tmp/app.app",
+        "--scenario",
+        "bidirectional-sync",
+      ]),
+    /peer-cli/
+  );
+  assert.equal(
+    parseOptions([
+      "--platform",
+      "ios",
+      "--app",
+      "/tmp/app.app",
+      "--scenario",
+      "bidirectional-sync",
+      "--peer-cli",
+      "/tmp/uniclip",
+    ]).peerCli,
+    "/tmp/uniclip"
+  );
+});
+
+test('diagnostic fault scenarios also require an explicit isolated peer', () => {
+  for (const scenario of ['diagnostic-auth-failure', 'diagnostic-connect-timeout', 'diagnostic-lifecycle', 'diagnostic-extensions']) {
+    assert.throws(() => parseOptions(['--platform', 'ios', '--app', '/tmp/app.app', '--scenario', scenario]), /peer-cli/);
+    assert.equal(parseOptions(['--platform', 'ios', '--app', '/tmp/app.app', '--scenario', scenario, '--peer-cli', '/tmp/uniclip']).scenario, scenario);
+  }
+});

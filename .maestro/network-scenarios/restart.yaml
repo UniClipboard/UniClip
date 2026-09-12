@@ -1,0 +1,5 @@
+appId: ${APP_ID}
+---
+- runFlow: ../lifecycle/restart.yaml
+- runFlow: ../actions/updates/dismiss.yaml
+- runFlow: ../assertions/home-ready.yaml

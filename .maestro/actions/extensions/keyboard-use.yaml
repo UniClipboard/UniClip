@@ -1,0 +1,25 @@
+appId: ${APP_ID}
+---
+- openLink: ${PROBE_URL}
+- tapOn:
+    text: "Continue"
+    optional: true
+- extendedWaitUntil:
+    visible: "Diagnostic input"
+    timeout: 30000
+- tapOn: "Diagnostic input"
+- longPressOn: "Next keyboard"
+- tapOn: "UniClip.*"
+- tapOn:
+    text: "Allow Paste"
+    optional: true
+- extendedWaitUntil:
+    visible: "Switch keyboard"
+    timeout: 30000
+- takeScreenshot: keyboard-extension-active
+- tapOn: "(?s).*KeyboardHistoryProbe.*"
+- pressKey: HOME
+- launchApp:
+    stopApp: false
+- runFlow: ../space/leave-setup.yaml
+- runFlow: ../../assertions/home-ready.yaml

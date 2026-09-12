@@ -1,0 +1,22 @@
+appId: ${APP_ID}
+---
+- scrollUntilVisible:
+    element:
+      text: "Sync method"
+    direction: UP
+- tapOn: "Sync method"
+- tapOn: "Direct device sync.*"
+- tapOn: "Use direct sync"
+- extendedWaitUntil:
+    visible: "Join an existing space.*"
+    timeout: 30000
+- tapOn: "Join an existing space.*"
+- inputText: ${INVITATION_CODE}
+- tapOn: "Continue"
+- tapOn: "Space password"
+- inputText: ${SPACE_PASSWORD}
+- scrollUntilVisible:
+    element:
+      text: "Join"
+    direction: DOWN
+- tapOn: "Join"

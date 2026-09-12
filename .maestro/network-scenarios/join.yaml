@@ -1,0 +1,7 @@
+appId: ${APP_ID}
+---
+- runFlow: ../lifecycle/launch.yaml
+- runFlow: ../actions/onboarding/complete.yaml
+- runFlow: ../actions/settings/open.yaml
+- runFlow: ../actions/space/join.yaml
+- runFlow: ../assertions/home-ready.yaml

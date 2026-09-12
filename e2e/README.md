@@ -130,3 +130,24 @@ Search, selection/copy, context actions, filters and history assertions remain r
 ## Diagnostic capture evidence
 
 `diagnostic-capture` uses the existing settings rows. It confirms a capture survives page navigation, can be stopped, and does not falsely remain active after process restart. iOS leaves the system share sheet open so evidence capture can copy the actual pending ZIP; Android saves through the system directory picker to Documents. Before disposing the owned device, the runner copies the exported ZIP and verifies its Engine revision, stopped capture state, completed flush, typed counter scope and native host records. It never injects application state or accesses a personal device. The full ZIP and decoded manifest remain in `diagnostic-archives/`.
+
+## 联网双向同步验收
+
+显式选择 `bidirectional-sync`，并提供同版本的桌面 `uniclip` 与相邻 `uniclipd`。
+默认套件仍然离线，不会自动执行联网场景。
+
+```bash
+npm run test:e2e -- --platform ios --app /path/to/Release-iphonesimulator/UniClipDev.app --scenario bidirectional-sync --peer-cli /path/to/uniclip
+npm run test:e2e -- --platform android --app /path/to/app-arm64-v8a-release.apk --scenario bidirectional-sync --peer-cli /path/to/uniclip
+```
+
+运行器创建独立临时桌面空间，以无系统剪贴板的服务模式启动对端。
+Maestro 操作手机页面选择直接同步、输入邀请码及测试密码；通过真实发送和系统复制验证
+两个方向，并在手机重启后重复，最后从页面导出诊断包。重启后最多等待 60 秒自动上线，
+只读取状态，不主动探测连接；若未恢复或发送失败，仍尝试从页面导出证据，并保留失败结果。
+重启后的发送允许先离线排队，但不把排队当作成功：不重复发送，必须在手机页面出现完整内容，
+且手机回传文本也被桌面实际收到，才算通过。测试记录、对端日志和导出包留在
+本次结果目录；本次拥有的桌面空间及模拟器在结束时清理。
+
+测试只证明新空间的正常同步，不代表历史空间状态冲突或缺失更新已经自动恢复。
+请勿提供版本不匹配的桌面程序，也不要使用当前个人空间替代临时对端。

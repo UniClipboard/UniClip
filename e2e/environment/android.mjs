@@ -7,7 +7,7 @@ import { mkdir, writeFile, open } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import { command } from "./process.mjs";
 
-export function androidDevice({ app, output }) {
+export function androidDevice({ app, output, network = "offline" }) {
   const sdk =
     process.env.ANDROID_HOME ?? join(homedir(), "Library/Android/sdk");
   const adb = join(sdk, "platform-tools/adb");
@@ -25,7 +25,7 @@ export function androidDevice({ app, output }) {
       image,
       model: "pixel_8",
       language: "en-US",
-      network: "offline",
+      network,
     },
     async prepare() {
       await mkdir(avdHome, { recursive: true });
@@ -94,8 +94,19 @@ export function androidDevice({ app, output }) {
       await device("shell", "input", "keyevent", "82");
       await device("install", app);
       // Local-only scenarios must not depend on the current release server.
-      await device("shell", "svc", "wifi", "disable");
-      await device("shell", "cmd", "connectivity", "airplane-mode", "enable");
+      await device(
+        "shell",
+        "svc",
+        "wifi",
+        network === "offline" ? "disable" : "enable"
+      );
+      await device(
+        "shell",
+        "cmd",
+        "connectivity",
+        "airplane-mode",
+        network === "offline" ? "enable" : "disable"
+      );
       // Radio changes can briefly reconnect adbd. Require consecutive successful
       // readiness observations before handing the device to Maestro (no flow retry).
       let stable = 0;
@@ -134,7 +145,7 @@ export function androidDevice({ app, output }) {
         ).catch(() => "");
         stable =
           ready === "1" &&
-          airplane === "1" &&
+          airplane === (network === "offline" ? "1" : "0") &&
           firstBoot === "1" &&
           provisioned === "1" &&
           userSetup === "1"
@@ -143,7 +154,7 @@ export function androidDevice({ app, output }) {
         if (stable < 5) await delay(1000);
       }
       if (stable < 5)
-        throw new Error("Emulator did not settle after offline setup");
+        throw new Error("Emulator did not settle after network setup");
     },
     async capture() {
       if (!child || child.exitCode !== null || child.signalCode !== null)

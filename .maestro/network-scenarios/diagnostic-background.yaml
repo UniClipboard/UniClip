@@ -1,0 +1,4 @@
+appId: ${APP_ID}
+---
+- pressKey: HOME
+- takeScreenshot: app-in-background

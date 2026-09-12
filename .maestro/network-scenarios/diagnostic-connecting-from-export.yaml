@@ -1,0 +1,17 @@
+appId: ${APP_ID}
+---
+- runFlow: ../actions/diagnostics/leave.yaml
+- runFlow: ../actions/diagnostics/open.yaml
+- runFlow:
+    when:
+      visible:
+        id: engine-diagnostic-capture
+        checked: true
+    file: ../actions/diagnostics/stop.yaml
+- runFlow: ../actions/diagnostics/start.yaml
+- runFlow: ../actions/diagnostics/leave.yaml
+- runFlow: ../actions/settings/open.yaml
+- runFlow: ../actions/space/submit-invitation.yaml
+- extendedWaitUntil:
+    visible: "The connection is taking longer. Still trying to join."
+    timeout: 30000

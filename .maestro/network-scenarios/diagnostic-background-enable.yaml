@@ -1,0 +1,6 @@
+appId: ${APP_ID}
+---
+- runFlow:
+    when:
+      platform: Android
+    file: ../actions/settings/enable-background.yaml

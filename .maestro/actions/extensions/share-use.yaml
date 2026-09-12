@@ -1,0 +1,28 @@
+appId: ${APP_ID}
+---
+- runFlow: ../settings/open.yaml
+- scrollUntilVisible:
+    element:
+      text: "Share"
+    direction: UP
+- tapOn: "Share"
+- tapOn: "Open the share sheet to try"
+- extendedWaitUntil:
+    visible: "Copy"
+    timeout: 30000
+- runFlow:
+    when:
+      notVisible: "UniClip Dev"
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: "More"
+          direction: RIGHT
+      - tapOn: "More"
+- tapOn: "UniClip Dev"
+- extendedWaitUntil:
+    visible: "Send to devices"
+    timeout: 30000
+- takeScreenshot: share-extension-handoff
+- runFlow: ../space/leave-setup.yaml
+- runFlow: ../../assertions/home-ready.yaml

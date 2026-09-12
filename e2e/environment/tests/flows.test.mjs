@@ -103,3 +103,26 @@ test("diagnostics regression covers capture, restart and export through reusable
   assert.ok(text.includes("diagnostics/export"));
   assert.ok(body.every((s) => !s.tapOn));
 });
+
+test("background setup returns to the app without backing out of it", () => {
+  const body = readFlow(resolve(root, "actions/settings/enable-background.yaml"));
+  assert.equal(body.filter((step) => step === "back").length, 1);
+  assert.ok(body.some((step) => step.runFlow?.when?.visible === "Settings"));
+  const lastLaunch = body.findLastIndex((step) => step.launchApp);
+  const homeCheck = body.findLastIndex(
+    (step) => step.runFlow === "../../assertions/home-ready.yaml"
+  );
+  assert.ok(lastLaunch > -1 && lastLaunch < homeCheck);
+});
+
+test("network acceptance phases reuse UI actions and keep network tests opt-in", () => {
+  for (const name of readdirSync(resolve(root, "network-scenarios")).filter(name => name.endsWith(".yaml"))) {
+    const body = readFlow(resolve(root, "network-scenarios", name));
+    assert.ok(
+      body.every((step) => !step.tapOn && !step.inputText && !step.runScript)
+    );
+  }
+  const join = readFlow(resolve(root, "actions/space/submit-invitation.yaml"));
+  assert.ok(join.some((step) => step.inputText === "${INVITATION_CODE}"));
+  assert.ok(join.some((step) => step.inputText === "${SPACE_PASSWORD}"));
+});

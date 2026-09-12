@@ -10,4 +10,8 @@ appId: ${APP_ID}
     id: onboarding-scan
 - tapOn:
     id: onboarding-skip
+- runFlow:
+    when:
+      true: ${typeof NETWORK_ACCEPTANCE !== "undefined" && NETWORK_ACCEPTANCE === "true"}
+    file: ../updates/dismiss.yaml
 - runFlow: ../../assertions/home-ready.yaml

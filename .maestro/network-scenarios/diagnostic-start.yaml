@@ -1,0 +1,5 @@
+appId: ${APP_ID}
+---
+- runFlow: ../actions/diagnostics/open.yaml
+- runFlow: ../actions/diagnostics/start.yaml
+- runFlow: ../actions/diagnostics/leave.yaml

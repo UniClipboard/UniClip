@@ -1,0 +1,7 @@
+appId: ${APP_ID}
+---
+- runFlow: ../actions/space/leave-setup.yaml
+- runFlow: ../assertions/home-ready.yaml
+- runFlow: ../actions/diagnostics/open.yaml
+- runFlow: ../assertions/diagnostics/active.yaml
+- runFlow: ../actions/diagnostics/export.yaml

@@ -1,0 +1,18 @@
+appId: ${APP_ID}
+---
+- runFlow: ../lifecycle/launch.yaml
+- runFlow: ../actions/onboarding/complete.yaml
+- runFlow: ../actions/diagnostics/open.yaml
+- runFlow: ../actions/diagnostics/start.yaml
+- runFlow: ../actions/diagnostics/leave.yaml
+- runFlow: ../actions/settings/open.yaml
+- runFlow: ../actions/space/submit-invitation.yaml
+- extendedWaitUntil:
+    visible: ${EXPECTED_FAILURE}
+    timeout: 90000
+- takeScreenshot: expected-diagnostic-failure
+- runFlow: ../actions/space/leave-setup.yaml
+- runFlow: ../assertions/home-ready.yaml
+- runFlow: ../actions/diagnostics/open.yaml
+- runFlow: ../assertions/diagnostics/active.yaml
+- runFlow: ../actions/diagnostics/export.yaml
