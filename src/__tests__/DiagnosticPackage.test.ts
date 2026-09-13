@@ -437,7 +437,7 @@ describe('DiagnosticArchive', () => {
     const engineUri = '/shared/p2p/cache/logs/engine.2026-08-16.txt';
     mockGetAppLogFileUris.mockReturnValue([appUri]);
     mockGetEngineLogFileUris.mockReturnValue([engineUri]);
-    mockLogContents.set(appUri, `discarded-prefix\n${'x'.repeat(512 * 1024)}\nretained-tail`);
+    mockLogContents.set(appUri, `discarded-prefix\n${'x'.repeat(5 * 1024 * 1024)}\nretained-tail`);
     mockLogContents.set(engineUri, 'INFO engine started\n');
 
     const artifact = await createDiagnosticArchive(input);
@@ -452,7 +452,7 @@ describe('DiagnosticArchive', () => {
   it('exports a large Engine log as complete UTF-8 records without using Blob slices', async () => {
     const uri = '/shared/engine.2026-09-12.jsonl';
     const lastRecord = { event: 'receive.failed', detail: '最后记录', reason: 'apply_failed' };
-    const content = JSON.stringify({ event: 'oversized', detail: '界'.repeat(200_000) }) + '\n' + JSON.stringify(lastRecord) + '\n';
+    const content = JSON.stringify({ event: 'oversized', detail: '界'.repeat(2_000_000) }) + '\n' + JSON.stringify(lastRecord) + '\n';
     mockGetEngineLogFileUris.mockReturnValue([uri]);
     mockLogContents.set(uri, content);
     const archive = readArchive((await createDiagnosticArchive(input)).uri);
@@ -462,13 +462,13 @@ describe('DiagnosticArchive', () => {
       status: 'partial', includedFileCount: 1, unreadableFileCount: 0, truncatedFileCount: 1,
     });
     expect(mockLogHandles[0].mode).toBe('r');
-    expect(mockLogHandles[0].readBytes.mock.calls[0][0]).toBeLessThanOrEqual(512 * 1024 + 1);
+    expect(mockLogHandles[0].readBytes.mock.calls[0][0]).toBeLessThanOrEqual(5 * 1024 * 1024 + 1);
     expect(mockLogHandles[0].close).toHaveBeenCalledTimes(1);
   });
 
   it('preserves a complete record that starts exactly at the byte limit', async () => {
     const uri = '/shared/boundary.jsonl';
-    const limit = 512 * 1024;
+    const limit = 5 * 1024 * 1024;
     const base = JSON.stringify({ detail: '' }) + '\n';
     const detail = 'x'.repeat(limit - new TextEncoder().encode(base).byteLength);
     mockGetEngineLogFileUris.mockReturnValue([uri]);
@@ -481,7 +481,7 @@ describe('DiagnosticArchive', () => {
   it('closes a bounded file reader after a read failure and exports the other evidence', async () => {
     const uri = '/shared/large.jsonl';
     mockGetEngineLogFileUris.mockReturnValue([uri]);
-    mockLogContents.set(uri, 'x'.repeat(600_000));
+    mockLogContents.set(uri, 'x'.repeat(6_000_000));
     mockFailLogReads.add(uri);
     mockGetAppLogFileUris.mockReturnValue(['/logs/app.txt']);
     mockLogContents.set('/logs/app.txt', 'retained app evidence');

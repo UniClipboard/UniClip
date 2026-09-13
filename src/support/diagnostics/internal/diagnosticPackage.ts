@@ -11,7 +11,7 @@ import { flushAppLogs, getAppLogCaptureStatus, getAppLogFileUris, getEngineLogFi
 import type { DiagnosticReason } from './diagnosticEventClassifier';
 
 const DIAGNOSTIC_ARCHIVE_SCHEMA_VERSION = 1;
-const MAX_LOG_BYTES_PER_FILE = 512 * 1024;
+const MAX_LOG_BYTES_PER_FILE = 5 * 1024 * 1024;
 const DIAGNOSTIC_ARCHIVE_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 export interface DiagnosticSettingsSnapshot {
