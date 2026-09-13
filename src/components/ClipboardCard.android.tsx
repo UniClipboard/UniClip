@@ -304,8 +304,7 @@ function CheckerboardBackground() {
           />
           <SvgRect width={CHECKER_CELL} height={CHECKER_CELL} fill="rgba(217,217,217,0.25)" />
           <SvgRect
-            x={CHECKER_CELL}
-            y={CHECKER_CELL}
+            transform={`translate(${CHECKER_CELL}, ${CHECKER_CELL})`}
             width={CHECKER_CELL}
             height={CHECKER_CELL}
             fill="rgba(217,217,217,0.25)"

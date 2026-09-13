@@ -43,8 +43,7 @@ export function CompanionArt({
     <Svg width={width} height={h} viewBox="0 0 232 128">
       {/* desktop app window */}
       <Rect
-        x={30}
-        y={14}
+        transform="translate(30, 14)"
         width={120}
         height={78}
         rx={8}
@@ -98,8 +97,7 @@ export function CompanionArt({
       />
       {/* phone companion, in front / bottom-right */}
       <Rect
-        x={128}
-        y={44}
+        transform="translate(128, 44)"
         width={48}
         height={72}
         rx={10}
@@ -162,8 +160,7 @@ export function SyncUpgradeArt({
           fill="none"
         />
         <Rect
-          x={29}
-          y={79}
+          transform="translate(29, 79)"
           width={20}
           height={32}
           rx={5}
@@ -172,8 +169,7 @@ export function SyncUpgradeArt({
           strokeWidth={1.8}
         />
         <Rect
-          x={72}
-          y={78}
+          transform="translate(72, 78)"
           width={31}
           height={22}
           rx={4}
@@ -214,8 +210,7 @@ export function SyncUpgradeArt({
       <Circle cx={187} cy={93} r={4} fill={accent} />
       <Circle cx={261} cy={82} r={4} fill={accent} />
       <Rect
-        x={174}
-        y={78}
+        transform="translate(174, 78)"
         width={24}
         height={38}
         rx={6}
@@ -224,8 +219,7 @@ export function SyncUpgradeArt({
         strokeWidth={2}
       />
       <Rect
-        x={248}
-        y={68}
+        transform="translate(248, 68)"
         width={34}
         height={24}
         rx={4}
@@ -308,10 +302,10 @@ export function LanArt({
       <Circle cx={78} cy={70} r={3} fill={accent} />
       <Circle cx={142} cy={70} r={3} fill={accent} />
       {/* phone node */}
-      <Rect x={40} y={56} width={20} height={30} rx={4} fill={bg} stroke={fg2} strokeWidth={1.6} />
+      <Rect transform="translate(40, 56)" width={20} height={30} rx={4} fill={bg} stroke={fg2} strokeWidth={1.6} />
       <Line x1={47} y1={81} x2={53} y2={81} stroke={fg2} strokeWidth={1.6} strokeLinecap="round" />
       {/* desktop node */}
-      <Rect x={156} y={54} width={30} height={21} rx={3} fill={bg} stroke={fg2} strokeWidth={1.6} />
+      <Rect transform="translate(156, 54)" width={30} height={21} rx={3} fill={bg} stroke={fg2} strokeWidth={1.6} />
       <Line x1={171} y1={75} x2={171} y2={82} stroke={fg2} strokeWidth={1.6} />
       <Line
         x1={165}
