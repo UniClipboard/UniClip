@@ -49,3 +49,13 @@ test("physical iOS debug installs build Expo modules consistently from source", 
   assert.match(install, /EXPO_USE_PRECOMPILED_MODULES=0 UC_ENGINE_LOCAL_CORE=1 npx pod-install ios/);
   assert.match(install, /EXPO_USE_PRECOMPILED_MODULES=0 UC_ENGINE_LOCAL_CORE=1 APP_VARIANT=development npx expo run:ios/);
 });
+
+test("the managed iOS install keeps React Native code generation enabled", () => {
+  const install = script.slice(script.indexOf("install_ios()"), script.indexOf("install_android()"));
+  const commands = install.split('\n').filter(line => /npx (pod-install|expo run:ios)/.test(line));
+  assert.equal(commands.length, 2);
+  for (const command of commands) {
+    assert.match(command, /RCT_IGNORE_PODS_DEPRECATION=0 RCT_SKIP_CODEGEN=0/);
+    assert.doesNotMatch(command, /2>\/dev\/null|--silent|--quiet/);
+  }
+});

@@ -5,7 +5,7 @@ mandatory platform and storage rules and `DESIGN.md` for UI conventions.
 
 ## Product Model
 
-UniClip is an Expo SDK 56 / React Native mobile client for encrypted clipboard
+UniClip is an Expo SDK 57 / React Native mobile client for encrypted clipboard
 sync across Android, iOS, and desktop devices.
 
 Devices create or join a Space with an invitation code. The mobile app has no
@@ -126,6 +126,11 @@ no Add Server or quick-download route.
 truth. Native behavior belongs in Expo modules, config plugins, or `targets/`.
 After changing native dependencies, regenerate or refresh the platform project
 before claiming a platform build is valid.
+
+All local Engine builds use the `dev` profile, including pinned-source installs
+and `core:prepare:local:ios`. Pinned builds use the current Engine packaging tools
+with the selected source checkout. The tools must emit `build-profile.txt`;
+development installs reject release or unlabelled cached artifacts.
 
 ## Commands
 

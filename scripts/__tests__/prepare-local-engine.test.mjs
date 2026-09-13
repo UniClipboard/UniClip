@@ -211,7 +211,9 @@ test("the ordinary local iOS command uses the sibling Engine and copies its comp
       `#!/bin/bash
 set -eu
 result="$UC_ENGINE_UNIFFI_TARGET_DIR/uc-engine-uniffi-dist/ios"
+test "$UC_ENGINE_UNIFFI_BUILD_PROFILE" = dev
 mkdir -p "$result/UniClipboardEngine.xcframework"
+printf '%s\\n' "$UC_ENGINE_UNIFFI_BUILD_PROFILE" > "$result/build-profile.txt"
 printf 'framework' > "$result/UniClipboardEngine.xcframework/content"
 printf 'binding' > "$result/uc_engine_uniffi.swift"
 `,

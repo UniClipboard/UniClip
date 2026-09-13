@@ -29,8 +29,8 @@ function profiles(override) {
     .split("\n");
 }
 
-test("iOS and Android inherit the same release debug setting", () => {
-  assert.deepEqual(profiles(), ["line-tables-only", "line-tables-only"]);
+test("Engine packaging retains ownership of release debug defaults", () => {
+  assert.deepEqual(profiles(), ["0", "different-cargo-default"]);
 });
 
 test("an explicit debug setting applies to both platforms", () => {
@@ -45,7 +45,7 @@ test("Engine build overrides do not leak into the app environment", () => {
       `
     source "$1"
     unset CARGO_PROFILE_RELEASE_DEBUG DEVELOPER_DIR
-    uc_engine_run_build bash -c 'test -n "$CARGO_PROFILE_RELEASE_DEBUG"'
+    uc_engine_run_build bash -c 'export CARGO_PROFILE_RELEASE_DEBUG=1 DEVELOPER_DIR=/child-selected-xcode'
     test -z "\${CARGO_PROFILE_RELEASE_DEBUG:-}"
     test -z "\${DEVELOPER_DIR:-}"
   `,

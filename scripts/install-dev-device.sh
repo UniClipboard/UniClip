@@ -6,6 +6,11 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
 source "$SCRIPT_DIR/engine-build-storage.sh"
 ENGINE_ROOT="${UC_ENGINE_REPOSITORY:-$PROJECT_ROOT/../Engine}"
 LOCAL_ENGINE_ROOT="$PROJECT_ROOT/modules/uc-engine/.artifacts/local"
+LOCAL_ENGINE_OVERRIDE=""
+if [ -f "$LOCAL_ENGINE_ROOT/source.json" ]; then
+  LOCAL_ENGINE_OVERRIDE="$(node -e 'const p = require(process.argv[1]).repository; if (typeof p !== "string" || !p.startsWith("/")) process.exit(1); process.stdout.write(p)' "$LOCAL_ENGINE_ROOT/source.json")"
+  ENGINE_ROOT="$LOCAL_ENGINE_OVERRIDE"
+fi
 export PROJECT_ROOT SCRIPT_DIR LOCAL_ENGINE_BUILD_ROOT LOCAL_ENGINE_ROOT
 INSTALL_ENGINE_COMMIT=""
 DEFAULT_IOS_DEVICE="marks iPhone"
@@ -29,6 +34,13 @@ The app is built as the separate development version and does not replace the
 production app. It uses the Engine revision pinned in modules/uc-engine/core-source.json
 and reuses verified artifacts when available. This command does not start Metro; run npm start separately
 when you need to load JavaScript from this checkout.
+
+For temporary local Engine testing (including uncommitted changes):
+  npm run core:patch -- /path/to/Engine
+  npm run install:dev:ios
+  npm run install:dev:android
+  npm run core:unpatch
+The override applies only to development installs and leaves the project pin unchanged.
 EOF
 }
 
@@ -95,26 +107,14 @@ restore_cached_local_ios_engine_impl() {
   local module_framework="$module_dir/UniClipboardEngine.xcframework"
   local pending
 
-  # The previous install may have restored the project's pinned framework while
-  # leaving a marker for another source revision. Verify the actual pinned files
-  # before recording them as the local input; never bless unverified files.
-  if ! node "$SCRIPT_DIR/verify-unified-engine-core.mjs" --local-prepared --source-commit "$expected_commit" >/dev/null 2>&1 &&
-      [ "$(node -p 'require(process.argv[1]).sourceCommit' "$PROJECT_ROOT/modules/uc-engine/core-source.json")" = "$expected_commit" ] &&
-      node "$SCRIPT_DIR/verify-unified-engine-core.mjs" --prepared >/dev/null 2>&1; then
-    local source_state
-    source_state="$(node -p 'require(process.argv[1]).sourceStateSha256 || "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"' "$PROJECT_ROOT/modules/uc-engine/core-source.json")"
-    node "$SCRIPT_DIR/verify-unified-engine-core.mjs" --record-local \
-      --source-commit "$expected_commit" --source-state-sha256 "$source_state"
-  fi
-
-  # The build output directory is temporary. Reuse verified published files first.
-  if node "$SCRIPT_DIR/verify-unified-engine-core.mjs" --local-prepared --source-commit "$expected_commit" >/dev/null 2>&1; then
-    if ! node "$SCRIPT_DIR/verify-unified-engine-core.mjs" --local-prepared --local-artifacts "$cache_dir" --source-commit "$expected_commit" >/dev/null 2>&1; then
+  # Only reuse verified dev output, never relabel a published release as a dev build.
+  if node "$SCRIPT_DIR/verify-unified-engine-core.mjs" --local-prepared --build-profile dev --source-commit "$expected_commit" >/dev/null 2>&1; then
+    if ! node "$SCRIPT_DIR/verify-unified-engine-core.mjs" --local-prepared --build-profile dev --local-artifacts "$cache_dir" --source-commit "$expected_commit" >/dev/null 2>&1; then
       pending="$(mktemp -d "$LOCAL_ENGINE_ROOT/ios-cache.XXXXXX")"
       ditto "$module_framework" "$pending/UniClipboardEngine.xcframework"
       cp "$module_dir/Bindings/uc_engine_uniffi.swift" "$pending/uc_engine_uniffi.swift"
       cp "$LOCAL_ENGINE_ROOT/local-prepared.json" "$pending/local-prepared.json"
-      if ! node "$SCRIPT_DIR/verify-unified-engine-core.mjs" --local-prepared --local-artifacts "$pending" --source-commit "$expected_commit"; then
+      if ! node "$SCRIPT_DIR/verify-unified-engine-core.mjs" --local-prepared --build-profile dev --local-artifacts "$pending" --source-commit "$expected_commit"; then
         rm -rf "$pending"
         return 1
       fi
@@ -125,7 +125,7 @@ restore_cached_local_ios_engine_impl() {
     return
   fi
 
-  if ! node "$SCRIPT_DIR/verify-unified-engine-core.mjs" --local-prepared --local-artifacts "$cache_dir" --source-commit "$expected_commit" >/dev/null 2>&1; then
+  if ! node "$SCRIPT_DIR/verify-unified-engine-core.mjs" --local-prepared --build-profile dev --local-artifacts "$cache_dir" --source-commit "$expected_commit" >/dev/null 2>&1; then
     return 1
   fi
   echo "Restoring cached iOS Engine ($expected_commit); skipping Engine compilation"
@@ -134,7 +134,7 @@ restore_cached_local_ios_engine_impl() {
   ditto "$cache_dir/UniClipboardEngine.xcframework" "$module_framework"
   cp "$cache_dir/uc_engine_uniffi.swift" "$module_dir/Bindings/uc_engine_uniffi.swift"
   cp "$cache_dir/local-prepared.json" "$LOCAL_ENGINE_ROOT/local-prepared.json"
-  node "$SCRIPT_DIR/verify-unified-engine-core.mjs" --local-prepared --source-commit "$expected_commit"
+  node "$SCRIPT_DIR/verify-unified-engine-core.mjs" --local-prepared --build-profile dev --source-commit "$expected_commit"
 }
 
 export -f restore_pinned_ios_engine_impl
@@ -198,6 +198,31 @@ prepare_install_engine() {
 
   mkdir -p "$LOCAL_ENGINE_ROOT"
   prepare_local_cargo_home
+  if [ -n "$LOCAL_ENGINE_OVERRIDE" ]; then
+    echo "Preparing $platform Engine from current local files: $ENGINE_ROOT"
+    # Always invoke Cargo so edits at the same commit cannot reuse stale packages.
+    case "$platform" in
+      ios)
+        UC_ENGINE_UNIFFI_BUILD_PROFILE=dev UC_ENGINE_LOCAL_TARGET_DIR="$LOCAL_ENGINE_BUILD_ROOT" \
+          bash "$SCRIPT_DIR/prepare-local-unified-engine-core.sh" "$ENGINE_ROOT"
+        ;;
+      android)
+        (
+          cd "$ENGINE_ROOT"
+          UC_ENGINE_UNIFFI_BUILD_PROFILE=dev UC_ENGINE_UNIFFI_TARGET_DIR="$LOCAL_ENGINE_BUILD_ROOT" \
+            UC_ENGINE_UNIFFI_BUILD_LOCKED=1 \
+            uc_engine_run_build bindings/uc-engine-uniffi/scripts/build-android-aar.sh
+          if [ "$(cat "$android_marker" 2>/dev/null || true)" != "$(git rev-parse HEAD)" ] ||
+              [ "$(cat "${android_marker%/*}/build-profile.txt" 2>/dev/null || true)" != "dev" ]; then
+            echo "Engine packaging did not produce the requested dev build; update its build scripts" >&2
+            exit 1
+          fi
+        )
+        ;;
+      *) echo "Unsupported Engine platform: $platform" >&2; return 2 ;;
+    esac
+    return
+  fi
   if [ -z "$INSTALL_ENGINE_COMMIT" ]; then
     INSTALL_ENGINE_COMMIT="$(node -p 'require(process.argv[1]).sourceCommit' "$PROJECT_ROOT/modules/uc-engine/core-source.json")"
     if ! git -C "$ENGINE_ROOT" cat-file -e "$INSTALL_ENGINE_COMMIT^{commit}"; then
@@ -214,7 +239,8 @@ prepare_install_engine() {
     android)
       marker_file="$android_marker"
       prepared_commit="$(cat "$marker_file" 2>/dev/null || true)"
-      if [ "$prepared_commit" = "$source_commit" ]; then
+      if [ "$prepared_commit" = "$source_commit" ] &&
+          [ "$(cat "${android_marker%/*}/build-profile.txt" 2>/dev/null || true)" = "dev" ]; then
         return
       fi
       ;;
@@ -232,16 +258,20 @@ prepare_install_engine() {
   trap 'git -C "$ENGINE_ROOT" worktree remove --force "$worktree"' RETURN
   case "$platform" in
     ios)
-      UC_ENGINE_LOCAL_TARGET_DIR="$LOCAL_ENGINE_BUILD_ROOT" \
+      UC_ENGINE_BUILD_TOOLS_ROOT="$ENGINE_ROOT" UC_ENGINE_UNIFFI_BUILD_PROFILE=dev UC_ENGINE_LOCAL_TARGET_DIR="$LOCAL_ENGINE_BUILD_ROOT" \
         bash "$SCRIPT_DIR/prepare-local-unified-engine-core.sh" "$worktree"
       restore_cached_local_ios_engine "$source_commit"
       ;;
     android)
       (
         cd "$worktree"
-        UC_ENGINE_UNIFFI_TARGET_DIR="$LOCAL_ENGINE_BUILD_ROOT" \
+        UC_ENGINE_UNIFFI_BUILD_PROFILE=dev UC_ENGINE_UNIFFI_TARGET_DIR="$LOCAL_ENGINE_BUILD_ROOT" \
           UC_ENGINE_UNIFFI_BUILD_LOCKED=1 \
-          uc_engine_run_build bindings/uc-engine-uniffi/scripts/build-android-aar.sh
+          uc_engine_run_build "$ENGINE_ROOT/bindings/uc-engine-uniffi/scripts/build-android-aar.sh" "$worktree"
+        if [ "$(cat "${android_marker%/*}/build-profile.txt" 2>/dev/null || true)" != "dev" ]; then
+          echo "Engine packaging did not produce the requested dev build" >&2
+          exit 1
+        fi
       )
       ;;
   esac
@@ -265,9 +295,11 @@ install_ios() {
   trap 'status=$?; if restore_pinned_ios_engine; then restore_status=0; else restore_status=$?; fi; if [ "$status" -eq 0 ] && [ "$restore_status" -ne 0 ]; then status="$restore_status"; fi; exit "$status"' EXIT
   prepare_install_engine ios
   # Keep Expo C++ view layouts consistent with this Debug build and React Native.
-  EXPO_USE_PRECOMPILED_MODULES=0 UC_ENGINE_LOCAL_CORE=1 npx pod-install ios
+  # Pods must exist before preparing Debug frameworks; Expo still owns the build below.
+  # React Native 0.86 also skips required codegen when deprecation suppression is enabled.
+  RCT_IGNORE_PODS_DEPRECATION=0 RCT_SKIP_CODEGEN=0 EXPO_USE_PRECOMPILED_MODULES=0 UC_ENGINE_LOCAL_CORE=1 npx pod-install ios
   node "$SCRIPT_DIR/prepare-ios-debug-frameworks.mjs" "$PROJECT_ROOT/ios/Pods"
-  EXPO_USE_PRECOMPILED_MODULES=0 UC_ENGINE_LOCAL_CORE=1 APP_VARIANT=development npx expo run:ios --device "$device" --no-bundler
+  RCT_IGNORE_PODS_DEPRECATION=0 RCT_SKIP_CODEGEN=0 EXPO_USE_PRECOMPILED_MODULES=0 UC_ENGINE_LOCAL_CORE=1 APP_VARIANT=development npx expo run:ios --device "$device" --no-bundler
   restore_pinned_ios_engine
   trap - EXIT
 }

@@ -264,6 +264,8 @@ async function verifyLocalBuildPrepared() {
 
 async function recordLocalPrepared() {
   const sourceCommit = readArg('--source-commit');
+  const buildProfile = readArg('--build-profile') ?? 'dev';
+  if (!['dev', 'release'].includes(buildProfile)) fail('local build profile must be dev or release');
   const sourceStateSha256 = requireSha256(readArg('--source-state-sha256'), 'local source state');
   if (!/^[0-9a-f]{40}$/.test(sourceCommit ?? '')) {
     fail('local source commit must be a full lowercase Git commit');
@@ -273,6 +275,7 @@ async function recordLocalPrepared() {
     schemaVersion: 1,
     sourceCommit,
     sourceStateSha256,
+    buildProfile,
     bindingSha256: await sha256(swiftBindingPath),
     frameworkFiles: await currentFrameworkHashes(),
   };
@@ -289,6 +292,13 @@ async function verifyLocalPrepared() {
     fail('local prepared marker has invalid source metadata');
   }
   const expectedCommit = readArg('--source-commit');
+  if (!['dev', 'release'].includes(marker.buildProfile ?? 'release')) {
+    fail('local prepared build profile is invalid');
+  }
+  const expectedProfile = readArg('--build-profile');
+  if (expectedProfile && (marker.buildProfile ?? 'release') !== expectedProfile) {
+    fail('local prepared build profile does not match requested Engine profile');
+  }
   if (expectedCommit && marker.sourceCommit !== expectedCommit) {
     fail('local prepared source commit does not match requested Engine commit');
   }

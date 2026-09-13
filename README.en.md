@@ -54,7 +54,7 @@ Covers **Android**, **iOS**, and desktop.
 
 ## Development
 
-> Expo changes significantly between versions. Read the matching version docs before writing code: <https://docs.expo.dev/versions/v56.0.0/>
+> Expo changes significantly between versions. Read the matching version docs before writing code: <https://docs.expo.dev/versions/v57.0.0/>
 
 ### Install dependencies
 

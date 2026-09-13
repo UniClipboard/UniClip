@@ -20,7 +20,7 @@ module.exports = function withIosSettingsBundle(config) {
       groupName: projectName,
       project,
       isBuildFile: true,
-      verbose: true,
+      verbose: false,
     });
 
     return config;

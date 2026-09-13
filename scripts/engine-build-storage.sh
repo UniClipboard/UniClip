@@ -35,7 +35,6 @@ uc_engine_publish() {
 
 # 只作用于 Engine 构建子进程，避免改变外层应用构建的工具选择。
 uc_engine_run_build() (
-  export CARGO_PROFILE_RELEASE_DEBUG="${CARGO_PROFILE_RELEASE_DEBUG:-line-tables-only}"
   if [[ -z "${DEVELOPER_DIR:-}" && -d /Applications/Xcode.app/Contents/Developer ]]; then
     export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
   fi

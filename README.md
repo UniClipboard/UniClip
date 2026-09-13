@@ -54,7 +54,7 @@
 
 ## 开发
 
-> Expo 版本变动较大，写代码前请先阅读对应版本文档：<https://docs.expo.dev/versions/v56.0.0/>
+> Expo 版本变动较大，写代码前请先阅读对应版本文档：<https://docs.expo.dev/versions/v57.0.0/>
 
 ### 安装依赖
 
