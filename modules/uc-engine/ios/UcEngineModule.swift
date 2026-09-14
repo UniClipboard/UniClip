@@ -208,6 +208,13 @@ public final class UcEngineModule: Module {
         case .removedBeforeActivation: "removedBeforeActivation"
         }
         return ["type": "rejected", "joinId": joinId, "reason": rejectionReason]
+      case let .terminated(joinId, reason):
+        let terminationReason = switch reason {
+        case .cancelled: "cancelled"
+        case .expired: "expired"
+        case .superseded: "superseded"
+        }
+        return ["type": "terminated", "joinId": joinId, "reason": terminationReason]
       }
     }.runOnQueue(engineOperationQueue)
 

@@ -55,6 +55,8 @@ export type JoinSpaceRejectionReason =
   | 'cancelled'
   | 'removedBeforeActivation';
 
+export type JoinSpaceTerminationReason = 'cancelled' | 'expired' | 'superseded';
+
 export type JoinSpaceStatus =
   | {
       type: 'active';
@@ -71,7 +73,8 @@ export type JoinSpaceStatus =
       cancelRequested: boolean;
       peerUpgradeRequired: boolean;
     }
-  | { type: 'rejected'; joinId: string; reason: JoinSpaceRejectionReason };
+  | { type: 'rejected'; joinId: string; reason: JoinSpaceRejectionReason }
+  | { type: 'terminated'; joinId: string; reason: JoinSpaceTerminationReason };
 
 export interface SendReport {
   entryId: string;

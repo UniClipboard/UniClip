@@ -78,6 +78,18 @@ describe('unified P2P engine native module', () => {
       .toContain('requireEngine().cancelJoinSpace(joinId)');
   });
 
+  it('maps every terminal join result on both native platforms', () => {
+    const swift = read('ios/UcEngineModule.swift');
+    const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
+
+    expect(swift).toContain('case let .terminated(joinId, reason):');
+    expect(kotlin).toContain('is JoinSpaceStatus.Terminated -> mapOf(');
+    for (const reason of ['cancelled', 'expired', 'superseded']) {
+      expect(swift).toContain(`: "${reason}"`);
+      expect(kotlin).toContain(`-> "${reason}"`);
+    }
+  });
+
   it('does not expose the removed workspace convergence query or event', () => {
     const javascript = read('src/index.ts');
     const swift = read('ios/UcEngineModule.swift');

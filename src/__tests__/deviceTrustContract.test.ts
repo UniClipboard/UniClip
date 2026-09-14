@@ -79,6 +79,10 @@ describe('device trust Engine contract', () => {
       { type: 'rejected', joinId: 'join-1', reason: 'authenticationRejected' },
     ],
     [
+      { status: 'terminated', join_id: 'join-1', reason: 'expired' },
+      { type: 'terminated', joinId: 'join-1', reason: 'expired' },
+    ],
+    [
       {
         status: 'active',
         join_id: 'join-1',
@@ -122,6 +126,19 @@ describe('device trust Engine contract', () => {
         }),
       })
     ).toEqual(expect.objectContaining({ currentJoin: expected }));
+  });
+
+  it.each([
+    ['awaiting_peer_confirmation', 'awaitingPeerConfirmation'],
+    ['unconfirmed', 'unconfirmed'],
+    ['confirmed', 'confirmed'],
+  ] as const)('preserves the %s pairing confirmation', (wireValue, expected) => {
+    const document = JSON.parse(snapshotJson());
+    document.devices[0].pairing_confirmation = wireValue;
+
+    expect(parseDeviceTrustSnapshot(JSON.stringify(document)).devices[0]).toEqual(
+      expect.objectContaining({ pairingConfirmation: expected })
+    );
   });
 
   it.each([undefined, null])(

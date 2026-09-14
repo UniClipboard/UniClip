@@ -395,6 +395,8 @@ describe('unified space setup UI', () => {
         expect(messages.space.overview.status[status]).toEqual(expect.any(String));
       }
       expect(messages.space.deviceTrust.status.updating).toEqual(expect.any(String));
+      expect(messages.space.deviceTrust.status.pairingAwaitingConfirmation).toEqual(expect.any(String));
+      expect(messages.space.deviceTrust.status.pairingUnconfirmed).toEqual(expect.any(String));
       for (const fact of [
         'reachability',
         'groupRelationship',
@@ -429,6 +431,12 @@ describe('unified space setup UI', () => {
     expect(messages.space.leave.confirm).toContain('其他设备');
     expect(messages.space.leave.confirm).toContain('本地历史');
     expect(messages.space.leave.confirm).toContain('新的邀请');
+    expect(messages.space.deviceTrust.status.pairingAwaitingConfirmation).toBe(
+      '已完成配对，等待对方确认'
+    );
+    expect(messages.space.deviceTrust.status.pairingUnconfirmed).toBe(
+      '已完成配对，但未被确认'
+    );
   });
 
   it('offers a retry from the Android status when device details cannot be verified', () => {

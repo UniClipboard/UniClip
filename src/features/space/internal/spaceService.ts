@@ -6,6 +6,7 @@ import type {
   JoinedSpace,
   JoinSpaceRejectionReason,
   JoinSpaceStatus,
+  JoinSpaceTerminationReason,
   SpaceCreated,
   SpaceInvitation,
   WorkspaceConvergence,
@@ -108,6 +109,8 @@ export type UnifiedSpaceUserErrorCode =
   | 'peerUpgradeRequired'
   | 'connectionLost'
   | 'joinCancelled'
+  | 'joinExpired'
+  | 'joinSuperseded'
   | 'unreadableHistoryRequiresConfirmation';
 
 const USER_ERROR_BY_ENGINE_CODE: Readonly<Record<number, UnifiedSpaceUserErrorCode>> = {
@@ -233,6 +236,17 @@ function rejectedJoinErrorCode(reason: JoinSpaceRejectionReason): UnifiedSpaceUs
   }
 }
 
+function terminatedJoinErrorCode(reason: JoinSpaceTerminationReason): UnifiedSpaceUserErrorCode {
+  switch (reason) {
+    case 'cancelled':
+      return 'joinCancelled';
+    case 'expired':
+      return 'joinExpired';
+    case 'superseded':
+      return 'joinSuperseded';
+  }
+}
+
 function requireActiveJoinedSpace(status: JoinSpaceStatus): JoinedSpace {
   switch (status.type) {
     case 'active':
@@ -245,6 +259,8 @@ function requireActiveJoinedSpace(status: JoinSpaceStatus): JoinedSpace {
       );
     case 'rejected':
       throw new UnifiedSpaceJoinResultError(rejectedJoinErrorCode(status.reason));
+    case 'terminated':
+      throw new UnifiedSpaceJoinResultError(terminatedJoinErrorCode(status.reason));
   }
 }
 

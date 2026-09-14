@@ -23,6 +23,10 @@ export type DeviceSyncRelationship =
   | 'removedLocalDevice'
   | 'removedPeerDevice'
   | 'unknown';
+export type PairingConfirmation =
+  | 'awaitingPeerConfirmation'
+  | 'unconfirmed'
+  | 'confirmed';
 type DeviceTrustChoice = NativeDeviceTrustChoice;
 export type DeviceTrustAction =
   | 'applyCurrentChange'
@@ -67,6 +71,7 @@ export interface DeviceTrustRelationship {
   groupRelationship: DeviceGroupRelationship;
   compatibility: DeviceCompatibility;
   syncRelationship: DeviceSyncRelationship;
+  pairingConfirmation?: PairingConfirmation | null;
   availableActions: DeviceTrustAction[];
   blockedReason: DeviceTrustUnavailableReason | null;
 }
@@ -199,6 +204,11 @@ const SYNC_RELATIONSHIP = {
   removed_peer_device: 'removedPeerDevice',
   unknown: 'unknown',
 } as const;
+const PAIRING_CONFIRMATION = {
+  awaiting_peer_confirmation: 'awaitingPeerConfirmation',
+  unconfirmed: 'unconfirmed',
+  confirmed: 'confirmed',
+} as const;
 const CHOICE = {
   apply_change: 'applyChange',
   keep_current_device_group: 'keepCurrentDeviceGroup',
@@ -295,6 +305,10 @@ function relationship(value: unknown): DeviceTrustRelationship {
     groupRelationship: enumValue(source.group_relationship, GROUP_RELATIONSHIP),
     compatibility: enumValue(source.compatibility, COMPATIBILITY),
     syncRelationship: enumValue(source.sync_relationship, SYNC_RELATIONSHIP),
+    pairingConfirmation:
+      source.pairing_confirmation == null
+        ? null
+        : enumValue(source.pairing_confirmation, PAIRING_CONFIRMATION),
     availableActions: array(source.available_actions, (entry) => enumValue(entry, ACTION)),
     blockedReason: nullableEnum(source.blocked_reason, UNAVAILABLE_REASON),
   };
@@ -355,6 +369,16 @@ function currentJoin(value: unknown): JoinSpaceStatus | null {
           peer_upgrade_required: 'peerUpgradeRequired',
           cancelled: 'cancelled',
           removed_before_activation: 'removedBeforeActivation',
+        } as const),
+      };
+    case 'terminated':
+      return {
+        type: 'terminated',
+        joinId,
+        reason: enumValue(source.reason, {
+          cancelled: 'cancelled',
+          expired: 'expired',
+          superseded: 'superseded',
         } as const),
       };
     default:

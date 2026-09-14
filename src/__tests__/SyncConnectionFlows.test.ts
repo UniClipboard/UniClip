@@ -199,6 +199,8 @@ describe('unified sync connection flows', () => {
 
       expect(messages.space.flow.createBody.length).toBeGreaterThan(30);
       expect(messages.space.flow.joinDetailsBody.length).toBeGreaterThan(30);
+      expect(messages.space.error.joinExpired).toEqual(expect.any(String));
+      expect(messages.space.error.joinSuperseded).toEqual(expect.any(String));
     }
 
     const zh = JSON.parse(source('i18n/locales/zh/settingsSync.json'));

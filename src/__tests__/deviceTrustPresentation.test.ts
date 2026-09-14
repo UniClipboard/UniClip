@@ -206,6 +206,30 @@ describe('device trust presentation', () => {
     expect(views.find((device) => device.deviceId === 'laptop-11223344')?.canRemove).toBe(true);
   });
 
+  it('shows Engine pairing confirmation without weakening higher-priority safety states', () => {
+    const current = snapshot();
+    current.currentChange = null;
+    const laptop = current.devices.find((device) => device.deviceId === 'laptop-11223344');
+    if (!laptop) throw new Error('fixture must contain the remote laptop');
+
+    laptop.pairingConfirmation = 'awaitingPeerConfirmation';
+    expect(buildDeviceTrustDeviceViews(current, []).find((device) => device.deviceId === laptop.deviceId))
+      .toEqual(expect.objectContaining({ primaryStatus: 'pairingAwaitingConfirmation', canRemove: true }));
+
+    laptop.pairingConfirmation = 'unconfirmed';
+    expect(buildDeviceTrustDeviceViews(current, []).find((device) => device.deviceId === laptop.deviceId))
+      .toEqual(expect.objectContaining({ primaryStatus: 'pairingUnconfirmed', canRemove: true }));
+
+    laptop.pairingConfirmation = 'confirmed';
+    expect(buildDeviceTrustDeviceViews(current, []).find((device) => device.deviceId === laptop.deviceId))
+      .toEqual(expect.objectContaining({ primaryStatus: 'usable' }));
+
+    laptop.pairingConfirmation = 'unconfirmed';
+    laptop.syncRelationship = 'pausedUpgradeRequired';
+    expect(buildDeviceTrustDeviceViews(current, []).find((device) => device.deviceId === laptop.deviceId))
+      .toEqual(expect.objectContaining({ primaryStatus: 'upgradeRequired' }));
+  });
+
   it('shows no current-space devices after the local device has been removed', () => {
     const removed = snapshot();
     removed.localMembership = 'removed';

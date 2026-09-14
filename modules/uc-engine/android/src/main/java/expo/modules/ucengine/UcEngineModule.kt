@@ -54,6 +54,7 @@ import uniffi.uc_engine_uniffi.HostBindingException
 import uniffi.uc_engine_uniffi.InvitationAvailability
 import uniffi.uc_engine_uniffi.JoinSpaceRejectionReason
 import uniffi.uc_engine_uniffi.JoinSpaceStatus
+import uniffi.uc_engine_uniffi.JoinSpaceTerminationReason
 import uniffi.uc_engine_uniffi.MobileEngine
 import uniffi.uc_engine_uniffi.ResendEntryOutcome
 import uniffi.uc_engine_uniffi.SendReport
@@ -514,6 +515,15 @@ class UcEngineModule : Module() {
             JoinSpaceRejectionReason.PEER_UPGRADE_REQUIRED -> "peerUpgradeRequired"
             JoinSpaceRejectionReason.CANCELLED -> "cancelled"
             JoinSpaceRejectionReason.REMOVED_BEFORE_ACTIVATION -> "removedBeforeActivation"
+          }
+        )
+        is JoinSpaceStatus.Terminated -> mapOf(
+          "type" to "terminated",
+          "joinId" to result.joinId,
+          "reason" to when (result.reason) {
+            JoinSpaceTerminationReason.CANCELLED -> "cancelled"
+            JoinSpaceTerminationReason.EXPIRED -> "expired"
+            JoinSpaceTerminationReason.SUPERSEDED -> "superseded"
           }
         )
       }

@@ -216,6 +216,26 @@ describe('add sync connection flow', () => {
     expect(currentFlow.state).toMatchObject({ pending: false, error: null });
   });
 
+  it.each(['joinExpired', 'joinSuperseded'] as const)(
+    'shows the %s terminal result and leaves the join form available',
+    async (code) => {
+      createHarness('join');
+      act(() => currentFlow.actions.updateInvitationCode('001234'));
+      act(() => currentFlow.actions.continueFromCode());
+      act(() => currentFlow.actions.setPassphrase('secret'));
+      mockUnifiedSpaceUserErrorCode.mockReturnValue(code);
+      mockJoinSpace.mockRejectedValue(new Error(code));
+
+      await act(async () => currentFlow.actions.submitJoin());
+
+      expect(currentFlow.state).toMatchObject({
+        mode: 'joinDetails',
+        pending: false,
+        error: `space.error.${code}`,
+      });
+    }
+  );
+
   it('keeps waiting after a failed cancellation and clears its warning on success', async () => {
     const props = createHarness('join');
     act(() => currentFlow.actions.updateInvitationCode('001234'));

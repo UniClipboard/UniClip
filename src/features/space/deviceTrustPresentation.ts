@@ -29,6 +29,8 @@ export type DeviceTrustPrimaryStatus =
   | 'differentSpace'
   | 'removed'
   | 'updating'
+  | 'pairingAwaitingConfirmation'
+  | 'pairingUnconfirmed'
   | 'usable'
   | 'unknown';
 
@@ -296,6 +298,18 @@ function primaryStatus(sync: DeviceSyncRelationship): DeviceTrustPrimaryStatus {
   }
 }
 
+function devicePrimaryStatus(
+  device: DeviceTrustSnapshot['devices'][number]
+): DeviceTrustPrimaryStatus {
+  const syncStatus = primaryStatus(device.syncRelationship);
+  if (syncStatus !== 'usable' && syncStatus !== 'unknown') return syncStatus;
+  if (device.pairingConfirmation === 'awaitingPeerConfirmation') {
+    return 'pairingAwaitingConfirmation';
+  }
+  if (device.pairingConfirmation === 'unconfirmed') return 'pairingUnconfirmed';
+  return device.groupRelationship === 'confirmationPending' ? 'updating' : syncStatus;
+}
+
 export function buildDeviceTrustDeviceViews(
   snapshot: DeviceTrustSnapshot | null,
   fallbackDevices: UnifiedSpaceDevice[]
@@ -337,10 +351,7 @@ export function buildDeviceTrustDeviceViews(
       groupRelationship: device.groupRelationship,
       compatibility: device.compatibility,
       syncRelationship: device.syncRelationship,
-      primaryStatus:
-        device.groupRelationship === 'confirmationPending'
-          ? 'updating'
-          : primaryStatus(device.syncRelationship),
+      primaryStatus: devicePrimaryStatus(device),
       canSync:
         device.groupRelationship !== 'confirmationPending' && device.syncRelationship === 'usable',
       canRemove:

@@ -931,6 +931,16 @@ describe('UnifiedSpaceService', () => {
       { type: 'rejected', joinId: 'join-1', reason: 'authenticationRejected' },
       'passphraseMismatch',
     ],
+    [
+      'expired',
+      { type: 'terminated', joinId: 'join-1', reason: 'expired' },
+      'joinExpired',
+    ],
+    [
+      'superseded',
+      { type: 'terminated', joinId: 'join-1', reason: 'superseded' },
+      'joinSuperseded',
+    ],
   ] as const)(
     'does not complete setup when the Engine reports a %s join',
     async (_status, joinStatus, expectedCode) => {
@@ -959,7 +969,7 @@ describe('UnifiedSpaceService', () => {
     }
   );
 
-  it.each(['active', 'rejected'] as const)(
+  it.each(['active', 'rejected', 'terminated'] as const)(
     'waits through a pending join and a temporary read failure until it is %s',
     async (outcome) => {
       jest.useFakeTimers();
@@ -1005,13 +1015,18 @@ describe('UnifiedSpaceService', () => {
         currentJoin =
           outcome === 'active'
             ? activeJoinStatus()
-            : { type: 'rejected', joinId: 'join-1', reason: 'authenticationRejected' };
+            : outcome === 'rejected'
+              ? { type: 'rejected', joinId: 'join-1', reason: 'authenticationRejected' }
+              : { type: 'terminated', joinId: 'join-1', reason: 'expired' };
         await jest.advanceTimersByTimeAsync(1_000);
         if (outcome === 'active') {
           expect(await result).toEqual(activeJoinStatus().joinedSpace);
           expect(service.getSnapshot()).toMatchObject({ status: 'ready', spaceId: 'space-1' });
-        } else {
+        } else if (outcome === 'rejected') {
           expect(await result).toMatchObject({ code: 'passphraseMismatch' });
+          expect(api.listDevices).not.toHaveBeenCalled();
+        } else {
+          expect(await result).toMatchObject({ code: 'joinExpired' });
           expect(api.listDevices).not.toHaveBeenCalled();
         }
         expect(jest.getTimerCount()).toBe(0);

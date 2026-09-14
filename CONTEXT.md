@@ -36,6 +36,12 @@ and impact. Pending confirmations are not shown as ready to sync, and an
 explicitly unavailable impact must not be reconstructed from the current roster.
 Legacy responses without the newer fields remain readable.
 
+Engine also owns the five-minute pairing deadline and the final confirmation
+fact. Mobile only presents awaiting-peer-confirmation, unconfirmed, or confirmed
+from Engine state; it does not start another pairing timer or infer confirmation
+from connectivity. An unconfirmed current member remains removable through the
+ordinary device-removal action.
+
 ## Key Directories
 
 | Path                                                                 | Purpose                                                                        |
