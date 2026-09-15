@@ -8,11 +8,13 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "buildNumber": "181",
+      "buildNumber": "182",
       "supportsTablet": true,
       "appleTeamId": "8XG39X5CL8",
       "bundleIdentifier": "app.uniclipboard.UniClipboard",
-      "infoPlist": { "ITSAppUsesNonExemptEncryption": false },
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      },
       "entitlements": {
         "com.apple.security.application-groups": [
           "group.app.uniclipboard.UniClipboard",
@@ -21,7 +23,7 @@
       }
     },
     "android": {
-      "versionCode": 181,
+      "versionCode": 182,
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -30,9 +32,14 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "app.uniclipboard.android",
-      "permissions": ["android.permission.REQUEST_INSTALL_PACKAGES", "android.permission.CAMERA"]
+      "permissions": [
+        "android.permission.REQUEST_INSTALL_PACKAGES",
+        "android.permission.CAMERA"
+      ]
     },
-    "web": { "favicon": "./assets/favicon.png" },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
     "plugins": [
       "./plugins/build/withNativeLogger.js",
       "./plugins/build/withLanInsecureTls.js",
@@ -61,7 +68,17 @@
       "./plugins/build/withLocalNotificationsOnly.js",
       "expo-notifications",
       "expo-secure-store",
-      ["expo-sharing", { "android": { "enabled": true, "singleShareMimeTypes": ["*/*"] } }],
+      [
+        "expo-sharing",
+        {
+          "android": {
+            "enabled": true,
+            "singleShareMimeTypes": [
+              "*/*"
+            ]
+          }
+        }
+      ],
       [
         "expo-camera",
         {
@@ -74,8 +91,18 @@
         "expo-localization",
         {
           "supportedLocales": {
-            "ios": ["zh-Hans", "en", "ru", "pt-BR"],
-            "android": ["zh", "en", "ru", "pt-BR"]
+            "ios": [
+              "zh-Hans",
+              "en",
+              "ru",
+              "pt-BR"
+            ],
+            "android": [
+              "zh",
+              "en",
+              "ru",
+              "pt-BR"
+            ]
           }
         }
       ]
@@ -111,7 +138,10 @@
           }
         }
       },
-      "releaseChannel": { "name": "alpha", "number": 5 }
+      "releaseChannel": {
+        "name": "alpha",
+        "number": 6
+      }
     }
   }
 }

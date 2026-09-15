@@ -1,3 +1,12 @@
+v2.0.0.182-alpha.6
+
+### Common
+
+- Improvement: Update the sync core to v1.1.0-rc.16
+- Improvement: Show a matching confirmation code during pairing and provide clearer outcomes when waiting ends or is terminated
+- Improvement: Retain up to 5 MiB per diagnostic log to help investigate longer-running sync issues
+- Fix: Upgrade the app foundation and improve navigation and illustration stability
+
 v2.0.0.181-alpha.5
 
 ### Common
