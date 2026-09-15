@@ -34,8 +34,8 @@ describe('install-dev-device.sh', () => {
 
     expect(script).toContain('PRODUCT_BUNDLE_IDENTIFIER = app.uniclipboard.UniClipboard.dev;');
     expect(script).toContain("applicationId 'app.uniclipboard.android.dev'");
-    expect(script).toContain('UC_ENGINE_LOCAL_CORE=1 APP_VARIANT=development npx expo run:ios');
-    expect(script).toContain('APP_VARIANT=development npx expo run:ios');
+    expect(script).toContain('UC_ENGINE_UNIFFI_SLICE=device UC_ENGINE_LOCAL_CORE=1 APP_VARIANT=development');
+    expect(script).toContain('npx expo run:ios --device "$device" --no-bundler');
     expect(script).toContain('UC_ENGINE_LOCAL_AAR="$engine_aar" ./gradlew :app:assembleDebug');
     expect(script).toContain('./gradlew :app:assembleDebug');
     expect(script).toContain('adb -s "$device" install -r "$apk_path"');

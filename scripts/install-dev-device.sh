@@ -281,6 +281,7 @@ prepare_install_engine() {
 
 install_ios() {
   local device="$1"
+  local bindings_cache="${UC_ENGINE_STORAGE_BUILD_DIR:-$LOCAL_ENGINE_BUILD_ROOT}/ios-bindings-cache"
   require_command xcrun
   require_command unzip
 
@@ -290,16 +291,17 @@ install_ios() {
     exit 1
   fi
 
+  bash "$SCRIPT_DIR/prepare-ios-development-project.sh"
   assert_development_project ios
-  APP_VARIANT=development npx expo prebuild --platform ios --no-install
   trap 'status=$?; if restore_pinned_ios_engine; then restore_status=0; else restore_status=$?; fi; if [ "$status" -eq 0 ] && [ "$restore_status" -ne 0 ]; then status="$restore_status"; fi; exit "$status"' EXIT
-  prepare_install_engine ios
+  UC_ENGINE_UNIFFI_SLICE=device \
+    UC_ENGINE_UNIFFI_BINDINGS_CACHE_DIR="$bindings_cache" \
+    prepare_install_engine ios
   # Keep Expo C++ view layouts consistent with this Debug build and React Native.
-  # Pods must exist before preparing Debug frameworks; Expo still owns the build below.
   # React Native 0.86 also skips required codegen when deprecation suppression is enabled.
-  RCT_IGNORE_PODS_DEPRECATION=0 RCT_SKIP_CODEGEN=0 EXPO_USE_PRECOMPILED_MODULES=0 UC_ENGINE_LOCAL_CORE=1 npx pod-install ios
-  node "$SCRIPT_DIR/prepare-ios-debug-frameworks.mjs" "$PROJECT_ROOT/ios/Pods"
-  RCT_IGNORE_PODS_DEPRECATION=0 RCT_SKIP_CODEGEN=0 EXPO_USE_PRECOMPILED_MODULES=0 UC_ENGINE_LOCAL_CORE=1 APP_VARIANT=development npx expo run:ios --device "$device" --no-bundler
+  RCT_IGNORE_PODS_DEPRECATION=0 RCT_SKIP_CODEGEN=0 EXPO_USE_PRECOMPILED_MODULES=0 \
+    UC_ENGINE_UNIFFI_SLICE=device UC_ENGINE_LOCAL_CORE=1 APP_VARIANT=development \
+    npx expo run:ios --device "$device" --no-bundler
   restore_pinned_ios_engine
   trap - EXIT
 }

@@ -28,34 +28,35 @@ test("iOS cleanup preserves the original install exit status", () => {
   assert.match(script, /exit "\$status"/);
 });
 
-test("iOS installation refreshes native configuration before preparing and building the Engine", () => {
+test("iOS installation prepares native configuration before building the Engine", () => {
   const install = script.slice(
     script.indexOf("install_ios()"),
     script.indexOf("install_android()")
   );
-  const prebuild = install.indexOf(
-    "APP_VARIANT=development npx expo prebuild --platform ios --no-install"
+  const preparation = install.indexOf('prepare-ios-development-project.sh');
+  assert.ok(preparation < install.indexOf("assert_development_project ios"));
+  assert.ok(preparation < install.indexOf("prepare_install_engine ios"));
+});
+
+test("physical iOS installation builds only the device Engine and reuses unchanged bindings", () => {
+  const install = script.slice(
+    script.indexOf("install_ios()"),
+    script.indexOf("install_android()")
   );
-  assert.ok(prebuild > install.indexOf("assert_development_project ios"));
-  assert.ok(prebuild < install.indexOf("prepare_install_engine ios"));
-  const pods = install.indexOf("UC_ENGINE_LOCAL_CORE=1 npx pod-install ios");
-  assert.ok(pods > install.indexOf("prepare_install_engine ios"));
-  assert.ok(pods < install.indexOf("prepare-ios-debug-frameworks.mjs"));
-  assert.ok(install.indexOf("prepare-ios-debug-frameworks.mjs") < install.indexOf("npx expo run:ios"));
+  assert.match(install, /UC_ENGINE_UNIFFI_SLICE=device/);
+  assert.match(script, /UC_ENGINE_UNIFFI_BINDINGS_CACHE_DIR/);
 });
 
 test("physical iOS debug installs build Expo modules consistently from source", () => {
   const install = script.slice(script.indexOf("install_ios()"), script.indexOf("install_android()"));
-  assert.match(install, /EXPO_USE_PRECOMPILED_MODULES=0 UC_ENGINE_LOCAL_CORE=1 npx pod-install ios/);
-  assert.match(install, /EXPO_USE_PRECOMPILED_MODULES=0 UC_ENGINE_LOCAL_CORE=1 APP_VARIANT=development npx expo run:ios/);
+  assert.match(install, /EXPO_USE_PRECOMPILED_MODULES=0/);
+  assert.match(install, /APP_VARIANT=development/);
+  assert.match(install, /npx expo run:ios/);
 });
 
 test("the managed iOS install keeps React Native code generation enabled", () => {
   const install = script.slice(script.indexOf("install_ios()"), script.indexOf("install_android()"));
-  const commands = install.split('\n').filter(line => /npx (pod-install|expo run:ios)/.test(line));
-  assert.equal(commands.length, 2);
-  for (const command of commands) {
-    assert.match(command, /RCT_IGNORE_PODS_DEPRECATION=0 RCT_SKIP_CODEGEN=0/);
-    assert.doesNotMatch(command, /2>\/dev\/null|--silent|--quiet/);
-  }
+  assert.equal((install.match(/RCT_IGNORE_PODS_DEPRECATION=0 RCT_SKIP_CODEGEN=0/g) ?? []).length, 1);
+  const build = install.slice(install.indexOf('RCT_IGNORE_PODS_DEPRECATION=0'));
+  assert.doesNotMatch(build, /2>\/dev\/null|--silent|--quiet/);
 });
