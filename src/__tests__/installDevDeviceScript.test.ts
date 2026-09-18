@@ -4,6 +4,9 @@ import { resolve } from 'node:path';
 
 const projectRoot = resolve(__dirname, '..', '..');
 const scriptPath = resolve(projectRoot, 'scripts', 'install-dev-device.sh');
+const packageJson = JSON.parse(readFileSync(resolve(projectRoot, 'package.json'), 'utf8')) as {
+  scripts: Record<string, string>;
+};
 
 describe('install-dev-device.sh', () => {
   it('has valid Bash syntax', () => {
@@ -41,6 +44,29 @@ describe('install-dev-device.sh', () => {
     expect(script).toContain('adb -s "$device" install -r "$apk_path"');
     expect(script).toContain('adb -s "$device" reverse tcp:8081 tcp:8081');
     expect(script).toContain('--no-bundler');
+  });
+
+  it('offers a production iOS install that restores the development project afterwards', () => {
+    const script = readFileSync(scriptPath, 'utf8');
+
+    expect(packageJson.scripts['install:release:ios']).toBe(
+      'UC_IOS_INSTALL_VARIANT=production bash scripts/install-dev-device.sh ios'
+    );
+    expect(script).toContain('APP_VARIANT=production npx expo prebuild --platform ios --no-install');
+    expect(script).toContain('-workspace "$PROJECT_ROOT/ios/UniClip.xcworkspace"');
+    expect(script).toContain('-scheme UniClip');
+    expect(script).toContain('-configuration Release');
+    expect(script).toContain('ENGINE_BUILD_PROFILE="release"');
+    expect(script).toContain('UC_ENGINE_UNIFFI_BUILD_PROFILE="$ENGINE_BUILD_PROFILE"');
+    expect(script).toContain('app.uniclipboard.UniClipboard');
+    expect(script).toContain('xcrun devicectl device install app --device "$device" "$app_path"');
+    expect(script).toContain(
+      'xcrun devicectl device process launch --device "$device" app.uniclipboard.UniClipboard'
+    );
+    expect(script).toContain('restore_development_ios_project');
+    expect(script.indexOf("trap 'status=$?; if restore_development_ios_project")).toBeLessThan(
+      script.indexOf('APP_VARIANT=production npx expo prebuild')
+    );
   });
 
   it('reuses a current local Engine and otherwise prepares the mobile pin', () => {

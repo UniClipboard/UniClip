@@ -15,15 +15,22 @@ export PROJECT_ROOT SCRIPT_DIR LOCAL_ENGINE_BUILD_ROOT LOCAL_ENGINE_ROOT
 INSTALL_ENGINE_COMMIT=""
 DEFAULT_IOS_DEVICE="marks iPhone"
 DEFAULT_ANDROID_DEVICE="7bac761b"
+IOS_INSTALL_VARIANT="${UC_IOS_INSTALL_VARIANT:-development}"
+if [ "$IOS_INSTALL_VARIANT" = "production" ]; then
+  ENGINE_BUILD_PROFILE="release"
+else
+  ENGINE_BUILD_PROFILE="dev"
+fi
 
 usage() {
   cat <<EOF
-Install the UniClip development app on connected physical devices.
+Install UniClip on connected physical devices.
 
 Usage:
   npm run install:dev
   npm run install:dev:ios [iOS device name or identifier]
   npm run install:dev:android [Android device identifier]
+  npm run install:release:ios [iOS device name or identifier]
   bash scripts/install-dev-device.sh [ios|android|all] [device]
 
 Defaults:
@@ -35,13 +42,29 @@ production app. It uses the Engine revision pinned in modules/uc-engine/core-sou
 and reuses verified artifacts when available. This command does not start Metro; run npm start separately
 when you need to load JavaScript from this checkout.
 
+install:release:ios builds the production UniClip identity in Release mode,
+installs and launches it, then restores the generated iOS project to the
+development identity. It replaces an installed production UniClip app.
+
 For temporary local Engine testing (including uncommitted changes):
   npm run core:patch -- /path/to/Engine
   npm run install:dev:ios
   npm run install:dev:android
+  npm run install:release:ios
   npm run core:unpatch
-The override applies only to development installs and leaves the project pin unchanged.
+The override applies only to local device installs and leaves the project pin unchanged.
 EOF
+}
+
+assert_production_ios_project() {
+  local project_file="$PROJECT_ROOT/ios/UniClip.xcodeproj/project.pbxproj"
+  local expected_identifier='PRODUCT_BUNDLE_IDENTIFIER = app.uniclipboard.UniClipboard;'
+
+  if [ ! -f "$project_file" ] || ! grep -Fq -- "$expected_identifier" "$project_file"; then
+    echo "The iOS project is not prepared as the production app." >&2
+    echo "Regenerate it with APP_VARIANT=production before installing." >&2
+    exit 1
+  fi
 }
 
 require_command() {
@@ -142,6 +165,11 @@ restore_pinned_ios_engine() {
   uc_engine_publish "$PROJECT_ROOT" bash -euo pipefail -c restore_pinned_ios_engine_impl
 }
 
+restore_development_ios_project() {
+  restore_pinned_ios_engine
+  bash "$SCRIPT_DIR/prepare-ios-development-project.sh"
+}
+
 export -f restore_cached_local_ios_engine_impl
 restore_cached_local_ios_engine() {
   uc_engine_publish "$PROJECT_ROOT" bash -euo pipefail -c 'restore_cached_local_ios_engine_impl "$@"' _ "$@"
@@ -203,7 +231,7 @@ prepare_install_engine() {
     # Always invoke Cargo so edits at the same commit cannot reuse stale packages.
     case "$platform" in
       ios)
-        UC_ENGINE_UNIFFI_BUILD_PROFILE=dev UC_ENGINE_LOCAL_TARGET_DIR="$LOCAL_ENGINE_BUILD_ROOT" \
+        UC_ENGINE_UNIFFI_BUILD_PROFILE="$ENGINE_BUILD_PROFILE" UC_ENGINE_LOCAL_TARGET_DIR="$LOCAL_ENGINE_BUILD_ROOT" \
           bash "$SCRIPT_DIR/prepare-local-unified-engine-core.sh" "$ENGINE_ROOT"
         ;;
       android)
@@ -232,7 +260,7 @@ prepare_install_engine() {
   source_commit="$INSTALL_ENGINE_COMMIT"
   case "$platform" in
     ios)
-      if restore_cached_local_ios_engine "$source_commit"; then
+      if [ "$ENGINE_BUILD_PROFILE" = "dev" ] && restore_cached_local_ios_engine "$source_commit"; then
         return
       fi
       ;;
@@ -258,9 +286,11 @@ prepare_install_engine() {
   trap 'git -C "$ENGINE_ROOT" worktree remove --force "$worktree"' RETURN
   case "$platform" in
     ios)
-      UC_ENGINE_BUILD_TOOLS_ROOT="$ENGINE_ROOT" UC_ENGINE_UNIFFI_BUILD_PROFILE=dev UC_ENGINE_LOCAL_TARGET_DIR="$LOCAL_ENGINE_BUILD_ROOT" \
+      UC_ENGINE_BUILD_TOOLS_ROOT="$ENGINE_ROOT" UC_ENGINE_UNIFFI_BUILD_PROFILE="$ENGINE_BUILD_PROFILE" UC_ENGINE_LOCAL_TARGET_DIR="$LOCAL_ENGINE_BUILD_ROOT" \
         bash "$SCRIPT_DIR/prepare-local-unified-engine-core.sh" "$worktree"
-      restore_cached_local_ios_engine "$source_commit"
+      if [ "$ENGINE_BUILD_PROFILE" = "dev" ]; then
+        restore_cached_local_ios_engine "$source_commit"
+      fi
       ;;
     android)
       (
@@ -291,6 +321,15 @@ install_ios() {
     exit 1
   fi
 
+  if [ "$IOS_INSTALL_VARIANT" = "production" ]; then
+    install_ios_release "$device"
+    return
+  fi
+  if [ "$IOS_INSTALL_VARIANT" != "development" ]; then
+    echo "Unsupported iOS install variant: $IOS_INSTALL_VARIANT" >&2
+    exit 2
+  fi
+
   bash "$SCRIPT_DIR/prepare-ios-development-project.sh"
   assert_development_project ios
   trap 'status=$?; if restore_pinned_ios_engine; then restore_status=0; else restore_status=$?; fi; if [ "$status" -eq 0 ] && [ "$restore_status" -ne 0 ]; then status="$restore_status"; fi; exit "$status"' EXIT
@@ -303,6 +342,52 @@ install_ios() {
     UC_ENGINE_UNIFFI_SLICE=device UC_ENGINE_LOCAL_CORE=1 APP_VARIANT=development \
     npx expo run:ios --device "$device" --no-bundler
   restore_pinned_ios_engine
+  trap - EXIT
+}
+
+install_ios_release() {
+  local device="$1"
+  local bindings_cache="${UC_ENGINE_STORAGE_BUILD_DIR:-$LOCAL_ENGINE_BUILD_ROOT}/ios-bindings-cache"
+  local derived_data="$PROJECT_ROOT/ios/build/production-device"
+  local app_path="$derived_data/Build/Products/Release-iphoneos/UniClip.app"
+  local info_plist="$app_path/Info.plist"
+
+  require_command codesign
+  require_command xcodebuild
+
+  trap 'status=$?; if restore_development_ios_project; then restore_status=0; else restore_status=$?; fi; if [ "$status" -eq 0 ] && [ "$restore_status" -ne 0 ]; then status="$restore_status"; fi; exit "$status"' EXIT
+  APP_VARIANT=production npx expo prebuild --platform ios --no-install
+  RCT_IGNORE_PODS_DEPRECATION=0 RCT_SKIP_CODEGEN=0 EXPO_USE_PRECOMPILED_MODULES=0 \
+    UC_ENGINE_LOCAL_CORE=1 npx pod-install ios
+  assert_production_ios_project
+  UC_ENGINE_UNIFFI_SLICE=device \
+    UC_ENGINE_UNIFFI_BINDINGS_CACHE_DIR="$bindings_cache" \
+    prepare_install_engine ios
+  APP_VARIANT=production UC_ENGINE_LOCAL_CORE=1 UC_ENGINE_UNIFFI_SLICE=device \
+    xcodebuild \
+      -workspace "$PROJECT_ROOT/ios/UniClip.xcworkspace" \
+      -scheme UniClip \
+      -configuration Release \
+      -destination 'generic/platform=iOS' \
+      -derivedDataPath "$derived_data" \
+      -allowProvisioningUpdates \
+      build
+  if [ ! -d "$app_path" ]; then
+    echo "The iOS production app was not produced: $app_path" >&2
+    exit 1
+  fi
+  if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$info_plist")" != "app.uniclipboard.UniClipboard" ]; then
+    echo "The built iOS app does not have the production bundle identifier." >&2
+    exit 1
+  fi
+  if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$info_plist")" != "UniClip" ]; then
+    echo "The built iOS app does not have the production display name." >&2
+    exit 1
+  fi
+  codesign --verify --deep --strict "$app_path"
+  xcrun devicectl device install app --device "$device" "$app_path"
+  xcrun devicectl device process launch --device "$device" app.uniclipboard.UniClipboard
+  restore_development_ios_project
   trap - EXIT
 }
 
