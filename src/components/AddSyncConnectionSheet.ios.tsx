@@ -28,6 +28,7 @@ import {
   background,
   buttonStyle,
   controlSize,
+  contentShape,
   disabled,
   font,
   foregroundStyle,
@@ -778,12 +779,21 @@ export function AddSyncConnectionSheet({
                     </HStack>
                   )}
                   <SwiftUIButton
+                    testID="space-finish-later"
                     onPress={() => void completeConnection()}
                     modifiers={[buttonStyle('plain')]}
                   >
-                    <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-                      {t('space.flow.finishLater')}
-                    </SwiftUIText>
+                    <HStack
+                      modifiers={[
+                        frame({ maxWidth: Infinity }),
+                        contentShape(shapes.rectangle()),
+                      ]}
+                    >
+                      <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
+                        {t('space.flow.finishLater')}
+                      </SwiftUIText>
+                      <Spacer />
+                    </HStack>
                   </SwiftUIButton>
                 </Section>
               </IosSheetForm>

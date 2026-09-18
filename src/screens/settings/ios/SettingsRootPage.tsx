@@ -90,6 +90,7 @@ export function SettingsRootPage({
           footer={<SwiftUIText>{t('ios.sync.footer')}</SwiftUIText>}
         >
           <SettingsNavRow
+            testID="settings-syncChannel"
             icon="network"
             iconColor={settingsTileColors.blue}
             title={t('syncChannel.title')}

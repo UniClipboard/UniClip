@@ -7,7 +7,7 @@ import {
   useNativeState,
 } from '@expo/ui/jetpack-compose';
 import type { TextFieldKeyboardType, TextFieldColors } from '@expo/ui/jetpack-compose';
-import { fillMaxWidth } from '@expo/ui/jetpack-compose/modifiers';
+import { fillMaxWidth, testID as testIDModifier } from '@expo/ui/jetpack-compose/modifiers';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 const ICONS = {
@@ -27,6 +27,7 @@ export interface AppTextFieldProps {
   keyboardType?: TextFieldKeyboardType;
   fullWidth?: boolean;
   colors?: TextFieldColors;
+  testID?: string;
 }
 
 export function AppTextField({
@@ -41,6 +42,7 @@ export function AppTextField({
   keyboardType,
   fullWidth,
   colors: fieldColors,
+  testID,
 }: AppTextFieldProps) {
   const colors = useMaterialColors();
   const nativeValue = useNativeState(value);
@@ -68,7 +70,10 @@ export function AppTextField({
       visualTransformation={secure && !secureVisible ? 'password' : undefined}
       keyboardOptions={{ keyboardType: secure ? 'password' : keyboardType }}
       colors={fieldColors}
-      modifiers={fullWidth ? [fillMaxWidth()] : undefined}
+      modifiers={[
+        ...(fullWidth ? [fillMaxWidth()] : []),
+        ...(testID ? [testIDModifier(testID)] : []),
+      ]}
     >
       {label ? (
         <OutlinedTextField.Label>

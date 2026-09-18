@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   Section,
-  SecureField,
   Text as SwiftUIText,
   TextField,
   useNativeState,
@@ -24,6 +23,7 @@ export function CustomRelaySection() {
   const updateConfig = useSettingsStore((state) => state.updateConfig);
   const url = useNativeState('');
   const token = useNativeState('');
+  const [urlValue, setUrlValue] = useState('');
   const [editingUrl, setEditingUrl] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +35,7 @@ export function CustomRelaySection() {
   const resetEditor = useCallback(() => {
     setEditingUrl(null);
     url.value = '';
+    setUrlValue('');
     token.value = '';
     setError(null);
   }, [token, url]);
@@ -42,6 +43,7 @@ export function CustomRelaySection() {
   const openAddRelay = useCallback(() => {
     setEditingUrl('');
     url.value = '';
+    setUrlValue('');
     token.value = '';
     setError(null);
   }, [token, url]);
@@ -50,6 +52,7 @@ export function CustomRelaySection() {
     (configuredUrl: string) => {
       setEditingUrl(configuredUrl);
       url.value = configuredUrl;
+      setUrlValue(configuredUrl);
       token.value = '';
       setError(null);
     },
@@ -57,7 +60,7 @@ export function CustomRelaySection() {
   );
 
   const save = useCallback(
-    async (nextUrl = url.value) => {
+    async (nextUrl = urlValue) => {
       if (editingUrl === null) return;
       setPending(true);
       setError(null);
@@ -77,7 +80,7 @@ export function CustomRelaySection() {
         setPending(false);
       }
     },
-    [configuredUrls, editingUrl, resetEditor, t, token, updateConfig, url]
+    [configuredUrls, editingUrl, resetEditor, t, token, updateConfig, urlValue]
   );
 
   const editingExistingRelay = Boolean(editingUrl);
@@ -97,6 +100,7 @@ export function CustomRelaySection() {
             />
           ))}
           <SettingsNavRow
+            testID="relay-add"
             icon="plus"
             title={t('relay.add')}
             onPress={openAddRelay}
@@ -106,16 +110,24 @@ export function CustomRelaySection() {
       ) : (
         <>
           <TextField
+            testID="relay-url-input"
             text={url}
+            onTextChange={setUrlValue}
             placeholder="https://relay.example.com"
             modifiers={[keyboardType('url'), autocorrectionDisabled()]}
           />
-          <SecureField text={token} placeholder={t('relay.token')} />
+          <TextField
+            testID="relay-token-input"
+            text={token}
+            placeholder={t('relay.token')}
+            modifiers={[autocorrectionDisabled()]}
+          />
           {error ? <SwiftUIText>{error}</SwiftUIText> : null}
           <Button
+            testID="relay-save"
             label={t('relay.save')}
             onPress={() => void save()}
-            modifiers={[disabled(pending || !url.value.trim())]}
+            modifiers={[disabled(pending || !urlValue.trim())]}
           />
           {editingExistingRelay ? (
             <Button

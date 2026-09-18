@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 import { homedir, tmpdir } from "node:os";
 import { decodeSimulatorEntitlements } from "./entitlements.mjs";
-import { parseOptions, validateDeviceBudget, NETWORK_SCENARIOS } from "./options.mjs";
+import { parseOptions, validateDeviceBudget, NETWORK_SCENARIOS, ONLINE_UI_SCENARIOS } from "./options.mjs";
 import { command } from "./process.mjs";
 import { captureDiagnosticArchives } from "./diagnostic-artifacts.mjs";
 import { runScenario } from "./lifecycle.mjs";
@@ -123,7 +123,7 @@ async function main() {
     .filter((f) => /^[a-z][a-z0-9-]*\.yaml$/.test(f))
     .sort();
   const selected =
-    NETWORK_SCENARIOS.includes(options.scenario)
+    [...NETWORK_SCENARIOS, ...ONLINE_UI_SCENARIOS].includes(options.scenario)
       ? [`${options.scenario}.yaml`]
       : options.scenario
       ? scenarios.filter((f) => f === `${options.scenario}.yaml`)
@@ -158,7 +158,10 @@ async function main() {
       const device = (options.platform === "ios" ? iosDevice : androidDevice)({
         app,
         output,
-        network: options.peerCli ? "online" : "offline",
+        network:
+          options.peerCli || ONLINE_UI_SCENARIOS.includes(options.scenario)
+            ? "online"
+            : "offline",
       });
       const captureDevice = device.capture.bind(device);
       device.capture = async () => {
@@ -277,7 +280,16 @@ async function main() {
               output,
               "-e",
               `APP_ID=${appId}`,
-              join(root, ".maestro/scenarios", scenario),
+              ...(ONLINE_UI_SCENARIOS.includes(options.scenario)
+                ? ["-e", "NETWORK_ACCEPTANCE=true"]
+                : []),
+              join(
+                root,
+                ONLINE_UI_SCENARIOS.includes(options.scenario)
+                  ? ".maestro/online-scenarios"
+                  : ".maestro/scenarios",
+                scenario
+              ),
             ],
             { env, cwd: root, timeout: 300_000, signal: interrupted.signal }
           );

@@ -57,6 +57,18 @@ describe('iOS button contrast and sizing', () => {
     expect(label).toContain('minimumScaleFactor(0.72)');
   });
 
+  it('makes the finish-later settings row tappable across its full width', () => {
+    const sheet = source('components/AddSyncConnectionSheet.ios.tsx');
+    const finishLater = sheet.slice(
+      sheet.indexOf('testID="space-finish-later"'),
+      sheet.indexOf("{mode === 'success'")
+    );
+
+    expect(finishLater).toContain('testID="space-finish-later"');
+    expect(finishLater).toContain('frame({ maxWidth: Infinity');
+    expect(finishLater).toContain('contentShape(shapes.rectangle())');
+  });
+
   it('uses the same contrast rule in the shared iOS AppButton', () => {
     const appButton = source('components/ui/AppButton.ios.tsx');
 

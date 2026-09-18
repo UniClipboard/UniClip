@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import {
+  Button as SwiftUIButton,
   HStack,
   Image,
   ProgressView,
@@ -12,11 +13,11 @@ import {
 import {
   accessibilityHint,
   accessibilityLabel,
+  buttonStyle,
   contentShape,
   font,
   foregroundStyle,
   frame,
-  onTapGesture,
   shapes,
 } from '@expo/ui/swift-ui/modifiers';
 import { useTranslation } from 'react-i18next';
@@ -82,19 +83,12 @@ function SpaceDeviceRow({
     : online
     ? onlineLabel
     : offlineLabel;
-  const rowModifiers = [frame({ maxWidth: Infinity })];
-
-  if (manageable && !removing) {
-    rowModifiers.push(
-      contentShape(shapes.rectangle()),
-      onTapGesture(onManage),
-      accessibilityLabel(device.displayName),
-      accessibilityHint(manageHint)
-    );
-  }
-
-  return (
-    <HStack spacing={12} alignment="center" modifiers={rowModifiers}>
+  const content = (
+    <HStack
+      spacing={12}
+      alignment="center"
+      modifiers={[frame({ maxWidth: Infinity }), contentShape(shapes.rectangle())]}
+    >
       <Image
         systemName="person.crop.circle"
         size={28}
@@ -119,6 +113,21 @@ function SpaceDeviceRow({
         )
       ) : null}
     </HStack>
+  );
+
+  if (!manageable || removing) return content;
+
+  return (
+    <SwiftUIButton
+      onPress={onManage}
+      modifiers={[
+        buttonStyle('plain'),
+        accessibilityLabel(device.displayName),
+        accessibilityHint(manageHint),
+      ]}
+    >
+      {content}
+    </SwiftUIButton>
   );
 }
 

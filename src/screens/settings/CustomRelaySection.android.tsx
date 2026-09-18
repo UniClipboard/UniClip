@@ -16,6 +16,7 @@ import {
   fillMaxWidth,
   height as heightModifier,
   padding,
+  testID,
   width as widthModifier,
 } from '@expo/ui/jetpack-compose/modifiers';
 import { useTranslation } from 'react-i18next';
@@ -105,7 +106,9 @@ export function CustomRelaySection() {
   return (
     <>
       <SettingsSectionItem title={t('space.advanced.title')}>
-        <ListItem modifiers={[clickable(() => setShowRelaySettings(true))]}>
+        <ListItem
+          modifiers={[testID('relay-settings'), clickable(() => setShowRelaySettings(true))]}
+        >
           <ListItem.LeadingContent>
             <Icon source={ICONS.space} size={24} tint={colors.primary} />
           </ListItem.LeadingContent>
@@ -154,7 +157,10 @@ export function CustomRelaySection() {
                     ))
                   )}
                   <Spacer modifiers={[heightModifier(20)]} />
-                  <Button onClick={openAddRelay} modifiers={[fillMaxWidth()]}>
+                  <Button
+                    onClick={openAddRelay}
+                    modifiers={[testID('relay-add'), fillMaxWidth()]}
+                  >
                     <Icon source={ICONS.add} size={18} tint={colors.onPrimary} />
                     <Spacer modifiers={[widthModifier(8)]} />
                     <ComposeText>{t('relay.add')}</ComposeText>
@@ -172,6 +178,7 @@ export function CustomRelaySection() {
                   <ComposeText color={colors.onSurfaceVariant}>{t('relay.url')}</ComposeText>
                   <Spacer modifiers={[heightModifier(6)]} />
                   <AppTextField
+                    testID="relay-url-input"
                     value={url}
                     onChangeText={setUrl}
                     placeholder="https://relay.example.com"
@@ -181,7 +188,12 @@ export function CustomRelaySection() {
                   <Spacer modifiers={[heightModifier(16)]} />
                   <ComposeText color={colors.onSurfaceVariant}>{t('relay.token')}</ComposeText>
                   <Spacer modifiers={[heightModifier(6)]} />
-                  <AppTextField value={token} onChangeText={setToken} secure fullWidth />
+                  <AppTextField
+                    testID="relay-token-input"
+                    value={token}
+                    onChangeText={setToken}
+                    fullWidth
+                  />
                   {error ? (
                     <>
                       <Spacer modifiers={[heightModifier(12)]} />
@@ -192,7 +204,7 @@ export function CustomRelaySection() {
                   <Button
                     onClick={() => void save()}
                     enabled={!pending && canSave}
-                    modifiers={[fillMaxWidth()]}
+                    modifiers={[testID('relay-save'), fillMaxWidth()]}
                   >
                     <ComposeText>{t('relay.save')}</ComposeText>
                   </Button>

@@ -1,6 +1,7 @@
 import { ANDROID_DEVICE_CAPACITY } from "./ports.mjs";
 
 export const NETWORK_SCENARIOS = ["bidirectional-sync", "diagnostic-auth-failure", "diagnostic-connect-timeout", "diagnostic-lifecycle", "diagnostic-extensions"];
+export const ONLINE_UI_SCENARIOS = ["custom-relay"];
 
 export function parseOptions(args) {
   const options = { repeat: 1 };

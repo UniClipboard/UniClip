@@ -78,6 +78,15 @@ describe('shared Space device detail UI', () => {
     expect(ios).not.toContain('accessibilityLabel(`${device.displayName}, ${removeLabel}`)');
   });
 
+  it('uses a real full-row button so scrolling does not open device details', () => {
+    const ios = source('screens/settings/ios/SpacePage.tsx');
+    const row = ios.slice(ios.indexOf('function SpaceDeviceRow'), ios.indexOf('export function SpacePage'));
+
+    expect(row).toContain('<SwiftUIButton');
+    expect(row).toContain('contentShape(shapes.rectangle())');
+    expect(row).not.toContain('onTapGesture');
+  });
+
   it('offers the existing update route only on Android for the local device', () => {
     const types = source('components/SpaceDeviceDetail.types.ts');
     const android = source('components/SpaceDeviceDetail.android.tsx');

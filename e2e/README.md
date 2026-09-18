@@ -74,6 +74,7 @@ for debugging but does not provide the environment isolation of this entry point
 ## Ownership
 
 - `.maestro/scenarios`: user intent and explicit result checks.
+- `.maestro/online-scenarios`: explicitly selected UI scenarios that require internet access.
 - `.maestro/actions`: reusable actions; platform branches only where behavior differs.
 - `.maestro/assertions`: visible application results.
 - `.maestro/lifecycle`: launch/restart without resetting persisted data. Initial launch assumes a freshly installed app; restart explicitly stops once. Both launch steps disable Maestro's redundant automatic stop.
@@ -132,6 +133,19 @@ Search, selection/copy, context actions, filters and history assertions remain r
 `diagnostic-capture` uses the existing settings rows. It confirms a capture survives page navigation, can be stopped, and does not falsely remain active after process restart. iOS leaves the system share sheet open so evidence capture can copy the actual pending ZIP; Android saves through the system directory picker to Documents. Before disposing the owned device, the runner copies the exported ZIP and verifies its Engine revision, stopped capture state, completed flush, typed counter scope and native host records. It never injects application state or accesses a personal device. The full ZIP and decoded manifest remain in `diagnostic-archives/`.
 
 ## 联网双向同步验收
+
+### 自定义中继
+
+`custom-relay` 不会加入默认离线套件。它在全新的测试设备上创建独立空间，输入并保存真实中继地址 `https://relay.uni.z2blog.com`：
+
+```bash
+npm run test:e2e -- --platform ios --app /path/to/UniClipDev.app --scenario custom-relay
+npm run test:e2e -- --platform android --app /path/to/app-arm64-v8a-release.apk --scenario custom-relay
+```
+
+该场景验证两端从输入、按钮启用到保存完成的完整用户操作，并让应用在联网状态下重建中继连接；它不证明跨设备内容一定经过该中继传输。
+
+### 双向同步
 
 显式选择 `bidirectional-sync`，并提供同版本的桌面 `uniclip` 与相邻 `uniclipd`。
 默认套件仍然离线，不会自动执行联网场景。

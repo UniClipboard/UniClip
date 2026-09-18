@@ -61,6 +61,26 @@ test("every discovered scenario has valid, acyclic Maestro subflows and explicit
     );
   }
 });
+
+test("custom relay acceptance saves the real relay address", () => {
+  const body = readFlow(resolve(root, "online-scenarios/custom-relay.yaml"));
+  const text = JSON.stringify(body);
+  assert.ok(text.includes("relay/create-space"));
+  assert.ok(text.includes("relay/add"));
+  assert.ok(!text.includes("lifecycle/restart"));
+
+  const add = readFlow(resolve(root, "actions/relay/add.yaml"));
+  assert.ok(
+    add.some((step) => step.inputText === "https://relay.uni.z2blog.com")
+  );
+  assert.ok(JSON.stringify(add).includes('"enabled":false'));
+  assert.ok(JSON.stringify(add).includes('"enabled":true'));
+  assert.ok(
+    add.some(
+      (step) => step.assertVisible === "https://relay.uni.z2blog.com"
+    )
+  );
+});
 test("storage regression taps inside the identified full row and records its layout", () => {
   const body = readFlow(
     resolve(root, "actions/settings/open-storage-from-trailing-space.yaml")

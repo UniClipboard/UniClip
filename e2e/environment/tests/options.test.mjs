@@ -72,3 +72,17 @@ test('diagnostic fault scenarios also require an explicit isolated peer', () => 
     assert.equal(parseOptions(['--platform', 'ios', '--app', '/tmp/app.app', '--scenario', scenario, '--peer-cli', '/tmp/uniclip']).scenario, scenario);
   }
 });
+
+test('custom relay acceptance is opt-in but does not require a desktop peer', () => {
+  assert.equal(
+    parseOptions([
+      '--platform',
+      'ios',
+      '--app',
+      '/tmp/app.app',
+      '--scenario',
+      'custom-relay',
+    ]).scenario,
+    'custom-relay'
+  );
+});

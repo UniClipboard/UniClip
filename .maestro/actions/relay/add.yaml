@@ -1,0 +1,39 @@
+appId: ${APP_ID}
+---
+- runFlow: open.yaml
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: "Add relay node"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn:
+          id: relay-add
+- assertVisible:
+    id: relay-save
+    enabled: false
+- tapOn:
+    id: relay-url-input
+- inputText: "https://relay.uni.z2blog.com"
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - pressKey: ENTER
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- assertVisible:
+    id: relay-save
+    enabled: true
+- tapOn:
+    id: relay-save
+- extendedWaitUntil:
+    visible: "Add relay node"
+    timeout: 60000
+- assertVisible: "https://relay.uni.z2blog.com"
