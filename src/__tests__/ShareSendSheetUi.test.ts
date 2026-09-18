@@ -80,6 +80,16 @@ describe('ShareSendSheet presentation', () => {
     expect(ios).toContain('accessibilityValue(selected ?');
   });
 
+  it('keeps an accessible refresh action beside the iOS target-list heading', () => {
+    const targetSection = ios.match(/function TargetSection[\s\S]*?\n}\n\nfunction JobRow/)?.[0];
+
+    expect(ios).toContain('onRefresh={c.refreshTargets}');
+    expect(targetSection).toContain('systemImage="arrow.clockwise"');
+    expect(targetSection).toContain("labelStyle('iconOnly')");
+    expect(targetSection).toContain('frame({ minWidth: 44, minHeight: 44 })');
+    expect(targetSection).toContain('disabled(isLoading)');
+  });
+
   it('renders the active channel targets without device-only row types', () => {
     expect(ios).toContain('target.displayName');
     expect(android).toContain('target.displayName');

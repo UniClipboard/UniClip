@@ -25,6 +25,7 @@ import {
   frame,
   controlSize,
   lineLimit,
+  labelStyle,
   opacity,
   padding,
   presentationDetents,
@@ -140,6 +141,7 @@ function Body({ c }: { c: ReturnType<typeof useShareSendController> }) {
           title={t(c.targetKind === 'server' ? 'send.servers' : 'send.devices')}
           emptyLabel={t(c.targetKind === 'server' ? 'send.noServers' : 'send.noDevices')}
           isLoading={c.isLoadingTargets}
+          onRefresh={c.refreshTargets}
         />
       </IosSheetForm>
       <SendFooter c={c} />
@@ -196,6 +198,7 @@ function TargetSection({
   title,
   emptyLabel,
   isLoading,
+  onRefresh,
 }: {
   targets: ShareTarget[];
   selectedTargetIds: Set<string>;
@@ -203,9 +206,31 @@ function TargetSection({
   title: string;
   emptyLabel: string;
   isLoading: boolean;
+  onRefresh: () => Promise<void>;
 }) {
+  const { t } = useTranslation('share');
+
   return (
-    <Section title={title}>
+    <Section
+      header={
+        <HStack alignment="center" modifiers={[frame({ maxWidth: Infinity })]}>
+          <SwiftUIText>{title}</SwiftUIText>
+          <Spacer />
+          <SwiftUIButton
+            label={t('action.refresh', { ns: 'common' })}
+            systemImage="arrow.clockwise"
+            onPress={() => void onRefresh()}
+            modifiers={[
+              buttonStyle('plain'),
+              labelStyle('iconOnly'),
+              frame({ minWidth: 44, minHeight: 44 }),
+              disabled(isLoading),
+              opacity(isLoading ? 0.38 : 1),
+            ]}
+          />
+        </HStack>
+      }
+    >
       {isLoading ? (
         <ProgressView />
       ) : targets.length === 0 ? (
