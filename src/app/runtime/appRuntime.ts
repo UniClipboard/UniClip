@@ -128,6 +128,13 @@ export class AppRuntime {
     }
   }
 
+  /** UI 入口可等待现有启动；已经就绪时不重复启动同步服务。 */
+  ensureStarted(): Promise<void> {
+    if (this.startPromise) return this.startPromise;
+    if (this.hasStarted) return Promise.resolve();
+    return this.start();
+  }
+
   private async _performStart(): Promise<void> {
     // 等待配置加载完成
     if (!this.dependencies.settingsStore.getState().isLoaded) {

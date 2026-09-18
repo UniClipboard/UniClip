@@ -100,4 +100,27 @@ describe('AppRuntime unified sync ownership', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(sync.switchTo).toHaveBeenCalledWith('p2p', { rollbackOnFailure: false });
   });
+
+  it('lets a UI entry wait for an existing startup without starting services again', async () => {
+    let finishStart!: () => void;
+    sync.start.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishStart = resolve;
+        })
+    );
+
+    const runtime = getAppRuntime();
+    const startup = runtime.start();
+    const waiter = runtime.ensureStarted();
+    await Promise.resolve();
+
+    expect(sync.start).toHaveBeenCalledTimes(1);
+
+    finishStart();
+    await Promise.all([startup, waiter]);
+    await runtime.ensureStarted();
+
+    expect(sync.start).toHaveBeenCalledTimes(1);
+  });
 });

@@ -29,6 +29,7 @@ import { getUnifiedSyncRuntime } from '@/features/sync';
 import { importFileToHistory, importTextToHistory } from '@/utils/uploadFile';
 import { getUnifiedSpaceService, useUnifiedSpaceStore } from '@/features/space';
 import { useSettingsStore } from '@/features/settings';
+import { getAppRuntime } from '@/app/runtime/composition';
 import { createLogger } from '@/support/observability';
 import { useLanMySpaceSheet } from '../useLanMySpaceSheet';
 
@@ -102,6 +103,13 @@ export function useShareSendController(onClose: () => void, active: boolean, job
   const { t } = useTranslation('share');
   const syncChannel = useSettingsStore((state) => state.config?.syncChannel ?? 'lan');
   const spaceDevices = useUnifiedSpaceStore((s) => s.devices);
+  const isP2pTargetStateLoading = useUnifiedSpaceStore(
+    (s) =>
+      !s.hasResolvedDeviceList &&
+      (s.status === 'idle' ||
+        s.status === 'loading' ||
+        s.deviceListRefreshStatus === 'refreshing')
+  );
   const lan = useLanMySpaceSheet(active && syncChannel === 'lan');
   const targets = useMemo<ShareTarget[]>(
     () =>
@@ -126,6 +134,25 @@ export function useShareSendController(onClose: () => void, active: boolean, job
   const sendingRef = useRef(false);
   const hasAppliedDefaultSelectionRef = useRef(false);
   const successCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshP2pTargets = useCallback(async () => {
+    const hadResolvedDeviceList = useUnifiedSpaceStore.getState().hasResolvedDeviceList;
+    setIsRefreshingP2pTargets(true);
+    try {
+      await getAppRuntime().ensureStarted();
+      const current = useUnifiedSpaceStore.getState();
+      if (hadResolvedDeviceList) {
+        await getUnifiedSpaceService().refreshDevices();
+      } else if (!current.hasResolvedDeviceList && current.status !== 'empty') {
+        await getUnifiedSpaceService().refresh();
+      }
+    } catch (error) {
+      log.warn('Failed to prepare share targets', {
+        reason: error instanceof Error ? error.name : 'unknown',
+      });
+    } finally {
+      setIsRefreshingP2pTargets(false);
+    }
+  }, []);
   // App-provided files belong to the presenting screen, not the external share queue.
   const completeJob = useCallback(async (jobId: string) => {
     if (!jobs) await getOutboundShareHandoffManager().completeJob(jobId);
@@ -143,9 +170,7 @@ export function useShareSendController(onClose: () => void, active: boolean, job
     try {
       // 打开时刷新一次设备快照;失败沿用现有快照,不阻断弹层(§8.4)
       if (syncChannel === 'p2p') {
-        void getUnifiedSpaceService()
-          .refreshDevices()
-          .catch(() => undefined);
+        void refreshP2pTargets();
       }
       if (jobs) {
         setJobViews(await Promise.all(jobs.map(loadPreview)));
@@ -174,7 +199,7 @@ export function useShareSendController(onClose: () => void, active: boolean, job
       });
       setPhase({ kind: 'error', message: t('send.claimFailed') });
     }
-  }, [jobs, syncChannel, t]);
+  }, [jobs, refreshP2pTargets, syncChannel, t]);
 
   // 会话开关:active=false 结束会话(重置发送锁);true 开始新会话,
   // 重置状态并重新认领(组件常驻挂载,不依赖 mount)。lastActiveRef 保证
@@ -356,13 +381,8 @@ export function useShareSendController(onClose: () => void, active: boolean, job
       await lan.refresh();
       return;
     }
-    setIsRefreshingP2pTargets(true);
-    try {
-      await getUnifiedSpaceService().refreshDevices();
-    } finally {
-      setIsRefreshingP2pTargets(false);
-    }
-  }, [lan.refresh, syncChannel]);
+    await refreshP2pTargets();
+  }, [lan.refresh, refreshP2pTargets, syncChannel]);
 
   // 取消 / 完成:内容已保存,未发送 job 直接出队,返回上一页
   const handleClose = useCallback(() => {
@@ -390,7 +410,10 @@ export function useShareSendController(onClose: () => void, active: boolean, job
     jobViews,
     targets,
     targetKind: syncChannel === 'lan' ? ('server' as const) : ('device' as const),
-    isLoadingTargets: syncChannel === 'lan' ? lan.isRefreshing : isRefreshingP2pTargets,
+    isLoadingTargets:
+      syncChannel === 'lan'
+        ? lan.isRefreshing
+        : isRefreshingP2pTargets || isP2pTargetStateLoading,
     selectedTargetIds,
     isSending,
     isDone,

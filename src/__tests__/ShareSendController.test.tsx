@@ -28,6 +28,7 @@ const mockSendImportedAsset = jest.fn();
 const mockImportTextToHistory = jest.fn();
 const mockImportFileToHistory = jest.fn();
 const mockRecordShareDiagnosticStage = jest.fn();
+const mockEnsureRuntimeStarted = jest.fn(async () => undefined);
 let mockSyncChannel: 'lan' | 'p2p' = 'p2p';
 let mockLanServers: Array<{
   id: string;
@@ -39,6 +40,10 @@ let mockLanServers: Array<{
 jest.mock('@/features/settings', () => ({
   useSettingsStore: (selector: (state: unknown) => unknown) =>
     selector({ config: { syncChannel: mockSyncChannel } }),
+}));
+
+jest.mock('@/app/runtime/composition', () => ({
+  getAppRuntime: () => ({ ensureStarted: () => mockEnsureRuntimeStarted() }),
 }));
 
 jest.mock('@/components/useLanMySpaceSheet', () => ({
@@ -87,9 +92,13 @@ jest.mock('@/support/observability', () => ({
 }));
 
 const mockRefreshDevices = jest.fn(async () => ({ devices: [] }));
+const mockRefreshSpace = jest.fn(async () => ({ devices: [] }));
 jest.mock('@/features/space', () => ({
   ...jest.requireActual('@/features/space/store'),
-  getUnifiedSpaceService: () => ({ refreshDevices: () => mockRefreshDevices() }),
+  getUnifiedSpaceService: () => ({
+    refresh: () => mockRefreshSpace(),
+    refreshDevices: () => mockRefreshDevices(),
+  }),
 }));
 
 jest.mock('expo-file-system', () => {
@@ -266,12 +275,93 @@ describe('useShareSendController', () => {
       contentType: 'Image',
     });
     useUnifiedSpaceStore.setState({
+      status: 'ready',
+      spaceId: 'space-1',
       devices: [
         { deviceId: 'local', displayName: 'Phone', isLocal: true, online: true },
         { deviceId: 'desktop-1', displayName: 'Desktop', isLocal: false, online: true },
         { deviceId: 'laptop-1', displayName: 'Laptop', isLocal: false, online: false },
       ],
+      hasResolvedDeviceList: true,
+      deviceListRefreshStatus: 'idle',
     });
+  });
+
+  it('keeps a cold-start share loading until runtime startup publishes the device list', async () => {
+    let finishStartup!: () => void;
+    mockClaimPending.mockResolvedValue([textJob]);
+    useUnifiedSpaceStore.setState({
+      status: 'idle',
+      spaceId: null,
+      devices: [],
+      hasResolvedDeviceList: false,
+      deviceListRefreshStatus: 'idle',
+    });
+    mockEnsureRuntimeStarted.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishStartup = () => {
+            useUnifiedSpaceStore.setState({
+              status: 'ready',
+              spaceId: 'space-1',
+              devices: [
+                { deviceId: 'local', displayName: 'Phone', isLocal: true, online: true },
+                { deviceId: 'desktop-1', displayName: 'Desktop', isLocal: false, online: true },
+              ],
+              hasResolvedDeviceList: true,
+              deviceListRefreshStatus: 'idle',
+            });
+            resolve();
+          };
+        })
+    );
+
+    renderHarness(jest.fn());
+    await settle();
+
+    expect(current.isLoadingTargets).toBe(true);
+    expect(current.targets).toEqual([]);
+
+    await act(async () => {
+      finishStartup();
+      await flush();
+    });
+
+    expect(current.isLoadingTargets).toBe(false);
+    expect(current.targets.map((target) => target.id)).toEqual(['desktop-1']);
+    expect(mockRefreshDevices).not.toHaveBeenCalled();
+    expect(mockRefreshSpace).not.toHaveBeenCalled();
+  });
+
+  it('loads the full space after startup when a cold-start share still has no device snapshot', async () => {
+    mockClaimPending.mockResolvedValue([textJob]);
+    useUnifiedSpaceStore.setState({
+      status: 'idle',
+      spaceId: null,
+      devices: [],
+      hasResolvedDeviceList: false,
+      deviceListRefreshStatus: 'idle',
+    });
+    mockRefreshSpace.mockImplementationOnce(async () => {
+      useUnifiedSpaceStore.setState({
+        status: 'ready',
+        spaceId: 'space-1',
+        devices: [
+          { deviceId: 'local', displayName: 'Phone', isLocal: true, online: true },
+          { deviceId: 'desktop-1', displayName: 'Desktop', isLocal: false, online: true },
+        ],
+        hasResolvedDeviceList: true,
+        deviceListRefreshStatus: 'idle',
+      });
+      return { devices: useUnifiedSpaceStore.getState().devices };
+    });
+
+    renderHarness(jest.fn());
+    await settle();
+
+    expect(mockRefreshSpace).toHaveBeenCalledTimes(1);
+    expect(current.isLoadingTargets).toBe(false);
+    expect(current.targets.map((target) => target.id)).toEqual(['desktop-1']);
   });
 
   it('claims pending jobs on mount (single claim) and previews text payloads', async () => {
