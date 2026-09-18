@@ -289,7 +289,7 @@ final class NativeSystemHostTests: XCTestCase {
     let host = NativeLifecycleHost(report: { _ in XCTFail("Transition must not fail") })
 
     host.enterForeground(engine)
-    host.enterBackground(engine)
+    _ = host.enterBackground(engine, deadlineMs: 1_000)
     engine.state = .suspended
     host.enterForeground(engine)
 
@@ -315,7 +315,7 @@ final class NativeSystemHostTests: XCTestCase {
     var reported: Error?
     let host = NativeLifecycleHost(report: { reported = $0 })
 
-    host.enterBackground(engine)
+    _ = host.enterBackground(engine, deadlineMs: 1_000)
 
     XCTAssertNotNil(reported)
   }
@@ -336,7 +336,7 @@ final class NativeSystemHostTests: XCTestCase {
       queue: DispatchQueue(label: "NativeLifecycleTransitionCoordinatorTests"),
       beginBackgroundActivity: {
         events.append("begin")
-        return {
+        return TestBackgroundActivity(remainingTimeMs: 1_234) {
           events.append("end")
           activityEnded.fulfill()
         }
@@ -348,10 +348,23 @@ final class NativeSystemHostTests: XCTestCase {
     XCTAssertEqual(events.snapshot(), ["begin"])
     wait(for: [suspendStarted], timeout: 1)
     XCTAssertEqual(events.snapshot(), ["begin"])
+    XCTAssertEqual(engine.lastSuspendDeadlineMs, 1_234)
     continueSuspend.signal()
     wait(for: [activityEnded], timeout: 1)
     XCTAssertEqual(events.snapshot(), ["begin", "end"])
   }
+}
+
+private final class TestBackgroundActivity: NativeBackgroundActivity, @unchecked Sendable {
+  let remainingTimeMs: UInt64?
+  private let onEnd: @Sendable () -> Void
+
+  init(remainingTimeMs: UInt64, onEnd: @escaping @Sendable () -> Void) {
+    self.remainingTimeMs = remainingTimeMs
+    self.onEnd = onEnd
+  }
+
+  func end() { onEnd() }
 }
 
 private final class LockedStringEvents: @unchecked Sendable {
@@ -383,6 +396,7 @@ private final class FakeNativeEngineLifecycle: NativeEngineLifecycle {
   var transitionError: Error?
   var recoverCalls = 0
   var suspendCalls = 0
+  var lastSuspendDeadlineMs: UInt64?
   var resumeCalls = 0
   var foregroundOpportunities = 0
   func notifyForegroundOpportunity() throws { foregroundOpportunities += 1 }
@@ -399,8 +413,9 @@ private final class FakeNativeEngineLifecycle: NativeEngineLifecycle {
 
   func lifecycleState() throws -> NativeEngineLifecycleState { state }
 
-  func suspend() throws {
+  func suspend(deadlineMs: UInt64?) throws {
     suspendCalls += 1
+    lastSuspendDeadlineMs = deadlineMs
     onSuspend?()
     if let transitionError { throw transitionError }
     state = .suspended

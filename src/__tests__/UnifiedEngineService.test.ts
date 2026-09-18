@@ -57,6 +57,28 @@ function refreshReport(online: number): PeerConnectionRefresh {
 }
 
 describe('UnifiedEngineService', () => {
+  it('waits for complete native shutdown when the app stops', async () => {
+    const pendingEvent = deferred<EngineEvent | null>();
+    const shutdown = jest.fn(async () => undefined);
+    const shutdownUntilComplete = jest.fn(async () => pendingEvent.resolve(null));
+    const service = new UnifiedEngineService({
+      start: async () => undefined,
+      shutdown,
+      shutdownUntilComplete,
+      resume: async () => undefined,
+      setBackgroundSyncEnabled: async () => undefined,
+      nextEvent: () => pendingEvent.promise,
+      notifyConnectivityOpportunity: async () => undefined,
+      refreshPeerConnections: async () => refreshReport(0),
+    });
+
+    await service.start(config());
+    await service.stop();
+
+    expect(shutdownUntilComplete).toHaveBeenCalledTimes(1);
+    expect(shutdown).not.toHaveBeenCalled();
+  });
+
   it('reports an opportunity without polling or synthesizing online', async () => {
     jest.useFakeTimers();
     const pendingEvent = deferred<EngineEvent | null>();
@@ -67,6 +89,7 @@ describe('UnifiedEngineService', () => {
       {
         start: async () => undefined,
         shutdown: async () => pendingEvent.resolve(null),
+        shutdownUntilComplete: async () => pendingEvent.resolve(null),
         resume: async () => undefined,
         nextEvent: () => pendingEvent.promise,
         notifyConnectivityOpportunity,
@@ -95,6 +118,7 @@ describe('UnifiedEngineService', () => {
       {
         start: async () => undefined,
         shutdown: async () => pendingEvent.resolve(null),
+        shutdownUntilComplete: async () => pendingEvent.resolve(null),
         resume: async () => undefined,
         nextEvent: () => pendingEvent.promise,
         notifyConnectivityOpportunity: async () => undefined,
@@ -118,6 +142,7 @@ describe('UnifiedEngineService', () => {
     const service = new UnifiedEngineService({
       start: async () => undefined,
       shutdown: async () => pendingEvent.resolve(null),
+      shutdownUntilComplete: async () => pendingEvent.resolve(null),
       resume: async () => undefined,
       nextEvent: () => pendingEvent.promise,
       notifyConnectivityOpportunity,
@@ -147,7 +172,7 @@ describe('UnifiedEngineService', () => {
       .mockImplementation(() => pendingEvent.promise);
     const snapshots: UnifiedEngineSnapshot[] = [];
     const service = new UnifiedEngineService(
-      { start, shutdown, nextEvent },
+      { start, shutdown, shutdownUntilComplete: shutdown, nextEvent },
       (snapshot) => snapshots.push(snapshot),
       10
     );
@@ -185,6 +210,7 @@ describe('UnifiedEngineService', () => {
       {
         start: async () => undefined,
         shutdown,
+        shutdownUntilComplete: shutdown,
         nextEvent: async () => events.shift() ?? null,
       },
       (snapshot) => snapshots.push(snapshot),
@@ -221,6 +247,7 @@ describe('UnifiedEngineService', () => {
       {
         start: async () => undefined,
         shutdown: async () => pendingEvent.resolve(null),
+        shutdownUntilComplete: async () => pendingEvent.resolve(null),
         nextEvent: async () => events.shift() ?? pendingEvent.promise,
       },
       (snapshot) => snapshots.push(snapshot),
@@ -263,6 +290,7 @@ describe('UnifiedEngineService', () => {
       {
         start: async () => undefined,
         shutdown: async () => undefined,
+        shutdownUntilComplete: async () => undefined,
         nextEvent: async () => events.shift() ?? null,
       },
       (snapshot) => snapshots.push(snapshot),
@@ -308,6 +336,7 @@ describe('UnifiedEngineService', () => {
       {
         start: async () => undefined,
         shutdown: async () => undefined,
+        shutdownUntilComplete: async () => undefined,
         nextEvent: async () => events.shift() ?? null,
       },
       (snapshot) => snapshots.push(snapshot),
@@ -347,6 +376,7 @@ describe('UnifiedEngineService', () => {
       {
         start: async () => undefined,
         shutdown: async () => undefined,
+        shutdownUntilComplete: async () => undefined,
         nextEvent: async () => events.shift() ?? null,
       },
       (snapshot) => snapshots.push(snapshot),
@@ -369,6 +399,7 @@ describe('UnifiedEngineService', () => {
           throw new Error('native start failed');
         },
         shutdown: async () => undefined,
+        shutdownUntilComplete: async () => undefined,
         nextEvent,
       },
       (snapshot) => snapshots.push(snapshot),
@@ -393,6 +424,7 @@ describe('UnifiedEngineService', () => {
     const service = new UnifiedEngineService({
       start: () => startup.promise,
       shutdown,
+      shutdownUntilComplete: shutdown,
       nextEvent: async () => null,
     });
 
@@ -418,6 +450,7 @@ describe('UnifiedEngineService', () => {
       {
         start,
         shutdown,
+        shutdownUntilComplete: shutdown,
         nextEvent: async () => events.shift() ?? pendingEvent.promise,
       },
       (snapshot) => snapshots.push(snapshot),

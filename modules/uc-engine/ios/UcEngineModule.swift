@@ -18,6 +18,7 @@ public final class UcEngineModule: Module {
   private let engineConnectivityQueue = DispatchQueue(label: "app.uniclipboard.uc-engine-connectivity")
   private let engineEventQueue = DispatchQueue(label: "app.uniclipboard.uc-engine-events")
   private let engines = NativeEngineRegistry<MobileEngine>()
+  private let startupLifecycles = NativeEngineRegistry<MobileStartupLifecycle>()
 
   public func definition() -> ModuleDefinition {
     Name("UcEngine")
@@ -60,7 +61,16 @@ public final class UcEngineModule: Module {
       let appVersion = config["appVersion"] ?? "unknown"
       let profileId = config["profileId"] ?? "default"
       Self.startupLog.info("Native module start requested")
-      let started = try self.host.start(appVersion: appVersion, profileId: profileId)
+      let startupLifecycle = MobileStartupLifecycle()
+      guard self.startupLifecycles.installBeforePreparing(startupLifecycle, prepare: { _ in }) else {
+        throw UcEngineAlreadyStartedException()
+      }
+      defer { _ = self.startupLifecycles.take() }
+      let started = try self.host.start(
+        appVersion: appVersion,
+        profileId: profileId,
+        lifecycle: startupLifecycle
+      )
       Self.startupLog.info(
         "Engine host started in \(Int((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000))ms"
       )
@@ -95,17 +105,29 @@ public final class UcEngineModule: Module {
     }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("shutdown") { (deadlineMs: UInt64) in
-      let active = self.engines.take()
-      defer { self.host.releaseRuntimeOwnership() }
+      let active = self.engines.current()
       try AppleNativeDiagnostics.observe(.engineShutdown, trigger: .userRequest) {
         try active?.shutdown(deadlineMs: deadlineMs)
       }
+      _ = self.engines.take()
+      self.host.releaseRuntimeOwnership()
+      self.host.removeAllFileHandles()
+    }.runOnQueue(engineOperationQueue)
+
+    AsyncFunction("shutdownUntilComplete") {
+      let active = self.engines.current()
+      try AppleNativeDiagnostics.observe(.engineShutdown, trigger: .userRequest) {
+        try Self.shutdownCompletely(active)
+      }
+      _ = self.engines.take()
+      self.host.releaseRuntimeOwnership()
       self.host.removeAllFileHandles()
     }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("suspend") {
       try self.lifecycle.suspendIfNeeded(
-        AppleEngineLifecycle(engine: self.requireEngine(), host: self.host)
+        AppleEngineLifecycle(engine: self.requireEngine(), host: self.host),
+        deadlineMs: nil
       )
     }.runOnQueue(engineOperationQueue)
     AsyncFunction("resume") {
@@ -406,14 +428,14 @@ public final class UcEngineModule: Module {
       EngineDiagnosticBridge.record(.lifecycle(state: .background))
       AppleNativeDiagnostics.journal.record(.appBackground, trigger: .appBackground)
       self.lifecycleTransitions.enterBackground(
-        self.currentEngine().map { AppleEngineLifecycle(engine: $0, host: self.host) }
+        self.currentLifecycle()
       )
     }
     OnAppEntersForeground {
       EngineDiagnosticBridge.record(.lifecycle(state: .foreground))
       AppleNativeDiagnostics.journal.record(.appForeground, trigger: .appForeground)
       self.lifecycleTransitions.enterForeground(
-        self.currentEngine().map { AppleEngineLifecycle(engine: $0, host: self.host) }
+        self.currentLifecycle()
       )
     }
     OnAppContextDestroys { self.shutdownForDestroy() }
@@ -421,6 +443,13 @@ public final class UcEngineModule: Module {
 
   private func currentEngine() -> MobileEngine? {
     engines.current()
+  }
+
+  private func currentLifecycle() -> (any NativeEngineLifecycle)? {
+    if let engine = currentEngine() {
+      return AppleEngineLifecycle(engine: engine, host: host)
+    }
+    return startupLifecycles.current().map(AppleStartupLifecycle.init)
   }
 
   private func requireEngine() throws -> MobileEngine {
@@ -451,17 +480,30 @@ public final class UcEngineModule: Module {
   }
 
   private func shutdownForDestroy() {
-    let active = engines.take()
-    defer { host.releaseRuntimeOwnership() }
+    let active = engines.current()
     do {
       try AppleNativeDiagnostics.observe(.engineShutdown, trigger: .contextDestroyed) {
-        try active?.shutdown(deadlineMs: 2_000)
+        try Self.shutdownCompletely(active)
       }
+      _ = engines.take()
+      host.releaseRuntimeOwnership()
     } catch {
       Self.reportLifecycleError(error)
     }
     host.removeAllFileHandles()
     _ = AppleNativeDiagnostics.journal.flush()
+  }
+
+  private static func shutdownCompletely(_ engine: MobileEngine?) throws {
+    guard let engine else { return }
+    while true {
+      do {
+        try engine.shutdown(deadlineMs: 5_000)
+        return
+      } catch BindingError.Engine(_, .deadlineExceeded, _) {
+        continue
+      }
+    }
   }
 
   private static func reportLifecycleError(_ error: Error) {
@@ -724,16 +766,23 @@ public final class UcEngineModule: Module {
   }
 }
 
-private final class UIKitBackgroundActivity: @unchecked Sendable {
+private final class UIKitBackgroundActivity: NativeBackgroundActivity, @unchecked Sendable {
+  private static let completionMargin: TimeInterval = 0.1
   private let lock = NSLock()
   private var identifier: UIBackgroundTaskIdentifier = .invalid
 
   func begin() {
     let identifier = UIApplication.shared.beginBackgroundTask(
       withName: "UniClip Engine Suspend",
-      expirationHandler: { [weak self] in self?.end() }
+      expirationHandler: { [weak self] in self?.expire() }
     )
     lock.withLock { self.identifier = identifier }
+  }
+
+  var remainingTimeMs: UInt64? {
+    let seconds = max(0, UIApplication.shared.backgroundTimeRemaining - Self.completionMargin)
+    guard seconds.isFinite else { return nil }
+    return UInt64(min(seconds * 1_000, Double(UInt64.max)))
   }
 
   func end() {
@@ -745,6 +794,10 @@ private final class UIKitBackgroundActivity: @unchecked Sendable {
     DispatchQueue.main.async {
       UIApplication.shared.endBackgroundTask(active)
     }
+  }
+
+  private func expire() {
+    lock.withLock { identifier = .invalid }
   }
 }
 
@@ -766,8 +819,8 @@ private final class AppleEngineLifecycle: NativeEngineLifecycle {
     try owned.lifecycleState()
   }
 
-  func suspend() throws {
-    try owned.suspend()
+  func suspend(deadlineMs: UInt64?) throws {
+    try owned.suspend(deadlineMs: deadlineMs)
   }
 
   func resume() throws {
@@ -804,8 +857,14 @@ private final class AppleMobileEngineLifecycle: NativeEngineLifecycle {
     }
   }
 
-  func suspend() throws {
-    try AppleNativeDiagnostics.observe(.engineSuspend) { try engine.suspend() }
+  func suspend(deadlineMs: UInt64?) throws {
+    try AppleNativeDiagnostics.observe(.engineSuspend) {
+      if let deadlineMs {
+        try engine.suspendWithDeadline(deadlineMs: deadlineMs)
+      } else {
+        try engine.suspend()
+      }
+    }
   }
 
   func resume() throws {
@@ -815,6 +874,27 @@ private final class AppleMobileEngineLifecycle: NativeEngineLifecycle {
   func notifyForegroundOpportunity() throws {
     try engine.notifyConnectivityOpportunity(reason: .foreground)
   }
+}
+
+private final class AppleStartupLifecycle: NativeEngineLifecycle {
+  private let lifecycle: MobileStartupLifecycle
+
+  init(_ lifecycle: MobileStartupLifecycle) {
+    self.lifecycle = lifecycle
+  }
+
+  var isStartupLifecycle: Bool { true }
+  func recoverSession() throws -> NativeSessionRecovery { .init(unlocked: false, resumed: false) }
+  func lifecycleState() throws -> NativeEngineLifecycleState { .running }
+  func suspend(deadlineMs: UInt64?) throws {
+    if let deadlineMs {
+      try lifecycle.suspendWithDeadline(deadlineMs: deadlineMs)
+    } else {
+      try lifecycle.suspend()
+    }
+  }
+  func resume() throws { try lifecycle.resume() }
+  func notifyForegroundOpportunity() throws {}
 }
 
 private final class MainApplicationRuntimeOwnership: NativeRuntimeOwnership {

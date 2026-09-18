@@ -12,13 +12,17 @@ internal enum class EngineLifecycleState {
 internal data class EngineSessionRecovery(val unlocked: Boolean, val resumed: Boolean)
 
 internal interface EngineLifecycle {
+  val isStartupLifecycle: Boolean get() = false
   fun recoverSession(): EngineSessionRecovery
   fun lifecycleState(): EngineLifecycleState
-  fun suspend()
+  fun suspend(deadlineMs: ULong)
   fun resume()
 }
 
 internal class NativeLifecycleHost(private val report: (Throwable) -> Unit) {
+  companion object {
+    private const val BACKGROUND_SUSPEND_DEADLINE_MS = 2_000L
+  }
   private var appIsBackground = false
   private var backgroundSyncEnabled = false
 
@@ -49,7 +53,7 @@ internal class NativeLifecycleHost(private val report: (Throwable) -> Unit) {
     appIsBackground = false
     if (engine == null) return
     try {
-      if (engine.lifecycleState() == EngineLifecycleState.SUSPENDED) {
+      if (engine.isStartupLifecycle || engine.lifecycleState() == EngineLifecycleState.SUSPENDED) {
         engine.resume()
       }
     } catch (error: Throwable) {
@@ -61,15 +65,19 @@ internal class NativeLifecycleHost(private val report: (Throwable) -> Unit) {
     if (engine == null || !appIsBackground) return
     try {
       if (backgroundSyncEnabled) {
-        if (engine.lifecycleState() == EngineLifecycleState.SUSPENDED) {
+        if (engine.isStartupLifecycle || engine.lifecycleState() == EngineLifecycleState.SUSPENDED) {
           engine.resume()
         }
         return
       }
 
+      if (engine.isStartupLifecycle) {
+        engine.suspend(BACKGROUND_SUSPEND_DEADLINE_MS.toULong())
+        return
+      }
       when (engine.lifecycleState()) {
         EngineLifecycleState.RUNNING,
-        EngineLifecycleState.QUIESCED -> engine.suspend()
+        EngineLifecycleState.QUIESCED -> engine.suspend(BACKGROUND_SUSPEND_DEADLINE_MS.toULong())
         EngineLifecycleState.QUIESCING,
         EngineLifecycleState.SUSPENDED,
         EngineLifecycleState.SHUTTING_DOWN,

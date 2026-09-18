@@ -314,6 +314,7 @@ interface UcEngineNativeModule {
     previousUrl?: string
   ): Promise<RelaySaveResult>;
   shutdown(deadlineMs: number): Promise<void>;
+  shutdownUntilComplete(): Promise<void>;
   suspend(): Promise<void>;
   resume(): Promise<void>;
   setBackgroundSyncEnabled(enabled: boolean, appIsBackground: boolean): Promise<void>;
@@ -397,6 +398,10 @@ export function saveCustomRelayNode(
 
 export function shutdown(deadlineMs = 5_000): Promise<void> {
   return NativeModule.shutdown(deadlineMs);
+}
+
+export function shutdownUntilComplete(): Promise<void> {
+  return NativeModule.shutdownUntilComplete();
 }
 
 export function suspend(): Promise<void> {

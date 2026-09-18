@@ -16,8 +16,9 @@ describe('native Engine analytics hosts', () => {
     const kotlinModule = read(
       'modules/uc-engine/android/src/main/java/expo/modules/ucengine/UcEngineModule.kt'
     );
-    expect(swiftHost.match(/MobileEngine\.startWithAnalytics/g)).toHaveLength(2);
-    expect(kotlinModule).toContain('MobileEngine.startWithAnalytics(');
+    expect(swiftHost).toContain('MobileEngine.startWithAnalyticsAndLifecycle(');
+    expect(swiftHost).toContain('MobileEngine.startWithAnalytics(');
+    expect(kotlinModule).toContain('MobileEngine.startWithAnalyticsAndLifecycle(');
     expect(swiftHost).toContain('ApplePostHogAnalyticsHost');
     expect(kotlinModule).toContain('AndroidPostHogAnalyticsHost');
   });

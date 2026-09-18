@@ -58,7 +58,7 @@ final class P2pRuntimeOwnershipTests: XCTestCase {
     let ownership = FakeRuntimeOwnership(events: { events.append($0) })
     let lifecycle = RuntimeOwnedNativeLifecycle(engine: engine, ownership: ownership)
 
-    try lifecycle.suspend()
+    try lifecycle.suspend(deadlineMs: 1_000)
     XCTAssertEqual(events, ["engine.suspend", "ownership.release"])
 
     events.removeAll()
@@ -121,7 +121,7 @@ private final class FakeOwnedEngine: NativeEngineLifecycle {
 
   func lifecycleState() throws -> NativeEngineLifecycleState { state }
 
-  func suspend() throws {
+  func suspend(deadlineMs _: UInt64?) throws {
     events("engine.suspend")
   }
 

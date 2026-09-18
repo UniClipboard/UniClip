@@ -94,7 +94,11 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
 
   public init() {}
 
-  public func start(appVersion: String, profileId: String) throws -> MobileEngine {
+  public func start(
+    appVersion: String,
+    profileId: String,
+    lifecycle: MobileStartupLifecycle
+  ) throws -> MobileEngine {
     AppleNativeDiagnostics.start()
     return try AppleNativeDiagnostics.observe(.engineStart, trigger: .appStartup) {
       let startedAt = ProcessInfo.processInfo.systemUptime
@@ -110,11 +114,12 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
         try installEngineObservability(appVersion: appVersion, host: host)
         startupLog.info("Starting core engine")
         let analytics = try analyticsHost(appVersion: appVersion)
-        let engine = try EngineDiagnosticBridge.observe(.runtimeStart) { try MobileEngine.startWithAnalytics(
+        let engine = try EngineDiagnosticBridge.observe(.runtimeStart) { try MobileEngine.startWithAnalyticsAndLifecycle(
           config: BindingConfig(appVersion: appVersion, profileId: profileId),
           host: host,
           analytics: analytics,
-          context: analyticsContext()
+          context: analyticsContext(),
+          lifecycle: lifecycle
         ) }
         startupLog.info(
           "Core engine started in \(Int((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000))ms"

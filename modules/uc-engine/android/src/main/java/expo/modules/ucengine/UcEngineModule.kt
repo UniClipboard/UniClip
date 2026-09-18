@@ -42,6 +42,7 @@ import uniffi.uc_engine_uniffi.BindingAnalyticsDeviceType
 import uniffi.uc_engine_uniffi.BindingAnalyticsOs
 import uniffi.uc_engine_uniffi.BindingConfig
 import uniffi.uc_engine_uniffi.BindingEngineState
+import uniffi.uc_engine_uniffi.BindingErrorCategory
 import uniffi.uc_engine_uniffi.BindingEvent
 import uniffi.uc_engine_uniffi.BindingException
 import uniffi.uc_engine_uniffi.BindingFailure
@@ -56,6 +57,7 @@ import uniffi.uc_engine_uniffi.JoinSpaceRejectionReason
 import uniffi.uc_engine_uniffi.JoinSpaceStatus
 import uniffi.uc_engine_uniffi.JoinSpaceTerminationReason
 import uniffi.uc_engine_uniffi.MobileEngine
+import uniffi.uc_engine_uniffi.MobileStartupLifecycle
 import uniffi.uc_engine_uniffi.ResendEntryOutcome
 import uniffi.uc_engine_uniffi.SendReport
 import uniffi.uc_engine_uniffi.WorkspaceConvergence
@@ -309,6 +311,7 @@ class UcEngineModule : Module() {
   private val lifecycle = NativeLifecycleHost(::reportLifecycleError)
   private val diagnostics by lazy { AndroidNativeDiagnostics.get(requireContext()) }
   private var engine: MobileEngine? = null
+  private var startupLifecycle: MobileStartupLifecycle? = null
   private var files: FileHandleRegistry? = null
   private var analytics: AndroidPostHogAnalyticsHost? = null
 
@@ -391,19 +394,37 @@ class UcEngineModule : Module() {
         synchronized(lock) { logInstallation = logSetup }
         EngineDiagnosticBridge.register()
         AndroidNativeDiagnostics.replayNetworkToEngine()
-        val started = EngineDiagnosticBridge.observe(BindingHostDiagnosticAction.RUNTIME_START) { MobileEngine.startWithAnalytics(
-          BindingConfig(
-            appVersion,
-            config["profileId"] ?: "default"
-          ),
-          host,
-          analytics,
-          analyticsContext()
-        ) }
+        val startup = MobileStartupLifecycle()
+        synchronized(lock) {
+          if (engine != null || startupLifecycle != null) throw UcEngineAlreadyStartedException()
+          startupLifecycle = startup
+        }
+        val started = try {
+          EngineDiagnosticBridge.observe(BindingHostDiagnosticAction.RUNTIME_START) {
+            MobileEngine.startWithAnalyticsAndLifecycle(
+              BindingConfig(
+                appVersion,
+                config["profileId"] ?: "default"
+              ),
+              host,
+              analytics,
+              analyticsContext(),
+              startup
+            )
+          }
+        } catch (error: Throwable) {
+          synchronized(lock) {
+            if (startupLifecycle === startup) startupLifecycle = null
+          }
+          throw error
+        }
         try {
           lifecycle.prepare(AndroidEngineLifecycle(started, diagnostics))
           refreshAnalyticsContext(started, appVersion)
         } catch (error: Throwable) {
+          synchronized(lock) {
+            if (startupLifecycle === startup) startupLifecycle = null
+          }
           try {
             started.shutdown(2_000u)
           } catch (shutdownError: Throwable) {
@@ -419,11 +440,13 @@ class UcEngineModule : Module() {
           }
           files = registry
           engine = started
+          if (startupLifecycle === startup) startupLifecycle = null
         }
       }
     }
 
     AsyncFunction("shutdown") { deadlineMs: Long -> shutdown(deadlineMs) }
+    AsyncFunction("shutdownUntilComplete") { shutdownUntilComplete() }
     AsyncFunction("suspend") { requireEngine().suspend() }
     AsyncFunction("resume") { requireEngine().resume() }
     AsyncFunction("setBackgroundSyncEnabled") { enabled: Boolean, appIsBackground: Boolean ->
@@ -654,16 +677,16 @@ class UcEngineModule : Module() {
     OnActivityEntersBackground {
       EngineDiagnosticBridge.record(BindingHostDiagnosticEvent.Lifecycle(BindingHostLifecycleState.BACKGROUND))
       diagnostics.record(NativeDiagnosticEvent.APP_BACKGROUND, NativeDiagnosticTrigger.APP_BACKGROUND)
-      lifecycle.enterBackground(currentEngine()?.let { AndroidEngineLifecycle(it, diagnostics) })
+      lifecycle.enterBackground(currentLifecycle())
     }
     OnActivityEntersForeground {
       EngineDiagnosticBridge.record(BindingHostDiagnosticEvent.Lifecycle(BindingHostLifecycleState.FOREGROUND))
       diagnostics.record(NativeDiagnosticEvent.APP_FOREGROUND, NativeDiagnosticTrigger.APP_FOREGROUND)
-      lifecycle.enterForeground(currentEngine()?.let { AndroidEngineLifecycle(it, diagnostics) })
+      lifecycle.enterForeground(currentLifecycle())
     }
     OnDestroy {
       try {
-        shutdown(2_000)
+        shutdownUntilComplete()
       } catch (error: Throwable) {
         reportLifecycleError(error)
       }
@@ -693,6 +716,11 @@ class UcEngineModule : Module() {
     appContext.reactContext?.applicationContext ?: throw UcEngineUnavailableException()
 
   private fun currentEngine(): MobileEngine? = synchronized(lock) { engine }
+
+  private fun currentLifecycle(): EngineLifecycle? = synchronized(lock) {
+    engine?.let { AndroidEngineLifecycle(it, diagnostics) }
+      ?: startupLifecycle?.let(::AndroidStartupLifecycle)
+  }
 
   private fun requireEngine(): MobileEngine = currentEngine() ?: throw UcEngineNotStartedException()
 
@@ -724,23 +752,33 @@ class UcEngineModule : Module() {
   }
 
   private fun shutdown(deadlineMs: Long) {
-    val active: MobileEngine?
-    val registry: FileHandleRegistry?
-    synchronized(lock) {
-      active = engine
-      registry = files
-      engine = null
-      files = null
-    }
+    val active = currentEngine()
     try {
       active?.let {
         AndroidNativeDiagnostics.observe(diagnostics, NativeDiagnosticEvent.ENGINE_SHUTDOWN) {
           it.shutdown(deadlineMs.toULong())
         }
       }
+      val registry = synchronized(lock) {
+        if (engine === active) {
+          engine = null
+          files.also { files = null }
+        } else null
+      }
       active?.close()
       registry?.removeAll()
     } finally { diagnostics.flush() }
+  }
+
+  private fun shutdownUntilComplete() {
+    while (true) {
+      try {
+        shutdown(5_000)
+        return
+      } catch (error: BindingException.Engine) {
+        if (error.category != BindingErrorCategory.DEADLINE_EXCEEDED) throw error
+      }
+    }
   }
 
   private fun sendReportMap(report: SendReport): Map<String, Any> = mapOf(
@@ -931,9 +969,19 @@ private class AndroidEngineLifecycle(private val engine: MobileEngine, private v
     BindingEngineState.STOPPED -> EngineLifecycleState.STOPPED
   }
 
-  override fun suspend() = AndroidNativeDiagnostics.observe(diagnostics, NativeDiagnosticEvent.ENGINE_SUSPEND) { engine.suspend() }
+  override fun suspend(deadlineMs: ULong) = AndroidNativeDiagnostics.observe(diagnostics, NativeDiagnosticEvent.ENGINE_SUSPEND) {
+    engine.suspendWithDeadline(deadlineMs)
+  }
 
   override fun resume() = AndroidNativeDiagnostics.observe(diagnostics, NativeDiagnosticEvent.ENGINE_RESUME) { engine.resume() }
+}
+
+private class AndroidStartupLifecycle(private val lifecycle: MobileStartupLifecycle) : EngineLifecycle {
+  override val isStartupLifecycle = true
+  override fun recoverSession() = EngineSessionRecovery(unlocked = false, resumed = false)
+  override fun lifecycleState() = EngineLifecycleState.RUNNING
+  override fun suspend(deadlineMs: ULong) = lifecycle.suspendWithDeadline(deadlineMs)
+  override fun resume() = lifecycle.resume()
 }
 
 private class AndroidEngineHost(

@@ -325,6 +325,7 @@ class NativeSystemHostTest {
     host.enterForeground(engine)
 
     assertEquals(1, engine.suspendCalls)
+    assertEquals(2_000uL, engine.lastSuspendDeadlineMs)
     assertEquals(1, engine.resumeCalls)
   }
 
@@ -365,6 +366,7 @@ private class FakeEngineLifecycle(var state: EngineLifecycleState) : EngineLifec
   var transitionError: Throwable? = null
   var recoverCalls = 0
   var suspendCalls = 0
+  var lastSuspendDeadlineMs: ULong? = null
   var resumeCalls = 0
 
   override fun recoverSession(): EngineSessionRecovery {
@@ -374,8 +376,9 @@ private class FakeEngineLifecycle(var state: EngineLifecycleState) : EngineLifec
 
   override fun lifecycleState(): EngineLifecycleState = state
 
-  override fun suspend() {
+  override fun suspend(deadlineMs: ULong) {
     suspendCalls += 1
+    lastSuspendDeadlineMs = deadlineMs
     transitionError?.let { throw it }
     state = EngineLifecycleState.SUSPENDED
   }

@@ -257,7 +257,9 @@ describe('unified P2P engine native module', () => {
   });
 
   it('uses Keychain and native app lifecycle on iOS without a file fallback', () => {
-    const swift = `${read('ios/UcEngineModule.swift')}\n${read('ios/NativeSystemHost.swift')}`;
+    const swift = `${read('ios/UcEngineModule.swift')}\n${read(
+      'ios/SharedEngineHost.swift'
+    )}\n${read('ios/NativeSystemHost.swift')}`;
 
     expect(swift).toContain('kSecClassGenericPassword');
     expect(swift).toContain('SecItemCopyMatching');
@@ -265,6 +267,11 @@ describe('unified P2P engine native module', () => {
     expect(swift).toContain('OnAppEntersBackground');
     expect(swift).toContain('OnAppEntersForeground');
     expect(swift).toContain('NativeLifecycleHost');
+    expect(swift).toContain('MobileStartupLifecycle()');
+    expect(swift).toContain('startWithAnalyticsAndLifecycle');
+    expect(swift).toContain('backgroundTimeRemaining');
+    expect(swift).toContain('suspendWithDeadline');
+    expect(swift).toContain('AsyncFunction("shutdownUntilComplete")');
     expect(swift).toContain('recoverSession(allowSecureStorageUnlock: true)');
     expect(swift).not.toContain('try? self.currentEngine()?.suspend()');
     expect(swift).not.toContain('try? self.currentEngine()?.resume()');
@@ -280,6 +287,10 @@ describe('unified P2P engine native module', () => {
     expect(kotlin).toContain('OnActivityEntersBackground');
     expect(kotlin).toContain('OnActivityEntersForeground');
     expect(kotlin).toContain('NativeLifecycleHost');
+    expect(kotlin).toContain('MobileStartupLifecycle()');
+    expect(kotlin).toContain('startWithAnalyticsAndLifecycle');
+    expect(kotlin).toContain('suspendWithDeadline');
+    expect(kotlin).toContain('AsyncFunction("shutdownUntilComplete")');
     expect(kotlin).toContain('AsyncFunction("setBackgroundSyncEnabled")');
     expect(kotlin).toContain('recoverSession(true)');
     expect(kotlin).not.toContain('runCatching { currentEngine()?.suspend() }');
@@ -328,7 +339,7 @@ describe('unified P2P engine native module', () => {
     const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
 
     const installContext = kotlin.indexOf('nativeInstallAndroidContext(context)');
-    const startEngine = kotlin.indexOf('MobileEngine.startWithAnalytics(');
+    const startEngine = kotlin.indexOf('MobileEngine.startWithAnalyticsAndLifecycle(');
 
     expect(installContext).toBeGreaterThan(-1);
     expect(startEngine).toBeGreaterThan(installContext);
@@ -442,7 +453,7 @@ describe('Engine rc.6 host contract', () => {
       start.indexOf('nativeInstallAndroidContext(context)')
     );
     expect(start.indexOf('installProcessObservability(')).toBeLessThan(
-      start.indexOf('MobileEngine.startWithAnalytics(')
+      start.indexOf('MobileEngine.startWithAnalyticsAndLifecycle(')
     );
   });
 

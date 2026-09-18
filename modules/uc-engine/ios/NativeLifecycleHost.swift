@@ -62,11 +62,16 @@ struct NativeSessionRecovery: Equatable {
 }
 
 protocol NativeEngineLifecycle {
+  var isStartupLifecycle: Bool { get }
   func recoverSession() throws -> NativeSessionRecovery
   func lifecycleState() throws -> NativeEngineLifecycleState
-  func suspend() throws
+  func suspend(deadlineMs: UInt64?) throws
   func resume() throws
   func notifyForegroundOpportunity() throws
+}
+
+extension NativeEngineLifecycle {
+  var isStartupLifecycle: Bool { false }
 }
 
 enum NativeLifecycleError: Error, Equatable {
@@ -97,8 +102,8 @@ final class RuntimeOwnedNativeLifecycle: NativeEngineLifecycle {
     try engine.lifecycleState()
   }
 
-  func suspend() throws {
-    try engine.suspend()
+  func suspend(deadlineMs: UInt64?) throws {
+    try engine.suspend(deadlineMs: deadlineMs)
     ownership.release()
   }
 
@@ -134,12 +139,14 @@ final class NativeLifecycleHost {
     }
   }
 
-  func enterBackground(_ engine: (any NativeEngineLifecycle)?) {
-    guard let engine else { return }
+  func enterBackground(_ engine: (any NativeEngineLifecycle)?, deadlineMs: UInt64?) -> Bool {
+    guard let engine else { return true }
     do {
-      try suspendIfNeeded(engine)
+      try suspendIfNeeded(engine, deadlineMs: deadlineMs)
+      return true
     } catch {
       report(error)
+      return false
     }
   }
 
@@ -153,11 +160,15 @@ final class NativeLifecycleHost {
     }
   }
 
-  func suspendIfNeeded(_ engine: any NativeEngineLifecycle) throws {
+  func suspendIfNeeded(_ engine: any NativeEngineLifecycle, deadlineMs: UInt64?) throws {
     try transitionLock.withLock {
+      if engine.isStartupLifecycle {
+        try engine.suspend(deadlineMs: deadlineMs)
+        return
+      }
       switch try engine.lifecycleState() {
       case .running, .quiesced:
-        try engine.suspend()
+        try engine.suspend(deadlineMs: deadlineMs)
       case .quiescing, .suspended, .shuttingDown, .stopped:
         return
       }
@@ -166,6 +177,10 @@ final class NativeLifecycleHost {
 
   func resumeIfNeeded(_ engine: any NativeEngineLifecycle) throws {
     try transitionLock.withLock {
+      if engine.isStartupLifecycle {
+        try engine.resume()
+        return
+      }
       guard try engine.lifecycleState() == .suspended else { return }
       try engine.resume()
     }
@@ -173,7 +188,7 @@ final class NativeLifecycleHost {
 }
 
 final class NativeLifecycleTransitionCoordinator {
-  typealias BeginBackgroundActivity = () -> @Sendable () -> Void
+  typealias BeginBackgroundActivity = () -> any NativeBackgroundActivity
 
   private let lifecycle: NativeLifecycleHost
   private let queue: DispatchQueue
@@ -190,10 +205,12 @@ final class NativeLifecycleTransitionCoordinator {
   }
 
   func enterBackground(_ engine: (any NativeEngineLifecycle)?) {
+    let activity = beginBackgroundActivity()
     let transition = NativeLifecycleTransition(
       lifecycle: lifecycle,
       engine: engine,
-      finish: beginBackgroundActivity()
+      deadlineMs: activity.remainingTimeMs,
+      finish: activity.end
     )
     queue.async { transition.enterBackground() }
   }
@@ -202,6 +219,7 @@ final class NativeLifecycleTransitionCoordinator {
     let transition = NativeLifecycleTransition(
       lifecycle: lifecycle,
       engine: engine,
+      deadlineMs: 0,
       finish: {}
     )
     queue.async { transition.enterForeground() }
@@ -211,25 +229,34 @@ final class NativeLifecycleTransitionCoordinator {
 private final class NativeLifecycleTransition: @unchecked Sendable {
   private let lifecycle: NativeLifecycleHost
   private let engine: (any NativeEngineLifecycle)?
+  private let deadlineMs: UInt64?
   private let finish: @Sendable () -> Void
 
   init(
     lifecycle: NativeLifecycleHost,
     engine: (any NativeEngineLifecycle)?,
+    deadlineMs: UInt64?,
     finish: @escaping @Sendable () -> Void
   ) {
     self.lifecycle = lifecycle
     self.engine = engine
+    self.deadlineMs = deadlineMs
     self.finish = finish
   }
 
   func enterBackground() {
-    lifecycle.enterBackground(engine)
-    finish()
+    if lifecycle.enterBackground(engine, deadlineMs: deadlineMs) {
+      finish()
+    }
   }
 
   func enterForeground() {
     lifecycle.enterForeground(engine)
     finish()
   }
+}
+
+protocol NativeBackgroundActivity: AnyObject, Sendable {
+  var remainingTimeMs: UInt64? { get }
+  func end()
 }

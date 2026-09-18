@@ -20,6 +20,7 @@ const log = createLogger('UnifiedEngineService');
 export interface UnifiedEngineApi {
   start(config: EngineConfig): Promise<void>;
   shutdown(deadlineMs?: number): Promise<void>;
+  shutdownUntilComplete(): Promise<void>;
   resume(): Promise<void>;
   setBackgroundSyncEnabled(enabled: boolean, appIsBackground: boolean): Promise<void>;
   nextEvent(timeoutMs?: number): Promise<EngineEvent | null>;
@@ -31,7 +32,6 @@ type SnapshotPublisher = (snapshot: UnifiedEngineSnapshot) => void;
 type EngineEventSubscriber = (event: EngineEvent) => void;
 
 const DEFAULT_EVENT_TIMEOUT_MS = 250;
-const SHUTDOWN_DEADLINE_MS = 5_000;
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -139,7 +139,7 @@ export class UnifiedEngineService {
     if (startInFlight || this.nativeStarted) {
       this.nativeStarted = false;
       try {
-        await this.api.shutdown(SHUTDOWN_DEADLINE_MS);
+        await this.shutdownCompletely();
       } catch (error) {
         shutdownError = error;
       }
@@ -155,7 +155,7 @@ export class UnifiedEngineService {
       // Cover the narrow window where shutdown arrived before the native
       // engine became visible to the module.
       try {
-        await this.api.shutdown(SHUTDOWN_DEADLINE_MS);
+        await this.shutdownCompletely();
       } catch (error) {
         shutdownError ??= error;
       }
@@ -178,6 +178,10 @@ export class UnifiedEngineService {
 
     this.snapshot = createInitialUnifiedEngineSnapshot();
     this.publishSnapshot();
+  }
+
+  private shutdownCompletely(): Promise<void> {
+    return this.api.shutdownUntilComplete();
   }
 
   private async startNative(config: EngineConfig, generation: number): Promise<void> {
