@@ -272,6 +272,9 @@ describe('unified P2P engine native module', () => {
     expect(swift).toContain('backgroundTimeRemaining');
     expect(swift).toContain('suspendWithDeadline');
     expect(swift).toContain('AsyncFunction("shutdownUntilComplete")');
+    expect(swift).toContain(
+      'private static func beginBackgroundActivity() -> any NativeBackgroundActivity'
+    );
     expect(swift).toContain('recoverSession(allowSecureStorageUnlock: true)');
     expect(swift).not.toContain('try? self.currentEngine()?.suspend()');
     expect(swift).not.toContain('try? self.currentEngine()?.resume()');

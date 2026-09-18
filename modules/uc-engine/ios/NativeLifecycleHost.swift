@@ -210,7 +210,7 @@ final class NativeLifecycleTransitionCoordinator {
       lifecycle: lifecycle,
       engine: engine,
       deadlineMs: activity.remainingTimeMs,
-      finish: activity.end
+      finish: { activity.end() }
     )
     queue.async { transition.enterBackground() }
   }

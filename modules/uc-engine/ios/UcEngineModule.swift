@@ -510,10 +510,10 @@ public final class UcEngineModule: Module {
     Self.startupLog.error("UcEngine lifecycle transition failed: \(String(describing: error))")
   }
 
-  private static func beginBackgroundActivity() -> @Sendable () -> Void {
+  private static func beginBackgroundActivity() -> any NativeBackgroundActivity {
     let activity = UIKitBackgroundActivity()
     activity.begin()
-    return { activity.end() }
+    return activity
   }
 
   private static func sendReportMap(_ report: SendReport) -> [String: Any] {
