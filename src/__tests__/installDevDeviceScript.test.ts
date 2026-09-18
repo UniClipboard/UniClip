@@ -56,8 +56,8 @@ describe('install-dev-device.sh', () => {
     expect(script).toContain('-workspace "$PROJECT_ROOT/ios/UniClip.xcworkspace"');
     expect(script).toContain('-scheme UniClip');
     expect(script).toContain('-configuration Release');
-    expect(script).toContain('ENGINE_BUILD_PROFILE="release"');
-    expect(script).toContain('UC_ENGINE_UNIFFI_BUILD_PROFILE="$ENGINE_BUILD_PROFILE"');
+    expect(script).toContain('build_profile="release"');
+    expect(script).toContain('UC_ENGINE_UNIFFI_BUILD_PROFILE="$build_profile"');
     expect(script).toContain('app.uniclipboard.UniClipboard');
     expect(script).toContain('xcrun devicectl device install app --device "$device" "$app_path"');
     expect(script).toContain(
@@ -67,6 +67,20 @@ describe('install-dev-device.sh', () => {
     expect(script.indexOf("trap 'status=$?; if restore_development_ios_project")).toBeLessThan(
       script.indexOf('APP_VARIANT=production npx expo prebuild')
     );
+  });
+
+  it('offers a production Android install that restores the development project afterwards', () => {
+    const script = readFileSync(scriptPath, 'utf8');
+
+    expect(packageJson.scripts['install:release:android']).toBe(
+      'UC_ANDROID_INSTALL_VARIANT=production bash scripts/install-dev-device.sh android'
+    );
+    expect(script).toContain('APP_VARIANT=production npx expo prebuild --platform android --no-install');
+    expect(script).toContain('UC_ENGINE_LOCAL_AAR="$engine_aar" ./gradlew :app:assembleRelease');
+    expect(script).toContain('apkanalyzer manifest application-id "$apk_path"');
+    expect(script).toContain('adb -s "$device" install -r "$apk_path"');
+    expect(script).toContain('adb -s "$device" shell monkey -p app.uniclipboard.android 1');
+    expect(script).toContain('restore_development_android_project');
   });
 
   it('reuses a current local Engine and otherwise prepares the mobile pin', () => {

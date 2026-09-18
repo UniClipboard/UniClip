@@ -16,11 +16,7 @@ INSTALL_ENGINE_COMMIT=""
 DEFAULT_IOS_DEVICE="marks iPhone"
 DEFAULT_ANDROID_DEVICE="7bac761b"
 IOS_INSTALL_VARIANT="${UC_IOS_INSTALL_VARIANT:-development}"
-if [ "$IOS_INSTALL_VARIANT" = "production" ]; then
-  ENGINE_BUILD_PROFILE="release"
-else
-  ENGINE_BUILD_PROFILE="dev"
-fi
+ANDROID_INSTALL_VARIANT="${UC_ANDROID_INSTALL_VARIANT:-development}"
 
 usage() {
   cat <<EOF
@@ -31,6 +27,7 @@ Usage:
   npm run install:dev:ios [iOS device name or identifier]
   npm run install:dev:android [Android device identifier]
   npm run install:release:ios [iOS device name or identifier]
+  npm run install:release:android [Android device identifier]
   bash scripts/install-dev-device.sh [ios|android|all] [device]
 
 Defaults:
@@ -45,12 +42,14 @@ when you need to load JavaScript from this checkout.
 install:release:ios builds the production UniClip identity in Release mode,
 installs and launches it, then restores the generated iOS project to the
 development identity. It replaces an installed production UniClip app.
+install:release:android does the same for the production Android app.
 
 For temporary local Engine testing (including uncommitted changes):
   npm run core:patch -- /path/to/Engine
   npm run install:dev:ios
   npm run install:dev:android
   npm run install:release:ios
+  npm run install:release:android
   npm run core:unpatch
 The override applies only to local device installs and leaves the project pin unchanged.
 EOF
@@ -62,6 +61,17 @@ assert_production_ios_project() {
 
   if [ ! -f "$project_file" ] || ! grep -Fq -- "$expected_identifier" "$project_file"; then
     echo "The iOS project is not prepared as the production app." >&2
+    echo "Regenerate it with APP_VARIANT=production before installing." >&2
+    exit 1
+  fi
+}
+
+assert_production_android_project() {
+  local project_file="$PROJECT_ROOT/android/app/build.gradle"
+  local expected_identifier="applicationId 'app.uniclipboard.android'"
+
+  if [ ! -f "$project_file" ] || ! grep -Fq -- "$expected_identifier" "$project_file"; then
+    echo "The Android project is not prepared as the production app." >&2
     echo "Regenerate it with APP_VARIANT=production before installing." >&2
     exit 1
   fi
@@ -170,6 +180,10 @@ restore_development_ios_project() {
   bash "$SCRIPT_DIR/prepare-ios-development-project.sh"
 }
 
+restore_development_android_project() {
+  APP_VARIANT=development npx expo prebuild --platform android --no-install
+}
+
 export -f restore_cached_local_ios_engine_impl
 restore_cached_local_ios_engine() {
   uc_engine_publish "$PROJECT_ROOT" bash -euo pipefail -c 'restore_cached_local_ios_engine_impl "$@"' _ "$@"
@@ -215,6 +229,12 @@ prepare_install_engine() {
   local prepared_commit
   local source_commit
   local worktree
+  local build_profile="dev"
+
+  if { [ "$platform" = "ios" ] && [ "$IOS_INSTALL_VARIANT" = "production" ]; } ||
+     { [ "$platform" = "android" ] && [ "$ANDROID_INSTALL_VARIANT" = "production" ]; }; then
+    build_profile="release"
+  fi
 
   require_command git
   require_command node
@@ -231,18 +251,18 @@ prepare_install_engine() {
     # Always invoke Cargo so edits at the same commit cannot reuse stale packages.
     case "$platform" in
       ios)
-        UC_ENGINE_UNIFFI_BUILD_PROFILE="$ENGINE_BUILD_PROFILE" UC_ENGINE_LOCAL_TARGET_DIR="$LOCAL_ENGINE_BUILD_ROOT" \
+        UC_ENGINE_UNIFFI_BUILD_PROFILE="$build_profile" UC_ENGINE_LOCAL_TARGET_DIR="$LOCAL_ENGINE_BUILD_ROOT" \
           bash "$SCRIPT_DIR/prepare-local-unified-engine-core.sh" "$ENGINE_ROOT"
         ;;
       android)
         (
           cd "$ENGINE_ROOT"
-          UC_ENGINE_UNIFFI_BUILD_PROFILE=dev UC_ENGINE_UNIFFI_TARGET_DIR="$LOCAL_ENGINE_BUILD_ROOT" \
+          UC_ENGINE_UNIFFI_BUILD_PROFILE="$build_profile" UC_ENGINE_UNIFFI_TARGET_DIR="$LOCAL_ENGINE_BUILD_ROOT" \
             UC_ENGINE_UNIFFI_BUILD_LOCKED=1 \
             uc_engine_run_build bindings/uc-engine-uniffi/scripts/build-android-aar.sh
           if [ "$(cat "$android_marker" 2>/dev/null || true)" != "$(git rev-parse HEAD)" ] ||
-              [ "$(cat "${android_marker%/*}/build-profile.txt" 2>/dev/null || true)" != "dev" ]; then
-            echo "Engine packaging did not produce the requested dev build; update its build scripts" >&2
+              [ "$(cat "${android_marker%/*}/build-profile.txt" 2>/dev/null || true)" != "$build_profile" ]; then
+            echo "Engine packaging did not produce the requested $build_profile build; update its build scripts" >&2
             exit 1
           fi
         )
@@ -260,7 +280,7 @@ prepare_install_engine() {
   source_commit="$INSTALL_ENGINE_COMMIT"
   case "$platform" in
     ios)
-      if [ "$ENGINE_BUILD_PROFILE" = "dev" ] && restore_cached_local_ios_engine "$source_commit"; then
+      if [ "$build_profile" = "dev" ] && restore_cached_local_ios_engine "$source_commit"; then
         return
       fi
       ;;
@@ -268,7 +288,7 @@ prepare_install_engine() {
       marker_file="$android_marker"
       prepared_commit="$(cat "$marker_file" 2>/dev/null || true)"
       if [ "$prepared_commit" = "$source_commit" ] &&
-          [ "$(cat "${android_marker%/*}/build-profile.txt" 2>/dev/null || true)" = "dev" ]; then
+          [ "$(cat "${android_marker%/*}/build-profile.txt" 2>/dev/null || true)" = "$build_profile" ]; then
         return
       fi
       ;;
@@ -286,20 +306,20 @@ prepare_install_engine() {
   trap 'git -C "$ENGINE_ROOT" worktree remove --force "$worktree"' RETURN
   case "$platform" in
     ios)
-      UC_ENGINE_BUILD_TOOLS_ROOT="$ENGINE_ROOT" UC_ENGINE_UNIFFI_BUILD_PROFILE="$ENGINE_BUILD_PROFILE" UC_ENGINE_LOCAL_TARGET_DIR="$LOCAL_ENGINE_BUILD_ROOT" \
+      UC_ENGINE_BUILD_TOOLS_ROOT="$ENGINE_ROOT" UC_ENGINE_UNIFFI_BUILD_PROFILE="$build_profile" UC_ENGINE_LOCAL_TARGET_DIR="$LOCAL_ENGINE_BUILD_ROOT" \
         bash "$SCRIPT_DIR/prepare-local-unified-engine-core.sh" "$worktree"
-      if [ "$ENGINE_BUILD_PROFILE" = "dev" ]; then
+      if [ "$build_profile" = "dev" ]; then
         restore_cached_local_ios_engine "$source_commit"
       fi
       ;;
     android)
       (
         cd "$worktree"
-        UC_ENGINE_UNIFFI_BUILD_PROFILE=dev UC_ENGINE_UNIFFI_TARGET_DIR="$LOCAL_ENGINE_BUILD_ROOT" \
+        UC_ENGINE_UNIFFI_BUILD_PROFILE="$build_profile" UC_ENGINE_UNIFFI_TARGET_DIR="$LOCAL_ENGINE_BUILD_ROOT" \
           UC_ENGINE_UNIFFI_BUILD_LOCKED=1 \
           uc_engine_run_build "$ENGINE_ROOT/bindings/uc-engine-uniffi/scripts/build-android-aar.sh" "$worktree"
-        if [ "$(cat "${android_marker%/*}/build-profile.txt" 2>/dev/null || true)" != "dev" ]; then
-          echo "Engine packaging did not produce the requested dev build" >&2
+        if [ "$(cat "${android_marker%/*}/build-profile.txt" 2>/dev/null || true)" != "$build_profile" ]; then
+          echo "Engine packaging did not produce the requested $build_profile build" >&2
           exit 1
         fi
       )
@@ -403,6 +423,15 @@ install_android() {
     exit 1
   fi
 
+  if [ "$ANDROID_INSTALL_VARIANT" = "production" ]; then
+    install_android_release "$device"
+    return
+  fi
+  if [ "$ANDROID_INSTALL_VARIANT" != "development" ]; then
+    echo "Unsupported Android install variant: $ANDROID_INSTALL_VARIANT" >&2
+    exit 2
+  fi
+
   assert_development_project android
   prepare_install_engine android
   if [ ! -f "$engine_aar" ]; then
@@ -418,6 +447,35 @@ install_android() {
   adb -s "$device" install -r "$apk_path"
   adb -s "$device" reverse tcp:8081 tcp:8081
   adb -s "$device" shell monkey -p app.uniclipboard.android.dev 1 >/dev/null
+}
+
+install_android_release() {
+  local device="$1"
+  local apk_path="$PROJECT_ROOT/android/app/build/outputs/apk/release/app-arm64-v8a-release.apk"
+  local engine_aar="$LOCAL_ENGINE_BUILD_ROOT/uc-engine-uniffi-dist/android/UniClipboardEngine.aar"
+
+  require_command apkanalyzer
+  trap 'status=$?; if restore_development_android_project; then restore_status=0; else restore_status=$?; fi; if [ "$status" -eq 0 ] && [ "$restore_status" -ne 0 ]; then status="$restore_status"; fi; exit "$status"' EXIT
+  APP_VARIANT=production npx expo prebuild --platform android --no-install
+  assert_production_android_project
+  prepare_install_engine android
+  if [ ! -f "$engine_aar" ]; then
+    echo "The local Android engine is missing: $engine_aar" >&2
+    exit 1
+  fi
+  (cd "$PROJECT_ROOT/android" && UC_ENGINE_LOCAL_AAR="$engine_aar" ./gradlew :app:assembleRelease)
+  if [ ! -f "$apk_path" ]; then
+    echo "Android production app was not produced: $apk_path" >&2
+    exit 1
+  fi
+  if [ "$(apkanalyzer manifest application-id "$apk_path")" != "app.uniclipboard.android" ]; then
+    echo "The built Android app does not have the production application identifier." >&2
+    exit 1
+  fi
+  adb -s "$device" install -r "$apk_path"
+  adb -s "$device" shell monkey -p app.uniclipboard.android 1 >/dev/null
+  restore_development_android_project
+  trap - EXIT
 }
 
 platform="${1:-all}"
