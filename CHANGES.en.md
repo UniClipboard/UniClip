@@ -1,3 +1,20 @@
+v2.0.0.183-alpha.7
+
+### Common
+
+- Improvement: Update the sync core to v1.1.0-rc.17
+- Fix: Restart sync correctly when joining a space after leaving one
+
+### iOS
+
+- Fix: Load direct-sync devices after a cold start from Share and allow manual refresh
+- Fix: Apply custom relay settings after saving
+- Fix: Complete the system permission setup required for local device discovery
+
+### Android
+
+- Fix: Apply custom relay settings after saving
+
 v2.0.0.182-alpha.6
 
 ### Common
