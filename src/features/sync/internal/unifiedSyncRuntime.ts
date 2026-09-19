@@ -249,6 +249,9 @@ export class UnifiedSyncRuntime {
         return;
       }
       this.snapshot = { ...this.snapshot, lastEvent: event };
+      if (event.type === 'stopped') {
+        this.snapshot = { ...this.snapshot, status: 'idle', lastError: null };
+      }
       if (event.type === 'failed') {
         this.snapshot = { ...this.snapshot, status: 'failed', lastError: event.message };
       }

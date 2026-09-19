@@ -89,6 +89,22 @@ function dependencies(platform: 'android' | 'ios' = 'ios') {
 }
 
 describe('P2pSyncAdapter', () => {
+  it('starts the engine again before joining after leaving a space', async () => {
+    const { P2pSyncAdapter } = require('../features/sync/internal/p2pSyncAdapter');
+    const { UnifiedSyncRuntime } = require('../features/sync/internal/unifiedSyncRuntime');
+    const deps = dependencies('android');
+    const runtime = new UnifiedSyncRuntime([new P2pSyncAdapter(deps)], 'p2p');
+    await runtime.start({
+      appVersion: '2.0.0',
+      profileId: 'default',
+      policy: { appState: 'active', backgroundSyncEnabled: false },
+    });
+    deps.emitEngineEvent({ type: 'stateChanged', state: 'stopped' });
+    await runtime.switchTo('p2p', { rollbackOnFailure: false });
+    expect(deps.engine.start).toHaveBeenCalledTimes(2);
+    expect(runtime.getSnapshot().status).toBe('ready');
+  });
+
   it('reports foreground opportunity without running a product retry loop', async () => {
     const { P2pSyncAdapter } = require('../features/sync/internal/p2pSyncAdapter');
     const deps = dependencies('ios');

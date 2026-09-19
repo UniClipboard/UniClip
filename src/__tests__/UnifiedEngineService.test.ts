@@ -441,8 +441,13 @@ describe('UnifiedEngineService', () => {
   it('can start again after the native engine reports that it stopped', async () => {
     const pendingEvent = deferred<EngineEvent | null>();
     const events: EngineEvent[] = [{ type: 'stateChanged', state: 'stopped' }];
-    const start = jest.fn(async () => undefined);
+    let nativeHandleExists = false;
+    const start = jest.fn(async () => {
+      if (nativeHandleExists) throw new Error('Engine already started');
+      nativeHandleExists = true;
+    });
     const shutdown = jest.fn(async () => {
+      nativeHandleExists = false;
       pendingEvent.resolve(null);
     });
     const snapshots: UnifiedEngineSnapshot[] = [];
@@ -464,6 +469,6 @@ describe('UnifiedEngineService', () => {
     expect(start).toHaveBeenCalledTimes(2);
 
     await service.stop();
-    expect(shutdown).toHaveBeenCalledTimes(1);
+    expect(shutdown).toHaveBeenCalledTimes(2);
   });
 });

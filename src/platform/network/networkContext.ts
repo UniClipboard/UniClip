@@ -1,5 +1,8 @@
 import NetInfo, { type NetInfoState } from '@react-native-community/netinfo';
 import { isTailscaleActive } from 'android-util';
+import { createLogger } from '@/support/observability';
+
+const log = createLogger('NetworkContext');
 
 export interface NetworkContext {
   isWifi: boolean;
@@ -14,9 +17,9 @@ let currentNetworkContext: NetworkContext = {
   isTailscale: false,
 };
 let unsubscribeNetworkContextMonitor: (() => void) | null = null;
-let onNetworkContextChanged: (() => void) | null = null;
+let onNetworkContextChanged: (() => void | Promise<void>) | null = null;
 
-export function configureNetworkContextChangeListener(listener: () => void): void {
+export function configureNetworkContextChangeListener(listener: () => void | Promise<void>): void {
   onNetworkContextChanged = listener;
 }
 
@@ -37,7 +40,7 @@ export function startNetworkContextMonitor(): () => void {
   unsubscribeNetworkContextMonitor = NetInfo.addEventListener((state) => {
     const changed = applyNetInfoState(state);
     if (changed) {
-      notifyRouteNetworkChanged();
+      void notifyRouteNetworkChanged();
     }
   });
 
@@ -77,6 +80,10 @@ function networkContextEquals(a: NetworkContext, b: NetworkContext): boolean {
   );
 }
 
-function notifyRouteNetworkChanged(): void {
-  onNetworkContextChanged?.();
+async function notifyRouteNetworkChanged(): Promise<void> {
+  try {
+    await onNetworkContextChanged?.();
+  } catch {
+    log.warn('Failed to refresh services after a network change');
+  }
 }

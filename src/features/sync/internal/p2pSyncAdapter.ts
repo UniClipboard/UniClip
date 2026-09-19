@@ -172,6 +172,11 @@ export class P2pSyncAdapter implements SyncAdapter {
   }
 
   private handleEngineEvent(event: EngineEvent): void {
+    if (event.type === 'stateChanged' && event.state === 'stopped') {
+      this.publish({ type: 'stopped' });
+      return;
+    }
+
     if (event.type === 'deviceTrustChanged' || event.type === 'rePairingRequired') {
       if (this.policy.appState === 'active') {
         void this.dependencies.space

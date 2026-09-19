@@ -47,6 +47,7 @@ export class UnifiedEngineService {
   private snapshot = createInitialUnifiedEngineSnapshot();
   private generation = 0;
   private nativeStarted = false;
+  private nativeHandleExists = false;
   private startInFlight: Promise<void> | null = null;
   private eventLoop: Promise<void> | null = null;
   private networkUnsubscribe: (() => void) | null = null;
@@ -136,7 +137,7 @@ export class UnifiedEngineService {
     const startInFlight = this.startInFlight;
     let shutdownError: unknown;
 
-    if (startInFlight || this.nativeStarted) {
+    if (startInFlight || this.nativeHandleExists) {
       this.nativeStarted = false;
       try {
         await this.shutdownCompletely();
@@ -180,13 +181,17 @@ export class UnifiedEngineService {
     this.publishSnapshot();
   }
 
-  private shutdownCompletely(): Promise<void> {
-    return this.api.shutdownUntilComplete();
+  private async shutdownCompletely(): Promise<void> {
+    await this.api.shutdownUntilComplete();
+    this.nativeHandleExists = false;
   }
 
   private async startNative(config: EngineConfig, generation: number): Promise<void> {
     try {
+      // A stopped runtime still owns a native module handle until shutdown releases it.
+      if (this.nativeHandleExists) await this.shutdownCompletely();
       await this.api.start(config);
+      this.nativeHandleExists = true;
       if (generation !== this.generation) return;
 
       this.nativeStarted = true;

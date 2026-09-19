@@ -8,13 +8,18 @@ import {
 } from '@/platform/network';
 import { isTailscaleActive } from 'android-util';
 
+const mockWarn = jest.fn();
+jest.mock('@/support/observability', () => ({
+  createLogger: () => ({ warn: (...args: unknown[]) => mockWarn(...args) }),
+}));
+
 const mockBackgroundServiceRefresh = jest.fn<() => Promise<void>>(async () => undefined);
 
 describe('networkContext', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     configureNetworkContextChangeListener(() => {
-      void mockBackgroundServiceRefresh();
+      return mockBackgroundServiceRefresh();
     });
     (isTailscaleActive as jest.Mock).mockReturnValue(false);
     stopNetworkContextMonitor();
@@ -28,6 +33,23 @@ describe('networkContext', () => {
 
   afterEach(() => {
     stopNetworkContextMonitor();
+  });
+
+  it('handles startup failure from a network refresh and allows the next change', async () => {
+    let listener: ((state: any) => void) | undefined;
+    (NetInfo.addEventListener as jest.Mock).mockImplementation((nextListener) => {
+      listener = nextListener;
+      return jest.fn();
+    });
+    mockBackgroundServiceRefresh.mockRejectedValueOnce(new Error('engine unavailable'));
+    startNetworkContextMonitor();
+    listener?.({ type: 'wifi', isConnected: true, details: { ssid: 'test' } });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mockWarn).toHaveBeenCalledWith('Failed to refresh services after a network change');
+    listener?.({ type: 'cellular', isConnected: true, details: {} });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mockBackgroundServiceRefresh).toHaveBeenCalledTimes(2);
+    expect(mockWarn).toHaveBeenCalledTimes(1);
   });
 
   it('maps wifi netinfo state into route network context', () => {

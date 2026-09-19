@@ -105,9 +105,7 @@ export function configureAppRuntime(): void {
     loadState: () => nativeEngine.getAnalyticsState(),
     subscribe: (listener) => nativeEngine.subscribeAnalyticsState(listener),
   });
-  configureNetworkContextChangeListener(() => {
-    void getUnconfiguredAppRuntime().refresh();
-  });
+  configureNetworkContextChangeListener(() => getUnconfiguredAppRuntime().refresh());
   configureRuntimeDependencies({
     settingsStore: useSettingsStore,
     clipboardStore: useClipboardStore,
