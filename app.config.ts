@@ -64,11 +64,14 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       deploymentTarget: '16.4',
       entitlements: {
         ...(ios.entitlements ?? {}),
+        'com.apple.developer.networking.multicast': true,
         'com.apple.security.application-groups': APP_GROUPS,
         'keychain-access-groups': [P2P_KEYCHAIN_GROUP],
       },
       infoPlist: {
         ...(ios.infoPlist ?? {}),
+        NSLocalNetworkUsageDescription: 'UniClip uses your local network to discover and connect to your devices.',
+        NSBonjourServices: ['_irohv1._udp'],
         UIApplicationSceneManifest: {
           UIApplicationSupportsMultipleScenes: false,
           UISceneConfigurations: {
