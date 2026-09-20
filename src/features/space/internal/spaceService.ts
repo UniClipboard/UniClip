@@ -257,6 +257,10 @@ function requireActiveJoinedSpace(status: JoinSpaceStatus): JoinedSpace {
       throw new UnifiedSpaceJoinResultError(
         status.peerUpgradeRequired ? 'peerUpgradeRequired' : 'serviceUnavailable'
       );
+    case 'processing':
+      throw new UnifiedSpaceJoinResultError(
+        status.peerUpgradeRequired ? 'peerUpgradeRequired' : 'serviceUnavailable'
+      );
     case 'rejected':
       throw new UnifiedSpaceJoinResultError(rejectedJoinErrorCode(status.reason));
     case 'terminated':
@@ -636,6 +640,7 @@ export class UnifiedSpaceService {
       const joined = await this.waitForJoinedSpace(joinStatus);
       stage = 'refreshDevices';
       const devices = await this.api.listDevices();
+      const deviceTrustQuery = await this.queryDeviceTrustState();
       await this.completion.markComplete();
       if (revision === null || !this.isCurrentMutation(revision)) return joined;
       this.snapshot = {
@@ -645,7 +650,7 @@ export class UnifiedSpaceService {
         invitation: null,
         devices,
         workspaceConvergence: null,
-        deviceTrustQuery: { kind: 'idle' },
+        deviceTrustQuery,
         deviceTrustDecisionStatus: 'idle',
         deviceTrustDecisionError: null,
         deviceTrustDecisionOutcome: null,
@@ -682,12 +687,56 @@ export class UnifiedSpaceService {
     const request = this.joinRequestInFlight;
     if (!request) return;
     const status = await request;
-    if (status.type === 'pending') await this.api.cancelJoinSpace(status.joinId);
+    if (status.type === 'pending' || status.type === 'processing')
+      await this.api.cancelJoinSpace(status.joinId);
+  }
+
+  async resumeJoin(onPending?: () => void): Promise<JoinedSpace | null> {
+    if (this.joinRequestInFlight) return null;
+    const status = (await this.api.queryDeviceTrust()).currentJoin;
+    if (!status) return null;
+    if (status.type === 'active') {
+      await this.refresh();
+      return requireActiveJoinedSpace(status);
+    }
+    if (status.type === 'rejected' || status.type === 'terminated')
+      return requireActiveJoinedSpace(status);
+
+    const revision = this.beginMutation();
+    this.joinRequestInFlight = Promise.resolve(status);
+    this.updateSnapshot({ status: 'loading', lastError: null });
+    onPending?.();
+    try {
+      const joined = await this.waitForJoinedSpace(status);
+      const devices = await this.api.listDevices();
+      const deviceTrustQuery = await this.queryDeviceTrustState();
+      await this.completion.markComplete();
+      if (this.isCurrentMutation(revision)) {
+        this.updateSnapshot({
+          status: 'ready', spaceId: joined.spaceId, invitation: null, devices,
+          deviceListRefreshStatus: 'idle', hasResolvedDeviceList: true,
+          deviceTrustQuery, lastError: null,
+        });
+      }
+      return joined;
+    } catch (error) {
+      if (this.isCurrentMutation(revision)) {
+        const cancelled = unifiedSpaceUserErrorCode(error) === 'joinCancelled';
+        this.updateSnapshot({
+          status: this.snapshot.spaceId ? 'ready' : 'empty',
+          lastError: cancelled ? null : error instanceof Error ? error.message : null,
+        });
+      }
+      throw error;
+    } finally {
+      this.joinRequestInFlight = null;
+      this.endMutation(revision);
+    }
   }
 
   private async waitForJoinedSpace(initial: JoinSpaceStatus): Promise<JoinedSpace> {
     let status = initial;
-    while (status.type === 'pending' && !status.peerUpgradeRequired) {
+    while ((status.type === 'pending' || status.type === 'processing') && !status.peerUpgradeRequired) {
       await new Promise<void>((resolve) => setTimeout(resolve, 1000));
       let current: JoinSpaceStatus | null | undefined;
       try {

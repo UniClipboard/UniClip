@@ -47,6 +47,9 @@
       "otherDevicesOffline": "{{count}} outros dispositivos estão off-line",
       "statusUnavailable": "O status dos dispositivos não está disponível",
       "memberCount": "{{count}} dispositivos neste espaço",
+      "maintenanceWaiting": "Aguardando outro dispositivo atualizar o histórico de membros.",
+      "maintenanceRetryAt": "Aguardando outro dispositivo atualizar o histórico de membros. Próxima tentativa: {{time}}.",
+      "maintenanceAction": "O histórico de membros precisa de atenção. Revise as alterações dos dispositivos abaixo.",
       "status": {
         "decisionRequired": "Revise uma alteração de dispositivos",
         "unverifiable": "Não foi possível verificar os dispositivos",
@@ -54,6 +57,8 @@
         "updating": "Atualizando o espaço",
         "refreshing": "Atualizando o status dos dispositivos",
         "healthy": "Os dispositivos podem sincronizar",
+        "maintenanceRetrying": "Você entrou",
+        "maintenanceNeedsAttention": "Você entrou · Atenção necessária",
         "empty": "Nenhum dispositivo no espaço"
       }
     },
@@ -67,6 +72,7 @@
       "description": "Usar um convite gerado em outro dispositivo",
       "action": "Entrar",
       "pending": "Entrando",
+      "processing": "Concluindo o pareamento. Aguardando a confirmação do outro dispositivo.",
       "takingLonger": "A conexão está demorando. Ainda tentando entrar.",
       "cancelling": "Cancelando entrada",
       "cancelFailed": "Não foi possível cancelar ainda. A entrada continua em andamento. Tente cancelar novamente."

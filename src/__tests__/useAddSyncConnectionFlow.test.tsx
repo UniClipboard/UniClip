@@ -14,6 +14,7 @@ import {
   type UnifiedSpaceSnapshot,
 } from '@/features/space/store';
 import type { DeviceTrustSnapshot } from '@/platform/engine';
+import { createInitialUnifiedEngineSnapshot, useUnifiedEngineStore } from '@/stores/unifiedEngineStore';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -21,6 +22,8 @@ const mockCreateSpace = jest.fn();
 const mockJoinSpace = jest.fn();
 const mockCancelJoin = jest.fn();
 const mockIssueInvitation = jest.fn();
+const mockRefreshDeviceTrust = jest.fn();
+const mockResumeJoin = jest.fn();
 const mockUnifiedSpaceUserErrorCode = jest.fn();
 
 jest.mock('@/features/space', () => ({
@@ -30,6 +33,8 @@ jest.mock('@/features/space', () => ({
     joinSpace: mockJoinSpace,
     cancelJoin: mockCancelJoin,
     issueInvitation: mockIssueInvitation,
+    refreshDeviceTrust: mockRefreshDeviceTrust,
+    resumeJoin: mockResumeJoin,
   }),
   unifiedSpaceUserErrorCode: (cause: unknown) => mockUnifiedSpaceUserErrorCode(cause),
 }));
@@ -108,7 +113,10 @@ describe('add sync connection flow', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     useUnifiedSpaceStore.setState(createInitialUnifiedSpaceSnapshot(), true);
+    useUnifiedEngineStore.setState(createInitialUnifiedEngineSnapshot(), true);
     mockIssueInvitation.mockResolvedValue(invitation);
+    mockRefreshDeviceTrust.mockResolvedValue(undefined);
+    mockResumeJoin.mockResolvedValue(null);
     mockCreateSpace.mockResolvedValue({ spaceId: 'space-1', invitation });
     mockJoinSpace.mockResolvedValue({ spaceId: 'space-1' });
     mockCancelJoin.mockResolvedValue(undefined);
@@ -144,6 +152,42 @@ describe('add sync connection flow', () => {
     await act(async () => currentFlow.actions.completeConnection());
     expect(props.resetNativeFields).toHaveBeenCalledWith('Phone');
     expect(props.onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not announce the invited device until Engine confirms its admission', async () => {
+    createHarness('create');
+    await act(async () => currentFlow.actions.submitCreate());
+    act(() => useUnifiedSpaceStore.setState({
+      devices: [{ deviceId: 'desktop-1', displayName: 'Desktop', isLocal: false, online: true }],
+    }));
+    expect(currentFlow.state.mode).toBe('invitation');
+    act(() => useUnifiedSpaceStore.setState({
+      deviceTrustQuery: { kind: 'ready', snapshot: {
+        ...readyTrust,
+        devices: [{ deviceId: 'desktop-1', displayName: 'Desktop', isLocal: false,
+          membership: 'active', reachability: 'online', groupRelationship: 'consistent',
+          compatibility: 'compatible', syncRelationship: 'usable', pairingConfirmation: 'confirmed',
+          availableActions: [], blockedReason: null }],
+      } },
+    }));
+    expect(currentFlow.state.mode).toBe('success');
+  });
+
+  it('restores a persisted join and retains its completion after showing the waiting view', async () => {
+    useUnifiedSpaceStore.setState(createInitialUnifiedSpaceSnapshot('empty'), true);
+    useUnifiedEngineStore.setState({ isStarted: true });
+    let reportPending!: () => void;
+    let finish!: (value: { spaceId: string }) => void;
+    mockResumeJoin.mockImplementation((onPending: () => void) => {
+      reportPending = onPending;
+      return new Promise((resolve) => { finish = resolve; });
+    });
+    createHarness('join');
+    act(() => reportPending());
+    expect(currentFlow.state).toMatchObject({ mode: 'joinDetails', pending: true });
+    await act(async () => finish({ spaceId: 'space-1' }));
+    expect(currentFlow.state).toMatchObject({ mode: 'success', pending: false });
+    expect(mockJoinSpace).not.toHaveBeenCalled();
   });
 
   it('keeps a slow join pending, blocks repeated taps and back, then shows success', async () => {
@@ -410,7 +454,7 @@ describe('add sync connection flow', () => {
     shareSpy.mockRestore();
   });
 
-  it('moves a waiting creator to success when the unified list gains another device', async () => {
+  it('moves a waiting creator to success only for an Engine-confirmed device', async () => {
     createHarness('create');
 
     act(() => currentFlow.actions.setDeviceName('Phone'));
@@ -419,15 +463,15 @@ describe('add sync connection flow', () => {
     expect(currentFlow.state.mode).toBe('invitation');
 
     await act(async () => {
-      useUnifiedSpaceStore.setState(
-        {
-          devices: [
-            { deviceId: 'local', displayName: 'Phone', isLocal: true, online: true },
-            { deviceId: 'remote', displayName: 'Laptop', isLocal: false, online: true },
-          ],
-        },
-        true
-      );
+      useUnifiedSpaceStore.setState({
+        deviceTrustQuery: { kind: 'ready', snapshot: {
+          ...readyTrust,
+          devices: [{ deviceId: 'remote', displayName: 'Laptop', isLocal: false,
+            membership: 'active', reachability: 'online', groupRelationship: 'consistent',
+            compatibility: 'compatible', syncRelationship: 'usable', pairingConfirmation: 'confirmed',
+            availableActions: [], blockedReason: null }],
+        } },
+      });
       await Promise.resolve();
     });
 

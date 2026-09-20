@@ -97,6 +97,12 @@ describe('unified P2P engine native module', () => {
     }
   });
 
+  it('maps Processing without claiming admission on either platform', () => {
+    expect(read('ios/UcEngineModule.swift')).toContain('case let .processing(');
+    expect(read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt'))
+      .toContain('is JoinSpaceStatus.Processing -> mapOf(');
+  });
+
   it('does not expose the removed workspace convergence query or event', () => {
     const javascript = read('src/index.ts');
     const swift = read('ios/UcEngineModule.swift');

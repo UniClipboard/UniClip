@@ -382,6 +382,7 @@ export function AddSyncConnectionSheet({
     invitationCode,
     invitation,
     pending,
+    restoredJoin,
     joinTakingLonger,
     cancellingJoin,
     error,
@@ -606,66 +607,77 @@ export function AddSyncConnectionSheet({
 
             {mode === 'joinDetails' ? (
               <IosSheetForm>
-                <Section
-                  header={
-                    <SwiftUIText
-                      modifiers={[font({ size: 20, weight: 'semibold', design: 'monospaced' })]}
+                {restoredJoin ? (
+                  <Section>
+                    <HStack spacing={10} modifiers={[frame({ maxWidth: Infinity })]}>
+                      <ProgressView />
+                      <SwiftUIText>
+                        {t(cancellingJoin ? 'space.join.cancelling' : 'space.join.processing')}
+                      </SwiftUIText>
+                    </HStack>
+                  </Section>
+                ) : (
+                  <>
+                    <Section
+                      header={
+                        <SwiftUIText
+                          modifiers={[font({ size: 20, weight: 'semibold', design: 'monospaced' })]}
+                        >
+                          {formatInvitationCode(normalizeInvitationCodeInput(invitationCode))}
+                        </SwiftUIText>
+                      }
+                      footer={
+                        <SwiftUIText>
+                          {t(pending
+                            ? cancellingJoin ? 'space.join.cancelling'
+                              : joinTakingLonger ? 'space.join.takingLonger' : 'space.join.pending'
+                            : 'space.flow.joinDetailsBody')}
+                        </SwiftUIText>
+                      }
                     >
-                      {formatInvitationCode(normalizeInvitationCodeInput(invitationCode))}
-                    </SwiftUIText>
-                  }
-                  footer={
-                    <SwiftUIText>
-                      {t(pending
-                        ? cancellingJoin ? 'space.join.cancelling'
-                          : joinTakingLonger ? 'space.join.takingLonger' : 'space.join.pending'
-                        : 'space.flow.joinDetailsBody')}
-                    </SwiftUIText>
-                  }
-                >
-                  <SecureField
-                    ref={passphraseRef}
-                    placeholder={t('space.field.passphrase')}
-                    onTextChange={setPassphrase}
-                    autoFocus
-                    modifiers={[frame({ minHeight: 30 })]}
-                  />
-                  <TextField
-                    text={deviceNameState}
-                    placeholder={t('space.field.deviceName')}
-                    onTextChange={setDeviceName}
-                    modifiers={[
-                      textFieldStyle('plain'),
-                      textInputAutocapitalization('words'),
-                      frame({ minHeight: 30 }),
-                    ]}
-                  />
-                </Section>
-                <SwiftUIButton
-                  onPress={submitJoin}
-                  modifiers={[
-                    ...iosProminentButtonModifiers(undefined, {
-                      fullWidth: true,
-                    }),
-                    controlSize('large'),
-                    disabled(!canSubmitDetails || pending),
-                    opacity(!canSubmitDetails || pending ? 0.32 : 1),
-                    listRowBackground(SHEET_BACKGROUND),
-                    listRowSeparator('hidden'),
-                    listRowInsets({ top: 8, bottom: 8, leading: 16, trailing: 16 }),
-                  ]}
-                >
-                  <HStack spacing={8} modifiers={[frame({ minHeight: 48, maxWidth: Infinity })]}>
-                    <Spacer />
-                    {pending ? <ProgressView /> : <Image systemName="link.circle.fill" size={17} />}
-                    <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>
-                      {t(pending
-                        ? cancellingJoin ? 'space.join.cancelling' : 'space.join.pending'
-                        : 'space.join.action')}
-                    </SwiftUIText>
-                    <Spacer />
-                  </HStack>
-                </SwiftUIButton>
+                      <SecureField
+                        ref={passphraseRef}
+                        placeholder={t('space.field.passphrase')}
+                        onTextChange={setPassphrase}
+                        autoFocus
+                        modifiers={[frame({ minHeight: 30 })]}
+                      />
+                      <TextField
+                        text={deviceNameState}
+                        placeholder={t('space.field.deviceName')}
+                        onTextChange={setDeviceName}
+                        modifiers={[
+                          textFieldStyle('plain'),
+                          textInputAutocapitalization('words'),
+                          frame({ minHeight: 30 }),
+                        ]}
+                      />
+                    </Section>
+                    <SwiftUIButton
+                      onPress={submitJoin}
+                      modifiers={[
+                        ...iosProminentButtonModifiers(undefined, { fullWidth: true }),
+                        controlSize('large'),
+                        disabled(!canSubmitDetails || pending),
+                        opacity(!canSubmitDetails || pending ? 0.32 : 1),
+                        listRowBackground(SHEET_BACKGROUND),
+                        listRowSeparator('hidden'),
+                        listRowInsets({ top: 8, bottom: 8, leading: 16, trailing: 16 }),
+                      ]}
+                    >
+                      <HStack spacing={8} modifiers={[frame({ minHeight: 48, maxWidth: Infinity })]}>
+                        <Spacer />
+                        {pending ? <ProgressView /> : <Image systemName="link.circle.fill" size={17} />}
+                        <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>
+                          {t(pending
+                            ? cancellingJoin ? 'space.join.cancelling' : 'space.join.pending'
+                            : 'space.join.action')}
+                        </SwiftUIText>
+                        <Spacer />
+                      </HStack>
+                    </SwiftUIButton>
+                  </>
+                )}
                 {pending ? (
                   <SwiftUIButton
                     onPress={cancelJoin}

@@ -47,6 +47,9 @@
       "otherDevicesOffline": "{{count}} 台其他设备暂时离线",
       "statusUnavailable": "设备状态未更新",
       "memberCount": "空间内共 {{count}} 台设备",
+      "maintenanceWaiting": "正在等待另一台设备更新成员记录。",
+      "maintenanceRetryAt": "正在等待另一台设备更新成员记录，下次尝试：{{time}}。",
+      "maintenanceAction": "成员记录需要处理，请核对下方的设备变化。",
       "status": {
         "decisionRequired": "需要核对设备变化",
         "unverifiable": "无法核验设备资料",
@@ -54,6 +57,8 @@
         "updating": "正在更新空间",
         "refreshing": "正在更新设备状态",
         "healthy": "设备可以同步",
+        "maintenanceRetrying": "已加入",
+        "maintenanceNeedsAttention": "已加入 · 需要处理",
         "empty": "空间内没有设备"
       }
     },
@@ -67,6 +72,7 @@
       "description": "使用另一台设备生成的邀请码加入",
       "action": "加入",
       "pending": "正在加入",
+      "processing": "正在完成配对，等待另一台设备确认。",
       "takingLonger": "连接较慢，仍在尝试加入。",
       "cancelling": "正在取消加入",
       "cancelFailed": "暂时无法取消，加入仍在进行。可以再次尝试取消。"
