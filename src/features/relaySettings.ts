@@ -46,6 +46,16 @@ function normalizeRelayUrl(value: string): string {
   }
 }
 
+async function importLegacyRelays(candidates: string[], index = 0): Promise<void> {
+  const url = candidates[index];
+  if (!url) return;
+  const result = await configuredApi().addCustomRelay(url, '');
+  log.info(
+    `relay migration engine result outcome=${result.rejection ?? 'saved'} relayCount=${result.relays.length}`
+  );
+  await importLegacyRelays(candidates, index + 1);
+}
+
 export async function refreshCustomRelays(legacyUrls: string[] = []): Promise<CustomRelay[]> {
   log.info(`relay refresh started legacyCount=${legacyUrls.length}`);
   let relays = await configuredApi().queryCustomRelays();
@@ -53,12 +63,7 @@ export async function refreshCustomRelays(legacyUrls: string[] = []): Promise<Cu
   const candidates = [...new Set(legacyUrls.map(normalizeRelayUrl).filter(Boolean))].filter(
     (url) => !known.has(url)
   );
-  for (const url of candidates) {
-    const result = await configuredApi().addCustomRelay(url, '');
-    log.info(
-      `relay migration engine result outcome=${result.rejection ?? 'saved'} relayCount=${result.relays.length}`
-    );
-  }
+  await importLegacyRelays(candidates);
   if (candidates.length > 0) relays = await configuredApi().queryCustomRelays();
   log.info(`relay refresh completed relayCount=${relays.length} migratedCount=${candidates.length}`);
   return relays;

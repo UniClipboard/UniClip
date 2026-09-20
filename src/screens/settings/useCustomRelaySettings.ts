@@ -22,15 +22,21 @@ export function useCustomRelaySettings() {
   }, []);
 
   useEffect(() => {
-    void (async () => {
-      try {
-        const current = await refreshCustomRelays(initialLegacyUrls);
+    let active = true;
+    setInitialRefreshFailed(false);
+    void refreshCustomRelays(initialLegacyUrls)
+      .then((current) => {
+        if (!active) return undefined;
         setRelays(current);
-        if (initialLegacyUrls.length > 0) await updateConfig({ customRelayUrls: [] });
-      } catch {
-        setInitialRefreshFailed(true);
-      }
-    })();
+        if (initialLegacyUrls.length > 0) return updateConfig({ customRelayUrls: [] });
+        return undefined;
+      })
+      .catch(() => {
+        if (active) setInitialRefreshFailed(true);
+      });
+    return () => {
+      active = false;
+    };
   }, [initialLegacyUrls, updateConfig]);
 
   const save = useCallback(
