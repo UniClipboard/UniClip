@@ -42,6 +42,23 @@ from Engine state; it does not start another pairing timer or infer confirmation
 from connectivity. An unconfirmed current member remains removable through the
 ordinary device-removal action.
 
+Engine persists custom relay addresses and credentials as their single source
+of truth. Credentials remain in secure storage on the device; Mobile only shows
+whether a credential is configured and submits add, edit, or delete intents.
+Mobile never reads or reconstructs credential contents.
+
+On the first relay read after upgrade, Mobile normalizes and deduplicates legacy
+`customRelayUrls`, imports only addresses that Engine does not already contain,
+and never removes an Engine address. After Engine confirms the import, Mobile
+clears the legacy list and uses only the complete list returned by Engine.
+
+Saving relay configuration and reconnecting immediately are separate user
+results. A reconnect failure must preserve a successful save and report that
+connection retry is in progress; it must not roll back the configuration or
+describe the save as failed. Invalid, duplicate, and missing-target results use
+specific translatable messages and refresh the latest Engine list rather than
+showing internal error text.
+
 ## Key Directories
 
 | Path                                                                 | Purpose                                                                        |
