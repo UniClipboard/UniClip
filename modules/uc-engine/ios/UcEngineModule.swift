@@ -217,6 +217,15 @@ public final class UcEngineModule: Module {
           "sponsorIdentityFingerprint": sponsorIdentityFingerprint,
           "cancelRequested": cancelRequested,
         ]
+      case let .processing(joinId, targetSpaceId, sponsorDeviceId, sponsorIdentityFingerprint, peerUpgradeRequired):
+        return [
+          "type": "processing",
+          "joinId": joinId,
+          "targetSpaceId": targetSpaceId,
+          "sponsorDeviceId": sponsorDeviceId,
+          "sponsorIdentityFingerprint": sponsorIdentityFingerprint,
+          "peerUpgradeRequired": peerUpgradeRequired,
+        ]
       case let .rejected(joinId, reason):
         let rejectionReason = switch reason {
         case .invitationUnavailable: "invitationUnavailable"

@@ -32,6 +32,7 @@ import {
   UnifiedSpaceInputError,
   useUnifiedSpaceStore,
   type DeviceTrustDeviceView,
+  spaceMaintenanceMessage,
 } from '@/features/space';
 import {
   HeaderCircleButton,
@@ -299,7 +300,8 @@ export function SpacePage({
                   {t(`space.overview.status.${deviceManagement.overview.primaryStatus}`)}
                 </SwiftUIText>
                 <SwiftUIText modifiers={[font({ size: 13 }), foregroundStyle('secondary')]}>
-                  {t('space.overview.memberCount', { count: overview.memberCount })}
+                  {spaceMaintenanceMessage(overview, t) ??
+                    t('space.overview.memberCount', { count: overview.memberCount })}
                 </SwiftUIText>
               </VStack>
               <Spacer />

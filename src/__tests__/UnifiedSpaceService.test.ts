@@ -1036,6 +1036,68 @@ describe('UnifiedSpaceService', () => {
     }
   );
 
+  it('waits through Processing even when the visible device count grows, and cancels safely', async () => {
+    jest.useFakeTimers();
+    try {
+      const processing: JoinSpaceStatus = {
+        type: 'processing', joinId: 'join-1', targetSpaceId: 'space-1',
+        sponsorDeviceId: 'desktop', sponsorIdentityFingerprint: 'fingerprint',
+        peerUpgradeRequired: false,
+      };
+      let currentJoin: JoinSpaceStatus = processing;
+      const api = createApi({
+        joinSpace: jest.fn(async () => processing),
+        queryDeviceTrust: jest.fn(async () => ({ ...deviceTrustSnapshot(), currentJoin })),
+        listDevices: jest.fn(async () => [
+          { deviceId: 'phone', displayName: 'Phone', isLocal: true, online: true },
+          { deviceId: 'desktop', displayName: 'Desktop', isLocal: false, online: true },
+        ]),
+      });
+      const service = new UnifiedSpaceService(api);
+      let completed = false;
+      const result = service.joinSpace('072-834', 'Phone', 'secret').then((joined) => {
+        completed = true;
+        return joined;
+      });
+      await jest.advanceTimersByTimeAsync(2000);
+      expect(completed).toBe(false);
+      expect(api.listDevices).not.toHaveBeenCalled();
+      await service.cancelJoin();
+      expect(api.cancelJoinSpace).toHaveBeenCalledWith('join-1');
+      currentJoin = activeJoinStatus();
+      await jest.advanceTimersByTimeAsync(1000);
+      expect(await result).toEqual(activeJoinStatus().joinedSpace);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('resumes a persisted Processing join after a new service instance starts', async () => {
+    jest.useFakeTimers();
+    try {
+      const processing: JoinSpaceStatus = {
+        type: 'processing', joinId: 'join-1', targetSpaceId: 'space-1',
+        sponsorDeviceId: 'desktop', sponsorIdentityFingerprint: 'fingerprint',
+        peerUpgradeRequired: false,
+      };
+      let currentJoin: JoinSpaceStatus = processing;
+      const api = createApi({
+        queryDeviceTrust: jest.fn(async () => ({ ...deviceTrustSnapshot(), currentJoin })),
+      });
+      const service = new UnifiedSpaceService(api);
+      let completed = false;
+      const result = service.resumeJoin().then((joined) => { completed = true; return joined; });
+      await jest.advanceTimersByTimeAsync(1000);
+      expect(completed).toBe(false);
+      expect(api.joinSpace).not.toHaveBeenCalled();
+      currentJoin = activeJoinStatus();
+      await jest.advanceTimersByTimeAsync(1000);
+      expect(await result).toEqual(activeJoinStatus().joinedSpace);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('does not confuse a missing join result or another join with success', async () => {
     jest.useFakeTimers();
     try {

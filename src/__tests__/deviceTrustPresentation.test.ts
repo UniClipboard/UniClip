@@ -103,6 +103,22 @@ function snapshot(): DeviceTrustSnapshot {
   };
 }
 
+describe('membership maintenance display', () => {
+  it.each(['retrying', 'needsAttention'] as const)(
+    'keeps an admitted member joined while maintenance is %s', (phase) => {
+      const current = snapshot();
+      current.maintenanceHealth = {
+        phase, reason: phase === 'needsAttention' ? 'membershipHistoryRejected' : null,
+        recovery: phase === 'needsAttention' ? 'resolveDeviceTrust' : null,
+        nextRetryAtMs: phase === 'retrying' ? 123_000 : null,
+      };
+      expect(buildSpaceOverviewView('ready', { kind: 'ready', snapshot: current }, 'idle'))
+        .toMatchObject({ primaryStatus: phase === 'retrying' ? 'maintenanceRetrying' : 'maintenanceNeedsAttention',
+          maintenanceHealth: current.maintenanceHealth });
+    }
+  );
+});
+
 describe('device trust presentation', () => {
   it('shows only remote devices in each Engine-allowed choice impact group', () => {
     const view = buildDeviceTrustDecisionView(snapshot());

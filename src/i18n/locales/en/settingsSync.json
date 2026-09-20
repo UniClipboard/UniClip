@@ -47,6 +47,9 @@
       "otherDevicesOffline": "{{count}} other devices are offline",
       "statusUnavailable": "Device status is unavailable",
       "memberCount": "{{count}} devices in this space",
+      "maintenanceWaiting": "Waiting for another device to update the member history.",
+      "maintenanceRetryAt": "Waiting for another device to update the member history. Next attempt: {{time}}.",
+      "maintenanceAction": "Member history needs attention. Review the device changes below.",
       "status": {
         "decisionRequired": "Review a device change",
         "unverifiable": "Device details cannot be verified",
@@ -54,6 +57,8 @@
         "updating": "Updating space",
         "refreshing": "Updating device status",
         "healthy": "Devices can sync",
+        "maintenanceRetrying": "Joined",
+        "maintenanceNeedsAttention": "Joined · Action needed",
         "empty": "No space devices"
       }
     },
@@ -67,6 +72,7 @@
       "description": "Use an invitation generated on another device",
       "action": "Join",
       "pending": "Joining",
+      "processing": "Finishing pairing. Waiting for confirmation from the other device.",
       "takingLonger": "The connection is taking longer. Still trying to join.",
       "cancelling": "Cancelling join",
       "cancelFailed": "Could not cancel yet. Joining is still in progress. You can try cancelling again."

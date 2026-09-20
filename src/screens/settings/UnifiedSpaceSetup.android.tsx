@@ -40,6 +40,7 @@ import {
   UnifiedSpaceInputError,
   useUnifiedSpaceStore,
   type DeviceTrustDeviceView,
+  spaceMaintenanceMessage,
 } from '@/features/space';
 import { useTheme } from '@/hooks/useTheme';
 import { CustomRelaySection } from './CustomRelaySection';
@@ -257,8 +258,8 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
     overview.primaryStatus === 'unverifiable' || overview.primaryStatus === 'decisionRequired';
   const isRefreshing = overview.isRefreshing;
   const overviewTitle = t(`space.overview.status.${overview.primaryStatus}`);
-  const overviewBody =
-    refreshError ?? t('space.overview.memberCount', { count: overview.memberCount });
+  const overviewBody = refreshError ?? spaceMaintenanceMessage(overview, t) ??
+    t('space.overview.memberCount', { count: overview.memberCount });
   const overviewColor = syncFailed
     ? colors.error
     : overview.primaryStatus === 'healthy'

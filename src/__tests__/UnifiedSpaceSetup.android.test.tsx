@@ -29,6 +29,8 @@ jest.mock('@/components/useSpacePageRefresh', () => ({
 }));
 jest.mock('@/features/space', () => ({
   useUnifiedSpaceStore: () => mockSpace,
+  spaceMaintenanceMessage: jest.requireActual('@/features/space/deviceTrustPresentation')
+    .spaceMaintenanceMessage,
 }));
 jest.mock('@/hooks/useTheme', () => ({
   useTheme: () => ({ theme: { colors: { success: 'green' } } }),

@@ -78,6 +78,8 @@ export type SpaceOverviewPrimaryStatus =
   | 'updating'
   | 'refreshing'
   | 'healthy'
+  | 'maintenanceRetrying'
+  | 'maintenanceNeedsAttention'
   | 'empty';
 
 export interface SpaceOverviewView {
@@ -85,6 +87,7 @@ export interface SpaceOverviewView {
   primaryStatus: SpaceOverviewPrimaryStatus;
   hasPendingDecision: boolean;
   isRefreshing: boolean;
+  maintenanceHealth: NonNullable<DeviceTrustSnapshot['maintenanceHealth']> | null;
 }
 
 export function deviceTrustSnapshotFromQuery(
@@ -403,6 +406,10 @@ export function buildSpaceOverviewView(
     snapshot?.localMembership === 'removed'
   ) {
     primaryStatus = 'empty';
+  } else if (snapshot?.maintenanceHealth?.phase === 'needsAttention') {
+    primaryStatus = 'maintenanceNeedsAttention';
+  } else if (snapshot?.maintenanceHealth?.phase === 'retrying') {
+    primaryStatus = 'maintenanceRetrying';
   } else if (hasPendingDecision) {
     primaryStatus = 'decisionRequired';
   } else if (
@@ -438,7 +445,24 @@ export function buildSpaceOverviewView(
     primaryStatus,
     hasPendingDecision,
     isRefreshing,
+    maintenanceHealth: snapshot?.maintenanceHealth ?? null,
   };
+}
+
+export function spaceMaintenanceMessage(
+  overview: SpaceOverviewView,
+  t: (key: string, options?: { time: string }) => string
+): string | null {
+  if (overview.primaryStatus === 'maintenanceRetrying') {
+    const retryAt = overview.maintenanceHealth?.nextRetryAtMs;
+    return retryAt == null
+      ? t('space.overview.maintenanceWaiting')
+      : t('space.overview.maintenanceRetryAt', { time: new Date(retryAt).toLocaleString() });
+  }
+  if (overview.primaryStatus === 'maintenanceNeedsAttention') {
+    return t('space.overview.maintenanceAction');
+  }
+  return null;
 }
 
 function operationDevice(device: DeviceTrustDeviceView): SpaceOperationDevice {

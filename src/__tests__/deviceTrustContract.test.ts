@@ -56,6 +56,18 @@ describe('device trust Engine contract', () => {
   it.each([
     [
       {
+        status: 'processing', join_id: 'join-1', target_space_id: 'space',
+        sponsor_device_id: 'desktop', sponsor_identity_fingerprint: 'fingerprint',
+        peer_upgrade_required: false,
+      },
+      {
+        type: 'processing', joinId: 'join-1', targetSpaceId: 'space',
+        sponsorDeviceId: 'desktop', sponsorIdentityFingerprint: 'fingerprint',
+        peerUpgradeRequired: false,
+      },
+    ],
+    [
+      {
         status: 'pending',
         join_id: 'join-1',
         target_space_id: null,
@@ -126,6 +138,21 @@ describe('device trust Engine contract', () => {
         }),
       })
     ).toEqual(expect.objectContaining({ currentJoin: expected }));
+  });
+
+  it('keeps maintenance retry and terminal recovery as Engine-owned facts', () => {
+    expect(parseDeviceTrustSnapshot(snapshotJson({
+      maintenance_health: { phase: 'retrying', next_retry_at_ms: 123000 },
+      pending_inbound_member: { device_id: 'phone-2', display_name: 'Another phone' },
+    }))).toMatchObject({
+      maintenanceHealth: { phase: 'retrying', nextRetryAtMs: 123000 },
+      pendingInboundMember: { displayName: 'Another phone' },
+    });
+    expect(parseDeviceTrustSnapshot(snapshotJson({
+      maintenance_health: { phase: 'needs_attention', reason: 'membership_history_rejected', recovery: 'resolve_device_trust' },
+    })).maintenanceHealth).toEqual({
+      phase: 'needsAttention', reason: 'membershipHistoryRejected', recovery: 'resolveDeviceTrust', nextRetryAtMs: null,
+    });
   });
 
   it.each([

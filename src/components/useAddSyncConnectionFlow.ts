@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 
 import { getUnifiedSpaceService, unifiedSpaceUserErrorCode } from '@/features/space';
 import { useUnifiedSpaceStore } from '@/features/space';
+import { useUnifiedEngineStore } from '@/stores/unifiedEngineStore';
 import {
   formatInvitationCode,
   invitationCodeInputValue,
@@ -39,6 +40,7 @@ interface AddSyncConnectionFlowState {
   invitationCode: string;
   invitation: InvitationIssued | null;
   pending: boolean;
+  restoredJoin: boolean;
   joinTakingLonger: boolean;
   cancellingJoin: boolean;
   error: string | null;
@@ -109,6 +111,7 @@ export function useAddSyncConnectionFlow({
   const [invitationCode, setInvitationCode] = useState('');
   const [invitation, setInvitation] = useState<InvitationIssued | null>(null);
   const [pending, setPending] = useState(false);
+  const [restoredJoin, setRestoredJoin] = useState(false);
   const pendingRef = useRef(false);
   const [joinTakingLonger, setJoinTakingLonger] = useState(false);
   const [cancellingJoin, setCancellingJoin] = useState(false);
@@ -118,9 +121,23 @@ export function useAddSyncConnectionFlow({
   const [peerUpgradeRequired, setPeerUpgradeRequired] = useState(false);
   const [nowMs, setNowMs] = useState(Date.now());
   const mountedRef = useRef(true);
-  const remoteDeviceName = useUnifiedSpaceStore(
-    (state) => state.devices.find((device) => !device.isLocal)?.displayName ?? null
-  );
+  const engineStarted = useUnifiedEngineStore((state) => state.isStarted);
+  const spaceStatus = useUnifiedSpaceStore((state) => state.status);
+  const confirmedAtInvitation = useRef<Set<string>>(new Set());
+  const pendingInvitationDevice = useRef<string | null>(null);
+  const resumeAttempted = useRef(false);
+  const remoteDeviceName = useUnifiedSpaceStore((state) => {
+    const query = state.deviceTrustQuery;
+    if (query.kind !== 'ready') return null;
+    const pendingId = query.snapshot.pendingInboundMember?.deviceId;
+    if (pendingId) pendingInvitationDevice.current = pendingId;
+    return query.snapshot.devices.find((device) =>
+      !device.isLocal && device.membership === 'active' &&
+      device.pairingConfirmation === 'confirmed' &&
+      (!confirmedAtInvitation.current.has(device.deviceId) ||
+        device.deviceId === pendingInvitationDevice.current)
+    )?.displayName ?? null;
+  });
 
   const errorMessage = (cause: unknown): string => {
     const code = unifiedSpaceUserErrorCode(cause);
@@ -135,6 +152,7 @@ export function useAddSyncConnectionFlow({
     setInvitationCode('');
     setInvitation(null);
     setError(null);
+    setRestoredJoin(false);
     setCopied(false);
     setPeerUpgradeRequired(false);
   };
@@ -172,6 +190,48 @@ export function useAddSyncConnectionFlow({
     setMode('success');
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [mode, remoteDeviceName, visible]);
+
+  useEffect(() => {
+    if (!visible || mode !== 'invitation' || !engineStarted) return;
+    void getUnifiedSpaceService().refreshDeviceTrust();
+    const timer = setInterval(() => {
+      void getUnifiedSpaceService().refreshDeviceTrust();
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [engineStarted, mode, visible]);
+
+  useEffect(() => {
+    if (
+      !visible || initialMode !== 'join' || mode !== 'joinCode' ||
+      !engineStarted || spaceStatus !== 'empty' || pendingRef.current || resumeAttempted.current
+    ) return;
+    resumeAttempted.current = true;
+    void getUnifiedSpaceService().resumeJoin(() => {
+      if (!mountedRef.current) return;
+      pendingRef.current = true;
+      setPending(true);
+      setRestoredJoin(true);
+      setMode('joinDetails');
+    }).then((joined) => {
+      if (!mountedRef.current || !joined) return;
+      setPeerUpgradeRequired(joined.peerUpgradeRequired === true);
+      setMode('success');
+    }).catch((cause: unknown) => {
+      if (!mountedRef.current) return;
+      if (unifiedSpaceUserErrorCode(cause) === 'joinCancelled') {
+        reset();
+        onClose();
+        return;
+      }
+      setRestoredJoin(false);
+      setMode('joinCode');
+      setError(errorMessage(cause));
+    }).finally(() => {
+      if (!mountedRef.current) return;
+      pendingRef.current = false;
+      setPending(false);
+    });
+  }, [engineStarted, initialMode, mode, spaceStatus, visible]);
 
   const completeConnection = async () => {
     if ((await onConnected?.()) === false) return;
@@ -235,6 +295,12 @@ export function useAddSyncConnectionFlow({
     setError(null);
     try {
       const created = await getUnifiedSpaceService().createSpace(deviceName, passphrase);
+      const query = useUnifiedSpaceStore.getState().deviceTrustQuery;
+      confirmedAtInvitation.current = new Set(query.kind === 'ready'
+        ? query.snapshot.devices.filter((device) => device.pairingConfirmation === 'confirmed')
+          .map((device) => device.deviceId)
+        : []);
+      pendingInvitationDevice.current = null;
       setInvitation(created.invitation);
       setNowMs(Date.now());
       setMode('invitation');
@@ -375,6 +441,12 @@ export function useAddSyncConnectionFlow({
     setPending(true);
     setError(null);
     try {
+      const query = useUnifiedSpaceStore.getState().deviceTrustQuery;
+      confirmedAtInvitation.current = new Set(query.kind === 'ready'
+        ? query.snapshot.devices.filter((device) => device.pairingConfirmation === 'confirmed')
+          .map((device) => device.deviceId)
+        : []);
+      pendingInvitationDevice.current = null;
       setInvitation(await getUnifiedSpaceService().issueInvitation());
       setNowMs(Date.now());
       setCopied(false);
@@ -409,6 +481,7 @@ export function useAddSyncConnectionFlow({
       invitationCode,
       invitation,
       pending,
+      restoredJoin,
       joinTakingLonger,
       cancellingJoin,
       error,

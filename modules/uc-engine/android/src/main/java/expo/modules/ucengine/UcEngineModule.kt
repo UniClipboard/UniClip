@@ -543,6 +543,14 @@ class UcEngineModule : Module() {
           "sponsorIdentityFingerprint" to result.sponsorIdentityFingerprint,
           "cancelRequested" to result.cancelRequested
         )
+        is JoinSpaceStatus.Processing -> mapOf(
+          "type" to "processing",
+          "joinId" to result.joinId,
+          "targetSpaceId" to result.targetSpaceId,
+          "sponsorDeviceId" to result.sponsorDeviceId,
+          "sponsorIdentityFingerprint" to result.sponsorIdentityFingerprint,
+          "peerUpgradeRequired" to result.peerUpgradeRequired
+        )
         is JoinSpaceStatus.Rejected -> mapOf(
           "type" to "rejected",
           "joinId" to result.joinId,

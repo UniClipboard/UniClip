@@ -127,6 +127,13 @@ export interface DeviceGroupChoiceIssue {
 
 export interface DeviceTrustSnapshot {
   currentJoin?: JoinSpaceStatus | null;
+  pendingInboundMember?: { deviceId: string; displayName: string } | null;
+  maintenanceHealth?: {
+    phase: 'healthy' | 'retrying' | 'needsAttention';
+    reason: 'membershipHistoryRejected' | null;
+    recovery: 'resolveDeviceTrust' | null;
+    nextRetryAtMs: number | null;
+  };
   groupChoices?: { revision: number; issues: DeviceGroupChoiceIssue[] };
 
   revision: number;
@@ -334,6 +341,15 @@ function currentJoin(value: unknown): JoinSpaceStatus | null {
         cancelRequested: boolean(source.cancel_requested),
         peerUpgradeRequired: boolean(source.peer_upgrade_required),
       };
+    case 'processing':
+      return {
+        type: 'processing',
+        joinId,
+        targetSpaceId: nonemptyString(source.target_space_id),
+        sponsorDeviceId: nonemptyString(source.sponsor_device_id),
+        sponsorIdentityFingerprint: nonemptyString(source.sponsor_identity_fingerprint),
+        peerUpgradeRequired: boolean(source.peer_upgrade_required),
+      };
     case 'active': {
       const joined = object(source.joined_space);
       return {
@@ -395,11 +411,34 @@ function snapshot(value: unknown): DeviceTrustSnapshot {
     localMembership: enumValue(source.local_membership, MEMBERSHIP),
     currentChange: change(source.current_change),
     currentJoin: currentJoin(source.current_join),
+    pendingInboundMember: source.pending_inbound_member == null ? null : {
+      deviceId: nonemptyString(object(source.pending_inbound_member).device_id),
+      displayName: string(object(source.pending_inbound_member).display_name),
+    },
+    maintenanceHealth: source.maintenance_health == null
+      ? { phase: 'healthy', reason: null, recovery: null, nextRetryAtMs: null }
+      : maintenanceHealth(source.maintenance_health),
     devices: array(source.devices, relationship),
     recovery: 'notAvailableInThisVersion',
     allowedActions: array(source.allowed_actions, (entry) => enumValue(entry, ACTION)),
     blockedReason: nullableEnum(source.blocked_reason, UNAVAILABLE_REASON),
     updatedAtMs: integer(source.updated_at_ms),
+  };
+}
+
+function maintenanceHealth(value: unknown): NonNullable<DeviceTrustSnapshot['maintenanceHealth']> {
+  const source = object(value);
+  return {
+    phase: enumValue(source.phase, {
+      healthy: 'healthy', retrying: 'retrying', needs_attention: 'needsAttention',
+    } as const),
+    reason: nullableEnum(source.reason ?? null, {
+      membership_history_rejected: 'membershipHistoryRejected',
+    } as const),
+    recovery: nullableEnum(source.recovery ?? null, {
+      resolve_device_trust: 'resolveDeviceTrust',
+    } as const),
+    nextRetryAtMs: source.next_retry_at_ms == null ? null : integer(source.next_retry_at_ms, 0),
   };
 }
 

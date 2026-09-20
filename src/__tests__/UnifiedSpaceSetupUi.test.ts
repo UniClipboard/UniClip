@@ -13,6 +13,20 @@ function optionalSource(relativePath: string): string {
 }
 
 describe('unified space setup UI', () => {
+  it('shows the same Engine-owned maintenance and restored-join decisions on iOS and Android', () => {
+    const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
+    const ios = source('screens/settings/ios/SpacePage.tsx');
+    const androidSheet = source('components/AddSyncConnectionSheet.android.tsx');
+    const iosSheet = source('components/AddSyncConnectionSheet.ios.tsx');
+    for (const page of [android, ios]) {
+      expect(page).toContain('spaceMaintenanceMessage(overview, t)');
+    }
+    for (const sheet of [androidSheet, iosSheet]) {
+      expect(sheet).toContain('restoredJoin');
+      expect(sheet).toContain('space.join.processing');
+      expect(sheet).toContain('cancelJoin');
+    }
+  });
   it('opens the shared native connection flow instead of duplicating setup forms', () => {
     const entry = source('screens/settings/UnifiedSpaceSetup.tsx');
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');

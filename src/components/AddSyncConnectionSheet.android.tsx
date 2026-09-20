@@ -108,6 +108,7 @@ function AddSyncConnectionSheetContent({
     invitationCode,
     invitation,
     pending,
+    restoredJoin,
     joinTakingLonger,
     cancellingJoin,
     error,
@@ -277,63 +278,79 @@ function AddSyncConnectionSheetContent({
 
         {mode === 'joinDetails' ? (
           <Column modifiers={[fillMaxWidth()]}>
-            <ComposeText color={colors.onSurfaceVariant}>
-              {t('space.flow.joinDetailsBody')}
-            </ComposeText>
-            <Spacer modifiers={[heightModifier(12)]} />
-            <ComposeText style={CODE_REVIEW_STYLE}>
-              {formatInvitationCode(normalizeInvitationCodeInput(invitationCode))}
-            </ComposeText>
-            <Spacer modifiers={[heightModifier(20)]} />
-            <OutlinedTextField
-              value={passphraseState}
-              onValueChange={setPassphrase}
-              autoFocus
-              singleLine
-              visualTransformation="password"
-              keyboardOptions={{
-                keyboardType: 'password',
-                autoCorrectEnabled: false,
-                imeAction: 'next',
-              }}
+            {restoredJoin ? (
+              <>
+                <CircularProgressIndicator modifiers={[widthModifier(24), heightModifier(24)]} />
+                <Spacer modifiers={[heightModifier(12)]} />
+                <ComposeText color={colors.onSurfaceVariant}>
+                  {t(cancellingJoin ? 'space.join.cancelling' : 'space.join.processing')}
+                </ComposeText>
+              </>
+            ) : (
+              <>
+                <ComposeText color={colors.onSurfaceVariant}>
+                  {t('space.flow.joinDetailsBody')}
+                </ComposeText>
+                <Spacer modifiers={[heightModifier(12)]} />
+                <ComposeText style={CODE_REVIEW_STYLE}>
+                  {formatInvitationCode(normalizeInvitationCodeInput(invitationCode))}
+                </ComposeText>
+                <Spacer modifiers={[heightModifier(20)]} />
+                <OutlinedTextField
+                  value={passphraseState}
+                  onValueChange={setPassphrase}
+                  autoFocus
+                  singleLine
+                  visualTransformation="password"
+                  keyboardOptions={{
+                    keyboardType: 'password',
+                    autoCorrectEnabled: false,
+                    imeAction: 'next',
+                  }}
+                  modifiers={[fillMaxWidth()]}
+                >
+                  <OutlinedTextField.Label>
+                    <ComposeText>{t('space.field.passphrase')}</ComposeText>
+                  </OutlinedTextField.Label>
+                </OutlinedTextField>
+                <Spacer modifiers={[heightModifier(12)]} />
+                <OutlinedTextField
+                  value={deviceNameState}
+                  onValueChange={setDeviceName}
+                  singleLine
+                  keyboardOptions={{ capitalization: 'words', imeAction: 'done' }}
+                  keyboardActions={{ onDone: () => void submitJoin() }}
+                  modifiers={[fillMaxWidth()]}
+                >
+                  <OutlinedTextField.Label>
+                    <ComposeText>{t('space.field.deviceName')}</ComposeText>
+                  </OutlinedTextField.Label>
+                </OutlinedTextField>
+                <Spacer modifiers={[heightModifier(20)]} />
+                <Button
+                  onClick={submitJoin}
+                  enabled={canSubmitDetails && !pending}
+                  modifiers={[fillMaxWidth()]}
+                >
+                  {pending ? (
+                    <CircularProgressIndicator modifiers={[widthModifier(20), heightModifier(20)]} />
+                  ) : (
+                    <ComposeText>{t('space.join.action')}</ComposeText>
+                  )}
+                </Button>
+                {pending ? (
+                  <ComposeText color={colors.onSurfaceVariant}>
+                    {t(cancellingJoin ? 'space.join.cancelling'
+                      : joinTakingLonger ? 'space.join.takingLonger' : 'space.join.pending')}
+                  </ComposeText>
+                ) : null}
+              </>
+            )}
+            <TextButton
+              onClick={pending ? cancelJoin : back}
+              enabled={!cancellingJoin}
               modifiers={[fillMaxWidth()]}
             >
-              <OutlinedTextField.Label>
-                <ComposeText>{t('space.field.passphrase')}</ComposeText>
-              </OutlinedTextField.Label>
-            </OutlinedTextField>
-            <Spacer modifiers={[heightModifier(12)]} />
-            <OutlinedTextField
-              value={deviceNameState}
-              onValueChange={setDeviceName}
-              singleLine
-              keyboardOptions={{ capitalization: 'words', imeAction: 'done' }}
-              keyboardActions={{ onDone: () => void submitJoin() }}
-              modifiers={[fillMaxWidth()]}
-            >
-              <OutlinedTextField.Label>
-                <ComposeText>{t('space.field.deviceName')}</ComposeText>
-              </OutlinedTextField.Label>
-            </OutlinedTextField>
-            <Spacer modifiers={[heightModifier(20)]} />
-            <Button
-              onClick={submitJoin}
-              enabled={canSubmitDetails && !pending}
-              modifiers={[fillMaxWidth()]}
-            >
-              {pending ? (
-                <CircularProgressIndicator modifiers={[widthModifier(20), heightModifier(20)]} />
-              ) : (
-                <ComposeText>{t('space.join.action')}</ComposeText>
-              )}
-            </Button>
-            {pending ? (
-              <ComposeText color={colors.onSurfaceVariant}>
-                {t(cancellingJoin ? 'space.join.cancelling'
-                  : joinTakingLonger ? 'space.join.takingLonger' : 'space.join.pending')}
-              </ComposeText>
-            ) : null}
-            <TextButton onClick={pending ? cancelJoin : back} enabled={!cancellingJoin} modifiers={[fillMaxWidth()]}>
               <ComposeText>{t(pending ? 'action.cancel' : 'action.back', { ns: 'common' })}</ComposeText>
             </TextButton>
           </Column>
