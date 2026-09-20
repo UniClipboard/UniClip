@@ -320,6 +320,33 @@ final class NativeSystemHostTests: XCTestCase {
     XCTAssertNotNil(reported)
   }
 
+  func testBackgroundDeadlineRejectsUnrepresentableSystemTime() {
+    XCTAssertNil(
+      NativeBackgroundDeadline.remainingTimeMs(
+        systemRemainingSeconds: Double(UInt64.max)
+      )
+    )
+    XCTAssertNil(
+      NativeBackgroundDeadline.remainingTimeMs(
+        systemRemainingSeconds: Double.greatestFiniteMagnitude
+      )
+    )
+    XCTAssertNil(
+      NativeBackgroundDeadline.remainingTimeMs(systemRemainingSeconds: .infinity)
+    )
+  }
+
+  func testBackgroundDeadlineConvertsNormalSystemTime() {
+    XCTAssertEqual(
+      NativeBackgroundDeadline.remainingTimeMs(systemRemainingSeconds: 10.1),
+      10_000
+    )
+    XCTAssertEqual(
+      NativeBackgroundDeadline.remainingTimeMs(systemRemainingSeconds: 0.05),
+      0
+    )
+  }
+
   func testBackgroundTransitionReturnsBeforeSuspendAndEndsActivityAfterCleanup() throws {
     let suspendStarted = expectation(description: "suspend started")
     let activityEnded = expectation(description: "background activity ended")

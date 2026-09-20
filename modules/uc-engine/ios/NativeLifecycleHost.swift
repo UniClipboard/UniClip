@@ -260,3 +260,14 @@ protocol NativeBackgroundActivity: AnyObject, Sendable {
   var remainingTimeMs: UInt64? { get }
   func end()
 }
+
+enum NativeBackgroundDeadline {
+  private static let completionMargin: TimeInterval = 0.1
+
+  static func remainingTimeMs(systemRemainingSeconds: TimeInterval) -> UInt64? {
+    guard systemRemainingSeconds.isFinite else { return nil }
+    let milliseconds = max(0, systemRemainingSeconds - completionMargin) * 1_000
+    guard milliseconds.isFinite, milliseconds < Double(UInt64.max) else { return nil }
+    return UInt64(milliseconds)
+  }
+}

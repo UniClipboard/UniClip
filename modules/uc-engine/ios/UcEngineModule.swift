@@ -767,7 +767,6 @@ public final class UcEngineModule: Module {
 }
 
 private final class UIKitBackgroundActivity: NativeBackgroundActivity, @unchecked Sendable {
-  private static let completionMargin: TimeInterval = 0.1
   private let lock = NSLock()
   private var identifier: UIBackgroundTaskIdentifier = .invalid
 
@@ -780,9 +779,9 @@ private final class UIKitBackgroundActivity: NativeBackgroundActivity, @unchecke
   }
 
   var remainingTimeMs: UInt64? {
-    let seconds = max(0, UIApplication.shared.backgroundTimeRemaining - Self.completionMargin)
-    guard seconds.isFinite else { return nil }
-    return UInt64(min(seconds * 1_000, Double(UInt64.max)))
+    NativeBackgroundDeadline.remainingTimeMs(
+      systemRemainingSeconds: UIApplication.shared.backgroundTimeRemaining
+    )
   }
 
   func end() {
