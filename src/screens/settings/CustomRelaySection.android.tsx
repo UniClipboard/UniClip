@@ -22,9 +22,9 @@ import {
 import { useTranslation } from 'react-i18next';
 
 import { AppTextField, SheetPageTransition } from '@/components/ui';
-import { saveCustomRelay } from '@/features/relaySettings';
-import { useSettingsStore } from '@/stores';
+import type { RelayMutationRejection } from '@/features/relaySettings';
 import { SettingsSectionItem } from './SettingsSectionItem';
+import { useCustomRelaySettings } from './useCustomRelaySettings';
 
 const ICONS = {
   add: require('../../assets/icons/add.xml'),
@@ -33,21 +33,28 @@ const ICONS = {
 };
 
 const SHEET_TITLE_STYLE = { fontSize: 20, fontWeight: '600', letterSpacing: 0 } as const;
-const EMPTY_RELAY_URLS: string[] = [];
+const rejectionKey: Record<RelayMutationRejection, string> = {
+  invalidUrl: 'relay.error.invalidUrl',
+  duplicate: 'relay.error.duplicate',
+  notFound: 'relay.error.notFound',
+};
 
 export function CustomRelaySection() {
   const { t } = useTranslation('settingsSync');
   const colors = useMaterialColors();
-  const configuredUrls = useSettingsStore(
-    (state) => state.config?.customRelayUrls ?? EMPTY_RELAY_URLS
-  );
-  const updateConfig = useSettingsStore((state) => state.updateConfig);
+  const { relays, refresh, save: saveRelay, initialRefreshFailed } = useCustomRelaySettings();
+  const configuredUrls = relays.map(({ url: relayUrl }) => relayUrl);
   const [url, setUrl] = useState('');
   const [token, setToken] = useState('');
   const [editingUrl, setEditingUrl] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showRelaySettings, setShowRelaySettings] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialRefreshFailed) setNotice(t('relay.error.refreshFailed'));
+  }, [initialRefreshFailed, t]);
 
   useEffect(() => {
     if (editingUrl && !configuredUrls.includes(editingUrl)) setEditingUrl(null);
@@ -58,6 +65,7 @@ export function CustomRelaySection() {
     setUrl('');
     setToken('');
     setError(null);
+    setNotice(null);
   };
 
   const closeRelaySettings = () => {
@@ -70,6 +78,7 @@ export function CustomRelaySection() {
     setUrl('');
     setToken('');
     setError(null);
+    setNotice(null);
   };
 
   const openEditRelay = (configuredUrl: string) => {
@@ -77,6 +86,7 @@ export function CustomRelaySection() {
     setUrl(configuredUrl);
     setToken('');
     setError(null);
+    setNotice(null);
   };
 
   const save = async (nextUrl = url) => {
@@ -84,17 +94,20 @@ export function CustomRelaySection() {
     setPending(true);
     setError(null);
     try {
-      const result = await saveCustomRelay({
+      const result = await saveRelay({
         url: nextUrl,
         accessToken: token,
-        currentUrls: configuredUrls,
         previousUrl: editingUrl || undefined,
       });
-      const update = await updateConfig({ customRelayUrls: result.urls });
-      if (!update.ok) throw new Error(update.error);
+      if (result.rejection) {
+        setError(t(rejectionKey[result.rejection]));
+        if (result.rejection === 'duplicate') resetEditor();
+        return;
+      }
       resetEditor();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : t('relay.error.saveFailed'));
+      if ((await result.connection) === 'retrying') setNotice(t('relay.savedRetrying'));
+    } catch {
+      setError(t('relay.error.saveFailed'));
     } finally {
       setPending(false);
     }
@@ -107,7 +120,10 @@ export function CustomRelaySection() {
     <>
       <SettingsSectionItem title={t('space.advanced.title')}>
         <ListItem
-          modifiers={[testID('relay-settings'), clickable(() => setShowRelaySettings(true))]}
+          modifiers={[testID('relay-settings'), clickable(() => {
+            setShowRelaySettings(true);
+            void refresh().catch(() => setError(t('relay.error.refreshFailed')));
+          })]}
         >
           <ListItem.LeadingContent>
             <Icon source={ICONS.space} size={24} tint={colors.primary} />
@@ -138,18 +154,26 @@ export function CustomRelaySection() {
                   <ComposeText style={SHEET_TITLE_STYLE}>{t('relay.title')}</ComposeText>
                   <Spacer modifiers={[heightModifier(8)]} />
                   <ComposeText color={colors.onSurfaceVariant}>{t('relay.footer')}</ComposeText>
+                  {notice ? <ComposeText color={colors.onSurfaceVariant}>{notice}</ComposeText> : null}
                   <Spacer modifiers={[heightModifier(20)]} />
                   {configuredUrls.length === 0 ? (
                     <ComposeText color={colors.onSurfaceVariant}>{t('relay.summary')}</ComposeText>
                   ) : (
-                    configuredUrls.map((configuredUrl) => (
+                    relays.map((relay) => (
                       <ListItem
-                        key={configuredUrl}
-                        modifiers={[clickable(() => openEditRelay(configuredUrl))]}
+                        key={relay.url}
+                        modifiers={[clickable(() => openEditRelay(relay.url))]}
                       >
                         <ListItem.HeadlineContent>
-                          <ComposeText>{configuredUrl}</ComposeText>
+                          <ComposeText>{relay.url}</ComposeText>
                         </ListItem.HeadlineContent>
+                        {relay.credentialConfigured ? (
+                          <ListItem.SupportingContent>
+                            <ComposeText color={colors.onSurfaceVariant}>
+                              {t('relay.credentialConfigured')}
+                            </ComposeText>
+                          </ListItem.SupportingContent>
+                        ) : null}
                         <ListItem.TrailingContent>
                           <Icon source={ICONS.chevron} size={20} tint={colors.onSurfaceVariant} />
                         </ListItem.TrailingContent>

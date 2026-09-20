@@ -61,14 +61,21 @@ describe('unified P2P engine native module', () => {
     expect(kotlin).not.toContain('AsyncFunction("observeClipboardTextChange")');
   });
 
-  it('exposes custom relay saving on JavaScript, iOS, and Android', () => {
+  it('exposes authoritative custom relay operations on JavaScript, iOS, and Android', () => {
     const javascript = read('src/index.ts');
     const swift = read('ios/UcEngineModule.swift');
     const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
 
-    expect(javascript).toContain('saveCustomRelayNode');
-    expect(swift).toContain('AsyncFunction("saveCustomRelayNode")');
-    expect(kotlin).toContain('AsyncFunction("saveCustomRelayNode")');
+    for (const operation of [
+      'queryCustomRelays',
+      'addCustomRelay',
+      'editCustomRelay',
+      'deleteCustomRelay',
+    ]) {
+      expect(javascript).toContain(`function ${operation}`);
+      expect(swift).toContain(`AsyncFunction("${operation}")`);
+      expect(kotlin).toContain(`AsyncFunction("${operation}")`);
+    }
   });
 
   it('forwards join cancellation to the Engine on both platforms', () => {

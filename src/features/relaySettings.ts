@@ -1,20 +1,24 @@
 import { createLogger } from '@/support/observability';
 
-export interface RelaySaveResult {
-  configured: boolean;
+export interface CustomRelay {
+  url: string;
+  credentialConfigured: boolean;
 }
 
-export interface RelaySaveOutcome extends RelaySaveResult {
-  urls: string[];
+export type RelayMutationRejection = 'invalidUrl' | 'duplicate' | 'notFound';
+export interface RelayMutationResult {
+  relays: CustomRelay[];
+  rejection?: RelayMutationRejection;
 }
-
 export interface RelaySettingsApi {
-  saveCustomRelayNode(
-    url: string,
-    accessToken: string,
-    previousUrl?: string
-  ): Promise<RelaySaveResult>;
+  queryCustomRelays(): Promise<CustomRelay[]>;
+  addCustomRelay(url: string, accessToken: string): Promise<RelayMutationResult>;
+  editCustomRelay(previousUrl: string, url: string, accessToken: string): Promise<RelayMutationResult>;
+  deleteCustomRelay(url: string): Promise<RelayMutationResult>;
   rebuildRelayEndpoint(): Promise<void>;
+}
+export interface RelaySaveOutcome extends RelayMutationResult {
+  connection: Promise<'rebuilt' | 'retrying' | 'unchanged'>;
 }
 
 let api: RelaySettingsApi | null = null;
@@ -23,7 +27,6 @@ const log = createLogger('RelaySettings');
 export function configureRelaySettings(nextApi: RelaySettingsApi): void {
   api = nextApi;
 }
-
 function configuredApi(): RelaySettingsApi {
   if (!api) throw new Error('Relay settings are not configured');
   return api;
@@ -32,72 +35,69 @@ function configuredApi(): RelaySettingsApi {
 function normalizeRelayUrl(value: string): string {
   const url = value.trim();
   if (!url) return '';
-
-  let parsed: URL;
   try {
-    parsed = new URL(url);
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return '';
+    if (parsed.username || parsed.password) return '';
+    if (parsed.pathname !== '/' || parsed.search || parsed.hash) return '';
+    return parsed.href.replace(/\/$/, '');
   } catch {
-    throw new Error('Relay address must be a valid URL');
+    return '';
   }
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new Error('Relay address must use HTTP or HTTPS');
-  }
-  if (parsed.username || parsed.password) {
-    throw new Error('Relay address cannot include a username or password');
-  }
-  if (parsed.pathname !== '/' || parsed.search || parsed.hash) {
-    throw new Error('Relay address must not include a path, query, or fragment');
-  }
-  return parsed.href.replace(/\/$/, '');
 }
 
-function nextRelayUrls(input: {
-  currentUrls: string[];
-  url: string;
-  previousUrl?: string;
-}): string[] {
-  const currentUrls = [...input.currentUrls];
-  if (input.previousUrl === undefined) {
-    if (!input.url) return currentUrls;
-    if (currentUrls.includes(input.url)) throw new Error('Relay address is already configured');
-    return [...currentUrls, input.url];
+export async function refreshCustomRelays(legacyUrls: string[] = []): Promise<CustomRelay[]> {
+  log.info(`relay refresh started legacyCount=${legacyUrls.length}`);
+  let relays = await configuredApi().queryCustomRelays();
+  const known = new Set(relays.map(({ url }) => normalizeRelayUrl(url)).filter(Boolean));
+  const candidates = [...new Set(legacyUrls.map(normalizeRelayUrl).filter(Boolean))].filter(
+    (url) => !known.has(url)
+  );
+  for (const url of candidates) {
+    const result = await configuredApi().addCustomRelay(url, '');
+    log.info(
+      `relay migration engine result outcome=${result.rejection ?? 'saved'} relayCount=${result.relays.length}`
+    );
   }
-
-  const index = currentUrls.indexOf(input.previousUrl);
-  if (index === -1) throw new Error('Relay node is no longer configured');
-  if (!input.url) return currentUrls.filter((_, currentIndex) => currentIndex !== index);
-  if (input.url !== input.previousUrl && currentUrls.includes(input.url)) {
-    throw new Error('Relay address is already configured');
-  }
-  currentUrls[index] = input.url;
-  return currentUrls;
+  if (candidates.length > 0) relays = await configuredApi().queryCustomRelays();
+  log.info(`relay refresh completed relayCount=${relays.length} migratedCount=${candidates.length}`);
+  return relays;
 }
 
 export async function saveCustomRelay(input: {
   url: string;
   accessToken: string;
   previousUrl?: string;
-  currentUrls: string[];
 }): Promise<RelaySaveOutcome> {
-  const url = normalizeRelayUrl(input.url);
+  const url = normalizeRelayUrl(input.url) || input.url.trim();
   const accessToken = input.accessToken.trim();
-  const urls = nextRelayUrls({
-    currentUrls: input.currentUrls,
-    url,
-    previousUrl: input.previousUrl,
-  });
-  const result = await (input.previousUrl === undefined
-    ? configuredApi().saveCustomRelayNode(url, accessToken)
-    : configuredApi().saveCustomRelayNode(url, accessToken, input.previousUrl));
-
-  const rebuildStartedAt = Date.now();
-  await configuredApi().rebuildRelayEndpoint();
+  const operation = input.previousUrl === undefined ? 'add' : url ? 'edit' : 'delete';
+  log.info(`relay save started operation=${operation} credentialProvided=${accessToken.length > 0}`);
+  let result: RelayMutationResult;
+  if (input.previousUrl === undefined) {
+    result = await configuredApi().addCustomRelay(url, accessToken);
+  } else if (url) {
+    result = await configuredApi().editCustomRelay(input.previousUrl, url, accessToken);
+  } else {
+    result = await configuredApi().deleteCustomRelay(input.previousUrl);
+  }
   log.info(
-    `relay save completed configured=${result.configured} customRelayConfigured=${
-      url.length > 0
-    } credentialProvided=${accessToken.length > 0} endpointRebuilt=true rebuildDurationMs=${
-      Date.now() - rebuildStartedAt
-    }`
+    `relay engine write result operation=${operation} outcome=${result.rejection ?? 'saved'} relayCount=${result.relays.length}`
   );
-  return { ...result, urls };
+  if (result.rejection) {
+    const relays = await refreshCustomRelays();
+    return { relays, rejection: result.rejection, connection: Promise.resolve('unchanged') };
+  }
+  const connection = (async (): Promise<'rebuilt' | 'retrying'> => {
+    const rebuildStartedAt = Date.now();
+    try {
+      await configuredApi().rebuildRelayEndpoint();
+      log.info(`relay network rebuild outcome=success durationMs=${Date.now() - rebuildStartedAt}`);
+      return 'rebuilt';
+    } catch {
+      log.warn(`relay network rebuild outcome=retrying durationMs=${Date.now() - rebuildStartedAt}`);
+      return 'retrying';
+    }
+  })();
+  return { relays: result.relays, connection };
 }

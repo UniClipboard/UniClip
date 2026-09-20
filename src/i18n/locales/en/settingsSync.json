@@ -15,10 +15,16 @@
     "edit": "Edit relay node",
     "summary": "Not configured",
     "configured": "Configured",
+    "credentialConfigured": "Access token saved",
     "configuredCount": "{{count}} nodes configured",
+    "savedRetrying": "Saved. Connection is retrying.",
     "footer": "Use an HTTP or HTTPS address. The access token is kept only in this device's secure storage.",
     "error": {
-      "saveFailed": "Could not save relay"
+      "saveFailed": "Could not save relay",
+      "refreshFailed": "Could not refresh relays",
+      "invalidUrl": "Enter a valid HTTP or HTTPS address",
+      "duplicate": "This relay already exists",
+      "notFound": "This relay no longer exists"
     }
   },
   "space": {

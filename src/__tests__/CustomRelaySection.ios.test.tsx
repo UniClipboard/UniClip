@@ -8,6 +8,7 @@ jest.mock('app-group-store', () => ({
 }));
 
 jest.mock('@/features/relaySettings', () => ({
+  refreshCustomRelays: jest.fn().mockResolvedValue([]),
   saveCustomRelay: jest.fn(),
 }));
 

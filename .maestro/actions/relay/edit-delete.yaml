@@ -1,0 +1,29 @@
+appId: ${APP_ID}
+---
+- tapOn: "https://relay.uni.z2blog.com/"
+- tapOn:
+    id: relay-url-input
+    point: "95%,50%"
+- eraseText: 200
+- inputText: "https://relay.example.com"
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - pressKey: ENTER
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- tapOn:
+    id: relay-save
+- extendedWaitUntil:
+    visible: "https://relay.example.com/"
+    timeout: 60000
+- tapOn: "https://relay.example.com/"
+- tapOn: "Remove relay"
+- extendedWaitUntil:
+    visible: "Add relay node"
+    timeout: 60000
+- assertNotVisible: "https://relay.example.com/"

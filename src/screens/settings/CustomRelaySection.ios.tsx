@@ -9,24 +9,31 @@ import {
 import { autocorrectionDisabled, disabled, keyboardType } from '@expo/ui/swift-ui/modifiers';
 import { useTranslation } from 'react-i18next';
 
-import { saveCustomRelay } from '@/features/relaySettings';
-import { useSettingsStore } from '@/stores';
+import type { RelayMutationRejection } from '@/features/relaySettings';
 import { SettingsNavRow } from './ios/common';
+import { useCustomRelaySettings } from './useCustomRelaySettings';
 
-const EMPTY_RELAY_URLS: string[] = [];
+const rejectionKey: Record<RelayMutationRejection, string> = {
+  invalidUrl: 'relay.error.invalidUrl',
+  duplicate: 'relay.error.duplicate',
+  notFound: 'relay.error.notFound',
+};
 
 export function CustomRelaySection() {
   const { t } = useTranslation('settingsSync');
-  const configuredUrls = useSettingsStore(
-    (state) => state.config?.customRelayUrls ?? EMPTY_RELAY_URLS
-  );
-  const updateConfig = useSettingsStore((state) => state.updateConfig);
+  const { relays, save: saveRelay, initialRefreshFailed } = useCustomRelaySettings();
+  const configuredUrls = relays.map(({ url: relayUrl }) => relayUrl);
   const url = useNativeState('');
   const token = useNativeState('');
   const [urlValue, setUrlValue] = useState('');
   const [editingUrl, setEditingUrl] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialRefreshFailed) setNotice(t('relay.error.refreshFailed'));
+  }, [initialRefreshFailed, t]);
 
   useEffect(() => {
     if (editingUrl && !configuredUrls.includes(editingUrl)) setEditingUrl(null);
@@ -38,6 +45,7 @@ export function CustomRelaySection() {
     setUrlValue('');
     token.value = '';
     setError(null);
+    setNotice(null);
   }, [token, url]);
 
   const openAddRelay = useCallback(() => {
@@ -46,6 +54,7 @@ export function CustomRelaySection() {
     setUrlValue('');
     token.value = '';
     setError(null);
+    setNotice(null);
   }, [token, url]);
 
   const openEditRelay = useCallback(
@@ -54,7 +63,8 @@ export function CustomRelaySection() {
       url.value = configuredUrl;
       setUrlValue(configuredUrl);
       token.value = '';
-      setError(null);
+    setError(null);
+    setNotice(null);
     },
     [token, url]
   );
@@ -65,22 +75,25 @@ export function CustomRelaySection() {
       setPending(true);
       setError(null);
       try {
-        const result = await saveCustomRelay({
+        const result = await saveRelay({
           url: nextUrl,
           accessToken: token.value,
-          currentUrls: configuredUrls,
           previousUrl: editingUrl || undefined,
         });
-        const update = await updateConfig({ customRelayUrls: result.urls });
-        if (!update.ok) throw new Error(update.error);
+        if (result.rejection) {
+          setError(t(rejectionKey[result.rejection]));
+          if (result.rejection === 'duplicate') resetEditor();
+          return;
+        }
         resetEditor();
-      } catch (caught) {
-        setError(caught instanceof Error ? caught.message : t('relay.error.saveFailed'));
+        if ((await result.connection) === 'retrying') setNotice(t('relay.savedRetrying'));
+      } catch {
+        setError(t('relay.error.saveFailed'));
       } finally {
         setPending(false);
       }
     },
-    [configuredUrls, editingUrl, resetEditor, t, token, updateConfig, urlValue]
+    [editingUrl, resetEditor, saveRelay, t, token, urlValue]
   );
 
   const editingExistingRelay = Boolean(editingUrl);
@@ -92,11 +105,13 @@ export function CustomRelaySection() {
     >
       {editingUrl === null ? (
         <>
-          {configuredUrls.map((configuredUrl) => (
-            <Button
-              key={configuredUrl}
-              label={configuredUrl}
-              onPress={() => openEditRelay(configuredUrl)}
+          {notice ? <SwiftUIText>{notice}</SwiftUIText> : null}
+          {relays.map((relay) => (
+            <SettingsNavRow
+              key={relay.url}
+              title={relay.url}
+              subtitle={relay.credentialConfigured ? t('relay.credentialConfigured') : undefined}
+              onPress={() => openEditRelay(relay.url)}
             />
           ))}
           <SettingsNavRow

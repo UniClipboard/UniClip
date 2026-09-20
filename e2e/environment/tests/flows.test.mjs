@@ -67,7 +67,8 @@ test("custom relay acceptance saves the real relay address", () => {
   const text = JSON.stringify(body);
   assert.ok(text.includes("relay/create-space"));
   assert.ok(text.includes("relay/add"));
-  assert.ok(!text.includes("lifecycle/restart"));
+  assert.ok(text.includes("lifecycle/restart"));
+  assert.ok(text.includes("relay/edit-delete"));
 
   const add = readFlow(resolve(root, "actions/relay/add.yaml"));
   assert.ok(
@@ -77,9 +78,12 @@ test("custom relay acceptance saves the real relay address", () => {
   assert.ok(JSON.stringify(add).includes('"enabled":true'));
   assert.ok(
     add.some(
-      (step) => step.assertVisible === "https://relay.uni.z2blog.com"
+      (step) => step.assertVisible === "https://relay.uni.z2blog.com/"
     )
   );
+  const editDelete = readFlow(resolve(root, "actions/relay/edit-delete.yaml"));
+  assert.ok(editDelete.some((step) => step.inputText === "https://relay.example.com"));
+  assert.ok(JSON.stringify(editDelete).includes("Remove relay"));
 });
 test("storage regression taps inside the identified full row and records its layout", () => {
   const body = readFlow(

@@ -15,10 +15,16 @@
     "edit": "编辑中继节点",
     "summary": "未设置",
     "configured": "已设置",
+    "credentialConfigured": "已保存访问令牌",
     "configuredCount": "已设置 {{count}} 个节点",
+    "savedRetrying": "已保存，连接正在重试",
     "footer": "仅使用 HTTP 或 HTTPS 地址。访问令牌只保存在设备的安全区域。",
     "error": {
-      "saveFailed": "无法保存中继节点"
+      "saveFailed": "无法保存中继节点",
+      "refreshFailed": "无法刷新中继节点",
+      "invalidUrl": "请输入有效的 HTTP 或 HTTPS 地址",
+      "duplicate": "该中继节点已存在",
+      "notFound": "该中继节点已不存在"
     }
   },
   "space": {

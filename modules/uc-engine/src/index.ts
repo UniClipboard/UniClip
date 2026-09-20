@@ -12,6 +12,18 @@ export interface RelaySaveResult {
   configured: boolean;
 }
 
+export interface CustomRelay {
+  url: string;
+  credentialConfigured: boolean;
+}
+
+export type CustomRelayMutationRejection = 'invalidUrl' | 'duplicate' | 'notFound';
+
+export interface CustomRelayMutationResult {
+  relays: CustomRelay[];
+  rejection?: CustomRelayMutationRejection;
+}
+
 export type EngineState =
   | 'running'
   | 'quiescing'
@@ -313,6 +325,14 @@ interface UcEngineNativeModule {
     accessToken: string,
     previousUrl?: string
   ): Promise<RelaySaveResult>;
+  queryCustomRelays(): Promise<CustomRelay[]>;
+  addCustomRelay(url: string, accessToken: string): Promise<CustomRelayMutationResult>;
+  editCustomRelay(
+    previousUrl: string,
+    url: string,
+    accessToken: string
+  ): Promise<CustomRelayMutationResult>;
+  deleteCustomRelay(url: string): Promise<CustomRelayMutationResult>;
   shutdown(deadlineMs: number): Promise<void>;
   shutdownUntilComplete(): Promise<void>;
   suspend(): Promise<void>;
@@ -394,6 +414,29 @@ export function saveCustomRelayNode(
   previousUrl?: string
 ): Promise<RelaySaveResult> {
   return NativeModule.saveCustomRelayNode(url, accessToken, previousUrl);
+}
+
+export function queryCustomRelays(): Promise<CustomRelay[]> {
+  return NativeModule.queryCustomRelays();
+}
+
+export function addCustomRelay(
+  url: string,
+  accessToken: string
+): Promise<CustomRelayMutationResult> {
+  return NativeModule.addCustomRelay(url, accessToken);
+}
+
+export function editCustomRelay(
+  previousUrl: string,
+  url: string,
+  accessToken: string
+): Promise<CustomRelayMutationResult> {
+  return NativeModule.editCustomRelay(previousUrl, url, accessToken);
+}
+
+export function deleteCustomRelay(url: string): Promise<CustomRelayMutationResult> {
+  return NativeModule.deleteCustomRelay(url);
 }
 
 export function shutdown(deadlineMs = 5_000): Promise<void> {
