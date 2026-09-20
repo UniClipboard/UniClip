@@ -82,7 +82,6 @@ export function CustomRelaySection() {
         });
         if (result.rejection) {
           setError(t(rejectionKey[result.rejection]));
-          if (result.rejection === 'duplicate') resetEditor();
           return;
         }
         resetEditor();

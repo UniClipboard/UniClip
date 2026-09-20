@@ -65,6 +65,10 @@ export async function refreshCustomRelays(legacyUrls: string[] = []): Promise<Cu
   );
   await importLegacyRelays(candidates);
   if (candidates.length > 0) relays = await configuredApi().queryCustomRelays();
+  const confirmed = new Set(relays.map(({ url }) => normalizeRelayUrl(url)).filter(Boolean));
+  if (candidates.some((url) => !confirmed.has(url))) {
+    throw new Error('Engine did not confirm every legacy relay migration');
+  }
   log.info(`relay refresh completed relayCount=${relays.length} migratedCount=${candidates.length}`);
   return relays;
 }

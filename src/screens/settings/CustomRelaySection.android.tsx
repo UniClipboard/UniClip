@@ -101,7 +101,6 @@ export function CustomRelaySection() {
       });
       if (result.rejection) {
         setError(t(rejectionKey[result.rejection]));
-        if (result.rejection === 'duplicate') resetEditor();
         return;
       }
       resetEditor();
@@ -122,7 +121,7 @@ export function CustomRelaySection() {
         <ListItem
           modifiers={[testID('relay-settings'), clickable(() => {
             setShowRelaySettings(true);
-            void refresh().catch(() => setError(t('relay.error.refreshFailed')));
+            void refresh().catch(() => setNotice(t('relay.error.refreshFailed')));
           })]}
         >
           <ListItem.LeadingContent>

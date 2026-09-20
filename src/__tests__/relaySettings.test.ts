@@ -58,6 +58,23 @@ describe('custom relay settings', () => {
     expect(client.addCustomRelay).not.toHaveBeenCalled();
   });
 
+  it('fails migration when the authoritative list does not confirm every legacy relay', async () => {
+    const query = jest
+      .fn<RelaySettingsApi['queryCustomRelays']>()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([relay('https://other.example.com')]);
+    configureRelaySettings(
+      api({
+        queryCustomRelays: query,
+        addCustomRelay: jest.fn().mockResolvedValue({ relays: [] }),
+      })
+    );
+
+    await expect(refreshCustomRelays(['https://mobile.example.com/'])).rejects.toThrow(
+      'Engine did not confirm every legacy relay migration'
+    );
+  });
+
   it('preserves only the credential-presence flag from Engine', async () => {
     const existing = [relay('https://secure.example.com', true)];
     const client = api({ queryCustomRelays: jest.fn().mockResolvedValue(existing) });
