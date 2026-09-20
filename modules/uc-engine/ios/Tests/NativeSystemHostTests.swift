@@ -320,30 +320,83 @@ final class NativeSystemHostTests: XCTestCase {
     XCTAssertNotNil(reported)
   }
 
-  func testBackgroundDeadlineRejectsUnrepresentableSystemTime() {
+  func testBackgroundDeadlineDefinesSafeBoundaryBehavior() {
+    let largestSafeSystemTime = Double(UInt64.max).nextDown / 1_000 + 0.1
+
+    XCTAssertEqual(
+      NativeBackgroundDeadline.remainingTimeMs(systemRemainingSeconds: 10.1),
+      10_000,
+      "Ordinary system time should preserve the 100 ms completion margin"
+    )
+    XCTAssertEqual(
+      NativeBackgroundDeadline.remainingTimeMs(systemRemainingSeconds: 0),
+      0,
+      "Zero system time should produce an immediate deadline"
+    )
+    XCTAssertEqual(
+      NativeBackgroundDeadline.remainingTimeMs(systemRemainingSeconds: 0.05),
+      0,
+      "System time shorter than the completion margin should produce an immediate deadline"
+    )
+    XCTAssertEqual(
+      NativeBackgroundDeadline.remainingTimeMs(systemRemainingSeconds: -1),
+      0,
+      "Negative system time should produce an immediate deadline"
+    )
+    XCTAssertEqual(
+      NativeBackgroundDeadline.remainingTimeMs(systemRemainingSeconds: largestSafeSystemTime),
+      18_446_744_073_709_547_520,
+      "The largest representable deadline below the rounded UInt64 boundary should be accepted"
+    )
     XCTAssertNil(
-      NativeBackgroundDeadline.remainingTimeMs(
-        systemRemainingSeconds: Double(UInt64.max)
-      )
+      NativeBackgroundDeadline.remainingTimeMs(systemRemainingSeconds: Double(UInt64.max)),
+      "The rounded UInt64 boundary must not be converted"
     )
     XCTAssertNil(
       NativeBackgroundDeadline.remainingTimeMs(
         systemRemainingSeconds: Double.greatestFiniteMagnitude
-      )
+      ),
+      "The largest finite system time must not be converted"
     )
     XCTAssertNil(
-      NativeBackgroundDeadline.remainingTimeMs(systemRemainingSeconds: .infinity)
+      NativeBackgroundDeadline.remainingTimeMs(systemRemainingSeconds: .infinity),
+      "Infinite system time means no usable deadline"
     )
   }
 
-  func testBackgroundDeadlineConvertsNormalSystemTime() {
-    XCTAssertEqual(
-      NativeBackgroundDeadline.remainingTimeMs(systemRemainingSeconds: 10.1),
-      10_000
+  func testBackgroundTransitionSurvivesTestFlightCrashSystemTime() {
+    let systemRemainingSeconds = Double.greatestFiniteMagnitude
+    let legacyMilliseconds = min(
+      systemRemainingSeconds * 1_000,
+      Double(UInt64.max)
     )
-    XCTAssertEqual(
-      NativeBackgroundDeadline.remainingTimeMs(systemRemainingSeconds: 0.05),
-      0
+    XCTAssertNil(
+      UInt64(exactly: legacyMilliseconds),
+      "The TestFlight implementation tried to convert this unrepresentable value"
+    )
+
+    let suspended = expectation(description: "engine suspended")
+    let activityEnded = expectation(description: "background activity ended")
+    let engine = FakeNativeEngineLifecycle(state: .running)
+    engine.onSuspend = { suspended.fulfill() }
+    let host = NativeLifecycleHost(report: { _ in XCTFail("Transition must not fail") })
+    let coordinator = NativeLifecycleTransitionCoordinator(
+      lifecycle: host,
+      queue: DispatchQueue(label: "TestFlightCrashRegression"),
+      beginBackgroundActivity: {
+        TestBackgroundActivity(systemRemainingSeconds: systemRemainingSeconds) {
+          activityEnded.fulfill()
+        }
+      }
+    )
+
+    coordinator.enterBackground(engine)
+
+    wait(for: [suspended, activityEnded], timeout: 1)
+    XCTAssertEqual(engine.suspendCalls, 1)
+    XCTAssertNil(
+      engine.lastSuspendDeadlineMs,
+      "An unrepresentable system time should suspend without inventing a deadline"
     )
   }
 
@@ -383,13 +436,24 @@ final class NativeSystemHostTests: XCTestCase {
 }
 
 private final class TestBackgroundActivity: NativeBackgroundActivity, @unchecked Sendable {
-  let remainingTimeMs: UInt64?
+  private let remainingTime: @Sendable () -> UInt64?
   private let onEnd: @Sendable () -> Void
 
   init(remainingTimeMs: UInt64, onEnd: @escaping @Sendable () -> Void) {
-    self.remainingTimeMs = remainingTimeMs
+    remainingTime = { remainingTimeMs }
     self.onEnd = onEnd
   }
+
+  init(systemRemainingSeconds: TimeInterval, onEnd: @escaping @Sendable () -> Void) {
+    remainingTime = {
+      NativeBackgroundDeadline.remainingTimeMs(
+        systemRemainingSeconds: systemRemainingSeconds
+      )
+    }
+    self.onEnd = onEnd
+  }
+
+  var remainingTimeMs: UInt64? { remainingTime() }
 
   func end() { onEnd() }
 }
