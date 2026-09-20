@@ -16,6 +16,8 @@ export function useCustomRelaySettings() {
   const [initialRefreshFailed, setInitialRefreshFailed] = useState(false);
   const pendingLegacyUrls = useRef(initialLegacyUrls).current;
   const migrationPending = useRef(pendingLegacyUrls.length > 0);
+  const operationGeneration = useRef(0);
+  const saveQueue = useRef<Promise<void>>(Promise.resolve());
 
   const load = useCallback(async (): Promise<CustomRelay[]> => {
     const legacyUrlsToMigrate = migrationPending.current ? pendingLegacyUrls : [];
@@ -28,23 +30,28 @@ export function useCustomRelaySettings() {
   }, [pendingLegacyUrls, updateConfig]);
 
   const refresh = useCallback(async (): Promise<CustomRelay[]> => {
+    const generation = ++operationGeneration.current;
+    await saveQueue.current;
     const current = await load();
-    setRelays(current);
-    setInitialRefreshFailed(false);
+    if (generation === operationGeneration.current) {
+      setRelays(current);
+      setInitialRefreshFailed(false);
+    }
     return current;
   }, [load]);
 
   useEffect(() => {
     let active = true;
+    const generation = 0;
     setInitialRefreshFailed(false);
     void load()
       .then((current) => {
-        if (!active) return undefined;
+        if (!active || generation !== operationGeneration.current) return undefined;
         setRelays(current);
         return undefined;
       })
       .catch(() => {
-        if (active) setInitialRefreshFailed(true);
+        if (active && generation === operationGeneration.current) setInitialRefreshFailed(true);
       });
     return () => {
       active = false;
@@ -52,17 +59,29 @@ export function useCustomRelaySettings() {
   }, [load]);
 
   const save = useCallback(
-    async (input: Parameters<typeof saveCustomRelay>[0]): Promise<RelaySaveOutcome> => {
-      try {
-        const result = await saveCustomRelay(input);
-        setRelays(result.relays);
-        return result;
-      } catch (error) {
-        await refresh().catch(() => undefined);
-        throw error;
-      }
+    (input: Parameters<typeof saveCustomRelay>[0]): Promise<RelaySaveOutcome> => {
+      const generation = ++operationGeneration.current;
+      const run = async (): Promise<RelaySaveOutcome> => {
+        try {
+          const result = await saveCustomRelay(input);
+          if (generation === operationGeneration.current) setRelays(result.relays);
+          return result;
+        } catch (error) {
+          if (generation === operationGeneration.current) {
+            const current = await load().catch(() => undefined);
+            if (current && generation === operationGeneration.current) setRelays(current);
+          }
+          throw error;
+        }
+      };
+      const queued = saveQueue.current.then(run, run);
+      saveQueue.current = queued.then(
+        () => undefined,
+        () => undefined
+      );
+      return queued;
     },
-    [refresh]
+    [load]
   );
 
   return { relays, refresh, save, initialRefreshFailed };
