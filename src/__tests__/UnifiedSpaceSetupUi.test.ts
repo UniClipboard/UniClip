@@ -222,6 +222,18 @@ describe('unified space setup UI', () => {
     expect(ios).not.toContain('space.details');
   });
 
+  it('keeps relay refresh and duplicate feedback visible on the active page', () => {
+    const android = source('screens/settings/CustomRelaySection.android.tsx');
+    const ios = source('screens/settings/CustomRelaySection.ios.tsx');
+
+    expect(android).toContain("refresh().catch(() => setNotice(t('relay.error.refreshFailed')))");
+    expect(android).not.toContain("refresh().catch(() => setError(t('relay.error.refreshFailed')))");
+    for (const platform of [android, ios]) {
+      expect(platform).not.toContain("if (result.rejection === 'duplicate') resetEditor()");
+      expect(platform).toMatch(/if \(result\.rejection\) \{[\s\S]*setError\(t\(rejectionKey\[result\.rejection\]\)\);[\s\S]*return;/);
+    }
+  });
+
   it('opens a focused invitation sheet instead of keeping invitations in the settings page', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
     const ios = source('screens/settings/ios/SpacePage.tsx');

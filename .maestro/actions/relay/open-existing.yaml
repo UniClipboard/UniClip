@@ -1,0 +1,22 @@
+appId: ${APP_ID}
+---
+- runFlow: ../settings/open.yaml
+- scrollUntilVisible:
+    element:
+      id: settings-syncChannel
+    direction: UP
+- tapOn:
+    id: settings-syncChannel
+- runFlow:
+    when:
+      notVisible: "Custom relay"
+    commands:
+      - tapOn: "Direct device sync, Experimental"
+      - extendedWaitUntil:
+          visible: "Use direct device sync?"
+          timeout: 10000
+      - tapOn: "Use direct sync"
+- extendedWaitUntil:
+    visible: "Custom relay"
+    timeout: 30000
+- runFlow: open.yaml

@@ -278,6 +278,26 @@ public final class UcEngineModule: Module {
       return ["configured": result.configured]
     }.runOnQueue(engineOperationQueue)
 
+    AsyncFunction("queryCustomRelays") { () -> [[String: Any]] in
+      try self.requireEngine().queryCustomRelays().map(Self.customRelayDictionary)
+    }.runOnQueue(engineOperationQueue)
+    AsyncFunction("addCustomRelay") { (url: String, accessToken: String) -> [String: Any] in
+      Self.customRelayMutationDictionary(
+        try self.requireEngine().addCustomRelay(url: url, accessToken: accessToken)
+      )
+    }.runOnQueue(engineOperationQueue)
+    AsyncFunction("editCustomRelay") {
+      (previousUrl: String, url: String, accessToken: String) -> [String: Any] in
+      Self.customRelayMutationDictionary(
+        try self.requireEngine().editCustomRelay(
+          previousUrl: previousUrl, url: url, accessToken: accessToken
+        )
+      )
+    }.runOnQueue(engineOperationQueue)
+    AsyncFunction("deleteCustomRelay") { (url: String) -> [String: Any] in
+      Self.customRelayMutationDictionary(try self.requireEngine().deleteCustomRelay(url: url))
+    }.runOnQueue(engineOperationQueue)
+
     AsyncFunction("querySpaceState") { () -> [String: Any?] in
       let result = try self.runSpaceRead("querySpaceState") {
         try self.requireEngine().querySpaceState()
@@ -526,6 +546,23 @@ public final class UcEngineModule: Module {
       "totalErrored": report.totalErrored,
       "totalPending": report.totalPending,
     ]
+  }
+
+  private static func customRelayDictionary(_ relay: CustomRelay) -> [String: Any] {
+    ["url": relay.url, "credentialConfigured": relay.credentialConfigured]
+  }
+
+  private static func customRelayMutationDictionary(
+    _ result: CustomRelayMutationResult
+  ) -> [String: Any] {
+    var mapped: [String: Any] = ["relays": result.relays.map(customRelayDictionary)]
+    switch result.rejection {
+    case .invalidUrl: mapped["rejection"] = "invalidUrl"
+    case .duplicate: mapped["rejection"] = "duplicate"
+    case .notFound: mapped["rejection"] = "notFound"
+    case nil: break
+    }
+    return mapped
   }
 
   private static func resendOutcomeMap(_ outcome: ResendEntryOutcome) -> [String: Any] {

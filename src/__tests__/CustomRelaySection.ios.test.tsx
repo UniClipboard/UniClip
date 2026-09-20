@@ -1,6 +1,7 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 
+import { saveCustomRelay } from '@/features/relaySettings';
 import { CustomRelaySection } from '@/screens/settings/CustomRelaySection.ios';
 
 jest.mock('app-group-store', () => ({
@@ -8,6 +9,7 @@ jest.mock('app-group-store', () => ({
 }));
 
 jest.mock('@/features/relaySettings', () => ({
+  refreshCustomRelays: jest.fn().mockResolvedValue([]),
   saveCustomRelay: jest.fn(),
 }));
 
@@ -82,6 +84,45 @@ it('enables Save relay after an iOS user enters a relay address', () => {
         .props.onTextChange('https://relay.uni.z2blog.com')
     );
     expect(isDisabled()).toBe(false);
+  } finally {
+    act(() => view.unmount());
+  }
+});
+
+it('keeps the editor open and shows a duplicate relay error', async () => {
+  jest.mocked(saveCustomRelay).mockResolvedValue({
+    relays: [],
+    rejection: 'duplicate',
+    connection: Promise.resolve('unchanged'),
+  });
+  let view!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    view = TestRenderer.create(<CustomRelaySection />);
+  });
+
+  try {
+    act(() => view.root.findByType('SettingsNavRow' as never).props.onPress());
+    act(() =>
+      view.root
+        .findAllByType('TextField' as never)
+        .find((field) => field.props.testID === 'relay-url-input')!
+        .props.onTextChange('https://relay.example.com')
+    );
+    await act(async () => {
+      view.root
+        .findAllByType('Button' as never)
+        .find((button) => button.props.label === 'relay.save')!
+        .props.onPress();
+    });
+
+    expect(
+      view.root.findAllByType('TextField' as never).some(
+        (field) => field.props.testID === 'relay-url-input'
+      )
+    ).toBe(true);
+    expect(
+      view.root.findAllByType('Text' as never).some((text) => text.children.includes('relay.error.duplicate'))
+    ).toBe(true);
   } finally {
     act(() => view.unmount());
   }

@@ -15,10 +15,16 @@
     "edit": "Editar nó relay",
     "summary": "Não configurado",
     "configured": "Configurado",
+    "credentialConfigured": "Token de acesso salvo",
     "configuredCount": "{{count}} nós configurados",
+    "savedRetrying": "Salvo. A conexão está tentando novamente.",
     "footer": "Use um endereço HTTP ou HTTPS. O token fica apenas no armazenamento seguro deste dispositivo.",
     "error": {
-      "saveFailed": "Não foi possível salvar o relay"
+      "saveFailed": "Não foi possível salvar o relay",
+      "refreshFailed": "Não foi possível atualizar os relays",
+      "invalidUrl": "Insira um endereço HTTP ou HTTPS válido",
+      "duplicate": "Este relay já existe",
+      "notFound": "Este relay não existe mais"
     }
   },
   "space": {

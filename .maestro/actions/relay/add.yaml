@@ -36,4 +36,4 @@ appId: ${APP_ID}
 - extendedWaitUntil:
     visible: "Add relay node"
     timeout: 60000
-- assertVisible: "https://relay.uni.z2blog.com"
+- assertVisible: "https://relay.uni.z2blog.com/"

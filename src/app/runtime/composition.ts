@@ -96,7 +96,10 @@ export function configureAppRuntime(): void {
   );
   configureAnalyticsConsent(nativeEngine);
   configureRelaySettings({
-    saveCustomRelayNode: nativeEngine.saveCustomRelayNode,
+    queryCustomRelays: nativeEngine.queryCustomRelays,
+    addCustomRelay: nativeEngine.addCustomRelay,
+    editCustomRelay: nativeEngine.editCustomRelay,
+    deleteCustomRelay: nativeEngine.deleteCustomRelay,
     async rebuildRelayEndpoint(): Promise<void> {
       await getUnifiedSyncRuntime().restart();
     },

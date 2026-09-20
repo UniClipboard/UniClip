@@ -33,6 +33,9 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 import org.json.JSONObject
 import uniffi.uc_engine_uniffi.ConnectivityOpportunity
+import uniffi.uc_engine_uniffi.CustomRelay
+import uniffi.uc_engine_uniffi.CustomRelayMutationRejection
+import uniffi.uc_engine_uniffi.CustomRelayMutationResult
 import uniffi.uc_engine_uniffi.BindingClipboardRepresentation
 import uniffi.uc_engine_uniffi.BindingClipboardRestoreMode
 import uniffi.uc_engine_uniffi.BindingClipboardRestoreOutcome
@@ -119,6 +122,21 @@ private fun analyticsContext(): BindingAnalyticsContext = BindingAnalyticsContex
   BindingAnalyticsDeviceType.MOBILE,
   Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown",
   if (BuildConfig.DEBUG) "development" else "production"
+)
+
+private fun customRelayMap(relay: CustomRelay): Map<String, Any> = mapOf(
+  "url" to relay.url,
+  "credentialConfigured" to relay.credentialConfigured
+)
+
+private fun customRelayMutationMap(result: CustomRelayMutationResult): Map<String, Any?> = mapOf(
+  "relays" to result.relays.map(::customRelayMap),
+  "rejection" to when (result.rejection) {
+    CustomRelayMutationRejection.INVALID_URL -> "invalidUrl"
+    CustomRelayMutationRejection.DUPLICATE -> "duplicate"
+    CustomRelayMutationRejection.NOT_FOUND -> "notFound"
+    null -> null
+  }
 )
 
 private fun workspaceConvergenceMap(convergence: WorkspaceConvergence): Map<String, Any?> = mapOf(
@@ -580,6 +598,19 @@ class UcEngineModule : Module() {
       url: String, accessToken: String, previousUrl: String? ->
       val result = requireEngine().saveCustomRelay(url, accessToken, previousUrl)
       mapOf("configured" to result.configured)
+    }
+    AsyncFunction("queryCustomRelays") {
+      requireEngine().queryCustomRelays().map(::customRelayMap)
+    }
+    AsyncFunction("addCustomRelay") { url: String, accessToken: String ->
+      customRelayMutationMap(requireEngine().addCustomRelay(url, accessToken))
+    }
+    AsyncFunction("editCustomRelay") {
+      previousUrl: String, url: String, accessToken: String ->
+      customRelayMutationMap(requireEngine().editCustomRelay(previousUrl, url, accessToken))
+    }
+    AsyncFunction("deleteCustomRelay") { url: String ->
+      customRelayMutationMap(requireEngine().deleteCustomRelay(url))
     }
     AsyncFunction("querySpaceState") {
       val result = runSpaceRead("querySpaceState") { requireEngine().querySpaceState() }

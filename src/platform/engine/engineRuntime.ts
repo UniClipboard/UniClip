@@ -7,7 +7,6 @@ import type {
 } from './contracts';
 import { AppState } from 'react-native';
 import { createLogger } from '@/support/observability';
-import { useSettingsStore } from '@/features/settings';
 import {
   createInitialUnifiedEngineSnapshot,
   publishUnifiedEngineSnapshot,
@@ -34,13 +33,6 @@ type EngineEventSubscriber = (event: EngineEvent) => void;
 const DEFAULT_EVENT_TIMEOUT_MS = 250;
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function relayContext(): string {
-  const urls = useSettingsStore.getState().config?.customRelayUrls ?? [];
-  return urls.length > 0
-    ? `customRelayConfigured=true customRelayCount=${urls.length}`
-    : 'customRelayConfigured=false';
 }
 
 export class UnifiedEngineService {
@@ -96,7 +88,7 @@ export class UnifiedEngineService {
           log.info(
             `peer connections online total=${report.total} online=${
               report.online
-            } ${relayContext()} (actual relay url is logged by the engine)`
+            } (relay configuration is owned and logged by the engine)`
           );
         }
         return report;
