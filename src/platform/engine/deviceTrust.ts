@@ -128,6 +128,17 @@ export interface DeviceGroupChoiceIssue {
 export interface DeviceTrustSnapshot {
   currentJoin?: JoinSpaceStatus | null;
   pendingInboundMember?: { deviceId: string; displayName: string } | null;
+  spaceDeviceUpdate: {
+    phase: 'updating' | 'completed' | 'retryableFailure' | 'needsAttention';
+    reason:
+      | 'deviceStateRejected'
+      | 'deviceRelationshipConflict'
+      | 'deviceSecurityUpdateRejected'
+      | 'deviceUpgradeRequired'
+      | null;
+    recovery: 'reviewDevices' | 'updateApp' | null;
+    nextRetryAtMs: number | null;
+  };
   maintenanceHealth?: {
     phase: 'healthy' | 'retrying' | 'needsAttention';
     reason: 'membershipHistoryRejected' | null;
@@ -216,6 +227,22 @@ const PAIRING_CONFIRMATION = {
   unconfirmed: 'unconfirmed',
   confirmed: 'confirmed',
 } as const;
+const SPACE_DEVICE_UPDATE_PHASE = {
+  updating: 'updating',
+  completed: 'completed',
+  retryable_failure: 'retryableFailure',
+  needs_attention: 'needsAttention',
+} as const;
+const SPACE_DEVICE_UPDATE_REASON = {
+  device_state_rejected: 'deviceStateRejected',
+  device_relationship_conflict: 'deviceRelationshipConflict',
+  device_security_update_rejected: 'deviceSecurityUpdateRejected',
+  device_upgrade_required: 'deviceUpgradeRequired',
+} as const;
+const SPACE_DEVICE_UPDATE_RECOVERY = {
+  review_devices: 'reviewDevices',
+  update_app: 'updateApp',
+} as const;
 const CHOICE = {
   apply_change: 'applyChange',
   keep_current_device_group: 'keepCurrentDeviceGroup',
@@ -239,7 +266,8 @@ const UNAVAILABLE_REASON = {
 } as const;
 
 function object(value: unknown): JsonObject {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error();
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new Error();
   return value as JsonObject;
 }
 
@@ -254,7 +282,8 @@ function boolean(value: unknown): boolean {
 }
 
 function integer(value: unknown, minimum = Number.MIN_SAFE_INTEGER): number {
-  if (!Number.isSafeInteger(value) || (value as number) < minimum) throw new Error();
+  if (!Number.isSafeInteger(value) || (value as number) < minimum)
+    throw new Error();
   return value as number;
 }
 
@@ -263,7 +292,10 @@ function array<T>(value: unknown, parse: (entry: unknown) => T): T[] {
   return value.map(parse);
 }
 
-function enumValue<T extends Record<string, string>>(value: unknown, values: T): T[keyof T] {
+function enumValue<T extends Record<string, string>>(
+  value: unknown,
+  values: T
+): T[keyof T] {
   const key = string(value);
   if (!Object.prototype.hasOwnProperty.call(values, key)) throw new Error();
   return values[key as keyof T];
@@ -296,7 +328,9 @@ function change(value: unknown): DeviceTrustChange | null {
     includesLocalDevice: boolean(source.includes_local_device),
     applyImpact: impact(source.apply_impact),
     keepCurrentImpact: impact(source.keep_current_impact),
-    allowedChoices: array(source.allowed_choices, (entry) => enumValue(entry, CHOICE)),
+    allowedChoices: array(source.allowed_choices, (entry) =>
+      enumValue(entry, CHOICE)
+    ),
     blockedReason: nullableEnum(source.blocked_reason, UNAVAILABLE_REASON),
   };
 }
@@ -316,7 +350,9 @@ function relationship(value: unknown): DeviceTrustRelationship {
       source.pairing_confirmation == null
         ? null
         : enumValue(source.pairing_confirmation, PAIRING_CONFIRMATION),
-    availableActions: array(source.available_actions, (entry) => enumValue(entry, ACTION)),
+    availableActions: array(source.available_actions, (entry) =>
+      enumValue(entry, ACTION)
+    ),
     blockedReason: nullableEnum(source.blocked_reason, UNAVAILABLE_REASON),
   };
 }
@@ -331,9 +367,13 @@ function currentJoin(value: unknown): JoinSpaceStatus | null {
         type: 'pending',
         joinId,
         targetSpaceId:
-          source.target_space_id === null ? null : nonemptyString(source.target_space_id),
+          source.target_space_id === null
+            ? null
+            : nonemptyString(source.target_space_id),
         sponsorDeviceId:
-          source.sponsor_device_id === null ? null : nonemptyString(source.sponsor_device_id),
+          source.sponsor_device_id === null
+            ? null
+            : nonemptyString(source.sponsor_device_id),
         sponsorIdentityFingerprint:
           source.sponsor_identity_fingerprint === null
             ? null
@@ -347,7 +387,9 @@ function currentJoin(value: unknown): JoinSpaceStatus | null {
         joinId,
         targetSpaceId: nonemptyString(source.target_space_id),
         sponsorDeviceId: nonemptyString(source.sponsor_device_id),
-        sponsorIdentityFingerprint: nonemptyString(source.sponsor_identity_fingerprint),
+        sponsorIdentityFingerprint: nonemptyString(
+          source.sponsor_identity_fingerprint
+        ),
         peerUpgradeRequired: boolean(source.peer_upgrade_required),
       };
     case 'active': {
@@ -358,12 +400,18 @@ function currentJoin(value: unknown): JoinSpaceStatus | null {
         peerUpgradeRequired: boolean(source.peer_upgrade_required),
         joinedSpace: {
           sponsorDeviceId: nonemptyString(joined.sponsor_device_id),
-          sponsorIdentityFingerprint: nonemptyString(joined.sponsor_identity_fingerprint),
+          sponsorIdentityFingerprint: nonemptyString(
+            joined.sponsor_identity_fingerprint
+          ),
           spaceId: nonemptyString(joined.space_id),
           selfDeviceId: nonemptyString(joined.self_device_id),
-          selfIdentityFingerprint: nonemptyString(joined.self_identity_fingerprint),
+          selfIdentityFingerprint: nonemptyString(
+            joined.self_identity_fingerprint
+          ),
           migratedRecords:
-            joined.migrated_records === null ? 0 : integer(joined.migrated_records, 0),
+            joined.migrated_records === null
+              ? 0
+              : integer(joined.migrated_records, 0),
           preservedUnreadableRecords:
             joined.preserved_unreadable_records === null
               ? 0
@@ -411,26 +459,72 @@ function snapshot(value: unknown): DeviceTrustSnapshot {
     localMembership: enumValue(source.local_membership, MEMBERSHIP),
     currentChange: change(source.current_change),
     currentJoin: currentJoin(source.current_join),
-    pendingInboundMember: source.pending_inbound_member == null ? null : {
-      deviceId: nonemptyString(object(source.pending_inbound_member).device_id),
-      displayName: string(object(source.pending_inbound_member).display_name),
-    },
-    maintenanceHealth: source.maintenance_health == null
-      ? { phase: 'healthy', reason: null, recovery: null, nextRetryAtMs: null }
-      : maintenanceHealth(source.maintenance_health),
+    pendingInboundMember:
+      source.pending_inbound_member == null
+        ? null
+        : {
+            deviceId: nonemptyString(
+              object(source.pending_inbound_member).device_id
+            ),
+            displayName: string(
+              object(source.pending_inbound_member).display_name
+            ),
+          },
+    spaceDeviceUpdate: spaceDeviceUpdate(source.space_device_update),
+    maintenanceHealth:
+      source.maintenance_health == null
+        ? {
+            phase: 'healthy',
+            reason: null,
+            recovery: null,
+            nextRetryAtMs: null,
+          }
+        : maintenanceHealth(source.maintenance_health),
     devices: array(source.devices, relationship),
     recovery: 'notAvailableInThisVersion',
-    allowedActions: array(source.allowed_actions, (entry) => enumValue(entry, ACTION)),
+    allowedActions: array(source.allowed_actions, (entry) =>
+      enumValue(entry, ACTION)
+    ),
     blockedReason: nullableEnum(source.blocked_reason, UNAVAILABLE_REASON),
     updatedAtMs: integer(source.updated_at_ms),
   };
 }
 
-function maintenanceHealth(value: unknown): NonNullable<DeviceTrustSnapshot['maintenanceHealth']> {
+function spaceDeviceUpdate(
+  value: unknown
+): DeviceTrustSnapshot['spaceDeviceUpdate'] {
+  if (value == null) {
+    return {
+      phase: 'updating',
+      reason: null,
+      recovery: null,
+      nextRetryAtMs: null,
+    };
+  }
+  const source = object(value);
+  return {
+    phase: enumValue(source.phase, SPACE_DEVICE_UPDATE_PHASE),
+    reason: nullableEnum(source.reason ?? null, SPACE_DEVICE_UPDATE_REASON),
+    recovery: nullableEnum(
+      source.recovery ?? null,
+      SPACE_DEVICE_UPDATE_RECOVERY
+    ),
+    nextRetryAtMs:
+      source.next_retry_at_ms == null
+        ? null
+        : integer(source.next_retry_at_ms, 0),
+  };
+}
+
+function maintenanceHealth(
+  value: unknown
+): NonNullable<DeviceTrustSnapshot['maintenanceHealth']> {
   const source = object(value);
   return {
     phase: enumValue(source.phase, {
-      healthy: 'healthy', retrying: 'retrying', needs_attention: 'needsAttention',
+      healthy: 'healthy',
+      retrying: 'retrying',
+      needs_attention: 'needsAttention',
     } as const),
     reason: nullableEnum(source.reason ?? null, {
       membership_history_rejected: 'membershipHistoryRejected',
@@ -438,7 +532,10 @@ function maintenanceHealth(value: unknown): NonNullable<DeviceTrustSnapshot['mai
     recovery: nullableEnum(source.recovery ?? null, {
       resolve_device_trust: 'resolveDeviceTrust',
     } as const),
-    nextRetryAtMs: source.next_retry_at_ms == null ? null : integer(source.next_retry_at_ms, 0),
+    nextRetryAtMs:
+      source.next_retry_at_ms == null
+        ? null
+        : integer(source.next_retry_at_ms, 0),
   };
 }
 
@@ -485,7 +582,8 @@ export function parseDeviceTrustDecision(value: string): DeviceTrustDecision {
         return {
           kind: 'stateChanged',
           currentChangeId:
-            source.current_change_id === null || source.current_change_id === undefined
+            source.current_change_id === null ||
+            source.current_change_id === undefined
               ? null
               : string(source.current_change_id),
           snapshot: parsedSnapshot,
@@ -562,7 +660,10 @@ function groupImpact(value: unknown): DeviceGroupChoiceOption['impact'] {
       source.pending_confirmation_device_ids,
       nonemptyString
     ),
-    requiresRejoinDeviceIds: array(source.requires_rejoin_device_ids, nonemptyString),
+    requiresRejoinDeviceIds: array(
+      source.requires_rejoin_device_ids,
+      nonemptyString
+    ),
     localDeviceOutcome: enumValue(source.local_device_outcome, MEMBERSHIP),
   };
 }
@@ -570,7 +671,8 @@ function groupImpact(value: unknown): DeviceGroupChoiceOption['impact'] {
 export function parseDeviceGroupChoices(
   result: NativeDeviceTrustQueryResult
 ): DeviceTrustSnapshot {
-  if (!result.ok) throw Object.assign(new Error('Device trust query failed'), result.failure);
+  if (!result.ok)
+    throw Object.assign(new Error('Device trust query failed'), result.failure);
   try {
     const source = object(JSON.parse(result.value));
     const issues = array(source.issues, (value): DeviceGroupChoiceIssue => {
@@ -598,17 +700,27 @@ export function parseDeviceGroupChoices(
           ...(choice.source_device_ids === undefined
             ? {}
             : {
-                sourceDeviceIds: array(choice.source_device_ids, nonemptyString),
+                sourceDeviceIds: array(
+                  choice.source_device_ids,
+                  nonemptyString
+                ),
               }),
-          ...(choice.impact === undefined ? {} : { impact: groupImpact(choice.impact) }),
+          ...(choice.impact === undefined
+            ? {}
+            : { impact: groupImpact(choice.impact) }),
         };
       });
-      if (new Set(choices.map((choice) => choice.choiceId)).size !== choices.length)
+      if (
+        new Set(choices.map((choice) => choice.choiceId)).size !==
+        choices.length
+      )
         throw new Error();
       return {
         issueId: nonemptyString(issue.issue_id),
         choices,
-        ...(issue.reason === undefined ? {} : { reason: groupReason(issue.reason) }),
+        ...(issue.reason === undefined
+          ? {}
+          : { reason: groupReason(issue.reason) }),
       };
     });
     if (new Set(issues.map((issue) => issue.issueId)).size !== issues.length)
@@ -641,7 +753,9 @@ export function parseDeviceGroupChoiceResult(value: string) {
         local_device_confirmation_required: 'localDeviceConfirmationRequired',
       } as const),
       currentRevision:
-        source.current_revision === null ? null : integer(source.current_revision, 0),
+        source.current_revision === null
+          ? null
+          : integer(source.current_revision, 0),
     };
   } catch {
     throw new Error('Invalid device group choice result');

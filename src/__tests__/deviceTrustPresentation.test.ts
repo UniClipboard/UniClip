@@ -14,6 +14,12 @@ function snapshot(): DeviceTrustSnapshot {
     revision: 1,
     localDeviceId: 'phone-12345678',
     localMembership: 'active',
+    spaceDeviceUpdate: {
+      phase: 'completed',
+      reason: null,
+      recovery: null,
+      nextRetryAtMs: null,
+    },
     currentChange: {
       changeId: 'change-1',
       proposedByDeviceId: 'desktop-12345678',
@@ -103,20 +109,35 @@ function snapshot(): DeviceTrustSnapshot {
   };
 }
 
-describe('membership maintenance display', () => {
-  it.each(['retrying', 'needsAttention'] as const)(
-    'keeps an admitted member joined while maintenance is %s', (phase) => {
+describe('space device update display', () => {
+  it.each(['retryableFailure', 'needsAttention'] as const)(
+    'keeps an admitted member joined while the device update is %s', (phase) => {
       const current = snapshot();
-      current.maintenanceHealth = {
-        phase, reason: phase === 'needsAttention' ? 'membershipHistoryRejected' : null,
-        recovery: phase === 'needsAttention' ? 'resolveDeviceTrust' : null,
-        nextRetryAtMs: phase === 'retrying' ? 123_000 : null,
+      current.spaceDeviceUpdate = {
+        phase,
+        reason: phase === 'needsAttention' ? 'deviceRelationshipConflict' : null,
+        recovery: phase === 'needsAttention' ? 'reviewDevices' : null,
+        nextRetryAtMs: phase === 'retryableFailure' ? 123_000 : null,
       };
       expect(buildSpaceOverviewView('ready', { kind: 'ready', snapshot: current }, 'idle'))
-        .toMatchObject({ primaryStatus: phase === 'retrying' ? 'maintenanceRetrying' : 'maintenanceNeedsAttention',
-          maintenanceHealth: current.maintenanceHealth });
+        .toMatchObject({
+          primaryStatus:
+            phase === 'retryableFailure'
+              ? 'maintenanceRetrying'
+              : 'maintenanceNeedsAttention',
+          spaceDeviceUpdate: current.spaceDeviceUpdate,
+        });
     }
   );
+
+  it('uses the existing updating device status while the holistic update is running', () => {
+    const current = snapshot();
+    current.spaceDeviceUpdate.phase = 'updating';
+
+    expect(
+      buildSpaceOverviewView('ready', { kind: 'ready', snapshot: current }, 'idle')
+    ).toMatchObject({ primaryStatus: 'refreshing' });
+  });
 });
 
 describe('device trust presentation', () => {

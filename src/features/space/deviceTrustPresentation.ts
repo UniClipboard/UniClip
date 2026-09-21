@@ -87,6 +87,7 @@ export interface SpaceOverviewView {
   primaryStatus: SpaceOverviewPrimaryStatus;
   hasPendingDecision: boolean;
   isRefreshing: boolean;
+  spaceDeviceUpdate: DeviceTrustSnapshot['spaceDeviceUpdate'] | null;
   maintenanceHealth: NonNullable<DeviceTrustSnapshot['maintenanceHealth']> | null;
 }
 
@@ -406,10 +407,12 @@ export function buildSpaceOverviewView(
     snapshot?.localMembership === 'removed'
   ) {
     primaryStatus = 'empty';
-  } else if (snapshot?.maintenanceHealth?.phase === 'needsAttention') {
+  } else if (snapshot?.spaceDeviceUpdate?.phase === 'needsAttention') {
     primaryStatus = 'maintenanceNeedsAttention';
-  } else if (snapshot?.maintenanceHealth?.phase === 'retrying') {
+  } else if (snapshot?.spaceDeviceUpdate?.phase === 'retryableFailure') {
     primaryStatus = 'maintenanceRetrying';
+  } else if (snapshot?.spaceDeviceUpdate?.phase === 'updating') {
+    primaryStatus = 'refreshing';
   } else if (hasPendingDecision) {
     primaryStatus = 'decisionRequired';
   } else if (
@@ -445,6 +448,7 @@ export function buildSpaceOverviewView(
     primaryStatus,
     hasPendingDecision,
     isRefreshing,
+    spaceDeviceUpdate: snapshot?.spaceDeviceUpdate ?? null,
     maintenanceHealth: snapshot?.maintenanceHealth ?? null,
   };
 }
@@ -454,7 +458,7 @@ export function spaceMaintenanceMessage(
   t: (key: string, options?: { time: string }) => string
 ): string | null {
   if (overview.primaryStatus === 'maintenanceRetrying') {
-    const retryAt = overview.maintenanceHealth?.nextRetryAtMs;
+    const retryAt = overview.spaceDeviceUpdate?.nextRetryAtMs;
     return retryAt == null
       ? t('space.overview.maintenanceWaiting')
       : t('space.overview.maintenanceRetryAt', { time: new Date(retryAt).toLocaleString() });

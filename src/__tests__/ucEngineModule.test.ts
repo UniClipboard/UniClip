@@ -103,6 +103,20 @@ describe('unified P2P engine native module', () => {
       .toContain('is JoinSpaceStatus.Processing -> mapOf(');
   });
 
+  it('maps the Engine-owned join attention result on both native platforms', () => {
+    const swift = read('ios/UcEngineModule.swift');
+    const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
+
+    expect(swift).toContain('case let .needsAttention(');
+    expect(kotlin).toContain('is JoinSpaceStatus.NeedsAttention -> mapOf(');
+    expect(swift).toContain('"type": "needsAttention"');
+    expect(kotlin).toContain('"type" to "needsAttention"');
+    expect(swift).toContain('"reason": "outcomeCannotBeProven"');
+    expect(kotlin).toContain('"reason" to "outcomeCannotBeProven"');
+    expect(swift).toContain('"recovery": "preserveDataAndContactSupport"');
+    expect(kotlin).toContain('"recovery" to "preserveDataAndContactSupport"');
+  });
+
   it('does not expose the removed workspace convergence query or event', () => {
     const javascript = read('src/index.ts');
     const swift = read('ios/UcEngineModule.swift');

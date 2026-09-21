@@ -969,7 +969,7 @@ describe('UnifiedSpaceService', () => {
     }
   );
 
-  it.each(['active', 'rejected', 'terminated'] as const)(
+  it.each(['active', 'needsAttention', 'rejected', 'terminated'] as const)(
     'waits through a pending join and a temporary read failure until it is %s',
     async (outcome) => {
       jest.useFakeTimers();
@@ -1015,6 +1015,14 @@ describe('UnifiedSpaceService', () => {
         currentJoin =
           outcome === 'active'
             ? activeJoinStatus()
+            : outcome === 'needsAttention'
+              ? {
+                  type: 'needsAttention',
+                  joinId: 'join-1',
+                  reason: 'outcomeCannotBeProven',
+                  recovery: 'preserveDataAndContactSupport',
+                  nextRetryAtMs: null,
+                }
             : outcome === 'rejected'
               ? { type: 'rejected', joinId: 'join-1', reason: 'authenticationRejected' }
               : { type: 'terminated', joinId: 'join-1', reason: 'expired' };
@@ -1024,6 +1032,9 @@ describe('UnifiedSpaceService', () => {
           expect(service.getSnapshot()).toMatchObject({ status: 'ready', spaceId: 'space-1' });
         } else if (outcome === 'rejected') {
           expect(await result).toMatchObject({ code: 'passphraseMismatch' });
+          expect(api.listDevices).not.toHaveBeenCalled();
+        } else if (outcome === 'needsAttention') {
+          expect(await result).toMatchObject({ code: 'joinNeedsAttention' });
           expect(api.listDevices).not.toHaveBeenCalled();
         } else {
           expect(await result).toMatchObject({ code: 'joinExpired' });

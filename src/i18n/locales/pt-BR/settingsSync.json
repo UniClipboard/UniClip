@@ -47,9 +47,9 @@
       "otherDevicesOffline": "{{count}} outros dispositivos estão off-line",
       "statusUnavailable": "O status dos dispositivos não está disponível",
       "memberCount": "{{count}} dispositivos neste espaço",
-      "maintenanceWaiting": "Aguardando outro dispositivo atualizar o histórico de membros.",
-      "maintenanceRetryAt": "Aguardando outro dispositivo atualizar o histórico de membros. Próxima tentativa: {{time}}.",
-      "maintenanceAction": "O histórico de membros precisa de atenção. Revise as alterações dos dispositivos abaixo.",
+      "maintenanceWaiting": "Atualizando o estado dos dispositivos do espaço. Nova tentativa automática mais tarde.",
+      "maintenanceRetryAt": "Atualizando o estado dos dispositivos do espaço. Nova tentativa automática mais tarde.",
+      "maintenanceAction": "O estado dos dispositivos do espaço precisa de atenção. Confira a ação sugerida.",
       "status": {
         "decisionRequired": "Revise uma alteração de dispositivos",
         "unverifiable": "Não foi possível verificar os dispositivos",
@@ -57,8 +57,8 @@
         "updating": "Atualizando o espaço",
         "refreshing": "Atualizando o status dos dispositivos",
         "healthy": "Os dispositivos podem sincronizar",
-        "maintenanceRetrying": "Você entrou",
-        "maintenanceNeedsAttention": "Você entrou · Atenção necessária",
+        "maintenanceRetrying": "Atualizando dispositivos do espaço",
+        "maintenanceNeedsAttention": "Dispositivos do espaço precisam de atenção",
         "empty": "Nenhum dispositivo no espaço"
       }
     },
@@ -105,7 +105,23 @@
       "finishLater": "Concluir depois",
       "thisDevice": "Este dispositivo",
       "otherDevice": "Outro dispositivo",
-      "peerUpgradeRequired": "Conectado. Atualize o UniClip nos outros dispositivos para continuar sincronizando."
+      "peerUpgradeRequired": "Conectado. Atualize o UniClip nos outros dispositivos para continuar sincronizando.",
+      "deviceUpdate": {
+        "updatingTitle": "Atualizando o estado dos dispositivos do espaço",
+        "updatingBody": "Este dispositivo entrou no espaço. Finalizando a atualização do estado.",
+        "retryingBody": "A atualização ainda não terminou. Uma nova tentativa será feita automaticamente.",
+        "needsAttentionTitle": "O estado dos dispositivos precisa de atenção",
+        "completedTitle": "Estado dos dispositivos atualizado",
+        "completedBody": "Agora estes dispositivos podem sincronizar.",
+        "continueInBackground": "Continuar em segundo plano",
+        "reviewAction": "Ver como resolver",
+        "reason": {
+          "deviceStateRejected": "Não foi possível verificar o estado. Revise a lista de dispositivos.",
+          "deviceRelationshipConflict": "As relações entre dispositivos precisam de confirmação.",
+          "deviceSecurityUpdateRejected": "O estado de segurança dos dispositivos precisa de atenção.",
+          "deviceUpgradeRequired": "Atualize os dispositivos relacionados para continuar."
+        }
+      }
     },
     "status": {
       "ready": "O espaço está pronto",
@@ -332,7 +348,8 @@
       "serviceUnavailable": "O serviço de conexão está indisponível. Tente mais tarde",
       "connectionLost": "A conexão foi interrompida. Tente novamente",
       "operationFailed": "A operação falhou. Verifique os dados e tente novamente.",
-      "peerUpgradeRequired": "Atualize o UniClip no outro dispositivo e tente novamente."
+      "peerUpgradeRequired": "Atualize o UniClip no outro dispositivo e tente novamente.",
+      "joinNeedsAttention": "Esta entrada precisa de atenção. Mantenha os dados atuais e exporte os diagnósticos para o suporte."
     },
     "manage": {
       "title": "Ações do espaço"

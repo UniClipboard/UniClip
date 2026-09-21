@@ -106,6 +106,7 @@ export type UnifiedSpaceUserErrorCode =
   | 'connectionTimedOut'
   | 'invitationRejected'
   | 'serviceUnavailable'
+  | 'joinNeedsAttention'
   | 'peerUpgradeRequired'
   | 'connectionLost'
   | 'joinCancelled'
@@ -226,6 +227,11 @@ function rejectedJoinErrorCode(reason: JoinSpaceRejectionReason): UnifiedSpaceUs
     case 'baseHistoryChanged':
     case 'joinerHistoryAhead':
     case 'historyConflict':
+    case 'completionInvalid':
+    case 'membershipHistoryInvalid':
+    case 'securityMaterialInvalid':
+    case 'relationshipConflict':
+    case 'activationStateInvalid':
       return 'serviceUnavailable';
     case 'invitationUnavailable':
     case 'identityConflict':
@@ -261,6 +267,8 @@ function requireActiveJoinedSpace(status: JoinSpaceStatus): JoinedSpace {
       throw new UnifiedSpaceJoinResultError(
         status.peerUpgradeRequired ? 'peerUpgradeRequired' : 'serviceUnavailable'
       );
+    case 'needsAttention':
+      throw new UnifiedSpaceJoinResultError('joinNeedsAttention');
     case 'rejected':
       throw new UnifiedSpaceJoinResultError(rejectedJoinErrorCode(status.reason));
     case 'terminated':

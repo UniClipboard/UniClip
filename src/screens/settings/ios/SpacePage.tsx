@@ -15,6 +15,7 @@ import {
   accessibilityLabel,
   buttonStyle,
   contentShape,
+  disabled,
   font,
   foregroundStyle,
   frame,
@@ -46,7 +47,8 @@ import { CustomRelaySection } from '../CustomRelaySection';
 type PendingOperation = 'leave' | null;
 
 function operationError(error: unknown, t: (key: string) => string): string {
-  if (error instanceof UnifiedSpaceInputError) return t(`space.error.${error.code}`);
+  if (error instanceof UnifiedSpaceInputError)
+    return t(`space.error.${error.code}`);
   return t('space.error.operationFailed');
 }
 
@@ -71,7 +73,8 @@ function SpaceDeviceRow({
 }) {
   const { t } = useTranslation('settingsSync');
   const online = device.isLocal || device.reachability === 'online';
-  const trustStatus = device.primaryStatus !== 'usable' && device.primaryStatus !== 'unknown';
+  const trustStatus =
+    device.primaryStatus !== 'usable' && device.primaryStatus !== 'unknown';
   const statusColor = trustStatus
     ? settingsTileColors.red
     : online
@@ -88,7 +91,10 @@ function SpaceDeviceRow({
     <HStack
       spacing={12}
       alignment="center"
-      modifiers={[frame({ maxWidth: Infinity }), contentShape(shapes.rectangle())]}
+      modifiers={[
+        frame({ maxWidth: Infinity }),
+        contentShape(shapes.rectangle()),
+      ]}
     >
       <Image
         systemName="person.crop.circle"
@@ -97,10 +103,14 @@ function SpaceDeviceRow({
         modifiers={[frame({ width: 28, height: 28 })]}
       />
       <VStack alignment="leading" spacing={3}>
-        <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>{device.displayName}</SwiftUIText>
+        <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>
+          {device.displayName}
+        </SwiftUIText>
         <HStack spacing={5} alignment="center">
           <Image systemName="circle.fill" size={7} color={statusColor} />
-          <SwiftUIText modifiers={[font({ size: 13 }), foregroundStyle('secondary')]}>
+          <SwiftUIText
+            modifiers={[font({ size: 13 }), foregroundStyle('secondary')]}
+          >
             {statusLabel}
           </SwiftUIText>
         </HStack>
@@ -154,7 +164,8 @@ export function SpacePage({
   const [operationFailure, setError] = useState<string | null>(null);
   const pageRefresh = useSpacePageRefresh();
   const error =
-    operationFailure ?? (pageRefresh.error ? operationError(pageRefresh.error, t) : null);
+    operationFailure ??
+    (pageRefresh.error ? operationError(pageRefresh.error, t) : null);
   const space = useUnifiedSpaceStore();
   const initialDeviceHandled = useRef<number | null>(null);
 
@@ -169,7 +180,12 @@ export function SpacePage({
       deviceManagement.closeDevice();
       return;
     }
-    if (!deviceManagement.devices.some((device) => device.deviceId === initialDeviceId)) return;
+    if (
+      !deviceManagement.devices.some(
+        (device) => device.deviceId === initialDeviceId
+      )
+    )
+      return;
     initialDeviceHandled.current = notificationNavigationRequestId;
     deviceManagement.openDevice(initialDeviceId);
   }, [
@@ -206,14 +222,20 @@ export function SpacePage({
   };
 
   const spaceId = space.spaceId;
-  const devices = [...deviceManagement.devices].sort(
-    (left, right) => {
+  const devices = [...deviceManagement.devices].sort((left, right) => {
     const leftRank = left.isLocal ? 0 : left.reachability === 'online' ? 1 : 2;
-    const rightRank = right.isLocal ? 0 : right.reachability === 'online' ? 1 : 2;
+    const rightRank = right.isLocal
+      ? 0
+      : right.reachability === 'online'
+      ? 1
+      : 2;
     return leftRank - rightRank;
-    }
-  );
+  });
   const overview = deviceManagement.overview;
+  const deviceUpdateInProgress =
+    space.deviceTrustQuery.kind === 'ready' &&
+    space.deviceTrustQuery.snapshot.currentJoin?.type === 'active' &&
+    space.deviceTrustQuery.snapshot.spaceDeviceUpdate.phase !== 'completed';
   const highImpactActionsDisabled =
     !deviceManagement.highImpactActionsAvailable ||
     deviceManagement.operationInProgress ||
@@ -237,7 +259,9 @@ export function SpacePage({
     !spaceId &&
     !pending &&
     !error &&
-    (pageRefresh.waiting || space.status === 'idle' || space.status === 'loading');
+    (pageRefresh.waiting ||
+      space.status === 'idle' ||
+      space.status === 'loading');
 
   const content = (
     <>
@@ -272,41 +296,84 @@ export function SpacePage({
             accessibilityHint={t('space.join.description')}
             onPress={() => onOpenSetup('join')}
             showsPressFeedback={false}
-            />
+          />
         </Section>
       ) : null}
 
       {error ? (
         <Section>
           <HStack spacing={8}>
-            <Image systemName="exclamationmark.circle.fill" size={17} color={settingsTileColors.red} />
-            <SwiftUIText modifiers={[foregroundStyle(settingsTileColors.red)]}>{error}</SwiftUIText>
+            <Image
+              systemName="exclamationmark.circle.fill"
+              size={17}
+              color={settingsTileColors.red}
+            />
+            <SwiftUIText modifiers={[foregroundStyle(settingsTileColors.red)]}>
+              {error}
+            </SwiftUIText>
           </HStack>
         </Section>
       ) : null}
 
       {spaceId ? (
         <>
-          <Section footer={<SwiftUIText>{t('connection.p2pDescription')}</SwiftUIText>}>
-            <HStack spacing={12} alignment="center" modifiers={[frame({ maxWidth: Infinity })]}>
-              <Image
-                systemName="person.2.fill"
-                size={22}
-                color={iosColors?.secondaryLabel}
-                modifiers={[frame({ width: 28, height: 28 })]}
-              />
-              <VStack alignment="leading" spacing={3}>
-                <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>
-                  {t(`space.overview.status.${deviceManagement.overview.primaryStatus}`)}
-                </SwiftUIText>
-                <SwiftUIText modifiers={[font({ size: 13 }), foregroundStyle('secondary')]}>
-                  {spaceMaintenanceMessage(overview, t) ??
-                    t('space.overview.memberCount', { count: overview.memberCount })}
-                </SwiftUIText>
-              </VStack>
-              <Spacer />
-              <Image systemName={overviewIcon} size={22} color={overviewColor} />
-            </HStack>
+          <Section
+            footer={<SwiftUIText>{t('connection.p2pDescription')}</SwiftUIText>}
+          >
+            <SwiftUIButton
+              onPress={() => onOpenSetup('join')}
+              modifiers={[
+                buttonStyle('plain'),
+                disabled(!deviceUpdateInProgress),
+              ]}
+            >
+              <HStack
+                spacing={12}
+                alignment="center"
+                modifiers={[
+                  frame({ maxWidth: Infinity }),
+                  contentShape(shapes.rectangle()),
+                ]}
+              >
+                <Image
+                  systemName="person.2.fill"
+                  size={22}
+                  color={iosColors?.secondaryLabel}
+                  modifiers={[frame({ width: 28, height: 28 })]}
+                />
+                <VStack alignment="leading" spacing={3}>
+                  <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>
+                    {t(
+                      `space.overview.status.${deviceManagement.overview.primaryStatus}`
+                    )}
+                  </SwiftUIText>
+                  <SwiftUIText
+                    modifiers={[
+                      font({ size: 13 }),
+                      foregroundStyle('secondary'),
+                    ]}
+                  >
+                    {spaceMaintenanceMessage(overview, t) ??
+                      t('space.overview.memberCount', {
+                        count: overview.memberCount,
+                      })}
+                  </SwiftUIText>
+                </VStack>
+                <Spacer />
+                <Image
+                  systemName={overviewIcon}
+                  size={22}
+                  color={overviewColor}
+                />
+                {deviceUpdateInProgress ? (
+                  <Image
+                    systemName="chevron.right"
+                    size={12}
+                    color={chevronColor}
+                  />
+                ) : null}
+              </HStack>
+            </SwiftUIButton>
           </Section>
 
           <Section
@@ -314,7 +381,9 @@ export function SpacePage({
               <HStack modifiers={[frame({ maxWidth: Infinity })]}>
                 <SwiftUIText>{t('space.devices.title')}</SwiftUIText>
                 <Spacer />
-                <SwiftUIText modifiers={[foregroundStyle('secondary')]}>{devices.length}</SwiftUIText>
+                <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
+                  {devices.length}
+                </SwiftUIText>
               </HStack>
             }
           >
@@ -341,7 +410,11 @@ export function SpacePage({
               ))
             ) : (
               <HStack spacing={10}>
-                <Image systemName="person.2" size={18} color={settingsTileColors.gray} />
+                <Image
+                  systemName="person.2"
+                  size={18}
+                  color={settingsTileColors.gray}
+                />
                 <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
                   {t('space.devices.empty')}
                 </SwiftUIText>
@@ -351,7 +424,9 @@ export function SpacePage({
 
           <CustomRelaySection />
 
-          <Section footer={<SwiftUIText>{t('space.switch.description')}</SwiftUIText>}>
+          <Section
+            footer={<SwiftUIText>{t('space.switch.description')}</SwiftUIText>}
+          >
             <SettingsNavRow
               icon="arrow.triangle.2.circlepath"
               title={t('space.switch.title')}
@@ -362,7 +437,9 @@ export function SpacePage({
             />
           </Section>
 
-          <Section footer={<SwiftUIText>{t('space.leave.confirm')}</SwiftUIText>}>
+          <Section
+            footer={<SwiftUIText>{t('space.leave.confirm')}</SwiftUIText>}
+          >
             <SettingsNavRow
               icon="rectangle.portrait.and.arrow.right"
               title={t('space.leave.action')}
@@ -383,25 +460,29 @@ export function SpacePage({
 
   return (
     <IosSheetPage
-        title={t('space.title')}
-        leftSlots={[
-          <HeaderCircleButton key="back" systemName="chevron.left" onPress={handleBack} />,
-        ]}
-        rightSlots={
-          spaceId
-            ? [
-                <HeaderCircleButton
-                  key="invite"
-                  systemName="plus"
-                  accessibilityLabel={t('space.invitation.addA11y')}
-                  onPress={onOpenInvitation}
-                  disabled={highImpactActionsDisabled}
-                />,
-              ]
-            : undefined
-        }
-      >
-        <IosSheetForm>{content}</IosSheetForm>
+      title={t('space.title')}
+      leftSlots={[
+        <HeaderCircleButton
+          key="back"
+          systemName="chevron.left"
+          onPress={handleBack}
+        />,
+      ]}
+      rightSlots={
+        spaceId
+          ? [
+              <HeaderCircleButton
+                key="invite"
+                systemName="plus"
+                accessibilityLabel={t('space.invitation.addA11y')}
+                onPress={onOpenInvitation}
+                disabled={highImpactActionsDisabled}
+              />,
+            ]
+          : undefined
+      }
+    >
+      <IosSheetForm>{content}</IosSheetForm>
     </IosSheetPage>
   );
 }

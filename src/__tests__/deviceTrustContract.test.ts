@@ -30,6 +30,12 @@ function snapshotJson(overrides: Record<string, unknown> = {}): string {
       allowed_choices: ['apply_change', 'keep_current_device_group'],
       blocked_reason: null,
     },
+    space_device_update: {
+      phase: 'updating',
+      reason: null,
+      recovery: null,
+      next_retry_at_ms: null,
+    },
     devices: [
       {
         device_id: 'desktop-1',
@@ -56,13 +62,19 @@ describe('device trust Engine contract', () => {
   it.each([
     [
       {
-        status: 'processing', join_id: 'join-1', target_space_id: 'space',
-        sponsor_device_id: 'desktop', sponsor_identity_fingerprint: 'fingerprint',
+        status: 'processing',
+        join_id: 'join-1',
+        target_space_id: 'space',
+        sponsor_device_id: 'desktop',
+        sponsor_identity_fingerprint: 'fingerprint',
         peer_upgrade_required: false,
       },
       {
-        type: 'processing', joinId: 'join-1', targetSpaceId: 'space',
-        sponsorDeviceId: 'desktop', sponsorIdentityFingerprint: 'fingerprint',
+        type: 'processing',
+        joinId: 'join-1',
+        targetSpaceId: 'space',
+        sponsorDeviceId: 'desktop',
+        sponsorIdentityFingerprint: 'fingerprint',
         peerUpgradeRequired: false,
       },
     ],
@@ -87,7 +99,11 @@ describe('device trust Engine contract', () => {
       },
     ],
     [
-      { status: 'rejected', join_id: 'join-1', reason: 'authentication_rejected' },
+      {
+        status: 'rejected',
+        join_id: 'join-1',
+        reason: 'authentication_rejected',
+      },
       { type: 'rejected', joinId: 'join-1', reason: 'authenticationRejected' },
     ],
     [
@@ -124,56 +140,124 @@ describe('device trust Engine contract', () => {
         },
       },
     ],
-  ])('preserves the current join result from the Engine', (currentJoin, expected) => {
-    expect(parseDeviceTrustSnapshot(snapshotJson({ current_join: currentJoin }))).toEqual(
-      expect.objectContaining({ currentJoin: expected })
-    );
-    expect(
-      parseDeviceGroupChoices({
-        ok: true,
-        value: JSON.stringify({
-          revision: 7,
-          issues: [],
-          device_trust: JSON.parse(snapshotJson({ current_join: currentJoin })),
-        }),
-      })
-    ).toEqual(expect.objectContaining({ currentJoin: expected }));
-  });
+  ])(
+    'preserves the current join result from the Engine',
+    (currentJoin, expected) => {
+      expect(
+        parseDeviceTrustSnapshot(snapshotJson({ current_join: currentJoin }))
+      ).toEqual(expect.objectContaining({ currentJoin: expected }));
+      expect(
+        parseDeviceGroupChoices({
+          ok: true,
+          value: JSON.stringify({
+            revision: 7,
+            issues: [],
+            device_trust: JSON.parse(
+              snapshotJson({ current_join: currentJoin })
+            ),
+          }),
+        })
+      ).toEqual(expect.objectContaining({ currentJoin: expected }));
+    }
+  );
 
   it('keeps maintenance retry and terminal recovery as Engine-owned facts', () => {
-    expect(parseDeviceTrustSnapshot(snapshotJson({
-      maintenance_health: { phase: 'retrying', next_retry_at_ms: 123000 },
-      pending_inbound_member: { device_id: 'phone-2', display_name: 'Another phone' },
-    }))).toMatchObject({
+    expect(
+      parseDeviceTrustSnapshot(
+        snapshotJson({
+          maintenance_health: { phase: 'retrying', next_retry_at_ms: 123000 },
+          pending_inbound_member: {
+            device_id: 'phone-2',
+            display_name: 'Another phone',
+          },
+        })
+      )
+    ).toMatchObject({
       maintenanceHealth: { phase: 'retrying', nextRetryAtMs: 123000 },
       pendingInboundMember: { displayName: 'Another phone' },
     });
-    expect(parseDeviceTrustSnapshot(snapshotJson({
-      maintenance_health: { phase: 'needs_attention', reason: 'membership_history_rejected', recovery: 'resolve_device_trust' },
-    })).maintenanceHealth).toEqual({
-      phase: 'needsAttention', reason: 'membershipHistoryRejected', recovery: 'resolveDeviceTrust', nextRetryAtMs: null,
+    expect(
+      parseDeviceTrustSnapshot(
+        snapshotJson({
+          maintenance_health: {
+            phase: 'needs_attention',
+            reason: 'membership_history_rejected',
+            recovery: 'resolve_device_trust',
+          },
+        })
+      ).maintenanceHealth
+    ).toEqual({
+      phase: 'needsAttention',
+      reason: 'membershipHistoryRejected',
+      recovery: 'resolveDeviceTrust',
+      nextRetryAtMs: null,
     });
+  });
+
+  it.each([
+    ['updating', 'updating', null, null],
+    ['completed', 'completed', null, null],
+    ['retryable_failure', 'retryableFailure', null, null],
+    [
+      'needs_attention',
+      'needsAttention',
+      'device_relationship_conflict',
+      'review_devices',
+    ],
+  ] as const)(
+    'preserves the unified %s space device update state',
+    (phase, expected, reason, recovery) => {
+      expect(
+        parseDeviceTrustSnapshot(
+          snapshotJson({
+            space_device_update: {
+              phase,
+              reason,
+              recovery,
+              next_retry_at_ms: phase === 'retryable_failure' ? 123000 : null,
+            },
+          })
+        ).spaceDeviceUpdate
+      ).toEqual({
+        phase: expected,
+        reason:
+          reason === 'device_relationship_conflict'
+            ? 'deviceRelationshipConflict'
+            : null,
+        recovery: recovery === 'review_devices' ? 'reviewDevices' : null,
+        nextRetryAtMs: phase === 'retryable_failure' ? 123000 : null,
+      });
+    }
+  );
+
+  it('does not infer completion when an older snapshot lacks the unified state', () => {
+    expect(
+      parseDeviceTrustSnapshot(snapshotJson({ space_device_update: undefined }))
+    ).toMatchObject({ spaceDeviceUpdate: { phase: 'updating' } });
   });
 
   it.each([
     ['awaiting_peer_confirmation', 'awaitingPeerConfirmation'],
     ['unconfirmed', 'unconfirmed'],
     ['confirmed', 'confirmed'],
-  ] as const)('preserves the %s pairing confirmation', (wireValue, expected) => {
-    const document = JSON.parse(snapshotJson());
-    document.devices[0].pairing_confirmation = wireValue;
+  ] as const)(
+    'preserves the %s pairing confirmation',
+    (wireValue, expected) => {
+      const document = JSON.parse(snapshotJson());
+      document.devices[0].pairing_confirmation = wireValue;
 
-    expect(parseDeviceTrustSnapshot(JSON.stringify(document)).devices[0]).toEqual(
-      expect.objectContaining({ pairingConfirmation: expected })
-    );
-  });
+      expect(
+        parseDeviceTrustSnapshot(JSON.stringify(document)).devices[0]
+      ).toEqual(expect.objectContaining({ pairingConfirmation: expected }));
+    }
+  );
 
   it.each([undefined, null])(
     'accepts an absent current join without inventing a result',
     (value) => {
-      expect(parseDeviceTrustSnapshot(snapshotJson({ current_join: value }))).toEqual(
-        expect.objectContaining({ currentJoin: null })
-      );
+      expect(
+        parseDeviceTrustSnapshot(snapshotJson({ current_join: value }))
+      ).toEqual(expect.objectContaining({ currentJoin: null }));
     }
   );
 
@@ -182,13 +266,15 @@ describe('device trust Engine contract', () => {
     { status: 'rejected', join_id: 'join-1', reason: 'unknown' },
     { status: 'unknown', join_id: 'join-1' },
   ])('rejects a malformed current join', (value) => {
-    expect(() => parseDeviceTrustSnapshot(snapshotJson({ current_join: value }))).toThrow(
-      'Invalid device trust snapshot'
-    );
+    expect(() =>
+      parseDeviceTrustSnapshot(snapshotJson({ current_join: value }))
+    ).toThrow('Invalid device trust snapshot');
   });
 
   it('parses a successful structured device trust query', () => {
-    expect(parseDeviceTrustQueryResult({ ok: true, value: snapshotJson() })).toEqual(
+    expect(
+      parseDeviceTrustQueryResult({ ok: true, value: snapshotJson() })
+    ).toEqual(
       expect.objectContaining({ revision: 7, localDeviceId: 'phone-1' })
     );
   });
@@ -199,7 +285,13 @@ describe('device trust Engine contract', () => {
         ok: false,
         failure: { code: 1393, category: 'invalidState', retryable: false },
       })
-    ).toThrow(expect.objectContaining({ code: 1393, category: 'invalidState', retryable: false }));
+    ).toThrow(
+      expect.objectContaining({
+        code: 1393,
+        category: 'invalidState',
+        retryable: false,
+      })
+    );
   });
 
   it('parses a complete Engine snapshot into the application contract', () => {
@@ -213,7 +305,9 @@ describe('device trust Engine contract', () => {
           changeId: 'change-1',
           proposedByDeviceId: 'desktop-1',
           allowedChoices: ['applyChange', 'keepCurrentDeviceGroup'],
-          applyImpact: expect.objectContaining({ pausedDeviceIds: ['tablet-1'] }),
+          applyImpact: expect.objectContaining({
+            pausedDeviceIds: ['tablet-1'],
+          }),
         }),
         devices: [
           expect.objectContaining({
@@ -247,7 +341,8 @@ describe('device trust Engine contract', () => {
       JSON.stringify({
         kind,
         change_id: 'change-1',
-        completed_choice: kind === 'already_completed' ? 'apply_change' : undefined,
+        completed_choice:
+          kind === 'already_completed' ? 'apply_change' : undefined,
         current_change_id: kind === 'state_changed' ? 'change-2' : undefined,
         snapshot: JSON.parse(snapshotJson()),
       })
@@ -260,7 +355,10 @@ describe('device trust Engine contract', () => {
   it('rejects an unknown decision result without exposing a partial snapshot', () => {
     expect(() =>
       parseDeviceTrustDecision(
-        JSON.stringify({ kind: 'future_result', snapshot: JSON.parse(snapshotJson()) })
+        JSON.stringify({
+          kind: 'future_result',
+          snapshot: JSON.parse(snapshotJson()),
+        })
       )
     ).toThrow('Invalid device trust decision');
   });
