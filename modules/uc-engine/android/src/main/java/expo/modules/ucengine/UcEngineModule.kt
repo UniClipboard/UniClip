@@ -551,6 +551,13 @@ class UcEngineModule : Module() {
           "sponsorIdentityFingerprint" to result.sponsorIdentityFingerprint,
           "peerUpgradeRequired" to result.peerUpgradeRequired
         )
+        is JoinSpaceStatus.NeedsAttention -> mapOf(
+          "type" to "needsAttention",
+          "joinId" to result.joinId,
+          "reason" to "outcomeCannotBeProven",
+          "recovery" to "preserveDataAndContactSupport",
+          "nextRetryAtMs" to result.nextRetryAtMs
+        )
         is JoinSpaceStatus.Rejected -> mapOf(
           "type" to "rejected",
           "joinId" to result.joinId,
@@ -561,6 +568,11 @@ class UcEngineModule : Module() {
             JoinSpaceRejectionReason.BASE_HISTORY_CHANGED -> "baseHistoryChanged"
             JoinSpaceRejectionReason.JOINER_HISTORY_AHEAD -> "joinerHistoryAhead"
             JoinSpaceRejectionReason.HISTORY_CONFLICT -> "historyConflict"
+            JoinSpaceRejectionReason.COMPLETION_INVALID -> "completionInvalid"
+            JoinSpaceRejectionReason.MEMBERSHIP_HISTORY_INVALID -> "membershipHistoryInvalid"
+            JoinSpaceRejectionReason.SECURITY_MATERIAL_INVALID -> "securityMaterialInvalid"
+            JoinSpaceRejectionReason.RELATIONSHIP_CONFLICT -> "relationshipConflict"
+            JoinSpaceRejectionReason.ACTIVATION_STATE_INVALID -> "activationStateInvalid"
             JoinSpaceRejectionReason.PEER_UPGRADE_REQUIRED -> "peerUpgradeRequired"
             JoinSpaceRejectionReason.CANCELLED -> "cancelled"
             JoinSpaceRejectionReason.REMOVED_BEFORE_ACTIVATION -> "removedBeforeActivation"

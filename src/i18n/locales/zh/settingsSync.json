@@ -47,9 +47,9 @@
       "otherDevicesOffline": "{{count}} 台其他设备暂时离线",
       "statusUnavailable": "设备状态未更新",
       "memberCount": "空间内共 {{count}} 台设备",
-      "maintenanceWaiting": "正在等待另一台设备更新成员记录。",
-      "maintenanceRetryAt": "正在等待另一台设备更新成员记录，下次尝试：{{time}}。",
-      "maintenanceAction": "成员记录需要处理，请核对下方的设备变化。",
+      "maintenanceWaiting": "正在更新空间设备状态，稍后自动重试。",
+      "maintenanceRetryAt": "正在更新空间设备状态，稍后自动重试。",
+      "maintenanceAction": "空间设备状态需要处理，请查看处理建议。",
       "status": {
         "decisionRequired": "需要核对设备变化",
         "unverifiable": "无法核验设备资料",
@@ -57,8 +57,8 @@
         "updating": "正在更新空间",
         "refreshing": "正在更新设备状态",
         "healthy": "设备可以同步",
-        "maintenanceRetrying": "已加入",
-        "maintenanceNeedsAttention": "已加入 · 需要处理",
+        "maintenanceRetrying": "正在更新空间设备状态",
+        "maintenanceNeedsAttention": "空间设备状态需要处理",
         "empty": "空间内没有设备"
       }
     },
@@ -105,7 +105,23 @@
       "finishLater": "稍后完成",
       "thisDevice": "这台设备",
       "otherDevice": "另一台设备",
-      "peerUpgradeRequired": "已加入。请升级其他设备上的 UniClip，以便继续同步。"
+      "peerUpgradeRequired": "已加入。请升级其他设备上的 UniClip，以便继续同步。",
+      "deviceUpdate": {
+        "updatingTitle": "正在更新空间设备状态",
+        "updatingBody": "已加入空间，正在完成状态更新。",
+        "retryingBody": "暂时无法完成更新，稍后自动重试。",
+        "needsAttentionTitle": "空间设备状态需要处理",
+        "completedTitle": "空间设备状态已更新",
+        "completedBody": "现在可以在这些设备之间同步。",
+        "continueInBackground": "收起，后台继续",
+        "reviewAction": "查看处理建议",
+        "reason": {
+          "deviceStateRejected": "设备状态未能通过核验，请查看设备列表。",
+          "deviceRelationshipConflict": "设备关系需要确认，请查看设备列表。",
+          "deviceSecurityUpdateRejected": "设备安全状态需要处理，请查看设备列表。",
+          "deviceUpgradeRequired": "相关设备需要更新后才能继续。"
+        }
+      }
     },
     "status": {
       "ready": "空间已就绪",
@@ -332,7 +348,8 @@
       "serviceUnavailable": "连接服务暂时不可用，请稍后重试",
       "connectionLost": "连接已中断，请重试",
       "operationFailed": "操作失败,请检查输入后重试",
-      "peerUpgradeRequired": "请先升级对方设备上的 UniClip，然后重试。"
+      "peerUpgradeRequired": "请先升级对方设备上的 UniClip，然后重试。",
+      "joinNeedsAttention": "本次加入需要处理。请保留当前资料，并导出诊断信息后联系支持。"
     },
     "manage": {
       "title": "空间操作"

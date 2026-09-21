@@ -11,12 +11,16 @@ import {
 import {
   createInitialUnifiedSpaceSnapshot,
   useUnifiedSpaceStore,
-  type UnifiedSpaceSnapshot,
 } from '@/features/space/store';
 import type { DeviceTrustSnapshot } from '@/platform/engine';
-import { createInitialUnifiedEngineSnapshot, useUnifiedEngineStore } from '@/stores/unifiedEngineStore';
+import {
+  createInitialUnifiedEngineSnapshot,
+  useUnifiedEngineStore,
+} from '@/stores/unifiedEngineStore';
 
-(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+(
+  globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true;
 
 const mockCreateSpace = jest.fn();
 const mockJoinSpace = jest.fn();
@@ -36,7 +40,8 @@ jest.mock('@/features/space', () => ({
     refreshDeviceTrust: mockRefreshDeviceTrust,
     resumeJoin: mockResumeJoin,
   }),
-  unifiedSpaceUserErrorCode: (cause: unknown) => mockUnifiedSpaceUserErrorCode(cause),
+  unifiedSpaceUserErrorCode: (cause: unknown) =>
+    mockUnifiedSpaceUserErrorCode(cause),
 }));
 
 jest.mock('expo-haptics', () => ({
@@ -63,6 +68,13 @@ const readyTrust = {
   localDeviceId: 'phone-1',
   localMembership: 'active',
   currentChange: null,
+  currentJoin: null,
+  spaceDeviceUpdate: {
+    phase: 'updating',
+    reason: null,
+    recovery: null,
+    nextRetryAtMs: null,
+  },
   devices: [],
   recovery: 'notAvailableInThisVersion',
   allowedActions: [],
@@ -146,8 +158,13 @@ describe('add sync connection flow', () => {
     await act(async () => currentFlow.actions.submitJoin());
 
     expect(mockJoinSpace).toHaveBeenCalledTimes(1);
-    expect(mockJoinSpace).toHaveBeenCalledWith('001-234', '  Laptop  ', 'secret', false);
-    expect(currentFlow.state.mode).toBe('success');
+    expect(mockJoinSpace).toHaveBeenCalledWith(
+      '001-234',
+      '  Laptop  ',
+      'secret',
+      false
+    );
+    expect(currentFlow.state.mode).toBe('joinUpdating');
 
     await act(async () => currentFlow.actions.completeConnection());
     expect(props.resetNativeFields).toHaveBeenCalledWith('Phone');
@@ -157,36 +174,72 @@ describe('add sync connection flow', () => {
   it('does not announce the invited device until Engine confirms its admission', async () => {
     createHarness('create');
     await act(async () => currentFlow.actions.submitCreate());
-    act(() => useUnifiedSpaceStore.setState({
-      devices: [{ deviceId: 'desktop-1', displayName: 'Desktop', isLocal: false, online: true }],
-    }));
+    act(() =>
+      useUnifiedSpaceStore.setState({
+        devices: [
+          {
+            deviceId: 'desktop-1',
+            displayName: 'Desktop',
+            isLocal: false,
+            online: true,
+          },
+        ],
+      })
+    );
     expect(currentFlow.state.mode).toBe('invitation');
-    act(() => useUnifiedSpaceStore.setState({
-      deviceTrustQuery: { kind: 'ready', snapshot: {
-        ...readyTrust,
-        devices: [{ deviceId: 'desktop-1', displayName: 'Desktop', isLocal: false,
-          membership: 'active', reachability: 'online', groupRelationship: 'consistent',
-          compatibility: 'compatible', syncRelationship: 'usable', pairingConfirmation: 'confirmed',
-          availableActions: [], blockedReason: null }],
-      } },
-    }));
+    act(() =>
+      useUnifiedSpaceStore.setState({
+        deviceTrustQuery: {
+          kind: 'ready',
+          snapshot: {
+            ...readyTrust,
+            devices: [
+              {
+                deviceId: 'desktop-1',
+                displayName: 'Desktop',
+                isLocal: false,
+                membership: 'active',
+                reachability: 'online',
+                groupRelationship: 'consistent',
+                compatibility: 'compatible',
+                syncRelationship: 'usable',
+                pairingConfirmation: 'confirmed',
+                availableActions: [],
+                blockedReason: null,
+              },
+            ],
+          },
+        },
+      })
+    );
     expect(currentFlow.state.mode).toBe('success');
   });
 
   it('restores a persisted join and retains its completion after showing the waiting view', async () => {
-    useUnifiedSpaceStore.setState(createInitialUnifiedSpaceSnapshot('empty'), true);
+    useUnifiedSpaceStore.setState(
+      createInitialUnifiedSpaceSnapshot('empty'),
+      true
+    );
     useUnifiedEngineStore.setState({ isStarted: true });
     let reportPending!: () => void;
     let finish!: (value: { spaceId: string }) => void;
     mockResumeJoin.mockImplementation((onPending: () => void) => {
       reportPending = onPending;
-      return new Promise((resolve) => { finish = resolve; });
+      return new Promise((resolve) => {
+        finish = resolve;
+      });
     });
     createHarness('join');
     act(() => reportPending());
-    expect(currentFlow.state).toMatchObject({ mode: 'joinDetails', pending: true });
+    expect(currentFlow.state).toMatchObject({
+      mode: 'joinDetails',
+      pending: true,
+    });
     await act(async () => finish({ spaceId: 'space-1' }));
-    expect(currentFlow.state).toMatchObject({ mode: 'success', pending: false });
+    expect(currentFlow.state).toMatchObject({
+      mode: 'joinUpdating',
+      pending: false,
+    });
     expect(mockJoinSpace).not.toHaveBeenCalled();
   });
 
@@ -223,7 +276,11 @@ describe('add sync connection flow', () => {
         resolve({ spaceId: 'space-1' });
         await submission;
       });
-      expect(currentFlow.state).toMatchObject({ pending: false, error: null, mode: 'success' });
+      expect(currentFlow.state).toMatchObject({
+        pending: false,
+        error: null,
+        mode: 'joinUpdating',
+      });
     } finally {
       jest.useRealTimers();
     }
@@ -250,7 +307,10 @@ describe('add sync connection flow', () => {
     });
     expect(mockCancelJoin).toHaveBeenCalledTimes(1);
     expect(props.onClose).not.toHaveBeenCalled();
-    expect(currentFlow.state).toMatchObject({ pending: true, cancellingJoin: true });
+    expect(currentFlow.state).toMatchObject({
+      pending: true,
+      cancellingJoin: true,
+    });
     mockUnifiedSpaceUserErrorCode.mockReturnValue('joinCancelled');
     await act(async () => {
       reject(new Error('joinCancelled'));
@@ -314,7 +374,7 @@ describe('add sync connection flow', () => {
     });
     expect(props.onClose).not.toHaveBeenCalled();
     expect(currentFlow.state).toMatchObject({
-      mode: 'success',
+      mode: 'joinUpdating',
       pending: false,
       cancellingJoin: false,
       error: null,
@@ -324,12 +384,18 @@ describe('add sync connection flow', () => {
   it('requires confirmation before preserving unreadable history and retrying', async () => {
     createHarness('join');
     const confirmationError = new Error('engine 1292');
-    mockJoinSpace.mockRejectedValueOnce(confirmationError).mockResolvedValueOnce({
-      spaceId: 'space-2',
-      preservedUnreadableRecords: 1,
-    });
-    mockUnifiedSpaceUserErrorCode.mockReturnValueOnce('unreadableHistoryRequiresConfirmation');
-    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    mockJoinSpace
+      .mockRejectedValueOnce(confirmationError)
+      .mockResolvedValueOnce({
+        spaceId: 'space-2',
+        preservedUnreadableRecords: 1,
+      });
+    mockUnifiedSpaceUserErrorCode.mockReturnValueOnce(
+      'unreadableHistoryRequiresConfirmation'
+    );
+    const alert = jest
+      .spyOn(Alert, 'alert')
+      .mockImplementation(() => undefined);
 
     act(() => currentFlow.actions.updateInvitationCode('001234'));
     act(() => currentFlow.actions.continueFromCode());
@@ -337,7 +403,13 @@ describe('add sync connection flow', () => {
 
     await act(async () => currentFlow.actions.submitJoin());
 
-    expect(mockJoinSpace).toHaveBeenNthCalledWith(1, '001-234', 'Phone', 'secret', false);
+    expect(mockJoinSpace).toHaveBeenNthCalledWith(
+      1,
+      '001-234',
+      'Phone',
+      'secret',
+      false
+    );
     expect(alert).toHaveBeenCalledWith(
       'space.unreadableHistory.title',
       'space.unreadableHistory.body',
@@ -351,8 +423,14 @@ describe('add sync connection flow', () => {
     );
     await act(async () => continueButton?.onPress?.());
 
-    expect(mockJoinSpace).toHaveBeenNthCalledWith(2, '001-234', 'Phone', 'secret', true);
-    expect(currentFlow.state.mode).toBe('success');
+    expect(mockJoinSpace).toHaveBeenNthCalledWith(
+      2,
+      '001-234',
+      'Phone',
+      'secret',
+      true
+    );
+    expect(currentFlow.state.mode).toBe('joinUpdating');
     alert.mockRestore();
   });
 
@@ -363,7 +441,9 @@ describe('add sync connection flow', () => {
       deviceTrustQuery: { kind: 'ready', snapshot: readyTrust },
     });
     createHarness('switch');
-    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const alert = jest
+      .spyOn(Alert, 'alert')
+      .mockImplementation(() => undefined);
 
     expect(currentFlow.state.mode).toBe('joinCode');
     act(() => currentFlow.actions.updateInvitationCode('001234'));
@@ -380,11 +460,18 @@ describe('add sync connection flow', () => {
     );
 
     const buttons = alert.mock.calls[0]?.[2];
-    const confirmButton = buttons?.find((button) => button.text === 'space.switch.confirmAction');
+    const confirmButton = buttons?.find(
+      (button) => button.text === 'space.switch.confirmAction'
+    );
     await act(async () => confirmButton?.onPress?.());
 
-    expect(mockJoinSpace).toHaveBeenCalledWith('001-234', 'Phone', 'secret', false);
-    expect(currentFlow.state.mode).toBe('success');
+    expect(mockJoinSpace).toHaveBeenCalledWith(
+      '001-234',
+      'Phone',
+      'secret',
+      false
+    );
+    expect(currentFlow.state.mode).toBe('joinUpdating');
     alert.mockRestore();
   });
 
@@ -395,7 +482,9 @@ describe('add sync connection flow', () => {
       deviceTrustQuery: { kind: 'ready', snapshot: readyTrust },
     });
     createHarness('switch');
-    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const alert = jest
+      .spyOn(Alert, 'alert')
+      .mockImplementation(() => undefined);
 
     act(() => currentFlow.actions.updateInvitationCode('001234'));
     act(() => currentFlow.actions.continueFromCode());
@@ -403,7 +492,9 @@ describe('add sync connection flow', () => {
     await act(async () => currentFlow.actions.submitJoin());
 
     const buttons = alert.mock.calls[0]?.[2];
-    const confirmButton = buttons?.find((button) => button.text === 'space.switch.confirmAction');
+    const confirmButton = buttons?.find(
+      (button) => button.text === 'space.switch.confirmAction'
+    );
     act(() => {
       useUnifiedSpaceStore.setState({
         deviceTrustQuery: {
@@ -428,7 +519,9 @@ describe('add sync connection flow', () => {
     createHarness('create');
     const renewedInvitation = { ...invitation, invitationCode: '987-654' };
     mockIssueInvitation.mockResolvedValueOnce(renewedInvitation);
-    const shareSpy = jest.spyOn(Share, 'share').mockResolvedValue({ action: 'sharedAction' });
+    const shareSpy = jest
+      .spyOn(Share, 'share')
+      .mockResolvedValue({ action: 'sharedAction' });
 
     act(() => currentFlow.actions.setDeviceName('Phone'));
     act(() => currentFlow.actions.setPassphrase('secret'));
@@ -464,13 +557,27 @@ describe('add sync connection flow', () => {
 
     await act(async () => {
       useUnifiedSpaceStore.setState({
-        deviceTrustQuery: { kind: 'ready', snapshot: {
-          ...readyTrust,
-          devices: [{ deviceId: 'remote', displayName: 'Laptop', isLocal: false,
-            membership: 'active', reachability: 'online', groupRelationship: 'consistent',
-            compatibility: 'compatible', syncRelationship: 'usable', pairingConfirmation: 'confirmed',
-            availableActions: [], blockedReason: null }],
-        } },
+        deviceTrustQuery: {
+          kind: 'ready',
+          snapshot: {
+            ...readyTrust,
+            devices: [
+              {
+                deviceId: 'remote',
+                displayName: 'Laptop',
+                isLocal: false,
+                membership: 'active',
+                reachability: 'online',
+                groupRelationship: 'consistent',
+                compatibility: 'compatible',
+                syncRelationship: 'usable',
+                pairingConfirmation: 'confirmed',
+                availableActions: [],
+                blockedReason: null,
+              },
+            ],
+          },
+        },
       });
       await Promise.resolve();
     });
@@ -478,6 +585,109 @@ describe('add sync connection flow', () => {
     expect(currentFlow.state.mode).toBe('success');
     expect(currentFlow.state.remoteDeviceName).toBe('Laptop');
   });
+
+  it('keeps the joined sheet on Engine update status until Engine reports completion', async () => {
+    const props = createHarness('join');
+    act(() => currentFlow.actions.updateInvitationCode('001234'));
+    act(() => currentFlow.actions.continueFromCode());
+    act(() => currentFlow.actions.setPassphrase('secret'));
+
+    await act(async () => currentFlow.actions.submitJoin());
+    expect(currentFlow.state).toMatchObject({
+      mode: 'joinUpdating',
+      deviceUpdate: { phase: 'updating' },
+    });
+
+    act(() => currentFlow.actions.close());
+    expect(props.onClose).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      useUnifiedSpaceStore.setState({
+        status: 'ready',
+        spaceId: 'space-1',
+        deviceTrustQuery: {
+          kind: 'ready',
+          snapshot: {
+            ...readyTrust,
+            currentJoin: {
+              type: 'active',
+              joinId: 'join-1',
+              peerUpgradeRequired: false,
+              joinedSpace: {
+                sponsorDeviceId: 'desktop',
+                sponsorIdentityFingerprint: 'sponsor',
+                spaceId: 'space-1',
+                selfDeviceId: 'phone-1',
+                selfIdentityFingerprint: 'self',
+                migratedRecords: 0,
+                preservedUnreadableRecords: 0,
+              },
+            },
+            spaceDeviceUpdate: {
+              phase: 'completed',
+              reason: null,
+              recovery: null,
+              nextRetryAtMs: null,
+            },
+          },
+        },
+      });
+      await Promise.resolve();
+    });
+
+    expect(currentFlow.state.mode).toBe('joinReady');
+  });
+
+  it.each([
+    ['retryableFailure', null, null],
+    ['needsAttention', 'deviceRelationshipConflict', 'reviewDevices'],
+  ] as const)(
+    'restores the Engine-owned %s update state when reopened',
+    async (phase, reason, recovery) => {
+      useUnifiedSpaceStore.setState(
+        {
+          ...createInitialUnifiedSpaceSnapshot('ready'),
+          spaceId: 'space-1',
+          deviceTrustQuery: {
+            kind: 'ready',
+            snapshot: {
+              ...readyTrust,
+              currentJoin: {
+                type: 'active',
+                joinId: 'join-1',
+                peerUpgradeRequired: false,
+                joinedSpace: {
+                  sponsorDeviceId: 'desktop',
+                  sponsorIdentityFingerprint: 'sponsor',
+                  spaceId: 'space-1',
+                  selfDeviceId: 'phone-1',
+                  selfIdentityFingerprint: 'self',
+                  migratedRecords: 0,
+                  preservedUnreadableRecords: 0,
+                },
+              },
+              spaceDeviceUpdate: {
+                phase,
+                reason,
+                recovery,
+                nextRetryAtMs: 123000,
+              },
+            },
+          },
+        },
+        true
+      );
+
+      createHarness('join');
+      await act(async () => Promise.resolve());
+
+      expect(currentFlow.state).toMatchObject({
+        mode: 'joinUpdating',
+        deviceUpdate: { phase, reason, recovery, nextRetryAtMs: 123000 },
+      });
+      expect(mockResumeJoin).not.toHaveBeenCalled();
+    }
+  );
 
   it('keeps the sheet open when the caller rejects completion', async () => {
     const props = createHarness('create');

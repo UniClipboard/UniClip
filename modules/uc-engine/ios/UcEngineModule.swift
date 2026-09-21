@@ -212,9 +212,9 @@ public final class UcEngineModule: Module {
           "type": "pending",
           "peerUpgradeRequired": peerUpgradeRequired,
           "joinId": joinId,
-          "targetSpaceId": targetSpaceId,
-          "sponsorDeviceId": sponsorDeviceId,
-          "sponsorIdentityFingerprint": sponsorIdentityFingerprint,
+          "targetSpaceId": targetSpaceId as Any,
+          "sponsorDeviceId": sponsorDeviceId as Any,
+          "sponsorIdentityFingerprint": sponsorIdentityFingerprint as Any,
           "cancelRequested": cancelRequested,
         ]
       case let .processing(joinId, targetSpaceId, sponsorDeviceId, sponsorIdentityFingerprint, peerUpgradeRequired):
@@ -226,6 +226,14 @@ public final class UcEngineModule: Module {
           "sponsorIdentityFingerprint": sponsorIdentityFingerprint,
           "peerUpgradeRequired": peerUpgradeRequired,
         ]
+      case let .needsAttention(joinId, _, _, nextRetryAtMs):
+        return [
+          "type": "needsAttention",
+          "joinId": joinId,
+          "reason": "outcomeCannotBeProven",
+          "recovery": "preserveDataAndContactSupport",
+          "nextRetryAtMs": nextRetryAtMs as Any,
+        ]
       case let .rejected(joinId, reason):
         let rejectionReason = switch reason {
         case .invitationUnavailable: "invitationUnavailable"
@@ -234,6 +242,11 @@ public final class UcEngineModule: Module {
         case .baseHistoryChanged: "baseHistoryChanged"
         case .joinerHistoryAhead: "joinerHistoryAhead"
         case .historyConflict: "historyConflict"
+        case .completionInvalid: "completionInvalid"
+        case .membershipHistoryInvalid: "membershipHistoryInvalid"
+        case .securityMaterialInvalid: "securityMaterialInvalid"
+        case .relationshipConflict: "relationshipConflict"
+        case .activationStateInvalid: "activationStateInvalid"
         case .peerUpgradeRequired: "peerUpgradeRequired"
         case .cancelled: "cancelled"
         case .removedBeforeActivation: "removedBeforeActivation"

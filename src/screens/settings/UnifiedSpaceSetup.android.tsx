@@ -48,7 +48,11 @@ import { SettingsSectionItem } from './SettingsSectionItem';
 
 type PendingOperation = 'leave' | null;
 
-const EMPTY_TITLE_STYLE = { fontSize: 22, fontWeight: '600', letterSpacing: 0 } as const;
+const EMPTY_TITLE_STYLE = {
+  fontSize: 22,
+  fontWeight: '600',
+  letterSpacing: 0,
+} as const;
 const EMPTY_BODY_STYLE = { textAlign: 'center' } as const;
 const HERO_TITLE_STYLE = { fontSize: 16, fontWeight: '600' } as const;
 const HERO_SHAPE = Shape.RoundedCorner({
@@ -68,11 +72,15 @@ const ICONS = {
 };
 
 function operationError(error: unknown, t: (key: string) => string): string {
-  if (error instanceof UnifiedSpaceInputError) return t(`space.error.${error.code}`);
+  if (error instanceof UnifiedSpaceInputError)
+    return t(`space.error.${error.code}`);
   return t('space.error.operationFailed');
 }
 
-function deviceStatusLabel(device: DeviceTrustDeviceView, t: (key: string) => string): string {
+function deviceStatusLabel(
+  device: DeviceTrustDeviceView,
+  t: (key: string) => string
+): string {
   if (device.primaryStatus !== 'usable' && device.primaryStatus !== 'unknown') {
     return t(`space.deviceTrust.status.${device.primaryStatus}`);
   }
@@ -98,7 +106,8 @@ function SpaceDeviceRow({
   const colors = useMaterialColors();
   const { theme } = useTheme();
   const online = device.isLocal || device.reachability === 'online';
-  const trustStatus = device.primaryStatus !== 'usable' && device.primaryStatus !== 'unknown';
+  const trustStatus =
+    device.primaryStatus !== 'usable' && device.primaryStatus !== 'unknown';
   const statusColor = trustStatus
     ? colors.error
     : online
@@ -118,13 +127,17 @@ function SpaceDeviceRow({
         <Row verticalAlignment="center">
           <Icon source={ICONS.status} size={8} tint={statusColor} />
           <Spacer modifiers={[widthModifier(6)]} />
-          <ComposeText color={statusColor}>{deviceStatusLabel(device, t)}</ComposeText>
+          <ComposeText color={statusColor}>
+            {deviceStatusLabel(device, t)}
+          </ComposeText>
         </Row>
       </ListItem.SupportingContent>
       {manageable ? (
         <ListItem.TrailingContent>
           {removing ? (
-            <CircularProgressIndicator modifiers={[widthModifier(24), heightModifier(24)]} />
+            <CircularProgressIndicator
+              modifiers={[widthModifier(24), heightModifier(24)]}
+            />
           ) : (
             <Icon
               source={ICONS.chevron}
@@ -139,7 +152,13 @@ function SpaceDeviceRow({
   );
 }
 
-function SkeletonBar({ fraction, barHeight }: { fraction: number; barHeight: number }) {
+function SkeletonBar({
+  fraction,
+  barHeight,
+}: {
+  fraction: number;
+  barHeight: number;
+}) {
   const colors = useMaterialColors();
   return (
     <Surface
@@ -182,16 +201,24 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
   const colors = useMaterialColors();
   const { theme } = useTheme();
   const navigation = useNavigation<any>();
-  const [setupMode, setSetupMode] = useState<AddSyncConnectionMode | null>(null);
+  const [setupMode, setSetupMode] = useState<AddSyncConnectionMode | null>(
+    null
+  );
   const [pending, setPending] = useState<PendingOperation>(null);
   const pageRefresh = useSpacePageRefresh();
-  const refreshError = pageRefresh.error ? operationError(pageRefresh.error, t) : null;
+  const refreshError = pageRefresh.error
+    ? operationError(pageRefresh.error, t)
+    : null;
   const refresh = pageRefresh.refresh;
-  const [spaceOperationError, setSpaceOperationError] = useState<string | null>(null);
+  const [spaceOperationError, setSpaceOperationError] = useState<string | null>(
+    null
+  );
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [showInvitation, setShowInvitation] = useState(false);
   const space = useUnifiedSpaceStore();
-  const deviceManagement = useSpaceDeviceManagement({ allowHighImpactActions: true });
+  const deviceManagement = useSpaceDeviceManagement({
+    allowHighImpactActions: true,
+  });
   const initialDeviceHandled = useRef<number | null>(null);
 
   useEffect(() => {
@@ -205,7 +232,12 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
       deviceManagement.closeDevice();
       return;
     }
-    if (!deviceManagement.devices.some((device) => device.deviceId === initialDeviceId)) return;
+    if (
+      !deviceManagement.devices.some(
+        (device) => device.deviceId === initialDeviceId
+      )
+    )
+      return;
     initialDeviceHandled.current = notificationNavigationRequestId;
     deviceManagement.openDevice(initialDeviceId);
   }, [
@@ -219,7 +251,10 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
   // 操作进行中拦截返回键,避免中途离开页面导致状态不一致(与 iOS handleBack 对齐)
   useEffect(() => {
     if (!pending) return;
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => true);
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => true
+    );
     return () => subscription.remove();
   }, [pending]);
 
@@ -240,25 +275,38 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
   const spaceId = space.spaceId;
   const devices = [...deviceManagement.devices].sort((left, right) => {
     const leftRank = left.isLocal ? 0 : left.reachability === 'online' ? 1 : 2;
-    const rightRank = right.isLocal ? 0 : right.reachability === 'online' ? 1 : 2;
+    const rightRank = right.isLocal
+      ? 0
+      : right.reachability === 'online'
+      ? 1
+      : 2;
     return leftRank - rightRank;
   });
   const localDevice = devices.find((device) => device.isLocal) ?? null;
   const otherDevices = devices.filter((device) => !device.isLocal);
   const otherDeviceCount = otherDevices.length;
   const localDeviceName =
-    localDevice?.displayName ?? space.deviceName ?? t('space.devices.thisDevice');
+    localDevice?.displayName ??
+    space.deviceName ??
+    t('space.devices.thisDevice');
   const overview = deviceManagement.overview;
+  const deviceUpdateInProgress =
+    space.deviceTrustQuery?.kind === 'ready' &&
+    space.deviceTrustQuery.snapshot.currentJoin?.type === 'active' &&
+    space.deviceTrustQuery.snapshot.spaceDeviceUpdate.phase !== 'completed';
   const highImpactActionsDisabled =
     !deviceManagement.highImpactActionsAvailable ||
     deviceManagement.operationInProgress ||
     deviceManagement.overview.hasPendingDecision;
   const leaveSpaceDisabled = pending !== null || deviceManagement.operationInProgress;
   const syncFailed =
-    overview.primaryStatus === 'unverifiable' || overview.primaryStatus === 'decisionRequired';
+    overview.primaryStatus === 'unverifiable' ||
+    overview.primaryStatus === 'decisionRequired';
   const isRefreshing = overview.isRefreshing;
   const overviewTitle = t(`space.overview.status.${overview.primaryStatus}`);
-  const overviewBody = refreshError ?? spaceMaintenanceMessage(overview, t) ??
+  const overviewBody =
+    refreshError ??
+    spaceMaintenanceMessage(overview, t) ??
     t('space.overview.memberCount', { count: overview.memberCount });
   const overviewColor = syncFailed
     ? colors.error
@@ -271,7 +319,9 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
     !spaceId &&
     !pending &&
     !refreshError &&
-    (pageRefresh.waiting || space.status === 'idle' || space.status === 'loading');
+    (pageRefresh.waiting ||
+      space.status === 'idle' ||
+      space.status === 'loading');
 
   const dialogs = (
     <>
@@ -285,14 +335,19 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
         }}
       />
 
-      <SpaceInvitationSheet visible={showInvitation} onClose={() => setShowInvitation(false)} />
+      <SpaceInvitationSheet
+        visible={showInvitation}
+        onClose={() => setShowInvitation(false)}
+      />
 
       <SpaceDeviceDetail
         device={deviceManagement.selectedDevice}
         canRemove={deviceManagement.canRemoveSelected}
         confirmingRemoval={deviceManagement.confirmingRemoval}
         removing={deviceManagement.removing}
-        removeErrorMessage={deviceManagement.removeError ? t('space.error.operationFailed') : null}
+        removeErrorMessage={
+          deviceManagement.removeError ? t('space.error.operationFailed') : null
+        }
         onClose={deviceManagement.closeDevice}
         onRequestRemove={deviceManagement.requestRemove}
         onCancelRemove={deviceManagement.cancelRemove}
@@ -333,14 +388,19 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
     </SettingsSectionItem>
   ) : !spaceId ? (
     <SettingsSectionItem title={t('space.title')} footer={t('space.footer')}>
-      <Column horizontalAlignment="center" modifiers={[fillMaxWidth(), padding(24, 28, 24, 28)]}>
+      <Column
+        horizontalAlignment="center"
+        modifiers={[fillMaxWidth(), padding(24, 28, 24, 28)]}
+      >
         <Surface color={colors.surfaceContainerHighest} shape={CIRCLE_SHAPE}>
           <Column modifiers={[padding(24, 24, 24, 24)]}>
             <Icon source={ICONS.space} size={48} tint={colors.primary} />
           </Column>
         </Surface>
         <Spacer modifiers={[heightModifier(16)]} />
-        <ComposeText style={EMPTY_TITLE_STYLE}>{t('space.empty.title')}</ComposeText>
+        <ComposeText style={EMPTY_TITLE_STYLE}>
+          {t('space.empty.title')}
+        </ComposeText>
         <Spacer modifiers={[heightModifier(8)]} />
         <ComposeText color={colors.onSurfaceVariant} style={EMPTY_BODY_STYLE}>
           {refreshError ?? t('space.empty.body')}
@@ -351,14 +411,24 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
           </TextButton>
         ) : null}
         <Spacer modifiers={[heightModifier(24)]} />
-        <Button onClick={() => setSetupMode('create')} modifiers={[fillMaxWidth()]}>
+        <Button
+          onClick={() => setSetupMode('create')}
+          modifiers={[fillMaxWidth()]}
+        >
           <Icon source={ICONS.space} size={18} tint={colors.onPrimary} />
           <Spacer modifiers={[widthModifier(8)]} />
           <ComposeText>{t('space.create.title')}</ComposeText>
         </Button>
         <Spacer modifiers={[heightModifier(10)]} />
-        <FilledTonalButton onClick={() => setSetupMode('join')} modifiers={[fillMaxWidth()]}>
-          <Icon source={ICONS.device} size={18} tint={colors.onSecondaryContainer} />
+        <FilledTonalButton
+          onClick={() => setSetupMode('join')}
+          modifiers={[fillMaxWidth()]}
+        >
+          <Icon
+            source={ICONS.device}
+            size={18}
+            tint={colors.onSecondaryContainer}
+          />
           <Spacer modifiers={[widthModifier(8)]} />
           <ComposeText>{t('space.join.title')}</ComposeText>
         </FilledTonalButton>
@@ -366,11 +436,15 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
     </SettingsSectionItem>
   ) : (
     <Column modifiers={[fillMaxWidth()]}>
-
       <Surface
         color={syncFailed ? colors.errorContainer : colors.surfaceContainerHigh}
         shape={HERO_SHAPE}
-        modifiers={[fillMaxWidth()]}
+        modifiers={[
+          fillMaxWidth(),
+          ...(deviceUpdateInProgress
+            ? [clickable(() => setSetupMode('join'))]
+            : []),
+        ]}
       >
         <Column modifiers={[fillMaxWidth(), padding(20, 16, 20, 20)]}>
           <Row verticalAlignment="center" modifiers={[fillMaxWidth()]}>
@@ -383,12 +457,24 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
               >
                 {overviewTitle}
               </ComposeText>
-              <ComposeText color={syncFailed ? colors.onErrorContainer : colors.onSurfaceVariant}>
+              <ComposeText
+                color={
+                  syncFailed ? colors.onErrorContainer : colors.onSurfaceVariant
+                }
+              >
                 {overviewBody}
               </ComposeText>
             </Column>
             {isRefreshing ? (
-              <CircularProgressIndicator modifiers={[widthModifier(24), heightModifier(24)]} />
+              <CircularProgressIndicator
+                modifiers={[widthModifier(24), heightModifier(24)]}
+              />
+            ) : deviceUpdateInProgress ? (
+              <Icon
+                source={ICONS.chevron}
+                size={20}
+                tint={colors.onSurfaceVariant}
+              />
             ) : null}
           </Row>
           <Spacer modifiers={[heightModifier(16)]} />
@@ -428,7 +514,9 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
       </SettingsSectionItem>
 
       <Spacer modifiers={[heightModifier(16)]} />
-      <SettingsSectionItem title={`${t('space.devices.otherTitle')} (${otherDeviceCount})`}>
+      <SettingsSectionItem
+        title={`${t('space.devices.otherTitle')} (${otherDeviceCount})`}
+      >
         {otherDevices.length ? (
           <>
             {otherDevices.map((device, index) => (
@@ -446,7 +534,11 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
         ) : (
           <ListItem>
             <ListItem.LeadingContent>
-              <Icon source={ICONS.device} size={24} tint={colors.onSurfaceVariant} />
+              <Icon
+                source={ICONS.device}
+                size={24}
+                tint={colors.onSurfaceVariant}
+              />
             </ListItem.LeadingContent>
             <ListItem.HeadlineContent>
               <ComposeText>{t('space.devices.empty')}</ComposeText>
@@ -461,12 +553,16 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
       <SettingsSectionItem
         title={t('space.manage.title')}
         footer={
-          highImpactActionsDisabled ? t('space.switch.unavailable') : t('space.switch.description')
+          highImpactActionsDisabled
+            ? t('space.switch.unavailable')
+            : t('space.switch.description')
         }
       >
         <ListItem
           modifiers={
-            highImpactActionsDisabled ? [] : [clickable(() => setSetupMode('switch'))]
+            highImpactActionsDisabled
+              ? []
+              : [clickable(() => setSetupMode('switch'))]
           }
         >
           <ListItem.LeadingContent>
@@ -476,25 +572,38 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
             <ComposeText>{t('space.switch.title')}</ComposeText>
           </ListItem.HeadlineContent>
           <ListItem.TrailingContent>
-            <Icon source={ICONS.chevron} size={20} tint={colors.onSurfaceVariant} />
+            <Icon
+              source={ICONS.chevron}
+              size={20}
+              tint={colors.onSurfaceVariant}
+            />
           </ListItem.TrailingContent>
         </ListItem>
       </SettingsSectionItem>
 
       <Spacer modifiers={[heightModifier(16)]} />
-      <SettingsSectionItem title={t('space.danger.title')} footer={t('space.leave.confirm')}>
+      <SettingsSectionItem
+        title={t('space.danger.title')}
+        footer={t('space.leave.confirm')}
+      >
         <ListItem
-          modifiers={leaveSpaceDisabled ? [] : [clickable(() => setConfirmLeave(true))]}
+          modifiers={
+            leaveSpaceDisabled ? [] : [clickable(() => setConfirmLeave(true))]
+          }
         >
           <ListItem.LeadingContent>
             <Icon source={ICONS.delete} size={24} tint={colors.error} />
           </ListItem.LeadingContent>
           <ListItem.HeadlineContent>
-            <ComposeText color={colors.error}>{t('space.leave.action')}</ComposeText>
+            <ComposeText color={colors.error}>
+              {t('space.leave.action')}
+            </ComposeText>
           </ListItem.HeadlineContent>
           <ListItem.TrailingContent>
             {pending === 'leave' ? (
-              <CircularProgressIndicator modifiers={[widthModifier(24), heightModifier(24)]} />
+              <CircularProgressIndicator
+                modifiers={[widthModifier(24), heightModifier(24)]}
+              />
             ) : null}
           </ListItem.TrailingContent>
         </ListItem>
@@ -502,7 +611,9 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
           <>
             <HorizontalDivider />
             <Column modifiers={[padding(16, 12, 16, 12)]}>
-              <ComposeText color={colors.error}>{spaceOperationError}</ComposeText>
+              <ComposeText color={colors.error}>
+                {spaceOperationError}
+              </ComposeText>
             </Column>
           </>
         ) : null}

@@ -1,6 +1,17 @@
-import type { EngineCaptureStatus, EngineDiagnosticStatus, EngineDiagnosticExportReport } from './diagnostics';
-export type { EngineCaptureStatus, EngineDiagnosticStatus, EngineDiagnosticExportReport } from './diagnostics';
-export type ConnectivityOpportunity = 'foreground' | 'system_wake' | 'network_changed';
+import type {
+  EngineCaptureStatus,
+  EngineDiagnosticStatus,
+  EngineDiagnosticExportReport,
+} from './diagnostics';
+export type {
+  EngineCaptureStatus,
+  EngineDiagnosticStatus,
+  EngineDiagnosticExportReport,
+} from './diagnostics';
+export type ConnectivityOpportunity =
+  | 'foreground'
+  | 'system_wake'
+  | 'network_changed';
 import { requireNativeModule } from 'expo-modules-core';
 
 export interface EngineConfig {
@@ -63,11 +74,19 @@ export type JoinSpaceRejectionReason =
   | 'baseHistoryChanged'
   | 'joinerHistoryAhead'
   | 'historyConflict'
+  | 'completionInvalid'
+  | 'membershipHistoryInvalid'
+  | 'securityMaterialInvalid'
+  | 'relationshipConflict'
+  | 'activationStateInvalid'
   | 'peerUpgradeRequired'
   | 'cancelled'
   | 'removedBeforeActivation';
 
 export type JoinSpaceTerminationReason = 'cancelled' | 'expired' | 'superseded';
+
+export type JoinSpaceAttentionReason = 'outcomeCannotBeProven';
+export type JoinSpaceAttentionRecovery = 'preserveDataAndContactSupport';
 
 export type JoinSpaceStatus =
   | {
@@ -92,6 +111,13 @@ export type JoinSpaceStatus =
       sponsorDeviceId: string;
       sponsorIdentityFingerprint: string;
       peerUpgradeRequired: boolean;
+    }
+  | {
+      type: 'needsAttention';
+      joinId: string;
+      reason: JoinSpaceAttentionReason;
+      recovery: JoinSpaceAttentionRecovery;
+      nextRetryAtMs: number | null;
     }
   | { type: 'rejected'; joinId: string; reason: JoinSpaceRejectionReason }
   | { type: 'terminated'; joinId: string; reason: JoinSpaceTerminationReason };
@@ -164,6 +190,20 @@ export interface WorkspaceConvergence {
   updatedAtMs: number;
   failureCategory: WorkspaceConvergenceFailureCategory | null;
 }
+
+export type SpaceDeviceUpdatePhase =
+  | 'updating'
+  | 'completed'
+  | 'retryableFailure'
+  | 'needsAttention';
+
+export type SpaceDeviceUpdateProblem =
+  | 'deviceStateRejected'
+  | 'deviceRelationshipConflict'
+  | 'deviceSecurityUpdateRejected'
+  | 'deviceUpgradeRequired';
+
+export type SpaceDeviceUpdateRecovery = 'reviewDevices' | 'updateApp';
 
 export type DeviceTrustChoice = string;
 
@@ -275,7 +315,10 @@ export type EngineEvent =
   | { type: 'changed'; kind: string };
 
 export type ClipboardRestoreMode = 'standard' | 'plainText' | 'filePaths';
-export type ClipboardRestoreOutcome = 'restored' | 'payloadUnavailable' | 'notApplicable';
+export type ClipboardRestoreOutcome =
+  | 'restored'
+  | 'payloadUnavailable'
+  | 'notApplicable';
 
 export interface AnalyticsState {
   projectKey: string;
@@ -319,8 +362,12 @@ export interface NativeDiagnosticsSnapshot {
 }
 
 interface UcEngineNativeModule {
-  startEngineDiagnosticCapture(durationMs: number): Promise<EngineCaptureStatus>;
-  stopEngineDiagnosticCapture(captureId: string): Promise<'stopped' | 'alreadyStopped' | 'differentCapture'>;
+  startEngineDiagnosticCapture(
+    durationMs: number
+  ): Promise<EngineCaptureStatus>;
+  stopEngineDiagnosticCapture(
+    captureId: string
+  ): Promise<'stopped' | 'alreadyStopped' | 'differentCapture'>;
   getEngineDiagnosticStatus(): Promise<EngineDiagnosticStatus>;
   prepareEngineDiagnosticExport(): Promise<EngineDiagnosticExportReport>;
   getNativeDiagnostics(): Promise<NativeDiagnosticsSnapshot>;
@@ -345,12 +392,18 @@ interface UcEngineNativeModule {
   shutdownUntilComplete(): Promise<void>;
   suspend(): Promise<void>;
   resume(): Promise<void>;
-  setBackgroundSyncEnabled(enabled: boolean, appIsBackground: boolean): Promise<void>;
+  setBackgroundSyncEnabled(
+    enabled: boolean,
+    appIsBackground: boolean
+  ): Promise<void>;
   getAnalyticsConsent(): Promise<boolean>;
   getAnalyticsState(): Promise<AnalyticsState>;
   setAnalyticsConsent(enabled: boolean): Promise<void>;
   resetAnalyticsIdentity(): Promise<void>;
-  createSpace(deviceName: string | null, passphrase: string): Promise<SpaceCreated>;
+  createSpace(
+    deviceName: string | null,
+    passphrase: string
+  ): Promise<SpaceCreated>;
   issueInvitation(): Promise<InvitationIssued>;
   joinSpace(
     invitationCode: string,
@@ -372,28 +425,45 @@ interface UcEngineNativeModule {
     confirmLocalRemoval: boolean
   ): Promise<string>;
   removeMember(deviceId: string): Promise<WorkspaceConvergence>;
-  resendEntry(entryId: string, targetDevices: string[]): Promise<ResendEntryOutcome>;
+  resendEntry(
+    entryId: string,
+    targetDevices: string[]
+  ): Promise<ResendEntryOutcome>;
   leaveSpace(): Promise<void>;
   sendText(text: string, targetDevices: string[]): Promise<SendReport>;
-  sendImage(bytes: Uint8Array, mimeType: string, targetDevices: string[]): Promise<SendReport>;
+  sendImage(
+    bytes: Uint8Array,
+    mimeType: string,
+    targetDevices: string[]
+  ): Promise<SendReport>;
   registerInputFile(uri: string, displayName: string | null): string;
   registerOutputFile(uri: string): string;
   releaseFileHandle(handle: string): void;
-  sendFiles(fileHandles: string[], targetDevices: string[]): Promise<SendReport>;
+  sendFiles(
+    fileHandles: string[],
+    targetDevices: string[]
+  ): Promise<SendReport>;
   captureCurrentClipboard(): Promise<string | null>;
   observeClipboardChange(dispatch: boolean): Promise<SendReport | null>;
-  restoreClipboard(entryId: string, mode: ClipboardRestoreMode): Promise<ClipboardRestoreOutcome>;
+  restoreClipboard(
+    entryId: string,
+    mode: ClipboardRestoreMode
+  ): Promise<ClipboardRestoreOutcome>;
   exportEntry(entryId: string, destinationHandle: string): Promise<void>;
 }
 
 const NativeModule = requireNativeModule<UcEngineNativeModule>('UcEngine');
 
 export type AnalyticsStateChangeReason = 'refresh' | 'reset';
-export type AnalyticsStateListener = (reason: AnalyticsStateChangeReason) => void;
+export type AnalyticsStateListener = (
+  reason: AnalyticsStateChangeReason
+) => void;
 
 const analyticsStateListeners = new Set<AnalyticsStateListener>();
 
-async function publishAnalyticsState(reason: AnalyticsStateChangeReason): Promise<void> {
+async function publishAnalyticsState(
+  reason: AnalyticsStateChangeReason
+): Promise<void> {
   try {
     await NativeModule.getAnalyticsState();
   } catch {
@@ -402,7 +472,9 @@ async function publishAnalyticsState(reason: AnalyticsStateChangeReason): Promis
   for (const listener of analyticsStateListeners) listener(reason);
 }
 
-export function subscribeAnalyticsState(listener: AnalyticsStateListener): () => void {
+export function subscribeAnalyticsState(
+  listener: AnalyticsStateListener
+): () => void {
   analyticsStateListeners.add(listener);
   return () => analyticsStateListeners.delete(listener);
 }
@@ -550,7 +622,12 @@ export function chooseDeviceGroup(
   if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
     return Promise.reject(new Error('Invalid device group revision'));
   }
-  return NativeModule.chooseDeviceGroup(issueId, choiceId, expectedRevision, confirmLocalRemoval);
+  return NativeModule.chooseDeviceGroup(
+    issueId,
+    choiceId,
+    expectedRevision,
+    confirmLocalRemoval
+  );
 }
 
 export function removeMember(deviceId: string): Promise<WorkspaceConvergence> {
@@ -569,7 +646,10 @@ export async function leaveSpace(): Promise<void> {
   await publishAnalyticsState('refresh');
 }
 
-export function sendText(text: string, targetDevices: string[] = []): Promise<SendReport> {
+export function sendText(
+  text: string,
+  targetDevices: string[] = []
+): Promise<SendReport> {
   return NativeModule.sendText(text, targetDevices);
 }
 
@@ -604,7 +684,9 @@ export function captureCurrentClipboard(): Promise<string | null> {
   return NativeModule.captureCurrentClipboard();
 }
 
-export function observeClipboardChange(dispatch: boolean): Promise<SendReport | null> {
+export function observeClipboardChange(
+  dispatch: boolean
+): Promise<SendReport | null> {
   return NativeModule.observeClipboardChange(dispatch);
 }
 
@@ -615,7 +697,10 @@ export function restoreClipboard(
   return NativeModule.restoreClipboard(entryId, mode);
 }
 
-export function exportEntry(entryId: string, destinationHandle: string): Promise<void> {
+export function exportEntry(
+  entryId: string,
+  destinationHandle: string
+): Promise<void> {
   return NativeModule.exportEntry(entryId, destinationHandle);
 }
 
@@ -631,10 +716,14 @@ export function getNativeDiagnostics(): Promise<NativeDiagnosticsSnapshot> {
   return NativeModule.getNativeDiagnostics();
 }
 
-export function startEngineDiagnosticCapture(durationMs = 600_000): Promise<EngineCaptureStatus> {
+export function startEngineDiagnosticCapture(
+  durationMs = 600_000
+): Promise<EngineCaptureStatus> {
   return NativeModule.startEngineDiagnosticCapture(durationMs);
 }
-export function stopEngineDiagnosticCapture(captureId: string): Promise<'stopped' | 'alreadyStopped' | 'differentCapture'> {
+export function stopEngineDiagnosticCapture(
+  captureId: string
+): Promise<'stopped' | 'alreadyStopped' | 'differentCapture'> {
   return NativeModule.stopEngineDiagnosticCapture(captureId);
 }
 export function getEngineDiagnosticStatus(): Promise<EngineDiagnosticStatus> {
@@ -644,6 +733,8 @@ export function prepareEngineDiagnosticExport(): Promise<EngineDiagnosticExportR
   return NativeModule.prepareEngineDiagnosticExport();
 }
 
-export function notifyConnectivityOpportunity(reason: ConnectivityOpportunity): Promise<void> {
+export function notifyConnectivityOpportunity(
+  reason: ConnectivityOpportunity
+): Promise<void> {
   return NativeModule.notifyConnectivityOpportunity(reason);
 }
