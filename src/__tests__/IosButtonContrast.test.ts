@@ -41,20 +41,21 @@ describe('iOS button contrast and sizing', () => {
   it('keeps copy and share actions equal width with single-line labels', () => {
     const sheet = source('components/AddSyncConnectionSheet.ios.tsx');
     const actions = sheet.slice(
-      sheet.indexOf('onPress={copyInvitation}'),
+      sheet.indexOf('variant="secondary"'),
       sheet.indexOf('finishLater')
     );
-    const label = sheet.slice(
-      sheet.indexOf('function InvitationActionLabel'),
-      sheet.indexOf('function ConnectionChoice')
+    const button = sheet.slice(
+      sheet.indexOf('function SheetActionButton'),
+      sheet.indexOf('type PairingSymbolMotion')
     );
 
-    expect(actions).toContain('iosSecondaryButtonModifiers()');
-    expect(actions).toContain('iosProminentButtonModifiers(');
-    expect(actions.match(/<InvitationActionLabel/g)).toHaveLength(2);
-    expect(label).toContain('frame({ maxWidth: Infinity })');
-    expect(label).toContain('lineLimit(1)');
-    expect(label).toContain('minimumScaleFactor(0.72)');
+    expect(actions).toContain("t('space.flow.copyInvitation')");
+    expect(actions).toContain("t('space.flow.shareInvitation')");
+    expect(button).toContain('iosSecondaryButtonModifiers({ fullWidth: true })');
+    expect(button).toContain('iosProminentButtonModifiers(');
+    expect(button).toContain('frame({ minHeight: 48, maxWidth: Infinity })');
+    expect(button).toContain('lineLimit(1)');
+    expect(button).toContain('minimumScaleFactor(0.72)');
   });
 
   it('makes the finish-later settings row tappable across its full width', () => {
@@ -63,10 +64,14 @@ describe('iOS button contrast and sizing', () => {
       sheet.indexOf('testID="space-finish-later"'),
       sheet.indexOf("{mode === 'success'")
     );
+    const tertiary = sheet.slice(
+      sheet.indexOf("if (variant === 'tertiary')"),
+      sheet.indexOf('const styleModifiers')
+    );
 
-    expect(finishLater).toContain('testID="space-finish-later"');
-    expect(finishLater).toContain('frame({ maxWidth: Infinity');
-    expect(finishLater).toContain('contentShape(shapes.rectangle())');
+    expect(finishLater).toContain('variant="tertiary"');
+    expect(tertiary).toContain('frame({ maxWidth: Infinity');
+    expect(tertiary).toContain('contentShape(shapes.rectangle())');
   });
 
   it('uses the same contrast rule in the shared iOS AppButton', () => {

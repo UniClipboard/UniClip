@@ -439,6 +439,107 @@ On iOS, reuse `IosSheetPage` for the header and `IosSheetScaffold` for the conte
 On Android, preserve Material 3 presentation while matching the same header/content/action
 ownership and state behavior.
 
+### iOS pairing status sheets (Liquid Glass)
+
+The pairing flow uses two distinct visual modes. Before submission, invitation-code, password,
+and device-name steps remain native forms. After the user submits the join request, the form is
+finished: every subsequent progress, failure, maintenance, and completion stage is a status-only
+sheet. Never leave password, device-name, or invitation inputs visible below a status message.
+Returning to a form requires an explicit user action such as **Enter details again**.
+
+#### Shared status anatomy
+
+All pairing progress and result screens use the same centered hierarchy:
+
+1. **Graphic**: one semantic symbol or one device-pair visualization.
+2. **Title**: a direct user-facing result or current activity, centered and prominent.
+3. **Body**: one short explanation in the secondary label color. Do not expose internal stages,
+   error codes, call chains, or implementation terminology.
+4. **Detail**: optional compact supporting information, such as the invitation code currently
+   being joined. Detail must remain visually subordinate to the title and body.
+5. **Actions**: owned by the fixed sheet footer described above, never embedded in status content.
+
+Use the `PairingStatus` structure in `AddSyncConnectionSheet.ios.tsx` as the reference. Do not
+rebuild individual states from unrelated `ProgressView` and text stacks. Do not show fake
+percentages or infer completion from timers, device counts, or local UI state.
+
+#### Semantic symbols and motion
+
+`PairingSymbol` is the default graphic for a single status. It uses an 88pt tinted circular field
+with a 40pt SF Symbol. The field is a semantic emphasis treatment, not a card or another content
+group. Use system semantic colors: neutral for cancellation, orange for attention, red for a
+terminal failure, and green for completion.
+
+Continuous motion communicates activity without adding text or numeric progress:
+
+- joining/searching: iterative variable-color signal animation;
+- cancelling/waiting: slow breathing animation;
+- device-state update: rotating synchronization symbol;
+- terminal attention or completion: static symbol.
+
+Use native `symbolEffect` only. On systems before iOS 17 the symbol remains visible without
+animation; the meaning must never depend on motion alone. Respect the system's reduced-motion
+behavior and do not add a separate custom animation fallback.
+
+#### Device relationship states
+
+Use `DevicePair` when the user needs to understand the relationship between this device and the
+other device. Each device is a 72pt rounded tile with a concise, centered name of at most two
+lines. A compact symbol between them carries the state:
+
+- waiting: animated ellipsis;
+- updating: rotating synchronization arrows;
+- connected: static green checkmark.
+
+Do not place the device pair inside an additional grouped card. The pair is the primary graphic
+of the status page. Do not use it for errors where identifying two devices adds no useful action.
+
+#### Invitation presentation
+
+An active invitation is the only pairing status that may use a dedicated content surface because
+the six-digit code is an object the user must read, copy, or share. `InvitationCodeCard` displays
+the code in 40pt bold monospaced text and places expiry and network scope in compact capsule chips
+below it. Its accessibility label reads the digits separately.
+
+When an invitation expires, hide the invalid code, expiry chip, and network chip. Replace the
+invitation surface with a dedicated attention status explaining that a new invitation is required.
+The primary action generates a new invitation; the tertiary action lets the user finish later.
+
+#### Sheet actions
+
+Pairing footers use `SheetActionButton` with three levels:
+
+- **Primary**: filled capsule, 48pt minimum height, for the next or recovery action.
+- **Secondary**: outlined or secondary capsule, 48pt minimum height, for a parallel action such as
+  copying an invitation beside sharing it.
+- **Tertiary**: plain full-width 44pt row for cancel, close, finish later, or continue in the
+  background. The full row, including trailing empty space, must be tappable.
+
+Primary and secondary variants must continue through the existing contrast-safe button helpers.
+Use `borderedProminent` with a capsule border shape rather than `glassProminent`: the app supports
+iOS 16.4, and the current `@expo/ui` fallback for `glassProminent` below iOS 26 loses the required
+button treatment. Do not imitate Liquid Glass with custom translucent button backgrounds.
+
+#### State mapping
+
+Use the following visual mapping consistently:
+
+| State | Graphic | Content rule |
+| ----- | ------- | ------------ |
+| Joining / processing / slow join | Animated `PairingSymbol` | May show the submitted invitation code as a small detail chip; never show inputs |
+| Cancelling | Breathing neutral `PairingSymbol` | Show only cancellation status and the allowed action |
+| Join failed | Static red warning `PairingSymbol` | Error message is the body; primary action returns to input, tertiary action closes |
+| Waiting for another device | Waiting `DevicePair` | Show active invitation below the status |
+| Invitation expired | Static orange `PairingSymbol` | Hide the expired code and offer regeneration |
+| Device connected | Connected `DevicePair` | Keep names concise and center the completion copy |
+| Updating space device state | Syncing `DevicePair` | Use the unified public device-state wording; do not expose internal synchronization stages |
+| Needs attention | Static orange warning `PairingSymbol` | Show a short reason and a concrete recovery action |
+| Space device state updated | Static green completion `PairingSymbol` | Show the final usable state and one completion action |
+
+These components are local to the pairing flow until another status workflow needs the complete
+same semantics. Reuse the visual grammar, but do not extract a generic abstraction based only on
+similar appearance.
+
 ### iOS-specific grid
 
 The clipboard card grid uses an adaptive column layout: each card is 160–210px wide, columns fill the available width, and the card is square (`cardSize × cardSize`).

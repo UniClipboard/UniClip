@@ -75,6 +75,8 @@
       "processing": "Pareando",
       "takingLonger": "A conexão está demorando. Ainda tentando entrar.",
       "cancelling": "Cancelando entrada",
+      "failedTitle": "Não foi possível entrar no espaço",
+      "editDetails": "Digitar novamente",
       "cancelFailed": "Não foi possível cancelar ainda. A entrada continua em andamento. Tente cancelar novamente."
     },
     "field": {
@@ -102,6 +104,8 @@
       "shareMessage": "Entre no meu espaço UniClip com o convite {{code}}.",
       "expiresIn": "Expira em {{time}}",
       "expired": "Este convite expirou",
+      "expiredBody": "Gere um novo convite para que outro dispositivo possa entrar neste espaço.",
+      "renewInvitation": "Gerar novo convite",
       "finishLater": "Concluir depois",
       "thisDevice": "Este dispositivo",
       "otherDevice": "Outro dispositivo",

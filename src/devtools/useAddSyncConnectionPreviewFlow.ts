@@ -75,6 +75,7 @@ export function createAddSyncConnectionPreviewState(
     invitationCode: '123456',
     invitation: null,
     pending: false,
+    joinSubmitted: false,
     restoredJoin: false,
     joinTakingLonger: false,
     cancellingJoin: false,
@@ -91,15 +92,15 @@ export function createAddSyncConnectionPreviewState(
 
   switch (id) {
     case 'joinPending':
-      return { ...base, pending: true };
+      return { ...base, pending: true, joinSubmitted: true };
     case 'joinProcessing':
-      return { ...base, pending: true, restoredJoin: true };
+      return { ...base, pending: true, joinSubmitted: true, restoredJoin: true };
     case 'joinTakingLonger':
-      return { ...base, pending: true, joinTakingLonger: true };
+      return { ...base, pending: true, joinSubmitted: true, joinTakingLonger: true };
     case 'joinCancelling':
-      return { ...base, pending: true, cancellingJoin: true };
+      return { ...base, pending: true, joinSubmitted: true, cancellingJoin: true };
     case 'joinFailed':
-      return { ...base, error: operationFailed };
+      return { ...base, joinSubmitted: true, error: operationFailed };
     case 'deviceUpdating':
       return { ...base, mode: 'joinUpdating' };
     case 'deviceRetrying':
@@ -168,6 +169,13 @@ export function useAddSyncConnectionPreviewFlow(
       close: onClose,
       submitCreate: async () => undefined,
       submitJoin: async () => undefined,
+      editJoinDetails: () =>
+        setState((current) => ({
+          ...current,
+          joinSubmitted: false,
+          restoredJoin: false,
+          error: null,
+        })),
       cancelJoin: async () =>
         setState((current) => ({ ...current, pending: true, cancellingJoin: true })),
       renewInvitation: async () =>

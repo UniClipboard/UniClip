@@ -75,6 +75,8 @@
       "processing": "正在配对",
       "takingLonger": "连接较慢，仍在尝试加入。",
       "cancelling": "正在取消加入",
+      "failedTitle": "无法加入空间",
+      "editDetails": "重新输入",
       "cancelFailed": "暂时无法取消，加入仍在进行。可以再次尝试取消。"
     },
     "field": {
@@ -102,6 +104,8 @@
       "shareMessage": "使用邀请码 {{code}} 加入我的 UniClip 空间。",
       "expiresIn": "{{time}} 后过期",
       "expired": "这个邀请码已过期",
+      "expiredBody": "重新生成邀请码后，另一台设备才能加入此空间。",
+      "renewInvitation": "重新生成邀请码",
       "finishLater": "稍后完成",
       "thisDevice": "这台设备",
       "otherDevice": "另一台设备",

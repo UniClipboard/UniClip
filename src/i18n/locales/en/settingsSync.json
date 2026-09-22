@@ -75,6 +75,8 @@
       "processing": "Pairing",
       "takingLonger": "The connection is taking longer. Still trying to join.",
       "cancelling": "Cancelling join",
+      "failedTitle": "Unable to join space",
+      "editDetails": "Enter details again",
       "cancelFailed": "Could not cancel yet. Joining is still in progress. You can try cancelling again."
     },
     "field": {
@@ -102,6 +104,8 @@
       "shareMessage": "Join my UniClip space with invitation {{code}}.",
       "expiresIn": "Expires in {{time}}",
       "expired": "This invitation has expired",
+      "expiredBody": "Generate a new invitation before another device can join this space.",
+      "renewInvitation": "Generate new invitation",
       "finishLater": "Finish later",
       "thisDevice": "This device",
       "otherDevice": "Other device",
