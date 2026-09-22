@@ -72,7 +72,7 @@
       "description": "Use an invitation generated on another device",
       "action": "Join",
       "pending": "Joining",
-      "processing": "Finishing pairing. Waiting for confirmation from the other device.",
+      "processing": "Pairing",
       "takingLonger": "The connection is taking longer. Still trying to join.",
       "cancelling": "Cancelling join",
       "cancelFailed": "Could not cancel yet. Joining is still in progress. You can try cancelling again."
@@ -115,6 +115,11 @@
         "completedBody": "These devices can now sync.",
         "continueInBackground": "Continue in background",
         "reviewAction": "Review next steps",
+        "attention": {
+          "blockedTitle": "Unable to join this space",
+          "reviewAction": "View device status",
+          "cancelAction": "Cancel"
+        },
         "reason": {
           "deviceStateRejected": "The device status could not be verified. Review the device list.",
           "deviceRelationshipConflict": "The device relationships need confirmation. Review the device list.",

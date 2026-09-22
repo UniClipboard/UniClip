@@ -60,7 +60,7 @@ import {
 import type { SFSymbol } from 'sf-symbols-typescript';
 import { useTranslation } from 'react-i18next';
 
-import { IosSheetForm, IosSheetPage } from '@/components/ui';
+import { IosSheetForm, IosSheetPage, IosSheetScaffold } from '@/components/ui';
 import {
   iosProminentButtonModifiers,
   iosSaturatedButtonPalette,
@@ -91,6 +91,7 @@ const CARD_BACKGROUND =
 const P2P_TINT = iosKindTints.text;
 const JOIN_TINT = iosAccentColor ?? iosAccent.light;
 const SUCCESS_TINT = iosKindTints.image;
+const ATTENTION_TINT = '#FF9500';
 
 function ConnectionSheetHost({
   embedded,
@@ -412,6 +413,25 @@ function ConnectionStatus({
   );
 }
 
+function InlineConnectionError({ message }: { message: string }) {
+  return (
+    <HStack spacing={6} modifiers={[frame({ maxWidth: Infinity })]}>
+      <Image systemName="exclamationmark.circle.fill" size={15} color="#FF3B30" />
+      <SwiftUIText modifiers={[font({ size: 13 }), foregroundStyle('red')]}>
+        {message}
+      </SwiftUIText>
+    </HStack>
+  );
+}
+
+function ConnectionErrorMessage({ message }: { message: string }) {
+  return (
+    <Section>
+      <InlineConnectionError message={message} />
+    </Section>
+  );
+}
+
 export function AddSyncConnectionSheet({
   visible,
   initialMode = 'choose',
@@ -568,63 +588,44 @@ export function AddSyncConnectionSheet({
             }
           >
             {mode === 'choose' ? (
-              <List
-                modifiers={[
-                  listStyle('plain'),
-                  scrollContentBackground('hidden'),
-                ]}
-              >
-                <Section title={t('space.title')}>
-                  <ConnectionChoice
-                    title={t('space.create.title')}
-                    description={t('space.create.description')}
-                    systemImage="plus"
-                    color={P2P_TINT}
-                    colorBackground={hexToRgba(P2P_TINT, 0.18)}
-                    emphasized
-                    emphasizedBackground={hexToRgba(P2P_TINT, 0.1)}
-                    onPress={() => selectMode('create')}
-                  />
-                  <ConnectionChoice
-                    title={t('space.join.title')}
-                    description={t('space.join.description')}
-                    systemImage="link"
-                    color={JOIN_TINT}
-                    colorBackground={
-                      iosColors?.tertiarySystemFill ?? CARD_BACKGROUND
-                    }
-                    onPress={() => selectMode('joinCode')}
-                  />
-                </Section>
-              </List>
+              <IosSheetScaffold>
+                <List
+                  modifiers={[
+                    listStyle('plain'),
+                    scrollContentBackground('hidden'),
+                    frame({ maxWidth: Infinity, maxHeight: Infinity }),
+                  ]}
+                >
+                  <Section title={t('space.title')}>
+                    <ConnectionChoice
+                      title={t('space.create.title')}
+                      description={t('space.create.description')}
+                      systemImage="plus"
+                      color={P2P_TINT}
+                      colorBackground={hexToRgba(P2P_TINT, 0.18)}
+                      emphasized
+                      emphasizedBackground={hexToRgba(P2P_TINT, 0.1)}
+                      onPress={() => selectMode('create')}
+                    />
+                    <ConnectionChoice
+                      title={t('space.join.title')}
+                      description={t('space.join.description')}
+                      systemImage="link"
+                      color={JOIN_TINT}
+                      colorBackground={
+                        iosColors?.tertiarySystemFill ?? CARD_BACKGROUND
+                      }
+                      onPress={() => selectMode('joinCode')}
+                    />
+                  </Section>
+                </List>
+              </IosSheetScaffold>
             ) : null}
 
             {mode === 'create' ? (
-              <IosSheetForm>
-                <Section
-                  footer={
-                    <SwiftUIText>{t('space.flow.createBody')}</SwiftUIText>
-                  }
-                >
-                  <TextField
-                    text={deviceNameState}
-                    placeholder={t('space.field.deviceName')}
-                    onTextChange={setDeviceName}
-                    modifiers={[
-                      textFieldStyle('plain'),
-                      textInputAutocapitalization('words'),
-                      frame({ minHeight: 30 }),
-                    ]}
-                  />
-                  <SecureField
-                    ref={passphraseRef}
-                    placeholder={t('space.field.passphrase')}
-                    onTextChange={setPassphrase}
-                    autoFocus
-                    modifiers={[frame({ minHeight: 30 })]}
-                  />
-                </Section>
-                <SwiftUIButton
+              <IosSheetScaffold
+                footer={
+                  <SwiftUIButton
                   onPress={submitCreate}
                   modifiers={[
                     ...iosProminentButtonModifiers(
@@ -636,14 +637,6 @@ export function AddSyncConnectionSheet({
                     controlSize('large'),
                     disabled(!canSubmitDetails || pending),
                     opacity(!canSubmitDetails || pending ? 0.32 : 1),
-                    listRowBackground(SHEET_BACKGROUND),
-                    listRowSeparator('hidden'),
-                    listRowInsets({
-                      top: 8,
-                      bottom: 8,
-                      leading: 16,
-                      trailing: 16,
-                    }),
                   ]}
                 >
                   <HStack
@@ -661,104 +654,196 @@ export function AddSyncConnectionSheet({
                     </SwiftUIText>
                     <Spacer />
                   </HStack>
-                </SwiftUIButton>
-              </IosSheetForm>
+                  </SwiftUIButton>
+                }
+              >
+                <IosSheetForm modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity })]}>
+                  <Section
+                    footer={
+                      <SwiftUIText>{t('space.flow.createBody')}</SwiftUIText>
+                    }
+                  >
+                    <TextField
+                      text={deviceNameState}
+                      placeholder={t('space.field.deviceName')}
+                      onTextChange={setDeviceName}
+                      modifiers={[
+                        textFieldStyle('plain'),
+                        textInputAutocapitalization('words'),
+                        frame({ minHeight: 30 }),
+                      ]}
+                    />
+                    <SecureField
+                      ref={passphraseRef}
+                      placeholder={t('space.field.passphrase')}
+                      onTextChange={setPassphrase}
+                      autoFocus
+                      modifiers={[frame({ minHeight: 30 })]}
+                    />
+                  </Section>
+                  {error ? <ConnectionErrorMessage message={error} /> : null}
+                </IosSheetForm>
+              </IosSheetScaffold>
             ) : null}
 
             {mode === 'joinCode' ? (
-              <VStack
-                spacing={18}
-                alignment="center"
-                modifiers={[
-                  padding({ horizontal: 20 }),
-                  frame({ maxWidth: Infinity }),
-                ]}
-              >
-                <VStack spacing={4} alignment="center">
-                  <SwiftUIText>{t('space.flow.joinCodeTitle')}</SwiftUIText>
-                  <SwiftUIText
+              <IosSheetScaffold
+                footer={
+                  <SwiftUIButton
+                    onPress={continueFromCode}
                     modifiers={[
-                      foregroundStyle('secondary'),
-                      multilineTextAlignment('center'),
+                      ...iosProminentButtonModifiers(undefined, {
+                        fullWidth: true,
+                      }),
+                      controlSize('large'),
+                      disabled(!codeComplete),
+                      opacity(codeComplete ? 1 : 0.28),
                     ]}
                   >
-                    {t('space.flow.joinCodeBody')}
-                  </SwiftUIText>
-                </VStack>
-                <InvitationCodeField
-                  code={invitationCode}
-                  inputRef={invitationCodeRef}
-                  label={t('space.flow.joinCodeTitle')}
-                  nativeText={invitationCodeState}
-                  onTextChange={handleInvitationCodeChange}
-                />
-                {error ? (
-                  <HStack
-                    spacing={6}
-                    modifiers={[frame({ maxWidth: Infinity })]}
-                  >
-                    <Image
-                      systemName="exclamationmark.circle.fill"
-                      size={15}
-                      color="#FF3B30"
-                    />
-                    <SwiftUIText
-                      modifiers={[font({ size: 13 }), foregroundStyle('red')]}
+                    <HStack
+                      modifiers={[frame({ minHeight: 48, maxWidth: Infinity })]}
                     >
-                      {error}
-                    </SwiftUIText>
-                  </HStack>
-                ) : null}
-                <SwiftUIButton
-                  systemImage="doc.on.clipboard"
-                  label={t('space.flow.pasteInvitation')}
-                  onPress={() => void pasteInvitation()}
-                  modifiers={[buttonStyle('plain')]}
-                />
-                <SwiftUIButton
-                  onPress={continueFromCode}
+                      <Spacer />
+                      <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>
+                        {t('space.flow.continue')}
+                      </SwiftUIText>
+                      <Spacer />
+                    </HStack>
+                  </SwiftUIButton>
+                }
+              >
+                <VStack
+                  spacing={18}
+                  alignment="center"
                   modifiers={[
-                    ...iosProminentButtonModifiers(undefined, {
-                      fullWidth: true,
-                    }),
-                    controlSize('large'),
-                    disabled(!codeComplete),
-                    opacity(codeComplete ? 1 : 0.28),
+                    padding({ horizontal: 20, top: 4 }),
+                    frame({ maxWidth: Infinity }),
                   ]}
                 >
-                  <HStack
-                    modifiers={[frame({ minHeight: 46, maxWidth: Infinity })]}
-                  >
-                    <Spacer />
-                    <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>
-                      {t('space.flow.continue')}
+                  <VStack spacing={4} alignment="center">
+                    <SwiftUIText>{t('space.flow.joinCodeTitle')}</SwiftUIText>
+                    <SwiftUIText
+                      modifiers={[
+                        foregroundStyle('secondary'),
+                        multilineTextAlignment('center'),
+                      ]}
+                    >
+                      {t('space.flow.joinCodeBody')}
                     </SwiftUIText>
-                    <Spacer />
-                  </HStack>
-                </SwiftUIButton>
-              </VStack>
+                  </VStack>
+                  <InvitationCodeField
+                    code={invitationCode}
+                    inputRef={invitationCodeRef}
+                    label={t('space.flow.joinCodeTitle')}
+                    nativeText={invitationCodeState}
+                    onTextChange={handleInvitationCodeChange}
+                  />
+                  {error ? <InlineConnectionError message={error} /> : null}
+                  <SwiftUIButton
+                    systemImage="doc.on.clipboard"
+                    label={t('space.flow.pasteInvitation')}
+                    onPress={() => void pasteInvitation()}
+                    modifiers={[buttonStyle('plain')]}
+                  />
+                </VStack>
+              </IosSheetScaffold>
             ) : null}
 
             {mode === 'joinDetails' ? (
-              <IosSheetForm>
-                {restoredJoin ? (
-                  <Section>
-                    <HStack
-                      spacing={10}
-                      modifiers={[frame({ maxWidth: Infinity })]}
-                    >
-                      <ProgressView />
-                      <SwiftUIText>
-                        {t(
-                          cancellingJoin
-                            ? 'space.join.cancelling'
-                            : 'space.join.processing'
-                        )}
-                      </SwiftUIText>
-                    </HStack>
-                  </Section>
-                ) : (
+              <IosSheetScaffold
+                contentAlignment={restoredJoin ? 'center' : 'top'}
+                footer={
                   <>
+                    {!restoredJoin ? (
+                      <SwiftUIButton
+                        onPress={submitJoin}
+                        modifiers={[
+                          ...iosProminentButtonModifiers(undefined, {
+                            fullWidth: true,
+                          }),
+                          controlSize('large'),
+                          disabled(!canSubmitDetails || pending),
+                          opacity(!canSubmitDetails || pending ? 0.32 : 1),
+                        ]}
+                      >
+                        <HStack
+                          spacing={8}
+                          modifiers={[
+                            frame({ minHeight: 48, maxWidth: Infinity }),
+                          ]}
+                        >
+                          <Spacer />
+                          {pending ? (
+                            <ProgressView />
+                          ) : (
+                            <Image systemName="link.circle.fill" size={17} />
+                          )}
+                          <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>
+                            {t(
+                              pending
+                                ? cancellingJoin
+                                  ? 'space.join.cancelling'
+                                  : 'space.join.pending'
+                                : 'space.join.action'
+                            )}
+                          </SwiftUIText>
+                          <Spacer />
+                        </HStack>
+                      </SwiftUIButton>
+                    ) : null}
+                    {pending ? (
+                      <SwiftUIButton
+                        onPress={cancelJoin}
+                        modifiers={[
+                          buttonStyle('plain'),
+                          frame({ maxWidth: Infinity }),
+                          disabled(cancellingJoin),
+                        ]}
+                      >
+                        <InvitationActionLabel
+                          systemName="xmark"
+                          title={t('action.cancel', { ns: 'common' })}
+                        />
+                      </SwiftUIButton>
+                    ) : null}
+                  </>
+                }
+              >
+                {restoredJoin ? (
+                  <VStack
+                    spacing={14}
+                    modifiers={[
+                      frame({ maxWidth: Infinity }),
+                      padding({ horizontal: 24 }),
+                    ]}
+                  >
+                    <ProgressView />
+                    <SwiftUIText
+                      modifiers={[
+                        font({ size: 20, weight: 'semibold' }),
+                        multilineTextAlignment('center'),
+                      ]}
+                    >
+                      {t(
+                        cancellingJoin
+                          ? 'space.join.cancelling'
+                          : 'space.join.processing'
+                      )}
+                    </SwiftUIText>
+                    {joinTakingLonger ? (
+                      <SwiftUIText
+                        modifiers={[
+                          foregroundStyle(iosColors?.secondaryLabel ?? 'secondary'),
+                          multilineTextAlignment('center'),
+                        ]}
+                      >
+                        {t('space.join.takingLonger')}
+                      </SwiftUIText>
+                    ) : null}
+                    {error ? <InlineConnectionError message={error} /> : null}
+                  </VStack>
+                ) : (
+                  <IosSheetForm modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity })]}>
                     <Section
                       header={
                         <SwiftUIText
@@ -807,144 +892,16 @@ export function AddSyncConnectionSheet({
                         ]}
                       />
                     </Section>
-                    <SwiftUIButton
-                      onPress={submitJoin}
-                      modifiers={[
-                        ...iosProminentButtonModifiers(undefined, {
-                          fullWidth: true,
-                        }),
-                        controlSize('large'),
-                        disabled(!canSubmitDetails || pending),
-                        opacity(!canSubmitDetails || pending ? 0.32 : 1),
-                        listRowBackground(SHEET_BACKGROUND),
-                        listRowSeparator('hidden'),
-                        listRowInsets({
-                          top: 8,
-                          bottom: 8,
-                          leading: 16,
-                          trailing: 16,
-                        }),
-                      ]}
-                    >
-                      <HStack
-                        spacing={8}
-                        modifiers={[
-                          frame({ minHeight: 48, maxWidth: Infinity }),
-                        ]}
-                      >
-                        <Spacer />
-                        {pending ? (
-                          <ProgressView />
-                        ) : (
-                          <Image systemName="link.circle.fill" size={17} />
-                        )}
-                        <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>
-                          {t(
-                            pending
-                              ? cancellingJoin
-                                ? 'space.join.cancelling'
-                                : 'space.join.pending'
-                              : 'space.join.action'
-                          )}
-                        </SwiftUIText>
-                        <Spacer />
-                      </HStack>
-                    </SwiftUIButton>
-                  </>
+                    {error ? <ConnectionErrorMessage message={error} /> : null}
+                  </IosSheetForm>
                 )}
-                {pending ? (
-                  <SwiftUIButton
-                    onPress={cancelJoin}
-                    modifiers={[
-                      ...iosSecondaryButtonModifiers({ fullWidth: true }),
-                      controlSize('large'),
-                      disabled(cancellingJoin),
-                      listRowBackground(SHEET_BACKGROUND),
-                      listRowSeparator('hidden'),
-                      listRowInsets({
-                        top: 8,
-                        bottom: 8,
-                        leading: 16,
-                        trailing: 16,
-                      }),
-                    ]}
-                  >
-                    <InvitationActionLabel
-                      systemName="xmark"
-                      title={t('action.cancel', { ns: 'common' })}
-                    />
-                  </SwiftUIButton>
-                ) : null}
-              </IosSheetForm>
+              </IosSheetScaffold>
             ) : null}
 
             {mode === 'invitation' && invitation ? (
-              <IosSheetForm>
-                <Section
-                  footer={
-                    <SwiftUIText>{t('space.flow.waitingBody')}</SwiftUIText>
-                  }
-                >
-                  <ConnectionStatus
-                    localName={deviceName}
-                    remoteName={t('space.flow.otherDevice')}
-                    complete={false}
-                  />
-                  <SwiftUIText
-                    modifiers={[
-                      foregroundStyle(P2P_TINT),
-                      frame({ maxWidth: Infinity }),
-                      multilineTextAlignment('center'),
-                    ]}
-                  >
-                    {t('space.flow.waitingForDevice')}
-                  </SwiftUIText>
-                </Section>
-                <Section>
-                  <SwiftUIText
-                    modifiers={[
-                      font({ size: 30, weight: 'bold', design: 'monospaced' }),
-                      frame({ maxWidth: Infinity }),
-                      multilineTextAlignment('center'),
-                    ]}
-                  >
-                    {invitation.invitationCode}
-                  </SwiftUIText>
-                  <HStack spacing={7}>
-                    <Image systemName="clock" size={15} />
-                    <SwiftUIText
-                      modifiers={[
-                        foregroundStyle(
-                          invitationExpired ? 'red' : 'secondary'
-                        ),
-                      ]}
-                    >
-                      {invitationExpired
-                        ? t('space.flow.expired')
-                        : t('space.flow.expiresIn', {
-                            time: invitationTimeRemaining,
-                          })}
-                    </SwiftUIText>
-                  </HStack>
-                  <HStack spacing={7}>
-                    <Image
-                      systemName={
-                        invitation.availability === 'sameLocalNetwork'
-                          ? 'wifi'
-                          : 'network'
-                      }
-                      size={15}
-                    />
-                    <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-                      {t(
-                        invitation.availability === 'sameLocalNetwork'
-                          ? 'space.invitation.sameLocalNetwork'
-                          : 'space.invitation.crossNetwork'
-                      )}
-                    </SwiftUIText>
-                  </HStack>
-                </Section>
-                <Section>
+              <IosSheetScaffold
+                footer={
+                  <>
                   {invitationExpired ? (
                     <SwiftUIButton
                       onPress={renewInvitation}
@@ -996,27 +953,126 @@ export function AddSyncConnectionSheet({
                   <SwiftUIButton
                     testID="space-finish-later"
                     onPress={() => void completeConnection()}
-                    modifiers={[buttonStyle('plain')]}
+                    modifiers={[buttonStyle('plain'), frame({ maxWidth: Infinity })]}
                   >
                     <HStack
                       modifiers={[
-                        frame({ maxWidth: Infinity }),
+                        frame({ minHeight: 44, maxWidth: Infinity }),
                         contentShape(shapes.rectangle()),
                       ]}
                     >
+                      <Spacer />
                       <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
                         {t('space.flow.finishLater')}
                       </SwiftUIText>
                       <Spacer />
                     </HStack>
                   </SwiftUIButton>
-                </Section>
-              </IosSheetForm>
+                  </>
+                }
+              >
+                <IosSheetForm modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity })]}>
+                  <Section
+                    footer={
+                      <SwiftUIText>{t('space.flow.waitingBody')}</SwiftUIText>
+                    }
+                  >
+                    <ConnectionStatus
+                      localName={deviceName}
+                      remoteName={t('space.flow.otherDevice')}
+                      complete={false}
+                    />
+                    <SwiftUIText
+                      modifiers={[
+                        foregroundStyle(P2P_TINT),
+                        frame({ maxWidth: Infinity }),
+                        multilineTextAlignment('center'),
+                      ]}
+                    >
+                      {t('space.flow.waitingForDevice')}
+                    </SwiftUIText>
+                  </Section>
+                  <Section>
+                    <SwiftUIText
+                      modifiers={[
+                        font({ size: 30, weight: 'bold', design: 'monospaced' }),
+                        frame({ maxWidth: Infinity }),
+                        multilineTextAlignment('center'),
+                      ]}
+                    >
+                      {invitation.invitationCode}
+                    </SwiftUIText>
+                    <HStack spacing={7}>
+                      <Image systemName="clock" size={15} />
+                      <SwiftUIText
+                        modifiers={[
+                          foregroundStyle(
+                            invitationExpired ? 'red' : 'secondary'
+                          ),
+                        ]}
+                      >
+                        {invitationExpired
+                          ? t('space.flow.expired')
+                          : t('space.flow.expiresIn', {
+                              time: invitationTimeRemaining,
+                            })}
+                      </SwiftUIText>
+                    </HStack>
+                    <HStack spacing={7}>
+                      <Image
+                        systemName={
+                          invitation.availability === 'sameLocalNetwork'
+                            ? 'wifi'
+                            : 'network'
+                        }
+                        size={15}
+                      />
+                      <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
+                        {t(
+                          invitation.availability === 'sameLocalNetwork'
+                            ? 'space.invitation.sameLocalNetwork'
+                            : 'space.invitation.crossNetwork'
+                        )}
+                      </SwiftUIText>
+                    </HStack>
+                  </Section>
+                  {error ? <ConnectionErrorMessage message={error} /> : null}
+                </IosSheetForm>
+              </IosSheetScaffold>
             ) : null}
 
             {mode === 'success' ? (
-              <IosSheetForm>
-                <Section>
+              <IosSheetScaffold
+                contentAlignment="center"
+                footer={
+                  <SwiftUIButton
+                    onPress={() => void completeConnection()}
+                    modifiers={[
+                      ...iosProminentButtonModifiers(
+                        iosSaturatedButtonPalette(SUCCESS_TINT),
+                        { fullWidth: true }
+                      ),
+                      controlSize('large'),
+                    ]}
+                  >
+                    <HStack
+                      modifiers={[frame({ minHeight: 48, maxWidth: Infinity })]}
+                    >
+                      <Spacer />
+                      <Image systemName="checkmark.circle.fill" size={17} />
+                      <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>
+                        {t('action.done', { ns: 'common' })}
+                      </SwiftUIText>
+                      <Spacer />
+                    </HStack>
+                  </SwiftUIButton>
+                }
+              >
+                <VStack
+                  spacing={18}
+                  alignment="center"
+                  modifiers={[padding({ horizontal: 24 }), frame({ maxWidth: Infinity })]}
+                >
                   <ConnectionStatus
                     localName={deviceName}
                     remoteName={remoteDeviceName ?? t('space.flow.otherDevice')}
@@ -1038,57 +1094,109 @@ export function AddSyncConnectionSheet({
                       )}
                     </SwiftUIText>
                   </VStack>
-                </Section>
-                <Section>
-                  <SwiftUIButton
-                    onPress={() => void completeConnection()}
-                    modifiers={[
-                      ...iosProminentButtonModifiers(
-                        iosSaturatedButtonPalette(SUCCESS_TINT),
-                        {
-                          fullWidth: true,
-                        }
-                      ),
-                      controlSize('large'),
-                    ]}
-                  >
-                    <HStack
-                      modifiers={[frame({ minHeight: 48, maxWidth: Infinity })]}
-                    >
-                      <Spacer />
-                      <Image systemName="checkmark.circle.fill" size={17} />
-                      <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>
-                        {t('action.done', { ns: 'common' })}
-                      </SwiftUIText>
-                      <Spacer />
-                    </HStack>
-                  </SwiftUIButton>
-                </Section>
-              </IosSheetForm>
+                </VStack>
+              </IosSheetScaffold>
             ) : null}
 
             {mode === 'joinUpdating' ? (
-              <IosSheetForm>
-                <Section>
+              deviceUpdate.phase === 'needsAttention' ? (
+                <IosSheetScaffold
+                  contentAlignment="center"
+                  footer={
+                    <>
+                      <SwiftUIButton
+                        onPress={close}
+                        modifiers={[
+                          ...iosProminentButtonModifiers(undefined, { fullWidth: true }),
+                          controlSize('large'),
+                        ]}
+                      >
+                        <HStack modifiers={[frame({ minHeight: 48, maxWidth: Infinity })]}>
+                          <Spacer />
+                          <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>
+                            {t('space.flow.deviceUpdate.attention.reviewAction')}
+                          </SwiftUIText>
+                          <Spacer />
+                        </HStack>
+                      </SwiftUIButton>
+                      <SwiftUIButton
+                        onPress={close}
+                        modifiers={[buttonStyle('plain'), frame({ maxWidth: Infinity })]}
+                      >
+                        <HStack modifiers={[frame({ minHeight: 44, maxWidth: Infinity })]}>
+                          <Spacer />
+                          <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
+                            {t('space.flow.deviceUpdate.attention.cancelAction')}
+                          </SwiftUIText>
+                          <Spacer />
+                        </HStack>
+                      </SwiftUIButton>
+                    </>
+                  }
+                >
+                  <VStack
+                    spacing={0}
+                    alignment="center"
+                    modifiers={[padding({ horizontal: 24 }), frame({ maxWidth: Infinity })]}
+                  >
+                    <Image
+                      systemName="exclamationmark.triangle.fill"
+                      size={34}
+                      color={ATTENTION_TINT}
+                    />
+                    <SwiftUIText
+                      modifiers={[
+                        font({ size: 22, weight: 'bold' }),
+                        multilineTextAlignment('center'),
+                        padding({ top: 12 }),
+                      ]}
+                    >
+                      {t('space.flow.deviceUpdate.attention.blockedTitle')}
+                    </SwiftUIText>
+                    <SwiftUIText
+                      modifiers={[
+                        foregroundStyle('secondary'),
+                        multilineTextAlignment('center'),
+                        padding({ top: 8 }),
+                      ]}
+                    >
+                      {t(
+                        `space.flow.deviceUpdate.reason.${
+                          deviceUpdate.reason ?? 'deviceStateRejected'
+                        }`
+                      )}
+                    </SwiftUIText>
+                  </VStack>
+                </IosSheetScaffold>
+              ) : (
+                <IosSheetScaffold
+                  contentAlignment="center"
+                  footer={
+                    <SwiftUIButton
+                      onPress={close}
+                      modifiers={[buttonStyle('plain'), frame({ maxWidth: Infinity })]}
+                    >
+                      <HStack modifiers={[frame({ minHeight: 44, maxWidth: Infinity })]}>
+                        <Spacer />
+                        <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
+                          {t('space.flow.deviceUpdate.continueInBackground')}
+                        </SwiftUIText>
+                        <Spacer />
+                      </HStack>
+                    </SwiftUIButton>
+                  }
+                >
                   <VStack
                     spacing={18}
                     alignment="center"
-                    modifiers={[frame({ maxWidth: Infinity })]}
+                    modifiers={[padding({ horizontal: 24 }), frame({ maxWidth: Infinity })]}
                   >
                     <ConnectionStatus
                       localName={deviceName}
                       remoteName={t('space.flow.otherDevice')}
                       complete
                     />
-                    {deviceUpdate.phase === 'needsAttention' ? (
-                      <Image
-                        systemName="exclamationmark.circle.fill"
-                        size={34}
-                        color="#FF3B30"
-                      />
-                    ) : (
-                      <ProgressView />
-                    )}
+                    <ProgressView />
                     <SwiftUIText
                       modifiers={[
                         font({ weight: 'semibold' }),
@@ -1096,9 +1204,7 @@ export function AddSyncConnectionSheet({
                       ]}
                     >
                       {t(
-                        deviceUpdate.phase === 'needsAttention'
-                          ? 'space.flow.deviceUpdate.needsAttentionTitle'
-                          : 'space.flow.deviceUpdate.updatingTitle'
+                        'space.flow.deviceUpdate.updatingTitle'
                       )}
                     </SwiftUIText>
                     <SwiftUIText
@@ -1110,111 +1216,59 @@ export function AddSyncConnectionSheet({
                       {t(
                         deviceUpdate.phase === 'retryableFailure'
                           ? 'space.flow.deviceUpdate.retryingBody'
-                          : deviceUpdate.phase === 'needsAttention'
-                          ? `space.flow.deviceUpdate.reason.${
-                              deviceUpdate.reason ?? 'deviceStateRejected'
-                            }`
                           : 'space.flow.deviceUpdate.updatingBody'
                       )}
                     </SwiftUIText>
                   </VStack>
-                </Section>
-                {deviceUpdate.phase === 'needsAttention' ? (
-                  <SwiftUIButton
-                    onPress={close}
-                    modifiers={[
-                      ...iosProminentButtonModifiers(),
-                      frame({ maxWidth: Infinity }),
-                      controlSize('large'),
-                      listRowBackground(SHEET_BACKGROUND),
-                      listRowSeparator('hidden'),
-                    ]}
-                  >
-                    <SwiftUIText>
-                      {t('space.flow.deviceUpdate.reviewAction')}
-                    </SwiftUIText>
-                  </SwiftUIButton>
-                ) : null}
-                <SwiftUIButton
-                  onPress={close}
-                  modifiers={[
-                    ...iosSecondaryButtonModifiers(),
-                    listRowBackground(SHEET_BACKGROUND),
-                    listRowSeparator('hidden'),
-                  ]}
-                >
-                  <SwiftUIText>
-                    {t('space.flow.deviceUpdate.continueInBackground')}
-                  </SwiftUIText>
-                </SwiftUIButton>
-              </IosSheetForm>
+                </IosSheetScaffold>
+              )
             ) : null}
 
             {mode === 'joinReady' ? (
-              <IosSheetForm>
-                <Section>
-                  <VStack
-                    spacing={16}
-                    alignment="center"
-                    modifiers={[frame({ maxWidth: Infinity })]}
+              <IosSheetScaffold
+                contentAlignment="center"
+                footer={
+                  <SwiftUIButton
+                    onPress={() => void completeConnection()}
+                    modifiers={[
+                      ...iosProminentButtonModifiers(
+                        iosSaturatedButtonPalette(SUCCESS_TINT),
+                        { fullWidth: true }
+                      ),
+                      controlSize('large'),
+                    ]}
                   >
-                    <Image
-                      systemName="checkmark.circle.fill"
-                      size={64}
-                      color={SUCCESS_TINT}
-                    />
                     <SwiftUIText
-                      modifiers={[
-                        font({ weight: 'semibold' }),
-                        multilineTextAlignment('center'),
-                      ]}
+                      modifiers={[font({ weight: 'semibold' })]}
                     >
-                      {t('space.flow.deviceUpdate.completedTitle')}
+                      {t('action.done', { ns: 'common' })}
                     </SwiftUIText>
-                    <SwiftUIText
-                      modifiers={[
-                        foregroundStyle('secondary'),
-                        multilineTextAlignment('center'),
-                      ]}
-                    >
-                      {t('space.flow.deviceUpdate.completedBody')}
-                    </SwiftUIText>
-                  </VStack>
-                </Section>
-                <SwiftUIButton
-                  onPress={() => void completeConnection()}
-                  modifiers={[
-                    ...iosProminentButtonModifiers(
-                      iosSaturatedButtonPalette(SUCCESS_TINT),
-                      { fullWidth: true }
-                    ),
-                    controlSize('large'),
-                    listRowBackground(SHEET_BACKGROUND),
-                    listRowSeparator('hidden'),
-                  ]}
+                  </SwiftUIButton>
+                }
+              >
+                <VStack
+                  spacing={16}
+                  alignment="center"
+                  modifiers={[padding({ horizontal: 24 }), frame({ maxWidth: Infinity })]}
                 >
-                  <SwiftUIText>
-                    {t('action.done', { ns: 'common' })}
+                  <Image
+                    systemName="checkmark.circle.fill"
+                    size={64}
+                    color={SUCCESS_TINT}
+                  />
+                  <SwiftUIText
+                    modifiers={[
+                      font({ weight: 'semibold' }),
+                      multilineTextAlignment('center'),
+                    ]}
+                  >
+                    {t('space.flow.deviceUpdate.completedTitle')}
                   </SwiftUIText>
-                </SwiftUIButton>
-              </IosSheetForm>
-            ) : null}
-
-            {error && mode !== 'joinCode' ? (
-              <IosSheetForm>
-                <Section>
-                  <HStack spacing={8}>
-                    <Image
-                      systemName="exclamationmark.circle.fill"
-                      size={17}
-                      color="#FF3B30"
-                    />
-                    <SwiftUIText modifiers={[foregroundStyle('red')]}>
-                      {error}
-                    </SwiftUIText>
-                  </HStack>
-                </Section>
-              </IosSheetForm>
+                  <SwiftUIText>
+                    {t('space.flow.deviceUpdate.completedBody')}
+                  </SwiftUIText>
+                </VStack>
+              </IosSheetScaffold>
             ) : null}
           </IosSheetPage>
         </Group>

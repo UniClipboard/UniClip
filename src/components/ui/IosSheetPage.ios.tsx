@@ -4,6 +4,7 @@ import {
   background,
   frame,
   listStyle,
+  padding,
   scrollContentBackground,
   tint,
   type ModifierConfig,
@@ -20,6 +21,13 @@ export interface IosSheetPageProps extends SheetHeaderProps {
 
 export interface IosSheetFormProps {
   children: React.ReactNode;
+  modifiers?: ModifierConfig[];
+}
+
+export interface IosSheetScaffoldProps {
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+  contentAlignment?: 'top' | 'center';
   modifiers?: ModifierConfig[];
 }
 
@@ -61,4 +69,42 @@ export function IosSheetPage({
 
 export function IosSheetForm({ children, modifiers = [] }: IosSheetFormProps) {
   return <Form modifiers={[...sheetFormBaseModifiers, ...modifiers]}>{children}</Form>;
+}
+
+export function IosSheetScaffold({
+  children,
+  footer,
+  contentAlignment = 'top',
+  modifiers = [],
+}: IosSheetScaffoldProps) {
+  return (
+    <VStack
+      spacing={0}
+      modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity }), ...modifiers]}
+    >
+      <VStack
+        spacing={0}
+        modifiers={[
+          frame({
+            maxWidth: Infinity,
+            maxHeight: Infinity,
+            alignment: contentAlignment,
+          }),
+        ]}
+      >
+        {children}
+      </VStack>
+      {footer ? (
+        <VStack
+          spacing={4}
+          modifiers={[
+            frame({ maxWidth: Infinity }),
+            padding({ horizontal: 20, top: 10, bottom: 16 }),
+          ]}
+        >
+          {footer}
+        </VStack>
+      ) : null}
+    </VStack>
+  );
 }

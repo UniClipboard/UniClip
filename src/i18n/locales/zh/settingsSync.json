@@ -72,7 +72,7 @@
       "description": "使用另一台设备生成的邀请码加入",
       "action": "加入",
       "pending": "正在加入",
-      "processing": "正在完成配对，等待另一台设备确认。",
+      "processing": "正在配对",
       "takingLonger": "连接较慢，仍在尝试加入。",
       "cancelling": "正在取消加入",
       "cancelFailed": "暂时无法取消，加入仍在进行。可以再次尝试取消。"
@@ -115,6 +115,11 @@
         "completedBody": "现在可以在这些设备之间同步。",
         "continueInBackground": "收起，后台继续",
         "reviewAction": "查看处理建议",
+        "attention": {
+          "blockedTitle": "无法加入此空间",
+          "reviewAction": "查看设备状态",
+          "cancelAction": "取消"
+        },
         "reason": {
           "deviceStateRejected": "设备状态未能通过核验，请查看设备列表。",
           "deviceRelationshipConflict": "设备关系需要确认，请查看设备列表。",
