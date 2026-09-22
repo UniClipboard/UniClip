@@ -78,7 +78,7 @@ describe('unified sync connection flows', () => {
     expect(ios).toContain("t('connection.addSheetTitle')");
     expect(ios).toContain('HeaderCircleButton');
     expect(ios).toContain("presentationDetents(['medium', 'large']");
-    expect(ios).toContain('disabled(!canSubmitDetails || pending)');
+    expect(ios).toContain('isDisabled={!canSubmitDetails || pending}');
     expect(ios).toContain('iosDimensions.surfaceCornerRadius');
   });
 
@@ -108,7 +108,9 @@ describe('unified sync connection flows', () => {
     }
 
     expect(android).toContain('space.flow.joinCodeTitle');
-    expect(android).not.toContain('space.flow.joinCodeSheetTitle');
+    expect(android).toMatch(
+      /mode === 'joinUpdating' \|\| mode === 'joinReady'[\s\S]*space\.flow\.joinCodeSheetTitle/
+    );
     expect(ios).toContain('space.flow.joinCodeSheetTitle');
   });
 
@@ -146,7 +148,9 @@ describe('unified sync connection flows', () => {
     expect(ios).toContain('function ConnectionErrorMessage');
     expect(joinCodeStep).not.toContain('padding({ top:');
     expect(joinCodeStep).not.toContain("font({ size: 19, weight: 'semibold' })");
-    expect(ios).toContain("const canGoBack = mode === 'joinDetails';");
+    expect(ios).toContain(
+      "const canGoBack = mode === 'joinDetails' && !showsJoinStatus;"
+    );
   });
 
   it('supports copy, share, expiry, and network scope while the creator waits', () => {
@@ -164,6 +168,96 @@ describe('unified sync connection flows', () => {
     expect(flow).toContain('Clipboard.setStringAsync');
     expect(flow).toContain('Share.share');
     expect(flow).toContain('invitation.expiresAtMs');
+  });
+
+  it('keeps Android invitation states on one continuous sheet surface', () => {
+    const android = source('components/AddSyncConnectionSheet.android.tsx');
+    const invitationStart = android.indexOf("{mode === 'invitation' && invitation ? (");
+    const successStart = android.indexOf("{mode === 'success' ? (", invitationStart);
+    const invitationStep = android.slice(invitationStart, successStart);
+
+    // Stages wrap their content; a fixed height fraction pushed actions below the fold.
+    expect(android).not.toContain('fillMaxHeight(');
+    expect(android).not.toContain('partialExpand(');
+    expect(invitationStep).toContain("'space.flow.waitingForDevice'");
+    expect(invitationStep).toContain("'space.flow.expiredBody'");
+    expect(invitationStep).toContain("t('space.flow.renewInvitation')");
+    expect(invitationStep).toContain('<InvitationCodeCard');
+    // The waiting stage stays minimal: status line, code card, network hint, share, finish later.
+    expect(invitationStep).not.toContain('<DevicePair');
+    expect(invitationStep).not.toContain('<MetaChip');
+    expect(invitationStep).not.toContain('space.flow.waitingBody');
+    expect(android).toContain('modifiers={[fillMaxWidth(), clickable(onCopy)]}');
+    expect(invitationStep).not.toContain('DEVICE_NAME_STYLE');
+  });
+
+  it('renders every Android pairing status through the shared M3 Expressive status layout', () => {
+    const android = source('components/AddSyncConnectionSheet.android.tsx');
+    const statusStart = android.indexOf("{mode === 'joinDetails' ? (");
+    const statusSteps = android.slice(statusStart);
+
+    expect(android).toContain('function PairingStatus');
+    expect(android).toContain('function IconBadge');
+    expect(android).toContain('function DevicePair');
+    expect(android).toContain('function ConnectionChoiceRow');
+    expect(android).toContain('const PILL_SHAPE = Shape.Pill(');
+    expect(android).toContain('LoadingIndicator');
+    expect(statusSteps.match(/<PairingStatus/g)?.length).toBeGreaterThanOrEqual(3);
+    expect(statusSteps).not.toContain('<CircularProgressIndicator');
+    expect(android).toContain('function InvitationCodeCard');
+    expect(android).toContain('function InlineConnectionError');
+    expect(android).toContain('const HERO_BADGE_SHAPE = Shapes.Material.Cookie9Sided;');
+    expect(android).toContain('<ContainedLoadingIndicator');
+    expect(android).toContain('<LinearWavyProgressIndicator');
+    expect(android).toContain('position="first"');
+    expect(android).toContain('position="last"');
+  });
+
+  it('keeps the Android connected state compact with its action directly below', () => {
+    const android = source('components/AddSyncConnectionSheet.android.tsx');
+    const successStart = android.indexOf("{mode === 'success' ? (");
+    const updateStart = android.indexOf("{mode === 'joinUpdating' ? (", successStart);
+    const successStep = android.slice(successStart, updateStart);
+
+    expect(android).toContain('sheetRef.current?.expand()');
+    expect(successStep).toContain('CONNECTED_DEVICE_STYLE');
+    expect(successStep).toContain('maxLines={2}');
+    expect(successStep).not.toContain('weight(1)');
+    expect(successStep).not.toContain('<Surface');
+  });
+
+  it('renders every iOS pairing status through one shared status layout', () => {
+    const ios = source('components/AddSyncConnectionSheet.ios.tsx');
+    const statusStart = ios.indexOf("{mode === 'joinDetails' ? (");
+    const statusSteps = ios.slice(statusStart);
+
+    expect(ios).toContain('function PairingStatus');
+    expect(ios).toContain('function PairingSymbol');
+    expect(ios).toContain('function DevicePair');
+    expect(ios).toContain('function SheetActionButton');
+    expect(ios).toContain("buttonBorderShape('capsule')");
+    expect(ios).toContain("repeat: 'continuous'");
+    expect(statusSteps.match(/<PairingStatus/g)?.length).toBeGreaterThanOrEqual(6);
+    expect(statusSteps).not.toContain('<ProgressView');
+    expect(statusSteps).toContain("'space.flow.expiredBody'");
+    expect(statusSteps).toContain("t('space.flow.renewInvitation')");
+    expect(statusSteps).toContain('<InvitationCodeCard');
+  });
+
+  it('switches both platforms from join inputs to status-only UX after submission', () => {
+    const flow = source('components/useAddSyncConnectionFlow.ts');
+    const preview = source('devtools/useAddSyncConnectionPreviewFlow.ts');
+    const android = source('components/AddSyncConnectionSheet.android.tsx');
+    const ios = source('components/AddSyncConnectionSheet.ios.tsx');
+
+    expect(flow).toContain('setJoinSubmitted(true)');
+    expect(flow).toContain('const editJoinDetails = () =>');
+    expect(preview).toContain('joinSubmitted: true');
+    for (const platform of [android, ios]) {
+      expect(platform).toContain('showsJoinStatus');
+      expect(platform).toContain('space.join.failedTitle');
+      expect(platform).toContain('space.join.editDetails');
+    }
   });
 
   it('uses the unified add sheet instead of duplicate setup forms in settings', () => {

@@ -321,7 +321,7 @@ describe('add sync connection flow', () => {
   });
 
   it.each(['joinExpired', 'joinSuperseded'] as const)(
-    'shows the %s terminal result and leaves the join form available',
+    'shows the %s terminal result until the user chooses to re-enter details',
     async (code) => {
       createHarness('join');
       act(() => currentFlow.actions.updateInvitationCode('001234'));
@@ -335,7 +335,17 @@ describe('add sync connection flow', () => {
       expect(currentFlow.state).toMatchObject({
         mode: 'joinDetails',
         pending: false,
+        joinSubmitted: true,
         error: `space.error.${code}`,
+      });
+
+      act(() => currentFlow.actions.editJoinDetails());
+      expect(currentFlow.state).toMatchObject({
+        mode: 'joinDetails',
+        pending: false,
+        joinSubmitted: false,
+        passphrase: '',
+        error: null,
       });
     }
   );

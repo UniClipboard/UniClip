@@ -1,13 +1,16 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import * as Device from 'expo-device';
 import {
+  AssistChip,
+  Box,
   Button,
-  CircularProgressIndicator,
   Column,
   Host,
   Icon,
+  ContainedLoadingIndicator,
+  LinearWavyProgressIndicator,
+  LoadingIndicator,
   ModalBottomSheet,
-  OutlinedButton,
   OutlinedTextField,
   Row,
   Shape,
@@ -21,10 +24,15 @@ import {
   useNativeState,
 } from '@expo/ui/jetpack-compose';
 import {
+  background,
+  clickable,
+  clip,
+  Shapes,
   fillMaxWidth,
   height as heightModifier,
-  padding,
   paddingAll,
+  padding,
+  size,
   verticalScroll,
   weight,
   width as widthModifier,
@@ -50,9 +58,18 @@ const ICONS = {
   clock: require('../assets/icons/clock.xml'),
   wifi: require('../assets/icons/wifi.xml'),
   public: require('../assets/icons/public.xml'),
+  close: require('../assets/icons/close.xml'),
+  chevron: require('../assets/icons/chevron_right.xml'),
+  retry: require('../assets/icons/restart_alt.xml'),
 };
 
 const TITLE_STYLE = { typography: 'titleLarge' } as const;
+const OPTION_TITLE_STYLE = { typography: 'titleMedium' } as const;
+const STATUS_TITLE_STYLE = {
+  typography: 'headlineSmall',
+  fontWeight: '600',
+  textAlign: 'center',
+} as const;
 const CODE_REVIEW_STYLE = { typography: 'headlineMedium' } as const;
 const INVITATION_STYLE = {
   typography: 'displaySmall',
@@ -68,11 +85,269 @@ const CODE_INPUT_STYLE = {
   fontWeight: '600',
   letterSpacing: 0,
 } as const;
-const DEVICE_NAME_STYLE = { fontSize: 12, textAlign: 'center' } as const;
 const WAITING_STYLE = { textAlign: 'center' } as const;
-const CARD_SHAPE = Shape.RoundedCorner({
-  cornerRadii: { topStart: 24, topEnd: 24, bottomStart: 24, bottomEnd: 24 },
-});
+const CONNECTED_DEVICE_STYLE = {
+  typography: 'headlineSmall',
+  textAlign: 'center',
+} as const;
+
+const PILL_SHAPE = Shape.Pill({});
+// M3 Expressive connected list: large outer corners, tight inner corners between grouped rows.
+const CHOICE_ROW_OUTER_RADIUS = 24;
+const CHOICE_ROW_INNER_RADIUS = 6;
+const CHOICE_ROW_SHAPES = {
+  first: Shape.RoundedCorner({
+    cornerRadii: {
+      topStart: CHOICE_ROW_OUTER_RADIUS,
+      topEnd: CHOICE_ROW_OUTER_RADIUS,
+      bottomStart: CHOICE_ROW_INNER_RADIUS,
+      bottomEnd: CHOICE_ROW_INNER_RADIUS,
+    },
+  }),
+  last: Shape.RoundedCorner({
+    cornerRadii: {
+      topStart: CHOICE_ROW_INNER_RADIUS,
+      topEnd: CHOICE_ROW_INNER_RADIUS,
+      bottomStart: CHOICE_ROW_OUTER_RADIUS,
+      bottomEnd: CHOICE_ROW_OUTER_RADIUS,
+    },
+  }),
+} as const;
+// Expressive "cookie" shape for hero status glyphs, contrasting with circular device badges.
+const HERO_BADGE_SHAPE = Shapes.Material.Cookie9Sided;
+const HERO_BADGE_SIZE = 88;
+const INVITATION_CARD_SHAPE = Shape.RoundedCorner({ cornerRadii: { topStart: 24, topEnd: 24, bottomStart: 24, bottomEnd: 24 } });
+
+/** Tonal circular container for a leading or status icon, the M3 Expressive "large icon" pattern. */
+function IconBadge({
+  icon,
+  size: badgeSize = 56,
+  iconSize = 26,
+  tint,
+  tintContainer,
+  hero = false,
+}: {
+  icon: number;
+  size?: number;
+  iconSize?: number;
+  tint: string;
+  tintContainer: string;
+  hero?: boolean;
+}) {
+  return (
+    <Box
+      contentAlignment="center"
+      modifiers={[
+        size(badgeSize, badgeSize),
+        clip(hero ? HERO_BADGE_SHAPE : Shapes.Circle),
+        background(tintContainer),
+      ]}
+    >
+      <Icon source={icon} size={iconSize} tint={tint} />
+    </Box>
+  );
+}
+
+/** A full-width, full-row tappable option for the create/join choice step. */
+function ConnectionChoiceRow({
+  title,
+  description,
+  icon,
+  tint,
+  tintContainer,
+  position,
+  onClick,
+}: {
+  position: keyof typeof CHOICE_ROW_SHAPES;
+  title: string;
+  description: string;
+  icon: number;
+  tint: string;
+  tintContainer: string;
+  onClick: () => void;
+}) {
+  const colors = useMaterialColors();
+
+  return (
+    <Surface
+      color={colors.surfaceContainer}
+      shape={CHOICE_ROW_SHAPES[position]}
+      modifiers={[fillMaxWidth(), clickable(onClick)]}
+    >
+      <Row verticalAlignment="center" modifiers={[paddingAll(16), fillMaxWidth()]}>
+        <IconBadge icon={icon} tint={tint} tintContainer={tintContainer} />
+        <Spacer modifiers={[widthModifier(14)]} />
+        <Column modifiers={[weight(1)]}>
+          <ComposeText style={OPTION_TITLE_STYLE}>{title}</ComposeText>
+          <ComposeText color={colors.onSurfaceVariant}>{description}</ComposeText>
+        </Column>
+        <Icon source={ICONS.chevron} size={22} tint={colors.onSurfaceVariant} />
+      </Row>
+    </Surface>
+  );
+}
+
+/** Centered status layout shared by every pairing progress and result state. */
+function PairingStatus({
+  graphic,
+  title,
+  body,
+  detail,
+}: {
+  graphic: ReactNode;
+  title: string;
+  body?: string | null;
+  detail?: ReactNode;
+}) {
+  const colors = useMaterialColors();
+
+  return (
+    <Column horizontalAlignment="center" modifiers={[fillMaxWidth()]}>
+      {graphic}
+      <Spacer modifiers={[heightModifier(20)]} />
+      <ComposeText style={STATUS_TITLE_STYLE}>{title}</ComposeText>
+      {body ? (
+        <>
+          <Spacer modifiers={[heightModifier(8)]} />
+          <ComposeText color={colors.onSurfaceVariant} style={WAITING_STYLE}>
+            {body}
+          </ComposeText>
+        </>
+      ) : null}
+      {detail ? (
+        <>
+          <Spacer modifiers={[heightModifier(20)]} />
+          {detail}
+        </>
+      ) : null}
+    </Column>
+  );
+}
+
+/** This device and the remote device, joined by an icon reflecting the live pairing state. */
+function DevicePair({
+  localName,
+  remoteName,
+  state,
+}: {
+  localName: string;
+  remoteName: string;
+  state: 'waiting' | 'syncing' | 'connected';
+}) {
+  const colors = useMaterialColors();
+  const linked = state !== 'waiting';
+  const connectorTint = linked ? colors.primary : colors.onSurfaceVariant;
+  const connectorContainer = linked ? colors.primaryContainer : colors.surfaceContainerHighest;
+
+  return (
+    <Row verticalAlignment="center" modifiers={[fillMaxWidth()]}>
+      <Column horizontalAlignment="center" modifiers={[weight(1)]}>
+        <IconBadge icon={ICONS.device} tint={colors.onSurfaceVariant} tintContainer={colors.surfaceContainerHighest} />
+        <Spacer modifiers={[heightModifier(6)]} />
+        <ComposeText color={colors.onSurfaceVariant} maxLines={1}>
+          {localName}
+        </ComposeText>
+      </Column>
+      {state === 'connected' ? (
+        <IconBadge
+          icon={ICONS.ready}
+          size={40}
+          iconSize={20}
+          tint={connectorTint}
+          tintContainer={connectorContainer}
+        />
+      ) : (
+        // Indeterminate wavy track: the M3 Expressive signal that the link is live but unfinished.
+        <LinearWavyProgressIndicator
+          color={connectorTint}
+          trackColor={colors.surfaceContainerHighest}
+          modifiers={[widthModifier(56)]}
+        />
+      )}
+      <Column horizontalAlignment="center" modifiers={[weight(1)]}>
+        <IconBadge icon={ICONS.device} tint={connectorTint} tintContainer={connectorContainer} />
+        <Spacer modifiers={[heightModifier(6)]} />
+        <ComposeText color={colors.onSurfaceVariant} maxLines={1}>
+          {remoteName}
+        </ComposeText>
+      </Column>
+    </Row>
+  );
+}
+
+/** Assist chip used for supplementary metadata such as the invitation code being joined. */
+function MetaChip({ icon, label }: { icon: number; label: string }) {
+  const colors = useMaterialColors();
+  return (
+    <AssistChip>
+      <AssistChip.LeadingIcon>
+        <Icon source={icon} size={16} tint={colors.onSurfaceVariant} />
+      </AssistChip.LeadingIcon>
+      <AssistChip.Label>
+        <ComposeText>{label}</ComposeText>
+      </AssistChip.Label>
+    </AssistChip>
+  );
+}
+
+/** The invitation code as the hero of the waiting stage; the whole card copies the code. */
+function InvitationCodeCard({
+  code,
+  expiresLabel,
+  copyLabel,
+  copied,
+  onCopy,
+}: {
+  code: string;
+  expiresLabel: string;
+  copyLabel: string;
+  copied: boolean;
+  onCopy: () => void;
+}) {
+  const colors = useMaterialColors();
+
+  return (
+    <Surface
+      color={colors.surfaceContainerHigh}
+      shape={INVITATION_CARD_SHAPE}
+      modifiers={[fillMaxWidth(), clickable(onCopy)]}
+    >
+      <Column horizontalAlignment="center" modifiers={[paddingAll(20), fillMaxWidth()]}>
+        <ComposeText style={INVITATION_STYLE}>{code}</ComposeText>
+        <Spacer modifiers={[heightModifier(10)]} />
+        <Row verticalAlignment="center">
+          <Icon source={ICONS.clock} size={16} tint={colors.onSurfaceVariant} />
+          <Spacer modifiers={[widthModifier(4)]} />
+          <ComposeText color={colors.onSurfaceVariant}>{expiresLabel}</ComposeText>
+          <Spacer modifiers={[widthModifier(16)]} />
+          <Icon
+            source={copied ? ICONS.ready : ICONS.copy}
+            size={16}
+            tint={colors.primary}
+          />
+          <Spacer modifiers={[widthModifier(4)]} />
+          <ComposeText color={colors.primary}>{copyLabel}</ComposeText>
+        </Row>
+      </Column>
+    </Surface>
+  );
+}
+
+function InlineConnectionError({ message }: { message: string }) {
+  const colors = useMaterialColors();
+
+  return (
+    <Surface color={colors.errorContainer} shape={PILL_SHAPE} modifiers={[fillMaxWidth()]}>
+      <Row verticalAlignment="center" modifiers={[padding(14, 10, 14, 10), fillMaxWidth()]}>
+        <Icon source={ICONS.close} size={18} tint={colors.onErrorContainer} />
+        <Spacer modifiers={[widthModifier(8)]} />
+        <ComposeText color={colors.onErrorContainer} modifiers={[weight(1)]}>
+          {message}
+        </ComposeText>
+      </Row>
+    </Surface>
+  );
+}
 
 function AddSyncConnectionSheetContent({
   visible,
@@ -114,10 +389,10 @@ function AddSyncConnectionSheetContent({
   const { state, actions } = previewScenario ? previewFlow : liveFlow;
   const {
     mode,
-    deviceName,
     invitationCode,
     invitation,
     pending,
+    joinSubmitted,
     restoredJoin,
     joinTakingLonger,
     cancellingJoin,
@@ -141,43 +416,63 @@ function AddSyncConnectionSheetContent({
     close,
     submitCreate,
     submitJoin,
+    editJoinDetails,
     cancelJoin,
     renewInvitation,
     copyInvitation,
     shareInvitation,
     completeConnection,
   } = actions;
+  const showsJoinStatus =
+    mode === 'joinDetails' && (joinSubmitted || restoredJoin || pending);
   const title =
     mode === 'create'
       ? t('space.create.title')
       : mode === 'joinCode'
       ? t('space.flow.joinCodeTitle')
       : mode === 'joinDetails'
-      ? t('space.flow.joinDetailsTitle')
+      ? t(
+          showsJoinStatus
+            ? 'space.flow.joinCodeSheetTitle'
+            : 'space.flow.joinDetailsTitle'
+        )
       : mode === 'invitation'
       ? t('space.flow.waitingTitle')
       : mode === 'joinUpdating' || mode === 'joinReady'
-      ? t('space.flow.joinCodeTitle')
+      ? t('space.flow.joinCodeSheetTitle')
       : mode === 'success'
       ? t('space.flow.successTitle')
       : t('connection.addSheetTitle');
 
   const sheetRef = useRef<ModalBottomSheetRef>(null);
 
+  const stage = showsJoinStatus ? 'joinStatus' : mode;
+  const previousStage = useRef(stage);
+
   useEffect(() => {
-    if (!visible) return;
-    if (mode === 'invitation') {
-      void sheetRef.current?.expand();
-    } else if (mode === 'success') {
-      void sheetRef.current?.partialExpand();
-    }
-  }, [mode, visible]);
+    const changed = previousStage.current !== stage;
+    previousStage.current = stage;
+    // Content height changes between stages, so re-fit the wrap-content sheet to the new stage.
+    // Skip the first mount: the native sheet view is not registered yet and the command rejects.
+    if (!visible || !changed) return;
+    sheetRef.current?.expand().catch(() => {
+      // The sheet was dismissed while the stage changed; there is nothing left to resize.
+    });
+  }, [stage, visible]);
 
   if (!visible) return null;
 
   return (
     <ModalBottomSheet ref={sheetRef} onDismissRequest={close}>
-      <Column modifiers={[paddingAll(24), fillMaxWidth(), verticalScroll()]}>
+      <Column
+        modifiers={[
+          paddingAll(24),
+          fillMaxWidth(),
+          // Every stage wraps its content so actions sit right under it; scroll only when a
+          // stage is taller than the screen allows.
+          verticalScroll(),
+        ]}
+      >
         <ComposeText style={TITLE_STYLE}>{title}</ComposeText>
         <Spacer modifiers={[heightModifier(8)]} />
 
@@ -186,24 +481,26 @@ function AddSyncConnectionSheetContent({
             <ComposeText color={colors.onSurfaceVariant}>
               {t('connection.p2pDescription')}
             </ComposeText>
-            <Spacer modifiers={[heightModifier(20)]} />
-            <Button
+            <Spacer modifiers={[heightModifier(16)]} />
+            <ConnectionChoiceRow
+              title={t('space.create.title')}
+              description={t('space.create.description')}
+              icon={ICONS.space}
+              tint={colors.onPrimaryContainer}
+              tintContainer={colors.primaryContainer}
+              position="first"
               onClick={() => selectMode('create')}
-              modifiers={[fillMaxWidth()]}
-            >
-              <Icon source={ICONS.space} size={20} tint={colors.onPrimary} />
-              <Spacer modifiers={[widthModifier(8)]} />
-              <ComposeText>{t('space.create.title')}</ComposeText>
-            </Button>
-            <Spacer modifiers={[heightModifier(12)]} />
-            <OutlinedButton
+            />
+            <Spacer modifiers={[heightModifier(2)]} />
+            <ConnectionChoiceRow
+              title={t('space.join.title')}
+              description={t('space.join.description')}
+              icon={ICONS.device}
+              tint={colors.onSecondaryContainer}
+              tintContainer={colors.secondaryContainer}
+              position="last"
               onClick={() => selectMode('joinCode')}
-              modifiers={[fillMaxWidth()]}
-            >
-              <Icon source={ICONS.device} size={20} tint={colors.primary} />
-              <Spacer modifiers={[widthModifier(8)]} />
-              <ComposeText>{t('space.join.title')}</ComposeText>
-            </OutlinedButton>
+            />
           </Column>
         ) : null}
 
@@ -245,10 +542,12 @@ function AddSyncConnectionSheetContent({
             <Button
               onClick={submitCreate}
               enabled={canSubmitDetails && !pending}
+              shape={PILL_SHAPE}
               modifiers={[fillMaxWidth()]}
             >
               {pending ? (
-                <CircularProgressIndicator
+                <LoadingIndicator
+                  color={colors.onPrimary}
                   modifiers={[widthModifier(20), heightModifier(20)]}
                 />
               ) : (
@@ -258,6 +557,7 @@ function AddSyncConnectionSheetContent({
             <TextButton
               onClick={back}
               enabled={!pending}
+              shape={PILL_SHAPE}
               modifiers={[fillMaxWidth()]}
             >
               <ComposeText>{t('action.back', { ns: 'common' })}</ComposeText>
@@ -297,31 +597,82 @@ function AddSyncConnectionSheetContent({
             <Button
               onClick={continueFromCode}
               enabled={codeComplete}
+              shape={PILL_SHAPE}
               modifiers={[fillMaxWidth()]}
             >
               <ComposeText>{t('space.flow.continue')}</ComposeText>
             </Button>
-            <TextButton onClick={back} modifiers={[fillMaxWidth()]}>
+            <TextButton onClick={back} shape={PILL_SHAPE} modifiers={[fillMaxWidth()]}>
               <ComposeText>{t('action.back', { ns: 'common' })}</ComposeText>
             </TextButton>
           </Column>
         ) : null}
 
         {mode === 'joinDetails' ? (
-          <Column modifiers={[fillMaxWidth()]}>
-            {restoredJoin ? (
+          <Column
+            horizontalAlignment={showsJoinStatus ? 'center' : undefined}
+            modifiers={[fillMaxWidth()]}
+          >
+            {showsJoinStatus ? (
               <>
-                <CircularProgressIndicator
-                  modifiers={[widthModifier(24), heightModifier(24)]}
-                />
-                <Spacer modifiers={[heightModifier(12)]} />
-                <ComposeText color={colors.onSurfaceVariant}>
-                  {t(
-                    cancellingJoin
+                <PairingStatus
+                  graphic={
+                    !pending && error ? (
+                      <IconBadge
+                        icon={ICONS.close}
+                        size={HERO_BADGE_SIZE}
+                        iconSize={36}
+                        hero
+                        tint={colors.onErrorContainer}
+                        tintContainer={colors.errorContainer}
+                      />
+                    ) : (
+                      <ContainedLoadingIndicator
+                        color={colors.onPrimaryContainer}
+                        containerColor={colors.primaryContainer}
+                        modifiers={[size(HERO_BADGE_SIZE, HERO_BADGE_SIZE)]}
+                      />
+                    )
+                  }
+                  title={t(
+                    !pending && error
+                      ? 'space.join.failedTitle'
+                      : cancellingJoin
                       ? 'space.join.cancelling'
                       : 'space.join.processing'
                   )}
-                </ComposeText>
+                  body={
+                    !pending && error
+                      ? error
+                      : joinTakingLonger
+                      ? t('space.join.takingLonger')
+                      : null
+                  }
+                  detail={
+                    pending && !cancellingJoin ? (
+                      <MetaChip
+                        icon={ICONS.device}
+                        label={formatInvitationCode(
+                          normalizeInvitationCodeInput(invitationCode)
+                        )}
+                      />
+                    ) : null
+                  }
+                />
+                {pending ? (
+                  <TextButton
+                    onClick={cancelJoin}
+                    enabled={!cancellingJoin}
+                    shape={PILL_SHAPE}
+                    modifiers={[fillMaxWidth()]}
+                  >
+                    <ComposeText>{t('action.cancel', { ns: 'common' })}</ComposeText>
+                  </TextButton>
+                ) : (
+                  <Button onClick={editJoinDetails} shape={PILL_SHAPE} modifiers={[fillMaxWidth()]}>
+                    <ComposeText>{t('space.join.editDetails')}</ComposeText>
+                  </Button>
+                )}
               </>
             ) : (
               <>
@@ -371,249 +722,165 @@ function AddSyncConnectionSheetContent({
                 <Spacer modifiers={[heightModifier(20)]} />
                 <Button
                   onClick={submitJoin}
-                  enabled={canSubmitDetails && !pending}
+                  enabled={canSubmitDetails}
+                  shape={PILL_SHAPE}
                   modifiers={[fillMaxWidth()]}
                 >
-                  {pending ? (
-                    <CircularProgressIndicator
-                      modifiers={[widthModifier(20), heightModifier(20)]}
-                    />
-                  ) : (
-                    <ComposeText>{t('space.join.action')}</ComposeText>
-                  )}
+                  <ComposeText>{t('space.join.action')}</ComposeText>
                 </Button>
-                {pending ? (
-                  <ComposeText color={colors.onSurfaceVariant}>
-                    {t(
-                      cancellingJoin
-                        ? 'space.join.cancelling'
-                        : joinTakingLonger
-                        ? 'space.join.takingLonger'
-                        : 'space.join.pending'
-                    )}
-                  </ComposeText>
-                ) : null}
+                <TextButton onClick={back} shape={PILL_SHAPE} modifiers={[fillMaxWidth()]}>
+                  <ComposeText>{t('action.back', { ns: 'common' })}</ComposeText>
+                </TextButton>
               </>
             )}
-            <TextButton
-              onClick={pending ? cancelJoin : back}
-              enabled={!cancellingJoin}
-              modifiers={[fillMaxWidth()]}
-            >
-              <ComposeText>
-                {t(pending ? 'action.cancel' : 'action.back', { ns: 'common' })}
-              </ComposeText>
-            </TextButton>
           </Column>
         ) : null}
 
         {mode === 'invitation' && invitation ? (
-          <Column modifiers={[fillMaxWidth()]}>
-            <Surface
-              color={colors.surfaceContainerHigh}
-              shape={CARD_SHAPE}
-              modifiers={[fillMaxWidth()]}
-            >
-              <Column
-                horizontalAlignment="center"
-                modifiers={[fillMaxWidth(), padding(20, 16, 20, 20)]}
-              >
-                <Row verticalAlignment="center" modifiers={[fillMaxWidth()]}>
-                  <Column horizontalAlignment="center" modifiers={[weight(1)]}>
-                    <Icon
-                      source={ICONS.device}
-                      size={36}
-                      tint={colors.primary}
-                    />
-                    <Spacer modifiers={[heightModifier(8)]} />
-                    <ComposeText style={DEVICE_NAME_STYLE} maxLines={1}>
-                      {deviceName}
-                    </ComposeText>
-                  </Column>
-                  <CircularProgressIndicator
-                    modifiers={[widthModifier(30), heightModifier(30)]}
+          invitationExpired ? (
+            <>
+              <PairingStatus
+                graphic={
+                  <IconBadge
+                    icon={ICONS.clock}
+                    size={HERO_BADGE_SIZE}
+                    iconSize={36}
+                    hero
+                    tint={colors.onErrorContainer}
+                    tintContainer={colors.errorContainer}
                   />
-                  <Column horizontalAlignment="center" modifiers={[weight(1)]}>
-                    <Icon
-                      source={ICONS.device}
-                      size={36}
-                      tint={colors.outline}
-                    />
-                    <Spacer modifiers={[heightModifier(8)]} />
-                    <ComposeText
-                      style={DEVICE_NAME_STYLE}
-                      color={colors.onSurfaceVariant}
-                      maxLines={1}
-                    >
-                      {t('space.flow.otherDevice')}
-                    </ComposeText>
-                  </Column>
-                </Row>
-                <Spacer modifiers={[heightModifier(14)]} />
-                <ComposeText color={colors.primary} style={WAITING_STYLE}>
-                  {t('space.flow.waitingForDevice')}
-                </ComposeText>
-                <Spacer modifiers={[heightModifier(4)]} />
-                <ComposeText
-                  color={colors.onSurfaceVariant}
-                  style={WAITING_STYLE}
-                >
-                  {t('space.flow.waitingBody')}
-                </ComposeText>
-              </Column>
-            </Surface>
-
-            <Spacer modifiers={[heightModifier(16)]} />
-
-            <Surface
-              color={colors.surfaceContainerHigh}
-              shape={CARD_SHAPE}
-              modifiers={[fillMaxWidth()]}
-            >
-              <Column
-                horizontalAlignment="center"
-                modifiers={[fillMaxWidth(), padding(20, 16, 20, 20)]}
-              >
-                <ComposeText style={INVITATION_STYLE}>
-                  {invitation.invitationCode}
-                </ComposeText>
-                <Spacer modifiers={[heightModifier(14)]} />
-                <Row verticalAlignment="center">
-                  <Icon
-                    source={ICONS.clock}
-                    size={16}
-                    tint={
-                      invitationExpired ? colors.error : colors.onSurfaceVariant
-                    }
-                  />
-                  <Spacer modifiers={[widthModifier(6)]} />
-                  <ComposeText
-                    color={
-                      invitationExpired ? colors.error : colors.onSurfaceVariant
-                    }
-                  >
-                    {invitationExpired
-                      ? t('space.flow.expired')
-                      : t('space.flow.expiresIn', {
-                          time: invitationTimeRemaining,
-                        })}
-                  </ComposeText>
-                </Row>
-                <Spacer modifiers={[heightModifier(6)]} />
-                <Row verticalAlignment="center">
-                  <Icon
-                    source={
-                      invitation.availability === 'sameLocalNetwork'
-                        ? ICONS.wifi
-                        : ICONS.public
-                    }
-                    size={16}
-                    tint={colors.onSurfaceVariant}
-                  />
-                  <Spacer modifiers={[widthModifier(6)]} />
-                  <ComposeText color={colors.onSurfaceVariant}>
-                    {t(
-                      invitation.availability === 'sameLocalNetwork'
-                        ? 'space.invitation.sameLocalNetwork'
-                        : 'space.invitation.crossNetwork'
-                    )}
-                  </ComposeText>
-                </Row>
-              </Column>
-            </Surface>
-
-            <Spacer modifiers={[heightModifier(20)]} />
-            {invitationExpired ? (
+                }
+                title={t('space.flow.expired')}
+                body={t('space.flow.expiredBody')}
+              />
+              <Spacer modifiers={[heightModifier(24)]} />
               <Button
                 onClick={renewInvitation}
                 enabled={!pending}
+                shape={PILL_SHAPE}
                 modifiers={[fillMaxWidth()]}
               >
-                <ComposeText>{t('space.invitation.action')}</ComposeText>
+                <Icon source={ICONS.retry} size={18} tint={colors.onPrimary} />
+                <Spacer modifiers={[widthModifier(6)]} />
+                <ComposeText>{t('space.flow.renewInvitation')}</ComposeText>
               </Button>
-            ) : (
-              <Row modifiers={[fillMaxWidth()]}>
-                <OutlinedButton
-                  onClick={copyInvitation}
-                  modifiers={[weight(1)]}
-                >
-                  <Icon
-                    source={copied ? ICONS.ready : ICONS.copy}
-                    size={18}
-                    tint={colors.primary}
-                  />
-                  <Spacer modifiers={[widthModifier(6)]} />
-                  <ComposeText>{t('space.flow.copyInvitation')}</ComposeText>
-                </OutlinedButton>
+              <TextButton
+                onClick={() => void completeConnection()}
+                shape={PILL_SHAPE}
+                modifiers={[fillMaxWidth()]}
+              >
+                <ComposeText>{t('space.flow.finishLater')}</ComposeText>
+              </TextButton>
+            </>
+          ) : (
+            <>
+              {/* One status line replaces the device illustration, status title, and body. */}
+              <Row verticalAlignment="center" modifiers={[fillMaxWidth()]}>
+                <LoadingIndicator
+                  color={colors.primary}
+                  modifiers={[size(24, 24)]}
+                />
                 <Spacer modifiers={[widthModifier(10)]} />
-                <Button onClick={shareInvitation} modifiers={[weight(1)]}>
-                  <Icon
-                    source={ICONS.share}
-                    size={18}
-                    tint={colors.onPrimary}
-                  />
-                  <Spacer modifiers={[widthModifier(6)]} />
-                  <ComposeText>{t('space.flow.shareInvitation')}</ComposeText>
-                </Button>
+                <ComposeText color={colors.primary} style={OPTION_TITLE_STYLE}>
+                  {t('space.flow.waitingForDevice')}
+                </ComposeText>
               </Row>
-            )}
-            <TextButton
-              onClick={() => void completeConnection()}
-              modifiers={[fillMaxWidth()]}
-            >
-              <ComposeText>{t('space.flow.finishLater')}</ComposeText>
-            </TextButton>
-          </Column>
+              <Spacer modifiers={[heightModifier(16)]} />
+              <InvitationCodeCard
+                code={invitation.invitationCode}
+                expiresLabel={t('space.flow.expiresIn', {
+                  time: invitationTimeRemaining,
+                })}
+                copyLabel={t('space.flow.copyInvitation')}
+                copied={copied}
+                onCopy={copyInvitation}
+              />
+              <Spacer modifiers={[heightModifier(12)]} />
+              <ComposeText color={colors.onSurfaceVariant}>
+                {t(
+                  invitation.availability === 'sameLocalNetwork'
+                    ? 'space.invitation.sameLocalNetwork'
+                    : 'space.invitation.crossNetwork'
+                )}
+              </ComposeText>
+              <Spacer modifiers={[heightModifier(24)]} />
+              <Button onClick={shareInvitation} shape={PILL_SHAPE} modifiers={[fillMaxWidth()]}>
+                <Icon source={ICONS.share} size={18} tint={colors.onPrimary} />
+                <Spacer modifiers={[widthModifier(6)]} />
+                <ComposeText>{t('space.flow.shareInvitation')}</ComposeText>
+              </Button>
+              <TextButton
+                onClick={() => void completeConnection()}
+                shape={PILL_SHAPE}
+                modifiers={[fillMaxWidth()]}
+              >
+                <ComposeText>{t('space.flow.finishLater')}</ComposeText>
+              </TextButton>
+            </>
+          )
         ) : null}
 
         {mode === 'success' ? (
-          <Column horizontalAlignment="center" modifiers={[fillMaxWidth()]}>
+          <>
             <Spacer modifiers={[heightModifier(16)]} />
-            <Icon source={ICONS.ready} size={64} tint={colors.primary} />
-            <Spacer modifiers={[heightModifier(16)]} />
-            <ComposeText style={TITLE_STYLE}>
-              {remoteDeviceName ?? t('space.flow.otherDevice')}
-            </ComposeText>
-            <ComposeText color={colors.onSurfaceVariant}>
-              {t(
-                peerUpgradeRequired
-                  ? 'space.flow.peerUpgradeRequired'
-                  : 'space.flow.successBody'
-              )}
-            </ComposeText>
+            <Column horizontalAlignment="center" modifiers={[fillMaxWidth()]}>
+              <DevicePair
+                localName={t('space.flow.thisDevice')}
+                remoteName={remoteDeviceName ?? t('space.flow.otherDevice')}
+                state="connected"
+              />
+              <Spacer modifiers={[heightModifier(18)]} />
+              <ComposeText style={CONNECTED_DEVICE_STYLE} maxLines={2}>
+                {t('space.flow.successTitle')}
+              </ComposeText>
+              <Spacer modifiers={[heightModifier(8)]} />
+              <ComposeText color={colors.onSurfaceVariant} style={WAITING_STYLE}>
+                {t(
+                  peerUpgradeRequired
+                    ? 'space.flow.peerUpgradeRequired'
+                    : 'space.flow.successBody'
+                )}
+              </ComposeText>
+            </Column>
             <Spacer modifiers={[heightModifier(24)]} />
             <Button
               onClick={() => void completeConnection()}
+              shape={PILL_SHAPE}
               modifiers={[fillMaxWidth()]}
             >
               <ComposeText>{t('action.done', { ns: 'common' })}</ComposeText>
             </Button>
-          </Column>
+          </>
         ) : null}
 
         {mode === 'joinUpdating' ? (
           <Column horizontalAlignment="center" modifiers={[fillMaxWidth()]}>
             <Spacer modifiers={[heightModifier(16)]} />
-            <Icon source={ICONS.ready} size={48} tint={colors.primary} />
-            <Spacer modifiers={[heightModifier(16)]} />
-            {deviceUpdate.phase === 'needsAttention' ? (
-              <Icon source={ICONS.ready} size={28} tint={colors.error} />
-            ) : (
-              <CircularProgressIndicator
-                modifiers={[widthModifier(30), heightModifier(30)]}
-              />
-            )}
-            <Spacer modifiers={[heightModifier(16)]} />
-            <ComposeText style={TITLE_STYLE}>
-              {t(
+            <PairingStatus
+              graphic={
+                deviceUpdate.phase === 'needsAttention' ? (
+                  <IconBadge
+                    icon={ICONS.close}
+                    size={HERO_BADGE_SIZE}
+                    iconSize={36}
+                    hero
+                    tint={colors.onErrorContainer}
+                    tintContainer={colors.errorContainer}
+                  />
+                ) : (
+                  <DevicePair
+                    localName={t('space.flow.thisDevice')}
+                    remoteName={t('space.flow.otherDevice')}
+                    state="syncing"
+                  />
+                )
+              }
+              title={t(
                 deviceUpdate.phase === 'needsAttention'
                   ? 'space.flow.deviceUpdate.needsAttentionTitle'
                   : 'space.flow.deviceUpdate.updatingTitle'
               )}
-            </ComposeText>
-            <Spacer modifiers={[heightModifier(6)]} />
-            <ComposeText color={colors.onSurfaceVariant} style={WAITING_STYLE}>
-              {t(
+              body={t(
                 deviceUpdate.phase === 'retryableFailure'
                   ? 'space.flow.deviceUpdate.retryingBody'
                   : deviceUpdate.phase === 'needsAttention'
@@ -622,16 +889,16 @@ function AddSyncConnectionSheetContent({
                     }`
                   : 'space.flow.deviceUpdate.updatingBody'
               )}
-            </ComposeText>
+            />
             <Spacer modifiers={[heightModifier(24)]} />
             {deviceUpdate.phase === 'needsAttention' ? (
-              <Button onClick={close} modifiers={[fillMaxWidth()]}>
+              <Button onClick={close} shape={PILL_SHAPE} modifiers={[fillMaxWidth()]}>
                 <ComposeText>
                   {t('space.flow.deviceUpdate.reviewAction')}
                 </ComposeText>
               </Button>
             ) : null}
-            <TextButton onClick={close} modifiers={[fillMaxWidth()]}>
+            <TextButton onClick={close} shape={PILL_SHAPE} modifiers={[fillMaxWidth()]}>
               <ComposeText>
                 {t('space.flow.deviceUpdate.continueInBackground')}
               </ComposeText>
@@ -642,7 +909,13 @@ function AddSyncConnectionSheetContent({
         {mode === 'joinReady' ? (
           <Column horizontalAlignment="center" modifiers={[fillMaxWidth()]}>
             <Spacer modifiers={[heightModifier(16)]} />
-            <Icon source={ICONS.ready} size={64} tint={colors.primary} />
+            <IconBadge
+              icon={ICONS.ready}
+              size={88}
+              iconSize={40}
+              tint={colors.onPrimaryContainer}
+              tintContainer={colors.primaryContainer}
+            />
             <Spacer modifiers={[heightModifier(16)]} />
             <ComposeText style={TITLE_STYLE}>
               {t('space.flow.deviceUpdate.completedTitle')}
@@ -654,6 +927,7 @@ function AddSyncConnectionSheetContent({
             <Spacer modifiers={[heightModifier(24)]} />
             <Button
               onClick={() => void completeConnection()}
+              shape={PILL_SHAPE}
               modifiers={[fillMaxWidth()]}
             >
               <ComposeText>{t('action.done', { ns: 'common' })}</ComposeText>
@@ -661,10 +935,10 @@ function AddSyncConnectionSheetContent({
           </Column>
         ) : null}
 
-        {error ? (
+        {error && mode !== 'joinDetails' ? (
           <>
             <Spacer modifiers={[heightModifier(12)]} />
-            <ComposeText color={colors.error}>{error}</ComposeText>
+            <InlineConnectionError message={error} />
           </>
         ) : null}
       </Column>

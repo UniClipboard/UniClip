@@ -45,6 +45,7 @@ export interface AddSyncConnectionFlowState {
   invitationCode: string;
   invitation: InvitationIssued | null;
   pending: boolean;
+  joinSubmitted: boolean;
   restoredJoin: boolean;
   joinTakingLonger: boolean;
   cancellingJoin: boolean;
@@ -69,6 +70,7 @@ export interface AddSyncConnectionFlowActions {
   close: () => void;
   submitCreate: () => Promise<void>;
   submitJoin: () => Promise<void>;
+  editJoinDetails: () => void;
   cancelJoin: () => Promise<void>;
   renewInvitation: () => Promise<void>;
   copyInvitation: () => Promise<void>;
@@ -138,6 +140,7 @@ export function useAddSyncConnectionFlow({
   const [invitationCode, setInvitationCode] = useState('');
   const [invitation, setInvitation] = useState<InvitationIssued | null>(null);
   const [pending, setPending] = useState(false);
+  const [joinSubmitted, setJoinSubmitted] = useState(false);
   const [restoredJoin, setRestoredJoin] = useState(false);
   const pendingRef = useRef(false);
   const [joinTakingLonger, setJoinTakingLonger] = useState(false);
@@ -188,6 +191,7 @@ export function useAddSyncConnectionFlow({
     setInvitationCode('');
     setInvitation(null);
     setError(null);
+    setJoinSubmitted(false);
     setRestoredJoin(false);
     setCopied(false);
     setPeerUpgradeRequired(false);
@@ -285,6 +289,7 @@ export function useAddSyncConnectionFlow({
         if (!mountedRef.current) return;
         pendingRef.current = true;
         setPending(true);
+        setJoinSubmitted(true);
         setRestoredJoin(true);
         setMode('joinDetails');
       })
@@ -372,6 +377,17 @@ export function useAddSyncConnectionFlow({
       return;
     }
     setError(null);
+    setJoinSubmitted(false);
+    setMode('joinDetails');
+  };
+
+  const editJoinDetails = () => {
+    if (pendingRef.current) return;
+    setJoinSubmitted(false);
+    setRestoredJoin(false);
+    setError(null);
+    setPassphrase('');
+    clearNativePassphrase();
     setMode('joinDetails');
   };
 
@@ -414,6 +430,7 @@ export function useAddSyncConnectionFlow({
     }
     pendingRef.current = true;
     setPending(true);
+    setJoinSubmitted(true);
     setError(null);
     try {
       const joined = await getUnifiedSpaceService().joinSpace(
@@ -443,6 +460,7 @@ export function useAddSyncConnectionFlow({
             {
               text: t('action.cancel', { ns: 'common' }),
               style: 'cancel',
+              onPress: editJoinDetails,
             },
             {
               text: t('space.unreadableHistory.continue'),
@@ -592,6 +610,7 @@ export function useAddSyncConnectionFlow({
       invitationCode,
       invitation,
       pending,
+      joinSubmitted,
       restoredJoin,
       joinTakingLonger,
       cancellingJoin,
@@ -618,6 +637,7 @@ export function useAddSyncConnectionFlow({
       close,
       submitCreate,
       submitJoin,
+      editJoinDetails,
       cancelJoin,
       renewInvitation,
       copyInvitation,
