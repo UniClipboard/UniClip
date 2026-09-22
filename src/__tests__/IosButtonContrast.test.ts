@@ -38,19 +38,20 @@ describe('iOS button contrast and sizing', () => {
     expect(directProminentButtons).toEqual([]);
   });
 
-  it('keeps copy and share actions equal width with single-line labels', () => {
+  it('keeps the share action full width with a single-line label', () => {
     const sheet = source('components/AddSyncConnectionSheet.ios.tsx');
     const actions = sheet.slice(
-      sheet.indexOf('variant="secondary"'),
-      sheet.indexOf('finishLater')
+      sheet.indexOf("{mode === 'invitation' && invitation ? ("),
+      sheet.indexOf('testID="space-finish-later"')
     );
     const button = sheet.slice(
       sheet.indexOf('function SheetActionButton'),
       sheet.indexOf('type PairingSymbolMotion')
     );
 
-    expect(actions).toContain("t('space.flow.copyInvitation')");
     expect(actions).toContain("t('space.flow.shareInvitation')");
+    // Copy moved onto the tappable invitation code card.
+    expect(actions).not.toContain("t('space.flow.copyInvitation')");
     expect(button).toContain('iosSecondaryButtonModifiers({ fullWidth: true })');
     expect(button).toContain('iosProminentButtonModifiers(');
     expect(button).toContain('frame({ minHeight: 48, maxWidth: Infinity })');

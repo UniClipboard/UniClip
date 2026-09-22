@@ -664,38 +664,74 @@ function InvitationMetaChip({
   );
 }
 
+/** The invitation code as the hero of the waiting stage; tapping the card copies the code. */
 function InvitationCodeCard({
   code,
-  children,
+  expiresLabel,
+  copyLabel,
+  copied,
+  onCopy,
 }: {
   code: string;
-  children: ReactNode;
+  expiresLabel: string;
+  copyLabel: string;
+  copied: boolean;
+  onCopy: () => void;
 }) {
+  const secondary = iosColors?.secondaryLabel ?? 'secondary';
+
   return (
-    <VStack
-      spacing={14}
-      alignment="center"
-      modifiers={[
-        padding({ horizontal: 16, vertical: 22 }),
-        frame({ maxWidth: Infinity }),
-        background(
-          CARD_BACKGROUND,
-          shapes.roundedRectangle({ cornerRadius: iosDimensions.glassCardRadius })
-        ),
-      ]}
+    <SwiftUIButton
+      onPress={onCopy}
+      modifiers={[buttonStyle('plain'), frame({ maxWidth: Infinity })]}
     >
-      <SwiftUIText
+      <VStack
+        spacing={12}
+        alignment="center"
         modifiers={[
-          font({ size: 40, weight: 'bold', design: 'monospaced' }),
-          lineLimit(1),
-          minimumScaleFactor(0.6),
-          accessibilityLabel(code.split('').join(' ')),
+          padding({ horizontal: 16, vertical: 22 }),
+          frame({ maxWidth: Infinity }),
+          background(
+            CARD_BACKGROUND,
+            shapes.roundedRectangle({ cornerRadius: iosDimensions.glassCardRadius })
+          ),
+          contentShape(
+            shapes.roundedRectangle({ cornerRadius: iosDimensions.glassCardRadius })
+          ),
         ]}
       >
-        {code}
-      </SwiftUIText>
-      <HStack spacing={8}>{children}</HStack>
-    </VStack>
+        <SwiftUIText
+          modifiers={[
+            font({ size: 40, weight: 'bold', design: 'monospaced' }),
+            lineLimit(1),
+            minimumScaleFactor(0.6),
+            accessibilityLabel(code.split('').join(' ')),
+          ]}
+        >
+          {code}
+        </SwiftUIText>
+        <HStack spacing={16}>
+          <HStack spacing={4}>
+            <Image systemName="clock" size={13} color={secondary} />
+            <SwiftUIText modifiers={[font({ size: 13 }), foregroundStyle(secondary)]}>
+              {expiresLabel}
+            </SwiftUIText>
+          </HStack>
+          <HStack spacing={4}>
+            <Image
+              systemName={copied ? 'checkmark' : 'doc.on.doc'}
+              size={13}
+              color={P2P_TINT}
+            />
+            <SwiftUIText
+              modifiers={[font({ size: 13, weight: 'semibold' }), foregroundStyle(P2P_TINT)]}
+            >
+              {copyLabel}
+            </SwiftUIText>
+          </HStack>
+        </HStack>
+      </VStack>
+    </SwiftUIButton>
   );
 }
 
@@ -815,8 +851,8 @@ export function AddSyncConnectionSheet({
   };
 
   useEffect(() => {
-    const fullHeight = mode === 'invitation' || mode === 'success';
-    setSheetDetent(fullHeight ? 'large' : 'medium');
+    // Every stage fits the medium detent; the user can still drag to large.
+    setSheetDetent('medium');
   }, [mode]);
   const title =
     mode === 'create'
@@ -1148,20 +1184,12 @@ export function AddSyncConnectionSheet({
                         onPress={() => void renewInvitation()}
                       />
                     ) : (
-                      <HStack spacing={10} modifiers={[frame({ maxWidth: Infinity })]}>
-                        <SheetActionButton
-                          variant="secondary"
-                          title={t('space.flow.copyInvitation')}
-                          systemImage={copied ? 'checkmark' : 'doc.on.doc'}
-                          onPress={() => void copyInvitation()}
-                        />
-                        <SheetActionButton
-                          title={t('space.flow.shareInvitation')}
-                          systemImage="square.and.arrow.up"
-                          tint={P2P_TINT}
-                          onPress={() => void shareInvitation()}
-                        />
-                      </HStack>
+                      <SheetActionButton
+                        title={t('space.flow.shareInvitation')}
+                        systemImage="square.and.arrow.up"
+                        tint={P2P_TINT}
+                        onPress={() => void shareInvitation()}
+                      />
                     )}
                     <SheetActionButton
                       testID="space-finish-later"
@@ -1176,64 +1204,72 @@ export function AddSyncConnectionSheet({
                   showsIndicators={false}
                   modifiers={[frame({ maxWidth: Infinity })]}
                 >
-                  <VStack
-                    spacing={24}
-                    alignment="center"
-                    modifiers={[
-                      padding({ horizontal: 20, vertical: 12 }),
-                      frame({ maxWidth: Infinity }),
-                    ]}
-                  >
-                    <PairingStatus
-                      graphic={
-                        invitationExpired ? (
+                  {invitationExpired ? (
+                    <VStack
+                      alignment="center"
+                      modifiers={[
+                        padding({ horizontal: 20, vertical: 12 }),
+                        frame({ maxWidth: Infinity }),
+                      ]}
+                    >
+                      <PairingStatus
+                        graphic={
                           <PairingSymbol
                             systemName="clock.badge.exclamationmark"
                             tint={ATTENTION_TINT}
                           />
-                        ) : (
-                          <DevicePair
-                            localName={deviceName}
-                            remoteName={t('space.flow.otherDevice')}
-                            state="waiting"
-                          />
-                        )
-                      }
-                      title={t(
-                        invitationExpired
-                          ? 'space.flow.expired'
-                          : 'space.flow.waitingForDevice'
-                      )}
-                      body={t(
-                        invitationExpired
-                          ? 'space.flow.expiredBody'
-                          : 'space.flow.waitingBody'
-                      )}
-                    />
-                    {!invitationExpired ? (
-                      <InvitationCodeCard code={invitation.invitationCode}>
-                        <InvitationMetaChip
-                          systemName="clock"
-                          label={t('space.flow.expiresIn', {
-                            time: invitationTimeRemaining,
-                          })}
+                        }
+                        title={t('space.flow.expired')}
+                        body={t('space.flow.expiredBody')}
+                      />
+                    </VStack>
+                  ) : (
+                    <VStack
+                      spacing={14}
+                      alignment="leading"
+                      modifiers={[
+                        padding({ horizontal: 20, vertical: 12 }),
+                        frame({ maxWidth: Infinity }),
+                      ]}
+                    >
+                      {/* One status line replaces the device illustration, status title, and body. */}
+                      <HStack spacing={8}>
+                        <Image
+                          systemName="antenna.radiowaves.left.and.right"
+                          size={17}
+                          color={P2P_TINT}
+                          modifiers={pairingSymbolEffect('searching')}
                         />
-                        <InvitationMetaChip
-                          systemName={
-                            invitation.availability === 'sameLocalNetwork'
-                              ? 'wifi'
-                              : 'network'
-                          }
-                          label={t(
-                            invitation.availability === 'sameLocalNetwork'
-                              ? 'space.invitation.sameLocalNetwork'
-                              : 'space.invitation.crossNetwork'
-                          )}
-                        />
-                      </InvitationCodeCard>
-                    ) : null}
-                    {error ? <InlineConnectionError message={error} /> : null}
-                  </VStack>
+                        <SwiftUIText
+                          modifiers={[font({ weight: 'semibold' }), foregroundStyle(P2P_TINT)]}
+                        >
+                          {t('space.flow.waitingForDevice')}
+                        </SwiftUIText>
+                      </HStack>
+                      <InvitationCodeCard
+                        code={invitation.invitationCode}
+                        expiresLabel={t('space.flow.expiresIn', {
+                          time: invitationTimeRemaining,
+                        })}
+                        copyLabel={t('space.flow.copyInvitation')}
+                        copied={copied}
+                        onCopy={() => void copyInvitation()}
+                      />
+                      <SwiftUIText
+                        modifiers={[
+                          font({ size: 13 }),
+                          foregroundStyle(iosColors?.secondaryLabel ?? 'secondary'),
+                        ]}
+                      >
+                        {t(
+                          invitation.availability === 'sameLocalNetwork'
+                            ? 'space.invitation.sameLocalNetwork'
+                            : 'space.invitation.crossNetwork'
+                        )}
+                      </SwiftUIText>
+                    </VStack>
+                  )}
+                  {error ? <InlineConnectionError message={error} /> : null}
                 </ScrollView>
               </IosSheetScaffold>
             ) : null}
