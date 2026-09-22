@@ -82,12 +82,12 @@ describe('unified sync connection flows', () => {
     expect(ios).toContain('iosDimensions.surfaceCornerRadius');
   });
 
-  it('expands the created-space and success steps while keeping setup half-height', () => {
+  it('keeps every pairing stage at the medium detent so actions stay visible', () => {
     const ios = source('components/AddSyncConnectionSheet.ios.tsx');
 
     expect(ios).toContain("useState<PresentationDetent>('medium')");
-    expect(ios).toContain("mode === 'invitation' || mode === 'success'");
-    expect(ios).toContain("setSheetDetent(fullHeight ? 'large' : 'medium')");
+    expect(ios).toContain("setSheetDetent('medium')");
+    expect(ios).not.toContain('fullHeight');
     expect(ios).toContain('selection: sheetDetent');
     expect(ios).toContain('onSelectionChange: setSheetDetent');
   });
@@ -242,6 +242,9 @@ describe('unified sync connection flows', () => {
     expect(statusSteps).toContain("'space.flow.expiredBody'");
     expect(statusSteps).toContain("t('space.flow.renewInvitation')");
     expect(statusSteps).toContain('<InvitationCodeCard');
+    // The waiting stage mirrors Android: status line, tappable code card, network hint, share.
+    expect(ios).not.toContain("title={t('space.flow.copyInvitation')}");
+    expect(ios).toContain('onCopy={() => void copyInvitation()}');
   });
 
   it('switches both platforms from join inputs to status-only UX after submission', () => {
