@@ -211,47 +211,57 @@ function InvitationCodeField({
         onPress={() => inputRef.current?.focus()}
         modifiers={[buttonStyle('plain'), accessibilityLabel(label)]}
       >
-        <HStack spacing={24} modifiers={[frame({ maxWidth: Infinity })]}>
+        <HStack spacing={10} alignment="center">
           {groups.map((group, groupIndex) => (
-            <HStack
-              key={groupIndex}
-              spacing={8}
-              modifiers={[frame({ maxWidth: Infinity })]}
-            >
-              {group.map((index) => {
-                const character = normalizedCode[index] ?? ' ';
-                const isActive =
-                  normalizedCode.length < 6 && index === normalizedCode.length;
+            <HStack key={groupIndex} spacing={10} alignment="center">
+              {groupIndex > 0 ? (
+                <HStack
+                  modifiers={[
+                    frame({ width: 10, height: 2 }),
+                    background(
+                      iosColors?.tertiaryLabel ?? '#AEAEB2',
+                      shapes.capsule()
+                    ),
+                  ]}
+                >
+                  <Spacer />
+                </HStack>
+              ) : null}
+              <HStack spacing={8}>
+                {group.map((index) => {
+                  const character = normalizedCode[index];
+                  const isActive =
+                    normalizedCode.length < 6 && index === normalizedCode.length;
 
-                return (
-                  <SwiftUIText
-                    key={index}
-                    modifiers={[
-                      font({
-                        size: 22,
-                        weight: 'semibold',
-                        design: 'monospaced',
-                      }),
-                      foregroundStyle(isActive ? 'white' : 'primary'),
-                      multilineTextAlignment('center'),
-                      frame({
-                        minWidth: 28,
-                        maxWidth: Infinity,
-                        minHeight: 56,
-                        maxHeight: 56,
-                      }),
-                      background(
-                        isActive
-                          ? JOIN_TINT
-                          : iosColors?.tertiarySystemFill ?? '#E5E5EA',
-                        shapes.roundedRectangle({ cornerRadius: 8 })
-                      ),
-                    ]}
-                  >
-                    {character}
-                  </SwiftUIText>
-                );
-              })}
+                  return (
+                    <SwiftUIText
+                      key={index}
+                      modifiers={[
+                        font({
+                          size: 26,
+                          weight: 'semibold',
+                          design: 'monospaced',
+                        }),
+                        foregroundStyle(isActive ? JOIN_TINT : 'primary'),
+                        multilineTextAlignment('center'),
+                        frame({ width: 43, height: 55 }),
+                        background(
+                          CARD_BACKGROUND,
+                          shapes.roundedRectangle({ cornerRadius: 10.5 })
+                        ),
+                        // Equal-size ring keeps the active cell aligned with its neighbors.
+                        padding({ all: 1.5 }),
+                        background(
+                          isActive ? JOIN_TINT : CARD_BACKGROUND,
+                          shapes.roundedRectangle({ cornerRadius: 12 })
+                        ),
+                      ]}
+                    >
+                      {character ?? (isActive ? '|' : ' ')}
+                    </SwiftUIText>
+                  );
+                })}
+              </HStack>
             </HStack>
           ))}
         </HStack>
@@ -735,6 +745,216 @@ function InvitationCodeCard({
   );
 }
 
+function JoinStepHeading({ title, body }: { title: string; body: string }) {
+  return (
+    <VStack
+      spacing={8}
+      alignment="center"
+      modifiers={[padding({ horizontal: 28 }), frame({ maxWidth: Infinity })]}
+    >
+      <SwiftUIText
+        modifiers={[
+          font({ size: 22, weight: 'bold' }),
+          multilineTextAlignment('center'),
+        ]}
+      >
+        {title}
+      </SwiftUIText>
+      <SwiftUIText
+        modifiers={[
+          font({ size: 15 }),
+          foregroundStyle(iosColors?.secondaryLabel ?? 'secondary'),
+          multilineTextAlignment('center'),
+        ]}
+      >
+        {body}
+      </SwiftUIText>
+    </VStack>
+  );
+}
+
+function InvitationCodeChip({
+  code,
+  label,
+  editLabel,
+  accessibilityText,
+  onPress,
+}: {
+  code: string;
+  label: string;
+  editLabel: string;
+  accessibilityText: string;
+  onPress: () => void;
+}) {
+  return (
+    <SwiftUIButton
+      onPress={onPress}
+      modifiers={[buttonStyle('plain'), accessibilityLabel(accessibilityText)]}
+    >
+      <HStack
+        spacing={6}
+        modifiers={[
+          padding({ horizontal: 12, vertical: 7 }),
+          background(hexToRgba(SUCCESS_TINT, 0.14), shapes.capsule()),
+          contentShape(shapes.capsule()),
+        ]}
+      >
+        <Image
+          systemName="checkmark"
+          size={12}
+          color={SUCCESS_TINT}
+          modifiers={[font({ weight: 'bold' })]}
+        />
+        <SwiftUIText modifiers={[font({ size: 14 })]}>{label}</SwiftUIText>
+        <SwiftUIText
+          modifiers={[font({ size: 14, weight: 'semibold', design: 'monospaced' })]}
+        >
+          {code}
+        </SwiftUIText>
+        <SwiftUIText
+          modifiers={[
+            font({ size: 14 }),
+            foregroundStyle(iosColors?.secondaryLabel ?? 'secondary'),
+          ]}
+        >
+          {`· ${editLabel}`}
+        </SwiftUIText>
+      </HStack>
+    </SwiftUIButton>
+  );
+}
+
+function PassphraseField({
+  inputRef,
+  nativeText,
+  placeholder,
+  revealed,
+  revealLabel,
+  hideLabel,
+  hasError,
+  onToggleReveal,
+  onTextChange,
+}: {
+  inputRef: React.RefObject<SecureFieldRef | null>;
+  nativeText: NonNullable<React.ComponentProps<typeof SecureField>['text']>;
+  placeholder: string;
+  revealed: boolean;
+  revealLabel: string;
+  hideLabel: string;
+  hasError: boolean;
+  onToggleReveal: () => void;
+  onTextChange: (value: string) => void;
+}) {
+  // Both fields bind the same native state, so revealing keeps the typed value.
+  return (
+    <HStack
+      spacing={12}
+      modifiers={[
+        padding({ leading: 16, trailing: 6 }),
+        frame({ minHeight: 54, maxWidth: Infinity }),
+        background(
+          CARD_BACKGROUND,
+          shapes.roundedRectangle({ cornerRadius: 14.5 })
+        ),
+        padding({ all: 1.5 }),
+        background(
+          hasError ? ERROR_TINT : CARD_BACKGROUND,
+          shapes.roundedRectangle({ cornerRadius: 16 })
+        ),
+      ]}
+    >
+      <Image
+        systemName="lock.fill"
+        size={16}
+        color={hasError ? ERROR_TINT : NEUTRAL_TINT}
+      />
+      {revealed ? (
+        <TextField
+          text={nativeText}
+          placeholder={placeholder}
+          onTextChange={onTextChange}
+          autoFocus
+          modifiers={[
+            textFieldStyle('plain'),
+            autocorrectionDisabled(),
+            textInputAutocapitalization('never'),
+            frame({ maxWidth: Infinity }),
+          ]}
+        />
+      ) : (
+        <SecureField
+          ref={inputRef}
+          text={nativeText}
+          placeholder={placeholder}
+          onTextChange={onTextChange}
+          autoFocus
+          modifiers={[frame({ maxWidth: Infinity })]}
+        />
+      )}
+      <SwiftUIButton
+        onPress={onToggleReveal}
+        modifiers={[
+          buttonStyle('plain'),
+          accessibilityLabel(revealed ? hideLabel : revealLabel),
+        ]}
+      >
+        <Image
+          systemName={revealed ? 'eye.slash' : 'eye'}
+          size={17}
+          color={NEUTRAL_TINT}
+          modifiers={[
+            frame({ width: 44, height: 44 }),
+            contentShape(shapes.rectangle()),
+          ]}
+        />
+      </SwiftUIButton>
+    </HStack>
+  );
+}
+
+function JoinDeviceNameRow({
+  label,
+  actionLabel,
+  onPress,
+}: {
+  label: string;
+  actionLabel: string;
+  onPress: () => void;
+}) {
+  return (
+    <SwiftUIButton
+      onPress={onPress}
+      modifiers={[buttonStyle('plain'), frame({ maxWidth: Infinity })]}
+    >
+      <HStack
+        spacing={8}
+        modifiers={[
+          padding({ horizontal: 4 }),
+          frame({ minHeight: 44, maxWidth: Infinity }),
+          contentShape(shapes.rectangle()),
+        ]}
+      >
+        <Image systemName="iphone" size={15} color={NEUTRAL_TINT} />
+        <SwiftUIText
+          modifiers={[
+            font({ size: 13 }),
+            foregroundStyle(iosColors?.secondaryLabel ?? 'secondary'),
+            lineLimit(1),
+          ]}
+        >
+          {label}
+        </SwiftUIText>
+        <Spacer />
+        <SwiftUIText
+          modifiers={[font({ size: 13, weight: 'semibold' }), foregroundStyle(JOIN_TINT)]}
+        >
+          {actionLabel}
+        </SwiftUIText>
+      </HStack>
+    </SwiftUIButton>
+  );
+}
+
 function InlineConnectionError({ message }: { message: string }) {
   return (
     <HStack spacing={6} modifiers={[frame({ maxWidth: Infinity })]}>
@@ -774,6 +994,10 @@ export function AddSyncConnectionSheet({
   const invitationCodeState = useNativeState('');
   const deviceNameState = useNativeState(defaultDeviceName);
   const passphraseRef = useRef<SecureFieldRef>(null);
+  const passphraseState = useNativeState('');
+  const [passphraseRevealed, setPassphraseRevealed] = useState(false);
+  const [editingDeviceName, setEditingDeviceName] = useState(false);
+  const autoAdvanceRef = useRef(false);
   const liveFlow = useAddSyncConnectionFlow({
     visible: visible && previewScenario == null,
     initialMode,
@@ -783,10 +1007,12 @@ export function AddSyncConnectionSheet({
     resetNativeFields: (nextDeviceName) => {
       deviceNameState.value = nextDeviceName;
       invitationCodeState.value = '';
+      passphraseState.value = '';
       void passphraseRef.current?.clear();
       void invitationCodeRef.current?.clear();
     },
     clearNativePassphrase: () => {
+      passphraseState.value = '';
       void passphraseRef.current?.clear();
     },
   });
@@ -835,9 +1061,16 @@ export function AddSyncConnectionSheet({
   const showsJoinStatus =
     mode === 'joinDetails' && (joinSubmitted || restoredJoin || pending);
 
+  // Only a fresh completion advances; returning to edit a full code must not bounce forward.
+  const trackCodeCompletion = (normalized: string) => {
+    autoAdvanceRef.current =
+      !codeComplete && normalizeInvitationCodeInput(normalized).length === 6;
+  };
+
   const handleInvitationCodeChange = (value: string) => {
     const normalized = invitationCodeInputValue(value);
     if (normalized !== value) invitationCodeState.value = normalized;
+    trackCodeCompletion(normalized);
     updateInvitationCode(normalized);
   };
 
@@ -846,9 +1079,23 @@ export function AddSyncConnectionSheet({
       await ClipboardProxy.getStringAsync()
     );
     invitationCodeState.value = normalized;
+    trackCodeCompletion(normalized);
     updateInvitationCode(normalized);
     if (normalized.length < 6) void invitationCodeRef.current?.focus();
   };
+
+  useEffect(() => {
+    if (mode !== 'joinCode' || !autoAdvanceRef.current) return;
+    if (!codeComplete || error) return;
+    autoAdvanceRef.current = false;
+    continueFromCode();
+  }, [mode, codeComplete, error, continueFromCode]);
+
+  useEffect(() => {
+    if (mode === 'joinDetails') return;
+    setPassphraseRevealed(false);
+    setEditingDeviceName(false);
+  }, [mode]);
 
   useEffect(() => {
     // Every stage fits the medium detent; the user can still drag to large.
@@ -860,11 +1107,7 @@ export function AddSyncConnectionSheet({
       : mode === 'joinCode'
       ? t('space.flow.joinCodeSheetTitle')
       : mode === 'joinDetails'
-      ? t(
-          showsJoinStatus
-            ? 'space.flow.joinCodeSheetTitle'
-            : 'space.flow.joinDetailsTitle'
-        )
+      ? t('space.flow.joinCodeSheetTitle')
       : mode === 'invitation'
       ? t('space.flow.waitingTitle')
       : mode === 'joinUpdating' || mode === 'joinReady'
@@ -1005,38 +1248,41 @@ export function AddSyncConnectionSheet({
                 }
               >
                 <VStack
-                  spacing={18}
+                  spacing={0}
                   alignment="center"
-                  modifiers={[
-                    padding({ horizontal: 20, top: 4 }),
-                    frame({ maxWidth: Infinity }),
-                  ]}
+                  modifiers={[frame({ maxWidth: Infinity })]}
                 >
-                  <VStack spacing={4} alignment="center">
-                    <SwiftUIText>{t('space.flow.joinCodeTitle')}</SwiftUIText>
-                    <SwiftUIText
+                  <JoinStepHeading
+                    title={t('space.flow.joinCodeTitle')}
+                    body={t('space.flow.joinCodeBody')}
+                  />
+                  <VStack
+                    spacing={16}
+                    alignment="center"
+                    modifiers={[
+                      padding({ horizontal: 20, top: 26 }),
+                      frame({ maxWidth: Infinity }),
+                    ]}
+                  >
+                    <InvitationCodeField
+                      code={invitationCode}
+                      inputRef={invitationCodeRef}
+                      label={t('space.flow.joinCodeTitle')}
+                      nativeText={invitationCodeState}
+                      onTextChange={handleInvitationCodeChange}
+                    />
+                    {error ? <InlineConnectionError message={error} /> : null}
+                    <SwiftUIButton
+                      systemImage="doc.on.clipboard"
+                      label={t('space.flow.pasteInvitation')}
+                      onPress={() => void pasteInvitation()}
                       modifiers={[
-                        foregroundStyle('secondary'),
-                        multilineTextAlignment('center'),
+                        buttonStyle('bordered'),
+                        buttonBorderShape('capsule'),
+                        controlSize('regular'),
                       ]}
-                    >
-                      {t('space.flow.joinCodeBody')}
-                    </SwiftUIText>
+                    />
                   </VStack>
-                  <InvitationCodeField
-                    code={invitationCode}
-                    inputRef={invitationCodeRef}
-                    label={t('space.flow.joinCodeTitle')}
-                    nativeText={invitationCodeState}
-                    onTextChange={handleInvitationCodeChange}
-                  />
-                  {error ? <InlineConnectionError message={error} /> : null}
-                  <SwiftUIButton
-                    systemImage="doc.on.clipboard"
-                    label={t('space.flow.pasteInvitation')}
-                    onPress={() => void pasteInvitation()}
-                    modifiers={[buttonStyle('plain')]}
-                  />
                 </VStack>
               </IosSheetScaffold>
             ) : null}
@@ -1126,47 +1372,90 @@ export function AddSyncConnectionSheet({
                     }
                   />
                 ) : (
-                  <IosSheetForm modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity })]}>
-                    <Section
-                      header={
-                        <SwiftUIText
-                          modifiers={[
-                            font({
-                              size: 20,
-                              weight: 'semibold',
-                              design: 'monospaced',
-                            }),
-                          ]}
-                        >
-                          {formatInvitationCode(
-                            normalizeInvitationCodeInput(invitationCode)
-                          )}
-                        </SwiftUIText>
-                      }
-                      footer={
-                        <SwiftUIText>{t('space.flow.joinDetailsBody')}</SwiftUIText>
-                      }
+                  <ScrollView
+                    showsIndicators={false}
+                    modifiers={[frame({ maxWidth: Infinity })]}
+                  >
+                    <VStack
+                      spacing={0}
+                      alignment="center"
+                      modifiers={[frame({ maxWidth: Infinity })]}
                     >
-                      <SecureField
-                        ref={passphraseRef}
-                        placeholder={t('space.field.passphrase')}
-                        onTextChange={setPassphrase}
-                        autoFocus
-                        modifiers={[frame({ minHeight: 30 })]}
+                      <JoinStepHeading
+                        title={t('space.flow.joinPassphraseTitle')}
+                        body={t('space.flow.joinDetailsBody')}
                       />
-                      <TextField
-                        text={deviceNameState}
-                        placeholder={t('space.field.deviceName')}
-                        onTextChange={setDeviceName}
+                      <VStack
+                        spacing={10}
+                        alignment="leading"
                         modifiers={[
-                          textFieldStyle('plain'),
-                          textInputAutocapitalization('words'),
-                          frame({ minHeight: 30 }),
+                          padding({ horizontal: 20, top: 16 }),
+                          frame({ maxWidth: Infinity }),
                         ]}
-                      />
-                    </Section>
-                    {error ? <ConnectionErrorMessage message={error} /> : null}
-                  </IosSheetForm>
+                      >
+                        <HStack modifiers={[frame({ maxWidth: Infinity })]}>
+                          <Spacer />
+                          <InvitationCodeChip
+                            code={formatInvitationCode(
+                              normalizeInvitationCodeInput(invitationCode)
+                            )}
+                            label={t('space.field.invitationCode')}
+                            editLabel={t('space.flow.editInvitationCode')}
+                            accessibilityText={t(
+                              'space.flow.editInvitationCodeAccessibility',
+                              {
+                                code: formatInvitationCode(
+                                  normalizeInvitationCodeInput(invitationCode)
+                                ),
+                              }
+                            )}
+                            onPress={back}
+                          />
+                          <Spacer />
+                        </HStack>
+                        <PassphraseField
+                          inputRef={passphraseRef}
+                          nativeText={passphraseState}
+                          placeholder={t('space.field.passphrase')}
+                          revealed={passphraseRevealed}
+                          revealLabel={t('space.flow.showPassphrase')}
+                          hideLabel={t('space.flow.hidePassphrase')}
+                          hasError={Boolean(error)}
+                          onToggleReveal={() =>
+                            setPassphraseRevealed((revealed) => !revealed)
+                          }
+                          onTextChange={setPassphrase}
+                        />
+                        {error ? <InlineConnectionError message={error} /> : null}
+                        {editingDeviceName ? (
+                          <TextField
+                            text={deviceNameState}
+                            placeholder={t('space.field.deviceName')}
+                            onTextChange={setDeviceName}
+                            autoFocus
+                            modifiers={[
+                              textFieldStyle('plain'),
+                              textInputAutocapitalization('words'),
+                              padding({ horizontal: 16 }),
+                              frame({ minHeight: 50, maxWidth: Infinity }),
+                              background(
+                                CARD_BACKGROUND,
+                                shapes.roundedRectangle({ cornerRadius: 16 })
+                              ),
+                            ]}
+                          />
+                        ) : (
+                          <JoinDeviceNameRow
+                            label={t('space.flow.joinAsDevice', {
+                              name: deviceName.trim() || defaultDeviceName,
+                            })}
+                            actionLabel={t('space.flow.renameDevice')}
+                            onPress={() => setEditingDeviceName(true)}
+                          />
+                        )}
+                      </VStack>
+                    </VStack>
+                  </ScrollView>
                 )}
               </IosSheetScaffold>
             ) : null}

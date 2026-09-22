@@ -130,7 +130,14 @@
           "deviceSecurityUpdateRejected": "Состояние безопасности устройств требует внимания.",
           "deviceUpgradeRequired": "Обновите связанные устройства, чтобы продолжить."
         }
-      }
+      },
+      "joinPassphraseTitle": "Введите пароль пространства",
+      "editInvitationCode": "Изменить",
+      "editInvitationCodeAccessibility": "Код приглашения {{code}}, дважды коснитесь, чтобы изменить",
+      "showPassphrase": "Показать пароль",
+      "hidePassphrase": "Скрыть пароль",
+      "joinAsDevice": "Подключение как «{{name}}»",
+      "renameDevice": "Переименовать"
     },
     "status": {
       "ready": "Пространство готово",
