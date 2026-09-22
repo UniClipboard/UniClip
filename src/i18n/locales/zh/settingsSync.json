@@ -88,7 +88,7 @@
       "createTitle": "从这台设备开始",
       "createBody": "设置一个空间密码。以后其他设备加入这个空间时，需要输入完全相同的密码。请妥善记住，忘记后无法找回。",
       "joinCodeSheetTitle": "加入空间",
-      "joinCodeTitle": "输入另一台设备上的邀请码",
+      "joinCodeTitle": "输入邀请码",
       "joinCodeBody": "在已进入空间的设备中打开“添加设备”，即可查看 6 位数字邀请码。",
       "pasteInvitation": "从剪贴板粘贴",
       "joinDetailsTitle": "确认这台设备",
@@ -130,7 +130,14 @@
           "deviceSecurityUpdateRejected": "设备安全状态需要处理，请查看设备列表。",
           "deviceUpgradeRequired": "相关设备需要更新后才能继续。"
         }
-      }
+      },
+      "joinPassphraseTitle": "输入空间密码",
+      "editInvitationCode": "修改",
+      "editInvitationCodeAccessibility": "邀请码 {{code}}，点按修改",
+      "showPassphrase": "显示密码",
+      "hidePassphrase": "隐藏密码",
+      "joinAsDevice": "以“{{name}}”加入",
+      "renameDevice": "修改名称"
     },
     "status": {
       "ready": "空间已就绪",

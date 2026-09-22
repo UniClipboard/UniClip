@@ -388,3 +388,68 @@ describe('unified sync connection flows', () => {
     }
   });
 });
+
+describe('iOS two-step join sheet', () => {
+  const ios = () => source('components/AddSyncConnectionSheet.ios.tsx');
+  const joinDetailsStep = () => {
+    const text = ios();
+    const start = text.indexOf("{mode === 'joinDetails' ? (");
+    return text.slice(start, text.indexOf("{mode === 'invitation'", start));
+  };
+
+  it('omits a step indicator from the join steps', () => {
+    const text = ios();
+
+    expect(text).not.toContain('JoinStepProgress');
+    expect(text).not.toContain('space.flow.stepProgress');
+  });
+
+  it('advances to the password step only on a fresh code completion', () => {
+    const text = ios();
+
+    expect(text).toContain('!codeComplete && normalizeInvitationCodeInput(normalized).length === 6');
+    expect(text).toMatch(
+      /mode !== 'joinCode' \|\| !autoAdvanceRef\.current[\s\S]*autoAdvanceRef\.current = false;\s*continueFromCode\(\)/
+    );
+  });
+
+  it('keeps the invitation code editable and the password revealable in step two', () => {
+    const step = joinDetailsStep();
+
+    expect(step).toMatch(/<InvitationCodeChip[\s\S]*onPress=\{back\}/);
+    expect(step).toContain('nativeText={passphraseState}');
+    expect(ios()).toMatch(/<TextField\s+text=\{nativeText\}/);
+    expect(ios()).toMatch(/<SecureField\s+ref=\{inputRef\}\s+text=\{nativeText\}/);
+    expect(ios()).toContain("passphraseState.value = ''");
+  });
+
+  it('collapses the device name into a full-width tappable row', () => {
+    const text = ios();
+    const row = text.slice(
+      text.indexOf('function JoinDeviceNameRow'),
+      text.indexOf('function InlineConnectionError')
+    );
+
+    expect(joinDetailsStep()).toContain('onPress={() => setEditingDeviceName(true)}');
+    expect(row).toContain("modifiers={[buttonStyle('plain'), frame({ maxWidth: Infinity })]}");
+    expect(row).toContain('contentShape(shapes.rectangle())');
+    expect(row).toContain('<Spacer />');
+  });
+
+  it('translates the new join copy in every supported language', () => {
+    for (const locale of ['en', 'pt-BR', 'ru', 'zh']) {
+      const flow = JSON.parse(source(`i18n/locales/${locale}/settingsSync.json`)).space.flow;
+      for (const key of [
+        'joinPassphraseTitle',
+        'editInvitationCode',
+        'editInvitationCodeAccessibility',
+        'showPassphrase',
+        'hidePassphrase',
+        'joinAsDevice',
+        'renameDevice',
+      ]) {
+        expect(flow[key]).toEqual(expect.any(String));
+      }
+    }
+  });
+});

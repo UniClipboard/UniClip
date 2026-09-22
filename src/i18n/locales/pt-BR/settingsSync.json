@@ -130,7 +130,14 @@
           "deviceSecurityUpdateRejected": "O estado de segurança dos dispositivos precisa de atenção.",
           "deviceUpgradeRequired": "Atualize os dispositivos relacionados para continuar."
         }
-      }
+      },
+      "joinPassphraseTitle": "Digite a senha do espaço",
+      "editInvitationCode": "Editar",
+      "editInvitationCodeAccessibility": "Código de convite {{code}}, toque duas vezes para editar",
+      "showPassphrase": "Mostrar senha",
+      "hidePassphrase": "Ocultar senha",
+      "joinAsDevice": "Entrando como “{{name}}”",
+      "renameDevice": "Renomear"
     },
     "status": {
       "ready": "O espaço está pronto",

@@ -130,7 +130,14 @@
           "deviceSecurityUpdateRejected": "The device security status needs attention. Review the device list.",
           "deviceUpgradeRequired": "Related devices must be updated before syncing can continue."
         }
-      }
+      },
+      "joinPassphraseTitle": "Enter space password",
+      "editInvitationCode": "Edit",
+      "editInvitationCodeAccessibility": "Invitation code {{code}}, double-tap to edit",
+      "showPassphrase": "Show password",
+      "hidePassphrase": "Hide password",
+      "joinAsDevice": "Joining as “{{name}}”",
+      "renameDevice": "Rename"
     },
     "status": {
       "ready": "Space is ready",
