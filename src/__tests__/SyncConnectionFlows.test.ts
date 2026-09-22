@@ -453,3 +453,53 @@ describe('iOS two-step join sheet', () => {
     }
   });
 });
+
+describe('Android two-step join sheet', () => {
+  const android = () => source('components/AddSyncConnectionSheet.android.tsx');
+  const joinDetailsStep = () => {
+    const text = android();
+    const start = text.indexOf("{mode === 'joinDetails' ? (");
+    return text.slice(start, text.indexOf("{mode === 'invitation'", start));
+  };
+
+  it('uses a six-cell code field decorated around a bare Compose input', () => {
+    const text = android();
+
+    expect(text).toContain('function InvitationCodeCells');
+    expect(text).toMatch(/<BasicTextField[\s\S]*<BasicTextField\.DecorationBox>/);
+    expect(text).toContain('<BasicTextField.InnerTextField />');
+    expect(text).toContain('Array.from({ length: 6 }');
+    expect(text).toContain("t('space.flow.pasteInvitation')");
+    expect(text).not.toContain('step={1}');
+  });
+
+  it('advances to the password step only on a fresh code completion', () => {
+    const text = android();
+
+    expect(text).toContain('!codeComplete && normalizeInvitationCodeInput(normalized).length === 6');
+    expect(text).toMatch(
+      /mode !== 'joinCode' \|\| !autoAdvanceRef\.current[\s\S]*autoAdvanceRef\.current = false;\s*continueFromCode\(\)/
+    );
+  });
+
+  it('keeps the code editable and the password revealable in step two', () => {
+    const step = joinDetailsStep();
+
+    expect(step).toMatch(/<InvitationCodeChip[\s\S]*onClick=\{back\}/);
+    expect(step).toContain("visualTransformation={passphraseRevealed ? 'none' : 'password'}");
+    expect(step).toContain('<OutlinedTextField.TrailingIcon>');
+    expect(step).toContain('isError={Boolean(error)}');
+  });
+
+  it('collapses the device name into a full-width clickable row', () => {
+    const text = android();
+    const row = text.slice(
+      text.indexOf('function JoinDeviceNameRow'),
+      text.indexOf('function InlineConnectionError')
+    );
+
+    expect(joinDetailsStep()).toContain('onClick={() => setEditingDeviceName(true)}');
+    expect(row).toMatch(/<Row[\s\S]*fillMaxWidth\(\),[\s\S]*clickable\(onClick\)/);
+    expect(row).toContain('weight(1)');
+  });
+});

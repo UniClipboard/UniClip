@@ -1,12 +1,14 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import * as Device from 'expo-device';
 import {
   AssistChip,
+  BasicTextField,
   Box,
   Button,
   Column,
   Host,
   Icon,
+  IconButton,
   ContainedLoadingIndicator,
   LinearWavyProgressIndicator,
   LoadingIndicator,
@@ -24,6 +26,7 @@ import {
   useNativeState,
 } from '@expo/ui/jetpack-compose';
 import {
+  alpha,
   background,
   clickable,
   clip,
@@ -41,8 +44,10 @@ import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/hooks/useTheme';
 import { resolveDefaultDeviceName } from '@/utils/deviceName';
+import * as ClipboardProxy from '@/utils/clipboardProxy';
 import {
   formatInvitationCode,
+  invitationCodeInputValue,
   normalizeInvitationCodeInput,
 } from '@/utils/invitationCode';
 import type { AddSyncConnectionSheetProps } from './AddSyncConnectionSheet.types';
@@ -61,6 +66,12 @@ const ICONS = {
   close: require('../assets/icons/close.xml'),
   chevron: require('../assets/icons/chevron_right.xml'),
   retry: require('../assets/icons/restart_alt.xml'),
+  paste: require('../assets/icons/content_paste.xml'),
+  phone: require('../assets/icons/smartphone.xml'),
+  lock: require('../assets/icons/lock.xml'),
+  check: require('../assets/icons/check.xml'),
+  show: require('../assets/icons/visibility.xml'),
+  hide: require('../assets/icons/visibility_off.xml'),
 };
 
 const TITLE_STYLE = { typography: 'titleLarge' } as const;
@@ -70,7 +81,6 @@ const STATUS_TITLE_STYLE = {
   fontWeight: '600',
   textAlign: 'center',
 } as const;
-const CODE_REVIEW_STYLE = { typography: 'headlineMedium' } as const;
 const INVITATION_STYLE = {
   typography: 'displaySmall',
   fontFamily: 'monospace',
@@ -78,13 +88,16 @@ const INVITATION_STYLE = {
   letterSpacing: 0,
   textAlign: 'center',
 } as const;
-const CODE_INPUT_STYLE = {
-  textAlign: 'center',
+const CODE_CELL_STYLE = {
+  typography: 'headlineMedium',
   fontFamily: 'monospace',
-  fontSize: 28,
   fontWeight: '600',
-  letterSpacing: 0,
+  textAlign: 'center',
 } as const;
+const CODE_CELL_SHAPE = Shape.RoundedCorner({
+  cornerRadii: { topStart: 12, topEnd: 12, bottomStart: 12, bottomEnd: 12 },
+});
+const CODE_CHIP_STYLE = { fontFamily: 'monospace', fontWeight: '600' } as const;
 const WAITING_STYLE = { textAlign: 'center' } as const;
 const CONNECTED_DEVICE_STYLE = {
   typography: 'headlineSmall',
@@ -333,6 +346,153 @@ function InvitationCodeCard({
   );
 }
 
+/**
+ * Six-cell invitation code input. The bare field owns focus and the keyboard; the cells are its
+ * decoration, so tapping anywhere on them focuses the field.
+ */
+function InvitationCodeCells({
+  code,
+  nativeText,
+  inputRef,
+  onValueChange,
+}: {
+  code: string;
+  nativeText: ReturnType<typeof useNativeState<string>>;
+  inputRef: React.RefObject<TextFieldRef | null>;
+  onValueChange: (value: string) => void;
+}) {
+  const colors = useMaterialColors();
+  const normalizedCode = normalizeInvitationCodeInput(code);
+  const cells = Array.from({ length: 6 }, (_, index) => index);
+  const groups = [cells.slice(0, 3), cells.slice(3, 6)];
+
+  return (
+    <BasicTextField
+      ref={inputRef}
+      value={nativeText}
+      onValueChange={onValueChange}
+      autoFocus
+      singleLine
+      cursorColor="transparent"
+      keyboardOptions={{
+        autoCorrectEnabled: false,
+        keyboardType: 'number',
+        imeAction: 'next',
+      }}
+      modifiers={[fillMaxWidth()]}
+    >
+      <BasicTextField.DecorationBox>
+        <Box contentAlignment="center" modifiers={[fillMaxWidth()]}>
+          <Row verticalAlignment="center">
+            {groups.map((group, groupIndex) => (
+              <Row key={groupIndex} verticalAlignment="center">
+                {groupIndex > 0 ? (
+                  <Box
+                    modifiers={[
+                      padding(10, 0, 10, 0),
+                      size(10, 2),
+                      background(colors.outline),
+                    ]}
+                  />
+                ) : null}
+                {group.map((index) => {
+                  const isActive =
+                    normalizedCode.length < 6 && index === normalizedCode.length;
+                  return (
+                    <Surface
+                      key={index}
+                      color={colors.surfaceContainerHighest}
+                      shape={CODE_CELL_SHAPE}
+                      border={{
+                        width: 2,
+                        color: isActive ? colors.primary : 'transparent',
+                      }}
+                      modifiers={[padding(index % 3 === 0 ? 0 : 8, 0, 0, 0)]}
+                    >
+                      <Box contentAlignment="center" modifiers={[size(44, 56)]}>
+                        <ComposeText
+                          style={CODE_CELL_STYLE}
+                          color={isActive ? colors.primary : colors.onSurface}
+                        >
+                          {normalizedCode[index] ?? (isActive ? '|' : ' ')}
+                        </ComposeText>
+                      </Box>
+                    </Surface>
+                  );
+                })}
+              </Row>
+            ))}
+          </Row>
+          {/* The real input stays in the tree for focus and IME, but draws nothing. */}
+          <Box modifiers={[size(1, 1), alpha(0)]}>
+            <BasicTextField.InnerTextField />
+          </Box>
+        </Box>
+      </BasicTextField.DecorationBox>
+    </BasicTextField>
+  );
+}
+
+/** Confirms the entered invitation code on the password step; tapping it returns to edit. */
+function InvitationCodeChip({
+  code,
+  label,
+  editLabel,
+  onClick,
+}: {
+  code: string;
+  label: string;
+  editLabel: string;
+  onClick: () => void;
+}) {
+  const colors = useMaterialColors();
+  return (
+    <AssistChip onClick={onClick}>
+      <AssistChip.LeadingIcon>
+        <Icon source={ICONS.check} size={18} tint={colors.primary} />
+      </AssistChip.LeadingIcon>
+      <AssistChip.Label>
+        <Row verticalAlignment="center">
+          <ComposeText>{`${label} `}</ComposeText>
+          <ComposeText style={CODE_CHIP_STYLE}>{code}</ComposeText>
+          <ComposeText color={colors.onSurfaceVariant}>{` · ${editLabel}`}</ComposeText>
+        </Row>
+      </AssistChip.Label>
+    </AssistChip>
+  );
+}
+
+/** Collapsed device name; the whole row opens the name editor. */
+function JoinDeviceNameRow({
+  label,
+  actionLabel,
+  onClick,
+}: {
+  label: string;
+  actionLabel: string;
+  onClick: () => void;
+}) {
+  const colors = useMaterialColors();
+  return (
+    <Row
+      verticalAlignment="center"
+      modifiers={[
+        fillMaxWidth(),
+        clip(Shapes.RoundedCorner(16)),
+        clickable(onClick),
+        padding(12, 12, 12, 12),
+      ]}
+    >
+      <Icon source={ICONS.phone} size={18} tint={colors.onSurfaceVariant} />
+      <Spacer modifiers={[widthModifier(10)]} />
+      <ComposeText color={colors.onSurfaceVariant} modifiers={[weight(1)]}>
+        {label}
+      </ComposeText>
+      <ComposeText color={colors.primary}>{actionLabel}</ComposeText>
+    </Row>
+  );
+}
+
 function InlineConnectionError({ message }: { message: string }) {
   const colors = useMaterialColors();
 
@@ -366,6 +526,9 @@ function AddSyncConnectionSheetContent({
   const invitationCodeRef = useRef<TextFieldRef>(null);
   const deviceNameState = useNativeState(defaultDeviceName);
   const passphraseState = useNativeState('');
+  const [passphraseRevealed, setPassphraseRevealed] = useState(false);
+  const [editingDeviceName, setEditingDeviceName] = useState(false);
+  const autoAdvanceRef = useRef(false);
   const invitationCodeState = useNativeState('');
   const liveFlow = useAddSyncConnectionFlow({
     visible: visible && previewScenario == null,
@@ -389,6 +552,7 @@ function AddSyncConnectionSheetContent({
   const { state, actions } = previewScenario ? previewFlow : liveFlow;
   const {
     mode,
+    deviceName,
     invitationCode,
     invitation,
     pending,
@@ -434,7 +598,7 @@ function AddSyncConnectionSheetContent({
       ? t(
           showsJoinStatus
             ? 'space.flow.joinCodeSheetTitle'
-            : 'space.flow.joinDetailsTitle'
+            : 'space.flow.joinPassphraseTitle'
         )
       : mode === 'invitation'
       ? t('space.flow.waitingTitle')
@@ -443,6 +607,37 @@ function AddSyncConnectionSheetContent({
       : mode === 'success'
       ? t('space.flow.successTitle')
       : t('connection.addSheetTitle');
+
+  // Only a fresh completion advances; returning to edit a full code must not bounce forward.
+  const handleInvitationCodeChange = (value: string) => {
+    const normalized = invitationCodeInputValue(value);
+    if (normalized !== value) invitationCodeState.value = normalized;
+    autoAdvanceRef.current =
+      !codeComplete && normalizeInvitationCodeInput(normalized).length === 6;
+    updateInvitationCode(normalized);
+  };
+
+  const pasteInvitation = async () => {
+    const normalized = invitationCodeInputValue(
+      await ClipboardProxy.getStringAsync()
+    );
+    invitationCodeState.value = normalized;
+    handleInvitationCodeChange(normalized);
+    if (normalized.length < 6) void invitationCodeRef.current?.focus();
+  };
+
+  useEffect(() => {
+    if (mode !== 'joinCode' || !autoAdvanceRef.current) return;
+    if (!codeComplete || error) return;
+    autoAdvanceRef.current = false;
+    continueFromCode();
+  }, [mode, codeComplete, error, continueFromCode]);
+
+  useEffect(() => {
+    if (mode === 'joinDetails') return;
+    setPassphraseRevealed(false);
+    setEditingDeviceName(false);
+  }, [mode]);
 
   const sheetRef = useRef<ModalBottomSheetRef>(null);
 
@@ -571,28 +766,29 @@ function AddSyncConnectionSheetContent({
               {t('space.flow.joinCodeBody')}
             </ComposeText>
             <Spacer modifiers={[heightModifier(24)]} />
-            <OutlinedTextField
-              ref={invitationCodeRef}
-              value={invitationCodeState}
-              onValueChange={updateInvitationCode}
-              autoFocus
-              singleLine
-              keyboardOptions={{
-                autoCorrectEnabled: false,
-                keyboardType: 'number',
-                imeAction: 'next',
-              }}
-              textStyle={CODE_INPUT_STYLE}
-              keyboardActions={{ onNext: continueFromCode }}
-              modifiers={[fillMaxWidth()]}
-            >
-              <OutlinedTextField.Label>
-                <ComposeText>{t('space.field.invitationCode')}</ComposeText>
-              </OutlinedTextField.Label>
-              <OutlinedTextField.Placeholder>
-                <ComposeText>123-456</ComposeText>
-              </OutlinedTextField.Placeholder>
-            </OutlinedTextField>
+            <InvitationCodeCells
+              code={invitationCode}
+              nativeText={invitationCodeState}
+              inputRef={invitationCodeRef}
+              onValueChange={handleInvitationCodeChange}
+            />
+            {error ? (
+              <>
+                <Spacer modifiers={[heightModifier(12)]} />
+                <InlineConnectionError message={error} />
+              </>
+            ) : null}
+            <Spacer modifiers={[heightModifier(12)]} />
+            <Row horizontalArrangement="center" modifiers={[fillMaxWidth()]}>
+              <AssistChip onClick={() => void pasteInvitation()}>
+                <AssistChip.LeadingIcon>
+                  <Icon source={ICONS.paste} size={18} tint={colors.primary} />
+                </AssistChip.LeadingIcon>
+                <AssistChip.Label>
+                  <ComposeText>{t('space.flow.pasteInvitation')}</ComposeText>
+                </AssistChip.Label>
+              </AssistChip>
+            </Row>
             <Spacer modifiers={[heightModifier(20)]} />
             <Button
               onClick={continueFromCode}
@@ -680,45 +876,84 @@ function AddSyncConnectionSheetContent({
                   {t('space.flow.joinDetailsBody')}
                 </ComposeText>
                 <Spacer modifiers={[heightModifier(12)]} />
-                <ComposeText style={CODE_REVIEW_STYLE}>
-                  {formatInvitationCode(
+                <InvitationCodeChip
+                  code={formatInvitationCode(
                     normalizeInvitationCodeInput(invitationCode)
                   )}
-                </ComposeText>
-                <Spacer modifiers={[heightModifier(20)]} />
+                  label={t('space.field.invitationCode')}
+                  editLabel={t('space.flow.editInvitationCode')}
+                  onClick={back}
+                />
+                <Spacer modifiers={[heightModifier(12)]} />
                 <OutlinedTextField
                   value={passphraseState}
                   onValueChange={setPassphrase}
                   autoFocus
                   singleLine
-                  visualTransformation="password"
+                  isError={Boolean(error)}
+                  visualTransformation={passphraseRevealed ? 'none' : 'password'}
                   keyboardOptions={{
                     keyboardType: 'password',
                     autoCorrectEnabled: false,
-                    imeAction: 'next',
-                  }}
-                  modifiers={[fillMaxWidth()]}
-                >
-                  <OutlinedTextField.Label>
-                    <ComposeText>{t('space.field.passphrase')}</ComposeText>
-                  </OutlinedTextField.Label>
-                </OutlinedTextField>
-                <Spacer modifiers={[heightModifier(12)]} />
-                <OutlinedTextField
-                  value={deviceNameState}
-                  onValueChange={setDeviceName}
-                  singleLine
-                  keyboardOptions={{
-                    capitalization: 'words',
                     imeAction: 'done',
                   }}
                   keyboardActions={{ onDone: () => void submitJoin() }}
                   modifiers={[fillMaxWidth()]}
                 >
                   <OutlinedTextField.Label>
-                    <ComposeText>{t('space.field.deviceName')}</ComposeText>
+                    <ComposeText>{t('space.field.passphrase')}</ComposeText>
                   </OutlinedTextField.Label>
+                  <OutlinedTextField.LeadingIcon>
+                    <Icon source={ICONS.lock} size={20} />
+                  </OutlinedTextField.LeadingIcon>
+                  <OutlinedTextField.TrailingIcon>
+                    <IconButton
+                      onClick={() => setPassphraseRevealed((revealed) => !revealed)}
+                    >
+                      <Icon
+                        source={passphraseRevealed ? ICONS.hide : ICONS.show}
+                        size={22}
+                        contentDescription={t(
+                          passphraseRevealed
+                            ? 'space.flow.hidePassphrase'
+                            : 'space.flow.showPassphrase'
+                        )}
+                      />
+                    </IconButton>
+                  </OutlinedTextField.TrailingIcon>
+                  {error ? (
+                    <OutlinedTextField.SupportingText>
+                      <ComposeText>{error}</ComposeText>
+                    </OutlinedTextField.SupportingText>
+                  ) : null}
                 </OutlinedTextField>
+                <Spacer modifiers={[heightModifier(8)]} />
+                {editingDeviceName ? (
+                  <OutlinedTextField
+                    value={deviceNameState}
+                    onValueChange={setDeviceName}
+                    autoFocus
+                    singleLine
+                    keyboardOptions={{
+                      capitalization: 'words',
+                      imeAction: 'done',
+                    }}
+                    keyboardActions={{ onDone: () => void submitJoin() }}
+                    modifiers={[fillMaxWidth()]}
+                  >
+                    <OutlinedTextField.Label>
+                      <ComposeText>{t('space.field.deviceName')}</ComposeText>
+                    </OutlinedTextField.Label>
+                  </OutlinedTextField>
+                ) : (
+                  <JoinDeviceNameRow
+                    label={t('space.flow.joinAsDevice', {
+                      name: deviceName.trim() || defaultDeviceName,
+                    })}
+                    actionLabel={t('space.flow.renameDevice')}
+                    onClick={() => setEditingDeviceName(true)}
+                  />
+                )}
                 <Spacer modifiers={[heightModifier(20)]} />
                 <Button
                   onClick={submitJoin}
