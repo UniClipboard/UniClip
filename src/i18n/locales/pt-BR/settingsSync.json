@@ -72,7 +72,7 @@
       "description": "Usar um convite gerado em outro dispositivo",
       "action": "Entrar",
       "pending": "Entrando",
-      "processing": "Concluindo o pareamento. Aguardando a confirmação do outro dispositivo.",
+      "processing": "Pareando",
       "takingLonger": "A conexão está demorando. Ainda tentando entrar.",
       "cancelling": "Cancelando entrada",
       "cancelFailed": "Não foi possível cancelar ainda. A entrada continua em andamento. Tente cancelar novamente."
@@ -115,6 +115,11 @@
         "completedBody": "Agora estes dispositivos podem sincronizar.",
         "continueInBackground": "Continuar em segundo plano",
         "reviewAction": "Ver como resolver",
+        "attention": {
+          "blockedTitle": "Não foi possível entrar neste espaço",
+          "reviewAction": "Ver status dos dispositivos",
+          "cancelAction": "Cancelar"
+        },
         "reason": {
           "deviceStateRejected": "Não foi possível verificar o estado. Revise a lista de dispositivos.",
           "deviceRelationshipConflict": "As relações entre dispositivos precisam de confirmação.",

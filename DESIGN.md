@@ -411,6 +411,34 @@ Access via `theme.typography.*`.
 - **Sheet horizontal padding**: 20px.
 - **Minimum tap target**: 44px (both platforms, following Apple HIG).
 
+### Sheet page layout
+
+Use one continuous sheet surface with three vertical regions:
+
+1. **Header**: fixed at the top. It owns the title and navigation or dismissal actions.
+2. **Content**: takes all remaining space. Forms and lists start at the top; status, progress,
+   success, and blocking-result content may be vertically centered. When content does not fit,
+   only this region scrolls.
+3. **Actions**: fixed above the bottom safe area. Content height must never determine the action
+   position. The system keyboard moves this region above the keyboard while the content remains
+   scrollable.
+
+Action-region rules:
+
+- Use 20px horizontal padding, 10px top padding, and at least 16px bottom padding in addition to
+  the system safe area.
+- Primary actions use the standard 48px filled button. Secondary actions use a 44px text button
+  unless the platform convention or risk level requires another established button style.
+- Do not wrap the action region in a card, border, grouped-list section, or contrasting panel.
+  The sheet itself is the container.
+- An empty action region is omitted. Do not add placeholder controls only to preserve height.
+- A drag handle, header, content, and actions stay in the same sheet while a multi-stage flow
+  advances; do not close and reopen the sheet between stages.
+
+On iOS, reuse `IosSheetPage` for the header and `IosSheetScaffold` for the content/action layout.
+On Android, preserve Material 3 presentation while matching the same header/content/action
+ownership and state behavior.
+
 ### iOS-specific grid
 
 The clipboard card grid uses an adaptive column layout: each card is 160–210px wide, columns fill the available width, and the card is square (`cardSize × cardSize`).

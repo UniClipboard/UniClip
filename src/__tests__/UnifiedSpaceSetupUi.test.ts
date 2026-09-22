@@ -70,7 +70,7 @@ describe('unified space setup UI', () => {
     expect(invitationSheet).not.toContain('iosSaturatedButtonPalette(settingsTileColors.indigo)');
 
     expect(connectionSheet).toContain('const JOIN_TINT = iosAccentColor ?? iosAccent.light;');
-    expect(connectionSheet.match(/iosProminentButtonModifiers\(undefined,/g)).toHaveLength(2);
+    expect(connectionSheet.match(/iosProminentButtonModifiers\(undefined,/g)).toHaveLength(3);
     expect(connectionSheet).not.toContain('iosSaturatedButtonPalette(JOIN_TINT)');
   });
 

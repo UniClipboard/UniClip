@@ -43,6 +43,31 @@ describe('unified sync connection flows', () => {
     );
   });
 
+  it('uses one continuous iOS layout for device status problems', () => {
+    const ios = source('components/AddSyncConnectionSheet.ios.tsx');
+
+    expect(ios).toContain('exclamationmark.triangle.fill');
+    expect(ios).toContain('space.flow.deviceUpdate.attention.blockedTitle');
+    expect(ios).not.toContain('DeviceUpdateStatusRow');
+    expect(ios).toMatch(
+      /deviceUpdate\.phase === 'needsAttention' \? \(\s*<IosSheetScaffold[\s\S]*footer=\{[\s\S]*space\.flow\.deviceUpdate\.attention\.cancelAction[\s\S]*contentAlignment="center"/
+    );
+    expect(ios).toContain("buttonStyle('plain')");
+  });
+
+  it('keeps every iOS pairing action in the shared bottom action region', () => {
+    const ios = source('components/AddSyncConnectionSheet.ios.tsx');
+    const scaffold = source('components/ui/IosSheetPage.ios.tsx');
+    const design = fs.readFileSync(path.resolve(root, '../DESIGN.md'), 'utf8');
+
+    expect(ios).toContain('IosSheetScaffold');
+    expect(ios.match(/<IosSheetScaffold/g)?.length).toBeGreaterThanOrEqual(8);
+    expect(scaffold).toContain('maxHeight: Infinity');
+    expect(scaffold).toContain('padding({ horizontal: 20, top: 10, bottom: 16 })');
+    expect(design).toContain('Content height must never determine the action');
+    expect(design).toContain('Do not wrap the action region in a card');
+  });
+
   it('gives the iOS add sheet a native hierarchy instead of a flat button list', () => {
     const ios = source('components/AddSyncConnectionSheet.ios.tsx');
 
@@ -118,7 +143,7 @@ describe('unified sync connection flows', () => {
     expect(ios).toContain('autoFocus');
     expect(ios).toContain('ClipboardProxy.getStringAsync()');
     expect(ios).toContain("t('space.flow.pasteInvitation')");
-    expect(ios).toContain("error && mode !== 'joinCode'");
+    expect(ios).toContain('function ConnectionErrorMessage');
     expect(joinCodeStep).not.toContain('padding({ top:');
     expect(joinCodeStep).not.toContain("font({ size: 19, weight: 'semibold' })");
     expect(ios).toContain("const canGoBack = mode === 'joinDetails';");

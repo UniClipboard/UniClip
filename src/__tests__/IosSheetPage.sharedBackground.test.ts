@@ -17,7 +17,10 @@ describe('iOS sheet page shared background', () => {
       "frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'top' })"
     );
     expect(pageSource).toContain('scrollContentBackground');
-    expect(indexSource).toContain("export { IosSheetPage, IosSheetForm } from './IosSheetPage'");
+    expect(indexSource).toContain(
+      "export { IosSheetPage, IosSheetForm, IosSheetScaffold } from './IosSheetPage'"
+    );
+    expect(pageSource).toContain('export function IosSheetScaffold');
   });
 
   it('uses the shared sheet page wrapper for every iOS sheet with a header', () => {
