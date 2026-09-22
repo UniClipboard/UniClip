@@ -96,6 +96,29 @@
         "longScrollable": "长名称和多设备滚动",
         "groupChoices": "新版设备列表与待确认成员"
       }
+    },
+    "connectionSheetPreview": {
+      "label": "预览配对 Sheet",
+      "description": "选择状态并打开正式配对界面",
+      "pickerTitle": "选择配对界面状态",
+      "pickerDescription": "预览使用隔离的示例数据。关闭后可重新选择，所有按钮都不会发起真实配对或修改设备资料。",
+      "scenarios": {
+        "joinPending": "加入中",
+        "joinProcessing": "处理中，等待对方确认",
+        "joinTakingLonger": "加入耗时较长",
+        "joinCancelling": "正在取消",
+        "joinFailed": "加入失败",
+        "deviceUpdating": "正在更新空间设备状态",
+        "deviceRetrying": "稍后自动重试",
+        "deviceStateRejected": "需要处理：设备状态无法核验",
+        "deviceRelationshipConflict": "需要处理：设备关系冲突",
+        "deviceSecurityUpdateRejected": "需要处理：设备安全状态",
+        "deviceUpgradeRequired": "需要处理：相关设备需更新",
+        "deviceUpdated": "空间设备状态已更新",
+        "inviterWaiting": "邀请方：等待另一台设备",
+        "invitationExpired": "邀请方：邀请码已过期",
+        "inviterConnected": "邀请方：设备已连接"
+      }
     }
   },
   "stats": {

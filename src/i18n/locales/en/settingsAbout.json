@@ -96,6 +96,29 @@
         "longScrollable": "Long names and many devices",
         "groupChoices": "Updated device lists and unconfirmed members"
       }
+    },
+    "connectionSheetPreview": {
+      "label": "Preview pairing sheet",
+      "description": "Choose a state and open the real pairing UI",
+      "pickerTitle": "Choose a pairing sheet state",
+      "pickerDescription": "The preview uses isolated sample data. Close it to choose another state. Its buttons never start real pairing or change device data.",
+      "scenarios": {
+        "joinPending": "Joining",
+        "joinProcessing": "Processing, waiting for confirmation",
+        "joinTakingLonger": "Joining is taking longer",
+        "joinCancelling": "Cancelling",
+        "joinFailed": "Join failed",
+        "deviceUpdating": "Updating space device status",
+        "deviceRetrying": "Retrying automatically later",
+        "deviceStateRejected": "Needs attention: device status rejected",
+        "deviceRelationshipConflict": "Needs attention: relationship conflict",
+        "deviceSecurityUpdateRejected": "Needs attention: device security",
+        "deviceUpgradeRequired": "Needs attention: related device update",
+        "deviceUpdated": "Space device status updated",
+        "inviterWaiting": "Inviter: waiting for another device",
+        "invitationExpired": "Inviter: invitation expired",
+        "inviterConnected": "Inviter: device connected"
+      }
     }
   },
   "stats": {

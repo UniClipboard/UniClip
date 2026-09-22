@@ -39,6 +39,7 @@ import {
 } from '@/utils/invitationCode';
 import type { AddSyncConnectionSheetProps } from './AddSyncConnectionSheet.types';
 import { useAddSyncConnectionFlow } from './useAddSyncConnectionFlow';
+import { useAddSyncConnectionPreviewFlow } from '@/devtools/useAddSyncConnectionPreviewFlow';
 
 const ICONS = {
   space: require('../assets/icons/groups.xml'),
@@ -76,6 +77,7 @@ const CARD_SHAPE = Shape.RoundedCorner({
 function AddSyncConnectionSheetContent({
   visible,
   initialMode = 'choose',
+  previewScenario,
   onClose,
   onConnected,
 }: AddSyncConnectionSheetProps) {
@@ -90,8 +92,8 @@ function AddSyncConnectionSheetContent({
   const deviceNameState = useNativeState(defaultDeviceName);
   const passphraseState = useNativeState('');
   const invitationCodeState = useNativeState('');
-  const { state, actions } = useAddSyncConnectionFlow({
-    visible,
+  const liveFlow = useAddSyncConnectionFlow({
+    visible: visible && previewScenario == null,
     initialMode,
     defaultDeviceName,
     onClose,
@@ -105,6 +107,11 @@ function AddSyncConnectionSheetContent({
       passphraseState.value = '';
     },
   });
+  const previewFlow = useAddSyncConnectionPreviewFlow(
+    previewScenario ?? 'joinPending',
+    onClose
+  );
+  const { state, actions } = previewScenario ? previewFlow : liveFlow;
   const {
     mode,
     deviceName,

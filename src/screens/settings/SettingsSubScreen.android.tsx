@@ -5,9 +5,13 @@
  * 单个 <Host> + <LazyColumn>,各 section 复用已迁的无 Host item 组件。
  * 用 SettingsToastProvider 包裹,使 section 内的 useSettingsToast 正常工作。
  */
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import { StyleSheet } from 'react-native';
-import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import {
+  useNavigation,
+  useRoute,
+  type RouteProp,
+} from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Host, LazyColumn } from '@expo/ui/jetpack-compose';
@@ -27,12 +31,17 @@ import { QuickActionsSection } from './QuickActionsSection';
 import { ClipboardAccessMethodSheetProvider } from './ClipboardAccessMethodSheet';
 import { LanServersPage } from './LanServersPage';
 import { SyncChannelSection } from './SyncChannelSection.android';
+import { AddSyncConnectionSheet } from '@/components/AddSyncConnectionSheet';
+import type { AddSyncConnectionPreviewScenarioId } from '@/components/AddSyncConnectionSheet.types';
 
 const SettingsSubScreenInner = memo(function SettingsSubScreenInner() {
   const { theme } = useTheme();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, 'SettingsSub'>>();
   const section = route.params.section;
+  const [connectionSheetPreview, setConnectionSheetPreview] =
+    useState<AddSyncConnectionPreviewScenarioId | null>(null);
 
   return (
     <SafeAreaView
@@ -54,7 +63,9 @@ const SettingsSubScreenInner = memo(function SettingsSubScreenInner() {
           {section === 'space' && (
             <UnifiedSpaceSetup
               initialDeviceId={route.params.deviceId}
-              notificationNavigationRequestId={route.params.notificationNavigationRequestId}
+              notificationNavigationRequestId={
+                route.params.notificationNavigationRequestId
+              }
             />
           )}
 
@@ -68,20 +79,32 @@ const SettingsSubScreenInner = memo(function SettingsSubScreenInner() {
 
           {section === 'storage' && <StorageSection />}
 
-          {section === 'about' && <AboutSection initialUpdate={route.params.update} />}
+          {section === 'about' && (
+            <AboutSection initialUpdate={route.params.update} />
+          )}
 
           {section === 'developer' && (
             <>
               <LogSection />
               <DebugSection
-                onOpenOnboardingPreview={() => navigation.navigate('OnboardingPreview')}
-                onOpenConnectionPreview={() => navigation.navigate('ConnectionPreview')}
+                onOpenOnboardingPreview={() =>
+                  navigation.navigate('OnboardingPreview')
+                }
+                onOpenConnectionPreview={() =>
+                  navigation.navigate('ConnectionPreview')
+                }
+                onOpenConnectionSheetPreview={setConnectionSheetPreview}
               />
               <QuickActionsSection />
             </>
           )}
         </LazyColumn>
       </Host>
+      <AddSyncConnectionSheet
+        visible={connectionSheetPreview !== null}
+        previewScenario={connectionSheetPreview ?? undefined}
+        onClose={() => setConnectionSheetPreview(null)}
+      />
     </SafeAreaView>
   );
 });

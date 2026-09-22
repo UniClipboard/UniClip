@@ -83,6 +83,7 @@ import {
 } from '@/utils/invitationCode';
 import type { AddSyncConnectionSheetProps } from './AddSyncConnectionSheet.types';
 import { useAddSyncConnectionFlow } from './useAddSyncConnectionFlow';
+import { useAddSyncConnectionPreviewFlow } from '@/devtools/useAddSyncConnectionPreviewFlow';
 
 const SHEET_BACKGROUND = iosColors?.systemGroupedBackground ?? '#F2F2F7';
 const CARD_BACKGROUND =
@@ -416,6 +417,7 @@ export function AddSyncConnectionSheet({
   initialMode = 'choose',
   embeddedInHost = false,
   persistentPresentation = false,
+  previewScenario,
   onClose,
   onConnected,
 }: AddSyncConnectionSheetProps) {
@@ -430,8 +432,8 @@ export function AddSyncConnectionSheet({
   const invitationCodeState = useNativeState('');
   const deviceNameState = useNativeState(defaultDeviceName);
   const passphraseRef = useRef<SecureFieldRef>(null);
-  const { state, actions } = useAddSyncConnectionFlow({
-    visible,
+  const liveFlow = useAddSyncConnectionFlow({
+    visible: visible && previewScenario == null,
     initialMode,
     defaultDeviceName,
     onClose,
@@ -446,6 +448,11 @@ export function AddSyncConnectionSheet({
       void passphraseRef.current?.clear();
     },
   });
+  const previewFlow = useAddSyncConnectionPreviewFlow(
+    previewScenario ?? 'joinPending',
+    onClose
+  );
+  const { state, actions } = previewScenario ? previewFlow : liveFlow;
   const {
     mode,
     deviceName,

@@ -18,7 +18,21 @@ describe('Android device trust preview entry', () => {
       /ListItem[\s\S]*?modifiers=\{\[clickable\(openDeviceTrustPreviewPicker\)\]\}/
     );
     expect(source).toMatch(
-      /DEVICE_TRUST_PREVIEW_SCENARIOS\.map[\s\S]*?ListItem[\s\S]*?clickable\(\(\) => handleOpenDeviceTrustPreview\(scenario\.id\)\)/
+      /DEVICE_TRUST_PREVIEW_SCENARIOS\.map[\s\S]*?ListItem[\s\S]*?clickable\([\s\S]*?handleOpenDeviceTrustPreview\(scenario\.id\)[\s\S]*?\)/
+    );
+  });
+
+  it('hands pairing sheet preview ownership to the stable settings screen', () => {
+    const settingsScreen = readFileSync(
+      join(process.cwd(), 'src/screens/settings/SettingsSubScreen.android.tsx'),
+      'utf8'
+    );
+
+    expect(source).toContain('onOpenConnectionSheetPreview(scenario.id)');
+    expect(source).not.toContain('<AddSyncConnectionSheet');
+    expect(settingsScreen).toContain('<AddSyncConnectionSheet');
+    expect(settingsScreen).toContain(
+      'previewScenario={connectionSheetPreview ?? undefined}'
     );
   });
 });

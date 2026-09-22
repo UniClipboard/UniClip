@@ -31,6 +31,8 @@ import {
   DEVICE_TRUST_PREVIEW_SCENARIOS,
   type DeviceTrustPreviewScenarioId,
 } from '@/devtools/deviceTrustPreviewSession';
+import type { AddSyncConnectionPreviewScenarioId } from '@/components/AddSyncConnectionSheet.types';
+import { ADD_SYNC_CONNECTION_PREVIEW_SCENARIOS } from '@/devtools/useAddSyncConnectionPreviewFlow';
 import {
   isDeviceTrustPreviewAvailable,
   openDeviceTrustPreview,
@@ -41,25 +43,49 @@ import { SettingsSectionItem } from '../SettingsSectionItem';
 
 const TITLE_STYLE = { typography: 'titleLarge' } as const;
 
-export const DebugSection = memo(function DebugSection({ onOpenOnboardingPreview, onOpenConnectionPreview }: { onOpenOnboardingPreview: () => void; onOpenConnectionPreview: () => void }) {
+interface DebugSectionProps {
+  onOpenOnboardingPreview: () => void;
+  onOpenConnectionPreview: () => void;
+  onOpenConnectionSheetPreview: (
+    scenario: AddSyncConnectionPreviewScenarioId
+  ) => void;
+}
+
+export const DebugSection = memo(function DebugSection({
+  onOpenOnboardingPreview,
+  onOpenConnectionPreview,
+  onOpenConnectionSheetPreview,
+}: DebugSectionProps) {
   const { t } = useTranslation('settingsAbout');
   const showMessage = useSettingsToast();
 
   const debugMode = useSettingsStore((s) => s.config?.debugMode ?? false);
-  const debugOverlayVisible = useSettingsStore((s) => s.config?.debugOverlayVisible ?? false);
-  const debugUrlScheme = useSettingsStore((s) => s.config?.debugUrlScheme ?? false);
+  const debugOverlayVisible = useSettingsStore(
+    (s) => s.config?.debugOverlayVisible ?? false
+  );
+  const debugUrlScheme = useSettingsStore(
+    (s) => s.config?.debugUrlScheme ?? false
+  );
   const debugUpdateCheckNoLimit = useSettingsStore(
     (s) => s.config?.debugUpdateCheckNoLimit ?? false
   );
 
   const [showStatsModal, setShowStatsModal] = useState(false);
-  const [showDeviceTrustPreviewPicker, setShowDeviceTrustPreviewPicker] = useState(false);
+  const [showDeviceTrustPreviewPicker, setShowDeviceTrustPreviewPicker] =
+    useState(false);
+  const [
+    showConnectionSheetPreviewPicker,
+    setShowConnectionSheetPreviewPicker,
+  ] = useState(false);
   const [statsText, setStatsText] = useState('');
   const deviceTrustPreviewAvailable = isDeviceTrustPreviewAvailable();
 
-  const openDeviceTrustPreviewPicker = () => setShowDeviceTrustPreviewPicker(true);
+  const openDeviceTrustPreviewPicker = () =>
+    setShowDeviceTrustPreviewPicker(true);
 
-  const handleOpenDeviceTrustPreview = (scenario: DeviceTrustPreviewScenarioId) => {
+  const handleOpenDeviceTrustPreview = (
+    scenario: DeviceTrustPreviewScenarioId
+  ) => {
     if (!openDeviceTrustPreview(scenario)) {
       showMessage(t('debug.deviceTrustPreview.unavailable'), 'error');
       return;
@@ -70,37 +96,60 @@ export const DebugSection = memo(function DebugSection({ onOpenOnboardingPreview
   const handleToggleDebugMode = async (enabled: boolean) => {
     try {
       await useSettingsStore.getState().updateConfig({ debugMode: enabled });
-      showMessage(enabled ? t('debug.modeEnabled') : t('debug.modeDisabled'), 'success');
+      showMessage(
+        enabled ? t('debug.modeEnabled') : t('debug.modeDisabled'),
+        'success'
+      );
     } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : t('error.saveFailed'), 'error');
+      showMessage(
+        error instanceof Error ? error.message : t('error.saveFailed'),
+        'error'
+      );
     }
   };
 
   const handleToggleDebugOverlayVisible = async (enabled: boolean) => {
     try {
-      await useSettingsStore.getState().updateConfig({ debugOverlayVisible: enabled });
+      await useSettingsStore
+        .getState()
+        .updateConfig({ debugOverlayVisible: enabled });
       showMessage(
-        enabled ? t('debug.overlayVisibleToast') : t('debug.overlayHiddenToast'),
+        enabled
+          ? t('debug.overlayVisibleToast')
+          : t('debug.overlayHiddenToast'),
         'success'
       );
     } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : t('error.saveFailed'), 'error');
+      showMessage(
+        error instanceof Error ? error.message : t('error.saveFailed'),
+        'error'
+      );
     }
   };
 
   const handleToggleDebugUrlScheme = async (enabled: boolean) => {
     try {
-      await useSettingsStore.getState().updateConfig({ debugUrlScheme: enabled });
+      await useSettingsStore
+        .getState()
+        .updateConfig({ debugUrlScheme: enabled });
     } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : t('error.saveFailed'), 'error');
+      showMessage(
+        error instanceof Error ? error.message : t('error.saveFailed'),
+        'error'
+      );
     }
   };
 
   const handleToggleDebugUpdateCheckNoLimit = async (enabled: boolean) => {
     try {
-      await useSettingsStore.getState().updateConfig({ debugUpdateCheckNoLimit: enabled });
+      await useSettingsStore
+        .getState()
+        .updateConfig({ debugUpdateCheckNoLimit: enabled });
     } catch (error: unknown) {
-      showMessage(error instanceof Error ? error.message : t('error.saveFailed'), 'error');
+      showMessage(
+        error instanceof Error ? error.message : t('error.saveFailed'),
+        'error'
+      );
     }
   };
 
@@ -130,17 +179,23 @@ export const DebugSection = memo(function DebugSection({ onOpenOnboardingPreview
           {showStatsModal && (
             <ModalBottomSheet onDismissRequest={() => setShowStatsModal(false)}>
               <Column modifiers={[paddingAll(24), fillMaxWidth()]}>
-                <ComposeText style={TITLE_STYLE}>{t('stats.title')}</ComposeText>
+                <ComposeText style={TITLE_STYLE}>
+                  {t('stats.title')}
+                </ComposeText>
                 <Spacer modifiers={[heightModifier(16)]} />
                 <ComposeText>{statsText}</ComposeText>
                 <Spacer modifiers={[heightModifier(16)]} />
                 <Row modifiers={[fillMaxWidth()]} horizontalArrangement="end">
                   <TextButton onClick={() => setShowStatsModal(false)}>
-                    <ComposeText>{t('action.close', { ns: 'common' })}</ComposeText>
+                    <ComposeText>
+                      {t('action.close', { ns: 'common' })}
+                    </ComposeText>
                   </TextButton>
                   <Spacer modifiers={[widthModifier(8)]} />
                   <Button onClick={handleCopyStatistics}>
-                    <ComposeText>{t('action.copy', { ns: 'common' })}</ComposeText>
+                    <ComposeText>
+                      {t('action.copy', { ns: 'common' })}
+                    </ComposeText>
                   </Button>
                 </Row>
               </Column>
@@ -149,20 +204,69 @@ export const DebugSection = memo(function DebugSection({ onOpenOnboardingPreview
           {showDeviceTrustPreviewPicker && (
             <ModalBottomSheet
               onDismissRequest={() => setShowDeviceTrustPreviewPicker(false)}
-              properties={{ shouldDismissOnBackPress: true, shouldDismissOnClickOutside: true }}
+              properties={{
+                shouldDismissOnBackPress: true,
+                shouldDismissOnClickOutside: true,
+              }}
             >
-              <Column modifiers={[fillMaxWidth(), verticalScroll(), paddingAll(12)]}>
+              <Column
+                modifiers={[fillMaxWidth(), verticalScroll(), paddingAll(12)]}
+              >
                 <ComposeText style={TITLE_STYLE}>
                   {t('debug.deviceTrustPreview.pickerTitle')}
                 </ComposeText>
                 <Spacer modifiers={[heightModifier(8)]} />
-                <ComposeText>{t('debug.deviceTrustPreview.pickerDescription')}</ComposeText>
+                <ComposeText>
+                  {t('debug.deviceTrustPreview.pickerDescription')}
+                </ComposeText>
                 <Spacer modifiers={[heightModifier(12)]} />
                 {DEVICE_TRUST_PREVIEW_SCENARIOS.map((scenario) => (
                   <ListItem
                     key={scenario.id}
                     modifiers={[
-                      clickable(() => handleOpenDeviceTrustPreview(scenario.id)),
+                      clickable(() =>
+                        handleOpenDeviceTrustPreview(scenario.id)
+                      ),
+                      fillMaxWidth(),
+                    ]}
+                  >
+                    <ListItem.HeadlineContent>
+                      <ComposeText>{t(scenario.labelKey)}</ComposeText>
+                    </ListItem.HeadlineContent>
+                  </ListItem>
+                ))}
+              </Column>
+            </ModalBottomSheet>
+          )}
+          {showConnectionSheetPreviewPicker && (
+            <ModalBottomSheet
+              onDismissRequest={() =>
+                setShowConnectionSheetPreviewPicker(false)
+              }
+              properties={{
+                shouldDismissOnBackPress: true,
+                shouldDismissOnClickOutside: true,
+              }}
+            >
+              <Column
+                modifiers={[fillMaxWidth(), verticalScroll(), paddingAll(12)]}
+              >
+                <ComposeText style={TITLE_STYLE}>
+                  {t('debug.connectionSheetPreview.pickerTitle')}
+                </ComposeText>
+                <Spacer modifiers={[heightModifier(8)]} />
+                <ComposeText>
+                  {t('debug.connectionSheetPreview.pickerDescription')}
+                </ComposeText>
+                <Spacer modifiers={[heightModifier(12)]} />
+                {ADD_SYNC_CONNECTION_PREVIEW_SCENARIOS.map((scenario) => (
+                  <ListItem
+                    key={scenario.id}
+                    modifiers={[
+                      clickable(() => {
+                        setShowConnectionSheetPreviewPicker(false);
+                        onOpenConnectionSheetPreview(scenario.id);
+                      }),
                       fillMaxWidth(),
                     ]}
                   >
@@ -182,7 +286,10 @@ export const DebugSection = memo(function DebugSection({ onOpenOnboardingPreview
           <ComposeText>{t('debug.modeLabel')}</ComposeText>
         </ListItem.HeadlineContent>
         <ListItem.TrailingContent>
-          <ComposeSwitch value={debugMode} onCheckedChange={handleToggleDebugMode} />
+          <ComposeSwitch
+            value={debugMode}
+            onCheckedChange={handleToggleDebugMode}
+          />
         </ListItem.TrailingContent>
       </ListItem>
 
@@ -194,20 +301,49 @@ export const DebugSection = memo(function DebugSection({ onOpenOnboardingPreview
               <ComposeText>{t('debug.deviceTrustPreview.label')}</ComposeText>
             </ListItem.HeadlineContent>
             <ListItem.SupportingContent>
-              <ComposeText>{t('debug.deviceTrustPreview.description')}</ComposeText>
+              <ComposeText>
+                {t('debug.deviceTrustPreview.description')}
+              </ComposeText>
+            </ListItem.SupportingContent>
+          </ListItem>
+        </>
+      ) : null}
+
+      {deviceTrustPreviewAvailable ? (
+        <>
+          <HorizontalDivider />
+          <ListItem
+            modifiers={[
+              clickable(() => setShowConnectionSheetPreviewPicker(true)),
+              fillMaxWidth(),
+            ]}
+          >
+            <ListItem.HeadlineContent>
+              <ComposeText>
+                {t('debug.connectionSheetPreview.label')}
+              </ComposeText>
+            </ListItem.HeadlineContent>
+            <ListItem.SupportingContent>
+              <ComposeText>
+                {t('debug.connectionSheetPreview.description')}
+              </ComposeText>
             </ListItem.SupportingContent>
           </ListItem>
         </>
       ) : null}
 
       <HorizontalDivider />
-      <ListItem modifiers={[clickable(onOpenOnboardingPreview), fillMaxWidth()]}>
+      <ListItem
+        modifiers={[clickable(onOpenOnboardingPreview), fillMaxWidth()]}
+      >
         <ListItem.HeadlineContent>
           <ComposeText>{t('debug.onboardingPreview')}</ComposeText>
         </ListItem.HeadlineContent>
       </ListItem>
       <HorizontalDivider />
-      <ListItem modifiers={[clickable(onOpenConnectionPreview), fillMaxWidth()]}>
+      <ListItem
+        modifiers={[clickable(onOpenConnectionPreview), fillMaxWidth()]}
+      >
         <ListItem.HeadlineContent>
           <ComposeText>{t('debug.connectionPreview')}</ComposeText>
         </ListItem.HeadlineContent>
@@ -241,7 +377,10 @@ export const DebugSection = memo(function DebugSection({ onOpenOnboardingPreview
               <ComposeText>{t('debug.urlSchemeLabel')}</ComposeText>
             </ListItem.HeadlineContent>
             <ListItem.TrailingContent>
-              <ComposeSwitch value={debugUrlScheme} onCheckedChange={handleToggleDebugUrlScheme} />
+              <ComposeSwitch
+                value={debugUrlScheme}
+                onCheckedChange={handleToggleDebugUrlScheme}
+              />
             </ListItem.TrailingContent>
           </ListItem>
         </>
