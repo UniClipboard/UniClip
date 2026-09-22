@@ -38,7 +38,7 @@ interface UseAddSyncConnectionFlowOptions {
   clearNativePassphrase: () => void;
 }
 
-interface AddSyncConnectionFlowState {
+export interface AddSyncConnectionFlowState {
   mode: AddSyncConnectionFlowMode;
   deviceName: string;
   passphrase: string;
@@ -59,7 +59,7 @@ interface AddSyncConnectionFlowState {
   deviceUpdate: DeviceTrustSnapshot['spaceDeviceUpdate'];
 }
 
-interface AddSyncConnectionFlowActions {
+export interface AddSyncConnectionFlowActions {
   setDeviceName: (value: string) => void;
   setPassphrase: (value: string) => void;
   updateInvitationCode: (value: string) => void;

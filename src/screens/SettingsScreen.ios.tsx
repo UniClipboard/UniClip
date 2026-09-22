@@ -21,7 +21,10 @@ import { deleteDiagnosticArchive, type DiagnosticArtifact } from '@/support/diag
 import type { PendingShareJob } from '@/features/transfer';
 import { useSettingsStore } from '@/stores';
 import { AddSyncConnectionSheet } from '@/components/AddSyncConnectionSheet';
-import type { AddSyncConnectionMode } from '@/components/AddSyncConnectionSheet.types';
+import type {
+  AddSyncConnectionMode,
+  AddSyncConnectionPreviewScenarioId,
+} from '@/components/AddSyncConnectionSheet.types';
 import { SpaceInvitationSheet } from '@/components/SpaceInvitationSheet';
 import { SpaceDeviceDetail } from '@/components/SpaceDeviceDetail';
 import { useSpaceDeviceManagement } from '@/components/useSpaceDeviceManagement';
@@ -126,6 +129,8 @@ export const SettingsScreen = () => {
   const [showSyncChannelConfirmation, setShowSyncChannelConfirmation] = useState(false);
   const [isConfirmingP2p, setIsConfirmingP2p] = useState(false);
   const [spaceSetupMode, setSpaceSetupMode] = useState<AddSyncConnectionMode | null>(null);
+  const [spaceSetupPreviewScenario, setSpaceSetupPreviewScenario] =
+    useState<AddSyncConnectionPreviewScenarioId | null>(null);
   const [editingLanServerId, setEditingLanServerId] = useState<string | 'new' | null>(null);
   const [lanServerIntent, setLanServerIntent] = useState<LanConnectIntent | null>(null);
   const pendingLanIntent = usePendingLanConnectStore((state) => state.intent);
@@ -187,6 +192,7 @@ export const SettingsScreen = () => {
     deviceManagement.closeDevice();
     setShowSpaceInvitation(false);
     setSpaceSetupMode(null);
+    setSpaceSetupPreviewScenario(null);
     setEditingLanServerId(null);
     setLanServerIntent(null);
     setShowSyncChannelConfirmation(false);
@@ -197,6 +203,7 @@ export const SettingsScreen = () => {
     deviceManagement.closeDevice();
     setShowSpaceInvitation(false);
     setSpaceSetupMode(null);
+    setSpaceSetupPreviewScenario(null);
     setEditingLanServerId(null);
     setLanServerIntent(null);
     setShowSyncChannelConfirmation(false);
@@ -295,6 +302,7 @@ export const SettingsScreen = () => {
                     <DeveloperPage
                       onBack={backToRoot}
                       onOpenPreview={openPreview}
+                      onOpenConnectionSheetPreview={setSpaceSetupPreviewScenario}
                       onOpenOnboardingPreview={() => navigation.navigate('OnboardingPreview')}
                       onOpenConnectionPreview={() => navigation.navigate('ConnectionPreview')}
                     />
@@ -325,13 +333,18 @@ export const SettingsScreen = () => {
                 onConfirmRemove={() => void deviceManagement.confirmRemove()}
               />
               <AddSyncConnectionSheet
-                visible={spaceSetupMode !== null}
+                visible={spaceSetupMode !== null || spaceSetupPreviewScenario !== null}
                 initialMode={spaceSetupMode ?? 'choose'}
+                previewScenario={spaceSetupPreviewScenario ?? undefined}
                 embeddedInHost
                 persistentPresentation
-                onClose={() => setSpaceSetupMode(null)}
+                onClose={() => {
+                  setSpaceSetupMode(null);
+                  setSpaceSetupPreviewScenario(null);
+                }}
                 onConnected={() => {
                   setSpaceSetupMode(null);
+                  setSpaceSetupPreviewScenario(null);
                   return true;
                 }}
               />

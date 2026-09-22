@@ -96,6 +96,29 @@
         "longScrollable": "Nomes longos e muitos dispositivos",
         "groupChoices": "Listas atualizadas e membros não confirmados"
       }
+    },
+    "connectionSheetPreview": {
+      "label": "Pré-visualizar tela de pareamento",
+      "description": "Escolha um estado e abra a tela real de pareamento",
+      "pickerTitle": "Escolha um estado da tela de pareamento",
+      "pickerDescription": "A pré-visualização usa dados de exemplo isolados. Feche para escolher outro estado. Os botões não iniciam pareamentos reais nem alteram dados do dispositivo.",
+      "scenarios": {
+        "joinPending": "Entrando",
+        "joinProcessing": "Processando, aguardando confirmação",
+        "joinTakingLonger": "A entrada está demorando",
+        "joinCancelling": "Cancelando",
+        "joinFailed": "Falha ao entrar",
+        "deviceUpdating": "Atualizando o estado dos dispositivos do espaço",
+        "deviceRetrying": "Nova tentativa automática mais tarde",
+        "deviceStateRejected": "Requer atenção: estado do dispositivo rejeitado",
+        "deviceRelationshipConflict": "Requer atenção: conflito de relação",
+        "deviceSecurityUpdateRejected": "Requer atenção: segurança do dispositivo",
+        "deviceUpgradeRequired": "Requer atenção: atualização de dispositivo relacionado",
+        "deviceUpdated": "Estado dos dispositivos do espaço atualizado",
+        "inviterWaiting": "Quem convidou: aguardando outro dispositivo",
+        "invitationExpired": "Quem convidou: convite expirado",
+        "inviterConnected": "Quem convidou: dispositivo conectado"
+      }
     }
   },
   "stats": {
