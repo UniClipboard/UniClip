@@ -109,9 +109,10 @@ final class ShareViewController: UIViewController {
     }
 
     private static var hostShareURL: URL? {
-        let scheme = SettingsStore.appGroupID.hasSuffix(".dev")
+        let groupID = SettingsStore.appGroupID
+        let scheme = groupID.hasSuffix(".dev")
             ? "uniclipboard-dev"
-            : "uniclipboard"
+            : groupID.hasSuffix(".test") ? "uniclipboard-test" : "uniclipboard"
         return URL(string: "\(scheme)://share")
     }
 
