@@ -17,3 +17,12 @@ it('keeps relay tokens out of password-specific fields on both platforms', () =>
   expect(ios).toContain('testID="relay-token-input"');
   expect(androidTokenField).not.toMatch(/\bsecure\b/);
 });
+
+it('opens the Android relay editor full screen above the keyboard', () => {
+  const android = source('screens/settings/CustomRelaySection.android.tsx');
+
+  expect(android).toContain('<ModalBottomSheet skipPartiallyExpanded');
+  expect(android).toContain(
+    '...(editingUrl !== null ? [fillMaxSize(), imePadding()] : [fillMaxWidth()])'
+  );
+});

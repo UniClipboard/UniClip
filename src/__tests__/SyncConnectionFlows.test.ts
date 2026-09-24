@@ -19,7 +19,14 @@ describe('unified sync connection flows', () => {
     expect(android).toMatch(/<Host[^>]*>\s*<AddSyncConnectionSheetContent/);
     expect(android).toMatch(/<AddSyncConnectionSheetContent[^>]*\/>\s*<\/Host>/);
     expect(android).not.toContain('initialFullyExpanded');
-    expect(android).not.toContain('skipPartiallyExpanded');
+    // Input stages fill the screen above the keyboard; the other stages wrap their content.
+    expect(android).toContain('<ModalBottomSheet ref={sheetRef} skipPartiallyExpanded');
+    expect(android).toContain(
+      "const takesInput = stage === 'create' || stage === 'joinCode' || stage === 'joinDetails';"
+    );
+    expect(android).toContain(
+      '...(takesInput ? [fillMaxSize(), imePadding()] : [fillMaxWidth()])'
+    );
     for (const platform of [android, ios]) {
       expect(platform).toContain('useAddSyncConnectionFlow');
       expect(platform).toContain('completeConnection');
