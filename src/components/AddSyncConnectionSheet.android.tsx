@@ -53,6 +53,7 @@ import {
 import type { AddSyncConnectionSheetProps } from './AddSyncConnectionSheet.types';
 import { useAddSyncConnectionFlow } from './useAddSyncConnectionFlow';
 import { useAddSyncConnectionPreviewFlow } from '@/devtools/useAddSyncConnectionPreviewFlow';
+import { MATERIAL_SEED_COLOR } from '@/theme/colors';
 
 const ICONS = {
   space: require('../assets/icons/groups.xml'),
@@ -1189,7 +1190,7 @@ export function AddSyncConnectionSheet(props: AddSyncConnectionSheetProps) {
   return (
     <Host
       colorScheme={theme.isDark ? 'dark' : 'light'}
-      seedColor={theme.colors.accent}
+      seedColor={MATERIAL_SEED_COLOR}
     >
       <AddSyncConnectionSheetContent {...props} />
     </Host>

@@ -51,23 +51,22 @@ describe('Android priority UX regressions', () => {
     }
   );
 
-  it('guards both single and batch history deletion with the Android confirmation policy', () => {
+  it('routes single and batch history deletion through the undoable delete policy', () => {
     const controller = read('src/screens/useHomeController.ts');
-    const policy = read('src/utils/confirmHistoryDelete.android.ts');
+    const android = read('src/utils/historyDeleteMode.android.ts');
+    const ios = read('src/utils/historyDeleteMode.ios.ts');
 
-    expect(controller).toContain(
-      "import { confirmHistoryDelete } from '@/utils/confirmHistoryDelete'"
-    );
-    expect(controller.match(/await confirmHistoryDelete\(/g)).toHaveLength(2);
-    expect(policy).toContain('Alert.alert');
-    expect(policy).toContain("style: 'destructive'");
+    expect(controller.match(/await requestDelete\(/g)).toHaveLength(2);
+    expect(controller).not.toContain('confirmHistoryDelete');
+    expect(android).toContain("HISTORY_DELETE_MODE: HistoryDeleteMode = 'undo'");
+    expect(ios).toContain("HISTORY_DELETE_MODE: HistoryDeleteMode = 'immediate'");
   });
 
   it('names Android Home icon actions and exposes card selection state', () => {
     const topBar = read('src/components/HomeTopBar.android.tsx');
     const bottomBar = read('src/components/HomeBottomBar.android.tsx');
     const card = read('src/components/ClipboardCard.android.tsx');
-    const menu = read('src/components/android/TopRightMenu.tsx');
+    const menu = read('src/components/android/OverflowMenu.tsx');
 
     expect(topBar).toContain("accessibilityLabel={t('a11y.search')}");
     expect(topBar).toContain("accessibilityLabel={t('a11y.clearSearch')}");
@@ -76,10 +75,10 @@ describe('Android priority UX regressions', () => {
     expect(bottomBar).toContain("accessibilityLabel={t('action.copy')}");
     expect(bottomBar).toContain("accessibilityLabel={t('action.share')}");
     expect(bottomBar).toContain("accessibilityLabel={t('action.delete')}");
-    expect(card).toContain('accessibilityRole="button"');
-    expect(card).toContain(
-      'accessibilityState={{ selected: isSelectMode ? isSelected : undefined }}'
-    );
+    // 多选态卡片以复选框语义暴露选中状态,默认态是复制按钮
+    expect(card).toContain("accessibilityRole={isSelectMode ? 'checkbox' : 'button'}");
+    expect(card).toContain('checked: isSelectMode ? isSelected : undefined');
+    expect(card).toContain('android_ripple=');
     expect(menu).toContain("accessibilityLabel={t('action.more')}");
     expect(menu).not.toContain('TouchableOpacity');
   });

@@ -218,6 +218,7 @@ export function CameraCaptureSheet({
         <View style={[s.topBar, { paddingTop: insets.top + 12 }]}>
           <Pressable
             onPress={nextFlash}
+            android_ripple={{ color: 'rgba(255,255,255,0.24)', borderless: true }}
             disabled={recording}
             style={[s.topButton, { opacity: recording ? 0.4 : 1 }]}
             accessibilityRole="button"
@@ -248,11 +249,13 @@ export function CameraCaptureSheet({
                   if (recording) return;
                   setMode(m);
                 }}
+                android_ripple={{ color: 'rgba(255,255,255,0.24)' }}
                 style={[
                   s.modeChip,
                   { backgroundColor: mode === m ? 'rgba(255,255,255,0.22)' : 'transparent' },
                 ]}
-                accessibilityRole="button"
+                accessibilityRole="radio"
+                accessibilityState={{ checked: mode === m }}
                 accessibilityLabel={m === 'picture' ? t('fab.photoMode') : t('fab.videoMode')}
               >
                 <Ionicons
@@ -270,6 +273,7 @@ export function CameraCaptureSheet({
           <View style={s.shutterRow}>
             <Pressable
               onPress={closeSheet}
+              android_ripple={{ color: 'rgba(255,255,255,0.24)', borderless: true }}
               style={s.sideButton}
               accessibilityRole="button"
               accessibilityLabel={t('a11y.closeCamera')}
@@ -278,6 +282,7 @@ export function CameraCaptureSheet({
             </Pressable>
             <Pressable
               onPress={handleShutter}
+              android_ripple={{ color: 'rgba(255,255,255,0.24)', borderless: true }}
               disabled={!ready}
               style={[s.shutterRing, { opacity: ready ? 1 : 0.4 }]}
               accessibilityRole="button"
@@ -293,6 +298,7 @@ export function CameraCaptureSheet({
             </Pressable>
             <Pressable
               onPress={() => setFacing((f) => (f === 'back' ? 'front' : 'back'))}
+              android_ripple={{ color: 'rgba(255,255,255,0.24)', borderless: true }}
               disabled={recording}
               style={[s.sideButton, { opacity: recording ? 0.4 : 1 }]}
               accessibilityRole="button"

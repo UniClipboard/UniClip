@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Pressable, StyleSheet } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { View, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { M3IconButton } from './android/M3IconButton';
 import type { SelectModeBottomBarProps } from './HomeBottomBar.types';
 
+/** 多选底栏:M3 bottom app bar 的图标按钮组(容器底色由宿主提供)。 */
 export function SelectModeBottomBar({
   disabled,
   onCopy,
@@ -12,60 +13,38 @@ export function SelectModeBottomBar({
   theme,
 }: SelectModeBottomBarProps) {
   const { t } = useTranslation('common');
-  const bg = { backgroundColor: theme.colors.surfaceHigh };
-  const ic = disabled ? theme.colors.border : theme.colors.textPrimary;
+  const { colors } = theme;
   return (
     <View style={s.selectRow}>
-      <Pressable
+      <M3IconButton
+        testID="history-batch-copy"
+        icon="copy-outline"
+        accessibilityLabel={t('action.copy')}
         onPress={onCopy}
         disabled={disabled}
-        style={[s.circle, bg]}
-        accessibilityRole="button"
-        accessibilityLabel={t('action.copy')}
-        accessibilityState={{ disabled }}
-      >
-        <Ionicons name="copy-outline" size={20} color={ic} />
-      </Pressable>
-      <Pressable
+        colors={colors}
+      />
+      <M3IconButton
+        testID="history-batch-share"
+        icon="share-social-outline"
+        accessibilityLabel={t('action.share')}
         onPress={onShare}
         disabled={disabled}
-        style={[s.circle, bg]}
-        accessibilityRole="button"
-        accessibilityLabel={t('action.share')}
-        accessibilityState={{ disabled }}
-      >
-        <Ionicons name="share-outline" size={20} color={ic} />
-      </Pressable>
-      <Pressable
+        colors={colors}
+      />
+      <M3IconButton
+        testID="history-batch-delete"
+        icon="trash-outline"
+        accessibilityLabel={t('action.delete')}
         onPress={onDelete}
         disabled={disabled}
-        style={[s.circle, bg]}
-        accessibilityRole="button"
-        accessibilityLabel={t('action.delete')}
-        accessibilityState={{ disabled }}
-      >
-        <Ionicons
-          name="trash-outline"
-          size={20}
-          color={disabled ? theme.colors.border : '#F44336'}
-        />
-      </Pressable>
+        iconColor={colors.error}
+        colors={colors}
+      />
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  circle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-  },
-  selectRow: { flexDirection: 'row', justifyContent: 'center', gap: 24 },
+  selectRow: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' },
 });

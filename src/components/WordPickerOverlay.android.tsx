@@ -65,6 +65,7 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
             <View style={[s.topBar, { paddingTop: insets.top + 8 }]}>
               <Pressable
                 onPress={() => t.close()}
+                android_ripple={{ color: colors.fillSecondary as string }}
                 style={[s.closeButton, { backgroundColor: colors.surfaceHigh }]}
                 accessibilityRole="button"
                 accessibilityLabel={tr('action.close', { ns: 'common' })}
@@ -121,7 +122,11 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
               </View>
             )}
 
-            <Pressable onPress={preview.toggle} disabled={!hasSelection}>
+            <Pressable
+              onPress={preview.toggle}
+              disabled={!hasSelection}
+              android_ripple={{ color: colors.fillSecondary as string, foreground: true }}
+            >
               <Animated.View
                 style={[s.previewBar, { backgroundColor: colors.surfaceHigh }, preview.barStyle]}
               >
@@ -169,6 +174,7 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
             <View style={[s.actionBar, { paddingBottom: insets.bottom + 12 }]}>
               <Pressable
                 onPress={picker.toggleSelectAll}
+                android_ripple={{ color: colors.fillSecondary as string }}
                 disabled={!picker.hasSelectableTokens}
                 style={[s.sideButton, { backgroundColor: colors.surfaceHigh }]}
                 accessibilityRole="button"
@@ -186,6 +192,7 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
               </Pressable>
               <Pressable
                 onPress={picker.copySelected}
+                android_ripple={{ color: colors.fillSecondary as string }}
                 disabled={!hasSelection}
                 style={[
                   s.copyButton,
@@ -209,6 +216,7 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
               </Pressable>
               <Pressable
                 onPress={picker.shareSelected}
+                android_ripple={{ color: colors.fillSecondary as string }}
                 disabled={!hasSelection}
                 style={[s.circleButton, { backgroundColor: colors.surfaceHigh }]}
                 accessibilityRole="button"
@@ -223,8 +231,8 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
             </View>
           </Animated.View>
 
-          {/* 浮层开着时发出的 toast（如复制失败）要压在 Modal 内容之上才可见 */}
-          <ConnectedMessageToast />
+          {/* 浮层开着时发出的 snackbar（如复制失败）要压在 Modal 内容之上才可见,并抬到操作条之上 */}
+          <ConnectedMessageToast bottomOffset={insets.bottom + 12 + 48 + 16} />
         </View>
       </GestureHandlerRootView>
     </Modal>
@@ -249,9 +257,10 @@ function GranularityToggle({
           <Pressable
             key={g}
             onPress={() => onChange(g)}
+            android_ripple={{ color: colors.fillSecondary as string }}
             style={[s.segItem, active && { backgroundColor: colors.accentContainer }]}
-            accessibilityRole="button"
-            accessibilityState={{ selected: active }}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: active }}
           >
             <Text
               style={[
@@ -327,9 +336,10 @@ const s = StyleSheet.create({
     paddingBottom: 8,
   },
   closeButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    overflow: 'hidden',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -449,48 +459,36 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
   },
   sideButton: {
-    height: 44,
-    borderRadius: 22,
+    overflow: 'hidden',
+    height: 48,
+    borderRadius: 24,
     paddingHorizontal: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
   },
   sideButtonText: {
     fontSize: 14,
     fontWeight: '500',
   },
   copyButton: {
+    overflow: 'hidden',
     height: 48,
     borderRadius: 24,
     paddingHorizontal: 28,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
   },
   copyButtonText: {
     fontSize: 15,
     fontWeight: '600',
   },
   circleButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    overflow: 'hidden',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
   },
 });

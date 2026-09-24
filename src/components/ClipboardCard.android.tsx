@@ -9,7 +9,6 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, {
   Defs,
   LinearGradient as SvgLinearGradient,
@@ -22,7 +21,6 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
 import { useURLMetadata } from '@/hooks/useURLMetadata';
 import { ClipboardItem } from '@/types/clipboard';
-import { iosDimensions } from '@/theme/iosDesignTokens';
 import {
   getDisplayKind,
   getDisplayKindLabel,
@@ -46,12 +44,7 @@ export const ClipboardCard: React.FC<ClipboardCardProps> = React.memo(
     const kindColor = useMemo(() => getDisplayKindColor(displayKind), [displayKind]);
     const relativeTime = formatRelativeTime(item.timestamp);
 
-    // 按压时轻微收缩，预告"长按有戏"；长按触发后由浮层接管，pressOut 回弹
     const cardRef = useRef<View>(null);
-    const pressScale = useSharedValue(1);
-    const pressStyle = useAnimatedStyle(() => ({
-      transform: [{ scale: pressScale.value }],
-    }));
 
     const handleLongPress = () => {
       if (!onLongPress) return;
@@ -66,25 +59,24 @@ export const ClipboardCard: React.FC<ClipboardCardProps> = React.memo(
     };
 
     return (
-      <Animated.View style={[styles.fill, pressStyle]}>
+      <View style={styles.fill}>
         <Pressable
           ref={cardRef}
           testID={`history-card-${item.profileHash}`}
           onPress={() => onPress(item)}
           onLongPress={handleLongPress}
           delayLongPress={350}
-          onPressIn={() => {
-            pressScale.value = withTiming(0.97, { duration: 180 });
-          }}
-          onPressOut={() => {
-            pressScale.value = withTiming(1, { duration: 150 });
-          }}
-          accessibilityRole="button"
+          // M3 按压反馈:前景 ripple(盖在图片/文字之上),不做 iOS 式按压缩放
+          android_ripple={{ color: theme.colors.fillSecondary as string, foreground: true }}
+          accessibilityRole={isSelectMode ? 'checkbox' : 'button'}
           accessibilityLabel={[kindLabel, relativeTime, item.dataName || item.text]
             .filter(Boolean)
             .join(', ')}
           accessibilityHint={t(isSelectMode ? 'a11y.toggleSelection' : 'a11y.copyItem')}
-          accessibilityState={{ selected: isSelectMode ? isSelected : undefined }}
+          accessibilityState={{
+            selected: isSelectMode ? isSelected : undefined,
+            checked: isSelectMode ? isSelected : undefined,
+          }}
           style={[
             styles.card,
             {
@@ -104,16 +96,19 @@ export const ClipboardCard: React.FC<ClipboardCardProps> = React.memo(
             theme={theme}
           />
           {isSelectMode && (
-            <View style={styles.selectOverlay} accessible={false}>
+            <View
+              style={[styles.selectOverlay, { backgroundColor: theme.colors.surfaceLowest }]}
+              accessible={false}
+            >
               <Ionicons
                 name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
-                size={28}
-                color={isSelected ? theme.colors.accent : 'rgba(128,128,128,0.6)'}
+                size={24}
+                color={isSelected ? theme.colors.accent : theme.colors.textSecondary}
               />
             </View>
           )}
         </Pressable>
-      </Animated.View>
+      </View>
     );
   }
 );
@@ -601,13 +596,10 @@ const styles = StyleSheet.create({
   },
   card: {
     flex: 1,
-    borderRadius: iosDimensions.cardCornerRadius,
+    // M3 elevated card:medium shape(12dp)+ level 1 高度
+    borderRadius: 12,
     overflow: 'hidden',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 5,
+    elevation: 1,
   },
   standardBody: {
     flex: 1,
@@ -847,13 +839,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // 选择指示放在卡片左上角(M3 / Photos 的网格多选惯例),不遮挡内容主体
   selectOverlay: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
+    top: 8,
+    left: 8,
+    borderRadius: 12,
   },
 });

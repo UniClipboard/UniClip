@@ -1,0 +1,15 @@
+# Android undo policy: delete hides the card, the Snackbar's Undo restores it; iOS deletes immediately.
+appId: ${APP_ID}
+---
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - runFlow: open-menu.yaml
+      - tapOn:
+          id: history-batch-delete
+      - assertVisible:
+          id: snackbar-action
+      - tapOn:
+          id: snackbar-action
+      - runFlow: ../../assertions/history/one-card.yaml

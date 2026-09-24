@@ -1,14 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Alert } from 'react-native';
 import {
   HorizontalDivider,
   Icon,
   ListItem,
-  Switch as ComposeSwitch,
   Text as ComposeText,
-  TextButton,
   useMaterialColors,
 } from '@expo/ui/jetpack-compose';
+import { clickable } from '@expo/ui/jetpack-compose/modifiers';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -16,7 +14,10 @@ import {
   resetAnalyticsIdentity,
   setAnalyticsConsent,
 } from '@/features/settings';
+import { AppAlertDialog } from '@/components/ui/AppAlertDialog';
 import { SettingsSectionItem } from './SettingsSectionItem';
+import { useSettingsToast } from './SettingsToastContext';
+import { SettingsSwitchRow } from './android/SettingsSwitchRow';
 import type { AnalyticsConsentControlProps } from './AnalyticsConsentControl.types';
 
 const ICONS = {
@@ -29,6 +30,8 @@ export function AnalyticsConsentControl(_: AnalyticsConsentControlProps) {
   const colors = useMaterialColors();
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const showMessage = useSettingsToast();
 
   useEffect(() => {
     let active = true;
@@ -37,12 +40,12 @@ export function AnalyticsConsentControl(_: AnalyticsConsentControlProps) {
         if (active) setEnabled(value);
       })
       .catch(() => {
-        if (active) Alert.alert(t('analytics.error'));
+        if (active) showMessage(t('analytics.error'), 'error');
       });
     return () => {
       active = false;
     };
-  }, [t]);
+  }, [t, showMessage]);
 
   const updateConsent = async (next: boolean) => {
     const previous = enabled;
@@ -52,62 +55,55 @@ export function AnalyticsConsentControl(_: AnalyticsConsentControlProps) {
       await setAnalyticsConsent(next);
     } catch {
       setEnabled(previous);
-      Alert.alert(t('analytics.error'));
+      showMessage(t('analytics.error'), 'error');
     } finally {
       setBusy(false);
     }
   };
 
-  const confirmReset = () => {
-    Alert.alert(t('analytics.resetTitle'), t('analytics.resetMessage'), [
-      { text: t('action.cancel', { ns: 'common' }), style: 'cancel' },
-      {
-        text: t('analytics.resetConfirm'),
-        style: 'destructive',
-        onPress: () => {
-          setBusy(true);
-          void resetAnalyticsIdentity()
-            .then(() => Alert.alert(t('analytics.resetDone')))
-            .catch(() => Alert.alert(t('analytics.error')))
-            .finally(() => setBusy(false));
-        },
-      },
-    ]);
+  // 重置身份不可撤销,保留确认,但用 Compose M3 AlertDialog 而非旧式系统弹窗;结果走 Snackbar
+  const performReset = () => {
+    setResetDialogOpen(false);
+    setBusy(true);
+    void resetAnalyticsIdentity()
+      .then(() => showMessage(t('analytics.resetDone'), 'success'))
+      .catch(() => showMessage(t('analytics.error'), 'error'))
+      .finally(() => setBusy(false));
   };
 
   return (
-    <SettingsSectionItem title={t('analytics.sectionTitle')} footer={t('analytics.footer')}>
-      <ListItem>
-        <ListItem.LeadingContent>
-          <Icon source={ICONS.analytics} size={22} tint={colors.onSurfaceVariant} />
-        </ListItem.LeadingContent>
-        <ListItem.HeadlineContent>
-          <ComposeText>{t('analytics.consentTitle')}</ComposeText>
-        </ListItem.HeadlineContent>
-        <ListItem.SupportingContent>
-          <ComposeText>{t('analytics.consentDescription')}</ComposeText>
-        </ListItem.SupportingContent>
-        <ListItem.TrailingContent>
-          <ComposeSwitch
-            value={enabled ?? false}
-            enabled={enabled !== null && !busy}
-            onCheckedChange={(value) => void updateConsent(value)}
-          />
-        </ListItem.TrailingContent>
-      </ListItem>
+    <SettingsSectionItem
+      title={t('analytics.sectionTitle')}
+      footer={t('analytics.footer')}
+      dialogs={
+        <AppAlertDialog
+          visible={resetDialogOpen}
+          onDismiss={() => setResetDialogOpen(false)}
+          title={t('analytics.resetTitle')}
+          message={t('analytics.resetMessage')}
+          confirmLabel={t('analytics.resetConfirm')}
+          onConfirm={performReset}
+          dismissLabel={t('action.cancel', { ns: 'common' })}
+        />
+      }
+    >
+      <SettingsSwitchRow
+        title={t('analytics.consentTitle')}
+        description={t('analytics.consentDescription')}
+        leading={<Icon source={ICONS.analytics} size={22} tint={colors.onSurfaceVariant} />}
+        value={enabled ?? false}
+        disabled={enabled === null || busy}
+        onValueChange={(value) => void updateConsent(value)}
+      />
       <HorizontalDivider />
-      <ListItem>
+      {/* 整行可点(全行交互规范),不再只让尾部 TextButton 可点 */}
+      <ListItem modifiers={busy ? undefined : [clickable(() => setResetDialogOpen(true))]}>
         <ListItem.LeadingContent>
           <Icon source={ICONS.reset} size={22} tint={colors.onSurfaceVariant} />
         </ListItem.LeadingContent>
         <ListItem.HeadlineContent>
           <ComposeText>{t('analytics.resetTitle')}</ComposeText>
         </ListItem.HeadlineContent>
-        <ListItem.TrailingContent>
-          <TextButton onClick={confirmReset} enabled={!busy}>
-            <ComposeText>{t('analytics.reset')}</ComposeText>
-          </TextButton>
-        </ListItem.TrailingContent>
       </ListItem>
     </SettingsSectionItem>
   );

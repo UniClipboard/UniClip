@@ -37,6 +37,7 @@ const IOS_SCHEME: ColorScheme = {
 
   // 强调色(单色墨)
   accent: iosAccentColor ?? PlatformColor('label'),
+  inverseAccent: onAccentColor,
   onAccent: onAccentColor,
   accentContainer: PlatformColor('secondarySystemFill'),
   onAccentContainer: PlatformColor('label'),

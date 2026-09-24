@@ -22,6 +22,8 @@ import {
   type ShareJobView,
   type ShareTarget,
 } from './useShareSendController';
+import { M3IconButton } from '@/components/android/M3IconButton';
+import { m3Type } from '@/theme/m3Typography';
 
 /** Android 外部分享独立页面。解析与发送都在同一全屏页面完成。 */
 export function ShareSendSheet({ visible, onClose, jobs }: ShareSendSheetProps) {
@@ -62,20 +64,23 @@ function PageHeader({
   theme: ColorScheme;
 }) {
   const { t } = useTranslation('history');
+  // M3 全屏页标题栏:前导关闭、标题靠左,不做 iOS 式居中 + 右侧占位
   return (
     <View style={styles.header}>
-      <Pressable
-        onPress={onClose}
-        style={styles.iconButton}
-        accessibilityRole="button"
+      <M3IconButton
+        icon="close"
         accessibilityLabel={t('action.close', { ns: 'common' })}
+        onPress={onClose}
+        iconColor={theme.textPrimary}
+        colors={theme}
+      />
+      <Text
+        style={[styles.title, { color: theme.textPrimary }]}
+        numberOfLines={1}
+        accessibilityRole="header"
       >
-        <Ionicons name="close" size={25} color={theme.textPrimary} />
-      </Pressable>
-      <Text style={[styles.title, { color: theme.textPrimary }]} numberOfLines={1}>
         {title}
       </Text>
-      <View style={styles.iconButton} />
     </View>
   );
 }
@@ -118,6 +123,7 @@ function ShareBody({
         <Text style={[styles.errorText, { color: theme.textSecondary }]}>{c.phase.message}</Text>
         <Pressable
           onPress={c.handleRetryClaim}
+          android_ripple={{ color: theme.fillSecondary as string }}
           style={[styles.retryButton, { backgroundColor: theme.accentContainer }]}
           accessibilityRole="button"
           accessibilityLabel={t('send.retry')}
@@ -186,6 +192,7 @@ function SendFooter({
       <Pressable
         onPress={onPress}
         disabled={!enabled || c.isSending}
+        android_ripple={{ color: theme.fillSecondary as string }}
         style={[
           styles.sendButton,
           { backgroundColor: enabled ? theme.accent : theme.surfaceHigh },
@@ -266,6 +273,7 @@ function TargetSection({
           <Text style={[styles.noTargets, { color: theme.textSecondary }]}>{emptyLabel}</Text>
           <Pressable
             onPress={() => void onRefresh()}
+            android_ripple={{ color: theme.fillSecondary as string }}
             style={[styles.refreshTargetsButton, { backgroundColor: theme.accentContainer }]}
             accessibilityRole="button"
             accessibilityLabel={t('action.refresh', { ns: 'common' })}
@@ -347,6 +355,7 @@ function TargetRow({
   return (
     <Pressable
       onPress={() => onToggle(target.id)}
+      android_ripple={{ color: theme.fillSecondary as string }}
       style={[
         styles.targetRow,
         selected && styles.targetRowSelected,
@@ -383,18 +392,18 @@ const styles = StyleSheet.create({
     minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
+    gap: 4,
+    paddingHorizontal: 4,
   },
-  title: { flex: 1, fontSize: 18, fontWeight: '600', textAlign: 'center' },
-  iconButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  title: { ...m3Type.titleLarge, flex: 1 },
   centerBox: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
   parsingText: { fontSize: 16, fontWeight: '500' },
   errorText: { fontSize: 15, textAlign: 'center' },
   retryButton: {
-    minHeight: 44,
+    overflow: 'hidden',
+    minHeight: 48,
     paddingHorizontal: 20,
-    borderRadius: 22,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -419,8 +428,9 @@ const styles = StyleSheet.create({
   noTargets: { fontSize: 14, textAlign: 'center', paddingVertical: 20 },
   noTargetsBox: { alignItems: 'center', gap: 4, paddingBottom: 8 },
   refreshTargetsButton: {
-    minHeight: 44,
-    borderRadius: 22,
+    overflow: 'hidden',
+    minHeight: 48,
+    borderRadius: 24,
     paddingHorizontal: 18,
     flexDirection: 'row',
     alignItems: 'center',
@@ -430,6 +440,7 @@ const styles = StyleSheet.create({
   refreshTargetsText: { fontSize: 14, fontWeight: '600' },
   targetLoading: { paddingVertical: 20 },
   targetRow: {
+    overflow: 'hidden',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -444,6 +455,7 @@ const styles = StyleSheet.create({
   targetDetail: { fontSize: 12 },
   footer: { borderTopWidth: StyleSheet.hairlineWidth, padding: 16 },
   sendButton: {
+    overflow: 'hidden',
     minHeight: 52,
     borderRadius: 12,
     flexDirection: 'row',

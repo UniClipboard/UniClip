@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/hooks/useTheme';
 import type { SpaceSetupResultProps } from './SpaceSetupResult.types';
+import { MATERIAL_SEED_COLOR } from '@/theme/colors';
 
 export function SpaceSetupResult({ onEnter }: SpaceSetupResultProps) {
   const { t } = useTranslation('onboarding');
@@ -28,7 +29,11 @@ export function SpaceSetupResult({ onEnter }: SpaceSetupResultProps) {
         <Text style={[s.title, { color: c.textPrimary }]}>{t('result.title')}</Text>
         <Text style={[s.body, { color: c.textSecondary }]}>{t('result.body')}</Text>
       </View>
-      <Host style={s.actions} colorScheme={theme.isDark ? 'dark' : 'light'} seedColor={c.accent}>
+      <Host
+        style={s.actions}
+        colorScheme={theme.isDark ? 'dark' : 'light'}
+        seedColor={MATERIAL_SEED_COLOR}
+      >
         <Button onClick={() => void enter()} enabled={!pending} modifiers={[fillMaxWidth()]}>
           <ComposeText>{t('result.enter')}</ComposeText>
         </Button>

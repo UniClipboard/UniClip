@@ -73,6 +73,7 @@
     "saveFailed": "Save failed",
     "savedFile": "File saved",
     "deleted": "Deleted",
+    "deletedCount": "{{count}} items deleted",
     "copiedSelected": "Copied selected items",
     "syncDone": "Sync complete",
     "syncFailed": "Sync failed",
@@ -110,7 +111,8 @@
       "open": "Open",
       "save": "Save"
     },
-    "close": "Close details"
+    "close": "Close details",
+    "view": "View details"
   },
   "rail": {
     "filters": "Filter",

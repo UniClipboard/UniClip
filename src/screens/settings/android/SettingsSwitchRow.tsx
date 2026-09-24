@@ -1,8 +1,12 @@
 import { ListItem, Switch as ComposeSwitch, Text as ComposeText } from '@expo/ui/jetpack-compose';
 import { testID as testIDModifier, toggleable } from '@expo/ui/jetpack-compose/modifiers';
 
+import type { ReactNode } from 'react';
+
 interface SettingsSwitchRowProps {
   title: string;
+  /** 可选前导图标(Compose Icon 节点) */
+  leading?: ReactNode;
   testID?: string;
   description?: string;
   value: boolean;
@@ -12,6 +16,7 @@ interface SettingsSwitchRowProps {
 
 export function SettingsSwitchRow({
   title,
+  leading,
   testID,
   description,
   value,
@@ -23,6 +28,7 @@ export function SettingsSwitchRow({
   };
   return (
     <ListItem modifiers={[...(testID ? [testIDModifier(testID)] : []), toggleable(value, toggle, { role: 'switch' })]}>
+      {leading ? <ListItem.LeadingContent>{leading}</ListItem.LeadingContent> : null}
       <ListItem.HeadlineContent>
         <ComposeText>{title}</ComposeText>
       </ListItem.HeadlineContent>

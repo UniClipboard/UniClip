@@ -33,6 +33,7 @@ import { LanServersPage } from './LanServersPage';
 import { SyncChannelSection } from './SyncChannelSection.android';
 import { AddSyncConnectionSheet } from '@/components/AddSyncConnectionSheet';
 import type { AddSyncConnectionPreviewScenarioId } from '@/components/AddSyncConnectionSheet.types';
+import { MATERIAL_SEED_COLOR } from '@/theme/colors';
 
 const SettingsSubScreenInner = memo(function SettingsSubScreenInner() {
   const { theme } = useTheme();
@@ -51,7 +52,7 @@ const SettingsSubScreenInner = memo(function SettingsSubScreenInner() {
       <Host
         style={styles.container}
         colorScheme={theme.isDark ? 'dark' : 'light'}
-        seedColor={theme.colors.accent}
+        seedColor={MATERIAL_SEED_COLOR}
       >
         <LazyColumn
           modifiers={[fillMaxSize()]}

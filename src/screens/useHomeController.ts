@@ -34,7 +34,8 @@ import { useHomeHistoryFilter } from './useHomeHistoryFilter';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import type { CameraCaptureResult } from '@/components/CameraCaptureSheet.types';
-import { confirmHistoryDelete } from '@/utils/confirmHistoryDelete';
+import { HOME_LONG_PRESS_MODE } from '@/utils/homeLongPressMode';
+import { useUndoableHistoryDelete } from './useUndoableHistoryDelete';
 
 const log = createLogger('HomeView');
 
@@ -60,8 +61,8 @@ export function useHomeController(onOpenSettings: () => void) {
   // Stores —— 全部用细粒度 selector 订阅。整体订阅会让 store 任意字段(isLoading /
   // totalCount / message / error 等)变化都重渲染整个 HomeView + 卡片网格。
   // action 引用稳定，订阅它们不会触发重渲染。
-  const items = useHistoryStore((s) => s.items);
-  const resultCount = useHistoryStore((s) => s.totalCount);
+  const storeItems = useHistoryStore((s) => s.items);
+  const storeResultCount = useHistoryStore((s) => s.totalCount);
   const isHistoryLoading = useHistoryStore((s) => s.isLoading);
   const selectedIds = useHistoryStore((s) => s.selectedIds);
   const lastAddedTimestamp = useHistoryStore((s) => s.lastAddedTimestamp);
@@ -73,12 +74,34 @@ export function useHomeController(onOpenSettings: () => void) {
   const toggleSelection = useHistoryStore((s) => s.toggleSelection);
   const selectAll = useHistoryStore((s) => s.selectAll);
   const clearSelection = useHistoryStore((s) => s.clearSelection);
-  const deleteSelected = useHistoryStore((s) => s.deleteSelected);
-  const deleteItem = useHistoryStore((s) => s.deleteItem);
+  const deleteItems = useHistoryStore((s) => s.deleteItems);
 
   // message 不在此订阅，交给自隔离的 <ConnectedMessageToast/>，toast 出现/消失只重渲它自身
   const showMessage = useMessageStore((s) => s.showMessage);
   const clearError = useErrorStore((s) => s.clearError);
+
+  // 删除:Android 先隐藏再给「撤销」,iOS 直接删除(策略见 historyDeleteMode.*)
+  const deleteMessages = useMemo(
+    () => ({
+      deleted: t('toast.deleted'),
+      deletedCount: (count: number) => t('toast.deletedCount', { count }),
+      undo: t('action.undo', { ns: 'common' }),
+    }),
+    [t]
+  );
+  const { pendingIds: pendingDeleteIds, requestDelete } = useUndoableHistoryDelete({
+    deleteItems,
+    showMessage,
+    messages: deleteMessages,
+  });
+  const items = useMemo(
+    () =>
+      pendingDeleteIds.size === 0
+        ? storeItems
+        : storeItems.filter((item) => !pendingDeleteIds.has(item.profileHash)),
+    [storeItems, pendingDeleteIds]
+  );
+  const resultCount = Math.max(0, storeResultCount - pendingDeleteIds.size);
 
   const p2pRefreshRevision = useUnifiedEngineStore((s) => s.refreshRevision);
 
@@ -280,10 +303,18 @@ export function useHomeController(onOpenSettings: () => void) {
         toggleSelection(item.profileHash);
         return;
       }
+      if (HOME_LONG_PRESS_MODE === 'select') {
+        // Android:长按即进入多选并选中该卡,操作由上下文操作栏承接
+        Haptics.performAndroidHapticsAsync(Haptics.AndroidHaptics.Long_Press).catch(() => {});
+        setIsSelectMode(true);
+        clearSelection();
+        toggleSelection(item.profileHash);
+        return;
+      }
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft).catch(() => {});
       setContextTarget({ item, anchor });
     },
-    [isSelectMode, toggleSelection]
+    [isSelectMode, toggleSelection, clearSelection]
   );
 
   const handleContextDismiss = useCallback(() => {
@@ -391,15 +422,7 @@ export function useHomeController(onOpenSettings: () => void) {
           toggleSelection(item.profileHash);
         },
         onDelete: async () => {
-          const confirmed = await confirmHistoryDelete({
-            title: t('deleteConfirm.singleTitle'),
-            message: t('deleteConfirm.singleMessage'),
-            cancelLabel: t('action.cancel', { ns: 'common' }),
-            confirmLabel: t('action.delete', { ns: 'common' }),
-          });
-          if (!confirmed) return;
-          await deleteItem(item.profileHash);
-          showMessage(t('toast.deleted'), 'success');
+          await requestDelete([item.profileHash], { announce: true });
         },
       }),
     [
@@ -408,7 +431,7 @@ export function useHomeController(onOpenSettings: () => void) {
       showMessage,
       clearSelection,
       toggleSelection,
-      deleteItem,
+      requestDelete,
       getCopySuccessMessage,
       t,
     ]
@@ -428,17 +451,47 @@ export function useHomeController(onOpenSettings: () => void) {
   }, [selectedIds.size, items.length, clearSelection, selectAll]);
 
   const handleBatchDelete = useCallback(async () => {
-    const count = selectedIds.size;
-    const confirmed = await confirmHistoryDelete({
-      title: t('deleteConfirm.batchTitle'),
-      message: t('deleteConfirm.batchMessage', { count }),
-      cancelLabel: t('action.cancel', { ns: 'common' }),
-      confirmLabel: t('action.delete', { ns: 'common' }),
-    });
-    if (!confirmed) return;
-    await deleteSelected();
+    const ids = [...selectedIds];
     setIsSelectMode(false);
-  }, [deleteSelected, selectedIds.size, t]);
+    clearSelection();
+    await requestDelete(ids, { announce: false });
+  }, [selectedIds, clearSelection, requestDelete]);
+
+  // 多选恰好选中一项时,上下文操作栏的溢出菜单承接该项的内容类动作(Android 长按入口)。
+  // 复制 / 分享 / 删除已在底栏,多选本身即当前模式,故剔除。
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const singleSelectedItem = useMemo(() => {
+    if (!isSelectMode || selectedIds.size !== 1) return null;
+    const [id] = selectedIds;
+    return items.find((i) => i.profileHash === id) ?? null;
+  }, [isSelectMode, selectedIds, items]);
+  const selectionItemActions = useMemo<ActionMenuItem[]>(() => {
+    if (!singleSelectedItem) return [];
+    const item = singleSelectedItem;
+    const kind = getDisplayKind(item.type, item.text);
+    const excluded = new Set(['copy', 'share', 'select', 'delete']);
+    const contentActions = makeActionGroups(item, kind, null)
+      .flat()
+      .filter((action) => !excluded.has(action.key));
+    return [
+      {
+        key: 'details',
+        label: t('detail.view'),
+        icon: 'expand-outline',
+        onPress: () => {
+          selectDetailItem(item);
+          setDetailModalOpen(true);
+        },
+      },
+      ...contentActions,
+    ].map((action) => ({
+      ...action,
+      onPress: () => {
+        exitSelectMode();
+        action.onPress();
+      },
+    }));
+  }, [singleSelectedItem, makeActionGroups, selectDetailItem, exitSelectMode, t]);
 
   const handleBatchCopy = useCallback(async () => {
     const selected = items.filter((i) => selectedIds.has(i.profileHash));
@@ -461,10 +514,13 @@ export function useHomeController(onOpenSettings: () => void) {
     try {
       await getUnifiedSyncRuntime().synchronize();
       await loadItems();
+    } catch {
+      // 下拉刷新同时是同步入口(Android FAB 菜单不再提供「立即同步」),失败必须可见
+      showMessage(t('toast.syncFailed'), 'error');
     } finally {
       setRefreshing(false);
     }
-  }, [loadItems]);
+  }, [loadItems, showMessage, t]);
 
   // Sync button — refresh current server value + reload local history
   const handleSyncHistory = useCallback(async () => {
@@ -694,6 +750,7 @@ export function useHomeController(onOpenSettings: () => void) {
     toggleSelection,
     exitSelectMode,
     handleSelectAll,
+    selectionItemActions,
     // search
     isSearching,
     openSearch,
@@ -747,6 +804,9 @@ export function useHomeController(onOpenSettings: () => void) {
     detailItem,
     selectDetailItem,
     makeActionGroups,
+    // detail modal (compact, opened from the selection overflow)
+    detailModalOpen,
+    setDetailModalOpen,
   };
 }
 

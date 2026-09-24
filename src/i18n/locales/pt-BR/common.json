@@ -24,7 +24,8 @@
     "selectAll": "Selecionar tudo",
     "deselect": "Desmarcar",
     "more": "Mais",
-    "settings": "Configurações"
+    "settings": "Configurações",
+    "undo": "Desfazer"
   },
   "state": {
     "loading": "Carregando…",

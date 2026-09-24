@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { AppBottomSheet, AppButton, AppColumn, AppHost } from '@/components/ui';
 import { useTheme } from '@/hooks/useTheme';
 import type { SyncChannelConfirmationSheetProps } from './SyncChannelConfirmationSheet.types';
+import { MATERIAL_SEED_COLOR } from '@/theme/colors';
 
 export function SyncChannelConfirmationSheet({
   visible,
@@ -21,7 +22,7 @@ export function SyncChannelConfirmationSheet({
         matchContents={{ vertical: true }}
         style={styles.host}
         colorScheme={theme.isDark ? 'dark' : 'light'}
-        seedColor={theme.colors.accent}
+        seedColor={MATERIAL_SEED_COLOR}
       >
         <AppColumn fullWidth spacing={16} padding={24}>
           <ComposeText style={styles.title}>{t('syncChannel.confirmationTitle')}</ComposeText>

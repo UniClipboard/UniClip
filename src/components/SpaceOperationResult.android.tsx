@@ -21,6 +21,7 @@ import { useTheme } from '@/hooks/useTheme';
 import type { SpaceOperationDevice } from '@/features/space/store';
 import type { SpaceOperationResultProps } from './SpaceOperationResult.types';
 import { useSpaceOperationResult } from './useSpaceOperationResult';
+import { MATERIAL_SEED_COLOR } from '@/theme/colors';
 
 const DIALOG_PROPERTIES = {
   dismissOnBackPress: false,
@@ -108,7 +109,7 @@ function ResultContent() {
 export function SpaceOperationResult(_props: SpaceOperationResultProps) {
   const { theme } = useTheme();
   return (
-    <Host colorScheme={theme.isDark ? 'dark' : 'light'} seedColor={theme.colors.accent}>
+    <Host colorScheme={theme.isDark ? 'dark' : 'light'} seedColor={MATERIAL_SEED_COLOR}>
       <ResultContent />
     </Host>
   );

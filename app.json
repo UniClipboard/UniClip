@@ -30,7 +30,7 @@
         "backgroundImage": "./assets/adaptive-icon-bg.png",
         "monochromeImage": "./assets/adaptive-icon-mono.png"
       },
-      "predictiveBackGestureEnabled": false,
+      "predictiveBackGestureEnabled": true,
       "package": "app.uniclipboard.android",
       "permissions": [
         "android.permission.REQUEST_INSTALL_PACKAGES",

@@ -18,6 +18,7 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
 import type { DeviceTrustDeviceView } from '@/features/space';
 import type { SpaceDeviceDetailProps } from './SpaceDeviceDetail.types';
+import { MATERIAL_SEED_COLOR } from '@/theme/colors';
 
 const ICONS = {
   device: require('../assets/icons/account_circle.xml'),
@@ -164,7 +165,7 @@ export function SpaceDeviceDetail(props: SpaceDeviceDetailProps) {
   return (
     <Host
       colorScheme={theme.isDark ? 'dark' : 'light'}
-      seedColor={theme.colors.accent}
+      seedColor={MATERIAL_SEED_COLOR}
       matchContents
     >
       <DeviceDetailContent {...props} />
