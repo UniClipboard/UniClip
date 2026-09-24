@@ -22,27 +22,31 @@ export interface ExpandedWorkspaceLayout {
   gridWidth: number;
 }
 
-export function computeExpandedWorkspaceLayout(screenWidth: number): ExpandedWorkspaceLayout {
+export interface ExpandedWorkspaceOptions {
+  /** 左侧是否有类型筛选栏。Android 用应用级 navigation rail,筛选改为网格顶部 chip 行。 */
+  filterRail?: boolean;
+}
+
+export function computeExpandedWorkspaceLayout(
+  screenWidth: number,
+  { filterRail = true }: ExpandedWorkspaceOptions = {}
+): ExpandedWorkspaceLayout {
   const detailWidth = Math.max(
     DETAIL_MIN_WIDTH,
     Math.min(DETAIL_MAX_WIDTH, Math.round(screenWidth * DETAIL_WIDTH_RATIO))
   );
   const minimumGridWidth =
     GRID_PADDING * 2 + GRID_SPACING * (GRID_MIN_COLUMNS - 1) + gridAdaptiveMin * GRID_MIN_COLUMNS;
+  // 筛选栏连同它与网格之间的缝隙
+  const railSpan = filterRail ? WORKSPACE_RAIL_WIDTH + WORKSPACE_GUTTER : 0;
   const sideDetailWidth =
-    WORKSPACE_GUTTER * 2 +
-    WORKSPACE_RAIL_WIDTH +
-    WORKSPACE_GUTTER * 2 +
-    detailWidth +
-    minimumGridWidth;
+    WORKSPACE_GUTTER * 2 + railSpan + WORKSPACE_GUTTER + detailWidth + minimumGridWidth;
   const detailPlacement = screenWidth >= sideDetailWidth ? 'side' : 'overlay';
-  const visibleGaps = detailPlacement === 'side' ? 2 : 1;
   const gridWidth =
     screenWidth -
     WORKSPACE_GUTTER * 2 -
-    WORKSPACE_RAIL_WIDTH -
-    WORKSPACE_GUTTER * visibleGaps -
-    (detailPlacement === 'side' ? detailWidth : 0);
+    railSpan -
+    (detailPlacement === 'side' ? WORKSPACE_GUTTER + detailWidth : 0);
 
   return { detailPlacement, detailWidth, gridWidth };
 }

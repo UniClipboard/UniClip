@@ -1,13 +1,14 @@
 /**
  * 设置页面(Android) — M3 设置中枢(hub)
  *
- * 一级页展示两个方向独立的剪贴板同步开关，其下为三组带图标 + 动态摘要的分类入口
- * (同步/通用/其他)，具体设置全部下沉到 SettingsSub 二级页。方向开关与 iOS 对齐：
+ * 底部导航「设置」目的地。一级页展示两个方向独立的剪贴板同步开关，其下为三组带图标 +
+ * 动态摘要的分类入口(同步/通用/其他)，具体设置全部下沉到 SettingsSub 二级页。同步通道与
+ * 空间设备已升为顶级「设备」目的地，不在此重复入口。方向开关与 iOS 对齐：
  * 自动写入控制远端到本机，自动推送控制本机到服务端。整页仍是单 <Host> +
  * <LazyColumn>,转场结束
  * 后再挂载 Host,避免滑入期间抢占 JS 线程。
  */
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { InteractionManager } from 'react-native';
 import {
   Host,
@@ -20,12 +21,12 @@ import {
 } from '@expo/ui/jetpack-compose';
 import { fillMaxSize, clickable, testID } from '@expo/ui/jetpack-compose/modifiers';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
 import { useSettingsStore } from '@/stores';
 import { APP_VERSION } from '@/constants';
-import type { RootStackParamList, SettingsSubSection } from '@/navigation/AppNavigator';
+import type { SettingsSubSection } from '@/navigation/AppNavigator';
 import { settingsStyles as styles } from './settings/settingsStyles';
 import { SettingsToastProvider, useSettingsToast } from './settings/SettingsToastContext';
 import { SettingsSectionItem } from './settings/SettingsSectionItem';
@@ -133,26 +134,15 @@ const ClipboardSyncDirectionGroup = memo(function ClipboardSyncDirectionGroup() 
   );
 });
 
-/** 「同步」组:P2P Space / 历史记录。 */
+/** 「同步」组:历史记录。 */
 const SyncHubGroup = memo(function SyncHubGroup({ iconTint, onNavigate }: HubGroupProps) {
   const { t } = useTranslation('settings');
-  const syncChannelSummary = useSettingsStore((state) =>
-    t(state.config?.syncChannel === 'p2p' ? 'syncChannel.p2p' : 'syncChannel.lan')
-  );
   const historySummary = useSettingsStore((s) =>
     t('hub.summary.history', { count: s.config?.maxHistoryItems ?? 1000 })
   );
 
   return (
     <SettingsSectionItem title={t('category.sync')}>
-      <HubRow
-        section="syncChannel"
-        label={t('syncChannel.title')}
-        summary={syncChannelSummary}
-        iconTint={iconTint}
-        onNavigate={onNavigate}
-      />
-      <HorizontalDivider />
       <HubRow
         section="history"
         label={t('category.history')}
@@ -237,8 +227,6 @@ const OtherHubGroup = memo(function OtherHubGroup({ iconTint, onNavigate }: HubG
 const SettingsScreenInner = () => {
   const { theme } = useTheme();
   const navigation = useNavigation<any>();
-  const route = useRoute<RouteProp<RootStackParamList, 'Settings'>>();
-  const notificationRouteHandled = useRef<number | null>(null);
   // Host 外部也使用同一 seed,避免图标色与 Host 内的 Compose 色板不一致。
   const appColorScheme = theme.isDark ? 'dark' : 'light';
   const colors = useMaterialColors({
@@ -259,27 +247,6 @@ const SettingsScreenInner = () => {
   useEffect(() => {
     if (!isLoaded) loadConfig();
   }, [isLoaded, loadConfig]);
-
-  useEffect(() => {
-    const requestId = route.params?.notificationNavigationRequestId;
-    if (
-      requestId == null ||
-      notificationRouteHandled.current === requestId ||
-      route.params?.section !== 'space'
-    )
-      return;
-    notificationRouteHandled.current = requestId;
-    navigation.navigate('SettingsSub', {
-      section: 'space',
-      deviceId: route.params.deviceId,
-      notificationNavigationRequestId: requestId,
-    });
-  }, [
-    navigation,
-    route.params?.deviceId,
-    route.params?.notificationNavigationRequestId,
-    route.params?.section,
-  ]);
 
   // 转场期间只铺背景色:挂载等待很短,M3 不为亚秒级等待显示转圈
   if (!contentReady) {

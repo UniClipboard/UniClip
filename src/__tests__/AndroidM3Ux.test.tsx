@@ -117,7 +117,9 @@ describe('Android Material 3 interaction contracts', () => {
   it('uses a search bar and a contextual action bar instead of iOS header pills', () => {
     const topBar = read('components/HomeTopBar.android.tsx');
     expect(topBar).not.toContain("t('action.select', { ns: 'common' })");
-    expect(topBar).toContain('testID="home-settings"');
+    // 设置是底部导航的顶级目的地,搜索栏不再承载设置入口
+    expect(topBar).not.toContain('testID="home-settings"');
+    expect(topBar).not.toContain('onSettings');
     expect(topBar).toContain('icon="arrow-back"');
     expect(topBar).toContain(
       '<OverflowMenu testID="history-selection-more" items={itemActions} />'

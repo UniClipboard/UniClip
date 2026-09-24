@@ -6,7 +6,7 @@ describe('HomeExpandedView rotation layout', () => {
     const source = fs.readFileSync(path.join(__dirname, '../screens/HomeExpandedView.tsx'), 'utf8');
 
     expect(source.match(/<HomeMasterGrid/g)).toHaveLength(1);
-    expect(source).toContain('computeExpandedWorkspaceLayout(screenWidth)');
+    expect(source).toContain('computeExpandedWorkspaceLayout(screenWidth, { filterRail })');
     expect(source).toContain('paneWidth={workspace.gridWidth}');
     expect(source).toContain("workspace.detailPlacement === 'side'");
     expect(source).toContain('onSelectItem={handleSelectItem}');
@@ -24,7 +24,9 @@ describe('HomeExpandedView rotation layout', () => {
         path.join(__dirname, `../screens/HomeView.${platform}.tsx`),
         'utf8'
       );
-      expect(dispatcher).toContain('screenWidth={screenWidth}');
+      expect(dispatcher).toMatch(
+        /screenWidth=\{screenWidth( - NAVIGATION_RAIL_WIDTH - c\.insets\.left)?\}/
+      );
     }
 
     for (const sharedScreen of ['HomeCompactView.tsx', 'HomeMasterGrid.tsx']) {

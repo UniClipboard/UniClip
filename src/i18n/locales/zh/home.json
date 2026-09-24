@@ -115,5 +115,10 @@
   "rail": {
     "filters": "筛选",
     "all": "全部"
+  },
+  "nav": {
+    "clipboard": "剪贴板",
+    "devices": "设备",
+    "settings": "设置"
   }
 }

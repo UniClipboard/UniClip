@@ -14,36 +14,21 @@ import { useTranslation } from 'react-i18next';
 import { navigationRef, flushPendingNavigation } from './navigationRef';
 import { useTheme } from '@/hooks/useTheme';
 import { useSettingsStore } from '@/stores';
-import { HomeView } from '@/screens/HomeView';
 import { OnboardingScreen } from '@/screens/OnboardingScreen';
 import { OnboardingPreviewScreen } from '@/screens/OnboardingPreviewScreen';
 import { ConnectionPreviewScreen } from '@/screens/ConnectionPreviewScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
 import { SettingsSubScreen } from '@/screens/settings/SettingsSubScreen';
-import type { UpdateCheckResult } from '@/features/updates';
 import { capturePostHogScreen } from '@/support/observability';
 import type { RootStackParamList, SettingsSubSection } from './AppNavigator.types';
 import { useSettingsScreenOptions } from './useSettingsScreenOptions';
+import { MainScreen } from './MainScreen';
 
 export type { RootStackParamList, SettingsSubSection } from './AppNavigator.types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 type SetupSession = 'onboarding';
 const CompleteSetupSessionContext = createContext<() => void>(() => undefined);
-
-function MainScreen() {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'Main'>>();
-  const openSettings = useCallback(() => {
-    navigation.navigate('Settings');
-  }, [navigation]);
-  const openAbout = useCallback(
-    (update: UpdateCheckResult) => {
-      navigation.navigate('SettingsSub', { section: 'about', update });
-    },
-    [navigation]
-  );
-  return <HomeView onOpenSettings={openSettings} onOpenAbout={openAbout} />;
-}
 
 function OnboardingGate() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'Onboarding'>>();

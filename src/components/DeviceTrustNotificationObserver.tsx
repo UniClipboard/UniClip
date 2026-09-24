@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 
 import { getUnifiedSpaceService, useUnifiedSpaceStore } from '@/features/space';
 import { navigateWhenReady } from '@/navigation/navigationRef';
+import { openSpaceDevices } from '@/navigation/openSpaceDevices';
 import {
   DeviceTrustNotificationResponseCoordinator,
   type SpaceNavigationDestination,
@@ -12,15 +13,11 @@ let notificationNavigationRequestId = 0;
 function navigate(destination: SpaceNavigationDestination) {
   notificationNavigationRequestId += 1;
   if (destination.kind === 'openDevice') {
-    navigateWhenReady('Settings', {
-      section: 'space',
-      deviceId: destination.deviceId,
-      notificationNavigationRequestId,
-    });
+    openSpaceDevices({ deviceId: destination.deviceId, notificationNavigationRequestId });
     return;
   }
   if (destination.kind === 'openSpaceManagement') {
-    navigateWhenReady('Settings', { section: 'space', notificationNavigationRequestId });
+    openSpaceDevices({ notificationNavigationRequestId });
     return;
   }
   navigateWhenReady('Main');

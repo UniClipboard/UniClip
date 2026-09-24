@@ -11,10 +11,10 @@ import type {
 import { m3Type } from '@/theme/m3Typography';
 
 /**
- * 首页默认态:M3 Search bar。整条胶囊点按进入搜索,尾部是设置入口。
- * 多选不在这里提供入口——Android 由长按卡片进入多选。
+ * 首页默认态:M3 Search bar。整条胶囊点按进入搜索。设置是底部导航的顶级目的地,
+ * 不在这里放入口;多选由长按卡片进入。
  */
-export function DefaultTopBar({ onSearch, onSettings, theme }: DefaultTopBarProps) {
+export function DefaultTopBar({ onSearch, theme }: DefaultTopBarProps) {
   const { t } = useTranslation('home');
   const { colors } = theme;
   return (
@@ -33,13 +33,6 @@ export function DefaultTopBar({ onSearch, onSettings, theme }: DefaultTopBarProp
             {t('topBar.searchPlaceholder')}
           </Text>
         </Pressable>
-        <M3IconButton
-          testID="home-settings"
-          icon="settings-outline"
-          accessibilityLabel={t('action.settings', { ns: 'common' })}
-          onPress={onSettings}
-          colors={colors}
-        />
       </View>
     </View>
   );
