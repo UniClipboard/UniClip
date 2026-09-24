@@ -33,7 +33,7 @@ export function HomeView({
   onImmersiveModeChange,
   addMenuOpenSignal,
 }: HomeViewProps) {
-  const c = useHomeController(onOpenSettings);
+  const c = useHomeController(onOpenSettings, { clearFiltersOnCloseSearch: true });
   const { t: tAbout, i18n } = useTranslation('settingsAbout');
   const { width: screenWidth } = useWindowDimensions();
   const mode = getLayoutMode(screenWidth);

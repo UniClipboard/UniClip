@@ -10,14 +10,17 @@
     "resultCount_one": "{{count}} resultado",
     "resultCount_other": "{{count}} resultados",
     "emptyTitle": "Nenhum item encontrado",
+    "emptyTitleQuery": "Nenhum resultado para “{{query}}”",
     "emptyDescription": "Nenhum item corresponde a esta busca.",
+    "emptyDescriptionFilters": "Nenhuma correspondência em {{filters}}.",
     "clear": "Limpar",
     "clearFiltersKeepQuery": "Limpar filtros, manter busca",
     "shortcut": {
       "kind": "Por tipo",
       "date": "Por data",
       "source": "Por origem"
-    }
+    },
+    "suggestions": "Sugestões"
   },
   "empty": {
     "unconfigured": {

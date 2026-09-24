@@ -10,6 +10,8 @@ import { HomeExpandedView } from './HomeExpandedView';
 import { HomeSearchDock } from './ios/HomeSearchDock';
 import { HomeLargeTitle, HOME_LARGE_TITLE_HEIGHT } from './ios/HomeLargeTitle';
 import { getHomeHistoryCollection } from './ios/homeHistoryCollection';
+import { getHomeSearchSlots } from './ios/homeSearchSlots';
+import { HomeSearchFilterBar } from './ios/HomeSearchFilterBar';
 import type { HomeSearchSlots } from './HomeSearchSlots.types';
 import type { HomeViewProps } from './HomeView.types';
 
@@ -28,9 +30,10 @@ const TOP_BAR_ROW_HEIGHT = 44;
  * 浮起面板=secondarySystemGroupedBackground(网格区同为该面板色,中间区域是一个整体白面板)。
  */
 export function HomeView({ onOpenSettings, onImmersiveModeChange, searchRequestId = 0 }: HomeViewProps) {
-  const c = useHomeController(onOpenSettings);
   const { width: screenWidth } = useWindowDimensions();
   const mode = getLayoutMode(screenWidth);
+  // iPhone 的筛选只在搜索视图里;iPad 的筛选在常驻侧栏,退出搜索不清空
+  const c = useHomeController(onOpenSettings, { clearFiltersOnCloseSearch: mode === 'compact' });
   // 搜索、多选、详情页打开时收起标签栏
   const immersive = c.isSearching || c.isSelectMode || c.detailPageItem != null;
   const handledSearchRequest = useRef(searchRequestId);
@@ -59,18 +62,14 @@ export function HomeView({ onOpenSettings, onImmersiveModeChange, searchRequestI
     [c.handleTakePhoto, c.handleUploadImage, c.handleUploadFile, c.handleUpload, c.handleSyncHistory]
   );
 
+  // 网格页眉贴在内容容器边缘,列表页眉在 16pt 内容留白之内;页眉文字都与屏幕左缘保持 20pt
+  const headerInset = c.historyLayout === 'grid' ? 20 : 4;
   const search: HomeSearchSlots | undefined = c.isSearching
-    ? undefined
+    ? getHomeSearchSlots(c, headerInset)
     : {
         gridHeader: {
           height: HOME_LARGE_TITLE_HEIGHT,
-          // 网格页眉贴在内容容器边缘,列表页眉在 16pt 内容留白之内;标题都与屏幕左缘保持 20pt
-          node: (
-            <HomeLargeTitle
-              title={c.t('nav.clipboard')}
-              horizontalInset={c.historyLayout === 'grid' ? 20 : 4}
-            />
-          ),
+          node: <HomeLargeTitle title={c.t('nav.clipboard')} horizontalInset={headerInset} />,
         },
       };
 
@@ -101,7 +100,14 @@ export function HomeView({ onOpenSettings, onImmersiveModeChange, searchRequestI
                   onDone={c.exitSelectMode}
                   theme={c.theme}
                 />
-              ) : c.isSearching ? null : (
+              ) : c.isSearching ? (
+                // 筛选行只在结果视图里出现,空查询时是「建议」
+                search?.gridOverlay ? null : (
+                  <View style={styles.filterBar}>
+                    <HomeSearchFilterBar c={c} />
+                  </View>
+                )
+              ) : (
                 <DefaultTopBar
                   onSearch={c.openSearch}
                   onSettings={c.onOpenSettings}
@@ -139,4 +145,5 @@ export function HomeView({ onOpenSettings, onImmersiveModeChange, searchRequestI
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   topBar: { paddingHorizontal: 16 },
+  filterBar: { paddingTop: 4 },
 });

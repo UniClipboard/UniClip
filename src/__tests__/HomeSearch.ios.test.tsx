@@ -204,19 +204,30 @@ describe('iOS search workflow', () => {
     dismiss.mockRestore();
   });
 
-  it('leaves browsing filters intact when search is cancelled', () => {
+  it('clears filters with the query only where filters live inside search', () => {
     const source = fs.readFileSync(path.join(__dirname, '../screens/useHomeController.ts'), 'utf8');
     const close = source.match(/const closeSearch = useCallback\([\s\S]*?\n  },[^\n]*\n/)?.[0];
     expect(close).toBeDefined();
-    expect(close).not.toContain('setSelectedFilterKinds');
-    expect(close).not.toContain('setSelectedDateFilter');
     expect(close).not.toContain('searchItems(undefined)');
-    // 筛选是否随搜索清空由平台策略决定;iOS 保留首页浏览筛选
-    expect(close).toContain('if (CLEAR_FILTERS_ON_CLOSE_SEARCH) handleClearFilters();');
-    const iosPolicy = fs.readFileSync(
-      path.join(__dirname, '../screens/searchFilterPolicy.ios.ts'),
-      'utf8'
+    expect(close).toContain('if (clearFiltersOnCloseSearch) handleClearFilters();');
+    // iPhone 的筛选只在搜索视图里;iPad 的筛选在常驻侧栏,退出搜索时保留
+    const home = fs.readFileSync(path.join(__dirname, '../screens/HomeView.ios.tsx'), 'utf8');
+    expect(home).toContain("{ clearFiltersOnCloseSearch: mode === 'compact' }");
+  });
+
+  it('shows suggestions for an empty query and a fixed filter row for results', () => {
+    const slots = fs.readFileSync(path.join(__dirname, '../screens/ios/homeSearchSlots.tsx'), 'utf8');
+    const home = fs.readFileSync(path.join(__dirname, '../screens/HomeView.ios.tsx'), 'utf8');
+    const bar = fs.readFileSync(path.join(__dirname, '../screens/ios/HomeSearchFilterBar.tsx'), 'utf8');
+    expect(slots).toMatch(
+      /if \(!hasKeyword && !c\.hasActiveFilters\) \{\s*return \{ gridOverlay: <HomeSearchSuggestions c=\{c\} \/> \};/
     );
-    expect(iosPolicy).toContain('export const CLEAR_FILTERS_ON_CLOSE_SEARCH = false;');
+    expect(slots).toContain("c.t(hasKeyword ? 'search.clearFiltersKeepQuery' : 'search.clearFilters')");
+    expect(home).toContain('<HomeSearchFilterBar c={c} />');
+    // each chip is a native menu with a single-choice picker; "all" clears the dimension
+    expect(bar.match(/<FilterMenu\b/g)).toHaveLength(3);
+    expect(bar).toContain("pickerStyle('inline')");
+    expect(bar).toContain('c.handleSelectFilterKind(value === ALL ? null : (value as DisplayKind))');
+    expect(bar).toContain('onPress={c.handleClearFilters}');
   });
 });

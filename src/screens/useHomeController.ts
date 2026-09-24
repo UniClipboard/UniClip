@@ -27,12 +27,15 @@ import {
 import { ClipboardItem, ClipboardContent } from '@/types/clipboard';
 import { importFileToHistory } from '@/utils/uploadFile';
 import { copyToLocalClipboard } from '@/utils/clipboard';
-import { DisplayKind, getDisplayKind } from '@/utils/displayKind';
+import { DisplayKind, getDisplayKind, getDisplayKindLabel } from '@/utils/displayKind';
+import {
+  getHistoryDateFilterLabel,
+  getHistorySourceFilterLabel,
+} from '@/utils/historyFilterOptions';
 import { buildActionMenuGroups, ActionMenuItem } from '@/utils/actionMenuItems';
 import { saveToGallery, saveFile, shareFile } from '@/utils/fileActions';
 import type { HistoryDateFilter, HistorySourceFilter } from '@/utils/historyFilters';
 import { useHomeHistoryFilter } from './useHomeHistoryFilter';
-import { CLEAR_FILTERS_ON_CLOSE_SEARCH } from './searchFilterPolicy';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import type { CameraCaptureResult } from '@/components/CameraCaptureSheet.types';
@@ -63,7 +66,18 @@ function getErrorCode(error: unknown): string {
  * Compact 不使用它,因此手机行为零回归。动作构造器 `makeActionGroups` 由 contextItem(长按浮层)
  * 与 detailItem(右栏)共用。
  */
-export function useHomeController(onOpenSettings: () => void) {
+export interface HomeControllerOptions {
+  /**
+   * 退出搜索时是否一并清空筛选。筛选只存在于搜索视图里时(Android、iPhone)为 true,
+   * 首页永远是完整历史;iPad 的筛选在常驻侧栏里、独立于搜索,为 false。
+   */
+  clearFiltersOnCloseSearch: boolean;
+}
+
+export function useHomeController(
+  onOpenSettings: () => void,
+  { clearFiltersOnCloseSearch }: HomeControllerOptions
+) {
   const { t } = useTranslation('home');
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -149,14 +163,31 @@ export function useHomeController(onOpenSettings: () => void) {
     selectedFilterKinds.length > 0 ||
     selectedDateFilter !== 'all' ||
     selectedSourceFilter !== 'all';
+  // 空结果时说明当前条件组合:标题带关键词,描述列出生效的筛选(类型 · 时间 · 来源)
+  const trimmedQuery = isSearching ? searchText.trim() : '';
+  const activeFilterSummary = [
+    selectedFilterKinds[0] ? getDisplayKindLabel(selectedFilterKinds[0]) : null,
+    selectedDateFilter !== 'all' ? getHistoryDateFilterLabel(selectedDateFilter) : null,
+    selectedSourceFilter !== 'all' ? getHistorySourceFilterLabel(selectedSourceFilter) : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
   const emptyContent = useMemo(
     () => ({
       icon: hasSearchCriteria ? ('search-outline' as const) : ('clipboard-outline' as const),
-      title: t(hasSearchCriteria ? 'search.emptyTitle' : 'empty.online.title'),
-      description: t(hasSearchCriteria ? 'search.emptyDescription' : 'empty.online.description'),
+      title: !hasSearchCriteria
+        ? t('empty.online.title')
+        : trimmedQuery
+          ? t('search.emptyTitleQuery', { query: trimmedQuery })
+          : t('search.emptyTitle'),
+      description: !hasSearchCriteria
+        ? t('empty.online.description')
+        : activeFilterSummary
+          ? t('search.emptyDescriptionFilters', { filters: activeFilterSummary })
+          : t('search.emptyDescription'),
       tint: theme.colors.textSecondary,
     }),
-    [t, theme.colors.textSecondary, hasSearchCriteria]
+    [t, theme.colors.textSecondary, hasSearchCriteria, trimmedQuery, activeFilterSummary]
   );
 
   const listRef = useRef<AnimatedCardGridHandle>(null);
@@ -834,8 +865,8 @@ export function useHomeController(onOpenSettings: () => void) {
   const closeSearch = useCallback(() => {
     setIsSearching(false);
     setSearchText('');
-    if (CLEAR_FILTERS_ON_CLOSE_SEARCH) handleClearFilters();
-  }, [handleClearFilters]);
+    if (clearFiltersOnCloseSearch) handleClearFilters();
+  }, [clearFiltersOnCloseSearch, handleClearFilters]);
 
   // Only the focused home screen consumes Back; selection takes priority over search.
   useFocusEffect(
