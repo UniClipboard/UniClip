@@ -8,14 +8,17 @@
     "loading": "搜索中…",
     "resultCount": "{{count}} 项结果",
     "emptyTitle": "没有找到匹配内容",
+    "emptyTitleQuery": "没有“{{query}}”的结果",
     "emptyDescription": "当前搜索条件下没有记录。",
+    "emptyDescriptionFilters": "在 {{filters}} 中没有找到匹配内容",
     "clear": "清除",
     "clearFiltersKeepQuery": "清除筛选,保留关键词",
     "shortcut": {
       "kind": "按类型",
       "date": "按时间",
       "source": "按来源"
-    }
+    },
+    "suggestions": "建议"
   },
   "empty": {
     "unconfigured": {

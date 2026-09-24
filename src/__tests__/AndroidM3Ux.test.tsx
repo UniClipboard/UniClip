@@ -181,8 +181,8 @@ describe('Android Material 3 sheets, feedback and tokens', () => {
     expect(read('screens/HomeCompactView.tsx')).not.toContain('FilterChipsRow');
     expect(read('screens/HomeOverlays.tsx')).not.toContain('HistoryFilterSheet');
     expect(read('screens/useHomeController.ts')).not.toContain('showFilterSheet');
-    expect(read('screens/searchFilterPolicy.android.ts')).toContain(
-      'export const CLEAR_FILTERS_ON_CLOSE_SEARCH = true;'
+    expect(read('screens/HomeView.android.tsx')).toContain(
+      'useHomeController(onOpenSettings, { clearFiltersOnCloseSearch: true })'
     );
   });
 
