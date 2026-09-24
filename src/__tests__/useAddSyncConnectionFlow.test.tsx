@@ -716,6 +716,54 @@ describe('add sync connection flow', () => {
     expect(props.onClose).not.toHaveBeenCalled();
   });
 
+  it('invites into the current space without treating paired devices as new', async () => {
+    const pairedDevice = {
+      deviceId: 'desktop-1',
+      displayName: 'Desktop',
+      isLocal: false,
+      membership: 'active',
+      reachability: 'online',
+      groupRelationship: 'consistent',
+      compatibility: 'compatible',
+      syncRelationship: 'usable',
+      pairingConfirmation: 'confirmed',
+      availableActions: [],
+      blockedReason: null,
+    } as const;
+    useUnifiedSpaceStore.setState({
+      status: 'ready',
+      spaceId: 'space-1',
+      deviceTrustQuery: {
+        kind: 'ready',
+        snapshot: { ...readyTrust, devices: [pairedDevice] },
+      },
+    } as never);
+
+    createHarness('invite');
+    await act(async () => Promise.resolve());
+
+    expect(mockIssueInvitation).toHaveBeenCalledTimes(1);
+    expect(currentFlow.state).toMatchObject({ mode: 'invitation', invitation });
+    expect(currentFlow.state.remoteDeviceName).toBeNull();
+  });
+
+  it('keeps the invite stage retryable when issuing fails', async () => {
+    mockIssueInvitation.mockRejectedValueOnce(new Error('offline'));
+
+    createHarness('invite');
+    await act(async () => Promise.resolve());
+
+    expect(currentFlow.state).toMatchObject({
+      mode: 'invitation',
+      invitation: null,
+      pending: false,
+      error: 'space.error.operationFailed',
+    });
+
+    await act(async () => currentFlow.actions.renewInvitation());
+    expect(currentFlow.state.invitation).toEqual(invitation);
+  });
+
   describe('with a sheet presentation', () => {
     function deferredPresentation() {
       const calls: string[] = [];
