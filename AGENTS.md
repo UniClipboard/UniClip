@@ -108,7 +108,7 @@ can temporarily remove the sub-page and expose the stationary parent page undern
 - Pass one shared controller/state object into the sub-page. Do not create a second
   controller in the sub-page or duplicate presentation state between parent and child.
 - Reuse the existing `Host` and the established sibling-sheet pattern. In iOS Settings,
-  use `SpaceInvitationSheet` in `SettingsScreen.ios.tsx` as the ownership reference.
+  use `AddSyncConnectionSheet` in `SettingsScreen.ios.tsx` as the ownership reference.
 - Do not place a React Native `Modal`, another `Host`, or a SwiftUI `BottomSheet` inside an
   animated Settings sub-page when the surrounding screen already provides a stable host.
 - Add a regression check that asserts the sheet is rendered by the stable parent and not

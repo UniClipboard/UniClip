@@ -73,9 +73,6 @@ jest.mock('@/components/AddSyncConnectionSheet', () => {
     },
   };
 });
-jest.mock('@/components/SpaceInvitationSheet', () => ({
-  SpaceInvitationSheet: () => null,
-}));
 jest.mock('@/components/SpaceDeviceDetail', () => ({
   SpaceDeviceDetail: () => null,
 }));

@@ -542,13 +542,9 @@ describe('Android two-step join sheet', () => {
 
   it('slides Android sheets out before in-sheet buttons close them', () => {
     const addConnection = source('components/AddSyncConnectionSheet.android.tsx');
-    const invitation = source('components/SpaceInvitationSheet.android.tsx');
     const flow = source('components/useAddSyncConnectionFlow.ts');
 
     expect(addConnection).toMatch(/presentation: \{[\s\S]*await sheetRef\.current\?\.hide\(\)/);
     expect(flow).not.toContain('Platform.OS');
-    expect(invitation).toContain('<ModalBottomSheet ref={sheetRef}');
-    expect(invitation).toMatch(/await sheetRef\.current\?\.hide\(\)[\s\S]*onClose\(\);/);
-    expect(invitation).not.toMatch(/(IconButton|Button) onClick=\{onClose\}/);
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { Alert, Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
@@ -97,9 +97,10 @@ export interface AddSyncConnectionFlow {
 function modeFromInitial(
   initialMode: AddSyncConnectionMode
 ): AddSyncConnectionFlowMode {
-  return initialMode === 'join' || initialMode === 'switch'
-    ? 'joinCode'
-    : initialMode;
+  if (initialMode === 'join' || initialMode === 'switch') return 'joinCode';
+  // Inviting into the current space reuses the invitation stage that follows creation.
+  if (initialMode === 'invite') return 'invitation';
+  return initialMode;
 }
 
 const DEFAULT_DEVICE_UPDATE: DeviceTrustSnapshot['spaceDeviceUpdate'] = {
@@ -164,6 +165,7 @@ export function useAddSyncConnectionFlow({
   const [nowMs, setNowMs] = useState(Date.now());
   const mountedRef = useRef(true);
   const closingRef = useRef(false);
+  const invitedOnOpenRef = useRef(false);
   const engineStarted = useUnifiedEngineStore((state) => state.isStarted);
   const spaceStatus = useUnifiedSpaceStore((state) => state.status);
   const deviceUpdate = useUnifiedSpaceStore((state) =>
@@ -276,11 +278,26 @@ export function useAddSyncConnectionFlow({
   }, [mode, visible]);
 
   useEffect(() => {
-    if (!visible || mode !== 'invitation') return;
+    // Before the invitation exists, every confirmed device still counts as a new pairing.
+    if (!visible || mode !== 'invitation' || !invitation) return;
     if (!remoteDeviceName) return;
     setMode('success');
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [mode, remoteDeviceName, visible]);
+  }, [invitation, mode, remoteDeviceName, visible]);
+
+  const issueInvitationOnOpen = useEffectEvent(() => {
+    void renewInvitation();
+  });
+
+  useEffect(() => {
+    if (!visible) {
+      invitedOnOpenRef.current = false;
+      return;
+    }
+    if (initialMode !== 'invite' || invitedOnOpenRef.current) return;
+    invitedOnOpenRef.current = true;
+    issueInvitationOnOpen();
+  }, [initialMode, visible]);
 
   useEffect(() => {
     if (!visible || mode !== 'invitation' || !engineStarted) return;
@@ -605,15 +622,18 @@ export function useAddSyncConnectionFlow({
           : []
       );
       pendingInvitationDevice.current = null;
-      setInvitation(await getUnifiedSpaceService().issueInvitation());
+      const issued = await getUnifiedSpaceService().issueInvitation();
+      if (!mountedRef.current) return;
+      setInvitation(issued);
       setNowMs(Date.now());
       setCopied(false);
       setPeerUpgradeRequired(false);
     } catch (cause) {
+      if (!mountedRef.current) return;
       setError(errorMessage(cause));
     } finally {
       pendingRef.current = false;
-      setPending(false);
+      if (mountedRef.current) setPending(false);
     }
   };
 

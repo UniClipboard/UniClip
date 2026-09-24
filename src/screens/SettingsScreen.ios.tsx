@@ -25,7 +25,6 @@ import type {
   AddSyncConnectionMode,
   AddSyncConnectionPreviewScenarioId,
 } from '@/components/AddSyncConnectionSheet.types';
-import { SpaceInvitationSheet } from '@/components/SpaceInvitationSheet';
 import { SpaceDeviceDetail } from '@/components/SpaceDeviceDetail';
 import { useSpaceDeviceManagement } from '@/components/useSpaceDeviceManagement';
 import type { SettingsPage } from './settings/ios/types';
@@ -125,7 +124,6 @@ export const SettingsScreen = () => {
   const [pageStack, setPageStack] = useState<SettingsSubPage[]>([]);
   const activePage = pageStack[pageStack.length - 1] ?? null;
   const [isLeavingPage, setIsLeavingPage] = useState(false);
-  const [showSpaceInvitation, setShowSpaceInvitation] = useState(false);
   const [showSyncChannelConfirmation, setShowSyncChannelConfirmation] = useState(false);
   const [isConfirmingP2p, setIsConfirmingP2p] = useState(false);
   const [spaceSetupMode, setSpaceSetupMode] = useState<AddSyncConnectionMode | null>(null);
@@ -190,7 +188,6 @@ export const SettingsScreen = () => {
 
   const backToRoot = useCallback(() => {
     deviceManagement.closeDevice();
-    setShowSpaceInvitation(false);
     setSpaceSetupMode(null);
     setSpaceSetupPreviewScenario(null);
     setEditingLanServerId(null);
@@ -201,7 +198,6 @@ export const SettingsScreen = () => {
 
   const backToPreviousPage = useCallback(() => {
     deviceManagement.closeDevice();
-    setShowSpaceInvitation(false);
     setSpaceSetupMode(null);
     setSpaceSetupPreviewScenario(null);
     setEditingLanServerId(null);
@@ -260,7 +256,7 @@ export const SettingsScreen = () => {
                         setLanServerIntent(null);
                         setEditingLanServerId(serverId);
                       }}
-                      onOpenInvitation={() => setShowSpaceInvitation(true)}
+                      onOpenInvitation={() => setSpaceSetupMode('invite')}
                       onOpenSetup={setSpaceSetupMode}
                       onRequestP2pConfirmation={() => setShowSyncChannelConfirmation(true)}
                       deviceManagement={deviceManagement}
@@ -273,7 +269,7 @@ export const SettingsScreen = () => {
                         route.params?.notificationNavigationRequestId
                       }
                       onBack={backToPreviousPage}
-                      onOpenInvitation={() => setShowSpaceInvitation(true)}
+                      onOpenInvitation={() => setSpaceSetupMode('invite')}
                       onOpenSetup={setSpaceSetupMode}
                       deviceManagement={deviceManagement}
                     />
@@ -309,10 +305,6 @@ export const SettingsScreen = () => {
                   ) : null}
                 </SettingsSubPageOverlay>
               ) : null}
-              <SpaceInvitationSheet
-                visible={showSpaceInvitation}
-                onClose={() => setShowSpaceInvitation(false)}
-              />
               <ShareSendSheet
                 visible={diagnosticArchive !== null}
                 jobs={diagnosticJobs}

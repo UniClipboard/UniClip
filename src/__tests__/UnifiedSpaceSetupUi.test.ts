@@ -48,8 +48,8 @@ describe('unified space setup UI', () => {
   });
 
   it('shows when an invitation only works on the same local network', () => {
-    const android = source('components/SpaceInvitationSheet.android.tsx');
-    const ios = source('components/SpaceInvitationSheet.ios.tsx');
+    const android = source('components/AddSyncConnectionSheet.android.tsx');
+    const ios = source('components/AddSyncConnectionSheet.ios.tsx');
     const combined = `${android}\n${ios}`;
 
     expect(android).toContain("invitation.availability === 'sameLocalNetwork'");
@@ -60,16 +60,12 @@ describe('unified space setup UI', () => {
 
   it('uses the adaptive iOS accent for space actions instead of purple action colors', () => {
     const spacePage = source('screens/settings/ios/SpacePage.tsx');
-    const invitationSheet = source('components/SpaceInvitationSheet.ios.tsx');
     const connectionSheet = source('components/AddSyncConnectionSheet.ios.tsx');
 
     expect(spacePage).not.toContain('iconColor={settingsTileColors.');
     expect(spacePage).toContain('color={iosColors?.secondaryLabel}');
     expect(spacePage).not.toContain('iosSaturatedButtonPalette(settingsTileColors.indigo)');
     expect(spacePage).toContain(': settingsTileColors.blue;');
-
-    expect(invitationSheet.match(/iosProminentButtonModifiers\(undefined,/g)).toHaveLength(2);
-    expect(invitationSheet).not.toContain('iosSaturatedButtonPalette(settingsTileColors.indigo)');
 
     expect(connectionSheet).toContain('const JOIN_TINT = iosAccentColor ?? iosAccent.light;');
     expect(connectionSheet).toContain(
@@ -208,8 +204,8 @@ describe('unified space setup UI', () => {
     expect(content).toMatch(
       /<SettingsNavRow\s+icon="plus"[\s\S]*?title=\{t\('space.invitation.addAction'\)\}[\s\S]*?onPress=\{onOpenInvitation\}[\s\S]*?disabled=\{highImpactActionsDisabled\}/
     );
-    expect(ios).not.toContain('<SpaceInvitationSheet');
-    expect(source('screens/SettingsScreen.ios.tsx')).toContain('<SpaceInvitationSheet');
+    expect(ios).not.toContain('<AddSyncConnectionSheet');
+    expect(source('screens/SettingsScreen.ios.tsx')).toContain('<AddSyncConnectionSheet');
   });
 
   it('uses the current device relationship instead of the legacy convergence summary', () => {
@@ -250,46 +246,28 @@ describe('unified space setup UI', () => {
     expect(ios).not.toContain('space.details');
   });
 
-  it('keeps relay refresh and duplicate feedback visible on the active page', () => {
-    const android = source('screens/settings/CustomRelaySection.android.tsx');
-    const ios = source('screens/settings/CustomRelaySection.ios.tsx');
-
-    expect(android).toContain("refresh().catch(() => setNotice(t('relay.error.refreshFailed')))");
-    expect(android).not.toContain("refresh().catch(() => setError(t('relay.error.refreshFailed')))");
-    for (const platform of [android, ios]) {
-      expect(platform).not.toContain("if (result.rejection === 'duplicate') resetEditor()");
-      expect(platform).toMatch(/if \(result\.rejection\) \{[\s\S]*setError\(t\(rejectionKey\[result\.rejection\]\)\);[\s\S]*return;/);
-    }
-  });
-
-  it('opens a focused invitation sheet instead of keeping invitations in the settings page', () => {
+  it('opens invitations in the connection sheet that follows space creation', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
     const ios = source('screens/settings/ios/SpacePage.tsx');
     const iosSettings = source('screens/SettingsScreen.ios.tsx');
-    const sheetEntry = optionalSource('components/SpaceInvitationSheet.tsx');
-    const sheetTypes = optionalSource('components/SpaceInvitationSheet.types.ts');
-    const androidSheet = optionalSource('components/SpaceInvitationSheet.android.tsx');
-    const iosSheet = optionalSource('components/SpaceInvitationSheet.ios.tsx');
+    const flow = source('components/useAddSyncConnectionFlow.ts');
 
-    expect(sheetEntry).toContain("export * from './SpaceInvitationSheet.android'");
-    expect(sheetTypes).toContain('export interface SpaceInvitationSheetProps');
-    expect(androidSheet).toContain('ModalBottomSheet');
-    expect(iosSheet).toContain('BottomSheet');
+    expect(optionalSource('components/SpaceInvitationSheet.tsx')).toBe('');
+    expect(optionalSource('components/useMySpaceSheet.ts')).toBe('');
+    expect(flow).toContain("if (initialMode === 'invite') return 'invitation';");
+    expect(android).toContain("onClick={() => setSetupMode('invite')}");
+    expect(iosSettings).toContain("onOpenInvitation={() => setSpaceSetupMode('invite')}");
 
-    for (const sheet of [androidSheet, iosSheet]) {
-      expect(sheet).toContain('issueOnOpen: true');
-      expect(sheet).toContain('invitation.invitationCode');
-      expect(sheet).toContain('space.flow.shareInvitation');
-      expect(sheet).toContain('space.flow.copyInvitation');
-      expect(sheet).toContain('invitationTimeRemaining');
-      expect(sheet).toContain('pairedDeviceName');
+    for (const sheet of ['android', 'ios']) {
+      const source_ = source(`components/AddSyncConnectionSheet.${sheet}.tsx`);
+      expect(source_).toContain(
+        "t(initialMode === 'invite' ? 'space.invitation.title' : 'space.flow.waitingTitle')"
+      );
+      expect(source_).toContain("mode === 'invitation' && !invitation");
     }
 
-    expect(android).toContain('SpaceInvitationSheet');
-    expect(iosSettings).toContain('SpaceInvitationSheet');
-
     for (const platform of [android, ios]) {
-      expect(platform).not.toContain('space.invitation.title');
+      expect(platform).not.toContain('SpaceInvitationSheet');
       expect(platform).not.toContain('visibleInvitation');
     }
   });
@@ -298,11 +276,9 @@ describe('unified space setup UI', () => {
     const iosPage = source('screens/settings/ios/SpacePage.tsx');
     const iosSettings = source('screens/SettingsScreen.ios.tsx');
 
-    expect(iosPage).not.toContain('SpaceInvitationSheet');
+    expect(iosPage).not.toContain('<AddSyncConnectionSheet');
     expect(iosPage).toContain('onOpenInvitation');
-    expect(iosSettings).toContain('showSpaceInvitation');
-    expect(iosSettings).toContain('onOpenInvitation={() => setShowSpaceInvitation(true)}');
-    expect(iosSettings).toContain('<SpaceInvitationSheet');
+    expect(iosSettings).toContain('<AddSyncConnectionSheet');
   });
 
   it('uses device rows for management without permanent action buttons', () => {

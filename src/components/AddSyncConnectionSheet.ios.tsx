@@ -1110,7 +1110,7 @@ export function AddSyncConnectionSheet({
       : mode === 'joinDetails'
       ? t('space.flow.joinCodeSheetTitle')
       : mode === 'invitation'
-      ? t('space.flow.waitingTitle')
+      ? t(initialMode === 'invite' ? 'space.invitation.title' : 'space.flow.waitingTitle')
       : mode === 'joinUpdating' || mode === 'joinReady'
       ? t('space.flow.joinCodeSheetTitle')
       : mode === 'success'
@@ -1561,6 +1561,44 @@ export function AddSyncConnectionSheet({
                   )}
                   {error ? <InlineConnectionError message={error} /> : null}
                 </ScrollView>
+              </IosSheetScaffold>
+            ) : null}
+
+            {mode === 'invitation' && !invitation ? (
+              <IosSheetScaffold
+                contentAlignment="center"
+                footer={
+                  pending ? null : (
+                    <>
+                      <SheetActionButton
+                        title={t('action.retry', { ns: 'common' })}
+                        systemImage="arrow.clockwise"
+                        tint={P2P_TINT}
+                        onPress={() => void renewInvitation()}
+                      />
+                      <SheetActionButton
+                        variant="tertiary"
+                        title={t('action.close', { ns: 'common' })}
+                        onPress={close}
+                      />
+                    </>
+                  )
+                }
+              >
+                <PairingStatus
+                  graphic={
+                    pending ? (
+                      <PairingSymbol
+                        systemName="antenna.radiowaves.left.and.right"
+                        tint={P2P_TINT}
+                        motion="searching"
+                      />
+                    ) : (
+                      <PairingSymbol systemName="exclamationmark.triangle.fill" tint={ERROR_TINT} />
+                    )
+                  }
+                  title={pending ? t('space.working') : error ?? t('space.error.operationFailed')}
+                />
               </IosSheetScaffold>
             ) : null}
 

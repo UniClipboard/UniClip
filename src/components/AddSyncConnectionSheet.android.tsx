@@ -623,7 +623,7 @@ function AddSyncConnectionSheetContent({
             : 'space.flow.joinPassphraseTitle'
         )
       : mode === 'invitation'
-      ? t('space.flow.waitingTitle')
+      ? t(initialMode === 'invite' ? 'space.invitation.title' : 'space.flow.waitingTitle')
       : mode === 'joinUpdating' || mode === 'joinReady'
       ? t('space.flow.joinCodeSheetTitle')
       : mode === 'success'
@@ -1074,6 +1074,31 @@ function AddSyncConnectionSheetContent({
                 modifiers={[fillMaxWidth()]}
               >
                 <ComposeText>{t('space.flow.finishLater')}</ComposeText>
+              </TextButton>
+            </>
+          )
+        ) : null}
+
+        {mode === 'invitation' && !invitation ? (
+          pending ? (
+            <Row verticalAlignment="center" modifiers={[fillMaxWidth()]}>
+              <LoadingIndicator color={colors.primary} modifiers={[size(24, 24)]} />
+              <Spacer modifiers={[widthModifier(10)]} />
+              <ComposeText color={colors.onSurfaceVariant}>{t('space.working')}</ComposeText>
+            </Row>
+          ) : (
+            <>
+              <Button
+                onClick={() => void renewInvitation()}
+                shape={PILL_SHAPE}
+                modifiers={[fillMaxWidth()]}
+              >
+                <Icon source={ICONS.retry} size={18} tint={colors.onPrimary} />
+                <Spacer modifiers={[widthModifier(6)]} />
+                <ComposeText>{t('action.retry', { ns: 'common' })}</ComposeText>
+              </Button>
+              <TextButton onClick={close} shape={PILL_SHAPE} modifiers={[fillMaxWidth()]}>
+                <ComposeText>{t('action.close', { ns: 'common' })}</ComposeText>
               </TextButton>
             </>
           )

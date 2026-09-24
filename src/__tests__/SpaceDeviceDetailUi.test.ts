@@ -63,15 +63,13 @@ describe('shared Space device detail UI', () => {
     }
   });
 
-  it('uses one controller from invitations and both Settings implementations', () => {
+  it('uses one controller from both Settings implementations', () => {
     const hook = source('components/useSpaceDeviceManagement.ts');
-    const home = source('components/useMySpaceSheet.ts');
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
     const ios = source('screens/settings/ios/SpacePage.tsx');
 
     expect(hook).toContain('buildCurrentSpaceDeviceViews');
     expect(hook).toContain('buildSpaceOverviewView');
-    expect(home).toContain('useSpaceDeviceManagement');
     expect(android).toContain('useSpaceDeviceManagement');
     expect(ios).toContain('useSpaceDeviceManagement');
     expect(ios).toContain('accessibilityLabel(device.displayName)');

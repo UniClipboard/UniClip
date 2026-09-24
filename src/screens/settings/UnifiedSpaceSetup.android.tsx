@@ -40,7 +40,6 @@ import { AddSyncConnectionSheet } from '@/components/AddSyncConnectionSheet';
 import type { AddSyncConnectionMode } from '@/components/AddSyncConnectionSheet.types';
 import { M3IconButton } from '@/components/android/M3IconButton';
 import { SpaceDeviceDetail } from '@/components/SpaceDeviceDetail';
-import { SpaceInvitationSheet } from '@/components/SpaceInvitationSheet';
 import { useSpaceDeviceManagement } from '@/components/useSpaceDeviceManagement';
 import { useSpacePageRefresh } from '@/components/useSpacePageRefresh';
 import {
@@ -285,7 +284,6 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
     ? operationError(pageRefresh.error, t)
     : null;
   const refresh = pageRefresh.refresh;
-  const [showInvitation, setShowInvitation] = useState(false);
   const space = useUnifiedSpaceStore();
   const deviceManagement = useSpaceDeviceManagement({
     allowHighImpactActions: true,
@@ -412,11 +410,6 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
         }}
       />
 
-      <SpaceInvitationSheet
-        visible={showInvitation}
-        onClose={() => setShowInvitation(false)}
-      />
-
       <SpaceDeviceDetail
         device={deviceManagement.selectedDevice}
         canRemove={deviceManagement.canRemoveSelected}
@@ -534,7 +527,7 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
           <Spacer modifiers={[heightModifier(16)]} />
           <Row verticalAlignment="center">
             <Button
-              onClick={() => setShowInvitation(true)}
+              onClick={() => setSetupMode('invite')}
               enabled={!highImpactActionsDisabled}
             >
               <Icon source={ICONS.add} size={18} tint={colors.onPrimary} />

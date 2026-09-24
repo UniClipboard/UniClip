@@ -1,4 +1,4 @@
-export type AddSyncConnectionMode = 'choose' | 'create' | 'join' | 'switch';
+export type AddSyncConnectionMode = 'choose' | 'create' | 'join' | 'switch' | 'invite';
 
 export type AddSyncConnectionPreviewScenarioId =
   | 'joinPending'
