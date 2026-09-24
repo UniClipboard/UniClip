@@ -14,7 +14,11 @@ import {
   type RouteProp,
 } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  useFloatingNavigationClearance,
+  useFloatingNavigationSnackbarOffset,
+} from '@/components/android/floatingNavigationClearance';
 import { Host, LazyColumn } from '@expo/ui/jetpack-compose';
 import { fillMaxSize } from '@expo/ui/jetpack-compose/modifiers';
 import { useTheme } from '@/hooks/useTheme';
@@ -54,6 +58,9 @@ const SettingsSectionPageInner = memo(function SettingsSectionPageInner({
   notificationNavigationRequestId,
 }: SettingsSectionPageProps) {
   const { theme } = useTheme();
+  // 列表延伸到系统导航栏(及顶级目的地的悬浮导航胶囊)之下,末项需让出这部分
+  const insets = useSafeAreaInsets();
+  const navClearance = useFloatingNavigationClearance();
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [connectionSheetPreview, setConnectionSheetPreview] =
@@ -71,7 +78,7 @@ const SettingsSectionPageInner = memo(function SettingsSectionPageInner({
       >
         <LazyColumn
           modifiers={[fillMaxSize()]}
-          contentPadding={{ start: 16, end: 16, top: 16, bottom: 40 }}
+          contentPadding={{ start: 16, end: 16, top: 16, bottom: insets.bottom + navClearance + 40 }}
           verticalArrangement={{ spacedBy: 16 }}
         >
           {section === 'syncChannel' && (
@@ -130,13 +137,16 @@ const SettingsSectionPageInner = memo(function SettingsSectionPageInner({
   );
 });
 
-export const SettingsSectionPage = (props: SettingsSectionPageProps) => (
-  <SettingsToastProvider>
-    <ClipboardAccessMethodSheetProvider>
-      <SettingsSectionPageInner {...props} />
-    </ClipboardAccessMethodSheetProvider>
-  </SettingsToastProvider>
-);
+export const SettingsSectionPage = (props: SettingsSectionPageProps) => {
+  const snackbarOffset = useFloatingNavigationSnackbarOffset();
+  return (
+    <SettingsToastProvider bottomOffset={snackbarOffset}>
+      <ClipboardAccessMethodSheetProvider>
+        <SettingsSectionPageInner {...props} />
+      </ClipboardAccessMethodSheetProvider>
+    </SettingsToastProvider>
+  );
+};
 
 export const SettingsSubScreen = () => {
   const route = useRoute<RouteProp<RootStackParamList, 'SettingsSub'>>();

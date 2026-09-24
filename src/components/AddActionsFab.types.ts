@@ -1,3 +1,4 @@
+import type { SharedValue } from 'react-native-reanimated';
 import type { useTheme } from '@/hooks/useTheme';
 
 /**
@@ -34,4 +35,9 @@ export interface AddActionsFabProps {
   anchor?: FabAnchor;
   /** 距锚定侧的水平内边距(px),默认 16。用于把 FAB 精确落到某一栏(如居中于 rail)。 */
   horizontalInset?: number;
+  /**
+   * Android:菜单展开态的即时信号(UI 线程)。点按时立即写入,不等父级重渲,供悬浮导航
+   * 胶囊等同屏元素同步让位。iOS 原生 Menu 不使用。
+   */
+  openSignal?: SharedValue<boolean>;
 }

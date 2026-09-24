@@ -44,7 +44,10 @@ jest.mock('react-i18next', () => ({
 
 jest.mock('@/hooks/useLayoutMode', () => ({ getLayoutMode: () => 'compact' }));
 jest.mock('@/screens/useHomeController', () => ({
-  useHomeController: () => ({ theme: { colors: { accent: '#000' } } }),
+  useHomeController: () => ({
+    theme: { colors: { accent: '#000' } },
+    insets: { top: 0, right: 0, bottom: 0, left: 0 },
+  }),
 }));
 jest.mock('@/screens/HomeCompactView', () => ({ HomeCompactView: () => null }));
 jest.mock('@/screens/HomeExpandedView', () => ({ HomeExpandedView: () => null }));

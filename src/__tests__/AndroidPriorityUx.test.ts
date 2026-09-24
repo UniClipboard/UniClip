@@ -88,7 +88,9 @@ describe('Android priority UX regressions', () => {
     const compact = read('src/screens/HomeCompactView.tsx');
 
     expect(compact).toContain('const selectionBarClearance = c.insets.bottom + 76;');
-    expect(compact).toContain('paddingBottom={isSelectMode ? selectionBarClearance : 80}');
+    expect(compact).toContain(
+      'paddingBottom={isSelectMode ? selectionBarClearance : gridBottomPadding}'
+    );
     expect(compact).toContain('backgroundColor: theme.colors.surfaceLow');
   });
 
