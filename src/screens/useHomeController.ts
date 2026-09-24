@@ -45,6 +45,7 @@ import {
 } from '@/utils/historySendJob';
 import type { PendingShareJob } from '@/features/transfer';
 import { useUndoableHistoryDelete } from './useUndoableHistoryDelete';
+import { useHistoryDisplaySettings } from '@/hooks/useHistoryDisplaySettings';
 
 const log = createLogger('HomeView');
 
@@ -111,6 +112,12 @@ export function useHomeController(onOpenSettings: () => void) {
     [storeItems, pendingDeleteIds]
   );
   const resultCount = Math.max(0, storeResultCount - pendingDeleteIds.size);
+  // 首页历史的显示方式(网格 / 分组列表 / 紧凑列表),按设备保存
+  const {
+    historyLayout,
+    setHistoryLayout,
+    isLoading: isHistoryLayoutLoading,
+  } = useHistoryDisplaySettings();
 
   const p2pRefreshRevision = useUnifiedEngineStore((s) => s.refreshRevision);
 
@@ -360,6 +367,14 @@ export function useHomeController(onOpenSettings: () => void) {
   );
   // 只有「单击看详情」的平台才识别双击;iOS 为 undefined,卡片单击不做延迟。
   const handleItemDoublePress = HOME_CARD_TAP_MODE === 'detail' ? handleItemCopy : undefined;
+
+  // 单条删除(列表左滑 / 读屏删除操作),与动作菜单的删除同走可撤销删除
+  const handleItemDelete = useCallback(
+    (item: ClipboardItem) => {
+      void requestDelete([item.profileHash], { announce: true });
+    },
+    [requestDelete]
+  );
 
   // ── Long-press → 锚定式上下文浮层 ────────────────────────────
   const [contextTarget, setContextTarget] = useState<{
@@ -832,6 +847,9 @@ export function useHomeController(onOpenSettings: () => void) {
     isHistoryLoading,
     isInitialHistoryLoadComplete,
     latestId,
+    historyLayout,
+    setHistoryLayout,
+    isHistoryLayoutLoading,
     emptyContent,
     // selection / mode
     selectedIds,
@@ -865,6 +883,8 @@ export function useHomeController(onOpenSettings: () => void) {
     keyExtractor,
     handleItemPress,
     handleItemDoublePress,
+    handleItemCopy,
+    handleItemDelete,
     handleItemLongPress,
     refreshing,
     handleRefresh,

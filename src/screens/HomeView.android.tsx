@@ -6,6 +6,7 @@ import { getLayoutMode } from '@/hooks/useLayoutMode';
 import { HomeCompactView } from './HomeCompactView';
 import { HomeExpandedView } from './HomeExpandedView';
 import { getHomeSearchSlots } from './android/homeSearchSlots';
+import { getHomeHistoryCollection } from './android/homeHistoryCollection';
 import type { HomeViewProps } from './HomeView.types';
 import { APP_VERSION } from '@/constants';
 import { checkForAutomaticUpdate } from '@/features/updates';
@@ -83,6 +84,7 @@ export function HomeView({
         gridBottomPadding={c.insets.bottom + 80}
         addMenuOpenSignal={addMenuOpenSignal}
         search={search}
+        renderCollection={getHomeHistoryCollection(c)}
       />
     );
   }

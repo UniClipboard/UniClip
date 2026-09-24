@@ -13,9 +13,10 @@ export interface HistorySearchFilterOptions {
   now?: number;
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+export const DAY_MS = 24 * 60 * 60 * 1000;
 
-function startOfDay(timestamp: number): number {
+/** 本地时区自然日的零点;搜索日期筛选与历史列表的按天分组共用同一口径 */
+export function startOfDay(timestamp: number): number {
   const date = new Date(timestamp);
   date.setHours(0, 0, 0, 0);
   return date.getTime();

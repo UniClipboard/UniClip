@@ -88,9 +88,12 @@ describe('Android priority UX regressions', () => {
     const compact = read('src/screens/HomeCompactView.tsx');
 
     expect(compact).toContain('const selectionBarClearance = c.insets.bottom + 76;');
+    // 网格与平台注入的列表共用同一份底部留白
     expect(compact).toContain(
-      'paddingBottom={isSelectMode ? selectionBarClearance : gridBottomPadding}'
+      'const paddingBottom = isSelectMode ? selectionBarClearance : gridBottomPadding;'
     );
+    expect(compact).toContain('paddingBottom={paddingBottom}');
+    expect(compact).toContain('paddingBottom,');
     expect(compact).toContain('backgroundColor: theme.colors.surfaceLow');
   });
 
