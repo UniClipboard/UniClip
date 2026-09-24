@@ -36,11 +36,6 @@ const TILE_HEIGHT = 40;
 const TILE_GAP = 6;
 /** 拖柄圆点中心在词块底边之下的距离 */
 const HANDLE_OFFSET_Y = 14;
-/**
- * 托盘向屏幕下方多延伸的高度。RN Modal 在 Android 上首次显示时根视图偶尔比窗口短一截，
- * bottom: 0 的托盘会悬空、露出下层页面；多延伸一段并同步加内边距，底部始终被托盘填满。
- */
-const TRAY_OVERSCAN = 200;
 const JOIN_MODES: CopyJoinMode[] = ['original', 'space', 'newline'];
 
 const PICKER_OPTIONS: WordPickerOptions = {
@@ -82,7 +77,7 @@ export function WordPickerOverlay({
   const [trayHeight, setTrayHeight] = useState(0);
   const onTrayLayout = useCallback((e: LayoutChangeEvent) => {
     if (!e.nativeEvent.layout) return;
-    setTrayHeight(Math.round(e.nativeEvent.layout.height) - TRAY_OVERSCAN);
+    setTrayHeight(Math.round(e.nativeEvent.layout.height));
   }, []);
 
   const onRequestClose = () => {
@@ -237,6 +232,7 @@ export function WordPickerOverlay({
             picker={picker}
             expanded={expanded}
             onExpandedChange={setExpanded}
+            animateLayout={page.settled}
             onSendTo={onSendTo}
             onLayout={onTrayLayout}
             bottomInset={insets.bottom}
@@ -260,6 +256,12 @@ interface SelectionTrayProps {
   onSendTo?: (text: string) => void;
   onLayout: (e: LayoutChangeEvent) => void;
   bottomInset: number;
+  /**
+   * 是否以过渡动画跟随布局变化。Modal 首次显示时根视图先按去掉系统栏的高度排版、随后才撑满，
+   * 入场期间托盘会被这次修正挪动；冷启动时线程繁忙，这段布局过渡可能停在半途、托盘悬在高处。
+   * 所以只在页面入场结束后才启用，用于展开 / 收起预览。
+   */
+  animateLayout: boolean;
   colors: ColorScheme;
 }
 
@@ -274,6 +276,7 @@ function SelectionTray({
   onSendTo,
   onLayout,
   bottomInset,
+  animateLayout,
   colors,
 }: SelectionTrayProps) {
   const { height: screenH } = useWindowDimensions();
@@ -285,16 +288,16 @@ function SelectionTray({
   return (
     <Animated.View
       testID="word-picker-tray"
-      layout={LinearTransition.duration(220)}
+      layout={animateLayout ? LinearTransition.duration(220) : undefined}
       onLayout={onLayout}
       style={[
         s.tray,
         {
           backgroundColor: colors.surfaceHigh,
-          bottom: keyboardHeight - TRAY_OVERSCAN,
-          paddingBottom: bottomPadding + 16 + TRAY_OVERSCAN,
+          bottom: keyboardHeight,
+          paddingBottom: bottomPadding + 16,
         },
-        expanded && { height: expandedHeight + bottomPadding + TRAY_OVERSCAN },
+        expanded && { height: expandedHeight + bottomPadding },
       ]}
     >
       <View style={[s.grip, { backgroundColor: colors.border }]} />

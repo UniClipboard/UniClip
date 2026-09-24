@@ -4,7 +4,7 @@
  * useWordPicker 另有独立测试，这里用真实的选区工具函数拼出一个受控的 picker。
  */
 import React from 'react';
-import { Modal, Text } from 'react-native';
+import { Modal, StyleSheet, Text } from 'react-native';
 import TestRenderer, { act, type ReactTestInstance } from 'react-test-renderer';
 import {
   buildCopyText,
@@ -44,8 +44,9 @@ jest.mock('@/hooks/useTheme', () => ({
 }));
 jest.mock('@/hooks/useWordPickerHint', () => ({ useWordPickerHint: () => false }));
 const mockClose = jest.fn();
+let mockSettled = true;
 jest.mock('@/hooks/usePagePushTransition', () => ({
-  usePagePushTransition: () => ({ pageStyle: {}, close: mockClose }),
+  usePagePushTransition: () => ({ pageStyle: {}, settled: mockSettled, close: mockClose }),
 }));
 let mockPicker: Record<string, unknown> = {};
 jest.mock('@/hooks/useWordPicker', () => ({ useWordPicker: () => mockPicker }));
@@ -114,7 +115,10 @@ function textOf(root: ReactTestInstance, id: string): string {
   return node.findAllByType(Text).map((t) => [t.props.children].flat().join(''))[0];
 }
 
-beforeEach(() => mockClose.mockClear());
+beforeEach(() => {
+  mockClose.mockClear();
+  mockSettled = true;
+});
 
 describe('WordPickerOverlay (Android)', () => {
   it('renders punctuation as plain text and only words as tappable tiles', () => {
@@ -266,5 +270,20 @@ describe('WordPickerOverlay (Android)', () => {
     expect(byTestID(root, 'word-picker-send-to')).toHaveLength(0);
     act(() => byTestID(root, 'word-picker-preview')[0].props.onPress());
     expect(byTestID(root, 'word-picker-send-to')).toHaveLength(0);
+  });
+  it('keeps the tray flush with the bottom and animates its layout only after the page entered', () => {
+    const { LinearTransition } = require('react-native-reanimated');
+    const trayOf = (root: ReactTestInstance) =>
+      root.find((n) => n.props.testID === 'word-picker-tray' && typeof n.type !== 'string');
+
+    // 入场期间 Modal 根视图会从去掉系统栏的高度修正到整窗，托盘不能以过渡动画跟随这次修正
+    mockSettled = false;
+    const entering = trayOf(render(makePicker([])));
+    expect(entering.props.layout).toBeUndefined();
+    expect(StyleSheet.flatten(entering.props.style)).toMatchObject({ bottom: 0 });
+
+    mockSettled = true;
+    const settled = trayOf(render(makePicker([])));
+    expect(settled.props.layout).toBe(LinearTransition);
   });
 });
