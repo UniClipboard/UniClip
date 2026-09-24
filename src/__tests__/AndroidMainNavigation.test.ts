@@ -47,7 +47,8 @@ describe('Android top-level navigation', () => {
     expect(pill).toContain(
       'width - insets.left - insets.right - FLOATING_NAV_MARGIN * 2 - FAB_SIZE - FAB_GAP'
     );
-    // each destination is one full-size pressable tab; only the expanded one shows its label
+    // each destination is one full-size pressable tab at its settled size; only the expanded one
+    // shows its label
     expect(pill).toContain('testID={`main-tab-${item.name}`}');
     expect(pill).toContain('accessibilityRole="tab"');
     expect(pill).toContain('accessibilityState={{ selected: item.selected }}');
@@ -76,13 +77,32 @@ describe('Android top-level navigation', () => {
     expect(pill).toContain('moveTo(index);\n      navigate(index);');
     // only the origin collapses and the target expands; destinations passed over stay put
     expect(pill).toContain('return start + ((i === motion.target ? 1 : 0) - start) * progress;');
-    // item widths and the indicator derive from the same motion, not separate layout animations
-    expect(pill).toContain('width: ITEM_MIN_WIDTH + f * (extras.value[index] ?? 0),');
+    // item positions, the pill edge and the indicator derive from the same motion
+    expect(pill).toContain('itemRect(index, m, p, extras.value).x +');
+    expect(pill).toContain('visiblePillWidth(motion.value, progress.value, extras.value) -');
     expect(pill).toContain(
       'const rest = restingIndicator(motion.value, progress.value, extras.value);'
     );
     expect(pill).not.toContain('LinearTransition');
     expect(pill).not.toContain('android_ripple');
+  });
+
+  it('animates the pill with transforms and opacity only, never per-frame layout', () => {
+    const pill = read('components/android/FloatingNavigationBar.tsx');
+
+    // every animated style stays off the layout path so a tab switch does not relayout per frame
+    const animatedStyles = pill.split('useAnimatedStyle(').slice(1);
+    expect(animatedStyles.length).toBeGreaterThan(0);
+    for (const block of animatedStyles) {
+      const body = block.slice(0, block.search(/\n {2}\}\)\);|\n {2}\}\);/));
+      expect(body).not.toMatch(/^\s*(width|height|left|right|top|bottom|padding\w*|margin\w*):/m);
+    }
+    // pill and indicator are caps plus translated / scaled segments
+    expect(pill).toContain('{ scaleX: ((w - ITEM_HEIGHT) * scale) / INDICATOR_MIDDLE_BASE },');
+    expect(pill).toContain("overflow: 'hidden',");
+    // touch targets take the settled layout once per selection change; content moves over them
+    expect(pill).toContain('style={[styles.hit, { left: hitRect.x, width: hitRect.width }]}');
+    expect(pill).toContain('<Animated.View pointerEvents="none" style={[styles.content, contentStyle]}>');
   });
 
   it('aligns the Home FAB with the pill and keeps destination content clear of it', () => {
