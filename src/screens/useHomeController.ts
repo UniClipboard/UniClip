@@ -111,7 +111,6 @@ export function useHomeController(onOpenSettings: () => void) {
   const [searchText, setSearchText] = useState('');
   const [selectedFilterKinds, setSelectedFilterKinds] = useState<DisplayKind[]>([]);
   const [selectedDateFilter, setSelectedDateFilter] = useState<HistoryDateFilter>('all');
-  const [showFilterSheet, setShowFilterSheet] = useState(false);
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [wordPickerTarget, setWordPickerTarget] = useState<{
     text: string;
@@ -701,9 +700,8 @@ export function useHomeController(onOpenSettings: () => void) {
     setIsSearching(true);
   }, []);
   const hasActiveFilters = selectedFilterKinds.length > 0 || selectedDateFilter !== 'all';
-  // 类型筛选是全局单选(chip 行、搜索筛选弹层、平板 FilterRail 共用):点新类型替换,
-  // 点已选类型取消(回到「全部」)。弹层里的 checkmark 行按 radio 语义理解,与同弹层的
-  // 时间区一致。状态保持数组是为了兼容 HistoryFilter.displayKinds 的存储/查询管线。
+  // 类型筛选是全局单选(chip 行、iOS 平板 FilterRail 共用):点新类型替换,点已选类型取消
+  // (回到「全部」)。状态保持数组是为了兼容 HistoryFilter.displayKinds 的存储/查询管线。
   const handleToggleFilterKind = useCallback((kind: DisplayKind) => {
     setSelectedFilterKinds((current) => (current.includes(kind) ? [] : [kind]));
   }, []);
@@ -717,7 +715,6 @@ export function useHomeController(onOpenSettings: () => void) {
   const closeSearch = useCallback(() => {
     setIsSearching(false);
     setSearchText('');
-    setShowFilterSheet(false);
   }, []);
   const resetSearch = useCallback(() => {
     setSearchText('');
@@ -765,8 +762,6 @@ export function useHomeController(onOpenSettings: () => void) {
     handleToggleFilterKind,
     handleClearFilters,
     handleClearFilterKinds,
-    showFilterSheet,
-    setShowFilterSheet,
     // grid
     listRef,
     keyExtractor,

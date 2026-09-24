@@ -1,5 +1,5 @@
-import React, { useCallback, useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
 import { getDisplayKindLabel } from '@/utils/displayKind';
@@ -8,14 +8,15 @@ import {
   getHistoryFilterDateOptions,
   HISTORY_FILTER_KIND_OPTIONS,
 } from '@/utils/historyFilterOptions';
-import { spacing } from '@/theme';
 import { m3Type } from '@/theme/m3Typography';
+import { OverflowMenu } from './android/OverflowMenu';
 import { FILTER_CHIP_ROW_HEIGHT, type HomeFilterChipsRowProps } from './HomeFilterChipsRow.types';
 
 /**
- * 首页默认态顶栏下方的筛选 chip 行(M3 FilterChip):类型平铺可横滑、单选即时生效
- * (点已选类型回到「全部」);时间收进尾部固定的下拉 chip。状态与搜索态弹层、
- * 平板 FilterRail 是同一份。
+ * 首页唯一的筛选入口(M3 chip 行),默认态与搜索态共用同一份状态:
+ * - 类型:单选,平铺可横滑;选中只换填充色、不加对勾,切换时 chip 宽度不变、整行不抖动。
+ *   点已选类型回到「全部」。
+ * - 时间:尾部固定 chip,显示当前值;点开是 M3 菜单,生效时尾部 × 一键清除。
  */
 export function HomeFilterChipsRow({
   selectedKinds,
@@ -27,17 +28,6 @@ export function HomeFilterChipsRow({
 }: HomeFilterChipsRowProps) {
   const { t } = useTranslation('history');
   const { colors } = theme;
-  const [menuVisible, setMenuVisible] = useState(false);
-  const [menuTop, setMenuTop] = useState(0);
-  const dateChipRef = useRef<View>(null);
-
-  const openDateMenu = useCallback(() => {
-    dateChipRef.current?.measure((_x, _y, _w, h, _pageX, pageY) => {
-      setMenuTop(pageY + h + 4);
-      setMenuVisible(true);
-    });
-  }, []);
-
   const dateActive = selectedDate !== 'all';
 
   // 滚动区右缘的渐隐过渡:让类型 chip 滑向时间 chip 时淡出,弱化两区边界。
@@ -46,9 +36,16 @@ export function HomeFilterChipsRow({
     colors.background
   )})`;
 
+  const dateItems = getHistoryFilterDateOptions().map((option) => ({
+    key: option.value,
+    label: option.label,
+    selected: selectedDate === option.value,
+    onPress: () => onSelectDate(option.value),
+  }));
+
   return (
     <View style={styles.row}>
-      <View style={styles.scrollWrap}>
+      <View style={styles.scrollWrap} accessibilityRole="radiogroup">
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -78,57 +75,36 @@ export function HomeFilterChipsRow({
         />
       </View>
 
-      <View ref={dateChipRef} collapsable={false} style={styles.tail}>
-        <Chip
-          role="button"
-          label={dateActive ? getHistoryDateFilterLabel(selectedDate) : t('filter.chip.date')}
-          selected={dateActive}
-          onPress={openDateMenu}
-          trailing={
-            <Ionicons
-              name="chevron-down"
-              size={13}
-              color={dateActive ? colors.onAccentContainer : colors.textSecondary}
+      <View style={styles.tail}>
+        <OverflowMenu
+          items={dateItems}
+          renderTrigger={(open) => (
+            <Chip
+              testID="history-filter-date"
+              role="button"
+              label={dateActive ? getHistoryDateFilterLabel(selectedDate) : t('filter.chip.date')}
+              selected={dateActive}
+              onPress={open}
+              trailing={
+                dateActive ? (
+                  <Pressable
+                    testID="history-filter-date-clear"
+                    onPress={() => onSelectDate('all')}
+                    hitSlop={{ top: 12, bottom: 12, left: 6, right: 10 }}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('search.anyTime', { ns: 'home' })}
+                  >
+                    <Ionicons name="close" size={16} color={colors.onAccentContainer} />
+                  </Pressable>
+                ) : (
+                  <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
+                )
+              }
+              theme={theme}
             />
-          }
-          theme={theme}
+          )}
         />
       </View>
-
-      <Modal
-        visible={menuVisible}
-        transparent
-        animationType="none"
-        onRequestClose={() => setMenuVisible(false)}
-      >
-        <Pressable style={styles.menuOverlay} onPress={() => setMenuVisible(false)}>
-          <View
-            accessibilityRole="menu"
-            style={[styles.menu, { backgroundColor: colors.surfaceMid, top: menuTop }]}
-          >
-            {getHistoryFilterDateOptions().map((option) => (
-              <Pressable
-                key={option.value}
-                onPress={() => {
-                  onSelectDate(option.value);
-                  setMenuVisible(false);
-                }}
-                accessibilityRole="menuitem"
-                accessibilityState={{ checked: selectedDate === option.value }}
-                android_ripple={{ color: colors.fillSecondary as string }}
-                style={styles.menuItem}
-              >
-                <Text style={[styles.menuItemText, { color: colors.textPrimary }]}>
-                  {option.label}
-                </Text>
-                {selectedDate === option.value && (
-                  <Ionicons name="checkmark" size={18} color={colors.accent} />
-                )}
-              </Pressable>
-            ))}
-          </View>
-        </Pressable>
-      </Modal>
     </View>
   );
 }
@@ -154,15 +130,15 @@ function Chip({ testID, role = 'radio', label, selected, onPress, theme, trailin
       hitSlop={{ top: 8, bottom: 8 }}
       android_ripple={{ color: colors.fillSecondary as string }}
       accessibilityRole={role}
-      accessibilityState={role === 'radio' ? { checked: selected } : { expanded: false }}
+      accessibilityState={role === 'radio' ? { checked: selected } : { selected }}
       style={[
         styles.chip,
+        trailing ? styles.chipWithTrailing : null,
         selected
-          ? { backgroundColor: colors.accentContainer, borderColor: 'transparent' }
+          ? { backgroundColor: colors.accentContainer, borderColor: colors.accentContainer }
           : { backgroundColor: 'transparent', borderColor: colors.separator },
       ]}
     >
-      {selected && <Ionicons name="checkmark" size={14} color={colors.onAccentContainer} />}
       <Text
         style={[
           styles.chipLabel,
@@ -207,34 +183,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
+    gap: 8,
+    paddingHorizontal: 16,
     overflow: 'hidden',
+  },
+  chipWithTrailing: {
+    paddingRight: 8,
   },
   chipLabel: {
     ...m3Type.labelLarge,
-  },
-  menuOverlay: {
-    flex: 1,
-  },
-  menu: {
-    position: 'absolute',
-    right: spacing.md,
-    minWidth: 168,
-    borderRadius: 4,
-    overflow: 'hidden',
-    paddingVertical: spacing.sm,
-    elevation: 3,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 16,
-    minHeight: 48,
-    paddingHorizontal: 12,
-  },
-  menuItemText: {
-    ...m3Type.bodyLarge,
   },
 });

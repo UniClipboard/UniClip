@@ -164,12 +164,17 @@ describe('Android Material 3 sheets, feedback and tokens', () => {
     expect(sheet).toContain('onAccessibilityTap={onDismiss}');
   });
 
-  it('builds the search filter sheet on the shared sheet with bottom actions and M3 selection roles', () => {
-    const filter = read('components/HistoryFilterSheet.android.tsx');
-    expect(filter).toContain('<AppBottomSheet');
-    expect(filter).not.toContain('animationType="slide"');
-    expect(filter).toContain('accessibilityRole={kind}');
-    expect(filter).toContain('testID="history-filter-done"');
+  it('keeps the chip row as the only history filter entry', () => {
+    const topBar = read('components/HomeTopBar.android.tsx');
+    expect(topBar).not.toContain('onOpenFilters');
+    expect(topBar).not.toContain('HistoryFilterTags');
+    expect(topBar).toContain('testID="history-search-result-count"');
+    expect(topBar).toContain('testID="history-search-reset"');
+    expect(fs.existsSync(path.join(__dirname, '..', 'components/HistoryFilterSheet.tsx'))).toBe(
+      false
+    );
+    expect(read('screens/HomeOverlays.tsx')).not.toContain('HistoryFilterSheet');
+    expect(read('screens/useHomeController.ts')).not.toContain('showFilterSheet');
   });
 
   it('starts full-screen page titles at the leading edge', () => {
@@ -188,7 +193,27 @@ describe('Android Material 3 sheets, feedback and tokens', () => {
   it('exposes filter chips as a radio group with a 48dp touch target', () => {
     const chips = read('components/HomeFilterChipsRow.android.tsx');
     expect(chips).toContain("role = 'radio'");
+    expect(chips).toContain('accessibilityRole="radiogroup"');
     expect(chips).toContain('hitSlop={{ top: 8, bottom: 8 }}');
+    // 单选类型 chip 只换填充色,不插入对勾(否则切换时宽度变化、整行抖动)
+    expect(chips).not.toContain('{selected && <Ionicons name="checkmark"');
+  });
+
+  it('shows the date filter value on its chip with the shared menu and a clear action', () => {
+    const chips = read('components/HomeFilterChipsRow.android.tsx');
+    expect(chips).toContain('<OverflowMenu');
+    expect(chips).toContain('renderTrigger={(open) => (');
+    expect(chips).toContain('testID="history-filter-date-clear"');
+    expect(chips).toContain("onPress={() => onSelectDate('all')}");
+    expect(chips).not.toContain('<Modal');
+    expect(read('components/android/OverflowMenu.tsx')).toContain('renderTrigger?:');
+  });
+
+  it('pins the chip row while a filter is active', () => {
+    expect(read('screens/useChipRowCollapse.ts')).toContain('if (pinnedValue.value) return;');
+    expect(read('screens/HomeCompactView.tsx')).toMatch(
+      /useChipRowCollapse\(\s*CHIP_ROW_GRID_METRICS\.contentInsetTop,\s*c\.hasActiveFilters\s*\)/
+    );
   });
 
   it('removes iOS disclosure chevrons and the entry spinner from Android settings', () => {

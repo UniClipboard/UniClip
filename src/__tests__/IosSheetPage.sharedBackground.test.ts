@@ -30,7 +30,7 @@ describe('iOS sheet page shared background', () => {
       'screens/settings/ios/KeyboardPage.tsx',
       'screens/settings/ios/SharePage.tsx',
       'screens/settings/ios/ClipboardAccessPage.tsx',
-      'components/HistoryFilterSheet.ios.tsx',
+      'screens/settings/ios/LanServerEditorSheet.tsx',
     ].map(readSource);
 
     for (const source of iosSheetSources) {
@@ -42,7 +42,7 @@ describe('iOS sheet page shared background', () => {
   it('keeps Form list backgrounds aligned through the shared form helper', () => {
     const formSheetSources = [
       'screens/settings/ios/SettingsRootPage.tsx',
-      'components/HistoryFilterSheet.ios.tsx',
+      'screens/settings/ios/LanServerEditorSheet.tsx',
     ].map(readSource);
 
     for (const source of formSheetSources) {
@@ -82,9 +82,9 @@ describe('iOS sheet page shared background', () => {
   });
 
   it('routes icon-only sheet actions through fixed header slots', () => {
-    const historyFilterSource = readSource('components/HistoryFilterSheet.ios.tsx');
+    const editorSource = readSource('screens/settings/ios/LanServerEditorSheet.tsx');
 
-    expect(historyFilterSource).toContain('rightSlots={[');
-    expect(historyFilterSource).toContain('systemName="checkmark"');
+    expect(editorSource).toContain('rightSlots={[');
+    expect(editorSource).toContain('systemName="checkmark"');
   });
 });

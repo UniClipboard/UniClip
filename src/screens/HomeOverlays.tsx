@@ -1,6 +1,5 @@
 import React from 'react';
 import { ConnectedMessageToast } from '@/components/ConnectedMessageToast';
-import { HistoryFilterSheet } from '@/components/HistoryFilterSheet';
 import { ShareSendSheet } from '@/components/ShareSendSheet';
 import { WordPickerOverlay } from '@/components/WordPickerOverlay';
 import { CardContextOverlay } from '@/components/CardContextOverlay';
@@ -25,17 +24,6 @@ export function HomeOverlays({ c }: { c: HomeController }) {
         visible={c.cameraOpen}
         onClose={() => c.setCameraOpen(false)}
         onCapture={c.handleCameraCapture}
-        theme={c.theme}
-      />
-
-      <HistoryFilterSheet
-        visible={c.showFilterSheet}
-        selectedKinds={c.selectedFilterKinds}
-        selectedDate={c.selectedDateFilter}
-        onToggleKind={c.handleToggleFilterKind}
-        onSelectDate={c.setSelectedDateFilter}
-        onClear={c.handleClearFilters}
-        onClose={() => c.setShowFilterSheet(false)}
         theme={c.theme}
       />
 

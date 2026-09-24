@@ -49,7 +49,11 @@ export function HomeCompactView({
     (screenWidth - GRID_PADDING * 2 - GRID_SPACING * (NUM_COLUMNS - 1)) / NUM_COLUMNS;
   const selectionBarClearance = c.insets.bottom + 76;
 
-  const chipRowCollapse = useChipRowCollapse(CHIP_ROW_GRID_METRICS.contentInsetTop);
+  // 有筛选生效时筛选行常驻,不随滚动收起
+  const chipRowCollapse = useChipRowCollapse(
+    CHIP_ROW_GRID_METRICS.contentInsetTop,
+    c.hasActiveFilters
+  );
   // 筛选后列表为空时强制展开筛选行,保证用户能撤掉筛选
   const revealChipRow = chipRowCollapse.reveal;
   useEffect(() => {

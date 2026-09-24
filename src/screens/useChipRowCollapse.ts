@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Easing,
   useAnimatedReaction,
@@ -19,11 +19,14 @@ const SNAP_DURATION_MS = 180;
  *
  * @param topOffset 静止顶部的 contentOffset 修正:iOS 网格用 contentInset 预留筛选行
  *   空间时,静止位是 y = -inset,传 inset 把坐标归零;Android(paddingTop 方案)传 0。
+ * @param pinned 为 true 时行保持全显、不随滚动收起(如有筛选生效:列表被筛过这件事
+ *   必须始终可见,也要随时能切回「全部」)。
  */
-export function useChipRowCollapse(topOffset = 0) {
+export function useChipRowCollapse(topOffset = 0, pinned = false) {
   // 0 = 全显 … FILTER_CHIP_ROW_HEIGHT = 全隐
   const hidden = useSharedValue(0);
   const prevY = useSharedValue(0);
+  const pinnedValue = useSharedValue(pinned);
 
   const onScrollWorklet = useCallback(
     (y: number) => {
@@ -31,6 +34,7 @@ export function useChipRowCollapse(topOffset = 0) {
       const yc = y + topOffset;
       const delta = yc - prevY.value;
       prevY.value = yc;
+      if (pinnedValue.value) return;
       if (yc <= 0) {
         hidden.value = 0;
         return;
@@ -38,7 +42,7 @@ export function useChipRowCollapse(topOffset = 0) {
       const next = hidden.value + delta;
       hidden.value = next < 0 ? 0 : next > FILTER_CHIP_ROW_HEIGHT ? FILTER_CHIP_ROW_HEIGHT : next;
     },
-    [hidden, prevY, topOffset]
+    [hidden, pinnedValue, prevY, topOffset]
   );
 
   const onScrollEndWorklet = useCallback(
@@ -47,7 +51,7 @@ export function useChipRowCollapse(topOffset = 0) {
       // 松手时还有惯性:先不 snap,让 onScroll 继续跟手,等 momentumEnd 收尾。
       // 已知边界:iOS 在 bounce 边缘偶发报非零 velocity 却不再发 momentum 事件,
       // 此时行停在半开,下一次滚动即自愈,不值得为此加超时兜底。
-      if (velocityY !== 0) return;
+      if (velocityY !== 0 || pinnedValue.value) return;
       if (y + topOffset > 0 && hidden.value > 0 && hidden.value < FILTER_CHIP_ROW_HEIGHT) {
         hidden.value = withTiming(
           hidden.value > FILTER_CHIP_ROW_HEIGHT / 2 ? FILTER_CHIP_ROW_HEIGHT : 0,
@@ -55,7 +59,7 @@ export function useChipRowCollapse(topOffset = 0) {
         );
       }
     },
-    [hidden, topOffset]
+    [hidden, pinnedValue, topOffset]
   );
 
   /** JS 侧主动展开(如筛选后列表为空,必须让用户能撤掉筛选) */
@@ -65,6 +69,11 @@ export function useChipRowCollapse(topOffset = 0) {
       easing: Easing.out(Easing.cubic),
     });
   }, [hidden]);
+
+  useEffect(() => {
+    pinnedValue.value = pinned;
+    if (pinned) reveal();
+  }, [pinned, pinnedValue, reveal]);
 
   // 全隐时把行从无障碍树里摘掉:opacity 0 的 overlay 仍会被 VoiceOver/TalkBack 聚焦。
   // 只在「是否全隐」这个布尔值翻转时回传 JS,滚动过程中不产生跨线程流量。
