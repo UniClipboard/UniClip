@@ -61,6 +61,12 @@ const SHOW_SPRING = { damping: 20, stiffness: 260, mass: 0.9 };
 const HIDE_TIMING = { duration: 140, easing: Easing.in(Easing.quad) };
 /** 拖拽中指示器略微放大,提示它已被「拿起」。 */
 const DRAG_INDICATOR_SCALE = 0.06;
+/** 标签在展开程度超过该值后才淡入,此时目的地已腾出足够空间,不压到相邻项。 */
+const LABEL_REVEAL = 0.6;
+/** 胶囊阴影在裁切容器内预留的外扩空间(dp)。 */
+const SHADOW_BLEED = 8;
+/** 指示器中段的布局宽度;实际宽度由 scaleX 得出。 */
+const INDICATOR_MIDDLE_BASE = 100;
 
 type Rect = { x: number; width: number };
 
@@ -125,6 +131,19 @@ function restingIndicator(motion: Motion, progress: number, extras: number[]): R
   };
 }
 
+/** 胶囊当前的可见宽度:末项右缘加内边距。 */
+function visiblePillWidth(motion: Motion, progress: number, extras: number[]): number {
+  'worklet';
+  const last = itemRect(extras.length - 1, motion, progress, extras);
+  return last.x + last.width + PILL_PADDING;
+}
+
+/** 以 center 为原点按 scale 缩放后,原中心在 x 处的一段的新中心。 */
+function scaledAbout(x: number, center: number, scale: number): number {
+  'worklet';
+  return center + (x - center) * scale;
+}
+
 /** 手指所在(或最近)的目的地下标。 */
 function hitTest(x: number, motion: Motion, progress: number, extras: number[]): number {
   'worklet';
@@ -157,11 +176,14 @@ function tickHaptic() {
  * 手机顶级导航:M3 Expressive 悬浮胶囊。贴左下浮在内容之上,右侧让给首页 FAB,
  * 二者垂直居中对齐成一组。选中目的地展开为「图标 + 标签」,其余只显示图标。
  *
- * 动画只由一个过渡进度驱动:各项宽度、标签透明度、指示器位置与宽度都由它算出,
+ * 动画只由一个过渡进度驱动:各项位置、标签透明度、指示器位置与宽度都由它算出,
  * 因此始终同步;只有起点项收起、目标项展开,途经的项不动。点按 / 松手即刻起动画,
  * 不等导航完成。
  * 除点按外支持拖拽切换:按住胶囊横向滑动,指示器跟随手指并在经过的目的地上高亮
  * (刻度震动),松手后从手指处平滑落到目标上并切换。
+ * 逐帧只改 transform / opacity,不动布局属性:胶囊与指示器由圆头 + 平移 / 横向缩放的
+ * 段拼成,各项绝对定位后平移。这样每帧无需重新布局、重绘,不与切换页面的挂载抢主线程。
+ * 布局尺寸(胶囊触控区、各项点按区)只在选中目标变化时按静止态更新一次。
  */
 export function FloatingNavigationBar({
   items,
@@ -323,14 +345,44 @@ export function FloatingNavigationBar({
       scheduleOnRN(endDrag, index);
     });
 
-  const indicatorStyle = useAnimatedStyle(() => {
+  // 指示器矩形:静止位置与手指位置按 drag 混合,拖拽中略微放大
+  const indicator = useDerivedValue(() => {
     const rest = restingIndicator(motion.value, progress.value, extras.value);
     const d = drag.value;
     return {
+      x: rest.x + (dragX.value - rest.x) * d,
       width: rest.width + (dragWidth.value - rest.width) * d,
+      scale: 1 + DRAG_INDICATOR_SCALE * d,
+    };
+  });
+  // 指示器 = 两个圆头 + 横向缩放的中段,均以指示器中心为原点缩放
+  const indicatorStartStyle = useAnimatedStyle(() => {
+    const { x, width: w, scale } = indicator.value;
+    const center = x + w / 2;
+    return {
       transform: [
-        { translateX: rest.x + (dragX.value - rest.x) * d },
-        { scale: 1 + DRAG_INDICATOR_SCALE * d },
+        { translateX: scaledAbout(x + ITEM_HEIGHT / 2, center, scale) - ITEM_HEIGHT / 2 },
+        { scale },
+      ],
+    };
+  });
+  const indicatorEndStyle = useAnimatedStyle(() => {
+    const { x, width: w, scale } = indicator.value;
+    const center = x + w / 2;
+    return {
+      transform: [
+        { translateX: scaledAbout(x + w - ITEM_HEIGHT / 2, center, scale) - ITEM_HEIGHT / 2 },
+        { scale },
+      ],
+    };
+  });
+  const indicatorMiddleStyle = useAnimatedStyle(() => {
+    const { x, width: w, scale } = indicator.value;
+    return {
+      transform: [
+        { translateX: x + w / 2 - INDICATOR_MIDDLE_BASE / 2 },
+        { scaleX: ((w - ITEM_HEIGHT) * scale) / INDICATOR_MIDDLE_BASE },
+        { scaleY: scale },
       ],
     };
   });
@@ -345,6 +397,33 @@ export function FloatingNavigationBar({
   }, []);
 
   const highlightedIndex = hoveredIndex ?? highlightTarget;
+
+  // 静止态尺寸:只在选中目标变化时更新一次布局,动画期间不再改动
+  const collapsedPillWidth =
+    PILL_PADDING * 2 + items.length * ITEM_MIN_WIDTH + (items.length - 1) * ITEM_GAP;
+  const expandedWidth = (index: number) => EXPANDED_EXTRA + (clampedLabelWidths[index] ?? 0);
+  const settledPillWidth = collapsedPillWidth + expandedWidth(highlightTarget);
+  let settledX = PILL_PADDING;
+  const hitRects = items.map((_, index): Rect => {
+    const rect = {
+      x: settledX,
+      width: ITEM_MIN_WIDTH + (index === highlightTarget ? expandedWidth(index) : 0),
+    };
+    settledX += rect.width + ITEM_GAP;
+    return rect;
+  });
+  const maxPillWidth = collapsedPillWidth + EXPANDED_EXTRA + Math.max(0, ...clampedLabelWidths);
+  // 胶囊主体按最宽静止态布局,平移到右缘与当前可见宽度对齐;左端藏在裁切区外
+  const pillBodyStyle = useAnimatedStyle(() => ({
+    transform: [
+      {
+        translateX:
+          visiblePillWidth(motion.value, progress.value, extras.value) -
+          maxPillWidth -
+          FLOATING_NAV_HEIGHT / 2,
+      },
+    ],
+  }));
 
   // 收起 / 出现:始终挂载,只在 UI 线程上滑出 + 缩小 + 淡出,避免重挂载时状态重置闪一下
   const hiddenByProp = useSharedValue(hidden);
@@ -401,22 +480,52 @@ export function FloatingNavigationBar({
         <View
           testID="main-tab-bar"
           accessibilityRole="tablist"
-          style={[
-            styles.pill,
-            { backgroundColor: colors.container },
-            !measured && styles.unmeasured,
-          ]}
+          style={[styles.pill, { width: settledPillWidth }, !measured && styles.unmeasured]}
         >
+          {/* 胶囊底:固定的左圆头 + 平移的主体,各自裁在圆头中线处拼接,阴影不重叠 */}
+          <View pointerEvents="none" style={styles.pillStartClip}>
+            <View style={[styles.pillStartCap, { backgroundColor: colors.container }]} />
+          </View>
+          <View
+            pointerEvents="none"
+            style={[
+              styles.pillBodyClip,
+              { width: maxPillWidth - FLOATING_NAV_HEIGHT / 2 + SHADOW_BLEED },
+            ]}
+          >
+            <Animated.View
+              style={[
+                styles.pillBody,
+                { width: maxPillWidth, backgroundColor: colors.container },
+                pillBodyStyle,
+              ]}
+            />
+          </View>
+
           <Animated.View
             pointerEvents="none"
-            style={[styles.indicator, { backgroundColor: colors.indicator }, indicatorStyle]}
+            style={[styles.indicatorCap, { backgroundColor: colors.indicator }, indicatorStartStyle]}
           />
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.indicatorMiddle,
+              { backgroundColor: colors.indicator },
+              indicatorMiddleStyle,
+            ]}
+          />
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.indicatorCap, { backgroundColor: colors.indicator }, indicatorEndStyle]}
+          />
+
           {items.map((item, index) => (
             <FloatingNavigationButton
               key={item.key}
               item={item}
               index={index}
               labelWidth={clampedLabelWidths[index]}
+              hitRect={hitRects[index]}
               motion={motion}
               progress={progress}
               extras={extras}
@@ -434,6 +543,7 @@ function FloatingNavigationButton({
   item,
   index,
   labelWidth,
+  hitRect,
   motion,
   progress,
   extras,
@@ -443,42 +553,58 @@ function FloatingNavigationButton({
   item: FloatingNavigationItem;
   index: number;
   labelWidth: number;
+  /** 点按区:取静止态位置与宽度,只随选中目标变化,动画期间不动。 */
+  hitRect: Rect;
   motion: SharedValue<Motion>;
   progress: SharedValue<number>;
   extras: SharedValue<number[]>;
   tint: string;
   onPress: (index: number) => void;
 }) {
-  const itemStyle = useAnimatedStyle(() => {
-    const f = expansion(index, motion.value, progress.value);
+  // 图标与标签整组平移到目的地位置,展开时再随起始内边距右移
+  const contentStyle = useAnimatedStyle(() => {
+    const m = motion.value;
+    const p = progress.value;
+    const f = expansion(index, m, p);
     return {
-      width: ITEM_MIN_WIDTH + f * (extras.value[index] ?? 0),
-      paddingLeft: COLLAPSED_PADDING + (EXPANDED_PADDING_START - COLLAPSED_PADDING) * f,
+      transform: [
+        {
+          translateX:
+            itemRect(index, m, p, extras.value).x +
+            (EXPANDED_PADDING_START - COLLAPSED_PADDING) * f,
+        },
+      ],
     };
   });
-  // 标签在腾出足够空间后才淡入,收起时先淡出,避免被裁切的半截文字
+  // 标签在腾出足够空间后才淡入,收起时先淡出,不压到相邻目的地
   const labelStyle = useAnimatedStyle(() => ({
-    opacity: Math.max(0, (expansion(index, motion.value, progress.value) - 0.5) * 2),
+    opacity: Math.max(
+      0,
+      (expansion(index, motion.value, progress.value) - LABEL_REVEAL) / (1 - LABEL_REVEAL)
+    ),
   }));
 
   return (
-    <Pressable
-      testID={`main-tab-${item.name}`}
-      onPress={() => onPress(index)}
-      accessibilityRole="tab"
-      accessibilityState={{ selected: item.selected }}
-      accessibilityLabel={item.label}
-    >
-      <Animated.View style={[styles.item, itemStyle]}>
-        <MaterialIcons name={ICONS[item.name]} size={ICON_SIZE} color={tint} />
-        <Animated.Text
-          numberOfLines={1}
-          style={[styles.label, styles.itemLabel, { width: labelWidth, color: tint }, labelStyle]}
-        >
-          {item.label}
-        </Animated.Text>
+    <>
+      <Animated.View pointerEvents="none" style={[styles.content, contentStyle]}>
+        <View style={styles.icon}>
+          <MaterialIcons name={ICONS[item.name]} size={ICON_SIZE} color={tint} />
+        </View>
+        <Animated.View style={[styles.labelSlot, labelStyle]}>
+          <Text numberOfLines={1} style={[styles.label, { width: labelWidth, color: tint }]}>
+            {item.label}
+          </Text>
+        </Animated.View>
       </Animated.View>
-    </Pressable>
+      <Pressable
+        testID={`main-tab-${item.name}`}
+        onPress={() => onPress(index)}
+        accessibilityRole="tab"
+        accessibilityState={{ selected: item.selected }}
+        accessibilityLabel={item.label}
+        style={[styles.hit, { left: hitRect.x, width: hitRect.width }]}
+      />
+    </>
   );
 }
 
@@ -495,35 +621,83 @@ const styles = StyleSheet.create({
     opacity: 0,
   },
   pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: ITEM_GAP,
     height: FLOATING_NAV_HEIGHT,
-    padding: PILL_PADDING,
-    borderRadius: FLOATING_NAV_HEIGHT / 2,
-    elevation: 3,
   },
   unmeasured: {
     opacity: 0,
   },
-  indicator: {
+  pillStartClip: {
+    position: 'absolute',
+    left: -SHADOW_BLEED,
+    top: -SHADOW_BLEED,
+    width: SHADOW_BLEED + FLOATING_NAV_HEIGHT / 2,
+    height: FLOATING_NAV_HEIGHT + SHADOW_BLEED * 2,
+    overflow: 'hidden',
+  },
+  pillStartCap: {
+    position: 'absolute',
+    left: SHADOW_BLEED,
+    top: SHADOW_BLEED,
+    width: FLOATING_NAV_HEIGHT,
+    height: FLOATING_NAV_HEIGHT,
+    borderRadius: FLOATING_NAV_HEIGHT / 2,
+    elevation: 3,
+  },
+  pillBodyClip: {
+    position: 'absolute',
+    left: FLOATING_NAV_HEIGHT / 2,
+    top: -SHADOW_BLEED,
+    height: FLOATING_NAV_HEIGHT + SHADOW_BLEED * 2,
+    overflow: 'hidden',
+  },
+  pillBody: {
+    position: 'absolute',
+    left: 0,
+    top: SHADOW_BLEED,
+    height: FLOATING_NAV_HEIGHT,
+    borderRadius: FLOATING_NAV_HEIGHT / 2,
+    elevation: 3,
+  },
+  indicatorCap: {
     position: 'absolute',
     left: 0,
     top: PILL_PADDING,
+    width: ITEM_HEIGHT,
     height: ITEM_HEIGHT,
     borderRadius: ITEM_HEIGHT / 2,
   },
-  item: {
+  indicatorMiddle: {
+    position: 'absolute',
+    left: 0,
+    top: PILL_PADDING,
+    width: INDICATOR_MIDDLE_BASE,
     height: ITEM_HEIGHT,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: LABEL_GAP,
-    overflow: 'hidden',
+  },
+  content: {
+    position: 'absolute',
+    left: 0,
+    top: PILL_PADDING,
+    width: ITEM_MIN_WIDTH,
+    height: ITEM_HEIGHT,
+  },
+  hit: {
+    position: 'absolute',
+    top: PILL_PADDING,
+    height: ITEM_HEIGHT,
+  },
+  icon: {
+    position: 'absolute',
+    left: COLLAPSED_PADDING,
+    top: (ITEM_HEIGHT - ICON_SIZE) / 2,
+  },
+  labelSlot: {
+    position: 'absolute',
+    left: COLLAPSED_PADDING + ICON_SIZE + LABEL_GAP,
+    top: 0,
+    height: ITEM_HEIGHT,
+    justifyContent: 'center',
   },
   label: {
     ...m3Type.labelLarge,
-  },
-  itemLabel: {
-    flexShrink: 0,
   },
 });
