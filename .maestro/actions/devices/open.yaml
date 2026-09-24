@@ -1,0 +1,23 @@
+# Pre: settings open (iOS) or main screen visible (Android). Post: sync method page visible.
+# Android: sync method and space devices are the top-level Devices destination.
+appId: ${APP_ID}
+---
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: settings-syncChannel
+          direction: UP
+      - tapOn:
+          id: settings-syncChannel
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn:
+          id: main-tab-Devices
+- extendedWaitUntil:
+    visible: "Direct device sync.*"
+    timeout: 20000
