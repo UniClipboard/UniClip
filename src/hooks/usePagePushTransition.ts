@@ -16,8 +16,7 @@ const PUSH_OFFSET = 0.12;
 
 /**
  * 全屏页面的推入 / 退出转场（M3 shared axis X）：从右侧少量位移并淡入，退出反向。
- * 与 useOverlayGrowTransition 的 close(after) / onEnterComplete 约定一致，
- * 调用方可以把重活挪到入场之后、把后续动作排在退场之后。
+ * close(after) / onEnterComplete 让调用方可以把重活挪到入场之后、把后续动作排在退场之后。
  *
  * pageStyle 只在转场进行中是动画样式，入场结束后为 undefined，页面回到普通的 React 样式。
  * Reanimated 靠 JS 线程上的定时回收把已结束动画的终值交还 React：超过 1 秒才交还、超过 2 秒
@@ -26,7 +25,12 @@ const PUSH_OFFSET = 0.12;
  * 入场与退场各用一个动画样式：动画样式挂上时先用首次渲染算出的初值，退场样式的初值是完全可见，
  * 重新挂上不会闪。settled 在入场结束后为 true，布局过渡等依赖稳定布局的动画应等到此时再启用。
  */
-export function usePagePushTransition(onDismiss: () => void, onEnterComplete?: () => void) {
+export function usePagePushTransition(
+  onDismiss: () => void,
+  onEnterComplete?: () => void,
+  /** 入场起点的水平偏移占屏宽比例:默认为 M3 shared axis 的少量位移,iOS 推入传 1(整屏宽) */
+  pushOffset: number = PUSH_OFFSET
+) {
   const { width } = useWindowDimensions();
   const reducedMotion = useReducedMotion();
   const enter = useSharedValue(0);
@@ -81,12 +85,12 @@ export function usePagePushTransition(onDismiss: () => void, onEnterComplete?: (
   }, [phase, enter, exit]);
 
   const enterStyle = useAnimatedStyle(
-    () => pushStyle(enter.value, width, reducedMotion),
-    [reducedMotion, width]
+    () => pushStyle(enter.value, width * pushOffset, reducedMotion),
+    [reducedMotion, width, pushOffset]
   );
   const exitStyle = useAnimatedStyle(
-    () => pushStyle(exit.value, width, reducedMotion),
-    [reducedMotion, width]
+    () => pushStyle(exit.value, width * pushOffset, reducedMotion),
+    [reducedMotion, width, pushOffset]
   );
 
   /** 播放退出动画，结束后触发 onDismiss；after 用于"动作完成后再执行"的时序 */
@@ -101,12 +105,12 @@ export function usePagePushTransition(onDismiss: () => void, onEnterComplete?: (
   return { pageStyle, settled: phase === 'settled', close };
 }
 
-/** p 为页面可见度：0 完全隐藏（右移并透明），1 在位且不透明 */
-function pushStyle(p: number, width: number, reducedMotion: boolean) {
+/** p 为页面可见度：0 完全隐藏（右移 distance 并透明），1 在位且不透明 */
+function pushStyle(p: number, distance: number, reducedMotion: boolean) {
   'worklet';
   if (reducedMotion) return { opacity: p };
   return {
     opacity: interpolate(p, [0, 0.4, 1], [0, 1, 1]),
-    transform: [{ translateX: width * PUSH_OFFSET * (1 - p) }],
+    transform: [{ translateX: distance * (1 - p) }],
   };
 }

@@ -1,14 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Share } from 'react-native';
 import { Gesture } from 'react-native-gesture-handler';
-import {
-  Easing,
-  interpolate,
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
+import { useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import * as Haptics from 'expo-haptics';
 import i18n from '@/i18n';
@@ -58,7 +51,16 @@ export interface WordPickerOptions {
    * 首尾拖柄的几何（相对 token 布局框）。传入后，选区只有一个连续段时
    * 按住拖柄可拖动调整该段的起点 / 终点；皮肤负责在同一位置画出拖柄。
    */
-  handles?: { offsetY: number; hitRadius: number };
+  handles?: {
+    /** 拖柄圆心到词块边缘的竖直距离 */
+    offsetY: number;
+    hitRadius: number;
+    /**
+     * 起点拖柄在词块的哪条边:bottom(默认,两个拖柄都在下方);top 为系统文本选择的样式,
+     * 起点圆点在首词上方、终点圆点在末词下方。
+     */
+    startEdge?: 'top' | 'bottom';
+  };
 }
 
 interface HandlePoints {
@@ -378,7 +380,13 @@ export function useWordPicker(
     const end = framesRef.current.get(runs[0].lastSelected);
     if (!start || !end) return null;
     return {
-      start: { x: start.x, y: start.y + start.height + handles.offsetY },
+      start: {
+        x: start.x,
+        y:
+          handles.startEdge === 'top'
+            ? start.y - handles.offsetY
+            : start.y + start.height + handles.offsetY,
+      },
       end: { x: end.x + end.width, y: end.y + end.height + handles.offsetY },
     };
   }, [handles]);
@@ -608,62 +616,4 @@ export function countVisibleChars(text: string): number {
     if (!/\s/.test(ch)) count++;
   }
   return count;
-}
-
-/** 收起态预览条的最大高度：两行正文 + 上下内边距，超出部分被裁切 */
-export const PREVIEW_COLLAPSED_MAX_HEIGHT = 64;
-
-/**
- * 预览条的展开/收起动画，iOS/Android 两个皮肤共用。
- * 收起 = 两行截断；展开 = maxHeight 长到 expandedMaxHeight、内部滚动读全文。
- * 展开只改预览条自身高度，词条流宽度不变，命中测试注册表无需失效。
- * enabled 变 false（清空选区）时立即复位收起。
- */
-export function usePreviewExpansion(expandedMaxHeight: number, enabled: boolean) {
-  const reducedMotion = useReducedMotion();
-  const [expanded, setExpanded] = useState(false);
-  const progress = useSharedValue(0);
-  const openRef = useRef(false);
-
-  const hide = useCallback(() => setExpanded(false), []);
-
-  useEffect(() => {
-    if (enabled) return;
-    openRef.current = false;
-    progress.value = 0;
-    setExpanded(false);
-  }, [enabled, progress]);
-
-  const toggle = useCallback(() => {
-    const duration = reducedMotion ? 0 : 220;
-    const easing = Easing.bezier(0.2, 0, 0, 1);
-    if (openRef.current) {
-      openRef.current = false;
-      // 收起动画放完再换回两行截断文本，避免中途文字重排跳变
-      progress.value = withTiming(0, { duration, easing }, (finished) => {
-        if (finished) scheduleOnRN(hide);
-      });
-    } else {
-      openRef.current = true;
-      setExpanded(true);
-      progress.value = withTiming(1, { duration, easing });
-    }
-  }, [reducedMotion, progress, hide]);
-
-  const barStyle = useAnimatedStyle(
-    () => ({
-      maxHeight: interpolate(
-        progress.value,
-        [0, 1],
-        [PREVIEW_COLLAPSED_MAX_HEIGHT, expandedMaxHeight]
-      ),
-    }),
-    [expandedMaxHeight]
-  );
-  const chevronStyle = useAnimatedStyle(
-    () => ({ transform: [{ rotate: `${progress.value * 180}deg` }] }),
-    []
-  );
-
-  return { expanded, toggle, barStyle, chevronStyle };
 }
