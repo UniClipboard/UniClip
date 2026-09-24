@@ -16,9 +16,6 @@ export function HomeOverlays({ c }: { c: HomeController }) {
   const shareVisible = useShareSheetStore((s) => s.visible);
   return (
     <>
-      {/* Android Snackbar 抬到右下 FAB(56 + 12 边距)/ 多选底栏之上;iOS 顶部 toast 忽略此值 */}
-      <ConnectedMessageToast bottomOffset={c.insets.bottom + 12 + 56 + 12} />
-
       {/* Android 自绘相机页(iOS 恒不展示,走系统相机) */}
       <CameraCaptureSheet
         visible={c.cameraOpen}
@@ -42,8 +39,7 @@ export function HomeOverlays({ c }: { c: HomeController }) {
         />
       )}
 
-      {/* 全屏详情页:Android 单击卡片、多选溢出菜单「查看详情」打开(Compact / Expanded 共用;
-          iOS 单击即复制、长按走上下文浮层,不会打开) */}
+      {/* 全屏详情页:单击卡片 / 列表行、Android 多选溢出菜单「查看详情」打开(Compact / Expanded 共用) */}
       <ClipboardDetailModal
         visible={c.detailPageItem != null}
         onDismiss={c.closeDetailPage}
@@ -51,8 +47,8 @@ export function HomeOverlays({ c }: { c: HomeController }) {
         item={c.detailPageItem}
       />
 
-      {/* 「发送到」:把一条历史经同步通道发给所选设备。由首页这层稳定宿主持有,盖在详情页之上;
-          只有 Android 详情页会打开,iOS 永不挂载。jobs 关闭后保留,供滑出动画渲染。 */}
+      {/* 「发送到」:把历史经同步通道发给所选设备(详情页、长按菜单、iOS 多选底栏)。由首页这层
+          稳定宿主持有,盖在详情页之上。jobs 关闭后保留,供滑出动画渲染。 */}
       {c.sendToJobs ? (
         <ShareSendSheet
           visible={c.sendToVisible}
@@ -69,6 +65,10 @@ export function HomeOverlays({ c }: { c: HomeController }) {
         actionGroups={c.actionMenuGroups}
         onDismiss={c.handleContextDismiss}
       />
+
+      {/* 最后挂载,盖在 iOS 推入式详情页之上。Android Snackbar 与 iOS 底部玻璃提示都抬到
+          右下 FAB(56 + 12 边距)/ 标签栏 / 多选底栏 / 详情工具栏之上 */}
+      <ConnectedMessageToast bottomOffset={c.insets.bottom + 12 + 56 + 12} />
     </>
   );
 }

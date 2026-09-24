@@ -14,6 +14,7 @@ import {
   Image as ImageIcon,
   ImageDown,
   RotateCcw,
+  Send,
   Share2,
   TextCursor,
   Trash2,
@@ -40,6 +41,7 @@ const ACTION_ICONS: Record<string, LucideIcon> = {
   saveFile: FileDown,
   resend: RotateCcw,
   share: Share2,
+  sendTo: Send,
   select: CircleCheck,
   delete: Trash2,
 };

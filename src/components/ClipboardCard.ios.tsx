@@ -16,15 +16,18 @@ import Svg, {
   Rect as SvgRect,
   Pattern as SvgPattern,
 } from 'react-native-svg';
-import { Check, Circle, Image as ImageIcon } from 'lucide-react-native';
+import { Check, Image as ImageIcon } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
 import { useURLMetadata } from '@/hooks/useURLMetadata';
+import { useCopyFeedback } from '@/hooks/useCopyFeedback';
+import { useDoubleTap } from '@/hooks/useDoubleTap';
 import { useClipboardCardViewModel } from '@/hooks/useClipboardCardViewModel';
 import { ClipboardItem } from '@/types/clipboard';
 import {
   iosColors,
   iosAccentColor,
+  iosOnAccentColor,
   iosCardShadow,
   iosDimensions,
   iosKindTints,
@@ -37,8 +40,15 @@ import { formatFileSize } from '@/utils';
 import type { ClipboardCardProps } from './ClipboardCard.types';
 
 export const ClipboardCard: React.FC<ClipboardCardProps> = React.memo(
-  ({ item, isLatest, isSelected, isSelectMode, onPress, onLongPress, surfaceColor }) => {
+  ({ item, isLatest, isSelected, isSelectMode, onPress, onDoublePress, onLongPress, surfaceColor }) => {
+    const { t } = useTranslation('home');
     const { displayKind, kindLabel, relativeTime } = useClipboardCardViewModel(item);
+    const { justCopied, copy } = useCopyFeedback(item, onDoublePress);
+    // 单击看详情、双击复制;多选模式下单击只切换选中,不识别双击,也就没有等待延迟
+    const handlePress = useDoubleTap(
+      () => onPress(item),
+      onDoublePress && !isSelectMode ? copy : undefined
+    );
     const kindColor = iosKindTints[displayKind];
 
     // 传入 surfaceColor = 双栏「凹陷」样式:卡片比面板暗，此时去掉下投阴影,否则凹陷块反显凸起。
@@ -69,7 +79,7 @@ export const ClipboardCard: React.FC<ClipboardCardProps> = React.memo(
         <Pressable
           ref={cardRef}
           testID={`history-card-${item.profileHash}`}
-          onPress={() => onPress(item)}
+          onPress={handlePress}
           onLongPress={handleLongPress}
           delayLongPress={350}
           onPressIn={() => {
@@ -84,7 +94,7 @@ export const ClipboardCard: React.FC<ClipboardCardProps> = React.memo(
             {
               backgroundColor: surfaceColor ?? iosColors!.secondarySystemGroupedBackground,
               borderColor: isSelected ? iosAccentColor : 'transparent',
-              borderWidth: isSelected ? 2 : 0,
+              borderWidth: isSelected ? 2.5 : 0,
             },
           ]}
         >
@@ -97,14 +107,26 @@ export const ClipboardCard: React.FC<ClipboardCardProps> = React.memo(
             isLatest={isLatest}
             surfaceColor={surfaceColor}
           />
+          {justCopied && !isSelectMode && (
+            <View
+              testID={`history-card-copied-${item.profileHash}`}
+              style={[styles.copiedBadge, { backgroundColor: iosAccentColor }]}
+              accessible={false}
+            >
+              <Check size={13} color={iosOnAccentColor} strokeWidth={2.6} />
+              <Text style={[styles.copiedBadgeText, { color: iosOnAccentColor }]}>
+                {t('card.copied')}
+              </Text>
+            </View>
+          )}
           {isSelectMode && (
-            <View style={styles.selectOverlay}>
+            <View style={styles.selectIndicator} accessible={false}>
               {isSelected ? (
                 <View style={[styles.checkBadge, { backgroundColor: iosAccentColor }]}>
-                  <Check size={16} color="#fff" strokeWidth={3} />
+                  <Check size={14} color={iosOnAccentColor} strokeWidth={3} />
                 </View>
               ) : (
-                <Circle size={28} color={iosColors!.tertiaryLabel} />
+                <View style={styles.uncheckedBadge} />
               )}
             </View>
           )}
@@ -773,20 +795,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  selectOverlay: {
+  selectIndicator: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
+    right: 10,
+    bottom: 10,
   },
   checkBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  uncheckedBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: 'rgba(60,60,67,0.35)',
+    backgroundColor: 'rgba(255,255,255,0.9)',
+  },
+  copiedBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    height: 24,
+    paddingLeft: 7,
+    paddingRight: 9,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  copiedBadgeText: { fontSize: 12, fontWeight: '600' },
 });
