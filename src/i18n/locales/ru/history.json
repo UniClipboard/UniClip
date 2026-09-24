@@ -69,7 +69,40 @@
     "deselectAll": "Отменить выбор",
     "placeholder": "Нажмите или проведите, чтобы выбрать текст",
     "copyFailed": "Не удалось скопировать",
-    "copied": "Скопировано в буфер обмена"
+    "copied": "Скопировано в буфер обмена",
+    "hints": {
+      "tap": "Нажатие: выбрать слово",
+      "swipe": "Свайп: выделить подряд",
+      "hold": "Удержание и перетаскивание: диапазон"
+    },
+    "noneSelected": "Ничего не выбрано",
+    "summary": {
+      "words_one": "Выбрано {{count}} слово",
+      "words_few": "Выбрано {{count}} слова",
+      "words_many": "Выбрано {{count}} слов",
+      "words_other": "Выбрано {{count}} слова",
+      "chars_one": "{{count}} символ",
+      "chars_few": "{{count}} символа",
+      "chars_many": "{{count}} символов",
+      "chars_other": "{{count}} символа",
+      "charsOnly_one": "Выбран {{count}} символ",
+      "charsOnly_few": "Выбрано {{count}} символа",
+      "charsOnly_many": "Выбрано {{count}} символов",
+      "charsOnly_other": "Выбрано {{count}} символа"
+    },
+    "webSearch": "Искать в интернете",
+    "expandPreview": "Развернуть предпросмотр",
+    "collapsePreview": "Свернуть предпросмотр",
+    "previewTitle": "Предпросмотр перед копированием",
+    "editable": "Можно редактировать",
+    "joinLabel": "Соединение отдельных фрагментов",
+    "join": {
+      "original": "Как в оригинале",
+      "space": "Пробелами",
+      "newline": "Построчно"
+    },
+    "handleStart": "Начало выделения",
+    "handleEnd": "Конец выделения"
   },
   "menu": {
     "copyPlain": "Копировать как обычный текст",

@@ -36,6 +36,8 @@ export function HomeOverlays({ c }: { c: HomeController }) {
         <WordPickerOverlay
           text={c.wordPickerTarget.text}
           anchor={c.wordPickerTarget.anchor}
+          deviceName={c.wordPickerTarget.deviceName}
+          onSendTo={c.openSendToText}
           onDismiss={() => c.setWordPickerTarget(null)}
         />
       )}

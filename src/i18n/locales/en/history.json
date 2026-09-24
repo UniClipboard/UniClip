@@ -66,7 +66,34 @@
     "deselectAll": "Deselect all",
     "placeholder": "Tap or swipe to select text",
     "copyFailed": "Copy failed",
-    "copied": "Copied to clipboard"
+    "copied": "Copied to clipboard",
+    "hints": {
+      "tap": "Tap: select a word",
+      "swipe": "Swipe: paint a run",
+      "hold": "Hold and drag: select a range"
+    },
+    "noneSelected": "Nothing selected",
+    "summary": {
+      "words_one": "{{count}} word selected",
+      "words_other": "{{count}} words selected",
+      "chars_one": "{{count}} character",
+      "chars_other": "{{count}} characters",
+      "charsOnly_one": "{{count}} character selected",
+      "charsOnly_other": "{{count}} characters selected"
+    },
+    "webSearch": "Search the web",
+    "expandPreview": "Expand preview",
+    "collapsePreview": "Collapse preview",
+    "previewTitle": "Preview before copying",
+    "editable": "Editable",
+    "joinLabel": "Joining separate selections",
+    "join": {
+      "original": "As in original",
+      "space": "Spaces",
+      "newline": "Line by line"
+    },
+    "handleStart": "Selection start",
+    "handleEnd": "Selection end"
   },
   "menu": {
     "copyPlain": "Copy as plain text",

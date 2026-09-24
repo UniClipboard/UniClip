@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useLayoutEffect, useRef } from 'react';
 import {
   DynamicColorIOS,
   Modal,
@@ -44,7 +44,9 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
   const beginRef = useRef<() => void>(() => {});
   const t = useOverlayGrowTransition(anchor, onDismiss, () => beginRef.current());
   const picker = useWordPicker(text, t.close);
-  beginRef.current = picker.beginTokenization;
+  useLayoutEffect(() => {
+    beginRef.current = picker.beginTokenization;
+  }, [picker.beginTokenization]);
 
   const hasSelection = picker.selectedCount > 0;
   const previewMaxHeight = Math.round(screenH * 0.4);
@@ -115,6 +117,14 @@ export function WordPickerOverlay({ text, anchor = null, onDismiss }: WordPicker
                           <View key={index} style={s.lineBreak} />
                         ) : (
                           <View key={index} style={s.spacer} />
+                        );
+                      }
+                      // 标点不可选，只作淡色分隔
+                      if (token.isPunctuation) {
+                        return (
+                          <Text key={index} style={s.punctuation}>
+                            {token.text}
+                          </Text>
                         );
                       }
                       return (
@@ -346,6 +356,12 @@ const s = StyleSheet.create({
   tileText: {
     fontSize: 16,
     lineHeight: 21,
+  },
+  punctuation: {
+    fontSize: 16,
+    lineHeight: 21,
+    paddingVertical: 10,
+    color: iosColors?.secondaryLabel,
   },
   tileTextDefault: {
     color: iosColors?.label,

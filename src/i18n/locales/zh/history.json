@@ -66,7 +66,31 @@
     "deselectAll": "取消全选",
     "placeholder": "点按或滑动选择文字",
     "copyFailed": "复制失败",
-    "copied": "已复制到剪贴板"
+    "copied": "已复制到剪贴板",
+    "hints": {
+      "tap": "点按：选词",
+      "swipe": "横滑：连续涂选",
+      "hold": "长按拖动：选范围"
+    },
+    "noneSelected": "未选择",
+    "summary": {
+      "words": "已选 {{count}} 个词",
+      "chars": "{{count}} 字",
+      "charsOnly": "已选 {{count}} 字"
+    },
+    "webSearch": "网页搜索",
+    "expandPreview": "展开预览",
+    "collapsePreview": "收起预览",
+    "previewTitle": "复制前预览",
+    "editable": "可直接编辑",
+    "joinLabel": "不连续选择时的拼接方式",
+    "join": {
+      "original": "保持原文",
+      "space": "空格连接",
+      "newline": "逐行"
+    },
+    "handleStart": "选区起点",
+    "handleEnd": "选区终点"
   },
   "menu": {
     "copyPlain": "复制为纯文本",
