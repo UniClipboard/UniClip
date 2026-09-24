@@ -38,7 +38,7 @@ jest.mock('@expo/ui/jetpack-compose', () => {
     Icon: 'icon',
     Row: passthrough,
     Text: 'text',
-    Box: passthrough,
+    Box: 'box',
     Surface: passthrough,
     Shape: { RoundedCorner: () => ({}) },
     useMaterialColors: () => ({}),
@@ -106,6 +106,11 @@ describe('SettingsSelectRow', () => {
 
     const menu = () => renderer.root.findByType('menu' as React.ElementType);
     expect(menu().props.expanded).toBe(false);
+    // 菜单锚点是行尾底部的独立兄弟节点;若把整行包进 DropdownMenu,菜单会从最左侧展开
+    expect(menu().findAllByType('row' as React.ElementType)).toHaveLength(0);
+    const box = renderer.root.findByType('box' as React.ElementType);
+    expect(box.props.contentAlignment).toBe('bottomEnd');
+    expect(box.children).toHaveLength(2);
     await act(async () => {
       rowModifiers(renderer).find((m) => m.type === 'clickable')?.handler?.();
     });
