@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Share, Linking, BackHandler, Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import * as Haptics from 'expo-haptics';
@@ -178,16 +179,6 @@ export function useHomeController(onOpenSettings: () => void) {
     setIsSelectMode(false);
     clearSelection();
   }, [clearSelection]);
-
-  // Back handler for select mode
-  useEffect(() => {
-    if (!isSelectMode) return;
-    const handler = BackHandler.addEventListener('hardwareBackPress', () => {
-      exitSelectMode();
-      return true;
-    });
-    return () => handler.remove();
-  }, [isSelectMode, exitSelectMode]);
 
   // 用户主动选中右栏详情(Expanded 网格 tap):记录是否锚定首项,再切换详情。
   const selectDetailItem = useCallback(
@@ -716,6 +707,23 @@ export function useHomeController(onOpenSettings: () => void) {
     setIsSearching(false);
     setSearchText('');
   }, []);
+
+  // Only the focused home screen consumes Back; selection takes priority over search.
+  useFocusEffect(
+    useCallback(() => {
+      if (!isSelectMode && !isSearching) return;
+      const handler = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (isSelectMode) {
+          exitSelectMode();
+        } else {
+          closeSearch();
+        }
+        return true;
+      });
+      return () => handler.remove();
+    }, [isSelectMode, isSearching, exitSelectMode, closeSearch])
+  );
+
   const resetSearch = useCallback(() => {
     setSearchText('');
     handleClearFilters();

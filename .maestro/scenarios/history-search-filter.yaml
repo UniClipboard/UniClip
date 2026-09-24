@@ -4,6 +4,10 @@ appId: ${APP_ID}
 - runFlow: ../lifecycle/launch.yaml
 - runFlow: ../actions/onboarding/complete.yaml
 - runFlow:
+    when:
+      platform: Android
+    file: ../actions/search/android-back.yaml
+- runFlow:
     file: ../actions/clipboard/copy-text.yaml
     env:
       CONTENT: CedarAlpha
