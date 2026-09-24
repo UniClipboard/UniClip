@@ -59,7 +59,8 @@
     "clearSearch": "Limpar texto da pesquisa",
     "searchFilters": "Filtrar resultados da pesquisa",
     "toggleSelection": "Alternar seleção deste item",
-    "copyItem": "Copiar este item; mantenha pressionado para mais ações"
+    "copyItem": "Copiar este item; mantenha pressionado para mais ações",
+    "openItemDetail": "Abrir detalhes; toque duas vezes para copiar"
   },
   "fab": {
     "takePhoto": "Tirar foto",
@@ -100,7 +101,8 @@
     "micPermissionNeeded": "Permissão de microfone necessária",
     "takePhotoFailed": "Falha ao tirar foto",
     "takeVideoFailed": "Falha ao gravar vídeo",
-    "cameraUnavailable": "Câmera indisponível"
+    "cameraUnavailable": "Câmera indisponível",
+    "sendToUnavailable": "Este item não pode ser enviado agora"
   },
   "deleteConfirm": {
     "singleTitle": "Excluir este item do histórico?",
@@ -119,7 +121,27 @@
       "save": "Salvar"
     },
     "close": "Fechar detalhes",
-    "view": "Ver detalhes"
+    "view": "Ver detalhes",
+    "stats": {
+      "chars_one": "{{count}} caractere",
+      "chars_other": "{{count}} caracteres",
+      "lines_one": "{{count}} linha",
+      "lines_other": "{{count}} linhas"
+    },
+    "fullUrl": "Link completo",
+    "imageUnavailable": "Imagem ainda não baixada",
+    "info": {
+      "dimensions": "Dimensões",
+      "format": "Formato",
+      "size": "Tamanho",
+      "fileName": "Nome do arquivo",
+      "fileType": "Tipo",
+      "localState": "Neste dispositivo",
+      "time": "Horário",
+      "localReady": "Baixado",
+      "localMissing": "Ainda não baixado"
+    },
+    "sendTo": "Enviar para"
   },
   "rail": {
     "filters": "Filtros",
@@ -129,5 +151,8 @@
     "clipboard": "Área de transferência",
     "devices": "Dispositivos",
     "settings": "Configurações"
+  },
+  "card": {
+    "copied": "Copiado"
   }
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
 import { useURLMetadata } from '@/hooks/useURLMetadata';
+import { useDoubleTap } from '@/hooks/useDoubleTap';
 import { ClipboardItem } from '@/types/clipboard';
 import {
   getDisplayKind,
@@ -34,11 +35,38 @@ import { getDomainGradient, getDomainInitial, type DomainGradient } from '@/util
 import { getFileExtension, getExtensionColor, stripExtension } from '@/utils/fileTypeColor';
 import { formatFileSize } from '@/utils';
 import type { ClipboardCardProps } from './ClipboardCard.types';
+import { m3Type } from '@/theme/m3Typography';
+
+/** 双击复制后「已复制」标记的停留时长 */
+const COPIED_FEEDBACK_MS = 1200;
 
 export const ClipboardCard: React.FC<ClipboardCardProps> = React.memo(
-  ({ item, isLatest, isSelected, isSelectMode, onPress, onLongPress }) => {
+  ({ item, isLatest, isSelected, isSelectMode, onPress, onDoublePress, onLongPress }) => {
     const { theme } = useTheme();
     const { t } = useTranslation('home');
+    const [justCopied, setJustCopied] = useState(false);
+    const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(
+      () => () => {
+        if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+      },
+      []
+    );
+
+    const copy = useCallback(async () => {
+      if (!onDoublePress) return;
+      const copied = await onDoublePress(item);
+      if (!copied) return;
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+      setJustCopied(true);
+      copiedTimerRef.current = setTimeout(() => setJustCopied(false), COPIED_FEEDBACK_MS);
+    }, [onDoublePress, item]);
+
+    // 多选模式下单击只切换选中,不识别双击,也就没有等待延迟。
+    const handlePress = useDoubleTap(
+      () => onPress(item),
+      onDoublePress && !isSelectMode ? copy : undefined
+    );
     const displayKind = useMemo(() => getDisplayKind(item.type, item.text), [item.type, item.text]);
     const kindLabel = useMemo(() => getDisplayKindLabel(displayKind), [displayKind]);
     const kindColor = useMemo(() => getDisplayKindColor(displayKind), [displayKind]);
@@ -63,16 +91,34 @@ export const ClipboardCard: React.FC<ClipboardCardProps> = React.memo(
         <Pressable
           ref={cardRef}
           testID={`history-card-${item.profileHash}`}
-          onPress={() => onPress(item)}
+          onPress={handlePress}
           onLongPress={handleLongPress}
           delayLongPress={350}
           // M3 按压反馈:前景 ripple(盖在图片/文字之上),不做 iOS 式按压缩放
-          android_ripple={{ color: theme.colors.fillSecondary as string, foreground: true }}
+          android_ripple={{
+            color: theme.colors.fillSecondary as string,
+            foreground: true,
+          }}
           accessibilityRole={isSelectMode ? 'checkbox' : 'button'}
           accessibilityLabel={[kindLabel, relativeTime, item.dataName || item.text]
             .filter(Boolean)
             .join(', ')}
-          accessibilityHint={t(isSelectMode ? 'a11y.toggleSelection' : 'a11y.copyItem')}
+          accessibilityHint={t(
+            isSelectMode
+              ? 'a11y.toggleSelection'
+              : onDoublePress
+              ? 'a11y.openItemDetail'
+              : 'a11y.copyItem'
+          )}
+          // 读屏用户无法可靠双击卡片,复制以自定义操作提供(TalkBack「操作」菜单)。
+          accessibilityActions={
+            onDoublePress && !isSelectMode
+              ? [{ name: 'copy', label: t('action.copy', { ns: 'common' }) }]
+              : undefined
+          }
+          onAccessibilityAction={(event) => {
+            if (event.nativeEvent.actionName === 'copy') void copy();
+          }}
           accessibilityState={{
             selected: isSelectMode ? isSelected : undefined,
             checked: isSelectMode ? isSelected : undefined,
@@ -95,6 +141,18 @@ export const ClipboardCard: React.FC<ClipboardCardProps> = React.memo(
             isLatest={isLatest}
             theme={theme}
           />
+          {justCopied && !isSelectMode && (
+            <View
+              testID={`history-card-copied-${item.profileHash}`}
+              style={[styles.copiedBadge, { backgroundColor: theme.colors.accent }]}
+              accessible={false}
+            >
+              <Ionicons name="checkmark" size={14} color={theme.colors.onAccent} />
+              <Text style={[styles.copiedBadgeText, { color: theme.colors.onAccent }]}>
+                {t('card.copied')}
+              </Text>
+            </View>
+          )}
           {isSelectMode && (
             <View
               style={[styles.selectOverlay, { backgroundColor: theme.colors.surfaceLowest }]}
@@ -845,5 +903,20 @@ const styles = StyleSheet.create({
     top: 8,
     left: 8,
     borderRadius: 12,
+  },
+  copiedBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    height: 24,
+    paddingLeft: 6,
+    paddingRight: 8,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  copiedBadgeText: {
+    ...m3Type.labelMedium,
   },
 });

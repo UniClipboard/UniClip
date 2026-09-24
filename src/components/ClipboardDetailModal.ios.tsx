@@ -7,6 +7,7 @@ export function ClipboardDetailModal({
   visible,
   onDismiss,
   c,
+  item,
   containerColor,
 }: ClipboardDetailModalProps) {
   return (
@@ -20,7 +21,7 @@ export function ClipboardDetailModal({
       <View
         style={[styles.container, { backgroundColor: containerColor ?? c.theme.colors.background }]}
       >
-        <ClipboardDetailPane c={c} onClose={onDismiss} />
+        <ClipboardDetailPane c={c} item={item ?? c.detailItem} onClose={onDismiss} />
       </View>
     </Modal>
   );

@@ -59,7 +59,8 @@
     "clearSearch": "Clear search text",
     "searchFilters": "Filter search results",
     "toggleSelection": "Toggle selection for this item",
-    "copyItem": "Copy this item; long press for more actions"
+    "copyItem": "Copy this item; long press for more actions",
+    "openItemDetail": "Open details; double tap to copy"
   },
   "fab": {
     "takePhoto": "Take photo",
@@ -100,7 +101,8 @@
     "micPermissionNeeded": "Microphone permission required",
     "takePhotoFailed": "Couldn't take photo",
     "takeVideoFailed": "Couldn't record video",
-    "cameraUnavailable": "Camera unavailable"
+    "cameraUnavailable": "Camera unavailable",
+    "sendToUnavailable": "This item can't be sent right now"
   },
   "deleteConfirm": {
     "singleTitle": "Delete this history item?",
@@ -119,7 +121,27 @@
       "save": "Save"
     },
     "close": "Close details",
-    "view": "View details"
+    "view": "View details",
+    "stats": {
+      "chars_one": "{{count}} character",
+      "chars_other": "{{count}} characters",
+      "lines_one": "{{count}} line",
+      "lines_other": "{{count}} lines"
+    },
+    "fullUrl": "Full link",
+    "imageUnavailable": "Image not downloaded yet",
+    "info": {
+      "dimensions": "Dimensions",
+      "format": "Format",
+      "size": "Size",
+      "fileName": "File name",
+      "fileType": "Type",
+      "localState": "On this device",
+      "time": "Time",
+      "localReady": "Downloaded",
+      "localMissing": "Not downloaded yet"
+    },
+    "sendTo": "Send to"
   },
   "rail": {
     "filters": "Filter",
@@ -129,5 +151,8 @@
     "clipboard": "Clipboard",
     "devices": "Devices",
     "settings": "Settings"
+  },
+  "card": {
+    "copied": "Copied"
   }
 }

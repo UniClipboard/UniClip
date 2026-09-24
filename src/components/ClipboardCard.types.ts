@@ -8,6 +8,11 @@ export interface ClipboardCardProps {
   isSelected?: boolean;
   isSelectMode?: boolean;
   onPress: (item: ClipboardItem) => void;
+  /**
+   * 双击回调(复制到系统剪贴板)。不传时单击立即触发、不等待双击;
+   * 返回 true 表示复制成功,卡片会短暂显示「已复制」。
+   */
+  onDoublePress?: (item: ClipboardItem) => Promise<boolean> | void;
   /** anchor 是长按瞬间卡片的窗口坐标，measure 失败时为 null */
   onLongPress?: (item: ClipboardItem, anchor: CardAnchorRect | null) => void;
   /**

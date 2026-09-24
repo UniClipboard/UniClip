@@ -63,7 +63,8 @@
     "clearSearch": "Очистить строку поиска",
     "searchFilters": "Фильтровать результаты поиска",
     "toggleSelection": "Изменить выбор этой записи",
-    "copyItem": "Копировать запись; удерживайте для дополнительных действий"
+    "copyItem": "Копировать запись; удерживайте для дополнительных действий",
+    "openItemDetail": "Открыть подробности; двойное касание — копировать"
   },
   "fab": {
     "takePhoto": "Сделать фото",
@@ -104,7 +105,8 @@
     "micPermissionNeeded": "Нужен доступ к микрофону",
     "takePhotoFailed": "Не удалось сделать фото",
     "takeVideoFailed": "Не удалось записать видео",
-    "cameraUnavailable": "Камера недоступна"
+    "cameraUnavailable": "Камера недоступна",
+    "sendToUnavailable": "Эту запись сейчас нельзя отправить"
   },
   "deleteConfirm": {
     "singleTitle": "Удалить эту запись?",
@@ -123,7 +125,31 @@
       "save": "Сохранить"
     },
     "close": "Закрыть подробности",
-    "view": "Подробнее"
+    "view": "Подробнее",
+    "stats": {
+      "chars_one": "{{count}} символ",
+      "chars_few": "{{count}} символа",
+      "chars_many": "{{count}} символов",
+      "chars_other": "{{count}} символа",
+      "lines_one": "{{count}} строка",
+      "lines_few": "{{count}} строки",
+      "lines_many": "{{count}} строк",
+      "lines_other": "{{count}} строки"
+    },
+    "fullUrl": "Полная ссылка",
+    "imageUnavailable": "Изображение ещё не загружено",
+    "info": {
+      "dimensions": "Размеры",
+      "format": "Формат",
+      "size": "Размер",
+      "fileName": "Имя файла",
+      "fileType": "Тип",
+      "localState": "На устройстве",
+      "time": "Время",
+      "localReady": "Загружено",
+      "localMissing": "Ещё не загружено"
+    },
+    "sendTo": "Отправить"
   },
   "rail": {
     "filters": "Фильтры",
@@ -133,5 +159,8 @@
     "clipboard": "Буфер обмена",
     "devices": "Устройства",
     "settings": "Настройки"
+  },
+  "card": {
+    "copied": "Скопировано"
   }
 }

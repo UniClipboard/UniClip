@@ -57,7 +57,8 @@
     "clearSearch": "清除搜索文字",
     "searchFilters": "筛选搜索结果",
     "toggleSelection": "切换这条记录的选中状态",
-    "copyItem": "复制这条记录，长按查看更多操作"
+    "copyItem": "复制这条记录，长按查看更多操作",
+    "openItemDetail": "打开详情，双击复制"
   },
   "fab": {
     "takePhoto": "拍照",
@@ -98,7 +99,8 @@
     "micPermissionNeeded": "需要麦克风权限",
     "takePhotoFailed": "拍照失败",
     "takeVideoFailed": "录像失败",
-    "cameraUnavailable": "相机不可用"
+    "cameraUnavailable": "相机不可用",
+    "sendToUnavailable": "这条内容暂时无法发送"
   },
   "deleteConfirm": {
     "singleTitle": "删除这条历史记录？",
@@ -117,7 +119,25 @@
       "save": "保存"
     },
     "close": "关闭详情",
-    "view": "查看详情"
+    "view": "查看详情",
+    "stats": {
+      "chars": "{{count}} 字符",
+      "lines": "{{count}} 行"
+    },
+    "fullUrl": "完整链接",
+    "imageUnavailable": "图片尚未下载到本机",
+    "info": {
+      "dimensions": "尺寸",
+      "format": "格式",
+      "size": "大小",
+      "fileName": "文件名",
+      "fileType": "类型",
+      "localState": "本地状态",
+      "time": "时间",
+      "localReady": "已下载到本机",
+      "localMissing": "尚未下载到本机"
+    },
+    "sendTo": "发送到"
   },
   "rail": {
     "filters": "筛选",
@@ -127,5 +147,8 @@
     "clipboard": "剪贴板",
     "devices": "设备",
     "settings": "设置"
+  },
+  "card": {
+    "copied": "已复制"
   }
 }

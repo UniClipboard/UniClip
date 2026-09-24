@@ -68,6 +68,7 @@ export function HomeMasterGrid({
           isSelected={active}
           isSelectMode={isSelectMode}
           onPress={handlePress}
+          onDoublePress={c.handleItemDoublePress}
           onLongPress={c.handleItemLongPress}
           // 双栏卡片嵌在浮起面板(secondary)里,用第三层的 tertiarySystemGroupedBackground
           // 区分层级(light 柔灰 / dark 比面板亮一阶),即系统为「嵌在 secondary 面板里的内容块」
@@ -82,6 +83,7 @@ export function HomeMasterGrid({
     [
       c.latestId,
       c.handleItemLongPress,
+      c.handleItemDoublePress,
       handlePress,
       selectedIds,
       isSelectMode,

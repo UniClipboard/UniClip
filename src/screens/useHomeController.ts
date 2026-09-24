@@ -37,6 +37,9 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import type { CameraCaptureResult } from '@/components/CameraCaptureSheet.types';
 import { HOME_LONG_PRESS_MODE } from '@/utils/homeLongPressMode';
+import { HOME_CARD_TAP_MODE } from '@/utils/homeCardTapMode';
+import { createHistorySendJob, releaseHistorySendJob } from '@/utils/historySendJob';
+import type { PendingShareJob } from '@/features/transfer';
 import { useUndoableHistoryDelete } from './useUndoableHistoryDelete';
 
 const log = createLogger('HomeView');
@@ -255,13 +258,9 @@ export function useHomeController(onOpenSettings: () => void) {
     [t]
   );
 
-  const handleItemPress = useCallback(
+  // 复制单条到系统剪贴板:iOS 单击、Android 双击共用。返回是否成功,供卡片播放「已复制」反馈。
+  const handleItemCopy = useCallback(
     async (item: ClipboardItem) => {
-      if (isSelectMode) {
-        toggleSelection(item.profileHash);
-        return;
-      }
-
       // 排序重排后卡片的移动动画由 AnimatedCardGrid/GridCell 按下标变化自动处理，
       // 这里只需要触发复制本身
       const { result, content } = await copyItemLocally(item);
@@ -271,17 +270,81 @@ export function useHomeController(onOpenSettings: () => void) {
       } else {
         showMessage(result.message || t('toast.copyFailed'), 'error');
       }
+      return result.success;
     },
-    [
-      isSelectMode,
-      toggleSelection,
-      copyItemLocally,
-      showMessage,
-      getCopySuccessMessage,
-      startPostCopyFlow,
-      t,
-    ]
+    [copyItemLocally, showMessage, getCopySuccessMessage, startPostCopyFlow, t]
   );
+
+  // 全屏详情页(Android 单击卡片 / 多选溢出菜单「查看详情」)。与 Expanded 右栏的 detailItem
+  // 分开:右栏会跟随列表首项,详情页必须钉住打开时的那一条。
+  const [detailPageTarget, setDetailPageTarget] = useState<ClipboardItem | null>(null);
+  // 取列表里的最新版本(下载完成、投递状态变化会替换条目);条目被删除或过滤掉时为 null。
+  const detailPageItem = useMemo(
+    () =>
+      detailPageTarget
+        ? items.find((i) => i.profileHash === detailPageTarget.profileHash) ?? null
+        : null,
+    [items, detailPageTarget]
+  );
+  const openDetailPage = useCallback((item: ClipboardItem) => {
+    setDetailPageTarget(item);
+  }, []);
+  const closeDetailPage = useCallback(() => {
+    setDetailPageTarget(null);
+  }, []);
+  useEffect(() => {
+    if (detailPageTarget && !detailPageItem) setDetailPageTarget(null);
+  }, [detailPageTarget, detailPageItem]);
+
+  // 应用内「发送到」:把一条历史经同步通道发给所选设备(Android 详情页入口)。
+  // jobs 在关闭后仍保留,供发送页滑出动画渲染;visible 单独控制显隐。
+  const [sendToJobs, setSendToJobs] = useState<PendingShareJob[] | null>(null);
+  const [sendToVisible, setSendToVisible] = useState(false);
+  const sendToJobsRef = useRef<PendingShareJob[] | null>(null);
+  const releaseSendToJobs = useCallback(() => {
+    sendToJobsRef.current?.forEach(releaseHistorySendJob);
+  }, []);
+  const openSendTo = useCallback(
+    (item: ClipboardItem) => {
+      releaseSendToJobs();
+      let job: PendingShareJob | null = null;
+      try {
+        job = createHistorySendJob(item, getDisplayKind(item.type, item.text));
+      } catch (error) {
+        log.error(`Failed to prepare send-to job (${getErrorCode(error)})`);
+      }
+      if (!job) {
+        showMessage(t('toast.sendToUnavailable'), 'error');
+        return;
+      }
+      sendToJobsRef.current = [job];
+      setSendToJobs([job]);
+      setSendToVisible(true);
+    },
+    [releaseSendToJobs, showMessage, t]
+  );
+  const closeSendTo = useCallback(() => {
+    setSendToVisible(false);
+    releaseSendToJobs();
+  }, [releaseSendToJobs]);
+  useEffect(() => releaseSendToJobs, [releaseSendToJobs]);
+
+  const handleItemPress = useCallback(
+    async (item: ClipboardItem) => {
+      if (isSelectMode) {
+        toggleSelection(item.profileHash);
+        return;
+      }
+      if (HOME_CARD_TAP_MODE === 'detail') {
+        openDetailPage(item);
+        return;
+      }
+      await handleItemCopy(item);
+    },
+    [isSelectMode, toggleSelection, openDetailPage, handleItemCopy]
+  );
+  // 只有「单击看详情」的平台才识别双击;iOS 为 undefined,卡片单击不做延迟。
+  const handleItemDoublePress = HOME_CARD_TAP_MODE === 'detail' ? handleItemCopy : undefined;
 
   // ── Long-press → 锚定式上下文浮层 ────────────────────────────
   const [contextTarget, setContextTarget] = useState<{
@@ -453,7 +516,6 @@ export function useHomeController(onOpenSettings: () => void) {
 
   // 多选恰好选中一项时,上下文操作栏的溢出菜单承接该项的内容类动作(Android 长按入口)。
   // 复制 / 分享 / 删除已在底栏,多选本身即当前模式,故剔除。
-  const [detailModalOpen, setDetailModalOpen] = useState(false);
   const singleSelectedItem = useMemo(() => {
     if (!isSelectMode || selectedIds.size !== 1) return null;
     const [id] = selectedIds;
@@ -472,10 +534,7 @@ export function useHomeController(onOpenSettings: () => void) {
         key: 'details',
         label: t('detail.view'),
         icon: 'expand-outline',
-        onPress: () => {
-          selectDetailItem(item);
-          setDetailModalOpen(true);
-        },
+        onPress: () => openDetailPage(item),
       },
       ...contentActions,
     ].map((action) => ({
@@ -485,7 +544,7 @@ export function useHomeController(onOpenSettings: () => void) {
         action.onPress();
       },
     }));
-  }, [singleSelectedItem, makeActionGroups, selectDetailItem, exitSelectMode, t]);
+  }, [singleSelectedItem, makeActionGroups, openDetailPage, exitSelectMode, t]);
 
   const handleBatchCopy = useCallback(async () => {
     const selected = items.filter((i) => selectedIds.has(i.profileHash));
@@ -695,7 +754,9 @@ export function useHomeController(onOpenSettings: () => void) {
     setIsSearching(true);
   }, []);
   const hasActiveFilters =
-    selectedFilterKinds.length > 0 || selectedDateFilter !== 'all' || selectedSourceFilter !== 'all';
+    selectedFilterKinds.length > 0 ||
+    selectedDateFilter !== 'all' ||
+    selectedSourceFilter !== 'all';
   // 类型筛选是全局单选(chip 行、iOS 平板 FilterRail 共用):点新类型替换,点已选类型取消
   // (回到「全部」)。状态保持数组是为了兼容 HistoryFilter.displayKinds 的存储/查询管线。
   const handleToggleFilterKind = useCallback((kind: DisplayKind) => {
@@ -788,6 +849,7 @@ export function useHomeController(onOpenSettings: () => void) {
     listRef,
     keyExtractor,
     handleItemPress,
+    handleItemDoublePress,
     handleItemLongPress,
     refreshing,
     handleRefresh,
@@ -821,9 +883,15 @@ export function useHomeController(onOpenSettings: () => void) {
     detailItem,
     selectDetailItem,
     makeActionGroups,
-    // detail modal (compact, opened from the selection overflow)
-    detailModalOpen,
-    setDetailModalOpen,
+    // full-screen detail page (Android card tap / selection overflow)
+    detailPageItem,
+    openDetailPage,
+    closeDetailPage,
+    // send to devices (Android detail page)
+    sendToJobs,
+    sendToVisible,
+    openSendTo,
+    closeSendTo,
   };
 }
 

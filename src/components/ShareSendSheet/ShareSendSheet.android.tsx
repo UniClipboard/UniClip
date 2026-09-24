@@ -26,12 +26,14 @@ import { M3IconButton } from '@/components/android/M3IconButton';
 import { m3Type } from '@/theme/m3Typography';
 
 /** Android 外部分享独立页面。解析与发送都在同一全屏页面完成。 */
-export function ShareSendSheet({ visible, onClose, jobs }: ShareSendSheetProps) {
-  const isParsing = useShareSheetStore((state) => state.isParsing);
+export function ShareSendSheet({ visible, onClose, jobs, title }: ShareSendSheetProps) {
+  // 解析状态只属于外部分享队列;应用自带 jobs 的实例不受其影响。
+  const isParsing = useShareSheetStore((state) => state.isParsing) && !jobs;
   const c = useShareSendController(onClose, visible && !isParsing, jobs);
   const { theme } = useTheme();
   const { t } = useTranslation('share');
   const insets = useSafeAreaInsets();
+  const pageTitle = title ?? t('send.title');
 
   return (
     <Modal
@@ -47,8 +49,8 @@ export function ShareSendSheet({ visible, onClose, jobs }: ShareSendSheetProps) 
           { backgroundColor: theme.colors.surfaceLow, paddingTop: Math.max(insets.top, 16) },
         ]}
       >
-        <PageHeader title={t('send.title')} onClose={onClose} theme={theme.colors} />
-        {isParsing ? <ParsingState /> : <ShareBody c={c} theme={theme.colors} />}
+        <PageHeader title={pageTitle} onClose={onClose} theme={theme.colors} />
+        {isParsing ? <ParsingState /> : <ShareBody c={c} theme={theme.colors} title={pageTitle} />}
       </View>
     </Modal>
   );
@@ -101,9 +103,11 @@ function ParsingState() {
 function ShareBody({
   c,
   theme,
+  title,
 }: {
   c: ReturnType<typeof useShareSendController>;
   theme: ColorScheme;
+  title: string;
 }) {
   const { t } = useTranslation('share');
   const hasFailed = c.jobViews.some((view) => view.sendState === 'failed');
@@ -151,7 +155,7 @@ function ShareBody({
             <ContentSection
               views={c.jobViews}
               theme={theme}
-              label={`${t('send.title')} (${c.jobViews.length})`}
+              label={`${title} (${c.jobViews.length})`}
             />
             <TargetSection
               targets={c.targets}

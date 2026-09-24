@@ -18,9 +18,7 @@ describe('P2P delivery UI wiring', () => {
 
   it('shows local copy feedback before starting sync and history follow-up work', () => {
     const controller = source('src/screens/useHomeController.ts');
-    const cardPress = controller.match(
-      /const handleItemPress = useCallback\([\s\S]*?\n  \);\n\n  \/\/ ── Long-press/
-    )?.[0];
+    const cardPress = controller.match(/const handleItemCopy = useCallback\([\s\S]*?\n  \);/)?.[0];
     const menuCopy = controller.match(/onCopy: async \(\) => \{[\s\S]*?\n        \},/)?.[0];
     const followUp = controller.match(
       /const startPostCopyFlow = useCallback\([\s\S]*?\n  \);/

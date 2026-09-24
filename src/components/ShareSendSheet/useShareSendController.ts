@@ -275,6 +275,32 @@ export function useShareSendController(onClose: () => void, active: boolean, job
     [completeJob, updateJob, t]
   );
 
+  // 已在历史里的内容(应用内「发送到」):跳过导入,按原 profileHash 投递到所选目标。
+  const sendHistoryJob = useCallback(
+    async (job: PendingShareJob, profileHash: string, targetIds: string[]) => {
+      setPhase({ kind: 'sending', jobId: job.id, stage: 'sending' });
+      if (job.kind === 'text') {
+        const text = await new File(job.fileUri).text();
+        return finishSend(job.id, () =>
+          getUnifiedSyncRuntime().sendImportedText(text, profileHash, { targetIds })
+        );
+      }
+      return finishSend(job.id, () =>
+        getUnifiedSyncRuntime().sendImportedAsset(
+          {
+            kind: job.kind === 'image' ? 'image' : 'file',
+            uri: job.fileUri,
+            fileName: job.displayName,
+            mimeType: job.mimeType,
+          },
+          profileHash,
+          { targetIds }
+        )
+      );
+    },
+    [finishSend]
+  );
+
   // 发送单个 job(串行;不自动重试)
   const sendOne = useCallback(
     async (view: ShareJobView, targetIds: string[]): Promise<SendResult> => {
@@ -282,6 +308,9 @@ export function useShareSendController(onClose: () => void, active: boolean, job
       updateJob(job.id, { sendState: 'sending', errorMessage: undefined });
       setPhase({ kind: 'sending', jobId: job.id, stage: 'importing' });
       try {
+        if (job.historyProfileHash) {
+          return await sendHistoryJob(job, job.historyProfileHash, targetIds);
+        }
         if (job.kind === 'text') {
           const text = await new File(job.fileUri).text();
           const { profileHash } = await importTextToHistory(text);
@@ -318,7 +347,7 @@ export function useShareSendController(onClose: () => void, active: boolean, job
         return { jobId: job.id, success: false, deliveryState: 'failed', errorMessage: message };
       }
     },
-    [finishSend, jobs, updateJob, t]
+    [finishSend, jobs, sendHistoryJob, updateJob, t]
   );
 
   // 发送全部 job(串行,每项独立展示状态)

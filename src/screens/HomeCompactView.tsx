@@ -63,11 +63,19 @@ export function HomeCompactView({
           isSelected={selectedIds.has(item.profileHash)}
           isSelectMode={isSelectMode}
           onPress={c.handleItemPress}
+          onDoublePress={c.handleItemDoublePress}
           onLongPress={c.handleItemLongPress}
         />
       </View>
     ),
-    [c.latestId, c.handleItemPress, c.handleItemLongPress, selectedIds, isSelectMode]
+    [
+      c.latestId,
+      c.handleItemPress,
+      c.handleItemDoublePress,
+      c.handleItemLongPress,
+      selectedIds,
+      isSelectMode,
+    ]
   );
 
   return (
@@ -131,7 +139,10 @@ export function HomeCompactView({
         <View
           style={[
             styles.bottomBar,
-            { paddingBottom: c.insets.bottom + 10, backgroundColor: theme.colors.surfaceLow },
+            {
+              paddingBottom: c.insets.bottom + 10,
+              backgroundColor: theme.colors.surfaceLow,
+            },
           ]}
         >
           <SelectModeBottomBar

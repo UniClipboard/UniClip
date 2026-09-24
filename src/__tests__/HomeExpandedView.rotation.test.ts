@@ -69,8 +69,9 @@ describe('HomeExpandedView rotation layout', () => {
 
     expect(base).toContain("export * from './ClipboardDetailModal.android'");
     expect(android).toContain('<Modal');
-    expect(android).toContain('transparent');
-    expect(android).toContain('styles.dialog');
+    expect(android).not.toContain('transparent');
+    expect(android).toContain('animationType="slide"');
+    expect(android).toContain('<ClipboardDetailPage');
     expect(android).toContain('onRequestClose={onDismiss}');
     expect(ios).toContain('presentationStyle="pageSheet"');
     expect(ios).toContain('onRequestClose={onDismiss}');
