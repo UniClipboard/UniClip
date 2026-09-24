@@ -117,6 +117,7 @@
         "needsAttentionTitle": "O estado dos dispositivos precisa de atenção",
         "completedTitle": "Estado dos dispositivos atualizado",
         "completedBody": "Agora estes dispositivos podem sincronizar.",
+        "removalNotificationPending": "Removido deste dispositivo. Notificando os outros dispositivos.",
         "continueInBackground": "Continuar em segundo plano",
         "reviewAction": "Ver como resolver",
         "attention": {
@@ -199,6 +200,7 @@
         "label": "Espaço",
         "consistent": "Espaço atual",
         "pendingLocalDecision": "Aguardando sua escolha",
+        "awaitingRemovalAcknowledgement": "Removido deste dispositivo. Notificando os outros dispositivos.",
         "diverged": "Espaço diferente",
         "unverifiable": "Não foi possível verificar",
         "unknown": "Desconhecido"
@@ -306,6 +308,7 @@
         "waitingForLocalDecision": "Aguardando sua escolha",
         "unverifiable": "Não foi possível verificar os dados",
         "upgradeRequired": "Atualização necessária",
+        "removalAcknowledgementPending": "Removido deste dispositivo. Notificando os outros dispositivos.",
         "updating": "Atualizando o espaço",
         "pairingAwaitingConfirmation": "Pareamento concluído, aguardando confirmação do outro dispositivo",
         "pairingUnconfirmed": "Pareamento concluído, mas não confirmado",

@@ -73,9 +73,15 @@ function SpaceDeviceRow({
 }) {
   const { t } = useTranslation('settingsSync');
   const online = device.isLocal || device.reachability === 'online';
+  const informationalStatus =
+    device.primaryStatus === 'removalAcknowledgementPending';
   const trustStatus =
-    device.primaryStatus !== 'usable' && device.primaryStatus !== 'unknown';
-  const statusColor = trustStatus
+    !informationalStatus &&
+    device.primaryStatus !== 'usable' &&
+    device.primaryStatus !== 'unknown';
+  const statusColor = informationalStatus
+    ? settingsTileColors.blue
+    : trustStatus
     ? settingsTileColors.red
     : online
     ? statusGreen

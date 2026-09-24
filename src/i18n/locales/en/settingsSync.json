@@ -117,6 +117,7 @@
         "needsAttentionTitle": "Space device status needs attention",
         "completedTitle": "Space device status updated",
         "completedBody": "These devices can now sync.",
+        "removalNotificationPending": "Removed from this device. Notifying other devices.",
         "continueInBackground": "Continue in background",
         "reviewAction": "Review next steps",
         "attention": {
@@ -199,6 +200,7 @@
         "label": "Space",
         "consistent": "Current space",
         "pendingLocalDecision": "Waiting for your choice",
+        "awaitingRemovalAcknowledgement": "Removed from this device. Notifying other devices.",
         "diverged": "Different space",
         "unverifiable": "Cannot verify",
         "unknown": "Unknown"
@@ -306,6 +308,7 @@
         "waitingForLocalDecision": "Waiting for your choice",
         "unverifiable": "Device details cannot be verified",
         "upgradeRequired": "Update required",
+        "removalAcknowledgementPending": "Removed from this device. Notifying other devices.",
         "updating": "Updating space",
         "pairingAwaitingConfirmation": "Pairing complete, waiting for peer confirmation",
         "pairingUnconfirmed": "Pairing complete, but not confirmed",

@@ -283,6 +283,30 @@ describe('P2pSyncAdapter', () => {
     ]);
   });
 
+  it('treats a device trust revision as an invalidation for a complete snapshot', async () => {
+    const P2pSyncAdapter = loadP2pSyncAdapter();
+    expect(P2pSyncAdapter).toBeDefined();
+    if (!P2pSyncAdapter) return;
+
+    const deps = dependencies('android');
+    const adapter = new P2pSyncAdapter(deps) as unknown as {
+      start(context: unknown): Promise<void>;
+    };
+    await adapter.start({
+      appVersion: '2.0.0+build.179',
+      profileId: 'default',
+      policy: { appState: 'active', backgroundSyncEnabled: true },
+    });
+    deps.space.refresh.mockClear();
+    deps.space.refreshDevices.mockClear();
+
+    deps.emitEngineEvent({ type: 'deviceTrustChanged', revision: 7 });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(deps.space.refresh).toHaveBeenCalledWith({ afterInvalidation: true });
+    expect(deps.space.refreshDevices).not.toHaveBeenCalled();
+  });
+
   it('stops recovery, events, and the P2P engine', async () => {
     const P2pSyncAdapter = loadP2pSyncAdapter();
     expect(P2pSyncAdapter).toBeDefined();

@@ -236,6 +236,38 @@ describe('device trust Engine contract', () => {
     ).toMatchObject({ spaceDeviceUpdate: { phase: 'updating' } });
   });
 
+  it('preserves Engine removal acknowledgement delivery without changing completed device updates', () => {
+    const document = JSON.parse(
+      snapshotJson({
+        current_change: null,
+        space_device_update: {
+          phase: 'completed',
+          reason: null,
+          recovery: null,
+          next_retry_at_ms: null,
+        },
+      })
+    );
+    document.devices[0] = {
+      ...document.devices[0],
+      membership: 'removed',
+      group_relationship: 'awaiting_removal_acknowledgement',
+      sync_relationship: 'removed_peer_device',
+      available_actions: [],
+    };
+
+    expect(parseDeviceTrustSnapshot(JSON.stringify(document))).toMatchObject({
+      spaceDeviceUpdate: { phase: 'completed' },
+      devices: [
+        expect.objectContaining({
+          membership: 'removed',
+          groupRelationship: 'awaitingRemovalAcknowledgement',
+          syncRelationship: 'removedPeerDevice',
+        }),
+      ],
+    });
+  });
+
   it.each([
     ['awaiting_peer_confirmation', 'awaitingPeerConfirmation'],
     ['unconfirmed', 'unconfirmed'],
