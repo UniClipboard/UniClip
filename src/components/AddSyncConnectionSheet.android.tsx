@@ -531,6 +531,8 @@ function AddSyncConnectionSheetContent({
   const [editingDeviceName, setEditingDeviceName] = useState(false);
   const autoAdvanceRef = useRef(false);
   const invitationCodeState = useNativeState('');
+  const sheetRef = useRef<ModalBottomSheetRef>(null);
+  const hidingRef = useRef(false);
   const liveFlow = useAddSyncConnectionFlow({
     visible: visible && previewScenario == null,
     initialMode,
@@ -544,6 +546,22 @@ function AddSyncConnectionSheetContent({
     },
     clearNativePassphrase: () => {
       passphraseState.value = '';
+    },
+    // Unmounting the sheet skips Material's exit animation, so slide it out before closing.
+    // Back and scrim dismissals have already hidden it, and hiding again resolves immediately.
+    presentation: {
+      hide: async () => {
+        hidingRef.current = true;
+        await sheetRef.current?.hide().catch(() => {
+          // The native sheet is already gone; closing can proceed.
+        });
+      },
+      restore: () => {
+        hidingRef.current = false;
+        sheetRef.current?.expand().catch(() => {
+          // The sheet was dismissed meanwhile; there is nothing to restore.
+        });
+      },
     },
   });
   const previewFlow = useAddSyncConnectionPreviewFlow(
@@ -641,8 +659,6 @@ function AddSyncConnectionSheetContent({
     setEditingDeviceName(false);
   }, [mode]);
 
-  const sheetRef = useRef<ModalBottomSheetRef>(null);
-
   const stage = showsJoinStatus ? 'joinStatus' : mode;
   const previousStage = useRef(stage);
 
@@ -651,7 +667,8 @@ function AddSyncConnectionSheetContent({
     previousStage.current = stage;
     // Content height changes between stages, so re-fit the wrap-content sheet to the new stage.
     // Skip the first mount: the native sheet view is not registered yet and the command rejects.
-    if (!visible || !changed) return;
+    // A closing flow resets its stage while the sheet slides out; re-expanding would undo the hide.
+    if (!visible || !changed || hidingRef.current) return;
     sheetRef.current?.expand().catch(() => {
       // The sheet was dismissed while the stage changed; there is nothing left to resize.
     });
@@ -665,7 +682,7 @@ function AddSyncConnectionSheetContent({
         modifiers={[
           paddingAll(24),
           fillMaxWidth(),
-          // Every stage wraps its content so actions sit right under it; scroll only when a
+          // Every stage wraps their content so actions sit right under it; scroll only when a
           // stage is taller than the screen allows.
           verticalScroll(),
         ]}
