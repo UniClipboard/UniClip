@@ -1,20 +1,17 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, RefreshControl, StatusBar, type ColorValue } from 'react-native';
-import Animated, { type SharedValue } from 'react-native-reanimated';
+import type { SharedValue } from 'react-native-reanimated';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { iosColors } from '@/theme/iosDesignTokens';
 import { AnimatedCardGrid } from '@/components/AnimatedCardGrid';
-import { HomeFilterChipsRow } from '@/components/HomeFilterChipsRow';
-import { FILTER_CHIP_ROW_HEIGHT } from '@/components/HomeFilterChipsRow.types';
 import { SelectModeBottomBar } from '@/components/HomeBottomBar';
 import { AddActionsFab } from '@/components/AddActionsFab';
 import { ClipboardCard } from '@/components/ClipboardCard';
 import { ClipboardItem } from '@/types/clipboard';
 import { HomeTopBarArea } from './HomeChrome';
 import { HomeOverlays } from './HomeOverlays';
-import { CHIP_ROW_GRID_METRICS } from './chipRowGridMetrics';
-import { useChipRowCollapse } from './useChipRowCollapse';
 import type { HomeController } from './useHomeController';
+import type { HomeSearchSlots } from './HomeSearchSlots.types';
 
 const GRID_SPACING = 12;
 const GRID_PADDING = 16;
@@ -31,7 +28,7 @@ export function HomeCompactView({
   refreshTintColor,
   topBar,
   bottomSearch,
-  showFilterRow = true,
+  search,
   overlayTopBarHeight = 0,
   gridBottomPadding = 80,
   addMenuOpenSignal,
@@ -41,7 +38,8 @@ export function HomeCompactView({
   refreshTintColor?: ColorValue;
   topBar?: React.ReactNode;
   bottomSearch?: React.ReactNode;
-  showFilterRow?: boolean;
+  /** 平台注入的搜索态内容(筛选行 / 快捷筛选 / 结果数 / 空结果操作) */
+  search?: HomeSearchSlots;
   overlayTopBarHeight?: number;
   /** 默认态网格底部留白,需让出右下 FAB 与任何浮在网格底部的控件 */
   gridBottomPadding?: number;
@@ -54,17 +52,7 @@ export function HomeCompactView({
   const cardSize =
     (screenWidth - GRID_PADDING * 2 - GRID_SPACING * (NUM_COLUMNS - 1)) / NUM_COLUMNS;
   const selectionBarClearance = c.insets.bottom + 76;
-
-  // 有筛选生效时筛选行常驻,不随滚动收起
-  const chipRowCollapse = useChipRowCollapse(
-    CHIP_ROW_GRID_METRICS.contentInsetTop,
-    c.hasActiveFilters
-  );
-  // 筛选后列表为空时强制展开筛选行,保证用户能撤掉筛选
-  const revealChipRow = chipRowCollapse.reveal;
-  useEffect(() => {
-    if (items.length === 0) revealChipRow();
-  }, [items.length, revealChipRow]);
+  const gridHeader = search?.gridHeader;
 
   const renderCard = useCallback(
     (item: ClipboardItem) => (
@@ -90,13 +78,10 @@ export function HomeCompactView({
         translucent
       />
 
-      {overlayTopBarHeight === 0 ? topBar ?? <HomeTopBarArea c={c} /> : null}
+      {overlayTopBarHeight === 0
+        ? topBar ?? <HomeTopBarArea c={c} accessory={search?.topBarAccessory} />
+        : null}
 
-      {/*
-       * 网格区:筛选 chip 行以 overlay 覆盖在网格顶部(网格内容用 paddingTop 预留同等
-       * 高度),随滚动 1:1 收展只动 transform/opacity,零布局重排。行在搜索/多选态也保持
-       * 挂载:三种模式共享同一份筛选状态,且网格 paddingTop 恒定,卡片坐标不因模式切换跳变。
-       */}
       {/* Keep header clearance outside the scroll view: recycled iOS scroll views can lose their inset. */}
       <View style={[styles.gridArea, { paddingTop: overlayTopBarHeight }]}>
         <AnimatedCardGrid
@@ -106,26 +91,23 @@ export function HomeCompactView({
           cardSize={cardSize}
           spacing={GRID_SPACING}
           paddingHorizontal={GRID_PADDING - GRID_SPACING / 2}
-          paddingTop={8 + (showFilterRow ? CHIP_ROW_GRID_METRICS.paddingTopExtra : 0)}
+          paddingTop={8 + (gridHeader?.height ?? 0)}
+          header={gridHeader?.node}
           paddingBottom={isSelectMode ? selectionBarClearance : gridBottomPadding}
           keyExtractor={c.keyExtractor}
           renderItem={renderCard}
           onEndReached={c.loadMoreItems}
-          contentInsetTop={showFilterRow ? CHIP_ROW_GRID_METRICS.contentInsetTop : 0}
-          onScrollWorklet={chipRowCollapse.onScrollWorklet}
-          onScrollEndWorklet={chipRowCollapse.onScrollEndWorklet}
           refreshControl={
             <RefreshControl
               refreshing={c.refreshing}
               onRefresh={c.handleRefresh}
               tintColor={refreshTintColor}
               colors={[theme.colors.accent]}
-              progressViewOffset={CHIP_ROW_GRID_METRICS.progressViewOffset || undefined}
             />
           }
         />
         {items.length === 0 && c.isInitialHistoryLoadComplete && (
-          <View pointerEvents="none" style={styles.emptyState}>
+          <View pointerEvents="box-none" style={styles.emptyState}>
             <View style={[styles.emptyIcon, { backgroundColor: theme.colors.surfaceHigh }]}>
               <Ionicons name={c.emptyContent.icon} size={30} color={c.emptyContent.tint} />
             </View>
@@ -135,34 +117,11 @@ export function HomeCompactView({
             <Text style={[styles.emptyDesc, { color: theme.colors.textSecondary }]}>
               {c.emptyContent.description}
             </Text>
+            {search?.emptyAction}
           </View>
         )}
 
-        {showFilterRow && (
-          <Animated.View
-            style={[styles.chipRowOverlay, { backgroundColor }, chipRowCollapse.rowStyle]}
-            accessibilityElementsHidden={chipRowCollapse.isFullyHidden}
-            importantForAccessibility={
-              chipRowCollapse.isFullyHidden ? 'no-hide-descendants' : 'auto'
-            }
-          >
-            <HomeFilterChipsRow
-              resultCount={c.isSearching ? c.resultCount : undefined}
-              isLoading={c.isHistoryLoading}
-              onResetSearch={
-                c.isSearching && (c.searchText.length > 0 || c.hasActiveFilters)
-                  ? c.resetSearch
-                  : undefined
-              }
-              selectedKinds={c.selectedFilterKinds}
-              selectedDate={c.selectedDateFilter}
-              onToggleKind={c.handleToggleFilterKind}
-              onClearKinds={c.handleClearFilterKinds}
-              onSelectDate={c.setSelectedDateFilter}
-              theme={theme}
-            />
-          </Animated.View>
-        )}
+        {search?.gridOverlay}
       </View>
 
       {/* 多选底栏(默认态由右下 FAB 取代) */}
@@ -213,12 +172,6 @@ const styles = StyleSheet.create({
   gridArea: {
     flex: 1,
   },
-  chipRowOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-  },
   cardSlot: {
     flex: 1,
     padding: GRID_SPACING / 2,
@@ -228,7 +181,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 10,
-    paddingTop: FILTER_CHIP_ROW_HEIGHT,
     paddingBottom: 40,
     paddingHorizontal: 40,
   },

@@ -81,6 +81,9 @@ export interface HistoryFilter {
 
   /** 是否仅显示传输中的项 */
   transferringOnly?: boolean;
+
+  /** 来源:local = 本机产生(from 不是 'server'),remote = 从其他设备同步而来(from = 'server') */
+  source?: 'local' | 'remote';
 }
 
 /**

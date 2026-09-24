@@ -104,11 +104,40 @@ describe('history advanced filters', () => {
     expect(hashes(filterHistoryItems(items, filter))).toEqual(['matching-file']);
   });
 
+  it('counts past week as seven calendar days including today', () => {
+    const sixDaysAgoMorning = new Date(2026, 5, 22, 0, 30).getTime();
+    const sevenDaysAgoEvening = new Date(2026, 5, 21, 23, 30).getTime();
+    const items = [
+      createItem('six-days', sixDaysAgoMorning),
+      createItem('seven-days', sevenDaysAgoEvening),
+    ];
+
+    const filter = createHistorySearchFilter({ dateFilter: 'pastWeek', now });
+
+    expect(hashes(filterHistoryItems(items, filter))).toEqual(['six-days']);
+  });
+
+  it('filters by source: this device versus synced from other devices', () => {
+    const items = [
+      createItem('captured', today, { from: 'local' }),
+      createItem('imported', today, { from: undefined }),
+      createItem('synced', today, { from: 'server' }),
+    ];
+
+    const local = createHistorySearchFilter({ sourceFilter: 'local', now });
+    const remote = createHistorySearchFilter({ sourceFilter: 'remote', now });
+
+    expect(local).toEqual({ source: 'local' });
+    expect(hashes(filterHistoryItems(items, local))).toEqual(['captured', 'imported']);
+    expect(hashes(filterHistoryItems(items, remote))).toEqual(['synced']);
+    expect(createHistorySearchFilter({ sourceFilter: 'all', now })).toEqual({});
+  });
+
   it('keeps shared filter option labels stable', () => {
     expect(HISTORY_FILTER_KIND_OPTIONS).toEqual(['text', 'url', 'image', 'file', 'group']);
     expect(getHistoryDateFilterLabel('all')).toBe('全部');
     expect(getHistoryDateFilterLabel('today')).toBe('今天');
     expect(getHistoryDateFilterLabel('yesterday')).toBe('昨天');
-    expect(getHistoryDateFilterLabel('pastWeek')).toBe('7 天内');
+    expect(getHistoryDateFilterLabel('pastWeek')).toBe('近 7 天');
   });
 });

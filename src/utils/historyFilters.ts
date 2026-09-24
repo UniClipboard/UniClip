@@ -3,11 +3,13 @@ import { HistoryFilter } from '@/types/storage';
 import { DisplayKind, getDisplayKind } from './displayKind';
 
 export type HistoryDateFilter = 'all' | 'today' | 'yesterday' | 'pastWeek';
+export type HistorySourceFilter = 'all' | 'local' | 'remote';
 
 export interface HistorySearchFilterOptions {
   keyword?: string;
   displayKinds?: DisplayKind[];
   dateFilter?: HistoryDateFilter;
+  sourceFilter?: HistorySourceFilter;
   now?: number;
 }
 
@@ -30,6 +32,7 @@ export function createHistorySearchFilter(options: HistorySearchFilterOptions): 
   const keyword = options.keyword?.trim();
   const displayKinds = options.displayKinds ?? [];
   const dateFilter = options.dateFilter ?? 'all';
+  const sourceFilter = options.sourceFilter ?? 'all';
   const now = options.now ?? Date.now();
 
   if (keyword) {
@@ -52,11 +55,16 @@ export function createHistorySearchFilter(options: HistorySearchFilterOptions): 
       break;
     }
     case 'pastWeek':
-      filter.startDate = now - 7 * DAY_MS;
+      // 与今天/昨天同为自然日口径:含今天在内的 7 个自然日
+      filter.startDate = startOfDay(now - 6 * DAY_MS);
       break;
     case 'all':
     default:
       break;
+  }
+
+  if (sourceFilter !== 'all') {
+    filter.source = sourceFilter;
   }
 
   return filter;
@@ -124,6 +132,10 @@ export function matchesHistoryFilter(item: ClipboardItem, filter?: HistoryFilter
   }
 
   if (filter.transferringOnly && item.syncStatus !== 2) {
+    return false;
+  }
+
+  if (filter.source && (item.from === 'server') !== (filter.source === 'remote')) {
     return false;
   }
 

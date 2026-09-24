@@ -18,6 +18,8 @@ interface OverflowMenuProps {
   testID?: string;
   /** 自定义触发器(如筛选 chip);默认是 48dp ⋮ 图标按钮。 */
   renderTrigger?: (open: () => void) => React.ReactNode;
+  /** 菜单与触发器哪条边对齐:行尾的 ⋮ 默认对齐右缘(end);行首的筛选 chip 对齐左缘(start)。 */
+  align?: 'start' | 'end';
 }
 
 const MENU_MIN_WIDTH = 200;
@@ -26,21 +28,27 @@ const MENU_MAX_WIDTH = 280;
 /**
  * M3 溢出菜单(⋮)。触发器默认为 48dp 图标按钮;菜单锚在触发器下方、右缘对齐,
  * 行高 48、前导图标 24、无行间分隔线、按压走 ripple,与 Compose DropdownMenu 一致。
- * 选择型菜单(如时间筛选)在当前项尾部显示对勾。
+ * 选择型菜单(如搜索筛选)在当前项尾部显示对勾。
  */
-export function OverflowMenu({ items, testID, renderTrigger }: OverflowMenuProps) {
+export function OverflowMenu({ items, testID, renderTrigger, align = 'end' }: OverflowMenuProps) {
   const { theme } = useTheme();
   const { colors } = theme;
   const { t } = useTranslation('common');
   const { width: windowWidth } = useWindowDimensions();
   const anchorRef = useRef<View>(null);
-  const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null);
+  const [anchor, setAnchor] = useState<
+    { top: number; right: number } | { top: number; left: number } | null
+  >(null);
 
   const open = useCallback(() => {
     anchorRef.current?.measureInWindow((x, y, w, h) => {
-      setAnchor({ top: y + h, right: Math.max(8, windowWidth - (x + w)) });
+      setAnchor(
+        align === 'start'
+          ? { top: y + h, left: Math.max(8, Math.min(x, windowWidth - MENU_MIN_WIDTH - 8)) }
+          : { top: y + h, right: Math.max(8, windowWidth - (x + w)) }
+      );
     });
-  }, [windowWidth]);
+  }, [align, windowWidth]);
   const close = useCallback(() => setAnchor(null), []);
 
   return (
@@ -70,7 +78,8 @@ export function OverflowMenu({ items, testID, renderTrigger }: OverflowMenuProps
             accessibilityRole="menu"
             style={[
               styles.menu,
-              { top: anchor.top, right: anchor.right, backgroundColor: colors.surfaceMid },
+              anchor,
+              { backgroundColor: colors.surfaceMid },
             ]}
           >
             {items.map((item) => {

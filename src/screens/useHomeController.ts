@@ -30,8 +30,9 @@ import { copyToLocalClipboard } from '@/utils/clipboard';
 import { DisplayKind, getDisplayKind } from '@/utils/displayKind';
 import { buildActionMenuGroups, ActionMenuItem } from '@/utils/actionMenuItems';
 import { saveToGallery, saveFile, shareFile } from '@/utils/fileActions';
-import { HistoryDateFilter } from '@/utils/historyFilters';
+import type { HistoryDateFilter, HistorySourceFilter } from '@/utils/historyFilters';
 import { useHomeHistoryFilter } from './useHomeHistoryFilter';
+import { CLEAR_FILTERS_ON_CLOSE_SEARCH } from './searchFilterPolicy';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import type { CameraCaptureResult } from '@/components/CameraCaptureSheet.types';
@@ -112,6 +113,7 @@ export function useHomeController(onOpenSettings: () => void) {
   const [searchText, setSearchText] = useState('');
   const [selectedFilterKinds, setSelectedFilterKinds] = useState<DisplayKind[]>([]);
   const [selectedDateFilter, setSelectedDateFilter] = useState<HistoryDateFilter>('all');
+  const [selectedSourceFilter, setSelectedSourceFilter] = useState<HistorySourceFilter>('all');
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [wordPickerTarget, setWordPickerTarget] = useState<{
     text: string;
@@ -130,7 +132,8 @@ export function useHomeController(onOpenSettings: () => void) {
   const hasSearchCriteria =
     (isSearching && searchText.trim().length > 0) ||
     selectedFilterKinds.length > 0 ||
-    selectedDateFilter !== 'all';
+    selectedDateFilter !== 'all' ||
+    selectedSourceFilter !== 'all';
   const emptyContent = useMemo(
     () => ({
       icon: hasSearchCriteria ? ('search-outline' as const) : ('clipboard-outline' as const),
@@ -172,6 +175,7 @@ export function useHomeController(onOpenSettings: () => void) {
     searchText,
     selectedFilterKinds,
     selectedDateFilter,
+    selectedSourceFilter,
     searchItems,
   });
 
@@ -690,15 +694,21 @@ export function useHomeController(onOpenSettings: () => void) {
     setShowAddMenu(false);
     setIsSearching(true);
   }, []);
-  const hasActiveFilters = selectedFilterKinds.length > 0 || selectedDateFilter !== 'all';
+  const hasActiveFilters =
+    selectedFilterKinds.length > 0 || selectedDateFilter !== 'all' || selectedSourceFilter !== 'all';
   // 类型筛选是全局单选(chip 行、iOS 平板 FilterRail 共用):点新类型替换,点已选类型取消
   // (回到「全部」)。状态保持数组是为了兼容 HistoryFilter.displayKinds 的存储/查询管线。
   const handleToggleFilterKind = useCallback((kind: DisplayKind) => {
     setSelectedFilterKinds((current) => (current.includes(kind) ? [] : [kind]));
   }, []);
+  // 菜单式单选(Android 搜索筛选):显式设值,null 即「全部类型」,不做再点取消。
+  const handleSelectFilterKind = useCallback((kind: DisplayKind | null) => {
+    setSelectedFilterKinds(kind ? [kind] : []);
+  }, []);
   const handleClearFilters = useCallback(() => {
     setSelectedFilterKinds([]);
     setSelectedDateFilter('all');
+    setSelectedSourceFilter('all');
   }, []);
   const handleClearFilterKinds = useCallback(() => {
     setSelectedFilterKinds([]);
@@ -706,7 +716,8 @@ export function useHomeController(onOpenSettings: () => void) {
   const closeSearch = useCallback(() => {
     setIsSearching(false);
     setSearchText('');
-  }, []);
+    if (CLEAR_FILTERS_ON_CLOSE_SEARCH) handleClearFilters();
+  }, [handleClearFilters]);
 
   // Only the focused home screen consumes Back; selection takes priority over search.
   useFocusEffect(
@@ -766,7 +777,10 @@ export function useHomeController(onOpenSettings: () => void) {
     selectedFilterKinds,
     selectedDateFilter,
     setSelectedDateFilter,
+    selectedSourceFilter,
+    setSelectedSourceFilter,
     hasActiveFilters,
+    handleSelectFilterKind,
     handleToggleFilterKind,
     handleClearFilters,
     handleClearFilterKinds,

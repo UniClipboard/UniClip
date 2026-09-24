@@ -81,6 +81,11 @@ function buildWhere(
     if (filter.transferringOnly) {
       conds.push('syncStatus = 2');
     }
+    if (filter.source === 'remote') {
+      conds.push(`"from" = 'server'`);
+    } else if (filter.source === 'local') {
+      conds.push(`IFNULL("from", '') != 'server'`);
+    }
   }
 
   return { clause: conds.length > 0 ? `WHERE ${conds.join(' AND ')}` : '', params };

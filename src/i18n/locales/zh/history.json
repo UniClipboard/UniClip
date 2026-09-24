@@ -21,11 +21,18 @@
       "all": "全部",
       "today": "今天",
       "yesterday": "昨天",
-      "pastWeek": "7 天内"
+      "pastWeek": "近 7 天"
     },
     "chip": {
       "all": "全部",
-      "date": "时间"
+      "date": "时间",
+      "kind": "类型",
+      "source": "来源"
+    },
+    "source": {
+      "all": "全部来源",
+      "local": "本机",
+      "remote": "其他设备"
     }
   },
   "kind": {

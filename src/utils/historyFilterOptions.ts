@@ -1,6 +1,6 @@
 import i18n from '@/i18n';
 import { DisplayKind } from './displayKind';
-import { HistoryDateFilter } from './historyFilters';
+import { HistoryDateFilter, HistorySourceFilter } from './historyFilters';
 
 export const HISTORY_FILTER_KIND_OPTIONS: DisplayKind[] = ['text', 'url', 'image', 'file', 'group'];
 
@@ -17,4 +17,20 @@ export function getHistoryFilterDateOptions(): Array<{ value: HistoryDateFilter;
 export function getHistoryDateFilterLabel(dateFilter: HistoryDateFilter): string {
   const options = getHistoryFilterDateOptions();
   return options.find((option) => option.value === dateFilter)?.label ?? options[0].label;
+}
+
+export function getHistoryFilterSourceOptions(): Array<{
+  value: HistorySourceFilter;
+  label: string;
+}> {
+  return [
+    { value: 'all', label: i18n.t('history:filter.source.all') },
+    { value: 'local', label: i18n.t('history:filter.source.local') },
+    { value: 'remote', label: i18n.t('history:filter.source.remote') },
+  ];
+}
+
+export function getHistorySourceFilterLabel(sourceFilter: HistorySourceFilter): string {
+  const options = getHistoryFilterSourceOptions();
+  return options.find((option) => option.value === sourceFilter)?.label ?? options[0].label;
 }

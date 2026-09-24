@@ -5,6 +5,7 @@ import { useHomeController } from './useHomeController';
 import { getLayoutMode } from '@/hooks/useLayoutMode';
 import { HomeCompactView } from './HomeCompactView';
 import { HomeExpandedView } from './HomeExpandedView';
+import { getHomeSearchSlots } from './android/homeSearchSlots';
 import type { HomeViewProps } from './HomeView.types';
 import { APP_VERSION } from '@/constants';
 import { checkForAutomaticUpdate } from '@/features/updates';
@@ -16,7 +17,9 @@ import { NAVIGATION_RAIL_WIDTH } from '@/components/android/mainNavigationMetric
  * Android 首页。两级布局:
  * - compact  : 手机(含横屏窄场景)/ 分屏 —— 单栏(HomeCompactView)。
  * - expanded : 平板 / 大屏 —— 方案 B 三栏工作台 · inset(HomeExpandedView)。左侧已是应用级
- *   navigation rail,类型筛选回到网格面板顶部的 chip 行,与手机一致。
+ *   navigation rail。
+ *
+ * 两级布局都只在搜索视图里提供筛选(getHomeSearchSlots):首页本身不筛选,永远是完整历史。
  *
  * Android 的 gutter/pane 底色走 M3 表面色阶:gutter=background、浮起面板=surfaceHigh。
  * 取 surfaceHigh(而非仅高半阶的 surfaceLow)是为了让面板在浅色下也明显浮起——
@@ -40,6 +43,7 @@ export function HomeView({
   );
   const activeLanguage = i18n.resolvedLanguage ?? i18n.language;
   const immersive = c.isSearching || c.isSelectMode;
+  const search = getHomeSearchSlots(c);
 
   useEffect(() => {
     onImmersiveModeChange?.(immersive);
@@ -78,6 +82,7 @@ export function HomeView({
         // 网格延伸到悬浮导航胶囊与 FAB 之下(二者已计入 bottom inset),末行需滚出其上
         gridBottomPadding={c.insets.bottom + 80}
         addMenuOpenSignal={addMenuOpenSignal}
+        search={search}
       />
     );
   }
@@ -90,7 +95,8 @@ export function HomeView({
       refreshTintColor={c.theme.colors.accent}
       gutterColor={c.theme.colors.background as string}
       paneColor={c.theme.colors.surfaceHigh}
-      filterPlacement="chips"
+      filterPlacement="search"
+      search={search}
     />
   );
 }

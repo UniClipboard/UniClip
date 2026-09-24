@@ -6,7 +6,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { LayoutChangeEvent, RefreshControlProps, ScrollView, View } from 'react-native';
+import { LayoutChangeEvent, RefreshControlProps, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { GridCell } from './GridCell';
@@ -43,6 +43,8 @@ interface AnimatedCardGridProps<T> {
   /** Called once when each loaded batch is scrolled close to its end. */
   onEndReached?: () => void;
   onEndReachedThreshold?: number;
+  /** 内容顶部、随内容滚动的页眉;占用的高度须由调用方计入 paddingTop */
+  header?: React.ReactNode;
 }
 
 // 自研虚拟化网格：每张卡片的位置纯粹由它在 items 里的下标算出（行/列 = index / numColumns），
@@ -66,6 +68,7 @@ function AnimatedCardGridInner<T>(
     onScrollEndWorklet,
     onEndReached,
     onEndReachedThreshold = 400,
+    header,
   }: AnimatedCardGridProps<T>,
   ref: React.Ref<AnimatedCardGridHandle>
 ) {
@@ -183,6 +186,7 @@ function AnimatedCardGridInner<T>(
       automaticallyAdjustContentInsets={false}
     >
       <View style={{ height: contentHeight }}>
+        {header ? <View style={styles.header}>{header}</View> : null}
         {renderIndices.map((i) => {
           const item = items[i];
           const cellKey = cellKeys[i];
@@ -209,3 +213,7 @@ function AnimatedCardGridInner<T>(
 export const AnimatedCardGrid = forwardRef(AnimatedCardGridInner) as <T>(
   props: AnimatedCardGridProps<T> & { ref?: React.Ref<AnimatedCardGridHandle> }
 ) => React.ReactElement;
+
+const styles = StyleSheet.create({
+  header: { position: 'absolute', top: 0, left: 0, right: 0 },
+});

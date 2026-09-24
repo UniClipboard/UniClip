@@ -1,11 +1,37 @@
-# Android chip policy for KIND; uses existing home filter controls.
+# Android keeps filters inside search, and leaving search clears them. KIND=all closes search
+# (back to the full history); other kinds open search when needed and pick KIND from the
+# empty-query shortcuts or, once criteria exist, from the type chip menu.
 appId: ${APP_ID}
 ---
-- tapOn:
-    id: history-filter-all
+- runFlow:
+    when:
+      true: ${KIND == "all"}
+      visible:
+        id: history-search-input
+    file: ../search/close.yaml
 - runFlow:
     when:
       true: ${KIND != "all"}
     commands:
-      - tapOn:
-          id: history-filter-${KIND}
+      - runFlow:
+          when:
+            notVisible:
+              id: history-search-input
+          file: ../search/open.yaml
+      - runFlow:
+          when:
+            visible:
+              id: history-shortcut-kind-${KIND}
+          commands:
+            - tapOn:
+                id: history-shortcut-kind-${KIND}
+      # After a shortcut the filter bar appears; re-selecting the same kind is a no-op.
+      - runFlow:
+          when:
+            visible:
+              id: history-filter-kind
+          commands:
+            - tapOn:
+                id: history-filter-kind
+            - tapOn:
+                id: overflow-action-kind-${KIND}

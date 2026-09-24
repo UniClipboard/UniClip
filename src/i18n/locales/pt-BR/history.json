@@ -25,7 +25,14 @@
     },
     "chip": {
       "all": "Todos",
-      "date": "Período"
+      "date": "Período",
+      "kind": "Tipo",
+      "source": "Origem"
+    },
+    "source": {
+      "all": "Todas as origens",
+      "local": "Este dispositivo",
+      "remote": "Outros dispositivos"
     }
   },
   "kind": {
