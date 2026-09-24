@@ -1,9 +1,11 @@
-import React from 'react';
-import { Form, VStack } from '@expo/ui/swift-ui';
+import React, { createContext, useContext } from 'react';
+import { Form, Section, Spacer, Toolbar, VStack } from '@expo/ui/swift-ui';
 import {
   background,
   frame,
+  listRowBackground,
   listStyle,
+  navigationTitle,
   padding,
   scrollContentBackground,
   tint,
@@ -31,6 +33,34 @@ export interface IosSheetScaffoldProps {
   modifiers?: ModifierConfig[];
 }
 
+/**
+ * 页面所在的外壳:
+ * - sheet:底部弹层内的自绘页头(标题 + 左右圆形按钮),子页由宿主自行做推入动画;
+ * - navigation:SwiftUI NavigationStack 内(iOS 标签页),标题交给原生导航栏(根页为大标题),
+ *   返回由导航栈提供,右侧按钮进工具栏,表单底部为悬浮标签栏留出空间。
+ */
+export interface IosPageChrome {
+  kind: 'sheet' | 'navigation';
+  /** navigation:表单末尾为悬浮标签栏留出的高度 */
+  bottomClearance?: number;
+}
+
+const IosPageChromeContext = createContext<IosPageChrome>({ kind: 'sheet' });
+
+export function IosPageChromeProvider({
+  value,
+  children,
+}: {
+  value: IosPageChrome;
+  children: React.ReactNode;
+}) {
+  return <IosPageChromeContext.Provider value={value}>{children}</IosPageChromeContext.Provider>;
+}
+
+export function useIosPageChrome(): IosPageChrome {
+  return useContext(IosPageChromeContext);
+}
+
 const sheetPageBackgroundColor = iosColors?.systemGroupedBackground ?? '#F2F2F7';
 const sheetPageBaseModifiers = [
   frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'top' }),
@@ -53,6 +83,29 @@ export function IosSheetPage({
   spacing,
   modifiers = [],
 }: IosSheetPageProps) {
+  const chrome = useIosPageChrome();
+  if (chrome.kind === 'navigation') {
+    const trailing = rightSlots ? rightSlots.filter(Boolean) : right ? [right] : [];
+    const page = (
+      <VStack
+        spacing={spacing}
+        modifiers={[
+          ...sheetPageBaseModifiers,
+          ...modifiers,
+          ...(trailing.length ? [] : [navigationTitle(title)]),
+        ]}
+      >
+        {children}
+      </VStack>
+    );
+    if (!trailing.length) return page;
+    return (
+      <Toolbar modifiers={[navigationTitle(title)]}>
+        {page}
+        <Toolbar.Content>{trailing}</Toolbar.Content>
+      </Toolbar>
+    );
+  }
   return (
     <VStack spacing={spacing} modifiers={[...sheetPageBaseModifiers, ...modifiers]}>
       <SheetHeader
@@ -68,7 +121,23 @@ export function IosSheetPage({
 }
 
 export function IosSheetForm({ children, modifiers = [] }: IosSheetFormProps) {
-  return <Form modifiers={[...sheetFormBaseModifiers, ...modifiers]}>{children}</Form>;
+  const chrome = useIosPageChrome();
+  const clearance = chrome.kind === 'navigation' ? chrome.bottomClearance ?? 0 : 0;
+  return (
+    <Form modifiers={[...sheetFormBaseModifiers, ...modifiers]}>
+      {children}
+      {clearance > 0 ? <IosTabBarClearance height={clearance} /> : null}
+    </Form>
+  );
+}
+
+/** 表单末尾的透明占位行:内容可以滚到悬浮标签栏之上。 */
+export function IosTabBarClearance({ height }: { height: number }) {
+  return (
+    <Section>
+      <Spacer modifiers={[frame({ height }), listRowBackground('clear')]} />
+    </Section>
+  );
 }
 
 export function IosSheetScaffold({

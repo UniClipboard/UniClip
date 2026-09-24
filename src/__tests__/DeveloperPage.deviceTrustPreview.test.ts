@@ -17,9 +17,9 @@ describe('iOS device trust preview entry', () => {
     expect(settingsRoot).toContain('isDeviceTrustPreviewAvailable()');
     expect(settingsRoot).toContain("onNavigate('developer')");
     expect(settingsTypes).toContain("| 'developer'");
-    expect(settingsScreen).toContain("activePage === 'developer'");
+    expect(settingsScreen).toContain('<NavigationDestination value="developer">');
     const developerPage = settingsScreen.match(/<DeveloperPage\b[\s\S]*?\/>/)?.[0];
-    expect(developerPage).toContain('onBack={backToRoot}');
+    expect(developerPage).toContain('onBack={back}');
     expect(developerPage).toContain('onOpenPreview={openPreview}');
   });
 
@@ -39,11 +39,9 @@ describe('iOS device trust preview entry', () => {
     expect(developerPage).not.toContain('Modal');
 
     expect(settingsScreen).toContain('canOpenDeviceTrustPreview()');
-    expect(settingsScreen).toContain('pendingDeviceTrustPreview.current = scenarioId');
-    expect(settingsScreen).toContain('openDeviceTrustPreview(pendingPreview)');
-    expect(settingsScreen).toContain('setPresented(false)');
+    // Settings is a tab page now: no sheet to dismiss before the preview sheet presents
+    expect(settingsScreen).toContain('openDeviceTrustPreview(scenarioId)');
     expect(settingsScreen).toContain('onOpenPreview={openPreview}');
-    expect(settingsScreen).toContain('onDismiss={handleSheetDismiss}');
     expect(appNavigator).not.toContain('openPendingDeviceTrustPreview');
   });
 });

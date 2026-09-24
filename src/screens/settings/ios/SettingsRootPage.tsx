@@ -89,14 +89,6 @@ export function SettingsRootPage({
           header={<SwiftUIText>{t('category.sync')}</SwiftUIText>}
           footer={<SwiftUIText>{t('ios.sync.footer')}</SwiftUIText>}
         >
-          <SettingsNavRow
-            testID="settings-syncChannel"
-            icon="network"
-            iconColor={settingsTileColors.blue}
-            title={t('syncChannel.title')}
-            value={t(config.syncChannel === 'p2p' ? 'syncChannel.p2p' : 'syncChannel.lan')}
-            onPress={() => onNavigate('syncChannel')}
-          />
           <IconToggleRow
             icon="arrow.down.doc"
             iconColor={settingsTileColors.green}

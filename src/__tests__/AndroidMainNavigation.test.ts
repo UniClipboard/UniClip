@@ -24,10 +24,9 @@ describe('Android top-level navigation', () => {
     );
     expect(android).toContain("tabBarPosition: useRail ? 'left' : 'bottom'");
 
-    // iOS keeps Home as the whole main screen and presents Settings from it
-    expect(ios).toContain('<HomeView onOpenSettings={openSettings} onOpenAbout={openAbout} />');
-    expect(ios).toContain("navigation.navigate('Settings')");
-    expect(ios).not.toContain('createBottomTabNavigator');
+    // iOS uses the same destinations with its own Liquid Glass tab bar
+    expect(ios).toContain('<MainTabBar');
+    expect(ios).not.toContain('MainNavigationBar');
   });
 
   it('renders a floating navigation pill on phones and a navigation rail on tablets', () => {

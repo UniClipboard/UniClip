@@ -154,7 +154,8 @@ describe('custom relay settings', () => {
   it('places the relay settings between space devices and switching spaces on both platforms', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
     const androidSettings = source('screens/settings/android/SpaceSettingsSection.tsx');
-    const ios = source('screens/settings/ios/SpacePage.tsx');
+    const iosDevices = source('screens/ios/devices/DevicesRootPage.tsx');
+    const ios = source('screens/ios/devices/SpaceSettingsPage.tsx');
 
     // Android:设备页只列设备,中继与切换空间在「空间设置」二级页
     expect(android.indexOf('space.devices.otherTitle')).toBeLessThan(
@@ -165,7 +166,10 @@ describe('custom relay settings', () => {
     expect(androidSettings.indexOf('<CustomRelaySection />')).toBeLessThan(
       androidSettings.indexOf('<SwitchSpaceRow')
     );
-    expect(ios.indexOf('space.devices.title')).toBeLessThan(ios.indexOf('<CustomRelaySection />'));
+    // iOS 同构:设备页只放「空间设置」入口,中继在切换空间之前
+    expect(iosDevices).not.toContain('<CustomRelaySection />');
+    expect(iosDevices).toContain("t('space.settings.title')");
+    expect(ios.indexOf('<CustomRelaySection />')).toBeGreaterThan(-1);
     expect(ios.indexOf('<CustomRelaySection />')).toBeLessThan(ios.indexOf('space.switch.title'));
   });
 

@@ -1,32 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { File } from 'expo-file-system';
-import { Alert, StyleSheet, useWindowDimensions } from 'react-native';
-import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import { StyleSheet } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Host, BottomSheet, Group, VStack, ZStack } from '@expo/ui/swift-ui';
-import { useTranslation } from 'react-i18next';
-import {
-  presentationDetents,
-  presentationDragIndicator,
-  frame,
-  tint,
-  offset,
-  animation,
-  Animation,
-} from '@expo/ui/swift-ui/modifiers';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Host, NavigationDestination, NavigationStack, ZStack } from '@expo/ui/swift-ui';
+import { frame, tint } from '@expo/ui/swift-ui/modifiers';
 
 import { iosAccentColor } from '@/theme/iosDesignTokens';
 import { ShareSendSheet } from '@/components/ShareSendSheet';
+import { mainTabBarClearance } from '@/components/ios/MainTabBar';
+import { IosPageChromeProvider } from '@/components/ui';
 import { deleteDiagnosticArchive, type DiagnosticArtifact } from '@/support/diagnostics';
 import type { PendingShareJob } from '@/features/transfer';
 import { useSettingsStore } from '@/stores';
 import { AddSyncConnectionSheet } from '@/components/AddSyncConnectionSheet';
-import type {
-  AddSyncConnectionMode,
-  AddSyncConnectionPreviewScenarioId,
-} from '@/components/AddSyncConnectionSheet.types';
-import { SpaceDeviceDetail } from '@/components/SpaceDeviceDetail';
-import { useSpaceDeviceManagement } from '@/components/useSpaceDeviceManagement';
+import type { AddSyncConnectionPreviewScenarioId } from '@/components/AddSyncConnectionSheet.types';
 import type { SettingsPage } from './settings/ios/types';
 import { SettingsRootPage } from './settings/ios/SettingsRootPage';
 import { StoragePage } from './settings/ios/StoragePage';
@@ -34,13 +23,7 @@ import { KeyboardPage } from './settings/ios/KeyboardPage';
 import { SharePage } from './settings/ios/SharePage';
 import { ClipboardAccessPage } from './settings/ios/ClipboardAccessPage';
 import { LogSection } from './settings/LogSection';
-import { SpacePage } from './settings/ios/SpacePage';
 import { DeveloperPage } from './settings/ios/DeveloperPage';
-import { LanServersPage } from './settings/ios/LanServersPage';
-import { LanServerEditorSheet } from './settings/ios/LanServerEditorSheet';
-import { SyncChannelPage } from './settings/ios/SyncChannelPage';
-import { SyncChannelConfirmationSheet } from './settings/SyncChannelConfirmationSheet';
-import { usePendingLanConnectStore, type LanConnectIntent } from '@/features/lan-servers';
 import {
   canOpenDeviceTrustPreview,
   openDeviceTrustPreview,
@@ -49,328 +32,120 @@ import type { DeviceTrustPreviewScenarioId } from '@/devtools/deviceTrustPreview
 import type { RootStackParamList } from '@/navigation/AppNavigator';
 
 const fillModifier = frame({ maxWidth: Infinity, maxHeight: Infinity });
-const PUSH_SPRING = Animation.spring({ response: 0.38, dampingFraction: 0.92 });
-const PAGE_TRANSITION_DURATION_MS = 400;
-
-type SettingsSubPage = Exclude<SettingsPage, 'root'>;
-
-function SettingsSubPageOverlay({
-  isLeaving,
-  onExited,
-  children,
-}: {
-  isLeaving: boolean;
-  onExited: () => void;
-  children: React.ReactNode;
-}) {
-  const { width } = useWindowDimensions();
-  const [isPresented, setIsPresented] = useState(false);
-
-  useEffect(() => {
-    const frameId = requestAnimationFrame(() => setIsPresented(!isLeaving));
-    return () => cancelAnimationFrame(frameId);
-  }, [isLeaving]);
-
-  useEffect(() => {
-    if (!isLeaving) return;
-    const timeoutId = setTimeout(onExited, PAGE_TRANSITION_DURATION_MS);
-    return () => clearTimeout(timeoutId);
-  }, [isLeaving, onExited]);
-
-  return (
-    <VStack
-      modifiers={[
-        fillModifier,
-        offset({ x: isPresented ? 0 : width }),
-        animation(PUSH_SPRING, isPresented),
-      ]}
-    >
-      {children}
-    </VStack>
-  );
-}
 
 /**
- * iOS settings sheet. The root Form stays stationary behind at most one active
- * sub-page, preserving its scroll position when the user goes back.
+ * iOS「设置」标签页。全屏 Host 内是 SwiftUI NavigationStack:根页为大标题设置总览,
+ * 子页原生推入 / 侧滑返回。诊断包分享、连接页预览等 sheet 作为导航栈的兄弟节点,
+ * 由本页这个稳定宿主持有。同步通道与空间管理在「设备」标签页。
  */
 export const SettingsScreen = () => {
-  const { t } = useTranslation('settingsSync');
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'Settings'>>();
-  const route = useRoute<RouteProp<RootStackParamList, 'Settings'>>();
-  const notificationRouteHandled = useRef<number | null>(null);
-  const pendingDeviceTrustPreview = useRef<DeviceTrustPreviewScenarioId | null>(null);
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const insets = useSafeAreaInsets();
   const { config, isLoaded, loadConfig } = useSettingsStore();
-
-  const [presented, setPresented] = useState(true);
+  const [path, setPath] = useState<string[]>([]);
   const [diagnosticArchive, setDiagnosticArchive] = useState<DiagnosticArtifact | null>(null);
+  const [connectionPreviewScenario, setConnectionPreviewScenario] =
+    useState<AddSyncConnectionPreviewScenarioId | null>(null);
   const diagnosticJobs = useMemo<PendingShareJob[] | undefined>(
-    () => diagnosticArchive ? [{
-      id: diagnosticArchive.uri,
-      kind: 'file',
-      displayName: diagnosticArchive.fileName,
-      fileUri: diagnosticArchive.uri,
-      byteCount: new File(diagnosticArchive.uri).size,
-      mimeType: 'application/zip',
-      createdAtMs: Date.now(),
-    }] : undefined,
+    () =>
+      diagnosticArchive
+        ? [
+            {
+              id: diagnosticArchive.uri,
+              kind: 'file',
+              displayName: diagnosticArchive.fileName,
+              fileUri: diagnosticArchive.uri,
+              byteCount: new File(diagnosticArchive.uri).size,
+              mimeType: 'application/zip',
+              createdAtMs: Date.now(),
+            },
+          ]
+        : undefined,
     [diagnosticArchive]
   );
+
   useEffect(() => {
     return () => {
       if (diagnosticArchive) deleteDiagnosticArchive(diagnosticArchive.uri);
     };
   }, [diagnosticArchive]);
-  const [pageStack, setPageStack] = useState<SettingsSubPage[]>([]);
-  const activePage = pageStack[pageStack.length - 1] ?? null;
-  const [isLeavingPage, setIsLeavingPage] = useState(false);
-  const [showSyncChannelConfirmation, setShowSyncChannelConfirmation] = useState(false);
-  const [isConfirmingP2p, setIsConfirmingP2p] = useState(false);
-  const [spaceSetupMode, setSpaceSetupMode] = useState<AddSyncConnectionMode | null>(null);
-  const [spaceSetupPreviewScenario, setSpaceSetupPreviewScenario] =
-    useState<AddSyncConnectionPreviewScenarioId | null>(null);
-  const [editingLanServerId, setEditingLanServerId] = useState<string | 'new' | null>(null);
-  const [lanServerIntent, setLanServerIntent] = useState<LanConnectIntent | null>(null);
-  const pendingLanIntent = usePendingLanConnectStore((state) => state.intent);
-  const consumePendingLanIntent = usePendingLanConnectStore((state) => state.consume);
-  const deviceManagement = useSpaceDeviceManagement({ allowHighImpactActions: true });
 
   useEffect(() => {
     if (!isLoaded) loadConfig();
   }, [isLoaded, loadConfig]);
 
-  useEffect(() => {
-    const requestId = route.params?.notificationNavigationRequestId;
-    if (
-      requestId == null ||
-      notificationRouteHandled.current === requestId ||
-      route.params?.section !== 'space'
-    )
-      return;
-    notificationRouteHandled.current = requestId;
-    setPageStack(['space']);
-    setIsLeavingPage(false);
-  }, [route.params?.notificationNavigationRequestId, route.params?.section]);
-
-  useEffect(() => {
-    if (route.params?.section !== 'lanServers') return;
-    setPageStack(['lanServers']);
-    setIsLeavingPage(false);
-  }, [route.params?.section]);
-
-  useEffect(() => {
-    if (!pendingLanIntent) return;
-    const intent = consumePendingLanIntent();
-    if (!intent) return;
-    setPageStack(['lanServers']);
-    setIsLeavingPage(false);
-    setLanServerIntent(intent);
-    setEditingLanServerId('new');
-  }, [consumePendingLanIntent, pendingLanIntent]);
-
-  const handlePresentedChange = useCallback((isPresented: boolean) => {
-    setPresented(isPresented);
-  }, []);
-
-  const handleSheetDismiss = useCallback(() => {
-    const pendingPreview = pendingDeviceTrustPreview.current;
-    pendingDeviceTrustPreview.current = null;
-    deviceManagement.closeDevice();
-    if (pendingPreview) openDeviceTrustPreview(pendingPreview);
-    navigation.goBack();
-  }, [deviceManagement.closeDevice, navigation]);
-
   const openSubPage = useCallback((page: SettingsPage) => {
     if (page === 'root') return;
-    setPageStack((current) => [...current, page]);
-    setIsLeavingPage(false);
+    setPath((current) => [...current, page]);
   }, []);
-
-  const backToRoot = useCallback(() => {
-    deviceManagement.closeDevice();
-    setSpaceSetupMode(null);
-    setSpaceSetupPreviewScenario(null);
-    setEditingLanServerId(null);
-    setLanServerIntent(null);
-    setShowSyncChannelConfirmation(false);
-    setIsLeavingPage(true);
-  }, [deviceManagement.closeDevice]);
-
-  const backToPreviousPage = useCallback(() => {
-    deviceManagement.closeDevice();
-    setSpaceSetupMode(null);
-    setSpaceSetupPreviewScenario(null);
-    setEditingLanServerId(null);
-    setLanServerIntent(null);
-    setShowSyncChannelConfirmation(false);
-    if (pageStack.length > 1) {
-      setPageStack((current) => current.slice(0, -1));
-      return;
-    }
-    setIsLeavingPage(true);
-  }, [deviceManagement.closeDevice, pageStack.length]);
-
-  const confirmP2pSyncChannel = useCallback(async () => {
-    setIsConfirmingP2p(true);
-    const result = await useSettingsStore.getState().updateConfig({ syncChannel: 'p2p' });
-    setIsConfirmingP2p(false);
-    if (result.ok) {
-      setShowSyncChannelConfirmation(false);
-    } else {
-      Alert.alert(t('syncChannel.title'), t('syncChannel.updateFailed'));
-    }
-  }, [t]);
-
-  const removeSubPage = useCallback(() => setPageStack([]), []);
+  const back = useCallback(() => setPath((current) => current.slice(0, -1)), []);
 
   const openPreview = useCallback((scenarioId: DeviceTrustPreviewScenarioId) => {
     if (!canOpenDeviceTrustPreview()) return false;
-    pendingDeviceTrustPreview.current = scenarioId;
-    setPresented(false);
+    openDeviceTrustPreview(scenarioId);
     return true;
   }, []);
 
   if (!isLoaded || !config) return null;
 
   return (
-    <Host style={styles.hostAnchor}>
-      <BottomSheet
-        isPresented={presented}
-        onIsPresentedChange={handlePresentedChange}
-        onDismiss={handleSheetDismiss}
+    <Host style={styles.host}>
+      <IosPageChromeProvider
+        value={{ kind: 'navigation', bottomClearance: mainTabBarClearance(insets.bottom) - insets.bottom }}
       >
-        <Group modifiers={[presentationDetents(['large']), presentationDragIndicator('visible')]}>
-          <VStack modifiers={[fillModifier, ...(iosAccentColor ? [tint(iosAccentColor)] : [])]}>
-            <ZStack modifiers={[fillModifier]}>
-              <SettingsRootPage onNavigate={openSubPage} />
-              {activePage ? (
-                <SettingsSubPageOverlay isLeaving={isLeavingPage} onExited={removeSubPage}>
-                  {activePage === 'syncChannel' ? (
-                    <SyncChannelPage
-                      onBack={backToRoot}
-                      onAddLanServer={() => {
-                        setLanServerIntent(null);
-                        setEditingLanServerId('new');
-                      }}
-                      onEditLanServer={(serverId) => {
-                        setLanServerIntent(null);
-                        setEditingLanServerId(serverId);
-                      }}
-                      onOpenInvitation={() => setSpaceSetupMode('invite')}
-                      onOpenSetup={setSpaceSetupMode}
-                      onRequestP2pConfirmation={() => setShowSyncChannelConfirmation(true)}
-                      deviceManagement={deviceManagement}
-                    />
-                  ) : null}
-                  {activePage === 'space' ? (
-                    <SpacePage
-                      initialDeviceId={route.params?.deviceId}
-                      notificationNavigationRequestId={
-                        route.params?.notificationNavigationRequestId
-                      }
-                      onBack={backToPreviousPage}
-                      onOpenInvitation={() => setSpaceSetupMode('invite')}
-                      onOpenSetup={setSpaceSetupMode}
-                      deviceManagement={deviceManagement}
-                    />
-                  ) : null}
-                  {activePage === 'storage' ? <StoragePage onBack={backToRoot} /> : null}
-                  {activePage === 'lanServers' ? (
-                    <LanServersPage
-                      onBack={backToPreviousPage}
-                      onAdd={() => {
-                        setLanServerIntent(null);
-                        setEditingLanServerId('new');
-                      }}
-                      onEdit={(serverId) => {
-                        setLanServerIntent(null);
-                        setEditingLanServerId(serverId);
-                      }}
-                    />
-                  ) : null}
-                  {activePage === 'keyboard' ? <KeyboardPage onBack={backToRoot} /> : null}
-                  {activePage === 'share' ? <SharePage onBack={backToRoot} /> : null}
-                  {activePage === 'clipboard' ? <ClipboardAccessPage onBack={backToRoot} /> : null}
-                  {activePage === 'diagnostics' ? (
-                    <LogSection onBack={backToRoot} onSendArchive={setDiagnosticArchive} />
-                  ) : null}
-                  {activePage === 'developer' ? (
-                    <DeveloperPage
-                      onBack={backToRoot}
-                      onOpenPreview={openPreview}
-                      onOpenConnectionSheetPreview={setSpaceSetupPreviewScenario}
-                      onOpenOnboardingPreview={() => navigation.navigate('OnboardingPreview')}
-                      onOpenConnectionPreview={() => navigation.navigate('ConnectionPreview')}
-                    />
-                  ) : null}
-                </SettingsSubPageOverlay>
-              ) : null}
-              <ShareSendSheet
-                visible={diagnosticArchive !== null}
-                jobs={diagnosticJobs}
-                embeddedInHost
-                onClose={() => setDiagnosticArchive(null)}
+        <ZStack modifiers={[fillModifier, ...(iosAccentColor ? [tint(iosAccentColor)] : [])]}>
+          <NavigationStack path={path} onPathChange={setPath}>
+            <SettingsRootPage onNavigate={openSubPage} />
+            <NavigationDestination value="storage">
+              <StoragePage onBack={back} />
+            </NavigationDestination>
+            <NavigationDestination value="keyboard">
+              <KeyboardPage onBack={back} />
+            </NavigationDestination>
+            <NavigationDestination value="share">
+              <SharePage onBack={back} />
+            </NavigationDestination>
+            <NavigationDestination value="clipboard">
+              <ClipboardAccessPage onBack={back} />
+            </NavigationDestination>
+            <NavigationDestination value="diagnostics">
+              <LogSection onBack={back} onSendArchive={setDiagnosticArchive} />
+            </NavigationDestination>
+            <NavigationDestination value="developer">
+              <DeveloperPage
+                onBack={back}
+                onOpenPreview={openPreview}
+                onOpenConnectionSheetPreview={setConnectionPreviewScenario}
+                onOpenOnboardingPreview={() => navigation.navigate('OnboardingPreview')}
+                onOpenConnectionPreview={() => navigation.navigate('ConnectionPreview')}
               />
-              <SpaceDeviceDetail
-                device={deviceManagement.selectedDevice}
-                canRemove={deviceManagement.canRemoveSelected}
-                confirmingRemoval={deviceManagement.confirmingRemoval}
-                removing={deviceManagement.removing}
-                removeErrorMessage={
-                  deviceManagement.removeError ? t('space.error.operationFailed') : null
-                }
-                onClose={deviceManagement.closeDevice}
-                onRequestRemove={deviceManagement.requestRemove}
-                onCancelRemove={deviceManagement.cancelRemove}
-                onConfirmRemove={() => void deviceManagement.confirmRemove()}
-              />
-              <AddSyncConnectionSheet
-                visible={spaceSetupMode !== null || spaceSetupPreviewScenario !== null}
-                initialMode={spaceSetupMode ?? 'choose'}
-                previewScenario={spaceSetupPreviewScenario ?? undefined}
-                embeddedInHost
-                persistentPresentation
-                onClose={() => {
-                  setSpaceSetupMode(null);
-                  setSpaceSetupPreviewScenario(null);
-                }}
-                onConnected={() => {
-                  setSpaceSetupMode(null);
-                  setSpaceSetupPreviewScenario(null);
-                  return true;
-                }}
-              />
-              <LanServerEditorSheet
-                visible={editingLanServerId !== null}
-                serverId={
-                  editingLanServerId && editingLanServerId !== 'new' ? editingLanServerId : null
-                }
-                initialIntent={lanServerIntent}
-                onClose={() => {
-                  setEditingLanServerId(null);
-                  setLanServerIntent(null);
-                }}
-              />
-              <SyncChannelConfirmationSheet
-                visible={showSyncChannelConfirmation}
-                isConfirming={isConfirmingP2p}
-                onDismiss={() => setShowSyncChannelConfirmation(false)}
-                onConfirm={confirmP2pSyncChannel}
-              />
-            </ZStack>
-          </VStack>
-        </Group>
-      </BottomSheet>
+            </NavigationDestination>
+          </NavigationStack>
+
+          <ShareSendSheet
+            visible={diagnosticArchive !== null}
+            jobs={diagnosticJobs}
+            embeddedInHost
+            onClose={() => setDiagnosticArchive(null)}
+          />
+          <AddSyncConnectionSheet
+            visible={connectionPreviewScenario !== null}
+            initialMode="choose"
+            previewScenario={connectionPreviewScenario ?? undefined}
+            embeddedInHost
+            persistentPresentation
+            onClose={() => setConnectionPreviewScenario(null)}
+            onConnected={() => {
+              setConnectionPreviewScenario(null);
+              return true;
+            }}
+          />
+        </ZStack>
+      </IosPageChromeProvider>
     </Host>
   );
 };
 
 const styles = StyleSheet.create({
-  hostAnchor: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    width: 1,
-    height: 1,
-  },
+  host: { flex: 1 },
 });

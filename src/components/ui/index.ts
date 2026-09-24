@@ -52,9 +52,17 @@ export type { GlassContainerProps, GlassShape } from './GlassContainer';
 export { SheetHeader } from './SheetHeader';
 export type { SheetHeaderProps } from './SheetHeader';
 
-export { IosSheetPage, IosSheetForm, IosSheetScaffold } from './IosSheetPage';
+export {
+  IosSheetPage,
+  IosSheetForm,
+  IosSheetScaffold,
+  IosPageChromeProvider,
+  IosTabBarClearance,
+  useIosPageChrome,
+} from './IosSheetPage';
 export type {
   IosSheetPageProps,
   IosSheetFormProps,
   IosSheetScaffoldProps,
+  IosPageChrome,
 } from './IosSheetPage';

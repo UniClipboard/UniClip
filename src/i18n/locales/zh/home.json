@@ -46,6 +46,7 @@
   },
   "a11y": {
     "addContent": "添加内容",
+    "more": "更多",
     "closeMenu": "关闭菜单",
     "closeCamera": "关闭相机",
     "switchCamera": "切换前后摄像头",

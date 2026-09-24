@@ -1,52 +1,90 @@
-import React from 'react';
-import { KeyboardAvoidingView, View, Keyboard, useWindowDimensions } from 'react-native';
-import { Host, Menu, Button } from '@expo/ui/swift-ui';
-import { Ellipsis, ListFilter } from 'lucide-react-native';
-import { GlassContainer } from '@/components/ui';
-import {
-  getHistoryFilterDateOptions,
-  HISTORY_FILTER_KIND_OPTIONS,
-} from '@/utils/historyFilterOptions';
-import { getDisplayKindLabel } from '@/utils/displayKind';
-import { SelectModeTopBar } from '@/components/HomeTopBar';
-import { HomeSearchDock } from './ios/HomeSearchDock';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { KeyboardAvoidingView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { DefaultTopBar, SelectModeTopBar } from '@/components/HomeTopBar';
+import { mainTabBarClearance } from '@/components/ios/MainTabBar';
 import { iosColors } from '@/theme/iosDesignTokens';
 import { useHomeController } from './useHomeController';
 import { getLayoutMode } from '@/hooks/useLayoutMode';
 import { HomeCompactView } from './HomeCompactView';
 import { HomeExpandedView } from './HomeExpandedView';
+import { HomeSearchDock } from './ios/HomeSearchDock';
+import { HomeLargeTitle, HOME_LARGE_TITLE_HEIGHT } from './ios/HomeLargeTitle';
+import type { HomeSearchSlots } from './HomeSearchSlots.types';
 import type { HomeViewProps } from './HomeView.types';
+
+/** 顶栏按钮行高度(玻璃胶囊 44pt) */
+const TOP_BAR_ROW_HEIGHT = 44;
 
 /**
  * iOS 首页。两级布局:
  * - compact  : iPhone(含横屏)/ iPad 分屏 —— 单栏(HomeCompactView)。
  * - expanded : iPad 全屏 / 大屏 —— 方案 B 三栏工作台 · inset(HomeExpandedView)。
  *
+ * 单栏:右上是 Liquid Glass 按钮组(「+」添加菜单、「⋯」选择 / 显示方式),其下是随内容滚动的
+ * 大标题;搜索入口是标签栏的搜索圆钮(`searchRequestId`),搜索 / 多选时收起标签栏。
+ *
  * iOS 的 gutter/pane 底色走系统分组背景:gutter=systemGroupedBackground、
  * 浮起面板=secondarySystemGroupedBackground(网格区同为该面板色,中间区域是一个整体白面板)。
- * 双栏里的卡片取第三层的 tertiarySystemGroupedBackground(见 HomeMasterGrid),
- * 是系统为「嵌在 secondary 面板里的内容块」设计的层级色,明暗两主题都与面板有和谐对比。
  */
-export function HomeView({ onOpenSettings }: HomeViewProps) {
+export function HomeView({ onOpenSettings, onImmersiveModeChange, searchRequestId = 0 }: HomeViewProps) {
   const c = useHomeController(onOpenSettings);
   const { width: screenWidth } = useWindowDimensions();
   const mode = getLayoutMode(screenWidth);
+  const immersive = c.isSearching || c.isSelectMode;
+  const handledSearchRequest = useRef(searchRequestId);
+  const { openSearch } = c;
+
+  useEffect(() => {
+    onImmersiveModeChange?.(immersive);
+  }, [immersive, onImmersiveModeChange]);
+  useEffect(() => () => onImmersiveModeChange?.(false), [onImmersiveModeChange]);
+
+  // 标签栏搜索圆钮:每次按下进入搜索(挂载时的初值不算一次请求)
+  useEffect(() => {
+    if (searchRequestId === handledSearchRequest.current) return;
+    handledSearchRequest.current = searchRequestId;
+    openSearch();
+  }, [searchRequestId, openSearch]);
+
+  const addActions = useMemo(
+    () => ({
+      onTakePhoto: c.handleTakePhoto,
+      onPickImage: c.handleUploadImage,
+      onPickFile: c.handleUploadFile,
+      onUploadClipboard: c.handleUpload,
+      onSync: c.handleSyncHistory,
+    }),
+    [c.handleTakePhoto, c.handleUploadImage, c.handleUploadFile, c.handleUpload, c.handleSyncHistory]
+  );
+
+  const search: HomeSearchSlots | undefined = c.isSearching
+    ? undefined
+    : {
+        gridHeader: {
+          height: HOME_LARGE_TITLE_HEIGHT,
+          node: (
+            <HomeLargeTitle title={c.t('nav.clipboard')} horizontalInset={20} />
+          ),
+        },
+      };
 
   if (mode === 'compact') {
     return (
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+      <KeyboardAvoidingView style={styles.fill} behavior="padding">
         <HomeCompactView
           c={c}
           screenWidth={screenWidth}
           refreshTintColor={undefined}
-          overlayTopBarHeight={c.insets.top + 56}
+          overlayTopBarHeight={c.insets.top + TOP_BAR_ROW_HEIGHT}
+          gridBottomPadding={mainTabBarClearance(c.insets.bottom)}
+          showAddActionsFab={false}
+          search={search}
           topBar={
             <View
-              style={{
-                paddingTop: c.insets.top + 4,
-                paddingHorizontal: 16,
-                minHeight: c.insets.top + 56,
-              }}
+              style={[
+                styles.topBar,
+                { paddingTop: c.insets.top, height: c.insets.top + TOP_BAR_ROW_HEIGHT },
+              ]}
             >
               {c.isSelectMode ? (
                 <SelectModeTopBar
@@ -56,136 +94,30 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
                   onDone={c.exitSelectMode}
                   theme={c.theme}
                 />
-              ) : (
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'flex-end',
-                    gap: 8,
+              ) : c.isSearching ? null : (
+                <DefaultTopBar
+                  onSearch={c.openSearch}
+                  onSettings={c.onOpenSettings}
+                  onSelectMode={() => {
+                    c.setIsSelectMode(true);
+                    c.clearSelection();
                   }}
-                >
-                  <Host style={{ width: 44, height: 44 }}>
-                    <Menu
-                      testID="history-filter-menu"
-                      label={
-                        <GlassContainer
-                          shape="circle"
-                          interactive
-                          style={{
-                            width: 44,
-                            height: 44,
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                          }}
-                        >
-                          <ListFilter size={22} color={c.theme.colors.textPrimary} />
-                          {c.hasActiveFilters ? (
-                            <View
-                              style={{
-                                position: 'absolute',
-                                right: 6,
-                                top: 6,
-                                width: 6,
-                                height: 6,
-                                borderRadius: 3,
-                                backgroundColor: c.theme.colors.accent,
-                              }}
-                            />
-                          ) : null}
-                        </GlassContainer>
-                      }
-                    >
-                      <Menu testID="history-filter-types" label={c.t('filter.section.kind', { ns: 'history' })}>
-                        <Button
-                          testID="history-filter-all"
-                          label={c.t('search.allTypes')}
-                          systemImage={c.selectedFilterKinds.length === 0 ? 'checkmark' : undefined}
-                          onPress={c.handleClearFilterKinds}
-                        />
-                        {HISTORY_FILTER_KIND_OPTIONS.map((kind) => (
-                          <Button
-                            key={kind}
-                            testID={`history-filter-${kind}`}
-                            label={getDisplayKindLabel(kind)}
-                            systemImage={
-                              c.selectedFilterKinds.includes(kind) ? 'checkmark' : undefined
-                            }
-                            onPress={() => {
-                              Keyboard.dismiss();
-                              if (!c.selectedFilterKinds.includes(kind))
-                                c.handleToggleFilterKind(kind);
-                            }}
-                          />
-                        ))}
-                      </Menu>
-                      <Menu label={c.t('filter.section.date', { ns: 'history' })}>
-                        {getHistoryFilterDateOptions().map((option) => (
-                          <Button
-                            key={option.value}
-                            label={option.label}
-                            systemImage={
-                              c.selectedDateFilter === option.value ? 'checkmark' : undefined
-                            }
-                            onPress={() => {
-                              Keyboard.dismiss();
-                              c.setSelectedDateFilter(option.value);
-                            }}
-                          />
-                        ))}
-                      </Menu>
-                      <Button
-                        label={c.t('search.clearFilters')}
-                        systemImage="arrow.counterclockwise"
-                        onPress={c.handleClearFilters}
-                      />
-                    </Menu>
-                  </Host>
-                  <Host style={{ width: 44, height: 44, alignSelf: 'flex-end' }}>
-                    <Menu
-                      testID="home-menu"
-                      label={
-                        <GlassContainer
-                          shape="circle"
-                          interactive
-                          style={{
-                            width: 44,
-                            height: 44,
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                          }}
-                        >
-                          <Ellipsis size={22} color={c.theme.colors.textPrimary} />
-                        </GlassContainer>
-                      }
-                    >
-                      <Button
-                        label={c.t('action.select', { ns: 'common' })}
-                        systemImage="checkmark.circle"
-                        onPress={() => {
-                          c.setIsSelectMode(true);
-                          c.clearSelection();
-                        }}
-                      />
-                      <Button
-                        label={c.t('action.settings', { ns: 'common' })}
-                        systemImage="gearshape"
-                        onPress={c.onOpenSettings}
-                      />
-                    </Menu>
-                  </Host>
-                </View>
+                  historyLayout={c.historyLayout}
+                  onHistoryLayoutChange={c.setHistoryLayout}
+                  addActions={addActions}
+                  theme={c.theme}
+                />
               )}
             </View>
           }
-          bottomSearch={<HomeSearchDock c={c} />}
+          bottomSearch={c.isSearching ? <HomeSearchDock c={c} /> : null}
         />
       </KeyboardAvoidingView>
     );
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+    <KeyboardAvoidingView style={styles.fill} behavior="padding">
       <HomeExpandedView
         c={c}
         screenWidth={screenWidth}
@@ -196,3 +128,8 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
     </KeyboardAvoidingView>
   );
 }
+
+const styles = StyleSheet.create({
+  fill: { flex: 1 },
+  topBar: { paddingHorizontal: 16 },
+});

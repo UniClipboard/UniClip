@@ -1,7 +1,7 @@
 import { navigateWhenReady } from './navigationRef';
 import type { SpaceDeviceTarget } from './AppNavigator.types';
 
-/** iOS: the space page is presented from Settings. */
+/** iOS: space devices live in the top-level Devices tab. */
 export function openSpaceDevices(target: SpaceDeviceTarget): void {
-  navigateWhenReady('Settings', { section: 'space', ...target });
+  navigateWhenReady('Main', { screen: 'Devices', params: target });
 }

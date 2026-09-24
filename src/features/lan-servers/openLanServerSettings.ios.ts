@@ -1,5 +1,6 @@
 import { navigateWhenReady } from '@/navigation/navigationRef';
 
+/** iOS: LAN servers live in the Devices tab (Standard sync). */
 export function openLanServerSettings(): void {
-  navigateWhenReady('Settings', { section: 'lanServers' });
+  navigateWhenReady('Main', { screen: 'Devices' });
 }

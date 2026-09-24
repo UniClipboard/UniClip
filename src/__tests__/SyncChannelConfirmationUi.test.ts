@@ -7,14 +7,14 @@ const read = (relativePath: string) =>
 
 describe('device direct sync confirmation', () => {
   it('does not persist p2p until the iOS confirmation action is pressed', () => {
-    const page = read('screens/settings/ios/SyncChannelPage.tsx');
-    const owner = read('screens/SettingsScreen.ios.tsx');
+    const page = read('screens/ios/devices/DevicesRootPage.tsx');
+    const owner = read('screens/ios/DevicesScreen.tsx');
     const sheet = read('screens/settings/SyncChannelConfirmationSheet.ios.tsx');
 
     expect(page).toContain('onRequestP2pConfirmation');
-    expect(page).not.toContain("handleSyncChannel('p2p')");
+    expect(page).not.toContain("updateConfig({ syncChannel: 'p2p' })");
     expect(page).not.toContain('<BottomSheet');
-    expect(owner).toContain('showSyncChannelConfirmation');
+    expect(owner).toContain('showP2pConfirmation');
     expect(owner).toContain('<SyncChannelConfirmationSheet');
     expect(owner).toContain('onConfirm={confirmP2pSyncChannel}');
     expect(sheet).not.toContain('<SettingsIconTile');

@@ -50,20 +50,21 @@ describe('LAN server UI ownership', () => {
     const ios = source('src/features/lan-servers/openLanServerSettings.ios.ts');
 
     expect(android).toContain("navigateWhenReady('SettingsSub', { section: 'lanServers' })");
-    expect(ios).toContain("navigateWhenReady('Settings', { section: 'lanServers' })");
+    expect(ios).toContain("navigateWhenReady('Main', { screen: 'Devices' })");
   });
 
-  it('renders the iOS editor from the stable Settings owner', () => {
-    const settings = source('src/screens/SettingsScreen.ios.tsx');
-    const page = source('src/screens/settings/ios/LanServersPage.tsx');
+  it('renders the iOS editor from the stable Devices owner', () => {
+    const settings = source('src/screens/ios/DevicesScreen.tsx');
+    const page = source('src/screens/ios/devices/DevicesRootPage.tsx');
     const editor = source('src/screens/settings/ios/LanServerEditorSheet.tsx');
 
-    expect(settings).toContain('<LanServersPage');
+    expect(settings).toContain('<DevicesRootPage');
     expect(settings).toContain('<LanServerEditorSheet');
     expect(settings.indexOf('<LanServerEditorSheet')).toBeGreaterThan(
-      settings.indexOf('</SettingsSubPageOverlay>')
+      settings.indexOf('</NavigationStack>')
     );
-    expect(page).toContain('SettingsNavRow');
+    expect(settings).toContain('consumePendingLanIntent()');
+    expect(page).toContain('function LanServersContent');
     expect(page).not.toContain('LanServerEditorSheet');
     expect(editor).toContain('if (value === latestNativeValue.current) return;');
     expect(editor).toContain('onTextChange={handleTextChange}');
@@ -198,10 +199,10 @@ describe('LAN server UI ownership', () => {
   });
 
   it('shows LAN server settings inside the selected sync method pages', () => {
-    const iosPage = source('src/screens/settings/ios/SyncChannelPage.tsx');
+    const iosPage = source('src/screens/ios/devices/DevicesRootPage.tsx');
     const androidPage = source('src/screens/settings/SyncChannelSection.android.tsx');
 
-    expect(iosPage).toContain('<LanServersPage');
+    expect(iosPage).toContain('<LanServersContent');
     expect(androidPage).toContain('<LanServersPage />');
     expect(iosPage).not.toContain("onNavigate('lanServers')");
     expect(androidPage).not.toContain("openSection('lanServers')");
@@ -211,7 +212,7 @@ describe('LAN server UI ownership', () => {
     const androidEditor = source('src/components/LanServerEditorSheet.android.tsx');
     const iosEditor = source('src/screens/settings/ios/LanServerEditorSheet.tsx');
     const androidList = source('src/screens/settings/LanServersPage.android.tsx');
-    const iosList = source('src/screens/settings/ios/LanServersPage.tsx');
+    const iosList = source('src/screens/ios/devices/DevicesRootPage.tsx');
     const editorState = source('src/features/lan-servers/useLanServerEditor.ts');
 
     for (const content of [androidEditor, iosEditor, androidList, iosList, editorState]) {

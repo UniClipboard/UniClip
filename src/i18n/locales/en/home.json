@@ -48,6 +48,7 @@
   },
   "a11y": {
     "addContent": "Add content",
+    "more": "More",
     "closeMenu": "Close menu",
     "closeCamera": "Close camera",
     "switchCamera": "Switch camera",
