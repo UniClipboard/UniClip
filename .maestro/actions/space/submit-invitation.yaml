@@ -1,10 +1,6 @@
 appId: ${APP_ID}
 ---
-- scrollUntilVisible:
-    element:
-      text: "Sync method"
-    direction: UP
-- tapOn: "Sync method"
+- runFlow: ../devices/open.yaml
 - tapOn: "Direct device sync.*"
 - tapOn: "Use direct sync"
 - extendedWaitUntil:

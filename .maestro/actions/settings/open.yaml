@@ -14,7 +14,7 @@ appId: ${APP_ID}
       platform: Android
     commands:
       - tapOn:
-          id: home-settings
+          id: main-tab-Preferences
 - scrollUntilVisible:
     element:
       id: settings-storage

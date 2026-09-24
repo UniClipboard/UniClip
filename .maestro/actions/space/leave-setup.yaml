@@ -21,14 +21,8 @@ appId: ${APP_ID}
       - extendedWaitUntil:
           notVisible: "Close sheet"
           timeout: 15000
-      - repeat:
-          times: 2
-          while:
-            notVisible:
-              id: home-settings
-          commands:
-            - tapOn: "Navigate up|Go back"
-            - waitForAnimationToEnd
+      - tapOn:
+          id: main-tab-Clipboard
 - runFlow:
     when:
       platform: iOS

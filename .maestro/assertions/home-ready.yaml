@@ -3,8 +3,8 @@ appId: ${APP_ID}
 ---
 - extendedWaitUntil:
     visible:
-      # iOS: overflow menu; Android: settings button in the search bar
-      id: "home-(menu|settings)"
+      # iOS: overflow menu; Android: search bar (settings is a bottom navigation tab)
+      id: "home-menu|history-search-open"
     timeout: 90000
 - assertNotVisible:
     id: settings-storage

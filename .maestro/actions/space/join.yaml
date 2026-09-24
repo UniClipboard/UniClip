@@ -18,5 +18,5 @@ appId: ${APP_ID}
     when:
       platform: Android
     commands:
-      - back
-      - back
+      - tapOn:
+          id: main-tab-Clipboard
