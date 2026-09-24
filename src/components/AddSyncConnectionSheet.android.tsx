@@ -31,8 +31,10 @@ import {
   clickable,
   clip,
   Shapes,
+  fillMaxSize,
   fillMaxWidth,
   height as heightModifier,
+  imePadding,
   paddingAll,
   padding,
   size,
@@ -660,6 +662,9 @@ function AddSyncConnectionSheetContent({
   }, [mode]);
 
   const stage = showsJoinStatus ? 'joinStatus' : mode;
+  // Stages with text fields raise the keyboard, so they take the full screen instead of a sheet
+  // that the keyboard would cover.
+  const takesInput = stage === 'create' || stage === 'joinCode' || stage === 'joinDetails';
   const previousStage = useRef(stage);
 
   useEffect(() => {
@@ -677,12 +682,12 @@ function AddSyncConnectionSheetContent({
   if (!visible) return null;
 
   return (
-    <ModalBottomSheet ref={sheetRef} onDismissRequest={close}>
+    <ModalBottomSheet ref={sheetRef} skipPartiallyExpanded onDismissRequest={close}>
       <Column
         modifiers={[
+          ...(takesInput ? [fillMaxSize(), imePadding()] : [fillMaxWidth()]),
           paddingAll(24),
-          fillMaxWidth(),
-          // Every stage wraps their content so actions sit right under it; scroll only when a
+          // Other stages wrap their content so actions sit right under it; scroll only when a
           // stage is taller than the screen allows.
           verticalScroll(),
         ]}

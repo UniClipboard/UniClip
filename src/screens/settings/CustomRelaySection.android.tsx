@@ -13,8 +13,10 @@ import {
 } from '@expo/ui/jetpack-compose';
 import {
   clickable,
+  fillMaxSize,
   fillMaxWidth,
   height as heightModifier,
+  imePadding,
   padding,
   testID,
   width as widthModifier,
@@ -152,8 +154,15 @@ export function CustomRelaySection() {
       </SettingsSectionItem>
 
       {showRelaySettings ? (
-        <ModalBottomSheet onDismissRequest={closeRelaySettings}>
-          <Column modifiers={[fillMaxWidth(), padding(24, 8, 24, 24)]}>
+        <ModalBottomSheet skipPartiallyExpanded onDismissRequest={closeRelaySettings}>
+          <Column
+            modifiers={[
+              // The relay editor raises the keyboard, so it takes the full screen instead of a
+              // sheet that the keyboard would cover.
+              ...(editingUrl !== null ? [fillMaxSize(), imePadding()] : [fillMaxWidth()]),
+              padding(24, 8, 24, 24),
+            ]}
+          >
             <SheetPageTransition
               showSecondPage={editingUrl !== null}
               firstPage={
