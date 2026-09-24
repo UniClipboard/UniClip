@@ -9,6 +9,7 @@ import { HomeCompactView } from './HomeCompactView';
 import { HomeExpandedView } from './HomeExpandedView';
 import { HomeSearchDock } from './ios/HomeSearchDock';
 import { HomeLargeTitle, HOME_LARGE_TITLE_HEIGHT } from './ios/HomeLargeTitle';
+import { getHomeHistoryCollection } from './ios/homeHistoryCollection';
 import type { HomeSearchSlots } from './HomeSearchSlots.types';
 import type { HomeViewProps } from './HomeView.types';
 
@@ -63,8 +64,12 @@ export function HomeView({ onOpenSettings, onImmersiveModeChange, searchRequestI
     : {
         gridHeader: {
           height: HOME_LARGE_TITLE_HEIGHT,
+          // 网格页眉贴在内容容器边缘,列表页眉在 16pt 内容留白之内;标题都与屏幕左缘保持 20pt
           node: (
-            <HomeLargeTitle title={c.t('nav.clipboard')} horizontalInset={20} />
+            <HomeLargeTitle
+              title={c.t('nav.clipboard')}
+              horizontalInset={c.historyLayout === 'grid' ? 20 : 4}
+            />
           ),
         },
       };
@@ -80,6 +85,7 @@ export function HomeView({ onOpenSettings, onImmersiveModeChange, searchRequestI
           gridBottomPadding={mainTabBarClearance(c.insets.bottom)}
           showAddActionsFab={false}
           search={search}
+          renderCollection={getHomeHistoryCollection(c)}
           topBar={
             <View
               style={[
