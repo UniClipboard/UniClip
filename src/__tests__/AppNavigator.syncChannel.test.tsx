@@ -28,6 +28,7 @@ jest.mock('@/navigation/navigationRef', () => ({
 }));
 jest.mock('@/support/observability', () => ({ capturePostHogScreen: jest.fn() }));
 jest.mock('@/screens/HomeView', () => ({ HomeView: () => null }));
+jest.mock('@/navigation/MainScreen', () => ({ MainScreen: () => null }));
 jest.mock('@/screens/OnboardingScreen', () => ({ OnboardingScreen: () => null }));
 jest.mock('@/screens/ConnectionPreviewScreen', () => ({ ConnectionPreviewScreen: () => null }));
 jest.mock('@/screens/SettingsScreen', () => ({ SettingsScreen: () => null }));

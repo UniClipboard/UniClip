@@ -35,6 +35,7 @@ export function HomeCompactView({
   gridBottomPadding = 80,
   addMenuOpenSignal,
   renderCollection,
+  showAddActionsFab = true,
 }: {
   c: HomeController;
   screenWidth: number;
@@ -50,6 +51,8 @@ export function HomeCompactView({
   addMenuOpenSignal?: SharedValue<boolean>;
   /** 平台注入的历史呈现(Android 分组列表);不传时为卡片网格 */
   renderCollection?: RenderHomeCollection;
+  /** 默认态右下的添加 FAB;iOS 手机的添加入口在顶栏「+」菜单,不显示 */
+  showAddActionsFab?: boolean;
 }) {
   const { theme, items, selectedIds, isSelectMode } = c;
   const backgroundColor = iosColors?.systemGroupedBackground ?? theme.colors.background;
@@ -172,7 +175,7 @@ export function HomeCompactView({
       )}
 
       {/* 右下融合操作按钮 + 上传悬浮菜单(默认态) */}
-      {!isSelectMode && !c.isSearching && (
+      {showAddActionsFab && !isSelectMode && !c.isSearching && (
         <AddActionsFab
           open={c.showAddMenu}
           onOpenChange={c.setShowAddMenu}

@@ -24,7 +24,8 @@ describe('sync channel settings UI', () => {
     expect(androidRoot).not.toContain('section="syncChannel"');
     expect(androidMain).toContain('section="syncChannel"');
     expect(androidRoot).not.toContain('SingleChoiceSegmentedButtonRow');
-    expect(iosRoot).toContain("onNavigate('syncChannel')");
+    // iOS 同样把同步方式放到顶级「设备」标签页
+    expect(iosRoot).not.toContain("onNavigate('syncChannel')");
     expect(iosRoot).not.toContain("pickerStyle('segmented')");
   });
 
@@ -38,10 +39,10 @@ describe('sync channel settings UI', () => {
       'utf8'
     );
     const iosPage = fs.readFileSync(
-      path.join(root, 'src/screens/settings/ios/SyncChannelPage.tsx'),
+      path.join(root, 'src/screens/ios/devices/DevicesRootPage.tsx'),
       'utf8'
     );
-    const iosOwner = fs.readFileSync(path.join(root, 'src/screens/SettingsScreen.ios.tsx'), 'utf8');
+    const iosOwner = fs.readFileSync(path.join(root, 'src/screens/ios/DevicesScreen.tsx'), 'utf8');
 
     // Android 设备页顶部用紧凑的 M3 分段按钮,设备列表才是页面主体
     expect(androidPage).toContain('<SingleChoiceSegmentedButtonRow');
@@ -57,17 +58,13 @@ describe('sync channel settings UI', () => {
     expect(androidPage).not.toContain("openSection('lanServers')");
     expect(androidPage).not.toContain("openSection('space')");
     expect(androidOwner).toContain("section === 'syncChannel'");
-    expect(iosPage).toContain('<SettingsNavRow');
-    expect(iosPage).toContain('spacing={0}');
-    expect(iosPage).toContain("badge={t('syncChannel.experimental')}");
-    expect(iosPage).toContain('selected={syncChannel ===');
-    expect(iosPage).toContain('updateConfig({ syncChannel: channel })');
+    expect(iosPage).toContain("pickerStyle('segmented')");
+    expect(iosPage).toContain("t('syncChannel.experimentalBadge', { ns: 'settings' })");
+    expect(iosPage).toContain("updateConfig({ syncChannel: 'lan' })");
     expect(iosPage).toContain("syncChannel === 'lan'");
-    expect(iosPage).toContain('<LanServersPage');
-    expect(iosPage).toContain('<SpacePage');
-    expect(iosPage).not.toContain("onNavigate('lanServers')");
-    expect(iosPage).not.toContain("onNavigate('space')");
-    expect(iosOwner).toContain("activePage === 'syncChannel'");
+    expect(iosPage).toContain('<LanServersContent');
+    expect(iosPage).toContain('<DirectSpaceContent');
+    expect(iosOwner).toContain("updateConfig({ syncChannel: 'p2p' })");
   });
 
   it.each(['zh', 'en', 'ru', 'pt-BR'])('provides %s channel labels', (locale) => {

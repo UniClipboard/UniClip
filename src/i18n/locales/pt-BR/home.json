@@ -48,6 +48,7 @@
   },
   "a11y": {
     "addContent": "Adicionar conteúdo",
+    "more": "Mais",
     "closeMenu": "Fechar menu",
     "closeCamera": "Fechar câmera",
     "switchCamera": "Alternar câmera",

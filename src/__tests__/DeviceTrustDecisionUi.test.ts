@@ -108,15 +108,12 @@ describe('global device trust decision UI', () => {
     expect(appButton).toContain('frame({ maxWidth: Infinity, minHeight: 50 })');
   });
 
-  it('waits for the Settings sheet to dismiss before opening an iOS preview sheet', () => {
+  it('opens the iOS preview directly from the Settings tab', () => {
     const settings = read('screens/SettingsScreen.ios.tsx');
 
-    expect(settings).toContain('pendingDeviceTrustPreview.current = scenarioId');
-    expect(settings).toContain('const pendingPreview = pendingDeviceTrustPreview.current');
-    expect(settings).toContain('openDeviceTrustPreview(pendingPreview)');
-    expect(settings.indexOf('openDeviceTrustPreview(pendingPreview)')).toBeLessThan(
-      settings.indexOf('navigation.goBack()')
-    );
+    expect(settings).not.toContain('<BottomSheet');
+    expect(settings).toContain('if (!canOpenDeviceTrustPreview()) return false;');
+    expect(settings).toContain('openDeviceTrustPreview(scenarioId)');
   });
 
   it('keeps preview exit in the iOS header and out of the decision footer', () => {

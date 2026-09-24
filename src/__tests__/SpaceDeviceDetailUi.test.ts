@@ -66,19 +66,19 @@ describe('shared Space device detail UI', () => {
   it('uses one controller from both Settings implementations', () => {
     const hook = source('components/useSpaceDeviceManagement.ts');
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
-    const ios = source('screens/settings/ios/SpacePage.tsx');
+    const ios = source('screens/ios/DevicesScreen.tsx');
+    const iosRow = source('screens/ios/devices/deviceRows.tsx');
 
     expect(hook).toContain('buildCurrentSpaceDeviceViews');
     expect(hook).toContain('buildSpaceOverviewView');
     expect(android).toContain('useSpaceDeviceManagement');
     expect(ios).toContain('useSpaceDeviceManagement');
-    expect(ios).toContain('accessibilityLabel(device.displayName)');
-    expect(ios).not.toContain('accessibilityLabel(`${device.displayName}, ${removeLabel}`)');
+    expect(iosRow).toContain('accessibilityLabel(`${device.displayName}, ${status.label}`)');
   });
 
   it('uses a real full-row button so scrolling does not open device details', () => {
-    const ios = source('screens/settings/ios/SpacePage.tsx');
-    const row = ios.slice(ios.indexOf('function SpaceDeviceRow'), ios.indexOf('export function SpacePage'));
+    const ios = source('screens/ios/devices/deviceRows.tsx');
+    const row = ios.slice(ios.indexOf('export function SpaceDeviceRow'));
 
     expect(row).toContain('<SwiftUIButton');
     expect(row).toContain('contentShape(shapes.rectangle())');
@@ -109,9 +109,9 @@ describe('shared Space device detail UI', () => {
     expect(iosRemoveAction).toContain('showsChevron={false}');
   });
 
-  it('keeps the iOS detail sheet in the stable Settings host to avoid parent-page flashes', () => {
-    const settings = source('screens/SettingsScreen.ios.tsx');
-    const spacePage = source('screens/settings/ios/SpacePage.tsx');
+  it('keeps the iOS detail sheet in the stable Devices host to avoid parent-page flashes', () => {
+    const settings = source('screens/ios/DevicesScreen.tsx');
+    const spacePage = source('screens/ios/devices/DevicesRootPage.tsx');
 
     expect(settings).toContain('useSpaceDeviceManagement({ allowHighImpactActions: true })');
     expect(settings).toContain('<SpaceDeviceDetail');

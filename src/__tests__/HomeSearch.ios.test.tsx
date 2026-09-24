@@ -13,6 +13,9 @@ jest.mock('@expo/ui/swift-ui', () => ({
   HStack: 'HStack',
   Image: 'Image',
   Text: 'SwiftUIText',
+  Label: 'Label',
+  Picker: 'Picker',
+  Section: 'Section',
 }));
 jest.mock(
   '@expo/ui/swift-ui/modifiers',
@@ -119,13 +122,10 @@ describe('iOS search workflow', () => {
     act(() => view.root.findByProps({ accessibilityLabel: 'action.done' }).props.onPress());
     expect(onDone).toHaveBeenCalledTimes(1);
   });
-  it('consolidates phone filters into the toolbar before the more menu', () => {
+  it('keeps filters out of the phone home page', () => {
     const source = fs.readFileSync(path.join(__dirname, '../screens/HomeView.ios.tsx'), 'utf8');
-    expect(source).not.toContain('search={');
-    expect(source.indexOf('<ListFilter')).toBeLessThan(source.indexOf('<Ellipsis'));
-    expect(source).toContain("c.t('filter.section.kind'");
-    expect(source).toContain("c.t('filter.section.date'");
-    expect(source).toContain('onPress={c.handleClearFilters}');
+    expect(source).not.toContain('<ListFilter');
+    expect(source).not.toContain("c.t('filter.section.kind'");
   });
   it('keeps the bottom search field and action slot the same size when entering search', () => {
     const c = {
@@ -152,22 +152,37 @@ describe('iOS search workflow', () => {
     act(() => view.root.findByProps({ accessibilityLabel: 'action.cancel' }).props.onPress());
     expect(c.closeSearch).toHaveBeenCalledTimes(1);
   });
-  it('exposes a full-width search entry on the home page', () => {
-    const onSearch = jest.fn();
+  it('puts add and more menus in one glass button group on the home page', () => {
+    const onSelectMode = jest.fn();
+    const onLayout = jest.fn();
+    const onSync = jest.fn();
     const view = render(
       <DefaultTopBar
         theme={theme}
-        onSearch={onSearch}
+        onSearch={jest.fn()}
         onSettings={jest.fn()}
-        onSelectMode={jest.fn()}
+        onSelectMode={onSelectMode}
+        historyLayout="grid"
+        onHistoryLayoutChange={onLayout}
+        addActions={{
+          onTakePhoto: jest.fn(),
+          onPickImage: jest.fn(),
+          onPickFile: jest.fn(),
+          onUploadClipboard: jest.fn(),
+          onSync,
+        }}
       />
     );
-    const entry = view.root.findByProps({ accessibilityLabel: 'a11y.search' });
-    act(() => entry.props.onPress());
-    expect(onSearch).toHaveBeenCalledTimes(1);
-    expect(
-      view.root.findAllByProps({ children: 'topBar.searchPlaceholder' }).length
-    ).toBeGreaterThan(0);
+    expect(view.root.findAllByType('GlassContainer' as never)).toHaveLength(1);
+    expect(view.root.findByProps({ testID: 'home-add-menu' })).toBeTruthy();
+    act(() => view.root.findByProps({ label: 'fab.syncNow' }).props.onPress());
+    expect(onSync).toHaveBeenCalledTimes(1);
+    act(() => view.root.findByProps({ testID: 'home-menu-select' }).props.onPress());
+    expect(onSelectMode).toHaveBeenCalledTimes(1);
+    const picker = view.root.findByProps({ testID: 'home-menu-layout' });
+    expect(picker.props.selection).toBe('grid');
+    act(() => picker.props.onSelectionChange('compact'));
+    expect(onLayout).toHaveBeenCalledWith('compact');
   });
 
   it('separates clearing text, ending input, and leaving search without a filter sheet', () => {
@@ -189,20 +204,6 @@ describe('iOS search workflow', () => {
       />
     );
     const input = view.root.findByType(TextInput);
-    const idle = render(
-      <DefaultTopBar
-        theme={theme}
-        onSearch={jest.fn()}
-        onSettings={jest.fn()}
-        onSelectMode={jest.fn()}
-      />
-    );
-    const toolbarStyle = (renderer: TestRenderer.ReactTestRenderer) =>
-      renderer.root
-        .findAllByType(View)
-        .map((node) => StyleSheet.flatten(node.props.style))
-        .find((style) => style?.height === 52 && style?.flexDirection === 'row');
-    expect(toolbarStyle(view)).toEqual(toolbarStyle(idle));
     expect(input.props.returnKeyType).toBe('search');
     expect(input.props.autoCorrect).toBe(false);
     act(() => input.props.onSubmitEditing());

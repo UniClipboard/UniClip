@@ -299,7 +299,7 @@ describe('unified sync connection flows', () => {
 
   it('uses the unified add sheet instead of duplicate setup forms in settings', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
-    const ios = source('screens/settings/ios/SpacePage.tsx');
+    const ios = source('screens/ios/DevicesScreen.tsx');
 
     for (const platform of [android, ios]) {
       expect(platform).toContain('AddSyncConnectionSheet');

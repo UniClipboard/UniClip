@@ -7,6 +7,17 @@ function source(relativePath: string): string {
   return fs.readFileSync(path.join(root, relativePath), 'utf8');
 }
 
+/** iOS 空间内容:设备标签页根页 + 空间设置推入页 + 设备行 */
+function iosSpaceSource(): string {
+  return [
+    'screens/ios/devices/DevicesRootPage.tsx',
+    'screens/ios/devices/SpaceSettingsPage.tsx',
+    'screens/ios/devices/deviceRows.tsx',
+  ]
+    .map(source)
+    .join('\n');
+}
+
 function optionalSource(relativePath: string): string {
   const absolutePath = path.join(root, relativePath);
   return fs.existsSync(absolutePath) ? fs.readFileSync(absolutePath, 'utf8') : '';
@@ -15,7 +26,7 @@ function optionalSource(relativePath: string): string {
 describe('unified space setup UI', () => {
   it('shows the same Engine-owned maintenance and restored-join decisions on iOS and Android', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
-    const ios = source('screens/settings/ios/SpacePage.tsx');
+    const ios = iosSpaceSource();
     const androidSheet = source('components/AddSyncConnectionSheet.android.tsx');
     const iosSheet = source('components/AddSyncConnectionSheet.ios.tsx');
     for (const page of [android, ios]) {
@@ -30,8 +41,8 @@ describe('unified space setup UI', () => {
   it('opens the shared native connection flow instead of duplicating setup forms', () => {
     const entry = source('screens/settings/UnifiedSpaceSetup.tsx');
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
-    const ios = source('screens/settings/ios/SpacePage.tsx');
-    const iosSettings = source('screens/SettingsScreen.ios.tsx');
+    const ios = iosSpaceSource();
+    const iosSettings = source('screens/ios/DevicesScreen.tsx');
 
     expect(entry).toContain("export * from './UnifiedSpaceSetup.android'");
     const androidSettings = source('screens/settings/android/SpaceSettingsSection.tsx');
@@ -59,11 +70,11 @@ describe('unified space setup UI', () => {
   });
 
   it('uses the adaptive iOS accent for space actions instead of purple action colors', () => {
-    const spacePage = source('screens/settings/ios/SpacePage.tsx');
+    const spacePage = iosSpaceSource();
     const connectionSheet = source('components/AddSyncConnectionSheet.ios.tsx');
 
     expect(spacePage).not.toContain('iconColor={settingsTileColors.');
-    expect(spacePage).toContain('color={iosColors?.secondaryLabel}');
+    expect(spacePage).toContain('color={iosColors?.label}');
     expect(spacePage).not.toContain('iosSaturatedButtonPalette(settingsTileColors.indigo)');
     expect(spacePage).toContain(': settingsTileColors.blue;');
 
@@ -82,8 +93,8 @@ describe('unified space setup UI', () => {
     const navigation = source('navigation/AppNavigator.tsx');
     const navigationTypes = source('navigation/AppNavigator.types.ts');
     const iosRoot = source('screens/settings/ios/SettingsRootPage.tsx');
-    const iosSyncMethod = source('screens/settings/ios/SyncChannelPage.tsx');
-    const iosScreen = source('screens/SettingsScreen.ios.tsx');
+    const iosSyncMethod = source('screens/ios/devices/DevicesRootPage.tsx');
+    const iosMain = source('navigation/MainScreen.ios.tsx');
     const iosPages = source('screens/settings/ios/types.ts');
 
     // Android 的同步方式(含空间设备)是顶级「设备」目的地
@@ -96,17 +107,16 @@ describe('unified space setup UI', () => {
     expect(androidSubScreen).toContain('initialDeviceId={deviceId}');
     expect(navigationTypes).toContain("| 'space'");
     expect(navigation).toContain("space: t('space.title', { ns: 'settingsSync' })");
-    expect(iosRoot).toContain("onNavigate('syncChannel')");
-    expect(iosSyncMethod).toContain('<SpacePage');
-    expect(iosSyncMethod).not.toContain("onNavigate('space')");
-    expect(iosScreen).toContain("activePage === 'space'");
-    expect(iosScreen).toContain('<SpacePage');
-    expect(iosPages).toContain("| 'space'");
+    // iOS 同构:同步方式与空间设备在顶级「设备」标签页
+    expect(iosMain).toContain('<DevicesScreen {...route.params} />');
+    expect(iosRoot).not.toContain("onNavigate('syncChannel')");
+    expect(iosSyncMethod).toContain('<DirectSpaceContent');
+    expect(iosPages).not.toContain("| 'space'");
   });
 
   it('never writes the passphrase or invitation code to persistent settings', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
-    const ios = source('screens/settings/ios/SpacePage.tsx');
+    const ios = iosSpaceSource();
     const androidFlow = source('components/AddSyncConnectionSheet.android.tsx');
     const iosFlow = source('components/AddSyncConnectionSheet.ios.tsx');
     const sharedFlow = source('components/useAddSyncConnectionFlow.ts');
@@ -122,8 +132,8 @@ describe('unified space setup UI', () => {
 
   it('supports device management and leaving the local space on both platforms', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
-    const ios = source('screens/settings/ios/SpacePage.tsx');
-    const iosSettings = source('screens/SettingsScreen.ios.tsx');
+    const ios = iosSpaceSource();
+    const iosSettings = source('screens/ios/DevicesScreen.tsx');
 
     const androidSettings = source('screens/settings/android/SpaceSettingsSection.tsx');
     expect(android).toContain('useUnifiedSpaceStore');
@@ -137,12 +147,12 @@ describe('unified space setup UI', () => {
     expect(iosSettings).toContain('<SpaceDeviceDetail');
     expect(ios).not.toContain('<SpaceDeviceDetail');
     expect(android).toContain('space.devices.otherTitle');
-    expect(ios).toContain('space.devices.title');
+    expect(ios).toContain('space.devices.otherTitle');
   });
 
   it('lets an active space join another space before offering leave', () => {
     const android = source('screens/settings/android/SpaceSettingsSection.tsx');
-    const ios = source('screens/settings/ios/SpacePage.tsx');
+    const ios = iosSpaceSource();
     const sheetProps = source('components/AddSyncConnectionSheet.types.ts');
 
     expect(sheetProps).toContain("| 'switch'");
@@ -151,11 +161,11 @@ describe('unified space setup UI', () => {
       expect(platform).toContain('space.switch.description');
       expect(platform).toMatch(/space\.switch\.title[\s\S]*space\.leave\.action/);
     }
-    expect(ios).toContain("onPress={() => onOpenSetup('switch')}");
+    expect(ios).toContain('onPress={onSwitchSpace}');
   });
 
   it('keeps space actions visually distinct on iOS', () => {
-    const ios = source('screens/settings/ios/SpacePage.tsx');
+    const ios = iosSpaceSource();
     const switchSectionStart = ios.lastIndexOf(
       '<Section',
       ios.lastIndexOf('space.switch.description')
@@ -179,38 +189,33 @@ describe('unified space setup UI', () => {
     expect(leaveSection).toContain('showsChevron={false}');
   });
 
-  it('uses full-width settings rows for the two empty-space choices on iOS', () => {
-    const ios = source('screens/settings/ios/SpacePage.tsx');
-    const emptyStateStart = ios.indexOf('!spaceId && !isInitialLoading');
-    const activeSpaceStart = ios.indexOf('{error ? (', emptyStateStart);
+  it('offers the two empty-space choices as full-width capsule buttons on iOS', () => {
+    const ios = iosSpaceSource();
+    const emptyStateStart = ios.indexOf('if (!spaceId) {');
+    const activeSpaceStart = ios.indexOf('const overview = deviceManagement.overview;', emptyStateStart);
     const emptyState = ios.slice(emptyStateStart, activeSpaceStart);
 
-    expect(emptyState).toContain("title={t('space.create.title')}");
-    expect(emptyState).toContain("subtitle={t('space.create.description')}");
-    expect(emptyState).toContain("accessibilityHint={t('space.create.description')}");
+    expect(emptyState).toContain("t('space.empty.title')");
     expect(emptyState).toContain("onPress={() => onOpenSetup('create')}");
-    expect(emptyState).toContain("title={t('space.join.title')}");
-    expect(emptyState).toContain("subtitle={t('space.join.description')}");
-    expect(emptyState).toContain("accessibilityHint={t('space.join.description')}");
     expect(emptyState).toContain("onPress={() => onOpenSetup('join')}");
-    expect(emptyState.match(/<SettingsNavRow/g)).toHaveLength(2);
-    expect(emptyState).not.toContain('<SwiftUIButton');
-    expect(emptyState).not.toContain('error ??');
+    expect(emptyState).toContain("t('space.create.title')");
+    expect(emptyState).toContain("t('space.join.title')");
+    expect(emptyState).toContain('capsuleButton(true, \'large\')');
+    expect(emptyState).toContain("t('space.footer')");
   });
 
-  it('keeps the invitation row in embedded space content and the sheet in its stable owner', () => {
-    const ios = source('screens/settings/ios/SpacePage.tsx');
-    const content = ios.slice(0, ios.indexOf('if (embedded) return content;'));
-    expect(content).toMatch(
-      /<SettingsNavRow\s+icon="plus"[\s\S]*?title=\{t\('space.invitation.addAction'\)\}[\s\S]*?onPress=\{onOpenInvitation\}[\s\S]*?disabled=\{highImpactActionsDisabled\}/
+  it('adds devices from the status card and keeps the sheet in its stable owner', () => {
+    const ios = iosSpaceSource();
+    expect(ios).toMatch(
+      /testID="space-add-device"[\s\S]*?onPress=\{\(\) => onOpenSetup\('invite'\)\}[\s\S]*?disabled\(highImpactActionsDisabled\)/
     );
     expect(ios).not.toContain('<AddSyncConnectionSheet');
-    expect(source('screens/SettingsScreen.ios.tsx')).toContain('<AddSyncConnectionSheet');
+    expect(source('screens/ios/DevicesScreen.tsx')).toContain('<AddSyncConnectionSheet');
   });
 
   it('uses the current device relationship instead of the legacy convergence summary', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
-    const ios = source('screens/settings/ios/SpacePage.tsx');
+    const ios = iosSpaceSource();
 
     for (const platform of [android, ios]) {
       expect(platform).toContain('deviceManagement.overview');
@@ -224,7 +229,7 @@ describe('unified space setup UI', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
     const androidSettings = source('screens/settings/android/SpaceSettingsSection.tsx');
     const androidRelay = source('screens/settings/CustomRelaySection.android.tsx');
-    const ios = source('screens/settings/ios/SpacePage.tsx');
+    const ios = iosSpaceSource();
 
     const page = android.slice(android.indexOf('const content = isInitialLoading'));
     expect(page).toMatch(
@@ -240,7 +245,7 @@ describe('unified space setup UI', () => {
     expect(android).not.toContain('Boolean(error)');
 
     expect(ios).toMatch(
-      /space\.overview\.status[\s\S]*space\.devices\.title[\s\S]*space\.leave\.action/
+      /space\.overview\.status[\s\S]*space\.devices\.otherTitle[\s\S]*space\.settings\.title[\s\S]*space\.leave\.action/
     );
     expect(ios).toContain('space.overview.memberCount');
     expect(ios).not.toContain('space.details');
@@ -248,15 +253,16 @@ describe('unified space setup UI', () => {
 
   it('opens invitations in the connection sheet that follows space creation', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
-    const ios = source('screens/settings/ios/SpacePage.tsx');
-    const iosSettings = source('screens/SettingsScreen.ios.tsx');
+    const ios = iosSpaceSource();
+    const iosSettings = source('screens/ios/DevicesScreen.tsx');
     const flow = source('components/useAddSyncConnectionFlow.ts');
 
     expect(optionalSource('components/SpaceInvitationSheet.tsx')).toBe('');
     expect(optionalSource('components/useMySpaceSheet.ts')).toBe('');
     expect(flow).toContain("if (initialMode === 'invite') return 'invitation';");
     expect(android).toContain("onClick={() => setSetupMode('invite')}");
-    expect(iosSettings).toContain("onOpenInvitation={() => setSpaceSetupMode('invite')}");
+    expect(iosSettings).toContain('onOpenSetup={setSetupMode}');
+    expect(ios).toContain("onOpenSetup('invite')");
 
     for (const sheet of ['android', 'ios']) {
       const source_ = source(`components/AddSyncConnectionSheet.${sheet}.tsx`);
@@ -272,18 +278,18 @@ describe('unified space setup UI', () => {
     }
   });
 
-  it('presents the iOS invitation from the settings sheet instead of the sliding space page', () => {
-    const iosPage = source('screens/settings/ios/SpacePage.tsx');
-    const iosSettings = source('screens/SettingsScreen.ios.tsx');
+  it('presents the iOS invitation from the Devices host instead of the pushed pages', () => {
+    const iosPage = iosSpaceSource();
+    const iosSettings = source('screens/ios/DevicesScreen.tsx');
 
     expect(iosPage).not.toContain('<AddSyncConnectionSheet');
-    expect(iosPage).toContain('onOpenInvitation');
+    expect(iosPage).toContain('onOpenSetup');
     expect(iosSettings).toContain('<AddSyncConnectionSheet');
   });
 
   it('uses device rows for management without permanent action buttons', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
-    const ios = source('screens/settings/ios/SpacePage.tsx');
+    const ios = iosSpaceSource();
 
     expect(android).not.toContain('ICONS.remove');
     expect(ios).not.toContain('systemName="trash"');
@@ -295,7 +301,7 @@ describe('unified space setup UI', () => {
 
   it('shows the local device as online without a remove action and consumes the unified snapshot', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
-    const ios = source('screens/settings/ios/SpacePage.tsx');
+    const ios = iosSpaceSource();
 
     for (const platform of [android, ios]) {
       expect(platform).toContain('device.isLocal');
@@ -308,7 +314,7 @@ describe('unified space setup UI', () => {
   });
 
   it('gives the iOS space page a compact overview and manageable device rows', () => {
-    const ios = source('screens/settings/ios/SpacePage.tsx');
+    const ios = iosSpaceSource();
 
     expect(ios).not.toContain('SettingsIconTile');
     expect(ios).toContain('SpaceDeviceRow');
@@ -316,9 +322,9 @@ describe('unified space setup UI', () => {
   });
 
   it('keeps the iOS connection sheet inside the existing settings host', () => {
-    const iosPage = source('screens/settings/ios/SpacePage.tsx');
+    const iosPage = iosSpaceSource();
     const iosSheet = source('components/AddSyncConnectionSheet.ios.tsx');
-    const iosSettings = source('screens/SettingsScreen.ios.tsx');
+    const iosSettings = source('screens/ios/DevicesScreen.tsx');
     const sheetProps = source('components/AddSyncConnectionSheet.types.ts');
 
     expect(iosPage).not.toContain('<AddSyncConnectionSheet');
@@ -340,7 +346,7 @@ describe('unified space setup UI', () => {
 
   it('uses Engine trust relationships in both device lists without exposing stale remove actions', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
-    const ios = source('screens/settings/ios/SpacePage.tsx');
+    const ios = iosSpaceSource();
 
     for (const platform of [android, ios]) {
       expect(platform).toContain('deviceManagement.devices');
@@ -352,7 +358,7 @@ describe('unified space setup UI', () => {
 
   it('keeps switching guarded by verified device details while leaving only waits for an active operation on Android', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
-    const ios = source('screens/settings/ios/SpacePage.tsx');
+    const ios = iosSpaceSource();
 
     const androidSettings = source('screens/settings/android/SpaceSettingsSection.tsx');
     expect(android).toContain('highImpactActionsDisabled');

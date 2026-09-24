@@ -1,8 +1,18 @@
 import React from 'react';
 import { View, Text, TextInput, StyleSheet, Pressable, Keyboard } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Check, Ellipsis, Search, SquareCheckBig, Square, X, XCircle } from 'lucide-react-native';
-import { Menu, Button as SwiftUIButton, Host } from '@expo/ui/swift-ui';
+import { Check, Ellipsis, Plus, Search, SquareCheckBig, Square, X, XCircle } from 'lucide-react-native';
+import {
+  Menu,
+  Button as SwiftUIButton,
+  Host,
+  Label,
+  Picker,
+  Section,
+} from '@expo/ui/swift-ui';
+import { pickerStyle, tag } from '@expo/ui/swift-ui/modifiers';
+import type { SFSymbol } from 'sf-symbols-typescript';
+import type { HistoryLayout } from '@/hooks/useHistoryDisplaySettings';
 import { GlassContainer } from '@/components/ui';
 import { iosDimensions, iosColors } from '@/theme/iosDesignTokens';
 import { useLayoutMode } from '@/hooks/useLayoutMode';
@@ -12,49 +22,105 @@ import type {
   SelectModeTopBarProps,
 } from './HomeTopBar.types';
 
-export function DefaultTopBar({ onSearch, onSettings, onSelectMode, theme }: DefaultTopBarProps) {
+export function DefaultTopBar({
+  onSelectMode,
+  historyLayout,
+  onHistoryLayoutChange,
+  addActions,
+  theme,
+}: DefaultTopBarProps) {
   const { t } = useTranslation('home');
+  const iconColor = theme.colors.textPrimary;
   return (
-    <View style={s.row}>
-      <Pressable
-        onPress={onSearch}
-        accessibilityRole="search"
-        accessibilityLabel={t('a11y.search')}
-        style={s.boxWrap}
-      >
-        <SearchFieldFrame theme={theme}>
-          <Text
-            numberOfLines={1}
-            style={[s.searchPlaceholder, { color: theme.colors.textSecondary }]}
+    <View style={s.defaultRow}>
+      <GlassContainer shape="capsule" interactive style={s.actionPill}>
+        {addActions ? (
+          <Host style={s.pillButton}>
+            <Menu
+              testID="home-add-menu"
+              label={
+                <View style={s.pillButton} accessibilityLabel={t('a11y.addContent')}>
+                  <Plus size={22} color={iconColor} />
+                </View>
+              }
+            >
+              <SwiftUIButton
+                systemImage="camera"
+                label={t('fab.takePhoto')}
+                onPress={addActions.onTakePhoto}
+              />
+              <SwiftUIButton
+                systemImage="photo.on.rectangle"
+                label={t('fab.pickImage')}
+                onPress={addActions.onPickImage}
+              />
+              <SwiftUIButton
+                systemImage="doc"
+                label={t('fab.pickFile')}
+                onPress={addActions.onPickFile}
+              />
+              <SwiftUIButton
+                systemImage="doc.on.clipboard"
+                label={t('fab.uploadClipboard')}
+                onPress={addActions.onUploadClipboard}
+              />
+              <Section>
+                <SwiftUIButton
+                  systemImage="arrow.triangle.2.circlepath"
+                  label={t('fab.syncNow')}
+                  onPress={addActions.onSync}
+                />
+              </Section>
+            </Menu>
+          </Host>
+        ) : null}
+        <Host style={s.pillButton}>
+          <Menu
+            testID="home-menu"
+            label={
+              <View style={s.pillButton} accessibilityLabel={t('a11y.more')}>
+                <Ellipsis size={22} color={iconColor} />
+              </View>
+            }
           >
-            {t('topBar.searchPlaceholder')}
-          </Text>
-        </SearchFieldFrame>
-      </Pressable>
-
-      <Host style={s.moreButton}>
-        <Menu
-          label={
-            <View style={s.moreButton}>
-              <Ellipsis size={22} color={theme.colors.textSecondary} />
-            </View>
-          }
-        >
-          <SwiftUIButton
-            systemImage="checkmark.circle"
-            label={t('action.select', { ns: 'common' })}
-            onPress={onSelectMode}
-          />
-          <SwiftUIButton
-            systemImage="gearshape"
-            label={t('action.settings', { ns: 'common' })}
-            onPress={onSettings}
-          />
-        </Menu>
-      </Host>
+            <SwiftUIButton
+              testID="home-menu-select"
+              systemImage="checkmark.circle"
+              label={t('action.select', { ns: 'common' })}
+              onPress={onSelectMode}
+            />
+            {historyLayout && onHistoryLayoutChange ? (
+              <Section title={t('layout.title', { ns: 'history' })}>
+                <Picker
+                  testID="home-menu-layout"
+                  selection={historyLayout}
+                  onSelectionChange={(value) => onHistoryLayoutChange(value as HistoryLayout)}
+                  modifiers={[pickerStyle('inline')]}
+                >
+                  {HISTORY_LAYOUTS.map((layout) => (
+                    <Label
+                      key={layout}
+                      title={t(`layout.${layout}`, { ns: 'history' })}
+                      systemImage={LAYOUT_SYMBOLS[layout]}
+                      modifiers={[tag(layout)]}
+                    />
+                  ))}
+                </Picker>
+              </Section>
+            ) : null}
+          </Menu>
+        </Host>
+      </GlassContainer>
     </View>
   );
 }
+
+const HISTORY_LAYOUTS: readonly HistoryLayout[] = ['list', 'compact', 'grid'];
+const LAYOUT_SYMBOLS: Record<HistoryLayout, SFSymbol> = {
+  list: 'list.bullet',
+  compact: 'list.dash',
+  grid: 'square.grid.2x2',
+};
 
 export function SearchTopBar({
   searchText,
@@ -199,6 +265,9 @@ export function SelectModeTopBar({
 }
 
 const s = StyleSheet.create({
+  defaultRow: { height: 44, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' },
+  actionPill: { height: 44, paddingHorizontal: 2, flexDirection: 'row', alignItems: 'center' },
+  pillButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

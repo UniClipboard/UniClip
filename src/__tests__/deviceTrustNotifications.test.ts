@@ -259,7 +259,7 @@ describe('DeviceTrustNotificationCoordinator', () => {
     expect(observer).toContain('notificationNavigationRequestId');
     expect(observer).toContain('openSpaceDevices(');
     expect(source('src/navigation/openSpaceDevices.ios.ts')).toContain(
-      "navigateWhenReady('Settings', { section: 'space', ...target })"
+      "navigateWhenReady('Main', { screen: 'Devices', params: target })"
     );
     expect(source('src/navigation/openSpaceDevices.android.ts')).toContain(
       "navigateWhenReady('Main', { screen: 'Devices', params: target })"
