@@ -4,20 +4,20 @@
  * 卡片一「后台自动同步」只有一个总开关:开启时批量打开下载/上传/常驻通知,并依次引导
  * 三项系统权限(忽略电池优化、通知权限、悬浮窗权限;跳系统页的两项靠 AppState 监听下一次
  * 回到前台来串行,避免连续拉起多个系统 Activity 互相打断)。
- * 卡片二「高级选项」始终展开。后台剪贴板访问通过横向分页 Bottom Sheet 比较并选择
+ * 总开关放在顶部 SettingsHeroCard(开启时 primaryContainer 强调),其下三组 grouped 列表:
+ * 剪贴板读取 / 后台同步 / 运行保障。后台剪贴板访问通过横向分页 Bottom Sheet 比较并选择
  * 定时轮询、READ_LOGS 事件检测或 Shizuku；缺少的授权步骤由所选 adapter 自己处理。
- * Alert.alert 确认统一走单个配置驱动的 Compose AlertDialog(挂在卡片一上;Compose
+ * Alert.alert 确认统一走单个配置驱动的 Compose AlertDialog(挂在第一个分组上;Compose
  * Dialog 是 window 级 overlay,挂载位置不影响展示)。失败回滚交给 store。
  */
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Linking, AppState, PermissionsAndroid } from 'react-native';
 import {
-  ListItem,
-  Switch as ComposeSwitch,
   AlertDialog,
+  Column,
+  Spacer,
   TextButton,
-  HorizontalDivider,
   Text as ComposeText,
 } from '@expo/ui/jetpack-compose';
 import { useClipboardStore, useSettingsStore } from '@/stores';
@@ -32,7 +32,11 @@ import {
   refreshBackgroundClipboardAuthorization,
 } from '@/utils/backgroundClipboardAccess';
 import { useSettingsToast } from '../SettingsToastContext';
+import { fillMaxWidth, height as heightModifier } from '@expo/ui/jetpack-compose/modifiers';
 import { SettingsSectionItem } from '../SettingsSectionItem';
+import { SettingsHeroCard } from './SettingsHeroCard';
+import { SettingsListRow } from './SettingsListRow';
+import { SettingsSwitchRow } from './SettingsSwitchRow';
 import { useClipboardAccessMethodSheet } from '../ClipboardAccessMethodSheet';
 import { resolveAdbAuthorizationCheck } from '../ClipboardAccessMethodSheet.state';
 
@@ -428,10 +432,24 @@ export const BackgroundSection = memo(function BackgroundSection() {
   };
 
   return (
-    <>
+    <Column modifiers={[fillMaxWidth()]}>
+      {/* 总开关:卡片内边距调小,由 ListItem 自带的内边距对齐文字 */}
+      <SettingsHeroCard tone={backgroundTasksEnabled ? 'primary' : 'neutral'} contentPadding={8}>
+        <SettingsSwitchRow
+          testID="background-tasks"
+          title={t('main.cardTitle')}
+          description={
+            isTempDisabled ? t('main.toggle.descTempDisabled') : t('main.toggle.descNormal')
+          }
+          value={backgroundTasksEnabled}
+          onValueChange={(enabled) => void handleToggleBackgroundTasks(enabled)}
+        />
+      </SettingsHeroCard>
+
+      <Spacer modifiers={[heightModifier(24)]} />
       <SettingsSectionItem
-        title={t('main.cardTitle')}
-        footer={t('main.footer')}
+        variant="grouped"
+        title={t('advanced.groups.clipboardAccess')}
         dialogs={
           dialog && (
             <AlertDialog onDismissRequest={() => setDialog(null)}>
@@ -463,158 +481,85 @@ export const BackgroundSection = memo(function BackgroundSection() {
           )
         }
       >
-        <ListItem>
-          <ListItem.HeadlineContent>
-            <ComposeText>{t('main.cardTitle')}</ComposeText>
-          </ListItem.HeadlineContent>
-          <ListItem.SupportingContent>
-            <ComposeText>
-              {isTempDisabled ? t('main.toggle.descTempDisabled') : t('main.toggle.descNormal')}
-            </ComposeText>
-          </ListItem.SupportingContent>
-          <ListItem.TrailingContent>
-            <ComposeSwitch
-              value={backgroundTasksEnabled}
-              onCheckedChange={handleToggleBackgroundTasks}
-            />
-          </ListItem.TrailingContent>
-        </ListItem>
-      </SettingsSectionItem>
-
-      <SettingsSectionItem title={t('advanced.cardTitle')}>
-        <ListItem>
-          <ListItem.HeadlineContent>
-            <ComposeText>{t('advanced.notification.title')}</ComposeText>
-          </ListItem.HeadlineContent>
-          <ListItem.SupportingContent>
-            <ComposeText>{t('advanced.notification.desc')}</ComposeText>
-          </ListItem.SupportingContent>
-          <ListItem.TrailingContent>
-            <ComposeSwitch
-              value={backgroundTasksEnabled && foregroundNotification}
-              onCheckedChange={handleToggleForegroundNotification}
-              enabled={backgroundTasksEnabled}
-            />
-          </ListItem.TrailingContent>
-        </ListItem>
-
-        <HorizontalDivider />
-
-        <ListItem>
-          <ListItem.HeadlineContent>
-            <ComposeText>{t('advanced.network.title')}</ComposeText>
-          </ListItem.HeadlineContent>
-          <ListItem.SupportingContent>
-            <ComposeText>{t('advanced.network.desc')}</ComposeText>
-          </ListItem.SupportingContent>
-          <ListItem.TrailingContent>
-            <ComposeSwitch
-              value={backgroundSyncNetwork === 'any'}
-              onCheckedChange={handleToggleCellularBackgroundSync}
-              enabled={backgroundTasksEnabled}
-            />
-          </ListItem.TrailingContent>
-        </ListItem>
-
-        <HorizontalDivider />
-
-        <ListItem>
-          <ListItem.HeadlineContent>
-            <ComposeText>{t('advanced.battery.title')}</ComposeText>
-          </ListItem.HeadlineContent>
-          <ListItem.SupportingContent>
-            <ComposeText>{t('advanced.battery.desc')}</ComposeText>
-          </ListItem.SupportingContent>
-          <ListItem.TrailingContent>
-            <ComposeSwitch value={permBattery} onCheckedChange={handleToggleBattery} />
-          </ListItem.TrailingContent>
-        </ListItem>
-
-        <HorizontalDivider />
-
-        <ListItem>
-          <ListItem.HeadlineContent>
-            <ComposeText>{t('advanced.download.title')}</ComposeText>
-          </ListItem.HeadlineContent>
-          <ListItem.SupportingContent>
-            <ComposeText>{t('advanced.download.desc')}</ComposeText>
-          </ListItem.SupportingContent>
-          <ListItem.TrailingContent>
-            <ComposeSwitch
-              value={backgroundTasksEnabled && autoApplyRemote && backgroundDownload}
-              onCheckedChange={handleToggleBackgroundDownload}
-              enabled={backgroundTasksEnabled && autoApplyRemote}
-            />
-          </ListItem.TrailingContent>
-        </ListItem>
-
-        <HorizontalDivider />
-
-        <ListItem>
-          <ListItem.HeadlineContent>
-            <ComposeText>{t('advanced.upload.title')}</ComposeText>
-          </ListItem.HeadlineContent>
-          <ListItem.SupportingContent>
-            <ComposeText>{t('advanced.upload.desc')}</ComposeText>
-          </ListItem.SupportingContent>
-          <ListItem.TrailingContent>
-            <ComposeSwitch
-              value={backgroundTasksEnabled && autoPushLocal && backgroundUpload}
-              onCheckedChange={handleToggleBackgroundUpload}
-              enabled={backgroundTasksEnabled && autoPushLocal}
-            />
-          </ListItem.TrailingContent>
-        </ListItem>
-
-        <HorizontalDivider />
-
-        <ListItem>
-          <ListItem.HeadlineContent>
-            <ComposeText>{t('advanced.clipboardAccess.title')}</ComposeText>
-          </ListItem.HeadlineContent>
-          <ListItem.SupportingContent>
-            <ComposeText>
-              {t(`advanced.clipboardAccess.description.${clipboardAccessMethod}`)}
-            </ComposeText>
-          </ListItem.SupportingContent>
-          <ListItem.TrailingContent>
-            <TextButton onClick={handleOpenClipboardMethodSheet}>
-              <ComposeText>
-                {t(`advanced.clipboardAccess.method.${clipboardAccessMethod}`)}
-              </ComposeText>
-            </TextButton>
-          </ListItem.TrailingContent>
-        </ListItem>
-
+        <SettingsListRow
+          key="clipboardAccess"
+          testID="background-clipboard-access"
+          title={t('advanced.clipboardAccess.title')}
+          description={t(`advanced.clipboardAccess.description.${clipboardAccessMethod}`)}
+          trailing={{ value: t(`advanced.clipboardAccess.method.${clipboardAccessMethod}`) }}
+          onPress={handleOpenClipboardMethodSheet}
+        />
         {clipboardSetupState.status === 'action-required' ? (
-          <>
-            <HorizontalDivider />
-            <ListItem>
-              <ListItem.HeadlineContent>
-                <ComposeText>
-                  {t(`advanced.clipboardAccess.issue.${clipboardSetupState.issue}`)}
-                </ComposeText>
-              </ListItem.HeadlineContent>
-              <ListItem.SupportingContent>
-                <ComposeText>
-                  {t(`advanced.clipboardAccess.issueDescription.${clipboardSetupState.issue}`)}
-                </ComposeText>
-              </ListItem.SupportingContent>
-              <ListItem.TrailingContent>
-                <TextButton onClick={handleContinueClipboardAccessSetup}>
-                  <ComposeText>
-                    {t(
-                      clipboardSetupState.issue === 'monitoring-setup-required' && adbCommandCopied
-                        ? 'advanced.clipboardAccess.action.check'
-                        : `advanced.clipboardAccess.action.${clipboardSetupState.issue}`
-                    )}
-                  </ComposeText>
-                </TextButton>
-              </ListItem.TrailingContent>
-            </ListItem>
-          </>
+          <SettingsListRow
+            key="clipboardAccessIssue"
+            testID="background-clipboard-access-issue"
+            destructive
+            title={t(`advanced.clipboardAccess.issue.${clipboardSetupState.issue}`)}
+            description={t(
+              `advanced.clipboardAccess.issueDescription.${clipboardSetupState.issue}`
+            )}
+            trailing={{
+              action: t(
+                clipboardSetupState.issue === 'monitoring-setup-required' && adbCommandCopied
+                  ? 'advanced.clipboardAccess.action.check'
+                  : `advanced.clipboardAccess.action.${clipboardSetupState.issue}`
+              ),
+            }}
+            onPress={handleContinueClipboardAccessSetup}
+          />
         ) : null}
       </SettingsSectionItem>
-    </>
+
+      <Spacer modifiers={[heightModifier(24)]} />
+      <SettingsSectionItem
+        variant="grouped"
+        title={t('advanced.groups.sync')}
+        footer={t('main.footer')}
+      >
+        <SettingsSwitchRow
+          key="download"
+          title={t('advanced.download.title')}
+          description={t('advanced.download.desc')}
+          value={backgroundTasksEnabled && autoApplyRemote && backgroundDownload}
+          disabled={!(backgroundTasksEnabled && autoApplyRemote)}
+          onValueChange={(enabled) => void handleToggleBackgroundDownload(enabled)}
+        />
+        <SettingsSwitchRow
+          key="upload"
+          title={t('advanced.upload.title')}
+          description={t('advanced.upload.desc')}
+          value={backgroundTasksEnabled && autoPushLocal && backgroundUpload}
+          disabled={!(backgroundTasksEnabled && autoPushLocal)}
+          onValueChange={(enabled) => void handleToggleBackgroundUpload(enabled)}
+        />
+        <SettingsSwitchRow
+          key="network"
+          title={t('advanced.network.title')}
+          description={t('advanced.network.desc')}
+          value={backgroundSyncNetwork === 'any'}
+          disabled={!backgroundTasksEnabled}
+          onValueChange={(enabled) => void handleToggleCellularBackgroundSync(enabled)}
+        />
+      </SettingsSectionItem>
+
+      <Spacer modifiers={[heightModifier(24)]} />
+      <SettingsSectionItem variant="grouped" title={t('advanced.groups.reliability')}>
+        <SettingsSwitchRow
+          key="notification"
+          title={t('advanced.notification.title')}
+          description={t('advanced.notification.desc')}
+          value={backgroundTasksEnabled && foregroundNotification}
+          disabled={!backgroundTasksEnabled}
+          onValueChange={(enabled) => void handleToggleForegroundNotification(enabled)}
+        />
+        <SettingsSwitchRow
+          key="battery"
+          title={t('advanced.battery.title')}
+          description={t('advanced.battery.desc')}
+          value={permBattery}
+          onValueChange={() => void handleToggleBattery()}
+        />
+      </SettingsSectionItem>
+    </Column>
   );
 });

@@ -8,9 +8,7 @@ appId: ${APP_ID}
 - tapOn:
     id: settings-background
 - tapOn:
-    rightOf:
-      text: "Background auto-sync"
-      index: 1
+    id: background-tasks
 - tapOn: "Enable"
 - tapOn:
     text: "(?i)deny"

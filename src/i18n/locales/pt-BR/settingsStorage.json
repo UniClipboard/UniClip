@@ -41,5 +41,14 @@
     "sectionFooter": "Quando ativado, o conteúdo novo é armazenado em cache silenciosamente em segundo plano, e as prévias abrem na hora.",
     "attachmentLabel": "Pré-download de anexos",
     "cellularLabel": "Pré-download também em dados móveis"
+  },
+  "overview": {
+    "totalLabel": "Usado pelo UniClip",
+    "usageTitle": "Uso"
+  },
+  "kind": {
+    "history": "Histórico",
+    "cache": "Cache",
+    "logs": "Logs"
   }
 }

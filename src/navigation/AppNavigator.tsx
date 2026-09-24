@@ -82,6 +82,8 @@ export const AppNavigator = () => {
     background: t('category.background', { ns: 'settings' }),
     appearance: t('appearance.sectionTitle', { ns: 'settings' }),
     storage: t('category.storage', { ns: 'settings' }),
+    privacy: t('category.privacy', { ns: 'settings' }),
+    diagnostics: t('category.diagnostics', { ns: 'settings' }),
     about: t('category.about', { ns: 'settings' }),
     developer: t('category.developer', { ns: 'settings' }),
   };

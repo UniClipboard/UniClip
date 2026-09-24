@@ -6,7 +6,8 @@
     "checking": "Checking...",
     "updateTo": "Update {{version}}",
     "upToDate": "You're on the latest version",
-    "checkFailed": "Update check failed, please check your network connection"
+    "checkFailed": "Update check failed, please check your network connection",
+    "available": "Version {{version}} available"
   },
   "autoCheck": {
     "label": "Auto check for updates"
@@ -62,7 +63,9 @@
       "remaining": "Recording, about {{count}} minutes left",
       "failed": "Could not complete the action. Please try again.",
       "unavailable": "Unavailable until the service is ready."
-    }
+    },
+    "exportDescription": "Share, or save as a file",
+    "storageHint": "Log files can be cleared under Storage."
   },
   "debug": {
     "connectionPreview": "Preview connection screens",
@@ -119,11 +122,14 @@
         "invitationExpired": "Inviter: invitation expired",
         "inviterConnected": "Inviter: device connected"
       }
-    }
+    },
+    "previewsTitle": "Previews"
   },
   "stats": {
     "title": "Statistics",
     "view": "View",
     "copied": "Statistics copied"
-  }
+  },
+  "versionValue": "Version {{version}}",
+  "updatesTitle": "Updates"
 }

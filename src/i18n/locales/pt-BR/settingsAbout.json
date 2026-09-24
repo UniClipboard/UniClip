@@ -6,7 +6,8 @@
     "checking": "Verificando...",
     "updateTo": "Atualizar para {{version}}",
     "upToDate": "Você está na versão mais recente",
-    "checkFailed": "Falha ao verificar atualizações; verifique sua conexão de rede"
+    "checkFailed": "Falha ao verificar atualizações; verifique sua conexão de rede",
+    "available": "Versão {{version}} disponível"
   },
   "autoCheck": {
     "label": "Verificar atualizações automaticamente"
@@ -62,7 +63,9 @@
       "remaining": "Registrando, cerca de {{count}} minutos restantes",
       "failed": "Não foi possível concluir. Tente novamente.",
       "unavailable": "Indisponível até o serviço estar pronto."
-    }
+    },
+    "exportDescription": "Compartilhe ou salve como arquivo",
+    "storageHint": "Os arquivos de log podem ser limpos em Armazenamento."
   },
   "debug": {
     "connectionPreview": "Prévia da conexão",
@@ -119,11 +122,14 @@
         "invitationExpired": "Quem convidou: convite expirado",
         "inviterConnected": "Quem convidou: dispositivo conectado"
       }
-    }
+    },
+    "previewsTitle": "Pré-visualizações"
   },
   "stats": {
     "title": "Estatísticas",
     "view": "Ver",
     "copied": "Estatísticas copiadas"
-  }
+  },
+  "versionValue": "Versão {{version}}",
+  "updatesTitle": "Atualizações"
 }

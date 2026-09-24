@@ -39,6 +39,7 @@ import { LogSection } from './LogSection';
 import { DebugSection } from './android/DebugSection';
 import { SpaceSettingsSection } from './android/SpaceSettingsSection';
 import { QuickActionsSection } from './QuickActionsSection';
+import { AnalyticsConsentControl } from './AnalyticsConsentControl';
 import { ClipboardAccessMethodSheetProvider } from './ClipboardAccessMethodSheet';
 import { LanServersPage } from './LanServersPage';
 import { SyncChannelSection } from './SyncChannelSection.android';
@@ -107,13 +108,16 @@ const SettingsSectionPageInner = memo(function SettingsSectionPageInner({
 
           {section === 'storage' && <StorageSection />}
 
+          {section === 'privacy' && <AnalyticsConsentControl />}
+
+          {section === 'diagnostics' && <LogSection />}
+
           {section === 'about' && (
             <AboutSection initialUpdate={update} />
           )}
 
           {section === 'developer' && (
             <>
-              <LogSection />
               <DebugSection
                 onOpenOnboardingPreview={() =>
                   navigation.navigate('OnboardingPreview')

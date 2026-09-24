@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 const read = (path: string) => readFileSync(path, 'utf8');
 it('offers capture control through each platform full-row component', () => {
   expect(read('src/screens/settings/ios/DiagnosticsPage.tsx')).toMatch(/<SettingsNavRow[\s\S]*testID="engine-diagnostic-capture"/);
-  expect(read('src/screens/settings/LogSection.android.tsx')).toContain('<SettingsSwitchRow');
+  // Android:限时记录是一次性操作,卡片内整宽按钮承载同一 testID
+  expect(read('src/screens/settings/LogSection.android.tsx')).toMatch(/modifiers=\{\[testID\('engine-diagnostic-capture'\)\]\}[\s\S]*?onClick=\{toggle\}/);
   for (const path of ['src/screens/settings/ios/DiagnosticsPage.tsx', 'src/screens/settings/LogSection.android.tsx']) {
     expect(read(path)).toContain('useEngineDiagnosticCapture');
   }

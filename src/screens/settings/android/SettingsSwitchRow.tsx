@@ -3,6 +3,8 @@ import { testID as testIDModifier, toggleable } from '@expo/ui/jetpack-compose/m
 
 import type { ReactNode } from 'react';
 
+import { useSettingsSectionRowColors } from '../SettingsSectionItem';
+
 interface SettingsSwitchRowProps {
   title: string;
   /** 可选前导图标(Compose Icon 节点) */
@@ -23,11 +25,13 @@ export function SettingsSwitchRow({
   disabled = false,
   onValueChange,
 }: SettingsSwitchRowProps) {
+  // grouped 分组内取色块容器色;card 分组下为 undefined,沿用 ListItem 默认
+  const rowColors = useSettingsSectionRowColors();
   const toggle = () => {
     if (!disabled) onValueChange(!value);
   };
   return (
-    <ListItem modifiers={[...(testID ? [testIDModifier(testID)] : []), toggleable(value, toggle, { role: 'switch' })]}>
+    <ListItem colors={rowColors} modifiers={[...(testID ? [testIDModifier(testID)] : []), toggleable(value, toggle, { role: 'switch' })]}>
       {leading ? <ListItem.LeadingContent>{leading}</ListItem.LeadingContent> : null}
       <ListItem.HeadlineContent>
         <ComposeText>{title}</ComposeText>

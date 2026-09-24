@@ -126,6 +126,11 @@
         "text": "UniClip 将通过 Shizuku 关闭 MIUI 的智能剪贴板限制，以便在后台读取和写入剪贴板。此操作可能同时关闭系统的智能剪贴板功能。",
         "confirm": "关闭限制"
       }
+    },
+    "groups": {
+      "clipboardAccess": "剪贴板读取",
+      "sync": "后台同步",
+      "reliability": "运行保障"
     }
   },
   "dialog": {

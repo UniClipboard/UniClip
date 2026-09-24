@@ -1,7 +1,8 @@
 /**
  * 调试 section
  *
- * 含 4 个调试开关，以及仅由调试触发的「短信测试」「统计信息」两个底部表单与结果弹窗。
+ * 两组 grouped 列表:「调试」(调试模式及其开启后才出现的开关、统计信息)与「预览」
+ * (各类界面预览入口),以及仅由调试触发的统计信息与预览场景选择底部表单。
  * 作为 item:无独立 Host,这些 modal/dialog 作为 item 内 overlay 渲染（见 SettingsSectionItem.dialogs），
  * 其状态/handler 一并内聚到本组件。
  */
@@ -11,12 +12,10 @@ import {
   Column,
   Row,
   ListItem,
-  Switch as ComposeSwitch,
   Button,
   TextButton,
   ModalBottomSheet,
   Spacer,
-  HorizontalDivider,
   Text as ComposeText,
 } from '@expo/ui/jetpack-compose';
 import {
@@ -40,6 +39,8 @@ import {
 import { useSettingsStore } from '@/stores';
 import { useSettingsToast } from '../SettingsToastContext';
 import { SettingsSectionItem } from '../SettingsSectionItem';
+import { SettingsListRow } from './SettingsListRow';
+import { SettingsSwitchRow } from './SettingsSwitchRow';
 
 const TITLE_STYLE = { typography: 'titleLarge' } as const;
 
@@ -171,256 +172,195 @@ export const DebugSection = memo(function DebugSection({
   };
 
   return (
-    <SettingsSectionItem
-      title={t('debug.title')}
-      dialogs={
-        <>
-          {/* 统计信息底部表单 */}
-          {showStatsModal && (
-            <ModalBottomSheet onDismissRequest={() => setShowStatsModal(false)}>
-              <Column modifiers={[paddingAll(24), fillMaxWidth()]}>
-                <ComposeText style={TITLE_STYLE}>
-                  {t('stats.title')}
-                </ComposeText>
-                <Spacer modifiers={[heightModifier(16)]} />
-                <ComposeText>{statsText}</ComposeText>
-                <Spacer modifiers={[heightModifier(16)]} />
-                <Row modifiers={[fillMaxWidth()]} horizontalArrangement="end">
-                  <TextButton onClick={() => setShowStatsModal(false)}>
-                    <ComposeText>
-                      {t('action.close', { ns: 'common' })}
-                    </ComposeText>
-                  </TextButton>
-                  <Spacer modifiers={[widthModifier(8)]} />
-                  <Button onClick={handleCopyStatistics}>
-                    <ComposeText>
-                      {t('action.copy', { ns: 'common' })}
-                    </ComposeText>
-                  </Button>
-                </Row>
-              </Column>
-            </ModalBottomSheet>
-          )}
-          {showDeviceTrustPreviewPicker && (
-            <ModalBottomSheet
-              onDismissRequest={() => setShowDeviceTrustPreviewPicker(false)}
-              properties={{
-                shouldDismissOnBackPress: true,
-                shouldDismissOnClickOutside: true,
-              }}
-            >
-              <Column
-                modifiers={[fillMaxWidth(), verticalScroll(), paddingAll(12)]}
+    <Column modifiers={[fillMaxWidth()]}>
+      <SettingsSectionItem
+        variant="grouped"
+        title={t('debug.title')}
+        dialogs={
+          <>
+            {/* 统计信息底部表单 */}
+            {showStatsModal && (
+              <ModalBottomSheet
+                onDismissRequest={() => setShowStatsModal(false)}
               >
-                <ComposeText style={TITLE_STYLE}>
-                  {t('debug.deviceTrustPreview.pickerTitle')}
-                </ComposeText>
-                <Spacer modifiers={[heightModifier(8)]} />
-                <ComposeText>
-                  {t('debug.deviceTrustPreview.pickerDescription')}
-                </ComposeText>
-                <Spacer modifiers={[heightModifier(12)]} />
-                {DEVICE_TRUST_PREVIEW_SCENARIOS.map((scenario) => (
-                  <ListItem
-                    key={scenario.id}
-                    modifiers={[
-                      clickable(() =>
-                        handleOpenDeviceTrustPreview(scenario.id)
-                      ),
-                      fillMaxWidth(),
-                    ]}
-                  >
-                    <ListItem.HeadlineContent>
-                      <ComposeText>{t(scenario.labelKey)}</ComposeText>
-                    </ListItem.HeadlineContent>
-                  </ListItem>
-                ))}
-              </Column>
-            </ModalBottomSheet>
-          )}
-          {showConnectionSheetPreviewPicker && (
-            <ModalBottomSheet
-              onDismissRequest={() =>
-                setShowConnectionSheetPreviewPicker(false)
+                <Column modifiers={[paddingAll(24), fillMaxWidth()]}>
+                  <ComposeText style={TITLE_STYLE}>
+                    {t('stats.title')}
+                  </ComposeText>
+                  <Spacer modifiers={[heightModifier(16)]} />
+                  <ComposeText>{statsText}</ComposeText>
+                  <Spacer modifiers={[heightModifier(16)]} />
+                  <Row modifiers={[fillMaxWidth()]} horizontalArrangement="end">
+                    <TextButton onClick={() => setShowStatsModal(false)}>
+                      <ComposeText>
+                        {t('action.close', { ns: 'common' })}
+                      </ComposeText>
+                    </TextButton>
+                    <Spacer modifiers={[widthModifier(8)]} />
+                    <Button onClick={handleCopyStatistics}>
+                      <ComposeText>
+                        {t('action.copy', { ns: 'common' })}
+                      </ComposeText>
+                    </Button>
+                  </Row>
+                </Column>
+              </ModalBottomSheet>
+            )}
+            {showDeviceTrustPreviewPicker && (
+              <ModalBottomSheet
+                onDismissRequest={() => setShowDeviceTrustPreviewPicker(false)}
+                properties={{
+                  shouldDismissOnBackPress: true,
+                  shouldDismissOnClickOutside: true,
+                }}
+              >
+                <Column
+                  modifiers={[fillMaxWidth(), verticalScroll(), paddingAll(12)]}
+                >
+                  <ComposeText style={TITLE_STYLE}>
+                    {t('debug.deviceTrustPreview.pickerTitle')}
+                  </ComposeText>
+                  <Spacer modifiers={[heightModifier(8)]} />
+                  <ComposeText>
+                    {t('debug.deviceTrustPreview.pickerDescription')}
+                  </ComposeText>
+                  <Spacer modifiers={[heightModifier(12)]} />
+                  {DEVICE_TRUST_PREVIEW_SCENARIOS.map((scenario) => (
+                    <ListItem
+                      key={scenario.id}
+                      modifiers={[
+                        clickable(() =>
+                          handleOpenDeviceTrustPreview(scenario.id)
+                        ),
+                        fillMaxWidth(),
+                      ]}
+                    >
+                      <ListItem.HeadlineContent>
+                        <ComposeText>{t(scenario.labelKey)}</ComposeText>
+                      </ListItem.HeadlineContent>
+                    </ListItem>
+                  ))}
+                </Column>
+              </ModalBottomSheet>
+            )}
+            {showConnectionSheetPreviewPicker && (
+              <ModalBottomSheet
+                onDismissRequest={() =>
+                  setShowConnectionSheetPreviewPicker(false)
+                }
+                properties={{
+                  shouldDismissOnBackPress: true,
+                  shouldDismissOnClickOutside: true,
+                }}
+              >
+                <Column
+                  modifiers={[fillMaxWidth(), verticalScroll(), paddingAll(12)]}
+                >
+                  <ComposeText style={TITLE_STYLE}>
+                    {t('debug.connectionSheetPreview.pickerTitle')}
+                  </ComposeText>
+                  <Spacer modifiers={[heightModifier(8)]} />
+                  <ComposeText>
+                    {t('debug.connectionSheetPreview.pickerDescription')}
+                  </ComposeText>
+                  <Spacer modifiers={[heightModifier(12)]} />
+                  {ADD_SYNC_CONNECTION_PREVIEW_SCENARIOS.map((scenario) => (
+                    <ListItem
+                      key={scenario.id}
+                      modifiers={[
+                        clickable(() => {
+                          setShowConnectionSheetPreviewPicker(false);
+                          onOpenConnectionSheetPreview(scenario.id);
+                        }),
+                        fillMaxWidth(),
+                      ]}
+                    >
+                      <ListItem.HeadlineContent>
+                        <ComposeText>{t(scenario.labelKey)}</ComposeText>
+                      </ListItem.HeadlineContent>
+                    </ListItem>
+                  ))}
+                </Column>
+              </ModalBottomSheet>
+            )}
+          </>
+        }
+      >
+        <SettingsSwitchRow
+          key="debugMode"
+          title={t('debug.modeLabel')}
+          value={debugMode}
+          onValueChange={(enabled) => void handleToggleDebugMode(enabled)}
+        />
+        {debugMode ? (
+          <>
+            <SettingsSwitchRow
+              key="overlay"
+              title={t('debug.overlayLabel')}
+              description={t('debug.overlayDesc')}
+              value={debugOverlayVisible}
+              onValueChange={(enabled) =>
+                void handleToggleDebugOverlayVisible(enabled)
               }
-              properties={{
-                shouldDismissOnBackPress: true,
-                shouldDismissOnClickOutside: true,
-              }}
-            >
-              <Column
-                modifiers={[fillMaxWidth(), verticalScroll(), paddingAll(12)]}
-              >
-                <ComposeText style={TITLE_STYLE}>
-                  {t('debug.connectionSheetPreview.pickerTitle')}
-                </ComposeText>
-                <Spacer modifiers={[heightModifier(8)]} />
-                <ComposeText>
-                  {t('debug.connectionSheetPreview.pickerDescription')}
-                </ComposeText>
-                <Spacer modifiers={[heightModifier(12)]} />
-                {ADD_SYNC_CONNECTION_PREVIEW_SCENARIOS.map((scenario) => (
-                  <ListItem
-                    key={scenario.id}
-                    modifiers={[
-                      clickable(() => {
-                        setShowConnectionSheetPreviewPicker(false);
-                        onOpenConnectionSheetPreview(scenario.id);
-                      }),
-                      fillMaxWidth(),
-                    ]}
-                  >
-                    <ListItem.HeadlineContent>
-                      <ComposeText>{t(scenario.labelKey)}</ComposeText>
-                    </ListItem.HeadlineContent>
-                  </ListItem>
-                ))}
-              </Column>
-            </ModalBottomSheet>
-          )}
-        </>
-      }
-    >
-      <ListItem>
-        <ListItem.HeadlineContent>
-          <ComposeText>{t('debug.modeLabel')}</ComposeText>
-        </ListItem.HeadlineContent>
-        <ListItem.TrailingContent>
-          <ComposeSwitch
-            value={debugMode}
-            onCheckedChange={handleToggleDebugMode}
-          />
-        </ListItem.TrailingContent>
-      </ListItem>
+            />
+            <SettingsSwitchRow
+              key="urlScheme"
+              title={t('debug.urlSchemeLabel')}
+              value={debugUrlScheme}
+              onValueChange={(enabled) =>
+                void handleToggleDebugUrlScheme(enabled)
+              }
+            />
+            <SettingsSwitchRow
+              key="updateNoLimit"
+              title={t('debug.updateNoLimitLabel')}
+              description={t('debug.updateNoLimitDesc')}
+              value={debugUpdateCheckNoLimit}
+              onValueChange={(enabled) =>
+                void handleToggleDebugUpdateCheckNoLimit(enabled)
+              }
+            />
+            <SettingsListRow
+              key="statistics"
+              title={t('stats.title')}
+              trailing={{ action: t('stats.view') }}
+              onPress={() => void handleShowStatistics()}
+            />
+          </>
+        ) : null}
+      </SettingsSectionItem>
 
-      {deviceTrustPreviewAvailable ? (
-        <>
-          <HorizontalDivider />
-          <ListItem modifiers={[clickable(openDeviceTrustPreviewPicker)]}>
-            <ListItem.HeadlineContent>
-              <ComposeText>{t('debug.deviceTrustPreview.label')}</ComposeText>
-            </ListItem.HeadlineContent>
-            <ListItem.SupportingContent>
-              <ComposeText>
-                {t('debug.deviceTrustPreview.description')}
-              </ComposeText>
-            </ListItem.SupportingContent>
-          </ListItem>
-        </>
-      ) : null}
-
-      {deviceTrustPreviewAvailable ? (
-        <>
-          <HorizontalDivider />
-          <ListItem
-            modifiers={[
-              clickable(() => setShowConnectionSheetPreviewPicker(true)),
-              fillMaxWidth(),
-            ]}
-          >
-            <ListItem.HeadlineContent>
-              <ComposeText>
-                {t('debug.connectionSheetPreview.label')}
-              </ComposeText>
-            </ListItem.HeadlineContent>
-            <ListItem.SupportingContent>
-              <ComposeText>
-                {t('debug.connectionSheetPreview.description')}
-              </ComposeText>
-            </ListItem.SupportingContent>
-          </ListItem>
-        </>
-      ) : null}
-
-      <HorizontalDivider />
-      <ListItem
-        modifiers={[clickable(onOpenOnboardingPreview), fillMaxWidth()]}
-      >
-        <ListItem.HeadlineContent>
-          <ComposeText>{t('debug.onboardingPreview')}</ComposeText>
-        </ListItem.HeadlineContent>
-      </ListItem>
-      <HorizontalDivider />
-      <ListItem
-        modifiers={[clickable(onOpenConnectionPreview), fillMaxWidth()]}
-      >
-        <ListItem.HeadlineContent>
-          <ComposeText>{t('debug.connectionPreview')}</ComposeText>
-        </ListItem.HeadlineContent>
-      </ListItem>
-
-      {debugMode && (
-        <>
-          <HorizontalDivider />
-          <ListItem>
-            <ListItem.HeadlineContent>
-              <ComposeText>{t('debug.overlayLabel')}</ComposeText>
-            </ListItem.HeadlineContent>
-            <ListItem.SupportingContent>
-              <ComposeText>{t('debug.overlayDesc')}</ComposeText>
-            </ListItem.SupportingContent>
-            <ListItem.TrailingContent>
-              <ComposeSwitch
-                value={debugOverlayVisible}
-                onCheckedChange={handleToggleDebugOverlayVisible}
-              />
-            </ListItem.TrailingContent>
-          </ListItem>
-        </>
-      )}
-
-      {debugMode && (
-        <>
-          <HorizontalDivider />
-          <ListItem>
-            <ListItem.HeadlineContent>
-              <ComposeText>{t('debug.urlSchemeLabel')}</ComposeText>
-            </ListItem.HeadlineContent>
-            <ListItem.TrailingContent>
-              <ComposeSwitch
-                value={debugUrlScheme}
-                onCheckedChange={handleToggleDebugUrlScheme}
-              />
-            </ListItem.TrailingContent>
-          </ListItem>
-        </>
-      )}
-
-      {debugMode && (
-        <>
-          <HorizontalDivider />
-          <ListItem>
-            <ListItem.HeadlineContent>
-              <ComposeText>{t('debug.updateNoLimitLabel')}</ComposeText>
-            </ListItem.HeadlineContent>
-            <ListItem.SupportingContent>
-              <ComposeText>{t('debug.updateNoLimitDesc')}</ComposeText>
-            </ListItem.SupportingContent>
-            <ListItem.TrailingContent>
-              <ComposeSwitch
-                value={debugUpdateCheckNoLimit}
-                onCheckedChange={handleToggleDebugUpdateCheckNoLimit}
-              />
-            </ListItem.TrailingContent>
-          </ListItem>
-        </>
-      )}
-
-      {debugMode && (
-        <>
-          <HorizontalDivider />
-          <ListItem>
-            <ListItem.HeadlineContent>
-              <ComposeText>{t('stats.title')}</ComposeText>
-            </ListItem.HeadlineContent>
-            <ListItem.TrailingContent>
-              <Button onClick={handleShowStatistics}>
-                <ComposeText>{t('stats.view')}</ComposeText>
-              </Button>
-            </ListItem.TrailingContent>
-          </ListItem>
-        </>
-      )}
-    </SettingsSectionItem>
+      <Spacer modifiers={[heightModifier(24)]} />
+      <SettingsSectionItem variant="grouped" title={t('debug.previewsTitle')}>
+        {deviceTrustPreviewAvailable ? (
+          <>
+            <SettingsListRow
+              key="deviceTrustPreview"
+              title={t('debug.deviceTrustPreview.label')}
+              description={t('debug.deviceTrustPreview.description')}
+              onPress={openDeviceTrustPreviewPicker}
+            />
+            <SettingsListRow
+              key="connectionSheetPreview"
+              title={t('debug.connectionSheetPreview.label')}
+              description={t('debug.connectionSheetPreview.description')}
+              onPress={() => setShowConnectionSheetPreviewPicker(true)}
+            />
+          </>
+        ) : null}
+        <SettingsListRow
+          key="onboardingPreview"
+          title={t('debug.onboardingPreview')}
+          trailing="chevron"
+          onPress={onOpenOnboardingPreview}
+        />
+        <SettingsListRow
+          key="connectionPreview"
+          title={t('debug.connectionPreview')}
+          trailing="chevron"
+          onPress={onOpenConnectionPreview}
+        />
+      </SettingsSectionItem>
+    </Column>
   );
 });
