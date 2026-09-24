@@ -66,7 +66,8 @@
       "engineLogs": "Engine logs",
       "shareAttempts": "Share attempt records",
       "included": "Included",
-      "footer": "The ZIP contains redacted app logs, Engine logs, app state, and Share attempt records. Clipboard contents and credentials are excluded."
+      "footer": "The ZIP contains redacted app logs, Engine logs, app state, and Share attempt records. Clipboard contents and credentials are excluded.",
+      "summary": "ZIP of the last 3 days, without clipboard content"
     },
     "action": {
       "generate": "Export logs",

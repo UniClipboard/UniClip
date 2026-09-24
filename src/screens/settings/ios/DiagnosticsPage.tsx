@@ -2,16 +2,11 @@ import { useEngineDiagnosticCapture } from '@/support/diagnostics/useEngineDiagn
 import { useCallback, useState } from 'react';
 import { Alert } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import {
-  Label,
-  LabeledContent,
-  Section,
-  Text as SwiftUIText,
-} from '@expo/ui/swift-ui';
-import { foregroundStyle } from '@expo/ui/swift-ui/modifiers';
+import { Label, Picker, Section, Text as SwiftUIText } from '@expo/ui/swift-ui';
+import { pickerStyle, tag } from '@expo/ui/swift-ui/modifiers';
 
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
-import { APP_VERSION } from '@/constants';
+import type { AppSettings } from '@/types/settings';
 import {
   classifyDiagnosticReason,
   createDiagnosticArchive,
@@ -26,6 +21,8 @@ import { getLogger } from '@/support/observability';
 import { shareFile } from '@/utils/fileActions';
 import { HeaderCircleButton, SettingsNavRow } from './common';
 
+const LOG_LEVELS: AppSettings['logLevel'][] = ['debug', 'info', 'warn', 'error'];
+
 export function DiagnosticsPage({ onBack, onSendArchive }: {
   onBack: () => void;
   onSendArchive: (artifact: DiagnosticArtifact) => void;
@@ -33,6 +30,7 @@ export function DiagnosticsPage({ onBack, onSendArchive }: {
   const { t } = useTranslation('settingsIos');
   const capture = useEngineDiagnosticCapture();
   const config = useSettingsStore((state) => state.config);
+  const updateConfig = useSettingsStore((state) => state.updateConfig);
   const engineStatus = useUnifiedEngineStore((state) => state.status);
   const peerConnectionStatus = useUnifiedEngineStore((state) => state.peerConnectionStatus);
   const engineError = useUnifiedEngineStore((state) => state.lastError);
@@ -102,7 +100,10 @@ export function DiagnosticsPage({ onBack, onSendArchive }: {
       leftSlots={[<HeaderCircleButton testID="diagnostics-back" key="back" systemName="chevron.left" onPress={onBack} />]}
     >
       <IosSheetForm>
-        <Section footer={<SwiftUIText>{t('diagnostics.capture.description')}</SwiftUIText>}>
+        <Section
+          header={<SwiftUIText>{t('diagnostics.capture.title')}</SwiftUIText>}
+          footer={<SwiftUIText>{t('diagnostics.capture.description')}</SwiftUIText>}
+        >
           <SettingsNavRow
             testID="engine-diagnostic-capture"
             icon="waveform.path"
@@ -113,66 +114,38 @@ export function DiagnosticsPage({ onBack, onSendArchive }: {
             onPress={() => void capture.toggle()}
           />
         </Section>
-        <Section footer={<SwiftUIText>{t('diagnostics.package.footer')}</SwiftUIText>}>
-          <LabeledContent
-            label={<Label title={t('diagnostics.package.appVersion')} systemImage="app.badge" />}
-          >
-            <SwiftUIText modifiers={[foregroundStyle('secondary')]}>{APP_VERSION}</SwiftUIText>
-          </LabeledContent>
-          <LabeledContent
-            label={<Label title={t('diagnostics.package.format')} systemImage="doc.zipper" />}
-          >
-            <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-              {t('diagnostics.package.zipArchive')}
-            </SwiftUIText>
-          </LabeledContent>
-          <LabeledContent
-            label={
-              <Label
-                title={t('diagnostics.package.logRange')}
-                systemImage="clock.arrow.circlepath"
-              />
-            }
-          >
-            <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-              {t('diagnostics.package.lastThreeDays')}
-            </SwiftUIText>
-          </LabeledContent>
-          <LabeledContent
-            label={<Label title={t('diagnostics.package.appLogs')} systemImage="doc.text" />}
-          >
-            <SwiftUIText modifiers={[foregroundStyle('secondary')]}>{t('diagnostics.package.included')}</SwiftUIText>
-          </LabeledContent>
-          <LabeledContent
-            label={<Label title={t('diagnostics.package.engineLogs')} systemImage="gearshape.2" />}
-          >
-            <SwiftUIText modifiers={[foregroundStyle('secondary')]}>{t('diagnostics.package.included')}</SwiftUIText>
-          </LabeledContent>
-          <LabeledContent
-            label={
-              <Label
-                title={t('diagnostics.package.shareAttempts')}
-                systemImage="puzzlepiece.extension"
-              />
-            }
-          >
-            <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-              {t('diagnostics.package.included')}
-            </SwiftUIText>
-          </LabeledContent>
-        </Section>
-
-        <Section>
+        <Section
+          header={<SwiftUIText>{t('log.title', { ns: 'settingsAbout' })}</SwiftUIText>}
+          footer={<SwiftUIText>{t('log.storageHint', { ns: 'settingsAbout' })}</SwiftUIText>}
+        >
           <SettingsNavRow
             testID="diagnostic-export"
             icon="square.and.arrow.up"
             title={
               isGenerating ? t('diagnostics.action.preparing') : t('diagnostics.action.generate')
             }
+            subtitle={t('diagnostics.package.summary')}
             onPress={chooseExportMethod}
             disabled={isGenerating || !config}
             showsChevron={false}
           />
+          {config ? (
+            <Picker
+              testID="diagnostic-log-level"
+              label={<Label title={t('log.levelLabel', { ns: 'settingsAbout' })} systemImage="slider.horizontal.3" />}
+              selection={config.logLevel}
+              onSelectionChange={(value) =>
+                void updateConfig({ logLevel: value as AppSettings['logLevel'] })
+              }
+              modifiers={[pickerStyle('menu')]}
+            >
+              {LOG_LEVELS.map((level) => (
+                <SwiftUIText key={level} modifiers={[tag(level)]}>
+                  {t(`log.level.${level}`, { ns: 'settingsAbout' })}
+                </SwiftUIText>
+              ))}
+            </Picker>
+          ) : null}
         </Section>
       </IosSheetForm>
     </IosSheetPage>
