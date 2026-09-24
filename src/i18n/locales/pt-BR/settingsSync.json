@@ -373,6 +373,10 @@
     "manage": {
       "title": "Ações do espaço"
     },
+    "settings": {
+      "title": "Configurações do espaço",
+      "summary": "Relay, trocar ou sair do espaço"
+    },
     "advanced": {
       "title": "Avançado"
     },

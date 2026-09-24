@@ -373,6 +373,10 @@
     "manage": {
       "title": "Space actions"
     },
+    "settings": {
+      "title": "Space settings",
+      "summary": "Relay, switch or leave space"
+    },
     "advanced": {
       "title": "Advanced"
     },

@@ -79,7 +79,9 @@ describe('LAN server UI ownership', () => {
     const page = source('src/screens/settings/LanServersPage.android.tsx');
     const editor = source('src/components/LanServerEditorSheet.android.tsx');
 
-    expect(page).toContain('ListItem modifiers={[clickable(');
+    expect(page).toContain('<ListItem colors={rowColors} modifiers={[clickable(onEdit)]}>');
+    expect(page).toContain('<ListItem colors={rowColors} modifiers={[clickable(onAdd)]}>');
+    expect(page).toContain('variant="grouped"');
     expect(page).toContain('<LanServerEditorSheet');
     expect(page).toContain('usePendingLanConnectStore');
     expect(editor).toContain('<ModalBottomSheet');

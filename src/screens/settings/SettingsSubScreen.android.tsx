@@ -33,6 +33,7 @@ import { StorageSection } from './StorageSection';
 import { AboutSection } from './AboutSection';
 import { LogSection } from './LogSection';
 import { DebugSection } from './android/DebugSection';
+import { SpaceSettingsSection } from './android/SpaceSettingsSection';
 import { QuickActionsSection } from './QuickActionsSection';
 import { ClipboardAccessMethodSheetProvider } from './ClipboardAccessMethodSheet';
 import { LanServersPage } from './LanServersPage';
@@ -86,6 +87,8 @@ const SettingsSectionPageInner = memo(function SettingsSectionPageInner({
               notificationNavigationRequestId={notificationNavigationRequestId}
             />
           )}
+
+          {section === 'spaceSettings' && <SpaceSettingsSection />}
 
           {section === 'lanServers' && <LanServersPage />}
 

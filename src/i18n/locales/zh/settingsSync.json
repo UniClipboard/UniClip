@@ -373,6 +373,10 @@
     "manage": {
       "title": "空间操作"
     },
+    "settings": {
+      "title": "空间设置",
+      "summary": "中继、切换或退出空间"
+    },
     "advanced": {
       "title": "高级设置"
     },

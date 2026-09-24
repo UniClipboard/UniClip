@@ -4,6 +4,7 @@ import type { UpdateCheckResult } from '@/features/updates';
 export type SettingsSubSection =
   | 'syncChannel'
   | 'space'
+  | 'spaceSettings'
   | 'lanServers'
   | 'history'
   | 'background'

@@ -43,10 +43,13 @@ describe('sync channel settings UI', () => {
     );
     const iosOwner = fs.readFileSync(path.join(root, 'src/screens/SettingsScreen.ios.tsx'), 'utf8');
 
-    expect(androidPage).toContain('RadioButton');
+    // Android 设备页顶部用紧凑的 M3 分段按钮,设备列表才是页面主体
+    expect(androidPage).toContain('<SingleChoiceSegmentedButtonRow');
+    expect(androidPage).not.toContain('RadioButton');
     expect(androidPage).toContain('<Badge');
-    expect(androidPage).toContain("t('syncChannel.experimental')");
-    expect(androidPage).toContain('ListItem modifiers={[clickable(');
+    expect(androidPage).toContain("t('syncChannel.experimentalBadge')");
+    expect(androidPage).toContain("testID('sync-channel-p2p')");
+    expect(androidPage).toContain('setShowP2pConfirmation(true)');
     expect(androidPage).toContain('updateConfig({ syncChannel: channel })');
     expect(androidPage).toContain("syncChannel === 'lan'");
     expect(androidPage).toContain('<LanServersPage />');

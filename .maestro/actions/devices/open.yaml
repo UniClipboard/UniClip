@@ -18,6 +18,14 @@ appId: ${APP_ID}
     commands:
       - tapOn:
           id: main-tab-Devices
-- extendedWaitUntil:
-    visible: "Direct device sync.*"
-    timeout: 20000
+      - extendedWaitUntil:
+          visible:
+            id: sync-channel-p2p
+          timeout: 20000
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - extendedWaitUntil:
+          visible: "Direct device sync.*"
+          timeout: 20000
