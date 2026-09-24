@@ -1,0 +1,24 @@
+# Pre: Android home with search closed. System Back exits both populated and empty search.
+appId: ${APP_ID}
+---
+- runFlow:
+    file: query.yaml
+    env:
+      QUERY: SearchBackRegression
+- hideKeyboard
+- back
+- takeScreenshot: search-back-with-text
+- assertVisible:
+    id: history-search-open
+- assertNotVisible:
+    id: history-search-input
+- runFlow: open.yaml
+- assertNotVisible:
+    id: history-search-clear
+- hideKeyboard
+- back
+- takeScreenshot: search-back-empty
+- assertVisible:
+    id: history-search-open
+- assertNotVisible:
+    id: history-search-input
