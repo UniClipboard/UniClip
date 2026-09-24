@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { startTransition, useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, BackHandler } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Animated, {
   Easing,
+  interpolateColor,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -27,6 +28,8 @@ type Item = {
 // M3 Expressive FAB menu:菜单项为 56dp 高的胶囊按钮,项间距 4dp,与 FAB 间距 8dp
 const ITEM_HEIGHT = 56;
 const ITEM_GAP = 4;
+/** 收起态 FAB 圆角;展开后圆角增至 FAB_SIZE / 2 成为圆形关闭按钮 */
+const FAB_CORNER = 16;
 
 /**
  * 首页「添加内容」FAB(Android)——M3 Expressive FAB menu。
@@ -46,19 +49,35 @@ export function AddActionsFab({
   theme,
   anchor = 'end',
   horizontalInset = 16,
+  openSignal,
 }: AddActionsFabProps) {
   const { t } = useTranslation('home');
   const { colors } = theme;
   const insets = useSafeAreaInsets();
   const anchorEnd = anchor === 'end';
   const anchorStyle = anchorEnd ? { right: horizontalInset } : { left: horizontalInset };
+  // 本地展开态即刻响应点按;上报父级放进 transition,不必等整页重渲才起动画。
+  // 父级主动收起(如进入详情)时 open 变化再同步回本地
+  const [localOpen, setLocalOpen] = useState(open);
+  useEffect(() => {
+    setLocalOpen(open);
+  }, [open]);
+  const setOpen = useCallback(
+    (next: boolean) => {
+      setLocalOpen(next);
+      startTransition(() => onOpenChange(next));
+    },
+    [onOpenChange]
+  );
+
   const [mounted, setMounted] = useState(open);
   const progress = useSharedValue(0);
 
   const unmount = useCallback(() => setMounted(false), []);
 
   useEffect(() => {
-    if (open) {
+    if (openSignal) openSignal.value = localOpen;
+    if (localOpen) {
       setMounted(true);
       progress.value = withSpring(1, { damping: 22, stiffness: 260, mass: 0.8 });
     } else if (mounted) {
@@ -67,30 +86,52 @@ export function AddActionsFab({
       });
     }
     // mounted 不入依赖:开→挂载,关→播完退场再卸载
-  }, [open, progress, unmount]);
+  }, [localOpen, openSignal, progress, unmount]);
+
+  // 卸载(如进入搜索)时撤销对外的展开信号
+  useEffect(() => {
+    if (!openSignal) return;
+    return () => {
+      openSignal.value = false;
+    };
+  }, [openSignal]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!localOpen) return;
     const h = BackHandler.addEventListener('hardwareBackPress', () => {
-      onOpenChange(false);
+      setOpen(false);
       return true;
     });
     return () => h.remove();
-  }, [open, onOpenChange]);
+  }, [localOpen, setOpen]);
 
+  // 收起态 primaryContainer 圆角方块 → 展开态 primary 圆形关闭按钮:颜色、圆角、图标色
+  // 都跟随同一 progress,与 + → × 的旋转同步,不在开关瞬间跳变
+  const accentContainer = String(colors.accentContainer);
+  const accent = String(colors.accent);
+  const fabStyle = useAnimatedStyle(() => ({
+    borderRadius: FAB_CORNER + (FAB_SIZE / 2 - FAB_CORNER) * Math.min(1, progress.value),
+    backgroundColor: interpolateColor(progress.value, [0, 1], [accentContainer, accent]),
+  }));
   const fabIconStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${progress.value * 45}deg` }],
+  }));
+  const closedIconStyle = useAnimatedStyle(() => ({
+    opacity: 1 - Math.min(1, progress.value),
+  }));
+  const openIconStyle = useAnimatedStyle(() => ({
+    opacity: Math.min(1, progress.value),
   }));
   const scrimStyle = useAnimatedStyle(() => ({ opacity: progress.value * 0.32 }));
 
   const toggleOpen = useCallback(() => {
     Haptics.performAndroidHapticsAsync(Haptics.AndroidHaptics.Virtual_Key).catch(() => {});
-    onOpenChange(!open);
-  }, [open, onOpenChange]);
+    setOpen(!localOpen);
+  }, [localOpen, setOpen]);
 
   const runItem = useCallback(
     (fn: () => void) => {
-      onOpenChange(false);
+      setOpen(false);
       // 收起动画同时触发系统 picker;Android intent 是新 activity,短延迟即可
       setTimeout(fn, 130);
     },
@@ -123,7 +164,7 @@ export function AddActionsFab({
           />
           <Pressable
             style={[StyleSheet.absoluteFill, s.scrimTouch]}
-            onPress={() => onOpenChange(false)}
+            onPress={() => setOpen(false)}
             accessibilityRole="button"
             accessibilityLabel={t('a11y.closeMenu')}
           />
@@ -151,25 +192,26 @@ export function AddActionsFab({
         </>
       )}
 
-      <View style={[s.fabWrap, anchorStyle, { bottom: fabBottom }]}>
+      <Animated.View style={[s.fabWrap, anchorStyle, { bottom: fabBottom }, fabStyle]}>
         <Pressable
           testID="home-add-fab"
           onPress={toggleOpen}
           android_ripple={{ color: colors.fillSecondary as string }}
-          style={[s.fab, { backgroundColor: open ? colors.accent : colors.accentContainer }]}
+          style={s.fab}
           accessibilityRole="button"
-          accessibilityState={{ expanded: open }}
-          accessibilityLabel={open ? t('a11y.closeMenu') : t('a11y.addContent')}
+          accessibilityState={{ expanded: localOpen }}
+          accessibilityLabel={localOpen ? t('a11y.closeMenu') : t('a11y.addContent')}
         >
           <Animated.View style={fabIconStyle}>
-            <Ionicons
-              name="add"
-              size={24}
-              color={open ? colors.onAccent : colors.onAccentContainer}
-            />
+            <Animated.View style={closedIconStyle}>
+              <Ionicons name="add" size={24} color={colors.onAccentContainer} />
+            </Animated.View>
+            <Animated.View style={[StyleSheet.absoluteFill, openIconStyle]}>
+              <Ionicons name="add" size={24} color={colors.onAccent} />
+            </Animated.View>
           </Animated.View>
         </Pressable>
-      </View>
+      </Animated.View>
     </>
   );
 }
@@ -243,7 +285,7 @@ const s = StyleSheet.create({
     position: 'absolute',
     width: FAB_SIZE,
     height: FAB_SIZE,
-    borderRadius: 16,
+    borderRadius: FAB_CORNER,
     overflow: 'hidden',
     elevation: 3,
     zIndex: 20,

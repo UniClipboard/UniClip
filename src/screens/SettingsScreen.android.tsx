@@ -20,7 +20,11 @@ import {
   useMaterialColors,
 } from '@expo/ui/jetpack-compose';
 import { fillMaxSize, clickable, testID } from '@expo/ui/jetpack-compose/modifiers';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  useFloatingNavigationClearance,
+  useFloatingNavigationSnackbarOffset,
+} from '@/components/android/floatingNavigationClearance';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
@@ -227,6 +231,9 @@ const OtherHubGroup = memo(function OtherHubGroup({ iconTint, onNavigate }: HubG
 
 const SettingsScreenInner = () => {
   const { theme } = useTheme();
+  // 列表延伸到系统导航栏(及顶级目的地的悬浮导航胶囊)之下,末项需让出这部分
+  const insets = useSafeAreaInsets();
+  const navClearance = useFloatingNavigationClearance();
   const navigation = useNavigation<any>();
   // Host 外部也使用同一 seed,避免图标色与 Host 内的 Compose 色板不一致。
   const appColorScheme = theme.isDark ? 'dark' : 'light';
@@ -271,7 +278,7 @@ const SettingsScreenInner = () => {
       <Host style={styles.container} colorScheme={appColorScheme} seedColor={MATERIAL_SEED_COLOR}>
         <LazyColumn
           modifiers={[fillMaxSize()]}
-          contentPadding={{ start: 16, end: 16, top: 8, bottom: 40 }}
+          contentPadding={{ start: 16, end: 16, top: 8, bottom: insets.bottom + navClearance + 40 }}
           verticalArrangement={{ spacedBy: 16 }}
         >
           <ClipboardSyncDirectionGroup />
@@ -285,8 +292,11 @@ const SettingsScreenInner = () => {
   );
 };
 
-export const SettingsScreen = () => (
-  <SettingsToastProvider>
-    <SettingsScreenInner />
-  </SettingsToastProvider>
-);
+export const SettingsScreen = () => {
+  const snackbarOffset = useFloatingNavigationSnackbarOffset();
+  return (
+    <SettingsToastProvider bottomOffset={snackbarOffset}>
+      <SettingsScreenInner />
+    </SettingsToastProvider>
+  );
+};

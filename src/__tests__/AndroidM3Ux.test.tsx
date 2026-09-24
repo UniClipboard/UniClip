@@ -226,7 +226,8 @@ describe('Android Material 3 sheets, feedback and tokens', () => {
 
   it('follows the M3 FAB menu: labelled pill items, no icon tiles, no sync entry', () => {
     const fab = read('components/AddActionsFab.android.tsx');
-    expect(fab).toContain('borderRadius: 16');
+    expect(fab).toContain('const FAB_CORNER = 16;');
+    expect(fab).toContain('borderRadius: FAB_CORNER,');
     expect(fab).toContain('accessibilityRole="menuitem"');
     expect(fab).not.toContain('onSync');
     expect(fab).not.toContain('borderCurve');

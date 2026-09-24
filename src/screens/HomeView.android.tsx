@@ -23,7 +23,12 @@ import { NAVIGATION_RAIL_WIDTH } from '@/components/android/mainNavigationMetric
  * surfaceLow 与 background 在 light 下仅差 ~2%,肉眼几乎分不出。网格卡片仍是 surfaceLow,
  * 与手机端一致。
  */
-export function HomeView({ onOpenSettings, onOpenAbout, onImmersiveModeChange }: HomeViewProps) {
+export function HomeView({
+  onOpenSettings,
+  onOpenAbout,
+  onImmersiveModeChange,
+  addMenuOpenSignal,
+}: HomeViewProps) {
   const c = useHomeController(onOpenSettings);
   const { t: tAbout, i18n } = useTranslation('settingsAbout');
   const { width: screenWidth } = useWindowDimensions();
@@ -66,7 +71,14 @@ export function HomeView({ onOpenSettings, onOpenAbout, onImmersiveModeChange }:
 
   if (mode === 'compact') {
     return (
-      <HomeCompactView c={c} screenWidth={screenWidth} refreshTintColor={c.theme.colors.accent} />
+      <HomeCompactView
+        c={c}
+        screenWidth={screenWidth}
+        refreshTintColor={c.theme.colors.accent}
+        // 网格延伸到悬浮导航胶囊与 FAB 之下(二者已计入 bottom inset),末行需滚出其上
+        gridBottomPadding={c.insets.bottom + 80}
+        addMenuOpenSignal={addMenuOpenSignal}
+      />
     );
   }
 

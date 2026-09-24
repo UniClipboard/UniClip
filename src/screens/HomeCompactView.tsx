@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, RefreshControl, StatusBar, type ColorValue } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, { type SharedValue } from 'react-native-reanimated';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { iosColors } from '@/theme/iosDesignTokens';
 import { AnimatedCardGrid } from '@/components/AnimatedCardGrid';
@@ -33,6 +33,8 @@ export function HomeCompactView({
   bottomSearch,
   showFilterRow = true,
   overlayTopBarHeight = 0,
+  gridBottomPadding = 80,
+  addMenuOpenSignal,
 }: {
   c: HomeController;
   screenWidth: number;
@@ -41,6 +43,10 @@ export function HomeCompactView({
   bottomSearch?: React.ReactNode;
   showFilterRow?: boolean;
   overlayTopBarHeight?: number;
+  /** 默认态网格底部留白,需让出右下 FAB 与任何浮在网格底部的控件 */
+  gridBottomPadding?: number;
+  /** Android:添加菜单展开态的即时信号,透传给 FAB */
+  addMenuOpenSignal?: SharedValue<boolean>;
 }) {
   const { theme, items, selectedIds, isSelectMode } = c;
   const backgroundColor = iosColors?.systemGroupedBackground ?? theme.colors.background;
@@ -101,7 +107,7 @@ export function HomeCompactView({
           spacing={GRID_SPACING}
           paddingHorizontal={GRID_PADDING - GRID_SPACING / 2}
           paddingTop={8 + (showFilterRow ? CHIP_ROW_GRID_METRICS.paddingTopExtra : 0)}
-          paddingBottom={isSelectMode ? selectionBarClearance : 80}
+          paddingBottom={isSelectMode ? selectionBarClearance : gridBottomPadding}
           keyExtractor={c.keyExtractor}
           renderItem={renderCard}
           onEndReached={c.loadMoreItems}
@@ -190,6 +196,7 @@ export function HomeCompactView({
           onUploadClipboard={c.handleUpload}
           onSync={c.handleSyncHistory}
           theme={theme}
+          openSignal={addMenuOpenSignal}
         />
       )}
 

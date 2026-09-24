@@ -21,7 +21,14 @@ export function useSettingsToast(): ShowMessage {
   return useContext(SettingsToastContext);
 }
 
-export function SettingsToastProvider({ children }: { children: React.ReactNode }) {
+export function SettingsToastProvider({
+  children,
+  bottomOffset,
+}: {
+  children: React.ReactNode;
+  /** Snackbar 距底距离;默认贴系统导航栏之上,顶级目的地需抬到悬浮导航胶囊之上 */
+  bottomOffset?: number;
+}) {
   const { message, showMessage, handleMessageShown } = useMessageToast();
 
   // 用 ref 持最新 showMessage，对外暴露恒定引用，避免 toast 状态变化引起 consumer 重渲。
@@ -36,7 +43,12 @@ export function SettingsToastProvider({ children }: { children: React.ReactNode 
     <SettingsToastContext.Provider value={stableShow}>
       {children}
       {/* 设置页 scene 在原生导航头下方,不含状态栏,用小偏移即可 */}
-      <MessageToast message={message} onMessageShown={handleMessageShown} topOffset={12} />
+      <MessageToast
+        message={message}
+        onMessageShown={handleMessageShown}
+        topOffset={12}
+        bottomOffset={bottomOffset}
+      />
     </SettingsToastContext.Provider>
   );
 }
