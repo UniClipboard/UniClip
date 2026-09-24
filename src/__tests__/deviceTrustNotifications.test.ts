@@ -257,7 +257,13 @@ describe('DeviceTrustNotificationCoordinator', () => {
     expect(observer).toContain('state.operationState');
     expect(observer).toContain('suppressNewEpisodes');
     expect(observer).toContain('notificationNavigationRequestId');
-    expect(observer).toContain("navigateWhenReady('Settings'");
+    expect(observer).toContain('openSpaceDevices(');
+    expect(source('src/navigation/openSpaceDevices.ios.ts')).toContain(
+      "navigateWhenReady('Settings', { section: 'space', ...target })"
+    );
+    expect(source('src/navigation/openSpaceDevices.android.ts')).toContain(
+      "navigateWhenReady('Main', { screen: 'Devices', params: target })"
+    );
     expect(app).toContain('<DeviceTrustNotificationObserver />');
   });
 

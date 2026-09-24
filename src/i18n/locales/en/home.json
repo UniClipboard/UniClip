@@ -117,5 +117,10 @@
   "rail": {
     "filters": "Filter",
     "all": "All"
+  },
+  "nav": {
+    "clipboard": "Clipboard",
+    "devices": "Devices",
+    "settings": "Settings"
   }
 }

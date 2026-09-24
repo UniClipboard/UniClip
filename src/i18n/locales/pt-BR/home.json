@@ -117,5 +117,10 @@
   "rail": {
     "filters": "Filtros",
     "all": "Todos"
+  },
+  "nav": {
+    "clipboard": "Área de transferência",
+    "devices": "Dispositivos",
+    "settings": "Configurações"
   }
 }

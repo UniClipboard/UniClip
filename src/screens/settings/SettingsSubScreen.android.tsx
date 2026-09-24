@@ -1,9 +1,10 @@
 /**
  * 二级设置页(Android)。
  *
- * 参数化单容器:route param `section` 决定显示哪个二级页内容。结构与一级页一致——
+ * 参数化单容器:`section` 决定显示哪个二级页内容。结构与一级页一致——
  * 单个 <Host> + <LazyColumn>,各 section 复用已迁的无 Host item 组件。
  * 用 SettingsToastProvider 包裹,使 section 内的 useSettingsToast 正常工作。
+ * 顶级「设备」目的地复用同一容器(`SettingsSectionPage` + syncChannel)。
  */
 import React, { memo, useState } from 'react';
 import { StyleSheet } from 'react-native';
@@ -17,7 +18,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Host, LazyColumn } from '@expo/ui/jetpack-compose';
 import { fillMaxSize } from '@expo/ui/jetpack-compose/modifiers';
 import { useTheme } from '@/hooks/useTheme';
-import type { RootStackParamList } from '@/navigation/AppNavigator';
+import type {
+  RootStackParamList,
+  SettingsSubSection,
+  SpaceDeviceTarget,
+} from '@/navigation/AppNavigator.types';
+import type { UpdateCheckResult } from '@/features/updates';
 import { SettingsToastProvider } from './SettingsToastContext';
 import { UnifiedSpaceSetup } from './UnifiedSpaceSetup';
 import { HistorySection } from './HistorySection';
@@ -35,12 +41,20 @@ import { AddSyncConnectionSheet } from '@/components/AddSyncConnectionSheet';
 import type { AddSyncConnectionPreviewScenarioId } from '@/components/AddSyncConnectionSheet.types';
 import { MATERIAL_SEED_COLOR } from '@/theme/colors';
 
-const SettingsSubScreenInner = memo(function SettingsSubScreenInner() {
+interface SettingsSectionPageProps extends SpaceDeviceTarget {
+  section: SettingsSubSection;
+  update?: UpdateCheckResult;
+}
+
+const SettingsSectionPageInner = memo(function SettingsSectionPageInner({
+  section,
+  update,
+  deviceId,
+  notificationNavigationRequestId,
+}: SettingsSectionPageProps) {
   const { theme } = useTheme();
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const route = useRoute<RouteProp<RootStackParamList, 'SettingsSub'>>();
-  const section = route.params.section;
   const [connectionSheetPreview, setConnectionSheetPreview] =
     useState<AddSyncConnectionPreviewScenarioId | null>(null);
 
@@ -59,14 +73,17 @@ const SettingsSubScreenInner = memo(function SettingsSubScreenInner() {
           contentPadding={{ start: 16, end: 16, top: 16, bottom: 40 }}
           verticalArrangement={{ spacedBy: 16 }}
         >
-          {section === 'syncChannel' && <SyncChannelSection />}
+          {section === 'syncChannel' && (
+            <SyncChannelSection
+              initialDeviceId={deviceId}
+              notificationNavigationRequestId={notificationNavigationRequestId}
+            />
+          )}
 
           {section === 'space' && (
             <UnifiedSpaceSetup
-              initialDeviceId={route.params.deviceId}
-              notificationNavigationRequestId={
-                route.params.notificationNavigationRequestId
-              }
+              initialDeviceId={deviceId}
+              notificationNavigationRequestId={notificationNavigationRequestId}
             />
           )}
 
@@ -81,7 +98,7 @@ const SettingsSubScreenInner = memo(function SettingsSubScreenInner() {
           {section === 'storage' && <StorageSection />}
 
           {section === 'about' && (
-            <AboutSection initialUpdate={route.params.update} />
+            <AboutSection initialUpdate={update} />
           )}
 
           {section === 'developer' && (
@@ -110,13 +127,18 @@ const SettingsSubScreenInner = memo(function SettingsSubScreenInner() {
   );
 });
 
-export const SettingsSubScreen = () => (
+export const SettingsSectionPage = (props: SettingsSectionPageProps) => (
   <SettingsToastProvider>
     <ClipboardAccessMethodSheetProvider>
-      <SettingsSubScreenInner />
+      <SettingsSectionPageInner {...props} />
     </ClipboardAccessMethodSheetProvider>
   </SettingsToastProvider>
 );
+
+export const SettingsSubScreen = () => {
+  const route = useRoute<RouteProp<RootStackParamList, 'SettingsSub'>>();
+  return <SettingsSectionPage {...route.params} />;
+};
 
 const styles = StyleSheet.create({
   container: {

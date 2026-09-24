@@ -24,6 +24,7 @@ export function HomeFilterChipsRow({
   onToggleKind,
   onClearKinds,
   onSelectDate,
+  surfaceColor,
   theme,
 }: HomeFilterChipsRowProps) {
   const { t } = useTranslation('history');
@@ -31,10 +32,9 @@ export function HomeFilterChipsRow({
   const dateActive = selectedDate !== 'all';
 
   // 滚动区右缘的渐隐过渡:让类型 chip 滑向时间 chip 时淡出,弱化两区边界。
-  // background 是 6 位 hex,追加 00 得到同色全透明端。
-  const fadeBg = `linear-gradient(to right, ${String(colors.background)}00, ${String(
-    colors.background
-  )})`;
+  // 底色是 6 位 hex,追加 00 得到同色全透明端;须与行所在表面同色,否则留下色带。
+  const fadeColor = surfaceColor ?? String(colors.background);
+  const fadeBg = `linear-gradient(to right, ${fadeColor}00, ${fadeColor})`;
 
   const dateItems = getHistoryFilterDateOptions().map((option) => ({
     key: option.value,

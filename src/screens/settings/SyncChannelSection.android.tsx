@@ -13,13 +13,22 @@ import { width } from '@expo/ui/jetpack-compose/modifiers';
 import { useTranslation } from 'react-i18next';
 
 import { useSettingsStore } from '@/stores';
+import type { SpaceDeviceTarget } from '@/navigation/AppNavigator.types';
 import { LanServersPage } from './LanServersPage';
 import { SettingsSectionItem } from './SettingsSectionItem';
 import { useSettingsToast } from './SettingsToastContext';
 import { UnifiedSpaceSetup } from './UnifiedSpaceSetup';
 import { SyncChannelConfirmationSheet } from './SyncChannelConfirmationSheet';
 
-export const SyncChannelSection = memo(function SyncChannelSection() {
+interface SyncChannelSectionProps extends Omit<SpaceDeviceTarget, 'deviceId'> {
+  /** 通知深链指定打开的空间设备(仅 P2P 通道下生效) */
+  initialDeviceId?: string;
+}
+
+export const SyncChannelSection = memo(function SyncChannelSection({
+  initialDeviceId,
+  notificationNavigationRequestId,
+}: SyncChannelSectionProps) {
   const { t } = useTranslation('settings');
   const showMessage = useSettingsToast();
   const syncChannel = useSettingsStore((state) => state.config?.syncChannel ?? 'lan');
@@ -71,7 +80,14 @@ export const SyncChannelSection = memo(function SyncChannelSection() {
         </ListItem>
       </SettingsSectionItem>
 
-      {syncChannel === 'lan' ? <LanServersPage /> : <UnifiedSpaceSetup />}
+      {syncChannel === 'lan' ? (
+        <LanServersPage />
+      ) : (
+        <UnifiedSpaceSetup
+          initialDeviceId={initialDeviceId}
+          notificationNavigationRequestId={notificationNavigationRequestId}
+        />
+      )}
       <SyncChannelConfirmationSheet
         visible={showP2pConfirmation}
         isConfirming={isConfirming}

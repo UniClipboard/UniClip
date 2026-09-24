@@ -3,6 +3,7 @@ import { View, StyleSheet, StatusBar, type ColorValue } from 'react-native';
 import { SelectModeBottomBar } from '@/components/HomeBottomBar';
 import { AddActionsFab } from '@/components/AddActionsFab';
 import { FAB_SIZE } from '@/components/AddActionsFab.types';
+import { HomeFilterChipsRow } from '@/components/HomeFilterChipsRow';
 import { ClipboardDetailPane } from '@/components/ClipboardDetailPane';
 import { ClipboardDetailModal } from '@/components/ClipboardDetailModal';
 import { useHomeController } from './useHomeController';
@@ -19,6 +20,8 @@ const RAIL_WIDTH = 72;
 const GUTTER = 12; // 面板之间 / 面板与屏幕边的缝隙
 // side 模式把 FAB 水平居中到左侧 rail 底部:rail 左缘在 GUTTER 处,栏宽 RAIL_WIDTH。
 const RAIL_FAB_INSET = GUTTER + (RAIL_WIDTH - FAB_SIZE) / 2;
+// 无筛选栏时 FAB 锚在网格面板右下角(M3 惯例),与面板边缘留 16。
+const PANE_FAB_INSET = GUTTER + 16;
 
 /**
  * 平板首页 —— 自适应的筛选栏、历史网格与详情工作台。
@@ -32,7 +35,9 @@ const RAIL_FAB_INSET = GUTTER + (RAIL_WIDTH - FAB_SIZE) / 2;
  * gutter=background/systemGroupedBackground。
  *
  * 详情在首次点选前只显示轻量占位,避免旋转时在后台重排未使用的图片预览。
- * iOS / Android 差异仅在 gutter/pane 两个底色 token,由各自平台的 HomeView 传入。
+ * iOS / Android 差异在 gutter/pane 两个底色 token 与筛选位置,由各自平台的 HomeView 传入:
+ * iOS 左侧为类型筛选栏;Android 左侧已是应用级 navigation rail,筛选放在网格面板顶部的
+ * chip 行(与手机同一组件、同一份状态)。
  */
 export function HomeExpandedView({
   c,
@@ -40,6 +45,7 @@ export function HomeExpandedView({
   refreshTintColor,
   gutterColor,
   paneColor,
+  filterPlacement = 'rail',
 }: {
   c: Controller;
   screenWidth: number;
@@ -49,9 +55,15 @@ export function HomeExpandedView({
   gutterColor: string | object;
   /** 浮起面板的表面色(Android=surfaceHigh / iOS=secondarySystemGroupedBackground) */
   paneColor: string | object;
+  /** 类型筛选放在左侧筛选栏(rail)还是网格面板顶部的 chip 行(chips)。 */
+  filterPlacement?: 'rail' | 'chips';
 }) {
   const { theme } = c;
-  const workspace = useMemo(() => computeExpandedWorkspaceLayout(screenWidth), [screenWidth]);
+  const filterRail = filterPlacement === 'rail';
+  const workspace = useMemo(
+    () => computeExpandedWorkspaceLayout(screenWidth, { filterRail }),
+    [screenWidth, filterRail]
+  );
   const [detailActivated, setDetailActivated] = useState(false);
 
   const handleSelectItem = useCallback(
@@ -77,10 +89,12 @@ export function HomeExpandedView({
       <HomeTopBarArea c={c} />
 
       <View style={[styles.split, { padding: GUTTER, gap: GUTTER }]}>
-        {/* ── 导航轨(浮起面板)── */}
-        <View style={[styles.pane, styles.railPane, { backgroundColor: panePlaceholder }]}>
-          <HomeFilterRail c={c} />
-        </View>
+        {/* ── 筛选栏(浮起面板)── */}
+        {filterRail && (
+          <View style={[styles.pane, styles.railPane, { backgroundColor: panePlaceholder }]}>
+            <HomeFilterRail c={c} />
+          </View>
+        )}
 
         {/* ── 历史网格(面板)── 卡片在面板上以层级色区分,三栏统一为面板 */}
         <View
@@ -91,6 +105,17 @@ export function HomeExpandedView({
             { backgroundColor: panePlaceholder },
           ]}
         >
+          {!filterRail && (
+            <HomeFilterChipsRow
+              selectedKinds={c.selectedFilterKinds}
+              selectedDate={c.selectedDateFilter}
+              onToggleKind={c.handleToggleFilterKind}
+              onClearKinds={c.handleClearFilterKinds}
+              onSelectDate={c.setSelectedDateFilter}
+              surfaceColor={typeof paneColor === 'string' ? paneColor : undefined}
+              theme={theme}
+            />
+          )}
           <HomeMasterGrid
             c={c}
             paneWidth={workspace.gridWidth}
@@ -144,8 +169,12 @@ export function HomeExpandedView({
           onUploadClipboard={c.handleUpload}
           onSync={c.handleSyncHistory}
           theme={theme}
-          anchor="start"
-          horizontalInset={RAIL_FAB_INSET}
+          anchor={filterRail ? 'start' : 'end'}
+          horizontalInset={
+            filterRail
+              ? RAIL_FAB_INSET
+              : PANE_FAB_INSET + (showSideDetail ? workspace.detailWidth + GUTTER : 0)
+          }
         />
       )}
 

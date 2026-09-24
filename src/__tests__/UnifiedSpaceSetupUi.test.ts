@@ -78,7 +78,7 @@ describe('unified space setup UI', () => {
   });
 
   it('keeps space setup available from the selected sync method on both platforms', () => {
-    const androidHub = source('screens/SettingsScreen.android.tsx');
+    const androidMain = source('navigation/MainScreen.android.tsx');
     const androidSubScreen = source('screens/settings/SettingsSubScreen.android.tsx');
     const androidSyncMethod = source('screens/settings/SyncChannelSection.android.tsx');
     const navigation = source('navigation/AppNavigator.tsx');
@@ -88,12 +88,14 @@ describe('unified space setup UI', () => {
     const iosScreen = source('screens/SettingsScreen.ios.tsx');
     const iosPages = source('screens/settings/ios/types.ts');
 
-    expect(androidHub).toContain('section="syncChannel"');
-    expect(androidSyncMethod).toContain('<UnifiedSpaceSetup />');
+    // Android 的同步方式(含空间设备)是顶级「设备」目的地
+    expect(androidMain).toContain('<SettingsSectionPage section="syncChannel" {...route.params} />');
+    expect(androidSyncMethod).toContain('<UnifiedSpaceSetup');
+    expect(androidSyncMethod).toContain('initialDeviceId={initialDeviceId}');
     expect(androidSyncMethod).not.toContain("openSection('space')");
     expect(androidSubScreen).toContain("section === 'space' && (");
     expect(androidSubScreen).toContain('<UnifiedSpaceSetup');
-    expect(androidSubScreen).toContain('initialDeviceId={route.params.deviceId}');
+    expect(androidSubScreen).toContain('initialDeviceId={deviceId}');
     expect(navigationTypes).toContain("| 'space'");
     expect(navigation).toContain("space: t('space.title', { ns: 'settingsSync' })");
     expect(iosRoot).toContain("onNavigate('syncChannel')");

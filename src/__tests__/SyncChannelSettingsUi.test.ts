@@ -15,7 +15,14 @@ describe('sync channel settings UI', () => {
       'utf8'
     );
 
-    expect(androidRoot).toContain('section="syncChannel"');
+    const androidMain = fs.readFileSync(
+      path.join(root, 'src/navigation/MainScreen.android.tsx'),
+      'utf8'
+    );
+
+    // Android 的同步方式是顶级「设备」目的地,设置中枢不再重复入口
+    expect(androidRoot).not.toContain('section="syncChannel"');
+    expect(androidMain).toContain('section="syncChannel"');
     expect(androidRoot).not.toContain('SingleChoiceSegmentedButtonRow');
     expect(iosRoot).toContain("onNavigate('syncChannel')");
     expect(iosRoot).not.toContain("pickerStyle('segmented')");
@@ -43,7 +50,7 @@ describe('sync channel settings UI', () => {
     expect(androidPage).toContain('updateConfig({ syncChannel: channel })');
     expect(androidPage).toContain("syncChannel === 'lan'");
     expect(androidPage).toContain('<LanServersPage />');
-    expect(androidPage).toContain('<UnifiedSpaceSetup />');
+    expect(androidPage).toContain('<UnifiedSpaceSetup');
     expect(androidPage).not.toContain("openSection('lanServers')");
     expect(androidPage).not.toContain("openSection('space')");
     expect(androidOwner).toContain("section === 'syncChannel'");

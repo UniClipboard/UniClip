@@ -68,3 +68,13 @@ describe('computeExpandedWorkspaceLayout', () => {
     expect(metrics.numColumns).toBe(3);
   });
 });
+
+describe('computeExpandedWorkspaceLayout without a filter rail', () => {
+  it('gives the rail and its gap back to the grid', () => {
+    const withRail = computeExpandedWorkspaceLayout(1137);
+    const withoutRail = computeExpandedWorkspaceLayout(1137, { filterRail: false });
+
+    expect(withoutRail.detailPlacement).toBe(withRail.detailPlacement);
+    expect(withoutRail.gridWidth - withRail.gridWidth).toBe(72 + 12);
+  });
+});
