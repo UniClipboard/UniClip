@@ -1,7 +1,10 @@
 import {
   buildCopyText,
+  getBandLayout,
   getSelectableIndices,
+  getSelectionRuns,
   remapSelection,
+  selectRange,
   tokenizeByChar,
   tokenizeWords,
   truncateForPicker,
@@ -203,5 +206,156 @@ describe('truncateForPicker', () => {
     // 边界字符是 high surrogate → 回退一位，不产生残缺码点
     expect(r.text.length).toBe(WORD_PICKER_MAX_CHARS - 1);
     expect(r.text.endsWith('a')).toBe(true);
+  });
+});
+
+describe('punctuation tokens', () => {
+  it('flags pure punctuation and keeps it out of the selectable set', () => {
+    const tokens = tokenizeByChar('好，的。');
+    expect(tokens.map((t) => t.isPunctuation)).toEqual([false, true, false, true]);
+    expect(getSelectableIndices(tokens)).toEqual([0, 2]);
+  });
+
+  it('does not treat mixed tokens or symbols as punctuation', () => {
+    const tokens = tokenizeByChar('v2 $ 1');
+    expect(tokens.filter((t) => t.isPunctuation)).toEqual([]);
+  });
+
+  it('never remaps a selection onto non-selectable punctuation', () => {
+    const text = '方案，带上';
+    const words = tokenizeWords(text);
+    const chars = tokenizeByChar(text);
+    const all = new Set(getSelectableIndices(words));
+    const remapped = remapSelection(words, all, chars);
+    expect([...remapped].some((i) => chars[i].isPunctuation)).toBe(false);
+  });
+
+  it('carries punctuation inside a run into char mode where it is selectable', () => {
+    const text = '方案，带上。下';
+    const words = tokenizeWords(text);
+    const chars = tokenizeByChar(text, { selectablePunctuation: true });
+    const sel = new Set([
+      words.findIndex((t) => t.text === '方案'),
+      words.findIndex((t) => t.text === '带上'),
+    ]);
+    const remapped = remapSelection(words, sel, chars);
+    expect([...remapped].map((i) => chars[i].text).join('')).toBe('方案，带上');
+  });
+});
+
+describe('selectable punctuation (char mode)', () => {
+  it('makes punctuation ordinary selectable tokens', () => {
+    const tokens = tokenizeByChar('好，的', { selectablePunctuation: true });
+    expect(tokens.map((t) => t.isPunctuation)).toEqual([false, false, false]);
+    expect(getSelectableIndices(tokens)).toEqual([0, 1, 2]);
+  });
+
+  it('copies a lone selected punctuation mark', () => {
+    const text = '好，的';
+    const tokens = tokenizeByChar(text, { selectablePunctuation: true });
+    expect(buildCopyText(text, tokens, new Set([1]))).toBe('，');
+  });
+});
+
+describe('getSelectionRuns', () => {
+  const text = '同步协议 v2 的迁移方案，带上压测数据。\n议程：保留';
+  const tokens = tokenizeByChar(text);
+  const at = (ch: string, from = 0) => tokens.findIndex((t, i) => i >= from && t.text === ch);
+
+  it('spans whitespace and punctuation between selected tokens', () => {
+    const sel = new Set([at('案'), at('带')]);
+    const runs = getSelectionRuns(tokens, sel);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({ firstSelected: at('案'), lastSelected: at('带') });
+    expect(buildCopyText(text, tokens, sel)).toBe('案，带');
+  });
+
+  it('breaks a run at an unselected selectable token', () => {
+    const runs = getSelectionRuns(tokens, new Set([at('同'), at('协')]));
+    expect(runs.map((r) => [r.first, r.last])).toEqual([
+      [at('同'), at('同')],
+      [at('协'), at('协')],
+    ]);
+  });
+
+  it('absorbs sentence-final punctuation before a line break', () => {
+    const sel = new Set([at('数'), at('据')]);
+    const [run] = getSelectionRuns(tokens, sel);
+    expect(run.last).toBe(at('。'));
+    expect(run.lastSelected).toBe(at('据'));
+    expect(buildCopyText(text, tokens, sel)).toBe('数据。');
+  });
+
+  it('does not absorb a comma or colon followed by more text', () => {
+    expect(buildCopyText(text, tokens, new Set([at('方'), at('案')]))).toBe('方案');
+    expect(buildCopyText(text, tokens, new Set([at('程') - 1, at('程')]))).toBe('议程');
+  });
+
+  it('absorbs punctuation at the text edges when the run reaches them', () => {
+    const quoted = '「你好」';
+    const qTokens = tokenizeByChar(quoted);
+    const sel = new Set(getSelectableIndices(qTokens));
+    expect(buildCopyText(quoted, qTokens, sel)).toBe(quoted);
+  });
+});
+
+describe('buildCopyText join modes', () => {
+  const text = '明天下午 三点\n会议室';
+  const tokens = tokenizeByChar(text);
+  const at = (ch: string) => tokens.findIndex((t) => t.text === ch);
+
+  it('original: no separator where the source had none', () => {
+    const sel = new Set([at('明'), at('午')]);
+    expect(buildCopyText(text, tokens, sel, 'original')).toBe('明午');
+  });
+
+  it('original: a space where the source gap had whitespace', () => {
+    const sel = new Set([at('明'), at('点')]);
+    expect(buildCopyText(text, tokens, sel, 'original')).toBe('明 点');
+  });
+
+  it('original: a line break where the source gap crossed lines', () => {
+    const sel = new Set([at('明'), at('议')]);
+    expect(buildCopyText(text, tokens, sel, 'original')).toBe('明\n议');
+  });
+
+  it('space and newline modes use a fixed separator', () => {
+    const sel = new Set([at('明'), at('午'), at('议')]);
+    expect(buildCopyText(text, tokens, sel, 'space')).toBe('明 午 议');
+    expect(buildCopyText(text, tokens, sel, 'newline')).toBe('明\n午\n议');
+  });
+});
+
+describe('selectRange', () => {
+  it('selects every selectable token between two ends in either order', () => {
+    const tokens = tokenizeByChar('你 好，世界');
+    const expected = new Set([0, 2, 4]);
+    expect(selectRange(tokens, 0, 4)).toEqual(expected);
+    expect(selectRange(tokens, 4, 0)).toEqual(expected);
+  });
+});
+
+describe('getBandLayout', () => {
+  it('joins consecutive band items on the same line', () => {
+    const text = '好的，走\n吧';
+    const tokens = tokenizeByChar(text);
+    const all = new Set(getSelectableIndices(tokens));
+    const band = getBandLayout(tokens, getSelectionRuns(tokens, all));
+    // 好 的 ， 走 \n 吧
+    expect(band.map((b) => (b ? [b.joinPrev, b.joinNext] : null))).toEqual([
+      [false, true],
+      [true, true],
+      [true, true],
+      [true, false],
+      null,
+      [false, false],
+    ]);
+  });
+
+  it('leaves unselected tokens out of the band', () => {
+    const tokens = tokenizeByChar('好的');
+    const band = getBandLayout(tokens, getSelectionRuns(tokens, new Set([1])));
+    expect(band[0]).toBeNull();
+    expect(band[1]).toEqual({ joinPrev: false, joinNext: false, runStart: true, runEnd: true });
   });
 });

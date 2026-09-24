@@ -12,6 +12,8 @@ export interface M3IconButtonProps {
   colors: ColorScheme;
   /** standard=透明底;tonal=secondaryContainer 底(M3 filled tonal icon button) */
   variant?: 'standard' | 'tonal';
+  /** 可见容器尺寸:standard=40dp(Compose IconButton 默认);large=48dp,与同行 48dp 高的按钮对齐 */
+  size?: 'standard' | 'large';
   iconColor?: ColorValue;
   disabled?: boolean;
   testID?: string;
@@ -27,6 +29,7 @@ export function M3IconButton({
   onPress,
   colors,
   variant = 'standard',
+  size = 'standard',
   iconColor,
   disabled = false,
   testID,
@@ -40,12 +43,17 @@ export function M3IconButton({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ disabled }}
-      android_ripple={{ color: colors.fillSecondary as string, borderless: true, radius: 20 }}
+      android_ripple={{
+        color: colors.fillSecondary as string,
+        borderless: true,
+        radius: size === 'large' ? 24 : 20,
+      }}
       style={styles.target}
     >
       <View
         style={[
           styles.container,
+          size === 'large' && styles.containerLarge,
           variant === 'tonal' && { backgroundColor: colors.surfaceHighest },
         ]}
       >
@@ -68,5 +76,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  containerLarge: {
+    width: M3_MIN_TOUCH_TARGET,
+    height: M3_MIN_TOUCH_TARGET,
+    borderRadius: M3_MIN_TOUCH_TARGET / 2,
   },
 });

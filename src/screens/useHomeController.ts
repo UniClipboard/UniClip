@@ -38,7 +38,11 @@ import * as ImagePicker from 'expo-image-picker';
 import type { CameraCaptureResult } from '@/components/CameraCaptureSheet.types';
 import { HOME_LONG_PRESS_MODE } from '@/utils/homeLongPressMode';
 import { HOME_CARD_TAP_MODE } from '@/utils/homeCardTapMode';
-import { createHistorySendJob, releaseHistorySendJob } from '@/utils/historySendJob';
+import {
+  createHistorySendJob,
+  createTextSendJob,
+  releaseHistorySendJob,
+} from '@/utils/historySendJob';
 import type { PendingShareJob } from '@/features/transfer';
 import { useUndoableHistoryDelete } from './useUndoableHistoryDelete';
 
@@ -121,6 +125,7 @@ export function useHomeController(onOpenSettings: () => void) {
   const [wordPickerTarget, setWordPickerTarget] = useState<{
     text: string;
     anchor: CardAnchorRect | null;
+    deviceName?: string | null;
   } | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
@@ -304,12 +309,12 @@ export function useHomeController(onOpenSettings: () => void) {
   const releaseSendToJobs = useCallback(() => {
     sendToJobsRef.current?.forEach(releaseHistorySendJob);
   }, []);
-  const openSendTo = useCallback(
-    (item: ClipboardItem) => {
+  const presentSendTo = useCallback(
+    (prepare: () => PendingShareJob | null) => {
       releaseSendToJobs();
       let job: PendingShareJob | null = null;
       try {
-        job = createHistorySendJob(item, getDisplayKind(item.type, item.text));
+        job = prepare();
       } catch (error) {
         log.error(`Failed to prepare send-to job (${getErrorCode(error)})`);
       }
@@ -322,6 +327,16 @@ export function useHomeController(onOpenSettings: () => void) {
       setSendToVisible(true);
     },
     [releaseSendToJobs, showMessage, t]
+  );
+  const openSendTo = useCallback(
+    (item: ClipboardItem) =>
+      presentSendTo(() => createHistorySendJob(item, getDisplayKind(item.type, item.text))),
+    [presentSendTo]
+  );
+  /** 发送一段文本(分词选择的结果):发送页盖在分词页之上,返回后仍在分词页 */
+  const openSendToText = useCallback(
+    (text: string) => presentSendTo(() => createTextSendJob(text)),
+    [presentSendTo]
   );
   const closeSendTo = useCallback(() => {
     setSendToVisible(false);
@@ -405,7 +420,7 @@ export function useHomeController(onOpenSettings: () => void) {
         onSelectText: () => {
           // 动作经 close(after) 在浮层退场后才执行，那时 contextTarget 已清空——
           // 这里提前把锚点捕获进闭包，分词浮层才能从同一张卡片原位生长
-          setWordPickerTarget({ text: item.text, anchor });
+          setWordPickerTarget({ text: item.text, anchor, deviceName: item.deviceName });
         },
         onCopyPlainText: async () => {
           const Clipboard = await import('expo-clipboard');
@@ -891,6 +906,7 @@ export function useHomeController(onOpenSettings: () => void) {
     sendToJobs,
     sendToVisible,
     openSendTo,
+    openSendToText,
     closeSendTo,
   };
 }

@@ -1,5 +1,9 @@
 import type { ClipboardItem } from '@/types/clipboard';
-import { canSendHistoryItem, createHistorySendJob } from '@/utils/historySendJob';
+import {
+  canSendHistoryItem,
+  createHistorySendJob,
+  createTextSendJob,
+} from '@/utils/historySendJob';
 
 function item(overrides: Partial<ClipboardItem>): ClipboardItem {
   return {
@@ -41,5 +45,17 @@ describe('historySendJob', () => {
     const remote = item({ type: 'File', fileUri: undefined, isLocalFileReady: false });
     expect(canSendHistoryItem(remote, 'file')).toBe(false);
     expect(createHistorySendJob(remote, 'file')).toBeNull();
+  });
+
+  it('writes a text snippet to a temporary payload without a history hash', () => {
+    // 不带 historyProfileHash:发送时先把这段文字导入历史,再按新条目投递
+    const job = createTextSendJob('片段')!;
+    expect(job.kind).toBe('text');
+    expect(job.historyProfileHash).toBeUndefined();
+    expect(job.fileUri).toContain('send_to/');
+  });
+
+  it('refuses an empty snippet', () => {
+    expect(createTextSendJob('  ')).toBeNull();
   });
 });

@@ -54,9 +54,35 @@ export function createHistorySendJob(
   };
 }
 
-/** 删除 createHistorySendJob 为文本写出的临时文件;图片/文件指向历史本身,不删。 */
+const SNIPPET_JOB_PREFIX = 'snippet-';
+
+/**
+ * 把一段任意文本(如分词选择的结果)转换成发送页的 job。不带 `historyProfileHash`,
+ * 发送时先导入历史再投递,与外部分享进来的文本同一路径。空白文本返回 null。
+ */
+export function createTextSendJob(text: string): PendingShareJob | null {
+  if (!text.trim()) return null;
+  const createdAtMs = Date.now();
+  const id = `${SNIPPET_JOB_PREFIX}${createdAtMs}`;
+  SEND_TO_DIR.create({ intermediates: true, idempotent: true });
+  const file = new File(SEND_TO_DIR, `${id}.txt`);
+  if (!file.exists) file.create();
+  file.write(text);
+  return {
+    id,
+    kind: 'text',
+    displayName: 'text.txt',
+    byteCount: file.size,
+    mimeType: 'text/plain',
+    fileUri: file.uri,
+    createdAtMs,
+  };
+}
+
+/** 删除本模块为文本写出的临时文件;图片/文件指向历史本身,不删。 */
 export function releaseHistorySendJob(job: PendingShareJob): void {
-  if (job.kind !== 'text' || !job.historyProfileHash) return;
+  if (job.kind !== 'text') return;
+  if (!job.historyProfileHash && !job.id.startsWith(SNIPPET_JOB_PREFIX)) return;
   try {
     const file = new File(job.fileUri);
     if (file.exists) file.delete();
