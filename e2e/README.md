@@ -63,6 +63,7 @@ npm run test:e2e:environment
 | `first-launch` | Onboarding and persistence across restart |
 | `diagnostic-capture` | Start/stop, page revisit, restart state, UI export and actual archive report checks |
 | `settings-navigation` | Storage row trailing-space tap and return home |
+| `beta-updates` | Android only: full-row risk confirmation, cancel/back, immediate offline check with auto-check disabled, persistence, disable and reconfirm |
 | `history-text-lifecycle` | Real clipboard capture, deduplication, preview, cancellation on Android, deletion and restart |
 | `history-search-filter` | Text and URL capture, query replacement, no results, clearing and type filters |
 

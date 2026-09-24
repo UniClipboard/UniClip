@@ -1,8 +1,7 @@
-import { StyleSheet } from 'react-native';
-import { ModalBottomSheet, Text as ComposeText } from '@expo/ui/jetpack-compose';
+import { Text as ComposeText } from '@expo/ui/jetpack-compose';
 import { useTranslation } from 'react-i18next';
 
-import { AppButton, AppColumn } from '@/components/ui';
+import { SettingsConfirmationSheet } from './android/SettingsConfirmationSheet';
 import { useTheme } from '@/hooks/useTheme';
 import type { SyncChannelConfirmationSheetProps } from './SyncChannelConfirmationSheet.types';
 
@@ -24,44 +23,24 @@ export function SyncChannelConfirmationSheet({
   if (!visible) return null;
 
   return (
-    <ModalBottomSheet
-      onDismissRequest={isConfirming ? () => {} : onDismiss}
-      properties={{
-        shouldDismissOnBackPress: !isConfirming,
-        shouldDismissOnClickOutside: !isConfirming,
-      }}
-      sheetGesturesEnabled={!isConfirming}
+    <SettingsConfirmationSheet
+      visible={visible}
+      title={t('syncChannel.confirmationTitle')}
+      confirmLabel={t('syncChannel.confirmationConfirm')}
+      cancelLabel={t('syncChannel.confirmationCancel')}
+      isConfirming={isConfirming}
+      onDismiss={onDismiss}
+      onConfirm={onConfirm}
     >
-      <AppColumn fullWidth spacing={16} padding={24}>
-        <ComposeText style={styles.title}>{t('syncChannel.confirmationTitle')}</ComposeText>
-        <ComposeText color={theme.colors.textSecondary as string}>
-          {t('syncChannel.confirmationDescription')}
-        </ComposeText>
-        <ComposeText color={theme.colors.textSecondary as string}>
-          {t('syncChannel.confirmationCrossNetwork')}
-        </ComposeText>
-        <ComposeText color={theme.colors.warning as string}>
-          {t('syncChannel.confirmationExperimental')}
-        </ComposeText>
-        <AppButton
-          title={t('syncChannel.confirmationConfirm')}
-          onPress={() => void onConfirm()}
-          fullWidth
-          size="large"
-          disabled={isConfirming}
-        />
-        <AppButton
-          title={t('syncChannel.confirmationCancel')}
-          onPress={onDismiss}
-          variant="text"
-          fullWidth
-          disabled={isConfirming}
-        />
-      </AppColumn>
-    </ModalBottomSheet>
+      <ComposeText color={theme.colors.textSecondary as string}>
+        {t('syncChannel.confirmationDescription')}
+      </ComposeText>
+      <ComposeText color={theme.colors.textSecondary as string}>
+        {t('syncChannel.confirmationCrossNetwork')}
+      </ComposeText>
+      <ComposeText color={theme.colors.warning as string}>
+        {t('syncChannel.confirmationExperimental')}
+      </ComposeText>
+    </SettingsConfirmationSheet>
   );
 }
-
-const styles = StyleSheet.create({
-  title: { fontSize: 24, fontWeight: '700' },
-});

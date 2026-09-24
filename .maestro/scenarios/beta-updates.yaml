@@ -1,0 +1,108 @@
+# Android-only feature. Run on an isolated, offline emulator through test:e2e.
+appId: ${APP_ID}
+---
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - runFlow: ../lifecycle/launch.yaml
+      - runFlow: ../actions/onboarding/complete.yaml
+      - runFlow: ../actions/settings/open.yaml
+      - scrollUntilVisible:
+          element:
+            id: settings-about
+          direction: DOWN
+      - tapOn:
+          id: settings-about
+      # Alpha/beta builds default to enabled; establish the same state through UI.
+      - runFlow:
+          when:
+            visible:
+              id: about-update-to-beta
+              checked: true
+          commands:
+            - tapOn:
+                id: about-update-to-beta
+      - runFlow:
+          when:
+            visible:
+              id: about-auto-check
+              checked: true
+          commands:
+            - tapOn:
+                id: about-auto-check
+      - assertVisible:
+          id: about-update-to-beta
+          checked: false
+      - takeScreenshot: beta-row-before-tap
+      # Empty space between the label and trailing switch must open the sheet.
+      - tapOn:
+          id: about-update-to-beta
+          point: "70%,50%"
+      - assertVisible: "Enable beta updates?"
+      - assertVisible: "Beta versions may be unstable.*"
+      - takeScreenshot: beta-risk-confirmation
+      - tapOn:
+          id: about-beta-confirmation-cancel
+      - assertVisible:
+          id: about-update-to-beta
+          checked: false
+      - tapOn:
+          id: about-update-to-beta
+      - back
+      - assertNotVisible: "Enable beta updates?"
+      - assertVisible:
+          id: about-update-to-beta
+          checked: false
+      - tapOn:
+          id: about-update-to-beta
+      - tapOn:
+          point: "50%,10%"
+      - assertNotVisible: "Enable beta updates?"
+      - assertVisible:
+          id: about-update-to-beta
+          checked: false
+      - tapOn:
+          id: about-update-to-beta
+      - tapOn:
+          id: about-beta-confirmation-confirm
+      # Offline + auto-check disabled: this toast proves confirmation immediately
+      # attempted a foreground update check, regardless of the daily check limit.
+      - assertVisible: "Update check failed, please check your network connection"
+      - assertVisible:
+          id: about-update-to-beta
+          checked: true
+      - takeScreenshot: beta-enabled-check-failed
+      - runFlow: ../lifecycle/restart.yaml
+      - runFlow: ../actions/settings/open.yaml
+      - scrollUntilVisible:
+          element:
+            id: settings-about
+          direction: DOWN
+      - tapOn:
+          id: settings-about
+      - assertVisible:
+          id: about-update-to-beta
+          checked: true
+      - assertNotVisible: "Enable beta updates?"
+      - tapOn:
+          id: about-update-to-beta
+      - assertVisible:
+          id: about-update-to-beta
+          checked: false
+      - assertNotVisible: "Enable beta updates?"
+      - tapOn:
+          id: about-update-to-beta
+      - assertVisible: "Enable beta updates?"
+      - tapOn:
+          id: about-beta-confirmation-cancel
+      - takeScreenshot: beta-disabled-after-reconfirmation
+      # The existing direct-sync warning shares the confirmation presentation.
+      - back
+      - runFlow: ../actions/devices/open.yaml
+      - tapOn:
+          id: sync-channel-p2p
+      - assertVisible: "Use direct device sync?"
+      - tapOn: "Cancel"
+      - assertNotVisible: "Use direct device sync?"
+      - takeScreenshot: shared-sync-confirmation-canceled
