@@ -1,21 +1,19 @@
 import { memo, useState } from 'react';
 import {
   Badge,
-  HorizontalDivider,
-  ListItem,
-  RadioButton,
   Row,
+  SegmentedButton,
+  SingleChoiceSegmentedButtonRow,
   Spacer,
   Text as ComposeText,
+  useMaterialColors,
 } from '@expo/ui/jetpack-compose';
-import { clickable } from '@expo/ui/jetpack-compose/modifiers';
-import { width } from '@expo/ui/jetpack-compose/modifiers';
+import { fillMaxWidth, testID, width } from '@expo/ui/jetpack-compose/modifiers';
 import { useTranslation } from 'react-i18next';
 
 import { useSettingsStore } from '@/stores';
 import type { SpaceDeviceTarget } from '@/navigation/AppNavigator.types';
 import { LanServersPage } from './LanServersPage';
-import { SettingsSectionItem } from './SettingsSectionItem';
 import { useSettingsToast } from './SettingsToastContext';
 import { UnifiedSpaceSetup } from './UnifiedSpaceSetup';
 import { SyncChannelConfirmationSheet } from './SyncChannelConfirmationSheet';
@@ -30,6 +28,7 @@ export const SyncChannelSection = memo(function SyncChannelSection({
   notificationNavigationRequestId,
 }: SyncChannelSectionProps) {
   const { t } = useTranslation('settings');
+  const colors = useMaterialColors();
   const showMessage = useSettingsToast();
   const syncChannel = useSettingsStore((state) => state.config?.syncChannel ?? 'lan');
   const [showP2pConfirmation, setShowP2pConfirmation] = useState(false);
@@ -54,31 +53,35 @@ export const SyncChannelSection = memo(function SyncChannelSection({
 
   return (
     <>
-      <SettingsSectionItem title={t('syncChannel.title')}>
-        <ListItem modifiers={[clickable(() => void handleSyncChannel('lan'))]}>
-          <ListItem.HeadlineContent>
-            <ComposeText>{t('syncChannel.lan')}</ComposeText>
-          </ListItem.HeadlineContent>
-          <ListItem.TrailingContent>
-            <RadioButton selected={syncChannel === 'lan'} />
-          </ListItem.TrailingContent>
-        </ListItem>
-        <HorizontalDivider />
-        <ListItem modifiers={[clickable(() => setShowP2pConfirmation(true))]}>
-          <ListItem.HeadlineContent>
+      {/* 设备页顶部的紧凑切换:设备列表才是页面主体,同步方式只占一行 */}
+      <SingleChoiceSegmentedButtonRow modifiers={[fillMaxWidth()]}>
+        <SegmentedButton
+          selected={syncChannel === 'lan'}
+          onClick={() => void handleSyncChannel('lan')}
+          modifiers={[testID('sync-channel-lan')]}
+        >
+          <SegmentedButton.Label>
+            <ComposeText maxLines={1}>{t('syncChannel.lanShort')}</ComposeText>
+          </SegmentedButton.Label>
+        </SegmentedButton>
+        <SegmentedButton
+          selected={syncChannel === 'p2p'}
+          onClick={() => {
+            if (syncChannel !== 'p2p') setShowP2pConfirmation(true);
+          }}
+          modifiers={[testID('sync-channel-p2p')]}
+        >
+          <SegmentedButton.Label>
             <Row verticalAlignment="center">
-              <ComposeText>{t('syncChannel.p2p')}</ComposeText>
-              <Spacer modifiers={[width(8)]} />
-              <Badge containerColor="#FF9500" contentColor="white">
-                <ComposeText>{t('syncChannel.experimental')}</ComposeText>
+              <ComposeText maxLines={1}>{t('syncChannel.p2pShort')}</ComposeText>
+              <Spacer modifiers={[width(6)]} />
+              <Badge containerColor={colors.tertiaryContainer} contentColor={colors.onTertiaryContainer}>
+                <ComposeText maxLines={1}>{t('syncChannel.experimentalBadge')}</ComposeText>
               </Badge>
             </Row>
-          </ListItem.HeadlineContent>
-          <ListItem.TrailingContent>
-            <RadioButton selected={syncChannel === 'p2p'} />
-          </ListItem.TrailingContent>
-        </ListItem>
-      </SettingsSectionItem>
+          </SegmentedButton.Label>
+        </SegmentedButton>
+      </SingleChoiceSegmentedButtonRow>
 
       {syncChannel === 'lan' ? (
         <LanServersPage />

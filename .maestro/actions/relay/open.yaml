@@ -4,10 +4,13 @@ appId: ${APP_ID}
     when:
       platform: Android
     commands:
+      # Android: relay lives in the Space settings page under the Devices destination
       - scrollUntilVisible:
           element:
-            text: "Custom relay"
+            id: space-settings
           direction: DOWN
+      - tapOn:
+          id: space-settings
       - tapOn:
           id: relay-settings
 - runFlow:

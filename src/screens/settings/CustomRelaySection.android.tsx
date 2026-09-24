@@ -22,15 +22,38 @@ import {
 import { useTranslation } from 'react-i18next';
 
 import { AppTextField, SheetPageTransition } from '@/components/ui';
-import type { RelayMutationRejection } from '@/features/relaySettings';
-import { SettingsSectionItem } from './SettingsSectionItem';
-import { useCustomRelaySettings } from './useCustomRelaySettings';
+import { saveCustomRelay } from '@/features/relaySettings';
+import { useSettingsStore } from '@/stores';
+import { SettingsSectionItem, useSettingsSectionRowColors } from './SettingsSectionItem';
+import { SettingsLeadingIcon } from './android/SettingsLeadingIcon';
 
 const ICONS = {
   add: require('../../assets/icons/add.xml'),
   chevron: require('../../assets/icons/chevron_right.xml'),
-  space: require('../../assets/icons/groups.xml'),
+  relay: require('../../assets/icons/public.xml'),
 };
+
+function RelayEntryRow({ summary, onOpen }: { summary: string; onOpen: () => void }) {
+  const { t } = useTranslation('settingsSync');
+  const colors = useMaterialColors();
+  const rowColors = useSettingsSectionRowColors();
+  return (
+    <ListItem colors={rowColors} modifiers={[testID('relay-settings'), clickable(onOpen)]}>
+      <ListItem.LeadingContent>
+        <SettingsLeadingIcon source={ICONS.relay} />
+      </ListItem.LeadingContent>
+      <ListItem.HeadlineContent>
+        <ComposeText>{t('relay.title')}</ComposeText>
+      </ListItem.HeadlineContent>
+      <ListItem.SupportingContent>
+        <ComposeText color={colors.onSurfaceVariant}>{summary}</ComposeText>
+      </ListItem.SupportingContent>
+      <ListItem.TrailingContent>
+        <Icon source={ICONS.chevron} size={20} tint={colors.onSurfaceVariant} />
+      </ListItem.TrailingContent>
+    </ListItem>
+  );
+}
 
 const SHEET_TITLE_STYLE = { fontSize: 20, fontWeight: '600', letterSpacing: 0 } as const;
 const rejectionKey: Record<RelayMutationRejection, string> = {
@@ -117,30 +140,15 @@ export function CustomRelaySection() {
 
   return (
     <>
-      <SettingsSectionItem title={t('space.advanced.title')}>
-        <ListItem
-          modifiers={[testID('relay-settings'), clickable(() => {
-            setShowRelaySettings(true);
-            void refresh().catch(() => setNotice(t('relay.error.refreshFailed')));
-          })]}
-        >
-          <ListItem.LeadingContent>
-            <Icon source={ICONS.space} size={24} tint={colors.primary} />
-          </ListItem.LeadingContent>
-          <ListItem.HeadlineContent>
-            <ComposeText>{t('relay.title')}</ComposeText>
-          </ListItem.HeadlineContent>
-          <ListItem.SupportingContent>
-            <ComposeText color={colors.onSurfaceVariant}>
-              {configuredUrls.length > 0
-                ? t('relay.configuredCount', { count: configuredUrls.length })
-                : t('relay.summary')}
-            </ComposeText>
-          </ListItem.SupportingContent>
-          <ListItem.TrailingContent>
-            <Icon source={ICONS.chevron} size={20} tint={colors.onSurfaceVariant} />
-          </ListItem.TrailingContent>
-        </ListItem>
+      <SettingsSectionItem variant="grouped" title={t('space.advanced.title')}>
+        <RelayEntryRow
+          summary={
+            configuredUrls.length > 0
+              ? t('relay.configuredCount', { count: configuredUrls.length })
+              : t('relay.summary')
+          }
+          onOpen={() => setShowRelaySettings(true)}
+        />
       </SettingsSectionItem>
 
       {showRelaySettings ? (

@@ -1,7 +1,17 @@
 appId: ${APP_ID}
 ---
 - runFlow: ../devices/open.yaml
-- tapOn: "Direct device sync.*"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn:
+          id: sync-channel-p2p
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: "Direct device sync.*"
 - runFlow:
     when:
       visible: "Use direct device sync?"
@@ -45,7 +55,19 @@ appId: ${APP_ID}
           visible: "Finish later"
           timeout: 30000
       - tapOn: "Finish later"
-- extendedWaitUntil:
-    visible: "Custom relay"
-    timeout: 30000
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - extendedWaitUntil:
+          visible:
+            id: space-settings
+          timeout: 30000
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - extendedWaitUntil:
+          visible: "Custom relay"
+          timeout: 30000
 - waitForAnimationToEnd

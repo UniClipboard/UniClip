@@ -38,6 +38,7 @@ import { MATERIAL_SEED_COLOR } from '@/theme/colors';
 const ICONS: Record<SettingsSubSection, number> = {
   syncChannel: require('../assets/icons/dns.xml'),
   space: require('../assets/icons/groups.xml'),
+  spaceSettings: require('../assets/icons/settings.xml'),
   lanServers: require('../assets/icons/dns.xml'),
   history: require('../assets/icons/history.xml'),
   background: require('../assets/icons/layers.xml'),

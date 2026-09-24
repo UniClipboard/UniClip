@@ -1,6 +1,7 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { UnifiedSpaceSetup } from '@/screens/settings/UnifiedSpaceSetup.android';
+import { SpaceSettingsSection } from '@/screens/settings/android/SpaceSettingsSection';
 
 const mockSpace: { spaceId: string | null; deviceName: string; status: string } = {
   spaceId: 'test-space',
@@ -8,14 +9,29 @@ const mockSpace: { spaceId: string | null; deviceName: string; status: string } 
   status: 'ready',
 };
 
+const remoteDevice = {
+  deviceId: 'remote-1',
+  displayName: 'Laptop',
+  isLocal: false,
+  reachability: 'online',
+  primaryStatus: 'usable',
+};
+
 const mockManagement = {
-  devices: [],
+  devices: [] as (typeof remoteDevice)[],
   selectedDevice: null,
   overview: { primaryStatus: 'healthy', memberCount: 1 },
   highImpactActionsAvailable: true,
   operationInProgress: false,
+  removing: false,
   closeDevice: jest.fn(),
   openDevice: jest.fn(),
+};
+const mockNavigation = {
+  navigate: jest.fn(),
+  setOptions: jest.fn(),
+  canGoBack: () => true,
+  goBack: jest.fn(),
 };
 jest.mock('@/components/useSpaceDeviceManagement', () => ({
   useSpaceDeviceManagement: () => mockManagement,
@@ -29,6 +45,8 @@ jest.mock('@/components/useSpacePageRefresh', () => ({
 }));
 jest.mock('@/features/space', () => ({
   useUnifiedSpaceStore: () => mockSpace,
+  getUnifiedSpaceService: () => ({ leaveSpace: jest.fn() }),
+  UnifiedSpaceInputError: class UnifiedSpaceInputError extends Error {},
   spaceMaintenanceMessage: jest.requireActual('@/features/space/deviceTrustPresentation')
     .spaceMaintenanceMessage,
 }));
@@ -36,10 +54,13 @@ jest.mock('@/hooks/useTheme', () => ({
   useTheme: () => ({ theme: { colors: { success: 'green' } } }),
 }));
 jest.mock('@react-navigation/native', () => ({
-  useNavigation: () => ({ navigate: jest.fn() }),
+  useNavigation: () => mockNavigation,
 }));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
+}));
+jest.mock('@/components/android/M3IconButton', () => ({
+  M3IconButton: () => null,
 }));
 jest.mock('@/components/AddSyncConnectionSheet', () => {
   const React = require('react');
@@ -61,6 +82,9 @@ jest.mock('@/components/SpaceDeviceDetail', () => ({
 jest.mock('@/screens/settings/CustomRelaySection', () => ({
   CustomRelaySection: () => null,
 }));
+jest.mock('@/screens/settings/android/SettingsLeadingIcon', () => ({
+  SettingsLeadingIcon: () => null,
+}));
 jest.mock('@/screens/settings/SettingsSectionItem', () => ({
   SettingsSectionItem: ({
     children,
@@ -74,21 +98,21 @@ jest.mock('@/screens/settings/SettingsSectionItem', () => ({
       {dialogs}
     </>
   ),
+  useSettingsSectionRowColors: () => undefined,
 }));
 jest.mock('@expo/ui/jetpack-compose', () => {
   const React = require('react');
-  const ListItem = Object.assign(
-    (props: object) => React.createElement('ListItem', props),
-    Object.fromEntries(
-      ['LeadingContent', 'HeadlineContent', 'SupportingContent', 'TrailingContent'].map((name) => [
-        name,
-        ({ children }: { children: React.ReactNode }) => children,
-      ])
-    )
-  );
+  const slotted = (type: string, slots: string[]) =>
+    Object.assign(
+      (props: object) => React.createElement(type, props),
+      Object.fromEntries(
+        slots.map((name) => [name, ({ children }: { children: React.ReactNode }) => children])
+      )
+    );
   return {
     ...Object.fromEntries(
       [
+        'Box',
         'Button',
         'CircularProgressIndicator',
         'Column',
@@ -102,7 +126,13 @@ jest.mock('@expo/ui/jetpack-compose', () => {
         'TextButton',
       ].map((name) => [name, name])
     ),
-    ListItem,
+    ListItem: slotted('ListItem', [
+      'LeadingContent',
+      'HeadlineContent',
+      'SupportingContent',
+      'TrailingContent',
+    ]),
+    AlertDialog: slotted('AlertDialog', ['Title', 'Text', 'ConfirmButton', 'DismissButton']),
     Shape: { RoundedCorner: () => ({}) },
     useMaterialColors: () => ({}),
   };
@@ -113,38 +143,79 @@ jest.mock('@/assets/icons/delete.xml', () => 1);
 jest.mock('@/assets/icons/account_circle.xml', () => 1);
 jest.mock('@/assets/icons/groups.xml', () => 1);
 jest.mock('@/assets/icons/circle.xml', () => 1);
+jest.mock('@/assets/icons/check.xml', () => 1);
+jest.mock('@/assets/icons/info.xml', () => 1);
+jest.mock('@/assets/icons/devices.xml', () => 1);
+jest.mock('@/assets/icons/smartphone.xml', () => 1);
+jest.mock('@/assets/icons/settings.xml', () => 1);
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-it('keeps native row modifiers valid as space actions become unavailable and available again', () => {
+type Modifier = { $type: string; eventListener?: () => void };
+
+const rowWithText = (view: TestRenderer.ReactTestRenderer, label: string) =>
+  view.root
+    .findAllByType('ListItem' as never)
+    .find((row) =>
+      row.findAllByType('Text' as never).some((text) => text.props.children === label)
+    )!;
+
+const rowClick = (row: TestRenderer.ReactTestInstance) =>
+  (row.props.modifiers as Modifier[]).find((modifier) => modifier.$type === 'clickable');
+
+it('keeps native row modifiers valid as space settings actions become unavailable and available again', () => {
+  let view: TestRenderer.ReactTestRenderer;
+  act(() => {
+    view = TestRenderer.create(<SpaceSettingsSection />);
+  });
+  try {
+    for (const [index, busy] of [false, true, false].entries()) {
+      mockManagement.operationInProgress = busy;
+      // memo 页面无 props 变化,换 key 让它按新的管理状态重新渲染
+      act(() => {
+        view.update(<SpaceSettingsSection key={index} />);
+      });
+      for (const label of ['space.switch.title', 'space.leave.action']) {
+        expect(Array.isArray(rowWithText(view, label).props.modifiers)).toBe(true);
+        expect(Boolean(rowClick(rowWithText(view, label)))).toBe(!busy);
+      }
+    }
+    act(() => rowClick(rowWithText(view, 'space.switch.title'))!.eventListener!());
+    expect(view.root.findByType('SetupSheet' as never)).toBeTruthy();
+  } finally {
+    act(() => view.unmount());
+    mockManagement.operationInProgress = false;
+  }
+});
+
+it('makes whole device rows and the space settings row interactive on the devices page', () => {
+  mockManagement.devices = [remoteDevice];
+  mockNavigation.navigate.mockClear();
+  mockManagement.openDevice.mockClear();
   let view: TestRenderer.ReactTestRenderer;
   act(() => {
     view = TestRenderer.create(<UnifiedSpaceSetup />);
   });
-  const actionRow = (label: string) =>
-    view.root
-      .findAllByType('ListItem' as never)
-      .find((row) =>
-        row.findAllByType('Text' as never).some((text) => text.props.children === label)
-      )!;
   try {
-    for (const busy of [false, true, false]) {
-      mockManagement.operationInProgress = busy;
-      act(() => {
-        view.update(<UnifiedSpaceSetup notificationNavigationRequestId={Number(busy)} />);
-      });
-      for (const label of ['space.switch.title', 'space.leave.action']) {
-        const modifiers = actionRow(label).props.modifiers;
-        expect(Array.isArray(modifiers)).toBe(true);
-        expect(
-          modifiers.some((modifier: { $type: string }) => modifier.$type === 'clickable')
-        ).toBe(!busy);
-      }
-    }
-    act(() => actionRow('space.switch.title').props.modifiers[0].eventListener());
+    // 点击绑定在整行 ListItem 上,而非行内文字或图标
+    act(() => rowClick(rowWithText(view, 'Laptop'))!.eventListener!());
+    expect(mockManagement.openDevice).toHaveBeenCalledWith('remote-1');
+
+    // 低频管理项下沉到二级页,设备页只保留整行入口
+    expect(rowWithText(view, 'space.leave.action')).toBeUndefined();
+    expect(rowWithText(view, 'space.switch.title')).toBeUndefined();
+    act(() => rowClick(rowWithText(view, 'space.settings.title'))!.eventListener!());
+    expect(mockNavigation.navigate).toHaveBeenCalledWith('SettingsSub', {
+      section: 'spaceSettings',
+    });
+
+    // 已加入空间时,刷新挂到所在页面的标题栏
+    expect(mockNavigation.setOptions).toHaveBeenCalledWith(
+      expect.objectContaining({ headerRight: expect.any(Function) })
+    );
   } finally {
     act(() => view.unmount());
-    mockManagement.operationInProgress = false;
+    mockManagement.devices = [];
   }
 });
 

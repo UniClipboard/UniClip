@@ -34,8 +34,10 @@ describe('unified space setup UI', () => {
     const iosSettings = source('screens/SettingsScreen.ios.tsx');
 
     expect(entry).toContain("export * from './UnifiedSpaceSetup.android'");
+    const androidSettings = source('screens/settings/android/SpaceSettingsSection.tsx');
     expect(android).toContain('AddSyncConnectionSheet');
-    expect(android).toContain('getUnifiedSpaceService');
+    expect(androidSettings).toContain('AddSyncConnectionSheet');
+    expect(androidSettings).toContain('getUnifiedSpaceService');
     expect(android).not.toContain('.createSpace(');
     expect(android).not.toContain('.joinSpace(');
     expect(ios).toContain('onOpenSetup');
@@ -127,8 +129,9 @@ describe('unified space setup UI', () => {
     const ios = source('screens/settings/ios/SpacePage.tsx');
     const iosSettings = source('screens/SettingsScreen.ios.tsx');
 
-    for (const platform of [android, ios]) {
-      expect(platform).toContain('useUnifiedSpaceStore');
+    const androidSettings = source('screens/settings/android/SpaceSettingsSection.tsx');
+    expect(android).toContain('useUnifiedSpaceStore');
+    for (const platform of [androidSettings, ios]) {
       expect(platform).toContain('.leaveSpace()');
       expect(platform).toContain('space.leave.action');
     }
@@ -142,7 +145,7 @@ describe('unified space setup UI', () => {
   });
 
   it('lets an active space join another space before offering leave', () => {
-    const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
+    const android = source('screens/settings/android/SpaceSettingsSection.tsx');
     const ios = source('screens/settings/ios/SpacePage.tsx');
     const sheetProps = source('components/AddSyncConnectionSheet.types.ts');
 
@@ -221,17 +224,23 @@ describe('unified space setup UI', () => {
     }
   });
 
-  it('puts the Android page status, adding devices, and device management ahead of leaving', () => {
+  it('puts the Android page status, adding devices, and device management ahead of space settings', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
+    const androidSettings = source('screens/settings/android/SpaceSettingsSection.tsx');
     const androidRelay = source('screens/settings/CustomRelaySection.android.tsx');
     const ios = source('screens/settings/ios/SpacePage.tsx');
 
-    expect(android).toMatch(
-      /space\.overview\.status[\s\S]*space\.invitation\.addAction[\s\S]*space\.devices\.thisDevice[\s\S]*space\.devices\.otherTitle[\s\S]*space\.leave\.action/
+    const page = android.slice(android.indexOf('const content = isInitialLoading'));
+    expect(page).toMatch(
+      /overviewTitle[\s\S]*space\.invitation\.addAction[\s\S]*space\.devices\.thisDevice[\s\S]*space\.devices\.otherTitle[\s\S]*section: 'spaceSettings'/
     );
+    expect(android).toContain('space.overview.status.');
     expect(android).toContain('space.overview.memberCount');
+    expect(android).not.toContain('space.leave.action');
     expect(androidRelay).toContain('space.advanced.title');
-    expect(android).toContain('space.danger.title');
+    expect(androidSettings).toMatch(
+      /<CustomRelaySection \/>[\s\S]*space\.manage\.title[\s\S]*space\.danger\.title/
+    );
     expect(android).not.toContain('Boolean(error)');
 
     expect(ios).toMatch(
@@ -369,14 +378,15 @@ describe('unified space setup UI', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
     const ios = source('screens/settings/ios/SpacePage.tsx');
 
+    const androidSettings = source('screens/settings/android/SpaceSettingsSection.tsx');
     expect(android).toContain('highImpactActionsDisabled');
-    expect(android).toContain('space.switch.unavailable');
-    expect(android).toContain(
-      'const leaveSpaceDisabled = pending !== null || deviceManagement.operationInProgress;'
+    expect(androidSettings).toContain('highImpactActionsDisabled');
+    expect(androidSettings).toContain('space.switch.unavailable');
+    expect(androidSettings).toContain(
+      'const leaveDisabled = leaving || deviceManagement.operationInProgress;'
     );
-    expect(android).toContain(
-      'leaveSpaceDisabled ? [] : [clickable(() => setConfirmLeave(true))]'
-    );
+    expect(androidSettings).toContain('<SwitchSpaceRow enabled={!highImpactActionsDisabled}');
+    expect(androidSettings).toContain('enabled={!leaveDisabled}');
     expect(ios).toContain('highImpactActionsDisabled');
     expect(ios).toContain('!deviceManagement.highImpactActionsAvailable');
   });
@@ -389,9 +399,14 @@ describe('unified space setup UI', () => {
     expect(android).toContain('space.invitation.addAction');
     expect(android).toContain('localDevice');
     expect(android).toContain('SpaceDeviceDetail');
-    expect(android).toContain('space.manage.title');
-    expect(android).toContain('space.danger.title');
-    expect(android).toContain('BackHandler');
+    // 低频空间管理在二级页,退出进行中拦截返回键
+    const androidSettings = source('screens/settings/android/SpaceSettingsSection.tsx');
+    expect(androidSettings).toContain('space.manage.title');
+    expect(androidSettings).toContain('space.danger.title');
+    expect(androidSettings).toContain('BackHandler');
+    expect(source('screens/settings/SettingsSubScreen.android.tsx')).toContain(
+      "{section === 'spaceSettings' && <SpaceSettingsSection />}"
+    );
   });
 
   it('keeps invitation availability copy aligned in every supported language', () => {
