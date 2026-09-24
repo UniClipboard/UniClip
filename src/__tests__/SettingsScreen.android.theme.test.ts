@@ -8,13 +8,17 @@ const readSource = (relativePath: string) =>
   fs.readFileSync(path.join(__dirname, '..', relativePath), 'utf8');
 
 describe('Android settings root', () => {
-  it('uses the app accent as the Material palette seed on every settings screen', () => {
+  it('seeds every settings Compose palette from the same source as the RN palette', () => {
     const rootSource = readSource('screens/SettingsScreen.android.tsx');
     const subScreenSource = readSource('screens/settings/SettingsSubScreen.android.tsx');
+    const palette = readSource('theme/colors.android.ts');
 
-    expect(rootSource).toContain('seedColor: theme.colors.accent');
-    expect(rootSource).toContain('seedColor={theme.colors.accent}');
-    expect(subScreenSource).toContain('seedColor={theme.colors.accent}');
+    expect(rootSource).toContain('seedColor: MATERIAL_SEED_COLOR');
+    expect(rootSource).toContain('seedColor={MATERIAL_SEED_COLOR}');
+    expect(subScreenSource).toContain('seedColor={MATERIAL_SEED_COLOR}');
+    // Material You:动态取色时 Host 不传 seed(跟随壁纸),与 RN 侧 getMaterialColors 同源
+    expect(palette).toContain('ui.getMaterialColors({ scheme })');
+    expect(palette).toContain('export const MATERIAL_SEED_COLOR');
   });
 
   it('exposes independent auto-write and auto-push direction switches', () => {

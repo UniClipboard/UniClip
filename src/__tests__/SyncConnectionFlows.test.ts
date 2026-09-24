@@ -36,7 +36,7 @@ describe('unified sync connection flows', () => {
 
     expect(android).toContain("import { useTheme } from '@/hooks/useTheme'");
     expect(android).toMatch(
-      /<Host\s+colorScheme=\{theme\.isDark \? 'dark' : 'light'\}\s+seedColor=\{theme\.colors\.accent\}\s*>[\s\S]*<AddSyncConnectionSheetContent/
+      /<Host\s+colorScheme=\{theme\.isDark \? 'dark' : 'light'\}\s+seedColor=\{MATERIAL_SEED_COLOR\}\s*>[\s\S]*<AddSyncConnectionSheetContent/
     );
     expect(android).toMatch(
       /function AddSyncConnectionSheetContent[\s\S]*const colors = useMaterialColors\(\)/

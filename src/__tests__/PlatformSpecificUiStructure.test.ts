@@ -8,7 +8,7 @@ const readSource = (relativePath: string) =>
 
 describe('platform-specific UI structure', () => {
   it('keeps Android-only UI directly under Android-owned directories', () => {
-    expect(fs.existsSync(path.join(sourceRoot, 'components/android/TopRightMenu.tsx'))).toBe(true);
+    expect(fs.existsSync(path.join(sourceRoot, 'components/android/OverflowMenu.tsx'))).toBe(true);
     expect(
       fs.existsSync(path.join(sourceRoot, 'screens/settings/android/AppearanceSection.tsx'))
     ).toBe(true);

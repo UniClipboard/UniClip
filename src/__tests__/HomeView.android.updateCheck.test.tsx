@@ -1,5 +1,5 @@
 import TestRenderer, { act } from 'react-test-renderer';
-import { Alert } from 'react-native';
+import { useMessageStore } from '../stores/messageStore';
 import type { UpdateCheckResult } from '../features/updates';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -60,12 +60,12 @@ async function flushEffects() {
 describe('Android Home update check', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    useMessageStore.setState({ message: null });
     mockCheckForAutomaticUpdate.mockResolvedValue(updateResult);
   });
 
-  it('checks on Home and opens the existing update flow when accepted', async () => {
+  it('announces an update with a non-blocking snackbar whose action opens the update flow', async () => {
     const onOpenAbout = jest.fn();
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 
     act(() => {
       TestRenderer.create(<HomeView onOpenSettings={jest.fn()} onOpenAbout={onOpenAbout} />);
@@ -78,23 +78,21 @@ describe('Android Home update check', () => {
       debugUpdateCheckNoLimit: false,
       language: 'zh-CN',
     });
-    expect(alertSpy).toHaveBeenCalledTimes(1);
-
-    const buttons = alertSpy.mock.calls[0][2];
-    const updateButton = buttons?.find((button) => button.style !== 'cancel');
-    updateButton?.onPress?.();
+    const message = useMessageStore.getState().message;
+    expect(message?.text).toContain('1.4.0');
+    expect(message?.action?.label).toBe('update.updateTo:1.4.0');
+    message?.action?.onPress();
     expect(onOpenAbout).toHaveBeenCalledWith(updateResult);
   });
 
   it('stays silent when no new version is available', async () => {
     mockCheckForAutomaticUpdate.mockResolvedValue(null);
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 
     act(() => {
       TestRenderer.create(<HomeView onOpenSettings={jest.fn()} onOpenAbout={jest.fn()} />);
     });
     await flushEffects();
 
-    expect(alertSpy).not.toHaveBeenCalled();
+    expect(useMessageStore.getState().message).toBeNull();
   });
 });

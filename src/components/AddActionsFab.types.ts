@@ -27,7 +27,7 @@ export interface AddActionsFabProps {
   onPickFile: () => void;
   /** 上传当前系统剪贴板内容 */
   onUploadClipboard: () => void;
-  /** 立即与服务器同步(融合入菜单末项) */
+  /** 立即与服务器同步(iOS 融合入菜单末项;Android 由下拉刷新承担,菜单不提供) */
   onSync: () => void;
   theme: ReturnType<typeof useTheme>['theme'];
   /** 水平锚定方向,默认 `'end'`(右下)。 */

@@ -16,6 +16,7 @@ export function HomeTopBarArea({ c }: { c: HomeController }) {
           allSelected={c.allSelected}
           onSelectAll={c.handleSelectAll}
           onDone={c.exitSelectMode}
+          itemActions={c.selectionItemActions}
           theme={c.theme}
         />
       ) : c.isSearching ? (

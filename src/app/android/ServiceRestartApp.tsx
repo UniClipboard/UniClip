@@ -11,6 +11,9 @@ import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from '@/stores';
 import { initLogger } from '@/support/observability';
 import { getAppRuntime } from '@/app/runtime/composition';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { buildScheme } from '@/theme/colors';
+import { m3Type } from '@/theme/m3Typography';
 
 interface ServiceRestartAppProps {
   systemTheme?: 'light' | 'dark';
@@ -50,12 +53,15 @@ export default function ServiceRestartApp({ systemTheme }: ServiceRestartAppProp
     return () => clearTimeout(timer);
   }, [ready]);
 
+  const colors = buildScheme(isDark);
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.backdrop }]}>
       <StatusBar backgroundColor="transparent" translucent barStyle="light-content" />
-      <View style={[styles.card, isDark ? styles.cardDark : styles.cardLight]}>
-        <Text style={[styles.icon]}>✓</Text>
-        <Text style={[styles.text, isDark ? styles.textDark : styles.textLight]}>
+      {/* M3 dialog 表面:surfaceContainerHigh + 28dp 圆角,色板与主 App 同源(含动态取色) */}
+      <View style={[styles.card, { backgroundColor: colors.surfaceHigh }]}>
+        <Ionicons name="checkmark-circle" size={24} color={colors.success} />
+        <Text style={[styles.text, { color: colors.textPrimary }]}>
           {t('serviceRestart.restored')}
         </Text>
       </View>
@@ -63,55 +69,22 @@ export default function ServiceRestartApp({ systemTheme }: ServiceRestartAppProp
   );
 }
 
-const COLORS = {
-  overlay: 'rgba(0, 0, 0, 0.3)',
-  shadow: '#000',
-  cardLight: '#ffffff',
-  cardDark: '#2c2c2e',
-  success: '#34c759',
-  textLight: '#1c1c1e',
-  textDark: '#f2f2f7',
-};
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: COLORS.overlay,
   },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingVertical: 16,
-    borderRadius: 16,
-    gap: 10,
-    elevation: 8,
-    shadowColor: COLORS.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-  },
-  cardLight: {
-    backgroundColor: COLORS.cardLight,
-  },
-  cardDark: {
-    backgroundColor: COLORS.cardDark,
-  },
-  icon: {
-    fontSize: 22,
-    color: COLORS.success,
-    fontWeight: 'bold',
+    paddingVertical: 20,
+    borderRadius: 28,
+    gap: 12,
+    elevation: 3,
   },
   text: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  textLight: {
-    color: COLORS.textLight,
-  },
-  textDark: {
-    color: COLORS.textDark,
+    ...m3Type.titleMedium,
   },
 });

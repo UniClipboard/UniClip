@@ -8,7 +8,7 @@
  * 后再挂载 Host,避免滑入期间抢占 JS 线程。
  */
 import { memo, useEffect, useRef, useState } from 'react';
-import { View, ActivityIndicator, InteractionManager } from 'react-native';
+import { InteractionManager } from 'react-native';
 import {
   Host,
   LazyColumn,
@@ -31,9 +31,10 @@ import { SettingsToastProvider, useSettingsToast } from './settings/SettingsToas
 import { SettingsSectionItem } from './settings/SettingsSectionItem';
 import { AnalyticsConsentControl } from './settings/AnalyticsConsentControl';
 import { SettingsSwitchRow } from './settings/android/SettingsSwitchRow';
+import { MATERIAL_SEED_COLOR } from '@/theme/colors';
 
 // XML 矢量图标(Material Icons 路径),由 @expo/ui Icon 在原生侧解析渲染。
-const ICONS: Record<SettingsSubSection | 'chevron', number> = {
+const ICONS: Record<SettingsSubSection, number> = {
   syncChannel: require('../assets/icons/dns.xml'),
   space: require('../assets/icons/groups.xml'),
   lanServers: require('../assets/icons/dns.xml'),
@@ -43,10 +44,9 @@ const ICONS: Record<SettingsSubSection | 'chevron', number> = {
   storage: require('../assets/icons/storage.xml'),
   about: require('../assets/icons/info.xml'),
   developer: require('../assets/icons/code.xml'),
-  chevron: require('../assets/icons/chevron_right.xml'),
 };
 
-/** 分类入口行:图标 + 标题 + 动态摘要 + chevron。 */
+/** 分类入口行:图标 + 标题 + 动态摘要。Android 设置惯例不在导航行尾放 chevron。 */
 interface HubRowProps {
   section: SettingsSubSection;
   label: string;
@@ -73,9 +73,6 @@ const HubRow = memo(function HubRow({
       <ListItem.SupportingContent>
         <ComposeText>{summary}</ComposeText>
       </ListItem.SupportingContent>
-      <ListItem.TrailingContent>
-        <Icon source={ICONS.chevron} size={20} tint={iconTint} />
-      </ListItem.TrailingContent>
     </ListItem>
   );
 });
@@ -246,7 +243,7 @@ const SettingsScreenInner = () => {
   const appColorScheme = theme.isDark ? 'dark' : 'light';
   const colors = useMaterialColors({
     colorScheme: appColorScheme,
-    seedColor: theme.colors.accent,
+    seedColor: MATERIAL_SEED_COLOR,
   });
   const isLoaded = useSettingsStore((s) => s.isLoaded);
   const loadConfig = useSettingsStore((s) => s.loadConfig);
@@ -284,16 +281,13 @@ const SettingsScreenInner = () => {
     route.params?.section,
   ]);
 
+  // 转场期间只铺背景色:挂载等待很短,M3 不为亚秒级等待显示转圈
   if (!contentReady) {
     return (
       <SafeAreaView
         style={[styles.container, { backgroundColor: theme.colors.background }]}
         edges={[]}
-      >
-        <View style={styles.loadingPlaceholder}>
-          <ActivityIndicator size="large" color={theme.colors.accent} />
-        </View>
-      </SafeAreaView>
+      />
     );
   }
 
@@ -306,7 +300,7 @@ const SettingsScreenInner = () => {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
       edges={[]}
     >
-      <Host style={styles.container} colorScheme={appColorScheme} seedColor={theme.colors.accent}>
+      <Host style={styles.container} colorScheme={appColorScheme} seedColor={MATERIAL_SEED_COLOR}>
         <LazyColumn
           modifiers={[fillMaxSize()]}
           contentPadding={{ start: 16, end: 16, top: 8, bottom: 40 }}

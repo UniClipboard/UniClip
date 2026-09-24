@@ -1,48 +1,52 @@
 import { View, Text, TextInput, StyleSheet, Pressable } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { TopRightMenu } from './android/TopRightMenu';
+import { M3IconButton } from './android/M3IconButton';
+import { OverflowMenu } from './android/OverflowMenu';
 import type {
   DefaultTopBarProps,
   SearchTopBarProps,
   SelectModeTopBarProps,
 } from './HomeTopBar.types';
 import { HistoryFilterTags } from '@/components/HistoryFilterTags';
+import { m3Type } from '@/theme/m3Typography';
 
-export function DefaultTopBar({ onSearch, onSettings, onSelectMode, theme }: DefaultTopBarProps) {
+/**
+ * 首页默认态:M3 Search bar。整条胶囊点按进入搜索,尾部是设置入口。
+ * 多选不在这里提供入口——Android 由长按卡片进入多选。
+ */
+export function DefaultTopBar({ onSearch, onSettings, theme }: DefaultTopBarProps) {
   const { t } = useTranslation('home');
+  const { colors } = theme;
   return (
     <View style={s.row}>
-      <View style={s.actions}>
-        <Pressable
-          onPress={onSelectMode}
-          style={[s.pill, { backgroundColor: theme.colors.surfaceHigh }]}
-          accessibilityRole="button"
-          accessibilityLabel={t('action.select', { ns: 'common' })}
-        >
-          <Text style={[s.pillText, { color: theme.colors.textPrimary }]}>
-            {t('action.select', { ns: 'common' })}
-          </Text>
-        </Pressable>
+      <View style={[s.searchBar, { backgroundColor: colors.surfaceHigh }]}>
         <Pressable
           testID="history-search-open"
           onPress={onSearch}
-          style={s.iconBtn}
-          hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-          accessibilityRole="button"
+          android_ripple={{ color: colors.fillSecondary as string }}
+          style={s.searchTrigger}
+          accessibilityRole="search"
           accessibilityLabel={t('a11y.search')}
         >
-          <Ionicons name="search" size={22} color={theme.colors.textPrimary} />
+          <Ionicons name="search" size={24} color={colors.textPrimary} />
+          <Text style={[s.hint, { color: colors.textSecondary }]} numberOfLines={1}>
+            {t('topBar.searchPlaceholder')}
+          </Text>
         </Pressable>
-        <TopRightMenu
-          testID="home-menu"
-          items={[{ label: t('action.settings', { ns: 'common' }), onPress: onSettings }]}
+        <M3IconButton
+          testID="home-settings"
+          icon="settings-outline"
+          accessibilityLabel={t('action.settings', { ns: 'common' })}
+          onPress={onSettings}
+          colors={colors}
         />
       </View>
     </View>
   );
 }
 
+/** 搜索态:同一条胶囊变为输入框,前导返回箭头退出搜索(M3 search view)。 */
 export function SearchTopBar({
   searchText,
   onChangeText,
@@ -56,57 +60,49 @@ export function SearchTopBar({
   theme,
 }: SearchTopBarProps) {
   const { t } = useTranslation('home');
-  const bg = { backgroundColor: theme.colors.surfaceHigh };
+  const { colors } = theme;
 
   return (
     <View style={s.searchWrap}>
-      <View style={s.searchRow}>
-        <View style={s.boxWrap}>
-          <View style={[s.searchBox, bg]}>
-            <Ionicons name="search" size={16} color={theme.colors.textSecondary} />
-            <TextInput
-              testID="history-search-input"
-              style={[s.searchInput, { color: theme.colors.textPrimary }]}
-              value={searchText}
-              onChangeText={onChangeText}
-              placeholder={t('topBar.searchPlaceholder')}
-              placeholderTextColor={theme.colors.textSecondary}
-              autoFocus
-            />
-            {searchText.length > 0 && (
-              <Pressable
-                onPress={() => onChangeText('')}
-                hitSlop={8}
-                accessibilityRole="button"
-                testID="history-search-clear"
-                accessibilityLabel={t('a11y.clearSearch')}
-              >
-                <Ionicons name="close-circle" size={16} color={theme.colors.textSecondary} />
-              </Pressable>
-            )}
-          </View>
-        </View>
-        <Pressable
-          onPress={onOpenFilters}
-          style={[s.circle, bg]}
-          accessibilityRole="button"
-          accessibilityLabel={t('a11y.searchFilters')}
-        >
-          <Ionicons
-            name={hasActiveFilters ? 'filter-circle' : 'filter-circle-outline'}
-            size={21}
-            color={hasActiveFilters ? theme.colors.accent : theme.colors.textPrimary}
+      <View style={s.row}>
+        <View style={[s.searchBar, { backgroundColor: colors.surfaceHigh }]}>
+          <M3IconButton
+            testID="history-search-close"
+            icon="arrow-back"
+            accessibilityLabel={t('action.close', { ns: 'common' })}
+            onPress={onClose}
+            iconColor={colors.textPrimary}
+            colors={colors}
           />
-        </Pressable>
-        <Pressable
-          testID="history-search-close"
-          onPress={onClose}
-          style={[s.circle, bg]}
-          accessibilityRole="button"
-          accessibilityLabel={t('action.close', { ns: 'common' })}
-        >
-          <Ionicons name="close" size={20} color={theme.colors.textPrimary} />
-        </Pressable>
+          <TextInput
+            testID="history-search-input"
+            style={[s.searchInput, { color: colors.textPrimary }]}
+            value={searchText}
+            onChangeText={onChangeText}
+            placeholder={t('topBar.searchPlaceholder')}
+            placeholderTextColor={colors.textSecondary}
+            cursorColor={colors.accent as string}
+            selectionColor={colors.accentContainer as string}
+            returnKeyType="search"
+            autoFocus
+          />
+          {searchText.length > 0 && (
+            <M3IconButton
+              testID="history-search-clear"
+              icon="close"
+              accessibilityLabel={t('a11y.clearSearch')}
+              onPress={() => onChangeText('')}
+              colors={colors}
+            />
+          )}
+          <M3IconButton
+            icon={hasActiveFilters ? 'filter-circle' : 'filter-circle-outline'}
+            accessibilityLabel={t('a11y.searchFilters')}
+            onPress={onOpenFilters}
+            iconColor={hasActiveFilters ? colors.accent : undefined}
+            colors={colors}
+          />
+        </View>
       </View>
 
       <HistoryFilterTags
@@ -120,78 +116,75 @@ export function SearchTopBar({
   );
 }
 
+/**
+ * 多选态:M3 上下文操作栏。前导 × 退出,标题为已选数量,尾部全选;
+ * 恰好选中一项时追加溢出菜单承载该项的内容类动作(原长按菜单)。
+ */
 export function SelectModeTopBar({
   count,
   allSelected,
   onSelectAll,
   onDone,
+  itemActions,
   theme,
 }: SelectModeTopBarProps) {
   const { t } = useTranslation('home');
+  const { colors } = theme;
   return (
-    <View style={s.row}>
-      <Text style={[s.selectCount, { color: theme.colors.textPrimary }]}>
+    <View testID="history-selection-bar" style={s.row}>
+      <M3IconButton
+        testID="history-selection-close"
+        icon="close"
+        accessibilityLabel={t('action.close', { ns: 'common' })}
+        onPress={onDone}
+        iconColor={colors.textPrimary}
+        colors={colors}
+      />
+      <Text
+        testID="history-selection-count"
+        style={[s.selectCount, { color: colors.textPrimary }]}
+        accessibilityLiveRegion="polite"
+        numberOfLines={1}
+      >
         {t('topBar.selectedCount', { n: count })}
       </Text>
-      <View style={s.actions}>
-        <Pressable
-          onPress={onSelectAll}
-          style={[s.pill, { backgroundColor: theme.colors.surfaceHigh }]}
-          accessibilityRole="button"
-        >
-          <Text style={[s.pillText, { color: theme.colors.textPrimary }]}>
-            {allSelected ? t('topBar.deselectAll') : t('action.selectAll', { ns: 'common' })}
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={onDone}
-          style={[s.pill, { backgroundColor: theme.colors.surfaceHigh }]}
-          accessibilityRole="button"
-        >
-          <Text style={[s.pillText, { color: theme.colors.textPrimary }]}>
-            {t('action.done', { ns: 'common' })}
-          </Text>
-        </Pressable>
-      </View>
+      <M3IconButton
+        testID="history-selection-all"
+        icon={allSelected ? 'checkbox' : 'checkbox-outline'}
+        accessibilityLabel={
+          allSelected ? t('topBar.deselectAll') : t('action.selectAll', { ns: 'common' })
+        }
+        onPress={onSelectAll}
+        colors={colors}
+      />
+      {itemActions && itemActions.length > 0 ? (
+        <OverflowMenu testID="history-selection-more" items={itemActions} />
+      ) : null}
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 52 },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 12, marginLeft: 'auto' },
-  iconBtn: { justifyContent: 'center', alignItems: 'center' },
-  selectCount: { fontSize: 14, fontWeight: '600' },
-  pill: {
-    height: 36,
-    paddingHorizontal: 16,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  pillText: { fontSize: 14, fontWeight: '500' },
-  searchWrap: { gap: 6 },
-  searchRow: { flexDirection: 'row', alignItems: 'center', height: 52, gap: 8 },
-  boxWrap: { flex: 1 },
-  searchBox: {
-    height: 44,
-    borderRadius: 22,
+  row: { flexDirection: 'row', alignItems: 'center', minHeight: 64, gap: 4 },
+  searchBar: {
+    flex: 1,
+    height: 56,
+    borderRadius: 28,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    gap: 8,
+    paddingHorizontal: 4,
+    overflow: 'hidden',
   },
-  searchInput: { flex: 1, fontSize: 14, padding: 0 },
-  circle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
+  searchTrigger: {
+    flex: 1,
+    alignSelf: 'stretch',
+    flexDirection: 'row',
     alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    gap: 16,
+    paddingLeft: 12,
   },
+  hint: { ...m3Type.bodyLarge, flexShrink: 1 },
+  searchInput: { ...m3Type.bodyLarge, flex: 1, padding: 0, marginLeft: 4 },
+  searchWrap: { gap: 6 },
+  selectCount: { ...m3Type.titleLarge, flex: 1, marginLeft: 8 },
 });

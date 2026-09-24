@@ -32,6 +32,7 @@ import type { DeviceTrustChoiceView } from '@/features/space';
 import type { DeviceTrustDecisionProps } from './DeviceTrustDecision.types';
 import type { DeviceTrustDecisionSession } from './DeviceTrustDecisionSession';
 import { useActiveDeviceTrustDecisionSession } from './useActiveDeviceTrustDecisionSession';
+import { MATERIAL_SEED_COLOR } from '@/theme/colors';
 
 const DIALOG_SHAPE = Shape.RoundedCorner({
   cornerRadii: { topStart: 28, topEnd: 28, bottomStart: 28, bottomEnd: 28 },
@@ -278,7 +279,7 @@ export function DeviceTrustDecision(_props: DeviceTrustDecisionProps) {
   const decision = useActiveDeviceTrustDecisionSession();
 
   return (
-    <Host colorScheme={theme.isDark ? 'dark' : 'light'} seedColor={theme.colors.accent}>
+    <Host colorScheme={theme.isDark ? 'dark' : 'light'} seedColor={MATERIAL_SEED_COLOR}>
       <DeviceTrustDecisionContent decision={decision} />
     </Host>
   );

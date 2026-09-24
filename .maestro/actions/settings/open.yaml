@@ -2,9 +2,19 @@
 appId: ${APP_ID}
 ---
 - runFlow: ../../assertions/home-ready.yaml
-- tapOn:
-    id: home-menu
-- tapOn: "Settings"
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: home-menu
+      - tapOn: "Settings"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn:
+          id: home-settings
 - scrollUntilVisible:
     element:
       id: settings-storage

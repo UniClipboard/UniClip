@@ -17,7 +17,7 @@ appId: ${APP_ID}
 - runFlow: ../assertions/home-ready.yaml
 - runFlow: ../assertions/history/one-card.yaml
 - runFlow: ../assertions/history/text-content.yaml
-- runFlow: ../actions/history/cancel-delete-android.yaml
+- runFlow: ../actions/history/undo-delete-android.yaml
 - runFlow: ../actions/history/delete-only-item.yaml
 - runFlow: ../lifecycle/restart.yaml
 - runFlow: ../assertions/home-ready.yaml

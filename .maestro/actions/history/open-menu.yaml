@@ -1,14 +1,31 @@
-# Pre: one CedarAlpha card. Post: its actual content preview and actions are visible.
+# Pre: one CedarAlpha card. Post: the long-press affordance of the platform is visible.
+# iOS: context overlay with the content preview and actions.
+# Android: selection mode with the contextual action bar and batch actions.
 appId: ${APP_ID}
 ---
 - longPressOn:
     id: "history-card-.*"
     index: 0
-- assertVisible:
-    id: history-action-copy
-- assertVisible:
-    id: history-action-delete
-- assertVisible:
-    id: history-preview-text
-    text: CedarAlpha
-- takeScreenshot: history-preview
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - assertVisible:
+          id: history-action-copy
+      - assertVisible:
+          id: history-action-delete
+      - assertVisible:
+          id: history-preview-text
+          text: CedarAlpha
+      - takeScreenshot: history-preview
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - assertVisible:
+          id: history-selection-count
+      - assertVisible:
+          id: history-selection-more
+      - assertVisible:
+          id: history-batch-delete
+      - takeScreenshot: history-selection

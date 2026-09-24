@@ -213,6 +213,8 @@ const MethodComparisonSheet = memo(function MethodComparisonSheet({
           <Pressable
             key={method}
             onPress={() => goToPage(index)}
+            android_ripple={{ color: theme.colors.fillSecondary as string, borderless: true }}
+            hitSlop={10}
             accessibilityRole="button"
             accessibilityLabel={t('advanced.clipboardAccess.sheet.pageLabel', {
               current: index + 1,
@@ -478,7 +480,12 @@ const AdbSetupSheet = memo(function AdbSetupSheet({
                 label={t('advanced.clipboardAccess.adbGuide.check')}
                 onPress={onCheck}
               />
-              <Pressable onPress={onCopy} style={styles.secondaryButton} accessibilityRole="button">
+              <Pressable
+                onPress={onCopy}
+                android_ripple={{ color: theme.colors.fillSecondary as string }}
+                style={styles.secondaryButton}
+                accessibilityRole="button"
+              >
                 <Ionicons name="copy-outline" size={19} color={theme.colors.accent} />
                 <Text style={[styles.secondaryButtonText, { color: theme.colors.accent }]}>
                   {t('advanced.clipboardAccess.adbGuide.copyAgain')}
@@ -527,6 +534,8 @@ function SheetHeader({
       </View>
       <Pressable
         onPress={onClose}
+        android_ripple={{ color: theme.colors.fillSecondary as string, borderless: true }}
+        hitSlop={4}
         accessibilityRole="button"
         accessibilityLabel={t('action.close')}
         style={[styles.closeButton, { backgroundColor: theme.colors.surfaceHighest }]}

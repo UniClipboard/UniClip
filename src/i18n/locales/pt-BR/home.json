@@ -73,6 +73,7 @@
     "saveFailed": "Falha ao salvar",
     "savedFile": "Arquivo salvo",
     "deleted": "Excluído",
+    "deletedCount": "{{count}} itens excluídos",
     "copiedSelected": "Itens selecionados copiados",
     "syncDone": "Sincronização concluída",
     "syncFailed": "Falha na sincronização",
@@ -110,7 +111,8 @@
       "open": "Abrir",
       "save": "Salvar"
     },
-    "close": "Fechar detalhes"
+    "close": "Fechar detalhes",
+    "view": "Ver detalhes"
   },
   "rail": {
     "filters": "Filtros",

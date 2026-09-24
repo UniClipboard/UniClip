@@ -25,7 +25,7 @@ appId: ${APP_ID}
           times: 2
           while:
             notVisible:
-              id: home-menu
+              id: home-settings
           commands:
             - tapOn: "Navigate up|Go back"
             - waitForAnimationToEnd

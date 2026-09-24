@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Alert, useWindowDimensions } from 'react-native';
+import { useWindowDimensions } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useHomeController } from './useHomeController';
 import { getLayoutMode } from '@/hooks/useLayoutMode';
@@ -9,6 +9,7 @@ import type { HomeViewProps } from './HomeView.types';
 import { APP_VERSION } from '@/constants';
 import { checkForAutomaticUpdate } from '@/features/updates';
 import { useSettingsStore } from '@/stores';
+import { useMessageStore } from '@/stores/messageStore';
 
 /**
  * Android 首页。两级布局:
@@ -23,7 +24,6 @@ import { useSettingsStore } from '@/stores';
 export function HomeView({ onOpenSettings, onOpenAbout }: HomeViewProps) {
   const c = useHomeController(onOpenSettings);
   const { t: tAbout, i18n } = useTranslation('settingsAbout');
-  const { t: tCommon } = useTranslation('common');
   const { width: screenWidth } = useWindowDimensions();
   const mode = getLayoutMode(screenWidth);
   const autoCheckUpdate = useSettingsStore((state) => state.config?.autoCheckUpdate ?? true);
@@ -42,28 +42,18 @@ export function HomeView({ onOpenSettings, onOpenAbout }: HomeViewProps) {
     })
       .then((result) => {
         if (!result?.hasUpdate) return;
-        Alert.alert(
-          tAbout('download.newVersionTitle'),
-          tAbout('download.latestVersion', { version: result.latestVersion }),
-          [
-            { text: tCommon('action.cancel'), style: 'cancel' },
-            {
-              text: tAbout('update.updateTo', { version: result.latestVersion }),
+        // 非阻断提示:不在启动时用对话框打断用户,Snackbar 附「更新」操作进入关于页
+        useMessageStore
+          .getState()
+          .showMessage(`${tAbout('download.newVersionTitle')} · ${result.latestVersion}`, 'info', {
+            action: {
+              label: tAbout('update.updateTo', { version: result.latestVersion }),
               onPress: () => onOpenAbout(result),
             },
-          ]
-        );
+          });
       })
       .catch(() => {});
-  }, [
-    activeLanguage,
-    autoCheckUpdate,
-    updateToBeta,
-    debugUpdateCheckNoLimit,
-    onOpenAbout,
-    tAbout,
-    tCommon,
-  ]);
+  }, [activeLanguage, autoCheckUpdate, updateToBeta, debugUpdateCheckNoLimit, onOpenAbout, tAbout]);
 
   if (mode === 'compact') {
     return (

@@ -10,8 +10,9 @@
 import React, { createContext, useCallback, useContext, useRef } from 'react';
 import { MessageToast, type MessageType } from '@/components';
 import { useMessageToast } from '@/hooks/useMessageToast';
+import type { ShowMessageOptions } from '@/stores/messageStore';
 
-type ShowMessage = (text: string, type?: MessageType) => void;
+type ShowMessage = (text: string, type?: MessageType, options?: ShowMessageOptions) => void;
 
 const SettingsToastContext = createContext<ShowMessage>(() => {});
 
@@ -26,7 +27,10 @@ export function SettingsToastProvider({ children }: { children: React.ReactNode 
   // 用 ref 持最新 showMessage，对外暴露恒定引用，避免 toast 状态变化引起 consumer 重渲。
   const showRef = useRef(showMessage);
   showRef.current = showMessage;
-  const stableShow = useCallback<ShowMessage>((text, type) => showRef.current(text, type), []);
+  const stableShow = useCallback<ShowMessage>(
+    (text, type, options) => showRef.current(text, type, options),
+    []
+  );
 
   return (
     <SettingsToastContext.Provider value={stableShow}>

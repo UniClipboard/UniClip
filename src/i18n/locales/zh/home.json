@@ -71,6 +71,7 @@
     "saveFailed": "保存失败",
     "savedFile": "已保存文件",
     "deleted": "已删除",
+    "deletedCount": "已删除 {{count}} 项",
     "copiedSelected": "已复制所选内容",
     "syncDone": "同步完成",
     "syncFailed": "同步失败",
@@ -108,7 +109,8 @@
       "open": "打开",
       "save": "保存"
     },
-    "close": "关闭详情"
+    "close": "关闭详情",
+    "view": "查看详情"
   },
   "rail": {
     "filters": "筛选",

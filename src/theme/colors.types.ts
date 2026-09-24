@@ -32,6 +32,8 @@ export interface ColorScheme {
   // === 强调色(品牌 / 交互主色)===
   /** 强调色:Android=M3 primary(紫),iOS=单色墨 accent */
   accent: Color;
+  /** 反色表面(snackbar)上的强调色,即 M3 inversePrimary */
+  inverseAccent: Color;
   /** 强调色之上的前景 */
   onAccent: Color;
   /** 强调色容器(弱化的强调背景,如次要动作按钮底) */

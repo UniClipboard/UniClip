@@ -1,13 +1,24 @@
-# Pre: one CedarAlpha card. Deletes through the real action and platform confirmation; waits for removal.
+# Pre: one CedarAlpha card. Deletes through the real action; waits for removal.
+# Android commits the soft delete only after the Undo Snackbar expires, so wait for it.
 appId: ${APP_ID}
 ---
 - runFlow: open-menu.yaml
-- tapOn:
-    id: history-action-delete
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: history-action-delete
 - runFlow:
     when:
       platform: Android
     commands:
-      - assertVisible: "Delete this history item?"
-      - tapOn: "(?i)delete"
+      - tapOn:
+          id: history-batch-delete
+      - assertVisible:
+          id: snackbar
+      - extendedWaitUntil:
+          notVisible:
+            id: snackbar
+          timeout: 20000
 - runFlow: ../../assertions/history/empty.yaml

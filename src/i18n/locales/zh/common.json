@@ -24,7 +24,8 @@
     "selectAll": "全选",
     "deselect": "取消选择",
     "more": "更多",
-    "settings": "设置"
+    "settings": "设置",
+    "undo": "撤销"
   },
   "state": {
     "loading": "加载中…",

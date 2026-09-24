@@ -9,8 +9,21 @@ import { MessageToast } from './MessageToast';
  * （如分词浮层）需要在 Modal 内部再挂一份，浮层开着期间发出的消息才能
  * 显示在最上层。多实例并存无碍：同一条消息各自播动画，clearMessage 幂等。
  */
-export function ConnectedMessageToast({ topOffset }: { topOffset?: number }) {
+export function ConnectedMessageToast({
+  topOffset,
+  bottomOffset,
+}: {
+  topOffset?: number;
+  bottomOffset?: number;
+}) {
   const message = useMessageStore((s) => s.message);
   const clearMessage = useMessageStore((s) => s.clearMessage);
-  return <MessageToast message={message} onMessageShown={clearMessage} topOffset={topOffset} />;
+  return (
+    <MessageToast
+      message={message}
+      onMessageShown={clearMessage}
+      topOffset={topOffset}
+      bottomOffset={bottomOffset}
+    />
+  );
 }

@@ -4,12 +4,8 @@
  */
 
 import { useState } from 'react';
-import type { MessageType } from '@/components/MessageToast';
-
-interface Message {
-  text: string;
-  type: MessageType;
-}
+import type { Message, MessageType } from '@/components/MessageToast.types';
+import type { ShowMessageOptions } from '@/stores/messageStore';
 
 export function useMessageToast() {
   const [message, setMessage] = useState<Message | null>(null);
@@ -19,8 +15,8 @@ export function useMessageToast() {
    * @param text 消息文本
    * @param type 消息类型
    */
-  const showMessage = (text: string, type: MessageType = 'info') => {
-    setMessage({ text, type });
+  const showMessage = (text: string, type: MessageType = 'info', options?: ShowMessageOptions) => {
+    setMessage({ text, type, ...options });
   };
 
   /**

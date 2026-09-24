@@ -141,7 +141,13 @@ describe('native Engine analytics hosts', () => {
     expect(android).toContain('resetAnalyticsIdentity');
     expect(android).toContain('source={ICONS.analytics}');
     expect(android).toContain('source={ICONS.reset}');
-    expect(android.match(/<ListItem.LeadingContent>/g)).toHaveLength(2);
+    // consent 行复用全行可切换的 SettingsSwitchRow(leading 图标),reset 行整行可点
+    expect(android).toContain('<SettingsSwitchRow');
+    expect(android).toContain('leading={<Icon source={ICONS.analytics}');
+    expect(android).toContain('clickable(() => setResetDialogOpen(true))');
+    expect(android).toContain('<AppAlertDialog');
+    expect(android).not.toContain('Alert.alert');
+    expect(android.match(/<ListItem.LeadingContent>/g)).toHaveLength(1);
     expect(android.match(/tint=\{colors\.onSurfaceVariant\}/g)).toHaveLength(2);
     expect(ios).toContain("from '@expo/ui/swift-ui'");
     expect(ios).toContain('setAnalyticsConsent');

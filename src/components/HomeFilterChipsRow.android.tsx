@@ -8,7 +8,8 @@ import {
   getHistoryFilterDateOptions,
   HISTORY_FILTER_KIND_OPTIONS,
 } from '@/utils/historyFilterOptions';
-import { elevation, radius, spacing } from '@/theme';
+import { spacing } from '@/theme';
+import { m3Type } from '@/theme/m3Typography';
 import { FILTER_CHIP_ROW_HEIGHT, type HomeFilterChipsRowProps } from './HomeFilterChipsRow.types';
 
 /**
@@ -79,6 +80,7 @@ export function HomeFilterChipsRow({
 
       <View ref={dateChipRef} collapsable={false} style={styles.tail}>
         <Chip
+          role="button"
           label={dateActive ? getHistoryDateFilterLabel(selectedDate) : t('filter.chip.date')}
           selected={dateActive}
           onPress={openDateMenu}
@@ -100,7 +102,10 @@ export function HomeFilterChipsRow({
         onRequestClose={() => setMenuVisible(false)}
       >
         <Pressable style={styles.menuOverlay} onPress={() => setMenuVisible(false)}>
-          <View style={[styles.menu, { backgroundColor: colors.surfaceHigh, top: menuTop }]}>
+          <View
+            accessibilityRole="menu"
+            style={[styles.menu, { backgroundColor: colors.surfaceMid, top: menuTop }]}
+          >
             {getHistoryFilterDateOptions().map((option) => (
               <Pressable
                 key={option.value}
@@ -108,10 +113,10 @@ export function HomeFilterChipsRow({
                   onSelectDate(option.value);
                   setMenuVisible(false);
                 }}
-                style={({ pressed }) => [
-                  styles.menuItem,
-                  pressed && { backgroundColor: colors.surfaceHighest },
-                ]}
+                accessibilityRole="menuitem"
+                accessibilityState={{ checked: selectedDate === option.value }}
+                android_ripple={{ color: colors.fillSecondary as string }}
+                style={styles.menuItem}
               >
                 <Text style={[styles.menuItemText, { color: colors.textPrimary }]}>
                   {option.label}
@@ -130,6 +135,8 @@ export function HomeFilterChipsRow({
 
 interface ChipProps {
   testID?: string;
+  /** 类型 chip 是单选组成员(radio);时间 chip 打开菜单(button) */
+  role?: 'radio' | 'button';
   label: string;
   selected: boolean;
   onPress: () => void;
@@ -137,14 +144,17 @@ interface ChipProps {
   trailing?: React.ReactNode;
 }
 
-function Chip({ testID, label, selected, onPress, theme, trailing }: ChipProps) {
+function Chip({ testID, role = 'radio', label, selected, onPress, theme, trailing }: ChipProps) {
   const { colors } = theme;
   return (
     <Pressable
       testID={testID}
       onPress={onPress}
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
+      // M3 chip 视觉高 32dp,上下 hitSlop 补足 48dp 触控目标
+      hitSlop={{ top: 8, bottom: 8 }}
+      android_ripple={{ color: colors.fillSecondary as string }}
+      accessibilityRole={role}
+      accessibilityState={role === 'radio' ? { checked: selected } : { expanded: false }}
       style={[
         styles.chip,
         selected
@@ -199,10 +209,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: 14,
+    overflow: 'hidden',
   },
   chipLabel: {
-    fontSize: 13,
-    fontWeight: '500',
+    ...m3Type.labelLarge,
   },
   menuOverlay: {
     flex: 1,
@@ -211,22 +221,20 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: spacing.md,
     minWidth: 168,
-    borderRadius: radius.md,
-    borderCurve: 'continuous',
+    borderRadius: 4,
     overflow: 'hidden',
-    paddingVertical: spacing.xs,
-    ...elevation.lg,
+    paddingVertical: spacing.sm,
+    elevation: 3,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 16,
-    minHeight: 44,
-    paddingHorizontal: spacing.base,
+    minHeight: 48,
+    paddingHorizontal: 12,
   },
   menuItemText: {
-    fontSize: 14,
-    fontWeight: '500',
+    ...m3Type.bodyLarge,
   },
 });

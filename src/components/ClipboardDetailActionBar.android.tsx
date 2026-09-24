@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import type { ClipboardDetailActionBarProps } from './ClipboardDetailActionBar.types';
+import { m3Type } from '@/theme/m3Typography';
 import { useDetailActionBarBehavior } from './useDetailActionBarBehavior';
 import { usePopoverTransition } from './usePopoverTransition';
 
@@ -39,10 +40,8 @@ export function ClipboardDetailActionBar({
           onPress={primary.onPress}
           accessibilityRole="button"
           accessibilityLabel={primary.label}
-          style={({ pressed }) => [
-            styles.primary,
-            { backgroundColor: colors.accent, opacity: pressed ? 0.82 : 1 },
-          ]}
+          android_ripple={{ color: colors.fillSecondary as string }}
+          style={[styles.primary, { backgroundColor: colors.accent }]}
         >
           <Ionicons name={primary.icon as never} size={19} color={colors.onAccent} />
           <Text style={[styles.primaryLabel, { color: colors.onAccent }]} numberOfLines={1}>
@@ -57,10 +56,11 @@ export function ClipboardDetailActionBar({
           onPress={action.onPress}
           accessibilityRole="button"
           accessibilityLabel={action.label}
-          style={({ pressed }) => [
+          android_ripple={{ color: colors.fillSecondary as string }}
+          style={[
             styles.secondary,
             !compact && styles.secondaryExpanded,
-            { backgroundColor: colors.surfaceHighest, opacity: pressed ? 0.68 : 1 },
+            { backgroundColor: colors.surfaceHighest },
           ]}
         >
           <Ionicons name={action.icon as never} size={20} color={colors.textPrimary} />
@@ -79,10 +79,8 @@ export function ClipboardDetailActionBar({
           accessibilityRole="button"
           accessibilityState={{ expanded: popoverOpen }}
           accessibilityLabel={moreLabel}
-          style={({ pressed }) => [
-            styles.secondary,
-            { backgroundColor: colors.surfaceHighest, opacity: pressed ? 0.68 : 1 },
-          ]}
+          android_ripple={{ color: colors.fillSecondary as string }}
+          style={[styles.secondary, { backgroundColor: colors.surfaceHighest }]}
         >
           <Ionicons name="ellipsis-horizontal" size={22} color={colors.textPrimary} />
         </Pressable>
@@ -91,11 +89,7 @@ export function ClipboardDetailActionBar({
       {mounted ? (
         <Animated.View
           testID="detail-overflow-popover"
-          style={[
-            styles.overflowMenu,
-            { backgroundColor: colors.surfaceHighest, borderColor: colors.separator },
-            popoverStyle,
-          ]}
+          style={[styles.overflowMenu, { backgroundColor: colors.surfaceMid }, popoverStyle]}
         >
           {overflow.map((action) => {
             const color = action.destructive ? colors.error : colors.textPrimary;
@@ -108,7 +102,8 @@ export function ClipboardDetailActionBar({
                 }}
                 accessibilityRole="button"
                 accessibilityLabel={action.label}
-                style={({ pressed }) => [styles.overflowRow, pressed && styles.rowPressed]}
+                android_ripple={{ color: colors.fillSecondary as string }}
+                style={styles.overflowRow}
               >
                 <Ionicons name={action.icon as never} size={20} color={color} />
                 <Text style={[styles.overflowLabel, { color }]} numberOfLines={1}>
@@ -137,9 +132,10 @@ const styles = StyleSheet.create({
   primary: {
     flex: 1,
     minWidth: 104,
-    height: 50,
-    borderRadius: 14,
-    borderCurve: 'continuous',
+    // M3 filled button:全圆角胶囊
+    height: 48,
+    borderRadius: 24,
+    overflow: 'hidden',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -147,15 +143,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   primaryLabel: {
+    ...m3Type.labelLarge,
     flexShrink: 1,
-    fontSize: 16,
-    fontWeight: '600',
   },
   secondary: {
-    width: 50,
-    height: 50,
-    borderRadius: 14,
-    borderCurve: 'continuous',
+    // M3 filled tonal icon button(48dp 圆)/ 展开时为 tonal 胶囊按钮
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    overflow: 'hidden',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -166,21 +162,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   secondaryLabel: {
+    ...m3Type.labelLarge,
     flexShrink: 1,
-    fontSize: 14,
-    fontWeight: '500',
   },
   overflowMenu: {
     position: 'absolute',
     right: 16,
     bottom: 68,
     width: 220,
-    paddingVertical: 6,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 14,
-    borderCurve: 'continuous',
+    paddingVertical: 8,
+    borderRadius: 4,
     overflow: 'hidden',
-    elevation: 12,
+    elevation: 3,
     transformOrigin: 'bottom right',
   },
   overflowRow: {
@@ -191,11 +184,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   overflowLabel: {
+    ...m3Type.bodyLarge,
     flex: 1,
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  rowPressed: {
-    opacity: 0.62,
   },
 });
