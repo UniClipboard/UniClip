@@ -36,6 +36,16 @@ interface UseAddSyncConnectionFlowOptions {
   onConnected?: () => boolean | Promise<boolean>;
   resetNativeFields: (defaultDeviceName: string) => void;
   clearNativePassphrase: () => void;
+  /**
+   * Lets the hosting sheet play its exit animation before the flow closes it. `hide` runs before
+   * `onConnected` / `onClose`; `restore` runs when the caller rejects completion.
+   */
+  presentation?: AddSyncConnectionFlowPresentation;
+}
+
+export interface AddSyncConnectionFlowPresentation {
+  hide: () => Promise<void>;
+  restore: () => void;
 }
 
 export interface AddSyncConnectionFlowState {
@@ -131,6 +141,7 @@ export function useAddSyncConnectionFlow({
   onConnected,
   resetNativeFields,
   clearNativePassphrase,
+  presentation,
 }: UseAddSyncConnectionFlowOptions): AddSyncConnectionFlow {
   const { t } = useTranslation('settingsSync');
   const [mode, setMode] = useState<AddSyncConnectionFlowMode>(() =>
@@ -152,6 +163,7 @@ export function useAddSyncConnectionFlow({
   const [peerUpgradeRequired, setPeerUpgradeRequired] = useState(false);
   const [nowMs, setNowMs] = useState(Date.now());
   const mountedRef = useRef(true);
+  const closingRef = useRef(false);
   const engineStarted = useUnifiedEngineStore((state) => state.isStarted);
   const spaceStatus = useUnifiedSpaceStore((state) => state.status);
   const deviceUpdate = useUnifiedSpaceStore((state) =>
@@ -308,8 +320,7 @@ export function useAddSyncConnectionFlow({
       .catch((cause: unknown) => {
         if (!mountedRef.current) return;
         if (unifiedSpaceUserErrorCode(cause) === 'joinCancelled') {
-          reset();
-          onClose();
+          void dismiss();
           return;
         }
         setRestoredJoin(false);
@@ -323,26 +334,41 @@ export function useAddSyncConnectionFlow({
       });
   }, [engineStarted, initialMode, mode, spaceStatus, visible]);
 
-  const completeConnection = async () => {
-    if ((await onConnected?.()) === false) return;
-    if (!mountedRef.current) return;
-    reset();
-    onClose();
+  const hideThen = async (finish: () => boolean | Promise<boolean>) => {
+    if (closingRef.current) return;
+    closingRef.current = true;
+    try {
+      await presentation?.hide();
+      if (!mountedRef.current) return;
+      if (!(await finish())) presentation?.restore();
+    } finally {
+      closingRef.current = false;
+    }
   };
+
+  const dismiss = () =>
+    hideThen(() => {
+      reset();
+      onClose();
+      return true;
+    });
+
+  const completeConnection = () =>
+    hideThen(async () => {
+      if ((await onConnected?.()) === false) return false;
+      if (!mountedRef.current) return true;
+      reset();
+      onClose();
+      return true;
+    });
 
   const close = () => {
     if (pendingRef.current) return;
-    if (mode === 'joinUpdating') {
-      reset();
-      onClose();
-      return;
-    }
     if (mode === 'invitation' || mode === 'success' || mode === 'joinReady') {
       void completeConnection();
       return;
     }
-    reset();
-    onClose();
+    void dismiss();
   };
 
   const back = () => {
@@ -455,8 +481,7 @@ export function useAddSyncConnectionFlow({
       if (!mountedRef.current) return;
       const code = unifiedSpaceUserErrorCode(cause);
       if (code === 'joinCancelled') {
-        reset();
-        onClose();
+        void dismiss();
         return;
       }
       if (code === 'unreadableHistoryRequiresConfirmation') {
@@ -497,8 +522,7 @@ export function useAddSyncConnectionFlow({
                     if (!mountedRef.current) return;
                     const retryCode = unifiedSpaceUserErrorCode(retryCause);
                     if (retryCode === 'joinCancelled') {
-                      reset();
-                      onClose();
+                      void dismiss();
                       return;
                     }
                     setError(

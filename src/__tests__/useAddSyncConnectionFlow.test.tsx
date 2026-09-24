@@ -7,6 +7,7 @@ import TestRenderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import {
   useAddSyncConnectionFlow,
   type AddSyncConnectionFlow,
+  type AddSyncConnectionFlowPresentation,
 } from '@/components/useAddSyncConnectionFlow';
 import {
   createInitialUnifiedSpaceSnapshot,
@@ -88,6 +89,7 @@ interface HarnessProps {
   onConnected: jest.Mock;
   resetNativeFields: jest.Mock;
   clearNativePassphrase: jest.Mock;
+  presentation?: AddSyncConnectionFlowPresentation;
 }
 
 let currentFlow!: AddSyncConnectionFlow;
@@ -102,13 +104,18 @@ function Harness(props: HarnessProps) {
     onConnected: props.onConnected,
     resetNativeFields: props.resetNativeFields,
     clearNativePassphrase: props.clearNativePassphrase,
+    presentation: props.presentation,
   });
   return null;
 }
 
-function createHarness(initialMode?: HarnessProps['initialMode']) {
+function createHarness(
+  initialMode?: HarnessProps['initialMode'],
+  presentation?: AddSyncConnectionFlowPresentation
+) {
   const props: HarnessProps = {
     initialMode,
+    presentation,
     onClose: jest.fn(),
     onConnected: jest.fn(async () => true),
     resetNativeFields: jest.fn(),
@@ -608,7 +615,7 @@ describe('add sync connection flow', () => {
       deviceUpdate: { phase: 'updating' },
     });
 
-    act(() => currentFlow.actions.close());
+    await act(async () => currentFlow.actions.close());
     expect(props.onClose).toHaveBeenCalledTimes(1);
 
     await act(async () => {
@@ -707,6 +714,89 @@ describe('add sync connection flow', () => {
 
     expect(props.resetNativeFields).not.toHaveBeenCalled();
     expect(props.onClose).not.toHaveBeenCalled();
+  });
+
+  describe('with a sheet presentation', () => {
+    function deferredPresentation() {
+      const calls: string[] = [];
+      let finishHide!: () => void;
+      const presentation = {
+        hide: jest.fn(
+          () =>
+            new Promise<void>((resolve) => {
+              calls.push('hide');
+              finishHide = resolve;
+            })
+        ),
+        restore: jest.fn(() => calls.push('restore')),
+      };
+      return { calls, presentation, finishHide: () => finishHide() };
+    }
+
+    it('waits for the sheet to hide before a button closes the flow', async () => {
+      const { presentation, finishHide } = deferredPresentation();
+      const props = createHarness('create', presentation);
+
+      act(() => currentFlow.actions.back());
+      expect(presentation.hide).toHaveBeenCalledTimes(1);
+      expect(props.onClose).not.toHaveBeenCalled();
+      expect(props.resetNativeFields).not.toHaveBeenCalled();
+
+      await act(async () => finishHide());
+      expect(props.resetNativeFields).toHaveBeenCalledTimes(1);
+      expect(props.onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not hide the sheet when back only changes the stage', () => {
+      const { presentation } = deferredPresentation();
+      createHarness('choose', presentation);
+
+      act(() => currentFlow.actions.selectMode('create'));
+      act(() => currentFlow.actions.back());
+
+      expect(presentation.hide).not.toHaveBeenCalled();
+      expect(currentFlow.state.mode).toBe('choose');
+    });
+
+    it('closes once when a second close arrives while the sheet hides', async () => {
+      const { presentation, finishHide } = deferredPresentation();
+      const props = createHarness('create', presentation);
+
+      act(() => currentFlow.actions.close());
+      act(() => currentFlow.actions.close());
+      await act(async () => finishHide());
+
+      expect(presentation.hide).toHaveBeenCalledTimes(1);
+      expect(props.onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('hides the sheet before completion reports the connection once', async () => {
+      const { calls, presentation, finishHide } = deferredPresentation();
+      const props = createHarness('create', presentation);
+      props.onConnected.mockImplementation(async () => {
+        calls.push('connected');
+        return true;
+      });
+      props.onClose.mockImplementation(() => calls.push('close'));
+
+      act(() => void currentFlow.actions.completeConnection());
+      act(() => void currentFlow.actions.completeConnection());
+      await act(async () => finishHide());
+
+      expect(calls).toEqual(['hide', 'connected', 'close']);
+    });
+
+    it('restores the sheet when the caller rejects completion', async () => {
+      const { calls, presentation, finishHide } = deferredPresentation();
+      const props = createHarness('create', presentation);
+      props.onConnected.mockResolvedValueOnce(false);
+
+      act(() => void currentFlow.actions.completeConnection());
+      await act(async () => finishHide());
+
+      expect(calls).toEqual(['hide', 'restore']);
+      expect(props.onClose).not.toHaveBeenCalled();
+    });
   });
 
   it('maps service failures without leaving the flow pending', async () => {

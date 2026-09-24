@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import {
   Button,
   CircularProgressIndicator,
@@ -12,6 +13,7 @@ import {
   Spacer,
   Text as ComposeText,
   TextButton,
+  type ModalBottomSheetRef,
   useMaterialColors,
 } from '@expo/ui/jetpack-compose';
 import {
@@ -58,18 +60,31 @@ export function SpaceInvitationSheet({ visible, onClose }: SpaceInvitationSheetP
     copyInvitation,
     shareInvitation,
   } = useMySpaceSheet(visible, { issueOnOpen: true });
+  const sheetRef = useRef<ModalBottomSheetRef>(null);
+  const hidingRef = useRef(false);
+
+  // Unmounting the sheet skips Material's exit animation, so in-sheet buttons slide it out first.
+  const hideThenClose = async () => {
+    if (hidingRef.current) return;
+    hidingRef.current = true;
+    await sheetRef.current?.hide().catch(() => {
+      // The native sheet is already gone; closing can proceed.
+    });
+    hidingRef.current = false;
+    onClose();
+  };
 
   if (!visible) return null;
 
   const contentHeight = invitation ? 388 : pairedDeviceName ? 240 : 200;
 
   return (
-    <ModalBottomSheet onDismissRequest={onClose}>
+    <ModalBottomSheet ref={sheetRef} onDismissRequest={onClose}>
       <Column modifiers={[fillMaxWidth(), animateContentSize()]}>
         <Row verticalAlignment="center" modifiers={[fillMaxWidth(), padding(24, 8, 16, 8)]}>
           <ComposeText style={TITLE_STYLE}>{t('space.invitation.title')}</ComposeText>
           <Spacer modifiers={[weight(1)]} />
-          <IconButton onClick={onClose}>
+          <IconButton onClick={() => void hideThenClose()}>
             <Icon
               source={ICONS.close}
               size={22}
@@ -125,7 +140,7 @@ export function SpaceInvitationSheet({ visible, onClose }: SpaceInvitationSheetP
                   </ComposeText>
                 </ListItem.SupportingContent>
               </ListItem>
-              <Button onClick={onClose} modifiers={[fillMaxWidth(), padding(16, 8, 16, 8)]}>
+              <Button onClick={() => void hideThenClose()} modifiers={[fillMaxWidth(), padding(16, 8, 16, 8)]}>
                 <ComposeText>{t('action.done', { ns: 'common' })}</ComposeText>
               </Button>
             </>
