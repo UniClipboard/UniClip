@@ -40,13 +40,25 @@ export function HomeOverlays({ c }: { c: HomeController }) {
         />
       )}
 
-      {/* 多选溢出菜单「查看详情」打开的详情弹窗(Android 长按入口,Compact / Expanded 共用;
-          iOS 走上下文浮层,不会打开) */}
+      {/* 全屏详情页:Android 单击卡片、多选溢出菜单「查看详情」打开(Compact / Expanded 共用;
+          iOS 单击即复制、长按走上下文浮层,不会打开) */}
       <ClipboardDetailModal
-        visible={c.detailModalOpen}
-        onDismiss={() => c.setDetailModalOpen(false)}
+        visible={c.detailPageItem != null}
+        onDismiss={c.closeDetailPage}
         c={c}
+        item={c.detailPageItem}
       />
+
+      {/* 「发送到」:把一条历史经同步通道发给所选设备。由首页这层稳定宿主持有,盖在详情页之上;
+          只有 Android 详情页会打开,iOS 永不挂载。jobs 关闭后保留,供滑出动画渲染。 */}
+      {c.sendToJobs ? (
+        <ShareSendSheet
+          visible={c.sendToVisible}
+          jobs={c.sendToJobs}
+          title={c.t('detail.sendTo')}
+          onClose={c.closeSendTo}
+        />
+      ) : null}
 
       <CardContextOverlay
         item={c.contextItem}

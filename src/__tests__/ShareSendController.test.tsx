@@ -233,6 +233,46 @@ describe('useShareSendController', () => {
     expect(mockCompleteJob).not.toHaveBeenCalled();
   });
 
+  it('sends existing history entries to the chosen devices without importing them again', async () => {
+    const historyText: PendingShareJob = {
+      ...textJob,
+      id: 'history-text',
+      fileUri: 'file:///cache/temp_files/send_to/text-1.txt',
+      historyProfileHash: 'HASH-TEXT',
+    };
+    const historyFile: PendingShareJob = {
+      ...imageJob,
+      id: 'history-file',
+      kind: 'file',
+      fileUri: 'file:///documents/clipboards/history/report.pdf',
+      displayName: 'report.pdf',
+      historyProfileHash: 'HASH-FILE',
+    };
+    mockSendImportedText.mockResolvedValueOnce({ success: true, state: 'delivered' });
+    mockSendImportedAsset.mockResolvedValueOnce({ success: true, state: 'delivered' });
+    act(() => {
+      renderedHarnesses.push(
+        TestRenderer.create(<Harness onClose={jest.fn()} jobs={[historyText, historyFile]} />)
+      );
+    });
+    await settle();
+    act(() => current.toggleTarget('desktop-1'));
+    await act(async () => { await current.sendAll(); });
+
+    expect(mockImportTextToHistory).not.toHaveBeenCalled();
+    expect(mockImportFileToHistory).not.toHaveBeenCalled();
+    expect(mockSendImportedText).toHaveBeenCalledWith('hello world', 'HASH-TEXT', {
+      targetIds: ['desktop-1'],
+    });
+    expect(mockSendImportedAsset).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'file', uri: historyFile.fileUri, fileName: 'report.pdf' }),
+      'HASH-FILE',
+      { targetIds: ['desktop-1'] }
+    );
+    expect(current.jobViews.every((view) => view.sendState === 'success')).toBe(true);
+    expect(mockCompleteJob).not.toHaveBeenCalled();
+  });
+
   it('keeps app-provided files owned by the parent while a send is in progress', async () => {
     let finish!: (result: { success: boolean; state: string }) => void;
     mockSendImportedAsset.mockReturnValue(new Promise((resolve) => { finish = resolve; }));

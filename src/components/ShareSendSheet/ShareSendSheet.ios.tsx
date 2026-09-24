@@ -62,8 +62,15 @@ const SHEET_BACKGROUND = iosColors?.systemGroupedBackground ?? '#F2F2F7';
 /**
  * iOS 分享弹层默认全屏展开，内容与设备列表由原生 Form 滚动。
  */
-export function ShareSendSheet({ visible, onClose, jobs, embeddedInHost = false }: ShareSendSheetProps) {
+export function ShareSendSheet({
+  visible,
+  onClose,
+  jobs,
+  title,
+  embeddedInHost = false,
+}: ShareSendSheetProps) {
   const { t } = useTranslation('share');
+  const pageTitle = title ?? t('send.title');
   const c = useShareSendController(onClose, visible, jobs);
   const sheet = (
     <BottomSheet
@@ -86,7 +93,7 @@ export function ShareSendSheet({ visible, onClose, jobs, embeddedInHost = false 
             background(SHEET_BACKGROUND),
           ]}
         >
-          <SheetHeader title={t('send.title')} />
+          <SheetHeader title={pageTitle} />
           <Body c={c} />
         </VStack>
       </Group>

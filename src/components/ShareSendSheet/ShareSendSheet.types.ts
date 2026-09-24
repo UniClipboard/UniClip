@@ -8,6 +8,8 @@ export interface ShareSendSheetProps {
   onClose: () => void;
   /** App-provided files are retained and cleaned up by the presenting screen. */
   jobs?: PendingShareJob[];
+  /** 页面标题;默认「分享」。应用内「发送到」传入自己的标题。 */
+  title?: string;
   /** iOS: reuse the stable screen's SwiftUI host. */
   embeddedInHost?: boolean;
 }

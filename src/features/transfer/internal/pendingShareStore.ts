@@ -34,6 +34,11 @@ export interface PendingShareJob {
   /** Payload 文件 URI(文本为 UTF-8 文件,图片/文件为原始字节)。 */
   fileUri: string;
   createdAtMs: number;
+  /**
+   * 内容已是这条历史记录(应用内「发送到」):发送时直接用该 profileHash 投递,
+   * 不再导入历史。外部分享队列里的 job 不带此字段。
+   */
+  historyProfileHash?: string;
 }
 
 export interface PendingShareStore {
