@@ -57,7 +57,6 @@ jest.mock('react-i18next', () => ({
 }));
 
 import { DefaultTopBar, SearchTopBar, SelectModeTopBar } from '@/components/HomeTopBar.ios';
-import { HomeFilterChipsRow } from '@/components/HomeFilterChipsRow.ios';
 import { HomeSearchDock } from '@/screens/ios/HomeSearchDock';
 import type { HomeController } from '@/screens/useHomeController';
 
@@ -122,7 +121,7 @@ describe('iOS search workflow', () => {
   });
   it('consolidates phone filters into the toolbar before the more menu', () => {
     const source = fs.readFileSync(path.join(__dirname, '../screens/HomeView.ios.tsx'), 'utf8');
-    expect(source).toContain('showFilterRow={false}');
+    expect(source).not.toContain('search={');
     expect(source.indexOf('<ListFilter')).toBeLessThan(source.indexOf('<Ellipsis'));
     expect(source).toContain("c.t('filter.section.kind'");
     expect(source).toContain("c.t('filter.section.date'");
@@ -219,34 +218,6 @@ describe('iOS search workflow', () => {
     dismiss.mockRestore();
   });
 
-  it('offers type and date as menus and keeps the chosen type when selected again', () => {
-    const onToggleKind = jest.fn();
-    const onClearKinds = jest.fn();
-    const onSelectDate = jest.fn();
-    const view = render(
-      <HomeFilterChipsRow
-        resultCount={6}
-        selectedKinds={['file']}
-        selectedDate="today"
-        onToggleKind={onToggleKind}
-        onClearKinds={onClearKinds}
-        onSelectDate={onSelectDate}
-        theme={theme}
-      />
-    );
-    expect(view.root.findAllByType('Menu' as never)).toHaveLength(2);
-    expect(
-      view.root.findByProps({ testID: 'history-result-count' }).props.accessibilityLiveRegion
-    ).toBe('polite');
-    const buttons = view.root.findAllByType('SwiftUIButton' as never);
-    act(() => buttons.find((node) => node.props.testID === 'history-kind-file')!.props.onPress());
-    expect(onToggleKind).not.toHaveBeenCalled();
-    act(() => buttons.find((node) => node.props.testID === 'history-kind-image')!.props.onPress());
-    expect(onToggleKind).toHaveBeenCalledWith('image');
-    act(() => buttons.find((node) => node.props.testID === 'history-date-all')!.props.onPress());
-    expect(onSelectDate).toHaveBeenCalledWith('all');
-  });
-
   it('leaves browsing filters intact when search is cancelled', () => {
     const source = fs.readFileSync(path.join(__dirname, '../screens/useHomeController.ts'), 'utf8');
     const close = source.match(/const closeSearch = useCallback\([\s\S]*?\n  },[^\n]*\n/)?.[0];
@@ -254,5 +225,12 @@ describe('iOS search workflow', () => {
     expect(close).not.toContain('setSelectedFilterKinds');
     expect(close).not.toContain('setSelectedDateFilter');
     expect(close).not.toContain('searchItems(undefined)');
+    // 筛选是否随搜索清空由平台策略决定;iOS 保留首页浏览筛选
+    expect(close).toContain('if (CLEAR_FILTERS_ON_CLOSE_SEARCH) handleClearFilters();');
+    const iosPolicy = fs.readFileSync(
+      path.join(__dirname, '../screens/searchFilterPolicy.ios.ts'),
+      'utf8'
+    );
+    expect(iosPolicy).toContain('export const CLEAR_FILTERS_ON_CLOSE_SEARCH = false;');
   });
 });

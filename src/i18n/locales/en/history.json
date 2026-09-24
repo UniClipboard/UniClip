@@ -25,7 +25,14 @@
     },
     "chip": {
       "all": "All",
-      "date": "Date"
+      "date": "Date",
+      "kind": "Type",
+      "source": "Source"
+    },
+    "source": {
+      "all": "All sources",
+      "local": "This device",
+      "remote": "Other devices"
     }
   },
   "kind": {

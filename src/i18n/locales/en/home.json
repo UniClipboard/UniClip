@@ -10,7 +10,14 @@
     "resultCount_one": "{{count}} result",
     "resultCount_other": "{{count}} results",
     "emptyTitle": "No matching items",
-    "emptyDescription": "No items match the current search."
+    "emptyDescription": "No items match the current search.",
+    "clear": "Clear",
+    "clearFiltersKeepQuery": "Clear filters, keep search",
+    "shortcut": {
+      "kind": "By type",
+      "date": "By date",
+      "source": "By source"
+    }
   },
   "empty": {
     "unconfigured": {

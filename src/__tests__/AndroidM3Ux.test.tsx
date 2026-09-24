@@ -166,17 +166,24 @@ describe('Android Material 3 sheets, feedback and tokens', () => {
     expect(sheet).toContain('onAccessibilityTap={onDismiss}');
   });
 
-  it('keeps the chip row as the only history filter entry', () => {
+  it('keeps history filters inside the search view only', () => {
     const topBar = read('components/HomeTopBar.android.tsx');
     expect(topBar).not.toContain('onOpenFilters');
     expect(topBar).not.toContain('HistoryFilterTags');
-    expect(topBar).toContain('testID="history-search-result-count"');
-    expect(topBar).toContain('testID="history-search-reset"');
+    expect(topBar).not.toContain('history-search-reset');
     expect(fs.existsSync(path.join(__dirname, '..', 'components/HistoryFilterSheet.tsx'))).toBe(
       false
     );
+    expect(fs.existsSync(path.join(__dirname, '..', 'components/HomeFilterChipsRow.tsx'))).toBe(
+      false
+    );
+    expect(fs.existsSync(path.join(__dirname, '..', 'screens/useChipRowCollapse.ts'))).toBe(false);
+    expect(read('screens/HomeCompactView.tsx')).not.toContain('FilterChipsRow');
     expect(read('screens/HomeOverlays.tsx')).not.toContain('HistoryFilterSheet');
     expect(read('screens/useHomeController.ts')).not.toContain('showFilterSheet');
+    expect(read('screens/searchFilterPolicy.android.ts')).toContain(
+      'export const CLEAR_FILTERS_ON_CLOSE_SEARCH = true;'
+    );
   });
 
   it('starts full-screen page titles at the leading edge', () => {
@@ -192,30 +199,21 @@ describe('Android Material 3 sheets, feedback and tokens', () => {
     expect(card).not.toContain('iosDimensions');
   });
 
-  it('exposes filter chips as a radio group with a 48dp touch target', () => {
-    const chips = read('components/HomeFilterChipsRow.android.tsx');
-    expect(chips).toContain("role = 'radio'");
-    expect(chips).toContain('accessibilityRole="radiogroup"');
-    expect(chips).toContain('hitSlop={{ top: 8, bottom: 8 }}');
-    // 单选类型 chip 只换填充色,不插入对勾(否则切换时宽度变化、整行抖动)
-    expect(chips).not.toContain('{selected && <Ionicons name="checkmark"');
+  it('gives filter chips a 48dp touch target without width-changing checkmarks', () => {
+    const chip = read('components/android/FilterChip.tsx');
+    expect(chip).toContain('hitSlop={{ top: 8, bottom: 8 }}');
+    expect(chip).toContain('android_ripple=');
+    expect(chip).not.toContain('checkmark');
   });
 
-  it('shows the date filter value on its chip with the shared menu and a clear action', () => {
-    const chips = read('components/HomeFilterChipsRow.android.tsx');
-    expect(chips).toContain('<OverflowMenu');
-    expect(chips).toContain('renderTrigger={(open) => (');
-    expect(chips).toContain('testID="history-filter-date-clear"');
-    expect(chips).toContain("onPress={() => onSelectDate('all')}");
-    expect(chips).not.toContain('<Modal');
-    expect(read('components/android/OverflowMenu.tsx')).toContain('renderTrigger?:');
-  });
-
-  it('pins the chip row while a filter is active', () => {
-    expect(read('screens/useChipRowCollapse.ts')).toContain('if (pinnedValue.value) return;');
-    expect(read('screens/HomeCompactView.tsx')).toMatch(
-      /useChipRowCollapse\(\s*CHIP_ROW_GRID_METRICS\.contentInsetTop,\s*c\.hasActiveFilters\s*\)/
-    );
+  it('opens each search filter chip as a start-aligned single-choice menu', () => {
+    const bar = read('screens/android/HomeSearchFilterBar.tsx');
+    expect(bar.match(/<OverflowMenu\n\s+align="start"/g)).toHaveLength(3);
+    expect(bar.match(/renderTrigger=\{\(open\) => \(/g)).toHaveLength(3);
+    // 清除只走菜单首项「全部」与行尾「清除」,chip 内不嵌套可点的 ×
+    expect(bar).not.toContain('history-filter-date-clear');
+    expect(bar).not.toContain('<Modal');
+    expect(read('components/android/OverflowMenu.tsx')).toContain("align?: 'start' | 'end';");
   });
 
   it('removes iOS disclosure chevrons and the entry spinner from Android settings', () => {

@@ -3,7 +3,6 @@ import { View, StyleSheet, StatusBar, type ColorValue } from 'react-native';
 import { SelectModeBottomBar } from '@/components/HomeBottomBar';
 import { AddActionsFab } from '@/components/AddActionsFab';
 import { FAB_SIZE } from '@/components/AddActionsFab.types';
-import { HomeFilterChipsRow } from '@/components/HomeFilterChipsRow';
 import { ClipboardDetailPane } from '@/components/ClipboardDetailPane';
 import { ClipboardDetailModal } from '@/components/ClipboardDetailModal';
 import { useHomeController } from './useHomeController';
@@ -11,6 +10,7 @@ import { HomeMasterGrid } from './HomeMasterGrid';
 import { HomeFilterRail } from './HomeFilterRail';
 import { HomeTopBarArea } from './HomeChrome';
 import { HomeOverlays } from './HomeOverlays';
+import type { HomeSearchSlots } from './HomeSearchSlots.types';
 import { computeExpandedWorkspaceLayout } from '@/utils/gridLayout';
 import type { ClipboardItem } from '@/types/clipboard';
 
@@ -36,8 +36,8 @@ const PANE_FAB_INSET = GUTTER + 16;
  *
  * 详情在首次点选前只显示轻量占位,避免旋转时在后台重排未使用的图片预览。
  * iOS / Android 差异在 gutter/pane 两个底色 token 与筛选位置,由各自平台的 HomeView 传入:
- * iOS 左侧为类型筛选栏;Android 左侧已是应用级 navigation rail,筛选放在网格面板顶部的
- * chip 行(与手机同一组件、同一份状态)。
+ * iOS 左侧为类型筛选栏;Android 左侧已是应用级 navigation rail,筛选只在搜索视图里
+ * (与手机同一套 search 注入内容、同一份状态)。
  */
 export function HomeExpandedView({
   c,
@@ -46,6 +46,7 @@ export function HomeExpandedView({
   gutterColor,
   paneColor,
   filterPlacement = 'rail',
+  search,
 }: {
   c: Controller;
   screenWidth: number;
@@ -55,8 +56,10 @@ export function HomeExpandedView({
   gutterColor: string | object;
   /** 浮起面板的表面色(Android=surfaceHigh / iOS=secondarySystemGroupedBackground) */
   paneColor: string | object;
-  /** 类型筛选放在左侧筛选栏(rail)还是网格面板顶部的 chip 行(chips)。 */
-  filterPlacement?: 'rail' | 'chips';
+  /** 类型筛选放在左侧筛选栏(rail),还是只在搜索视图里(search)。 */
+  filterPlacement?: 'rail' | 'search';
+  /** 平台注入的搜索态内容(筛选行 / 快捷筛选 / 结果数 / 空结果操作) */
+  search?: HomeSearchSlots;
 }) {
   const { theme } = c;
   const filterRail = filterPlacement === 'rail';
@@ -86,7 +89,7 @@ export function HomeExpandedView({
         translucent
       />
 
-      <HomeTopBarArea c={c} />
+      <HomeTopBarArea c={c} accessory={search?.topBarAccessory} />
 
       <View style={[styles.split, { padding: GUTTER, gap: GUTTER }]}>
         {/* ── 筛选栏(浮起面板)── */}
@@ -105,24 +108,16 @@ export function HomeExpandedView({
             { backgroundColor: panePlaceholder },
           ]}
         >
-          {!filterRail && (
-            <HomeFilterChipsRow
-              selectedKinds={c.selectedFilterKinds}
-              selectedDate={c.selectedDateFilter}
-              onToggleKind={c.handleToggleFilterKind}
-              onClearKinds={c.handleClearFilterKinds}
-              onSelectDate={c.setSelectedDateFilter}
-              surfaceColor={typeof paneColor === 'string' ? paneColor : undefined}
-              theme={theme}
-            />
-          )}
           <HomeMasterGrid
             c={c}
             paneWidth={workspace.gridWidth}
             onSelectItem={handleSelectItem}
             showDetailSelection={detailActivated}
             refreshTintColor={refreshTintColor}
+            header={search?.gridHeader}
+            emptyAction={search?.emptyAction}
           />
+          {search?.gridOverlay}
           {c.isSelectMode && (
             <View style={[styles.bottomBar, { paddingBottom: c.insets.bottom + 10 }]}>
               <SelectModeBottomBar

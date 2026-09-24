@@ -14,7 +14,14 @@
     "resultCount_many": "{{count}} результатов",
     "resultCount_other": "{{count}} результата",
     "emptyTitle": "Ничего не найдено",
-    "emptyDescription": "Нет записей по заданным условиям поиска."
+    "emptyDescription": "Нет записей по заданным условиям поиска.",
+    "clear": "Сбросить",
+    "clearFiltersKeepQuery": "Сбросить фильтры, оставить запрос",
+    "shortcut": {
+      "kind": "По типу",
+      "date": "По дате",
+      "source": "По источнику"
+    }
   },
   "empty": {
     "unconfigured": {

@@ -8,14 +8,7 @@ import type { HomeController } from '@/screens/useHomeController';
 jest.mock('@/components/AnimatedCardGrid', () => ({
   AnimatedCardGrid: require('react').forwardRef(() => null),
 }));
-jest.mock('react-native-reanimated', () => ({
-  __esModule: true,
-  default: { View: 'AnimatedView' },
-}));
 jest.mock('@expo/vector-icons/Ionicons', () => 'Ionicons');
-jest.mock('@/components/HomeFilterChipsRow', () => ({
-  HomeFilterChipsRow: () => null,
-}));
 jest.mock('@/components/HomeBottomBar', () => ({
   SelectModeBottomBar: () => null,
 }));
@@ -23,16 +16,6 @@ jest.mock('@/components/AddActionsFab', () => ({ AddActionsFab: () => null }));
 jest.mock('@/components/ClipboardCard', () => ({ ClipboardCard: () => null }));
 jest.mock('@/screens/HomeChrome', () => ({ HomeTopBarArea: () => null }));
 jest.mock('@/screens/HomeOverlays', () => ({ HomeOverlays: () => null }));
-jest.mock('@/screens/chipRowGridMetrics', () => ({
-  CHIP_ROW_GRID_METRICS: {
-    paddingTopExtra: 0,
-    contentInsetTop: 46,
-    progressViewOffset: 0,
-  },
-}));
-jest.mock('@/screens/useChipRowCollapse', () => ({
-  useChipRowCollapse: () => ({ reveal: jest.fn(), rowStyle: {} }),
-}));
 
 describe('Home compact list top clearance', () => {
   // The shared setup replaces setImmediate; React's cleanup needs the real scheduler.
@@ -62,7 +45,6 @@ describe('Home compact list top clearance', () => {
       <HomeCompactView
         c={controller}
         screenWidth={402}
-        showFilterRow={false}
         overlayTopBarHeight={118}
       />
     );
@@ -80,7 +62,6 @@ describe('Home compact list top clearance', () => {
       });
       const grid = renderer.root.findByType(AnimatedCardGrid);
       expect(grid === initialGrid).toBe(true);
-      expect(grid.props.contentInsetTop).toBe(0);
       const parent = grid.parent!;
       expect(StyleSheet.flatten(parent.props.style).paddingTop).toBe(118);
       expect(grid.props.paddingTop).toBe(8);

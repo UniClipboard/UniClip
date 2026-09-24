@@ -5,9 +5,16 @@ import type { HomeController } from './useHomeController';
 
 /**
  * 顶栏区域(三态:默认 / 搜索 / 多选)。Compact 与 Expanded 都把它铺在全宽顶部,
- * 因此抽成共享组件。各 TopBar 子组件本身已按平台拆分。
+ * 因此抽成共享组件。各 TopBar 子组件本身已按平台拆分。`accessory` 是平台注入的顶栏附加行
+ * (Android 搜索筛选行),固定在顶栏内、不随列表滚动。
  */
-export function HomeTopBarArea({ c }: { c: HomeController }) {
+export function HomeTopBarArea({
+  c,
+  accessory,
+}: {
+  c: HomeController;
+  accessory?: React.ReactNode;
+}) {
   return (
     <View style={[styles.topBar, { paddingTop: c.insets.top + 4 }]}>
       {c.isSelectMode ? (
@@ -41,6 +48,7 @@ export function HomeTopBarArea({ c }: { c: HomeController }) {
           }}
         />
       )}
+      {accessory}
     </View>
   );
 }

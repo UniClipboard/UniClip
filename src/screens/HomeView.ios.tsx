@@ -39,7 +39,6 @@ export function HomeView({ onOpenSettings }: HomeViewProps) {
           c={c}
           screenWidth={screenWidth}
           refreshTintColor={undefined}
-          showFilterRow={false}
           overlayTopBarHeight={c.insets.top + 56}
           topBar={
             <View

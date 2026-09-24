@@ -140,18 +140,19 @@ describe('Android top-level navigation', () => {
     );
   });
 
-  it('moves tablet filters from the Home rail to the chip row next to the app navigation rail', () => {
+  it('moves tablet filters from the Home rail into the search view next to the app navigation rail', () => {
     const android = read('screens/HomeView.android.tsx');
     const ios = read('screens/HomeView.ios.tsx');
     const expanded = read('screens/HomeExpandedView.tsx');
 
-    expect(android).toContain('filterPlacement="chips"');
+    expect(android).toContain('filterPlacement="search"');
+    expect(android).toContain('search={search}');
     expect(android).toContain('screenWidth={screenWidth - NAVIGATION_RAIL_WIDTH - c.insets.left}');
     expect(ios).not.toContain('filterPlacement=');
     expect(expanded).toContain("filterPlacement = 'rail'");
     expect(expanded).toContain('{filterRail && (');
-    expect(expanded).toContain('{!filterRail && (');
-    expect(expanded).toContain('<HomeFilterChipsRow');
+    expect(expanded).toContain('<HomeTopBarArea c={c} accessory={search?.topBarAccessory} />');
+    expect(expanded).not.toContain('FilterChipsRow');
   });
 });
 
@@ -184,17 +185,11 @@ describe('Android floating navigation and FAB motion', () => {
   });
 });
 
-describe('Android navigation rail and tablet chip row', () => {
-  it('keeps the rail clear of the status bar and matches the chip fade to its surface', () => {
+describe('Android navigation rail', () => {
+  it('keeps the rail clear of the status bar', () => {
     const bar = read('components/android/MainNavigationBar.tsx');
-    const chips = read('components/HomeFilterChipsRow.android.tsx');
-    const expanded = read('screens/HomeExpandedView.tsx');
 
     expect(bar).toContain('paddingTop: insets.top');
     expect(bar).toContain('width: NAVIGATION_RAIL_WIDTH + insets.left');
-    expect(chips).toContain('const fadeColor = surfaceColor ?? String(colors.background);');
-    expect(expanded).toContain(
-      "surfaceColor={typeof paneColor === 'string' ? paneColor : undefined}"
-    );
   });
 });

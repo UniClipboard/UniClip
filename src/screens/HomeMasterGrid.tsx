@@ -6,6 +6,7 @@ import { ClipboardCard } from '@/components/ClipboardCard';
 import { ClipboardItem } from '@/types/clipboard';
 import { computeGridMetrics } from '@/utils/gridLayout';
 import type { HomeController } from './useHomeController';
+import type { HomeSearchSlots } from './HomeSearchSlots.types';
 import { iosColors, iosDimensions } from '@/theme/iosDesignTokens';
 
 const GRID_SPACING = 12;
@@ -24,12 +25,18 @@ export function HomeMasterGrid({
   onSelectItem,
   showDetailSelection = true,
   refreshTintColor,
+  header,
+  emptyAction,
 }: {
   c: HomeController;
   paneWidth: number;
   onSelectItem?: (item: ClipboardItem) => void;
   showDetailSelection?: boolean;
   refreshTintColor?: ColorValue;
+  /** 网格内容顶部、随内容滚动的页眉(如搜索结果数) */
+  header?: HomeSearchSlots['gridHeader'];
+  /** 空结果状态下的主操作 */
+  emptyAction?: React.ReactNode;
 }) {
   const { theme, items, selectedIds, isSelectMode, detailItem } = c;
 
@@ -98,6 +105,7 @@ export function HomeMasterGrid({
             <Text style={[styles.emptyDesc, { color: theme.colors.textSecondary }]}>
               {c.emptyContent.description}
             </Text>
+            {emptyAction}
           </View>
         ) : null}
       </View>
@@ -114,7 +122,8 @@ export function HomeMasterGrid({
         renderCardSize={iosDimensions.gridAdaptiveMax}
         spacing={GRID_SPACING}
         paddingHorizontal={GRID_PADDING - GRID_SPACING / 2}
-        paddingTop={8}
+        paddingTop={8 + (header?.height ?? 0)}
+        header={header?.node}
         paddingBottom={80}
         keyExtractor={c.keyExtractor}
         renderItem={renderCard}

@@ -1,4 +1,4 @@
-# KIND: all/text/url. Pre: home with search closed. Resets the old kind before selecting the requested kind.
+# KIND: all/text/url. Pre: home, search closed (Android: search may already be open). Selects the requested kind.
 appId: ${APP_ID}
 ---
 - runFlow:
