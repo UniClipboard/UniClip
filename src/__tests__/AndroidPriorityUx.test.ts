@@ -70,7 +70,8 @@ describe('Android priority UX regressions', () => {
 
     expect(topBar).toContain("accessibilityLabel={t('a11y.search')}");
     expect(topBar).toContain("accessibilityLabel={t('a11y.clearSearch')}");
-    expect(topBar).toContain("accessibilityLabel={t('a11y.searchFilters')}");
+    // 筛选入口只在 chip 行,搜索栏里不再有筛选按钮
+    expect(topBar).not.toContain("accessibilityLabel={t('a11y.searchFilters')}");
     expect(topBar).toContain("accessibilityLabel={t('action.close', { ns: 'common' })}");
     expect(bottomBar).toContain("accessibilityLabel={t('action.copy')}");
     expect(bottomBar).toContain("accessibilityLabel={t('action.share')}");

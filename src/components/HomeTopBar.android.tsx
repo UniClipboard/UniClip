@@ -8,7 +8,6 @@ import type {
   SearchTopBarProps,
   SelectModeTopBarProps,
 } from './HomeTopBar.types';
-import { HistoryFilterTags } from '@/components/HistoryFilterTags';
 import { m3Type } from '@/theme/m3Typography';
 
 /**
@@ -46,21 +45,23 @@ export function DefaultTopBar({ onSearch, onSettings, theme }: DefaultTopBarProp
   );
 }
 
-/** 搜索态:同一条胶囊变为输入框,前导返回箭头退出搜索(M3 search view)。 */
+/**
+ * 搜索态:同一条胶囊变为输入框,前导返回箭头退出搜索(M3 search view)。筛选只在列表上方
+ * 的 chip 行里改;有搜索条件时下方一行显示结果数与「重置搜索」。
+ */
 export function SearchTopBar({
   searchText,
   onChangeText,
-  selectedKinds,
-  selectedDate,
   hasActiveFilters,
-  onOpenFilters,
-  onRemoveKind,
-  onClearDateFilter,
+  resultCount,
+  isLoading,
+  onReset,
   onClose,
   theme,
 }: SearchTopBarProps) {
   const { t } = useTranslation('home');
   const { colors } = theme;
+  const hasCriteria = searchText.length > 0 || hasActiveFilters;
 
   return (
     <View style={s.searchWrap}>
@@ -95,23 +96,33 @@ export function SearchTopBar({
               colors={colors}
             />
           )}
-          <M3IconButton
-            icon={hasActiveFilters ? 'filter-circle' : 'filter-circle-outline'}
-            accessibilityLabel={t('a11y.searchFilters')}
-            onPress={onOpenFilters}
-            iconColor={hasActiveFilters ? colors.accent : undefined}
-            colors={colors}
-          />
         </View>
       </View>
 
-      <HistoryFilterTags
-        selectedKinds={selectedKinds}
-        selectedDate={selectedDate}
-        onRemoveKind={onRemoveKind}
-        onClearDateFilter={onClearDateFilter}
-        theme={theme}
-      />
+      {hasCriteria ? (
+        <View style={s.statusRow}>
+          <Text
+            testID="history-search-result-count"
+            accessibilityLiveRegion="polite"
+            numberOfLines={1}
+            style={[s.statusText, { color: colors.textSecondary }]}
+          >
+            {isLoading ? t('search.loading') : t('search.resultCount', { count: resultCount ?? 0 })}
+          </Text>
+          {onReset ? (
+            <Pressable
+              testID="history-search-reset"
+              onPress={onReset}
+              accessibilityRole="button"
+              android_ripple={{ color: colors.fillSecondary as string }}
+              hitSlop={{ top: 8, bottom: 8 }}
+              style={s.resetButton}
+            >
+              <Text style={[s.resetLabel, { color: colors.accent }]}>{t('search.reset')}</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -185,6 +196,22 @@ const s = StyleSheet.create({
   },
   hint: { ...m3Type.bodyLarge, flexShrink: 1 },
   searchInput: { ...m3Type.bodyLarge, flex: 1, padding: 0, marginLeft: 4 },
-  searchWrap: { gap: 6 },
+  searchWrap: { gap: 4 },
+  statusRow: {
+    minHeight: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingLeft: 16,
+  },
+  statusText: { ...m3Type.bodyMedium, flexShrink: 1 },
+  resetButton: {
+    height: 32,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  resetLabel: { ...m3Type.labelLarge },
   selectCount: { ...m3Type.titleLarge, flex: 1, marginLeft: 8 },
 });

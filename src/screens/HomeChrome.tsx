@@ -23,15 +23,10 @@ export function HomeTopBarArea({ c }: { c: HomeController }) {
         <SearchTopBar
           searchText={c.searchText}
           onChangeText={c.setSearchText}
-          selectedKinds={c.selectedFilterKinds}
-          selectedDate={c.selectedDateFilter}
           hasActiveFilters={c.hasActiveFilters}
           resultCount={c.resultCount}
           isLoading={c.isHistoryLoading}
           onReset={c.resetSearch}
-          onOpenFilters={() => c.setShowFilterSheet(true)}
-          onRemoveKind={c.handleToggleFilterKind}
-          onClearDateFilter={() => c.setSelectedDateFilter('all')}
           onClose={c.closeSearch}
           theme={c.theme}
         />

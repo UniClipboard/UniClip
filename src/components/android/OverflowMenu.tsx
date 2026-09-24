@@ -7,19 +7,28 @@ import { m3Type } from '@/theme/m3Typography';
 import type { ActionMenuItem } from '@/utils/actionMenuItems';
 import { M3IconButton } from './M3IconButton';
 
+/** 菜单项:动作项沿用 ActionMenuItem;选择型菜单可省略图标、用 `selected` 标出当前值。 */
+export type OverflowMenuItem = Omit<ActionMenuItem, 'icon'> & {
+  icon?: string;
+  selected?: boolean;
+};
+
 interface OverflowMenuProps {
-  items: ActionMenuItem[];
+  items: OverflowMenuItem[];
   testID?: string;
+  /** 自定义触发器(如筛选 chip);默认是 48dp ⋮ 图标按钮。 */
+  renderTrigger?: (open: () => void) => React.ReactNode;
 }
 
 const MENU_MIN_WIDTH = 200;
 const MENU_MAX_WIDTH = 280;
 
 /**
- * M3 溢出菜单(⋮)。触发器为 48dp 图标按钮;菜单锚在按钮下方、右缘对齐,
+ * M3 溢出菜单(⋮)。触发器默认为 48dp 图标按钮;菜单锚在触发器下方、右缘对齐,
  * 行高 48、前导图标 24、无行间分隔线、按压走 ripple,与 Compose DropdownMenu 一致。
+ * 选择型菜单(如时间筛选)在当前项尾部显示对勾。
  */
-export function OverflowMenu({ items, testID }: OverflowMenuProps) {
+export function OverflowMenu({ items, testID, renderTrigger }: OverflowMenuProps) {
   const { theme } = useTheme();
   const { colors } = theme;
   const { t } = useTranslation('common');
@@ -37,13 +46,17 @@ export function OverflowMenu({ items, testID }: OverflowMenuProps) {
   return (
     <>
       <View ref={anchorRef} collapsable={false}>
-        <M3IconButton
-          testID={testID}
-          icon="ellipsis-vertical"
-          accessibilityLabel={t('action.more')}
-          onPress={open}
-          colors={colors}
-        />
+        {renderTrigger ? (
+          renderTrigger(open)
+        ) : (
+          <M3IconButton
+            testID={testID}
+            icon="ellipsis-vertical"
+            accessibilityLabel={t('action.more')}
+            onPress={open}
+            colors={colors}
+          />
+        )}
       </View>
 
       <Modal visible={anchor != null} transparent animationType="fade" onRequestClose={close}>
@@ -67,6 +80,9 @@ export function OverflowMenu({ items, testID }: OverflowMenuProps) {
                   key={item.key}
                   testID={`overflow-action-${item.key}`}
                   accessibilityRole="menuitem"
+                  accessibilityState={
+                    item.selected === undefined ? undefined : { checked: item.selected }
+                  }
                   onPress={() => {
                     close();
                     item.onPress();
@@ -74,14 +90,19 @@ export function OverflowMenu({ items, testID }: OverflowMenuProps) {
                   android_ripple={{ color: colors.fillSecondary as string }}
                   style={styles.item}
                 >
-                  <Ionicons
-                    name={item.icon as keyof typeof Ionicons.glyphMap}
-                    size={24}
-                    color={item.destructive ? colors.error : colors.textSecondary}
-                  />
+                  {item.icon ? (
+                    <Ionicons
+                      name={item.icon as keyof typeof Ionicons.glyphMap}
+                      size={24}
+                      color={item.destructive ? colors.error : colors.textSecondary}
+                    />
+                  ) : null}
                   <Text style={[styles.label, { color }]} numberOfLines={1}>
                     {item.label}
                   </Text>
+                  {item.selected ? (
+                    <Ionicons name="checkmark" size={20} color={colors.accent} />
+                  ) : null}
                 </Pressable>
               );
             })}
@@ -111,6 +132,7 @@ const styles = StyleSheet.create({
   },
   label: {
     ...m3Type.bodyLarge,
+    flexGrow: 1,
     flexShrink: 1,
   },
 });
