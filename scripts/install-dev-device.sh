@@ -28,6 +28,8 @@ Usage:
   npm run install:dev:android [Android device identifier]
   npm run install:release:ios [iOS device name or identifier]
   npm run install:release:android [Android device identifier]
+  npm run install:test:ios [iOS device name or identifier]
+  npm run install:test:android [Android device identifier]
   bash scripts/install-dev-device.sh [ios|android|all] [device]
 
 Defaults:
@@ -44,35 +46,67 @@ installs and launches it, then restores the generated iOS project to the
 development identity. It replaces an installed production UniClip app.
 install:release:android does the same for the production Android app.
 
+install:test:ios and install:test:android build the separate test identity
+(UniClip Test, ".test" identifiers) in Release mode with a release Engine, so
+release behavior can be measured without replacing the production or
+development app. If adb cannot install the Android test app (for example when
+the phone blocks USB installs), the APK is copied to
+Download/UniClipRelease on the phone for a manual install.
+
 For temporary local Engine testing (including uncommitted changes):
   npm run core:patch -- /path/to/Engine
   npm run install:dev:ios
   npm run install:dev:android
   npm run install:release:ios
   npm run install:release:android
+  npm run install:test:ios
+  npm run install:test:android
   npm run core:unpatch
 The override applies only to local device installs and leaves the project pin unchanged.
 EOF
 }
 
-assert_production_ios_project() {
-  local project_file="$PROJECT_ROOT/ios/UniClip.xcodeproj/project.pbxproj"
-  local expected_identifier='PRODUCT_BUNDLE_IDENTIFIER = app.uniclipboard.UniClipboard;'
+# Release identities: <bundle id> <display name> <Xcode project name> for iOS,
+# <application id> <display name> for Android.
+ios_release_identity() {
+  case "$1" in
+    production) echo "app.uniclipboard.UniClipboard|UniClip|UniClip" ;;
+    test) echo "app.uniclipboard.UniClipboard.test|UniClip Test|UniClipTest" ;;
+    *) echo "Unsupported iOS release variant: $1" >&2; exit 2 ;;
+  esac
+}
+
+android_release_identity() {
+  case "$1" in
+    production) echo "app.uniclipboard.android" ;;
+    test) echo "app.uniclipboard.android.test" ;;
+    *) echo "Unsupported Android release variant: $1" >&2; exit 2 ;;
+  esac
+}
+
+assert_release_ios_project() {
+  local variant="$1"
+  local bundle_id="$2"
+  local project_name="$3"
+  local project_file="$PROJECT_ROOT/ios/$project_name.xcodeproj/project.pbxproj"
+  local expected_identifier="PRODUCT_BUNDLE_IDENTIFIER = $bundle_id;"
 
   if [ ! -f "$project_file" ] || ! grep -Fq -- "$expected_identifier" "$project_file"; then
-    echo "The iOS project is not prepared as the production app." >&2
-    echo "Regenerate it with APP_VARIANT=production before installing." >&2
+    echo "The iOS project is not prepared as the $variant app." >&2
+    echo "Regenerate it with APP_VARIANT=$variant before installing." >&2
     exit 1
   fi
 }
 
-assert_production_android_project() {
+assert_release_android_project() {
+  local variant="$1"
+  local application_id="$2"
   local project_file="$PROJECT_ROOT/android/app/build.gradle"
-  local expected_identifier="applicationId 'app.uniclipboard.android'"
+  local expected_identifier="applicationId '$application_id'"
 
   if [ ! -f "$project_file" ] || ! grep -Fq -- "$expected_identifier" "$project_file"; then
-    echo "The Android project is not prepared as the production app." >&2
-    echo "Regenerate it with APP_VARIANT=production before installing." >&2
+    echo "The Android project is not prepared as the $variant app." >&2
+    echo "Regenerate it with APP_VARIANT=$variant before installing." >&2
     exit 1
   fi
 }
@@ -231,8 +265,8 @@ prepare_install_engine() {
   local worktree
   local build_profile="dev"
 
-  if { [ "$platform" = "ios" ] && [ "$IOS_INSTALL_VARIANT" = "production" ]; } ||
-     { [ "$platform" = "android" ] && [ "$ANDROID_INSTALL_VARIANT" = "production" ]; }; then
+  if { [ "$platform" = "ios" ] && [ "$IOS_INSTALL_VARIANT" != "development" ]; } ||
+     { [ "$platform" = "android" ] && [ "$ANDROID_INSTALL_VARIANT" != "development" ]; }; then
     build_profile="release"
   fi
 
@@ -341,14 +375,17 @@ install_ios() {
     exit 1
   fi
 
-  if [ "$IOS_INSTALL_VARIANT" = "production" ]; then
-    install_ios_release "$device"
-    return
-  fi
-  if [ "$IOS_INSTALL_VARIANT" != "development" ]; then
-    echo "Unsupported iOS install variant: $IOS_INSTALL_VARIANT" >&2
-    exit 2
-  fi
+  case "$IOS_INSTALL_VARIANT" in
+    production|test)
+      install_ios_release "$device" "$IOS_INSTALL_VARIANT"
+      return
+      ;;
+    development) ;;
+    *)
+      echo "Unsupported iOS install variant: $IOS_INSTALL_VARIANT" >&2
+      exit 2
+      ;;
+  esac
 
   bash "$SCRIPT_DIR/prepare-ios-development-project.sh"
   assert_development_project ios
@@ -367,46 +404,53 @@ install_ios() {
 
 install_ios_release() {
   local device="$1"
+  local variant="$2"
   local bindings_cache="${UC_ENGINE_STORAGE_BUILD_DIR:-$LOCAL_ENGINE_BUILD_ROOT}/ios-bindings-cache"
-  local derived_data="$PROJECT_ROOT/ios/build/production-device"
-  local app_path="$derived_data/Build/Products/Release-iphoneos/UniClip.app"
+  local derived_data="$PROJECT_ROOT/ios/build/$variant-device"
+  local identity
+  local bundle_id
+  local display_name
+  local project_name
+  identity="$(ios_release_identity "$variant")"
+  IFS='|' read -r bundle_id display_name project_name <<< "$identity"
+  local app_path="$derived_data/Build/Products/Release-iphoneos/$project_name.app"
   local info_plist="$app_path/Info.plist"
 
   require_command codesign
   require_command xcodebuild
 
   trap 'status=$?; if restore_development_ios_project; then restore_status=0; else restore_status=$?; fi; if [ "$status" -eq 0 ] && [ "$restore_status" -ne 0 ]; then status="$restore_status"; fi; exit "$status"' EXIT
-  APP_VARIANT=production npx expo prebuild --platform ios --no-install
+  APP_VARIANT="$variant" npx expo prebuild --platform ios --no-install
   RCT_IGNORE_PODS_DEPRECATION=0 RCT_SKIP_CODEGEN=0 EXPO_USE_PRECOMPILED_MODULES=0 \
     UC_ENGINE_LOCAL_CORE=1 npx pod-install ios
-  assert_production_ios_project
+  assert_release_ios_project "$variant" "$bundle_id" "$project_name"
   UC_ENGINE_UNIFFI_SLICE=device \
     UC_ENGINE_UNIFFI_BINDINGS_CACHE_DIR="$bindings_cache" \
     prepare_install_engine ios
-  APP_VARIANT=production UC_ENGINE_LOCAL_CORE=1 UC_ENGINE_UNIFFI_SLICE=device \
+  APP_VARIANT="$variant" UC_ENGINE_LOCAL_CORE=1 UC_ENGINE_UNIFFI_SLICE=device \
     xcodebuild \
-      -workspace "$PROJECT_ROOT/ios/UniClip.xcworkspace" \
-      -scheme UniClip \
+      -workspace "$PROJECT_ROOT/ios/$project_name.xcworkspace" \
+      -scheme "$project_name" \
       -configuration Release \
       -destination 'generic/platform=iOS' \
       -derivedDataPath "$derived_data" \
       -allowProvisioningUpdates \
       build
   if [ ! -d "$app_path" ]; then
-    echo "The iOS production app was not produced: $app_path" >&2
+    echo "The iOS $variant app was not produced: $app_path" >&2
     exit 1
   fi
-  if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$info_plist")" != "app.uniclipboard.UniClipboard" ]; then
-    echo "The built iOS app does not have the production bundle identifier." >&2
+  if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$info_plist")" != "$bundle_id" ]; then
+    echo "The built iOS app does not have the $variant bundle identifier." >&2
     exit 1
   fi
-  if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$info_plist")" != "UniClip" ]; then
-    echo "The built iOS app does not have the production display name." >&2
+  if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$info_plist")" != "$display_name" ]; then
+    echo "The built iOS app does not have the $variant display name." >&2
     exit 1
   fi
   codesign --verify --deep --strict "$app_path"
   xcrun devicectl device install app --device "$device" "$app_path"
-  xcrun devicectl device process launch --device "$device" app.uniclipboard.UniClipboard
+  xcrun devicectl device process launch --device "$device" "$bundle_id"
   restore_development_ios_project
   trap - EXIT
 }
@@ -423,14 +467,17 @@ install_android() {
     exit 1
   fi
 
-  if [ "$ANDROID_INSTALL_VARIANT" = "production" ]; then
-    install_android_release "$device"
-    return
-  fi
-  if [ "$ANDROID_INSTALL_VARIANT" != "development" ]; then
-    echo "Unsupported Android install variant: $ANDROID_INSTALL_VARIANT" >&2
-    exit 2
-  fi
+  case "$ANDROID_INSTALL_VARIANT" in
+    production|test)
+      install_android_release "$device" "$ANDROID_INSTALL_VARIANT"
+      return
+      ;;
+    development) ;;
+    *)
+      echo "Unsupported Android install variant: $ANDROID_INSTALL_VARIANT" >&2
+      exit 2
+      ;;
+  esac
 
   assert_development_project android
   prepare_install_engine android
@@ -449,15 +496,40 @@ install_android() {
   adb -s "$device" shell monkey -p app.uniclipboard.android.dev 1 >/dev/null
 }
 
+# Installs the test APK over adb, or copies it to Download/UniClipRelease on the
+# phone when the system rejects USB installs, so it can be installed by hand.
+deliver_android_test_apk() {
+  local device="$1"
+  local apk_path="$2"
+  local application_id="$3"
+  local remote_dir="/sdcard/Download/UniClipRelease"
+  local remote_apk="$remote_dir/UniClip-Test.apk"
+
+  if adb -s "$device" install -r "$apk_path"; then
+    adb -s "$device" shell monkey -p "$application_id" 1 >/dev/null
+    return
+  fi
+  echo "adb could not install the test app; copying it to the phone instead." >&2
+  adb -s "$device" shell mkdir -p "$remote_dir"
+  adb -s "$device" push "$apk_path" "$remote_apk"
+  # File managers list Download through MediaStore; index the copy right away.
+  adb -s "$device" shell content call --uri content://media/external/file \
+    --method scan_volume --arg external_primary >/dev/null
+  echo "Install it on the phone from Download/UniClipRelease/UniClip-Test.apk."
+}
+
 install_android_release() {
   local device="$1"
+  local variant="$2"
   local apk_path="$PROJECT_ROOT/android/app/build/outputs/apk/release/app-arm64-v8a-release.apk"
   local engine_aar="$LOCAL_ENGINE_BUILD_ROOT/uc-engine-uniffi-dist/android/UniClipboardEngine.aar"
+  local application_id
+  application_id="$(android_release_identity "$variant")"
 
   require_command apkanalyzer
   trap 'status=$?; if restore_development_android_project; then restore_status=0; else restore_status=$?; fi; if [ "$status" -eq 0 ] && [ "$restore_status" -ne 0 ]; then status="$restore_status"; fi; exit "$status"' EXIT
-  APP_VARIANT=production npx expo prebuild --platform android --no-install
-  assert_production_android_project
+  APP_VARIANT="$variant" npx expo prebuild --platform android --no-install
+  assert_release_android_project "$variant" "$application_id"
   prepare_install_engine android
   if [ ! -f "$engine_aar" ]; then
     echo "The local Android engine is missing: $engine_aar" >&2
@@ -465,15 +537,19 @@ install_android_release() {
   fi
   (cd "$PROJECT_ROOT/android" && UC_ENGINE_LOCAL_AAR="$engine_aar" ./gradlew :app:assembleRelease)
   if [ ! -f "$apk_path" ]; then
-    echo "Android production app was not produced: $apk_path" >&2
+    echo "Android $variant app was not produced: $apk_path" >&2
     exit 1
   fi
-  if [ "$(apkanalyzer manifest application-id "$apk_path")" != "app.uniclipboard.android" ]; then
-    echo "The built Android app does not have the production application identifier." >&2
+  if [ "$(apkanalyzer manifest application-id "$apk_path")" != "$application_id" ]; then
+    echo "The built Android app does not have the $variant application identifier." >&2
     exit 1
   fi
-  adb -s "$device" install -r "$apk_path"
-  adb -s "$device" shell monkey -p app.uniclipboard.android 1 >/dev/null
+  if [ "$variant" = "test" ]; then
+    deliver_android_test_apk "$device" "$apk_path" "$application_id"
+  else
+    adb -s "$device" install -r "$apk_path"
+    adb -s "$device" shell monkey -p "$application_id" 1 >/dev/null
+  fi
   restore_development_android_project
   trap - EXIT
 }

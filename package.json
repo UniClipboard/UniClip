@@ -19,6 +19,8 @@
     "install:dev:android": "bash scripts/install-dev-device.sh android",
     "install:release:ios": "UC_IOS_INSTALL_VARIANT=production bash scripts/install-dev-device.sh ios",
     "install:release:android": "UC_ANDROID_INSTALL_VARIANT=production bash scripts/install-dev-device.sh android",
+    "install:test:ios": "UC_IOS_INSTALL_VARIANT=test bash scripts/install-dev-device.sh ios",
+    "install:test:android": "UC_ANDROID_INSTALL_VARIANT=test bash scripts/install-dev-device.sh android",
     "web": "expo start --web",
     "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
     "lint:fix": "eslint . --ext .ts,.tsx,.js,.jsx --fix",

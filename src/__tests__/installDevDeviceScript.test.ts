@@ -46,41 +46,93 @@ describe('install-dev-device.sh', () => {
     expect(script).toContain('--no-bundler');
   });
 
-  it('offers a production iOS install that restores the development project afterwards', () => {
+  it('offers production and test iOS installs that restore the development project afterwards', () => {
     const script = readFileSync(scriptPath, 'utf8');
 
     expect(packageJson.scripts['install:release:ios']).toBe(
       'UC_IOS_INSTALL_VARIANT=production bash scripts/install-dev-device.sh ios'
     );
-    expect(script).toContain('APP_VARIANT=production npx expo prebuild --platform ios --no-install');
-    expect(script).toContain('-workspace "$PROJECT_ROOT/ios/UniClip.xcworkspace"');
-    expect(script).toContain('-scheme UniClip');
+    expect(packageJson.scripts['install:test:ios']).toBe(
+      'UC_IOS_INSTALL_VARIANT=test bash scripts/install-dev-device.sh ios'
+    );
+    expect(script).toContain('install_ios_release "$device" "$IOS_INSTALL_VARIANT"');
+    expect(script).toContain('APP_VARIANT="$variant" npx expo prebuild --platform ios --no-install');
+    expect(script).toContain('-workspace "$PROJECT_ROOT/ios/$project_name.xcworkspace"');
+    expect(script).toContain('-scheme "$project_name"');
     expect(script).toContain('-configuration Release');
     expect(script).toContain('build_profile="release"');
     expect(script).toContain('UC_ENGINE_UNIFFI_BUILD_PROFILE="$build_profile"');
-    expect(script).toContain('app.uniclipboard.UniClipboard');
     expect(script).toContain('xcrun devicectl device install app --device "$device" "$app_path"');
-    expect(script).toContain(
-      'xcrun devicectl device process launch --device "$device" app.uniclipboard.UniClipboard'
-    );
+    expect(script).toContain('xcrun devicectl device process launch --device "$device" "$bundle_id"');
     expect(script).toContain('restore_development_ios_project');
     expect(script.indexOf("trap 'status=$?; if restore_development_ios_project")).toBeLessThan(
-      script.indexOf('APP_VARIANT=production npx expo prebuild')
+      script.indexOf('APP_VARIANT="$variant" npx expo prebuild --platform ios')
     );
   });
 
-  it('offers a production Android install that restores the development project afterwards', () => {
+  it('offers production and test Android installs that restore the development project afterwards', () => {
     const script = readFileSync(scriptPath, 'utf8');
 
     expect(packageJson.scripts['install:release:android']).toBe(
       'UC_ANDROID_INSTALL_VARIANT=production bash scripts/install-dev-device.sh android'
     );
-    expect(script).toContain('APP_VARIANT=production npx expo prebuild --platform android --no-install');
+    expect(packageJson.scripts['install:test:android']).toBe(
+      'UC_ANDROID_INSTALL_VARIANT=test bash scripts/install-dev-device.sh android'
+    );
+    expect(script).toContain('install_android_release "$device" "$ANDROID_INSTALL_VARIANT"');
+    expect(script).toContain(
+      'APP_VARIANT="$variant" npx expo prebuild --platform android --no-install'
+    );
     expect(script).toContain('UC_ENGINE_LOCAL_AAR="$engine_aar" ./gradlew :app:assembleRelease');
     expect(script).toContain('apkanalyzer manifest application-id "$apk_path"');
     expect(script).toContain('adb -s "$device" install -r "$apk_path"');
-    expect(script).toContain('adb -s "$device" shell monkey -p app.uniclipboard.android 1');
+    expect(script).toContain('adb -s "$device" shell monkey -p "$application_id" 1');
     expect(script).toContain('restore_development_android_project');
+  });
+
+  it('maps each release variant to its own identity', () => {
+    const script = readFileSync(scriptPath, 'utf8');
+    const extract = (name: string) =>
+      script.slice(script.indexOf(`${name}() {`), script.indexOf('\n}\n', script.indexOf(`${name}() {`)) + 3);
+    const run = (fn: string, variant: string) =>
+      spawnSync('bash', ['-c', `${extract(fn)}\n${fn} "$1"`, 'identity', variant], {
+        encoding: 'utf8',
+      });
+
+    expect(run('ios_release_identity', 'production').stdout.trim()).toBe(
+      'app.uniclipboard.UniClipboard|UniClip|UniClip'
+    );
+    expect(run('ios_release_identity', 'test').stdout.trim()).toBe(
+      'app.uniclipboard.UniClipboard.test|UniClip Test|UniClipTest'
+    );
+    expect(run('android_release_identity', 'production').stdout.trim()).toBe(
+      'app.uniclipboard.android'
+    );
+    expect(run('android_release_identity', 'test').stdout.trim()).toBe(
+      'app.uniclipboard.android.test'
+    );
+    expect(run('android_release_identity', 'development').status).toBe(2);
+  });
+
+  it('builds test installs with a release Engine', () => {
+    const script = readFileSync(scriptPath, 'utf8');
+
+    expect(script).toContain('[ "$IOS_INSTALL_VARIANT" != "development" ]');
+    expect(script).toContain('[ "$ANDROID_INSTALL_VARIANT" != "development" ]');
+  });
+
+  it('copies the Android test APK to the phone when adb cannot install it', () => {
+    const script = readFileSync(scriptPath, 'utf8');
+    const deliver = script.slice(
+      script.indexOf('deliver_android_test_apk() {'),
+      script.indexOf('install_android_release() {')
+    );
+
+    expect(deliver).toContain('if adb -s "$device" install -r "$apk_path"; then');
+    expect(deliver).toContain('local remote_dir="/sdcard/Download/UniClipRelease"');
+    expect(deliver).toContain('adb -s "$device" push "$apk_path" "$remote_apk"');
+    expect(deliver).toContain('--method scan_volume --arg external_primary');
+    expect(script).toContain('deliver_android_test_apk "$device" "$apk_path" "$application_id"');
   });
 
   it('reuses a current local Engine and otherwise prepares the mobile pin', () => {

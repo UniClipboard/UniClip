@@ -38,7 +38,7 @@ import i18n from './src/i18n';
 
 const QUICK_UPLOAD_URL = 'uniclipboard://quick-upload';
 const PROCESS_TEXT_URL = 'uniclipboard://process-text';
-const SHARE_URLS = ['uniclipboard://share', 'uniclipboard-dev://share'];
+const SHARE_URLS = ['uniclipboard://share', 'uniclipboard-dev://share', 'uniclipboard-test://share'];
 function isShareUrl(url: string | null): boolean {
   return url != null && SHARE_URLS.some((scheme) => url.startsWith(scheme));
 }

@@ -5,7 +5,7 @@ import path from 'path';
 jest.setTimeout(30000);
 
 const readExpoConfig = (
-  variant: 'development' | 'production',
+  variant: 'development' | 'production' | 'test',
   type: 'public' | 'introspect' = 'public'
 ) => {
   const result = spawnSync('npx', ['expo', 'config', '--type', type, '--json'], {
@@ -66,6 +66,42 @@ describe('Expo app config variants', () => {
         },
       },
     ]);
+  });
+
+  it('isolates test installs from production and development identifiers', () => {
+    const config = readExpoConfig('test');
+    const extensions = config.extra.eas.build.experimental.ios.appExtensions;
+
+    expect(config.name).toBe('UniClip Test');
+    expect(config.scheme).toBe('uniclipboard-test');
+    expect(config.extra.appVariant).toBe('test');
+    expect(config.ios.bundleIdentifier).toBe('app.uniclipboard.UniClipboard.test');
+    expect(config.ios.infoPlist.UCAppGroupIdentifier).toBe(
+      'group.app.uniclipboard.UniClipboard.test'
+    );
+    expect(config.ios.entitlements['com.apple.security.application-groups']).toEqual([
+      'group.app.uniclipboard.UniClipboard.test',
+    ]);
+    expect(config.ios.entitlements['keychain-access-groups']).toEqual([
+      '$(AppIdentifierPrefix)app.uniclipboard.UniClipboard.test.p2p',
+    ]);
+    expect(extensions.map((extension: { bundleIdentifier: string }) => extension.bundleIdentifier)).toEqual([
+      'app.uniclipboard.UniClipboard.test.Share',
+      'app.uniclipboard.UniClipboard.test.Keyboard',
+    ]);
+  });
+
+  it('routes share handoff to the scheme of the active variant', () => {
+    const share = readFileSync(path.join(process.cwd(), 'targets/share/ShareViewController.swift'), 'utf8');
+    const shareTarget = readFileSync(
+      path.join(process.cwd(), 'targets/share/expo-target.config.js'),
+      'utf8'
+    );
+    const app = readFileSync(path.join(process.cwd(), 'App.tsx'), 'utf8');
+
+    expect(share).toContain('groupID.hasSuffix(".test") ? "uniclipboard-test" : "uniclipboard"');
+    expect(shareTarget).toContain("{ production: 'UniClip', test: 'UniClip Test' }");
+    expect(app).toContain("'uniclipboard-test://share'");
   });
 
   it('keeps production identifiers and legacy migration access explicit', () => {
