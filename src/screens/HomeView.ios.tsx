@@ -30,7 +30,8 @@ export function HomeView({ onOpenSettings, onImmersiveModeChange, searchRequestI
   const c = useHomeController(onOpenSettings);
   const { width: screenWidth } = useWindowDimensions();
   const mode = getLayoutMode(screenWidth);
-  const immersive = c.isSearching || c.isSelectMode;
+  // 搜索、多选、详情页打开时收起标签栏
+  const immersive = c.isSearching || c.isSelectMode || c.detailPageItem != null;
   const handledSearchRequest = useRef(searchRequestId);
   const { openSearch } = c;
 

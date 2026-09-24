@@ -142,7 +142,8 @@
       "localReady": "Downloaded",
       "localMissing": "Not downloaded yet"
     },
-    "sendTo": "Send to"
+    "sendTo": "Send to",
+    "star": "Favorite"
   },
   "rail": {
     "filters": "Filter",

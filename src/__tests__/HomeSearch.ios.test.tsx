@@ -1,6 +1,6 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { Keyboard, TextInput, View, StyleSheet } from 'react-native';
+import { Keyboard, Text, TextInput, StyleSheet } from 'react-native';
 import fs from 'fs';
 import path from 'path';
 
@@ -81,44 +81,29 @@ function render(element: React.ReactElement) {
 }
 
 describe('iOS search workflow', () => {
-  it('keeps selection capsules fixed while toggling all selected', () => {
+  it('shows select all, the selected count and a done button in select mode', () => {
     const onSelectAll = jest.fn();
     const onDone = jest.fn();
     const view = render(
       <SelectModeTopBar
-        count={0}
+        count={2}
         allSelected={false}
         onSelectAll={onSelectAll}
         onDone={onDone}
         theme={theme}
       />
     );
-    const sizes = () =>
-      view.root.findAllByType('GlassContainer' as never).map((node) => {
-        const style = StyleSheet.flatten(node.props.style);
-        return [style.width, style.height];
-      });
-    expect(sizes()).toEqual([
-      [44, 44],
-      [44, 44],
-    ]);
-    act(() => view.root.findByProps({ accessibilityLabel: 'action.selectAll' }).props.onPress());
+    const texts = () =>
+      view.root.findAllByType(Text).map((node) => node.props.children as string);
+    expect(texts()).toEqual(['action.selectAll', 'topBar.selectedCount']);
+    act(() => view.root.findByProps({ testID: 'history-select-all' }).props.onPress());
     expect(onSelectAll).toHaveBeenCalledTimes(1);
     act(() =>
       view.update(
-        <SelectModeTopBar
-          count={48}
-          allSelected
-          onSelectAll={onSelectAll}
-          onDone={onDone}
-          theme={theme}
-        />
+        <SelectModeTopBar count={48} allSelected onSelectAll={onSelectAll} onDone={onDone} theme={theme} />
       )
     );
-    expect(sizes()).toEqual([
-      [44, 44],
-      [44, 44],
-    ]);
+    expect(texts()[0]).toBe('topBar.deselectAll');
     act(() => view.root.findByProps({ accessibilityLabel: 'action.done' }).props.onPress());
     expect(onDone).toHaveBeenCalledTimes(1);
   });

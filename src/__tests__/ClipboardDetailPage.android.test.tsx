@@ -171,22 +171,19 @@ describe('ClipboardDetailPage (Android)', () => {
 describe('Android home card tap wiring', () => {
   const read = (relative: string) => fs.readFileSync(path.join(__dirname, '..', relative), 'utf8');
 
-  it('opens details on tap and copies on double tap only on Android', () => {
-    expect(read('utils/homeCardTapMode.android.ts')).toContain("= 'detail'");
-    expect(read('utils/homeCardTapMode.ios.ts')).toContain("= 'copy'");
+  it('opens details on tap and copies on double tap on both platforms', () => {
     expect(read('utils/homeLongPressMode.android.ts')).toContain("= 'select'");
 
     const controller = read('screens/useHomeController.ts');
-    expect(controller).toContain("HOME_CARD_TAP_MODE === 'detail'");
+    expect(controller).not.toContain('HOME_CARD_TAP_MODE');
     expect(controller).toContain('openDetailPage(item)');
-    expect(controller).toMatch(
-      /handleItemDoublePress = HOME_CARD_TAP_MODE === 'detail' \? handleItemCopy : undefined/
-    );
+    expect(controller).toContain('const handleItemDoublePress = handleItemCopy;');
 
     for (const grid of ['screens/HomeCompactView.tsx', 'screens/HomeMasterGrid.tsx']) {
       expect(read(grid)).toContain('onDoublePress={c.handleItemDoublePress}');
     }
     expect(read('components/ClipboardCard.android.tsx')).toContain('useDoubleTap(');
+    expect(read('components/ClipboardCard.ios.tsx')).toContain('useDoubleTap(');
   });
 
   it('renders the detail page from the stable home overlays', () => {

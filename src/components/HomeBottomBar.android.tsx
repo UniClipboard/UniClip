@@ -2,7 +2,10 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { M3IconButton } from './android/M3IconButton';
-import type { SelectModeBottomBarProps } from './HomeBottomBar.types';
+import type {
+  SelectModeBottomBarContainerProps,
+  SelectModeBottomBarProps,
+} from './HomeBottomBar.types';
 
 /** 多选底栏:M3 bottom app bar 的图标按钮组(容器底色由宿主提供)。 */
 export function SelectModeBottomBar({
@@ -45,6 +48,29 @@ export function SelectModeBottomBar({
   );
 }
 
+/** 单栏首页的多选底栏容器:贴底的 M3 bottom app bar 表面 */
+export function SelectModeBottomBarContainer({
+  bottomInset,
+  theme,
+  children,
+}: SelectModeBottomBarContainerProps) {
+  return (
+    <View
+      style={[s.container, { paddingBottom: bottomInset + 10, backgroundColor: theme.colors.surfaceLow }]}
+    >
+      {children}
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
+  container: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+  },
   selectRow: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' },
 });

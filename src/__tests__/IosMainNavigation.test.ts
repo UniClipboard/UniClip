@@ -33,7 +33,9 @@ describe('iOS top-level navigation', () => {
 
   it('hides the tab bar while the home page searches or selects', () => {
     expect(main).toContain('hidden={homeImmersive}');
-    expect(home).toContain('const immersive = c.isSearching || c.isSelectMode;');
+    expect(home).toContain(
+      'const immersive = c.isSearching || c.isSelectMode || c.detailPageItem != null;'
+    );
     expect(home).toContain('onImmersiveModeChange?.(immersive);');
     expect(bar).toContain("pointerEvents={hidden ? 'none' : 'box-none'}");
   });

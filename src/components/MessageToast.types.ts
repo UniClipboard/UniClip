@@ -24,8 +24,8 @@ export interface MessageToastProps {
    */
   topOffset?: number;
   /**
-   * Snackbar 底边距容器底部的距离(Android)。不传时为导航栏高度 + 16;
-   * 首页需要抬到 FAB / 多选底栏之上。
+   * 提示底边距容器底部的距离。Android Snackbar 不传时为导航栏高度 + 16,首页需要抬到
+   * FAB / 多选底栏之上;iOS 传入时改为底部玻璃胶囊(首页),不传时为顶部 toast。
    */
   bottomOffset?: number;
 }

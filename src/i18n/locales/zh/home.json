@@ -138,7 +138,8 @@
       "localReady": "已下载到本机",
       "localMissing": "尚未下载到本机"
     },
-    "sendTo": "发送到"
+    "sendTo": "发送到",
+    "star": "收藏"
   },
   "rail": {
     "filters": "筛选",

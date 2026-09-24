@@ -1,12 +1,14 @@
 /**
- * iOS 消息提示 — 顶部弹出式深色 toast
- *
- * 灰黑色圆角胶囊 + 白色文字,从屏幕顶端外弹簧滑入,悬停在首页顶栏下方
- * (不遮挡「选择」按钮),停留后加速滑回顶端外。设置页等场景由宿主传 topOffset。
+ * iOS 消息提示,两种形态:
+ * - 宿主传 bottomOffset(首页):底部 Liquid Glass 胶囊 + 状态图标,从下方淡入上浮,停在
+ *   标签栏 / 详情工具栏之上;
+ * - 其他场景:顶部深色胶囊,从屏幕顶端外弹簧滑入,设置页等由宿主传 topOffset。
  */
 import React, { useRef } from 'react';
-import { Text, StyleSheet, Animated } from 'react-native';
+import { Text, StyleSheet, Animated, PlatformColor, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { CircleAlert, CircleCheck, Info } from 'lucide-react-native';
+import { GlassContainer } from '@/components/ui';
 import { duration, easing, overlayMotion } from '@/theme/motion';
 import type { MessageType, MessageToastProps } from './MessageToast.types';
 
@@ -23,7 +25,12 @@ const HOLD_MS: Record<MessageType, number> = {
   info: 2000,
 };
 
-export function MessageToast({ message, onMessageShown, topOffset }: MessageToastProps) {
+export function MessageToast({
+  message,
+  onMessageShown,
+  topOffset,
+  bottomOffset,
+}: MessageToastProps) {
   const insets = useSafeAreaInsets();
   const progress = useRef(new Animated.Value(0)).current;
 
@@ -51,6 +58,37 @@ export function MessageToast({ message, onMessageShown, topOffset }: MessageToas
 
   if (!message) {
     return null;
+  }
+
+  if (bottomOffset != null) {
+    const Icon = STATUS_ICON[message.type];
+    return (
+      <Animated.View
+        pointerEvents="none"
+        accessibilityRole="alert"
+        style={[
+          styles.bottomSlot,
+          {
+            bottom: bottomOffset,
+            opacity: progress.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 1, 1] }),
+            transform: [
+              {
+                translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }),
+              },
+            ],
+          },
+        ]}
+      >
+        <GlassContainer shape="capsule" style={styles.glassPill}>
+          <View style={styles.glassRow}>
+            <Icon size={19} strokeWidth={2.2} color={STATUS_COLOR[message.type]} />
+            <Text style={[styles.glassText, { color: PlatformColor('label') }]} numberOfLines={2}>
+              {message.text}
+            </Text>
+          </View>
+        </GlassContainer>
+      </Animated.View>
+    );
   }
 
   const top = topOffset ?? insets.top + HOME_TOP_BAR_CLEARANCE;
@@ -84,7 +122,18 @@ export function MessageToast({ message, onMessageShown, topOffset }: MessageToas
   );
 }
 
+const STATUS_ICON = { success: CircleCheck, error: CircleAlert, info: Info } as const;
+const STATUS_COLOR = {
+  success: PlatformColor('systemGreen'),
+  error: PlatformColor('systemRed'),
+  info: PlatformColor('secondaryLabel'),
+} as const;
+
 const styles = StyleSheet.create({
+  bottomSlot: { position: 'absolute', left: 24, right: 24, alignItems: 'center' },
+  glassPill: { minHeight: 44, paddingLeft: 14, paddingRight: 18, justifyContent: 'center' },
+  glassRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 },
+  glassText: { flexShrink: 1, fontSize: 15, fontWeight: '600', lineHeight: 20 },
   pill: {
     position: 'absolute',
     alignSelf: 'center',

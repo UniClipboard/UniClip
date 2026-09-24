@@ -4,7 +4,10 @@ import type { SharedValue } from 'react-native-reanimated';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { iosColors } from '@/theme/iosDesignTokens';
 import { AnimatedCardGrid } from '@/components/AnimatedCardGrid';
-import { SelectModeBottomBar } from '@/components/HomeBottomBar';
+import {
+  SelectModeBottomBar,
+  SelectModeBottomBarContainer,
+} from '@/components/HomeBottomBar';
 import { AddActionsFab } from '@/components/AddActionsFab';
 import { ClipboardCard } from '@/components/ClipboardCard';
 import { ClipboardItem } from '@/types/clipboard';
@@ -155,23 +158,16 @@ export function HomeCompactView({
       {overlayTopBarHeight > 0 ? <View style={styles.topBarOverlay}>{topBar}</View> : null}
       {!isSelectMode && bottomSearch}
       {isSelectMode && (
-        <View
-          style={[
-            styles.bottomBar,
-            {
-              paddingBottom: c.insets.bottom + 10,
-              backgroundColor: theme.colors.surfaceLow,
-            },
-          ]}
-        >
+        <SelectModeBottomBarContainer bottomInset={c.insets.bottom} theme={theme}>
           <SelectModeBottomBar
             disabled={selectedIds.size === 0}
             onCopy={c.handleBatchCopy}
             onShare={c.handleBatchShare}
+            onSendTo={c.handleBatchSendTo}
             onDelete={c.handleBatchDelete}
             theme={theme}
           />
-        </View>
+        </SelectModeBottomBarContainer>
       )}
 
       {/* 右下融合操作按钮 + 上传悬浮菜单(默认态) */}
@@ -231,13 +227,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
-  },
-  bottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 16,
-    paddingTop: 10,
   },
 });

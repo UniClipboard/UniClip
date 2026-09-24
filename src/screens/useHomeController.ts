@@ -37,8 +37,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import type { CameraCaptureResult } from '@/components/CameraCaptureSheet.types';
 import { HOME_LONG_PRESS_MODE } from '@/utils/homeLongPressMode';
-import { HOME_CARD_TAP_MODE } from '@/utils/homeCardTapMode';
 import {
+  canSendHistoryItem,
   createHistorySendJob,
   createTextSendJob,
   releaseHistorySendJob,
@@ -270,7 +270,7 @@ export function useHomeController(onOpenSettings: () => void) {
     [t]
   );
 
-  // 复制单条到系统剪贴板:iOS 单击、Android 双击共用。返回是否成功,供卡片播放「已复制」反馈。
+  // 复制单条到系统剪贴板:卡片 / 列表行双击、列表右滑共用。返回是否成功,供卡片播放「已复制」反馈。
   const handleItemCopy = useCallback(
     async (item: ClipboardItem) => {
       // 排序重排后卡片的移动动画由 AnimatedCardGrid/GridCell 按下标变化自动处理，
@@ -317,32 +317,39 @@ export function useHomeController(onOpenSettings: () => void) {
     sendToJobsRef.current?.forEach(releaseHistorySendJob);
   }, []);
   const presentSendTo = useCallback(
-    (prepare: () => PendingShareJob | null) => {
+    (prepare: () => PendingShareJob[]) => {
       releaseSendToJobs();
-      let job: PendingShareJob | null = null;
+      let jobs: PendingShareJob[] = [];
       try {
-        job = prepare();
+        jobs = prepare();
       } catch (error) {
         log.error(`Failed to prepare send-to job (${getErrorCode(error)})`);
       }
-      if (!job) {
+      if (jobs.length === 0) {
         showMessage(t('toast.sendToUnavailable'), 'error');
         return;
       }
-      sendToJobsRef.current = [job];
-      setSendToJobs([job]);
+      sendToJobsRef.current = jobs;
+      setSendToJobs(jobs);
       setSendToVisible(true);
     },
     [releaseSendToJobs, showMessage, t]
   );
   const openSendTo = useCallback(
     (item: ClipboardItem) =>
-      presentSendTo(() => createHistorySendJob(item, getDisplayKind(item.type, item.text))),
+      presentSendTo(() => {
+        const job = createHistorySendJob(item, getDisplayKind(item.type, item.text));
+        return job ? [job] : [];
+      }),
     [presentSendTo]
   );
   /** 发送一段文本(分词选择的结果):发送页盖在分词页之上,返回后仍在分词页 */
   const openSendToText = useCallback(
-    (text: string) => presentSendTo(() => createTextSendJob(text)),
+    (text: string) =>
+      presentSendTo(() => {
+        const job = createTextSendJob(text);
+        return job ? [job] : [];
+      }),
     [presentSendTo]
   );
   const closeSendTo = useCallback(() => {
@@ -351,22 +358,18 @@ export function useHomeController(onOpenSettings: () => void) {
   }, [releaseSendToJobs]);
   useEffect(() => releaseSendToJobs, [releaseSendToJobs]);
 
+  // 单击看详情(多选时切换选中),双击复制到系统剪贴板;两个平台一致
   const handleItemPress = useCallback(
-    async (item: ClipboardItem) => {
+    (item: ClipboardItem) => {
       if (isSelectMode) {
         toggleSelection(item.profileHash);
         return;
       }
-      if (HOME_CARD_TAP_MODE === 'detail') {
-        openDetailPage(item);
-        return;
-      }
-      await handleItemCopy(item);
+      openDetailPage(item);
     },
-    [isSelectMode, toggleSelection, openDetailPage, handleItemCopy]
+    [isSelectMode, toggleSelection, openDetailPage]
   );
-  // 只有「单击看详情」的平台才识别双击;iOS 为 undefined,卡片单击不做延迟。
-  const handleItemDoublePress = HOME_CARD_TAP_MODE === 'detail' ? handleItemCopy : undefined;
+  const handleItemDoublePress = handleItemCopy;
 
   // 单条删除(列表左滑 / 读屏删除操作),与动作菜单的删除同走可撤销删除
   const handleItemDelete = useCallback(
@@ -524,10 +527,23 @@ export function useHomeController(onOpenSettings: () => void) {
     ]
   );
 
+  // 长按上下文菜单(iOS):在「分享」之后追加「发送到」(经同步通道发给所选设备)
   const actionMenuGroups = useMemo(() => {
     if (!contextItem || !contextDisplayKind) return [];
-    return makeActionGroups(contextItem, contextDisplayKind, contextTarget?.anchor ?? null);
-  }, [contextItem, contextDisplayKind, contextTarget, makeActionGroups]);
+    const groups = makeActionGroups(contextItem, contextDisplayKind, contextTarget?.anchor ?? null);
+    if (!canSendHistoryItem(contextItem, contextDisplayKind)) return groups;
+    const sendTo: ActionMenuItem = {
+      key: 'sendTo',
+      label: t('detail.sendTo'),
+      icon: 'paper-plane-outline',
+      onPress: () => openSendTo(contextItem),
+    };
+    return groups.map((group) => {
+      const shareIndex = group.findIndex((action) => action.key === 'share');
+      if (shareIndex < 0) return group;
+      return [...group.slice(0, shareIndex + 1), sendTo, ...group.slice(shareIndex + 1)];
+    });
+  }, [contextItem, contextDisplayKind, contextTarget, makeActionGroups, openSendTo, t]);
 
   const handleSelectAll = useCallback(() => {
     if (selectedIds.size === items.length) {
@@ -584,6 +600,17 @@ export function useHomeController(onOpenSettings: () => void) {
     showMessage(t('toast.copiedSelected'), 'success');
     exitSelectMode();
   }, [items, selectedIds, showMessage, exitSelectMode, t]);
+
+  // 多选「发送到」:把选中的可发送条目一起交给发送页,不可发送的(未下载的文件、组)跳过
+  const handleBatchSendTo = useCallback(() => {
+    const selected = items.filter((i) => selectedIds.has(i.profileHash));
+    exitSelectMode();
+    presentSendTo(() =>
+      selected
+        .map((item) => createHistorySendJob(item, getDisplayKind(item.type, item.text)))
+        .filter((job): job is PendingShareJob => job != null)
+    );
+  }, [items, selectedIds, exitSelectMode, presentSendTo]);
 
   const handleBatchShare = useCallback(async () => {
     const selected = items.filter((i) => selectedIds.has(i.profileHash));
@@ -892,6 +919,7 @@ export function useHomeController(onOpenSettings: () => void) {
     // batch actions
     handleBatchCopy,
     handleBatchShare,
+    handleBatchSendTo,
     handleBatchDelete,
     // FAB / upload
     showAddMenu,

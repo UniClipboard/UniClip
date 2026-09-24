@@ -149,6 +149,7 @@ export function HomeExpandedView({
         onDismiss={() => setDetailActivated(false)}
         c={c}
         containerColor={paneColor as ColorValue}
+        presentation="sheet"
       />
 
       {/* 上传融合按钮:平板恒锚到左侧 rail 底部(横竖屏一致,菜单向右上展开),不再有右下角

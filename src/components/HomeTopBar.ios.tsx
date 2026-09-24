@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TextInput, StyleSheet, Pressable, Keyboard } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Check, Ellipsis, Plus, Search, SquareCheckBig, Square, X, XCircle } from 'lucide-react-native';
+import { Check, Ellipsis, Plus, Search, X, XCircle } from 'lucide-react-native';
 import {
   Menu,
   Button as SwiftUIButton,
@@ -230,36 +230,35 @@ export function SelectModeTopBar({
   const { t } = useTranslation('home');
   return (
     <View style={s.selectionRow}>
-      <Text numberOfLines={1} style={[s.selectCount, { color: theme.colors.textPrimary }]}>
+      <Pressable
+        testID="history-select-all"
+        onPress={onSelectAll}
+        accessibilityRole="button"
+        accessibilityState={{ selected: allSelected }}
+      >
+        <GlassContainer shape="capsule" interactive style={s.selectAllButton}>
+          <Text style={[s.selectAllText, { color: theme.colors.textPrimary }]}>
+            {allSelected ? t('topBar.deselectAll') : t('action.selectAll', { ns: 'common' })}
+          </Text>
+        </GlassContainer>
+      </Pressable>
+      <Text
+        numberOfLines={1}
+        accessibilityRole="header"
+        accessibilityLiveRegion="polite"
+        style={[s.selectCount, { color: theme.colors.textPrimary }]}
+      >
         {t('topBar.selectedCount', { n: count })}
       </Text>
-      <View style={s.actions}>
-        <Pressable
-          onPress={onSelectAll}
-          accessibilityRole="button"
-          accessibilityLabel={
-            allSelected ? t('topBar.deselectAll') : t('action.selectAll', { ns: 'common' })
-          }
-          accessibilityState={{ selected: allSelected }}
-        >
-          <GlassContainer shape="circle" interactive style={s.selectionButton}>
-            {allSelected ? (
-              <Square size={22} color={theme.colors.textPrimary} />
-            ) : (
-              <SquareCheckBig size={22} color={theme.colors.textPrimary} />
-            )}
-          </GlassContainer>
-        </Pressable>
-        <Pressable
-          onPress={onDone}
-          accessibilityRole="button"
-          accessibilityLabel={t('action.done', { ns: 'common' })}
-        >
-          <GlassContainer shape="circle" interactive style={s.selectionButton}>
-            <Check size={22} color={theme.colors.textPrimary} />
-          </GlassContainer>
-        </Pressable>
-      </View>
+      <Pressable
+        testID="history-select-done"
+        onPress={onDone}
+        accessibilityRole="button"
+        accessibilityLabel={t('action.done', { ns: 'common' })}
+        style={[s.doneButton, { backgroundColor: theme.colors.accent }]}
+      >
+        <Check size={22} color={theme.colors.inverseAccent} strokeWidth={2.4} />
+      </Pressable>
     </View>
   );
 }
@@ -276,9 +275,16 @@ const s = StyleSheet.create({
     gap: 10,
   },
   selectionRow: { flexDirection: 'row', alignItems: 'center', height: 44, gap: 8 },
-  selectionButton: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  selectCount: { flex: 1, fontSize: 14, fontWeight: '600' },
+  selectAllButton: { height: 44, paddingHorizontal: 16, justifyContent: 'center' },
+  selectAllText: { fontSize: 16, fontWeight: '600' },
+  selectCount: { flex: 1, fontSize: 17, fontWeight: '600', textAlign: 'center' },
+  doneButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   searchWrap: { gap: 6 },
   boxWrap: { flex: 1, minWidth: 0 },
   searchField: {

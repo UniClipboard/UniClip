@@ -94,7 +94,10 @@ describe('Android priority UX regressions', () => {
     );
     expect(compact).toContain('paddingBottom={paddingBottom}');
     expect(compact).toContain('paddingBottom,');
-    expect(compact).toContain('backgroundColor: theme.colors.surfaceLow');
+    expect(compact).toContain('<SelectModeBottomBarContainer bottomInset={c.insets.bottom}');
+    expect(read('src/components/HomeBottomBar.android.tsx')).toContain(
+      'backgroundColor: theme.colors.surfaceLow'
+    );
   });
 
   it('offers an in-place refresh when the Share page has no available targets', () => {
