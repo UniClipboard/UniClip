@@ -254,11 +254,11 @@ describe('Android history list reuse', () => {
     );
   });
 
-  it('keeps the shared compact home free of platform checks and lets Android inject the list', () => {
+  it('keeps the shared compact home free of platform checks and lets each platform inject its list', () => {
     const compact = read('screens/HomeCompactView.tsx');
     expect(compact).not.toContain('Platform.OS');
     expect(compact).toContain('renderCollection');
     expect(read('screens/HomeView.android.tsx')).toContain('getHomeHistoryCollection(c)');
-    expect(read('screens/HomeView.ios.tsx')).not.toContain('renderCollection');
+    expect(read('screens/HomeView.ios.tsx')).toContain('getHomeHistoryCollection(c)');
   });
 });
