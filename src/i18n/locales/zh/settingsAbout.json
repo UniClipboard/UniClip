@@ -13,7 +13,13 @@
     "label": "自动检查更新"
   },
   "updateToBeta": {
-    "label": "更新到测试版"
+    "label": "更新到测试版",
+    "confirmTitle": "开启测试版更新？",
+    "description": "开启后将接收测试版更新，并立即检查一次新版本。",
+    "warning": "测试版可能存在不稳定、崩溃、同步异常以及数据损坏或丢失的风险。",
+    "backup": "请先备份重要数据，再确认开启。关闭此选项不会将已安装的测试版降级为正式版。",
+    "confirm": "了解风险并开启",
+    "cancel": "暂不开启"
   },
   "download": {
     "newVersionTitle": "发现新版本",

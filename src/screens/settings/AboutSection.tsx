@@ -56,6 +56,7 @@ import { useSettingsToast } from './SettingsToastContext';
 import { SettingsSectionItem } from './SettingsSectionItem';
 import { SettingsHeroCard } from './android/SettingsHeroCard';
 import { SettingsSwitchRow } from './android/SettingsSwitchRow';
+import { SettingsConfirmationSheet } from './android/SettingsConfirmationSheet';
 import { createLogger } from '@/support/observability';
 
 const log = createLogger('UpdateDownload');
@@ -88,6 +89,10 @@ export const AboutSection = memo(function AboutSection({ initialUpdate }: AboutS
   );
 
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [showBetaConfirmation, setShowBetaConfirmation] = useState(false);
+  const [isSavingBeta, setIsSavingBeta] = useState(false);
+  const savingBetaRef = useRef(false);
+  const updateCheckGeneration = useRef(0);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -128,10 +133,12 @@ export const AboutSection = memo(function AboutSection({ initialUpdate }: AboutS
   }, []);
 
   const runUpdateCheck = async (showNoUpdateToast: boolean, includeBeta?: boolean) => {
+    const generation = ++updateCheckGeneration.current;
     setIsCheckingUpdate(true);
     try {
       const useBeta = includeBeta ?? useSettingsStore.getState().config?.updateToBeta ?? false;
       const result = await checkForUpdate(appVersion, useBeta, activeLanguage);
+      if (generation !== updateCheckGeneration.current) return;
       if (result.hasUpdate) {
         applyAvailableUpdate(result);
       } else {
@@ -144,11 +151,11 @@ export const AboutSection = memo(function AboutSection({ initialUpdate }: AboutS
       // 无论是否有更新，清除当前版本及旧版本的 APK 缓存
       cleanOldApkCache(appVersion);
     } catch {
-      if (showNoUpdateToast) {
+      if (showNoUpdateToast && generation === updateCheckGeneration.current) {
         showMessage(t('update.checkFailed'), 'error');
       }
     } finally {
-      setIsCheckingUpdate(false);
+      if (generation === updateCheckGeneration.current) setIsCheckingUpdate(false);
     }
   };
 
@@ -159,6 +166,8 @@ export const AboutSection = memo(function AboutSection({ initialUpdate }: AboutS
   // 自动检查更新（每天一次），仅挂载时执行
   useEffect(() => {
     if (initialUpdate?.hasUpdate) return;
+    const generation = updateCheckGeneration.current;
+    let active = true;
     void checkForAutomaticUpdate(appVersion, {
       autoCheckUpdate: autoCheckUpdateEnabled,
       updateToBeta: updateToBetaEnabled,
@@ -166,10 +175,14 @@ export const AboutSection = memo(function AboutSection({ initialUpdate }: AboutS
       language: activeLanguage,
     })
       .then((result) => {
+        if (!active || generation !== updateCheckGeneration.current) return;
         if (result?.hasUpdate) applyAvailableUpdate(result);
         cleanOldApkCache(appVersion);
       })
       .catch(() => {});
+    return () => {
+      active = false;
+    };
   }, []);
 
   const handleUpdateButtonPress = async (
@@ -272,12 +285,37 @@ export const AboutSection = memo(function AboutSection({ initialUpdate }: AboutS
     }
   };
 
-  const handleToggleUpdateToBeta = async (enabled: boolean) => {
+  const saveUpdateToBeta = async (enabled: boolean) => {
+    if (savingBetaRef.current) return;
+    savingBetaRef.current = true;
+    setIsSavingBeta(true);
     try {
-      await useSettingsStore.getState().setUpdateToBeta(enabled);
+      const result = await useSettingsStore.getState().updateConfig({ updateToBeta: enabled });
+      if (!result.ok) {
+        showMessage(result.error || t('error.saveFailed'), 'error');
+        return;
+      }
+      setShowBetaConfirmation(false);
+      setUpdateAvailable(false);
+      setLatestVersion(null);
+      setDownloadSourceSheet(null);
+      if (enabled) await runUpdateCheck(true, true);
     } catch (error: unknown) {
       showMessage(error instanceof Error ? error.message : t('error.saveFailed'), 'error');
+    } finally {
+      savingBetaRef.current = false;
+      setIsSavingBeta(false);
     }
+  };
+
+  const handleToggleUpdateToBeta = (enabled: boolean) => {
+    if (savingBetaRef.current || isCheckingUpdate || isDownloading || enabled === updateToBetaEnabled) {
+      return;
+    }
+    // Ignore an outstanding automatic check when the user changes channel.
+    updateCheckGeneration.current += 1;
+    if (enabled) setShowBetaConfirmation(true);
+    else void saveUpdateToBeta(false);
   };
 
   const colors = useMaterialColors();
@@ -360,6 +398,28 @@ export const AboutSection = memo(function AboutSection({ initialUpdate }: AboutS
         title={t('updatesTitle')}
         dialogs={
           <>
+            <SettingsConfirmationSheet
+              visible={showBetaConfirmation}
+              title={t('updateToBeta.confirmTitle')}
+              confirmLabel={t('updateToBeta.confirm')}
+              cancelLabel={t('updateToBeta.cancel')}
+              isConfirming={isSavingBeta}
+              testID="about-beta-confirmation"
+              onDismiss={() => {
+                if (!savingBetaRef.current) setShowBetaConfirmation(false);
+              }}
+              onConfirm={() => saveUpdateToBeta(true)}
+            >
+              <ComposeText color={colors.onSurfaceVariant}>
+                {t('updateToBeta.description')}
+              </ComposeText>
+              <ComposeText color={colors.error}>
+                {t('updateToBeta.warning')}
+              </ComposeText>
+              <ComposeText color={colors.onSurfaceVariant}>
+                {t('updateToBeta.backup')}
+              </ComposeText>
+            </SettingsConfirmationSheet>
             {/* 下载渠道选择底部表单 */}
             {downloadSourceSheet && (
               <ModalBottomSheet onDismissRequest={() => setDownloadSourceSheet(null)}>
@@ -437,14 +497,17 @@ export const AboutSection = memo(function AboutSection({ initialUpdate }: AboutS
       >
         <SettingsSwitchRow
           key="autoCheck"
+          testID="about-auto-check"
           title={t('autoCheck.label')}
           value={autoCheckUpdateEnabled}
           onValueChange={(enabled) => void handleToggleAutoCheckUpdate(enabled)}
         />
         <SettingsSwitchRow
           key="updateToBeta"
+          testID="about-update-to-beta"
           title={t('updateToBeta.label')}
           value={updateToBetaEnabled}
+          disabled={isSavingBeta || isCheckingUpdate || isDownloading}
           onValueChange={(enabled) => void handleToggleUpdateToBeta(enabled)}
         />
       </SettingsSectionItem>

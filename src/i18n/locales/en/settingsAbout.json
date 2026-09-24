@@ -13,7 +13,13 @@
     "label": "Auto check for updates"
   },
   "updateToBeta": {
-    "label": "Update to beta"
+    "label": "Update to beta",
+    "confirmTitle": "Enable beta updates?",
+    "description": "Receive beta updates and check for a new version immediately.",
+    "warning": "Beta versions may be unstable and cause crashes, sync issues, or data corruption or loss.",
+    "backup": "Back up important data before continuing. Turning this off will not downgrade an installed beta to a stable version.",
+    "confirm": "Accept risks and enable",
+    "cancel": "Not now"
   },
   "download": {
     "newVersionTitle": "New version available",

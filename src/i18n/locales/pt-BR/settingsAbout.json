@@ -13,7 +13,13 @@
     "label": "Verificar atualizações automaticamente"
   },
   "updateToBeta": {
-    "label": "Atualizar para beta"
+    "label": "Atualizar para beta",
+    "confirmTitle": "Ativar atualizações beta?",
+    "description": "Receba atualizações beta e verifique imediatamente se há uma nova versão.",
+    "warning": "Versões beta podem ser instáveis e causar falhas, problemas de sincronização ou corrupção e perda de dados.",
+    "backup": "Faça backup dos dados importantes antes de continuar. Desativar esta opção não substituirá uma versão beta instalada por uma versão estável.",
+    "confirm": "Aceitar riscos e ativar",
+    "cancel": "Agora não"
   },
   "download": {
     "newVersionTitle": "Nova versão disponível",
