@@ -66,7 +66,8 @@
       "engineLogs": "Registros do Engine",
       "shareAttempts": "Registros de compartilhamento",
       "included": "Incluídos",
-      "footer": "O ZIP contém registros do app e do Engine sem dados sensíveis, o estado do app e registros de compartilhamento. O conteúdo da área de transferência e as credenciais não são incluídos."
+      "footer": "O ZIP contém registros do app e do Engine sem dados sensíveis, o estado do app e registros de compartilhamento. O conteúdo da área de transferência e as credenciais não são incluídos.",
+      "summary": "ZIP dos últimos 3 dias, sem conteúdo da área de transferência"
     },
     "action": {
       "generate": "Exportar logs",

@@ -24,6 +24,10 @@ import { SharePage } from './settings/ios/SharePage';
 import { ClipboardAccessPage } from './settings/ios/ClipboardAccessPage';
 import { LogSection } from './settings/LogSection';
 import { DeveloperPage } from './settings/ios/DeveloperPage';
+import { HistoryPage } from './settings/ios/HistoryPage';
+import { AppearancePage } from './settings/ios/AppearancePage';
+import { PrivacyPage } from './settings/ios/PrivacyPage';
+import { AboutPage } from './settings/ios/AboutPage';
 import {
   canOpenDeviceTrustPreview,
   openDeviceTrustPreview,
@@ -96,6 +100,12 @@ export const SettingsScreen = () => {
         <ZStack modifiers={[fillModifier, ...(iosAccentColor ? [tint(iosAccentColor)] : [])]}>
           <NavigationStack path={path} onPathChange={setPath}>
             <SettingsRootPage onNavigate={openSubPage} />
+            <NavigationDestination value="history">
+              <HistoryPage />
+            </NavigationDestination>
+            <NavigationDestination value="appearance">
+              <AppearancePage />
+            </NavigationDestination>
             <NavigationDestination value="storage">
               <StoragePage onBack={back} />
             </NavigationDestination>
@@ -110,6 +120,12 @@ export const SettingsScreen = () => {
             </NavigationDestination>
             <NavigationDestination value="diagnostics">
               <LogSection onBack={back} onSendArchive={setDiagnosticArchive} />
+            </NavigationDestination>
+            <NavigationDestination value="privacy">
+              <PrivacyPage />
+            </NavigationDestination>
+            <NavigationDestination value="about">
+              <AboutPage />
             </NavigationDestination>
             <NavigationDestination value="developer">
               <DeveloperPage

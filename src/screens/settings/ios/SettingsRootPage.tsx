@@ -1,30 +1,13 @@
-import {
-  HStack,
-  Image,
-  LabeledContent,
-  Link,
-  Picker,
-  Section,
-  Spacer,
-  Text as SwiftUIText,
-} from '@expo/ui/swift-ui';
-import { foregroundStyle, frame, pickerStyle, tag } from '@expo/ui/swift-ui/modifiers';
+import { HStack, Section, Text as SwiftUIText, VStack } from '@expo/ui/swift-ui';
+import { font, foregroundStyle, frame } from '@expo/ui/swift-ui/modifiers';
 import type { SFSymbol } from 'sf-symbols-typescript';
 import { useTranslation } from 'react-i18next';
 
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
 import { useSettingsStore } from '@/stores';
-import { useTheme } from '@/hooks/useTheme';
-import { APP_VERSION_WITH_BUILD } from '@/constants';
-import type { ThemeMode } from '@/theme';
-import { useAppLanguage } from '@/i18n/useAppLanguage';
+import { APP_VERSION } from '@/constants';
+import { isDeviceTrustPreviewAvailable } from '@/devtools/deviceTrustPreviewCoordinator';
 import {
-  LANGUAGE_NATIVE_NAMES,
-  type LanguagePreference,
-  SUPPORTED_LANGUAGES,
-} from '@/i18n/languages';
-import {
-  chevronColor,
   SettingsIconTile,
   SettingsNavRow,
   SettingsToggle,
@@ -34,44 +17,54 @@ import {
 } from './common';
 import { useKeyboardStatus } from './useKeyboardStatus';
 import type { SettingsPage } from './types';
-import { AnalyticsConsentControl } from '../AnalyticsConsentControl';
-import { isDeviceTrustPreviewAvailable } from '@/devtools/deviceTrustPreviewCoordinator';
 
+/** 带图标与说明的开关行(剪贴板同步方向) */
 function IconToggleRow({
+  testID,
   icon,
   iconColor,
   label,
+  description,
   isOn,
   onIsOnChange,
 }: {
+  testID?: string;
   icon: SFSymbol;
   iconColor: string;
   label: string;
+  description: string;
   isOn: boolean;
   onIsOnChange: (v: boolean) => void;
 }) {
   return (
     <HStack spacing={12} modifiers={[frame({ maxWidth: Infinity })]}>
       <SettingsIconTile systemName={icon} color={iconColor} />
-      <SettingsToggle label={label} isOn={isOn} onIsOnChange={onIsOnChange} />
+      <SettingsToggle testID={testID} isOn={isOn} onIsOnChange={onIsOnChange}>
+        <VStack alignment="leading" spacing={2}>
+          <SwiftUIText>{label}</SwiftUIText>
+          <SwiftUIText modifiers={[font({ size: 13 }), foregroundStyle('secondary')]}>
+            {description}
+          </SwiftUIText>
+        </VStack>
+      </SettingsToggle>
     </HStack>
   );
 }
 
-export function SettingsRootPage({
-  onNavigate,
-}: {
-  onNavigate: (page: SettingsPage) => void;
-}) {
+/**
+ * iOS「设置」标签页根页(大标题):剪贴板同步方向 → 通用(历史 / 剪贴板访问 / 外观 / 存储)
+ * → 扩展(键盘 / 分享)→ 支持(诊断日志)→ 其他(隐私 / 关于 / 开发者选项)。
+ * 同步方式与空间设备在「设备」标签页。每行整行可点,推入对应子页。
+ */
+export function SettingsRootPage({ onNavigate }: { onNavigate: (page: SettingsPage) => void }) {
   const { t } = useTranslation('settings');
   const { config, updateConfig } = useSettingsStore();
-  const { setThemeMode } = useTheme();
-  const { preference: languagePref, setLanguage } = useAppLanguage();
   const keyboard = useKeyboardStatus();
   const deviceTrustPreviewAvailable = isDeviceTrustPreviewAvailable();
 
   if (!config) return null;
 
+  const direct = config.syncChannel === 'p2p';
   const keyboardHint =
     keyboard.state === 'ready'
       ? { value: t('state.enabled', { ns: 'common' }), color: statusGreen }
@@ -80,60 +73,59 @@ export function SettingsRootPage({
         : keyboard.state === 'notAdded'
           ? { value: t('ios.keyboardHint.notEnabled'), color: undefined }
           : { value: undefined, color: undefined };
+  const themeLabel = t(`appearance.mode.${config.appearance ?? 'system'}`);
 
   return (
     <IosSheetPage title={t('action.settings', { ns: 'common' })}>
       <IosSheetForm>
-        {/* ── 同步 ── */}
         <Section
-          header={<SwiftUIText>{t('category.sync')}</SwiftUIText>}
+          header={<SwiftUIText>{t('hub.clipboardSync.title')}</SwiftUIText>}
           footer={<SwiftUIText>{t('ios.sync.footer')}</SwiftUIText>}
         >
           <IconToggleRow
+            testID="settings-auto-apply"
             icon="arrow.down.doc"
             iconColor={settingsTileColors.green}
-            label={t('ios.sync.autoApply')}
+            label={t('hub.clipboardSync.autoApply.title')}
+            description={t(direct ? 'hub.clipboardSync.autoApply.descP2p' : 'hub.clipboardSync.autoApply.descLan')}
             isOn={config.autoApplyRemote}
             onIsOnChange={(v) => updateConfig({ autoApplyRemote: v })}
           />
           <IconToggleRow
+            testID="settings-auto-push"
             icon="arrow.up.doc"
             iconColor={settingsTileColors.teal}
-            label={t('ios.sync.autoPush')}
+            label={t('hub.clipboardSync.autoPush.title')}
+            description={t(direct ? 'hub.clipboardSync.autoPush.descP2p' : 'hub.clipboardSync.autoPush.descLan')}
             isOn={config.autoPushLocal}
             onIsOnChange={(v) => updateConfig({ autoPushLocal: v })}
           />
         </Section>
 
-        {/* ── 扩展与权限 ── */}
-        <Section
-          header={<SwiftUIText>{t('category.extensions')}</SwiftUIText>}
-          footer={<SwiftUIText>{t('ios.extensions.footer')}</SwiftUIText>}
-        >
+        <Section header={<SwiftUIText>{t('general.sectionTitle')}</SwiftUIText>}>
           <SettingsNavRow
-            icon="keyboard"
-            iconColor={settingsTileColors.indigo}
-            title={t('ios.extensions.keyboard')}
-            value={keyboardHint.value}
-            valueColor={keyboardHint.color}
-            onPress={() => onNavigate('keyboard')}
+            testID="settings-history"
+            icon="clock.arrow.circlepath"
+            iconColor={settingsTileColors.blue}
+            title={t('category.history')}
+            value={config.maxHistoryItems.toLocaleString()}
+            onPress={() => onNavigate('history')}
           />
           <SettingsNavRow
-            icon="square.and.arrow.up"
-            iconColor={settingsTileColors.green}
-            title={t('ios.extensions.share')}
-            onPress={() => onNavigate('share')}
-          />
-          <SettingsNavRow
+            testID="settings-clipboard-access"
             icon="doc.on.clipboard"
             iconColor={settingsTileColors.orange}
             title={t('ios.extensions.clipboardAccess')}
             onPress={() => onNavigate('clipboard')}
           />
-        </Section>
-
-        {/* ── 存储 ── */}
-        <Section>
+          <SettingsNavRow
+            testID="settings-appearance"
+            icon="circle.lefthalf.filled"
+            iconColor={settingsTileColors.gray}
+            title={t('appearance.sectionTitle')}
+            value={themeLabel}
+            onPress={() => onNavigate('appearance')}
+          />
           <SettingsNavRow
             testID="settings-storage"
             icon="externaldrive"
@@ -143,107 +135,64 @@ export function SettingsRootPage({
           />
         </Section>
 
-        {/* ── 通用 ── */}
-        <Section header={<SwiftUIText>{t('general.sectionTitle')}</SwiftUIText>}>
-          <HStack spacing={12} modifiers={[frame({ maxWidth: Infinity })]}>
-            <SettingsIconTile systemName="circle.lefthalf.filled" color={settingsTileColors.gray} />
-            <Picker
-              label={t('general.theme')}
-              selection={config.appearance}
-              onSelectionChange={(v) => {
-                const appearance = v as 'system' | 'light' | 'dark';
-                updateConfig({ appearance });
-                const modeMap: Record<string, ThemeMode> = {
-                  system: 'auto',
-                  light: 'light',
-                  dark: 'dark',
-                };
-                setThemeMode(modeMap[appearance] ?? 'auto');
-              }}
-              modifiers={[pickerStyle('menu')]}
-            >
-              <SwiftUIText modifiers={[tag('system')]}>{t('appearance.mode.system')}</SwiftUIText>
-              <SwiftUIText modifiers={[tag('light')]}>{t('appearance.mode.light')}</SwiftUIText>
-              <SwiftUIText modifiers={[tag('dark')]}>{t('appearance.mode.dark')}</SwiftUIText>
-            </Picker>
-          </HStack>
-
-          {/* 语言 */}
-          <HStack spacing={12} modifiers={[frame({ maxWidth: Infinity })]}>
-            <SettingsIconTile systemName="globe" color={settingsTileColors.blue} />
-            <Picker
-              label={t('language.title', { ns: 'common' })}
-              selection={languagePref}
-              onSelectionChange={(v) => {
-                void setLanguage(v as LanguagePreference);
-              }}
-              modifiers={[pickerStyle('menu')]}
-            >
-              <SwiftUIText modifiers={[tag('system')]}>
-                {t('language.system', { ns: 'common' })}
-              </SwiftUIText>
-              {SUPPORTED_LANGUAGES.map((code) => (
-                <SwiftUIText key={code} modifiers={[tag(code)]}>
-                  {LANGUAGE_NATIVE_NAMES[code]}
-                </SwiftUIText>
-              ))}
-            </Picker>
-          </HStack>
-
-          <IconToggleRow
-            icon="arrow.triangle.2.circlepath"
-            iconColor={settingsTileColors.red}
-            label={t('ios.general.checkUpdateOnLaunch')}
-            isOn={config.autoCheckUpdate}
-            onIsOnChange={(v) => updateConfig({ autoCheckUpdate: v })}
+        <Section
+          header={<SwiftUIText>{t('category.extensions')}</SwiftUIText>}
+          footer={<SwiftUIText>{t('ios.extensions.footer')}</SwiftUIText>}
+        >
+          <SettingsNavRow
+            testID="settings-keyboard"
+            icon="keyboard"
+            iconColor={settingsTileColors.indigo}
+            title={t('ios.extensions.keyboard')}
+            value={keyboardHint.value}
+            valueColor={keyboardHint.color}
+            onPress={() => onNavigate('keyboard')}
+          />
+          <SettingsNavRow
+            testID="settings-share"
+            icon="square.and.arrow.up"
+            iconColor={settingsTileColors.green}
+            title={t('ios.extensions.share')}
+            onPress={() => onNavigate('share')}
           />
         </Section>
 
-        <AnalyticsConsentControl />
-
-        {/* ── 关于 ── */}
-        <Section header={<SwiftUIText>{t('category.about')}</SwiftUIText>}>
+        <Section header={<SwiftUIText>{t('category.support')}</SwiftUIText>}>
           <SettingsNavRow
             testID="settings-diagnostics"
             icon="waveform.path.ecg"
             iconColor={settingsTileColors.red}
-            title={t('diagnostics.title', { ns: 'settingsIos' })}
+            title={t('category.diagnostics')}
             onPress={() => onNavigate('diagnostics')}
           />
-
-          <Link destination="https://github.com/UniClipboard/UniClipboard">
-            <HStack spacing={12} modifiers={[frame({ maxWidth: Infinity })]}>
-              <SettingsIconTile systemName="globe" color={settingsTileColors.gray} />
-              <SwiftUIText>{t('ios.about.projectHome')}</SwiftUIText>
-              <Spacer />
-              <Image systemName="arrow.up.right" size={12} color={chevronColor} />
-            </HStack>
-          </Link>
-
-          <LabeledContent
-            label={
-              <HStack spacing={12}>
-                <SettingsIconTile systemName="info.circle" color={settingsTileColors.gray} />
-                <SwiftUIText>{t('ios.about.version')}</SwiftUIText>
-              </HStack>
-            }
-          >
-            <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-              {APP_VERSION_WITH_BUILD}
-            </SwiftUIText>
-          </LabeledContent>
         </Section>
 
-        {deviceTrustPreviewAvailable ? (
-          <Section header={<SwiftUIText>{t('category.developer')}</SwiftUIText>}>
+        <Section header={<SwiftUIText>{t('category.other')}</SwiftUIText>}>
+          <SettingsNavRow
+            testID="settings-privacy"
+            icon="hand.raised.fill"
+            iconColor={settingsTileColors.blue}
+            title={t('category.privacy')}
+            onPress={() => onNavigate('privacy')}
+          />
+          <SettingsNavRow
+            testID="settings-about"
+            icon="info.circle"
+            iconColor={settingsTileColors.gray}
+            title={t('category.about')}
+            value={APP_VERSION}
+            onPress={() => onNavigate('about')}
+          />
+          {deviceTrustPreviewAvailable ? (
             <SettingsNavRow
+              testID="settings-developer"
               icon="wrench.and.screwdriver"
               iconColor={settingsTileColors.indigo}
-              title={t('debug.deviceTrustPreview.label', { ns: 'settingsAbout' })}
+              title={t('category.developer')}
               onPress={() => onNavigate('developer')}
             />
-          </Section>
-        ) : null}
+          ) : null}
+        </Section>
       </IosSheetForm>
     </IosSheetPage>
   );

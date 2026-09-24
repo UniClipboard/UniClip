@@ -66,7 +66,8 @@
       "engineLogs": "Engine 日志",
       "shareAttempts": "分享记录",
       "included": "已包含",
-      "footer": "ZIP 包含清理敏感信息后的应用日志、Engine 日志、应用状态和分享记录，不包含剪贴板内容或凭据。"
+      "footer": "ZIP 包含清理敏感信息后的应用日志、Engine 日志、应用状态和分享记录，不包含剪贴板内容或凭据。",
+      "summary": "最近 3 天的 ZIP 压缩包,不含剪贴板内容"
     },
     "action": {
       "generate": "导出日志",
