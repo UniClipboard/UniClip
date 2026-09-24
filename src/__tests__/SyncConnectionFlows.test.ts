@@ -263,6 +263,33 @@ describe('unified sync connection flows', () => {
     }
   });
 
+  it('keeps completed pairing sheets complete while Engine notifies removed devices', () => {
+    const flow = source('components/useAddSyncConnectionFlow.ts');
+    const android = source('components/AddSyncConnectionSheet.android.tsx');
+    const ios = source('components/AddSyncConnectionSheet.ios.tsx');
+
+    expect(flow).toContain('removalAcknowledgementPending');
+    for (const platform of [android, ios]) {
+      expect(platform).toContain('removalAcknowledgementPending');
+      expect(platform).toContain('space.flow.deviceUpdate.removalNotificationPending');
+      expect(platform).toContain("mode === 'joinReady'");
+    }
+  });
+
+  it('bases pairing completion only on the public space device update', () => {
+    const flow = source('components/useAddSyncConnectionFlow.ts');
+    const completion = flow.slice(
+      flow.indexOf('function currentJoinCompletionMode'),
+      flow.indexOf('function remainingTime')
+    );
+
+    expect(completion).toContain("query.snapshot.spaceDeviceUpdate.phase === 'completed'");
+    expect(completion).not.toContain('groupRelationship');
+    expect(completion).not.toContain('membership');
+    expect(completion).not.toContain('syncRelationship');
+    expect(completion).not.toContain('reachability');
+  });
+
   it('uses the unified add sheet instead of duplicate setup forms in settings', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
     const ios = source('screens/settings/ios/SpacePage.tsx');
@@ -378,6 +405,9 @@ describe('unified sync connection flows', () => {
       expect(messages.space.flow.waitingTitle).toEqual(expect.any(String));
       expect(messages.space.flow.waitingForDevice).toEqual(expect.any(String));
       expect(messages.space.flow.successTitle).toEqual(expect.any(String));
+      expect(messages.space.flow.deviceUpdate.removalNotificationPending).toEqual(
+        expect.any(String)
+      );
       expect(messages.space.error.invitationCodeInvalid).toEqual(expect.any(String));
       expect(messages.space.error.invitationNotFound).toEqual(expect.any(String));
       expect(messages.space.error.invitationExpired).toEqual(expect.any(String));

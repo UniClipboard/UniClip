@@ -10,6 +10,7 @@ export type DeviceGroupRelationship =
   | 'consistent'
   | 'confirmationPending'
   | 'pendingLocalDecision'
+  | 'awaitingRemovalAcknowledgement'
   | 'diverged'
   | 'unverifiable'
   | 'unknown';
@@ -203,6 +204,7 @@ const GROUP_RELATIONSHIP = {
   consistent: 'consistent',
   confirmation_pending: 'confirmationPending',
   pending_local_decision: 'pendingLocalDecision',
+  awaiting_removal_acknowledgement: 'awaitingRemovalAcknowledgement',
   diverged: 'diverged',
   unverifiable: 'unverifiable',
   unknown: 'unknown',

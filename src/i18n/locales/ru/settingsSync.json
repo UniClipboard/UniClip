@@ -117,6 +117,7 @@
         "needsAttentionTitle": "Состояние устройств требует внимания",
         "completedTitle": "Состояние устройств обновлено",
         "completedBody": "Теперь эти устройства могут синхронизироваться.",
+        "removalNotificationPending": "Удалено с этого устройства. Уведомляем другие устройства.",
         "continueInBackground": "Продолжить в фоне",
         "reviewAction": "Посмотреть решение",
         "attention": {
@@ -199,6 +200,7 @@
         "label": "Пространство",
         "consistent": "Текущее пространство",
         "pendingLocalDecision": "Ожидается ваш выбор",
+        "awaitingRemovalAcknowledgement": "Удалено с этого устройства. Уведомляем другие устройства.",
         "diverged": "Другое пространство",
         "unverifiable": "Не удалось проверить",
         "unknown": "Неизвестно"
@@ -306,6 +308,7 @@
         "waitingForLocalDecision": "Ожидается ваш выбор",
         "unverifiable": "Не удалось проверить данные устройства",
         "upgradeRequired": "Требуется обновление",
+        "removalAcknowledgementPending": "Удалено с этого устройства. Уведомляем другие устройства.",
         "updating": "Обновление пространства",
         "pairingAwaitingConfirmation": "Сопряжение завершено, ожидается подтверждение другого устройства",
         "pairingUnconfirmed": "Сопряжение завершено, но не подтверждено",

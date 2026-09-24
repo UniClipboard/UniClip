@@ -1040,6 +1040,7 @@ export function AddSyncConnectionSheet({
     remoteDeviceName,
     peerUpgradeRequired,
     deviceUpdate,
+    removalAcknowledgementPending,
   } = state;
   const {
     setDeviceName,
@@ -1674,7 +1675,13 @@ export function AddSyncConnectionSheet({
                     />
                   }
                   title={t('space.flow.deviceUpdate.completedTitle')}
-                  body={t('space.flow.deviceUpdate.completedBody')}
+                  body={
+                    removalAcknowledgementPending
+                      ? `${t('space.flow.deviceUpdate.completedBody')} ${t(
+                          'space.flow.deviceUpdate.removalNotificationPending'
+                        )}`
+                      : t('space.flow.deviceUpdate.completedBody')
+                  }
                 />
               </IosSheetScaffold>
             ) : null}

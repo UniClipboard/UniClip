@@ -117,6 +117,7 @@
         "needsAttentionTitle": "空间设备状态需要处理",
         "completedTitle": "空间设备状态已更新",
         "completedBody": "现在可以在这些设备之间同步。",
+        "removalNotificationPending": "已从此设备移除，正在通知其他设备。",
         "continueInBackground": "收起，后台继续",
         "reviewAction": "查看处理建议",
         "attention": {
@@ -199,6 +200,7 @@
         "label": "空间归属",
         "consistent": "当前空间",
         "pendingLocalDecision": "等待你选择",
+        "awaitingRemovalAcknowledgement": "已从此设备移除，正在通知其他设备。",
         "diverged": "不同空间",
         "unverifiable": "无法核验",
         "unknown": "未知"
@@ -306,6 +308,7 @@
         "waitingForLocalDecision": "等待你选择",
         "unverifiable": "无法核验设备资料",
         "upgradeRequired": "需要更新",
+        "removalAcknowledgementPending": "已从此设备移除，正在通知其他设备。",
         "updating": "正在更新空间",
         "pairingAwaitingConfirmation": "已完成配对，等待对方确认",
         "pairingUnconfirmed": "已完成配对，但未被确认",

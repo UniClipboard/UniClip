@@ -267,6 +267,46 @@ describe('device trust presentation', () => {
       .toEqual(expect.objectContaining({ primaryStatus: 'upgradeRequired' }));
   });
 
+  it('keeps removal acknowledgement delivery informational, non-blocking, and Engine-convergent', () => {
+    const current = snapshot();
+    current.currentChange = null;
+    current.devices.push({
+      deviceId: 'removed-12345678',
+      displayName: 'Retired desktop',
+      isLocal: false,
+      reachability: 'offline',
+      membership: 'removed',
+      groupRelationship: 'awaitingRemovalAcknowledgement',
+      compatibility: 'compatible',
+      syncRelationship: 'removedPeerDevice',
+      availableActions: [],
+      blockedReason: null,
+    });
+
+    const ready = { kind: 'ready' as const, snapshot: current };
+    const pendingRemoval = buildCurrentSpaceDeviceViews(ready, []).find(
+      (device) => device.deviceId === 'removed-12345678'
+    );
+    expect(pendingRemoval).toEqual(
+      expect.objectContaining({
+        primaryStatus: 'removalAcknowledgementPending',
+        canSync: false,
+        canRemove: false,
+      })
+    );
+    expect(buildSpaceOverviewView('ready', ready, 'idle').primaryStatus).toBe('healthy');
+
+    const afterEngineExpiry = {
+      ...current,
+      devices: current.devices.filter((device) => device.deviceId !== 'removed-12345678'),
+    };
+    expect(
+      buildCurrentSpaceDeviceViews({ kind: 'ready', snapshot: afterEngineExpiry }, []).find(
+        (device) => device.deviceId === 'removed-12345678'
+      )
+    ).toBeUndefined();
+  });
+
   it('shows no current-space devices after the local device has been removed', () => {
     const removed = snapshot();
     removed.localMembership = 'removed';

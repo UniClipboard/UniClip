@@ -106,9 +106,15 @@ function SpaceDeviceRow({
   const colors = useMaterialColors();
   const { theme } = useTheme();
   const online = device.isLocal || device.reachability === 'online';
+  const informationalStatus =
+    device.primaryStatus === 'removalAcknowledgementPending';
   const trustStatus =
-    device.primaryStatus !== 'usable' && device.primaryStatus !== 'unknown';
-  const statusColor = trustStatus
+    !informationalStatus &&
+    device.primaryStatus !== 'usable' &&
+    device.primaryStatus !== 'unknown';
+  const statusColor = informationalStatus
+    ? colors.primary
+    : trustStatus
     ? colors.error
     : online
     ? (theme.colors.success as string)

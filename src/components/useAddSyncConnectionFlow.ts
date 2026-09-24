@@ -58,6 +58,7 @@ export interface AddSyncConnectionFlowState {
   remoteDeviceName: string | null;
   peerUpgradeRequired: boolean;
   deviceUpdate: DeviceTrustSnapshot['spaceDeviceUpdate'];
+  removalAcknowledgementPending: boolean;
 }
 
 export interface AddSyncConnectionFlowActions {
@@ -157,6 +158,12 @@ export function useAddSyncConnectionFlow({
     state.deviceTrustQuery.kind === 'ready'
       ? state.deviceTrustQuery.snapshot.spaceDeviceUpdate
       : DEFAULT_DEVICE_UPDATE
+  );
+  const removalAcknowledgementPending = useUnifiedSpaceStore((state) =>
+    state.deviceTrustQuery.kind === 'ready' &&
+    state.deviceTrustQuery.snapshot.devices.some(
+      (device) => device.groupRelationship === 'awaitingRemovalAcknowledgement'
+    )
   );
   const confirmedAtInvitation = useRef<Set<string>>(new Set());
   const pendingInvitationDevice = useRef<string | null>(null);
@@ -620,12 +627,13 @@ export function useAddSyncConnectionFlow({
         deviceName.trim().length > 0 && passphrase.trim().length > 0,
       codeComplete: isInvitationCodeComplete(invitationCode),
       invitationExpired: invitation ? invitation.expiresAtMs <= nowMs : false,
-      invitationTimeRemaining: invitation
-        ? remainingTime(invitation.expiresAtMs, nowMs)
-        : '0:00',
-      remoteDeviceName,
-      peerUpgradeRequired,
-      deviceUpdate,
+          invitationTimeRemaining: invitation
+            ? remainingTime(invitation.expiresAtMs, nowMs)
+            : '0:00',
+          remoteDeviceName,
+          peerUpgradeRequired,
+          deviceUpdate,
+          removalAcknowledgementPending,
     },
     actions: {
       setDeviceName,

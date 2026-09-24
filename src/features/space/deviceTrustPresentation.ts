@@ -28,6 +28,7 @@ export type DeviceTrustPrimaryStatus =
   | 'upgradeRequired'
   | 'differentSpace'
   | 'removed'
+  | 'removalAcknowledgementPending'
   | 'updating'
   | 'pairingAwaitingConfirmation'
   | 'pairingUnconfirmed'
@@ -305,6 +306,9 @@ function primaryStatus(sync: DeviceSyncRelationship): DeviceTrustPrimaryStatus {
 function devicePrimaryStatus(
   device: DeviceTrustSnapshot['devices'][number]
 ): DeviceTrustPrimaryStatus {
+  if (device.groupRelationship === 'awaitingRemovalAcknowledgement') {
+    return 'removalAcknowledgementPending';
+  }
   const syncStatus = primaryStatus(device.syncRelationship);
   if (syncStatus !== 'usable' && syncStatus !== 'unknown') return syncStatus;
   if (device.pairingConfirmation === 'awaitingPeerConfirmation') {
@@ -339,12 +343,16 @@ export function buildDeviceTrustDeviceViews(
   const hasPendingDecision = buildDeviceTrustDecisionView(snapshot) !== null;
   return snapshot.devices
     .filter(
-      (device) =>
-        device.membership !== 'removed' &&
-        device.groupRelationship !== 'diverged' &&
-        device.syncRelationship !== 'pausedGroupDiverged' &&
-        device.syncRelationship !== 'removedLocalDevice' &&
-        device.syncRelationship !== 'removedPeerDevice'
+      (device) => {
+        if (device.groupRelationship === 'awaitingRemovalAcknowledgement') return true;
+        return (
+          device.membership !== 'removed' &&
+          device.groupRelationship !== 'diverged' &&
+          device.syncRelationship !== 'pausedGroupDiverged' &&
+          device.syncRelationship !== 'removedLocalDevice' &&
+          device.syncRelationship !== 'removedPeerDevice'
+        );
+      }
     )
     .map((device) => ({
       deviceId: device.deviceId,
@@ -444,7 +452,7 @@ export function buildSpaceOverviewView(
   }
 
   return {
-    memberCount: devices.length,
+    memberCount: devices.filter((device) => device.membership !== 'removed').length,
     primaryStatus,
     hasPendingDecision,
     isRefreshing,

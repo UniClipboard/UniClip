@@ -570,6 +570,7 @@ function AddSyncConnectionSheetContent({
     remoteDeviceName,
     peerUpgradeRequired,
     deviceUpdate,
+    removalAcknowledgementPending,
   } = state;
   const {
     setDeviceName,
@@ -1158,7 +1159,11 @@ function AddSyncConnectionSheetContent({
             </ComposeText>
             <Spacer modifiers={[heightModifier(6)]} />
             <ComposeText color={colors.onSurfaceVariant} style={WAITING_STYLE}>
-              {t('space.flow.deviceUpdate.completedBody')}
+              {removalAcknowledgementPending
+                ? `${t('space.flow.deviceUpdate.completedBody')} ${t(
+                    'space.flow.deviceUpdate.removalNotificationPending'
+                  )}`
+                : t('space.flow.deviceUpdate.completedBody')}
             </ComposeText>
             <Spacer modifiers={[heightModifier(24)]} />
             <Button

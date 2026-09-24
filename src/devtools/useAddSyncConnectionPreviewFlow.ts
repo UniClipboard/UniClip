@@ -88,6 +88,7 @@ export function createAddSyncConnectionPreviewState(
     remoteDeviceName: null,
     peerUpgradeRequired: false,
     deviceUpdate: updating,
+    removalAcknowledgementPending: false,
   };
 
   switch (id) {
