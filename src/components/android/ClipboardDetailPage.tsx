@@ -24,16 +24,9 @@ import {
   DetailFloatingToolbar,
   TOOLBAR_MARGIN,
 } from './DetailFloatingToolbar';
+import { HISTORY_KIND_ICON } from './historyKindStyle';
 import { M3IconButton } from './M3IconButton';
 import { OverflowMenu } from './OverflowMenu';
-
-const KIND_ICON: Record<DisplayKind, keyof typeof Ionicons.glyphMap> = {
-  text: 'text-outline',
-  url: 'link-outline',
-  image: 'image-outline',
-  file: 'document-outline',
-  group: 'albums-outline',
-};
 
 /** 执行后会离开详情页的动作:先关页,再执行(如进入多选)。删除由条目消失自动关页。 */
 const CLOSES_PAGE = new Set(['select']);
@@ -132,7 +125,11 @@ export function ClipboardDetailPage({ c, item, onClose }: ClipboardDetailPagePro
           </Text>
         </View>
         <View style={[styles.kindChip, { backgroundColor: colors.accentContainer }]}>
-          <Ionicons name={KIND_ICON[displayKind]} size={16} color={colors.onAccentContainer} />
+          <Ionicons
+            name={HISTORY_KIND_ICON[displayKind]}
+            size={16}
+            color={colors.onAccentContainer}
+          />
           <Text style={[m3Type.labelLarge, { color: colors.onAccentContainer }]}>
             {getDisplayKindLabel(displayKind)}
           </Text>

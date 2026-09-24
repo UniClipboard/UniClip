@@ -2,7 +2,8 @@ import { View, Text, TextInput, StyleSheet, Pressable, Keyboard } from 'react-na
 import { useTranslation } from 'react-i18next';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { M3IconButton } from './android/M3IconButton';
-import { OverflowMenu } from './android/OverflowMenu';
+import { OverflowMenu, type OverflowMenuItem } from './android/OverflowMenu';
+import type { HistoryLayout } from '@/hooks/useHistoryDisplaySettings';
 import type {
   DefaultTopBarProps,
   SearchTopBarProps,
@@ -11,12 +12,18 @@ import type {
 import { m3Type } from '@/theme/m3Typography';
 
 /**
- * 首页默认态:M3 Search bar。整条胶囊点按进入搜索。设置是底部导航的顶级目的地,
- * 不在这里放入口;多选由长按卡片进入。
+ * 首页默认态:M3 Search bar。胶囊点按进入搜索,尾部 ⋮ 切换历史显示方式(仅 Compact 布局)。
+ * 设置是底部导航的顶级目的地,不在这里放入口;多选由长按卡片进入。
  */
-export function DefaultTopBar({ onSearch, theme }: DefaultTopBarProps) {
+export function DefaultTopBar({
+  onSearch,
+  historyLayout,
+  onHistoryLayoutChange,
+  theme,
+}: DefaultTopBarProps) {
   const { t } = useTranslation('home');
   const { colors } = theme;
+  const layoutItems = useHistoryLayoutMenuItems(historyLayout, onHistoryLayoutChange);
   return (
     <View style={s.row}>
       <View style={[s.searchBar, { backgroundColor: colors.surfaceHigh }]}>
@@ -33,9 +40,38 @@ export function DefaultTopBar({ onSearch, theme }: DefaultTopBarProps) {
             {t('topBar.searchPlaceholder')}
           </Text>
         </Pressable>
+        {layoutItems ? (
+          <OverflowMenu
+            testID="history-layout-menu"
+            title={t('layout.title', { ns: 'history' })}
+            items={layoutItems}
+          />
+        ) : null}
       </View>
     </View>
   );
+}
+
+const LAYOUT_ICONS: Record<HistoryLayout, string> = {
+  list: 'list-outline',
+  compact: 'reorder-four-outline',
+  grid: 'grid-outline',
+};
+
+/** 「显示方式」单选菜单:列表 / 紧凑列表 / 网格,当前项带对勾 */
+function useHistoryLayoutMenuItems(
+  current: HistoryLayout | undefined,
+  onChange: ((layout: HistoryLayout) => void) | undefined
+): OverflowMenuItem[] | null {
+  const { t } = useTranslation('history');
+  if (!current || !onChange) return null;
+  return (['list', 'compact', 'grid'] as const).map((layout) => ({
+    key: `layout-${layout}`,
+    label: t(`layout.${layout}`),
+    icon: LAYOUT_ICONS[layout],
+    selected: layout === current,
+    onPress: () => onChange(layout),
+  }));
 }
 
 /**

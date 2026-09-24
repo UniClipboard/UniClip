@@ -104,5 +104,11 @@
     "saveFile": "Salvar arquivo",
     "resend": "Enviar novamente",
     "closeMenu": "Fechar menu"
+  },
+  "layout": {
+    "title": "Exibição",
+    "list": "Lista",
+    "compact": "Lista compacta",
+    "grid": "Grade"
   }
 }

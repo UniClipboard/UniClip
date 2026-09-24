@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
 import { useURLMetadata } from '@/hooks/useURLMetadata';
 import { useDoubleTap } from '@/hooks/useDoubleTap';
+import { useCopyFeedback } from '@/hooks/useCopyFeedback';
 import { ClipboardItem } from '@/types/clipboard';
 import {
   getDisplayKind,
@@ -37,30 +38,11 @@ import { formatFileSize } from '@/utils';
 import type { ClipboardCardProps } from './ClipboardCard.types';
 import { m3Type } from '@/theme/m3Typography';
 
-/** 双击复制后「已复制」标记的停留时长 */
-const COPIED_FEEDBACK_MS = 1200;
-
 export const ClipboardCard: React.FC<ClipboardCardProps> = React.memo(
   ({ item, isLatest, isSelected, isSelectMode, onPress, onDoublePress, onLongPress }) => {
     const { theme } = useTheme();
     const { t } = useTranslation('home');
-    const [justCopied, setJustCopied] = useState(false);
-    const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    useEffect(
-      () => () => {
-        if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
-      },
-      []
-    );
-
-    const copy = useCallback(async () => {
-      if (!onDoublePress) return;
-      const copied = await onDoublePress(item);
-      if (!copied) return;
-      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
-      setJustCopied(true);
-      copiedTimerRef.current = setTimeout(() => setJustCopied(false), COPIED_FEEDBACK_MS);
-    }, [onDoublePress, item]);
+    const { justCopied, copy } = useCopyFeedback(item, onDoublePress);
 
     // 多选模式下单击只切换选中,不识别双击,也就没有等待延迟。
     const handlePress = useDoubleTap(

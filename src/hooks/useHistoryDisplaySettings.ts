@@ -3,7 +3,7 @@
  * 历史记录显示设置 - 使用本地 AsyncStorage，避免影响全局状态
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createLogger } from '@/support/observability';
 
@@ -11,66 +11,76 @@ const log = createLogger('HistoryDisplaySettings');
 
 const STORAGE_KEY = '@syncclipboard:history_display_settings';
 
+/** 首页历史的显示方式:卡片网格 / 分组列表 / 紧凑分组列表。按设备保存,不随同步。 */
+export type HistoryLayout = 'grid' | 'list' | 'compact';
+
+const HISTORY_LAYOUTS: readonly HistoryLayout[] = ['grid', 'list', 'compact'];
+
 interface HistoryDisplaySettings {
   showFullImage: boolean;
   showHistoryDebugInfo: boolean;
+  historyLayout: HistoryLayout;
 }
 
 const DEFAULT_SETTINGS: HistoryDisplaySettings = {
   showFullImage: false,
   showHistoryDebugInfo: false,
+  // 现有用户保持网格,列表需要在「显示方式」里主动切换
+  historyLayout: 'grid',
 };
+
+function parseSettings(stored: string | null): HistoryDisplaySettings {
+  if (!stored) return DEFAULT_SETTINGS;
+  const parsed = { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
+  if (!HISTORY_LAYOUTS.includes(parsed.historyLayout)) {
+    parsed.historyLayout = DEFAULT_SETTINGS.historyLayout;
+  }
+  return parsed;
+}
 
 export function useHistoryDisplaySettings() {
   const [settings, setSettings] = useState<HistoryDisplaySettings>(DEFAULT_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
+  // 连续修改时基于最新值合并,不依赖渲染闭包里可能过期的 settings
+  const latestRef = useRef(settings);
 
-  // 加载设置
   useEffect(() => {
-    loadSettings();
+    let cancelled = false;
+    AsyncStorage.getItem(STORAGE_KEY)
+      .then((stored) => {
+        if (cancelled) return;
+        latestRef.current = parseSettings(stored);
+        setSettings(latestRef.current);
+      })
+      .catch((error) => log.error('Failed to load settings:', error))
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const loadSettings = async () => {
-    try {
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        setSettings({ ...DEFAULT_SETTINGS, ...parsed });
-      }
-    } catch (error) {
-      log.error('Failed to load settings:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const update = useCallback((patch: Partial<HistoryDisplaySettings>) => {
+    const next = { ...latestRef.current, ...patch };
+    latestRef.current = next;
+    setSettings(next);
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch((error) =>
+      log.error('Failed to save settings:', error)
+    );
+  }, []);
 
-  // 更新设置
   const setShowFullImage = useCallback(
-    async (showFullImage: boolean) => {
-      const newSettings = { ...settings, showFullImage };
-      setSettings(newSettings);
-
-      try {
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newSettings));
-      } catch (error) {
-        log.error('Failed to save settings:', error);
-      }
-    },
-    [settings]
+    (showFullImage: boolean) => update({ showFullImage }),
+    [update]
   );
-
   const setShowHistoryDebugInfo = useCallback(
-    async (showHistoryDebugInfo: boolean) => {
-      const newSettings = { ...settings, showHistoryDebugInfo };
-      setSettings(newSettings);
-
-      try {
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newSettings));
-      } catch (error) {
-        log.error('Failed to save settings:', error);
-      }
-    },
-    [settings]
+    (showHistoryDebugInfo: boolean) => update({ showHistoryDebugInfo }),
+    [update]
+  );
+  const setHistoryLayout = useCallback(
+    (historyLayout: HistoryLayout) => update({ historyLayout }),
+    [update]
   );
 
   return {
@@ -78,6 +88,8 @@ export function useHistoryDisplaySettings() {
     setShowFullImage,
     showHistoryDebugInfo: settings.showHistoryDebugInfo,
     setShowHistoryDebugInfo,
+    historyLayout: settings.historyLayout,
+    setHistoryLayout,
     isLoading,
   };
 }

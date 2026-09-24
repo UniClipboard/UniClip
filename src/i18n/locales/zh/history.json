@@ -100,5 +100,11 @@
     "saveFile": "保存文件",
     "resend": "重新发送",
     "closeMenu": "关闭菜单"
+  },
+  "layout": {
+    "title": "显示方式",
+    "list": "列表",
+    "compact": "紧凑列表",
+    "grid": "网格"
   }
 }

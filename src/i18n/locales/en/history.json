@@ -103,5 +103,11 @@
     "saveFile": "Save file",
     "resend": "Send again",
     "closeMenu": "Close menu"
+  },
+  "layout": {
+    "title": "Display",
+    "list": "List",
+    "compact": "Compact list",
+    "grid": "Grid"
   }
 }

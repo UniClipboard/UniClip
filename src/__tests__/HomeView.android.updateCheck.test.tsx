@@ -52,6 +52,9 @@ jest.mock('@/screens/useHomeController', () => ({
 jest.mock('@/screens/HomeCompactView', () => ({ HomeCompactView: () => null }));
 jest.mock('@/screens/HomeExpandedView', () => ({ HomeExpandedView: () => null }));
 jest.mock('@/screens/android/homeSearchSlots', () => ({ getHomeSearchSlots: () => undefined }));
+jest.mock('@/screens/android/homeHistoryCollection', () => ({
+  getHomeHistoryCollection: () => undefined,
+}));
 
 import { HomeView } from '../screens/HomeView.android';
 

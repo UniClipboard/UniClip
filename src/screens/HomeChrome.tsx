@@ -11,9 +11,12 @@ import type { HomeController } from './useHomeController';
 export function HomeTopBarArea({
   c,
   accessory,
+  historyLayoutMenu = false,
 }: {
   c: HomeController;
   accessory?: React.ReactNode;
+  /** 默认态顶栏提供「显示方式」切换(只有 Compact 布局支持列表呈现) */
+  historyLayoutMenu?: boolean;
 }) {
   return (
     <View style={[styles.topBar, { paddingTop: c.insets.top + 4 }]}>
@@ -41,6 +44,8 @@ export function HomeTopBarArea({
         <DefaultTopBar
           onSearch={c.openSearch}
           onSettings={c.onOpenSettings}
+          historyLayout={historyLayoutMenu ? c.historyLayout : undefined}
+          onHistoryLayoutChange={historyLayoutMenu ? c.setHistoryLayout : undefined}
           theme={c.theme}
           onSelectMode={() => {
             c.setIsSelectMode(true);

@@ -20,6 +20,8 @@ interface OverflowMenuProps {
   renderTrigger?: (open: () => void) => React.ReactNode;
   /** 菜单与触发器哪条边对齐:行尾的 ⋮ 默认对齐右缘(end);行首的筛选 chip 对齐左缘(start)。 */
   align?: 'start' | 'end';
+  /** 选择型菜单的小标题(如「显示方式」),位于首项之上 */
+  title?: string;
 }
 
 const MENU_MIN_WIDTH = 200;
@@ -30,7 +32,13 @@ const MENU_MAX_WIDTH = 280;
  * 行高 48、前导图标 24、无行间分隔线、按压走 ripple,与 Compose DropdownMenu 一致。
  * 选择型菜单(如搜索筛选)在当前项尾部显示对勾。
  */
-export function OverflowMenu({ items, testID, renderTrigger, align = 'end' }: OverflowMenuProps) {
+export function OverflowMenu({
+  items,
+  testID,
+  renderTrigger,
+  align = 'end',
+  title,
+}: OverflowMenuProps) {
   const { theme } = useTheme();
   const { colors } = theme;
   const { t } = useTranslation('common');
@@ -76,12 +84,13 @@ export function OverflowMenu({ items, testID, renderTrigger, align = 'end' }: Ov
         {anchor ? (
           <View
             accessibilityRole="menu"
-            style={[
-              styles.menu,
-              anchor,
-              { backgroundColor: colors.surfaceMid },
-            ]}
+            style={[styles.menu, anchor, { backgroundColor: colors.surfaceMid }]}
           >
+            {title ? (
+              <Text style={[styles.title, { color: colors.textSecondary }]} numberOfLines={1}>
+                {title}
+              </Text>
+            ) : null}
             {items.map((item) => {
               const color = item.destructive ? colors.error : colors.textPrimary;
               return (
@@ -138,6 +147,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     paddingHorizontal: 12,
+  },
+  title: {
+    ...m3Type.labelMedium,
+    paddingHorizontal: 12,
+    paddingTop: 4,
+    paddingBottom: 8,
   },
   label: {
     ...m3Type.bodyLarge,
