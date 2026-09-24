@@ -599,10 +599,12 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
   );
 
   // Keep modal ownership stable when joining changes the surrounding space page.
+  // Dialogs must follow the content: mounting or unmounting a sheet ahead of it resets the
+  // content's Compose state, and every async-loaded Icon blanks for a frame after dismissal.
   return (
     <Column modifiers={[fillMaxWidth()]}>
-      {dialogs}
       {content}
+      {dialogs}
     </Column>
   );
 });
