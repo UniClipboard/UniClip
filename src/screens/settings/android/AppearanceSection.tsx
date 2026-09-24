@@ -1,18 +1,24 @@
 /**
  * 外观设置 section
  *
- * 外观模式 / 语言用紧凑下拉菜单;隐藏最近任务用 Switch(仅 Android)。
- * 颜色全部走 expo-ui / MaterialTheme 默认,跟随系统深浅色。作为无 Host 的 item,
- * 由父级单 Host 统一组合。
+ * 外观模式只有三个短选项,用顶部整宽 M3 分段按钮一步切换;语言用整行下拉选择行,隐藏最近
+ * 任务用 Switch(仅 Android),两者放在 grouped 分组里。颜色全部走 expo-ui / MaterialTheme
+ * 默认,跟随系统深浅色。作为无 Host 的 item,由父级单 Host 统一组合。
  */
 import React, { memo } from 'react';
 import {
-  ListItem,
-  HorizontalDivider,
+  Column,
+  SegmentedButton,
+  SingleChoiceSegmentedButtonRow,
+  Spacer,
   Text as ComposeText,
 } from '@expo/ui/jetpack-compose';
+import {
+  fillMaxWidth,
+  height as heightModifier,
+  testID,
+} from '@expo/ui/jetpack-compose/modifiers';
 import { useTranslation } from 'react-i18next';
-import { AppDropdown } from '@/components/ui';
 import { useTheme } from '@/hooks/useTheme';
 import { type ThemeMode } from '@/theme';
 import { useSettingsStore } from '@/stores';
@@ -24,6 +30,7 @@ import {
 } from '@/i18n/languages';
 import { useSettingsToast } from '../SettingsToastContext';
 import { SettingsSectionItem } from '../SettingsSectionItem';
+import { SettingsSelectRow } from './SettingsSelectRow';
 import { SettingsSwitchRow } from './SettingsSwitchRow';
 
 export const AppearanceSection = memo(function AppearanceSection() {
@@ -78,47 +85,43 @@ export const AppearanceSection = memo(function AppearanceSection() {
   };
 
   return (
-    <SettingsSectionItem title={t('appearance.sectionTitle')}>
-      <ListItem>
-        <ListItem.HeadlineContent>
-          <ComposeText>{t('appearance.mode.label')}</ComposeText>
-        </ListItem.HeadlineContent>
-        <ListItem.TrailingContent>
-          <AppDropdown
-            options={themeOptions}
-            selectedValue={themeMode}
-            onSelect={(value) => void handleSetThemeMode(value)}
-            width={180}
-          />
-        </ListItem.TrailingContent>
-      </ListItem>
+    <Column modifiers={[fillMaxWidth()]}>
+      <SettingsSectionItem variant="plain" title={t('appearance.mode.label')}>
+        <SingleChoiceSegmentedButtonRow modifiers={[fillMaxWidth()]}>
+          {themeOptions.map((option) => (
+            <SegmentedButton
+              key={option.value}
+              selected={themeMode === option.value}
+              onClick={() => {
+                if (themeMode !== option.value) void handleSetThemeMode(option.value);
+              }}
+              modifiers={[testID(`appearance-mode-${option.value}`)]}
+            >
+              <SegmentedButton.Label>
+                <ComposeText maxLines={1}>{option.label}</ComposeText>
+              </SegmentedButton.Label>
+            </SegmentedButton>
+          ))}
+        </SingleChoiceSegmentedButtonRow>
+      </SettingsSectionItem>
 
-      <HorizontalDivider />
-
-      {/* 语言 — 紧凑设置行,避免选项横向挤压或输入框独占整行 */}
-      <ListItem>
-        <ListItem.HeadlineContent>
-          <ComposeText>{t('language.title', { ns: 'common' })}</ComposeText>
-        </ListItem.HeadlineContent>
-        <ListItem.TrailingContent>
-          <AppDropdown
-            options={languageOptions}
-            selectedValue={languagePref}
-            onSelect={(value) => void handleSetLanguage(value)}
-            width={180}
-          />
-        </ListItem.TrailingContent>
-      </ListItem>
-
-      <>
-        <HorizontalDivider />
+      <Spacer modifiers={[heightModifier(24)]} />
+      <SettingsSectionItem variant="grouped" title={t('appearance.displayTitle')}>
+        <SettingsSelectRow
+          key="language"
+          title={t('language.title', { ns: 'common' })}
+          options={languageOptions}
+          selectedValue={languagePref}
+          onSelect={(value) => void handleSetLanguage(value)}
+        />
         <SettingsSwitchRow
+          key="hideFromRecents"
           title={t('appearance.hideFromRecents.title')}
           description={t('appearance.hideFromRecents.desc')}
           value={hideFromRecents}
           onValueChange={(enabled) => void handleToggleHideFromRecents(enabled)}
         />
-      </>
-    </SettingsSectionItem>
+      </SettingsSectionItem>
+    </Column>
   );
 });

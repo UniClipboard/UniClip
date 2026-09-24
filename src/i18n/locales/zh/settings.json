@@ -12,7 +12,8 @@
       "desc": "建议隐藏前先锁定，防止被一键清理"
     },
     "modeChangeFailed": "外观模式切换失败",
-    "updateFailed": "设置失败"
+    "updateFailed": "设置失败",
+    "displayTitle": "显示"
   },
   "general": {
     "sectionTitle": "通用",
@@ -47,7 +48,10 @@
     "history": "历史记录",
     "background": "后台运行",
     "developer": "开发者选项",
-    "extensions": "扩展与权限"
+    "extensions": "扩展与权限",
+    "privacy": "隐私",
+    "diagnostics": "诊断日志",
+    "support": "支持"
   },
   "hub": {
     "clipboardSync": {
@@ -73,7 +77,9 @@
       "backgroundOff": "后台任务已关闭",
       "storage": "缓存、日志与历史记录占用",
       "about": "当前版本 {{version}}",
-      "developer": "日志、调试与快捷方式"
+      "developer": "调试、预览与快捷方式",
+      "privacy": "匿名使用数据",
+      "diagnostics": "录制并导出日志,用于反馈问题"
     }
   },
   "ios": {

@@ -1,26 +1,12 @@
 appId: ${APP_ID}
 ---
 - runFlow: ../settings/open.yaml
-- runFlow:
-    when:
-      platform: iOS
-    commands:
-      - scrollUntilVisible:
-          element:
-            id: settings-diagnostics
-          direction: DOWN
-      - tapOn:
-          id: settings-diagnostics
-- runFlow:
-    when:
-      platform: Android
-    commands:
-      - scrollUntilVisible:
-          element:
-            id: settings-developer
-          direction: DOWN
-      - tapOn:
-          id: settings-developer
+- scrollUntilVisible:
+    element:
+      id: settings-diagnostics
+    direction: DOWN
+- tapOn:
+    id: settings-diagnostics
 - scrollUntilVisible:
     element:
       id: engine-diagnostic-capture

@@ -10,6 +10,8 @@ export type SettingsSubSection =
   | 'background'
   | 'appearance'
   | 'storage'
+  | 'privacy'
+  | 'diagnostics'
   | 'about'
   | 'developer';
 

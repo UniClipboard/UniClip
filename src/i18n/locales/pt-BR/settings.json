@@ -12,7 +12,8 @@
       "desc": "Bloqueie antes de ocultar para evitar que seja limpo com um toque"
     },
     "modeChangeFailed": "Não foi possível alterar o modo de aparência",
-    "updateFailed": "Falha na atualização"
+    "updateFailed": "Falha na atualização",
+    "displayTitle": "Exibição"
   },
   "general": {
     "sectionTitle": "Geral",
@@ -47,7 +48,10 @@
     "history": "Histórico",
     "background": "Segundo plano",
     "developer": "Opções do desenvolvedor",
-    "extensions": "Extensões e permissões"
+    "extensions": "Extensões e permissões",
+    "privacy": "Privacidade",
+    "diagnostics": "Logs de diagnóstico",
+    "support": "Suporte"
   },
   "hub": {
     "clipboardSync": {
@@ -74,7 +78,9 @@
       "backgroundOff": "Tarefas em segundo plano desativadas",
       "storage": "Uso de cache, logs e histórico",
       "about": "Versão {{version}}",
-      "developer": "Logs, depuração e atalhos"
+      "developer": "Depuração, pré-visualizações e atalhos",
+      "privacy": "Dados de uso anônimos",
+      "diagnostics": "Grave e exporte logs para relatar problemas"
     }
   },
   "ios": {

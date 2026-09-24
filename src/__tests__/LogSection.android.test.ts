@@ -12,10 +12,11 @@ describe('Android LogSection state contracts', () => {
     expect(fs.existsSync(path.join(settingsDirectory, 'LogSection.ios.tsx'))).toBe(true);
   });
 
-  it('keeps the React label as the source of truth for the Compose field', () => {
-    expect(source).toContain('const nativeLabel = useNativeState(label)');
-    expect(source).toContain('<LogLevelField key={logLevelLabel} label={logLevelLabel} />');
-    expect(source).not.toContain('logLevelNativeState.set');
+  it('selects the log level from a full-row selector driven by React state', () => {
+    expect(source).toContain('<SettingsSelectRow');
+    expect(source).toContain("selectedValue={logLevel ?? 'error'}");
+    expect(source).not.toContain('OutlinedTextField');
+    expect(source).not.toContain('useNativeState');
   });
 
   it('does not gate log export on another settings screen storage calculation', () => {

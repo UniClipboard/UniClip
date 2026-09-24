@@ -8,20 +8,61 @@ import { useTranslation } from 'react-i18next';
 import {
   ListItem,
   OutlinedTextField,
-  HorizontalDivider,
   Text as ComposeText,
   useNativeState,
 } from '@expo/ui/jetpack-compose';
 import { width as widthModifier } from '@expo/ui/jetpack-compose/modifiers';
-import { AppDropdown } from '@/components/ui';
 import { useSettingsStore } from '@/stores';
 import { useSettingsToast } from './SettingsToastContext';
 import { useBlurCommit } from './useBlurCommit';
-import { SettingsSectionItem } from './SettingsSectionItem';
+import { SettingsSectionItem, useSettingsSectionRowColors } from './SettingsSectionItem';
+import { SettingsSelectRow } from './android/SettingsSelectRow';
 import { SettingsSwitchRow } from './android/SettingsSwitchRow';
 
 type ImageAutoDownload = 'wifi' | 'always' | 'off';
 const IMAGE_AUTO_DOWNLOAD_VALUES: ImageAutoDownload[] = ['wifi', 'always', 'off'];
+
+/** 输入型行:交互就是行尾的数字输入框,行本身不可点;容器色需在分组上下文内读取。 */
+function MaxHistoryItemsRow({
+  value,
+  onValueChange,
+  onFocusChanged,
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+  onFocusChanged: (focused: boolean) => void;
+}) {
+  const { t } = useTranslation('settingsStorage');
+  const rowColors = useSettingsSectionRowColors();
+  const nativeValue = useNativeState(value);
+  return (
+    <ListItem colors={rowColors}>
+      <ListItem.HeadlineContent>
+        <ComposeText>{t('history.maxItemsLabel')}</ComposeText>
+      </ListItem.HeadlineContent>
+      <ListItem.SupportingContent>
+        <ComposeText>{t('history.maxItemsHint')}</ComposeText>
+      </ListItem.SupportingContent>
+      <ListItem.TrailingContent>
+        <OutlinedTextField
+          value={nativeValue}
+          onValueChange={onValueChange}
+          onFocusChanged={onFocusChanged}
+          keyboardOptions={{ keyboardType: 'number' }}
+          singleLine
+          modifiers={[widthModifier(112)]}
+        >
+          <OutlinedTextField.Placeholder>
+            <ComposeText>100</ComposeText>
+          </OutlinedTextField.Placeholder>
+          <OutlinedTextField.Suffix>
+            <ComposeText>{t('history.maxItemsSuffix')}</ComposeText>
+          </OutlinedTextField.Suffix>
+        </OutlinedTextField>
+      </ListItem.TrailingContent>
+    </ListItem>
+  );
+}
 
 export const HistorySection = memo(function HistorySection() {
   const { t } = useTranslation('settingsStorage');
@@ -40,8 +81,6 @@ export const HistorySection = memo(function HistorySection() {
     value,
     label: t(`autoDownload.${value}`),
   }));
-
-  const maxHistoryItemsNativeState = useNativeState(maxHistoryItemsInput);
 
   const handleMaxHistoryItemsBlur = async () => {
     const resetToCurrent = () =>
@@ -75,52 +114,22 @@ export const HistorySection = memo(function HistorySection() {
   const onMaxHistoryItemsFocusChanged = useBlurCommit(handleMaxHistoryItemsBlur);
 
   return (
-    <SettingsSectionItem title={t('history.sectionTitle')}>
-      <ListItem>
-        <ListItem.HeadlineContent>
-          <ComposeText>{t('history.maxItemsLabel')}</ComposeText>
-        </ListItem.HeadlineContent>
-        <ListItem.SupportingContent>
-          <ComposeText>{t('history.maxItemsHint')}</ComposeText>
-        </ListItem.SupportingContent>
-        <ListItem.TrailingContent>
-          <OutlinedTextField
-            value={maxHistoryItemsNativeState}
-            onValueChange={setMaxHistoryItemsInput}
-            onFocusChanged={onMaxHistoryItemsFocusChanged}
-            keyboardOptions={{ keyboardType: 'number' }}
-            singleLine
-            modifiers={[widthModifier(112)]}
-          >
-            <OutlinedTextField.Placeholder>
-              <ComposeText>100</ComposeText>
-            </OutlinedTextField.Placeholder>
-            <OutlinedTextField.Suffix>
-              <ComposeText>{t('history.maxItemsSuffix')}</ComposeText>
-            </OutlinedTextField.Suffix>
-          </OutlinedTextField>
-        </ListItem.TrailingContent>
-      </ListItem>
-
-      <HorizontalDivider />
-
-      <ListItem>
-        <ListItem.HeadlineContent>
-          <ComposeText>{t('history.autoDownloadLabel')}</ComposeText>
-        </ListItem.HeadlineContent>
-        <ListItem.TrailingContent>
-          <AppDropdown
-            options={imageAutoDownloadOptions}
-            selectedValue={attachmentAutoDownload}
-            onSelect={(value) => void handleImageAutoDownloadChange(value)}
-            width={140}
-          />
-        </ListItem.TrailingContent>
-      </ListItem>
-
-      <HorizontalDivider />
-
+    <SettingsSectionItem variant="grouped">
+      <MaxHistoryItemsRow
+        key="maxItems"
+        value={maxHistoryItemsInput}
+        onValueChange={setMaxHistoryItemsInput}
+        onFocusChanged={onMaxHistoryItemsFocusChanged}
+      />
+      <SettingsSelectRow
+        key="autoDownload"
+        title={t('history.autoDownloadLabel')}
+        options={imageAutoDownloadOptions}
+        selectedValue={attachmentAutoDownload}
+        onSelect={(value) => void handleImageAutoDownloadChange(value)}
+      />
       <SettingsSwitchRow
+        key="showCopyButton"
         title={t('history.showCopyButtonLabel')}
         description={t('history.showCopyButtonHint')}
         value={showImageCopyButton}

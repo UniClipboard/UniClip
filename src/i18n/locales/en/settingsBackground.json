@@ -126,6 +126,11 @@
         "text": "UniClip will use Shizuku to turn off MIUI's smart clipboard restriction so clipboard content can be read and written in the background. This may also disable the system smart clipboard feature.",
         "confirm": "Turn off restriction"
       }
+    },
+    "groups": {
+      "clipboardAccess": "Clipboard access",
+      "sync": "Sync in background",
+      "reliability": "Reliability"
     }
   },
   "dialog": {

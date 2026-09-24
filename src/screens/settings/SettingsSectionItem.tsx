@@ -10,6 +10,8 @@
  * - `grouped`:M3 Expressive 分段列表——每行一块 surfaceContainer 色块,组首尾大圆角、
  *   组内小圆角,行间 2dp 缝隙代替分隔线。行需用 useSettingsSectionRowColors() 的容器色,
  *   否则 ListItem 默认的 surface 色会盖住色块。
+ * - `plain`:不加容器,children 原样排布——分段按钮、概览卡片等自带外观的内容借用同一套
+ *   分组标题与脚注样式。
  *
  * 颜色:标题用 M3 primary(Compose Text 在无 Surface 包裹时默认内容色是黑色,暗色
  * 模式下不可见,必须显式指定);Card 显式给 surface 容器色 + outlineVariant 边框,
@@ -42,7 +44,7 @@ import {
   padding,
 } from '@expo/ui/jetpack-compose/modifiers';
 
-export type SettingsSectionVariant = 'card' | 'grouped';
+export type SettingsSectionVariant = 'card' | 'grouped' | 'plain';
 
 interface SettingsSectionItemProps {
   title?: string;
@@ -65,6 +67,9 @@ const GROUP_INNER_RADIUS = 4;
 const GROUP_ROW_GAP = 2;
 
 const RowColorsContext = createContext<ListItemColors | undefined>(undefined);
+
+/** 让非分组容器(如 SettingsHeroCard)内的设置行同样取用所在色块的颜色。 */
+export const SettingsRowColorsProvider = RowColorsContext.Provider;
 
 /** 分组内 ListItem 的容器色:grouped 下与色块一致,card 下沿用 ListItem 默认。 */
 export function useSettingsSectionRowColors(): ListItemColors | undefined {
@@ -101,8 +106,9 @@ export const SettingsSectionItem = memo(function SettingsSectionItem({
   dialogs,
 }: SettingsSectionItemProps) {
   const colors = useMaterialColors();
-  const grouped = variant === 'grouped';
-  const rows = grouped ? flattenRows(children) : [];
+  // plain 与 grouped 共用 M3 Expressive 的标题 / 脚注样式
+  const expressive = variant !== 'card';
+  const rows = variant === 'grouped' ? flattenRows(children) : [];
 
   return (
     <Column modifiers={[fillMaxWidth()]}>
@@ -110,15 +116,17 @@ export const SettingsSectionItem = memo(function SettingsSectionItem({
         <>
           <ComposeText
             color={colors.primary}
-            style={grouped ? GROUPED_TITLE_STYLE : CARD_TITLE_STYLE}
-            modifiers={grouped ? [padding(4, 0, 4, 0)] : undefined}
+            style={expressive ? GROUPED_TITLE_STYLE : CARD_TITLE_STYLE}
+            modifiers={expressive ? [padding(4, 0, 4, 0)] : undefined}
           >
             {title}
           </ComposeText>
           <Spacer modifiers={[heightModifier(8)]} />
         </>
       ) : null}
-      {grouped ? (
+      {variant === 'plain' ? (
+        <Column modifiers={[fillMaxWidth()]}>{children}</Column>
+      ) : variant === 'grouped' ? (
         <RowColorsContext.Provider value={{ containerColor: colors.surfaceContainer }}>
           <Column modifiers={[fillMaxWidth()]}>
             {rows.map((row, index) => (
@@ -147,11 +155,11 @@ export const SettingsSectionItem = memo(function SettingsSectionItem({
       )}
       {footer ? (
         <>
-          <Spacer modifiers={[heightModifier(grouped ? 8 : 6)]} />
+          <Spacer modifiers={[heightModifier(expressive ? 8 : 6)]} />
           <ComposeText
             color={colors.onSurfaceVariant}
             style={FOOTER_STYLE}
-            modifiers={grouped ? [padding(16, 0, 16, 0)] : undefined}
+            modifiers={expressive ? [padding(16, 0, 16, 0)] : undefined}
           >
             {footer}
           </ComposeText>

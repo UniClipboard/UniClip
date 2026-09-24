@@ -1,30 +1,30 @@
-import { useEngineDiagnosticCapture } from '@/support/diagnostics/useEngineDiagnosticCapture';
-import { SettingsSwitchRow } from './android/SettingsSwitchRow';
 /**
- * 日志 section
+ * 诊断日志二级页(Android)
  *
- * 日志等级下拉（订阅 config.logLevel）与导出日志。
+ * 顶部「详细记录」卡片:一次最长 10 分钟、到时自动结束的临时操作,用按钮而非开关表达,
+ * 记录中卡片切到 primaryContainer 并显示剩余时间。其下 grouped 分组放导出日志与日志等级。
+ * 日志文件的占用与清理仍在「存储」页,这里只用脚注指过去。
  */
 import { memo, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  ListItem,
-  Button,
-  OutlinedTextField,
-  ExposedDropdownMenuBox,
-  ExposedDropdownMenu,
-  DropdownMenuItem,
-  HorizontalDivider,
   AlertDialog,
+  Button,
+  Column,
+  OutlinedButton,
+  Row,
+  Spacer,
   TextButton,
   Text as ComposeText,
-  useNativeState,
+  useMaterialColors,
 } from '@expo/ui/jetpack-compose';
 import {
   fillMaxWidth,
+  height as heightModifier,
+  testID,
   width as widthModifier,
-  menuAnchor,
 } from '@expo/ui/jetpack-compose/modifiers';
+import { useEngineDiagnosticCapture } from '@/support/diagnostics/useEngineDiagnosticCapture';
 import { useSettingsStore, useUnifiedEngineStore } from '@/stores';
 import { setLogLevel as setLoggerLogLevel, type LogLevel } from '@/support/observability';
 import {
@@ -39,17 +39,63 @@ import { saveFile, shareFile } from '@/utils/fileActions';
 import type { LogSectionProps } from './LogSection.types';
 import { useSettingsToast } from './SettingsToastContext';
 import { SettingsSectionItem } from './SettingsSectionItem';
+import { SettingsHeroCard } from './android/SettingsHeroCard';
+import { SettingsLeadingIcon } from './android/SettingsLeadingIcon';
+import { SettingsListRow } from './android/SettingsListRow';
+import { SettingsSelectRow } from './android/SettingsSelectRow';
 
-function LogLevelField({ label }: { label: string }) {
-  const nativeLabel = useNativeState(label);
+const RECORD_ICON = require('../../assets/icons/fiber_manual_record.xml');
+const CARD_TITLE_STYLE = { typography: 'titleLarge' } as const;
+
+type DiagnosticCapture = ReturnType<typeof useEngineDiagnosticCapture>;
+
+/** 详细记录卡片:状态 + 说明 + 开始 / 停止按钮(testID 供 Maestro 定位)。 */
+function DiagnosticCaptureCard({ capture }: { capture: DiagnosticCapture }) {
+  const { t } = useTranslation('settingsAbout');
+  const colors = useMaterialColors();
+  const enabled = capture.available && !capture.busy;
+  const status = capture.failed
+    ? t('log.capture.failed')
+    : !capture.available
+    ? t('log.capture.unavailable')
+    : capture.active
+    ? t('log.capture.remaining', { count: capture.remainingMinutes })
+    : null;
+  const toggle = () => void capture.toggle();
 
   return (
-    <OutlinedTextField
-      value={nativeLabel}
-      readOnly
-      singleLine
-      modifiers={[menuAnchor(), fillMaxWidth()]}
-    />
+    <SettingsHeroCard tone={capture.active ? 'primary' : 'neutral'}>
+      <Row verticalAlignment="center">
+        <SettingsLeadingIcon source={RECORD_ICON} tone={capture.active ? 'error' : 'primary'} />
+        <Spacer modifiers={[widthModifier(14)]} />
+        <ComposeText style={CARD_TITLE_STYLE}>{t('log.capture.title')}</ComposeText>
+      </Row>
+      {status ? (
+        <ComposeText color={capture.active && !capture.failed ? colors.error : undefined}>
+          {status}
+        </ComposeText>
+      ) : null}
+      {capture.active ? null : (
+        <ComposeText color={colors.onSurfaceVariant}>{t('log.capture.description')}</ComposeText>
+      )}
+      {capture.active ? (
+        <OutlinedButton
+          modifiers={[testID('engine-diagnostic-capture')]}
+          enabled={enabled}
+          onClick={toggle}
+        >
+          <ComposeText>{t('log.capture.stop')}</ComposeText>
+        </OutlinedButton>
+      ) : (
+        <Button
+          modifiers={[testID('engine-diagnostic-capture')]}
+          enabled={enabled}
+          onClick={toggle}
+        >
+          <ComposeText>{t('log.capture.start')}</ComposeText>
+        </Button>
+      )}
+    </SettingsHeroCard>
   );
 }
 
@@ -66,7 +112,6 @@ export const LogSection = memo(function LogSection(_props: LogSectionProps) {
   const spaceId = useUnifiedSpaceStore((state) => state.spaceId);
   const deviceCount = useUnifiedSpaceStore((state) => state.devices.length);
 
-  const [showLogLevelMenu, setShowLogLevelMenu] = useState(false);
   const [showExportMethodDialog, setShowExportMethodDialog] = useState(false);
   const [isExportingLogs, setIsExportingLogs] = useState(false);
   const exportLogsAbortControllerRef = useRef<AbortController | null>(null);
@@ -79,9 +124,6 @@ export const LogSection = memo(function LogSection(_props: LogSectionProps) {
     { label: t('log.level.warn'), value: 'warn' },
     { label: t('log.level.error'), value: 'error' },
   ];
-
-  const logLevelLabel =
-    logLevelOptions.find((o) => o.value === logLevel)?.label ?? t('log.level.error');
 
   const handleSetLogLevel = async (level: LogLevel) => {
     try {
@@ -187,87 +229,55 @@ export const LogSection = memo(function LogSection(_props: LogSectionProps) {
   };
 
   return (
-    <SettingsSectionItem
-      title={t('log.title')}
-      dialogs={
-        showExportMethodDialog ? (
-          <AlertDialog onDismissRequest={() => setShowExportMethodDialog(false)}>
-            <AlertDialog.Title>
-              <ComposeText>{t('log.exportLabel')}</ComposeText>
-            </AlertDialog.Title>
-            <AlertDialog.Text>
-              <ComposeText>{t('log.exportMethodPrompt')}</ComposeText>
-            </AlertDialog.Text>
-            <AlertDialog.ConfirmButton>
-              <TextButton onClick={handleShareLogs}>
-                <ComposeText>{t('action.share', { ns: 'common' })}</ComposeText>
-              </TextButton>
-            </AlertDialog.ConfirmButton>
-            <AlertDialog.DismissButton>
-              <TextButton onClick={handleSaveLogsToFile}>
-                <ComposeText>{t('log.exportFile')}</ComposeText>
-              </TextButton>
-            </AlertDialog.DismissButton>
-          </AlertDialog>
-        ) : null
-      }
-    >
-      <SettingsSwitchRow
-        testID="engine-diagnostic-capture"
-        title={t('log.capture.title')}
-        description={capture.failed ? t('log.capture.failed') : !capture.available ? t('log.capture.unavailable') : capture.active ? t('log.capture.remaining', { count: capture.remainingMinutes }) : t('log.capture.description')}
-        value={capture.active}
-        disabled={!capture.available || capture.busy}
-        onValueChange={() => void capture.toggle()}
-      />
-      <HorizontalDivider />
-      <ListItem>
-        <ListItem.HeadlineContent>
-          <ComposeText>{t('log.levelLabel')}</ComposeText>
-        </ListItem.HeadlineContent>
-        <ListItem.TrailingContent>
-          <ExposedDropdownMenuBox
-            expanded={showLogLevelMenu}
-            onExpandedChange={setShowLogLevelMenu}
-            modifiers={[widthModifier(140)]}
-          >
-            <LogLevelField key={logLevelLabel} label={logLevelLabel} />
-            <ExposedDropdownMenu
-              expanded={showLogLevelMenu}
-              onDismissRequest={() => setShowLogLevelMenu(false)}
-            >
-              {logLevelOptions.map((option) => (
-                <DropdownMenuItem
-                  key={option.value}
-                  onClick={() => {
-                    handleSetLogLevel(option.value);
-                    setShowLogLevelMenu(false);
-                  }}
-                >
-                  <DropdownMenuItem.Text>
-                    <ComposeText>{option.label}</ComposeText>
-                  </DropdownMenuItem.Text>
-                </DropdownMenuItem>
-              ))}
-            </ExposedDropdownMenu>
-          </ExposedDropdownMenuBox>
-        </ListItem.TrailingContent>
-      </ListItem>
-
-      <HorizontalDivider />
-
-      <ListItem>
-        <ListItem.HeadlineContent>
-          <ComposeText>{t('log.exportLabel')}</ComposeText>
-        </ListItem.HeadlineContent>
-        <ListItem.TrailingContent>
-          <Button onClick={handleExportButtonClick}>
-            <ComposeText>
-              {isExportingLogs ? t('action.cancel', { ns: 'common' }) : t('log.export')}
-            </ComposeText>
-          </Button>
-        </ListItem.TrailingContent>
-      </ListItem>
-    </SettingsSectionItem>
+    <Column modifiers={[fillMaxWidth()]}>
+      <DiagnosticCaptureCard capture={capture} />
+      <Spacer modifiers={[heightModifier(24)]} />
+      <SettingsSectionItem
+        variant="grouped"
+        title={t('log.title')}
+        footer={t('log.storageHint')}
+        dialogs={
+          showExportMethodDialog ? (
+            <AlertDialog onDismissRequest={() => setShowExportMethodDialog(false)}>
+              <AlertDialog.Title>
+                <ComposeText>{t('log.exportLabel')}</ComposeText>
+              </AlertDialog.Title>
+              <AlertDialog.Text>
+                <ComposeText>{t('log.exportMethodPrompt')}</ComposeText>
+              </AlertDialog.Text>
+              <AlertDialog.ConfirmButton>
+                <TextButton onClick={handleShareLogs}>
+                  <ComposeText>{t('action.share', { ns: 'common' })}</ComposeText>
+                </TextButton>
+              </AlertDialog.ConfirmButton>
+              <AlertDialog.DismissButton>
+                <TextButton onClick={handleSaveLogsToFile}>
+                  <ComposeText>{t('log.exportFile')}</ComposeText>
+                </TextButton>
+              </AlertDialog.DismissButton>
+            </AlertDialog>
+          ) : null
+        }
+      >
+        <SettingsListRow
+          key="export"
+          testID="diagnostics-export"
+          title={t('log.exportLabel')}
+          description={t('log.exportDescription')}
+          trailing={{
+            action: isExportingLogs ? t('action.cancel', { ns: 'common' }) : t('log.export'),
+          }}
+          onPress={handleExportButtonClick}
+        />
+        <SettingsSelectRow
+          key="logLevel"
+          testID="diagnostics-log-level"
+          title={t('log.levelLabel')}
+          options={logLevelOptions}
+          selectedValue={logLevel ?? 'error'}
+          onSelect={(level) => void handleSetLogLevel(level)}
+        />
+      </SettingsSectionItem>
+    </Column>
   );
 });

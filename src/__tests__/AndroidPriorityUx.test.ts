@@ -125,7 +125,8 @@ describe('Android priority UX regressions', () => {
     expect(dropdown).toContain('onClick={undefined}');
     expect(dropdown).toContain('ICONS.expandMore');
     expect(dropdown).not.toContain('OutlinedTextField');
-    expect(history).toContain('<AppDropdown');
+    // 历史页的固定选项走整行下拉选择行(SettingsSelectRow),不再在行尾放独立下拉按钮
+    expect(history).toContain('<SettingsSelectRow');
     expect(history).not.toContain('<ExposedDropdownMenuBox');
   });
 

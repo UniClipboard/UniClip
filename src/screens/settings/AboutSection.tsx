@@ -1,8 +1,9 @@
 /**
  * 关于 section
  *
- * 版本信息、更新检查与 APK 下载安装全流程、自动检查更新 / 更新到测试版开关。
- * 更新/下载相关 state、下载渠道底部表单、取消下载确认弹窗均内聚于此。
+ * 顶部应用信息卡片(图标、版本、更新 / 检查更新、GitHub),其下 grouped 分组放自动检查更新
+ * / 更新到测试版开关。更新检查与 APK 下载安装全流程、下载渠道底部表单、取消下载确认弹窗
+ * 均内聚于此。
  * 作为 item:无独立 Host,底部表单 + 取消确认弹窗作为 item 内 overlay 渲染
  * (见 SettingsSectionItem.dialogs)。
  */
@@ -11,23 +12,29 @@ import { useTranslation } from 'react-i18next';
 import { Linking } from 'react-native';
 import {
   Row,
-  ListItem,
-  Switch as ComposeSwitch,
+  Badge,
+  Box,
   Button,
+  FilledTonalButton,
+  Icon,
   OutlinedButton,
   ModalBottomSheet,
   AlertDialog,
   TextButton,
   Spacer,
-  HorizontalDivider,
   Column,
+  Shape,
+  Surface,
   Text as ComposeText,
+  useMaterialColors,
 } from '@expo/ui/jetpack-compose';
 import {
   fillMaxWidth,
   width as widthModifier,
   paddingAll,
   height as heightModifier,
+  size,
+  testID,
   verticalScroll,
 } from '@expo/ui/jetpack-compose/modifiers';
 import { APP_VERSION } from '@/constants';
@@ -47,11 +54,24 @@ import {
 import { useSettingsStore } from '@/stores';
 import { useSettingsToast } from './SettingsToastContext';
 import { SettingsSectionItem } from './SettingsSectionItem';
+import { SettingsHeroCard } from './android/SettingsHeroCard';
+import { SettingsSwitchRow } from './android/SettingsSwitchRow';
 import { createLogger } from '@/support/observability';
 
 const log = createLogger('UpdateDownload');
 
 const appVersion = APP_VERSION;
+
+const ICONS = {
+  app: require('../../assets/icons/content_paste.xml'),
+  openInNew: require('../../assets/icons/open_in_new.xml'),
+};
+
+const APP_ICON_SIZE = 72;
+const APP_ICON_SHAPE = Shape.RoundedCorner({
+  cornerRadii: { topStart: 22, topEnd: 22, bottomStart: 22, bottomEnd: 22 },
+});
+const APP_NAME_STYLE = { typography: 'titleLarge' } as const;
 
 interface AboutSectionProps {
   initialUpdate?: UpdateCheckResult;
@@ -260,158 +280,174 @@ export const AboutSection = memo(function AboutSection({ initialUpdate }: AboutS
     }
   };
 
+  const colors = useMaterialColors();
+
   return (
-    <SettingsSectionItem
-      title={t('title')}
-      dialogs={
-        <>
-          {/* 下载渠道选择底部表单 */}
-          {downloadSourceSheet && (
-            <ModalBottomSheet onDismissRequest={() => setDownloadSourceSheet(null)}>
-              <Column modifiers={[paddingAll(24), fillMaxWidth(), verticalScroll()]}>
-                <ComposeText style={{ typography: 'titleLarge' }}>
-                  {t('download.newVersionTitle')}
-                </ComposeText>
-                <Spacer modifiers={[heightModifier(8)]} />
-                <ComposeText>
-                  {`${t('download.latestVersion', { version: downloadSourceSheet.version })}\n${t(
-                    'download.currentVersion',
-                    { version: appVersion }
-                  )}${
-                    localizedReleaseNotes
-                      ? `\n\n${t('download.releaseNotes', {
-                          notes: localizedReleaseNotes,
-                        })}`
-                      : ''
-                  }`}
-                </ComposeText>
-                <Spacer modifiers={[heightModifier(16)]} />
-                <Button
-                  onClick={() => {
-                    const s = downloadSourceSheet;
-                    setDownloadSourceSheet(null);
-                    handleDownloadApk('r2', s.version, s.assets);
-                  }}
-                  modifiers={[fillMaxWidth()]}
-                >
-                  <ComposeText>{t('download.r2')}</ComposeText>
-                </Button>
-                <Spacer modifiers={[heightModifier(8)]} />
-                <OutlinedButton
-                  onClick={() => {
-                    const s = downloadSourceSheet;
-                    setDownloadSourceSheet(null);
-                    handleDownloadApk('github', s.version, s.assets);
-                  }}
-                  modifiers={[fillMaxWidth()]}
-                >
-                  <ComposeText>{t('download.github')}</ComposeText>
-                </OutlinedButton>
-              </Column>
-            </ModalBottomSheet>
-          )}
-
-          {/* 取消下载确认 */}
-          {showCancelDownloadDialog && (
-            <AlertDialog onDismissRequest={() => setShowCancelDownloadDialog(false)}>
-              <AlertDialog.Title>
-                <ComposeText>{t('cancelDownload.title')}</ComposeText>
-              </AlertDialog.Title>
-              <AlertDialog.Text>
-                <ComposeText>{t('cancelDownload.message')}</ComposeText>
-              </AlertDialog.Text>
-              <AlertDialog.ConfirmButton>
-                <TextButton
-                  onClick={() => {
-                    downloadAbortRef.current?.abort();
-                    setShowCancelDownloadDialog(false);
-                  }}
-                >
-                  <ComposeText>{t('cancelDownload.confirm')}</ComposeText>
-                </TextButton>
-              </AlertDialog.ConfirmButton>
-              <AlertDialog.DismissButton>
-                <TextButton onClick={() => setShowCancelDownloadDialog(false)}>
-                  <ComposeText>{t('cancelDownload.dismiss')}</ComposeText>
-                </TextButton>
-              </AlertDialog.DismissButton>
-            </AlertDialog>
-          )}
-        </>
-      }
-    >
-      <ListItem>
-        <ListItem.OverlineContent>
-          <ComposeText>{t('versionLabel')}</ComposeText>
-        </ListItem.OverlineContent>
-        <ListItem.HeadlineContent>
-          <ComposeText>{appVersion}</ComposeText>
-        </ListItem.HeadlineContent>
-        <ListItem.TrailingContent>
-          <Row>
-            {isDownloading || updateAvailable ? (
-              <Button
-                onClick={() => {
-                  if (isDownloading) {
-                    setShowCancelDownloadDialog(true);
-                  } else {
-                    handleUpdateButtonPress(
-                      latestVersion ?? '',
-                      latestAssetsRef.current,
-                      releaseNotesRef.current
-                    );
-                  }
-                }}
-                enabled={!isCheckingUpdate}
-              >
-                <ComposeText>
-                  {isDownloading
-                    ? t('download.downloading', { percent: Math.round(downloadProgress * 100) })
-                    : t('update.updateTo', { version: latestVersion })}
-                </ComposeText>
-              </Button>
-            ) : (
-              <OutlinedButton
-                onClick={() => runUpdateCheck(true, updateToBetaEnabled)}
-                enabled={!isCheckingUpdate}
-              >
-                <ComposeText>
-                  {isCheckingUpdate ? t('update.checking') : t('update.check')}
-                </ComposeText>
-              </OutlinedButton>
-            )}
-            <Spacer modifiers={[widthModifier(8)]} />
-            <Button onClick={() => Linking.openURL('https://github.com/UniClipboard/uc-android')}>
-              <ComposeText>GitHub</ComposeText>
+    <Column modifiers={[fillMaxWidth()]}>
+      <SettingsHeroCard horizontalAlignment="center">
+        <Surface
+          color={colors.primary}
+          shape={APP_ICON_SHAPE}
+          modifiers={[size(APP_ICON_SIZE, APP_ICON_SIZE)]}
+        >
+          <Box contentAlignment="center" modifiers={[size(APP_ICON_SIZE, APP_ICON_SIZE)]}>
+            <Icon source={ICONS.app} size={36} tint={colors.onPrimary} />
+          </Box>
+        </Surface>
+        <Column horizontalAlignment="center">
+          <ComposeText style={APP_NAME_STYLE}>{t('appName', { ns: 'common' })}</ComposeText>
+          <ComposeText color={colors.onSurfaceVariant}>
+            {t('versionValue', { version: appVersion })}
+          </ComposeText>
+        </Column>
+        {updateAvailable && latestVersion ? (
+          <Badge
+            containerColor={colors.tertiaryContainer}
+            contentColor={colors.onTertiaryContainer}
+          >
+            <ComposeText maxLines={1}>
+              {t('update.available', { version: latestVersion })}
+            </ComposeText>
+          </Badge>
+        ) : null}
+        <Row verticalAlignment="center">
+          {isDownloading || updateAvailable ? (
+            <Button
+              modifiers={[testID('about-update')]}
+              onClick={() => {
+                if (isDownloading) {
+                  setShowCancelDownloadDialog(true);
+                } else {
+                  handleUpdateButtonPress(
+                    latestVersion ?? '',
+                    latestAssetsRef.current,
+                    releaseNotesRef.current
+                  );
+                }
+              }}
+              enabled={!isCheckingUpdate}
+            >
+              <ComposeText>
+                {isDownloading
+                  ? t('download.downloading', { percent: Math.round(downloadProgress * 100) })
+                  : t('update.updateTo', { version: latestVersion })}
+              </ComposeText>
             </Button>
-          </Row>
-        </ListItem.TrailingContent>
-      </ListItem>
+          ) : (
+            <FilledTonalButton
+              modifiers={[testID('about-check-update')]}
+              onClick={() => runUpdateCheck(true, updateToBetaEnabled)}
+              enabled={!isCheckingUpdate}
+            >
+              <ComposeText>
+                {isCheckingUpdate ? t('update.checking') : t('update.check')}
+              </ComposeText>
+            </FilledTonalButton>
+          )}
+          <Spacer modifiers={[widthModifier(8)]} />
+          <OutlinedButton
+            onClick={() => Linking.openURL('https://github.com/UniClipboard/uc-android')}
+          >
+            <Icon source={ICONS.openInNew} size={18} />
+            <Spacer modifiers={[widthModifier(8)]} />
+            <ComposeText>GitHub</ComposeText>
+          </OutlinedButton>
+        </Row>
+      </SettingsHeroCard>
+      <Spacer modifiers={[heightModifier(24)]} />
+      <SettingsSectionItem
+        variant="grouped"
+        title={t('updatesTitle')}
+        dialogs={
+          <>
+            {/* 下载渠道选择底部表单 */}
+            {downloadSourceSheet && (
+              <ModalBottomSheet onDismissRequest={() => setDownloadSourceSheet(null)}>
+                <Column modifiers={[paddingAll(24), fillMaxWidth(), verticalScroll()]}>
+                  <ComposeText style={{ typography: 'titleLarge' }}>
+                    {t('download.newVersionTitle')}
+                  </ComposeText>
+                  <Spacer modifiers={[heightModifier(8)]} />
+                  <ComposeText>
+                    {`${t('download.latestVersion', { version: downloadSourceSheet.version })}\n${t(
+                      'download.currentVersion',
+                      { version: appVersion }
+                    )}${
+                      localizedReleaseNotes
+                        ? `\n\n${t('download.releaseNotes', {
+                            notes: localizedReleaseNotes,
+                          })}`
+                        : ''
+                    }`}
+                  </ComposeText>
+                  <Spacer modifiers={[heightModifier(16)]} />
+                  <Button
+                    onClick={() => {
+                      const s = downloadSourceSheet;
+                      setDownloadSourceSheet(null);
+                      handleDownloadApk('r2', s.version, s.assets);
+                    }}
+                    modifiers={[fillMaxWidth()]}
+                  >
+                    <ComposeText>{t('download.r2')}</ComposeText>
+                  </Button>
+                  <Spacer modifiers={[heightModifier(8)]} />
+                  <OutlinedButton
+                    onClick={() => {
+                      const s = downloadSourceSheet;
+                      setDownloadSourceSheet(null);
+                      handleDownloadApk('github', s.version, s.assets);
+                    }}
+                    modifiers={[fillMaxWidth()]}
+                  >
+                    <ComposeText>{t('download.github')}</ComposeText>
+                  </OutlinedButton>
+                </Column>
+              </ModalBottomSheet>
+            )}
 
-      <HorizontalDivider />
-
-      <ListItem>
-        <ListItem.HeadlineContent>
-          <ComposeText>{t('autoCheck.label')}</ComposeText>
-        </ListItem.HeadlineContent>
-        <ListItem.TrailingContent>
-          <ComposeSwitch
-            value={autoCheckUpdateEnabled}
-            onCheckedChange={handleToggleAutoCheckUpdate}
-          />
-        </ListItem.TrailingContent>
-      </ListItem>
-
-      <HorizontalDivider />
-
-      <ListItem>
-        <ListItem.HeadlineContent>
-          <ComposeText>{t('updateToBeta.label')}</ComposeText>
-        </ListItem.HeadlineContent>
-        <ListItem.TrailingContent>
-          <ComposeSwitch value={updateToBetaEnabled} onCheckedChange={handleToggleUpdateToBeta} />
-        </ListItem.TrailingContent>
-      </ListItem>
-    </SettingsSectionItem>
+            {/* 取消下载确认 */}
+            {showCancelDownloadDialog && (
+              <AlertDialog onDismissRequest={() => setShowCancelDownloadDialog(false)}>
+                <AlertDialog.Title>
+                  <ComposeText>{t('cancelDownload.title')}</ComposeText>
+                </AlertDialog.Title>
+                <AlertDialog.Text>
+                  <ComposeText>{t('cancelDownload.message')}</ComposeText>
+                </AlertDialog.Text>
+                <AlertDialog.ConfirmButton>
+                  <TextButton
+                    onClick={() => {
+                      downloadAbortRef.current?.abort();
+                      setShowCancelDownloadDialog(false);
+                    }}
+                  >
+                    <ComposeText>{t('cancelDownload.confirm')}</ComposeText>
+                  </TextButton>
+                </AlertDialog.ConfirmButton>
+                <AlertDialog.DismissButton>
+                  <TextButton onClick={() => setShowCancelDownloadDialog(false)}>
+                    <ComposeText>{t('cancelDownload.dismiss')}</ComposeText>
+                  </TextButton>
+                </AlertDialog.DismissButton>
+              </AlertDialog>
+            )}
+          </>
+        }
+      >
+        <SettingsSwitchRow
+          key="autoCheck"
+          title={t('autoCheck.label')}
+          value={autoCheckUpdateEnabled}
+          onValueChange={(enabled) => void handleToggleAutoCheckUpdate(enabled)}
+        />
+        <SettingsSwitchRow
+          key="updateToBeta"
+          title={t('updateToBeta.label')}
+          value={updateToBetaEnabled}
+          onValueChange={(enabled) => void handleToggleUpdateToBeta(enabled)}
+        />
+      </SettingsSectionItem>
+    </Column>
   );
 });

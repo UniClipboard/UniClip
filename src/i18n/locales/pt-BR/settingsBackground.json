@@ -126,6 +126,11 @@
         "text": "O UniClip usará o Shizuku para desativar a restrição de área de transferência inteligente do MIUI, para que o conteúdo possa ser lido e gravado em segundo plano. Isso também pode desativar o recurso de área de transferência inteligente do sistema.",
         "confirm": "Desativar restrição"
       }
+    },
+    "groups": {
+      "clipboardAccess": "Acesso à área de transferência",
+      "sync": "Sincronização em segundo plano",
+      "reliability": "Confiabilidade"
     }
   },
   "dialog": {

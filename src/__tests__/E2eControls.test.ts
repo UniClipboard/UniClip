@@ -16,10 +16,14 @@ describe("native test identifiers preserve shared full-row controls", () => {
   });
   it("identifies the entire clickable Android settings row", () => {
     expect(read("screens/SettingsScreen.android.tsx")).toContain(
-      "testID(`settings-${section}`)"
+      "testID={`settings-${section}`}"
     );
     expect(read("screens/SettingsScreen.android.tsx")).toContain(
-      "clickable(() => onNavigate(section))"
+      "onPress={() => onNavigate(section)}"
+    );
+    // testID 与点击都挂在同一个整行 ListItem 上
+    expect(read("screens/settings/android/SettingsListRow.tsx")).toMatch(
+      /testIDModifier\(testID\)[\s\S]*?clickable\(onPress\)[\s\S]*?<ListItem colors=\{rowColors\} modifiers=\{modifiers\}>/
     );
     expect(read("components/ui/AppButton.android.tsx")).toContain(
       "testIDModifier(testID)"

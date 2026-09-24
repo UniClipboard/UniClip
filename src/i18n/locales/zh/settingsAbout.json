@@ -6,7 +6,8 @@
     "checking": "检查中...",
     "updateTo": "更新 {{version}}",
     "upToDate": "当前已是最新版本",
-    "checkFailed": "检查更新失败，请检查网络连接"
+    "checkFailed": "检查更新失败，请检查网络连接",
+    "available": "新版本 {{version}} 可用"
   },
   "autoCheck": {
     "label": "自动检查更新"
@@ -62,7 +63,9 @@
       "remaining": "正在记录，剩余约 {{count}} 分钟",
       "failed": "操作未完成，请重试。",
       "unavailable": "暂时无法开启，请等待服务就绪。"
-    }
+    },
+    "exportDescription": "分享,或保存为文件",
+    "storageHint": "日志文件可在「存储」中清理。"
   },
   "debug": {
     "connectionPreview": "预览连接页面",
@@ -119,11 +122,14 @@
         "invitationExpired": "邀请方：邀请码已过期",
         "inviterConnected": "邀请方：设备已连接"
       }
-    }
+    },
+    "previewsTitle": "预览"
   },
   "stats": {
     "title": "统计信息",
     "view": "查看",
     "copied": "已复制统计信息"
-  }
+  },
+  "versionValue": "版本 {{version}}",
+  "updatesTitle": "更新"
 }

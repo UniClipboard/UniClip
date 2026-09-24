@@ -6,10 +6,10 @@
  */
 import React, { memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ListItem, Button, Text as ComposeText } from '@expo/ui/jetpack-compose';
 import { ShortcutService } from '@/platform/shortcuts';
 import { useSettingsToast } from './SettingsToastContext';
 import { SettingsSectionItem } from './SettingsSectionItem';
+import { SettingsListRow } from './android/SettingsListRow';
 
 export const QuickActionsSection = memo(function QuickActionsSection() {
   const { t } = useTranslation('settingsPermissions');
@@ -24,17 +24,13 @@ export const QuickActionsSection = memo(function QuickActionsSection() {
   };
 
   return (
-    <SettingsSectionItem title={t('quickActions.title')}>
-      <ListItem>
-        <ListItem.HeadlineContent>
-          <ComposeText>{t('quickActions.addUploadShortcut')}</ComposeText>
-        </ListItem.HeadlineContent>
-        <ListItem.TrailingContent>
-          <Button onClick={handleAddUploadShortcut}>
-            <ComposeText>{t('action.add', { ns: 'common' })}</ComposeText>
-          </Button>
-        </ListItem.TrailingContent>
-      </ListItem>
+    <SettingsSectionItem variant="grouped" title={t('quickActions.title')}>
+      <SettingsListRow
+        testID="quick-action-upload-shortcut"
+        title={t('quickActions.addUploadShortcut')}
+        trailing={{ action: t('action.add', { ns: 'common' }) }}
+        onPress={() => void handleAddUploadShortcut()}
+      />
     </SettingsSectionItem>
   );
 });

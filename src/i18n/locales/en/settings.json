@@ -12,7 +12,8 @@
       "desc": "Lock before hiding to avoid being cleared in one tap"
     },
     "modeChangeFailed": "Failed to change appearance mode",
-    "updateFailed": "Update failed"
+    "updateFailed": "Update failed",
+    "displayTitle": "Display"
   },
   "general": {
     "sectionTitle": "General",
@@ -47,7 +48,10 @@
     "history": "History",
     "background": "Background",
     "developer": "Developer options",
-    "extensions": "Extensions & permissions"
+    "extensions": "Extensions & permissions",
+    "privacy": "Privacy",
+    "diagnostics": "Diagnostic logs",
+    "support": "Support"
   },
   "hub": {
     "clipboardSync": {
@@ -73,7 +77,9 @@
       "backgroundOff": "Background tasks off",
       "storage": "Cache, logs and history usage",
       "about": "Version {{version}}",
-      "developer": "Logs, debugging and shortcuts"
+      "developer": "Debugging, previews and shortcuts",
+      "privacy": "Anonymous usage data",
+      "diagnostics": "Record and export logs for bug reports"
     }
   },
   "ios": {

@@ -15,7 +15,7 @@ describe('Android device trust preview entry', () => {
 
   it('makes the entry and every scenario row fully clickable', () => {
     expect(source).toMatch(
-      /ListItem[\s\S]*?modifiers=\{\[clickable\(openDeviceTrustPreviewPicker\)\]\}/
+      /<SettingsListRow[\s\S]*?onPress=\{openDeviceTrustPreviewPicker\}/
     );
     expect(source).toMatch(
       /DEVICE_TRUST_PREVIEW_SCENARIOS\.map[\s\S]*?ListItem[\s\S]*?clickable\([\s\S]*?handleOpenDeviceTrustPreview\(scenario\.id\)[\s\S]*?\)/

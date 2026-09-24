@@ -38,8 +38,8 @@ describe('connection preview entry', () => {
   });
   it('registers a separate screen and opens it from full rows on both platforms', () => {
     expect(source('navigation/AppNavigator.tsx')).toContain('name="ConnectionPreview"');
-    expect(source('screens/settings/android/DebugSection.tsx')).toContain(
-      'clickable(onOpenConnectionPreview)'
+    expect(source('screens/settings/android/DebugSection.tsx')).toMatch(
+      /<SettingsListRow[\s\S]*?onPress=\{onOpenConnectionPreview\}/
     );
     expect(source('screens/settings/ios/DeveloperPage.tsx')).toMatch(
       /<SettingsNavRow[\s\S]*?onPress=\{onOpenConnectionPreview\}/

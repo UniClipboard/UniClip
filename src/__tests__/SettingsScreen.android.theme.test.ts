@@ -13,7 +13,6 @@ describe('Android settings root', () => {
     const subScreenSource = readSource('screens/settings/SettingsSubScreen.android.tsx');
     const palette = readSource('theme/colors.android.ts');
 
-    expect(rootSource).toContain('seedColor: MATERIAL_SEED_COLOR');
     expect(rootSource).toContain('seedColor={MATERIAL_SEED_COLOR}');
     expect(subScreenSource).toContain('seedColor={MATERIAL_SEED_COLOR}');
     // Material You:动态取色时 Host 不传 seed(跟随壁纸),与 RN 侧 getMaterialColors 同源

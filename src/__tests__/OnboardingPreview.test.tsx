@@ -40,7 +40,7 @@ describe('developer welcome preview entry', () => {
   it('uses the existing full-row controls on both platforms', () => {
     const android = source('screens/settings/android/DebugSection.tsx');
     const ios = source('screens/settings/ios/DeveloperPage.tsx');
-    expect(android).toContain('clickable(onOpenOnboardingPreview)');
+    expect(android).toMatch(/<SettingsListRow[\s\S]*?onPress=\{onOpenOnboardingPreview\}/);
     expect(android).toContain("t('debug.onboardingPreview')");
     expect(ios).toMatch(/<SettingsNavRow[\s\S]*?onPress=\{onOpenOnboardingPreview\}/);
     expect(source('screens/SettingsScreen.ios.tsx')).toContain(

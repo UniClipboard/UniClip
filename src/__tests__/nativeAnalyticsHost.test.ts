@@ -136,19 +136,18 @@ describe('native Engine analytics hosts', () => {
     const ios = read('src/screens/settings/AnalyticsConsentControl.ios.tsx');
 
     expect(entry).toContain("export * from './AnalyticsConsentControl.android'");
-    expect(android).toContain("from '@expo/ui/jetpack-compose'");
+    // Android 由共享的 Compose 设置行组合而成
+    expect(android).toContain("from './android/SettingsSwitchRow'");
+    expect(android).toContain("from './android/SettingsListRow'");
     expect(android).toContain('setAnalyticsConsent');
     expect(android).toContain('resetAnalyticsIdentity');
-    expect(android).toContain('source={ICONS.analytics}');
-    expect(android).toContain('source={ICONS.reset}');
-    // consent 行复用全行可切换的 SettingsSwitchRow(leading 图标),reset 行整行可点
+    // 隐私二级页:consent 行复用全行可切换的 SettingsSwitchRow,reset 行复用整行可点的 SettingsListRow
+    expect(android).toContain('variant="grouped"');
     expect(android).toContain('<SettingsSwitchRow');
-    expect(android).toContain('leading={<Icon source={ICONS.analytics}');
-    expect(android).toContain('clickable(() => setResetDialogOpen(true))');
+    expect(android).toMatch(/<SettingsListRow[\s\S]*?onPress=\{\(\) => setResetDialogOpen\(true\)\}/);
     expect(android).toContain('<AppAlertDialog');
     expect(android).not.toContain('Alert.alert');
-    expect(android.match(/<ListItem.LeadingContent>/g)).toHaveLength(1);
-    expect(android.match(/tint=\{colors\.onSurfaceVariant\}/g)).toHaveLength(2);
+    expect(android).not.toContain('<ListItem');
     expect(ios).toContain("from '@expo/ui/swift-ui'");
     expect(ios).toContain('setAnalyticsConsent');
     expect(ios).toContain('resetAnalyticsIdentity');

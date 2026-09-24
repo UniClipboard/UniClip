@@ -1,12 +1,8 @@
+/**
+ * 隐私二级页(Android):匿名统计开关 + 重置统计身份,grouped 分组。
+ * 两行都是整行交互:开关行 toggleable,重置行整行点击弹出确认。
+ */
 import { useEffect, useState } from 'react';
-import {
-  HorizontalDivider,
-  Icon,
-  ListItem,
-  Text as ComposeText,
-  useMaterialColors,
-} from '@expo/ui/jetpack-compose';
-import { clickable } from '@expo/ui/jetpack-compose/modifiers';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -17,17 +13,12 @@ import {
 import { AppAlertDialog } from '@/components/ui/AppAlertDialog';
 import { SettingsSectionItem } from './SettingsSectionItem';
 import { useSettingsToast } from './SettingsToastContext';
+import { SettingsListRow } from './android/SettingsListRow';
 import { SettingsSwitchRow } from './android/SettingsSwitchRow';
 import type { AnalyticsConsentControlProps } from './AnalyticsConsentControl.types';
 
-const ICONS = {
-  analytics: require('../../assets/icons/analytics.xml'),
-  reset: require('../../assets/icons/restart_alt.xml'),
-};
-
 export function AnalyticsConsentControl(_: AnalyticsConsentControlProps) {
   const { t } = useTranslation('settings');
-  const colors = useMaterialColors();
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
@@ -73,7 +64,7 @@ export function AnalyticsConsentControl(_: AnalyticsConsentControlProps) {
 
   return (
     <SettingsSectionItem
-      title={t('analytics.sectionTitle')}
+      variant="grouped"
       footer={t('analytics.footer')}
       dialogs={
         <AppAlertDialog
@@ -88,23 +79,22 @@ export function AnalyticsConsentControl(_: AnalyticsConsentControlProps) {
       }
     >
       <SettingsSwitchRow
+        key="consent"
+        testID="analytics-consent"
         title={t('analytics.consentTitle')}
         description={t('analytics.consentDescription')}
-        leading={<Icon source={ICONS.analytics} size={22} tint={colors.onSurfaceVariant} />}
         value={enabled ?? false}
         disabled={enabled === null || busy}
         onValueChange={(value) => void updateConsent(value)}
       />
-      <HorizontalDivider />
-      {/* 整行可点(全行交互规范),不再只让尾部 TextButton 可点 */}
-      <ListItem modifiers={busy ? undefined : [clickable(() => setResetDialogOpen(true))]}>
-        <ListItem.LeadingContent>
-          <Icon source={ICONS.reset} size={22} tint={colors.onSurfaceVariant} />
-        </ListItem.LeadingContent>
-        <ListItem.HeadlineContent>
-          <ComposeText>{t('analytics.resetTitle')}</ComposeText>
-        </ListItem.HeadlineContent>
-      </ListItem>
+      <SettingsListRow
+        key="reset"
+        testID="analytics-reset"
+        title={t('analytics.resetTitle')}
+        description={t('analytics.resetMessage')}
+        disabled={busy}
+        onPress={() => setResetDialogOpen(true)}
+      />
     </SettingsSectionItem>
   );
 }
