@@ -143,36 +143,6 @@ export const SpaceSettingsSection = memo(function SpaceSettingsSection() {
 
   return (
     <Column modifiers={[fillMaxWidth()]}>
-      <AddSyncConnectionSheet
-        visible={switching}
-        initialMode="switch"
-        onClose={() => setSwitching(false)}
-        onConnected={() => {
-          setSwitching(false);
-          return true;
-        }}
-      />
-      {confirmLeave ? (
-        <AlertDialog onDismissRequest={() => setConfirmLeave(false)}>
-          <AlertDialog.Title>
-            <ComposeText>{t('space.leave.action')}</ComposeText>
-          </AlertDialog.Title>
-          <AlertDialog.Text>
-            <ComposeText>{t('space.leave.confirm')}</ComposeText>
-          </AlertDialog.Text>
-          <AlertDialog.ConfirmButton>
-            <TextButton onClick={() => void leaveSpace()}>
-              <ComposeText>{t('space.leave.action')}</ComposeText>
-            </TextButton>
-          </AlertDialog.ConfirmButton>
-          <AlertDialog.DismissButton>
-            <TextButton onClick={() => setConfirmLeave(false)}>
-              <ComposeText>{t('action.cancel', { ns: 'common' })}</ComposeText>
-            </TextButton>
-          </AlertDialog.DismissButton>
-        </AlertDialog>
-      ) : null}
-
       <CustomRelaySection />
 
       <Spacer modifiers={[heightModifier(24)]} />
@@ -202,6 +172,36 @@ export const SpaceSettingsSection = memo(function SpaceSettingsSection() {
         <Column modifiers={[padding(16, 12, 16, 0)]}>
           <ComposeText color={colors.error}>{leaveError}</ComposeText>
         </Column>
+      ) : null}
+      {/* Dialogs follow the content so mounting one never resets the rows' Compose state. */}
+      <AddSyncConnectionSheet
+        visible={switching}
+        initialMode="switch"
+        onClose={() => setSwitching(false)}
+        onConnected={() => {
+          setSwitching(false);
+          return true;
+        }}
+      />
+      {confirmLeave ? (
+        <AlertDialog onDismissRequest={() => setConfirmLeave(false)}>
+          <AlertDialog.Title>
+            <ComposeText>{t('space.leave.action')}</ComposeText>
+          </AlertDialog.Title>
+          <AlertDialog.Text>
+            <ComposeText>{t('space.leave.confirm')}</ComposeText>
+          </AlertDialog.Text>
+          <AlertDialog.ConfirmButton>
+            <TextButton onClick={() => void leaveSpace()}>
+              <ComposeText>{t('space.leave.action')}</ComposeText>
+            </TextButton>
+          </AlertDialog.ConfirmButton>
+          <AlertDialog.DismissButton>
+            <TextButton onClick={() => setConfirmLeave(false)}>
+              <ComposeText>{t('action.cancel', { ns: 'common' })}</ComposeText>
+            </TextButton>
+          </AlertDialog.DismissButton>
+        </AlertDialog>
       ) : null}
     </Column>
   );

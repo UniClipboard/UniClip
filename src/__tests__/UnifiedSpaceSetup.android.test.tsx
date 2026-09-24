@@ -243,3 +243,27 @@ it('preserves an open join flow while the space changes from empty through loadi
     Object.assign(mockSpace, { spaceId: 'test-space', status: 'ready' });
   }
 });
+
+it('renders the setup sheet after the page content so dismissing it keeps the content state', () => {
+  mockSpace.spaceId = null;
+  let view: TestRenderer.ReactTestRenderer;
+  act(() => {
+    view = TestRenderer.create(<UnifiedSpaceSetup />);
+  });
+  try {
+    const rootChildren = () =>
+      (view.toJSON() as TestRenderer.ReactTestRendererJSON).children as TestRenderer.ReactTestRendererJSON[];
+    const closed = rootChildren();
+    act(() => view.root.findByType('Button' as never).props.onClick());
+    // 弹层插在内容前面会让内容的 Compose 状态在关闭时重建,异步加载的 Icon 随之空白一帧
+    const open = rootChildren();
+    expect(open).toHaveLength(closed.length + 1);
+    expect(open.slice(0, closed.length).map((child) => child.type)).toEqual(
+      closed.map((child) => child.type)
+    );
+    expect(open.at(-1)!.type).toBe('SetupSheet');
+  } finally {
+    act(() => view.unmount());
+    Object.assign(mockSpace, { spaceId: 'test-space', status: 'ready' });
+  }
+});
