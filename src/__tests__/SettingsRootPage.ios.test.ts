@@ -29,17 +29,33 @@ describe('iOS settings root page', () => {
     ].map((header) => settingsRootPage.indexOf(header));
     expect(sections.every((index) => index > 0)).toBe(true);
     expect([...sections].sort((a, b) => a - b)).toEqual(sections);
-    for (const page of ['history', 'clipboard', 'appearance', 'storage', 'keyboard', 'share', 'diagnostics', 'privacy', 'about', 'developer']) {
+    for (const page of ['history', 'clipboard', 'storage', 'keyboard', 'share', 'diagnostics', 'privacy', 'about', 'developer']) {
       expect(settingsRootPage).toContain(`onNavigate('${page}')`);
     }
+    // theme and language are menu rows in the hub, not a pushed Appearance page
+    expect(settingsRootPage).not.toContain("onNavigate('appearance')");
     // sync method and space devices live in the Devices tab
     expect(settingsRootPage).not.toContain("onNavigate('syncChannel')");
   });
 
+  it('picks theme and language from full-row menu pickers in the General section', () => {
+    const general = settingsRootPage.slice(
+      settingsRootPage.indexOf("t('general.sectionTitle')"),
+      settingsRootPage.indexOf("t('category.extensions')")
+    );
+    expect(general).toMatch(/<SettingsPickerRow\s+testID="settings-theme"/);
+    expect(general).toMatch(/<SettingsPickerRow\s+testID="settings-language"/);
+    expect(settingsRootPage).toContain('SUPPORTED_LANGUAGES.map');
+    const common = read('screens/settings/ios/common.tsx');
+    expect(common).toMatch(/export function SettingsPickerRow[\s\S]*?pickerStyle\('menu'\)/);
+    expect(fs.existsSync(path.resolve(__dirname, '..', 'screens/settings/ios/AppearancePage.tsx'))).toBe(false);
+  });
+
   it('pushes every hub page from the stable settings host', () => {
     const screen = read('screens/SettingsScreen.ios.tsx');
-    for (const page of ['history', 'appearance', 'storage', 'keyboard', 'share', 'clipboard', 'diagnostics', 'privacy', 'about', 'developer']) {
+    for (const page of ['history', 'storage', 'keyboard', 'share', 'clipboard', 'diagnostics', 'privacy', 'about', 'developer']) {
       expect(screen).toContain(`<NavigationDestination value="${page}">`);
     }
+    expect(screen).not.toContain('<NavigationDestination value="appearance">');
   });
 });

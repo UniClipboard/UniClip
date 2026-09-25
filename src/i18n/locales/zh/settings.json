@@ -80,7 +80,9 @@
       "about": "当前版本 {{version}}",
       "developer": "调试、预览与快捷方式",
       "privacy": "匿名使用数据",
-      "diagnostics": "录制并导出日志,用于反馈问题"
+      "diagnostics": "录制并导出日志,用于反馈问题",
+      "theme": "浅色、深色或跟随系统",
+      "language": "即时切换应用语言"
     }
   },
   "ios": {

@@ -1,7 +1,6 @@
 export type SettingsPage =
   | 'root'
   | 'history'
-  | 'appearance'
   | 'storage'
   | 'keyboard'
   | 'share'

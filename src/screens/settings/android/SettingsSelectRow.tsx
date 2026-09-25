@@ -27,6 +27,8 @@ export interface SettingsSelectOption<T extends string> {
 interface SettingsSelectRowProps<T extends string> {
   title: string;
   description?: string;
+  /** 前导图标(一级页中枢行用),透传给 SettingsListRow。 */
+  icon?: number;
   options: SettingsSelectOption<T>[];
   selectedValue: T | undefined;
   onSelect: (value: T) => void;
@@ -37,6 +39,7 @@ interface SettingsSelectRowProps<T extends string> {
 export function SettingsSelectRow<T extends string>({
   title,
   description,
+  icon,
   options,
   selectedValue,
   onSelect,
@@ -51,6 +54,7 @@ export function SettingsSelectRow<T extends string>({
       <SettingsListRow
         title={title}
         description={description}
+        icon={icon}
         trailing={{ value: selectedLabel }}
         onPress={() => setExpanded(true)}
         disabled={disabled}

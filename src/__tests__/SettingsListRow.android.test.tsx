@@ -142,9 +142,18 @@ describe('Android settings pages reuse the grouped row components', () => {
     expect(hub.match(/<SettingsSectionItem\b/g)).toHaveLength(
       hub.match(/<SettingsSectionItem\s+variant="grouped"/g)?.length ?? -1
     );
-    for (const section of ['history', 'background', 'appearance', 'storage', 'diagnostics', 'privacy', 'about', 'developer']) {
+    for (const section of ['history', 'background', 'storage', 'diagnostics', 'privacy', 'about', 'developer']) {
       expect(hub).toContain(`section="${section}"`);
     }
+    expect(hub).not.toContain('section="appearance"');
+    // theme / language / hide-from-recents sit directly in the General group
+    const general = hub.slice(hub.indexOf('const GeneralHubGroup'), hub.indexOf('const SupportHubGroup'));
+    for (const row of ['<ThemeSelectRow', '<LanguageSelectRow', '<HideFromRecentsRow']) {
+      expect(general).toContain(row);
+    }
+    const rows = read('settings/android/AppearanceRows.tsx');
+    expect(rows.match(/<SettingsSelectRow\b/g)).toHaveLength(2);
+    expect(read('settings/android/SettingsSelectRow.tsx')).toContain('icon={icon}');
   });
 
   it('drops card dividers from every settings sub page', () => {
@@ -155,7 +164,6 @@ describe('Android settings pages reuse the grouped row components', () => {
       'settings/QuickActionsSection.tsx',
       'settings/LogSection.android.tsx',
       'settings/AnalyticsConsentControl.android.tsx',
-      'settings/android/AppearanceSection.tsx',
       'settings/android/BackgroundSection.tsx',
       'settings/android/DebugSection.tsx',
     ]) {

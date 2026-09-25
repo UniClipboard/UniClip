@@ -81,7 +81,9 @@
       "about": "Versão {{version}}",
       "developer": "Depuração, pré-visualizações e atalhos",
       "privacy": "Dados de uso anônimos",
-      "diagnostics": "Grave e exporte logs para relatar problemas"
+      "diagnostics": "Grave e exporte logs para relatar problemas",
+      "theme": "Claro, escuro ou igual ao sistema",
+      "language": "Troque o idioma do app na hora"
     }
   },
   "ios": {

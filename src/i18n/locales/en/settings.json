@@ -80,7 +80,9 @@
       "about": "Version {{version}}",
       "developer": "Debugging, previews and shortcuts",
       "privacy": "Anonymous usage data",
-      "diagnostics": "Record and export logs for bug reports"
+      "diagnostics": "Record and export logs for bug reports",
+      "theme": "Light, dark or match the system",
+      "language": "Switch the app language instantly"
     }
   },
   "ios": {

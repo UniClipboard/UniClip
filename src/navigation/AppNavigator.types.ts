@@ -8,7 +8,6 @@ export type SettingsSubSection =
   | 'lanServers'
   | 'history'
   | 'background'
-  | 'appearance'
   | 'storage'
   | 'privacy'
   | 'diagnostics'

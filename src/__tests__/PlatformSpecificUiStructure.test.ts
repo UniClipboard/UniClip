@@ -10,7 +10,7 @@ describe('platform-specific UI structure', () => {
   it('keeps Android-only UI directly under Android-owned directories', () => {
     expect(fs.existsSync(path.join(sourceRoot, 'components/android/OverflowMenu.tsx'))).toBe(true);
     expect(
-      fs.existsSync(path.join(sourceRoot, 'screens/settings/android/AppearanceSection.tsx'))
+      fs.existsSync(path.join(sourceRoot, 'screens/settings/android/AppearanceRows.tsx'))
     ).toBe(true);
     expect(
       fs.existsSync(path.join(sourceRoot, 'screens/settings/android/BackgroundSection.tsx'))
