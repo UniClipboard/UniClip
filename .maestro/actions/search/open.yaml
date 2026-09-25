@@ -1,8 +1,19 @@
 # Pre: home with search closed. Post: the real search input is visible and focused.
+# iOS enters search from the native tab bar search button; Android from the home search bar.
 appId: ${APP_ID}
 ---
-- tapOn:
-    id: history-search-open
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: magnifyingglass
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn:
+          id: history-search-open
 - assertVisible:
     id: history-search-input
 - runFlow:
