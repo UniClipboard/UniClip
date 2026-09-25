@@ -3,14 +3,12 @@ import { File } from 'expo-file-system';
 import { StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Host, NavigationDestination, NavigationStack, ZStack } from '@expo/ui/swift-ui';
 import { frame, tint } from '@expo/ui/swift-ui/modifiers';
 
 import { iosAccentColor } from '@/theme/iosDesignTokens';
 import { ShareSendSheet } from '@/components/ShareSendSheet';
-import { mainTabBarClearance } from '@/components/ios/MainTabBar';
-import { IosPageChromeProvider } from '@/components/ui';
+import { IosPageChromeProvider, type IosPageChrome } from '@/components/ui';
 import { deleteDiagnosticArchive, type DiagnosticArtifact } from '@/support/diagnostics';
 import type { PendingShareJob } from '@/features/transfer';
 import { useSettingsStore } from '@/stores';
@@ -36,6 +34,7 @@ import type { DeviceTrustPreviewScenarioId } from '@/devtools/deviceTrustPreview
 import type { RootStackParamList } from '@/navigation/AppNavigator';
 
 const fillModifier = frame({ maxWidth: Infinity, maxHeight: Infinity });
+const NAVIGATION_CHROME: IosPageChrome = { kind: 'navigation' };
 
 /**
  * iOS「设置」标签页。全屏 Host 内是 SwiftUI NavigationStack:根页为大标题设置总览,
@@ -44,7 +43,6 @@ const fillModifier = frame({ maxWidth: Infinity, maxHeight: Infinity });
  */
 export const SettingsScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const insets = useSafeAreaInsets();
   const { config, isLoaded, loadConfig } = useSettingsStore();
   const [path, setPath] = useState<string[]>([]);
   const [diagnosticArchive, setDiagnosticArchive] = useState<DiagnosticArtifact | null>(null);
@@ -94,9 +92,7 @@ export const SettingsScreen = () => {
 
   return (
     <Host style={styles.host}>
-      <IosPageChromeProvider
-        value={{ kind: 'navigation', bottomClearance: mainTabBarClearance(insets.bottom) - insets.bottom }}
-      >
+      <IosPageChromeProvider value={NAVIGATION_CHROME}>
         <ZStack modifiers={[fillModifier, ...(iosAccentColor ? [tint(iosAccentColor)] : [])]}>
           <NavigationStack path={path} onPathChange={setPath}>
             <SettingsRootPage onNavigate={openSubPage} />

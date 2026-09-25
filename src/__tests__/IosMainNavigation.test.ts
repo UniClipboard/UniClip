@@ -6,38 +6,46 @@ const read = (relativePath: string) =>
 
 describe('iOS top-level navigation', () => {
   const main = read('navigation/MainScreen.ios.tsx');
-  const bar = read('components/ios/MainTabBar.tsx');
   const home = read('screens/HomeView.ios.tsx');
 
-  it('hosts Clipboard, Devices and Settings as tabs with a floating glass tab bar', () => {
-    expect(main).toContain('createBottomTabNavigator<MainTabParamList>()');
+  it('hosts Clipboard, Devices and Settings in the native UITabBarController tab bar', () => {
+    expect(main).toContain("from '@react-navigation/bottom-tabs/unstable'");
+    expect(main).toContain('createNativeBottomTabNavigator<IosMainTabParamList>()');
+    expect(main).not.toContain('tabBar=');
     for (const name of ['Clipboard', 'Devices', 'Preferences']) {
       expect(main).toContain(`name="${name}"`);
     }
+    expect(main).toContain("tabBarIcon: { type: 'sfSymbol'");
     expect(main).toContain('<DevicesScreen {...route.params} />');
     expect(main).toContain('<SettingsScreen />');
-    expect(bar).toContain('<GlassContainer shape="capsule"');
-    expect(bar).toContain("position: 'absolute'");
-    expect(bar).toContain('testID={`main-tab-${name}`}');
-    expect(bar).toContain("type: 'tabPress'");
+    expect(fs.existsSync(path.resolve(__dirname, '..', 'components/ios/MainTabBar.tsx'))).toBe(false);
   });
 
-  it('keeps search as a separate circle that always searches the clipboard history', () => {
-    expect(bar).toContain('testID="main-tab-search"');
+  it('uses the system search tab as an unselectable entry that searches the clipboard history', () => {
+    expect(main).toContain("tabBarSystemItem: 'search', tabBarSelectionEnabled: false");
     expect(main).toMatch(
-      /onSearch=\{\(\) => \{\s*props\.navigation\.navigate\('Clipboard'\);\s*setSearchRequestId\(\(id\) => id \+ 1\);/
+      /tabPress: \(\) => \{\s*navigation\.navigate\('Clipboard'\);\s*setSearchRequestId\(\(id\) => id \+ 1\);/
     );
     expect(home).toContain('if (searchRequestId === handledSearchRequest.current) return;');
     expect(home).toContain('openSearch();');
   });
 
-  it('hides the tab bar while the home page searches or selects', () => {
-    expect(main).toContain('hidden={homeImmersive}');
+  it('hides the native tab bar while the home page searches or selects', () => {
+    expect(main).toContain("tabBarStyle: { display: homeImmersive ? 'none' : 'flex' }");
     expect(home).toContain(
       'const immersive = c.isSearching || c.isSelectMode || c.detailPageItem != null;'
     );
     expect(home).toContain('onImmersiveModeChange?.(immersive);');
-    expect(bar).toContain("pointerEvents={hidden ? 'none' : 'box-none'}");
+  });
+
+  it('leaves bottom insets to SwiftUI safe areas and the home list, not native scroll-view overrides', () => {
+    expect(main).toContain('overrideScrollViewContentInsetAdjustmentBehavior: false');
+    expect(home).toContain('gridBottomPadding={tabBarClearance(c.insets.bottom)}');
+    for (const screen of ['screens/SettingsScreen.ios.tsx', 'screens/ios/DevicesScreen.tsx']) {
+      const source = read(screen);
+      expect(source).toContain('<IosPageChromeProvider value={NAVIGATION_CHROME}>');
+      expect(source).not.toContain('bottomClearance');
+    }
   });
 
   it('routes space notifications and LAN deep links to the Devices tab', () => {

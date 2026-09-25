@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Host, NavigationDestination, NavigationStack, ZStack } from '@expo/ui/swift-ui';
 import { frame, tint } from '@expo/ui/swift-ui/modifiers';
 import { useTranslation } from 'react-i18next';
 
 import { AddSyncConnectionSheet } from '@/components/AddSyncConnectionSheet';
 import type { AddSyncConnectionMode } from '@/components/AddSyncConnectionSheet.types';
-import { mainTabBarClearance } from '@/components/ios/MainTabBar';
 import { SpaceDeviceDetail } from '@/components/SpaceDeviceDetail';
-import { IosPageChromeProvider } from '@/components/ui';
+import { IosPageChromeProvider, type IosPageChrome } from '@/components/ui';
 import { useSpaceDeviceManagement } from '@/components/useSpaceDeviceManagement';
 import { usePendingLanConnectStore, type LanConnectIntent } from '@/features/lan-servers';
 import type { SpaceDeviceTarget } from '@/navigation/AppNavigator.types';
@@ -21,6 +19,7 @@ import { DevicesRootPage } from './devices/DevicesRootPage';
 import { SpaceSettingsPage } from './devices/SpaceSettingsPage';
 
 const fillModifier = frame({ maxWidth: Infinity, maxHeight: Infinity });
+const NAVIGATION_CHROME: IosPageChrome = { kind: 'navigation' };
 
 /**
  * iOS「设备」标签页。一个全屏 Host 内是 SwiftUI NavigationStack(根页:同步方式 + 设备 /
@@ -29,7 +28,6 @@ const fillModifier = frame({ maxWidth: Infinity, maxHeight: Infinity });
  */
 export function DevicesScreen({ deviceId, notificationNavigationRequestId }: SpaceDeviceTarget) {
   const { t } = useTranslation('settings');
-  const insets = useSafeAreaInsets();
   const [path, setPath] = useState<string[]>([]);
   const [setupMode, setSetupMode] = useState<AddSyncConnectionMode | null>(null);
   const [editingLanServerId, setEditingLanServerId] = useState<string | 'new' | null>(null);
@@ -101,9 +99,7 @@ export function DevicesScreen({ deviceId, notificationNavigationRequestId }: Spa
 
   return (
     <Host style={styles.host}>
-      <IosPageChromeProvider
-        value={{ kind: 'navigation', bottomClearance: mainTabBarClearance(insets.bottom) - insets.bottom }}
-      >
+      <IosPageChromeProvider value={NAVIGATION_CHROME}>
         <ZStack modifiers={[fillModifier, ...(iosAccentColor ? [tint(iosAccentColor)] : [])]}>
           <NavigationStack path={path} onPathChange={setPath}>
             <DevicesRootPage
