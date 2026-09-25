@@ -461,6 +461,13 @@ export function buildSpaceOverviewView(
   };
 }
 
+// A review action exists only when Engine names a recovery; otherwise the sheet can only close.
+export function spaceDeviceUpdateOffersReview(
+  update: DeviceTrustSnapshot['spaceDeviceUpdate']
+): boolean {
+  return update.recovery !== null;
+}
+
 export function spaceMaintenanceMessage(
   overview: SpaceOverviewView,
   t: (key: string, options?: { time: string }) => string

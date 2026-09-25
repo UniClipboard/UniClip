@@ -52,6 +52,7 @@ import {
   invitationCodeInputValue,
   normalizeInvitationCodeInput,
 } from '@/utils/invitationCode';
+import { spaceDeviceUpdateOffersReview } from '@/features/space';
 import type { AddSyncConnectionSheetProps } from './AddSyncConnectionSheet.types';
 import { useAddSyncConnectionFlow } from './useAddSyncConnectionFlow';
 import { useAddSyncConnectionPreviewFlow } from '@/devtools/useAddSyncConnectionPreviewFlow';
@@ -611,6 +612,7 @@ function AddSyncConnectionSheetContent({
   } = actions;
   const showsJoinStatus =
     mode === 'joinDetails' && (joinSubmitted || restoredJoin || pending);
+  const offersDeviceUpdateReview = spaceDeviceUpdateOffersReview(deviceUpdate);
   const title =
     mode === 'create'
       ? t('space.create.title')
@@ -1175,7 +1177,7 @@ function AddSyncConnectionSheetContent({
               )}
             />
             <Spacer modifiers={[heightModifier(24)]} />
-            {deviceUpdate.phase === 'needsAttention' ? (
+            {deviceUpdate.phase === 'needsAttention' && offersDeviceUpdateReview ? (
               <Button onClick={close} shape={PILL_SHAPE} modifiers={[fillMaxWidth()]}>
                 <ComposeText>
                   {t('space.flow.deviceUpdate.reviewAction')}
@@ -1184,7 +1186,9 @@ function AddSyncConnectionSheetContent({
             ) : null}
             <TextButton onClick={close} shape={PILL_SHAPE} modifiers={[fillMaxWidth()]}>
               <ComposeText>
-                {t('space.flow.deviceUpdate.continueInBackground')}
+                {deviceUpdate.phase === 'needsAttention' && !offersDeviceUpdateReview
+                  ? t('action.close', { ns: 'common' })
+                  : t('space.flow.deviceUpdate.continueInBackground')}
               </ComposeText>
             </TextButton>
           </Column>

@@ -19,6 +19,7 @@ export {
   buildSpaceOverviewView,
   deviceTrustSnapshotFromQuery,
   initialDeviceTrustChoice,
+  spaceDeviceUpdateOffersReview,
   spaceMaintenanceMessage,
   type DeviceTrustChoiceView,
   type DeviceTrustDecisionView,

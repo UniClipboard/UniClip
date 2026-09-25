@@ -84,6 +84,7 @@ import {
   invitationCodeInputValue,
   normalizeInvitationCodeInput,
 } from '@/utils/invitationCode';
+import { spaceDeviceUpdateOffersReview } from '@/features/space';
 import type { AddSyncConnectionSheetProps } from './AddSyncConnectionSheet.types';
 import { useAddSyncConnectionFlow } from './useAddSyncConnectionFlow';
 import { useAddSyncConnectionPreviewFlow } from '@/devtools/useAddSyncConnectionPreviewFlow';
@@ -1061,6 +1062,7 @@ export function AddSyncConnectionSheet({
   } = actions;
   const showsJoinStatus =
     mode === 'joinDetails' && (joinSubmitted || restoredJoin || pending);
+  const offersDeviceUpdateReview = spaceDeviceUpdateOffersReview(deviceUpdate);
 
   // Only a fresh completion advances; returning to edit a full code must not bounce forward.
   const trackCodeCompletion = (normalized: string) => {
@@ -1635,17 +1637,25 @@ export function AddSyncConnectionSheet({
               deviceUpdate.phase === 'needsAttention' ? (
                 <IosSheetScaffold
                   footer={
-                    <>
-                      <SheetActionButton
-                        title={t('space.flow.deviceUpdate.attention.reviewAction')}
-                        onPress={close}
-                      />
+                    offersDeviceUpdateReview ? (
+                      <>
+                        <SheetActionButton
+                          title={t('space.flow.deviceUpdate.attention.reviewAction')}
+                          onPress={close}
+                        />
+                        <SheetActionButton
+                          variant="tertiary"
+                          title={t('space.flow.deviceUpdate.attention.cancelAction')}
+                          onPress={close}
+                        />
+                      </>
+                    ) : (
                       <SheetActionButton
                         variant="tertiary"
-                        title={t('space.flow.deviceUpdate.attention.cancelAction')}
+                        title={t('action.close', { ns: 'common' })}
                         onPress={close}
                       />
-                    </>
+                    )
                   }
                   contentAlignment="center"
                 >

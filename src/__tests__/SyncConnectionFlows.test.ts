@@ -62,6 +62,18 @@ describe('unified sync connection flows', () => {
     expect(ios).toContain("buttonStyle('plain')");
   });
 
+  it('shows the device status review action only when Engine offers a recovery', () => {
+    for (const platform of ['ios', 'android'] as const) {
+      const sheet = source(`components/AddSyncConnectionSheet.${platform}.tsx`);
+
+      expect(sheet).toContain('spaceDeviceUpdateOffersReview(deviceUpdate)');
+      expect(sheet).toMatch(
+        /offersDeviceUpdateReview \?[\s\S]*space\.flow\.deviceUpdate\.(attention\.)?reviewAction/
+      );
+      expect(sheet).toMatch(/!?offersDeviceUpdateReview[\s\S]*action\.close', \{ ns: 'common' \}/);
+    }
+  });
+
   it('keeps every iOS pairing action in the shared bottom action region', () => {
     const ios = source('components/AddSyncConnectionSheet.ios.tsx');
     const scaffold = source('components/ui/IosSheetPage.ios.tsx');
