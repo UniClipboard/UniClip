@@ -2,7 +2,6 @@ import {
   Button as SwiftUIButton,
   HStack,
   Image,
-  Picker,
   ProgressView,
   Section,
   Spacer,
@@ -22,16 +21,16 @@ import {
   foregroundStyle,
   frame,
   listRowBackground,
+  listRowInsets,
   multilineTextAlignment,
   padding,
-  pickerStyle,
   shapes,
-  tag,
 } from '@expo/ui/swift-ui/modifiers';
 import { PlatformColor } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
+import { IosSegmentedControl } from '@/components/ui/IosSegmentedControl.ios';
 import type { AddSyncConnectionMode } from '@/components/AddSyncConnectionSheet.types';
 import type { SpaceDeviceManagementController } from '@/components/useSpaceDeviceManagement';
 import { useSpacePageRefresh } from '@/components/useSpacePageRefresh';
@@ -68,8 +67,11 @@ export interface DevicesRootPageProps {
   onRequestP2pConfirmation: () => void;
   onAddLanServer: () => void;
   onEditLanServer: (serverId: string) => void;
-  /** 同步方式切换被拒绝(待确认)时递增,让分段控件回到当前值 */
-  syncChannelPickerKey: number;
+  /**
+   * 直连确认 sheet 正在展示:分段控件停在「直连」表达用户的选择,内容仍按实际通道渲染;
+   * 取消后回到当前值,滑块由 IosSegmentedControl 动画滑回。
+   */
+  p2pConfirmationPending: boolean;
 }
 
 /**
@@ -86,14 +88,16 @@ export function DevicesRootPage({
   onRequestP2pConfirmation,
   onAddLanServer,
   onEditLanServer,
-  syncChannelPickerKey,
+  p2pConfirmationPending,
 }: DevicesRootPageProps) {
   const { t } = useTranslation('settingsSync');
   const syncChannel = useSettingsStore((state) => state.config?.syncChannel ?? 'lan');
   const spaceId = useUnifiedSpaceStore((state) => state.spaceId);
   const pageRefresh = useSpacePageRefresh();
 
-  const onSelectChannel = (value: string) => {
+  const pickerSelection = p2pConfirmationPending ? 'p2p' : syncChannel;
+
+  const onSelectChannel = (value: 'lan' | 'p2p') => {
     if (value === syncChannel) return;
     if (value === 'p2p') {
       onRequestP2pConfirmation();
@@ -120,18 +124,23 @@ export function DevicesRootPage({
     >
       <IosSheetForm>
         <Section>
-          <Picker
-            key={syncChannelPickerKey}
+          <IosSegmentedControl
             testID="sync-channel-picker"
-            selection={syncChannel}
-            onSelectionChange={(value) => onSelectChannel(String(value))}
-            modifiers={[pickerStyle('segmented'), listRowBackground('clear')]}
-          >
-            <SwiftUIText modifiers={[tag('lan')]}>{t('syncChannel.lanShort', { ns: 'settings' })}</SwiftUIText>
-            <SwiftUIText modifiers={[tag('p2p')]}>
-              {`${t('syncChannel.p2pShort', { ns: 'settings' })} (${t('syncChannel.experimentalBadge', { ns: 'settings' })})`}
-            </SwiftUIText>
-          </Picker>
+            options={[
+              { value: 'lan', label: t('syncChannel.lanShort', { ns: 'settings' }) },
+              {
+                value: 'p2p',
+                label: `${t('syncChannel.p2pShort', { ns: 'settings' })} (${t('syncChannel.experimentalBadge', { ns: 'settings' })})`,
+              },
+            ]}
+            selection={pickerSelection}
+            onSelectionChange={onSelectChannel}
+            modifiers={[
+              // 设计稿:与下方卡片同宽的胶囊分段控件,不再缩进在列表行内
+              listRowInsets({ top: 0, leading: 0, bottom: 0, trailing: 0 }),
+              listRowBackground('clear'),
+            ]}
+          />
         </Section>
 
         {syncChannel === 'lan' ? (

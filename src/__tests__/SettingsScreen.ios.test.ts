@@ -51,10 +51,21 @@ describe('iOS settings and devices tabs', () => {
     expect(devicesScreen).toContain("onSwitchSpace={() => setSetupMode('switch')}");
   });
 
-  it('keeps the sync method picker on the current value until direct sync is confirmed', () => {
-    expect(devicesRoot).toContain("pickerStyle('segmented')");
-    expect(devicesRoot).toContain('key={syncChannelPickerKey}');
+  it('holds the sync method picker on direct while confirming and animates it back', () => {
+    // 原生分段 Picker 在代码回写选中值时不带动画(点 sheet 外关闭确认后滑块会直接跳回),
+    // 同步方式必须用自绘的 IosSegmentedControl,滑块随选中值做动画
+    expect(devicesRoot).toContain('<IosSegmentedControl');
+    expect(devicesRoot).not.toContain("pickerStyle('segmented')");
+    const control = read('components/ui/IosSegmentedControl.ios.tsx');
+    expect(control).toContain('offset({ x: selectedIndex * segmentWidth })');
+    expect(control).toMatch(/animation\([^)]*\), selectedIndex\)/);
+    // 与设计稿一致:分段控件与下方卡片同宽,不缩进在列表行内
+    expect(devicesRoot).toContain('listRowInsets({ top: 0, leading: 0, bottom: 0, trailing: 0 })');
     expect(devicesRoot).toMatch(/value === 'p2p'\) \{\s*onRequestP2pConfirmation\(\);\s*return;/);
-    expect(devicesScreen).toContain('setSyncChannelPickerKey((key) => key + 1)');
+    // 确认期间让选中值停在「直连」,不靠重挂载把控件拉回
+    expect(devicesRoot).not.toMatch(/key=\{syncChannelPickerKey\}/);
+    expect(devicesRoot).toContain("const pickerSelection = p2pConfirmationPending ? 'p2p' : syncChannel;");
+    expect(devicesRoot).toContain('selection={pickerSelection}');
+    expect(devicesScreen).toContain('p2pConfirmationPending={showP2pConfirmation}');
   });
 });

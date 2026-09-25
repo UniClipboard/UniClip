@@ -58,7 +58,7 @@ describe('sync channel settings UI', () => {
     expect(androidPage).not.toContain("openSection('lanServers')");
     expect(androidPage).not.toContain("openSection('space')");
     expect(androidOwner).toContain("section === 'syncChannel'");
-    expect(iosPage).toContain("pickerStyle('segmented')");
+    expect(iosPage).toContain('<IosSegmentedControl');
     expect(iosPage).toContain("t('syncChannel.experimentalBadge', { ns: 'settings' })");
     expect(iosPage).toContain("updateConfig({ syncChannel: 'lan' })");
     expect(iosPage).toContain("syncChannel === 'lan'");

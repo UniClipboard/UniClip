@@ -22,13 +22,17 @@ describe('device direct sync confirmation', () => {
     expect(sheet).toContain('confirmationDescription');
     expect(sheet).not.toContain('IosSheetForm');
     expect(sheet).not.toContain('<Section');
-    expect(sheet).toContain('confirmationWarning');
+    // 要点行:跨网络 / 实验性 / 可随时切回,用单色 SF Symbol 而不是设置页的彩色图标块
+    for (const key of ['confirmationExperimental', 'confirmationReversible']) {
+      expect(sheet).toContain(key);
+    }
     expect(sheet).not.toContain('<IosSheetPage');
     expect(sheet).toContain('fitToContents');
     expect(sheet).not.toContain("presentationDetents(['medium'])");
     expect((sheet.match(/<Section/g) ?? []).length).toBe(0);
-    expect(sheet).toContain('spacing={12}');
     expect(sheet).toContain('bottom: 12');
+    // 「取消」已是退出入口,不再有右上角 ✕
+    expect(sheet).not.toContain('systemImage="xmark"');
   });
 
   it('does not persist p2p until the Android confirmation action is pressed', () => {

@@ -36,6 +36,7 @@
     "confirmationCrossNetwork": "Ela funciona mesmo quando os dispositivos não estão na mesma rede Wi-Fi.",
     "confirmationExperimental": "Este é um recurso experimental e pode ser menos estável que a sincronização padrão.",
     "confirmationWarning": "Este recurso é experimental e pode ser menos confiável.",
+    "confirmationReversible": "Você pode voltar à sincronização padrão na aba Dispositivos a qualquer momento.",
     "confirmationCancel": "Cancelar",
     "confirmationConfirm": "Usar sincronização direta",
     "updateFailed": "Não foi possível alterar o método de sincronização"
