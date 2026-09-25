@@ -63,15 +63,6 @@
     "systemSettings": {
       "row": "系统中的键盘设置",
       "footer": "可在那里移除键盘或关闭完全访问。"
-    },
-    "illustration": {
-      "text": "文本",
-      "links": "链接",
-      "justNow": "刚刚",
-      "fiveMinutes": "5 分钟",
-      "textSample": "会议改到 3:30，4B 会议室。记得带 Q3 汇报材料。",
-      "linkSample": "UniClip mobile PR #412 评审意见",
-      "space": "空格"
     }
   },
   "share": {

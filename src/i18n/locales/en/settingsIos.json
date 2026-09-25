@@ -63,15 +63,6 @@
     "systemSettings": {
       "row": "Keyboard settings in iOS",
       "footer": "Remove the keyboard or turn off Full Access there."
-    },
-    "illustration": {
-      "text": "Text",
-      "links": "Links",
-      "justNow": "Just now",
-      "fiveMinutes": "5m",
-      "textSample": "Meeting moved to 3:30, room 4B. Bring the Q3 deck.",
-      "linkSample": "UniClip mobile PR #412 review notes",
-      "space": "space"
     }
   },
   "share": {

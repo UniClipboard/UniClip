@@ -98,10 +98,28 @@ describe('iOS Keyboard page', () => {
     expect(buttonSection).toContain("listRowBackground('clear')");
   });
 
-  it('draws the keyboard with its third clip card running off the trailing edge', () => {
+  it('shows the keyboard as a silent looping video matching the appearance', () => {
+    expect(keyboardPage).toContain('<KeyboardDemoVideo />');
+    for (const appearance of ['light', 'dark']) {
+      const file = `assets/videos/keyboard-paste-loop-${appearance}.mp4`;
+      expect(keyboardPage).toContain(`../../../../${file}`);
+      expect(fs.existsSync(path.resolve(__dirname, '../..', file))).toBe(true);
+    }
+    const player = read('screens/settings/ios/KeyboardDemoVideoPlayer.tsx');
+    expect(player).toContain('p.loop = true;');
+    expect(player).toContain('p.muted = true;');
+    // Never pause the user's music for a settings illustration.
+    expect(player).toContain("p.audioMixingMode = 'mixWithOthers';");
+    expect(player).toContain('nativeControls={false}');
+  });
+
+  it('keeps the page loading on dev clients built without expo-video', () => {
+    // A static import would throw there and take the whole Settings tab down.
+    expect(keyboardPage).not.toMatch(/from 'expo-video'/);
     expect(keyboardPage).toMatch(
-      /frame\(\{ width: KEYBOARD_WIDTH, height: 114[^)]*\}\),\s*clipped\(\)/
+      /requireOptionalNativeModule\('ExpoVideo'\)\s*\?\s*require\('\.\/KeyboardDemoVideoPlayer'\)/
     );
+    expect(keyboardPage).toContain('if (!DemoVideoPlayer) return null;');
   });
 
   it('offers the key feedback switches only once the keyboard is added', () => {
@@ -156,7 +174,6 @@ describe('iOS extension page strings', () => {
         'share.guide.illustration.suggestions',
         'share.flow.chooseDevices',
         'share.worksWith.files',
-        'keyboard.illustration.textSample',
       ])
     );
     for (const [language, namespaces] of Object.entries(resources)) {
