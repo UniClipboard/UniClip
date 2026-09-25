@@ -1326,6 +1326,69 @@ describe('UnifiedSpaceService', () => {
     expect(api.createSpace).not.toHaveBeenCalled();
   });
 
+  it.each([
+    [1221, 'invitationNetworkNotReady'],
+    [1223, 'serviceUnavailable'],
+    [1225, 'invitationDevicesUpdating'],
+    [1226, 'invitationRecoveryRequired'],
+    [1227, 'invitationNoNetworkAddress'],
+    [1228, 'invitationPublishFailed'],
+    [1229, 'invitationServiceUnreachable'],
+    [1230, 'invitationServiceRejected'],
+    [1231, 'invitationServiceUnreachable'],
+  ] as const)('maps invitation issue failure %i to %s', async (code, expected) => {
+    const api = createApi({
+      issueInvitation: jest.fn(async () => {
+        throw new Error(`BindingError.Engine(code: ${code}, category: unavailable, retryable: true)`);
+      }),
+    });
+    const service = new UnifiedSpaceService(api);
+
+    const failure = await service.issueInvitation().catch((cause: unknown) => cause);
+
+    expect(unifiedSpaceUserErrorCode(failure)).toBe(expected);
+  });
+
+  it('maps invitation issue failures while creating a space', async () => {
+    const api = createApi({
+      issueInvitation: jest.fn(async () => {
+        throw new Error('BindingError.Engine(code: 1227, category: unavailable, retryable: true)');
+      }),
+    });
+    const service = new UnifiedSpaceService(api);
+
+    const failure = await service.createSpace('Phone', 'passphrase').catch((cause: unknown) => cause);
+
+    expect(unifiedSpaceUserErrorCode(failure)).toBe('invitationNoNetworkAddress');
+  });
+
+  it.each([1222, 1224])(
+    'keeps the generic failure for invitation issue code %i that Mobile cannot act on',
+    async (code) => {
+      const api = createApi({
+        issueInvitation: jest.fn(async () => {
+          throw new Error(`BindingError.Engine(code: ${code}, category: internal, retryable: false)`);
+        }),
+      });
+      const service = new UnifiedSpaceService(api);
+
+      const failure = await service.issueInvitation().catch((cause: unknown) => cause);
+
+      expect(unifiedSpaceUserErrorCode(failure)).toBeNull();
+    }
+  );
+
+  it.each([1221, 1225, 1226, 1227, 1228, 1229, 1230, 1231])(
+    'does not treat code %i from another operation as an invitation issue failure',
+    (code) => {
+      expect(
+        unifiedSpaceUserErrorCode(
+          new Error(`BindingError.Engine(code: ${code}, category: invalidInput, retryable: false)`)
+        )
+      ).toBeNull();
+    }
+  );
+
   it('restores the active space and its devices from the core', async () => {
     const snapshots: UnifiedSpaceSnapshot[] = [];
     const api = createApi();

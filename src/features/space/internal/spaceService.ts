@@ -112,7 +112,14 @@ export type UnifiedSpaceUserErrorCode =
   | 'joinCancelled'
   | 'joinExpired'
   | 'joinSuperseded'
-  | 'unreadableHistoryRequiresConfirmation';
+  | 'unreadableHistoryRequiresConfirmation'
+  | 'invitationNetworkNotReady'
+  | 'invitationDevicesUpdating'
+  | 'invitationRecoveryRequired'
+  | 'invitationNoNetworkAddress'
+  | 'invitationPublishFailed'
+  | 'invitationServiceUnreachable'
+  | 'invitationServiceRejected';
 
 const USER_ERROR_BY_ENGINE_CODE: Readonly<Record<number, UnifiedSpaceUserErrorCode>> = {
   1233: 'passphraseMismatch',
@@ -126,6 +133,19 @@ const USER_ERROR_BY_ENGINE_CODE: Readonly<Record<number, UnifiedSpaceUserErrorCo
   1284: 'connectionLost',
   1285: 'connectionTimedOut',
   1292: 'unreadableHistoryRequiresConfirmation',
+};
+
+// Engine reuses these numbers in other operations, so they apply only to invitation issue failures.
+const USER_ERROR_BY_INVITATION_ISSUE_CODE: Readonly<Record<number, UnifiedSpaceUserErrorCode>> = {
+  1221: 'invitationNetworkNotReady',
+  1223: 'serviceUnavailable',
+  1225: 'invitationDevicesUpdating',
+  1226: 'invitationRecoveryRequired',
+  1227: 'invitationNoNetworkAddress',
+  1228: 'invitationPublishFailed',
+  1229: 'invitationServiceUnreachable',
+  1230: 'invitationServiceRejected',
+  1231: 'invitationServiceUnreachable',
 };
 
 type JoinSpaceStage = 'prepareP2p' | 'requestJoin' | 'refreshDevices';
@@ -201,9 +221,31 @@ class UnifiedSpaceJoinResultError extends Error {
   }
 }
 
+class UnifiedSpaceInvitationIssueError extends Error {
+  readonly name = 'UnifiedSpaceInvitationIssueError';
+
+  constructor(
+    readonly code: UnifiedSpaceUserErrorCode,
+    cause: unknown
+  ) {
+    super(code, { cause });
+  }
+}
+
+async function issueInvitationFrom(api: UnifiedSpaceApi): Promise<InvitationIssued> {
+  try {
+    return await api.issueInvitation();
+  } catch (cause) {
+    const engineCode = engineErrorCode(cause);
+    const code = engineCode === null ? undefined : USER_ERROR_BY_INVITATION_ISSUE_CODE[engineCode];
+    throw code ? new UnifiedSpaceInvitationIssueError(code, cause) : cause;
+  }
+}
+
 export function unifiedSpaceUserErrorCode(cause: unknown): UnifiedSpaceUserErrorCode | null {
   if (cause instanceof UnifiedSpaceInputError) return cause.code;
   if (cause instanceof UnifiedSpaceJoinResultError) return cause.code;
+  if (cause instanceof UnifiedSpaceInvitationIssueError) return cause.code;
 
   const details = [String(cause)];
   if (cause && typeof cause === 'object') {
@@ -508,7 +550,7 @@ export class UnifiedSpaceService {
         revision = this.beginMutation();
         this.updateSnapshot({ status: 'loading', lastError: null });
         const space = await this.api.createSpace(normalizedName, normalizedPassphrase);
-        const invitation = await this.api.issueInvitation();
+        const invitation = await issueInvitationFrom(this.api);
         const devices = await this.api.listDevices();
         await this.completion.markComplete();
         if (!this.isCurrentMutation(revision)) return { ...space, invitation };
@@ -545,7 +587,7 @@ export class UnifiedSpaceService {
   }
 
   async issueInvitation(): Promise<InvitationIssued> {
-    const invitation = await this.api.issueInvitation();
+    const invitation = await issueInvitationFrom(this.api);
     this.updateSnapshot({ invitation, lastError: null });
     return invitation;
   }

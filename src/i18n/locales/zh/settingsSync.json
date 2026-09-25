@@ -370,7 +370,14 @@
       "connectionLost": "连接已中断，请重试",
       "operationFailed": "操作失败,请检查输入后重试",
       "peerUpgradeRequired": "请先升级对方设备上的 UniClip，然后重试。",
-      "joinNeedsAttention": "本次加入需要处理。请保留当前资料，并导出诊断信息后联系支持。"
+      "joinNeedsAttention": "本次加入需要处理。请保留当前资料，并导出诊断信息后联系支持。",
+      "invitationNetworkNotReady": "同步服务仍在启动，请稍后重试",
+      "invitationDevicesUpdating": "空间设备状态仍在更新，请稍后重试",
+      "invitationRecoveryRequired": "空间设备状态需要处理后才能邀请设备",
+      "invitationNoNetworkAddress": "当前没有可用于邀请的网络连接，请检查网络后重试",
+      "invitationPublishFailed": "无法准备邀请，请重试",
+      "invitationServiceUnreachable": "暂时无法连接邀请服务，请重试",
+      "invitationServiceRejected": "邀请服务拒绝了此请求，请稍后重试"
     },
     "manage": {
       "title": "空间操作"
