@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { KeyboardAvoidingView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { DefaultTopBar, SelectModeTopBar } from '@/components/HomeTopBar';
-import { mainTabBarClearance } from '@/components/ios/MainTabBar';
 import { iosColors } from '@/theme/iosDesignTokens';
 import { useHomeController } from './useHomeController';
 import { getLayoutMode } from '@/hooks/useLayoutMode';
@@ -17,6 +16,14 @@ import type { HomeViewProps } from './HomeView.types';
 
 /** 顶栏按钮行高度(玻璃胶囊 44pt) */
 const TOP_BAR_ROW_HEIGHT = 44;
+
+/**
+ * 列表末尾为原生标签栏留出的空间:iOS 26 悬浮标签栏约 62pt 高,底边贴近 home indicator,
+ * 再留 16pt 间隔。剪贴板标签关闭了原生的 ScrollView inset 自动调整,以这里为准。
+ */
+function tabBarClearance(safeBottom: number): number {
+  return Math.max(12, safeBottom - 6) + 62 + 16;
+}
 
 /**
  * iOS 首页。两级布局:
@@ -81,7 +88,7 @@ export function HomeView({ onOpenSettings, onImmersiveModeChange, searchRequestI
           screenWidth={screenWidth}
           refreshTintColor={undefined}
           overlayTopBarHeight={c.insets.top + TOP_BAR_ROW_HEIGHT}
-          gridBottomPadding={mainTabBarClearance(c.insets.bottom)}
+          gridBottomPadding={tabBarClearance(c.insets.bottom)}
           showAddActionsFab={false}
           search={search}
           renderCollection={getHomeHistoryCollection(c)}

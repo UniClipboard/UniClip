@@ -24,8 +24,8 @@ describe('Android top-level navigation', () => {
     );
     expect(android).toContain("tabBarPosition: useRail ? 'left' : 'bottom'");
 
-    // iOS uses the same destinations with its own Liquid Glass tab bar
-    expect(ios).toContain('<MainTabBar');
+    // iOS uses the same destinations with the native UITabBarController tab bar
+    expect(ios).toContain('createNativeBottomTabNavigator');
     expect(ios).not.toContain('MainNavigationBar');
   });
 

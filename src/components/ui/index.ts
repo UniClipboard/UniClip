@@ -57,7 +57,6 @@ export {
   IosSheetForm,
   IosSheetScaffold,
   IosPageChromeProvider,
-  IosTabBarClearance,
   useIosPageChrome,
 } from './IosSheetPage';
 export type {

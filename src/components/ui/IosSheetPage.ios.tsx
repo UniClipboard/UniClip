@@ -1,9 +1,8 @@
 import React, { createContext, useContext } from 'react';
-import { Form, Section, Spacer, Toolbar, VStack } from '@expo/ui/swift-ui';
+import { Form, Toolbar, VStack } from '@expo/ui/swift-ui';
 import {
   background,
   frame,
-  listRowBackground,
   listStyle,
   navigationTitle,
   padding,
@@ -37,12 +36,10 @@ export interface IosSheetScaffoldProps {
  * 页面所在的外壳:
  * - sheet:底部弹层内的自绘页头(标题 + 左右圆形按钮),子页由宿主自行做推入动画;
  * - navigation:SwiftUI NavigationStack 内(iOS 标签页),标题交给原生导航栏(根页为大标题),
- *   返回由导航栈提供,右侧按钮进工具栏,表单底部为悬浮标签栏留出空间。
+ *   返回由导航栈提供,右侧按钮进工具栏;原生标签栏的底部空间由系统 safe area 提供。
  */
 export interface IosPageChrome {
   kind: 'sheet' | 'navigation';
-  /** navigation:表单末尾为悬浮标签栏留出的高度 */
-  bottomClearance?: number;
 }
 
 const IosPageChromeContext = createContext<IosPageChrome>({ kind: 'sheet' });
@@ -121,23 +118,7 @@ export function IosSheetPage({
 }
 
 export function IosSheetForm({ children, modifiers = [] }: IosSheetFormProps) {
-  const chrome = useIosPageChrome();
-  const clearance = chrome.kind === 'navigation' ? chrome.bottomClearance ?? 0 : 0;
-  return (
-    <Form modifiers={[...sheetFormBaseModifiers, ...modifiers]}>
-      {children}
-      {clearance > 0 ? <IosTabBarClearance height={clearance} /> : null}
-    </Form>
-  );
-}
-
-/** 表单末尾的透明占位行:内容可以滚到悬浮标签栏之上。 */
-export function IosTabBarClearance({ height }: { height: number }) {
-  return (
-    <Section>
-      <Spacer modifiers={[frame({ height }), listRowBackground('clear')]} />
-    </Section>
-  );
+  return <Form modifiers={[...sheetFormBaseModifiers, ...modifiers]}>{children}</Form>;
 }
 
 export function IosSheetScaffold({
