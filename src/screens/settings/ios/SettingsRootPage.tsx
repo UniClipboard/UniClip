@@ -1,6 +1,4 @@
-import { HStack, Section, Text as SwiftUIText, VStack } from '@expo/ui/swift-ui';
-import { font, foregroundStyle, frame } from '@expo/ui/swift-ui/modifiers';
-import type { SFSymbol } from 'sf-symbols-typescript';
+import { Section, Text as SwiftUIText } from '@expo/ui/swift-ui';
 import { useTranslation } from 'react-i18next';
 
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
@@ -12,10 +10,9 @@ import type { ThemeMode } from '@/theme';
 import { useAppLanguage } from '@/i18n/useAppLanguage';
 import { LANGUAGE_NATIVE_NAMES, type LanguagePreference, SUPPORTED_LANGUAGES } from '@/i18n/languages';
 import {
-  SettingsIconTile,
+  IconToggleRow,
   SettingsNavRow,
   SettingsPickerRow,
-  SettingsToggle,
   settingsTileColors,
   statusGreen,
   statusOrange,
@@ -30,39 +27,6 @@ const THEME_MODE: Record<Appearance, ThemeMode> = {
   light: 'light',
   dark: 'dark',
 };
-
-/** 带图标与说明的开关行(剪贴板同步方向) */
-function IconToggleRow({
-  testID,
-  icon,
-  iconColor,
-  label,
-  description,
-  isOn,
-  onIsOnChange,
-}: {
-  testID?: string;
-  icon: SFSymbol;
-  iconColor: string;
-  label: string;
-  description: string;
-  isOn: boolean;
-  onIsOnChange: (v: boolean) => void;
-}) {
-  return (
-    <HStack spacing={12} modifiers={[frame({ maxWidth: Infinity })]}>
-      <SettingsIconTile systemName={icon} color={iconColor} />
-      <SettingsToggle testID={testID} isOn={isOn} onIsOnChange={onIsOnChange}>
-        <VStack alignment="leading" spacing={2}>
-          <SwiftUIText>{label}</SwiftUIText>
-          <SwiftUIText modifiers={[font({ size: 13 }), foregroundStyle('secondary')]}>
-            {description}
-          </SwiftUIText>
-        </VStack>
-      </SettingsToggle>
-    </HStack>
-  );
-}
 
 /**
  * iOS「设置」标签页根页(大标题):剪贴板同步方向 → 通用(历史 / 剪贴板访问 / 主题 / 语言 / 存储)

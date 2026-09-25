@@ -4,9 +4,9 @@ import { getKeyboardStatus, type KeyboardStatusDTO } from 'app-group-store';
 
 export type KeyboardSetupState =
   | 'notAdded' // not in the system keyboard list
-  | 'added' // in the list, but Full Access is off (or not yet confirmable)
-  | 'ready' // in the list and last heartbeat had Full Access
-  | 'unknown'; // system list unreadable and the keyboard never ran
+  | 'added' // in the list, Full Access not confirmed
+  | 'ready' // in the list and a heartbeat confirmed Full Access
+  | 'unknown'; // system list unreadable and no heartbeat ever landed
 
 export interface KeyboardStatusView {
   raw: KeyboardStatusDTO | null;
@@ -14,26 +14,33 @@ export interface KeyboardStatusView {
   /** Best-effort "is in the system keyboard list". */
   added: boolean;
   /**
-   * Full Access as of the keyboard's last appearance. Only meaningful when
-   * `heartbeatSeen`; a keyboard that was added but never opened cannot report.
+   * When a heartbeat last confirmed Full Access (epoch ms). The keyboard can
+   * only reach the App Group with Full Access on, so it can never report the
+   * permission being turned off: this proves Full Access at that moment, not
+   * now. `null` means unconfirmed, which is not the same as off.
    */
-  fullAccess: boolean;
-  heartbeatSeen: boolean;
+  fullAccessConfirmedAtMs: number | null;
+  /** A heartbeat said Full Access is off (only if iOS ever lets one land). */
+  fullAccessKnownOff: boolean;
   refresh: () => Promise<void>;
 }
 
-function deriveState(status: KeyboardStatusDTO | null): {
-  state: KeyboardSetupState;
-  added: boolean;
-} {
-  if (!status) return { state: 'unknown', added: false };
-  const added = status.enabledInSystem ?? status.everUsed;
-  if (status.enabledInSystem === null && !status.everUsed) {
-    return { state: 'unknown', added: false };
-  }
-  if (!added) return { state: 'notAdded', added: false };
-  const ready = status.everUsed && status.lastKnownFullAccess;
-  return { state: ready ? 'ready' : 'added', added: true };
+export function deriveKeyboardStatus(status: KeyboardStatusDTO | null) {
+  const heartbeatAt = status?.lastHeartbeatAtMs ?? null;
+  const fullAccessConfirmedAtMs =
+    heartbeatAt !== null && status?.lastKnownFullAccess ? heartbeatAt : null;
+  const fullAccessKnownOff = heartbeatAt !== null && !status?.lastKnownFullAccess;
+  const added = status?.enabledInSystem ?? heartbeatAt !== null;
+  let state: KeyboardSetupState;
+  if (!status || (status.enabledInSystem === null && heartbeatAt === null)) state = 'unknown';
+  else if (!added) state = 'notAdded';
+  else state = fullAccessConfirmedAtMs !== null ? 'ready' : 'added';
+  return {
+    state,
+    added: state === 'unknown' ? false : added,
+    fullAccessConfirmedAtMs,
+    fullAccessKnownOff,
+  };
 }
 
 /**
@@ -69,13 +76,5 @@ export function useKeyboardStatus(options?: { pollMs?: number }): KeyboardStatus
     return () => clearInterval(id);
   }, [pollMs, refresh]);
 
-  const { state, added } = deriveState(raw);
-  return {
-    raw,
-    state,
-    added,
-    fullAccess: (raw?.everUsed ?? false) && (raw?.lastKnownFullAccess ?? false),
-    heartbeatSeen: raw?.everUsed ?? false,
-    refresh,
-  };
+  return { raw, ...deriveKeyboardStatus(raw), refresh };
 }

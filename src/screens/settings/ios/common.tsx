@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { Linking, PlatformColor } from 'react-native';
-import { useTranslation } from 'react-i18next';
+import { DynamicColorIOS, PlatformColor } from 'react-native';
 import {
   Button as SwiftUIButton,
   HStack,
@@ -26,6 +25,7 @@ import {
   opacity,
   pickerStyle,
   shapes,
+  strokeBorder,
   tag,
   tint,
   accessibilityHint as accessibilityHintModifier,
@@ -44,6 +44,8 @@ export const settingsTileColors = {
   red: '#FF3B30',
   indigo: '#5856D6',
   purple: '#AF52DE',
+  pink: '#FF2D55',
+  yellow: '#FFCC00',
   gray: '#8E8E93',
 } as const;
 
@@ -64,6 +66,41 @@ const switchGreenTint = tint(PlatformColor('systemGreen'));
 
 export function SettingsToggle({ modifiers, ...rest }: React.ComponentProps<typeof Toggle>) {
   return <Toggle {...rest} modifiers={[...(modifiers ?? []), switchGreenTint]} />;
+}
+
+/** Settings switch row with a colored icon tile and an optional description. */
+export function IconToggleRow({
+  testID,
+  icon,
+  iconColor,
+  label,
+  description,
+  isOn,
+  onIsOnChange,
+}: {
+  testID?: string;
+  icon: SFSymbol;
+  iconColor: string;
+  label: string;
+  description?: string;
+  isOn: boolean;
+  onIsOnChange: (v: boolean) => void;
+}) {
+  return (
+    <HStack spacing={12} modifiers={[frame({ maxWidth: Infinity })]}>
+      <SettingsIconTile systemName={icon} color={iconColor} />
+      <SettingsToggle testID={testID} isOn={isOn} onIsOnChange={onIsOnChange}>
+        <VStack alignment="leading" spacing={2}>
+          <SwiftUIText>{label}</SwiftUIText>
+          {description ? (
+            <SwiftUIText modifiers={[font({ size: 13 }), foregroundStyle('secondary')]}>
+              {description}
+            </SwiftUIText>
+          ) : null}
+        </VStack>
+      </SettingsToggle>
+    </HStack>
+  );
 }
 
 /** Rounded-square colored icon, like the leading icons in the iOS Settings app. */
@@ -246,41 +283,137 @@ export function SettingsPickerRow<T extends string>({
   );
 }
 
+export type SetupStepState = 'done' | 'active' | 'pending';
+
+// Darker than systemOrange / systemGreen so status text on white stays legible.
+const setupStatusOrange = DynamicColorIOS({ light: '#C93400', dark: '#FF9F0A' });
+const setupStatusGreen = DynamicColorIOS({ light: '#248A3D', dark: '#30D158' });
+const setupActiveBlue = DynamicColorIOS({ light: '#0063CC', dark: '#409CFF' });
+const setupActiveFill = DynamicColorIOS({ light: '#E5F1FF', dark: '#0B2A4A' });
+const setupPendingRing = DynamicColorIOS({ light: '#C7C7CC', dark: '#545458' });
+
 /**
- * Numbered guide step. Renders `N.circle.fill`, or a green checkmark once
- * `done` — so setup progress reads at a glance.
+ * Step number in a ring: blue with a light fill for the step to do now, gray
+ * for later ones, and a filled green checkmark once done. Outlines go on the
+ * container (see strokeBorder), never on a bare shape.
  */
-export function GuideStepRow({
-  index,
-  text,
-  done,
-}: {
-  index: 1 | 2 | 3 | 4 | 5;
-  text: string;
-  done?: boolean;
-}) {
+function SetupStepBadge({ index, state }: { index: number; state: SetupStepState }) {
+  if (state === 'done') {
+    return (
+      <Image
+        systemName="checkmark"
+        size={13}
+        color="white"
+        modifiers={[
+          font({ weight: 'bold' }),
+          frame({ width: 28, height: 28 }),
+          background(setupStatusGreen, shapes.circle()),
+        ]}
+      />
+    );
+  }
+  const active = state === 'active';
   return (
-    <HStack spacing={12} alignment="center" modifiers={[frame({ maxWidth: Infinity })]}>
-      {done ? (
-        <Image systemName="checkmark.circle.fill" size={22} color={statusGreen} />
-      ) : (
-        <Image systemName={`${index}.circle.fill` as SFSymbol} size={22} color={chevronColor} />
-      )}
-      <SwiftUIText modifiers={done ? [foregroundStyle('secondary')] : []}>{text}</SwiftUIText>
-      <Spacer />
-    </HStack>
+    <SwiftUIText
+      modifiers={[
+        font({ size: 15, weight: active ? 'bold' : 'semibold' }),
+        foregroundStyle(active ? setupActiveBlue : 'secondary'),
+        frame({ width: 28, height: 28 }),
+        ...(active ? [background(setupActiveFill, shapes.circle())] : []),
+        strokeBorder({
+          content: active ? setupActiveBlue : setupPendingRing,
+          style: { lineWidth: active ? 2 : 1.5 },
+          shape: 'circle',
+        }),
+      ]}
+    >
+      {String(index)}
+    </SwiftUIText>
   );
 }
 
-/** Right-aligned status text with a leading dot icon, for LabeledContent-style rows. */
-export function StatusValue({ text, tone }: { text: string; tone: 'ok' | 'warn' | 'muted' }) {
-  const color = tone === 'ok' ? statusGreen : tone === 'warn' ? statusOrange : undefined;
+export interface SetupStepStatus {
+  text: string;
+  tone: 'ok' | 'warn' | 'muted';
+}
+
+/**
+ * One step of a setup checklist: numbered badge (a green checkmark once done),
+ * title, subtitle, the step's own live status on the trailing edge, and
+ * optional detail content shown under the text while the step needs action.
+ */
+export function SetupStepRow({
+  testID,
+  index,
+  state,
+  title,
+  subtitle,
+  status,
+  children,
+}: {
+  testID?: string;
+  index: 1 | 2 | 3 | 4 | 5;
+  state: SetupStepState;
+  title: string;
+  subtitle?: string;
+  status?: SetupStepStatus;
+  children?: React.ReactNode;
+}) {
+  const statusColor =
+    status?.tone === 'ok'
+      ? setupStatusGreen
+      : status?.tone === 'warn'
+        ? setupStatusOrange
+        : undefined;
   return (
-    <HStack spacing={5} alignment="center">
-      {tone !== 'muted' ? <Image systemName="circle.fill" size={8} color={color} /> : null}
-      <SwiftUIText modifiers={color ? [foregroundStyle(color)] : [foregroundStyle('secondary')]}>
-        {text}
-      </SwiftUIText>
+    <HStack
+      testID={testID}
+      spacing={14}
+      alignment="top"
+      modifiers={[frame({ maxWidth: Infinity, alignment: 'leading' }), padding({ vertical: 4 })]}
+    >
+      <SetupStepBadge index={index} state={state} />
+      <VStack
+        alignment="leading"
+        spacing={2}
+        modifiers={[frame({ maxWidth: Infinity, alignment: 'leading' })]}
+      >
+        <HStack alignment="firstTextBaseline" spacing={8}>
+          <SwiftUIText
+            modifiers={[
+              font({ weight: state === 'active' ? 'semibold' : 'regular' }),
+              foregroundStyle(state === 'pending' ? 'secondary' : 'primary'),
+            ]}
+          >
+            {title}
+          </SwiftUIText>
+          <Spacer />
+          {status ? (
+            <SwiftUIText
+              modifiers={[
+                font({ size: 15 }),
+                foregroundStyle(statusColor ?? 'secondary'),
+              ]}
+            >
+              {status.text}
+            </SwiftUIText>
+          ) : null}
+        </HStack>
+        {subtitle ? (
+          <SwiftUIText modifiers={[font({ size: 13 }), foregroundStyle('secondary')]}>
+            {subtitle}
+          </SwiftUIText>
+        ) : null}
+        {children ? (
+          <VStack
+            alignment="leading"
+            spacing={10}
+            modifiers={[frame({ maxWidth: Infinity, alignment: 'leading' }), padding({ top: 8 })]}
+          >
+            {children}
+          </VStack>
+        ) : null}
+      </VStack>
     </HStack>
   );
 }
@@ -317,19 +450,5 @@ export function HeaderCircleButton({
         modifiers={[font({ weight: 'semibold' }), padding()]}
       />
     </SwiftUIButton>
-  );
-}
-
-/** Form-row button that deep-links into this app's page in the iOS Settings app. */
-export function OpenSystemSettingsButton({ label }: { label?: string }) {
-  const { t } = useTranslation('settings');
-  return (
-    <SwiftUIButton
-      systemImage="arrow.up.forward.app"
-      label={label ?? t('openSystemSettings')}
-      onPress={() => {
-        Linking.openSettings();
-      }}
-    />
   );
 }

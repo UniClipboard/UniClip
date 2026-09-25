@@ -247,6 +247,14 @@ public extension AppSettings {
         /// Written alongside `keyboardExtensionEnabled`; reflects the
         /// `hasFullAccess` state at the time the keyboard last appeared.
         public static let keyboardExtensionFullAccess = "keyboard_extension_full_access"
+        /// Unix time (seconds) of the keyboard's last `viewDidAppear`, written
+        /// alongside the two keys above. iOS gives a keyboard without Full
+        /// Access no write access to the App Group, so every heartbeat that
+        /// lands was taken with Full Access on, and a "Full Access off" never
+        /// lands at all — the keys above can outlive the permission. Only a
+        /// heartbeat carrying this timestamp is evidence, and only of the
+        /// moment it was taken.
+        public static let keyboardExtensionHeartbeatAt = "keyboard_extension_heartbeat_at"
         /// The `UIPasteboard.changeCount` the keyboard extension last synced.
         /// Lets the keyboard's uplink skip the prompting content read when
         /// nothing new has been copied since. Not a user setting.

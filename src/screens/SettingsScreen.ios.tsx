@@ -21,6 +21,7 @@ import { KeyboardPage } from './settings/ios/KeyboardPage';
 import { SharePage } from './settings/ios/SharePage';
 import { ClipboardAccessPage } from './settings/ios/ClipboardAccessPage';
 import { ClipboardSettingsGuideSheet } from './settings/ios/ClipboardSettingsGuideSheet';
+import { ShareFavoritesGuideSheet } from './settings/ios/ShareFavoritesGuideSheet';
 import { LogSection } from './settings/LogSection';
 import { DeveloperPage } from './settings/ios/DeveloperPage';
 import { HistoryPage } from './settings/ios/HistoryPage';
@@ -38,7 +39,7 @@ const NAVIGATION_CHROME: IosPageChrome = { kind: 'navigation' };
 
 /**
  * iOS「设置」标签页。全屏 Host 内是 SwiftUI NavigationStack:根页为大标题设置总览,
- * 子页原生推入 / 侧滑返回。诊断包分享、剪贴板授权步骤、连接页预览等 sheet 作为导航栈的兄弟节点,
+ * 子页原生推入 / 侧滑返回。诊断包分享、剪贴板授权步骤、分享收藏引导、连接页预览等 sheet 作为导航栈的兄弟节点,
  * 由本页这个稳定宿主持有。同步通道与空间管理在「设备」标签页。
  */
 export const SettingsScreen = () => {
@@ -49,6 +50,7 @@ export const SettingsScreen = () => {
   const [connectionPreviewScenario, setConnectionPreviewScenario] =
     useState<AddSyncConnectionPreviewScenarioId | null>(null);
   const [clipboardGuideVisible, setClipboardGuideVisible] = useState(false);
+  const [shareGuideVisible, setShareGuideVisible] = useState(false);
   const diagnosticJobs = useMemo<PendingShareJob[] | undefined>(
     () =>
       diagnosticArchive
@@ -107,7 +109,7 @@ export const SettingsScreen = () => {
               <KeyboardPage onBack={back} />
             </NavigationDestination>
             <NavigationDestination value="share">
-              <SharePage onBack={back} />
+              <SharePage onBack={back} onOpenFavoritesGuide={() => setShareGuideVisible(true)} />
             </NavigationDestination>
             <NavigationDestination value="clipboard">
               <ClipboardAccessPage
@@ -145,6 +147,10 @@ export const SettingsScreen = () => {
         <ClipboardSettingsGuideSheet
           visible={clipboardGuideVisible}
           onClose={() => setClipboardGuideVisible(false)}
+        />
+        <ShareFavoritesGuideSheet
+          visible={shareGuideVisible}
+          onClose={() => setShareGuideVisible(false)}
         />
         <AddSyncConnectionSheet
           visible={connectionPreviewScenario !== null}

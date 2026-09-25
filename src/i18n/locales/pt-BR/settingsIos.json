@@ -2,57 +2,144 @@
   "keyboard": {
     "title": "Teclado",
     "status": {
-      "added": "Adicionado",
+      "done": "Concluído",
       "undetectable": "Não é possível detectar",
       "notAdded": "Não adicionado",
-      "detectAfterOpen": "Abra o teclado para detectar",
       "on": "Ativado",
-      "off": "Desativado"
+      "off": "Desativado",
+      "notChecked": "Não verificado",
+      "detected": "Detectado"
     },
-    "statusSection": {
-      "title": "Status",
-      "footer": "O status de Acesso Total é informado pelo teclado quando ele é aberto. Se você acabou de alterá-lo nos Ajustes, abra o teclado uma vez no campo abaixo para atualizar."
+    "hero": {
+      "title": "Seus clipes onde você digita",
+      "description": "O Teclado UniClip mostra o que você copiou nos seus outros dispositivos. Toque em um clipe para colá-lo em qualquer app."
     },
-    "systemKeyboard": "Teclado do sistema",
-    "fullAccess": "Acesso Total",
-    "enableSteps": {
-      "title": "Etapas de configuração",
-      "footer": "O Acesso Total permite que o teclado leia o clipboard e se conecte aos outros dispositivos do espaço. O conteúdo só é enviado dentro do espaço atual.",
-      "step1": "Abra o UniClip nos Ajustes e toque em Teclados",
-      "step2": "Ative o Teclado UniClip",
-      "step3": "Ative Permitir Acesso Total e confirme"
+    "almostThere": {
+      "title": "Quase lá",
+      "description": "O Teclado UniClip foi adicionado. Ative o Acesso Total para ele mostrar seus clipes."
     },
-    "tryout": {
-      "title": "Experimente",
-      "footer": "Toque no campo, mantenha pressionada a tecla de globo e escolha Teclado UniClip. Ao abri-lo, o status acima será atualizado automaticamente.",
-      "placeholder": "Abra o teclado aqui para testar"
+    "ready": {
+      "title": "Pronto",
+      "description": "Ativado, com Acesso Total"
+    },
+    "setup": {
+      "title": "Configuração · {{done}} de 3",
+      "add": {
+        "title": "Adicione o Teclado UniClip",
+        "subtitle": "Ajustes › Apps › UniClip › Teclados"
+      },
+      "fullAccess": {
+        "title": "Permita o Acesso Total",
+        "subtitle": "Para mostrar seus clipes sincronizados",
+        "path": "Teclados › Teclado UniClip › Permitir Acesso Total",
+        "readsOnly": "Lê apenas clipes que o UniClip já sincronizou",
+        "sendsOnly": "Envia apenas para dispositivos do seu espaço",
+        "systemWarning": "O iOS mostra um aviso genérico ao ativar."
+      },
+      "switch": {
+        "title": "Mude para ele uma vez",
+        "subtitle": "Confirma que tudo funciona",
+        "instructions": "Toque no campo, mantenha pressionada a tecla de globo e escolha Teclado UniClip.",
+        "placeholder": "Toque para abrir o teclado",
+        "detected": "Detectado, com Acesso Total. Tudo pronto.",
+        "stillOffHint": "Se o teclado mostrar “Acesso Total Necessário”, o Acesso Total ainda está desativado."
+      }
+    },
+    "openSettings": "Abrir Ajustes do iOS",
+    "openSettingsHint": "O iOS não permite que apps adicionem teclados por você. Esta página é atualizada quando você voltar.",
+    "howToUse": {
+      "title": "Como usar",
+      "switchTitle": "Trocar de teclado",
+      "switchDescription": "Em qualquer app, mantenha pressionada a tecla de globo e escolha Teclado UniClip.",
+      "tryLabel": "Experimente aqui",
+      "tryPlaceholder": "Toque para abrir o teclado"
     },
     "feedback": {
       "title": "Feedback das teclas",
       "footer": "As alterações entram em vigor na próxima vez que você abrir o teclado.",
       "sound": "Som das teclas",
       "haptic": "Feedback tátil"
+    },
+    "systemSettings": {
+      "row": "Ajustes do teclado no iOS",
+      "footer": "Lá você pode remover o teclado ou desativar o Acesso Total."
+    },
+    "illustration": {
+      "text": "Texto",
+      "links": "Links",
+      "justNow": "Agora",
+      "fiveMinutes": "5 min",
+      "textSample": "Reunião mudou para 15h30, sala 4B. Leve a apresentação do T3.",
+      "linkSample": "Notas de revisão do PR #412 do UniClip mobile",
+      "space": "espaço"
     }
   },
   "share": {
     "title": "Compartilhar",
     "testMessage": "Teste de compartilhamento do UniClip",
-    "intro": {
-      "footer": "Em qualquer app, toque em Compartilhar e escolha o UniClip para enviar o conteúdo diretamente aos outros dispositivos do espaço."
+    "hero": {
+      "title": "Envie de qualquer app",
+      "description": "Compartilhe algo e escolha o UniClip. O UniClip abre com o item pronto para você escolher quais dispositivos recebem."
     },
-    "supportedContent": {
-      "label": "Conteúdo compatível",
-      "value": "Texto · Links · Imagens · Arquivos"
+    "flow": {
+      "tapShare": "Toque em Compartilhar",
+      "pickApp": "Escolha o UniClip",
+      "chooseDevices": "Escolha os dispositivos"
     },
-    "favorite": {
-      "title": "Adicionar aos favoritos",
-      "footer": "Depois de adicionado aos Favoritos, o UniClip fica fixado no início da linha de apps na folha de compartilhamento.",
-      "step1": "Abra qualquer folha de compartilhamento",
-      "step2": "Deslize a linha de ícones de apps até o fim e toque em Mais",
-      "step3": "Toque em Editar no canto superior direito e use + para adicionar o UniClip aos Favoritos",
-      "step4": "Arraste-o para a frente e toque em OK"
+    "tryButton": "Experimentar agora",
+    "worksWith": {
+      "title": "Funciona com",
+      "text": "Texto",
+      "links": "Links",
+      "images": "Imagens",
+      "files": "Arquivos"
     },
-    "tryButton": "Abrir a folha de compartilhamento para experimentar"
+    "quickAccess": {
+      "title": "Acesso rápido",
+      "footer": "Não há nada para ativar. O UniClip aparece na folha de compartilhamento assim que é instalado.",
+      "favoritesRow": "Fixar nos Favoritos",
+      "favoritesRowSubtitle": "Deixe o UniClip primeiro na linha de apps · 4 passos"
+    },
+    "guide": {
+      "title": "Fixar nos Favoritos",
+      "progress": "Passo {{current}} de {{total}}",
+      "back": "Passo anterior",
+      "close": "Fechar",
+      "next": "Próximo passo",
+      "done": "OK",
+      "openShareSheet": "Abrir folha de compartilhamento",
+      "steps": {
+        "openSheet": {
+          "title": "Abra qualquer folha de compartilhamento",
+          "description": "Toque em Compartilhar em qualquer app ou use o botão abaixo para praticar com um exemplo."
+        },
+        "findMore": {
+          "title": "Deslize até Mais",
+          "description": "Deslize a linha de ícones de apps totalmente para a esquerda e toque em Mais no final."
+        },
+        "addFavorite": {
+          "title": "Adicione o UniClip aos Favoritos",
+          "description": "Toque em Editar e depois no sinal de mais verde ao lado do UniClip."
+        },
+        "moveToTop": {
+          "title": "Mova-o para o topo",
+          "description": "Arraste o UniClip pela alça acima dos outros e toque em OK."
+        }
+      },
+      "illustration": {
+        "noteTitle": "Notas da reunião",
+        "noteSubtitle": "Notas · Texto simples",
+        "airDrop": "AirDrop",
+        "messages": "Mensagens",
+        "notes": "Notas",
+        "reminders": "Lembretes",
+        "more": "Mais",
+        "apps": "Apps",
+        "done": "OK",
+        "favorites": "Favoritos",
+        "suggestions": "Sugestões"
+      }
+    }
   },
   "diagnostics": {
     "title": "Diagnóstico",
