@@ -328,10 +328,7 @@ function DirectSpaceContent({
   });
   const localDevice = devices.find((device) => device.isLocal) ?? null;
   const otherDevices = devices.filter((device) => !device.isLocal);
-  const deviceUpdateInProgress =
-    space.deviceTrustQuery?.kind === 'ready' &&
-    space.deviceTrustQuery.snapshot.currentJoin?.type === 'active' &&
-    space.deviceTrustQuery.snapshot.spaceDeviceUpdate.phase !== 'completed';
+  const deviceUpdateInProgress = overview.deviceUpdateInProgress;
   const highImpactActionsDisabled =
     !deviceManagement.highImpactActionsAvailable ||
     deviceManagement.operationInProgress ||
@@ -351,7 +348,7 @@ function DirectSpaceContent({
 
   const statusHeader = (
     <HStack spacing={14} alignment="top" modifiers={[frame({ maxWidth: Infinity, alignment: 'leading' })]}>
-      {overview.isRefreshing ? (
+      {overview.isLoading ? (
         <ProgressView modifiers={[frame({ width: 44, height: 44 })]} />
       ) : (
         <Image
@@ -400,7 +397,7 @@ function DirectSpaceContent({
                 </SwiftUIText>
               </HStack>
             </SwiftUIButton>
-            {syncFailed && !overview.isRefreshing ? (
+            {syncFailed && !overview.isLoading ? (
               <SwiftUIButton
                 label={t('action.retry', { ns: 'common' })}
                 onPress={() => void pageRefresh.refresh()}

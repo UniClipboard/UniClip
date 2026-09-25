@@ -87,7 +87,11 @@ export interface SpaceOverviewView {
   memberCount: number;
   primaryStatus: SpaceOverviewPrimaryStatus;
   hasPendingDecision: boolean;
-  isRefreshing: boolean;
+  // True only while nothing settled can be shown yet. A background refresh over a settled
+  // snapshot keeps presenting that snapshot, so the overview does not flicker on every refresh.
+  isLoading: boolean;
+  // The join that started a holistic space device update is still running; the overview links to it.
+  deviceUpdateInProgress: boolean;
   spaceDeviceUpdate: DeviceTrustSnapshot['spaceDeviceUpdate'] | null;
   maintenanceHealth: NonNullable<DeviceTrustSnapshot['maintenanceHealth']> | null;
 }
@@ -98,6 +102,11 @@ export function deviceTrustSnapshotFromQuery(
   if (query.kind === 'ready') return query.snapshot;
   if (query.kind === 'loading') return query.previous;
   return null;
+}
+
+// A refresh keeps the previous snapshot on screen; actions stay available until a newer result replaces it.
+export function hasSettledDeviceTrust(query: DeviceTrustQueryState): boolean {
+  return deviceTrustSnapshotFromQuery(query) !== null;
 }
 
 function displayNames(snapshot: DeviceTrustSnapshot): Map<string, string> {
@@ -392,7 +401,7 @@ export function buildCurrentSpaceDeviceViews(
       (view.primaryStatus === 'usable' || view.primaryStatus === 'unknown')
         ? 'updating'
         : view.primaryStatus,
-    canRemove: query.kind === 'ready' && operationState.kind === 'idle' ? view.canRemove : false,
+    canRemove: hasSettledDeviceTrust(query) && operationState.kind === 'idle' ? view.canRemove : false,
   }));
 }
 
@@ -406,7 +415,12 @@ export function buildSpaceOverviewView(
   const snapshot = deviceTrustSnapshotFromQuery(query);
   const devices = buildCurrentSpaceDeviceViews(query, rosterDevices, operationState);
   const hasPendingDecision = buildDeviceTrustDecisionView(snapshot) !== null;
-  const isRefreshing = query.kind === 'loading' || deviceListRefreshStatus === 'refreshing';
+  const isLoading =
+    snapshot === null &&
+    (query.kind === 'loading' ||
+      query.kind === 'idle' ||
+      deviceListRefreshStatus === 'refreshing' ||
+      spaceStatus === 'loading');
   let primaryStatus: SpaceOverviewPrimaryStatus;
 
   if (
@@ -443,19 +457,22 @@ export function buildSpaceOverviewView(
     devices.some((device) => device.groupRelationship === 'confirmationPending')
   ) {
     primaryStatus = 'updating';
-  } else if (isRefreshing || spaceStatus === 'loading' || query.kind === 'idle') {
+  } else if (snapshot === null) {
+    // Only idle or a first load reach here; every failed query kind was handled above.
     primaryStatus = 'refreshing';
-  } else if (query.kind === 'ready') {
-    primaryStatus = 'healthy';
   } else {
-    primaryStatus = 'unverifiable';
+    primaryStatus = 'healthy';
   }
 
   return {
     memberCount: devices.filter((device) => device.membership !== 'removed').length,
     primaryStatus,
     hasPendingDecision,
-    isRefreshing,
+    isLoading,
+    deviceUpdateInProgress:
+      snapshot !== null &&
+      snapshot.currentJoin?.type === 'active' &&
+      snapshot.spaceDeviceUpdate.phase !== 'completed',
     spaceDeviceUpdate: snapshot?.spaceDeviceUpdate ?? null,
     maintenanceHealth: snapshot?.maintenanceHealth ?? null,
   };

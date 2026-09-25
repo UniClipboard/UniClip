@@ -25,6 +25,9 @@ import type {
 
 const log = createLogger('P2pSyncAdapter');
 
+// Presence changes arrive in bursts while peers connect; one device refresh per window absorbs them.
+export const DEVICE_REFRESH_THROTTLE_MS = 400;
+
 interface P2pEnginePort {
   start(config: EngineConfig): Promise<void>;
   stop(): Promise<void>;
@@ -75,6 +78,8 @@ export class P2pSyncAdapter implements SyncAdapter {
     backgroundSyncEnabled: false,
   };
   private readonly subscribers = new Set<(event: SyncAdapterEvent) => void>();
+  private deviceRefreshWindow: ReturnType<typeof setTimeout> | null = null;
+  private deviceRefreshQueued = false;
 
   constructor(private readonly dependencies: P2pSyncAdapterDependencies) {}
 
@@ -109,6 +114,7 @@ export class P2pSyncAdapter implements SyncAdapter {
   async stop(): Promise<void> {
     this.engineEventsUnsubscribe?.();
     this.engineEventsUnsubscribe = null;
+    this.cancelDeviceRefresh();
     await this.dependencies.engine.stop();
   }
 
@@ -194,11 +200,7 @@ export class P2pSyncAdapter implements SyncAdapter {
       event.type === 'peerPresenceChanged' ||
       (event.type === 'changed' && event.kind === 'pairing_completed')
     ) {
-      if (this.policy.appState === 'active') {
-        void this.dependencies.space
-          .refreshDevices()
-          .catch((error) => log.error('Failed to refresh devices after an engine event:', error));
-      }
+      if (this.policy.appState === 'active') this.requestDeviceRefresh();
       this.publish({ type: 'connectionChanged' });
       return;
     }
@@ -221,6 +223,29 @@ export class P2pSyncAdapter implements SyncAdapter {
         message: `${event.failure.category}:${event.failure.code}`,
       });
     }
+  }
+
+  // Leading refresh keeps the first change immediate; later events in the window collapse into one.
+  private requestDeviceRefresh(): void {
+    if (this.deviceRefreshWindow) {
+      this.deviceRefreshQueued = true;
+      return;
+    }
+    void this.dependencies.space
+      .refreshDevices()
+      .catch((error) => log.error('Failed to refresh devices after an engine event:', error));
+    this.deviceRefreshWindow = setTimeout(() => {
+      this.deviceRefreshWindow = null;
+      if (!this.deviceRefreshQueued) return;
+      this.deviceRefreshQueued = false;
+      if (this.policy.appState === 'active') this.requestDeviceRefresh();
+    }, DEVICE_REFRESH_THROTTLE_MS);
+  }
+
+  private cancelDeviceRefresh(): void {
+    if (this.deviceRefreshWindow) clearTimeout(this.deviceRefreshWindow);
+    this.deviceRefreshWindow = null;
+    this.deviceRefreshQueued = false;
   }
 
   private publish(event: SyncAdapterEvent): void {

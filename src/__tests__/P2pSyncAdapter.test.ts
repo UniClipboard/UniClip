@@ -283,6 +283,46 @@ describe('P2pSyncAdapter', () => {
     ]);
   });
 
+  it('collapses a burst of presence events into one leading and one trailing device refresh', async () => {
+    const P2pSyncAdapter = loadP2pSyncAdapter();
+    expect(P2pSyncAdapter).toBeDefined();
+    if (!P2pSyncAdapter) return;
+
+    const deps = dependencies('android');
+    const { DEVICE_REFRESH_THROTTLE_MS } = require('../features/sync/internal/p2pSyncAdapter');
+    const adapter = new P2pSyncAdapter(deps) as unknown as {
+      start(context: unknown): Promise<void>;
+      stop(): Promise<void>;
+    };
+    await adapter.start({
+      appVersion: '2.0.0+build.179',
+      profileId: 'default',
+      policy: { appState: 'active', backgroundSyncEnabled: true },
+    });
+    jest.useFakeTimers();
+    try {
+      for (let index = 0; index < 5; index += 1) {
+        deps.emitEngineEvent({ type: 'peerPresenceChanged', deviceId: `peer-${index}` });
+      }
+      expect(deps.space.refreshDevices).toHaveBeenCalledTimes(1);
+
+      jest.advanceTimersByTime(DEVICE_REFRESH_THROTTLE_MS);
+      expect(deps.space.refreshDevices).toHaveBeenCalledTimes(2);
+
+      jest.advanceTimersByTime(DEVICE_REFRESH_THROTTLE_MS);
+      expect(deps.space.refreshDevices).toHaveBeenCalledTimes(2);
+
+      deps.emitEngineEvent({ type: 'refreshRequired' });
+      deps.emitEngineEvent({ type: 'refreshRequired' });
+      expect(deps.space.refreshDevices).toHaveBeenCalledTimes(3);
+      await adapter.stop();
+      jest.advanceTimersByTime(DEVICE_REFRESH_THROTTLE_MS);
+      expect(deps.space.refreshDevices).toHaveBeenCalledTimes(3);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('treats a device trust revision as an invalidation for a complete snapshot', async () => {
     const P2pSyncAdapter = loadP2pSyncAdapter();
     expect(P2pSyncAdapter).toBeDefined();

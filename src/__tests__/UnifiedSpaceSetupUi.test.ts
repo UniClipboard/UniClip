@@ -470,7 +470,7 @@ describe('unified space setup UI', () => {
   it('offers a retry from the Android status when device details cannot be verified', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
 
-    expect(android).toContain('syncFailed && !isRefreshing');
+    expect(android).toContain('syncFailed && !isLoading');
     expect(android.match(/t\('action\.retry'/g)).toHaveLength(2);
   });
 });

@@ -460,3 +460,60 @@ describe('device trust presentation', () => {
     ]);
   });
 });
+
+describe('space overview during a background refresh', () => {
+  function healthySnapshot(): DeviceTrustSnapshot {
+    const current = snapshot();
+    current.currentChange = null;
+    current.devices = current.devices.filter(
+      (device) => device.deviceId === 'phone-12345678' || device.deviceId === 'laptop-11223344'
+    );
+    return current;
+  }
+
+  it('keeps presenting the settled snapshot instead of flashing a refreshing state', () => {
+    const settled = healthySnapshot();
+    const ready = buildSpaceOverviewView('ready', { kind: 'ready', snapshot: settled }, 'idle');
+
+    for (const refreshing of [
+      buildSpaceOverviewView('ready', { kind: 'loading', previous: settled }, 'refreshing'),
+      buildSpaceOverviewView('loading', { kind: 'loading', previous: settled }, 'refreshing'),
+    ]) {
+      expect(refreshing).toEqual(ready);
+      expect(refreshing).toMatchObject({ primaryStatus: 'healthy', isLoading: false });
+    }
+  });
+
+  it('keeps the device update entry while a refresh is in flight', () => {
+    const settled = healthySnapshot();
+    settled.spaceDeviceUpdate.phase = 'retryableFailure';
+    settled.currentJoin = { type: 'active' } as DeviceTrustSnapshot['currentJoin'];
+
+    expect(
+      buildSpaceOverviewView('ready', { kind: 'ready', snapshot: settled }, 'idle')
+        .deviceUpdateInProgress
+    ).toBe(true);
+    expect(
+      buildSpaceOverviewView('ready', { kind: 'loading', previous: settled }, 'refreshing')
+    ).toMatchObject({ deviceUpdateInProgress: true, isLoading: false });
+  });
+
+  it('keeps device removal available while a refresh is in flight', () => {
+    const settled = healthySnapshot();
+    const laptop = (query: Parameters<typeof buildCurrentSpaceDeviceViews>[0]) =>
+      buildCurrentSpaceDeviceViews(query, []).find((device) => device.deviceId === 'laptop-11223344');
+
+    expect(laptop({ kind: 'ready', snapshot: settled })?.canRemove).toBe(true);
+    expect(laptop({ kind: 'loading', previous: settled })?.canRemove).toBe(true);
+  });
+
+  it('shows loading only when nothing settled can be presented yet', () => {
+    expect(
+      buildSpaceOverviewView('loading', { kind: 'loading', previous: null }, 'refreshing')
+    ).toMatchObject({ primaryStatus: 'refreshing', isLoading: true });
+    expect(buildSpaceOverviewView('ready', { kind: 'idle' }, 'idle')).toMatchObject({
+      primaryStatus: 'refreshing',
+      isLoading: true,
+    });
+  });
+});

@@ -4,6 +4,7 @@ import {
   buildCurrentSpaceDeviceViews,
   buildSpaceOverviewView,
   getUnifiedSpaceService,
+  hasSettledDeviceTrust,
   useUnifiedSpaceStore,
 } from '@/features/space';
 
@@ -44,7 +45,7 @@ export function useSpaceDeviceManagement({
     [devices, selectedDeviceId]
   );
   const highImpactActionsAvailable =
-    deviceTrustQuery.kind === 'ready' &&
+    hasSettledDeviceTrust(deviceTrustQuery) &&
     operationState.kind === 'idle' &&
     !overview.hasPendingDecision;
   const canRemoveSelected = Boolean(
