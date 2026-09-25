@@ -259,6 +259,8 @@ describe('Android history list reuse', () => {
     expect(compact).not.toContain('Platform.OS');
     expect(compact).toContain('renderCollection');
     expect(read('screens/HomeView.android.tsx')).toContain('getHomeHistoryCollection(c)');
-    expect(read('screens/HomeView.ios.tsx')).toContain('getHomeHistoryCollection(c)');
+    // iOS 首页与盖在上面的搜索层各自注入列表
+    expect(read('screens/HomeView.ios.tsx')).toContain('getHomeHistoryCollection(home)');
+    expect(read('screens/HomeView.ios.tsx')).toContain('getHomeHistoryCollection(searchC)');
   });
 });

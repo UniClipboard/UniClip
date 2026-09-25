@@ -11,6 +11,7 @@ import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native
 import { scheduleOnRN } from 'react-native-worklets';
 import { GridCell } from './GridCell';
 import { buildOccurrenceKeys } from '@/utils/occurrenceKeys';
+import type { PullToDismissHandlers } from '@/utils/pullToDismiss';
 
 const OVERSCAN_MIN_PX = 400;
 
@@ -40,6 +41,8 @@ interface AnimatedCardGridProps<T> {
   onScrollWorklet?: (y: number) => void;
   /** UI 线程滚动结束回调(必须是 worklet)。velocityY 非零表示拖拽松手后仍有惯性,终点以 momentumEnd(velocityY=0)为准 */
   onScrollEndWorklet?: (y: number, velocityY: number) => void;
+  /** 在顶部下拉关闭的过程汇报 */
+  pullToDismiss?: PullToDismissHandlers;
   /** Called once when each loaded batch is scrolled close to its end. */
   onEndReached?: () => void;
   onEndReachedThreshold?: number;
@@ -66,6 +69,7 @@ function AnimatedCardGridInner<T>(
     contentInsetTop = 0,
     onScrollWorklet,
     onScrollEndWorklet,
+    pullToDismiss,
     onEndReached,
     onEndReachedThreshold = 400,
     header,
@@ -109,12 +113,21 @@ function AnimatedCardGridInner<T>(
   // 渲染/状态更新而丢帧或延迟处理原生滚动事件，导致虚拟化窗口跟不上真实滚动位置，
   // 表现为卡片挂载/卸载错乱。UI 线程里做节流判断，只有跨过半行阈值才回传 JS 更新状态。
   const lastReportedScrollTop = useSharedValue(0);
+  const pulling = useSharedValue(false);
   const lastEndReachedBatchKey = useSharedValue('');
   const scrollHandler = useAnimatedScrollHandler(
     {
       onScroll: (event) => {
         const y = event.contentOffset.y;
         onScrollWorklet?.(y);
+        // 下拉关闭:只在越过顶部期间回传,回到顶部时再报一次收尾;静止顶部在 -contentInsetTop
+        if (pullToDismiss) {
+          const pull = y + contentInsetTop;
+          if (pull < 0 || pulling.value) {
+            pulling.value = pull < 0;
+            scheduleOnRN(pullToDismiss.onPull, pull);
+          }
+        }
         if (Math.abs(lastReportedScrollTop.value - y) > cellSize / 2) {
           lastReportedScrollTop.value = y;
           scheduleOnRN(setScrollTop, y);
@@ -132,6 +145,7 @@ function AnimatedCardGridInner<T>(
       },
       onEndDrag: (event) => {
         onScrollEndWorklet?.(event.contentOffset.y, event.velocity?.y ?? 0);
+        if (pullToDismiss) scheduleOnRN(pullToDismiss.onRelease, event.contentOffset.y + contentInsetTop);
       },
       onMomentumEnd: (event) => {
         onScrollEndWorklet?.(event.contentOffset.y, 0);
@@ -140,6 +154,8 @@ function AnimatedCardGridInner<T>(
     [
       onScrollWorklet,
       onScrollEndWorklet,
+      pullToDismiss,
+      contentInsetTop,
       onEndReached,
       onEndReachedThreshold,
       viewportHeight,

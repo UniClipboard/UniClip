@@ -1,0 +1,11 @@
+# Pre: iOS search open (suggestions or results). Pulls the search view down from its top past
+# the dismiss threshold. Post: search layer gone and home ready; no clipboard writes.
+appId: ${APP_ID}
+---
+- swipe:
+    start: "50%,30%"
+    end: "50%,75%"
+    duration: 700
+- assertNotVisible:
+    id: history-search-input
+- runFlow: ../../assertions/home-ready.yaml

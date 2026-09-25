@@ -1,0 +1,56 @@
+# iOS-only interaction. Uses actual UI and native Copy; no direct history writes.
+# Search is a layer over the home page: pulling it down (or closing it) must reveal the full
+# history right away, clear search-only filters, and a short pull must not dismiss it.
+appId: ${APP_ID}
+---
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - runFlow: ../lifecycle/launch.yaml
+      - runFlow: ../actions/onboarding/complete.yaml
+      # copy-text leaves search through the close button each time
+      - runFlow:
+          file: ../actions/clipboard/copy-text.yaml
+          env:
+            CONTENT: CedarAlpha
+      - runFlow:
+          file: ../actions/clipboard/copy-text.yaml
+          env:
+            CONTENT: "https://example.invalid/birch"
+      - runFlow: ../assertions/history/two-cards.yaml
+
+      # Empty query: suggestions
+      - runFlow: ../actions/search/open.yaml
+      - assertVisible:
+          id: history-search-shortcuts
+      - runFlow: ../actions/search/ios-pull-to-dismiss.yaml
+      - assertNotVisible:
+          id: history-search-shortcuts
+      - runFlow: ../assertions/history/two-cards.yaml
+
+      # Keyword results: a short pull stays in search, a full pull returns to the full history
+      - runFlow:
+          file: ../actions/search/query.yaml
+          env:
+            QUERY: Cedar
+      - runFlow: ../assertions/history/one-card.yaml
+      - swipe:
+          start: "50%,30%"
+          end: "50%,36%"
+          duration: 700
+      - assertVisible:
+          id: history-search-input
+      - runFlow: ../assertions/history/one-card.yaml
+      - runFlow: ../actions/search/ios-pull-to-dismiss.yaml
+      - runFlow: ../assertions/history/two-cards.yaml
+
+      # Type suggestion: the filter only lives inside search and is cleared on dismiss
+      - runFlow: ../actions/search/open.yaml
+      - tapOn:
+          id: history-shortcut-kind-url
+      - runFlow: ../assertions/history/one-card.yaml
+      - runFlow: ../assertions/history/url-content.yaml
+      - runFlow: ../actions/search/ios-pull-to-dismiss.yaml
+      - runFlow: ../assertions/history/two-cards.yaml
+      - runFlow: ../assertions/history/text-content.yaml

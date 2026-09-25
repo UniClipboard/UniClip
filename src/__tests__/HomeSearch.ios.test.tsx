@@ -61,6 +61,7 @@ jest.mock('react-i18next', () => ({
 
 import { DefaultTopBar, SearchTopBar, SelectModeTopBar } from '@/components/HomeTopBar.ios';
 import { HomeSearchDock } from '@/screens/ios/HomeSearchDock';
+import { getHomeSearchSlots } from '@/screens/ios/homeSearchSlots';
 import type { HomeController } from '@/screens/useHomeController';
 
 const theme = {
@@ -220,7 +221,7 @@ describe('iOS search workflow', () => {
     const home = fs.readFileSync(path.join(__dirname, '../screens/HomeView.ios.tsx'), 'utf8');
     const bar = fs.readFileSync(path.join(__dirname, '../screens/ios/HomeSearchFilterBar.tsx'), 'utf8');
     expect(slots).toMatch(
-      /if \(!hasKeyword && !c\.hasActiveFilters\) \{\s*return \{ gridOverlay: <HomeSearchSuggestions c=\{c\} \/> \};/
+      /if \(!hasKeyword && !c\.hasActiveFilters\) \{\s*return \{\s*gridOverlay: <HomeSearchSuggestions c=\{c\} pullToDismiss=\{pullToDismiss\} \/>,/
     );
     expect(slots).toContain("c.t(hasKeyword ? 'search.clearFiltersKeepQuery' : 'search.clearFilters')");
     expect(home).toContain('<HomeSearchFilterBar c={c} />');
@@ -229,5 +230,70 @@ describe('iOS search workflow', () => {
     expect(bar).toContain("pickerStyle('inline')");
     expect(bar).toContain('c.handleSelectFilterKind(value === ALL ? null : (value as DisplayKind))');
     expect(bar).toContain('onPress={c.handleClearFilters}');
+  });
+
+  it('reports pulls from both search forms to the shared pull-to-dismiss handlers', () => {
+    const c = {
+      theme,
+      insets: { top: 47, bottom: 34 },
+      t: (key: string) => key,
+      isSearching: true,
+      searchText: '',
+      hasActiveFilters: false,
+    } as unknown as HomeController;
+    const handlers = { onPull: jest.fn(), onRelease: jest.fn() };
+    const scrollEvent = (y: number) => ({ nativeEvent: { contentOffset: { x: 0, y } } });
+
+    const suggestions = getHomeSearchSlots(c, 4, handlers)!;
+    expect(suggestions.pullToDismiss).toBe(handlers);
+    const view = render(<>{suggestions.gridOverlay}</>);
+    const scroll = view.root.findByProps({ testID: 'history-search-shortcuts' });
+    expect(scroll.props.alwaysBounceVertical).toBe(true);
+    act(() => scroll.props.onScroll(scrollEvent(-30)));
+    expect(handlers.onPull).toHaveBeenCalledWith(-30);
+    act(() => scroll.props.onScrollEndDrag(scrollEvent(-80)));
+    expect(handlers.onRelease).toHaveBeenCalledWith(-80);
+
+    // 结果形态把下拉关闭交给共享布局,由网格 / 列表的滚动视图接住
+    const results = getHomeSearchSlots({ ...c, searchText: 'invoice' } as HomeController, 4, handlers)!;
+    expect(results.gridOverlay).toBeUndefined();
+    expect(results.pullToDismiss).toBe(handlers);
+  });
+
+  it('routes pull-to-dismiss to the grid and list instead of pull-to-refresh', () => {
+    const compact = fs.readFileSync(path.join(__dirname, '../screens/HomeCompactView.tsx'), 'utf8');
+    expect(compact).toContain('const refreshControl = pullToDismiss ? undefined : (');
+    expect(compact).toContain('pullToDismiss={pullToDismiss}');
+    expect(compact).toMatch(/refreshControl,\s*pullToDismiss,\s*\}\)/);
+    const grid = fs.readFileSync(path.join(__dirname, '../components/AnimatedCardGrid.tsx'), 'utf8');
+    expect(grid).toContain('scheduleOnRN(pullToDismiss.onPull, pull)');
+    expect(grid).toContain('scheduleOnRN(pullToDismiss.onRelease, event.contentOffset.y + contentInsetTop)');
+    const collection = fs.readFileSync(path.join(__dirname, '../screens/ios/homeHistoryCollection.tsx'), 'utf8');
+    expect(collection).toContain('pullToDismiss={slot.pullToDismiss}');
+    const list = fs.readFileSync(path.join(__dirname, '../components/ios/HistoryList.tsx'), 'utf8');
+    expect(list).toContain('pullToDismiss.onPull(event.nativeEvent.contentOffset.y)');
+    expect(list).toContain('pullToDismiss.onRelease(event.nativeEvent.contentOffset.y)');
+    const home = fs.readFileSync(path.join(__dirname, '../screens/HomeView.ios.tsx'), 'utf8');
+    expect(home).toContain('<HomeSearchDock c={c} style={pullToDismiss.dockStyle} />');
+  });
+
+  it('lays search over a frozen home page so leaving search never waits for the history reload', () => {
+    const home = fs.readFileSync(path.join(__dirname, '../screens/HomeView.ios.tsx'), 'utf8');
+    // 搜索层自带退场动画,关闭搜索时露出下面已经渲染好的首页
+    expect(home).toMatch(/\{c\.isSearching \? \(\s*<Animated\.View\s+style=\{StyleSheet\.absoluteFill\}\s+entering=\{SEARCH_LAYER_ENTERING\}\s+exiting=\{SEARCH_LAYER_EXITING\}/);
+    expect(home).toContain('{frozenHome.current}');
+    // 被盖住的首页不接收触摸,也不出现在读屏里
+    expect(home).toContain("pointerEvents={c.isSearching ? 'none' : 'auto'}");
+    expect(home).toContain('accessibilityElementsHidden={c.isSearching}');
+    expect(home).toContain('const home: HomeController = { ...c, items: baseItems, isSearching: false };');
+    expect(home).toContain('if (!c.isSearching || !frozenHome.current) {');
+    // 两层都不各自渲染浮层,首页浮层由外层渲染一份,盖在搜索层之上
+    expect(home.match(/renderOverlays=\{false\}/g)).toHaveLength(2);
+    expect(home.match(/<HomeOverlays c=\{c\} \/>/g)).toHaveLength(1);
+    expect(home.indexOf('<HomeOverlays c={c} />')).toBeGreaterThan(home.indexOf('exiting={SEARCH_LAYER_EXITING}'));
+    // 搜索层列表用自己的句柄,c.listRef 留给首页
+    expect(home).toContain('const searchC: HomeController = { ...c, listRef: searchListRef };');
+    const compact = fs.readFileSync(path.join(__dirname, '../screens/HomeCompactView.tsx'), 'utf8');
+    expect(compact).toContain('{renderOverlays ? <HomeOverlays c={c} /> : null}');
   });
 });

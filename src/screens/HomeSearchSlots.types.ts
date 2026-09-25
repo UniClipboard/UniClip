@@ -1,4 +1,5 @@
 import type React from 'react';
+import type { PullToDismissHandlers } from '@/utils/pullToDismiss';
 
 /**
  * 平台首页向共享布局(Compact / Expanded)注入的搜索态内容。共享布局只负责摆放,
@@ -13,4 +14,6 @@ export interface HomeSearchSlots {
   gridHeader?: { node: React.ReactNode; height: number };
   /** 空结果状态下的主操作 */
   emptyAction?: React.ReactNode;
+  /** 在历史顶部下拉退出搜索;提供时搜索态不挂下拉刷新,两者手势相同 */
+  pullToDismiss?: PullToDismissHandlers;
 }

@@ -39,6 +39,7 @@ export function HomeCompactView({
   addMenuOpenSignal,
   renderCollection,
   showAddActionsFab = true,
+  renderOverlays = true,
 }: {
   c: HomeController;
   screenWidth: number;
@@ -56,6 +57,8 @@ export function HomeCompactView({
   renderCollection?: RenderHomeCollection;
   /** 默认态右下的添加 FAB;iOS 手机的添加入口在顶栏「+」菜单,不显示 */
   showAddActionsFab?: boolean;
+  /** 渲染首页浮层(详情、长按菜单、提示等);叠放多个布局时由外层统一渲染一份 */
+  renderOverlays?: boolean;
 }) {
   const { theme, items, selectedIds, isSelectMode } = c;
   const backgroundColor = iosColors?.systemGroupedBackground ?? theme.colors.background;
@@ -65,7 +68,9 @@ export function HomeCompactView({
   const selectionBarClearance = c.insets.bottom + 76;
   const gridHeader = search?.gridHeader;
   const paddingBottom = isSelectMode ? selectionBarClearance : gridBottomPadding;
-  const refreshControl = (
+  const pullToDismiss = search?.pullToDismiss;
+  // 下拉关闭与下拉刷新是同一个手势,前者生效时不挂刷新
+  const refreshControl = pullToDismiss ? undefined : (
     <RefreshControl
       refreshing={c.refreshing}
       onRefresh={c.handleRefresh}
@@ -118,6 +123,7 @@ export function HomeCompactView({
             paddingBottom,
             header: gridHeader?.node,
             refreshControl,
+            pullToDismiss,
           })
         ) : (
           <AnimatedCardGrid
@@ -134,6 +140,7 @@ export function HomeCompactView({
             renderItem={renderCard}
             onEndReached={c.loadMoreItems}
             refreshControl={refreshControl}
+            pullToDismiss={pullToDismiss}
           />
         )}
         {items.length === 0 && c.isInitialHistoryLoadComplete && (
@@ -185,7 +192,7 @@ export function HomeCompactView({
         />
       )}
 
-      <HomeOverlays c={c} />
+      {renderOverlays ? <HomeOverlays c={c} /> : null}
     </View>
   );
 }

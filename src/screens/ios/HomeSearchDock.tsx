@@ -1,15 +1,24 @@
 import React from 'react';
-import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, Text, TextInput, View, type ViewStyle } from 'react-native';
+import Animated, { type AnimatedStyle } from 'react-native-reanimated';
 import { Search, X, XCircle } from 'lucide-react-native';
 import { GlassContainer } from '@/components/ui';
 import { FAB_SIZE } from '@/components/AddActionsFab.types';
 import type { HomeController } from '../useHomeController';
+import { dismissHomeSearch } from './homeSearchSlots';
 
-export function HomeSearchDock({ c }: { c: HomeController }) {
+export function HomeSearchDock({
+  c,
+  style,
+}: {
+  c: HomeController;
+  /** 下拉关闭时的跟手动画 */
+  style?: AnimatedStyle<ViewStyle>;
+}) {
   return (
-    <View
+    <Animated.View
       pointerEvents="box-none"
-      style={[styles.dock, { bottom: Math.max(0, c.insets.bottom - 4) }]}
+      style={[styles.dock, { bottom: Math.max(0, c.insets.bottom - 4) }, style]}
     >
       <View style={styles.fieldSlot}>
         <GlassContainer shape="capsule" interactive style={styles.field}>
@@ -61,10 +70,7 @@ export function HomeSearchDock({ c }: { c: HomeController }) {
           accessibilityRole="button"
           testID="history-search-close"
           accessibilityLabel={c.t('action.cancel', { ns: 'common' })}
-          onPress={() => {
-            Keyboard.dismiss();
-            c.closeSearch();
-          }}
+          onPress={() => dismissHomeSearch(c.closeSearch)}
         >
           <GlassContainer shape="circle" interactive style={styles.action}>
             <X size={24} color={c.theme.colors.textPrimary} />
@@ -73,7 +79,7 @@ export function HomeSearchDock({ c }: { c: HomeController }) {
       ) : (
         <View style={styles.action} pointerEvents="none" />
       )}
-    </View>
+    </Animated.View>
   );
 }
 

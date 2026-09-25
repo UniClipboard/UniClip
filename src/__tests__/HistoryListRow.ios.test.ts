@@ -56,7 +56,8 @@ describe('iOS grouped history list wiring', () => {
   });
 
   it('switches the home page between grid and grouped lists', () => {
-    expect(home).toContain('renderCollection={getHomeHistoryCollection(c)}');
+    expect(home).toContain('renderCollection={getHomeHistoryCollection(home)}');
+    expect(home).toContain('renderCollection={getHomeHistoryCollection(searchC)}');
     const collection = read('screens/ios/homeHistoryCollection.tsx');
     expect(collection).toContain("if (c.historyLayout === 'grid') return undefined;");
     expect(collection).toContain("c.historyLayout === 'compact' ? 'compact' : 'comfortable'");

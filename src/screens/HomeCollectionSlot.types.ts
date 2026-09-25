@@ -1,5 +1,6 @@
 import type React from 'react';
 import type { RefreshControlProps } from 'react-native';
+import type { PullToDismissHandlers } from '@/utils/pullToDismiss';
 
 /**
  * 共享的 Compact 布局交给平台历史呈现(如 Android 分组列表)的摆放参数。
@@ -12,7 +13,10 @@ export interface HomeCollectionSlot {
   paddingBottom: number;
   /** 内容顶部、随内容滚动的页眉(如搜索结果数) */
   header?: React.ReactNode;
-  refreshControl: React.ReactElement<RefreshControlProps>;
+  /** 下拉刷新;下拉关闭生效时不提供 */
+  refreshControl?: React.ReactElement<RefreshControlProps>;
+  /** 在顶部下拉关闭的过程汇报 */
+  pullToDismiss?: PullToDismissHandlers;
 }
 
 export type RenderHomeCollection = (slot: HomeCollectionSlot) => React.ReactNode;
