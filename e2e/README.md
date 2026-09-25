@@ -66,6 +66,7 @@ npm run test:e2e:environment
 | `beta-updates` | Android only: full-row risk confirmation, cancel/back, immediate offline check with auto-check disabled, persistence, disable and reconfirm |
 | `history-text-lifecycle` | Real clipboard capture, deduplication, preview, cancellation on Android, deletion and restart |
 | `history-search-filter` | Text and URL capture, query replacement, no results, clearing and type filters |
+| `history-search-dismiss` | iOS only: search layer over home; pull-to-dismiss from suggestions and results, short pull stays, search filters cleared, close button |
 
  Omitting the
 option discovers only `.maestro/scenarios/*.yaml`. Repetitions are limited to 1–7. Android also checks the total selected scenarios × repeat against its 15 unique transport pairs before creating any devices; the five-scenario suite supports up to three rounds if enough pairs are available. A suite is run serially with a new

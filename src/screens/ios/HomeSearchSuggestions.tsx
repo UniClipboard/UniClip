@@ -4,6 +4,7 @@ import { File, Image as ImageIcon, Laptop, Layers, Link, Smartphone, Type, type 
 import { useTranslation } from 'react-i18next';
 import { iosColors, iosKindTints } from '@/theme/iosDesignTokens';
 import { getDisplayKindLabel, type DisplayKind } from '@/utils/displayKind';
+import type { PullToDismissHandlers } from '@/utils/pullToDismiss';
 import {
   getHistoryFilterDateOptions,
   getHistoryFilterSourceOptions,
@@ -24,8 +25,15 @@ const KIND_COLUMNS = 3;
 /**
  * 空查询的搜索视图(iOS):「建议」— 类型 / 时间 / 来源设备快捷项,排在键盘与底部搜索框之上。
  * 点任一项即应用该筛选并收起键盘,视图随之切到结果;开始输入同样进入结果。
+ * 在顶部下拉即可退出搜索(`pullToDismiss`)。
  */
-export function HomeSearchSuggestions({ c }: { c: HomeController }) {
+export function HomeSearchSuggestions({
+  c,
+  pullToDismiss,
+}: {
+  c: HomeController;
+  pullToDismiss: PullToDismissHandlers;
+}) {
   const { t } = useTranslation('home');
   const { colors } = c.theme;
 
@@ -48,6 +56,10 @@ export function HomeSearchSuggestions({ c }: { c: HomeController }) {
       contentContainerStyle={[styles.content, { paddingTop: c.insets.top + 8 }]}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
+      alwaysBounceVertical
+      scrollEventThrottle={16}
+      onScroll={(event) => pullToDismiss.onPull(event.nativeEvent.contentOffset.y)}
+      onScrollEndDrag={(event) => pullToDismiss.onRelease(event.nativeEvent.contentOffset.y)}
     >
       <Text accessibilityRole="header" style={[styles.title, { color: colors.textPrimary }]}>
         {t('search.suggestions')}

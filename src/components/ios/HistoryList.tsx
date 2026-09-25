@@ -5,6 +5,7 @@ import { useSharedValue } from 'react-native-reanimated';
 import type { AnimatedCardGridHandle } from '@/components/AnimatedCardGrid';
 import { useTheme } from '@/hooks/useTheme';
 import type { ClipboardItem } from '@/types/clipboard';
+import type { PullToDismissHandlers } from '@/utils/pullToDismiss';
 import {
   buildHistoryListRows,
   formatHistoryDayLabel,
@@ -30,6 +31,8 @@ export interface HistoryListProps
   header?: React.ReactNode;
   refreshControl?: React.ReactElement<RefreshControlProps>;
   onEndReached?: () => void;
+  /** 在顶部下拉关闭的过程汇报 */
+  pullToDismiss?: PullToDismissHandlers;
 }
 
 /**
@@ -49,6 +52,7 @@ export const HistoryList = forwardRef<AnimatedCardGridHandle, HistoryListProps>(
       header,
       refreshControl,
       onEndReached,
+      pullToDismiss,
       onPress,
       onCopy,
       onLongPress,
@@ -120,6 +124,11 @@ export const HistoryList = forwardRef<AnimatedCardGridHandle, HistoryListProps>(
             // 开始滚动时收起已展开的行
             openRow.value = '';
           }}
+          onScroll={pullToDismiss && ((event) => pullToDismiss.onPull(event.nativeEvent.contentOffset.y))}
+          scrollEventThrottle={pullToDismiss ? 16 : undefined}
+          onScrollEndDrag={
+            pullToDismiss && ((event) => pullToDismiss.onRelease(event.nativeEvent.contentOffset.y))
+          }
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
         />

@@ -25,6 +25,7 @@ export function getHomeHistoryCollection(c: HomeController): RenderHomeCollectio
       paddingBottom={slot.paddingBottom}
       header={slot.header}
       refreshControl={slot.refreshControl}
+      pullToDismiss={slot.pullToDismiss}
       onEndReached={c.loadMoreItems}
       onPress={c.handleItemPress}
       onCopy={c.handleItemCopy}
