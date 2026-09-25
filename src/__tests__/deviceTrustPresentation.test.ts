@@ -6,6 +6,7 @@ import {
   buildSpaceOperationContext,
   buildSpaceOperationResult,
   initialDeviceTrustChoice,
+  spaceMaintenanceMessage,
 } from '../features/space/deviceTrustPresentation';
 import type { DeviceTrustSnapshot } from '../platform/engine';
 
@@ -129,6 +130,35 @@ describe('space device update display', () => {
         });
     }
   );
+
+  it('explains a local identity mismatch without offering a recovery action', () => {
+    const current = snapshot();
+    current.spaceDeviceUpdate = {
+      phase: 'needsAttention',
+      reason: 'localIdentityMismatch',
+      recovery: null,
+      nextRetryAtMs: null,
+    };
+    const overview = buildSpaceOverviewView('ready', { kind: 'ready', snapshot: current }, 'idle');
+
+    expect(overview.primaryStatus).toBe('maintenanceNeedsAttention');
+    expect(spaceMaintenanceMessage(overview, (key) => key)).toBe(
+      'space.overview.localIdentityMismatch'
+    );
+  });
+
+  it('keeps the generic attention message for Engine reasons that offer recovery', () => {
+    const current = snapshot();
+    current.spaceDeviceUpdate = {
+      phase: 'needsAttention',
+      reason: 'deviceRelationshipConflict',
+      recovery: 'reviewDevices',
+      nextRetryAtMs: null,
+    };
+    const overview = buildSpaceOverviewView('ready', { kind: 'ready', snapshot: current }, 'idle');
+
+    expect(spaceMaintenanceMessage(overview, (key) => key)).toBe('space.overview.maintenanceAction');
+  });
 
   it('uses the existing updating device status while the holistic update is running', () => {
     const current = snapshot();

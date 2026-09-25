@@ -123,6 +123,7 @@
         "deviceRelationshipConflict": "Requer atenção: conflito de relação",
         "deviceSecurityUpdateRejected": "Requer atenção: segurança do dispositivo",
         "deviceUpgradeRequired": "Requer atenção: atualização de dispositivo relacionado",
+        "localIdentityMismatch": "Precisa de atenção: identidade local divergente",
         "deviceUpdated": "Estado dos dispositivos do espaço atualizado",
         "inviterWaiting": "Quem convidou: aguardando outro dispositivo",
         "invitationExpired": "Quem convidou: convite expirado",

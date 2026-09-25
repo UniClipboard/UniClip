@@ -123,6 +123,7 @@
         "deviceRelationshipConflict": "需要处理：设备关系冲突",
         "deviceSecurityUpdateRejected": "需要处理：设备安全状态",
         "deviceUpgradeRequired": "需要处理：相关设备需更新",
+        "localIdentityMismatch": "需要处理：本机身份不一致",
         "deviceUpdated": "空间设备状态已更新",
         "inviterWaiting": "邀请方：等待另一台设备",
         "invitationExpired": "邀请方：邀请码已过期",

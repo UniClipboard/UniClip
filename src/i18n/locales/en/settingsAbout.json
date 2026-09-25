@@ -123,6 +123,7 @@
         "deviceRelationshipConflict": "Needs attention: relationship conflict",
         "deviceSecurityUpdateRejected": "Needs attention: device security",
         "deviceUpgradeRequired": "Needs attention: related device update",
+        "localIdentityMismatch": "Needs attention: local identity mismatch",
         "deviceUpdated": "Space device status updated",
         "inviterWaiting": "Inviter: waiting for another device",
         "invitationExpired": "Inviter: invitation expired",

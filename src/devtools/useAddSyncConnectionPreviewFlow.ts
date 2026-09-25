@@ -38,6 +38,10 @@ export const ADD_SYNC_CONNECTION_PREVIEW_SCENARIOS: ReadonlyArray<{
     id: 'deviceUpgradeRequired',
     labelKey: 'debug.connectionSheetPreview.scenarios.deviceUpgradeRequired',
   },
+  {
+    id: 'localIdentityMismatch',
+    labelKey: 'debug.connectionSheetPreview.scenarios.localIdentityMismatch',
+  },
   { id: 'deviceUpdated', labelKey: 'debug.connectionSheetPreview.scenarios.deviceUpdated' },
   { id: 'inviterWaiting', labelKey: 'debug.connectionSheetPreview.scenarios.inviterWaiting' },
   {
@@ -123,6 +127,13 @@ export function createAddSyncConnectionPreviewState(
           reason: id,
           recovery: id === 'deviceUpgradeRequired' ? 'updateApp' : 'reviewDevices',
         },
+      };
+    case 'localIdentityMismatch':
+      // Engine offers no recovery for this reason.
+      return {
+        ...base,
+        mode: 'joinUpdating',
+        deviceUpdate: { ...updating, phase: 'needsAttention', reason: id },
       };
     case 'deviceUpdated':
       return { ...base, mode: 'joinReady', deviceUpdate: { ...updating, phase: 'completed' } };

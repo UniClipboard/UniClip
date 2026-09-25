@@ -50,6 +50,7 @@
       "maintenanceWaiting": "Updating space device status. Retrying automatically later.",
       "maintenanceRetryAt": "Updating space device status. Retrying automatically later.",
       "maintenanceAction": "Space device status needs attention. Review the suggested action.",
+      "localIdentityMismatch": "This device's identity no longer matches its record in this space. Syncing on this device is paused.",
       "status": {
         "decisionRequired": "Review a device change",
         "unverifiable": "Device details cannot be verified",
@@ -129,7 +130,8 @@
           "deviceStateRejected": "The device status could not be verified. Review the device list.",
           "deviceRelationshipConflict": "The device relationships need confirmation. Review the device list.",
           "deviceSecurityUpdateRejected": "The device security status needs attention. Review the device list.",
-          "deviceUpgradeRequired": "Related devices must be updated before syncing can continue."
+          "deviceUpgradeRequired": "Related devices must be updated before syncing can continue.",
+          "localIdentityMismatch": "This device's identity no longer matches its record in this space. Syncing on this device is paused."
         }
       },
       "joinPassphraseTitle": "Enter space password",
