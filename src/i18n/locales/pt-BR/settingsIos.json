@@ -63,15 +63,6 @@
     "systemSettings": {
       "row": "Ajustes do teclado no iOS",
       "footer": "Lá você pode remover o teclado ou desativar o Acesso Total."
-    },
-    "illustration": {
-      "text": "Texto",
-      "links": "Links",
-      "justNow": "Agora",
-      "fiveMinutes": "5 min",
-      "textSample": "Reunião mudou para 15h30, sala 4B. Leve a apresentação do T3.",
-      "linkSample": "Notas de revisão do PR #412 do UniClip mobile",
-      "space": "espaço"
     }
   },
   "share": {

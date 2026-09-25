@@ -93,6 +93,7 @@
     "expo-sqlite": "~57.0.3",
     "expo-status-bar": "~57.0.1",
     "expo-system-ui": "~57.0.4",
+    "expo-video": "~57.0.5",
     "fflate": "^0.8.3",
     "i18next": "^26.3.4",
     "js-base64": "^3.9.3",

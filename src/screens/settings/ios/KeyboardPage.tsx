@@ -1,38 +1,40 @@
 import React, { useEffect, useState } from 'react';
 import { AppState, DynamicColorIOS, Linking } from 'react-native';
+import { requireOptionalNativeModule } from 'expo';
 import { useTranslation } from 'react-i18next';
 import {
   Button as SwiftUIButton,
   HStack,
   Image,
+  RNHostView,
   Section,
   Spacer,
   Text as SwiftUIText,
   TextField,
   VStack,
+  ZStack,
 } from '@expo/ui/swift-ui';
 import {
   accessibilityHidden,
+  aspectRatio,
   background,
   clipShape,
-  clipped,
   controlSize,
   fixedSize,
   font,
   foregroundStyle,
   frame,
-  lineLimit,
   listRowBackground,
   listRowInsets,
   multilineTextAlignment,
   padding,
-  shadow,
   shapes,
 } from '@expo/ui/swift-ui/modifiers';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
 import { iosProminentButtonModifiers } from '@/components/ui/iosButtonStyles.ios';
+import { useTheme } from '@/hooks/useTheme';
 import { useSettingsStore } from '@/stores';
 import {
   HeaderCircleButton,
@@ -51,16 +53,20 @@ const DETECTED_BACKGROUND = DynamicColorIOS({
   light: '#E6F6EA',
   dark: '#12321C',
 });
-// The keyboard drawing is UniClip Keyboard at 66% scale.
-const KEYBOARD_BASE = DynamicColorIOS({ light: '#E5E5EA', dark: '#2C2C2E' });
-const KEYBOARD_KEY = DynamicColorIOS({ light: '#FFFFFF', dark: '#5A5A5E' });
-const KEYBOARD_WIDTH = 257;
-const CLIP_CARD_WIDTH = 100;
-const CLIP_CARD_HEIGHT = 108;
-const KEY_GAP = 5;
-// Space takes half the key row; delete and return split the other half.
-const SPACE_KEY_WIDTH = (KEYBOARD_WIDTH - 16 - KEY_GAP) / 2;
-const ACTION_KEY_WIDTH = (SPACE_KEY_WIDTH - KEY_GAP) / 2;
+// Demo loops rendered for the keyboard (960×900). Their backgrounds match
+// systemGroupedBackground in each appearance, so they blend into the panel.
+const DEMO_VIDEO = {
+  light: require('../../../../assets/videos/keyboard-paste-loop-light.mp4'),
+  dark: require('../../../../assets/videos/keyboard-paste-loop-dark.mp4'),
+};
+const DEMO_VIDEO_ASPECT = 960 / 900;
+// Dev clients built before expo-video was added have no ExpoVideo native
+// module, and importing expo-video there throws while loading this page. Load
+// the player only when the module exists; otherwise the page skips the demo.
+const DemoVideoPlayer: typeof import('./KeyboardDemoVideoPlayer').KeyboardDemoVideoPlayer | null =
+  requireOptionalNativeModule('ExpoVideo')
+    ? require('./KeyboardDemoVideoPlayer').KeyboardDemoVideoPlayer
+    : null;
 
 interface SetupStep {
   state: SetupStepState;
@@ -215,7 +221,7 @@ function KeyboardSetup({
               padding({ vertical: 8 }),
             ]}
           >
-            <KeyboardIllustration />
+            <KeyboardDemoVideo />
             <VStack alignment="leading" spacing={6}>
               <SwiftUIText modifiers={[font({ size: 22, weight: 'bold' })]}>
                 {t('keyboard.hero.title')}
@@ -543,185 +549,27 @@ function TryField({ placeholder }: { placeholder: string }) {
 }
 
 /**
- * Drawing of UniClip Keyboard as it looks today, at 66% scale: the search and
- * refresh buttons, recent clips as cards running off the trailing edge, and
- * the key row.
+ * Looping demo of UniClip Keyboard: switch to it, tap a clip, and it is pasted.
+ * Muted, without controls, and mixed with other audio so it never interrupts
+ * the user's music. Remounted on an appearance change to swap the source.
  */
-function KeyboardIllustration() {
-  const { t } = useTranslation('settingsIos');
-  const label = (key: string) => t(`keyboard.illustration.${key}`);
+function KeyboardDemoVideo() {
+  const { theme } = useTheme();
+  const appearance = theme.isDark ? 'dark' : 'light';
+  if (!DemoVideoPlayer) return null;
   return (
-    <HStack
+    <ZStack
       modifiers={[
         frame({ maxWidth: Infinity }),
-        padding({ vertical: 16 }),
-        background(guideColors.canvas, shapes.roundedRectangle({ cornerRadius: 18 })),
+        aspectRatio({ ratio: DEMO_VIDEO_ASPECT, contentMode: 'fit' }),
+        background(guideColors.canvas),
+        clipShape('roundedRectangle', 18),
         accessibilityHidden(true),
       ]}
     >
-      <Spacer />
-      <VStack
-        alignment="leading"
-        spacing={0}
-        modifiers={[
-          frame({ width: KEYBOARD_WIDTH, height: 180, alignment: 'topLeading' }),
-          background(KEYBOARD_BASE),
-          clipShape('roundedRectangle', 14),
-          shadow({ radius: 14, y: 7, color: '#00000024' }),
-        ]}
-      >
-        <HStack
-          modifiers={[frame({ width: KEYBOARD_WIDTH, height: 30 }), padding({ horizontal: 8 })]}
-        >
-          <KeyboardRoundButton systemName="magnifyingglass" />
-          <Spacer />
-          <KeyboardRoundButton systemName="arrow.clockwise" />
-        </HStack>
-        <HStack
-          spacing={8}
-          alignment="top"
-          modifiers={[
-            padding({ leading: 8, top: 3 }),
-            frame({ width: KEYBOARD_WIDTH, height: 114, alignment: 'topLeading' }),
-            clipped(),
-          ]}
-        >
-          <ClipCard
-            icon="text.alignleft"
-            kind={label('text')}
-            time={label('justNow')}
-            body={label('textSample')}
-            accent="secondary"
-            lines={5}
-          />
-          <ClipCard
-            icon="link"
-            kind={label('links')}
-            time={label('fiveMinutes')}
-            body={label('linkSample')}
-            accent={settingsTileColors.blue}
-            lines={4}
-            footer="github.com"
-          />
-          <VStack
-            modifiers={[
-              frame({ width: CLIP_CARD_WIDTH, height: CLIP_CARD_HEIGHT }),
-              background(
-                {
-                  type: 'linearGradient',
-                  colors: ['#9DB8D6', '#C8D5B9', '#E7C9A5'],
-                  startPoint: { x: 0.2, y: 0 },
-                  endPoint: { x: 0.8, y: 1 },
-                },
-                shapes.roundedRectangle({ cornerRadius: 12 })
-              ),
-            ]}
-          >
-            <Spacer />
-          </VStack>
-        </HStack>
-        <HStack
-          spacing={KEY_GAP}
-          modifiers={[frame({ width: KEYBOARD_WIDTH, height: 36 }), padding({ horizontal: 8 })]}
-        >
-          <SwiftUIText
-            modifiers={[
-              font({ size: 11 }),
-              foregroundStyle('secondary'),
-              lineLimit(1),
-              frame({ width: SPACE_KEY_WIDTH, height: 30 }),
-              background(KEYBOARD_KEY, shapes.roundedRectangle({ cornerRadius: 6 })),
-            ]}
-          >
-            {label('space')}
-          </SwiftUIText>
-          <Image
-            systemName="delete.left"
-            size={13}
-            modifiers={[
-              frame({ width: ACTION_KEY_WIDTH, height: 30 }),
-              background(KEYBOARD_KEY, shapes.roundedRectangle({ cornerRadius: 6 })),
-            ]}
-          />
-          <Image
-            systemName="return"
-            size={13}
-            color="white"
-            modifiers={[
-              frame({ width: ACTION_KEY_WIDTH, height: 30 }),
-              background(settingsTileColors.blue, shapes.roundedRectangle({ cornerRadius: 6 })),
-            ]}
-          />
-        </HStack>
-      </VStack>
-      <Spacer />
-    </HStack>
-  );
-}
-
-function KeyboardRoundButton({ systemName }: { systemName: SFSymbol }) {
-  return (
-    <Image
-      systemName={systemName}
-      size={10}
-      modifiers={[
-        foregroundStyle('secondary'),
-        frame({ width: 22, height: 22 }),
-        background(KEYBOARD_KEY, shapes.circle()),
-      ]}
-    />
-  );
-}
-
-function ClipCard({
-  icon,
-  kind,
-  time,
-  body,
-  accent,
-  lines,
-  footer,
-}: {
-  icon: SFSymbol;
-  kind: string;
-  time: string;
-  body: string;
-  accent: string;
-  lines: number;
-  footer?: string;
-}) {
-  return (
-    <VStack
-      alignment="leading"
-      spacing={5}
-      modifiers={[
-        padding({ all: 8 }),
-        frame({ width: CLIP_CARD_WIDTH, height: CLIP_CARD_HEIGHT, alignment: 'topLeading' }),
-        background(KEYBOARD_KEY, shapes.roundedRectangle({ cornerRadius: 12 })),
-      ]}
-    >
-      <HStack spacing={3}>
-        <Image systemName={icon} size={8} modifiers={[foregroundStyle(accent)]} />
-        <SwiftUIText
-          modifiers={[font({ size: 8, weight: 'semibold' }), foregroundStyle(accent), lineLimit(1)]}
-        >
-          {kind}
-        </SwiftUIText>
-        <SwiftUIText modifiers={[font({ size: 7 }), foregroundStyle('tertiary'), lineLimit(1)]}>
-          {time}
-        </SwiftUIText>
-      </HStack>
-      <SwiftUIText modifiers={[font({ size: 10.5 }), lineLimit(lines)]}>{body}</SwiftUIText>
-      {footer ? (
-        <>
-          <Spacer />
-          <SwiftUIText
-            modifiers={[font({ size: 7 }), foregroundStyle(settingsTileColors.blue), lineLimit(1)]}
-          >
-            {footer}
-          </SwiftUIText>
-        </>
-      ) : null}
-    </VStack>
+      <RNHostView>
+        <DemoVideoPlayer key={appearance} source={DEMO_VIDEO[appearance]} />
+      </RNHostView>
+    </ZStack>
   );
 }
