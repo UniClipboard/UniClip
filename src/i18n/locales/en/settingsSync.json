@@ -370,7 +370,14 @@
       "connectionLost": "The connection was interrupted. Try again",
       "operationFailed": "The operation failed. Check your input and try again.",
       "peerUpgradeRequired": "Update UniClip on the other device, then try again.",
-      "joinNeedsAttention": "This join needs attention. Keep the app data and export diagnostics for support."
+      "joinNeedsAttention": "This join needs attention. Keep the app data and export diagnostics for support.",
+      "invitationNetworkNotReady": "Sync is still starting. Try again in a moment",
+      "invitationDevicesUpdating": "Space devices are still updating. Try again in a moment",
+      "invitationRecoveryRequired": "Space device status needs attention before you can invite a device",
+      "invitationNoNetworkAddress": "No network connection is available for the invitation. Check your network and try again",
+      "invitationPublishFailed": "Could not prepare the invitation. Try again",
+      "invitationServiceUnreachable": "The invitation service cannot be reached right now. Try again",
+      "invitationServiceRejected": "The invitation service rejected this request. Try again later"
     },
     "manage": {
       "title": "Space actions"

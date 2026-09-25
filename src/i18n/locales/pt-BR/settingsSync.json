@@ -370,7 +370,14 @@
       "connectionLost": "A conexão foi interrompida. Tente novamente",
       "operationFailed": "A operação falhou. Verifique os dados e tente novamente.",
       "peerUpgradeRequired": "Atualize o UniClip no outro dispositivo e tente novamente.",
-      "joinNeedsAttention": "Esta entrada precisa de atenção. Mantenha os dados atuais e exporte os diagnósticos para o suporte."
+      "joinNeedsAttention": "Esta entrada precisa de atenção. Mantenha os dados atuais e exporte os diagnósticos para o suporte.",
+      "invitationNetworkNotReady": "A sincronização ainda está iniciando. Tente novamente em instantes",
+      "invitationDevicesUpdating": "Os dispositivos do espaço ainda estão sendo atualizados. Tente novamente em instantes",
+      "invitationRecoveryRequired": "O status dos dispositivos do espaço precisa de atenção antes de convidar um dispositivo",
+      "invitationNoNetworkAddress": "Nenhuma conexão de rede disponível para o convite. Verifique a rede e tente novamente",
+      "invitationPublishFailed": "Não foi possível preparar o convite. Tente novamente",
+      "invitationServiceUnreachable": "O serviço de convites não está acessível agora. Tente novamente",
+      "invitationServiceRejected": "O serviço de convites recusou esta solicitação. Tente novamente mais tarde"
     },
     "manage": {
       "title": "Ações do espaço"
