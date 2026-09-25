@@ -47,7 +47,7 @@
     "release:build": "node scripts/bump-build.mjs",
     "release:alpha": "node scripts/bump-build.mjs --alpha",
     "release:version": "node scripts/bump-version.mjs",
-    "postinstall": "node scripts/patch-expo-sharing-android.cjs && node scripts/patch-apple-targets.cjs",
+    "postinstall": "node scripts/patch-expo-sharing-android.cjs && node scripts/patch-apple-targets.cjs && node scripts/patch-react-native-screens-search-tab.cjs",
     "prepare": "husky",
     "doctor": "npx react-doctor@latest"
   },
