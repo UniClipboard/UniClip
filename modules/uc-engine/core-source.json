@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "repository": "UniClipboard/Engine",
-  "version": "v1.1.0-rc.18.local.af8038d0",
-  "sourceCommit": "af8038d09eca59ca816099beed194af773131b58",
+  "version": "v1.1.0-rc.18.local.0775dfa6",
+  "sourceCommit": "0775dfa62cfbe44052a23182ea2763a59ff54096",
   "artifactSource": "local-build",
   "sourceStateSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "artifacts": {
-    "UniClipboardEngine.aar": "f95e457876d2bf281ebe0c5097b0ce63977ef46b6290fcf36145b2e300aa3199",
-    "UniClipboardEngine.pom": "ede823156ac5b914a56e11059002c279090401a3ebd9b4efa502b859ec7bcc2f",
+    "UniClipboardEngine.aar": "a10d2c1f57580c2e2a1e259587dbdb129f8a9c6dc95247f5f27f9c704cfb827b",
+    "UniClipboardEngine.pom": "212d49f601730bd59aff7220701a6a1d473635fbaa90326a729808a7d7a1cff1",
     "runtime-dependencies.txt": "b9e41a3759a188241696301e4595be76bb660bd5c0734ed852198baa70873403",
     "uc_engine_uniffi.kt": "498a199f796679286b81badd000df6bad284ccaa002f8144bf18db82aee408ac",
     "uc_engine_uniffi.swift": "96ae89ed809f7f69ae4c111a39732934c6e5de066bf23e8376af730840230040"
