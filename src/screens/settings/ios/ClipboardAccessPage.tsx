@@ -1,23 +1,63 @@
 import React, { useState } from 'react';
+import { DynamicColorIOS, Linking } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
-import { Button as SwiftUIButton, Section, Text as SwiftUIText } from '@expo/ui/swift-ui';
+import {
+  Button as SwiftUIButton,
+  HStack,
+  Image,
+  Section,
+  Spacer,
+  Text as SwiftUIText,
+  VStack,
+} from '@expo/ui/swift-ui';
+import {
+  accessibilityHidden,
+  background,
+  controlSize,
+  font,
+  foregroundStyle,
+  frame,
+  multilineTextAlignment,
+  padding,
+  shadow,
+  shapes,
+} from '@expo/ui/swift-ui/modifiers';
 
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
-import { createLogger } from '@/support/observability';import { useSettingsStore } from '@/stores';
 import {
-  GuideStepRow,
+  iosProminentButtonModifiers,
+  iosSecondaryButtonModifiers,
+} from '@/components/ui/iosButtonStyles.ios';
+import { iosColors } from '@/theme/iosDesignTokens';
+import { createLogger } from '@/support/observability';
+import {
   HeaderCircleButton,
-  OpenSystemSettingsButton,
-  SettingsToggle,
+  SettingsIconTile,
+  SettingsNavRow,
+  settingsTileColors,
 } from './common';
 
-const log = createLogger("ClipboardAccess");
+const log = createLogger('ClipboardAccess');
 
+const PROMPT_PANEL_BACKGROUND = iosColors?.systemGroupedBackground ?? '#F2F2F7';
+const PROMPT_ALERT_BACKGROUND = DynamicColorIOS({
+  light: '#FFFFFF',
+  dark: '#2C2C2E',
+});
+const PROMPT_BUTTON_BACKGROUND = iosColors?.tertiarySystemFill ?? '#E5E5EA';
+const PROMPT_ALLOW_BACKGROUND = DynamicColorIOS({
+  light: '#E8F1FC',
+  dark: '#0B2A4A',
+});
+const TRIGGERED_BACKGROUND = DynamicColorIOS({
+  light: '#E6F6EA',
+  dark: '#12321C',
+});
 
 /**
- * "Paste from Other Apps" permission guide. iOS 16+ prompts on every
- * cross-app pasteboard read unless the user sets the permission to Allow.
+ * "Paste from Other Apps" permission page. iOS 16+ prompts on every cross-app
+ * pasteboard read unless the user sets the permission to Allow.
  *
  * Key iOS quirk this page works around: the per-app "从其他 App 粘贴" toggle
  * does NOT exist in the Settings app until the app has performed at least one
@@ -26,12 +66,21 @@ const log = createLogger("ClipboardAccess");
  * in-app trigger: `getStringAsync()` reads `UIPasteboard.general.string`, which
  * both registers the app (making the Settings row appear) and surfaces the
  * one-time "允许粘贴" prompt where tapping "允许" grants the permission outright —
- * no trip to Settings needed. The Settings deep-link is kept only as a fallback
- * (empty pasteboard → no prompt, or a prior "不允许" that iOS now remembers).
+ * no trip to Settings needed. The Settings route (illustrated guide sheet plus a
+ * deep link) is the fallback: empty pasteboard → no prompt, or a prior "不允许"
+ * that iOS now remembers.
+ *
+ * The guide sheet is owned by the Settings host; this pushed page only reports
+ * the tap through `onOpenSettingsGuide`.
  */
-export function ClipboardAccessPage({ onBack }: { onBack: () => void }) {
+export function ClipboardAccessPage({
+  onBack,
+  onOpenSettingsGuide,
+}: {
+  onBack: () => void;
+  onOpenSettingsGuide: () => void;
+}) {
   const { t } = useTranslation('settingsPermissions');
-  const { config, updateConfig } = useSettingsStore();
   const [triggered, setTriggered] = useState(false);
 
   /**
@@ -48,7 +97,7 @@ export function ClipboardAccessPage({ onBack }: { onBack: () => void }) {
       const { clipboardMonitor } = await import('@/features/clipboard');
       await clipboardMonitor.clearDenial();
     } catch (e) {
-      log.warn("trigger paste read failed:", e);
+      log.warn('trigger paste read failed:', e);
     } finally {
       setTriggered(true);
     }
@@ -60,49 +109,184 @@ export function ClipboardAccessPage({ onBack }: { onBack: () => void }) {
       leftSlots={[<HeaderCircleButton key="back" systemName="chevron.left" onPress={onBack} />]}
     >
       <IosSheetForm>
-        {/* ── 主操作:App 内触发一次,弹窗直接点「允许」 ── */}
-        <Section
-          header={<SwiftUIText>{t('clipboardAccess.enableSection.header')}</SwiftUIText>}
-          footer={<SwiftUIText>{t('clipboardAccess.enableSection.footer')}</SwiftUIText>}
-        >
-          {triggered ? (
-            <GuideStepRow index={1} text={t('clipboardAccess.triggeredStep')} done />
-          ) : null}
-          <SwiftUIButton
-            systemImage="hand.tap"
-            label={
-              triggered ? t('clipboardAccess.triggerAgain') : t('clipboardAccess.triggerAndGrant')
-            }
-            onPress={triggerPastePermission}
-          />
+        {/* ── 主操作:App 内触发一次,弹窗直接点「允许粘贴」 ── */}
+        <Section>
+          <VStack
+            alignment="leading"
+            spacing={16}
+            modifiers={[
+              frame({ maxWidth: Infinity, alignment: 'leading' }),
+              padding({ vertical: 8 }),
+            ]}
+          >
+            <HStack spacing={12}>
+              <SettingsIconTile systemName="doc.on.clipboard" color={settingsTileColors.blue} />
+              <SwiftUIText modifiers={[font({ size: 20, weight: 'bold' })]}>
+                {t('clipboardAccess.hero.title')}
+              </SwiftUIText>
+            </HStack>
+            <SwiftUIText modifiers={[font({ size: 15 }), foregroundStyle('secondary')]}>
+              {t('clipboardAccess.hero.description')}
+            </SwiftUIText>
+            <PastePromptIllustration />
+            {triggered ? (
+              <HStack
+                spacing={10}
+                alignment="top"
+                modifiers={[
+                  frame({ maxWidth: Infinity, alignment: 'leading' }),
+                  padding({ horizontal: 14, vertical: 12 }),
+                  background(TRIGGERED_BACKGROUND, shapes.roundedRectangle({ cornerRadius: 14 })),
+                ]}
+              >
+                <Image
+                  systemName="checkmark.circle.fill"
+                  size={18}
+                  color={settingsTileColors.green}
+                />
+                <SwiftUIText
+                  modifiers={[
+                    font({ size: 15 }),
+                    frame({ maxWidth: Infinity, alignment: 'leading' }),
+                  ]}
+                >
+                  {t('clipboardAccess.hero.triggered')}
+                </SwiftUIText>
+              </HStack>
+            ) : null}
+            <SwiftUIButton
+              testID="clipboard-access-trigger"
+              onPress={triggerPastePermission}
+              modifiers={[
+                ...(triggered
+                  ? iosSecondaryButtonModifiers({ fullWidth: true })
+                  : iosProminentButtonModifiers(undefined, {
+                      fullWidth: true,
+                    })),
+                controlSize('large'),
+              ]}
+            >
+              <HStack spacing={8} modifiers={[frame({ maxWidth: Infinity })]}>
+                <Spacer />
+                {triggered ? null : <Image systemName="hand.tap" size={16} />}
+                <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>
+                  {triggered
+                    ? t('clipboardAccess.hero.triggerAgain')
+                    : t('clipboardAccess.hero.trigger')}
+                </SwiftUIText>
+                <Spacer />
+              </HStack>
+            </SwiftUIButton>
+            {triggered ? null : (
+              <SwiftUIText
+                modifiers={[
+                  font({ size: 13 }),
+                  foregroundStyle('secondary'),
+                  multilineTextAlignment('center'),
+                  frame({ maxWidth: Infinity }),
+                ]}
+              >
+                {t('clipboardAccess.hero.emptyClipboardHint')}
+              </SwiftUIText>
+            )}
+          </VStack>
         </Section>
 
-        {/* ── 兜底:去系统设置(触发过一次后该项才会出现) ── */}
+        {/* ── 兜底:图文步骤 sheet + 直达系统设置 ── */}
         <Section
           header={<SwiftUIText>{t('clipboardAccess.fallbackSection.header')}</SwiftUIText>}
           footer={<SwiftUIText>{t('clipboardAccess.fallbackSection.footer')}</SwiftUIText>}
         >
-          <GuideStepRow index={1} text={t('clipboardAccess.fallbackSection.step1')} />
-          <GuideStepRow index={2} text={t('clipboardAccess.fallbackSection.step2')} />
-          <GuideStepRow index={3} text={t('clipboardAccess.fallbackSection.step3')} />
-          <OpenSystemSettingsButton />
+          <SettingsNavRow
+            testID="clipboard-access-settings-guide"
+            icon="list.number"
+            iconColor={settingsTileColors.gray}
+            title={t('clipboardAccess.fallbackSection.guideRow')}
+            subtitle={t('clipboardAccess.fallbackSection.guideRowSubtitle')}
+            onPress={onOpenSettingsGuide}
+          />
+          <SettingsNavRow
+            testID="clipboard-access-open-settings"
+            icon="gearshape.fill"
+            iconColor={settingsTileColors.gray}
+            title={t('clipboardAccess.fallbackSection.openSettings')}
+            showsChevron={false}
+            onPress={() => {
+              Linking.openSettings();
+            }}
+          />
         </Section>
-
-        {/* ── 相关设置 ── */}
-        {config ? (
-          <Section
-            header={<SwiftUIText>{t('clipboardAccess.relatedSection.header')}</SwiftUIText>}
-            footer={<SwiftUIText>{t('clipboardAccess.relatedSection.footer')}</SwiftUIText>}
-          >
-            <SettingsToggle
-              label={t('clipboardAccess.relatedSection.autoPushLabel')}
-              systemImage="arrow.up.doc"
-              isOn={config.autoPushLocal}
-              onIsOnChange={(v) => updateConfig({ autoPushLocal: v })}
-            />
-          </Section>
-        ) : null}
       </IosSheetForm>
     </IosSheetPage>
+  );
+}
+
+/** Drawing of the system "Allow Paste" alert, with the button to choose outlined. */
+function PastePromptIllustration() {
+  const { t } = useTranslation('settingsPermissions');
+  return (
+    <HStack
+      modifiers={[
+        frame({ maxWidth: Infinity }),
+        padding({ all: 16 }),
+        background(PROMPT_PANEL_BACKGROUND, shapes.roundedRectangle({ cornerRadius: 18 })),
+        accessibilityHidden(true),
+      ]}
+    >
+      <Spacer />
+      <VStack
+        spacing={14}
+        modifiers={[
+          frame({ width: 260 }),
+          padding({ horizontal: 14, top: 18, bottom: 14 }),
+          background(PROMPT_ALERT_BACKGROUND, shapes.roundedRectangle({ cornerRadius: 26 })),
+          shadow({ radius: 12, y: 6, color: '#0000001F' }),
+        ]}
+      >
+        <VStack spacing={4}>
+          <SwiftUIText
+            modifiers={[font({ size: 15, weight: 'semibold' }), multilineTextAlignment('center')]}
+          >
+            {t('clipboardAccess.prompt.title')}
+          </SwiftUIText>
+          <SwiftUIText
+            modifiers={[
+              font({ size: 13 }),
+              foregroundStyle('secondary'),
+              multilineTextAlignment('center'),
+            ]}
+          >
+            {t('clipboardAccess.prompt.message')}
+          </SwiftUIText>
+        </VStack>
+        <HStack spacing={8}>
+          <SwiftUIText
+            modifiers={[
+              font({ size: 13, weight: 'semibold' }),
+              foregroundStyle(settingsTileColors.blue),
+              multilineTextAlignment('center'),
+              frame({ maxWidth: Infinity, minHeight: 40 }),
+              padding({ horizontal: 6 }),
+              background(PROMPT_ALLOW_BACKGROUND, shapes.capsule()),
+            ]}
+          >
+            {t('clipboardAccess.prompt.allow')}
+          </SwiftUIText>
+          <SwiftUIText
+            modifiers={[
+              font({ size: 13, weight: 'semibold' }),
+              foregroundStyle('secondary'),
+              multilineTextAlignment('center'),
+              frame({ maxWidth: Infinity, minHeight: 40 }),
+              padding({ horizontal: 6 }),
+              background(PROMPT_BUTTON_BACKGROUND, shapes.capsule()),
+            ]}
+          >
+            {t('clipboardAccess.prompt.deny')}
+          </SwiftUIText>
+        </HStack>
+      </VStack>
+      <Spacer />
+    </HStack>
   );
 }

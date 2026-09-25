@@ -88,7 +88,7 @@
   },
   "ios": {
     "sync": {
-      "footer": "Com a gravação automática ativada, o conteúdo novo do espaço é gravado imediatamente no clipboard deste dispositivo; quando desativada, ele só é destacado na tela inicial.",
+      "footer": "Com a gravação automática ativada, o conteúdo novo do espaço é gravado imediatamente no clipboard deste dispositivo; quando desativada, ele só é destacado na tela inicial. O envio automático lê cada cópia; defina primeiro Acesso à área de transferência como Permitir, ou o iOS perguntará toda vez.",
       "autoApply": "Gravar automaticamente na área de transferência",
       "autoPush": "Enviar automaticamente a área de transferência",
       "sse": "Envio ao vivo (SSE)"

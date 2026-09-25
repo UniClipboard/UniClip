@@ -23,6 +23,7 @@ describe('iOS settings and devices tabs', () => {
     expect(stackEnd).toBeGreaterThan(0);
     expect(settingsScreen.indexOf('<ShareSendSheet')).toBeGreaterThan(stackEnd);
     expect(settingsScreen.indexOf('<AddSyncConnectionSheet')).toBeGreaterThan(stackEnd);
+    expect(settingsScreen.indexOf('<ClipboardSettingsGuideSheet')).toBeGreaterThan(stackEnd);
   });
 
   it('moves sync channel and space management into the Devices tab', () => {

@@ -87,7 +87,7 @@
   },
   "ios": {
     "sync": {
-      "footer": "When Auto-write is on, new content from your space is written to this device clipboard immediately; when off, it is only highlighted on Home.",
+      "footer": "When Auto-write is on, new content from your space is written to this device clipboard immediately; when off, it is only highlighted on Home. Auto-push reads every copy, so set Clipboard access to Allow first or iOS will ask each time.",
       "autoApply": "Auto-write to clipboard",
       "autoPush": "Auto-push clipboard",
       "sse": "Live push (SSE)"
