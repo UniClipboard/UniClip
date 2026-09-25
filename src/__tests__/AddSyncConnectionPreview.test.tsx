@@ -34,7 +34,7 @@ describe('pairing sheet preview', () => {
       createAddSyncConnectionPreviewState(id, 'failed').mode
     );
 
-    expect(modes).toHaveLength(15);
+    expect(modes).toHaveLength(16);
     expect(modes).toEqual(
       expect.arrayContaining(['joinDetails', 'joinUpdating', 'joinReady', 'invitation', 'success'])
     );
@@ -49,10 +49,12 @@ describe('pairing sheet preview', () => {
       'deviceRelationshipConflict',
       'deviceSecurityUpdateRejected',
       'deviceUpgradeRequired',
+      'localIdentityMismatch',
     ] as const) {
       const state = createAddSyncConnectionPreviewState(reason, '');
       expect(state.deviceUpdate).toMatchObject({ phase: 'needsAttention', reason });
     }
+    expect(createAddSyncConnectionPreviewState('localIdentityMismatch', '').deviceUpdate.recovery).toBeNull();
   });
 
   it('keeps preview actions local and allows closing then reopening the same scenario', async () => {

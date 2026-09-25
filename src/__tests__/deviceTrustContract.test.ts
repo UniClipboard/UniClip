@@ -230,6 +230,21 @@ describe('device trust Engine contract', () => {
     }
   );
 
+  it('decodes the Engine local identity mismatch as attention without a recovery action', () => {
+    expect(
+      parseDeviceTrustSnapshot(
+        snapshotJson({
+          space_device_update: { phase: 'needs_attention', reason: 'local_identity_mismatch' },
+        })
+      ).spaceDeviceUpdate
+    ).toEqual({
+      phase: 'needsAttention',
+      reason: 'localIdentityMismatch',
+      recovery: null,
+      nextRetryAtMs: null,
+    });
+  });
+
   it('does not infer completion when an older snapshot lacks the unified state', () => {
     expect(
       parseDeviceTrustSnapshot(snapshotJson({ space_device_update: undefined }))

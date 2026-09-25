@@ -136,6 +136,7 @@ export interface DeviceTrustSnapshot {
       | 'deviceRelationshipConflict'
       | 'deviceSecurityUpdateRejected'
       | 'deviceUpgradeRequired'
+      | 'localIdentityMismatch'
       | null;
     recovery: 'reviewDevices' | 'updateApp' | null;
     nextRetryAtMs: number | null;
@@ -240,6 +241,7 @@ const SPACE_DEVICE_UPDATE_REASON = {
   device_relationship_conflict: 'deviceRelationshipConflict',
   device_security_update_rejected: 'deviceSecurityUpdateRejected',
   device_upgrade_required: 'deviceUpgradeRequired',
+  local_identity_mismatch: 'localIdentityMismatch',
 } as const;
 const SPACE_DEVICE_UPDATE_RECOVERY = {
   review_devices: 'reviewDevices',

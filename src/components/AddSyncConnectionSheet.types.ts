@@ -12,6 +12,7 @@ export type AddSyncConnectionPreviewScenarioId =
   | 'deviceRelationshipConflict'
   | 'deviceSecurityUpdateRejected'
   | 'deviceUpgradeRequired'
+  | 'localIdentityMismatch'
   | 'deviceUpdated'
   | 'inviterWaiting'
   | 'invitationExpired'

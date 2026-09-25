@@ -201,7 +201,8 @@ export type SpaceDeviceUpdateProblem =
   | 'deviceStateRejected'
   | 'deviceRelationshipConflict'
   | 'deviceSecurityUpdateRejected'
-  | 'deviceUpgradeRequired';
+  | 'deviceUpgradeRequired'
+  | 'localIdentityMismatch';
 
 export type SpaceDeviceUpdateRecovery = 'reviewDevices' | 'updateApp';
 

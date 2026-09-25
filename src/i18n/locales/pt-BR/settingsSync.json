@@ -50,6 +50,7 @@
       "maintenanceWaiting": "Atualizando o estado dos dispositivos do espaço. Nova tentativa automática mais tarde.",
       "maintenanceRetryAt": "Atualizando o estado dos dispositivos do espaço. Nova tentativa automática mais tarde.",
       "maintenanceAction": "O estado dos dispositivos do espaço precisa de atenção. Confira a ação sugerida.",
+      "localIdentityMismatch": "A identidade deste dispositivo não corresponde mais ao registro neste espaço. A sincronização neste dispositivo está pausada.",
       "status": {
         "decisionRequired": "Revise uma alteração de dispositivos",
         "unverifiable": "Não foi possível verificar os dispositivos",
@@ -129,7 +130,8 @@
           "deviceStateRejected": "Não foi possível verificar o estado. Revise a lista de dispositivos.",
           "deviceRelationshipConflict": "As relações entre dispositivos precisam de confirmação.",
           "deviceSecurityUpdateRejected": "O estado de segurança dos dispositivos precisa de atenção.",
-          "deviceUpgradeRequired": "Atualize os dispositivos relacionados para continuar."
+          "deviceUpgradeRequired": "Atualize os dispositivos relacionados para continuar.",
+          "localIdentityMismatch": "A identidade deste dispositivo não corresponde mais ao registro neste espaço. A sincronização neste dispositivo está pausada."
         }
       },
       "joinPassphraseTitle": "Digite a senha do espaço",

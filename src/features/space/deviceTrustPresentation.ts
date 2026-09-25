@@ -472,7 +472,9 @@ export function spaceMaintenanceMessage(
       : t('space.overview.maintenanceRetryAt', { time: new Date(retryAt).toLocaleString() });
   }
   if (overview.primaryStatus === 'maintenanceNeedsAttention') {
-    return t('space.overview.maintenanceAction');
+    return overview.spaceDeviceUpdate?.reason === 'localIdentityMismatch'
+      ? t('space.overview.localIdentityMismatch')
+      : t('space.overview.maintenanceAction');
   }
   return null;
 }

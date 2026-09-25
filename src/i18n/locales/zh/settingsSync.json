@@ -50,6 +50,7 @@
       "maintenanceWaiting": "正在更新空间设备状态，稍后自动重试。",
       "maintenanceRetryAt": "正在更新空间设备状态，稍后自动重试。",
       "maintenanceAction": "空间设备状态需要处理，请查看处理建议。",
+      "localIdentityMismatch": "本机身份与此空间中的记录不一致，本机同步已暂停。",
       "status": {
         "decisionRequired": "需要核对设备变化",
         "unverifiable": "无法核验设备资料",
@@ -129,7 +130,8 @@
           "deviceStateRejected": "设备状态未能通过核验，请查看设备列表。",
           "deviceRelationshipConflict": "设备关系需要确认，请查看设备列表。",
           "deviceSecurityUpdateRejected": "设备安全状态需要处理，请查看设备列表。",
-          "deviceUpgradeRequired": "相关设备需要更新后才能继续。"
+          "deviceUpgradeRequired": "相关设备需要更新后才能继续。",
+          "localIdentityMismatch": "本机身份与此空间中的记录不一致，本机同步已暂停。"
         }
       },
       "joinPassphraseTitle": "输入空间密码",
