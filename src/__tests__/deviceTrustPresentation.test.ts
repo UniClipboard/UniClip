@@ -6,6 +6,7 @@ import {
   buildSpaceOperationContext,
   buildSpaceOperationResult,
   initialDeviceTrustChoice,
+  spaceDeviceUpdateOffersReview,
   spaceMaintenanceMessage,
 } from '../features/space/deviceTrustPresentation';
 import type { DeviceTrustSnapshot } from '../platform/engine';
@@ -145,6 +146,18 @@ describe('space device update display', () => {
     expect(spaceMaintenanceMessage(overview, (key) => key)).toBe(
       'space.overview.localIdentityMismatch'
     );
+  });
+
+  it.each([
+    ['deviceStateRejected', 'reviewDevices', true],
+    ['deviceRelationshipConflict', 'reviewDevices', true],
+    ['deviceSecurityUpdateRejected', 'reviewDevices', true],
+    ['deviceUpgradeRequired', 'updateApp', true],
+    ['localIdentityMismatch', null, false],
+  ] as const)('offers the review action for %s only when Engine names a recovery', (reason, recovery, offered) => {
+    expect(
+      spaceDeviceUpdateOffersReview({ phase: 'needsAttention', reason, recovery, nextRetryAtMs: null })
+    ).toBe(offered);
   });
 
   it('keeps the generic attention message for Engine reasons that offer recovery', () => {
