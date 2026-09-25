@@ -130,7 +130,13 @@
         "inviterConnected": "Quem convidou: dispositivo conectado"
       }
     },
-    "previewsTitle": "Pré-visualizações"
+    "previewsTitle": "Pré-visualizações",
+    "previewRows": {
+      "welcomeTour": "Introdução",
+      "connectionScreens": "Telas de conexão",
+      "connectionSheet": "Tela de pareamento",
+      "deviceRelationship": "Decisão de relação entre dispositivos"
+    }
   },
   "stats": {
     "title": "Estatísticas",

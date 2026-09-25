@@ -4,6 +4,7 @@ import {
   Button as SwiftUIButton,
   HStack,
   Image,
+  Menu,
   Picker,
   Spacer,
   Text as SwiftUIText,
@@ -135,6 +136,89 @@ export interface SettingsNavRowProps {
   onPress: () => void;
 }
 
+type SettingsRowContentProps = Pick<
+  SettingsNavRowProps,
+  | 'icon'
+  | 'iconColor'
+  | 'title'
+  | 'subtitle'
+  | 'value'
+  | 'valueColor'
+  | 'badge'
+  | 'destructive'
+  | 'selected'
+  | 'showsChevron'
+>;
+
+/**
+ * Visual body shared by every full-width settings row. It fills the row and
+ * defines a rectangular hit shape, so the empty trailing space is tappable.
+ */
+function SettingsRowContent({
+  icon,
+  iconColor,
+  title,
+  subtitle,
+  value,
+  valueColor,
+  badge,
+  destructive = false,
+  selected = false,
+  showsChevron = true,
+}: SettingsRowContentProps) {
+  return (
+    <HStack spacing={12} modifiers={[frame({ maxWidth: Infinity }), contentShape(shapes.rectangle())]}>
+      {icon && iconColor ? (
+        <SettingsIconTile systemName={icon} color={iconColor} />
+      ) : icon ? (
+        <Image
+          systemName={icon}
+          size={22}
+          color={destructive ? PlatformColor('systemRed') : iosAccentColor}
+          modifiers={[frame({ width: 28, height: 28 })]}
+        />
+      ) : null}
+      <VStack alignment="leading" spacing={2}>
+        <SwiftUIText
+          modifiers={[foregroundStyle(destructive ? settingsTileColors.red : 'primary')]}
+        >
+          {title}
+        </SwiftUIText>
+        {subtitle ? (
+          <SwiftUIText
+            modifiers={[font({ size: 13 }), foregroundStyle('secondary')]}
+          >
+            {subtitle}
+          </SwiftUIText>
+        ) : null}
+      </VStack>
+      {badge ? (
+        <SwiftUIText
+          modifiers={[
+            font({ size: 11, weight: 'semibold' }),
+            foregroundStyle('white'),
+            padding({ horizontal: 6, vertical: 2 }),
+            background(settingsTileColors.orange),
+            cornerRadius(5),
+          ]}
+        >
+          {badge}
+        </SwiftUIText>
+      ) : null}
+      <Spacer />
+      {value ? (
+        <SwiftUIText
+          modifiers={valueColor ? [foregroundStyle(valueColor)] : [foregroundStyle('secondary')]}
+        >
+          {value}
+        </SwiftUIText>
+      ) : null}
+      {selected ? <Image systemName="checkmark" size={14} color={statusGreen} /> : null}
+      {showsChevron ? <Image systemName="chevron.right" size={12} color={chevronColor} /> : null}
+    </HStack>
+  );
+}
+
 /** Full-width tappable row: optional icon tile + title … value + chevron. */
 export function SettingsNavRow({
   testID,
@@ -182,56 +266,48 @@ export function SettingsNavRow({
         ...(accessibilityHint ? [accessibilityHintModifier(accessibilityHint)] : []),
       ]}
     >
-      <HStack spacing={12} modifiers={[frame({ maxWidth: Infinity }), contentShape(shapes.rectangle())]}>
-        {icon && iconColor ? (
-          <SettingsIconTile systemName={icon} color={iconColor} />
-        ) : icon ? (
-          <Image
-            systemName={icon}
-            size={22}
-            color={destructive ? PlatformColor('systemRed') : iosAccentColor}
-            modifiers={[frame({ width: 28, height: 28 })]}
-          />
-        ) : null}
-        <VStack alignment="leading" spacing={2}>
-          <SwiftUIText
-            modifiers={[foregroundStyle(destructive ? settingsTileColors.red : 'primary')]}
-          >
-            {title}
-          </SwiftUIText>
-          {subtitle ? (
-            <SwiftUIText
-              modifiers={[font({ size: 13 }), foregroundStyle('secondary')]}
-            >
-              {subtitle}
-            </SwiftUIText>
-          ) : null}
-        </VStack>
-        {badge ? (
-          <SwiftUIText
-            modifiers={[
-              font({ size: 11, weight: 'semibold' }),
-              foregroundStyle('white'),
-              padding({ horizontal: 6, vertical: 2 }),
-              background(settingsTileColors.orange),
-              cornerRadius(5),
-            ]}
-          >
-            {badge}
-          </SwiftUIText>
-        ) : null}
-        <Spacer />
-        {value ? (
-          <SwiftUIText
-            modifiers={valueColor ? [foregroundStyle(valueColor)] : [foregroundStyle('secondary')]}
-          >
-            {value}
-          </SwiftUIText>
-        ) : null}
-        {selected ? <Image systemName="checkmark" size={14} color={statusGreen} /> : null}
-        {showsChevron ? <Image systemName="chevron.right" size={12} color={chevronColor} /> : null}
-      </HStack>
+      <SettingsRowContent
+        icon={icon}
+        iconColor={iconColor}
+        title={title}
+        subtitle={subtitle}
+        value={value}
+        valueColor={valueColor}
+        badge={badge}
+        destructive={destructive}
+        selected={selected}
+        showsChevron={showsChevron}
+      />
     </SwiftUIButton>
+  );
+}
+
+/**
+ * Full-width row that opens a native menu of choices instead of navigating.
+ * Looks like SettingsNavRow; the whole row is the menu's trigger.
+ */
+export function SettingsMenuRow({
+  testID,
+  icon,
+  iconColor,
+  title,
+  subtitle,
+  children,
+}: {
+  testID?: string;
+  icon?: SFSymbol;
+  iconColor?: string;
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Menu
+      testID={testID}
+      label={<SettingsRowContent icon={icon} iconColor={iconColor} title={title} subtitle={subtitle} />}
+    >
+      {children}
+    </Menu>
   );
 }
 
