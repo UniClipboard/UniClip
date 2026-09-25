@@ -26,6 +26,16 @@ describe('iOS settings and devices tabs', () => {
     expect(settingsScreen.indexOf('<ClipboardSettingsGuideSheet')).toBeGreaterThan(stackEnd);
   });
 
+  it('hides the bottom tab bar on every pushed sub-page of the settings and devices tabs', () => {
+    const hook = read('navigation/ios/useHideTabBarOnSubPage.ts');
+    expect(hook).toContain('path.length > 0');
+    expect(hook).toContain("tabBarStyle: { display: onSubPage ? 'none' : 'flex' }");
+    for (const screen of [settingsScreen, devicesScreen]) {
+      expect(screen).toContain('useHideTabBarOnSubPage(path);');
+      expect(screen).toContain('<NavigationStack path={path} onPathChange={setPath}>');
+    }
+  });
+
   it('moves sync channel and space management into the Devices tab', () => {
     expect(settingsScreen).not.toContain('SyncChannelPage');
     expect(settingsScreen).not.toContain('SpacePage');

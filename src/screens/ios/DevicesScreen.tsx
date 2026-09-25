@@ -11,6 +11,7 @@ import { IosPageChromeProvider, type IosPageChrome } from '@/components/ui';
 import { useSpaceDeviceManagement } from '@/components/useSpaceDeviceManagement';
 import { usePendingLanConnectStore, type LanConnectIntent } from '@/features/lan-servers';
 import type { SpaceDeviceTarget } from '@/navigation/AppNavigator.types';
+import { useHideTabBarOnSubPage } from '@/navigation/ios/useHideTabBarOnSubPage';
 import { useSettingsStore } from '@/stores';
 import { iosAccentColor } from '@/theme/iosDesignTokens';
 import { LanServerEditorSheet } from '@/screens/settings/ios/LanServerEditorSheet';
@@ -29,6 +30,7 @@ const NAVIGATION_CHROME: IosPageChrome = { kind: 'navigation' };
 export function DevicesScreen({ deviceId, notificationNavigationRequestId }: SpaceDeviceTarget) {
   const { t } = useTranslation('settings');
   const [path, setPath] = useState<string[]>([]);
+  useHideTabBarOnSubPage(path);
   const [setupMode, setSetupMode] = useState<AddSyncConnectionMode | null>(null);
   const [editingLanServerId, setEditingLanServerId] = useState<string | 'new' | null>(null);
   const [lanServerIntent, setLanServerIntent] = useState<LanConnectIntent | null>(null);
