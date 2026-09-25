@@ -93,8 +93,8 @@ export const SettingsScreen = () => {
 
   return (
     <Host style={styles.host}>
-      <IosPageChromeProvider value={NAVIGATION_CHROME}>
-        <ZStack modifiers={[fillModifier, ...(iosAccentColor ? [tint(iosAccentColor)] : [])]}>
+      <ZStack modifiers={[fillModifier, ...(iosAccentColor ? [tint(iosAccentColor)] : [])]}>
+        <IosPageChromeProvider value={NAVIGATION_CHROME}>
           <NavigationStack path={path} onPathChange={setPath}>
             <SettingsRootPage onNavigate={openSubPage} />
             <NavigationDestination value="history">
@@ -134,31 +134,31 @@ export const SettingsScreen = () => {
               />
             </NavigationDestination>
           </NavigationStack>
+        </IosPageChromeProvider>
 
-          <ShareSendSheet
-            visible={diagnosticArchive !== null}
-            jobs={diagnosticJobs}
-            embeddedInHost
-            onClose={() => setDiagnosticArchive(null)}
-          />
-          <ClipboardSettingsGuideSheet
-            visible={clipboardGuideVisible}
-            onClose={() => setClipboardGuideVisible(false)}
-          />
-          <AddSyncConnectionSheet
-            visible={connectionPreviewScenario !== null}
-            initialMode="choose"
-            previewScenario={connectionPreviewScenario ?? undefined}
-            embeddedInHost
-            persistentPresentation
-            onClose={() => setConnectionPreviewScenario(null)}
-            onConnected={() => {
-              setConnectionPreviewScenario(null);
-              return true;
-            }}
-          />
-        </ZStack>
-      </IosPageChromeProvider>
+        <ShareSendSheet
+          visible={diagnosticArchive !== null}
+          jobs={diagnosticJobs}
+          embeddedInHost
+          onClose={() => setDiagnosticArchive(null)}
+        />
+        <ClipboardSettingsGuideSheet
+          visible={clipboardGuideVisible}
+          onClose={() => setClipboardGuideVisible(false)}
+        />
+        <AddSyncConnectionSheet
+          visible={connectionPreviewScenario !== null}
+          initialMode="choose"
+          previewScenario={connectionPreviewScenario ?? undefined}
+          embeddedInHost
+          persistentPresentation
+          onClose={() => setConnectionPreviewScenario(null)}
+          onConnected={() => {
+            setConnectionPreviewScenario(null);
+            return true;
+          }}
+        />
+      </ZStack>
     </Host>
   );
 };

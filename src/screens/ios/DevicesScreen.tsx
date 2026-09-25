@@ -96,8 +96,8 @@ export function DevicesScreen({ deviceId, notificationNavigationRequestId }: Spa
 
   return (
     <Host style={styles.host}>
-      <IosPageChromeProvider value={NAVIGATION_CHROME}>
-        <ZStack modifiers={[fillModifier, ...(iosAccentColor ? [tint(iosAccentColor)] : [])]}>
+      <ZStack modifiers={[fillModifier, ...(iosAccentColor ? [tint(iosAccentColor)] : [])]}>
+        <IosPageChromeProvider value={NAVIGATION_CHROME}>
           <NavigationStack path={path} onPathChange={setPath}>
             <DevicesRootPage
               deviceManagement={deviceManagement}
@@ -122,45 +122,45 @@ export function DevicesScreen({ deviceId, notificationNavigationRequestId }: Spa
               />
             </NavigationDestination>
           </NavigationStack>
+        </IosPageChromeProvider>
 
-          <SpaceDeviceDetail
-            device={deviceManagement.selectedDevice}
-            canRemove={deviceManagement.canRemoveSelected}
-            confirmingRemoval={deviceManagement.confirmingRemoval}
-            removing={deviceManagement.removing}
-            removeErrorMessage={
-              deviceManagement.removeError ? t('space.error.operationFailed', { ns: 'settingsSync' }) : null
-            }
-            onClose={deviceManagement.closeDevice}
-            onRequestRemove={deviceManagement.requestRemove}
-            onCancelRemove={deviceManagement.cancelRemove}
-            onConfirmRemove={() => void deviceManagement.confirmRemove()}
-          />
-          <AddSyncConnectionSheet
-            visible={setupMode !== null}
-            initialMode={setupMode ?? 'choose'}
-            embeddedInHost
-            persistentPresentation
-            onClose={() => setSetupMode(null)}
-            onConnected={() => {
-              setSetupMode(null);
-              return true;
-            }}
-          />
-          <LanServerEditorSheet
-            visible={editingLanServerId !== null}
-            serverId={editingLanServerId && editingLanServerId !== 'new' ? editingLanServerId : null}
-            initialIntent={lanServerIntent}
-            onClose={closeLanEditor}
-          />
-          <SyncChannelConfirmationSheet
-            visible={showP2pConfirmation}
-            isConfirming={isConfirmingP2p}
-            onDismiss={() => setShowP2pConfirmation(false)}
-            onConfirm={confirmP2pSyncChannel}
-          />
-        </ZStack>
-      </IosPageChromeProvider>
+        <SpaceDeviceDetail
+          device={deviceManagement.selectedDevice}
+          canRemove={deviceManagement.canRemoveSelected}
+          confirmingRemoval={deviceManagement.confirmingRemoval}
+          removing={deviceManagement.removing}
+          removeErrorMessage={
+            deviceManagement.removeError ? t('space.error.operationFailed', { ns: 'settingsSync' }) : null
+          }
+          onClose={deviceManagement.closeDevice}
+          onRequestRemove={deviceManagement.requestRemove}
+          onCancelRemove={deviceManagement.cancelRemove}
+          onConfirmRemove={() => void deviceManagement.confirmRemove()}
+        />
+        <AddSyncConnectionSheet
+          visible={setupMode !== null}
+          initialMode={setupMode ?? 'choose'}
+          embeddedInHost
+          persistentPresentation
+          onClose={() => setSetupMode(null)}
+          onConnected={() => {
+            setSetupMode(null);
+            return true;
+          }}
+        />
+        <LanServerEditorSheet
+          visible={editingLanServerId !== null}
+          serverId={editingLanServerId && editingLanServerId !== 'new' ? editingLanServerId : null}
+          initialIntent={lanServerIntent}
+          onClose={closeLanEditor}
+        />
+        <SyncChannelConfirmationSheet
+          visible={showP2pConfirmation}
+          isConfirming={isConfirmingP2p}
+          onDismiss={() => setShowP2pConfirmation(false)}
+          onConfirm={confirmP2pSyncChannel}
+        />
+      </ZStack>
     </Host>
   );
 }
