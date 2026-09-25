@@ -33,6 +33,7 @@ import {
 } from '@/devtools/deviceTrustPreviewCoordinator';
 import type { DeviceTrustPreviewScenarioId } from '@/devtools/deviceTrustPreviewSession';
 import type { RootStackParamList } from '@/navigation/AppNavigator';
+import { useHideTabBarOnSubPage } from '@/navigation/ios/useHideTabBarOnSubPage';
 
 const fillModifier = frame({ maxWidth: Infinity, maxHeight: Infinity });
 const NAVIGATION_CHROME: IosPageChrome = { kind: 'navigation' };
@@ -51,6 +52,7 @@ export const SettingsScreen = () => {
     useState<AddSyncConnectionPreviewScenarioId | null>(null);
   const [clipboardGuideVisible, setClipboardGuideVisible] = useState(false);
   const [shareGuideVisible, setShareGuideVisible] = useState(false);
+  useHideTabBarOnSubPage(path);
   const diagnosticJobs = useMemo<PendingShareJob[] | undefined>(
     () =>
       diagnosticArchive
