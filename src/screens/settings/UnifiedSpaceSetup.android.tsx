@@ -352,10 +352,7 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
     space.deviceName ??
     t('space.devices.thisDevice');
   const overview = deviceManagement.overview;
-  const deviceUpdateInProgress =
-    space.deviceTrustQuery?.kind === 'ready' &&
-    space.deviceTrustQuery.snapshot.currentJoin?.type === 'active' &&
-    space.deviceTrustQuery.snapshot.spaceDeviceUpdate.phase !== 'completed';
+  const deviceUpdateInProgress = overview.deviceUpdateInProgress;
   const highImpactActionsDisabled =
     !deviceManagement.highImpactActionsAvailable ||
     deviceManagement.operationInProgress ||
@@ -364,7 +361,7 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
     overview.primaryStatus === 'unverifiable' ||
     overview.primaryStatus === 'decisionRequired';
   const healthy = overview.primaryStatus === 'healthy';
-  const isRefreshing = overview.isRefreshing;
+  const isLoading = overview.isLoading;
   const overviewTitle = t(`space.overview.status.${overview.primaryStatus}`);
   const overviewBody =
     refreshError ??
@@ -498,7 +495,7 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
               modifiers={[size(44, 44)]}
             >
               <Box contentAlignment="center" modifiers={[size(44, 44)]}>
-                {isRefreshing ? (
+                {isLoading ? (
                   <CircularProgressIndicator
                     color={heroBadgeContent}
                     modifiers={[widthModifier(22), heightModifier(22)]}
@@ -534,7 +531,7 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
               <Spacer modifiers={[widthModifier(8)]} />
               <ComposeText>{t('space.invitation.addAction')}</ComposeText>
             </Button>
-            {syncFailed && !isRefreshing ? (
+            {syncFailed && !isLoading ? (
               <>
                 <Spacer modifiers={[widthModifier(8)]} />
                 <TextButton onClick={refresh}>

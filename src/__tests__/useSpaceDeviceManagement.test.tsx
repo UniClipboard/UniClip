@@ -179,4 +179,30 @@ describe('useSpaceDeviceManagement', () => {
       (controller as unknown as { highImpactActionsAvailable?: boolean }).highImpactActionsAvailable
     ).toBe(false);
   });
+  it('keeps the settled overview and actions while a background refresh is in flight', () => {
+    mount(true);
+    const settledOverview = controller.overview;
+    act(() => controller.openDevice('desktop-1'));
+    expect(controller.canRemoveSelected).toBe(true);
+
+    act(() => {
+      useUnifiedSpaceStore.setState({
+        deviceListRefreshStatus: 'refreshing',
+        deviceTrustQuery: { kind: 'loading', previous: trust },
+      });
+    });
+
+    expect(controller.overview).toEqual(settledOverview);
+    expect(controller.highImpactActionsAvailable).toBe(true);
+    expect(controller.canRemoveSelected).toBe(true);
+  });
+
+  it('fails closed while the first device trust snapshot is still loading', () => {
+    mount(true);
+    act(() => {
+      useUnifiedSpaceStore.setState({ deviceTrustQuery: { kind: 'loading', previous: null } });
+    });
+
+    expect(controller.highImpactActionsAvailable).toBe(false);
+  });
 });
