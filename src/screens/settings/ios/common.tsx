@@ -5,6 +5,7 @@ import {
   Button as SwiftUIButton,
   HStack,
   Image,
+  Picker,
   Spacer,
   Text as SwiftUIText,
   Toggle,
@@ -23,7 +24,9 @@ import {
   listRowBackground,
   padding,
   opacity,
+  pickerStyle,
   shapes,
+  tag,
   tint,
   accessibilityHint as accessibilityHintModifier,
   accessibilityLabel as accessibilityLabelModifier,
@@ -192,6 +195,54 @@ export function SettingsNavRow({
         {showsChevron ? <Image systemName="chevron.right" size={12} color={chevronColor} /> : null}
       </HStack>
     </SwiftUIButton>
+  );
+}
+
+export interface SettingsPickerOption<T extends string> {
+  value: T;
+  label: string;
+}
+
+/**
+ * Full-width menu picker row: icon tile + title … current value + ⌃⌄. The whole
+ * row opens a native menu, so a single-choice setting needs no sub-page.
+ */
+export function SettingsPickerRow<T extends string>({
+  testID,
+  icon,
+  iconColor,
+  title,
+  options,
+  selection,
+  onSelectionChange,
+}: {
+  testID?: string;
+  icon: SFSymbol;
+  iconColor: string;
+  title: string;
+  options: SettingsPickerOption<T>[];
+  selection: T;
+  onSelectionChange: (value: T) => void;
+}) {
+  return (
+    <Picker
+      testID={testID}
+      selection={selection}
+      onSelectionChange={(value) => onSelectionChange(value as T)}
+      modifiers={[pickerStyle('menu')]}
+      label={
+        <HStack spacing={12}>
+          <SettingsIconTile systemName={icon} color={iconColor} />
+          <SwiftUIText>{title}</SwiftUIText>
+        </HStack>
+      }
+    >
+      {options.map((option) => (
+        <SwiftUIText key={option.value} modifiers={[tag(option.value)]}>
+          {option.label}
+        </SwiftUIText>
+      ))}
+    </Picker>
   );
 }
 

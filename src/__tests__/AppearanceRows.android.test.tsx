@@ -4,18 +4,21 @@ import TestRenderer, { act } from 'react-test-renderer';
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 type SelectRowProps = {
+  testID?: string;
+  icon?: number;
   title: string;
   options: Array<{ label: string; value: string }>;
   selectedValue?: string;
   onSelect: (value: string) => void;
 };
 
-type SegmentProps = { selected: boolean; onClick: () => void };
-
 const mockSelectRowProps: SelectRowProps[] = [];
-const mockSegmentProps: SegmentProps[] = [];
 const mockSetLanguage = jest.fn().mockResolvedValue(undefined);
 const mockSetThemeMode = jest.fn().mockResolvedValue(undefined);
+
+jest.mock('@/assets/icons/palette.xml', () => 1);
+jest.mock('@/assets/icons/public.xml', () => 2);
+jest.mock('@/assets/icons/visibility_off.xml', () => 3);
 
 jest.mock('../screens/settings/android/SettingsSelectRow', () => ({
   SettingsSelectRow: (props: SelectRowProps) => {
@@ -32,13 +35,6 @@ jest.mock('@expo/ui/jetpack-compose', () => {
   const react = require('react') as typeof import('react');
   const passthrough = ({ children }: { children?: React.ReactNode }) =>
     react.createElement(react.Fragment, null, children);
-  const SegmentedButton = Object.assign(
-    ({ children, ...props }: SegmentProps & { children?: React.ReactNode }) => {
-      mockSegmentProps.push(props);
-      return react.createElement(react.Fragment, null, children);
-    },
-    { Label: passthrough }
-  );
   const ListItem = Object.assign(passthrough, {
     HeadlineContent: passthrough,
     SupportingContent: passthrough,
@@ -50,8 +46,6 @@ jest.mock('@expo/ui/jetpack-compose', () => {
     ListItem,
     Switch: () => null,
     HorizontalDivider: () => null,
-    SingleChoiceSegmentedButtonRow: passthrough,
-    SegmentedButton,
     Text: passthrough,
     Spacer: () => null,
   };
@@ -88,58 +82,53 @@ jest.mock('../screens/settings/SettingsToastContext', () => ({
   useSettingsToast: () => jest.fn(),
 }));
 
-jest.mock('../screens/settings/SettingsSectionItem', () => ({
-  SettingsSectionItem: ({ children }: { children?: React.ReactNode }) => children,
+jest.mock('../screens/settings/android/SettingsLeadingIcon', () => ({
+  SettingsLeadingIcon: () => null,
 }));
 
-import { AppearanceSection } from '../screens/settings/android/AppearanceSection';
+import { LanguageSelectRow, ThemeSelectRow } from '../screens/settings/android/AppearanceRows';
 
-describe('AppearanceSection', () => {
+describe('Android appearance hub rows', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockSelectRowProps.length = 0;
-    mockSegmentProps.length = 0;
   });
 
-  it('switches the appearance mode from one full-width segmented control', async () => {
+  it('switches the theme from a full-row selector with a leading icon', async () => {
     act(() => {
-      TestRenderer.create(<AppearanceSection />);
-    });
-
-    expect(mockSegmentProps.map(({ selected }) => selected)).toEqual([true, false, false]);
-
-    await act(async () => {
-      mockSegmentProps[2].onClick();
-      await Promise.resolve();
-    });
-    expect(mockSetThemeMode).toHaveBeenCalledWith('dark');
-
-    // 再点已选中的项不重复写入
-    mockSetThemeMode.mockClear();
-    mockSegmentProps[0].onClick();
-    expect(mockSetThemeMode).not.toHaveBeenCalled();
-  });
-
-  it('picks the language from a full-row selector', async () => {
-    act(() => {
-      TestRenderer.create(<AppearanceSection />);
+      TestRenderer.create(<ThemeSelectRow />);
     });
 
     expect(mockSelectRowProps).toHaveLength(1);
-    expect(mockSelectRowProps[0].selectedValue).toBe('system');
-    expect(mockSelectRowProps[0].options.map(({ value }) => value)).toEqual([
-      'system',
-      'zh-CN',
-      'en',
-      'ru',
-      'pt-BR',
-    ]);
+    const [row] = mockSelectRowProps;
+    expect(row.testID).toBe('settings-theme');
+    expect(row.icon).toBeDefined();
+    expect(row.selectedValue).toBe('auto');
+    expect(row.options.map(({ value }) => value)).toEqual(['auto', 'light', 'dark']);
 
     await act(async () => {
-      mockSelectRowProps[0].onSelect('ru');
+      row.onSelect('dark');
       await Promise.resolve();
     });
+    expect(mockSetThemeMode).toHaveBeenCalledWith('dark');
+  });
 
+  it('picks the language from a full-row selector with a leading icon', async () => {
+    act(() => {
+      TestRenderer.create(<LanguageSelectRow />);
+    });
+
+    expect(mockSelectRowProps).toHaveLength(1);
+    const [row] = mockSelectRowProps;
+    expect(row.testID).toBe('settings-language');
+    expect(row.icon).toBeDefined();
+    expect(row.selectedValue).toBe('system');
+    expect(row.options.map(({ value }) => value)).toEqual(['system', 'zh-CN', 'en', 'ru', 'pt-BR']);
+
+    await act(async () => {
+      row.onSelect('ru');
+      await Promise.resolve();
+    });
     expect(mockSetLanguage).toHaveBeenCalledWith('ru');
   });
 });

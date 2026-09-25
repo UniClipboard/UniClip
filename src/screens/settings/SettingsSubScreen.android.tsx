@@ -32,7 +32,6 @@ import { SettingsToastProvider } from './SettingsToastContext';
 import { UnifiedSpaceSetup } from './UnifiedSpaceSetup';
 import { HistorySection } from './HistorySection';
 import { BackgroundSection } from './android/BackgroundSection';
-import { AppearanceSection } from './android/AppearanceSection';
 import { StorageSection } from './StorageSection';
 import { AboutSection } from './AboutSection';
 import { LogSection } from './LogSection';
@@ -103,8 +102,6 @@ const SettingsSectionPageInner = memo(function SettingsSectionPageInner({
           {section === 'history' && <HistorySection />}
 
           {section === 'background' && <BackgroundSection />}
-
-          {section === 'appearance' && <AppearanceSection />}
 
           {section === 'storage' && <StorageSection />}
 

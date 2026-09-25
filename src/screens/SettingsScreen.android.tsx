@@ -28,6 +28,11 @@ import { SettingsSectionItem } from './settings/SettingsSectionItem';
 import { SettingsLeadingIcon } from './settings/android/SettingsLeadingIcon';
 import { SettingsListRow } from './settings/android/SettingsListRow';
 import { SettingsSwitchRow } from './settings/android/SettingsSwitchRow';
+import {
+  HideFromRecentsRow,
+  LanguageSelectRow,
+  ThemeSelectRow,
+} from './settings/android/AppearanceRows';
 import { MATERIAL_SEED_COLOR } from '@/theme/colors';
 
 // XML 矢量图标(Material Icons 路径),由 @expo/ui Icon 在原生侧解析渲染。
@@ -36,7 +41,6 @@ const ICONS = {
   autoPush: require('../assets/icons/file_upload.xml'),
   history: require('../assets/icons/history.xml'),
   background: require('../assets/icons/layers.xml'),
-  appearance: require('../assets/icons/palette.xml'),
   storage: require('../assets/icons/storage.xml'),
   diagnostics: require('../assets/icons/description.xml'),
   privacy: require('../assets/icons/privacy_tip.xml'),
@@ -129,10 +133,9 @@ const ClipboardSyncDirectionGroup = memo(function ClipboardSyncDirectionGroup() 
   );
 });
 
-/** 「通用」组:历史记录 / 后台运行 / 外观 / 存储。 */
+/** 「通用」组:历史记录 / 后台运行 / 主题 / 语言 / 隐藏最近任务 / 存储。 */
 const GeneralHubGroup = memo(function GeneralHubGroup({ onNavigate }: HubGroupProps) {
   const { t } = useTranslation('settings');
-  const { themeMode } = useTheme();
   const historySummary = useSettingsStore((s) =>
     t('hub.summary.history', { count: s.config?.maxHistoryItems ?? 1000 })
   );
@@ -142,12 +145,6 @@ const GeneralHubGroup = memo(function GeneralHubGroup({ onNavigate }: HubGroupPr
       ? t('hub.summary.backgroundOn')
       : t('hub.summary.backgroundOff');
   });
-  const appearanceSummary =
-    themeMode === 'light'
-      ? t('appearance.mode.light')
-      : themeMode === 'dark'
-      ? t('appearance.mode.dark')
-      : t('appearance.mode.system');
 
   return (
     <SettingsSectionItem variant="grouped" title={t('general.sectionTitle')}>
@@ -165,13 +162,9 @@ const GeneralHubGroup = memo(function GeneralHubGroup({ onNavigate }: HubGroupPr
         summary={backgroundSummary}
         onNavigate={onNavigate}
       />
-      <HubRow
-        key="appearance"
-        section="appearance"
-        label={t('appearance.sectionTitle')}
-        summary={appearanceSummary}
-        onNavigate={onNavigate}
-      />
+      <ThemeSelectRow key="theme" />
+      <LanguageSelectRow key="language" />
+      <HideFromRecentsRow key="hideFromRecents" />
       <HubRow
         key="storage"
         section="storage"

@@ -23,7 +23,6 @@ import { ClipboardAccessPage } from './settings/ios/ClipboardAccessPage';
 import { LogSection } from './settings/LogSection';
 import { DeveloperPage } from './settings/ios/DeveloperPage';
 import { HistoryPage } from './settings/ios/HistoryPage';
-import { AppearancePage } from './settings/ios/AppearancePage';
 import { PrivacyPage } from './settings/ios/PrivacyPage';
 import { AboutPage } from './settings/ios/AboutPage';
 import {
@@ -98,9 +97,6 @@ export const SettingsScreen = () => {
             <SettingsRootPage onNavigate={openSubPage} />
             <NavigationDestination value="history">
               <HistoryPage />
-            </NavigationDestination>
-            <NavigationDestination value="appearance">
-              <AppearancePage />
             </NavigationDestination>
             <NavigationDestination value="storage">
               <StoragePage onBack={back} />

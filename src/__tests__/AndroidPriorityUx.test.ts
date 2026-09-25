@@ -12,7 +12,7 @@ describe('Android priority UX regressions', () => {
     expect(navigator).toContain("syncChannel: t('syncChannel.title', { ns: 'settings' })");
     expect(navigator).toContain("history: t('category.history', { ns: 'settings' })");
     expect(navigator).toContain("background: t('category.background', { ns: 'settings' })");
-    expect(navigator).toContain("appearance: t('appearance.sectionTitle', { ns: 'settings' })");
+    expect(navigator).not.toContain('appearance:');
     expect(navigator).toContain("storage: t('category.storage', { ns: 'settings' })");
     expect(navigator).toContain("about: t('category.about', { ns: 'settings' })");
     expect(navigator).toContain("developer: t('category.developer', { ns: 'settings' })");
@@ -113,7 +113,7 @@ describe('Android priority UX regressions', () => {
   it('uses one full-row Android switch component across visible Settings pages', () => {
     const row = read('src/screens/settings/android/SettingsSwitchRow.tsx');
     const rootSettings = read('src/screens/SettingsScreen.android.tsx');
-    const appearance = read('src/screens/settings/android/AppearanceSection.tsx');
+    const appearance = read('src/screens/settings/android/AppearanceRows.tsx');
     const history = read('src/screens/settings/HistorySection.tsx');
 
     expect(row).toContain("toggleable(value, toggle, { role: 'switch' })");
