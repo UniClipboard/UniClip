@@ -1,24 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  Button as SwiftUIButton,
-  HStack,
-  Image,
-  Menu,
-  Section,
-  Spacer,
-  Text as SwiftUIText,
-  VStack,
-} from '@expo/ui/swift-ui';
-import {
-  contentShape,
-  foregroundStyle,
-  frame,
-  shapes,
-} from '@expo/ui/swift-ui/modifiers';
+import { Button as SwiftUIButton, Section, Text as SwiftUIText } from '@expo/ui/swift-ui';
 
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
-import { iosAccentColor } from '@/theme/iosDesignTokens';
 import {
   DEVICE_TRUST_PREVIEW_SCENARIOS,
   type DeviceTrustPreviewScenarioId,
@@ -28,9 +12,10 @@ import {
 } from '@/devtools/useAddSyncConnectionPreviewFlow';
 import type { AddSyncConnectionPreviewScenarioId } from '@/components/AddSyncConnectionSheet.types';
 import {
-  chevronColor,
   HeaderCircleButton,
+  SettingsMenuRow,
   SettingsNavRow,
+  settingsTileColors,
 } from './common';
 
 interface DeveloperPageProps {
@@ -41,6 +26,13 @@ interface DeveloperPageProps {
   onOpenConnectionPreview: () => void;
 }
 
+const PREVIEW_ICON = 'play.fill';
+const PREVIEW_TILE_COLOR = settingsTileColors.indigo;
+
+/**
+ * iOS 开发者选项:一组「预览」入口。Android 的调试开关(调试模式、URL Scheme、
+ * 不限次更新检查、统计信息)在 iOS 上没有对应行为,不在此页出现。
+ */
 export function DeveloperPage({ onBack, onOpenPreview, onOpenConnectionSheetPreview, onOpenOnboardingPreview, onOpenConnectionPreview }: DeveloperPageProps) {
   const { t } = useTranslation(['settings', 'settingsAbout']);
   const [previewUnavailable, setPreviewUnavailable] = useState(false);
@@ -55,88 +47,35 @@ export function DeveloperPage({ onBack, onOpenPreview, onOpenConnectionSheetPrev
       leftSlots={[<HeaderCircleButton key="back" systemName="chevron.left" onPress={onBack} />]}
     >
       <IosSheetForm>
-        <Section>
+        <Section
+          header={<SwiftUIText>{t('debug.previewsTitle', { ns: 'settingsAbout' })}</SwiftUIText>}
+          footer={
+            previewUnavailable ? (
+              <SwiftUIText>
+                {t('debug.deviceTrustPreview.unavailable', { ns: 'settingsAbout' })}
+              </SwiftUIText>
+            ) : undefined
+          }
+        >
           <SettingsNavRow
-            icon="rectangle.stack"
-            title={t('debug.onboardingPreview', { ns: 'settingsAbout' })}
+            testID="developer-preview-welcome-tour"
+            icon={PREVIEW_ICON}
+            iconColor={PREVIEW_TILE_COLOR}
+            title={t('debug.previewRows.welcomeTour', { ns: 'settingsAbout' })}
             onPress={onOpenOnboardingPreview}
           />
           <SettingsNavRow
-            icon="qrcode.viewfinder"
-            title={t('debug.connectionPreview', { ns: 'settingsAbout' })}
+            testID="developer-preview-connection-screens"
+            icon={PREVIEW_ICON}
+            iconColor={PREVIEW_TILE_COLOR}
+            title={t('debug.previewRows.connectionScreens', { ns: 'settingsAbout' })}
             onPress={onOpenConnectionPreview}
           />
-        </Section>
-        <Section
-          footer={
-            <SwiftUIText>
-              {t(
-                previewUnavailable
-                  ? 'debug.deviceTrustPreview.unavailable'
-                  : 'debug.deviceTrustPreview.pickerDescription',
-                { ns: 'settingsAbout' }
-              )}
-            </SwiftUIText>
-          }
-        >
-          <Menu
-            label={
-              <HStack
-                spacing={12}
-                modifiers={[frame({ maxWidth: Infinity }), contentShape(shapes.rectangle())]}
-              >
-                <Image
-                  systemName="rectangle.stack.badge.play"
-                  size={22}
-                  color={iosAccentColor}
-                  modifiers={[frame({ width: 28, height: 28 })]}
-                />
-                <VStack
-                  spacing={2}
-                  alignment="leading"
-                  modifiers={[frame({ maxWidth: Infinity })]}
-                >
-                  <SwiftUIText>
-                    {t('debug.deviceTrustPreview.label', { ns: 'settingsAbout' })}
-                  </SwiftUIText>
-                  <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-                    {t('debug.deviceTrustPreview.description', { ns: 'settingsAbout' })}
-                  </SwiftUIText>
-                </VStack>
-                <Spacer />
-                <Image systemName="chevron.up.chevron.down" size={12} color={chevronColor} />
-              </HStack>
-            }
-          >
-            {DEVICE_TRUST_PREVIEW_SCENARIOS.map((scenario) => (
-              <SwiftUIButton
-                key={scenario.id}
-                label={t(scenario.labelKey, { ns: 'settingsAbout' })}
-                onPress={() => openScenario(scenario.id)}
-              />
-            ))}
-          </Menu>
-        </Section>
-        <Section footer={<SwiftUIText>{t('debug.connectionSheetPreview.pickerDescription', { ns: 'settingsAbout' })}</SwiftUIText>}>
-          <Menu
-            label={
-              <HStack spacing={12} modifiers={[frame({ maxWidth: Infinity }), contentShape(shapes.rectangle())]}>
-                <Image
-                  systemName="iphone.and.arrow.forward"
-                  size={22}
-                  color={iosAccentColor}
-                  modifiers={[frame({ width: 28, height: 28 })]}
-                />
-                <VStack spacing={2} alignment="leading" modifiers={[frame({ maxWidth: Infinity })]}>
-                  <SwiftUIText>{t('debug.connectionSheetPreview.label', { ns: 'settingsAbout' })}</SwiftUIText>
-                  <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-                    {t('debug.connectionSheetPreview.description', { ns: 'settingsAbout' })}
-                  </SwiftUIText>
-                </VStack>
-                <Spacer />
-                <Image systemName="chevron.up.chevron.down" size={12} color={chevronColor} />
-              </HStack>
-            }
+          <SettingsMenuRow
+            testID="developer-preview-connection-sheet"
+            icon={PREVIEW_ICON}
+            iconColor={PREVIEW_TILE_COLOR}
+            title={t('debug.previewRows.connectionSheet', { ns: 'settingsAbout' })}
           >
             {ADD_SYNC_CONNECTION_PREVIEW_SCENARIOS.map((scenario) => (
               <SwiftUIButton
@@ -145,7 +84,21 @@ export function DeveloperPage({ onBack, onOpenPreview, onOpenConnectionSheetPrev
                 onPress={() => onOpenConnectionSheetPreview(scenario.id)}
               />
             ))}
-          </Menu>
+          </SettingsMenuRow>
+          <SettingsMenuRow
+            testID="developer-preview-device-relationship"
+            icon={PREVIEW_ICON}
+            iconColor={PREVIEW_TILE_COLOR}
+            title={t('debug.previewRows.deviceRelationship', { ns: 'settingsAbout' })}
+          >
+            {DEVICE_TRUST_PREVIEW_SCENARIOS.map((scenario) => (
+              <SwiftUIButton
+                key={scenario.id}
+                label={t(scenario.labelKey, { ns: 'settingsAbout' })}
+                onPress={() => openScenario(scenario.id)}
+              />
+            ))}
+          </SettingsMenuRow>
         </Section>
       </IosSheetForm>
     </IosSheetPage>

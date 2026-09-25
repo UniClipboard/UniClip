@@ -130,7 +130,13 @@
         "inviterConnected": "Inviter: device connected"
       }
     },
-    "previewsTitle": "Previews"
+    "previewsTitle": "Previews",
+    "previewRows": {
+      "welcomeTour": "Welcome tour",
+      "connectionScreens": "Connection screens",
+      "connectionSheet": "Pairing sheet",
+      "deviceRelationship": "Device relationship decision"
+    }
   },
   "stats": {
     "title": "Statistics",

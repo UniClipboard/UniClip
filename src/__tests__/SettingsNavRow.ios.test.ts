@@ -6,6 +6,14 @@ const settingsCommon = fs.readFileSync(
   'utf8'
 );
 
+/** SettingsNavRow plus the shared row body it renders. */
+function navRowSource(): string {
+  const navRow = settingsCommon.match(/export function SettingsNavRow[\s\S]*?\n}\n\n\/\*\*/)?.[0] ?? '';
+  const rowContent = settingsCommon.match(/function SettingsRowContent[\s\S]*?\n}\n\n\/\*\*/)?.[0] ?? '';
+  expect(navRow).toContain('<SettingsRowContent');
+  return navRow + rowContent;
+}
+
 describe('iOS settings navigation rows', () => {
   it('use a native button so every navigation row provides press feedback', () => {
     const row = settingsCommon.match(/export function SettingsNavRow[\s\S]*?\n}\n\n\/\*\*/)?.[0];
@@ -31,7 +39,7 @@ describe('iOS settings navigation rows', () => {
   });
 
   it('supports immediate and destructive settings actions without a separate row implementation', () => {
-    const row = settingsCommon.match(/export function SettingsNavRow[\s\S]*?\n}\n\n\/\*\*/)?.[0];
+    const row = navRowSource();
 
     expect(settingsCommon).toContain('destructive?: boolean;');
     expect(settingsCommon).toContain('disabled?: boolean;');
@@ -44,7 +52,7 @@ describe('iOS settings navigation rows', () => {
   });
 
   it('makes the full row label tappable, including empty trailing space', () => {
-    const row = settingsCommon.match(/export function SettingsNavRow[\s\S]*?\n}\n\n\/\*\*/)?.[0];
+    const row = navRowSource();
 
     expect(row).toMatch(
       /<HStack spacing=\{12\} modifiers=\{\[frame\(\{ maxWidth: Infinity \}\), contentShape\(shapes\.rectangle\(\)\)\]\}/
@@ -52,7 +60,7 @@ describe('iOS settings navigation rows', () => {
   });
 
   it('can represent a text-only action row without duplicating the row behavior', () => {
-    const row = settingsCommon.match(/export function SettingsNavRow[\s\S]*?\n}\n\n\/\*\*/)?.[0];
+    const row = navRowSource();
 
     expect(settingsCommon).toContain('icon?: SFSymbol;');
     expect(settingsCommon).toContain('iconColor?: string;');
@@ -69,14 +77,14 @@ describe('iOS settings navigation rows', () => {
   });
 
   it('can show a native checkmark for a selected setting row', () => {
-    const row = settingsCommon.match(/export function SettingsNavRow[\s\S]*?\n}\n\n\/\*\*/)?.[0];
+    const row = navRowSource();
 
     expect(settingsCommon).toContain('selected?: boolean;');
     expect(row).toContain('selected ? <Image systemName="checkmark"');
   });
 
   it('can show a compact badge without duplicating the settings row', () => {
-    const row = settingsCommon.match(/export function SettingsNavRow[\s\S]*?\n}\n\n\/\*\*/)?.[0];
+    const row = navRowSource();
 
     expect(settingsCommon).toContain('badge?: string;');
     expect(row).toContain('{badge ? (');

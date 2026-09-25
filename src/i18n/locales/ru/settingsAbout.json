@@ -130,7 +130,13 @@
         "inviterConnected": "Приглашающий: устройство подключено"
       }
     },
-    "previewsTitle": "Предпросмотр"
+    "previewsTitle": "Предпросмотр",
+    "previewRows": {
+      "welcomeTour": "Вводные экраны",
+      "connectionScreens": "Экраны подключения",
+      "connectionSheet": "Окно сопряжения",
+      "deviceRelationship": "Решение о связи устройств"
+    }
   },
   "stats": {
     "title": "Статистика",

@@ -130,7 +130,13 @@
         "inviterConnected": "邀请方：设备已连接"
       }
     },
-    "previewsTitle": "预览"
+    "previewsTitle": "预览",
+    "previewRows": {
+      "welcomeTour": "引导页",
+      "connectionScreens": "连接页面",
+      "connectionSheet": "配对 Sheet",
+      "deviceRelationship": "设备关系决定"
+    }
   },
   "stats": {
     "title": "统计信息",
