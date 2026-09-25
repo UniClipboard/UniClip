@@ -48,6 +48,20 @@ describe('iOS top-level navigation', () => {
     }
   });
 
+  it('scopes navigation chrome to the NavigationStack so sibling sheets keep their SheetHeader', () => {
+    for (const screen of ['screens/SettingsScreen.ios.tsx', 'screens/ios/DevicesScreen.tsx']) {
+      const source = read(screen);
+      expect(source).toMatch(
+        /<IosPageChromeProvider value=\{NAVIGATION_CHROME\}>\s*<NavigationStack[\s\S]*?<\/NavigationStack>\s*<\/IosPageChromeProvider>/
+      );
+      const providerEnd = source.indexOf('</IosPageChromeProvider>');
+      for (const sheet of ['<AddSyncConnectionSheet', '<SpaceDeviceDetail', '<LanServerEditorSheet']) {
+        const at = source.indexOf(sheet);
+        if (at >= 0) expect(at).toBeGreaterThan(providerEnd);
+      }
+    }
+  });
+
   it('routes space notifications and LAN deep links to the Devices tab', () => {
     expect(read('navigation/openSpaceDevices.ios.ts')).toContain(
       "navigateWhenReady('Main', { screen: 'Devices', params: target })"
