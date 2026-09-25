@@ -36,6 +36,7 @@
     "confirmationCrossNetwork": "即使设备不在同一个 Wi-Fi 下，也支持跨网络同步。",
     "confirmationExperimental": "这是实验功能，连接稳定性可能不如常规同步。",
     "confirmationWarning": "这是实验功能，连接可能不稳定。",
+    "confirmationReversible": "之后可以随时在「设备」页切回常规同步。",
     "confirmationCancel": "取消",
     "confirmationConfirm": "使用设备直连",
     "updateFailed": "切换同步方式失败"

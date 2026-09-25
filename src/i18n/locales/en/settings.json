@@ -36,6 +36,7 @@
     "confirmationCrossNetwork": "It supports syncing even when devices are not on the same Wi-Fi network.",
     "confirmationExperimental": "This is an experimental feature and may be less stable than standard sync.",
     "confirmationWarning": "This is experimental and may be less reliable.",
+    "confirmationReversible": "You can switch back to standard sync on the Devices tab at any time.",
     "confirmationCancel": "Cancel",
     "confirmationConfirm": "Use direct sync",
     "updateFailed": "Failed to change sync method"

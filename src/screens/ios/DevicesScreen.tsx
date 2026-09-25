@@ -34,7 +34,6 @@ export function DevicesScreen({ deviceId, notificationNavigationRequestId }: Spa
   const [lanServerIntent, setLanServerIntent] = useState<LanConnectIntent | null>(null);
   const [showP2pConfirmation, setShowP2pConfirmation] = useState(false);
   const [isConfirmingP2p, setIsConfirmingP2p] = useState(false);
-  const [syncChannelPickerKey, setSyncChannelPickerKey] = useState(0);
   const deviceManagement = useSpaceDeviceManagement({ allowHighImpactActions: true });
   const pendingLanIntent = usePendingLanConnectStore((state) => state.intent);
   const consumePendingLanIntent = usePendingLanConnectStore((state) => state.consume);
@@ -77,8 +76,6 @@ export function DevicesScreen({ deviceId, notificationNavigationRequestId }: Spa
 
   const requestP2pConfirmation = useCallback(() => {
     setShowP2pConfirmation(true);
-    // 分段控件在确认前保持原值
-    setSyncChannelPickerKey((key) => key + 1);
   }, []);
 
   const confirmP2pSyncChannel = useCallback(async () => {
@@ -115,7 +112,7 @@ export function DevicesScreen({ deviceId, notificationNavigationRequestId }: Spa
                 setLanServerIntent(null);
                 setEditingLanServerId(serverId);
               }}
-              syncChannelPickerKey={syncChannelPickerKey}
+              p2pConfirmationPending={showP2pConfirmation}
             />
             <NavigationDestination value="spaceSettings">
               <SpaceSettingsPage
