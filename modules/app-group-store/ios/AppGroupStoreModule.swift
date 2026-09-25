@@ -254,6 +254,11 @@ public class AppGroupStoreModule: Module {
       group?.bool(forKey: AppSettings.PersistenceKey.keyboardExtensionEnabled) ?? false
     status["lastKnownFullAccess"] =
       group?.bool(forKey: AppSettings.PersistenceKey.keyboardExtensionFullAccess) ?? false
+    if let heartbeatAt = group?.object(
+      forKey: AppSettings.PersistenceKey.keyboardExtensionHeartbeatAt
+    ) as? Double {
+      status["lastHeartbeatAtMs"] = heartbeatAt * 1000
+    }
     return status
   }
 

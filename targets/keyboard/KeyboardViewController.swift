@@ -137,6 +137,11 @@ final class KeyboardViewController: UIInputViewController {
         if let group = UserDefaults(suiteName: SettingsStore.appGroupID) {
             group.set(true, forKey: AppSettings.PersistenceKey.keyboardExtensionEnabled)
             group.set(hasFullAccess, forKey: AppSettings.PersistenceKey.keyboardExtensionFullAccess)
+            // Lands only with Full Access on; see `keyboardExtensionHeartbeatAt`.
+            group.set(
+                Date().timeIntervalSince1970,
+                forKey: AppSettings.PersistenceKey.keyboardExtensionHeartbeatAt
+            )
         }
     }
 

@@ -34,8 +34,8 @@ interface AppGroupStoreNativeModule {
 
 interface NativeKeyboardStatus {
   enabledInSystem?: boolean;
-  everUsed: boolean;
   lastKnownFullAccess: boolean;
+  lastHeartbeatAtMs?: number;
 }
 
 const NativeModule = requireOptionalNativeModule<AppGroupStoreNativeModule>('AppGroupStore');
@@ -91,16 +91,18 @@ export interface LegacyLanConfigurationDTO {
 export interface KeyboardStatusDTO {
   /**
    * Whether the keyboard extension appears in the system keyboard list right
-   * now. `null` when the OS does not expose the list (fall back to
-   * {@link KeyboardStatusDTO.everUsed}).
+   * now. `null` when the OS does not expose the list.
    */
   enabledInSystem: boolean | null;
-  /** The keyboard extension has appeared on screen at least once. */
-  everUsed: boolean;
   /**
-   * Full Access as of the keyboard's last appearance — a heartbeat, not a live
-   * read; stale until the user opens the keyboard again.
+   * When the keyboard last appeared and reached the App Group, in epoch ms;
+   * `null` if it never has. iOS denies a keyboard without Full Access write
+   * access to the App Group, so a heartbeat only lands with Full Access on and
+   * an "off" never lands: this is evidence of Full Access at that moment only,
+   * never of its current state.
    */
+  lastHeartbeatAtMs: number | null;
+  /** Full Access as reported by that heartbeat; meaningless without one. */
   lastKnownFullAccess: boolean;
 }
 
@@ -328,7 +330,7 @@ export function clearLegacyLanConfiguration(): Promise<void> {
 
 const EMPTY_KEYBOARD_STATUS: KeyboardStatusDTO = {
   enabledInSystem: null,
-  everUsed: false,
+  lastHeartbeatAtMs: null,
   lastKnownFullAccess: false,
 };
 
@@ -340,7 +342,9 @@ export async function getKeyboardStatus(): Promise<KeyboardStatusDTO> {
   if (!status) return EMPTY_KEYBOARD_STATUS;
   return {
     enabledInSystem: status.enabledInSystem ?? null,
-    everUsed: status.everUsed ?? false,
+    // Heartbeats written before the timestamp existed carry no time and may
+    // predate a Full Access that has since been turned off: ignore them.
+    lastHeartbeatAtMs: status.lastHeartbeatAtMs ?? null,
     lastKnownFullAccess: status.lastKnownFullAccess ?? false,
   };
 }

@@ -1,31 +1,68 @@
-import React, { useCallback } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Share } from 'react-native';
 import {
   Button as SwiftUIButton,
-  Label,
-  LabeledContent,
+  HStack,
+  Image,
   Section,
+  Spacer,
   Text as SwiftUIText,
+  VStack,
 } from '@expo/ui/swift-ui';
-import { foregroundStyle } from '@expo/ui/swift-ui/modifiers';
+import {
+  accessibilityElement,
+  accessibilityHidden,
+  background,
+  controlSize,
+  font,
+  foregroundStyle,
+  frame,
+  lineLimit,
+  minimumScaleFactor,
+  multilineTextAlignment,
+  padding,
+  shapes,
+} from '@expo/ui/swift-ui/modifiers';
+import type { SFSymbol } from 'sf-symbols-typescript';
 
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
-import { GuideStepRow, HeaderCircleButton } from './common';
+import { iosProminentButtonModifiers } from '@/components/ui/iosButtonStyles.ios';
+import { HeaderCircleButton, SettingsIconTile, SettingsNavRow, settingsTileColors } from './common';
+import { guideColors } from './SettingsGuideSheet';
+import { ShareSheetMock, useOpenSampleShareSheet } from './ShareFavoritesGuideSheet';
+
+const FLOW_STEPS: { key: string; icon: SFSymbol }[] = [
+  { key: 'tapShare', icon: 'square.and.arrow.up' },
+  { key: 'pickApp', icon: 'doc.on.clipboard' },
+  { key: 'chooseDevices', icon: 'laptopcomputer.and.iphone' },
+];
+
+const CONTENT_TYPES: { key: string; icon: SFSymbol; color: string }[] = [
+  { key: 'text', icon: 'text.alignleft', color: settingsTileColors.gray },
+  { key: 'links', icon: 'link', color: settingsTileColors.blue },
+  { key: 'images', icon: 'photo', color: settingsTileColors.orange },
+  { key: 'files', icon: 'doc', color: settingsTileColors.indigo },
+];
 
 /**
- * Share-extension guide. The extension itself needs no switch — it is
- * available as soon as the app is installed — but iOS gives no API to pin it
- * to the share sheet's favorites, so this page walks the user through doing
- * it by hand, with a button that opens a real share sheet to practice on.
+ * Share-extension page. The extension needs no switch — it is in the share
+ * sheet as soon as the app is installed. It stashes the shared item and opens
+ * UniClip, where the user picks the devices to send to; the page says exactly
+ * that and offers a real share sheet to try it on.
+ *
+ * iOS gives no API to pin the extension to the share sheet's Favorites; the
+ * illustrated guide for doing it by hand is owned by the Settings host, and
+ * this pushed page only reports the tap through `onOpenFavoritesGuide`.
  */
-export function SharePage({ onBack }: { onBack: () => void }) {
+export function SharePage({
+  onBack,
+  onOpenFavoritesGuide,
+}: {
+  onBack: () => void;
+  onOpenFavoritesGuide: () => void;
+}) {
   const { t } = useTranslation('settingsIos');
-  const handleTryShare = useCallback(() => {
-    Share.share({ message: t('share.testMessage') }).catch(() => {
-      // user dismissed the sheet — nothing to do
-    });
-  }, [t]);
+  const openShareSheet = useOpenSampleShareSheet();
 
   return (
     <IosSheetPage
@@ -33,35 +70,133 @@ export function SharePage({ onBack }: { onBack: () => void }) {
       leftSlots={[<HeaderCircleButton key="back" systemName="chevron.left" onPress={onBack} />]}
     >
       <IosSheetForm>
-        {/* ── 说明 ── */}
-        <Section footer={<SwiftUIText>{t('share.intro.footer')}</SwiftUIText>}>
-          <LabeledContent
-            label={
-              <Label title={t('share.supportedContent.label')} systemImage="square.and.arrow.up" />
-            }
-          >
-            <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
-              {t('share.supportedContent.value')}
-            </SwiftUIText>
-          </LabeledContent>
-        </Section>
-
-        {/* ── 设为常用 ── */}
-        <Section
-          header={<SwiftUIText>{t('share.favorite.title')}</SwiftUIText>}
-          footer={<SwiftUIText>{t('share.favorite.footer')}</SwiftUIText>}
-        >
-          <GuideStepRow index={1} text={t('share.favorite.step1')} />
-          <GuideStepRow index={2} text={t('share.favorite.step2')} />
-          <GuideStepRow index={3} text={t('share.favorite.step3')} />
-          <GuideStepRow index={4} text={t('share.favorite.step4')} />
-        </Section>
-
+        {/* ── 主卡:分享面板示意 + 三步流程 + 真实分享面板 ── */}
         <Section>
-          <SwiftUIButton
-            systemImage="square.and.arrow.up"
-            label={t('share.tryButton')}
-            onPress={handleTryShare}
+          <VStack
+            alignment="leading"
+            spacing={18}
+            modifiers={[
+              frame({ maxWidth: Infinity, alignment: 'leading' }),
+              padding({ vertical: 8 }),
+            ]}
+          >
+            <HStack
+              modifiers={[
+                frame({ maxWidth: Infinity }),
+                padding({ vertical: 18 }),
+                background(guideColors.canvas, shapes.roundedRectangle({ cornerRadius: 18 })),
+                accessibilityHidden(true),
+              ]}
+            >
+              <Spacer />
+              <ShareSheetMock highlight="uniclip" />
+              <Spacer />
+            </HStack>
+            <VStack alignment="leading" spacing={6}>
+              <SwiftUIText modifiers={[font({ size: 22, weight: 'bold' })]}>
+                {t('share.hero.title')}
+              </SwiftUIText>
+              <SwiftUIText modifiers={[font({ size: 15 }), foregroundStyle('secondary')]}>
+                {t('share.hero.description')}
+              </SwiftUIText>
+            </VStack>
+            <HStack alignment="top" spacing={4} modifiers={[frame({ maxWidth: Infinity })]}>
+              {FLOW_STEPS.map((step, index) => (
+                <React.Fragment key={step.key}>
+                  {index > 0 ? (
+                    <Image
+                      systemName="chevron.right"
+                      size={12}
+                      modifiers={[
+                        foregroundStyle('tertiary'),
+                        padding({ top: 14 }),
+                        accessibilityHidden(true),
+                      ]}
+                    />
+                  ) : null}
+                  <VStack
+                    spacing={6}
+                    modifiers={[frame({ maxWidth: Infinity }), accessibilityElement('combine')]}
+                  >
+                    <Image
+                      systemName={step.icon}
+                      size={17}
+                      color={settingsTileColors.blue}
+                      modifiers={[
+                        frame({ width: 40, height: 40 }),
+                        background(guideColors.canvas, shapes.circle()),
+                      ]}
+                    />
+                    <SwiftUIText
+                      modifiers={[
+                        font({ size: 13 }),
+                        foregroundStyle('secondary'),
+                        multilineTextAlignment('center'),
+                      ]}
+                    >
+                      {t(`share.flow.${step.key}`)}
+                    </SwiftUIText>
+                  </VStack>
+                </React.Fragment>
+              ))}
+            </HStack>
+            <SwiftUIButton
+              testID="share-try-now"
+              onPress={openShareSheet}
+              modifiers={[
+                ...iosProminentButtonModifiers(undefined, { fullWidth: true }),
+                controlSize('large'),
+              ]}
+            >
+              <HStack spacing={8} modifiers={[frame({ maxWidth: Infinity })]}>
+                <Spacer />
+                <SwiftUIText modifiers={[font({ weight: 'semibold' })]}>
+                  {t('share.tryButton')}
+                </SwiftUIText>
+                <Image systemName="square.and.arrow.up" size={15} />
+                <Spacer />
+              </HStack>
+            </SwiftUIButton>
+          </VStack>
+        </Section>
+
+        {/* ── 支持的内容类型 ── */}
+        <Section header={<SwiftUIText>{t('share.worksWith.title')}</SwiftUIText>}>
+          <HStack spacing={0} modifiers={[frame({ maxWidth: Infinity }), padding({ vertical: 6 })]}>
+            {CONTENT_TYPES.map((type) => (
+              <VStack
+                key={type.key}
+                spacing={8}
+                modifiers={[frame({ maxWidth: Infinity }), accessibilityElement('combine')]}
+              >
+                <SettingsIconTile systemName={type.icon} color={type.color} />
+                <SwiftUIText
+                  modifiers={[
+                    font({ size: 13 }),
+                    foregroundStyle('secondary'),
+                    lineLimit(1),
+                    minimumScaleFactor(0.8),
+                  ]}
+                >
+                  {t(`share.worksWith.${type.key}`)}
+                </SwiftUIText>
+              </VStack>
+            ))}
+          </HStack>
+        </Section>
+
+        {/* ── 设为常用:整行打开引导 sheet ── */}
+        <Section
+          header={<SwiftUIText>{t('share.quickAccess.title')}</SwiftUIText>}
+          footer={<SwiftUIText>{t('share.quickAccess.footer')}</SwiftUIText>}
+        >
+          <SettingsNavRow
+            testID="share-favorites-guide"
+            icon="star.fill"
+            iconColor={settingsTileColors.yellow}
+            title={t('share.quickAccess.favoritesRow')}
+            subtitle={t('share.quickAccess.favoritesRowSubtitle')}
+            onPress={onOpenFavoritesGuide}
           />
         </Section>
       </IosSheetForm>

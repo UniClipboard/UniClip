@@ -2,57 +2,144 @@
   "keyboard": {
     "title": "Keyboard",
     "status": {
-      "added": "Added",
+      "done": "Done",
       "undetectable": "Can't detect",
       "notAdded": "Not added",
-      "detectAfterOpen": "Open the keyboard to detect",
       "on": "On",
-      "off": "Off"
+      "off": "Off",
+      "notChecked": "Not checked",
+      "detected": "Detected"
     },
-    "statusSection": {
-      "title": "Status",
-      "footer": "Full Access status is reported by the keyboard when it opens. If you just changed it in Settings, open the keyboard once in the field below to refresh."
+    "hero": {
+      "title": "Your clips, where you type",
+      "description": "UniClip Keyboard shows what you copied on your other devices. Tap a clip to paste it into any app."
     },
-    "systemKeyboard": "System keyboard",
-    "fullAccess": "Full Access",
-    "enableSteps": {
-      "title": "Setup steps",
-      "footer": "Allow Full Access lets the keyboard read the clipboard and connect to the other devices in your space. Content is only sent within the current space.",
-      "step1": "Open UniClip in Settings and tap Keyboards",
-      "step2": "Turn on UniClip Keyboard",
-      "step3": "Turn on Allow Full Access and confirm"
+    "almostThere": {
+      "title": "Almost there",
+      "description": "UniClip Keyboard is added. Turn on Full Access so it can show your clips."
     },
-    "tryout": {
-      "title": "Try it",
-      "footer": "Tap the field, then press and hold the globe key 🌐 and choose UniClip Keyboard. Once it opens, the status above refreshes automatically.",
-      "placeholder": "Bring up the keyboard here to test"
+    "ready": {
+      "title": "Ready",
+      "description": "On, with Full Access"
+    },
+    "setup": {
+      "title": "Set up · {{done}} of 3",
+      "add": {
+        "title": "Add UniClip Keyboard",
+        "subtitle": "Settings › Apps › UniClip › Keyboards"
+      },
+      "fullAccess": {
+        "title": "Allow Full Access",
+        "subtitle": "So it can show your synced clips",
+        "path": "Keyboards › UniClip Keyboard › Allow Full Access",
+        "readsOnly": "Reads only clips UniClip has already synced",
+        "sendsOnly": "Sends only to devices in your space",
+        "systemWarning": "iOS shows a general warning when you turn this on."
+      },
+      "switch": {
+        "title": "Switch to it once",
+        "subtitle": "Confirms everything works",
+        "instructions": "Tap the field, then press and hold the globe key and choose UniClip Keyboard.",
+        "placeholder": "Tap to bring up the keyboard",
+        "detected": "Detected, with Full Access. You're all set.",
+        "stillOffHint": "If the keyboard shows “Full Access Required” instead, Full Access is still off."
+      }
+    },
+    "openSettings": "Open iOS Settings",
+    "openSettingsHint": "iOS doesn't let apps add keyboards for you. This page updates when you come back.",
+    "howToUse": {
+      "title": "How to use",
+      "switchTitle": "Switch keyboards",
+      "switchDescription": "In any app, press and hold the globe key and choose UniClip Keyboard.",
+      "tryLabel": "Try it here",
+      "tryPlaceholder": "Tap to bring up the keyboard"
     },
     "feedback": {
       "title": "Key feedback",
       "footer": "Changes take effect the next time you open the keyboard.",
       "sound": "Key sound",
       "haptic": "Haptic feedback"
+    },
+    "systemSettings": {
+      "row": "Keyboard settings in iOS",
+      "footer": "Remove the keyboard or turn off Full Access there."
+    },
+    "illustration": {
+      "text": "Text",
+      "links": "Links",
+      "justNow": "Just now",
+      "fiveMinutes": "5m",
+      "textSample": "Meeting moved to 3:30, room 4B. Bring the Q3 deck.",
+      "linkSample": "UniClip mobile PR #412 review notes",
+      "space": "space"
     }
   },
   "share": {
     "title": "Share",
     "testMessage": "Share test from UniClip 👋",
-    "intro": {
-      "footer": "In any app, tap Share and choose UniClip to send content directly to the other devices in your space without switching back first."
+    "hero": {
+      "title": "Send from any app",
+      "description": "Share something and pick UniClip. UniClip opens with the item ready, so you choose which devices get it."
     },
-    "supportedContent": {
-      "label": "Supported content",
-      "value": "Text · Links · Images · Files"
+    "flow": {
+      "tapShare": "Tap Share",
+      "pickApp": "Pick UniClip",
+      "chooseDevices": "Choose devices"
     },
-    "favorite": {
-      "title": "Add to favorites",
-      "footer": "Once added to Favorites, UniClip stays pinned at the front of the app row in the share sheet.",
-      "step1": "Open any share sheet (tap the button below)",
-      "step2": "Swipe the app icon row to the far right and tap More",
-      "step3": "Tap Edit in the top right, then use ➕ to add UniClip to Favorites",
-      "step4": "Drag it to the front and tap Done"
+    "tryButton": "Try it now",
+    "worksWith": {
+      "title": "Works with",
+      "text": "Text",
+      "links": "Links",
+      "images": "Images",
+      "files": "Files"
     },
-    "tryButton": "Open the share sheet to try"
+    "quickAccess": {
+      "title": "Quick access",
+      "footer": "Nothing to switch on. UniClip is in the share sheet as soon as it's installed.",
+      "favoritesRow": "Pin to Favorites",
+      "favoritesRowSubtitle": "Keep UniClip first in the app row · 4 steps"
+    },
+    "guide": {
+      "title": "Pin to Favorites",
+      "progress": "Step {{current}} of {{total}}",
+      "back": "Previous step",
+      "close": "Close",
+      "next": "Next step",
+      "done": "Done",
+      "openShareSheet": "Open share sheet",
+      "steps": {
+        "openSheet": {
+          "title": "Open any share sheet",
+          "description": "Tap Share in any app, or use Open share sheet below to practice with a sample."
+        },
+        "findMore": {
+          "title": "Scroll to More",
+          "description": "Swipe the row of app icons all the way to the left, then tap More at the end."
+        },
+        "addFavorite": {
+          "title": "Add UniClip to Favorites",
+          "description": "Tap Edit, then the green plus next to UniClip."
+        },
+        "moveToTop": {
+          "title": "Move it to the top",
+          "description": "Drag UniClip by its handle above the others, then tap Done."
+        }
+      },
+      "illustration": {
+        "noteTitle": "Meeting notes",
+        "noteSubtitle": "Notes · Plain text",
+        "airDrop": "AirDrop",
+        "messages": "Messages",
+        "notes": "Notes",
+        "reminders": "Reminders",
+        "more": "More",
+        "apps": "Apps",
+        "done": "Done",
+        "favorites": "Favorites",
+        "suggestions": "Suggestions"
+      }
+    }
   },
   "diagnostics": {
     "title": "Diagnostics",
