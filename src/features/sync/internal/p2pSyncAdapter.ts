@@ -25,6 +25,8 @@ import type {
 
 const log = createLogger('P2pSyncAdapter');
 
+type EngineState = Extract<EngineEvent, { type: 'stateChanged' }>['state'];
+
 // Presence changes arrive in bursts while peers connect; one device refresh per window absorbs them.
 export const DEVICE_REFRESH_THROTTLE_MS = 400;
 
@@ -80,6 +82,7 @@ export class P2pSyncAdapter implements SyncAdapter {
   private readonly subscribers = new Set<(event: SyncAdapterEvent) => void>();
   private deviceRefreshWindow: ReturnType<typeof setTimeout> | null = null;
   private deviceRefreshQueued = false;
+  private engineState: EngineState | null = null;
 
   constructor(private readonly dependencies: P2pSyncAdapterDependencies) {}
 
@@ -178,8 +181,21 @@ export class P2pSyncAdapter implements SyncAdapter {
   }
 
   private handleEngineEvent(event: EngineEvent): void {
-    if (event.type === 'stateChanged' && event.state === 'stopped') {
-      this.publish({ type: 'stopped' });
+    if (event.type === 'stateChanged') {
+      const resumed =
+        event.state === 'running' && this.engineState !== null && this.engineState !== 'running';
+      this.engineState = event.state;
+      if (event.state === 'stopped') {
+        this.publish({ type: 'stopped' });
+        return;
+      }
+      // Android resumes the engine natively while the app refreshes on becoming active, so that
+      // refresh can be rejected mid-transition; read the space again once the engine runs.
+      if (resumed && this.policy.appState === 'active') {
+        void this.dependencies.space
+          .refresh({ afterInvalidation: true })
+          .catch((error) => log.error('Failed to refresh space after the engine resumed:', error));
+      }
       return;
     }
 
