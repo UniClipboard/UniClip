@@ -430,6 +430,82 @@ describe('P2pSyncAdapter', () => {
     expect(deps.space.refresh).not.toHaveBeenCalled();
   });
 
+  it('re-reads the space once the engine is running again after a foreground resume', async () => {
+    const P2pSyncAdapter = loadP2pSyncAdapter();
+    expect(P2pSyncAdapter).toBeDefined();
+    if (!P2pSyncAdapter) return;
+
+    const deps = dependencies('android');
+    const adapter = new P2pSyncAdapter(deps) as unknown as {
+      start(context: unknown): Promise<void>;
+      handleAppStateChange(policy: unknown): void;
+    };
+    await adapter.start({
+      appVersion: '2.0.0+build.183',
+      profileId: 'default',
+      policy: { appState: 'active', backgroundSyncEnabled: false },
+    });
+    deps.emitEngineEvent({ type: 'stateChanged', state: 'running' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    deps.space.refresh.mockClear();
+
+    adapter.handleAppStateChange({ appState: 'background', backgroundSyncEnabled: false });
+    deps.emitEngineEvent({ type: 'stateChanged', state: 'suspended' });
+    // The native host resumes the engine while the app's own refresh is being rejected.
+    adapter.handleAppStateChange({ appState: 'active', backgroundSyncEnabled: false });
+    deps.emitEngineEvent({ type: 'stateChanged', state: 'running' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(deps.space.refresh).toHaveBeenCalledTimes(1);
+    expect(deps.space.refresh).toHaveBeenCalledWith({ afterInvalidation: true });
+  });
+
+  it('does not re-read the space when the engine resumes while the app stays in background', async () => {
+    const P2pSyncAdapter = loadP2pSyncAdapter();
+    expect(P2pSyncAdapter).toBeDefined();
+    if (!P2pSyncAdapter) return;
+
+    const deps = dependencies('android');
+    const adapter = new P2pSyncAdapter(deps) as unknown as {
+      start(context: unknown): Promise<void>;
+      handleAppStateChange(policy: unknown): void;
+    };
+    await adapter.start({
+      appVersion: '2.0.0+build.183',
+      profileId: 'default',
+      policy: { appState: 'active', backgroundSyncEnabled: true },
+    });
+    deps.emitEngineEvent({ type: 'stateChanged', state: 'running' });
+    adapter.handleAppStateChange({ appState: 'background', backgroundSyncEnabled: true });
+    deps.emitEngineEvent({ type: 'stateChanged', state: 'suspended' });
+    deps.space.refresh.mockClear();
+
+    deps.emitEngineEvent({ type: 'stateChanged', state: 'running' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(deps.space.refresh).not.toHaveBeenCalled();
+  });
+
+  it('does not re-read the space for the first running state reported at startup', async () => {
+    const P2pSyncAdapter = loadP2pSyncAdapter();
+    expect(P2pSyncAdapter).toBeDefined();
+    if (!P2pSyncAdapter) return;
+
+    const deps = dependencies('android');
+    const adapter = new P2pSyncAdapter(deps);
+    await adapter.start({
+      appVersion: '2.0.0+build.183',
+      profileId: 'default',
+      policy: { appState: 'active', backgroundSyncEnabled: true },
+    });
+    deps.space.refresh.mockClear();
+
+    deps.emitEngineEvent({ type: 'stateChanged', state: 'running' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(deps.space.refresh).not.toHaveBeenCalled();
+  });
+
   it('does not cancel peer recovery for Android app-state changes', () => {
     const P2pSyncAdapter = loadP2pSyncAdapter();
     expect(P2pSyncAdapter).toBeDefined();

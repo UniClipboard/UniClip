@@ -121,6 +121,10 @@ showing internal error text.
   any settled result. Presence and refresh-required events refresh once
   immediately, and further events within 400 ms collapse into one trailing
   refresh while the app is active.
+- Events that arrive while the app is in the background do not refresh. When
+  the engine reports `running` again after a suspension and the app is active,
+  mobile reads the complete space once more, because Android resumes the engine
+  natively while the foreground refresh may still be rejected mid-transition.
 - `UnifiedSpaceService` owns create, join, invitation, device, and leave-space
   operations.
 - `UnifiedContentService` is the single outbound entry for text, images, files,

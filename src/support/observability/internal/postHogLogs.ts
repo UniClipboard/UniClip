@@ -15,6 +15,7 @@ const MESSAGES: Readonly<Record<string, readonly string[]>> = {
     'P2P space state', 'P2P receiver recovery finished', 'Failed to recover P2P peer connections:',
     'Failed to refresh space after a device trust event:',
     'Failed to refresh devices after an engine event:',
+    'Failed to refresh space after the engine resumed:',
   ],
   ClipboardSyncObserver: ['Clipboard observation failed; kept local:'],
   ClipboardMonitor: [
