@@ -24,10 +24,10 @@ import {
 import { useTranslation } from 'react-i18next';
 
 import { AppTextField, SheetPageTransition } from '@/components/ui';
-import { saveCustomRelay } from '@/features/relaySettings';
-import { useSettingsStore } from '@/stores';
+import type { RelayMutationRejection } from '@/features/relaySettings';
 import { SettingsSectionItem, useSettingsSectionRowColors } from './SettingsSectionItem';
 import { SettingsLeadingIcon } from './android/SettingsLeadingIcon';
+import { useCustomRelaySettings } from './useCustomRelaySettings';
 
 const ICONS = {
   add: require('../../assets/icons/add.xml'),
@@ -149,7 +149,10 @@ export function CustomRelaySection() {
               ? t('relay.configuredCount', { count: configuredUrls.length })
               : t('relay.summary')
           }
-          onOpen={() => setShowRelaySettings(true)}
+          onOpen={() => {
+            setShowRelaySettings(true);
+            void refresh().catch(() => setNotice(t('relay.error.refreshFailed')));
+          }}
         />
       </SettingsSectionItem>
 
