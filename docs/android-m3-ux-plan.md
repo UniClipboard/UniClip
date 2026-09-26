@@ -24,7 +24,7 @@ Ground rules (from `AGENTS.md`):
 | 1.1 | Replace the iOS-style top toast with an M3 **Snackbar**: bottom anchored, inverse surface, optional action button, longer hold for errors/actions, extended hold when a screen reader is on. `messageStore.showMessage` accepts an optional action. | `MessageToast.android.tsx`, `MessageToast.types.ts`, `messageStore.ts`, `ConnectedMessageToast.tsx` |
 | 1.2 | **Undoable delete** on Android: delete hides items immediately and shows "Deleted · Undo"; the soft delete is committed when the snackbar expires. No confirmation dialog. iOS keeps its current immediate delete. | `historyDeleteMode.{android,ios}.ts` (replaces `confirmHistoryDelete.*`), `useUndoableHistoryDelete.ts`, `useHomeController.ts` |
 | 1.3 | **Long-press enters selection mode** on Android (with haptic). The contextual top bar shows close, count, select-all, and — for a single selection — an overflow menu with the item's content actions. The "Select" pill is removed from the default top bar. iOS keeps the context-menu overlay. | `homeLongPressMode.{android,ios}.ts`, `useHomeController.ts`, `HomeTopBar.android.tsx`, `HomeTopBar.types.ts`, `HomeChrome.tsx` |
-| 1.4 | Enable **predictive back** (`predictiveBackGestureEnabled: true`). | `app.json` |
+| 1.4 | ~~Enable **predictive back** (`predictiveBackGestureEnabled: true`).~~ Reverted: React Native 0.86 registers its back callback only on Android 16+, so on Android 13–15 the opt-in made system Back finish the activity instead of popping settings sub-pages. Android 16 enforces predictive back for targetSdk 36 regardless. | `app.json` |
 | 1.5 | The launch **update prompt** becomes a non-blocking snackbar with an "Update" action. | `HomeView.android.tsx` |
 | 1.6 | Analytics consent success/error feedback uses the settings snackbar instead of `Alert.alert`. | `AnalyticsConsentControl.android.tsx` |
 
@@ -70,7 +70,7 @@ children measure unreliably, so the RN sheets are unified on `AppBottomSheet` in
 - `npm run type-check` and `npx jest` after each phase.
 - Regression tests added per change (see `src/__tests__/AndroidM3Ux.test.ts*`).
 - Manual check on an Android device/emulator when available: long-press selection, undo
-  delete, snackbar placement above the FAB, sheet drag-to-dismiss, predictive back.
+  delete, snackbar placement above the FAB, sheet drag-to-dismiss, system Back.
 
 ## Implementation notes
 
@@ -82,7 +82,7 @@ children measure unreliably, so the RN sheets are unified on `AppBottomSheet` in
   removed once the Android E2E flows are confirmed on device.
 - `.maestro` flows were updated for the new Android paths (long press selection, Undo
   snackbar, settings button in the search bar).
-- A native rebuild is required for `predictiveBackGestureEnabled` to take effect.
+- A native rebuild is required for any `predictiveBackGestureEnabled` change to take effect.
 
 ## Out of scope / follow-ups
 
