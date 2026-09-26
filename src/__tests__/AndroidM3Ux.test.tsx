@@ -143,11 +143,13 @@ describe('Android Material 3 interaction contracts', () => {
     expect(home).toMatch(/useMessageStore\s*\.getState\(\)\s*\.showMessage\(/);
   });
 
-  it('enables the Android predictive back gesture', () => {
+  it('keeps Back routed to JS navigation on Android 13-15', () => {
+    // React Native registers its back callback only on Android 16+; opting in on older
+    // releases makes system Back finish the activity instead of popping the stack.
     const appJson = JSON.parse(read('../app.json')) as {
       expo: { android: { predictiveBackGestureEnabled: boolean } };
     };
-    expect(appJson.expo.android.predictiveBackGestureEnabled).toBe(true);
+    expect(appJson.expo.android.predictiveBackGestureEnabled).toBe(false);
   });
 
   it('gives Android icon buttons a 48dp target and ripple feedback', () => {
