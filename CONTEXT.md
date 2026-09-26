@@ -13,6 +13,12 @@ LAN server configuration, server credentials, transport selector, or LAN
 fallback. An upgraded user without an existing Space enters Join Space. Local
 history remains available while disconnected or before joining.
 
+Tapping a history card opens its details and double-tapping copies it. History
+deletion differs by platform: Android hides deleted items at once and offers
+Undo, committing the soft delete (which also removes local files) only after the
+undo window ends; iOS deletes immediately without undo. A long press enters
+multi-select on Android and opens a context menu on iOS.
+
 ## Architecture
 
 ```text
@@ -42,6 +48,29 @@ from Engine state; it does not start another pairing timer or infer confirmation
 from connectivity. An unconfirmed current member remains removable through the
 ordinary device-removal action.
 
+After joining, Engine reports one space device update with a phase (updating,
+completed, retryable failure, or needs attention), a reason, an optional
+recovery, and an optional next retry time. Mobile shows a join as ready only
+when Engine reports completed and never infers readiness from devices or
+counts. A retryable failure shows automatic retry with Engine's next retry time;
+needs attention shows the Engine reason. A review action is offered only when
+Engine names a recovery (review devices or update app); a reason without one,
+such as a local identity mismatch, can only be dismissed and must not imply a
+fix. Responses without the update or maintenance fields read as updating and
+healthy.
+
+A join that is still processing is not joined. A join that needs attention
+means its outcome cannot be proven: keep the app data and direct the user to
+support. A removed device whose removal other devices have not yet acknowledged
+stays listed with an informational status but is not counted as a member.
+
+Both platforms invite devices from the connection sheet in invite mode, which
+issues an invitation for the current Space when opened. Only a device confirmed
+after that invitation exists counts as newly paired. Invitation issue failures
+(Engine codes 1221–1231) map to specific reasons only at the issue-invitation
+operation, including the invitation issued while creating a Space, because
+Engine reuses those numbers for profile recovery and joining.
+
 Engine persists custom relay addresses and credentials as their single source
 of truth. Credentials remain in secure storage on the device; Mobile only shows
 whether a credential is configured and submits add, edit, or delete intents.
@@ -67,7 +96,7 @@ showing internal error text.
 | `src/components/`                                                    | Reusable UI, split by platform when behavior or presentation differs.          |
 | `src/features/`, `src/platform/`, `src/support/`, `src/app/runtime/` | User workflows, platform access, diagnostics, and application lifecycle.       |
 | `src/stores/`                                                        | UI-facing state for settings, history, clipboard, engine, and Space snapshots. |
-| `src/navigation/`                                                    | Native-stack navigation and route types.                                       |
+| `src/navigation/`                                                    | Top-level tabs, native-stack navigation, and route types.                      |
 | `src/utils/`                                                         | Pure helpers and platform-specific file/action adapters.                       |
 | `modules/uc-engine/`                                                 | Native P2P engine wrapper and pinned engine artifacts.                         |
 | `modules/app-group-store/`                                           | iOS shared settings, history, cache, diagnostics, and handoff storage.         |
@@ -87,6 +116,11 @@ showing internal error text.
   entry, and network changes. Engine owns peer selection, retry, concurrency,
   and cancellation. Manual refresh remains explicit; mobile does not run a
   parallel retry loop or infer an overall refresh result from one online peer.
+- Device refreshes keep the last settled device trust snapshot on screen, and
+  its actions such as device removal stay available; loading shows only before
+  any settled result. Presence and refresh-required events refresh once
+  immediately, and further events within 400 ms collapse into one trailing
+  refresh while the app is active.
 - `UnifiedSpaceService` owns create, join, invitation, device, and leave-space
   operations.
 - `UnifiedContentService` is the single outbound entry for text, images, files,
@@ -130,7 +164,10 @@ Examples include `HomeTopBar.*`, `HomeBottomBar.*`,
 ## Entry And Lifecycle
 
 `App.tsx` loads settings, initializes local history and the engine, and mounts
-the native-stack navigator. Supported external entry points include Android
+the native-stack navigator. Its main screen hosts three top-level tabs,
+Clipboard, Devices, and Settings: a native tab bar on iOS and a floating
+navigation pill on Android. Space devices and Space settings live under
+Devices, not Settings. Supported external entry points include Android
 quick upload, Process Text, system share flows, and the iOS extensions. There is
 no Add Server or quick-download route.
 
