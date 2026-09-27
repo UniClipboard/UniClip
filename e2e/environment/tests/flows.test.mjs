@@ -54,8 +54,10 @@ test("every discovered scenario has valid, acyclic Maestro subflows and explicit
         (step) =>
           step.assertVisible !== undefined ||
           step.assertNotVisible !== undefined ||
-          (typeof step.runFlow === "string" &&
-            step.runFlow.includes("/assertions/")) ||
+          (typeof step.runFlow === "string"
+            ? step.runFlow
+            : step.runFlow?.file
+          )?.includes("/assertions/") ||
           (step.runFlow?.commands && hasAssertion(step.runFlow.commands))
       );
     assert.ok(
