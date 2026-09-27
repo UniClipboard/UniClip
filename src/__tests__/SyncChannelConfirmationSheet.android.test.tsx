@@ -10,10 +10,16 @@ jest.mock('react-i18next', () => ({
 }));
 jest.mock('@expo/ui/jetpack-compose', () => ({
   ModalBottomSheet: 'ModalBottomSheet',
+  Column: 'Column',
   Text: 'Text',
+  useMaterialColors: () => ({ onSurface: 'black' }),
+}));
+jest.mock('@expo/ui/jetpack-compose/modifiers', () => ({
+  fillMaxWidth: () => ({}),
+  paddingAll: () => ({}),
+  verticalScroll: () => ({}),
 }));
 jest.mock('@/components/ui', () => ({
-  AppColumn: 'AppColumn',
   AppButton: 'AppButton',
 }));
 
@@ -29,7 +35,7 @@ it('renders the confirmation controls in a Compose modal bottom sheet', () => {
     );
   });
   try {
-    const column = view!.root.findByType('AppColumn' as never);
+    const column = view!.root.findByType('Column' as never);
     expect(column.parent?.type).toBe('ModalBottomSheet');
   } finally {
     act(() => view.unmount());

@@ -49,11 +49,18 @@ test("every discovered scenario has valid, acyclic Maestro subflows and explicit
   }
   for (const name of scenarios) {
     const body = readFlow(resolve(root, "scenarios", name));
+    const hasAssertion = (steps) =>
+      steps.some(
+        (step) =>
+          step.assertVisible !== undefined ||
+          step.assertNotVisible !== undefined ||
+          (typeof step.runFlow === "string" &&
+            step.runFlow.includes("/assertions/")) ||
+          (step.runFlow?.commands && hasAssertion(step.runFlow.commands))
+      );
     assert.ok(
-      body.some(
-        (s) =>
-          typeof s.runFlow === "string" && s.runFlow.includes("/assertions/")
-      )
+      hasAssertion(body),
+      `Scenario has no explicit assertion: ${name}`
     );
     assert.ok(
       body.every((s) => !s.tapOn),
