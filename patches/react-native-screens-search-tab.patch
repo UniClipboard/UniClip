@@ -285,13 +285,13 @@
 +      if ((!isSearch || hasCustomIcon) && tab.image != item.image) {
 +        tab.image = item.image;
 +      }
-+#if RNS_IPHONE_OS_VERSION_AVAILABLE(26_1)
++#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 270000
 +      if (@available(iOS 26.1, *)) {
 +        if ((!isSearch || hasCustomIcon) && tab.selectedImage != item.selectedImage) {
 +          tab.selectedImage = item.selectedImage;
 +        }
 +      }
-+#endif // RNS_IPHONE_OS_VERSION_AVAILABLE(26_1)
++#endif // __IPHONE_OS_VERSION_MAX_ALLOWED >= 270000
 +      if (tab.badgeValue != item.badgeValue && ![tab.badgeValue isEqualToString:item.badgeValue]) {
 +        tab.badgeValue = item.badgeValue;
 +      }
