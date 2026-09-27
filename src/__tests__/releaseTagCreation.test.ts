@@ -4,10 +4,20 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const tagScript = join(__dirname, '..', '..', 'scripts', 'create-release-tag.sh');
+const localGitEnvironmentKeys = execFileSync('git', ['rev-parse', '--local-env-vars'], {
+  encoding: 'utf8',
+}).trim().split('\n');
+
+function isolatedGitEnvironment(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  for (const key of localGitEnvironmentKeys) delete env[key];
+  return env;
+}
 
 function git(cwd: string, ...args: string[]): string {
   return execFileSync('git', args, {
     cwd,
+    env: isolatedGitEnvironment(),
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   }).trim();
@@ -39,7 +49,7 @@ function runTagScript(work: string, tag: string, commit: string) {
   return spawnSync('bash', [tagScript], {
     cwd: work,
     encoding: 'utf8',
-    env: { ...process.env, TAG: tag, GITHUB_SHA: commit },
+    env: { ...isolatedGitEnvironment(), TAG: tag, GITHUB_SHA: commit },
   });
 }
 
@@ -71,14 +81,14 @@ describe('release tag creation', () => {
     const result = spawnSync('bash', [tagScript, '--check'], {
       cwd: repo.work,
       encoding: 'utf8',
-      env: { ...process.env, TAG: 'v1.3.0.156', GITHUB_SHA: repo.first },
+      env: { ...isolatedGitEnvironment(), TAG: 'v1.3.0.156', GITHUB_SHA: repo.first },
     });
 
     expect(result.status).toBe(0);
     const missingTag = spawnSync(
       'git',
       ['--git-dir', repo.remote, 'rev-parse', 'refs/tags/v1.3.0.156'],
-      { cwd: repo.root, encoding: 'utf8' }
+      { cwd: repo.root, encoding: 'utf8', env: isolatedGitEnvironment() }
     );
     expect(missingTag.status).not.toBe(0);
   });
@@ -127,7 +137,7 @@ describe('release tag creation', () => {
     const missingTag = spawnSync(
       'git',
       ['--git-dir', repo.remote, 'rev-parse', 'refs/tags/v1.3.0.156'],
-      { cwd: repo.root, encoding: 'utf8' }
+      { cwd: repo.root, encoding: 'utf8', env: isolatedGitEnvironment() }
     );
     expect(missingTag.status).not.toBe(0);
   });
