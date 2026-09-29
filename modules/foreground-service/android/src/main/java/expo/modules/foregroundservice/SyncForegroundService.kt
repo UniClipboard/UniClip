@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.res.Configuration
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
@@ -28,6 +29,7 @@ class SyncForegroundService : Service() {
         const val EXTRA_CONTENT = "content"
         private const val RESTART_NOTIFY_ID = 0x2021
         private const val RESTART_CHANNEL_ID = "syncclipboard_restart"
+        private const val RESTART_ACTIVITY_SUFFIX = ".servicerestart.ServiceRestartActivity"
 
         var isRunning = false
             private set
@@ -289,8 +291,7 @@ class SyncForegroundService : Service() {
         createNotificationChannels()
 
         // 启动 ServiceRestartActivity（自动恢复服务后退出）
-        val restartIntent = Intent().apply {
-            setClassName(packageName, "com.jericx.syncclipboardmobile.servicerestart.ServiceRestartActivity")
+        val restartIntent = restartActivityIntent().apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }
         val pendingIntent = PendingIntent.getActivity(
@@ -316,5 +317,29 @@ class SyncForegroundService : Service() {
             .build()
 
         nm.notify(RESTART_NOTIFY_ID, notification)
+    }
+
+    /**
+     * ServiceRestartActivity 由 app 注册（类名跟随 namespace，applicationId 可能带变体后缀），
+     * 因此从本包已注册的 Activity 中按后缀查找；找不到时回退到启动页，保证点击通知总能回到 App。
+     */
+    private fun restartActivityIntent(): Intent {
+        val activities = runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                packageManager.getPackageInfo(
+                    packageName,
+                    PackageManager.PackageInfoFlags.of(PackageManager.GET_ACTIVITIES.toLong())
+                ).activities
+            } else {
+                @Suppress("DEPRECATION")
+                packageManager.getPackageInfo(packageName, PackageManager.GET_ACTIVITIES).activities
+            }
+        }.getOrNull()
+        val restartActivity = activities?.firstOrNull { it.name.endsWith(RESTART_ACTIVITY_SUFFIX) }
+        if (restartActivity != null) {
+            return Intent().setClassName(packageName, restartActivity.name)
+        }
+        NativeLogger.w(TAG, "ServiceRestartActivity is not registered, falling back to the launch activity")
+        return packageManager.getLaunchIntentForPackage(packageName) ?: Intent().setPackage(packageName)
     }
 }
