@@ -2,6 +2,7 @@ package expo.modules.shortcut
 
 import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ShortcutInfo
 import android.content.pm.ShortcutManager
 import android.graphics.Bitmap
@@ -24,8 +25,9 @@ class ShortcutModule : Module() {
         private const val UPLOAD_ICON_RES = "ic_tile_upload"
         private const val UPLOAD_BG_COLOR = "#007AFF"
 
-        private const val QUICK_ACTION_ACTIVITY = "com.jericx.syncclipboardmobile.quickaction.QuickActionActivity"
-
+        // Class names are resolved against the fixed Gradle namespace, not the
+        // variant applicationId (".dev"/".test"); ComponentName supplies the package.
+        private const val QUICK_ACTION_ACTIVITY = "app.uniclipboard.android.quickaction.QuickActionActivity"
     }
 
     override fun definition() = ModuleDefinition {
@@ -41,6 +43,7 @@ class ShortcutModule : Module() {
                 val shortcutManager = reactContext.getSystemService(ShortcutManager::class.java)
                     ?: return@Function false
 
+                if (!isQuickActionActivityInstalled(reactContext)) return@Function false
                 val uploadShortcut = createShortcutInfo(reactContext, UPLOAD_SHORTCUT_ID, UPLOAD_LABEL, UPLOAD_DIRECTION, UPLOAD_ICON_RES, UPLOAD_BG_COLOR)
 
                 shortcutManager.dynamicShortcuts = listOf(uploadShortcut)
@@ -76,6 +79,11 @@ class ShortcutModule : Module() {
                 return
             }
 
+            if (!isQuickActionActivityInstalled(reactContext)) {
+                promise.reject(CodedException("Shortcut target is not installed: $QUICK_ACTION_ACTIVITY"))
+                return
+            }
+
             val shortcutInfo = createShortcutInfo(reactContext, shortcutId, label, direction, iconResName, bgColorHex)
             shortcutManager.requestPinShortcut(shortcutInfo, null)
             promise.resolve(true)
@@ -83,6 +91,15 @@ class ShortcutModule : Module() {
             promise.reject(CodedException("${e.javaClass.simpleName}: ${e.message}"))
         }
     }
+
+    // The launcher only reports a missing target when the icon is tapped, so check it here.
+    private fun isQuickActionActivityInstalled(reactContext: android.content.Context): Boolean =
+        try {
+            reactContext.packageManager.getActivityInfo(ComponentName(reactContext, QUICK_ACTION_ACTIVITY), 0)
+            true
+        } catch (_: PackageManager.NameNotFoundException) {
+            false
+        }
 
     private fun createShortcutInfo(
         reactContext: android.content.Context,
