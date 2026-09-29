@@ -18,7 +18,6 @@ import {
   FilledTonalButton,
   Icon,
   OutlinedButton,
-  ModalBottomSheet,
   AlertDialog,
   TextButton,
   Spacer,
@@ -31,11 +30,9 @@ import {
 import {
   fillMaxWidth,
   width as widthModifier,
-  paddingAll,
   height as heightModifier,
   size,
   testID,
-  verticalScroll,
 } from '@expo/ui/jetpack-compose/modifiers';
 import { APP_VERSION } from '@/constants';
 import {
@@ -422,48 +419,37 @@ export const AboutSection = memo(function AboutSection({ initialUpdate }: AboutS
             </SettingsConfirmationSheet>
             {/* 下载渠道选择底部表单 */}
             {downloadSourceSheet && (
-              <ModalBottomSheet onDismissRequest={() => setDownloadSourceSheet(null)}>
-                <Column modifiers={[paddingAll(24), fillMaxWidth(), verticalScroll()]}>
-                  <ComposeText style={{ typography: 'titleLarge' }}>
-                    {t('download.newVersionTitle')}
-                  </ComposeText>
-                  <Spacer modifiers={[heightModifier(8)]} />
-                  <ComposeText>
-                    {`${t('download.latestVersion', { version: downloadSourceSheet.version })}\n${t(
-                      'download.currentVersion',
-                      { version: appVersion }
-                    )}${
-                      localizedReleaseNotes
-                        ? `\n\n${t('download.releaseNotes', {
-                            notes: localizedReleaseNotes,
-                          })}`
-                        : ''
-                    }`}
-                  </ComposeText>
-                  <Spacer modifiers={[heightModifier(16)]} />
-                  <Button
-                    onClick={() => {
-                      const s = downloadSourceSheet;
-                      setDownloadSourceSheet(null);
-                      handleDownloadApk('r2', s.version, s.assets);
-                    }}
-                    modifiers={[fillMaxWidth()]}
-                  >
-                    <ComposeText>{t('download.r2')}</ComposeText>
-                  </Button>
-                  <Spacer modifiers={[heightModifier(8)]} />
-                  <OutlinedButton
-                    onClick={() => {
-                      const s = downloadSourceSheet;
-                      setDownloadSourceSheet(null);
-                      handleDownloadApk('github', s.version, s.assets);
-                    }}
-                    modifiers={[fillMaxWidth()]}
-                  >
-                    <ComposeText>{t('download.github')}</ComposeText>
-                  </OutlinedButton>
-                </Column>
-              </ModalBottomSheet>
+              <SettingsConfirmationSheet
+                visible
+                title={t('download.newVersionTitle')}
+                confirmLabel={t('download.r2')}
+                cancelLabel={t('download.github')}
+                cancelVariant="outlined"
+                scrollableBody={Boolean(localizedReleaseNotes)}
+                testID="about-download-source"
+                onDismiss={() => setDownloadSourceSheet(null)}
+                onConfirm={() => {
+                  const s = downloadSourceSheet;
+                  setDownloadSourceSheet(null);
+                  void handleDownloadApk('r2', s.version, s.assets);
+                }}
+                onCancel={() => {
+                  const s = downloadSourceSheet;
+                  setDownloadSourceSheet(null);
+                  void handleDownloadApk('github', s.version, s.assets);
+                }}
+              >
+                <ComposeText>
+                  {`${t('download.latestVersion', { version: downloadSourceSheet.version })}\n${t(
+                    'download.currentVersion',
+                    { version: appVersion }
+                  )}${
+                    localizedReleaseNotes
+                      ? `\n\n${t('download.releaseNotes', { notes: localizedReleaseNotes })}`
+                      : ''
+                  }`}
+                </ComposeText>
+              </SettingsConfirmationSheet>
             )}
 
             {/* 取消下载确认 */}

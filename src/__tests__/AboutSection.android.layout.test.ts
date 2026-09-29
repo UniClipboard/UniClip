@@ -18,9 +18,35 @@ function getDownloadSourceSheetSource(): string {
   return source.slice(start, end);
 }
 
+const sheetSource = fs.readFileSync(
+  path.join(__dirname, '..', 'screens', 'settings', 'android', 'SettingsConfirmationSheet.tsx'),
+  'utf8'
+);
+
 describe('Android About update sheet', () => {
-  it('keeps download actions reachable when release notes are long', () => {
-    expect(getDownloadSourceSheetSource()).toContain('verticalScroll()');
+  it('reuses the shared sheet and scrolls only the release notes', () => {
+    const sheet = getDownloadSourceSheetSource();
+
+    expect(sheet).toContain('<SettingsConfirmationSheet');
+    expect(sheet).toContain('scrollableBody={Boolean(localizedReleaseNotes)}');
+    expect(sheet).not.toContain('<ModalBottomSheet');
+    expect(sheet).not.toContain('verticalScroll');
+  });
+
+  it('keeps the actions outside the scroll container of the scrollable-body layout', () => {
+    const start = sheetSource.indexOf('{scrollableBody ? (');
+    const end = sheetSource.indexOf(') : (', start);
+    const layout = sheetSource.slice(start, end);
+    const scrollAt = layout.indexOf('verticalScroll()');
+    const bodyEnd = layout.indexOf('{children}');
+    const actionsAt = layout.indexOf('{actions}');
+
+    expect(scrollAt).toBeGreaterThan(-1);
+    expect(layout).toContain('weight(1)');
+    expect(bodyEnd).toBeGreaterThan(scrollAt);
+    // The action column is a sibling that starts after the scrolling body closed.
+    expect(layout.slice(bodyEnd, actionsAt)).toContain('</Column>');
+    expect(layout.match(/verticalScroll\(\)/g)).toHaveLength(1);
   });
 
   it('offers only R2 and GitHub download sources', () => {
