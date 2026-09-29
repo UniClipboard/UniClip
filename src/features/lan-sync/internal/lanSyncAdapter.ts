@@ -1,5 +1,6 @@
 import type { ClipboardContent } from '@/types/clipboard';
 import { File } from 'expo-file-system';
+import { clearTimer, setTimer } from 'native-timer';
 import { countGraphemes, splitGraphemes } from 'unicode-segmenter/grapheme';
 import type { LanServerDraft } from '@/features/lan-servers';
 import { prepareTempFilePath } from '@/platform/files';
@@ -132,7 +133,7 @@ export class LanSyncAdapter implements SyncAdapter {
     appState: 'unknown',
     backgroundSyncEnabled: false,
   };
-  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private pollTimer: string | null = null;
   private sseRetryTimer: ReturnType<typeof setTimeout> | null = null;
   private cancelSse: (() => void) | null = null;
   private sseEpoch = 0;
@@ -503,13 +504,15 @@ export class LanSyncAdapter implements SyncAdapter {
         ? BACKGROUND_POLL_MS
         : null;
     if (!interval) return;
-    this.pollTimer = setInterval(() => {
+    // React Native pauses JS timers while the Android activity is paused, so background
+    // polling must run on the native timer to keep receiving while the app is backgrounded.
+    this.pollTimer = setTimer(() => {
       void this.synchronize().catch((error) => this.emitConnectionFailure(error));
     }, interval);
   }
 
   private clearPolling(): void {
-    if (this.pollTimer) clearInterval(this.pollTimer);
+    if (this.pollTimer) clearTimer(this.pollTimer);
     this.pollTimer = null;
   }
 

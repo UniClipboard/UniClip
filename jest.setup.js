@@ -181,6 +181,29 @@ jest.mock('android-util', () => ({
   isTailscaleActive: jest.fn().mockReturnValue(false),
 }));
 
+// Mirrors native-timer's non-Android fallback so Jest fake timers drive it.
+jest.mock('native-timer', () => {
+  const timers = new Map();
+  let counter = 0;
+  const clearTimer = jest.fn((tag) => {
+    clearInterval(timers.get(tag));
+    timers.delete(tag);
+  });
+  return {
+    setTimer: jest.fn((callback, intervalMs, tag) => {
+      const timerTag = tag ?? `timer_${++counter}`;
+      clearTimer(timerTag);
+      timers.set(timerTag, setInterval(callback, intervalMs));
+      return timerTag;
+    }),
+    clearTimer,
+    clearAllTimers: jest.fn(() => {
+      for (const id of timers.values()) clearInterval(id);
+      timers.clear();
+    }),
+  };
+});
+
 jest.mock('@react-native-community/netinfo', () => ({
   __esModule: true,
   default: {
