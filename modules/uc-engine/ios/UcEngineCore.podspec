@@ -34,9 +34,9 @@ Pod::Spec.new do |s|
     :name => 'Verify UniClipboard Engine Release',
     :script => <<~'SCRIPT',
       if [ "${UC_ENGINE_LOCAL_CORE:-0}" = "1" ]; then
-        node "${PODS_TARGET_SRCROOT}/../../../scripts/verify-unified-engine-core.mjs" --local-prepared
+        node "${PODS_TARGET_SRCROOT}/../../../scripts/verify-unified-engine-core.mjs" --local-prepared --platform ios
       else
-        node "${PODS_TARGET_SRCROOT}/../../../scripts/verify-unified-engine-core.mjs" --prepared
+        node "${PODS_TARGET_SRCROOT}/../../../scripts/verify-unified-engine-core.mjs" --prepared --platform ios
       fi
     SCRIPT
     :execution_position => :before_compile,
