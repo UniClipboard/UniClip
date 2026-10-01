@@ -26,7 +26,7 @@ TARGET_DIR="$(uc_engine_build_target "$CORE_DIR")"
 export UC_ENGINE_UNIFFI_TARGET_DIR="$TARGET_DIR"
 export UC_ENGINE_UNIFFI_BUILD_LOCKED=1
 export UC_ENGINE_UNIFFI_IOS_DEPLOYMENT_TARGET=16.4
-export UC_ENGINE_UNIFFI_BUILD_PROFILE=dev
+export UC_ENGINE_UNIFFI_BUILD_PROFILE="${UC_ENGINE_UNIFFI_BUILD_PROFILE:-dev}"
 
 source_commit="$(git -C "$CORE_DIR" rev-parse HEAD)"
 source_state_sha256="$({
@@ -42,7 +42,7 @@ uc_engine_run_build "$BUILD_SCRIPT" "$CORE_DIR"
 DIST_DIR="$TARGET_DIR/uc-engine-uniffi-dist/ios"
 SWIFT_BINDING="$DIST_DIR/uc_engine_uniffi.swift"
 XCFRAMEWORK="$DIST_DIR/UniClipboardEngine.xcframework"
-if [[ "$(cat "$DIST_DIR/build-profile.txt" 2>/dev/null || true)" != "dev" ]]; then
+if [[ "$(cat "$DIST_DIR/build-profile.txt" 2>/dev/null || true)" != "$UC_ENGINE_UNIFFI_BUILD_PROFILE" ]]; then
   echo "Engine packaging did not produce the requested $UC_ENGINE_UNIFFI_BUILD_PROFILE build; update its build scripts" >&2
   exit 1
 fi

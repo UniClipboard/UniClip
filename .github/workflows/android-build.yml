@@ -43,11 +43,26 @@ jobs:
       - name: Build project modules without secrets
         run: npm run prepare --workspaces --if-present
 
+      - name: Detect Engine pin mode
+        id: engine
+        run: echo "source=$(node -p "require('./modules/uc-engine/core-source.json').artifactSource || 'release'")" >> "$GITHUB_OUTPUT"
+
+      # Commit pins compile Engine from source; keep the cargo target between runs.
+      - name: Restore Engine build cache
+        if: steps.engine.outputs.source == 'commit'
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/engine-target
+          key: engine-target-${{ runner.os }}-android-${{ hashFiles('modules/uc-engine/core-source.json') }}
+          restore-keys: engine-target-${{ runner.os }}-android-
+
       - name: Prepare unified engine core
-        run: npm run core:prepare
+        env:
+          UC_ENGINE_LOCAL_TARGET_DIR: ${{ steps.engine.outputs.source == 'commit' && format('{0}/engine-target', runner.temp) || '' }}
+        run: npm run core:prepare -- --platform android
 
       - name: Verify unified engine core
-        run: npm run core:verify
+        run: npm run core:verify -- --platform android
 
       - name: Expo prebuild
         env:

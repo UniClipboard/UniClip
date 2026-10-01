@@ -13,7 +13,12 @@ import { dirname, resolve } from 'node:path';
 const root = resolve(readArg('--root') ?? resolve(import.meta.dirname, '..'));
 const moduleRoot = resolve(root, 'modules/uc-engine');
 const pin = JSON.parse(readFileSync(resolve(moduleRoot, 'core-source.json'), 'utf8'));
-const cacheRoot = resolve(moduleRoot, '.artifacts', pin.version);
+const isCommitBuild = pin.artifactSource === 'commit';
+const cacheRoot = resolve(
+  moduleRoot,
+  '.artifacts',
+  isCommitBuild ? `commit-${pin.sourceCommit}` : pin.version
+);
 const downloadsRoot = resolve(readArg('--downloads') ?? cacheRoot);
 const markerPath = resolve(cacheRoot, 'prepared.json');
 const localArtifacts = readArg('--local-artifacts');
@@ -27,8 +32,15 @@ const swiftBindingPath = localArtifacts
   ? resolve(localArtifacts, 'uc_engine_uniffi.swift')
   : resolve(moduleRoot, 'ios/Bindings/uc_engine_uniffi.swift');
 const moduleVersion = pin.version.replace(/^(?:core-)?v/, '');
-const versionArtifact = ['version.txt', 'core-version.txt'].find((name) => pin.artifacts[name]);
+const versionArtifact = ['version.txt', 'core-version.txt'].find((name) => pin.artifacts?.[name]);
 const isLocalBuild = pin.artifactSource === 'local-build';
+
+const ANDROID_ARTIFACTS = [
+  'UniClipboardEngine.aar',
+  'UniClipboardEngine.pom',
+  'runtime-dependencies.txt',
+  'uc_engine_uniffi.kt',
+];
 
 function fail(message) {
   console.error(`Unified engine release verification failed: ${message}`);
@@ -137,7 +149,80 @@ async function currentFrameworkHashes() {
   );
 }
 
+function requestedPlatforms() {
+  const platform = readArg('--platform') ?? 'all';
+  if (!['ios', 'android', 'all'].includes(platform)) fail('--platform must be ios, android or all');
+  return platform === 'all' ? ['ios', 'android'] : [platform];
+}
+
+async function platformHashes(platform) {
+  if (platform === 'android') {
+    const paths = preparedArtifacts();
+    return {
+      artifacts: Object.fromEntries(
+        await Promise.all(
+          ANDROID_ARTIFACTS.map(async (name) => [name, await sha256(paths[name])])
+        )
+      ),
+    };
+  }
+  return {
+    artifacts: {
+      'uc_engine_uniffi.swift': await sha256(preparedArtifacts()['uc_engine_uniffi.swift']),
+    },
+    frameworkFiles: await currentFrameworkHashes(),
+  };
+}
+
+// Commit builds are not reproducible byte for byte, so the marker written right after
+// the build is the only baseline; it must also prove the source and the release profile.
+async function recordCommitPrepared() {
+  const buildProfile = readArg('--build-profile') ?? 'release';
+  if (buildProfile !== 'release') fail('commit builds must use the release profile');
+  const previous = existsSync(markerPath) ? JSON.parse(readFileSync(markerPath, 'utf8')) : {};
+  const platforms = previous.sourceCommit === pin.sourceCommit ? { ...previous.platforms } : {};
+  for (const platform of requestedPlatforms()) platforms[platform] = await platformHashes(platform);
+  mkdirSync(dirname(markerPath), { recursive: true });
+  writeFileSync(
+    markerPath,
+    `${JSON.stringify(
+      { schemaVersion: 1, version: pin.version, sourceCommit: pin.sourceCommit, buildProfile, platforms },
+      null,
+      2
+    )}\n`
+  );
+}
+
+async function verifyCommitPrepared() {
+  if (!existsSync(markerPath)) fail('prepared marker is missing; run npm run core:prepare');
+  const marker = JSON.parse(readFileSync(markerPath, 'utf8'));
+  if (marker.version !== pin.version || marker.sourceCommit !== pin.sourceCommit) {
+    fail('prepared marker does not match core-source.json');
+  }
+  if (marker.buildProfile !== 'release') fail('prepared Engine was not built with the release profile');
+  for (const platform of requestedPlatforms()) {
+    const recorded = marker.platforms?.[platform];
+    if (!recorded) fail(`${platform} Engine artifacts have not been prepared for this commit`);
+    const current = await platformHashes(platform);
+    for (const [name, expected] of Object.entries(recorded.artifacts ?? {})) {
+      if (current.artifacts[name] !== expected) fail(`prepared ${name} was modified`);
+    }
+    for (const [file, expected] of Object.entries(recorded.frameworkFiles ?? {})) {
+      if (current.frameworkFiles[file] !== expected) fail(`prepared XCFramework file ${file} was modified`);
+    }
+    if (Object.keys(recorded.frameworkFiles ?? {}).length !== Object.keys(current.frameworkFiles ?? {}).length) {
+      fail('prepared marker does not cover every XCFramework input');
+    }
+  }
+  const packageJson = JSON.parse(readFileSync(resolve(moduleRoot, 'package.json'), 'utf8'));
+  if (packageJson.version !== moduleVersion) fail('module package version does not match core pin');
+}
+
 async function recordPrepared() {
+  if (isCommitBuild) {
+    await recordCommitPrepared();
+    return;
+  }
   if (isLocalBuild) {
     const marker = {
       version: pin.version,
@@ -169,6 +254,10 @@ async function recordPrepared() {
 }
 
 async function verifyPrepared() {
+  if (isCommitBuild) {
+    await verifyCommitPrepared();
+    return;
+  }
   if (isLocalBuild) {
     await verifyLocalBuildPrepared();
     return;

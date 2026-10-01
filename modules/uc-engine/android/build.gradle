@@ -41,7 +41,7 @@ dependencies {
 
 def verifyUcEngineRelease = tasks.register('verifyUcEngineRelease', Exec) {
   workingDir rootProject.projectDir.parentFile
-  commandLine 'node', 'scripts/verify-unified-engine-core.mjs', '--prepared'
+  commandLine 'node', 'scripts/verify-unified-engine-core.mjs', '--prepared', '--platform', 'android'
 }
 
 tasks.named('preBuild').configure {

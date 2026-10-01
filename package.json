@@ -26,6 +26,7 @@
     "lint:fix": "eslint . --ext .ts,.tsx,.js,.jsx --fix",
     "type-check": "tsc --noEmit",
     "core:prepare": "bash scripts/update-unified-engine-core.sh",
+    "core:pin": "node scripts/pin-unified-engine-commit.mjs",
     "core:patch": "node scripts/local-engine-override.mjs",
     "core:unpatch": "node scripts/local-engine-override.mjs --clear",
     "core:prepare:local:ios": "bash scripts/prepare-local-unified-engine-core.sh",

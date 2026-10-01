@@ -2,6 +2,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { isOnMainRemote } from './lib/engine-commit.mjs';
 
 const requiredArtifacts = [
   'UniClipboardEngine.aar',
@@ -54,6 +55,14 @@ if (!/^(?:core-)?v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(pin.version ?? '')) {
 }
 if (!/^[0-9a-f]{40}$/.test(pin.sourceCommit ?? '')) {
   fail('sourceCommit must be a full lowercase commit SHA');
+}
+if (pin.artifactSource === 'commit') {
+  if (pin.releaseManifestSha256 || pin.artifacts) fail('commit pins must not carry release checksums');
+  if (!process.argv.includes('--skip-remote') && !isOnMainRemote(pin.repository, pin.sourceCommit)) {
+    fail(`${pin.sourceCommit} is not on ${pin.repository} main`);
+  }
+  console.log(`Unified engine source is pinned to commit ${pin.sourceCommit} (${pin.version})`);
+  process.exit(0);
 }
 if (pin.artifactSource === 'local-build') {
   requireHash(pin.sourceStateSha256, 'sourceStateSha256');
