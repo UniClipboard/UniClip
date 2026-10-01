@@ -436,11 +436,15 @@ describe('unified P2P engine native module', () => {
     expect(pin.sourceCommit).toMatch(/^[a-f0-9]{40}$/);
     if (pin.artifactSource === 'local-build') {
       expect(pin.sourceStateSha256).toMatch(/^[a-f0-9]{64}$/);
+    } else if (pin.artifactSource === 'commit') {
+      // Commit pins build artifacts from source, so no release checksums are recorded.
+      expect(pin.releaseManifestSha256).toBeUndefined();
     } else {
       expect(pin.artifactSource).toBeUndefined();
       expect(pin.releaseManifestSha256).toMatch(/^[a-f0-9]{64}$/);
       expect(pin.swiftPackageChecksum).toBe(pin.artifacts['UniClipboardEngine.xcframework.zip']);
     }
+    if (pin.artifactSource === 'commit') return;
     for (const artifact of [
       'UniClipboardEngine.aar',
       'UniClipboardEngine.pom',
