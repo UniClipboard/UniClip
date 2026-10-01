@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sms_code_channel_name">验证码</string>
+    <string name="sms_code_channel_description">从收到的短信中复制的验证码</string>
+    <string name="sms_code_title">验证码：%1$s</string>
+    <string name="sms_code_copied">已复制到剪贴板</string>
+    <string name="sms_code_copy_failed">无法复制到剪贴板</string>
+    <string name="sms_code_processing">正在保存验证码</string>
+    <string name="sms_code_tap_to_copy">点击“复制”来复制</string>
+    <string name="sms_code_action_copy">复制</string>
+</resources>

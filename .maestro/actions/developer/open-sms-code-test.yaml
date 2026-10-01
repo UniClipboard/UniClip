@@ -1,0 +1,34 @@
+# Pre: home ready on Android. Post: SMS code recognition sheet open with an empty field.
+# Turns debug mode on through the real switch; no SMS permission is requested.
+appId: ${APP_ID}
+---
+- runFlow: ../../assertions/home-ready.yaml
+- tapOn:
+    id: main-tab-Preferences
+- scrollUntilVisible:
+    element:
+      id: settings-developer
+    direction: DOWN
+    timeout: 20000
+# The last hub row can sit under the floating navigation bar; scroll clear of it.
+- scroll
+- tapOn:
+    id: settings-developer
+- runFlow:
+    when:
+      visible:
+        id: debug-mode
+        checked: false
+    commands:
+      - tapOn:
+          id: debug-mode
+- assertVisible:
+    id: debug-mode
+    checked: true
+- takeScreenshot: sms-row-before-tap
+# Full-row rule: empty space right of the description text must open the sheet too.
+- tapOn:
+    id: sms-code-test
+    point: "90%,80%"
+- assertVisible:
+    id: sms-code-test-input

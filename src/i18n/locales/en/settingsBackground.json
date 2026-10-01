@@ -171,5 +171,13 @@
     "uploadDisabled": "Background local upload disabled",
     "clipboardAccessChanged": "Background clipboard access method changed",
     "setFailed": "Failed to update setting"
+  },
+  "smsCode": {
+    "group": "Verification codes",
+    "title": "Copy codes from text messages",
+    "desc": "When a text message contains a verification code, copy it and show it in a notification. Needs permission to receive text messages. Whether it syncs follows your sync settings.",
+    "denied": "Text message permission is required to copy verification codes",
+    "enabled": "Verification codes will be copied",
+    "disabled": "Verification code copying turned off"
   }
 }

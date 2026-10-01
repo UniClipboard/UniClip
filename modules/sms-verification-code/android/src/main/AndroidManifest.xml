@@ -1,0 +1,28 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- RECEIVE_SMS only: incoming SMS_RECEIVED broadcasts. READ_SMS is deliberately not requested. -->
+  <uses-permission android:name="android.permission.RECEIVE_SMS"/>
+  <application>
+    <!-- Disabled until the user turns the feature on; see SmsCodeAutoCopy. -->
+    <receiver
+      android:name=".SmsCodeReceiver"
+      android:enabled="false"
+      android:exported="true"
+      android:permission="android.permission.BROADCAST_SMS">
+      <intent-filter>
+        <action android:name="android.provider.Telephony.SMS_RECEIVED"/>
+      </intent-filter>
+    </receiver>
+    <!-- Transparent, only there to gain window focus: Android 10+ silently drops clipboard writes from unfocused apps. -->
+    <activity
+      android:name=".SmsCodeCopyActivity"
+      android:exported="false"
+      android:excludeFromRecents="true"
+      android:noHistory="true"
+      android:taskAffinity=""
+      android:theme="@android:style/Theme.Translucent.NoTitleBar"/>
+    <service
+      android:name=".SmsCodeHeadlessTaskService"
+      android:exported="false"
+      android:foregroundServiceType="shortService"/>
+  </application>
+</manifest>

@@ -1,0 +1,13 @@
+# Emulator-only. Pre: notification shade open (script expands it). Our code notification is
+# either already expanded or a collapsed card below the stock Messages card; expand if needed,
+# then tap its Copy action.
+appId: ${APP_ID}
+---
+- runFlow:
+    when:
+      notVisible: "Copy"
+    commands:
+      - tapOn:
+          id: "android:id/expand_button"
+          below: "Reply"
+- tapOn: "Copy"

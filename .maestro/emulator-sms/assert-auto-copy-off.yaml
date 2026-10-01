@@ -1,0 +1,28 @@
+# Emulator-only. After RECEIVE_SMS was revoked in system settings the switch must read off.
+appId: ${APP_ID}
+---
+# Fresh process so the earlier developer sheet is not restored.
+- stopApp
+- launchApp:
+    stopApp: false
+    # Maestro grants every permission on launch by default, which would hide the real prompts
+    permissions:
+      all: unset
+- tapOn:
+    id: main-tab-Preferences
+- scrollUntilVisible:
+    element:
+      id: settings-background
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: settings-background
+- scrollUntilVisible:
+    element:
+      id: sms-code-auto-copy
+    direction: DOWN
+    timeout: 20000
+- assertVisible:
+    id: sms-code-auto-copy
+    checked: false
+- takeScreenshot: sms-auto-copy-off-after-revoke

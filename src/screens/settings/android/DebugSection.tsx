@@ -41,6 +41,7 @@ import { useSettingsToast } from '../SettingsToastContext';
 import { SettingsSectionItem } from '../SettingsSectionItem';
 import { SettingsListRow } from './SettingsListRow';
 import { SettingsSwitchRow } from './SettingsSwitchRow';
+import { SmsCodeRecognitionSheet } from './SmsCodeRecognitionSheet';
 
 const TITLE_STYLE = { typography: 'titleLarge' } as const;
 
@@ -78,6 +79,7 @@ export const DebugSection = memo(function DebugSection({
     showConnectionSheetPreviewPicker,
     setShowConnectionSheetPreviewPicker,
   ] = useState(false);
+  const [showSmsCodeTest, setShowSmsCodeTest] = useState(false);
   const [statsText, setStatsText] = useState('');
   const deviceTrustPreviewAvailable = isDeviceTrustPreviewAvailable();
 
@@ -206,6 +208,11 @@ export const DebugSection = memo(function DebugSection({
                 </Column>
               </ModalBottomSheet>
             )}
+            {showSmsCodeTest && (
+              <SmsCodeRecognitionSheet
+                onDismiss={() => setShowSmsCodeTest(false)}
+              />
+            )}
             {showDeviceTrustPreviewPicker && (
               <ModalBottomSheet
                 onDismissRequest={() => setShowDeviceTrustPreviewPicker(false)}
@@ -288,6 +295,7 @@ export const DebugSection = memo(function DebugSection({
       >
         <SettingsSwitchRow
           key="debugMode"
+          testID="debug-mode"
           title={t('debug.modeLabel')}
           value={debugMode}
           onValueChange={(enabled) => void handleToggleDebugMode(enabled)}
@@ -319,6 +327,14 @@ export const DebugSection = memo(function DebugSection({
               onValueChange={(enabled) =>
                 void handleToggleDebugUpdateCheckNoLimit(enabled)
               }
+            />
+            <SettingsListRow
+              key="smsCodeTest"
+              testID="sms-code-test"
+              title={t('debug.smsCodeTest.label')}
+              description={t('debug.smsCodeTest.description')}
+              trailing="chevron"
+              onPress={() => setShowSmsCodeTest(true)}
             />
             <SettingsListRow
               key="statistics"

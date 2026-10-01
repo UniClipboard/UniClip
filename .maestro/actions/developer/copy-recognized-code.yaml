@@ -1,0 +1,8 @@
+# Pre: a code was just recognized in the SMS test sheet. Copies it on the explicit button tap.
+appId: ${APP_ID}
+---
+- tapOn:
+    id: sms-code-test-copy
+- assertVisible:
+    id: sms-code-test-copy-status
+    text: "Copied to clipboard"

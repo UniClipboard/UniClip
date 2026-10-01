@@ -1,0 +1,52 @@
+# Android-only developer tool. Simulated SMS text goes through the same native
+# recognizer the SMS receive path will use; no SMS permission, clipboard write,
+# history entry, sync or upload is involved. Run on an isolated emulator via test:e2e.
+appId: ${APP_ID}
+---
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - runFlow: ../lifecycle/launch.yaml
+      - runFlow: ../actions/onboarding/complete.yaml
+      - runFlow: ../actions/developer/open-sms-code-test.yaml
+      - runFlow:
+          file: ../actions/developer/recognize-sms-body.yaml
+          env:
+            SMS_BODY: "Your verification code is 482915. It expires in 5 minutes."
+      - runFlow:
+          file: ../assertions/developer/sms-code-recognized.yaml
+          env:
+            SMS_CODE: "482915"
+      - takeScreenshot: sms-code-recognized
+      # Copy only happens on the explicit tap and must not create a history entry.
+      - runFlow: ../actions/developer/copy-recognized-code.yaml
+      - runFlow: ../actions/developer/paste-into-sms-field.yaml
+      - assertVisible: "482915"
+      - takeScreenshot: sms-code-copied-and-pasted
+      - runFlow:
+          file: ../actions/developer/recognize-sms-body.yaml
+          env:
+            SMS_BODY: "Use 12 34 56 as your OTP"
+      - runFlow:
+          file: ../assertions/developer/sms-code-recognized.yaml
+          env:
+            SMS_CODE: "123456"
+      - runFlow:
+          file: ../actions/developer/recognize-sms-body.yaml
+          env:
+            SMS_BODY: "Card ending 1234 charged 10 dollars"
+      - runFlow: ../assertions/developer/sms-code-not-recognized.yaml
+      - takeScreenshot: sms-code-not-recognized
+      - runFlow:
+          file: ../actions/developer/recognize-sms-body.yaml
+          env:
+            SMS_BODY: "Code 482915 or code 731064"
+      - runFlow: ../assertions/developer/sms-code-ambiguous.yaml
+      - takeScreenshot: sms-code-ambiguous
+      # Recognition must not have produced a history entry or touched the clipboard.
+      - runFlow: ../actions/developer/return-home.yaml
+      - runFlow: ../assertions/home-ready.yaml
+      - assertNotVisible: "482915"
+      - assertNotVisible: "123456"
+      - takeScreenshot: home-after-recognition

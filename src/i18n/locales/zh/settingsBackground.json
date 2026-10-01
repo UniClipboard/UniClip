@@ -171,5 +171,13 @@
     "uploadDisabled": "已禁用后台上传本地",
     "clipboardAccessChanged": "已切换后台剪贴板读取方式",
     "setFailed": "设置失败"
+  },
+  "smsCode": {
+    "group": "验证码",
+    "title": "复制短信验证码",
+    "desc": "收到含验证码的短信时，自动复制并在通知中显示。需要接收短信的权限，是否同步遵循你的同步设置。",
+    "denied": "需要短信权限才能复制验证码",
+    "enabled": "将自动复制验证码",
+    "disabled": "已关闭验证码复制"
   }
 }

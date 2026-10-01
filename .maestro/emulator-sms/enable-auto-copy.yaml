@@ -1,0 +1,46 @@
+# Emulator-only, part 1 of scripts/e2e-sms-code-auto-copy.sh. Fresh install expected.
+# Verifies the default-off switch, then enables it through the real UI and grants permissions.
+appId: ${APP_ID}
+---
+- launchApp:
+    stopApp: false
+    # Maestro grants every permission on launch by default, which would hide the real prompts
+    permissions:
+      all: unset
+- runFlow: ../actions/onboarding/complete.yaml
+- tapOn:
+    id: main-tab-Preferences
+- scrollUntilVisible:
+    element:
+      id: settings-background
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: settings-background
+- scrollUntilVisible:
+    element:
+      id: sms-code-auto-copy
+    direction: DOWN
+    timeout: 20000
+- assertVisible:
+    id: sms-code-auto-copy
+    checked: false
+- takeScreenshot: sms-auto-copy-default-off
+- tapOn:
+    id: sms-code-auto-copy
+    point: "90%,50%"
+- runFlow:
+    when:
+      visible: "Allow"
+    commands:
+      - tapOn: "Allow"
+- runFlow:
+    when:
+      visible: "Allow"
+    commands:
+      - tapOn: "Allow"
+- assertVisible:
+    id: sms-code-auto-copy
+    checked: true
+- takeScreenshot: sms-auto-copy-enabled
+- pressKey: home

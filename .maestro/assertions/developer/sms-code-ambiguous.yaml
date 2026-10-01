@@ -1,0 +1,6 @@
+# Pre: a recognition just ran on a body with several distinct codes.
+appId: ${APP_ID}
+---
+- assertVisible:
+    id: sms-code-test-result
+    text: "Several possible codes, none chosen"

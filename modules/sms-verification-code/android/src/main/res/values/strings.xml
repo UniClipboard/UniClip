@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sms_code_channel_name">Verification codes</string>
+    <string name="sms_code_channel_description">Codes copied from incoming text messages</string>
+    <string name="sms_code_title">Verification code: %1$s</string>
+    <string name="sms_code_copied">Copied to clipboard</string>
+    <string name="sms_code_copy_failed">Could not copy to clipboard</string>
+    <string name="sms_code_processing">Saving verification code</string>
+    <string name="sms_code_tap_to_copy">Tap Copy to copy it</string>
+    <string name="sms_code_action_copy">Copy</string>
+</resources>

@@ -1,0 +1,7 @@
+# Pre: SMS code recognition sheet open. Post: Android home; only navigation state changes.
+appId: ${APP_ID}
+---
+- back
+- back
+- tapOn:
+    id: main-tab-Clipboard

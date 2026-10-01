@@ -23,4 +23,9 @@ if (Platform.OS === 'android') {
 
   // Separate entry point for the ServiceRestartActivity (service restarted by system)
   AppRegistry.registerComponent('serviceRestart', () => ServiceRestartApp);
+
+  // Started by the native SMS receiver after it copied a verification code
+  AppRegistry.registerHeadlessTask('SmsCodeReceived', () =>
+    require('./src/tasks/smsCodeReceivedTask').default
+  );
 }

@@ -136,6 +136,20 @@
       "connectionScreens": "连接页面",
       "connectionSheet": "配对 Sheet",
       "deviceRelationship": "设备关系决定"
+    },
+    "smsCodeTest": {
+      "label": "短信验证码识别测试",
+      "title": "短信验证码识别测试",
+      "description": "输入模拟短信正文，查看会识别出哪个验证码。不会复制、保存或同步任何内容，也不使用短信权限。",
+      "inputLabel": "模拟短信正文",
+      "run": "识别",
+      "clear": "清除",
+      "recognized": "识别到验证码：{{code}}",
+      "none": "未识别到验证码",
+      "ambiguous": "存在多个可能的验证码，未选择",
+      "copy": "复制",
+      "copied": "已复制到剪贴板",
+      "copyFailed": "复制失败"
     }
   },
   "stats": {

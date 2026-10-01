@@ -18,6 +18,25 @@ const log = createLogger('ClipboardStore');
 let storeMonitorCallbackRegistered = false;
 let restartMonitoringPromise: Promise<void> | null = null;
 
+/** 使用持久化的 hash 判断内容是否变化；变化时写入历史并交给同步观察者(是否上传由用户设置决定)。 */
+async function recordClipboardChange(content: ClipboardContent): Promise<void> {
+  const changed = await clipboardMonitor.checkAndUpdateLastContent(content);
+  if (!changed) return;
+  const historyItem = createDefaultClipboardItem({
+    type: content.type,
+    text: content.text || '',
+    profileHash: content.profileHash || '',
+    hasData: !!(content.fileName || content.fileUri),
+    dataName: content.fileName,
+    size: content.fileSize,
+    timestamp: content.timestamp || Date.now(),
+    fileUri: content.fileUri,
+    localClipboardHash: content.localClipboardHash,
+  });
+  await useHistoryStore.getState().addItem(historyItem);
+  void notifyDeviceClipboardChanged(content);
+}
+
 /**
  * 剪贴板状态接口
  */
@@ -41,6 +60,12 @@ interface ClipboardState {
 
   /** 设置剪贴板内容 */
   setContent: (content: ClipboardContent) => Promise<void>;
+
+  /**
+   * 记录一段已由原生侧写入系统剪贴板的文本(如短信验证码):不再写剪贴板，
+   * 只做去重、写历史和同步观察，与后台检测到的本机复制走同一条路径。
+   */
+  recordCopiedText: (text: string) => Promise<void>;
 
   /** 从图库选择图片 */
   pickImage: () => Promise<void>;
@@ -113,28 +138,16 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
 
       set({ currentContent: content, isLoading: false });
 
-      // 使用持久化的 hash 判断是否需要添加历史记录
-      const changed = await clipboardMonitor.checkAndUpdateLastContent(content);
-      if (changed) {
-        const historyItem = createDefaultClipboardItem({
-          type: content.type,
-          text: content.text || '',
-          profileHash: content.profileHash || '',
-          hasData: !!(content.fileName || content.fileUri),
-          dataName: content.fileName,
-          size: content.fileSize,
-          timestamp: content.timestamp || Date.now(),
-          fileUri: content.fileUri,
-          localClipboardHash: content.localClipboardHash,
-        });
-        await useHistoryStore.getState().addItem(historyItem);
-        void notifyDeviceClipboardChanged(content);
-      }
+      await recordClipboardChange(content);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Failed to get clipboard content';
       set({ error: errorMessage, isLoading: false });
     }
+  },
+
+  recordCopiedText: async (text: string) => {
+    await recordClipboardChange(await clipboardManager.buildTextContent(text));
   },
 
   setContent: async (content: ClipboardContent) => {

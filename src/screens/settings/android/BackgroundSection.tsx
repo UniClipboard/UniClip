@@ -37,6 +37,7 @@ import { SettingsSectionItem } from '../SettingsSectionItem';
 import { SettingsHeroCard } from './SettingsHeroCard';
 import { SettingsListRow } from './SettingsListRow';
 import { SettingsSwitchRow } from './SettingsSwitchRow';
+import { useSmsCodeAutoCopy } from './useSmsCodeAutoCopy';
 import { useClipboardAccessMethodSheet } from '../ClipboardAccessMethodSheet';
 import { resolveAdbAuthorizationCheck } from '../ClipboardAccessMethodSheet.state';
 
@@ -87,6 +88,7 @@ export const BackgroundSection = memo(function BackgroundSection() {
     (s) => s.config?.clipboardAccessMethod ?? 'overlay-polling'
   );
 
+  const smsCodeAutoCopy = useSmsCodeAutoCopy();
   const [dialog, setDialog] = useState<BgDialog | null>(null);
   const [permBattery, setPermBattery] = useState(false);
   const [adbCommandCopied, setAdbCommandCopied] = useState(false);
@@ -558,6 +560,18 @@ export const BackgroundSection = memo(function BackgroundSection() {
           description={t('advanced.battery.desc')}
           value={permBattery}
           onValueChange={() => void handleToggleBattery()}
+        />
+      </SettingsSectionItem>
+
+      <Spacer modifiers={[heightModifier(24)]} />
+      <SettingsSectionItem variant="grouped" title={t('smsCode.group')}>
+        <SettingsSwitchRow
+          key="smsCodeAutoCopy"
+          testID="sms-code-auto-copy"
+          title={t('smsCode.title')}
+          description={t('smsCode.desc')}
+          value={smsCodeAutoCopy.enabled}
+          onValueChange={(enabled) => void smsCodeAutoCopy.toggle(enabled)}
         />
       </SettingsSectionItem>
     </Column>

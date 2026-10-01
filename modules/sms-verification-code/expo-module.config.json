@@ -1,0 +1,7 @@
+{
+  "platforms": ["android"],
+  "name": "sms-verification-code",
+  "android": {
+    "modules": ["expo.modules.smsverificationcode.SmsVerificationCodeModule"]
+  }
+}

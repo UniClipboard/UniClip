@@ -1,0 +1,12 @@
+# Pre: SMS code recognition sheet open. Env: SMS_BODY. Post: recognition attempted.
+# Only the on-screen result changes: nothing is copied, stored, synced or uploaded.
+appId: ${APP_ID}
+---
+# By label: an id tap on this button lands outside it once the Copy button is shown
+- tapOn: "Clear"
+- tapOn:
+    id: sms-code-test-input
+- inputText: ${SMS_BODY}
+- hideKeyboard
+- tapOn:
+    id: sms-code-test-run

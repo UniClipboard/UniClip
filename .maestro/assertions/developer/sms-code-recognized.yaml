@@ -1,0 +1,6 @@
+# Env: SMS_CODE. Pre: a recognition just ran.
+appId: ${APP_ID}
+---
+- assertVisible:
+    id: sms-code-test-result
+    text: "Recognized code: ${SMS_CODE}"

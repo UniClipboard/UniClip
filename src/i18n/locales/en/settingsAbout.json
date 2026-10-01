@@ -136,6 +136,20 @@
       "connectionScreens": "Connection screens",
       "connectionSheet": "Pairing sheet",
       "deviceRelationship": "Device relationship decision"
+    },
+    "smsCodeTest": {
+      "label": "SMS code recognition test",
+      "title": "SMS code recognition test",
+      "description": "Paste sample SMS text to see which code would be recognized. Nothing is copied, saved or synced, and no SMS permission is used.",
+      "inputLabel": "Sample SMS text",
+      "run": "Recognize",
+      "clear": "Clear",
+      "recognized": "Recognized code: {{code}}",
+      "none": "No code recognized",
+      "ambiguous": "Several possible codes, none chosen",
+      "copy": "Copy",
+      "copied": "Copied to clipboard",
+      "copyFailed": "Could not copy"
     }
   },
   "stats": {

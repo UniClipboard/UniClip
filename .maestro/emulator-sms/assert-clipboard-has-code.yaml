@@ -1,0 +1,12 @@
+# Emulator-only. Env: SMS_CODE. Pastes the real OS clipboard into the developer SMS test field.
+appId: ${APP_ID}
+---
+- launchApp:
+    stopApp: false
+    # Maestro grants every permission on launch by default, which would hide the real prompts
+    permissions:
+      all: unset
+- runFlow: ../actions/developer/open-sms-code-test.yaml
+- runFlow: ../actions/developer/paste-into-sms-field.yaml
+- assertVisible: "${SMS_CODE}"
+- takeScreenshot: sms-auto-copy-clipboard-pasted

@@ -1,0 +1,6 @@
+# Pre: a recognition just ran on a body without a usable code.
+appId: ${APP_ID}
+---
+- assertVisible:
+    id: sms-code-test-result
+    text: "No code recognized"

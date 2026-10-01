@@ -1,0 +1,10 @@
+# Emulator-only, part 3. Env: SMS_CODE. Opens the app and expects the code in the history list.
+appId: ${APP_ID}
+---
+- launchApp:
+    stopApp: false
+    # Maestro grants every permission on launch by default, which would hide the real prompts
+    permissions:
+      all: unset
+- assertVisible: ".*${SMS_CODE}.*"
+- takeScreenshot: sms-auto-copy-history

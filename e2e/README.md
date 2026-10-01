@@ -66,6 +66,7 @@ npm run test:e2e:environment
 | `beta-updates` | Android only: full-row risk confirmation, cancel/back, immediate offline check with auto-check disabled, persistence, disable and reconfirm |
 | `history-text-lifecycle` | Real clipboard capture, deduplication, preview, cancellation on Android, deletion and restart |
 | `history-search-filter` | Text and URL capture, query replacement, no results, clearing and type filters |
+| `sms-code-recognition` | Android only: developer-options tool feeds simulated SMS text to the native recognizer (match, spaced digits, no match, ambiguous); no SMS permission, clipboard, history, sync or upload involved |
 | `history-search-dismiss` | iOS only: search layer over home; pull-to-dismiss from suggestions and results, short pull stays, search filters cleared, close button |
 
  Omitting the
@@ -167,3 +168,7 @@ Maestro 操作手机页面选择直接同步、输入邀请码及测试密码；
 
 测试只证明新空间的正常同步，不代表历史空间状态冲突或缺失更新已经自动恢复。
 请勿提供版本不匹配的桌面程序，也不要使用当前个人空间替代临时对端。
+
+## SMS code auto-copy (emulator only)
+
+`scripts/e2e-sms-code-auto-copy.sh <emulator-serial> <apk>` checks the real SMS receive path with synthetic messages. `adb emu sms send` makes the emulator deliver a system `SMS_RECEIVED` broadcast, so no real SMS, phone or personal device is involved (non-emulator serials are refused). It covers: default off, enabling through the real switch and permission prompts, ignored (non-matching / ambiguous) messages, a matching message while the app process is dead, the notification showing the plaintext code with a Copy action and not claiming "copied" before a verified write, the Copy action, history recording, the real clipboard content, and revoking `RECEIVE_SMS`. Flows live in `.maestro/emulator-sms/` (not part of `test:e2e` because of the external adb step). Run it on a freshly booted emulator: the OS clipboard survives app reinstalls and would otherwise be picked up as history.

@@ -136,6 +136,20 @@
       "connectionScreens": "Telas de conexão",
       "connectionSheet": "Tela de pareamento",
       "deviceRelationship": "Decisão de relação entre dispositivos"
+    },
+    "smsCodeTest": {
+      "label": "Teste de reconhecimento de código SMS",
+      "title": "Teste de reconhecimento de código SMS",
+      "description": "Digite um texto de SMS de exemplo para ver qual código seria reconhecido. Nada é copiado, salvo ou sincronizado, e nenhuma permissão de SMS é usada.",
+      "inputLabel": "Texto de SMS de exemplo",
+      "run": "Reconhecer",
+      "clear": "Limpar",
+      "recognized": "Código reconhecido: {{code}}",
+      "none": "Nenhum código reconhecido",
+      "ambiguous": "Vários códigos possíveis, nenhum escolhido",
+      "copy": "Copiar",
+      "copied": "Copiado para a área de transferência",
+      "copyFailed": "Não foi possível copiar"
     }
   },
   "stats": {

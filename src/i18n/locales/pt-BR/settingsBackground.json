@@ -171,5 +171,13 @@
     "uploadDisabled": "Envio local em segundo plano desativado",
     "clipboardAccessChanged": "Método de acesso à área de transferência em segundo plano alterado",
     "setFailed": "Falha ao atualizar a configuração"
+  },
+  "smsCode": {
+    "group": "Códigos de verificação",
+    "title": "Copiar códigos de mensagens de texto",
+    "desc": "Quando uma mensagem de texto contém um código de verificação, ele é copiado e mostrado em uma notificação. Requer permissão para receber mensagens de texto. A sincronização segue suas configurações de sincronização.",
+    "denied": "A permissão de mensagens de texto é necessária para copiar códigos de verificação",
+    "enabled": "Os códigos de verificação serão copiados",
+    "disabled": "Cópia de códigos de verificação desativada"
   }
 }

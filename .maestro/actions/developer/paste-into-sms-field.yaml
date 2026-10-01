@@ -1,0 +1,9 @@
+# Pre: SMS test sheet open. Clears the field and pastes the real OS clipboard into it, which
+# proves what the copy button wrote.
+appId: ${APP_ID}
+---
+# By label: an id tap on this button lands outside it once the Copy button is shown
+- tapOn: "Clear"
+- longPressOn:
+    id: sms-code-test-input
+- tapOn: "Paste"
