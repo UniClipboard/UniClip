@@ -263,6 +263,10 @@ describe('validated release workflow', () => {
     expect(engineAdoptionWorkflow).toContain('permission-pull-requests: write');
     expect(engineAdoptionWorkflow).toContain('repositories: UniClip');
     expect(engineAdoptionWorkflow).toContain('GH_TOKEN: ${{ steps.app-token.outputs.token }}');
-    expect(engineAdoptionWorkflow).not.toContain('GH_TOKEN: ${{ github.token }}');
+    // github.token is only for the read-only quality job; PR creation must keep the app token.
+    const pullRequestJob = engineAdoptionWorkflow.slice(
+      engineAdoptionWorkflow.indexOf('actions/create-github-app-token@v3')
+    );
+    expect(pullRequestJob).not.toContain('GH_TOKEN: ${{ github.token }}');
   });
 });
