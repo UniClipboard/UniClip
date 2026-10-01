@@ -58,8 +58,15 @@ if (!/^[0-9a-f]{40}$/.test(pin.sourceCommit ?? '')) {
 }
 if (pin.artifactSource === 'commit') {
   if (pin.releaseManifestSha256 || pin.artifacts) fail('commit pins must not carry release checksums');
-  if (!process.argv.includes('--skip-remote') && !isOnMainRemote(pin.repository, pin.sourceCommit)) {
-    fail(`${pin.sourceCommit} is not on ${pin.repository} main`);
+  if (!process.argv.includes('--skip-remote')) {
+    let onMain;
+    try {
+      onMain = isOnMainRemote(pin.repository, pin.sourceCommit);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      fail(`cannot verify ${pin.sourceCommit} against ${pin.repository} main (is GH_TOKEN set?): ${reason}`);
+    }
+    if (!onMain) fail(`${pin.sourceCommit} is not on ${pin.repository} main`);
   }
   console.log(`Unified engine source is pinned to commit ${pin.sourceCommit} (${pin.version})`);
   process.exit(0);

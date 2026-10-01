@@ -84,7 +84,10 @@ jobs:
         run: npm rebuild better-sqlite3
       - run: npm run core:prepare
       - run: npm run core:verify
-      - run: npm run release:check
+      - name: Check release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: npm run release:check
 
   android:
     name: Prepare Android package

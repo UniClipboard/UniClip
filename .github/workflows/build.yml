@@ -95,6 +95,8 @@ jobs:
       - name: Validate and derive release metadata
         id: release-metadata
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release }}
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: npm run release:validate
 
       - name: Require an available release tag

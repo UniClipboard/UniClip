@@ -23,7 +23,8 @@ const root = resolve(readArg('--root') ?? resolve(import.meta.dirname, '..'));
 const engineDirectory = resolve(
   readArg('--engine-dir') ?? process.env.UC_ENGINE_REPOSITORY ?? resolve(root, '../Engine')
 );
-const ref = process.argv.slice(2).find((arg, i, all) => !arg.startsWith('--') && !all[i - 1]?.startsWith('--'));
+const VALUE_FLAGS = new Set(['--root', '--engine-dir']);
+const ref = process.argv.slice(2).find((arg, i, all) => !arg.startsWith('--') && !VALUE_FLAGS.has(all[i - 1]));
 if (!ref) fail('usage: npm run core:pin -- <commit-or-ref> [--engine-dir <path>] [--allow-unmerged]');
 if (!existsSync(resolve(engineDirectory, 'Cargo.toml'))) fail(`Engine clone not found: ${engineDirectory}`);
 
