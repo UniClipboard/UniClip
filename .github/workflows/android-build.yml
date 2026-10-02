@@ -2,6 +2,19 @@ name: android-build
 
 on:
   workflow_call:
+    inputs:
+      build_required:
+        description: 'Compile the app; false only for explicitly classified validation-only changes'
+        type: boolean
+        default: true
+      validation_passed:
+        description: 'All required upstream classification and validation jobs succeeded'
+        type: boolean
+        default: true
+      build_reason:
+        description: 'Explanation recorded when compilation is unnecessary'
+        type: string
+        default: 'Native build requested by caller.'
     outputs:
       version:
         description: 'App version from package.json'
@@ -17,39 +30,63 @@ jobs:
       version: ${{ steps.version.outputs.version }}
 
     steps:
+      # Keep this check's existing name on every run, including no-build changes
+      # and upstream failures. No macOS runner or native tooling is used for a no-op.
+      - name: Validate build decision
+        env:
+          VALIDATION_PASSED: ${{ inputs.validation_passed }}
+          BUILD_REQUIRED: ${{ inputs.build_required }}
+          BUILD_REASON: ${{ inputs.build_reason }}
+        run: |
+          if [ "$VALIDATION_PASSED" != 'true' ]; then
+            echo 'Required upstream validation or classification did not succeed.' >&2
+            exit 1
+          fi
+          if [ "$BUILD_REQUIRED" = 'false' ]; then
+            printf 'Native compilation not required: %s\n' "$BUILD_REASON" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Checkout code
+        if: ${{ inputs.build_required && inputs.validation_passed }}
         uses: actions/checkout@v6
 
       - name: Setup Node.js
+        if: ${{ inputs.build_required && inputs.validation_passed }}
         uses: actions/setup-node@v6
         with:
           node-version-file: '.nvmrc'
 
       - name: Setup Java
+        if: ${{ inputs.build_required && inputs.validation_passed }}
         uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
 
       - name: Setup Gradle
+        if: ${{ inputs.build_required && inputs.validation_passed }}
         uses: gradle/actions/setup-gradle@v6
 
       - name: Install dependencies
+        if: ${{ inputs.build_required && inputs.validation_passed }}
         run: npm ci --ignore-scripts
 
       - name: Apply project dependency patches
+        if: ${{ inputs.build_required && inputs.validation_passed }}
         run: npm run postinstall
 
       - name: Build project modules without secrets
+        if: ${{ inputs.build_required && inputs.validation_passed }}
         run: npm run prepare --workspaces --if-present
 
       - name: Detect Engine pin mode
+        if: ${{ inputs.build_required && inputs.validation_passed }}
         id: engine
         run: echo "source=$(node -p "require('./modules/uc-engine/core-source.json').artifactSource || 'release'")" >> "$GITHUB_OUTPUT"
 
       # Commit pins compile Engine from source; keep the cargo target between runs.
       - name: Restore Engine build cache
-        if: steps.engine.outputs.source == 'commit'
+        if: ${{ inputs.build_required && inputs.validation_passed && steps.engine.outputs.source == 'commit' }}
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/engine-target
@@ -57,37 +94,45 @@ jobs:
           restore-keys: engine-target-${{ runner.os }}-android-
 
       - name: Prepare unified engine core
+        if: ${{ inputs.build_required && inputs.validation_passed }}
         env:
           UC_ENGINE_LOCAL_TARGET_DIR: ${{ steps.engine.outputs.source == 'commit' && format('{0}/engine-target', runner.temp) || '' }}
         run: npm run core:prepare -- --platform android
 
       - name: Verify unified engine core
+        if: ${{ inputs.build_required && inputs.validation_passed }}
         run: npm run core:verify -- --platform android
 
       - name: Expo prebuild
+        if: ${{ inputs.build_required && inputs.validation_passed }}
         env:
           POSTHOG_PROJECT_KEY: ${{ secrets.UC_POSTHOG_PROJECT_KEY }}
         run: npx expo prebuild -p android --no-install
 
       - name: Grant execute permission for gradlew
+        if: ${{ inputs.build_required && inputs.validation_passed }}
         run: chmod +x android/gradlew
 
       - name: Build Release APK
+        if: ${{ inputs.build_required && inputs.validation_passed }}
         run: cd android && ./gradlew assembleRelease
 
       - name: Get version name
+        if: ${{ inputs.build_required && inputs.validation_passed }}
         id: version
         run: |
           VERSION=$(node -p "require('./app.json').expo.version")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Rename APK
+        if: ${{ inputs.build_required && inputs.validation_passed }}
         run: |
           cd android/app/build/outputs/apk/release
           VERSION=${{ steps.version.outputs.version }}
           mv app-arm64-v8a-release.apk "UniClip-${VERSION}-arm64-v8a.apk"
 
       - name: Upload arm64-v8a APK
+        if: ${{ inputs.build_required && inputs.validation_passed }}
         uses: actions/upload-artifact@v7
         with:
           name: apk-arm64-v8a

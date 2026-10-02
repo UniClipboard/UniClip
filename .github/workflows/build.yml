@@ -6,7 +6,7 @@ permissions:
 on:
   push:
     branches:
-      - '**'
+      - main
   workflow_dispatch:
     inputs:
       publish_release:
@@ -38,6 +38,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  changes:
+    if: ${{ github.event_name != 'workflow_dispatch' }}
+    uses: ./.github/workflows/ci-changes.yml
+
   prepare:
     name: Prepare
     runs-on: ubuntu-latest
@@ -134,18 +138,26 @@ jobs:
     uses: ./.github/workflows/code-style.yml
 
   android-build:
-    needs: [prepare, code-style, unit-tests]
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.platforms != 'ios' }}
+    needs: [changes, prepare, code-style, unit-tests]
+    if: ${{ always() && (github.event_name != 'workflow_dispatch' || inputs.platforms != 'ios') }}
     uses: ./.github/workflows/android-build.yml
+    with:
+      build_required: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.native_required != 'false' }}
+      validation_passed: ${{ (github.event_name == 'workflow_dispatch' || needs.changes.result == 'success') && needs.prepare.result == 'success' && needs.code-style.result == 'success' && needs.unit-tests.result == 'success' }}
+      build_reason: ${{ github.event_name == 'workflow_dispatch' && 'Manual build requested.' || needs.changes.outputs.reason }}
 
   unit-tests:
     needs: [prepare]
     uses: ./.github/workflows/test.yml
 
   ios-build-check:
-    if: ${{ github.event_name == 'push' }}
-    needs: [prepare, code-style, unit-tests]
+    if: ${{ always() && github.event_name == 'push' }}
+    needs: [changes, prepare, code-style, unit-tests]
     uses: ./.github/workflows/ios-build-check.yml
+    with:
+      build_required: ${{ needs.changes.outputs.native_required != 'false' }}
+      validation_passed: ${{ needs.changes.result == 'success' && needs.prepare.result == 'success' && needs.code-style.result == 'success' && needs.unit-tests.result == 'success' }}
+      build_reason: ${{ needs.changes.outputs.reason }}
 
   # Manual runs build iOS. A dev build may optionally upload directly to
   # TestFlight; a full release leaves uploading to release.yml after tagging.

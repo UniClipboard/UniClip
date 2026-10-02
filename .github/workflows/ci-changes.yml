@@ -1,0 +1,33 @@
+name: CI change classification
+
+on:
+  workflow_call:
+    outputs:
+      native_required:
+        description: 'Whether automatic validation must compile the native apps'
+        value: ${{ jobs.classify.outputs.native_required }}
+      reason:
+        description: 'Explanation of the build decision'
+        value: ${{ jobs.classify.outputs.reason }}
+
+permissions:
+  contents: read
+
+jobs:
+  classify:
+    name: Classify changed files
+    runs-on: ubuntu-latest
+    outputs:
+      native_required: ${{ steps.changes.outputs.native_required }}
+      reason: ${{ steps.changes.outputs.reason }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+      - name: Classify PR or push diff
+        id: changes
+        run: node scripts/ci-changes.mjs

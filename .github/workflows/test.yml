@@ -23,6 +23,9 @@ jobs:
       - name: Test issue lifecycle with mocked GitHub APIs
         run: node --test scripts/tests/issue-lifecycle.test.mjs
 
+      - name: Test CI change classification and required checks
+        run: node --test scripts/tests/ci-changes.test.mjs scripts/tests/ci-workflows.test.mjs
+
       - name: Run CI tests
         run: npm run test:ci
 

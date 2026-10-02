@@ -2,6 +2,19 @@ name: ios-build-check
 
 on:
   workflow_call:
+    inputs:
+      build_required:
+        description: 'Compile the app; false only for explicitly classified validation-only changes'
+        type: boolean
+        default: true
+      validation_passed:
+        description: 'All required upstream classification and validation jobs succeeded'
+        type: boolean
+        default: true
+      build_reason:
+        description: 'Explanation recorded when compilation is unnecessary'
+        type: string
+        default: 'Native build requested by caller.'
 
 env:
   APP_VARIANT: production
@@ -9,39 +22,62 @@ env:
 jobs:
   build:
     name: Build iOS app and extensions
-    runs-on: macos-26
+    runs-on: ${{ inputs.build_required && inputs.validation_passed && 'macos-26' || 'ubuntu-latest' }}
     timeout-minutes: 90
     steps:
+      # Keep this check's existing name on every run, including no-build changes
+      # and upstream failures. No macOS runner or native tooling is used for a no-op.
+      - name: Validate build decision
+        env:
+          VALIDATION_PASSED: ${{ inputs.validation_passed }}
+          BUILD_REQUIRED: ${{ inputs.build_required }}
+          BUILD_REASON: ${{ inputs.build_reason }}
+        run: |
+          if [ "$VALIDATION_PASSED" != 'true' ]; then
+            echo 'Required upstream validation or classification did not succeed.' >&2
+            exit 1
+          fi
+          if [ "$BUILD_REQUIRED" = 'false' ]; then
+            printf 'Native compilation not required: %s\n' "$BUILD_REASON" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Checkout
+        if: ${{ inputs.build_required && inputs.validation_passed }}
         uses: actions/checkout@v6
 
       - name: Select latest Xcode 26
+        if: ${{ inputs.build_required && inputs.validation_passed }}
         run: |
           XCODE_APP="$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
           sudo xcode-select -s "$XCODE_APP"
           xcodebuild -version
 
       - name: Setup Node.js
+        if: ${{ inputs.build_required && inputs.validation_passed }}
         uses: actions/setup-node@v6
         with:
           node-version-file: '.nvmrc'
 
       - name: Install dependencies
+        if: ${{ inputs.build_required && inputs.validation_passed }}
         run: npm ci --ignore-scripts
 
       - name: Apply project dependency patches
+        if: ${{ inputs.build_required && inputs.validation_passed }}
         run: npm run postinstall
 
       - name: Build project modules without secrets
+        if: ${{ inputs.build_required && inputs.validation_passed }}
         run: npm run prepare --workspaces --if-present
 
       - name: Detect Engine pin mode
+        if: ${{ inputs.build_required && inputs.validation_passed }}
         id: engine
         run: echo "source=$(node -p "require('./modules/uc-engine/core-source.json').artifactSource || 'release'")" >> "$GITHUB_OUTPUT"
 
       # Commit pins compile Engine from source; keep the cargo target between runs.
       - name: Restore Engine build cache
-        if: steps.engine.outputs.source == 'commit'
+        if: ${{ inputs.build_required && inputs.validation_passed && steps.engine.outputs.source == 'commit' }}
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/engine-target
@@ -49,22 +85,27 @@ jobs:
           restore-keys: engine-target-${{ runner.os }}-ios-
 
       - name: Prepare unified engine core
+        if: ${{ inputs.build_required && inputs.validation_passed }}
         env:
           UC_ENGINE_LOCAL_TARGET_DIR: ${{ steps.engine.outputs.source == 'commit' && format('{0}/engine-target', runner.temp) || '' }}
         run: npm run core:prepare -- --platform ios
 
       - name: Verify unified engine core
+        if: ${{ inputs.build_required && inputs.validation_passed }}
         run: npm run core:verify -- --platform ios
 
       - name: Expo prebuild
+        if: ${{ inputs.build_required && inputs.validation_passed }}
         env:
           POSTHOG_PROJECT_KEY: ${{ secrets.UC_POSTHOG_PROJECT_KEY }}
         run: npx expo prebuild -p ios --clean --no-install
 
       - name: CocoaPods install
+        if: ${{ inputs.build_required && inputs.validation_passed }}
         run: cd ios && pod install
 
       - name: Build app and extensions without signing
+        if: ${{ inputs.build_required && inputs.validation_passed }}
         run: |
           xcodebuild build \
             -workspace ios/UniClip.xcworkspace \

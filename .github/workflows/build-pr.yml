@@ -4,6 +4,9 @@ on:
   pull_request:
 
 jobs:
+  changes:
+    uses: ./.github/workflows/ci-changes.yml
+
   code-style:
     uses: ./.github/workflows/code-style.yml
 
@@ -11,9 +14,19 @@ jobs:
     uses: ./.github/workflows/test.yml
 
   android-build:
-    needs: [code-style, unit-tests]
+    if: ${{ always() }}
+    needs: [changes, code-style, unit-tests]
     uses: ./.github/workflows/android-build.yml
+    with:
+      build_required: ${{ needs.changes.outputs.native_required != 'false' }}
+      validation_passed: ${{ needs.changes.result == 'success' && needs.code-style.result == 'success' && needs.unit-tests.result == 'success' }}
+      build_reason: ${{ needs.changes.outputs.reason }}
 
   ios-build-check:
-    needs: [code-style, unit-tests]
+    if: ${{ always() }}
+    needs: [changes, code-style, unit-tests]
     uses: ./.github/workflows/ios-build-check.yml
+    with:
+      build_required: ${{ needs.changes.outputs.native_required != 'false' }}
+      validation_passed: ${{ needs.changes.result == 'success' && needs.code-style.result == 'success' && needs.unit-tests.result == 'success' }}
+      build_reason: ${{ needs.changes.outputs.reason }}

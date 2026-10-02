@@ -4,6 +4,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
+import { parse } from 'yaml';
 
 const root = join(__dirname, '..', '..');
 
@@ -98,12 +99,14 @@ describe('validated release workflow', () => {
   });
 
   it('gates both platform builds on code style and unit tests', () => {
-    expect(buildWorkflow).toMatch(
-      /android-build:\s*\n\s*needs:\s*\[prepare, code-style, unit-tests\]/
+    const mainJobs = parse(buildWorkflow).jobs;
+    const prJobs = parse(pullRequestWorkflow).jobs;
+    expect(mainJobs['android-build'].needs).toEqual(
+      expect.arrayContaining(['prepare', 'changes', 'code-style', 'unit-tests'])
     );
-    expect(buildWorkflow).toMatch(/ios-build:[\s\S]*?needs:\s*\[prepare, code-style, unit-tests\]/);
-    expect(pullRequestWorkflow).toMatch(
-      /android-build:\s*\n\s*needs:\s*\[code-style, unit-tests\]/
+    expect(mainJobs['ios-build'].needs).toEqual(['prepare', 'code-style', 'unit-tests']);
+    expect(prJobs['android-build'].needs).toEqual(
+      expect.arrayContaining(['changes', 'code-style', 'unit-tests'])
     );
   });
 
@@ -161,8 +164,8 @@ describe('validated release workflow', () => {
     expect(buildWorkflow).toMatch(
       /platforms:[\s\S]*?type: choice[\s\S]*?- both\s*\n\s*- android\s*\n\s*- ios/
     );
-    expect(buildWorkflow).toMatch(
-      /android-build:\s*\n\s*needs:[^\n]*\n\s*if: \$\{\{ github\.event_name != 'workflow_dispatch' \|\| inputs\.platforms != 'ios' \}\}/
+    expect(parse(buildWorkflow).jobs['android-build'].if).toBe(
+      "${{ always() && (github.event_name != 'workflow_dispatch' || inputs.platforms != 'ios') }}"
     );
     expect(buildWorkflow).toContain(
       "if: ${{ github.event_name == 'workflow_dispatch' && inputs.platforms != 'android' }}"
