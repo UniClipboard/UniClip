@@ -73,15 +73,25 @@ async function sha256File(path) {
 
 const sleep = (ms) => new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
 
+// One deadline for the whole run. A workflow job timeout would fail the job even
+// for a non-blocking step, so the script has to stop on its own, earlier.
+let deadlineAt = Number.POSITIVE_INFINITY;
+let deadlineMs = 0;
+const remaining = () => Math.max(1, deadlineAt - Date.now());
+const pastDeadline = () => Date.now() >= deadlineAt;
+const deadlineError = (detail) => new MirrorError(`deadline of ${deadlineMs} ms exceeded (${detail})`);
+
 async function withRetries(label, attempts, delayMs, task) {
   let last;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    if (pastDeadline()) throw deadlineError(label);
     try {
       return await task(attempt);
     } catch (error) {
       last = error;
       if (error?.permanent) break;
-      if (attempt < attempts) await sleep(delayMs * attempt);
+      if (pastDeadline()) throw deadlineError(`${label}: ${error instanceof Error ? error.message : String(error)}`);
+      if (attempt < attempts) await sleep(Math.min(delayMs * attempt, remaining()));
     }
   }
   const message = last instanceof Error ? last.message : String(last);
@@ -89,7 +99,7 @@ async function withRetries(label, attempts, delayMs, task) {
 }
 
 function timeoutSignal(ms) {
-  return AbortSignal.timeout(ms);
+  return AbortSignal.any([AbortSignal.timeout(ms), AbortSignal.timeout(remaining())]);
 }
 
 function assertSuccess(response, label, body) {
@@ -124,8 +134,11 @@ export async function mirrorApk(config) {
     pollAttempts,
     apiTimeoutMs,
     transferTimeoutMs,
+    deadlineMs: totalDeadlineMs,
     log,
   } = config;
+  deadlineMs = totalDeadlineMs;
+  deadlineAt = Date.now() + totalDeadlineMs;
   const secrets = [token, accessSecret, accessId];
   const filename = basename(apkPath);
   const { sha256, size } = await sha256File(apkPath);
@@ -275,10 +288,10 @@ export async function mirrorApk(config) {
     });
     // The upload is registered asynchronously through GitCode's callback.
     let refreshed = null;
-    for (let poll = 0; poll < pollAttempts; poll += 1) {
+    for (let poll = 0; poll < pollAttempts && !pastDeadline(); poll += 1) {
       refreshed = await fetchRelease();
       if (findAsset(refreshed)) break;
-      await sleep(pollIntervalMs);
+      await sleep(Math.min(pollIntervalMs, remaining()));
     }
     if (!findAsset(refreshed)) {
       throw new MirrorError('The uploaded file did not appear on the GitCode release');
@@ -393,6 +406,8 @@ async function main() {
     apiTimeoutMs: numberArg('--api-timeout-ms', 60_000),
     // One bounded attempt for a ~100 MB transfer; the workflow also has a job timeout.
     transferTimeoutMs: numberArg('--transfer-timeout-ms', 600_000),
+    // Must stay below the workflow step timeout (20 minutes).
+    deadlineMs: numberArg('--deadline-ms', 1_080_000),
     log,
   };
   const secrets = [config.token, config.accessSecret, config.accessId];
@@ -427,7 +442,8 @@ async function main() {
     writeOutputs(record, provenancePath, secrets);
     console.log(redact(`Mirrored ${record.filename} to ${record.downloadUrl}`, secrets));
   } catch (error) {
-    const reason = redact(error instanceof Error ? error.message : String(error), secrets);
+    const raw = error instanceof Error ? error.message : String(error);
+    const reason = redact(pastDeadline() && !/deadline/.test(raw) ? `deadline of ${config.deadlineMs} ms exceeded (${raw})` : raw, secrets);
     console.log(`::warning title=GitCode mirror failed::${reason}`);
     writeOutputs({ ...base, status: 'failed', error: reason }, provenancePath, secrets);
     process.exit(1);

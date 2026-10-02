@@ -260,7 +260,18 @@ describe('validated release workflow', () => {
     expect(gitcodeMirrorWorkflow).toContain('secrets.FLARE_RELEASE_ACCESS_CLIENT_SECRET');
     expect(gitcodeMirrorWorkflow).toContain('continue-on-error: ${{ inputs.non_blocking == true }}');
     expect(gitcodeMirrorWorkflow).toContain("--missing-config \"${{ inputs.non_blocking == true && 'skip' || 'fail' }}\"");
-    expect(gitcodeMirrorWorkflow).toContain('timeout-minutes:');
+    // A job timeout is a job failure that continue-on-error cannot absorb, so the
+    // step and the script must both give up well before the job does.
+    const mirrorJob = parse(gitcodeMirrorWorkflow).jobs.mirror;
+    const mirrorStep = mirrorJob.steps.find((step: { id?: string }) => step.id === 'mirror');
+    expect(mirrorStep['timeout-minutes']).toBeLessThan(mirrorJob['timeout-minutes']);
+    expect(mirrorStep.run).toContain('--deadline-ms');
+    for (const step of mirrorJob.steps.filter((candidate: { name?: string }) =>
+      /^Download (the built APK|the APK)/.test(candidate.name ?? '')
+    )) {
+      expect(step['continue-on-error']).toBe('${{ inputs.non_blocking == true }}');
+    }
+    expect(mirrorStep.run).not.toContain('${{ inputs.tag_name }}');
     expect(gitcodeMirrorWorkflow).toContain('::warning');
     expect(gitcodeMirrorWorkflow).not.toContain('GITEE');
   });

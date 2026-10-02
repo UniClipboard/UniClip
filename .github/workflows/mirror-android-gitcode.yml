@@ -73,6 +73,7 @@ jobs:
       # Same run as the build: the exact artifact that was uploaded to R2.
       - name: Download the built APK
         if: ${{ inputs.from_release != true }}
+        continue-on-error: ${{ inputs.non_blocking == true }}
         uses: actions/download-artifact@v8
         with:
           name: apk-arm64-v8a
@@ -81,6 +82,7 @@ jobs:
       # Retry or backfill: the APK attached to the GitHub Release.
       - name: Download the APK from the GitHub Release
         if: ${{ inputs.from_release == true }}
+        continue-on-error: ${{ inputs.non_blocking == true }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ inputs.tag_name }}
@@ -89,7 +91,11 @@ jobs:
       - name: Mirror the APK
         id: mirror
         continue-on-error: ${{ inputs.non_blocking == true }}
+        # Shorter than the job timeout: a job timeout would fail the run even
+        # though this step is non-blocking. The script stops itself earlier still.
+        timeout-minutes: 20
         env:
+          RELEASE_TAG: ${{ inputs.tag_name }}
           GITCODE_TOKEN: ${{ secrets.GITCODE_RELEASE_TOKEN }}
           GITCODE_OWNER: ${{ vars.GITCODE_OWNER }}
           GITCODE_REPO: ${{ vars.GITCODE_REPO }}
@@ -105,10 +111,10 @@ jobs:
             echo "::error::Expected exactly one APK in apk/, found ${#apks[@]}"
             exit 1
           fi
-          TAG="${{ inputs.tag_name }}"
           node scripts/mirror-android-apk-to-gitcode.mjs \
             --apk "${apks[0]}" \
-            --tag "$TAG" \
+            --tag "$RELEASE_TAG" \
+            --deadline-ms 1080000 \
             --prerelease "${{ contains(inputs.tag_name, '-alpha.') || contains(inputs.tag_name, '-beta') }}" \
             --source "github-actions:${{ github.repository }}:${{ github.run_id }}" \
             --missing-config "${{ inputs.non_blocking == true && 'skip' || 'fail' }}" \
@@ -124,5 +130,7 @@ jobs:
 
       - name: Warn that the mirror is missing
         if: ${{ always() && steps.mirror.outcome == 'failure' }}
+        env:
+          RELEASE_TAG: ${{ inputs.tag_name }}
         run: |
-          echo "::warning title=GitCode mirror not available::The release is published from GitHub and R2. Users in mainland China are not redirected until the mirror succeeds. Re-run this workflow with tag ${{ inputs.tag_name }}."
+          echo "::warning title=GitCode mirror not available::The release is published from GitHub and R2. Users in mainland China are not redirected until the mirror succeeds. Run mirror-android-gitcode with tag $RELEASE_TAG."

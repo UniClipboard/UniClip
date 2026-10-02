@@ -21,6 +21,7 @@ const FILENAME = 'UniClip-2.0.0-arm64-v8a.apk';
 type Behavior = {
   uploadFailures: number;
   uploadAlwaysFails: boolean;
+  uploadHangs: boolean;
   corruptDownload: boolean;
   downloadRedirect: boolean;
   registrationFailures: number;
@@ -54,6 +55,7 @@ async function startFake(overrides: Partial<Behavior> = {}): Promise<Fake> {
   const behavior: Behavior = {
     uploadFailures: 0,
     uploadAlwaysFails: false,
+    uploadHangs: false,
     corruptDownload: false,
     downloadRedirect: false,
     registrationFailures: 0,
@@ -117,6 +119,7 @@ async function startFake(overrides: Partial<Behavior> = {}): Promise<Fake> {
     if (request.method === 'PUT' && path.startsWith('/obs/')) {
       const body = await readBody(request);
       uploadAttempts += 1;
+      if (behavior.uploadHangs) return; // never answer, like a stalled transfer
       if (behavior.uploadAlwaysFails || uploadAttempts <= behavior.uploadFailures) {
         response.writeHead(500);
         return response.end('upload failed');
@@ -188,7 +191,11 @@ async function startFake(overrides: Partial<Behavior> = {}): Promise<Fake> {
     requests,
     registrations,
     behavior,
-    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+    close: () =>
+      new Promise<void>((resolve) => {
+        server.close(() => resolve());
+        server.closeAllConnections();
+      }),
   } as Fake;
 }
 
@@ -350,6 +357,18 @@ describe('GitCode APK mirror upload', () => {
     expect(result.stdout + result.stderr).toMatch(/::warning/);
     expect(provenance()).toMatchObject({ status: 'failed' });
     expect(result.stdout + result.stderr).not.toContain(TOKEN);
+  });
+
+  it('gives up at its own deadline when GitCode stalls, so the job timeout is never reached', async () => {
+    const { fake, args, env, provenance } = await setup({ uploadHangs: true });
+    const started = Date.now();
+    const result = await run([...args, '--deadline-ms', '1500', '--transfer-timeout-ms', '600000'], env);
+    expect(result.code).toBe(1);
+    expect(Date.now() - started).toBeLessThan(15_000);
+    expect(fake.registrations).toHaveLength(0);
+    expect(result.stdout + result.stderr).toMatch(/::warning/);
+    expect(provenance()).toMatchObject({ status: 'failed' });
+    expect(String(provenance().error)).toMatch(/deadline|timed out|aborted/i);
   });
 
   it('does not register a mirror whose downloaded bytes differ from the APK', async () => {
