@@ -24,7 +24,7 @@ jobs:
         run: node --test scripts/tests/issue-lifecycle.test.mjs
 
       - name: Test CI change classification and required checks
-        run: node --test scripts/tests/ci-changes.test.mjs scripts/tests/ci-workflows.test.mjs
+        run: node --test scripts/tests/ci-changes.test.mjs scripts/tests/ci-workflows.test.mjs scripts/tests/ci-native-recipes.test.mjs
 
       - name: Run CI tests
         run: npm run test:ci

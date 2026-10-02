@@ -136,7 +136,7 @@ test('actual completion scripts report no-build success and fail upstream errors
 
 test('new tests run alongside existing lifecycle/app tests; no release or signing path is removed', () => {
   const commands = workflow('test').jobs['unit-tests'].steps.map((step) => step.run).filter(Boolean);
-  assert.ok(commands.includes('node --test scripts/tests/ci-changes.test.mjs scripts/tests/ci-workflows.test.mjs'));
+  assert.ok(commands.includes('node --test scripts/tests/ci-changes.test.mjs scripts/tests/ci-workflows.test.mjs scripts/tests/ci-native-recipes.test.mjs'));
   assert.ok(commands.includes('node --test scripts/tests/issue-lifecycle.test.mjs'));
   assert.ok(commands.includes('npm run test:ci'));
   assert.ok(commands.includes('npm run test:e2e:environment'));

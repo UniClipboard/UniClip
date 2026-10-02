@@ -27,13 +27,13 @@ function repository(t) {
 }
 
 test('docs and explicit lifecycle/validation/publishing paths avoid native compilation', () => {
-  const paths = ['docs/issue-lifecycle.md', 'docs/images/example.png', 'README.md', 'README.zh-CN.md', 'CHANGES.en.md', 'AGENTS.md', 'LICENSE', '.github/scripts/issue-lifecycle.cjs', '.github/workflows/issue-lifecycle.yml', 'scripts/tests/issue-lifecycle.test.mjs', '.github/workflows/release.yml', '.github/workflows/test.yml', '.github/workflows/code-style.yml', '.github/workflows/react-doctor.yml', '.github/workflows/testflight-notes.yml'];
+  const paths = ['docs/issue-lifecycle.md', 'docs/images/example.png', 'README.md', 'README.zh-CN.md', 'CHANGES.en.md', 'AGENTS.md', 'LICENSE', '.github/scripts/issue-lifecycle.cjs', '.github/workflows/issue-lifecycle.yml', 'scripts/tests/issue-lifecycle.test.mjs', 'scripts/ci-changes.mjs', 'scripts/ci-native-recipes.mjs', 'scripts/tests/ci-changes.test.mjs', 'scripts/tests/ci-workflows.test.mjs', 'scripts/tests/ci-native-recipes.test.mjs', 'src/__tests__/releaseWorkflow.test.ts', '.github/workflows/test.yml', '.github/workflows/code-style.yml', '.github/workflows/react-doctor.yml'];
   assert.equal(classifyPaths(paths).nativeRequired, false);
   assert.equal(classifyPaths([]).nativeRequired, false);
 });
 
-test('app, dependency, Engine, Expo, plugins and build-policy changes always build', () => {
-  for (const path of ['src/App.tsx', 'src/view.ios.tsx', 'src/view.android.tsx', 'index.ts', 'app.json', 'app.config.ts', 'package.json', 'package-lock.json', '.nvmrc', 'metro.config.js', 'babel.config.js', 'android/build.gradle', 'ios/Podfile', 'modules/uc-engine/core-source.json', 'modules/android-util/package.json', 'plugins/withSettings.ts', 'assets/icon.png', 'scripts/update-unified-engine-core.sh', '.github/workflows/build.yml', '.github/workflows/build-pr.yml', '.github/workflows/build-ios.yml', '.github/workflows/android-build.yml', '.github/workflows/ios-build-check.yml', '.github/workflows/ci-changes.yml', 'scripts/ci-changes.mjs', 'scripts/tests/ci-changes.test.mjs', 'scripts/tests/ci-workflows.test.mjs']) {
+test('app, dependency, Engine, Expo, plugins and build-workflow paths without verified snapshots always build', () => {
+  for (const path of ['src/App.tsx', 'src/view.ios.tsx', 'src/view.android.tsx', 'index.ts', 'app.json', 'app.config.ts', 'package.json', 'package-lock.json', '.nvmrc', 'metro.config.js', 'babel.config.js', 'android/build.gradle', 'ios/Podfile', 'modules/uc-engine/core-source.json', 'modules/android-util/package.json', 'plugins/withSettings.ts', 'assets/icon.png', 'scripts/update-unified-engine-core.sh', '.github/workflows/build.yml', '.github/workflows/build-pr.yml', '.github/workflows/build-ios.yml', '.github/workflows/release.yml', '.github/workflows/testflight-notes.yml', '.github/workflows/android-build.yml', '.github/workflows/ios-build-check.yml', '.github/workflows/ci-changes.yml']) {
     assert.equal(classifyPaths(['docs/readme.md', path]).nativeRequired, true, path);
   }
 });
@@ -105,4 +105,26 @@ test('CLI writes a conservative decision for malformed events and fails if outpu
   assert.equal(spawnSync(process.execPath, [script], { cwd, env }).status, 0);
   assert.match(readFileSync(output, 'utf8'), /^native_required=true\nreason=/);
   assert.notEqual(spawnSync(process.execPath, [script], { cwd, env: { ...env, GITHUB_OUTPUT: join(cwd, 'absent', 'output') } }).status, 0);
+});
+
+test('workflow snapshot comparison uses the PR merge base, not unrelated target-branch recipes', (t) => {
+  const r = repository(t);
+  const file = '.github/workflows/build-pr.yml';
+  const original = readFileSync(new URL('../../.github/workflows/build-pr.yml', import.meta.url), 'utf8');
+  r.commit(file, original); r.git('checkout', '-b', 'topic');
+  const head = r.commit(file, original.replaceAll('needs: [changes, code-style, unit-tests]', 'needs: [changes, unit-tests, code-style]'));
+  r.git('checkout', 'main');
+  const base = r.commit(file, original.replace('uses: ./.github/workflows/android-build.yml', 'uses: ./.github/workflows/other-native-build.yml'));
+  assert.equal(detectChanges({ eventName: 'pull_request', event: pr(base, head), cwd: r.cwd }).nativeRequired, false);
+});
+
+test('real main workflow diffs distinguish scheduling from native implementation changes', (t) => {
+  const r = repository(t); const file = '.github/workflows/build-pr.yml';
+  const original = readFileSync(new URL('../../.github/workflows/build-pr.yml', import.meta.url), 'utf8');
+  const base = r.commit(file, original);
+  const scheduling = original.replaceAll('needs: [changes, code-style, unit-tests]', 'needs: [changes, unit-tests, code-style]');
+  const head = r.commit(file, scheduling);
+  assert.equal(detectChanges({ eventName: 'push', event: push(base, head), cwd: r.cwd }).nativeRequired, false);
+  const native = r.commit(file, scheduling.replace('uses: ./.github/workflows/android-build.yml', 'uses: ./.github/workflows/other-native-build.yml'));
+  assert.equal(detectChanges({ eventName: 'push', event: push(head, native), cwd: r.cwd }).nativeRequired, true);
 });

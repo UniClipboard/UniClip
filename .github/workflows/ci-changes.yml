@@ -28,6 +28,8 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version-file: '.nvmrc'
+      - name: Install locked YAML parser without lifecycle scripts
+        run: npm ci --ignore-scripts
       - name: Classify PR or push diff
         id: changes
         run: node scripts/ci-changes.mjs
