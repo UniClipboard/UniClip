@@ -17,7 +17,6 @@
     "configured": "Configured",
     "credentialConfigured": "Access token saved",
     "configuredCount": "{{count}} nodes configured",
-    "savedRetrying": "Saved. Connection is retrying.",
     "footer": "Use an HTTP or HTTPS address. The access token is kept only in this device's secure storage.",
     "error": {
       "saveFailed": "Could not save relay",
@@ -64,7 +63,10 @@
       "network": "Network"
     },
     "retry": "Retry",
-    "listFooter": "Adding a custom relay replaces the built-in list. The access token stays in this device's secure storage."
+    "listFooter": "Adding a custom relay replaces the built-in list. The access token stays in this device's secure storage.",
+    "editor": {
+      "title": "Relay node"
+    }
   },
   "space": {
     "title": "My Space",

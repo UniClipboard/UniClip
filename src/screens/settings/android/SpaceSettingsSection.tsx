@@ -27,6 +27,7 @@ import {
 } from '@expo/ui/jetpack-compose/modifiers';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { pushSettingsSub } from '@/navigation/settingsSubNavigation';
 import type { RootStackParamList } from '@/navigation/AppNavigator.types';
 import { useTranslation } from 'react-i18next';
 
@@ -145,8 +146,7 @@ export const SpaceSettingsSection = memo(function SpaceSettingsSection() {
 
   return (
     <Column modifiers={[fillMaxWidth()]}>
-      {/* push, not navigate: this screen is already `SettingsSub`, so navigate would only swap its params. */}
-      <RelayEntrySection onOpen={() => navigation.push('SettingsSub', { section: 'relay' })} />
+      <RelayEntrySection onOpen={() => pushSettingsSub(navigation, { section: 'relay' })} />
 
       <Spacer modifiers={[heightModifier(24)]} />
       <SettingsSectionItem

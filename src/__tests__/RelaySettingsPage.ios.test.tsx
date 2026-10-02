@@ -9,9 +9,11 @@ import {
   useCustomRelaySettings,
 } from '@/screens/settings/useCustomRelaySettings';
 
+const onAddRelay = jest.fn();
+const onEditRelay = jest.fn();
 function CustomRelaySection() {
   const relay = useCustomRelaySettings();
-  return <RelaySettingsPage relay={relay} />;
+  return <RelaySettingsPage relay={relay} onAddRelay={onAddRelay} onEditRelay={onEditRelay} />;
 }
 
 jest.mock('app-group-store', () => ({
@@ -21,6 +23,7 @@ jest.mock('app-group-store', () => ({
 const mockUpdateConfig = jest.fn();
 
 jest.mock('@/features/relaySettings', () => ({
+  subscribeRelayChanges: () => () => undefined,
   loadRelayOverview: jest.fn(),
   refreshCustomRelays: jest.fn().mockResolvedValue([]),
   saveCustomRelay: jest.fn(),
@@ -98,82 +101,6 @@ const builtInRows = (view: TestRenderer.ReactTestRenderer) =>
   view.root.findAllByType('SettingsNavRow' as never).filter((row) => row.props.readOnly);
 const textOf = (view: TestRenderer.ReactTestRenderer) =>
   view.root.findAllByType('Text' as never).map((text) => text.children.join(''));
-
-it('enables Save relay after an iOS user enters a relay address', () => {
-  let view!: TestRenderer.ReactTestRenderer;
-  act(() => {
-    view = TestRenderer.create(<CustomRelaySection />);
-  });
-
-  try {
-    act(() => view.root.findByType('SettingsNavRow' as never).props.onPress());
-    expect(view.root.findAllByType('SecureField' as never)).toHaveLength(0);
-    expect(
-      view.root.findAllByType('TextField' as never).some(
-        (field) => field.props.testID === 'relay-token-input'
-      )
-    ).toBe(true);
-    const saveButton = () =>
-      view.root
-        .findAllByType('Button' as never)
-        .find((button) => button.props.label === 'relay.save')!;
-    const isDisabled = () =>
-      saveButton().props.modifiers.some(
-        (modifier: { type: string; value: boolean }) =>
-          modifier.type === 'disabled' && modifier.value
-      );
-
-    expect(isDisabled()).toBe(true);
-    act(() =>
-      view.root
-        .findAllByType('TextField' as never)
-        .find((field) => field.props.testID === 'relay-url-input')!
-        .props.onTextChange('https://relay.uni.z2blog.com')
-    );
-    expect(isDisabled()).toBe(false);
-  } finally {
-    act(() => view.unmount());
-  }
-});
-
-it('keeps the editor open and shows a duplicate relay error', async () => {
-  jest.mocked(saveCustomRelay).mockResolvedValue({
-    relays: [],
-    rejection: 'duplicate',
-    connection: Promise.resolve('unchanged'),
-  });
-  let view!: TestRenderer.ReactTestRenderer;
-  await act(async () => {
-    view = TestRenderer.create(<CustomRelaySection />);
-  });
-
-  try {
-    act(() => view.root.findByType('SettingsNavRow' as never).props.onPress());
-    act(() =>
-      view.root
-        .findAllByType('TextField' as never)
-        .find((field) => field.props.testID === 'relay-url-input')!
-        .props.onTextChange('https://relay.example.com')
-    );
-    await act(async () => {
-      view.root
-        .findAllByType('Button' as never)
-        .find((button) => button.props.label === 'relay.save')!
-        .props.onPress();
-    });
-
-    expect(
-      view.root.findAllByType('TextField' as never).some(
-        (field) => field.props.testID === 'relay-url-input'
-      )
-    ).toBe(true);
-    expect(
-      view.root.findAllByType('Text' as never).some((text) => text.children.includes('relay.error.duplicate'))
-    ).toBe(true);
-  } finally {
-    act(() => view.unmount());
-  }
-});
 
 it('lists built-in relays as read-only rows with a localized name, address and source', async () => {
   jest.mocked(loadRelayOverview).mockResolvedValue(
@@ -267,7 +194,7 @@ it('says no node has started when Engine reports no applied mode', async () => {
   }
 });
 
-it('keeps the built-in list out of the editor so custom entries stay separate', async () => {
+it('reports add and edit taps to the parent instead of editing in place', async () => {
   jest.mocked(loadRelayOverview).mockResolvedValue(
     overview({ entries: [builtInEntry('eu', 'https://eu.relay.example./')] })
   );
@@ -282,7 +209,9 @@ it('keeps the built-in list out of the editor so custom entries stay separate', 
         .find((row) => row.props.testID === 'relay-add')!
         .props.onPress()
     );
-    expect(view.root.findAllByType('SettingsNavRow' as never)).toHaveLength(0);
+    expect(onAddRelay).toHaveBeenCalledTimes(1);
+    // No editor fields live on the list page; the editor is its own page.
+    expect(view.root.findAllByType('TextField' as never)).toHaveLength(0);
   } finally {
     act(() => view.unmount());
   }

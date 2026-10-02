@@ -17,7 +17,6 @@
     "configured": "已设置",
     "credentialConfigured": "已保存访问令牌",
     "configuredCount": "已设置 {{count}} 个节点",
-    "savedRetrying": "已保存，连接正在重试",
     "footer": "仅使用 HTTP 或 HTTPS 地址。访问令牌只保存在设备的安全区域。",
     "error": {
       "saveFailed": "无法保存中继节点",
@@ -64,7 +63,10 @@
       "network": "网络"
     },
     "retry": "重试",
-    "listFooter": "添加自定义中继节点后，将替代内置列表。访问令牌只保存在本设备的安全存储中。"
+    "listFooter": "添加自定义中继节点后，将替代内置列表。访问令牌只保存在本设备的安全存储中。",
+    "editor": {
+      "title": "中继节点"
+    }
   },
   "space": {
     "title": "我的空间",

@@ -6,8 +6,8 @@ function source(relativePath: string): string {
 }
 
 it('keeps relay tokens out of password-specific fields on both platforms', () => {
-  const ios = source('screens/ios/devices/RelaySettingsPage.tsx');
-  const android = source('screens/settings/android/RelaySettingsSection.tsx');
+  const ios = source('screens/ios/devices/RelayEditorPage.tsx');
+  const android = source('screens/settings/android/RelayEditorSection.tsx');
   const androidTokenField = android.slice(
     android.indexOf('testID="relay-token-input"'),
     android.indexOf('{error ?')
@@ -18,9 +18,13 @@ it('keeps relay tokens out of password-specific fields on both platforms', () =>
   expect(androidTokenField).not.toMatch(/\bsecure\b/);
 });
 
-it('edits an Android relay inside the relay page, above the keyboard', () => {
-  const android = source('screens/settings/android/RelaySettingsSection.tsx');
+it('edits a relay on its own page above the relay list, clear of the keyboard', () => {
+  const editor = source('screens/settings/android/RelayEditorSection.tsx');
+  const list = source('screens/settings/android/RelaySettingsSection.tsx');
 
-  expect(android).not.toContain('ModalBottomSheet');
-  expect(android).toContain('modifiers={[fillMaxWidth(), imePadding()]}');
+  expect(editor).not.toContain('ModalBottomSheet');
+  expect(editor).toContain('modifiers={[fillMaxWidth(), imePadding()]}');
+  // The list page never holds editor state: back from the editor must return to the list.
+  expect(list).not.toContain('editingUrl');
+  expect(list).not.toContain('relay-url-input');
 });

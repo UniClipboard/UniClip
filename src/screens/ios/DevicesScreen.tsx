@@ -18,6 +18,8 @@ import { LanServerEditorSheet } from '@/screens/settings/ios/LanServerEditorShee
 import { SyncChannelConfirmationSheet } from '@/screens/settings/SyncChannelConfirmationSheet';
 import { DevicesRootPage } from './devices/DevicesRootPage';
 import { useCustomRelaySettings } from '@/screens/settings/useCustomRelaySettings';
+import { devicesRoutePath, type DevicesRoute } from './devices/devicesRoutes';
+import { RelayEditorPage } from './devices/RelayEditorPage';
 import { RelaySettingsPage } from './devices/RelaySettingsPage';
 import { SpaceSettingsPage } from './devices/SpaceSettingsPage';
 
@@ -32,6 +34,9 @@ const NAVIGATION_CHROME: IosPageChrome = { kind: 'navigation' };
 export function DevicesScreen({ deviceId, notificationNavigationRequestId }: SpaceDeviceTarget) {
   const { t } = useTranslation('settings');
   const [path, setPath] = useState<string[]>([]);
+  // The relay the editor page is on ('' = a new one); owned here, the stable parent of the stack.
+  const [editingRelayUrl, setEditingRelayUrl] = useState('');
+  const openRoute = useCallback((route: DevicesRoute) => setPath(devicesRoutePath(route)), []);
   useHideTabBarOnSubPage(path);
   const [setupMode, setSetupMode] = useState<AddSyncConnectionMode | null>(null);
   const [editingLanServerId, setEditingLanServerId] = useState<string | 'new' | null>(null);
@@ -108,7 +113,7 @@ export function DevicesScreen({ deviceId, notificationNavigationRequestId }: Spa
             <DevicesRootPage
               deviceManagement={deviceManagement}
               onOpenSetup={setSetupMode}
-              onOpenSpaceSettings={() => setPath(['spaceSettings'])}
+              onOpenSpaceSettings={() => openRoute('spaceSettings')}
               onRequestP2pConfirmation={requestP2pConfirmation}
               onAddLanServer={() => {
                 setLanServerIntent(null);
@@ -124,13 +129,30 @@ export function DevicesScreen({ deviceId, notificationNavigationRequestId }: Spa
               <SpaceSettingsPage
                 deviceManagement={deviceManagement}
                 relay={relay}
-                onOpenRelay={() => setPath(['spaceSettings', 'relay'])}
+                onOpenRelay={() => openRoute('relay')}
                 onSwitchSpace={() => setSetupMode('switch')}
                 onLeft={() => setPath([])}
               />
             </NavigationDestination>
             <NavigationDestination value="relay">
-              <RelaySettingsPage relay={relay} />
+              <RelaySettingsPage
+                relay={relay}
+                onAddRelay={() => {
+                  setEditingRelayUrl('');
+                  openRoute('relayEditor');
+                }}
+                onEditRelay={(relayUrl) => {
+                  setEditingRelayUrl(relayUrl);
+                  openRoute('relayEditor');
+                }}
+              />
+            </NavigationDestination>
+            <NavigationDestination value="relayEditor">
+              <RelayEditorPage
+                relay={relay}
+                editingUrl={editingRelayUrl}
+                onClose={() => openRoute('relay')}
+              />
             </NavigationDestination>
           </NavigationStack>
         </IosPageChromeProvider>

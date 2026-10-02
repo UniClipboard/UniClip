@@ -36,6 +36,7 @@ import { StorageSection } from './StorageSection';
 import { AboutSection } from './AboutSection';
 import { LogSection } from './LogSection';
 import { DebugSection } from './android/DebugSection';
+import { RelayEditorSection } from './android/RelayEditorSection';
 import { RelaySettingsSection } from './android/RelaySettingsSection';
 import { SpaceSettingsSection } from './android/SpaceSettingsSection';
 import { QuickActionsSection } from './QuickActionsSection';
@@ -50,11 +51,13 @@ import { MATERIAL_SEED_COLOR } from '@/theme/colors';
 interface SettingsSectionPageProps extends SpaceDeviceTarget {
   section: SettingsSubSection;
   update?: UpdateCheckResult;
+  relayUrl?: string;
 }
 
 const SettingsSectionPageInner = memo(function SettingsSectionPageInner({
   section,
   update,
+  relayUrl,
   deviceId,
   notificationNavigationRequestId,
 }: SettingsSectionPageProps) {
@@ -99,6 +102,8 @@ const SettingsSectionPageInner = memo(function SettingsSectionPageInner({
           {section === 'spaceSettings' && <SpaceSettingsSection />}
 
           {section === 'relay' && <RelaySettingsSection />}
+
+          {section === 'relayEditor' && <RelayEditorSection relayUrl={relayUrl} />}
 
           {section === 'lanServers' && <LanServersPage />}
 

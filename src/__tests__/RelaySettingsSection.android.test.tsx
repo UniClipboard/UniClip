@@ -2,11 +2,20 @@ import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 
 import type { RelayOverview } from '@/features/relayOverview';
-import { loadRelayOverview } from '@/features/relaySettings';
+import { loadRelayOverview, refreshCustomRelays } from '@/features/relaySettings';
 import { RelaySettingsSection } from '@/screens/settings/android/RelaySettingsSection';
 import { OVERVIEW_RETRY_DELAYS_MS } from '@/screens/settings/useCustomRelaySettings';
 
 const mockUpdateConfig = jest.fn();
+const mockPush = jest.fn();
+
+jest.mock('@react-navigation/native', () => {
+  const React = require('react');
+  return {
+    useNavigation: () => ({ push: mockPush, goBack: jest.fn() }),
+    useFocusEffect: (effect: () => void) => React.useEffect(effect, [effect]),
+  };
+});
 
 jest.mock('@/assets/icons/add.xml', () => 1);
 jest.mock('@/assets/icons/chevron_right.xml', () => 1);
@@ -15,6 +24,7 @@ jest.mock('@/assets/icons/info.xml', () => 1);
 jest.mock('app-group-store', () => ({ getEngineLogFileUris: () => [] }));
 
 jest.mock('@/features/relaySettings', () => ({
+  subscribeRelayChanges: () => () => undefined,
   loadRelayOverview: jest.fn(),
   refreshCustomRelays: jest.fn().mockResolvedValue([]),
   saveCustomRelay: jest.fn(),
@@ -104,6 +114,7 @@ const overview = (patch: Partial<RelayOverview> = {}): RelayOverview => ({
   ...patch,
 });
 beforeEach(() => {
+  mockPush.mockClear();
   jest.mocked(loadRelayOverview).mockReset().mockResolvedValue(overview());
 });
 
@@ -198,6 +209,34 @@ it('re-reads the overview each time the relay page opens', async () => {
   const view = await render();
   try {
     expect(jest.mocked(loadRelayOverview).mock.calls.length).toBeGreaterThanOrEqual(2);
+  } finally {
+    act(() => view.unmount());
+  }
+});
+
+it('opens add and edit as their own pushed page instead of editing in place', async () => {
+  jest.mocked(refreshCustomRelays).mockResolvedValue([
+    { url: 'https://mine.example.com', credentialConfigured: true },
+  ]);
+  const view = await render();
+  try {
+    expect(view.root.findAllByType('AppTextField' as never)).toHaveLength(0);
+    const add = view.root
+      .findAllByType('Button' as never)
+      .find((button) => modifierOf(button, 'testID')?.id === 'relay-add')!;
+    act(() => add.props.onClick());
+    expect(mockPush).toHaveBeenLastCalledWith('SettingsSub', {
+      section: 'relayEditor',
+      relayUrl: undefined,
+    });
+    const row = view.root
+      .findAllByType('ListItem' as never)
+      .find((item) => modifierOf(item, 'clickable') && !modifierOf(item, 'testID'))!;
+    act(() => modifierOf(row, 'clickable')!.onClick!());
+    expect(mockPush).toHaveBeenLastCalledWith('SettingsSub', {
+      section: 'relayEditor',
+      relayUrl: 'https://mine.example.com',
+    });
   } finally {
     act(() => view.unmount());
   }

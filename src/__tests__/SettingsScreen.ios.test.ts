@@ -41,7 +41,7 @@ describe('iOS settings and devices tabs', () => {
     expect(settingsScreen).not.toContain('SpacePage');
     expect(devicesScreen).toContain('<NavigationStack path={path} onPathChange={setPath}>');
     expect(devicesScreen).toContain('<NavigationDestination value="spaceSettings">');
-    expect(devicesScreen).toContain('onOpenSpaceSettings={() => setPath([\'spaceSettings\'])}');
+    expect(devicesScreen).toContain("onOpenSpaceSettings={() => openRoute('spaceSettings')}");
   });
 
   it('owns every device sheet in the Devices host, outside the pushed pages', () => {

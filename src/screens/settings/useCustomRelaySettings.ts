@@ -5,6 +5,7 @@ import {
   loadRelayOverview,
   refreshCustomRelays,
   saveCustomRelay,
+  subscribeRelayChanges,
   type CustomRelay,
   type RelaySaveOutcome,
 } from '@/features/relaySettings';
@@ -101,6 +102,16 @@ export function useCustomRelaySettings() {
     void readOverview();
   }, [readOverview]);
 
+  // Another screen's save (or the rebuild that follows it) changes what Engine reports.
+  useEffect(
+    () =>
+      subscribeRelayChanges(() => {
+        void readOverview();
+        void refreshCustom().catch(() => undefined);
+      }),
+    [readOverview, refreshCustom]
+  );
+
   // Both reads can lose a race with Engine startup, so one retry re-reads the overview and the
   // custom list together.
   const retryOverview = useCallback(async (): Promise<void> => {
@@ -115,8 +126,6 @@ export function useCustomRelaySettings() {
         try {
           const result = await saveCustomRelay(input);
           if (generation === operationGeneration.current) setRelays(result.relays);
-          void readOverview();
-          void result.connection.then(() => readOverview());
           return result;
         } catch (error) {
           if (generation === operationGeneration.current) {
@@ -133,7 +142,7 @@ export function useCustomRelaySettings() {
       );
       return queued;
     },
-    [load, readOverview]
+    [load]
   );
 
   return { relays, refresh, save, initialRefreshFailed, overview, retryOverview };

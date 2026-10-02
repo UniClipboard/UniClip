@@ -18,6 +18,7 @@ import {
 } from '@/components/android/floatingNavigationClearance';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import { pushSettingsSub } from '@/navigation/settingsSubNavigation';
 import { useTheme } from '@/hooks/useTheme';
 import { useSettingsStore } from '@/stores';
 import { APP_VERSION } from '@/constants';
@@ -50,7 +51,7 @@ const ICONS = {
 
 type HubSection = Exclude<
   SettingsSubSection,
-  'syncChannel' | 'space' | 'spaceSettings' | 'relay' | 'lanServers'
+  'syncChannel' | 'space' | 'spaceSettings' | 'relay' | 'relayEditor' | 'lanServers'
 >;
 
 /** 分类入口行:图标 + 标题 + 动态摘要 + chevron,整行可点(testID 供 Maestro 定位)。 */
@@ -255,7 +256,7 @@ const SettingsScreenInner = () => {
   }
 
   const handleNavigate = (section: SettingsSubSection) =>
-    navigation.navigate('SettingsSub', { section });
+    pushSettingsSub(navigation, { section });
 
   return (
     <SafeAreaView

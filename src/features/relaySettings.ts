@@ -23,6 +23,23 @@ export interface RelaySaveOutcome extends RelayMutationResult {
   connection: Promise<'rebuilt' | 'retrying' | 'unchanged'>;
 }
 
+const changeListeners = new Set<() => void>();
+
+/**
+ * Pages that show relay state live in different screens (entry row, relay list, editor), each
+ * with its own hook instance. A save announces itself here so every one of them re-reads Engine.
+ */
+export function subscribeRelayChanges(listener: () => void): () => void {
+  changeListeners.add(listener);
+  return () => {
+    changeListeners.delete(listener);
+  };
+}
+
+export function announceRelayChange(): void {
+  changeListeners.forEach((listener) => listener());
+}
+
 let api: RelaySettingsApi | null = null;
 const log = createLogger('RelaySettings');
 
@@ -104,6 +121,7 @@ export async function saveCustomRelay(input: {
     const relays = await refreshCustomRelays();
     return { relays, rejection: result.rejection, connection: Promise.resolve('unchanged') };
   }
+  announceRelayChange();
   const connection = (async (): Promise<'rebuilt' | 'retrying'> => {
     const rebuildStartedAt = Date.now();
     try {
@@ -113,6 +131,8 @@ export async function saveCustomRelay(input: {
     } catch {
       log.warn(`relay network rebuild outcome=retrying durationMs=${Date.now() - rebuildStartedAt}`);
       return 'retrying';
+    } finally {
+      announceRelayChange();
     }
   })();
   return { relays: result.relays, connection };

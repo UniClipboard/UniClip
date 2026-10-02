@@ -29,6 +29,7 @@ const mockManagement = {
 };
 const mockNavigation = {
   navigate: jest.fn(),
+  push: jest.fn(),
   setOptions: jest.fn(),
   canGoBack: () => true,
   goBack: jest.fn(),
@@ -189,6 +190,7 @@ it('keeps native row modifiers valid as space settings actions become unavailabl
 it('makes whole device rows and the space settings row interactive on the devices page', () => {
   mockManagement.devices = [remoteDevice];
   mockNavigation.navigate.mockClear();
+  mockNavigation.push.mockClear();
   mockManagement.openDevice.mockClear();
   let view: TestRenderer.ReactTestRenderer;
   act(() => {
@@ -203,7 +205,7 @@ it('makes whole device rows and the space settings row interactive on the device
     expect(rowWithText(view, 'space.leave.action')).toBeUndefined();
     expect(rowWithText(view, 'space.switch.title')).toBeUndefined();
     act(() => rowClick(rowWithText(view, 'space.settings.title'))!.eventListener!());
-    expect(mockNavigation.navigate).toHaveBeenCalledWith('SettingsSub', {
+    expect(mockNavigation.push).toHaveBeenCalledWith('SettingsSub', {
       section: 'spaceSettings',
     });
 

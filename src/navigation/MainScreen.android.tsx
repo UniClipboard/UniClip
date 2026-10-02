@@ -15,6 +15,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSharedValue, type SharedValue } from 'react-native-reanimated';
 import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { pushSettingsSub } from './settingsSubNavigation';
 import { FAB_SIZE } from '@/components/AddActionsFab.types';
 import { MainNavigationBar } from '@/components/android/MainNavigationBar';
 import {
@@ -68,7 +69,7 @@ function ClipboardDestination({
   const navigation = useNavigation<ClipboardNavigation>();
   const openSettings = useCallback(() => navigation.navigate('Preferences'), [navigation]);
   const openAbout = useCallback(
-    (update: UpdateCheckResult) => navigation.navigate('SettingsSub', { section: 'about', update }),
+    (update: UpdateCheckResult) => pushSettingsSub(navigation, { section: 'about', update }),
     [navigation]
   );
   return (

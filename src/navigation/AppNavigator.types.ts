@@ -6,6 +6,7 @@ export type SettingsSubSection =
   | 'space'
   | 'spaceSettings'
   | 'relay'
+  | 'relayEditor'
   | 'lanServers'
   | 'history'
   | 'background'
@@ -45,5 +46,7 @@ export type RootStackParamList = {
     update?: UpdateCheckResult;
     deviceId?: string;
     notificationNavigationRequestId?: number;
+    /** relayEditor: the relay being edited; absent when adding a new one. */
+    relayUrl?: string;
   };
 };

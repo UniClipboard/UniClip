@@ -252,12 +252,13 @@ describe('unified space setup UI', () => {
   });
 
   it('keeps relay refresh and duplicate feedback visible on the active page', () => {
-    const android = source('screens/settings/android/RelaySettingsSection.tsx');
-    const ios = source('screens/ios/devices/RelaySettingsPage.tsx');
+    const androidList = source('screens/settings/android/RelaySettingsSection.tsx');
+    const android = source('screens/settings/android/RelayEditorSection.tsx');
+    const ios = source('screens/ios/devices/RelayEditorPage.tsx');
 
-    expect(android).toContain('refresh().catch(() => setRefreshFailed(true))');
-    expect(android).toContain("setNotice(t('relay.error.refreshFailed'))");
-    expect(android).not.toContain("refresh().catch(() => setError(t('relay.error.refreshFailed')))");
+    expect(androidList).toContain('refresh().catch(() => setRefreshFailed(true))');
+    expect(androidList).toContain("setNotice(t('relay.error.refreshFailed'))");
+    expect(androidList).not.toContain("refresh().catch(() => setError(t('relay.error.refreshFailed')))");
     for (const platform of [android, ios]) {
       expect(platform).not.toContain("if (result.rejection === 'duplicate') resetEditor()");
       expect(platform).toMatch(/if \(result\.rejection\) \{[\s\S]*setError\(t\(rejectionKey\[result\.rejection\]\)\);[\s\S]*return;/);

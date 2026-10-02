@@ -2,6 +2,7 @@ import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 
 import {
+  announceRelayChange,
   loadRelayOverview,
   refreshCustomRelays,
   saveCustomRelay,
@@ -16,6 +17,7 @@ import {
 const mockUpdateConfig = jest.fn().mockResolvedValue(undefined);
 
 jest.mock('@/features/relaySettings', () => ({
+  ...jest.requireActual('@/features/relaySettings'),
   loadRelayOverview: jest.fn(),
   refreshCustomRelays: jest.fn(),
   saveCustomRelay: jest.fn(),
@@ -357,7 +359,7 @@ describe('relay overview state', () => {
     }
   });
 
-  it('refreshes from Engine after a save and again after the connection settles', async () => {
+  it('reads Engine again whenever a relay change is announced, from any screen', async () => {
     mockedOverview.mockResolvedValue(overviewFixture());
     let view!: TestRenderer.ReactTestRenderer;
     await act(async () => {
@@ -366,16 +368,17 @@ describe('relay overview state', () => {
     try {
       const pendingChange = overviewFixture({ savedMode: 'custom', changePending: true });
       const applied = overviewFixture({ savedMode: 'custom', appliedMode: 'custom' });
-      const connection = deferred<'rebuilt'>();
-      mockedSave.mockResolvedValue({ relays: [], connection: connection.promise });
-      mockedOverview.mockResolvedValueOnce(pendingChange).mockResolvedValueOnce(applied);
+      const custom = [{ url: 'https://mine.example.com', credentialConfigured: false }];
+      mockedOverview.mockResolvedValueOnce(pendingChange);
+      mockedRefresh.mockResolvedValueOnce(custom);
       await act(async () => {
-        await currentHook.save({ url: 'https://mine.example.com', accessToken: '' });
+        announceRelayChange();
       });
       expect(currentHook.overview).toEqual({ status: 'ready', value: pendingChange });
+      expect(currentHook.relays).toEqual(custom);
+      mockedOverview.mockResolvedValueOnce(applied);
       await act(async () => {
-        connection.resolve('rebuilt');
-        await connection.promise;
+        announceRelayChange();
       });
       expect(currentHook.overview).toEqual({ status: 'ready', value: applied });
     } finally {

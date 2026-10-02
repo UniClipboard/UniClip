@@ -1,36 +1,35 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   Column,
   Icon,
   ListItem,
-  OutlinedButton,
   Row,
   Shape,
   Spacer,
   Surface,
   Text as ComposeText,
-  TextButton,
   useMaterialColors,
 } from '@expo/ui/jetpack-compose';
 import {
   clickable,
   fillMaxWidth,
   height as heightModifier,
-  imePadding,
   padding,
   testID,
   width as widthModifier,
 } from '@expo/ui/jetpack-compose/modifiers';
 import { useTranslation } from 'react-i18next';
 
-import { AppTextField } from '@/components/ui';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   BUILT_IN_USAGE_KEY,
   describeRelayOverview,
   type RelaySummary,
 } from '@/features/relayOverview';
-import type { RelayMutationRejection } from '@/features/relaySettings';
+import type { RootStackParamList } from '@/navigation/AppNavigator.types';
+import { pushSettingsSub } from '@/navigation/settingsSubNavigation';
 import { SettingsSectionItem, useSettingsSectionRowColors } from '../SettingsSectionItem';
 import { useCustomRelaySettings } from '../useCustomRelaySettings';
 import { SettingsLeadingIcon } from './SettingsLeadingIcon';
@@ -42,17 +41,10 @@ const ICONS = {
   relay: require('../../../assets/icons/public.xml'),
 };
 
-const rejectionKey: Record<RelayMutationRejection, string> = {
-  invalidUrl: 'relay.error.invalidUrl',
-  duplicate: 'relay.error.duplicate',
-  notFound: 'relay.error.notFound',
-};
-
 const STATUS_SHAPE = Shape.RoundedCorner({
   cornerRadii: { topStart: 24, topEnd: 24, bottomStart: 24, bottomEnd: 24 },
 });
 const STATUS_TITLE_STYLE = { fontSize: 16, fontWeight: '500', letterSpacing: 0.15 } as const;
-const SECTION_TITLE_STYLE = { fontSize: 20, fontWeight: '600', letterSpacing: 0 } as const;
 
 function summaryText(
   summary: RelaySummary,
@@ -105,146 +97,32 @@ export function RelayEntrySection({ onOpen }: { onOpen: () => void }) {
   );
 }
 
+/** Relay list page. Add and edit are separate pages pushed on top of it (RelayEditorSection). */
 export function RelaySettingsSection() {
   const { t } = useTranslation('settingsSync');
   const colors = useMaterialColors();
   const rowColors = useSettingsSectionRowColors();
-  const {
-    relays,
-    refresh,
-    save: saveRelay,
-    initialRefreshFailed,
-    overview,
-    retryOverview,
-  } = useCustomRelaySettings();
-  const configuredUrls = relays.map(({ url: relayUrl }) => relayUrl);
-  const [url, setUrl] = useState('');
-  const [token, setToken] = useState('');
-  const [editingUrl, setEditingUrl] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { relays, refresh, initialRefreshFailed, overview, retryOverview } =
+    useCustomRelaySettings();
   const [notice, setNotice] = useState<string | null>(null);
-
-  // Re-read each time the page opens: the first read can race Engine startup.
   const [refreshFailed, setRefreshFailed] = useState(false);
-  useEffect(() => {
-    void refresh().catch(() => setRefreshFailed(true));
-  }, [refresh]);
+
+  // Re-read whenever this page is shown again: the first read can race Engine startup, and the
+  // editor page above may have changed the list.
+  useFocusEffect(
+    useCallback(() => {
+      void refresh().catch(() => setRefreshFailed(true));
+    }, [refresh])
+  );
 
   useEffect(() => {
     if (initialRefreshFailed || refreshFailed) setNotice(t('relay.error.refreshFailed'));
   }, [initialRefreshFailed, refreshFailed, t]);
 
-  useEffect(() => {
-    if (editingUrl && !configuredUrls.includes(editingUrl)) setEditingUrl(null);
-  }, [configuredUrls, editingUrl]);
-
-  const resetEditor = () => {
-    setEditingUrl(null);
-    setUrl('');
-    setToken('');
-    setError(null);
-    setNotice(null);
-  };
-
-  const openAddRelay = () => {
-    setEditingUrl('');
-    setUrl('');
-    setToken('');
-    setError(null);
-    setNotice(null);
-  };
-
-  const openEditRelay = (configuredUrl: string) => {
-    setEditingUrl(configuredUrl);
-    setUrl(configuredUrl);
-    setToken('');
-    setError(null);
-    setNotice(null);
-  };
-
-  const save = async (nextUrl = url) => {
-    if (editingUrl === null) return;
-    setPending(true);
-    setError(null);
-    try {
-      const result = await saveRelay({
-        url: nextUrl,
-        accessToken: token,
-        previousUrl: editingUrl || undefined,
-      });
-      if (result.rejection) {
-        setError(t(rejectionKey[result.rejection]));
-        return;
-      }
-      resetEditor();
-      if ((await result.connection) === 'retrying') setNotice(t('relay.savedRetrying'));
-    } catch {
-      setError(t('relay.error.saveFailed'));
-    } finally {
-      setPending(false);
-    }
-  };
+  const openEditor = (relayUrl?: string) => pushSettingsSub(navigation, { section: 'relayEditor', relayUrl });
 
   const view = overview.status === 'ready' ? describeRelayOverview(overview.value) : null;
-  const editingExistingRelay = Boolean(editingUrl);
-
-  if (editingUrl !== null) {
-    return (
-      <Column modifiers={[fillMaxWidth(), imePadding()]}>
-        <ComposeText style={SECTION_TITLE_STYLE}>
-          {editingExistingRelay ? t('relay.edit') : t('relay.add')}
-        </ComposeText>
-        <Spacer modifiers={[heightModifier(8)]} />
-        <ComposeText color={colors.onSurfaceVariant}>{t('relay.footer')}</ComposeText>
-        <Spacer modifiers={[heightModifier(20)]} />
-        <ComposeText color={colors.onSurfaceVariant}>{t('relay.url')}</ComposeText>
-        <Spacer modifiers={[heightModifier(6)]} />
-        <AppTextField
-          testID="relay-url-input"
-          value={url}
-          onChangeText={setUrl}
-          placeholder="https://relay.example.com"
-          keyboardType="uri"
-          fullWidth
-        />
-        <Spacer modifiers={[heightModifier(16)]} />
-        <ComposeText color={colors.onSurfaceVariant}>{t('relay.token')}</ComposeText>
-        <Spacer modifiers={[heightModifier(6)]} />
-        <AppTextField testID="relay-token-input" value={token} onChangeText={setToken} fullWidth />
-        {error ? (
-          <>
-            <Spacer modifiers={[heightModifier(12)]} />
-            <ComposeText color={colors.error}>{error}</ComposeText>
-          </>
-        ) : null}
-        <Spacer modifiers={[heightModifier(24)]} />
-        <Button
-          onClick={() => void save()}
-          enabled={!pending && Boolean(url.trim())}
-          modifiers={[testID('relay-save'), fillMaxWidth()]}
-        >
-          <ComposeText>{t('relay.save')}</ComposeText>
-        </Button>
-        {editingExistingRelay ? (
-          <>
-            <Spacer modifiers={[heightModifier(8)]} />
-            <OutlinedButton
-              onClick={() => void save('')}
-              enabled={!pending}
-              modifiers={[fillMaxWidth()]}
-            >
-              <ComposeText color={colors.error}>{t('relay.remove')}</ComposeText>
-            </OutlinedButton>
-          </>
-        ) : null}
-        <TextButton onClick={resetEditor} enabled={!pending} modifiers={[fillMaxWidth()]}>
-          <ComposeText>{t('action.cancel', { ns: 'common' })}</ComposeText>
-        </TextButton>
-      </Column>
-    );
-  }
-
   const [statusContainer, statusContent] =
     view?.tone === 'warn'
       ? [colors.tertiaryContainer, colors.onTertiaryContainer]
@@ -350,7 +228,7 @@ export function RelaySettingsSection() {
             <ListItem
               key={relay.url}
               colors={rowColors}
-              modifiers={[clickable(() => openEditRelay(relay.url))]}
+              modifiers={[clickable(() => openEditor(relay.url))]}
             >
               <ListItem.LeadingContent>
                 <SettingsLeadingIcon source={ICONS.relay} />
@@ -377,7 +255,7 @@ export function RelaySettingsSection() {
         title={relays.length > 0 ? undefined : t('relay.title')}
         footer={t('relay.listFooter')}
       >
-        <Button onClick={openAddRelay} modifiers={[testID('relay-add'), fillMaxWidth()]}>
+        <Button onClick={() => openEditor()} modifiers={[testID('relay-add'), fillMaxWidth()]}>
           <Icon source={ICONS.add} size={18} tint={colors.onPrimary} />
           <Spacer modifiers={[widthModifier(8)]} />
           <ComposeText>{t('relay.add')}</ComposeText>

@@ -36,6 +36,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 
+import { pushSettingsSub } from '@/navigation/settingsSubNavigation';
 import { AddSyncConnectionSheet } from '@/components/AddSyncConnectionSheet';
 import type { AddSyncConnectionMode } from '@/components/AddSyncConnectionSheet.types';
 import { M3IconButton } from '@/components/android/M3IconButton';
@@ -421,7 +422,7 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
         onConfirmRemove={() => void deviceManagement.confirmRemove()}
         onUpdateThisDevice={() => {
           deviceManagement.closeDevice();
-          navigation.navigate('SettingsSub', { section: 'about' });
+          pushSettingsSub(navigation, { section: 'about' });
         }}
       />
     </>
@@ -582,7 +583,7 @@ export const UnifiedSpaceSetup = memo(function UnifiedSpaceSetup({
       <SettingsSectionItem variant="grouped">
         <SpaceSettingsRow
           key="space-settings"
-          onOpen={() => navigation.navigate('SettingsSub', { section: 'spaceSettings' })}
+          onOpen={() => pushSettingsSub(navigation, { section: 'spaceSettings' })}
         />
       </SettingsSectionItem>
     </Column>

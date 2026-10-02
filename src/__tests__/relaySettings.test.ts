@@ -5,6 +5,7 @@ import {
   loadRelayOverview,
   refreshCustomRelays,
   saveCustomRelay,
+  subscribeRelayChanges,
   type CustomRelay,
   type RelaySettingsApi,
 } from '../features/relaySettings';
@@ -32,6 +33,37 @@ function source(relativePath: string): string {
 }
 
 describe('custom relay settings', () => {
+  it('announces a saved change right away and again once the node rebuild settles', async () => {
+    const listener = jest.fn();
+    const unsubscribe = subscribeRelayChanges(listener);
+    let finishRebuild!: () => void;
+    configureRelaySettings(
+      api({
+        addCustomRelay: jest.fn().mockResolvedValue({ relays: [relay('https://a.example.com')] }),
+        rebuildRelayEndpoint: jest.fn(
+          () => new Promise<void>((resolve) => (finishRebuild = resolve))
+        ),
+      })
+    );
+    const outcome = await saveCustomRelay({ url: 'https://a.example.com', accessToken: '' });
+    expect(listener).toHaveBeenCalledTimes(1);
+    finishRebuild();
+    await outcome.connection;
+    expect(listener).toHaveBeenCalledTimes(2);
+    unsubscribe();
+  });
+
+  it('does not announce a rejected save', async () => {
+    const listener = jest.fn();
+    const unsubscribe = subscribeRelayChanges(listener);
+    configureRelaySettings(
+      api({ addCustomRelay: jest.fn().mockResolvedValue({ relays: [], rejection: 'duplicate' }) })
+    );
+    await saveCustomRelay({ url: 'https://a.example.com', accessToken: '' });
+    expect(listener).not.toHaveBeenCalled();
+    unsubscribe();
+  });
+
   it('reads the relay overview from Engine and propagates failures instead of returning an empty list', async () => {
     const failure = new Error('relay store unavailable');
     configureRelaySettings(api({ queryRelayOverview: jest.fn().mockRejectedValue(failure) }));

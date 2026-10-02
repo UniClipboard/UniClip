@@ -1,35 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
-import {
-  Button,
-  HStack,
-  Image,
-  Section,
-  Text as SwiftUIText,
-  TextField,
-  useNativeState,
-  VStack,
-} from '@expo/ui/swift-ui';
-import {
-  autocorrectionDisabled,
-  disabled,
-  font,
-  foregroundStyle,
-  keyboardType,
-  listRowBackground,
-} from '@expo/ui/swift-ui/modifiers';
+import { useEffect, useState } from 'react';
+import { HStack, Image, Section, Text as SwiftUIText, VStack } from '@expo/ui/swift-ui';
+import { font, foregroundStyle, listRowBackground } from '@expo/ui/swift-ui/modifiers';
 import { useTranslation } from 'react-i18next';
 
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
 import { BUILT_IN_USAGE_KEY, describeRelayOverview } from '@/features/relayOverview';
-import type { RelayMutationRejection } from '@/features/relaySettings';
 import { SettingsNavRow, settingsTileColors } from '@/screens/settings/ios/common';
 import type { useCustomRelaySettings } from '@/screens/settings/useCustomRelaySettings';
-
-const rejectionKey: Record<RelayMutationRejection, string> = {
-  invalidUrl: 'relay.error.invalidUrl',
-  duplicate: 'relay.error.duplicate',
-  notFound: 'relay.error.notFound',
-};
 
 // Translucent tints read correctly in both light and dark appearance.
 const STATUS_BACKGROUND = {
@@ -40,19 +17,21 @@ const STATUS_BACKGROUND = {
 export type RelaySettingsController = ReturnType<typeof useCustomRelaySettings>;
 
 /**
- * 中继设置(空间设置推入):状态卡、只读的内置节点、可编辑的自定义节点。
+ * 中继设置(空间设置推入):状态卡、只读的内置节点、自定义节点列表。
+ * 新增 / 编辑是再推入一层的独立页面(RelayEditorPage),本页只汇报点按,不持有编辑状态。
  * 状态由 DevicesScreen 持有的同一个 controller 提供,本页不创建第二份,也不渲染任何 sheet。
  */
-export function RelaySettingsPage({ relay }: { relay: RelaySettingsController }) {
+export function RelaySettingsPage({
+  relay,
+  onAddRelay,
+  onEditRelay,
+}: {
+  relay: RelaySettingsController;
+  onAddRelay: () => void;
+  onEditRelay: (url: string) => void;
+}) {
   const { t } = useTranslation('settingsSync');
-  const { relays, save: saveRelay, refresh, initialRefreshFailed, overview, retryOverview } = relay;
-  const configuredUrls = relays.map(({ url: relayUrl }) => relayUrl);
-  const url = useNativeState('');
-  const token = useNativeState('');
-  const [urlValue, setUrlValue] = useState('');
-  const [editingUrl, setEditingUrl] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { relays, refresh, initialRefreshFailed, overview, retryOverview } = relay;
   const [notice, setNotice] = useState<string | null>(null);
 
   // The tab may have read Engine before it was ready; re-read each time this page opens.
@@ -64,69 +43,7 @@ export function RelaySettingsPage({ relay }: { relay: RelaySettingsController })
     if (initialRefreshFailed) setNotice(t('relay.error.refreshFailed'));
   }, [initialRefreshFailed, t]);
 
-  useEffect(() => {
-    if (editingUrl && !configuredUrls.includes(editingUrl)) setEditingUrl(null);
-  }, [configuredUrls, editingUrl]);
-
-  const resetEditor = useCallback(() => {
-    setEditingUrl(null);
-    url.value = '';
-    setUrlValue('');
-    token.value = '';
-    setError(null);
-    setNotice(null);
-  }, [token, url]);
-
-  const openAddRelay = useCallback(() => {
-    setEditingUrl('');
-    url.value = '';
-    setUrlValue('');
-    token.value = '';
-    setError(null);
-    setNotice(null);
-  }, [token, url]);
-
-  const openEditRelay = useCallback(
-    (configuredUrl: string) => {
-      setEditingUrl(configuredUrl);
-      url.value = configuredUrl;
-      setUrlValue(configuredUrl);
-      token.value = '';
-      setError(null);
-      setNotice(null);
-    },
-    [token, url]
-  );
-
-  const save = useCallback(
-    async (nextUrl = urlValue) => {
-      if (editingUrl === null) return;
-      setPending(true);
-      setError(null);
-      try {
-        const result = await saveRelay({
-          url: nextUrl,
-          accessToken: token.value,
-          previousUrl: editingUrl || undefined,
-        });
-        if (result.rejection) {
-          setError(t(rejectionKey[result.rejection]));
-          return;
-        }
-        resetEditor();
-        if ((await result.connection) === 'retrying') setNotice(t('relay.savedRetrying'));
-      } catch {
-        setError(t('relay.error.saveFailed'));
-      } finally {
-        setPending(false);
-      }
-    },
-    [editingUrl, resetEditor, saveRelay, t, token, urlValue]
-  );
-
   const view = overview.status === 'ready' ? describeRelayOverview(overview.value) : null;
-  const editingExistingRelay = Boolean(editingUrl);
-
   const statusCard = view ? (
     <Section>
       <HStack
@@ -204,14 +121,14 @@ export function RelaySettingsPage({ relay }: { relay: RelaySettingsController })
           key={configured.url}
           title={configured.url}
           subtitle={configured.credentialConfigured ? t('relay.credentialConfigured') : undefined}
-          onPress={() => openEditRelay(configured.url)}
+          onPress={() => onEditRelay(configured.url)}
         />
       ))}
       <SettingsNavRow
         testID="relay-add"
         icon="plus"
         title={t('relay.add')}
-        onPress={openAddRelay}
+        onPress={onAddRelay}
         showsChevron={false}
       />
     </Section>
@@ -220,58 +137,18 @@ export function RelaySettingsPage({ relay }: { relay: RelaySettingsController })
   return (
     <IosSheetPage title={t('relay.page.title')}>
       <IosSheetForm>
-        {editingUrl === null ? (
+        {statusCard}
+        {/* A saved custom relay replaces the built-in list, so it leads the page. */}
+        {relays.length > 0 ? (
           <>
-            {statusCard}
-            {/* A saved custom relay replaces the built-in list, so it leads the page. */}
-            {relays.length > 0 ? (
-              <>
-                {customSection}
-                {builtInSection}
-              </>
-            ) : (
-              <>
-                {builtInSection}
-                {customSection}
-              </>
-            )}
+            {customSection}
+            {builtInSection}
           </>
         ) : (
-          <Section
-            header={
-              <SwiftUIText>{editingExistingRelay ? t('relay.edit') : t('relay.add')}</SwiftUIText>
-            }
-            footer={<SwiftUIText>{t('relay.footer')}</SwiftUIText>}
-          >
-            <TextField
-              testID="relay-url-input"
-              text={url}
-              onTextChange={setUrlValue}
-              placeholder="https://relay.example.com"
-              modifiers={[keyboardType('url'), autocorrectionDisabled()]}
-            />
-            <TextField
-              testID="relay-token-input"
-              text={token}
-              placeholder={t('relay.token')}
-              modifiers={[autocorrectionDisabled()]}
-            />
-            {error ? <SwiftUIText>{error}</SwiftUIText> : null}
-            <Button
-              testID="relay-save"
-              label={t('relay.save')}
-              onPress={() => void save()}
-              modifiers={[disabled(pending || !urlValue.trim())]}
-            />
-            {editingExistingRelay ? (
-              <Button
-                label={t('relay.remove')}
-                onPress={() => void save('')}
-                modifiers={[disabled(pending)]}
-              />
-            ) : null}
-            <Button label={t('action.cancel', { ns: 'common' })} onPress={resetEditor} />
-          </Section>
+          <>
+            {builtInSection}
+            {customSection}
+          </>
         )}
       </IosSheetForm>
     </IosSheetPage>

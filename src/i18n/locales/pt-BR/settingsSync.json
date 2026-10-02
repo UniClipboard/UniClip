@@ -17,7 +17,6 @@
     "configured": "Configurado",
     "credentialConfigured": "Token de acesso salvo",
     "configuredCount": "{{count}} nós configurados",
-    "savedRetrying": "Salvo. A conexão está tentando novamente.",
     "footer": "Use um endereço HTTP ou HTTPS. O token fica apenas no armazenamento seguro deste dispositivo.",
     "error": {
       "saveFailed": "Não foi possível salvar o relay",
@@ -64,7 +63,10 @@
       "network": "Rede"
     },
     "retry": "Tentar novamente",
-    "listFooter": "Adicionar um relay personalizado substitui a lista integrada. O token de acesso fica apenas no armazenamento seguro deste dispositivo."
+    "listFooter": "Adicionar um relay personalizado substitui a lista integrada. O token de acesso fica apenas no armazenamento seguro deste dispositivo.",
+    "editor": {
+      "title": "Nó relay"
+    }
   },
   "space": {
     "title": "Meu Espaço",
