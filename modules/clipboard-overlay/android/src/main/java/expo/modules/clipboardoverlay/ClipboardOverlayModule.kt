@@ -39,6 +39,10 @@ class ClipboardOverlayModule : Module() {
         // far later than the RETRY_DELAY_MS*maxRetries window — so wait for the actual
         // onWindowFocusChanged callback before touching the clipboard.
         private const val FOCUS_WAIT_TIMEOUT_MS = 1000L
+        // alpha 0 makes SurfaceFlinger/InputDispatcher treat the window as NOT_VISIBLE, so it
+        // can never take focus: the foreground app loses focus until FOCUS_WAIT_TIMEOUT_MS
+        // expires on every read. A near-invisible but non-zero alpha lets focus land at once.
+        private const val IDLE_ALPHA = 0.01f
     }
 
     private var debugMode = false
@@ -194,7 +198,7 @@ class ClipboardOverlayModule : Module() {
                             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
                         PixelFormat.TRANSLUCENT
                     ).apply {
-                        alpha = if (debugMode) 0.7f else 0f
+                        alpha = if (debugMode) 0.7f else IDLE_ALPHA
                         gravity = Gravity.START or Gravity.TOP
                         x = 0
                         y = 0
@@ -394,6 +398,21 @@ class ClipboardOverlayModule : Module() {
     }
 
     /**
+     * Makes the overlay focusable for a clipboard read WITHOUT touching the keyboard.
+     * A focusable window normally becomes an IME target, so the system hides the foreground
+     * app's keyboard (HIDE_WINDOW_GAINED_FOCUS_WITHOUT_EDITOR) and restores it afterwards,
+     * which is visible as a flicker on every read. FLAG_ALT_FOCUSABLE_IM makes
+     * WindowManager.LayoutParams.mayUseInputMethod() false, so the IME is left alone.
+     */
+    private fun focusableFlags(flags: Int): Int =
+        (flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()) or
+            WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM
+
+    private fun unfocusableFlags(flags: Int): Int =
+        (flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) and
+            WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM.inv()
+
+    /**
      * Update the persistent overlay appearance based on current debug mode.
      * Must be called on main thread.
      */
@@ -405,7 +424,7 @@ class ClipboardOverlayModule : Module() {
         val overlaySize = if (debugMode) 200 else 1
         params.width = overlaySize
         params.height = overlaySize
-        params.alpha = if (debugMode) 0.7f else 0f
+        params.alpha = if (debugMode) 0.7f else IDLE_ALPHA
 
         if (debugMode) {
             view.setBackgroundColor(0xFFFF0000.toInt())
@@ -595,7 +614,7 @@ class ClipboardOverlayModule : Module() {
                 // Persistent overlay path: toggle focus on existing window
                 try {
                     // Step 1: Remove FLAG_NOT_FOCUSABLE to gain window focus
-                    params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+                    params.flags = focusableFlags(params.flags)
                     wm.updateViewLayout(view, params)
                     view.requestLayout()
 
@@ -603,7 +622,7 @@ class ClipboardOverlayModule : Module() {
                     runWhenFocused(view) {
                         op(context) {
                             try {
-                                params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                                params.flags = unfocusableFlags(params.flags)
                                 wm.updateViewLayout(view, params)
                             } catch (_: Exception) {}
                         }
@@ -611,7 +630,7 @@ class ClipboardOverlayModule : Module() {
                 } catch (e: Exception) {
                     // Restore FLAG_NOT_FOCUSABLE on error
                     try {
-                        params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                        params.flags = unfocusableFlags(params.flags)
                         wm.updateViewLayout(view, params)
                     } catch (_: Exception) {}
                     onError("ERR_OVERLAY_$tag", e.message ?: "Unknown error", e)
@@ -646,7 +665,7 @@ class ClipboardOverlayModule : Module() {
                             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
                         PixelFormat.TRANSLUCENT
                     ).apply {
-                        alpha = if (debugMode) 0.7f else 0f
+                        alpha = if (debugMode) 0.7f else IDLE_ALPHA
                         gravity = Gravity.START or Gravity.TOP
                         x = 0
                         y = 0
@@ -659,7 +678,7 @@ class ClipboardOverlayModule : Module() {
 
                     finalView.post {
                         try {
-                            tempParams.flags = tempParams.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+                            tempParams.flags = focusableFlags(tempParams.flags)
                             finalWm.updateViewLayout(finalView, tempParams)
                             finalView.requestLayout()
 
