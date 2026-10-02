@@ -15,10 +15,16 @@ appId: ${APP_ID}
 - tapOn: "Space password"
 - inputText: RelayE2E-passphrase
 - tapOn: "Create"
+# The system password prompt does not always appear; dismiss it only when it does.
 - extendedWaitUntil:
     visible: "Save Password?"
-    timeout: 30000
-- tapOn: "Not Now"
+    timeout: 8000
+    optional: true
+- runFlow:
+    when:
+      visible: "Save Password?"
+    commands:
+      - tapOn: "Not Now"
 - extendedWaitUntil:
     visible:
       id: space-finish-later
