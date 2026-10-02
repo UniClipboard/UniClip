@@ -178,6 +178,26 @@ class OverlayClipboardAdapter implements BackgroundClipboardAdapter {
   }
 }
 
+const SHIZUKU_PACKAGE = 'moe.shizuku.privileged.api';
+// Shizuku's launcher activity has no DEFAULT category, so an implicit intent never resolves.
+const SHIZUKU_LAUNCHER_ACTIVITY = 'moe.shizuku.manager.MainActivity';
+
+/** Launches the installed Shizuku app; false when it is missing or not visible to us. */
+async function openShizukuApp(): Promise<boolean> {
+  try {
+    // Loaded lazily: only the Shizuku setup path needs the native intent module.
+    const IntentLauncher = await import('expo-intent-launcher');
+    await IntentLauncher.startActivityAsync('android.intent.action.MAIN', {
+      packageName: SHIZUKU_PACKAGE,
+      className: SHIZUKU_LAUNCHER_ACTIVITY,
+      category: 'android.intent.category.LAUNCHER',
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 class ShizukuClipboardAdapter implements BackgroundClipboardAdapter {
   readonly method = 'shizuku' as const;
 
@@ -256,9 +276,13 @@ class ShizukuClipboardAdapter implements BackgroundClipboardAdapter {
         ? 'completed'
         : 'failed';
     }
-    if (state.status === 'unavailable' && state.setupUrl) {
-      await Linking.openURL(state.setupUrl);
-      return 'waiting-for-return';
+    if (state.status === 'unavailable') {
+      // Prefer the installed app; the web guide is only the fallback for a missing install.
+      if (await openShizukuApp()) return 'waiting-for-return';
+      if (state.setupUrl) {
+        await Linking.openURL(state.setupUrl);
+        return 'waiting-for-return';
+      }
     }
     if (state.status === 'unauthorized') {
       return this.requestAuthorization() ? 'waiting-for-return' : 'failed';

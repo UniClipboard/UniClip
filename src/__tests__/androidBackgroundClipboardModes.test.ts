@@ -21,6 +21,7 @@ describe('Android background clipboard modes', () => {
     jest.doMock('expo-clipboard', () => ({
       setStringAsync: jest.fn<() => Promise<boolean>>(async () => true),
     }));
+    jest.doMock('expo-intent-launcher', () => ({ startActivityAsync: jest.fn() }));
     jest.doMock('native-timer', () => ({
       setTimer: jest.fn(),
       clearTimer: jest.fn(),

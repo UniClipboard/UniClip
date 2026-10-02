@@ -1,6 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
 
+    <!-- Package visibility (Android 11+) so UniClip can launch the Shizuku app. -->
+    <queries>
+        <package android:name="moe.shizuku.privileged.api" />
+    </queries>
+
     <application>
         <provider
             android:name="rikka.shizuku.ShizukuProvider"
