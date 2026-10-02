@@ -303,6 +303,9 @@ public final class UcEngineModule: Module {
     AsyncFunction("queryCustomRelays") { () -> [[String: Any]] in
       try self.requireEngine().queryCustomRelays().map(Self.customRelayDictionary)
     }.runOnQueue(engineOperationQueue)
+    AsyncFunction("queryRelayOverview") { () -> [String: Any] in
+      Self.relayOverviewDictionary(try self.requireEngine().queryRelayOverview())
+    }.runOnQueue(engineOperationQueue)
     AsyncFunction("addCustomRelay") { (url: String, accessToken: String) -> [String: Any] in
       Self.customRelayMutationDictionary(
         try self.requireEngine().addCustomRelay(url: url, accessToken: accessToken)
@@ -572,6 +575,35 @@ public final class UcEngineModule: Module {
 
   private static func customRelayDictionary(_ relay: CustomRelay) -> [String: Any] {
     ["url": relay.url, "credentialConfigured": relay.credentialConfigured]
+  }
+
+  private static func relayRoutingModeName(_ mode: RelayRoutingMode) -> String {
+    switch mode {
+    case .builtIn: "builtIn"
+    case .custom: "custom"
+    case .disabled: "disabled"
+    }
+  }
+
+  private static func relayOverviewDictionary(_ overview: RelayOverview) -> [String: Any] {
+    var mapped: [String: Any] = [
+      "savedMode": relayRoutingModeName(overview.savedMode),
+      "changePending": overview.changePending,
+      "entries": overview.entries.map { entry -> [String: Any] in
+        var item: [String: Any] = [
+          "source": entry.source == .builtIn ? "builtIn" : "custom",
+          "url": entry.url,
+          "credentialConfigured": entry.credentialConfigured,
+          "inEffect": entry.inEffect,
+        ]
+        if let regionId = entry.regionId { item["regionId"] = regionId }
+        return item
+      },
+    ]
+    if let appliedMode = overview.appliedMode {
+      mapped["appliedMode"] = relayRoutingModeName(appliedMode)
+    }
+    return mapped
   }
 
   private static func customRelayMutationDictionary(

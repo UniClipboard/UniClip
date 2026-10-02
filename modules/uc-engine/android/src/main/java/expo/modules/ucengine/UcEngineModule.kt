@@ -61,6 +61,9 @@ import uniffi.uc_engine_uniffi.JoinSpaceStatus
 import uniffi.uc_engine_uniffi.JoinSpaceTerminationReason
 import uniffi.uc_engine_uniffi.MobileEngine
 import uniffi.uc_engine_uniffi.MobileStartupLifecycle
+import uniffi.uc_engine_uniffi.RelayEntrySource
+import uniffi.uc_engine_uniffi.RelayOverview
+import uniffi.uc_engine_uniffi.RelayRoutingMode
 import uniffi.uc_engine_uniffi.ResendEntryOutcome
 import uniffi.uc_engine_uniffi.SendReport
 import uniffi.uc_engine_uniffi.WorkspaceConvergence
@@ -127,6 +130,30 @@ private fun analyticsContext(): BindingAnalyticsContext = BindingAnalyticsContex
 private fun customRelayMap(relay: CustomRelay): Map<String, Any> = mapOf(
   "url" to relay.url,
   "credentialConfigured" to relay.credentialConfigured
+)
+
+private fun relayRoutingModeName(mode: RelayRoutingMode): String = when (mode) {
+  RelayRoutingMode.BUILT_IN -> "builtIn"
+  RelayRoutingMode.CUSTOM -> "custom"
+  RelayRoutingMode.DISABLED -> "disabled"
+}
+
+private fun relayOverviewMap(overview: RelayOverview): Map<String, Any?> = mapOf(
+  "savedMode" to relayRoutingModeName(overview.savedMode),
+  "appliedMode" to overview.appliedMode?.let(::relayRoutingModeName),
+  "changePending" to overview.changePending,
+  "entries" to overview.entries.map { entry ->
+    mapOf(
+      "source" to when (entry.source) {
+        RelayEntrySource.BUILT_IN -> "builtIn"
+        RelayEntrySource.CUSTOM -> "custom"
+      },
+      "regionId" to entry.regionId,
+      "url" to entry.url,
+      "credentialConfigured" to entry.credentialConfigured,
+      "inEffect" to entry.inEffect
+    )
+  }
 )
 
 private fun customRelayMutationMap(result: CustomRelayMutationResult): Map<String, Any?> = mapOf(
@@ -619,6 +646,10 @@ class UcEngineModule : Module() {
       val result = requireEngine().saveCustomRelay(url, accessToken, previousUrl)
       mapOf("configured" to result.configured)
     }
+    AsyncFunction("queryRelayOverview") {
+      relayOverviewMap(requireEngine().queryRelayOverview())
+    }
+
     AsyncFunction("queryCustomRelays") {
       requireEngine().queryCustomRelays().map(::customRelayMap)
     }

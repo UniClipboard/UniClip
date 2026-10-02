@@ -133,7 +133,11 @@ export interface SettingsNavRowProps {
   showsChevron?: boolean;
   showsPressFeedback?: boolean;
   accessibilityHint?: string;
-  onPress: () => void;
+  /** Informational row: same layout, but not a control. */
+  readOnly?: boolean;
+  /** Visually de-emphasized without becoming a disabled control. */
+  dimmed?: boolean;
+  onPress?: () => void;
 }
 
 type SettingsRowContentProps = Pick<
@@ -148,7 +152,7 @@ type SettingsRowContentProps = Pick<
   | 'destructive'
   | 'selected'
   | 'showsChevron'
->;
+> & { dimmed?: boolean };
 
 /**
  * Visual body shared by every full-width settings row. It fills the row and
@@ -165,9 +169,17 @@ function SettingsRowContent({
   destructive = false,
   selected = false,
   showsChevron = true,
+  dimmed = false,
 }: SettingsRowContentProps) {
   return (
-    <HStack spacing={12} modifiers={[frame({ maxWidth: Infinity }), contentShape(shapes.rectangle())]}>
+    <HStack
+      spacing={12}
+      modifiers={[
+        frame({ maxWidth: Infinity }),
+        contentShape(shapes.rectangle()),
+        ...(dimmed ? [opacity(0.5)] : []),
+      ]}
+    >
       {icon && iconColor ? (
         <SettingsIconTile systemName={icon} color={iconColor} />
       ) : icon ? (
@@ -235,12 +247,14 @@ export function SettingsNavRow({
   showsChevron = true,
   showsPressFeedback = true,
   accessibilityHint,
+  readOnly = false,
+  dimmed = false,
   onPress,
 }: SettingsNavRowProps) {
   const [isPressed, setIsPressed] = useState(false);
 
   const handlePress = () => {
-    if (disabled || isPressed) return;
+    if (disabled || isPressed || !onPress) return;
 
     if (!showsPressFeedback) {
       onPress();
@@ -253,6 +267,22 @@ export function SettingsNavRow({
       onPress();
     }, settingsNavigationDelayMs);
   };
+
+  if (readOnly) {
+    return (
+      <SettingsRowContent
+        icon={icon}
+        iconColor={iconColor}
+        title={title}
+        subtitle={subtitle}
+        value={value}
+        valueColor={valueColor}
+        badge={badge}
+        showsChevron={false}
+        dimmed={dimmed}
+      />
+    );
+  }
 
   return (
     <SwiftUIButton

@@ -1,12 +1,19 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 
-import { refreshCustomRelays, saveCustomRelay, type CustomRelay } from '@/features/relaySettings';
+import {
+  loadRelayOverview,
+  refreshCustomRelays,
+  saveCustomRelay,
+  type CustomRelay,
+} from '@/features/relaySettings';
+import type { RelayOverview } from '@/features/relayOverview';
 import { useCustomRelaySettings } from '@/screens/settings/useCustomRelaySettings';
 
 const mockUpdateConfig = jest.fn().mockResolvedValue(undefined);
 
 jest.mock('@/features/relaySettings', () => ({
+  loadRelayOverview: jest.fn(),
   refreshCustomRelays: jest.fn(),
   saveCustomRelay: jest.fn(),
 }));
@@ -21,6 +28,14 @@ jest.mock('@/stores', () => ({
 
 const mockedRefresh = jest.mocked(refreshCustomRelays);
 const mockedSave = jest.mocked(saveCustomRelay);
+const mockedOverview = jest.mocked(loadRelayOverview);
+const overviewFixture = (patch: Partial<RelayOverview> = {}): RelayOverview => ({
+  savedMode: 'builtIn',
+  appliedMode: 'builtIn',
+  changePending: false,
+  entries: [],
+  ...patch,
+});
 let currentHook: ReturnType<typeof useCustomRelaySettings>;
 
 function deferred<T>() {
@@ -260,4 +275,100 @@ it('refreshes only after a save that was already in flight settles', async () =>
   } finally {
     act(() => view.unmount());
   }
+});
+
+describe('relay overview state', () => {
+  beforeEach(() => {
+    mockedRefresh.mockReset().mockResolvedValue([]);
+    mockedSave.mockReset();
+    mockedOverview.mockReset();
+  });
+
+  it('reports loading, then ready with the Engine overview', async () => {
+    const pending = deferred<RelayOverview>();
+    mockedOverview.mockReturnValueOnce(pending.promise);
+    let view!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      view = TestRenderer.create(<Harness />);
+    });
+    try {
+      expect(currentHook.overview).toEqual({ status: 'loading' });
+      const ready = overviewFixture();
+      await act(async () => {
+        pending.resolve(ready);
+        await pending.promise;
+      });
+      expect(currentHook.overview).toEqual({ status: 'ready', value: ready });
+    } finally {
+      act(() => view.unmount());
+    }
+  });
+
+  it('shows a retryable error instead of an empty overview, then recovers on retry', async () => {
+    mockedOverview.mockRejectedValueOnce(new Error('unavailable'));
+    let view!: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      view = TestRenderer.create(<Harness />);
+    });
+    try {
+      expect(currentHook.overview).toEqual({ status: 'error' });
+      const ready = overviewFixture();
+      mockedOverview.mockResolvedValueOnce(ready);
+      await act(async () => {
+        await currentHook.retryOverview();
+      });
+      expect(currentHook.overview).toEqual({ status: 'ready', value: ready });
+    } finally {
+      act(() => view.unmount());
+    }
+  });
+
+  it('refreshes from Engine after a save and again after the connection settles', async () => {
+    mockedOverview.mockResolvedValue(overviewFixture());
+    let view!: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      view = TestRenderer.create(<Harness />);
+    });
+    try {
+      const pendingChange = overviewFixture({ savedMode: 'custom', changePending: true });
+      const applied = overviewFixture({ savedMode: 'custom', appliedMode: 'custom' });
+      const connection = deferred<'rebuilt'>();
+      mockedSave.mockResolvedValue({ relays: [], connection: connection.promise });
+      mockedOverview.mockResolvedValueOnce(pendingChange).mockResolvedValueOnce(applied);
+      await act(async () => {
+        await currentHook.save({ url: 'https://mine.example.com', accessToken: '' });
+      });
+      expect(currentHook.overview).toEqual({ status: 'ready', value: pendingChange });
+      await act(async () => {
+        connection.resolve('rebuilt');
+        await connection.promise;
+      });
+      expect(currentHook.overview).toEqual({ status: 'ready', value: applied });
+    } finally {
+      act(() => view.unmount());
+    }
+  });
+
+  it('does not let an older overview read overwrite a newer one', async () => {
+    const first = deferred<RelayOverview>();
+    mockedOverview.mockReturnValueOnce(first.promise);
+    let view!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      view = TestRenderer.create(<Harness />);
+    });
+    try {
+      const latest = overviewFixture({ savedMode: 'custom' });
+      mockedOverview.mockResolvedValueOnce(latest);
+      await act(async () => {
+        await currentHook.retryOverview();
+      });
+      await act(async () => {
+        first.resolve(overviewFixture());
+        await first.promise;
+      });
+      expect(currentHook.overview).toEqual({ status: 'ready', value: latest });
+    } finally {
+      act(() => view.unmount());
+    }
+  });
 });

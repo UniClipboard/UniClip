@@ -25,6 +25,34 @@
       "invalidUrl": "Insira um endereço HTTP ou HTTPS válido",
       "duplicate": "Este relay já existe",
       "notFound": "Este relay não existe mais"
+    },
+    "builtIn": {
+      "title": "Relays integrados",
+      "footer": "Somente leitura. Estes relays vêm com o mecanismo de rede do app. Estar na lista não significa que estejam acessíveis.",
+      "loading": "Carregando relays…",
+      "loadFailed": "Não foi possível carregar os relays integrados. Toque para tentar novamente."
+    },
+    "source": {
+      "builtIn": "Integrado"
+    },
+    "region": {
+      "na-east": "América do Norte (leste)",
+      "na-west": "América do Norte (oeste)",
+      "eu": "Europa",
+      "asia-pacific": "Ásia-Pacífico"
+    },
+    "usage": {
+      "inEffect": "Configurado no nó em execução",
+      "notApplied": "Ainda não aplicado ao nó em execução",
+      "replacedByCustom": "Não usado enquanto houver relays personalizados",
+      "off": "Relays desativados"
+    },
+    "status": {
+      "builtIn": "Configuração salva: relays integrados",
+      "custom": "Configuração salva: seus relays personalizados",
+      "off": "Relays desativados",
+      "nodeNotStarted": "O nó de rede ainda não foi iniciado.",
+      "pending": "Salvo, mas ainda não aplicado. Entra em vigor depois que o nó de rede for totalmente recriado, por exemplo ao reiniciar o app."
     }
   },
   "space": {

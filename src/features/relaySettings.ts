@@ -1,4 +1,5 @@
 import { createLogger } from '@/support/observability';
+import type { RelayOverview } from './relayOverview';
 
 export interface CustomRelay {
   url: string;
@@ -12,6 +13,7 @@ export interface RelayMutationResult {
 }
 export interface RelaySettingsApi {
   queryCustomRelays(): Promise<CustomRelay[]>;
+  queryRelayOverview(): Promise<RelayOverview>;
   addCustomRelay(url: string, accessToken: string): Promise<RelayMutationResult>;
   editCustomRelay(previousUrl: string, url: string, accessToken: string): Promise<RelayMutationResult>;
   deleteCustomRelay(url: string): Promise<RelayMutationResult>;
@@ -54,6 +56,11 @@ async function importLegacyRelays(candidates: string[], index = 0): Promise<void
     `relay migration engine result outcome=${result.rejection ?? 'saved'} relayCount=${result.relays.length}`
   );
   await importLegacyRelays(candidates, index + 1);
+}
+
+/** Reads the Engine-owned overview. Errors are surfaced; they are never an empty overview. */
+export function loadRelayOverview(): Promise<RelayOverview> {
+  return configuredApi().queryRelayOverview();
 }
 
 export async function refreshCustomRelays(legacyUrls: string[] = []): Promise<CustomRelay[]> {

@@ -68,6 +68,7 @@ describe('unified P2P engine native module', () => {
 
     for (const operation of [
       'queryCustomRelays',
+      'queryRelayOverview',
       'addCustomRelay',
       'editCustomRelay',
       'deleteCustomRelay',

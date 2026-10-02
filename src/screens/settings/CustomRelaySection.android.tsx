@@ -24,6 +24,7 @@ import {
 import { useTranslation } from 'react-i18next';
 
 import { AppTextField, SheetPageTransition } from '@/components/ui';
+import { BUILT_IN_USAGE_KEY, describeRelayOverview } from '@/features/relayOverview';
 import type { RelayMutationRejection } from '@/features/relaySettings';
 import { SettingsSectionItem, useSettingsSectionRowColors } from './SettingsSectionItem';
 import { SettingsLeadingIcon } from './android/SettingsLeadingIcon';
@@ -67,7 +68,15 @@ const rejectionKey: Record<RelayMutationRejection, string> = {
 export function CustomRelaySection() {
   const { t } = useTranslation('settingsSync');
   const colors = useMaterialColors();
-  const { relays, refresh, save: saveRelay, initialRefreshFailed } = useCustomRelaySettings();
+  const {
+    relays,
+    refresh,
+    save: saveRelay,
+    initialRefreshFailed,
+    overview,
+    retryOverview,
+  } = useCustomRelaySettings();
+  const overviewView = overview.status === 'ready' ? describeRelayOverview(overview.value) : null;
   const configuredUrls = relays.map(({ url: relayUrl }) => relayUrl);
   const [url, setUrl] = useState('');
   const [token, setToken] = useState('');
@@ -147,7 +156,9 @@ export function CustomRelaySection() {
           summary={
             configuredUrls.length > 0
               ? t('relay.configuredCount', { count: configuredUrls.length })
-              : t('relay.summary')
+              : overviewView
+                ? t(overviewView.statusKey)
+                : t('relay.summary')
           }
           onOpen={() => {
             setShowRelaySettings(true);
@@ -175,6 +186,65 @@ export function CustomRelaySection() {
                   <ComposeText color={colors.onSurfaceVariant}>{t('relay.footer')}</ComposeText>
                   {notice ? <ComposeText color={colors.onSurfaceVariant}>{notice}</ComposeText> : null}
                   <Spacer modifiers={[heightModifier(20)]} />
+                  <ComposeText style={SHEET_TITLE_STYLE}>{t('relay.builtIn.title')}</ComposeText>
+                  <Spacer modifiers={[heightModifier(8)]} />
+                  <ComposeText color={colors.onSurfaceVariant}>{t('relay.builtIn.footer')}</ComposeText>
+                  {overview.status === 'loading' ? (
+                    <ComposeText color={colors.onSurfaceVariant}>{t('relay.builtIn.loading')}</ComposeText>
+                  ) : null}
+                  {overview.status === 'error' ? (
+                    <ListItem
+                      modifiers={[testID('relay-overview-retry'), clickable(() => void retryOverview())]}
+                    >
+                      <ListItem.HeadlineContent>
+                        <ComposeText color={colors.error}>{t('relay.builtIn.loadFailed')}</ComposeText>
+                      </ListItem.HeadlineContent>
+                    </ListItem>
+                  ) : null}
+                  {overviewView ? (
+                    <>
+                      <ComposeText color={colors.onSurfaceVariant}>{t(overviewView.statusKey)}</ComposeText>
+                      {overviewView.nodeNotStarted ? (
+                        <ComposeText color={colors.onSurfaceVariant}>
+                          {t('relay.status.nodeNotStarted')}
+                        </ComposeText>
+                      ) : null}
+                      {overviewView.changePending ? (
+                        <ComposeText color={colors.onSurfaceVariant}>{t('relay.status.pending')}</ComposeText>
+                      ) : null}
+                      {overviewView.builtInRows.map((row) => (
+                        <ListItem key={row.key} modifiers={[testID(`relay-builtin-${row.key}`)]}>
+                          <ListItem.HeadlineContent>
+                            <ComposeText
+                              color={
+                                row.usage === 'replacedByCustom' || row.usage === 'off'
+                                  ? colors.onSurfaceVariant
+                                  : colors.onSurface
+                              }
+                            >
+                              {row.regionKey ? t(row.regionKey) : row.url}
+                            </ComposeText>
+                          </ListItem.HeadlineContent>
+                          <ListItem.SupportingContent>
+                            <Column>
+                              {row.regionKey ? (
+                                <ComposeText color={colors.onSurfaceVariant}>{row.url}</ComposeText>
+                              ) : null}
+                              <ComposeText color={colors.onSurfaceVariant}>
+                                {t(BUILT_IN_USAGE_KEY[row.usage])}
+                              </ComposeText>
+                            </Column>
+                          </ListItem.SupportingContent>
+                          <ListItem.TrailingContent>
+                            <ComposeText color={colors.onSurfaceVariant}>{t('relay.source.builtIn')}</ComposeText>
+                          </ListItem.TrailingContent>
+                        </ListItem>
+                      ))}
+                    </>
+                  ) : null}
+                  <Spacer modifiers={[heightModifier(20)]} />
+                  <ComposeText style={SHEET_TITLE_STYLE}>{t('relay.title')}</ComposeText>
+                  <Spacer modifiers={[heightModifier(8)]} />
                   {configuredUrls.length === 0 ? (
                     <ComposeText color={colors.onSurfaceVariant}>{t('relay.summary')}</ComposeText>
                   ) : (

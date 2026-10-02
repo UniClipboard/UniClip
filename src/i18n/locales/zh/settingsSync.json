@@ -25,6 +25,34 @@
       "invalidUrl": "请输入有效的 HTTP 或 HTTPS 地址",
       "duplicate": "该中继节点已存在",
       "notFound": "该中继节点已不存在"
+    },
+    "builtIn": {
+      "title": "内置中继节点",
+      "footer": "只读。这些节点随应用的网络引擎提供。列出节点并不代表它当前可连通。",
+      "loading": "正在加载中继节点…",
+      "loadFailed": "无法加载内置中继节点，点按重试。"
+    },
+    "source": {
+      "builtIn": "内置"
+    },
+    "region": {
+      "na-east": "北美东部",
+      "na-west": "北美西部",
+      "eu": "欧洲",
+      "asia-pacific": "亚太"
+    },
+    "usage": {
+      "inEffect": "运行中的节点已按此配置",
+      "notApplied": "尚未应用到运行中的节点",
+      "replacedByCustom": "设置自定义节点后不使用",
+      "off": "中继已关闭"
+    },
+    "status": {
+      "builtIn": "已保存设置：使用内置中继节点",
+      "custom": "已保存设置：使用自定义中继节点",
+      "off": "中继已关闭",
+      "nodeNotStarted": "网络节点尚未启动。",
+      "pending": "已保存，但尚未应用。需要完整重建网络节点后生效，例如重启应用。"
     }
   },
   "space": {

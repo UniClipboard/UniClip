@@ -1,12 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import type { RelayOverview } from '@/features/relayOverview';
 import {
+  loadRelayOverview,
   refreshCustomRelays,
   saveCustomRelay,
   type CustomRelay,
   type RelaySaveOutcome,
 } from '@/features/relaySettings';
 import { useSettingsStore } from '@/stores';
+
+export type RelayOverviewState =
+  | { status: 'loading' }
+  | { status: 'error' }
+  | { status: 'ready'; value: RelayOverview };
 
 export function useCustomRelaySettings() {
   const legacyUrls = useSettingsStore((state) => state.config?.customRelayUrls ?? []);
@@ -17,7 +24,25 @@ export function useCustomRelaySettings() {
   const pendingLegacyUrls = useRef(initialLegacyUrls).current;
   const migrationPending = useRef(pendingLegacyUrls.length > 0);
   const operationGeneration = useRef(0);
+  const [overview, setOverview] = useState<RelayOverviewState>({ status: 'loading' });
+  const overviewGeneration = useRef(0);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
+
+  // Engine owns the overview; the latest read always wins and a failure is never shown as empty.
+  const readOverview = useCallback(async (): Promise<void> => {
+    const generation = ++overviewGeneration.current;
+    try {
+      const value = await loadRelayOverview();
+      if (generation === overviewGeneration.current) setOverview({ status: 'ready', value });
+    } catch {
+      if (generation === overviewGeneration.current) setOverview({ status: 'error' });
+    }
+  }, []);
+
+  const retryOverview = useCallback((): Promise<void> => {
+    setOverview({ status: 'loading' });
+    return readOverview();
+  }, [readOverview]);
 
   const load = useCallback(async (): Promise<CustomRelay[]> => {
     const legacyUrlsToMigrate = migrationPending.current ? pendingLegacyUrls : [];
@@ -32,13 +57,14 @@ export function useCustomRelaySettings() {
   const refresh = useCallback(async (): Promise<CustomRelay[]> => {
     const generation = ++operationGeneration.current;
     await saveQueue.current;
+    void readOverview();
     const current = await load();
     if (generation === operationGeneration.current) {
       setRelays(current);
       setInitialRefreshFailed(false);
     }
     return current;
-  }, [load]);
+  }, [load, readOverview]);
 
   useEffect(() => {
     let active = true;
@@ -58,6 +84,10 @@ export function useCustomRelaySettings() {
     };
   }, [load]);
 
+  useEffect(() => {
+    void readOverview();
+  }, [readOverview]);
+
   const save = useCallback(
     (input: Parameters<typeof saveCustomRelay>[0]): Promise<RelaySaveOutcome> => {
       const generation = ++operationGeneration.current;
@@ -65,6 +95,8 @@ export function useCustomRelaySettings() {
         try {
           const result = await saveCustomRelay(input);
           if (generation === operationGeneration.current) setRelays(result.relays);
+          void readOverview();
+          void result.connection.then(() => readOverview());
           return result;
         } catch (error) {
           if (generation === operationGeneration.current) {
@@ -81,8 +113,8 @@ export function useCustomRelaySettings() {
       );
       return queued;
     },
-    [load]
+    [load, readOverview]
   );
 
-  return { relays, refresh, save, initialRefreshFailed };
+  return { relays, refresh, save, initialRefreshFailed, overview, retryOverview };
 }

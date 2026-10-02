@@ -2,6 +2,7 @@ import { describe, expect, it, jest } from '@jest/globals';
 jest.mock('app-group-store', () => ({ getEngineLogFileUris: () => [] }));
 import {
   configureRelaySettings,
+  loadRelayOverview,
   refreshCustomRelays,
   saveCustomRelay,
   type CustomRelay,
@@ -12,6 +13,12 @@ const relay = (url: string, credentialConfigured = false): CustomRelay => ({ url
 function api(overrides: Partial<RelaySettingsApi> = {}): RelaySettingsApi {
   return {
     queryCustomRelays: jest.fn<RelaySettingsApi['queryCustomRelays']>().mockResolvedValue([]),
+    queryRelayOverview: jest.fn<RelaySettingsApi['queryRelayOverview']>().mockResolvedValue({
+      savedMode: 'builtIn',
+      appliedMode: 'builtIn',
+      changePending: false,
+      entries: [],
+    }),
     addCustomRelay: jest.fn<RelaySettingsApi['addCustomRelay']>().mockResolvedValue({ relays: [] }),
     editCustomRelay: jest.fn<RelaySettingsApi['editCustomRelay']>().mockResolvedValue({ relays: [] }),
     deleteCustomRelay: jest.fn<RelaySettingsApi['deleteCustomRelay']>().mockResolvedValue({ relays: [] }),
@@ -25,6 +32,12 @@ function source(relativePath: string): string {
 }
 
 describe('custom relay settings', () => {
+  it('reads the relay overview from Engine and propagates failures instead of returning an empty list', async () => {
+    const failure = new Error('relay store unavailable');
+    configureRelaySettings(api({ queryRelayOverview: jest.fn().mockRejectedValue(failure) }));
+    await expect(loadRelayOverview()).rejects.toBe(failure);
+  });
+
   it('uses Engine data directly when the legacy Mobile cache is empty', async () => {
     const engine = [relay('https://engine.example.com', true)];
     const client = api({ queryCustomRelays: jest.fn().mockResolvedValue(engine) });

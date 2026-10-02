@@ -35,6 +35,26 @@ export interface CustomRelayMutationResult {
   rejection?: CustomRelayMutationRejection;
 }
 
+export type RelayRoutingMode = 'builtIn' | 'custom' | 'disabled';
+
+export interface RelayOverviewEntry {
+  source: 'builtIn' | 'custom';
+  /** Built-in entries only; unknown future ids must fall back to showing the URL. */
+  regionId?: string | null;
+  url: string;
+  credentialConfigured: boolean;
+  /** The running node is configured with this relay. It is not a connectivity claim. */
+  inEffect: boolean;
+}
+
+export interface RelayOverview {
+  savedMode: RelayRoutingMode;
+  /** Absent until the network node has been built. */
+  appliedMode?: RelayRoutingMode | null;
+  changePending: boolean;
+  entries: RelayOverviewEntry[];
+}
+
 export type EngineState =
   | 'running'
   | 'quiescing'
@@ -382,6 +402,7 @@ interface UcEngineNativeModule {
     previousUrl?: string
   ): Promise<RelaySaveResult>;
   queryCustomRelays(): Promise<CustomRelay[]>;
+  queryRelayOverview(): Promise<RelayOverview>;
   addCustomRelay(url: string, accessToken: string): Promise<CustomRelayMutationResult>;
   editCustomRelay(
     previousUrl: string,
@@ -499,6 +520,10 @@ export function saveCustomRelayNode(
 
 export function queryCustomRelays(): Promise<CustomRelay[]> {
   return NativeModule.queryCustomRelays();
+}
+
+export function queryRelayOverview(): Promise<RelayOverview> {
+  return NativeModule.queryRelayOverview();
 }
 
 export function addCustomRelay(

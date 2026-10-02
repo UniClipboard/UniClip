@@ -1,14 +1,18 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 
-import { saveCustomRelay } from '@/features/relaySettings';
+import { loadRelayOverview, saveCustomRelay } from '@/features/relaySettings';
+import type { RelayOverview } from '@/features/relayOverview';
 import { CustomRelaySection } from '@/screens/settings/CustomRelaySection.ios';
 
 jest.mock('app-group-store', () => ({
   getEngineLogFileUris: () => [],
 }));
 
+const mockUpdateConfig = jest.fn();
+
 jest.mock('@/features/relaySettings', () => ({
+  loadRelayOverview: jest.fn(),
   refreshCustomRelays: jest.fn().mockResolvedValue([]),
   saveCustomRelay: jest.fn(),
 }));
@@ -21,7 +25,7 @@ jest.mock('@/stores', () => ({
   useSettingsStore: (selector: (state: object) => unknown) =>
     selector({
       config: { customRelayUrls: [] },
-      updateConfig: jest.fn(),
+      updateConfig: mockUpdateConfig,
     }),
 }));
 
@@ -51,6 +55,28 @@ jest.mock('@expo/ui/swift-ui/modifiers', () => ({
 }));
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+const builtInEntry = (regionId: string | null, url: string, inEffect = true) => ({
+  source: 'builtIn' as const,
+  regionId,
+  url,
+  credentialConfigured: false,
+  inEffect,
+});
+const overview = (patch: Partial<RelayOverview> = {}): RelayOverview => ({
+  savedMode: 'builtIn',
+  appliedMode: 'builtIn',
+  changePending: false,
+  entries: [],
+  ...patch,
+});
+beforeEach(() => {
+  jest.mocked(loadRelayOverview).mockReset().mockResolvedValue(overview());
+});
+const builtInRows = (view: TestRenderer.ReactTestRenderer) =>
+  view.root.findAllByType('SettingsNavRow' as never).filter((row) => row.props.readOnly);
+const textOf = (view: TestRenderer.ReactTestRenderer) =>
+  view.root.findAllByType('Text' as never).map((text) => text.children.join(''));
 
 it('enables Save relay after an iOS user enters a relay address', () => {
   let view!: TestRenderer.ReactTestRenderer;
@@ -123,6 +149,113 @@ it('keeps the editor open and shows a duplicate relay error', async () => {
     expect(
       view.root.findAllByType('Text' as never).some((text) => text.children.includes('relay.error.duplicate'))
     ).toBe(true);
+  } finally {
+    act(() => view.unmount());
+  }
+});
+
+it('lists built-in relays as read-only rows with a localized name, address and source', async () => {
+  jest.mocked(loadRelayOverview).mockResolvedValue(
+    overview({
+      entries: [
+        builtInEntry('eu', 'https://eu.relay.example./'),
+        builtInEntry('mars', 'https://mars.relay.example./'),
+      ],
+    })
+  );
+  let view!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    view = TestRenderer.create(<CustomRelaySection />);
+  });
+  try {
+    const rows = builtInRows(view);
+    expect(rows.map((row) => row.props.title)).toEqual(['relay.region.eu', 'https://mars.relay.example./']);
+    expect(rows[0].props.subtitle).toContain('https://eu.relay.example./');
+    expect(rows[0].props.value).toBe('relay.source.builtIn');
+    expect(rows.every((row) => row.props.showsChevron === false && !row.props.onPress)).toBe(true);
+  } finally {
+    act(() => view.unmount());
+  }
+});
+
+it('does not claim built-in relays are connected and reports a pending change as needing a full rebuild', async () => {
+  jest.mocked(loadRelayOverview).mockResolvedValue(
+    overview({
+      savedMode: 'custom',
+      changePending: true,
+      entries: [builtInEntry('eu', 'https://eu.relay.example./')],
+    })
+  );
+  let view!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    view = TestRenderer.create(<CustomRelaySection />);
+  });
+  try {
+    const texts = textOf(view);
+    expect(texts).toContain('relay.status.pending');
+    expect(JSON.stringify(texts)).not.toMatch(/connected/i);
+  } finally {
+    act(() => view.unmount());
+  }
+});
+
+it('shows a full-row retry when the overview cannot be loaded and recovers on retry', async () => {
+  jest.mocked(loadRelayOverview).mockRejectedValueOnce(new Error('unavailable'));
+  let view!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    view = TestRenderer.create(<CustomRelaySection />);
+  });
+  try {
+    const retry = view.root
+      .findAllByType('SettingsNavRow' as never)
+      .find((row) => row.props.testID === 'relay-overview-retry')!;
+    expect(retry.props.title).toBe('relay.builtIn.loadFailed');
+    expect(retry.props.readOnly).not.toBe(true);
+    expect(retry.props.onPress).toEqual(expect.any(Function));
+    jest.mocked(loadRelayOverview).mockResolvedValueOnce(
+      overview({ entries: [builtInEntry('eu', 'https://eu.relay.example./')] })
+    );
+    await act(async () => retry.props.onPress());
+    expect(builtInRows(view).map((row) => row.props.title)).toEqual(['relay.region.eu']);
+  } finally {
+    act(() => view.unmount());
+  }
+});
+
+it('says no node has started when Engine reports no applied mode', async () => {
+  jest.mocked(loadRelayOverview).mockResolvedValue(
+    overview({ appliedMode: null, entries: [builtInEntry('eu', 'https://eu.relay.example./', false)] })
+  );
+  let view!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    view = TestRenderer.create(<CustomRelaySection />);
+  });
+  try {
+    expect(textOf(view)).toContain('relay.status.nodeNotStarted');
+    expect(builtInRows(view)[0].props.subtitle).toContain(
+      'relay.usage.notApplied'
+    );
+  } finally {
+    act(() => view.unmount());
+  }
+});
+
+it('keeps the built-in list out of the editor so custom entries stay separate', async () => {
+  jest.mocked(loadRelayOverview).mockResolvedValue(
+    overview({ entries: [builtInEntry('eu', 'https://eu.relay.example./')] })
+  );
+  let view!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    view = TestRenderer.create(<CustomRelaySection />);
+  });
+  try {
+    act(() =>
+      view.root
+        .findAllByType('SettingsNavRow' as never)
+        .find((row) => row.props.testID === 'relay-add')!
+        .props.onPress()
+    );
+    expect(view.root.findAllByType('SettingsNavRow' as never)).toHaveLength(0);
   } finally {
     act(() => view.unmount());
   }

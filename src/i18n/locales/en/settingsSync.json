@@ -25,6 +25,34 @@
       "invalidUrl": "Enter a valid HTTP or HTTPS address",
       "duplicate": "This relay already exists",
       "notFound": "This relay no longer exists"
+    },
+    "builtIn": {
+      "title": "Built-in relays",
+      "footer": "Read-only. These relays come with the app's network engine. Listing a relay here does not mean it is reachable.",
+      "loading": "Loading relays…",
+      "loadFailed": "Could not load built-in relays. Tap to retry."
+    },
+    "source": {
+      "builtIn": "Built-in"
+    },
+    "region": {
+      "na-east": "North America East",
+      "na-west": "North America West",
+      "eu": "Europe",
+      "asia-pacific": "Asia Pacific"
+    },
+    "usage": {
+      "inEffect": "Configured on the running node",
+      "notApplied": "Not applied to the running node",
+      "replacedByCustom": "Not used while custom relays are set",
+      "off": "Relays are off"
+    },
+    "status": {
+      "builtIn": "Saved setting: built-in relays",
+      "custom": "Saved setting: your custom relays",
+      "off": "Relays are off",
+      "nodeNotStarted": "The network node has not started yet.",
+      "pending": "Saved, but not applied yet. It takes effect after the network node is fully rebuilt, for example when the app restarts."
     }
   },
   "space": {

@@ -10,6 +10,7 @@ import { autocorrectionDisabled, disabled, keyboardType } from '@expo/ui/swift-u
 import { useTranslation } from 'react-i18next';
 
 import type { RelayMutationRejection } from '@/features/relaySettings';
+import { BUILT_IN_USAGE_KEY, describeRelayOverview } from '@/features/relayOverview';
 import { SettingsNavRow } from './ios/common';
 import { useCustomRelaySettings } from './useCustomRelaySettings';
 
@@ -21,7 +22,13 @@ const rejectionKey: Record<RelayMutationRejection, string> = {
 
 export function CustomRelaySection() {
   const { t } = useTranslation('settingsSync');
-  const { relays, save: saveRelay, initialRefreshFailed } = useCustomRelaySettings();
+  const {
+    relays,
+    save: saveRelay,
+    initialRefreshFailed,
+    overview,
+    retryOverview,
+  } = useCustomRelaySettings();
   const configuredUrls = relays.map(({ url: relayUrl }) => relayUrl);
   const url = useNativeState('');
   const token = useNativeState('');
@@ -97,7 +104,10 @@ export function CustomRelaySection() {
 
   const editingExistingRelay = Boolean(editingUrl);
 
+  const view = overview.status === 'ready' ? describeRelayOverview(overview.value) : null;
+
   return (
+    <>
     <Section
       header={<SwiftUIText>{t('relay.title')}</SwiftUIText>}
       footer={<SwiftUIText>{t('relay.footer')}</SwiftUIText>}
@@ -154,5 +164,44 @@ export function CustomRelaySection() {
         </>
       )}
     </Section>
+    {editingUrl === null ? (
+      <Section
+        header={<SwiftUIText>{t('relay.builtIn.title')}</SwiftUIText>}
+        footer={<SwiftUIText>{t('relay.builtIn.footer')}</SwiftUIText>}
+      >
+        {overview.status === 'loading' ? (
+          <SwiftUIText>{t('relay.builtIn.loading')}</SwiftUIText>
+        ) : null}
+        {overview.status === 'error' ? (
+          <SettingsNavRow
+            testID="relay-overview-retry"
+            title={t('relay.builtIn.loadFailed')}
+            showsChevron={false}
+            onPress={() => void retryOverview()}
+          />
+        ) : null}
+        {view ? (
+          <>
+            <SwiftUIText>{t(view.statusKey)}</SwiftUIText>
+            {view.nodeNotStarted ? <SwiftUIText>{t('relay.status.nodeNotStarted')}</SwiftUIText> : null}
+            {view.changePending ? <SwiftUIText>{t('relay.status.pending')}</SwiftUIText> : null}
+            {view.builtInRows.map((row) => (
+              <SettingsNavRow
+                key={row.key}
+                readOnly
+                dimmed={row.usage === 'replacedByCustom' || row.usage === 'off'}
+                showsChevron={false}
+                title={row.regionKey ? t(row.regionKey) : row.url}
+                subtitle={[row.regionKey ? row.url : null, t(BUILT_IN_USAGE_KEY[row.usage])]
+                  .filter(Boolean)
+                  .join('\n')}
+                value={t('relay.source.builtIn')}
+              />
+            ))}
+          </>
+        ) : null}
+      </Section>
+    ) : null}
+    </>
   );
 }

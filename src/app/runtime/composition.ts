@@ -97,6 +97,7 @@ export function configureAppRuntime(): void {
   configureAnalyticsConsent(nativeEngine);
   configureRelaySettings({
     queryCustomRelays: nativeEngine.queryCustomRelays,
+    queryRelayOverview: nativeEngine.queryRelayOverview,
     addCustomRelay: nativeEngine.addCustomRelay,
     editCustomRelay: nativeEngine.editCustomRelay,
     deleteCustomRelay: nativeEngine.deleteCustomRelay,

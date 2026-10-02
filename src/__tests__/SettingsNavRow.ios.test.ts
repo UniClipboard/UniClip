@@ -55,7 +55,7 @@ describe('iOS settings navigation rows', () => {
     const row = navRowSource();
 
     expect(row).toMatch(
-      /<HStack spacing=\{12\} modifiers=\{\[frame\(\{ maxWidth: Infinity \}\), contentShape\(shapes\.rectangle\(\)\)\]\}/
+      /<HStack\s+spacing=\{12\}\s+modifiers=\{\[\s*frame\(\{ maxWidth: Infinity \}\),\s*contentShape\(shapes\.rectangle\(\)\),/
     );
   });
 
