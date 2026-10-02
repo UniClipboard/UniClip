@@ -20,6 +20,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Test issue lifecycle with mocked GitHub APIs
+        run: node --test scripts/tests/issue-lifecycle.test.mjs
+
       - name: Run CI tests
         run: npm run test:ci
 

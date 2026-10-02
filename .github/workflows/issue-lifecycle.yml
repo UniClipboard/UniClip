@@ -1,0 +1,68 @@
+name: Issue lifecycle
+run-name: >-
+  ${{ github.event_name == 'release'
+    && format('issue-lifecycle-{0}', github.event.release.tag_name)
+    || github.event_name == 'repository_dispatch'
+    && format('issue-lifecycle-{0}', github.event.client_payload.tag_name)
+    || format('issue-lifecycle-{0}', github.event_name) }}
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+  # Closed-only target event supports merged fork PRs with a write token.
+  # Privileged jobs only load code from the default branch, never the PR head.
+  pull_request_target:
+    types: [closed]
+  issue_comment:
+    types: [created]
+  release:
+    types: [published]
+  repository_dispatch:
+    types: [issue-lifecycle-release]
+
+permissions: {}
+
+jobs:
+  validate-issue-references:
+    name: Validate issue references
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            await require('./.github/scripts/issue-lifecycle.cjs').run({ github, context, core }, 'validate');
+
+  lifecycle:
+    name: Update issue lifecycle
+    if: >-
+      (github.event_name == 'pull_request_target' && github.event.pull_request.merged == true) ||
+      (github.event_name == 'issue_comment' && !github.event.issue.pull_request && startsWith(github.event.comment.body, '/verify ')) ||
+      github.event_name == 'release' ||
+      (github.event_name == 'repository_dispatch' && github.event.action == 'issue-lifecycle-release')
+    runs-on: ubuntu-latest
+    # Coalesce duplicates for one release/issue/PR without blocking unrelated events.
+    concurrency:
+      group: >-
+        issue-lifecycle-${{ github.event.release.tag_name || github.event.client_payload.tag_name ||
+        format('{0}-{1}', github.event_name, github.event.issue.number || github.event.pull_request.number) }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const action = context.eventName === 'pull_request_target' ? 'merge'
+              : context.eventName === 'issue_comment' ? 'verify' : 'release';
+            await require('./.github/scripts/issue-lifecycle.cjs').run({ github, context, core }, action);

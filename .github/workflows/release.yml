@@ -122,6 +122,17 @@ jobs:
           bodyFile: release-notes-github.md
           artifacts: ${{ inputs.platforms != 'ios' && 'apk/*.apk' || '' }}
 
+      # GITHUB_TOKEN publication does not emit another workflow's release event.
+      # repository_dispatch explicitly notifies the lifecycle on all platforms/channels.
+      - name: Request issue release verification
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag_name }}
+        run: |
+          gh api --method POST "repos/${{ github.repository }}/dispatches" \
+            -f "event_type=issue-lifecycle-release" \
+            -f "client_payload[tag_name]=${RELEASE_TAG}"
+
   # APKs remain immutable R2 objects. FlareRelease owns mutable channel state;
   # registration creates a Ready release and never promotes a channel.
   android-release:

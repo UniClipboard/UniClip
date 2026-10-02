@@ -337,3 +337,9 @@ CI marks Alpha tags as prereleases and uploads the iOS build to TestFlight.
 
 These are independent namespaces from upstream. UniClip can be installed
 alongside any other SyncClipboard-protocol client on the same device.
+
+## Issue verification
+
+Published GitHub releases request verification of ready issues. See
+[the mobile issue lifecycle](issue-lifecycle.md) for PR linking, four-part version
+commands, platform availability limits, and maintainer setup.
