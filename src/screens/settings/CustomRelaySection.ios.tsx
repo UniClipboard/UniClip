@@ -177,7 +177,10 @@ export function CustomRelaySection() {
             testID="relay-overview-retry"
             title={t('relay.builtIn.loadFailed')}
             showsChevron={false}
-            onPress={() => void retryOverview()}
+            onPress={() => {
+              setNotice(null);
+              void retryOverview();
+            }}
           />
         ) : null}
         {view ? (

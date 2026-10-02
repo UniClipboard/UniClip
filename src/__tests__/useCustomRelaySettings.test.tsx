@@ -314,10 +314,13 @@ describe('relay overview state', () => {
       expect(currentHook.overview).toEqual({ status: 'error' });
       const ready = overviewFixture();
       mockedOverview.mockResolvedValueOnce(ready);
+      const readsBeforeRetry = mockedRefresh.mock.calls.length;
       await act(async () => {
         await currentHook.retryOverview();
       });
       expect(currentHook.overview).toEqual({ status: 'ready', value: ready });
+      // A startup race can fail both reads, so retry re-reads the custom list too.
+      expect(mockedRefresh.mock.calls.length).toBe(readsBeforeRetry + 1);
     } finally {
       act(() => view.unmount());
     }

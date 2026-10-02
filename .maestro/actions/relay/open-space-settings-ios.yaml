@@ -1,0 +1,34 @@
+appId: ${APP_ID}
+---
+# Pre: home ready on iOS. Post: Space settings of a freshly created direct-sync space.
+- tapOn: "Devices"
+- tapOn: "Direct (Experimental)"
+- runFlow:
+    when:
+      visible: "Use direct device sync?"
+    commands:
+      - tapOn: "Use direct sync"
+- extendedWaitUntil:
+    visible: "Create a new space"
+    timeout: 30000
+- tapOn: "Create a new space"
+- tapOn: "Space password"
+- inputText: RelayE2E-passphrase
+- tapOn: "Create"
+- extendedWaitUntil:
+    visible: "Save Password?"
+    timeout: 30000
+- tapOn: "Not Now"
+- extendedWaitUntil:
+    visible:
+      id: space-finish-later
+    timeout: 30000
+- tapOn:
+    id: space-finish-later
+- extendedWaitUntil:
+    visible: "Space settings"
+    timeout: 30000
+- tapOn: "Space settings"
+- extendedWaitUntil:
+    visible: "Built-in relays"
+    timeout: 30000

@@ -194,7 +194,10 @@ export function CustomRelaySection() {
                   ) : null}
                   {overview.status === 'error' ? (
                     <ListItem
-                      modifiers={[testID('relay-overview-retry'), clickable(() => void retryOverview())]}
+                      modifiers={[testID('relay-overview-retry'), clickable(() => {
+                          setNotice(null);
+                          void retryOverview();
+                        })]}
                     >
                       <ListItem.HeadlineContent>
                         <ComposeText color={colors.error}>{t('relay.builtIn.loadFailed')}</ComposeText>

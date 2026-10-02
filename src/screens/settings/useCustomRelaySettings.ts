@@ -39,10 +39,6 @@ export function useCustomRelaySettings() {
     }
   }, []);
 
-  const retryOverview = useCallback((): Promise<void> => {
-    setOverview({ status: 'loading' });
-    return readOverview();
-  }, [readOverview]);
 
   const load = useCallback(async (): Promise<CustomRelay[]> => {
     const legacyUrlsToMigrate = migrationPending.current ? pendingLegacyUrls : [];
@@ -54,17 +50,21 @@ export function useCustomRelaySettings() {
     return current;
   }, [pendingLegacyUrls, updateConfig]);
 
-  const refresh = useCallback(async (): Promise<CustomRelay[]> => {
+  const refreshCustom = useCallback(async (): Promise<CustomRelay[]> => {
     const generation = ++operationGeneration.current;
     await saveQueue.current;
-    void readOverview();
     const current = await load();
     if (generation === operationGeneration.current) {
       setRelays(current);
       setInitialRefreshFailed(false);
     }
     return current;
-  }, [load, readOverview]);
+  }, [load]);
+
+  const refresh = useCallback((): Promise<CustomRelay[]> => {
+    void readOverview();
+    return refreshCustom();
+  }, [readOverview, refreshCustom]);
 
   useEffect(() => {
     let active = true;
@@ -87,6 +87,13 @@ export function useCustomRelaySettings() {
   useEffect(() => {
     void readOverview();
   }, [readOverview]);
+
+  // Both reads can lose a race with Engine startup, so one retry re-reads the overview and the
+  // custom list together.
+  const retryOverview = useCallback(async (): Promise<void> => {
+    setOverview({ status: 'loading' });
+    await Promise.all([readOverview(), refreshCustom().catch(() => undefined)]);
+  }, [readOverview, refreshCustom]);
 
   const save = useCallback(
     (input: Parameters<typeof saveCustomRelay>[0]): Promise<RelaySaveOutcome> => {
