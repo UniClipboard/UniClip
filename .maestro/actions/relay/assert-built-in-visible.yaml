@@ -1,0 +1,12 @@
+appId: ${APP_ID}
+---
+# The overview lists Engine's built-in relays; it never claims a connection.
+- extendedWaitUntil:
+    visible: "Built-in relays"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Europe"
+    direction: DOWN
+- assertVisible: "North America East"
+- assertVisible: "Asia Pacific"
+- assertNotVisible: ".*[Cc]onnected.*"

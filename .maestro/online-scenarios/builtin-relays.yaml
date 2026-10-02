@@ -1,0 +1,24 @@
+appId: ${APP_ID}
+---
+- runFlow: ../lifecycle/launch.yaml
+- runFlow: ../actions/onboarding/complete.yaml
+- runFlow: ../actions/settings/open.yaml
+- runFlow: ../actions/relay/create-space.yaml
+- runFlow: ../actions/relay/open.yaml
+# Empty custom list: the built-in relays are the saved and applied routing.
+- runFlow: ../actions/relay/assert-built-in-visible.yaml
+- assertVisible: "Saved setting: built-in relays"
+- assertVisible: "Configured on the running node"
+# A custom relay replaces the built-in list and must not clear the built-in rows.
+- runFlow: ../actions/relay/add.yaml
+- runFlow: ../actions/relay/assert-built-in-visible.yaml
+- assertVisible: "Saved setting: your custom relays"
+- assertVisible: "Not used while custom relays are set"
+- runFlow: ../lifecycle/restart.yaml
+- runFlow: ../actions/relay/open-existing.yaml
+- runFlow: ../actions/relay/assert-built-in-visible.yaml
+- assertVisible: "Not used while custom relays are set"
+# Removing the custom relay returns routing to the built-in list.
+- runFlow: ../actions/relay/edit-delete.yaml
+- runFlow: ../actions/relay/assert-built-in-visible.yaml
+- assertVisible: "Saved setting: built-in relays"
