@@ -76,8 +76,9 @@ jest.mock('@/components/AddSyncConnectionSheet', () => {
 jest.mock('@/components/SpaceDeviceDetail', () => ({
   SpaceDeviceDetail: () => null,
 }));
-jest.mock('@/screens/settings/CustomRelaySection', () => ({
-  CustomRelaySection: () => null,
+jest.mock('@/screens/settings/android/RelaySettingsSection', () => ({
+  RelayEntrySection: () => null,
+  RelaySettingsSection: () => null,
 }));
 jest.mock('@/screens/settings/android/SettingsLeadingIcon', () => ({
   SettingsLeadingIcon: () => null,

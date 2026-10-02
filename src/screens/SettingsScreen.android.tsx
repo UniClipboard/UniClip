@@ -50,7 +50,7 @@ const ICONS = {
 
 type HubSection = Exclude<
   SettingsSubSection,
-  'syncChannel' | 'space' | 'spaceSettings' | 'lanServers'
+  'syncChannel' | 'space' | 'spaceSettings' | 'relay' | 'lanServers'
 >;
 
 /** 分类入口行:图标 + 标题 + 动态摘要 + chevron,整行可点(testID 供 Maestro 定位)。 */

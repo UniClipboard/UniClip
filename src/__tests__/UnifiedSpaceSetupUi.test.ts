@@ -228,7 +228,7 @@ describe('unified space setup UI', () => {
   it('puts the Android page status, adding devices, and device management ahead of space settings', () => {
     const android = source('screens/settings/UnifiedSpaceSetup.android.tsx');
     const androidSettings = source('screens/settings/android/SpaceSettingsSection.tsx');
-    const androidRelay = source('screens/settings/CustomRelaySection.android.tsx');
+    const androidRelay = source('screens/settings/android/RelaySettingsSection.tsx');
     const ios = iosSpaceSource();
 
     const page = android.slice(android.indexOf('const content = isInitialLoading'));
@@ -238,9 +238,9 @@ describe('unified space setup UI', () => {
     expect(android).toContain('space.overview.status.');
     expect(android).toContain('space.overview.memberCount');
     expect(android).not.toContain('space.leave.action');
-    expect(androidRelay).toContain('space.advanced.title');
+    expect(androidRelay).toContain('relay.page.network');
     expect(androidSettings).toMatch(
-      /<CustomRelaySection \/>[\s\S]*space\.manage\.title[\s\S]*space\.danger\.title/
+      /<RelayEntrySection[\s\S]*space\.manage\.title[\s\S]*space\.danger\.title/
     );
     expect(android).not.toContain('Boolean(error)');
 
@@ -252,10 +252,11 @@ describe('unified space setup UI', () => {
   });
 
   it('keeps relay refresh and duplicate feedback visible on the active page', () => {
-    const android = source('screens/settings/CustomRelaySection.android.tsx');
-    const ios = source('screens/settings/CustomRelaySection.ios.tsx');
+    const android = source('screens/settings/android/RelaySettingsSection.tsx');
+    const ios = source('screens/ios/devices/RelaySettingsPage.tsx');
 
-    expect(android).toContain("refresh().catch(() => setNotice(t('relay.error.refreshFailed')))");
+    expect(android).toContain('refresh().catch(() => setRefreshFailed(true))');
+    expect(android).toContain("setNotice(t('relay.error.refreshFailed'))");
     expect(android).not.toContain("refresh().catch(() => setError(t('relay.error.refreshFailed')))");
     for (const platform of [android, ios]) {
       expect(platform).not.toContain("if (result.rejection === 'duplicate') resetEditor()");

@@ -5,6 +5,7 @@ export type SettingsSubSection =
   | 'syncChannel'
   | 'space'
   | 'spaceSettings'
+  | 'relay'
   | 'lanServers'
   | 'history'
   | 'background'

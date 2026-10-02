@@ -17,6 +17,8 @@ import { iosAccentColor } from '@/theme/iosDesignTokens';
 import { LanServerEditorSheet } from '@/screens/settings/ios/LanServerEditorSheet';
 import { SyncChannelConfirmationSheet } from '@/screens/settings/SyncChannelConfirmationSheet';
 import { DevicesRootPage } from './devices/DevicesRootPage';
+import { useCustomRelaySettings } from '@/screens/settings/useCustomRelaySettings';
+import { RelaySettingsPage } from './devices/RelaySettingsPage';
 import { SpaceSettingsPage } from './devices/SpaceSettingsPage';
 
 const fillModifier = frame({ maxWidth: Infinity, maxHeight: Infinity });
@@ -37,6 +39,8 @@ export function DevicesScreen({ deviceId, notificationNavigationRequestId }: Spa
   const [showP2pConfirmation, setShowP2pConfirmation] = useState(false);
   const [isConfirmingP2p, setIsConfirmingP2p] = useState(false);
   const deviceManagement = useSpaceDeviceManagement({ allowHighImpactActions: true });
+  // One controller for the space settings entry row and the relay page (stable parent owns it).
+  const relay = useCustomRelaySettings();
   const pendingLanIntent = usePendingLanConnectStore((state) => state.intent);
   const consumePendingLanIntent = usePendingLanConnectStore((state) => state.consume);
   const notificationHandled = useRef<number | null>(null);
@@ -119,9 +123,14 @@ export function DevicesScreen({ deviceId, notificationNavigationRequestId }: Spa
             <NavigationDestination value="spaceSettings">
               <SpaceSettingsPage
                 deviceManagement={deviceManagement}
+                relay={relay}
+                onOpenRelay={() => setPath(['spaceSettings', 'relay'])}
                 onSwitchSpace={() => setSetupMode('switch')}
                 onLeft={() => setPath([])}
               />
+            </NavigationDestination>
+            <NavigationDestination value="relay">
+              <RelaySettingsPage relay={relay} />
             </NavigationDestination>
           </NavigationStack>
         </IosPageChromeProvider>

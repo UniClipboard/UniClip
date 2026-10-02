@@ -178,16 +178,16 @@ describe('custom relay settings', () => {
     expect(android.indexOf('space.devices.otherTitle')).toBeLessThan(
       android.indexOf("section: 'spaceSettings'")
     );
-    expect(android).not.toContain('<CustomRelaySection />');
-    expect(androidSettings.indexOf('<CustomRelaySection />')).toBeGreaterThan(-1);
-    expect(androidSettings.indexOf('<CustomRelaySection />')).toBeLessThan(
+    expect(android).not.toContain('<RelayEntrySection');
+    expect(androidSettings.indexOf('<RelayEntrySection')).toBeGreaterThan(-1);
+    expect(androidSettings.indexOf('<RelayEntrySection')).toBeLessThan(
       androidSettings.indexOf('<SwitchSpaceRow')
     );
     // iOS 同构:设备页只放「空间设置」入口,中继在切换空间之前
-    expect(iosDevices).not.toContain('<CustomRelaySection />');
+    expect(iosDevices).not.toContain('relay-settings');
     expect(iosDevices).toContain("t('space.settings.title')");
-    expect(ios.indexOf('<CustomRelaySection />')).toBeGreaterThan(-1);
-    expect(ios.indexOf('<CustomRelaySection />')).toBeLessThan(ios.indexOf('space.switch.title'));
+    expect(ios.indexOf('relay-settings')).toBeGreaterThan(-1);
+    expect(ios.indexOf('relay-settings')).toBeLessThan(ios.indexOf('space.switch.title'));
   });
 
 });

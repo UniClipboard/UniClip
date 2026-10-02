@@ -3,7 +3,13 @@ import TestRenderer, { act } from 'react-test-renderer';
 
 import { loadRelayOverview, saveCustomRelay } from '@/features/relaySettings';
 import type { RelayOverview } from '@/features/relayOverview';
-import { CustomRelaySection } from '@/screens/settings/CustomRelaySection.ios';
+import { RelaySettingsPage } from '@/screens/ios/devices/RelaySettingsPage';
+import { useCustomRelaySettings } from '@/screens/settings/useCustomRelaySettings';
+
+function CustomRelaySection() {
+  const relay = useCustomRelaySettings();
+  return <RelaySettingsPage relay={relay} />;
+}
 
 jest.mock('app-group-store', () => ({
   getEngineLogFileUris: () => [],
@@ -29,9 +35,15 @@ jest.mock('@/stores', () => ({
     }),
 }));
 
+jest.mock('@/components/ui', () => ({
+  IosSheetForm: ({ children }: { children: unknown }) => children,
+  IosSheetPage: ({ children }: { children: unknown }) => children,
+}));
+
 jest.mock('@/screens/settings/ios/common', () => {
   const React = require('react');
   return {
+    settingsTileColors: { blue: '#007AFF', orange: '#FF9500' },
     SettingsNavRow: (props: object) => React.createElement('SettingsNavRow', props),
   };
 });
@@ -40,6 +52,9 @@ jest.mock('@expo/ui/swift-ui', () => {
   const React = require('react');
   return {
     Button: (props: object) => React.createElement('Button', props),
+    HStack: (props: object) => React.createElement('HStack', props),
+    Image: (props: object) => React.createElement('Image', props),
+    VStack: (props: object) => React.createElement('VStack', props),
     Section: (props: object) => React.createElement('Section', props),
     SecureField: (props: object) => React.createElement('SecureField', props),
     Text: (props: object) => React.createElement('Text', props),
@@ -50,6 +65,9 @@ jest.mock('@expo/ui/swift-ui', () => {
 
 jest.mock('@expo/ui/swift-ui/modifiers', () => ({
   autocorrectionDisabled: () => ({ type: 'autocorrectionDisabled' }),
+  font: () => ({ type: 'font' }),
+  foregroundStyle: () => ({ type: 'foregroundStyle' }),
+  listRowBackground: (value: string) => ({ type: 'listRowBackground', value }),
   disabled: (value: boolean) => ({ type: 'disabled', value }),
   keyboardType: (value: string) => ({ type: 'keyboardType', value }),
 }));
@@ -200,7 +218,7 @@ it('does not claim built-in relays are connected and reports a pending change as
 });
 
 it('shows a full-row retry when the overview cannot be loaded and recovers on retry', async () => {
-  jest.mocked(loadRelayOverview).mockRejectedValueOnce(new Error('unavailable'));
+  jest.mocked(loadRelayOverview).mockRejectedValue(new Error('unavailable'));
   let view!: TestRenderer.ReactTestRenderer;
   await act(async () => {
     view = TestRenderer.create(<CustomRelaySection />);
@@ -212,7 +230,7 @@ it('shows a full-row retry when the overview cannot be loaded and recovers on re
     expect(retry.props.title).toBe('relay.builtIn.loadFailed');
     expect(retry.props.readOnly).not.toBe(true);
     expect(retry.props.onPress).toEqual(expect.any(Function));
-    jest.mocked(loadRelayOverview).mockResolvedValueOnce(
+    jest.mocked(loadRelayOverview).mockResolvedValue(
       overview({ entries: [builtInEntry('eu', 'https://eu.relay.example./')] })
     );
     await act(async () => retry.props.onPress());

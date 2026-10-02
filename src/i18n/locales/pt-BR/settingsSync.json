@@ -30,7 +30,8 @@
       "title": "Relays integrados",
       "footer": "Somente leitura. Estes relays vêm com o mecanismo de rede do app. Estar na lista não significa que estejam acessíveis.",
       "loading": "Carregando relays…",
-      "loadFailed": "Não foi possível carregar os relays integrados. Toque para tentar novamente."
+      "loadFailed": "Não foi possível carregar os relays integrados",
+      "retryHint": "Toque em qualquer lugar desta linha para tentar novamente"
     },
     "source": {
       "builtIn": "Integrado"
@@ -48,12 +49,22 @@
       "off": "Relays desativados"
     },
     "status": {
-      "builtIn": "Configuração salva: relays integrados",
-      "custom": "Configuração salva: seus relays personalizados",
+      "builtIn": "Usando relays integrados",
+      "custom": "Usando seus relays personalizados",
       "off": "Relays desativados",
       "nodeNotStarted": "O nó de rede ainda não foi iniciado.",
-      "pending": "Salvo, mas ainda não aplicado. Entra em vigor depois que o nó de rede for totalmente recriado, por exemplo ao reiniciar o app."
-    }
+      "pending": "O nó em execução ainda usa a configuração anterior. Ela muda depois que o nó de rede for totalmente recriado, por exemplo ao reiniciar o app.",
+      "builtInHint": "Nenhum relay personalizado definido; o app usa a lista integrada.",
+      "customHint": "Os relays integrados não são usados enquanto houver relay personalizado. Remova-o para voltar à lista integrada.",
+      "offHint": "Os relays estão desativados; nenhum relay é usado.",
+      "pendingTitle": "Salvo, ainda não aplicado"
+    },
+    "page": {
+      "title": "Relay",
+      "network": "Rede"
+    },
+    "retry": "Tentar novamente",
+    "listFooter": "Adicionar um relay personalizado substitui a lista integrada. O token de acesso fica apenas no armazenamento seguro deste dispositivo."
   },
   "space": {
     "title": "Meu Espaço",

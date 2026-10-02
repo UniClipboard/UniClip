@@ -26,13 +26,15 @@ import {
   width as widthModifier,
 } from '@expo/ui/jetpack-compose/modifiers';
 import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '@/navigation/AppNavigator.types';
 import { useTranslation } from 'react-i18next';
 
 import { AddSyncConnectionSheet } from '@/components/AddSyncConnectionSheet';
 import { useSpaceDeviceManagement } from '@/components/useSpaceDeviceManagement';
 import { getUnifiedSpaceService, UnifiedSpaceInputError } from '@/features/space';
-import { CustomRelaySection } from '../CustomRelaySection';
 import { SettingsSectionItem, useSettingsSectionRowColors } from '../SettingsSectionItem';
+import { RelayEntrySection } from './RelaySettingsSection';
 import { SettingsLeadingIcon } from './SettingsLeadingIcon';
 
 const ICONS = {
@@ -105,7 +107,7 @@ function LeaveSpaceRow({
 export const SpaceSettingsSection = memo(function SpaceSettingsSection() {
   const { t } = useTranslation('settingsSync');
   const colors = useMaterialColors();
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const deviceManagement = useSpaceDeviceManagement({ allowHighImpactActions: true });
   const [switching, setSwitching] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
@@ -143,7 +145,7 @@ export const SpaceSettingsSection = memo(function SpaceSettingsSection() {
 
   return (
     <Column modifiers={[fillMaxWidth()]}>
-      <CustomRelaySection />
+      <RelayEntrySection onOpen={() => navigation.navigate('SettingsSub', { section: 'relay' })} />
 
       <Spacer modifiers={[heightModifier(24)]} />
       <SettingsSectionItem

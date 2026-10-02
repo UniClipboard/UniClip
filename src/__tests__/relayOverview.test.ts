@@ -65,4 +65,26 @@ describe('relay overview presentation', () => {
     expect(view.builtInRows[0]?.usage).toBe('off');
     expect(view.statusKey).toBe('relay.status.off');
   });
+
+  it('uses an informational status tone, and a warning tone only while a change is pending', () => {
+    expect(describeRelayOverview(overview()).tone).toBe('info');
+    expect(describeRelayOverview(overview({ changePending: true })).tone).toBe('warn');
+  });
+
+  it('summarizes the saved routing for the entry row without claiming a connection', () => {
+    expect(describeRelayOverview(overview()).summary).toEqual({ kind: 'builtIn' });
+    expect(
+      describeRelayOverview(
+        overview({
+          savedMode: 'custom',
+          entries: [
+            builtIn('eu', false),
+            { source: 'custom', url: 'https://a.example.com', credentialConfigured: false, inEffect: true },
+            { source: 'custom', url: 'https://b.example.com', credentialConfigured: true, inEffect: true },
+          ],
+        })
+      ).summary
+    ).toEqual({ kind: 'custom', count: 2 });
+    expect(describeRelayOverview(overview({ savedMode: 'disabled' })).summary).toEqual({ kind: 'off' });
+  });
 });

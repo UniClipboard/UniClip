@@ -36,6 +36,7 @@ import { StorageSection } from './StorageSection';
 import { AboutSection } from './AboutSection';
 import { LogSection } from './LogSection';
 import { DebugSection } from './android/DebugSection';
+import { RelaySettingsSection } from './android/RelaySettingsSection';
 import { SpaceSettingsSection } from './android/SpaceSettingsSection';
 import { QuickActionsSection } from './QuickActionsSection';
 import { AnalyticsConsentControl } from './AnalyticsConsentControl';
@@ -96,6 +97,8 @@ const SettingsSectionPageInner = memo(function SettingsSectionPageInner({
           )}
 
           {section === 'spaceSettings' && <SpaceSettingsSection />}
+
+          {section === 'relay' && <RelaySettingsSection />}
 
           {section === 'lanServers' && <LanServersPage />}
 

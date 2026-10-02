@@ -6,8 +6,8 @@ function source(relativePath: string): string {
 }
 
 it('keeps relay tokens out of password-specific fields on both platforms', () => {
-  const ios = source('screens/settings/CustomRelaySection.ios.tsx');
-  const android = source('screens/settings/CustomRelaySection.android.tsx');
+  const ios = source('screens/ios/devices/RelaySettingsPage.tsx');
+  const android = source('screens/settings/android/RelaySettingsSection.tsx');
   const androidTokenField = android.slice(
     android.indexOf('testID="relay-token-input"'),
     android.indexOf('{error ?')
@@ -18,11 +18,9 @@ it('keeps relay tokens out of password-specific fields on both platforms', () =>
   expect(androidTokenField).not.toMatch(/\bsecure\b/);
 });
 
-it('opens the Android relay editor full screen above the keyboard', () => {
-  const android = source('screens/settings/CustomRelaySection.android.tsx');
+it('edits an Android relay inside the relay page, above the keyboard', () => {
+  const android = source('screens/settings/android/RelaySettingsSection.tsx');
 
-  expect(android).toContain('<ModalBottomSheet skipPartiallyExpanded');
-  expect(android).toContain(
-    '...(editingUrl !== null ? [fillMaxSize(), imePadding()] : [fillMaxWidth()])'
-  );
+  expect(android).not.toContain('ModalBottomSheet');
+  expect(android).toContain('modifiers={[fillMaxWidth(), imePadding()]}');
 });

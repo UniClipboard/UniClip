@@ -3,13 +3,14 @@ import TestRenderer, { act } from 'react-test-renderer';
 
 import type { RelayOverview } from '@/features/relayOverview';
 import { loadRelayOverview } from '@/features/relaySettings';
-import { CustomRelaySection } from '@/screens/settings/CustomRelaySection.android';
+import { RelaySettingsSection } from '@/screens/settings/android/RelaySettingsSection';
 
 const mockUpdateConfig = jest.fn();
 
 jest.mock('@/assets/icons/add.xml', () => 1);
 jest.mock('@/assets/icons/chevron_right.xml', () => 1);
 jest.mock('@/assets/icons/public.xml', () => 1);
+jest.mock('@/assets/icons/info.xml', () => 1);
 jest.mock('app-group-store', () => ({ getEngineLogFileUris: () => [] }));
 
 jest.mock('@/features/relaySettings', () => ({
@@ -59,7 +60,9 @@ jest.mock('@expo/ui/jetpack-compose', () => {
     Column: el('Column'),
     Icon: el('Icon'),
     ListItem,
-    ModalBottomSheet: el('ModalBottomSheet'),
+    Row: el('Row'),
+    Shape: { RoundedCorner: () => ({}) },
+    Surface: el('Surface'),
     OutlinedButton: el('OutlinedButton'),
     Spacer: el('Spacer'),
     Text: el('Text'),
@@ -109,19 +112,11 @@ const modifierOf = (node: TestRenderer.ReactTestInstance, type: string) =>
   );
 const textsOf = (view: TestRenderer.ReactTestRenderer) =>
   view.root.findAllByType('Text' as never).map((text) => [text.props.children].flat().join(''));
-async function openSheet(view: TestRenderer.ReactTestRenderer) {
-  const entry = view.root
-    .findAllByType('ListItem' as never)
-    .find((item) => modifierOf(item, 'testID')?.id === 'relay-settings')!;
-  await act(async () => modifierOf(entry, 'clickable')!.onClick!());
-}
-
 async function render() {
   let view!: TestRenderer.ReactTestRenderer;
   await act(async () => {
-    view = TestRenderer.create(<CustomRelaySection />);
+    view = TestRenderer.create(<RelaySettingsSection />);
   });
-  await openSheet(view);
   return view;
 }
 const builtInItems = (view: TestRenderer.ReactTestRenderer) =>
@@ -192,7 +187,7 @@ it('reports a pending change as needing a full node rebuild and an unstarted nod
   }
 });
 
-it('refreshes the overview each time the relay sheet opens', async () => {
+it('re-reads the overview each time the relay page opens', async () => {
   const view = await render();
   try {
     expect(jest.mocked(loadRelayOverview).mock.calls.length).toBeGreaterThanOrEqual(2);

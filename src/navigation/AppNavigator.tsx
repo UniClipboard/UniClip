@@ -77,6 +77,7 @@ export const AppNavigator = () => {
     syncChannel: t('syncChannel.title', { ns: 'settings' }),
     space: t('space.title', { ns: 'settingsSync' }),
     spaceSettings: t('space.settings.title', { ns: 'settingsSync' }),
+    relay: t('relay.page.title', { ns: 'settingsSync' }),
     lanServers: t('lan.title', { ns: 'settingsSync' }),
     history: t('category.history', { ns: 'settings' }),
     background: t('category.background', { ns: 'settings' }),

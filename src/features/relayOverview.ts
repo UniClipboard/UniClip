@@ -32,8 +32,15 @@ export interface BuiltInRelayRow {
   usage: BuiltInRelayUsage;
 }
 
+export type RelaySummary = { kind: 'builtIn' } | { kind: 'custom'; count: number } | { kind: 'off' };
+
 export interface RelayOverviewView {
   statusKey: 'relay.status.builtIn' | 'relay.status.custom' | 'relay.status.off';
+  /** Explanation under the status title (same suffix as `statusKey`, plus `Hint`). */
+  statusHintKey: 'relay.status.builtInHint' | 'relay.status.customHint' | 'relay.status.offHint';
+  tone: 'info' | 'warn';
+  /** Saved routing in short form for the Space settings entry row. */
+  summary: RelaySummary;
   /** Engine reported no network node yet, so no row can be claimed as in effect. */
   nodeNotStarted: boolean;
   changePending: boolean;
@@ -58,6 +65,18 @@ export function describeRelayOverview(overview: RelayOverview): RelayOverviewVie
   } as const;
   return {
     statusKey: statusKey[overview.savedMode],
+    statusHintKey: {
+      builtIn: 'relay.status.builtInHint',
+      custom: 'relay.status.customHint',
+      disabled: 'relay.status.offHint',
+    }[overview.savedMode] as RelayOverviewView['statusHintKey'],
+    tone: overview.changePending ? 'warn' : 'info',
+    summary:
+      overview.savedMode === 'custom'
+        ? { kind: 'custom', count: overview.entries.filter((entry) => entry.source === 'custom').length }
+        : overview.savedMode === 'disabled'
+          ? { kind: 'off' }
+          : { kind: 'builtIn' },
     nodeNotStarted: overview.appliedMode == null,
     changePending: overview.changePending,
     builtInRows: overview.entries
