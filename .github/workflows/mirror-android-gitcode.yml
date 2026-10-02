@@ -1,0 +1,128 @@
+# Copies the already published Android APK to a GitCode Release and registers
+# the verified copy with FlareRelease, which then redirects users in mainland
+# China to it. GitHub and R2 stay the authoritative sources: this workflow only
+# adds an optional mirror and never rebuilds, re-signs or repackages the APK.
+#
+# - Called by release.yml after the FlareRelease registration, non-blocking:
+#   a missing configuration or a failed mirror produces a warning annotation
+#   and a job summary, never a failed release.
+# - Run by hand (workflow_dispatch) to retry or to mirror an older tag. It
+#   downloads the APK from the GitHub Release and fails loudly. FlareRelease
+#   accepts the mirror only when size and SHA-256 equal the registered artifact.
+#
+# Configuration (nothing is created by this workflow):
+#   secret   GITCODE_RELEASE_TOKEN                 GitCode bot token, repository secret
+#   variable GITCODE_OWNER, GITCODE_REPO           the mirror repository (must already exist,
+#                                                  with at least one commit on its default branch)
+#   variable GITCODE_API_BASE (optional)           default https://api.gitcode.com/api/v5
+#   variable GITCODE_TARGET_COMMITISH (optional)   branch for new release tags, default main
+#   secret   FLARE_RELEASE_ACCESS_CLIENT_ID/SECRET already used by release.yml
+
+name: mirror-android-gitcode
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      tag_name:
+        description: 'Release tag whose APK is mirrored'
+        required: true
+        type: string
+      non_blocking:
+        description: 'Report problems as warnings instead of failing the run'
+        required: false
+        default: false
+        type: boolean
+      from_release:
+        description: 'Take the APK from the GitHub Release instead of this run'
+        required: false
+        default: false
+        type: boolean
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag whose APK is mirrored (for example v2.0.0.186)'
+        required: true
+        type: string
+      from_release:
+        description: 'Take the APK from the GitHub Release (a manual run has no build artifact)'
+        required: false
+        default: true
+        type: boolean
+
+concurrency:
+  group: gitcode-mirror-${{ inputs.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    name: Mirror APK to GitCode
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+
+      # Same run as the build: the exact artifact that was uploaded to R2.
+      - name: Download the built APK
+        if: ${{ inputs.from_release != true }}
+        uses: actions/download-artifact@v8
+        with:
+          name: apk-arm64-v8a
+          path: apk/
+
+      # Retry or backfill: the APK attached to the GitHub Release.
+      - name: Download the APK from the GitHub Release
+        if: ${{ inputs.from_release == true }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag_name }}
+        run: gh release download "$RELEASE_TAG" --repo "${{ github.repository }}" --pattern '*-arm64-v8a.apk' --dir apk
+
+      - name: Mirror the APK
+        id: mirror
+        continue-on-error: ${{ inputs.non_blocking == true }}
+        env:
+          GITCODE_TOKEN: ${{ secrets.GITCODE_RELEASE_TOKEN }}
+          GITCODE_OWNER: ${{ vars.GITCODE_OWNER }}
+          GITCODE_REPO: ${{ vars.GITCODE_REPO }}
+          GITCODE_API_BASE: ${{ vars.GITCODE_API_BASE }}
+          GITCODE_TARGET_COMMITISH: ${{ vars.GITCODE_TARGET_COMMITISH }}
+          FLARE_RELEASE_ACCESS_CLIENT_ID: ${{ secrets.FLARE_RELEASE_ACCESS_CLIENT_ID }}
+          FLARE_RELEASE_ACCESS_CLIENT_SECRET: ${{ secrets.FLARE_RELEASE_ACCESS_CLIENT_SECRET }}
+        run: |
+          set +x
+          shopt -s nullglob
+          apks=(apk/*.apk)
+          if [ "${#apks[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one APK in apk/, found ${#apks[@]}"
+            exit 1
+          fi
+          TAG="${{ inputs.tag_name }}"
+          node scripts/mirror-android-apk-to-gitcode.mjs \
+            --apk "${apks[0]}" \
+            --tag "$TAG" \
+            --prerelease "${{ contains(inputs.tag_name, '-alpha.') || contains(inputs.tag_name, '-beta') }}" \
+            --source "github-actions:${{ github.repository }}:${{ github.run_id }}" \
+            --missing-config "${{ inputs.non_blocking == true && 'skip' || 'fail' }}" \
+            --provenance gitcode-mirror/provenance.json
+
+      - name: Keep the mirror provenance
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: gitcode-mirror-provenance-${{ inputs.tag_name }}
+          path: gitcode-mirror/provenance.json
+          if-no-files-found: ignore
+
+      - name: Warn that the mirror is missing
+        if: ${{ always() && steps.mirror.outcome == 'failure' }}
+        run: |
+          echo "::warning title=GitCode mirror not available::The release is published from GitHub and R2. Users in mainland China are not redirected until the mirror succeeds. Re-run this workflow with tag ${{ inputs.tag_name }}."

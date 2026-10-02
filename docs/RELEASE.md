@@ -303,6 +303,10 @@ the iOS dev-build inputs empty. The workflow then:
    maintainer explicitly promotes it. The Android updater reads FlareRelease
    channels, so an iOS-only release never offers Android users an update.
 
+8. Android selected: the optional `mirror-android-gitcode` job copies the same
+   APK to a GitCode Release (see "GitCode mirror"). It runs after the FlareRelease
+   registration and can never fail the release.
+
 A single-platform release still uses the shared `CHANGES.md` block; only the
 platform that ships reads its notes. Write the block for the platform being
 released.
@@ -316,6 +320,56 @@ changes remain explicit operations in FlareRelease.
 Directly pushing a `v*` tag does not publish a release. If a publishing job
 fails after the tag was created, use **Re-run failed jobs** on the same Actions
 run so successful builds and destinations are not repeated.
+
+### GitCode mirror
+
+GitHub and R2 stay the authoritative sources. When configured, the same signed
+`arm64-v8a` APK is also uploaded to a GitCode Release so FlareRelease can send
+users in mainland China to it (FlareRelease README, "Download mirrors"; both
+repositories are driven by thread t-0153). Whether this is faster for users has
+not been measured; do not announce it as faster before it is.
+
+What `scripts/mirror-android-apk-to-gitcode.mjs` does, in order, using only the
+APK that was already built and uploaded to R2 (no rebuild, no re-signing, no
+repackaging):
+
+1. Hash the APK (size and SHA-256) and make sure the GitCode release for the tag exists.
+2. If GitCode already has the file, download it anonymously and compare: an identical
+   file is reused, a different one fails the run without being overwritten or deleted.
+3. Otherwise request an upload address, `PUT` the bytes (bounded timeout, three
+   attempts, a fresh upload address each time), and wait for the file to appear.
+4. Download it back **without credentials**, following redirects by hand (every hop must
+   be https), and require the same size and SHA-256.
+5. `PUT /api/mirrors` on FlareRelease with the verified address, size and SHA-256.
+   FlareRelease enables the mirror only if they equal the registered artifact.
+
+Configuration, all outside the repository and never printed:
+
+| Name | Kind | Purpose |
+| --- | --- | --- |
+| `GITCODE_RELEASE_TOKEN` | secret | GitCode bot token with release write access to the mirror repository only |
+| `GITCODE_OWNER`, `GITCODE_REPO` | variables | The existing mirror repository (needs at least one commit on its default branch) |
+| `GITCODE_API_BASE` | variable, optional | Defaults to `https://api.gitcode.com/api/v5` |
+| `GITCODE_TARGET_COMMITISH` | variable, optional | Branch used when a release tag has to be created, default `main` |
+| `FLARE_RELEASE_ACCESS_CLIENT_ID`, `FLARE_RELEASE_ACCESS_CLIENT_SECRET` | secrets | Already used for registration |
+
+Failure behaviour: during a release the job is non-blocking. A missing setting, a
+failed upload, or a failed verification becomes a `::warning` annotation, a job
+summary, and a `gitcode-mirror-provenance-<tag>` artifact (`provenance.json`: tag,
+file, size, SHA-256, mirror address, redirect chain, whether the mirror accepts
+range requests, never any token). The release itself is unaffected, and FlareRelease
+keeps serving the file from R2 until a mirror is verified. Because the job succeeds,
+"Re-run failed jobs" does not retry it: run **mirror-android-gitcode** from the
+Actions tab with the tag instead (it takes the APK from the GitHub Release and fails
+loudly). Repeated runs are safe.
+
+Known limits: the current Android client has no automatic fallback. If GitCode fails
+after FlareRelease redirected a user, the user must pick the GitHub source by hand.
+Withdrawing a release or revoking a mirror in FlareRelease stops new redirects but
+cannot recall a GitCode link that was already shared; remove the attachment on
+GitCode for that. The size limit for a GitCode release attachment is not documented
+(a similar Gitee mirror used to fail at 100 MB while this APK is about 94 MiB), so the
+first real upload decides whether this works.
 
 ### Alpha Release
 

@@ -3,6 +3,7 @@
 #   - testflight        upload the iOS .ipa to App Store Connect (TestFlight)
 #   - github-release     publish the Android APKs to a GitHub Release
 #   - android-release    upload Android APKs to R2 and register with FlareRelease
+#   - mirror-android-gitcode  optional verified GitCode copy of the same APK
 #
 # Called by build.yml only after validation, the selected builds, and tag
 # creation. `platforms` limits publishing to what was built: an Android-only
@@ -215,3 +216,15 @@ jobs:
             "https://release-admin.uniclipboard.app/api/releases/register" \
             --output flare-release/response.json
           jq -e '.data.status == "ready"' flare-release/response.json
+
+  # Optional mirror for users in mainland China. It copies the same artifact
+  # after FlareRelease registered the release, and never fails the release.
+  mirror-android-gitcode:
+    name: Mirror Android APK to GitCode
+    needs: android-release
+    if: ${{ inputs.platforms != 'ios' }}
+    uses: ./.github/workflows/mirror-android-gitcode.yml
+    with:
+      tag_name: ${{ inputs.tag_name }}
+      non_blocking: true
+    secrets: inherit

@@ -44,6 +44,10 @@ const engineAdoptionWorkflowPath = join(root, '.github', 'workflows', 'adopt-eng
 const engineAdoptionWorkflow = existsSync(engineAdoptionWorkflowPath)
   ? readFileSync(engineAdoptionWorkflowPath, 'utf8')
   : '';
+const gitcodeMirrorWorkflow = readFileSync(
+  join(root, '.github', 'workflows', 'mirror-android-gitcode.yml'),
+  'utf8'
+);
 const androidManifestScript = readFileSync(
   join(root, 'scripts', 'assemble-android-manifest.mjs'),
   'utf8'
@@ -221,8 +225,44 @@ describe('validated release workflow', () => {
     expect(releaseWorkflow).toContain("contains(inputs.tag_name, '-alpha.')");
   });
 
-  it('publishes Android updates only to R2 and GitHub', () => {
+  it('publishes Android updates to R2 and GitHub, with GitCode only as a verified mirror', () => {
     expect(releaseWorkflow).not.toMatch(/gitee/i);
+    expect(gitcodeMirrorWorkflow).not.toMatch(/gitee/i);
+  });
+
+  it('mirrors the already built APK to GitCode after FlareRelease registration without blocking the release', () => {
+    const job = parse(releaseWorkflow).jobs['mirror-android-gitcode'];
+    expect(job.uses).toBe('./.github/workflows/mirror-android-gitcode.yml');
+    expect(job.needs).toBe('android-release');
+    expect(job.if).toBe("${{ inputs.platforms != 'ios' }}");
+    expect(job.with).toEqual({ tag_name: '${{ inputs.tag_name }}', non_blocking: true });
+    expect(job.secrets).toBe('inherit');
+  });
+
+  it('copies the same signed bytes and never rebuilds, re-signs or installs dependencies', () => {
+    const workflow = parse(gitcodeMirrorWorkflow);
+    expect(workflow.on).toHaveProperty('workflow_call');
+    expect(workflow.on).toHaveProperty('workflow_dispatch');
+    expect(gitcodeMirrorWorkflow).toContain('name: apk-arm64-v8a');
+    expect(gitcodeMirrorWorkflow).toContain('gh release download');
+    // A release started by hand is still a workflow_dispatch run for called workflows.
+    expect(gitcodeMirrorWorkflow).not.toContain('github.event_name');
+    expect(gitcodeMirrorWorkflow).toContain('inputs.from_release == true');
+    expect(gitcodeMirrorWorkflow).not.toMatch(/gradlew|expo prebuild|assembleRelease|apksigner|npm (ci|install)/);
+    expect(gitcodeMirrorWorkflow).toContain('mirror-android-apk-to-gitcode.mjs');
+  });
+
+  it('keeps GitCode credentials in repository secrets and fails loudly when run by hand', () => {
+    expect(gitcodeMirrorWorkflow).toContain('secrets.GITCODE_RELEASE_TOKEN');
+    expect(gitcodeMirrorWorkflow).toContain('vars.GITCODE_OWNER');
+    expect(gitcodeMirrorWorkflow).toContain('vars.GITCODE_REPO');
+    expect(gitcodeMirrorWorkflow).toContain('secrets.FLARE_RELEASE_ACCESS_CLIENT_ID');
+    expect(gitcodeMirrorWorkflow).toContain('secrets.FLARE_RELEASE_ACCESS_CLIENT_SECRET');
+    expect(gitcodeMirrorWorkflow).toContain('continue-on-error: ${{ inputs.non_blocking == true }}');
+    expect(gitcodeMirrorWorkflow).toContain("--missing-config \"${{ inputs.non_blocking == true && 'skip' || 'fail' }}\"");
+    expect(gitcodeMirrorWorkflow).toContain('timeout-minutes:');
+    expect(gitcodeMirrorWorkflow).toContain('::warning');
+    expect(gitcodeMirrorWorkflow).not.toContain('GITEE');
   });
 
   it('registers Android releases with FlareRelease without changing a channel', () => {
