@@ -13,6 +13,12 @@ import { basename, join } from 'node:path';
 const projectRoot = join(__dirname, '..', '..');
 type ScriptName = 'bump-build.mjs' | 'bump-version.mjs';
 
+// Git hooks export GIT_DIR and friends. A fixture script that inherits them reads the real
+// repository's release tags instead of the fixture's, so run fixtures without any GIT_* variable.
+const isolatedEnv = Object.fromEntries(
+  Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))
+);
+
 function createFixture(scriptName: ScriptName): string {
   const fixtureRoot = mkdtempSync(join(tmpdir(), 'uniclip-release-script-'));
   const fixtureScripts = join(fixtureRoot, 'scripts');
@@ -49,7 +55,7 @@ describe.each([
       const result = spawnSync(
         process.execPath,
         [join(fixtureRoot, 'scripts', basename(scriptName)), ...args],
-        { encoding: 'utf8' }
+        { encoding: 'utf8', env: isolatedEnv }
       );
 
       expect(result.status).toBe(1);
@@ -64,7 +70,9 @@ describe.each([
     const fixtureRoot = createFixture(scriptName);
 
     try {
-      execFileSync(process.execPath, [join(fixtureRoot, 'scripts', basename(scriptName)), ...args]);
+      execFileSync(process.execPath, [join(fixtureRoot, 'scripts', basename(scriptName)), ...args], {
+        env: isolatedEnv,
+      });
       const appJsonPath = join(fixtureRoot, 'app.json');
       const result = readFileSync(appJsonPath, 'utf8');
       const app = JSON.parse(result);
