@@ -60,3 +60,9 @@ appId: ${APP_ID}
     direction: DOWN
 - assertVisible: "Using built-in relays"
 - assertNotVisible: ".*[Cc]onnected.*"
+# Back from the Relay page returns to Space settings, one level up (not to Devices).
+- back
+- extendedWaitUntil:
+    visible: "Network"
+    timeout: 10000
+- assertVisible: "Space actions"

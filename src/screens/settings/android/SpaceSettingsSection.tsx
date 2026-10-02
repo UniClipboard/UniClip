@@ -145,7 +145,8 @@ export const SpaceSettingsSection = memo(function SpaceSettingsSection() {
 
   return (
     <Column modifiers={[fillMaxWidth()]}>
-      <RelayEntrySection onOpen={() => navigation.navigate('SettingsSub', { section: 'relay' })} />
+      {/* push, not navigate: this screen is already `SettingsSub`, so navigate would only swap its params. */}
+      <RelayEntrySection onOpen={() => navigation.push('SettingsSub', { section: 'relay' })} />
 
       <Spacer modifiers={[heightModifier(24)]} />
       <SettingsSectionItem
