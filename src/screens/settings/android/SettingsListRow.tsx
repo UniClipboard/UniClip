@@ -10,13 +10,23 @@
  */
 import { memo } from 'react';
 import {
+  Box,
   Icon,
   ListItem,
   Row,
+  Shape,
+  Surface,
   Text as ComposeText,
   useMaterialColors,
 } from '@expo/ui/jetpack-compose';
-import { clickable, testID as testIDModifier } from '@expo/ui/jetpack-compose/modifiers';
+import {
+  clickable,
+  height as heightModifier,
+  padding,
+  testID as testIDModifier,
+} from '@expo/ui/jetpack-compose/modifiers';
+
+import { useTheme } from '@/hooks/useTheme';
 
 import { useSettingsSectionRowColors } from '../SettingsSectionItem';
 import { SettingsLeadingIcon, type SettingsLeadingIconTone } from './SettingsLeadingIcon';
@@ -27,8 +37,19 @@ const ICONS = {
 };
 
 const ACTION_STYLE = { typography: 'labelLarge' } as const;
+const PILL_SHAPE = Shape.RoundedCorner({
+  cornerRadii: { topStart: 20, topEnd: 20, bottomStart: 20, bottomEnd: 20 },
+});
 
-export type SettingsListRowTrailing = 'chevron' | 'none' | { action: string } | { value: string };
+export type SettingsListRowTrailing =
+  | 'chevron'
+  | 'none'
+  | { action: string; chevron?: boolean }
+  | { pill: string }
+  | { value: string };
+
+/** `warning`:需要用户处理的状态行,整行换成 warningContainer 底色。 */
+export type SettingsListRowTone = 'default' | 'warning';
 
 export interface SettingsListRowProps {
   title: string;
@@ -41,6 +62,7 @@ export interface SettingsListRowProps {
   disabled?: boolean;
   /** 错误态:标题用 error 色(需处理的问题、破坏性操作)。 */
   destructive?: boolean;
+  tone?: SettingsListRowTone;
   testID?: string;
 }
 
@@ -53,26 +75,38 @@ export const SettingsListRow = memo(function SettingsListRow({
   onPress,
   disabled = false,
   destructive = false,
+  tone = 'default',
   testID,
 }: SettingsListRowProps) {
   const colors = useMaterialColors();
-  const rowColors = useSettingsSectionRowColors();
+  const sectionRowColors = useSettingsSectionRowColors();
+  const { theme } = useTheme();
+  const warning = tone === 'warning';
+  const rowColors = warning
+    ? {
+        ...sectionRowColors,
+        containerColor: theme.colors.warningContainer,
+        contentColor: theme.colors.onWarningContainer,
+        leadingContentColor: theme.colors.onWarningContainer,
+        supportingContentColor: theme.colors.onWarningContainer,
+      }
+    : sectionRowColors;
   const interactive = onPress !== undefined && !disabled;
   const modifiers = [
     ...(testID ? [testIDModifier(testID)] : []),
     ...(interactive ? [clickable(onPress)] : []),
   ];
-  const titleColor = disabled
-    ? colors.onSurfaceVariant
-    : destructive
-    ? colors.error
-    : undefined;
+  const titleColor = disabled ? colors.onSurfaceVariant : destructive ? colors.error : undefined;
 
   return (
     <ListItem colors={rowColors} modifiers={modifiers}>
       {icon !== undefined ? (
         <ListItem.LeadingContent>
-          <SettingsLeadingIcon source={icon} tone={disabled ? 'muted' : iconTone} />
+          {warning ? (
+            <Icon source={icon} size={24} tint={theme.colors.onWarningContainer} />
+          ) : (
+            <SettingsLeadingIcon source={icon} tone={disabled ? 'muted' : iconTone} />
+          )}
         </ListItem.LeadingContent>
       ) : null}
       <ListItem.HeadlineContent>
@@ -89,12 +123,27 @@ export const SettingsListRow = memo(function SettingsListRow({
         </ListItem.TrailingContent>
       ) : typeof trailing === 'object' && 'action' in trailing ? (
         <ListItem.TrailingContent>
-          <ComposeText
-            color={disabled ? colors.onSurfaceVariant : colors.primary}
-            style={ACTION_STYLE}
-          >
-            {trailing.action}
-          </ComposeText>
+          <Row verticalAlignment="center">
+            <ComposeText
+              color={disabled ? colors.onSurfaceVariant : colors.primary}
+              style={ACTION_STYLE}
+            >
+              {trailing.action}
+            </ComposeText>
+            {trailing.chevron ? (
+              <Icon source={ICONS.chevron} size={20} tint={colors.onSurfaceVariant} />
+            ) : null}
+          </Row>
+        </ListItem.TrailingContent>
+      ) : typeof trailing === 'object' && 'pill' in trailing ? (
+        <ListItem.TrailingContent>
+          <Surface color={theme.colors.warning} shape={PILL_SHAPE}>
+            <Box contentAlignment="center" modifiers={[heightModifier(40), padding(16, 0, 16, 0)]}>
+              <ComposeText color={theme.colors.onWarning as string} style={ACTION_STYLE}>
+                {trailing.pill}
+              </ComposeText>
+            </Box>
+          </Surface>
         </ListItem.TrailingContent>
       ) : typeof trailing === 'object' ? (
         <ListItem.TrailingContent>

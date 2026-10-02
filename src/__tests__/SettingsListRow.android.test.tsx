@@ -14,19 +14,16 @@ jest.mock('@expo/ui/jetpack-compose', () => {
   const react = require('react') as typeof import('react');
   const passthrough = ({ children }: { children?: React.ReactNode }) =>
     react.createElement(react.Fragment, null, children);
-  const ListItem = Object.assign(
-    (props: object) => react.createElement('row', props),
-    {
-      LeadingContent: 'leading',
-      HeadlineContent: 'headline',
-      SupportingContent: 'support',
-      TrailingContent: 'trailing',
-    }
-  );
-  const DropdownMenu = Object.assign(
-    (props: object) => react.createElement('menu', props),
-    { Trigger: passthrough, Items: passthrough }
-  );
+  const ListItem = Object.assign((props: object) => react.createElement('row', props), {
+    LeadingContent: 'leading',
+    HeadlineContent: 'headline',
+    SupportingContent: 'support',
+    TrailingContent: 'trailing',
+  });
+  const DropdownMenu = Object.assign((props: object) => react.createElement('menu', props), {
+    Trigger: passthrough,
+    Items: passthrough,
+  });
   const DropdownMenuItem = Object.assign(
     (props: object) => react.createElement('menuItem', props),
     { Text: passthrough, TrailingIcon: passthrough }
@@ -44,7 +41,21 @@ jest.mock('@expo/ui/jetpack-compose', () => {
     useMaterialColors: () => ({}),
   };
 });
+jest.mock('@/hooks/useTheme', () => ({
+  useTheme: () => ({
+    theme: {
+      colors: {
+        warning: '#w',
+        onWarning: '#ow',
+        warningContainer: '#wc',
+        onWarningContainer: '#owc',
+      },
+    },
+  }),
+}));
 jest.mock('@expo/ui/jetpack-compose/modifiers', () => ({
+  height: () => ({ type: 'height' }),
+  padding: () => ({ type: 'padding' }),
   clickable: (handler: () => void) => ({ type: 'clickable', handler }),
   testID: (id: string) => ({ type: 'testID', id }),
   fillMaxWidth: () => ({ type: 'fillMaxWidth' }),
@@ -90,6 +101,39 @@ describe('SettingsListRow', () => {
   });
 });
 
+describe('SettingsListRow warning status', () => {
+  it('keeps the whole warning row clickable and renders the pill label as a hint', async () => {
+    const press = jest.fn();
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <SettingsListRow
+          testID="issue"
+          tone="warning"
+          icon={1}
+          title="One-time setup needed"
+          trailing={{ pill: 'Set up' }}
+          onPress={press}
+        />
+      );
+    });
+
+    expect(renderer.root.findByType('row' as React.ElementType).props.colors.containerColor).toBe(
+      '#wc'
+    );
+    rowModifiers(renderer)
+      .find((m) => m.type === 'clickable')
+      ?.handler?.();
+    expect(press).toHaveBeenCalledTimes(1);
+    const label = renderer.root
+      .findByType('trailing' as React.ElementType)
+      .findByType('text' as React.ElementType);
+    expect(label.props.children).toBe('Set up');
+    expect(label.props.onClick).toBeUndefined();
+    await act(async () => renderer.unmount());
+  });
+});
+
 describe('SettingsSelectRow', () => {
   it('opens the menu from anywhere on the row and reports only a changed choice', async () => {
     const select = jest.fn();
@@ -100,7 +144,12 @@ describe('SettingsSelectRow', () => {
     let renderer!: TestRenderer.ReactTestRenderer;
     await act(async () => {
       renderer = TestRenderer.create(
-        <SettingsSelectRow title="Log level" options={options} selectedValue="error" onSelect={select} />
+        <SettingsSelectRow
+          title="Log level"
+          options={options}
+          selectedValue="error"
+          onSelect={select}
+        />
       );
     });
 
@@ -112,7 +161,9 @@ describe('SettingsSelectRow', () => {
     expect(box.props.contentAlignment).toBe('bottomEnd');
     expect(box.children).toHaveLength(2);
     await act(async () => {
-      rowModifiers(renderer).find((m) => m.type === 'clickable')?.handler?.();
+      rowModifiers(renderer)
+        .find((m) => m.type === 'clickable')
+        ?.handler?.();
     });
     expect(menu().props.expanded).toBe(true);
 
@@ -122,7 +173,9 @@ describe('SettingsSelectRow', () => {
     expect(menu().props.expanded).toBe(false);
 
     await act(async () => {
-      rowModifiers(renderer).find((m) => m.type === 'clickable')?.handler?.();
+      rowModifiers(renderer)
+        .find((m) => m.type === 'clickable')
+        ?.handler?.();
     });
     await act(async () => items[1].props.onClick());
     expect(select).toHaveBeenCalledWith('debug');
@@ -142,12 +195,23 @@ describe('Android settings pages reuse the grouped row components', () => {
     expect(hub.match(/<SettingsSectionItem\b/g)).toHaveLength(
       hub.match(/<SettingsSectionItem\s+variant="grouped"/g)?.length ?? -1
     );
-    for (const section of ['history', 'background', 'storage', 'diagnostics', 'privacy', 'about', 'developer']) {
+    for (const section of [
+      'history',
+      'background',
+      'storage',
+      'diagnostics',
+      'privacy',
+      'about',
+      'developer',
+    ]) {
       expect(hub).toContain(`section="${section}"`);
     }
     expect(hub).not.toContain('section="appearance"');
     // theme / language / hide-from-recents sit directly in the General group
-    const general = hub.slice(hub.indexOf('const GeneralHubGroup'), hub.indexOf('const SupportHubGroup'));
+    const general = hub.slice(
+      hub.indexOf('const GeneralHubGroup'),
+      hub.indexOf('const SupportHubGroup')
+    );
     for (const row of ['<ThemeSelectRow', '<LanguageSelectRow', '<HideFromRecentsRow']) {
       expect(general).toContain(row);
     }
@@ -174,7 +238,10 @@ describe('Android settings pages reuse the grouped row components', () => {
   });
 
   it('reads grouped row colors inside every shared row component', () => {
-    for (const row of ['settings/android/SettingsListRow.tsx', 'settings/android/SettingsSwitchRow.tsx']) {
+    for (const row of [
+      'settings/android/SettingsListRow.tsx',
+      'settings/android/SettingsSwitchRow.tsx',
+    ]) {
       expect(read(row)).toContain('useSettingsSectionRowColors()');
       expect(read(row)).toContain('colors={rowColors}');
     }

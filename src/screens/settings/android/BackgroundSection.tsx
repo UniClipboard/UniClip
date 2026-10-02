@@ -5,8 +5,9 @@
  * 三项系统权限(忽略电池优化、通知权限、悬浮窗权限;跳系统页的两项靠 AppState 监听下一次
  * 回到前台来串行,避免连续拉起多个系统 Activity 互相打断)。
  * 总开关放在顶部 SettingsHeroCard(开启时 primaryContainer 强调),其下三组 grouped 列表:
- * 剪贴板读取 / 后台同步 / 运行保障。后台剪贴板访问通过横向分页 Bottom Sheet 比较并选择
- * 定时轮询、READ_LOGS 事件检测或 Shizuku；缺少的授权步骤由所选 adapter 自己处理。
+ * 剪贴板读取 / 后台同步 / 运行保障。后台剪贴板访问通过竖向单选 Bottom Sheet 比较并选择
+ * 定时轮询、READ_LOGS 事件检测或 Shizuku；缺少的授权步骤由所选 adapter 自己处理,
+ * 需要用户动手的步骤(ADB 命令 / 启动 Shizuku / MIUI 限制)用同一个 Sheet 的引导页呈现。
  * Alert.alert 确认统一走单个配置驱动的 Compose AlertDialog(挂在第一个分组上;Compose
  * Dialog 是 window 级 overlay,挂载位置不影响展示)。失败回滚交给 store。
  */
@@ -30,6 +31,8 @@ import type { ClipboardAuthorizationState } from '@/utils/backgroundClipboardAcc
 import {
   getBackgroundClipboardSetupState,
   refreshBackgroundClipboardAuthorization,
+  SHIZUKU_START_COMMAND,
+  type BackgroundClipboardSetupIssue,
 } from '@/utils/backgroundClipboardAccess';
 import { useSettingsToast } from '../SettingsToastContext';
 import { fillMaxWidth, height as heightModifier } from '@expo/ui/jetpack-compose/modifiers';
@@ -40,6 +43,12 @@ import { SettingsSwitchRow } from './SettingsSwitchRow';
 import { useSmsCodeAutoCopy } from './useSmsCodeAutoCopy';
 import { useClipboardAccessMethodSheet } from '../ClipboardAccessMethodSheet';
 import { resolveAdbAuthorizationCheck } from '../ClipboardAccessMethodSheet.state';
+
+const ICONS = {
+  terminal: require('../../../assets/icons/terminal.xml'),
+  error: require('../../../assets/icons/error.xml'),
+  check: require('../../../assets/icons/check.xml'),
+};
 
 interface BgDialog {
   title: string;
@@ -70,7 +79,13 @@ function waitForNextActiveState(timeoutMs = 60_000): Promise<void> {
 export const BackgroundSection = memo(function BackgroundSection() {
   const { t } = useTranslation('settingsBackground');
   const showMessage = useSettingsToast();
-  const { openMethodSheet, openAdbSetupSheet, closeSheet } = useClipboardAccessMethodSheet();
+  const {
+    openMethodSheet,
+    openAdbSetupSheet,
+    openShizukuSetupSheet,
+    openRestrictionSheet,
+    closeSheet,
+  } = useClipboardAccessMethodSheet();
 
   const isTempDisabled = useSettingsStore((s) => s.isTempDisabledBackgroundTasks);
   const backgroundTasksEnabled = useSettingsStore(
@@ -395,24 +410,60 @@ export const BackgroundSection = memo(function BackgroundSection() {
     });
   };
 
+  const openShizukuGuide = (stage: 'notRunning' | 'authorize') => {
+    openShizukuSetupSheet({
+      stage,
+      command: SHIZUKU_START_COMMAND,
+      onAction: () => void runShizukuGuideAction(),
+      onCheck: () => void checkShizukuSetup(),
+    });
+  };
+
+  /** 按最新授权状态更新 Shizuku 引导:仍缺步骤就换到对应页,全部就绪则关闭。 */
+  const checkShizukuSetup = async () => {
+    try {
+      const adapter = getClipboardAccessAdapter('shizuku');
+      const nextState = adapter.getAuthorizationState();
+      setClipboardAccessState(nextState);
+      const setup = getBackgroundClipboardSetupState(nextState);
+      if (setup.issue === 'service-unavailable') return openShizukuGuide('notRunning');
+      if (setup.issue === 'permission-required') return openShizukuGuide('authorize');
+      closeSheet();
+      if (setup.issue === 'system-restriction') return openRestrictionGuide();
+      await useClipboardStore.getState().restartMonitoring();
+      showMessage(t('advanced.clipboardAccess.setup.completed'), 'success');
+    } catch (error: unknown) {
+      showMessage(error instanceof Error ? error.message : t('toast.setFailed'), 'error');
+    }
+  };
+
+  const runShizukuGuideAction = async () => {
+    await continueClipboardAccessSetup();
+    await checkShizukuSetup();
+  };
+
+  const openRestrictionGuide = () => {
+    openRestrictionSheet({
+      onConfirm: () => {
+        closeSheet();
+        void continueClipboardAccessSetup();
+      },
+    });
+  };
+
   const handleContinueClipboardAccessSetup = () => {
-    if (clipboardSetupState.issue === 'monitoring-setup-required') {
-      if (adbCommandCopied) {
-        void checkAdbAuthorization();
-      } else {
-        openAdbSetupGuide('instructions');
-      }
+    const issue: BackgroundClipboardSetupIssue | null = clipboardSetupState.issue;
+    if (issue === 'monitoring-setup-required') {
+      openAdbSetupGuide(adbCommandCopied ? 'copied' : 'instructions');
       return;
     }
-    if (clipboardSetupState.issue === 'system-restriction') {
-      setDialog({
-        title: t('advanced.clipboardAccess.restriction.title'),
-        text: t('advanced.clipboardAccess.restriction.text'),
-        confirmLabel: t('advanced.clipboardAccess.restriction.confirm'),
-        dismissLabel: t('action.cancel', { ns: 'common' }),
-        onConfirm: () => void continueClipboardAccessSetup(),
-      });
+    if (issue === 'system-restriction') {
+      openRestrictionGuide();
       return;
+    }
+    if (clipboardAccessMethod === 'shizuku') {
+      if (issue === 'service-unavailable') return openShizukuGuide('notRunning');
+      if (issue === 'permission-required') return openShizukuGuide('authorize');
     }
     void continueClipboardAccessSetup();
   };
@@ -486,30 +537,43 @@ export const BackgroundSection = memo(function BackgroundSection() {
         <SettingsListRow
           key="clipboardAccess"
           testID="background-clipboard-access"
+          icon={ICONS.terminal}
           title={t('advanced.clipboardAccess.title')}
-          description={t(`advanced.clipboardAccess.description.${clipboardAccessMethod}`)}
-          trailing={{ value: t(`advanced.clipboardAccess.method.${clipboardAccessMethod}`) }}
+          description={t(`advanced.clipboardAccess.method.${clipboardAccessMethod}`)}
+          trailing={{
+            action: t('advanced.clipboardAccess.entry.change'),
+            chevron: true,
+          }}
           onPress={handleOpenClipboardMethodSheet}
         />
         {clipboardSetupState.status === 'action-required' ? (
           <SettingsListRow
             key="clipboardAccessIssue"
             testID="background-clipboard-access-issue"
-            destructive
+            tone="warning"
+            icon={ICONS.error}
             title={t(`advanced.clipboardAccess.issue.${clipboardSetupState.issue}`)}
             description={t(
               `advanced.clipboardAccess.issueDescription.${clipboardSetupState.issue}`
             )}
             trailing={{
-              action: t(
-                clipboardSetupState.issue === 'monitoring-setup-required' && adbCommandCopied
-                  ? 'advanced.clipboardAccess.action.check'
-                  : `advanced.clipboardAccess.action.${clipboardSetupState.issue}`
-              ),
+              pill: t(`advanced.clipboardAccess.action.${clipboardSetupState.issue}`),
             }}
             onPress={handleContinueClipboardAccessSetup}
           />
-        ) : null}
+        ) : (
+          <SettingsListRow
+            key="clipboardAccessReady"
+            testID="background-clipboard-access-ready"
+            icon={ICONS.check}
+            title={t('advanced.clipboardAccess.status.ready.title')}
+            description={t(
+              `advanced.clipboardAccess.status.ready.description.${clipboardAccessMethod}`
+            )}
+            trailing="chevron"
+            onPress={handleOpenClipboardMethodSheet}
+          />
+        )}
       </SettingsSectionItem>
 
       <Spacer modifiers={[heightModifier(24)]} />

@@ -36,28 +36,23 @@
         "overlay-event": "Eventos ADB",
         "shizuku": "Shizuku"
       },
-      "description": {
-        "overlay-polling": "Recomendado para a maioria; não exige computador, mas pode afetar a entrada brevemente",
-        "overlay-event": "Lê só após copiar; causa menos interferência, mas exige um computador uma vez",
-        "shizuku": "A opção mais fluida; requer o Shizuku sempre em execução"
-      },
       "issue": {
         "service-unavailable": "O Shizuku não está em execução",
         "permission-required": "O acesso à área de transferência ainda precisa de permissão",
         "system-restriction": "O MIUI está bloqueando o acesso em segundo plano",
-        "monitoring-setup-required": "Ainda é necessária autorização pelo computador"
+        "monitoring-setup-required": "Configuração única necessária"
       },
       "issueDescription": {
         "service-unavailable": "Instale e inicie o Shizuku, depois volte para autorizar",
         "permission-required": "Siga a solicitação do sistema para permitir este método ao UniClip",
         "system-restriction": "Use o Shizuku para desativar a restrição da área de transferência inteligente do MIUI",
-        "monitoring-setup-required": "Execute um comando ADB em um computador com a depuração USB ativada"
+        "monitoring-setup-required": "Copie um comando adb e execute-o no computador"
       },
       "action": {
         "service-unavailable": "Abrir Shizuku",
         "permission-required": "Autorizar",
         "system-restriction": "Resolver",
-        "monitoring-setup-required": "Ver etapas",
+        "monitoring-setup-required": "Configurar",
         "check": "Verificar acesso"
       },
       "setup": {
@@ -66,65 +61,126 @@
         "failed": "Não foi possível concluir a configuração da área de transferência"
       },
       "sheet": {
-        "title": "Escolher método de leitura",
-        "subtitle": "Deslize para comparar configuração, resposta e limitações",
-        "recommended": "Recomendado",
-        "current": "Em uso",
-        "useMethod": "Usar este método",
-        "pageLabel": "Opção {{current}} de {{total}}",
+        "title": "Leitura em segundo plano",
+        "subtitle": "O Android bloqueia a leitura da área de transferência em segundo plano. Escolha como o UniClip percebe uma cópia.",
+        "inUse": "Em uso",
+        "currentButton": "Em uso no momento",
+        "continue": {
+          "overlay-polling": "Usar verificação periódica",
+          "overlay-event": "Continuar com eventos ADB",
+          "shizuku": "Continuar com Shizuku"
+        },
+        "nextHint": {
+          "overlay-event": "Próximo: copie um comando adb para executar no computador"
+        },
         "labels": {
           "bestFor": "Ideal para",
-          "benefit": "Vantagem",
-          "tradeoff": "Atenção",
+          "tradeoff": "Lembre-se",
           "setup": "Antes de começar"
         },
         "methods": {
           "overlay-polling": {
-            "title": "Consulta periódica",
-            "summary": "A opção mais simples, sem computador nem app adicional",
-            "bestFor": "A maioria das pessoas que quer uma configuração mínima",
-            "benefit": "Não exige ADB; funciona após permitir a sobreposição",
-            "tradeoff": "Verifica a cada segundo e pode afetar brevemente teclados, jogos ou apps em tela cheia",
+            "title": "Verificação periódica",
+            "summary": "Não exige configuração, mas interrompe a digitação.",
+            "tag1": "Sem computador",
+            "tag2": "Interrompe a digitação",
+            "bestFor": "Para testar o UniClip ou quando nada mais estiver disponível",
+            "tradeoff": "Verifica a cada segundo e toma o foco por instantes: o teclado pode sumir, toques podem se perder e jogos ou apps em tela cheia podem ser afetados",
             "setup": "Permita que o UniClip apareça sobre outros apps"
           },
           "overlay-event": {
             "title": "Eventos ADB",
-            "summary": "Lê somente após copiar, com resposta rápida e menos interferência",
-            "bestFor": "Quem pode conectar um computador e prefere menor consumo de energia",
-            "benefit": "Sem consulta contínua; funciona apenas quando o Android informa uma cópia",
-            "tradeoff": "A autorização deve ser repetida após reinstalar o app",
-            "setup": "Exige sobreposição, depuração USB e ADB no computador"
+            "summary": "Lê somente após uma cópia. Menos interferência, menor consumo.",
+            "tag1": "Computador, uma vez",
+            "tag2": "Por eventos",
+            "bestFor": "Quem pode conectar a um computador e quer gastar menos bateria",
+            "tradeoff": "Execute o comando de novo após reinstalar o app",
+            "setup": "Permissão de sobreposição, depuração USB e ADB no computador"
           },
           "shizuku": {
             "title": "Shizuku",
-            "summary": "O melhor monitoramento em segundo plano sem sobreposição",
-            "bestFor": "Usuários avançados que já conhecem ou usam o Shizuku",
-            "benefit": "Resposta por eventos sem assumir temporariamente o foco da janela",
-            "tradeoff": "Depende do serviço Shizuku, que geralmente precisa ser reiniciado após a reinicialização do dispositivo",
-            "setup": "Instale e inicie o Shizuku, depois permita o acesso ao UniClip"
+            "summary": "O mais fluido, sem sobreposição.",
+            "tag1": "Shizuku em execução",
+            "tag2": "Por eventos",
+            "bestFor": "Quem já usa o Shizuku",
+            "tradeoff": "O Shizuku geralmente precisa ser reiniciado após cada reinicialização",
+            "setup": "Instale e inicie o Shizuku e depois conceda acesso"
           }
         }
       },
       "adbGuide": {
-        "title": "Autorizar detecção de eventos ADB",
-        "subtitle": "O UniClip usa esta permissão somente para detectar cópias e não processa outros logs",
+        "title": "Autorizar eventos ADB",
+        "subtitle": "O UniClip usa isso apenas para detectar eventos de cópia e nunca lê outro conteúdo do log.",
         "status": {
-          "copied": "Comando copiado. Execute-o no terminal do computador e volte para verificar.",
-          "notDetected": "A autorização não foi detectada. Verifique a conexão e o resultado do comando."
+          "copied": "Comando copiado. Cole-o no terminal do computador e toque em Verificar acesso.",
+          "notDetected": "Acesso ainda não detectado. Confirme que o comando terminou sem erro e que o telefone aparece como “device”."
         },
-        "step1": "Instale o Android Platform Tools (ADB) no computador.",
-        "step2": "Ative a depuração USB nas Opções do desenvolvedor do celular.",
-        "step3": "Conecte por USB e permita a depuração por este computador no celular.",
-        "step4": "Execute o comando abaixo no terminal do computador e toque em Verificar acesso.",
-        "commandLabel": "Comando para o terminal do computador",
-        "copyCommand": "Copiar comando de autorização",
-        "copyAgain": "Copiar comando novamente",
-        "check": "Verificar acesso"
+        "step1": {
+          "title": "Prepare o computador",
+          "text": "Instale o Android Platform Tools (adb). No telefone, ative a depuração USB nas Opções do desenvolvedor."
+        },
+        "step2": {
+          "title": "Conecte e permita",
+          "text": "Conecte por USB e toque em Permitir no telefone. Este comando deve listar o telefone como “device”:"
+        },
+        "step3": {
+          "title": "Conceda acesso uma vez",
+          "text": "Execute no mesmo terminal. Só será necessário de novo após reinstalar o UniClip."
+        },
+        "terminalLabel": "Terminal",
+        "copy": "Copiar",
+        "copied": "Copiado",
+        "copyCommand": "Copiar comando de concessão",
+        "copyAgain": "Copiar comando de concessão novamente",
+        "check": "Verificar acesso",
+        "checkAgain": "Verificar novamente"
       },
       "restriction": {
         "title": "Desativar a restrição de área de transferência do MIUI",
-        "text": "O UniClip usará o Shizuku para desativar a restrição de área de transferência inteligente do MIUI, para que o conteúdo possa ser lido e gravado em segundo plano. Isso também pode desativar o recurso de área de transferência inteligente do sistema.",
-        "confirm": "Desativar restrição"
+        "subtitle": "Necessário para leitura e escrita em segundo plano.",
+        "warning": "Isso também pode desativar a área de transferência inteligente do MIUI.",
+        "text": "O UniClip usará o Shizuku para desativar a restrição da área de transferência inteligente do MIUI. Você pode reativá-la nas configurações do sistema a qualquer momento.",
+        "confirm": "Desativar restrição",
+        "dismiss": "Agora não"
+      },
+      "entry": {
+        "change": "Alterar"
+      },
+      "status": {
+        "ready": {
+          "title": "Pronto",
+          "description": {
+            "overlay-polling": "Verifica a área de transferência a cada segundo",
+            "overlay-event": "Lê somente após um evento de cópia",
+            "shizuku": "Leitura via Shizuku"
+          }
+        }
+      },
+      "shizukuGuide": {
+        "title": "Configurar o Shizuku",
+        "subtitle": "O UniClip usa o Shizuku para ler a área de transferência sem sobreposição.",
+        "status": {
+          "notRunning": "O Shizuku não está em execução. Inicie-o e volte aqui.",
+          "authorize": "O Shizuku está em execução. Último passo: permita o UniClip."
+        },
+        "step1": {
+          "title": "Instale o Shizuku",
+          "text": "Instale o app Shizuku e abra-o uma vez.",
+          "done": "Instalado."
+        },
+        "step2": {
+          "title": "Inicie o serviço",
+          "text": "No Android 11+, use a Depuração sem fio dentro do Shizuku, sem computador. Ou execute no computador:",
+          "done": "Em execução."
+        },
+        "step3": {
+          "title": "Permita o UniClip",
+          "text": "Com o Shizuku em execução, o sistema pedirá para permitir o UniClip.",
+          "authorizeText": "Toque em Autorizar e aceite o aviso do Shizuku. Ele só permite que o UniClip detecte mudanças na área de transferência."
+        },
+        "open": "Abrir o Shizuku",
+        "authorize": "Autorizar o UniClip",
+        "checkAgain": "Verificar novamente"
       }
     },
     "groups": {

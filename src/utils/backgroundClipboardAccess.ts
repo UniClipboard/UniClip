@@ -11,6 +11,13 @@ export interface BackgroundClipboardMonitor {
   remove(): void;
 }
 
+/** Shown in the ADB guide so users can verify the phone is listed as `device`. */
+export const ADB_DEVICES_COMMAND = 'adb devices';
+
+/** Starts the Shizuku service from a computer (documented by Shizuku). */
+export const SHIZUKU_START_COMMAND =
+  'adb shell sh /storage/emulated/0/Android/data/moe.shizuku.privileged.api/start.sh';
+
 export type BackgroundClipboardOperation = 'monitor' | 'read' | 'write';
 
 export interface ClipboardAuthorizationState {
@@ -183,7 +190,9 @@ export async function changeBackgroundClipboardMethod({
           rollbackError instanceof Error ? rollbackError.message : String(rollbackError)
         )
         .join('; ');
-      throw new Error(`Clipboard method rollback failed: ${detail}`, { cause: error });
+      throw new Error(`Clipboard method rollback failed: ${detail}`, {
+        cause: error,
+      });
     }
     throw error;
   }

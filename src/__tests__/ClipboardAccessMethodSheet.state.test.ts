@@ -1,7 +1,6 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import {
   clipboardAccessSheetReducer,
-  getMethodPageHeight,
   getSheetContentMaxHeight,
   INITIAL_CLIPBOARD_ACCESS_SHEET_STATE,
   resolveAdbAuthorizationCheck,
@@ -43,7 +42,9 @@ describe('clipboard access method sheet state', () => {
       type: 'open-methods',
       options: methodOptions,
     });
-    const selecting = clipboardAccessSheetReducer(opened, { type: 'selection-started' });
+    const selecting = clipboardAccessSheetReducer(opened, {
+      type: 'selection-started',
+    });
 
     expect(selecting.visible).toBe(false);
     expect(selecting.isSelecting).toBe(true);
@@ -70,19 +71,44 @@ describe('clipboard access method sheet state', () => {
     });
   });
 
-  it('shrinks method pages for landscape windows and caps tall portrait windows', () => {
-    expect(getMethodPageHeight(400)).toBe(140);
-    expect(getMethodPageHeight(900)).toBe(500);
-    expect(getMethodPageHeight(240)).toBe(72);
+  it('opens the Shizuku guide and the MIUI restriction sheet', () => {
+    const shizuku = clipboardAccessSheetReducer(INITIAL_CLIPBOARD_ACCESS_SHEET_STATE, {
+      type: 'open-shizuku',
+      options: {
+        stage: 'notRunning',
+        command: 'adb shell sh start.sh',
+        onAction: jest.fn<() => void>(),
+        onCheck: jest.fn<() => void>(),
+      },
+    });
+    expect(shizuku).toMatchObject({
+      visible: true,
+      content: { type: 'shizuku', stage: 'notRunning' },
+    });
+
+    const restriction = clipboardAccessSheetReducer(shizuku, {
+      type: 'open-restriction',
+      options: { onConfirm: jest.fn<() => void>() },
+    });
+    expect(restriction).toMatchObject({
+      visible: true,
+      content: { type: 'restriction' },
+    });
+  });
+
+  it('caps the sheet content below the window height', () => {
     expect(getSheetContentMaxHeight(400)).toBe(332);
   });
 });
 
 describe('ADB authorization check outcome', () => {
   it('completes only when both clipboard access and event monitoring are ready', () => {
-    expect(resolveAdbAuthorizationCheck({ status: 'ready', monitoringStatus: 'ready' })).toBe(
-      'complete'
-    );
+    expect(
+      resolveAdbAuthorizationCheck({
+        status: 'ready',
+        monitoringStatus: 'ready',
+      })
+    ).toBe('complete');
   });
 
   it('keeps the ADB guide open while READ_LOGS is missing', () => {
@@ -97,7 +123,10 @@ describe('ADB authorization check outcome', () => {
 
   it('returns to access setup when READ_LOGS exists but overlay permission is missing', () => {
     expect(
-      resolveAdbAuthorizationCheck({ status: 'unauthorized', monitoringStatus: 'ready' })
+      resolveAdbAuthorizationCheck({
+        status: 'unauthorized',
+        monitoringStatus: 'ready',
+      })
     ).toBe('continue-access-setup');
   });
 });
