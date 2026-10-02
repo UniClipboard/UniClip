@@ -149,7 +149,7 @@ describe('Android priority UX regressions', () => {
     expect(sheet).toContain("secureToggleLabel={t('lan.passwordShow')}");
     expect(sheet).toContain("t('lan.discardTitle')");
     expect(editor).toContain('isDirty,');
-    expect(textField).toContain('OutlinedTextField.TrailingIcon');
+    expect(textField).toContain('Field.TrailingIcon');
     expect(textField).toContain('secureVisible');
   });
 

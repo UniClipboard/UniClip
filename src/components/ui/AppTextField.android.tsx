@@ -2,7 +2,9 @@ import {
   Icon,
   IconButton,
   OutlinedTextField,
+  Shape,
   Text,
+  TextField,
   useMaterialColors,
   useNativeState,
 } from '@expo/ui/jetpack-compose';
@@ -15,7 +17,38 @@ const ICONS = {
   visibilityOff: require('../../assets/icons/visibility_off.xml'),
 };
 
+const FILLED_SHAPE = Shape.RoundedCorner({
+  cornerRadii: { topStart: 16, topEnd: 16, bottomStart: 16, bottomEnd: 16 },
+});
+
+/**
+ * Tonal, rounded text field look shared by every Android form: a surfaceContainer fill that
+ * matches the grouped rows, 16dp corners and no indicator line (focus shows in the floating
+ * label). Fields that cannot go through AppTextField (error state, leading icon, IME actions)
+ * pass this to Material's `TextField` so they still look the same.
+ */
+export function useFilledTextFieldStyle(): { shape: typeof FILLED_SHAPE; colors: TextFieldColors } {
+  const colors = useMaterialColors();
+  return {
+    shape: FILLED_SHAPE,
+    colors: {
+      focusedContainerColor: colors.surfaceContainer,
+      unfocusedContainerColor: colors.surfaceContainer,
+      disabledContainerColor: colors.surfaceContainer,
+      errorContainerColor: colors.surfaceContainer,
+      focusedIndicatorColor: 'transparent',
+      unfocusedIndicatorColor: 'transparent',
+      disabledIndicatorColor: 'transparent',
+    },
+  };
+}
+
 export interface AppTextFieldProps {
+  /**
+   * `filled` (default) is the app's tonal, rounded field; `outlined` is the stock Material
+   * outline, for the rare place that needs it.
+   */
+  variant?: 'outlined' | 'filled';
   value: string;
   onChangeText: (value: string) => void;
   placeholder?: string;
@@ -31,6 +64,7 @@ export interface AppTextFieldProps {
 }
 
 export function AppTextField({
+  variant = 'filled',
   value,
   onChangeText,
   placeholder,
@@ -61,32 +95,37 @@ export function AppTextField({
     [onChangeText]
   );
 
+  const filled = variant === 'filled';
+  const Field = filled ? TextField : OutlinedTextField;
+  const filledStyle = useFilledTextFieldStyle();
+
   return (
-    <OutlinedTextField
+    <Field
       value={nativeValue}
       onValueChange={handleValueChange}
       enabled={disabled !== undefined ? !disabled : undefined}
       singleLine
       visualTransformation={secure && !secureVisible ? 'password' : undefined}
       keyboardOptions={{ keyboardType: secure ? 'password' : keyboardType }}
-      colors={fieldColors}
+      {...(filled ? { shape: filledStyle.shape } : {})}
+      colors={fieldColors ?? (filled ? filledStyle.colors : undefined)}
       modifiers={[
         ...(fullWidth ? [fillMaxWidth()] : []),
         ...(testID ? [testIDModifier(testID)] : []),
       ]}
     >
       {label ? (
-        <OutlinedTextField.Label>
+        <Field.Label>
           <Text>{label}</Text>
-        </OutlinedTextField.Label>
+        </Field.Label>
       ) : null}
       {placeholder ? (
-        <OutlinedTextField.Placeholder>
+        <Field.Placeholder>
           <Text>{placeholder}</Text>
-        </OutlinedTextField.Placeholder>
+        </Field.Placeholder>
       ) : null}
       {secure && secureToggleLabel ? (
-        <OutlinedTextField.TrailingIcon>
+        <Field.TrailingIcon>
           <IconButton onClick={() => setSecureVisible((visible) => !visible)}>
             <Icon
               source={secureVisible ? ICONS.visibilityOff : ICONS.visibility}
@@ -97,8 +136,8 @@ export function AppTextField({
               }
             />
           </IconButton>
-        </OutlinedTextField.TrailingIcon>
+        </Field.TrailingIcon>
       ) : null}
-    </OutlinedTextField>
+    </Field>
   );
 }

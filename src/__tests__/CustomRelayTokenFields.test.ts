@@ -37,3 +37,15 @@ it('labels the Android relay fields through the shared text field, like other fo
   // No hand-drawn caption above a field.
   expect(editor).not.toMatch(/<ComposeText[^>]*>\{t\('relay\.(url|token)'\)\}<\/ComposeText>/);
 });
+
+it('gives Android forms one text field look, filled and rounded, instead of stock outlines', () => {
+  const field = source('components/ui/AppTextField.android.tsx');
+  const joinSheet = source('components/AddSyncConnectionSheet.android.tsx');
+
+  expect(field).toContain("variant = 'filled'");
+  expect(field).toContain('useFilledTextFieldStyle');
+  // The create/join sheet cannot use AppTextField (error state, leading icon, IME actions), so it
+  // must use Material's TextField with the shared style rather than OutlinedTextField.
+  expect(joinSheet).not.toContain('OutlinedTextField');
+  expect(joinSheet).toContain('useFilledTextFieldStyle');
+});

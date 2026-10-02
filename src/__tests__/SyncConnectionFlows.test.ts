@@ -536,7 +536,9 @@ describe('Android two-step join sheet', () => {
 
     expect(step).toMatch(/<InvitationCodeChip[\s\S]*onClick=\{back\}/);
     expect(step).toContain("visualTransformation={passphraseRevealed ? 'none' : 'password'}");
-    expect(step).toContain('<OutlinedTextField.TrailingIcon>');
+    expect(step).toContain('<TextField.TrailingIcon>');
+    // Same tonal rounded look as AppTextField, not the stock outline.
+    expect(step).toContain('shape={fieldStyle.shape}');
     expect(step).toContain('isError={Boolean(error)}');
   });
 

@@ -13,7 +13,7 @@ import {
   LinearWavyProgressIndicator,
   LoadingIndicator,
   ModalBottomSheet,
-  OutlinedTextField,
+  TextField,
   Row,
   Shape,
   Spacer,
@@ -44,6 +44,7 @@ import {
 } from '@expo/ui/jetpack-compose/modifiers';
 import { useTranslation } from 'react-i18next';
 
+import { useFilledTextFieldStyle } from '@/components/ui/AppTextField.android';
 import { useTheme } from '@/hooks/useTheme';
 import { resolveDefaultDeviceName } from '@/utils/deviceName';
 import * as ClipboardProxy from '@/utils/clipboardProxy';
@@ -522,6 +523,7 @@ function AddSyncConnectionSheetContent({
 }: AddSyncConnectionSheetProps) {
   const { t } = useTranslation('settingsSync');
   const colors = useMaterialColors();
+  const fieldStyle = useFilledTextFieldStyle();
   const defaultDeviceName = resolveDefaultDeviceName(
     Device.deviceName,
     Device.modelName,
@@ -731,19 +733,23 @@ function AddSyncConnectionSheetContent({
               {t('space.flow.createBody')}
             </ComposeText>
             <Spacer modifiers={[heightModifier(20)]} />
-            <OutlinedTextField
+            <TextField
+              shape={fieldStyle.shape}
+              colors={fieldStyle.colors}
               value={deviceNameState}
               onValueChange={setDeviceName}
               singleLine
               keyboardOptions={{ capitalization: 'words', imeAction: 'next' }}
               modifiers={[fillMaxWidth()]}
             >
-              <OutlinedTextField.Label>
+              <TextField.Label>
                 <ComposeText>{t('space.field.deviceName')}</ComposeText>
-              </OutlinedTextField.Label>
-            </OutlinedTextField>
+              </TextField.Label>
+            </TextField>
             <Spacer modifiers={[heightModifier(12)]} />
-            <OutlinedTextField
+            <TextField
+              shape={fieldStyle.shape}
+              colors={fieldStyle.colors}
               value={passphraseState}
               onValueChange={setPassphrase}
               singleLine
@@ -755,10 +761,10 @@ function AddSyncConnectionSheetContent({
               }}
               modifiers={[fillMaxWidth()]}
             >
-              <OutlinedTextField.Label>
+              <TextField.Label>
                 <ComposeText>{t('space.field.passphrase')}</ComposeText>
-              </OutlinedTextField.Label>
-            </OutlinedTextField>
+              </TextField.Label>
+            </TextField>
             <Spacer modifiers={[heightModifier(20)]} />
             <Button
               onClick={submitCreate}
@@ -911,7 +917,9 @@ function AddSyncConnectionSheetContent({
                   onClick={back}
                 />
                 <Spacer modifiers={[heightModifier(12)]} />
-                <OutlinedTextField
+                <TextField
+                  shape={fieldStyle.shape}
+                  colors={fieldStyle.colors}
                   value={passphraseState}
                   onValueChange={setPassphrase}
                   autoFocus
@@ -926,13 +934,13 @@ function AddSyncConnectionSheetContent({
                   keyboardActions={{ onDone: () => void submitJoin() }}
                   modifiers={[fillMaxWidth()]}
                 >
-                  <OutlinedTextField.Label>
+                  <TextField.Label>
                     <ComposeText>{t('space.field.passphrase')}</ComposeText>
-                  </OutlinedTextField.Label>
-                  <OutlinedTextField.LeadingIcon>
+                  </TextField.Label>
+                  <TextField.LeadingIcon>
                     <Icon source={ICONS.lock} size={20} />
-                  </OutlinedTextField.LeadingIcon>
-                  <OutlinedTextField.TrailingIcon>
+                  </TextField.LeadingIcon>
+                  <TextField.TrailingIcon>
                     <IconButton
                       onClick={() => setPassphraseRevealed((revealed) => !revealed)}
                     >
@@ -946,16 +954,16 @@ function AddSyncConnectionSheetContent({
                         )}
                       />
                     </IconButton>
-                  </OutlinedTextField.TrailingIcon>
+                  </TextField.TrailingIcon>
                   {error ? (
-                    <OutlinedTextField.SupportingText>
+                    <TextField.SupportingText>
                       <ComposeText>{error}</ComposeText>
-                    </OutlinedTextField.SupportingText>
+                    </TextField.SupportingText>
                   ) : null}
-                </OutlinedTextField>
+                </TextField>
                 <Spacer modifiers={[heightModifier(8)]} />
                 {editingDeviceName ? (
-                  <OutlinedTextField
+                  <TextField
                     value={deviceNameState}
                     onValueChange={setDeviceName}
                     autoFocus
@@ -967,10 +975,10 @@ function AddSyncConnectionSheetContent({
                     keyboardActions={{ onDone: () => void submitJoin() }}
                     modifiers={[fillMaxWidth()]}
                   >
-                    <OutlinedTextField.Label>
+                    <TextField.Label>
                       <ComposeText>{t('space.field.deviceName')}</ComposeText>
-                    </OutlinedTextField.Label>
-                  </OutlinedTextField>
+                    </TextField.Label>
+                  </TextField>
                 ) : (
                   <JoinDeviceNameRow
                     label={t('space.flow.joinAsDevice', {
