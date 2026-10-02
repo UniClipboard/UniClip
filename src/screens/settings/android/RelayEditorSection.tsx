@@ -69,21 +69,24 @@ export function RelayEditorSection({ relayUrl }: { relayUrl?: string }) {
   return (
     <Column modifiers={[fillMaxWidth(), imePadding()]}>
       <ComposeText color={colors.onSurfaceVariant}>{t('relay.footer')}</ComposeText>
-      <Spacer modifiers={[heightModifier(20)]} />
-      <ComposeText color={colors.onSurfaceVariant}>{t('relay.url')}</ComposeText>
-      <Spacer modifiers={[heightModifier(6)]} />
+      <Spacer modifiers={[heightModifier(16)]} />
       <AppTextField
         testID="relay-url-input"
         value={url}
         onChangeText={setUrl}
+        label={t('relay.url')}
         placeholder="https://relay.example.com"
         keyboardType="uri"
         fullWidth
       />
-      <Spacer modifiers={[heightModifier(16)]} />
-      <ComposeText color={colors.onSurfaceVariant}>{t('relay.token')}</ComposeText>
-      <Spacer modifiers={[heightModifier(6)]} />
-      <AppTextField testID="relay-token-input" value={token} onChangeText={setToken} fullWidth />
+      <Spacer modifiers={[heightModifier(12)]} />
+      <AppTextField
+        testID="relay-token-input"
+        value={token}
+        onChangeText={setToken}
+        label={t('relay.token')}
+        fullWidth
+      />
       {error ? (
         <>
           <Spacer modifiers={[heightModifier(12)]} />

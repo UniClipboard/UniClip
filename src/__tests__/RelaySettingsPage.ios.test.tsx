@@ -1,7 +1,7 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 
-import { loadRelayOverview, saveCustomRelay } from '@/features/relaySettings';
+import { loadRelayOverview } from '@/features/relaySettings';
 import type { RelayOverview } from '@/features/relayOverview';
 import { RelaySettingsPage } from '@/screens/ios/devices/RelaySettingsPage';
 import {

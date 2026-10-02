@@ -15,6 +15,18 @@ appId: ${APP_ID}
 - runFlow: ../actions/relay/assert-built-in-visible.yaml
 - assertVisible: "Using built-in relays"
 - assertVisible: ".*Configured on the running node.*"
+# The editor is its own page: back from it returns to the relay list, not further.
+- tapOn: "Add relay node"
+- extendedWaitUntil:
+    visible: "Save relay"
+    timeout: 10000
+- swipe:
+    start: "1%,50%"
+    end: "70%,50%"
+- extendedWaitUntil:
+    visible: "Built-in relays"
+    timeout: 10000
+- assertVisible: "Add relay node"
 # A custom relay replaces the built-in list; built-in rows stay listed but unused.
 - tapOn: "Add relay node"
 - tapOn:
@@ -39,3 +51,10 @@ appId: ${APP_ID}
 - assertVisible: ".*Configured on the running node.*"
 # The listing never claims a connection or reachability.
 - assertNotVisible: ".*[Cc]onnected.*"
+# Back from the relay list returns to Space settings, one level up.
+- swipe:
+    start: "1%,50%"
+    end: "70%,50%"
+- extendedWaitUntil:
+    visible: "Space actions"
+    timeout: 10000

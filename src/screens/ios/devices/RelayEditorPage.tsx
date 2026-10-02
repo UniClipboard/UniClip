@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button, Section, Text as SwiftUIText, TextField, useNativeState } from '@expo/ui/swift-ui';
-import { autocorrectionDisabled, disabled, keyboardType } from '@expo/ui/swift-ui/modifiers';
+import {
+  autocorrectionDisabled,
+  disabled,
+  keyboardType,
+  textInputAutocapitalization,
+} from '@expo/ui/swift-ui/modifiers';
 import { useTranslation } from 'react-i18next';
 
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
@@ -75,13 +80,13 @@ export function RelayEditorPage({
             text={url}
             onTextChange={setUrlValue}
             placeholder="https://relay.example.com"
-            modifiers={[keyboardType('url'), autocorrectionDisabled()]}
+            modifiers={[keyboardType('url'), autocorrectionDisabled(), textInputAutocapitalization('never')]}
           />
           <TextField
             testID="relay-token-input"
             text={token}
             placeholder={t('relay.token')}
-            modifiers={[autocorrectionDisabled()]}
+            modifiers={[autocorrectionDisabled(), textInputAutocapitalization('never')]}
           />
           {error ? <SwiftUIText>{error}</SwiftUIText> : null}
           <Button

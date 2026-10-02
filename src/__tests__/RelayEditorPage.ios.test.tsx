@@ -4,10 +4,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { loadRelayOverview, saveCustomRelay } from '@/features/relaySettings';
 import type { RelayOverview } from '@/features/relayOverview';
 import { RelayEditorPage } from '@/screens/ios/devices/RelayEditorPage';
-import {
-  OVERVIEW_RETRY_DELAYS_MS,
-  useCustomRelaySettings,
-} from '@/screens/settings/useCustomRelaySettings';
+import { useCustomRelaySettings } from '@/screens/settings/useCustomRelaySettings';
 
 const onClose = jest.fn();
 function Editor({ editingUrl = '' }: { editingUrl?: string }) {
@@ -74,18 +71,12 @@ jest.mock('@expo/ui/swift-ui/modifiers', () => ({
   foregroundStyle: () => ({ type: 'foregroundStyle' }),
   listRowBackground: (value: string) => ({ type: 'listRowBackground', value }),
   disabled: (value: boolean) => ({ type: 'disabled', value }),
+  textInputAutocapitalization: (value: string) => ({ type: 'autocapitalization', value }),
   keyboardType: (value: string) => ({ type: 'keyboardType', value }),
 }));
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const builtInEntry = (regionId: string | null, url: string, inEffect = true) => ({
-  source: 'builtIn' as const,
-  regionId,
-  url,
-  credentialConfigured: false,
-  inEffect,
-});
 const overview = (patch: Partial<RelayOverview> = {}): RelayOverview => ({
   savedMode: 'builtIn',
   appliedMode: 'builtIn',
@@ -96,10 +87,6 @@ const overview = (patch: Partial<RelayOverview> = {}): RelayOverview => ({
 beforeEach(() => {
   jest.mocked(loadRelayOverview).mockReset().mockResolvedValue(overview());
 });
-const builtInRows = (view: TestRenderer.ReactTestRenderer) =>
-  view.root.findAllByType('SettingsNavRow' as never).filter((row) => row.props.readOnly);
-const textOf = (view: TestRenderer.ReactTestRenderer) =>
-  view.root.findAllByType('Text' as never).map((text) => text.children.join(''));
 
 beforeEach(() => {
   onClose.mockClear();

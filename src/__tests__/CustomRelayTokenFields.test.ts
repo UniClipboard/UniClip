@@ -28,3 +28,12 @@ it('edits a relay on its own page above the relay list, clear of the keyboard', 
   expect(list).not.toContain('editingUrl');
   expect(list).not.toContain('relay-url-input');
 });
+
+it('labels the Android relay fields through the shared text field, like other forms', () => {
+  const editor = source('screens/settings/android/RelayEditorSection.tsx');
+
+  expect(editor).toContain('label={t(\'relay.url\')}');
+  expect(editor).toContain('label={t(\'relay.token\')}');
+  // No hand-drawn caption above a field.
+  expect(editor).not.toMatch(/<ComposeText[^>]*>\{t\('relay\.(url|token)'\)\}<\/ComposeText>/);
+});
