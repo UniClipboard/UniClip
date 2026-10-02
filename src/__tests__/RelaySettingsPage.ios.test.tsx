@@ -4,7 +4,10 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { loadRelayOverview, saveCustomRelay } from '@/features/relaySettings';
 import type { RelayOverview } from '@/features/relayOverview';
 import { RelaySettingsPage } from '@/screens/ios/devices/RelaySettingsPage';
-import { useCustomRelaySettings } from '@/screens/settings/useCustomRelaySettings';
+import {
+  OVERVIEW_RETRY_DELAYS_MS,
+  useCustomRelaySettings,
+} from '@/screens/settings/useCustomRelaySettings';
 
 function CustomRelaySection() {
   const relay = useCustomRelaySettings();
@@ -218,12 +221,17 @@ it('does not claim built-in relays are connected and reports a pending change as
 });
 
 it('shows a full-row retry when the overview cannot be loaded and recovers on retry', async () => {
+  jest.useFakeTimers();
   jest.mocked(loadRelayOverview).mockRejectedValue(new Error('unavailable'));
   let view!: TestRenderer.ReactTestRenderer;
   await act(async () => {
     view = TestRenderer.create(<CustomRelaySection />);
   });
   try {
+    // The page retries quietly while Engine may still be starting before it shows the error row.
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(OVERVIEW_RETRY_DELAYS_MS.reduce((a, b) => a + b, 0));
+    });
     const retry = view.root
       .findAllByType('SettingsNavRow' as never)
       .find((row) => row.props.testID === 'relay-overview-retry')!;
@@ -237,6 +245,7 @@ it('shows a full-row retry when the overview cannot be loaded and recovers on re
     expect(builtInRows(view).map((row) => row.props.title)).toEqual(['relay.region.eu']);
   } finally {
     act(() => view.unmount());
+    jest.useRealTimers();
   }
 });
 

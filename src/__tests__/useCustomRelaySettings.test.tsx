@@ -8,7 +8,10 @@ import {
   type CustomRelay,
 } from '@/features/relaySettings';
 import type { RelayOverview } from '@/features/relayOverview';
-import { useCustomRelaySettings } from '@/screens/settings/useCustomRelaySettings';
+import {
+  OVERVIEW_RETRY_DELAYS_MS,
+  useCustomRelaySettings,
+} from '@/screens/settings/useCustomRelaySettings';
 
 const mockUpdateConfig = jest.fn().mockResolvedValue(undefined);
 
@@ -304,16 +307,24 @@ describe('relay overview state', () => {
     }
   });
 
-  it('shows a retryable error instead of an empty overview, then recovers on retry', async () => {
-    mockedOverview.mockRejectedValueOnce(new Error('unavailable'));
+  it('retries quietly while Engine starts, then shows a retryable error instead of an empty overview', async () => {
+    jest.useFakeTimers();
+    mockedOverview.mockRejectedValue(new Error('unavailable'));
     let view!: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-      view = TestRenderer.create(<Harness />);
-    });
     try {
+      await act(async () => {
+        view = TestRenderer.create(<Harness />);
+      });
+      // Still loading while the bounded retries run.
+      expect(currentHook.overview).toEqual({ status: 'loading' });
+      expect(mockedOverview).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(OVERVIEW_RETRY_DELAYS_MS.reduce((a, b) => a + b, 0));
+      });
+      expect(mockedOverview).toHaveBeenCalledTimes(1 + OVERVIEW_RETRY_DELAYS_MS.length);
       expect(currentHook.overview).toEqual({ status: 'error' });
       const ready = overviewFixture();
-      mockedOverview.mockResolvedValueOnce(ready);
+      mockedOverview.mockReset().mockResolvedValue(ready);
       const readsBeforeRetry = mockedRefresh.mock.calls.length;
       await act(async () => {
         await currentHook.retryOverview();
@@ -323,6 +334,26 @@ describe('relay overview state', () => {
       expect(mockedRefresh.mock.calls.length).toBe(readsBeforeRetry + 1);
     } finally {
       act(() => view.unmount());
+      jest.useRealTimers();
+    }
+  });
+
+  it('recovers without user action when Engine becomes ready during the quiet retries', async () => {
+    jest.useFakeTimers();
+    const ready = overviewFixture();
+    mockedOverview.mockRejectedValueOnce(new Error('starting')).mockResolvedValue(ready);
+    let view!: TestRenderer.ReactTestRenderer;
+    try {
+      await act(async () => {
+        view = TestRenderer.create(<Harness />);
+      });
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(OVERVIEW_RETRY_DELAYS_MS[0]);
+      });
+      expect(currentHook.overview).toEqual({ status: 'ready', value: ready });
+    } finally {
+      act(() => view.unmount());
+      jest.useRealTimers();
     }
   });
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 import { HStack, Image, Section, Text as SwiftUIText } from '@expo/ui/swift-ui';
 import { foregroundStyle } from '@expo/ui/swift-ui/modifiers';
@@ -46,6 +46,11 @@ export function SpaceSettingsPage({
   const { t } = useTranslation('settingsSync');
   const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The tab reads the relay overview at mount, which can precede Engine startup; read again here.
+  const refreshRelay = relay.refresh;
+  useEffect(() => {
+    void refreshRelay().catch(() => undefined);
+  }, [refreshRelay]);
   const relaySummary =
     relay.overview.status === 'ready' ? describeRelayOverview(relay.overview.value).summary : null;
   const highImpactActionsDisabled =

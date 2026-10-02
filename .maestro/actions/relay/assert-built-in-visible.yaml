@@ -1,12 +1,13 @@
 appId: ${APP_ID}
 ---
 # The overview lists Engine's built-in relays; it never claims a connection.
-# The first read can race Engine startup, so retry once when it reports a failure.
+# The first read can race Engine startup. The page retries quietly, then shows a retry row;
+# tap it if it is still there.
 - runFlow:
     when:
-      visible: "Could not load built-in relays. Tap to retry."
+      visible: "Could not load built-in relays.*"
     commands:
-      - tapOn: "Could not load built-in relays. Tap to retry."
+      - tapOn: "Could not load built-in relays.*"
 - extendedWaitUntil:
     visible: "North America East"
     timeout: 30000

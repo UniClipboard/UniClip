@@ -10,6 +10,9 @@ import {
 } from '@/features/relaySettings';
 import { useSettingsStore } from '@/stores';
 
+/** Engine may still be starting when the page opens; retry quietly before showing an error. */
+export const OVERVIEW_RETRY_DELAYS_MS = [1000, 2000, 4000];
+
 export type RelayOverviewState =
   | { status: 'loading' }
   | { status: 'error' }
@@ -31,11 +34,21 @@ export function useCustomRelaySettings() {
   // Engine owns the overview; the latest read always wins and a failure is never shown as empty.
   const readOverview = useCallback(async (): Promise<void> => {
     const generation = ++overviewGeneration.current;
-    try {
-      const value = await loadRelayOverview();
-      if (generation === overviewGeneration.current) setOverview({ status: 'ready', value });
-    } catch {
-      if (generation === overviewGeneration.current) setOverview({ status: 'error' });
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        const value = await loadRelayOverview();
+        if (generation === overviewGeneration.current) setOverview({ status: 'ready', value });
+        return;
+      } catch {
+        if (generation !== overviewGeneration.current) return;
+        const delay = OVERVIEW_RETRY_DELAYS_MS[attempt];
+        if (delay === undefined) {
+          setOverview({ status: 'error' });
+          return;
+        }
+        await new Promise<void>((resolve) => setTimeout(resolve, delay));
+        if (generation !== overviewGeneration.current) return;
+      }
     }
   }, []);
 

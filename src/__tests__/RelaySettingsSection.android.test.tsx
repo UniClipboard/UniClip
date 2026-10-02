@@ -4,6 +4,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import type { RelayOverview } from '@/features/relayOverview';
 import { loadRelayOverview } from '@/features/relaySettings';
 import { RelaySettingsSection } from '@/screens/settings/android/RelaySettingsSection';
+import { OVERVIEW_RETRY_DELAYS_MS } from '@/screens/settings/useCustomRelaySettings';
 
 const mockUpdateConfig = jest.fn();
 
@@ -150,9 +151,14 @@ it('lists built-in relays as non-interactive rows with localized name, address a
 });
 
 it('shows a full-row retry when the overview fails and refreshes it on retry', async () => {
+  jest.useFakeTimers();
   jest.mocked(loadRelayOverview).mockRejectedValue(new Error('unavailable'));
   const view = await render();
   try {
+    // Quiet retries first (Engine may still be starting), then the full-row retry appears.
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(OVERVIEW_RETRY_DELAYS_MS.reduce((a, b) => a + b, 0));
+    });
     const retry = view.root
       .findAllByType('ListItem' as never)
       .find((item) => modifierOf(item, 'testID')?.id === 'relay-overview-retry')!;
@@ -164,6 +170,7 @@ it('shows a full-row retry when the overview fails and refreshes it on retry', a
     expect(builtInItems(view)).toHaveLength(1);
   } finally {
     act(() => view.unmount());
+    jest.useRealTimers();
   }
 });
 

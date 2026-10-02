@@ -1,6 +1,6 @@
 appId: ${APP_ID}
 ---
-# Pre: home ready on iOS. Post: Space settings of a freshly created direct-sync space.
+# Pre: home ready on iOS. Post: Relay page (Space settings > Network > Relay) of a new direct-sync space.
 - tapOn: "Devices"
 - tapOn: "Direct (Experimental)"
 - runFlow:
@@ -29,6 +29,10 @@ appId: ${APP_ID}
     visible: "Space settings"
     timeout: 30000
 - tapOn: "Space settings"
+- extendedWaitUntil:
+    visible: "Space actions"
+    timeout: 30000
+- tapOn: "Relay.*"
 - extendedWaitUntil:
     visible: "Built-in relays"
     timeout: 30000

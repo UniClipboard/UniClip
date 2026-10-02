@@ -13,7 +13,7 @@ appId: ${APP_ID}
 - runFlow: ../actions/relay/open-space-settings-ios.yaml
 # Empty custom list: the built-in relays are the saved and applied routing.
 - runFlow: ../actions/relay/assert-built-in-visible.yaml
-- assertVisible: "Saved setting: built-in relays"
+- assertVisible: "Using built-in relays"
 - assertVisible: ".*Configured on the running node.*"
 # A custom relay replaces the built-in list; built-in rows stay listed but unused.
 - tapOn: "Add relay node"
@@ -26,7 +26,7 @@ appId: ${APP_ID}
     visible: "https://relay.uni.z2blog.com/"
     timeout: 60000
 - runFlow: ../actions/relay/assert-built-in-visible.yaml
-- assertVisible: "Saved setting: your custom relays"
+- assertVisible: "Using your custom relays"
 - assertVisible: ".*Not used while custom relays are set.*"
 # Removing the custom relay returns routing to the built-in list.
 - tapOn: "https://relay.uni.z2blog.com/"
@@ -35,7 +35,7 @@ appId: ${APP_ID}
     visible: "Add relay node"
     timeout: 60000
 - assertNotVisible: "https://relay.uni.z2blog.com/"
-- assertVisible: "Saved setting: built-in relays"
+- assertVisible: "Using built-in relays"
 - assertVisible: ".*Configured on the running node.*"
 # The listing never claims a connection or reachability.
 - assertNotVisible: ".*[Cc]onnected.*"

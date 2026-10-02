@@ -18,9 +18,9 @@ appId: ${APP_ID}
     timeout: 30000
 - runFlow:
     when:
-      visible: "Could not load built-in relays. Tap to retry."
+      visible: "Could not load built-in relays"
     commands:
-      - tapOn: "Could not load built-in relays. Tap to retry."
+      - tapOn: "Could not load built-in relays"
 - scrollUntilVisible:
     element: "Asia Pacific"
     direction: DOWN
@@ -44,7 +44,7 @@ appId: ${APP_ID}
 - scrollUntilVisible:
     element: ".*Not used while custom relays are set.*"
     direction: DOWN
-- assertVisible: "Saved setting: your custom relays"
+- assertVisible: "Using your custom relays"
 # Removing the custom relay returns routing to the built-in list.
 - scrollUntilVisible:
     element: "https://relay.uni.z2blog.com/"
@@ -58,5 +58,5 @@ appId: ${APP_ID}
 - scrollUntilVisible:
     element: ".*Configured on the running node.*"
     direction: DOWN
-- assertVisible: "Saved setting: built-in relays"
+- assertVisible: "Using built-in relays"
 - assertNotVisible: ".*[Cc]onnected.*"
