@@ -11,9 +11,10 @@
  * - `saveToGallery`：复用 shared 的校验/权限逻辑，由 PhotoKit 直接读取 App Group payload。
  */
 
-import { File } from 'expo-file-system';
+import { Directory, File } from 'expo-file-system';
+import * as Crypto from 'expo-crypto';
 import { exportFile, saveImageToPhotoLibrary } from 'document-exporter';
-import { prepareTempFilePath } from '@/platform/files';
+import { CLIPBOARD_TEMP_DIR } from '@/platform/files';
 import { sanitizeDataName } from './fileName';
 import type { FileActions } from './fileActions.types';
 import { shareFile as shareFileShared, saveToGallery as saveToGalleryShared } from './fileActions.shared';
@@ -23,8 +24,10 @@ import { shareFile as shareFileShared, saveToGallery as saveToGalleryShared } fr
  *
  * App Group payload 的磁盘文件名是内容 hash，不带扩展名；分享前拷贝成一份以
  * `fileName` 命名的临时文件，这样系统分享面板和接收方看到的才是正确的文件名/后缀。
- * 临时文件留在 `CLIPBOARD_TEMP_DIR`，跟其他分享用临时文件一样由「清除缓存」统一回收，
- * 不在分享结束后立即删除——分享目标（存到文件 / AirDrop 等）可能在面板关闭后才异步读取。
+ * 每次分享都拷到独立的随机子目录下，避免两次分享重名文件（如连续分享两张 image.jpg）
+ * 时后一次的 overwrite 覆盖前一次还在被分享目标异步读取的那份。临时文件留在
+ * `CLIPBOARD_TEMP_DIR`，跟其他分享用临时文件一样由「清除缓存」统一回收，不在分享结束
+ * 后立即删除——分享目标（存到文件 / AirDrop 等）可能在面板关闭后才异步读取。
  */
 export async function shareFile(fileUri: string, fileName?: string): Promise<void> {
   if (!fileName) {
@@ -38,7 +41,10 @@ export async function shareFile(fileUri: string, fileName?: string): Promise<voi
     return;
   }
 
-  const namedFile = new File(prepareTempFilePath(safeName));
+  if (!CLIPBOARD_TEMP_DIR.exists) CLIPBOARD_TEMP_DIR.create();
+  const shareDir = new Directory(CLIPBOARD_TEMP_DIR, Crypto.randomUUID());
+  shareDir.create();
+  const namedFile = new File(shareDir, safeName);
   await new File(fileUri).copy(namedFile, { overwrite: true });
   await shareFileShared(namedFile.uri, fileName);
 }

@@ -10,6 +10,7 @@
 
 const mockShareAsync = jest.fn<Promise<void>, [string, unknown]>(async () => undefined);
 const mockCopy = jest.fn<Promise<void>, [unknown, unknown]>(async () => undefined);
+const mockDirCreate = jest.fn();
 
 jest.mock('expo-sharing', () => ({
   shareAsync: (uri: string, options: unknown) => mockShareAsync(uri, options),
@@ -25,22 +26,36 @@ jest.mock('document-exporter', () => ({
   saveImageToPhotoLibrary: jest.fn(),
 }));
 
-jest.mock('expo-file-system', () => ({
-  File: jest.fn().mockImplementation((pathOrDir: unknown) => {
-    const sourceUri =
-      typeof pathOrDir === 'string' ? pathOrDir : ((pathOrDir as { uri?: string })?.uri ?? '');
-    return {
-      uri: sourceUri,
-      copy: (dest: { uri: string }, options: unknown) => mockCopy(dest, options).then(() => dest),
-    };
-  }),
+let mockUuidCounter = 0;
+jest.mock('expo-crypto', () => ({
+  randomUUID: jest.fn(() => `uuid-${++mockUuidCounter}`),
 }));
 
+jest.mock('expo-file-system', () => {
+  const mockUriOf = (value: unknown): string =>
+    typeof value === 'string' ? value : ((value as { uri?: string })?.uri ?? '');
+  return {
+    Directory: jest.fn().mockImplementation((parent: unknown, name?: string) => ({
+      uri: name ? `${mockUriOf(parent)}/${name}` : mockUriOf(parent),
+      exists: true,
+      create: mockDirCreate,
+    })),
+    File: jest.fn().mockImplementation((pathOrDir: unknown, name?: string) => ({
+      uri: name ? `${mockUriOf(pathOrDir)}/${name}` : mockUriOf(pathOrDir),
+      copy: (dest: { uri: string }, options: unknown) => mockCopy(dest, options).then(() => dest),
+    })),
+  };
+});
+
 jest.mock('../platform/files', () => ({
-  prepareTempFilePath: (fileName: string) => `file:///cache/temp_files/${fileName}`,
+  CLIPBOARD_TEMP_DIR: { uri: 'file:///cache/temp_files', exists: true, create: jest.fn() },
 }));
 
 import { shareFile } from '../utils/fileActions.ios';
+
+function tempFileUriFor(name: string): RegExp {
+  return new RegExp(`^file:///cache/temp_files/[^/]+/${name}$`);
+}
 
 describe('shareFile on iOS', () => {
   beforeEach(() => jest.clearAllMocks());
@@ -49,10 +64,10 @@ describe('shareFile on iOS', () => {
     await shareFile('file:///group/payloads/File-ABCDEF', 'report.pdf');
 
     expect(mockCopy).toHaveBeenCalledWith(
-      expect.objectContaining({ uri: 'file:///cache/temp_files/report.pdf' }),
+      expect.objectContaining({ uri: expect.stringMatching(tempFileUriFor('report\\.pdf')) }),
       { overwrite: true }
     );
-    expect(mockShareAsync).toHaveBeenCalledWith('file:///cache/temp_files/report.pdf', {
+    expect(mockShareAsync).toHaveBeenCalledWith(expect.stringMatching(tempFileUriFor('report\\.pdf')), {
       mimeType: 'application/pdf',
       dialogTitle: 'report.pdf',
       UTI: 'com.adobe.pdf',
@@ -63,10 +78,10 @@ describe('shareFile on iOS', () => {
     await shareFile('file:///group/payloads/Image-ABCDEF', 'photo.jpg');
 
     expect(mockCopy).toHaveBeenCalledWith(
-      expect.objectContaining({ uri: 'file:///cache/temp_files/photo.jpg' }),
+      expect.objectContaining({ uri: expect.stringMatching(tempFileUriFor('photo\\.jpg')) }),
       { overwrite: true }
     );
-    expect(mockShareAsync).toHaveBeenCalledWith('file:///cache/temp_files/photo.jpg', {
+    expect(mockShareAsync).toHaveBeenCalledWith(expect.stringMatching(tempFileUriFor('photo\\.jpg')), {
       mimeType: 'image/*',
       dialogTitle: 'photo.jpg',
       UTI: 'public.image',
@@ -77,13 +92,22 @@ describe('shareFile on iOS', () => {
     await shareFile('file:///group/payloads/File-ABCDEF', 'weird?name*.txt');
 
     expect(mockCopy).toHaveBeenCalledWith(
-      expect.objectContaining({ uri: 'file:///cache/temp_files/weird_name_.txt' }),
+      expect.objectContaining({ uri: expect.stringMatching(tempFileUriFor('weird_name_\\.txt')) }),
       { overwrite: true }
     );
     expect(mockShareAsync).toHaveBeenCalledWith(
-      'file:///cache/temp_files/weird_name_.txt',
+      expect.stringMatching(tempFileUriFor('weird_name_\\.txt')),
       expect.objectContaining({ mimeType: 'text/plain' })
     );
+  });
+
+  it('puts each share in its own temp subfolder so same-named shares cannot collide', async () => {
+    await shareFile('file:///group/payloads/File-AAAA', 'image.jpg');
+    await shareFile('file:///group/payloads/File-BBBB', 'image.jpg');
+
+    expect(mockDirCreate).toHaveBeenCalledTimes(2);
+    const destinations = mockCopy.mock.calls.map(([dest]) => (dest as { uri: string }).uri);
+    expect(new Set(destinations).size).toBe(2);
   });
 
   it('skips the copy when the source file already has the right name', async () => {
