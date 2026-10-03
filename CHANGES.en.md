@@ -1,3 +1,22 @@
+v2.1.0.189
+
+### Common
+
+- New: Engine built-in relays are now shown in relay settings
+- Improvement: Update the sync core to v1.1.0-rc.22
+
+### iOS
+
+- Fix: Preserve the original file name and extension when sharing files from history
+
+### Android
+
+- Improvement: Redesigned background reading settings
+- Fix: LAN sync stopped receiving in the background until the app was reopened
+- Fix: Tapping the "Background service stopped" notification did not restart the service
+- Fix: The "Upload clipboard" shortcut failed to start
+- Fix: Update sheet actions were unreachable when the release notes were long
+
 v2.0.1.188-alpha.2
 
 ### Common
