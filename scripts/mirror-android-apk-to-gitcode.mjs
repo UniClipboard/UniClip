@@ -134,6 +134,9 @@ export async function mirrorApk(config) {
     pollAttempts,
     apiTimeoutMs,
     transferTimeoutMs,
+    stallTimeoutMs,
+    progressIntervalMs,
+    expectSha256,
     deadlineMs: totalDeadlineMs,
     log,
   } = config;
@@ -144,6 +147,11 @@ export async function mirrorApk(config) {
   const { sha256, size } = await sha256File(apkPath);
   const record = { tag, version, filename, size, sha256, provider: 'gitcode', owner, repo, source };
   log(`APK ${filename}: ${size} bytes, sha256 ${sha256}`);
+  // The caller can pin the digest of the artifact that was released; a file fetched
+  // from somewhere else must match it before anything is uploaded.
+  if (expectSha256 && expectSha256.toLowerCase() !== sha256) {
+    throw new MirrorError(`sha256 ${sha256} differs from the expected ${expectSha256.toLowerCase()}`);
+  }
 
   const api = async (method, path, { query = {}, body } = {}) => {
     const url = new URL(`${apiBase}${path}`);
@@ -276,15 +284,52 @@ export async function mirrorApk(config) {
       const target = json();
       if (!target?.url) throw new Error('The upload address response has no url');
       const headers = { ...(target.headers ?? {}), 'content-length': String(size) };
-      const put = await fetch(target.url, {
-        method: 'PUT',
-        headers,
-        body: Readable.toWeb(createReadStream(apkPath)),
-        duplex: 'half',
-        signal: timeoutSignal(transferTimeoutMs),
-      });
-      const putText = await put.text();
-      assertSuccess(put, 'Uploading the file', redact(putText, secrets));
+      // Count what was handed to the network. A slow cross-border transfer keeps
+      // making progress; a stuck one does not and is abandoned early instead of
+      // burning the whole timeout, and the log tells the two apart.
+      let sent = 0;
+      let lastProgress = Date.now();
+      let lastLogged = 0;
+      const startedAt = Date.now();
+      const stalled = new AbortController();
+      async function* counted() {
+        for await (const chunk of createReadStream(apkPath, { highWaterMark: 256 * 1024 })) {
+          sent += chunk.length;
+          lastProgress = Date.now();
+          yield chunk;
+        }
+      }
+      const watchdog = setInterval(
+        () => {
+          const now = Date.now();
+          if (now - lastProgress > stallTimeoutMs) {
+            stalled.abort(
+              new Error(`no progress for ${stallTimeoutMs} ms (sent ${sent} of ${size} bytes)`)
+            );
+          }
+          if (now - lastLogged >= progressIntervalMs) {
+            lastLogged = now;
+            const seconds = Math.max(1, Math.round((now - startedAt) / 1000));
+            log(`Uploaded ${sent} of ${size} bytes after ${seconds}s (${Math.round(sent / 1024 / seconds)} KiB/s)`);
+          }
+        },
+        Math.max(1, Math.min(1000, Math.floor(stallTimeoutMs / 4), progressIntervalMs))
+      );
+      try {
+        const put = await fetch(target.url, {
+          method: 'PUT',
+          headers,
+          body: Readable.toWeb(Readable.from(counted())),
+          duplex: 'half',
+          signal: AbortSignal.any([stalled.signal, timeoutSignal(transferTimeoutMs)]),
+        });
+        const putText = await put.text();
+        assertSuccess(put, 'Uploading the file', redact(putText, secrets));
+        const seconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
+        log(`Uploaded ${sent} of ${size} bytes in ${seconds}s`);
+      } finally {
+        clearInterval(watchdog);
+      }
     });
     // The upload is registered asynchronously through GitCode's callback.
     let refreshed = null;
@@ -404,10 +449,13 @@ async function main() {
     pollIntervalMs: numberArg('--poll-interval-ms', 3000),
     pollAttempts: numberArg('--poll-attempts', 20),
     apiTimeoutMs: numberArg('--api-timeout-ms', 60_000),
-    // One bounded attempt for a ~100 MB transfer; the workflow also has a job timeout.
-    transferTimeoutMs: numberArg('--transfer-timeout-ms', 600_000),
-    // Must stay below the workflow step timeout (20 minutes).
-    deadlineMs: numberArg('--deadline-ms', 1_080_000),
+    // Upper bound for one ~100 MB transfer; a stuck one is cut off by the stall timeout.
+    transferTimeoutMs: numberArg('--transfer-timeout-ms', 1_500_000),
+    stallTimeoutMs: numberArg('--stall-timeout-ms', 120_000),
+    progressIntervalMs: numberArg('--progress-interval-ms', 15_000),
+    // Must stay below the workflow step timeout (45 minutes).
+    deadlineMs: numberArg('--deadline-ms', 2_400_000),
+    expectSha256: argValue('--expect-sha256', undefined),
     log,
   };
   const secrets = [config.token, config.accessSecret, config.accessId];

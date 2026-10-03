@@ -329,47 +329,75 @@ users in mainland China to it (FlareRelease README, "Download mirrors"; both
 repositories are driven by thread t-0153). Whether this is faster for users has
 not been measured; do not announce it as faster before it is.
 
-What `scripts/mirror-android-apk-to-gitcode.mjs` does, in order, using only the
-APK that was already built and uploaded to R2 (no rebuild, no re-signing, no
-repackaging):
+**Where the transfer runs.** GitCode's upload endpoint is in mainland China. Measured
+on 2026-10-03: a GitHub runner could not finish a 94 MiB upload in 10 minutes, a host in
+Singapore reached about 10 KiB/s, a host in Shanghai about 0.8 MiB/s (94 MiB in under two
+minutes) and a laptop in China about 2.7 MiB/s. R2 is the opposite: the Shanghai host
+downloads the APK from `release.uniclipboard.app` at about 1.3 MiB/s but GitHub release
+assets at 17 KiB/s. So the `mirror-android-gitcode` job logs in to a Shanghai host over SSH
+and the transfer happens there:
 
-1. Hash the APK (size and SHA-256) and make sure the GitCode release for the tag exists.
-2. If GitCode already has the file, download it anonymously and compare: an identical
-   file is reused, a different one fails the run without being overwritten or deleted.
-3. Otherwise request an upload address, `PUT` the bytes (bounded timeout, three
-   attempts, a fresh upload address each time), and wait for the file to appear.
-4. Download it back **without credentials**, following redirects by hand (every hop must
-   be https), and require the same size and SHA-256.
-5. `PUT /api/mirrors` on FlareRelease with the verified address, size and SHA-256.
-   FlareRelease enables the mirror only if they equal the registered artifact.
+1. The job takes the APK that was released (the build artifact, or the GitHub Release for
+   a manual run) only to compute its SHA-256.
+2. It sends **one JSON line and nothing else** through the SSH session: tag, file name,
+   that digest, the SHA-256 of `scripts/mirror-android-apk-to-gitcode.mjs` in this commit,
+   and the settings, including the GitCode token (read by `jq` from the environment, never
+   a command-line argument). No code travels: the upload script is installed on the host,
+   owned by root, and the host refuses to run a script whose digest differs from the one the
+   job expects, so a changed script has to be deployed deliberately.
+3. The key on the host is restricted (`restrict,command=...`) to
+   `scripts/remote/gitcode-mirror-host.py`, which validates the request (release tag, APK
+   name, digests, allow-listed settings only, no extra data), downloads the APK from R2,
+   checks its SHA-256 against the digest, runs the installed script with Node and prints the
+   provenance. It removes everything it created. Nothing is stored on the host.
+4. The script hashes the file again, makes sure the GitCode release exists, reuses an
+   identical existing file (a different one fails without being overwritten or deleted),
+   otherwise uploads it (bounded timeouts, three attempts, a fresh upload address each
+   time, no progress for two minutes is abandoned, progress is logged), downloads it back
+   **without credentials** with every redirect hop checked for https, requires the same
+   size and SHA-256, and registers it with `PUT /api/mirrors`. FlareRelease enables the
+   mirror only if size and SHA-256 equal the registered artifact.
 
 Configuration, all outside the repository and never printed:
 
 | Name | Kind | Purpose |
 | --- | --- | --- |
+| `MIRROR_SSH_KEY` | secret of the `mirror` environment | Private key of the restricted SSH key. The environment only admits the `main` branch, so a workflow on any other branch cannot use the key |
+| `MIRROR_SSH_HOST`, `MIRROR_SSH_USER`, `MIRROR_SSH_PORT` | variables | The Shanghai host, its unprivileged user (`uniclip-mirror`) and an optional port |
+| `MIRROR_SSH_KNOWN_HOSTS` | variable | The host's public keys (`ssh-keyscan` output, compared with the host's own keys) |
 | `GITCODE_RELEASE_TOKEN` | secret | GitCode bot token with release write access to the mirror repository only |
 | `GITCODE_OWNER`, `GITCODE_REPO` | variables | The existing mirror repository (needs at least one commit on its default branch) |
 | `GITCODE_API_BASE` | variable, optional | Defaults to `https://api.gitcode.com/api/v5` |
 | `GITCODE_TARGET_COMMITISH` | variable, optional | Branch used when a release tag has to be created, default `main` |
 | `FLARE_RELEASE_ACCESS_CLIENT_ID`, `FLARE_RELEASE_ACCESS_CLIENT_SECRET` | secrets | Already used for registration |
 
-Failure behaviour: during a release the job is non-blocking. A missing setting, a
-failed upload, or a failed verification becomes a `::warning` annotation, a job
-summary, and a `gitcode-mirror-provenance-<tag>` artifact (`provenance.json`: tag,
-file, size, SHA-256, mirror address, redirect chain, whether the mirror accepts
-range requests, never any token). The release itself is unaffected, and FlareRelease
-keeps serving the file from R2 until a mirror is verified. Because the job succeeds,
-"Re-run failed jobs" does not retry it: run **mirror-android-gitcode** from the
-Actions tab with the tag instead (it takes the APK from the GitHub Release and fails
-loudly). Repeated runs are safe.
+The host (CentOS 7, glibc 2.17) has Node 22 from the Node.js unofficial glibc-2.17 build
+under `~uniclip-mirror/node` (the official Node 22 needs a newer glibc), the wrapper and the
+upload script in `/opt/uniclip-mirror/` (owned by root, so the key cannot change them) and
+the public half of the key in `~uniclip-mirror/.ssh/authorized_keys`. Run
+`scripts/remote/deploy-gitcode-mirror-host.sh <ssh alias with root>` after either file
+changes; until then the job fails with "the installed upload script is out of date" (which is
+a warning for a release). The host is a shared general-purpose server with an old kernel;
+the design keeps the key from running anything but this one upload, and the Access
+credential that is sent along can use the whole FlareRelease admin API, so a narrower
+service token (only `PUT /api/mirrors`) would limit the damage if the host is ever
+compromised.
+
+Failure behaviour: during a release the job is non-blocking. A missing setting, an
+unreachable host, a failed upload, or a failed verification becomes a `::warning`
+annotation, a job summary, and a `gitcode-mirror-provenance-<tag>` artifact
+(`provenance.json`: tag, file, size, SHA-256, mirror address, redirect chain, whether the
+mirror accepts range requests, never any token). The release itself is unaffected, and
+FlareRelease keeps serving the file from R2 until a mirror is verified. Because the job
+succeeds, "Re-run failed jobs" does not retry it: run **mirror-android-gitcode** from the
+Actions tab with the tag instead (it fails loudly). Repeated runs are safe.
 
 Known limits: the current Android client has no automatic fallback. If GitCode fails
 after FlareRelease redirected a user, the user must pick the GitHub source by hand.
 Withdrawing a release or revoking a mirror in FlareRelease stops new redirects but
-cannot recall a GitCode link that was already shared; remove the attachment on
-GitCode for that. The size limit for a GitCode release attachment is not documented
-(a similar Gitee mirror used to fail at 100 MB while this APK is about 94 MiB), so the
-first real upload decides whether this works.
+cannot recall a GitCode link that was already shared; the GitCode API can delete the
+attachment (`DELETE .../releases/<tag>/attach_files/<id>`). The Shanghai host is a single
+point of failure for new mirrors only; users are never affected when it is down.
 
 ### Alpha Release
 

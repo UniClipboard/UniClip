@@ -371,6 +371,24 @@ describe('GitCode APK mirror upload', () => {
     expect(String(provenance().error)).toMatch(/deadline|timed out|aborted/i);
   });
 
+  it('abandons an upload that stops making progress long before any total timeout', async () => {
+    const { fake, args, env, provenance } = await setup({ uploadHangs: true });
+    const started = Date.now();
+    const result = await run([...args, '--stall-timeout-ms', '400'], env);
+    expect(result.code).toBe(1);
+    expect(Date.now() - started).toBeLessThan(20_000);
+    expect(putCount(fake)).toBe(3);
+    expect(fake.registrations).toHaveLength(0);
+    expect(String(provenance().error)).toMatch(/no progress/i);
+  });
+
+  it('logs how many bytes were sent so a slow transfer can be told from a stuck one', async () => {
+    const { args, env } = await setup();
+    const result = await run([...args, '--progress-interval-ms', '1'], env);
+    expect(result.code).toBe(0);
+    expect(result.stdout).toMatch(/Uploaded \d+ of \d+ bytes/);
+  });
+
   it('does not register a mirror whose downloaded bytes differ from the APK', async () => {
     const { fake, args, env, provenance } = await setup({ corruptDownload: true });
     const result = await run(args, env);
@@ -404,6 +422,16 @@ describe('GitCode APK mirror upload', () => {
     const failed = await run([...args, '--missing-config', 'fail'], unconfigured);
     expect(failed.code).toBe(1);
     expect(fake.requests).toHaveLength(0);
+  });
+
+  it('refuses a file whose SHA-256 is not the expected one before touching any network', async () => {
+    const { fake, args, env, provenance } = await setup();
+    const wrong = await run([...args, '--expect-sha256', '0'.repeat(64)], env);
+    expect(wrong.code).toBe(1);
+    expect(fake.requests).toHaveLength(0);
+    expect(String(provenance().error)).toMatch(/sha256/i);
+    const right = await run([...args, '--expect-sha256', sha256.toUpperCase()], env);
+    expect(right.code).toBe(0);
   });
 
   it('only accepts https GitCode addresses outside local testing', async () => {
