@@ -154,7 +154,7 @@ jobs:
 
           # Settings are read from the environment by jq, so no secret is ever a
           # command-line argument.
-          request=$(jq -n \
+          request=$(jq -nc \
             --arg tag "$RELEASE_TAG" \
             --arg filename "$filename" \
             --arg expect "$expect" \

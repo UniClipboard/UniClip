@@ -254,7 +254,8 @@ describe('validated release workflow', () => {
     expect(gitcodeMirrorWorkflow).toContain('ssh ');
     expect(gitcodeMirrorWorkflow).toContain('StrictHostKeyChecking=yes');
     expect(gitcodeMirrorWorkflow).toContain('sha256sum');
-    expect(gitcodeMirrorWorkflow).toContain('jq -n');
+    // The request is one line; the host reads it before the script.
+    expect(gitcodeMirrorWorkflow).toContain('jq -nc');
   });
 
   it('keeps GitCode credentials in repository secrets and fails loudly when run by hand', () => {
