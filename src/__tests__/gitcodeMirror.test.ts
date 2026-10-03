@@ -424,6 +424,16 @@ describe('GitCode APK mirror upload', () => {
     expect(fake.requests).toHaveLength(0);
   });
 
+  it('refuses a file whose SHA-256 is not the expected one before touching any network', async () => {
+    const { fake, args, env, provenance } = await setup();
+    const wrong = await run([...args, '--expect-sha256', '0'.repeat(64)], env);
+    expect(wrong.code).toBe(1);
+    expect(fake.requests).toHaveLength(0);
+    expect(String(provenance().error)).toMatch(/sha256/i);
+    const right = await run([...args, '--expect-sha256', sha256.toUpperCase()], env);
+    expect(right.code).toBe(0);
+  });
+
   it('only accepts https GitCode addresses outside local testing', async () => {
     const { fake, args, env } = await setup();
     const result = await run(

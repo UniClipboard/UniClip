@@ -249,7 +249,12 @@ describe('validated release workflow', () => {
     expect(gitcodeMirrorWorkflow).not.toContain('github.event_name');
     expect(gitcodeMirrorWorkflow).toContain('inputs.from_release == true');
     expect(gitcodeMirrorWorkflow).not.toMatch(/gradlew|expo prebuild|assembleRelease|apksigner|npm (ci|install)/);
+    // The transfer runs on a host in mainland China, where GitCode and R2 are fast.
     expect(gitcodeMirrorWorkflow).toContain('mirror-android-apk-to-gitcode.mjs');
+    expect(gitcodeMirrorWorkflow).toContain('ssh ');
+    expect(gitcodeMirrorWorkflow).toContain('StrictHostKeyChecking=yes');
+    expect(gitcodeMirrorWorkflow).toContain('sha256sum');
+    expect(gitcodeMirrorWorkflow).toContain('jq -n');
   });
 
   it('keeps GitCode credentials in repository secrets and fails loudly when run by hand', () => {
@@ -258,14 +263,22 @@ describe('validated release workflow', () => {
     expect(gitcodeMirrorWorkflow).toContain('vars.GITCODE_REPO');
     expect(gitcodeMirrorWorkflow).toContain('secrets.FLARE_RELEASE_ACCESS_CLIENT_ID');
     expect(gitcodeMirrorWorkflow).toContain('secrets.FLARE_RELEASE_ACCESS_CLIENT_SECRET');
+    expect(gitcodeMirrorWorkflow).toContain('secrets.MIRROR_SSH_KEY');
+    expect(gitcodeMirrorWorkflow).toContain('vars.MIRROR_SSH_HOST');
+    expect(gitcodeMirrorWorkflow).toContain('vars.MIRROR_SSH_KNOWN_HOSTS');
     expect(gitcodeMirrorWorkflow).toContain('continue-on-error: ${{ inputs.non_blocking == true }}');
-    expect(gitcodeMirrorWorkflow).toContain("--missing-config \"${{ inputs.non_blocking == true && 'skip' || 'fail' }}\"");
+    // Secrets travel over the SSH session, never on a command line.
+    expect(gitcodeMirrorWorkflow).toContain('env.GITCODE_TOKEN');
+    expect(gitcodeMirrorWorkflow).not.toMatch(/--arg\s+\w*token/i);
+    // Not configured: a warning for the release, a failure for a manual run.
+    expect(gitcodeMirrorWorkflow).toContain('NON_BLOCKING');
     // A job timeout is a job failure that continue-on-error cannot absorb, so the
     // step and the script must both give up well before the job does.
     const mirrorJob = parse(gitcodeMirrorWorkflow).jobs.mirror;
     const mirrorStep = mirrorJob.steps.find((step: { id?: string }) => step.id === 'mirror');
     expect(mirrorStep['timeout-minutes']).toBeLessThan(mirrorJob['timeout-minutes']);
-    expect(mirrorStep.run).toContain('--deadline-ms');
+    expect(mirrorStep.run).toContain('timeout ');
+    expect(mirrorStep.run).toContain('ServerAliveInterval');
     for (const step of mirrorJob.steps.filter((candidate: { name?: string }) =>
       /^Download (the built APK|the APK)/.test(candidate.name ?? '')
     )) {

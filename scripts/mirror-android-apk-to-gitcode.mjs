@@ -136,6 +136,7 @@ export async function mirrorApk(config) {
     transferTimeoutMs,
     stallTimeoutMs,
     progressIntervalMs,
+    expectSha256,
     deadlineMs: totalDeadlineMs,
     log,
   } = config;
@@ -146,6 +147,11 @@ export async function mirrorApk(config) {
   const { sha256, size } = await sha256File(apkPath);
   const record = { tag, version, filename, size, sha256, provider: 'gitcode', owner, repo, source };
   log(`APK ${filename}: ${size} bytes, sha256 ${sha256}`);
+  // The caller can pin the digest of the artifact that was released; a file fetched
+  // from somewhere else must match it before anything is uploaded.
+  if (expectSha256 && expectSha256.toLowerCase() !== sha256) {
+    throw new MirrorError(`sha256 ${sha256} differs from the expected ${expectSha256.toLowerCase()}`);
+  }
 
   const api = async (method, path, { query = {}, body } = {}) => {
     const url = new URL(`${apiBase}${path}`);
@@ -449,6 +455,7 @@ async function main() {
     progressIntervalMs: numberArg('--progress-interval-ms', 15_000),
     // Must stay below the workflow step timeout (45 minutes).
     deadlineMs: numberArg('--deadline-ms', 2_400_000),
+    expectSha256: argValue('--expect-sha256', undefined),
     log,
   };
   const secrets = [config.token, config.accessSecret, config.accessId];
