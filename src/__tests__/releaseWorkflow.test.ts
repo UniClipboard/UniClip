@@ -250,7 +250,11 @@ describe('validated release workflow', () => {
     expect(gitcodeMirrorWorkflow).toContain('inputs.from_release == true');
     expect(gitcodeMirrorWorkflow).not.toMatch(/gradlew|expo prebuild|assembleRelease|apksigner|npm (ci|install)/);
     // The transfer runs on a host in mainland China, where GitCode and R2 are fast.
-    expect(gitcodeMirrorWorkflow).toContain('mirror-android-apk-to-gitcode.mjs');
+    // Only a request travels to the host: the upload script is installed there and CI
+    // names its digest, so the key cannot be used to run code of its own.
+    expect(gitcodeMirrorWorkflow).toContain('sha256sum scripts/mirror-android-apk-to-gitcode.mjs');
+    expect(gitcodeMirrorWorkflow).toContain('scriptSha256');
+    expect(gitcodeMirrorWorkflow).not.toMatch(/cat\s+scripts\/mirror-android-apk-to-gitcode\.mjs/);
     expect(gitcodeMirrorWorkflow).toContain('ssh ');
     expect(gitcodeMirrorWorkflow).toContain('StrictHostKeyChecking=yes');
     expect(gitcodeMirrorWorkflow).toContain('sha256sum');
@@ -265,6 +269,8 @@ describe('validated release workflow', () => {
     expect(gitcodeMirrorWorkflow).toContain('secrets.FLARE_RELEASE_ACCESS_CLIENT_ID');
     expect(gitcodeMirrorWorkflow).toContain('secrets.FLARE_RELEASE_ACCESS_CLIENT_SECRET');
     expect(gitcodeMirrorWorkflow).toContain('secrets.MIRROR_SSH_KEY');
+    // The SSH key lives in an environment that only the main branch may use.
+    expect(parse(gitcodeMirrorWorkflow).jobs.mirror.environment).toBe('mirror');
     expect(gitcodeMirrorWorkflow).toContain('vars.MIRROR_SSH_HOST');
     expect(gitcodeMirrorWorkflow).toContain('vars.MIRROR_SSH_KNOWN_HOSTS');
     expect(gitcodeMirrorWorkflow).toContain('continue-on-error: ${{ inputs.non_blocking == true }}');

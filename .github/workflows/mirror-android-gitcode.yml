@@ -8,8 +8,10 @@
 # host in Shanghai uploads it in under two minutes. So this job logs in to that
 # host over SSH and `scripts/remote/gitcode-mirror-host.py` (the forced command of
 # the key) downloads the APK from R2, which is fast from China, checks it against
-# the SHA-256 of the artifact released here, and runs the upload script. The
-# script and the settings travel over the SSH session, nothing is stored there.
+# the SHA-256 of the artifact released here, and runs the upload script that is
+# installed on the host. Only a one-line request and the settings travel over the
+# SSH session (nothing is stored there); no code does, so the key cannot be used
+# to run anything else. The host refuses a script that differs from this commit's.
 #
 # - Called by release.yml after the FlareRelease registration, non-blocking:
 #   a missing configuration or a failed mirror produces a warning annotation
@@ -20,6 +22,7 @@
 #   equal the registered artifact.
 #
 # Configuration (nothing is created by this workflow):
+#   environment mirror (only the main branch may use it) with the secret
 #   secret   MIRROR_SSH_KEY                       private key whose public half is authorized on the host
 #   variable MIRROR_SSH_HOST, MIRROR_SSH_USER     the Shanghai host and its unprivileged user (default uniclip-mirror)
 #   variable MIRROR_SSH_PORT (optional)           default 22
@@ -73,6 +76,8 @@ jobs:
     name: Mirror APK to GitCode
     runs-on: ubuntu-latest
     timeout-minutes: 50
+    # The SSH key is an environment secret that only the main branch may use.
+    environment: mirror
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -146,6 +151,9 @@ jobs:
           # up with exactly these bytes.
           expect=$(sha256sum "${apks[0]}" | cut -d' ' -f1)
           echo "APK $filename sha256 $expect"
+          # The upload script runs from a root-owned copy on the host; this is the
+          # version this commit expects, and the host refuses any other.
+          script_sha=$(sha256sum scripts/mirror-android-apk-to-gitcode.mjs | cut -d' ' -f1)
 
           install -d -m 700 ~/.ssh
           printf '%s\n' "$MIRROR_SSH_KEY" > ~/.ssh/mirror_key
@@ -158,9 +166,10 @@ jobs:
             --arg tag "$RELEASE_TAG" \
             --arg filename "$filename" \
             --arg expect "$expect" \
+            --arg scriptSha256 "$script_sha" \
             --arg prerelease "$PRERELEASE" \
             --arg source "github-actions:${{ github.repository }}:${{ github.run_id }}" \
-            '{tag: $tag, filename: $filename, expectSha256: $expect, prerelease: ($prerelease == "true"), source: $source,
+            '{tag: $tag, filename: $filename, expectSha256: $expect, scriptSha256: $scriptSha256, prerelease: ($prerelease == "true"), source: $source,
               env: ({
                 GITCODE_TOKEN: env.GITCODE_TOKEN,
                 GITCODE_OWNER: env.GITCODE_OWNER,
@@ -172,9 +181,9 @@ jobs:
               } | with_entries(select(.value != null and .value != "")))}')
 
           mkdir -p gitcode-mirror
-          # One JSON line, then the upload script; the forced command on the host
-          # validates the request and runs the script.
-          { printf '%s\n' "$request"; cat scripts/mirror-android-apk-to-gitcode.mjs; } \
+          # One JSON line and nothing else; the forced command on the host validates
+          # it and runs its own installed copy of the upload script.
+          printf '%s\n' "$request" \
             | timeout 2640 ssh \
               -i ~/.ssh/mirror_key \
               -p "${MIRROR_SSH_PORT:-22}" \

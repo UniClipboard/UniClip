@@ -339,13 +339,17 @@ and the transfer happens there:
 
 1. The job takes the APK that was released (the build artifact, or the GitHub Release for
    a manual run) only to compute its SHA-256.
-2. It sends one JSON line (tag, file name, that digest, settings) followed by
-   `scripts/mirror-android-apk-to-gitcode.mjs` through the SSH session. The settings,
-   including the GitCode token, only travel in that session; nothing is stored on the host.
-3. The key is restricted (`restrict,command=...`) to `scripts/remote/gitcode-mirror-host.py`,
-   which validates the request (release tag, APK name, digest, allow-listed settings only),
-   downloads the APK from R2, checks its SHA-256 against the digest, runs the script with
-   Node and prints the provenance. It removes everything it created.
+2. It sends **one JSON line and nothing else** through the SSH session: tag, file name,
+   that digest, the SHA-256 of `scripts/mirror-android-apk-to-gitcode.mjs` in this commit,
+   and the settings, including the GitCode token (read by `jq` from the environment, never
+   a command-line argument). No code travels: the upload script is installed on the host,
+   owned by root, and the host refuses to run a script whose digest differs from the one the
+   job expects, so a changed script has to be deployed deliberately.
+3. The key on the host is restricted (`restrict,command=...`) to
+   `scripts/remote/gitcode-mirror-host.py`, which validates the request (release tag, APK
+   name, digests, allow-listed settings only, no extra data), downloads the APK from R2,
+   checks its SHA-256 against the digest, runs the installed script with Node and prints the
+   provenance. It removes everything it created. Nothing is stored on the host.
 4. The script hashes the file again, makes sure the GitCode release exists, reuses an
    identical existing file (a different one fails without being overwritten or deleted),
    otherwise uploads it (bounded timeouts, three attempts, a fresh upload address each
@@ -358,7 +362,7 @@ Configuration, all outside the repository and never printed:
 
 | Name | Kind | Purpose |
 | --- | --- | --- |
-| `MIRROR_SSH_KEY` | secret | Private key of the restricted SSH key |
+| `MIRROR_SSH_KEY` | secret of the `mirror` environment | Private key of the restricted SSH key. The environment only admits the `main` branch, so a workflow on any other branch cannot use the key |
 | `MIRROR_SSH_HOST`, `MIRROR_SSH_USER`, `MIRROR_SSH_PORT` | variables | The Shanghai host, its unprivileged user (`uniclip-mirror`) and an optional port |
 | `MIRROR_SSH_KNOWN_HOSTS` | variable | The host's public keys (`ssh-keyscan` output, compared with the host's own keys) |
 | `GITCODE_RELEASE_TOKEN` | secret | GitCode bot token with release write access to the mirror repository only |
@@ -368,11 +372,16 @@ Configuration, all outside the repository and never printed:
 | `FLARE_RELEASE_ACCESS_CLIENT_ID`, `FLARE_RELEASE_ACCESS_CLIENT_SECRET` | secrets | Already used for registration |
 
 The host (CentOS 7, glibc 2.17) has Node 22 from the Node.js unofficial glibc-2.17 build
-under `~uniclip-mirror/node` (the official Node 22 needs a newer glibc), the wrapper at
-`/opt/uniclip-mirror/gitcode-mirror-host.py` (owned by root, so the key cannot change it)
-and the public half of the key in `~uniclip-mirror/.ssh/authorized_keys`. Update the
-wrapper there when `scripts/remote/gitcode-mirror-host.py` changes; the upload script
-itself is sent by every run.
+under `~uniclip-mirror/node` (the official Node 22 needs a newer glibc), the wrapper and the
+upload script in `/opt/uniclip-mirror/` (owned by root, so the key cannot change them) and
+the public half of the key in `~uniclip-mirror/.ssh/authorized_keys`. Run
+`scripts/remote/deploy-gitcode-mirror-host.sh <ssh alias with root>` after either file
+changes; until then the job fails with "the installed upload script is out of date" (which is
+a warning for a release). The host is a shared general-purpose server with an old kernel;
+the design keeps the key from running anything but this one upload, and the Access
+credential that is sent along can use the whole FlareRelease admin API, so a narrower
+service token (only `PUT /api/mirrors`) would limit the damage if the host is ever
+compromised.
 
 Failure behaviour: during a release the job is non-blocking. A missing setting, an
 unreachable host, a failed upload, or a failed verification becomes a `::warning`

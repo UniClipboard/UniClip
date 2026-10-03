@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -68,12 +68,21 @@ describe('GitCode mirror host wrapper', () => {
     tag?: string;
     filename?: string;
     expectSha256?: string;
+    scriptSha256?: string;
     prerelease?: boolean;
     source?: string;
     env?: Record<string, string>;
   };
 
-  function run(request: Request, script = stubScript, extraEnv: Record<string, string> = {}) {
+  // The upload script is installed on the host by a maintainer; CI only names the
+  // digest of the version it expects. Nothing but one JSON line is ever read.
+  function run(
+    request: Request,
+    options: { script?: string; trailing?: string; omitScriptFile?: boolean } = {}
+  ) {
+    const script = options.script ?? stubScript;
+    const installed = join(mkdtempSync(join(tmpdir(), 'mirror-installed-')), 'mirror.mjs');
+    if (!options.omitScriptFile) writeFileSync(installed, script);
     return new Promise<{ code: number; stdout: string; stderr: string }>((resolve) => {
       const child = spawn('python3', [wrapper], {
         env: {
@@ -81,24 +90,28 @@ describe('GitCode mirror host wrapper', () => {
           UNICLIP_MIRROR_R2_BASE: base,
           UNICLIP_MIRROR_NODE: process.execPath,
           UNICLIP_MIRROR_TMP: work,
-          ...extraEnv,
+          UNICLIP_MIRROR_SCRIPT: installed,
         },
       });
       let stdout = '';
       let stderr = '';
       child.stdout.on('data', (chunk) => (stdout += chunk));
       child.stderr.on('data', (chunk) => (stderr += chunk));
-      child.on('close', (code) => resolve({ code: code ?? 1, stdout, stderr }));
+      child.on('close', (code) => {
+        rmSync(join(installed, '..'), { recursive: true, force: true });
+        resolve({ code: code ?? 1, stdout, stderr });
+      });
       const header = {
         tag: TAG,
         filename: FILENAME,
         expectSha256: sha256,
+        scriptSha256: createHash('sha256').update(script).digest('hex'),
         prerelease: false,
         source: 'github-actions:UniClipboard/UniClip:1',
         env: { GITCODE_TOKEN: 'tok-secret', GITCODE_OWNER: 'o', GITCODE_REPO: 'r' },
         ...request,
       };
-      child.stdin.end(`${JSON.stringify(header)}\n${script}`);
+      child.stdin.end(`${JSON.stringify(header)}\n${options.trailing ?? ''}`);
     });
   }
 
@@ -162,8 +175,33 @@ describe('GitCode mirror host wrapper', () => {
   });
 
   it('returns the exit status of the upload script and never echoes the secrets', async () => {
-    const result = await run({}, stubScript.replace('process.exit(Number(process.env.STUB_EXIT || 0))', 'process.exit(3)'));
+    const result = await run({}, { script: stubScript.replace('process.exit(Number(process.env.STUB_EXIT || 0))', 'process.exit(3)') });
     expect(result.code).toBe(3);
     expect((result.stdout + result.stderr).replace(/STUB .*/, '')).not.toContain('tok-secret');
+  });
+
+  it('never runs code that arrives over the SSH session', async () => {
+    const result = await run({}, { trailing: "console.log('STUB injected');" });
+    expect(result.code).not.toBe(0);
+    expect(result.stdout).not.toContain('STUB');
+    expect(result.stdout + result.stderr).toMatch(/unexpected data|only the request/i);
+    expect(downloads).toEqual([]);
+  });
+
+  it('refuses to run an installed script other than the version CI expects', async () => {
+    const result = await run({ scriptSha256: '1'.repeat(64) });
+    expect(result.code).not.toBe(0);
+    expect(result.stdout).not.toContain('STUB');
+    expect(result.stdout + result.stderr).toMatch(/out of date|scriptSha256/i);
+    expect(downloads).toEqual([]);
+    const missing = await run({ scriptSha256: undefined as unknown as string });
+    expect(missing.code).not.toBe(0);
+  });
+
+  it('fails clearly when the script is not installed on the host', async () => {
+    const result = await run({}, { omitScriptFile: true });
+    expect(result.code).not.toBe(0);
+    expect(result.stdout + result.stderr).toMatch(/not installed|no such file/i);
+    expect(downloads).toEqual([]);
   });
 });

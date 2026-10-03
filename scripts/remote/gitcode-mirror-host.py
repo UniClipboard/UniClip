@@ -6,14 +6,20 @@ China), so CI logs in to a small host in Shanghai over SSH and this wrapper does
 the transfer there. It is the forced command of that SSH key, so the key can do
 nothing else.
 
-Protocol (stdin): one JSON line, then the source of the upload script.
-  {"tag", "filename", "expectSha256", "prerelease", "source", "env": {...}}
+Protocol (stdin): exactly one JSON line and nothing else.
+  {"tag", "filename", "expectSha256", "scriptSha256", "prerelease", "source",
+   "env": {...}}
+
+No code ever arrives over the SSH session. The upload script is installed on this
+host by a maintainer (root-owned, see scripts/remote/deploy-gitcode-mirror-host.sh);
+CI only says which version it expects (scriptSha256), and the wrapper refuses to run
+a different one. So the key can start the upload of a named release and nothing more.
 
 The wrapper
-  1. validates the request (plain tag, APK name, digest, allow-listed settings),
+  1. validates the request (plain tag, APK name, digests, allow-listed settings),
   2. downloads the APK from the public R2 address, whose route from China is fast
      (GitHub is not), and checks size and SHA-256 against what CI released,
-  3. runs the upload script with Node, secrets only in the child's environment,
+  3. runs the installed upload script with Node, secrets only in the child's environment,
   4. prints the provenance between ::provenance:: markers and exits with the
      script's status. Everything it created is removed.
 
@@ -31,6 +37,7 @@ import time
 
 R2_BASE = os.environ.get("UNICLIP_MIRROR_R2_BASE", "https://release.uniclipboard.app")
 NODE = os.environ.get("UNICLIP_MIRROR_NODE", os.path.expanduser("~/node/bin/node"))
+SCRIPT = os.environ.get("UNICLIP_MIRROR_SCRIPT", "/opt/uniclip-mirror/mirror-android-apk-to-gitcode.mjs")
 TMP_ROOT = os.environ.get("UNICLIP_MIRROR_TMP") or None
 
 ALLOWED_ENV = {
@@ -57,20 +64,21 @@ def fail(message):
 
 def read_request():
     raw = sys.stdin.buffer.read()
-    header, _, script = raw.partition(b"\n")
+    header, _, rest = raw.partition(b"\n")
     try:
         request = json.loads(header.decode("utf-8"))
     except ValueError:
         fail("the first line must be a JSON request")
-    if not script.strip():
-        fail("no upload script was sent")
-    return request, script
+    if rest.strip():
+        fail("unexpected data after the request: only the request line is accepted")
+    return request
 
 
 def validate(request):
     tag = request.get("tag", "")
     filename = request.get("filename", "")
     digest = request.get("expectSha256", "")
+    script_digest = request.get("scriptSha256", "")
     source = request.get("source", "github-actions")
     if not isinstance(tag, str) or not TAG.match(tag):
         fail("invalid tag")
@@ -78,6 +86,8 @@ def validate(request):
         fail("invalid APK file name")
     if not isinstance(digest, str) or not SHA256.match(digest):
         fail("expectSha256 must be 64 hex characters")
+    if not isinstance(script_digest, str) or not SHA256.match(script_digest):
+        fail("scriptSha256 must be 64 hex characters")
     if not isinstance(source, str) or not SOURCE.match(source):
         fail("invalid source")
     env = request.get("env", {})
@@ -88,7 +98,7 @@ def validate(request):
             fail("environment variable %s is not allowed" % key)
         if not isinstance(value, str) or "\n" in value or "\x00" in value:
             fail("environment variable %s has an invalid value" % key)
-    return tag, filename, digest.lower(), source, bool(request.get("prerelease")), env
+    return tag, filename, digest.lower(), script_digest.lower(), source, bool(request.get("prerelease")), env
 
 
 def download(url, target):
@@ -117,8 +127,13 @@ def sha256_of(path):
 
 
 def main():
-    request, script = read_request()
-    tag, filename, expect, source, prerelease, env = validate(request)
+    request = read_request()
+    tag, filename, expect, script_digest, source, prerelease, env = validate(request)
+    if not os.path.isfile(SCRIPT):
+        fail("the upload script is not installed on this host (%s)" % SCRIPT)
+    installed = sha256_of(SCRIPT)
+    if installed != script_digest:
+        fail("the installed upload script is out of date (installed %s, CI expects scriptSha256 %s); run deploy-gitcode-mirror-host.sh" % (installed, script_digest))
     work = tempfile.mkdtemp(prefix="gitcode-mirror-", dir=TMP_ROOT)
     os.chmod(work, 0o700)
     try:
@@ -127,15 +142,12 @@ def main():
         actual = sha256_of(apk)
         if actual != expect:
             fail("sha256 of the downloaded file is %s, expected %s" % (actual, expect))
-        script_path = os.path.join(work, "mirror.mjs")
-        with open(script_path, "wb") as handle:
-            handle.write(script)
         provenance = os.path.join(work, "provenance.json")
         child_env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": os.environ.get("HOME", "")}
         child_env.update(env)
         status = subprocess.call(
             [
-                NODE, script_path,
+                NODE, SCRIPT,
                 "--apk", apk,
                 "--tag", tag,
                 "--prerelease", "true" if prerelease else "false",
