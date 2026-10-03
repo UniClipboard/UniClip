@@ -24,7 +24,10 @@ export interface FileActions {
   saveFile(fileUri: string, fileName?: string): Promise<boolean>;
 
   /**
-   * 通过系统分享对话框分享文件（两端一致）。
+   * 通过系统分享对话框分享文件。
+   * - Android：文件本身已带原始文件名/扩展名，直接分享。
+   * - iOS：App Group payload 按内容 hash 命名、没有扩展名，分享前会先拷贝成一份
+   *   以 `fileName` 命名的临时文件再分享，否则系统分享面板/接收方看不到正确文件名。
    */
   shareFile(fileUri: string, fileName?: string): Promise<void>;
 
