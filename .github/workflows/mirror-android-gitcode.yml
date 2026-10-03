@@ -60,7 +60,7 @@ jobs:
   mirror:
     name: Mirror APK to GitCode
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 50
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -93,7 +93,7 @@ jobs:
         continue-on-error: ${{ inputs.non_blocking == true }}
         # Shorter than the job timeout: a job timeout would fail the run even
         # though this step is non-blocking. The script stops itself earlier still.
-        timeout-minutes: 20
+        timeout-minutes: 45
         env:
           RELEASE_TAG: ${{ inputs.tag_name }}
           GITCODE_TOKEN: ${{ secrets.GITCODE_RELEASE_TOKEN }}
@@ -114,7 +114,7 @@ jobs:
           node scripts/mirror-android-apk-to-gitcode.mjs \
             --apk "${apks[0]}" \
             --tag "$RELEASE_TAG" \
-            --deadline-ms 1080000 \
+            --deadline-ms 2400000 \
             --prerelease "${{ contains(inputs.tag_name, '-alpha.') || contains(inputs.tag_name, '-beta') }}" \
             --source "github-actions:${{ github.repository }}:${{ github.run_id }}" \
             --missing-config "${{ inputs.non_blocking == true && 'skip' || 'fail' }}" \

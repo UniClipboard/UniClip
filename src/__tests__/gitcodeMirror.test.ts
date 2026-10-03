@@ -371,6 +371,24 @@ describe('GitCode APK mirror upload', () => {
     expect(String(provenance().error)).toMatch(/deadline|timed out|aborted/i);
   });
 
+  it('abandons an upload that stops making progress long before any total timeout', async () => {
+    const { fake, args, env, provenance } = await setup({ uploadHangs: true });
+    const started = Date.now();
+    const result = await run([...args, '--stall-timeout-ms', '400'], env);
+    expect(result.code).toBe(1);
+    expect(Date.now() - started).toBeLessThan(20_000);
+    expect(putCount(fake)).toBe(3);
+    expect(fake.registrations).toHaveLength(0);
+    expect(String(provenance().error)).toMatch(/no progress/i);
+  });
+
+  it('logs how many bytes were sent so a slow transfer can be told from a stuck one', async () => {
+    const { args, env } = await setup();
+    const result = await run([...args, '--progress-interval-ms', '1'], env);
+    expect(result.code).toBe(0);
+    expect(result.stdout).toMatch(/Uploaded \d+ of \d+ bytes/);
+  });
+
   it('does not register a mirror whose downloaded bytes differ from the APK', async () => {
     const { fake, args, env, provenance } = await setup({ corruptDownload: true });
     const result = await run(args, env);
