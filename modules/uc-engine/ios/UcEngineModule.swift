@@ -19,6 +19,34 @@ public final class UcEngineModule: Module {
   private let engineEventQueue = DispatchQueue(label: "app.uniclipboard.uc-engine-events")
   private let engines = NativeEngineRegistry<MobileEngine>()
   private let startupLifecycles = NativeEngineRegistry<MobileStartupLifecycle>()
+  private let lifecycleOwnerLock = NSLock()
+  /// The one `AppleEngineLifecycle` (and the `RuntimeOwnedNativeLifecycle` it
+  /// wraps) for the currently active engine, reused across every
+  /// suspend/resume/background/foreground call. Keyed by the engine's
+  /// identity so a replaced engine gets a fresh owner automatically.
+  ///
+  /// Constructing a fresh owner per call (the previous shape here, CodeRabbit
+  /// review on PR #60) silently defeats the confirmation-watcher: nothing
+  /// else retains the owner once the call that created it returns without
+  /// calling `finish()` (the deadline-exceeded failure path), so
+  /// `watchForConfirmedSuspension`'s `[weak self]` capture is already nil by
+  /// the time it fires -- the ownership flock then never gets released, even
+  /// on a single transition with no race involved. Proved with the real
+  /// classes and a real separate-process flock probe in
+  /// `library/evidence/cross-process-flock-harness` Scenario D.
+  private var cachedLifecycleOwner: (engineId: ObjectIdentifier, owner: AppleEngineLifecycle)?
+
+  private func activeLifecycleOwner(for engine: MobileEngine) -> AppleEngineLifecycle {
+    lifecycleOwnerLock.withLock {
+      let id = ObjectIdentifier(engine)
+      if let cached = cachedLifecycleOwner, cached.engineId == id {
+        return cached.owner
+      }
+      let owner = AppleEngineLifecycle(engine: engine, host: host)
+      cachedLifecycleOwner = (id, owner)
+      return owner
+    }
+  }
 
   public func definition() -> ModuleDefinition {
     Name("UcEngine")
@@ -126,13 +154,13 @@ public final class UcEngineModule: Module {
 
     AsyncFunction("suspend") {
       try self.lifecycle.suspendIfNeeded(
-        AppleEngineLifecycle(engine: self.requireEngine(), host: self.host),
+        self.activeLifecycleOwner(for: self.requireEngine()),
         remainingTimeMs: { nil }
       )
     }.runOnQueue(engineOperationQueue)
     AsyncFunction("resume") {
       try self.lifecycle.resumeIfNeeded(
-        AppleEngineLifecycle(engine: self.requireEngine(), host: self.host)
+        self.activeLifecycleOwner(for: self.requireEngine())
       )
     }.runOnQueue(engineOperationQueue)
     AsyncFunction("setBackgroundSyncEnabled") { (_: Bool, _: Bool) in }
@@ -492,8 +520,9 @@ public final class UcEngineModule: Module {
 
   private func currentLifecycle() -> (any NativeEngineLifecycle)? {
     if let engine = currentEngine() {
-      return AppleEngineLifecycle(engine: engine, host: host)
+      return activeLifecycleOwner(for: engine)
     }
+    lifecycleOwnerLock.withLock { cachedLifecycleOwner = nil }
     return startupLifecycles.current().map(AppleStartupLifecycle.init)
   }
 
@@ -862,9 +891,20 @@ private final class UIKitBackgroundActivity: NativeBackgroundActivity, @unchecke
   private var identifier: UIBackgroundTaskIdentifier = .invalid
 
   func begin() {
+    // Deliberately a strong capture, not `[weak self]`. Nothing else in the
+    // app retains this activity once the background transition that created
+    // it returns without calling `end()` (the deadline-exceeded failure
+    // path), so a weak capture would already be nil by the time UIKit calls
+    // this handler later, and `endBackgroundTask` would never fire -- leaking
+    // the real OS-level assertion (CodeRabbit review, PR #60; proved with a
+    // generic ARC repro in `library/evidence/cross-process-flock-harness`
+    // Scenario E, since `UIApplication` cannot run outside an iOS process
+    // here). The strong reference is held only by UIKit itself, for exactly
+    // as long as the background task is outstanding; it is released the
+    // moment `endBackgroundTask` is called from either `end()` or `expire()`.
     let identifier = UIApplication.shared.beginBackgroundTask(
       withName: "UniClip Engine Suspend",
-      expirationHandler: { [weak self] in self?.expire() }
+      expirationHandler: { self.expire() }
     )
     lock.withLock { self.identifier = identifier }
   }
