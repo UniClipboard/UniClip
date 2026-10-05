@@ -19,6 +19,34 @@ public final class UcEngineModule: Module {
   private let engineEventQueue = DispatchQueue(label: "app.uniclipboard.uc-engine-events")
   private let engines = NativeEngineRegistry<MobileEngine>()
   private let startupLifecycles = NativeEngineRegistry<MobileStartupLifecycle>()
+  private let lifecycleOwnerLock = NSLock()
+  /// The one `AppleEngineLifecycle` (and the `RuntimeOwnedNativeLifecycle` it
+  /// wraps) for the currently active engine, reused across every
+  /// suspend/resume/background/foreground call. Keyed by the engine's
+  /// identity so a replaced engine gets a fresh owner automatically.
+  ///
+  /// Constructing a fresh owner per call (the previous shape here, CodeRabbit
+  /// review on PR #60) silently defeats the confirmation-watcher: nothing
+  /// else retains the owner once the call that created it returns without
+  /// calling `finish()` (the deadline-exceeded failure path), so
+  /// `watchForConfirmedSuspension`'s `[weak self]` capture is already nil by
+  /// the time it fires -- the ownership flock then never gets released, even
+  /// on a single transition with no race involved. Proved with the real
+  /// classes and a real separate-process flock probe in
+  /// `library/evidence/cross-process-flock-harness` Scenario D.
+  private var cachedLifecycleOwner: (engineId: ObjectIdentifier, owner: AppleEngineLifecycle)?
+
+  private func activeLifecycleOwner(for engine: MobileEngine) -> AppleEngineLifecycle {
+    lifecycleOwnerLock.withLock {
+      let id = ObjectIdentifier(engine)
+      if let cached = cachedLifecycleOwner, cached.engineId == id {
+        return cached.owner
+      }
+      let owner = AppleEngineLifecycle(engine: engine, host: host)
+      cachedLifecycleOwner = (id, owner)
+      return owner
+    }
+  }
 
   public func definition() -> ModuleDefinition {
     Name("UcEngine")
@@ -126,13 +154,13 @@ public final class UcEngineModule: Module {
 
     AsyncFunction("suspend") {
       try self.lifecycle.suspendIfNeeded(
-        AppleEngineLifecycle(engine: self.requireEngine(), host: self.host),
-        deadlineMs: nil
+        self.activeLifecycleOwner(for: self.requireEngine()),
+        remainingTimeMs: { nil }
       )
     }.runOnQueue(engineOperationQueue)
     AsyncFunction("resume") {
       try self.lifecycle.resumeIfNeeded(
-        AppleEngineLifecycle(engine: self.requireEngine(), host: self.host)
+        self.activeLifecycleOwner(for: self.requireEngine())
       )
     }.runOnQueue(engineOperationQueue)
     AsyncFunction("setBackgroundSyncEnabled") { (_: Bool, _: Bool) in }
@@ -492,8 +520,9 @@ public final class UcEngineModule: Module {
 
   private func currentLifecycle() -> (any NativeEngineLifecycle)? {
     if let engine = currentEngine() {
-      return AppleEngineLifecycle(engine: engine, host: host)
+      return activeLifecycleOwner(for: engine)
     }
+    lifecycleOwnerLock.withLock { cachedLifecycleOwner = nil }
     return startupLifecycles.current().map(AppleStartupLifecycle.init)
   }
 
@@ -862,9 +891,20 @@ private final class UIKitBackgroundActivity: NativeBackgroundActivity, @unchecke
   private var identifier: UIBackgroundTaskIdentifier = .invalid
 
   func begin() {
+    // Deliberately a strong capture, not `[weak self]`. Nothing else in the
+    // app retains this activity once the background transition that created
+    // it returns without calling `end()` (the deadline-exceeded failure
+    // path), so a weak capture would already be nil by the time UIKit calls
+    // this handler later, and `endBackgroundTask` would never fire -- leaking
+    // the real OS-level assertion (CodeRabbit review, PR #60; proved with a
+    // generic ARC repro in `library/evidence/cross-process-flock-harness`
+    // Scenario E, since `UIApplication` cannot run outside an iOS process
+    // here). The strong reference is held only by UIKit itself, for exactly
+    // as long as the background task is outstanding; it is released the
+    // moment `endBackgroundTask` is called from either `end()` or `expire()`.
     let identifier = UIApplication.shared.beginBackgroundTask(
       withName: "UniClip Engine Suspend",
-      expirationHandler: { [weak self] in self?.expire() }
+      expirationHandler: { self.expire() }
     )
     lock.withLock { self.identifier = identifier }
   }
@@ -876,18 +916,38 @@ private final class UIKitBackgroundActivity: NativeBackgroundActivity, @unchecke
   }
 
   func end() {
-    let active = lock.withLock {
-      defer { identifier = .invalid }
-      return identifier
-    }
-    guard active != .invalid else { return }
+    guard let active = takeIdentifier() else { return }
+    // `end()` can be called from this module's own serial lifecycle queue,
+    // not necessarily the main thread; marshal over asynchronously since
+    // nothing here is racing a deadline the way `expire()` is.
     DispatchQueue.main.async {
       UIApplication.shared.endBackgroundTask(active)
     }
   }
 
+  /// Called by UIKit once the granted background time has fully run out.
+  /// `endBackgroundTask` must still be called here, exactly as it is from
+  /// `end()` — not calling it here was the second half of the host-contract
+  /// gap t-0176 found: the assertion leaked instead of being released. This
+  /// does not recover any lock the Engine was still holding at that point.
+  ///
+  /// Corrected per t-0176's review: the expiration handler already runs on
+  /// the main thread, and Apple requires `endBackgroundTask` to be called
+  /// from (not merely scheduled from) that handler. Dispatching to
+  /// `.main.async` here would defer the real call until after this handler
+  /// already returned, which does not satisfy that requirement — call it
+  /// directly instead.
   private func expire() {
-    lock.withLock { identifier = .invalid }
+    guard let active = takeIdentifier() else { return }
+    UIApplication.shared.endBackgroundTask(active)
+  }
+
+  private func takeIdentifier() -> UIBackgroundTaskIdentifier? {
+    let active = lock.withLock {
+      defer { identifier = .invalid }
+      return identifier
+    }
+    return active == .invalid ? nil : active
   }
 }
 
@@ -948,12 +1008,21 @@ private final class AppleMobileEngineLifecycle: NativeEngineLifecycle {
   }
 
   func suspend(deadlineMs: UInt64?) throws {
-    try AppleNativeDiagnostics.observe(.engineSuspend) {
-      if let deadlineMs {
-        try engine.suspendWithDeadline(deadlineMs: deadlineMs)
-      } else {
-        try engine.suspend()
+    do {
+      try AppleNativeDiagnostics.observe(.engineSuspend) {
+        if let deadlineMs {
+          try engine.suspendWithDeadline(deadlineMs: deadlineMs)
+        } else {
+          try engine.suspend()
+        }
       }
+    } catch BindingError.Engine(_, .deadlineExceeded, _) {
+      // The Engine's own contract: a deadline failure means the transition
+      // did not complete, not that it is safe. The Engine stays `.quiesced`
+      // and any lock it held when the deadline fired is still held; this
+      // only turns that signal into something the lifecycle-agnostic retry
+      // policy in `NativeLifecycleHost` can act on.
+      throw NativeLifecycleError.deadlineExceeded
     }
   }
 
@@ -977,10 +1046,14 @@ private final class AppleStartupLifecycle: NativeEngineLifecycle {
   func recoverSession() throws -> NativeSessionRecovery { .init(unlocked: false, resumed: false) }
   func lifecycleState() throws -> NativeEngineLifecycleState { .running }
   func suspend(deadlineMs: UInt64?) throws {
-    if let deadlineMs {
-      try lifecycle.suspendWithDeadline(deadlineMs: deadlineMs)
-    } else {
-      try lifecycle.suspend()
+    do {
+      if let deadlineMs {
+        try lifecycle.suspendWithDeadline(deadlineMs: deadlineMs)
+      } else {
+        try lifecycle.suspend()
+      }
+    } catch BindingError.Engine(_, .deadlineExceeded, _) {
+      throw NativeLifecycleError.deadlineExceeded
     }
   }
   func resume() throws { try lifecycle.resume() }

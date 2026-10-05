@@ -289,7 +289,7 @@ final class NativeSystemHostTests: XCTestCase {
     let host = NativeLifecycleHost(report: { _ in XCTFail("Transition must not fail") })
 
     host.enterForeground(engine)
-    _ = host.enterBackground(engine, deadlineMs: 1_000)
+    _ = host.enterBackground(engine, remainingTimeMs: { 1_000 })
     engine.state = .suspended
     host.enterForeground(engine)
 
@@ -315,7 +315,7 @@ final class NativeSystemHostTests: XCTestCase {
     var reported: Error?
     let host = NativeLifecycleHost(report: { reported = $0 })
 
-    _ = host.enterBackground(engine, deadlineMs: 1_000)
+    _ = host.enterBackground(engine, remainingTimeMs: { 1_000 })
 
     XCTAssertNotNil(reported)
   }
@@ -400,6 +400,109 @@ final class NativeSystemHostTests: XCTestCase {
     )
   }
 
+  func testBackgroundTransitionLeavesTheActivityOpenWhenSuspendNeverSucceeds() throws {
+    // Corrected during review: ending the background task immediately on a
+    // budget-exhausted failure would surrender whatever real time iOS already
+    // granted, right when the Engine's own detached in-flight operation (the
+    // one that caused the deadline-exceeded failure) most needs it to finish
+    // and release its lock before suspension. On failure the task must be
+    // left running — it is still ended reliably later, just not by this path.
+    let engine = FakeNativeEngineLifecycle(state: .running)
+    engine.transitionError = NativeLifecycleError.deadlineExceeded
+    var reported: Error?
+    let activityEnded = LockedFlag()
+    let reportedExpectation = expectation(description: "failure reported")
+    let host = NativeLifecycleHost(report: {
+      reported = $0
+      reportedExpectation.fulfill()
+    })
+    let queue = DispatchQueue(label: "LeavesActivityOpenOnFailureTests")
+    let coordinator = NativeLifecycleTransitionCoordinator(
+      lifecycle: host,
+      queue: queue,
+      beginBackgroundActivity: {
+        TestBackgroundActivity(remainingTimeMs: 0) {
+          activityEnded.set(true)
+        }
+      }
+    )
+
+    coordinator.enterBackground(engine)
+
+    wait(for: [reportedExpectation], timeout: 1)
+    // `report(error)` runs just before `enterBackground()` decides whether to
+    // call `finish()`, on the same serial queue with no further async hop in
+    // between — flush that queue so the decision has definitely happened
+    // before asserting on it.
+    queue.sync {}
+    XCTAssertNotNil(reported, "A permanent deadline-exceeded failure must still be reported")
+    XCTAssertEqual(
+      engine.suspendCalls, 1,
+      "With no real budget left for a retry, suspend must be attempted exactly once, not looped forever"
+    )
+    XCTAssertFalse(
+      activityEnded.get(),
+      "The background task must stay open on failure so the OS-granted time isn't surrendered early"
+    )
+  }
+
+  func testBackgroundTransitionRetriesSuspendWhileRealBudgetRemains() throws {
+    // The deadline passed to the Engine must be read fresh on every attempt
+    // (not the single value captured before the lifecycle queue even ran),
+    // and a deadline-exceeded failure must be retried as long as the system
+    // still reports real background time left.
+    let activityEnded = expectation(description: "background activity ended")
+    let engine = FakeNativeEngineLifecycle(state: .running)
+    engine.failuresBeforeSuccess = 2
+    var reported: Error?
+    let host = NativeLifecycleHost(report: { reported = $0 })
+    let coordinator = NativeLifecycleTransitionCoordinator(
+      lifecycle: host,
+      queue: DispatchQueue(label: "RetriesWhileBudgetRemainsTests"),
+      beginBackgroundActivity: {
+        TestBackgroundActivity(remainingTimeMsSequence: [5_000, 4_000, 3_000]) {
+          activityEnded.fulfill()
+        }
+      }
+    )
+
+    coordinator.enterBackground(engine)
+
+    wait(for: [activityEnded], timeout: 1)
+    XCTAssertNil(reported)
+    XCTAssertEqual(engine.suspendCalls, 3)
+    XCTAssertEqual(
+      engine.lastSuspendDeadlineMs, 3_000,
+      "The final attempt must use a freshly read deadline, not the value captured before the first attempt"
+    )
+    XCTAssertEqual(engine.state, .suspended)
+  }
+
+  func testForegroundResumesFromQuiescedJustLikeSuspended() throws {
+    // t-0176's real Engine E2E showed that after a deadline-exceeded suspend
+    // the Engine settles in `.quiesced`, not `.suspended`, and that Engine's
+    // own `resume()` already accepts being called from `.quiesced`. The host
+    // must actually call it from there instead of waiting for the next
+    // background/foreground cycle (which is what produced the observed
+    // `1001 invalid_state` failures).
+    let engine = FakeNativeEngineLifecycle(state: .quiesced)
+    let host = NativeLifecycleHost(report: { _ in XCTFail("Transition must not fail") })
+
+    try host.resumeIfNeeded(engine)
+
+    XCTAssertEqual(engine.resumeCalls, 1)
+    XCTAssertEqual(engine.state, .running)
+  }
+
+  func testForegroundDoesNotResumeAMidTransitionEngine() throws {
+    let engine = FakeNativeEngineLifecycle(state: .quiescing)
+    let host = NativeLifecycleHost(report: { _ in XCTFail("Transition must not fail") })
+
+    try host.resumeIfNeeded(engine)
+
+    XCTAssertEqual(engine.resumeCalls, 0, "A quiesce still in flight must not be raced by a resume")
+  }
+
   func testBackgroundTransitionReturnsBeforeSuspendAndEndsActivityAfterCleanup() throws {
     let suspendStarted = expectation(description: "suspend started")
     let activityEnded = expectation(description: "background activity ended")
@@ -453,9 +556,55 @@ private final class TestBackgroundActivity: NativeBackgroundActivity, @unchecked
     self.onEnd = onEnd
   }
 
+  /// Simulates a live, shrinking background budget: each read consumes the
+  /// next value, standing in for `UIApplication.backgroundTimeRemaining`
+  /// actually decreasing between retry attempts. The last value repeats once
+  /// the sequence is exhausted.
+  init(remainingTimeMsSequence: [UInt64], onEnd: @escaping @Sendable () -> Void) {
+    let box = LockedSequenceCursor(remainingTimeMsSequence)
+    remainingTime = { box.next() }
+    self.onEnd = onEnd
+  }
+
   var remainingTimeMs: UInt64? { remainingTime() }
 
   func end() { onEnd() }
+}
+
+private final class LockedSequenceCursor: @unchecked Sendable {
+  private let lock = NSLock()
+  private let values: [UInt64]
+  private var index = 0
+
+  init(_ values: [UInt64]) {
+    self.values = values
+  }
+
+  func next() -> UInt64? {
+    lock.lock()
+    defer { lock.unlock() }
+    guard !values.isEmpty else { return nil }
+    let value = values[min(index, values.count - 1)]
+    index += 1
+    return value
+  }
+}
+
+private final class LockedFlag: @unchecked Sendable {
+  private let lock = NSLock()
+  private var value = false
+
+  func set(_ newValue: Bool) {
+    lock.lock()
+    value = newValue
+    lock.unlock()
+  }
+
+  func get() -> Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    return value
+  }
 }
 
 private final class LockedStringEvents: @unchecked Sendable {
@@ -490,6 +639,10 @@ private final class FakeNativeEngineLifecycle: NativeEngineLifecycle {
   var lastSuspendDeadlineMs: UInt64?
   var resumeCalls = 0
   var foregroundOpportunities = 0
+  /// Number of leading `suspend` calls that throw `.deadlineExceeded` before
+  /// one finally succeeds, standing in for a transaction that is still
+  /// in flight on the first attempts and finishes by the last one.
+  var failuresBeforeSuccess = 0
   func notifyForegroundOpportunity() throws { foregroundOpportunities += 1 }
   var onSuspend: (() -> Void)?
 
@@ -508,6 +661,9 @@ private final class FakeNativeEngineLifecycle: NativeEngineLifecycle {
     suspendCalls += 1
     lastSuspendDeadlineMs = deadlineMs
     onSuspend?()
+    if suspendCalls <= failuresBeforeSuccess {
+      throw NativeLifecycleError.deadlineExceeded
+    }
     if let transitionError { throw transitionError }
     state = .suspended
   }
