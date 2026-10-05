@@ -1,0 +1,13 @@
+# Pre: History settings page. Env: CURRENT, NEXT (empty string clears the field). Post: field focused with NEXT typed.
+# Tapping beside the suffix puts the caret at the end, so erasing removes the whole old value.
+appId: ${APP_ID}
+---
+- tapOn:
+    text: ${CURRENT}
+    point: "85%,50%"
+- eraseText: 12
+- runFlow:
+    when:
+      true: ${NEXT !== ""}
+    commands:
+      - inputText: ${NEXT}

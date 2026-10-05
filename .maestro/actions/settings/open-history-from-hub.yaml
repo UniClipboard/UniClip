@@ -1,0 +1,10 @@
+# Pre: Settings hub visible. Post: History settings page.
+appId: ${APP_ID}
+---
+- scrollUntilVisible:
+    element:
+      id: settings-history
+    direction: DOWN
+- tapOn:
+    id: settings-history
+- assertVisible: "Maximum history entries"
