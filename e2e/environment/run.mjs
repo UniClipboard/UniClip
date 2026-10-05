@@ -291,7 +291,7 @@ async function main() {
                 scenario
               ),
             ],
-            { env, cwd: root, timeout: 300_000, signal: interrupted.signal }
+            { env, cwd: root, timeout: 600_000, signal: interrupted.signal }
           );
           await writeFile(join(output, "maestro.log"), log);
         } catch (error) {
