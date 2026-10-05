@@ -1,0 +1,126 @@
+# Android-only. Lowers the maximum history entries to the minimum through Settings, then captures
+# one entry more than the limit through real native Copy; the oldest entry must be dropped.
+appId: ${APP_ID}
+---
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - runFlow: ../lifecycle/launch.yaml
+      - runFlow: ../actions/onboarding/complete.yaml
+      - runFlow: ../actions/settings/open-history.yaml
+      - runFlow:
+          file: ../actions/settings/replace-history-limit.yaml
+          env:
+            CURRENT: "1000"
+            NEXT: "10"
+      - back
+      - back
+      - runFlow: ../actions/settings/open-history-from-hub.yaml
+      - assertVisible: "10"
+      - takeScreenshot: history-limit-set-to-minimum
+      - back
+      - back
+      - runFlow: ../assertions/home-ready.yaml
+      - retry:
+          maxRetries: 3
+          commands:
+            - runFlow:
+                file: ../actions/clipboard/copy-text.yaml
+                env:
+                  CONTENT: Entry01
+      - retry:
+          maxRetries: 3
+          commands:
+            - runFlow:
+                file: ../actions/clipboard/copy-text.yaml
+                env:
+                  CONTENT: Entry02
+      - retry:
+          maxRetries: 3
+          commands:
+            - runFlow:
+                file: ../actions/clipboard/copy-text.yaml
+                env:
+                  CONTENT: Entry03
+      - retry:
+          maxRetries: 3
+          commands:
+            - runFlow:
+                file: ../actions/clipboard/copy-text.yaml
+                env:
+                  CONTENT: Entry04
+      - retry:
+          maxRetries: 3
+          commands:
+            - runFlow:
+                file: ../actions/clipboard/copy-text.yaml
+                env:
+                  CONTENT: Entry05
+      - retry:
+          maxRetries: 3
+          commands:
+            - runFlow:
+                file: ../actions/clipboard/copy-text.yaml
+                env:
+                  CONTENT: Entry06
+      - retry:
+          maxRetries: 3
+          commands:
+            - runFlow:
+                file: ../actions/clipboard/copy-text.yaml
+                env:
+                  CONTENT: Entry07
+      - retry:
+          maxRetries: 3
+          commands:
+            - runFlow:
+                file: ../actions/clipboard/copy-text.yaml
+                env:
+                  CONTENT: Entry08
+      - retry:
+          maxRetries: 3
+          commands:
+            - runFlow:
+                file: ../actions/clipboard/copy-text.yaml
+                env:
+                  CONTENT: Entry09
+      - retry:
+          maxRetries: 3
+          commands:
+            - runFlow:
+                file: ../actions/clipboard/copy-text.yaml
+                env:
+                  CONTENT: Entry10
+      - retry:
+          maxRetries: 3
+          commands:
+            - runFlow:
+                file: ../actions/clipboard/copy-text.yaml
+                env:
+                  CONTENT: Entry11
+      - runFlow:
+          file: ../actions/search/query.yaml
+          env:
+            QUERY: Entry01
+      - runFlow: ../assertions/history/empty.yaml
+      - assertVisible: "0 results"
+      - takeScreenshot: history-limit-oldest-dropped
+      - runFlow:
+          file: ../actions/search/query.yaml
+          env:
+            QUERY: Entry02
+      - runFlow: ../assertions/history/one-card.yaml
+      - runFlow:
+          file: ../actions/search/query.yaml
+          env:
+            QUERY: Entry11
+      - runFlow: ../assertions/history/one-card.yaml
+      - runFlow: ../actions/search/close.yaml
+      - runFlow: ../lifecycle/restart.yaml
+      - runFlow: ../actions/search/open.yaml
+      - runFlow:
+          file: ../actions/search/query.yaml
+          env:
+            QUERY: Entry01
+      - runFlow: ../assertions/history/empty.yaml
