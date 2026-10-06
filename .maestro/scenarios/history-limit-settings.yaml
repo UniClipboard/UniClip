@@ -1,0 +1,72 @@
+# Android-only. Edits the maximum history entries through the real keyboard and checks that the
+# value is kept after leaving the page, after an invalid entry and after a restart.
+appId: ${APP_ID}
+---
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - runFlow: ../lifecycle/launch.yaml
+      - runFlow: ../actions/onboarding/complete.yaml
+      - runFlow: ../actions/settings/open-history.yaml
+      - assertVisible: "1000"
+      - takeScreenshot: history-limit-default
+      # Decrease, then leave with the keyboard still open (system back, no explicit blur).
+      - runFlow:
+          file: ../actions/settings/replace-history-limit.yaml
+          env:
+            CURRENT: "1000"
+            NEXT: "50"
+      - back
+      - back
+      - runFlow: ../actions/settings/open-history-from-hub.yaml
+      - assertVisible: "50"
+      - takeScreenshot: history-limit-decreased
+      # Increase to a value wider than the old field.
+      - runFlow:
+          file: ../actions/settings/replace-history-limit.yaml
+          env:
+            CURRENT: "50"
+            NEXT: "123456"
+      - takeScreenshot: history-limit-wide-value
+      # No blur and no navigation: the value must still be saved after typing stops.
+      # Maestro has no plain sleep; waiting for an element that never appears lasts the full timeout.
+      - extendedWaitUntil:
+          visible: "history-limit-autosave-pause"
+          timeout: 2500
+          optional: true
+      - runFlow: ../lifecycle/restart.yaml
+      - runFlow: ../actions/settings/open-history.yaml
+      - assertVisible: "123456"
+      # Below the minimum and empty values are never saved.
+      - runFlow:
+          file: ../actions/settings/replace-history-limit.yaml
+          env:
+            CURRENT: "123456"
+            NEXT: "5"
+      - back
+      - back
+      - runFlow: ../actions/settings/open-history-from-hub.yaml
+      - assertVisible: "123456"
+      - takeScreenshot: history-limit-rejected
+      - runFlow:
+          file: ../actions/settings/replace-history-limit.yaml
+          env:
+            CURRENT: "123456"
+            NEXT: ""
+      - back
+      - back
+      - runFlow: ../actions/settings/open-history-from-hub.yaml
+      - assertVisible: "123456"
+      # Final value survives a restart.
+      - runFlow:
+          file: ../actions/settings/replace-history-limit.yaml
+          env:
+            CURRENT: "123456"
+            NEXT: "250"
+      - back
+      - back
+      - runFlow: ../lifecycle/restart.yaml
+      - runFlow: ../actions/settings/open-history.yaml
+      - assertVisible: "250"
+      - takeScreenshot: history-limit-after-restart

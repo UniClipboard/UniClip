@@ -65,6 +65,8 @@ npm run test:e2e:environment
 | `settings-navigation` | Storage row trailing-space tap and return home |
 | `beta-updates` | Android only: full-row risk confirmation, cancel/back, immediate offline check with auto-check disabled, persistence, disable and reconfirm |
 | `history-text-lifecycle` | Real clipboard capture, deduplication, preview, cancellation on Android, deletion and restart |
+| `history-limit-settings` | Android only: edit the maximum history entries with the real keyboard (decrease, 6-digit value, below-minimum and empty rejected), leave the page without blur, restart |
+| `history-limit-retention` | Android only: set the limit to the minimum, capture 11 entries through native Copy, the oldest is dropped and stays dropped after restart |
 | `history-search-filter` | Text and URL capture, query replacement, no results, clearing and type filters |
 | `sms-code-recognition` | Android only: developer-options tool feeds simulated SMS text to the native recognizer (match, spaced digits, no match, ambiguous); no SMS permission, clipboard, history, sync or upload involved |
 | `history-search-dismiss` | iOS only: search layer over home; pull-to-dismiss from suggestions and results, short pull stays, search filters cleared, close button |

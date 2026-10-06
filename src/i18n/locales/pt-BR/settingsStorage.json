@@ -25,7 +25,6 @@
     "sectionTitle": "Histórico",
     "maxItemsLabel": "Máximo de itens no histórico",
     "maxItemsHint": "Mínimo de 10 itens",
-    "maxItemsSuffix": "itens",
     "maxItemsInvalid": "Digite um número maior ou igual a 10",
     "autoDownloadLabel": "Baixar imagens automaticamente ao navegar",
     "showCopyButtonLabel": "Mostrar botão de cópia nas imagens",

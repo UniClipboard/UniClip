@@ -1,0 +1,11 @@
+# Pre: home ready on Android. Post: History settings page with the maximum entries field.
+appId: ${APP_ID}
+---
+- runFlow: open.yaml
+- scrollUntilVisible:
+    element:
+      id: settings-history
+    direction: DOWN
+- tapOn:
+    id: settings-history
+- assertVisible: "Maximum history entries"

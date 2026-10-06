@@ -552,7 +552,7 @@ export class HistoryStorage {
       await historyRepository.replace(resultItem);
       action = 'add';
 
-      // 清理超出数量的记录（仅清理 LocalOnly 状态的记录）
+      // 清理超出数量的记录（starred/pinned 除外）
       await this.cleanupByCount(this.maxHistorySize);
     }
 
@@ -601,7 +601,7 @@ export class HistoryStorage {
       await historyRepository.replaceMany([...updatedItems, ...addedItems]);
     }
 
-    // 清理超出数量的记录（仅清理 LocalOnly 状态的记录）
+    // 清理超出数量的记录（starred/pinned 除外）
     await this.cleanupByCount(this.maxHistorySize);
 
     if (addedItems.length > 0) {
@@ -1221,7 +1221,7 @@ export class HistoryStorage {
   }
 
   /**
-   * 清理超出数量的记录（仅清理 LocalOnly 状态的记录）
+   * 清理超出数量的记录（starred/pinned 除外）
    * @param maxCount 最大保留数量，0 表示不限制
    * @returns 删除的记录数量
    */
@@ -1239,17 +1239,13 @@ export class HistoryStorage {
       return 0;
     }
 
-    // LocalOnly 且非 starred/pinned 的记录,按最旧在前
-    const localOnly = await historyRepository.find(
-      { syncStatus: [HistorySyncStatus.LocalOnly] },
-      { field: 'timestamp', order: 'asc' },
-      { includeDeleted: true }
-    );
-    const candidates = localOnly.filter((item) => !item.starred && !item.pinned);
+    // 非 starred/pinned 的活动记录,按最旧在前。P2P 发送回执会把本地条目标成 Synced/NeedSync,
+    // 不能因同步状态跳过;软删除记录不占上限,也不能在待同步的删除被读取前被物理清掉。
+    const active = await historyRepository.find(undefined, { field: 'timestamp', order: 'asc' });
+    const candidates = active.filter((item) => !item.starred && !item.pinned);
 
-    const total = await historyRepository.count(undefined, { includeDeleted: true });
     log.info(
-      `cleanupByCount: total items=${total}, localOnly items=${candidates.length}, maxCount=${maxCount}`
+      `cleanupByCount: active items=${active.length}, candidates=${candidates.length}, maxCount=${maxCount}`
     );
 
     if (candidates.length <= maxCount) {
@@ -1275,7 +1271,7 @@ export class HistoryStorage {
 
     this.notifyChangeBatch(itemsToDelete, 'delete');
 
-    log.info(`Cleaned up ${toDeleteCount} LocalOnly records`);
+    log.info(`Cleaned up ${toDeleteCount} records`);
     return toDeleteCount;
   }
 

@@ -25,7 +25,6 @@
     "sectionTitle": "История",
     "maxItemsLabel": "Максимум записей в истории",
     "maxItemsHint": "Минимум 10 записей",
-    "maxItemsSuffix": "зап.",
     "maxItemsInvalid": "Введите число не меньше 10",
     "autoDownloadLabel": "Автоскачивание изображений при просмотре",
     "showCopyButtonLabel": "Показывать кнопку копирования для изображений",

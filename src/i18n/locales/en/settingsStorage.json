@@ -25,7 +25,6 @@
     "sectionTitle": "History",
     "maxItemsLabel": "Maximum history entries",
     "maxItemsHint": "Minimum is 10 entries",
-    "maxItemsSuffix": "entries",
     "maxItemsInvalid": "Please enter a number greater than or equal to 10",
     "autoDownloadLabel": "Auto-download images when browsing",
     "showCopyButtonLabel": "Show copy button for images",
