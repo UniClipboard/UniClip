@@ -74,7 +74,8 @@ export const HistorySection = memo(function HistorySection() {
 
   const currentMaxItems = () => useSettingsStore.getState().config?.maxHistoryItems ?? 1000;
   const maxHistoryItemsInput = useNativeState(currentMaxItems().toString());
-  const draftRef = useRef(maxHistoryItemsInput.get());
+  // null 表示用户还没改过输入框。
+  const draftRef = useRef<string | null>(null);
 
   const imageAutoDownloadOptions = IMAGE_AUTO_DOWNLOAD_VALUES.map((value) => ({
     value,
@@ -84,7 +85,7 @@ export const HistorySection = memo(function HistorySection() {
   // announce=false 用于离开页面时的静默提交:此时输入框与 toast 都已不在。
   const commitMaxHistoryItems = async (announce: boolean) => {
     const draft = draftRef.current;
-    if (draft === currentMaxItems().toString()) return;
+    if (draft === null || draft === currentMaxItems().toString()) return;
     const resetToCurrent = () => {
       if (!announce) return;
       draftRef.current = currentMaxItems().toString();
@@ -109,7 +110,9 @@ export const HistorySection = memo(function HistorySection() {
   // Compose 输入框收起键盘或点返回都不会失焦,只靠失焦提交会丢值:
   // 停止输入后自动提交有效值,离开页面时再补交一次;无效值只在真正失焦时提示并还原。
   const commitRef = useRef(commitMaxHistoryItems);
-  commitRef.current = commitMaxHistoryItems;
+  useEffect(() => {
+    commitRef.current = commitMaxHistoryItems;
+  });
   const commitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleDraftChange = (text: string) => {
     draftRef.current = text;
