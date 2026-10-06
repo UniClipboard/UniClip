@@ -82,19 +82,24 @@ export const HistorySection = memo(function HistorySection() {
     label: t(`autoDownload.${value}`),
   }));
 
-  // announce=false 用于离开页面时的静默提交:此时输入框与 toast 都已不在。
+  const mountedRef = useRef(true);
+
+  // announce=false 用于自动保存与离开页面时的静默提交,不弹 toast。
   const commitMaxHistoryItems = async (announce: boolean) => {
     const draft = draftRef.current;
     if (draft === null || draft === currentMaxItems().toString()) return;
     const resetToCurrent = () => {
-      if (!announce) return;
+      if (!mountedRef.current) return;
       draftRef.current = currentMaxItems().toString();
       maxHistoryItemsInput.set(draftRef.current);
     };
     const maxItems = /^\d+$/.test(draft) ? parseInt(draft, 10) : NaN;
     if (isNaN(maxItems) || maxItems < 10) {
-      resetToCurrent();
-      if (announce) showMessage(t('history.maxItemsInvalid'), 'error');
+      // 自动保存时用户可能还在输入(如先打 5 再打 0),只有真正失焦才还原。
+      if (announce) {
+        resetToCurrent();
+        showMessage(t('history.maxItemsInvalid'), 'error');
+      }
       return;
     }
     const result = await useSettingsStore.getState().updateConfig({ maxHistoryItems: maxItems });
@@ -122,13 +127,14 @@ export const HistorySection = memo(function HistorySection() {
       MAX_ITEMS_COMMIT_DELAY_MS
     );
   };
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
       if (commitTimerRef.current) clearTimeout(commitTimerRef.current);
       void commitRef.current(false);
-    },
-    []
-  );
+    };
+  }, []);
 
   const onMaxHistoryItemsFocusChanged = useBlurCommit(() => void commitRef.current(true));
 

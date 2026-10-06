@@ -1239,18 +1239,13 @@ export class HistoryStorage {
       return 0;
     }
 
-    // 非 starred/pinned 的记录,按最旧在前。P2P 发送回执会把本地条目标成 Synced/NeedSync,
-    // 不能因同步状态跳过,否则任何发过送的条目都不受上限约束。
-    const all = await historyRepository.find(
-      undefined,
-      { field: 'timestamp', order: 'asc' },
-      { includeDeleted: true }
-    );
-    const candidates = all.filter((item) => !item.starred && !item.pinned);
+    // 非 starred/pinned 的活动记录,按最旧在前。P2P 发送回执会把本地条目标成 Synced/NeedSync,
+    // 不能因同步状态跳过;软删除记录不占上限,也不能在待同步的删除被读取前被物理清掉。
+    const active = await historyRepository.find(undefined, { field: 'timestamp', order: 'asc' });
+    const candidates = active.filter((item) => !item.starred && !item.pinned);
 
-    const total = await historyRepository.count(undefined, { includeDeleted: true });
     log.info(
-      `cleanupByCount: total items=${total}, candidates=${candidates.length}, maxCount=${maxCount}`
+      `cleanupByCount: active items=${active.length}, candidates=${candidates.length}, maxCount=${maxCount}`
     );
 
     if (candidates.length <= maxCount) {
