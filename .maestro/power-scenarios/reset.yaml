@@ -1,0 +1,15 @@
+# Pre: the diagnostics page is open (e.g. right after overview.yaml). Post: tapping the empty trailing space
+# of the reset row cleared statistics and the user saw the confirmation. The runner also checks the effect through adb.
+appId: ${APP_ID}
+---
+- scrollUntilVisible:
+    element:
+      id: power-usage-reset
+    direction: DOWN
+- tapOn:
+    id: power-usage-reset
+    point: "85%,50%"
+- extendedWaitUntil:
+    visible: "Statistics cleared"
+    timeout: 8000
+- takeScreenshot: ${SHOT}

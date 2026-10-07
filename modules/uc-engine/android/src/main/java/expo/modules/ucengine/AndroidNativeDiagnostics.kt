@@ -9,6 +9,23 @@ import android.os.Build
 import java.io.File
 import uniffi.uc_engine_uniffi.*
 
+/** Process-owned power recorder. It is created with the diagnostics journal so every lifecycle entry point reaches it. */
+internal object AndroidPowerMetrics {
+  private var recorder: PowerMetricsRecorder? = null
+
+  @Synchronized fun get(context: Context): PowerMetricsRecorder {
+    recorder?.let { return it }
+    val application = context.applicationContext as android.app.Application
+    val directory = runCatching { application.filesDir?.let { File(it, "power-metrics") } }.getOrNull()
+    return PowerMetricsRecorder(application, directory).also {
+      recorder = it
+      it.start(application)
+    }
+  }
+
+  @Synchronized fun current(): PowerMetricsRecorder? = recorder
+}
+
 /** Process-owned capture continues while the React runtime is unavailable. */
 internal object AndroidNativeDiagnostics {
   private var journal: NativeRuntimeDiagnostics? = null
@@ -27,6 +44,7 @@ internal object AndroidNativeDiagnostics {
     val directory = runCatching { application.cacheDir?.let { File(it, "uc-engine/logs") } }.getOrNull()
     val created = NativeRuntimeDiagnostics(directory, info?.versionName ?: "unknown", build)
     journal = created
+    runCatching { AndroidPowerMetrics.get(application) }
     runCatching { observeNetwork(application, created) }.onFailure {
       created.record(NativeDiagnosticEvent.NETWORK_OBSERVATION, NativeDiagnosticTrigger.APP_STARTUP,
         NativeDiagnosticOutcome.FAILED, failure(it))
@@ -50,11 +68,27 @@ internal object AndroidNativeDiagnostics {
     val token = action?.let { EngineDiagnosticBridge.begin(it) }
     val observation = journal.begin(event, trigger)
     return try {
-      block().also { EngineDiagnosticBridge.finish(token, true); journal.finish(observation, NativeDiagnosticOutcome.SUCCEEDED) }
+      block().also {
+        EngineDiagnosticBridge.finish(token, true)
+        journal.finish(observation, NativeDiagnosticOutcome.SUCCEEDED)
+        powerBoundary(event)
+      }
     } catch (error: Throwable) {
       EngineDiagnosticBridge.finish(token, false)
       journal.finish(observation, NativeDiagnosticOutcome.FAILED, failure(error))
       throw error
+    }
+  }
+
+  /** Engine lifecycle boundaries that already exist double as power sampling points. */
+  private fun powerBoundary(event: NativeDiagnosticEvent) {
+    val power = AndroidPowerMetrics.current() ?: return
+    when (event) {
+      NativeDiagnosticEvent.ENGINE_START -> power.setEngineRunning(true, PowerSampleReason.ENGINE_START)
+      NativeDiagnosticEvent.ENGINE_SHUTDOWN -> power.setEngineRunning(false, PowerSampleReason.ENGINE_SHUTDOWN)
+      NativeDiagnosticEvent.ENGINE_SUSPEND -> power.record(PowerSampleReason.ENGINE_SUSPEND)
+      NativeDiagnosticEvent.ENGINE_RESUME -> power.record(PowerSampleReason.ENGINE_RESUME)
+      else -> Unit
     }
   }
 
@@ -101,6 +135,7 @@ internal object AndroidNativeDiagnostics {
         lastEngineNetwork = engineNetwork
         EngineDiagnosticBridge.record(engineNetwork)
         journal.record(NativeDiagnosticEvent.NETWORK_CHANGED, NativeDiagnosticTrigger.NETWORK_CHANGE, network = next.copy(change = change))
+        AndroidPowerMetrics.current()?.setNetwork(next.kind.wire)
       }
     }
     fun report(error: Throwable) {

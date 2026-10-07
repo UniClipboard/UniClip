@@ -158,5 +158,42 @@
     "copied": "已复制统计信息"
   },
   "versionValue": "版本 {{version}}",
-  "updatesTitle": "更新"
+  "updatesTitle": "更新",
+  "power": {
+    "title": "电量与后台活动",
+    "period": "最近 24 小时",
+    "loading": "正在统计…",
+    "unavailable": "此设备不支持。",
+    "collecting": "数据还不够。正常使用手机，稍后再来查看。",
+    "state": {
+      "foreground": "在应用内",
+      "backgroundScreenOn": "在后台，屏幕亮着",
+      "backgroundScreenOff": "在后台，屏幕熄灭"
+    },
+    "stateDetail": "{{duration}} · CPU {{cpu}} · 网络 {{network}}",
+    "unknownValue": "不可用",
+    "battery": {
+      "title": "整机电量（不代表本应用）",
+      "ready": "未充电 {{duration}}，整机下降 {{change}} %，包含所有应用和屏幕",
+      "suspect": "未充电 {{duration}}，变化 {{change}} %。此手机的电荷计数不可靠，仅显示百分比",
+      "collecting": "需要约 10 分钟的未充电时间才能显示变化",
+      "unavailable": "此手机不向应用提供电池读数"
+    },
+    "service": {
+      "title": "后台服务",
+      "detail": "运行 {{duration}} · {{events}} 次同步事件"
+    },
+    "gap": "有 {{duration}} 因应用未运行而没有记录。",
+    "reset": "重置统计",
+    "resetAction": "重置",
+    "resetDone": "统计已清除",
+    "resetFailed": "无法清除统计",
+    "footer": "Android 不会告诉应用自己用了多少电。电量数据是整机的；CPU 和网络是本应用自身的活动量，不是实测耗电。统计只保存在本机，导出日志时一并包含。",
+    "duration": {
+      "minutes": "{{minutes}} 分钟",
+      "hours": "{{hours}} 小时 {{minutes}} 分钟",
+      "none": "0 分钟",
+      "lessThanMinute": "不到 1 分钟"
+    }
+  }
 }
