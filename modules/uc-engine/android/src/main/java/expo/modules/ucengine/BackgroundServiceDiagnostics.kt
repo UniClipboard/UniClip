@@ -15,6 +15,11 @@ object BackgroundServiceDiagnostics {
       source
     )
     record(context, NativeDiagnosticEvent.BACKGROUND_SERVICE_STARTED, NativeDiagnosticTrigger.USER_REQUEST)
+    powerService(context, true)
+  }
+
+  private fun powerService(context: Context, running: Boolean) {
+    runCatching { AndroidPowerMetrics.get(context).setServiceRunning(running) }
   }
 
   fun systemRestarted(context: Context) = record(
@@ -40,6 +45,7 @@ object BackgroundServiceDiagnostics {
   )
 
   fun destroyed(context: Context, expected: Boolean) {
+    powerService(context, false)
     record(
       context,
       NativeDiagnosticEvent.BACKGROUND_SERVICE_DESTROYED,
@@ -55,6 +61,7 @@ object BackgroundServiceDiagnostics {
   ) {
     EngineDiagnosticBridge.record(BindingHostDiagnosticEvent.OwnershipReleased, source)
     record(context, event, trigger, NativeDiagnosticOutcome.SUCCEEDED)
+    powerService(context, false)
   }
 
   private fun record(

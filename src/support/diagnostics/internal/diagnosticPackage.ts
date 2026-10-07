@@ -3,6 +3,7 @@ import { File, FileMode, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 import { strFromU8, strToU8, zipSync } from 'fflate';
 import { getShareDiagnostics } from 'app-group-store';
+import { loadPowerMetrics } from '@/support/power/powerMetrics';
 import { prepareEngineDiagnosticExport, type EngineDiagnosticExportReport, coreVersion, flushEngineLogs, getEngineLogStatus, getNativeDiagnostics, type EngineLogStatus, type NativeDiagnosticsSnapshot } from 'uc-engine';
 
 import type { SharedSettings } from '@/types/settings';
@@ -252,6 +253,9 @@ export async function createDiagnosticArchive(
   } catch { /* Keep other evidence. */ }
   throwIfArchiveAborted(signal);
   const nativeLogs = await collectLogFiles(nativeDiagnostics?.fileUris ?? [], 'logs/native', signal);
+  // Raw samples and their aggregate travel together so the export can be re-derived and cross-checked offline.
+  const power = Platform.OS === 'android' ? await loadPowerMetrics().catch(() => null) : null;
+  throwIfArchiveAborted(signal);
   let engineVersion: string | null = null;
   try { engineVersion = coreVersion(); } catch { /* Older native modules may not report a version. */ }
   let shareDiagnostics: Awaited<ReturnType<typeof getShareDiagnostics>> = null;
@@ -330,6 +334,17 @@ export async function createDiagnosticArchive(
         writer: nativeWriterMetadata(nativeDiagnostics),
         sources: nativeSources,
       },
+      powerMetrics: {
+        status: Platform.OS !== 'android' ? 'notApplicable' : power === null ? 'unavailable' : power.samples.length === 0 ? 'noSamples' : power.snapshot.flushStatus === 'incomplete' || power.retained.malformed > 0 ? 'partial' : 'included',
+        sampleCount: power?.samples.length ?? null,
+        malformedSampleCount: power?.retained.malformed ?? null,
+        droppedSamples: power?.snapshot.droppedSamples ?? null,
+        writeFailures: power?.snapshot.writeFailures ?? null,
+        sources: power?.snapshot.sources ?? null,
+        device: power?.snapshot.device ?? null,
+        appEnergy: 'unavailable',
+        batteryScope: 'device',
+      },
       shareAttempts: {
         status: shareDiagnostics === null ? 'missing' : 'included',
         sourceState: Platform.OS !== 'ios' ? 'notApplicable' : shareDiagnostics === null ? 'unavailable' : shareArchive.attempts.length === 0 ? 'noEvents' : 'available',
@@ -341,6 +356,10 @@ export async function createDiagnosticArchive(
     ...appLogs.entries,
     ...engineLogs.entries,
     ...nativeLogs.entries,
+    ...(power ? {
+      'power/samples.jsonl': strToU8(power.rawText),
+      'power/aggregate.json': strToU8(`${JSON.stringify({ policy: power.snapshot.policy, last24Hours: power.recent, retained: power.retained }, null, 2)}\n`),
+    } : {}),
     'extensions/share_attempts.json': strToU8(`${JSON.stringify(shareArchive, null, 2)}\n`),
     'manifest.json': strToU8(`${JSON.stringify(manifest, null, 2)}\n`),
   };

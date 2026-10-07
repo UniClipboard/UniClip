@@ -1,0 +1,15 @@
+# Pre: setup.yaml done. Post: an isolated, disposable direct-sync space exists on the owned emulator, so the Engine
+# really runs (relay connections, Engine events) during the measured phases; home ready.
+appId: ${APP_ID}
+---
+- runFlow: ../actions/settings/open.yaml
+- runFlow: ../actions/relay/create-space.yaml
+- back
+- runFlow:
+    when:
+      visible: "Settings"
+    commands:
+      - back
+- launchApp:
+    stopApp: false
+- runFlow: ../assertions/home-ready.yaml

@@ -158,5 +158,42 @@
     "copied": "Estatísticas copiadas"
   },
   "versionValue": "Versão {{version}}",
-  "updatesTitle": "Atualizações"
+  "updatesTitle": "Atualizações",
+  "power": {
+    "title": "Bateria e atividade em segundo plano",
+    "period": "Últimas 24 horas",
+    "loading": "Coletando…",
+    "unavailable": "Indisponível neste dispositivo.",
+    "collecting": "Ainda há poucos dados. Use o telefone normalmente e volte mais tarde.",
+    "state": {
+      "foreground": "No app",
+      "backgroundScreenOn": "Em segundo plano, tela ligada",
+      "backgroundScreenOff": "Em segundo plano, tela desligada"
+    },
+    "stateDetail": "{{duration}} · CPU {{cpu}} · Rede {{network}}",
+    "unknownValue": "indisponível",
+    "battery": {
+      "title": "Bateria do telefone inteiro (não só este app)",
+      "ready": "{{change}} % em {{duration}} sem carregar, incluindo todos os apps e a tela",
+      "suspect": "{{change}} % em {{duration}} sem carregar. O contador de carga deste telefone parece pouco confiável, então só a porcentagem é mostrada",
+      "collecting": "São necessários cerca de 10 minutos sem carregar para mostrar uma variação",
+      "unavailable": "Este telefone não informa leituras da bateria aos apps"
+    },
+    "service": {
+      "title": "Serviço em segundo plano",
+      "detail": "Em execução por {{duration}} · {{events}} eventos de sincronização"
+    },
+    "gap": "{{duration}} não foi registrado porque o app não estava em execução.",
+    "reset": "Redefinir estatísticas",
+    "resetAction": "Redefinir",
+    "resetDone": "Estatísticas apagadas",
+    "resetFailed": "Não foi possível apagar as estatísticas",
+    "footer": "O Android não informa aos apps quanta bateria eles usam. Os valores da bateria são do telefone inteiro, e CPU e rede são a atividade do próprio app, não um consumo de energia medido. As estatísticas ficam neste dispositivo e entram na exportação de logs.",
+    "duration": {
+      "minutes": "{{minutes}} min",
+      "hours": "{{hours}} h {{minutes}} min",
+      "none": "0 min",
+      "lessThanMinute": "<1 min"
+    }
+  }
 }

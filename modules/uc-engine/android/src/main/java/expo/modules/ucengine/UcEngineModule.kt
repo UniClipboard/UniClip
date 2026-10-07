@@ -402,6 +402,8 @@ class UcEngineModule : Module() {
     }
 
     AsyncFunction("getNativeDiagnostics") { diagnostics.exportSnapshot() }
+    AsyncFunction("getPowerMetrics") { AndroidPowerMetrics.get(requireContext()).snapshot() }
+    AsyncFunction("resetPowerMetrics") { AndroidPowerMetrics.get(requireContext()).reset() }
 
     AsyncFunction("getEngineLogStatus") {
       val health = runCatching { queryProcessObservabilityHealth() }.getOrNull()
@@ -621,7 +623,9 @@ class UcEngineModule : Module() {
       Unit
     }
     AsyncFunction("nextEvent") { timeoutMs: Long ->
-      requireEngine().nextEvent(timeoutMs.toULong())?.let(::eventMap)
+      requireEngine().nextEvent(timeoutMs.toULong())?.let(::eventMap)?.also {
+        (it["type"] as? String)?.let { type -> AndroidPowerMetrics.current()?.countEngineEvent(type) }
+      }
     }.runOnQueue(appContext.backgroundCoroutineScope)
     AsyncFunction("notifyConnectivityOpportunity") { reason: String ->
       val opportunity = when (reason) {

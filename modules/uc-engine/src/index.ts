@@ -382,7 +382,25 @@ export interface NativeDiagnosticsSnapshot {
   };
 }
 
+/** Android only. See docs/specs/006-android-power-metrics.md. */
+export interface PowerMetricsSnapshot {
+  flushStatus: 'completed' | 'incomplete';
+  /** Local `file://` URI of the raw sample file, or null when nothing has been written. */
+  fileUri: string | null;
+  sampleCount: number;
+  droppedSamples: number;
+  writeFailures: number;
+  maxSamples: number;
+  retentionDays: number;
+  /** Per-source availability decided from real reads: `ok`, `unsupported`, `denied`, or `error`. */
+  sources: Record<string, 'ok' | 'unsupported' | 'denied' | 'error'>;
+  device: { sdk: number; manufacturer: string; model: string };
+  policy: string;
+}
+
 interface UcEngineNativeModule {
+  getPowerMetrics?(): Promise<PowerMetricsSnapshot>;
+  resetPowerMetrics?(): Promise<boolean>;
   startEngineDiagnosticCapture(
     durationMs: number
   ): Promise<EngineCaptureStatus>;
@@ -740,6 +758,16 @@ export function getEngineLogStatus(): Promise<EngineLogStatus> {
 
 export function getNativeDiagnostics(): Promise<NativeDiagnosticsSnapshot> {
   return NativeModule.getNativeDiagnostics();
+}
+
+/** Takes a fresh sample and describes the local power sample file. Null where the platform has no power recorder. */
+export async function getPowerMetrics(): Promise<PowerMetricsSnapshot | null> {
+  return NativeModule.getPowerMetrics ? NativeModule.getPowerMetrics() : null;
+}
+
+/** Clears local power statistics only. Diagnostic logs are untouched. */
+export async function resetPowerMetrics(): Promise<boolean> {
+  return NativeModule.resetPowerMetrics ? NativeModule.resetPowerMetrics() : false;
 }
 
 export function startEngineDiagnosticCapture(

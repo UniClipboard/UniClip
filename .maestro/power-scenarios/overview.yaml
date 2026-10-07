@@ -1,0 +1,13 @@
+# Pre: home ready. Post: power overview visible with its whole-device battery limits; statistics untouched.
+appId: ${APP_ID}
+---
+- runFlow: ../actions/diagnostics/open.yaml
+- scrollUntilVisible:
+    element:
+      id: power-usage-battery
+    direction: DOWN
+- assertVisible:
+    id: power-usage-battery
+- assertVisible:
+    id: power-usage-service
+- takeScreenshot: ${SHOT}

@@ -39,6 +39,7 @@ import { saveFile, shareFile } from '@/utils/fileActions';
 import type { LogSectionProps } from './LogSection.types';
 import { useSettingsToast } from './SettingsToastContext';
 import { SettingsSectionItem } from './SettingsSectionItem';
+import { PowerUsageSection } from './android/PowerUsageSection';
 import { SettingsHeroCard } from './android/SettingsHeroCard';
 import { SettingsLeadingIcon } from './android/SettingsLeadingIcon';
 import { SettingsListRow } from './android/SettingsListRow';
@@ -231,6 +232,8 @@ export const LogSection = memo(function LogSection(_props: LogSectionProps) {
   return (
     <Column modifiers={[fillMaxWidth()]}>
       <DiagnosticCaptureCard capture={capture} />
+      <Spacer modifiers={[heightModifier(24)]} />
+      <PowerUsageSection />
       <Spacer modifiers={[heightModifier(24)]} />
       <SettingsSectionItem
         variant="grouped"

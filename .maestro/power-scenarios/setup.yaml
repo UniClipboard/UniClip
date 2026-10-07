@@ -1,0 +1,6 @@
+# Pre: freshly installed app on an owned emulator. Post: onboarding done, background sync enabled, home ready.
+appId: ${APP_ID}
+---
+- runFlow: ../lifecycle/launch.yaml
+- runFlow: ../actions/onboarding/complete.yaml
+- runFlow: ../actions/settings/enable-background.yaml
