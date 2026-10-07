@@ -28,8 +28,8 @@ class PowerMetricsRecorderTest {
   private fun lines(): List<JSONObject> =
     File(root, "samples.jsonl").readLines().filter { it.isNotBlank() }.map(::JSONObject)
 
-  private fun recorder(max: Int = 1500, burst: Int = 30, reader: BatteryPropertyReader) =
-    PowerMetricsRecorder(context, root, maxSamples = max, burstPerMinute = burst, batteryProperty = reader)
+  private fun recorder(max: Int = 1500, burst: Int = 30, retentionMs: Long = 7L * 24 * 60 * 60 * 1000, reader: BatteryPropertyReader) =
+    PowerMetricsRecorder(context, root, maxSamples = max, retentionMs = retentionMs, burstPerMinute = burst, batteryProperty = reader)
 
   @Test fun missingSensorIsUnavailableNeverZero() {
     val r = recorder { Long.MIN_VALUE }
@@ -77,6 +77,27 @@ class PowerMetricsRecorderTest {
     assertTrue(written.first().optBoolean("trunc"))
     assertEquals(written.map { it.getLong("seq") }, written.map { it.getLong("seq") }.sorted())
     assertEquals(59L, written.last().getLong("seq"))
+    r.close()
+  }
+
+  @Test fun ageCutoffNeverErasesTheNewestSamples() {
+    // A clock set far forward makes every sample look old; compaction must still bound the file and keep the newest.
+    val r = recorder(max = 20, burst = 1000, retentionMs = 1L) { 1L }
+    repeat(60) { r.record(PowerSampleReason.QUERY) }
+    assertTrue(r.flush())
+    val written = lines()
+    assertTrue("file must stay bounded, was ${written.size}", written.size <= 22)
+    assertEquals(59L, written.last().getLong("seq"))
+    r.close()
+  }
+
+  @Test fun resetReportsFailureWhenTheFileCannotBeDeleted() {
+    val r = recorder { 1L }
+    r.record(PowerSampleReason.QUERY); assertTrue(r.flush())
+    val target = File(root, "samples.jsonl")
+    target.delete(); target.mkdirs() // a non-empty directory in place of the file cannot be deleted as a file
+    File(target, "keep").writeText("x")
+    assertFalse(r.reset())
     r.close()
   }
 

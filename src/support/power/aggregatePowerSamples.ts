@@ -93,7 +93,8 @@ export function aggregatePowerSamples(input: PowerSample[], options: AggregateOp
     if (Math.abs((b.wallMs - a.wallMs) - dt) > CLOCK_SKEW_TOLERANCE_MS) flags.clockAdjusted += 1;
     if (b.cnt.droppedSamples > a.cnt.droppedSamples) flags.coalesced += 1;
 
-    if (a.ctx.app == null || a.ctx.screen == null) {
+    // Unknown app, screen or plug state at either end cannot be attributed; guessing would mislabel the window.
+    if (a.ctx.app == null || a.ctx.screen == null || a.ctx.plugged == null || b.ctx.plugged == null) {
       uncoveredMs += dt;
       continue;
     }

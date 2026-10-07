@@ -25,6 +25,7 @@ import android.provider.Settings
 import java.io.File
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.FutureTask
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
@@ -184,21 +185,20 @@ internal class PowerMetricsRecorder(
     submit { collect(reason, wall, elapsed, uptime) }
   }
 
-  /** Deletes all samples. A single `reset` sample follows so no window spans the reset; diagnostic logs are untouched. */
+  /**
+   * Deletes all samples. A single `reset` sample follows so no window spans the reset; diagnostic logs are untouched.
+   * Returns true only when the deletion was confirmed on the writer thread: a timeout or a failed delete is false.
+   */
   fun reset(): Boolean {
-    val done = CountDownLatch(1)
-    var ok = false
-    submit {
-      try {
-        file?.delete()
-        fileSamples = 0
-        truncatedPending = false
-        ok = true
-      } catch (_: Exception) { synchronized(lock) { writeFailures++ } }
-      finally { done.countDown() }
+    val task = FutureTask<Boolean> {
+      val target = file
+      val deleted = target == null || !target.exists() || target.delete()
+      if (deleted) { fileSamples = 0; truncatedPending = false } else synchronized(lock) { writeFailures++ }
+      deleted
     }
-    done.await(2, TimeUnit.SECONDS)
-    record(PowerSampleReason.RESET)
+    submit { task.run() }
+    val ok = try { task.get(2, TimeUnit.SECONDS) } catch (_: Exception) { false }
+    if (ok) record(PowerSampleReason.RESET)
     return ok
   }
 
@@ -215,8 +215,10 @@ internal class PowerMetricsRecorder(
     record(PowerSampleReason.QUERY)
     val flushed = flush()
     val target = file
-    val sources = HashMap<String, String>()
-    submitAndWait { sourceStatus.forEach { (name, status) -> sources[name] = status.wire } }
+    // The map belongs to the writer thread: copy it there and use the copy only if the wait completed.
+    val copy = FutureTask<Map<String, String>> { sourceStatus.mapValues { it.value.wire } }
+    submit { copy.run() }
+    val sources = try { copy.get(1, TimeUnit.SECONDS) } catch (_: Exception) { emptyMap() }
     return mapOf(
       "flushStatus" to if (flushed) "completed" else "incomplete",
       "fileUri" to target?.takeIf { it.isFile }?.let { Uri.fromFile(it).toString() },
@@ -233,12 +235,6 @@ internal class PowerMetricsRecorder(
 
   private fun submit(task: () -> Unit) {
     try { executor.execute(task) } catch (_: RejectedExecutionException) { synchronized(lock) { droppedSamples++ } }
-  }
-
-  private fun submitAndWait(task: () -> Unit) {
-    val done = CountDownLatch(1)
-    submit { try { task() } finally { done.countDown() } }
-    done.await(1, TimeUnit.SECONDS)
   }
 
   // ---- everything below runs on the single executor thread ----
@@ -308,8 +304,10 @@ internal class PowerMetricsRecorder(
   private fun compact(target: File) {
     val cutoff = System.currentTimeMillis() - retentionMs
     val lines = target.readLines().filter { it.isNotBlank() }
-    val kept = lines.takeLast(maxSamples).filter { runCatching { JSONObject(it).getLong("wallMs") >= cutoff }.getOrDefault(true) }
-    if (kept.isEmpty()) return
+    val recent = lines.takeLast(maxSamples)
+    // Wall time can jump (clock set forward); the age cutoff must never erase the newest sample.
+    val kept = recent.filter { runCatching { JSONObject(it).getLong("wallMs") >= cutoff }.getOrDefault(true) }
+      .ifEmpty { listOf(recent.last()) }
     val first = runCatching { JSONObject(kept.first()).put("trunc", true).toString() }.getOrDefault(kept.first())
     val rewritten = listOf(first) + kept.drop(1)
     val temp = File(target.parentFile, "samples.jsonl.tmp")

@@ -335,7 +335,8 @@ export async function createDiagnosticArchive(
         sources: nativeSources,
       },
       powerMetrics: {
-        status: Platform.OS !== 'android' ? 'notApplicable' : power === null ? 'unavailable' : power.samples.length === 0 ? 'noSamples' : power.snapshot.flushStatus === 'incomplete' || power.retained.malformed > 0 ? 'partial' : 'included',
+        status: Platform.OS !== 'android' ? 'notApplicable' : power === null ? 'unavailable' : power.fileStatus === 'oversized' || power.fileStatus === 'unreadable' || power.snapshot.flushStatus === 'incomplete' || power.retained.malformed > 0 ? 'partial' : power.samples.length === 0 ? 'noSamples' : 'included',
+        fileStatus: power?.fileStatus ?? null,
         sampleCount: power?.samples.length ?? null,
         malformedSampleCount: power?.retained.malformed ?? null,
         droppedSamples: power?.snapshot.droppedSamples ?? null,

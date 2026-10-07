@@ -102,6 +102,15 @@ describe('aggregatePowerSamples', () => {
     expect(charging.cpuMs).toBe(6000);
   });
 
+  it('treats an unknown plug state as uncovered, not as charging and not as discharging', () => {
+    const unknown = { ...sample(0).ctx, plugged: null };
+    const out = aggregatePowerSamples([sample(0, { ctx: unknown }), sample(30, { ctx: unknown })]);
+    expect(out.uncoveredMs).toBe(30 * MIN);
+    expect(out.coveredMs).toBe(0);
+    expect(out.buckets).toHaveLength(0);
+    expect(out.device.coverageMs).toBe(0);
+  });
+
   it('calls a short or coarse discharge window insufficient, not zero', () => {
     const out = aggregatePowerSamples([sample(0), sample(5)]);
     expect(out.device.status).toBe('insufficient');

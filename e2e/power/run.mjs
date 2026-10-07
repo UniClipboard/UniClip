@@ -106,8 +106,12 @@ const calUidStart = uidLinesOf(checkinStart);
 writeFileSync(join(out, "batterystats-uid-calibration.txt"), `# start\n${calUidStart.join("\n")}\n# end\n${calUid.join("\n")}\n`);
 sh("wm dismiss-keyguard"); await delay(1500);
 const calSamples = samples().samples;
-const sampleA = [...calSamples].reverse().find((s) => s.reason === "screen.off");
-const sampleB = [...calSamples].reverse().find((s) => s.reason === "screen.on");
+// Both boundaries must come from this calibration window and the same process; otherwise the deltas describe another window.
+const calStartWall = Date.parse(phases.find((p) => p.name === "calibration").at);
+const inWindow = calSamples.filter((s) => s.wallMs >= calStartWall - 2000);
+const sampleA = inWindow.find((s) => s.reason === "screen.off");
+const sampleB = [...inWindow].reverse().find((s) => s.reason === "screen.on");
+const calibrationValid = Boolean(sampleA && sampleB && sampleB.seq > sampleA.seq && sampleA.epoch.pid === sampleB.epoch.pid && sampleA.epoch.boot === sampleB.epoch.boot);
 
 mark("overview-ui"); launch(); await delay(3000);
 const uiResults = {};
@@ -156,7 +160,9 @@ writeFileSync(join(out, "samples.jsonl"), sh(`run-as ${PKG} cat files/power-metr
 mark("reset-ui");
 ui("reset", ".maestro/power-scenarios/reset.yaml", { SHOT: "reset" });
 const afterReset = samples();
-uiResults.resetEffect = afterReset.samples[0]?.reason === "reset" && afterReset.samples.length <= 3 ? "passed" : `failed: ${afterReset.samples.map((x) => x.reason).join(",")}`;
+// Nothing from before the reset may survive: the first sample is `reset` and everything after it is the UI's own `query`.
+const afterResetReasons = afterReset.samples.map((x) => x.reason);
+uiResults.resetEffect = afterResetReasons[0] === "reset" && afterResetReasons.slice(1).every((r) => r === "query") ? "passed" : `failed: ${afterResetReasons.join(",")}`;
 
 // --- derive ---
 const ticks = Number(sh("getconf CLK_TCK").trim() || 100);
@@ -164,12 +170,13 @@ const pick = (lines, key) => lines.find((l) => l.split(",")[3] === key)?.split("
 const uidCpu = pick(calUid, "cpu"); const uidCpuStart = pick(calUidStart, "cpu");
 const uidNetwork = pick(calUid, "nt"); const uidNetworkStart = pick(calUidStart, "nt");
 const calibration = {
-  windowSamples: sampleA && sampleB ? { from: sampleA.reason, to: sampleB.reason, elapsedMs: sampleB.elapsedMs - sampleA.elapsedMs,
+  valid: calibrationValid,
+  windowSamples: calibrationValid ? { from: sampleA.reason, to: sampleB.reason, elapsedMs: sampleB.elapsedMs - sampleA.elapsedMs,
     recordedProcessCpuMs: sampleB.app.cpuMs - sampleA.app.cpuMs,
     recordedHealthWakeMs: [sampleA.app.health?.wakeMs ?? null, sampleB.app.health?.wakeMs ?? null],
     recordedNet: { rx: sampleB.app.rxBytes - sampleA.app.rxBytes, tx: sampleB.app.txBytes - sampleA.app.txBytes } } : null,
   procStatCpuMsBetweenAdbReads: (calB.ticks - calA.ticks) * 1000 / ticks,
-  recordedHealthStatsCpuMs: sampleA && sampleB ? { user: [sampleA.app.health?.cpuUserMs ?? null, sampleB.app.health?.cpuUserMs ?? null], system: [sampleA.app.health?.cpuSysMs ?? null, sampleB.app.health?.cpuSysMs ?? null] } : null,
+  recordedHealthStatsCpuMs: calibrationValid ? { user: [sampleA.app.health?.cpuUserMs ?? null, sampleB.app.health?.cpuUserMs ?? null], system: [sampleA.app.health?.cpuSysMs ?? null, sampleB.app.health?.cpuSysMs ?? null] } : null,
   batterystatsUidDelta: {
     cpuUserMs: uidCpu && uidCpuStart ? Number(uidCpu[4]) - Number(uidCpuStart[4]) : null,
     cpuSystemMs: uidCpu && uidCpuStart ? Number(uidCpu[5]) - Number(uidCpuStart[5]) : null,
@@ -197,4 +204,13 @@ const result = {
 writeFileSync(join(out, "result.json"), JSON.stringify(result, null, 2));
 writeFileSync(join(out, "phases.json"), JSON.stringify(phases, null, 2));
 sh("dumpsys battery reset");
-log(`done: ${out}`);
+// A run is only accepted when every required check passed; evidence is written first so failures stay inspectable.
+const failures = [
+  ...Object.entries(uiResults).filter(([, v]) => v !== "passed").map(([k, v]) => `ui ${k}: ${v}`),
+  ...(archiveCheck.status === "present" && archiveCheck.entries.length >= 2 && archiveCheck.exportedMalformed === 0 && archiveCheck.rawLeaks.length === 0 ? [] : [`archive: ${JSON.stringify(archiveCheck)}`]),
+  ...(calibration.valid ? [] : ["calibration boundaries missing or from different windows"]),
+  ...(result.samples.malformed === 0 ? [] : [`${result.samples.malformed} malformed samples`]),
+];
+writeFileSync(join(out, "failures.json"), JSON.stringify(failures, null, 2));
+if (failures.length) { console.error(`FAILED:\n${failures.join("\n")}`); process.exitCode = 1; }
+log(`${failures.length ? "finished with failures" : "done"}: ${out}`);
