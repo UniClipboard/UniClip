@@ -192,6 +192,34 @@ export function desktopPeer(cli, output, { deviceName = "Simulator acceptance pe
       }
       return count;
     },
+    /**
+     * Mobile LAN listener log points since a host time: request arrival, Basic Auth accepted and
+     * the clipboard document answered (host wall clock, millisecond log timestamps).
+     */
+    async mobileLanTimeline(sinceMs) {
+      const { readdir } = await import("node:fs/promises");
+      const points = [];
+      for (const name of await readdir(logs).catch(() => [])) {
+        if (!name.startsWith("uniclipboard-daemon")) continue;
+        for (const line of (await readFile(join(logs, name), "utf8")).split("\n")) {
+          if (!line.includes("mobile_lan")) continue;
+          let entry;
+          try {
+            entry = JSON.parse(line);
+          } catch {
+            continue;
+          }
+          const at = Date.parse(entry.timestamp);
+          if (!(at >= sinceMs)) continue;
+          const message = entry.message ?? entry.fields?.message ?? "";
+          const method = entry.method ?? entry.fields?.method;
+          if (message.includes("incoming request")) points.push({ kind: "incoming", method, path: entry.path ?? entry.fields?.path, at });
+          else if (message.includes("auth ok")) points.push({ kind: "auth", method, at });
+          else if (message.startsWith("GET /SyncClipboard.json")) points.push({ kind: "get_done", at });
+        }
+      }
+      return points.sort((a, b) => a.at - b.at);
+    },
     /** The desktop user unpairs a phone; its credential stops working immediately. */
     async revokeMobile(deviceId) {
       await call(["--json", "mobile", "revoke", deviceId]);

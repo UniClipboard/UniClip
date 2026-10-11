@@ -33,6 +33,26 @@ export async function readTraces(probe, sincePhoneWallMs = 0) {
   return traces.sort((a, b) => a.wall - b.wall || a.mono - b.mono);
 }
 
+/** Native overlay clipboard timing (`UcClipTiming`): stage, operation, phone wall time, counts. */
+export async function readNativeTiming(probe, sincePhoneWallMs = 0) {
+  const raw = await probe
+    .run("logcat", "-d", "-v", "epoch", "-t", "60000", "UcClipTiming:I", "*:S")
+    .catch(() => "");
+  const records = [];
+  for (const line of raw.split("\n")) {
+    const body = line.match(/UcClipTiming:\s*(.*)$/)?.[1];
+    if (!body) continue;
+    const record = {};
+    for (const pair of body.trim().split(/\s+/)) {
+      const at = pair.indexOf("=");
+      if (at > 0) record[pair.slice(0, at)] = pair.slice(at + 1);
+    }
+    record.wall = Number(record.wall);
+    if (record.wall >= sincePhoneWallMs) records.push(record);
+  }
+  return records.sort((a, b) => a.wall - b.wall);
+}
+
 /**
  * Phone wall clock minus host wall clock, from the fastest of several adb round trips.
  * `errorMs` is half that round trip: the bound for this measurement, not for later drift.

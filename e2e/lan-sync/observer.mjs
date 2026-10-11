@@ -59,6 +59,16 @@ export function lanObserver({ port, credential, output }) {
       if (!response.ok) throw new Error(`Observer GET failed: ${response.status}`);
       return response.json();
     },
+    /** The first desktop announcement received at or after a host time. */
+    async waitForUpdateAfter(hostMs, timeoutMs = 10_000) {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const found = updates.find((u) => u.hostReceivedMs >= hostMs);
+        if (found) return found;
+        await delay(20);
+      }
+      return null;
+    },
     async waitForUpdate(contentId, timeoutMs = 10_000) {
       const deadline = Date.now() + timeoutMs;
       while (Date.now() < deadline) {

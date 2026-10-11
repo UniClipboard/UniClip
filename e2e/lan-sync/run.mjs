@@ -25,6 +25,7 @@ import { badCandidateServer } from "./bad-candidates.mjs";
 import { lanObserver } from "./observer.mjs";
 import { BLACKHOLES, SCENARIOS } from "./scenarios.mjs";
 import { contentAlias, readTraces, summarize } from "./timeline.mjs";
+import { summarizeSegments } from "./segments.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const sdk = process.env.ANDROID_HOME ?? join(homedir(), "Library/Android/sdk");
@@ -35,7 +36,7 @@ function parse(args) {
   const options = {};
   for (let i = 0; i < args.length; i += 2) {
     const key = args[i]?.replace(/^--/, "");
-    if (!["app", "peer-cli", "label", "scenario", "serial", "out", "samples"].includes(key) || !args[i + 1])
+    if (!["app", "peer-cli", "label", "scenario", "serial", "out", "samples", "overlay"].includes(key) || !args[i + 1])
       throw new Error(`Invalid option: ${args[i]}`);
     options[key] = args[i + 1];
   }
@@ -114,6 +115,10 @@ async function main() {
     }
     await probe.shell("input keyevent KEYCODE_WAKEUP");
     await probe.shell(`pm grant ${appId} android.permission.POST_NOTIFICATIONS`).catch(() => "");
+    // Background clipboard reads and writes need the overlay focus path, as on a configured phone.
+    // `--overlay deny` keeps it off to show what happens without it.
+    const overlay = options.overlay ?? "allow";
+    await probe.shell(`appops set ${appId} SYSTEM_ALERT_WINDOW ${overlay === "deny" ? "deny" : "allow"}`);
 
     const port = await freePort();
     await peer.prepare({ invite: false });
@@ -150,6 +155,8 @@ async function main() {
         badCandidates: Object.keys(badPorts),
       },
       scenarios: names,
+      overlayPermission: options.overlay ?? "allow",
+      hostLoadAtStart: (await command("sysctl", ["-n", "vm.loadavg"])).trim(),
       samplesPerPhase: Number(options.samples ?? 10),
       rerun: `node e2e/lan-sync/run.mjs --app <apk> --peer-cli <uniclip> --label ${options.label} --scenario ${names.join(",")} --samples ${options.samples ?? 10}`,
       startedAt: new Date().toISOString(),
@@ -248,6 +255,13 @@ async function main() {
     const result = {
       assertions,
       phases: summarize(samples),
+      segments: Object.fromEntries(
+        [...new Set(samples.map((s) => s.phase))].map((phase) => [
+          phase,
+          summarizeSegments(samples.filter((s) => s.phase === phase && s.ok)),
+        ])
+      ),
+      hostLoadAtEnd: (await command("sysctl", ["-n", "vm.loadavg"]).catch(() => "")).trim(),
       sampleCount: samples.length,
       finishedAt: new Date().toISOString(),
     };

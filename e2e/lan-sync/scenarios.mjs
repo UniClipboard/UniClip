@@ -1,6 +1,7 @@
 // Desktop → phone LAN scenarios. Each states intended behaviour as assertions, so a run against
 // an older APK records which signals fail there. `c` is the context built by run.mjs.
-import { clockOffset } from "./timeline.mjs";
+import { clockOffset, readNativeTiming } from "./timeline.mjs";
+import { buildSegments } from "./segments.mjs";
 
 // RFC 5737 documentation addresses, dropped inside the owned emulator: connects stay in SYN-SENT.
 export const BLACKHOLES = ["192.0.2.10", "198.51.100.10"];
@@ -71,16 +72,17 @@ export async function measureCopy(c, phase, seq, { timeoutMs = APPLY_TIMEOUT_MS,
   const clock = await clockOffset(c.probe);
   const toHost = (phoneWall) => phoneWall - clock.offsetMs;
   const copy = await c.peer.copyText(nonce);
-  const document = await c.observer.currentDocument();
   const sample = { phase, seq, ok: false, clockOffsetMs: clock.offsetMs, clockErrorMs: clock.errorMs };
-  if (document.text !== nonce || !document.contentId) {
-    c.samples.push({ ...sample, note: "peer did not expose the fixture" });
+  // The announcement carries the content id; the harness reads the document itself only after the
+  // phone is done, so the listener log holds the phone's request alone during the measurement.
+  const update = await c.observer.waitForUpdateAfter(copy.restoreStartedAt, 5000);
+  if (!update) {
+    c.samples.push({ ...sample, note: "peer did not announce the fixture" });
     return c.samples.at(-1);
   }
-  const alias = c.contentAlias(document.contentId);
+  const alias = c.contentAlias(update.contentId);
   sample.alias = alias;
-  const update = await c.observer.waitForUpdate(document.contentId, 5000);
-  const activation = update?.serverTimeMs ?? copy.restoreStartedAt;
+  const activation = update.serverTimeMs;
   const since = copy.startedAt + clock.offsetMs - 3000;
   const deadline = Date.now() + timeoutMs;
   let traces = [];
@@ -91,18 +93,38 @@ export async function measureCopy(c, phase, seq, { timeoutMs = APPLY_TIMEOUT_MS,
     if (applied) break;
     await c.delay(expectApplied ? 250 : 1000);
   }
+  if (applied) {
+    // History and display commit follow the clipboard; give them a moment to be recorded.
+    for (let i = 0; i < 12 && !traces.some((t) => t.stage === "ui_committed" && t.cid === alias); i++) {
+      await c.delay(250);
+      traces = await c.readTraces(since);
+    }
+  }
+  const document = await c.observer.currentDocument();
+  if (document.contentId !== update.contentId || document.text !== nonce) sample.note = "announced content is not this fixture";
   const sse = traces.find((t) => t.stage === "sse_event" && t.type === "update" && t.cid === alias);
   const history = traces.find((t) => t.stage === "history_saved" && t.cid === alias);
   const window = traces.filter((t) => toHost(t.wall) >= activation && (!applied || t.wall <= applied.wall));
+  const native = await readNativeTiming(c.probe, since);
+  const desktop = await c.peer.mobileLanTimeline(copy.restoreStartedAt - 1000);
   Object.assign(sample, {
     ok: Boolean(applied),
-    activationSource: update ? "peer-sse" : "restore-call",
+    activationSource: "peer-sse",
     activationToAppliedMs: applied ? Math.round(toHost(applied.wall) - activation) : null,
     restoreRequestToAppliedMs: applied ? Math.round(toHost(applied.wall) - copy.restoreStartedAt) : null,
     activationToSseMs: sse ? Math.round(toHost(sse.wall) - activation) : null,
     sseToAppliedMs: sse && applied ? applied.wall - sse.wall : null,
     appliedToHistoryMs: history && applied ? history.wall - applied.wall : null,
     getAttempts: window.filter((t) => t.stage === "get_attempt").length,
+    segments: buildSegments({
+      traces,
+      native,
+      desktop,
+      alias,
+      activation,
+      observerReceived: update.hostReceivedMs,
+      offset: clock.offsetMs,
+    }),
     stages: window.map((t) => ({
       stage: t.stage,
       atMs: Math.round(toHost(t.wall) - activation),
@@ -135,12 +157,18 @@ async function readbackMatches(c, nonce) {
   return false;
 }
 
-async function phaseSamples(c, phase, before) {
+async function phaseSamples(c, phase, before, { readback = false } = {}) {
   const results = [];
   for (let seq = 1; seq <= c.samplesPerPhase; seq++) {
     if (before) await before(seq);
     const putsBefore = await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json");
     const sample = await measureCopy(c, phase, seq);
+    if (readback && sample.ok) {
+      // The fixture app reads the OS clipboard in the foreground and finishes; the app stays in the
+      // background. Only proves the content is pasteable, not when it became so.
+      sample.clipboardReadback = await readbackMatches(c, `UCLAN${c.runId}${phase.replace(/[^A-Za-z0-9]/g, "")}N${seq}`);
+      await c.act.home();
+    }
     await c.delay(1500 + Math.floor(Math.random() * 1000));
     sample.desktopPutsAfter = (await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json")) - putsBefore;
     if (sample.desktopPutsAfter > 0) {
@@ -253,9 +281,12 @@ export const SCENARIOS = {
     const service = await c.probe.sample(`${s}-after-home`);
     c.assert(`${s}.service-running`, s, Boolean(service.service.present && service.service.foreground), { service: service.service });
     const putsBefore = await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json");
-    const results = await phaseSamples(c, s);
+    const results = await phaseSamples(c, s, undefined, { readback: true });
     judgePhase(c, s, s, results);
     await assertNoEcho(c, s, s, results, putsBefore);
+    c.assert(`${s}.clipboard-readback-each`, s, results.every((r) => r.clipboardReadback === true), {
+      readback: results.map((r) => r.clipboardReadback ?? null),
+    });
     c.probe.event("echo.suppressed", { count: await suppressedSince(c, homeAt) });
     // The subscription opened in the foreground is the one that delivered in the background.
     const churn = (await c.readTraces(homeAt)).filter((t) => t.stage === "sse_attempt").length;
@@ -263,6 +294,53 @@ export const SCENARIOS = {
     c.assert(`${s}.notified-by-sse`, s, results.every((r) => r.activationToSseMs !== null), {
       withSse: results.filter((r) => r.activationToSseMs !== null).length,
     });
+  },
+
+  // Desktop copies land while earlier ones are still being applied in the background and the
+  // clipboard poller reads the clipboard every second: nothing applied may be uploaded back. A real
+  // copy in another app afterwards must still be uploaded.
+  async "echo-interleave"(c) {
+    const s = "echo-interleave";
+    await ensureServer(c, "bad-first");
+    if (!c.backgroundEnabled) {
+      await c.runFlow("lan-scenarios/enable-background.yaml");
+      c.backgroundEnabled = true;
+    }
+    await foreground(c);
+    await waitWarm(c, 0);
+    await c.act.home();
+    await c.delay(4000);
+    const clock = await clockOffset(c.probe);
+    const since = Date.now() + clock.offsetMs;
+    const putsBefore = await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json");
+    let last;
+    for (let i = 1; i <= 10; i++) {
+      last = `UCLAN${c.runId}echoN${i}`;
+      await c.peer.copyText(last);
+      await c.delay(700);
+    }
+    await c.delay(15_000);
+    const traces = await c.readTraces(since);
+    const puts = (await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json")) - putsBefore;
+    const suppressed = traces.filter((t) => t.stage === "observe_suppressed").length;
+    const applied = traces.filter((t) => t.stage === "clipboard_applied").length;
+    c.assert(`${s}.no-upload-of-applied`, s, puts === 0, { desktopPuts: puts, suppressed, applied });
+    c.probe.event("echo.interleave", { suppressed, applied, puts });
+    c.assert(`${s}.ends-on-last`, s, await readbackMatches(c, last));
+    await c.act.home();
+    await c.delay(2000);
+    const userText = `UCLAN${c.runId}echoUser`;
+    const beforeUser = await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json");
+    await c.act.copyInOtherApp(userText);
+    let document;
+    const deadline = Date.now() + 25_000;
+    while (Date.now() < deadline) {
+      document = await c.observer.currentDocument();
+      if (document.text === userText) break;
+      await c.delay(500);
+    }
+    const userPuts = (await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json")) - beforeUser;
+    c.assert(`${s}.user-copy-uploaded-in-background`, s, document?.text === userText && userPuts === 1, { userPuts });
   },
 
   // Three desktop copies in quick succession: the phone ends on the last one and never writes an
