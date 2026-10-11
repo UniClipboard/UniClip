@@ -290,7 +290,11 @@ export class LanHttpClient {
     const lease = this.routes.preferred(server) ?? (await this.discover(server)).lease;
     const route = routeRole(server.urls, lease.url);
     const startedAt = performance.now();
-    traceLan('put_attempt', { route, payload: Boolean(payload) });
+    traceLan('put_attempt', {
+      route,
+      payload: Boolean(payload),
+      cid: contentAlias(document.hash),
+    });
     let sent = false;
     try {
       if (payload) {

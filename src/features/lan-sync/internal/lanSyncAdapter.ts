@@ -22,6 +22,7 @@ import {
   type LanSseEvent,
   type LanSseListener,
 } from './lanHttpClient';
+import { LanHistorySaveError } from './lanApplyErrors';
 import { contentAlias, traceLan } from './lanSyncTrace';
 import { scheduleOnce } from './lanTimers';
 
@@ -43,6 +44,8 @@ export interface ApplyLanRemoteContentInput {
   dataName?: string;
   fileUri?: string;
   size: number;
+  /** The clipboard already holds this content from an earlier attempt; only save its history. */
+  clipboardAlreadyApplied?: boolean;
 }
 
 interface LanHttpPort {
@@ -153,6 +156,8 @@ export class LanSyncAdapter implements SyncAdapter {
    * clipboard observer can read that write back (slowly in the background); it is not a new copy.
    */
   private appliedRemoteHash: string | null = null;
+  /** Remote content that reached the clipboard but whose history record failed to save. */
+  private historyPendingHash: string | null = null;
   /** Latest content id announced by the desktop, and a counter of announcements. */
   private notifiedIdentity: string | null = null;
   private notificationCount = 0;
@@ -187,6 +192,7 @@ export class LanSyncAdapter implements SyncAdapter {
     this.connected = null;
     this.lastRemoteIdentity = null;
     this.appliedRemoteHash = null;
+    this.historyPendingHash = null;
   }
 
   async refresh(policy: SyncRuntimePolicy): Promise<void> {
@@ -204,6 +210,7 @@ export class LanSyncAdapter implements SyncAdapter {
       this.connected = null;
       this.lastRemoteIdentity = null;
       this.appliedRemoteHash = null;
+      this.historyPendingHash = null;
       return;
     }
     this.schedulePolling();
@@ -271,7 +278,11 @@ export class LanSyncAdapter implements SyncAdapter {
     if (identity === this.lastRemoteIdentity) return;
     traceLan('remote_new', { cid: contentAlias(identity) });
     const current = await this.dependencies.readClipboard();
-    if (current?.profileHash === document.hash) {
+    const clipboardHoldsDocument =
+      current?.profileHash?.toUpperCase() === document.hash.toUpperCase();
+    const historyRetry =
+      clipboardHoldsDocument && this.historyPendingHash === document.hash.toUpperCase();
+    if (clipboardHoldsDocument && !historyRetry) {
       this.lastRemoteIdentity = identity;
       return;
     }
@@ -300,16 +311,24 @@ export class LanSyncAdapter implements SyncAdapter {
       return;
     }
     this.appliedRemoteHash = document.hash.toUpperCase();
-    await this.dependencies.applyRemoteContent({
-      type: document.type,
-      text: document.text,
-      profileHash: document.hash,
-      contentId: document.contentId,
-      hasData: document.hasData,
-      dataName: document.dataName,
-      fileUri,
-      size: document.size ?? Array.from(document.text).length,
-    });
+    try {
+      await this.dependencies.applyRemoteContent({
+        type: document.type,
+        text: document.text,
+        profileHash: document.hash,
+        contentId: document.contentId,
+        hasData: document.hasData,
+        dataName: document.dataName,
+        fileUri,
+        size: document.size ?? Array.from(document.text).length,
+        ...(historyRetry ? { clipboardAlreadyApplied: true } : {}),
+      });
+    } catch (error) {
+      if (error instanceof LanHistorySaveError)
+        this.historyPendingHash = document.hash.toUpperCase();
+      throw error;
+    }
+    this.historyPendingHash = null;
     if (epoch !== this.syncEpoch || !this.running) return;
     this.lastRemoteIdentity = identity;
     this.emit({ type: 'contentChanged' });
@@ -373,10 +392,13 @@ export class LanSyncAdapter implements SyncAdapter {
     content: ClipboardContent,
     dispatch: boolean
   ): Promise<SyncAdapterDelivery | null> {
+    const observedHash = content.profileHash?.toUpperCase() ?? null;
+    // Once the clipboard holds something else, a later copy of the applied content is the user's.
+    if (observedHash && observedHash !== this.appliedRemoteHash) this.appliedRemoteHash = null;
     if (!dispatch) return null;
     if (!content.profileHash) throw new Error('LAN observed content is missing its content hash');
     const profileHash = content.profileHash;
-    if (profileHash.toUpperCase() === this.appliedRemoteHash) {
+    if (observedHash === this.appliedRemoteHash) {
       // The server already holds this content: sending it back would publish a duplicate.
       traceLan('observe_suppressed', { cid: contentAlias(profileHash) });
       return null;

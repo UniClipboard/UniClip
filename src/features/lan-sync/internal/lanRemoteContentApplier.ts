@@ -5,6 +5,7 @@ import {
   type ClipboardItem,
 } from '@/types/clipboard';
 import type { ApplyLanRemoteContentInput } from './lanSyncAdapter';
+import { LanHistorySaveError } from './lanApplyErrors';
 import { contentAlias, traceLan } from './lanSyncTrace';
 
 export interface LanRemoteContentApplierDependencies {
@@ -42,26 +43,30 @@ export class LanRemoteContentApplier {
     };
 
     const cid = contentAlias(input.contentId ?? input.profileHash);
-    if (input.type !== 'File') {
+    if (input.type !== 'File' && !input.clipboardAlreadyApplied) {
       await this.applyToClipboard(content, input.profileHash);
       traceLan('clipboard_applied', { cid });
+    } else if (input.clipboardAlreadyApplied) {
+      traceLan('history_retry', { cid });
     }
 
-    const saved = await this.dependencies.addHistoryItem(
-      createDefaultClipboardItem({
-        type: input.type,
-        text: input.text,
-        profileHash: input.profileHash,
-        localClipboardHash: input.profileHash,
-        hasData: input.hasData,
-        dataName: input.dataName,
-        size: input.size,
-        timestamp,
-        syncStatus: HistorySyncStatus.Synced,
-        fileUri: input.fileUri,
-        from: 'server',
-        contentId: input.contentId,
-      })
+    const saved = await this.saveHistory(input, cid, () =>
+      this.dependencies.addHistoryItem(
+        createDefaultClipboardItem({
+          type: input.type,
+          text: input.text,
+          profileHash: input.profileHash,
+          localClipboardHash: input.profileHash,
+          hasData: input.hasData,
+          dataName: input.dataName,
+          size: input.size,
+          timestamp,
+          syncStatus: HistorySyncStatus.Synced,
+          fileUri: input.fileUri,
+          from: 'server',
+          contentId: input.contentId,
+        })
+      )
     );
     traceLan('history_saved', { cid });
     this.dependencies.setCurrentContentDisplay({
@@ -75,6 +80,22 @@ export class LanRemoteContentApplier {
       ...(saved.dataName ? { fileName: saved.dataName } : {}),
       ...(saved.fileUri ? { fileUri: saved.fileUri } : {}),
     });
+  }
+
+  private async saveHistory(
+    input: ApplyLanRemoteContentInput,
+    cid: string,
+    save: () => Promise<ClipboardItem>
+  ): Promise<ClipboardItem> {
+    try {
+      return await save();
+    } catch (error) {
+      traceLan('history_failed', { cid });
+      // Files are never written to the clipboard, so only clipboard-backed content can be retried
+      // as history-only; a file is simply applied again.
+      if (input.type === 'File') throw error;
+      throw new LanHistorySaveError(error);
+    }
   }
 
   private async applyToClipboard(content: ClipboardContent, profileHash: string): Promise<void> {
