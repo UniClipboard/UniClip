@@ -153,8 +153,8 @@ async function main() {
         probe.event("system-dialog.waited", { file });
       }
       probe.event("flow.start", { file });
-      try {
-        const log = await command(
+      const invoke = () =>
+        command(
           maestro,
           [
             "--device", device.id, "test", "--format", "JUNIT", "--output", join(dir, "report.xml"),
@@ -169,6 +169,19 @@ async function main() {
             timeout: 300_000,
           }
         );
+      try {
+        let log;
+        try {
+          log = await invoke();
+        } catch (error) {
+          // Maestro sometimes loses a loaded emulator before the flow starts. That is not a business
+          // result: wait for the device and start the flow once more. Any other failure stands.
+          if (!/is not connected/.test(`${error.stdout ?? ""}${error.stderr ?? ""}`)) throw error;
+          probe.event("flow.device-reconnect", { file });
+          await probe.run("wait-for-device");
+          await delay(3000);
+          log = await invoke();
+        }
         // Flow variables may carry the throwaway credential; keep only Maestro's own log.
         await writeFile(join(dir, "maestro.log"), log.replaceAll(phone.password, "<redacted>"));
         probe.event("flow.end", { file, ok: true });
