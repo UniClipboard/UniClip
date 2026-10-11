@@ -4,3 +4,7 @@ appId: ${APP_ID}
 - stopApp
 - launchApp:
     stopApp: false
+- runFlow:
+    when:
+      platform: iOS
+    file: ../actions/system/allow-paste.yaml

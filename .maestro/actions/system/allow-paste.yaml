@@ -1,0 +1,7 @@
+# iOS asks before an app reads what another app (or the simulator's pasteboard sync) put on the
+# pasteboard. A person answers "Allow Paste"; this does the same when the prompt is shown.
+appId: ${APP_ID}
+---
+- tapOn:
+    text: "Allow Paste"
+    optional: true
