@@ -437,12 +437,19 @@ export const SCENARIOS = {
     const startClock = await clockOffset(c.probe);
     const startedAt = Date.now() + startClock.offsetMs;
     await ensureServer(c, "stale-preferred");
-    c.bad.setPutLost({ drop: "none", fresh: false, keepAliveMs: 5000 });
+    if (!c.backgroundEnabled) {
+      await c.runFlow("lan-scenarios/enable-background.yaml");
+      c.backgroundEnabled = true;
+    }
+    c.bad.setPutLost({ drop: "none", fresh: false, keepAliveMs: 60_000 });
     await foreground(c);
     c.assert(`${s}.session-warm`, s, await waitWarm(c, startedAt));
     const reads = (await c.readTraces(startedAt)).filter((t) => t.stage === "get_result" && t.valid === "true");
     c.probe.event("stale-preferred.route", { route: reads.at(-1)?.route ?? null });
-    await c.delay(2000);
+    // In the background no foreground pull runs first, so the write is the first request to meet
+    // the shut address; the subscription stays on its open connection.
+    await c.act.home();
+    await c.delay(3000);
     await c.bad.closePutLost();
     try {
       const before = await writeBaseline(c);
@@ -450,10 +457,10 @@ export const SCENARIOS = {
       const since = Date.now() + clock.offsetMs;
       const nonce = `UCLAN${c.runId}stalepref`;
       await c.act.copyInOtherApp(nonce);
-      await foreground(c);
       const document = await waitDocument(c.observer, (d) => d.text === nonce, 30_000);
       await c.delay(3000);
       const evidence = await writeEvidence(c, before, since, c.bad.putLostLog.length);
+      await foreground(c);
       const traces = await c.readTraces(since);
       c.assert(`${s}.delivered-once-elsewhere`, s, Boolean(document) && evidence.desktopDocumentPuts === 1, {
         ...evidence,
