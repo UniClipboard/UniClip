@@ -387,6 +387,9 @@ async function writeEvidence(c, before, since, proxyFrom) {
     desktopPayloadPuts: (await c.peer.mobileLanRequests("PUT", "/file/*")) - before.payloads,
     phonePutAttempts: traces.filter((t) => t.stage === "put_attempt").length,
     phonePutResults: traces.filter((t) => t.stage === "put_result").map((t) => t.status),
+    // Recorded, not judged: whether the desktop's announcement of this upload was applied back.
+    phoneAppliedBack: traces.filter((t) => t.stage === "apply_start").map((t) => t.cid),
+    phoneOwnUploadRecognized: traces.filter((t) => t.stage === "remote_own_upload").length,
     writePath: [...new Set(traces.filter((t) => t.stage === "put_attempt").map((t) => t.transport ?? "not-traced"))],
     proxyPuts: c.bad.putLostLog
       .slice(proxyFrom)
