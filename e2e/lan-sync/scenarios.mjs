@@ -354,7 +354,122 @@ async function waitDocument(observer, predicate, timeoutMs = 20_000) {
   return null;
 }
 
+/** Shares a photo; a failed send leaves the sheet open with "Retry", which is dismissed unsent. */
+async function sharePhotoTolerant(c, uri) {
+  try {
+    await sharePhoto(c, uri);
+    return true;
+  } catch {
+    await c.probe.shell("input keyevent KEYCODE_BACK");
+    await c.delay(1000);
+    return false;
+  }
+}
+
+/** Desktop-side request counts, the phone's write traces and the proxy's connection log since a point. */
+async function writeEvidence(c, before, since, proxyFrom) {
+  const traces = await c.readTraces(since);
+  return {
+    desktopDocumentPuts: (await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json")) - before.documents,
+    desktopPayloadPuts: (await c.peer.mobileLanRequests("PUT", "/file/*")) - before.payloads,
+    phonePutAttempts: traces.filter((t) => t.stage === "put_attempt").length,
+    phonePutResults: traces.filter((t) => t.stage === "put_result").map((t) => t.status),
+    writePath: [...new Set(traces.filter((t) => t.stage === "put_attempt").map((t) => t.transport ?? "not-traced"))],
+    proxyPuts: c.bad.putLostLog
+      .slice(proxyFrom)
+      .filter((r) => r.method === "PUT")
+      .map(({ kind, socket, requestOnSocket, userAgent, chunked }) => ({ kind, socket, requestOnSocket, userAgent, chunked })),
+  };
+}
+
+async function writeBaseline(c) {
+  return {
+    documents: await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json"),
+    payloads: await c.peer.mobileLanRequests("PUT", "/file/*"),
+  };
+}
+
 export const SCENARIOS = {
+
+  // Upload replies lost on a reused or a fresh connection, for a text copy and for a shared photo
+  // (reply lost on the payload, or on the document after it), measured by what the desktop
+  // actually received. Then normal writes after an idle connection was closed, and a legitimate
+  // A, B, A repeat, must each arrive exactly as often as the user copied.
+  async "put-lost-matrix"(c) {
+    const s = "put-lost-matrix";
+    await ensureServer(c, "put-lost");
+    await foreground(c);
+    c.assert(`${s}.session-warm`, s, await waitWarm(c, 0));
+    const textCase = async (name, control, { expectDelivered }) => {
+      c.bad.setPutLost(control);
+      // A pull right before the copy leaves a pooled connection to the proxy (unless fresh).
+      await foreground(c);
+      await c.delay(1500);
+      const before = await writeBaseline(c);
+      const proxyFrom = c.bad.putLostLog.length;
+      const clock = await clockOffset(c.probe);
+      const since = Date.now() + clock.offsetMs;
+      const nonce = `UCLAN${c.runId}${name.replace(/[^A-Za-z0-9]/g, "")}`;
+      await c.act.copyInOtherApp(nonce);
+      await foreground(c);
+      await c.delay(15_000);
+      const evidence = await writeEvidence(c, before, since, proxyFrom);
+      const document = await c.observer.currentDocument();
+      c.assert(`${s}.${name}.desktop-received-once`, s, evidence.desktopDocumentPuts === 1 && document.text === nonce, evidence);
+      c.assert(`${s}.${name}.one-phone-attempt`, s, evidence.phonePutAttempts === 1, evidence);
+      c.assert(
+        `${s}.${name}.result`,
+        s,
+        expectDelivered ? evidence.phonePutResults.includes("200") : evidence.phonePutResults.includes("unknown"),
+        { results: evidence.phonePutResults }
+      );
+      return nonce;
+    };
+    await textCase("text-reused", { drop: "document", fresh: false, keepAliveMs: 60_000 }, { expectDelivered: false });
+    await textCase("text-fresh", { drop: "document", fresh: true, keepAliveMs: 60_000 }, { expectDelivered: false });
+
+    for (const [name, drop] of [
+      ["photo-payload-reused", "payload"],
+      ["photo-document-reused", "document"],
+    ]) {
+      c.bad.setPutLost({ drop, fresh: false, keepAliveMs: 60_000 });
+      const uri = await mediaImage(c, `ucshare${c.runId}${name.replace(/[^A-Za-z0-9]/g, "")}`);
+      await foreground(c);
+      await c.delay(1500);
+      const before = await writeBaseline(c);
+      const proxyFrom = c.bad.putLostLog.length;
+      const clock = await clockOffset(c.probe);
+      const since = Date.now() + clock.offsetMs;
+      const sheetClosed = await sharePhotoTolerant(c, uri);
+      await c.delay(10_000);
+      const evidence = await writeEvidence(c, before, since, proxyFrom);
+      c.assert(`${s}.${name}.payload-received-once`, s, evidence.desktopPayloadPuts === 1, { ...evidence, sheetClosed });
+      c.assert(
+        `${s}.${name}.document-count`,
+        s,
+        evidence.desktopDocumentPuts === (drop === "payload" ? 0 : 1),
+        { ...evidence, sheetClosed }
+      );
+      c.assert(`${s}.${name}.one-phone-attempt`, s, evidence.phonePutAttempts === 1, evidence);
+      await foreground(c);
+    }
+
+    // The proxy drops idle connections after one second: the next write must still arrive once.
+    // (The copy follows the pull by several seconds, so the pooled connection is already closed.)
+    await textCase("idle-closed", { drop: "none", fresh: false, keepAliveMs: 1000 }, { expectDelivered: true });
+    c.bad.setPutLost({ drop: "none", fresh: false, keepAliveMs: 60_000 });
+    const before = await writeBaseline(c);
+    const sequence = ["A", "B", "A"].map((x) => `UCLAN${c.runId}repeat${x}`);
+    for (const text of sequence) {
+      await c.act.copyInOtherApp(text);
+      await foreground(c);
+      await waitDocument(c.observer, (d) => d.text === text, 15_000);
+      await c.delay(2000);
+    }
+    const puts = (await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json")) - before.documents;
+    const last = await c.observer.currentDocument();
+    c.assert(`${s}.repeat-aba-each-sent`, s, puts === 3 && last.text === sequence[2], { desktopPuts: puts });
+  },
 
   // A photo shared from the phone reaches the desktop, and the desktop's announcement of that same
   // photo (re-encoded, so a different hash) is not downloaded and written back to the phone. A
@@ -416,6 +531,7 @@ export const SCENARIOS = {
       });
     }
     const nonce = `UCLAN${c.runId}twoN1`;
+    const putsBefore = await Promise.all([c.peer, b.peer].map((p) => p.mobileLanRequests("PUT", "/SyncClipboard.json")));
     await c.act.copyInOtherApp(nonce);
     await foreground(c);
     const [toA, toB] = await Promise.all([
@@ -423,6 +539,10 @@ export const SCENARIOS = {
       waitDocument(b.observer, (d) => d.text === nonce),
     ]);
     c.assert(`${s}.phone-copy-reaches-both`, s, Boolean(toA && toB), { a: Boolean(toA), b: Boolean(toB) });
+    await c.delay(3000);
+    const putsAfter = await Promise.all([c.peer, b.peer].map((p) => p.mobileLanRequests("PUT", "/SyncClipboard.json")));
+    const each = putsAfter.map((n, i) => n - putsBefore[i]);
+    c.assert(`${s}.phone-copy-once-per-desktop`, s, each.every((n) => n === 1), { a: each[0], b: each[1] });
     if (!c.backgroundEnabled) {
       await c.runFlow("lan-scenarios/enable-background.yaml");
       c.backgroundEnabled = true;

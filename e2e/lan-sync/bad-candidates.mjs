@@ -30,9 +30,20 @@ const BEHAVIOURS = {
 
 export function badCandidateServer({ peerPort } = {}) {
   const servers = [];
+  const byName = {};
+  const putLostLog = [];
+  const putLostControl = { drop: "document", fresh: false, keepAliveMs: 5000 };
   const hits = Object.fromEntries([...Object.keys(BEHAVIOURS), "legacyHost", "putResponseLost"].map((k) => [k, 0]));
   return {
     hits,
+    putLostLog,
+    putLostControl,
+    /** Changes the reply-lost proxy's behaviour for the requests that follow. */
+    setPutLost(control) {
+      Object.assign(putLostControl, control);
+      const server = byName.putResponseLost;
+      if (server) server.keepAliveTimeout = putLostControl.keepAliveMs;
+    },
     async start() {
       const ports = {};
       const behaviours = { ...BEHAVIOURS };
@@ -53,17 +64,46 @@ export function badCandidateServer({ peerPort } = {}) {
         };
       }
       if (peerPort) {
-        // The desktop receives and commits the upload, but the reply never reaches the phone.
+        // The desktop receives and commits an upload, but the reply never reaches the phone.
+        // `control.drop` picks which upload loses its reply ("document", "payload" or "none");
+        // `control.fresh` closes every connection after its response so the phone never reuses
+        // one; otherwise idle connections are kept for `control.keepAliveMs`.
         behaviours.putResponseLost = (request, response) => {
+          const socket = request.socket;
+          socket.requestCount = (socket.requestCount ?? 0) + 1;
+          const kind =
+            request.url === "/SyncClipboard.json"
+              ? "document"
+              : request.url.startsWith("/file/")
+                ? "payload"
+                : request.url === "/healthz"
+                  ? "health"
+                  : request.url.startsWith("/api/sse")
+                    ? "sse"
+                    : "other";
+          // Connection-level facts only: never the credential or the body.
+          putLostLog.push({
+            at: Date.now(),
+            method: request.method,
+            kind,
+            socket: socket.remotePort,
+            requestOnSocket: socket.requestCount,
+            userAgent: request.headers["user-agent"] ?? null,
+            chunked: /chunked/i.test(request.headers["transfer-encoding"] ?? ""),
+            contentLength: request.headers["content-length"] ?? null,
+          });
+          const drop = request.method === "PUT" && kind === putLostControl.drop;
           const upstream = forward(
             { host: "127.0.0.1", port: peerPort, method: request.method, path: request.url, headers: request.headers },
             (reply) => {
-              if (request.method === "PUT" && request.url === "/SyncClipboard.json") {
+              if (drop) {
                 reply.resume();
                 reply.on("end", () => response.socket?.destroy());
                 return;
               }
-              response.writeHead(reply.statusCode, reply.headers);
+              const headers = { ...reply.headers };
+              if (putLostControl.fresh && kind !== "sse") headers.connection = "close";
+              response.writeHead(reply.statusCode, headers);
               reply.pipe(response);
             }
           );
@@ -79,6 +119,8 @@ export function badCandidateServer({ peerPort } = {}) {
         });
         await new Promise((done) => server.listen(0, "127.0.0.1", done));
         servers.push(server);
+        byName[name] = server;
+        if (name === "putResponseLost") server.keepAliveTimeout = putLostControl.keepAliveMs;
         ports[name] = server.address().port;
       }
       return ports;

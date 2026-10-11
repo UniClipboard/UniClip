@@ -187,7 +187,13 @@ export function desktopPeer(cli, output, { deviceName = "Simulator acceptance pe
       for (const name of await readdir(logs).catch(() => [])) {
         if (!name.startsWith("uniclipboard-daemon")) continue;
         for (const line of (await readFile(join(logs, name), "utf8")).split("\n")) {
-          if (line.includes("mobile_lan: auth ok") && line.includes(`"method":"${method}"`) && line.includes(`"path":"${path}"`)) count += 1;
+          if (
+            line.includes("mobile_lan: auth ok") &&
+            line.includes(`"method":"${method}"`) &&
+            // A trailing "*" counts every path under that prefix (payload uploads).
+            (path.endsWith("*") ? line.includes(`"path":"${path.slice(0, -1)}`) : line.includes(`"path":"${path}"`))
+          )
+            count += 1;
         }
       }
       return count;

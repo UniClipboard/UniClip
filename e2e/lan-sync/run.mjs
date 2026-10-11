@@ -236,6 +236,7 @@ async function main() {
       phone,
       port,
       badPorts,
+      bad,
       observer,
       runFlow,
       /** A second, independent desktop with its own Mobile LAN listener and phone credential. */
@@ -302,6 +303,13 @@ async function main() {
       join(output, "timeline.csv"),
       [columns.join(","), ...samples.map((s) => columns.map((k) => JSON.stringify(s[k] ?? "")).join(","))].join("\n") + "\n"
     );
+    // Phone stage traces (roles, aliases, timings) and the reply-lost proxy's connection log are
+    // kept with the run; the emulator and its logcat are gone after dispose.
+    if (probe) {
+      const traces = await readTraces(probe, 0).catch(() => []);
+      await writeFile(join(output, "phone-traces.jsonl"), traces.map((t) => JSON.stringify(t)).join("\n"));
+    }
+    await writeFile(join(output, "put-lost-connections.json"), JSON.stringify(bad.putLostLog ?? [], null, 2));
     if (probe) {
       await writeFile(join(output, "harness-events.jsonl"), probe.timeline.map((e) => JSON.stringify(e)).join("\n"));
       await device.capture().catch(() => {});
