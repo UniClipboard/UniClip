@@ -4,7 +4,11 @@ export interface LanInsecureHttpTransport {
     headers: Record<string, string>,
     signal?: AbortSignal
   ): Promise<{ status: number; data?: unknown }>;
-  putJson(url: string, body: unknown, headers: Record<string, string>): Promise<{ status: number }>;
+  putJson(
+    url: string,
+    body: unknown,
+    headers: Record<string, string>
+  ): Promise<{ status: number; data?: unknown }>;
   uploadFile(
     sourceUri: string,
     url: string,
@@ -64,12 +68,18 @@ export class ReactNativeBlobLanTransport implements LanInsecureHttpTransport {
     url: string,
     body: unknown,
     headers: Record<string, string>
-  ): Promise<{ status: number }> {
+  ): Promise<{ status: number; data?: unknown }> {
     const transport = await blobUtil();
     const response = await transport
       .config({ trusty: true, timeout: REQUEST_TIMEOUT_MS })
       .fetch('PUT', url, { ...headers, 'content-type': 'application/json' }, JSON.stringify(body));
-    return { status: response.info().status };
+    let data: unknown;
+    try {
+      data = JSON.parse(response.data);
+    } catch {
+      data = undefined;
+    }
+    return { status: response.info().status, data };
   }
 
   async uploadFile(

@@ -119,6 +119,19 @@ function validatePayloadName(name: string): void {
   }
 }
 
+export interface LanPutResult {
+  url: string;
+  /** The desktop's own id for what it stored from this upload, when its reply carries one. */
+  contentId?: string;
+}
+
+/** Desktop hosts that assign content ids name the stored content in the upload reply. */
+function ackContentId(data: unknown): string | undefined {
+  if (!data || typeof data !== 'object') return undefined;
+  const contentId = (data as { contentId?: unknown }).contentId;
+  return typeof contentId === 'string' && contentId.length > 0 ? contentId : undefined;
+}
+
 function authorizationHeaders(server: LanServerDraft): Record<string, string> {
   return {
     authorization: `Basic ${Base64.encode(`${server.username}:${server.password}`)}`,
@@ -284,7 +297,7 @@ export class LanHttpClient {
     server: LanServerDraft,
     document: LanClipboardDocument,
     payload?: LanPayloadUpload
-  ): Promise<{ url: string }> {
+  ): Promise<LanPutResult> {
     if (payload) validatePayloadName(payload.name);
     // A write goes to one verified address only; it never races or fails over.
     const lease = this.routes.preferred(server) ?? (await this.discover(server)).lease;
@@ -322,17 +335,19 @@ export class LanHttpClient {
             timeout: REQUEST_TIMEOUT_MS,
             validateStatus: () => true,
           });
+      const contentId = ackContentId(response.data);
       traceLan('put_result', {
         route,
         status: response.status,
         ms: Math.round(performance.now() - startedAt),
+        ack: contentId !== undefined,
       });
       if (response.status === 401) throw new LanAuthenticationError();
       if (response.status < 200 || response.status >= 300) {
         throw new Error(`LAN clipboard upload failed with status ${response.status}`);
       }
       this.routes.reportSuccess(lease);
-      return { url: lease.url };
+      return contentId === undefined ? { url: lease.url } : { url: lease.url, contentId };
     } catch (error) {
       if (error instanceof LanAuthenticationError) throw error;
       if (error instanceof Error && error.message.startsWith('LAN ')) throw error;
