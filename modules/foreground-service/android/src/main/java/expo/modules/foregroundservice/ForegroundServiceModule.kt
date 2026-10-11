@@ -50,7 +50,8 @@ class ForegroundServiceModule : Module() {
         }
 
         Function("startService") {
-            if (SyncForegroundService.isRunning) return@Function true
+            // A stop that is still in flight must not swallow this start.
+            if (SyncForegroundService.isRunning && !SyncForegroundService.stoppedByUser) return@Function true
             val context = appContext.reactContext ?: return@Function false
             jsInitiatedService = true
             BackgroundIntent.set(context, true)

@@ -351,6 +351,12 @@ internal fun clipDataForSnapshot(
  * All state transitions are serialized by [lock].
  */
 object EngineOwner {
+  /**
+   * Every state transition (start, shutdown, retain/release, lifecycle policy) runs under this
+   * lock, so a service release can never interleave with a JS start or a shutdown. [lock] only
+   * guards the fields for readers that are not transitions.
+   */
+  private val transitions = java.util.concurrent.locks.ReentrantLock()
   private val lock = Any()
   private val lifecycle = NativeLifecycleHost { error ->
     Log.e("UcEngine", "P2P engine lifecycle transition failed", error)
@@ -405,7 +411,10 @@ object EngineOwner {
    * Starts the Engine, or attaches to one that is already running. A second start from a runtime
    * that is already attached is still a caller error.
    */
-  internal fun start(context: Context, config: Map<String, String>, allowAttach: Boolean) {
+  internal fun start(context: Context, config: Map<String, String>, allowAttach: Boolean) =
+    transitions.withLockHeld { startLocked(context, config, allowAttach) }
+
+  private fun startLocked(context: Context, config: Map<String, String>, allowAttach: Boolean) {
     val diagnostics = AndroidNativeDiagnostics.get(context)
     AndroidNativeDiagnostics.observe(diagnostics, NativeDiagnosticEvent.ENGINE_START, NativeDiagnosticTrigger.APP_STARTUP) {
       synchronized(lock) {
@@ -511,44 +520,75 @@ object EngineOwner {
   }
 
   /** The background service holds the Engine alive across JS runtime destruction. */
-  fun retain() = synchronized(lock) { retainers += 1 }
+  /** Only ever prevents a shutdown, so it needs no transition lock and never blocks the caller's thread. */
+  fun retain() {
+    synchronized(lock) { retainers += 1 }
+    Log.i("UcEngine", "engine_owner retain retainers=${retainerCount()}")
+  }
 
-  /** Releases a hold; the Engine is shut down when nothing else needs it and no JS runtime is attached. */
+  private val releaseExecutor by lazy { java.util.concurrent.Executors.newSingleThreadExecutor { Thread(it, "uc-engine-release") } }
+
+  /**
+   * Releases a hold off the caller's thread (the service's main thread must not wait for a start or
+   * a shutdown); the Engine is shut down when nothing else needs it and no JS runtime is attached.
+   */
   fun release(context: Context) {
+    val appContext = context.applicationContext
+    releaseExecutor.execute { releaseNow(appContext) }
+  }
+
+  private fun releaseNow(context: Context) = transitions.withLockHeld {
     val stop = synchronized(lock) {
       retainers = (retainers - 1).coerceAtLeast(0)
       retainers == 0 && attachedRuntimes == 0
     }
+    Log.i("UcEngine", "engine_owner release retainers=${retainerCount()} shutdown=$stop")
     if (stop) runCatching { shutdownUntilComplete(context.applicationContext) }.onFailure(::reportLifecycleError)
   }
 
   private var attachedRuntimes = 0
 
-  internal fun runtimeAttached() = synchronized(lock) { attachedRuntimes += 1 }
+  internal fun runtimeAttached() = transitions.withLockHeld {
+    synchronized(lock) { attachedRuntimes += 1 }
+    Log.i("UcEngine", "engine_owner runtime_attached runtimes=$attachedRuntimes")
+  }
 
   /** A JS runtime was destroyed; the Engine survives when the background service still holds it. */
-  internal fun runtimeDetached(context: Context?) {
+  internal fun runtimeDetached(context: Context?) = transitions.withLockHeld {
     val stop = synchronized(lock) {
       attachedRuntimes = (attachedRuntimes - 1).coerceAtLeast(0)
       retainers == 0 && attachedRuntimes == 0
     }
-    if (!stop || context == null) return
-    runCatching { shutdownUntilComplete(context) }.onFailure(::reportLifecycleError)
+    Log.i("UcEngine", "engine_owner runtime_detached retainers=${retainerCount()} shutdown=${stop && context != null}")
+    if (stop && context != null) runCatching { shutdownUntilComplete(context) }.onFailure(::reportLifecycleError)
   }
 
-  internal fun setBackgroundSyncEnabled(context: Context, enabled: Boolean, appIsBackground: Boolean) {
-    val diagnostics = AndroidNativeDiagnostics.get(context)
-    lifecycle.setBackgroundSyncEnabled(
-      engine()?.let { AndroidEngineLifecycle(it, diagnostics) },
-      enabled,
-      appIsBackground
-    )
+  internal fun setBackgroundSyncEnabled(context: Context, enabled: Boolean, appIsBackground: Boolean) =
+    transitions.withLockHeld {
+      val diagnostics = AndroidNativeDiagnostics.get(context)
+      lifecycle.setBackgroundSyncEnabled(
+        engine()?.let { AndroidEngineLifecycle(it, diagnostics) },
+        enabled,
+        appIsBackground
+      )
+    }
+
+  internal fun enterBackground(context: Context) =
+    transitions.withLockHeld { lifecycle.enterBackground(currentLifecycle(context)) }
+
+  internal fun enterForeground(context: Context) =
+    transitions.withLockHeld { lifecycle.enterForeground(currentLifecycle(context)) }
+
+  internal fun shutdown(context: Context, deadlineMs: Long) = transitions.withLockHeld {
+    shutdownLocked(context, deadlineMs)
   }
 
-  internal fun enterBackground(context: Context) = lifecycle.enterBackground(currentLifecycle(context))
-  internal fun enterForeground(context: Context) = lifecycle.enterForeground(currentLifecycle(context))
+  private inline fun <T> java.util.concurrent.locks.ReentrantLock.withLockHeld(block: () -> T): T {
+    lock()
+    try { return block() } finally { unlock() }
+  }
 
-  internal fun shutdown(context: Context, deadlineMs: Long) {
+  private fun shutdownLocked(context: Context, deadlineMs: Long) {
     val diagnostics = AndroidNativeDiagnostics.get(context)
     val active = engine()
     try {
@@ -568,10 +608,10 @@ object EngineOwner {
     } finally { diagnostics.flush() }
   }
 
-  internal fun shutdownUntilComplete(context: Context) {
+  internal fun shutdownUntilComplete(context: Context) = transitions.withLockHeld {
     while (true) {
       try {
-        shutdown(context, 5_000)
+        shutdownLocked(context, 5_000)
         return
       } catch (error: BindingException.Engine) {
         if (error.category != BindingErrorCategory.DEADLINE_EXCEEDED) throw error
@@ -663,9 +703,16 @@ class UcEngineModule : Module() {
       val context = requireContext()
       // An engine already running (kept by the background service while this runtime was gone) is
       // attached to, not started a second time: there is one Engine per profile.
-      EngineOwner.start(context, config, allowAttach = !attached)
-      if (!attached) EngineOwner.runtimeAttached()
-      attached = true
+      // Attach first: the service may release its hold at any moment, and an Engine that is
+      // started while no runtime is counted would be shut down by that release.
+      val firstAttach = !attached
+      if (firstAttach) { EngineOwner.runtimeAttached(); attached = true }
+      try {
+        EngineOwner.start(context, config, allowAttach = firstAttach)
+      } catch (error: Throwable) {
+        if (firstAttach) { attached = false; EngineOwner.runtimeDetached(context) }
+        throw error
+      }
     }
 
     AsyncFunction("shutdown") { deadlineMs: Long -> EngineOwner.shutdown(requireContext(), deadlineMs) }

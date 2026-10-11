@@ -109,6 +109,7 @@ class SyncForegroundService : Service() {
                 if (!enterForeground(createNotification())) return START_NOT_STICKY
                 NativeLogger.d(TAG, "startForeground called successfully")
                 isRunning = true
+                stoppedByUser = false
                 holdEngine()
                 ServiceStopRecord.clear(this)
                 BackgroundServiceDiagnostics.started(this)
