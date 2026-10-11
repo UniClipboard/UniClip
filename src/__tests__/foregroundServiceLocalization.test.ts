@@ -29,8 +29,8 @@ const expectedStrings = {
   foreground_service_restart_title: ['Background service stopped', '后台服务已停止'],
   foreground_service_restart_content: ['Tap to resume background service', '点击恢复后台服务'],
   foreground_service_timeout_content: [
-    'Android limits background tasks to 6 hours within 24 hours after the app is closed. Tap to restart.',
-    '系统限制后台任务在主界面关闭后 24 小时内最多运行 6 小时，点击重新启动。',
+    'Android stopped the background service. Tap to restart.',
+    '系统已停止后台服务，点击重新启动。',
   ],
 } as const;
 
