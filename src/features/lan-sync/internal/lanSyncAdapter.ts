@@ -148,6 +148,11 @@ export class LanSyncAdapter implements SyncAdapter {
   private running = false;
   private connected: boolean | null = null;
   private lastRemoteIdentity: string | null = null;
+  /**
+   * Hash of the remote document this adapter is writing, or last wrote, to the clipboard. The
+   * clipboard observer can read that write back (slowly in the background); it is not a new copy.
+   */
+  private appliedRemoteHash: string | null = null;
   /** Latest content id announced by the desktop, and a counter of announcements. */
   private notifiedIdentity: string | null = null;
   private notificationCount = 0;
@@ -181,6 +186,7 @@ export class LanSyncAdapter implements SyncAdapter {
     this.server = null;
     this.connected = null;
     this.lastRemoteIdentity = null;
+    this.appliedRemoteHash = null;
   }
 
   async refresh(policy: SyncRuntimePolicy): Promise<void> {
@@ -197,6 +203,7 @@ export class LanSyncAdapter implements SyncAdapter {
       this.stopSse();
       this.connected = null;
       this.lastRemoteIdentity = null;
+      this.appliedRemoteHash = null;
       return;
     }
     this.schedulePolling();
@@ -292,6 +299,7 @@ export class LanSyncAdapter implements SyncAdapter {
       this.synchronizePending = true;
       return;
     }
+    this.appliedRemoteHash = document.hash.toUpperCase();
     await this.dependencies.applyRemoteContent({
       type: document.type,
       text: document.text,
@@ -368,6 +376,11 @@ export class LanSyncAdapter implements SyncAdapter {
     if (!dispatch) return null;
     if (!content.profileHash) throw new Error('LAN observed content is missing its content hash');
     const profileHash = content.profileHash;
+    if (profileHash.toUpperCase() === this.appliedRemoteHash) {
+      // The server already holds this content: sending it back would publish a duplicate.
+      traceLan('observe_suppressed', { cid: contentAlias(profileHash) });
+      return null;
+    }
     if (content.type === 'Text') {
       const text =
         content.hasData && content.fileUri ? await new File(content.fileUri).text() : content.text;
