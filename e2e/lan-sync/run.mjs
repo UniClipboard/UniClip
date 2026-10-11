@@ -77,7 +77,7 @@ async function main() {
     ? { id: options.serial, metadata: { owned: "caller-created emulator" }, prepare: async () => {}, capture: async () => {}, dispose: async () => {} }
     : androidDevice({ app, output, network: "online" });
   const peer = desktopPeer(options["peer-cli"], output);
-  const bad = badCandidateServer();
+  let bad = badCandidateServer();
   const assertions = [];
   const samples = [];
   let probe, observer;
@@ -108,6 +108,7 @@ async function main() {
     const observerCredential = await peer.addMobileCredential("Harness observer");
     observer = lanObserver({ port, credential: observerCredential, output });
     await observer.start();
+    bad = badCandidateServer({ peerPort: port });
     const badPorts = await bad.start();
 
     const manifest = {

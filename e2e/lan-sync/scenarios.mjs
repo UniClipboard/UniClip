@@ -17,6 +17,7 @@ const ORDERS = {
   "bad-last": (c) => [realUrl(c), holeUrl(0), holeUrl(1)],
   "faulty-first": (c) => [badUrl(c, "unauthorized"), badUrl(c, "html"), realUrl(c)],
   "faulty-second": (c) => [badUrl(c, "truncated"), badUrl(c, "notFound"), realUrl(c)],
+  "legacy-host": (c) => [holeUrl(0), holeUrl(1), badUrl(c, "legacyHost")],
 };
 
 async function ensureServer(c, order) {
@@ -137,8 +138,22 @@ async function phaseSamples(c, phase, before) {
   const results = [];
   for (let seq = 1; seq <= c.samplesPerPhase; seq++) {
     if (before) await before(seq);
-    results.push(await measureCopy(c, phase, seq));
+    const putsBefore = await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json");
+    const sample = await measureCopy(c, phase, seq);
     await c.delay(1500 + Math.floor(Math.random() * 1000));
+    sample.desktopPutsAfter = (await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json")) - putsBefore;
+    if (sample.desktopPutsAfter > 0) {
+      // Keep what explains an upload during a desktop-to-phone sample: phone stages (roles and
+      // aliases only) and the clipboard observer's own log tags.
+      const since = Date.now() - 20_000;
+      const clock = await clockOffset(c.probe);
+      const traces = await c.readTraces(since + clock.offsetMs);
+      sample.echoDiagnostics = {
+        stages: traces.map((t) => ({ stage: t.stage, wall: t.wall, cid: t.cid, route: t.route, status: t.status })),
+        observer: await c.probe.clipboardLogs(since),
+      };
+    }
+    results.push(sample);
   }
   return results;
 }
@@ -168,6 +183,11 @@ async function assertNoEcho(c, scenario, phase, results, putsBefore) {
   c.assert(`${phase}.no-echo-upload`, scenario, puts === 0, { desktopPuts: puts, announcements });
 }
 
+/** Echo suppressions the phone recorded since a phone wall time (proves an observed read-back). */
+async function suppressedSince(c, sincePhoneWall) {
+  return (await c.readTraces(sincePhoneWall)).filter((t) => t.stage === "observe_suppressed").length;
+}
+
 async function warmForeground(c, order) {
   const s = `foreground-${order}`;
   await ensureServer(c, order);
@@ -178,6 +198,9 @@ async function warmForeground(c, order) {
   const results = await phaseSamples(c, s);
   judgePhase(c, s, s, results);
   await assertNoEcho(c, s, s, results, putsBefore);
+  c.assert(`${s}.notified-by-sse`, s, results.every((r) => r.activationToSseMs !== null), {
+    withSse: results.filter((r) => r.activationToSseMs !== null).length,
+  });
   const last = results.at(-1);
   if (last?.ok) {
     const nonce = `UCLAN${c.runId}${s.replace(/[^A-Za-z0-9]/g, "")}N${last.seq}`;
@@ -189,6 +212,8 @@ async function warmForeground(c, order) {
 export const SCENARIOS = {
   // Two unreachable addresses in front of the working one, app in the foreground (field shape).
   "foreground-bad-first": (c) => warmForeground(c, "bad-first"),
+  // The working desktop answers 404 on /healthz (an older host): a protected read must still win.
+  "foreground-legacy-host": (c) => warmForeground(c, "legacy-host"),
   // Working address first: the control for the address-selection cost.
   "foreground-bad-last": (c) => warmForeground(c, "bad-last"),
 
@@ -230,6 +255,7 @@ export const SCENARIOS = {
     const results = await phaseSamples(c, s);
     judgePhase(c, s, s, results);
     await assertNoEcho(c, s, s, results, putsBefore);
+    c.probe.event("echo.suppressed", { count: await suppressedSince(c, homeAt) });
     // The subscription opened in the foreground is the one that delivered in the background.
     const churn = (await c.readTraces(homeAt)).filter((t) => t.stage === "sse_attempt").length;
     c.assert(`${s}.subscription-kept-across-home`, s, churn === 0, { newSubscriptions: churn });

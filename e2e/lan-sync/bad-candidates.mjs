@@ -1,4 +1,4 @@
-import { createServer } from "node:http";
+import { createServer, request as forward } from "node:http";
 
 /**
  * Wrong-but-reachable LAN candidates on host loopback (the emulator reaches them through 10.0.2.2):
@@ -28,14 +28,31 @@ const BEHAVIOURS = {
   },
 };
 
-export function badCandidateServer() {
+export function badCandidateServer({ peerPort } = {}) {
   const servers = [];
-  const hits = Object.fromEntries(Object.keys(BEHAVIOURS).map((k) => [k, 0]));
+  const hits = Object.fromEntries([...Object.keys(BEHAVIOURS), "legacyHost"].map((k) => [k, 0]));
   return {
     hits,
     async start() {
       const ports = {};
-      for (const [name, behave] of Object.entries(BEHAVIOURS)) {
+      const behaviours = { ...BEHAVIOURS };
+      if (peerPort) {
+        // An older desktop host without the public health route: everything else is the real peer.
+        behaviours.legacyHost = (request, response) => {
+          if (request.url === "/healthz") return response.writeHead(404).end();
+          const upstream = forward(
+            { host: "127.0.0.1", port: peerPort, method: request.method, path: request.url, headers: request.headers },
+            (reply) => {
+              response.writeHead(reply.statusCode, reply.headers);
+              reply.pipe(response);
+            }
+          );
+          upstream.on("error", () => response.destroy());
+          response.on("close", () => upstream.destroy());
+          request.pipe(upstream);
+        };
+      }
+      for (const [name, behave] of Object.entries(behaviours)) {
         const server = createServer((request, response) => {
           hits[name] += 1;
           behave(request, response);
