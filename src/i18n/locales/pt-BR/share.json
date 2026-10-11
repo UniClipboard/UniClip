@@ -19,7 +19,8 @@
     "recordNotFound": "Registro não encontrado: {{hash}}"
   },
   "serviceRestart": {
-    "restored": "Serviço restaurado"
+    "restored": "Serviço restaurado",
+    "failed": "Não foi possível retomar a sincronização"
   },
   "send": {
     "title": "Compartilhar",

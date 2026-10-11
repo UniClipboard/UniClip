@@ -53,6 +53,7 @@ class ForegroundServiceModule : Module() {
             if (SyncForegroundService.isRunning) return@Function true
             val context = appContext.reactContext ?: return@Function false
             jsInitiatedService = true
+            BackgroundIntent.set(context, true)
             val intent = Intent(context, SyncForegroundService::class.java).apply {
                 action = SyncForegroundService.ACTION_START
             }
@@ -66,9 +67,11 @@ class ForegroundServiceModule : Module() {
 
         Function("stopService") {
             val context = appContext.reactContext ?: return@Function false
+            BackgroundIntent.set(context, false)
             if (!SyncForegroundService.isRunning) return@Function true
             // 标记为用户主动停止，避免 onDestroy 中误发重启通知
             SyncForegroundService.stoppedByUser = true
+            ServiceStopRecord.write(context, ServiceStopRecord.POLICY)
             BackgroundServiceDiagnostics.stoppedPermanently(context)
             val intent = Intent(context, SyncForegroundService::class.java)
             context.stopService(intent)
@@ -89,6 +92,14 @@ class ForegroundServiceModule : Module() {
 
         Function("isRunning") {
             SyncForegroundService.isRunning
+        }
+
+        // Whether the service runs and, if it does not, the last recorded reason. Not a liveness proof
+        // of synchronisation; the Engine's own state answers that.
+        Function("getStatus") {
+            val context = appContext.reactContext
+            val stop: Map<String, Any?> = if (context != null) ServiceStopRecord.read(context) else emptyMap()
+            mapOf<String, Any?>("running" to SyncForegroundService.isRunning) + stop
         }
     }
 }

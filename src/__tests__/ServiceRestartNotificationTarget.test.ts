@@ -9,7 +9,7 @@ function read(relativePath: string): string {
 
 describe('Android service restart notification target', () => {
   const service = read(
-    'modules/foreground-service/android/src/main/java/expo/modules/foregroundservice/SyncForegroundService.kt'
+    'modules/foreground-service/android/src/main/java/expo/modules/foregroundservice/RestartNotifier.kt'
   );
 
   it('does not target a hard-coded legacy package', () => {
@@ -18,9 +18,9 @@ describe('Android service restart notification target', () => {
   });
 
   it('resolves the activity the app actually registers', () => {
-    const suffix = service.match(/RESTART_ACTIVITY_SUFFIX = "([^"]+)"/)?.[1];
+    const suffix = service.match(/ACTIVITY_SUFFIX = "([^"]+)"/)?.[1];
     expect(suffix).toBe('.servicerestart.ServiceRestartActivity');
-    expect(service).toContain('it.name.endsWith(RESTART_ACTIVITY_SUFFIX)');
+    expect(service).toContain('it.name.endsWith(ACTIVITY_SUFFIX)');
     expect(service).toContain('getLaunchIntentForPackage(packageName)');
 
     const plugin = read('plugins/withServiceRestartActivity.ts');

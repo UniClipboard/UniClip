@@ -3,11 +3,28 @@ import { requireNativeModule, type EventSubscription } from 'expo-modules-core';
 
 const MODULE_NAME = 'ForegroundServiceModule';
 
+export type ServiceStopReason =
+  | 'user_stop'
+  | 'user_pause'
+  | 'task_removed'
+  | 'system_timeout'
+  | 'start_denied'
+  | 'system_restart'
+  | 'policy';
+
+export interface ForegroundServiceStatus {
+  running: boolean;
+  /** Why the service last stopped; null while it runs or when it never stopped. */
+  lastStopReason: ServiceStopReason | null;
+  lastStopAt: number | null;
+}
+
 interface ForegroundServiceModuleType {
   startService(): boolean;
   stopService(): boolean;
   updateNotification(content: string): boolean;
   isRunning(): boolean;
+  getStatus(): ForegroundServiceStatus;
   addListener(eventName: string, listener: () => void): EventSubscription;
 }
 
@@ -40,6 +57,13 @@ export function isRunning(): boolean {
     return NativeModule.isRunning();
   }
   return false;
+}
+
+export function getStatus(): ForegroundServiceStatus {
+  if (NativeModule) {
+    return NativeModule.getStatus();
+  }
+  return { running: false, lastStopReason: null, lastStopAt: null };
 }
 
 export function addStopListener(listener: () => void): EventSubscription | null {

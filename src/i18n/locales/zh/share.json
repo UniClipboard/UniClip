@@ -19,7 +19,8 @@
     "recordNotFound": "记录不存在: {{hash}}"
   },
   "serviceRestart": {
-    "restored": "服务已恢复"
+    "restored": "服务已恢复",
+    "failed": "无法恢复同步"
   },
   "send": {
     "title": "分享",

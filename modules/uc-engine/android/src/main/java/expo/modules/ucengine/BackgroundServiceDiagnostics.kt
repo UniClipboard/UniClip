@@ -30,7 +30,8 @@ object BackgroundServiceDiagnostics {
 
   fun stoppedPermanently(context: Context) = stopped(context, NativeDiagnosticTrigger.USER_REQUEST)
 
-  fun stoppedTemporarily(context: Context) = stopped(context, NativeDiagnosticTrigger.USER_REQUEST)
+  /** The notification's Pause action: a policy pause the user chose, distinct from a fault. */
+  fun stoppedTemporarily(context: Context) = stopped(context, NativeDiagnosticTrigger.USER_PAUSE)
 
   fun timedOut(context: Context) = stopped(
     context,
@@ -42,6 +43,32 @@ object BackgroundServiceDiagnostics {
     context,
     NativeDiagnosticTrigger.TASK_REMOVED,
     NativeDiagnosticEvent.BACKGROUND_SERVICE_TASK_REMOVED
+  )
+
+  /** An auxiliary task (quick action, restart prompt) ended; the service keeps running. */
+  fun auxTaskRemoved(context: Context) = record(
+    context,
+    NativeDiagnosticEvent.BACKGROUND_SERVICE_AUX_TASK_REMOVED,
+    NativeDiagnosticTrigger.TASK_REMOVED
+  )
+
+  /** The system refused the foreground start (background start restriction, missing permission). */
+  fun startDenied(context: Context) = record(
+    context,
+    NativeDiagnosticEvent.BACKGROUND_SERVICE_START_DENIED,
+    NativeDiagnosticTrigger.SYSTEM_POLICY,
+    NativeDiagnosticOutcome.FAILED
+  )
+
+  /**
+   * Native recovery after a reboot or app update. A prompt means the one-tap resume notification
+   * was posted; a skip means the user's own stop, disabled state or a missing permission applies.
+   */
+  fun recoveryDecision(context: Context, trigger: String, prompted: Boolean) = record(
+    context,
+    if (prompted) NativeDiagnosticEvent.BACKGROUND_SERVICE_RECOVERY_PROMPTED
+    else NativeDiagnosticEvent.BACKGROUND_SERVICE_RECOVERY_SKIPPED,
+    if (trigger == "boot") NativeDiagnosticTrigger.SYSTEM_BOOT else NativeDiagnosticTrigger.PACKAGE_REPLACED
   )
 
   fun destroyed(context: Context, expected: Boolean) {

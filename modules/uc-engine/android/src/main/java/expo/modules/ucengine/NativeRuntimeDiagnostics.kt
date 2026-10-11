@@ -29,14 +29,18 @@ internal enum class NativeDiagnosticEvent(val wire: String) {
   BACKGROUND_SERVICE_STOPPED("background_service.stopped"),
   BACKGROUND_SERVICE_TIMED_OUT("background_service.timed_out"),
   BACKGROUND_SERVICE_TASK_REMOVED("background_service.task_removed"),
+  BACKGROUND_SERVICE_AUX_TASK_REMOVED("background_service.aux_task_removed"),
+  BACKGROUND_SERVICE_START_DENIED("background_service.start_denied"),
+  BACKGROUND_SERVICE_RECOVERY_PROMPTED("background_service.recovery_prompted"),
+  BACKGROUND_SERVICE_RECOVERY_SKIPPED("background_service.recovery_skipped"),
   BACKGROUND_SERVICE_DESTROYED("background_service.destroyed")
 }
 
 internal enum class NativeDiagnosticTrigger(val wire: String) {
   APP_STARTUP("appStartup"), APP_FOREGROUND("appForeground"), APP_BACKGROUND("appBackground"),
-  USER_REQUEST("userRequest"), CONTEXT_DESTROYED("contextDestroyed"), NETWORK_CHANGE("networkChange"),
+  USER_REQUEST("userRequest"), USER_PAUSE("userPause"), SYSTEM_POLICY("systemPolicy"), CONTEXT_DESTROYED("contextDestroyed"), NETWORK_CHANGE("networkChange"),
   EXPORT_REQUESTED("exportRequested"), SYSTEM_RESTART("systemRestart"), SYSTEM_TIMEOUT("systemTimeout"),
-  TASK_REMOVED("taskRemoved"), UNSPECIFIED("unspecified")
+  TASK_REMOVED("taskRemoved"), SYSTEM_BOOT("systemBoot"), PACKAGE_REPLACED("packageReplaced"), UNSPECIFIED("unspecified")
 }
 
 internal enum class NativeDiagnosticOutcome(val wire: String) {

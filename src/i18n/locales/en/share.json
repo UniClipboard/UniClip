@@ -19,7 +19,8 @@
     "recordNotFound": "Record not found: {{hash}}"
   },
   "serviceRestart": {
-    "restored": "Service restored"
+    "restored": "Service restored",
+    "failed": "Could not resume sync"
   },
   "send": {
     "title": "Share",

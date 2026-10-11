@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 const moduleRoot = join(process.cwd(), 'modules', 'foreground-service', 'android', 'src', 'main');
 const servicePath = join(
@@ -50,7 +50,10 @@ describe('Android foreground service localization', () => {
   });
 
   it('loads every user-visible notification string from Android resources', () => {
-    const source = readFileSync(servicePath, 'utf8');
+    // The restart notification lives in RestartNotifier, shared with the boot receiver.
+    const source = [servicePath, join(dirname(servicePath), 'RestartNotifier.kt')]
+      .map((path) => readFileSync(path, 'utf8'))
+      .join('\n');
 
     for (const key of Object.keys(expectedStrings)) {
       expect(source).toContain(`R.string.${key}`);

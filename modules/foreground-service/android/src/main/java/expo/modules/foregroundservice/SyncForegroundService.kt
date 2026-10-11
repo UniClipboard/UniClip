@@ -15,6 +15,7 @@ import androidx.annotation.StringRes
 import androidx.core.app.NotificationCompat
 import expo.modules.nativeutil.NativeLogger
 import expo.modules.ucengine.BackgroundServiceDiagnostics
+import expo.modules.ucengine.EngineOwner
 
 class SyncForegroundService : Service() {
 
@@ -27,9 +28,7 @@ class SyncForegroundService : Service() {
         const val ACTION_TEMP_STOP = "TEMP_STOP"
         const val ACTION_UPDATE = "UPDATE"
         const val EXTRA_CONTENT = "content"
-        private const val RESTART_NOTIFY_ID = 0x2021
-        private const val RESTART_CHANNEL_ID = "syncclipboard_restart"
-        private const val RESTART_ACTIVITY_SUFFIX = ".servicerestart.ServiceRestartActivity"
+        const val RESTART_CHANNEL_ID = "syncclipboard_restart"
 
         var isRunning = false
             private set
@@ -41,6 +40,44 @@ class SyncForegroundService : Service() {
 
     private var notificationManager: NotificationManager? = null
     private var lastContent: String? = null
+    // The service holds the Engine for as long as it is foreground, so destroying the JS runtime
+    // (activity teardown, bridge reload) does not shut it down underneath a running service.
+    private var holdsEngine = false
+    private var multicastLock: android.net.wifi.WifiManager.MulticastLock? = null
+
+    private fun holdEngine() {
+        if (holdsEngine) return
+        holdsEngine = true
+        EngineOwner.retain()
+        acquireMulticastLock()
+    }
+
+    private fun releaseEngine() {
+        if (!holdsEngine) return
+        holdsEngine = false
+        releaseMulticastLock()
+        EngineOwner.release(this)
+    }
+
+    /**
+     * Local peer discovery uses multicast DNS; Wi-Fi hardware filters multicast frames in
+     * low-power states unless an app holds this lock. It is held only while the service runs.
+     */
+    private fun acquireMulticastLock() {
+        if (multicastLock?.isHeld == true) return
+        multicastLock = runCatching {
+            val wifi = applicationContext.getSystemService(android.content.Context.WIFI_SERVICE) as android.net.wifi.WifiManager
+            wifi.createMulticastLock("uniclipboard-mdns").apply {
+                setReferenceCounted(false)
+                acquire()
+            }
+        }.onFailure { NativeLogger.w(TAG, "multicast lock unavailable: ${it.javaClass.simpleName}") }.getOrNull()
+    }
+
+    private fun releaseMulticastLock() {
+        runCatching { multicastLock?.takeIf { it.isHeld }?.release() }
+        multicastLock = null
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -62,36 +99,29 @@ class SyncForegroundService : Service() {
                 if (intent == null || !ForegroundServiceModule.isJsRuntimeAlive()) {
                     NativeLogger.w(TAG, "Service restarted by system (intent=${intent?.action}, jsAlive=${ForegroundServiceModule.isJsRuntimeAlive()}), JS not running, showing restart notification")
                     BackgroundServiceDiagnostics.systemRestarted(this)
+                    ServiceStopRecord.write(this, ServiceStopRecord.SYSTEM_RESTART)
                     showRestartNotification()
                     stoppedByUser = true  // 防止 onDestroy 再次发重启通知
                     stopSelf()
                     return START_NOT_STICKY
                 }
 
-                val notification = createNotification()
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    startForeground(NOTIFY_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-                } else {
-                    startForeground(NOTIFY_ID, notification)
-                }
+                if (!enterForeground(createNotification())) return START_NOT_STICKY
                 NativeLogger.d(TAG, "startForeground called successfully")
                 isRunning = true
+                holdEngine()
+                ServiceStopRecord.clear(this)
                 BackgroundServiceDiagnostics.started(this)
             }
             ACTION_STOP -> {
                 NativeLogger.d(TAG, "Stopping foreground service (permanent)")
                 stoppedByUser = true
-                if (!isRunning) {
-                    val notification = createNotification(getString(R.string.foreground_service_stopping))
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                        startForeground(NOTIFY_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-                    } else {
-                        startForeground(NOTIFY_ID, notification)
-                    }
-                }
+                if (!isRunning) enterForeground(createNotification(getString(R.string.foreground_service_stopping)))
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 isRunning = false
+                BackgroundIntent.set(this, false)
+                ServiceStopRecord.write(this, ServiceStopRecord.USER_STOP)
                 BackgroundServiceDiagnostics.stoppedPermanently(this)
                 // Send event to JS to disable background tasks permanently
                 ForegroundServiceModule.sendStopEvent()
@@ -99,17 +129,11 @@ class SyncForegroundService : Service() {
             ACTION_TEMP_STOP -> {
                 NativeLogger.d(TAG, "Stopping foreground service (temporary)")
                 stoppedByUser = true
-                if (!isRunning) {
-                    val notification = createNotification(getString(R.string.foreground_service_stopping))
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                        startForeground(NOTIFY_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-                    } else {
-                        startForeground(NOTIFY_ID, notification)
-                    }
-                }
+                if (!isRunning) enterForeground(createNotification(getString(R.string.foreground_service_stopping)))
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 isRunning = false
+                ServiceStopRecord.write(this, ServiceStopRecord.USER_PAUSE)
                 BackgroundServiceDiagnostics.stoppedTemporarily(this)
                 // Send temp stop event to JS (no settings change, service restarts next time)
                 ForegroundServiceModule.sendTempStopEvent()
@@ -119,12 +143,7 @@ class SyncForegroundService : Service() {
             }
             else -> {
                 // Unknown action - still need to call startForeground to prevent crash
-                val notification = createNotification()
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    startForeground(NOTIFY_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-                } else {
-                    startForeground(NOTIFY_ID, notification)
-                }
+                if (!enterForeground(createNotification())) return START_NOT_STICKY
                 isRunning = true
                 BackgroundServiceDiagnostics.started(this)
             }
@@ -143,33 +162,73 @@ class SyncForegroundService : Service() {
     }
 
     /**
-     * Android 14+ 回调：dataSync 类型前台服务 6小时/24小时配额耗尽时由系统调用。
-     * 若不在此回调中及时停止，系统会强制 ANR 终止进程（不经过 onDestroy 优雅路径）。
-     * 处理同用户临时停止：通知 JS 侧重新调度，下次 App 进入前台时重启服务。
+     * Android 15+ (target 35+): the system calls this for a foreground service type with a time
+     * budget (dataSync, mediaProcessing) once it is used up. connectedDevice has no such budget, so
+     * this is a defensive handler should the type or policy change. The service must stop itself
+     * within seconds, otherwise the system raises an ANR and kills the process. This is a system
+     * limit, not a user action, so the pause flag is not set; the recorded reason tells the UI why.
      */
-    @androidx.annotation.RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    override fun onTimeout(startId: Int) {
-        NativeLogger.w(TAG, "dataSync foreground service timed out (6h/24h quota exhausted), stopping gracefully")
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        NativeLogger.w(TAG, "foreground service timed out (type=$fgsType), stopping gracefully")
         stoppedByUser = true   // 防止 onDestroy 重复发通知
+        ServiceStopRecord.write(this, ServiceStopRecord.SYSTEM_TIMEOUT)
         showRestartNotification(R.string.foreground_service_timeout_content)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
         isRunning = false
         BackgroundServiceDiagnostics.timedOut(this)
-        // 不调用 sendTempStopEvent()：此为系统强制超时，非用户主动停止。
-        // 保持 JS 侧 isTempDisabledBackgroundTasks=false，
-        // 用户打开 App 后 start() 可自动重试启动服务。
     }
 
+    /**
+     * Only the task that holds the main activity expresses "the user dismissed the app". Auxiliary
+     * tasks (quick action, restart prompt) use their own task and end by themselves; they must not
+     * pause synchronisation. A task whose root cannot be identified is not treated as a dismissal.
+     */
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
+        if (!isMainTask(rootIntent)) {
+            NativeLogger.d(TAG, "onTaskRemoved: auxiliary task ended, service keeps running")
+            BackgroundServiceDiagnostics.auxTaskRemoved(this)
+            return
+        }
         NativeLogger.d(TAG, "onTaskRemoved: user swiped app from recents, stopping service")
         stoppedByUser = true
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
         isRunning = false
+        ServiceStopRecord.write(this, ServiceStopRecord.TASK_REMOVED)
         BackgroundServiceDiagnostics.taskRemoved(this)
         ForegroundServiceModule.sendTempStopEvent()
+    }
+
+    private fun isMainTask(rootIntent: Intent?): Boolean {
+        val root = rootIntent?.component?.className ?: return false
+        return root == packageManager.getLaunchIntentForPackage(packageName)?.component?.className
+    }
+
+    /**
+     * Enters the foreground. The system can refuse (background start restrictions, missing
+     * permission); that is recorded and the service stops instead of crashing the process.
+     */
+    private fun enterForeground(notification: Notification): Boolean {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(NOTIFY_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+            } else {
+                startForeground(NOTIFY_ID, notification)
+            }
+            true
+        } catch (error: RuntimeException) {
+            // ForegroundServiceStartNotAllowedException and SecurityException are both runtime errors.
+            NativeLogger.w(TAG, "startForeground refused: ${error.javaClass.simpleName}")
+            stoppedByUser = true
+            isRunning = false
+            ServiceStopRecord.write(this, ServiceStopRecord.START_DENIED)
+            BackgroundServiceDiagnostics.startDenied(this)
+            stopSelf()
+            false
+        }
     }
 
     override fun onDestroy() {
@@ -182,6 +241,7 @@ class SyncForegroundService : Service() {
             showRestartNotification()
         }
         BackgroundServiceDiagnostics.destroyed(this, expected = stoppedByUser)
+        releaseEngine()
         stoppedByUser = false
         super.onDestroy()
     }
@@ -285,61 +345,5 @@ class SyncForegroundService : Service() {
 
     private fun showRestartNotification(
         @StringRes contentResId: Int = R.string.foreground_service_restart_content
-    ) {
-        val nm = getSystemService(NOTIFICATION_SERVICE) as? NotificationManager ?: return
-
-        createNotificationChannels()
-
-        // 启动 ServiceRestartActivity（自动恢复服务后退出）
-        val restartIntent = restartActivityIntent().apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        }
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0, restartIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val iconResId = applicationContext.resources.getIdentifier(
-            "ic_notification", "drawable", packageName
-        ).takeIf { it != 0 }
-            ?: applicationContext.resources.getIdentifier(
-                "ic_launcher_foreground", "mipmap", packageName
-            ).takeIf { it != 0 }
-            ?: android.R.drawable.ic_menu_info_details
-
-        val notification = NotificationCompat.Builder(this, RESTART_CHANNEL_ID)
-            .setContentTitle(getString(R.string.foreground_service_restart_title))
-            .setContentText(getString(contentResId))
-            .setSmallIcon(iconResId)
-            .setContentIntent(pendingIntent)
-            .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .build()
-
-        nm.notify(RESTART_NOTIFY_ID, notification)
-    }
-
-    /**
-     * ServiceRestartActivity 由 app 注册（类名跟随 namespace，applicationId 可能带变体后缀），
-     * 因此从本包已注册的 Activity 中按后缀查找；找不到时回退到启动页，保证点击通知总能回到 App。
-     */
-    private fun restartActivityIntent(): Intent {
-        val activities = runCatching {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                packageManager.getPackageInfo(
-                    packageName,
-                    PackageManager.PackageInfoFlags.of(PackageManager.GET_ACTIVITIES.toLong())
-                ).activities
-            } else {
-                @Suppress("DEPRECATION")
-                packageManager.getPackageInfo(packageName, PackageManager.GET_ACTIVITIES).activities
-            }
-        }.getOrNull()
-        val restartActivity = activities?.firstOrNull { it.name.endsWith(RESTART_ACTIVITY_SUFFIX) }
-        if (restartActivity != null) {
-            return Intent().setClassName(packageName, restartActivity.name)
-        }
-        NativeLogger.w(TAG, "ServiceRestartActivity is not registered, falling back to the launch activity")
-        return packageManager.getLaunchIntentForPackage(packageName) ?: Intent().setPackage(packageName)
-    }
+    ) = RestartNotifier.show(this, contentResId)
 }
