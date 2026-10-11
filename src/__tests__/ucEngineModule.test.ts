@@ -369,7 +369,7 @@ describe('unified P2P engine native module', () => {
   it('installs the Android JNI context before starting the P2P engine', () => {
     const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
 
-    const installContext = kotlin.indexOf('nativeInstallAndroidContext(context)');
+    const installContext = kotlin.indexOf('UcEngineModule.installAndroidContext(context)');
     const startEngine = kotlin.indexOf('MobileEngine.startWithAnalyticsAndLifecycle(');
 
     expect(installContext).toBeGreaterThan(-1);
@@ -483,9 +483,10 @@ describe('Engine rc.6 host contract', () => {
 
   it('installs Android context then observability before engine creation', () => {
     const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
-    const start = kotlin.slice(kotlin.indexOf('AsyncFunction("start")'));
+    // The process-wide EngineOwner performs the start; the JS module only attaches to it.
+    const start = kotlin.slice(kotlin.indexOf('internal fun start(context: Context'));
     expect(start.indexOf('installProcessObservability(')).toBeGreaterThan(
-      start.indexOf('nativeInstallAndroidContext(context)')
+      start.indexOf('UcEngineModule.installAndroidContext(context)')
     );
     expect(start.indexOf('installProcessObservability(')).toBeLessThan(
       start.indexOf('MobileEngine.startWithAnalyticsAndLifecycle(')
