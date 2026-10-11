@@ -461,6 +461,14 @@ export const SCENARIOS = {
         putRoutes: traces.filter((t) => t.stage === "put_attempt").map((t) => t.route),
         rediscovered: traces.filter((t) => t.stage === "put_rediscover").length,
       });
+      // The write must have tried the verified address first and moved only after it was refused.
+      c.assert(
+        `${s}.moved-after-refusal`,
+        s,
+        traces.some((t) => t.stage === "put_rediscover") &&
+          traces.filter((t) => t.stage === "put_result").map((t) => t.status).join(",") === "transport_error,200",
+        { results: traces.filter((t) => t.stage === "put_result").map((t) => t.status) }
+      );
     } finally {
       await c.bad.reopenPutLost();
     }

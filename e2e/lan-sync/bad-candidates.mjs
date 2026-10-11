@@ -48,11 +48,16 @@ export function badCandidateServer({ peerPort, tls } = {}) {
     putLostLog,
     putLostControl,
     tlsHandshakeFailures,
-    /** Stops the plain reply-lost proxy from accepting connections (its port refuses them). */
+    /**
+     * Stops the plain reply-lost proxy from accepting new connections (its port refuses them).
+     * Open connections, such as the phone's subscription, keep working, so reads still trust it.
+     */
     async closePutLost() {
       const server = byName.putResponseLost;
-      server.closeAllConnections?.();
-      await new Promise((done) => server.close(() => done()));
+      await new Promise((done) => {
+        server.close(() => {});
+        done();
+      });
     },
     /** Accepts connections on the reply-lost proxy's port again. */
     async reopenPutLost() {
