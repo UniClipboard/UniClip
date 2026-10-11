@@ -23,6 +23,9 @@ const ORDERS = {
   "faulty-second": (c) => [badUrl(c, "truncated"), badUrl(c, "notFound"), realUrl(c)],
   "legacy-host": (c) => [holeUrl(0), holeUrl(1), badUrl(c, "legacyHost")],
   "put-lost": (c) => [holeUrl(0), holeUrl(1), badUrl(c, "putResponseLost")],
+  // The same desktop behind a self-signed HTTPS proxy, without and with the explicit setting.
+  "tls-strict": (c) => [holeUrl(0), holeUrl(1), `https://10.0.2.2:${c.badPorts.tlsPutLost}`],
+  "tls-insecure": (c) => [holeUrl(0), holeUrl(1), `https://10.0.2.2:${c.badPorts.tlsPutLost}`],
 };
 
 async function ensureServer(c, order, { second = false } = {}) {
@@ -52,6 +55,7 @@ async function ensureServer(c, order, { second = false } = {}) {
     LAN_USERNAME: c.phone.username,
     LAN_PASSWORD: c.phone.password,
     SERVER_COUNT: 1,
+    INSECURE_TLS: order === "tls-insecure" ? "true" : "false",
   });
   c.configuredOrder = order;
   c.probe.event("lan.configured", { order, roles: urls.map((_, i) => `c${i}`) });
@@ -342,6 +346,7 @@ async function ensureSecondDesktop(c) {
     LAN_USERNAME: c.second.phone.username,
     LAN_PASSWORD: c.second.phone.password,
     SERVER_COUNT: 2,
+    INSECURE_TLS: "false",
   });
   c.secondConfigured = true;
   c.probe.event("lan.second-configured", { roles: ["c0", "c1", "c2"] });
@@ -397,7 +402,88 @@ async function writeBaseline(c) {
   };
 }
 
+/** A copy in another app reaches the desktop exactly once (the desktop's own accepted PUT count). */
+async function phoneCopyOnce(c, s, name, { foregroundAfter = true } = {}) {
+  const nonce = `UCLAN${c.runId}${name.replace(/[^A-Za-z0-9]/g, "")}`;
+  const before = await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json");
+  const clock = await clockOffset(c.probe);
+  const since = Date.now() + clock.offsetMs;
+  await c.act.copyInOtherApp(nonce);
+  if (foregroundAfter) await foreground(c);
+  const document = await waitDocument(c.observer, (d) => d.text === nonce, 20_000);
+  await c.delay(3000);
+  const puts = (await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json")) - before;
+  const traces = await c.readTraces(since);
+  c.assert(`${s}.${name}.uploaded-once`, s, Boolean(document) && puts === 1, {
+    desktopPuts: puts,
+    phoneAttempts: traces.filter((t) => t.stage === "put_attempt").length,
+    transport: [...new Set(traces.filter((t) => t.stage === "put_attempt").map((t) => t.transport ?? "not-traced"))],
+  });
+}
+
 export const SCENARIOS = {
+
+  // A self-signed HTTPS desktop. Without the explicit setting the certificate is refused and no
+  // request reaches the desktop, reads or writes. With it, reads and writes work, every write
+  // arrives once, and a lost reply is not resent.
+  async "tls-policy"(c) {
+    const s = "tls-policy";
+    await ensureServer(c, "tls-strict");
+    await foreground(c);
+    const getsBefore = await c.peer.mobileLanRequests("GET", "/SyncClipboard.json");
+    const putsBefore = await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json");
+    const refusedBefore = c.bad.tlsHandshakeFailures.length;
+    const proxyBefore = c.bad.putLostLog.filter((r) => r.tls).length;
+    await c.delay(15_000);
+    await c.act.copyInOtherApp(`UCLAN${c.runId}tlsstrict`);
+    await foreground(c);
+    await c.delay(10_000);
+    const strict = {
+      desktopGets: (await c.peer.mobileLanRequests("GET", "/SyncClipboard.json")) - getsBefore,
+      desktopPuts: (await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json")) - putsBefore,
+      httpsRequests: c.bad.putLostLog.filter((r) => r.tls).length - proxyBefore,
+      refusedHandshakes: c.bad.tlsHandshakeFailures.length - refusedBefore,
+    };
+    c.assert(
+      `${s}.strict.untrusted-refused`,
+      s,
+      strict.desktopGets === 0 && strict.desktopPuts === 0 && strict.httpsRequests === 0 && strict.refusedHandshakes > 0,
+      strict
+    );
+
+    await ensureServer(c, "tls-insecure");
+    await foreground(c);
+    c.assert(`${s}.insecure.session-warm`, s, await waitWarm(c, 0));
+    const received = await measureCopy(c, `${s}-desktop-copy`, 1, { timeoutMs: 30_000 });
+    c.assert(`${s}.insecure.desktop-copy-received`, s, received.ok);
+    c.bad.setPutLost({ drop: "none", fresh: false, keepAliveMs: 60_000 });
+    await phoneCopyOnce(c, s, "insecure-copy");
+    // Reply lost on a reused HTTPS connection: the desktop still receives it once.
+    if (!c.backgroundEnabled) {
+      await c.runFlow("lan-scenarios/enable-background.yaml");
+      c.backgroundEnabled = true;
+    }
+    c.bad.setPutLost({ drop: "document", fresh: false, keepAliveMs: 60_000 });
+    await foreground(c);
+    const clock = await clockOffset(c.probe);
+    await waitWarm(c, Date.now() + clock.offsetMs, 30_000);
+    await c.act.home();
+    await c.delay(3000);
+    const before = await writeBaseline(c);
+    const proxyFrom = c.bad.putLostLog.length;
+    const since = Date.now() + clock.offsetMs;
+    await c.act.copyInOtherApp(`UCLAN${c.runId}tlslost`);
+    await c.delay(15_000);
+    const lost = await writeEvidence(c, before, since, proxyFrom);
+    c.assert(
+      `${s}.insecure.lost-reply-once`,
+      s,
+      lost.desktopDocumentPuts === 1 && lost.phonePutAttempts === 1 && lost.phonePutResults.includes("unknown"),
+      lost
+    );
+    c.bad.setPutLost({ drop: "document", fresh: false, keepAliveMs: 5000 });
+    await foreground(c);
+  },
 
   // Upload replies lost on a reused or a fresh connection, for a text copy and for a shared photo
   // (reply lost on the payload, or on the document after it), measured by what the desktop
@@ -779,6 +865,7 @@ export const SCENARIOS = {
     await foreground(c);
     const resumed = await measureCopy(c, `${s}-foreground`, 1);
     c.assert(`${s}.foreground-receives`, s, resumed.ok);
+    await phoneCopyOnce(c, s, "after-resume");
   },
 
   // The desktop revokes this phone: nothing is applied and the phone does not retry in a loop.
@@ -797,6 +884,20 @@ export const SCENARIOS = {
     // Foreground fallback polling is every 2 s; a retry loop would be far above one read per poll.
     c.assert(`${s}.bounded-retries`, s, reads <= 15, { readsIn20s: reads });
     c.assert(`${s}.auth-observed`, s, traces.some((t) => t.status === "401"), {});
+    // A copy after revocation is refused, never accepted and never repeated.
+    const putsBefore = await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json");
+    const writeSince = Date.now() + clock.offsetMs;
+    await c.act.copyInOtherApp(`UCLAN${c.runId}revokedcopy`);
+    await foreground(c);
+    await c.delay(10_000);
+    const writeTraces = await c.readTraces(writeSince);
+    const accepted = (await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json")) - putsBefore;
+    const attempts = writeTraces.filter((t) => t.stage === "put_attempt").length;
+    c.assert(`${s}.copy-refused-once`, s, accepted === 0 && attempts <= 1, {
+      accepted,
+      attempts,
+      results: writeTraces.filter((t) => t.stage === "put_result").map((t) => t.status),
+    });
   },
 
   // After a desktop copy is applied, the user's own later copies still reach the desktop, including
@@ -905,6 +1006,11 @@ export const SCENARIOS = {
       results.push(await measureCopy(c, s, seq));
     }
     c.assert(`${s}.all-applied`, s, results.every((r) => r.ok), { applied: results.filter((r) => r.ok).length });
+    // A copy right after the network returns is uploaded while reads rediscover the route.
+    await c.probe.shell("svc wifi disable");
+    await c.delay(4000);
+    await c.probe.shell("svc wifi enable");
+    await phoneCopyOnce(c, s, "copy-after-switch");
   },
 
   // Wi-Fi drops and returns on the owned emulator; the next copy must recover.

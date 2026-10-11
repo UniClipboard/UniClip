@@ -134,7 +134,20 @@ async function main() {
     const observerCredential = await peer.addMobileCredential("Harness observer");
     observer = lanObserver({ port, credential: observerCredential, output });
     await observer.start();
-    bad = badCandidateServer({ peerPort: port });
+    // A throwaway self-signed certificate for the HTTPS candidate; it stays in this run's output
+    // and is trusted nowhere (no system or app trust store is changed).
+    const tlsDir = join(output, "tls-throwaway");
+    await mkdir(tlsDir, { recursive: true });
+    await command("openssl", [
+      "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
+      "-subj", "/CN=uniclip-lan-acceptance",
+      "-addext", "subjectAltName=IP:10.0.2.2,IP:127.0.0.1",
+      "-keyout", join(tlsDir, "key.pem"), "-out", join(tlsDir, "cert.pem"),
+    ]);
+    bad = badCandidateServer({
+      peerPort: port,
+      tls: { key: await readFile(join(tlsDir, "key.pem")), cert: await readFile(join(tlsDir, "cert.pem")) },
+    });
     const badPorts = await bad.start();
 
     const manifest = {
@@ -311,6 +324,7 @@ async function main() {
       await writeFile(join(output, "phone-traces.jsonl"), traces.map((t) => JSON.stringify(t)).join("\n"));
     }
     await writeFile(join(output, "put-lost-connections.json"), JSON.stringify(bad.putLostLog ?? [], null, 2));
+    await writeFile(join(output, "tls-handshake-failures.json"), JSON.stringify(bad.tlsHandshakeFailures ?? [], null, 2));
     if (probe) {
       await writeFile(join(output, "harness-events.jsonl"), probe.timeline.map((e) => JSON.stringify(e)).join("\n"));
       await device.capture().catch(() => {});

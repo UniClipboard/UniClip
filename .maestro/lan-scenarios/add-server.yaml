@@ -43,6 +43,16 @@ appId: ${APP_ID}
 - tapOn: "Password"
 - inputText: ${LAN_PASSWORD}
 - hideKeyboard
+# INSECURE_TLS=true turns on "Allow untrusted HTTPS certificates", as a person would for a
+# self-signed server they trust.
+- runFlow:
+    when:
+      true: ${INSECURE_TLS == 'true'}
+    commands:
+      - scrollUntilVisible:
+          element: "Allow untrusted HTTPS certificates"
+          direction: DOWN
+      - tapOn: "Allow untrusted HTTPS certificates"
 - tapOn: "Save"
 - extendedWaitUntil:
     visible: "Connection settings · ${SERVER_COUNT}"

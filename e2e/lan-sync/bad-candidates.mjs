@@ -1,4 +1,5 @@
 import { createServer, request as forward } from "node:http";
+import { createServer as createTlsServer } from "node:https";
 
 /**
  * Wrong-but-reachable LAN candidates on host loopback (the emulator reaches them through 10.0.2.2):
@@ -28,21 +29,30 @@ const BEHAVIOURS = {
   },
 };
 
-export function badCandidateServer({ peerPort } = {}) {
+/**
+ * `tls` ({ key, cert }) adds `tlsPutLost`: the same reply-lost proxy behind HTTPS with a
+ * throwaway self-signed certificate, sharing its control and connection log.
+ */
+export function badCandidateServer({ peerPort, tls } = {}) {
   const servers = [];
   const byName = {};
   const putLostLog = [];
   const putLostControl = { drop: "document", fresh: false, keepAliveMs: 5000 };
-  const hits = Object.fromEntries([...Object.keys(BEHAVIOURS), "legacyHost", "putResponseLost"].map((k) => [k, 0]));
+  const hits = Object.fromEntries(
+    [...Object.keys(BEHAVIOURS), "legacyHost", "putResponseLost", "tlsPutLost"].map((k) => [k, 0])
+  );
+  const tlsHandshakeFailures = [];
   return {
     hits,
     putLostLog,
     putLostControl,
+    tlsHandshakeFailures,
     /** Changes the reply-lost proxy's behaviour for the requests that follow. */
     setPutLost(control) {
       Object.assign(putLostControl, control);
-      const server = byName.putResponseLost;
-      if (server) server.keepAliveTimeout = putLostControl.keepAliveMs;
+      for (const server of [byName.putResponseLost, byName.tlsPutLost]) {
+        if (server) server.keepAliveTimeout = putLostControl.keepAliveMs;
+      }
     },
     async start() {
       const ports = {};
@@ -84,6 +94,7 @@ export function badCandidateServer({ peerPort } = {}) {
           // Connection-level facts only: never the credential or the body.
           putLostLog.push({
             at: Date.now(),
+            tls: Boolean(socket.encrypted),
             method: request.method,
             kind,
             socket: socket.remotePort,
@@ -112,15 +123,21 @@ export function badCandidateServer({ peerPort } = {}) {
           request.pipe(upstream);
         };
       }
+      if (peerPort && tls) behaviours.tlsPutLost = behaviours.putResponseLost;
       for (const [name, behave] of Object.entries(behaviours)) {
-        const server = createServer((request, response) => {
+        const handler = (request, response) => {
           hits[name] += 1;
           behave(request, response);
-        });
+        };
+        const server = name === "tlsPutLost" ? createTlsServer(tls, handler) : createServer(handler);
+        if (name === "tlsPutLost") {
+          // A client that refuses the certificate never sends a request; record the refusal.
+          server.on("tlsClientError", (error) => tlsHandshakeFailures.push({ at: Date.now(), code: error.code ?? error.message }));
+        }
         await new Promise((done) => server.listen(0, "127.0.0.1", done));
         servers.push(server);
         byName[name] = server;
-        if (name === "putResponseLost") server.keepAliveTimeout = putLostControl.keepAliveMs;
+        if (name === "putResponseLost" || name === "tlsPutLost") server.keepAliveTimeout = putLostControl.keepAliveMs;
         ports[name] = server.address().port;
       }
       return ports;
