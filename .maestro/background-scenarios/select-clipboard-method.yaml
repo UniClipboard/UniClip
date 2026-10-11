@@ -9,9 +9,10 @@ appId: ${APP_ID}
 - tapOn: ${BUTTON_LABEL}
 # The ADB-events method reads other apps' log lines, which the system gates behind a per-use consent
 # prompt (Android 13+). A person using the feature grants it; "Don't allow" leaves the method silent.
+# CONSENT_BUTTON is the answer to give: "Allow one-time access" (default) or "Don’t allow".
 - runFlow:
     when:
-      visible: "Allow one-time access"
+      visible: ${CONSENT_BUTTON}
     commands:
-      - tapOn: "Allow one-time access"
+      - tapOn: ${CONSENT_BUTTON}
 - waitForAnimationToEnd

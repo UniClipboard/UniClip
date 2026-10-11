@@ -37,6 +37,14 @@ export function actions({ probe, appId }) {
       await delay(2500);
       await shell("input keyevent KEYCODE_HOME");
     },
+    /** Taps a visible system dialog button or any on-screen text by its exact label; false when absent. */
+    async tapVisibleText(label) {
+      const node = await findText(label);
+      if (!node) return false;
+      await shell(`input tap ${node.x} ${node.y}`);
+      await delay(800);
+      return true;
+    },
     startActivity(component) {
       return shell(`am start -n ${appId}/${component}`);
     },

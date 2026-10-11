@@ -522,15 +522,92 @@ export const SCENARIOS = {
     const received = await timedReceive(c, outgoing, "overlay-event-background", copiedAt);
     // The native trigger chain (system denial line -> logcat_trigger -> triggered_read -> emit) is the evidence that
     // delivery came from the event method and not from polling.
-    received.nativeChain = (await c.probe.clipboardLogs(copiedAt)).filter((l) => /logcat_trigger|triggered_read|emit /.test(l.message)).map((l) => l.message);
+    received.nativeChain = (await c.probe.clipboardLogs(copiedAt)).filter((l) => /triggered_read|emit /.test(l.message)).map((l) => l.message);
     if (!received.ok) {
       received.jsClipboardLogs = await c.probe.clipboardLogs(copiedAt);
       // The event method is triggered by the system's denial line naming this package; record whether it exists.
       const raw = await c.probe.run("logcat", "-d", "-v", "epoch", "-t", "5000", "ClipboardService:*", "*:S").catch(() => "");
       received.clipboardServiceLines = raw.split("\n").filter((l) => Number(l.match(/^\s*(\d+\.\d+)/)?.[1]) * 1000 >= copiedAt).map((l) => l.replace(/\s+/g, " ").slice(0, 200)).slice(0, 8);
     }
-    c.assert("overlay-event.mobile-to-desktop-in-background", s, received.ok && received.latencyMs <= MOBILE_TO_DESKTOP_MS && received.nativeChain.some((m) => /logcat_trigger/.test(m)), received);
+    c.assert("overlay-event.mobile-to-desktop-in-background", s, received.ok && received.latencyMs <= MOBILE_TO_DESKTOP_MS && received.nativeChain.some((m) => /triggered_read/.test(m)), received);
     // Leave the default method in place for whatever runs next.
+    await c.runFlow("background-scenarios/select-clipboard-method.yaml", { METHOD_LABEL: "Timed polling", BUTTON_LABEL: "Continue with.*|Use .*" });
+  },
+
+  // Failure mode: Shizuku is the selected method but is not installed or running (the case on this emulator).
+  async "shizuku-missing"(c) {
+    const s = "shizuku-missing";
+    await ensureSetup(c);
+    await freshProcess(c, s);
+    try {
+      await c.runFlow("background-scenarios/select-clipboard-method.yaml", { METHOD_LABEL: "Shizuku", BUTTON_LABEL: "Continue with Shizuku" });
+    } catch {
+      // Continuing opens Shizuku's setup page in a browser, which can end the flow; the state is read below.
+    }
+    await c.probe.shell("am force-stop com.android.chrome").catch(() => "");
+    await c.act.home();
+    await c.probe.shell(`monkey -p ${c.appId} -c android.intent.category.LAUNCHER 1`).catch(() => "");
+    await c.delay(4000);
+    const texts = await backgroundStateTexts(c);
+    c.assert("shizuku-missing.shown-as-restricted", s, texts.some((t) => /Shizuku is not running/i.test(t)) && !texts.some((t) => /^Ready$/.test(t)), { texts: texts.slice(0, 14) });
+    const sample = await c.probe.sample("shizuku-missing");
+    c.assert("shizuku-missing.service-unaffected", s, Boolean(sample.service.foreground), { service: sample.service });
+    await c.runFlow("background-scenarios/select-clipboard-method.yaml", { METHOD_LABEL: "Timed polling", BUTTON_LABEL: "Continue with.*|Use .*" });
+    const restored = await c.probe.uiTexts();
+    c.assert("shizuku-missing.default-method-restored", s, restored.some((t) => /^Ready$/.test(t)), { texts: restored.slice(0, 14) });
+  },
+
+  // The Android 13+ log-access consent for the ADB-events method. Observed on API 36: a declined consent is asked
+  // again at the next start, an accepted one persists across restarts, and a declined one leaves the method silent
+  // (Settings still says Ready: the consent cannot be queried, and probing it by running logcat again re-prompts
+  // and drops the persisted consent, which an earlier experiment showed).
+  async "log-consent"(c) {
+    const s = "log-consent";
+    await ensureSetup(c);
+    await freshProcess(c, s);
+    const chainSince = async (since) =>
+      (await c.probe.clipboardLogs(since)).filter((l) => /triggered_read|emit /.test(l.message)).map((l) => l.message);
+    const copyAndWatch = async (suffix) => {
+      const text = `UCBG${c.runId}${suffix}`;
+      const at = Date.now();
+      await c.act.copyInOtherApp(text);
+      const received = await timedReceive(c, text, `${s}-${suffix}`, at);
+      return { received, chain: await chainSince(at) };
+    };
+    const relaunch = async () => {
+      await c.probe.shell(`am force-stop ${c.appId}`);
+      await c.probe.shell(`am start -n ${c.appId}/app.uniclipboard.android.MainActivity`);
+      await c.delay(12_000);
+    };
+
+    // 1. Decline at the first prompt.
+    await c.runFlow("background-scenarios/select-clipboard-method.yaml", { METHOD_LABEL: "ADB events", BUTTON_LABEL: "Continue with.*|Use .*", CONSENT_BUTTON: "Don’t allow" });
+    await c.act.home();
+    await c.delay(ENGINE_ECHO_SETTLE_MS);
+    const declined = await copyAndWatch("Deny");
+    c.assert("log-consent.declined-gets-no-trigger", s, !declined.received.ok && !declined.chain.some((m) => /triggered_read/.test(m)), declined);
+    const texts = await backgroundStateTexts(c);
+    c.assert("log-consent.declined-ui-still-says-ready.known-gap", s, texts.some((t) => /^Ready$/.test(t)), { texts: texts.slice(0, 14) });
+
+    // 2. The next start asks again; accepting makes the method work.
+    await relaunch();
+    const asked = await c.probe.uiTexts();
+    c.assert("log-consent.declined-is-asked-again-at-next-start", s, asked.some((t) => /access all device logs/i.test(t)), { texts: asked.slice(0, 8) });
+    await c.act.tapVisibleText("Allow one-time access");
+    await c.peer.waitOnline("log-consent-allowed");
+    await c.act.home();
+    await c.delay(ENGINE_ECHO_SETTLE_MS);
+    const allowed = await copyAndWatch("Allow");
+    c.assert("log-consent.accepting-recovers", s, allowed.received.ok && allowed.chain.some((m) => /triggered_read/.test(m)), allowed);
+
+    // 3. An accepted consent persists across a restart: no prompt, and the method still works.
+    await relaunch();
+    const again = await c.probe.uiTexts();
+    c.assert("log-consent.accepted-is-not-asked-again", s, !again.some((t) => /access all device logs/i.test(t)), { texts: again.slice(0, 8) });
+    await c.act.home();
+    await c.delay(ENGINE_ECHO_SETTLE_MS);
+    const persisted = await copyAndWatch("Kept");
+    c.assert("log-consent.accepted-persists-across-restart", s, persisted.received.ok && persisted.chain.some((m) => /triggered_read/.test(m)), persisted);
     await c.runFlow("background-scenarios/select-clipboard-method.yaml", { METHOD_LABEL: "Timed polling", BUTTON_LABEL: "Continue with.*|Use .*" });
   },
 

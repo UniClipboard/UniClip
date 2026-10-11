@@ -96,6 +96,18 @@ export function probe({ serial, appId, startedAt = Date.now() }) {
         .filter(Boolean)
         .slice(0, 40);
     },
+    /** The overlay monitor's own chain (flags only), unmixed with JS log volume. */
+    async overlayChain(sinceEpochMs) {
+      const raw = await run("logcat", "-d", "-v", "epoch", "-t", "20000", "UcOverlayMonitor:I", "*:S").catch(() => "");
+      return raw
+        .split("\n")
+        .map((line) => {
+          const at = Number(line.match(/^\s*(\d+\.\d+)/)?.[1]) * 1000;
+          const message = line.match(/UcOverlayMonitor:\s*(.*)$/)?.[1];
+          return message && at >= sinceEpochMs ? message.trim() : null;
+        })
+        .filter(Boolean);
+    },
     /** The service's own file log (lifecycle callbacks only, never clipboard content). */
     async serviceLog() {
       return shell(`run-as ${appId} sh -c 'cat files/logs/kotlin_*.log 2>/dev/null'`)

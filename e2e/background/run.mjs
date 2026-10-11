@@ -114,7 +114,7 @@ async function main() {
             "--device", device.id, "test", "--format", "JUNIT", "--output", join(dir, "report.xml"),
             "--debug-output", dir, "--test-output-dir", dir,
             "-e", `APP_ID=${appId}`, "-e", "NETWORK_ACCEPTANCE=true",
-            ...Object.entries(variables).flatMap(([k, v]) => ["-e", `${k}=${v}`]),
+            ...Object.entries({ CONSENT_BUTTON: "Allow one-time access", ...variables }).flatMap(([k, v]) => ["-e", `${k}=${v}`]),
             join(root, ".maestro", file),
           ],
           {
