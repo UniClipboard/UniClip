@@ -56,6 +56,8 @@ import uniffi.uc_engine_uniffi.BindingRePairingScope
 import uniffi.uc_engine_uniffi.EntryNotResendableReason
 import uniffi.uc_engine_uniffi.HostBindingException
 import uniffi.uc_engine_uniffi.InvitationAvailability
+import uniffi.uc_engine_uniffi.JoinSpaceAttentionReason
+import uniffi.uc_engine_uniffi.JoinSpaceAttentionRecovery
 import uniffi.uc_engine_uniffi.JoinSpaceRejectionReason
 import uniffi.uc_engine_uniffi.JoinSpaceStatus
 import uniffi.uc_engine_uniffi.JoinSpaceTerminationReason
@@ -810,8 +812,14 @@ class UcEngineModule : Module() {
         is JoinSpaceStatus.NeedsAttention -> mapOf(
           "type" to "needsAttention",
           "joinId" to result.joinId,
-          "reason" to "outcomeCannotBeProven",
-          "recovery" to "preserveDataAndContactSupport",
+          "reason" to when (result.reason) {
+            JoinSpaceAttentionReason.OUTCOME_CANNOT_BE_PROVEN -> "outcomeCannotBeProven"
+            JoinSpaceAttentionReason.CONTINUATION_UNAVAILABLE -> "continuationUnavailable"
+          },
+          "recovery" to when (result.recovery) {
+            JoinSpaceAttentionRecovery.PRESERVE_DATA_AND_CONTACT_SUPPORT -> "preserveDataAndContactSupport"
+            JoinSpaceAttentionRecovery.RESTART_WITH_NEW_INVITATION -> "restartWithNewInvitation"
+          },
           "nextRetryAtMs" to result.nextRetryAtMs
         )
         is JoinSpaceStatus.Rejected -> mapOf(

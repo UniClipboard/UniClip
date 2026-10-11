@@ -50,7 +50,10 @@ export function deviceStatus(
   device: DeviceTrustDeviceView,
   t: (key: string) => string
 ): { label: string; dot: string | null } {
-  if (device.primaryStatus === 'removalAcknowledgementPending') {
+  if (
+    device.primaryStatus === 'removalAcknowledgementPending' ||
+    device.primaryStatus === 'groupUpdatePending'
+  ) {
     return { label: t(`space.deviceTrust.status.${device.primaryStatus}`), dot: settingsTileColors.blue };
   }
   if (device.primaryStatus !== 'usable' && device.primaryStatus !== 'unknown') {

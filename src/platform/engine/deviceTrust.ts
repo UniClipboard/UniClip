@@ -24,6 +24,21 @@ export type DeviceSyncRelationship =
   | 'removedLocalDevice'
   | 'removedPeerDevice'
   | 'unknown';
+export type DeviceGroupUpdateState =
+  | 'waiting'
+  | 'receiverUnavailable'
+  | 'rejectedUnclassified'
+  | 'rejectedByReceiver';
+// Whether Engine itself advances the delivery; only reviewDevice needs the user.
+export type DeviceGroupUpdateRecovery = 'automatic' | 'automaticOnReconnect' | 'reviewDevice';
+// The local device's unconfirmed group key update for one device. Absent means none pending.
+export interface DeviceGroupUpdate {
+  epoch: number;
+  state: DeviceGroupUpdateState;
+  recovery: DeviceGroupUpdateRecovery;
+  attempts: number;
+  nextRetryAtMs: number | null;
+}
 export type PairingConfirmation =
   | 'awaitingPeerConfirmation'
   | 'unconfirmed'
@@ -73,6 +88,7 @@ export interface DeviceTrustRelationship {
   compatibility: DeviceCompatibility;
   syncRelationship: DeviceSyncRelationship;
   pairingConfirmation?: PairingConfirmation | null;
+  groupUpdate?: DeviceGroupUpdate | null;
   availableActions: DeviceTrustAction[];
   blockedReason: DeviceTrustUnavailableReason | null;
 }
@@ -230,6 +246,17 @@ const PAIRING_CONFIRMATION = {
   unconfirmed: 'unconfirmed',
   confirmed: 'confirmed',
 } as const;
+const GROUP_UPDATE_STATE = {
+  waiting: 'waiting',
+  receiver_unavailable: 'receiverUnavailable',
+  rejected_unclassified: 'rejectedUnclassified',
+  rejected_by_receiver: 'rejectedByReceiver',
+} as const;
+const GROUP_UPDATE_RECOVERY = {
+  automatic: 'automatic',
+  automatic_on_reconnect: 'automaticOnReconnect',
+  review_device: 'reviewDevice',
+} as const;
 const SPACE_DEVICE_UPDATE_PHASE = {
   updating: 'updating',
   completed: 'completed',
@@ -339,6 +366,19 @@ function change(value: unknown): DeviceTrustChange | null {
   };
 }
 
+function groupUpdate(value: unknown): DeviceGroupUpdate | null {
+  if (value == null) return null;
+  const source = object(value);
+  return {
+    epoch: integer(source.epoch, 0),
+    state: enumValue(source.state, GROUP_UPDATE_STATE),
+    recovery: enumValue(source.recovery, GROUP_UPDATE_RECOVERY),
+    attempts: integer(source.attempts, 0),
+    nextRetryAtMs:
+      source.next_retry_at_ms == null ? null : integer(source.next_retry_at_ms, 0),
+  };
+}
+
 function relationship(value: unknown): DeviceTrustRelationship {
   const source = object(value);
   return {
@@ -354,6 +394,7 @@ function relationship(value: unknown): DeviceTrustRelationship {
       source.pairing_confirmation == null
         ? null
         : enumValue(source.pairing_confirmation, PAIRING_CONFIRMATION),
+    groupUpdate: groupUpdate(source.group_update),
     availableActions: array(source.available_actions, (entry) =>
       enumValue(entry, ACTION)
     ),

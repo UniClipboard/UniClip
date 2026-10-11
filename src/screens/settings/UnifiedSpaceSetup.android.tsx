@@ -125,7 +125,8 @@ function SpaceDeviceRow({
   const { theme } = useTheme();
   const online = device.isLocal || device.reachability === 'online';
   const informationalStatus =
-    device.primaryStatus === 'removalAcknowledgementPending';
+    device.primaryStatus === 'removalAcknowledgementPending' ||
+    device.primaryStatus === 'groupUpdatePending';
   const trustStatus =
     !informationalStatus &&
     device.primaryStatus !== 'usable' &&

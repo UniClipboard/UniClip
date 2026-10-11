@@ -102,7 +102,9 @@
         "maintenanceRetrying": "Updating space device status",
         "maintenanceNeedsAttention": "Space device status needs attention",
         "empty": "No space devices"
-      }
+      },
+      "groupUpdateRetrying": "Security update not yet delivered to {{devices}}. It will be retried automatically.",
+      "groupUpdateNeedsReview": "{{devices}} rejected a security update. Open the device to see what to do."
     },
     "create": {
       "title": "Create a new space",
@@ -264,6 +266,23 @@
         "compatible": "Compatible",
         "upgradeRequired": "Update required",
         "unknown": "Unknown"
+      },
+      "groupUpdate": {
+        "label": "Security update",
+        "epoch": "Update version",
+        "attempts": "Delivery attempts",
+        "nextRetry": "Next automatic retry",
+        "state": {
+          "waiting": "Not yet delivered",
+          "receiverUnavailable": "Device temporarily unable to apply it",
+          "rejectedUnclassified": "Rejected, reason unknown",
+          "rejectedByReceiver": "Rejected by the device"
+        },
+        "recovery": {
+          "automatic": "It will be delivered automatically; no action is needed. Refreshing does not resend it.",
+          "automaticOnReconnect": "It will be retried once automatically after the device reconnects and is verified. Refreshing does not resend it. If this persists, update the app on that device.",
+          "reviewDevice": "It will not be resent automatically. Check this device: update its app, or remove it and pair again if you do not recognize it."
+        }
       }
     },
     "operation": {
@@ -358,7 +377,9 @@
         "differentSpace": "Different space",
         "removed": "Removed",
         "usable": "Available",
-        "unknown": "Status unavailable"
+        "unknown": "Status unavailable",
+        "groupUpdatePending": "Security update not yet delivered",
+        "groupUpdateRejected": "Security update rejected"
       },
       "groupChoiceBody": "Choose which device group this phone should use.",
       "currentGroup": "Keep current device group",
@@ -418,7 +439,8 @@
       "invitationNoNetworkAddress": "No network connection is available for the invitation. Check your network and try again",
       "invitationPublishFailed": "Could not prepare the invitation. Try again",
       "invitationServiceUnreachable": "The invitation service cannot be reached right now. Try again",
-      "invitationServiceRejected": "The invitation service rejected this request. Try again later"
+      "invitationServiceRejected": "The invitation service rejected this request. Try again later",
+      "joinRestartWithNewInvitation": "This invitation code can no longer be used to finish joining. Create a new invitation code on the other device and join again."
     },
     "manage": {
       "title": "Space actions"

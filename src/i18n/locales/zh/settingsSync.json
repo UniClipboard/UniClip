@@ -102,7 +102,9 @@
         "maintenanceRetrying": "正在更新空间设备状态",
         "maintenanceNeedsAttention": "空间设备状态需要处理",
         "empty": "空间内没有设备"
-      }
+      },
+      "groupUpdateRetrying": "安全更新尚未送达 {{devices}}，将自动重试。",
+      "groupUpdateNeedsReview": "{{devices}} 拒绝了安全更新。点按设备查看处理方式。"
     },
     "create": {
       "title": "创建新空间",
@@ -264,6 +266,23 @@
         "compatible": "兼容",
         "upgradeRequired": "需要更新",
         "unknown": "未知"
+      },
+      "groupUpdate": {
+        "label": "安全更新",
+        "epoch": "更新版本",
+        "attempts": "送达尝试次数",
+        "nextRetry": "下次自动重试",
+        "state": {
+          "waiting": "尚未送达",
+          "receiverUnavailable": "设备暂时无法应用",
+          "rejectedUnclassified": "已拒绝，原因未知",
+          "rejectedByReceiver": "设备明确拒绝"
+        },
+        "recovery": {
+          "automatic": "会自动送达，无需操作。刷新不会重新发送。",
+          "automaticOnReconnect": "设备重新连接并通过验证后会自动再试一次。刷新不会重新发送。若持续出现，请在该设备上更新应用。",
+          "reviewDevice": "不会自动重发。请核对这台设备：更新其应用；如果不认识该设备，请移除后重新配对。"
+        }
       }
     },
     "operation": {
@@ -358,7 +377,9 @@
         "differentSpace": "不同空间",
         "removed": "已移除",
         "usable": "可同步",
-        "unknown": "状态不可用"
+        "unknown": "状态不可用",
+        "groupUpdatePending": "安全更新尚未送达",
+        "groupUpdateRejected": "安全更新被拒绝"
       },
       "groupChoiceBody": "请选择这台手机接下来使用的设备列表。",
       "currentGroup": "保留当前设备列表",
@@ -418,7 +439,8 @@
       "invitationNoNetworkAddress": "当前没有可用于邀请的网络连接，请检查网络后重试",
       "invitationPublishFailed": "无法准备邀请，请重试",
       "invitationServiceUnreachable": "暂时无法连接邀请服务，请重试",
-      "invitationServiceRejected": "邀请服务拒绝了此请求，请稍后重试"
+      "invitationServiceRejected": "邀请服务拒绝了此请求，请稍后重试",
+      "joinRestartWithNewInvitation": "这个邀请码已无法继续完成加入。请在另一台设备上生成新的邀请码后重新加入。"
     },
     "manage": {
       "title": "空间操作"

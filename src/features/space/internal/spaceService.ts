@@ -107,6 +107,7 @@ export type UnifiedSpaceUserErrorCode =
   | 'invitationRejected'
   | 'serviceUnavailable'
   | 'joinNeedsAttention'
+  | 'joinRestartWithNewInvitation'
   | 'peerUpgradeRequired'
   | 'connectionLost'
   | 'joinCancelled'
@@ -310,7 +311,11 @@ function requireActiveJoinedSpace(status: JoinSpaceStatus): JoinedSpace {
         status.peerUpgradeRequired ? 'peerUpgradeRequired' : 'serviceUnavailable'
       );
     case 'needsAttention':
-      throw new UnifiedSpaceJoinResultError('joinNeedsAttention');
+      throw new UnifiedSpaceJoinResultError(
+        status.recovery === 'restartWithNewInvitation'
+          ? 'joinRestartWithNewInvitation'
+          : 'joinNeedsAttention'
+      );
     case 'rejected':
       throw new UnifiedSpaceJoinResultError(rejectedJoinErrorCode(status.reason));
     case 'terminated':

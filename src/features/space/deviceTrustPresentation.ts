@@ -2,6 +2,7 @@ import type {
   DeviceCompatibility,
   DeviceGroupRelationship,
   DeviceGroupChoiceIssue,
+  DeviceGroupUpdate,
   DeviceMembership,
   DeviceReachability,
   DeviceSyncRelationship,
@@ -32,6 +33,8 @@ export type DeviceTrustPrimaryStatus =
   | 'updating'
   | 'pairingAwaitingConfirmation'
   | 'pairingUnconfirmed'
+  | 'groupUpdatePending'
+  | 'groupUpdateRejected'
   | 'usable'
   | 'unknown';
 
@@ -66,6 +69,8 @@ export interface DeviceTrustDeviceView {
   compatibility: DeviceCompatibility;
   syncRelationship: DeviceSyncRelationship;
   primaryStatus: DeviceTrustPrimaryStatus;
+  // Engine's unconfirmed group key update for this device; null when nothing is pending.
+  groupUpdate: DeviceGroupUpdate | null;
   canSync: boolean;
   canRemove: boolean;
   canUpdateThisDevice: boolean;
@@ -93,6 +98,8 @@ export interface SpaceOverviewView {
   // The join that started a holistic space device update is still running; the overview links to it.
   deviceUpdateInProgress: boolean;
   spaceDeviceUpdate: DeviceTrustSnapshot['spaceDeviceUpdate'] | null;
+  // Devices that still owe a group key update, in device order.
+  groupUpdateDevices: { displayName: string; groupUpdate: DeviceGroupUpdate }[];
   maintenanceHealth: NonNullable<DeviceTrustSnapshot['maintenanceHealth']> | null;
 }
 
@@ -320,6 +327,12 @@ function devicePrimaryStatus(
   }
   const syncStatus = primaryStatus(device.syncRelationship);
   if (syncStatus !== 'usable' && syncStatus !== 'unknown') return syncStatus;
+  const update = device.groupUpdate;
+  if (update) {
+    return update.state === 'waiting' || update.state === 'receiverUnavailable'
+      ? 'groupUpdatePending'
+      : 'groupUpdateRejected';
+  }
   if (device.pairingConfirmation === 'awaitingPeerConfirmation') {
     return 'pairingAwaitingConfirmation';
   }
@@ -342,6 +355,7 @@ export function buildDeviceTrustDeviceViews(
       compatibility: 'unknown',
       syncRelationship: 'pausedUnverifiable',
       primaryStatus: 'unverifiable',
+      groupUpdate: null,
       canSync: false,
       canRemove: false,
       canUpdateThisDevice: false,
@@ -373,6 +387,7 @@ export function buildDeviceTrustDeviceViews(
       compatibility: device.compatibility,
       syncRelationship: device.syncRelationship,
       primaryStatus: devicePrimaryStatus(device),
+      groupUpdate: device.groupUpdate ?? null,
       canSync:
         device.groupRelationship !== 'confirmationPending' && device.syncRelationship === 'usable',
       canRemove:
@@ -474,6 +489,9 @@ export function buildSpaceOverviewView(
       snapshot.currentJoin?.type === 'active' &&
       snapshot.spaceDeviceUpdate.phase !== 'completed',
     spaceDeviceUpdate: snapshot?.spaceDeviceUpdate ?? null,
+    groupUpdateDevices: devices.flatMap((device) =>
+      device.groupUpdate ? [{ displayName: device.displayName, groupUpdate: device.groupUpdate }] : []
+    ),
     maintenanceHealth: snapshot?.maintenanceHealth ?? null,
   };
 }
@@ -485,22 +503,66 @@ export function spaceDeviceUpdateOffersReview(
   return update.recovery !== null;
 }
 
+// Engine owns every retry: the message names the devices but never offers a manual recheck.
 export function spaceMaintenanceMessage(
   overview: SpaceOverviewView,
-  t: (key: string, options?: { time: string }) => string
+  t: (key: string, options?: Record<string, string>) => string
 ): string | null {
+  const pending = overview.groupUpdateDevices ?? [];
+  const deviceNames = (devices: typeof pending) =>
+    devices.map((device) => device.displayName).join(', ');
   if (overview.primaryStatus === 'maintenanceRetrying') {
+    if (pending.length) {
+      return t('space.overview.groupUpdateRetrying', { devices: deviceNames(pending) });
+    }
     const retryAt = overview.spaceDeviceUpdate?.nextRetryAtMs;
     return retryAt == null
       ? t('space.overview.maintenanceWaiting')
       : t('space.overview.maintenanceRetryAt', { time: new Date(retryAt).toLocaleString() });
   }
   if (overview.primaryStatus === 'maintenanceNeedsAttention') {
-    return overview.spaceDeviceUpdate?.reason === 'localIdentityMismatch'
-      ? t('space.overview.localIdentityMismatch')
+    if (overview.spaceDeviceUpdate?.reason === 'localIdentityMismatch') {
+      return t('space.overview.localIdentityMismatch');
+    }
+    const review = pending.filter((device) => device.groupUpdate.recovery === 'reviewDevice');
+    return review.length
+      ? t('space.overview.groupUpdateNeedsReview', { devices: deviceNames(review) })
       : t('space.overview.maintenanceAction');
   }
   return null;
+}
+
+// The guidance follows Engine's recovery, not the delivery state.
+export function deviceGroupUpdateGuidance(update: DeviceGroupUpdate): string {
+  return `space.deviceDetail.groupUpdate.recovery.${update.recovery}`;
+}
+
+// Label/value rows shared by both platform device details.
+export function deviceGroupUpdateRows(
+  update: DeviceGroupUpdate,
+  t: (key: string) => string
+): { key: string; label: string; value: string }[] {
+  const rows = [
+    {
+      key: 'state',
+      label: t('space.deviceDetail.groupUpdate.label'),
+      value: t(`space.deviceDetail.groupUpdate.state.${update.state}`),
+    },
+    { key: 'epoch', label: t('space.deviceDetail.groupUpdate.epoch'), value: String(update.epoch) },
+    {
+      key: 'attempts',
+      label: t('space.deviceDetail.groupUpdate.attempts'),
+      value: String(update.attempts),
+    },
+  ];
+  if (update.recovery === 'automatic' && update.nextRetryAtMs !== null) {
+    rows.push({
+      key: 'nextRetry',
+      label: t('space.deviceDetail.groupUpdate.nextRetry'),
+      value: new Date(update.nextRetryAtMs).toLocaleString(),
+    });
+  }
+  return rows;
 }
 
 function operationDevice(device: DeviceTrustDeviceView): SpaceOperationDevice {

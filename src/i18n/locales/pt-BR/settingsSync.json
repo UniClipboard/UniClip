@@ -102,7 +102,9 @@
         "maintenanceRetrying": "Atualizando dispositivos do espaço",
         "maintenanceNeedsAttention": "Dispositivos do espaço precisam de atenção",
         "empty": "Nenhum dispositivo no espaço"
-      }
+      },
+      "groupUpdateRetrying": "A atualização de segurança ainda não foi entregue a {{devices}}. Nova tentativa automática em breve.",
+      "groupUpdateNeedsReview": "{{devices}} recusou uma atualização de segurança. Abra o dispositivo para ver o que fazer."
     },
     "create": {
       "title": "Criar um novo espaço",
@@ -264,6 +266,23 @@
         "compatible": "Compatível",
         "upgradeRequired": "Atualização necessária",
         "unknown": "Desconhecida"
+      },
+      "groupUpdate": {
+        "label": "Atualização de segurança",
+        "epoch": "Versão da atualização",
+        "attempts": "Tentativas de entrega",
+        "nextRetry": "Próxima tentativa automática",
+        "state": {
+          "waiting": "Ainda não entregue",
+          "receiverUnavailable": "Dispositivo temporariamente sem condições de aplicar",
+          "rejectedUnclassified": "Recusada, motivo desconhecido",
+          "rejectedByReceiver": "Recusada pelo dispositivo"
+        },
+        "recovery": {
+          "automatic": "Será entregue automaticamente; nenhuma ação é necessária. Atualizar a tela não a reenvia.",
+          "automaticOnReconnect": "Será tentada novamente uma vez quando o dispositivo se reconectar e for verificado. Atualizar a tela não a reenvia. Se persistir, atualize o app nesse dispositivo.",
+          "reviewDevice": "Não será reenviada automaticamente. Verifique este dispositivo: atualize o app ou, se não o reconhecer, remova-o e pareie novamente."
+        }
       }
     },
     "operation": {
@@ -358,7 +377,9 @@
         "differentSpace": "Espaço diferente",
         "removed": "Removido",
         "usable": "Disponível",
-        "unknown": "Status indisponível"
+        "unknown": "Status indisponível",
+        "groupUpdatePending": "Atualização de segurança ainda não entregue",
+        "groupUpdateRejected": "Atualização de segurança recusada"
       },
       "groupChoiceBody": "Escolha o grupo de dispositivos para este celular.",
       "currentGroup": "Manter o grupo atual",
@@ -418,7 +439,8 @@
       "invitationNoNetworkAddress": "Nenhuma conexão de rede disponível para o convite. Verifique a rede e tente novamente",
       "invitationPublishFailed": "Não foi possível preparar o convite. Tente novamente",
       "invitationServiceUnreachable": "O serviço de convites não está acessível agora. Tente novamente",
-      "invitationServiceRejected": "O serviço de convites recusou esta solicitação. Tente novamente mais tarde"
+      "invitationServiceRejected": "O serviço de convites recusou esta solicitação. Tente novamente mais tarde",
+      "joinRestartWithNewInvitation": "Este código de convite não pode mais concluir a entrada. Gere um novo código no outro dispositivo e entre novamente."
     },
     "manage": {
       "title": "Ações do espaço"

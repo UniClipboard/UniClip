@@ -106,8 +106,10 @@ export type JoinSpaceRejectionReason =
 
 export type JoinSpaceTerminationReason = 'cancelled' | 'expired' | 'superseded';
 
-export type JoinSpaceAttentionReason = 'outcomeCannotBeProven';
-export type JoinSpaceAttentionRecovery = 'preserveDataAndContactSupport';
+export type JoinSpaceAttentionReason = 'outcomeCannotBeProven' | 'continuationUnavailable';
+export type JoinSpaceAttentionRecovery =
+  | 'preserveDataAndContactSupport'
+  | 'restartWithNewInvitation';
 
 export type JoinSpaceStatus =
   | {

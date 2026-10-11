@@ -16,7 +16,11 @@ import { fillMaxWidth, height, padding, width } from '@expo/ui/jetpack-compose/m
 import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/hooks/useTheme';
-import type { DeviceTrustDeviceView } from '@/features/space';
+import {
+  deviceGroupUpdateGuidance,
+  deviceGroupUpdateRows,
+  type DeviceTrustDeviceView,
+} from '@/features/space';
 import type { SpaceDeviceDetailProps } from './SpaceDeviceDetail.types';
 import { MATERIAL_SEED_COLOR } from '@/theme/colors';
 
@@ -84,6 +88,36 @@ function DeviceDetailContent(props: SpaceDeviceDetailProps) {
               </ListItem.TrailingContent>
             </ListItem>
           ))}
+
+          {device.groupUpdate
+            ? deviceGroupUpdateRows(device.groupUpdate, t).map((row) => (
+                <ListItem key={`groupUpdate-${row.key}`}>
+                  <ListItem.HeadlineContent>
+                    <ComposeText>{row.label}</ComposeText>
+                  </ListItem.HeadlineContent>
+                  <ListItem.TrailingContent>
+                    <ComposeText color={colors.onSurfaceVariant}>{row.value}</ComposeText>
+                  </ListItem.TrailingContent>
+                </ListItem>
+              ))
+            : null}
+
+          {device.groupUpdate ? (
+            <ListItem>
+              <ListItem.LeadingContent>
+                <Icon
+                  source={ICONS.info}
+                  size={20}
+                  tint={
+                    device.groupUpdate.recovery === 'reviewDevice' ? colors.error : colors.primary
+                  }
+                />
+              </ListItem.LeadingContent>
+              <ListItem.HeadlineContent>
+                <ComposeText>{t(deviceGroupUpdateGuidance(device.groupUpdate))}</ComposeText>
+              </ListItem.HeadlineContent>
+            </ListItem>
+          ) : null}
 
           {device.blockedReason !== null ? (
             <ListItem>

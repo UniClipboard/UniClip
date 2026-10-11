@@ -29,7 +29,11 @@ import {
   SettingsNavRow,
   settingsTileColors,
 } from '@/screens/settings/ios/common';
-import type { DeviceTrustDeviceView } from '@/features/space';
+import {
+  deviceGroupUpdateGuidance,
+  deviceGroupUpdateRows,
+  type DeviceTrustDeviceView,
+} from '@/features/space';
 import type { SpaceDeviceDetailProps } from './SpaceDeviceDetail.types';
 
 const facts = ['reachability', 'groupRelationship', 'syncRelationship', 'compatibility'] as const;
@@ -108,6 +112,30 @@ export function SpaceDeviceDetail(props: SpaceDeviceDetailProps) {
                   </HStack>
                 ))}
               </Section>
+
+              {device.groupUpdate ? (
+                <Section
+                  footer={
+                    <SwiftUIText
+                      modifiers={
+                        device.groupUpdate.recovery === 'reviewDevice'
+                          ? [foregroundStyle(settingsTileColors.red)]
+                          : []
+                      }
+                    >
+                      {t(deviceGroupUpdateGuidance(device.groupUpdate))}
+                    </SwiftUIText>
+                  }
+                >
+                  {deviceGroupUpdateRows(device.groupUpdate, t).map((row) => (
+                    <HStack key={row.key} modifiers={[frame({ maxWidth: Infinity })]}>
+                      <SwiftUIText>{row.label}</SwiftUIText>
+                      <Spacer />
+                      <SwiftUIText modifiers={[foregroundStyle('secondary')]}>{row.value}</SwiftUIText>
+                    </HStack>
+                  ))}
+                </Section>
+              ) : null}
 
               {device.blockedReason !== null ? (
                 <Section>

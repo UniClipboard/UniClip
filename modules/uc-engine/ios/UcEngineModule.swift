@@ -254,12 +254,20 @@ public final class UcEngineModule: Module {
           "sponsorIdentityFingerprint": sponsorIdentityFingerprint,
           "peerUpgradeRequired": peerUpgradeRequired,
         ]
-      case let .needsAttention(joinId, _, _, nextRetryAtMs):
+      case let .needsAttention(joinId, reason, recovery, nextRetryAtMs):
+        let attentionReason = switch reason {
+        case .outcomeCannotBeProven: "outcomeCannotBeProven"
+        case .continuationUnavailable: "continuationUnavailable"
+        }
+        let attentionRecovery = switch recovery {
+        case .preserveDataAndContactSupport: "preserveDataAndContactSupport"
+        case .restartWithNewInvitation: "restartWithNewInvitation"
+        }
         return [
           "type": "needsAttention",
           "joinId": joinId,
-          "reason": "outcomeCannotBeProven",
-          "recovery": "preserveDataAndContactSupport",
+          "reason": attentionReason,
+          "recovery": attentionRecovery,
           "nextRetryAtMs": nextRetryAtMs as Any,
         ]
       case let .rejected(joinId, reason):

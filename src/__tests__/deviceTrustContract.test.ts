@@ -410,3 +410,147 @@ describe('device trust Engine contract', () => {
     ).toThrow('Invalid device trust decision');
   });
 });
+
+// Fixtures are Engine 416fcca93ea6658b4e5918bafd464c6f850a17bc contract types serialized with
+// serde_json, as uc-engine-uniffi returns them. The state combinations are constructed (pairing follows
+// Engine's summarize rule: any rejection → needs_attention, any pending → never completed); they were
+// not produced by a real delivery run.
+describe('Engine group update projection', () => {
+  const { readFileSync } = require('node:fs') as typeof import('node:fs');
+  const { join } = require('node:path') as typeof import('node:path');
+  const {
+    buildCurrentSpaceDeviceViews,
+    buildSpaceOverviewView,
+    deviceGroupUpdateGuidance,
+    spaceMaintenanceMessage,
+  } = require('../features/space/deviceTrustPresentation') as typeof import('../features/space/deviceTrustPresentation');
+  const { UnifiedSpaceService } = require('../features/space') as typeof import('../features/space');
+
+  const fixture = (name: string) =>
+    readFileSync(join(__dirname, 'fixtures/engine-group-update', name), 'utf8');
+
+  // Native queryDeviceGroupChoices value → parser → space service → store snapshot.
+  async function storedQuery(name: string) {
+    const published: unknown[] = [];
+    const api = {
+      querySpaceState: async () => ({
+        hasCompleted: true,
+        spaceId: 'space-1',
+        currentInvitation: null,
+        deviceName: 'This Phone',
+      }),
+      listDevices: async () => [],
+      queryDeviceTrust: async () => parseDeviceGroupChoices({ ok: true, value: fixture(name) }),
+    };
+    const service = new UnifiedSpaceService(
+      api as never,
+      (snapshot) => published.push(snapshot),
+      async (run) => run()
+    );
+    const snapshot = await service.refresh();
+    return snapshot.deviceTrustQuery;
+  }
+
+  const byId = (views: { deviceId: string }[], id: string) =>
+    views.find((view) => view.deviceId === id) as never as {
+      primaryStatus: string;
+      groupUpdate: unknown;
+      canSync: boolean;
+    };
+
+  it('keeps an absent group update as no pending delivery', async () => {
+    const query = await storedQuery('no-group-update.json');
+    const views = buildCurrentSpaceDeviceViews(query, []);
+
+    expect(byId(views, 'peer-device-waiting')).toMatchObject({
+      primaryStatus: 'usable',
+      groupUpdate: null,
+    });
+  });
+
+  it('carries each device delivery state from Engine JSON to the device views', async () => {
+    const query = await storedQuery('pending-and-rejected.json');
+    const views = buildCurrentSpaceDeviceViews(query, []);
+
+    expect(byId(views, 'peer-device-waiting')).toMatchObject({
+      primaryStatus: 'groupUpdatePending',
+      canSync: true,
+      groupUpdate: {
+        epoch: 12,
+        state: 'waiting',
+        recovery: 'automatic',
+        attempts: 0,
+        nextRetryAtMs: 1_760_000_030_000,
+      },
+    });
+    expect(byId(views, 'peer-device-busy')).toMatchObject({
+      primaryStatus: 'groupUpdatePending',
+      groupUpdate: { state: 'receiverUnavailable', recovery: 'automatic', attempts: 2 },
+    });
+    expect(byId(views, 'peer-device-legacy')).toMatchObject({
+      primaryStatus: 'groupUpdateRejected',
+      groupUpdate: {
+        epoch: 11,
+        state: 'rejectedUnclassified',
+        recovery: 'automaticOnReconnect',
+        nextRetryAtMs: null,
+      },
+    });
+    expect(byId(views, 'peer-device-refused')).toMatchObject({
+      primaryStatus: 'groupUpdateRejected',
+      groupUpdate: { state: 'rejectedByReceiver', recovery: 'reviewDevice', nextRetryAtMs: null },
+    });
+  });
+
+  it('explains recovery from Engine recovery and names the devices needing review', async () => {
+    const query = await storedQuery('pending-and-rejected.json');
+    const views = buildCurrentSpaceDeviceViews(query, []);
+    const overview = buildSpaceOverviewView('ready', query, 'idle');
+    const t = (key: string, options?: Record<string, string>) =>
+      options ? `${key} ${JSON.stringify(options)}` : key;
+
+    expect(overview.primaryStatus).toBe('maintenanceNeedsAttention');
+    expect(spaceMaintenanceMessage(overview, t)).toBe(
+      'space.overview.groupUpdateNeedsReview {"devices":"Work PC"}'
+    );
+    expect(
+      ['peer-device-waiting', 'peer-device-busy', 'peer-device-legacy', 'peer-device-refused'].map(
+        (id) => deviceGroupUpdateGuidance((byId(views, id) as never as { groupUpdate: never }).groupUpdate)
+      )
+    ).toEqual([
+      'space.deviceDetail.groupUpdate.recovery.automatic',
+      'space.deviceDetail.groupUpdate.recovery.automatic',
+      'space.deviceDetail.groupUpdate.recovery.automaticOnReconnect',
+      'space.deviceDetail.groupUpdate.recovery.reviewDevice',
+    ]);
+  });
+
+  it('names retrying devices without offering a manual recheck', async () => {
+    const query = await storedQuery('retrying-only.json');
+    const overview = buildSpaceOverviewView('ready', query, 'idle');
+
+    expect(overview.primaryStatus).toBe('maintenanceRetrying');
+    expect(spaceMaintenanceMessage(overview, (key, options) => `${key}|${options?.devices}`)).toBe(
+      'space.overview.groupUpdateRetrying|Tablet'
+    );
+  });
+
+  it('clears the device state only after Engine stops reporting the delivery', async () => {
+    const query = await storedQuery('accepted.json');
+    const views = buildCurrentSpaceDeviceViews(query, []);
+
+    expect(byId(views, 'peer-device-busy')).toMatchObject({
+      primaryStatus: 'usable',
+      groupUpdate: null,
+    });
+    expect(buildSpaceOverviewView('ready', query, 'idle').primaryStatus).toBe('healthy');
+  });
+
+  it('rejects an unknown delivery state instead of showing a partial snapshot', () => {
+    const value = fixture('pending-and-rejected.json').replace('"rejected_by_receiver"', '"future"');
+
+    expect(() => parseDeviceGroupChoices({ ok: true, value })).toThrow(
+      'Invalid device group choices'
+    );
+  });
+});

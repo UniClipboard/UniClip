@@ -112,10 +112,15 @@ describe('unified P2P engine native module', () => {
     expect(kotlin).toContain('is JoinSpaceStatus.NeedsAttention -> mapOf(');
     expect(swift).toContain('"type": "needsAttention"');
     expect(kotlin).toContain('"type" to "needsAttention"');
-    expect(swift).toContain('"reason": "outcomeCannotBeProven"');
-    expect(kotlin).toContain('"reason" to "outcomeCannotBeProven"');
-    expect(swift).toContain('"recovery": "preserveDataAndContactSupport"');
-    expect(kotlin).toContain('"recovery" to "preserveDataAndContactSupport"');
+    expect(swift).toContain('case .outcomeCannotBeProven: "outcomeCannotBeProven"');
+    expect(swift).toContain('case .continuationUnavailable: "continuationUnavailable"');
+    expect(kotlin).toContain('JoinSpaceAttentionReason.CONTINUATION_UNAVAILABLE -> "continuationUnavailable"');
+    expect(swift).toContain('case .restartWithNewInvitation: "restartWithNewInvitation"');
+    expect(kotlin).toContain(
+      'JoinSpaceAttentionRecovery.RESTART_WITH_NEW_INVITATION -> "restartWithNewInvitation"'
+    );
+    expect(swift).toContain('"reason": attentionReason');
+    expect(swift).toContain('"recovery": attentionRecovery');
   });
 
   it('does not expose the removed workspace convergence query or event', () => {

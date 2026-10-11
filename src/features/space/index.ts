@@ -22,6 +22,8 @@ export {
   initialDeviceTrustChoice,
   spaceDeviceUpdateOffersReview,
   spaceMaintenanceMessage,
+  deviceGroupUpdateGuidance,
+  deviceGroupUpdateRows,
   type DeviceTrustChoiceView,
   type DeviceTrustDecisionView,
   type DeviceTrustDeviceView,
