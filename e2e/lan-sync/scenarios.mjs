@@ -933,9 +933,14 @@ export const SCENARIOS = {
   // The desktop commits an upload but its reply is lost: the phone must not send it again.
   async "put-response-lost"(c) {
     const s = "put-response-lost";
+    const startClock = await clockOffset(c.probe);
+    const startedAt = Date.now() + startClock.offsetMs;
     await ensureServer(c, "put-lost");
+    c.bad.setPutLost({ drop: "document", fresh: false, keepAliveMs: 5000 });
     await foreground(c);
-    c.assert(`${s}.session-warm`, s, await waitWarm(c, 0));
+    // A read after this configuration, not one left from an earlier install.
+    c.assert(`${s}.session-warm`, s, await waitWarm(c, startedAt));
+    await c.delay(3000);
     const text = `UCLAN${c.runId}putlost`;
     const before = await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json");
     const clock = await clockOffset(c.probe);
@@ -1009,11 +1014,6 @@ export const SCENARIOS = {
       results.push(await measureCopy(c, s, seq));
     }
     c.assert(`${s}.all-applied`, s, results.every((r) => r.ok), { applied: results.filter((r) => r.ok).length });
-    // A copy right after the network returns is uploaded while reads rediscover the route.
-    await c.probe.shell("svc wifi disable");
-    await c.delay(4000);
-    await c.probe.shell("svc wifi enable");
-    await phoneCopyOnce(c, s, "copy-after-switch");
   },
 
   // Wi-Fi drops and returns on the owned emulator; the next copy must recover.
@@ -1031,5 +1031,10 @@ export const SCENARIOS = {
       results.push(await measureCopy(c, s, seq));
     }
     c.assert(`${s}.all-applied`, s, results.every((r) => r.ok), { applied: results.filter((r) => r.ok).length });
+    // A copy right after the network returns is uploaded while reads rediscover the route.
+    await c.probe.shell("svc wifi disable");
+    await c.delay(4000);
+    await c.probe.shell("svc wifi enable");
+    await phoneCopyOnce(c, s, "copy-after-switch");
   },
 };
