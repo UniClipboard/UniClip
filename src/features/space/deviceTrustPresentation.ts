@@ -512,8 +512,10 @@ export function spaceMaintenanceMessage(
   const deviceNames = (devices: typeof pending) =>
     devices.map((device) => device.displayName).join(', ');
   if (overview.primaryStatus === 'maintenanceRetrying') {
-    if (pending.length) {
-      return t('space.overview.groupUpdateRetrying', { devices: deviceNames(pending) });
+    // Only updates Engine retries on its own backoff may be described as retried automatically.
+    const retrying = pending.filter((device) => device.groupUpdate.recovery === 'automatic');
+    if (retrying.length) {
+      return t('space.overview.groupUpdateRetrying', { devices: deviceNames(retrying) });
     }
     const retryAt = overview.spaceDeviceUpdate?.nextRetryAtMs;
     return retryAt == null

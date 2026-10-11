@@ -29,7 +29,11 @@ export async function runGroupUpdateDelivery({ cli, output, runFlow }) {
     await runFlow("group-update-delivered", devices);
     await runFlow("export", {});
   } finally {
-    await removed.dispose();
-    await offline.dispose();
+    // Dispose each peer even if the other fails; dispose also resumes a paused daemon.
+    try {
+      await removed.dispose();
+    } finally {
+      await offline.dispose();
+    }
   }
 }
