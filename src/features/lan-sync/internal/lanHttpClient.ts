@@ -8,7 +8,9 @@ import {
   ReactNativeBlobLanTransport,
   type LanInsecureHttpTransport,
 } from './lanInsecureHttpTransport';
+import { LanEndpointPool, lanServerKey, type RouteLease } from './lanEndpointPool';
 import { contentAlias, routeRole, traceLan } from './lanSyncTrace';
+import { scheduleOnce } from './lanTimers';
 
 export interface LanClipboardDocument {
   type: 'Text' | 'Image' | 'File' | 'Group';
@@ -67,6 +69,17 @@ export class LanUnavailableError extends Error {
   }
 }
 
+/**
+ * A write was sent but its outcome is unknown (timeout or lost response). It may already be
+ * committed, so it is never resent to another address without an idempotency contract.
+ */
+export class LanDeliveryUnknownError extends Error {
+  constructor() {
+    super('LAN delivery result is unknown');
+    this.name = 'LanDeliveryUnknownError';
+  }
+}
+
 function endpoint(baseUrl: string): string {
   const url = new URL(baseUrl);
   url.pathname = `${url.pathname.replace(/\/+$/, '')}/SyncClipboard.json`;
@@ -79,6 +92,14 @@ function payloadEndpoint(baseUrl: string, name: string): string {
   validatePayloadName(name);
   const url = new URL(baseUrl);
   url.pathname = `${url.pathname.replace(/\/+$/, '')}/file/${name}`;
+  url.search = '';
+  url.hash = '';
+  return url.toString();
+}
+
+function healthEndpoint(baseUrl: string): string {
+  const url = new URL(baseUrl);
+  url.pathname = `${url.pathname.replace(/\/+$/, '')}/healthz`;
   url.search = '';
   url.hash = '';
   return url.toString();
@@ -122,6 +143,7 @@ const defaultDependencies: LanHttpClientDependencies = {
   fetchStream: expoFetch,
 };
 
+const REQUEST_TIMEOUT_MS = 5000;
 const SSE_CONNECT_TIMEOUT_MS = 10_000;
 const SSE_HEARTBEAT_TIMEOUT_MS = 50_000;
 
@@ -175,54 +197,87 @@ function isDocument(value: unknown): value is LanClipboardDocument {
   );
 }
 
+type ReadOutcome =
+  | { kind: 'document'; document: LanClipboardDocument }
+  | { kind: 'empty' }
+  | { kind: 'auth' }
+  | { kind: 'invalid' }
+  | { kind: 'transport' };
+
+type HealthOutcome = 'reachable' | 'unknown' | 'transport';
+
+interface Discovery {
+  lease: RouteLease;
+  /** The protected read that validated the route; null when the server reported no document (404). */
+  document: LanClipboardDocument | null;
+}
+
+function abortError(): Error {
+  const error = new Error('LAN request was cancelled');
+  error.name = 'AbortError';
+  return error;
+}
+
+/** Resolves with `promise`, or rejects as soon as `signal` aborts (the work itself is cancelled by its owner). */
+function untilAborted<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return promise;
+  if (signal.aborted) return Promise.reject(abortError());
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(abortError());
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(value);
+      },
+      (error) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(error);
+      }
+    );
+  });
+}
+
 export class LanHttpClient {
   private readonly dependencies: LanHttpClientDependencies;
+  private readonly routes: LanEndpointPool;
+  /** One route discovery per server at a time, shared by reads, writes and the SSE subscription. */
+  private readonly discoveries = new Map<string, Promise<Discovery>>();
 
-  constructor(dependencies: Partial<LanHttpClientDependencies> = {}) {
+  constructor(
+    dependencies: Partial<LanHttpClientDependencies> = {},
+    routes = new LanEndpointPool()
+  ) {
     this.dependencies = { ...defaultDependencies, ...dependencies };
+    this.routes = routes;
+  }
+
+  /** The device's network changed: forget verified routes and back-offs from the old network. */
+  invalidateRoutes(): void {
+    this.routes.invalidateAll();
+    traceLan('routes_invalidated');
   }
 
   async getClipboard(
-    server: LanServerDraft
+    server: LanServerDraft,
+    signal?: AbortSignal
   ): Promise<{ document: LanClipboardDocument; url: string } | null> {
-    for (const baseUrl of server.urls) {
-      const route = routeRole(server.urls, baseUrl);
-      const startedAt = performance.now();
-      traceLan('get_attempt', { route });
-      try {
-        const response = server.allowInsecureTls
-          ? await this.dependencies.insecureTransport.getJson(
-              endpoint(baseUrl),
-              authorizationHeaders(server)
-            )
-          : await axios.get(endpoint(baseUrl), {
-              auth: { username: server.username, password: server.password },
-              timeout: 5000,
-              validateStatus: () => true,
-            });
-        const valid =
-          response.status >= 200 && response.status < 300 && isDocument(response.data);
-        traceLan('get_result', {
-          route,
-          status: response.status,
-          valid,
-          ms: Math.round(performance.now() - startedAt),
-          cid: valid ? contentAlias((response.data as LanClipboardDocument).contentId) : undefined,
-        });
-        if (response.status === 401) throw new LanAuthenticationError();
-        if (response.status === 404) return null;
-        if (!valid) continue;
-        return { document: response.data as LanClipboardDocument, url: baseUrl };
-      } catch (error) {
-        if (error instanceof LanAuthenticationError) throw error;
-        traceLan('get_result', {
-          route,
-          status: 'transport_error',
-          ms: Math.round(performance.now() - startedAt),
-        });
+    const preferred = this.routes.preferred(server);
+    if (preferred) {
+      const outcome = await this.read(server, preferred, signal);
+      if (outcome.kind === 'document') {
+        this.routes.reportSuccess(preferred);
+        return { document: outcome.document, url: preferred.url };
       }
+      if (outcome.kind === 'auth') throw new LanAuthenticationError();
+      if (outcome.kind === 'empty') return null;
+      if (signal?.aborted) throw abortError();
+      // The verified address stopped answering: rediscover now instead of waiting for the next poll.
+      if (outcome.kind === 'transport') this.routes.reportTransportFailure(preferred);
+      else this.routes.reportInvalid(preferred);
     }
-    throw new LanUnavailableError();
+    const discovery = await untilAborted(this.discover(server), signal);
+    return discovery.document ? { document: discovery.document, url: discovery.lease.url } : null;
   }
 
   async putClipboard(
@@ -231,37 +286,61 @@ export class LanHttpClient {
     payload?: LanPayloadUpload
   ): Promise<{ url: string }> {
     if (payload) validatePayloadName(payload.name);
-    for (const baseUrl of server.urls) {
-      try {
-        if (payload) {
-          const response = await (server.allowInsecureTls
-            ? this.dependencies.insecureTransport
-            : this.dependencies
-          ).uploadFile(payload.uri, payloadEndpoint(baseUrl, payload.name), {
-            ...authorizationHeaders(server),
-            'content-type': payload.mimeType ?? 'application/octet-stream',
-          });
-          if (response.status === 401) throw new LanAuthenticationError();
-          if (response.status < 200 || response.status >= 300) continue;
-        }
-        const response = server.allowInsecureTls
-          ? await this.dependencies.insecureTransport.putJson(
-              endpoint(baseUrl),
-              document,
-              authorizationHeaders(server)
-            )
-          : await axios.put(endpoint(baseUrl), document, {
-              auth: { username: server.username, password: server.password },
-              timeout: 5000,
-              validateStatus: () => true,
-            });
+    // A write goes to one verified address only; it never races or fails over.
+    const lease = this.routes.preferred(server) ?? (await this.discover(server)).lease;
+    const route = routeRole(server.urls, lease.url);
+    const startedAt = performance.now();
+    traceLan('put_attempt', { route, payload: Boolean(payload) });
+    let sent = false;
+    try {
+      if (payload) {
+        const response = await (server.allowInsecureTls
+          ? this.dependencies.insecureTransport
+          : this.dependencies
+        ).uploadFile(payload.uri, payloadEndpoint(lease.url, payload.name), {
+          ...authorizationHeaders(server),
+          'content-type': payload.mimeType ?? 'application/octet-stream',
+        });
         if (response.status === 401) throw new LanAuthenticationError();
-        if (response.status >= 200 && response.status < 300) return { url: baseUrl };
-      } catch (error) {
-        if (error instanceof LanAuthenticationError) throw error;
+        if (response.status < 200 || response.status >= 300) {
+          throw new Error(`LAN payload upload failed with status ${response.status}`);
+        }
       }
+      sent = true;
+      const response = server.allowInsecureTls
+        ? await this.dependencies.insecureTransport.putJson(
+            endpoint(lease.url),
+            document,
+            authorizationHeaders(server)
+          )
+        : await axios.put(endpoint(lease.url), document, {
+            auth: { username: server.username, password: server.password },
+            timeout: REQUEST_TIMEOUT_MS,
+            validateStatus: () => true,
+          });
+      traceLan('put_result', {
+        route,
+        status: response.status,
+        ms: Math.round(performance.now() - startedAt),
+      });
+      if (response.status === 401) throw new LanAuthenticationError();
+      if (response.status < 200 || response.status >= 300) {
+        throw new Error(`LAN clipboard upload failed with status ${response.status}`);
+      }
+      this.routes.reportSuccess(lease);
+      return { url: lease.url };
+    } catch (error) {
+      if (error instanceof LanAuthenticationError) throw error;
+      if (error instanceof Error && error.message.startsWith('LAN ')) throw error;
+      traceLan('put_result', {
+        route,
+        status: sent ? 'unknown' : 'transport_error',
+        ms: Math.round(performance.now() - startedAt),
+      });
+      this.routes.reportTransportFailure(lease);
+      // The document request may have been committed before its response was lost.
+      throw sent ? new LanDeliveryUnknownError() : new LanUnavailableError();
     }
-    throw new LanUnavailableError();
   }
 
   async downloadPayload(
@@ -282,73 +361,259 @@ export class LanHttpClient {
     return () => subscriptionController.abort();
   }
 
+  private discover(server: LanServerDraft): Promise<Discovery> {
+    const key = lanServerKey(server);
+    const existing = this.discoveries.get(key);
+    if (existing) return existing;
+    const discovery = this.runDiscovery(server).finally(() => {
+      if (this.discoveries.get(key) === discovery) this.discoveries.delete(key);
+    });
+    this.discoveries.set(key, discovery);
+    return discovery;
+  }
+
+  /**
+   * Probes every candidate's public health route in parallel, then validates reachable candidates
+   * with one protected read each, in the order they answered. The first valid document wins and
+   * cancels the remaining probes. A public 204 only earns a protected read; it never selects a
+   * route by itself, and protected reads never run in parallel (each costs the server a password
+   * hash).
+   */
+  private async runDiscovery(server: LanServerDraft): Promise<Discovery> {
+    const plan = this.routes.discoveryPlan(server);
+    if (plan.leases.length === 0) throw new LanUnavailableError();
+    if (plan.waitMs > 0) {
+      // Every address is backing off: do not touch the network before the earliest retry.
+      traceLan('discovery_backoff', { waitMs: plan.waitMs });
+      throw new LanUnavailableError();
+    }
+    const controller = new AbortController();
+    const startedAt = performance.now();
+    traceLan('discovery_start', { candidates: plan.leases.length });
+    const probes = plan.leases.map((lease, index) =>
+      this.probeHealth(server, lease, controller.signal).then((health) => ({
+        index,
+        lease,
+        health,
+      }))
+    );
+    const pending = new Map(probes.map((probe, index) => [index, probe]));
+    let sawAuth = false;
+    let sawEmpty: RouteLease | null = null;
+    try {
+      while (pending.size > 0) {
+        const { index, lease, health } = await Promise.race(pending.values());
+        pending.delete(index);
+        if (!this.routes.isCurrent(lease)) continue;
+        if (health === 'transport') {
+          this.routes.reportTransportFailure(lease);
+          continue;
+        }
+        const outcome = await this.read(server, lease, controller.signal);
+        if (outcome.kind === 'document') {
+          this.routes.reportSuccess(lease);
+          traceLan('discovery_done', {
+            route: routeRole(server.urls, lease.url),
+            ms: Math.round(performance.now() - startedAt),
+          });
+          return { lease, document: outcome.document };
+        }
+        if (outcome.kind === 'auth') sawAuth = true;
+        else if (outcome.kind === 'empty') sawEmpty ??= lease;
+        else if (outcome.kind === 'transport') this.routes.reportTransportFailure(lease);
+        else this.routes.reportInvalid(lease);
+      }
+    } finally {
+      controller.abort();
+    }
+    traceLan('discovery_failed', {
+      auth: sawAuth,
+      empty: Boolean(sawEmpty),
+      ms: Math.round(performance.now() - startedAt),
+    });
+    if (sawEmpty) return { lease: sawEmpty, document: null };
+    if (sawAuth) throw new LanAuthenticationError();
+    throw new LanUnavailableError();
+  }
+
+  private async probeHealth(
+    server: LanServerDraft,
+    lease: RouteLease,
+    signal: AbortSignal
+  ): Promise<HealthOutcome> {
+    const route = routeRole(server.urls, lease.url);
+    const startedAt = performance.now();
+    let outcome: HealthOutcome;
+    try {
+      const response = server.allowInsecureTls
+        ? await this.dependencies.insecureTransport.getJson(healthEndpoint(lease.url), {}, signal)
+        : await axios.get(healthEndpoint(lease.url), {
+            timeout: REQUEST_TIMEOUT_MS,
+            signal,
+            responseType: 'text',
+            transformResponse: [(body) => body],
+            validateStatus: () => true,
+          });
+      // 204 is the listener's liveness answer; any other HTTP reply (an older server without the
+      // route, a portal page) only proves something answers, so it still needs a protected read.
+      outcome = response.status === 204 ? 'reachable' : 'unknown';
+      traceLan('health_result', {
+        route,
+        status: response.status,
+        ms: Math.round(performance.now() - startedAt),
+      });
+    } catch {
+      outcome = 'transport';
+      if (!signal.aborted) {
+        traceLan('health_result', {
+          route,
+          status: 'transport_error',
+          ms: Math.round(performance.now() - startedAt),
+        });
+      }
+    }
+    return outcome;
+  }
+
+  private async read(
+    server: LanServerDraft,
+    lease: RouteLease,
+    signal?: AbortSignal
+  ): Promise<ReadOutcome> {
+    const route = routeRole(server.urls, lease.url);
+    const startedAt = performance.now();
+    traceLan('get_attempt', { route, gen: lease.generation });
+    try {
+      const response = server.allowInsecureTls
+        ? await this.dependencies.insecureTransport.getJson(
+            endpoint(lease.url),
+            authorizationHeaders(server),
+            signal
+          )
+        : await axios.get(endpoint(lease.url), {
+            auth: { username: server.username, password: server.password },
+            timeout: REQUEST_TIMEOUT_MS,
+            signal,
+            validateStatus: () => true,
+          });
+      const valid = response.status >= 200 && response.status < 300 && isDocument(response.data);
+      traceLan('get_result', {
+        route,
+        status: response.status,
+        valid,
+        ms: Math.round(performance.now() - startedAt),
+        cid: valid ? contentAlias((response.data as LanClipboardDocument).contentId) : undefined,
+      });
+      if (valid)
+        return {
+          kind: 'document',
+          document: response.data as LanClipboardDocument,
+        };
+      if (response.status === 401) return { kind: 'auth' };
+      if (response.status === 404) return { kind: 'empty' };
+      return { kind: 'invalid' };
+    } catch {
+      traceLan('get_result', {
+        route,
+        status: signal?.aborted ? 'cancelled' : 'transport_error',
+        ms: Math.round(performance.now() - startedAt),
+      });
+      return { kind: 'transport' };
+    }
+  }
+
   private async runSseSubscription(
     server: LanServerDraft,
     listener: LanSseListener,
     subscriptionSignal: AbortSignal
   ): Promise<void> {
-    let lastError: Error = new LanUnavailableError();
-    for (const baseUrl of server.urls) {
-      if (subscriptionSignal.aborted) return;
-      const route = routeRole(server.urls, baseUrl);
-      traceLan('sse_attempt', { route });
-      const requestController = new AbortController();
-      const abortRequest = () => requestController.abort();
-      subscriptionSignal.addEventListener('abort', abortRequest, { once: true });
-      let timeout = setTimeout(abortRequest, SSE_CONNECT_TIMEOUT_MS);
-      try {
-        const response = await this.dependencies.fetchStream(sseEndpoint(baseUrl), {
-          headers: {
-            ...authorizationHeaders(server),
-            accept: 'text/event-stream',
-          },
-          signal: requestController.signal,
-        });
-        clearTimeout(timeout);
-        if (response.status === 401) throw new LanAuthenticationError();
-        if (!response.ok || !response.body) {
-          lastError = new Error(`LAN SSE request failed with status ${response.status}`);
-          continue;
-        }
-
-        const decoder = new TextDecoder();
-        const parser = createParser({
-          onEvent: (message) => {
-            const event = parseSseMessage(message);
-            if (event && !subscriptionSignal.aborted) {
-              traceLan('sse_event', {
-                route,
-                type: event.type,
-                cid: event.type === 'update' ? contentAlias(event.contentId) : undefined,
-                server: event.serverTimeMs,
-              });
-              listener.onEvent(event);
-            }
-          },
-        });
-        const reader = response.body.getReader();
-        while (!subscriptionSignal.aborted) {
-          timeout = setTimeout(abortRequest, SSE_HEARTBEAT_TIMEOUT_MS);
-          const { done, value } = await reader.read();
-          clearTimeout(timeout);
-          if (done) break;
-          if (value) parser.feed(decoder.decode(value, { stream: true }));
-        }
-        if (subscriptionSignal.aborted) return;
-        parser.feed(decoder.decode());
-        lastError = new Error('LAN SSE stream ended');
-      } catch (error) {
-        if (subscriptionSignal.aborted) return;
-        lastError = errorMessage(error, 'LAN SSE connection failed');
-        if (lastError instanceof LanAuthenticationError) break;
-      } finally {
-        clearTimeout(timeout);
-        subscriptionSignal.removeEventListener('abort', abortRequest);
+    let lease: RouteLease;
+    try {
+      lease = this.routes.preferred(server) ?? (await this.discover(server)).lease;
+    } catch (error) {
+      if (!subscriptionSignal.aborted) {
+        const failure = errorMessage(error, 'LAN SSE route is unavailable');
+        traceLan('sse_disconnected', { error: failure.name });
+        listener.onDisconnected(failure);
       }
+      return;
+    }
+    if (subscriptionSignal.aborted) return;
+    const route = routeRole(server.urls, lease.url);
+    traceLan('sse_attempt', { route, gen: lease.generation });
+    const requestController = new AbortController();
+    const abortRequest = () => requestController.abort();
+    subscriptionSignal.addEventListener('abort', abortRequest, { once: true });
+    // Deadlines run on the native timer: JS timers stop while the Android activity is paused.
+    let cancelDeadline = scheduleOnce(abortRequest, SSE_CONNECT_TIMEOUT_MS);
+    let helloReceived = false;
+    let failure: Error = new LanUnavailableError();
+    try {
+      const response = await this.dependencies.fetchStream(sseEndpoint(lease.url), {
+        headers: {
+          ...authorizationHeaders(server),
+          accept: 'text/event-stream',
+        },
+        signal: requestController.signal,
+      });
+      if (response.status === 401) throw new LanAuthenticationError();
+      if (!response.ok || !response.body) {
+        this.routes.reportInvalid(lease);
+        throw new Error(`LAN SSE request failed with status ${response.status}`);
+      }
+      // The response headers arrived; the heartbeat deadline now guards the stream instead.
+      cancelDeadline();
+      cancelDeadline = scheduleOnce(abortRequest, SSE_HEARTBEAT_TIMEOUT_MS);
+
+      const decoder = new TextDecoder();
+      const parser = createParser({
+        onEvent: (message) => {
+          const event = parseSseMessage(message);
+          if (!event || subscriptionSignal.aborted) return;
+          if (event.type === 'hello' && !helloReceived) {
+            helloReceived = true;
+            // A valid hello proves the protected route; it is as good as a protected read.
+            this.routes.reportSuccess(lease);
+          }
+          traceLan('sse_event', {
+            route,
+            type: event.type,
+            cid: event.type === 'update' ? contentAlias(event.contentId) : undefined,
+            server: event.serverTimeMs,
+          });
+          listener.onEvent(event);
+        },
+      });
+      const reader = response.body.getReader();
+      while (!subscriptionSignal.aborted) {
+        const { done, value } = await reader.read();
+        cancelDeadline();
+        if (done) break;
+        cancelDeadline = scheduleOnce(abortRequest, SSE_HEARTBEAT_TIMEOUT_MS);
+        if (value) parser.feed(decoder.decode(value, { stream: true }));
+      }
+      if (subscriptionSignal.aborted) return;
+      parser.feed(decoder.decode());
+      failure = new Error('LAN SSE stream ended');
+    } catch (error) {
+      if (subscriptionSignal.aborted) return;
+      failure = errorMessage(error, 'LAN SSE connection failed');
+      // A stream that never said hello failed at the transport level; a healthy stream that
+      // dropped keeps its route, so the next attempt reconnects to the same address.
+      if (!helloReceived && !(failure instanceof LanAuthenticationError)) {
+        this.routes.reportTransportFailure(lease);
+      }
+    } finally {
+      cancelDeadline();
+      subscriptionSignal.removeEventListener('abort', abortRequest);
     }
     if (!subscriptionSignal.aborted) {
-      traceLan('sse_disconnected', { error: lastError.name });
-      listener.onDisconnected(lastError);
+      traceLan('sse_disconnected', {
+        route,
+        error: failure.name,
+        hello: helloReceived,
+      });
+      listener.onDisconnected(failure);
     }
   }
 }

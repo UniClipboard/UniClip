@@ -77,8 +77,12 @@ afterEach(() => {
 });
 
 async function fixtureServer() {
-  const requests: Array<{ method?: string; url?: string; authorization?: string; body: string }> =
-    [];
+  const requests: Array<{
+    method?: string;
+    url?: string;
+    authorization?: string;
+    body: string;
+  }> = [];
   const expectedAuth = `Basic ${Buffer.from('mobile:secret').toString('base64')}`;
   const document = {
     type: 'Text',
@@ -153,11 +157,18 @@ describe('LanHttpClient', () => {
       document: fixture.document,
       url: `${fixture.base}/ok`,
     });
-    expect(fixture.requests.map((request) => request.url)).toEqual([
+    // Public health probes run in parallel and carry no credentials; protected reads follow.
+    const protectedReads = fixture.requests.filter((r) => r.url?.endsWith('/SyncClipboard.json'));
+    expect(protectedReads.map((request) => request.url).sort()).toEqual([
       '/broken/SyncClipboard.json',
       '/ok/SyncClipboard.json',
     ]);
-    expect(fixture.requests[1].authorization).toMatch(/^Basic /);
+    expect(protectedReads.find((r) => r.url === '/ok/SyncClipboard.json')?.authorization).toMatch(
+      /^Basic /
+    );
+    expect(
+      fixture.requests.filter((r) => r.url?.endsWith('/healthz')).every((r) => !r.authorization)
+    ).toBe(true);
   });
 
   it('uploads the exact text document with Basic Auth', async () => {
@@ -183,7 +194,10 @@ describe('LanHttpClient', () => {
     await expect(client.putClipboard(server, document)).resolves.toEqual({
       url: `${fixture.base}/ok`,
     });
-    expect(fixture.requests[0]).toEqual({
+    // The write goes to the address verified by route discovery, once.
+    const writes = fixture.requests.filter((request) => request.method === 'PUT');
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toEqual({
       method: 'PUT',
       url: '/ok/SyncClipboard.json',
       authorization: expect.stringMatching(/^Basic /),
@@ -197,7 +211,7 @@ describe('LanHttpClient', () => {
     if (!module) return;
     const fixture = await fixtureServer();
     const uploadFile = jest.fn(async (_sourceUri: string, url: string, headers: object) => {
-      expect(fixture.requests).toHaveLength(0);
+      expect(fixture.requests.filter((request) => request.method === 'PUT')).toHaveLength(0);
       expect(url).toBe(`${fixture.base}/ok/file/image.png`);
       expect(headers).toEqual({
         authorization: expect.stringMatching(/^Basic /),
@@ -227,8 +241,9 @@ describe('LanHttpClient', () => {
     });
 
     expect(uploadFile).toHaveBeenCalledTimes(1);
-    expect(fixture.requests).toHaveLength(1);
-    expect(fixture.requests[0]).toEqual(
+    const writes = fixture.requests.filter((request) => request.method === 'PUT');
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toEqual(
       expect.objectContaining({
         method: 'PUT',
         url: '/ok/SyncClipboard.json',
@@ -323,9 +338,17 @@ describe('LanHttpClient', () => {
     ).resolves.toBe('file:///cache/image.png');
 
     const auth = { authorization: expect.stringMatching(/^Basic /) };
+    // The health probe and the protected read both use the trusted transport; only the read is
+    // authenticated, and both can be cancelled through the passed signal.
+    expect(insecureTransport.getJson).toHaveBeenCalledWith(
+      'https://self-signed.local:42720/healthz',
+      {},
+      expect.any(AbortSignal)
+    );
     expect(insecureTransport.getJson).toHaveBeenCalledWith(
       'https://self-signed.local:42720/SyncClipboard.json',
-      auth
+      auth,
+      expect.any(AbortSignal)
     );
     expect(insecureTransport.uploadFile).toHaveBeenCalledWith(
       'file:///cache/image.png',
@@ -365,11 +388,10 @@ describe('LanHttpClient', () => {
     });
 
     await expect(disconnected).resolves.toEqual(expect.any(Error));
-    expect(fixture.requests.map((request) => request.url)).toEqual([
-      '/broken/api/sse/clipboard',
-      '/ok/api/sse/clipboard',
-    ]);
-    expect(fixture.requests[1].authorization).toMatch(/^Basic /);
+    // The subscription uses the route verified by discovery instead of trying candidates in turn.
+    const streams = fixture.requests.filter((r) => r.url?.endsWith('/api/sse/clipboard'));
+    expect(streams.map((request) => request.url)).toEqual(['/ok/api/sse/clipboard']);
+    expect(streams[0].authorization).toMatch(/^Basic /);
     expect(events).toEqual([
       { type: 'hello', serverTimeMs: 42 },
       { type: 'update', contentId: 'blake3v1:next', serverTimeMs: 43 },
@@ -408,7 +430,8 @@ describe('LanHttpClient', () => {
     cancel();
     await Promise.resolve();
 
-    expect(signal?.aborted).toBe(true);
+    // Cancelling before or during the stream request leaves no request running.
+    expect(fetchStream.mock.calls.length === 0 || signal?.aborted === true).toBe(true);
     expect(onDisconnected).not.toHaveBeenCalled();
   });
 });
