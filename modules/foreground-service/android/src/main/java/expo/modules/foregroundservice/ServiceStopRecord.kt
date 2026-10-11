@@ -14,6 +14,7 @@ internal object ServiceStopRecord {
     const val START_DENIED = "start_denied"
     const val SYSTEM_RESTART = "system_restart"
     const val POLICY = "policy"
+    const val RUNTIME_STOP = "runtime_stop"
 
     /** Stops the user chose; recovery after a reboot must respect them. */
     val USER_CHOSEN = setOf(USER_STOP, USER_PAUSE, TASK_REMOVED, POLICY)

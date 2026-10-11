@@ -10,7 +10,8 @@ export type ServiceStopReason =
   | 'system_timeout'
   | 'start_denied'
   | 'system_restart'
-  | 'policy';
+  | 'policy'
+  | 'runtime_stop';
 
 export interface ForegroundServiceStatus {
   running: boolean;
@@ -21,7 +22,7 @@ export interface ForegroundServiceStatus {
 
 interface ForegroundServiceModuleType {
   startService(): boolean;
-  stopService(): boolean;
+  stopService(runtimeStop?: boolean): boolean;
   updateNotification(content: string): boolean;
   isRunning(): boolean;
   getStatus(): ForegroundServiceStatus;
@@ -38,9 +39,13 @@ export function startService(): boolean {
   return false;
 }
 
-export function stopService(): boolean {
+/**
+ * Stops the service. `runtimeStop` marks a stop caused by the JS runtime ending rather than by the
+ * user turning background sync off; it leaves the user's recovery intent intact.
+ */
+export function stopService(runtimeStop = false): boolean {
   if (NativeModule) {
-    return NativeModule.stopService();
+    return NativeModule.stopService(runtimeStop);
   }
   return false;
 }

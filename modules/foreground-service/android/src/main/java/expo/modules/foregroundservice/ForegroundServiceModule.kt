@@ -65,13 +65,17 @@ class ForegroundServiceModule : Module() {
             true
         }
 
-        Function("stopService") {
+        Function("stopService") { runtimeStop: Boolean? ->
             val context = appContext.reactContext ?: return@Function false
-            BackgroundIntent.set(context, false)
+            // The user's setting being switched off ends recovery; the JS runtime ending does not.
+            if (runtimeStop != true) BackgroundIntent.set(context, false)
             if (!SyncForegroundService.isRunning) return@Function true
             // 标记为用户主动停止，避免 onDestroy 中误发重启通知
             SyncForegroundService.stoppedByUser = true
-            ServiceStopRecord.write(context, ServiceStopRecord.POLICY)
+            ServiceStopRecord.write(
+                context,
+                if (runtimeStop == true) ServiceStopRecord.RUNTIME_STOP else ServiceStopRecord.POLICY
+            )
             BackgroundServiceDiagnostics.stoppedPermanently(context)
             val intent = Intent(context, SyncForegroundService::class.java)
             context.stopService(intent)

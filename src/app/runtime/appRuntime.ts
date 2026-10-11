@@ -177,7 +177,7 @@ export class AppRuntime {
    * 同步运行层由应用生命周期统一管理。
    */
   async stop(): Promise<void> {
-    await this._stopBackgroundOnlyServices();
+    await this._stopBackgroundOnlyServices(true);
   }
 
   /**
@@ -328,7 +328,7 @@ export class AppRuntime {
   }
 
   /** 停止后台专用服务 */
-  private async _stopBackgroundOnlyServices(): Promise<void> {
+  private async _stopBackgroundOnlyServices(runtimeStop = false): Promise<void> {
     if (!this.running) return;
     this.running = false;
 
@@ -346,7 +346,7 @@ export class AppRuntime {
 
     try {
       const ForegroundService = require('foreground-service');
-      ForegroundService.stopService();
+      ForegroundService.stopService(runtimeStop);
     } catch (error) {
       log.warn('Failed to stop foreground service:', error);
     }

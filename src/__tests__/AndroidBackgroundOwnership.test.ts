@@ -66,4 +66,13 @@ describe('Android background ownership', () => {
     expect(shizuku).toMatch(/if \(clipboardService == null\) bindUserService\(\)/);
     expect(shizuku).toContain('catch (_: DeadObjectException)');
   });
+
+  it('keeps the recovery intent when the JS runtime, not the user, ends the service', () => {
+    const module = foreground('ForegroundServiceModule.kt');
+    expect(module).toMatch(/if \(runtimeStop != true\) BackgroundIntent\.set\(context, false\)/);
+    expect(foreground('ServiceStopRecord.kt')).not.toMatch(/USER_CHOSEN = setOf\([^)]*RUNTIME_STOP/);
+
+    const runtime = read('src/app/runtime/appRuntime.ts');
+    expect(runtime).toContain('await this._stopBackgroundOnlyServices(true)');
+  });
 });
