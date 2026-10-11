@@ -759,6 +759,7 @@ class ClipboardOverlayModule : Module() {
                                 val now = System.currentTimeMillis()
                                 if (now - lastTriggerTime > triggerDebounceMs) {
                                     lastTriggerTime = now
+                                    android.util.Log.i("UcOverlayMonitor", "logcat_trigger")
                                     mainHandler.post { triggerOverlayReadAndEmit() }
                                 }
                             }
@@ -775,6 +776,10 @@ class ClipboardOverlayModule : Module() {
         }
 
         isMonitoring = true
+        android.util.Log.i(
+            "UcOverlayMonitor",
+            "monitor_started logcatTrigger=${logcatThread != null}"
+        )
     }
 
     private fun stopMonitorInternal() {
@@ -802,6 +807,7 @@ class ClipboardOverlayModule : Module() {
                 done()
                 try {
                     val map = buildClipMap(context, clip)
+                    android.util.Log.i("UcOverlayMonitor", "triggered_read type=${map?.get("type") ?: "none"}")
                     if (map != null) emitClip(map)
                 } catch (_: Exception) {}
             }
@@ -835,6 +841,7 @@ class ClipboardOverlayModule : Module() {
         val content = map["content"] as? String
         if (content != null && content == lastEmittedContent) return
         lastEmittedContent = content
+        android.util.Log.i("UcOverlayMonitor", "emit type=${map["type"]}")
         sendEvent("onClipboardChange", map)
     }
 }
