@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.Binder
+import android.os.DeadObjectException
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -87,8 +88,15 @@ class ShizukuClipboardModule : Module() {
     private val pollRunnable = object : Runnable {
         override fun run() {
             if (!monitoring) return
+            // The binder listeners are the primary recovery path. This is the explicit fallback for
+            // a service that was lost without a callback; bindUserService is idempotent, so a poll
+            // that finds the service present or already binding does nothing.
+            if (clipboardService == null) bindUserService()
             val snapshot = try {
                 clipboardService?.primaryClipJson.orEmpty()
+            } catch (_: DeadObjectException) {
+                clipboardService = null
+                ""
             } catch (_: Exception) {
                 ""
             }
