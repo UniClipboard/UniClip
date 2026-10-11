@@ -22,6 +22,7 @@ import {
   type LanSseEvent,
   type LanSseListener,
 } from './lanHttpClient';
+import { contentAlias, traceLan } from './lanSyncTrace';
 
 const FOREGROUND_POLL_MS = 2000;
 const BACKGROUND_POLL_MS = 15000;
@@ -242,6 +243,7 @@ export class LanSyncAdapter implements SyncAdapter {
     if (!document.hash) throw new Error('LAN content is missing its content hash');
     const identity = document.contentId ?? document.hash;
     if (identity === this.lastRemoteIdentity) return;
+    traceLan('remote_new', { cid: contentAlias(identity) });
     const current = await this.dependencies.readClipboard();
     if (current?.profileHash === document.hash) {
       this.lastRemoteIdentity = identity;

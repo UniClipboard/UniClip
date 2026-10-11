@@ -8,6 +8,7 @@ import {
   ReactNativeBlobLanTransport,
   type LanInsecureHttpTransport,
 } from './lanInsecureHttpTransport';
+import { contentAlias, routeRole, traceLan } from './lanSyncTrace';
 
 export interface LanClipboardDocument {
   type: 'Text' | 'Image' | 'File' | 'Group';
@@ -185,6 +186,9 @@ export class LanHttpClient {
     server: LanServerDraft
   ): Promise<{ document: LanClipboardDocument; url: string } | null> {
     for (const baseUrl of server.urls) {
+      const route = routeRole(server.urls, baseUrl);
+      const startedAt = performance.now();
+      traceLan('get_attempt', { route });
       try {
         const response = server.allowInsecureTls
           ? await this.dependencies.insecureTransport.getJson(
@@ -196,12 +200,26 @@ export class LanHttpClient {
               timeout: 5000,
               validateStatus: () => true,
             });
+        const valid =
+          response.status >= 200 && response.status < 300 && isDocument(response.data);
+        traceLan('get_result', {
+          route,
+          status: response.status,
+          valid,
+          ms: Math.round(performance.now() - startedAt),
+          cid: valid ? contentAlias((response.data as LanClipboardDocument).contentId) : undefined,
+        });
         if (response.status === 401) throw new LanAuthenticationError();
         if (response.status === 404) return null;
-        if (response.status < 200 || response.status >= 300 || !isDocument(response.data)) continue;
-        return { document: response.data, url: baseUrl };
+        if (!valid) continue;
+        return { document: response.data as LanClipboardDocument, url: baseUrl };
       } catch (error) {
         if (error instanceof LanAuthenticationError) throw error;
+        traceLan('get_result', {
+          route,
+          status: 'transport_error',
+          ms: Math.round(performance.now() - startedAt),
+        });
       }
     }
     throw new LanUnavailableError();
@@ -272,6 +290,8 @@ export class LanHttpClient {
     let lastError: Error = new LanUnavailableError();
     for (const baseUrl of server.urls) {
       if (subscriptionSignal.aborted) return;
+      const route = routeRole(server.urls, baseUrl);
+      traceLan('sse_attempt', { route });
       const requestController = new AbortController();
       const abortRequest = () => requestController.abort();
       subscriptionSignal.addEventListener('abort', abortRequest, { once: true });
@@ -295,7 +315,15 @@ export class LanHttpClient {
         const parser = createParser({
           onEvent: (message) => {
             const event = parseSseMessage(message);
-            if (event && !subscriptionSignal.aborted) listener.onEvent(event);
+            if (event && !subscriptionSignal.aborted) {
+              traceLan('sse_event', {
+                route,
+                type: event.type,
+                cid: event.type === 'update' ? contentAlias(event.contentId) : undefined,
+                server: event.serverTimeMs,
+              });
+              listener.onEvent(event);
+            }
           },
         });
         const reader = response.body.getReader();
@@ -318,6 +346,9 @@ export class LanHttpClient {
         subscriptionSignal.removeEventListener('abort', abortRequest);
       }
     }
-    if (!subscriptionSignal.aborted) listener.onDisconnected(lastError);
+    if (!subscriptionSignal.aborted) {
+      traceLan('sse_disconnected', { error: lastError.name });
+      listener.onDisconnected(lastError);
+    }
   }
 }

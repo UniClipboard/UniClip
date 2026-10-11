@@ -5,6 +5,7 @@ import {
   type ClipboardItem,
 } from '@/types/clipboard';
 import type { ApplyLanRemoteContentInput } from './lanSyncAdapter';
+import { contentAlias, traceLan } from './lanSyncTrace';
 
 export interface LanRemoteContentApplierDependencies {
   pauseClipboardMonitoring(): void;
@@ -40,8 +41,10 @@ export class LanRemoteContentApplier {
       ...(input.fileUri ? { fileUri: input.fileUri } : {}),
     };
 
+    const cid = contentAlias(input.contentId ?? input.profileHash);
     if (input.type !== 'File') {
       await this.applyToClipboard(content, input.profileHash);
+      traceLan('clipboard_applied', { cid });
     }
 
     const saved = await this.dependencies.addHistoryItem(
@@ -60,6 +63,7 @@ export class LanRemoteContentApplier {
         contentId: input.contentId,
       })
     );
+    traceLan('history_saved', { cid });
     this.dependencies.setCurrentContentDisplay({
       type: saved.type,
       text: input.type === 'Text' && !input.hasData ? clipboardText : saved.text,
