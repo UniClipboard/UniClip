@@ -18,7 +18,8 @@ const productionApplier = new LanRemoteContentApplier({
   setClipboardWatermark: (content) => clipboardMonitor.setLastContent(content),
   noteApplied,
   clearActivate,
-  addHistoryItem: (item) => useHistoryStore.getState().addItem(item),
+  // A failed save must surface so the adapter can retry it; the store would otherwise hide it.
+  addHistoryItem: (item) => useHistoryStore.getState().addItem(item, { throwOnFailure: true }),
   setCurrentContentDisplay: (content) =>
     useClipboardStore.getState().setCurrentContentDisplay(content),
   readTextFile: (uri) => new File(uri).text(),

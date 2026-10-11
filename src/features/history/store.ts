@@ -65,8 +65,11 @@ interface HistoryState {
   /** 搜索历史记录 */
   searchItems: (filter?: HistoryFilter, sort?: HistorySort) => Promise<void>;
 
-  /** 添加历史记录 */
-  addItem: (item: ClipboardItem) => Promise<ClipboardItem>;
+  /**
+   * 添加历史记录。失败时默认记录 error 并返回原条目；`throwOnFailure` 让调用方
+   * (如需要重试的远端应用)拿到失败本身。
+   */
+  addItem: (item: ClipboardItem, options?: { throwOnFailure?: boolean }) => Promise<ClipboardItem>;
 
   /** 批量添加历史记录 */
   addItems: (items: ClipboardItem[]) => Promise<void>;
@@ -236,7 +239,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     }
   },
 
-  addItem: async (item: ClipboardItem) => {
+  addItem: async (item: ClipboardItem, options?: { throwOnFailure?: boolean }) => {
     set({ error: null });
 
     const existingItem = get().items.find(
@@ -259,6 +262,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
       }
       const errorMessage = error instanceof Error ? error.message : 'Failed to add item';
       set({ error: errorMessage });
+      if (options?.throwOnFailure) throw error;
       return item;
     }
   },
