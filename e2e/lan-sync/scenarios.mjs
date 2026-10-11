@@ -323,6 +323,8 @@ async function sharePhoto(c, uri) {
   await c.probe.shell(
     `am start -a android.intent.action.SEND -t image/png --eu android.intent.extra.STREAM ${uri} --grant-read-uri-permission -n ${c.appId}/app.uniclipboard.android.MainActivity`
   );
+  // Opening the app starts a pull; let it finish, as a person reading the sheet would.
+  await c.delay(4000);
   await c.runFlow("lan-scenarios/share-send.yaml");
 }
 
@@ -398,22 +400,34 @@ export const SCENARIOS = {
   async "put-lost-matrix"(c) {
     const s = "put-lost-matrix";
     await ensureServer(c, "put-lost");
+    if (!c.backgroundEnabled) {
+      await c.runFlow("lan-scenarios/enable-background.yaml");
+      c.backgroundEnabled = true;
+    }
     await foreground(c);
     c.assert(`${s}.session-warm`, s, await waitWarm(c, 0));
+    // A failed upload backs the address off: start each case after a successful read.
+    const readAgain = async () => {
+      const clock = await clockOffset(c.probe);
+      return waitWarm(c, Date.now() + clock.offsetMs, 30_000);
+    };
     const textCase = async (name, control, { expectDelivered }) => {
       c.bad.setPutLost(control);
-      // A pull right before the copy leaves a pooled connection to the proxy (unless fresh).
+      // A read in the foreground leaves a pooled connection to the proxy (unless fresh). The copy
+      // is then uploaded from the background, where no other request is using that connection.
       await foreground(c);
-      await c.delay(1500);
+      const warm = await readAgain();
+      await c.act.home();
+      await c.delay(3000);
       const before = await writeBaseline(c);
       const proxyFrom = c.bad.putLostLog.length;
       const clock = await clockOffset(c.probe);
       const since = Date.now() + clock.offsetMs;
       const nonce = `UCLAN${c.runId}${name.replace(/[^A-Za-z0-9]/g, "")}`;
       await c.act.copyInOtherApp(nonce);
-      await foreground(c);
       await c.delay(15_000);
-      const evidence = await writeEvidence(c, before, since, proxyFrom);
+      const evidence = { warm, ...(await writeEvidence(c, before, since, proxyFrom)) };
+      await foreground(c);
       const document = await c.observer.currentDocument();
       c.assert(`${s}.${name}.desktop-received-once`, s, evidence.desktopDocumentPuts === 1 && document.text === nonce, evidence);
       c.assert(`${s}.${name}.one-phone-attempt`, s, evidence.phonePutAttempts === 1, evidence);
@@ -435,7 +449,8 @@ export const SCENARIOS = {
       c.bad.setPutLost({ drop, fresh: false, keepAliveMs: 60_000 });
       const uri = await mediaImage(c, `ucshare${c.runId}${name.replace(/[^A-Za-z0-9]/g, "")}`);
       await foreground(c);
-      await c.delay(1500);
+      const warm = await readAgain();
+      c.probe.event("put-lost.case", { name, warm });
       const before = await writeBaseline(c);
       const proxyFrom = c.bad.putLostLog.length;
       const clock = await clockOffset(c.probe);
