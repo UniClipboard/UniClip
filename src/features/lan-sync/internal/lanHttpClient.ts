@@ -75,6 +75,9 @@ export class LanUnavailableError extends Error {
   }
 }
 
+/** No part of a write left the device (proved by the transport): the desktop cannot have it. */
+class LanWriteNotSentError extends LanUnavailableError {}
+
 /**
  * A write was sent but its outcome is unknown (timeout or lost response). It may already be
  * committed, so it is never resent to another address without an idempotency contract.
@@ -320,8 +323,27 @@ export class LanHttpClient {
     payload?: LanPayloadUpload
   ): Promise<LanPutResult> {
     if (payload) validatePayloadName(payload.name);
-    // A write goes to one verified address only; it never races or fails over.
-    const lease = this.routes.preferred(server) ?? (await this.discover(server)).lease;
+    // A write goes to one verified address at a time and never races. It moves to a newly
+    // discovered address only when the transport proves none of it left the device, so the
+    // desktop cannot have it: then sending it again cannot deliver it twice.
+    const preferred = this.routes.preferred(server);
+    if (preferred) {
+      try {
+        return await this.putVia(server, preferred, document, payload);
+      } catch (error) {
+        if (!(error instanceof LanWriteNotSentError)) throw error;
+        traceLan('put_rediscover', { route: routeRole(server.urls, preferred.url) });
+      }
+    }
+    return this.putVia(server, (await this.discover(server)).lease, document, payload);
+  }
+
+  private async putVia(
+    server: LanServerDraft,
+    lease: RouteLease,
+    document: LanClipboardDocument,
+    payload?: LanPayloadUpload
+  ): Promise<LanPutResult> {
     const route = routeRole(server.urls, lease.url);
     const startedAt = performance.now();
     traceLan('put_attempt', {
@@ -331,6 +353,7 @@ export class LanHttpClient {
       transport: this.dependencies.sendOnce ? 'once' : 'default',
     });
     let sent = false;
+    let payloadDelivered = false;
     try {
       if (payload) {
         const response = await this.putPayload(server, lease.url, payload);
@@ -338,6 +361,7 @@ export class LanHttpClient {
         if (response.status < 200 || response.status >= 300) {
           throw new Error(`LAN payload upload failed with status ${response.status}`);
         }
+        payloadDelivered = true;
       }
       sent = true;
       const response = await this.putDocument(server, lease.url, document);
@@ -366,7 +390,10 @@ export class LanHttpClient {
       });
       this.routes.reportTransportFailure(lease);
       // The document request may have been committed before its response was lost.
-      throw committedMaybe ? new LanDeliveryUnknownError() : new LanUnavailableError();
+      if (committedMaybe) throw new LanDeliveryUnknownError();
+      throw requestNotSent(error) && !payloadDelivered
+        ? new LanWriteNotSentError()
+        : new LanUnavailableError();
     }
   }
 
