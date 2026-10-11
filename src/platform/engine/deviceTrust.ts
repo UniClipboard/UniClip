@@ -257,6 +257,35 @@ const GROUP_UPDATE_RECOVERY = {
   automatic_on_reconnect: 'automaticOnReconnect',
   review_device: 'reviewDevice',
 } as const;
+const JOIN_REJECTION_REASON = {
+  invitation_unavailable: 'invitationUnavailable',
+  authentication_rejected: 'authenticationRejected',
+  identity_conflict: 'identityConflict',
+  base_history_changed: 'baseHistoryChanged',
+  joiner_history_ahead: 'joinerHistoryAhead',
+  history_conflict: 'historyConflict',
+  completion_invalid: 'completionInvalid',
+  membership_history_invalid: 'membershipHistoryInvalid',
+  security_material_invalid: 'securityMaterialInvalid',
+  relationship_conflict: 'relationshipConflict',
+  activation_state_invalid: 'activationStateInvalid',
+  peer_upgrade_required: 'peerUpgradeRequired',
+  cancelled: 'cancelled',
+  removed_before_activation: 'removedBeforeActivation',
+} as const;
+const JOIN_TERMINATION_REASON = {
+  cancelled: 'cancelled',
+  expired: 'expired',
+  superseded: 'superseded',
+} as const;
+const JOIN_ATTENTION_REASON = {
+  outcome_cannot_be_proven: 'outcomeCannotBeProven',
+  continuation_unavailable: 'continuationUnavailable',
+} as const;
+const JOIN_ATTENTION_RECOVERY = {
+  preserve_data_and_contact_support: 'preserveDataAndContactSupport',
+  restart_with_new_invitation: 'restartWithNewInvitation',
+} as const;
 const SPACE_DEVICE_UPDATE_PHASE = {
   updating: 'updating',
   completed: 'completed',
@@ -464,31 +493,26 @@ function currentJoin(value: unknown): JoinSpaceStatus | null {
         },
       };
     }
+    case 'needs_attention':
+      return {
+        type: 'needsAttention',
+        joinId,
+        reason: enumValue(source.reason, JOIN_ATTENTION_REASON),
+        recovery: enumValue(source.recovery, JOIN_ATTENTION_RECOVERY),
+        nextRetryAtMs:
+          source.next_retry_at_ms == null ? null : integer(source.next_retry_at_ms, 0),
+      };
     case 'rejected':
       return {
         type: 'rejected',
         joinId,
-        reason: enumValue(source.reason, {
-          invitation_unavailable: 'invitationUnavailable',
-          authentication_rejected: 'authenticationRejected',
-          identity_conflict: 'identityConflict',
-          base_history_changed: 'baseHistoryChanged',
-          joiner_history_ahead: 'joinerHistoryAhead',
-          history_conflict: 'historyConflict',
-          peer_upgrade_required: 'peerUpgradeRequired',
-          cancelled: 'cancelled',
-          removed_before_activation: 'removedBeforeActivation',
-        } as const),
+        reason: enumValue(source.reason, JOIN_REJECTION_REASON),
       };
     case 'terminated':
       return {
         type: 'terminated',
         joinId,
-        reason: enumValue(source.reason, {
-          cancelled: 'cancelled',
-          expired: 'expired',
-          superseded: 'superseded',
-        } as const),
+        reason: enumValue(source.reason, JOIN_TERMINATION_REASON),
       };
     default:
       throw new Error();

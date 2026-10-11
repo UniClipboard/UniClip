@@ -546,6 +546,57 @@ describe('Engine group update projection', () => {
     expect(buildSpaceOverviewView('ready', query, 'idle').primaryStatus).toBe('healthy');
   });
 
+  const joinFixtures = () =>
+    fixture('join-statuses.jsonl')
+      .trim()
+      .split('\n')
+      .map((line) => ({ raw: JSON.parse(line).device_trust.current_join, value: line }));
+
+  it('keeps every Engine join status readable in the device snapshot', () => {
+    const parsed = joinFixtures().map(({ raw, value }) => ({
+      raw,
+      join: parseDeviceGroupChoices({ ok: true, value }).currentJoin,
+    }));
+
+    expect(parsed).toHaveLength(16);
+    expect(parsed.slice(0, 2).map(({ join }) => join)).toEqual([
+      {
+        type: 'needsAttention',
+        joinId: 'join-0001',
+        reason: 'outcomeCannotBeProven',
+        recovery: 'preserveDataAndContactSupport',
+        nextRetryAtMs: 1_760_000_060_000,
+      },
+      {
+        type: 'needsAttention',
+        joinId: 'join-0001',
+        reason: 'continuationUnavailable',
+        recovery: 'restartWithNewInvitation',
+        nextRetryAtMs: 1_760_000_060_000,
+      },
+    ]);
+    for (const { raw, join } of parsed.slice(2)) {
+      expect(join).toEqual({
+        type: 'rejected',
+        joinId: 'join-0001',
+        reason: raw.reason.replace(/_([a-z])/g, (_: string, c: string) => c.toUpperCase()),
+      });
+    }
+  });
+
+  it.each([
+    [0, 'joinNeedsAttention'],
+    [1, 'joinRestartWithNewInvitation'],
+  ] as const)('resumes join fixture %i from the snapshot into %s', async (index, code) => {
+    const { value } = joinFixtures()[index];
+    const api = {
+      queryDeviceTrust: async () => parseDeviceGroupChoices({ ok: true, value }),
+    };
+    const service = new UnifiedSpaceService(api as never, () => undefined, async (run) => run());
+
+    await expect(service.resumeJoin()).rejects.toMatchObject({ code });
+  });
+
   it('rejects an unknown delivery state instead of showing a partial snapshot', () => {
     const value = fixture('pending-and-rejected.json').replace('"rejected_by_receiver"', '"future"');
 
