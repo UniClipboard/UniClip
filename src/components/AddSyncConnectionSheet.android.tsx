@@ -1235,7 +1235,8 @@ function AddSyncConnectionSheetContent({
           </Column>
         ) : null}
 
-        {error && mode !== 'joinDetails' ? (
+        {/* The code and passphrase steps show their error next to the field. */}
+        {error && mode !== 'joinDetails' && mode !== 'joinCode' ? (
           <>
             <Spacer modifiers={[heightModifier(12)]} />
             <InlineConnectionError message={error} />
