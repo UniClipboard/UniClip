@@ -83,7 +83,7 @@ export function summarize(samples) {
           applied: ok.length,
           failed: list.length - ok.length,
           activationToAppliedMs: distribution(ok.map((s) => s.activationToAppliedMs)),
-          copyToAppliedMs: distribution(ok.map((s) => s.copyToAppliedMs)),
+          restoreRequestToAppliedMs: distribution(ok.map((s) => s.restoreRequestToAppliedMs)),
           activationToSseMs: distribution(ok.map((s) => s.activationToSseMs)),
           sseToAppliedMs: distribution(ok.map((s) => s.sseToAppliedMs)),
           withinTarget500Ms: ok.filter((s) => s.activationToAppliedMs <= 500).length,

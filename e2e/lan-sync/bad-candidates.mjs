@@ -30,7 +30,7 @@ const BEHAVIOURS = {
 
 export function badCandidateServer({ peerPort } = {}) {
   const servers = [];
-  const hits = Object.fromEntries([...Object.keys(BEHAVIOURS), "legacyHost"].map((k) => [k, 0]));
+  const hits = Object.fromEntries([...Object.keys(BEHAVIOURS), "legacyHost", "putResponseLost"].map((k) => [k, 0]));
   return {
     hits,
     async start() {
@@ -43,6 +43,26 @@ export function badCandidateServer({ peerPort } = {}) {
           const upstream = forward(
             { host: "127.0.0.1", port: peerPort, method: request.method, path: request.url, headers: request.headers },
             (reply) => {
+              response.writeHead(reply.statusCode, reply.headers);
+              reply.pipe(response);
+            }
+          );
+          upstream.on("error", () => response.destroy());
+          response.on("close", () => upstream.destroy());
+          request.pipe(upstream);
+        };
+      }
+      if (peerPort) {
+        // The desktop receives and commits the upload, but the reply never reaches the phone.
+        behaviours.putResponseLost = (request, response) => {
+          const upstream = forward(
+            { host: "127.0.0.1", port: peerPort, method: request.method, path: request.url, headers: request.headers },
+            (reply) => {
+              if (request.method === "PUT" && request.url === "/SyncClipboard.json") {
+                reply.resume();
+                reply.on("end", () => response.socket?.destroy());
+                return;
+              }
               response.writeHead(reply.statusCode, reply.headers);
               reply.pipe(response);
             }

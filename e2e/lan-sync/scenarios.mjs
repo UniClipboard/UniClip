@@ -18,6 +18,7 @@ const ORDERS = {
   "faulty-first": (c) => [badUrl(c, "unauthorized"), badUrl(c, "html"), realUrl(c)],
   "faulty-second": (c) => [badUrl(c, "truncated"), badUrl(c, "notFound"), realUrl(c)],
   "legacy-host": (c) => [holeUrl(0), holeUrl(1), badUrl(c, "legacyHost")],
+  "put-lost": (c) => [holeUrl(0), holeUrl(1), badUrl(c, "putResponseLost")],
 };
 
 async function ensureServer(c, order) {
@@ -97,7 +98,7 @@ export async function measureCopy(c, phase, seq, { timeoutMs = APPLY_TIMEOUT_MS,
     ok: Boolean(applied),
     activationSource: update ? "peer-sse" : "restore-call",
     activationToAppliedMs: applied ? Math.round(toHost(applied.wall) - activation) : null,
-    copyToAppliedMs: applied ? Math.round(toHost(applied.wall) - copy.restoreStartedAt) : null,
+    restoreRequestToAppliedMs: applied ? Math.round(toHost(applied.wall) - copy.restoreStartedAt) : null,
     activationToSseMs: sse ? Math.round(toHost(sse.wall) - activation) : null,
     sseToAppliedMs: sse && applied ? applied.wall - sse.wall : null,
     appliedToHistoryMs: history && applied ? history.wall - applied.wall : null,
@@ -369,6 +370,100 @@ export const SCENARIOS = {
     // Foreground fallback polling is every 2 s; a retry loop would be far above one read per poll.
     c.assert(`${s}.bounded-retries`, s, reads <= 15, { readsIn20s: reads });
     c.assert(`${s}.auth-observed`, s, traces.some((t) => t.status === "401"), {});
+  },
+
+  // After a desktop copy is applied, the user's own later copies still reach the desktop, including
+  // copying that same content again once the clipboard held something else.
+  async "user-copy-after-receive"(c) {
+    const s = "user-copy-after-receive";
+    await ensureServer(c, "bad-first");
+    await foreground(c);
+    await waitWarm(c, 0);
+    const received = await measureCopy(c, s, 1);
+    c.assert(`${s}.received`, s, received.ok);
+    const appliedNonce = `UCLAN${c.runId}${s.replace(/[^A-Za-z0-9]/g, "")}N1`;
+    for (const [step, text] of [["other", `UCLAN${c.runId}userC`], ["same-again", appliedNonce]]) {
+      const before = await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json");
+      await c.act.copyInOtherApp(text);
+      await foreground(c);
+      let document;
+      const deadline = Date.now() + 20_000;
+      while (Date.now() < deadline) {
+        document = await c.observer.currentDocument();
+        if (document.text === text && (await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json")) > before) break;
+        await c.delay(500);
+      }
+      const puts = (await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json")) - before;
+      c.assert(`${s}.${step}.sent-once`, s, document?.text === text && puts === 1, { puts });
+      await c.delay(2000);
+    }
+  },
+
+  // The desktop commits an upload but its reply is lost: the phone must not send it again.
+  async "put-response-lost"(c) {
+    const s = "put-response-lost";
+    await ensureServer(c, "put-lost");
+    await foreground(c);
+    c.assert(`${s}.session-warm`, s, await waitWarm(c, 0));
+    const text = `UCLAN${c.runId}putlost`;
+    const before = await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json");
+    const clock = await clockOffset(c.probe);
+    const since = Date.now() + clock.offsetMs;
+    await c.act.copyInOtherApp(text);
+    await foreground(c);
+    await c.delay(25_000);
+    const puts = (await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json")) - before;
+    const document = await c.observer.currentDocument();
+    const traces = (await c.readTraces(since)).filter((t) => t.stage === "put_attempt" || t.stage === "put_result");
+    c.assert(`${s}.desktop-committed`, s, document.text === text);
+    c.assert(`${s}.not-resent`, s, puts === 1 && traces.filter((t) => t.stage === "put_attempt").length === 1, {
+      desktopPuts: puts,
+      phone: traces.map((t) => ({ stage: t.stage, status: t.status })),
+    });
+    c.assert(`${s}.reported-unknown`, s, traces.some((t) => t.stage === "put_result" && t.status === "unknown"));
+  },
+
+  // The phone's storage is full when a desktop copy arrives: the clipboard is written, the history
+  // record fails; once space returns the record is saved without writing the clipboard again.
+  async "history-save-failure"(c) {
+    const s = "history-save-failure";
+    await ensureServer(c, "bad-first");
+    await foreground(c);
+    await waitWarm(c, 0);
+    const fill = "/data/local/tmp/uclan-fill";
+    // Fills only this owned emulator's data partition; removed below in every case.
+    await c.probe.shell(`dd if=/dev/zero of=${fill} bs=4194304 2>/dev/null; sync`).catch(() => "");
+    const free = await c.probe.shell("df /data | tail -1").catch(() => "");
+    c.probe.event("storage.filled", { df: free.replace(/\s+/g, " ").slice(0, 120) });
+    let sample;
+    try {
+      sample = await measureCopy(c, s, 1, { timeoutMs: 30_000 });
+    } finally {
+      await c.probe.shell(`rm -f ${fill}; sync`).catch(() => "");
+    }
+    c.assert(`${s}.clipboard-applied-while-full`, s, sample.ok);
+    const clock = await clockOffset(c.probe);
+    const since = Date.now() + clock.offsetMs - 120_000;
+    let traces = [];
+    const deadline = Date.now() + 75_000;
+    while (Date.now() < deadline) {
+      traces = (await c.readTraces(since)).filter((t) => t.cid === sample.alias);
+      if (traces.some((t) => t.stage === "history_saved")) break;
+      await c.delay(2000);
+    }
+    const stages = traces.map((t) => t.stage);
+    c.assert(`${s}.history-failed-first`, s, stages.includes("history_failed"), { stages });
+    c.assert(`${s}.history-saved-later`, s, stages.includes("history_saved"), { stages });
+    c.assert(`${s}.clipboard-written-once`, s, stages.filter((t) => t === "clipboard_applied").length === 1, { stages });
+    if (sample.ok) {
+      const nonce = `UCLAN${c.runId}${s.replace(/[^A-Za-z0-9]/g, "")}N1`;
+      try {
+        await c.runFlow("background-scenarios/history-contains.yaml", { INCOMING: nonce });
+        c.assert(`${s}.visible-in-history`, s, true);
+      } catch {
+        c.assert(`${s}.visible-in-history`, s, false);
+      }
+    }
   },
 
   // Fresh process, first copy right after launch: reported apart from warm samples.

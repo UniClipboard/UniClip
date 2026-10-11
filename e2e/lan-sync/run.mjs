@@ -81,6 +81,19 @@ async function main() {
   const assertions = [];
   const samples = [];
   let probe, observer;
+  // SIGINT/SIGTERM must still release the owned emulator and peer; the default exit would skip
+  // the finally block below.
+  let interrupted = false;
+  const onSignal = (signal) => {
+    if (interrupted) return;
+    interrupted = true;
+    console.error(`Interrupted by ${signal}; releasing owned resources`);
+    Promise.allSettled([observer?.stop(), bad.stop(), peer.dispose(), device.dispose()]).then(() =>
+      process.exit(130)
+    );
+  };
+  process.once("SIGINT", onSignal);
+  process.once("SIGTERM", onSignal);
   try {
     await device.prepare();
     probe = createProbe({ serial: device.id, appId });
@@ -240,7 +253,7 @@ async function main() {
     };
     await writeFile(join(output, "result.json"), JSON.stringify(result, null, 2));
     await writeFile(join(output, "timeline.json"), JSON.stringify(samples, null, 2));
-    const columns = ["phase", "seq", "alias", "ok", "copyToAppliedMs", "activationToAppliedMs", "activationToSseMs", "sseToAppliedMs", "appliedToHistoryMs", "getAttempts", "clockOffsetMs", "clockErrorMs", "note"];
+    const columns = ["phase", "seq", "alias", "ok", "restoreRequestToAppliedMs", "activationToAppliedMs", "activationToSseMs", "sseToAppliedMs", "appliedToHistoryMs", "getAttempts", "clockOffsetMs", "clockErrorMs", "note"];
     await writeFile(
       join(output, "timeline.csv"),
       [columns.join(","), ...samples.map((s) => columns.map((k) => JSON.stringify(s[k] ?? "")).join(","))].join("\n") + "\n"
