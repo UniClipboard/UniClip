@@ -70,7 +70,8 @@ export function configureAppRuntime(): void {
         space: getUnifiedSpaceService(),
         content: getUnifiedContentService(),
         clipboard: {
-          observeClipboardChange: (dispatch) => nativeEngine.observeClipboardChange(dispatch),
+          observeClipboardChange: (dispatch, captured) =>
+            nativeEngine.observeClipboardChange(dispatch, captured),
           persistDelivery: persistP2pDeliveryReport,
         },
       }),

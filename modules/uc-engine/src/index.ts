@@ -12,6 +12,7 @@ export type ConnectivityOpportunity =
   | 'foreground'
   | 'system_wake'
   | 'network_changed';
+import { Platform } from 'react-native';
 import { requireNativeModule } from 'expo-modules-core';
 
 export interface EngineConfig {
@@ -484,7 +485,10 @@ interface UcEngineNativeModule {
     targetDevices: string[]
   ): Promise<SendReport>;
   captureCurrentClipboard(): Promise<string | null>;
-  observeClipboardChange(dispatch: boolean): Promise<SendReport | null>;
+  observeClipboardChange(
+    dispatch: boolean,
+    captured?: CapturedClipboard | null
+  ): Promise<SendReport | null>;
   restoreClipboard(
     entryId: string,
     mode: ClipboardRestoreMode
@@ -728,10 +732,26 @@ export function captureCurrentClipboard(): Promise<string | null> {
   return NativeModule.captureCurrentClipboard();
 }
 
+/**
+ * What the app's own access path read for this change (overlay focus or Shizuku). Android hands it
+ * to the Engine host for this one observation, so the Engine processes the content that was captured
+ * instead of reading the system clipboard again, which a background app may not be allowed to do.
+ */
+export interface CapturedClipboard {
+  text?: string;
+  fileUri?: string;
+  mimeType?: string;
+  displayName?: string;
+}
+
 export function observeClipboardChange(
-  dispatch: boolean
+  dispatch: boolean,
+  captured?: CapturedClipboard
 ): Promise<SendReport | null> {
-  return NativeModule.observeClipboardChange(dispatch);
+  // iOS has no such handoff: its host reads the pasteboard itself.
+  return Platform.OS === 'android'
+    ? NativeModule.observeClipboardChange(dispatch, captured ?? null)
+    : NativeModule.observeClipboardChange(dispatch);
 }
 
 export function restoreClipboard(

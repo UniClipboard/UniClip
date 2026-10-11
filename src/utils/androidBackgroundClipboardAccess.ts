@@ -34,10 +34,9 @@ class OverlayClipboardAdapter implements BackgroundClipboardAdapter {
 
   isReady(operation: BackgroundClipboardOperation): boolean {
     const overlayModule = getOverlayModule();
-    const config = useSettingsStore.getState().config;
-    if (!(config?.enableClipboardOverlay ?? false) || !overlayModule.hasOverlayPermission()) {
-      return false;
-    }
+    // Choosing an overlay method is the activation: the method is selected before this adapter is
+    // asked, so a second "enabled" flag only left the default method unusable until it was toggled.
+    if (!overlayModule.hasOverlayPermission()) return false;
     if (operation === 'monitor') {
       return this.method === 'overlay-event' && overlayModule.hasReadLogsPermission();
     }

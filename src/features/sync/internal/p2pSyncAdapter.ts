@@ -25,6 +25,26 @@ import type {
 
 const log = createLogger('P2pSyncAdapter');
 
+/** What the app's own capture read for this change; same shape as the native module's handoff. */
+export interface CapturedClipboardInput {
+  text?: string;
+  fileUri?: string;
+  mimeType?: string;
+  displayName?: string;
+}
+
+/**
+ * The Engine host must process what was captured, not read the clipboard again: a background app
+ * may only read it through the overlay/Shizuku path that already produced `content`.
+ */
+function capturedClipboardFrom(content: ClipboardContent): CapturedClipboardInput | undefined {
+  if (content.type === 'Text' && content.text !== undefined) return { text: content.text };
+  if (content.type === 'Image' && content.fileUri) {
+    return { fileUri: content.fileUri, displayName: content.fileName };
+  }
+  return undefined;
+}
+
 type EngineState = Extract<EngineEvent, { type: 'stateChanged' }>['state'];
 
 // Presence changes arrive in bursts while peers connect; one device refresh per window absorbs them.
@@ -60,7 +80,10 @@ interface P2pContentPort {
 }
 
 interface P2pClipboardPort {
-  observeClipboardChange(dispatch: boolean): Promise<SendReport | null>;
+  observeClipboardChange(
+    dispatch: boolean,
+    captured?: CapturedClipboardInput
+  ): Promise<SendReport | null>;
   persistDelivery(profileHash: string | undefined, report: SendReport): Promise<void>;
 }
 
@@ -162,7 +185,10 @@ export class P2pSyncAdapter implements SyncAdapter {
     content: ClipboardContent,
     dispatch: boolean
   ): Promise<SyncAdapterDelivery | null> {
-    const report = await this.dependencies.clipboard.observeClipboardChange(dispatch);
+    const report = await this.dependencies.clipboard.observeClipboardChange(
+      dispatch,
+      capturedClipboardFrom(content)
+    );
     if (!report) return null;
     await this.dependencies.clipboard.persistDelivery(content.profileHash, report);
     const state = p2pDeliveryStateFromReport(report);

@@ -544,7 +544,8 @@ describe('P2pSyncAdapter', () => {
       state: 'partial',
       counts: { accepted: 1, duplicate: 2, offline: 3, errored: 4, pending: 5 },
     });
-    expect(deps.clipboard.observeClipboardChange).toHaveBeenCalledWith(true);
+    // The Engine host processes the content the app captured, not a second read of the clipboard.
+    expect(deps.clipboard.observeClipboardChange).toHaveBeenCalledWith(true, { text: 'captured' });
     expect(deps.clipboard.persistDelivery).toHaveBeenCalledWith('TEXT_HASH', deps.delivery.report);
   });
 

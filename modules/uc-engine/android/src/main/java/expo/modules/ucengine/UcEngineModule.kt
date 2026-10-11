@@ -750,8 +750,20 @@ class UcEngineModule : Module() {
       sendReportMap(requireEngine().sendFiles(fileHandles, targetDevices))
     }
     AsyncFunction("captureCurrentClipboard") { requireEngine().captureCurrentClipboard() }
-    AsyncFunction("observeClipboardChange") { dispatch: Boolean ->
-      requireEngine().observeClipboardChange(dispatch)?.let(::sendReportMap)
+    AsyncFunction("observeClipboardChange") { dispatch: Boolean, captured: Map<String, String>? ->
+      val handoff = captured?.let {
+        CapturedClipboard(it["text"], it["fileUri"], it["mimeType"], it["displayName"])
+      }
+      // Counts only: clipboard content never reaches the logs.
+      android.util.Log.i(
+        "UcClipboardObserve",
+        "observe dispatch=$dispatch captured=${if (handoff == null) "none" else if (handoff.fileUri != null) "file" else "text"} bytes=${handoff?.text?.length ?: 0}"
+      )
+      CapturedClipboardHandoff.whileStaged(handoff) {
+        requireEngine().observeClipboardChange(dispatch)?.let(::sendReportMap).also {
+          android.util.Log.i("UcClipboardObserve", "observe finished report=${it != null}")
+        }
+      }
     }
     AsyncFunction("restoreClipboard") { entryId: String, mode: String ->
       restoreOutcome(requireEngine().restoreClipboard(entryId, restoreMode(mode)))
@@ -1091,6 +1103,7 @@ private class AndroidEngineHost(
   override fun fileFinishWrite(handle: String) = files.finishWrite(handle)
 
   override fun clipboardRead(): BindingClipboardSnapshot {
+    CapturedClipboardHandoff.current()?.let { return capturedSnapshot(it) }
     val clipboard = context.getSystemService(ClipboardManager::class.java)
       ?: throw HostBindingException.Unavailable()
     try {
@@ -1098,17 +1111,7 @@ private class AndroidEngineHost(
         ?: return BindingClipboardSnapshot(System.currentTimeMillis(), emptyList())
       val uri = item.uri
       val representations = if (uri != null) {
-        val handle = files.register(uri.toString(), false)
-        val metadata = files.metadata(handle)
-        listOf(
-          BindingClipboardRepresentation.File(
-            metadata.mimeType ?: "application/octet-stream",
-            handle,
-            metadata.displayName,
-            metadata.mimeType,
-            metadata.sizeBytes
-          )
-        )
+        listOf(fileRepresentation(uri.toString(), null, null))
       } else {
         val text = item.coerceToText(context)?.toString().orEmpty()
         listOf(BindingClipboardRepresentation.Inline("text/plain", "text/plain", text.toByteArray()))
@@ -1117,6 +1120,29 @@ private class AndroidEngineHost(
     } catch (_: SecurityException) {
       throw HostBindingException.PermissionDenied()
     }
+  }
+
+  private fun capturedSnapshot(captured: CapturedClipboard): BindingClipboardSnapshot {
+    val representations = when {
+      captured.fileUri != null -> listOf(fileRepresentation(captured.fileUri, captured.mimeType, captured.displayName))
+      captured.text != null ->
+        listOf(BindingClipboardRepresentation.Inline("text/plain", "text/plain", captured.text.toByteArray()))
+      else -> emptyList()
+    }
+    return BindingClipboardSnapshot(System.currentTimeMillis(), representations)
+  }
+
+  private fun fileRepresentation(uri: String, mimeType: String?, displayName: String?): BindingClipboardRepresentation {
+    val handle = files.register(uri, false, displayName)
+    val metadata = files.metadata(handle)
+    val mime = mimeType ?: metadata.mimeType
+    return BindingClipboardRepresentation.File(
+      mime ?: "application/octet-stream",
+      handle,
+      metadata.displayName,
+      mime,
+      metadata.sizeBytes
+    )
   }
 
   override fun clipboardWrite(snapshot: BindingClipboardSnapshot) {

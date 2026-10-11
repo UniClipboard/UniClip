@@ -36,6 +36,7 @@ export async function notifyDeviceClipboardChanged(
 
   try {
     if (!observeClipboardChange) throw new Error('The clipboard observer is not configured');
+    log.info('Clipboard observation requested', { dispatch, type: content.type, appIsBackground });
     return await observeClipboardChange(content, dispatch);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
