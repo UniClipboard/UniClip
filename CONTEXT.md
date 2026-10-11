@@ -59,9 +59,22 @@ such as a local identity mismatch, can only be dismissed and must not imply a
 fix. Responses without the update or maintenance fields read as updating and
 healthy.
 
+Engine may also report, per device, a security (group key) update the local
+device has not yet seen confirmed: its version, delivery state, recovery, attempt
+count, and an optional next retry time. Mobile shows it as pending (waiting, or
+the receiver temporarily unavailable) or rejected on device rows and details,
+and the overview names the affected devices. Engine owns every retry: refreshing
+or restarting only re-reads its state and never resends, and Mobile offers no
+manual resend. Guidance follows Engine's recovery, not the state: automatic shows
+the next retry time, automatic-on-reconnect retries once after the device
+reconnects and is verified, and only review-device asks the user to check that
+device. A missing field means nothing is pending.
+
 A join that is still processing is not joined. A join that needs attention
-means its outcome cannot be proven: keep the app data and direct the user to
-support. A removed device whose removal other devices have not yet acknowledged
+follows Engine's recovery: usually keep the app data and direct the user to
+support, but when Engine says to restart with a new invitation, tell the user to
+create a new invitation code on the other device and join again. Mobile reads
+every Engine join status and rejection reason. A removed device whose removal other devices have not yet acknowledged
 stays listed with an informational status but is not counted as a member.
 
 Both platforms invite devices from the connection sheet in invite mode, which
