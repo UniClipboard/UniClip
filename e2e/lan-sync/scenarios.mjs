@@ -25,8 +25,9 @@ const ORDERS = {
   "put-lost": (c) => [holeUrl(0), holeUrl(1), badUrl(c, "putResponseLost")],
 };
 
-async function ensureServer(c, order) {
-  if (c.configuredOrder === order) return;
+async function ensureServer(c, order, { second = false } = {}) {
+  // A second desktop left configured by an earlier scenario would also receive every upload.
+  if (c.configuredOrder === order && (second || !c.secondConfigured)) return;
   if (c.configuredOrder) {
     // A different address order is a new configuration: reinstall keeps runs independent.
     await c.probe.run("uninstall", c.appId);
@@ -395,7 +396,7 @@ export const SCENARIOS = {
   // foreground and in the background, and a phone copy reaches both.
   async "second-desktop"(c) {
     const s = "second-desktop";
-    await ensureServer(c, "bad-first");
+    await ensureServer(c, "bad-first", { second: true });
     const b = await ensureSecondDesktop(c);
     await foreground(c);
     await waitWarm(c, 0);
