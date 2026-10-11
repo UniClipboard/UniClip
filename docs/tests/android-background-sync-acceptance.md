@@ -12,25 +12,26 @@ Every scenario asserts the intended behaviour, so running it on the old APK reco
 - Engine pin: `v1.1.0-rc.22`, `18415aa83a47bd3870c2a1f114b268fc3ed0495a`; desktop peer `@uniclipboard/cli` 1.1.0-alpha.3.
 - Device: Android 16 (SDK 36) arm64 google_apis emulator, `APP_VARIANT=test` (targetSdk 36). The host was heavily loaded
   (load average 35-46 on 10 cores), which made the emulator slow; failures were triaged as harness or product before any claim.
-- Run manifests and assertions are kept with the task library (`library/t-0252/<run>/`).
+- Final APK `54dc928d…` (sha256 prefix) was built from the working tree before the last commits; the product code (`modules`, `src`, `plugins`) is identical to commit `0ea9eb60` and to the branch head, only docs and e2e files changed afterwards.
+- Run manifests and assertions are kept with the task library (`library/t-0252/<run>/`); the final regression is `final-s3` (15 scenarios, 53 assertions, all passed), and later runs `consent5` (log consent, overlay-event) and `consent4` (Shizuku missing).
 
 ## Stage 1 results (fixed APK vs baseline)
 
 | Area | Baseline | Fixed |
 | --- | --- | --- |
 | Home, service alive, desktop to mobile | pass | pass |
-| Home, mobile to desktop in background (3 rounds) | fail 3/3 | pass 3/3 (about 2.7 s) |
+| Home, mobile to desktop in background (3 rounds) | fail 3/3 | pass 3/3 (about 2.6 s, `final-s1-fixed`) |
 | Auxiliary task removed (quick action) | service stopped, "Temporarily stopped" | recorded as `aux_task_removed`, service kept |
 | Main task swiped from recents | pause semantics | unchanged, recorded as `task_removed` |
 | Notification Pause / Stop | recorded | `userPause` and `userRequest` are distinguishable |
 | Process death, restart prompt | prompt restores service | same; the prompt now reports failure instead of a false success |
-| API 35+ `onTimeout` | not exercised | handler present; **not-run** (see below) |
+| API 35+ `onTimeout` | process crash on timeout | handled gracefully (see the timeout section below) |
 | `stopService` by the JS runtime ending | cleared nothing | keeps the recovery intent (`runtime_stop`); only the user's setting-off clears it |
 
 Root causes: the default overlay-polling clipboard method required a flag that was only set when switching methods, so
 background reads never happened; the Engine host `clipboard_read` now receives the capture the JS observer already made.
 
-## Stage 2 and 3 results (stage-2 APK `001b28eb...`)
+## Stage 2 and 3 results (first stage-2 build; the final regression below supersedes it)
 
 | Item | Evidence |
 | --- | --- |
@@ -75,8 +76,10 @@ history writer; that is a separate piece of work, not done here.
 ## Method and permission checks
 
 - Missing overlay permission: Settings shows "Clipboard access still needs permission" with Authorize, never "Ready"; the service is unaffected; granting it restores "Ready".
-- ADB events (logcat trigger): with the consent prompt accepted, a background copy reaches the desktop in about 2.7 s and the log shows the system denial line, `logcat_trigger`, `triggered_read`, `emit`.
-- ADB events with the consent prompt declined (Android 13+ "Allow access to all device logs?"): observed manually, the trigger never fires although the UI says "Ready", because the app cannot query that consent. This is a known gap, not fixed.
+- ADB events (logcat trigger), consent accepted: a background copy reaches the desktop in about 2.7 s (`final-s3`: 2639 ms) and the native chain `triggered_read`, `emit` is logged; `triggered_read` is reachable only from the system's clipboard-denial log line, so this is the event path and not polling.
+- ADB events and the Android 13+ log-access consent ("Allow access to all device logs?", `consent5`): a declined consent leaves the method silent (no delivery, no chain) while Settings still says "Ready"; the next start asks again; accepting makes it work; an accepted consent persists across a restart without a new prompt.
+- Why the "Ready" gap is not fixed: the app has no API to query that consent. A probe that runs `logcat` itself to see whether other apps' lines are readable was tried (`consent3`): each probe re-prompted and the persisted consent was no longer kept, so the probe was reverted. A safe fix needs a platform signal that does not exist, or a persisted record of the user's answer.
+- Shizuku not installed (`consent4`): Settings shows "Shizuku is not running / Install and start Shizuku, then return to authorize" with Open Shizuku, never "Ready"; the service is unaffected; switching back to timed polling restores "Ready".
 - `READ_LOGS` itself is granted at install on this userdebug image, so its absence cannot be produced here.
 
 ## Android 15 timeout (dataSync) and the type change
@@ -101,12 +104,12 @@ From the Android documentation (foreground service types; Android 15 behaviour c
 
 ## Not run (needs a device or condition not available here)
 
-Physical devices and OEM battery managers, lock screen, Doze and App Standby, API 35 emulator, Shizuku mode, a device where `READ_LOGS` is not granted, a real JS-bridge destruction, 24 h / 72 h / 7 d runs, Wi-Fi power cost of the multicast lock, Play review.
+Physical devices and OEM battery managers, lock screen, Doze and App Standby, API 35 emulator, a running Shizuku (only its absence was tested), a device where `READ_LOGS` is not granted, a real JS-bridge destruction, 24 h / 72 h / 7 d runs, Wi-Fi power cost of the multicast lock, Play review.
 No shared or production device or configuration was used; every run used a disposable emulator and an isolated desktop peer, and the leftover peer data of killed runs was removed.
 
 ## Known limits
 
-- Only `EngineOwner`'s own transitions are serialized; the JS-side settings store is not.
+- `EngineOwner` transitions (start, shutdown, release, lifecycle policy) are serialized by one lock, including the secure-state recovery inside `prepare`. JS configuration refreshes are already serialized by `refreshPromise` in `AppRuntime`. The native service state (`isRunning`, `stoppedByUser`) is main-thread state guarded by the pending-stop check, not by that lock.
 - An explicit JS `shutdown` wins over the service's hold.
 - After a reboot or app update the service resumes only through the notification.
 - Intermediate commits were not individually built; the branch head compiles and passes Jest and `tsc`.
