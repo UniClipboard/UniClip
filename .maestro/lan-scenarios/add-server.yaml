@@ -1,5 +1,6 @@
-# Pre: app on any main tab, Standard (LAN) channel, no server configured.
-# Post: one LAN server saved with three addresses in the given order (URL_0 tried first).
+# Pre: app on any main tab, Standard (LAN) channel.
+# Post: the LAN server is saved with three addresses in the given order (URL_0 tried first);
+# SERVER_COUNT is how many servers are configured afterwards.
 appId: ${APP_ID}
 ---
 - launchApp:
@@ -44,5 +45,5 @@ appId: ${APP_ID}
 - hideKeyboard
 - tapOn: "Save"
 - extendedWaitUntil:
-    visible: "Connection settings · 1"
+    visible: "Connection settings · ${SERVER_COUNT}"
     timeout: 15000

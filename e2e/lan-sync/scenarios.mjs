@@ -1,5 +1,8 @@
 // Desktop → phone LAN scenarios. Each states intended behaviour as assertions, so a run against
 // an older APK records which signals fail there. `c` is the context built by run.mjs.
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { deflateSync } from "node:zlib";
 import { clockOffset, readNativeTiming } from "./timeline.mjs";
 import { buildSegments } from "./segments.mjs";
 
@@ -29,6 +32,8 @@ async function ensureServer(c, order) {
     await c.probe.run("uninstall", c.appId);
     await c.probe.run("install", c.apkPath);
     c.onboarded = false;
+    c.secondConfigured = false;
+    c.backgroundEnabled = false;
   }
   if (!c.onboarded) {
     await c.runFlow("lifecycle/launch.yaml");
@@ -42,6 +47,7 @@ async function ensureServer(c, order) {
     URL_2: urls[2],
     LAN_USERNAME: c.phone.username,
     LAN_PASSWORD: c.phone.password,
+    SERVER_COUNT: 1,
   });
   c.configuredOrder = order;
   c.probe.event("lan.configured", { order, roles: urls.map((_, i) => `c${i}`) });
@@ -67,15 +73,21 @@ async function waitWarm(c, sincePhoneWall, timeoutMs = 60_000) {
  * One desktop copy measured end to end. The desktop activation time is the peer's own
  * `server_time_ms` for this content id; the phone time is the clipboard write completion.
  */
-export async function measureCopy(c, phase, seq, { timeoutMs = APPLY_TIMEOUT_MS, expectApplied = true } = {}) {
+export async function measureCopy(
+  c,
+  phase,
+  seq,
+  { timeoutMs = APPLY_TIMEOUT_MS, expectApplied = true, via = { peer: c.peer, observer: c.observer } } = {}
+) {
+  const { peer, observer } = via;
   const nonce = `UCLAN${c.runId}${phase.replace(/[^A-Za-z0-9]/g, "")}N${seq}`;
   const clock = await clockOffset(c.probe);
   const toHost = (phoneWall) => phoneWall - clock.offsetMs;
-  const copy = await c.peer.copyText(nonce);
+  const copy = await peer.copyText(nonce);
   const sample = { phase, seq, ok: false, clockOffsetMs: clock.offsetMs, clockErrorMs: clock.errorMs };
   // The announcement carries the content id; the harness reads the document itself only after the
   // phone is done, so the listener log holds the phone's request alone during the measurement.
-  const update = await c.observer.waitForUpdateAfter(copy.restoreStartedAt, 5000);
+  const update = await observer.waitForUpdateAfter(copy.restoreStartedAt, 5000);
   if (!update) {
     c.samples.push({ ...sample, note: "peer did not announce the fixture" });
     return c.samples.at(-1);
@@ -100,13 +112,13 @@ export async function measureCopy(c, phase, seq, { timeoutMs = APPLY_TIMEOUT_MS,
       traces = await c.readTraces(since);
     }
   }
-  const document = await c.observer.currentDocument();
+  const document = await observer.currentDocument();
   if (document.contentId !== update.contentId || document.text !== nonce) sample.note = "announced content is not this fixture";
   const sse = traces.find((t) => t.stage === "sse_event" && t.type === "update" && t.cid === alias);
   const history = traces.find((t) => t.stage === "history_saved" && t.cid === alias);
   const window = traces.filter((t) => toHost(t.wall) >= activation && (!applied || t.wall <= applied.wall));
   const native = await readNativeTiming(c.probe, since);
-  const desktop = await c.peer.mobileLanTimeline(copy.restoreStartedAt - 1000);
+  const desktop = await peer.mobileLanTimeline(copy.restoreStartedAt - 1000);
   Object.assign(sample, {
     ok: Boolean(applied),
     activationSource: "peer-sse",
@@ -247,7 +259,193 @@ async function warmForeground(c, order) {
   }
 }
 
+/** A small PNG whose pixels are derived from `seed`, so every run shares content the desktop has not seen. */
+function syntheticPng(seed) {
+  const crcTable = Array.from({ length: 256 }, (_, n) => {
+    let v = n;
+    for (let k = 0; k < 8; k++) v = v & 1 ? 0xedb88320 ^ (v >>> 1) : v >>> 1;
+    return v >>> 0;
+  });
+  const crc = (buf) => {
+    let v = 0xffffffff;
+    for (const byte of buf) v = crcTable[(v ^ byte) & 0xff] ^ (v >>> 8);
+    return (v ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type, data) => {
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(data.length);
+    const body = Buffer.concat([Buffer.from(type), data]);
+    const sum = Buffer.alloc(4);
+    sum.writeUInt32BE(crc(body));
+    return Buffer.concat([length, body, sum]);
+  };
+  const size = 48;
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(size, 0);
+  header.writeUInt32BE(size, 4);
+  header[8] = 8;
+  header[9] = 2;
+  const rows = [];
+  for (let y = 0; y < size; y++) {
+    const row = [0];
+    for (let x = 0; x < size; x++) row.push((x * 5 + seed.charCodeAt(x % seed.length)) & 255, (y * 5) & 255, seed.charCodeAt(y % seed.length) & 255);
+    rows.push(Buffer.from(row));
+  }
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", header),
+    chunk("IDAT", deflateSync(Buffer.concat(rows))),
+    chunk("IEND", Buffer.alloc(0)),
+  ]);
+}
+
+/** Puts a synthetic photo in the emulator's media store and returns its content URI. */
+async function mediaImage(c, name) {
+  const local = join(c.output, `${name}.png`);
+  await writeFile(local, syntheticPng(name));
+  const remote = `/sdcard/Pictures/${name}.png`;
+  await c.probe.run("push", local, remote);
+  await c.probe.shell(`am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file://${remote}`);
+  for (let i = 0; i < 20; i++) {
+    const rows = await c.probe
+      .shell(`content query --uri content://media/external/images/media --projection _id --where "_display_name='${name}.png'"`)
+      .catch(() => "");
+    const id = rows.match(/_id=(\d+)/)?.[1];
+    if (id) return `content://media/external/images/media/${id}`;
+    await c.delay(500);
+  }
+  throw new Error("The synthetic photo did not reach the media store");
+}
+
+/** Shares a photo to the app as the system share sheet would, then sends it from the app's sheet. */
+async function sharePhoto(c, uri) {
+  await c.probe.shell(
+    `am start -a android.intent.action.SEND -t image/png --eu android.intent.extra.STREAM ${uri} --grant-read-uri-permission -n ${c.appId}/app.uniclipboard.android.MainActivity`
+  );
+  await c.runFlow("lan-scenarios/share-send.yaml");
+}
+
+/** Adds a second desktop as a second LAN server, through the same settings UI as the first. */
+async function ensureSecondDesktop(c) {
+  c.second ??= await c.addPeer("b");
+  if (c.secondConfigured) return c.second;
+  await c.runFlow("lan-scenarios/add-server.yaml", {
+    URL_0: holeUrl(0),
+    URL_1: holeUrl(1),
+    URL_2: `http://10.0.2.2:${c.second.port}`,
+    LAN_USERNAME: c.second.phone.username,
+    LAN_PASSWORD: c.second.phone.password,
+    SERVER_COUNT: 2,
+  });
+  c.secondConfigured = true;
+  c.probe.event("lan.second-configured", { roles: ["c0", "c1", "c2"] });
+  return c.second;
+}
+
+async function waitDocument(observer, predicate, timeoutMs = 20_000) {
+  const deadline = Date.now() + timeoutMs;
+  let document = null;
+  while (Date.now() < deadline) {
+    document = await observer.currentDocument().catch(() => null);
+    if (document && predicate(document)) return document;
+    await new Promise((done) => setTimeout(done, 500));
+  }
+  return null;
+}
+
 export const SCENARIOS = {
+
+  // A photo shared from the phone reaches the desktop, and the desktop's announcement of that same
+  // photo (re-encoded, so a different hash) is not downloaded and written back to the phone. A
+  // second share of the same photo takes the desktop's duplicate path. A real desktop copy right
+  // afterwards must still be applied.
+  async "share-photo-echo"(c) {
+    const s = "share-photo-echo";
+    await ensureServer(c, "bad-first");
+    await foreground(c);
+    await waitWarm(c, 0);
+    const uri = await mediaImage(c, `ucshare${c.runId}`);
+    for (const round of ["first", "again"]) {
+      const clock = await clockOffset(c.probe);
+      const since = Date.now() + clock.offsetMs;
+      const sharedAt = Date.now();
+      await sharePhoto(c, uri);
+      const document = await waitDocument(c.observer, (d) => d.type === "Image");
+      c.assert(`${s}.${round}.desktop-received`, s, Boolean(document), { type: document?.type ?? null });
+      // Long enough for the announcement, a pull and a payload download had it been applied.
+      await c.delay(10_000);
+      const traces = await c.readTraces(since);
+      const puts = traces.filter((t) => t.stage === "put_attempt" && t.payload === "true");
+      const announced = c.observer.updates.filter((u) => u.hostReceivedMs >= sharedAt).map((u) => c.contentAlias(u.contentId));
+      const applied = traces.filter((t) => t.stage === "apply_start");
+      c.assert(`${s}.${round}.uploaded`, s, puts.length === 1, { puts: puts.length });
+      c.assert(`${s}.${round}.not-applied-back`, s, applied.length === 0, {
+        applied: applied.map((t) => t.cid),
+        announced,
+        pulledNew: traces.filter((t) => t.stage === "remote_new").map((t) => t.cid),
+        ack: traces.filter((t) => t.stage === "put_result").map((t) => t.ack ?? "not-traced"),
+      });
+      await foreground(c);
+    }
+    const after = await measureCopy(c, `${s}-desktop-copy`, 1);
+    c.assert(`${s}.desktop-copy-still-applied`, s, after.ok);
+  },
+
+  // Two different desktops configured as two servers: each one's copies reach the phone, in the
+  // foreground and in the background, and a phone copy reaches both.
+  async "second-desktop"(c) {
+    const s = "second-desktop";
+    await ensureServer(c, "bad-first");
+    const b = await ensureSecondDesktop(c);
+    await foreground(c);
+    await waitWarm(c, 0);
+    const n = Math.min(3, c.samplesPerPhase);
+    for (const [name, via] of [
+      ["b", { peer: b.peer, observer: b.observer }],
+      ["a", { peer: c.peer, observer: c.observer }],
+    ]) {
+      const results = [];
+      for (let seq = 1; seq <= n; seq++) {
+        results.push(await measureCopy(c, `${s}-fg-${name}`, seq, { via, timeoutMs: 20_000 }));
+        await c.delay(1000);
+      }
+      c.assert(`${s}.foreground.${name}-applied`, s, results.every((r) => r.ok), {
+        applied: results.filter((r) => r.ok).length,
+        of: results.length,
+      });
+    }
+    const nonce = `UCLAN${c.runId}twoN1`;
+    await c.act.copyInOtherApp(nonce);
+    await foreground(c);
+    const [toA, toB] = await Promise.all([
+      waitDocument(c.observer, (d) => d.text === nonce),
+      waitDocument(b.observer, (d) => d.text === nonce),
+    ]);
+    c.assert(`${s}.phone-copy-reaches-both`, s, Boolean(toA && toB), { a: Boolean(toA), b: Boolean(toB) });
+    if (!c.backgroundEnabled) {
+      await c.runFlow("lan-scenarios/enable-background.yaml");
+      c.backgroundEnabled = true;
+    }
+    await foreground(c);
+    await c.act.home();
+    await c.delay(5000);
+    for (const [name, via] of [
+      ["b", { peer: b.peer, observer: b.observer }],
+      ["a", { peer: c.peer, observer: c.observer }],
+    ]) {
+      const sample = await measureCopy(c, `${s}-bg-${name}`, 1, { via, timeoutMs: 20_000 });
+      const readback = sample.ok
+        ? await readClipboardBack(c, `UCLAN${c.runId}${`${s}-bg-${name}`.replace(/[^A-Za-z0-9]/g, "")}N1`)
+        : { match: false };
+      c.assert(`${s}.background.${name}-applied`, s, sample.ok && readback.match, {
+        applied: sample.ok,
+        readback: readback.match,
+      });
+      await c.act.home();
+      await c.delay(2000);
+    }
+    await foreground(c);
+  },
   // Two unreachable addresses in front of the working one, app in the foreground (field shape).
   "foreground-bad-first": (c) => warmForeground(c, "bad-first"),
   // The working desktop answers 404 on /healthz (an older host): a protected read must still win.

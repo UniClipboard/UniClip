@@ -82,6 +82,8 @@ async function main() {
   const assertions = [];
   const samples = [];
   let probe, observer;
+  // Further desktops a scenario adds (each its own profile, listener port and observer).
+  const extraPeers = [];
   // SIGINT/SIGTERM must still release the owned emulator and peer; the default exit would skip
   // the finally block below.
   let interrupted = false;
@@ -89,7 +91,13 @@ async function main() {
     if (interrupted) return;
     interrupted = true;
     console.error(`Interrupted by ${signal}; releasing owned resources`);
-    Promise.allSettled([observer?.stop(), bad.stop(), peer.dispose(), device.dispose()]).then(() =>
+    Promise.allSettled([
+      observer?.stop(),
+      bad.stop(),
+      peer.dispose(),
+      ...extraPeers.flatMap((p) => [p.observer?.stop(), p.peer.dispose()]),
+      device.dispose(),
+    ]).then(() =>
       process.exit(130)
     );
   };
@@ -164,6 +172,11 @@ async function main() {
     await writeFile(join(output, "run-manifest.json"), JSON.stringify(manifest, null, 2));
 
     let phase = 0;
+    const redact = (text) =>
+      [phone, ...extraPeers.map((p) => p.phone)].reduce(
+        (out, credential) => (credential ? out.replaceAll(credential.password, "<redacted>") : out),
+        text
+      );
     const runFlow = async (file, variables = {}) => {
       const dir = join(output, `flow-${String(++phase).padStart(2, "0")}-${file.replace(/[/.]/g, "_")}`);
       await mkdir(dir, { recursive: true });
@@ -204,11 +217,11 @@ async function main() {
           log = await invoke();
         }
         // Flow variables may carry the throwaway credential; keep only Maestro's own log.
-        await writeFile(join(dir, "maestro.log"), log.replaceAll(phone.password, "<redacted>"));
+        await writeFile(join(dir, "maestro.log"), redact(log));
         probe.event("flow.end", { file, ok: true });
       } catch (error) {
         const text = `${error.stdout ?? ""}\n${error.stderr ?? ""}\n${error.message}`;
-        await writeFile(join(dir, "maestro.log"), text.replaceAll(phone.password, "<redacted>"));
+        await writeFile(join(dir, "maestro.log"), redact(text));
         probe.event("flow.end", { file, ok: false });
         throw error;
       }
@@ -225,6 +238,23 @@ async function main() {
       badPorts,
       observer,
       runFlow,
+      /** A second, independent desktop with its own Mobile LAN listener and phone credential. */
+      async addPeer(name) {
+        const dir = join(output, `peer-${name}`);
+        await mkdir(dir, { recursive: true });
+        const extra = { name, peer: desktopPeer(options["peer-cli"], dir, { deviceName: `Acceptance peer ${name}` }) };
+        extraPeers.push(extra);
+        extra.port = await freePort();
+        await extra.peer.prepare({ invite: false });
+        extra.phone = await extra.peer.enableMobileLan({ port: extra.port, label: "Emulator phone" });
+        extra.observer = lanObserver({
+          port: extra.port,
+          credential: await extra.peer.addMobileCredential("Harness observer"),
+          output: dir,
+        });
+        await extra.observer.start();
+        return extra;
+      },
       act: actions({ probe, appId }),
       output,
       runId: randomUUID().slice(0, 6),
@@ -279,6 +309,10 @@ async function main() {
     await observer?.stop().catch(() => {});
     await bad.stop().catch(() => {});
     await peer.dispose().catch(() => {});
+    for (const extra of extraPeers) {
+      await extra.observer?.stop().catch(() => {});
+      await extra.peer.dispose().catch(() => {});
+    }
     await device.dispose().catch(() => {});
     const sums = [];
     for (const f of ["run-manifest.json", "timeline.json", "timeline.csv", "result.json"]) {
