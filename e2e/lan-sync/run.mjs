@@ -114,6 +114,8 @@ async function main() {
     await probe.run("uninstall", "test.clipboardfixture").catch(() => "");
     await probe.run("install", fixtureApk.split("\n").at(-1));
     await probe.shell("settings put global hide_error_dialogs 1");
+    // Keep the whole run's stage traces in the owned emulator's log buffer for phone-traces.jsonl.
+    await probe.run("logcat", "-G", "16M").catch(() => "");
     await probe.run("root").catch(() => "");
     await delay(2000);
     for (const address of BLACKHOLES) {
