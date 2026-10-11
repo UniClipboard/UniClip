@@ -188,7 +188,8 @@ async function main() {
 
     let phase = 0;
     const redact = (text) =>
-      [phone, ...extraPeers.map((p) => p.phone)].reduce(
+      // `context.phone` is replaced when a scenario issues a new credential.
+      [phone, context?.phone, ...extraPeers.map((p) => p.phone)].reduce(
         (out, credential) => (credential ? out.replaceAll(credential.password, "<redacted>") : out),
         text
       );

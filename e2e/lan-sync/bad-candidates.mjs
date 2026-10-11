@@ -37,6 +37,7 @@ export function badCandidateServer({ peerPort, tls } = {}) {
   const servers = [];
   const byName = {};
   const putLostLog = [];
+  let putLostPort = null;
   const putLostControl = { drop: "document", fresh: false, keepAliveMs: 5000 };
   const hits = Object.fromEntries(
     [...Object.keys(BEHAVIOURS), "legacyHost", "putResponseLost", "tlsPutLost"].map((k) => [k, 0])
@@ -47,6 +48,18 @@ export function badCandidateServer({ peerPort, tls } = {}) {
     putLostLog,
     putLostControl,
     tlsHandshakeFailures,
+    /** Stops the plain reply-lost proxy from accepting connections (its port refuses them). */
+    async closePutLost() {
+      const server = byName.putResponseLost;
+      server.closeAllConnections?.();
+      await new Promise((done) => server.close(() => done()));
+    },
+    /** Accepts connections on the reply-lost proxy's port again. */
+    async reopenPutLost() {
+      const server = byName.putResponseLost;
+      if (server.listening) return;
+      await new Promise((done) => server.listen(putLostPort, "127.0.0.1", done));
+    },
     /** Changes the reply-lost proxy's behaviour for the requests that follow. */
     setPutLost(control) {
       Object.assign(putLostControl, control);
@@ -138,6 +151,7 @@ export function badCandidateServer({ peerPort, tls } = {}) {
         servers.push(server);
         byName[name] = server;
         if (name === "putResponseLost" || name === "tlsPutLost") server.keepAliveTimeout = putLostControl.keepAliveMs;
+        if (name === "putResponseLost") putLostPort = server.address().port;
         ports[name] = server.address().port;
       }
       return ports;
@@ -145,7 +159,8 @@ export function badCandidateServer({ peerPort, tls } = {}) {
     async stop() {
       for (const server of servers) {
         server.closeAllConnections?.();
-        await new Promise((done) => server.close(done));
+        // A proxy a scenario already shut reports "not running"; that is fine here.
+        await new Promise((done) => server.close(() => done()));
       }
     },
   };

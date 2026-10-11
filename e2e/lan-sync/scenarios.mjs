@@ -23,6 +23,8 @@ const ORDERS = {
   "faulty-second": (c) => [badUrl(c, "truncated"), badUrl(c, "notFound"), realUrl(c)],
   "legacy-host": (c) => [holeUrl(0), holeUrl(1), badUrl(c, "legacyHost")],
   "put-lost": (c) => [holeUrl(0), holeUrl(1), badUrl(c, "putResponseLost")],
+  // Two working routes to the same desktop; the first one is later shut to model a stale address.
+  "stale-preferred": (c) => [badUrl(c, "putResponseLost"), badUrl(c, "legacyHost"), holeUrl(0)],
   // The same desktop behind a self-signed HTTPS proxy, without and with the explicit setting.
   "tls-strict": (c) => [holeUrl(0), holeUrl(1), `https://10.0.2.2:${c.badPorts.tlsPutLost}`],
   "tls-insecure": (c) => [holeUrl(0), holeUrl(1), `https://10.0.2.2:${c.badPorts.tlsPutLost}`],
@@ -167,7 +169,9 @@ async function readbackMatches(c, nonce) {
 
 /** Whether the OS clipboard equals `nonce`, and whether the reader could see any clip at all. */
 async function readClipboardBack(c, nonce) {
-  const since = Date.now() / 1000 - 1;
+  // logcat prints the phone's clock: compare against phone time, not the host's.
+  const clock = await clockOffset(c.probe);
+  const since = (Date.now() + clock.offsetMs) / 1000 - 1;
   await c.probe.shell(`am start -n test.clipboardfixture/.ReadActivity --es expect ${nonce}`);
   for (let i = 0; i < 20; i++) {
     await c.delay(500);
@@ -425,6 +429,42 @@ async function phoneCopyOnce(c, s, name, { foregroundAfter = true } = {}) {
 }
 
 export const SCENARIOS = {
+
+  // The verified address stops accepting connections while another address still works: the
+  // copy, provably never sent to the first, goes to the second and reaches the desktop once.
+  async "stale-preferred-write"(c) {
+    const s = "stale-preferred-write";
+    const startClock = await clockOffset(c.probe);
+    const startedAt = Date.now() + startClock.offsetMs;
+    await ensureServer(c, "stale-preferred");
+    c.bad.setPutLost({ drop: "none", fresh: false, keepAliveMs: 5000 });
+    await foreground(c);
+    c.assert(`${s}.session-warm`, s, await waitWarm(c, startedAt));
+    const reads = (await c.readTraces(startedAt)).filter((t) => t.stage === "get_result" && t.valid === "true");
+    c.probe.event("stale-preferred.route", { route: reads.at(-1)?.route ?? null });
+    await c.delay(2000);
+    await c.bad.closePutLost();
+    try {
+      const before = await writeBaseline(c);
+      const clock = await clockOffset(c.probe);
+      const since = Date.now() + clock.offsetMs;
+      const nonce = `UCLAN${c.runId}stalepref`;
+      await c.act.copyInOtherApp(nonce);
+      await foreground(c);
+      const document = await waitDocument(c.observer, (d) => d.text === nonce, 30_000);
+      await c.delay(3000);
+      const evidence = await writeEvidence(c, before, since, c.bad.putLostLog.length);
+      const traces = await c.readTraces(since);
+      c.assert(`${s}.delivered-once-elsewhere`, s, Boolean(document) && evidence.desktopDocumentPuts === 1, {
+        ...evidence,
+        preferredBefore: reads.at(-1)?.route ?? null,
+        putRoutes: traces.filter((t) => t.stage === "put_attempt").map((t) => t.route),
+        rediscovered: traces.filter((t) => t.stage === "put_rediscover").length,
+      });
+    } finally {
+      await c.bad.reopenPutLost();
+    }
+  },
 
   // A self-signed HTTPS desktop. Without the explicit setting the certificate is refused and no
   // request reaches the desktop, reads or writes. With it, reads and writes work, every write
@@ -901,6 +941,9 @@ export const SCENARIOS = {
       attempts,
       results: writeTraces.filter((t) => t.stage === "put_result").map((t) => t.status),
     });
+    // Later scenarios need a working phone: a new credential and a fresh configuration.
+    c.phone = await c.peer.addMobileCredential("Emulator phone");
+    c.configuredOrder = "revoked";
   },
 
   // After a desktop copy is applied, the user's own later copies still reach the desktop, including
