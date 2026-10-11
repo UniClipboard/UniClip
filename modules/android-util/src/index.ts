@@ -42,6 +42,17 @@ export interface ClipboardFileInfo {
   sourceId: string;
 }
 
+export interface SingleAttemptRequest {
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  /** Exactly one of `text` and `fileUri` (file:// or content://) is the body. */
+  text?: string;
+  fileUri?: string;
+  timeoutMs: number;
+  trustAllCertificates: boolean;
+}
+
 export interface NativeUtilModuleType {
   moveTaskToBack(): boolean;
   calculateStringMD5Base64(data: string): string;
@@ -70,6 +81,7 @@ export interface NativeUtilModuleType {
   saveClipboardFileToFile(destDirPath: string): Promise<ClipboardFileInfo | null>;
   getClipboardFileSourceId(): string | null;
   setClipboardImageFromFile(fileUri: string): Promise<boolean>;
+  sendOnce?(request: SingleAttemptRequest): Promise<{ status: number; body: string }>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   addListener(eventName: string, listener: (event: any) => void): EventSubscription;
 }
@@ -118,6 +130,19 @@ export function setExcludeFromRecents(exclude: boolean): boolean {
 export function getSupportedAbis(): string[] {
   if (Platform.OS !== 'android') return [];
   return NativeUtilModule!.getSupportedAbis();
+}
+
+/**
+ * Sends one request that is never sent twice: its own connection, no transparent retry. Rejects
+ * with code `ERR_REQUEST_NOT_SENT` when nothing left the device, or `ERR_REQUEST_OUTCOME_UNKNOWN`
+ * when the request went out but no complete reply arrived. Null when this build has no such
+ * native function (another platform, or an app binary older than this JavaScript).
+ */
+export function singleAttemptSender():
+  | ((request: SingleAttemptRequest) => Promise<{ status: number; body: string }>)
+  | null {
+  const send = NativeUtilModule?.sendOnce;
+  return typeof send === 'function' ? (request) => send.call(NativeUtilModule, request) : null;
 }
 
 export function isTailscaleActive(): boolean {

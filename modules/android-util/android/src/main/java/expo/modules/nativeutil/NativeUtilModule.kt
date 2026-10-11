@@ -332,6 +332,29 @@ class NativeUtilModule : Module() {
             return@Function jobId
         }
 
+        // A write that must never reach the server twice: see SingleAttemptHttp.
+        AsyncFunction("sendOnce") { request: Map<String, Any?>, promise: Promise ->
+            val context = appContext.reactContext
+            if (context == null) {
+                promise.reject(RequestNotSentException("React context is unavailable", null))
+                return@AsyncFunction
+            }
+            @Suppress("UNCHECKED_CAST")
+            SingleAttemptHttp.send(
+                context = context,
+                method = request["method"] as? String ?: "PUT",
+                url = request["url"] as String,
+                headers = (request["headers"] as? Map<String, Any?>)
+                    ?.mapValues { it.value.toString() } ?: emptyMap(),
+                text = request["text"] as? String,
+                fileUri = request["fileUri"] as? String,
+                timeoutMs = (request["timeoutMs"] as? Number)?.toLong() ?: 5_000L,
+                trustAllCertificates = request["trustAllCertificates"] as? Boolean ?: false,
+                resolve = { status, body -> promise.resolve(mapOf("status" to status, "body" to body)) },
+                reject = { error -> promise.reject(error) },
+            )
+        }
+
         Function("startUploadFile") { url: String, headers: Map<String, String>, fileUri: String ->
             val jobId = UUID.randomUUID().toString()
             val cancelFlag = AtomicBoolean(false)

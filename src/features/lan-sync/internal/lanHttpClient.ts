@@ -3,6 +3,7 @@ import { fetch as expoFetch } from 'expo/fetch';
 import { File } from 'expo-file-system';
 import { createParser, type EventSourceMessage } from 'eventsource-parser';
 import { Base64 } from 'js-base64';
+import { singleAttemptSender, type SingleAttemptRequest } from 'android-util';
 import type { LanServerDraft } from '@/features/lan-servers';
 import {
   ReactNativeBlobLanTransport,
@@ -53,6 +54,11 @@ interface LanHttpClientDependencies {
   ): Promise<string>;
   insecureTransport: LanInsecureHttpTransport;
   fetchStream: LanStreamFetch;
+  /**
+   * Sends a write exactly once (own connection, no transparent retry), or null where the platform
+   * has none; the clipboard writes then use the transports above.
+   */
+  sendOnce: ((request: SingleAttemptRequest) => Promise<{ status: number; body: string }>) | null;
 }
 
 export class LanAuthenticationError extends Error {
@@ -125,6 +131,18 @@ export interface LanPutResult {
   contentId?: string;
 }
 
+function requestNotSent(error: unknown): boolean {
+  return (error as { code?: unknown } | null)?.code === 'ERR_REQUEST_NOT_SENT';
+}
+
+function parseJsonBody(body: string): unknown {
+  try {
+    return JSON.parse(body);
+  } catch {
+    return undefined;
+  }
+}
+
 /** Desktop hosts that assign content ids name the stored content in the upload reply. */
 function ackContentId(data: unknown): string | undefined {
   if (!data || typeof data !== 'object') return undefined;
@@ -154,9 +172,12 @@ const defaultDependencies: LanHttpClientDependencies = {
   },
   insecureTransport: new ReactNativeBlobLanTransport(),
   fetchStream: expoFetch,
+  sendOnce: singleAttemptSender(),
 };
 
 const REQUEST_TIMEOUT_MS = 5000;
+/** A payload stalled for this long in one connect, read or write step is abandoned. */
+const PAYLOAD_STEP_TIMEOUT_MS = 30_000;
 const SSE_CONNECT_TIMEOUT_MS = 10_000;
 const SSE_HEARTBEAT_TIMEOUT_MS = 50_000;
 
@@ -307,34 +328,19 @@ export class LanHttpClient {
       route,
       payload: Boolean(payload),
       cid: contentAlias(document.hash),
+      transport: this.dependencies.sendOnce ? 'once' : 'default',
     });
     let sent = false;
     try {
       if (payload) {
-        const response = await (server.allowInsecureTls
-          ? this.dependencies.insecureTransport
-          : this.dependencies
-        ).uploadFile(payload.uri, payloadEndpoint(lease.url, payload.name), {
-          ...authorizationHeaders(server),
-          'content-type': payload.mimeType ?? 'application/octet-stream',
-        });
+        const response = await this.putPayload(server, lease.url, payload);
         if (response.status === 401) throw new LanAuthenticationError();
         if (response.status < 200 || response.status >= 300) {
           throw new Error(`LAN payload upload failed with status ${response.status}`);
         }
       }
       sent = true;
-      const response = server.allowInsecureTls
-        ? await this.dependencies.insecureTransport.putJson(
-            endpoint(lease.url),
-            document,
-            authorizationHeaders(server)
-          )
-        : await axios.put(endpoint(lease.url), document, {
-            auth: { username: server.username, password: server.password },
-            timeout: REQUEST_TIMEOUT_MS,
-            validateStatus: () => true,
-          });
+      const response = await this.putDocument(server, lease.url, document);
       const contentId = ackContentId(response.data);
       traceLan('put_result', {
         route,
@@ -351,15 +357,73 @@ export class LanHttpClient {
     } catch (error) {
       if (error instanceof LanAuthenticationError) throw error;
       if (error instanceof Error && error.message.startsWith('LAN ')) throw error;
+      // Only a request that may have left the device can have been committed.
+      const committedMaybe = sent && !requestNotSent(error);
       traceLan('put_result', {
         route,
-        status: sent ? 'unknown' : 'transport_error',
+        status: committedMaybe ? 'unknown' : 'transport_error',
         ms: Math.round(performance.now() - startedAt),
       });
       this.routes.reportTransportFailure(lease);
       // The document request may have been committed before its response was lost.
-      throw sent ? new LanDeliveryUnknownError() : new LanUnavailableError();
+      throw committedMaybe ? new LanDeliveryUnknownError() : new LanUnavailableError();
     }
+  }
+
+  private async putPayload(
+    server: LanServerDraft,
+    baseUrl: string,
+    payload: LanPayloadUpload
+  ): Promise<{ status: number }> {
+    const url = payloadEndpoint(baseUrl, payload.name);
+    const headers = {
+      ...authorizationHeaders(server),
+      'content-type': payload.mimeType ?? 'application/octet-stream',
+    };
+    const sendOnce = this.dependencies.sendOnce;
+    if (sendOnce) {
+      return sendOnce({
+        method: 'PUT',
+        url,
+        headers,
+        fileUri: payload.uri,
+        timeoutMs: PAYLOAD_STEP_TIMEOUT_MS,
+        trustAllCertificates: server.allowInsecureTls,
+      });
+    }
+    return (
+      server.allowInsecureTls ? this.dependencies.insecureTransport : this.dependencies
+    ).uploadFile(payload.uri, url, headers);
+  }
+
+  private async putDocument(
+    server: LanServerDraft,
+    baseUrl: string,
+    document: LanClipboardDocument
+  ): Promise<{ status: number; data?: unknown }> {
+    const sendOnce = this.dependencies.sendOnce;
+    if (sendOnce) {
+      const reply = await sendOnce({
+        method: 'PUT',
+        url: endpoint(baseUrl),
+        headers: { ...authorizationHeaders(server), 'content-type': 'application/json' },
+        text: JSON.stringify(document),
+        timeoutMs: REQUEST_TIMEOUT_MS,
+        trustAllCertificates: server.allowInsecureTls,
+      });
+      return { status: reply.status, data: parseJsonBody(reply.body) };
+    }
+    return server.allowInsecureTls
+      ? this.dependencies.insecureTransport.putJson(
+          endpoint(baseUrl),
+          document,
+          authorizationHeaders(server)
+        )
+      : axios.put(endpoint(baseUrl), document, {
+          auth: { username: server.username, password: server.password },
+          timeout: REQUEST_TIMEOUT_MS,
+          validateStatus: () => true,
+        });
   }
 
   async downloadPayload(

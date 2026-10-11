@@ -179,6 +179,7 @@ jest.mock('android-util', () => ({
   nativeSaveClipboardFileToFile: jest.fn().mockResolvedValue(null),
   nativeGetClipboardFileSourceId: jest.fn().mockReturnValue(null),
   isTailscaleActive: jest.fn().mockReturnValue(false),
+  singleAttemptSender: jest.fn().mockReturnValue(null),
 }));
 
 // Mirrors native-timer's non-Android fallback so Jest fake timers drive it.
