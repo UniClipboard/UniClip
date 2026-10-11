@@ -639,6 +639,10 @@ class UcEngineModule : Module() {
   // already attached, so a second start call from the same runtime is still an error.
   private var attached = false
 
+  // The react context can already be gone when the module is destroyed; the last runtime to detach
+  // still needs a context to shut the Engine down when no service holds it.
+  private var attachedContext: Context? = null
+
   // Process diagnostics are available before the first synchronization session.
   private fun prepareDiagnosticLogging() {
     if (runCatching { queryLocalDiagnosticStatus() }.isSuccess) return
@@ -706,11 +710,15 @@ class UcEngineModule : Module() {
       // Attach first: the service may release its hold at any moment, and an Engine that is
       // started while no runtime is counted would be shut down by that release.
       val firstAttach = !attached
-      if (firstAttach) { EngineOwner.runtimeAttached(); attached = true }
+      if (firstAttach) {
+        EngineOwner.runtimeAttached()
+        attached = true
+        attachedContext = context.applicationContext
+      }
       try {
         EngineOwner.start(context, config, allowAttach = firstAttach)
       } catch (error: Throwable) {
-        if (firstAttach) { attached = false; EngineOwner.runtimeDetached(context) }
+        if (firstAttach) { attached = false; attachedContext = null; EngineOwner.runtimeDetached(context) }
         throw error
       }
     }
@@ -1003,8 +1011,9 @@ class UcEngineModule : Module() {
     }
     OnDestroy {
       // The Engine outlives this runtime while the background service holds it.
-      if (attached) EngineOwner.runtimeDetached(appContext.reactContext?.applicationContext)
+      if (attached) EngineOwner.runtimeDetached(attachedContext ?: appContext.reactContext?.applicationContext)
       attached = false
+      attachedContext = null
     }
   }
 
