@@ -3,26 +3,23 @@
 appId: ${APP_ID}
 ---
 - runFlow: ../actions/devices/open.yaml
-- scrollUntilVisible:
-    element:
-      text: ${OFFLINE}
-    direction: DOWN
-- tapOn: ${OFFLINE}
+- runFlow:
+    file: ../actions/devices/open-device.yaml
+    env:
+      DEVICE: ${OFFLINE}
 - scrollUntilVisible:
     element:
       text: "Version"
     direction: DOWN
     timeout: 20000
-- repeat:
-    times: 20
-    while:
-      visible: "Not yet delivered|Allow Paste"
-    commands:
-      - runFlow: ../actions/system/dismiss-paste-prompt.yaml
-      - extendedWaitUntil:
-          notVisible: "Not yet delivered"
-          timeout: 15000
-          optional: true
+- extendedWaitUntil:
+    notVisible: "Not yet delivered"
+    timeout: 280000
+# A system paste prompt hides the page and would satisfy the wait above; dismiss and wait again.
+- runFlow: ../actions/system/dismiss-paste-prompt.yaml
+- extendedWaitUntil:
+    notVisible: "Not yet delivered"
+    timeout: 280000
 - runFlow: ../actions/system/dismiss-paste-prompt.yaml
 # Positive check first: the sheet content is really in the hierarchy, not hidden by a prompt.
 - assertVisible: "Device identity"
@@ -35,15 +32,4 @@ appId: ${APP_ID}
 - assertVisible: ${OFFLINE}
 - assertNotVisible: "Security update not yet delivered.*"
 - takeScreenshot: group-update-delivered-list
-- runFlow:
-    when:
-      platform: Android
-    commands:
-      - tapOn:
-          id: main-tab-Clipboard
-- runFlow:
-    when:
-      platform: iOS
-    commands:
-      - tapOn: "Clipboard"
-- runFlow: ../assertions/home-ready.yaml
+- runFlow: ../actions/navigation/open-clipboard-tab.yaml

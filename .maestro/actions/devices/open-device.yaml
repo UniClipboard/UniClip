@@ -1,0 +1,14 @@
+# Pre: device list visible. Post: the detail sheet of ${DEVICE} is open.
+appId: ${APP_ID}
+---
+- runFlow: ../system/dismiss-paste-prompt.yaml
+- scrollUntilVisible:
+    element:
+      text: ${DEVICE}
+    direction: DOWN
+- tapOn:
+    text: ${DEVICE}
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible: "Device identity"
+    timeout: 20000

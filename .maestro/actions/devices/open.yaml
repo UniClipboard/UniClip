@@ -2,15 +2,21 @@
 # Sync method and space devices are the top-level Devices destination on both platforms.
 appId: ${APP_ID}
 ---
+- runFlow: ../system/dismiss-paste-prompt.yaml
 - runFlow:
     when:
       platform: iOS
     commands:
-      - tapOn: "Devices"
-      - extendedWaitUntil:
-          visible:
-            id: sync-channel-picker
-          timeout: 20000
+      # A tab tap can be lost while a system prompt is dismissed; retry until the page appears.
+      - retry:
+          maxRetries: 3
+          commands:
+            - runFlow: ../system/dismiss-paste-prompt.yaml
+            - tapOn: "Devices"
+            - extendedWaitUntil:
+                visible:
+                  id: sync-channel-picker
+                timeout: 10000
 - runFlow:
     when:
       platform: Android

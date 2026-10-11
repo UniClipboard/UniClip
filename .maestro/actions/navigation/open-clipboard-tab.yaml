@@ -1,0 +1,17 @@
+# Pre: a top-level destination is visible. Post: home ready.
+appId: ${APP_ID}
+---
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn:
+          id: main-tab-Clipboard
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          text: "Clipboard"
+          retryTapIfNoChange: true
+- runFlow: ../../assertions/home-ready.yaml

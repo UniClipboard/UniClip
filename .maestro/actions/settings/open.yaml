@@ -7,7 +7,9 @@ appId: ${APP_ID}
       platform: iOS
     commands:
       # iOS top-level destinations are native tabs.
-      - tapOn: "Settings"
+      - tapOn:
+          text: "Settings"
+          retryTapIfNoChange: true
 - runFlow:
     when:
       platform: Android

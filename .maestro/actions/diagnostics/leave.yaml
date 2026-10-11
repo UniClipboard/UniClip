@@ -4,14 +4,12 @@ appId: ${APP_ID}
     when:
       platform: iOS
     commands:
+      # Native navigation back button, then the Clipboard tab.
       - tapOn:
-          id: diagnostics-back
+          id: BackButton
       - assertVisible:
           id: settings-diagnostics
-      - swipe:
-          start: "50%,10%"
-          end: "50%,95%"
-          duration: 700
+      - tapOn: "Clipboard"
 - runFlow:
     when:
       platform: Android

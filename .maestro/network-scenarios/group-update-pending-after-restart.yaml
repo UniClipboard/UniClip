@@ -2,14 +2,12 @@
 # a restart only re-reads Engine state and must not clear or resend it.
 appId: ${APP_ID}
 ---
-- runFlow: ../actions/system/dismiss-paste-prompt.yaml
 - runFlow: ../actions/devices/open.yaml
 - takeScreenshot: group-update-pending-after-restart
-- scrollUntilVisible:
-    element:
-      text: ${OFFLINE}
-    direction: DOWN
-- tapOn: ${OFFLINE}
+- runFlow:
+    file: ../actions/devices/open-device.yaml
+    env:
+      DEVICE: ${OFFLINE}
 - scrollUntilVisible:
     element:
       text: "Not yet delivered"
