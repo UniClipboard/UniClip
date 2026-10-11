@@ -27,6 +27,7 @@ import {
   deviceGroupUpdateRows,
   type DeviceTrustDeviceView,
 } from '@/features/space';
+import type { DeviceGroupUpdate } from '@/platform/engine';
 import type { SpaceDeviceDetailProps } from './SpaceDeviceDetail.types';
 import { MATERIAL_SEED_COLOR } from '@/theme/colors';
 
@@ -42,6 +43,38 @@ function factValue(
   fact: 'reachability' | 'groupRelationship' | 'syncRelationship' | 'compatibility'
 ): string {
   return device[fact];
+}
+
+// Engine's pending group key update for this device: state rows, then recovery guidance.
+function GroupUpdateRows({ update }: { update: DeviceGroupUpdate }) {
+  const { t } = useTranslation('settingsSync');
+  const colors = useMaterialColors();
+  return (
+    <>
+      {deviceGroupUpdateRows(update, t).map((row) => (
+        <ListItem key={`groupUpdate-${row.key}`}>
+          <ListItem.HeadlineContent>
+            <ComposeText>{row.label}</ComposeText>
+          </ListItem.HeadlineContent>
+          <ListItem.TrailingContent>
+            <ComposeText color={colors.onSurfaceVariant}>{row.value}</ComposeText>
+          </ListItem.TrailingContent>
+        </ListItem>
+      ))}
+      <ListItem>
+        <ListItem.LeadingContent>
+          <Icon
+            source={ICONS.info}
+            size={20}
+            tint={update.recovery === 'reviewDevice' ? colors.error : colors.primary}
+          />
+        </ListItem.LeadingContent>
+        <ListItem.HeadlineContent>
+          <ComposeText>{t(deviceGroupUpdateGuidance(update))}</ComposeText>
+        </ListItem.HeadlineContent>
+      </ListItem>
+    </>
+  );
 }
 
 function DeviceDetailContent(props: SpaceDeviceDetailProps) {
@@ -96,35 +129,7 @@ function DeviceDetailContent(props: SpaceDeviceDetailProps) {
             </ListItem>
           ))}
 
-          {device.groupUpdate
-            ? deviceGroupUpdateRows(device.groupUpdate, t).map((row) => (
-                <ListItem key={`groupUpdate-${row.key}`}>
-                  <ListItem.HeadlineContent>
-                    <ComposeText>{row.label}</ComposeText>
-                  </ListItem.HeadlineContent>
-                  <ListItem.TrailingContent>
-                    <ComposeText color={colors.onSurfaceVariant}>{row.value}</ComposeText>
-                  </ListItem.TrailingContent>
-                </ListItem>
-              ))
-            : null}
-
-          {device.groupUpdate ? (
-            <ListItem>
-              <ListItem.LeadingContent>
-                <Icon
-                  source={ICONS.info}
-                  size={20}
-                  tint={
-                    device.groupUpdate.recovery === 'reviewDevice' ? colors.error : colors.primary
-                  }
-                />
-              </ListItem.LeadingContent>
-              <ListItem.HeadlineContent>
-                <ComposeText>{t(deviceGroupUpdateGuidance(device.groupUpdate))}</ComposeText>
-              </ListItem.HeadlineContent>
-            </ListItem>
-          ) : null}
+          {device.groupUpdate ? <GroupUpdateRows update={device.groupUpdate} /> : null}
 
           {device.blockedReason !== null ? (
             <ListItem>
