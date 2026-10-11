@@ -142,19 +142,23 @@ export async function measureCopy(c, phase, seq, { timeoutMs = APPLY_TIMEOUT_MS,
 
 /** The fixture app reads the OS clipboard in the foreground and logs only whether it matches. */
 async function readbackMatches(c, nonce) {
+  return (await readback(c, nonce)).match;
+}
+
+/** Whether the OS clipboard equals `nonce`, and whether the reader could see any clip at all. */
+async function readback(c, nonce) {
   const since = Date.now() / 1000 - 1;
   await c.probe.shell(`am start -n test.clipboardfixture/.ReadActivity --es expect ${nonce}`);
   for (let i = 0; i < 20; i++) {
     await c.delay(500);
     const log = await c.probe.run("logcat", "-d", "-v", "epoch", "-s", "UcClipboardFixture:I").catch(() => "");
-    const match = log
+    const line = log
       .split("\n")
-      .filter((line) => Number(line.match(/^\s*(\d+\.\d+)/)?.[1]) >= since)
-      .map((line) => line.match(/read match=(true|false)/)?.[1])
-      .find(Boolean);
-    if (match) return match === "true";
+      .filter((l) => Number(l.match(/^\s*(\d+\.\d+)/)?.[1]) >= since)
+      .find((l) => /read match=/.test(l));
+    if (line) return { match: /match=true/.test(line), present: /present=true/.test(line) };
   }
-  return false;
+  return { match: false, present: null };
 }
 
 async function phaseSamples(c, phase, before, { readback = false } = {}) {
@@ -166,7 +170,9 @@ async function phaseSamples(c, phase, before, { readback = false } = {}) {
     if (readback && sample.ok) {
       // The fixture app reads the OS clipboard in the foreground and finishes; the app stays in the
       // background. Only proves the content is pasteable, not when it became so.
-      sample.clipboardReadback = await readbackMatches(c, `UCLAN${c.runId}${phase.replace(/[^A-Za-z0-9]/g, "")}N${seq}`);
+      const result = await readback(c, `UCLAN${c.runId}${phase.replace(/[^A-Za-z0-9]/g, "")}N${seq}`);
+      sample.clipboardReadback = result.match;
+      sample.readbackSawClip = result.present;
       await c.act.home();
     }
     await c.delay(1500 + Math.floor(Math.random() * 1000));

@@ -25,6 +25,7 @@ function overlayOperation(native, from, to, write) {
     released,
     focusHow: focus?.how ?? null,
     attempts: done?.attempts ? Number(done.attempts) : null,
+    verified: done ? (done.ok ?? done.found ?? null) : null,
   };
 }
 
@@ -79,6 +80,7 @@ export function buildSegments({ traces, native, desktop, alias, activation, obse
           release_and_return_to_js: span(op.done?.wall, to),
           focus: op.focusHow,
           attempts: op.attempts,
+          verified: op.verified,
         }
       : { overlay: "not used (system clipboard API)" };
 
