@@ -30,8 +30,14 @@ class SyncForegroundService : Service() {
         const val EXTRA_CONTENT = "content"
         const val RESTART_CHANNEL_ID = "syncclipboard_restart"
 
+        /** Whether the service is in the foreground now. Every change is reported to JS, which treats
+         *  only this confirmed state (not a start request) as permission to keep receiving. */
         var isRunning = false
-            private set
+            private set(value) {
+                if (field == value) return
+                field = value
+                ForegroundServiceModule.sendStateEvent(value)
+            }
 
         /** 标记是否为用户主动停止（ACTION_STOP / ACTION_TEMP_STOP / JS 侧 stopService），
          *  区分系统杀掉与用户操作，onDestroy 时据此决定是否发通知 */

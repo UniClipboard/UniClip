@@ -833,7 +833,8 @@ describe('LanSyncAdapter', () => {
     listeners[0].onDisconnected(new Error('stream ended'));
     await jest.advanceTimersByTimeAsync(999);
     expect(client.subscribeClipboardEvents).toHaveBeenCalledTimes(1);
-    await jest.advanceTimersByTimeAsync(1);
+    // The first retry waits 1 s plus up to 300 ms of jitter.
+    await jest.advanceTimersByTimeAsync(301);
     expect(client.subscribeClipboardEvents).toHaveBeenCalledTimes(2);
 
     await adapter.stop();

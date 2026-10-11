@@ -5,6 +5,12 @@ export type SyncRuntimeStatus = 'idle' | 'starting' | 'ready' | 'switching' | 's
 export interface SyncRuntimePolicy {
   appState: 'active' | 'background' | 'inactive' | 'unknown' | 'extension';
   backgroundSyncEnabled: boolean;
+  /**
+   * Whether this platform confirms receiving may continue in the background right now (on
+   * Android: the user enabled it and the foreground service reports running). Separate from the
+   * user's intent in `backgroundSyncEnabled`. Absent means not confirmed.
+   */
+  backgroundReceiveAllowed?: boolean;
 }
 
 export interface SyncStartContext {

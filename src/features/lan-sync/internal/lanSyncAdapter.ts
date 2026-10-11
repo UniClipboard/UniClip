@@ -23,6 +23,7 @@ import {
   type LanSseListener,
 } from './lanHttpClient';
 import { contentAlias, traceLan } from './lanSyncTrace';
+import { scheduleOnce } from './lanTimers';
 
 const FOREGROUND_POLL_MS = 2000;
 const BACKGROUND_POLL_MS = 15000;
@@ -60,6 +61,7 @@ interface LanHttpPort {
     destinationUri: string
   ): Promise<string>;
   subscribeClipboardEvents?(server: LanServerDraft, listener: LanSseListener): () => void;
+  invalidateRoutes?(): void;
 }
 
 export interface LanSyncAdapterDependencies {
@@ -135,7 +137,7 @@ export class LanSyncAdapter implements SyncAdapter {
     backgroundSyncEnabled: false,
   };
   private pollTimer: string | null = null;
-  private sseRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  private cancelSseRetry: (() => void) | null = null;
   private cancelSse: (() => void) | null = null;
   private sseEpoch = 0;
   private sseConnected = false;
@@ -146,6 +148,9 @@ export class LanSyncAdapter implements SyncAdapter {
   private running = false;
   private connected: boolean | null = null;
   private lastRemoteIdentity: string | null = null;
+  /** Latest content id announced by the desktop, and a counter of announcements. */
+  private notifiedIdentity: string | null = null;
+  private notificationCount = 0;
   private readonly subscribers = new Set<(event: SyncAdapterEvent) => void>();
 
   constructor(private readonly dependencies: LanSyncAdapterDependencies) {
@@ -157,13 +162,14 @@ export class LanSyncAdapter implements SyncAdapter {
     this.server = await this.dependencies.getServer();
     this.running = true;
     if (!this.server) return;
+    // The notification channel starts with the first pull; both share one route discovery.
+    this.schedulePolling();
+    this.startSse();
     try {
       await this.synchronize();
     } catch (error) {
       this.emitConnectionFailure(error);
     }
-    this.schedulePolling();
-    this.startSse();
   }
 
   async stop(): Promise<void> {
@@ -193,22 +199,34 @@ export class LanSyncAdapter implements SyncAdapter {
       this.lastRemoteIdentity = null;
       return;
     }
+    this.schedulePolling();
+    this.reconcileSse();
     try {
       await this.synchronize();
     } catch (error) {
       this.emitConnectionFailure(error);
     }
-    this.schedulePolling();
-    this.startSse();
   }
 
   handleAppStateChange(policy: SyncRuntimePolicy): void {
     this.policy = policy;
-    if (policy.appState === 'active') this.startSse();
-    else this.stopSse();
+    // A usable subscription survives the foreground/background switch when background receiving
+    // is allowed; it is only closed when this state no longer permits receiving.
+    this.reconcileSse();
     this.schedulePolling();
     if (policy.appState === 'active' && this.server)
       void this.synchronize().catch((error) => this.emitConnectionFailure(error));
+  }
+
+  /**
+   * The device's network changed: routes verified on the old network are dropped and the
+   * subscription, which may be half-open on the old network, is rebuilt.
+   */
+  handleNetworkChange(): void {
+    this.client.invalidateRoutes?.();
+    if (!this.running || !this.server) return;
+    this.stopSse();
+    this.reconcileSse();
   }
 
   async synchronize(): Promise<void> {
@@ -234,6 +252,7 @@ export class LanSyncAdapter implements SyncAdapter {
     const server = this.server;
     if (!server) throw new Error('LAN adapter is not started');
     const epoch = this.syncEpoch;
+    const notificationsAtStart = this.notificationCount;
     const result = await this.client.getClipboard(server);
     if (epoch !== this.syncEpoch || !this.running) return;
     this.emitConnectionRecovery();
@@ -265,6 +284,13 @@ export class LanSyncAdapter implements SyncAdapter {
       if (epoch !== this.syncEpoch || !this.running) return;
     } else if (document.type !== 'Text') {
       throw new Error('LAN image or file is missing its payload');
+    }
+    if (this.isSuperseded(identity, notificationsAtStart)) {
+      // A newer copy was announced while this one was being fetched: never write the older one
+      // back over it. The pending pull fetches the current snapshot.
+      traceLan('remote_superseded', { cid: contentAlias(identity) });
+      this.synchronizePending = true;
+      return;
     }
     await this.dependencies.applyRemoteContent({
       type: document.type,
@@ -503,7 +529,9 @@ export class LanSyncAdapter implements SyncAdapter {
           ? SSE_CONNECTED_POLL_MS
           : FOREGROUND_POLL_MS
         : this.policy.backgroundSyncEnabled
-        ? BACKGROUND_POLL_MS
+        ? this.sseConnected
+          ? SSE_CONNECTED_POLL_MS
+          : BACKGROUND_POLL_MS
         : null;
     if (!interval) return;
     // React Native pauses JS timers while the Android activity is paused, so background
@@ -522,7 +550,7 @@ export class LanSyncAdapter implements SyncAdapter {
     if (
       !this.running ||
       !this.server ||
-      this.policy.appState !== 'active' ||
+      !this.sseAllowed() ||
       this.cancelSse ||
       !this.client.subscribeClipboardEvents
     )
@@ -535,6 +563,16 @@ export class LanSyncAdapter implements SyncAdapter {
     });
   }
 
+  /** Foreground always receives; background only while the platform confirms it may run. */
+  private sseAllowed(): boolean {
+    return this.policy.appState === 'active' || this.policy.backgroundReceiveAllowed === true;
+  }
+
+  private reconcileSse(): void {
+    if (this.sseAllowed()) this.startSse();
+    else this.stopSse();
+  }
+
   private stopSse(): void {
     this.sseEpoch += 1;
     this.cancelSse?.();
@@ -544,8 +582,20 @@ export class LanSyncAdapter implements SyncAdapter {
     this.clearSseRetry();
   }
 
+  private isSuperseded(identity: string, notificationsAtStart: number): boolean {
+    return (
+      this.notificationCount !== notificationsAtStart &&
+      this.notifiedIdentity !== null &&
+      this.notifiedIdentity !== identity
+    );
+  }
+
   private handleSseEvent(epoch: number, event: LanSseEvent): void {
     if (epoch !== this.sseEpoch || !this.running) return;
+    if (event.type === 'update') {
+      this.notifiedIdentity = event.contentId;
+      this.notificationCount += 1;
+    }
     if (event.type === 'hello') {
       this.sseConnected = true;
       this.sseFailures = 0;
@@ -568,15 +618,17 @@ export class LanSyncAdapter implements SyncAdapter {
       this.sseFailures >= SSE_FAILURE_LIMIT
         ? SSE_REPROBE_MS
         : Math.min(SSE_RETRY_BASE_MS * 2 ** (this.sseFailures - 1), SSE_RETRY_MAX_MS);
-    this.sseRetryTimer = setTimeout(() => {
-      this.sseRetryTimer = null;
+    const jittered = delay + Math.floor(Math.random() * Math.min(delay, 1000) * 0.3);
+    // Native timer: a background reconnect must not stall while JS timers are paused.
+    this.cancelSseRetry = scheduleOnce(() => {
+      this.cancelSseRetry = null;
       this.startSse();
-    }, delay);
+    }, jittered);
   }
 
   private clearSseRetry(): void {
-    if (this.sseRetryTimer) clearTimeout(this.sseRetryTimer);
-    this.sseRetryTimer = null;
+    this.cancelSseRetry?.();
+    this.cancelSseRetry = null;
   }
 
   private serverIdentity(server: LanServerDraft | null): string | null {

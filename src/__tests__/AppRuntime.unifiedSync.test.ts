@@ -69,7 +69,11 @@ describe('AppRuntime unified sync ownership', () => {
       {
         appVersion: '2.0.0-alpha.3+build.179',
         profileId: 'default',
-        policy: { appState: 'active', backgroundSyncEnabled: false },
+        policy: {
+          appState: 'active',
+          backgroundSyncEnabled: false,
+          backgroundReceiveAllowed: false,
+        },
       },
       'lan'
     );
@@ -78,6 +82,7 @@ describe('AppRuntime unified sync ownership', () => {
     expect(sync.handleAppStateChange).toHaveBeenCalledWith({
       appState: 'inactive',
       backgroundSyncEnabled: false,
+      backgroundReceiveAllowed: false,
     });
 
     appStateListener?.('active');
@@ -85,6 +90,7 @@ describe('AppRuntime unified sync ownership', () => {
     expect(sync.refresh).toHaveBeenCalledWith({
       appState: 'active',
       backgroundSyncEnabled: false,
+      backgroundReceiveAllowed: false,
     });
 
     const previous = settingsState;

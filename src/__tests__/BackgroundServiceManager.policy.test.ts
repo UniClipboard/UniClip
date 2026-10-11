@@ -90,7 +90,11 @@ describe('BackgroundServiceManager sync policy', () => {
       {
         appVersion: '1.0.0',
         profileId: 'default',
-        policy: { appState: 'background', backgroundSyncEnabled: true },
+        policy: {
+          appState: 'background',
+          backgroundSyncEnabled: true,
+          backgroundReceiveAllowed: false,
+        },
       },
       'lan'
     );
@@ -104,6 +108,7 @@ describe('BackgroundServiceManager sync policy', () => {
     expect(sync.refresh).toHaveBeenLastCalledWith({
       appState: 'background',
       backgroundSyncEnabled: false,
+      backgroundReceiveAllowed: false,
     });
   });
 

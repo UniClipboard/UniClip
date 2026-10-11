@@ -26,7 +26,7 @@ interface ForegroundServiceModuleType {
   updateNotification(content: string): boolean;
   isRunning(): boolean;
   getStatus(): ForegroundServiceStatus;
-  addListener(eventName: string, listener: () => void): EventSubscription;
+  addListener(eventName: string, listener: (event: never) => void): EventSubscription;
 }
 
 const NativeModule: ForegroundServiceModuleType | null =
@@ -81,6 +81,19 @@ export function addStopListener(listener: () => void): EventSubscription | null 
 export function addTempStopListener(listener: () => void): EventSubscription | null {
   if (NativeModule) {
     return NativeModule.addListener('onTempStopRequested', listener);
+  }
+  return null;
+}
+
+/**
+ * Reports each confirmed change of the service's foreground state (after startForeground succeeds,
+ * and when it stops for any reason). A start request alone is not reported as running.
+ */
+export function addStateListener(
+  listener: (event: { running: boolean }) => void
+): EventSubscription | null {
+  if (NativeModule) {
+    return NativeModule.addListener('onStateChanged', listener as (event: never) => void);
   }
   return null;
 }

@@ -24,6 +24,10 @@ class ForegroundServiceModule : Module() {
             moduleInstance?.sendEvent("onStopRequested", emptyMap<String, Any>())
         }
 
+        fun sendStateEvent(running: Boolean) {
+            moduleInstance?.sendEvent("onStateChanged", mapOf("running" to running))
+        }
+
         fun sendTempStopEvent() {
             moduleInstance?.sendEvent("onTempStopRequested", emptyMap<String, Any>())
         }
@@ -36,7 +40,7 @@ class ForegroundServiceModule : Module() {
     override fun definition() = ModuleDefinition {
         Name("ForegroundServiceModule")
 
-        Events("onStopRequested", "onTempStopRequested")
+        Events("onStopRequested", "onTempStopRequested", "onStateChanged")
 
         OnCreate {
             moduleInstance = this@ForegroundServiceModule

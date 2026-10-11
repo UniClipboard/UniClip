@@ -74,6 +74,7 @@ describe('BackgroundServiceManager iOS startup lifecycle', () => {
     expect(sync.handleAppStateChange).toHaveBeenCalledWith({
       appState: 'inactive',
       backgroundSyncEnabled: false,
+      backgroundReceiveAllowed: false,
     });
 
     finishStart();

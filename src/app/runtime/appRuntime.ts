@@ -53,7 +53,10 @@ export interface AppRuntimeDependencies {
   clipboardStore: { getState(): { startMonitoring(): Promise<void> } };
   sync(): Pick<UnifiedSyncRuntime, 'start' | 'refresh' | 'handleAppStateChange' | 'switchTo'>;
   statisticsStore: {
-    getState(): { recordBackgroundTaskStart(): Promise<void>; updateHeartbeat(): void };
+    getState(): {
+      recordBackgroundTaskStart(): Promise<void>;
+      updateHeartbeat(): void;
+    };
   };
   applicationVersion(): string | null;
 }
@@ -73,6 +76,9 @@ export class AppRuntime {
   private stopSub: { remove(): void } | null = null;
   private tempStopSub: { remove(): void } | null = null;
   private appStateSub: { remove(): void } | null = null;
+  private serviceStateSub: { remove(): void } | null = null;
+  /** The foreground service's confirmed state (Android), not whether a start was requested. */
+  private serviceRunning = false;
   /** 取消对 settingsStore 的订阅 */
   private settingsUnsub: (() => void) | null = null;
   private currentAppState = AppState.currentState;
@@ -142,6 +148,7 @@ export class AppRuntime {
     }
 
     this._subscribeToAppState();
+    this._subscribeToServiceState();
     // 始终启动剪贴板监控（无论是否启用后台任务，UI 需要感知本地剪贴板变化）
     try {
       await this.dependencies.clipboardStore.getState().startMonitoring();
@@ -373,10 +380,33 @@ export class AppRuntime {
     });
   }
 
+  /**
+   * Background receiving is allowed only while the user wants background sync and the foreground
+   * service reports that it actually runs. The user's setting is left untouched when the system
+   * or the user stops the service.
+   */
+  private _subscribeToServiceState(): void {
+    if (Platform.OS !== 'android' || this.serviceStateSub) return;
+    try {
+      const ForegroundService = require('foreground-service');
+      this.serviceRunning = ForegroundService.isRunning();
+      this.serviceStateSub = ForegroundService.addStateListener((event: { running: boolean }) => {
+        if (this.serviceRunning === event.running) return;
+        this.serviceRunning = event.running;
+        log.info(`Foreground service ${event.running ? 'running' : 'stopped'}`);
+        this.dependencies.sync().handleAppStateChange(this.getSyncRuntimePolicy());
+      });
+    } catch (error) {
+      log.warn('Failed to observe foreground service state:', error);
+    }
+  }
+
   private getSyncRuntimePolicy(): SyncRuntimePolicy {
+    const backgroundSyncEnabled = this.getShouldRunBackground();
     return {
       appState: this.currentAppState,
-      backgroundSyncEnabled: this.getShouldRunBackground(),
+      backgroundSyncEnabled,
+      backgroundReceiveAllowed: backgroundSyncEnabled && this.serviceRunning,
     };
   }
 

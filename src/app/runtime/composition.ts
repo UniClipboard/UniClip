@@ -62,6 +62,22 @@ export function configureAppRuntime(): void {
   configureUnifiedSpaceService(nativeEngine, (operation) =>
     getP2pSpaceSetupCoordinator().run(operation)
   );
+  const lanSyncAdapter = new LanSyncAdapter({
+    async getServer(serverId?: string) {
+      const config = useSettingsStore.getState().config;
+      const targetServerId = serverId ?? config?.lanServers[0]?.id;
+      if (!targetServerId) return null;
+      return getLanServerService().getDraft(targetServerId);
+    },
+    async getServers() {
+      const serverIds = useSettingsStore.getState().config?.lanServers.map(({ id }) => id) ?? [];
+      return Promise.all(serverIds.map((serverId) => getLanServerService().getDraft(serverId)));
+    },
+    readClipboard: () => clipboardManager.getClipboardContent(),
+    applyRemoteContent: applyLanRemoteContent,
+    preparePayloadTempUri: (profileHash, dataName) =>
+      prepareTempFilePath(`${profileHash}-${sanitizeDataName(dataName)}`),
+  });
   configureUnifiedSyncRuntime(
     [
       new P2pSyncAdapter({
@@ -75,23 +91,7 @@ export function configureAppRuntime(): void {
           persistDelivery: persistP2pDeliveryReport,
         },
       }),
-      new LanSyncAdapter({
-        async getServer(serverId?: string) {
-          const config = useSettingsStore.getState().config;
-          const targetServerId = serverId ?? config?.lanServers[0]?.id;
-          if (!targetServerId) return null;
-          return getLanServerService().getDraft(targetServerId);
-        },
-        async getServers() {
-          const serverIds =
-            useSettingsStore.getState().config?.lanServers.map(({ id }) => id) ?? [];
-          return Promise.all(serverIds.map((serverId) => getLanServerService().getDraft(serverId)));
-        },
-        readClipboard: () => clipboardManager.getClipboardContent(),
-        applyRemoteContent: applyLanRemoteContent,
-        preparePayloadTempUri: (profileHash, dataName) =>
-          prepareTempFilePath(`${profileHash}-${sanitizeDataName(dataName)}`),
-      }),
+      lanSyncAdapter,
     ],
     'p2p'
   );
@@ -110,7 +110,10 @@ export function configureAppRuntime(): void {
     loadState: () => nativeEngine.getAnalyticsState(),
     subscribe: (listener) => nativeEngine.subscribeAnalyticsState(listener),
   });
-  configureNetworkContextChangeListener(() => getUnconfiguredAppRuntime().refresh());
+  configureNetworkContextChangeListener(() => {
+    lanSyncAdapter.handleNetworkChange();
+    return getUnconfiguredAppRuntime().refresh();
+  });
   configureRuntimeDependencies({
     settingsStore: useSettingsStore,
     clipboardStore: useClipboardStore,
