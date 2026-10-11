@@ -1,0 +1,48 @@
+# Pre: app on any main tab, Standard (LAN) channel, no server configured.
+# Post: one LAN server saved with three addresses in the given order (URL_0 tried first).
+appId: ${APP_ID}
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    id: main-tab-Devices
+- tapOn: "Add server"
+- tapOn: "Server addresses"
+- inputText: ${URL_0}
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Add backup address"
+    direction: DOWN
+- tapOn: "Add backup address"
+- scrollUntilVisible:
+    element: "http://192.168.1.5:42720"
+    direction: DOWN
+- tapOn: "http://192.168.1.5:42720"
+- inputText: ${URL_1}
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Add backup address"
+    direction: DOWN
+- tapOn: "Add backup address"
+- scrollUntilVisible:
+    element: "http://192.168.1.5:42720"
+    direction: DOWN
+- tapOn: "http://192.168.1.5:42720"
+- inputText: ${URL_2}
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Username"
+    direction: DOWN
+- tapOn: "Username"
+- inputText: ${LAN_USERNAME}
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Password"
+    direction: DOWN
+- tapOn: "Password"
+- inputText: ${LAN_PASSWORD}
+- hideKeyboard
+- tapOn: "Save"
+- extendedWaitUntil:
+    visible: "Connection settings · 1"
+    timeout: 15000

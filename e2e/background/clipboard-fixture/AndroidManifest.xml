@@ -3,5 +3,7 @@
   <application android:label="Clipboard fixture" android:hasCode="true">
     <activity android:name=".CopyActivity" android:exported="true" android:excludeFromRecents="true"
         android:theme="@android:style/Theme.Material.NoActionBar" />
+    <activity android:name=".ReadActivity" android:exported="true" android:excludeFromRecents="true"
+        android:theme="@android:style/Theme.Material.NoActionBar" />
   </application>
 </manifest>

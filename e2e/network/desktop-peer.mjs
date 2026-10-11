@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
-import { access, open, mkdir, writeFile, rm, cp } from "node:fs/promises";
+import { access, open, mkdir, readFile, writeFile, rm, cp } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 import { setTimeout as delay } from "node:timers/promises";
@@ -32,11 +32,35 @@ export function desktopPeer(cli, output, { deviceName = "Simulator acceptance pe
   let owned = false;
   const call = (args) =>
     command(cli, [...base, ...args], { env, timeout: 60_000 });
+  let session = null;
+  /** The daemon's local API for this owned profile, through the same session exchange as the desktop host. */
+  async function daemonRequest(method, path) {
+    const conn = JSON.parse(await readFile(join(data, "daemon.conn"), "utf8"));
+    const base = `http://${conn.host}:${conn.port}`;
+    if (!session) {
+      const exchange = await fetch(`${base}/auth/connect`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${conn.token}`, "content-type": "application/json" },
+        body: JSON.stringify({ pid: process.pid, clientType: "cli" }),
+      });
+      if (!exchange.ok) throw new Error(`Peer session exchange failed: ${exchange.status}`);
+      session = (await exchange.json()).data.sessionToken;
+    }
+    const response = await fetch(`${base}${path}`, { method, headers: { authorization: `Session ${session}` } });
+    if (!response.ok) {
+      if (response.status === 401) session = null;
+      throw new Error(`Peer ${method} ${path} failed: ${response.status}`);
+    }
+    return response.json();
+  }
   return {
     passphrase,
     deviceName,
-    /** Creates a new space on this peer and returns its first invitation code. */
-    async prepare() {
+    /**
+     * Creates a new space on this peer and returns its first invitation code.
+     * `invite: false` stops after creating the space, for peers that only serve Mobile LAN.
+     */
+    async prepare({ invite = true } = {}) {
       await this.start();
       const initialized = await call([
         "space",
@@ -47,7 +71,7 @@ export function desktopPeer(cli, output, { deviceName = "Simulator acceptance pe
         deviceName,
       ]);
       await writeFile(join(output, "peer-initialized.txt"), initialized);
-      return this.invite();
+      return invite ? this.invite() : null;
     },
     /** Starts the isolated daemon without creating or joining a space. */
     async start() {
@@ -127,6 +151,47 @@ export function desktopPeer(cli, output, { deviceName = "Simulator acceptance pe
         { env, timeout: 180_000 }
       );
       await writeFile(join(output, "peer-joined.txt"), joined);
+    },
+    /**
+     * Enables this peer's Mobile LAN listener on `port` and registers one phone credential.
+     * The credential belongs to this throwaway profile; callers must not write it to evidence.
+     */
+    async enableMobileLan({ port, label }) {
+      const result = JSON.parse(
+        await call([
+          "--json", "mobile", "setup", "--non-interactive", "--label", label,
+          "--ip", "127.0.0.1", "--port", String(port), "--accept-network-risk",
+        ])
+      );
+      const deadline = Date.now() + 15_000;
+      while (Date.now() < deadline) {
+        const status = await fetch(`http://127.0.0.1:${port}/healthz`).then((r) => r.status, () => 0);
+        if (status === 204) break;
+        await delay(250);
+      }
+      return { deviceId: result.device_id, username: result.username, password: result.password };
+    },
+    /** A second LAN credential (another device id), so an observer never evicts the phone's stream. */
+    async addMobileCredential(label) {
+      const result = JSON.parse(await call(["--json", "mobile", "add", "--label", label]));
+      return { deviceId: result.device_id, username: result.username, password: result.password };
+    },
+    /**
+     * The desktop puts `text` on its clipboard: capture the entry, then restore it through the
+     * daemon API, which advances the active clipboard exactly as a local desktop write does.
+     * No system clipboard is involved (headless server mode).
+     */
+    async copyText(text) {
+      const startedAt = Date.now();
+      // With no paired Engine peer the fan-out reports nothing delivered; the entry is still captured.
+      await call(["--json", "send", "--text", text]).catch((error) => {
+        if (!error.stdout?.includes("snapshotHash")) throw error;
+      });
+      const entry = JSON.parse(await call(["--json", "get", "--type", "text"]));
+      assert.equal(entry.text, text, "Captured peer entry does not match the fixture");
+      const restoreStartedAt = Date.now();
+      await daemonRequest("POST", `/clipboard/restore/${entry.entry_id}`);
+      return { startedAt, restoreStartedAt, restoredAt: Date.now() };
     },
     pause() {
       if (!daemon || daemon.exitCode !== null) throw new Error("Owned peer is not running");
