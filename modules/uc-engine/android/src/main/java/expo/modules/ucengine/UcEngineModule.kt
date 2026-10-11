@@ -1302,7 +1302,10 @@ private class AndroidEngineHost(
   private fun fileRepresentation(uri: String, mimeType: String?, displayName: String?): BindingClipboardRepresentation {
     val handle = files.register(uri, false, displayName)
     val metadata = files.metadata(handle)
+    // A captured file:// path has no content type from the resolver; the extension still names it.
     val mime = mimeType ?: metadata.mimeType
+      ?: MimeTypeMap.getFileExtensionFromUrl(uri)?.takeIf { it.isNotEmpty() }
+        ?.let { MimeTypeMap.getSingleton().getMimeTypeFromExtension(it.lowercase()) }
     return BindingClipboardRepresentation.File(
       mime ?: "application/octet-stream",
       handle,
