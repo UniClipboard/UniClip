@@ -230,8 +230,11 @@ async function warmForeground(c, order) {
   const warm = await waitWarm(c, 0);
   c.assert(`${s}.session-warm`, s, warm);
   const putsBefore = await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json");
-  const results = await phaseSamples(c, s);
+  const results = await phaseSamples(c, s, () => foreground(c), { readback: true });
   judgePhase(c, s, s, results);
+  c.assert(`${s}.clipboard-readback-each`, s, results.every((r) => r.clipboardReadback === true), {
+    readback: results.map((r) => [r.clipboardReadback ?? null, r.readbackSawClip ?? null]),
+  });
   await assertNoEcho(c, s, s, results, putsBefore);
   c.assert(`${s}.notified-by-sse`, s, results.every((r) => r.activationToSseMs !== null), {
     withSse: results.filter((r) => r.activationToSseMs !== null).length,
