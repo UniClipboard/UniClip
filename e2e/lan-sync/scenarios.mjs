@@ -432,14 +432,15 @@ export const SCENARIOS = {
     await waitWarm(c, 0);
     const fill = "/data/local/tmp/uclan-fill";
     // Fills only this owned emulator's data partition; removed below in every case.
-    await c.probe.shell(`dd if=/dev/zero of=${fill} bs=4194304 2>/dev/null; sync`).catch(() => "");
+    // Large blocks first, then single blocks, so not even a few database pages remain free.
+    await c.probe.shell(`dd if=/dev/zero of=${fill} bs=4194304 2>/dev/null; dd if=/dev/zero of=${fill}-tail bs=4096 2>/dev/null; sync`).catch(() => "");
     const free = await c.probe.shell("df /data | tail -1").catch(() => "");
     c.probe.event("storage.filled", { df: free.replace(/\s+/g, " ").slice(0, 120) });
     let sample;
     try {
       sample = await measureCopy(c, s, 1, { timeoutMs: 30_000 });
     } finally {
-      await c.probe.shell(`rm -f ${fill}; sync`).catch(() => "");
+      await c.probe.shell(`rm -f ${fill} ${fill}-tail; sync`).catch(() => "");
     }
     c.assert(`${s}.clipboard-applied-while-full`, s, sample.ok);
     const clock = await clockOffset(c.probe);
@@ -458,7 +459,7 @@ export const SCENARIOS = {
     if (sample.ok) {
       const nonce = `UCLAN${c.runId}${s.replace(/[^A-Za-z0-9]/g, "")}N1`;
       try {
-        await c.runFlow("background-scenarios/history-contains.yaml", { INCOMING: nonce });
+        await c.runFlow("lan-scenarios/history-contains.yaml", { INCOMING: nonce });
         c.assert(`${s}.visible-in-history`, s, true);
       } catch {
         c.assert(`${s}.visible-in-history`, s, false);

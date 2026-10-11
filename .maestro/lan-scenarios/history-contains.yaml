@@ -1,0 +1,10 @@
+# INCOMING: text that must be visible in the clipboard history. Does not change the clipboard.
+appId: ${APP_ID}
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    id: main-tab-Clipboard
+- extendedWaitUntil:
+    visible: "(?s).*${INCOMING}.*"
+    timeout: 45000
