@@ -25,6 +25,7 @@ Every scenario asserts the intended behaviour, so running it on the old APK reco
 | Notification Pause / Stop | recorded | `userPause` and `userRequest` are distinguishable |
 | Process death, restart prompt | prompt restores service | same; the prompt now reports failure instead of a false success |
 | API 35+ `onTimeout` | not exercised | handler present; **not-run** (see below) |
+| `stopService` by the JS runtime ending | cleared nothing | keeps the recovery intent (`runtime_stop`); only the user's setting-off clears it |
 
 Root causes: the default overlay-polling clipboard method required a flag that was only set when switching methods, so
 background reads never happened; the Engine host `clipboard_read` now receives the capture the JS observer already made.
@@ -44,8 +45,8 @@ background reads never happened; the Engine host `clipboard_read` now receives t
 ## Not run
 
 Physical devices and OEM battery managers, lock screen, Doze and App Standby, API 35 emulator, the dataSync timeout hook
-(`device_config` override had no effect on the API 36 image, in both builds, so it is a hook failure, not a product result),
-Shizuku mode, overlay-event (READ_LOGS) mode, 24 h / 72 h / 7 d runs, Play policy review of `connectedDevice`.
+(the assertion did not fire on either build; the cause is not confirmed, so it is neither a product result nor proof the hook is broken. The new `connectedDevice` build has no such timeout, so the scenario no longer applies to it),
+Shizuku mode, overlay-event (READ_LOGS) mode (runnable on the owned emulator with `pm grant`, but not run), 24 h / 72 h / 7 d runs, Play policy review of `connectedDevice`.
 After a reboot or app update the service only resumes through the notification, because capture and history are owned by
 the JS runtime; a native-only capture owner is a follow-up.
 
@@ -54,3 +55,11 @@ the JS runtime; a native-only capture owner is a follow-up.
 - Engine rc.22 treats up to two text changes within 5 s after a remote write as echoes, so a genuine copy in that window is not synced.
 - The overlay window used for background reads steals input focus.
 - The CLI `members` command is deprecated.
+
+## Known limits of this implementation
+
+- Only `EngineOwner`'s own state is serialized by its lock. Config and security-lock transitions are not routed through it.
+- An explicit JS `shutdown` still wins over the service's hold; the owner only prevents shutdown caused by the JS runtime being destroyed.
+- Wi-Fi/mDNS power cost of the multicast lock was not measured (an emulator cannot show it); it needs a real device.
+- Shizuku and the overlay path still poll; only Shizuku rebind uses SDK binder events first, with polling as the fallback.
+- Intermediate commits were not individually built; the branch head compiles (`:uc-engine`, `:foreground-service`, `:shizuku-clipboard`) and passes Jest and `tsc`.
