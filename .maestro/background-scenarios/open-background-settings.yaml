@@ -1,0 +1,27 @@
+# Pre: app visible on any screen of the main navigation. Post: Background settings page open so the
+# harness can read its state. Never restarts the app (a restart would reset an in-memory pause).
+appId: ${APP_ID}
+---
+- launchApp:
+    stopApp: false
+- runFlow:
+    when:
+      notVisible:
+        id: background-tasks
+    commands:
+      - extendedWaitUntil:
+          visible:
+            id: main-tab-Preferences
+          timeout: 30000
+      - tapOn:
+          id: main-tab-Preferences
+      - scrollUntilVisible:
+          element:
+            id: settings-background
+          direction: UP
+      - tapOn:
+          id: settings-background
+- extendedWaitUntil:
+    visible:
+      id: background-tasks
+    timeout: 20000

@@ -2,9 +2,9 @@ appId: ${APP_ID}
 ---
 - runFlow: submit-invitation.yaml
 - extendedWaitUntil:
-    visible: "This space is ready to sync clipboard content.|The other device did not accept this invitation|The connection timed out.*|The space password is incorrect.*"
+    visible: "This space is ready to sync clipboard content.|These devices can now sync.|The other device did not accept this invitation|The connection timed out.*|The space password is incorrect.*"
     timeout: 90000
-- assertVisible: "This space is ready to sync clipboard content."
+- assertVisible: "This space is ready to sync clipboard content.|These devices can now sync."
 - tapOn: "Done"
 - runFlow:
     when:

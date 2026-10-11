@@ -18,7 +18,9 @@ appId: ${APP_ID}
     timeout: 30000
 - tapOn: "Join an existing space.*"
 - inputText: ${INVITATION_CODE}
-- tapOn: "Continue"
+- tapOn:
+    text: "Continue"
+    optional: true
 - tapOn: "Space password"
 - inputText: ${SPACE_PASSWORD}
 - scrollUntilVisible:

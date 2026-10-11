@@ -119,7 +119,13 @@ export function desktopPeer(cli, output) {
       try {
         while (Date.now() < deadline) {
           // Read last-known status only: do not trigger a manual presence probe.
-          const members = JSON.parse(await call(["--json", "members"]));
+          const members = await call(["--json", "members"]).then(
+            (text) => JSON.parse(text.slice(text.indexOf("["))),
+            (error) => {
+              observations.push({ at: new Date().toISOString(), error: error.message.slice(0, 200) });
+              return [];
+            }
+          );
           observations.push({ at: new Date().toISOString(), members });
           if (
             members.some(
@@ -164,6 +170,10 @@ export function desktopPeer(cli, output) {
             result.totalErrored === 0),
         "Mobile neither acknowledged receipt nor deferred it while offline"
       );
+    },
+    /** Latest text entry on the peer; used to explain a missed delivery. */
+    latestText() {
+      return call(["get", "--type", "text"]).catch((error) => `error:${error.message.slice(0, 80)}`);
     },
     async expectReceived(text, phase) {
       const deadline = Date.now() + 45_000;

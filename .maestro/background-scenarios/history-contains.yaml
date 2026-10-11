@@ -1,0 +1,8 @@
+# INCOMING: text that must be visible in history. Does not change the clipboard.
+appId: ${APP_ID}
+---
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible: "(?s).*${INCOMING}.*"
+    timeout: 45000
