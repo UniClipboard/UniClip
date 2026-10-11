@@ -362,6 +362,9 @@ async function sharePhotoTolerant(c, uri) {
     await sharePhoto(c, uri);
     return true;
   } catch {
+    // Dismiss the failure dialog, then the sheet, so the next share starts clean.
+    await c.act.tapVisibleText("OK");
+    await c.delay(500);
     await c.probe.shell("input keyevent KEYCODE_BACK");
     await c.delay(1000);
     return false;

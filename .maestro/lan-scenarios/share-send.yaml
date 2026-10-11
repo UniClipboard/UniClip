@@ -1,6 +1,6 @@
 # Pre: the app was opened by a share intent and shows the share sheet with the LAN servers.
 # Post: the shared item was sent to every selected server; the sheet closes itself on success
-# and stays open with "Retry" on failure.
+# and stays open with "Retry" or a "Can't send" dialog on failure.
 appId: ${APP_ID}
 ---
 - extendedWaitUntil:
@@ -10,3 +10,4 @@ appId: ${APP_ID}
 - extendedWaitUntil:
     notVisible: "Send to servers"
     timeout: 60000
+- assertNotVisible: "Can't send"
