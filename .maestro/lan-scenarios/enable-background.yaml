@@ -1,0 +1,8 @@
+# Pre: app on any main tab. Post: background sync enabled through Settings, home ready.
+appId: ${APP_ID}
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    id: main-tab-Clipboard
+- runFlow: ../actions/settings/enable-background.yaml

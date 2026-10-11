@@ -34,7 +34,7 @@ export function desktopPeer(cli, output, { deviceName = "Simulator acceptance pe
     command(cli, [...base, ...args], { env, timeout: 60_000 });
   let session = null;
   /** The daemon's local API for this owned profile, through the same session exchange as the desktop host. */
-  async function daemonRequest(method, path) {
+  async function daemonRequest(method, path, retried = false) {
     const conn = JSON.parse(await readFile(join(data, "daemon.conn"), "utf8"));
     const base = `http://${conn.host}:${conn.port}`;
     if (!session) {
@@ -48,7 +48,11 @@ export function desktopPeer(cli, output, { deviceName = "Simulator acceptance pe
     }
     const response = await fetch(`${base}${path}`, { method, headers: { authorization: `Session ${session}` } });
     if (!response.ok) {
-      if (response.status === 401) session = null;
+      // Session tokens expire; exchange a fresh one once.
+      if (response.status === 401 && !retried) {
+        session = null;
+        return daemonRequest(method, path, true);
+      }
       throw new Error(`Peer ${method} ${path} failed: ${response.status}`);
     }
     return response.json();
@@ -175,6 +179,22 @@ export function desktopPeer(cli, output, { deviceName = "Simulator acceptance pe
     async addMobileCredential(label) {
       const result = JSON.parse(await call(["--json", "mobile", "add", "--label", label]));
       return { deviceId: result.device_id, username: result.username, password: result.password };
+    },
+    /** Authenticated Mobile LAN requests the listener logged, e.g. ("PUT", "/SyncClipboard.json"). */
+    async mobileLanRequests(method, path) {
+      const { readdir } = await import("node:fs/promises");
+      let count = 0;
+      for (const name of await readdir(logs).catch(() => [])) {
+        if (!name.startsWith("uniclipboard-daemon")) continue;
+        for (const line of (await readFile(join(logs, name), "utf8")).split("\n")) {
+          if (line.includes("mobile_lan: auth ok") && line.includes(`"method":"${method}"`) && line.includes(`"path":"${path}"`)) count += 1;
+        }
+      }
+      return count;
+    },
+    /** The desktop user unpairs a phone; its credential stops working immediately. */
+    async revokeMobile(deviceId) {
+      await call(["--json", "mobile", "revoke", deviceId]);
     },
     /**
      * The desktop puts `text` on its clipboard: capture the entry, then restore it through the

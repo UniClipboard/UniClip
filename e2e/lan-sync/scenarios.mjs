@@ -159,12 +159,13 @@ function judgePhase(c, scenario, phase, results) {
   c.assert(`${phase}.single-read-per-copy`, scenario, extraAttempts === 0, { samplesWithExtraReads: extraAttempts });
 }
 
-async function assertNoEcho(c, scenario, phase, results) {
-  // An applied desktop copy must not come back as an upload: the peer sees each content id activated once.
+async function assertNoEcho(c, scenario, phase, results, putsBefore) {
+  // An applied desktop copy must not come back as an upload: no phone PUT reaches the desktop.
   await c.delay(3000);
+  const puts = (await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json")) - putsBefore;
   const ids = results.filter((r) => r.alias).map((r) => r.alias);
-  const counts = ids.map((alias) => c.observer.updates.filter((u) => c.contentAlias(u.contentId) === alias).length);
-  c.assert(`${phase}.no-echo-upload`, scenario, counts.every((n) => n === 1), { counts });
+  const announcements = ids.map((alias) => c.observer.updates.filter((u) => c.contentAlias(u.contentId) === alias).length);
+  c.assert(`${phase}.no-echo-upload`, scenario, puts === 0, { desktopPuts: puts, announcements });
 }
 
 async function warmForeground(c, order) {
@@ -173,9 +174,10 @@ async function warmForeground(c, order) {
   await foreground(c);
   const warm = await waitWarm(c, 0);
   c.assert(`${s}.session-warm`, s, warm);
+  const putsBefore = await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json");
   const results = await phaseSamples(c, s);
   judgePhase(c, s, s, results);
-  await assertNoEcho(c, s, s, results);
+  await assertNoEcho(c, s, s, results, putsBefore);
   const last = results.at(-1);
   if (last?.ok) {
     const nonce = `UCLAN${c.runId}${s.replace(/[^A-Za-z0-9]/g, "")}N${last.seq}`;
@@ -213,18 +215,134 @@ export const SCENARIOS = {
     const s = "background-bad-first";
     await ensureServer(c, "bad-first");
     if (!c.backgroundEnabled) {
-      await c.runFlow("network-scenarios/diagnostic-background-enable.yaml");
+      await c.runFlow("lan-scenarios/enable-background.yaml");
+      c.backgroundEnabled = true;
+    }
+    await foreground(c);
+    await waitWarm(c, 0);
+    const clock = await clockOffset(c.probe);
+    const homeAt = Date.now() + clock.offsetMs;
+    await c.act.home();
+    await c.delay(5000);
+    const service = await c.probe.sample(`${s}-after-home`);
+    c.assert(`${s}.service-running`, s, Boolean(service.service.present && service.service.foreground), { service: service.service });
+    const putsBefore = await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json");
+    const results = await phaseSamples(c, s);
+    judgePhase(c, s, s, results);
+    await assertNoEcho(c, s, s, results, putsBefore);
+    // The subscription opened in the foreground is the one that delivered in the background.
+    const churn = (await c.readTraces(homeAt)).filter((t) => t.stage === "sse_attempt").length;
+    c.assert(`${s}.subscription-kept-across-home`, s, churn === 0, { newSubscriptions: churn });
+    c.assert(`${s}.notified-by-sse`, s, results.every((r) => r.activationToSseMs !== null), {
+      withSse: results.filter((r) => r.activationToSseMs !== null).length,
+    });
+  },
+
+  // Three desktop copies in quick succession: the phone ends on the last one and never writes an
+  // older one after a newer one.
+  async "rapid-copies"(c) {
+    const s = "rapid-copies";
+    await ensureServer(c, "bad-first");
+    await foreground(c);
+    await waitWarm(c, 0);
+    for (let round = 1; round <= Math.min(3, c.samplesPerPhase); round++) {
+      const clock = await clockOffset(c.probe);
+      const since = Date.now() + clock.offsetMs - 1000;
+      const aliases = [];
+      let last;
+      for (let i = 1; i <= 3; i++) {
+        last = `UCLAN${c.runId}rapidR${round}N${i}`;
+        await c.peer.copyText(last);
+        const document = await c.observer.currentDocument();
+        aliases.push(c.contentAlias(document.contentId));
+      }
+      await c.delay(6000);
+      const applied = (await c.readTraces(since)).filter((t) => t.stage === "clipboard_applied" && aliases.includes(t.cid));
+      const order = applied.map((t) => aliases.indexOf(t.cid));
+      const monotonic = order.every((value, index) => index === 0 || value > order[index - 1]);
+      c.assert(`${s}.r${round}.ends-on-last`, s, order.at(-1) === 2, { appliedOrder: order });
+      c.assert(`${s}.r${round}.never-older-after-newer`, s, monotonic, { appliedOrder: order });
+      c.assert(`${s}.r${round}.clipboard-readback`, s, await readbackMatches(c, last));
+      await foreground(c);
+    }
+  },
+
+  // A copy made on the phone reaches the desktop exactly once.
+  async "upload-once"(c) {
+    const s = "upload-once";
+    await ensureServer(c, "bad-first");
+    await foreground(c);
+    await waitWarm(c, 0);
+    for (let seq = 1; seq <= Math.min(3, c.samplesPerPhase); seq++) {
+      const nonce = `UCLAN${c.runId}upN${seq}`;
+      const putsBefore = await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json");
+      const clock = await clockOffset(c.probe);
+      const since = Date.now() + clock.offsetMs;
+      await c.act.copyInOtherApp(nonce);
+      await foreground(c);
+      let document;
+      const deadline = Date.now() + 20_000;
+      while (Date.now() < deadline) {
+        document = await c.observer.currentDocument();
+        if (document.text === nonce) break;
+        await c.delay(500);
+      }
+      const arrived = document?.text === nonce;
+      c.assert(`${s}.n${seq}.desktop-received`, s, arrived);
+      await c.delay(4000);
+      const phonePuts = (await c.readTraces(since)).filter((t) => t.stage === "put_attempt").length;
+      const desktopPuts = (await c.peer.mobileLanRequests("PUT", "/SyncClipboard.json")) - putsBefore;
+      // Recorded only: the desktop may announce one inbound document more than once.
+      const announcements = arrived ? c.observer.updates.filter((u) => u.contentId === document.contentId).length : 0;
+      c.assert(`${s}.n${seq}.uploaded-once`, s, phonePuts === 1 && desktopPuts === 1, { phonePuts, desktopPuts, announcements });
+    }
+  },
+
+  // Notification Pause: background receiving stops with the service; the user's choice holds
+  // until they return. Coming back to the foreground receives as usual.
+  async "notification-pause"(c) {
+    const s = "notification-pause";
+    await ensureServer(c, "bad-first");
+    if (!c.backgroundEnabled) {
+      await c.runFlow("lan-scenarios/enable-background.yaml");
       c.backgroundEnabled = true;
     }
     await foreground(c);
     await waitWarm(c, 0);
     await c.act.home();
-    await c.delay(5000);
-    const service = await c.probe.sample(`${s}-after-home`);
-    c.assert(`${s}.service-running`, s, Boolean(service.service.present && service.service.foreground), { service: service.service });
-    const results = await phaseSamples(c, s);
-    judgePhase(c, s, s, results);
-    await assertNoEcho(c, s, s, results);
+    await c.delay(3000);
+    await c.act.tapNotificationAction("Pause");
+    await c.delay(3000);
+    const sample = await c.probe.sample(`${s}-after-pause`);
+    c.assert(`${s}.service-stopped`, s, !sample.service.foreground, { service: sample.service });
+    const paused = await measureCopy(c, `${s}-background`, 1, { timeoutMs: 20_000, expectApplied: false });
+    c.assert(`${s}.not-received-while-paused`, s, !paused.ok);
+    const clock = await clockOffset(c.probe);
+    const quiet = (await c.readTraces(Date.now() + clock.offsetMs - 15_000)).filter((t) =>
+      ["get_attempt", "sse_attempt", "health_result"].includes(t.stage)
+    ).length;
+    c.assert(`${s}.no-network-while-paused`, s, quiet === 0, { requests: quiet });
+    await foreground(c);
+    const resumed = await measureCopy(c, `${s}-foreground`, 1);
+    c.assert(`${s}.foreground-receives`, s, resumed.ok);
+  },
+
+  // The desktop revokes this phone: nothing is applied and the phone does not retry in a loop.
+  async "auth-revoked"(c) {
+    const s = "auth-revoked";
+    await ensureServer(c, "bad-first");
+    await foreground(c);
+    await waitWarm(c, 0);
+    await c.peer.revokeMobile(c.phone.deviceId);
+    const clock = await clockOffset(c.probe);
+    const since = Date.now() + clock.offsetMs;
+    const sample = await measureCopy(c, s, 1, { timeoutMs: 20_000, expectApplied: false });
+    c.assert(`${s}.not-applied`, s, !sample.ok);
+    const traces = await c.readTraces(since);
+    const reads = traces.filter((t) => t.stage === "get_attempt").length;
+    // Foreground fallback polling is every 2 s; a retry loop would be far above one read per poll.
+    c.assert(`${s}.bounded-retries`, s, reads <= 15, { readsIn20s: reads });
+    c.assert(`${s}.auth-observed`, s, traces.some((t) => t.status === "401"), {});
   },
 
   // Fresh process, first copy right after launch: reported apart from warm samples.

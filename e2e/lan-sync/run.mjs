@@ -146,6 +146,12 @@ async function main() {
     const runFlow = async (file, variables = {}) => {
       const dir = join(output, `flow-${String(++phase).padStart(2, "0")}-${file.replace(/[/.]/g, "_")}`);
       await mkdir(dir, { recursive: true });
+      // A loaded host can raise "System UI isn't responding" over the app; a person would wait.
+      const texts = await probe.uiTexts().catch(() => []);
+      if (texts.some((t) => /isn.t responding/i.test(t))) {
+        await context.act.tapVisibleText("Wait");
+        probe.event("system-dialog.waited", { file });
+      }
       probe.event("flow.start", { file });
       try {
         const log = await command(
