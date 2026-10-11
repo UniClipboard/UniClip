@@ -42,24 +42,71 @@ background reads never happened; the Engine host `clipboard_read` now receives t
 | Boot recovery | After `adb reboot`: decision recorded (`recovery_prompted/systemBoot`), prompt visible, no claim that the service runs, tapping it restores a running service |
 | Shizuku binder death / rebind | Listeners existed; a poll-time rebind fallback and dead-object handling were added. **not-run** (no Shizuku on the emulator) |
 
-## Not run
+## Failure modes examined for ownership and serialization
 
-Physical devices and OEM battery managers, lock screen, Doze and App Standby, API 35 emulator, the dataSync timeout hook
-(the assertion did not fire on either build; the cause is not confirmed, so it is neither a product result nor proof the hook is broken. The new `connectedDevice` build has no such timeout, so the scenario no longer applies to it),
-Shizuku mode, overlay-event (READ_LOGS) mode (runnable on the owned emulator with `pm grant`, but not run), 24 h / 72 h / 7 d runs, Play policy review of `connectedDevice`.
-After a reboot or app update the service only resumes through the notification, because capture and history are owned by
-the JS runtime; a native-only capture owner is a follow-up.
+| Failure mode | Cause found in the code | Handling | Evidence |
+| --- | --- | --- | --- |
+| Service releases its Engine hold while a JS runtime is starting | The runtime was counted as attached only after `start` returned | The module counts itself as attached before starting; start/shutdown/release/lifecycle run under one transition lock | Source review; duplicate-start and Home scenarios pass; owner log lines (counts only) |
+| Service main thread waits for a start or shutdown | `onDestroy` released synchronously | Release runs on its own thread; `retain` takes no transition lock | Source review |
+| Stop in flight swallows a following start | `startService` returned early while `isRunning` was still true | Early return only when no stop is pending; a START re-enters the foreground and clears the pending-stop flag | Duplicate START x5: one foreground service, one multicast lock, no extra Engine hold, sync still works |
+| Activity destroyed on every exit | Not an Engine owner; the Engine and service live in the process | None needed | `always_finish_activities=1`: service stays foreground, mobile to desktop works, the owner log has no shutdown |
+| JS bridge destroyed while the service lives | The module's `OnDestroy` now only detaches | Engine kept while the service holds it | **Not reproducible on a release APK** (no trigger short of a developer reload); covered by source review only |
+| Security lock | Engine start before the first unlock fails the secure-state recovery | The boot receiver runs after first unlock and never starts the Engine natively | Boot recovery scenario |
+| Explicit JS `shutdown` while the service lives | By design the explicit request wins | Documented | Source review |
 
-## Cross-repo observations (not fixed here)
+## Capture ownership: what still needs the JS runtime
 
-- Engine rc.22 treats up to two text changes within 5 s after a remote write as echoes, so a genuine copy in that window is not synced.
-- The overlay window used for background reads steals input focus.
-- The CLI `members` command is deprecated.
+All three background reading methods end in the JS clipboard monitor, so `EngineOwner` retaining the Engine keeps the Engine
+and its network alive but is **not** sync without JS.
 
-## Known limits of this implementation
+| Piece | Owner | Without a JS runtime |
+| --- | --- | --- |
+| Rust Engine, peer connections, mDNS, network hint, service, boot prompt | Native | Kept alive; network hint delivered |
+| Overlay polling (timer, overlay read) | JS timer calls a native read | No capture |
+| Overlay events (logcat trigger thread) | Native thread, but the module stops it when the JS module is destroyed and it delivers to JS | No capture |
+| Shizuku poll | Native poll, module stops with JS | No capture |
+| History (SQLite), dedupe hash, send decision | JS | No history, no send |
+| Engine event loop (`nextEvent`) | JS | Whether inbound content is applied with no consumer was not verified |
 
-- Only `EngineOwner`'s own state is serialized by its lock. Config and security-lock transitions are not routed through it.
-- An explicit JS `shutdown` still wins over the service's hold; the owner only prevents shutdown caused by the JS runtime being destroyed.
-- Wi-Fi/mDNS power cost of the multicast lock was not measured (an emulator cannot show it); it needs a real device.
-- Shizuku and the overlay path still poll; only Shizuku rebind uses SDK binder events first, with polling as the fallback.
-- Intermediate commits were not individually built; the branch head compiles (`:uc-engine`, `:foreground-service`, `:shizuku-clipboard`) and passes Jest and `tsc`.
+The Engine does expose a host-driven capture entry (`observeClipboardChange` with a host `clipboard_read`), and this change feeds it
+the capture the JS monitor already made. A native-only capture owner would need the monitors to outlive the JS module and a native
+history writer; that is a separate piece of work, not done here.
+
+## Method and permission checks
+
+- Missing overlay permission: Settings shows "Clipboard access still needs permission" with Authorize, never "Ready"; the service is unaffected; granting it restores "Ready".
+- ADB events (logcat trigger): with the consent prompt accepted, a background copy reaches the desktop in about 2.7 s and the log shows the system denial line, `logcat_trigger`, `triggered_read`, `emit`.
+- ADB events with the consent prompt declined (Android 13+ "Allow access to all device logs?"): observed manually, the trigger never fires although the UI says "Ready", because the app cannot query that consent. This is a known gap, not fixed.
+- `READ_LOGS` itself is granted at install on this userdebug image, so its absence cannot be produced here.
+
+## Android 15 timeout (dataSync) and the type change
+
+With the compat change `FGS_INTRODUCE_TIME_LIMITS` and `data_sync_fgs_timeout_duration=45000` (the documented test hook), on API 36:
+
+| Build | Result |
+| --- | --- |
+| Baseline (dataSync, no handler) | Service ended, process replaced (the system's did-not-stop crash), system restart recorded |
+| Stage-1 (dataSync, `onTimeout`) | `timed_out/systemTimeout` recorded, service stopped, same process, stop reason `system_timeout` queryable |
+| Current (connectedDevice) | Service still foreground after the shortened window; no budget applies |
+
+## connectedDevice: technical conditions and declaration basis (cannot replace Play review)
+
+From the Android documentation (foreground service types; Android 15 behaviour changes; Play foreground-service declaration help):
+
+- `connectedDevice` is "interactions with external devices that require a Bluetooth, NFC, IR, USB, or network connection"; it needs `FOREGROUND_SERVICE_CONNECTED_DEVICE` and at least one of the listed prerequisites. This app declares `CHANGE_WIFI_MULTICAST_STATE` and acquires a multicast lock only while the service runs, for mDNS discovery of the user's own paired devices.
+- Android 15 forbids starting `dataSync`, `camera`, `mediaPlayback`, `phoneCall`, `mediaProjection` and `microphone` services from a `BOOT_COMPLETED` receiver and puts `dataSync` on a 6 h per 24 h budget; `connectedDevice` is in neither list. This implementation still does not start the service from the boot receiver (it posts a resume prompt), because there is no JS runtime to sync.
+- Play requires, for each used foreground service type when targeting Android 14+, a declaration of the app function, the user impact if the task is deferred or interrupted, and a demonstration video of the user steps; all types are subject to review.
+- Suggested declaration text: the user pairs their own phone and computers; the foreground service keeps the encrypted peer connection and local-network discovery alive so clipboard changes sync while the app is closed; if interrupted, sync pauses until the user reopens the app or taps the resume notification.
+- Whether Play accepts the type for this use is a platform decision. `specialUse` remains the fallback if it is declined.
+
+## Not run (needs a device or condition not available here)
+
+Physical devices and OEM battery managers, lock screen, Doze and App Standby, API 35 emulator, Shizuku mode, a device where `READ_LOGS` is not granted, a real JS-bridge destruction, 24 h / 72 h / 7 d runs, Wi-Fi power cost of the multicast lock, Play review.
+No shared or production device or configuration was used; every run used a disposable emulator and an isolated desktop peer, and the leftover peer data of killed runs was removed.
+
+## Known limits
+
+- Only `EngineOwner`'s own transitions are serialized; the JS-side settings store is not.
+- An explicit JS `shutdown` wins over the service's hold.
+- After a reboot or app update the service resumes only through the notification.
+- Intermediate commits were not individually built; the branch head compiles and passes Jest and `tsc`.
