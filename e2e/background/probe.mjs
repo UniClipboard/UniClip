@@ -83,13 +83,13 @@ export function probe({ serial, appId, startedAt = Date.now() }) {
     },
     /** JS-side clipboard log lines (tags and hashes only) since a time; explains a missed capture. */
     async clipboardLogs(sinceEpochMs) {
-      const raw = await run("logcat", "-d", "-v", "epoch", "-t", "20000", "ReactNativeJS:I", "UcClipboardObserve:I", "*:S").catch(() => "");
+      const raw = await run("logcat", "-d", "-v", "epoch", "-t", "20000", "ReactNativeJS:I", "UcClipboardObserve:I", "UcOverlayMonitor:I", "*:S").catch(() => "");
       return raw
         .split("\n")
         .map((line) => {
           const at = Number(line.match(/^\s*(\d+\.\d+)/)?.[1]) * 1000;
-          const message = line.match(/(?:ReactNativeJS|UcClipboardObserve):\s*(.*)$/)?.[1] ?? "";
-          return at >= sinceEpochMs && /Clipboard|Overlay|Polling|Monitor|observe|dispatch|appIsBackground/.test(message)
+          const message = line.match(/(?:ReactNativeJS|UcClipboardObserve|UcOverlayMonitor):\s*(.*)$/)?.[1] ?? "";
+          return at >= sinceEpochMs && /Clipboard|Overlay|Polling|monitor|observe|logcat_trigger|triggered_read|emit |dispatch|appIsBackground/i.test(message)
             ? { at: Math.round(at), message: message.slice(0, 160) }
             : null;
         })

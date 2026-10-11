@@ -42,7 +42,16 @@ async function freshProcess(c, tag) {
 async function baseline(c, tag) {
   const incoming = `UCBG${c.runId}${tag}In`;
   const outgoing = `UCBG${c.runId}${tag}Out`;
-  await c.peer.send(incoming, `${tag}-baseline`);
+  // The peer can list the phone online a moment before a send reaches it ("1 offline"); retry briefly.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await c.peer.send(incoming, `${tag}-baseline`);
+      break;
+    } catch (error) {
+      if (attempt >= 4 || !/offline/.test(String(error.stdout ?? error.message))) throw error;
+      await c.delay(8000);
+    }
+  }
   await c.runFlow("network-scenarios/exchange.yaml", { INCOMING: incoming, OUTGOING: outgoing });
   await c.peer.expectReceived(outgoing, `${tag}-baseline`);
   c.assert(`${tag}.baseline-exchange`, tag, true);
@@ -78,6 +87,15 @@ async function backgroundStateTexts(c) {
 async function journalSince(c, sinceEpochMs) {
   const all = await c.probe.journal();
   return all.filter((e) => Date.parse(e.timestamp) >= sinceEpochMs);
+}
+
+/** Engine-owner transitions from logcat (counts only), since a time. */
+async function ownerLog(c, sinceEpochMs) {
+  const raw = await c.probe.run("logcat", "-d", "-v", "epoch", "-t", "20000", "UcEngine:I", "*:S").catch(() => "");
+  return raw
+    .split("\n")
+    .filter((l) => /engine_owner/.test(l) && Number(l.match(/^\s*(\d+\.\d+)/)?.[1]) * 1000 >= sinceEpochMs)
+    .map((l) => l.replace(/^.*engine_owner/, "engine_owner"));
 }
 
 const stopEvents = (events) =>
@@ -237,30 +255,46 @@ export const SCENARIOS = {
     c.assert("process-death.mobile-to-desktop-after-restore", s, received.ok && received.latencyMs <= MOBILE_TO_DESKTOP_MS, received);
   },
 
-  // API 35+ ends a dataSync foreground service whose background budget is used up. The budget is
-  // shortened on this owned emulator only (documented test hook) and removed afterwards.
+  // API 35+ ends a dataSync foreground service whose background budget is used up. Per the Android 15
+  // behaviour-change page, the test hook is the compat change FGS_INTRODUCE_TIME_LIMITS plus a shortened
+  // data_sync_fgs_timeout_duration (both on this owned emulator only, removed afterwards). A service of
+  // type connectedDevice has no such budget, so for it the same window must leave the service running.
   async "fgs-timeout"(c) {
     const s = "fgs-timeout";
     await ensureSetup(c);
-    await freshProcess(c, s);
-    const before = Date.now() - 2000;
     const key = "data_sync_fgs_timeout_duration";
+    await c.probe.shell(`am compat enable FGS_INTRODUCE_TIME_LIMITS ${c.appId}`);
+    await c.probe.shell(`device_config set_sync_disabled_for_tests persistent`).catch(() => "");
     await c.probe.shell(`device_config put activity_manager ${key} 45000`);
+    const applied = (await c.probe.shell("dumpsys activity settings").catch(() => "")).match(new RegExp(`${key}=(\\d+)`))?.[1];
+    c.assert("fgs-timeout.hook-applied", s, applied === "45000", { dataSyncTimeoutMs: applied ?? null });
     try {
+      await freshProcess(c, s);
+      const before = Date.now() - 2000;
       await c.act.home();
+      await c.delay(4000);
+      const services = await c.probe.shell(`dumpsys activity services ${c.appId}`).catch(() => "");
+      const types = parseInt(services.match(/foregroundServiceType=0x([0-9a-f]+)/)?.[1] ?? services.match(/types?=0x([0-9a-f]+)/)?.[1] ?? "0", 16);
+      const dataSync = (types & 0x1) !== 0;
       const first = await c.probe.sample("before-timeout");
       await c.delay(110_000);
       const after = await c.probe.sample("after-timeout-window");
       const events = await journalSince(c, before);
-      c.assert("fgs-timeout.service-ended", s, !after.service.foreground, { service: after.service });
-      c.assert("fgs-timeout.process-survived-the-timeout", s, Boolean(after.pid) && after.pid === first.pid, { before: first.pid, after: after.pid });
-      c.assert("fgs-timeout.timeout-recorded-and-handled", s, events.some((e) => e.event === "background_service.timed_out"), {
-        events: events.filter((e) => /background_service/.test(e.event ?? "")).map((e) => `${e.event}/${e.trigger}`),
-      });
-      const reason = await c.probe.shell(`run-as ${c.appId} cat shared_prefs/uc_background_service.xml`).catch(() => "");
-      c.assert("fgs-timeout.reason-queryable", s, /system_timeout/.test(reason), { prefs: reason.replace(/\s+/g, " ").slice(0, 200) });
+      const timedOut = events.some((e) => e.event === "background_service.timed_out");
+      if (dataSync) {
+        c.assert("fgs-timeout.service-ended", s, !after.service.foreground, { service: after.service });
+        c.assert("fgs-timeout.process-survived-the-timeout", s, Boolean(after.pid) && after.pid === first.pid, { before: first.pid, after: after.pid });
+        c.assert("fgs-timeout.timeout-recorded-and-handled", s, timedOut, {
+          events: events.filter((e) => /background_service/.test(e.event ?? "")).map((e) => `${e.event}/${e.trigger}`),
+        });
+        const reason = await c.probe.shell(`run-as ${c.appId} cat shared_prefs/uc_background_service.xml`).catch(() => "");
+        c.assert("fgs-timeout.reason-queryable", s, /system_timeout/.test(reason), { prefs: reason.replace(/\s+/g, " ").slice(0, 200) });
+      } else {
+        c.assert("fgs-timeout.no-budget-for-this-type", s, Boolean(after.service.foreground) && !timedOut, { types, service: after.service });
+      }
     } finally {
       await c.probe.shell(`device_config delete activity_manager ${key}`).catch(() => "");
+      await c.probe.shell(`am compat reset FGS_INTRODUCE_TIME_LIMITS ${c.appId}`).catch(() => "");
     }
   },
 
@@ -382,6 +416,122 @@ export const SCENARIOS = {
     await c.delay(1000);
     const shade2 = await c.probe.uiTexts().catch(() => []);
     c.assert("debug-notifications.recorded", s, true, { mine, shade, shade2 });
+  },
+
+  // Exploration aid: sets the pair up, then keeps the emulator alive so a person can inspect the UI.
+  async hold(c) {
+    await ensureSetup(c);
+    await freshProcess(c, "hold");
+    await c.act.home();
+    c.assert("hold.ready", "hold", true, { serial: c.device.id });
+    await c.delay(Number(process.env.HOLD_SECONDS ?? 3000) * 1000);
+  },
+
+  // Failure mode: the Activity is destroyed every time the user leaves it while the service is
+  // enabled. The Engine must keep syncing both ways because the service, not the Activity, owns it.
+  async "activity-destroy"(c) {
+    const s = "activity-destroy";
+    await ensureSetup(c);
+    await freshProcess(c, s);
+    await baseline(c, s);
+    await c.probe.shell("settings put global always_finish_activities 1");
+    try {
+      const since = Date.now();
+      await c.act.home();
+      await c.delay(6000);
+      const sample = await c.probe.sample("activity-destroyed");
+      c.assert("activity-destroy.service-still-foreground", s, Boolean(sample.service.foreground), { service: sample.service });
+      const incoming = `UCBG${c.runId}ADB`;
+      await c.peer.send(incoming, `${s}-background`);
+      await c.delay(ENGINE_ECHO_SETTLE_MS);
+      const copiedAt = Date.now();
+      await c.act.copyInOtherApp(`UCBG${c.runId}ADA`);
+      const received = await timedReceive(c, `UCBG${c.runId}ADA`, `${s}-background`, copiedAt);
+      c.assert("activity-destroy.mobile-to-desktop", s, received.ok && received.latencyMs <= MOBILE_TO_DESKTOP_MS, received);
+      const owner = await ownerLog(c, since);
+      c.assert("activity-destroy.engine-never-shut-down", s, !owner.some((l) => /shutdown=true/.test(l)), { owner });
+    } finally {
+      await c.probe.shell("settings put global always_finish_activities 0").catch(() => "");
+    }
+  },
+
+  // Failure mode: repeated or overlapping START commands (a stop still in flight, a duplicate from the
+  // JS side) must leave one foreground service, one Engine hold and one multicast lock.
+  async "start-idempotent"(c) {
+    const s = "start-idempotent";
+    await ensureSetup(c);
+    await freshProcess(c, s);
+    await c.act.home();
+    await c.delay(4000);
+    const since = Date.now();
+    const component = `${c.appId}/expo.modules.foregroundservice.SyncForegroundService`;
+    for (let i = 0; i < 5; i++) {
+      await c.probe.shell(`am start-foreground-service -n ${component} -a START`).catch(() => "");
+      await c.delay(300);
+    }
+    await c.delay(4000);
+    const sample = await c.probe.sample("after-duplicate-starts");
+    c.assert("start-idempotent.one-foreground-service", s, Boolean(sample.service.foreground), { service: sample.service });
+    const wifi = (await c.probe.shell("dumpsys wifi").catch(() => "")).split("\n").filter((l) => /Multicaster\{uniclipboard-mdns/.test(l));
+    c.assert("start-idempotent.single-multicast-lock", s, wifi.length === 1, { held: wifi });
+    const owner = await ownerLog(c, since);
+    c.assert("start-idempotent.no-extra-engine-hold", s, owner.filter((l) => /engine_owner retain/.test(l)).length === 0, { owner });
+    const copiedAt = Date.now();
+    await c.act.copyInOtherApp(`UCBG${c.runId}SIA`);
+    const received = await timedReceive(c, `UCBG${c.runId}SIA`, `${s}-background`, copiedAt);
+    c.assert("start-idempotent.sync-after-duplicates", s, received.ok, received);
+  },
+
+  // Failure mode: a missing permission must be shown as restricted, never as ready, and restoring it recovers.
+  async "permission-missing"(c) {
+    const s = "permission-missing";
+    await ensureSetup(c);
+    await freshProcess(c, s);
+    await c.act.home();
+    try {
+      await c.probe.shell(`appops set ${c.appId} SYSTEM_ALERT_WINDOW deny`);
+      const denied = await backgroundStateTexts(c);
+      c.assert("permission-missing.shown-as-restricted", s, denied.some((t) => /still needs permission/i.test(t)) && !denied.some((t) => /^Ready$/.test(t)), { texts: denied.slice(0, 14) });
+      const service = await c.probe.sample("permission-missing");
+      c.assert("permission-missing.service-unaffected", s, Boolean(service.service.foreground), { service: service.service });
+    } finally {
+      await c.probe.shell(`appops set ${c.appId} SYSTEM_ALERT_WINDOW allow`).catch(() => "");
+    }
+    await c.act.home();
+    const restored = await backgroundStateTexts(c);
+    c.assert("permission-missing.recovers-when-granted", s, restored.some((t) => /^Ready$/.test(t)), { texts: restored.slice(0, 14) });
+  },
+
+  // The event-driven method (logcat trigger, needs READ_LOGS) as the person selects it in Settings.
+  async "overlay-event"(c) {
+    const s = "overlay-event";
+    await ensureSetup(c);
+    await freshProcess(c, s);
+    const hasLogs = await c.probe.shell(`dumpsys package ${c.appId}`).then((t) => /READ_LOGS: granted=true/.test(t));
+    c.assert("overlay-event.read-logs-held-on-this-image", s, hasLogs, { note: "userdebug emulator images grant it at install; a device without it cannot be reproduced here" });
+    await c.runFlow("background-scenarios/select-clipboard-method.yaml", { METHOD_LABEL: "ADB events", BUTTON_LABEL: "Continue with.*|Use .*" });
+    const texts = await c.probe.uiTexts();
+    c.assert("overlay-event.selected-and-ready", s, texts.some((t) => /ADB events/.test(t)) && texts.some((t) => /^Ready$/.test(t)), { texts: texts.slice(0, 14) });
+    // A person who picks the method then keeps using the phone: start from a fresh process with it persisted.
+    await freshProcess(c, s);
+    await c.act.home();
+    await c.delay(8000);
+    const outgoing = `UCBG${c.runId}OEv`;
+    const copiedAt = Date.now();
+    await c.act.copyInOtherApp(outgoing);
+    const received = await timedReceive(c, outgoing, "overlay-event-background", copiedAt);
+    // The native trigger chain (system denial line -> logcat_trigger -> triggered_read -> emit) is the evidence that
+    // delivery came from the event method and not from polling.
+    received.nativeChain = (await c.probe.clipboardLogs(copiedAt)).filter((l) => /logcat_trigger|triggered_read|emit /.test(l.message)).map((l) => l.message);
+    if (!received.ok) {
+      received.jsClipboardLogs = await c.probe.clipboardLogs(copiedAt);
+      // The event method is triggered by the system's denial line naming this package; record whether it exists.
+      const raw = await c.probe.run("logcat", "-d", "-v", "epoch", "-t", "5000", "ClipboardService:*", "*:S").catch(() => "");
+      received.clipboardServiceLines = raw.split("\n").filter((l) => Number(l.match(/^\s*(\d+\.\d+)/)?.[1]) * 1000 >= copiedAt).map((l) => l.replace(/\s+/g, " ").slice(0, 200)).slice(0, 8);
+    }
+    c.assert("overlay-event.mobile-to-desktop-in-background", s, received.ok && received.latencyMs <= MOBILE_TO_DESKTOP_MS && received.nativeChain.some((m) => /logcat_trigger/.test(m)), received);
+    // Leave the default method in place for whatever runs next.
+    await c.runFlow("background-scenarios/select-clipboard-method.yaml", { METHOD_LABEL: "Timed polling", BUTTON_LABEL: "Continue with.*|Use .*" });
   },
 
   // Positive control for the permanent stop.

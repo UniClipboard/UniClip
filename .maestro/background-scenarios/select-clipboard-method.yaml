@@ -1,0 +1,17 @@
+appId: ${APP_ID}
+---
+# Selects a background-reading method in Settings > Background. METHOD_LABEL is the card title
+# ("Timed polling" or "ADB events"); BUTTON_LABEL is the confirm button text.
+- runFlow: open-background-settings.yaml
+- tapOn:
+    id: background-clipboard-access
+- tapOn: ${METHOD_LABEL}
+- tapOn: ${BUTTON_LABEL}
+# The ADB-events method reads other apps' log lines, which the system gates behind a per-use consent
+# prompt (Android 13+). A person using the feature grants it; "Don't allow" leaves the method silent.
+- runFlow:
+    when:
+      visible: "Allow one-time access"
+    commands:
+      - tapOn: "Allow one-time access"
+- waitForAnimationToEnd

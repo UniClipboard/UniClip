@@ -4,15 +4,15 @@ appId: ${APP_ID}
 ---
 - launchApp:
     stopApp: false
+- extendedWaitUntil:
+    visible:
+      id: "main-tab-Preferences|background-tasks"
+    timeout: 30000
 - runFlow:
     when:
       notVisible:
         id: background-tasks
     commands:
-      - extendedWaitUntil:
-          visible:
-            id: main-tab-Preferences
-          timeout: 30000
       - tapOn:
           id: main-tab-Preferences
       - scrollUntilVisible:
