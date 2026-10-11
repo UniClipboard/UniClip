@@ -142,11 +142,11 @@ export async function measureCopy(c, phase, seq, { timeoutMs = APPLY_TIMEOUT_MS,
 
 /** The fixture app reads the OS clipboard in the foreground and logs only whether it matches. */
 async function readbackMatches(c, nonce) {
-  return (await readback(c, nonce)).match;
+  return (await readClipboardBack(c, nonce)).match;
 }
 
 /** Whether the OS clipboard equals `nonce`, and whether the reader could see any clip at all. */
-async function readback(c, nonce) {
+async function readClipboardBack(c, nonce) {
   const since = Date.now() / 1000 - 1;
   await c.probe.shell(`am start -n test.clipboardfixture/.ReadActivity --es expect ${nonce}`);
   for (let i = 0; i < 20; i++) {
@@ -170,7 +170,7 @@ async function phaseSamples(c, phase, before, { readback = false } = {}) {
     if (readback && sample.ok) {
       // The fixture app reads the OS clipboard in the foreground and finishes; the app stays in the
       // background. Only proves the content is pasteable, not when it became so.
-      const result = await readback(c, `UCLAN${c.runId}${phase.replace(/[^A-Za-z0-9]/g, "")}N${seq}`);
+      const result = await readClipboardBack(c, `UCLAN${c.runId}${phase.replace(/[^A-Za-z0-9]/g, "")}N${seq}`);
       sample.clipboardReadback = result.match;
       sample.readbackSawClip = result.present;
       await c.act.home();
