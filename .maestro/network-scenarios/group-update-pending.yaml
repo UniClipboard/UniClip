@@ -1,0 +1,32 @@
+# Pre: both peers listed; the offline peer's process is stopped. Removes the other peer from the
+# phone, then the phone owes the offline peer a group key update it cannot deliver yet.
+appId: ${APP_ID}
+---
+- runFlow: ../actions/system/dismiss-paste-prompt.yaml
+- scrollUntilVisible:
+    element:
+      text: ${REMOVED}
+    direction: DOWN
+- tapOn: ${REMOVED}
+- runFlow: ../actions/devices/remove-open-device.yaml
+- scrollUntilVisible:
+    element:
+      text: ${OFFLINE}
+    direction: DOWN
+- extendedWaitUntil:
+    visible: "Security update not yet delivered"
+    timeout: 180000
+- takeScreenshot: group-update-pending-row
+- tapOn: ${OFFLINE}
+- scrollUntilVisible:
+    element:
+      text: "Not yet delivered"
+    direction: DOWN
+    timeout: 20000
+- assertVisible: "Security update"
+- scrollUntilVisible:
+    element:
+      text: "It will be delivered automatically; no action is needed. Refreshing does not resend it."
+    direction: DOWN
+- takeScreenshot: group-update-pending-detail
+- runFlow: ../actions/devices/close-device.yaml

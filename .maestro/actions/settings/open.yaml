@@ -6,8 +6,7 @@ appId: ${APP_ID}
     when:
       platform: iOS
     commands:
-      - tapOn:
-          id: home-menu
+      # iOS top-level destinations are native tabs.
       - tapOn: "Settings"
 - runFlow:
     when:

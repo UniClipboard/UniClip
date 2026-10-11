@@ -12,7 +12,13 @@ import {
   TextButton,
   useMaterialColors,
 } from '@expo/ui/jetpack-compose';
-import { fillMaxWidth, height, padding, width } from '@expo/ui/jetpack-compose/modifiers';
+import {
+  fillMaxWidth,
+  height,
+  padding,
+  verticalScroll,
+  width,
+} from '@expo/ui/jetpack-compose/modifiers';
 import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/hooks/useTheme';
@@ -50,7 +56,8 @@ function DeviceDetailContent(props: SpaceDeviceDetailProps) {
         onDismissRequest={props.removing ? () => undefined : props.onClose}
         initialFullyExpanded
       >
-        <Column modifiers={[fillMaxWidth(), padding(12, 0, 12, 24)]}>
+        {/* The device facts, delivery state and actions can exceed a short screen. */}
+        <Column modifiers={[fillMaxWidth(), padding(12, 0, 12, 24), verticalScroll()]}>
           <ListItem>
             <ListItem.LeadingContent>
               <Icon source={ICONS.device} size={36} tint={colors.primary} />

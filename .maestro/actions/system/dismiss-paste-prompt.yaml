@@ -1,0 +1,7 @@
+# iOS may ask to paste when the app reads the pasteboard; it hides the page from the hierarchy,
+# so negative assertions must not run while it is shown.
+appId: ${APP_ID}
+---
+- tapOn:
+    text: "Don.t Allow Paste"
+    optional: true

@@ -19,6 +19,7 @@ import { runDiagnosticExtensions } from "../network/diagnostic-extensions.mjs";
 import { runDiagnosticLifecycle } from "../network/diagnostic-lifecycle.mjs";
 import { runDiagnosticFailure } from "../network/diagnostic-failure.mjs";
 import { runBidirectionalSync } from "../network/run.mjs";
+import { runGroupUpdateDelivery } from "../network/group-update.mjs";
 import { iosDevice } from "./ios.mjs";
 import { androidDevice } from "./android.mjs";
 
@@ -207,7 +208,7 @@ async function main() {
         );
         if (options.peerCli) {
           let phaseNumber = 0;
-          const executeNetwork = scenario === "bidirectional-sync.yaml" ? runBidirectionalSync : scenario === "diagnostic-lifecycle.yaml" ? runDiagnosticLifecycle : scenario === "diagnostic-extensions.yaml" ? runDiagnosticExtensions : runDiagnosticFailure;
+          const executeNetwork = scenario === "bidirectional-sync.yaml" ? runBidirectionalSync : scenario === "group-update-delivery.yaml" ? runGroupUpdateDelivery : scenario === "diagnostic-lifecycle.yaml" ? runDiagnosticLifecycle : scenario === "diagnostic-extensions.yaml" ? runDiagnosticExtensions : runDiagnosticFailure;
           await executeNetwork({
             scenario: options.scenario,
             platform: options.platform,

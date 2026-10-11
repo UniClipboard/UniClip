@@ -1,0 +1,16 @@
+# Pre: phone joined the offline peer's space; the removed peer joined too. Post: both peers listed.
+appId: ${APP_ID}
+---
+- runFlow: ../actions/system/dismiss-paste-prompt.yaml
+- runFlow: ../actions/devices/open.yaml
+- scrollUntilVisible:
+    element:
+      text: ${REMOVED}
+    direction: DOWN
+    timeout: 120000
+- scrollUntilVisible:
+    element:
+      text: ${OFFLINE}
+    direction: DOWN
+    timeout: 60000
+- takeScreenshot: group-update-ready

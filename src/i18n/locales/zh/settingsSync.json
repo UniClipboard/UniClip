@@ -244,6 +244,7 @@
       "groupRelationship": {
         "label": "空间归属",
         "consistent": "当前空间",
+        "confirmationPending": "正在更新空间",
         "pendingLocalDecision": "等待你选择",
         "awaitingRemovalAcknowledgement": "已从此设备移除，正在通知其他设备。",
         "diverged": "不同空间",

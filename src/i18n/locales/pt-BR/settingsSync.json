@@ -244,6 +244,7 @@
       "groupRelationship": {
         "label": "Espaço",
         "consistent": "Espaço atual",
+        "confirmationPending": "Atualizando o espaço",
         "pendingLocalDecision": "Aguardando sua escolha",
         "awaitingRemovalAcknowledgement": "Removido deste dispositivo. Notificando os outros dispositivos.",
         "diverged": "Espaço diferente",

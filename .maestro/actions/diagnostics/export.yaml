@@ -10,11 +10,12 @@ appId: ${APP_ID}
           direction: DOWN
       - tapOn:
           id: diagnostic-export
+      # The page's own share icon also reads "Share"; target the dialog's button among its siblings.
       - tapOn:
           text: "Share"
-          below:
-            id: diagnostics-back
           above: "Send to"
+          rightOf:
+            id: square.and.arrow.up
       - extendedWaitUntil:
           visible: "Copy"
           timeout: 30000

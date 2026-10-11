@@ -1,0 +1,22 @@
+# Pre: a device detail sheet is open. Post: the device list is visible again.
+appId: ${APP_ID}
+---
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      # Tap the scrim above the sheet; the device list stays where it was.
+      - tapOn:
+          point: "50%,8%"
+      - extendedWaitUntil:
+          notVisible: "Device identity"
+          timeout: 10000
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - runFlow: ../system/dismiss-paste-prompt.yaml
+      - tapOn: "Close"
+      - extendedWaitUntil:
+          notVisible: "Device identity"
+          timeout: 10000

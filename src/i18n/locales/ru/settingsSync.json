@@ -244,6 +244,7 @@
       "groupRelationship": {
         "label": "Пространство",
         "consistent": "Текущее пространство",
+        "confirmationPending": "Обновление пространства",
         "pendingLocalDecision": "Ожидается ваш выбор",
         "awaitingRemovalAcknowledgement": "Удалено с этого устройства. Уведомляем другие устройства.",
         "diverged": "Другое пространство",

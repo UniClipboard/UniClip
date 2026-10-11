@@ -11,7 +11,7 @@ appId: ${APP_ID}
     when:
       platform: iOS
     commands:
-      - tapOn: "Direct device sync.*"
+      - tapOn: "Direct \\(Experimental\\)"
 - tapOn: "Use direct sync"
 - extendedWaitUntil:
     visible: "Join an existing space.*"

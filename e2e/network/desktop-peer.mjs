@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { command } from "../environment/process.mjs";
 
 /** Owns a fresh headless profile; never observes or changes the Mac clipboard. */
-export function desktopPeer(cli, output) {
+export function desktopPeer(cli, output, { deviceName = "Simulator acceptance peer" } = {}) {
   const profile = `mobile-e2e-${randomUUID()}`;
   const data = join(
     homedir(),
@@ -34,7 +34,23 @@ export function desktopPeer(cli, output) {
     command(cli, [...base, ...args], { env, timeout: 60_000 });
   return {
     passphrase,
+    deviceName,
+    /** Creates a new space on this peer and returns its first invitation code. */
     async prepare() {
+      await this.start();
+      const initialized = await call([
+        "space",
+        "init",
+        "--passphrase",
+        passphrase,
+        "--device-name",
+        deviceName,
+      ]);
+      await writeFile(join(output, "peer-initialized.txt"), initialized);
+      return this.invite();
+    },
+    /** Starts the isolated daemon without creating or joining a space. */
+    async start() {
       await assert.rejects(access(data), { code: "ENOENT" });
       await mkdir(data);
       owned = true;
@@ -76,15 +92,10 @@ export function desktopPeer(cli, output) {
         await delay(250);
       }
       await access(join(data, "daemon.conn"));
-      const initialized = await call([
-        "space",
-        "init",
-        "--passphrase",
-        passphrase,
-        "--device-name",
-        "Simulator acceptance peer",
-      ]);
-      await writeFile(join(output, "peer-initialized.txt"), initialized);
+    },
+    /** Publishes one invitation from this peer's space and returns its code. */
+    async invite() {
+      if (invitation && invitation.exitCode === null) invitation.kill("SIGINT");
       let invitationText = "";
       invitation = spawn(cli, [...base, "space", "invite"], {
         env,
@@ -107,6 +118,15 @@ export function desktopPeer(cli, output) {
         await delay(250);
       }
       throw new Error("Peer invitation did not become ready");
+    },
+    /** Joins another peer's space through the real CLI and waits for Engine's final result. */
+    async join(code, spacePassphrase) {
+      const joined = await command(
+        cli,
+        [...base, "space", "join", "--code", code, "--passphrase", spacePassphrase, "--device-name", deviceName],
+        { env, timeout: 180_000 }
+      );
+      await writeFile(join(output, "peer-joined.txt"), joined);
     },
     pause() {
       if (!daemon || daemon.exitCode !== null) throw new Error("Owned peer is not running");

@@ -1,0 +1,18 @@
+# Pre: a remote device's detail sheet is open. Post: removal confirmed and the sheet closed.
+appId: ${APP_ID}
+---
+- scrollUntilVisible:
+    element:
+      text: "Remove device"
+    direction: DOWN
+- tapOn: "Remove device"
+- extendedWaitUntil:
+    visible: "Remove .* from this space\\?.*"
+    timeout: 10000
+# The confirmation is the last "Remove device" control on screen (dialog over the sheet).
+- tapOn:
+    text: "Remove device"
+    index: 1
+- extendedWaitUntil:
+    notVisible: "Remove .* from this space\\?.*"
+    timeout: 60000
