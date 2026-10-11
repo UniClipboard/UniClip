@@ -29,7 +29,12 @@ const withForegroundService = (config) => {
                 application.service = [];
             }
             const serviceClassName = 'expo.modules.foregroundservice.SyncForegroundService';
-            if (!application.service.some((s) => s.$?.['android:name'] === serviceClassName)) {
+            const existing = application.service.find((s) => s.$?.['android:name'] === serviceClassName);
+            if (existing?.$) {
+                // An entry kept from an earlier prebuild must not keep a type the service no longer starts with.
+                existing.$['android:foregroundServiceType'] = 'connectedDevice';
+            }
+            else if (!existing) {
                 application.service.push({
                     $: {
                         'android:name': serviceClassName,
