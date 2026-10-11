@@ -136,6 +136,8 @@ internal object AndroidNativeDiagnostics {
         EngineDiagnosticBridge.record(engineNetwork)
         journal.record(NativeDiagnosticEvent.NETWORK_CHANGED, NativeDiagnosticTrigger.NETWORK_CHANGE, network = next.copy(change = change))
         AndroidPowerMetrics.current()?.setNetwork(next.kind.wire)
+        // Recovery must not depend on a JS runtime being alive to forward the network change.
+        if (change != NativeDiagnosticNetwork.Change.INITIAL && next.available) EngineOwner.hintNetworkChanged()
       }
     }
     fun report(error: Throwable) {
