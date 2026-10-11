@@ -244,6 +244,8 @@ export class LanSyncAdapter implements SyncAdapter {
   }
 
   async synchronize(): Promise<void> {
+    // A pull already in flight absorbs this request; the time until it starts is single-flight wait.
+    traceLan('sync_request', { inflight: this.synchronizePromise !== null });
     if (this.synchronizePromise) {
       this.synchronizePending = true;
       return this.synchronizePromise;
@@ -265,6 +267,7 @@ export class LanSyncAdapter implements SyncAdapter {
   private async synchronizeOnce(): Promise<void> {
     const server = this.server;
     if (!server) throw new Error('LAN adapter is not started');
+    traceLan('sync_start');
     const epoch = this.syncEpoch;
     const notificationsAtStart = this.notificationCount;
     const result = await this.client.getClipboard(server);
@@ -278,6 +281,7 @@ export class LanSyncAdapter implements SyncAdapter {
     if (identity === this.lastRemoteIdentity) return;
     traceLan('remote_new', { cid: contentAlias(identity) });
     const current = await this.dependencies.readClipboard();
+    traceLan('clipboard_read_done', { cid: contentAlias(identity) });
     const clipboardHoldsDocument =
       current?.profileHash?.toUpperCase() === document.hash.toUpperCase();
     const historyRetry =

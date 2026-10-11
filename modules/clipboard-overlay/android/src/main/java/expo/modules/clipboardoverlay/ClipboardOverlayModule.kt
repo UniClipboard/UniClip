@@ -453,6 +453,15 @@ class ClipboardOverlayModule : Module() {
     }
 
     /**
+     * One timing point of an overlay clipboard operation: stage, operation tag and device wall
+     * time, plus counts. Never clipboard content. Lets a caller split focus wait from the read or
+     * write itself.
+     */
+    private fun timing(op: String, stage: String, detail: String = "") {
+        android.util.Log.i("UcClipTiming", "stage=$stage op=$op wall=${System.currentTimeMillis()} $detail")
+    }
+
+    /**
      * Reads the primary clip with fast retry logic.
      * Uses short intervals (10ms like AutoJs6) to minimize time the window has focus.
      */
@@ -465,6 +474,7 @@ class ClipboardOverlayModule : Module() {
         val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val clip = cm.primaryClip
         if (clip != null || attempt >= maxRetries) {
+            timing("read", "clip_read", "attempts=${attempt + 1} found=${clip != null}")
             callback(clip)
         } else {
             handler.postDelayed({
@@ -494,6 +504,7 @@ class ClipboardOverlayModule : Module() {
         val ok = clip != null && clip.itemCount > 0 &&
             clip.getItemAt(0).coerceToText(context)?.toString() == text
         if (ok || attempt >= maxRetries) {
+            timing("write", "clip_written", "attempts=${attempt + 1} ok=$ok")
             callback(ok)
         } else {
             handler.postDelayed({
@@ -526,8 +537,9 @@ class ClipboardOverlayModule : Module() {
      * Waits until the view's window actually receives input focus (or the
      * timeout elapses), then runs [then] exactly once on the main thread.
      */
-    private fun runWhenFocused(view: View, then: () -> Unit) {
+    private fun runWhenFocused(view: View, tag: String, then: () -> Unit) {
         if (view.hasWindowFocus()) {
+            timing(tag, "focus", "how=already")
             then()
             return
         }
@@ -539,6 +551,7 @@ class ClipboardOverlayModule : Module() {
                 try {
                     listener?.let { view.viewTreeObserver.removeOnWindowFocusChangeListener(it) }
                 } catch (_: Exception) {}
+                timing(tag, "focus", "how=timeout")
                 then()
             }
         }
@@ -549,6 +562,7 @@ class ClipboardOverlayModule : Module() {
                 try {
                     listener?.let { view.viewTreeObserver.removeOnWindowFocusChangeListener(it) }
                 } catch (_: Exception) {}
+                timing(tag, "focus", "how=gained")
                 then()
             }
         }
@@ -605,10 +619,12 @@ class ClipboardOverlayModule : Module() {
             return
         }
 
+        timing(tag, "request")
         mainHandler.post {
             val view = persistentView
             val wm = persistentWindowManager
             val params = persistentParams
+            timing(tag, "main", "persistent=${view != null}")
 
             if (view != null && wm != null && params != null) {
                 // Persistent overlay path: toggle focus on existing window
@@ -619,12 +635,13 @@ class ClipboardOverlayModule : Module() {
                     view.requestLayout()
 
                     // Step 2: Wait for real window focus, then run; done() releases focus
-                    runWhenFocused(view) {
+                    runWhenFocused(view, tag) {
                         op(context) {
                             try {
                                 params.flags = unfocusableFlags(params.flags)
                                 wm.updateViewLayout(view, params)
                             } catch (_: Exception) {}
+                            timing(tag, "released")
                         }
                     }
                 } catch (e: Exception) {
@@ -682,11 +699,12 @@ class ClipboardOverlayModule : Module() {
                             finalWm.updateViewLayout(finalView, tempParams)
                             finalView.requestLayout()
 
-                            runWhenFocused(finalView) {
+                            runWhenFocused(finalView, tag) {
                                 op(context) {
                                     try {
                                         finalWm.removeView(finalView)
                                     } catch (_: Exception) {}
+                                    timing(tag, "released")
                                 }
                             }
                         } catch (e: Exception) {

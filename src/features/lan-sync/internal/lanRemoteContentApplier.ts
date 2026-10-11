@@ -25,6 +25,7 @@ export class LanRemoteContentApplier {
   constructor(private readonly dependencies: LanRemoteContentApplierDependencies) {}
 
   async apply(input: ApplyLanRemoteContentInput): Promise<void> {
+    traceLan('apply_start', { cid: contentAlias(input.contentId ?? input.profileHash) });
     const timestamp = Date.now();
     const clipboardText =
       input.type === 'Text' && input.hasData
@@ -44,7 +45,7 @@ export class LanRemoteContentApplier {
 
     const cid = contentAlias(input.contentId ?? input.profileHash);
     if (input.type !== 'File' && !input.clipboardAlreadyApplied) {
-      await this.applyToClipboard(content, input.profileHash);
+      await this.applyToClipboard(content, input.profileHash, cid);
       traceLan('clipboard_applied', { cid });
     } else if (input.clipboardAlreadyApplied) {
       traceLan('history_retry', { cid });
@@ -80,6 +81,8 @@ export class LanRemoteContentApplier {
       ...(saved.dataName ? { fileName: saved.dataName } : {}),
       ...(saved.fileUri ? { fileUri: saved.fileUri } : {}),
     });
+    // The display store is updated; when the screen actually renders it is not observable here.
+    traceLan('ui_committed', { cid });
   }
 
   private async saveHistory(
@@ -98,10 +101,15 @@ export class LanRemoteContentApplier {
     }
   }
 
-  private async applyToClipboard(content: ClipboardContent, profileHash: string): Promise<void> {
+  private async applyToClipboard(
+    content: ClipboardContent,
+    profileHash: string,
+    cid: string
+  ): Promise<void> {
     this.dependencies.pauseClipboardMonitoring();
     try {
       await this.dependencies.setClipboardContent(content);
+      traceLan('clipboard_write_done', { cid });
       let watermark = content;
       if (content.type === 'Image') {
         const observed = await this.dependencies.readClipboardContent().catch(() => null);
