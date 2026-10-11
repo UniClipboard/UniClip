@@ -1,0 +1,10 @@
+# Pre: device list visible. Post: the page re-read Engine state; nothing is resent.
+appId: ${APP_ID}
+---
+- runFlow: ../system/dismiss-paste-prompt.yaml
+- scrollUntilVisible:
+    element:
+      id: space-refresh
+    direction: UP
+- tapOn:
+    id: space-refresh

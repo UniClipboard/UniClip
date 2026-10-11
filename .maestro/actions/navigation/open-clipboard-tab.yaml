@@ -11,7 +11,13 @@ appId: ${APP_ID}
     when:
       platform: iOS
     commands:
-      - tapOn:
-          text: "Clipboard"
-          retryTapIfNoChange: true
+      - retry:
+          maxRetries: 3
+          commands:
+            - runFlow: ../system/dismiss-paste-prompt.yaml
+            - tapOn: "Clipboard"
+            - extendedWaitUntil:
+                visible:
+                  id: "home-menu|history-search-open"
+                timeout: 10000
 - runFlow: ../../assertions/home-ready.yaml

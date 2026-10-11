@@ -6,10 +6,16 @@ appId: ${APP_ID}
     when:
       platform: iOS
     commands:
-      # iOS top-level destinations are native tabs.
-      - tapOn:
-          text: "Settings"
-          retryTapIfNoChange: true
+      # iOS top-level destinations are native tabs; a tap can be lost while a system prompt closes.
+      - retry:
+          maxRetries: 3
+          commands:
+            - runFlow: ../system/dismiss-paste-prompt.yaml
+            - tapOn: "Settings"
+            - extendedWaitUntil:
+                visible:
+                  id: settings-storage
+                timeout: 10000
 - runFlow:
     when:
       platform: Android

@@ -1,5 +1,5 @@
-# Pre: app restarted while the offline peer is still stopped. Post: the same pending update is shown;
-# a restart only re-reads Engine state and must not clear or resend it.
+# Pre: app restarted while the offline peer is still stopped. Post: the same pending update is shown
+# after the restart and after a manual refresh; both only re-read Engine state.
 appId: ${APP_ID}
 ---
 - runFlow: ../actions/devices/open.yaml
@@ -14,4 +14,16 @@ appId: ${APP_ID}
     direction: DOWN
     timeout: 20000
 - takeScreenshot: group-update-pending-after-restart-detail
+- runFlow: ../actions/devices/close-device.yaml
+- runFlow: ../actions/devices/refresh.yaml
+- runFlow:
+    file: ../actions/devices/open-device.yaml
+    env:
+      DEVICE: ${OFFLINE}
+- scrollUntilVisible:
+    element:
+      text: "Not yet delivered"
+    direction: DOWN
+    timeout: 20000
+- takeScreenshot: group-update-pending-after-refresh-detail
 - runFlow: ../actions/devices/close-device.yaml
