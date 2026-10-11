@@ -230,6 +230,7 @@ async function main() {
     const context = {
       appId,
       apkPath: app,
+      overlay: options.overlay ?? "allow",
       probe,
       device,
       peer,

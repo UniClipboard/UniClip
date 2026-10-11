@@ -32,6 +32,9 @@ async function ensureServer(c, order, { second = false } = {}) {
     // A different address order is a new configuration: reinstall keeps runs independent.
     await c.probe.run("uninstall", c.appId);
     await c.probe.run("install", c.apkPath);
+    // A reinstall drops the grants the runner made at start; background writes need the overlay.
+    await c.probe.shell(`pm grant ${c.appId} android.permission.POST_NOTIFICATIONS`).catch(() => "");
+    await c.probe.shell(`appops set ${c.appId} SYSTEM_ALERT_WINDOW ${c.overlay === "deny" ? "deny" : "allow"}`);
     c.onboarded = false;
     c.secondConfigured = false;
     c.backgroundEnabled = false;
