@@ -85,3 +85,43 @@ npm test -- --runInBand --watch=false src/__tests__/engineLatestContract.test.ts
 Build source/caches must be isolated when reproducing the task's evidence. The
 receipt's `build-android.sh` records those environment settings. No product
 version, release, real-device data, or local Engine override changed.
+
+## Physical iOS installation recovery
+
+The installer originally restored `.artifacts/<version>` even for commit pins.
+That produced an additional "pinned iOS Engine cache is incomplete" error during
+cleanup after Xcode failed to connect to a locked phone. The installer now uses
+`.artifacts/commit-<sourceCommit>` for commit pins, verifies only the iOS platform,
+and checks restoration before changing the development project or Engine output.
+Release pins retain the version-based cache path.
+
+The reproduction drives the installer shell flow in temporary directories, uses
+real ZIP restoration and the prepared-artifact verifier, and substitutes only the
+phone/application commands. It confirms exact-commit restoration without Android
+artifacts, early rejection of missing caches, and preservation of install exit
+code 70. It does not claim device installation coverage.
+
+```sh
+node --test scripts/__tests__/install-ios-pinned-restore.test.mjs scripts/__tests__/install-ios-engine-reuse.test.mjs scripts/__tests__/pin-unified-engine-commit.test.mjs
+```
+
+All 26 checks passed. The broader existing `install-dev-device.test.mjs` has one
+baseline failure: its codegen assertion includes both development and release
+functions but expects only one occurrence. This fails on the unmodified parent
+commit as well and is outside this cache fix.
+
+When `core:patch` enables a local Engine override, development installation builds
+the current files in that repository, including uncommitted changes. It neither
+requires nor restores the pinned release cache. `UC_ENGINE_REPOSITORY` alone only
+selects the clone used to resolve the pinned commit; use the existing local mode:
+
+```sh
+npm run core:patch -- /path/to/Engine
+npm run install:dev:ios
+# Return to the immutable project pin:
+npm run core:unpatch
+```
+
+The local override is ignored configuration, not a change to `core-source.json`.
+The additional install-flow check confirms missing release cache does not prevent
+local installation and failed installation does not replace local output.
