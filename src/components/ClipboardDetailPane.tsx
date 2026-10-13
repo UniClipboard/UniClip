@@ -1,5 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, Pressable } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Image,
+  Pressable,
+  type ColorValue,
+} from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { getDisplayKind, formatRelativeTime, DisplayKind } from '@/utils/displayKind';
@@ -10,6 +18,16 @@ import type { HomeController } from '@/screens/useHomeController';
 import type { ClipboardItem } from '@/types/clipboard';
 import { ClipboardDetailActionBar } from './ClipboardDetailActionBar';
 import { usePopoverTransition } from './usePopoverTransition';
+import { useHistoryItemText } from '@/hooks/useHistoryItemText';
+
+function PaneText({ item, color }: { item: ClipboardItem; color: ColorValue }) {
+  const text = useHistoryItemText(item);
+  return (
+    <Text selectable style={[styles.text, { color }]}>
+      {text}
+    </Text>
+  );
+}
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -128,9 +146,7 @@ export function ClipboardDetailPane({
           </View>
         ) : (
           <View style={[styles.preview, { backgroundColor: colors.surface }]}>
-            <Text selectable style={[styles.text, { color: colors.textPrimary }]}>
-              {item.text}
-            </Text>
+            <PaneText item={item} color={colors.textPrimary} />
           </View>
         )}
       </ScrollView>

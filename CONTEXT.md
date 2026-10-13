@@ -19,6 +19,14 @@ Undo, committing the soft delete (which also removes local files) only after the
 undo window ends; iOS deletes immediately without undo. A long press enters
 multi-select on Android and opens a context menu on iOS.
 
+Clipboard text longer than 1000 UTF-16 units is stored as a full-text file plus
+a 200-character preview in the history item's `text` (ending in `...`). The
+preview is for list and card display only. Detail, copy, send-to, share, and
+sync must use the full-text file. If the file cannot be read, detail, copy,
+send-to, and share fall back to the preview, but sync never sends the preview: a
+captured long text whose file is unreadable is dropped from capture and left to
+the Engine host to read from the clipboard itself.
+
 ## Architecture
 
 ```text

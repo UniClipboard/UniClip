@@ -18,6 +18,7 @@ import {
   type DisplayKind,
 } from '@/utils/displayKind';
 import { getDomainGradient, getDomainInitial } from '@/utils/domainColor';
+import { useHistoryItemText } from '@/hooks/useHistoryItemText';
 import { getExtensionColor, getFileExtension } from '@/utils/fileTypeColor';
 import {
   DETAIL_TOOLBAR_HEIGHT,
@@ -183,13 +184,14 @@ function DetailContent(props: DetailContentProps) {
 }
 
 function TextContent({ c, item, colors }: DetailContentProps) {
-  const charCount = useMemo(() => Array.from(item.text).length, [item.text]);
-  const lineCount = useMemo(() => item.text.split('\n').length, [item.text]);
+  const text = useHistoryItemText(item);
+  const charCount = useMemo(() => Array.from(text).length, [text]);
+  const lineCount = useMemo(() => text.split('\n').length, [text]);
   return (
     <>
       <View style={[styles.surfaceCard, styles.textCard, { backgroundColor: colors.surfaceLow }]}>
         <Text selectable style={[styles.bodyText, { color: colors.textPrimary }]}>
-          {item.text}
+          {text}
         </Text>
       </View>
       <View style={styles.statRow}>

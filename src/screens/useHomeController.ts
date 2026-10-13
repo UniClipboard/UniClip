@@ -46,6 +46,7 @@ import {
   createTextSendJob,
   releaseHistorySendJob,
 } from '@/utils/historySendJob';
+import { readHistoryItemText } from '@/utils/historyItemText';
 import type { PendingShareJob } from '@/features/transfer';
 import { useUndoableHistoryDelete } from './useUndoableHistoryDelete';
 import { useHistoryDisplaySettings } from '@/hooks/useHistoryDisplaySettings';
@@ -348,11 +349,11 @@ export function useHomeController(
     sendToJobsRef.current?.forEach(releaseHistorySendJob);
   }, []);
   const presentSendTo = useCallback(
-    (prepare: () => PendingShareJob[]) => {
+    async (prepare: () => PendingShareJob[] | Promise<PendingShareJob[]>) => {
       releaseSendToJobs();
       let jobs: PendingShareJob[] = [];
       try {
-        jobs = prepare();
+        jobs = await prepare();
       } catch (error) {
         log.error(`Failed to prepare send-to job (${getErrorCode(error)})`);
       }
@@ -368,8 +369,8 @@ export function useHomeController(
   );
   const openSendTo = useCallback(
     (item: ClipboardItem) =>
-      presentSendTo(() => {
-        const job = createHistorySendJob(item, getDisplayKind(item.type, item.text));
+      presentSendTo(async () => {
+        const job = await createHistorySendJob(item, getDisplayKind(item.type, item.text));
         return job ? [job] : [];
       }),
     [presentSendTo]
@@ -469,11 +470,13 @@ export function useHomeController(
         onSelectText: () => {
           // 动作经 close(after) 在浮层退场后才执行，那时 contextTarget 已清空——
           // 这里提前把锚点捕获进闭包，分词浮层才能从同一张卡片原位生长
-          setWordPickerTarget({ text: item.text, anchor, deviceName: item.deviceName });
+          void readHistoryItemText(item).then((text) =>
+            setWordPickerTarget({ text, anchor, deviceName: item.deviceName })
+          );
         },
         onCopyPlainText: async () => {
           const Clipboard = await import('expo-clipboard');
-          await Clipboard.setStringAsync(item.text);
+          await Clipboard.setStringAsync(await readHistoryItemText(item));
           showMessage(t('toast.copiedPlainText'), 'success');
         },
         onOpenInBrowser: () => {
@@ -534,7 +537,7 @@ export function useHomeController(
           ) {
             await shareFile(item.fileUri, item.dataName);
           } else {
-            await Share.share({ message: item.text });
+            await Share.share({ message: await readHistoryItemText(item) });
           }
         },
         onSelect: () => {
@@ -625,7 +628,7 @@ export function useHomeController(
 
   const handleBatchCopy = useCallback(async () => {
     const selected = items.filter((i) => selectedIds.has(i.profileHash));
-    const texts = selected.map((i) => i.text).join('\n');
+    const texts = (await Promise.all(selected.map(readHistoryItemText))).join('\n');
     const Clipboard = await import('expo-clipboard');
     await Clipboard.setStringAsync(texts);
     showMessage(t('toast.copiedSelected'), 'success');
@@ -636,10 +639,12 @@ export function useHomeController(
   const handleBatchSendTo = useCallback(() => {
     const selected = items.filter((i) => selectedIds.has(i.profileHash));
     exitSelectMode();
-    presentSendTo(() =>
-      selected
-        .map((item) => createHistorySendJob(item, getDisplayKind(item.type, item.text)))
-        .filter((job): job is PendingShareJob => job != null)
+    presentSendTo(async () =>
+      (
+        await Promise.all(
+          selected.map((item) => createHistorySendJob(item, getDisplayKind(item.type, item.text)))
+        )
+      ).filter((job): job is PendingShareJob => job != null)
     );
   }, [items, selectedIds, exitSelectMode, presentSendTo]);
 

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useHistoryItemText } from '@/hooks/useHistoryItemText';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button as SwiftUIButton, Host, Menu, Section } from '@expo/ui/swift-ui';
 import {
@@ -300,13 +301,14 @@ function DetailContent(props: DetailContentProps) {
 
 function TextContent({ c, item }: DetailContentProps) {
   const { colors } = c.theme;
-  const charCount = useMemo(() => Array.from(item.text).length, [item.text]);
-  const lineCount = useMemo(() => item.text.split('\n').length, [item.text]);
+  const text = useHistoryItemText(item);
+  const charCount = useMemo(() => Array.from(text).length, [text]);
+  const lineCount = useMemo(() => text.split('\n').length, [text]);
   return (
     <>
       <View style={[styles.card, styles.textCard, { backgroundColor: iosColors?.secondarySystemGroupedBackground }]}>
         <Text selectable style={[styles.bodyText, { color: colors.textPrimary }]}>
-          {item.text}
+          {text}
         </Text>
       </View>
       <View style={styles.statRow}>

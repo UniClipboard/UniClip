@@ -11,6 +11,7 @@ import {
   type ImportedContentAsset,
   type UnifiedContentResult,
 } from '@/features/transfer';
+import { readExternalText } from '@/utils/historyItemText';
 import type { ClipboardContent } from '@/types/clipboard';
 import { createLogger } from '@/support/observability';
 import type {
@@ -37,7 +38,23 @@ export interface CapturedClipboardInput {
  * The Engine host must process what was captured, not read the clipboard again: a background app
  * may only read it through the overlay/Shizuku path that already produced `content`.
  */
-function capturedClipboardFrom(content: ClipboardContent): CapturedClipboardInput | undefined {
+async function capturedClipboardFrom(
+  content: ClipboardContent
+): Promise<CapturedClipboardInput | undefined> {
+  if (content.type === 'Text' && content.hasData) {
+    // Long text keeps only a 200-character preview in `content.text`; the full text is in a file.
+    // Never hand the preview over as the capture: if the file is unreadable, let the host read it.
+    const text = await readExternalText({
+      type: content.type,
+      text: content.text ?? '',
+      hasData: content.hasData,
+      fileUri: content.fileUri,
+      dataName: content.fileName,
+      profileHash: content.profileHash ?? '',
+    });
+    if (text === null) log.error('Captured long text file is unreadable; the preview is not synced');
+    return text === null ? undefined : { text };
+  }
   if (content.type === 'Text' && content.text !== undefined) return { text: content.text };
   if (content.type === 'Image' && content.fileUri) {
     return { fileUri: content.fileUri, displayName: content.fileName };
@@ -187,7 +204,7 @@ export class P2pSyncAdapter implements SyncAdapter {
   ): Promise<SyncAdapterDelivery | null> {
     const report = await this.dependencies.clipboard.observeClipboardChange(
       dispatch,
-      capturedClipboardFrom(content)
+      await capturedClipboardFrom(content)
     );
     if (!report) return null;
     await this.dependencies.clipboard.persistDelivery(content.profileHash, report);

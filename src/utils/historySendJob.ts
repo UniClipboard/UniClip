@@ -2,6 +2,7 @@ import { Directory, File, Paths } from 'expo-file-system';
 import type { PendingShareJob } from '@/features/transfer';
 import type { ClipboardItem } from '@/types/clipboard';
 import type { DisplayKind } from '@/utils/displayKind';
+import { readHistoryItemText } from '@/utils/historyItemText';
 
 /** 应用内「发送到」为文本历史写出的临时 payload,发送页关闭后删除。 */
 const SEND_TO_DIR = new Directory(Paths.cache, 'temp_files', 'send_to');
@@ -17,10 +18,10 @@ export function canSendHistoryItem(item: ClipboardItem, displayKind: DisplayKind
  * 把一条历史转换成发送页(ShareSendSheet)的 job。带 `historyProfileHash`,
  * 发送时按原条目投递,不会重复导入历史。文本写成临时 UTF-8 文件供预览与发送读取。
  */
-export function createHistorySendJob(
+export async function createHistorySendJob(
   item: ClipboardItem,
   displayKind: DisplayKind
-): PendingShareJob | null {
+): Promise<PendingShareJob | null> {
   if (!canSendHistoryItem(item, displayKind)) return null;
   const id = `history-${item.profileHash}-${item.timestamp}`;
   const createdAtMs = Date.now();
@@ -29,7 +30,7 @@ export function createHistorySendJob(
     SEND_TO_DIR.create({ intermediates: true, idempotent: true });
     const file = new File(SEND_TO_DIR, `${item.profileHash}.txt`);
     if (!file.exists) file.create();
-    file.write(item.text);
+    file.write(await readHistoryItemText(item));
     return {
       id,
       kind: 'text',
