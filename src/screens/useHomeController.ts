@@ -348,29 +348,36 @@ export function useHomeController(
   const releaseSendToJobs = useCallback(() => {
     sendToJobsRef.current?.forEach(releaseHistorySendJob);
   }, []);
-  // 准备发送 job 需要读全文文件(异步);快速连续触发时只有最后一次请求生效。
+  // 准备发送 job 需要读全文文件(异步)。请求串行执行:同一条目的 payload 路径相同(`<hash>.txt`),
+  // 并行准备时,过期请求的释放会删掉最新请求刚写好的文件;串行后过期请求在自己准备前直接跳过。
   const sendToRequestRef = useRef(0);
+  const sendToQueueRef = useRef<Promise<void>>(Promise.resolve());
   const presentSendTo = useCallback(
-    async (prepare: () => PendingShareJob[] | Promise<PendingShareJob[]>) => {
+    (prepare: () => PendingShareJob[] | Promise<PendingShareJob[]>) => {
       const request = ++sendToRequestRef.current;
-      releaseSendToJobs();
-      let jobs: PendingShareJob[] = [];
-      try {
-        jobs = await prepare();
-      } catch (error) {
-        log.error(`Failed to prepare send-to job (${getErrorCode(error)})`);
-      }
-      if (request !== sendToRequestRef.current) {
-        jobs.forEach(releaseHistorySendJob);
-        return;
-      }
-      if (jobs.length === 0) {
-        showMessage(t('toast.sendToUnavailable'), 'error');
-        return;
-      }
-      sendToJobsRef.current = jobs;
-      setSendToJobs(jobs);
-      setSendToVisible(true);
+      const run = sendToQueueRef.current.then(async () => {
+        if (request !== sendToRequestRef.current) return;
+        releaseSendToJobs();
+        let jobs: PendingShareJob[] = [];
+        try {
+          jobs = await prepare();
+        } catch (error) {
+          log.error(`Failed to prepare send-to job (${getErrorCode(error)})`);
+        }
+        if (request !== sendToRequestRef.current) {
+          jobs.forEach(releaseHistorySendJob);
+          return;
+        }
+        if (jobs.length === 0) {
+          showMessage(t('toast.sendToUnavailable'), 'error');
+          return;
+        }
+        sendToJobsRef.current = jobs;
+        setSendToJobs(jobs);
+        setSendToVisible(true);
+      });
+      sendToQueueRef.current = run.catch(() => undefined);
+      return run;
     },
     [releaseSendToJobs, showMessage, t]
   );
