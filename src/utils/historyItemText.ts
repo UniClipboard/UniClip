@@ -22,11 +22,15 @@ export async function readExternalText(item: TextItem): Promise<string | null> {
       if (historyUri) candidates.push(historyUri);
     }
     for (const uri of candidates) {
-      const file = new File(uri);
-      if (file.exists) return await file.text();
+      try {
+        const file = new File(uri);
+        if (file.exists) return await file.text();
+      } catch (error) {
+        log.error('Failed to read full history text from one location:', error);
+      }
     }
   } catch (error) {
-    log.error('Failed to read full history text:', error);
+    log.error('Failed to resolve full history text:', error);
   }
   return null;
 }

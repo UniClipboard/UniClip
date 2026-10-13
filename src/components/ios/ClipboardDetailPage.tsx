@@ -325,7 +325,7 @@ function TextContent({ c, item }: DetailContentProps) {
 
 function UrlContent({ c, item, inline }: DetailContentProps) {
   const { colors } = c.theme;
-  const url = item.text.trim();
+  const url = useHistoryItemText(item).trim();
   const domain = getURLDomain(url);
   const metadata = useURLMetadata(url);
   const gradient = useMemo(() => getDomainGradient(domain), [domain]);

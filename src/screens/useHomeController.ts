@@ -348,14 +348,21 @@ export function useHomeController(
   const releaseSendToJobs = useCallback(() => {
     sendToJobsRef.current?.forEach(releaseHistorySendJob);
   }, []);
+  // 准备发送 job 需要读全文文件(异步);快速连续触发时只有最后一次请求生效。
+  const sendToRequestRef = useRef(0);
   const presentSendTo = useCallback(
     async (prepare: () => PendingShareJob[] | Promise<PendingShareJob[]>) => {
+      const request = ++sendToRequestRef.current;
       releaseSendToJobs();
       let jobs: PendingShareJob[] = [];
       try {
         jobs = await prepare();
       } catch (error) {
         log.error(`Failed to prepare send-to job (${getErrorCode(error)})`);
+      }
+      if (request !== sendToRequestRef.current) {
+        jobs.forEach(releaseHistorySendJob);
+        return;
       }
       if (jobs.length === 0) {
         showMessage(t('toast.sendToUnavailable'), 'error');
@@ -650,7 +657,7 @@ export function useHomeController(
 
   const handleBatchShare = useCallback(async () => {
     const selected = items.filter((i) => selectedIds.has(i.profileHash));
-    const texts = selected.map((i) => i.text).join('\n');
+    const texts = (await Promise.all(selected.map(readHistoryItemText))).join('\n');
     await Share.share({ message: texts });
     exitSelectMode();
   }, [items, selectedIds, exitSelectMode]);
