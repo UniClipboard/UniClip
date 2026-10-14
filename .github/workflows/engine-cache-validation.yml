@@ -1,0 +1,94 @@
+name: Mobile compiler cache validation
+# 从真实 Mobile 调用链生成固定 Engine pin 的原生产物，不发布、不启动应用。
+on:
+  workflow_dispatch:
+  push:
+    branches: [ci/mobile-cache-credential-validation]
+    paths: [.github/workflows/engine-cache-validation.yml]
+permissions:
+  contents: read
+jobs:
+  native-artifacts:
+    runs-on: macos-15
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ios, android]
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+      CARGO_BUILD_JOBS: '3'
+      CARGO_INCREMENTAL: '0'
+      MBX_GC_MAX_SIZE: 2GiB
+      MBX_REMOTE_MODE: read-only
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/setup-java@v5
+        if: matrix.platform == 'android'
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Isolate build resources
+        run: |
+          echo "MBX_CACHE_DIR=$RUNNER_TEMP/mobile-cas" >> "$GITHUB_ENV"
+          echo "UC_ENGINE_LOCAL_TARGET_DIR=$RUNNER_TEMP/mobile-target" >> "$GITHUB_ENV"
+          echo "UC_ENGINE_MBX_STATS_DIR=$RUNNER_TEMP/mbx-evidence" >> "$GITHUB_ENV"
+          echo "UC_TOOLS_DIR=$RUNNER_TEMP/cache-tools" >> "$GITHUB_ENV"
+      - name: Record immutable source and empty output roots
+        run: |
+          test ! -e "$MBX_CACHE_DIR"
+          test ! -e "$UC_ENGINE_LOCAL_TARGET_DIR"
+          mkdir -p "$RUNNER_TEMP/evidence"
+          git rev-parse HEAD > "$RUNNER_TEMP/evidence/mobile-source.txt"
+          cp modules/uc-engine/core-source.json "$RUNNER_TEMP/evidence/engine-source.json"
+          uname -a > "$RUNNER_TEMP/evidence/host.txt"
+          xcodebuild -version >> "$RUNNER_TEMP/evidence/host.txt"
+      - name: Build and verify native Engine artifacts through Mobile
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          BUILD_CACHE_R2_ENDPOINT: ${{ secrets.BUILD_CACHE_R2_ENDPOINT }}
+          BUILD_CACHE_R2_ACCESS_KEY_ID: ${{ secrets.BUILD_CACHE_R2_ACCESS_KEY_ID }}
+          BUILD_CACHE_R2_SECRET_ACCESS_KEY: ${{ secrets.BUILD_CACHE_R2_SECRET_ACCESS_KEY }}
+        run: |
+          test -n "$BUILD_CACHE_R2_ENDPOINT"
+          test -n "$BUILD_CACHE_R2_ACCESS_KEY_ID"
+          test -n "$BUILD_CACHE_R2_SECRET_ACCESS_KEY"
+          bash scripts/update-unified-engine-core.sh --platform "$PLATFORM"
+          node scripts/verify-unified-engine-core.mjs --prepared --platform "$PLATFORM"
+      - name: Assert real read-only remote recovery
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          reports = list(Path(os.environ['UC_ENGINE_MBX_STATS_DIR']).glob('session.*/stats.json'))
+          assert reports, 'No native MBX statistics'
+          keys = ['hits', 'restored_output_files', 'downloaded_bytes', 'uploaded_bytes', 'remote_failures', 'background_upload_failures']
+          totals = dict.fromkeys(keys, 0)
+          for file in reports:
+              report = json.loads(file.read_text())
+              for key in keys:
+                  totals[key] += report[key]
+          Path(os.environ['RUNNER_TEMP'], 'evidence', 'cache-totals.json').write_text(json.dumps(totals, indent=2))
+          print(totals)
+          assert totals['hits'] > 0 and totals['restored_output_files'] > 0 and totals['downloaded_bytes'] > 0
+          assert totals['uploaded_bytes'] == totals['remote_failures'] == totals['background_upload_failures'] == 0
+          PY
+      - name: Preserve native evidence and packages
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: mobile-cache-${{ matrix.platform }}
+          path: |
+            ${{ runner.temp }}/evidence
+            ${{ runner.temp }}/mbx-evidence
+            ${{ runner.temp }}/mobile-target/uc-engine-uniffi-dist/${{ matrix.platform }}
+          if-no-files-found: error
+          retention-days: 7
