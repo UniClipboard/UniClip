@@ -7,7 +7,9 @@ import test from 'node:test';
 
 const repo = resolve(import.meta.dirname, '../..');
 const commit = '2f9afc9956b0cda82e65c912f0c0f6dc6aa51256';
+/** Write a fixture input, creating its parent directories when needed. */
 function write(path, value) { mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, value); }
+/** Create an isolated module with real pinned artifacts and stub only device/build commands. */
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'ios-pin-restore-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
@@ -27,6 +29,7 @@ function fixture(t) {
   write(join(root, 'scripts/prepare-ios-development-project.sh'), 'echo PROJECT_PREPARED\n');
   const functions = readFileSync(join(repo, 'scripts/install-dev-device.sh'), 'utf8').split('platform="${1:-all}"')[0];
   write(join(root, 'scripts/run.sh'), `${functions}\nLOCAL_ENGINE_BUILD_ROOT="$PROJECT_ROOT/build"\nxcrun() { echo test-phone; }\nassert_development_project() { :; }\nprepare_install_engine() { echo dev > "$PROJECT_ROOT/modules/uc-engine/ios/Bindings/uc_engine_uniffi.swift"; }\nnpx() { echo INSTALL_ATTEMPTED; return 70; }\ninstall_ios test-phone\n`);
+  /** Run the installer flow in a child shell and return its status and diagnostics. */
   const run = () => spawnSync('bash', [join(root, 'scripts/run.sh')], { encoding: 'utf8', env: { ...process.env, UC_IOS_INSTALL_VARIANT: 'development', UC_ENGINE_UNIFFI_SLICE: 'universal', PATH: `${dirname(process.execPath)}:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin` } });
   return { root, module, cache, run };
 }

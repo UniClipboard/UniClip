@@ -141,6 +141,7 @@ assert_development_project() {
   fi
 }
 
+# Restore and verify the pinned iOS archive from its commit or release cache.
 restore_pinned_ios_engine_impl() {
   local module_dir="$PROJECT_ROOT/modules/uc-engine"
   local cache_dir
@@ -207,6 +208,7 @@ restore_cached_local_ios_engine_impl() {
 }
 
 export -f restore_pinned_ios_engine_impl
+# Serialize pinned restoration while preserving explicitly selected local Engine output.
 restore_pinned_ios_engine() {
   # Local development owns its output and must not require or restore release artifacts.
   if [ -n "$LOCAL_ENGINE_OVERRIDE" ]; then
@@ -369,6 +371,7 @@ prepare_install_engine() {
   git -C "$ENGINE_ROOT" worktree remove --force "$worktree"
 }
 
+# Build and install the requested iOS variant, preserving the original failure on cleanup.
 install_ios() {
   local device="$1"
   local bindings_cache="${UC_ENGINE_STORAGE_BUILD_DIR:-$LOCAL_ENGINE_BUILD_ROOT}/ios-bindings-cache"
@@ -410,6 +413,7 @@ install_ios() {
   trap - EXIT
 }
 
+# Install a signed release variant, then restore the development project and Engine mode.
 install_ios_release() {
   local device="$1"
   local variant="$2"
