@@ -8,9 +8,6 @@ on:
         type: choice
         default: android
         options: [android, ios, both]
-  push:
-    branches: [ci/mobile-cache-credential-validation]
-    paths: [.github/workflows/engine-cache-validation.yml]
 permissions:
   contents: read
 jobs:
@@ -44,10 +41,12 @@ jobs:
           java-version: '17'
       - name: Isolate build resources
         run: |
-          echo "MBX_CACHE_DIR=$RUNNER_TEMP/mobile-cas" >> "$GITHUB_ENV"
-          echo "UC_ENGINE_LOCAL_TARGET_DIR=$RUNNER_TEMP/mobile-target" >> "$GITHUB_ENV"
-          echo "UC_ENGINE_MBX_STATS_DIR=$RUNNER_TEMP/mbx-evidence" >> "$GITHUB_ENV"
-          echo "UC_TOOLS_DIR=$RUNNER_TEMP/cache-tools" >> "$GITHUB_ENV"
+          {
+            echo "MBX_CACHE_DIR=$RUNNER_TEMP/mobile-cas"
+            echo "UC_ENGINE_LOCAL_TARGET_DIR=$RUNNER_TEMP/mobile-target"
+            echo "UC_ENGINE_MBX_STATS_DIR=$RUNNER_TEMP/mbx-evidence"
+            echo "UC_TOOLS_DIR=$RUNNER_TEMP/cache-tools"
+          } >> "$GITHUB_ENV"
       - name: Record immutable source and empty output roots
         run: |
           test ! -e "$MBX_CACHE_DIR"
@@ -67,7 +66,28 @@ jobs:
           test -n "$BUILD_CACHE_R2_ENDPOINT"
           test -n "$BUILD_CACHE_R2_ACCESS_KEY_ID"
           test -n "$BUILD_CACHE_R2_SECRET_ACCESS_KEY"
-          bash scripts/update-unified-engine-core.sh --platform "$PLATFORM"
+          python3 - <<'PY'
+          import json, os, subprocess, sys
+          from pathlib import Path
+          markers = ['remote cache blob prefetch failed', 'remote action prefetch was incomplete',
+                     'remote rustc action metadata prefetch failed', 'remote cache action lookup failed',
+                     'remote cache blob upload failed', 'remote cache download budget exceeded']
+          failures = dict.fromkeys(markers, 0)
+          with subprocess.Popen(['bash', 'scripts/update-unified-engine-core.sh', '--platform', os.environ['PLATFORM']],
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                text=True, errors='replace', bufsize=1) as process:
+              for line in process.stdout:
+                  sys.stdout.write(line)
+                  sys.stdout.flush()
+                  for marker in markers:
+                      failures[marker] += marker in line
+              result = process.wait()
+          Path(os.environ['RUNNER_TEMP'], 'evidence', 'remote-diagnostics.json').write_text(
+              json.dumps({'exit_code': result, 'failures': failures}, indent=2) + '\n')
+          if result:
+              sys.exit(result if result > 0 else 128 - result)
+          assert not any(failures.values()), 'Unreported remote recovery errors'
+          PY
           node scripts/verify-unified-engine-core.mjs --prepared --platform "$PLATFORM"
       - name: Assert real read-only remote recovery
         run: |
