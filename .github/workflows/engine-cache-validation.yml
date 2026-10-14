@@ -2,6 +2,12 @@ name: Mobile compiler cache validation
 # 从真实 Mobile 调用链生成固定 Engine pin 的原生产物，不发布、不启动应用。
 on:
   workflow_dispatch:
+    inputs:
+      platform:
+        description: Native target to verify
+        type: choice
+        default: android
+        options: [android, ios, both]
   push:
     branches: [ci/mobile-cache-credential-validation]
     paths: [.github/workflows/engine-cache-validation.yml]
@@ -14,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [ios, android]
+        platform: ${{ fromJSON(inputs.platform == 'both' && '["ios","android"]' || inputs.platform == 'ios' && '["ios"]' || '["android"]') }}
     env:
       DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
       CARGO_BUILD_JOBS: '3'
@@ -70,14 +76,25 @@ jobs:
           from pathlib import Path
           reports = list(Path(os.environ['UC_ENGINE_MBX_STATS_DIR']).glob('session.*/stats.json'))
           assert reports, 'No native MBX statistics'
-          keys = ['hits', 'restored_output_files', 'downloaded_bytes', 'uploaded_bytes', 'remote_failures', 'background_upload_failures']
+          keys = ['hits', 'misses', 'unconsulted', 'restored_output_files', 'downloaded_bytes', 'uploaded_bytes', 'remote_failures', 'background_upload_failures']
           totals = dict.fromkeys(keys, 0)
+          stages = []
           for file in reports:
               report = json.loads(file.read_text())
+              args = (file.parent / 'cargo-args.txt').read_text().splitlines()
+              stage = 'android-target' if 'ndk' in args else ('ios-target' if any(value.endswith('-apple-ios') or value.endswith('-apple-ios-sim') for value in args) else 'host')
+              stages.append({'stage': stage, 'args': args, 'stats': {key: report[key] for key in keys}, 'bypasses': report['bypasses']})
               for key in keys:
                   totals[key] += report[key]
           Path(os.environ['RUNNER_TEMP'], 'evidence', 'cache-totals.json').write_text(json.dumps(totals, indent=2))
+          Path(os.environ['RUNNER_TEMP'], 'evidence', 'cache-stages.json').write_text(json.dumps(stages, indent=2))
+          print(json.dumps(stages, indent=2))
           print(totals)
+          if any(row['stage'] == 'android-target' for row in stages):
+              target = next(row for row in stages if row['stage'] == 'android-target')
+              assert target['bypasses'].get('unknown-codegen-option', 0) == 0, 'Android linker adapter still bypassed'
+              assert target['stats']['hits'] + target['stats']['misses'] + target['stats']['unconsulted'] > 0, 'Android target never reached cache adapter'
+              print('Android target adapter active; remote target hits require compatible producer seeds')
           assert totals['hits'] > 0 and totals['restored_output_files'] > 0 and totals['downloaded_bytes'] > 0
           assert totals['uploaded_bytes'] == totals['remote_failures'] == totals['background_upload_failures'] == 0
           PY

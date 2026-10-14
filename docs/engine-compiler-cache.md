@@ -2,7 +2,7 @@
 
 `artifactSource=commit` 从 `core-source.json` 的不可变 Engine SHA 编译 Android AAR 或 iOS XCFramework；`release` 下载并校验预编译产物，不经过 Rust 编译缓存。已准备且校验通过的 native 产物复用也不是 MBX 命中。
 
-commit 构建继续调用固定 Engine 源码中的原生构建脚本，由 Engine 自己的 MBX 1.18.0 Cargo 入口统一缓存。Mobile 不复制 MBX 安装或分键实现。Android、iOS 检查和 IPA 工作流只缓存按 ref 隔离的本地 MBX CAS，不恢复整份 target；仍将本次 job 的输出放在独立 `engine-target`。
+commit 构建继续调用固定 Engine 源码中的原生构建脚本，由 Engine 负责的固定 MBX 1.24.0 Cargo 入口统一缓存。Mobile 不复制 MBX 安装或分键实现。Android、iOS 检查和 IPA 工作流只缓存按 ref 隔离的本地 MBX CAS，不恢复整份 target；仍将本次 job 的输出放在独立 `engine-target`。
 
 Prepare unified engine core 步骤接收可选的仓库 secrets：`BUILD_CACHE_R2_ENDPOINT`、`BUILD_CACHE_R2_ACCESS_KEY_ID`、`BUILD_CACHE_R2_SECRET_ACCESS_KEY`。需要为这三个名称配置具有现有私有桶 `uniclipboard-build-cache` 读取权限的 R2 凭据；对象前缀是 `engine/mbx/v1/`。不要使用移动发布的通用 Cloudflare API token 代替 S3 凭据。
 
@@ -15,3 +15,5 @@ Prepare unified engine core 步骤接收可选的仓库 secrets：`BUILD_CACHE_R
 本地小型真实 Engine 内容哈希消费者验证了 Mobile 构建调用函数和 Engine MBX 入口、独立 target 的恢复及输入变化后的程序输出；完整 AAR/XCFramework 和真实 R2 下载命中仍需 CI 验证。证据要求是独立 CAS 的消费者下载字节大于零、上传为零、远端错误为零，并实际运行恢复出的产物；单凭工作流通过或 target 复用不够。
 
 Android 与 iOS 检查的 reusable workflow 声明三个可选缓存 secret，build/build-pr/release 调用方只显式转发这三个值；不转发签名或发布凭据。fork 和未配置凭据仍使用本地 CAS。
+
+缓存自动化提交与产品 Engine pin 分开：`scripts/engine-cache-tools.sh` 固定并校验缓存负责人脚本；`update-unified-engine-core.sh` 只在任务独占的临时产品工作树覆盖五个缓存入口文件，Rust源码、Cargo.lock和发布profile保持产品pin。共享Engine checkout不修改。原生统计的`cache-entry.json`记录产品SHA、自动化SHA、脚本SHA256及真实dirty缓存文件，不宣称该临时树完全clean。MBX1.24支持显式linker下的rlib缓存；packed debug宿主链接仍可能bypass。宿主和目标统计必须分开验收。
