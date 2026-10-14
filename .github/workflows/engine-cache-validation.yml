@@ -19,7 +19,7 @@ jobs:
       DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
       CARGO_BUILD_JOBS: '3'
       CARGO_INCREMENTAL: '0'
-      MBX_GC_MAX_SIZE: 2GiB
+      MBX_GC_MAX_SIZE: 20GiB
       MBX_REMOTE_MODE: read-only
     defaults:
       run:

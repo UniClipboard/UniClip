@@ -8,7 +8,7 @@ Prepare unified engine core 步骤接收可选的仓库 secrets：`BUILD_CACHE_R
 
 三个值全部缺失时使用本地 MBX，fork 保持可构建；部分缺失或端点非 HTTPS 时提前失败。Mobile 只请求 read-only；写入仍由 Engine 的可信 CI 生产者负责。凭据只存在于该步骤及原生编译子进程，不能写入 Actions cache 或工件。没有在本改动中配置远端 secrets 或创建 environments。
 
-保留 `MBX_STATS_REPORT` 原生统计为 `mbx-android-build-*`、`mbx-ios-build-check-*`、`mbx-build-ios-*` 工件。无编译命令时允许缺少统计，不能视为零耗时缓存命中。无 R2 凭据时用不超过 2 GiB 的本地 CAS；使用 R2 仍保留此本地容量上限。
+保留 `MBX_STATS_REPORT` 原生统计为 `mbx-android-build-*`、`mbx-ios-build-check-*`、`mbx-build-ios-*` 工件。无编译命令时允许缺少统计，不能视为零耗时缓存命中。无 R2 凭据时使用 2 GiB 的本地 CAS 预算；使用 R2 时与 Engine/Desktop 一致，使用 20 GiB。MBX 1.18.0 的 `MBX_GC_MAX_SIZE` 同时限制动作缓存和每次会话的远端下载总量；不能把 2 GiB 当作仅限制本地磁盘，否则原生库构建会耗尽下载预算并回退编译。
 
 同一 bucket/namespace 允许兼容动作共享，不能把 iOS、Android 和 Desktop 全部产物互换。编译器、target、源码、features、profile、依赖内容、编译参数、发现的环境值、受支持链接器/SDK 都影响分键。保持 Engine 默认路径语义，不启用 `share_workspace_root`。
 

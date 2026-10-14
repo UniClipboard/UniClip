@@ -107,7 +107,7 @@ jobs:
         env:
           UC_ENGINE_LOCAL_TARGET_DIR: ${{ steps.engine.outputs.source == 'commit' && format('{0}/engine-target', runner.temp) || '' }}
           MBX_CACHE_DIR: ${{ runner.temp }}/engine-mbx-cache
-          MBX_GC_MAX_SIZE: 2GiB
+          MBX_GC_MAX_SIZE: ${{ secrets.BUILD_CACHE_R2_ENDPOINT != '' && '20GiB' || '2GiB' }}
           UC_ENGINE_MBX_STATS_DIR: ${{ runner.temp }}/mbx-evidence
           BUILD_CACHE_R2_ENDPOINT: ${{ secrets.BUILD_CACHE_R2_ENDPOINT }}
           BUILD_CACHE_R2_ACCESS_KEY_ID: ${{ secrets.BUILD_CACHE_R2_ACCESS_KEY_ID }}
