@@ -64,7 +64,12 @@ private final class EngineLogStatusStore: @unchecked Sendable {
 
 private let engineLogStatusStore = EngineLogStatusStore()
 
-private func installEngineObservability(appVersion: String, host: AppleEngineHost) throws {
+private func installEngineObservability(
+  appVersion: String, host: AppleEngineHost, networkRole: BindingNetworkProcessRole
+) throws {
+  // The network-library log is configured before the process subscriber exists; its outcome only
+  // shows up in the network status and never decides whether business logging installs.
+  NetworkLogHost.configureBeforeInstall(role: networkRole)
   #if DEBUG
     let environment = BindingDeploymentEnvironment.development
   #else
@@ -111,7 +116,7 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
       )
       do {
         let host = try AppleEngineHost(files: files, storageMode: .mainApplication)
-        try installEngineObservability(appVersion: appVersion, host: host)
+        try installEngineObservability(appVersion: appVersion, host: host, networkRole: .mobileApp)
         startupLog.info("Starting core engine")
         let analytics = try analyticsHost(appVersion: appVersion)
         let engine = try EngineDiagnosticBridge.observe(.runtimeStart) { try MobileEngine.startWithAnalyticsAndLifecycle(
@@ -139,7 +144,8 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
     let diagnosticHost = try AppleEngineHost(files: files, storageMode: .mainApplication)
     try installEngineObservability(
       appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown",
-      host: diagnosticHost
+      host: diagnosticHost,
+      networkRole: .mobileApp
     )
   }
 
@@ -312,7 +318,9 @@ public final class ExtensionP2pClient: @unchecked Sendable {
       var analytics: ApplePostHogAnalyticsHost?
       let engine = try controller.lifecycle.startEngine {
         let host = try AppleEngineHost(files: files, storageMode: .extensionHost)
-        try installEngineObservability(appVersion: appVersion, host: host)
+        // ExtensionP2pClient is the keyboard extension's client; the share extension hands off
+        // through the App Group and does not host an Engine.
+        try installEngineObservability(appVersion: appVersion, host: host, networkRole: .keyboardExtension)
         EngineDiagnosticBridge.record(.lifecycle(state: .foreground))
         let createdAnalytics = try ApplePostHogAnalyticsHost(appVersion: appVersion)
         analytics = createdAnalytics
@@ -555,6 +563,13 @@ enum P2pSharedStore {
   static func runtimeLockURL(mode: P2pStorageMode) throws -> URL {
     try sharedP2pDirectory(mode: mode)
       .appendingPathComponent(runtimeLockFilename, isDirectory: false)
+  }
+
+  /// `<container>/p2p/data/logs/network`: the Engine writes `<private data>/logs`, and the network
+  /// log lives in its `network` subdirectory. Never created here; an extension must not initialize it.
+  static func networkLogRoot() -> URL? {
+    (try? sharedP2pDirectory(mode: .extensionHost))?
+      .appendingPathComponent("data/logs/network", isDirectory: true)
   }
 
   static func sharedKeychainAccessGroup() throws -> String {

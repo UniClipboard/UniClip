@@ -15,8 +15,11 @@ const mockFlushEngineLogs = jest.fn();
 const mockGetEngineLogStatus = jest.fn();
 const mockGetNativeDiagnostics = jest.fn();
 const mockPrepareEngineDiagnosticExport = jest.fn();
+const mockPrepareNetworkLogExport = jest.fn();
 jest.mock('uc-engine', () => ({
   prepareEngineDiagnosticExport: () => mockPrepareEngineDiagnosticExport(),
+  prepareNetworkLogExport: () => mockPrepareNetworkLogExport(),
+  releaseNetworkLogExport: async () => undefined,
   flushEngineLogs: () => mockFlushEngineLogs(),
   getEngineLogStatus: () => mockGetEngineLogStatus(),
   getNativeDiagnostics: () => mockGetNativeDiagnostics(),
@@ -152,6 +155,8 @@ describe('DiagnosticArchive', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockPrepareEngineDiagnosticExport.mockReset().mockRejectedValue(new Error('old native module'));
+    // Most cases run on a build whose network log was never configured.
+    mockPrepareNetworkLogExport.mockReset().mockResolvedValue({ ok: false, error: 'notConfigured', configuration: 'notConfigured' });
     mockFlushEngineLogs.mockReset().mockResolvedValue(true);
     mockFlushAppLogs.mockReset().mockResolvedValue(true);
     mockGetNativeDiagnostics.mockReset().mockRejectedValue(new Error("native diagnostics unavailable"));

@@ -24,6 +24,8 @@ Pod::Spec.new do |s|
     'AppleNativeDiagnostics.swift',
     'EngineDiagnosticBridge.swift',
     'NativeSystemHost.swift',
+    'NetworkLogExportStaging.swift',
+    'NetworkLogHost.swift',
     'P2pRuntimeOwnership.swift',
     'SharedEngineHost.swift',
     'Bindings/*.swift',

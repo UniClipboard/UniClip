@@ -2,11 +2,22 @@ import type {
   EngineCaptureStatus,
   EngineDiagnosticStatus,
   EngineDiagnosticExportReport,
+  NetworkLogResult,
+  NetworkLogStatus,
+  NetworkLogCaptureStatus,
+  NetworkLogExport,
 } from './diagnostics';
 export type {
   EngineCaptureStatus,
   EngineDiagnosticStatus,
   EngineDiagnosticExportReport,
+  NetworkLogResult,
+  NetworkLogStatus,
+  NetworkLogCaptureStatus,
+  NetworkLogExport,
+  NetworkLogExportFile,
+  NetworkLogError,
+  NetworkLogCounters,
 } from './diagnostics';
 export type ConnectivityOpportunity =
   | 'foreground'
@@ -101,6 +112,7 @@ export type JoinSpaceRejectionReason =
   | 'relationshipConflict'
   | 'activationStateInvalid'
   | 'peerUpgradeRequired'
+  | 'sponsorUnresponsive'
   | 'cancelled'
   | 'removedBeforeActivation';
 
@@ -415,6 +427,11 @@ interface UcEngineNativeModule {
   getNativeDiagnostics(): Promise<NativeDiagnosticsSnapshot>;
   flushEngineLogs(): Promise<boolean>;
   getEngineLogStatus(): Promise<EngineLogStatus>;
+  getNetworkLogStatus?(): Promise<NetworkLogResult<NetworkLogStatus>>;
+  startNetworkLogCapture?(durationMs: number): Promise<NetworkLogResult<NetworkLogCaptureStatus>>;
+  stopNetworkLogCapture?(captureId: string): Promise<NetworkLogResult<Record<string, never>>>;
+  prepareNetworkLogExport?(): Promise<NetworkLogResult<NetworkLogExport>>;
+  releaseNetworkLogExport?(exportId: string): Promise<void>;
   coreVersion(): string;
   start(config: EngineConfig): Promise<void>;
   saveCustomRelayNode(
@@ -808,6 +825,40 @@ export function flushEngineLogs(): Promise<boolean> {
 
 export function getEngineLogStatus(): Promise<EngineLogStatus> {
   return NativeModule.getEngineLogStatus();
+}
+
+// The network-library log is a separate source: its state, control and export never go through
+// the business-log calls above. A native module that predates it reports `unsupported`.
+const NETWORK_LOG_UNSUPPORTED = { ok: false, error: 'unsupported' } as const;
+
+export async function getNetworkLogStatus(): Promise<NetworkLogResult<NetworkLogStatus>> {
+  return NativeModule.getNetworkLogStatus ? NativeModule.getNetworkLogStatus() : NETWORK_LOG_UNSUPPORTED;
+}
+
+/** Opens a bounded Detailed window for this process. Repeating it does not extend the window. */
+export async function startNetworkLogCapture(
+  durationMs: number
+): Promise<NetworkLogResult<NetworkLogCaptureStatus>> {
+  return NativeModule.startNetworkLogCapture
+    ? NativeModule.startNetworkLogCapture(durationMs)
+    : NETWORK_LOG_UNSUPPORTED;
+}
+
+export async function stopNetworkLogCapture(
+  captureId: string
+): Promise<NetworkLogResult<Record<string, never>>> {
+  return NativeModule.stopNetworkLogCapture
+    ? NativeModule.stopNetworkLogCapture(captureId)
+    : NETWORK_LOG_UNSUPPORTED;
+}
+
+/** Flushes this process only and stages the network log files for the diagnostic package. */
+export async function prepareNetworkLogExport(): Promise<NetworkLogResult<NetworkLogExport>> {
+  return NativeModule.prepareNetworkLogExport ? NativeModule.prepareNetworkLogExport() : NETWORK_LOG_UNSUPPORTED;
+}
+
+export async function releaseNetworkLogExport(exportId: string): Promise<void> {
+  await NativeModule.releaseNetworkLogExport?.(exportId);
 }
 
 export function getNativeDiagnostics(): Promise<NativeDiagnosticsSnapshot> {

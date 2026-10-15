@@ -1,6 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
-import { getEngineDiagnosticStatus, startEngineDiagnosticCapture, stopEngineDiagnosticCapture, type EngineCaptureStatus } from 'uc-engine';
+import { getEngineDiagnosticStatus, startEngineDiagnosticCapture, startNetworkLogCapture, stopEngineDiagnosticCapture, stopNetworkLogCapture, type EngineCaptureStatus } from 'uc-engine';
+
+const CAPTURE_DURATION_MS = 600_000;
+// The network window is linked to the business Detailed switch but is its own capture with its own
+// outcome. Its id lives for the process only: the Engine ends the window on its own.
+let networkCaptureId: string | null = null;
+
+async function startLinkedNetworkCapture(): Promise<void> {
+  try {
+    const result = await startNetworkLogCapture(CAPTURE_DURATION_MS);
+    if (result.ok) networkCaptureId = result.value.captureId;
+  } catch { /* A network log problem never fails the business capture. */ }
+}
+
+async function stopLinkedNetworkCapture(): Promise<void> {
+  const id = networkCaptureId;
+  networkCaptureId = null;
+  if (id === null) return;
+  try { await stopNetworkLogCapture(id); } catch { /* Already ended or unavailable. */ }
+}
 
 /** Engine owns the timer. Navigating away does not end the user's capture. */
 export function useEngineDiagnosticCapture() {
@@ -37,7 +56,11 @@ export function useEngineDiagnosticCapture() {
     try {
       if (capture?.mode === 'detailed' && capture.captureId) {
         await stopEngineDiagnosticCapture(capture.captureId);
-      } else { await startEngineDiagnosticCapture(600_000); }
+        await stopLinkedNetworkCapture();
+      } else {
+        await startEngineDiagnosticCapture(CAPTURE_DURATION_MS);
+        await startLinkedNetworkCapture();
+      }
       const status = await getEngineDiagnosticStatus();
       if (mounted.current) { setCapture(status.capture); setAvailable(status.localFile === 'ready' && !status.closed); }
     } catch {

@@ -86,6 +86,7 @@ import uniffi.uc_engine_uniffi.stopLocalDiagnosticCapture
 import uniffi.uc_engine_uniffi.queryLocalDiagnosticStatus
 import uniffi.uc_engine_uniffi.prepareLocalDiagnosticExport
 import uniffi.uc_engine_uniffi.coreVersion
+import uniffi.uc_engine_uniffi.BindingNetworkProcessRole
 
 private fun uriListFile(
   context: Context,
@@ -413,10 +414,19 @@ object EngineOwner {
    * Starts the Engine, or attaches to one that is already running. A second start from a runtime
    * that is already attached is still a caller error.
    */
-  internal fun start(context: Context, config: Map<String, String>, allowAttach: Boolean) =
-    transitions.withLockHeld { startLocked(context, config, allowAttach) }
+  internal fun start(
+    context: Context,
+    config: Map<String, String>,
+    allowAttach: Boolean,
+    networkRole: BindingNetworkProcessRole = BindingNetworkProcessRole.MOBILE_APP
+  ) = transitions.withLockHeld { startLocked(context, config, allowAttach, networkRole) }
 
-  private fun startLocked(context: Context, config: Map<String, String>, allowAttach: Boolean) {
+  private fun startLocked(
+    context: Context,
+    config: Map<String, String>,
+    allowAttach: Boolean,
+    networkRole: BindingNetworkProcessRole
+  ) {
     val diagnostics = AndroidNativeDiagnostics.get(context)
     AndroidNativeDiagnostics.observe(diagnostics, NativeDiagnosticEvent.ENGINE_START, NativeDiagnosticTrigger.APP_STARTUP) {
       synchronized(lock) {
@@ -430,6 +440,8 @@ object EngineOwner {
       val appVersion = config["appVersion"] ?: applicationVersion(context)
       val analytics = analyticsHost(context, appVersion)
       val host = AndroidEngineHost(context, registry)
+      // Configured before the process subscriber exists; a failure only shows in the network status.
+      NetworkLogHost.configureBeforeInstall(networkRole)
       val logSetup = installProcessObservability(
         BindingObservabilityConfig(
           serviceVersion = engineServiceVersion(appVersion),
@@ -497,7 +509,13 @@ object EngineOwner {
   fun startNative(context: Context): Boolean {
     val appContext = context.applicationContext
     return try {
-      start(appContext, mapOf("appVersion" to applicationVersion(appContext), "profileId" to "default"), allowAttach = true)
+      // No JS runtime exists here, so a process installed by this path is the background service.
+      start(
+        appContext,
+        mapOf("appVersion" to applicationVersion(appContext), "profileId" to "default"),
+        allowAttach = true,
+        networkRole = BindingNetworkProcessRole.BACKGROUND_SERVICE
+      )
       engine() != null
     } catch (error: Throwable) {
       reportLifecycleError(error)
@@ -650,6 +668,7 @@ class UcEngineModule : Module() {
     if (runCatching { queryLocalDiagnosticStatus() }.isSuccess) return
     val context = requireContext()
     val version = context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
+    NetworkLogHost.configureBeforeInstall(BindingNetworkProcessRole.MOBILE_APP)
     val setup = installProcessObservability(
       BindingObservabilityConfig(engineServiceVersion(version),
         if (BuildConfig.DEBUG) BindingDeploymentEnvironment.DEVELOPMENT else BindingDeploymentEnvironment.PRODUCTION,
@@ -680,6 +699,29 @@ class UcEngineModule : Module() {
     }
     AsyncFunction("getEngineDiagnosticStatus") { prepareDiagnosticLogging(); EngineDiagnosticBridge.map(queryLocalDiagnosticStatus()) }
     AsyncFunction("prepareEngineDiagnosticExport") { prepareDiagnosticLogging(); EngineDiagnosticBridge.map(prepareLocalDiagnosticExport(1_000uL)) }
+
+    // The network-library log is a separate source with its own state; none of these calls depend
+    // on, or change, the business log. Expo runs AsyncFunction bodies off the main thread.
+    AsyncFunction("getNetworkLogStatus") {
+      runCatching { prepareDiagnosticLogging() }
+      NetworkLogHost.status()
+    }
+    AsyncFunction("startNetworkLogCapture") { durationMs: Double ->
+      runCatching { prepareDiagnosticLogging() }
+      if (!durationMs.isFinite() || durationMs < 0 || durationMs > Long.MAX_VALUE.toDouble()) {
+        mapOf("ok" to false, "error" to "invalidDuration")
+      } else {
+        NetworkLogHost.startCapture(durationMs.toLong())
+      }
+    }
+    AsyncFunction("stopNetworkLogCapture") { captureId: String -> NetworkLogHost.stopCapture(captureId) }
+    AsyncFunction("prepareNetworkLogExport") {
+      runCatching { prepareDiagnosticLogging() }
+      NetworkLogHost.prepareExport(requireContext(), 1_000)
+    }
+    AsyncFunction("releaseNetworkLogExport") { exportId: String ->
+      NetworkLogHost.releaseExport(requireContext(), exportId)
+    }
 
     AsyncFunction("flushEngineLogs") {
       val summary = flushProcessObservability(1_000uL)
@@ -843,6 +885,7 @@ class UcEngineModule : Module() {
               JoinSpaceRejectionReason.RELATIONSHIP_CONFLICT -> "relationshipConflict"
               JoinSpaceRejectionReason.ACTIVATION_STATE_INVALID -> "activationStateInvalid"
               JoinSpaceRejectionReason.PEER_UPGRADE_REQUIRED -> "peerUpgradeRequired"
+              JoinSpaceRejectionReason.SPONSOR_UNRESPONSIVE -> "sponsorUnresponsive"
               JoinSpaceRejectionReason.CANCELLED -> "cancelled"
               JoinSpaceRejectionReason.REMOVED_BEFORE_ACTIVATION -> "removedBeforeActivation"
             }

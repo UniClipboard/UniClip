@@ -104,6 +104,7 @@ export type UnifiedSpaceUserErrorCode =
   | 'invitationExpired'
   | 'passphraseMismatch'
   | 'sponsorUnreachable'
+  | 'sponsorUnresponsive'
   | 'connectionTimedOut'
   | 'invitationRejected'
   | 'serviceUnavailable'
@@ -273,7 +274,11 @@ export function unifiedSpaceUserErrorCode(cause: unknown): UnifiedSpaceUserError
 function rejectedJoinErrorCode(reason: JoinSpaceRejectionReason): UnifiedSpaceUserErrorCode {
   switch (reason) {
     case 'authenticationRejected':
+      // Only the sponsor's explicit authentication rejection blames the password.
       return 'passphraseMismatch';
+    case 'sponsorUnresponsive':
+      // The connection was made but the sponsor never answered; that says nothing about the password.
+      return 'sponsorUnresponsive';
     case 'peerUpgradeRequired':
       return 'peerUpgradeRequired';
     case 'baseHistoryChanged':

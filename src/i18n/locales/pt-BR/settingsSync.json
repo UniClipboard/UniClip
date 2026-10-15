@@ -427,6 +427,7 @@
       "joinSuperseded": "Um pareamento mais recente substituiu esta entrada. Recomece com o convite mais recente",
       "passphraseMismatch": "A senha do espaço está incorreta. Digite a senha usada para criar este espaço",
       "sponsorUnreachable": "Não foi possível acessar o outro dispositivo agora",
+      "sponsorUnresponsive": "O outro dispositivo não respondeu. Verifique se o UniClip está aberto nele e se ambos os dispositivos estão online e tente novamente",
       "connectionTimedOut": "A conexão expirou. Tente novamente",
       "invitationRejected": "O outro dispositivo não aceitou este convite",
       "serviceUnavailable": "O serviço de conexão está indisponível. Tente mais tarde",

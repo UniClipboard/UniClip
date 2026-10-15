@@ -82,7 +82,11 @@ A join that is still processing is not joined. A join that needs attention
 follows Engine's recovery: usually keep the app data and direct the user to
 support, but when Engine says to restart with a new invitation, tell the user to
 create a new invitation code on the other device and join again. Mobile reads
-every Engine join status and rejection reason. A removed device whose removal other devices have not yet acknowledged
+every Engine join status and rejection reason. Only the sponsor's explicit
+authentication rejection is reported as a wrong space password. A sponsor that
+was reached but never answered is reported separately, asking the user to open
+UniClip on that device and check both are online, and says nothing about the
+password. A removed device whose removal other devices have not yet acknowledged
 stays listed with an informational status but is not counted as a member.
 
 Both platforms invite devices from the connection sheet in invite mode, which
@@ -237,5 +241,6 @@ generated workspace as described in `docs/ios-release-ci.md`.
 
 - `AGENTS.md`: mandatory project conventions.
 - `DESIGN.md`: visual and interaction rules.
+- `docs/network-log.md`: independent Engine network-library log, host configuration, Detailed capture link, diagnostic package section.
 - `docs/RELEASE.md`: release and versioning workflow.
 - `docs/ios-release-ci.md`: iOS CI, signing, and TestFlight workflow.

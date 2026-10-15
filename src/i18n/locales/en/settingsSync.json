@@ -427,6 +427,7 @@
       "joinSuperseded": "A newer pairing replaced this join. Start again with the latest invitation",
       "passphraseMismatch": "The space password is incorrect. Enter the password used to create this space",
       "sponsorUnreachable": "The other device cannot be reached right now",
+      "sponsorUnresponsive": "The other device did not respond. Make sure UniClip is open on it and both devices are online, then try again",
       "connectionTimedOut": "The connection timed out. Try again",
       "invitationRejected": "The other device did not accept this invitation",
       "serviceUnavailable": "The connection service is unavailable. Try again later",

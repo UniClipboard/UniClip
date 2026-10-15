@@ -270,6 +270,7 @@ const JOIN_REJECTION_REASON = {
   relationship_conflict: 'relationshipConflict',
   activation_state_invalid: 'activationStateInvalid',
   peer_upgrade_required: 'peerUpgradeRequired',
+  sponsor_unresponsive: 'sponsorUnresponsive',
   cancelled: 'cancelled',
   removed_before_activation: 'removedBeforeActivation',
 } as const;

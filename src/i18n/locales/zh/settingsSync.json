@@ -427,6 +427,7 @@
       "joinSuperseded": "本次加入已被新的配对替换，请使用最新邀请重新开始",
       "passphraseMismatch": "空间密码不正确，请输入创建空间时设置的密码",
       "sponsorUnreachable": "暂时无法连接另一台设备",
+      "sponsorUnresponsive": "另一台设备没有响应。请确认它已打开 UniClip 且网络正常，然后重试",
       "connectionTimedOut": "连接超时，请重试",
       "invitationRejected": "另一台设备没有接受这次加入",
       "serviceUnavailable": "连接服务暂时不可用，请稍后重试",

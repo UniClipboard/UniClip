@@ -480,8 +480,15 @@ describe('Engine rc.6 host contract', () => {
     const host = read('ios/SharedEngineHost.swift');
     expect(host).toContain('installProcessObservability(');
     expect(
-      host.match(/try installEngineObservability\(appVersion: appVersion, host: host\)/g)
+      host.match(
+        /try installEngineObservability\(appVersion: appVersion, host: host, networkRole: \.(mobileApp|keyboardExtension)\)/g
+      )
     ).toHaveLength(2);
+    // The network log is configured before the process subscriber exists, or it never starts.
+    expect(host.indexOf('NetworkLogHost.configureBeforeInstall(role: networkRole)')).toBeGreaterThan(-1);
+    expect(host.indexOf('NetworkLogHost.configureBeforeInstall(role: networkRole)')).toBeLessThan(
+      host.indexOf('try installProcessObservability(')
+    );
     expect(host).toContain('remoteDiagnosticsEnabled: false');
     expect(host).not.toContain('shutdownProcessObservability(');
   });
@@ -489,9 +496,14 @@ describe('Engine rc.6 host contract', () => {
   it('installs Android context then observability before engine creation', () => {
     const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
     // The process-wide EngineOwner performs the start; the JS module only attaches to it.
-    const start = kotlin.slice(kotlin.indexOf('internal fun start(context: Context'));
+    const start = kotlin.slice(kotlin.indexOf('internal fun start('));
     expect(start.indexOf('installProcessObservability(')).toBeGreaterThan(
       start.indexOf('UcEngineModule.installAndroidContext(context)')
+    );
+    // The network log is configured before the process subscriber exists, or it never starts.
+    expect(start.indexOf('NetworkLogHost.configureBeforeInstall(')).toBeGreaterThan(-1);
+    expect(start.indexOf('NetworkLogHost.configureBeforeInstall(')).toBeLessThan(
+      start.indexOf('installProcessObservability(')
     );
     expect(start.indexOf('installProcessObservability(')).toBeLessThan(
       start.indexOf('MobileEngine.startWithAnalyticsAndLifecycle(')

@@ -24,6 +24,7 @@ let package = Package(
         "SharedEngineHost.swift",
         "AppleNativeDiagnostics.swift",
         "EngineDiagnosticBridge.swift",
+        "NetworkLogHost.swift",
         "UniClipboardEngine.xcframework",
       ],
       sources: [
@@ -34,6 +35,7 @@ let package = Package(
         "NativeRuntimeDiagnostics.swift",
         "NativeLifecycleHost.swift",
         "NativeSystemHost.swift",
+        "NetworkLogExportStaging.swift",
         "P2pRuntimeOwnership.swift",
       ]
     ),

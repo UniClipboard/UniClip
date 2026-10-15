@@ -87,6 +87,32 @@ public final class UcEngineModule: Module {
     AsyncFunction("getEngineLogStatus") { self.host.getEngineLogStatus() }
       .runOnQueue(engineOperationQueue)
 
+    // The network-library log is a separate source with its own state; none of these calls
+    // depend on, or change, the business log. They run on the Engine queue, never the UI thread.
+    AsyncFunction("getNetworkLogStatus") { () -> [String: Any] in
+      try? self.host.prepareDiagnosticLogging()
+      return NetworkLogHost.status()
+    }.runOnQueue(engineOperationQueue)
+    AsyncFunction("startNetworkLogCapture") { (durationMs: Double) -> [String: Any] in
+      guard durationMs.isFinite, durationMs >= 0, durationMs <= Double(UInt64.max) else {
+        return ["ok": false, "error": "invalidDuration"]
+      }
+      try? self.host.prepareDiagnosticLogging()
+      return NetworkLogHost.startCapture(durationMs: UInt64(durationMs))
+    }.runOnQueue(engineOperationQueue)
+    AsyncFunction("stopNetworkLogCapture") { (captureId: String) -> [String: Any] in
+      NetworkLogHost.stopCapture(captureId: captureId)
+    }.runOnQueue(engineOperationQueue)
+    AsyncFunction("prepareNetworkLogExport") { () -> [String: Any] in
+      try? self.host.prepareDiagnosticLogging()
+      return NetworkLogHost.prepareExport(
+        deadlineMs: 1_000, stagingRoot: NetworkLogHost.defaultStagingRoot, fallbackRoot: NetworkLogHost.appGroupNetworkRoot()
+      )
+    }.runOnQueue(engineOperationQueue)
+    AsyncFunction("releaseNetworkLogExport") { (exportId: String) in
+      NetworkLogHost.releaseExport(exportId: exportId, stagingRoot: NetworkLogHost.defaultStagingRoot)
+    }.runOnQueue(engineOperationQueue)
+
     AsyncFunction("start") { (config: [String: String]) in
       let startedAt = ProcessInfo.processInfo.systemUptime
       let appVersion = config["appVersion"] ?? "unknown"
@@ -292,6 +318,7 @@ public final class UcEngineModule: Module {
           case .relationshipConflict: "relationshipConflict"
           case .activationStateInvalid: "activationStateInvalid"
           case .peerUpgradeRequired: "peerUpgradeRequired"
+          case .sponsorUnresponsive: "sponsorUnresponsive"
           case .cancelled: "cancelled"
           case .removedBeforeActivation: "removedBeforeActivation"
           }

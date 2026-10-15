@@ -59,7 +59,8 @@
     "warning": {
       "engineLogsMissing": "Engine logs were not found, so the package has no Engine evidence. Restart UniClip and export again.",
       "engineLogsUnreadable": "Some or all Engine logs were found but couldn't be read, so the package may be incomplete. Restart UniClip and export again.",
-      "engineLogsWrittenNotFound": "The Engine reports written logs, but the files are missing from disk. The package is incomplete; restart UniClip and export again."
+      "engineLogsWrittenNotFound": "The Engine reports written logs, but the files are missing from disk. The package is incomplete; restart UniClip and export again.",
+      "networkLogsIncomplete": "Network logs may be incomplete: some files could not be flushed, read or verified. Only this process was flushed; other processes such as the keyboard were not."
     },
     "exportMethodPrompt": "Choose whether to share the logs or export them as a file.",
     "exportFile": "Export file",

@@ -68,7 +68,7 @@ describe('iOS diagnostics page', () => {
       expect(diagnostics.package.appLogs).toEqual(expect.any(String));
       expect(diagnostics.package.engineLogs).toEqual(expect.any(String));
       expect(diagnostics.package.footer).toEqual(expect.any(String));
-      for (const key of ['engineLogsMissing', 'engineLogsUnreadable', 'engineLogsWrittenNotFound']) {
+      for (const key of ['engineLogsMissing', 'engineLogsUnreadable', 'engineLogsWrittenNotFound', 'networkLogsIncomplete']) {
         expect(diagnostics.warning[key]).toEqual(expect.any(String));
       }
     }

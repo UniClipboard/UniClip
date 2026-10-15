@@ -11,6 +11,7 @@ import type { PeerConnectionStatus, UnifiedEngineStatus } from '@/stores/unified
 import { flushAppLogs, getAppLogCaptureStatus, getAppLogFileUris, getEngineLogFileUris, redactLogText } from '@/support/observability';
 import type { DiagnosticReason } from './diagnosticEventClassifier';
 import type { DiagnosticArchiveWarningCode } from './diagnosticWarnings';
+import { collectNetworkLogs } from './networkLogCollection';
 
 const DIAGNOSTIC_ARCHIVE_SCHEMA_VERSION = 1;
 const MAX_LOG_BYTES_PER_FILE = 5 * 1024 * 1024;
@@ -231,7 +232,11 @@ export async function createDiagnosticArchive(
     // Preserve existing evidence even when native status is unavailable.
   }
   throwIfArchiveAborted(signal);
-  const engineLogs = await collectLogFiles(getEngineLogFileUris(), 'logs/engine', signal);
+  // The network-library log is a separate source: its failure never changes the Engine or app evidence.
+  const [engineLogs, networkLogs] = await Promise.all([
+    collectLogFiles(getEngineLogFileUris(), 'logs/engine', signal),
+    collectNetworkLogs(signal),
+  ]);
 
   // A failed flush or an unhealthy writer is itself a reason to tell the user, never a reason to stay silent.
   const engineLogIssues: DiagnosticArchiveWarningCode[] = [];
@@ -328,6 +333,7 @@ export async function createDiagnosticArchive(
         unreadableFileCount: engineLogs.unreadableFileCount,
         truncatedFileCount: engineLogs.truncatedFileCount,
       },
+      networkLogs: networkLogs.manifest,
       nativeLogs: {
         status: nativeLogs.includedFileCount > 0 && (Object.values(nativeSources).some((source) => source.malformedRecordCount > 0) || nativeDiagnostics?.discoveryStatus === 'partial') ? 'partial' : collectionStatus(nativeLogs),
         metadataStatus: nativeDiagnostics ? 'available' : 'unavailable',
@@ -364,6 +370,7 @@ export async function createDiagnosticArchive(
   const entries = {
     ...appLogs.entries,
     ...engineLogs.entries,
+    ...networkLogs.entries,
     ...nativeLogs.entries,
     ...(power ? {
       'power/samples.jsonl': strToU8(power.rawText),
@@ -376,7 +383,11 @@ export async function createDiagnosticArchive(
   try {
     if (artifact.exists) artifact.delete();
     artifact.write(zipSync(entries, { level: 6 }));
-    return { uri: artifact.uri, fileName, warnings: engineLogIssues };
+    return {
+      uri: artifact.uri,
+      fileName,
+      warnings: networkLogs.incomplete ? [...engineLogIssues, 'network_logs_incomplete'] : engineLogIssues,
+    };
   } catch (error) {
     if (artifact.exists) artifact.delete();
     throw error;
