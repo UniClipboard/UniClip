@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#endif
 
 public enum ShareDiagnosticItemKind: String, Codable, Equatable, Sendable {
   case text
@@ -257,6 +260,7 @@ public final class ShareDiagnosticsStore: @unchecked Sendable {
     let keptURLs = Set(kept.map(\.url))
     for candidate in loaded where !keptURLs.contains(candidate.url) {
       try? FileManager.default.removeItem(at: candidate.url)
+      try? FileManager.default.removeItem(at: lockURL(for: candidate.attempt.id))
     }
     return ShareDiagnosticsArchive(schemaVersion: 1, attempts: kept.map(\.attempt))
   }
@@ -264,6 +268,33 @@ public final class ShareDiagnosticsStore: @unchecked Sendable {
   fileprivate func persist(_ attempt: ShareDiagnosticAttempt) throws {
     let data = try encoder.encode(attempt)
     try data.write(to: fileURL(for: attempt.id), options: .atomic)
+  }
+
+  /// Appends one event to the attempt on disk. The Share extension and the main
+  /// app both write the same attempt file from separate processes, so the
+  /// read-modify-write runs under an advisory `flock` and starts from the file's
+  /// current content instead of a copy held in memory.
+  fileprivate func appendEvent(
+    to attempt: ShareDiagnosticAttempt,
+    makeEvent: (ShareDiagnosticAttempt) -> ShareDiagnosticEvent
+  ) {
+    withAttemptLock(attempt.id) {
+      var current = loadAttempt(id: attempt.id) ?? attempt
+      current.events.append(makeEvent(current))
+      try? persist(current)
+    }
+  }
+
+  private func withAttemptLock(_ attemptID: String, _ body: () -> Void) {
+    let descriptor = open(lockURL(for: attemptID).path, O_CREAT | O_RDWR, 0o600)
+    // Diagnostics are best-effort: if the lock cannot be taken the write still happens.
+    guard descriptor >= 0 else { return body() }
+    defer { close(descriptor) }
+    while flock(descriptor, LOCK_EX) != 0 {
+      guard errno == EINTR else { return body() }
+    }
+    defer { flock(descriptor, LOCK_UN) }
+    body()
   }
 
   /// Appends an event to an already-started attempt (for example, the main
@@ -275,16 +306,17 @@ public final class ShareDiagnosticsStore: @unchecked Sendable {
     for attemptID: String,
     timestampMs: Int64 = Int64(Date().timeIntervalSince1970 * 1_000)
   ) {
-    guard Self.isValidAttemptID(attemptID),
-          var attempt = loadAttempt(id: attemptID)
-    else { return }
-    attempt.events.append(ShareDiagnosticEvent(
-      timestampMs: timestampMs,
-      elapsedMs: max(0, timestampMs - attempt.startedAtMs),
-      stage: stage,
-      error: error
-    ))
-    try? persist(attempt)
+    guard Self.isValidAttemptID(attemptID) else { return }
+    withAttemptLock(attemptID) {
+      guard var attempt = loadAttempt(id: attemptID) else { return }
+      attempt.events.append(ShareDiagnosticEvent(
+        timestampMs: timestampMs,
+        elapsedMs: max(0, timestampMs - attempt.startedAtMs),
+        stage: stage,
+        error: error
+      ))
+      try? persist(attempt)
+    }
   }
 
   private func loadAttempt(id: String) -> ShareDiagnosticAttempt? {
@@ -316,6 +348,10 @@ public final class ShareDiagnosticsStore: @unchecked Sendable {
     }
   }
 
+  private func lockURL(for attemptID: String) -> URL {
+    directoryURL.appendingPathComponent("\(attemptID).lock", isDirectory: false)
+  }
+
   private func fileURL(for attemptID: String) -> URL {
     directoryURL.appendingPathComponent("\(attemptID).json", isDirectory: false)
   }
@@ -331,7 +367,7 @@ public final class ShareDiagnosticRecorder: @unchecked Sendable {
 
   private let store: ShareDiagnosticsStore
   private let lock = NSLock()
-  private var attempt: ShareDiagnosticAttempt
+  private let attempt: ShareDiagnosticAttempt
 
   fileprivate init(store: ShareDiagnosticsStore, attempt: ShareDiagnosticAttempt) {
     self.store = store
@@ -349,17 +385,18 @@ public final class ShareDiagnosticRecorder: @unchecked Sendable {
     timestampMs: Int64 = Int64(Date().timeIntervalSince1970 * 1_000)
   ) {
     lock.withLock {
-      attempt.events.append(ShareDiagnosticEvent(
-        timestampMs: timestampMs,
-        elapsedMs: max(0, timestampMs - attempt.startedAtMs),
-        stage: stage,
-        network: network,
-        route: route,
-        peerRefresh: peerRefresh,
-        delivery: delivery,
-        error: error
-      ))
-      try? store.persist(attempt)
+      store.appendEvent(to: attempt) { current in
+        ShareDiagnosticEvent(
+          timestampMs: timestampMs,
+          elapsedMs: max(0, timestampMs - current.startedAtMs),
+          stage: stage,
+          network: network,
+          route: route,
+          peerRefresh: peerRefresh,
+          delivery: delivery,
+          error: error
+        )
+      }
     }
   }
 }

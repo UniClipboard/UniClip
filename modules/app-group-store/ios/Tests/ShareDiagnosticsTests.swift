@@ -115,4 +115,48 @@ final class ShareDiagnosticsTests: XCTestCase {
     XCTAssertFalse(archive.attempts.contains(where: { $0.id == "recent-0" }))
     XCTAssertFalse(archive.attempts.contains(where: { $0.id == "recent-1" }))
   }
+
+  func testRecorderKeepsEventsAppendedByAnotherWriter() throws {
+    let extensionStore = try ShareDiagnosticsStore(containerURL: containerURL)
+    let mainAppStore = try ShareDiagnosticsStore(containerURL: containerURL)
+    let recorder = try extensionStore.startAttempt(
+      id: "attempt-shared", itemKind: .file, byteCount: 1, startedAtMs: 1_000)
+    recorder.record(stage: .attemptStarted, timestampMs: 1_000)
+
+    mainAppStore.record(stage: .handoffQueued, for: "attempt-shared", timestampMs: 1_100)
+    recorder.record(stage: .failed, error: ShareDiagnosticError(code: .receiverOffline), timestampMs: 1_200)
+
+    let attempt = try XCTUnwrap(mainAppStore.loadArchive(nowMs: 1_300).attempts.first)
+    XCTAssertEqual(attempt.events.map(\.stage), [.attemptStarted, .handoffQueued, .failed])
+  }
+
+  func testConcurrentWritersFromTwoStoresLoseNoStage() throws {
+    let first = try ShareDiagnosticsStore(containerURL: containerURL)
+    let second = try ShareDiagnosticsStore(containerURL: containerURL)
+    let recorder = try first.startAttempt(
+      id: "attempt-race", itemKind: .text, byteCount: 1, startedAtMs: 1_000)
+    let writes = 40
+
+    DispatchQueue.concurrentPerform(iterations: 2) { worker in
+      for index in 0..<writes {
+        if worker == 0 {
+          recorder.record(stage: .peerRefresh, timestampMs: 1_000 + Int64(index))
+        } else {
+          second.record(stage: .handoffQueued, for: "attempt-race", timestampMs: 1_000 + Int64(index))
+        }
+      }
+    }
+
+    let attempt = try XCTUnwrap(first.loadArchive(nowMs: 2_000).attempts.first)
+    XCTAssertEqual(attempt.events.filter { $0.stage == .peerRefresh }.count, writes)
+    XCTAssertEqual(attempt.events.filter { $0.stage == .handoffQueued }.count, writes)
+  }
+
+  func testLockFilesAreNotReportedAsAttempts() throws {
+    let store = try ShareDiagnosticsStore(containerURL: containerURL)
+    let recorder = try store.startAttempt(id: "attempt-lock", itemKind: .text, byteCount: 1, startedAtMs: 1_000)
+    recorder.record(stage: .attemptStarted, timestampMs: 1_000)
+
+    XCTAssertEqual(store.loadArchive(nowMs: 1_100).attempts.map(\.id), ["attempt-lock"])
+  }
 }
