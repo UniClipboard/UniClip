@@ -56,6 +56,8 @@ public class AppGroupStoreModule: Module {
       }
     }
 
+    Function("getAppGroupId") { () -> String in SettingsStore.appGroupID }
+
     AsyncFunction("getContainerUrl") { () -> String? in
       FileManager.default
         .containerURL(forSecurityApplicationGroupIdentifier: SettingsStore.appGroupID)?

@@ -30,6 +30,7 @@ jest.mock('react-native', () => ({
 jest.mock('expo-application', () => ({
   nativeApplicationVersion: '2.0.0',
   nativeBuildVersion: '177',
+  applicationId: 'app.uniclipboard.UniClipboard.dev',
 }));
 
 jest.mock('../support/observability', () => ({
@@ -42,6 +43,7 @@ jest.mock('../support/observability', () => ({
 
 jest.mock('app-group-store', () => ({
   getShareDiagnostics: () => mockGetShareDiagnostics(),
+  getAppGroupId: () => 'group.app.uniclipboard.UniClipboard.dev',
 }));
 
 jest.mock('expo-file-system', () => {
@@ -490,6 +492,22 @@ describe('DiagnosticArchive', () => {
     expect(archive['logs/app/app.txt']).toContain('retained app evidence');
     expect(JSON.parse(archive['manifest.json']).collection.engineLogs.unreadableFileCount).toBe(1);
     expect(mockLogHandles[0].close).toHaveBeenCalledTimes(1);
+  });
+
+  it('records the app identity and timezone needed to read the logs', async () => {
+    const now = new Date('2026-10-14T12:00:00.000Z');
+
+    const manifest = JSON.parse(readArchive((await createDiagnosticArchive(input, now)).uri)['manifest.json']);
+
+    expect(manifest.app).toMatchObject({
+      bundleId: 'app.uniclipboard.UniClipboard.dev',
+      buildVariant: 'development',
+      appGroupId: 'group.app.uniclipboard.UniClipboard.dev',
+    });
+    expect(manifest.system.timezone).toEqual({
+      offsetMinutes: -now.getTimezoneOffset(),
+      name: Intl.DateTimeFormat().resolvedOptions().timeZone ?? null,
+    });
   });
 
   it('keeps available evidence and warns the caller about missing Engine files', async () => {

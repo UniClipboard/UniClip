@@ -8,6 +8,7 @@ interface AppGroupStoreNativeModule {
   getLegacyHistory(): Promise<string | null>;
   getShareDiagnostics(): Promise<string | null>;
   getEngineLogFileUris(): string[];
+  getAppGroupId?(): string | null;
   getPayloadFileUri(profileId: string): Promise<string | null>;
   writePayload(profileId: string, bytes: Uint8Array): Promise<string | null>;
   deletePayload(profileId: string): Promise<void>;
@@ -347,4 +348,10 @@ export async function getKeyboardStatus(): Promise<KeyboardStatusDTO> {
     lastHeartbeatAtMs: status.lastHeartbeatAtMs ?? null,
     lastKnownFullAccess: status.lastKnownFullAccess ?? false,
   };
+}
+
+/** The App Group identifier compiled into this build, or null where none exists (Android). */
+export function getAppGroupId(): string | null {
+  if (typeof NativeModule?.getAppGroupId !== 'function') return null;
+  return NativeModule.getAppGroupId();
 }

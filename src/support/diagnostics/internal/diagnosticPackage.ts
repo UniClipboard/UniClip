@@ -2,7 +2,7 @@ import * as Application from 'expo-application';
 import { File, FileMode, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 import { strFromU8, strToU8, zipSync } from 'fflate';
-import { getShareDiagnostics } from 'app-group-store';
+import { getAppGroupId, getShareDiagnostics } from 'app-group-store';
 import { loadPowerMetrics } from '@/support/power/powerMetrics';
 import { prepareEngineDiagnosticExport, type EngineDiagnosticExportReport, coreVersion, flushEngineLogs, getEngineLogStatus, getNativeDiagnostics, type EngineLogStatus, type NativeDiagnosticsSnapshot } from 'uc-engine';
 
@@ -49,6 +49,14 @@ interface CollectedLogFiles {
   includedFileCount: number;
   unreadableFileCount: number;
   truncatedFileCount: number;
+}
+
+// Bundle identifiers carry the variant suffix chosen in app.config.ts.
+function buildVariant(applicationId: string | null): 'production' | 'test' | 'development' | 'unknown' {
+  if (!applicationId) return 'unknown';
+  if (applicationId.endsWith('.test')) return 'test';
+  if (applicationId.endsWith('.dev')) return 'development';
+  return 'production';
 }
 
 function formatFileTimestamp(date: Date): string {
@@ -247,6 +255,8 @@ export async function createDiagnosticArchive(
   try { shareDiagnostics = await getShareDiagnostics(); } catch { /* Preserve independently collected sources. */ }
   throwIfArchiveAborted(signal);
   const shareArchive = shareDiagnostics ?? { schemaVersion: 1, attempts: [] };
+  let appGroupId: string | null = null;
+  try { appGroupId = getAppGroupId(); } catch { /* Android and older native modules have no App Group. */ }
   const nativeSources = nativeSourceCoverage(nativeLogs.entries, nativeDiagnostics);
   const manifest = {
     schemaVersion: DIAGNOSTIC_ARCHIVE_SCHEMA_VERSION,
@@ -254,10 +264,18 @@ export async function createDiagnosticArchive(
     app: {
       version: Application.nativeApplicationVersion ?? 'unknown',
       build: Application.nativeBuildVersion ?? 'unknown',
+      bundleId: Application.applicationId ?? null,
+      buildVariant: buildVariant(Application.applicationId ?? null),
+      appGroupId,
     },
     system: {
       platform: Platform.OS,
       osVersion: String(Platform.Version),
+      // Log timestamps are UTC; this is the offset to read them in the user's local time.
+      timezone: {
+        offsetMinutes: -now.getTimezoneOffset(),
+        name: Intl.DateTimeFormat().resolvedOptions().timeZone ?? null,
+      },
     },
     coverage: {
       complete: false,
