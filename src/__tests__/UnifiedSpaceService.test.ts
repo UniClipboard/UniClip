@@ -1,5 +1,6 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import { createLogger } from '../support/observability';
+import { setCurrentNetworkContext } from '../platform/network';
 import {
   UnifiedSpaceInputError,
   UnifiedSpaceService,
@@ -915,6 +916,39 @@ describe('UnifiedSpaceService', () => {
 
     expect(api.joinSpace).toHaveBeenCalledWith(expected, 'Travel Phone', ' another secret ', false);
   });
+
+  it.each([
+    [{ isWifi: false, isCellular: true }, 'cellular'],
+    [{ isWifi: true, isCellular: false }, 'wifi'],
+    [{ isWifi: false, isCellular: false }, 'other'],
+  ] as const)(
+    'logs the raw Engine rejection reason and the network kind (%j) when a join is rejected',
+    async (network, expectedKind) => {
+      const logError = jest.spyOn(log, 'error').mockImplementation(() => undefined);
+      setCurrentNetworkContext({ ...network, isTailscale: false, ssid: 'Private SSID' });
+      const api = createApi({
+        joinSpace: jest.fn(async () => ({
+          type: 'rejected',
+          joinId: 'join-1',
+          reason: 'sponsorUnresponsive',
+        })) as unknown as UnifiedSpaceApi['joinSpace'],
+      });
+      const service = new UnifiedSpaceService(api, () => undefined);
+
+      await expect(service.joinSpace('072-834', 'Phone', 'secret')).rejects.toBeDefined();
+
+      expect(logError).toHaveBeenCalledWith(
+        'Join space failed',
+        expect.objectContaining({
+          stage: 'requestJoin',
+          joinStatus: 'rejected',
+          rejectionReason: 'sponsorUnresponsive',
+          networkKind: expectedKind,
+        })
+      );
+      expect(JSON.stringify(logError.mock.calls)).not.toContain('Private SSID');
+    }
+  );
 
   it('passes explicit unreadable-history confirmation to the native engine', async () => {
     const api = createApi();

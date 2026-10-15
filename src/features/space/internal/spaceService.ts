@@ -20,6 +20,7 @@ import {
   type DeviceTrustQueryState,
 } from '../store';
 import { invitationCodeForSubmission } from '@/utils/invitationCode';
+import { getCurrentNetworkContext } from '@/platform/network';
 import { createLogger } from '@/support/observability';
 import {
   buildSpaceOperationContext,
@@ -186,12 +187,19 @@ export class SpaceOperationInProgressError extends Error {
   }
 }
 
+type JoinNetworkKind = 'wifi' | 'cellular' | 'other';
+
 interface JoinSpaceFailureDetails {
   stage: JoinSpaceStage;
   hadExistingSpace: boolean;
   errorName: string;
   errorCode: number | null;
   userErrorCode: UnifiedSpaceUserErrorCode | null;
+  /** Engine's own terminal status and reason, before they are folded into a user-facing code. */
+  joinStatus: JoinSpaceStatus['type'] | null;
+  rejectionReason: string | null;
+  terminationReason: string | null;
+  networkKind: JoinNetworkKind;
 }
 
 interface SpaceRefreshFailureDetails {
@@ -214,10 +222,19 @@ export class UnifiedSpaceInputError extends Error {
   }
 }
 
+interface JoinResultDetail {
+  joinStatus: JoinSpaceStatus['type'];
+  rejectionReason?: string;
+  terminationReason?: string;
+}
+
 class UnifiedSpaceJoinResultError extends Error {
   readonly name = 'UnifiedSpaceJoinResultError';
 
-  constructor(readonly code: UnifiedSpaceUserErrorCode) {
+  constructor(
+    readonly code: UnifiedSpaceUserErrorCode,
+    readonly detail?: JoinResultDetail
+  ) {
     super(code);
   }
 }
@@ -317,9 +334,15 @@ function requireActiveJoinedSpace(status: JoinSpaceStatus): JoinedSpace {
           : 'joinNeedsAttention'
       );
     case 'rejected':
-      throw new UnifiedSpaceJoinResultError(rejectedJoinErrorCode(status.reason));
+      throw new UnifiedSpaceJoinResultError(rejectedJoinErrorCode(status.reason), {
+        joinStatus: 'rejected',
+        rejectionReason: status.reason,
+      });
     case 'terminated':
-      throw new UnifiedSpaceJoinResultError(terminatedJoinErrorCode(status.reason));
+      throw new UnifiedSpaceJoinResultError(terminatedJoinErrorCode(status.reason), {
+        joinStatus: 'terminated',
+        terminationReason: status.reason,
+      });
   }
 }
 
@@ -349,7 +372,19 @@ function joinSpaceFailureDetails(
     errorName: cause instanceof Error ? 'Error' : typeof cause,
     errorCode: engineErrorCode(cause),
     userErrorCode: unifiedSpaceUserErrorCode(cause),
+    joinStatus: cause instanceof UnifiedSpaceJoinResultError ? (cause.detail?.joinStatus ?? null) : null,
+    rejectionReason:
+      cause instanceof UnifiedSpaceJoinResultError ? (cause.detail?.rejectionReason ?? null) : null,
+    terminationReason:
+      cause instanceof UnifiedSpaceJoinResultError ? (cause.detail?.terminationReason ?? null) : null,
+    networkKind: currentJoinNetworkKind(),
   };
+}
+
+// Only the class of network is recorded; SSIDs and addresses never reach the log.
+function currentJoinNetworkKind(): JoinNetworkKind {
+  const network = getCurrentNetworkContext();
+  return network.isWifi ? 'wifi' : network.isCellular ? 'cellular' : 'other';
 }
 
 function spaceRefreshFailureDetails(
