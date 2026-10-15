@@ -158,7 +158,7 @@
     },
     "warning": {
       "engineLogsMissing": "没有找到 Engine 日志，诊断包缺少 Engine 记录。请重启 UniClip 后重新导出。",
-      "engineLogsUnreadable": "找到了 Engine 日志但无法读取，诊断包不完整。请重启 UniClip 后重新导出。",
+      "engineLogsUnreadable": "找到了 Engine 日志，但部分或全部无法读取，诊断包可能不完整。请重启 UniClip 后重新导出。",
       "engineLogsWrittenNotFound": "Engine 报告已写入日志，但磁盘上找不到文件，诊断包不完整。请重启 UniClip 后重新导出。"
     },
     "capture": {

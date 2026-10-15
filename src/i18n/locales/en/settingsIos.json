@@ -158,7 +158,7 @@
     },
     "warning": {
       "engineLogsMissing": "Engine logs were not found, so the package has no Engine evidence. Restart UniClip and export again.",
-      "engineLogsUnreadable": "Engine logs were found but could not be read. The package is incomplete; restart UniClip and export again.",
+      "engineLogsUnreadable": "Some or all Engine logs were found but couldn't be read, so the package may be incomplete. Restart UniClip and export again.",
       "engineLogsWrittenNotFound": "The Engine reports written logs, but the files are missing from disk. The package is incomplete; restart UniClip and export again."
     },
     "capture": {

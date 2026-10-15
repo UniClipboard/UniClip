@@ -239,7 +239,8 @@ export async function createDiagnosticArchive(
   if (engineLogs.discoveredFileCount === 0) {
     if (engineWrittenCount > 0) engineLogIssues.push('engine_logs_written_not_found');
     else if (input.sync.status === 'running') engineLogIssues.push('engine_logs_missing');
-  } else if (engineLogs.includedFileCount === 0) {
+  } else if (engineLogs.unreadableFileCount > 0) {
+    // Also covers partial loss: some files were included but others could not be read.
     engineLogIssues.push('engine_logs_unreadable');
   }
 

@@ -558,6 +558,17 @@ describe('DiagnosticArchive', () => {
     expect(manifest.collection.engineLogs.unreadableFileCount).toBe(1);
   });
 
+  it('warns when only some Engine files are unreadable', async () => {
+    mockGetEngineLogFileUris.mockReturnValue(['/logs/readable.jsonl', '/logs/broken.jsonl']);
+    mockLogContents.set('/logs/readable.jsonl', '{"ok":1}');
+    // No content registered for broken.jsonl: the mock throws 'unreadable' when it is read.
+
+    const artifact = await createDiagnosticArchive(input);
+    const archive = readArchive(artifact.uri);
+    expect(archive['logs/engine/readable.jsonl']).toBeDefined();
+    expect(artifact.warnings).toEqual(['engine_logs_unreadable']);
+  });
+
   it.each(['completed', 'failed'] as const)(
     'reports written Engine records that have no file on disk when the flush is %s',
     async (flush) => {
