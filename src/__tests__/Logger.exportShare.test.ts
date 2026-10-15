@@ -75,6 +75,9 @@ jest.mock('expo-file-system', () => {
       if (this.uri === 'file://cache/uc-engine/logs') {
         return [new MockFile(this, 'engine.2026-07-16.jsonl')];
       }
+      if (this.uri === 'file://documents/uc-engine/logs') {
+        return [new MockFile(this, 'engine.2026-10-14.jsonl')];
+      }
       if (this.name === 'log_exports') {
         return [new MockFile(this, 'logs_old.zip')];
       }
@@ -192,34 +195,55 @@ describe('Logger shareable export', () => {
     expect(result).toBeUndefined();
   });
 
-  it('includes engine log files from the cache logs directory in the export', async () => {
+  it('exports Engine logs from the private data directory first and the legacy cache directory after', async () => {
+    mockExistingDirectoryUris.add('file://documents/uc-engine/logs');
     mockExistingDirectoryUris.add('file://cache/uc-engine/logs');
     mockFileContents.set(
+      'file://documents/uc-engine/logs/engine.2026-10-14.jsonl',
+      '2026-10-14 12:00:00 INFO peer connected via relay relay_url="https://relay.example.com/"'
+    );
+    mockFileContents.set(
       'file://cache/uc-engine/logs/engine.2026-07-16.jsonl',
-      '2026-07-16 12:00:00 INFO peer connected via relay device_id="device-a" relay_url="https://relay.example.com/"'
+      '2026-07-16 12:00:00 INFO legacy record'
     );
 
     await LoggerService.createLogArchive();
 
     const sanitizedUris = mockZipFiles.mock.calls[0][0];
-    expect(sanitizedUris).toHaveLength(2);
     expect(sanitizedUris).toEqual([
-      expect.stringMatching(/^file:\/\/cache\/log_exports\/sanitized_.+\/app_2026-07-16\.txt$/),
-      expect.stringMatching(
-        /^file:\/\/cache\/log_exports\/sanitized_.+\/engine\.2026-07-16\.jsonl$/
-      ),
+      expect.stringMatching(/\/app_2026-07-16\.txt$/),
+      expect.stringMatching(/\/engine\.2026-10-14\.jsonl$/),
+      expect.stringMatching(/\/engine\.2026-07-16\.jsonl$/),
     ]);
-    const engineContent = mockFileContents.get(sanitizedUris[1]);
-    expect(engineContent).toContain('relay_url="https://relay.example.com/"');
+    expect(mockFileContents.get(sanitizedUris[1])).toContain('relay_url="https://relay.example.com/"');
   });
 
-  it('removes expired app and engine log files across both log directories', async () => {
+  it('lists the private data logs before the legacy cache logs', () => {
+    mockExistingDirectoryUris.add('file://documents/uc-engine/logs');
+    mockExistingDirectoryUris.add('file://cache/uc-engine/logs');
+
+    const names = LoggerService.getEngineLogFileUris().map((uri) => uri.split('/').at(-1));
+
+    expect(names).toEqual(['engine.2026-10-14.jsonl', 'engine.2026-07-16.jsonl']);
+  });
+
+  it('never deletes Engine logs when cleaning expired app logs', async () => {
+    mockExistingDirectoryUris.add('file://documents/uc-engine/logs');
     mockExistingDirectoryUris.add('file://cache/uc-engine/logs');
 
     LoggerService.cleanOldLogs();
 
-    expect(mockDeletedLocalUris).toContain('file://cache/uc-engine/logs/engine.2026-07-16.jsonl');
     expect(mockDeletedLocalUris).toContain('file://documents/logs/app_2026-07-16.txt');
+    expect(mockDeletedLocalUris.filter((uri) => uri.includes('uc-engine/logs'))).toEqual([]);
+  });
+
+  it('never deletes Engine logs when the user clears application logs', async () => {
+    mockExistingDirectoryUris.add('file://documents/uc-engine/logs');
+    mockExistingDirectoryUris.add('file://cache/uc-engine/logs');
+
+    LoggerService.clearLogs();
+
+    expect(mockDeletedLocalUris).toEqual(['file://documents/logs/app_2026-07-16.txt']);
   });
 
   it('deletes expired share archives before creating another archive', async () => {

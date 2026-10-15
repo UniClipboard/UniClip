@@ -15,7 +15,12 @@ import { redactLogText, redactLogValue } from './logRedaction';
 import { capturePostHogLog } from './postHogAnalytics';
 
 const LOG_DIR = new Directory(Paths.document, 'logs');
-const ENGINE_LOG_DIR = new Directory(Paths.cache, 'uc-engine/logs');
+// Engine writes to <private_data_directory>/logs, which on Android is filesDir/uc-engine.
+// The cache directory is read only for installs whose one-time migration has not run yet.
+const ENGINE_LOG_DIRS = [
+  new Directory(Paths.document, 'uc-engine/logs'),
+  new Directory(Paths.cache, 'uc-engine/logs'),
+];
 const LOG_EXPORT_DIR = new Directory(Paths.cache, 'log_exports');
 const MAX_LOG_DAYS = 3;
 const LOG_EXPORT_RETENTION_MS = 24 * 60 * 60 * 1000;
@@ -38,17 +43,27 @@ function listEngineLogFiles(): File[] {
       return [];
     }
   }
-  return ENGINE_LOG_DIR.exists
-    ? ENGINE_LOG_DIR.list().filter(
-        (entry): entry is File =>
-          entry instanceof File &&
-          (entry.name.endsWith('.txt') || /^engine\.\d{4}-\d{2}-\d{2}\.jsonl$/.test(entry.name))
-      )
-    : [];
+  return ENGINE_LOG_DIRS.flatMap((directory) =>
+    directory.exists
+      ? directory
+          .list()
+          .filter(
+            (entry): entry is File =>
+              entry instanceof File &&
+              (entry.name.endsWith('.txt') ||
+                /^engine\.\d{4}-\d{2}-\d{2}\.jsonl$/.test(entry.name))
+          )
+      : []
+  );
 }
 
 function listLogFiles(): File[] {
   return [...listAppLogFiles(), ...listEngineLogFiles()];
+}
+
+// Engine owns the retention and deletion of its own logs.
+function listDeletableLogFiles(): File[] {
+  return listAppLogFiles();
 }
 
 function formatLocalDate(date: Date): string {
@@ -300,7 +315,7 @@ export function calculateLogSize(): number {
 }
 
 export function clearLogs(): void {
-  for (const entry of listLogFiles()) {
+  for (const entry of listDeletableLogFiles()) {
     try {
       entry.delete();
     } catch {
@@ -314,8 +329,8 @@ export function cleanOldLogs(): void {
   const cutoffDate = new Date(today);
   cutoffDate.setDate(cutoffDate.getDate() - MAX_LOG_DAYS);
 
-  for (const entry of listLogFiles()) {
-    const match = entry.name.match(/(?:app_|engine\.)(\d{4}-\d{2}-\d{2})\.(?:txt|jsonl)$/);
+  for (const entry of listDeletableLogFiles()) {
+    const match = entry.name.match(/^app_(\d{4}-\d{2}-\d{2})\.txt$/);
     if (match) {
       const fileDate = new Date(match[1]);
       if (fileDate < cutoffDate) {

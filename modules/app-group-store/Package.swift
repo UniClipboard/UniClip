@@ -16,6 +16,7 @@ let package = Package(
       name: "OutboundShareHandoffCore",
       path: "ios/Shared",
       sources: [
+        "EngineLogLocator.swift",
         "LegacyContainerMigrator.swift",
         "OutboundShareHandoff.swift",
         "ShareDiagnostics.swift",
