@@ -505,7 +505,7 @@ describe('DiagnosticArchive', () => {
       appGroupId: 'group.app.uniclipboard.UniClipboard.dev',
     });
     expect(manifest.system.timezone).toEqual({
-      offsetMinutes: -now.getTimezoneOffset(),
+      offsetMinutes: 0 - now.getTimezoneOffset(),
       name: Intl.DateTimeFormat().resolvedOptions().timeZone ?? null,
     });
   });

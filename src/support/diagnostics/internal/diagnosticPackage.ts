@@ -277,7 +277,7 @@ export async function createDiagnosticArchive(
       osVersion: String(Platform.Version),
       // Log timestamps are UTC; this is the offset to read them in the user's local time.
       timezone: {
-        offsetMinutes: -now.getTimezoneOffset(),
+        offsetMinutes: 0 - now.getTimezoneOffset(), // not -x: UTC would yield -0
         name: Intl.DateTimeFormat().resolvedOptions().timeZone ?? null,
       },
     },
