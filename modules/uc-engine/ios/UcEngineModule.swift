@@ -8,7 +8,10 @@ public final class UcEngineModule: Module {
   private static let spaceReadLog = Logger(subsystem: "app.uniclipboard", category: "space-read")
   private static let startupLog = Logger(subsystem: "app.uniclipboard", category: "uc-startup")
   private let host = MainApplicationEngineHost()
-  private lazy var lifecycle = NativeLifecycleHost(report: Self.reportLifecycleError)
+  private lazy var lifecycle = NativeLifecycleHost(
+    report: Self.reportLifecycleError,
+    flushObservability: { _ = try? flushProcessObservability(deadlineMs: 250) }
+  )
   private lazy var lifecycleTransitions = NativeLifecycleTransitionCoordinator(
     lifecycle: lifecycle,
     queue: DispatchQueue(label: "app.uniclipboard.engine-lifecycle"),

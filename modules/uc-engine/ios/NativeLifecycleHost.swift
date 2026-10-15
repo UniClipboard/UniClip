@@ -224,10 +224,15 @@ final class RuntimeOwnedNativeLifecycle: NativeEngineLifecycle {
 
 final class NativeLifecycleHost {
   private let report: (Error) -> Void
+  private let flushObservability: () -> Void
   private let transitionLock = NSLock()
 
-  init(report: @escaping (Error) -> Void) {
+  init(
+    report: @escaping (Error) -> Void,
+    flushObservability: @escaping () -> Void = {}
+  ) {
     self.report = report
+    self.flushObservability = flushObservability
   }
 
   func prepare(_ engine: any NativeEngineLifecycle) throws {
@@ -246,6 +251,9 @@ final class NativeLifecycleHost {
   private static let minimumRetryBudgetMs: UInt64 = 250
 
   func enterBackground(_ engine: (any NativeEngineLifecycle)?, remainingTimeMs: @escaping () -> UInt64?) -> Bool {
+    // The process can be suspended or killed while in the background, so buffered
+    // log records are written out whether or not the suspend succeeded.
+    defer { flushObservability() }
     guard let engine else { return true }
     do {
       try suspendIfNeeded(engine, remainingTimeMs: remainingTimeMs)

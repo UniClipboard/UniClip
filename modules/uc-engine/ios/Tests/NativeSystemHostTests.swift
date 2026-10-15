@@ -320,6 +320,40 @@ final class NativeSystemHostTests: XCTestCase {
     XCTAssertNotNil(reported)
   }
 
+  func testBackgroundFlushesObservabilityAfterTheSuspendAttempt() throws {
+    let engine = FakeNativeEngineLifecycle(state: .running)
+    var events: [String] = []
+    engine.onSuspend = { events.append("suspend") }
+    let host = NativeLifecycleHost(
+      report: { _ in XCTFail("Transition must not fail") },
+      flushObservability: { events.append("flush") }
+    )
+
+    _ = host.enterBackground(engine, remainingTimeMs: { 1_000 })
+
+    XCTAssertEqual(events, ["suspend", "flush"])
+  }
+
+  func testBackgroundFlushesObservabilityWhenSuspendFails() throws {
+    let engine = FakeNativeEngineLifecycle(state: .running)
+    engine.transitionError = TestLifecycleError.failed
+    var flushes = 0
+    let host = NativeLifecycleHost(report: { _ in }, flushObservability: { flushes += 1 })
+
+    XCTAssertFalse(host.enterBackground(engine, remainingTimeMs: { 1_000 }))
+
+    XCTAssertEqual(flushes, 1)
+  }
+
+  func testBackgroundFlushesObservabilityWithoutAnEngine() throws {
+    var flushes = 0
+    let host = NativeLifecycleHost(report: { _ in }, flushObservability: { flushes += 1 })
+
+    XCTAssertTrue(host.enterBackground(nil, remainingTimeMs: { 1_000 }))
+
+    XCTAssertEqual(flushes, 1)
+  }
+
   func testBackgroundDeadlineDefinesSafeBoundaryBehavior() {
     let largestSafeSystemTime = Double(UInt64.max).nextDown / 1_000 + 0.1
 
