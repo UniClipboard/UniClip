@@ -10,6 +10,7 @@ import type { SharedSettings } from '@/types/settings';
 import type { PeerConnectionStatus, UnifiedEngineStatus } from '@/stores/unifiedEngineStore';
 import { flushAppLogs, getAppLogCaptureStatus, getAppLogFileUris, getEngineLogFileUris, redactLogText } from '@/support/observability';
 import type { DiagnosticReason } from './diagnosticEventClassifier';
+import type { DiagnosticArchiveWarningCode } from './diagnosticWarnings';
 
 const DIAGNOSTIC_ARCHIVE_SCHEMA_VERSION = 1;
 const MAX_LOG_BYTES_PER_FILE = 5 * 1024 * 1024;
@@ -38,15 +39,8 @@ export interface DiagnosticArchiveInput {
 export interface DiagnosticArtifact {
   uri: string;
   fileName: string;
-}
-
-export type DiagnosticArchiveErrorCode = 'engine_logs_missing' | 'engine_logs_unreadable';
-
-export class DiagnosticArchiveError extends Error {
-  constructor(public readonly code: DiagnosticArchiveErrorCode) {
-    super(code);
-    this.name = 'DiagnosticArchiveError';
-  }
+  /** The package is still produced; these tell the user which evidence is incomplete. */
+  warnings: DiagnosticArchiveWarningCode[];
 }
 
 interface CollectedLogFiles {
@@ -227,22 +221,13 @@ export async function createDiagnosticArchive(
   throwIfArchiveAborted(signal);
   const engineLogs = await collectLogFiles(getEngineLogFileUris(), 'logs/engine', signal);
 
-  const engineLogIssues: DiagnosticArchiveErrorCode[] = [];
-  if (
-    engineFlushStatus === 'completed' &&
-    engineLogStatus.localFile === 'ready' &&
-    input.sync.status === 'running' &&
-    engineLogs.discoveredFileCount === 0
-  ) {
-    engineLogIssues.push('engine_logs_missing');
-  }
-  if (
-    engineFlushStatus === 'completed' &&
-    engineLogStatus.localFile === 'ready' &&
-    input.sync.status === 'running' &&
-    engineLogs.discoveredFileCount > 0 &&
-    engineLogs.includedFileCount === 0
-  ) {
+  // A failed flush or an unhealthy writer is itself a reason to tell the user, never a reason to stay silent.
+  const engineLogIssues: DiagnosticArchiveWarningCode[] = [];
+  const engineWrittenCount = engineReport?.files.reduce((total, file) => total + file.writtenCount, 0) ?? 0;
+  if (engineLogs.discoveredFileCount === 0) {
+    if (engineWrittenCount > 0) engineLogIssues.push('engine_logs_written_not_found');
+    else if (input.sync.status === 'running') engineLogIssues.push('engine_logs_missing');
+  } else if (engineLogs.includedFileCount === 0) {
     engineLogIssues.push('engine_logs_unreadable');
   }
 
@@ -368,7 +353,7 @@ export async function createDiagnosticArchive(
   try {
     if (artifact.exists) artifact.delete();
     artifact.write(zipSync(entries, { level: 6 }));
-    return { uri: artifact.uri, fileName };
+    return { uri: artifact.uri, fileName, warnings: engineLogIssues };
   } catch (error) {
     if (artifact.exists) artifact.delete();
     throw error;

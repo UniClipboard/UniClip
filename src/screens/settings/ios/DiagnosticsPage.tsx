@@ -11,8 +11,9 @@ import {
   classifyDiagnosticReason,
   createDiagnosticArchive,
   deleteDiagnosticArchive,
-  DiagnosticArchiveError,
+  diagnosticWarningMessageKeys,
   type DiagnosticArtifact,
+  type DiagnosticWarningMessageKey,
 } from '@/support/diagnostics';
 import { useSettingsStore } from '@/stores';
 import { useUnifiedEngineStore } from '@/stores/unifiedEngineStore';
@@ -37,11 +38,13 @@ export function DiagnosticsPage({ onBack, onSendArchive }: {
   const spaceId = useUnifiedSpaceStore((state) => state.spaceId);
   const deviceCount = useUnifiedSpaceStore((state) => state.devices.length);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [warningKeys, setWarningKeys] = useState<DiagnosticWarningMessageKey[]>([]);
 
   const handleExport = useCallback(async (method: 'share' | 'send') => {
     if (!config || isGenerating) return;
 
     setIsGenerating(true);
+    setWarningKeys([]);
     let artifact: DiagnosticArtifact | null = null;
     try {
       artifact = await createDiagnosticArchive({
@@ -59,6 +62,7 @@ export function DiagnosticsPage({ onBack, onSendArchive }: {
           lastErrorReason: engineError ? classifyDiagnosticReason(engineError) : null,
         },
       });
+      setWarningKeys(diagnosticWarningMessageKeys(artifact.warnings));
       if (method === 'send') {
         onSendArchive(artifact);
         artifact = null;
@@ -71,14 +75,7 @@ export function DiagnosticsPage({ onBack, onSendArchive }: {
         errorMessage: error instanceof Error ? error.message : String(error),
         artifactUri: artifact?.uri ?? null,
       });
-      let message = t('diagnostics.error.message');
-      if (error instanceof DiagnosticArchiveError) {
-        if (error.code === 'engine_logs_missing') {
-          message = t('diagnostics.error.engineLogsMissing');
-        } else if (error.code === 'engine_logs_unreadable') {
-          message = t('diagnostics.error.engineLogsUnreadable');
-        }
-      }
+      const message = t('diagnostics.error.message');
       Alert.alert(t('diagnostics.error.title'), message);
     } finally {
       if (artifact) deleteDiagnosticArchive(artifact.uri);
@@ -116,7 +113,14 @@ export function DiagnosticsPage({ onBack, onSendArchive }: {
         </Section>
         <Section
           header={<SwiftUIText>{t('log.title', { ns: 'settingsAbout' })}</SwiftUIText>}
-          footer={<SwiftUIText>{t('log.storageHint', { ns: 'settingsAbout' })}</SwiftUIText>}
+          footer={
+            <SwiftUIText>
+              {[
+                t('log.storageHint', { ns: 'settingsAbout' }),
+                ...warningKeys.map((key) => t(`diagnostics.warning.${key}`)),
+              ].join('\n')}
+            </SwiftUIText>
+          }
         >
           <SettingsNavRow
             testID="diagnostic-export"

@@ -56,6 +56,11 @@
     "exportLabel": "Export logs",
     "export": "Export",
     "exported": "Logs saved",
+    "warning": {
+      "engineLogsMissing": "Engine logs were not found, so the package has no Engine evidence. Restart UniClip and export again.",
+      "engineLogsUnreadable": "Engine logs were found but could not be read. The package is incomplete; restart UniClip and export again.",
+      "engineLogsWrittenNotFound": "The Engine reports written logs, but the files are missing from disk. The package is incomplete; restart UniClip and export again."
+    },
     "exportMethodPrompt": "Choose whether to share the logs or export them as a file.",
     "exportFile": "Export file",
     "shareFailed": "Failed to share logs",

@@ -154,9 +154,12 @@
     },
     "error": {
       "title": "Couldn't create diagnostics",
-      "message": "Please try again later.",
-      "engineLogsMissing": "The Engine is running, but no Engine logs were found. Restart UniClip and try again.",
-      "engineLogsUnreadable": "Engine logs were found but couldn't be read. Restart UniClip and try again."
+      "message": "Please try again later."
+    },
+    "warning": {
+      "engineLogsMissing": "Engine logs were not found, so the package has no Engine evidence. Restart UniClip and export again.",
+      "engineLogsUnreadable": "Engine logs were found but could not be read. The package is incomplete; restart UniClip and export again.",
+      "engineLogsWrittenNotFound": "The Engine reports written logs, but the files are missing from disk. The package is incomplete; restart UniClip and export again."
     },
     "capture": {
       "title": "Detailed diagnostics",

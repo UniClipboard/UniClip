@@ -154,9 +154,12 @@
     },
     "error": {
       "title": "Não foi possível criar o diagnóstico",
-      "message": "Tente novamente mais tarde.",
-      "engineLogsMissing": "O Engine está em execução, mas nenhum registro foi encontrado. Reinicie o UniClip e tente novamente.",
-      "engineLogsUnreadable": "Os registros do Engine foram encontrados, mas não puderam ser lidos. Reinicie o UniClip e tente novamente."
+      "message": "Tente novamente mais tarde."
+    },
+    "warning": {
+      "engineLogsMissing": "Os registros do Engine não foram encontrados, então o pacote não contém dados do Engine. Reinicie o UniClip e exporte novamente.",
+      "engineLogsUnreadable": "Os registros do Engine foram encontrados, mas não puderam ser lidos. O pacote está incompleto; reinicie o UniClip e exporte novamente.",
+      "engineLogsWrittenNotFound": "O Engine informa registros gravados, mas os arquivos não existem no disco. O pacote está incompleto; reinicie o UniClip e exporte novamente."
     },
     "capture": {
       "title": "Diagnóstico detalhado",

@@ -31,6 +31,7 @@ import {
   classifyDiagnosticReason,
   createDiagnosticArchive,
   deleteDiagnosticArchive,
+  diagnosticWarningMessageKeys,
   scheduleDiagnosticArchiveCleanup,
   type DiagnosticArtifact,
 } from '@/support/diagnostics';
@@ -171,6 +172,13 @@ export const LogSection = memo(function LogSection(_props: LogSectionProps) {
     );
   };
 
+  const showArchiveWarnings = (archive: DiagnosticArtifact): boolean => {
+    const keys = diagnosticWarningMessageKeys(archive.warnings);
+    if (keys.length === 0) return false;
+    showMessage(keys.map((key) => t(`log.warning.${key}`)).join('\n'), 'error');
+    return true;
+  };
+
   const handleShareLogs = async () => {
     setShowExportMethodDialog(false);
     const abortController = beginExportOperation();
@@ -178,6 +186,7 @@ export const LogSection = memo(function LogSection(_props: LogSectionProps) {
 
     try {
       archive = await createArchive(abortController.signal);
+      showArchiveWarnings(archive);
       await shareFile(archive.uri, archive.fileName);
       scheduleDiagnosticArchiveCleanup(archive.uri);
       archive = null;
@@ -208,7 +217,7 @@ export const LogSection = memo(function LogSection(_props: LogSectionProps) {
         error.name = 'AbortError';
         throw error;
       }
-      showMessage(t('log.exported'), 'success');
+      if (!showArchiveWarnings(archive)) showMessage(t('log.exported'), 'success');
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         showMessage(t('log.exportCanceled'), 'info');

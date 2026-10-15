@@ -2,11 +2,9 @@ export {
   createDiagnosticArchive,
   deleteDiagnosticArchive,
   scheduleDiagnosticArchiveCleanup,
-  DiagnosticArchiveError,
 } from './internal/diagnosticPackage';
 export type {
   DiagnosticArtifact,
-  DiagnosticArchiveErrorCode,
   DiagnosticArchiveInput,
   DiagnosticSettingsSnapshot,
   DiagnosticSyncSnapshot,
@@ -20,3 +18,8 @@ export type {
   ClassifiedDiagnosticEvent,
   DiagnosticReason,
 } from './internal/diagnosticEventClassifier';
+export { diagnosticWarningMessageKeys } from './internal/diagnosticWarnings';
+export type {
+  DiagnosticArchiveWarningCode,
+  DiagnosticWarningMessageKey,
+} from './internal/diagnosticWarnings';
