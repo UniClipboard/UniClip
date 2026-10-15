@@ -510,6 +510,23 @@ describe('DiagnosticArchive', () => {
     });
   });
 
+  it('keeps both copies when the same Engine log name exists in the new and legacy directories', async () => {
+    mockGetEngineLogFileUris.mockReturnValue([
+      '/shared/p2p/data/logs/engine.2026-10-14.jsonl',
+      '/shared/p2p/cache/logs/engine.2026-10-14.jsonl',
+    ]);
+    mockLogContents.set('/shared/p2p/data/logs/engine.2026-10-14.jsonl', '{"where":"new"}');
+    mockLogContents.set('/shared/p2p/cache/logs/engine.2026-10-14.jsonl', '{"where":"legacy"}');
+
+    const artifact = await createDiagnosticArchive(input);
+    const archive = readArchive(artifact.uri);
+    const manifest = JSON.parse(archive['manifest.json']);
+
+    expect(archive['logs/engine/engine.2026-10-14.jsonl']).toContain('new');
+    expect(archive['logs/engine/legacy-1.engine.2026-10-14.jsonl']).toContain('legacy');
+    expect(manifest.collection.engineLogs.includedFileCount).toBe(2);
+  });
+
   it('keeps available evidence and warns the caller about missing Engine files', async () => {
     mockGetAppLogFileUris.mockReturnValue(['file://documents/logs/app_2026-08-16.txt']);
     mockLogContents.set('file://documents/logs/app_2026-08-16.txt', 'app log');

@@ -112,7 +112,11 @@ async function collectLogFiles(
       const truncated = file.size > MAX_LOG_BYTES_PER_FILE;
       const content = truncated ? readBoundedLogTail(file) : await file.text();
       if (truncated) truncatedFileCount += 1;
-      entries[`${directory}/${safeFileName(file.name)}`] = strToU8(redactLogText(content));
+      // The same log name can exist in the current and the legacy directory; keep both copies.
+      const baseName = safeFileName(file.name);
+      let entryName = `${directory}/${baseName}`;
+      for (let copy = 1; entryName in entries; copy += 1) entryName = `${directory}/legacy-${copy}.${baseName}`;
+      entries[entryName] = strToU8(redactLogText(content));
       throwIfArchiveAborted(signal);
     } catch {
       unreadableFileCount += 1;
