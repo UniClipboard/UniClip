@@ -446,14 +446,14 @@ interface UcEngineNativeModule {
   createSpace(
     deviceName: string | null,
     passphrase: string
-  ): Promise<SpaceCreated>;
-  issueInvitation(): Promise<InvitationIssued>;
+  ): Promise<EngineCallResult<SpaceCreated>>;
+  issueInvitation(): Promise<EngineCallResult<InvitationIssued>>;
   joinSpace(
     invitationCode: string,
     deviceName: string | null,
     passphrase: string,
     preserveUnreadableHistory: boolean
-  ): Promise<JoinSpaceStatus>;
+  ): Promise<EngineCallResult<JoinSpaceStatus>>;
   cancelJoinSpace(joinId: string): Promise<void>;
   nextEvent(timeoutMs: number): Promise<EngineEvent | null>;
   refreshPeerConnections(): Promise<PeerConnectionRefresh>;
@@ -499,6 +499,41 @@ interface UcEngineNativeModule {
 }
 
 const NativeModule = requireNativeModule<UcEngineNativeModule>('UcEngine');
+
+export interface EngineFailure {
+  code: number;
+  category: string;
+  retryable: boolean;
+}
+
+/**
+ * Native space operations report an Engine failure as data, because the Expo
+ * bridge only carries a message string. Hosts must read `code`, `category` and
+ * `retryable` from here instead of parsing the message.
+ */
+export type EngineCallResult<T> =
+  | { ok: true; value: T }
+  | { ok: false; failure: EngineFailure };
+
+export class UcEngineError extends Error implements EngineFailure {
+  readonly name = 'UcEngineError';
+  readonly code: number;
+  readonly category: string;
+  readonly retryable: boolean;
+
+  constructor(failure: EngineFailure) {
+    super(`Engine failure ${failure.category}`);
+    this.code = failure.code;
+    this.category = failure.category;
+    this.retryable = failure.retryable;
+  }
+}
+
+async function unwrapEngineCall<T>(call: Promise<EngineCallResult<T>>): Promise<T> {
+  const result = await call;
+  if (!result.ok) throw new UcEngineError(result.failure);
+  return result.value;
+}
 
 export type AnalyticsStateChangeReason = 'refresh' | 'reset';
 export type AnalyticsStateListener = (
@@ -614,13 +649,13 @@ export async function createSpace(
   deviceName: string | null,
   passphrase: string
 ): Promise<SpaceCreated> {
-  const result = await NativeModule.createSpace(deviceName, passphrase);
+  const result = await unwrapEngineCall(NativeModule.createSpace(deviceName, passphrase));
   await publishAnalyticsState('refresh');
   return result;
 }
 
 export function issueInvitation(): Promise<InvitationIssued> {
-  return NativeModule.issueInvitation();
+  return unwrapEngineCall(NativeModule.issueInvitation());
 }
 
 export async function joinSpace(
@@ -629,11 +664,8 @@ export async function joinSpace(
   passphrase: string,
   preserveUnreadableHistory = false
 ): Promise<JoinSpaceStatus> {
-  const result = await NativeModule.joinSpace(
-    invitationCode,
-    deviceName,
-    passphrase,
-    preserveUnreadableHistory
+  const result = await unwrapEngineCall(
+    NativeModule.joinSpace(invitationCode, deviceName, passphrase, preserveUnreadableHistory)
   );
   await publishAnalyticsState('refresh');
   return result;

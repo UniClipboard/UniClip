@@ -177,31 +177,35 @@ public final class UcEngineModule: Module {
       .runOnQueue(engineOperationQueue)
 
     AsyncFunction("createSpace") { (deviceName: String?, passphrase: String) -> [String: Any] in
-      let engine = try self.requireEngine()
-      let result = try engine.createSpace(
-        deviceName: deviceName,
-        passphrase: passphrase
-      )
-      self.host.refreshAnalyticsContext(engine: engine)
-      return [
-        "spaceId": result.spaceId,
-        "selfDeviceId": result.selfDeviceId,
-        "identityFingerprint": result.identityFingerprint,
-      ]
+      return try Self.engineResult { () throws -> [String: Any] in
+        let engine = try self.requireEngine()
+        let result = try engine.createSpace(
+          deviceName: deviceName,
+          passphrase: passphrase
+        )
+        self.host.refreshAnalyticsContext(engine: engine)
+        return [
+          "spaceId": result.spaceId,
+          "selfDeviceId": result.selfDeviceId,
+          "identityFingerprint": result.identityFingerprint,
+        ]
+      }
     }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("issueInvitation") { () -> [String: Any] in
-      let result = try self.requireEngine().issueInvitation()
-      let availability = switch result.availability {
-      case .crossNetwork: "crossNetwork"
-      case .sameLocalNetwork: "sameLocalNetwork"
+      return try Self.engineResult { () throws -> [String: Any] in
+        let result = try self.requireEngine().issueInvitation()
+        let availability = switch result.availability {
+        case .crossNetwork: "crossNetwork"
+        case .sameLocalNetwork: "sameLocalNetwork"
+        }
+        return [
+          "invitationCode": result.invitationCode,
+          "fullInvitation": result.fullInvitation,
+          "expiresAtMs": result.expiresAtMs,
+          "availability": availability,
+        ]
       }
-      return [
-        "invitationCode": result.invitationCode,
-        "fullInvitation": result.fullInvitation,
-        "expiresAtMs": result.expiresAtMs,
-        "availability": availability,
-      ]
     }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("joinSpace") {
@@ -211,90 +215,92 @@ public final class UcEngineModule: Module {
         passphrase: String,
         preserveUnreadableHistory: Bool
       ) -> [String: Any] in
-      let engine = try self.requireEngine()
-      let result = try engine.joinSpace(
-        invitationCode: invitationCode,
-        deviceName: deviceName,
-        passphrase: passphrase,
-        preserveUnreadableHistory: preserveUnreadableHistory
-      )
-      self.host.refreshAnalyticsContext(engine: engine)
-      switch result {
-      case let .active(joinId, joinedSpace, peerUpgradeRequired):
-        return [
-          "type": "active",
-          "peerUpgradeRequired": peerUpgradeRequired,
-          "joinId": joinId,
-          "joinedSpace": [
-            "sponsorDeviceId": joinedSpace.sponsorDeviceId,
-            "sponsorIdentityFingerprint": joinedSpace.sponsorIdentityFingerprint,
-            "spaceId": joinedSpace.spaceId,
-            "selfDeviceId": joinedSpace.selfDeviceId,
-            "selfIdentityFingerprint": joinedSpace.selfIdentityFingerprint,
-            "migratedRecords": joinedSpace.migratedRecords ?? 0,
-            "preservedUnreadableRecords": joinedSpace.preservedUnreadableRecords ?? 0,
-          ],
-        ]
-      case let .pending(joinId, targetSpaceId, sponsorDeviceId, sponsorIdentityFingerprint, cancelRequested, peerUpgradeRequired):
-        return [
-          "type": "pending",
-          "peerUpgradeRequired": peerUpgradeRequired,
-          "joinId": joinId,
-          "targetSpaceId": targetSpaceId as Any,
-          "sponsorDeviceId": sponsorDeviceId as Any,
-          "sponsorIdentityFingerprint": sponsorIdentityFingerprint as Any,
-          "cancelRequested": cancelRequested,
-        ]
-      case let .processing(joinId, targetSpaceId, sponsorDeviceId, sponsorIdentityFingerprint, peerUpgradeRequired):
-        return [
-          "type": "processing",
-          "joinId": joinId,
-          "targetSpaceId": targetSpaceId,
-          "sponsorDeviceId": sponsorDeviceId,
-          "sponsorIdentityFingerprint": sponsorIdentityFingerprint,
-          "peerUpgradeRequired": peerUpgradeRequired,
-        ]
-      case let .needsAttention(joinId, reason, recovery, nextRetryAtMs):
-        let attentionReason = switch reason {
-        case .outcomeCannotBeProven: "outcomeCannotBeProven"
-        case .continuationUnavailable: "continuationUnavailable"
+      return try Self.engineResult { () throws -> [String: Any] in
+        let engine = try self.requireEngine()
+        let result = try engine.joinSpace(
+          invitationCode: invitationCode,
+          deviceName: deviceName,
+          passphrase: passphrase,
+          preserveUnreadableHistory: preserveUnreadableHistory
+        )
+        self.host.refreshAnalyticsContext(engine: engine)
+        switch result {
+        case let .active(joinId, joinedSpace, peerUpgradeRequired):
+          return [
+            "type": "active",
+            "peerUpgradeRequired": peerUpgradeRequired,
+            "joinId": joinId,
+            "joinedSpace": [
+              "sponsorDeviceId": joinedSpace.sponsorDeviceId,
+              "sponsorIdentityFingerprint": joinedSpace.sponsorIdentityFingerprint,
+              "spaceId": joinedSpace.spaceId,
+              "selfDeviceId": joinedSpace.selfDeviceId,
+              "selfIdentityFingerprint": joinedSpace.selfIdentityFingerprint,
+              "migratedRecords": joinedSpace.migratedRecords ?? 0,
+              "preservedUnreadableRecords": joinedSpace.preservedUnreadableRecords ?? 0,
+            ],
+          ]
+        case let .pending(joinId, targetSpaceId, sponsorDeviceId, sponsorIdentityFingerprint, cancelRequested, peerUpgradeRequired):
+          return [
+            "type": "pending",
+            "peerUpgradeRequired": peerUpgradeRequired,
+            "joinId": joinId,
+            "targetSpaceId": targetSpaceId as Any,
+            "sponsorDeviceId": sponsorDeviceId as Any,
+            "sponsorIdentityFingerprint": sponsorIdentityFingerprint as Any,
+            "cancelRequested": cancelRequested,
+          ]
+        case let .processing(joinId, targetSpaceId, sponsorDeviceId, sponsorIdentityFingerprint, peerUpgradeRequired):
+          return [
+            "type": "processing",
+            "joinId": joinId,
+            "targetSpaceId": targetSpaceId,
+            "sponsorDeviceId": sponsorDeviceId,
+            "sponsorIdentityFingerprint": sponsorIdentityFingerprint,
+            "peerUpgradeRequired": peerUpgradeRequired,
+          ]
+        case let .needsAttention(joinId, reason, recovery, nextRetryAtMs):
+          let attentionReason = switch reason {
+          case .outcomeCannotBeProven: "outcomeCannotBeProven"
+          case .continuationUnavailable: "continuationUnavailable"
+          }
+          let attentionRecovery = switch recovery {
+          case .preserveDataAndContactSupport: "preserveDataAndContactSupport"
+          case .restartWithNewInvitation: "restartWithNewInvitation"
+          }
+          return [
+            "type": "needsAttention",
+            "joinId": joinId,
+            "reason": attentionReason,
+            "recovery": attentionRecovery,
+            "nextRetryAtMs": nextRetryAtMs as Any,
+          ]
+        case let .rejected(joinId, reason):
+          let rejectionReason = switch reason {
+          case .invitationUnavailable: "invitationUnavailable"
+          case .authenticationRejected: "authenticationRejected"
+          case .identityConflict: "identityConflict"
+          case .baseHistoryChanged: "baseHistoryChanged"
+          case .joinerHistoryAhead: "joinerHistoryAhead"
+          case .historyConflict: "historyConflict"
+          case .completionInvalid: "completionInvalid"
+          case .membershipHistoryInvalid: "membershipHistoryInvalid"
+          case .securityMaterialInvalid: "securityMaterialInvalid"
+          case .relationshipConflict: "relationshipConflict"
+          case .activationStateInvalid: "activationStateInvalid"
+          case .peerUpgradeRequired: "peerUpgradeRequired"
+          case .cancelled: "cancelled"
+          case .removedBeforeActivation: "removedBeforeActivation"
+          }
+          return ["type": "rejected", "joinId": joinId, "reason": rejectionReason]
+        case let .terminated(joinId, reason):
+          let terminationReason = switch reason {
+          case .cancelled: "cancelled"
+          case .expired: "expired"
+          case .superseded: "superseded"
+          }
+          return ["type": "terminated", "joinId": joinId, "reason": terminationReason]
         }
-        let attentionRecovery = switch recovery {
-        case .preserveDataAndContactSupport: "preserveDataAndContactSupport"
-        case .restartWithNewInvitation: "restartWithNewInvitation"
-        }
-        return [
-          "type": "needsAttention",
-          "joinId": joinId,
-          "reason": attentionReason,
-          "recovery": attentionRecovery,
-          "nextRetryAtMs": nextRetryAtMs as Any,
-        ]
-      case let .rejected(joinId, reason):
-        let rejectionReason = switch reason {
-        case .invitationUnavailable: "invitationUnavailable"
-        case .authenticationRejected: "authenticationRejected"
-        case .identityConflict: "identityConflict"
-        case .baseHistoryChanged: "baseHistoryChanged"
-        case .joinerHistoryAhead: "joinerHistoryAhead"
-        case .historyConflict: "historyConflict"
-        case .completionInvalid: "completionInvalid"
-        case .membershipHistoryInvalid: "membershipHistoryInvalid"
-        case .securityMaterialInvalid: "securityMaterialInvalid"
-        case .relationshipConflict: "relationshipConflict"
-        case .activationStateInvalid: "activationStateInvalid"
-        case .peerUpgradeRequired: "peerUpgradeRequired"
-        case .cancelled: "cancelled"
-        case .removedBeforeActivation: "removedBeforeActivation"
-        }
-        return ["type": "rejected", "joinId": joinId, "reason": rejectionReason]
-      case let .terminated(joinId, reason):
-        let terminationReason = switch reason {
-        case .cancelled: "cancelled"
-        case .expired: "expired"
-        case .superseded: "superseded"
-        }
-        return ["type": "terminated", "joinId": joinId, "reason": terminationReason]
       }
     }.runOnQueue(engineOperationQueue)
 
@@ -690,6 +696,22 @@ public final class UcEngineModule: Module {
       "category": String(describing: failure.category),
       "retryable": failure.retryable,
     ]
+  }
+
+  /// Reports an Engine failure as data so JS reads code, category and retryable
+  /// from fields instead of parsing the bridge error message.
+  private static func engineResult(
+    _ operation: () throws -> [String: Any]
+  ) throws -> [String: Any] {
+    do {
+      return ["ok": true, "value": try operation()]
+    } catch let bindingError as BindingError {
+      guard case let .Engine(code, category, retryable) = bindingError else { throw bindingError }
+      return [
+        "ok": false,
+        "failure": engineFailureMap(code: code, category: category, retryable: retryable),
+      ]
+    }
   }
 
   private static func engineFailureMap(

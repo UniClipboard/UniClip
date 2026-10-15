@@ -746,111 +746,117 @@ class UcEngineModule : Module() {
     }
 
     AsyncFunction("createSpace") { deviceName: String?, passphrase: String ->
-      val engine = requireEngine()
-      val result = engine.createSpace(deviceName, passphrase)
-      refreshAnalyticsContext(engine)
-      mapOf(
-        "spaceId" to result.spaceId,
-        "selfDeviceId" to result.selfDeviceId,
-        "identityFingerprint" to result.identityFingerprint
-      )
+      engineResult {
+        val engine = requireEngine()
+        val result = engine.createSpace(deviceName, passphrase)
+        refreshAnalyticsContext(engine)
+        mapOf(
+          "spaceId" to result.spaceId,
+          "selfDeviceId" to result.selfDeviceId,
+          "identityFingerprint" to result.identityFingerprint
+        )
+      }
     }
     AsyncFunction("issueInvitation") {
-      val result = requireEngine().issueInvitation()
-      val availability = when (result.availability) {
-        InvitationAvailability.CROSS_NETWORK -> "crossNetwork"
-        InvitationAvailability.SAME_LOCAL_NETWORK -> "sameLocalNetwork"
+      engineResult {
+        val result = requireEngine().issueInvitation()
+        val availability = when (result.availability) {
+          InvitationAvailability.CROSS_NETWORK -> "crossNetwork"
+          InvitationAvailability.SAME_LOCAL_NETWORK -> "sameLocalNetwork"
+        }
+        mapOf(
+          "invitationCode" to result.invitationCode,
+          "fullInvitation" to result.fullInvitation,
+          "expiresAtMs" to result.expiresAtMs,
+          "availability" to availability
+        )
       }
-      mapOf(
-        "invitationCode" to result.invitationCode,
-        "fullInvitation" to result.fullInvitation,
-        "expiresAtMs" to result.expiresAtMs,
-        "availability" to availability
-      )
     }
     AsyncFunction("joinSpace") { invitationCode: String, deviceName: String?, passphrase: String, preserveUnreadableHistory: Boolean ->
-      val engine = requireEngine()
-      val result = engine.joinSpace(
-        invitationCode,
-        deviceName,
-        passphrase,
-        preserveUnreadableHistory
-      )
-      refreshAnalyticsContext(engine)
-      when (result) {
-        is JoinSpaceStatus.Active -> mapOf(
-          "type" to "active",
-          "peerUpgradeRequired" to result.peerUpgradeRequired,
-          "joinId" to result.joinId,
-          "joinedSpace" to mapOf(
-            "sponsorDeviceId" to result.joinedSpace.sponsorDeviceId,
-            "sponsorIdentityFingerprint" to result.joinedSpace.sponsorIdentityFingerprint,
-            "spaceId" to result.joinedSpace.spaceId,
-            "selfDeviceId" to result.joinedSpace.selfDeviceId,
-            "selfIdentityFingerprint" to result.joinedSpace.selfIdentityFingerprint,
-            "migratedRecords" to (result.joinedSpace.migratedRecords?.toLong() ?: 0L),
-            "preservedUnreadableRecords" to (result.joinedSpace.preservedUnreadableRecords?.toLong() ?: 0L)
+      engineResult {
+        val engine = requireEngine()
+        val result = engine.joinSpace(
+          invitationCode,
+          deviceName,
+          passphrase,
+          preserveUnreadableHistory
+        )
+        refreshAnalyticsContext(engine)
+        when (result) {
+          is JoinSpaceStatus.Active -> mapOf(
+            "type" to "active",
+            "peerUpgradeRequired" to result.peerUpgradeRequired,
+            "joinId" to result.joinId,
+            "joinedSpace" to mapOf(
+              "sponsorDeviceId" to result.joinedSpace.sponsorDeviceId,
+              "sponsorIdentityFingerprint" to result.joinedSpace.sponsorIdentityFingerprint,
+              "spaceId" to result.joinedSpace.spaceId,
+              "selfDeviceId" to result.joinedSpace.selfDeviceId,
+              "selfIdentityFingerprint" to result.joinedSpace.selfIdentityFingerprint,
+              "migratedRecords" to (result.joinedSpace.migratedRecords?.toLong() ?: 0L),
+              "preservedUnreadableRecords" to (result.joinedSpace.preservedUnreadableRecords?.toLong() ?: 0L)
+            )
           )
-        )
-        is JoinSpaceStatus.Pending -> mapOf(
-          "type" to "pending",
-          "peerUpgradeRequired" to result.peerUpgradeRequired,
-          "joinId" to result.joinId,
-          "targetSpaceId" to result.targetSpaceId,
-          "sponsorDeviceId" to result.sponsorDeviceId,
-          "sponsorIdentityFingerprint" to result.sponsorIdentityFingerprint,
-          "cancelRequested" to result.cancelRequested
-        )
-        is JoinSpaceStatus.Processing -> mapOf(
-          "type" to "processing",
-          "joinId" to result.joinId,
-          "targetSpaceId" to result.targetSpaceId,
-          "sponsorDeviceId" to result.sponsorDeviceId,
-          "sponsorIdentityFingerprint" to result.sponsorIdentityFingerprint,
-          "peerUpgradeRequired" to result.peerUpgradeRequired
-        )
-        is JoinSpaceStatus.NeedsAttention -> mapOf(
-          "type" to "needsAttention",
-          "joinId" to result.joinId,
-          "reason" to when (result.reason) {
-            JoinSpaceAttentionReason.OUTCOME_CANNOT_BE_PROVEN -> "outcomeCannotBeProven"
-            JoinSpaceAttentionReason.CONTINUATION_UNAVAILABLE -> "continuationUnavailable"
-          },
-          "recovery" to when (result.recovery) {
-            JoinSpaceAttentionRecovery.PRESERVE_DATA_AND_CONTACT_SUPPORT -> "preserveDataAndContactSupport"
-            JoinSpaceAttentionRecovery.RESTART_WITH_NEW_INVITATION -> "restartWithNewInvitation"
-          },
-          "nextRetryAtMs" to result.nextRetryAtMs
-        )
-        is JoinSpaceStatus.Rejected -> mapOf(
-          "type" to "rejected",
-          "joinId" to result.joinId,
-          "reason" to when (result.reason) {
-            JoinSpaceRejectionReason.INVITATION_UNAVAILABLE -> "invitationUnavailable"
-            JoinSpaceRejectionReason.AUTHENTICATION_REJECTED -> "authenticationRejected"
-            JoinSpaceRejectionReason.IDENTITY_CONFLICT -> "identityConflict"
-            JoinSpaceRejectionReason.BASE_HISTORY_CHANGED -> "baseHistoryChanged"
-            JoinSpaceRejectionReason.JOINER_HISTORY_AHEAD -> "joinerHistoryAhead"
-            JoinSpaceRejectionReason.HISTORY_CONFLICT -> "historyConflict"
-            JoinSpaceRejectionReason.COMPLETION_INVALID -> "completionInvalid"
-            JoinSpaceRejectionReason.MEMBERSHIP_HISTORY_INVALID -> "membershipHistoryInvalid"
-            JoinSpaceRejectionReason.SECURITY_MATERIAL_INVALID -> "securityMaterialInvalid"
-            JoinSpaceRejectionReason.RELATIONSHIP_CONFLICT -> "relationshipConflict"
-            JoinSpaceRejectionReason.ACTIVATION_STATE_INVALID -> "activationStateInvalid"
-            JoinSpaceRejectionReason.PEER_UPGRADE_REQUIRED -> "peerUpgradeRequired"
-            JoinSpaceRejectionReason.CANCELLED -> "cancelled"
-            JoinSpaceRejectionReason.REMOVED_BEFORE_ACTIVATION -> "removedBeforeActivation"
-          }
-        )
-        is JoinSpaceStatus.Terminated -> mapOf(
-          "type" to "terminated",
-          "joinId" to result.joinId,
-          "reason" to when (result.reason) {
-            JoinSpaceTerminationReason.CANCELLED -> "cancelled"
-            JoinSpaceTerminationReason.EXPIRED -> "expired"
-            JoinSpaceTerminationReason.SUPERSEDED -> "superseded"
-          }
-        )
+          is JoinSpaceStatus.Pending -> mapOf(
+            "type" to "pending",
+            "peerUpgradeRequired" to result.peerUpgradeRequired,
+            "joinId" to result.joinId,
+            "targetSpaceId" to result.targetSpaceId,
+            "sponsorDeviceId" to result.sponsorDeviceId,
+            "sponsorIdentityFingerprint" to result.sponsorIdentityFingerprint,
+            "cancelRequested" to result.cancelRequested
+          )
+          is JoinSpaceStatus.Processing -> mapOf(
+            "type" to "processing",
+            "joinId" to result.joinId,
+            "targetSpaceId" to result.targetSpaceId,
+            "sponsorDeviceId" to result.sponsorDeviceId,
+            "sponsorIdentityFingerprint" to result.sponsorIdentityFingerprint,
+            "peerUpgradeRequired" to result.peerUpgradeRequired
+          )
+          is JoinSpaceStatus.NeedsAttention -> mapOf(
+            "type" to "needsAttention",
+            "joinId" to result.joinId,
+            "reason" to when (result.reason) {
+              JoinSpaceAttentionReason.OUTCOME_CANNOT_BE_PROVEN -> "outcomeCannotBeProven"
+              JoinSpaceAttentionReason.CONTINUATION_UNAVAILABLE -> "continuationUnavailable"
+            },
+            "recovery" to when (result.recovery) {
+              JoinSpaceAttentionRecovery.PRESERVE_DATA_AND_CONTACT_SUPPORT -> "preserveDataAndContactSupport"
+              JoinSpaceAttentionRecovery.RESTART_WITH_NEW_INVITATION -> "restartWithNewInvitation"
+            },
+            "nextRetryAtMs" to result.nextRetryAtMs
+          )
+          is JoinSpaceStatus.Rejected -> mapOf(
+            "type" to "rejected",
+            "joinId" to result.joinId,
+            "reason" to when (result.reason) {
+              JoinSpaceRejectionReason.INVITATION_UNAVAILABLE -> "invitationUnavailable"
+              JoinSpaceRejectionReason.AUTHENTICATION_REJECTED -> "authenticationRejected"
+              JoinSpaceRejectionReason.IDENTITY_CONFLICT -> "identityConflict"
+              JoinSpaceRejectionReason.BASE_HISTORY_CHANGED -> "baseHistoryChanged"
+              JoinSpaceRejectionReason.JOINER_HISTORY_AHEAD -> "joinerHistoryAhead"
+              JoinSpaceRejectionReason.HISTORY_CONFLICT -> "historyConflict"
+              JoinSpaceRejectionReason.COMPLETION_INVALID -> "completionInvalid"
+              JoinSpaceRejectionReason.MEMBERSHIP_HISTORY_INVALID -> "membershipHistoryInvalid"
+              JoinSpaceRejectionReason.SECURITY_MATERIAL_INVALID -> "securityMaterialInvalid"
+              JoinSpaceRejectionReason.RELATIONSHIP_CONFLICT -> "relationshipConflict"
+              JoinSpaceRejectionReason.ACTIVATION_STATE_INVALID -> "activationStateInvalid"
+              JoinSpaceRejectionReason.PEER_UPGRADE_REQUIRED -> "peerUpgradeRequired"
+              JoinSpaceRejectionReason.CANCELLED -> "cancelled"
+              JoinSpaceRejectionReason.REMOVED_BEFORE_ACTIVATION -> "removedBeforeActivation"
+            }
+          )
+          is JoinSpaceStatus.Terminated -> mapOf(
+            "type" to "terminated",
+            "joinId" to result.joinId,
+            "reason" to when (result.reason) {
+              JoinSpaceTerminationReason.CANCELLED -> "cancelled"
+              JoinSpaceTerminationReason.EXPIRED -> "expired"
+              JoinSpaceTerminationReason.SUPERSEDED -> "superseded"
+            }
+          )
+        }
       }
     }
     AsyncFunction("cancelJoinSpace") { joinId: String ->
@@ -1103,6 +1109,13 @@ class UcEngineModule : Module() {
     "category" to failure.category.name,
     "retryable" to failure.retryable
   )
+
+  /** Reports an Engine failure as data so JS reads code, category and retryable from fields. */
+  private inline fun engineResult(block: () -> Any?): Map<String, Any?> = try {
+    mapOf("ok" to true, "value" to block())
+  } catch (error: BindingException.Engine) {
+    mapOf("ok" to false, "failure" to engineFailureMap(error))
+  }
 
   private fun engineFailureMap(failure: BindingException.Engine): Map<String, Any> = mapOf(
     "code" to failure.code.toLong(),

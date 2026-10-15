@@ -12,6 +12,10 @@ import type { DeviceTrustDecision, DeviceTrustSnapshot, JoinSpaceStatus } from '
 
 const log = createLogger('UnifiedSpaceService');
 
+function engineFailure(code: number, category = 'unavailable'): Error {
+  return Object.assign(new Error('Engine failure'), { code, category, retryable: false });
+}
+
 function deviceTrustSnapshot(
   revision = 1,
   changeId: string | null = 'change-1',
@@ -840,17 +844,22 @@ describe('UnifiedSpaceService', () => {
     );
   });
   it.each([
-    ['engine error 1233 (Unauthorized)', 'passphraseMismatch'],
-    ['BindingError.Engine(code: 1234, category: notFound, retryable: false)', 'invitationNotFound'],
-    ['BindingError.Engine(code: 1281, category: notFound, retryable: false)', 'invitationExpired'],
-    ['engine error 1236 (Unavailable)', 'sponsorUnreachable'],
-    ['engine error 1285 (DeadlineExceeded)', 'connectionTimedOut'],
-    ['engine error 1282 (Conflict)', 'invitationRejected'],
-    ['engine error 1283 (Unavailable)', 'serviceUnavailable'],
-    ['engine error 1284 (Unavailable)', 'connectionLost'],
-    ['engine error 1292 (Conflict)', 'unreadableHistoryRequiresConfirmation'],
-  ] as const)('maps native failure %s to %s', (message, expected) => {
-    expect(unifiedSpaceUserErrorCode(new Error(message))).toBe(expected);
+    [1233, 'passphraseMismatch'],
+    [1234, 'invitationNotFound'],
+    [1281, 'invitationExpired'],
+    [1236, 'sponsorUnreachable'],
+    [1285, 'connectionTimedOut'],
+    [1282, 'invitationRejected'],
+    [1283, 'serviceUnavailable'],
+    [1284, 'connectionLost'],
+    [1292, 'unreadableHistoryRequiresConfirmation'],
+  ] as const)('maps structured native failure %i to %s', (code, expected) => {
+    expect(unifiedSpaceUserErrorCode(engineFailure(code))).toBe(expected);
+  });
+
+  it('does not derive a user-facing outcome from digits in the message text', () => {
+    expect(unifiedSpaceUserErrorCode(new Error('engine error 1233 (Unauthorized)'))).toBeNull();
+    expect(unifiedSpaceUserErrorCode(Object.assign(new Error('x'), { code: 1233 }))).toBeNull();
   });
 
   it('keeps input validation errors and ignores unknown native failures', () => {
@@ -1277,7 +1286,7 @@ describe('UnifiedSpaceService', () => {
         new Error(
           `Engine error 1283 while joining ${invitation} as ${deviceName} using ${secret} at ${privatePath}`
         ),
-        { code: 1283 }
+        { code: 1283, category: 'unavailable', retryable: true }
       );
       const api = createApi({
         joinSpace: failJoinRequest
@@ -1373,7 +1382,7 @@ describe('UnifiedSpaceService', () => {
   ] as const)('maps invitation issue failure %i to %s', async (code, expected) => {
     const api = createApi({
       issueInvitation: jest.fn(async () => {
-        throw new Error(`BindingError.Engine(code: ${code}, category: unavailable, retryable: true)`);
+        throw engineFailure(code);
       }),
     });
     const service = new UnifiedSpaceService(api);
@@ -1386,7 +1395,7 @@ describe('UnifiedSpaceService', () => {
   it('maps invitation issue failures while creating a space', async () => {
     const api = createApi({
       issueInvitation: jest.fn(async () => {
-        throw new Error('BindingError.Engine(code: 1227, category: unavailable, retryable: true)');
+        throw engineFailure(1227);
       }),
     });
     const service = new UnifiedSpaceService(api);
@@ -1401,7 +1410,7 @@ describe('UnifiedSpaceService', () => {
     async (code) => {
       const api = createApi({
         issueInvitation: jest.fn(async () => {
-          throw new Error(`BindingError.Engine(code: ${code}, category: internal, retryable: false)`);
+          throw engineFailure(code, 'internal');
         }),
       });
       const service = new UnifiedSpaceService(api);
@@ -1417,7 +1426,7 @@ describe('UnifiedSpaceService', () => {
     (code) => {
       expect(
         unifiedSpaceUserErrorCode(
-          new Error(`BindingError.Engine(code: ${code}, category: invalidInput, retryable: false)`)
+          engineFailure(code, 'invalidInput')
         )
       ).toBeNull();
     }
