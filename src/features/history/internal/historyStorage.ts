@@ -13,6 +13,7 @@ import { ClipboardItem, HistorySyncStatus } from '@/types/clipboard';
 import { HistoryFilter, HistorySort, STORAGE_KEYS } from '@/types/storage';
 import { getHistoryFileDir } from '@/platform/files';
 import { File } from 'expo-file-system';
+import { randomUUID } from 'expo-crypto';
 import { importPayloadFile } from 'app-group-store';
 import { createLogger } from '@/support/observability';
 import {
@@ -119,6 +120,8 @@ export class HistoryStorage {
   private static readonly NOTIFY_BATCH_SIZE = 50;
   private static readonly NOTIFY_DELAY_MS = 100;
   private silentMode = false;
+  private readonly profileMutations = new Map<string, Promise<void>>();
+  private cleanupMutation: Promise<void> | null = null;
   private sortConfig: HistorySort = { field: 'timestamp', order: 'desc' };
 
   private constructor() {}
@@ -463,6 +466,38 @@ export class HistoryStorage {
     return migratedItems;
   }
 
+  private async withProfileMutations<T>(hashes: readonly string[], operation: () => Promise<T>): Promise<T> {
+    const keys = [...new Set(hashes.map((hash) => hash.toLowerCase()))];
+    const previous = keys.map((key) => this.profileMutations.get(key));
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    // Reserve every key before waiting so file IO and its row update stay ordered together.
+    keys.forEach((key) => this.profileMutations.set(key, gate));
+    await Promise.all(previous);
+    try {
+      return await operation();
+    } finally {
+      release();
+      keys.forEach((key) => {
+        if (this.profileMutations.get(key) === gate) this.profileMutations.delete(key);
+      });
+    }
+  }
+
+  private async withCleanupMutation<T>(operation: () => Promise<T>): Promise<T> {
+    const previous = this.cleanupMutation;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    this.cleanupMutation = gate;
+    await previous;
+    try {
+      return await operation();
+    } finally {
+      release();
+      if (this.cleanupMutation === gate) this.cleanupMutation = null;
+    }
+  }
+
   // ─── 写入 ──────────────────────────────────────────────
 
   /**
@@ -473,22 +508,41 @@ export class HistoryStorage {
       await this.initialize();
     }
 
-    // 处理文件复制逻辑
-    let processedItem = { ...item };
+    const { resultItem, action } = await this.withProfileMutations([item.profileHash], async () => {
+      // 处理文件复制逻辑
+      const existing = await historyRepository.getByProfileHash(item.profileHash);
+      const processedItem = { ...item, profileHash: existing?.profileHash ?? item.profileHash };
+      let obsoleteFile: File | undefined;
+      let stagedFile: File | undefined;
 
-    if (
-      processedItem.hasData &&
-      processedItem.fileUri &&
-      processedItem.profileHash &&
-      processedItem.dataName
-    ) {
-      try {
-        const historyDir = getHistoryFileDir(processedItem.type, processedItem.profileHash);
-        const historyDirUri = historyDir.uri;
+      if (
+        Platform.OS !== 'ios' &&
+        existing?.type === 'Text' &&
+        processedItem.type === 'Text' &&
+        !processedItem.hasData &&
+        existing.fileUri
+      ) {
+        const historyDirUri = getHistoryFileDir(existing.type, processedItem.profileHash).uri;
+        const ownedPrefix = `${historyDirUri.replace(/\/$/, '')}/`;
+        if (existing.fileUri.startsWith(ownedPrefix)) obsoleteFile = new File(existing.fileUri);
+      }
 
-        if (!processedItem.fileUri.startsWith(historyDirUri)) {
+      if (
+        processedItem.hasData &&
+        processedItem.fileUri &&
+        processedItem.profileHash &&
+        processedItem.dataName
+      ) {
+        try {
+          const historyDir = getHistoryFileDir(processedItem.type, processedItem.profileHash);
+          const historyDirUri = historyDir.uri;
+
           const sourceFile = new File(processedItem.fileUri);
-          if (sourceFile.exists) {
+          if (!sourceFile.exists) throw new Error('History payload file is missing');
+          if (processedItem.type === 'File') {
+            processedItem.size = sourceFile.size ?? processedItem.size;
+          }
+          if (!processedItem.fileUri.startsWith(historyDirUri)) {
             if (Platform.OS === 'ios') {
               const importedUri = await importPayloadFile(
                 `${processedItem.type}-${processedItem.profileHash}`,
@@ -498,65 +552,105 @@ export class HistoryStorage {
               processedItem.fileUri = importedUri;
               log.info('File saved to history storage:', processedItem.fileUri);
             } else {
-              const dir = getHistoryFileDir(processedItem.type, processedItem.profileHash);
+              const dir = historyDir;
               if (!dir.exists) {
                 dir.create({ intermediates: true, idempotent: true });
               }
-              const targetFile = new File(dir, processedItem.dataName);
+              let targetFile = new File(dir, processedItem.dataName);
+              if (processedItem.type === 'File') {
+                if (targetFile.exists) {
+                  // Keep the old bytes until SQLite points to the complete new payload.
+                  const suffix = processedItem.dataName.match(/\.[^.]{1,16}$/)?.[0] ?? '';
+                  targetFile = new File(dir, `${randomUUID()}${suffix}`);
+                }
+                const oldUri = existing?.fileUri;
+                const ownedPrefix = `${historyDirUri.replace(/\/$/, '')}/`;
+                if (oldUri?.startsWith(ownedPrefix) && oldUri !== targetFile.uri) {
+                  obsoleteFile = new File(oldUri);
+                }
+              }
               if (!targetFile.exists) {
                 await sourceFile.move(targetFile);
+                stagedFile = targetFile;
               }
               processedItem.fileUri = targetFile.uri;
               log.info('File moved to history directory:', targetFile.uri);
             }
           }
+        } catch (error) {
+          log.error('Failed to move file to history directory:', error);
+          throw error;
         }
-      } catch (error) {
-        log.error('Failed to move file to history directory:', error);
       }
-    }
 
-    // 判重(大小写不敏感,靠列 COLLATE NOCASE)
-    const existing = await historyRepository.getByProfileHash(processedItem.profileHash);
+      let action: 'add' | 'update';
+      let resultItem: ClipboardItem;
 
-    let action: 'add' | 'update';
-    let resultItem: ClipboardItem;
+      if (existing) {
+        // 更新现有记录 - 参照桌面客户端 AddLocalProfile 逻辑
+        const text =
+          processedItem.type === 'Text' || !existing.text
+            ? processedItem.text
+            : existing.text;
+        const wasDeleted = existing.isDeleted === true;
 
-    if (existing) {
-      // 更新现有记录 - 参照桌面客户端 AddLocalProfile 逻辑
-      const text = !existing.text && processedItem.text ? processedItem.text : existing.text;
-      const wasDeleted = existing.isDeleted === true;
+        resultItem = {
+          ...existing,
+          type: processedItem.type,
+          text: processedItem.type === 'File' ? processedItem.text : text,
+          hasData: processedItem.hasData,
+          dataName: processedItem.dataName,
+          size: processedItem.size,
+          timestamp: processedItem.timestamp || Date.now(),
+          localClipboardHash: processedItem.localClipboardHash ?? existing.localClipboardHash,
+          contentId: processedItem.contentId ?? existing.contentId,
+          fileUri:
+            processedItem.type === 'Text'
+              ? processedItem.fileUri
+              : processedItem.fileUri ?? existing.fileUri,
+          isLocalFileReady: true,
+          isDeleted: false,
+          lastModified: Date.now(),
+          lastAccessed: Date.now(),
+          version: existing.version + 1,
+          syncStatus: wasDeleted
+            ? HistorySyncStatus.LocalOnly
+            : processedItem.syncStatus ?? HistorySyncStatus.LocalOnly,
+          from: processedItem.from,
+        };
+        action = 'update';
+      } else {
+        // 添加新记录
+        resultItem = {
+          ...processedItem,
+          timestamp: processedItem.timestamp || Date.now(),
+        };
+        action = 'add';
+      }
 
-      resultItem = {
-        ...existing,
-        text,
-        fileUri: processedItem.fileUri ?? existing.fileUri,
-        isLocalFileReady: true,
-        isDeleted: false,
-        lastModified: Date.now(),
-        lastAccessed: Date.now(),
-        version: existing.version + 1,
-        syncStatus: wasDeleted
-          ? HistorySyncStatus.LocalOnly
-          : processedItem.syncStatus ?? HistorySyncStatus.LocalOnly,
-        from: processedItem.from,
-      };
-      await historyRepository.replace(resultItem);
-      action = 'update';
-    } else {
-      // 添加新记录
-      resultItem = {
-        ...processedItem,
-        timestamp: processedItem.timestamp || Date.now(),
-      };
-      await historyRepository.replace(resultItem);
-      action = 'add';
-
-      // 清理超出数量的记录（starred/pinned 除外）
-      await this.cleanupByCount(this.maxHistorySize);
-    }
-
-    this.notifyChange(resultItem, action);
+      try {
+        await historyRepository.replace(resultItem);
+      } catch (error) {
+        if (stagedFile?.exists) {
+          try {
+            stagedFile.delete();
+          } catch (cleanupError) {
+            log.warn('Failed to remove uncommitted history payload:', cleanupError);
+          }
+        }
+        throw error;
+      }
+      if (obsoleteFile?.exists) {
+        try {
+          obsoleteFile.delete();
+        } catch (error) {
+          log.warn('Failed to remove replaced history payload:', error);
+        }
+      }
+      this.notifyChange(resultItem, action);
+      return { resultItem, action };
+    });
+    if (action === 'add') await this.cleanupByCount(this.maxHistorySize);
     return resultItem;
   }
 
@@ -568,48 +662,86 @@ export class HistoryStorage {
       await this.initialize();
     }
 
-    const addedItems: ClipboardItem[] = [];
-    const updatedItems: ClipboardItem[] = [];
+    await this.withProfileMutations(items.map((item) => item.profileHash), async () => {
+      const addedItems: ClipboardItem[] = [];
+      const updatedItems: ClipboardItem[] = [];
+      const obsoleteFiles: File[] = [];
 
-    for (const item of items) {
-      const existing = await historyRepository.getByProfileHash(item.profileHash);
+      for (const item of items) {
+        const existing = await historyRepository.getByProfileHash(item.profileHash);
 
-      if (existing) {
-        const text = !existing.text && item.text ? item.text : existing.text;
-        const wasDeleted = existing.isDeleted === true;
+        if (existing) {
+          if (
+            Platform.OS !== 'ios' &&
+            existing.type === 'Text' &&
+            item.type === 'Text' &&
+            !item.hasData &&
+            existing.fileUri
+          ) {
+            const historyDirUri = getHistoryFileDir(existing.type, existing.profileHash).uri;
+            const ownedPrefix = `${historyDirUri.replace(/\/$/, '')}/`;
+            if (existing.fileUri.startsWith(ownedPrefix)) {
+              obsoleteFiles.push(new File(existing.fileUri));
+            }
+          }
+          const text = item.type === 'Text' || !existing.text ? item.text : existing.text;
+          const wasDeleted = existing.isDeleted === true;
 
-        updatedItems.push({
-          ...existing,
-          text,
-          fileUri: item.fileUri ?? existing.fileUri,
-          isLocalFileReady: true,
-          isDeleted: false,
-          lastModified: Date.now(),
-          lastAccessed: Date.now(),
-          version: wasDeleted ? existing.version + 1 : existing.version,
-          syncStatus: wasDeleted ? HistorySyncStatus.NeedSync : existing.syncStatus,
-        });
-      } else {
-        addedItems.push({
-          ...item,
-          timestamp: item.timestamp || Date.now(),
-        });
+          updatedItems.push({
+            ...existing,
+            type: item.type,
+            text: item.type === 'File' ? item.text : text,
+            hasData: item.hasData,
+            dataName: item.dataName,
+            size: item.size,
+            timestamp: item.timestamp || Date.now(),
+            localClipboardHash: item.localClipboardHash ?? existing.localClipboardHash,
+            contentId: item.contentId ?? existing.contentId,
+            fileUri: item.type === 'Text' ? item.fileUri : item.fileUri ?? existing.fileUri,
+            isLocalFileReady: true,
+            isDeleted: false,
+            lastModified: Date.now(),
+            lastAccessed: Date.now(),
+            version: existing.version + 1,
+            syncStatus: wasDeleted ? HistorySyncStatus.NeedSync : existing.syncStatus,
+          });
+        } else {
+          addedItems.push({
+            ...item,
+            timestamp: item.timestamp || Date.now(),
+          });
+        }
       }
-    }
 
-    if (updatedItems.length > 0 || addedItems.length > 0) {
-      await historyRepository.replaceMany([...updatedItems, ...addedItems]);
-    }
+      const storedItems = [...updatedItems, ...addedItems];
+      if (storedItems.length > 0) await historyRepository.replaceMany(storedItems);
+      const winningItems = new Map<string, ClipboardItem>();
+      storedItems.forEach((storedItem) => {
+        winningItems.set(storedItem.profileHash.toLowerCase(), storedItem);
+      });
+      const retainedFileUris = new Set(
+        [...winningItems.values()].flatMap((storedItem) =>
+          storedItem.fileUri ? [storedItem.fileUri] : []
+        )
+      );
+      for (const obsoleteFile of obsoleteFiles) {
+        if (retainedFileUris.has(obsoleteFile.uri) || !obsoleteFile.exists) continue;
+        try {
+          obsoleteFile.delete();
+        } catch (error) {
+          log.warn('Failed to remove replaced history payload:', error);
+        }
+      }
 
-    // 清理超出数量的记录（starred/pinned 除外）
+      if (addedItems.length > 0) {
+        this.notifyChangeBatch(addedItems, 'add');
+      }
+      if (updatedItems.length > 0) {
+        this.notifyChangeBatch(updatedItems, 'update');
+      }
+    });
+    // 不能在 profile lock 内取得 cleanup 选中的其他 profile lock。
     await this.cleanupByCount(this.maxHistorySize);
-
-    if (addedItems.length > 0) {
-      this.notifyChangeBatch(addedItems, 'add');
-    }
-    if (updatedItems.length > 0) {
-      this.notifyChangeBatch(updatedItems, 'update');
-    }
   }
 
   // ─── 查询 ──────────────────────────────────────────────
@@ -702,17 +834,19 @@ export class HistoryStorage {
       await this.initialize();
     }
 
-    const existing = await historyRepository.getByProfileHash(profileHash);
-    if (!existing) {
-      throw new Error(`History item not found: ${profileHash}`);
-    }
+    return this.withProfileMutations([profileHash], async () => {
+      const existing = await historyRepository.getByProfileHash(profileHash);
+      if (!existing) {
+        throw new Error(`History item not found: ${profileHash}`);
+      }
 
-    const filteredUpdates = Object.fromEntries(
-      Object.entries(updates).filter(([, value]) => value !== undefined)
-    );
-    const merged = { ...existing, ...filteredUpdates } as ClipboardItem;
-    await historyRepository.replace(merged);
-    this.notifyChange(merged, 'update');
+      const filteredUpdates = Object.fromEntries(
+        Object.entries(updates).filter(([, value]) => value !== undefined)
+      );
+      const merged = { ...existing, ...filteredUpdates } as ClipboardItem;
+      await historyRepository.replace(merged);
+      this.notifyChange(merged, 'update');
+    });
   }
 
   /**
@@ -725,19 +859,21 @@ export class HistoryStorage {
       await this.initialize();
     }
 
-    const updatedItems: ClipboardItem[] = [];
+    return this.withProfileMutations(updates.map((item) => item.profileHash), async () => {
+      const updatedItems: ClipboardItem[] = [];
 
-    for (const { profileHash, updates: itemUpdates } of updates) {
-      const existing = await historyRepository.getByProfileHash(profileHash);
-      if (existing) {
-        updatedItems.push({ ...existing, ...itemUpdates } as ClipboardItem);
+      for (const { profileHash, updates: itemUpdates } of updates) {
+        const existing = await historyRepository.getByProfileHash(profileHash);
+        if (existing) {
+          updatedItems.push({ ...existing, ...itemUpdates } as ClipboardItem);
+        }
       }
-    }
 
-    if (updatedItems.length > 0) {
-      await historyRepository.replaceMany(updatedItems);
-      this.notifyChangeBatch(updatedItems, 'update');
-    }
+      if (updatedItems.length > 0) {
+        await historyRepository.replaceMany(updatedItems);
+        this.notifyChangeBatch(updatedItems, 'update');
+      }
+    });
   }
 
   // ─── 删除 ──────────────────────────────────────────────
@@ -745,89 +881,99 @@ export class HistoryStorage {
   /**
    * 软删除历史记录项
    */
-  public async softDeleteItem(profileHash: string): Promise<void> {
+  public async softDeleteItem(profileHash: string, expectedVersion?: number): Promise<boolean> {
     if (!this.initialized) {
       await this.initialize();
     }
 
-    const existing = await historyRepository.getByProfileHash(profileHash);
-    if (!existing) return;
+    return this.withProfileMutations([profileHash], async () => {
+      const existing = await historyRepository.getByProfileHash(profileHash);
+      if (!existing || (expectedVersion !== undefined && existing.version !== expectedVersion)) return false;
 
-    const updated: ClipboardItem = {
-      ...existing,
-      isDeleted: true,
-      lastModified: Date.now(),
-      version: existing.version + 1,
-      syncStatus: HistorySyncStatus.NeedSync,
-      isLocalFileReady: false,
-    };
-    await historyRepository.replace(updated);
+      const updated: ClipboardItem = {
+        ...existing,
+        isDeleted: true,
+        lastModified: Date.now(),
+        version: existing.version + 1,
+        syncStatus: HistorySyncStatus.NeedSync,
+        isLocalFileReady: false,
+      };
+      await historyRepository.replace(updated);
 
-    // 删除本地文件
-    try {
-      const { deleteHistoryFileDir } = await import('@/platform/files');
-      if (existing.type && existing.profileHash) {
-        await deleteHistoryFileDir(existing.type, existing.profileHash);
-        log.info('Soft deleted, file directory removed:', existing.type, existing.profileHash);
+      // 删除本地文件
+      try {
+        const { deleteHistoryFileDir } = await import('@/platform/files');
+        if (existing.type && existing.profileHash) {
+          await deleteHistoryFileDir(existing.type, existing.profileHash);
+          log.info('Soft deleted, file directory removed:', existing.type, existing.profileHash);
+        }
+      } catch (error) {
+        log.error('Failed to delete history file directory:', error);
       }
-    } catch (error) {
-      log.error('Failed to delete history file directory:', error);
-    }
 
-    this.notifyChange(updated, 'update');
+      this.notifyChange(updated, 'update');
+      return true;
+    });
   }
 
   /**
    * 批量软删除历史记录项
    */
-  public async softDeleteItems(profileHashes: string[]): Promise<void> {
+  public async softDeleteItems(
+    profileHashes: string[],
+    expectedVersions?: ReadonlyMap<string, number>
+  ): Promise<string[]> {
     if (!this.initialized) {
       await this.initialize();
     }
 
-    const now = Date.now();
-    const updatedItems: ClipboardItem[] = [];
+    return this.withProfileMutations(profileHashes, async () => {
+      const now = Date.now();
+      const updatedItems: ClipboardItem[] = [];
 
-    for (const hash of profileHashes) {
-      const existing = await historyRepository.getByProfileHash(hash);
-      if (existing) {
-        updatedItems.push({
-          ...existing,
-          isDeleted: true,
-          lastModified: now,
-          version: (existing.version || 0) + 1,
-          syncStatus: HistorySyncStatus.NeedSync,
-          isLocalFileReady: false,
-        });
+      for (const hash of profileHashes) {
+        const existing = await historyRepository.getByProfileHash(hash);
+        if (existing && (!expectedVersions ||
+            expectedVersions.get(hash.toLowerCase()) === existing.version)) {
+          updatedItems.push({
+            ...existing,
+            isDeleted: true,
+            lastModified: now,
+            version: (existing.version || 0) + 1,
+            syncStatus: HistorySyncStatus.NeedSync,
+            isLocalFileReady: false,
+          });
+        }
       }
-    }
 
-    if (updatedItems.length > 0) {
-      await historyRepository.replaceMany(updatedItems);
+      if (updatedItems.length > 0) {
+        await historyRepository.replaceMany(updatedItems);
 
-      // 批量删除本地文件
-      try {
-        const { deleteHistoryFileDir } = await import('@/platform/files');
-        for (const item of updatedItems) {
-          if (item.type && item.profileHash) {
-            try {
-              await deleteHistoryFileDir(item.type, item.profileHash);
-            } catch (error) {
-              log.error(
-                'Failed to delete history file directory:',
-                item.type,
-                item.profileHash,
-                error
-              );
+        // 批量删除本地文件
+        try {
+          const { deleteHistoryFileDir } = await import('@/platform/files');
+          for (const item of updatedItems) {
+            if (item.type && item.profileHash) {
+              try {
+                await deleteHistoryFileDir(item.type, item.profileHash);
+              } catch (error) {
+                log.error(
+                  'Failed to delete history file directory:',
+                  item.type,
+                  item.profileHash,
+                  error
+                );
+              }
             }
           }
+        } catch (error) {
+          log.error('Failed to delete history file directories:', error);
         }
-      } catch (error) {
-        log.error('Failed to delete history file directories:', error);
-      }
 
-      this.notifyChangeBatch(updatedItems, 'update');
-    }
+        this.notifyChangeBatch(updatedItems, 'update');
+      }
+      return updatedItems.map((item) => item.profileHash);
+    });
   }
 
   /**
@@ -838,21 +984,23 @@ export class HistoryStorage {
       await this.initialize();
     }
 
-    const existing = await historyRepository.getByProfileHash(profileHash);
-    if (!existing) return;
+    return this.withProfileMutations([profileHash], async () => {
+      const existing = await historyRepository.getByProfileHash(profileHash);
+      if (!existing) return;
 
-    await historyRepository.remove(profileHash);
-    this.notifyChange(existing, 'delete');
+      await historyRepository.remove(profileHash);
+      this.notifyChange(existing, 'delete');
 
-    try {
-      const { deleteHistoryFileDir } = await import('@/platform/files');
-      if (existing.type && existing.profileHash) {
-        await deleteHistoryFileDir(existing.type, existing.profileHash);
-        log.info('History file directory deleted:', existing.type, existing.profileHash);
+      try {
+        const { deleteHistoryFileDir } = await import('@/platform/files');
+        if (existing.type && existing.profileHash) {
+          await deleteHistoryFileDir(existing.type, existing.profileHash);
+          log.info('History file directory deleted:', existing.type, existing.profileHash);
+        }
+      } catch (error) {
+        log.error('Failed to delete history file directory:', error);
       }
-    } catch (error) {
-      log.error('Failed to delete history file directory:', error);
-    }
+    });
   }
 
   /**
@@ -863,31 +1011,33 @@ export class HistoryStorage {
       await this.initialize();
     }
 
-    const deletedItems: ClipboardItem[] = [];
-    for (const hash of profileHashes) {
-      const existing = await historyRepository.getByProfileHash(hash);
-      if (existing) {
-        deletedItems.push(existing);
-      }
-    }
-
-    if (deletedItems.length > 0) {
-      await historyRepository.removeMany(deletedItems.map((i) => i.profileHash));
-      this.notifyChangeBatch(deletedItems, 'delete');
-
-      for (const item of deletedItems) {
-        try {
-          const { deleteHistoryFileDir } = await import('@/platform/files');
-          if (item.type && item.profileHash) {
-            await deleteHistoryFileDir(item.type, item.profileHash);
-          }
-        } catch (error) {
-          log.error('Failed to delete history file directory:', error);
+    return this.withProfileMutations(profileHashes, async () => {
+      const deletedItems: ClipboardItem[] = [];
+      for (const hash of profileHashes) {
+        const existing = await historyRepository.getByProfileHash(hash);
+        if (existing) {
+          deletedItems.push(existing);
         }
       }
-    }
 
-    return deletedItems;
+      if (deletedItems.length > 0) {
+        await historyRepository.removeMany(deletedItems.map((i) => i.profileHash));
+        this.notifyChangeBatch(deletedItems, 'delete');
+
+        for (const item of deletedItems) {
+          try {
+            const { deleteHistoryFileDir } = await import('@/platform/files');
+            if (item.type && item.profileHash) {
+              await deleteHistoryFileDir(item.type, item.profileHash);
+            }
+          } catch (error) {
+            log.error('Failed to delete history file directory:', error);
+          }
+        }
+      }
+
+      return deletedItems;
+    });
   }
 
   /**
@@ -959,23 +1109,25 @@ export class HistoryStorage {
       await this.initialize();
     }
 
-    const existing = await historyRepository.getByProfileHash(profileHash);
-    if (!existing) return false;
+    return this.withProfileMutations([profileHash], async () => {
+      const existing = await historyRepository.getByProfileHash(profileHash);
+      if (!existing) return false;
 
-    const starred = !existing.starred;
-    const updated: ClipboardItem = {
-      ...existing,
-      starred,
-      lastModified: Date.now(),
-      version: existing.version + 1,
-      syncStatus:
-        existing.syncStatus !== HistorySyncStatus.LocalOnly
-          ? HistorySyncStatus.NeedSync
-          : existing.syncStatus,
-    };
-    await historyRepository.replace(updated);
-    this.notifyChange(updated, 'update');
-    return starred;
+      const starred = !existing.starred;
+      const updated: ClipboardItem = {
+        ...existing,
+        starred,
+        lastModified: Date.now(),
+        version: existing.version + 1,
+        syncStatus:
+          existing.syncStatus !== HistorySyncStatus.LocalOnly
+            ? HistorySyncStatus.NeedSync
+            : existing.syncStatus,
+      };
+      await historyRepository.replace(updated);
+      this.notifyChange(updated, 'update');
+      return starred;
+    });
   }
 
   /**
@@ -986,23 +1138,25 @@ export class HistoryStorage {
       await this.initialize();
     }
 
-    const existing = await historyRepository.getByProfileHash(profileHash);
-    if (!existing) return false;
+    return this.withProfileMutations([profileHash], async () => {
+      const existing = await historyRepository.getByProfileHash(profileHash);
+      if (!existing) return false;
 
-    const pinned = !existing.pinned;
-    const updated: ClipboardItem = {
-      ...existing,
-      pinned,
-      lastModified: Date.now(),
-      version: existing.version + 1,
-      syncStatus:
-        existing.syncStatus !== HistorySyncStatus.LocalOnly
-          ? HistorySyncStatus.NeedSync
-          : existing.syncStatus,
-    };
-    await historyRepository.replace(updated);
-    this.notifyChange(updated, 'update');
-    return pinned;
+      const pinned = !existing.pinned;
+      const updated: ClipboardItem = {
+        ...existing,
+        pinned,
+        lastModified: Date.now(),
+        version: existing.version + 1,
+        syncStatus:
+          existing.syncStatus !== HistorySyncStatus.LocalOnly
+            ? HistorySyncStatus.NeedSync
+            : existing.syncStatus,
+      };
+      await historyRepository.replace(updated);
+      this.notifyChange(updated, 'update');
+      return pinned;
+    });
   }
 
   /**
@@ -1013,12 +1167,14 @@ export class HistoryStorage {
       await this.initialize();
     }
 
-    const existing = await historyRepository.getByProfileHash(profileHash);
-    if (!existing) return;
+    return this.withProfileMutations([profileHash], async () => {
+      const existing = await historyRepository.getByProfileHash(profileHash);
+      if (!existing) return;
 
-    const updated: ClipboardItem = { ...existing, lastAccessed: Date.now() };
-    await historyRepository.replace(updated);
-    this.notifyChange(updated, 'update');
+      const updated: ClipboardItem = { ...existing, lastAccessed: Date.now() };
+      await historyRepository.replace(updated);
+      this.notifyChange(updated, 'update');
+    });
   }
 
   /**
@@ -1033,16 +1189,18 @@ export class HistoryStorage {
       await this.initialize();
     }
 
-    const existing = await historyRepository.getByProfileHash(profileHash);
-    if (!existing) return;
+    return this.withProfileMutations([profileHash], async () => {
+      const existing = await historyRepository.getByProfileHash(profileHash);
+      if (!existing) return;
 
-    const updated: ClipboardItem = {
-      ...existing,
-      syncStatus,
-      ...(version !== undefined ? { version } : {}),
-    };
-    await historyRepository.replace(updated);
-    this.notifyChange(updated, 'update');
+      const updated: ClipboardItem = {
+        ...existing,
+        syncStatus,
+        ...(version !== undefined ? { version } : {}),
+      };
+      await historyRepository.replace(updated);
+      this.notifyChange(updated, 'update');
+    });
   }
 
   /**
@@ -1053,12 +1211,14 @@ export class HistoryStorage {
       await this.initialize();
     }
 
-    const existing = await historyRepository.getByProfileHash(profileHash);
-    if (!existing) return;
+    return this.withProfileMutations([profileHash], async () => {
+      const existing = await historyRepository.getByProfileHash(profileHash);
+      if (!existing) return;
 
-    await historyRepository.replace({
-      ...existing,
-      useCount: (existing.useCount || 0) + 1,
+      await historyRepository.replace({
+        ...existing,
+        useCount: (existing.useCount || 0) + 1,
+      });
     });
   }
 
@@ -1239,40 +1399,70 @@ export class HistoryStorage {
       return 0;
     }
 
-    // 非 starred/pinned 的活动记录,按最旧在前。P2P 发送回执会把本地条目标成 Synced/NeedSync,
-    // 不能因同步状态跳过;软删除记录不占上限,也不能在待同步的删除被读取前被物理清掉。
-    const active = await historyRepository.find(undefined, { field: 'timestamp', order: 'asc' });
-    const candidates = active.filter((item) => !item.starred && !item.pinned);
+    return this.withCleanupMutation(async () => {
+      let cleanedCount = 0;
 
-    log.info(
-      `cleanupByCount: active items=${active.length}, candidates=${candidates.length}, maxCount=${maxCount}`
-    );
+      while (true) {
+        // 非 starred/pinned 的活动记录,按最旧在前。P2P 发送回执会把本地条目标成 Synced/NeedSync,
+        // 不能因同步状态跳过;软删除记录不占上限,也不能在待同步的删除被读取前被物理清掉。
+        const active = await historyRepository.find(undefined, { field: 'timestamp', order: 'asc' });
+        const candidates = active.filter((item) => !item.starred && !item.pinned);
 
-    if (candidates.length <= maxCount) {
-      log.info('cleanupByCount skipped: no items to delete');
-      return 0;
-    }
+        log.info(
+          `cleanupByCount: active items=${active.length}, candidates=${candidates.length}, maxCount=${maxCount}`
+        );
 
-    const toDeleteCount = candidates.length - maxCount;
-    const itemsToDelete = candidates.slice(0, toDeleteCount);
-
-    await historyRepository.removeMany(itemsToDelete.map((item) => item.profileHash));
-
-    for (const item of itemsToDelete) {
-      try {
-        const { deleteHistoryFileDir } = await import('@/platform/files');
-        if (item.type && item.profileHash) {
-          await deleteHistoryFileDir(item.type, item.profileHash);
+        if (candidates.length <= maxCount) {
+          if (cleanedCount === 0) log.info('cleanupByCount skipped: no items to delete');
+          log.info(`Cleaned up ${cleanedCount} records`);
+          return cleanedCount;
         }
-      } catch (error) {
-        log.error('Failed to delete history file directory:', error);
+
+        const selected = candidates.slice(0, candidates.length - maxCount);
+        const selectedVersions = new Map(
+          selected.map((item) => [item.profileHash.toLowerCase(), item.version])
+        );
+        const itemsToDelete = await this.withProfileMutations(
+          selected.map((item) => item.profileHash),
+          async () => {
+            // A receive may have replaced a selected row while cleanup waited for its lock.
+            // Recompute the budget and delete only the same eligible row versions.
+            const latest = await historyRepository.find(undefined, {
+              field: 'timestamp',
+              order: 'asc',
+            });
+            const latestCandidates = latest.filter((item) => !item.starred && !item.pinned);
+            const deleteBudget = Math.max(0, latestCandidates.length - maxCount);
+            const currentSelection = latestCandidates
+              .slice(0, deleteBudget)
+              .filter((item) =>
+                selectedVersions.get(item.profileHash.toLowerCase()) === item.version
+              );
+            if (currentSelection.length > 0) {
+              await historyRepository.removeMany(
+                currentSelection.map((item) => item.profileHash)
+              );
+              const { deleteHistoryFileDir } = await import('@/platform/files');
+              for (const item of currentSelection) {
+                try {
+                  if (item.type && item.profileHash) {
+                    await deleteHistoryFileDir(item.type, item.profileHash);
+                  }
+                } catch (error) {
+                  log.error('Failed to delete history file directory:', error);
+                }
+              }
+            }
+            return currentSelection;
+          }
+        );
+
+        if (itemsToDelete.length > 0) {
+          cleanedCount += itemsToDelete.length;
+          this.notifyChangeBatch(itemsToDelete, 'delete');
+        }
       }
-    }
-
-    this.notifyChangeBatch(itemsToDelete, 'delete');
-
-    log.info(`Cleaned up ${toDeleteCount} records`);
-    return toDeleteCount;
+    });
   }
 
   /**

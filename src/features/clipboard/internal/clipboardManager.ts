@@ -3,7 +3,6 @@
  * 剪贴板管理器 - 处理剪贴板读写操作
  */
 
-import * as Clipboard from 'expo-clipboard';
 import * as ClipboardProxy from '@/utils/clipboardProxy';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
@@ -116,12 +115,19 @@ export class ClipboardManager {
     const localClipboardHash = await calculateFileHash(file.filePath);
     const historyItem = await historyStorage.getItemByLocalHash(localClipboardHash);
     if (historyItem?.type === 'File' && historyItem.hasData && historyItem.dataName) {
-      const { getHistoryFileUri } = await import('@/platform/files');
-      const historyFileUri = await getHistoryFileUri(
-        'File',
-        historyItem.profileHash,
-        historyItem.dataName
-      );
+      let historyFileUri: string | null = null;
+      if (historyItem.fileUri) {
+        const persistedFile = new FileSystem.File(historyItem.fileUri);
+        if (persistedFile.exists) historyFileUri = historyItem.fileUri;
+      }
+      if (!historyFileUri) {
+        const { getHistoryFileUri } = await import('@/platform/files');
+        historyFileUri = await getHistoryFileUri(
+          'File',
+          historyItem.profileHash,
+          historyItem.dataName
+        );
+      }
       if (historyFileUri) {
         try {
           new FileSystem.File(file.filePath).delete();
@@ -170,12 +176,19 @@ export class ClipboardManager {
       ? await historyStorage.getItemByLocalHash(cached.localClipboardHash)
       : null;
     if (historyItem?.type === 'File' && historyItem.hasData && historyItem.dataName) {
-      const { getHistoryFileUri } = await import('@/platform/files');
-      const historyFileUri = await getHistoryFileUri(
-        'File',
-        historyItem.profileHash,
-        historyItem.dataName
-      );
+      let historyFileUri: string | null = null;
+      if (historyItem.fileUri) {
+        const persistedFile = new FileSystem.File(historyItem.fileUri);
+        if (persistedFile.exists) historyFileUri = historyItem.fileUri;
+      }
+      if (!historyFileUri) {
+        const { getHistoryFileUri } = await import('@/platform/files');
+        historyFileUri = await getHistoryFileUri(
+          'File',
+          historyItem.profileHash,
+          historyItem.dataName
+        );
+      }
       if (historyFileUri) {
         this._lastFileContent = {
           ...cached,

@@ -20,7 +20,9 @@ jest.mock('../utils/hash', () => ({
 }));
 
 import { ClipboardManager } from '../features/clipboard/internal/clipboardManager';
+import { historyStorage } from '../features/history';
 import { Platform } from 'react-native';
+import { File } from 'expo-file-system';
 
 describe('ClipboardManager file reads', () => {
   const originalPlatform = Platform.OS;
@@ -39,10 +41,13 @@ describe('ClipboardManager file reads', () => {
       sourceId: 'content://uc-engine/received-plan',
     });
     mockCalculateFileHash.mockResolvedValue('FILE_HASH');
+    jest.spyOn(historyStorage, 'getItemByLocalHash').mockResolvedValue(null);
+    (File as unknown as { existsMock: jest.Mock }).existsMock.mockReturnValue(true);
   });
 
   afterEach(() => {
     Object.defineProperty(Platform, 'OS', { configurable: true, value: originalPlatform });
+    jest.restoreAllMocks();
   });
 
   it('turns a clipboard file into content that can be stored in history', async () => {
@@ -108,6 +113,54 @@ describe('ClipboardManager file reads', () => {
     expect(mockGetFileSourceIdAsync).toHaveBeenCalledTimes(2);
     expect(mockSaveFileToFileAsync).toHaveBeenCalledTimes(1);
     expect(mockCalculateFileHash).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the persisted history file URI when collision-safe storage changed its name', async () => {
+    jest.spyOn(historyStorage, 'getItemByLocalHash').mockResolvedValue({
+      type: 'File',
+      hasData: true,
+      dataName: 'received-plan.txt',
+      profileHash: 'PROFILE_HASH',
+      fileUri: 'file://documents/history/File/PROFILE_HASH/uuid-received-plan.txt',
+      size: 901,
+    } as never);
+    const manager = new ClipboardManager();
+
+    await expect(manager.getClipboardContent()).resolves.toEqual(
+      expect.objectContaining({
+        fileUri: 'file://documents/history/File/PROFILE_HASH/uuid-received-plan.txt',
+        fileName: 'received-plan.txt',
+        fileSize: 901,
+      })
+    );
+  });
+
+  it('refreshes cached clipboard content from the latest persisted history URI', async () => {
+    const getHistoryItem = jest.spyOn(historyStorage, 'getItemByLocalHash');
+    getHistoryItem
+      .mockResolvedValueOnce({
+        type: 'File',
+        hasData: true,
+        dataName: 'received-plan.txt',
+        profileHash: 'PROFILE_HASH',
+        fileUri: 'file://documents/history/File/PROFILE_HASH/old-received-plan.txt',
+      } as never)
+      .mockResolvedValue({
+        type: 'File',
+        hasData: true,
+        dataName: 'received-plan.txt',
+        profileHash: 'PROFILE_HASH',
+        fileUri: 'file://documents/history/File/PROFILE_HASH/new-received-plan.txt',
+      } as never);
+    const manager = new ClipboardManager();
+
+    await manager.getClipboardContent();
+    const cached = await manager.getClipboardContent();
+
+    expect(cached?.fileUri).toBe(
+      'file://documents/history/File/PROFILE_HASH/new-received-plan.txt'
+    );
+    expect(mockSaveFileToFileAsync).toHaveBeenCalledTimes(1);
   });
 
   it('coalesces concurrent reads of the same clipboard file', async () => {

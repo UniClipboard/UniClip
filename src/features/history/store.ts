@@ -81,7 +81,7 @@ interface HistoryState {
   deleteItem: (id: string) => Promise<void>;
 
   /** 批量删除 */
-  deleteItems: (ids: string[]) => Promise<void>;
+  deleteItems: (ids: string[], expectedVersions?: ReadonlyMap<string, number>) => Promise<void>;
 
   /** 切换标记 */
   toggleStar: (id: string) => Promise<void>;
@@ -304,20 +304,20 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     set({ error: null });
 
     try {
-      await historyStorage.softDeleteItem(profileHash);
-      set({ lastDeletedHashes: [profileHash] });
+      const deleted = await historyStorage.softDeleteItem(profileHash);
+      set({ lastDeletedHashes: deleted ? [profileHash] : [] });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to delete item';
       set({ error: errorMessage });
     }
   },
 
-  deleteItems: async (profileHashes: string[]) => {
+  deleteItems: async (profileHashes: string[], expectedVersions?: ReadonlyMap<string, number>) => {
     set({ error: null });
 
     try {
-      await historyStorage.softDeleteItems(profileHashes);
-      set({ lastDeletedHashes: profileHashes });
+      const deleted = await historyStorage.softDeleteItems(profileHashes, expectedVersions);
+      set({ lastDeletedHashes: deleted });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to delete items';
       set({ error: errorMessage });
