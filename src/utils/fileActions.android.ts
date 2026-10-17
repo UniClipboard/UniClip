@@ -6,7 +6,6 @@
  * 两端一致，直接从 shared 复用。
  */
 
-import { NativeModules, Platform } from 'react-native';
 import { nativeCopyFile } from 'android-util';
 import { createLogger } from '@/support/observability';
 import type { FileActions } from './fileActions.types';
@@ -71,27 +70,15 @@ export async function saveFile(fileUri: string, fileName?: string): Promise<bool
     mimeType === '*/*' ? 'application/octet-stream' : mimeType
   );
 
-  // 运行时检查，避免模块顶层静态求值时 NativeModules 尚未注入的问题
-  const hashModule = Platform.OS === 'android' ? NativeModules.NativeUtilModule ?? null : null;
-  log.info(
-    'NativeModules.NativeUtilModule:',
-    hashModule,
-    'keys:',
-    hashModule ? Object.keys(hashModule) : 'N/A'
-  );
-
-  if (hashModule?.copyFile) {
-    // 原生流式拷贝：FileChannel.transferTo，不把文件读入 JS/Java 堆
+  try {
     await nativeCopyFile(fileUri, destUri);
-  } else {
-    log.warn('falling back to base64, hashModule:', hashModule);
-    // 降级：base64 读写（原生模块未加载时）
-    const content = await FileSystem.readAsStringAsync(fileUri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-    await FileSystem.writeAsStringAsync(destUri, content, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
+  } catch (error) {
+    try {
+      await FileSystem.deleteAsync(destUri, { idempotent: true });
+    } catch (cleanupError) {
+      log.warn('Failed to remove partial saved file:', cleanupError);
+    }
+    throw error;
   }
 
   return true;
