@@ -16,9 +16,16 @@ const read = (relativePath: string) =>
   fs.readFileSync(path.join(__dirname, '..', relativePath), 'utf8');
 
 type Api = ReturnType<typeof useUndoableHistoryDelete>;
+type DeleteTarget = { profileHash: string; version: number };
 
-function renderDeleteHook(mode: HistoryDeleteMode) {
-  const deleteItems = jest.fn(async (_ids: string[]) => {});
+const target = (profileHash: string, version = 0): DeleteTarget => ({ profileHash, version });
+
+function renderDeleteHook(
+  mode: HistoryDeleteMode,
+  deleteItems = jest.fn(
+    async (_ids: string[], _expectedVersions?: ReadonlyMap<string, number>) => {}
+  )
+) {
   const api: { current: Api | null } = { current: null };
   const messages = {
     deleted: 'Deleted',
@@ -38,7 +45,15 @@ function renderDeleteHook(mode: HistoryDeleteMode) {
   act(() => {
     renderer = TestRenderer.create(<Harness />);
   });
-  return { api, deleteItems, unmount: () => act(() => renderer.unmount()) };
+  return {
+    api,
+    deleteItems,
+    unmount: () =>
+      act(async () => {
+        renderer.unmount();
+        await Promise.resolve();
+      }),
+  };
 }
 
 describe('Android undoable history delete', () => {
@@ -47,16 +62,16 @@ describe('Android undoable history delete', () => {
   it('hides items immediately and offers Undo without deleting', async () => {
     const { api, deleteItems } = renderDeleteHook('undo');
     await act(async () => {
-      await api.current!.requestDelete(['a', 'b'], { announce: false });
+      await api.current!.requestDelete([target('a'), target('b')], { announce: false });
     });
 
-    expect(api.current!.pendingIds.has('a')).toBe(true);
+    expect(api.current!.pendingVersions.get('a')).toBe(0);
     const message = useMessageStore.getState().message!;
     expect(message.text).toBe('2 deleted');
     expect(message.action?.label).toBe('Undo');
 
     act(() => message.action!.onPress());
-    expect(api.current!.pendingIds.size).toBe(0);
+    expect(api.current!.pendingVersions.size).toBe(0);
     // 撤销后即便 snackbar 超时回调也不能再提交删除
     message.onTimeout?.();
     expect(deleteItems).not.toHaveBeenCalled();
@@ -65,7 +80,7 @@ describe('Android undoable history delete', () => {
   it('commits the soft delete exactly once when the snackbar times out', async () => {
     const { api, deleteItems } = renderDeleteHook('undo');
     await act(async () => {
-      await api.current!.requestDelete(['a'], { announce: true });
+      await api.current!.requestDelete([target('A', 3)], { announce: true });
     });
     const message = useMessageStore.getState().message!;
     await act(async () => {
@@ -73,39 +88,107 @@ describe('Android undoable history delete', () => {
       message.onTimeout?.();
     });
     expect(deleteItems).toHaveBeenCalledTimes(1);
-    expect(deleteItems).toHaveBeenCalledWith(['a']);
-    expect(api.current!.pendingIds.size).toBe(0);
+    expect(deleteItems).toHaveBeenCalledWith(['A'], new Map([['a', 3]]));
+    expect(api.current!.pendingVersions.size).toBe(0);
   });
 
   it('commits a pending delete when a newer message replaces the snackbar', async () => {
     const { api, deleteItems } = renderDeleteHook('undo');
     await act(async () => {
-      await api.current!.requestDelete(['a'], { announce: true });
+      await api.current!.requestDelete([target('a')], { announce: true });
     });
-    act(() => useMessageStore.getState().showMessage('Copied', 'success'));
-    expect(deleteItems).toHaveBeenCalledWith(['a']);
+    await act(async () => {
+      useMessageStore.getState().showMessage('Copied', 'success');
+      await Promise.resolve();
+    });
+    expect(deleteItems).toHaveBeenCalledWith(['a'], new Map([['a', 0]]));
   });
 
   it('commits outstanding deletes when the screen unmounts', async () => {
     const { api, deleteItems, unmount } = renderDeleteHook('undo');
     await act(async () => {
-      await api.current!.requestDelete(['a'], { announce: true });
+      await api.current!.requestDelete([target('a')], { announce: true });
     });
-    unmount();
-    expect(deleteItems).toHaveBeenCalledWith(['a']);
+    await unmount();
+    expect(deleteItems).toHaveBeenCalledWith(['a'], new Map([['a', 0]]));
   });
 
   it('keeps the iOS immediate policy: delete at once, announce single deletes only', async () => {
     const { api, deleteItems } = renderDeleteHook('immediate');
     await act(async () => {
-      await api.current!.requestDelete(['a', 'b'], { announce: false });
+      await api.current!.requestDelete([target('a'), target('b')], { announce: false });
     });
     expect(deleteItems).toHaveBeenCalledWith(['a', 'b']);
     expect(useMessageStore.getState().message).toBeNull();
-    expect(api.current!.pendingIds.size).toBe(0);
+    expect(api.current!.pendingVersions.size).toBe(0);
+  });
+
+  it('shows a newly received version while the deleted snapshot is pending', async () => {
+    const { api } = renderDeleteHook('undo');
+    await act(async () => {
+      await api.current!.requestDelete([target('same-hash', 0)], { announce: true });
+    });
+
+    const receivedItems = [target('same-hash', 1)];
+    const visibleItems = receivedItems.filter(
+      (item) =>
+        api.current!.pendingVersions.get(item.profileHash.toLowerCase()) !== item.version
+    );
+    expect(visibleItems).toEqual(receivedItems);
+  });
+
+  it('Undo after a new version arrives only reveals the UI and never writes storage', async () => {
+    const { api, deleteItems } = renderDeleteHook('undo');
+    await act(async () => {
+      await api.current!.requestDelete([target('same-hash', 0)], { announce: true });
+    });
+    const message = useMessageStore.getState().message!;
+    const receivedItems = [target('same-hash', 1)];
+
+    act(() => message.action!.onPress());
+
+    expect(api.current!.pendingVersions.size).toBe(0);
+    expect(
+      receivedItems.filter(
+        (item) =>
+          api.current!.pendingVersions.get(item.profileHash.toLowerCase()) !== item.version
+      )
+    ).toEqual(receivedItems);
+    expect(deleteItems).not.toHaveBeenCalled();
+  });
+
+  it('does not let an old commit clear a newer pending version', async () => {
+    let resolveOld!: () => void;
+    const oldCommit = new Promise<void>((resolve) => {
+      resolveOld = resolve;
+    });
+    const deleteItems = jest
+      .fn<Promise<void>, [string[], ReadonlyMap<string, number>?]>()
+      .mockReturnValueOnce(oldCommit)
+      .mockResolvedValue(undefined);
+    const { api } = renderDeleteHook('undo', deleteItems);
+    await act(async () => {
+      await api.current!.requestDelete([target('same-hash', 0)], { announce: true });
+    });
+    const oldMessage = useMessageStore.getState().message!;
+    act(() => oldMessage.onTimeout?.());
+    await act(async () => {
+      await api.current!.requestDelete([target('same-hash', 1)], { announce: true });
+    });
+
+    await act(async () => resolveOld());
+
+    expect(api.current!.pendingVersions.get('same-hash')).toBe(1);
+  });
+
+  it('wires Home filtering and result count to matching snapshot versions', () => {
+    const controller = read('screens/useHomeController.ts');
+    expect(controller).toContain(
+      'pendingDeleteVersions.get(item.profileHash.toLowerCase()) !== item.version'
+    );
+    expect(controller).toContain('storeResultCount - hiddenPendingDeleteCount');
   });
 });
-
 describe('Android Material 3 interaction contracts', () => {
   it('enters selection mode on long press on Android and keeps the iOS context menu', () => {
     const controller = read('screens/useHomeController.ts');
@@ -159,7 +242,6 @@ describe('Android Material 3 interaction contracts', () => {
     expect(read('theme/m3Typography.ts')).toContain('export const M3_MIN_TOUCH_TARGET = 48;');
   });
 });
-
 describe('Android Material 3 sheets, feedback and tokens', () => {
   it('lets the bottom sheet drag handle actually dismiss the sheet', () => {
     const sheet = read('components/ui/AppBottomSheet.android.tsx');

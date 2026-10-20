@@ -114,19 +114,23 @@ export function useHomeController(
     }),
     [t]
   );
-  const { pendingIds: pendingDeleteIds, requestDelete } = useUndoableHistoryDelete({
+  const { pendingVersions: pendingDeleteVersions, requestDelete } = useUndoableHistoryDelete({
     deleteItems,
     showMessage,
     messages: deleteMessages,
   });
   const items = useMemo(
     () =>
-      pendingDeleteIds.size === 0
+      pendingDeleteVersions.size === 0
         ? storeItems
-        : storeItems.filter((item) => !pendingDeleteIds.has(item.profileHash)),
-    [storeItems, pendingDeleteIds]
+        : storeItems.filter(
+            (item) =>
+              pendingDeleteVersions.get(item.profileHash.toLowerCase()) !== item.version
+          ),
+    [storeItems, pendingDeleteVersions]
   );
-  const resultCount = Math.max(0, storeResultCount - pendingDeleteIds.size);
+  const hiddenPendingDeleteCount = storeItems.length - items.length;
+  const resultCount = Math.max(0, storeResultCount - hiddenPendingDeleteCount);
   // 首页历史的显示方式(网格 / 分组列表 / 紧凑列表),按设备保存
   const {
     historyLayout,
@@ -420,7 +424,7 @@ export function useHomeController(
   // 单条删除(列表左滑 / 读屏删除操作),与动作菜单的删除同走可撤销删除
   const handleItemDelete = useCallback(
     (item: ClipboardItem) => {
-      void requestDelete([item.profileHash], { announce: true });
+      void requestDelete([item], { announce: true });
     },
     [requestDelete]
   );
@@ -560,7 +564,7 @@ export function useHomeController(
           toggleSelection(item.profileHash);
         },
         onDelete: async () => {
-          await requestDelete([item.profileHash], { announce: true });
+          await requestDelete([item], { announce: true });
         },
       }),
     [
@@ -602,11 +606,11 @@ export function useHomeController(
   }, [selectedIds.size, items.length, clearSelection, selectAll]);
 
   const handleBatchDelete = useCallback(async () => {
-    const ids = [...selectedIds];
+    const targets = items.filter((item) => selectedIds.has(item.profileHash));
     setIsSelectMode(false);
     clearSelection();
-    await requestDelete(ids, { announce: false });
-  }, [selectedIds, clearSelection, requestDelete]);
+    await requestDelete(targets, { announce: false });
+  }, [items, selectedIds, clearSelection, requestDelete]);
 
   // 多选恰好选中一项时,上下文操作栏的溢出菜单承接该项的内容类动作(Android 长按入口)。
   // 复制 / 分享 / 删除已在底栏,多选本身即当前模式,故剔除。

@@ -9,12 +9,15 @@ import { ClipboardManager } from './clipboardManager';
 import { ClipboardContent, ClipboardChangeCallback, ClipboardMonitorOptions } from '@/types';
 import { setTimer, clearTimer } from 'native-timer';
 import { getPasteboardChangeCount } from 'app-group-store';
+import { File } from 'expo-file-system';
 import * as ClipboardProxy from '@/utils/clipboardProxy';
 import { getBackgroundClipboardAdapter } from '@/utils/androidBackgroundClipboardAccess';
 import type { BackgroundClipboardAdapter } from '@/utils/backgroundClipboardAccess';
 import { canAutoPushInBackground } from '@/utils/syncDirectionPolicy';
 import { getCurrentNetworkContext } from '@/platform/network';
 import { useSettingsStore } from '@/features/settings';
+import { historyStorage } from '@/features/history';
+import { CLIPBOARD_TEMP_DIR } from '@/platform/files';
 
 const LAST_CLIPBOARD_HASH_KEY = '@last_clipboard_hash';
 const IOS_DENIED_CHANGE_COUNT_KEY = '@ios_pasteboard_denied_change_count';
@@ -435,6 +438,26 @@ export class ClipboardMonitor {
     return false;
   }
 
+  private async retryDroppedFile(content: ClipboardContent): Promise<void> {
+    if (this.lastContent !== content) return;
+    const tempPrefix = `${CLIPBOARD_TEMP_DIR.uri.replace(/\/$/, '')}/`;
+    if (!content.fileUri?.startsWith(tempPrefix)) return;
+
+    try {
+      const historyItem = content.profileHash
+        ? await historyStorage.getItem(content.profileHash)
+        : null;
+      // Only retry undelivered temporary files; history deletion must stay terminal.
+      if (historyItem) return;
+      if (this.lastContent !== content) return;
+
+      this.lastContent = null;
+      await AsyncStorage.removeItem(LAST_CLIPBOARD_HASH_KEY);
+    } catch (error) {
+      log.error('Failed to reset dropped clipboard file hash:', error);
+    }
+  }
+
   /**
    * 通知所有回调（带防抖）
    * 使用 native-timer 替代 JS setTimeout，确保 Android 后台也能可靠触发
@@ -453,6 +476,22 @@ export class ClipboardMonitor {
         if (this.debounceTimerTag) {
           clearTimer(this.debounceTimerTag);
           this.debounceTimerTag = null;
+        }
+        if (content.type === 'File') {
+          try {
+            if (!content.fileUri || !new File(content.fileUri).exists) {
+              log.debug('Skipping deferred clipboard file because its payload no longer exists');
+              void this.retryDroppedFile(content);
+              return;
+            }
+          } catch (error) {
+            log.debug(
+              'Skipping deferred clipboard file because its payload cannot be checked:',
+              error
+            );
+            void this.retryDroppedFile(content);
+            return;
+          }
         }
         this.callbacks.forEach((callback) => {
           try {
