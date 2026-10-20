@@ -10,6 +10,7 @@ export default [
     ignores: [
       'node_modules/**',
       '.expo/**',
+      '.herdr-project/**',
       'dist/**',
       '**/build/**',
       '**/.artifacts/**',

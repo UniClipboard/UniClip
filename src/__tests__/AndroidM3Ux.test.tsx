@@ -4,6 +4,7 @@ import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { useMessageStore } from '@/stores/messageStore';
 import { useUndoableHistoryDelete } from '@/screens/useUndoableHistoryDelete';
+import type { HistoryItemRevision } from '@/types/clipboard';
 import type { HistoryDeleteMode } from '@/utils/historyDeleteMode.types';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -23,7 +24,7 @@ const target = (profileHash: string, version = 0): DeleteTarget => ({ profileHas
 function renderDeleteHook(
   mode: HistoryDeleteMode,
   deleteItems = jest.fn(
-    async (_ids: string[], _expectedVersions?: ReadonlyMap<string, number>) => {}
+    async (_ids: string[], _expectedVersions?: ReadonlyMap<string, HistoryItemRevision>) => {}
   )
 ) {
   const api: { current: Api | null } = { current: null };
@@ -65,7 +66,7 @@ describe('Android undoable history delete', () => {
       await api.current!.requestDelete([target('a'), target('b')], { announce: false });
     });
 
-    expect(api.current!.pendingVersions.get('a')).toBe(0);
+    expect(api.current!.pendingVersions.get('a')).toMatchObject({ version: 0 });
     const message = useMessageStore.getState().message!;
     expect(message.text).toBe('2 deleted');
     expect(message.action?.label).toBe('Undo');
@@ -88,7 +89,7 @@ describe('Android undoable history delete', () => {
       message.onTimeout?.();
     });
     expect(deleteItems).toHaveBeenCalledTimes(1);
-    expect(deleteItems).toHaveBeenCalledWith(['A'], new Map([['a', 3]]));
+    expect(deleteItems).toHaveBeenCalledWith(['A'], new Map([['a', { version: 3, incarnationId: undefined }]]));
     expect(api.current!.pendingVersions.size).toBe(0);
   });
 
@@ -101,7 +102,7 @@ describe('Android undoable history delete', () => {
       useMessageStore.getState().showMessage('Copied', 'success');
       await Promise.resolve();
     });
-    expect(deleteItems).toHaveBeenCalledWith(['a'], new Map([['a', 0]]));
+    expect(deleteItems).toHaveBeenCalledWith(['a'], new Map([['a', { version: 0, incarnationId: undefined }]]));
   });
 
   it('commits outstanding deletes when the screen unmounts', async () => {
@@ -110,7 +111,7 @@ describe('Android undoable history delete', () => {
       await api.current!.requestDelete([target('a')], { announce: true });
     });
     await unmount();
-    expect(deleteItems).toHaveBeenCalledWith(['a'], new Map([['a', 0]]));
+    expect(deleteItems).toHaveBeenCalledWith(['a'], new Map([['a', { version: 0, incarnationId: undefined }]]));
   });
 
   it('keeps the iOS immediate policy: delete at once, announce single deletes only', async () => {
@@ -132,7 +133,7 @@ describe('Android undoable history delete', () => {
     const receivedItems = [target('same-hash', 1)];
     const visibleItems = receivedItems.filter(
       (item) =>
-        api.current!.pendingVersions.get(item.profileHash.toLowerCase()) !== item.version
+        api.current!.pendingVersions.get(item.profileHash.toLowerCase())?.version !== item.version
     );
     expect(visibleItems).toEqual(receivedItems);
   });
@@ -151,7 +152,7 @@ describe('Android undoable history delete', () => {
     expect(
       receivedItems.filter(
         (item) =>
-          api.current!.pendingVersions.get(item.profileHash.toLowerCase()) !== item.version
+          api.current!.pendingVersions.get(item.profileHash.toLowerCase())?.version !== item.version
       )
     ).toEqual(receivedItems);
     expect(deleteItems).not.toHaveBeenCalled();
@@ -163,7 +164,7 @@ describe('Android undoable history delete', () => {
       resolveOld = resolve;
     });
     const deleteItems = jest
-      .fn<Promise<void>, [string[], ReadonlyMap<string, number>?]>()
+      .fn<Promise<void>, [string[], ReadonlyMap<string, HistoryItemRevision>?]>()
       .mockReturnValueOnce(oldCommit)
       .mockResolvedValue(undefined);
     const { api } = renderDeleteHook('undo', deleteItems);
@@ -178,13 +179,13 @@ describe('Android undoable history delete', () => {
 
     await act(async () => resolveOld());
 
-    expect(api.current!.pendingVersions.get('same-hash')).toBe(1);
+    expect(api.current!.pendingVersions.get('same-hash')).toMatchObject({ version: 1 });
   });
 
   it('wires Home filtering and result count to matching snapshot versions', () => {
     const controller = read('screens/useHomeController.ts');
     expect(controller).toContain(
-      'pendingDeleteVersions.get(item.profileHash.toLowerCase()) !== item.version'
+      'matchesHistoryRevision(item, pendingDeleteVersions.get(item.profileHash.toLowerCase()))'
     );
     expect(controller).toContain('storeResultCount - hiddenPendingDeleteCount');
   });

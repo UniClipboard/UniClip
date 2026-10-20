@@ -37,6 +37,10 @@ React Native UI and navigation
   -> encrypted Space and device-to-device delivery
 
 Local SQLite history and platform file cache remain device-owned.
+Each history row has a local incarnation identifier. Deferred deletion compares
+that identifier and the row version so eviction and recreation cannot revive an
+old delete request. File and image Send jobs copy the current history payload
+under its mutation lock and own that temporary copy until the screen releases it.
 iOS App Group storage shares settings, history, payloads, and P2P handoffs with
 the Share and Keyboard extensions.
 ```

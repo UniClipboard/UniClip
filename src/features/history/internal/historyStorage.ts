@@ -9,7 +9,12 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
-import { ClipboardItem, HistorySyncStatus } from '@/types/clipboard';
+import {
+  ClipboardItem,
+  HistorySyncStatus,
+  matchesHistoryRevision,
+  type HistoryItemRevision,
+} from '@/types/clipboard';
 import { HistoryFilter, HistorySort, STORAGE_KEYS } from '@/types/storage';
 import { getHistoryFileDir } from '@/platform/files';
 import { File } from 'expo-file-system';
@@ -596,6 +601,7 @@ export class HistoryStorage {
 
         resultItem = {
           ...existing,
+          incarnationId: existing.incarnationId ?? randomUUID(),
           type: processedItem.type,
           text: processedItem.type === 'File' ? processedItem.text : text,
           hasData: processedItem.hasData,
@@ -623,6 +629,7 @@ export class HistoryStorage {
         // 添加新记录
         resultItem = {
           ...processedItem,
+          incarnationId: randomUUID(),
           timestamp: processedItem.timestamp || Date.now(),
         };
         action = 'add';
@@ -689,6 +696,7 @@ export class HistoryStorage {
 
           updatedItems.push({
             ...existing,
+            incarnationId: existing.incarnationId ?? randomUUID(),
             type: item.type,
             text: item.type === 'File' ? item.text : text,
             hasData: item.hasData,
@@ -708,6 +716,7 @@ export class HistoryStorage {
         } else {
           addedItems.push({
             ...item,
+            incarnationId: randomUUID(),
             timestamp: item.timestamp || Date.now(),
           });
         }
@@ -745,6 +754,22 @@ export class HistoryStorage {
   }
 
   // ─── 查询 ──────────────────────────────────────────────
+
+  /** Copy the current payload before a replacement or eviction can remove it. */
+  public async copyItemPayload(
+    profileHash: string,
+    destinationUri: string
+  ): Promise<ClipboardItem | null> {
+    await this.initialize();
+    return this.withProfileMutations([profileHash], async () => {
+      const item = await historyRepository.getByProfileHash(profileHash);
+      if (!item || item.isDeleted || !item.isLocalFileReady || !item.fileUri) return null;
+      const source = new File(item.fileUri);
+      if (!source.exists) return null;
+      await source.copy(new File(destinationUri));
+      return item;
+    });
+  }
 
   /**
    * 根据 profileHash 获取历史记录
@@ -881,14 +906,17 @@ export class HistoryStorage {
   /**
    * 软删除历史记录项
    */
-  public async softDeleteItem(profileHash: string, expectedVersion?: number): Promise<boolean> {
+  public async softDeleteItem(
+    profileHash: string,
+    expectedRevision?: HistoryItemRevision
+  ): Promise<boolean> {
     if (!this.initialized) {
       await this.initialize();
     }
 
     return this.withProfileMutations([profileHash], async () => {
       const existing = await historyRepository.getByProfileHash(profileHash);
-      if (!existing || (expectedVersion !== undefined && existing.version !== expectedVersion)) return false;
+      if (!existing || (expectedRevision && !matchesHistoryRevision(existing, expectedRevision))) return false;
 
       const updated: ClipboardItem = {
         ...existing,
@@ -921,7 +949,7 @@ export class HistoryStorage {
    */
   public async softDeleteItems(
     profileHashes: string[],
-    expectedVersions?: ReadonlyMap<string, number>
+    expectedVersions?: ReadonlyMap<string, HistoryItemRevision>
   ): Promise<string[]> {
     if (!this.initialized) {
       await this.initialize();
@@ -934,7 +962,7 @@ export class HistoryStorage {
       for (const hash of profileHashes) {
         const existing = await historyRepository.getByProfileHash(hash);
         if (existing && (!expectedVersions ||
-            expectedVersions.get(hash.toLowerCase()) === existing.version)) {
+            matchesHistoryRevision(existing, expectedVersions.get(hash.toLowerCase())))) {
           updatedItems.push({
             ...existing,
             isDeleted: true,
@@ -1420,7 +1448,7 @@ export class HistoryStorage {
 
         const selected = candidates.slice(0, candidates.length - maxCount);
         const selectedVersions = new Map(
-          selected.map((item) => [item.profileHash.toLowerCase(), item.version])
+          selected.map((item) => [item.profileHash.toLowerCase(), item])
         );
         const itemsToDelete = await this.withProfileMutations(
           selected.map((item) => item.profileHash),
@@ -1436,7 +1464,7 @@ export class HistoryStorage {
             const currentSelection = latestCandidates
               .slice(0, deleteBudget)
               .filter((item) =>
-                selectedVersions.get(item.profileHash.toLowerCase()) === item.version
+                matchesHistoryRevision(item, selectedVersions.get(item.profileHash.toLowerCase()))
               );
             if (currentSelection.length > 0) {
               await historyRepository.removeMany(

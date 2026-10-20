@@ -19,7 +19,7 @@ const APP_GROUP_DB_SUBDIR = 'Databases';
  * Schema 版本。与 AsyncStorage 的 HISTORY_VERSION 解耦——
  * 这里管理的是 SQLite 表结构的演进,用 PRAGMA user_version 持久化。
  */
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 /** 历史记录表名 */
 export const TABLE_HISTORY = 'clipboard_history';
@@ -148,6 +148,11 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
     version = 4;
   }
 
+  if (version === 4) {
+    await migrateToV5(db);
+    log.info('applied schema v5 (local history row identity)');
+  }
+
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 }
 
@@ -232,6 +237,15 @@ async function migrateToV4(db: SQLite.SQLiteDatabase): Promise<void> {
   if (!cols.some((c) => c.name === 'p2pDeliveryCounts')) {
     await db.execAsync(`ALTER TABLE ${TABLE_HISTORY} ADD COLUMN p2pDeliveryCounts TEXT`);
   }
+}
+
+async function migrateToV5(db: SQLite.SQLiteDatabase): Promise<void> {
+  const cols = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${TABLE_HISTORY})`);
+  if (!cols.some((c) => c.name === 'incarnationId')) {
+    await db.execAsync(`ALTER TABLE ${TABLE_HISTORY} ADD COLUMN incarnationId TEXT`);
+  }
+  await db.execAsync(`UPDATE ${TABLE_HISTORY} SET incarnationId = lower(hex(randomblob(16)))
+    WHERE incarnationId IS NULL`);
 }
 
 /** 仅供测试/调试:关闭并丢弃单例(下次 getDatabase 会重新打开) */

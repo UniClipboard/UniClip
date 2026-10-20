@@ -55,7 +55,7 @@ describe('P2P delivery UI wiring', () => {
   it('upgrades existing history databases with P2P delivery fields', () => {
     const database = source('src/platform/database/sqliteDatabase.ts');
 
-    expect(database).toContain('SCHEMA_VERSION = 4');
+    expect(database).toContain('SCHEMA_VERSION = 5');
     expect(database).toContain('ADD COLUMN p2pEntryId TEXT');
     expect(database).toContain('ADD COLUMN p2pDeliveryState TEXT');
     expect(database).toContain('ADD COLUMN p2pDeliveryCounts TEXT');

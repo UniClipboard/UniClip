@@ -1,6 +1,6 @@
 module.exports = {
   preset: '@react-native/jest-preset',
-  modulePathIgnorePatterns: ['<rootDir>/modules/uc-engine/.artifacts/'],
+  modulePathIgnorePatterns: ['<rootDir>/modules/uc-engine/.artifacts/', '<rootDir>/.herdr-project/'],
   transformIgnorePatterns: [
     'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|js-sha256)',
   ],

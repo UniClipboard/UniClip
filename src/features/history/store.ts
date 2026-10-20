@@ -4,7 +4,7 @@
  */
 
 import { create } from 'zustand';
-import { ClipboardItem } from '@/types/clipboard';
+import { ClipboardItem, type HistoryItemRevision } from '@/types/clipboard';
 import { HistoryFilter, HistorySort } from '@/types/storage';
 import { historyStorage } from './commands';
 import { matchesHistoryFilter } from '@/utils/historyFilters';
@@ -81,7 +81,7 @@ interface HistoryState {
   deleteItem: (id: string) => Promise<void>;
 
   /** 批量删除 */
-  deleteItems: (ids: string[], expectedVersions?: ReadonlyMap<string, number>) => Promise<void>;
+  deleteItems: (ids: string[], expectedVersions?: ReadonlyMap<string, HistoryItemRevision>) => Promise<void>;
 
   /** 切换标记 */
   toggleStar: (id: string) => Promise<void>;
@@ -312,7 +312,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     }
   },
 
-  deleteItems: async (profileHashes: string[], expectedVersions?: ReadonlyMap<string, number>) => {
+  deleteItems: async (profileHashes: string[], expectedVersions?: ReadonlyMap<string, HistoryItemRevision>) => {
     set({ error: null });
 
     try {

@@ -15,6 +15,22 @@ export interface P2pDeliveryCounts {
   pending: number;
 }
 
+export interface HistoryItemRevision {
+  version: number;
+  /** Local row identity. A physical deletion ends this identity. */
+  incarnationId?: string;
+}
+
+export function matchesHistoryRevision(
+  item: HistoryItemRevision,
+  expected: HistoryItemRevision | undefined
+): boolean {
+  return (
+    expected !== undefined && item.version === expected.version &&
+    item.incarnationId === expected.incarnationId
+  );
+}
+
 /**
  * 历史记录同步状态
  */
@@ -32,7 +48,7 @@ export enum HistorySyncStatus {
 /**
  * 剪贴板项目
  */
-export interface ClipboardItem {
+export interface ClipboardItem extends HistoryItemRevision {
   /** 内容类型 */
   type: ClipboardContentType;
 

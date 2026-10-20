@@ -31,16 +31,6 @@ describe('historySendJob', () => {
     expect(job.fileUri).toContain('send_to/HASH.txt');
   });
 
-  it('points image and file jobs at the history file itself', async () => {
-    const image = item({ type: 'Image', fileUri: 'file:///h/cat.png', dataName: 'cat.png' });
-    expect(await createHistorySendJob(image, 'image')).toMatchObject({
-      kind: 'image',
-      fileUri: 'file:///h/cat.png',
-      displayName: 'cat.png',
-      historyProfileHash: 'HASH',
-    });
-  });
-
   it('refuses content that is not on this device', async () => {
     const remote = item({ type: 'File', fileUri: undefined, isLocalFileReady: false });
     expect(canSendHistoryItem(remote, 'file')).toBe(false);

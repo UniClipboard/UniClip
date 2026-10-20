@@ -125,6 +125,7 @@ jest.mock('expo-file-system', () => {
     text = (...args) => MockFile.textMock(...args);
     write = jest.fn();
     delete = jest.fn();
+    copy = jest.fn().mockResolvedValue(undefined);
     move = (...args) => MockFile.moveMock(...args);
     arrayBuffer = jest.fn().mockResolvedValue(new ArrayBuffer(0));
 

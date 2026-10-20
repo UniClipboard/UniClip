@@ -24,7 +24,7 @@ import {
   p2pDeliveryTranslationOptions,
   p2pDeliveryUpdates,
 } from '@/features/transfer';
-import { ClipboardItem, ClipboardContent } from '@/types/clipboard';
+import { ClipboardItem, ClipboardContent, matchesHistoryRevision } from '@/types/clipboard';
 import { importFileToHistory } from '@/utils/uploadFile';
 import { copyToLocalClipboard } from '@/utils/clipboard';
 import { DisplayKind, getDisplayKind, getDisplayKindLabel } from '@/utils/displayKind';
@@ -125,7 +125,7 @@ export function useHomeController(
         ? storeItems
         : storeItems.filter(
             (item) =>
-              pendingDeleteVersions.get(item.profileHash.toLowerCase()) !== item.version
+              !matchesHistoryRevision(item, pendingDeleteVersions.get(item.profileHash.toLowerCase()))
           ),
     [storeItems, pendingDeleteVersions]
   );

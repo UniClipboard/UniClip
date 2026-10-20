@@ -643,7 +643,7 @@ describe('LAN receive history persistence', () => {
     await expect(
       historyStorage.softDeleteItems(
         [hash],
-        new Map([[hash.toLowerCase(), old.version]])
+        new Map([[hash.toLowerCase(), { version: old.version, incarnationId: old.incarnationId }]])
       )
     ).resolves.toEqual([]);
     expect((await historyStorage.getItem(hash))?.isDeleted).toBe(false);
@@ -661,7 +661,7 @@ describe('LAN receive history persistence', () => {
     await waitForGate(gate);
     let deleteSettled = false;
     const staleDelete = historyStorage
-      .softDeleteItems([hash], new Map([[hash.toLowerCase(), old.version]]))
+      .softDeleteItems([hash], new Map([[hash.toLowerCase(), { version: old.version, incarnationId: old.incarnationId }]]))
       .then((result) => {
         deleteSettled = true;
         return result;

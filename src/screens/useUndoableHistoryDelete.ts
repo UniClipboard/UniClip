@@ -4,9 +4,9 @@ import type { ShowMessageOptions } from '@/stores/messageStore';
 import type { MessageType } from '@/components/MessageToast.types';
 import { HISTORY_DELETE_MODE } from '@/utils/historyDeleteMode';
 import type { HistoryDeleteMode } from '@/utils/historyDeleteMode.types';
-import type { ClipboardItem } from '@/types/clipboard';
+import { matchesHistoryRevision, type ClipboardItem, type HistoryItemRevision } from '@/types/clipboard';
 
-type DeleteTarget = Pick<ClipboardItem, 'profileHash' | 'version'>;
+type DeleteTarget = Pick<ClipboardItem, 'profileHash' | 'version' | 'incarnationId'>;
 
 interface PendingBatch {
   targets: readonly DeleteTarget[];
@@ -16,7 +16,7 @@ interface UndoableHistoryDeleteDeps {
   /** 真正的软删除(会同步删除本地文件,因此只能在撤销窗口结束后调用) */
   deleteItems: (
     ids: string[],
-    expectedVersions?: ReadonlyMap<string, number>
+    expectedVersions?: ReadonlyMap<string, HistoryItemRevision>
   ) => Promise<void>;
   showMessage: (text: string, type?: MessageType, options?: ShowMessageOptions) => void;
   messages: {
@@ -27,17 +27,18 @@ interface UndoableHistoryDeleteDeps {
   /** 测试注入;默认按平台策略 */
   mode?: HistoryDeleteMode;
 }
-const EMPTY: ReadonlyMap<string, number> = new Map();
+const EMPTY: ReadonlyMap<string, HistoryItemRevision> = new Map();
 
 function without(
-  versions: ReadonlyMap<string, number>,
+  versions: ReadonlyMap<string, HistoryItemRevision>,
   targets: readonly DeleteTarget[]
-): ReadonlyMap<string, number> {
+): ReadonlyMap<string, HistoryItemRevision> {
   if (versions.size === 0) return versions;
   const next = new Map(versions);
-  targets.forEach(({ profileHash, version }) => {
+  targets.forEach((target) => {
+    const { profileHash } = target;
     const key = profileHash.toLowerCase();
-    if (next.get(key) === version) next.delete(key);
+    if (matchesHistoryRevision(target, next.get(key))) next.delete(key);
   });
   return next.size === 0 ? EMPTY : next;
 }
@@ -55,7 +56,7 @@ export function useUndoableHistoryDelete({
   messages,
   mode = HISTORY_DELETE_MODE,
 }: UndoableHistoryDeleteDeps) {
-  const [pendingVersions, setPendingVersions] = useState<ReadonlyMap<string, number>>(EMPTY);
+  const [pendingVersions, setPendingVersions] = useState<ReadonlyMap<string, HistoryItemRevision>>(EMPTY);
   const outstanding = useRef(new Set<PendingBatch>());
   // 提交可能发生在卸载 / 进后台时,需要最新的 deleteItems;在 effect 里同步,不在渲染期写 ref
   const deleteRef = useRef(deleteItems);
@@ -69,7 +70,9 @@ export function useUndoableHistoryDelete({
     outstanding.current.delete(batch);
     const ids = batch.targets.map(({ profileHash }) => profileHash);
     const expectedVersions = new Map(
-      batch.targets.map(({ profileHash, version }) => [profileHash.toLowerCase(), version])
+      batch.targets.map(({ profileHash, version, incarnationId }) => [
+        profileHash.toLowerCase(), { version, incarnationId },
+      ])
     );
     void deleteRef.current(ids, expectedVersions).finally(() => {
       setPendingVersions((prev) => without(prev, batch.targets));
@@ -111,8 +114,8 @@ export function useUndoableHistoryDelete({
       outstanding.current.add(batch);
       setPendingVersions((prev) => {
         const next = new Map(prev);
-        targets.forEach(({ profileHash, version }) =>
-          next.set(profileHash.toLowerCase(), version)
+        targets.forEach(({ profileHash, version, incarnationId }) =>
+          next.set(profileHash.toLowerCase(), { version, incarnationId })
         );
         return next;
       });

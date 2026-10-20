@@ -1,10 +1,12 @@
 import { Directory, File, Paths } from 'expo-file-system';
+import { randomUUID } from 'expo-crypto';
+import { historyStorage } from '@/features/history/commands';
 import type { PendingShareJob } from '@/features/transfer';
 import type { ClipboardItem } from '@/types/clipboard';
 import type { DisplayKind } from '@/utils/displayKind';
 import { readHistoryItemText } from '@/utils/historyItemText';
 
-/** 应用内「发送到」为文本历史写出的临时 payload,发送页关闭后删除。 */
+/** Each File/Image job owns a payload copy until its presenting screen closes. */
 const SEND_TO_DIR = new Directory(Paths.cache, 'temp_files', 'send_to');
 
 /** 这条历史当前能否发送到其他设备:文本总是可以,图片/文件需要本机已有内容。 */
@@ -16,7 +18,7 @@ export function canSendHistoryItem(item: ClipboardItem, displayKind: DisplayKind
 
 /**
  * 把一条历史转换成发送页(ShareSendSheet)的 job。带 `historyProfileHash`,
- * 发送时按原条目投递,不会重复导入历史。文本写成临时 UTF-8 文件供预览与发送读取。
+ * Each job keeps its payload until the presenting screen releases it.
  */
 export async function createHistorySendJob(
   item: ClipboardItem,
@@ -43,16 +45,31 @@ export async function createHistorySendJob(
     };
   }
 
-  return {
-    id,
-    kind: displayKind === 'image' ? 'image' : 'file',
-    displayName: item.dataName || item.text,
-    byteCount: item.size ?? 0,
-    mimeType: null,
-    fileUri: item.fileUri!,
-    createdAtMs,
-    historyProfileHash: item.profileHash,
-  };
+  SEND_TO_DIR.create({ intermediates: true, idempotent: true });
+  const suffix = item.dataName?.match(/\.[^.]{1,16}$/)?.[0] ?? '';
+  const file = new File(SEND_TO_DIR, `${randomUUID()}${suffix}`);
+  try {
+    const current = await historyStorage.copyItemPayload(item.profileHash, file.uri);
+    if (!current) return null;
+    return {
+      id,
+      kind: displayKind === 'image' ? 'image' : 'file',
+      displayName: current.dataName || current.text,
+      byteCount: file.size ?? current.size ?? 0,
+      mimeType: null,
+      fileUri: file.uri,
+      createdAtMs,
+      historyProfileHash: current.profileHash,
+    };
+  } catch (error) {
+    // A failed copy may have created part of the destination.
+    try {
+      if (file.exists) file.delete();
+    } catch {
+      // Keep the original copy error.
+    }
+    throw error;
+  }
 }
 
 const SNIPPET_JOB_PREFIX = 'snippet-';
@@ -80,10 +97,10 @@ export function createTextSendJob(text: string): PendingShareJob | null {
   };
 }
 
-/** 删除本模块为文本写出的临时文件;图片/文件指向历史本身,不删。 */
+/** Release only temporary files owned by this module. */
 export function releaseHistorySendJob(job: PendingShareJob): void {
-  if (job.kind !== 'text') return;
   if (!job.historyProfileHash && !job.id.startsWith(SNIPPET_JOB_PREFIX)) return;
+  if (!job.fileUri.startsWith(`${SEND_TO_DIR.uri.replace(/\/$/, '')}/`)) return;
   try {
     const file = new File(job.fileUri);
     if (file.exists) file.delete();

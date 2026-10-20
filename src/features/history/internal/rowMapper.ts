@@ -1,6 +1,7 @@
 import { ClipboardContentType } from '@/types/api';
 import { ClipboardItem, HistorySyncStatus, type P2pDeliveryCounts } from '@/types/clipboard';
 import { getDisplayKind } from '@/utils/displayKind';
+import { randomUUID } from 'expo-crypto';
 
 /**
  * SQLite 行的形态(clipboard_history 表)。
@@ -27,6 +28,7 @@ export interface HistoryRow {
   isLocalFileReady: number;
   syncStatus: number;
   version: number;
+  incarnationId: string | null;
   from: string | null;
   deviceName: string | null;
   synced: number | null;
@@ -58,6 +60,7 @@ export const HISTORY_COLUMNS: (keyof HistoryRow)[] = [
   'isLocalFileReady',
   'syncStatus',
   'version',
+  'incarnationId',
   'from',
   'deviceName',
   'synced',
@@ -113,6 +116,7 @@ export function toRow(item: ClipboardItem): HistoryRow {
     isLocalFileReady: bool(item.isLocalFileReady),
     syncStatus: item.syncStatus ?? HistorySyncStatus.LocalOnly,
     version: item.version ?? 0,
+    incarnationId: item.incarnationId ?? randomUUID(),
     from: item.from ?? null,
     deviceName: item.deviceName ?? null,
     synced: optBool(item.synced),
@@ -145,6 +149,7 @@ export function fromRow(row: HistoryRow): ClipboardItem {
     isLocalFileReady: !!row.isLocalFileReady,
     syncStatus: row.syncStatus as HistorySyncStatus,
     version: row.version,
+    incarnationId: row.incarnationId ?? undefined,
     from: row.from ?? undefined,
     deviceName: row.deviceName ?? undefined,
     synced: row.synced === null || row.synced === undefined ? undefined : !!row.synced,
