@@ -21,6 +21,7 @@ export interface HistoryItemRevision {
   incarnationId?: string;
 }
 
+/** Match both the row lifetime and its mutable version before deferred deletion. */
 export function matchesHistoryRevision(
   item: HistoryItemRevision,
   expected: HistoryItemRevision | undefined

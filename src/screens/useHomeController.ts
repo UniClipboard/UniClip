@@ -43,6 +43,7 @@ import { HOME_LONG_PRESS_MODE } from '@/utils/homeLongPressMode';
 import {
   canSendHistoryItem,
   createHistorySendJob,
+  createHistorySendJobs,
   createTextSendJob,
   releaseHistorySendJob,
 } from '@/utils/historySendJob';
@@ -657,13 +658,7 @@ export function useHomeController(
   const handleBatchSendTo = useCallback(() => {
     const selected = items.filter((i) => selectedIds.has(i.profileHash));
     exitSelectMode();
-    presentSendTo(async () =>
-      (
-        await Promise.all(
-          selected.map((item) => createHistorySendJob(item, getDisplayKind(item.type, item.text)))
-        )
-      ).filter((job): job is PendingShareJob => job != null)
-    );
+    presentSendTo(() => createHistorySendJobs(selected));
   }, [items, selectedIds, exitSelectMode, presentSendTo]);
 
   const handleBatchShare = useCallback(async () => {

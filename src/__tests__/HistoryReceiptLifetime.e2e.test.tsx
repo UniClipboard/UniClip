@@ -325,6 +325,7 @@ const clipboardSourceId = 'content://clipboard/current-file';
 const asyncStorageValues = new Map<string, string>();
 const asyncStorage = AsyncStorage as jest.Mocked<typeof AsyncStorage>;
 
+/** Hash real payload bytes for the persisted evidence. */
 function fileHash(bytes: Buffer): string {
   return createHash('sha256').update(bytes).digest('hex').toUpperCase();
 }
@@ -343,6 +344,7 @@ type MutableStorageState = {
 
 const storageState = historyStorage as unknown as MutableStorageState;
 
+/** Stage synthetic receive bytes in the isolated cache. */
 function sourceFile(profileHash: string, dataName: string, bytes: Buffer): string {
   const filePath = join(controls.fixtureRoot, 'cache', `${profileHash}-${dataName}`);
   mkdirSync(dirname(filePath), { recursive: true });
@@ -350,6 +352,7 @@ function sourceFile(profileHash: string, dataName: string, bytes: Buffer): strin
   return pathToFileURL(filePath).href;
 }
 
+/** Build LAN input that uses the staged file and synthetic remote identity. */
 function remoteInput(profileHash: string, dataName: string, bytes: Buffer) {
   return {
     type: 'File' as const,
@@ -363,6 +366,7 @@ function remoteInput(profileHash: string, dataName: string, bytes: Buffer) {
   };
 }
 
+/** Connect the production LAN receiver to the production history store. */
 function applier() {
   const display = jest.fn<void, [ClipboardContent]>();
   return {
@@ -383,6 +387,7 @@ function applier() {
   };
 }
 
+/** Bound a controlled file operation so a missing gate fails promptly. */
 async function waitForGate(gate: FsGate): Promise<void> {
   const entered = await Promise.race([
     gate.entered.then(() => true),
@@ -453,7 +458,7 @@ import type { HistoryRow } from '../features/history/internal/rowMapper';
 import type { ShowMessageOptions } from '../stores/messageStore';
 import type { LanServerDraft } from '../features/lan-servers';
 import type { LanClipboardDocument } from '../features/lan-sync/internal/lanHttpClient';
-import { createHistorySendJob, releaseHistorySendJob } from '../utils/historySendJob';
+import { createHistorySendJob, createHistorySendJobs, releaseHistorySendJob } from '../utils/historySendJob';
 import { UnifiedSyncRuntime } from '../features/sync/internal/unifiedSyncRuntime';
 import { LanSyncAdapter } from '../features/lan-sync/internal/lanSyncAdapter';
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -475,11 +480,13 @@ mkdirSync(artifactRoot, { recursive: true });
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 const bytesA = Buffer.from('Synthetic file A: identical bytes on each receipt.\n');
 let receiveSequence = 0;
+/** Receive synthetic content through the production LAN and persistence paths. */
 async function receive(bytes: Buffer, name = 'A.log') {
   const hash = fileHash(bytes);
   await applier().value.apply({ ...remoteInput(hash, `${++receiveSequence}-${name}`, bytes), dataName: name, size: bytes.length });
   return (await historyStorage.getItem(hash))!;
 }
+/** Capture the current SQLite row and payload checksum. */
 async function snapshot(label: string, hash: string) {
   const db = await getDatabase();
   const row = await db.getFirstAsync<HistoryRow & { rowid: number }>(`SELECT rowid, * FROM ${TABLE_HISTORY} WHERE profileHash = ? COLLATE NOCASE`, hash);
@@ -487,6 +494,7 @@ async function snapshot(label: string, hash: string) {
   const uri = item?.fileUri;
   return { label, at: Date.now(), row, fileExists: !!uri && existsSync(fileURLToPath(uri)), fileSha256: uri && existsSync(fileURLToPath(uri)) ? fileHash(readFileSync(fileURLToPath(uri))) : null };
 }
+/** Persist the observed timeline and a SQLite copy for repeatable inspection. */
 async function saveEvidence(name: string, timeline: unknown[]) {
   writeFileSync(join(artifactRoot, `${name}.json`), JSON.stringify(timeline, null, 2));
   const path = join(artifactRoot, `${name}.sqlite`);
@@ -687,4 +695,73 @@ it('upgrades v4 history without changing content and resumes an interrupted iden
     expect(await opened.getFirstAsync('PRAGMA user_version')).toEqual({ user_version: 5 });
   });
   await saveEvidence('v4-identity-migration', [before, migrated]);
+});
+
+// Failure modes: one copy fails while a sibling completes later; an expiry
+// snapshot becomes stale after a receive revives the same history row.
+it('releases every batch snapshot after one copy fails, including a late success', async () => {
+  const first = await receive(bytesA);
+  const second = await receive(Buffer.from('batch B'), 'B.log');
+  const gate = controls.blockCopy(first.fileUri!);
+  controls.failCopy(second.fileUri!);
+  const copy = historyStorage.copyItemPayload.bind(historyStorage);
+  let failed!: () => void;
+  const failureObserved = new Promise<void>(resolve => { failed = resolve; });
+  jest.spyOn(historyStorage, 'copyItemPayload').mockImplementation(async (hash, destination) => {
+    try { return await copy(hash, destination); }
+    catch (error) { failed(); throw error; }
+  });
+  const preparing = createHistorySendJobs([first, second]);
+  const result = preparing.then(() => null, error => error);
+  await waitForGate(gate);
+  await failureObserved;
+  gate.release();
+  const error = await result;
+  // Drain the successful sibling even when the old Promise.all rejects early.
+  await historyStorage.copyItemPayload(first.profileHash, sourceFile('probe', 'copy', bytesA));
+  expect(error).toBeInstanceOf(Error);
+  expect(error.message).toBe('Synthetic copy failure');
+  const remaining = readdirSync(join(controls.fixtureRoot, 'cache/temp_files/send_to'));
+  await saveEvidence('batch-failure-cleanup', [{ remaining }, await snapshot('A survives', first.profileHash), await snapshot('B survives', second.profileHash)]);
+  expect(remaining).toEqual([]);
+  expect(readFileSync(fileURLToPath(first.fileUri!))).toEqual(bytesA);
+});
+
+it('skips an expired deletion after a receive revives the selected row', async () => {
+  const first = await receive(bytesA);
+  const clock = jest.spyOn(Date, 'now').mockReturnValue(Date.now() - 31 * 86400000);
+  await historyStorage.softDeleteItem(first.profileHash);
+  clock.mockRestore();
+  const { historyRepository } = require('../features/history/internal/historyRepository');
+  const original = historyRepository.getAll.bind(historyRepository);
+  let selected!: () => void;
+  let release!: () => void;
+  const selectedPromise = new Promise<void>(resolve => { selected = resolve; });
+  const released = new Promise<void>(resolve => { release = resolve; });
+  jest.spyOn(historyRepository, 'getAll').mockImplementationOnce(async (...args: unknown[]) => {
+    const rows = await original(...args);
+    selected();
+    await released;
+    return rows;
+  });
+  const cleaning = historyStorage.cleanupExpiredSoftDeletes();
+  await selectedPromise;
+  const replacement = await receive(bytesA);
+  release();
+  const removed = await cleaning;
+  const final = await snapshot('revived row after expiry cleanup', first.profileHash);
+  await saveEvidence('expiry-revival-race', [{ removed, replacement }, final]);
+  expect(removed).toBe(0);
+  expect(final.row?.isDeleted).toBe(0);
+  expect(final.fileSha256).toBe(fileHash(bytesA));
+});
+
+it('physically removes a still-expired tombstone', async () => {
+  const first = await receive(bytesA);
+  const clock = jest.spyOn(Date, 'now').mockReturnValue(Date.now() - 31 * 86400000);
+  await historyStorage.softDeleteItem(first.profileHash);
+  clock.mockRestore();
+  expect(await historyStorage.cleanupExpiredSoftDeletes()).toBe(1);
+  expect(await historyStorage.getItem(first.profileHash)).toBeNull();
+  await saveEvidence('expiry-cleanup-control', [await snapshot('expired tombstone removed', first.profileHash)]);
 });

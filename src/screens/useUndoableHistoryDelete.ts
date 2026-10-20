@@ -29,6 +29,7 @@ interface UndoableHistoryDeleteDeps {
 }
 const EMPTY: ReadonlyMap<string, HistoryItemRevision> = new Map();
 
+/** Remove pending entries only when their captured revisions still match. */
 function without(
   versions: ReadonlyMap<string, HistoryItemRevision>,
   targets: readonly DeleteTarget[]

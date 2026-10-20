@@ -214,6 +214,7 @@ public final class HistoryDatabase {
         return sqlite3_column_int(stmt, 0) != 0 ? .tombstoned : .present
     }
 
+    /// Update an existing row without replacing its identity or reviving pulled tombstones.
     private func resurface(
         profileHash: String,
         direction: ClipboardHistoryItem.Direction,
@@ -226,7 +227,7 @@ public final class HistoryDatabase {
           isDeleted = 0, timestamp = ?, lastAccessed = ?, lastModified = ?,
           syncStatus = CASE WHEN ? = 1 THEN 1 ELSE syncStatus END,
           "from" = CASE WHEN ? = 1 THEN 'space' ELSE "from" END
-        WHERE profileHash = ?
+        WHERE profileHash = ? AND (isDeleted = 0 OR ? = 1)
         """
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
@@ -240,10 +241,12 @@ public final class HistoryDatabase {
         sqlite3_bind_int(stmt, 4, direction == .local ? 0 : 1)
         sqlite3_bind_int(stmt, 5, direction == .pulled ? 1 : 0)
         bindText(stmt, 6, profileHash)
+        sqlite3_bind_int(stmt, 7, direction == .pulled ? 0 : 1)
         guard sqlite3_step(stmt) == SQLITE_DONE else { logError("resurface step"); return false }
-        return true
+        return sqlite3_changes(db) > 0
     }
 
+    /// Insert a fresh identity when supported, or preserve the concurrent winning row.
     private func insert(
         entry: Clipboard,
         hash: String,
@@ -252,15 +255,18 @@ public final class HistoryDatabase {
     ) -> Bool {
         // Preserve the row's remote identity when the v2 column is available so
         // "user re-activates this pulled item" recovers its contentId in RN.
-        let extraCol = hasContentId ? ", contentId" : ""
-        let extraVal = hasContentId ? ", ?" : ""
+        // The app may migrate while this extension keeps its connection open.
+        let hasIncarnationId = Self.columnExists("incarnationId", db: db, table: Self.table)
+        let extraCol = (hasContentId ? ", contentId" : "") + (hasIncarnationId ? ", incarnationId" : "")
+        let extraVal = (hasContentId ? ", ?" : "") + (hasIncarnationId ? ", ?" : "")
         let sql = """
-        INSERT OR REPLACE INTO \(Self.table)
+        INSERT INTO \(Self.table)
           (profileHash, type, text, displayKind, dataName, size, fileUri,
            hasData, hasRemoteData, localClipboardHash, timestamp, lastAccessed,
            lastModified, useCount, starred, pinned, isDeleted, isLocalFileReady,
            syncStatus, version, "from", deviceName, synced\(extraCol))
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, 0, 0, 0, 0, ?, ?, 0, ?, NULL, NULL\(extraVal))
+        ON CONFLICT(profileHash) DO NOTHING
         """
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
@@ -290,9 +296,13 @@ public final class HistoryDatabase {
         sqlite3_bind_int(stmt, 14, direction == .local ? 0 : 1) // HistorySyncStatus: LocalOnly / Synced
         bindOptionalText(stmt, 15, direction == .pulled ? "space" : nil)
         if hasContentId { bindOptionalText(stmt, 16, entry.contentId) }
+        if hasIncarnationId { bindText(stmt, hasContentId ? 17 : 16, UUID().uuidString) }
 
         guard sqlite3_step(stmt) == SQLITE_DONE else { logError("insert step"); return false }
-        return true
+        if sqlite3_changes(db) > 0 { return true }
+        // Another process inserted after existingState read absent. Preserve its
+        // identity and preferences, and apply the same tombstone policy.
+        return resurface(profileHash: hash, direction: direction, at: now)
     }
 
     // MARK: - Helpers

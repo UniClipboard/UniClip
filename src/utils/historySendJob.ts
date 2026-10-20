@@ -3,6 +3,7 @@ import { randomUUID } from 'expo-crypto';
 import { historyStorage } from '@/features/history/commands';
 import type { PendingShareJob } from '@/features/transfer';
 import type { ClipboardItem } from '@/types/clipboard';
+import { getDisplayKind } from '@/utils/displayKind';
 import type { DisplayKind } from '@/utils/displayKind';
 import { readHistoryItemText } from '@/utils/historyItemText';
 
@@ -70,6 +71,23 @@ export async function createHistorySendJob(
     }
     throw error;
   }
+}
+
+/** Wait for every copy and release successful jobs if any preparation fails. */
+export async function createHistorySendJobs(items: ClipboardItem[]): Promise<PendingShareJob[]> {
+  const results = await Promise.allSettled(items.map(item =>
+    createHistorySendJob(item, getDisplayKind(item.type, item.text))
+  ));
+  const jobs: PendingShareJob[] = [];
+  for (const result of results) {
+    if (result.status === 'fulfilled' && result.value) jobs.push(result.value);
+  }
+  const failure = results.find(result => result.status === 'rejected');
+  if (failure?.status === 'rejected') {
+    jobs.forEach(releaseHistorySendJob);
+    throw failure.reason;
+  }
+  return jobs;
 }
 
 const SNIPPET_JOB_PREFIX = 'snippet-';

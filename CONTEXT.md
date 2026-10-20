@@ -39,10 +39,13 @@ React Native UI and navigation
 Local SQLite history and platform file cache remain device-owned.
 Each history row has a local incarnation identifier. Deferred deletion compares
 that identifier and the row version so eviction and recreation cannot revive an
-old delete request. File and image Send jobs copy the current history payload
+old delete request. Expired tombstone cleanup rechecks identity, version, deletion
+state, and expiry under the same mutation lock. File and image Send jobs copy the current history payload
 under its mutation lock and own that temporary copy until the screen releases it.
+Batch preparation waits for all copies and releases successful jobs on failure.
 iOS App Group storage shares settings, history, payloads, and P2P handoffs with
-the Share and Keyboard extensions.
+the Share and Keyboard extensions. Their writer detects optional schema columns,
+assigns identities to new v5 rows, and preserves a concurrent writer's row on conflict.
 ```
 
 `uc-engine` owns P2P identity, Space membership, peer state, invitations,

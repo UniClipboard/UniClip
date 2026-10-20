@@ -101,6 +101,7 @@ function normalizeClipboardItem(item: ClipboardItem): ClipboardItem {
     fileUri: item.fileUri,
     syncStatus: item.syncStatus ?? HistorySyncStatus.LocalOnly,
     version: item.version ?? 0,
+    incarnationId: item.incarnationId,
     lastModified: item.lastModified ?? Date.now(),
     lastAccessed: item.lastAccessed ?? Date.now(),
     isDeleted: item.isDeleted ?? false,
@@ -1035,6 +1036,14 @@ export class HistoryStorage {
    * 批量物理删除历史记录项（一次性删除，减少 IO）
    */
   public async physicalDeleteItems(profileHashes: string[]): Promise<ClipboardItem[]> {
+    return this.physicalDeleteItemsMatching(profileHashes, () => true);
+  }
+
+  /** Recheck removal eligibility while holding each selected row's mutation lock. */
+  private async physicalDeleteItemsMatching(
+    profileHashes: string[],
+    shouldDelete: (item: ClipboardItem) => boolean
+  ): Promise<ClipboardItem[]> {
     if (!this.initialized) {
       await this.initialize();
     }
@@ -1043,7 +1052,7 @@ export class HistoryStorage {
       const deletedItems: ClipboardItem[] = [];
       for (const hash of profileHashes) {
         const existing = await historyRepository.getByProfileHash(hash);
-        if (existing) {
+        if (existing && shouldDelete(existing)) {
           deletedItems.push(existing);
         }
       }
@@ -1090,8 +1099,14 @@ export class HistoryStorage {
 
     log.info(`Cleaning up ${expiredItems.length} expired soft-deleted records`);
 
-    await this.physicalDeleteItems(expiredItems.map((item) => item.profileHash));
-    return expiredItems.length;
+    const expected = new Map(expiredItems.map(item => [item.profileHash.toLowerCase(), item]));
+    const removed = await this.physicalDeleteItemsMatching(
+      expiredItems.map(item => item.profileHash),
+      current => current.isDeleted === true && !!current.lastModified &&
+        current.lastModified < cutoffTime &&
+        matchesHistoryRevision(current, expected.get(current.profileHash.toLowerCase()))
+    );
+    return removed.length;
   }
 
   /**
