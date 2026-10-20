@@ -1,5 +1,6 @@
 import { ClipboardItem } from '@/types/clipboard';
 import { HistoryFilter, HistorySort } from '@/types/storage';
+import { foldHistorySearchText } from '@/utils/historySearchText';
 
 import { getDatabase, TABLE_HISTORY } from '@/platform/database';
 import { fromRow, HISTORY_COLUMNS, HistoryRow, rowValues, toRow } from './rowMapper';
@@ -54,8 +55,8 @@ function buildWhere(
       params.push(filter.endDate);
     }
     if (filter.keyword) {
-      // matchesHistoryFilter: text.includes(kw) || dataName.includes(kw),大小写不敏感
-      const kw = `%${escapeLike(filter.keyword.toLowerCase())}%`;
+      // Literal substring search, folding ASCII only (SQLite's built-in LOWER).
+      const kw = `%${escapeLike(foldHistorySearchText(filter.keyword))}%`;
       conds.push(
         `(LOWER(text) LIKE ? ESCAPE '\\' OR LOWER(IFNULL(dataName, '')) LIKE ? ESCAPE '\\')`
       );

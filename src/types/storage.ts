@@ -55,13 +55,13 @@ export interface HistoryFilter {
   /** 展示类型，文本与链接等客户端识别类型也可单独筛选 */
   displayKinds?: DisplayKind[];
 
-  /** 起始时间 */
+  /** 起始时间(含边界,0 也是有效边界) */
   startDate?: number;
 
-  /** 结束时间 */
+  /** 结束时间(含边界,0 也是有效边界) */
   endDate?: number;
 
-  /** 搜索关键词 */
+  /** 字面子串;仅 ASCII 大小写不敏感,非 ASCII 保留大小写;空串不筛选 */
   keyword?: string;
 
   /** 是否仅显示标记项 */

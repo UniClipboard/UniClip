@@ -1,6 +1,7 @@
 import { ClipboardItem } from '@/types/clipboard';
 import { HistoryFilter } from '@/types/storage';
 import { DisplayKind, getDisplayKind } from './displayKind';
+import { foldHistorySearchText } from './historySearchText';
 
 export type HistoryDateFilter = 'all' | 'today' | 'yesterday' | 'pastWeek';
 export type HistorySourceFilter = 'all' | 'local' | 'remote';
@@ -91,18 +92,18 @@ export function matchesHistoryFilter(item: ClipboardItem, filter?: HistoryFilter
     }
   }
 
-  if (filter.startDate && item.timestamp < filter.startDate) {
+  if (filter.startDate != null && item.timestamp < filter.startDate) {
     return false;
   }
 
-  if (filter.endDate && item.timestamp > filter.endDate) {
+  if (filter.endDate != null && item.timestamp > filter.endDate) {
     return false;
   }
 
   if (filter.keyword) {
-    const keyword = filter.keyword.toLowerCase();
-    const text = item.text.toLowerCase();
-    const dataName = item.dataName?.toLowerCase() ?? '';
+    const keyword = foldHistorySearchText(filter.keyword);
+    const text = foldHistorySearchText(item.text);
+    const dataName = foldHistorySearchText(item.dataName ?? '');
     if (!text.includes(keyword) && !dataName.includes(keyword)) {
       return false;
     }
