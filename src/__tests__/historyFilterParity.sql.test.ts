@@ -1,5 +1,5 @@
 import { historyRepository } from '../features/history/internal/historyRepository';
-import { getDatabase, TABLE_HISTORY } from '../platform/database';
+import { TABLE_HISTORY, withDatabase } from '../platform/database';
 import { createDefaultClipboardItem, type ClipboardItem } from '../types/clipboard';
 import type { HistoryFilter } from '../types/storage';
 import { filterHistoryItems, matchesHistoryFilter } from '../utils/historyFilters';
@@ -173,7 +173,7 @@ describe('history SQL / incremental filter contract', () => {
   });
 
   it('reads existing / extension-style rows without rewriting or materializing search data', async () => {
-    const db = await getDatabase();
+    const db = await withDatabase(async (db) => db);
     // Direct writer supplies displayKind, like HistoryDatabase.swift; no JS row mapper.
     await db.runAsync(
       `INSERT INTO ${TABLE_HISTORY}
@@ -200,7 +200,7 @@ describe('history SQL / incremental filter contract', () => {
   });
 
   it('propagates query errors instead of returning empty results', async () => {
-    const db = await getDatabase();
+    const db = await withDatabase(async (db) => db);
     await db.execAsync(`DROP TABLE ${TABLE_HISTORY}`);
     // Native SQLite errors may originate in another Jest VM; inspect their message.
     const failure = { message: expect.stringContaining(`no such table: ${TABLE_HISTORY}`) };

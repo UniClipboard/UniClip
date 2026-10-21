@@ -25,7 +25,7 @@ import {
   importHistoryFromAppGroup,
   repairAppGroupHistoryPayloadUris,
 } from './appGroupHistoryImport';
-import { getDatabase } from '@/platform/database';
+import { withDatabase } from '@/platform/database';
 import { historyRepository } from './historyRepository';
 
 const log = createLogger('HistoryStorage');
@@ -304,7 +304,7 @@ export class HistoryStorage {
     }
 
     // 建库(含 schema 迁移)是唯一致命的一步:没有 DB 就没有历史功能,必须让调用方知道
-    await getDatabase();
+    await withDatabase(async () => {});
 
     this.initialized = true;
   }

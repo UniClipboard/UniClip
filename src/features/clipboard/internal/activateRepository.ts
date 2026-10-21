@@ -1,4 +1,4 @@
-import { getDatabase, TABLE_ACTIVATE } from '@/platform/database';
+import { TABLE_ACTIVATE, withDatabase } from '@/platform/database';
 
 /**
  * activate_clipboard 单行寄存器的数据访问层。
@@ -27,9 +27,10 @@ interface ActivateSqlRow {
 export const activateRepository = {
   /** 取当前激活行,无则返回 null(= 已清空,device_present=false) */
   async get(): Promise<ActivateRow | null> {
-    const db = await getDatabase();
-    const row = await db.getFirstAsync<ActivateSqlRow>(
-      `SELECT profile_hash, content_id, activated_at_ms FROM ${TABLE_ACTIVATE} WHERE id = 1`
+    const row = await withDatabase((db) =>
+      db.getFirstAsync<ActivateSqlRow>(
+        `SELECT profile_hash, content_id, activated_at_ms FROM ${TABLE_ACTIVATE} WHERE id = 1`
+      )
     );
     if (!row) return null;
     return {
@@ -45,19 +46,19 @@ export const activateRepository = {
     contentId: string | null,
     activatedAtMs: number
   ): Promise<void> {
-    const db = await getDatabase();
-    await db.runAsync(
-      `INSERT OR REPLACE INTO ${TABLE_ACTIVATE} (id, profile_hash, content_id, activated_at_ms)
-       VALUES (1, ?, ?, ?)`,
-      profileHash,
-      contentId,
-      activatedAtMs
+    await withDatabase((db) =>
+      db.runAsync(
+        `INSERT OR REPLACE INTO ${TABLE_ACTIVATE} (id, profile_hash, content_id, activated_at_ms)
+         VALUES (1, ?, ?, ?)`,
+        profileHash,
+        contentId,
+        activatedAtMs
+      )
     );
   },
 
   /** 清空寄存器(应用远端内容后调用):删除 id=1 行。 */
   async clear(): Promise<void> {
-    const db = await getDatabase();
-    await db.runAsync(`DELETE FROM ${TABLE_ACTIVATE} WHERE id = 1`);
+    await withDatabase((db) => db.runAsync(`DELETE FROM ${TABLE_ACTIVATE} WHERE id = 1`));
   },
 };

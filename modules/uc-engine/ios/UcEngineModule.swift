@@ -12,11 +12,18 @@ public final class UcEngineModule: Module {
     report: Self.reportLifecycleError,
     flushObservability: { _ = try? flushProcessObservability(deadlineMs: 250) }
   )
+  private lazy var hostSuspension = NativeHostSuspension { [weak self] phase, transitionId in
+    self?.sendEvent(Self.hostSuspensionEvent, ["phase": phase, "transitionId": transitionId])
+  }
   private lazy var lifecycleTransitions = NativeLifecycleTransitionCoordinator(
     lifecycle: lifecycle,
     queue: DispatchQueue(label: "app.uniclipboard.engine-lifecycle"),
-    beginBackgroundActivity: Self.beginBackgroundActivity
+    beginBackgroundActivity: Self.beginBackgroundActivity,
+    hostSuspension: hostSuspension,
+    reportBackground: AppleNativeDiagnostics.recordBackgroundTransition
   )
+  private static let hostSuspensionEvent = "onHostSuspension"
+  private var resignActiveObserver: NSObjectProtocol?
   private let engineOperationQueue = DispatchQueue(label: "app.uniclipboard.uc-engine")
   private let engineConnectivityQueue = DispatchQueue(label: "app.uniclipboard.uc-engine-connectivity")
   private let engineEventQueue = DispatchQueue(label: "app.uniclipboard.uc-engine-events")
@@ -56,6 +63,23 @@ public final class UcEngineModule: Module {
     OnCreate {
       AppleNativeDiagnostics.start()
       self.engineOperationQueue.async { try? self.host.prepareDiagnosticLogging() }
+      // Expo has no resign-active hook; it fires before didEnterBackground.
+      self.resignActiveObserver = NotificationCenter.default.addObserver(
+        forName: UIApplication.willResignActiveNotification, object: nil, queue: .main
+      ) { [weak self] _ in self?.lifecycleTransitions.prepareForBackground() }
+    }
+    OnDestroy {
+      self.resignActiveObserver.map(NotificationCenter.default.removeObserver)
+    }
+
+    Events(Self.hostSuspensionEvent)
+    OnStartObserving(Self.hostSuspensionEvent) { self.hostSuspension.setParticipating(true) }
+    OnStopObserving(Self.hostSuspensionEvent) { self.hostSuspension.setParticipating(false) }
+    AsyncFunction("completeHostSuspension") { (transitionId: Int, released: Bool) in
+      AppleNativeDiagnostics.journal.record(
+        .hostSuspend, trigger: .appBackground, outcome: released ? .succeeded : .failed
+      )
+      self.hostSuspension.complete(transitionId: transitionId)
     }
 
     Function("coreVersion") { coreVersion() }
@@ -555,6 +579,7 @@ public final class UcEngineModule: Module {
         self.currentLifecycle()
       )
     }
+    OnAppBecomesActive { self.lifecycleTransitions.cancelBackgroundPreparation() }
     OnAppContextDestroys { self.shutdownForDestroy() }
   }
 
@@ -949,6 +974,7 @@ public final class UcEngineModule: Module {
 private final class UIKitBackgroundActivity: NativeBackgroundActivity, @unchecked Sendable {
   private let lock = NSLock()
   private var identifier: UIBackgroundTaskIdentifier = .invalid
+  private var expirationHandler: (@Sendable () -> Void)?
 
   func begin() {
     // Deliberately a strong capture, not `[weak self]`. Nothing else in the
@@ -998,13 +1024,22 @@ private final class UIKitBackgroundActivity: NativeBackgroundActivity, @unchecke
   /// already returned, which does not satisfy that requirement — call it
   /// directly instead.
   private func expire() {
+    let handler = lock.withLock { expirationHandler }
     guard let active = takeIdentifier() else { return }
+    handler?()
     UIApplication.shared.endBackgroundTask(active)
+  }
+
+  func onExpiration(_ handler: @escaping @Sendable () -> Void) {
+    lock.withLock { expirationHandler = handler }
   }
 
   private func takeIdentifier() -> UIBackgroundTaskIdentifier? {
     let active = lock.withLock {
-      defer { identifier = .invalid }
+      defer {
+        identifier = .invalid
+        expirationHandler = nil
+      }
       return identifier
     }
     return active == .invalid ? nil : active

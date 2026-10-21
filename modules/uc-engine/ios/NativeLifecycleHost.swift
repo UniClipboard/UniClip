@@ -328,25 +328,123 @@ final class NativeLifecycleHost {
   }
 }
 
+/// Owners outside the Engine whose App Group files must be closed before the
+/// process may be suspended: the JS history database. The owner closes them
+/// itself once its borrowed connections and in-flight writes finished; native
+/// only keeps background time open until the owner reports back, and never
+/// closes anything on its behalf.
+final class NativeHostSuspension: @unchecked Sendable {
+  private let lock = NSLock()
+  private let send: @Sendable (_ phase: String, _ transitionId: Int) -> Void
+  private var participating = false
+  private var pending: (transitionId: Int, finish: () -> Void)?
+
+  init(send: @escaping @Sendable (_ phase: String, _ transitionId: Int) -> Void) {
+    self.send = send
+  }
+
+  /// Set while JS listens. Without a listener there is no host file to wait for.
+  func setParticipating(_ value: Bool) {
+    let finish = lock.withLock { () -> (() -> Void)? in
+      participating = value
+      guard !value else { return nil }
+      defer { pending = nil }
+      return pending?.finish
+    }
+    finish?()
+  }
+
+  /// Asks the owner to close its files; `finish` runs once it reports back.
+  func suspend(transitionId: Int, finish: @escaping () -> Void) {
+    let (asked, superseded) = lock.withLock { () -> (Bool, (() -> Void)?) in
+      let superseded = pending?.finish
+      pending = participating ? (transitionId, finish) : nil
+      return (participating, superseded)
+    }
+    superseded?()
+    if asked { send("suspend", transitionId) } else { finish() }
+  }
+
+  /// The owner's report for one transition. A late report for an earlier
+  /// transition must not finish a later one.
+  @discardableResult
+  func complete(transitionId: Int) -> Bool {
+    let finish = lock.withLock { () -> (() -> Void)? in
+      guard let current = pending, current.transitionId == transitionId else { return nil }
+      pending = nil
+      return current.finish
+    }
+    finish?()
+    return finish != nil
+  }
+
+  /// Back in the foreground the process cannot be suspended, so a close cut
+  /// short by this resume no longer needs to hold background time.
+  func resume(transitionId: Int) {
+    let (finish, asked) = lock.withLock { () -> ((() -> Void)?, Bool) in
+      defer { pending = nil }
+      return (pending?.finish, participating)
+    }
+    finish?()
+    if asked { send("resume", transitionId) }
+  }
+}
+
+/// Reports one background transition right before its activity ends: which
+/// owners still had App Group files open (`pending`), and whether the system's
+/// grant expired first. Nothing may write after the activity ended.
+typealias NativeBackgroundReport = (_ pending: [NativeDiagnosticOwner], _ expired: Bool) -> Void
+
 final class NativeLifecycleTransitionCoordinator {
   typealias BeginBackgroundActivity = () -> any NativeBackgroundActivity
 
   private let lifecycle: NativeLifecycleHost
   private let queue: DispatchQueue
   private let beginBackgroundActivity: BeginBackgroundActivity
+  private let hostSuspension: NativeHostSuspension?
+  private let reportBackground: NativeBackgroundReport
+  private let lock = NSLock()
+  private var transitionId = 0
+  private var preparedActivity: (any NativeBackgroundActivity)?
 
   init(
     lifecycle: NativeLifecycleHost,
     queue: DispatchQueue,
-    beginBackgroundActivity: @escaping BeginBackgroundActivity
+    beginBackgroundActivity: @escaping BeginBackgroundActivity,
+    hostSuspension: NativeHostSuspension? = nil,
+    reportBackground: @escaping NativeBackgroundReport = { _, _ in }
   ) {
     self.lifecycle = lifecycle
     self.queue = queue
     self.beginBackgroundActivity = beginBackgroundActivity
+    self.hostSuspension = hostSuspension
+    self.reportBackground = reportBackground
+  }
+
+  /// Apple: begin the task "preferably before your app actually enters the
+  /// background". Resign-active also fires for Control Center and the app
+  /// switcher, so this only takes the assertion; files close on background.
+  func prepareForBackground() {
+    lock.withLock {
+      if preparedActivity == nil { preparedActivity = beginBackgroundActivity() }
+    }
+  }
+
+  /// Active again without entering the background: give the assertion back.
+  func cancelBackgroundPreparation() {
+    lock.withLock {
+      defer { preparedActivity = nil }
+      return preparedActivity
+    }?.end()
   }
 
   func enterBackground(_ engine: (any NativeEngineLifecycle)?) {
-    let activity = beginBackgroundActivity()
+    let (activity, id) = lock.withLock { () -> (any NativeBackgroundActivity, Int) in
+      defer { preparedActivity = nil }
+      transitionId += 1
+      return (preparedActivity ?? beginBackgroundActivity(), transitionId)
+    }
+    let parts = NativeBackgroundParts(activity: activity, report: reportBackground)
     let transition = NativeLifecycleTransition(
       lifecycle: lifecycle,
       engine: engine,
@@ -355,12 +453,20 @@ final class NativeLifecycleTransitionCoordinator {
       // background time at the moment of each attempt, not a value that was
       // already stale by the time this queue got scheduled.
       remainingTimeMs: { activity.remainingTimeMs },
-      finish: { activity.end() }
+      finish: { parts.complete(.engine) }
     )
+    // The JS database and the Engine share no file, so both close at once.
+    if let hostSuspension {
+      hostSuspension.suspend(transitionId: id) { parts.complete(.hostFiles) }
+    } else {
+      parts.complete(.hostFiles)
+    }
     queue.async { transition.enterBackground() }
   }
 
   func enterForeground(_ engine: (any NativeEngineLifecycle)?) {
+    let id = lock.withLock { transitionId }
+    hostSuspension?.resume(transitionId: id)
     let transition = NativeLifecycleTransition(
       lifecycle: lifecycle,
       engine: engine,
@@ -368,6 +474,42 @@ final class NativeLifecycleTransitionCoordinator {
       finish: {}
     )
     queue.async { transition.enterForeground() }
+  }
+}
+
+/// Ends one background transition's activity only after every owner closed
+/// its App Group files. On expiry it reports the owners still open, then lets
+/// the activity end; it never releases anything for them.
+private final class NativeBackgroundParts: @unchecked Sendable {
+  private let lock = NSLock()
+  private let activity: any NativeBackgroundActivity
+  private let report: NativeBackgroundReport
+  private var open = Set(NativeDiagnosticOwner.allCases)
+  private var ended = false
+
+  init(activity: any NativeBackgroundActivity, report: @escaping NativeBackgroundReport) {
+    self.activity = activity
+    self.report = report
+    activity.onExpiration { [self] in
+      let pending = lock.withLock { () -> [NativeDiagnosticOwner]? in
+        guard !ended else { return nil }
+        ended = true
+        return NativeDiagnosticOwner.allCases.filter(open.contains)
+      }
+      if let pending { self.report(pending, true) }
+    }
+  }
+
+  func complete(_ owner: NativeDiagnosticOwner) {
+    let finished = lock.withLock { () -> Bool in
+      open.remove(owner)
+      guard open.isEmpty, !ended else { return false }
+      ended = true
+      return true
+    }
+    guard finished else { return }
+    report([], false)
+    activity.end()
   }
 }
 
@@ -415,6 +557,13 @@ private final class NativeLifecycleTransition: @unchecked Sendable {
 protocol NativeBackgroundActivity: AnyObject, Sendable {
   var remainingTimeMs: UInt64? { get }
   func end()
+  /// `handler` runs inside the system's expiration callback, before the
+  /// activity ends there.
+  func onExpiration(_ handler: @escaping @Sendable () -> Void)
+}
+
+extension NativeBackgroundActivity {
+  func onExpiration(_ handler: @escaping @Sendable () -> Void) {}
 }
 
 enum NativeBackgroundDeadline {

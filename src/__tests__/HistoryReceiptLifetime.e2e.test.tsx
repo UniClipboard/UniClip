@@ -12,7 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { File } from 'expo-file-system';
 import { Platform } from 'react-native';
-import { getDatabase, TABLE_HISTORY } from '../platform/database';
+import { TABLE_HISTORY, withDatabase } from '../platform/database';
 import { LanRemoteContentApplier } from '../features/lan-sync/internal/lanRemoteContentApplier';
 import { historyStorage, useHistoryStore } from '../features/history';
 import {
@@ -433,7 +433,7 @@ beforeEach(async () => {
   });
   useHistoryStore.getState().reset();
   storageState.profileMutations.clear();
-  await (await getDatabase()).execAsync(`DELETE FROM ${TABLE_HISTORY}`);
+  await (await withDatabase(async (db) => db)).execAsync(`DELETE FROM ${TABLE_HISTORY}`);
   await historyStorage.initialize();
 });
 
@@ -488,7 +488,7 @@ async function receive(bytes: Buffer, name = 'A.log') {
 }
 /** Capture the current SQLite row and payload checksum. */
 async function snapshot(label: string, hash: string) {
-  const db = await getDatabase();
+  const db = await withDatabase(async (db) => db);
   const row = await db.getFirstAsync<HistoryRow & { rowid: number }>(`SELECT rowid, * FROM ${TABLE_HISTORY} WHERE profileHash = ? COLLATE NOCASE`, hash);
   const item = await historyStorage.getItem(hash);
   const uri = item?.fileUri;
@@ -499,7 +499,7 @@ async function saveEvidence(name: string, timeline: unknown[]) {
   writeFileSync(join(artifactRoot, `${name}.json`), JSON.stringify(timeline, null, 2));
   const path = join(artifactRoot, `${name}.sqlite`);
   rmSync(path, { force: true });
-  await (await getDatabase()).execAsync(`VACUUM INTO '${path.replaceAll("'", "''")}'`);
+  await (await withDatabase(async (db) => db)).execAsync(`VACUUM INTO '${path.replaceAll("'", "''")}'`);
 }
 
 for (let repetition = 1; repetition <= 3; repetition++) {
@@ -671,7 +671,7 @@ it('resolves the current row before snapshotting a stale card', async () => {
 
 it('upgrades v4 history without changing content and resumes an interrupted identity migration', async () => {
   const first = await receive(bytesA);
-  const db = await getDatabase();
+  const db = await withDatabase(async (db) => db);
   const before = await snapshot('before v4 migration', first.profileHash);
   await db.execAsync(`ALTER TABLE ${TABLE_HISTORY} DROP COLUMN incarnationId; PRAGMA user_version = 4;`);
   const sqlite = require('expo-sqlite');
@@ -679,7 +679,7 @@ it('upgrades v4 history without changing content and resumes an interrupted iden
   let migrated!: HistoryRow & { rowid: number };
   await jest.isolateModulesAsync(async () => {
     const database = require('../platform/database/sqliteDatabase');
-    const opened = await database.getDatabase();
+    const opened = await database.withDatabase(async (db: unknown) => db);
     migrated = await opened.getFirstAsync(`SELECT rowid, * FROM ${TABLE_HISTORY} WHERE profileHash = ?`, first.profileHash);
   });
   const previous = { ...before.row };
@@ -690,7 +690,7 @@ it('upgrades v4 history without changing content and resumes an interrupted iden
   await db.execAsync('PRAGMA user_version = 4');
   await jest.isolateModulesAsync(async () => {
     const database = require('../platform/database/sqliteDatabase');
-    const opened = await database.getDatabase();
+    const opened = await database.withDatabase(async (db: unknown) => db);
     expect((await opened.getFirstAsync(`SELECT incarnationId FROM ${TABLE_HISTORY} WHERE profileHash = ?`, first.profileHash)).incarnationId).toBe(identity);
     expect(await opened.getFirstAsync('PRAGMA user_version')).toEqual({ user_version: 5 });
   });

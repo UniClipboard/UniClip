@@ -34,14 +34,14 @@ jest.mock('../support/observability', () => ({
   createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }),
 }));
 
-// 默认转发真实实现;个别用例用 mockResolvedValueOnce 注入假 db 来观测 statement 的执行时序
+// 默认转发真实实现;个别用例用 mockImplementationOnce 注入假 db 来观测 statement 的执行时序
 jest.mock('../platform/database', () => {
   const actual = jest.requireActual('../platform/database');
-  return { ...actual, getDatabase: jest.fn(actual.getDatabase) };
+  return { ...actual, withDatabase: jest.fn(actual.withDatabase) };
 });
 
 const { configStorage } = jest.requireMock('../features/settings');
-const { getDatabase } = jest.requireMock('../platform/database');
+const { withDatabase } = jest.requireMock('../platform/database');
 const AsyncStorage = jest.requireMock('@react-native-async-storage/async-storage').default;
 
 /** 重置单例,拿到一个尚未初始化的实例(afterEach 由 jest.setup 关库) */
@@ -88,14 +88,14 @@ describe('HistoryStorage.initialize', () => {
 
   it('建库失败是致命的:向调用方抛出,不再假装已就绪', async () => {
     const storage = freshStorage();
-    getDatabase.mockRejectedValueOnce(new Error('db is toast'));
+    withDatabase.mockRejectedValueOnce(new Error('db is toast'));
 
     await expect(storage.initialize()).rejects.toThrow('db is toast');
   });
 
   it('建库失败后门闩住:后续调用快速抛出首个错误,不重放流水线', async () => {
     const storage = freshStorage();
-    getDatabase.mockRejectedValueOnce(new Error('db is toast'));
+    withDatabase.mockRejectedValueOnce(new Error('db is toast'));
 
     await expect(storage.initialize()).rejects.toThrow('db is toast');
     expect(configStorage.getConfig).toHaveBeenCalledTimes(1);
@@ -153,10 +153,12 @@ describe('historyRepository 批量写', () => {
       }),
       finalizeAsync: jest.fn(async () => {}),
     };
-    getDatabase.mockResolvedValueOnce({
-      withExclusiveTransactionAsync: (task: (txn: unknown) => Promise<void>) =>
-        task({ prepareAsync: async () => stmt }),
-    });
+    withDatabase.mockImplementationOnce((use: (db: unknown) => Promise<unknown>) =>
+      use({
+        withExclusiveTransactionAsync: (task: (txn: unknown) => Promise<void>) =>
+          task({ prepareAsync: async () => stmt }),
+      })
+    );
     return { stmt, tracker };
   }
 

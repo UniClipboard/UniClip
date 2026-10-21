@@ -413,7 +413,22 @@ export interface PowerMetricsSnapshot {
   policy: string;
 }
 
+/**
+ * iOS background transition for host-owned App Group files. `suspend` asks the
+ * host to close them before the process may be suspended; `resume` follows the
+ * next foreground. `transitionId` identifies the background transition.
+ */
+export interface HostSuspensionEvent {
+  phase: 'suspend' | 'resume';
+  transitionId: number;
+}
+
 interface UcEngineNativeModule {
+  addListener?(
+    eventName: 'onHostSuspension',
+    listener: (event: HostSuspensionEvent) => void
+  ): { remove(): void };
+  completeHostSuspension?(transitionId: number, released: boolean): Promise<void>;
   getPowerMetrics?(): Promise<PowerMetricsSnapshot>;
   resetPowerMetrics?(): Promise<boolean>;
   startEngineDiagnosticCapture(
@@ -635,6 +650,26 @@ export function suspend(): Promise<void> {
 
 export function resume(): Promise<void> {
   return NativeModule.resume();
+}
+
+/**
+ * iOS only. While a listener is subscribed, the native background task waits
+ * for `completeHostSuspension` before it ends, so the listener runs while the
+ * process still holds background time.
+ */
+export function subscribeHostSuspension(
+  listener: (event: HostSuspensionEvent) => void
+): () => void {
+  const subscription = NativeModule.addListener?.('onHostSuspension', listener);
+  return () => subscription?.remove();
+}
+
+/** Reports that host-owned App Group files are closed (`released`) for one transition. */
+export async function completeHostSuspension(
+  transitionId: number,
+  released: boolean
+): Promise<void> {
+  await NativeModule.completeHostSuspension?.(transitionId, released);
 }
 
 export function setBackgroundSyncEnabled(

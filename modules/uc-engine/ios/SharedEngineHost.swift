@@ -519,11 +519,12 @@ enum P2pSharedStore {
   private static let runtimeLockFilename = ".runtime.lock"
   private static let extensionSuffixes = [".Keyboard", ".Share"]
 
+  static func containerDirectory() -> URL? {
+    appGroupID().flatMap { FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: $0) }
+  }
+
   static func diagnosticsDirectory() -> URL? {
-    guard let group = appGroupID(), let root = FileManager.default.containerURL(
-      forSecurityApplicationGroupIdentifier: group
-    ) else { return nil }
-    return root.appendingPathComponent("Library/Caches/UniClipDiagnostics", isDirectory: true)
+    containerDirectory()?.appendingPathComponent("Library/Caches/UniClipDiagnostics", isDirectory: true)
   }
 
   static func sharedP2pDirectory(mode: P2pStorageMode) throws -> URL {

@@ -30,6 +30,20 @@ public enum AppleNativeDiagnostics {
     }
   }
 
+  /// The last record of a background transition, written and flushed before
+  /// its activity ends. The journal takes a short flock on its App Group
+  /// directory per write, so nothing may be written after the activity ended.
+  public static func recordBackgroundTransition(pending: [NativeDiagnosticOwner], expired: Bool) {
+    journal.record(
+      expired ? .backgroundExpired : .backgroundComplete,
+      trigger: .appBackground,
+      outcome: pending.isEmpty ? .succeeded : .failed,
+      files: NativeDiagnosticFiles.openFiles(under: P2pSharedStore.containerDirectory()),
+      pending: pending
+    )
+    _ = journal.flush(deadlineMs: 200)
+  }
+
   public static func failure(_ error: Error) -> NativeDiagnosticFailure {
     if let binding = error as? BindingError, case let .Engine(code, _, retryable) = binding {
       return .init(reason: .engineFailure, code: Int64(code), retryable: retryable)

@@ -12,7 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { File } from 'expo-file-system';
 import { Platform } from 'react-native';
-import { getDatabase, TABLE_HISTORY } from '../platform/database';
+import { TABLE_HISTORY, withDatabase } from '../platform/database';
 import { LanRemoteContentApplier } from '../features/lan-sync/internal/lanRemoteContentApplier';
 import { ClipboardManager } from '../features/clipboard/internal/clipboardManager';
 import { historyStorage, useHistoryStore } from '../features/history';
@@ -748,7 +748,7 @@ describe('LAN receive history persistence', () => {
     let releaseSql!: () => void;
     const sqlEntered = new Promise<void>((resolve) => { enterSql = resolve; });
     const sqlWait = new Promise<void>((resolve) => { releaseSql = resolve; });
-    const db = await getDatabase();
+    const db = await withDatabase(async (db) => db);
     const originalRun = db.runAsync.bind(db);
     let blockNextRun = true;
     jest.spyOn(db, 'runAsync').mockImplementation(async (source, ...params) => {
@@ -804,7 +804,7 @@ describe('LAN receive history persistence', () => {
     const hash = 'DB_REPLACE_FAILURE';
     await historyStorage.addItem(oldItem(hash, { isDeleted: false }));
     const existing = (await historyStorage.getItem(hash))!;
-    const db = await getDatabase();
+    const db = await withDatabase(async (db) => db);
     jest.spyOn(db, 'runAsync').mockRejectedValueOnce(new Error('sqlite write failed'));
 
     await expect(
@@ -820,7 +820,7 @@ describe('LAN receive history persistence', () => {
   it('removes a newly staged payload when SQLite rejects a new row', async () => {
     const hash = 'DB_NEW_FILE_FAILURE';
     const input = remoteInput(hash, 'new.log', Buffer.from('uncommitted payload'));
-    const db = await getDatabase();
+    const db = await withDatabase(async (db) => db);
     jest.spyOn(db, 'runAsync').mockRejectedValueOnce(new Error('sqlite insert failed'));
 
     await expect(applier().value.apply(input)).rejects.toThrow('sqlite insert failed');
@@ -940,7 +940,7 @@ describe('clipboard file cache persistence', () => {
       } else {
         controls.failExists(corruptUri, new Error('persisted URI cannot be inspected'));
       }
-      const db = await getDatabase();
+      const db = await withDatabase(async (db) => db);
       await db.runAsync(
         `UPDATE ${TABLE_HISTORY} SET fileUri = ? WHERE profileHash = ?`,
         corruptUri,
@@ -1177,7 +1177,7 @@ describe('clipboard monitor deferred file persistence', () => {
     await check;
     rmSync(fileURLToPath(copiedFile!.filePath));
 
-    const db = await getDatabase();
+    const db = await withDatabase(async (db) => db);
     const originalGetFirst = db.getFirstAsync.bind(db);
     let enterLookup!: () => void;
     let releaseLookup!: () => void;

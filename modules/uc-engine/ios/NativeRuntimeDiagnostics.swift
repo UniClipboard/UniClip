@@ -27,6 +27,9 @@ public enum NativeDiagnosticEvent: String, Sendable {
   case networkObservation = "network.observation"
   case shareHandoff = "share.handoff"
   case exportFlush = "export.flush"
+  case hostSuspend = "host.suspend"
+  case backgroundComplete = "background.complete"
+  case backgroundExpired = "background.expired"
 }
 
 public enum NativeDiagnosticTrigger: String, Sendable {
@@ -70,6 +73,49 @@ public struct NativeDiagnosticNetwork: Encodable, Equatable, Sendable {
     self.kind = kind
     self.expensive = expensive
     self.constrained = constrained
+  }
+}
+
+/// A part of a background transition that keeps App Group files open until it finishes.
+public enum NativeDiagnosticOwner: String, Encodable, Sendable, CaseIterable {
+  /// Engine suspend, then the runtime-ownership flock release.
+  case engine
+  /// Host-owned files outside the Engine: the JS history database.
+  case hostFiles
+}
+
+/// Open descriptors under the App Group container, by kind only (never paths).
+/// A process cannot see its own flock or POSIX locks, so this counts open files;
+/// lock absence must be proven from another process.
+public struct NativeDiagnosticFiles: Encodable, Equatable, Sendable {
+  public let database: Int
+  public let lock: Int
+  public let other: Int
+
+  public init(database: Int, lock: Int, other: Int) {
+    self.database = database
+    self.lock = lock
+    self.other = other
+  }
+
+  public static func openFiles(under root: URL?) -> NativeDiagnosticFiles? {
+    guard let root, let resolved = realpath(root.path, nil) else { return nil }
+    let prefix = String(cString: resolved) + "/"
+    free(resolved)
+    var database = 0, lock = 0, other = 0
+    var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
+    for descriptor in 0..<getdtablesize() where fcntl(descriptor, F_GETPATH, &buffer) != -1 {
+      let path = String(cString: buffer)
+      guard path.hasPrefix(prefix) else { continue }
+      if [".db", ".sqlite", "-wal", "-shm", "-journal"].contains(where: path.hasSuffix) {
+        database += 1
+      } else if path.hasSuffix(".lock") {
+        lock += 1
+      } else {
+        other += 1
+      }
+    }
+    return NativeDiagnosticFiles(database: database, lock: lock, other: other)
   }
 }
 
@@ -153,8 +199,10 @@ public final class NativeRuntimeDiagnostics: @unchecked Sendable {
 
   public func record(_ event: NativeDiagnosticEvent, trigger: NativeDiagnosticTrigger,
                      outcome: NativeDiagnosticOutcome = .observed,
-                     failure: NativeDiagnosticFailure? = nil, network: NativeDiagnosticNetwork? = nil) {
-    enqueue(event, trigger: trigger, outcome: outcome, failure: failure, network: network)
+                     failure: NativeDiagnosticFailure? = nil, network: NativeDiagnosticNetwork? = nil,
+                     files: NativeDiagnosticFiles? = nil, pending: [NativeDiagnosticOwner]? = nil) {
+    enqueue(event, trigger: trigger, outcome: outcome, failure: failure, network: network,
+            files: files, pending: pending)
   }
 
   public func flush(deadlineMs: Int = 1_000) -> Bool {
@@ -199,7 +247,8 @@ public final class NativeRuntimeDiagnostics: @unchecked Sendable {
 
   private func enqueue(_ event: NativeDiagnosticEvent, trigger: NativeDiagnosticTrigger,
                        outcome: NativeDiagnosticOutcome, operation: NativeDiagnosticOperation? = nil,
-                       failure: NativeDiagnosticFailure? = nil, network: NativeDiagnosticNetwork? = nil) {
+                       failure: NativeDiagnosticFailure? = nil, network: NativeDiagnosticNetwork? = nil,
+                       files: NativeDiagnosticFiles? = nil, pending: [NativeDiagnosticOwner]? = nil) {
     guard capacity.wait(timeout: .now()) == .success else {
       state.withLock { droppedRecords += 1 }
       return
@@ -230,6 +279,8 @@ public final class NativeRuntimeDiagnostics: @unchecked Sendable {
         }
         if let failure { record["failure"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(failure)) }
         if let network { record["network"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(network)) }
+        if let files { record["appGroupFiles"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(files)) }
+        if let pending { record["pendingOwners"] = pending.map(\.rawValue) }
         var bytes = try JSONSerialization.data(withJSONObject: record, options: [.sortedKeys])
         bytes.append(0x0a)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

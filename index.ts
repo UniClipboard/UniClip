@@ -4,6 +4,10 @@ import { Platform, AppRegistry } from 'react-native';
 // 初始化 i18next(副作用),必须在任何组件渲染前完成,覆盖所有 AppRegistry 入口。
 import './src/i18n';
 import App from './App';
+import { startDatabaseSuspension } from './src/platform/database/databaseSuspension';
+
+// Before any history query: iOS must close the App Group database before suspension.
+startDatabaseSuspension();
 
 // registerRootComponent calls AppRegistry.registerComponent('main', () => App);
 // It also ensures that whether you load the app in Expo Go or in a native build,

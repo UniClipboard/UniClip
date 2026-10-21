@@ -34,10 +34,87 @@ let dbInstance: SQLite.SQLiteDatabase | null = null;
 let openPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 /**
+ * iOS 挂起前必须关闭连接:App Group 里的 WAL 共享内存锁在挂起时仍被持有,
+ * 系统会以 0xdead10cc 终止进程。暂停期间新的借用排队等待恢复,绝不重新打开。
+ */
+let suspended = false;
+let leases = 0;
+let leasesDrained: (() => void) | null = null;
+let closing: Promise<void> | null = null;
+let resumed = deferred();
+
+/**
+ * 借用数据库执行一次操作(懒打开)。`use` 返回前连接不会被关闭。
+ * `use` 内部不得再调用 withDatabase:暂停期间外层借用会等待内层,内层等待恢复。
+ */
+export async function withDatabase<T>(use: (db: SQLite.SQLiteDatabase) => Promise<T>): Promise<T> {
+  while (suspended || closing) {
+    await (suspended ? resumed.promise : closing);
+  }
+  leases += 1;
+  try {
+    return await use(await getDatabase());
+  } finally {
+    leases -= 1;
+    if (leases === 0) leasesDrained?.();
+  }
+}
+
+/**
+ * 进入后台:停止发放新借用,等在途借用与打开/迁移结束后关闭连接。
+ * 返回 true 表示本进程已不再持有该库的连接;期间被恢复则返回 false。
+ */
+export async function suspendDatabase(): Promise<boolean> {
+  suspended = true;
+  while (suspended && (dbInstance || openPromise || leases > 0)) {
+    closing ??= closeWhenIdle().finally(() => {
+      closing = null;
+    });
+    await closing;
+  }
+  return suspended;
+}
+
+/** 回到前台:放行排队的借用,下一次借用重新打开连接。 */
+export function resumeDatabase(): void {
+  if (!suspended) return;
+  suspended = false;
+  resumed.resolve();
+  resumed = deferred();
+}
+
+async function closeWhenIdle(): Promise<void> {
+  while (leases > 0) {
+    await new Promise<void>((resolve) => {
+      leasesDrained = resolve;
+    });
+  }
+  leasesDrained = null;
+  if (!suspended) return;
+  // 打开中的连接也要等它完成再关,绝不打断迁移。
+  const db = dbInstance ?? (await openPromise?.catch(() => null)) ?? null;
+  dbInstance = null;
+  openPromise = null;
+  if (db) {
+    await db.closeAsync();
+    log.info(`closed ${DB_NAME} for suspension`);
+  }
+}
+
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+/**
  * 获取数据库单例(懒打开)。首次调用会打开连接、启用 WAL、执行 schema 迁移。
  * 并发调用共享同一个打开中的 Promise,避免重复打开。
+ * 仅在借用内部调用;外部请用 withDatabase。
  */
-export function getDatabase(): Promise<SQLite.SQLiteDatabase> {
+function getDatabase(): Promise<SQLite.SQLiteDatabase> {
   if (dbInstance) {
     return Promise.resolve(dbInstance);
   }

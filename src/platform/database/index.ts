@@ -1,1 +1,8 @@
-export { getDatabase, SCHEMA_VERSION, TABLE_ACTIVATE, TABLE_HISTORY } from './sqliteDatabase';
+export {
+  resumeDatabase,
+  SCHEMA_VERSION,
+  suspendDatabase,
+  TABLE_ACTIVATE,
+  TABLE_HISTORY,
+  withDatabase,
+} from './sqliteDatabase';
