@@ -1,3 +1,10 @@
+v2.2.0.193-alpha.1
+
+### iOS
+
+- Fix: The app kept database and log file locks in the shared container after entering the background, which can make the system terminate it
+- Improvement: Update the sync core to commit 1c0660d after v1.1.0-rc.23, which releases database connections and network log files on suspend
+
 v2.2.0.192
 
 ### Common
