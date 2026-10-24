@@ -119,9 +119,9 @@ try:
         run(['xcrun', 'simctl', 'spawn', device_id, executable, output, fixture])
     receipt['cases'] = json.loads((output / 'result.json').read_text())['cases']
     expected_cases = {'fresh', 'legacy', 'invalid-legacy', 'unsupportedFormat',
-                      'malformedMarker', 'missingRuntimeMembers'}
-    if {case['case'] for case in receipt['cases']} != expected_cases or len(receipt['cases']) != 6:
-        raise RuntimeError('The host did not execute all six required cases')
+                      'malformedMarker', 'missingRuntimeMembers', 'receive-api'}
+    if {case['case'] for case in receipt['cases']} != expected_cases or len(receipt['cases']) != 7:
+        raise RuntimeError('The host did not execute all seven required cases')
     for file in sorted(output.glob('*/*.json')):
         digest(file)
     records = []

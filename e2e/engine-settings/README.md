@@ -63,7 +63,7 @@ commands, exits, binary/source hashes and before/after settings
 under a fresh `e2e/results/engine-settings-*` directory. Failure preserves that directory.
 Do not reuse a results directory as a production profile.
 
-The three cases are fresh initialization, valid legacy product settings, and invalid
+The first three cases are fresh initialization, valid legacy product settings, and invalid
 legacy product settings. Each saves an additional local-only relay through the public
 binding, shuts down Engine, starts Engine with the same isolated host, and checks the
 saved name and relay list. Existing Engine sections are compared after the save.
@@ -77,6 +77,20 @@ The binding has no host log-profile parameter. Its rejection query reads Engine 
 absent-profile semantics through Engine's existing `host_log_profile_e2e` test, rather
 than extending the Mobile API solely for this check.
 
+
+## Receive query, cancel and retry binding
+
+The seventh case, `receive-api`, creates an isolated Space and one sender-side entry,
+then calls the generated receive operations. It checks that the list is empty, the
+sender entry has no receive snapshot, cancellation without an attempt is never reported as
+`cancelled`, an empty retry selection fails as invalid input with `retryable=false`, an
+unknown item is never accepted, and local history is still restorable. This proves the
+generated symbols and checksums match the running library and that refusals stay
+structured. It does not run a transfer: a real failed or cancelled attempt needs two
+peers, which Engine's `host_adapter_contract/receive_retry` fixtures cover at the Engine
+layer and a cross-device run must cover for the product. The case was added after the
+bridge code, so it records its expectations from the Engine contract rather than from
+Mobile code.
 
 ## Rejected pending input
 

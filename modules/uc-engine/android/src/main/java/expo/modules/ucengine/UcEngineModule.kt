@@ -64,6 +64,8 @@ import uniffi.uc_engine_uniffi.JoinSpaceStatus
 import uniffi.uc_engine_uniffi.JoinSpaceTerminationReason
 import uniffi.uc_engine_uniffi.MobileEngine
 import uniffi.uc_engine_uniffi.MobileStartupLifecycle
+import uniffi.uc_engine_uniffi.ReceiveProgress
+import uniffi.uc_engine_uniffi.ReceiveRetryOutcome
 import uniffi.uc_engine_uniffi.RelayEntrySource
 import uniffi.uc_engine_uniffi.RelayOverview
 import uniffi.uc_engine_uniffi.RelayRoutingMode
@@ -1069,6 +1071,23 @@ class UcEngineModule : Module() {
     AsyncFunction("exportEntry") { entryId: String, destinationHandle: String ->
       requireEngine().exportEntry(entryId, destinationHandle)
     }
+    AsyncFunction("queryEntryReceiveProgress") { entryId: String ->
+      requireEngine().queryEntryReceiveProgress(entryId)?.let(::receiveProgressMap)
+    }
+    AsyncFunction("listEntryReceiveProgress") {
+      requireEngine().listEntryReceiveProgress().map(::receiveProgressMap)
+    }
+    AsyncFunction("retryEntryReceive") {
+      entryId: String, expectedAttemptId: String, itemIds: List<String> ->
+      engineResult {
+        receiveRetryOutcomeMap(
+          requireEngine().retryEntryReceive(entryId, expectedAttemptId, itemIds)
+        )
+      }
+    }
+    AsyncFunction("cancelEntryReceive") { entryId: String, attemptId: String ->
+      requireEngine().cancelEntryReceive(entryId, attemptId)
+    }
 
     OnActivityEntersBackground {
       EngineDiagnosticBridge.record(BindingHostDiagnosticEvent.Lifecycle(BindingHostLifecycleState.BACKGROUND))
@@ -1159,6 +1178,34 @@ class UcEngineModule : Module() {
     is ResendEntryOutcome.TargetNotTrusted ->
       mapOf("kind" to "targetNotTrusted", "deviceId" to outcome.deviceId)
     ResendEntryOutcome.NoEligibleTargets -> mapOf("kind" to "noEligibleTargets")
+  }
+
+  private fun receiveProgressMap(progress: ReceiveProgress): Map<String, Any?> = mapOf(
+    "entryId" to progress.entryId,
+    "attemptId" to progress.attemptId,
+    "state" to progress.state,
+    "totalBytes" to progress.totalBytes,
+    "completedBytes" to progress.completedBytes,
+    "itemsTotal" to progress.itemsTotal.toLong(),
+    "itemsCompleted" to progress.itemsCompleted.toLong(),
+    "items" to progress.items.map { item ->
+      mapOf(
+        "itemId" to item.itemId,
+        "kind" to item.kind,
+        "state" to item.state,
+        "failureReason" to item.failureReason
+      )
+    }
+  )
+
+  private fun receiveRetryOutcomeMap(outcome: ReceiveRetryOutcome): Map<String, Any> = when (outcome) {
+    is ReceiveRetryOutcome.Accepted ->
+      mapOf("kind" to "accepted", "attemptId" to outcome.attemptId)
+    ReceiveRetryOutcome.AlreadyReceiving -> mapOf("kind" to "alreadyReceiving")
+    ReceiveRetryOutcome.Superseded -> mapOf("kind" to "superseded")
+    ReceiveRetryOutcome.CancellationIncomplete -> mapOf("kind" to "cancellationIncomplete")
+    is ReceiveRetryOutcome.Unavailable ->
+      mapOf("kind" to "unavailable", "reason" to outcome.reason)
   }
 
   private fun failureMap(failure: BindingFailure): Map<String, Any> = mapOf(
