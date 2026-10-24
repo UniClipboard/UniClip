@@ -27,6 +27,7 @@ export function DefaultTopBar({
   historyLayout,
   onHistoryLayoutChange,
   addActions,
+  receiveResults,
   theme,
 }: DefaultTopBarProps) {
   const { t } = useTranslation('home');
@@ -89,6 +90,14 @@ export function DefaultTopBar({
               label={t('action.select', { ns: 'common' })}
               onPress={onSelectMode}
             />
+            {receiveResults ? (
+              <SwiftUIButton
+                testID="home-menu-receive-results"
+                systemImage="arrow.down.doc"
+                label={t('receive.menuEntry')}
+                onPress={receiveResults.onOpen}
+              />
+            ) : null}
             {historyLayout && onHistoryLayoutChange ? (
               <Section title={t('layout.title', { ns: 'history' })}>
                 <Picker

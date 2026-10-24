@@ -159,5 +159,65 @@
   },
   "card": {
     "copied": "Copiado"
+  },
+  "receive": {
+    "title": "Arquivos recebidos",
+    "menuEntry": "Arquivos recebidos",
+    "empty": "Nenhum arquivo está sendo recebido.",
+    "stale": "Mostrando o último status conhecido. Não foi possível ler o status mais recente.",
+    "entryTitle": "Transferência {{index}}",
+    "bytes": "{{completed}} de {{total}} salvos",
+    "members": "{{completed}} de {{total}} arquivos da pasta salvos",
+    "item": {
+      "file": "Arquivo {{index}}",
+      "content": "Conteúdo",
+      "directory": "Pasta (recebida como uma unidade)",
+      "unknown": "Item"
+    },
+    "state": {
+      "pending": "Aguardando",
+      "transferring": "Recebendo",
+      "completed": "Salvo",
+      "failed": "Falhou",
+      "cancelled": "Cancelado",
+      "unknown": "Desconhecido"
+    },
+    "attempt": {
+      "receiving": "Recebendo",
+      "committing": "Salvando",
+      "cancelling": "Cancelando",
+      "failing": "Interrompendo",
+      "completed": "Tudo salvo",
+      "failed": "Alguns itens falharam",
+      "cancelled": "Cancelado",
+      "unknown": "Desconhecido"
+    },
+    "reason": {
+      "network_unavailable": "Rede indisponível",
+      "timed_out": "Tempo esgotado",
+      "access_denied": "Acesso negado",
+      "storage_unavailable": "Armazenamento indisponível",
+      "integrity_check_failed": "Falha na verificação de integridade",
+      "interrupted": "Interrompido",
+      "unknown": "Motivo desconhecido"
+    },
+    "action": {
+      "cancel": "Cancelar recebimento",
+      "retrySelected": "Tentar novamente os selecionados ({{count}})"
+    },
+    "notice": {
+      "retryAccepted": "Nova tentativa iniciada. Um item só conta como salvo quando mostra Salvo.",
+      "alreadyReceiving": "Esta transferência já está sendo recebida.",
+      "superseded": "Uma tentativa mais nova substituiu esta. A lista foi atualizada.",
+      "retryCancellationIncomplete": "A tentativa anterior ainda está terminando. Tente de novo em instantes.",
+      "sourceUnavailable": "A origem não está mais disponível, então estes itens não podem ser repetidos. Os arquivos salvos são mantidos.",
+      "accessDenied": "O acesso foi negado, então estes itens não podem ser repetidos.",
+      "cancelled": "O recebimento foi cancelado.",
+      "cancellationIncomplete": "Ainda cancelando. A limpeza não terminou.",
+      "notReceiving": "Esta transferência não está sendo recebida.",
+      "tooLate": "Tarde demais para cancelar: a transferência já está terminando.",
+      "alreadyTerminal": "Esta transferência já terminou.",
+      "requestFailed": "Não foi possível concluir a solicitação."
+    }
   }
 }

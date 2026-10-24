@@ -5,6 +5,7 @@ import { WordPickerOverlay } from '@/components/WordPickerOverlay';
 import { CardContextOverlay } from '@/components/CardContextOverlay';
 import { CameraCaptureSheet } from '@/components/CameraCaptureSheet';
 import { ClipboardDetailModal } from '@/components/ClipboardDetailModal';
+import { ReceiveResultsSheet } from '@/components/ReceiveResultsSheet';
 import { useShareSheetStore } from '@/stores/shareSheetStore';
 import type { HomeController } from './useHomeController';
 
@@ -57,6 +58,12 @@ export function HomeOverlays({ c }: { c: HomeController }) {
           onClose={c.closeSendTo}
         />
       ) : null}
+
+      {/* 接收结果:逐项状态与失败项重试。由这层稳定宿主持有,不放进任何会动画的子页面。 */}
+      <ReceiveResultsSheet
+        visible={c.receiveResultsOpen}
+        onClose={() => c.setReceiveResultsOpen(false)}
+      />
 
       <CardContextOverlay
         item={c.contextItem}

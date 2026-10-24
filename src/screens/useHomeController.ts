@@ -51,6 +51,7 @@ import { readHistoryItemText } from '@/utils/historyItemText';
 import type { PendingShareJob } from '@/features/transfer';
 import { useUndoableHistoryDelete } from './useUndoableHistoryDelete';
 import { useHistoryDisplaySettings } from '@/hooks/useHistoryDisplaySettings';
+import { useReceiveResultsStore } from '@/stores/receiveResultsStore';
 
 const log = createLogger('HomeView');
 
@@ -157,6 +158,9 @@ export function useHomeController(
   const [isSyncing, setIsSyncing] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
+  // 接收结果弹层由首页这层稳定宿主持有;入口只在存在接收尝试时出现。
+  const [receiveResultsOpen, setReceiveResultsOpen] = useState(false);
+  const receiveEntryCount = useReceiveResultsStore((s) => Object.keys(s.entries).length);
 
   // Expanded 双栏专用:右栏当前展示的条目。Compact 不使用。
   const [detailItem, setDetailItem] = useState<ClipboardItem | null>(null);
@@ -981,6 +985,9 @@ export function useHomeController(
     // camera sheet (android)
     cameraOpen,
     setCameraOpen,
+    receiveResultsOpen,
+    setReceiveResultsOpen,
+    receiveEntryCount,
     handleCameraCapture,
     // word picker
     wordPickerTarget,

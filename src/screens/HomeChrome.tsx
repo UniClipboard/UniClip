@@ -46,6 +46,11 @@ export function HomeTopBarArea({
           onSettings={c.onOpenSettings}
           historyLayout={historyLayoutMenu ? c.historyLayout : undefined}
           onHistoryLayoutChange={historyLayoutMenu ? c.setHistoryLayout : undefined}
+          receiveResults={
+            c.receiveEntryCount > 0
+              ? { count: c.receiveEntryCount, onOpen: () => c.setReceiveResultsOpen(true) }
+              : undefined
+          }
           theme={c.theme}
           onSelectMode={() => {
             c.setIsSelectMode(true);
