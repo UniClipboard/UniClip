@@ -32,7 +32,10 @@ in-progress run, because they consume the same build counter.
 `modules/uc-engine/core-source.json` pins the engine release and source revision.
 The platform artifacts are prepared by `npm run core:prepare` and checked by
 `npm run core:verify` before Expo prebuild runs. The app repository does not
-carry a source submodule.
+carry a source submodule. The pinned Engine itself keeps its network stack in a
+submodule (`third_party/iroh`). `scripts/engine-source-checkout.sh` creates the
+Engine worktree for both `core:prepare` and the device install script and populates
+that submodule, or stops with a message naming it when it cannot be fetched.
 
 To adopt a new engine release, update the pinned source through the repository's
 engine preparation workflow, then verify both platform artifacts before changing

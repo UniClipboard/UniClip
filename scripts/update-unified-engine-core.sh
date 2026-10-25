@@ -56,7 +56,7 @@ if [[ "$artifact_source" == "local-build" || "$artifact_source" == "commit" ]]; 
     fi
   done
   trap 'git -C "$engine_root" worktree remove --force "$worktree"; rm -rf "$scratch"' EXIT
-  git -C "$engine_root" worktree add --detach "$worktree" "$pin_commit"
+  bash "$ROOT_DIR/scripts/engine-source-checkout.sh" "$engine_root" "$worktree" "$pin_commit"
   uc_engine_stage_cache_entry "$worktree"
 
   build_profile=dev

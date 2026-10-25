@@ -22,7 +22,7 @@ function fixture(t) {
     write(join(module, 'ios/UniClipboardEngine.xcframework', file), file);
   }
   mkdirSync(join(root, 'scripts'), { recursive: true });
-  for (const name of ['engine-build-storage.sh', 'verify-unified-engine-core.mjs']) cpSync(join(repo, 'scripts', name), join(root, 'scripts', name));
+  for (const name of ['engine-build-storage.sh', 'engine-source-checkout.sh', 'verify-unified-engine-core.mjs']) cpSync(join(repo, 'scripts', name), join(root, 'scripts', name));
   execFileSync(process.execPath, [join(root, 'scripts/verify-unified-engine-core.mjs'), '--record-prepared', '--platform', 'ios'], { stdio: 'pipe' });
   cpSync(join(module, 'ios/Bindings/uc_engine_uniffi.swift'), join(cache, 'uc_engine_uniffi.swift'));
   execFileSync('zip', ['-qr', join(cache, 'UniClipboardEngine.xcframework.zip'), 'UniClipboardEngine.xcframework'], { cwd: join(module, 'ios') });

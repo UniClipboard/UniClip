@@ -27,7 +27,7 @@ function fixture(t) {
   write(join(module, 'ios/Bindings/uc_engine_uniffi.swift'), 'binding');
   for (const file of files) write(join(module, 'ios/UniClipboardEngine.xcframework', file), file);
   mkdirSync(join(mobile, 'scripts'), { recursive: true });
-  for (const name of ['verify-unified-engine-core.mjs', 'engine-build-storage.sh', 'local-engine-override.mjs']) cpSync(join(repo, 'scripts', name), join(mobile, 'scripts', name));
+  for (const name of ['verify-unified-engine-core.mjs', 'engine-build-storage.sh', 'engine-source-checkout.sh', 'local-engine-override.mjs']) cpSync(join(repo, 'scripts', name), join(mobile, 'scripts', name));
   const record = (sourceCommit = commit) => execFileSync(process.execPath, [join(mobile, 'scripts/verify-unified-engine-core.mjs'), '--record-local', '--source-commit', sourceCommit, '--source-state-sha256', sha('')]);
   record();
   // Exercise the actual preparation entry point, without a phone or application build.

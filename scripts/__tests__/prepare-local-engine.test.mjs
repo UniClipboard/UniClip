@@ -72,6 +72,10 @@ printf '<project><version>1.1.0-rc.13</version><dependencies><dependency><versio
         resolve("scripts/update-unified-engine-core.sh"),
         join(mobile, "scripts/update-unified-engine-core.sh")
       );
+      cpSync(
+        resolve("scripts/engine-source-checkout.sh"),
+        join(mobile, "scripts/engine-source-checkout.sh")
+      );
       writeFileSync(
         join(mobile, "scripts/prepare-local-unified-engine-core.sh"),
         `#!/bin/bash

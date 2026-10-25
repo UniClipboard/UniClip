@@ -343,7 +343,7 @@ prepare_install_engine() {
   echo "Preparing $platform Engine pinned by mobile ($source_commit)"
   worktree="$(mktemp -d "$LOCAL_ENGINE_ROOT/engine-install.XXXXXX")"
   rmdir "$worktree"
-  git -C "$ENGINE_ROOT" worktree add --detach "$worktree" "$source_commit"
+  bash "$SCRIPT_DIR/engine-source-checkout.sh" "$ENGINE_ROOT" "$worktree" "$source_commit"
   prepare_local_engine_cargo_config "$worktree"
   trap 'git -C "$ENGINE_ROOT" worktree remove --force "$worktree"' RETURN
   case "$platform" in
