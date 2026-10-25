@@ -1,3 +1,11 @@
+v2.3.0.194-alpha.1
+
+### Common
+
+- New: Received files show a result for each item, and only the failed items can be retried
+- New: A notice appears when a configuration import is rejected
+- Improvement: Update the sync core to commit f44ae13 after v1.1.0-rc.23, which separates settings from the sync core and updates DNS resolution in the network stack
+
 v2.2.0.193-alpha.1
 
 ### iOS
