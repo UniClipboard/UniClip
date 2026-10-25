@@ -120,6 +120,23 @@ describe the save as failed. Invalid, duplicate, and missing-target results use
 specific translatable messages and refresh the latest Engine list rather than
 showing internal error text.
 
+Received files report per-item results. Each inbound transfer has an attempt
+(receiving, committing, cancelling, failing, completed, failed or cancelled) and
+one result per item. A folder is received as one unit; its member count is shown
+apart from the item list. An item counts as saved only when Engine reports it
+completed. A failed or cancelled attempt can still hold saved files, and saved
+files are never retried or deleted because a sibling failed. Engine owns
+scheduling, retry, cancellation, supersession and cleanup. Mobile reads Engine
+snapshots, treats events only as a signal to read again, and submits two intents:
+retry selected failed or cancelled items of the current attempt, or cancel the
+attempt. Accepting a retry starts a new attempt and does not mean anything is
+saved. Cancellation that is still cleaning up is not shown as cancelled. If the
+retry source is gone or access is denied, Mobile says so and keeps the failed items
+and saved files. A newer attempt replaces an older one and the list refreshes. When
+a refresh fails, Mobile keeps the last known status and marks it stale. The Home
+top-bar menu shows "Received files" only while receive attempts exist. The sender's
+delivery report is a separate concept and does not say what the receiver saved.
+
 ## Key Directories
 
 | Path                                                                 | Purpose                                                                        |
