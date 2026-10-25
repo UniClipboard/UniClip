@@ -232,6 +232,53 @@ for scenario in ["unsupportedFormat", "malformedMarker", "missingRuntimeMembers"
     try writeJSON(["cases": results], output.appendingPathComponent("result.json"))
 }
 
+// Receive query, cancellation and retry through the generated binding. A single isolated
+// profile has no receiver-side attempt, so this proves symbol and checksum agreement,
+// stable absent/refusal values and structured errors. It does not prove a transfer.
+do {
+    let caseRoot = output.appendingPathComponent("receive-api")
+    let host = IsolatedHost(caseRoot)
+    let config = BindingConfig(appVersion: "1.0.0", profileId: "default")
+    let engine = try MobileEngine.start(config: config, host: host)
+    _ = try engine.createSpace(deviceName: "Synthetic receive space",
+        passphrase: "synthetic receive space passphrase")
+    let text = "Synthetic sender-side entry"
+    let entry = try engine.sendText(text: text, targetDevices: []).entryId
+    try require(try engine.listEntryReceiveProgress().isEmpty, "Unexpected receive attempt in a fresh profile")
+    try require(try engine.queryEntryReceiveProgress(entryId: entry) == nil, "A sender entry has a receive snapshot")
+    let allowedCancellation: Set<String> = ["cancelled", "cancellation_incomplete", "not_receiving",
+        "too_late", "already_terminal", "superseded"]
+    let cancellation = try engine.cancelEntryReceive(entryId: entry, attemptId: "synthetic-attempt")
+    try require(allowedCancellation.contains(cancellation), "Unknown cancellation outcome: \(cancellation)")
+    try require(cancellation != "cancelled", "Cancellation was reported without a receive attempt")
+    var emptySelection: [String: Any] = [:]
+    do {
+        _ = try engine.retryEntryReceive(entryId: entry, expectedAttemptId: "synthetic-attempt", itemIds: [])
+        throw CheckFailure(message: "An empty retry selection was accepted")
+    } catch let BindingError.Engine(code, category, retryable) {
+        try require(category == .invalidInput && !retryable, "Empty selection error fields changed")
+        emptySelection = ["code": code, "category": String(describing: category), "retryable": retryable]
+    }
+    var unknownItem = "error"
+    var unknownItemFields: [String: Any] = [:]
+    do {
+        let outcome = try engine.retryEntryReceive(entryId: entry, expectedAttemptId: "synthetic-attempt", itemIds: ["synthetic-item"])
+        if case .accepted = outcome { throw CheckFailure(message: "Retry was accepted for an unknown item") }
+        unknownItem = String(describing: outcome)
+    } catch let BindingError.Engine(code, category, retryable) {
+        unknownItemFields = ["code": code, "category": String(describing: category), "retryable": retryable]
+    }
+    try require(try engine.restoreClipboard(entryId: entry, mode: .standard) == .restored, "Receive calls changed local history")
+    try engine.shutdown(deadlineMs: 15000)
+    let record: [String: Any] = ["listEmpty": true, "senderEntrySnapshot": "absent",
+        "cancellationWithoutAttempt": cancellation, "emptySelection": emptySelection,
+        "unknownItemOutcome": unknownItem, "unknownItemError": unknownItemFields,
+        "localHistoryUnchanged": true]
+    try writeJSON(record, caseRoot.appendingPathComponent("receive-api.json"))
+    results.append(["case": "receive-api", "passed": true, "record": record])
+    try writeJSON(["cases": results], output.appendingPathComponent("result.json"))
+}
+
 _ = try flushProcessObservability(deadlineMs: 2000)
 }
 

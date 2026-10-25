@@ -1,6 +1,6 @@
 import { File } from 'expo-file-system';
 import * as Application from 'expo-application';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import {
   configureP2pSpaceActivation,
   getP2pSpaceSetupCoordinator,
@@ -15,6 +15,8 @@ import { configureUnifiedSpaceService, getUnifiedSpaceService } from '@/features
 import {
   configureClipboardObserver,
   configureOutboundDeliveryCoordinator,
+  configureReceiveResultsService,
+  getReceiveResultsService,
   configureUnifiedContentService,
   getUnifiedContentService,
   getOutboundDeliveryCoordinator,
@@ -26,6 +28,7 @@ import { configureRelaySettings } from '@/features/relaySettings';
 import { configureNetworkContextChangeListener } from '@/platform/network';
 import { configurePostHogAnalytics } from '@/support/observability';
 import { useStatisticsStore } from '@/stores/statisticsStore';
+import { publishReceiveResultsSnapshot } from '@/stores/receiveResultsStore';
 import { configureOutboundShareHandoffManager, createPendingShareStore } from '@/features/transfer';
 import {
   configureUnifiedSyncRuntime,
@@ -47,6 +50,13 @@ export function configureAppRuntime(): void {
   configureUnifiedEngineService(nativeEngine);
   configureProductionLanServerService();
   configureOutboundDeliveryCoordinator(getUnifiedEngineService());
+  // Receive results mirror Engine snapshots; events only invalidate them.
+  configureReceiveResultsService(nativeEngine, getUnifiedEngineService(), publishReceiveResultsSnapshot);
+  getReceiveResultsService().start();
+  // The Engine can keep running in the background (Android), so no event marks the return.
+  AppState.addEventListener('change', (state) => {
+    if (state === 'active') void getReceiveResultsService().refresh();
+  });
   configureUnifiedContentService({
     readClipboard: () => clipboardManager.getClipboardContent(),
     readFileBytes: (uri) => new File(uri).bytes(),

@@ -22,6 +22,8 @@ export interface DefaultTopBarProps {
    */
   historyLayout?: HistoryLayout;
   onHistoryLayoutChange?: (layout: HistoryLayout) => void;
+  /** 存在接收尝试时才传:顶栏菜单里出现「接收结果」入口,打开首页持有的接收结果弹层。 */
+  receiveResults?: { count: number; onOpen: () => void };
   /** iOS:顶栏「+」菜单的添加动作;Android 由右下 FAB 承担,不传。 */
   addActions?: HomeAddActions;
   theme: ReturnType<typeof useTheme>['theme'];

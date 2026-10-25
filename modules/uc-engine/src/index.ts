@@ -269,6 +269,56 @@ export type ResendEntryOutcome =
   | { kind: 'targetNotTrusted'; deviceId: string }
   | { kind: 'noEligibleTargets' };
 
+/** Receiver-side item kinds. A directory is one selectable `directory_unit`. */
+export type ReceiveItemKind = 'file' | 'representation' | 'directory_unit';
+
+/**
+ * One independently settled receive item. `state`, `kind` and `failureReason` are the
+ * Engine's wire strings, passed through unchanged so a newer Engine value is preserved.
+ */
+export interface ReceiveItem {
+  itemId: string;
+  kind: ReceiveItemKind | (string & {});
+  state: string;
+  failureReason: string | null;
+}
+
+/**
+ * Snapshot of the current receive attempt for one entry. `completedBytes` counts
+ * delivered member bytes only. `itemsTotal` counts members, which can exceed
+ * `items.length` for a directory.
+ */
+export interface ReceiveProgress {
+  entryId: string;
+  attemptId: string;
+  state: string;
+  totalBytes: number;
+  completedBytes: number;
+  itemsTotal: number;
+  itemsCompleted: number;
+  items: ReceiveItem[];
+}
+
+export type ReceiveRetryUnavailableReason = 'source_unavailable' | 'access_denied';
+
+/** `accepted` only means the Engine took a new attempt; it is not a saved file. */
+export type ReceiveRetryOutcome =
+  | { kind: 'accepted'; attemptId: string }
+  | { kind: 'alreadyReceiving' }
+  | { kind: 'superseded' }
+  | { kind: 'cancellationIncomplete' }
+  | { kind: 'unavailable'; reason: ReceiveRetryUnavailableReason | (string & {}) };
+
+/** `cancellation_incomplete` means cleanup is still running; it is not a cancelled state. */
+export type EntryReceiveCancellation =
+  | 'cancelled'
+  | 'cancellation_incomplete'
+  | 'not_receiving'
+  | 'too_late'
+  | 'already_terminal'
+  | 'superseded'
+  | (string & {});
+
 export type EngineEvent =
   | { type: 'stateChanged'; state: EngineState }
   | {
@@ -539,6 +589,14 @@ interface UcEngineNativeModule {
     mode: ClipboardRestoreMode
   ): Promise<ClipboardRestoreOutcome>;
   exportEntry(entryId: string, destinationHandle: string): Promise<void>;
+  queryEntryReceiveProgress(entryId: string): Promise<ReceiveProgress | null>;
+  listEntryReceiveProgress(): Promise<ReceiveProgress[]>;
+  retryEntryReceive(
+    entryId: string,
+    expectedAttemptId: string,
+    itemIds: string[]
+  ): Promise<EngineCallResult<ReceiveRetryOutcome>>;
+  cancelEntryReceive(entryId: string, attemptId: string): Promise<EntryReceiveCancellation>;
 }
 
 const NativeModule = requireNativeModule<UcEngineNativeModule>('UcEngine');
@@ -869,6 +927,38 @@ export function exportEntry(
   destinationHandle: string
 ): Promise<void> {
   return NativeModule.exportEntry(entryId, destinationHandle);
+}
+
+export function queryEntryReceiveProgress(
+  entryId: string
+): Promise<ReceiveProgress | null> {
+  return NativeModule.queryEntryReceiveProgress(entryId);
+}
+
+export function listEntryReceiveProgress(): Promise<ReceiveProgress[]> {
+  return NativeModule.listEntryReceiveProgress();
+}
+
+/**
+ * Asks the Engine to retry selected failed or cancelled items of the expected attempt.
+ * Item identities must come from the current receive snapshot. An empty or invalid
+ * selection is an Engine failure and rejects with `UcEngineError`.
+ */
+export function retryEntryReceive(
+  entryId: string,
+  expectedAttemptId: string,
+  itemIds: string[]
+): Promise<ReceiveRetryOutcome> {
+  return unwrapEngineCall(
+    NativeModule.retryEntryReceive(entryId, expectedAttemptId, itemIds)
+  );
+}
+
+export function cancelEntryReceive(
+  entryId: string,
+  attemptId: string
+): Promise<EntryReceiveCancellation> {
+  return NativeModule.cancelEntryReceive(entryId, attemptId);
 }
 
 export function flushEngineLogs(): Promise<boolean> {

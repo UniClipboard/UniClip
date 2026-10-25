@@ -32,6 +32,7 @@ import { useSettingsStore } from '@/features/settings';
 import { getAppRuntime } from '@/app/runtime/composition';
 import { createLogger } from '@/support/observability';
 import { useLanMySpaceSheet } from '../useLanMySpaceSheet';
+import { formatBytes } from '@/utils/formatBytes';
 
 const log = createLogger('ShareSendSheet');
 
@@ -74,12 +75,7 @@ const SUCCESS_CLOSE_DELAY_MS = 600;
 /** 与处理租约一致的陈旧判定:超过该时长的 job 只可能是中断会话的残留。 */
 const STALE_JOB_AGE_MS = 15 * 60 * 1_000;
 
-export function formatBytes(byteCount: number): string {
-  if (byteCount < 1024) return `${byteCount} B`;
-  if (byteCount < 1024 * 1024) return `${(byteCount / 1024).toFixed(1)} KB`;
-  if (byteCount < 1024 * 1024 * 1024) return `${(byteCount / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(byteCount / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-}
+export { formatBytes };
 
 async function loadPreview(job: PendingShareJob): Promise<ShareJobView> {
   if (job.kind !== 'text') return { job, sendState: 'idle' };

@@ -155,5 +155,65 @@
   },
   "card": {
     "copied": "已复制"
+  },
+  "receive": {
+    "title": "接收的文件",
+    "menuEntry": "接收的文件",
+    "empty": "当前没有正在接收的文件。",
+    "stale": "显示的是最近一次读取到的状态，暂时无法读取最新状态。",
+    "entryTitle": "传输 {{index}}",
+    "bytes": "已保存 {{completed}} / {{total}}",
+    "members": "文件夹内已保存 {{completed}} / {{total}} 个文件",
+    "item": {
+      "file": "文件 {{index}}",
+      "content": "内容",
+      "directory": "文件夹（作为整体接收）",
+      "unknown": "项目"
+    },
+    "state": {
+      "pending": "等待中",
+      "transferring": "接收中",
+      "completed": "已保存",
+      "failed": "失败",
+      "cancelled": "已取消",
+      "unknown": "未知"
+    },
+    "attempt": {
+      "receiving": "接收中",
+      "committing": "保存中",
+      "cancelling": "取消中",
+      "failing": "正在停止",
+      "completed": "全部已保存",
+      "failed": "部分项目失败",
+      "cancelled": "已取消",
+      "unknown": "未知"
+    },
+    "reason": {
+      "network_unavailable": "网络不可用",
+      "timed_out": "超时",
+      "access_denied": "访问被拒绝",
+      "storage_unavailable": "存储不可用",
+      "integrity_check_failed": "完整性校验失败",
+      "interrupted": "已中断",
+      "unknown": "未知原因"
+    },
+    "action": {
+      "cancel": "取消接收",
+      "retrySelected": "重试所选（{{count}}）"
+    },
+    "notice": {
+      "retryAccepted": "已开始重试。只有显示“已保存”的项目才算保存成功。",
+      "alreadyReceiving": "此传输已在接收中。",
+      "superseded": "已有更新的尝试取代了这一次，列表已刷新。",
+      "retryCancellationIncomplete": "上一次尝试仍在结束中，请稍后再试。",
+      "sourceUnavailable": "来源已不可用，无法重试这些项目。已保存的文件会保留。",
+      "accessDenied": "访问被拒绝，无法重试这些项目。",
+      "cancelled": "已取消接收。",
+      "cancellationIncomplete": "仍在取消中，清理尚未完成。",
+      "notReceiving": "此传输当前没有在接收。",
+      "tooLate": "已来不及取消，传输正在结束。",
+      "alreadyTerminal": "此传输已经结束。",
+      "requestFailed": "请求未能完成。"
+    }
   }
 }

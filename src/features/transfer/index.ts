@@ -34,6 +34,18 @@ export {
   type PendingShareStore,
 } from './internal/pendingShareStore';
 export {
+  configureReceiveResultsService,
+  describeReceiveEntry,
+  getReceiveResultsService,
+  ReceiveResultsError,
+  ReceiveResultsService,
+  type ReceiveEntryView,
+  type ReceiveItemState,
+  type ReceiveItemView,
+  type ReceiveResultsApi,
+  type ReceiveResultsSnapshot,
+} from './internal/receiveResults';
+export {
   p2pDeliveryCountsFromReport,
   p2pDeliveryCountsFromResend,
   p2pDeliveryStateFromReport,

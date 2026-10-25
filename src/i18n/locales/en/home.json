@@ -159,5 +159,65 @@
   },
   "card": {
     "copied": "Copied"
+  },
+  "receive": {
+    "title": "Received files",
+    "menuEntry": "Received files",
+    "empty": "No files are being received.",
+    "stale": "Showing the last known status. The latest status could not be read.",
+    "entryTitle": "Transfer {{index}}",
+    "bytes": "{{completed}} of {{total}} saved",
+    "members": "{{completed}} of {{total}} files in the folder saved",
+    "item": {
+      "file": "File {{index}}",
+      "content": "Content",
+      "directory": "Folder (received as one unit)",
+      "unknown": "Item"
+    },
+    "state": {
+      "pending": "Waiting",
+      "transferring": "Receiving",
+      "completed": "Saved",
+      "failed": "Failed",
+      "cancelled": "Cancelled",
+      "unknown": "Unknown"
+    },
+    "attempt": {
+      "receiving": "Receiving",
+      "committing": "Saving",
+      "cancelling": "Cancelling",
+      "failing": "Stopping",
+      "completed": "All saved",
+      "failed": "Some items failed",
+      "cancelled": "Cancelled",
+      "unknown": "Unknown"
+    },
+    "reason": {
+      "network_unavailable": "Network unavailable",
+      "timed_out": "Timed out",
+      "access_denied": "Access denied",
+      "storage_unavailable": "Storage unavailable",
+      "integrity_check_failed": "Integrity check failed",
+      "interrupted": "Interrupted",
+      "unknown": "Unknown reason"
+    },
+    "action": {
+      "cancel": "Cancel receiving",
+      "retrySelected": "Retry selected ({{count}})"
+    },
+    "notice": {
+      "retryAccepted": "Retry started. An item counts as saved only when it shows Saved.",
+      "alreadyReceiving": "This transfer is already receiving.",
+      "superseded": "A newer attempt replaced this one. The list was refreshed.",
+      "retryCancellationIncomplete": "The previous attempt is still ending. Try again in a moment.",
+      "sourceUnavailable": "The source is no longer available, so these items cannot be retried. Saved files are kept.",
+      "accessDenied": "Access was denied, so these items cannot be retried.",
+      "cancelled": "Receiving was cancelled.",
+      "cancellationIncomplete": "Still cancelling. Cleanup has not finished yet.",
+      "notReceiving": "This transfer is not receiving.",
+      "tooLate": "Too late to cancel. The transfer is already finishing.",
+      "alreadyTerminal": "This transfer has already finished.",
+      "requestFailed": "The request could not be completed."
+    }
   }
 }

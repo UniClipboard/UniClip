@@ -580,6 +580,28 @@ public final class UcEngineModule: Module {
       )
     }.runOnQueue(engineOperationQueue)
 
+    AsyncFunction("queryEntryReceiveProgress") { (entryId: String) -> [String: Any]? in
+      try self.requireEngine().queryEntryReceiveProgress(entryId: entryId)
+        .map(Self.receiveProgressMap)
+    }.runOnQueue(engineOperationQueue)
+
+    AsyncFunction("listEntryReceiveProgress") { () -> [[String: Any]] in
+      try self.requireEngine().listEntryReceiveProgress().map(Self.receiveProgressMap)
+    }.runOnQueue(engineOperationQueue)
+
+    AsyncFunction("retryEntryReceive") {
+      (entryId: String, expectedAttemptId: String, itemIds: [String]) -> [String: Any] in
+      try Self.engineResult {
+        let engine = try self.requireEngine()
+        let outcome = try engine.retryEntryReceive(entryId: entryId, expectedAttemptId: expectedAttemptId, itemIds: itemIds)
+        return Self.receiveRetryOutcomeMap(outcome)
+      }
+    }.runOnQueue(engineOperationQueue)
+
+    AsyncFunction("cancelEntryReceive") { (entryId: String, attemptId: String) -> String in
+      try self.requireEngine().cancelEntryReceive(entryId: entryId, attemptId: attemptId)
+    }.runOnQueue(engineOperationQueue)
+
     OnAppEntersBackground {
       EngineDiagnosticBridge.record(.lifecycle(state: .background))
       AppleNativeDiagnostics.journal.record(.appBackground, trigger: .appBackground)
@@ -757,6 +779,41 @@ public final class UcEngineModule: Module {
       return ["kind": "targetNotTrusted", "deviceId": deviceId]
     case .noEligibleTargets:
       return ["kind": "noEligibleTargets"]
+    }
+  }
+
+  private static func receiveProgressMap(_ progress: ReceiveProgress) -> [String: Any] {
+    [
+      "entryId": progress.entryId,
+      "attemptId": progress.attemptId,
+      "state": progress.state,
+      "totalBytes": progress.totalBytes,
+      "completedBytes": progress.completedBytes,
+      "itemsTotal": progress.itemsTotal,
+      "itemsCompleted": progress.itemsCompleted,
+      "items": progress.items.map { item -> [String: Any] in
+        [
+          "itemId": item.itemId,
+          "kind": item.kind,
+          "state": item.state,
+          "failureReason": item.failureReason ?? NSNull(),
+        ]
+      },
+    ]
+  }
+
+  private static func receiveRetryOutcomeMap(_ outcome: ReceiveRetryOutcome) -> [String: Any] {
+    switch outcome {
+    case .accepted(let attemptId):
+      return ["kind": "accepted", "attemptId": attemptId]
+    case .alreadyReceiving:
+      return ["kind": "alreadyReceiving"]
+    case .superseded:
+      return ["kind": "superseded"]
+    case .cancellationIncomplete:
+      return ["kind": "cancellationIncomplete"]
+    case .unavailable(let reason):
+      return ["kind": "unavailable", "reason": reason]
     }
   }
 

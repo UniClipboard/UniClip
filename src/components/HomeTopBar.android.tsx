@@ -19,11 +19,13 @@ export function DefaultTopBar({
   onSearch,
   historyLayout,
   onHistoryLayoutChange,
+  receiveResults,
   theme,
 }: DefaultTopBarProps) {
   const { t } = useTranslation('home');
   const { colors } = theme;
   const layoutItems = useHistoryLayoutMenuItems(historyLayout, onHistoryLayoutChange);
+  const menuItems = useReceiveResultsMenuItem(receiveResults, layoutItems);
   return (
     <View style={s.row}>
       <View style={[s.searchBar, { backgroundColor: colors.surfaceHigh }]}>
@@ -40,16 +42,34 @@ export function DefaultTopBar({
             {t('topBar.searchPlaceholder')}
           </Text>
         </Pressable>
-        {layoutItems ? (
+        {menuItems ? (
           <OverflowMenu
             testID="history-layout-menu"
-            title={t('layout.title', { ns: 'history' })}
-            items={layoutItems}
+            title={layoutItems ? t('layout.title', { ns: 'history' }) : undefined}
+            items={menuItems}
           />
         ) : null}
       </View>
     </View>
   );
+}
+
+/** 存在接收尝试时在同一个 ⋮ 菜单末尾追加「接收结果」;没有则保持原菜单不变。 */
+function useReceiveResultsMenuItem(
+  receiveResults: DefaultTopBarProps['receiveResults'],
+  layoutItems: OverflowMenuItem[] | null
+): OverflowMenuItem[] | null {
+  const { t } = useTranslation('home');
+  if (!receiveResults) return layoutItems;
+  return [
+    ...(layoutItems ?? []),
+    {
+      key: 'receive-results',
+      label: t('receive.menuEntry'),
+      icon: 'download-outline',
+      onPress: receiveResults.onOpen,
+    },
+  ];
 }
 
 const LAYOUT_ICONS: Record<HistoryLayout, string> = {

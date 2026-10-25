@@ -277,6 +277,86 @@ describe('unified P2P engine native module', () => {
     expect(kotlin).toContain('ResendEntryOutcome.SynchronizationDisabled');
   });
 
+  it('exposes receive snapshots, cancellation and selected retry on JavaScript, iOS, and Android', () => {
+    const javascript = read('src/index.ts');
+    const swift = read('ios/UcEngineModule.swift');
+    const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
+
+    for (const operation of [
+      'queryEntryReceiveProgress',
+      'listEntryReceiveProgress',
+      'retryEntryReceive',
+      'cancelEntryReceive',
+    ]) {
+      expect(javascript).toMatch(new RegExp(`export (?:async )?function ${operation}\\b`));
+      expect(swift).toContain(`AsyncFunction("${operation}")`);
+      expect(kotlin).toContain(`AsyncFunction("${operation}")`);
+    }
+    expect(swift).toContain(
+      'retryEntryReceive(entryId: entryId, expectedAttemptId: expectedAttemptId, itemIds: itemIds)'
+    );
+    expect(kotlin).toContain('retryEntryReceive(entryId, expectedAttemptId, itemIds)');
+    expect(swift).toContain('cancelEntryReceive(entryId: entryId, attemptId: attemptId)');
+    expect(kotlin).toContain('cancelEntryReceive(entryId, attemptId)');
+  });
+
+  it('maps every receive retry outcome and per-item field identically on both platforms', () => {
+    const javascript = read('src/index.ts');
+    const swift = read('ios/UcEngineModule.swift');
+    const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
+
+    for (const kind of [
+      'accepted',
+      'alreadyReceiving',
+      'superseded',
+      'cancellationIncomplete',
+      'unavailable',
+    ]) {
+      expect(javascript).toContain(`kind: '${kind}'`);
+      expect(swift).toContain(`"kind": "${kind}"`);
+      expect(kotlin).toContain(`"kind" to "${kind}"`);
+    }
+    for (const field of [
+      'itemId',
+      'failureReason',
+      'itemsTotal',
+      'itemsCompleted',
+      'completedBytes',
+      'totalBytes',
+      'attemptId',
+    ]) {
+      expect(javascript).toContain(`${field}`);
+      expect(swift).toContain(`"${field}"`);
+      expect(kotlin).toContain(`"${field}" to`);
+    }
+    expect(swift).toContain('case .accepted(let attemptId):');
+    expect(kotlin).toContain('is ReceiveRetryOutcome.Accepted ->');
+    expect(swift).toContain('case .unavailable(let reason):');
+    expect(kotlin).toContain('is ReceiveRetryOutcome.Unavailable ->');
+  });
+
+  it('reports retry failures as structured data and never as a bridge message', () => {
+    const javascript = read('src/index.ts');
+    const swift = read('ios/UcEngineModule.swift');
+    const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
+
+    expect(javascript).toContain(
+      'retryEntryReceive(\n    entryId: string,\n    expectedAttemptId: string,\n    itemIds: string[]\n  ): Promise<EngineCallResult<ReceiveRetryOutcome>>'
+    );
+    expect(javascript).toContain('unwrapEngineCall(');
+    expect(swift).toMatch(/AsyncFunction\("retryEntryReceive"\)[\s\S]*?engineResult/);
+    expect(kotlin).toMatch(/AsyncFunction\("retryEntryReceive"\)[\s\S]*?engineResult/);
+  });
+
+  it('keeps receive queries out of the native lifecycle and file-handle ownership', () => {
+    const swift = read('ios/UcEngineModule.swift');
+    const kotlin = read('android/src/main/java/expo/modules/ucengine/UcEngineModule.kt');
+
+    for (const source of [swift, kotlin]) {
+      expect(source).not.toMatch(/retryEntryReceive[\s\S]{0,200}(registerOutputFile|releaseFileHandle)/);
+    }
+  });
+
   it('preserves the local-device marker on JavaScript, iOS, and Android', () => {
     const javascript = read('src/index.ts');
     const swift = read('ios/UcEngineModule.swift');
