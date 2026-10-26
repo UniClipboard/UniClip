@@ -23,7 +23,7 @@ public class AppGroupStoreModule: Module {
     AsyncFunction("saveSettings") { (json: String) throws -> Void in
       return try SharedStorageAccess.shared.withAccess {
         let settings = try self.decoder.decode(AppSettings.self, from: Data(json.utf8))
-        self.store.saveAppSettings(settings)
+        try self.store.saveAppSettingsOrThrow(settings)
       }
     }
 

@@ -204,8 +204,13 @@ public final class SettingsStore: @unchecked Sendable {
     }
 
     public func saveAppSettings(_ settings: AppSettings) {
-        _ = try? SharedStorageAccess.shared.withAccess {
-            guard let data = try? encoder.encode(settings) else { return }
+        try? saveAppSettingsOrThrow(settings)
+    }
+
+    /// Propagates admission and encoding errors to callers that require persistence.
+    public func saveAppSettingsOrThrow(_ settings: AppSettings) throws {
+        try SharedStorageAccess.shared.withAccess {
+            let data = try encoder.encode(settings)
             defaults.set(data, forKey: AppSettings.PersistenceKey.appSettings)
             defaults.synchronize()
         }
@@ -218,12 +223,14 @@ public final class SettingsStore: @unchecked Sendable {
     /// the rest of the store's corruption policy — never block startup on
     /// a bad blob).
     public func loadHistory() -> [ClipboardHistoryItem] {
-        (try? SharedStorageAccess.shared.withAccess {
-            guard let data = defaults.data(forKey: AppSettings.PersistenceKey.clipboardHistory) else {
-                return []
-            }
-            return (try? decoder.decode([ClipboardHistoryItem].self, from: data)) ?? []
-        }) ?? []
+        (try? SharedStorageAccess.shared.withAccess { loadHistoryAdmitted() }) ?? []
+    }
+
+    private func loadHistoryAdmitted() -> [ClipboardHistoryItem] {
+        guard let data = defaults.data(forKey: AppSettings.PersistenceKey.clipboardHistory) else {
+            return []
+        }
+        return (try? decoder.decode([ClipboardHistoryItem].self, from: data)) ?? []
     }
 
     /// Persist the clipboard observation log. Callers cap the size before
@@ -231,10 +238,12 @@ public final class SettingsStore: @unchecked Sendable {
     /// is still encoded (rather than removing the key) so a subsequent
     /// load round-trips to `[]` and the corruption fallback never fires.
     public func saveHistory(_ items: [ClipboardHistoryItem]) {
-        _ = try? SharedStorageAccess.shared.withAccess {
-            guard let data = try? encoder.encode(items) else { return }
-            defaults.set(data, forKey: AppSettings.PersistenceKey.clipboardHistory)
-        }
+        _ = try? SharedStorageAccess.shared.withAccess { saveHistoryAdmitted(items) }
+    }
+
+    private func saveHistoryAdmitted(_ items: [ClipboardHistoryItem]) {
+        guard let data = try? encoder.encode(items) else { return }
+        defaults.set(data, forKey: AppSettings.PersistenceKey.clipboardHistory)
     }
 
     /// Append one observation to the shared history log (App Group),
@@ -255,25 +264,27 @@ public final class SettingsStore: @unchecked Sendable {
         at timestamp: Date = Date(),
         cap: Int = 200
     ) {
-        var items = loadHistory()
-        // Same content already at the head → never insert a duplicate row,
-        // regardless of direction. Upgrade `.local` provenance to
-        // pushed/pulled in place; keep the stronger direction otherwise.
-        if let hash = entry.hash,
-           let last = items.first,
-           last.entry.hash == hash {
-            if direction != .local, last.direction != direction {
-                items[0].direction = direction
-                saveHistory(items)
+        _ = try? SharedStorageAccess.shared.withAccess {
+            var items = loadHistoryAdmitted()
+            // Same content already at the head → never insert a duplicate row,
+            // regardless of direction. Upgrade `.local` provenance to
+            // pushed/pulled in place; keep the stronger direction otherwise.
+            if let hash = entry.hash,
+               let last = items.first,
+               last.entry.hash == hash {
+                if direction != .local, last.direction != direction {
+                    items[0].direction = direction
+                    saveHistoryAdmitted(items)
+                }
+                return
             }
-            return
+            items.insert(
+                ClipboardHistoryItem(entry: entry, timestamp: timestamp, direction: direction),
+                at: 0
+            )
+            if items.count > cap { items = Array(items.prefix(cap)) }
+            saveHistoryAdmitted(items)
         }
-        items.insert(
-            ClipboardHistoryItem(entry: entry, timestamp: timestamp, direction: direction),
-            at: 0
-        )
-        if items.count > cap { items = Array(items.prefix(cap)) }
-        saveHistory(items)
     }
 
     /// Move the history item with `id` to the head of the log by stamping
@@ -282,12 +293,12 @@ public final class SettingsStore: @unchecked Sendable {
     /// uplink's "already at head?" dedup recognizes the copied entry.
     public func touchHistoryItem(id: UUID) {
         _ = try? SharedStorageAccess.shared.withAccess {
-            var items = loadHistory()
+            var items = loadHistoryAdmitted()
             guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
             var item = items.remove(at: idx)
             item.timestamp = Date()
             items.insert(item, at: 0)
-            saveHistory(items)
+            saveHistoryAdmitted(items)
         }
     }
 
