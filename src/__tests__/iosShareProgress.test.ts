@@ -52,7 +52,7 @@ describe('iOS Share dumb-extension constraints', () => {
     expect(viewController).toContain('ShareItemExtractor.extract');
     expect(viewController).toContain('OutboundShareStore().stage(item)');
     expect(viewController).toContain('OutboundShareStore().enqueue(staged)');
-    expect(viewController).toContain('recordInHistory(staged)');
+    expect(viewController).toContain('recordInHistory(staged, generation: generation)');
     expect(viewController).toContain('HistoryLog(store: SettingsStore())');
     expect(viewController).toContain('PayloadCache.shared.writeFile');
     expect(viewController).toContain('sequence(first: self, next: \\.next)');
