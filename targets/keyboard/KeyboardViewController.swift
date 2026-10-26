@@ -1,4 +1,4 @@
-import class AppGroupStore.SharedStorageAccess
+internal import class AppGroupStore.SharedStorageAccess
 import UIKit
 internal import UcEngineCore
 

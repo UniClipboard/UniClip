@@ -1,6 +1,6 @@
 import Foundation
 #if canImport(AppGroupStore)
-import class AppGroupStore.SharedStorageAccess
+public import class AppGroupStore.SharedStorageAccess
 #elseif canImport(SharedStorageAccess)
 import SharedStorageAccess
 #endif

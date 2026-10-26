@@ -1,6 +1,6 @@
 import ExpoModulesCore
 import Foundation
-import class AppGroupStore.SharedStorageAccess
+internal import class AppGroupStore.SharedStorageAccess
 import OSLog
 import UIKit
 internal import UcEngineCore

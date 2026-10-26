@@ -1,5 +1,5 @@
 import Foundation
-import class AppGroupStore.SharedStorageAccess
+internal import class AppGroupStore.SharedStorageAccess
 
 // Fixed binding fields only; never serializes arbitrary errors or attributes.
 public enum EngineDiagnosticBridge {

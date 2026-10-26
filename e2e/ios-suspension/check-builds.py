@@ -41,8 +41,13 @@ sdk = subprocess.check_output(['xcrun','--sdk','iphoneos','--show-sdk-path'],tex
 stage = out/'ios-modules'; stage.mkdir()
 compiler = ['xcrun','swiftc','-swift-version','5','-sdk',sdk,'-target','arm64-apple-ios16.4','-module-cache-path',stage/'module-cache']
 run('ios-storage-module', compiler+['-parse-as-library','-emit-module','-module-name','AppGroupStore',root/'modules/app-group-store/ios/Shared/SharedStorageAccess.swift','-emit-module-path',stage/'AppGroupStore.swiftmodule'])
-files = list((root/'targets/_shared').glob('*.swift')) + [root/'modules/uc-engine/ios'/name for name in ['NativeRuntimeDiagnostics.swift','P2pRuntimeOwnership.swift','ExtensionRuntimeLifecycle.swift','NativeLifecycleHost.swift']]
-run('ios-storage-typecheck', compiler+['-typecheck','-parse-as-library','-I',stage,'-module-name','SuspensionStorageCheck']+files)
+provider = stage/'ExpoModulesProvider.swift'
+provider.write_text('internal import AppGroupStore\n')
+record['providerFixture'] = {'source': provider.read_text(), 'sha256': hashlib.sha256(provider.read_bytes()).hexdigest()}
+sharedFiles = list((root/'targets/_shared').glob('*.swift')) + [root/'modules/uc-engine/ios/NativeRuntimeDiagnostics.swift']
+run('ios-storage-typecheck', compiler+['-typecheck','-parse-as-library','-I',stage,'-module-name','SuspensionStorageCheck',provider]+sharedFiles)
+hostFiles = [root/'modules/uc-engine/ios'/name for name in ['NativeRuntimeDiagnostics.swift','P2pRuntimeOwnership.swift','ExtensionRuntimeLifecycle.swift','NativeLifecycleHost.swift']]
+run('ios-native-host-typecheck', compiler+['-typecheck','-parse-as-library','-I',stage,'-module-name','SuspensionHostCheck']+hostFiles)
 record['result'] = 'PASS' if all(c['exitCode']==0 for c in record['commands']) else 'FAIL'
 (out/'result.json').write_text(json.dumps(record,indent=2)+'\n')
 print(out); print(record['result'])

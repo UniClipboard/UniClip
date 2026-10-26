@@ -1,5 +1,5 @@
 import Foundation
-import class AppGroupStore.SharedStorageAccess
+internal import class AppGroupStore.SharedStorageAccess
 import UIKit
 
 /// Principal class for the Share Extension. iOS instantiates this when the

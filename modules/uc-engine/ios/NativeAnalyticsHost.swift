@@ -1,7 +1,7 @@
 import CryptoKit
 import Foundation
 #if canImport(AppGroupStore)
-import class AppGroupStore.SharedStorageAccess
+internal import class AppGroupStore.SharedStorageAccess
 #elseif canImport(SharedStorageAccess)
 import SharedStorageAccess
 #endif

@@ -1,6 +1,6 @@
 import Combine
 import Foundation
-import class AppGroupStore.SharedStorageAccess
+internal import class AppGroupStore.SharedStorageAccess
 import UIKit
 import ImageIO
 import OSLog
