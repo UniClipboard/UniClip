@@ -78,11 +78,13 @@ if [[ "$artifact_source" == "local-build" || "$artifact_source" == "commit" ]]; 
   fi
 
   if [[ "$platform" != android ]]; then
+    uc_engine_restore_snapshot "$worktree" ios
     UC_ENGINE_PREPARE_ONLY=1 UC_ENGINE_LOCAL_TARGET_DIR="$local_target" \
       UC_ENGINE_UNIFFI_BUILD_PROFILE="$build_profile" \
       bash "$ROOT_DIR/scripts/prepare-local-unified-engine-core.sh" "$worktree"
   fi
   if [[ "$platform" != ios ]]; then
+    uc_engine_restore_snapshot "$worktree" android
     (
       cd "$worktree"
       UC_ENGINE_UNIFFI_TARGET_DIR="$local_target" \

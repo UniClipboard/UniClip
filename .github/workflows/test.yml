@@ -26,6 +26,14 @@ jobs:
       - name: Test CI change classification and required checks
         run: node --test scripts/tests/ci-changes.test.mjs scripts/tests/ci-workflows.test.mjs scripts/tests/ci-native-recipes.test.mjs
 
+      - name: Test snapshot-only Engine cache consumption
+        run: |
+          python3 scripts/__tests__/engine-cache-snapshot.test.py
+          python3 scripts/__tests__/engine-cache-native.test.py
+          tools=$(bash scripts/engine-cache-tools.sh)
+          python3 "$tools/scripts/build-cache/mbx-snapshot.test.py"
+          node --test scripts/__tests__/engine-build-environment.test.mjs
+
       - name: Run CI tests
         run: npm run test:ci
 
