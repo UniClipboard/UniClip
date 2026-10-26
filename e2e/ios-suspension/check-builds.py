@@ -3,12 +3,18 @@
 import argparse, datetime, hashlib, json, pathlib, shutil, subprocess
 root = pathlib.Path(__file__).resolve().parents[2]
 parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--base-ref', default='fcf68bfe917fc7a12a3c0696ac90b5463ae0b724')
 parser.add_argument('--output-root', type=pathlib.Path, default=root/'e2e/results/ios-suspension')
 args = parser.parse_args()
 out = args.output_root.resolve()/('build-'+datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ'))
 out.mkdir(parents=True)
 record = {'scope': 'nonvisual host build, iOS SDK storage typecheck, Swift syntax, existing storage E2E and TypeScript; no full UIKit/Expo app or Engine build', 'commands': [], 'sourceHashes': {}}
-changed = subprocess.check_output(['git','diff','--name-only'],cwd=root,text=True).splitlines()
+base = subprocess.check_output(['git', 'merge-base', args.base_ref, 'HEAD'], cwd=root, text=True).strip()
+record['baseCommit'] = base
+record['headCommit'] = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
+changed = subprocess.check_output(['git', 'diff', '--name-only', '-z', '--diff-filter=d', base], cwd=root).decode().split('\0')
+changed += subprocess.check_output(['git', 'ls-files', '--others', '--exclude-standard', '-z'], cwd=root).decode().split('\0')
+changed = sorted({name for name in changed if name and (root/name).is_file()})
 for name in changed + ['modules/app-group-store/ios/Shared/SharedStorageAccess.swift']:
     if (root/name).is_file(): record['sourceHashes'][name] = hashlib.sha256((root/name).read_bytes()).hexdigest()
 

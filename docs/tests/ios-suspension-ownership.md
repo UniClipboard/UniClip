@@ -37,6 +37,10 @@ or an earlier generation.
 Grant-end and host-acknowledgement reports use OSLog. They do not open an App
 Group journal. Quiescing must complete suspend before Mobile reports success.
 ShuttingDown alone does not certify suspension.
+After failed suspend and shutdown calls, retained cleanup uses exponential
+backoff from 100 ms to a maximum interval of 5 seconds. A retry count or an
+Engine state alone does not certify resource release. Persistent failures keep
+ownership pending; the real Engine release contract remains a prerequisite.
 
 ## Replays
 
@@ -50,6 +54,9 @@ ShuttingDown alone does not certify suspension.
 
 Use `--output-root <directory>` to retain artifacts outside the default
 `e2e/results/ios-suspension` directory. Each run writes a new directory.
+The build checker selects existing committed, staged, unstaged and untracked
+files against the merge base of `--base-ref` (default: the pinned baseline).
+Deleted paths are excluded. Its receipt records the resolved base and HEAD.
 The native replay preserves compiler output, process exit codes, source hashes
 and per-case assertions. It uses actual temporary SQLite data and independent
 flock probes. The JS replay adapts the Expo bridge to real `node:sqlite` data.

@@ -27,6 +27,7 @@ final class ExtensionRuntimeLifecycle<Engine: AnyObject>: @unchecked Sendable {
   private var ownsRuntime = false
   private var activeOperationCount = 0
   private var retryScheduled = false
+  private var retryDelayMs = 100
 
   init(
     ownership: any NativeRuntimeOwnership,
@@ -154,12 +155,14 @@ final class ExtensionRuntimeLifecycle<Engine: AnyObject>: @unchecked Sendable {
     }
   }
 
-  /// The retained retry owns cleanup until an existing Engine API confirms it.
+  /// Retain cleanup until a suspend or shutdown call returns successfully.
   /// It never opens admission or releases ownership merely because time passed.
   private func scheduleSuspensionRetry() {
     guard !retryScheduled else { return }
     retryScheduled = true
-    shutdownQueue.asyncAfter(deadline: .now() + .milliseconds(100)) { [self] in
+    let delayMs = retryDelayMs
+    retryDelayMs = min(retryDelayMs * 2, 5_000)
+    shutdownQueue.asyncAfter(deadline: .now() + .milliseconds(delayMs)) { [self] in
       stopLock.withLock { retryScheduled = false }
       try? stopForSuspension()
     }

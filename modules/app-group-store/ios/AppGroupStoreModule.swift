@@ -4,7 +4,16 @@ import UIKit
 import UniformTypeIdentifiers
 
 public class AppGroupStoreModule: Module {
-  private lazy var store = SettingsStore()
+  private let storeLock = NSLock()
+  private var storedSettings: SettingsStore?
+  private var store: SettingsStore {
+    storeLock.lock()
+    defer { storeLock.unlock() }
+    if let storedSettings { return storedSettings }
+    let created = SettingsStore()
+    storedSettings = created
+    return created
+  }
   private let encoder = JSONEncoder()
   private let decoder = JSONDecoder()
 
