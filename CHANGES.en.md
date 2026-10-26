@@ -1,3 +1,15 @@
+v2.3.0.195
+
+### Common
+
+- New: Received files show a result for each item. Retry only the failed items.
+- New: A notice appears when a configuration import is rejected.
+- Improvement: Update the sync core to commit f44ae13 after v1.1.0-rc.23. Settings are separated from the sync core, and the network stack uses updated DNS resolution.
+
+### iOS
+
+- Fix: Release database and log file locks in the shared container before background suspension to prevent system termination.
+
 v2.3.0.194-alpha.1
 
 ### Common
