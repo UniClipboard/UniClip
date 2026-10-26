@@ -38,6 +38,7 @@ public final class HistoryDatabase {
     /// Columns of the canonical read, aligned with RN's `rowMapper.ts`.
     private static let readColumns = "profileHash, type, text, dataName, size, hasData, timestamp"
 
+    private var closed = false
     private let db: OpaquePointer
     private let containerURL: URL
 
@@ -88,13 +89,23 @@ public final class HistoryDatabase {
         sqlite3_finalize(probe)
     }
 
-    deinit { sqlite3_close(db) }
+    deinit { if !closed { sqlite3_close(db) } }
+
+    /// The caller serializes history operations before closing the connection.
+    @discardableResult
+    public func close() -> Bool {
+        guard !closed else { return true }
+        guard sqlite3_close(db) == SQLITE_OK else { return false }
+        closed = true
+        return true
+    }
 
     // MARK: - Reads
 
     /// Newest-first, tombstones excluded. Metadata only — payload bytes stay
     /// on disk, so this is safe inside the keyboard's memory budget.
     public func loadRecent(limit: Int) -> [ClipboardHistoryItem] {
+        guard !closed else { return [] }
         // contentId trails the canonical columns (index 7) only when present.
         let columns = Self.readColumns + (hasContentId ? ", contentId" : "")
         let sql = """
@@ -140,6 +151,7 @@ public final class HistoryDatabase {
     /// Hash of the newest non-deleted row (the "already at head?" dedup the
     /// extensions run before appending).
     public func headHash() -> String? {
+        guard !closed else { return nil }
         let sql = "SELECT profileHash FROM \(Self.table) WHERE isDeleted = 0 ORDER BY timestamp DESC LIMIT 1"
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
@@ -170,6 +182,7 @@ public final class HistoryDatabase {
         direction: ClipboardHistoryItem.Direction,
         at now: Date = Date()
     ) -> Bool {
+        guard !closed else { return false }
         guard let hash = entry.hash, !hash.isEmpty else { return false }
 
         switch existingState(profileHash: hash) {
@@ -185,6 +198,7 @@ public final class HistoryDatabase {
 
     /// Stamp a row to the head (tap-to-copy / re-apply from an extension).
     public func touch(profileHash: String, at now: Date = Date()) {
+        guard !closed else { return }
         let sql = "UPDATE \(Self.table) SET timestamp = ?, lastAccessed = ? WHERE profileHash = ?"
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {

@@ -12,6 +12,7 @@ schema = re.search(r'const CREATE_SCHEMA_V1 = `([\s\S]*?)`;', source).group(1)
 pathlib.Path(sys.argv[2]).write_text(schema.replace('${TABLE_HISTORY}', 'clipboard_history'))
 PY
 "${SWIFTC:-swiftc}" \
+  "${PROJECT_DIR}/modules/app-group-store/ios/Shared/SharedStorageAccess.swift" \
   "${PROJECT_DIR}/targets/_shared/AppSettings.swift" \
   "${PROJECT_DIR}/targets/_shared/Clipboard.swift" \
   "${PROJECT_DIR}/targets/_shared/ClipboardHistoryItem.swift" \

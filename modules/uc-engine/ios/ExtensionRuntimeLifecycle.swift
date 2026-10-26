@@ -17,7 +17,7 @@ final class ExtensionRuntimeLifecycle<Engine: AnyObject>: @unchecked Sendable {
   private let acquisitionTimeoutMs: UInt64
   private let shutdownQueue: DispatchQueue
   private let suspendEngine: (Engine) throws -> Void
-  private let shutdownEngine: (Engine) -> Void
+  private let shutdownEngine: (Engine) throws -> Void
   private let flushLogs: () -> Void
   private let startupLock = NSLock()
   private let stopLock = NSLock()
@@ -26,6 +26,7 @@ final class ExtensionRuntimeLifecycle<Engine: AnyObject>: @unchecked Sendable {
   private var engine: Engine?
   private var ownsRuntime = false
   private var activeOperationCount = 0
+  private var retryScheduled = false
 
   init(
     ownership: any NativeRuntimeOwnership,
@@ -35,7 +36,7 @@ final class ExtensionRuntimeLifecycle<Engine: AnyObject>: @unchecked Sendable {
       qos: .utility
     ),
     suspend: @escaping (Engine) throws -> Void,
-    shutdown: @escaping (Engine) -> Void,
+    shutdown: @escaping (Engine) throws -> Void,
     flushLogs: @escaping () -> Void = {}
   ) {
     self.ownership = ownership
@@ -106,7 +107,7 @@ final class ExtensionRuntimeLifecycle<Engine: AnyObject>: @unchecked Sendable {
     defer { stopLock.unlock() }
 
     let shouldStop = stateCondition.withLock {
-      guard state != .stopping, state != .stopped else { return false }
+      guard state != .stopped else { return false }
       state = .stopping
       return true
     }
@@ -125,7 +126,14 @@ final class ExtensionRuntimeLifecycle<Engine: AnyObject>: @unchecked Sendable {
       do {
         try suspendEngine(currentEngine)
       } catch {
-        shutdownEngine(currentEngine)
+        do {
+          try shutdownEngine(currentEngine)
+        } catch {
+          // Keep the Engine and its ownership alive after the caller leaves.
+          // A failed wait is not evidence that shared-store access ended.
+          scheduleSuspensionRetry()
+          throw error
+        }
         waitForAcceptedOperationsToFinish()
         releaseRuntimeOwnership()
         stateCondition.withLock { state = .stopped }
@@ -143,6 +151,17 @@ final class ExtensionRuntimeLifecycle<Engine: AnyObject>: @unchecked Sendable {
         shutdown: shutdownEngine
       )
       shutdownQueue.async { finalShutdown.run() }
+    }
+  }
+
+  /// The retained retry owns cleanup until an existing Engine API confirms it.
+  /// It never opens admission or releases ownership merely because time passed.
+  private func scheduleSuspensionRetry() {
+    guard !retryScheduled else { return }
+    retryScheduled = true
+    shutdownQueue.asyncAfter(deadline: .now() + .milliseconds(100)) { [self] in
+      stopLock.withLock { retryScheduled = false }
+      try? stopForSuspension()
     }
   }
 
@@ -166,14 +185,14 @@ final class ExtensionRuntimeLifecycle<Engine: AnyObject>: @unchecked Sendable {
 
 private final class ExtensionRuntimeFinalShutdown<Engine: AnyObject>: @unchecked Sendable {
   private let engine: Engine
-  private let shutdown: (Engine) -> Void
+  private let shutdown: (Engine) throws -> Void
 
-  init(engine: Engine, shutdown: @escaping (Engine) -> Void) {
+  init(engine: Engine, shutdown: @escaping (Engine) throws -> Void) {
     self.engine = engine
     self.shutdown = shutdown
   }
 
   func run() {
-    shutdown(engine)
+    try? shutdown(engine)
   }
 }

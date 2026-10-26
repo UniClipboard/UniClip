@@ -16,6 +16,7 @@ Pod::Spec.new do |s|
   s.static_framework = true
 
   s.dependency 'UcEngineCore'
+  s.dependency 'AppGroupStore/StorageAccess'
   s.dependency 'ExpoModulesCore'
   s.source_files = ['UcEngineModule.swift', 'NativeLifecycleHost.swift']
   s.pod_target_xcconfig = {

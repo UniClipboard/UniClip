@@ -11,9 +11,11 @@ let package = Package(
   products: [
     .library(name: "UcEngineSystemHost", targets: ["UcEngineSystemHost"])
   ],
+  dependencies: [.package(path: "../app-group-store")],
   targets: [
     .target(
       name: "UcEngineSystemHost",
+      dependencies: [.product(name: "SharedStorageAccess", package: "app-group-store")],
       path: "ios",
       exclude: [
         "Bindings",

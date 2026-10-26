@@ -1,4 +1,5 @@
 import Foundation
+import class AppGroupStore.SharedStorageAccess
 import UIKit
 
 /// Principal class for the Share Extension. iOS instantiates this when the
@@ -8,6 +9,7 @@ import UIKit
 /// screen. It never starts an engine session or sends content itself.
 final class ShareViewController: UIViewController {
     private var isVisible = false
+    private var storageGeneration: UInt64 = 0
     private var pendingHandoffID: String?
     private var nativeObservation: NativeDiagnosticOperation?
     nonisolated private static let nativeDiagnostics = NativeRuntimeDiagnostics(
@@ -18,6 +20,8 @@ final class ShareViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        SharedStorageAccess.shared.resume()
+        storageGeneration = SharedStorageAccess.shared.generation
 
         // 哑扩展不渲染任何 UI:立即隐藏自身视图,避免在提取/唤醒主应用期间
         // 向用户露出一个空白分享 sheet(隐藏不影响 viewDidAppear 与跳转)。
@@ -28,22 +32,27 @@ final class ShareViewController: UIViewController {
         guard let context = extensionContext else { return }
         nativeObservation = Self.nativeDiagnostics.begin(.shareHandoff, trigger: .userRequest)
         let inputContext = ShareExtensionContext(context)
+        let generation = SharedStorageAccess.shared.generation
 
         Task.detached(priority: .userInitiated) { // 不在主线程,避免阻塞面板关闭
             do {
                 let item = try await ShareItemExtractor.extract(from: inputContext)
-                let staged = try OutboundShareStore().stage(item) // 按 kind 分派
-                try await Self.recordInHistory(staged)
-                _ = try OutboundShareStore().enqueue(staged) // targetDeviceIds 恒为空
-                Self.recordDiagnostics(staged: staged)
+                let staged = try SharedStorageAccess.shared.withAccess(generation: generation) {
+                    try OutboundShareStore().stage(item)
+                } // 按 kind 分派
+                try await Self.recordInHistory(staged, generation: generation)
+                _ = try SharedStorageAccess.shared.withAccess(generation: generation) {
+                    try OutboundShareStore().enqueue(staged)
+                } // targetDeviceIds 恒为空
+                Self.recordDiagnostics(staged: staged, generation: generation)
                 await MainActor.run { [weak self] in
                     self?.requestHostHandoff(id: staged.id)
                 }
             } catch {
-                Self.recordDiagnostics(staged: nil)
+                Self.recordDiagnostics(staged: nil, generation: generation)
                 await MainActor.run { [weak self] in
                     self?.finishNativeObservation(succeeded: false)
-                    Self.completeRequest(context)
+                    Self.completeRequest(context, generation: generation)
                 }
             }
         }
@@ -66,18 +75,20 @@ final class ShareViewController: UIViewController {
               let handoffURL = Self.hostShareURL
         else { return }
 
+        let generation = storageGeneration
         pendingHandoffID = nil
-        Self.recordHandoff(stage: .handoffStarted, id: id)
+        Self.recordHandoff(stage: .handoffStarted, id: id, generation: generation)
         let responder = sequence(first: self, next: \.next)
             .first(where: { $0 is UIApplication })
         guard let application = responder as? UIApplication else {
             Self.recordHandoff(
                 stage: .failed,
                 id: id,
-                error: ShareDiagnosticError(code: .handoffFailed)
+                error: ShareDiagnosticError(code: .handoffFailed),
+                generation: generation
             )
             finishNativeObservation(succeeded: false)
-            if let context = extensionContext { Self.completeRequest(context) }
+            if let context = extensionContext { Self.completeRequest(context, generation: generation) }
             return
         }
 
@@ -85,10 +96,11 @@ final class ShareViewController: UIViewController {
             Self.recordHandoff(
                 stage: opened ? .handoffQueued : .failed,
                 id: id,
-                error: opened ? nil : ShareDiagnosticError(code: .handoffFailed)
+                error: opened ? nil : ShareDiagnosticError(code: .handoffFailed),
+                generation: generation
             )
             self?.finishNativeObservation(succeeded: opened)
-            if let context = self?.extensionContext { Self.completeRequest(context) }
+            if let context = self?.extensionContext { Self.completeRequest(context, generation: generation) }
         }
     }
 
@@ -99,13 +111,18 @@ final class ShareViewController: UIViewController {
             failure: succeeded ? nil : .init(reason: .nativeFailure))
     }
 
-    nonisolated private static func completeRequest(_ context: NSExtensionContext) {
-        DispatchQueue.global(qos: .utility).async {
-            _ = nativeDiagnostics.flush(deadlineMs: 250)
+    nonisolated private static func completeRequest(_ context: NSExtensionContext, generation: UInt64) {
+        SharedStorageAccess.shared.suspend(ifGeneration: generation) {
             DispatchQueue.main.async {
                 context.completeRequest(returningItems: nil, completionHandler: nil)
             }
         }
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        isVisible = false
+        SharedStorageAccess.shared.suspend(ifGeneration: storageGeneration)
     }
 
     private static var hostShareURL: URL? {
@@ -119,10 +136,11 @@ final class ShareViewController: UIViewController {
     /// Records the staging phase of the share attempt. The attempt id equals
     /// the job id, so the main app can continue the same attempt when it
     /// sends the job from the share page (ShareDiagnosticsStore.record(for:)).
-    nonisolated private static func recordDiagnostics(staged: StagedShareFile?) {
+    nonisolated private static func recordDiagnostics(staged: StagedShareFile?, generation: UInt64) {
+        guard SharedStorageAccess.shared.isOpen, SharedStorageAccess.shared.generation == generation else { return }
         guard let container = FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: SettingsStore.appGroupID
-        ), let store = try? ShareDiagnosticsStore(containerURL: container) else { return }
+        ), let store = try? ShareDiagnosticsStore(containerURL: container, storageGeneration: generation) else { return }
 
         if let staged {
             guard let recorder = try? store.startAttempt(
@@ -144,39 +162,50 @@ final class ShareViewController: UIViewController {
     nonisolated private static func recordHandoff(
         stage: ShareDiagnosticStage,
         id: String,
-        error: ShareDiagnosticError? = nil
+        error: ShareDiagnosticError? = nil,
+        generation: UInt64
     ) {
+        guard SharedStorageAccess.shared.isOpen, SharedStorageAccess.shared.generation == generation else { return }
         guard let container = FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: SettingsStore.appGroupID
-        ), let store = try? ShareDiagnosticsStore(containerURL: container) else { return }
+        ), let store = try? ShareDiagnosticsStore(containerURL: container, storageGeneration: generation) else { return }
         store.record(stage: stage, error: error, for: id)
     }
 
-    nonisolated private static func recordInHistory(_ staged: StagedShareFile) async throws {
-        let entry: Clipboard
-        switch staged.kind {
-        case .text:
-            let text = try String(contentsOf: staged.url, encoding: .utf8)
-            entry = Clipboard.publishText(text).clipboard
-        case .image, .file:
-            let hash = try OutboundShareStore.sha256Upper(of: staged.url)
-            entry = Clipboard(
-                type: staged.kind == .image ? .image : .file,
-                hash: hash,
-                text: staged.displayName,
-                hasData: true,
-                dataName: staged.displayName,
-                size: Int(clamping: staged.byteCount)
-            )
+    nonisolated private static func recordInHistory(_ staged: StagedShareFile, generation: UInt64) async throws {
+        try SharedStorageAccess.shared.requireOpen()
+        guard SharedStorageAccess.shared.generation == generation else { throw SharedStorageAccess.AccessError.suspended }
+        let entry = try SharedStorageAccess.shared.withAccess(generation: generation) { () throws -> Clipboard in
+            let entry: Clipboard
+            switch staged.kind {
+            case .text:
+                let text = try String(contentsOf: staged.url, encoding: .utf8)
+                entry = Clipboard.publishText(text).clipboard
+            case .image, .file:
+                let hash = try OutboundShareStore.sha256Upper(of: staged.url)
+                entry = Clipboard(
+                    type: staged.kind == .image ? .image : .file,
+                    hash: hash,
+                    text: staged.displayName,
+                    hasData: true,
+                    dataName: staged.displayName,
+                    size: Int(clamping: staged.byteCount)
+                )
+            }
+
+            return entry
         }
 
         if entry.hasData, let hash = entry.hash {
             try await PayloadCache.shared.writeFile(
                 profileId: "\(entry.type.rawValue)-\(hash)",
-                from: staged.url
+                from: staged.url,
+                generation: generation
             )
         }
-        _ = HistoryLog(store: SettingsStore()).append(entry: entry, direction: .local)
+        _ = try SharedStorageAccess.shared.withAccess(generation: generation) {
+            HistoryLog(store: SettingsStore()).append(entry: entry, direction: .local)
+        }
     }
 }
 

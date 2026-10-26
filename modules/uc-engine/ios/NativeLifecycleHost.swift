@@ -1,4 +1,9 @@
 import Foundation
+#if canImport(AppGroupStore)
+import class AppGroupStore.SharedStorageAccess
+#elseif canImport(SharedStorageAccess)
+import SharedStorageAccess
+#endif
 #if canImport(UcEngineCore)
 internal import UcEngineCore
 #endif
@@ -81,6 +86,7 @@ enum NativeLifecycleError: Error, Equatable {
   /// completion. The Engine stays `.quiesced`, not `.suspended`, and may
   /// still be holding a lock; this does not mean the lock was released.
   case deadlineExceeded
+  case transitionInProgress
 }
 
 final class RuntimeOwnedNativeLifecycle: NativeEngineLifecycle {
@@ -281,9 +287,14 @@ final class NativeLifecycleHost {
         return
       }
       switch try engine.lifecycleState() {
-      case .running, .quiesced:
+      case .running, .quiescing, .quiesced:
         try suspendRetryingWhileBudgetRemains(engine, remainingTimeMs: remainingTimeMs)
-      case .quiescing, .suspended, .shuttingDown, .stopped:
+      case .suspended:
+        // The owned wrapper must still confirm and release its runtime flock.
+        try engine.suspend(deadlineMs: remainingTimeMs())
+      case .shuttingDown:
+        throw NativeLifecycleError.transitionInProgress
+      case .stopped:
         return
       }
     }
@@ -337,41 +348,42 @@ final class NativeHostSuspension: @unchecked Sendable {
   private let lock = NSLock()
   private let send: @Sendable (_ phase: String, _ transitionId: Int) -> Void
   private var participating = false
+  private var requiresRelease = false
   private var pending: (transitionId: Int, finish: () -> Void)?
 
   init(send: @escaping @Sendable (_ phase: String, _ transitionId: Int) -> Void) {
     self.send = send
   }
 
-  /// Set while JS listens. Without a listener there is no host file to wait for.
+  /// Removing a listener does not prove that its files closed.
   func setParticipating(_ value: Bool) {
-    let finish = lock.withLock { () -> (() -> Void)? in
+    lock.withLock {
       participating = value
-      guard !value else { return nil }
-      defer { pending = nil }
-      return pending?.finish
+      if value { requiresRelease = true }
     }
-    finish?()
   }
 
   /// Asks the owner to close its files; `finish` runs once it reports back.
   func suspend(transitionId: Int, finish: @escaping () -> Void) {
-    let (asked, superseded) = lock.withLock { () -> (Bool, (() -> Void)?) in
-      let superseded = pending?.finish
-      pending = participating ? (transitionId, finish) : nil
-      return (participating, superseded)
+    let (asked, waiting) = lock.withLock { () -> (Bool, Bool) in
+      let earlier = pending?.finish
+      let waiting = participating || requiresRelease
+      pending = waiting ? (transitionId, { earlier?(); finish() }) : nil
+      return (participating, waiting)
     }
-    superseded?()
-    if asked { send("suspend", transitionId) } else { finish() }
+    if asked { send("suspend", transitionId) }
+    if !waiting { finish() }
   }
 
   /// The owner's report for one transition. A late report for an earlier
   /// transition must not finish a later one.
   @discardableResult
-  func complete(transitionId: Int) -> Bool {
+  func complete(transitionId: Int, released: Bool = true) -> Bool {
+    guard released else { return false }
     let finish = lock.withLock { () -> (() -> Void)? in
       guard let current = pending, current.transitionId == transitionId else { return nil }
       pending = nil
+      requiresRelease = false
       return current.finish
     }
     finish?()
@@ -383,6 +395,7 @@ final class NativeHostSuspension: @unchecked Sendable {
   func resume(transitionId: Int) {
     let (finish, asked) = lock.withLock { () -> ((() -> Void)?, Bool) in
       defer { pending = nil }
+      if participating { requiresRelease = true }
       return (pending?.finish, participating)
     }
     finish?()
@@ -402,6 +415,7 @@ final class NativeLifecycleTransitionCoordinator {
   private let queue: DispatchQueue
   private let beginBackgroundActivity: BeginBackgroundActivity
   private let hostSuspension: NativeHostSuspension?
+  private let storageAccess: SharedStorageAccess
   private let reportBackground: NativeBackgroundReport
   private let lock = NSLock()
   private var transitionId = 0
@@ -412,13 +426,15 @@ final class NativeLifecycleTransitionCoordinator {
     queue: DispatchQueue,
     beginBackgroundActivity: @escaping BeginBackgroundActivity,
     hostSuspension: NativeHostSuspension? = nil,
-    reportBackground: @escaping NativeBackgroundReport = { _, _ in }
+    reportBackground: @escaping NativeBackgroundReport = { _, _ in },
+    storageAccess: SharedStorageAccess = .shared
   ) {
     self.lifecycle = lifecycle
     self.queue = queue
     self.beginBackgroundActivity = beginBackgroundActivity
     self.hostSuspension = hostSuspension
     self.reportBackground = reportBackground
+    self.storageAccess = storageAccess
   }
 
   /// Apple: begin the task "preferably before your app actually enters the
@@ -444,7 +460,11 @@ final class NativeLifecycleTransitionCoordinator {
       transitionId += 1
       return (preparedActivity ?? beginBackgroundActivity(), transitionId)
     }
-    let parts = NativeBackgroundParts(activity: activity, report: reportBackground)
+    let generation = storageAccess.generation
+    let parts = NativeBackgroundParts(activity: activity, report: reportBackground, expire: { [storageAccess] in
+      storageAccess.suspend(ifGeneration: generation)
+    })
+    storageAccess.suspend { parts.complete(.nativeFiles) }
     let transition = NativeLifecycleTransition(
       lifecycle: lifecycle,
       engine: engine,
@@ -465,6 +485,7 @@ final class NativeLifecycleTransitionCoordinator {
   }
 
   func enterForeground(_ engine: (any NativeEngineLifecycle)?) {
+    storageAccess.resume()
     let id = lock.withLock { transitionId }
     hostSuspension?.resume(transitionId: id)
     let transition = NativeLifecycleTransition(
@@ -487,10 +508,11 @@ private final class NativeBackgroundParts: @unchecked Sendable {
   private var open = Set(NativeDiagnosticOwner.allCases)
   private var ended = false
 
-  init(activity: any NativeBackgroundActivity, report: @escaping NativeBackgroundReport) {
+  init(activity: any NativeBackgroundActivity, report: @escaping NativeBackgroundReport, expire: @escaping @Sendable () -> Void) {
     self.activity = activity
     self.report = report
     activity.onExpiration { [self] in
+      expire()
       let pending = lock.withLock { () -> [NativeDiagnosticOwner]? in
         guard !ended else { return nil }
         ended = true

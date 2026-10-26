@@ -1,5 +1,10 @@
 import CryptoKit
 import Foundation
+#if canImport(AppGroupStore)
+import class AppGroupStore.SharedStorageAccess
+#elseif canImport(SharedStorageAccess)
+import SharedStorageAccess
+#endif
 
 private enum AnalyticsKey {
   static let consent = "usage_analytics_enabled"
@@ -24,12 +29,14 @@ final class AppleAnalyticsStore: @unchecked Sendable {
     self.defaults = defaults
     queueDirectory = container.appendingPathComponent("analytics/queue", isDirectory: true)
     do {
-      try FileManager.default.createDirectory(at: queueDirectory, withIntermediateDirectories: true)
+      try SharedStorageAccess.shared.withAccess {
+        try FileManager.default.createDirectory(at: queueDirectory, withIntermediateDirectories: true)
+      }
     } catch { throw BindingAnalyticsHostError.PersistenceFailed }
   }
 
   var isEnabled: Bool {
-    lock.withAnalyticsLock { defaults.object(forKey: AnalyticsKey.consent) as? Bool ?? true }
+    SharedStorageAccess.shared.isOpen && lock.withAnalyticsLock { defaults.object(forKey: AnalyticsKey.consent) as? Bool ?? true }
   }
 
   func setEnabled(_ enabled: Bool) throws {
@@ -43,7 +50,9 @@ final class AppleAnalyticsStore: @unchecked Sendable {
     self.defaults = defaults
     self.queueDirectory = queueDirectory
     do {
-      try FileManager.default.createDirectory(at: queueDirectory, withIntermediateDirectories: true)
+      try SharedStorageAccess.shared.withAccess {
+        try FileManager.default.createDirectory(at: queueDirectory, withIntermediateDirectories: true)
+      }
     } catch { throw BindingAnalyticsHostError.PersistenceFailed }
   }
 
@@ -134,25 +143,33 @@ final class AppleAnalyticsStore: @unchecked Sendable {
 
   func enqueue(_ data: Data) throws {
     do {
-      let fileName = lock.withAnalyticsLock { () -> String in
-        queueSequence &+= 1
-        let timestamp = UInt64(Date().timeIntervalSince1970 * 1_000_000)
-        return String(format: "%020llu-%020llu-%@.json", timestamp, queueSequence, UUID().uuidString)
+      try SharedStorageAccess.shared.withAccess {
+        let fileName = lock.withAnalyticsLock { () -> String in
+          queueSequence &+= 1
+          let timestamp = UInt64(Date().timeIntervalSince1970 * 1_000_000)
+          return String(format: "%020llu-%020llu-%@.json", timestamp, queueSequence, UUID().uuidString)
+        }
+        try data.write(
+          to: queueDirectory.appendingPathComponent(fileName),
+          options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication]
+        )
+        for url in pendingEvents().dropLast(256) { try FileManager.default.removeItem(at: url) }
       }
-      try data.write(
-        to: queueDirectory.appendingPathComponent(fileName),
-        options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication]
-      )
-      for url in pendingEvents().dropLast(256) { try FileManager.default.removeItem(at: url) }
+    } catch SharedStorageAccess.AccessError.suspended {
+      throw BindingAnalyticsHostError.ContextUnavailable
     } catch { throw BindingAnalyticsHostError.PersistenceFailed }
   }
 
   func pendingEvents() -> [URL] {
-    ((try? FileManager.default.contentsOfDirectory(at: queueDirectory, includingPropertiesForKeys: nil)) ?? [])
-      .filter { $0.pathExtension == "json" }
-      .sorted { $0.lastPathComponent < $1.lastPathComponent }
+    (try? SharedStorageAccess.shared.withAccess {
+      ((try? FileManager.default.contentsOfDirectory(at: queueDirectory, includingPropertiesForKeys: nil)) ?? [])
+        .filter { $0.pathExtension == "json" }
+        .sorted { $0.lastPathComponent < $1.lastPathComponent }
+    }) ?? []
   }
-  func remove(_ url: URL) { try? FileManager.default.removeItem(at: url) }
+  func remove(_ url: URL) {
+    _ = try? SharedStorageAccess.shared.withAccess { try FileManager.default.removeItem(at: url) }
+  }
   func clearPendingEvents() { pendingEvents().forEach(remove) }
 
   private func value(forKey key: String) throws -> String {
@@ -189,7 +206,7 @@ final class ApplePostHogAnalyticsHost: BindingAnalyticsHost, @unchecked Sendable
   private let sessionID = UUID().uuidString.lowercased()
   private var appVersion: String
   private var activeDeviceCount = 0
-  private var deliveryRunning = false
+  private var deliveryGeneration: UInt64?
 
   convenience init(appVersion: String) throws {
     try self.init(
@@ -213,89 +230,119 @@ final class ApplePostHogAnalyticsHost: BindingAnalyticsHost, @unchecked Sendable
   }
   func consentEnabled() -> Bool { store.isEnabled }
   func setConsentEnabled(_ enabled: Bool) throws {
-    try store.setEnabled(enabled)
-    if enabled {
-      try identifyCurrentSpaceGroupIfNeeded()
-      scheduleDelivery()
-    } else {
-      store.clearPendingEvents()
-      try store.setSpaceGroupIdentified(false)
+    return try withStorageAccess {
+      try store.setEnabled(enabled)
+      if enabled {
+        try identifyCurrentSpaceGroupIfNeeded()
+        scheduleDelivery()
+      } else {
+        store.clearPendingEvents()
+        try store.setSpaceGroupIdentified(false)
+      }
     }
   }
   func resetAndIdentify() throws {
-    store.clearPendingEvents()
-    _ = try resetTelemetryIdentity()
+    return try withStorageAccess {
+      store.clearPendingEvents()
+      _ = try resetTelemetryIdentity()
+    }
   }
 
   func getAnalyticsState() throws -> [String: Any?] {
-    let spacePersonID = store.currentSpacePersonID()
-    return [
-      "projectKey": projectKey,
-      "consentEnabled": store.isEnabled,
-      "distinctId": try store.currentDistinctID(),
-      "anonymousId": try store.anonymousID(),
-      "deviceId": try store.deviceID(),
-      "spaceGroupKey": store.currentSpaceGroupKey(),
-      "isIdentified": spacePersonID != nil,
-    ]
+    return try withStorageAccess {
+      let spacePersonID = store.currentSpacePersonID()
+      return [
+        "projectKey": projectKey,
+        "consentEnabled": store.isEnabled,
+        "distinctId": try store.currentDistinctID(),
+        "anonymousId": try store.anonymousID(),
+        "deviceId": try store.deviceID(),
+        "spaceGroupKey": store.currentSpaceGroupKey(),
+        "isIdentified": spacePersonID != nil,
+      ]
+    }
   }
 
   func ensureSpaceContext(spaceID: String?, activeDeviceCount: Int) throws {
-    guard let spaceID, !spaceID.isEmpty else {
-      try store.clearSpaceGroup()
-      return
+    return try withStorageAccess {
+      guard let spaceID, !spaceID.isEmpty else {
+        try store.clearSpaceGroup()
+        return
+      }
+      let groupKey = SHA256.hash(data: Data(spaceID.utf8)).prefix(8)
+        .map { String(format: "%02x", $0) }.joined()
+      if store.currentSpaceGroupKey() != groupKey {
+        try store.setSpaceGroupKey(groupKey, identified: false)
+      }
+      try identifyCurrentSpaceGroupIfNeeded(activeDeviceCount: activeDeviceCount)
     }
-    let groupKey = SHA256.hash(data: Data(spaceID.utf8)).prefix(8)
-      .map { String(format: "%02x", $0) }.joined()
-    if store.currentSpaceGroupKey() != groupKey {
-      try store.setSpaceGroupKey(groupKey, identified: false)
-    }
-    try identifyCurrentSpaceGroupIfNeeded(activeDeviceCount: activeDeviceCount)
   }
 
   func capture(event: BindingAnalyticsEvent) throws {
-    guard store.isEnabled, !projectKey.isEmpty else { return }
-    guard let data = event.propertiesJson.data(using: .utf8),
-      let raw = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-    else { throw BindingAnalyticsHostError.DeliveryFailed }
-    guard !containsSensitiveData(raw) else { throw BindingAnalyticsHostError.DeliveryFailed }
-    var properties = raw
-    for (key, value) in try commonProperties() { properties[key] = value }
-    properties["$insert_id"] = UUID().uuidString.lowercased()
-    properties["$device_id"] = properties["analytics_device_id"]
-    properties["$session_id"] = properties["session_id"]
-    properties["$lib"] = "uniclipboard-mobile"
-    properties["$lib_version"] = properties["app_version"]
-    properties["$os"] = "iOS"; properties["$os_version"] = properties["os_version"]
-    properties["$device_type"] = "Mobile"; properties["$geoip_disable"] = true
-    if let group = store.currentSpaceGroupKey() {
-      properties["space_id_hash"] = group; properties["$groups"] = ["space": group]
+    return try withStorageAccess {
+      guard store.isEnabled, !projectKey.isEmpty else { return }
+      guard let data = event.propertiesJson.data(using: .utf8),
+        let raw = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+      else { throw BindingAnalyticsHostError.DeliveryFailed }
+      guard !containsSensitiveData(raw) else { throw BindingAnalyticsHostError.DeliveryFailed }
+      var properties = raw
+      for (key, value) in try commonProperties() { properties[key] = value }
+      properties["$insert_id"] = UUID().uuidString.lowercased()
+      properties["$device_id"] = properties["analytics_device_id"]
+      properties["$session_id"] = properties["session_id"]
+      properties["$lib"] = "uniclipboard-mobile"
+      properties["$lib_version"] = properties["app_version"]
+      properties["$os"] = "iOS"; properties["$os_version"] = properties["os_version"]
+      properties["$device_type"] = "Mobile"; properties["$geoip_disable"] = true
+      if let group = store.currentSpaceGroupKey() {
+        properties["space_id_hash"] = group; properties["$groups"] = ["space": group]
+      }
+      properties["$set"] = personProperties(properties)
+      properties["$set_once"] = initialProperties(properties)
+      try enqueue(event.name, distinctID: try store.currentDistinctID(), properties: properties)
     }
-    properties["$set"] = personProperties(properties)
-    properties["$set_once"] = initialProperties(properties)
-    try enqueue(event.name, distinctID: try store.currentDistinctID(), properties: properties)
   }
 
   func identify(payload: BindingAnalyticsIdentify) throws {
-    guard store.isEnabled, !projectKey.isEmpty else { return }
-    var properties: [String: Any] = ["$anon_distinct_id": payload.oldDistinctId, "$lib": "uniclipboard-mobile", "$geoip_disable": true]
-    try addJSON(payload.setJson, key: "$set", to: &properties)
-    try addJSON(payload.setOnceJson, key: "$set_once", to: &properties)
-    try enqueue("$identify", distinctID: payload.newDistinctId, properties: properties)
+    return try withStorageAccess {
+      guard store.isEnabled, !projectKey.isEmpty else { return }
+      var properties: [String: Any] = ["$anon_distinct_id": payload.oldDistinctId, "$lib": "uniclipboard-mobile", "$geoip_disable": true]
+      try addJSON(payload.setJson, key: "$set", to: &properties)
+      try addJSON(payload.setOnceJson, key: "$set_once", to: &properties)
+      try enqueue("$identify", distinctID: payload.newDistinctId, properties: properties)
+    }
   }
 
   func groupIdentify(payload: BindingAnalyticsGroupIdentify) throws {
-    try store.setSpaceGroupKey(payload.groupKey, identified: false)
-    guard store.isEnabled, !projectKey.isEmpty else { return }
-    var properties: [String: Any] = ["$group_type": payload.groupType, "$group_key": payload.groupKey, "$lib": "uniclipboard-mobile", "$geoip_disable": true]
-    try addJSON(payload.setJson, key: "$group_set", to: &properties)
-    try enqueue("$groupidentify", distinctID: try store.currentDistinctID(), properties: properties)
-    try store.setSpaceGroupIdentified(true)
+    return try withStorageAccess {
+      try store.setSpaceGroupKey(payload.groupKey, identified: false)
+      guard store.isEnabled, !projectKey.isEmpty else { return }
+      var properties: [String: Any] = ["$group_type": payload.groupType, "$group_key": payload.groupKey, "$lib": "uniclipboard-mobile", "$geoip_disable": true]
+      try addJSON(payload.setJson, key: "$group_set", to: &properties)
+      try enqueue("$groupidentify", distinctID: try store.currentDistinctID(), properties: properties)
+      try store.setSpaceGroupIdentified(true)
+    }
   }
-  func adoptSpacePerson(spacePersonId: String) throws -> BindingAnalyticsIdentityChange { try store.adopt(spacePersonId) }
-  func releaseSpacePerson() throws -> BindingAnalyticsIdentityChange { try store.release() }
-  func currentSpacePersonId() throws -> String? { store.currentSpacePersonID() }
-  func resetTelemetryIdentity() throws -> BindingAnalyticsIdentityChange { try store.resetTelemetryIdentity() }
+  func adoptSpacePerson(spacePersonId: String) throws -> BindingAnalyticsIdentityChange {
+    return try withStorageAccess {
+      try store.adopt(spacePersonId)
+    }
+  }
+  func releaseSpacePerson() throws -> BindingAnalyticsIdentityChange {
+    return try withStorageAccess {
+      try store.release()
+    }
+  }
+  func currentSpacePersonId() throws -> String? {
+    return try withStorageAccess {
+      store.currentSpacePersonID()
+    }
+  }
+  func resetTelemetryIdentity() throws -> BindingAnalyticsIdentityChange {
+    return try withStorageAccess {
+      try store.resetTelemetryIdentity()
+    }
+  }
 
   private func commonProperties() throws -> [String: Any] {
     let context = contextLock.withAnalyticsLock { (appVersion, activeDeviceCount) }
@@ -322,6 +369,11 @@ final class ApplePostHogAnalyticsHost: BindingAnalyticsHost, @unchecked Sendable
       )
     )
   }
+  private func withStorageAccess<T>(_ work: () throws -> T) throws -> T {
+    do { return try SharedStorageAccess.shared.withAccess(work) }
+    catch SharedStorageAccess.AccessError.suspended { throw BindingAnalyticsHostError.ContextUnavailable }
+  }
+
   private func enqueue(_ event: String, distinctID: String, properties: [String: Any]) throws {
     var properties = properties
     if properties["$insert_id"] == nil { properties["$insert_id"] = UUID().uuidString.lowercased() }
@@ -330,25 +382,49 @@ final class ApplePostHogAnalyticsHost: BindingAnalyticsHost, @unchecked Sendable
     try store.enqueue(try JSONSerialization.data(withJSONObject: body)); scheduleDelivery()
   }
   private func scheduleDelivery() {
-    deliveryQueue.async { [self] in guard !deliveryRunning, store.isEnabled, !projectKey.isEmpty else { return }; deliveryRunning = true; deliverNext() }
+    let generation = SharedStorageAccess.shared.generation
+    deliveryQueue.async { [self] in
+      guard SharedStorageAccess.shared.isOpen,
+        SharedStorageAccess.shared.generation == generation,
+        deliveryGeneration != generation, store.isEnabled, !projectKey.isEmpty else { return }
+      deliveryGeneration = generation
+      deliverNext(generation: generation)
+    }
   }
-  private func deliverNext() {
-    guard store.isEnabled, let url = store.pendingEvents().first else { deliveryRunning = false; return }
-    guard let body = try? Data(contentsOf: url) else { store.remove(url); deliverNext(); return }
-    var request = URLRequest(url: endpoint); request.httpMethod = "POST"; request.httpBody = body; request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    URLSession.shared.dataTask(with: request) { [self] _, response, _ in
-      deliveryQueue.async { [self] in
-        if let status = (response as? HTTPURLResponse)?.statusCode,
-          (200..<300).contains(status)
-        {
-          self.store.remove(url)
-          self.deliverNext()
-        } else {
-          self.deliveryRunning = false
+
+  private func deliverNext(generation: UInt64) {
+    guard deliveryGeneration == generation else { return }
+    do {
+      try SharedStorageAccess.shared.withAccess(generation: generation) {
+        guard store.isEnabled, let url = store.pendingEvents().first else { deliveryGeneration = nil; return }
+        guard let body = try? Data(contentsOf: url) else {
+          store.remove(url)
+          deliverNext(generation: generation)
+          return
         }
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.httpBody = body
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        URLSession.shared.dataTask(with: request) { [self] _, response, _ in
+          deliveryQueue.async { [self] in
+            guard deliveryGeneration == generation else { return }
+            do {
+              try SharedStorageAccess.shared.withAccess(generation: generation) {
+                if let status = (response as? HTTPURLResponse)?.statusCode, (200..<300).contains(status) {
+                  store.remove(url)
+                  deliverNext(generation: generation)
+                } else {
+                  deliveryGeneration = nil
+                }
+              }
+            } catch { deliveryGeneration = nil }
+          }
+        }.resume()
       }
-    }.resume()
+    } catch { deliveryGeneration = nil }
   }
+
   private func addJSON(_ json: String, key: String, to properties: inout [String: Any]) throws {
     guard let data = json.data(using: .utf8), let value = try JSONSerialization.jsonObject(with: data) as? [String: Any], !containsSensitiveData(value) else { throw BindingAnalyticsHostError.DeliveryFailed }
     if !value.isEmpty { properties[key] = value }
@@ -380,5 +456,9 @@ final class ApplePostHogAnalyticsHost: BindingAnalyticsHost, @unchecked Sendable
 }
 
 private extension NSLock {
-  func withAnalyticsLock<T>(_ operation: () throws -> T) rethrows -> T { lock(); defer { unlock() }; return try operation() }
+  func withAnalyticsLock<T>(_ operation: () throws -> T) rethrows -> T {
+    lock()
+    defer { unlock() }
+    return try operation()
+  }
 }

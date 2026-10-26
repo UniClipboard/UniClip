@@ -1,5 +1,6 @@
 import ExpoModulesCore
 import Foundation
+import class AppGroupStore.SharedStorageAccess
 import OSLog
 import UIKit
 internal import UcEngineCore
@@ -10,7 +11,9 @@ public final class UcEngineModule: Module {
   private let host = MainApplicationEngineHost()
   private lazy var lifecycle = NativeLifecycleHost(
     report: Self.reportLifecycleError,
-    flushObservability: { _ = try? flushProcessObservability(deadlineMs: 250) }
+    flushObservability: {
+      _ = try? SharedStorageAccess.shared.withAccess { try flushProcessObservability(deadlineMs: 250) }
+    }
   )
   private lazy var hostSuspension = NativeHostSuspension { [weak self] phase, transitionId in
     self?.sendEvent(Self.hostSuspensionEvent, ["phase": phase, "transitionId": transitionId])
@@ -62,7 +65,9 @@ public final class UcEngineModule: Module {
     Name("UcEngine")
     OnCreate {
       AppleNativeDiagnostics.start()
-      self.engineOperationQueue.async { try? self.host.prepareDiagnosticLogging() }
+      self.engineOperationQueue.async {
+        _ = try? SharedStorageAccess.shared.withAccess { try self.host.prepareDiagnosticLogging() }
+      }
       // Expo has no resign-active hook; it fires before didEnterBackground.
       self.resignActiveObserver = NotificationCenter.default.addObserver(
         forName: UIApplication.willResignActiveNotification, object: nil, queue: .main
@@ -76,10 +81,8 @@ public final class UcEngineModule: Module {
     OnStartObserving(Self.hostSuspensionEvent) { self.hostSuspension.setParticipating(true) }
     OnStopObserving(Self.hostSuspensionEvent) { self.hostSuspension.setParticipating(false) }
     AsyncFunction("completeHostSuspension") { (transitionId: Int, released: Bool) in
-      AppleNativeDiagnostics.journal.record(
-        .hostSuspend, trigger: .appBackground, outcome: released ? .succeeded : .failed
-      )
-      self.hostSuspension.complete(transitionId: transitionId)
+      let accepted = self.hostSuspension.complete(transitionId: transitionId, released: released)
+      Self.startupLog.info("Host storage acknowledgement transition=\(transitionId) released=\(released) accepted=\(accepted)")
     }
 
     Function("coreVersion") { coreVersion() }
@@ -100,103 +103,125 @@ public final class UcEngineModule: Module {
     }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("startEngineDiagnosticCapture") { (durationMs: UInt64) in
-      try self.host.prepareDiagnosticLogging()
-      return EngineDiagnosticBridge.map(try startLocalDiagnosticCapture(durationMs: durationMs))
+      return try SharedStorageAccess.shared.withAccess {
+        try self.host.prepareDiagnosticLogging()
+        return EngineDiagnosticBridge.map(try startLocalDiagnosticCapture(durationMs: durationMs))
+      }
     }.runOnQueue(engineOperationQueue)
     AsyncFunction("stopEngineDiagnosticCapture") { (captureId: String) in
-      String(describing: try stopLocalDiagnosticCapture(captureId: captureId))
+      return try SharedStorageAccess.shared.withAccess {
+        String(describing: try stopLocalDiagnosticCapture(captureId: captureId))
+      }
     }.runOnQueue(engineOperationQueue)
     AsyncFunction("getEngineDiagnosticStatus") {
-      try self.host.prepareDiagnosticLogging()
-      return EngineDiagnosticBridge.map(try queryLocalDiagnosticStatus())
+      return try SharedStorageAccess.shared.withAccess {
+        try self.host.prepareDiagnosticLogging()
+        return EngineDiagnosticBridge.map(try queryLocalDiagnosticStatus())
+      }
     }.runOnQueue(engineOperationQueue)
     AsyncFunction("prepareEngineDiagnosticExport") {
-      try self.host.prepareDiagnosticLogging()
-      return EngineDiagnosticBridge.map(try prepareLocalDiagnosticExport(deadlineMs: 1_000))
+      return try SharedStorageAccess.shared.withAccess {
+        try self.host.prepareDiagnosticLogging()
+        return EngineDiagnosticBridge.map(try prepareLocalDiagnosticExport(deadlineMs: 1_000))
+      }
     }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("flushEngineLogs") { () -> Bool in
-      let summary = try flushProcessObservability(deadlineMs: 1_000)
-      return summary.logs == .completed
+      return try SharedStorageAccess.shared.withAccess {
+        let summary = try flushProcessObservability(deadlineMs: 1_000)
+        return summary.logs == .completed
+      }
     }.runOnQueue(engineOperationQueue)
 
-    AsyncFunction("getNativeDiagnostics") { AppleNativeDiagnostics.exportSnapshot() }
+    AsyncFunction("getNativeDiagnostics") { try SharedStorageAccess.shared.withAccess { AppleNativeDiagnostics.exportSnapshot() } }
       .runOnQueue(engineOperationQueue)
 
-    AsyncFunction("getEngineLogStatus") { self.host.getEngineLogStatus() }
+    AsyncFunction("getEngineLogStatus") { try SharedStorageAccess.shared.withAccess { self.host.getEngineLogStatus() } }
       .runOnQueue(engineOperationQueue)
 
     // The network-library log is a separate source with its own state; none of these calls
     // depend on, or change, the business log. They run on the Engine queue, never the UI thread.
     AsyncFunction("getNetworkLogStatus") { () -> [String: Any] in
-      try? self.host.prepareDiagnosticLogging()
-      return NetworkLogHost.status()
+      return try SharedStorageAccess.shared.withAccess {
+        try? self.host.prepareDiagnosticLogging()
+        return NetworkLogHost.status()
+      }
     }.runOnQueue(engineOperationQueue)
     AsyncFunction("startNetworkLogCapture") { (durationMs: Double) -> [String: Any] in
-      guard durationMs.isFinite, durationMs >= 0, durationMs <= Double(UInt64.max) else {
-        return ["ok": false, "error": "invalidDuration"]
+      return try SharedStorageAccess.shared.withAccess {
+        guard durationMs.isFinite, durationMs >= 0, durationMs <= Double(UInt64.max) else {
+          return ["ok": false, "error": "invalidDuration"]
+        }
+        try? self.host.prepareDiagnosticLogging()
+        return NetworkLogHost.startCapture(durationMs: UInt64(durationMs))
       }
-      try? self.host.prepareDiagnosticLogging()
-      return NetworkLogHost.startCapture(durationMs: UInt64(durationMs))
     }.runOnQueue(engineOperationQueue)
     AsyncFunction("stopNetworkLogCapture") { (captureId: String) -> [String: Any] in
-      NetworkLogHost.stopCapture(captureId: captureId)
+      return try SharedStorageAccess.shared.withAccess {
+        NetworkLogHost.stopCapture(captureId: captureId)
+      }
     }.runOnQueue(engineOperationQueue)
     AsyncFunction("prepareNetworkLogExport") { () -> [String: Any] in
-      try? self.host.prepareDiagnosticLogging()
-      return NetworkLogHost.prepareExport(
-        deadlineMs: 1_000, stagingRoot: NetworkLogHost.defaultStagingRoot, fallbackRoot: NetworkLogHost.appGroupNetworkRoot()
-      )
+      return try SharedStorageAccess.shared.withAccess {
+        try? self.host.prepareDiagnosticLogging()
+        return NetworkLogHost.prepareExport(
+          deadlineMs: 1_000, stagingRoot: NetworkLogHost.defaultStagingRoot, fallbackRoot: NetworkLogHost.appGroupNetworkRoot()
+        )
+      }
     }.runOnQueue(engineOperationQueue)
     AsyncFunction("releaseNetworkLogExport") { (exportId: String) in
-      NetworkLogHost.releaseExport(exportId: exportId, stagingRoot: NetworkLogHost.defaultStagingRoot)
+      return try SharedStorageAccess.shared.withAccess {
+        NetworkLogHost.releaseExport(exportId: exportId, stagingRoot: NetworkLogHost.defaultStagingRoot)
+      }
     }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("start") { (config: [String: String]) in
-      let startedAt = ProcessInfo.processInfo.systemUptime
-      let appVersion = config["appVersion"] ?? "unknown"
-      let profileId = config["profileId"] ?? "default"
-      Self.startupLog.info("Native module start requested")
-      let startupLifecycle = MobileStartupLifecycle()
-      guard self.startupLifecycles.installBeforePreparing(startupLifecycle, prepare: { _ in }) else {
-        throw UcEngineAlreadyStartedException()
-      }
-      defer { _ = self.startupLifecycles.take() }
-      let started = try self.host.start(
-        appVersion: appVersion,
-        profileId: profileId,
-        lifecycle: startupLifecycle
-      )
-      Self.startupLog.info(
-        "Engine host started in \(Int((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000))ms"
-      )
-      do {
-        let installed = try self.engines.installBeforePreparing(started) { engine in
-          let recoveryStartedAt = ProcessInfo.processInfo.systemUptime
-          Self.startupLog.info("Recovering persisted session")
-          try self.lifecycle.prepare(AppleEngineLifecycle(engine: engine, host: self.host))
-          self.host.refreshAnalyticsContext(engine: engine)
-          Self.startupLog.info(
-            "Persisted session recovered in \(Int((ProcessInfo.processInfo.systemUptime - recoveryStartedAt) * 1_000))ms"
-          )
-        }
-        guard installed else {
+      return try SharedStorageAccess.shared.withAccess {
+        let startedAt = ProcessInfo.processInfo.systemUptime
+        let appVersion = config["appVersion"] ?? "unknown"
+        let profileId = config["profileId"] ?? "default"
+        Self.startupLog.info("Native module start requested")
+        let startupLifecycle = MobileStartupLifecycle()
+        guard self.startupLifecycles.installBeforePreparing(startupLifecycle, prepare: { _ in }) else {
           throw UcEngineAlreadyStartedException()
         }
-        Self.startupLog.info(
-          "Native module ready in \(Int((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000))ms"
+        defer { _ = self.startupLifecycles.take() }
+        let started = try self.host.start(
+          appVersion: appVersion,
+          profileId: profileId,
+          lifecycle: startupLifecycle
         )
-      } catch {
-        Self.startupLog.error("Native module start failed: \(String(describing: error))")
+        Self.startupLog.info(
+          "Engine host started in \(Int((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000))ms"
+        )
         do {
-          try started.shutdown(deadlineMs: 2_000)
+          let installed = try self.engines.installBeforePreparing(started) { engine in
+            let recoveryStartedAt = ProcessInfo.processInfo.systemUptime
+            Self.startupLog.info("Recovering persisted session")
+            try self.lifecycle.prepare(AppleEngineLifecycle(engine: engine, host: self.host))
+            self.host.refreshAnalyticsContext(engine: engine)
+            Self.startupLog.info(
+              "Persisted session recovered in \(Int((ProcessInfo.processInfo.systemUptime - recoveryStartedAt) * 1_000))ms"
+            )
+          }
+          guard installed else {
+            throw UcEngineAlreadyStartedException()
+          }
+          Self.startupLog.info(
+            "Native module ready in \(Int((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000))ms"
+          )
         } catch {
-          Self.reportLifecycleError(error)
+          Self.startupLog.error("Native module start failed: \(String(describing: error))")
+          do {
+            try started.shutdown(deadlineMs: 2_000)
+          } catch {
+            Self.reportLifecycleError(error)
+          }
+          if self.currentEngine() == nil {
+            self.host.releaseRuntimeOwnership()
+          }
+          throw error
         }
-        if self.currentEngine() == nil {
-          self.host.releaseRuntimeOwnership()
-        }
-        throw error
       }
     }.runOnQueue(engineOperationQueue)
 
@@ -234,14 +259,14 @@ public final class UcEngineModule: Module {
     AsyncFunction("setBackgroundSyncEnabled") { (_: Bool, _: Bool) in }
       .runOnQueue(engineOperationQueue)
 
-    AsyncFunction("getAnalyticsConsent") { try self.host.analyticsConsentEnabled() }
+    AsyncFunction("getAnalyticsConsent") { try SharedStorageAccess.shared.withAccess { try self.host.analyticsConsentEnabled() } }
       .runOnQueue(engineOperationQueue)
-    AsyncFunction("getAnalyticsState") { try self.host.getAnalyticsState() }
+    AsyncFunction("getAnalyticsState") { try SharedStorageAccess.shared.withAccess { try self.host.getAnalyticsState() } }
       .runOnQueue(engineOperationQueue)
     AsyncFunction("setAnalyticsConsent") { (enabled: Bool) in
-      try self.host.setAnalyticsConsentEnabled(enabled)
+      try SharedStorageAccess.shared.withAccess { try self.host.setAnalyticsConsentEnabled(enabled) }
     }.runOnQueue(engineOperationQueue)
-    AsyncFunction("resetAnalyticsIdentity") { try self.host.resetAnalyticsIdentity() }
+    AsyncFunction("resetAnalyticsIdentity") { try SharedStorageAccess.shared.withAccess { try self.host.resetAnalyticsIdentity() } }
       .runOnQueue(engineOperationQueue)
 
     AsyncFunction("createSpace") { (deviceName: String?, passphrase: String) -> [String: Any] in
@@ -610,11 +635,9 @@ public final class UcEngineModule: Module {
       )
     }
     OnAppEntersForeground {
+      self.lifecycleTransitions.enterForeground(self.currentLifecycle())
       EngineDiagnosticBridge.record(.lifecycle(state: .foreground))
       AppleNativeDiagnostics.journal.record(.appForeground, trigger: .appForeground)
-      self.lifecycleTransitions.enterForeground(
-        self.currentLifecycle()
-      )
     }
     OnAppBecomesActive { self.lifecycleTransitions.cancelBackgroundPreparation() }
     OnAppContextDestroys { self.shutdownForDestroy() }
@@ -633,6 +656,7 @@ public final class UcEngineModule: Module {
   }
 
   private func requireEngine() throws -> MobileEngine {
+    try SharedStorageAccess.shared.requireOpen()
     guard let active = currentEngine() else { throw UcEngineNotStartedException() }
     return active
   }

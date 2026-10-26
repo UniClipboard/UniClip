@@ -1,3 +1,4 @@
+import class AppGroupStore.SharedStorageAccess
 import UIKit
 internal import UcEngineCore
 
@@ -20,6 +21,7 @@ internal import UcEngineCore
 /// per-app "允许粘贴" prompt once; after the user allows, reads are silent —
 /// which is exactly what makes the auto-sync feel automatic.
 final class KeyboardViewController: UIInputViewController {
+    private var storageGeneration: UInt64 = 0
     private let model = KeyboardModel()
     private var keyboardView: KeyboardRootView?
     private var keyboardSurfaceHeightConstraint: NSLayoutConstraint?
@@ -119,6 +121,8 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        SharedStorageAccess.shared.resume()
+        storageGeneration = SharedStorageAccess.shared.generation
         AppleNativeDiagnostics.start()
         AppleNativeDiagnostics.journal.record(.extensionVisible, trigger: .extensionVisible)
         KeyboardDiagnostics.shared.record("controller.appear", fields: [
@@ -201,6 +205,8 @@ final class KeyboardViewController: UIInputViewController {
         // Stop polling the pasteboard when the keyboard leaves the screen
         // (globe to another keyboard, dismissed, host app closed) so we don't
         // run a background timer the user can't see.
+        // Close admission before cancelled tasks or shutdown can produce more shared writes.
+        SharedStorageAccess.shared.suspend(ifGeneration: storageGeneration)
         model.stopMonitoring()
         _ = AppleNativeDiagnostics.journal.flush(deadlineMs: 250)
     }

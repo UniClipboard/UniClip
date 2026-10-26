@@ -14,7 +14,16 @@ Pod::Spec.new do |s|
   s.swift_version  = '5.9'
   s.source         = { git: 'https://github.com/nicepkg/uniclipboard.git' }
   s.static_framework = true
-  s.dependency 'ExpoModulesCore'
+  s.default_subspec = 'Module'
 
-  s.source_files = ['*.swift', 'Shared/**/*.swift']
+  # Extensions need the Foundation admission owner without the Expo bridge.
+  s.subspec 'StorageAccess' do |core|
+    core.source_files = 'Shared/SharedStorageAccess.swift'
+  end
+  s.subspec 'Module' do |mod|
+    mod.dependency 'AppGroupStore/StorageAccess'
+    mod.dependency 'ExpoModulesCore'
+    mod.source_files = ['AppGroupStoreModule.swift', 'Shared/**/*.swift']
+    mod.exclude_files = 'Shared/SharedStorageAccess.swift'
+  end
 end

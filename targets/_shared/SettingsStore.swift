@@ -1,4 +1,10 @@
 import Foundation
+#if canImport(AppGroupStore)
+import class AppGroupStore.SharedStorageAccess
+#elseif canImport(SharedStorageAccess)
+import SharedStorageAccess
+#endif
+
 import OSLog
 
 private let log = Logger(subsystem: "app.uniclipboard", category: "store")
@@ -87,7 +93,7 @@ public final class SettingsStore: @unchecked Sendable {
         if let defaults {
             chosenDefaults = defaults
         } else if let suite = UserDefaults(suiteName: SettingsStore.appGroupID) {
-            SettingsStore.migrateFromStandardIfNeeded(into: suite)
+            _ = try? SharedStorageAccess.shared.withAccess { SettingsStore.migrateFromStandardIfNeeded(into: suite) }
             chosenDefaults = suite
         } else {
             chosenDefaults = .standard
@@ -110,10 +116,9 @@ public final class SettingsStore: @unchecked Sendable {
             chosenContainer = FileManager.default.temporaryDirectory
                 .appendingPathComponent("UniClipboardStore-\(UUID().uuidString)", isDirectory: true)
         }
-        try? FileManager.default.createDirectory(
-            at: chosenContainer,
-            withIntermediateDirectories: true
-        )
+        _ = try? SharedStorageAccess.shared.withAccess {
+            try FileManager.default.createDirectory(at: chosenContainer, withIntermediateDirectories: true)
+        }
         self.containerURL = chosenContainer
         self.encoder = JSONEncoder()
         self.decoder = JSONDecoder()
@@ -185,21 +190,25 @@ public final class SettingsStore: @unchecked Sendable {
     // MARK: - AppSettings
 
     public func loadAppSettings() -> AppSettings {
-        defaults.synchronize()
-        guard let data = defaults.data(forKey: AppSettings.PersistenceKey.appSettings) else {
+        (try? SharedStorageAccess.shared.withAccess {
+            defaults.synchronize()
+            guard let data = defaults.data(forKey: AppSettings.PersistenceKey.appSettings) else {
+                return .defaults
+            }
+            if let settings = try? decoder.decode(AppSettings.self, from: data) {
+                return settings
+            }
+            log.fault("loadAppSettings: app_settings blob (\(data.count, privacy: .public) bytes) failed to decode — using defaults")
             return .defaults
-        }
-        if let settings = try? decoder.decode(AppSettings.self, from: data) {
-            return settings
-        }
-        log.fault("loadAppSettings: app_settings blob (\(data.count, privacy: .public) bytes) failed to decode — using defaults")
-        return .defaults
+        }) ?? .defaults
     }
 
     public func saveAppSettings(_ settings: AppSettings) {
-        guard let data = try? encoder.encode(settings) else { return }
-        defaults.set(data, forKey: AppSettings.PersistenceKey.appSettings)
-        defaults.synchronize()
+        _ = try? SharedStorageAccess.shared.withAccess {
+            guard let data = try? encoder.encode(settings) else { return }
+            defaults.set(data, forKey: AppSettings.PersistenceKey.appSettings)
+            defaults.synchronize()
+        }
     }
 
     // MARK: - Clipboard history (cycle 11)
@@ -209,10 +218,12 @@ public final class SettingsStore: @unchecked Sendable {
     /// the rest of the store's corruption policy — never block startup on
     /// a bad blob).
     public func loadHistory() -> [ClipboardHistoryItem] {
-        guard let data = defaults.data(forKey: AppSettings.PersistenceKey.clipboardHistory) else {
-            return []
-        }
-        return (try? decoder.decode([ClipboardHistoryItem].self, from: data)) ?? []
+        (try? SharedStorageAccess.shared.withAccess {
+            guard let data = defaults.data(forKey: AppSettings.PersistenceKey.clipboardHistory) else {
+                return []
+            }
+            return (try? decoder.decode([ClipboardHistoryItem].self, from: data)) ?? []
+        }) ?? []
     }
 
     /// Persist the clipboard observation log. Callers cap the size before
@@ -220,8 +231,10 @@ public final class SettingsStore: @unchecked Sendable {
     /// is still encoded (rather than removing the key) so a subsequent
     /// load round-trips to `[]` and the corruption fallback never fires.
     public func saveHistory(_ items: [ClipboardHistoryItem]) {
-        guard let data = try? encoder.encode(items) else { return }
-        defaults.set(data, forKey: AppSettings.PersistenceKey.clipboardHistory)
+        _ = try? SharedStorageAccess.shared.withAccess {
+            guard let data = try? encoder.encode(items) else { return }
+            defaults.set(data, forKey: AppSettings.PersistenceKey.clipboardHistory)
+        }
     }
 
     /// Append one observation to the shared history log (App Group),
@@ -268,12 +281,14 @@ public final class SettingsStore: @unchecked Sendable {
     /// surfaces first (matching the main app's reapply semantics) and the
     /// uplink's "already at head?" dedup recognizes the copied entry.
     public func touchHistoryItem(id: UUID) {
-        var items = loadHistory()
-        guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
-        var item = items.remove(at: idx)
-        item.timestamp = Date()
-        items.insert(item, at: 0)
-        saveHistory(items)
+        _ = try? SharedStorageAccess.shared.withAccess {
+            var items = loadHistory()
+            guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
+            var item = items.remove(at: idx)
+            item.timestamp = Date()
+            items.insert(item, at: 0)
+            saveHistory(items)
+        }
     }
 
     // MARK: - Pasteboard change-count watermark (keyboard uplink)
@@ -283,11 +298,15 @@ public final class SettingsStore: @unchecked Sendable {
     /// "允许粘贴" prompt) when nothing has been copied since — reading
     /// `changeCount` itself is free and never prompts. `nil` on cold start.
     public func loadLastSyncedChangeCount() -> Int? {
-        defaults.object(forKey: AppSettings.PersistenceKey.lastSyncedChangeCount) as? Int
+        (try? SharedStorageAccess.shared.withAccess {
+            defaults.object(forKey: AppSettings.PersistenceKey.lastSyncedChangeCount) as? Int
+        }) ?? nil
     }
 
     public func saveLastSyncedChangeCount(_ value: Int) {
-        defaults.set(value, forKey: AppSettings.PersistenceKey.lastSyncedChangeCount)
+        _ = try? SharedStorageAccess.shared.withAccess {
+            defaults.set(value, forKey: AppSettings.PersistenceKey.lastSyncedChangeCount)
+        }
     }
 
     // MARK: - Image data cache (App Group, shared with keyboard)
@@ -297,14 +316,18 @@ public final class SettingsStore: @unchecked Sendable {
     }
 
     public func loadImageData(hash: String) -> Data? {
-        let file = imageCacheDir.appendingPathComponent("\(hash.uppercased()).dat")
-        return try? Data(contentsOf: file)
+        (try? SharedStorageAccess.shared.withAccess {
+            let file = imageCacheDir.appendingPathComponent("\(hash.uppercased()).dat")
+            return try? Data(contentsOf: file)
+        }) ?? nil
     }
 
     public func saveImageData(hash: String, data: Data) {
-        try? FileManager.default.createDirectory(at: imageCacheDir, withIntermediateDirectories: true)
-        let file = imageCacheDir.appendingPathComponent("\(hash.uppercased()).dat")
-        try? data.write(to: file, options: .atomic)
+        _ = try? SharedStorageAccess.shared.withAccess {
+            try? FileManager.default.createDirectory(at: imageCacheDir, withIntermediateDirectories: true)
+            let file = imageCacheDir.appendingPathComponent("\(hash.uppercased()).dat")
+            try? data.write(to: file, options: .atomic)
+        }
     }
 
 }
