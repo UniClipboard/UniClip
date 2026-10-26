@@ -1,19 +1,40 @@
 # Engine 编译缓存
 
-`artifactSource=commit` 从 `core-source.json` 的不可变 Engine SHA 编译 Android AAR 或 iOS XCFramework；`release` 下载并校验预编译产物，不经过 Rust 编译缓存。已准备且校验通过的 native 产物复用也不是 MBX 命中。
+`artifactSource=commit` 从 `core-source.json` 的不可变 Engine SHA 编译 Android AAR 或 iOS XCFramework；`release` 下载并校验发布产物，不经过编译缓存。已准备且校验通过的 native 产物复用也不是 MBX 命中。目标矩阵、release profile、绑定生成、产物校验和签名路径保持原契约。
 
-commit 构建继续调用固定 Engine 源码中的原生构建脚本，由 Engine 负责的固定 MBX 1.24.0 Cargo 入口统一缓存。Mobile 不复制 MBX 安装或分键实现。Android、iOS 检查和 IPA 工作流只缓存按 ref 隔离的本地 MBX CAS，不恢复整份 target；仍将本次 job 的输出放在独立 `engine-target`。
+## 快照消费入口
 
-Prepare unified engine core 步骤接收可选的仓库 secrets：`BUILD_CACHE_R2_ENDPOINT`、`BUILD_CACHE_R2_ACCESS_KEY_ID`、`BUILD_CACHE_R2_SECRET_ACCESS_KEY`。需要为这三个名称配置具有现有私有桶 `uniclipboard-build-cache` 读取权限的 R2 凭据；对象前缀是 `engine/mbx/v1/`。不要使用移动发布的通用 Cloudflare API token 代替 S3 凭据。
+`update-unified-engine-core.sh` 在实际编译前，每个平台调用一次 `uc_engine_restore_snapshot`。Mobile 只选择 `mobile-product-android` / `mobile-product-ios` 场景，完整的传输、索引/归档校验、CAS 导入和失败分类由 Engine 的 `scripts/build-cache/mbx-snapshot.py` 负责。没有逐对象回退，也没有 Mobile save/publish 入口。
 
-三个值全部缺失时使用本地 MBX，fork 保持可构建；部分缺失或端点非 HTTPS 时提前失败。Mobile 只请求 read-only；写入仍由 Engine 的可信 CI 生产者负责。凭据只存在于该步骤及原生编译子进程，不能写入 Actions cache 或工件。没有在本改动中配置远端 secrets 或创建 environments。
+缓存自动化独立固定到 Engine `f44ae136f76a05e642fc22e32b823161f0716cef`（包含已合并的快照实现 #232）。这次不改变产品 pin；两者当前 SHA 相同不代表绑定两个版本。`engine-cache-tools.sha256` 固定入口脚本和 Engine 原生 `scene_key` 的全部输入；下载与复用时都校验，不能用 Mobile 工作流或缺失的 Engine 文件构造另一套协议。更新自动化时须从受信 Engine 提交重新生成该清单，并确认包含完整的 key 输入集合。
 
-保留 `MBX_STATS_REPORT` 原生统计为 `mbx-android-build-*`、`mbx-ios-build-check-*`、`mbx-build-ios-*` 工件。无编译命令时允许缺少统计，不能视为零耗时缓存命中。无 R2 凭据时使用 2 GiB 的本地 CAS 预算；使用 R2 时与 Engine/Desktop 一致，使用 20 GiB。MBX 1.18.0 的 `MBX_GC_MAX_SIZE` 同时限制动作缓存和每次会话的远端下载总量；不能把 2 GiB 当作仅限制本地磁盘，否则原生库构建会耗尽下载预算并回退编译。
+恢复 key 使用固定自动化的 Cargo/工具/工作流输入、真实 rustc、宿主 OS/架构、runner 镜像、SDK 选择、场景及实际产品工作树 SHA。拒绝继承任意 key、variant、source-root 或 writer 选择。MBX 继续逐动作核验源码、依赖、编译参数和目标；外层快照匹配不能代替编译正确性。产品临时工作树只覆盖原有五个缓存入口，`cache-entry.json` 记录产品 SHA、自动化 SHA、脚本 SHA256 和真实 dirty 文件。
 
-同一 bucket/namespace 允许兼容动作共享，不能把 iOS、Android 和 Desktop 全部产物互换。编译器、target、源码、features、profile、依赖内容、编译参数、发现的环境值、受支持链接器/SDK 都影响分键。保持 Engine 默认路径语义，不启用 `share_workspace_root`。
+远端只读现有私有桶的 `engine/mbx-snapshots/v1/<scene>/<compatibility-hash>/latest.json` 和其中指定的单个归档。Engine 验证格式、同场景 key、大小、SHA256、路径/类型/展开限制，拒绝 Cargo workspace 附件，再由原生 MBX 验证 CAS 闭包。可信 main producer 和现有桶级 reader/writer 权限仍是信任边界；前缀不是独立授权。PR 不发布快照，本地 Actions CAS 缓存继续按 ref 隔离，不扩大不可信 PR 的缓存权限。
 
-本地小型真实 Engine 内容哈希消费者验证了 Mobile 构建调用函数和 Engine MBX 入口、独立 target 的恢复及输入变化后的程序输出；完整 AAR/XCFramework 和真实 R2 下载命中仍需 CI 验证。证据要求是独立 CAS 的消费者下载字节大于零、上传为零、远端错误为零，并实际运行恢复出的产物；单凭工作流通过或 target 复用不够。
+## 冷编译与凭据
 
-Android 与 iOS 检查的 reusable workflow 声明三个可选缓存 secret，build/build-pr/release 调用方只显式转发这三个值；不转发签名或发布凭据。fork 和未配置凭据仍使用本地 CAS。
+Prepare 步骤使用已有的三个可选 reader secrets：`BUILD_CACHE_R2_ENDPOINT`、`BUILD_CACHE_R2_ACCESS_KEY_ID`、`BUILD_CACHE_R2_SECRET_ACCESS_KEY`。不增加 secret、写入权限、发布环境或安全设置。Python SDK 固定为 `boto3==1.40.0`，临时安装；安装故障与远端故障一样退回本地。
 
-缓存自动化提交与产品 Engine pin 分开：`scripts/engine-cache-tools.sh` 固定并校验缓存负责人脚本；`update-unified-engine-core.sh` 只在任务独占的临时产品工作树覆盖五个缓存入口文件，Rust源码、Cargo.lock和发布profile保持产品pin。共享Engine checkout不修改。原生统计的`cache-entry.json`记录产品SHA、自动化SHA、脚本SHA256及真实dirty缓存文件，不宣称该临时树完全clean。MBX1.24支持显式linker下的rlib缓存；packed debug宿主链接仍可能bypass。宿主和目标统计必须分开验收。
+缺失快照、无凭据、部分凭据、非 HTTPS、不可访问端点、损坏/不兼容归档或 SDK 不可用均不会代替真实构建。恢复报告保留 miss/no-credentials/error，后续原生编译照常执行并传播退出码。可信工具下载/校验失败仍停止：不能执行未验证自动化。无 Python 时跳过可选恢复，仍编译。
+
+编译子进程强制 `UC_ENGINE_MBX_LOCAL_ONLY=1`，清除 R2/AWS 身份、旧环境文件、原生远端配置和 writer 标记，并用空 URL 覆盖全局 MBX 配置。即使调用方提供 `--r2`、旧 read-only 设置或全局远端配置，也不能请求逐对象缓存。凭据不传给编译或 SDK 安装子进程，不写入缓存或证据。不会执行旧的网络 sysctl 准备脚本。
+
+## 证据与限制
+
+现有 `mbx-*` 工件保留原生 `session.*/stats.json` 和每平台 `<android|ios>/snapshot-restore.json`。快照 hit 应为一个逻辑 index read、一个 archive read、下载字节大于零；miss 为一个 index read、零 archive read；禁用远端为零。SDK 重试可能增加实际 HTTP 请求，逻辑计数不是 R2 账单。
+
+原生编译的 manifest/action/blob/pack 远端请求、上传和下载应全部为零。只有实际运行构建且出现原生 hits/restored files，才能把恢复称为编译复用。无编译统计不能视为零耗时命中；本地 fixture、Actions CAS 命中与独立 hosted/R2 消费证据必须分开。
+
+当前 Engine producer 仍固定旧产品 `2f9afc99`，且 SDK/runner 镜像也可能不同。因此本次产品 `f44ae136` 可能安全 miss；不能为了命中放宽 key 或冒用旧 variant。后续生产者预热属于 Engine 所有者工作，本 PR 不修改 Engine。未取得匹配的真实 R2 消费证据前，不宣称完整 AAR/XCFramework 加速或实测费用下降。
+
+回归：
+
+```sh
+python3 scripts/__tests__/engine-cache-snapshot.test.py
+tools=$(bash scripts/engine-cache-tools.sh)
+python3 "$tools/scripts/build-cache/mbx-snapshot.test.py"
+node --test scripts/__tests__/engine-build-environment.test.mjs
+```
+
+独立手动缓存验收工作流要求真实快照 hit 和本地 MBX 恢复，并拒绝任何原生远端请求；普通 PR 构建允许 cold miss。只有明确授权才运行手动验收，本次不触发。

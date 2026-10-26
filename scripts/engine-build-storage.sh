@@ -38,22 +38,13 @@ uc_engine_run_build() (
   if [[ -z "${DEVELOPER_DIR:-}" && -d /Applications/Xcode.app/Contents/Developer ]]; then
     export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
   fi
-  local credentials=0 name
-  for name in BUILD_CACHE_R2_ENDPOINT BUILD_CACHE_R2_ACCESS_KEY_ID BUILD_CACHE_R2_SECRET_ACCESS_KEY; do
-    [[ -z "${!name:-}" ]] || credentials=$((credentials + 1))
-  done
-  if [[ $credentials != 0 && $credentials != 3 ]]; then
-    echo 'Incomplete MBX R2 credentials' >&2
-    exit 1
-  fi
-  if [[ $credentials == 3 ]]; then
-    [[ "$BUILD_CACHE_R2_ENDPOINT" == https://* ]] || { echo 'MBX R2 endpoint must use HTTPS' >&2; exit 1; }
-    # Mobile consumes the trusted Engine cache; it never publishes to it.
-    export MBX_REMOTE_MODE=read-only
-    local build_root
-    build_root="$(cd "$(dirname "$1")/../../.." && pwd)"
-    bash "$build_root/scripts/build-cache/prepare-ci-network.sh"
-  fi
+  # 快照传输独立完成；编译即使继承旧配置也不能读取或写入远端对象。
+  export UC_ENGINE_MBX_LOCAL_ONLY=1
+  unset UC_ENGINE_MBX_ENV_FILE UC_MBX_SNAPSHOT_WRITER
+  local name
+  for name in ${!BUILD_CACHE_R2_@} ${!AWS_@} ${!MBX_REMOTE_@}; do unset "$name"; done
+  export MBX_REMOTE_URL="" MBX_REMOTE_NAMESPACE="" MBX_REMOTE_S3_ENDPOINT="" MBX_REMOTE_S3_REGION=""
+  export MBX_REMOTE_TOKEN="" MBX_REMOTE_TOKEN_FILE="" MBX_REMOTE_OIDC_AUDIENCE=""
   "$@"
 )
 
@@ -82,3 +73,22 @@ fs.writeFileSync(output, JSON.stringify({ productSource: execFileSync('git', ['r
 NODE
   fi
 }
+
+# 每个平台只恢复一次 CAS；任何缓存故障仍必须执行后面的真实原生构建。
+uc_engine_restore_snapshot() (
+  local product_root="$1" platform="$2" mobile_root tools_root scratch
+  mobile_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+  tools_root="$(bash "$mobile_root/scripts/engine-cache-tools.sh")" || return
+  scratch=$(mktemp -d "${TMPDIR:-/tmp}/mobile-snapshot.XXXXXX")
+  trap 'rm -rf "$scratch"' EXIT
+  export RUNNER_TEMP="${RUNNER_TEMP:-$scratch}"
+  export UC_ENGINE_MBX_STATS_DIR="${UC_ENGINE_MBX_STATS_DIR:-$scratch/evidence}/$platform"
+  # SDK 安装失败只造成快照 miss/error，不阻止冷编译；凭据不传给 pip。
+  if [[ -n "${BUILD_CACHE_R2_ENDPOINT:-}" && -n "${BUILD_CACHE_R2_ACCESS_KEY_ID:-}" && -n "${BUILD_CACHE_R2_SECRET_ACCESS_KEY:-}" ]]; then
+    (for name in ${!BUILD_CACHE_R2_@} ${!AWS_@}; do unset "$name"; done
+     python3 -m pip install --disable-pip-version-check --quiet --target "$scratch/sdk" boto3==1.40.0) || true
+  fi
+  cd "$product_root" || exit 1
+  PYTHONPATH="$scratch/sdk" python3 "$mobile_root/scripts/engine-cache-snapshot.py" "$tools_root" "$product_root" "$platform" ||
+    echo 'Engine snapshot unavailable; continuing with local compilation' >&2
+)

@@ -23,7 +23,7 @@ jobs:
       CARGO_BUILD_JOBS: '3'
       CARGO_INCREMENTAL: '0'
       MBX_GC_MAX_SIZE: 20GiB
-      MBX_REMOTE_MODE: read-only
+      UC_ENGINE_MBX_LOCAL_ONLY: "1"
     defaults:
       run:
         shell: bash
@@ -89,7 +89,7 @@ jobs:
           assert not any(failures.values()), 'Unreported remote recovery errors'
           PY
           node scripts/verify-unified-engine-core.mjs --prepared --platform "$PLATFORM"
-      - name: Assert real read-only remote recovery
+      - name: Assert real snapshot recovery without object requests
         run: |
           python3 - <<'PY'
           import json, os
@@ -115,7 +115,12 @@ jobs:
               assert target['bypasses'].get('unknown-codegen-option', 0) == 0, 'Android linker adapter still bypassed'
               assert target['stats']['hits'] + target['stats']['misses'] + target['stats']['unconsulted'] > 0, 'Android target never reached cache adapter'
               print('Android target adapter active; remote target hits require compatible producer seeds')
-          assert totals['hits'] > 0 and totals['restored_output_files'] > 0 and totals['downloaded_bytes'] > 0
+          snapshot = json.loads((Path(os.environ['UC_ENGINE_MBX_STATS_DIR']) / '${{ matrix.platform }}' / 'snapshot-restore.json').read_text())
+          assert snapshot['status'] == 'hit' and snapshot['downloaded_bytes'] > 0
+          assert snapshot['index_reads'] == snapshot['archive_reads'] == 1 and snapshot['object_fallback'] is False
+          assert totals['hits'] > 0 and totals['restored_output_files'] > 0
+          assert totals['downloaded_bytes'] == 0
+          assert all(json.loads(file.read_text())[key] == 0 for file in reports for key in ('remote_manifest_lookups', 'remote_action_lookups', 'remote_blob_requests', 'remote_blob_pack_requests'))
           assert totals['uploaded_bytes'] == totals['remote_failures'] == totals['background_upload_failures'] == 0
           PY
       - name: Preserve native evidence and packages
