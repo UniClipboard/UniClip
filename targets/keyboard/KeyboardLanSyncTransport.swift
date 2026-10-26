@@ -35,12 +35,14 @@ final class KeyboardLanSyncTransport: KeyboardSyncTransport {
     private var configurations: [Configuration] = []
     private var clients: [String: KeyboardLanHttpClient] = [:]
     private var lastSeenRemoteIdentity: [String: String] = [:]
+    private var isStopped = false
 
     init(store: SettingsStore) {
         self.store = store
     }
 
     func synchronize(_ snapshot: DeviceClipboardSnapshot?) async throws -> KeyboardSyncResult {
+        try checkActive()
         let currentClients = try currentClients()
         var delivery: ExtensionDeliveryReport?
         if let snapshot {
@@ -50,10 +52,18 @@ final class KeyboardLanSyncTransport: KeyboardSyncTransport {
             for (_, client) in currentClients {
                 do {
                     try await client.publish(snapshot)
+                    try checkActive()
+                    try client.checkActive()
                     accepted += 1
+                } catch is CancellationError {
+                    throw CancellationError()
                 } catch KeyboardLanSyncError.unavailable {
+                    try checkActive()
+                    try client.checkActive()
                     offline += 1
                 } catch {
+                    try checkActive()
+                    try client.checkActive()
                     errored += 1
                 }
             }
@@ -67,17 +77,22 @@ final class KeyboardLanSyncTransport: KeyboardSyncTransport {
             )
         }
         let remote = try await pullRemote(using: currentClients, outgoing: snapshot?.clipboard)
+        try checkActive()
+        for (_, client) in currentClients { try client.checkActive() }
         return KeyboardSyncResult(remoteChange: remote.map(KeyboardRemoteChange.snapshot), delivery: delivery)
     }
 
     func waitForRemoteChange(timeoutMs: UInt64) async throws -> KeyboardRemoteChange? {
+        try checkActive()
         try await Task.sleep(nanoseconds: timeoutMs * 1_000_000)
-        try Task.checkCancellation()
+        try checkActive()
         let remote = try await pullRemote(using: currentClients(), outgoing: nil)
         return remote.map(KeyboardRemoteChange.snapshot)
     }
 
     func stop() {
+        guard !isStopped else { return }
+        isStopped = true
         clients.values.forEach { $0.stop() }
         clients = [:]
         configurations = []
@@ -85,6 +100,7 @@ final class KeyboardLanSyncTransport: KeyboardSyncTransport {
     }
 
     private func currentClients() throws -> [(String, KeyboardLanHttpClient)] {
+        try checkActive()
         let settings = store.loadAppSettings()
         guard settings.syncChannel == .lan, !settings.lanServers.isEmpty else {
             throw KeyboardLanSyncError.notConfigured
@@ -119,7 +135,20 @@ final class KeyboardLanSyncTransport: KeyboardSyncTransport {
         outgoing: Clipboard?
     ) async throws -> DeviceClipboardSnapshot? {
         for (serverId, client) in clients {
-            guard let remote = try? await client.pull() else { continue }
+            try checkActive()
+            let remote: DeviceClipboardSnapshot?
+            do {
+                remote = try await client.pull()
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                try checkActive()
+                try client.checkActive()
+                continue
+            }
+            try checkActive()
+            try client.checkActive()
+            guard let remote else { continue }
             let identity = Self.identity(remote.clipboard)
             if identity == lastSeenRemoteIdentity[serverId] { continue }
             lastSeenRemoteIdentity[serverId] = identity
@@ -131,6 +160,11 @@ final class KeyboardLanSyncTransport: KeyboardSyncTransport {
             return remote
         }
         return nil
+    }
+
+    private func checkActive() throws {
+        try Task.checkCancellation()
+        guard !isStopped else { throw CancellationError() }
     }
 
     private static func identity(_ clipboard: Clipboard) -> String {
@@ -152,6 +186,9 @@ private final class KeyboardLanHttpClient: @unchecked Sendable {
     private let server: LanServerProfile
     private let authorization: String
     private let session: URLSession
+    // Task creation and invalidation must share one synchronous boundary.
+    private let sessionLock = NSLock()
+    private var isStopped = false
 
     init(server: LanServerProfile, password: String) throws {
         let urls = try server.urls.map(Self.normalizedBaseURL)
@@ -195,7 +232,7 @@ private final class KeyboardLanHttpClient: @unchecked Sendable {
             var request = URLRequest(url: baseURL.appendingPathComponent("SyncClipboard.json"))
             request.httpMethod = "GET"
             request.setValue(self.authorization, forHTTPHeaderField: "Authorization")
-            let (data, response) = try await self.session.data(for: request)
+            let (data, response) = try await self.requestData(request)
             let status = (response as? HTTPURLResponse)?.statusCode ?? -1
             if status == 404 { return nil }
             try self.validate(status: status)
@@ -213,7 +250,11 @@ private final class KeyboardLanHttpClient: @unchecked Sendable {
     }
 
     func stop() {
-        session.invalidateAndCancel()
+        sessionLock.withLock {
+            guard !isStopped else { return }
+            isStopped = true
+            session.invalidateAndCancel()
+        }
     }
 
     private func withCandidate<T: Sendable>(
@@ -221,12 +262,18 @@ private final class KeyboardLanHttpClient: @unchecked Sendable {
     ) async throws -> T {
         var lastError: Error = KeyboardLanSyncError.unavailable
         for rawURL in server.urls {
+            try checkActive()
             guard let baseURL = URL(string: rawURL) else { continue }
             do {
-                return try await operation(baseURL)
+                let result = try await operation(baseURL)
+                try checkActive()
+                return result
+            } catch is CancellationError {
+                throw CancellationError()
             } catch KeyboardLanSyncError.authenticationFailed {
                 throw KeyboardLanSyncError.authenticationFailed
             } catch {
+                try checkActive()
                 lastError = error
             }
         }
@@ -257,13 +304,60 @@ private final class KeyboardLanHttpClient: @unchecked Sendable {
 
     private func perform(_ request: URLRequest) async throws -> Data {
         do {
-            let (data, response) = try await session.data(for: request)
+            let (data, response) = try await requestData(request)
             try validate(status: (response as? HTTPURLResponse)?.statusCode ?? -1)
             return data
+        } catch is CancellationError {
+            throw CancellationError()
         } catch let error as KeyboardLanSyncError {
             throw error
         } catch {
             throw KeyboardLanSyncError.unavailable
+        }
+    }
+
+    func checkActive() throws {
+        try Task.checkCancellation()
+        try sessionLock.withLock {
+            guard !isStopped else { throw CancellationError() }
+        }
+    }
+
+    private func requestData(_ request: URLRequest) async throws -> (Data, URLResponse) {
+        try checkActive()
+        let cancellation = KeyboardLanRequestCancellation()
+        do {
+            let result: (Data, URLResponse) = try await withTaskCancellationHandler {
+                try await withCheckedThrowingContinuation { continuation in
+                    sessionLock.withLock {
+                        guard !isStopped, !Task.isCancelled else {
+                            continuation.resume(throwing: CancellationError())
+                            return
+                        }
+                        // Keep task creation synchronous with session invalidation.
+                        let task = session.dataTask(with: request) { data, response, error in
+                            if let error {
+                                continuation.resume(throwing: error)
+                            } else if let data, let response {
+                                continuation.resume(returning: (data, response))
+                            } else {
+                                continuation.resume(throwing: KeyboardLanSyncError.invalidResponse)
+                            }
+                        }
+                        cancellation.start(task)
+                    }
+                }
+            } onCancel: {
+                cancellation.cancel()
+            }
+            try checkActive()
+            return result
+        } catch {
+            if error is CancellationError || (error as? URLError)?.code == .cancelled {
+                throw CancellationError()
+            }
+            try checkActive()
+            throw error
         }
     }
 
@@ -285,6 +379,28 @@ private final class KeyboardLanHttpClient: @unchecked Sendable {
             throw KeyboardLanSyncError.invalidURL
         }
         return url
+    }
+}
+
+// Cancellation can arrive before the URLSession task is installed.
+private final class KeyboardLanRequestCancellation: @unchecked Sendable {
+    private let lock = NSLock()
+    private var task: URLSessionDataTask?
+    private var isCancelled = false
+
+    func start(_ task: URLSessionDataTask) {
+        lock.withLock {
+            self.task = task
+            if isCancelled { task.cancel() }
+            task.resume()
+        }
+    }
+
+    func cancel() {
+        lock.withLock {
+            isCancelled = true
+            task?.cancel()
+        }
     }
 }
 
