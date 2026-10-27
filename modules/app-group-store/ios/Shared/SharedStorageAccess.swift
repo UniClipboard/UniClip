@@ -18,6 +18,7 @@ public final class SharedStorageAccess: @unchecked Sendable {
     private var accepting = true
     private var epoch: UInt64 = 0
     private var active: [UInt64: Int] = [:]
+    private var fileCompletions: [(generation: UInt64, finish: () -> Void)] = []
     private var completions: [(generation: UInt64, finish: () -> Void)] = []
 
     public init() {}
@@ -68,10 +69,23 @@ public final class SharedStorageAccess: @unchecked Sendable {
         }
     }
 
+    /// Retain the request until actual file closure confirms this closed epoch.
+    /// A superseded epoch remains unconfirmed; this does not choose its policy.
+    public func whenFilesClosed(generation: UInt64, completion: @escaping () -> Void) {
+        lock.withLock { fileCompletions.append((generation, completion)) }
+        _ = closeRegisteredFiles(generation: generation)
+    }
+
+    /// An owner closed outside the registry. Recheck every owner before notifying.
+    public func fileOwnerDidClose() {
+        _ = closeRegisteredFiles(generation: generation)
+    }
+
     /// Serialize actual file close against foreground admission reopening.
     /// Registrants must not reenter this gate while closing their own files.
     public func closeRegisteredFiles(generation: UInt64) -> Bool {
-        lock.withLock {
+        var ready: [() -> Void] = []
+        let closed = lock.withLock {
             guard epoch == generation, !accepting, active.isEmpty else { return false }
             fileOwners.removeAll { $0.value == nil }
             var closed = true
@@ -79,8 +93,15 @@ public final class SharedStorageAccess: @unchecked Sendable {
                 if let value = owner.value, !value.closeStorageFiles() { closed = false }
             }
             if !closed { NSLog("Shared storage file release remains unconfirmed") }
+            if closed {
+                ready = fileCompletions.filter { $0.generation == generation }.map { $0.finish }
+                fileCompletions.removeAll { $0.generation == generation }
+            }
             return closed
         }
+        // Call external continuations after releasing the admission lock.
+        for finish in ready { finish() }
+        return closed
     }
 
     /// Commit the handoff atomically against foreground admission reopening.

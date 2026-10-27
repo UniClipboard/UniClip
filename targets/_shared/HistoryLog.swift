@@ -27,10 +27,12 @@ public final class HistoryLog: SharedStorageFileOwner {
     /// Keep a failed close owned; never report it as a successful release.
     @discardableResult
     public func suspend() -> Bool {
-        lock.withLock {
+        let closed = lock.withLock {
             suspended = true
             return closeDatabase()
         }
+        if closed { SharedStorageAccess.shared.fileOwnerDidClose() }
+        return closed
     }
 
     /// Global admission owns permission; close the file without changing the

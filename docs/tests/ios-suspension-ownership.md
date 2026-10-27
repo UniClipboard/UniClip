@@ -64,6 +64,18 @@ A stale close request cannot suspend a newer foreground generation. The global
 closer preserves the component's explicit suspend flag. Admission-owned LAN
 history can reopen lazily after foreground without a transport change.
 
+Share request completion has a separate file-close continuation. The admission
+gate retains its context after a false close result. A later positive registry
+close executes the continuation once, outside the gate lock. A HistoryLog close
+outside the registry requests a fresh registry check after releasing its own
+lock. A superseded generation remains unconfirmed. This does not select Share
+interruption recovery, cancellation or termination policy.
+
+Diagnostic-only startup also installs process writers under runtime ownership.
+The absent process receipt can therefore block an extension Engine start even
+without a running main Engine. Removing exclusion requires an explicit process
+logging ownership decision. An unconditional unlock is not a valid repair.
+
 ### Owner graph
 
 ```mermaid

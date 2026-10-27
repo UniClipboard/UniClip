@@ -113,9 +113,10 @@ final class ShareViewController: UIViewController {
 
     nonisolated private static func completeRequest(_ context: NSExtensionContext, generation: UInt64) {
         SharedStorageAccess.shared.suspend(ifGeneration: generation) {
-            guard SharedStorageAccess.shared.closeRegisteredFiles(generation: generation) else { return }
-            DispatchQueue.main.async {
-                context.completeRequest(returningItems: nil, completionHandler: nil)
+            SharedStorageAccess.shared.whenFilesClosed(generation: generation) {
+                DispatchQueue.main.async {
+                    context.completeRequest(returningItems: nil, completionHandler: nil)
+                }
             }
         }
     }
