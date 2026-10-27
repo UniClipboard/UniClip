@@ -4,6 +4,10 @@
 
 The baseline is Mobile `fcf68bfe917fc7a12a3c0696ac90b5463ae0b724` with Engine
 `f44ae136f76a05e642fc22e32b823161f0716cef`.
+The current Engine source pin is
+`0c972cd97503cad73704933e066c728a38e9585f`, merged by Engine PR306.
+Its nested network source is `413531dd7503c87ce89f21b69196f8c26eed909d`.
+The historical baseline above remains unchanged.
 This change repairs Mobile ownership defects. It does not identify the file in
 the original RUNNINGBOARD `0xdead10cc` reports. It does not change the Engine API
 or release runtime ownership before Engine completion.
@@ -80,9 +84,49 @@ This guard changes no synchronization task or transport behavior.
 No replay launches an app, simulator, VM or device. No replay accesses a
 production App Group, clipboard, profile, keychain or database.
 A manual grant and controlled Engine are host mechanisms only.
-No result certifies actual UIKit suspension or Rust Engine cleanup.
+The controlled Mobile replay does not certify actual UIKit suspension or
+actual Rust Engine cleanup.
 The full Expo/UIKit app build also requires the matching prepared Engine
 binding and framework. An older cached binding is not a valid substitute.
+
+## Complete Engine release results
+
+The merged Engine provides `suspendWithOutcome(deadlineMs:)` and
+`shutdownWithOutcome(deadlineMs:)`. Consume each complete result directly:
+
+- `pending`: retain the accepted action and owner; wait again with backoff.
+- `released(error:)`: confirm only the Engine obligation and preserve any
+  operation error. Await the independent Mobile/native/JS file acknowledgements.
+- `failed(error:)`: retain Engine and runtime ownership, stop automatic Pending
+  retries and report release unconfirmed. Its nested retryable flag does not
+  override the complete result.
+
+The result covers one Engine. It excludes process observability, detached
+flushes, other active Engines and Mobile-owned files. `Stopped`, state polling
+and arbitrary errors do not establish release. A terminal worker cannot restart
+through repeated waits. A retained live closer may support an explicit retry
+after its cause is corrected.
+
+The current Mobile lifecycle still uses the legacy Result API and its old
+cleanup retry path. Updating the source pin alone does not adapt that path.
+Keep the complete-outcome Mobile adaptation and whole-owner handoff open until
+all owners have a positive confirmation. Stopping the retry timer alone can
+also drop its retaining closure; a Failed state needs a stable strong owner.
+
+`installProcessObservability` installs a process owner. The Engine binding can
+schedule a detached process flush after a lifecycle call. Mobile's best-effort
+flush is neither an admission fence nor a process-file close receipt. Do not
+replace recoverable suspension with process-observability shutdown without a
+source-matched recovery contract. Do not release the runtime flock to work
+around this missing acknowledgement.
+
+Build generated declarations and native binaries from the same immutable source
+pair. Never combine the new declarations with an older cached framework.
+For the Engine's existing non-graphical host/binding acceptance, run
+`bash scripts/testing/run-resource-release.sh` in that exact Engine checkout
+with `UC_RELEASE_EVIDENCE` set to a fresh artifact directory. Keep its source
+hashes, executable hashes, original exit codes and evidence errors. Those
+macOS scenarios do not certify a full Mobile lifecycle or the original crash.
 
 ## Device acceptance
 
