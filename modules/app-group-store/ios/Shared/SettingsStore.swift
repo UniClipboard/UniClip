@@ -73,6 +73,8 @@ public final class SettingsStore: @unchecked Sendable {
 
     static let legacyAppGroupIDs = ["group.app.uniclipboard.ios"]
 
+    private let migrationLock = NSLock()
+    private var migrationPending = false
     private let defaults: UserDefaults
     private let containerURL: URL
     private let encoder: JSONEncoder
@@ -90,10 +92,11 @@ public final class SettingsStore: @unchecked Sendable {
     ///     isolated per case.
     public init(defaults: UserDefaults? = nil, containerURL: URL? = nil) {
         let chosenDefaults: UserDefaults
+        var needsMigration = false
         if let defaults {
             chosenDefaults = defaults
         } else if let suite = UserDefaults(suiteName: SettingsStore.appGroupID) {
-            _ = try? SharedStorageAccess.shared.withAccess { SettingsStore.migrateFromStandardIfNeeded(into: suite) }
+            needsMigration = (try? SharedStorageAccess.shared.withAccess { !SettingsStore.migrateFromStandardIfNeeded(into: suite) }) ?? true
             chosenDefaults = suite
         } else {
             chosenDefaults = .standard
@@ -122,13 +125,14 @@ public final class SettingsStore: @unchecked Sendable {
         self.containerURL = chosenContainer
         self.encoder = JSONEncoder()
         self.decoder = JSONDecoder()
+        self.migrationPending = needsMigration
 
     }
 
     /// Copies each missing `.standard` key into the App Group independently.
     /// Existing destination values win; a failed write leaves its source key
     /// intact so the next store initialization can retry the remaining keys.
-    private static func migrateFromStandardIfNeeded(into suite: UserDefaults) {
+    private static func migrateFromStandardIfNeeded(into suite: UserDefaults) -> Bool {
         let keys = [
             AppSettings.PersistenceKey.appSettings,
             AppSettings.PersistenceKey.clipboardHistory,
@@ -147,8 +151,18 @@ public final class SettingsStore: @unchecked Sendable {
             if migrated > 0 {
                 log.info("migrateFromStandardIfNeeded: moved \(migrated, privacy: .public) keys from .standard to the App Group suite")
             }
+            return true
         } catch {
             log.error("migrateFromStandardIfNeeded: deferred remaining keys after a write failure")
+            return false
+        }
+    }
+
+    /// Retry only within an admitted operation. A partial write keeps the retry owned.
+    private func finishDefaultsMigrationIfNeeded() {
+        migrationLock.withLock {
+            guard migrationPending else { return }
+            migrationPending = !Self.migrateFromStandardIfNeeded(into: defaults)
         }
     }
 
@@ -191,6 +205,7 @@ public final class SettingsStore: @unchecked Sendable {
 
     public func loadAppSettings() -> AppSettings {
         (try? SharedStorageAccess.shared.withAccess {
+            finishDefaultsMigrationIfNeeded()
             defaults.synchronize()
             guard let data = defaults.data(forKey: AppSettings.PersistenceKey.appSettings) else {
                 return .defaults
@@ -210,6 +225,7 @@ public final class SettingsStore: @unchecked Sendable {
     /// Propagates admission and encoding errors to callers that require persistence.
     public func saveAppSettingsOrThrow(_ settings: AppSettings) throws {
         try SharedStorageAccess.shared.withAccess {
+            finishDefaultsMigrationIfNeeded()
             let data = try encoder.encode(settings)
             defaults.set(data, forKey: AppSettings.PersistenceKey.appSettings)
             defaults.synchronize()
@@ -227,6 +243,7 @@ public final class SettingsStore: @unchecked Sendable {
     }
 
     private func loadHistoryAdmitted() -> [ClipboardHistoryItem] {
+        finishDefaultsMigrationIfNeeded()
         guard let data = defaults.data(forKey: AppSettings.PersistenceKey.clipboardHistory) else {
             return []
         }
@@ -242,6 +259,7 @@ public final class SettingsStore: @unchecked Sendable {
     }
 
     private func saveHistoryAdmitted(_ items: [ClipboardHistoryItem]) {
+        finishDefaultsMigrationIfNeeded()
         guard let data = try? encoder.encode(items) else { return }
         defaults.set(data, forKey: AppSettings.PersistenceKey.clipboardHistory)
     }
@@ -310,12 +328,14 @@ public final class SettingsStore: @unchecked Sendable {
     /// `changeCount` itself is free and never prompts. `nil` on cold start.
     public func loadLastSyncedChangeCount() -> Int? {
         (try? SharedStorageAccess.shared.withAccess {
-            defaults.object(forKey: AppSettings.PersistenceKey.lastSyncedChangeCount) as? Int
+            finishDefaultsMigrationIfNeeded()
+            return defaults.object(forKey: AppSettings.PersistenceKey.lastSyncedChangeCount) as? Int
         }) ?? nil
     }
 
     public func saveLastSyncedChangeCount(_ value: Int) {
         _ = try? SharedStorageAccess.shared.withAccess {
+            finishDefaultsMigrationIfNeeded()
             defaults.set(value, forKey: AppSettings.PersistenceKey.lastSyncedChangeCount)
         }
     }
