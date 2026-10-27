@@ -83,12 +83,14 @@ public struct NativeDiagnosticNetwork: Encodable, Equatable, Sendable {
 
 /// A part of a background transition that keeps App Group files open until it finishes.
 public enum NativeDiagnosticOwner: String, Encodable, Sendable, CaseIterable {
-  /// Engine suspend, then the runtime-ownership flock release.
+  /// The complete Engine action result. Runtime ownership awaits every owner.
   case engine
   /// Host-owned files outside the Engine: the JS history database.
   case hostFiles
   /// Native shared-storage calls and diagnostic writes accepted before suspension.
   case nativeFiles
+  /// Independent process writers without a complete release receipt.
+  case processObservability
 }
 
 /// Open descriptors under the App Group container, by kind only (never paths).

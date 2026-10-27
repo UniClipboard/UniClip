@@ -5,6 +5,7 @@ root=pathlib.Path(__file__).resolve().parents[2]
 p=argparse.ArgumentParser();p.add_argument('--baseline',action='store_true');p.add_argument('--module-storage',action='store_true');p.add_argument('--keyboard-source',type=pathlib.Path);p.add_argument('--output-root',type=pathlib.Path,default=root/'e2e/results/ios-suspension');a=p.parse_args()
 base='fcf68bfe917fc7a12a3c0696ac90b5463ae0b724'
 files=['modules/uc-engine/ios/'+n+'.swift' for n in ['NativeRuntimeDiagnostics','P2pRuntimeOwnership','ExtensionRuntimeLifecycle','NativeLifecycleHost','NativeAnalyticsHost','AnalyticsBindingCompatibility']]+['targets/_shared/'+n+'.swift' for n in ['AppSettings','Clipboard','ClipboardHistoryItem','LegacyContainerMigrator','SettingsStoreLegacyMigration','SettingsStore','ExtensionStableIdentifier','HistoryDatabase','HistoryLog','PayloadCache','ShareDiagnostics']]
+if not a.baseline: files.append('modules/uc-engine/ios/NativeReleaseOwner.swift')
 if a.module_storage:
  files=[f.replace('targets/_shared/','modules/app-group-store/ios/Shared/') if f.split('/')[-1] in ['SettingsStore.swift','PayloadCache.swift','ShareDiagnostics.swift'] else f for f in files]
 if not a.baseline:files+=['modules/app-group-store/ios/Shared/SharedStorageAccess.swift']

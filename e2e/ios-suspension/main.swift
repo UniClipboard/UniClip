@@ -149,7 +149,27 @@ struct SuspensionAcceptance {
     history.resume()
     check(history.loadRecent(limit: 10).count == 1, "history resume preserves data and lazily reopens SQLite")
     check(history.suspend(), "history closes after resumed read")
+    #if !BASELINE
+    var registeredHistory: HistoryLog? = HistoryLog(store: store, containerURL: historyRoot)
+    _ = registeredHistory!.loadRecent(limit: 10)
+    weak var retainedHistory = registeredHistory
+    registeredHistory = nil
+    check(retainedHistory != nil && (NativeDiagnosticFiles.openFiles(under: historyRoot)?.database ?? 0) > 0,
+      "registered SQLite owner survives its caller until actual close")
     access.suspend()
+    check(retainedHistory == nil && (NativeDiagnosticFiles.openFiles(under: historyRoot)?.database ?? -1) == 0,
+      "global admission close closes and releases the registered SQLite owner")
+    let admissionHistory = HistoryLog(store: store, containerURL: historyRoot)
+    access.resume()
+    let reopenedRows = admissionHistory.loadRecent(limit: 10)
+    access.suspend()
+    access.resume()
+    check(admissionHistory.loadRecent(limit: 10).count == reopenedRows.count && reopenedRows.count == 1,
+      "admission-owned history reopens after foreground without changing component suspension")
+    access.suspend()
+    #else
+    access.suspend()
+    #endif
 
     access.resume()
     let cacheRoot = root.appendingPathComponent("payloads", isDirectory: true)
@@ -231,7 +251,7 @@ struct SuspensionAcceptance {
         // The old controller swallows the shutdown error before this callback returns.
         return
         #else
-        guard retryLock.withLock({ allowShutdown }) else { throw StopFailure.notFinished }
+        guard retryLock.withLock({ allowShutdown }) else { throw NativeReleaseOutcome.pending }
         #endif
       }
     )
@@ -239,7 +259,7 @@ struct SuspensionAcceptance {
     try extensionOwner!.finishStartup()
     try? extensionOwner!.stopForSuspension()
     extensionOwner = nil
-    check(try !canAcquire(), "failed suspend and failed shutdown retain runtime ownership after caller release")
+    check(try !canAcquire(), "Pending final shutdown retains runtime ownership after caller release")
     retryLock.withLock { allowShutdown = true }
     var released = false
     for _ in 0..<100 {
@@ -253,6 +273,13 @@ struct SuspensionAcceptance {
       func recoverSession() throws -> NativeSessionRecovery { .init(unlocked: true, resumed: true) }
       func lifecycleState() throws -> NativeEngineLifecycleState { state }
       func suspend(deadlineMs: UInt64?) throws { state = .suspended }
+      #if !BASELINE
+      func suspendOutcome(deadlineMs: UInt64) -> NativeReleaseOutcome {
+        if state == .shuttingDown { return .pending }
+        state = .suspended
+        return .released(error: nil)
+      }
+      #endif
       func resume() throws { state = .running }
       func notifyForegroundOpportunity() throws {}
     }
@@ -262,16 +289,27 @@ struct SuspensionAcceptance {
     let pendingAcquired = try pendingOwnership.acquire(timeoutMs: 0)
     precondition(pendingAcquired)
     let pendingLifecycle = RuntimeOwnedNativeLifecycle(engine: pendingEngine, ownership: pendingOwnership)
+    #if !BASELINE
+    let pendingGeneration = pendingLifecycle.prepareRelease {}
+    pendingLifecycle.confirmFile(.nativeFiles, generation: pendingGeneration)
+    pendingLifecycle.confirmFile(.hostFiles, generation: pendingGeneration)
+    pendingLifecycle.confirmFile(.processObservability, generation: pendingGeneration)
+    #endif
     let pendingHost = NativeLifecycleHost(report: { _ in })
     let pendingFinished = pendingHost.enterBackground(pendingLifecycle, remainingTimeMs: { 1000 })
     let independent = Process()
     independent.executableURL = URL(fileURLWithPath: CommandLine.arguments[0])
     independent.arguments = ["probe", pendingLock.path]
     try independent.run(); independent.waitUntilExit()
-    check(pendingFinished && independent.terminationStatus == 0, "Quiescing must complete suspend before claiming runtime ownership release")
+    check(pendingFinished && independent.terminationStatus == 0, "complete Engine result plus independent file acknowledgements release ownership")
     pendingOwnership.release()
     pendingEngine.state = .shuttingDown
-    check(!pendingHost.enterBackground(pendingEngine, remainingTimeMs: { 1000 }), "ShuttingDown alone cannot report successful suspension")
+    #if !BASELINE
+    let shuttingDownOwner = RuntimeOwnedNativeLifecycle(engine: pendingEngine, ownership: pendingOwnership)
+    #else
+    let shuttingDownOwner = pendingEngine
+    #endif
+    check(!pendingHost.enterBackground(shuttingDownOwner, remainingTimeMs: { 1000 }), "ShuttingDown alone cannot report successful suspension")
 
     access.resume()
     let keyboardJournal = KeyboardDiagnostics()

@@ -98,7 +98,7 @@ public final class P2pRuntimeOwnership: NativeRuntimeOwnership, @unchecked Senda
     guard active >= 0 else { return }
     _ = systemFlock(active, LOCK_UN)
     Darwin.close(active)
-    diagnostics?.record(.ownershipRelease, trigger: .runtimeHandoff)
+    if diagnostics != nil { NSLog("Runtime ownership released after owner confirmation") }
   }
 
   private func currentPOSIXError() -> POSIXError {

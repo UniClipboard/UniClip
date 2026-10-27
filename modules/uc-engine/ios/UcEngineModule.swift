@@ -9,12 +9,7 @@ public final class UcEngineModule: Module {
   private static let spaceReadLog = Logger(subsystem: "app.uniclipboard", category: "space-read")
   private static let startupLog = Logger(subsystem: "app.uniclipboard", category: "uc-startup")
   private let host = MainApplicationEngineHost()
-  private lazy var lifecycle = NativeLifecycleHost(
-    report: Self.reportLifecycleError,
-    flushObservability: {
-      _ = try? SharedStorageAccess.shared.withAccess { try flushProcessObservability(deadlineMs: 250) }
-    }
-  )
+  private lazy var lifecycle = NativeLifecycleHost(report: Self.reportLifecycleError)
   private lazy var hostSuspension = NativeHostSuspension { [weak self] phase, transitionId in
     self?.sendEvent(Self.hostSuspensionEvent, ["phase": phase, "transitionId": transitionId])
   }
@@ -33,6 +28,9 @@ public final class UcEngineModule: Module {
   private let engines = NativeEngineRegistry<MobileEngine>()
   private let startupLifecycles = NativeEngineRegistry<MobileStartupLifecycle>()
   private let lifecycleOwnerLock = NSLock()
+  private let destructionLock = NSLock()
+  private var contextDestroyed = false
+  private var startupReleaseUnconfirmed = false
   /// The one `AppleEngineLifecycle` (and the `RuntimeOwnedNativeLifecycle` it
   /// wraps) for the currently active engine, reused across every
   /// suspend/resume/background/foreground call. Keyed by the engine's
@@ -177,6 +175,10 @@ public final class UcEngineModule: Module {
 
     AsyncFunction("start") { (config: [String: String]) in
       return try SharedStorageAccess.shared.withAccess {
+        guard !self.destructionLock.withLock({ self.contextDestroyed || self.startupReleaseUnconfirmed }),
+              self.engines.current() == nil else {
+          throw NativeLifecycleError.releaseUnconfirmed
+        }
         let startedAt = ProcessInfo.processInfo.systemUptime
         let appVersion = config["appVersion"] ?? "unknown"
         let profileId = config["profileId"] ?? "default"
@@ -186,39 +188,49 @@ public final class UcEngineModule: Module {
           throw UcEngineAlreadyStartedException()
         }
         defer { _ = self.startupLifecycles.take() }
-        let started = try self.host.start(
-          appVersion: appVersion,
-          profileId: profileId,
-          lifecycle: startupLifecycle
-        )
+        let started: MobileEngine
+        do {
+          started = try self.host.start(appVersion: appVersion, profileId: profileId, lifecycle: startupLifecycle)
+        } catch {
+          // Interrupt startup and close independent Mobile admission. No returned
+          // Engine object can certify that startup released its resources.
+          if self.host.hasUnconfirmedConstruction {
+            self.destructionLock.withLock { self.startupReleaseUnconfirmed = true }
+            self.lifecycleTransitions.enterBackground(AppleStartupLifecycle(startupLifecycle))
+          }
+          throw error
+        }
         Self.startupLog.info(
           "Engine host started in \(Int((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000))ms"
         )
         do {
+          guard !self.destructionLock.withLock({ self.contextDestroyed }) else {
+            throw NativeLifecycleError.transitionInProgress
+          }
           let installed = try self.engines.installBeforePreparing(started) { engine in
             let recoveryStartedAt = ProcessInfo.processInfo.systemUptime
             Self.startupLog.info("Recovering persisted session")
-            try self.lifecycle.prepare(AppleEngineLifecycle(engine: engine, host: self.host))
+            try self.lifecycle.prepare(self.activeLifecycleOwner(for: engine))
             self.host.refreshAnalyticsContext(engine: engine)
             Self.startupLog.info(
               "Persisted session recovered in \(Int((ProcessInfo.processInfo.systemUptime - recoveryStartedAt) * 1_000))ms"
             )
           }
-          guard installed else {
-            throw UcEngineAlreadyStartedException()
+          guard installed else { throw UcEngineAlreadyStartedException() }
+          guard !self.destructionLock.withLock({ self.contextDestroyed }) else {
+            throw NativeLifecycleError.transitionInProgress
           }
           Self.startupLog.info(
             "Native module ready in \(Int((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000))ms"
           )
         } catch {
           Self.startupLog.error("Native module start failed: \(String(describing: error))")
+          self.destructionLock.withLock { self.startupReleaseUnconfirmed = true }
           do {
-            try started.shutdown(deadlineMs: 2_000)
+            try self.beginFinalShutdown(started, deadlineMs: 2_000)
+            self.destructionLock.withLock { self.startupReleaseUnconfirmed = false }
           } catch {
             Self.reportLifecycleError(error)
-          }
-          if self.currentEngine() == nil {
-            self.host.releaseRuntimeOwnership()
           }
           throw error
         }
@@ -226,35 +238,39 @@ public final class UcEngineModule: Module {
     }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("shutdown") { (deadlineMs: UInt64) in
-      let active = self.engines.current()
-      try AppleNativeDiagnostics.observe(.engineShutdown, trigger: .userRequest) {
-        try active?.shutdown(deadlineMs: deadlineMs)
-      }
+      guard let active = self.engines.current() else { throw NativeLifecycleError.releaseUnconfirmed }
+      try self.beginFinalShutdown(active, deadlineMs: deadlineMs)
       _ = self.engines.take()
-      self.host.releaseRuntimeOwnership()
+      self.lifecycleOwnerLock.withLock { self.cachedLifecycleOwner = nil }
       self.host.removeAllFileHandles()
     }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("shutdownUntilComplete") {
-      let active = self.engines.current()
-      try AppleNativeDiagnostics.observe(.engineShutdown, trigger: .userRequest) {
-        try Self.shutdownCompletely(active)
-      }
+      guard let active = self.engines.current() else { throw NativeLifecycleError.releaseUnconfirmed }
+      try self.beginFinalShutdown(active, deadlineMs: 5_000)
       _ = self.engines.take()
-      self.host.releaseRuntimeOwnership()
+      self.lifecycleOwnerLock.withLock { self.cachedLifecycleOwner = nil }
       self.host.removeAllFileHandles()
     }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("suspend") {
-      try self.lifecycle.suspendIfNeeded(
-        self.activeLifecycleOwner(for: self.requireEngine()),
-        remainingTimeMs: { nil }
-      )
+      guard let engine = self.currentEngine() else {
+        self.lifecycleTransitions.enterBackground(self.currentLifecycle())
+        throw NativeLifecycleError.releaseUnconfirmed
+      }
+      let owner = self.activeLifecycleOwner(for: engine)
+      self.lifecycleTransitions.enterBackground(owner)
+      try self.lifecycle.suspendIfNeeded(owner, remainingTimeMs: { nil })
     }.runOnQueue(engineOperationQueue)
-    AsyncFunction("resume") {
-      try self.lifecycle.resumeIfNeeded(
-        self.activeLifecycleOwner(for: self.requireEngine())
-      )
+    AsyncFunction("resume") { (promise: Promise) in
+      guard let engine = self.currentEngine() else {
+        promise.reject(NativeLifecycleError.releaseUnconfirmed)
+        return
+      }
+      self.lifecycleTransitions.enterForeground(self.activeLifecycleOwner(for: engine)) { error in
+        if let error { promise.reject(error) }
+        else { promise.resolve() }
+      }
     }.runOnQueue(engineOperationQueue)
     AsyncFunction("setBackgroundSyncEnabled") { (_: Bool, _: Bool) in }
       .runOnQueue(engineOperationQueue)
@@ -652,7 +668,7 @@ public final class UcEngineModule: Module {
       return activeLifecycleOwner(for: engine)
     }
     lifecycleOwnerLock.withLock { cachedLifecycleOwner = nil }
-    return startupLifecycles.current().map(AppleStartupLifecycle.init)
+    return startupLifecycles.current().map { AppleStartupLifecycle($0) as any NativeEngineLifecycle } ?? NativeUnconfirmedLifecycle()
   }
 
   private func requireEngine() throws -> MobileEngine {
@@ -683,32 +699,32 @@ public final class UcEngineModule: Module {
     )
   }
 
-  private func shutdownForDestroy() {
-    let active = engines.current()
-    do {
-      try AppleNativeDiagnostics.observe(.engineShutdown, trigger: .contextDestroyed) {
-        try Self.shutdownCompletely(active)
-      }
-      _ = engines.take()
-      host.releaseRuntimeOwnership()
-    } catch {
-      Self.reportLifecycleError(error)
-    }
-    host.removeAllFileHandles()
-    _ = AppleNativeDiagnostics.journal.flush()
+  private func prepareFinalShutdown(_ engine: MobileEngine) -> AppleEngineLifecycle {
+    let owner = activeLifecycleOwner(for: engine)
+    owner.prepareFinalRelease()
+    // Reuse the independent native/JS acknowledgements for every final entry.
+    // Process observability deliberately remains unconfirmed.
+    lifecycleTransitions.enterBackground(owner)
+    return owner
   }
 
-  private static func shutdownCompletely(_ engine: MobileEngine?) throws {
-    guard let engine else { return }
-    while true {
-      do {
-        try engine.shutdown(deadlineMs: 5_000)
-        return
-      } catch BindingError.Engine(_, .deadlineExceeded, _) {
-        continue
-      }
-    }
+  private func beginFinalShutdown(_ engine: MobileEngine, deadlineMs: UInt64) throws {
+    try prepareFinalShutdown(engine).shutdown(deadlineMs: deadlineMs)
   }
+
+  private func shutdownForDestroy() {
+    destructionLock.withLock { contextDestroyed = true }
+    guard let active = engines.current() else {
+      lifecycleTransitions.enterBackground(currentLifecycle())
+      Self.reportLifecycleError(NativeLifecycleError.releaseUnconfirmed)
+      return
+    }
+    // The prepared stable owner survives module destruction. Its lifecycle queue
+    // executes the final action; this callback does not wait on an Engine worker.
+    _ = prepareFinalShutdown(active)
+  }
+
+  fileprivate static func reportOwnerFailure(_ error: Error) { reportLifecycleError(error) }
 
   private static func reportLifecycleError(_ error: Error) {
     Self.startupLog.error("UcEngine lifecycle transition failed: \(String(describing: error))")
@@ -1148,9 +1164,26 @@ private final class AppleEngineLifecycle: NativeEngineLifecycle {
   init(engine: MobileEngine, host: MainApplicationEngineHost) {
     owned = RuntimeOwnedNativeLifecycle(
       engine: AppleMobileEngineLifecycle(engine: engine),
-      ownership: MainApplicationRuntimeOwnership(host: host)
+      ownership: MainApplicationRuntimeOwnership(host: host),
+      report: { error in UcEngineModule.reportOwnerFailure(error) }
     )
   }
+
+  func prepareRelease(engineReleased: @escaping () -> Void) -> Int {
+    owned.prepareRelease(engineReleased: engineReleased)
+  }
+
+  func invalidateReleaseForForeground() { owned.invalidateReleaseForForeground() }
+
+  func confirmFile(_ owner: NativeReleaseFileOwner, generation: Int) {
+    owned.confirmFile(owner, generation: generation)
+  }
+
+  func suspendOutcome(deadlineMs: UInt64) -> NativeReleaseOutcome { owned.suspendOutcome(deadlineMs: deadlineMs) }
+  func shutdownOutcome(deadlineMs: UInt64) -> NativeReleaseOutcome { owned.shutdownOutcome(deadlineMs: deadlineMs) }
+
+  func prepareFinalRelease() { owned.prepareFinalRelease() }
+  func shutdown(deadlineMs: UInt64) throws { try owned.shutdown(deadlineMs: deadlineMs) }
 
   func recoverSession() throws -> NativeSessionRecovery {
     try owned.recoverSession()
@@ -1198,22 +1231,19 @@ private final class AppleMobileEngineLifecycle: NativeEngineLifecycle {
     }
   }
 
+  func suspendOutcome(deadlineMs: UInt64) -> NativeReleaseOutcome {
+    nativeReleaseOutcome(engine.suspendWithOutcome(deadlineMs: deadlineMs))
+  }
+
+  func shutdownOutcome(deadlineMs: UInt64) -> NativeReleaseOutcome {
+    nativeReleaseOutcome(engine.shutdownWithOutcome(deadlineMs: deadlineMs))
+  }
+
   func suspend(deadlineMs: UInt64?) throws {
-    do {
-      try AppleNativeDiagnostics.observe(.engineSuspend) {
-        if let deadlineMs {
-          try engine.suspendWithDeadline(deadlineMs: deadlineMs)
-        } else {
-          try engine.suspend()
-        }
-      }
-    } catch BindingError.Engine(_, .deadlineExceeded, _) {
-      // The Engine's own contract: a deadline failure means the transition
-      // did not complete, not that it is safe. The Engine stays `.quiesced`
-      // and any lock it held when the deadline fired is still held; this
-      // only turns that signal into something the lifecycle-agnostic retry
-      // policy in `NativeLifecycleHost` can act on.
-      throw NativeLifecycleError.deadlineExceeded
+    switch suspendOutcome(deadlineMs: deadlineMs ?? 1_000) {
+    case .pending: throw NativeReleaseOutcome.pending
+    case .released: return
+    case .failed(let error): throw error
     }
   }
 
@@ -1236,16 +1266,14 @@ private final class AppleStartupLifecycle: NativeEngineLifecycle {
   var isStartupLifecycle: Bool { true }
   func recoverSession() throws -> NativeSessionRecovery { .init(unlocked: false, resumed: false) }
   func lifecycleState() throws -> NativeEngineLifecycleState { .running }
+  func suspendOutcome(deadlineMs: UInt64) -> NativeReleaseOutcome {
+    .failed(error: NativeLifecycleError.releaseUnconfirmed)
+  }
+
   func suspend(deadlineMs: UInt64?) throws {
-    do {
-      if let deadlineMs {
-        try lifecycle.suspendWithDeadline(deadlineMs: deadlineMs)
-      } else {
-        try lifecycle.suspend()
-      }
-    } catch BindingError.Engine(_, .deadlineExceeded, _) {
-      throw NativeLifecycleError.deadlineExceeded
-    }
+    // A startup object can remain Waiting after an early construction error.
+    // Bound the wait; success still does not certify complete failed-start release.
+    try lifecycle.suspendWithDeadline(deadlineMs: min(deadlineMs ?? 1_000, 1_000))
   }
   func resume() throws { try lifecycle.resume() }
   func notifyForegroundOpportunity() throws {}

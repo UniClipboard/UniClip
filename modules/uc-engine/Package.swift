@@ -31,6 +31,7 @@ let package = Package(
       ],
       sources: [
         "ExtensionRuntimeLifecycle.swift",
+        "NativeReleaseOwner.swift",
         "ExtensionSyncCoordinator.swift",
         "AnalyticsBindingCompatibility.swift",
         "NativeAnalyticsHost.swift",

@@ -91,11 +91,24 @@ private func installEngineObservability(
   AppleNativeDiagnostics.replayNetworkToEngine()
 }
 
+/// Preserve the complete release result; never classify its nested error flag.
+public func nativeReleaseOutcome(_ result: BindingResourceRelease) -> NativeReleaseOutcome {
+  switch result {
+  case .pending: return .pending
+  case .released(let error): return .released(error: error)
+  case .failed(let error): return .failed(error: error)
+  }
+}
+
 public final class MainApplicationEngineHost: @unchecked Sendable {
   private let files = AppleFileHandleRegistry()
   private let ownershipStateLock = NSLock()
   private let analyticsStateLock = NSLock()
   private var ownership: P2pRuntimeOwnership?
+  private var retainedUntilRelease: MainApplicationEngineHost?
+  private var unconfirmedConstruction = false
+
+  public var hasUnconfirmedConstruction: Bool { ownershipStateLock.withLock { unconfirmedConstruction } }
   private var analytics: ApplePostHogAnalyticsHost?
 
   public init() {}
@@ -112,6 +125,7 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
       guard try P2pRuntimeHandoff.acquireForMainApplication(runtimeOwnership()) else {
         throw ExtensionP2pError.runtimeBusy
       }
+      ownershipStateLock.withLock { retainedUntilRelease = self }
       startupLog.info(
         "Shared runtime ownership acquired in \(Int((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000))ms"
       )
@@ -120,6 +134,7 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
         try installEngineObservability(appVersion: appVersion, host: host, networkRole: .mobileApp)
         startupLog.info("Starting core engine")
         let analytics = try analyticsHost(appVersion: appVersion)
+        ownershipStateLock.withLock { unconfirmedConstruction = true }
         let engine = try EngineDiagnosticBridge.observe(.runtimeStart) { try MobileEngine.startWithAnalyticsAndLifecycle(
           config: BindingConfig(appVersion: appVersion, profileId: profileId),
           host: host,
@@ -127,13 +142,15 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
           context: analyticsContext(),
           lifecycle: lifecycle
         ) }
+        ownershipStateLock.withLock { unconfirmedConstruction = false }
         startupLog.info(
           "Core engine started in \(Int((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000))ms"
         )
         return engine
       } catch {
         startupLog.error("Engine host start failed: \(String(describing: error))")
-        releaseRuntimeOwnership()
+        // Startup may already have installed a process writer.
+        // No returned Engine object is not a release confirmation.
         throw error
       }
     }
@@ -141,6 +158,7 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
 
   // Installing the process logger does not start networking or open an Engine session.
   public func prepareDiagnosticLogging() throws {
+    guard try acquireRuntimeOwnership(timeoutMs: 1_000) else { throw ExtensionP2pError.runtimeBusy }
     if (try? queryLocalDiagnosticStatus()) != nil { return }
     let diagnosticHost = try AppleEngineHost(files: files, storageMode: .mainApplication)
     try installEngineObservability(
@@ -158,6 +176,7 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
     let token = EngineDiagnosticBridge.begin(.ownershipAcquire)
     do {
       let acquired = try runtimeOwnership().acquire(timeoutMs: timeoutMs)
+      if acquired { ownershipStateLock.withLock { retainedUntilRelease = self } }
       EngineDiagnosticBridge.finish(token, succeeded: acquired)
       return acquired
     } catch {
@@ -171,7 +190,8 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
     let current = ownership
     ownershipStateLock.unlock()
     current?.release()
-    if current != nil { EngineDiagnosticBridge.record(.ownershipReleased) }
+    ownershipStateLock.withLock { retainedUntilRelease = nil }
+    if current != nil { startupLog.info("Runtime ownership released after complete owner confirmation") }
   }
 
   public func registerInputFile(uri: String, displayName: String?) throws -> String {
@@ -277,21 +297,20 @@ public final class ExtensionP2pClientController: @unchecked Sendable {
     )
     lifecycle = ExtensionRuntimeLifecycle(
       ownership: ownership,
-      suspend: { engine in
-        try AppleNativeDiagnostics.observe(.engineSuspend, trigger: .extensionHidden, storageGeneration: storageGeneration) { try engine.suspend() }
+      requiredFiles: [.nativeFiles, .processObservability],
+      storageAccess: .shared,
+      release: { engine in
+        nativeReleaseOutcome(engine.shutdownWithOutcome(deadlineMs: 1_000))
       },
-      shutdown: {
-        let engine = $0
-        try AppleNativeDiagnostics.observe(.engineShutdown, trigger: .extensionHidden, storageGeneration: storageGeneration) {
-          try engine.shutdown(deadlineMs: 1_000)
+      closeFiles: { finish in
+        SharedStorageAccess.shared.suspend(ifGeneration: storageGeneration) {
+          let historyClosed = SharedStorageAccess.shared.closeRegisteredFiles(generation: storageGeneration)
+          let diagnosticsDrained = AppleNativeDiagnostics.journal.flush()
+          finish(historyClosed && diagnosticsDrained)
         }
-        // Final teardown can log after the synchronous suspension flush.
-        _ = try? SharedStorageAccess.shared.withAccess(generation: storageGeneration) { try flushProcessObservability(deadlineMs: 1_000) }
-        _ = AppleNativeDiagnostics.journal.flush()
       },
-      flushLogs: {
-        _ = try? SharedStorageAccess.shared.withAccess(generation: storageGeneration) { try flushProcessObservability(deadlineMs: 1_000) }
-        _ = AppleNativeDiagnostics.journal.flush()
+      report: { error in
+        startupLog.error("Extension release unconfirmed: \(String(describing: error), privacy: .public)")
       }
     )
   }
@@ -381,6 +400,7 @@ public final class ExtensionP2pClient: @unchecked Sendable {
         switch lifecycleError {
         case .runtimeOwnershipUnavailable: throw ExtensionP2pError.runtimeBusy
         case .sessionClosed: throw ExtensionP2pError.sessionClosed
+        case .filesUnconfirmed: break
         }
       }
       throw error

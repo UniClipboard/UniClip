@@ -1,23 +1,26 @@
 import Foundation
 #if canImport(AppGroupStore)
 internal import class AppGroupStore.SharedStorageAccess
+public import protocol AppGroupStore.SharedStorageFileOwner
 #elseif canImport(SharedStorageAccess)
 import SharedStorageAccess
 #endif
 
 /// Owns the extension history connection and its legacy fallback.
 /// Suspension closes the connection and denies both database and fallback work.
-public final class HistoryLog {
+public final class HistoryLog: SharedStorageFileOwner {
     private let store: SettingsStore
     private let containerURL: URL?
     private let lock = NSLock()
     private var db: HistoryDatabase?
     private var opened = false
     private var suspended = false
+    private var retainedUntilClosed: HistoryLog?
 
     public init(store: SettingsStore, containerURL: URL? = nil) {
         self.store = store
         self.containerURL = containerURL
+        SharedStorageAccess.shared.registerFileOwner(self)
     }
 
     /// Close only after the current synchronous history operation returns.
@@ -26,11 +29,21 @@ public final class HistoryLog {
     public func suspend() -> Bool {
         lock.withLock {
             suspended = true
-            guard db?.close() ?? true else { return false }
-            db = nil
-            opened = false
-            return true
+            return closeDatabase()
         }
+    }
+
+    /// Global admission owns permission; close the file without changing the
+    /// component's explicit suspend/resume state (including LAN history owners).
+    @discardableResult
+    public func closeStorageFiles() -> Bool { lock.withLock { closeDatabase() } }
+
+    private func closeDatabase() -> Bool {
+        guard db?.close() ?? true else { return false }
+        db = nil
+        opened = false
+        retainedUntilClosed = nil
+        return true
     }
 
     public func resume() { lock.withLock { suspended = false } }
@@ -73,6 +86,7 @@ public final class HistoryLog {
 
     private var database: HistoryDatabase? {
         if !opened {
+            retainedUntilClosed = self
             db = HistoryDatabase(containerURL: containerURL)
             opened = true
         }

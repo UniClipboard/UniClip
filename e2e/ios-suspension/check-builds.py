@@ -46,7 +46,7 @@ provider.write_text('internal import AppGroupStore\n')
 record['providerFixture'] = {'source': provider.read_text(), 'sha256': hashlib.sha256(provider.read_bytes()).hexdigest()}
 sharedFiles = list((root/'targets/_shared').glob('*.swift')) + [root/'modules/uc-engine/ios/NativeRuntimeDiagnostics.swift']
 run('ios-storage-typecheck', compiler+['-typecheck','-parse-as-library','-I',stage,'-module-name','SuspensionStorageCheck',provider]+sharedFiles)
-hostFiles = [root/'modules/uc-engine/ios'/name for name in ['NativeRuntimeDiagnostics.swift','P2pRuntimeOwnership.swift','ExtensionRuntimeLifecycle.swift','NativeLifecycleHost.swift']]
+hostFiles = [root/'modules/uc-engine/ios'/name for name in ['NativeRuntimeDiagnostics.swift','P2pRuntimeOwnership.swift','NativeReleaseOwner.swift','ExtensionRuntimeLifecycle.swift','NativeLifecycleHost.swift']]
 run('ios-native-host-typecheck', compiler+['-typecheck','-parse-as-library','-I',stage,'-module-name','SuspensionHostCheck']+hostFiles)
 record['result'] = 'PASS' if all(c['exitCode']==0 for c in record['commands']) else 'FAIL'
 (out/'result.json').write_text(json.dumps(record,indent=2)+'\n')
