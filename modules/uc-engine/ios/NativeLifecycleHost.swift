@@ -1,4 +1,9 @@
 import Foundation
+#if canImport(AppGroupStore)
+internal import class AppGroupStore.SharedStorageAccess
+#elseif canImport(SharedStorageAccess)
+import SharedStorageAccess
+#endif
 #if canImport(UcEngineCore)
 internal import UcEngineCore
 #endif
@@ -66,160 +71,144 @@ protocol NativeEngineLifecycle {
   func recoverSession() throws -> NativeSessionRecovery
   func lifecycleState() throws -> NativeEngineLifecycleState
   func suspend(deadlineMs: UInt64?) throws
+  func suspendOutcome(deadlineMs: UInt64) -> NativeReleaseOutcome
+  func shutdownOutcome(deadlineMs: UInt64) -> NativeReleaseOutcome
+  func prepareRelease(engineReleased: @escaping () -> Void) -> Int
+  func invalidateReleaseForForeground()
+  func confirmFile(_ owner: NativeReleaseFileOwner, generation: Int)
   func resume() throws
   func notifyForegroundOpportunity() throws
 }
 
 extension NativeEngineLifecycle {
   var isStartupLifecycle: Bool { false }
+  func suspendOutcome(deadlineMs: UInt64) -> NativeReleaseOutcome {
+    do { try suspend(deadlineMs: deadlineMs); return .released(error: nil) }
+    catch let outcome as NativeReleaseOutcome { return outcome }
+    catch { return .failed(error: error) }
+  }
+  func shutdownOutcome(deadlineMs: UInt64) -> NativeReleaseOutcome {
+    .failed(error: NativeLifecycleError.releaseUnconfirmed)
+  }
+  func prepareRelease(engineReleased: @escaping () -> Void) -> Int { 0 }
+  func invalidateReleaseForForeground() {}
+  func confirmFile(_ owner: NativeReleaseFileOwner, generation: Int) {}
+}
+
+/// No Engine object/result is available. Do not fabricate an Engine state or receipt.
+final class NativeUnconfirmedLifecycle: NativeEngineLifecycle {
+  var isStartupLifecycle: Bool { true }
+  func recoverSession() throws -> NativeSessionRecovery { throw NativeLifecycleError.releaseUnconfirmed }
+  func lifecycleState() throws -> NativeEngineLifecycleState { throw NativeLifecycleError.releaseUnconfirmed }
+  func suspend(deadlineMs: UInt64?) throws { throw NativeLifecycleError.releaseUnconfirmed }
+  func resume() throws { throw NativeLifecycleError.releaseUnconfirmed }
+  func notifyForegroundOpportunity() throws { throw NativeLifecycleError.releaseUnconfirmed }
 }
 
 enum NativeLifecycleError: Error, Equatable {
   case incompleteRecovery
   case runtimeOwnershipUnavailable
-  /// A `suspend` attempt ran out of its deadline before the Engine reported
-  /// completion. The Engine stays `.quiesced`, not `.suspended`, and may
-  /// still be holding a lock; this does not mean the lock was released.
+  /// The complete action remains Pending after this caller's wait.
+  /// This result certifies neither release nor a particular lock state.
   case deadlineExceeded
+  case transitionInProgress
+  case releaseUnconfirmed
 }
 
 final class RuntimeOwnedNativeLifecycle: NativeEngineLifecycle {
   private let engine: any NativeEngineLifecycle
   private let ownership: any NativeRuntimeOwnership
   private let acquisitionTimeoutMs: UInt64
-  private let suspensionPollInterval: DispatchTimeInterval
-  private let suspensionPollAttempts: Int
-  private let pollQueue: DispatchQueue
-  private let generationLock = NSLock()
-  private var generation = 0
-  /// Test-only seam: when set, called from inside `releaseIfCurrent`'s locked
-  /// section, after the generation check passes and before `ownership.release()`.
-  /// Lets a test hold that critical section open on purpose to prove, by
-  /// forcing a concurrent `resume()` to actually block on `generationLock`,
-  /// that the check and the release cannot be interleaved by anything else --
-  /// not by observing that a race merely didn't happen to fire. `nil` in
-  /// production; zero behavior change.
+  private let report: (Error) -> Void
   var releaseIfCurrentHookForTesting: (() -> Void)?
+  private lazy var owner = NativeReleaseOwner(
+    requiredFiles: [.nativeFiles, .hostFiles, .processObservability],
+    storageAccess: .shared,
+    perform: { [engine] action, deadline in
+      switch action {
+      case .suspend: return engine.suspendOutcome(deadlineMs: deadline)
+      case .shutdown: return engine.shutdownOutcome(deadlineMs: deadline)
+      }
+    }, release: { [weak self, ownership] in
+      self?.releaseIfCurrentHookForTesting?()
+      ownership.release()
+    }, report: report)
 
   init(
     engine: any NativeEngineLifecycle,
     ownership: any NativeRuntimeOwnership,
     acquisitionTimeoutMs: UInt64 = 1_000,
-    // Contract from t-0176 (engine fix 083fd0aa): an accepted suspend that
-    // misses the caller's deadline keeps running and reaches `.suspended` by
-    // itself. We confirm that by polling `lifecycleState()` rather than the
-    // UniFFI event stream, because that stream already has a single JS-side
-    // consumer (`nextEvent`) and a second native subscriber would race it for
-    // the same events. 500ms x 120 is a 60s pragmatic ceiling: giving up just
-    // leaves ownership held, which is always the safe direction.
+    // Legacy fixture labels remain source-compatible; outcomes replace state polling.
     suspensionPollInterval: DispatchTimeInterval = .milliseconds(500),
     suspensionPollAttempts: Int = 120,
-    pollQueue: DispatchQueue = DispatchQueue(label: "app.uniclipboard.engine-ownership-poll", qos: .utility)
+    pollQueue: DispatchQueue = DispatchQueue(label: "app.uniclipboard.engine-ownership-poll", qos: .utility),
+    report: @escaping (Error) -> Void = { _ in }
   ) {
     self.engine = engine
     self.ownership = ownership
     self.acquisitionTimeoutMs = acquisitionTimeoutMs
-    self.suspensionPollInterval = suspensionPollInterval
-    self.suspensionPollAttempts = suspensionPollAttempts
-    self.pollQueue = pollQueue
+    self.report = report
+    _ = owner
   }
 
-  func recoverSession() throws -> NativeSessionRecovery {
-    try engine.recoverSession()
+  func recoverSession() throws -> NativeSessionRecovery { try engine.recoverSession() }
+  func lifecycleState() throws -> NativeEngineLifecycleState { try engine.lifecycleState() }
+
+  func prepareRelease(engineReleased: @escaping () -> Void) -> Int {
+    let generation = owner.prepare(action: .suspend)
+    owner.observeEngineRelease(generation: generation, completion: engineReleased)
+    return generation
   }
 
-  func lifecycleState() throws -> NativeEngineLifecycleState {
-    try engine.lifecycleState()
+  func invalidateReleaseForForeground() { owner.invalidateForForeground() }
+
+  func confirmFile(_ file: NativeReleaseFileOwner, generation: Int) {
+    owner.confirm(file, generation: generation)
+  }
+
+  func suspendOutcome(deadlineMs: UInt64) -> NativeReleaseOutcome {
+    if !owner.hasAction { _ = owner.prepare(action: .suspend) }
+    return owner.attempt(deadlineMs: min(deadlineMs, 1_000))
+  }
+
+  func shutdownOutcome(deadlineMs: UInt64) -> NativeReleaseOutcome {
+    if !owner.isFinalAction { _ = owner.prepare(action: .shutdown) }
+    return owner.attempt(deadlineMs: deadlineMs)
   }
 
   func suspend(deadlineMs: UInt64?) throws {
-    let generation = beginTransition()
-    do {
-      try engine.suspend(deadlineMs: deadlineMs)
-      ownership.release()
-    } catch NativeLifecycleError.deadlineExceeded {
-      // Our wait gave up; the Engine's own accepted suspend did not. Releasing
-      // the App Group runtime ownership flock here -- before the Engine is
-      // confirmed `.suspended` -- let an extension start a second runtime
-      // while the first was still mid-transition (verified in t-0176's E2E
-      // r15/r16). Keep it and watch for the real confirmation instead.
-      watchForConfirmedSuspension(generation: generation, attemptsLeft: suspensionPollAttempts)
-      throw NativeLifecycleError.deadlineExceeded
-    }
+    try consume(suspendOutcome(deadlineMs: deadlineMs ?? 1_000))
+    if !owner.isReleased { throw NativeLifecycleError.releaseUnconfirmed }
   }
 
-  /// A new `suspend` or `resume` call invalidates any watcher left running by
-  /// an earlier, superseded transition -- otherwise a late confirmation from
-  /// the old attempt could release ownership a later `resume` already
-  /// reacquired, or that a later, unrelated background cycle's suspend is
-  /// relying on.
-  private func beginTransition() -> Int {
-    generationLock.withLock {
-      generation += 1
-      return generation
-    }
+  func shutdown(deadlineMs: UInt64) throws {
+    try consume(shutdownOutcome(deadlineMs: deadlineMs))
+    // Engine completion is deliberately insufficient for whole-owner release.
+    if !owner.isReleased { throw NativeLifecycleError.releaseUnconfirmed }
   }
 
-  private func isCurrent(_ generation: Int) -> Bool {
-    generationLock.withLock { self.generation == generation }
-  }
+  func prepareFinalRelease() { _ = owner.prepare(action: .shutdown) }
 
-  /// Releases ownership only if `generation` is still current, as one atomic
-  /// step under the same lock `beginTransition` uses. Caught by t-0176's
-  /// review: checking `isCurrent` and then calling `release()` as two
-  /// separate statements left a real (if narrow) window for a concurrent
-  /// `resume()` to land in between -- incrementing the generation and making
-  /// its own `acquire()` a same-process no-op -- so the stale watcher could
-  /// still release the ownership that resume had just (implicitly) reacquired,
-  /// leaving the Engine `Running` without the host flock.
-  private func releaseIfCurrent(_ generation: Int) {
-    generationLock.withLock {
-      guard self.generation == generation else { return }
-      releaseIfCurrentHookForTesting?()
-      ownership.release()
-    }
-  }
-
-  private func watchForConfirmedSuspension(generation: Int, attemptsLeft: Int) {
-    guard attemptsLeft > 0 else { return }
-    pollQueue.asyncAfter(deadline: .now() + suspensionPollInterval) { [weak self] in
-      guard let self, self.isCurrent(generation) else { return }
-      guard let state = try? self.engine.lifecycleState() else {
-        self.watchForConfirmedSuspension(generation: generation, attemptsLeft: attemptsLeft - 1)
-        return
-      }
-      if state == .suspended {
-        self.releaseIfCurrent(generation)
-        return
-      }
-      self.watchForConfirmedSuspension(generation: generation, attemptsLeft: attemptsLeft - 1)
+  private func consume(_ result: NativeReleaseOutcome) throws {
+    switch result {
+    case .pending: throw NativeLifecycleError.deadlineExceeded
+    case .released: return
+    case .failed(let error): throw error
     }
   }
 
   func resume() throws {
-    _ = beginTransition()
+    if let error = owner.failure { throw error }
+    guard !owner.isFinalAction else { throw NativeLifecycleError.transitionInProgress }
+    owner.invalidateForForeground()
     guard try ownership.acquire(timeoutMs: acquisitionTimeoutMs) else {
       throw NativeLifecycleError.runtimeOwnershipUnavailable
     }
-    do {
-      try engine.resume()
-    } catch {
-      // Contract from t-0176: UniFFI `resume` can time out and return an
-      // error while the Engine's own queued resume keeps running and later
-      // reaches `.running`. Releasing ownership on any resume error let a
-      // second runtime start while the first was still live. Only release
-      // once the Engine confirms it is actually done; if the state query
-      // itself fails, keep ownership -- the safe default.
-      if let state = try? engine.lifecycleState(), state == .suspended || state == .stopped {
-        ownership.release()
-      }
-      throw error
-    }
-  }
-  func notifyForegroundOpportunity() throws {
-    try engine.notifyForegroundOpportunity()
+    // An arbitrary resume error cannot certify release of any owned resource.
+    try engine.resume()
   }
 
+  func notifyForegroundOpportunity() throws { try engine.notifyForegroundOpportunity() }
 }
 
 final class NativeLifecycleHost {
@@ -242,14 +231,6 @@ final class NativeLifecycleHost {
     }
   }
 
-  /// The smallest real background time, in milliseconds, worth attempting
-  /// another suspend for. Below this there isn't enough of the UIKit-granted
-  /// budget left for a further round trip, so one more attempt would just
-  /// race the OS suspending the process mid-call. This is a best-effort
-  /// cutoff, not a safety guarantee: no margin can promise iOS will not
-  /// terminate the process while a lock is still held.
-  private static let minimumRetryBudgetMs: UInt64 = 250
-
   func enterBackground(_ engine: (any NativeEngineLifecycle)?, remainingTimeMs: @escaping () -> UInt64?) -> Bool {
     // The process can be suspended or killed while in the background, so buffered
     // log records are written out whether or not the suspend succeeded.
@@ -264,51 +245,28 @@ final class NativeLifecycleHost {
     }
   }
 
-  func enterForeground(_ engine: (any NativeEngineLifecycle)?) {
-    guard let engine else { return }
+  @discardableResult
+  func enterForeground(_ engine: (any NativeEngineLifecycle)?) -> Error? {
+    guard let engine else { return nil }
     do {
       try resumeIfNeeded(engine)
       if try engine.lifecycleState() == .running { try engine.notifyForegroundOpportunity() }
+      return nil
     } catch {
       report(error)
+      return error
     }
   }
 
   func suspendIfNeeded(_ engine: any NativeEngineLifecycle, remainingTimeMs: () -> UInt64?) throws {
     try transitionLock.withLock {
+      // The complete action handles Suspended, Stopped and late accepted work.
+      // Lifecycle states do not certify ownership release.
       if engine.isStartupLifecycle {
         try engine.suspend(deadlineMs: remainingTimeMs())
-        return
+        throw NativeLifecycleError.releaseUnconfirmed
       }
-      switch try engine.lifecycleState() {
-      case .running, .quiesced:
-        try suspendRetryingWhileBudgetRemains(engine, remainingTimeMs: remainingTimeMs)
-      case .quiescing, .suspended, .shuttingDown, .stopped:
-        return
-      }
-    }
-  }
-
-  /// Retries a deadline-exceeded suspend as long as the system still reports
-  /// real background time left, reading that time fresh before every attempt
-  /// instead of reusing a value captured before this call was even
-  /// scheduled. This narrows, but does not close, the window in which the
-  /// process can be suspended while the Engine still holds a lock: the
-  /// Engine's own contract does not shorten an in-flight transaction, cancel
-  /// it, or guarantee completion within any budget.
-  private func suspendRetryingWhileBudgetRemains(
-    _ engine: any NativeEngineLifecycle,
-    remainingTimeMs: () -> UInt64?
-  ) throws {
-    while true {
-      do {
-        try engine.suspend(deadlineMs: remainingTimeMs())
-        return
-      } catch NativeLifecycleError.deadlineExceeded {
-        guard let remaining = remainingTimeMs(), remaining > Self.minimumRetryBudgetMs else {
-          throw NativeLifecycleError.deadlineExceeded
-        }
-      }
+      try engine.suspend(deadlineMs: remainingTimeMs())
     }
   }
 
@@ -319,10 +277,12 @@ final class NativeLifecycleHost {
         return
       }
       switch try engine.lifecycleState() {
-      case .suspended, .quiesced:
+      case .suspended, .quiesced, .quiescing:
         try engine.resume()
-      case .running, .quiescing, .shuttingDown, .stopped:
+      case .running:
         return
+      case .shuttingDown, .stopped:
+        throw NativeLifecycleError.transitionInProgress
       }
     }
   }
@@ -337,41 +297,42 @@ final class NativeHostSuspension: @unchecked Sendable {
   private let lock = NSLock()
   private let send: @Sendable (_ phase: String, _ transitionId: Int) -> Void
   private var participating = false
+  private var requiresRelease = false
   private var pending: (transitionId: Int, finish: () -> Void)?
 
   init(send: @escaping @Sendable (_ phase: String, _ transitionId: Int) -> Void) {
     self.send = send
   }
 
-  /// Set while JS listens. Without a listener there is no host file to wait for.
+  /// Removing a listener does not prove that its files closed.
   func setParticipating(_ value: Bool) {
-    let finish = lock.withLock { () -> (() -> Void)? in
+    lock.withLock {
       participating = value
-      guard !value else { return nil }
-      defer { pending = nil }
-      return pending?.finish
+      if value { requiresRelease = true }
     }
-    finish?()
   }
 
   /// Asks the owner to close its files; `finish` runs once it reports back.
   func suspend(transitionId: Int, finish: @escaping () -> Void) {
-    let (asked, superseded) = lock.withLock { () -> (Bool, (() -> Void)?) in
-      let superseded = pending?.finish
-      pending = participating ? (transitionId, finish) : nil
-      return (participating, superseded)
+    let (asked, waiting) = lock.withLock { () -> (Bool, Bool) in
+      let earlier = pending?.finish
+      let waiting = participating || requiresRelease
+      pending = waiting ? (transitionId, { earlier?(); finish() }) : nil
+      return (participating, waiting)
     }
-    superseded?()
-    if asked { send("suspend", transitionId) } else { finish() }
+    if asked { send("suspend", transitionId) }
+    if !waiting { finish() }
   }
 
   /// The owner's report for one transition. A late report for an earlier
   /// transition must not finish a later one.
   @discardableResult
-  func complete(transitionId: Int) -> Bool {
+  func complete(transitionId: Int, released: Bool = true) -> Bool {
+    guard released else { return false }
     let finish = lock.withLock { () -> (() -> Void)? in
       guard let current = pending, current.transitionId == transitionId else { return nil }
       pending = nil
+      requiresRelease = false
       return current.finish
     }
     finish?()
@@ -383,6 +344,7 @@ final class NativeHostSuspension: @unchecked Sendable {
   func resume(transitionId: Int) {
     let (finish, asked) = lock.withLock { () -> ((() -> Void)?, Bool) in
       defer { pending = nil }
+      if participating { requiresRelease = true }
       return (pending?.finish, participating)
     }
     finish?()
@@ -402,9 +364,11 @@ final class NativeLifecycleTransitionCoordinator {
   private let queue: DispatchQueue
   private let beginBackgroundActivity: BeginBackgroundActivity
   private let hostSuspension: NativeHostSuspension?
+  private let storageAccess: SharedStorageAccess
   private let reportBackground: NativeBackgroundReport
   private let lock = NSLock()
   private var transitionId = 0
+  private var lifecycleGeneration = 0
   private var preparedActivity: (any NativeBackgroundActivity)?
 
   init(
@@ -412,13 +376,15 @@ final class NativeLifecycleTransitionCoordinator {
     queue: DispatchQueue,
     beginBackgroundActivity: @escaping BeginBackgroundActivity,
     hostSuspension: NativeHostSuspension? = nil,
-    reportBackground: @escaping NativeBackgroundReport = { _, _ in }
+    reportBackground: @escaping NativeBackgroundReport = { _, _ in },
+    storageAccess: SharedStorageAccess = .shared
   ) {
     self.lifecycle = lifecycle
     self.queue = queue
     self.beginBackgroundActivity = beginBackgroundActivity
     self.hostSuspension = hostSuspension
     self.reportBackground = reportBackground
+    self.storageAccess = storageAccess
   }
 
   /// Apple: begin the task "preferably before your app actually enters the
@@ -439,12 +405,24 @@ final class NativeLifecycleTransitionCoordinator {
   }
 
   func enterBackground(_ engine: (any NativeEngineLifecycle)?) {
-    let (activity, id) = lock.withLock { () -> (any NativeBackgroundActivity, Int) in
-      defer { preparedActivity = nil }
-      transitionId += 1
-      return (preparedActivity ?? beginBackgroundActivity(), transitionId)
+    lock.lock()
+    defer { lock.unlock() }
+    let activity = preparedActivity ?? beginBackgroundActivity()
+    preparedActivity = nil
+    transitionId += 1
+    lifecycleGeneration += 1
+    let id = transitionId
+    let lifecycleToken = lifecycleGeneration
+    let generation = storageAccess.generation
+    let parts = NativeBackgroundParts(activity: activity, report: reportBackground, expire: { [storageAccess] in
+      storageAccess.suspend(ifGeneration: generation)
+    })
+    let ownerGeneration = engine?.prepareRelease { parts.complete(.engine) } ?? 0
+    storageAccess.suspend(ifGeneration: generation) { [storageAccess] in
+      guard storageAccess.closeRegisteredFiles(generation: generation) else { return }
+      engine?.confirmFile(.nativeFiles, generation: ownerGeneration)
+      parts.complete(.nativeFiles)
     }
-    let parts = NativeBackgroundParts(activity: activity, report: reportBackground)
     let transition = NativeLifecycleTransition(
       lifecycle: lifecycle,
       engine: engine,
@@ -457,23 +435,43 @@ final class NativeLifecycleTransitionCoordinator {
     )
     // The JS database and the Engine share no file, so both close at once.
     if let hostSuspension {
-      hostSuspension.suspend(transitionId: id) { parts.complete(.hostFiles) }
+      hostSuspension.suspend(transitionId: id) {
+        engine?.confirmFile(.hostFiles, generation: ownerGeneration)
+        parts.complete(.hostFiles)
+      }
     } else {
+      engine?.confirmFile(.hostFiles, generation: ownerGeneration)
       parts.complete(.hostFiles)
     }
-    queue.async { transition.enterBackground() }
+    queue.async { [self] in
+      guard lock.withLock({ lifecycleGeneration == lifecycleToken }) else { return }
+      transition.enterBackground()
+    }
   }
 
-  func enterForeground(_ engine: (any NativeEngineLifecycle)?) {
-    let id = lock.withLock { transitionId }
+  func enterForeground(_ engine: (any NativeEngineLifecycle)?, completion: @escaping (Error?) -> Void = { _ in }) {
+    lock.lock()
+    defer { lock.unlock() }
+    lifecycleGeneration += 1
+    let id = transitionId
+    let lifecycleToken = lifecycleGeneration
+    engine?.invalidateReleaseForForeground()
+    storageAccess.resume()
     hostSuspension?.resume(transitionId: id)
     let transition = NativeLifecycleTransition(
       lifecycle: lifecycle,
       engine: engine,
       remainingTimeMs: { 0 },
-      finish: {}
+      finish: {},
+      completion: completion
     )
-    queue.async { transition.enterForeground() }
+    queue.async { [self] in
+      guard lock.withLock({ lifecycleGeneration == lifecycleToken }) else {
+        transition.superseded()
+        return
+      }
+      transition.enterForeground { [self] in lock.withLock { lifecycleGeneration == lifecycleToken } }
+    }
   }
 }
 
@@ -487,10 +485,11 @@ private final class NativeBackgroundParts: @unchecked Sendable {
   private var open = Set(NativeDiagnosticOwner.allCases)
   private var ended = false
 
-  init(activity: any NativeBackgroundActivity, report: @escaping NativeBackgroundReport) {
+  init(activity: any NativeBackgroundActivity, report: @escaping NativeBackgroundReport, expire: @escaping @Sendable () -> Void) {
     self.activity = activity
     self.report = report
     activity.onExpiration { [self] in
+      expire()
       let pending = lock.withLock { () -> [NativeDiagnosticOwner]? in
         guard !ended else { return nil }
         ended = true
@@ -518,17 +517,20 @@ private final class NativeLifecycleTransition: @unchecked Sendable {
   private let engine: (any NativeEngineLifecycle)?
   private let remainingTimeMs: @Sendable () -> UInt64?
   private let finish: @Sendable () -> Void
+  private let completion: (Error?) -> Void
 
   init(
     lifecycle: NativeLifecycleHost,
     engine: (any NativeEngineLifecycle)?,
     remainingTimeMs: @escaping @Sendable () -> UInt64?,
-    finish: @escaping @Sendable () -> Void
+    finish: @escaping @Sendable () -> Void,
+    completion: @escaping (Error?) -> Void = { _ in }
   ) {
     self.lifecycle = lifecycle
     self.engine = engine
     self.remainingTimeMs = remainingTimeMs
     self.finish = finish
+    self.completion = completion
   }
 
   func enterBackground() {
@@ -548,10 +550,13 @@ private final class NativeLifecycleTransition: @unchecked Sendable {
     }
   }
 
-  func enterForeground() {
-    lifecycle.enterForeground(engine)
+  func enterForeground(isCurrent: () -> Bool) {
+    let error = lifecycle.enterForeground(engine)
     finish()
+    completion(isCurrent() ? error : NativeLifecycleError.transitionInProgress)
   }
+
+  func superseded() { completion(NativeLifecycleError.transitionInProgress) }
 }
 
 protocol NativeBackgroundActivity: AnyObject, Sendable {

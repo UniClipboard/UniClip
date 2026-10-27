@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+internal import class AppGroupStore.SharedStorageAccess
 import UIKit
 import ImageIO
 import OSLog
@@ -207,6 +208,7 @@ final class KeyboardModel: ObservableObject {
     /// history instantly, runs an initial sync pass, and starts watching the
     /// pasteboard for changes while open.
     func onAppear() {
+        history.resume()
         isVisible = true
         let storedRevision = store.loadLastSyncedChangeCount()
         clipboardRevisionTracker = ExtensionClipboardRevisionTracker(
@@ -354,6 +356,9 @@ final class KeyboardModel: ObservableObject {
     }
 
     func stopMonitoring() {
+        if !history.suspend() {
+            log.error("History connection remains owned after a failed suspension close")
+        }
         KeyboardDiagnostics.shared.record("model.stop", fields: [
             "generation": String(syncGeneration),
             "hadTransport": String(syncTransport != nil),
@@ -1026,42 +1031,50 @@ final class KeyboardDiagnostics: @unchecked Sendable {
     }
 
     func record(_ event: String, fields: [String: String] = [:]) {
+        guard SharedStorageAccess.shared.isOpen else { return }
+        let generation = SharedStorageAccess.shared.generation
         let timestampMs = Int64(Date().timeIntervalSince1970 * 1_000)
         queue.async { [self] in
-            write(event: event, fields: fields, timestampMs: timestampMs)
+            _ = try? SharedStorageAccess.shared.withAccess(generation: generation) {
+                write(event: event, fields: fields, timestampMs: timestampMs)
+            }
         }
     }
 
     func recordView(_ name: String, signature: String) {
+        guard SharedStorageAccess.shared.isOpen else { return }
+        let generation = SharedStorageAccess.shared.generation
         let now = DispatchTime.now().uptimeNanoseconds
         let timestampMs = Int64(Date().timeIntervalSince1970 * 1_000)
         queue.async { [self] in
-            var state = viewStates[name] ?? ViewState(
-                signature: "",
-                lastEmission: 0,
-                suppressed: 0
-            )
-            let signatureChanged = state.signature != signature
-            let elapsed = now >= state.lastEmission ? now - state.lastEmission : UInt64.max
-            guard signatureChanged || elapsed >= 250_000_000 else {
-                state.suppressed += 1
-                viewStates[name] = state
-                return
+            _ = try? SharedStorageAccess.shared.withAccess(generation: generation) {
+                var state = viewStates[name] ?? ViewState(
+                    signature: "",
+                    lastEmission: 0,
+                    suppressed: 0
+                )
+                let signatureChanged = state.signature != signature
+                let elapsed = now >= state.lastEmission ? now - state.lastEmission : UInt64.max
+                guard signatureChanged || elapsed >= 250_000_000 else {
+                    state.suppressed += 1
+                    viewStates[name] = state
+                    return
+                }
+                write(
+                    event: "view.evaluate",
+                    fields: [
+                        "view": name,
+                        "signature": signature,
+                        "suppressed": String(state.suppressed),
+                    ],
+                    timestampMs: timestampMs
+                )
+                viewStates[name] = ViewState(
+                    signature: signature,
+                    lastEmission: now,
+                    suppressed: 0
+                )
             }
-            write(
-                event: "view.evaluate",
-                fields: [
-                    "view": name,
-                    "signature": signature,
-                    "suppressed": String(state.suppressed),
-                ],
-                timestampMs: timestampMs
-            )
-            viewStates[name] = ViewState(
-                signature: signature,
-                lastEmission: now,
-                suppressed: 0
-            )
         }
     }
 

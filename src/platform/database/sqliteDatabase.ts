@@ -93,12 +93,13 @@ async function closeWhenIdle(): Promise<void> {
   if (!suspended) return;
   // 打开中的连接也要等它完成再关,绝不打断迁移。
   const db = dbInstance ?? (await openPromise?.catch(() => null)) ?? null;
-  dbInstance = null;
-  openPromise = null;
   if (db) {
+    // Retain the connection until close succeeds. A failed close still owns it.
     await db.closeAsync();
     log.info(`closed ${DB_NAME} for suspension`);
   }
+  dbInstance = null;
+  openPromise = null;
 }
 
 function deferred(): { promise: Promise<void>; resolve: () => void } {
@@ -135,6 +136,7 @@ function getDatabase(): Promise<SQLite.SQLiteDatabase> {
 
 async function openAndMigrate(): Promise<SQLite.SQLiteDatabase> {
   const directory = await resolveIOSAppGroupDirectory();
+  if (suspended) throw new Error('Database opening stopped for suspension');
   const db = await SQLite.openDatabaseAsync(DB_NAME, undefined, directory ?? undefined);
   // WAL 提升并发读写性能(官方推荐建库即开);跨进程(键盘/分享扩展)
   // 并发访问依赖 WAL + busy_timeout,两侧都必须设置。
@@ -164,8 +166,8 @@ async function resolveIOSAppGroupDirectory(): Promise<string | null> {
     // expo-sqlite 的 directory 参数是原生文件路径(非 file:// URI)
     return decodeURIComponent(dir.uri.replace(/^file:\/\//, '')).replace(/\/+$/, '');
   } catch (error) {
-    log.warn('App Group container unavailable, using sandbox directory:', error);
-    return null;
+    log.warn('App Group directory lookup failed:', error);
+    throw error;
   }
 }
 

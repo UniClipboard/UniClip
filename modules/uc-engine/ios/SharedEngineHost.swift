@@ -1,4 +1,5 @@
 import Foundation
+internal import class AppGroupStore.SharedStorageAccess
 import OSLog
 import UIKit
 import UniformTypeIdentifiers
@@ -90,11 +91,24 @@ private func installEngineObservability(
   AppleNativeDiagnostics.replayNetworkToEngine()
 }
 
+/// Preserve the complete release result; never classify its nested error flag.
+public func nativeReleaseOutcome(_ result: BindingResourceRelease) -> NativeReleaseOutcome {
+  switch result {
+  case .pending: return .pending
+  case .released(let error): return .released(error: error)
+  case .failed(let error): return .failed(error: error)
+  }
+}
+
 public final class MainApplicationEngineHost: @unchecked Sendable {
   private let files = AppleFileHandleRegistry()
   private let ownershipStateLock = NSLock()
   private let analyticsStateLock = NSLock()
   private var ownership: P2pRuntimeOwnership?
+  private var retainedUntilRelease: MainApplicationEngineHost?
+  private var unconfirmedConstruction = false
+
+  public var hasUnconfirmedConstruction: Bool { ownershipStateLock.withLock { unconfirmedConstruction } }
   private var analytics: ApplePostHogAnalyticsHost?
 
   public init() {}
@@ -111,6 +125,7 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
       guard try P2pRuntimeHandoff.acquireForMainApplication(runtimeOwnership()) else {
         throw ExtensionP2pError.runtimeBusy
       }
+      ownershipStateLock.withLock { retainedUntilRelease = self }
       startupLog.info(
         "Shared runtime ownership acquired in \(Int((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000))ms"
       )
@@ -119,6 +134,7 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
         try installEngineObservability(appVersion: appVersion, host: host, networkRole: .mobileApp)
         startupLog.info("Starting core engine")
         let analytics = try analyticsHost(appVersion: appVersion)
+        ownershipStateLock.withLock { unconfirmedConstruction = true }
         let engine = try EngineDiagnosticBridge.observe(.runtimeStart) { try MobileEngine.startWithAnalyticsAndLifecycle(
           config: BindingConfig(appVersion: appVersion, profileId: profileId),
           host: host,
@@ -126,13 +142,15 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
           context: analyticsContext(),
           lifecycle: lifecycle
         ) }
+        ownershipStateLock.withLock { unconfirmedConstruction = false }
         startupLog.info(
           "Core engine started in \(Int((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000))ms"
         )
         return engine
       } catch {
         startupLog.error("Engine host start failed: \(String(describing: error))")
-        releaseRuntimeOwnership()
+        // Startup may already have installed a process writer.
+        // No returned Engine object is not a release confirmation.
         throw error
       }
     }
@@ -140,6 +158,7 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
 
   // Installing the process logger does not start networking or open an Engine session.
   public func prepareDiagnosticLogging() throws {
+    guard try acquireRuntimeOwnership(timeoutMs: 1_000) else { throw ExtensionP2pError.runtimeBusy }
     if (try? queryLocalDiagnosticStatus()) != nil { return }
     let diagnosticHost = try AppleEngineHost(files: files, storageMode: .mainApplication)
     try installEngineObservability(
@@ -157,6 +176,7 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
     let token = EngineDiagnosticBridge.begin(.ownershipAcquire)
     do {
       let acquired = try runtimeOwnership().acquire(timeoutMs: timeoutMs)
+      if acquired { ownershipStateLock.withLock { retainedUntilRelease = self } }
       EngineDiagnosticBridge.finish(token, succeeded: acquired)
       return acquired
     } catch {
@@ -170,17 +190,22 @@ public final class MainApplicationEngineHost: @unchecked Sendable {
     let current = ownership
     ownershipStateLock.unlock()
     current?.release()
-    if current != nil { EngineDiagnosticBridge.record(.ownershipReleased) }
+    ownershipStateLock.withLock { retainedUntilRelease = nil }
+    if current != nil { startupLog.info("Runtime ownership released after complete owner confirmation") }
   }
 
   public func registerInputFile(uri: String, displayName: String?) throws -> String {
-    try withHostBindingError {
-      try files.register(uri: uri, writable: false, displayName: displayName)
+    try SharedStorageAccess.shared.withAccess {
+      try withHostBindingError {
+        try files.register(uri: uri, writable: false, displayName: displayName)
+      }
     }
   }
 
   public func registerOutputFile(uri: String) throws -> String {
-    try withHostBindingError { try files.register(uri: uri, writable: true) }
+    try SharedStorageAccess.shared.withAccess {
+      try withHostBindingError { try files.register(uri: uri, writable: true) }
+    }
   }
 
   public func releaseFileHandle(_ handle: String) {
@@ -260,35 +285,38 @@ public struct ExtensionP2pRecipient: Equatable, Sendable {
 /// operation; the keyboard may retain it only while its input view is visible.
 public final class ExtensionP2pClientController: @unchecked Sendable {
   fileprivate let lifecycle: ExtensionRuntimeLifecycle<MobileEngine>
+  fileprivate let storageGeneration: UInt64
 
   public init() throws {
+    try SharedStorageAccess.shared.requireOpen()
+    let storageGeneration = SharedStorageAccess.shared.generation
+    self.storageGeneration = storageGeneration
     let ownership = P2pRuntimeOwnership(
       lockURL: try P2pSharedStore.runtimeLockURL(mode: .extensionHost),
       diagnostics: AppleNativeDiagnostics.journal
     )
     lifecycle = ExtensionRuntimeLifecycle(
       ownership: ownership,
-      suspend: { engine in
-        try AppleNativeDiagnostics.observe(.engineSuspend, trigger: .extensionHidden) { try engine.suspend() }
+      requiredFiles: [.nativeFiles, .processObservability],
+      storageAccess: .shared,
+      release: { engine in
+        nativeReleaseOutcome(engine.shutdownWithOutcome(deadlineMs: 1_000))
       },
-      shutdown: {
-        let engine = $0
-        try? AppleNativeDiagnostics.observe(.engineShutdown, trigger: .extensionHidden) {
-          try engine.shutdown(deadlineMs: 1_000)
+      closeFiles: { finish in
+        SharedStorageAccess.shared.suspend(ifGeneration: storageGeneration) {
+          let historyClosed = SharedStorageAccess.shared.closeRegisteredFiles(generation: storageGeneration)
+          let diagnosticsDrained = AppleNativeDiagnostics.journal.flush()
+          finish(historyClosed && diagnosticsDrained)
         }
-        // Final teardown can log after the synchronous suspension flush.
-        _ = try? flushProcessObservability(deadlineMs: 1_000)
-        _ = AppleNativeDiagnostics.journal.flush()
       },
-      flushLogs: {
-        _ = try? flushProcessObservability(deadlineMs: 1_000)
-        _ = AppleNativeDiagnostics.journal.flush()
+      report: { error in
+        startupLog.error("Extension release unconfirmed: \(String(describing: error), privacy: .public)")
       }
     )
   }
 
   public func stopForSuspension() {
-    EngineDiagnosticBridge.record(.lifecycle(state: .background))
+    EngineDiagnosticBridge.record(.lifecycle(state: .background), storageGeneration: storageGeneration)
     try? lifecycle.stopForSuspension()
   }
 }
@@ -315,41 +343,49 @@ public final class ExtensionP2pClient: @unchecked Sendable {
   ) throws {
     let files = AppleFileHandleRegistry()
     do {
-      var analytics: ApplePostHogAnalyticsHost?
-      let engine = try controller.lifecycle.startEngine {
-        let host = try AppleEngineHost(files: files, storageMode: .extensionHost)
-        // ExtensionP2pClient is the keyboard extension's client; the share extension hands off
-        // through the App Group and does not host an Engine.
-        try installEngineObservability(appVersion: appVersion, host: host, networkRole: .keyboardExtension)
-        EngineDiagnosticBridge.record(.lifecycle(state: .foreground))
-        let createdAnalytics = try ApplePostHogAnalyticsHost(appVersion: appVersion)
-        analytics = createdAnalytics
-        AppleNativeDiagnostics.start()
-        return try AppleNativeDiagnostics.observe(.engineStart, trigger: .extensionVisible) {
-          try EngineDiagnosticBridge.observe(.runtimeStart) { try MobileEngine.startWithAnalytics(
-          config: BindingConfig(appVersion: appVersion, profileId: "default"),
-          host: host,
-          analytics: createdAnalytics,
-          context: analyticsContext()
-          ) }
+      let (engine, localDeviceId) = try SharedStorageAccess.shared.withAccess(generation: controller.storageGeneration) {
+        var analytics: ApplePostHogAnalyticsHost?
+        let engine = try controller.lifecycle.startEngine {
+          let host = try AppleEngineHost(files: files, storageMode: .extensionHost)
+          // ExtensionP2pClient is the keyboard extension's client; the share extension hands off
+          // through the App Group and does not host an Engine.
+          try installEngineObservability(appVersion: appVersion, host: host, networkRole: .keyboardExtension)
+          EngineDiagnosticBridge.record(.lifecycle(state: .foreground), storageGeneration: controller.storageGeneration)
+          let createdAnalytics = try ApplePostHogAnalyticsHost(appVersion: appVersion)
+          analytics = createdAnalytics
+          AppleNativeDiagnostics.start()
+          return try AppleNativeDiagnostics.observe(.engineStart, trigger: .extensionVisible, storageGeneration: controller.storageGeneration) {
+            try EngineDiagnosticBridge.observe(.runtimeStart, storageGeneration: controller.storageGeneration) { try MobileEngine.startWithAnalytics(
+            config: BindingConfig(appVersion: appVersion, profileId: "default"),
+            host: host,
+            analytics: createdAnalytics,
+            context: analyticsContext()
+            ) }
+          }
         }
+        _ = try AppleNativeDiagnostics.observe(.secureStateRecovery, trigger: .extensionVisible, storageGeneration: controller.storageGeneration) {
+          try engine.recoverSession(allowSecureStorageUnlock: true)
+        }
+        try controller.lifecycle.ensureStartupCanFinish()
+        guard try engine.querySpaceState().hasCompleted else {
+          throw ExtensionP2pError.spaceUnavailable
+        }
+        let localDeviceId = try engine.queryLocalDevice().deviceId
+        analytics?.updateApplicationContext(
+          appVersion: appVersion,
+          activeDeviceCount: (try? engine.listDevices().count) ?? 0
+        )
+        let count = (try? engine.listDevices().count) ?? 0
+        let spaceID = try? engine.querySpaceState().spaceId
+        try? analytics?.ensureSpaceContext(spaceID: spaceID ?? nil, activeDeviceCount: count)
+        try SharedStorageAccess.shared.requireOpen()
+        guard SharedStorageAccess.shared.generation == controller.storageGeneration else {
+          throw ExtensionP2pError.sessionClosed
+        }
+        try controller.lifecycle.finishStartup()
+        return (engine, localDeviceId)
+
       }
-      _ = try AppleNativeDiagnostics.observe(.secureStateRecovery, trigger: .extensionVisible) {
-        try engine.recoverSession(allowSecureStorageUnlock: true)
-      }
-      try controller.lifecycle.ensureStartupCanFinish()
-      guard try engine.querySpaceState().hasCompleted else {
-        throw ExtensionP2pError.spaceUnavailable
-      }
-      let localDeviceId = try engine.queryLocalDevice().deviceId
-      analytics?.updateApplicationContext(
-        appVersion: appVersion,
-        activeDeviceCount: (try? engine.listDevices().count) ?? 0
-      )
-      let count = (try? engine.listDevices().count) ?? 0
-      let spaceID = try? engine.querySpaceState().spaceId
-      try? analytics?.ensureSpaceContext(spaceID: spaceID ?? nil, activeDeviceCount: count)
-      try controller.lifecycle.finishStartup()
 
       self.files = files
       self.engine = engine
@@ -364,6 +400,7 @@ public final class ExtensionP2pClient: @unchecked Sendable {
         switch lifecycleError {
         case .runtimeOwnershipUnavailable: throw ExtensionP2pError.runtimeBusy
         case .sessionClosed: throw ExtensionP2pError.sessionClosed
+        case .filesUnconfirmed: break
         }
       }
       throw error
@@ -472,7 +509,9 @@ public final class ExtensionP2pClient: @unchecked Sendable {
 
   private func withActiveSession<Result>(_ operation: () throws -> Result) throws -> Result {
     do {
-      return try controller.lifecycle.withOperation(operation)
+      return try SharedStorageAccess.shared.withAccess(generation: controller.storageGeneration) {
+        try controller.lifecycle.withOperation(operation)
+      }
     } catch ExtensionRuntimeLifecycleError.sessionClosed {
       throw ExtensionP2pError.sessionClosed
     }

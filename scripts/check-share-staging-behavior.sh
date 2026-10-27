@@ -12,9 +12,11 @@ if [[ -z "${SWIFTC_BIN}" ]]; then
 fi
 
 "${SWIFTC_BIN}" \
+  "${PROJECT_DIR}/modules/app-group-store/ios/Shared/SharedStorageAccess.swift" \
   "${PROJECT_DIR}/targets/_shared/AppSettings.swift" \
   "${PROJECT_DIR}/targets/_shared/Clipboard.swift" \
   "${PROJECT_DIR}/targets/_shared/ClipboardHistoryItem.swift" \
+  "${PROJECT_DIR}/targets/_shared/LegacyContainerMigrator.swift" \
   "${PROJECT_DIR}/targets/_shared/SettingsStore.swift" \
   "${PROJECT_DIR}/targets/_shared/PayloadCache.swift" \
   "${PROJECT_DIR}/targets/share/OutboundShareHandoff.swift" \

@@ -1,4 +1,10 @@
 import Foundation
+#if canImport(AppGroupStore)
+import class AppGroupStore.SharedStorageAccess
+#elseif canImport(SharedStorageAccess)
+import SharedStorageAccess
+#endif
+
 #if canImport(UniClipboardModels)
 // SwiftPM build: `SettingsStore.appGroupID` lives in a sibling target.
 // Xcode app-target builds compile everything as one module so the
@@ -33,24 +39,25 @@ public actor PayloadCache {
     /// eviction sweep so a shrink frees disk on the spot.
     private var maxBytes: Int
     private let semaphore: Semaphore
-    private var pending: [String: Task<Data, Error>] = [:]
+    private var pending: [String: (generation: UInt64, task: Task<Data, Error>)] = [:]
 
     public init(directory: URL, maxBytes: Int, concurrencyLimit: Int = 3) {
         self.directory = directory
         self.maxBytes = maxBytes
         self.semaphore = Semaphore(limit: concurrencyLimit)
-        try? FileManager.default.createDirectory(
-            at: directory,
-            withIntermediateDirectories: true
-        )
+        _ = try? SharedStorageAccess.shared.withAccess {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
     }
 
     /// Update the cap and immediately evict if the new cap is below
     /// current occupancy. No-op when the cap is unchanged.
     public func setMaxBytes(_ newValue: Int) {
-        guard newValue != maxBytes else { return }
-        maxBytes = newValue
-        evictIfOverCapacity()
+        _ = try? SharedStorageAccess.shared.withAccess {
+            guard newValue != maxBytes else { return }
+            maxBytes = newValue
+            evictIfOverCapacity()
+        }
     }
 
     /// Read-only accessor for the current cap. Useful for tests and
@@ -61,51 +68,61 @@ public actor PayloadCache {
     /// file's `contentModificationDate` to "now" so the LRU sweep treats this
     /// entry as recently used.
     public func read(profileId: String) -> Data? {
-        guard isValidKey(profileId) else { return nil }
-        let url = directory.appendingPathComponent(profileId)
-        guard let bytes = try? Data(contentsOf: url) else { return nil }
-        touchMtime(url)
-        return bytes
+        return (try? SharedStorageAccess.shared.withAccess {
+            guard isValidKey(profileId) else { return nil }
+            let url = directory.appendingPathComponent(profileId)
+            guard let bytes = try? Data(contentsOf: url) else { return nil }
+            touchMtime(url)
+            return bytes
+        }) ?? nil
     }
 
     /// Write bytes atomically, mark the file as backup-excluded, then run an
     /// LRU sweep if we're over `maxBytes`.
     @discardableResult
-    public func write(profileId: String, bytes: Data) throws -> URL {
-        guard isValidKey(profileId) else {
-            throw CacheError.invalidKey(profileId)
+    public func write(profileId: String, bytes: Data, generation: UInt64? = nil) throws -> URL {
+        return try SharedStorageAccess.shared.withAccess(generation: generation) {
+            guard isValidKey(profileId) else {
+                throw CacheError.invalidKey(profileId)
+            }
+            var url = directory.appendingPathComponent(profileId)
+            try bytes.write(to: url, options: .atomic)
+            var values = URLResourceValues()
+            values.isExcludedFromBackup = true
+            try? url.setResourceValues(values)
+            evictIfOverCapacity()
+            return url
         }
-        var url = directory.appendingPathComponent(profileId)
-        try bytes.write(to: url, options: .atomic)
-        var values = URLResourceValues()
-        values.isExcludedFromBackup = true
-        try? url.setResourceValues(values)
-        evictIfOverCapacity()
-        return url
     }
 
     /// Remove one entry. No-op if missing.
     public func delete(profileId: String) {
-        guard isValidKey(profileId) else { return }
-        let url = directory.appendingPathComponent(profileId)
-        try? FileManager.default.removeItem(at: url)
+        _ = try? SharedStorageAccess.shared.withAccess {
+            guard isValidKey(profileId) else { return }
+            let url = directory.appendingPathComponent(profileId)
+            try? FileManager.default.removeItem(at: url)
+        }
     }
 
     /// Remove every file in the cache directory. Used by the "清除缓存"
     /// settings action.
     public func purgeAll() {
-        guard let entries = try? FileManager.default.contentsOfDirectory(
-            at: directory,
-            includingPropertiesForKeys: nil
-        ) else { return }
-        for entry in entries {
-            try? FileManager.default.removeItem(at: entry)
+        _ = try? SharedStorageAccess.shared.withAccess {
+            guard let entries = try? FileManager.default.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: nil
+            ) else { return }
+            for entry in entries {
+                try? FileManager.default.removeItem(at: entry)
+            }
         }
     }
 
     /// Sum of file sizes in the directory.
     public func totalSize() -> Int {
-        listEntries().reduce(0) { $0 + $1.size }
+        return (try? SharedStorageAccess.shared.withAccess {
+            listEntries().reduce(0) { $0 + $1.size }
+        }) ?? 0
     }
 
     /// Read-or-fetch with dedup. If the file is on disk, return it. Otherwise,
@@ -120,27 +137,29 @@ public actor PayloadCache {
         profileId: String,
         fetcher: @Sendable @escaping () async throws -> Data
     ) async throws -> Data {
+        try SharedStorageAccess.shared.requireOpen()
+        let generation = SharedStorageAccess.shared.generation
         if let cached = read(profileId: profileId) {
             return cached
         }
-        if let inflight = pending[profileId] {
-            return try await inflight.value
+        if let inflight = pending[profileId], inflight.generation == generation {
+            return try await inflight.task.value
         }
         let task = Task<Data, Error> { [weak self, semaphore] in
             await semaphore.acquire()
             defer { Task { await semaphore.release() } }
             let bytes = try await fetcher()
             if let self {
-                try await self.completeFetch(profileId: profileId, bytes: bytes)
+                try await self.completeFetch(profileId: profileId, bytes: bytes, generation: generation)
             }
             return bytes
         }
-        pending[profileId] = task
+        pending[profileId] = (generation, task)
         do {
             let bytes = try await task.value
             return bytes
         } catch {
-            pending.removeValue(forKey: profileId)
+            if pending[profileId]?.generation == generation { pending.removeValue(forKey: profileId) }
             throw error
         }
     }
@@ -149,9 +168,13 @@ public actor PayloadCache {
 
     /// Called by a `fetchAndStore` Task body once `fetcher` returns. Re-enters
     /// the actor so the write + pending cleanup land on the serial queue.
-    private func completeFetch(profileId: String, bytes: Data) throws {
-        defer { pending.removeValue(forKey: profileId) }
-        try write(profileId: profileId, bytes: bytes)
+    private func completeFetch(profileId: String, bytes: Data, generation: UInt64) throws {
+        defer {
+            if pending[profileId]?.generation == generation { pending.removeValue(forKey: profileId) }
+        }
+        _ = try SharedStorageAccess.shared.withAccess(generation: generation) {
+            try write(profileId: profileId, bytes: bytes, generation: generation)
+        }
     }
 
     private func evictIfOverCapacity() {

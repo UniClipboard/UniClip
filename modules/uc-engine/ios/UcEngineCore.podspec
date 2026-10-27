@@ -14,10 +14,12 @@ Pod::Spec.new do |s|
   s.swift_version  = '5.9'
   s.source         = { git: 'https://github.com/UniClipboard/UniClipboard.git' }
   s.static_framework = true
+  s.dependency 'AppGroupStore/StorageAccess'
 
   s.frameworks = 'Network', 'Security', 'SystemConfiguration', 'UIKit', 'UniformTypeIdentifiers'
   s.source_files = [
     'ExtensionRuntimeLifecycle.swift',
+    'NativeReleaseOwner.swift',
     'ExtensionSyncCoordinator.swift',
     'NativeAnalyticsHost.swift',
     'NativeRuntimeDiagnostics.swift',

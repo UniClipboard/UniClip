@@ -1,4 +1,6 @@
 import Foundation
+internal import class AppGroupStore.SharedStorageAccess
+import OSLog
 import Network
 
 public enum AppleNativeDiagnostics {
@@ -13,10 +15,14 @@ public enum AppleNativeDiagnostics {
 
   public static func observe<Result>(
     _ event: NativeDiagnosticEvent, trigger: NativeDiagnosticTrigger = .unspecified,
+    storageGeneration: UInt64? = nil,
     _ operation: () throws -> Result
   ) rethrows -> Result {
+    if let storageGeneration, storageGeneration != SharedStorageAccess.shared.generation {
+      return try operation()
+    }
     let action: BindingHostDiagnosticAction? = event == .secureStateRecovery ? .securityPrepare : event == .engineShutdown ? .runtimeStop : nil
-    let token = action.flatMap { EngineDiagnosticBridge.begin($0) }
+    let token = action.flatMap { EngineDiagnosticBridge.begin($0, storageGeneration: storageGeneration) }
     let observation = journal.begin(event, trigger: trigger)
     do {
       let result = try operation()
@@ -30,18 +36,13 @@ public enum AppleNativeDiagnostics {
     }
   }
 
-  /// The last record of a background transition, written and flushed before
-  /// its activity ends. The journal takes a short flock on its App Group
-  /// directory per write, so nothing may be written after the activity ended.
+  /// Report through OSLog after shared-storage admission closes.
+  /// This callback must not reopen the App Group diagnostic journal.
   public static func recordBackgroundTransition(pending: [NativeDiagnosticOwner], expired: Bool) {
-    journal.record(
-      expired ? .backgroundExpired : .backgroundComplete,
-      trigger: .appBackground,
-      outcome: pending.isEmpty ? .succeeded : .failed,
-      files: NativeDiagnosticFiles.openFiles(under: P2pSharedStore.containerDirectory()),
-      pending: pending
+    let owners = pending.map(\.rawValue).joined(separator: ",")
+    Logger(subsystem: "app.uniclipboard", category: "suspension").info(
+      "Background transition ended expired=\(expired) pending=\(owners, privacy: .public)"
     )
-    _ = journal.flush(deadlineMs: 200)
   }
 
   public static func failure(_ error: Error) -> NativeDiagnosticFailure {

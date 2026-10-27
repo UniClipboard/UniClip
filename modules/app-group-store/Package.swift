@@ -9,11 +9,14 @@ let package = Package(
     .macOS(.v14),
   ],
   products: [
+    .library(name: "SharedStorageAccess", targets: ["SharedStorageAccess"]),
     .library(name: "OutboundShareHandoffCore", targets: ["OutboundShareHandoffCore"]),
   ],
   targets: [
+    .target(name: "SharedStorageAccess", path: "ios/Shared", sources: ["SharedStorageAccess.swift"]),
     .target(
       name: "OutboundShareHandoffCore",
+      dependencies: ["SharedStorageAccess"],
       path: "ios/Shared",
       sources: [
         "EngineLogLocator.swift",

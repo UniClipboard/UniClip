@@ -16,6 +16,7 @@ it('shares the journal implementation without adding Engine to the Share process
     .toBe(resolve(root, 'modules/uc-engine/ios/NativeRuntimeDiagnostics.swift'));
   const controller = readFileSync(resolve(root, 'targets/share/ShareViewController.swift'), 'utf8');
   expect(controller).not.toContain('import UcEngineCore');
-  expect(controller).toContain('nativeDiagnostics.flush(deadlineMs: 250)');
-  expect(controller.indexOf('nativeDiagnostics.flush')).toBeLessThan(controller.indexOf('context.completeRequest'));
+  expect(controller).toContain('SharedStorageAccess.shared.suspend(ifGeneration: generation)');
+  expect(controller.indexOf('SharedStorageAccess.shared.suspend(ifGeneration: generation)'))
+    .toBeLessThan(controller.indexOf('context.completeRequest'));
 });

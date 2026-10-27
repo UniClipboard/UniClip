@@ -1,4 +1,9 @@
 import Foundation
+#if canImport(AppGroupStore)
+public import class AppGroupStore.SharedStorageAccess
+#elseif canImport(SharedStorageAccess)
+import SharedStorageAccess
+#endif
 import Darwin
 
 @_silgen_name("flock")
@@ -78,10 +83,14 @@ public struct NativeDiagnosticNetwork: Encodable, Equatable, Sendable {
 
 /// A part of a background transition that keeps App Group files open until it finishes.
 public enum NativeDiagnosticOwner: String, Encodable, Sendable, CaseIterable {
-  /// Engine suspend, then the runtime-ownership flock release.
+  /// The complete Engine action result. Runtime ownership awaits every owner.
   case engine
   /// Host-owned files outside the Engine: the JS history database.
   case hostFiles
+  /// Native shared-storage calls and diagnostic writes accepted before suspension.
+  case nativeFiles
+  /// Independent process writers without a complete release receipt.
+  case processObservability
 }
 
 /// Open descriptors under the App Group container, by kind only (never paths).
@@ -125,6 +134,7 @@ public struct NativeDiagnosticOperation: Sendable {
   fileprivate let trigger: NativeDiagnosticTrigger
   fileprivate let startedAt: UInt64
   fileprivate let generation: UInt64
+  fileprivate let storageGeneration: UInt64
 }
 
 public struct NativeDiagnosticsSnapshot: Sendable {
@@ -154,6 +164,7 @@ public struct NativeDiagnosticsSnapshot: Sendable {
 /// A closed event vocabulary deliberately excludes arbitrary messages and attributes.
 /// Each process writes its own files; it never shares an open writer with an extension.
 public final class NativeRuntimeDiagnostics: @unchecked Sendable {
+  private let storageAccess: SharedStorageAccess
   private let directory: URL?
   private let role: NativeDiagnosticRole
   private let sessionId = UUID().uuidString.lowercased()
@@ -171,8 +182,9 @@ public final class NativeRuntimeDiagnostics: @unchecked Sendable {
   private var fileIndex = 0
   private var fileBytes = 0
 
-  public init(directory: URL?, role: NativeDiagnosticRole, maxFileBytes: Int = 256 * 1024, maxFiles: Int = 24) {
+  public init(directory: URL?, role: NativeDiagnosticRole, maxFileBytes: Int = 256 * 1024, maxFiles: Int = 24, storageAccess: SharedStorageAccess = .shared) {
     self.directory = directory
+    self.storageAccess = storageAccess
     self.role = role
     self.maxFileBytes = max(1_024, maxFileBytes)
     self.maxFiles = max(1, maxFiles)
@@ -186,7 +198,8 @@ public final class NativeRuntimeDiagnostics: @unchecked Sendable {
     }
     let operation = NativeDiagnosticOperation(
       id: UUID().uuidString.lowercased(), event: event, trigger: trigger,
-      startedAt: DispatchTime.now().uptimeNanoseconds, generation: current
+      startedAt: DispatchTime.now().uptimeNanoseconds, generation: current,
+      storageGeneration: storageAccess.generation
     )
     enqueue(event, trigger: trigger, outcome: .started, operation: operation)
     return operation
@@ -214,7 +227,7 @@ public final class NativeRuntimeDiagnostics: @unchecked Sendable {
   public func snapshot() -> NativeDiagnosticsSnapshot {
     state.withLock {
       NativeDiagnosticsSnapshot(
-        writerStatus: writerReady ? "ready" : "unavailable", droppedRecords: droppedRecords,
+        writerStatus: !storageAccess.isOpen ? "suspended" : writerReady ? "ready" : "unavailable", droppedRecords: droppedRecords,
         writeFailures: writeFailures, prunedFiles: prunedFiles, sessionId: sessionId,
         role: role.rawValue, startedAt: Self.timestamp(startedAt), capturedAt: Self.timestamp(Date()),
         maxFileBytes: maxFileBytes, maxFiles: maxFiles
@@ -225,6 +238,10 @@ public final class NativeRuntimeDiagnostics: @unchecked Sendable {
   public func fileURLs() -> [URL] { fileDiscovery().files }
 
   public func fileDiscovery() -> (files: [URL], status: String, skippedFiles: Int) {
+    (try? storageAccess.withAccess { discoverFiles() }) ?? ([], "suspended", 0)
+  }
+
+  private func discoverFiles() -> (files: [URL], status: String, skippedFiles: Int) {
     guard let directory else { return ([], "unavailable", 0) }
     do {
       let candidates = try FileManager.default.contentsOfDirectory(
@@ -249,6 +266,8 @@ public final class NativeRuntimeDiagnostics: @unchecked Sendable {
                        outcome: NativeDiagnosticOutcome, operation: NativeDiagnosticOperation? = nil,
                        failure: NativeDiagnosticFailure? = nil, network: NativeDiagnosticNetwork? = nil,
                        files: NativeDiagnosticFiles? = nil, pending: [NativeDiagnosticOwner]? = nil) {
+    guard storageAccess.isOpen else { return }
+    let storageGeneration = operation?.storageGeneration ?? storageAccess.generation
     guard capacity.wait(timeout: .now()) == .success else {
       state.withLock { droppedRecords += 1 }
       return
@@ -259,51 +278,57 @@ public final class NativeRuntimeDiagnostics: @unchecked Sendable {
     queue.async { [self] in
       defer { capacity.signal() }
       do {
-        guard let directory else { throw CocoaError(.fileNoSuchFile) }
-        let health = snapshot()
-        var record: [String: Any] = [
-          "schemaVersion": 1, "policy": "native-runtime-boundaries-v1",
-          "timestamp": Self.timestamp(capturedAt), "monotonicMs": uptime / 1_000_000,
-          "role": role.rawValue, "sessionId": sessionId, "startAttempt": currentGeneration,
-          "processId": ProcessInfo.processInfo.processIdentifier,
-          "event": event.rawValue, "trigger": trigger.rawValue, "outcome": outcome.rawValue,
-          "level": outcome == .failed ? "ERROR" : "INFO",
-          "appVersion": Self.buildValue("CFBundleShortVersionString"),
-          "appBuild": Self.buildValue("CFBundleVersion"),
-          "droppedRecords": health.droppedRecords, "writeFailures": health.writeFailures,
-          "prunedFiles": health.prunedFiles,
-        ]
-        if let operation {
-          record["operationId"] = operation.id
-          if outcome != .started { record["durationMs"] = (uptime - operation.startedAt) / 1_000_000 }
-        }
-        if let failure { record["failure"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(failure)) }
-        if let network { record["network"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(network)) }
-        if let files { record["appGroupFiles"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(files)) }
-        if let pending { record["pendingOwners"] = pending.map(\.rawValue) }
-        var bytes = try JSONSerialization.data(withJSONObject: record, options: [.sortedKeys])
-        bytes.append(0x0a)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try withDirectoryLock(directory) {
-          if fileBytes > 0 && fileBytes + bytes.count > maxFileBytes { fileIndex += 1; fileBytes = 0 }
-          let url = directory.appendingPathComponent("native-runtime.\(role.rawValue).\(sessionId).\(fileIndex).jsonl")
-          try prune(excluding: url)
-          if !FileManager.default.fileExists(atPath: url.path) {
-            var attributes: [FileAttributeKey: Any] = [.posixPermissions: 0o600]
-            #if os(iOS)
-            attributes[.protectionKey] = FileProtectionType.completeUntilFirstUserAuthentication
-            #endif
-            guard FileManager.default.createFile(atPath: url.path, contents: nil, attributes: attributes) else {
-              throw CocoaError(.fileWriteUnknown)
-            }
+        try storageAccess.withAccess(generation: storageGeneration) {
+          guard let directory else { throw CocoaError(.fileNoSuchFile) }
+          let health = snapshot()
+          var record: [String: Any] = [
+            "schemaVersion": 1, "policy": "native-runtime-boundaries-v1",
+            "timestamp": Self.timestamp(capturedAt), "monotonicMs": uptime / 1_000_000,
+            "role": role.rawValue, "sessionId": sessionId, "startAttempt": currentGeneration,
+            "processId": ProcessInfo.processInfo.processIdentifier,
+            "event": event.rawValue, "trigger": trigger.rawValue, "outcome": outcome.rawValue,
+            "level": outcome == .failed ? "ERROR" : "INFO",
+            "appVersion": Self.buildValue("CFBundleShortVersionString"),
+            "appBuild": Self.buildValue("CFBundleVersion"),
+            "droppedRecords": health.droppedRecords, "writeFailures": health.writeFailures,
+            "prunedFiles": health.prunedFiles,
+          ]
+          if let operation {
+            record["operationId"] = operation.id
+            if outcome != .started { record["durationMs"] = (uptime - operation.startedAt) / 1_000_000 }
           }
-          let file = try FileHandle(forWritingTo: url)
-          defer { try? file.close() }
-          try file.seekToEnd()
-          try file.write(contentsOf: bytes)
-          fileBytes += bytes.count
-          state.withLock { writerReady = true }
+          if let failure { record["failure"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(failure)) }
+          if let network { record["network"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(network)) }
+          if let files { record["appGroupFiles"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(files)) }
+          if let pending { record["pendingOwners"] = pending.map(\.rawValue) }
+          var bytes = try JSONSerialization.data(withJSONObject: record, options: [.sortedKeys])
+          bytes.append(0x0a)
+          try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+          try withDirectoryLock(directory, generation: storageGeneration) {
+            try storageAccess.requireOpen()
+            guard storageAccess.generation == storageGeneration else { throw SharedStorageAccess.AccessError.suspended }
+            if fileBytes > 0 && fileBytes + bytes.count > maxFileBytes { fileIndex += 1; fileBytes = 0 }
+            let url = directory.appendingPathComponent("native-runtime.\(role.rawValue).\(sessionId).\(fileIndex).jsonl")
+            try prune(excluding: url)
+            if !FileManager.default.fileExists(atPath: url.path) {
+              var attributes: [FileAttributeKey: Any] = [.posixPermissions: 0o600]
+              #if os(iOS)
+              attributes[.protectionKey] = FileProtectionType.completeUntilFirstUserAuthentication
+              #endif
+              guard FileManager.default.createFile(atPath: url.path, contents: nil, attributes: attributes) else {
+                throw CocoaError(.fileWriteUnknown)
+              }
+            }
+            let file = try FileHandle(forWritingTo: url)
+            defer { try? file.close() }
+            try file.seekToEnd()
+            try file.write(contentsOf: bytes)
+            fileBytes += bytes.count
+            state.withLock { writerReady = true }
+          }
         }
+      } catch SharedStorageAccess.AccessError.suspended {
+        state.withLock { droppedRecords += 1; writerReady = false }
       } catch {
         state.withLock { droppedRecords += 1; writeFailures += 1; writerReady = false }
       }
@@ -312,7 +337,7 @@ public final class NativeRuntimeDiagnostics: @unchecked Sendable {
 
   private func prune(excluding current: URL) throws {
     let cutoff = Date().addingTimeInterval(-3 * 24 * 60 * 60)
-    let discovery = fileDiscovery()
+    let discovery = discoverFiles()
     guard discovery.status != "unavailable" else { throw CocoaError(.fileReadUnknown) }
     let files = discovery.files.map { url in
       (url, (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast)
@@ -328,13 +353,17 @@ public final class NativeRuntimeDiagnostics: @unchecked Sendable {
     guard remaining <= maxFiles else { throw CocoaError(.fileWriteUnknown) }
   }
 
-  private func withDirectoryLock(_ directory: URL, operation: () throws -> Void) throws {
+  private func withDirectoryLock(_ directory: URL, generation: UInt64, operation: () throws -> Void) throws {
+    try storageAccess.requireOpen()
+    guard storageAccess.generation == generation else { throw SharedStorageAccess.AccessError.suspended }
     let descriptor = Darwin.open(directory.appendingPathComponent(".native-runtime.lock").path,
       O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
     guard descriptor >= 0 else { throw CocoaError(.fileWriteUnknown) }
     defer { Darwin.close(descriptor) }
     let deadline = DispatchTime.now().uptimeNanoseconds + 100_000_000
     while diagnosticFlock(descriptor, LOCK_EX | LOCK_NB) != 0 {
+      try storageAccess.requireOpen()
+      guard storageAccess.generation == generation else { throw SharedStorageAccess.AccessError.suspended }
       guard (errno == EWOULDBLOCK || errno == EAGAIN),
             DispatchTime.now().uptimeNanoseconds < deadline else { throw CocoaError(.fileWriteUnknown) }
       usleep(1_000)

@@ -472,7 +472,10 @@ jest.mock('@/features/space', () => ({ useUnifiedSpaceStore: Object.assign((s: (
 jest.mock('@/components/useLanMySpaceSheet', () => ({ useLanMySpaceSheet: () => ({ servers: [{ id: 'peer', name: 'Synthetic peer', status: 'online', address: 'loopback' }], isRefreshing: false }) }));
 jest.mock('@/app/runtime/composition', () => ({ getAppRuntime: () => ({ ensureStarted: async () => {} }) }));
 jest.mock('@/utils/uploadFile', () => ({ importFileToHistory: () => { throw new Error('Unexpected import'); } }));
-jest.mock('app-group-store', () => ({ recordShareDiagnosticStage: async () => {} }));
+jest.mock('app-group-store', () => ({
+  getContainerUrl: async () => null,
+  recordShareDiagnosticStage: async () => {},
+}));
 jest.mock('expo-haptics', () => ({ NotificationFeedbackType: { Success: 'success' }, notificationAsync: async () => {} }));
 
 const artifactRoot = join(process.cwd(), 'e2e/results/history-receipt-lifetime');

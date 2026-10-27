@@ -17,6 +17,7 @@ jest.mock('react-native', () => {
 });
 
 jest.mock('app-group-store', () => ({
+  getContainerUrl: jest.fn().mockResolvedValue(null),
   getLegacyHistory: jest.fn().mockResolvedValue(null),
   getPayloadFileUri: jest.fn().mockResolvedValue(null),
   migrateLegacyContainer: jest.fn().mockResolvedValue({ migrated: false, keys: 0 }),

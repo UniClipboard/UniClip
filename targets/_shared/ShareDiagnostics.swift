@@ -1,4 +1,10 @@
 import Foundation
+#if canImport(AppGroupStore)
+internal import class AppGroupStore.SharedStorageAccess
+#elseif canImport(SharedStorageAccess)
+import SharedStorageAccess
+#endif
+
 #if canImport(Darwin)
 import Darwin
 #endif
@@ -200,6 +206,7 @@ public enum ShareDiagnosticsStoreError: Error {
 }
 
 public final class ShareDiagnosticsStore: @unchecked Sendable {
+  private let storageGeneration: UInt64
   private let directoryURL: URL
   private let maxAttempts: Int
   private let retentionMilliseconds: Int64
@@ -209,17 +216,18 @@ public final class ShareDiagnosticsStore: @unchecked Sendable {
   public init(
     containerURL: URL,
     maxAttempts: Int = 50,
-    retentionMilliseconds: Int64 = 3 * 24 * 60 * 60 * 1_000
+    retentionMilliseconds: Int64 = 3 * 24 * 60 * 60 * 1_000,
+    storageGeneration: UInt64? = nil
   ) throws {
+    self.storageGeneration = storageGeneration ?? SharedStorageAccess.shared.generation
     self.directoryURL = containerURL
       .appendingPathComponent("Library/Caches/UniClipDiagnostics", isDirectory: true)
       .appendingPathComponent("share-attempts", isDirectory: true)
     self.maxAttempts = max(1, maxAttempts)
     self.retentionMilliseconds = max(0, retentionMilliseconds)
-    try FileManager.default.createDirectory(
-      at: directoryURL,
-      withIntermediateDirectories: true
-    )
+    try SharedStorageAccess.shared.withAccess(generation: self.storageGeneration) {
+      try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+    }
   }
 
   public func startAttempt(
@@ -246,28 +254,32 @@ public final class ShareDiagnosticsStore: @unchecked Sendable {
   public func loadArchive(
     nowMs: Int64 = Int64(Date().timeIntervalSince1970 * 1_000)
   ) -> ShareDiagnosticsArchive {
-    let loaded = loadAttempts()
-    let cutoff = nowMs - retentionMilliseconds
-    let retained = loaded
-      .filter { $0.attempt.startedAtMs >= cutoff }
-      .sorted {
-        if $0.attempt.startedAtMs == $1.attempt.startedAtMs {
-          return $0.attempt.id > $1.attempt.id
+    (try? SharedStorageAccess.shared.withAccess(generation: storageGeneration) {
+      let loaded = loadAttempts()
+      let cutoff = nowMs - retentionMilliseconds
+      let retained = loaded
+        .filter { $0.attempt.startedAtMs >= cutoff }
+        .sorted {
+          if $0.attempt.startedAtMs == $1.attempt.startedAtMs {
+            return $0.attempt.id > $1.attempt.id
+          }
+          return $0.attempt.startedAtMs > $1.attempt.startedAtMs
         }
-        return $0.attempt.startedAtMs > $1.attempt.startedAtMs
+      let kept = Array(retained.prefix(maxAttempts))
+      let keptURLs = Set(kept.map(\.url))
+      for candidate in loaded where !keptURLs.contains(candidate.url) {
+        try? FileManager.default.removeItem(at: candidate.url)
+        try? FileManager.default.removeItem(at: lockURL(for: candidate.attempt.id))
       }
-    let kept = Array(retained.prefix(maxAttempts))
-    let keptURLs = Set(kept.map(\.url))
-    for candidate in loaded where !keptURLs.contains(candidate.url) {
-      try? FileManager.default.removeItem(at: candidate.url)
-      try? FileManager.default.removeItem(at: lockURL(for: candidate.attempt.id))
-    }
-    return ShareDiagnosticsArchive(schemaVersion: 1, attempts: kept.map(\.attempt))
+      return ShareDiagnosticsArchive(schemaVersion: 1, attempts: kept.map(\.attempt))
+    }) ?? ShareDiagnosticsArchive(schemaVersion: 1, attempts: [])
   }
 
   fileprivate func persist(_ attempt: ShareDiagnosticAttempt) throws {
-    let data = try encoder.encode(attempt)
-    try data.write(to: fileURL(for: attempt.id), options: .atomic)
+    try SharedStorageAccess.shared.withAccess(generation: storageGeneration) {
+      let data = try encoder.encode(attempt)
+      try data.write(to: fileURL(for: attempt.id), options: .atomic)
+    }
   }
 
   /// Appends one event to the attempt on disk. The Share extension and the main
@@ -286,15 +298,23 @@ public final class ShareDiagnosticsStore: @unchecked Sendable {
   }
 
   private func withAttemptLock(_ attemptID: String, _ body: () -> Void) {
-    let descriptor = open(lockURL(for: attemptID).path, O_CREAT | O_RDWR, 0o600)
-    // Diagnostics are best-effort: if the lock cannot be taken the write still happens.
-    guard descriptor >= 0 else { return body() }
-    defer { close(descriptor) }
-    while flock(descriptor, LOCK_EX) != 0 {
-      guard errno == EINTR else { return body() }
+    _ = try? SharedStorageAccess.shared.withAccess(generation: storageGeneration) {
+      let descriptor = open(lockURL(for: attemptID).path, O_CREAT | O_RDWR, 0o600)
+      guard descriptor >= 0 else { return }
+      defer { close(descriptor) }
+      let deadline = DispatchTime.now().uptimeNanoseconds + 100_000_000
+      while flock(descriptor, LOCK_EX | LOCK_NB) != 0 {
+        guard DispatchTime.now().uptimeNanoseconds < deadline else { return }
+        try SharedStorageAccess.shared.requireOpen()
+        guard SharedStorageAccess.shared.generation == storageGeneration else { return }
+        guard errno == EWOULDBLOCK || errno == EAGAIN || errno == EINTR else { return }
+        usleep(1_000)
+      }
+      defer { flock(descriptor, LOCK_UN) }
+      try SharedStorageAccess.shared.requireOpen()
+      guard SharedStorageAccess.shared.generation == storageGeneration else { return }
+      body()
     }
-    defer { flock(descriptor, LOCK_UN) }
-    body()
   }
 
   /// Appends an event to an already-started attempt (for example, the main
