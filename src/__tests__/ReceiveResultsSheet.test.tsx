@@ -12,6 +12,11 @@ const mockService = {
   refresh: jest.fn(async () => undefined),
 };
 
+jest.mock('@/platform/engine', () => ({
+  ...jest.requireActual('@/platform/engine'),
+  getUnifiedEngineService: () => ({ refreshOutboundProgress: jest.fn(async () => undefined) }),
+}));
+
 jest.mock('@/features/transfer', () => ({
   getReceiveResultsService: () => mockService,
 }));

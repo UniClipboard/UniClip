@@ -1572,7 +1572,7 @@ describe('UnifiedSpaceService', () => {
       errored: 0,
       pending: 0,
     });
-    expect(api.resendEntry).toHaveBeenCalledWith('entry-1', []);
+    expect(api.resendEntry).toHaveBeenCalledWith('entry-1', [], false);
   });
 
   it('returns workspace convergence and refreshes the roster after removing a device', async () => {
