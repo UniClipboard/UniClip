@@ -156,6 +156,7 @@ describe('P2pSyncAdapter', () => {
     };
 
     await expect(adapter.sendCurrentClipboard()).resolves.toEqual({
+      entryId: 'entry-1',
       success: true,
       state: 'delivered',
       counts: { accepted: 1, duplicate: 2, offline: 3, errored: 4, pending: 5 },
