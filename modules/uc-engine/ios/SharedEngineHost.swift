@@ -664,7 +664,6 @@ enum P2pSharedStore {
 private final class ExtensionMobileEngineAdapter: ExtensionSyncEngine {
   private let engine: MobileEngine
   private let localDeviceId: String
-  private var latestOutboundPeerByEntryId: [String: String] = [:]
 
   init(engine: MobileEngine, localDeviceId: String) {
     self.engine = engine
@@ -694,31 +693,6 @@ private final class ExtensionMobileEngineAdapter: ExtensionSyncEngine {
     case .activeClipboardChanged(_, let entryId, _, let activatedBy)
     where activatedBy != localDeviceId:
       return .remoteActiveClipboardChanged(entryId: entryId)
-    case .transferProgress(
-      _,
-      let entryId,
-      _,
-      let peerId,
-      let direction,
-      let completedBytes,
-      let totalBytes
-    ) where direction == .sending:
-      guard let entryId else { return .other }
-      latestOutboundPeerByEntryId[entryId] = peerId
-      return .outboundTransferProgress(
-        entryId: entryId,
-        peerId: peerId,
-        completedBytes: completedBytes,
-        totalBytes: totalBytes
-      )
-    case .transferStatusChanged(_, let entryId, _, let status, let reason):
-      guard let entryId else { return .other }
-      return .outboundTransferStatusChanged(
-        entryId: entryId,
-        peerId: latestOutboundPeerByEntryId.removeValue(forKey: entryId),
-        status: status,
-        reason: reason
-      )
     default:
       return .other
     }

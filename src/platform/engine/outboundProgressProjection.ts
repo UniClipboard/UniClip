@@ -3,7 +3,6 @@ import type { EngineFailure, OutboundProgress } from "@/platform/engine";
 export interface OutboundProgressSnapshot {
   progress: OutboundProgress[];
   available: boolean;
-  error: boolean;
   failure: EngineFailure | null;
 }
 
@@ -12,7 +11,6 @@ export class OutboundProgressProjection {
   private snapshot: OutboundProgressSnapshot = {
     progress: [],
     available: false,
-    error: false,
     failure: null,
   };
   private running: Promise<void> | null = null;
@@ -31,7 +29,6 @@ export class OutboundProgressProjection {
     this.snapshot = {
       progress: [],
       available: false,
-      error: false,
       failure: null,
     };
   }
@@ -59,7 +56,6 @@ export class OutboundProgressProjection {
         this.snapshot = {
           progress,
           available: true,
-          error: false,
           failure: null,
         };
       } catch (error) {
@@ -82,7 +78,6 @@ export class OutboundProgressProjection {
         this.snapshot = {
           ...this.snapshot,
           available: false,
-          error: true,
           failure,
         };
       }

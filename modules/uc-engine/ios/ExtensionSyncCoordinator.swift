@@ -127,18 +127,6 @@ public enum ExtensionStableIdentifier {
 
 public enum ExtensionSyncEvent: Equatable, Sendable {
   case remoteActiveClipboardChanged(entryId: String)
-  case outboundTransferProgress(
-    entryId: String,
-    peerId: String,
-    completedBytes: UInt64,
-    totalBytes: UInt64?
-  )
-  case outboundTransferStatusChanged(
-    entryId: String,
-    peerId: String?,
-    status: String,
-    reason: String?
-  )
   case other
 }
 
@@ -398,69 +386,6 @@ public final class ExtensionSyncCoordinator {
       }
       if try restoreRemoteClipboardIfNeeded(entryId: pendingRemoteEntryId) {
         return true
-      }
-    }
-  }
-
-  public func waitForOutboundDelivery(
-    entryId: String,
-    expectedReceiverCount: UInt64,
-    timeoutMs: UInt64,
-    onTransferProgress: ((ExtensionTransferProgress) -> Void)? = nil
-  ) throws {
-    guard expectedReceiverCount > 0 else { return }
-    guard timeoutMs > 0 else { throw ExtensionOutboundDeliveryError.timedOut }
-
-    let start = DispatchTime.now().uptimeNanoseconds
-    let timeoutNanoseconds = timeoutMs.multipliedReportingOverflow(by: 1_000_000)
-    let budget = timeoutNanoseconds.overflow ? UInt64.max : timeoutNanoseconds.partialValue
-    var completedPeers = Set<String>()
-
-    while true {
-      let elapsed = DispatchTime.now().uptimeNanoseconds - start
-      guard elapsed < budget else { throw ExtensionOutboundDeliveryError.timedOut }
-      let remainingNanoseconds = budget - elapsed
-      let wholeMilliseconds = remainingNanoseconds / 1_000_000
-      let remainingMs = wholeMilliseconds + (remainingNanoseconds % 1_000_000 == 0 ? 0 : 1)
-      guard let event = try engine.nextEvent(timeoutMs: remainingMs) else {
-        throw ExtensionOutboundDeliveryError.timedOut
-      }
-      if case .outboundTransferProgress(
-        let eventEntryId,
-        let peerId,
-        let completedBytes,
-        let totalBytes
-      ) = event, eventEntryId == entryId {
-        onTransferProgress?(ExtensionTransferProgress(
-          peerId: peerId,
-          completedBytes: completedBytes,
-          totalBytes: totalBytes
-        ))
-        continue
-      }
-      guard
-        case .outboundTransferStatusChanged(
-          let eventEntryId,
-          let peerId,
-          let status,
-          let reason
-        ) = event,
-        eventEntryId == entryId
-      else { continue }
-
-      switch status.lowercased() {
-      case "completed":
-        guard let peerId else { continue }
-        completedPeers.insert(peerId)
-        if UInt64(completedPeers.count) >= expectedReceiverCount {
-          return
-        }
-      case "failed":
-        throw ExtensionOutboundDeliveryError.failed(reason: reason)
-      case "cancelled":
-        throw ExtensionOutboundDeliveryError.cancelled(reason: reason)
-      default:
-        continue
       }
     }
   }

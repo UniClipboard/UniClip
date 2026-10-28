@@ -31,7 +31,7 @@ export interface UnifiedEngineSnapshot {
 
 export function createInitialUnifiedEngineSnapshot(): UnifiedEngineSnapshot {
   return {
-    outbound: { progress: [], available: false, error: false, failure: null },
+    outbound: { progress: [], available: false, failure: null },
     status: 'stopped',
     configImportStatus: { kind: 'unchecked' },
     isStarted: false,

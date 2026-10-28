@@ -423,22 +423,6 @@ export function useShareSendController(onClose: () => void, active: boolean, job
     }
   }, [jobViews, onClose, selectedTargetIds, sendOne]);
 
-  // 重试单个 job(无需重新认领)
-  const retryJob = useCallback(
-    async (jobId: string) => {
-      if (sendingRef.current) return;
-      const view = jobViews.find((v) => v.job.id === jobId);
-      if (!view) return;
-      sendingRef.current = true;
-      try {
-        await sendOne(view, [...selectedTargetIds]);
-      } finally {
-        sendingRef.current = false;
-      }
-    },
-    [jobViews, selectedTargetIds, sendOne]
-  );
-
   // 删除(显式):二次确认后清除记录 + payload,不可恢复
   const deleteJob = useCallback(async (jobId: string) => {
     await completeJob(jobId);
@@ -497,7 +481,6 @@ export function useShareSendController(onClose: () => void, active: boolean, job
     isDone,
     canSend,
     sendAll,
-    retryJob,
     deleteJob,
     toggleTarget,
     refreshTargets,
