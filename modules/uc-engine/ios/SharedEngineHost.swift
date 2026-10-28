@@ -822,35 +822,54 @@ final class AppleEngineHost: BindingHost, @unchecked Sendable {
         else { return nil as AppleClipboardDisplayMetadata? }
         return try? AppleClipboardDisplayMetadata(data: bytes)
       }.first
-      guard
-        let first = snapshot.representations.first(where: { representation in
-          guard case .inline(let format, let mimeType, _) = representation else { return true }
-          return !AppleClipboardDisplayMetadata.matches(format: format, mimeType: mimeType)
-        })
-      else {
-        UIPasteboard.general.items = []
-        return
+      let representations = snapshot.representations.filter { representation in
+        guard case .inline(let format, let mimeType, _) = representation else { return true }
+        return !AppleClipboardDisplayMetadata.matches(format: format, mimeType: mimeType)
       }
-      switch first {
-      case .inline(let format, let mimeType, let bytes):
-        let fileSelection = AppleClipboardFileResolver.resolve(
-          format: format,
-          mimeType: mimeType,
-          bytes: bytes,
-          metadata: metadata,
-          allowedRoots: [
-            try self.applicationSupportDirectory(),
-            self.p2pDirectory.appendingPathComponent("cache", isDirectory: true),
-            FileManager.default.temporaryDirectory,
-          ]
-        )
-        if let fileSelection {
+      // A materialized file must win over accompanying sender-side path text.
+      for representation in representations {
+        switch representation {
+        case .file(_, let handle, let displayName, _, _):
+          UIPasteboard.general.url = try withHostBindingError {
+            try self.clipboardShares.create(displayName: displayName) { target in
+              try self.files.copy(handle, to: target)
+            }
+          }
+          return
+        case .inline(let format, let mimeType, let bytes):
+          guard AppleClipboardFileResolver.matches(format: format, mimeType: mimeType),
+            let fileSelection = AppleClipboardFileResolver.resolve(
+              format: format,
+              mimeType: mimeType,
+              bytes: bytes,
+              metadata: metadata,
+              allowedRoots: [
+                try self.applicationSupportDirectory(),
+                self.p2pDirectory.appendingPathComponent("cache", isDirectory: true),
+                FileManager.default.temporaryDirectory,
+              ]
+            )
+          else { continue }
           UIPasteboard.general.url = try withHostBindingError {
             try self.clipboardShares.create(displayName: fileSelection.displayName) { target in
               try FileManager.default.copyItem(at: fileSelection.sourceURL, to: target)
             }
           }
-        } else if format == "text/plain", let text = String(data: bytes, encoding: .utf8) {
+          return
+        }
+      }
+      // Keep the existing non-file ordering, including rich text and images.
+      guard let first = representations.first(where: { representation in
+        guard case .inline(let format, let mimeType, _) = representation else { return false }
+        return !AppleClipboardFileResolver.matches(format: format, mimeType: mimeType)
+      }) else {
+        guard representations.isEmpty else { throw HostBindingError.Unavailable }
+        UIPasteboard.general.items = []
+        return
+      }
+      switch first {
+      case .inline(let format, let mimeType, let bytes):
+        if format == "text/plain", let text = String(data: bytes, encoding: .utf8) {
           UIPasteboard.general.string = text
         } else if let image = UIImage(data: bytes) {
           UIPasteboard.general.image = image
@@ -858,12 +877,8 @@ final class AppleEngineHost: BindingHost, @unchecked Sendable {
           let type = mimeType.flatMap { UTType(mimeType: $0) }?.identifier ?? format
           UIPasteboard.general.setData(bytes, forPasteboardType: type)
         }
-      case .file(_, let handle, let displayName, _, _):
-        UIPasteboard.general.url = try withHostBindingError {
-          try self.clipboardShares.create(displayName: displayName) { target in
-            try self.files.copy(handle, to: target)
-          }
-        }
+      case .file:
+        throw HostBindingError.Unavailable
       }
     }
   }
