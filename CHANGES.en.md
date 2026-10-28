@@ -1,3 +1,10 @@
+v2.3.0.196-alpha.1
+
+### iOS
+
+- Improvement: Use Engine-confirmed outbound states to distinguish delivered, awaiting confirmation, and failed items.
+- Improvement: Ask for confirmation before resending items.
+
 v2.3.0.195
 
 ### Common
