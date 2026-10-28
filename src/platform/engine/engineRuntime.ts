@@ -1,3 +1,5 @@
+import { OutboundProgressProjection } from "./outboundProgressProjection";
+import type { Device, OutboundProgress } from "./contracts";
 import NetInfo from '@react-native-community/netinfo';
 import type {
   EngineConfig,
@@ -18,6 +20,8 @@ import {
 const log = createLogger('UnifiedEngineService');
 
 export interface UnifiedEngineApi {
+  listOutboundProgress(): Promise<OutboundProgress[]>;
+  listDevices(): Promise<Device[]>;
   start(config: EngineConfig): Promise<void>;
   queryRejectedConfigImport(): Promise<RejectedConfigImport | null>;
   shutdown(deadlineMs?: number): Promise<void>;
@@ -39,6 +43,7 @@ function errorMessage(error: unknown): string {
 
 export class UnifiedEngineService {
   private snapshot = createInitialUnifiedEngineSnapshot();
+  private readonly outbound: OutboundProgressProjection;
   private generation = 0;
   private nativeStarted = false;
   private nativeHandleExists = false;
@@ -53,7 +58,23 @@ export class UnifiedEngineService {
     private readonly publish: SnapshotPublisher = publishUnifiedEngineSnapshot,
     private readonly eventTimeoutMs = DEFAULT_EVENT_TIMEOUT_MS
   ) {
+    this.outbound = new OutboundProgressProjection(
+      () => this.api.listOutboundProgress(),
+      (outbound) => {
+        if (this.nativeStarted) this.updateSnapshot({ outbound });
+      },
+    );
     this.publishSnapshot();
+  }
+
+  listDevices(): Promise<Device[]> {
+    return this.api.listDevices();
+  }
+  listOutboundProgress(): Promise<OutboundProgress[]> {
+    return this.api.listOutboundProgress();
+  }
+  refreshOutboundProgress(): Promise<void> {
+    return this.outbound.refresh();
   }
 
   start(config: EngineConfig): Promise<void> {
@@ -61,6 +82,7 @@ export class UnifiedEngineService {
     if (this.startInFlight) return this.startInFlight;
 
     const generation = ++this.generation;
+    this.outbound.reset();
     this.configImportQuery = null;
     this.snapshot = {
       ...createInitialUnifiedEngineSnapshot(),
@@ -92,26 +114,29 @@ export class UnifiedEngineService {
           log.info(
             `peer connections online total=${report.total} online=${
               report.online
-            } (relay configuration is owned and logged by the engine)`
+            } (relay configuration is owned and logged by the engine)`,
           );
         }
         return report;
       },
       (error) => {
         if (generation === this.generation && this.nativeStarted)
-          this.updatePeerConnectionStatus('offline');
+          this.updatePeerConnectionStatus("offline");
         throw error;
-      }
+      },
     );
   }
 
-  async notifyConnectivityOpportunity(reason: ConnectivityOpportunity): Promise<void> {
+  async notifyConnectivityOpportunity(
+    reason: ConnectivityOpportunity,
+  ): Promise<void> {
     if (!this.nativeStarted) return;
     try {
       await this.api.notifyConnectivityOpportunity(reason);
     } finally {
       // Android also resumes natively. Refresh after the foreground recovery path.
-      if (reason === 'foreground') await this.refreshRejectedConfigImport();
+      if (reason === "foreground") await this.refreshRejectedConfigImport();
+      await this.refreshOutboundProgress();
     }
   }
 
@@ -119,6 +144,7 @@ export class UnifiedEngineService {
     if (!this.nativeStarted) return;
     await this.api.resume();
     await this.refreshRejectedConfigImport();
+    await this.refreshOutboundProgress();
   }
 
   refreshRejectedConfigImport(): Promise<void> {
@@ -137,23 +163,39 @@ export class UnifiedEngineService {
     try {
       const rejection = await this.api.queryRejectedConfigImport();
       if (generation !== this.generation || !this.nativeStarted) return;
-      this.updateSnapshot({ configImportStatus: { kind: 'checked', rejection } });
+      this.updateSnapshot({
+        configImportStatus: { kind: "checked", rejection },
+      });
     } catch (error) {
       if (generation !== this.generation || !this.nativeStarted) return;
-      const failure = error !== null && typeof error === 'object'
-        && 'code' in error && typeof error.code === 'number'
-        && 'category' in error && typeof error.category === 'string'
-        && 'retryable' in error && typeof error.retryable === 'boolean'
-        ? { code: error.code, category: error.category, retryable: error.retryable }
-        : null;
-      this.updateSnapshot({ configImportStatus: { kind: 'unavailable', failure } });
-      log.warn('Failed to query rejected configuration import status', failure);
+      const failure =
+        error !== null &&
+        typeof error === "object" &&
+        "code" in error &&
+        typeof error.code === "number" &&
+        "category" in error &&
+        typeof error.category === "string" &&
+        "retryable" in error &&
+        typeof error.retryable === "boolean"
+          ? {
+              code: error.code,
+              category: error.category,
+              retryable: error.retryable,
+            }
+          : null;
+      this.updateSnapshot({
+        configImportStatus: { kind: "unavailable", failure },
+      });
+      log.warn("Failed to query rejected configuration import status", failure);
     }
   }
 
   setBackgroundSyncPolicy(enabled: boolean): Promise<void> {
     if (!this.nativeStarted) return Promise.resolve();
-    return this.api.setBackgroundSyncEnabled(enabled, AppState.currentState !== 'active');
+    return this.api.setBackgroundSyncEnabled(
+      enabled,
+      AppState.currentState !== "active",
+    );
   }
 
   subscribeEvents(subscriber: EngineEventSubscriber): () => void {
@@ -165,6 +207,7 @@ export class UnifiedEngineService {
     this.networkUnsubscribe?.();
     this.networkUnsubscribe = null;
     ++this.generation;
+    this.outbound.reset();
 
     const startInFlight = this.startInFlight;
     let shutdownError: unknown;
@@ -201,11 +244,11 @@ export class UnifiedEngineService {
     if (shutdownError) {
       const message = errorMessage(shutdownError);
       this.updateSnapshot({
-        status: 'failed',
+        status: "failed",
         isStarted: false,
         lastError: message,
       });
-      log.error('Failed to stop the P2P engine:', shutdownError);
+      log.error("Failed to stop the P2P engine:", shutdownError);
       throw shutdownError;
     }
 
@@ -218,7 +261,10 @@ export class UnifiedEngineService {
     this.nativeHandleExists = false;
   }
 
-  private async startNative(config: EngineConfig, generation: number): Promise<void> {
+  private async startNative(
+    config: EngineConfig,
+    generation: number,
+  ): Promise<void> {
     try {
       // A stopped runtime still owns a native module handle until shutdown releases it.
       if (this.nativeHandleExists) await this.shutdownCompletely();
@@ -228,32 +274,33 @@ export class UnifiedEngineService {
 
       this.nativeStarted = true;
       this.networkUnsubscribe = NetInfo.addEventListener(() => {
-        void this.notifyConnectivityOpportunity('network_changed').catch(() => {
-          log.warn('Failed to report a network connectivity opportunity');
+        void this.notifyConnectivityOpportunity("network_changed").catch(() => {
+          log.warn("Failed to report a network connectivity opportunity");
         });
       });
       this.updateSnapshot({
-        status: 'running',
+        status: "running",
         isStarted: true,
         lastError: null,
       });
       await this.refreshRejectedConfigImport();
+      await this.refreshOutboundProgress();
       if (generation !== this.generation) return;
       const eventLoop = this.consumeEvents(generation);
       this.eventLoop = eventLoop;
       void eventLoop.then(
         () => this.clearEventLoop(eventLoop),
-        () => this.clearEventLoop(eventLoop)
+        () => this.clearEventLoop(eventLoop),
       );
     } catch (error) {
       if (generation === this.generation) {
         const message = errorMessage(error);
         this.updateSnapshot({
-          status: 'failed',
+          status: "failed",
           isStarted: false,
           lastError: message,
         });
-        log.error('Failed to start the P2P engine:', error);
+        log.error("Failed to start the P2P engine:", error);
       }
       throw error;
     }
@@ -267,90 +314,101 @@ export class UnifiedEngineService {
       } catch (error) {
         if (generation !== this.generation) return;
         const message = errorMessage(error);
-        this.updateSnapshot({ status: 'failed', lastError: message });
-        log.error('Failed to read a P2P engine event:', error);
+        this.updateSnapshot({ status: "failed", lastError: message });
+        log.error("Failed to read a P2P engine event:", error);
         return;
       }
 
       if (generation !== this.generation || !event) continue;
       this.applyEvent(event);
-      if (event.type === 'fatal') return;
+      if (event.type === "fatal") return;
     }
   }
 
   private applyEvent(event: EngineEvent): void {
+    if (
+      event.type === "outboundProgressChanged" ||
+      event.type === "refreshRequired" ||
+      (event.type === "stateChanged" && event.state === "running") ||
+      (event.type === "peerPresenceChanged" && event.state === "online")
+    ) {
+      void this.refreshOutboundProgress();
+    }
     for (const subscriber of this.eventSubscribers) {
       try {
         subscriber(event);
       } catch (error) {
-        log.error('A P2P event subscriber failed:', error);
+        log.error("A P2P event subscriber failed:", error);
       }
     }
 
     switch (event.type) {
-      case 'stateChanged':
-        if (event.state === 'stopped') {
+      case "stateChanged":
+        if (event.state === "stopped") {
           this.nativeStarted = false;
           this.networkUnsubscribe?.();
           this.networkUnsubscribe = null;
         }
         this.updateSnapshot({
           status: event.state,
-          isStarted: event.state !== 'stopped',
+          isStarted: event.state !== "stopped",
           lastEvent: event,
         });
         break;
-      case 'refreshRequired':
+      case "refreshRequired":
         this.updateSnapshot({
           lastEvent: event,
           refreshRevision: this.snapshot.refreshRevision + 1,
         });
         break;
-      case 'changed':
+      case "changed":
         this.updateSnapshot({ lastEvent: event, lastChangedKind: event.kind });
         break;
-      case 'incomingEntry':
-      case 'incomingPending':
-      case 'receiveAttemptStateChanged':
-      case 'deliveryStatusChanged':
-      case 'transferStatusChanged':
-      case 'activeClipboardChanged':
-      case 'deviceTrustChanged':
-      case 'rePairingRequired':
-      case 'networkRecoveryChanged':
+      case "outboundProgressChanged":
+      case "incomingEntry":
+      case "incomingPending":
+      case "receiveAttemptStateChanged":
+      case "deliveryStatusChanged":
+      case "transferStatusChanged":
+      case "activeClipboardChanged":
+      case "deviceTrustChanged":
+      case "rePairingRequired":
+      case "networkRecoveryChanged":
         this.updateSnapshot({
           lastEvent: event,
           lastChangedKind: event.type,
           refreshRevision: this.snapshot.refreshRevision + 1,
         });
         break;
-      case 'peerPresenceChanged':
+      case "peerPresenceChanged":
         this.updateSnapshot({
           lastEvent: event,
           lastChangedKind: event.type,
-          ...(event.state === 'online' ? { peerConnectionStatus: 'online' as const } : {}),
+          ...(event.state === "online"
+            ? { peerConnectionStatus: "online" as const }
+            : {}),
           refreshRevision: this.snapshot.refreshRevision + 1,
         });
         break;
-      case 'transferProgress':
+      case "transferProgress":
         this.updateSnapshot({ lastEvent: event, lastChangedKind: event.type });
         break;
-      case 'fatal':
+      case "fatal":
         this.updateSnapshot({
-          status: 'failed',
+          status: "failed",
           lastEvent: event,
           fatalFailure: event.failure,
         });
-        log.error('The P2P engine reported a fatal failure:', event.failure);
+        log.error("The P2P engine reported a fatal failure:", event.failure);
         break;
-      case 'lifecycleFailed':
+      case "lifecycleFailed":
         this.updateSnapshot({
           lastEvent: event,
           lifecycleFailure: { action: event.action, failure: event.failure },
         });
         log.error(`The P2P engine failed to ${event.action}:`, event.failure);
         break;
-      case 'operationFinished':
+      case "operationFinished":
         this.updateSnapshot({ lastEvent: event });
         break;
     }
@@ -385,14 +443,15 @@ let sharedApi: UnifiedEngineApi | null = null;
 
 export function configureUnifiedEngineService(api: UnifiedEngineApi): void {
   if (sharedService) {
-    throw new Error('The unified engine service has already been created');
+    throw new Error("The unified engine service has already been created");
   }
   sharedApi = api;
 }
 
 export function getUnifiedEngineService(): UnifiedEngineService {
   if (!sharedService) {
-    if (!sharedApi) throw new Error('The unified engine service is not configured');
+    if (!sharedApi)
+      throw new Error("The unified engine service is not configured");
     sharedService = new UnifiedEngineService(sharedApi);
   }
   return sharedService;

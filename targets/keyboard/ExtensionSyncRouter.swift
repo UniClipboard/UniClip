@@ -191,6 +191,7 @@ enum ExtensionSyncRouter {
         try waitForDelivery(
             delivery,
             using: client,
+            targetDeviceIds: targetDevices,
             onTransferProgress: onTransferProgress
         )
         progress(.sent)
@@ -224,6 +225,7 @@ enum ExtensionSyncRouter {
         try waitForDelivery(
             delivery,
             using: client,
+            targetDeviceIds: targetDevices,
             onTransferProgress: onTransferProgress
         )
         progress(.sent)
@@ -232,12 +234,14 @@ enum ExtensionSyncRouter {
     private static func waitForDelivery(
         _ delivery: ExtensionDeliveryReport,
         using client: ExtensionP2pClient,
+        targetDeviceIds: [String],
         onTransferProgress: @escaping (ExtensionTransferProgress) -> Void
     ) throws {
         try client.waitForOutboundDelivery(
             entryId: delivery.entryId,
-            expectedReceiverCount: delivery.accepted,
+            expectedReceiverCount: delivery.accepted + delivery.duplicate + delivery.pending,
             timeoutMs: outboundDeliveryTimeoutMs,
+            targetDeviceIds: targetDeviceIds,
             onTransferProgress: onTransferProgress
         )
     }

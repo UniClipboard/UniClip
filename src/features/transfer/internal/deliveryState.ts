@@ -13,7 +13,8 @@ export function p2pDeliveryStateFromReport(report: SendReport): P2pDeliveryState
 }
 
 export function p2pDeliveryStateFromResend(outcome: ResendEntryOutcome): P2pDeliveryState {
-  if (outcome.kind !== 'completed') return 'failed';
+  if (outcome.kind !== "completed") return "failed";
+  if (outcome.reconciled.length > 0) return "pending";
   return p2pDeliveryStateFromCounts(p2pDeliveryCountsFromResend(outcome));
 }
 
@@ -71,14 +72,15 @@ export function p2pDeliveryUpdates(
 
 export async function persistP2pDeliveryReport(
   profileHash: string | undefined,
-  report: SendReport
+  report: SendReport,
+  deliveryState?: P2pDeliveryState,
 ): Promise<void> {
   if (!profileHash) return;
   await updateHistoryItem(
     profileHash,
     p2pDeliveryUpdates(
       report.entryId,
-      p2pDeliveryStateFromReport(report),
+      deliveryState ?? p2pDeliveryStateFromReport(report),
       p2pDeliveryCountsFromReport(report)
     )
   );

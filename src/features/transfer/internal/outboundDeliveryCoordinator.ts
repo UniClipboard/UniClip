@@ -1,7 +1,14 @@
-import type { EngineEvent, SendReport } from '@/platform/engine';
+import type {
+  Device,
+  EngineEvent,
+  OutboundProgress,
+  SendReport,
+} from "@/platform/engine";
 
 export interface OutboundDeliveryEventSource {
   subscribeEvents(subscriber: (event: EngineEvent) => void): () => void;
+  listOutboundProgress(): Promise<OutboundProgress[]>;
+  listDevices(): Promise<Device[]>;
 }
 
 export interface OutboundDeliveryOutcome {
@@ -13,142 +20,150 @@ export interface OutboundDeliveryOutcome {
   reasons: string[];
 }
 
-interface OutboundTransfer {
-  entryId: string;
-  peerId: string;
-}
-
-interface TerminalTransfer {
-  entryId: string;
-  peerId: string;
-  status: 'completed' | 'failed' | 'cancelled';
-  reason: string | null;
-}
-
-const DEFAULT_OUTBOUND_DELIVERY_TIMEOUT_MS = 120_000;
-
+/** Wait only for Engine snapshots. Events never establish delivery. */
 export class OutboundDeliveryCoordinator {
   constructor(
-    private readonly events: OutboundDeliveryEventSource,
-    private readonly timeoutMs = DEFAULT_OUTBOUND_DELIVERY_TIMEOUT_MS
+    private readonly source: OutboundDeliveryEventSource,
+    private readonly timeoutMs = 120_000,
   ) {}
 
-  async run(send: () => Promise<SendReport>): Promise<OutboundDeliveryOutcome> {
-    const outboundTransfers = new Map<string, OutboundTransfer[]>();
-    const terminalTransfers = new Map<string, TerminalTransfer>();
+  async run(
+    send: () => Promise<SendReport>,
+    targetDeviceIds: string[] = [],
+  ): Promise<OutboundDeliveryOutcome> {
+    const targetIds = new Set(
+      targetDeviceIds.length > 0
+        ? targetDeviceIds
+        : (await this.source.listDevices())
+            .filter((device) => !device.isLocal)
+            .map((device) => device.deviceId),
+    );
     let report: SendReport | null = null;
-    let timeout: ReturnType<typeof setTimeout> | null = null;
-    let resolveOutcome!: (outcome: OutboundDeliveryOutcome) => void;
-    const outcomePromise = new Promise<OutboundDeliveryOutcome>((resolve) => {
-      resolveOutcome = resolve;
+    let progress: OutboundProgress[] = [];
+    let readable = false;
+    let active = true;
+    let dirty = false;
+    let reading: Promise<void> | null = null;
+    let finish!: (outcome: OutboundDeliveryOutcome) => void;
+    const done = new Promise<OutboundDeliveryOutcome>((resolve) => {
+      finish = resolve;
     });
-
-    const collectOutcome = (): OutboundDeliveryOutcome | null => {
-      if (!report) return null;
-      const expectedReceiverCount = this.expectedReceiverCount(report);
-      if (expectedReceiverCount === 0) return this.outcome(report, []);
-
-      const terminalByPeer = new Map<string, TerminalTransfer>();
-      for (const terminal of terminalTransfers.values()) {
-        if (terminal.entryId !== report.entryId) continue;
-        terminalByPeer.set(terminal.peerId, terminal);
-      }
-      if (terminalByPeer.size < expectedReceiverCount) return null;
-      return this.outcome(report, [...terminalByPeer.values()]);
-    };
-
-    const finishIfReady = () => {
-      const outcome = collectOutcome();
-      if (!outcome) return;
-      if (timeout) clearTimeout(timeout);
-      resolveOutcome(outcome);
-    };
-
-    const unsubscribe = this.events.subscribeEvents((event) => {
-      if (event.type === 'transferProgress' && event.direction === 'sending' && event.entryId) {
-        const transfers = outboundTransfers.get(event.transferId) ?? [];
-        if (
-          !transfers.some(
-            (transfer) => transfer.entryId === event.entryId && transfer.peerId === event.peerId
-          )
-        ) {
-          transfers.push({ entryId: event.entryId, peerId: event.peerId });
-          outboundTransfers.set(event.transferId, transfers);
-        }
-      } else if (event.type === 'transferStatusChanged') {
-        const status = event.status.toLowerCase();
-        if (status === 'completed' || status === 'failed' || status === 'cancelled') {
-          const outbound = outboundTransfers
-            .get(event.transferId)
-            ?.find(
-              (transfer) =>
-                transfer.entryId === event.entryId &&
-                !terminalTransfers.has(`${event.entryId}\0${transfer.peerId}`)
+    const collect = (): OutboundDeliveryOutcome => {
+      const admitted =
+        report!.totalAccepted + report!.totalDuplicate + report!.totalPending;
+      const targets =
+        admitted === 0
+          ? []
+          : progress.filter(
+              (p) =>
+                p.entryId === report!.entryId &&
+                targetIds.has(p.targetDeviceId),
             );
-          const peerId = outbound?.peerId ?? event.transferId;
-          terminalTransfers.set(`${event.entryId}\0${peerId}`, {
-            entryId: event.entryId,
-            peerId,
-            status,
-            reason: event.reason,
-          });
-        }
+      // The aggregate report cannot identify offline peers. Wait conservatively for the selected
+      // target set rather than letting an unrelated historical target satisfy a recipient count.
+      const expected = admitted === 0 ? 0 : Math.max(admitted, targetIds.size);
+      // A partially failed/cancelled batch is settled only when no item remains unknown/running.
+      const settled = (p: OutboundProgress) =>
+        readable &&
+        p.itemsRunning === 0 &&
+        p.itemsWaiting === 0 &&
+        p.itemsUnconfirmed === 0;
+      const completed = targets.filter(
+        (p) => settled(p) && p.state === "completed",
+      ).length;
+      const failed = targets.filter(
+        (p) =>
+          settled(p) &&
+          (p.state === "failed" || p.state === "partially_failed"),
+      ).length;
+      const cancelled = targets.filter(
+        (p) =>
+          settled(p) &&
+          (p.state === "cancelled" || p.state === "partially_cancelled"),
+      ).length;
+      return {
+        report: report!,
+        completed,
+        failed,
+        cancelled,
+        pending: Math.max(0, expected - completed - failed - cancelled),
+        reasons: targets.flatMap((p) =>
+          p.items.flatMap((item) =>
+            item.failureReason
+              ? [item.failureReason]
+              : item.cancellationReason
+                ? [item.cancellationReason]
+                : [],
+          ),
+        ),
+      };
+    };
+    const refresh = (): Promise<void> => {
+      dirty = true;
+      if (reading) return reading;
+      reading = (async () => {
+        while (dirty && active && report) {
+          dirty = false;
+          try {
+            progress = await this.source.listOutboundProgress();
+            readable = true;
+          } catch {
+            readable = false;
       }
-      finishIfReady();
+          if (!active) return;
+          const outcome = collect();
+          if (outcome.pending === 0) finish(outcome);
+        }
+      })().finally(() => {
+        reading = null;
+      });
+      return reading;
+    };
+    const unsubscribe = this.source.subscribeEvents((event) => {
+      if (
+        event.type === "outboundProgressChanged" ||
+        event.type === "refreshRequired" ||
+        event.type === "peerPresenceChanged" ||
+        event.type === "stateChanged"
+      ) {
+        if (report) void refresh();
+        }
     });
-
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    let poll: ReturnType<typeof setInterval> | undefined;
     try {
       report = await send();
-      const immediate = collectOutcome();
-      if (immediate) return immediate;
-
-      timeout = setTimeout(() => {
-        const terminalByPeer = new Map<string, TerminalTransfer>();
-        for (const terminal of terminalTransfers.values()) {
-          if (terminal.entryId !== report?.entryId) continue;
-          terminalByPeer.set(terminal.peerId, terminal);
-        }
-        resolveOutcome(this.outcome(report!, [...terminalByPeer.values()]));
-      }, this.timeoutMs);
-      finishIfReady();
-      return await outcomePromise;
+      // The wait deadline bounds the UI wait. It does not rewrite Engine state or cancel work.
+      timeout = setTimeout(() => finish(collect()), this.timeoutMs);
+      // A lost invalidation must not leave this short-lived delivery waiter permanently stale.
+      poll = setInterval(() => {
+        void refresh();
+      }, 1000);
+      void refresh();
+      return await done;
     } finally {
-      if (timeout) clearTimeout(timeout);
+      active = false;
+      clearTimeout(timeout);
+      clearInterval(poll);
       unsubscribe();
     }
   }
-
-  private outcome(report: SendReport, terminals: TerminalTransfer[]): OutboundDeliveryOutcome {
-    const completed = terminals.filter((terminal) => terminal.status === 'completed').length;
-    const failed = terminals.filter((terminal) => terminal.status === 'failed').length;
-    const cancelled = terminals.filter((terminal) => terminal.status === 'cancelled').length;
-    return {
-      report,
-      completed,
-      failed,
-      cancelled,
-      pending: Math.max(0, this.expectedReceiverCount(report) - completed - failed - cancelled),
-      reasons: terminals.flatMap((terminal) => (terminal.reason ? [terminal.reason] : [])),
-    };
-  }
-
-  private expectedReceiverCount(report: SendReport): number {
-    return report.totalAccepted + report.totalPending;
-  }
 }
-
 let sharedCoordinator: OutboundDeliveryCoordinator | null = null;
 let sharedEventSource: OutboundDeliveryEventSource | null = null;
-
-export function configureOutboundDeliveryCoordinator(events: OutboundDeliveryEventSource): void {
+export function configureOutboundDeliveryCoordinator(
+  source: OutboundDeliveryEventSource,
+): void {
   if (sharedCoordinator)
-    throw new Error('The outbound delivery coordinator has already been created');
-  sharedEventSource = events;
+    throw new Error(
+      "The outbound delivery coordinator has already been created",
+    );
+  sharedEventSource = source;
 }
-
 export function getOutboundDeliveryCoordinator(): OutboundDeliveryCoordinator {
   if (!sharedCoordinator) {
-    if (!sharedEventSource) throw new Error('The outbound delivery coordinator is not configured');
+    if (!sharedEventSource)
+      throw new Error("The outbound delivery coordinator is not configured");
     sharedCoordinator = new OutboundDeliveryCoordinator(sharedEventSource);
   }
   return sharedCoordinator;

@@ -157,8 +157,8 @@
     "copied": "已复制"
   },
   "receive": {
-    "title": "接收的文件",
-    "menuEntry": "接收的文件",
+    "title": "传输结果",
+    "menuEntry": "传输结果",
     "empty": "当前没有正在接收的文件。",
     "stale": "显示的是最近一次读取到的状态，暂时无法读取最新状态。",
     "entryTitle": "传输 {{index}}",
@@ -215,5 +215,56 @@
       "alreadyTerminal": "此传输已经结束。",
       "requestFailed": "请求未能完成。"
     }
+  },
+  "outbound": {
+    "title": "发送结果",
+    "target": "目标 {{index}}",
+    "item": "项目 {{index}}",
+    "unknown": "未知",
+    "bytes": "{{completed}} / {{total}} 字节",
+    "unavailable": "无法确认当前结果。之前的事实可能已过期。",
+    "freshness": "证据：{{value}}",
+    "freshnessUnavailable": "无法确认时效",
+    "lastPhase": "最后已知阶段：{{value}}",
+    "round": "第 {{round}} 轮",
+    "reconcile": "核对已有传输",
+    "requestNew": "请求新传输",
+    "confirmNew": "确认新传输",
+    "cancel": "取消",
+    "duplicateWarning": "新传输可能在此设备上产生重复文件。",
+    "newRequested": "已请求新传输；尚未确认交付",
+    "noNewRequest": "未请求新传输",
+    "freshnessValue": {
+      "waiting": "等待",
+      "live": "当前",
+      "unconfirmed": "未确认",
+      "settled": "已结算"
+    },
+    "state": {
+      "no_items": "无文件项目",
+      "waiting": "等待",
+      "in_progress": "进行中",
+      "transferring": "传输中",
+      "processing": "处理中",
+      "retrying": "重试中",
+      "completed": "已完成",
+      "failed": "失败",
+      "cancelled": "已取消",
+      "unconfirmed": "结果未确认",
+      "partially_failed": "部分失败",
+      "partially_cancelled": "部分取消",
+      "partially_unconfirmed": "部分未确认"
+    },
+    "reconciliation": {
+      "running": "已有传输仍在运行",
+      "settled": "已采用已有结果",
+      "superseded": "已采用当前替代任务",
+      "not_retained": "未保留证据",
+      "unsupported": "对端不支持核对",
+      "unreachable": "无法连接对端",
+      "busy": "核对尚未完成"
+    },
+    "unknownDevice": "未知设备",
+    "entry": "发送任务 {{index}}"
   }
 }

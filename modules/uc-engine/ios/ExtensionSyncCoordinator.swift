@@ -230,7 +230,7 @@ public enum ExtensionOutboundDeliveryError: Error, Equatable, LocalizedError, Se
   public var errorDescription: String? {
     switch self {
     case .timedOut:
-      return "The receiving device did not finish downloading in time."
+      return "The receiving result is unconfirmed."
     case .failed:
       return "The receiving device could not download this content."
     case .cancelled:

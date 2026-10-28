@@ -1,3 +1,4 @@
+import { OutboundResultsSection } from '@/components/ReceiveResultsSheet';
 import React from 'react';
 import {
   ActivityIndicator,
@@ -169,6 +170,7 @@ function ShareBody({
             />
           </>
         )}
+        {c.targetKind === 'device' ? <OutboundResultsSection actionsEnabled={!c.isSending} /> : null}
       </ScrollView>
       <SendFooter c={c} hasFailed={hasFailed} theme={theme} />
     </>
@@ -187,7 +189,7 @@ function SendFooter({
   const { t } = useTranslation('share');
   const done = c.isDone && !hasFailed;
   const enabled = done || hasFailed || c.canSend;
-  const label = done ? t('send.success') : hasFailed ? t('send.retry') : t('send.sendAll');
+  const label = done ? t('send.success') : hasFailed ? t(c.targetKind === 'device' ? 'send.checkExisting' : 'send.retry') : t('send.sendAll');
   const icon = done ? 'checkmark' : hasFailed ? 'refresh' : 'paper-plane';
   const onPress = done ? c.handleClose : c.sendAll;
 

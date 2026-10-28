@@ -1,3 +1,4 @@
+import type { ResendTargetProgress } from "@/platform/engine";
 import type {
   DeviceTrustChoice,
   DeviceTrustDecision,
@@ -43,7 +44,8 @@ export interface CoreSpaceState {
 
 export type ResendEntryOutcome =
   | {
-      kind: 'completed';
+      kind: "completed";
+      reconciled: ResendTargetProgress[];
       accepted: number;
       duplicate: number;
       offline: number;
@@ -80,7 +82,11 @@ export interface UnifiedSpaceApi {
     expectedRevision: number
   ): Promise<DeviceTrustDecision>;
   removeMember(deviceId: string): Promise<WorkspaceConvergence>;
-  resendEntry(entryId: string, targetDevices: string[]): Promise<ResendEntryOutcome>;
+  resendEntry(
+    entryId: string,
+    targetDevices: string[],
+    confirmNewTransfer: boolean,
+  ): Promise<ResendEntryOutcome>;
   leaveSpace(): Promise<void>;
 }
 
@@ -154,7 +160,9 @@ const USER_ERROR_BY_INVITATION_ISSUE_CODE: Readonly<Record<number, UnifiedSpaceU
 type JoinSpaceStage = 'prepareP2p' | 'requestJoin' | 'refreshDevices';
 type SpaceRefreshStage = 'querySpaceState' | 'listDevices' | 'queryDeviceTrust';
 
-type DeviceListReadResult = { kind: 'ready'; devices: UnifiedSpaceDevice[] } | { kind: 'failed' };
+type DeviceListReadResult =
+  | { kind: "ready"; devices: UnifiedSpaceDevice[] }
+  | { kind: "failed" };
 
 type PostOperationSpaceRead =
   | {
@@ -170,7 +178,9 @@ type PostOperationSpaceRead =
     }
   | { kind: 'failed' };
 
-export type DeviceTrustDecisionInputErrorCode = 'noCurrentChange' | 'choiceNotAllowed';
+export type DeviceTrustDecisionInputErrorCode =
+  | "noCurrentChange"
+  | "choiceNotAllowed";
 
 export class DeviceTrustDecisionInputError extends Error {
   readonly name = 'DeviceTrustDecisionInputError';
@@ -362,7 +372,11 @@ function engineErrorCode(cause: unknown): number | null {
   if (structured) return structured.code;
   const details: unknown[] = [cause];
   if (cause && typeof cause === 'object') {
-    const error = cause as { code?: unknown; message?: unknown; cause?: unknown };
+    const error = cause as {
+      code?: unknown;
+      message?: unknown;
+      cause?: unknown;
+    };
     details.push(error.code, error.message, error.cause);
   }
   for (const detail of details) {
@@ -965,7 +979,7 @@ export class UnifiedSpaceService {
     const spaceId = this.snapshot.spaceId;
     if (!spaceId) return Promise.reject(new DeviceTrustDecisionInputError('noCurrentChange'));
     const operation = buildSpaceOperationContext(
-      selected.isCurrentGroup ?? choice === 'keepCurrentDeviceGroup'
+      (selected.isCurrentGroup ?? choice === "keepCurrentDeviceGroup")
         ? 'keepCurrentSpace'
         : 'applyChange',
       spaceId,
@@ -1126,8 +1140,12 @@ export class UnifiedSpaceService {
     return this.snapshot;
   }
 
-  resendEntry(entryId: string, targetDevices: string[] = []): Promise<ResendEntryOutcome> {
-    return this.api.resendEntry(entryId, targetDevices);
+  resendEntry(
+    entryId: string,
+    targetDevices: string[] = [],
+    confirmNewTransfer = false,
+  ): Promise<ResendEntryOutcome> {
+    return this.api.resendEntry(entryId, targetDevices, confirmNewTransfer);
   }
 
   async leaveSpace(): Promise<void> {

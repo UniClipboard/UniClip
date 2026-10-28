@@ -44,6 +44,8 @@
     "offline": "Устройство не в сети. Повторите попытку, когда оно будет в сети.",
     "selectHint": "Выберите устройства",
     "localDevice": "Это устройство",
-    "allDevices": "Все устройства"
+    "allDevices": "Все устройства",
+    "unconfirmed": "Result unconfirmed. Check the existing transfer.",
+    "checkExisting": "Check existing transfer"
   }
 }

@@ -1,3 +1,4 @@
+import { OutboundResultsSection } from './OutboundResultsSection';
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -32,6 +33,7 @@ export function ReceiveResultsSheet({ visible, onClose }: ReceiveResultsSheetPro
           <Text style={[styles.stale, { color: colors.warning }]}>{c.staleLabel}</Text>
         ) : null}
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+          <OutboundResultsSection />
           {c.entries.length === 0 ? (
             <Text style={[styles.empty, { color: colors.textSecondary }]}>{c.emptyLabel}</Text>
           ) : (

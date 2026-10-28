@@ -134,8 +134,39 @@ saved. Cancellation that is still cleaning up is not shown as cancelled. If the
 retry source is gone or access is denied, Mobile says so and keeps the failed items
 and saved files. A newer attempt replaces an older one and the list refreshes. When
 a refresh fails, Mobile keeps the last known status and marks it stale. The Home
-top-bar menu shows "Received files" only while receive attempts exist. The sender's
+top-bar menu shows "Transfer results" while receive attempts, outbound snapshots or session resend results exist. The sender's
 delivery report is a separate concept and does not say what the receiver saved.
+
+
+Outbound file progress is an in-memory projection of Engine `80bda137`. Each
+entry/target pair retains its current attempt, revision, freshness, item states,
+nullable byte counts, round and reasons. New u64 progress values cross the bridge
+as exact decimal strings. An invalidation event never establishes a terminal
+result. Startup, foreground recovery, reconnect and invalidation refresh the full
+list. Failed reads retain previous facts and expose unavailable status.
+
+The existing transfer results sheet shows outbound targets and items separately.
+The Share sheet reuses that section during sending. Header acceptance and byte
+completion do not prove file delivery. Delivery waiters filter the selected target
+set; another target's historical result cannot satisfy a recipient count.
+A local wait deadline leaves pending/unconfirmed results and does not fail Engine
+work. SendReport counters retain their original dispatch meaning.
+
+Resend defaults to checking existing work. Full per-target reconciliation results
+remain separate from dispatch counts. Only Settled, NotRetained and Unsupported
+offer a second explicit new-transfer confirmation with a duplicate-file warning.
+Engine still owns final admission, CAS, authorization and retries. Running,
+Superseded, Busy and Unreachable cannot be bypassed by confirmation. Share retries
+within one live session reuse the returned Engine entry. This session mapping is
+not persisted and does not choose an interrupted-Share policy.
+
+Android retains the actual Engine and host registry for Pending and Failed final
+cleanup. Only Pending repeats waits with backoff. Released(error) destroys the
+instance once and retains the operation error. Service release, runtime detach
+and activity lifecycle transitions dispatch off the main thread. No-object failed
+startup remains owned because this SDK has no complete release receipt. iOS
+complete-owner integration remains separate in PR96 and depends on the upstream
+process-observability and failed-start contracts; do not replace that owner here.
 
 ## Key Directories
 
