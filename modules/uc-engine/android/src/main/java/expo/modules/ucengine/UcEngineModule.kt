@@ -94,18 +94,25 @@ import uniffi.uc_engine_uniffi.prepareLocalDiagnosticExport
 import uniffi.uc_engine_uniffi.coreVersion
 import uniffi.uc_engine_uniffi.BindingNetworkProcessRole
 
+private fun isFileListRepresentation(
+  format: String,
+  mimeType: String?
+): Boolean {
+  val knownFormat = format.equals("files", ignoreCase = true) ||
+    format.equals("public.file-url", ignoreCase = true) ||
+    format.equals("NSFilenamesPboardType", ignoreCase = true)
+  val knownMime = mimeType.equals("text/uri-list", ignoreCase = true) ||
+    mimeType.equals("file/uri-list", ignoreCase = true)
+  return knownFormat || knownMime
+}
+
 private fun uriListFile(
   context: Context,
   format: String,
   mimeType: String?,
   bytes: ByteArray
 ): File? {
-  val knownFormat = format.equals("files", ignoreCase = true) ||
-    format.equals("public.file-url", ignoreCase = true) ||
-    format.equals("NSFilenamesPboardType", ignoreCase = true)
-  val knownMime = mimeType.equals("text/uri-list", ignoreCase = true) ||
-    mimeType.equals("file/uri-list", ignoreCase = true)
-  if (!knownFormat || !knownMime) return null
+  if (!isFileListRepresentation(format, mimeType)) return null
 
   val uri = bytes.toString(Charsets.UTF_8)
     .lineSequence()
@@ -343,10 +350,23 @@ internal fun clipDataForSnapshot(
   representations: List<BindingClipboardRepresentation>
 ): ClipData {
   val displayNames = clipboardDisplayNames(representations)
-  val first = representations.firstOrNull {
+  val candidates = representations.filter {
     it !is BindingClipboardRepresentation.Inline ||
       (it.format != FILE_DISPLAY_METADATA_FORMAT && it.mimeType != FILE_DISPLAY_METADATA_MIME)
-  } ?: return ClipData.newPlainText("", "")
+  }
+  // Prefer a usable materialized file regardless of representation order.
+  val file = candidates.firstOrNull {
+    it is BindingClipboardRepresentation.File ||
+      (it is BindingClipboardRepresentation.Inline &&
+        uriListFile(context, it.format, it.mimeType, it.bytes) != null)
+  }
+  if (file != null) return clipDataForRepresentation(context, files, file, displayNames)
+  // Preserve the existing non-file fallback order; never share URI-list bytes as a file.
+  val first = candidates.firstOrNull {
+    it is BindingClipboardRepresentation.Inline &&
+      !isFileListRepresentation(it.format, it.mimeType)
+  } ?: if (candidates.isEmpty()) return ClipData.newPlainText("", "")
+    else throw HostBindingException.Unavailable()
   return clipDataForRepresentation(context, files, first, displayNames)
 }
 

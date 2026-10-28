@@ -190,6 +190,11 @@ struct AppleClipboardFileSelection {
 }
 
 enum AppleClipboardFileResolver {
+  static func matches(format: String, mimeType: String?) -> Bool {
+    ["files", "public.file-url", "NSFilenamesPboardType"].contains(format)
+      || mimeType == "text/uri-list" || mimeType == "file/uri-list"
+  }
+
   static func resolve(
     format: String,
     mimeType: String?,
@@ -197,9 +202,7 @@ enum AppleClipboardFileResolver {
     metadata: AppleClipboardDisplayMetadata?,
     allowedRoots: [URL]
   ) -> AppleClipboardFileSelection? {
-    let knownFormat = ["files", "public.file-url", "NSFilenamesPboardType"].contains(format)
-    let knownMime = mimeType == "text/uri-list" || mimeType == "file/uri-list"
-    guard knownFormat || knownMime,
+    guard matches(format: format, mimeType: mimeType),
       let uriList = String(data: bytes, encoding: .utf8),
       let value = uriList.split(whereSeparator: \.isNewline)
         .map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) })
