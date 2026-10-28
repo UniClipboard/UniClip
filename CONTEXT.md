@@ -27,6 +27,15 @@ send-to, and share fall back to the preview, but sync never sends the preview: a
 captured long text whose file is unreadable is dropped from capture and left to
 the Engine host to read from the clipboard itself.
 
+When applying a clipboard snapshot, both native writers prefer a usable
+materialized file regardless of representation order. File writes preserve the
+file bytes and display filename. If a file-list representation cannot resolve
+to a usable file, the writer tries the remaining representations. The writer
+preserves the existing order of non-file representations. If only invalid
+file-list representations remain, the writer reports unavailable. If a selected
+file handle or file copy fails, the writer reports an error instead of falling
+back to accompanying path text.
+
 ## Architecture
 
 ```text
