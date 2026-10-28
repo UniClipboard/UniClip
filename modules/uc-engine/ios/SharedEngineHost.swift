@@ -409,16 +409,52 @@ public final class ExtensionP2pClient: @unchecked Sendable {
     entryId: String,
     expectedReceiverCount: UInt64,
     timeoutMs: UInt64,
+    targetDeviceIds: [String] = [],
     onTransferProgress: ((ExtensionTransferProgress) -> Void)? = nil
   ) throws {
     try operationLock.withLock {
       try withActiveSession {
-        try coordinator.waitForOutboundDelivery(
-          entryId: entryId,
-          expectedReceiverCount: expectedReceiverCount,
-          timeoutMs: timeoutMs,
-          onTransferProgress: onTransferProgress
-        )
+        guard expectedReceiverCount > 0 else { return }
+        let selectedTargets = Set(targetDeviceIds.isEmpty
+          ? try engine.listDevices().filter { !$0.isLocal }.map(\.deviceId)
+          : targetDeviceIds)
+        let requiredTargets = max(expectedReceiverCount, UInt64(selectedTargets.count))
+        let start = DispatchTime.now().uptimeNanoseconds
+        while true {
+          let targets = try engine.listOutboundProgress().filter {
+            $0.entryId == entryId && selectedTargets.contains($0.targetDeviceId)
+          }
+          for target in targets {
+            if target.items.count == 1, let item = target.items.first,
+              let completedBytes = item.completedBytes {
+              onTransferProgress?(ExtensionTransferProgress(
+                peerId: target.targetDeviceId,
+                completedBytes: completedBytes,
+                totalBytes: item.totalBytes
+              ))
+            }
+          }
+          // Header delivery, bytes and legacy transfer events never certify file delivery.
+          if UInt64(targets.filter({ $0.state == "completed" }).count) >= requiredTargets {
+            return
+          }
+          if let failure = targets.first(where: {
+            $0.itemsRunning == 0 && $0.itemsWaiting == 0 && $0.itemsUnconfirmed == 0 &&
+              ($0.state == "failed" || $0.state == "partially_failed")
+          }) {
+            throw ExtensionOutboundDeliveryError.failed(reason: failure.items.compactMap(\.failureReason).first)
+          }
+          if let cancelled = targets.first(where: {
+            $0.itemsRunning == 0 && $0.itemsWaiting == 0 && $0.itemsUnconfirmed == 0 &&
+              ($0.state == "cancelled" || $0.state == "partially_cancelled")
+          }) {
+            throw ExtensionOutboundDeliveryError.cancelled(reason: cancelled.items.compactMap(\.cancellationReason).first)
+          }
+          let elapsedMs = (DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
+          guard elapsedMs < timeoutMs else { throw ExtensionOutboundDeliveryError.timedOut }
+          // Consume only as a wake-up hint. Lost hints are covered by the next full read.
+          _ = engine.nextEvent(timeoutMs: min(250, timeoutMs - elapsedMs))
+        }
       }
     }
   }
@@ -628,7 +664,6 @@ enum P2pSharedStore {
 private final class ExtensionMobileEngineAdapter: ExtensionSyncEngine {
   private let engine: MobileEngine
   private let localDeviceId: String
-  private var latestOutboundPeerByEntryId: [String: String] = [:]
 
   init(engine: MobileEngine, localDeviceId: String) {
     self.engine = engine
@@ -658,31 +693,6 @@ private final class ExtensionMobileEngineAdapter: ExtensionSyncEngine {
     case .activeClipboardChanged(_, let entryId, _, let activatedBy)
     where activatedBy != localDeviceId:
       return .remoteActiveClipboardChanged(entryId: entryId)
-    case .transferProgress(
-      _,
-      let entryId,
-      _,
-      let peerId,
-      let direction,
-      let completedBytes,
-      let totalBytes
-    ) where direction == .sending:
-      guard let entryId else { return .other }
-      latestOutboundPeerByEntryId[entryId] = peerId
-      return .outboundTransferProgress(
-        entryId: entryId,
-        peerId: peerId,
-        completedBytes: completedBytes,
-        totalBytes: totalBytes
-      )
-    case .transferStatusChanged(_, let entryId, _, let status, let reason):
-      guard let entryId else { return .other }
-      return .outboundTransferStatusChanged(
-        entryId: entryId,
-        peerId: latestOutboundPeerByEntryId.removeValue(forKey: entryId),
-        status: status,
-        reason: reason
-      )
     default:
       return .other
     }

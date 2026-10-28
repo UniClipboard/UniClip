@@ -55,13 +55,17 @@ export function configureAppRuntime(): void {
   getReceiveResultsService().start();
   // The Engine can keep running in the background (Android), so no event marks the return.
   AppState.addEventListener('change', (state) => {
-    if (state === 'active') void getReceiveResultsService().refresh();
+    if (state === "active") {
+      void getReceiveResultsService().refresh();
+      void getUnifiedEngineService().refreshOutboundProgress();
+    }
   });
   configureUnifiedContentService({
     readClipboard: () => clipboardManager.getClipboardContent(),
     readFileBytes: (uri) => new File(uri).bytes(),
     p2p: nativeEngine,
-    completeOutboundDelivery: (send) => getOutboundDeliveryCoordinator().run(send),
+    completeOutboundDelivery: (send, targetDeviceIds) =>
+      getOutboundDeliveryCoordinator().run(send, targetDeviceIds),
     persistDelivery: persistP2pDeliveryReport,
   });
   configureOutboundShareHandoffManager(createPendingShareStore());
@@ -91,7 +95,7 @@ export function configureAppRuntime(): void {
   configureUnifiedSyncRuntime(
     [
       new P2pSyncAdapter({
-        platform: Platform.OS === 'ios' ? 'ios' : 'android',
+        platform: Platform.OS === "ios" ? "ios" : "android",
         engine: getUnifiedEngineService(),
         space: getUnifiedSpaceService(),
         content: getUnifiedContentService(),
@@ -103,7 +107,7 @@ export function configureAppRuntime(): void {
       }),
       lanSyncAdapter,
     ],
-    'p2p'
+    "p2p",
   );
   configureAnalyticsConsent(nativeEngine);
   configureRelaySettings({

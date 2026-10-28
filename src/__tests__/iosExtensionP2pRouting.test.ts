@@ -267,7 +267,7 @@ describe('iOS extension P2P routing', () => {
 
     // The engine still supports outbound delivery for the keyboard; the Share
     // target no longer references any of it.
-    expect(coordinator).toContain('waitForOutboundDelivery(');
+    expect(coordinator).not.toContain('waitForOutboundDelivery(');
     expect(host).toContain('public func waitForOutboundDelivery(');
     expect(router).toContain('defer { client.shutdown() }');
     expect(viewController).not.toMatch(

@@ -317,6 +317,7 @@ export class P2pSyncAdapter implements SyncAdapter {
 
   private mapDelivery(result: UnifiedContentResult): SyncAdapterDelivery {
     return {
+      entryId: result.entryId,
       success: result.success,
       state: result.deliveryState,
       counts: p2pDeliveryCountsFromReport(result.report),

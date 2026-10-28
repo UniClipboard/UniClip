@@ -169,7 +169,7 @@
     "copied": "Скопировано"
   },
   "receive": {
-    "title": "Полученные файлы",
+    "title": "Результаты передачи",
     "menuEntry": "Полученные файлы",
     "empty": "Сейчас файлы не принимаются.",
     "stale": "Показано последнее известное состояние. Актуальное состояние прочитать не удалось.",
@@ -227,5 +227,56 @@
       "alreadyTerminal": "Эта передача уже завершена.",
       "requestFailed": "Не удалось выполнить запрос."
     }
+  },
+  "outbound": {
+    "title": "Sending results",
+    "target": "Target {{index}}",
+    "item": "Item {{index}}",
+    "unknown": "Unknown",
+    "bytes": "{{completed}} / {{total}} bytes",
+    "unavailable": "Current results could not be confirmed. Previous facts may be out of date.",
+    "freshness": "Evidence: {{value}}",
+    "freshnessUnavailable": "Freshness unavailable",
+    "lastPhase": "Last known phase: {{value}}",
+    "round": "Round {{round}}",
+    "reconcile": "Check existing transfer",
+    "requestNew": "Request a new transfer",
+    "confirmNew": "Confirm new transfer",
+    "cancel": "Cancel",
+    "duplicateWarning": "A new transfer may create duplicate files on this device.",
+    "newRequested": "New transfer requested; delivery is not confirmed",
+    "noNewRequest": "No new transfer requested",
+    "freshnessValue": {
+      "waiting": "Waiting",
+      "live": "Current",
+      "unconfirmed": "Unconfirmed",
+      "settled": "Settled"
+    },
+    "state": {
+      "no_items": "No file items",
+      "waiting": "Waiting",
+      "in_progress": "In progress",
+      "transferring": "Transferring",
+      "processing": "Processing",
+      "retrying": "Retrying",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled",
+      "unconfirmed": "Result unconfirmed",
+      "partially_failed": "Partially failed",
+      "partially_cancelled": "Partially cancelled",
+      "partially_unconfirmed": "Partially unconfirmed"
+    },
+    "reconciliation": {
+      "running": "Existing transfer is running",
+      "settled": "Existing result adopted",
+      "superseded": "Current replacement adopted",
+      "not_retained": "Evidence not retained",
+      "unsupported": "Peer cannot check results",
+      "unreachable": "Peer unreachable",
+      "busy": "Check incomplete"
+    },
+    "unknownDevice": "Неизвестное устройство",
+    "entry": "Transfer {{index}}"
   }
 }

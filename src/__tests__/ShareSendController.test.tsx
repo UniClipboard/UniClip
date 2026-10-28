@@ -224,7 +224,7 @@ describe('useShareSendController', () => {
       job.fileUri, job.displayName, job.mimeType, job.byteCount,
       { skipInitialCopyOnIOS: false }
     );
-    await act(async () => { await current.retryJob(job.id); });
+    await act(async () => { await current.sendAll(); });
     expect(current.jobViews[0].sendState).toBe('success');
     expect(mockSendImportedAsset).toHaveBeenLastCalledWith(
       expect.objectContaining({ uri: 'file:///documents/clipboards/history/file' }),
@@ -660,7 +660,7 @@ describe('useShareSendController', () => {
     // 重试:不重新认领,同一 job 重新发送
     mockSendImportedText.mockResolvedValue({ success: true, state: 'delivered' });
     await act(async () => {
-      await current.retryJob('text-1');
+      await current.sendAll();
     });
     expect(mockClaimPending).toHaveBeenCalledTimes(1);
     expect(mockCompleteJob).toHaveBeenCalledWith('text-1');

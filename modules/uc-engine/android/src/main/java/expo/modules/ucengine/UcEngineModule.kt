@@ -64,6 +64,9 @@ import uniffi.uc_engine_uniffi.JoinSpaceStatus
 import uniffi.uc_engine_uniffi.JoinSpaceTerminationReason
 import uniffi.uc_engine_uniffi.MobileEngine
 import uniffi.uc_engine_uniffi.MobileStartupLifecycle
+import uniffi.uc_engine_uniffi.OutboundProgress
+import uniffi.uc_engine_uniffi.ResendTargetProgress
+import uniffi.uc_engine_uniffi.BindingResourceRelease
 import uniffi.uc_engine_uniffi.ReceiveProgress
 import uniffi.uc_engine_uniffi.ReceiveRetryOutcome
 import uniffi.uc_engine_uniffi.RelayEntrySource
@@ -370,9 +373,16 @@ object EngineOwner {
   private var logInstallation: BindingObservabilitySetup? = null
   private var engine: MobileEngine? = null
   private var startupLifecycle: MobileStartupLifecycle? = null
+  private var startupFailure: Throwable? = null
   private var files: FileHandleRegistry? = null
   private var analytics: AndroidPostHogAnalyticsHost? = null
   private var retainers = 0
+  private var finalRelease: BindingResourceRelease? = null
+  private var pendingSuspension: MobileEngine? = null
+  private var suspensionWaitScheduled = false
+  private var suspensionBackoffMs = 100L
+  private var resumeAfterSuspension = true
+  private var backgroundSyncRequested = false
 
   internal fun engine(): MobileEngine? = synchronized(lock) { engine }
   internal fun files(): FileHandleRegistry? = synchronized(lock) { files }
@@ -434,10 +444,13 @@ object EngineOwner {
     AndroidNativeDiagnostics.observe(diagnostics, NativeDiagnosticEvent.ENGINE_START, NativeDiagnosticTrigger.APP_STARTUP) {
       synchronized(lock) {
         if (engine != null || startupLifecycle != null) {
+          check(finalRelease == null && startupFailure == null) { "Engine cleanup retains ownership; wait or explicitly retry cleanup before attaching" }
           if (allowAttach) return@observe
           throw UcEngineAlreadyStartedException()
         }
       }
+      finalRelease = null
+      startupFailure = null
       check(UcEngineModule.installAndroidContext(context)) { "Failed to initialize the Android P2P runtime" }
       val registry = FileHandleRegistry(context)
       val appVersion = config["appVersion"] ?: applicationVersion(context)
@@ -461,6 +474,7 @@ object EngineOwner {
       val startup = MobileStartupLifecycle()
       synchronized(lock) {
         if (engine != null || startupLifecycle != null) {
+          check(finalRelease == null && startupFailure == null) { "Engine cleanup retains ownership; wait or explicitly retry cleanup before attaching" }
           if (allowAttach) return@observe
           throw UcEngineAlreadyStartedException()
         }
@@ -477,20 +491,26 @@ object EngineOwner {
           )
         }
       } catch (error: Throwable) {
-        synchronized(lock) { if (startupLifecycle === startup) startupLifecycle = null }
+        // No returned Engine means no complete cleanup receipt at this SDK baseline.
+        // Retain the startup owner and host registry until the upstream contract resolves it.
+        synchronized(lock) { startupFailure = error; files = registry }
         throw error
       }
       try {
         lifecycle.prepare(AndroidEngineLifecycle(started, diagnostics))
         refreshAnalyticsContext(started, appVersion)
       } catch (error: Throwable) {
-        synchronized(lock) { if (startupLifecycle === startup) startupLifecycle = null }
-        try {
-          started.shutdown(2_000u)
-        } catch (shutdownError: Throwable) {
-          reportLifecycleError(shutdownError)
+        synchronized(lock) {
+          engine = started
+          files = registry
+          if (startupLifecycle === startup) startupLifecycle = null
         }
-        started.close()
+        // A returned Engine remains owned until a complete final receipt, even after prepare fails.
+        runCatching {
+          if (!shutdownLocked(context, 2_000)) {
+            releaseExecutor.execute { runCatching { shutdownUntilComplete(context.applicationContext) }.onFailure(::reportLifecycleError) }
+          }
+        }.onFailure(::reportLifecycleError)
         throw error
       }
       synchronized(lock) {
@@ -549,7 +569,7 @@ object EngineOwner {
     Log.i("UcEngine", "engine_owner retain retainers=${retainerCount()}")
   }
 
-  private val releaseExecutor by lazy { java.util.concurrent.Executors.newSingleThreadExecutor { Thread(it, "uc-engine-release") } }
+  private val releaseExecutor by lazy { java.util.concurrent.Executors.newSingleThreadScheduledExecutor { Thread(it, "uc-engine-release") } }
 
   /**
    * Releases a hold off the caller's thread (the service's main thread must not wait for a start or
@@ -577,7 +597,12 @@ object EngineOwner {
   }
 
   /** A JS runtime was destroyed; the Engine survives when the background service still holds it. */
-  internal fun runtimeDetached(context: Context?) = transitions.withLockHeld {
+  internal fun runtimeDetached(context: Context?) {
+    val application = context?.applicationContext
+    releaseExecutor.execute { runtimeDetachedNow(application) }
+  }
+
+  private fun runtimeDetachedNow(context: Context?) = transitions.withLockHeld {
     val stop = synchronized(lock) {
       attachedRuntimes = (attachedRuntimes - 1).coerceAtLeast(0)
       retainers == 0 && attachedRuntimes == 0
@@ -589,6 +614,8 @@ object EngineOwner {
   internal fun setBackgroundSyncEnabled(context: Context, enabled: Boolean, appIsBackground: Boolean) =
     transitions.withLockHeld {
       val diagnostics = AndroidNativeDiagnostics.get(context)
+      backgroundSyncRequested = enabled
+      resumeAfterSuspension = !appIsBackground || enabled
       lifecycle.setBackgroundSyncEnabled(
         engine()?.let { AndroidEngineLifecycle(it, diagnostics) },
         enabled,
@@ -596,14 +623,72 @@ object EngineOwner {
       )
     }
 
-  internal fun enterBackground(context: Context) =
-    transitions.withLockHeld { lifecycle.enterBackground(currentLifecycle(context)) }
+  internal fun enterBackground(context: Context) {
+    val application = context.applicationContext
+    releaseExecutor.execute { transitions.withLockHeld {
+      resumeAfterSuspension = backgroundSyncRequested
+      lifecycle.enterBackground(currentLifecycle(application))
+    } }
+  }
 
-  internal fun enterForeground(context: Context) =
-    transitions.withLockHeld { lifecycle.enterForeground(currentLifecycle(context)) }
+  internal fun enterForeground(context: Context) {
+    val application = context.applicationContext
+    releaseExecutor.execute { transitions.withLockHeld {
+      resumeAfterSuspension = true
+      if (pendingSuspension == null) lifecycle.enterForeground(currentLifecycle(application))
+    } }
+  }
+
+  /** Pending repeats the same accepted cleanup off the main thread. Failed never loops. */
+  internal fun suspendOwned(active: MobileEngine, deadlineMs: ULong) {
+    check(engine() === active && finalRelease == null) { "Engine final cleanup owns this instance" }
+    when (val outcome = active.suspendWithOutcome(deadlineMs)) {
+      BindingResourceRelease.Pending -> {
+        pendingSuspension = active
+        if (!suspensionWaitScheduled) {
+          suspensionWaitScheduled = true
+          val backoff = suspensionBackoffMs
+          suspensionBackoffMs = (suspensionBackoffMs * 2).coerceAtMost(1_000)
+          releaseExecutor.schedule({ transitions.withLockHeld {
+            suspensionWaitScheduled = false
+            val pending = pendingSuspension
+            if (pending != null && engine() === pending && finalRelease == null) {
+              runCatching { suspendOwned(pending, deadlineMs) }.onFailure(::reportLifecycleError)
+            }
+          } }, backoff, java.util.concurrent.TimeUnit.MILLISECONDS)
+        }
+      }
+      is BindingResourceRelease.Failed -> {
+        pendingSuspension = null
+        suspensionBackoffMs = 100
+        throw outcome.error
+      }
+      is BindingResourceRelease.Released -> {
+        pendingSuspension = null
+        suspensionBackoffMs = 100
+        if (resumeAfterSuspension) {
+          try { active.resume() } catch (resumeError: Throwable) {
+            outcome.error?.let { it.addSuppressed(resumeError); throw it }
+            throw resumeError
+          }
+        }
+        outcome.error?.let { throw it }
+      }
+    }
+  }
+
+  internal fun suspendExplicit() = transitions.withLockHeld {
+    resumeAfterSuspension = false
+    suspendOwned(checkNotNull(engine()) { "Engine is not started" }, 2_000uL)
+  }
+
+  internal fun resumeExplicit() = transitions.withLockHeld {
+    resumeAfterSuspension = true
+    if (pendingSuspension == null) checkNotNull(engine()) { "Engine is not started" }.resume()
+  }
 
   internal fun shutdown(context: Context, deadlineMs: Long) = transitions.withLockHeld {
-    shutdownLocked(context, deadlineMs)
+    check(shutdownLocked(context, deadlineMs)) { "Engine cleanup is pending; ownership is retained" }
   }
 
   private inline fun <T> java.util.concurrent.locks.ReentrantLock.withLockHeld(block: () -> T): T {
@@ -611,36 +696,48 @@ object EngineOwner {
     try { return block() } finally { unlock() }
   }
 
-  private fun shutdownLocked(context: Context, deadlineMs: Long) {
+  /** Only a complete receipt permits destruction. A lifecycle state is never a receipt. */
+  private fun shutdownLocked(context: Context, deadlineMs: Long): Boolean {
     val diagnostics = AndroidNativeDiagnostics.get(context)
     val active = engine()
+    if (active == null) {
+      // A no-object failed startup has no release certificate. Keep its owner.
+      check(synchronized(lock) { startupLifecycle == null }) { "Startup cleanup has no complete release receipt" }
+      (finalRelease as? BindingResourceRelease.Released)?.error?.let { throw it }
+      return true
+    }
     try {
-      active?.let {
-        AndroidNativeDiagnostics.observe(diagnostics, NativeDiagnosticEvent.ENGINE_SHUTDOWN) {
-          it.shutdown(deadlineMs.toULong())
+      val outcome = active.shutdownWithOutcome(deadlineMs.toULong())
+      finalRelease = outcome
+      when (outcome) {
+        BindingResourceRelease.Pending -> return false
+        is BindingResourceRelease.Failed -> throw outcome.error
+        is BindingResourceRelease.Released -> {
+          val registry = synchronized(lock) {
+            if (engine === active) {
+              engine = null
+              files.also { files = null }
+            } else null
+          }
+          pendingSuspension = null
+          active.close()
+          registry?.removeAll()
+          outcome.error?.let { throw it }
+          return true
         }
       }
-      val registry = synchronized(lock) {
-        if (engine === active) {
-          engine = null
-          files.also { files = null }
-        } else null
-      }
-      active?.close()
-      registry?.removeAll()
     } finally { diagnostics.flush() }
   }
 
   internal fun shutdownUntilComplete(context: Context) = transitions.withLockHeld {
-    while (true) {
-      try {
-        shutdownLocked(context, 5_000)
-        return
-      } catch (error: BindingException.Engine) {
-        if (error.category != BindingErrorCategory.DEADLINE_EXCEEDED) throw error
-      }
+    var backoffMs = 50L
+    while (!shutdownLocked(context, 5_000)) {
+      // Wait again on the same accepted cleanup. Failed exits through its own error.
+      Thread.sleep(backoffMs)
+      backoffMs = (backoffMs * 2).coerceAtMost(1_000)
     }
   }
+
 }
 
 class UcEngineModule : Module() {
@@ -785,8 +882,8 @@ class UcEngineModule : Module() {
 
     AsyncFunction("shutdown") { deadlineMs: Long -> EngineOwner.shutdown(requireContext(), deadlineMs) }
     AsyncFunction("shutdownUntilComplete") { EngineOwner.shutdownUntilComplete(requireContext()) }
-    AsyncFunction("suspend") { requireEngine().suspend() }
-    AsyncFunction("resume") { requireEngine().resume() }
+    AsyncFunction("suspend") { EngineOwner.suspendExplicit() }
+    AsyncFunction("resume") { EngineOwner.resumeExplicit() }
     AsyncFunction("setBackgroundSyncEnabled") { enabled: Boolean, appIsBackground: Boolean ->
       EngineOwner.setBackgroundSyncEnabled(requireContext(), enabled, appIsBackground)
     }
@@ -1027,8 +1124,8 @@ class UcEngineModule : Module() {
       refreshAnalyticsContext(engine)
       workspaceConvergenceMap(result)
     }
-    AsyncFunction("resendEntry") { entryId: String, targetDevices: List<String> ->
-      resendOutcomeMap(requireEngine().resendEntry(entryId, targetDevices))
+    AsyncFunction("resendEntry") { entryId: String, targetDevices: List<String>, confirmNewTransfer: Boolean ->
+      engineResult { resendOutcomeMap(requireEngine().resendEntry(entryId, targetDevices, confirmNewTransfer)) }
     }
     AsyncFunction("leaveSpace") {
       val engine = requireEngine()
@@ -1070,6 +1167,15 @@ class UcEngineModule : Module() {
     }
     AsyncFunction("exportEntry") { entryId: String, destinationHandle: String ->
       requireEngine().exportEntry(entryId, destinationHandle)
+    }
+    AsyncFunction("queryOutboundProgress") { entryId: String, targetDeviceId: String ->
+      engineResult { mapOf("progress" to requireEngine().queryOutboundProgress(entryId, targetDeviceId)?.let(::outboundProgressMap)) }
+    }
+    AsyncFunction("listOutboundProgress") {
+      engineResult { mapOf("progress" to requireEngine().listOutboundProgress().map(::outboundProgressMap)) }
+    }
+    AsyncFunction("reconcileOutboundProgress") { entryId: String, targetDeviceId: String, expectedAttemptId: String? ->
+      engineResult { mapOf("state" to requireEngine().reconcileOutboundProgress(entryId, targetDeviceId, expectedAttemptId)) }
     }
     AsyncFunction("queryEntryReceiveProgress") { entryId: String ->
       requireEngine().queryEntryReceiveProgress(entryId)?.let(::receiveProgressMap)
@@ -1158,6 +1264,7 @@ class UcEngineModule : Module() {
   private fun resendOutcomeMap(outcome: ResendEntryOutcome): Map<String, Any> = when (outcome) {
     is ResendEntryOutcome.Completed -> mapOf(
       "kind" to "completed",
+      "reconciled" to outcome.reconciled.map(::resendTargetProgressMap),
       "accepted" to outcome.accepted.toLong(),
       "duplicate" to outcome.duplicate.toLong(),
       "offline" to outcome.offline.toLong(),
@@ -1179,6 +1286,43 @@ class UcEngineModule : Module() {
       mapOf("kind" to "targetNotTrusted", "deviceId" to outcome.deviceId)
     ResendEntryOutcome.NoEligibleTargets -> mapOf("kind" to "noEligibleTargets")
   }
+
+  private fun outboundProgressMap(progress: OutboundProgress): Map<String, Any?> = mapOf(
+    "entryId" to progress.entryId,
+    "targetDeviceId" to progress.targetDeviceId,
+    "attemptId" to progress.attemptId,
+    "revision" to progress.revision.toString(),
+    "freshness" to progress.freshness,
+    "freshnessAvailable" to progress.freshnessAvailable,
+    "state" to progress.state,
+    "itemsTotal" to progress.itemsTotal.toLong(),
+    "itemsWaiting" to progress.itemsWaiting.toLong(),
+    "itemsRunning" to progress.itemsRunning.toLong(),
+    "itemsCompleted" to progress.itemsCompleted.toLong(),
+    "itemsFailed" to progress.itemsFailed.toLong(),
+    "itemsCancelled" to progress.itemsCancelled.toLong(),
+    "itemsUnconfirmed" to progress.itemsUnconfirmed.toLong(),
+    "items" to progress.items.map { item ->
+      mapOf(
+        "kind" to item.kind,
+        "index" to item.index.toInt(),
+        "state" to item.state,
+        "lastKnownPhase" to item.lastKnownPhase,
+        "round" to item.round?.toLong(),
+        "completedBytes" to item.completedBytes?.toString(),
+        "totalBytes" to item.totalBytes?.toString(),
+        "failureReason" to item.failureReason,
+        "cancellationReason" to item.cancellationReason,
+      )
+    }
+  )
+  private fun resendTargetProgressMap(target: ResendTargetProgress): Map<String, Any?> = mapOf(
+    "targetDeviceId" to target.targetDeviceId,
+    "state" to target.state,
+    "current" to target.current?.let(::outboundProgressMap),
+    "newTransferRequested" to target.newTransferRequested,
+    "duplicateFilesPossible" to target.duplicateFilesPossible
+  )
 
   private fun receiveProgressMap(progress: ReceiveProgress): Map<String, Any?> = mapOf(
     "entryId" to progress.entryId,
@@ -1280,6 +1424,7 @@ class UcEngineModule : Module() {
       "state" to event.state,
       "atMs" to event.atMs
     )
+    BindingEvent.OutboundProgressChanged -> mapOf("type" to "outboundProgressChanged")
     is BindingEvent.TransferProgress -> mapOf(
       "type" to "transferProgress",
       "transferId" to event.transferId,
@@ -1369,7 +1514,7 @@ private class AndroidEngineLifecycle(private val engine: MobileEngine, private v
   }
 
   override fun suspend(deadlineMs: ULong) = AndroidNativeDiagnostics.observe(diagnostics, NativeDiagnosticEvent.ENGINE_SUSPEND) {
-    engine.suspendWithDeadline(deadlineMs)
+    EngineOwner.suspendOwned(engine, deadlineMs)
   }
 
   override fun resume() = AndroidNativeDiagnostics.observe(diagnostics, NativeDiagnosticEvent.ENGINE_RESUME) { engine.resume() }

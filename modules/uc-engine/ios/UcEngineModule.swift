@@ -513,10 +513,12 @@ public final class UcEngineModule: Module {
     }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("resendEntry") {
-      (entryId: String, targetDevices: [String]) -> [String: Any] in
-      Self.resendOutcomeMap(
-        try self.requireEngine().resendEntry(entryId: entryId, targetDevices: targetDevices)
-      )
+      (entryId: String, targetDevices: [String], confirmNewTransfer: Bool) -> [String: Any] in
+      try Self.engineResult {
+        Self.resendOutcomeMap(
+          try self.requireEngine().resendEntry(entryId: entryId, targetDevices: targetDevices, confirmNewTransfer: confirmNewTransfer)
+        )
+      }
     }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("leaveSpace") {
@@ -578,6 +580,22 @@ public final class UcEngineModule: Module {
         entryId: entryId,
         destinationHandle: destinationHandle
       )
+    }.runOnQueue(engineOperationQueue)
+
+    AsyncFunction("queryOutboundProgress") { (entryId: String, targetDeviceId: String) -> [String: Any] in
+      try Self.engineResult {
+        ["progress": try self.requireEngine().queryOutboundProgress(entryId: entryId, targetDeviceId: targetDeviceId).map(Self.outboundProgressMap) ?? NSNull()]
+      }
+    }.runOnQueue(engineOperationQueue)
+    AsyncFunction("listOutboundProgress") { () -> [String: Any] in
+      try Self.engineResult {
+        ["progress": try self.requireEngine().listOutboundProgress().map(Self.outboundProgressMap)]
+      }
+    }.runOnQueue(engineOperationQueue)
+    AsyncFunction("reconcileOutboundProgress") { (entryId: String, targetDeviceId: String, expectedAttemptId: String?) -> [String: Any] in
+      try Self.engineResult {
+        ["state": try self.requireEngine().reconcileOutboundProgress(entryId: entryId, targetDeviceId: targetDeviceId, expectedAttemptId: expectedAttemptId)]
+      }
     }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("queryEntryReceiveProgress") { (entryId: String) -> [String: Any]? in
@@ -756,9 +774,10 @@ public final class UcEngineModule: Module {
 
   private static func resendOutcomeMap(_ outcome: ResendEntryOutcome) -> [String: Any] {
     switch outcome {
-    case .completed(let accepted, let duplicate, let offline, let errored, let pending):
+    case .completed(let reconciled, let accepted, let duplicate, let offline, let errored, let pending):
       return [
         "kind": "completed",
+        "reconciled": reconciled.map(Self.resendTargetProgressMap),
         "accepted": accepted,
         "duplicate": duplicate,
         "offline": offline,
@@ -780,6 +799,47 @@ public final class UcEngineModule: Module {
     case .noEligibleTargets:
       return ["kind": "noEligibleTargets"]
     }
+  }
+
+  private static func outboundProgressMap(_ progress: OutboundProgress) -> [String: Any] {
+    [
+      "entryId": progress.entryId,
+      "targetDeviceId": progress.targetDeviceId,
+      "attemptId": progress.attemptId ?? NSNull(),
+      "revision": String(progress.revision),
+      "freshness": progress.freshness,
+      "freshnessAvailable": progress.freshnessAvailable,
+      "state": progress.state,
+      "itemsTotal": progress.itemsTotal,
+      "itemsWaiting": progress.itemsWaiting,
+      "itemsRunning": progress.itemsRunning,
+      "itemsCompleted": progress.itemsCompleted,
+      "itemsFailed": progress.itemsFailed,
+      "itemsCancelled": progress.itemsCancelled,
+      "itemsUnconfirmed": progress.itemsUnconfirmed,
+      "items": progress.items.map { item -> [String: Any] in
+        [
+          "kind": item.kind,
+          "index": item.index,
+          "state": item.state,
+          "lastKnownPhase": item.lastKnownPhase ?? NSNull(),
+          "round": item.round ?? NSNull(),
+          "completedBytes": item.completedBytes .map { String($0) } ?? NSNull(),
+          "totalBytes": item.totalBytes .map { String($0) } ?? NSNull(),
+          "failureReason": item.failureReason ?? NSNull(),
+          "cancellationReason": item.cancellationReason ?? NSNull(),
+        ]
+      },
+    ]
+  }
+  private static func resendTargetProgressMap(_ target: ResendTargetProgress) -> [String: Any] {
+    [
+      "targetDeviceId": target.targetDeviceId,
+      "state": target.state,
+      "current": target.current.map(Self.outboundProgressMap) ?? NSNull(),
+      "newTransferRequested": target.newTransferRequested,
+      "duplicateFilesPossible": target.duplicateFilesPossible,
+    ]
   }
 
   private static func receiveProgressMap(_ progress: ReceiveProgress) -> [String: Any] {
@@ -911,6 +971,8 @@ public final class UcEngineModule: Module {
         "state": state,
         "atMs": atMs,
       ]
+    case .outboundProgressChanged:
+      return ["type": "outboundProgressChanged"]
     case .transferProgress(
       let transferId,
       let entryId,

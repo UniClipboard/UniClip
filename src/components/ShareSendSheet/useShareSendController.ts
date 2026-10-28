@@ -1,3 +1,6 @@
+import { recordOutboundResend } from '@/stores/outboundResendStore';
+import { getUnifiedEngineService } from '@/platform/engine';
+import { p2pDeliveryStateFromResend } from '@/features/transfer';
 /**
  * useShareSendController — 分享弹层状态机与发送逻辑(§8.2/§8.5/§8.6,双端共用)
  *
@@ -128,6 +131,7 @@ export function useShareSendController(onClose: () => void, active: boolean, job
   const [selectedTargetIds, setSelectedTargetIds] = useState<Set<string>>(new Set());
   const [isRefreshingP2pTargets, setIsRefreshingP2pTargets] = useState(false);
   const sendingRef = useRef(false);
+  const sentEntries = useRef(new Map<string, string>());
   const hasAppliedDefaultSelectionRef = useRef(false);
   const successCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshP2pTargets = useCallback(async () => {
@@ -212,6 +216,7 @@ export function useShareSendController(onClose: () => void, active: boolean, job
     if (wasActive) return;
     setPhase({ kind: 'claiming' });
     setJobViews([]);
+    sentEntries.current.clear();
     setSelectedTargetIds(new Set());
     void claim();
   }, [active, claim]);
@@ -247,28 +252,76 @@ export function useShareSendController(onClose: () => void, active: boolean, job
 
   // 发送投递后的统一收尾:只有所有目标确认送达才出队;其他结果保留重试。
   const finishSend = useCallback(
-    async (jobId: string, send: () => Promise<{ state: string; success: boolean }>) => {
-      const result = await send();
-      const delivered = result.success && result.state === 'delivered';
+    async (
+      jobId: string,
+      send: () => Promise<{
+        state: string;
+        success: boolean;
+        entryId?: string;
+      }>,
+    ) => {
+      const previousEntry =
+        syncChannel === "p2p" ? sentEntries.current.get(jobId) : undefined;
+      let result: { state: string; success: boolean; entryId?: string };
+      if (previousEntry) {
+        const outcome = await getUnifiedSpaceService().resendEntry(
+          previousEntry,
+          [...selectedTargetIds],
+        );
+        if (outcome.kind === "completed")
+          recordOutboundResend(previousEntry, outcome.reconciled);
+        await getUnifiedEngineService().refreshOutboundProgress();
+        const allCompleted =
+          outcome.kind === "completed" &&
+          outcome.reconciled.length > 0 &&
+          outcome.reconciled.every(
+            (target) =>
+              target.current?.state === "completed" &&
+              !target.newTransferRequested,
+          );
+        const state = allCompleted
+          ? "delivered"
+          : p2pDeliveryStateFromResend(outcome);
+        result = {
+          state,
+          success: state === "delivered",
+          entryId: previousEntry,
+        };
+      } else {
+        result = await send();
+        if (result.entryId) sentEntries.current.set(jobId, result.entryId);
+      }
+      const delivered = result.success && result.state === "delivered";
       void recordShareDiagnosticStage(
         jobId,
-        delivered ? 'sent' : 'failed',
-        delivered ? undefined : result.state
+        delivered ? "sent" : "failed",
+        delivered ? undefined : result.state,
       );
       if (delivered) {
         await completeJob(jobId);
-        updateJob(jobId, { sendState: 'success' });
+        updateJob(jobId, { sendState: "success" });
         return { jobId, success: true, deliveryState: result.state };
       }
-      const offline = result.state === 'offline';
-      const message = t(offline ? 'send.offline' : 'send.failed');
+      const offline = result.state === "offline";
+      const message = t(
+        result.state === "pending"
+          ? "send.unconfirmed"
+          : offline
+            ? "send.offline"
+            : "send.failed",
+      );
       if (offline) {
-        Alert.alert(t('send.offlineTitle'), message);
+        Alert.alert(t("send.offlineTitle"), message);
       }
-      updateJob(jobId, { sendState: 'failed', errorMessage: message });
-      return { jobId, success: false, deliveryState: result.state, errorMessage: message };
+      updateJob(jobId, { sendState: "failed", errorMessage: message });
+      return {
+        jobId,
+        success: false,
+        deliveryState: result.state,
+        errorMessage: message,
+      };
     },
-    [completeJob, updateJob, t]
+    [completeJob, updateJob, t, syncChannel, selectedTargetIds],
   );
 
   // 已在历史里的内容(应用内「发送到」):跳过导入,按原 profileHash 投递到所选目标。
@@ -370,22 +423,6 @@ export function useShareSendController(onClose: () => void, active: boolean, job
     }
   }, [jobViews, onClose, selectedTargetIds, sendOne]);
 
-  // 重试单个 job(无需重新认领)
-  const retryJob = useCallback(
-    async (jobId: string) => {
-      if (sendingRef.current) return;
-      const view = jobViews.find((v) => v.job.id === jobId);
-      if (!view) return;
-      sendingRef.current = true;
-      try {
-        await sendOne(view, [...selectedTargetIds]);
-      } finally {
-        sendingRef.current = false;
-      }
-    },
-    [jobViews, selectedTargetIds, sendOne]
-  );
-
   // 删除(显式):二次确认后清除记录 + payload,不可恢复
   const deleteJob = useCallback(async (jobId: string) => {
     await completeJob(jobId);
@@ -444,7 +481,6 @@ export function useShareSendController(onClose: () => void, active: boolean, job
     isDone,
     canSend,
     sendAll,
-    retryJob,
     deleteJob,
     toggleTarget,
     refreshTargets,

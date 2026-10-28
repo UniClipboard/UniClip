@@ -44,6 +44,8 @@
     "offline": "设备不在线，请在设备上线后重试",
     "selectHint": "选择要发送的设备",
     "localDevice": "本机",
-    "allDevices": "全部设备"
+    "allDevices": "全部设备",
+    "unconfirmed": "结果未确认。请核对已有传输。",
+    "checkExisting": "核对已有传输"
   }
 }

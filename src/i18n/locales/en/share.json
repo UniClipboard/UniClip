@@ -44,6 +44,8 @@
     "offline": "The device is offline. Try again when it is online.",
     "selectHint": "Choose devices to send to",
     "localDevice": "This device",
-    "allDevices": "All devices"
+    "allDevices": "All devices",
+    "unconfirmed": "Result unconfirmed. Check the existing transfer.",
+    "checkExisting": "Check existing transfer"
   }
 }

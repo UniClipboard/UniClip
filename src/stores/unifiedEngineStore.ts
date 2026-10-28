@@ -1,3 +1,4 @@
+import type { OutboundProgressSnapshot } from "@/platform/engine/outboundProgressProjection";
 import { create } from 'zustand';
 import type { EngineEvent, EngineState, EngineFailure, RejectedConfigImport } from '@/platform/engine';
 
@@ -15,6 +16,7 @@ export type ConfigImportStatus =
   | { kind: 'unavailable'; failure: EngineFailure | null };
 
 export interface UnifiedEngineSnapshot {
+  outbound: OutboundProgressSnapshot;
   configImportStatus: ConfigImportStatus;
   status: UnifiedEngineStatus;
   isStarted: boolean;
@@ -29,6 +31,7 @@ export interface UnifiedEngineSnapshot {
 
 export function createInitialUnifiedEngineSnapshot(): UnifiedEngineSnapshot {
   return {
+    outbound: { progress: [], available: false, failure: null },
     status: 'stopped',
     configImportStatus: { kind: 'unchecked' },
     isStarted: false,

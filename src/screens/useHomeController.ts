@@ -1,3 +1,4 @@
+import { recordOutboundResend, useOutboundResendStore } from '@/stores/outboundResendStore';
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Share, Linking, BackHandler, Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -160,7 +161,10 @@ export function useHomeController(
   const [cameraOpen, setCameraOpen] = useState(false);
   // 接收结果弹层由首页这层稳定宿主持有;入口只在存在接收尝试时出现。
   const [receiveResultsOpen, setReceiveResultsOpen] = useState(false);
-  const receiveEntryCount = useReceiveResultsStore((s) => Object.keys(s.entries).length);
+  const incomingEntryCount = useReceiveResultsStore((s) => Object.keys(s.entries).length);
+  const outboundCount = useUnifiedEngineStore((s) => s.outbound.progress.length);
+  const resendCount = useOutboundResendStore((s) => Object.keys(s.results).length);
+  const receiveEntryCount = incomingEntryCount + outboundCount + resendCount;
 
   // Expanded 双栏专用:右栏当前展示的条目。Compact 不使用。
   const [detailItem, setDetailItem] = useState<ClipboardItem | null>(null);
@@ -529,6 +533,11 @@ export function useHomeController(
           if (!item.p2pEntryId) return;
           try {
             const outcome = await getUnifiedSpaceService().resendEntry(item.p2pEntryId);
+            if (outcome.kind === 'completed' && outcome.reconciled.length > 0) {
+              recordOutboundResend(item.p2pEntryId, outcome.reconciled);
+              setReceiveResultsOpen(true);
+              return;
+            }
             const deliveryState = p2pDeliveryStateFromResend(outcome);
             const deliveryCounts =
               outcome.kind === 'completed' ? p2pDeliveryCountsFromResend(outcome) : undefined;

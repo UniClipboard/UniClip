@@ -44,6 +44,8 @@
     "offline": "O dispositivo está offline. Tente novamente quando ele estiver online.",
     "selectHint": "Escolha os dispositivos de destino",
     "localDevice": "Este dispositivo",
-    "allDevices": "Todos os dispositivos"
+    "allDevices": "Todos os dispositivos",
+    "unconfirmed": "Result unconfirmed. Check the existing transfer.",
+    "checkExisting": "Check existing transfer"
   }
 }

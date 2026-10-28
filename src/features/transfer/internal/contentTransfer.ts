@@ -23,8 +23,15 @@ export interface UnifiedContentDependencies {
   readClipboard(): Promise<ClipboardContent | null>;
   readFileBytes(uri: string): Promise<Uint8Array>;
   p2p: UnifiedContentApi;
-  completeOutboundDelivery(send: () => Promise<SendReport>): Promise<OutboundDeliveryOutcome>;
-  persistDelivery(profileHash: string | undefined, report: SendReport): Promise<void>;
+  completeOutboundDelivery(
+    send: () => Promise<SendReport>,
+    targetDeviceIds?: string[],
+  ): Promise<OutboundDeliveryOutcome>;
+  persistDelivery(
+    profileHash: string | undefined,
+    report: SendReport,
+    deliveryState?: P2pDeliveryState,
+  ): Promise<void>;
 }
 
 export interface ImportedAssetSendOptions {
@@ -122,7 +129,7 @@ export class UnifiedContentService {
       default:
         throw new UnifiedContentError(
           'clipboardUnsupported',
-          `Unsupported clipboard content: ${content.type}`
+          `Unsupported clipboard content: ${content.type}`,
         );
     }
   }
@@ -130,58 +137,80 @@ export class UnifiedContentService {
   async sendImportedAsset(
     asset: ImportedContentAsset,
     profileHash: string,
-    options?: ImportedAssetSendOptions
+    options?: ImportedAssetSendOptions,
   ): Promise<UnifiedContentResult> {
-    if (asset.kind === 'image') {
+    if (asset.kind === "image") {
       const bytes = await this.deps.readFileBytes(asset.uri);
       return this.sendP2pImage(
         bytes,
         imageMimeType(asset.uri, asset.mimeType),
         profileHash,
-        options?.targetDeviceIds ?? []
+        options?.targetDeviceIds ?? [],
       );
     }
 
-    return this.sendP2pFile(asset.uri, profileHash, asset.fileName, options?.targetDeviceIds ?? []);
+    return this.sendP2pFile(
+      asset.uri,
+      profileHash,
+      asset.fileName,
+      options?.targetDeviceIds ?? [],
+    );
   }
 
   private async sendP2pImage(
     bytes: Uint8Array,
     mimeType: string,
     profileHash?: string,
-    targetDeviceIds: string[] = []
+    targetDeviceIds: string[] = [],
   ): Promise<UnifiedContentResult> {
-    const send = () => this.deps.p2p.sendImage(bytes, mimeType, targetDeviceIds);
+    const send = () =>
+      this.deps.p2p.sendImage(bytes, mimeType, targetDeviceIds);
     if (bytes.byteLength <= MAX_INLINE_IMAGE_BYTES) {
       return this.p2pResult(await send(), profileHash);
     }
-    const outcome = await this.deps.completeOutboundDelivery(send);
-    return this.p2pResult(reportAfterOutboundDelivery(outcome), profileHash);
+    const outcome = await this.deps.completeOutboundDelivery(
+      send,
+      targetDeviceIds,
+    );
+    return this.p2pResult(
+      outcome.report,
+      profileHash,
+      outboundDeliveryState(outcome),
+    );
   }
 
   private async sendP2pFile(
     uri: string,
     profileHash?: string,
     displayName?: string,
-    targetDeviceIds: string[] = []
+    targetDeviceIds: string[] = [],
   ): Promise<UnifiedContentResult> {
     const handle = this.deps.p2p.registerInputFile(uri, displayName);
     try {
-      const outcome = await this.deps.completeOutboundDelivery(() =>
-        this.deps.p2p.sendFiles([handle], targetDeviceIds)
+      const outcome = await this.deps.completeOutboundDelivery(
+        () => this.deps.p2p.sendFiles([handle], targetDeviceIds),
+        targetDeviceIds,
       );
-      return this.p2pResult(reportAfterOutboundDelivery(outcome), profileHash);
+      return this.p2pResult(
+        outcome.report,
+        profileHash,
+        outboundDeliveryState(outcome),
+      );
     } finally {
       this.deps.p2p.releaseFileHandle(handle);
     }
   }
 
-  private async p2pResult(report: SendReport, profileHash?: string): Promise<UnifiedContentResult> {
-    const deliveryState = p2pDeliveryStateFromReport(report);
-    await this.deps.persistDelivery(profileHash, report);
+  private async p2pResult(
+    report: SendReport,
+    profileHash?: string,
+    confirmedState?: P2pDeliveryState,
+  ): Promise<UnifiedContentResult> {
+    const deliveryState = confirmedState ?? p2pDeliveryStateFromReport(report);
+    await this.deps.persistDelivery(profileHash, report, deliveryState);
     return {
-      channel: 'p2p',
-      success: deliveryState === 'delivered' || deliveryState === 'partial',
+      channel: "p2p",
+      success: deliveryState === "delivered" || deliveryState === "partial",
       entryId: report.entryId,
       profileHash,
       deliveryState,
@@ -190,26 +219,38 @@ export class UnifiedContentService {
   }
 }
 
-function reportAfterOutboundDelivery(outcome: OutboundDeliveryOutcome): SendReport {
-  return {
-    ...outcome.report,
-    totalAccepted: outcome.completed,
-    totalErrored: outcome.report.totalErrored + outcome.failed + outcome.cancelled,
-    totalPending: outcome.pending,
-  };
+function outboundDeliveryState(
+  outcome: OutboundDeliveryOutcome,
+): P2pDeliveryState {
+  const remaining =
+    outcome.failed +
+    outcome.cancelled +
+    outcome.pending +
+    outcome.report.totalOffline +
+    outcome.report.totalErrored;
+  if (outcome.completed > 0) return remaining > 0 ? "partial" : "delivered";
+  if (outcome.pending > 0) return "pending";
+  if (outcome.failed + outcome.cancelled + outcome.report.totalErrored > 0)
+    return "failed";
+  if (outcome.report.totalOffline > 0) return "offline";
+  return "pending";
 }
 
 let instance: UnifiedContentService | null = null;
 let defaultDependencies: UnifiedContentDependencies | null = null;
 
-export function configureUnifiedContentService(dependencies: UnifiedContentDependencies): void {
-  if (instance) throw new Error('The unified content service has already been created');
+export function configureUnifiedContentService(
+  dependencies: UnifiedContentDependencies,
+): void {
+  if (instance)
+    throw new Error("The unified content service has already been created");
   defaultDependencies = dependencies;
 }
 
 export function getUnifiedContentService(): UnifiedContentService {
   if (!instance) {
-    if (!defaultDependencies) throw new Error('The unified content service is not configured');
+    if (!defaultDependencies)
+      throw new Error("The unified content service is not configured");
     instance = new UnifiedContentService(defaultDependencies);
   }
   return instance;

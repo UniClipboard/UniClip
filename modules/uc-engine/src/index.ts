@@ -250,9 +250,76 @@ export type DeviceTrustQueryResult =
       failure: { code: number; category: string; retryable: boolean };
     };
 
+/** Exact unsigned 64-bit value at the native boundary. Never convert to Number. */
+export type EngineU64 = string;
+export type OutboundProgressState =
+  | "waiting"
+  | "transferring"
+  | "processing"
+  | "retrying"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "unconfirmed";
+export type OutboundProgressBatchState =
+  | "no_items"
+  | "waiting"
+  | "in_progress"
+  | "unconfirmed"
+  | "partially_unconfirmed"
+  | "completed"
+  | "failed"
+  | "partially_failed"
+  | "cancelled"
+  | "partially_cancelled";
+export type OutboundReconciliation =
+  | "running"
+  | "settled"
+  | "superseded"
+  | "not_retained"
+  | "unsupported"
+  | "unreachable"
+  | "busy";
+export interface OutboundProgressItem {
+  kind: ReceiveItemKind;
+  index: number;
+  state: OutboundProgressState;
+  lastKnownPhase: "waiting" | "transferring" | "processing" | "retrying" | null;
+  round: number | null;
+  completedBytes: EngineU64 | null;
+  totalBytes: EngineU64 | null;
+  failureReason: string | null;
+  cancellationReason: string | null;
+}
+export interface OutboundProgress {
+  entryId: string;
+  targetDeviceId: string;
+  attemptId: string | null;
+  revision: EngineU64;
+  freshness: "waiting" | "live" | "unconfirmed" | "settled";
+  freshnessAvailable: boolean;
+  state: OutboundProgressBatchState;
+  itemsTotal: number;
+  itemsWaiting: number;
+  itemsRunning: number;
+  itemsCompleted: number;
+  itemsFailed: number;
+  itemsCancelled: number;
+  itemsUnconfirmed: number;
+  items: OutboundProgressItem[];
+}
+export interface ResendTargetProgress {
+  targetDeviceId: string;
+  state: OutboundReconciliation;
+  current: OutboundProgress | null;
+  newTransferRequested: boolean;
+  duplicateFilesPossible: boolean;
+}
+
 export type ResendEntryOutcome =
   | {
       kind: 'completed';
+      reconciled: ResendTargetProgress[];
       accepted: number;
       duplicate: number;
       offline: number;
@@ -358,6 +425,7 @@ export type EngineEvent =
       attemptId: string;
       state: string;
     }
+  | { type: 'outboundProgressChanged' }
   | { type: 'deliveryStatusChanged'; entryId: string; targetDeviceId: string }
   | {
       type: 'peerPresenceChanged';
@@ -563,8 +631,21 @@ interface UcEngineNativeModule {
   removeMember(deviceId: string): Promise<WorkspaceConvergence>;
   resendEntry(
     entryId: string,
-    targetDevices: string[]
-  ): Promise<ResendEntryOutcome>;
+    targetDevices: string[],
+    confirmNewTransfer: boolean,
+  ): Promise<EngineCallResult<ResendEntryOutcome>>;
+  queryOutboundProgress(
+    entryId: string,
+    targetDeviceId: string,
+  ): Promise<EngineCallResult<{ progress: OutboundProgress | null }>>;
+  listOutboundProgress(): Promise<
+    EngineCallResult<{ progress: OutboundProgress[] }>
+  >;
+  reconcileOutboundProgress(
+    entryId: string,
+    targetDeviceId: string,
+    expectedAttemptId: string | null,
+  ): Promise<EngineCallResult<{ state: OutboundReconciliation }>>;
   leaveSpace(): Promise<void>;
   sendText(text: string, targetDevices: string[]): Promise<SendReport>;
   sendImage(
@@ -845,9 +926,12 @@ export function removeMember(deviceId: string): Promise<WorkspaceConvergence> {
 
 export function resendEntry(
   entryId: string,
-  targetDevices: string[] = []
+  targetDevices: string[] = [],
+  confirmNewTransfer = false,
 ): Promise<ResendEntryOutcome> {
-  return NativeModule.resendEntry(entryId, targetDevices);
+  return unwrapEngineCall(
+    NativeModule.resendEntry(entryId, targetDevices, confirmNewTransfer),
+  );
 }
 
 export async function leaveSpace(): Promise<void> {
@@ -1038,4 +1122,34 @@ export function notifyConnectivityOpportunity(
   reason: ConnectivityOpportunity
 ): Promise<void> {
   return NativeModule.notifyConnectivityOpportunity(reason);
+}
+
+export async function queryOutboundProgress(
+  entryId: string,
+  targetDeviceId: string,
+): Promise<OutboundProgress | null> {
+  return (
+    await unwrapEngineCall(
+      NativeModule.queryOutboundProgress(entryId, targetDeviceId),
+    )
+  ).progress;
+}
+export async function listOutboundProgress(): Promise<OutboundProgress[]> {
+  return (await unwrapEngineCall(NativeModule.listOutboundProgress())).progress;
+}
+/** The classification is not the complete view. Query the view after this action. */
+export async function reconcileOutboundProgress(
+  entryId: string,
+  targetDeviceId: string,
+  expectedAttemptId: string | null = null,
+): Promise<OutboundReconciliation> {
+  return (
+    await unwrapEngineCall(
+      NativeModule.reconcileOutboundProgress(
+        entryId,
+        targetDeviceId,
+        expectedAttemptId,
+      ),
+    )
+  ).state;
 }

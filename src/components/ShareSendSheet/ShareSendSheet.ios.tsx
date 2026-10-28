@@ -1,3 +1,4 @@
+import { OutboundResultsSection } from '@/components/ReceiveResultsSheet';
 import React from 'react';
 import { StyleSheet } from 'react-native';
 import {
@@ -8,6 +9,7 @@ import {
   HStack,
   Image,
   ProgressView,
+  RNHostView,
   Section,
   Spacer,
   Text as SwiftUIText,
@@ -150,6 +152,11 @@ function Body({ c }: { c: ReturnType<typeof useShareSendController> }) {
           isLoading={c.isLoadingTargets}
           onRefresh={c.refreshTargets}
         />
+        {c.targetKind === 'device' ? (
+          <RNHostView matchContents>
+            <OutboundResultsSection actionsEnabled={!c.isSending} />
+          </RNHostView>
+        ) : null}
       </IosSheetForm>
       <SendFooter c={c} />
     </VStack>
@@ -160,7 +167,7 @@ function SendFooter({ c }: { c: ReturnType<typeof useShareSendController> }) {
   const { t } = useTranslation('share');
   const hasFailed = c.jobViews.some((view) => view.sendState === 'failed');
   const successful = c.isDone && !hasFailed;
-  const label = successful ? t('send.success') : hasFailed ? t('send.retry') : t('send.sendAll');
+  const label = successful ? t('send.success') : hasFailed ? t(c.targetKind === 'device' ? 'send.checkExisting' : 'send.retry') : t('send.sendAll');
   const enabled = c.isDone || hasFailed || c.canSend;
 
   return (

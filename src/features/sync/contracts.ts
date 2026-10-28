@@ -37,6 +37,8 @@ export interface SyncImportedAsset {
 }
 
 export interface SyncAdapterDelivery {
+  /** Present only for an Engine entry. Reconcile this entry before a session retry. */
+  entryId?: string;
   success: boolean;
   state: SyncDeliveryState;
   counts?: SyncDeliveryCounts;
