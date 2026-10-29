@@ -42,6 +42,26 @@ test('unknown paths and unsafe classification inputs conservatively build', () =
   for (const paths of [['new-file'], ['.github/workflows/new.yml'], ['scripts/new-tool.mjs'], ['DOCS/readme.md'], ['docs/../app.json'], [null], null]) assert.equal(classifyPaths(paths).nativeRequired, true);
 });
 
+test('root project documentation avoids builds without exempting arbitrary Markdown', () => {
+  for (const path of ['CONTEXT.md', 'DESIGN.md', 'CLAUDE.md']) {
+    assert.equal(classifyPaths([path]).nativeRequired, false, path);
+    for (const native of ['src/App.tsx', 'app.json', 'package-lock.json', '.github/workflows/android-build.yml']) {
+      assert.equal(classifyPaths([path, native]).nativeRequired, true, native);
+    }
+  }
+  for (const path of ['src/CONTEXT.md', 'assets/DESIGN.md', 'context.md', 'UNKNOWN.md']) {
+    assert.equal(classifyPaths([path]).nativeRequired, true, path);
+  }
+});
+
+test('CONTEXT-only PR and main push reproduce the documentation change in PR 103', (t) => {
+  const r = repository(t);
+  const base = r.commit('CONTEXT.md', 'old product contract');
+  const head = r.commit('CONTEXT.md', 'corrected product contract');
+  assert.equal(detectChanges({ eventName: 'pull_request', event: pr(base, head), cwd: r.cwd }).nativeRequired, false);
+  assert.equal(detectChanges({ eventName: 'push', event: push(base, head), cwd: r.cwd }).nativeRequired, false);
+});
+
 test('PR uses a merge-base diff; main push includes its entire before/after range', () => {
   assert.equal(diffRange('pull_request', pr(before, after)), `${before}...${after}`);
   assert.equal(diffRange('push', push(before, after)), `${before}..${after}`);

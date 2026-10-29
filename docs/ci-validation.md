@@ -11,11 +11,18 @@ validate a branch automatically, or use the existing manual build action.
 | Manual build/release | Existing validation and platform selection | Always build the selected platforms; path classification is bypassed |
 | Feature-branch push without a PR | No automatic build workflow | Use a PR or the manual action |
 
-The allowlist in `scripts/ci-changes.mjs` covers `docs/`, selected root documentation,
+The allowlist in `scripts/ci-changes.mjs` covers `docs/`, selected root documentation
+(`README*.md`, `CHANGES*.md`, `AGENTS.md`, `CLAUDE.md`, `CONTEXT.md`, `DESIGN.md` and licenses),
 lifecycle files, known validation workflows, and the classifier
 and its tests. It does not exclude all `.github/` or all scripts. Unknown paths
 require builds. Changes to app source build both platforms conservatively; this
 policy does not try to infer platform-specific dependency graphs.
+
+The `build-pr` workflow still starts for documentation-only PRs. Its classification,
+lint/type checks and tests run normally; the two native checks only validate the
+decision and report success without compilation. React Doctor and issue-reference
+validation also keep their existing triggers. A `.md` extension alone is not an
+exemption: Markdown under app/assets paths or an unknown root path still builds.
 
 Build workflow files receive a **content comparison**, not a path exemption.
 `scripts/ci-native-recipes.mjs` parses their before/after YAML and removes only the
