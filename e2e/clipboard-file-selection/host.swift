@@ -60,12 +60,14 @@ let escaped = BindingClipboardRepresentation.inline(format: "files", mimeType: "
 let malformed = BindingClipboardRepresentation.inline(format: "files", mimeType: "text/uri-list", bytes: Data([0xff, 0xfe]))
 let handle = BindingClipboardRepresentation.file(format: "application/octet-stream", handle: "valid", displayName: "原始文件.txt", mimeType: nil, sizeBytes: 793)
 var results: [[String: Any]] = []
+func writeIdentityIsUnknown(_ identity: Void) -> Bool { true }
+func writeIdentityIsUnknown(_ identity: Data?) -> Bool { identity == nil }
 func check(_ name: String, _ reps: [BindingClipboardRepresentation], _ assertion: () throws -> Bool) {
   UIPasteboard.general.reset()
   do {
     let identity = try host.clipboardWrite(snapshot: BindingClipboardSnapshot(representations: reps))
     let checked = try assertion()
-    let passed = identity == nil && checked
+    let passed = writeIdentityIsUnknown(identity) && checked
     results.append(["case": name, "passed": passed])
   } catch { results.append(["case": name, "passed": false, "error": String(describing: error)]) }
 }

@@ -70,7 +70,8 @@ OS reads, OS events, storage, and the Engine endpoint remain doubles.
 ```sh
 UC_REPLAY_NODE_MODULES=/path/to/mobile node \
   e2e/clipboard-file-selection/run-monitor.cjs /tmp/clipboard-selection-monitor
-node e2e/clipboard-file-selection/run-handoff.cjs /tmp/clipboard-selection-handoff
+UC_REPLAY_NODE_MODULES=/path/to/mobile node \
+  e2e/clipboard-file-selection/run-handoff.cjs /tmp/clipboard-selection-handoff
 ```
 
 The monitor replay currently fails when a new copy has the same content as the previous copy.
