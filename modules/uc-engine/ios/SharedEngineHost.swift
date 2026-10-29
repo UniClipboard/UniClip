@@ -808,13 +808,16 @@ final class AppleEngineHost: BindingHost, @unchecked Sendable {
         )
       }
       return BindingClipboardSnapshot(
+        // UIKit does not expose a proven write identity with this capture.
+        identity: nil,
         observedAtMs: Int64(Date().timeIntervalSince1970 * 1_000),
         representations: representations
       )
     }
   }
 
-  func clipboardWrite(snapshot: BindingClipboardSnapshot) throws {
+  func clipboardWrite(snapshot: BindingClipboardSnapshot) throws -> Data? {
+    // A change count alone cannot prove that a later capture is this write.
     try onMain {
       let metadata = snapshot.representations.lazy.compactMap { representation in
         guard case .inline(let format, let mimeType, let bytes) = representation,
@@ -835,7 +838,7 @@ final class AppleEngineHost: BindingHost, @unchecked Sendable {
               try self.files.copy(handle, to: target)
             }
           }
-          return
+          return nil
         case .inline(let format, let mimeType, let bytes):
           guard AppleClipboardFileResolver.matches(format: format, mimeType: mimeType),
             let fileSelection = AppleClipboardFileResolver.resolve(
@@ -855,7 +858,7 @@ final class AppleEngineHost: BindingHost, @unchecked Sendable {
               try FileManager.default.copyItem(at: fileSelection.sourceURL, to: target)
             }
           }
-          return
+          return nil
         }
       }
       // Keep the existing non-file ordering, including rich text and images.
@@ -865,7 +868,7 @@ final class AppleEngineHost: BindingHost, @unchecked Sendable {
       }) else {
         guard representations.isEmpty else { throw HostBindingError.Unavailable }
         UIPasteboard.general.items = []
-        return
+        return nil
       }
       switch first {
       case .inline(let format, let mimeType, let bytes):
@@ -880,6 +883,7 @@ final class AppleEngineHost: BindingHost, @unchecked Sendable {
       case .file:
         throw HostBindingError.Unavailable
       }
+      return nil
     }
   }
 

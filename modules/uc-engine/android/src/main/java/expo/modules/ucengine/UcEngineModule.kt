@@ -1574,7 +1574,7 @@ private class AndroidEngineHost(
       ?: throw HostBindingException.Unavailable()
     try {
       val item = clipboard.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)
-        ?: return BindingClipboardSnapshot(System.currentTimeMillis(), emptyList())
+        ?: return BindingClipboardSnapshot(null, System.currentTimeMillis(), emptyList())
       val uri = item.uri
       val representations = if (uri != null) {
         listOf(fileRepresentation(uri.toString(), null, null))
@@ -1582,7 +1582,7 @@ private class AndroidEngineHost(
         val text = item.coerceToText(context)?.toString().orEmpty()
         listOf(BindingClipboardRepresentation.Inline("text/plain", "text/plain", text.toByteArray()))
       }
-      return BindingClipboardSnapshot(System.currentTimeMillis(), representations)
+      return BindingClipboardSnapshot(null, System.currentTimeMillis(), representations)
     } catch (_: SecurityException) {
       throw HostBindingException.PermissionDenied()
     }
@@ -1595,7 +1595,8 @@ private class AndroidEngineHost(
         listOf(BindingClipboardRepresentation.Inline("text/plain", "text/plain", captured.text.toByteArray()))
       else -> emptyList()
     }
-    return BindingClipboardSnapshot(System.currentTimeMillis(), representations)
+    // The handoff contains no identity captured with these representations.
+    return BindingClipboardSnapshot(null, System.currentTimeMillis(), representations)
   }
 
   private fun fileRepresentation(uri: String, mimeType: String?, displayName: String?): BindingClipboardRepresentation {
@@ -1614,12 +1615,14 @@ private class AndroidEngineHost(
     )
   }
 
-  override fun clipboardWrite(snapshot: BindingClipboardSnapshot) {
+  override fun clipboardWrite(snapshot: BindingClipboardSnapshot): ByteArray? {
     val clipboard = context.getSystemService(ClipboardManager::class.java)
       ?: throw HostBindingException.Unavailable()
     try {
       val clip = clipDataForSnapshot(context, files, snapshot.representations)
       clipboard.setPrimaryClip(clip)
+      // The platform timestamp is not a unique, proven write identity.
+      return null
     } catch (_: SecurityException) {
       throw HostBindingException.PermissionDenied()
     } catch (_: Exception) {

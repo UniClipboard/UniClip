@@ -63,8 +63,9 @@ var results: [[String: Any]] = []
 func check(_ name: String, _ reps: [BindingClipboardRepresentation], _ assertion: () throws -> Bool) {
   UIPasteboard.general.reset()
   do {
-    try host.clipboardWrite(snapshot: BindingClipboardSnapshot(representations: reps))
-    let passed = try assertion()
+    let identity = try host.clipboardWrite(snapshot: BindingClipboardSnapshot(representations: reps))
+    let checked = try assertion()
+    let passed = identity == nil && checked
     results.append(["case": name, "passed": passed])
   } catch { results.append(["case": name, "passed": false, "error": String(describing: error)]) }
 }
