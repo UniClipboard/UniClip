@@ -8,10 +8,17 @@ mandatory platform and storage rules and `DESIGN.md` for UI conventions.
 UniClip is an Expo SDK 57 / React Native mobile client for encrypted clipboard
 sync across Android, iOS, and desktop devices.
 
-Devices create or join a Space with an invitation code. The mobile app has no
-LAN server configuration, server credentials, transport selector, or LAN
-fallback. An upgraded user without an existing Space enters Join Space. Local
-history remains available while disconnected or before joining.
+Users explicitly select LAN or P2P synchronization in Devices. LAN uses configured
+server profiles (addresses, username, and TLS policy) with passwords stored
+separately. P2P uses Engine-managed Spaces; devices create a Space or join one
+with an invitation code. Switching to P2P requires confirmation. Neither mode
+automatically falls back to the other when synchronization fails.
+
+A fresh install defaults to `syncChannel: 'lan'` with an empty `lanServers` list;
+this selects a mode but does not configure a server or create a Space. Upgrades
+preserve or migrate the selected mode as described below. Local history remains
+available while disconnected, without a configured LAN server, or before joining
+a Space.
 
 Tapping a history card opens its details and double-tapping copies it. History
 deletion differs by platform: Android hides deleted items at once and offers
@@ -42,8 +49,9 @@ back to accompanying path text.
 React Native UI and navigation
   -> UI-facing Zustand stores
   -> focused application services
-  -> uc-engine native module
-  -> encrypted Space and device-to-device delivery
+  -> selected sync adapter
+     -> P2P: uc-engine native module and encrypted Space delivery
+     -> LAN: configured server profiles and LAN sync services
 
 Local SQLite history and platform file cache remain device-owned.
 Each history row has a local incarnation identifier. Deferred deletion compares
@@ -197,8 +205,9 @@ process-observability and failed-start contracts; do not replace that owner here
 
 ## Main Runtime Surfaces
 
-- `BackgroundServiceManager` starts and refreshes the P2P engine according to
-  app lifecycle and background policy.
+- `AppRuntime` starts and refreshes the selected `syncChannel` according to app
+  lifecycle and background policy. `composition.ts` registers both
+  `P2pSyncAdapter` and `LanSyncAdapter`; runtime selection comes from settings.
 - `UnifiedEngineService` exposes engine state without leaking native bindings
   into screens.
 - Mobile reports connectivity opportunities after engine startup, foreground
@@ -222,9 +231,10 @@ process-observability and failed-start contracts; do not replace that owner here
   clipboard changes.
 - `HistoryStorage` persists local history independently from settings and Space
   membership.
-- `ConfigMigration` and App Group legacy cleanup may still read old LAN keys.
-  These names exist only to delete old credentials during upgrade; they are not
-  runtime compatibility paths.
+- `migrateStoredSettings` and `ConfigStorage` migrate legacy LAN profiles and
+  credentials, including recoverable iOS App Group configuration, into the
+  current LAN settings and secret store. Cleanup follows successful persistence;
+  it does not remove LAN support.
 
 ## Native Modules
 
@@ -259,19 +269,38 @@ Examples include `HomeTopBar.*`, `HomeBottomBar.*`,
 `App.tsx` loads settings, initializes local history and the engine, and mounts
 the native-stack navigator. Its main screen hosts three top-level tabs,
 Clipboard, Devices, and Settings: a native tab bar on iOS and a floating
-navigation pill on Android. Space devices and Space settings live under
-Devices, not Settings. Supported external entry points include Android
+navigation pill on Android. Devices hosts the LAN/P2P selector, LAN server
+management, and Space devices and settings. Supported external entry points include Android
 quick upload, Process Text, system share flows, and the iOS extensions. There is
-no Add Server or quick-download route.
+no standalone Add Server or quick-download route; LAN servers are added through
+the server editor sheet in Devices.
 
 ## Upgrade Contract
 
 - Preserve local history, cached payloads, P2P identity, and joined Spaces.
-- Remove legacy server addresses, usernames, passwords, routing state, and iOS
-  shared-container copies.
+- Preserve an explicit `lan` or `p2p` selection. When no valid selection was
+  stored, choose LAN for saved LAN profiles, eligible legacy servers,
+  `legacyLanEligible: true`, or settings schema version 5 and earlier; otherwise
+  choose P2P. These migration rules differ from the fresh-install LAN default.
+- Migrate eligible legacy server addresses, usernames, and TLS policy into
+  `lanServers`, merging by profile ID. Recover passwords from inline legacy
+  values or old credential entries into the LAN secret store. iOS App Group
+  data can supply missing legacy profiles; recovering those profiles does not
+  override the mode resolved from existing app settings.
+- Persist migrated secrets and settings before cleaning legacy credential keys
+  and iOS shared-container copies. A migration journal allows cleanup to retry;
+  cleanup requires every migrated profile and its password to be present in the
+  destination. Failed destination writes retain the legacy source for retry.
 - Do not create a Space automatically.
-- Do not fall back to LAN.
-- When no Space exists after upgrade, open Join Space from the Home empty state.
+- Do not automatically fall back to LAN when P2P fails. Selecting LAN manually
+  remains supported, and a LAN failure likewise does not select P2P.
+- A missing Space does not force a LAN user into P2P setup. Users choosing P2P
+  can create or join a Space through Devices.
+
+Source of truth: [`settings.ts`](src/types/settings.ts),
+[`migrateStoredSettings.ts`](src/features/settings/internal/migrateStoredSettings.ts),
+[`configStorage.ts`](src/features/settings/internal/configStorage.ts), and
+[`appRuntime.ts`](src/app/runtime/appRuntime.ts).
 
 ## Rejected Configuration Import
 
