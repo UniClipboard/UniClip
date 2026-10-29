@@ -77,6 +77,8 @@ async function scenario(platform, mode, appState) {
   assert.equal(observations[0].text, '/sender/private/path.txt');
   assert.equal(observations[1].text, 'genuine subsequent user copy');
   assert.ok(observations.every(value => value.dispatch));
+  await deliver('genuine subsequent user copy');
+  assert.equal(observations.length, 3, 'a new user copy must not be discarded solely because its content is unchanged');
   results.push({ platform, mode, appState, jsMonitorForwardsNativeWriteWhenReadable: true, nextDifferentUserCopyForwarded: true, engineAttribution: 'not simulated here', observations });
   monitor.stop();
 }

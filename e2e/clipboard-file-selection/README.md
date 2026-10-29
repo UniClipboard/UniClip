@@ -60,38 +60,30 @@ It uses cached AndroidX Core 1.18.0.
 Binding records and file-handle registries remain doubles.
 This command does not build an application or an Engine artifact.
 
-## Replay the monitor chain and Engine ledger
+## Replay the monitor chain and captured file handoff
 
 Set `UC_REPLAY_NODE_MODULES` to a checkout that already has TypeScript installed.
 The monitor replay loads the production TypeScript modules through a controlled loader.
-It exercises the monitor and observer in six foreground/background scenarios.
+It attempts six foreground/background scenarios and stops at the first failure.
 OS reads, OS events, storage, and the Engine endpoint remain doubles.
 
 ```sh
 UC_REPLAY_NODE_MODULES=/path/to/mobile node \
   e2e/clipboard-file-selection/run-monitor.cjs /tmp/clipboard-selection-monitor
-python3 e2e/clipboard-file-selection/run-ledger.py \
-  --engine-repo /path/to/Engine --output /tmp/clipboard-selection-ledger
+UC_REPLAY_NODE_MODULES=/path/to/mobile node \
+  e2e/clipboard-file-selection/run-handoff.cjs /tmp/clipboard-selection-handoff
 ```
 
-The ledger runner reads the exact Engine commit from `core-source.json` with `git show`.
-It preserves the ledger function bodies and replaces runtime imports and logging.
-It uses a standard mutex adapter and synthetic guard keys.
-It proves two contract gaps in the pinned ledger:
+The monitor replay currently fails when a new copy has the same content as the previous copy.
+The handoff replay checks a synthetic file through the production adapter to a native boundary
+double. It records source, executable, fixture, and harness hashes in `receipt.json`.
+Neither replay proves the complete Engine and OS chain or native clipboard behavior.
 
-1. A `files:` write does not attribute a later `text:` projection as its echo.
-2. A pending `files:` fallback can attribute a different user file as a remote push.
-
-The ledger runner exits with status 0 when it reproduces these gaps.
-Its receipt always sets `acceptancePassed` to `false`.
-The monitor replay verifies that a later different user text reaches the Engine endpoint.
-Neither replay proves that the complete Engine/OS chain preserves every user copy.
-
-The Engine owns attribution. The Mobile patch adds no suppression ledger or time window.
-The public host contract has no write generation or normalized read-back receipt.
-A safe attribution fix needs an Engine-owned contract that binds an observation to a successful
-native write after file materialization, including ordering and failure retirement.
-A JS-only content cache cannot establish that identity for delayed Android captures.
+`run-ledger.py` is a historical reproduction for the older Engine ledger. Engine PR #344
+replaced that contract; do not use the historical runner as evidence for the current pin.
+The new Engine contract accepts an optional host identity. The host must prove that the
+identity belongs to the successful write and to the captured observation. An unknown identity
+retains the observation and may cause an echo. A JS content cache cannot establish that identity.
 
 ## Device validation: NOT RUN
 

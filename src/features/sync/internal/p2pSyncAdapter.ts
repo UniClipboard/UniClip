@@ -56,7 +56,7 @@ async function capturedClipboardFrom(
     return text === null ? undefined : { text };
   }
   if (content.type === 'Text' && content.text !== undefined) return { text: content.text };
-  if (content.type === 'Image' && content.fileUri) {
+  if ((content.type === 'Image' || content.type === 'File') && content.fileUri) {
     return { fileUri: content.fileUri, displayName: content.fileName };
   }
   return undefined;

@@ -43,6 +43,12 @@ file-list representations remain, the writer reports unavailable. If a selected
 file handle or file copy fails, the writer reports an error instead of falling
 back to accompanying path text.
 
+Engine attributes an observation to a clipboard write only when the host can
+prove that both share the same write identity. The iOS and Android hosts currently
+return an unknown identity. Engine retains unknown observations, which can echo.
+On Android, a captured file URI and display name are handed to the native host
+with the observation. The existing automatic file dispatch policy is unchanged.
+
 ## Architecture
 
 ```text
