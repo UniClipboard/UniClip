@@ -7,7 +7,8 @@ import { classifierWorkflowOnly, recipeWorkflows, sameNativeRecipe } from './ci-
 // Only paths known not to feed an app build may avoid native compilation.
 // Build workflows require content comparison; policy code is validation-only.
 const validationOnlyFiles = new Set([
-  'AGENTS.md', 'LICENSE', 'LICENSE.md', 'LICENSE.txt',
+  'AGENTS.md', 'CLAUDE.md', 'CONTEXT.md', 'DESIGN.md',
+  'LICENSE', 'LICENSE.md', 'LICENSE.txt',
   'scripts/ci-changes.mjs', 'scripts/ci-native-recipes.mjs',
   'scripts/tests/ci-changes.test.mjs', 'scripts/tests/ci-workflows.test.mjs',
   'scripts/tests/ci-native-recipes.test.mjs', 'src/__tests__/releaseWorkflow.test.ts',
