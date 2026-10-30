@@ -3,12 +3,12 @@
     "name": "UniClip",
     "slug": "uniclip",
     "scheme": "uniclipboard",
-    "version": "2.3.0",
+    "version": "2.4.0",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "buildNumber": "197",
+      "buildNumber": "198",
       "supportsTablet": true,
       "appleTeamId": "8XG39X5CL8",
       "bundleIdentifier": "app.uniclipboard.UniClipboard",
@@ -23,7 +23,7 @@
       }
     },
     "android": {
-      "versionCode": 197,
+      "versionCode": 198,
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -140,7 +140,7 @@
       },
       "releaseChannel": {
         "name": "alpha",
-        "number": 2
+        "number": 1
       }
     }
   }
