@@ -1,3 +1,9 @@
+v2.3.0.197-alpha.2
+
+### Common
+
+- Improvement: Update the sync core to commit 357d7f64 for member connections and clipboard write attribution.
+
 v2.3.0.196-alpha.1
 
 ### iOS
