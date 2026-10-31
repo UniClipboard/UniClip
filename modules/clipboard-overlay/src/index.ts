@@ -15,6 +15,20 @@ export interface ClipboardChangeEvent {
   content: string;
 }
 
+/** Reader lifecycle, separate from READ_LOGS and the system's one-time log consent. */
+export interface ClipboardMonitorStatus {
+  state: 'stopped' | 'starting' | 'listening' | 'retrying' | 'failed';
+  generation: number;
+  attempt: number;
+  lastEventAtMs: number | null;
+  reason: string | null;
+  exitCode: number | null;
+  detail: string | null;
+  retryInMs: number | null;
+  readFailure?: string | null;
+  lastReadAtMs?: number | null;
+}
+
 interface ClipboardOverlayModuleInterface {
   setDebugMode(enabled: boolean): boolean;
   setMaxRetries(retries: number): boolean;
@@ -34,11 +48,16 @@ interface ClipboardOverlayModuleInterface {
   // Event-driven monitor (ClipCascade-style trigger layer)
   hasReadLogsPermission(): boolean;
   isClipboardMonitoring(): boolean;
+  getClipboardMonitorStatus?(): ClipboardMonitorStatus;
   startClipboardMonitor(): Promise<boolean>;
   stopClipboardMonitor(): Promise<boolean>;
   addListener(
     eventName: 'onClipboardChange',
     listener: (event: ClipboardChangeEvent) => void
+  ): EventSubscription;
+  addListener(
+    eventName: 'onClipboardMonitorStateChange',
+    listener: (event: ClipboardMonitorStatus) => void
   ): EventSubscription;
 }
 
@@ -152,6 +171,18 @@ export function isClipboardMonitoring(): boolean {
     return NativeModule.isClipboardMonitoring();
   }
   return false;
+}
+
+/** null means an older native binary; never infer reader health from a permission check. */
+export function getClipboardMonitorStatus(): ClipboardMonitorStatus | null {
+  return NativeModule?.getClipboardMonitorStatus?.() ?? null;
+}
+
+export function addClipboardMonitorStateListener(
+  listener: (status: ClipboardMonitorStatus) => void
+): EventSubscription | null {
+  if (!NativeModule?.getClipboardMonitorStatus) return null;
+  return NativeModule.addListener('onClipboardMonitorStateChange', listener);
 }
 
 /**

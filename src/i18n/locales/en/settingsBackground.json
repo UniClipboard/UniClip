@@ -30,6 +30,23 @@
       "desc": "Upload background clipboard changes when Auto-push is on"
     },
     "clipboardAccess": {
+      "monitor": {
+        "permissionReady": "Permissions granted",
+        "permissionDescription": "ADB and overlay permissions are granted; Android may still ask for log access",
+        "title": "Event listener status",
+        "restart": "Restart",
+        "restartRequested": "Listener start requested. Allow log access if Android asks.",
+        "status": {
+          "stopped": "The listener has not started. Tap to restart.",
+          "starting": "Starting the event listener",
+          "listening": "Event monitoring has started and is waiting for a copy event. Background reading is not yet confirmed.",
+          "retrying": "The listener stopped and is retrying a limited number of times. Clipboard polling stays off.",
+          "failed": "The listener stopped. Tap to restart and allow log access if Android asks.",
+          "unavailable": "This version cannot report listener status. Try restarting it.",
+          "readFailed": "A copy event arrived, but its content could not be read. Check overlay permission and try again.",
+          "active": "Content was read through an event. Waiting for the next copy; check sync status for delivery."
+        }
+      },
       "title": "Background reading",
       "method": {
         "overlay-polling": "Polling",

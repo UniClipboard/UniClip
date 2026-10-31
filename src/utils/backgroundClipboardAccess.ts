@@ -105,6 +105,10 @@ export interface BackgroundClipboardAdapter {
   activate(): Promise<void>;
   deactivate(): Promise<void>;
   addAuthorizationChangeListener(listener: () => void): BackgroundClipboardMonitor;
+  getMonitorStatus?(): import('clipboard-overlay').ClipboardMonitorStatus | null;
+  addMonitorStatusListener?(
+    listener: (status: import('clipboard-overlay').ClipboardMonitorStatus) => void
+  ): BackgroundClipboardMonitor;
   getAuthorizationState(): ClipboardAuthorizationState;
   requestAuthorization(): boolean;
   continueSetup(): Promise<BackgroundClipboardSetupActionResult>;

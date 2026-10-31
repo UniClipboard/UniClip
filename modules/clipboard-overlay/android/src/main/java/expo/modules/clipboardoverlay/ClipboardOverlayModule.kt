@@ -21,14 +21,9 @@ import android.view.WindowManager
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
-import java.io.BufferedReader
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
-import java.io.InputStreamReader
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 class ClipboardOverlayModule : Module() {
 
@@ -57,13 +52,11 @@ class ClipboardOverlayModule : Module() {
     // Event-driven clipboard monitor state (ClipCascade-style trigger layer)
     private var clipboardManagerRef: ClipboardManager? = null
     private var clipChangedListener: ClipboardManager.OnPrimaryClipChangedListener? = null
-    private var logcatThread: Thread? = null
-    private var logcatProcess: Process? = null
-    @Volatile private var stopLogcat = false
-    private var isMonitoring = false
-    // Debounce repeated logcat denial lines for a single copy event.
-    private var lastTriggerTime = 0L
-    private val triggerDebounceMs = 1000L
+    @Volatile private var isMonitoring = false
+    @Volatile private var logMonitor: ClipboardLogMonitor? = null
+    @Volatile private var monitorDisposed = false
+    @Volatile private var monitorReadFailure: String? = null
+    @Volatile private var lastMonitorReadAtMs: Long? = null
     // Dedup identical clipboard content across the foreground listener and the
     // overlay re-read triggered by the same copy (mirrors KDE Connect behavior).
     private var lastEmittedContent: String? = null
@@ -74,9 +67,10 @@ class ClipboardOverlayModule : Module() {
         // Emitted whenever a clipboard change is observed, either in the foreground
         // (OnPrimaryClipChangedListener) or in the background (logcat-triggered
         // overlay read). Payload: { "type": "text|image|files", "content": String }.
-        Events("onClipboardChange")
+        Events("onClipboardChange", "onClipboardMonitorStateChange")
 
         OnDestroy {
+            monitorDisposed = true
             mainHandler.post { stopMonitorInternal() }
         }
 
@@ -92,13 +86,18 @@ class ClipboardOverlayModule : Module() {
             }
         }
 
-        Function("isClipboardMonitoring") { isMonitoring }
+        Function("isClipboardMonitoring") {
+            isMonitoring && if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                clipChangedListener != null
+            } else logMonitor?.isActive() == true
+        }
+
+        Function("getClipboardMonitorStatus") { monitorStatus() }
 
         AsyncFunction("startClipboardMonitor") { promise: Promise ->
             mainHandler.post {
                 try {
-                    startMonitorInternal()
-                    promise.resolve(true)
+                    promise.resolve(startMonitorInternal())
                 } catch (e: Exception) {
                     promise.reject("ERR_MONITOR_START", e.message ?: "Unknown error", e)
                 }
@@ -469,16 +468,23 @@ class ClipboardOverlayModule : Module() {
         context: Context,
         handler: Handler,
         attempt: Int,
+        onError: ((Exception) -> Unit)? = null,
         callback: (ClipData?) -> Unit
     ) {
         val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val clip = cm.primaryClip
+        val clip = try {
+            cm.primaryClip
+        } catch (error: Exception) {
+            if (onError == null) throw error
+            onError(error)
+            return
+        }
         if (clip != null || attempt >= maxRetries) {
             timing("read", "clip_read", "attempts=${attempt + 1} found=${clip != null}")
             callback(clip)
         } else {
             handler.postDelayed({
-                readClipWithRetry(context, handler, attempt + 1, callback)
+                readClipWithRetry(context, handler, attempt + 1, onError, callback)
             }, RETRY_DELAY_MS)
         }
     }
@@ -738,66 +744,65 @@ class ClipboardOverlayModule : Module() {
     // Must be started/stopped on the main thread.
     // ---------------------------------------------------------------------------
 
-    private fun startMonitorInternal() {
-        if (isMonitoring) return
-        val context = appContext.reactContext ?: return
+    private fun startMonitorInternal(): Boolean {
+        val context = appContext.reactContext ?: return false
+        if (monitorDisposed) return false
         val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboardManagerRef = cm
 
         // 1) Foreground realtime path.
-        val listener = ClipboardManager.OnPrimaryClipChangedListener {
-            try {
-                val map = buildClipMap(context, cm.primaryClip)
-                if (map != null) emitClip(map)
-            } catch (_: Exception) {
-                // Backgrounded: read denied. The logcat trigger will handle it.
+        if (clipChangedListener == null) {
+            val listener = ClipboardManager.OnPrimaryClipChangedListener {
+                try {
+                    val map = buildClipMap(context, cm.primaryClip)
+                    if (map != null) emitClip(map)
+                } catch (_: Exception) {
+                    // Backgrounded: read denied. The logcat trigger will handle it.
+                }
             }
+            cm.addPrimaryClipChangedListener(listener)
+            clipChangedListener = listener
         }
-        cm.addPrimaryClipChangedListener(listener)
-        clipChangedListener = listener
+        isMonitoring = true
+
+        // Before Android 10 the clipboard listener itself also receives background changes.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return true
 
         // 2) Background trigger path (requires READ_LOGS, adb-granted only).
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
             context.checkSelfPermission(Manifest.permission.READ_LOGS) == PackageManager.PERMISSION_GRANTED
         ) {
-            stopLogcat = false
-            logcatThread = Thread {
-                try {
-                    val ts = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US).format(Date())
-                    // Only ClipboardService errors from now on; silence everything else.
-                    val process = Runtime.getRuntime()
-                        .exec(arrayOf("logcat", "-T", ts, "ClipboardService:E", "*:S"))
-                    logcatProcess = process
-                    val reader = BufferedReader(InputStreamReader(process.inputStream))
-                    reader.use { br ->
-                        var line: String? = null
-                        while (!stopLogcat && br.readLine().also { line = it } != null) {
-                            val l = line
-                            if (l != null && l.contains(context.packageName)) {
-                                val now = System.currentTimeMillis()
-                                if (now - lastTriggerTime > triggerDebounceMs) {
-                                    lastTriggerTime = now
-                                    android.util.Log.i("UcOverlayMonitor", "logcat_trigger")
-                                    mainHandler.post { triggerOverlayReadAndEmit() }
-                                }
+            if (logMonitor == null) {
+                logMonitor = ClipboardLogMonitor(
+                    packageName = context.packageName,
+                    onTrigger = { generation ->
+                        android.util.Log.i("UcOverlayMonitor", "logcat_trigger")
+                        mainHandler.post {
+                            if (isMonitoring && logMonitor?.getStatus()?.generation == generation) {
+                                triggerOverlayReadAndEmit(generation)
                             }
                         }
-                    }
-                } catch (_: Exception) {
-                } finally {
-                    try { logcatProcess?.destroy() } catch (_: Exception) {}
-                }
-            }.apply {
-                isDaemon = true
-                start()
+                    },
+                    onStatus = { status ->
+                        mainHandler.post {
+                            if (!monitorDisposed && logMonitor?.getStatus()?.generation == status.generation &&
+                                (isMonitoring || status.state == "stopped")) {
+                                sendEvent("onClipboardMonitorStateChange", monitorStatus(status))
+                            }
+                        }
+                    },
+                )
             }
+            // Idempotent while healthy, but a dead process/worker must never block a new start.
+            if (logMonitor?.isActive() != true) {
+                monitorReadFailure = null
+                lastMonitorReadAtMs = null
+            }
+            logMonitor?.start()
+            return true
         }
-
-        isMonitoring = true
-        android.util.Log.i(
-            "UcOverlayMonitor",
-            "monitor_started logcatTrigger=${logcatThread != null}"
-        )
+        logMonitor?.stop()
+        return false
     }
 
     private fun stopMonitorInternal() {
@@ -806,28 +811,61 @@ class ClipboardOverlayModule : Module() {
         }
         clipChangedListener = null
 
-        stopLogcat = true
-        try { logcatThread?.interrupt() } catch (_: Exception) {}
-        try { logcatProcess?.destroy() } catch (_: Exception) {}
-        logcatThread = null
-        logcatProcess = null
-
         isMonitoring = false
+        logMonitor?.stop()
+        monitorReadFailure = null
+        lastMonitorReadAtMs = null
+    }
+
+    private fun monitorStatus(
+        status: ClipboardLogMonitor.Status = logMonitor?.getStatus() ?: ClipboardLogMonitor.Status(
+            state = if (isMonitoring && Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) "listening" else "stopped",
+        ),
+    ): Map<String, Any?> = status.toMap() + mapOf(
+            "readFailure" to monitorReadFailure, "lastReadAtMs" to lastMonitorReadAtMs,
+        )
+
+    private fun reportMonitorReadFailure(code: String) {
+        monitorReadFailure = code
+        android.util.Log.w("UcOverlayMonitor", "overlay_read_failed code=$code")
+        if (!monitorDisposed) sendEvent("onClipboardMonitorStateChange", monitorStatus())
     }
 
     /**
      * Background trigger handler: grab overlay focus, read the clip once, emit.
      * Reuses the same overlay focus mechanism as the on-demand reads.
      */
-    private fun triggerOverlayReadAndEmit() {
-        withOverlayFocusInternal("monitor", { _, _, _ -> /* best-effort, no promise */ }) { context, done ->
-            readClipWithRetry(context, mainHandler, 0) { clip ->
+    private fun isCurrentMonitor(generation: Long): Boolean =
+        isMonitoring && !monitorDisposed && logMonitor?.getStatus()?.generation == generation
+
+    private fun triggerOverlayReadAndEmit(generation: Long) {
+        withOverlayFocusInternal("monitor", { code, _, _ ->
+            if (isCurrentMonitor(generation)) reportMonitorReadFailure(code)
+        }) { context, done ->
+            if (!isCurrentMonitor(generation)) {
                 done()
+                return@withOverlayFocusInternal
+            }
+            readClipWithRetry(context, mainHandler, 0, onError = {
+                done()
+                if (isCurrentMonitor(generation)) reportMonitorReadFailure("clipboard-read-failed")
+            }) { clip ->
+                done()
+                if (!isCurrentMonitor(generation)) return@readClipWithRetry
                 try {
                     val map = buildClipMap(context, clip)
                     android.util.Log.i("UcOverlayMonitor", "triggered_read type=${map?.get("type") ?: "none"}")
-                    if (map != null) emitClip(map)
-                } catch (_: Exception) {}
+                    if (map != null) {
+                        monitorReadFailure = null
+                        lastMonitorReadAtMs = System.currentTimeMillis()
+                        sendEvent("onClipboardMonitorStateChange", monitorStatus())
+                        emitClip(map)
+                    } else {
+                        reportMonitorReadFailure("clipboard-empty-or-unreadable")
+                    }
+                } catch (_: Exception) {
+                    reportMonitorReadFailure("clipboard-read-failed")
+                }
             }
         }
     }

@@ -125,6 +125,7 @@ export class ClipboardMonitor {
 
     // 从 AsyncStorage 加载持久化的 hash
     await this.loadPersistedHash();
+    if (!this.isMonitoring) return;
 
     if (Platform.OS === 'ios') {
       await this.loadPersistedDeniedChangeCount();
@@ -142,12 +143,13 @@ export class ClipboardMonitor {
       // overlay-event / Shizuku 提供事件监听；overlay-polling 主动返回不可监听，
       // 由这里回落到现有 native-timer 轮询并通过悬浮窗逐次读取。
       const eventStarted = await this.tryStartEventMonitor();
+      if (!this.isMonitoring) return;
       if (!eventStarted) {
         this.startPolling();
       }
     }
 
-    log.info(`Started monitoring (${this.eventMonitorActive ? 'event-driven' : 'polling'})`);
+    log.info(`Started monitoring (${this.eventMonitorActive ? 'event-driven' : this.pollingTimerTag ? 'polling' : 'waiting-for-event-listener'})`);
   }
 
   /**
@@ -214,6 +216,13 @@ export class ClipboardMonitor {
    */
   private startPolling(): void {
     this.stopPolling(); // 先停止现有轮询
+
+    if (Platform.OS === 'android' &&
+        useSettingsStore.getState().config?.clipboardAccessMethod === 'overlay-event') {
+      // An unavailable ADB listener must not silently change the user's event-only policy.
+      log.warn('ADB event listener unavailable; clipboard polling remains disabled');
+      return;
+    }
 
     this.pollingTimerTag = setTimer(
       () => this.checkClipboard(),
@@ -360,12 +369,19 @@ export class ClipboardMonitor {
         void this.handleClipboardEvent(event);
       });
       if (!monitor) return false;
+      if (!this.isMonitoring) {
+        monitor.remove();
+        return false;
+      }
       this.eventSubscription = monitor;
       this.eventMonitorAdapter = adapter;
       this.eventMonitorActive = true;
       return true;
     } catch (error) {
-      log.warn('Event monitor unavailable, falling back to polling:', error);
+      const adbEvents = useSettingsStore.getState().config?.clipboardAccessMethod === 'overlay-event';
+      log.warn(adbEvents
+        ? 'ADB event monitor unavailable; clipboard polling remains disabled:'
+        : 'Event monitor unavailable, falling back to polling:', error);
       this.eventSubscription?.remove();
       this.eventSubscription = null;
       return false;
