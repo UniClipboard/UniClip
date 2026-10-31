@@ -4,6 +4,7 @@ import * as Clipboard from 'expo-clipboard';
 import { setTimer, clearTimer } from 'native-timer';
 import { useSettingsStore } from '@/features/settings';
 import type { ClipboardAccessMethod } from '@/types/settings';
+import { createLogger } from '@/support/observability';
 import {
   changeBackgroundClipboardMethod,
   getShizukuAuthorizationState,
@@ -18,6 +19,7 @@ import {
 
 const OVERLAY_IDLE_TIMEOUT_MS = 10_000;
 const OVERLAY_IDLE_TIMER = 'clipboard_overlay_idle';
+const monitorLog = createLogger('AdbClipboardMonitor');
 
 function getOverlayModule(): typeof import('clipboard-overlay') {
   return require('clipboard-overlay');
@@ -29,6 +31,8 @@ function getShizukuModule(): typeof import('shizuku-clipboard') {
 
 class OverlayClipboardAdapter implements BackgroundClipboardAdapter {
   private triggeredRead = false;
+  private monitorEpoch = 0;
+  private monitorTransition: Promise<unknown> = Promise.resolve();
 
   constructor(readonly method: 'overlay-polling' | 'overlay-event') {}
 
@@ -52,18 +56,73 @@ class OverlayClipboardAdapter implements BackgroundClipboardAdapter {
     if (this.method === 'overlay-polling') return null;
 
     const overlayModule = getOverlayModule();
-    const eventSubscription = overlayModule.addClipboardChangeListener(listener);
-    const started = await overlayModule.startClipboardMonitor();
-    if (!started) {
+    const epoch = ++this.monitorEpoch;
+    let active = true;
+    const isCurrent = () => active && epoch === this.monitorEpoch;
+    const eventSubscription = overlayModule.addClipboardChangeListener((event) => {
+      if (isCurrent()) listener(event);
+    });
+    const statusSubscription = overlayModule.addClipboardMonitorStateListener?.((status) => {
+      if (status.state === 'failed' || status.state === 'retrying' || status.readFailure) {
+        monitorLog.warn('Event reader state', status);
+      }
+    });
+    let started: boolean;
+    try {
+      started = await this.transitionMonitor(async () => isCurrent() && overlayModule.startClipboardMonitor());
+    } catch (error) {
       eventSubscription?.remove();
+      statusSubscription?.remove();
+      throw error;
+    }
+    if (!started || !isCurrent()) {
+      eventSubscription?.remove();
+      statusSubscription?.remove();
       return null;
     }
+    let recovering: Promise<void> | null = null;
+    const foregroundSubscription = AppState.addEventListener('change', (state) => {
+      if (state !== 'active' || !isCurrent() || recovering || !overlayModule.hasReadLogsPermission()) return;
+      // Consent may only be requested in the foreground. Never probe by starting a second logcat.
+      recovering = this.transitionMonitor(async () => {
+        if (!isCurrent() || overlayModule.isClipboardMonitoring?.() !== false) return true;
+        return overlayModule.startClipboardMonitor();
+      })
+        .then((running) => {
+          if (!running) monitorLog.warn('Event reader could not recover on foreground');
+        })
+        .catch((error: unknown) => monitorLog.warn('Event reader recovery failed', error))
+        .finally(() => { recovering = null; });
+    });
     return {
       remove: () => {
+        if (!active) return;
+        const ownsReader = isCurrent();
+        active = false;
+        foregroundSubscription.remove();
         eventSubscription?.remove();
-        void overlayModule.stopClipboardMonitor();
+        statusSubscription?.remove();
+        if (ownsReader) {
+          this.monitorEpoch++;
+          void this.transitionMonitor(() => overlayModule.stopClipboardMonitor())
+            .catch((error: unknown) => monitorLog.warn('Event reader stop failed', error));
+        }
       },
     };
+  }
+
+  private transitionMonitor<T>(action: () => Promise<T>): Promise<T> {
+    const transition = this.monitorTransition.then(action);
+    this.monitorTransition = transition.catch(() => {});
+    return transition;
+  }
+
+  getMonitorStatus() {
+    return getOverlayModule().getClipboardMonitorStatus?.() ?? null;
+  }
+
+  addMonitorStatusListener(listener: (status: import('clipboard-overlay').ClipboardMonitorStatus) => void) {
+    return getOverlayModule().addClipboardMonitorStateListener?.(listener) ?? { remove: () => {} };
   }
 
   async runTriggeredRead<T>(read: () => Promise<T>): Promise<T> {

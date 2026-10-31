@@ -23,6 +23,7 @@ import {
 } from '@expo/ui/jetpack-compose';
 import { useClipboardStore, useSettingsStore } from '@/stores';
 import type { ClipboardAccessMethod } from '@/types/settings';
+import type { ClipboardMonitorStatus } from 'clipboard-overlay';
 import {
   changeClipboardAccessMethod,
   getClipboardAccessAdapter,
@@ -111,6 +112,7 @@ export const BackgroundSection = memo(function BackgroundSection() {
     () => getClipboardAccessAdapter(clipboardAccessMethod).getAuthorizationState()
   );
   const clipboardSetupState = getBackgroundClipboardSetupState(clipboardAccessState);
+  const [monitorStatus, setMonitorStatus] = useState<ClipboardMonitorStatus | null>(null);
   const hasBatteryOptRequested = useRef(false);
 
   const refreshBatteryPermission = () => {
@@ -148,6 +150,47 @@ export const BackgroundSection = memo(function BackgroundSection() {
     });
     return () => subscription.remove();
   }, [clipboardAccessMethod]);
+
+  useEffect(() => {
+    if (clipboardAccessMethod !== 'overlay-event') {
+      setMonitorStatus(null);
+      return;
+    }
+    const adapter = getClipboardAccessAdapter('overlay-event');
+    const refresh = () => setMonitorStatus(adapter.getMonitorStatus?.() ?? null);
+    refresh();
+    // Reader health must not go through the authorization listener: that listener restarts
+    // monitoring after a permission change, and would otherwise form a restart loop.
+    const subscription = adapter.addMonitorStatusListener?.(setMonitorStatus);
+    const foreground = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refresh();
+    });
+    return () => {
+      subscription?.remove();
+      foreground.remove();
+    };
+  }, [clipboardAccessMethod]);
+
+  const restartAdbMonitorIfSelected = async () => {
+    if (useSettingsStore.getState().config?.clipboardAccessMethod !== 'overlay-event') return;
+    await useClipboardStore.getState().restartMonitoring();
+    setMonitorStatus(getClipboardAccessAdapter('overlay-event').getMonitorStatus?.() ?? null);
+  };
+
+  const handleRestartAdbMonitor = async () => {
+    try {
+      await restartAdbMonitorIfSelected();
+      showMessage(t('advanced.clipboardAccess.monitor.restartRequested'), 'success');
+    } catch (error: unknown) {
+      showMessage(error instanceof Error ? error.message : t('toast.setFailed'), 'error');
+    }
+  };
+
+  const monitorState = monitorStatus?.state === 'listening'
+    ? monitorStatus.readFailure ? 'readFailed'
+      : monitorStatus.lastReadAtMs ? 'active' : 'listening'
+    : monitorStatus?.state ?? 'unavailable';
+  const monitorNeedsAttention = ['failed', 'stopped', 'readFailed', 'unavailable'].includes(monitorState);
 
   /** 开启总开关后依次引导:忽略电池优化 → 通知权限 → 悬浮窗权限。 */
   const runPermissionOnboarding = async () => {
@@ -190,7 +233,12 @@ export const BackgroundSection = memo(function BackgroundSection() {
     if (enabled) {
       if (store.isTempDisabledBackgroundTasks) {
         store.setTempDisabledBackgroundTasks(false);
-        showMessage(t('toast.autoSyncRestored'), 'success');
+        try {
+          await restartAdbMonitorIfSelected();
+          showMessage(t('toast.autoSyncRestored'), 'success');
+        } catch (error: unknown) {
+          showMessage(error instanceof Error ? error.message : t('toast.setFailed'), 'error');
+        }
         return;
       }
       setDialog({
@@ -206,12 +254,13 @@ export const BackgroundSection = memo(function BackgroundSection() {
               enableBackgroundUpload: true,
               enableForegroundNotification: true,
             });
+            await runPermissionOnboarding();
+            await restartAdbMonitorIfSelected();
             showMessage(t('toast.autoSyncEnabled'), 'success');
           } catch (error: unknown) {
             showMessage(error instanceof Error ? error.message : t('toast.setFailed'), 'error');
             return;
           }
-          void runPermissionOnboarding();
         },
       });
       return;
@@ -566,14 +615,28 @@ export const BackgroundSection = memo(function BackgroundSection() {
             key="clipboardAccessReady"
             testID="background-clipboard-access-ready"
             icon={ICONS.check}
-            title={t('advanced.clipboardAccess.status.ready.title')}
-            description={t(
-              `advanced.clipboardAccess.status.ready.description.${clipboardAccessMethod}`
-            )}
+            title={t(clipboardAccessMethod === 'overlay-event'
+              ? 'advanced.clipboardAccess.monitor.permissionReady'
+              : 'advanced.clipboardAccess.status.ready.title')}
+            description={t(clipboardAccessMethod === 'overlay-event'
+              ? 'advanced.clipboardAccess.monitor.permissionDescription'
+              : `advanced.clipboardAccess.status.ready.description.${clipboardAccessMethod}`)}
             trailing="chevron"
             onPress={handleOpenClipboardMethodSheet}
           />
         )}
+        {clipboardAccessMethod === 'overlay-event' && clipboardSetupState.status === 'ready' ? (
+          <SettingsListRow
+            key="adbMonitor"
+            testID="background-adb-monitor-status"
+            tone={monitorNeedsAttention ? 'warning' : undefined}
+            icon={monitorNeedsAttention ? ICONS.error : ICONS.terminal}
+            title={t('advanced.clipboardAccess.monitor.title')}
+            description={t(`advanced.clipboardAccess.monitor.status.${monitorState}`)}
+            trailing={{ action: t('advanced.clipboardAccess.monitor.restart'), chevron: true }}
+            onPress={() => void handleRestartAdbMonitor()}
+          />
+        ) : null}
       </SettingsSectionItem>
 
       <Spacer modifiers={[heightModifier(24)]} />
