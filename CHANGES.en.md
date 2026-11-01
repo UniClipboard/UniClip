@@ -1,3 +1,13 @@
+v2.4.0.199-alpha.2
+
+### Common
+
+- Improvement: Update the sync core to commit f3ffe490 for member connections, startup and shutdown resource release, and background file processing order.
+
+### iOS
+
+- Fix: Serialize LAN session closure and propagate cancellation requests.
+
 v2.4.0.198-alpha.1
 
 ### Common
