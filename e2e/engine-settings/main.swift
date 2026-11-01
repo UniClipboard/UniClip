@@ -39,8 +39,9 @@ final class IsolatedHost: BindingHost, @unchecked Sendable {
     func fileWriteChunk(handle: String, offset: UInt64, bytes: Data) throws { throw HostBindingError.InvalidHandle }
     func fileFinishWrite(handle: String) throws { throw HostBindingError.InvalidHandle }
     func clipboardRead() throws -> BindingClipboardSnapshot { throw HostBindingError.Unavailable }
-    func clipboardWrite(snapshot: BindingClipboardSnapshot) throws {
+    func clipboardWrite(snapshot: BindingClipboardSnapshot) throws -> Data? {
         lock.lock(); defer { lock.unlock() }; writtenClipboard = snapshot
+        return nil
     }
     func lastClipboard() -> BindingClipboardSnapshot? {
         lock.lock(); defer { lock.unlock() }; return writtenClipboard
