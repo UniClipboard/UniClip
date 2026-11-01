@@ -50,10 +50,14 @@ Keep all validation data in a fresh task-owned directory.
 6. Run `npm run check:quality`.
 7. Run `APP_VARIANT=test npx expo prebuild --no-install`.
 8. Run `cd ios && pod install`.
-9. Build the generated iOS workspace for a generic simulator destination without signing.
-10. Run `cd android && ./gradlew assembleRelease`.
+9. Build the generated iOS workspace with `APP_VARIANT=test` for a generic simulator destination without signing.
+10. Run `cd android && APP_VARIANT=test ./gradlew assembleRelease`.
 11. Execute the existing `e2e/engine-settings/run.py` macOS host as documented in its README.
 12. Record the prepared marker, binding hashes, native hashes, Cargo.lock hash and runtime source.
+
+Set `APP_VARIANT=test` for prebuild and each application build. The native test IDs
+do not set the embedded Expo configuration by themselves. Verify `extra.appVariant`
+in each embedded `app.config` before accepting a test artifact.
 
 The storage wrapper deletes its temporary packaging target. Retain the generated
 host dylib, Swift binding and C headers before that cleanup if using the macOS
