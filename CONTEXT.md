@@ -187,9 +187,10 @@ Android retains the actual Engine and host registry for Pending and Failed final
 cleanup. Only Pending repeats waits with backoff. Released(error) destroys the
 instance once and retains the operation error. Service release, runtime detach
 and activity lifecycle transitions dispatch off the main thread. No-object failed
-startup remains owned because this SDK has no complete release receipt. iOS
-complete-owner integration remains separate in PR96 and depends on the upstream
-process-observability and failed-start contracts; do not replace that owner here.
+startup remains owned because Mobile has not integrated the Engine startup
+release reports. The pinned Engine now provides startup and process release
+reports. iOS complete-owner integration remains separate in PR96; host integration
+and failure acceptance remain pending. Do not replace that owner in a pin update.
 
 ## Key Directories
 
