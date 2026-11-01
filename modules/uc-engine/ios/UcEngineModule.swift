@@ -61,6 +61,7 @@ public final class UcEngineModule: Module {
   public func definition() -> ModuleDefinition {
     Name("UcEngine")
     OnCreate {
+      self.lifecycle.setForegroundAdmission(UIApplication.shared.applicationState != .background)
       AppleNativeDiagnostics.start()
       self.engineOperationQueue.async { try? self.host.prepareDiagnosticLogging() }
       // Expo has no resign-active hook; it fires before didEnterBackground.
