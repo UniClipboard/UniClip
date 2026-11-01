@@ -30,6 +30,7 @@ import { PlatformColor } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { IosSheetForm, IosSheetPage } from '@/components/ui';
+import { iosProminentButtonModifiers } from '@/components/ui/iosButtonStyles.ios';
 import { IosSegmentedControl } from '@/components/ui/IosSegmentedControl.ios';
 import type { AddSyncConnectionMode } from '@/components/AddSyncConnectionSheet.types';
 import type { SpaceDeviceManagementController } from '@/components/useSpaceDeviceManagement';
@@ -55,7 +56,7 @@ function operationError(error: unknown, t: (key: string) => string): string {
 
 /** 行内胶囊按钮(状态卡、空状态) */
 const capsuleButton = (prominent: boolean, size: 'regular' | 'large' = 'regular') => [
-  buttonStyle(prominent ? 'borderedProminent' : 'bordered'),
+  ...(prominent ? iosProminentButtonModifiers() : [buttonStyle('bordered')]),
   buttonBorderShape('capsule'),
   controlSize(size),
 ];
