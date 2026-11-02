@@ -15,3 +15,11 @@ Record before implementation. Run the actual Share controller, transport coordin
 - Both platforms must omit the results section and keep status in the target row.
 - LAN transports without byte callbacks must show indeterminate progress and only show success after the request is acknowledged.
 - Completion must remain visible until the user presses Done.
+
+# React Doctor follow-up
+
+Record before the row refactor. The state presentation must preserve selection,
+percentage, activity, success, and warning markers on both platforms. Extracting
+marker rendering must not move the press handler off the full row. Removing the
+redundant session-target reset must preserve target freezing during a send and
+replace the target snapshot before a subsequent send after reopening.

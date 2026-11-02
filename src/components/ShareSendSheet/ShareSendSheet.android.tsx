@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
 import type { ColorScheme } from '@/theme/colors.types';
 import { useShareSheetStore } from '@/stores/shareSheetStore';
-import type { ShareTargetProgress } from './shareTargetProgress';
+import { describeShareTargetProgress, type ShareTargetPresentation, type ShareTargetProgress } from './shareTargetProgress';
 import type { ShareSendSheetProps } from './ShareSendSheet.types';
 import {
   useShareSendController,
@@ -366,10 +366,11 @@ function TargetRow({
   locked: boolean;
 }) {
   const { t } = useTranslation('share');
-  const successful = progress?.state === 'success';
-  const uncertain = progress?.state === 'unconfirmed' || progress?.state === 'failed';
-  const percentage = progress?.fraction == null ? null : Math.floor(progress.fraction * 100);
-  const color = successful ? theme.success : uncertain ? theme.warning : theme.accent;
+  const presentation = describeShareTargetProgress(progress);
+  const color = { active: theme.accent, success: theme.success, warning: theme.warning }[presentation.tone];
+  const fill = { active: theme.accentContainer, success: theme.successContainer, warning: theme.warningContainer }[presentation.tone];
+  const status = progress ? t(`send.targetState.${progress.state}`) : '';
+  const detail = status || target.detail;
   return (
     <Pressable
       testID={`share-target-${target.id}`}
@@ -384,15 +385,15 @@ function TargetRow({
       ]}
       accessibilityRole="button"
       accessibilityState={{ selected, disabled: locked }}
-      accessibilityLabel={[target.displayName, progress ? t(`send.targetState.${progress.state}`) : '', percentage === null ? '' : `${percentage}%`].filter(Boolean).join(', ')}
+      accessibilityLabel={[target.displayName, status, presentation.percentageLabel].filter(Boolean).join(', ')}
     >
-      {progress?.fraction != null ? (
+      {presentation.fraction !== null ? (
         <View
           testID={`share-target-fill-${target.id}`}
           pointerEvents="none"
           style={[styles.targetProgressFill, {
-            width: `${progress.fraction * 100}%`,
-            backgroundColor: successful ? theme.successContainer : uncertain ? theme.warningContainer : theme.accentContainer,
+            width: `${presentation.fraction * 100}%`,
+            backgroundColor: fill,
           }]}
         />
       ) : null}
@@ -400,27 +401,35 @@ function TargetRow({
         <Text style={[styles.targetName, { color: theme.textPrimary }]} numberOfLines={1}>
           {target.displayName}
         </Text>
-        {progress ? (
-          <Text style={[styles.targetDetail, { color: theme.textSecondary }]}>
-            {t(`send.targetState.${progress.state}`)}
-          </Text>
-        ) : target.detail ? (
+        {detail ? (
           <Text style={[styles.targetDetail, { color: theme.textSecondary }]} numberOfLines={1}>
-            {target.detail}
+            {detail}
           </Text>
         ) : null}
       </View>
-      {successful || uncertain ? (
-        <Ionicons name={successful ? 'checkmark-circle' : 'alert-circle-outline'} size={23} color={color} />
-      ) : progress && (percentage === null || progress.state === 'confirming') ? (
-        <ActivityIndicator color={color} />
-      ) : progress ? (
-        <Text style={[styles.targetPercentage, { color }]}>{percentage}%</Text>
-      ) : (
-        <Ionicons name={selected ? 'checkbox' : 'square-outline'} size={23} color={selected ? theme.accent : theme.textSecondary} />
-      )}
+      <TargetRowIndicator presentation={presentation} selected={selected} theme={theme} color={color} />
     </Pressable>
   );
+}
+
+function TargetRowIndicator({ presentation, selected, theme, color }: {
+  presentation: ShareTargetPresentation;
+  selected: boolean;
+  theme: ColorScheme;
+  color: ColorScheme['accent'];
+}) {
+  switch (presentation.indicator) {
+    case 'success':
+      return <Ionicons name="checkmark-circle" size={23} color={color} />;
+    case 'warning':
+      return <Ionicons name="alert-circle-outline" size={23} color={color} />;
+    case 'activity':
+      return <ActivityIndicator color={color} />;
+    case 'percentage':
+      return <Text style={[styles.targetPercentage, { color }]}>{presentation.percentageLabel}</Text>;
+    case 'selection':
+      return <Ionicons name={selected ? 'checkbox' : 'square-outline'} size={23} color={selected ? theme.accent : theme.textSecondary} />;
+  }
 }
 
 const styles = StyleSheet.create({

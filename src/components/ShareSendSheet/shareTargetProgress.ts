@@ -58,3 +58,21 @@ export function shareTargetProgress(
     : 'confirming';
   return { state: state === 'sending' && fraction === 1 ? 'confirming' : state, fraction: state === 'success' ? 1 : fraction };
 }
+
+export interface ShareTargetPresentation {
+  indicator: 'selection' | 'success' | 'warning' | 'activity' | 'percentage';
+  tone: 'active' | 'success' | 'warning';
+  fraction: number | null;
+  percentageLabel: string;
+}
+
+/** Both platforms use the same status precedence and percentage rounding. */
+export function describeShareTargetProgress(progress?: ShareTargetProgress): ShareTargetPresentation {
+  if (!progress) return { indicator: 'selection', tone: 'active', fraction: null, percentageLabel: '' };
+  const percentageLabel = progress.fraction === null ? '' : `${Math.floor(progress.fraction * 100)}%`;
+  const base = { fraction: progress.fraction, percentageLabel };
+  if (progress.state === 'success') return { ...base, indicator: 'success', tone: 'success' };
+  if (progress.state === 'failed' || progress.state === 'unconfirmed') return { ...base, indicator: 'warning', tone: 'warning' };
+  if (progress.fraction === null || progress.state === 'confirming') return { ...base, indicator: 'activity', tone: 'active' };
+  return { ...base, indicator: 'percentage', tone: 'active' };
+}

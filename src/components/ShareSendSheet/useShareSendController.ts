@@ -252,7 +252,6 @@ export function useShareSendController(onClose: () => void, active: boolean, job
     }
     if (wasActive) return;
     sessionRef.current += 1;
-    setSessionTargets([]);
     setPhase({ kind: 'claiming' });
     setJobViews([]);
     sentEntries.current.clear();

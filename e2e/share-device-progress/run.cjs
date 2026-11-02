@@ -170,6 +170,18 @@ async function until(predicate) { const deadline = Date.now() + 4000; while (!pr
     visible = true;
     await renderer.act(async () => { tree.update(React.createElement(Host)); });
     check(`${platform}: reopened session clears historical progress`, () => { assert.equal(current.targetProgress.size, 0); assert(current.jobViews.every(view => !view.entryId)); });
+    const previousDevices = deviceState.devices;
+    deviceState.devices = [{ deviceId: 'two', displayName: 'Replacement device', isLocal: false }];
+    await renderer.act(async () => { tree.update(React.createElement(Host)); });
+    if (!current.selectedTargetIds.has('two')) await renderer.act(async () => { current.toggleTarget('two'); });
+    let reopenedSend;
+    await renderer.act(async () => { reopenedSend = current.sendAll(); });
+    check(`${platform}: next send replaces the previous target snapshot`, () => {
+      assert.deepEqual(current.targets.map(target => target.displayName), ['Replacement device']);
+    });
+    await renderer.act(async () => { resolveSend({ success: true, state: 'delivered', entryId: 'visible-entry' }); });
+    await renderer.act(async () => { resolveSend({ success: true, state: 'delivered', entryId: 'visible-entry' }); await reopenedSend; });
+    deviceState.devices = previousDevices;
     await renderer.act(async () => { tree.unmount(); });
     sync = adapter;
   }

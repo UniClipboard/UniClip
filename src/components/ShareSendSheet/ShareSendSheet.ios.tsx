@@ -50,7 +50,7 @@ import {
   iosSaturatedButtonPalette,
 } from '@/components/ui/iosButtonStyles.ios';
 import { iosColors, iosKindTints } from '@/theme/iosDesignTokens';
-import type { ShareTargetProgress } from './shareTargetProgress';
+import { describeShareTargetProgress, type ShareTargetPresentation, type ShareTargetProgress } from './shareTargetProgress';
 import type { ShareSendSheetProps } from './ShareSendSheet.types';
 import {
   useShareSendController,
@@ -354,18 +354,17 @@ function TargetRow({
   const { t } = useTranslation('share');
   const { theme } = useTheme();
   const [width, setWidth] = useState(0);
-  const successful = progress?.state === 'success';
-  const uncertain = progress?.state === 'unconfirmed' || progress?.state === 'failed';
-  const percentage = progress?.fraction == null ? null : Math.floor(progress.fraction * 100);
-  const fill = successful ? theme.colors.successContainer : uncertain ? theme.colors.warningContainer : theme.colors.infoContainer;
+  const presentation = describeShareTargetProgress(progress);
+  const fill = { active: theme.colors.infoContainer, success: theme.colors.successContainer, warning: theme.colors.warningContainer }[presentation.tone];
   const status = progress ? t(`send.targetState.${progress.state}`) : '';
+  const detail = status || target.detail;
   return (
     <SwiftUIButton
       onPress={() => onToggle(target.id)}
       modifiers={[
         buttonStyle('plain'),
         disabled(locked),
-        accessibilityValue([selected ? 'selected' : 'not selected', status, percentage === null ? '' : `${percentage}%`].filter(Boolean).join(', ')),
+        accessibilityValue([selected ? 'selected' : 'not selected', status, presentation.percentageLabel].filter(Boolean).join(', ')),
         listRowInsets({ top: 0, bottom: 0, leading: 0, trailing: 0 }),
         ...(selected ? [listRowBackground(SELECTED_ROW_BACKGROUND)] : []),
       ]}
@@ -385,34 +384,47 @@ function TargetRow({
             <SwiftUIText modifiers={[font({ size: 16 }), foregroundStyle('primary'), lineLimit(1)]}>
               {target.displayName}
             </SwiftUIText>
-            {progress || target.detail ? (
+            {detail ? (
               <SwiftUIText modifiers={[font({ size: 12 }), foregroundStyle('secondary'), lineLimit(1)]}>
-                {progress ? status : target.detail}
+                {detail}
               </SwiftUIText>
             ) : null}
           </VStack>
           <Spacer />
-          {successful || uncertain ? (
-            <Image systemName={successful ? 'checkmark.circle.fill' : 'exclamationmark.circle'} size={22} color={successful ? theme.colors.success : theme.colors.warning} />
-          ) : progress && (percentage === null || progress.state === 'confirming') ? (
-            <ProgressView />
-          ) : progress ? (
-            <SwiftUIText modifiers={[font({ size: 14, weight: 'semibold' }), foregroundStyle(iosKindTints.text)]}>
-              {`${percentage}%`}
-            </SwiftUIText>
-          ) : (
-            <Image systemName={selected ? 'checkmark.circle.fill' : 'circle'} size={22} color={selected ? iosKindTints.text : TERTIARY_LABEL} />
-          )}
+          <TargetRowIndicator presentation={presentation} selected={selected} />
         </HStack>
         <Background.Content>
           <Rectangle modifiers={[
-            frame({ width: width * (progress?.fraction ?? 0), maxHeight: Infinity }),
+            frame({ width: width * (presentation.fraction ?? 0), maxHeight: Infinity }),
             foregroundStyle(fill),
           ]} />
         </Background.Content>
       </Background>
     </SwiftUIButton>
   );
+}
+
+function TargetRowIndicator({ presentation, selected }: {
+  presentation: ShareTargetPresentation;
+  selected: boolean;
+}) {
+  const { theme } = useTheme();
+  switch (presentation.indicator) {
+    case 'success':
+      return <Image systemName="checkmark.circle.fill" size={22} color={theme.colors.success} />;
+    case 'warning':
+      return <Image systemName="exclamationmark.circle" size={22} color={theme.colors.warning} />;
+    case 'activity':
+      return <ProgressView />;
+    case 'percentage':
+      return (
+        <SwiftUIText modifiers={[font({ size: 14, weight: 'semibold' }), foregroundStyle(iosKindTints.text)]}>
+          {presentation.percentageLabel}
+        </SwiftUIText>
+      );
+    case 'selection':
+      return <Image systemName={selected ? 'checkmark.circle.fill' : 'circle'} size={22} color={selected ? iosKindTints.text : TERTIARY_LABEL} />;
+  }
 }
 
 const styles = StyleSheet.create({
