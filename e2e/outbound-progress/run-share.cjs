@@ -8,7 +8,7 @@ const state={devices:[{deviceId:'target',displayName:'Synthetic device',isLocal:
 const spaceStore=fn=>fn(state);spaceStore.getState=()=>state;
 const lan={servers:[],refresh:async()=>{},isRefreshing:false};
 let sends=0;const checks=[];
-const sync={sendImportedAsset:async()=>{sends++;return {entryId:'entry',transport:'p2p',success:false,state:'pending'};}};
+const sync={switchTo:async()=>{},sendImportedAsset:async()=>{sends++;return {entryId:'entry',transport:'p2p',success:false,state:'pending'};}};
 const space={refreshDevices:async()=>{},refresh:async()=>{},resendEntry:async(entry,targets,confirmed=false)=>{checks.push({entry,targets,confirmed});return {kind:'completed',reconciled:[{targetDeviceId:'target',state:'running',current:null,newTransferRequested:false,duplicateFilesPossible:false}]};}};
 Module._load=function(name,parent,...args){
  if(name==='react-native')return {Alert:{alert:()=>{}}};

@@ -187,7 +187,9 @@ offer a second explicit new-transfer confirmation with a duplicate-file warning.
 Engine still owns final admission, CAS, authorization and retries. Running,
 Superseded, Busy and Unreachable cannot be bypassed by confirmation. Share retries
 within one live session reuse the returned Engine entry. This session mapping is
-not persisted and does not choose an interrupted-Share policy.
+not persisted. Dismissing the Share sheet during preparation or unsettled delivery
+stops the sync runtime before queued jobs are removed. The sheet closes immediately.
+A later send waits for runtime shutdown before restarting the adapter.
 
 Android retains the actual Engine and host registry for Pending and Failed final
 cleanup. Only Pending repeats waits with backoff. Released(error) destroys the
