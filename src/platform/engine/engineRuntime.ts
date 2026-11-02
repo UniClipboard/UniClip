@@ -365,6 +365,7 @@ export class UnifiedEngineService {
         this.updateSnapshot({ lastEvent: event, lastChangedKind: event.kind });
         break;
       case "outboundProgressChanged":
+      case "receiveProgressChanged":
       case "incomingEntry":
       case "incomingPending":
       case "receiveAttemptStateChanged":

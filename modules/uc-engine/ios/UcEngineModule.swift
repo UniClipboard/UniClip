@@ -974,6 +974,8 @@ public final class UcEngineModule: Module {
       ]
     case .outboundProgressChanged:
       return ["type": "outboundProgressChanged"]
+    case .receiveProgressChanged:
+      return ["type": "receiveProgressChanged"]
     case .transferProgress(
       let transferId,
       let entryId,
