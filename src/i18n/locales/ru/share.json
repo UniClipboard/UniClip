@@ -46,6 +46,14 @@
     "localDevice": "Это устройство",
     "allDevices": "Все устройства",
     "unconfirmed": "Result unconfirmed. Check the existing transfer.",
-    "checkExisting": "Check existing transfer"
+    "checkExisting": "Check existing transfer",
+    "targetState": {
+      "preparing": "Подготовка…",
+      "sending": "Отправка",
+      "confirming": "Ожидание подтверждения…",
+      "success": "Отправлено",
+      "failed": "Ошибка отправки",
+      "unconfirmed": "Доставка не подтверждена"
+    }
   }
 }

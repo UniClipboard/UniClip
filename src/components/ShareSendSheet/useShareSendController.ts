@@ -36,6 +36,9 @@ import { getAppRuntime } from '@/app/runtime/composition';
 import { createLogger } from '@/support/observability';
 import { useLanMySpaceSheet } from '../useLanMySpaceSheet';
 import { formatBytes } from '@/utils/formatBytes';
+import { useUnifiedEngineStore } from '@/stores/unifiedEngineStore';
+import type { SyncDeliveryState, SyncSendOptions } from '@/features/sync';
+import { shareTargetProgress } from './shareTargetProgress';
 
 const log = createLogger('ShareSendSheet');
 
@@ -64,6 +67,9 @@ export interface ShareJobView {
   previewText?: string;
   sendState: JobSendState;
   errorMessage?: string;
+  entryId?: string;
+  deliveryState?: string;
+  targetResults?: Record<string, SyncDeliveryState>;
 }
 
 export interface ShareTarget {
@@ -73,7 +79,6 @@ export interface ShareTarget {
 }
 
 const TEXT_PREVIEW_MAX_CHARS = 80;
-const SUCCESS_CLOSE_DELAY_MS = 600;
 
 /** 与处理租约一致的陈旧判定:超过该时长的 job 只可能是中断会话的残留。 */
 const STALE_JOB_AGE_MS = 15 * 60 * 1_000;
@@ -100,6 +105,7 @@ async function loadPreview(job: PendingShareJob): Promise<ShareJobView> {
 
 export function useShareSendController(onClose: () => void, active: boolean, jobs?: PendingShareJob[]) {
   const { t } = useTranslation('share');
+  const outbound = useUnifiedEngineStore((state) => state.outbound);
   const syncChannel = useSettingsStore((state) => state.config?.syncChannel ?? 'lan');
   const spaceDevices = useUnifiedSpaceStore((s) => s.devices);
   const isP2pTargetStateLoading = useUnifiedSpaceStore(
@@ -110,7 +116,7 @@ export function useShareSendController(onClose: () => void, active: boolean, job
         s.deviceListRefreshStatus === 'refreshing')
   );
   const lan = useLanMySpaceSheet(active && syncChannel === 'lan');
-  const targets = useMemo<ShareTarget[]>(
+  const availableTargets = useMemo<ShareTarget[]>(
     () =>
       syncChannel === 'lan'
         ? lan.servers
@@ -127,13 +133,15 @@ export function useShareSendController(onClose: () => void, active: boolean, job
   );
 
   const [phase, setPhase] = useState<Phase>({ kind: 'claiming' });
+  const [sessionTargets, setSessionTargets] = useState<ShareTarget[]>([]);
+  const targets = phase.kind === 'sending' || phase.kind === 'done' ? sessionTargets : availableTargets;
+  const sessionRef = useRef(0);
   const [jobViews, setJobViews] = useState<ShareJobView[]>([]);
   const [selectedTargetIds, setSelectedTargetIds] = useState<Set<string>>(new Set());
   const [isRefreshingP2pTargets, setIsRefreshingP2pTargets] = useState(false);
   const sendingRef = useRef(false);
   const sentEntries = useRef(new Map<string, string>());
   const hasAppliedDefaultSelectionRef = useRef(false);
-  const successCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshP2pTargets = useCallback(async () => {
     const hadResolvedDeviceList = useUnifiedSpaceStore.getState().hasResolvedDeviceList;
     setIsRefreshingP2pTargets(true);
@@ -163,6 +171,34 @@ export function useShareSendController(onClose: () => void, active: boolean, job
       views.map((view) => (view.job.id === jobId ? { ...view, ...patch } : view))
     );
   }, []);
+
+  const sendOptions = useCallback((jobId: string, targetIds: string[]): SyncSendOptions => {
+    const session = sessionRef.current;
+    return {
+      targetIds,
+      onEntryCreated: (entryId) => {
+        if (session !== sessionRef.current) return;
+        sentEntries.current.set(jobId, entryId);
+        updateJob(jobId, { entryId });
+        void getUnifiedEngineService().refreshOutboundProgress();
+      },
+      onTargetResult: (targetId, state) => {
+        if (session !== sessionRef.current) return;
+        setJobViews((views) => views.map((view) => view.job.id === jobId
+          ? { ...view, targetResults: { ...view.targetResults, [targetId]: state } }
+          : view));
+      },
+    };
+  }, [updateJob]);
+
+  // Refresh while the session is visible. Events can be lost during recovery.
+  useEffect(() => {
+    if (!active || syncChannel !== 'p2p' || (phase.kind !== 'sending' && phase.kind !== 'done')) return;
+    const refresh = () => { void getUnifiedEngineService().refreshOutboundProgress(); };
+    refresh();
+    const timer = setInterval(refresh, 1000);
+    return () => clearInterval(timer);
+  }, [active, phase.kind, syncChannel]);
 
   // 认领全部 pending job(单次认领守卫:并发由管理器 running 锁合并,
   // 重入由 claim 的稳定引用 + active 驱动的 effect 保证)。
@@ -209,11 +245,14 @@ export function useShareSendController(onClose: () => void, active: boolean, job
     const wasActive = lastActiveRef.current;
     lastActiveRef.current = active;
     if (!active) {
+      if (wasActive) sessionRef.current += 1;
       sendingRef.current = false;
       hasAppliedDefaultSelectionRef.current = false;
       return;
     }
     if (wasActive) return;
+    sessionRef.current += 1;
+    setSessionTargets([]);
     setPhase({ kind: 'claiming' });
     setJobViews([]);
     sentEntries.current.clear();
@@ -226,12 +265,6 @@ export function useShareSendController(onClose: () => void, active: boolean, job
     hasAppliedDefaultSelectionRef.current = false;
     setSelectedTargetIds(new Set());
   }, [active, syncChannel]);
-
-  useEffect(() => {
-    if (active || !successCloseTimerRef.current) return;
-    clearTimeout(successCloseTimerRef.current);
-    successCloseTimerRef.current = null;
-  }, [active]);
 
   useEffect(() => {
     if (!active || hasAppliedDefaultSelectionRef.current || targets.length === 0) return;
@@ -260,6 +293,7 @@ export function useShareSendController(onClose: () => void, active: boolean, job
         entryId?: string;
       }>,
     ) => {
+      const session = sessionRef.current;
       const previousEntry =
         syncChannel === "p2p" ? sentEntries.current.get(jobId) : undefined;
       let result: { state: string; success: boolean; entryId?: string };
@@ -289,8 +323,15 @@ export function useShareSendController(onClose: () => void, active: boolean, job
         };
       } else {
         result = await send();
-        if (result.entryId) sentEntries.current.set(jobId, result.entryId);
+        if (session === sessionRef.current && result.entryId) {
+          sentEntries.current.set(jobId, result.entryId);
+          updateJob(jobId, { entryId: result.entryId });
+        }
       }
+      if (session !== sessionRef.current) {
+        return { jobId, success: result.success && result.state === 'delivered', deliveryState: result.state };
+      }
+      updateJob(jobId, { deliveryState: result.state });
       const delivered = result.success && result.state === "delivered";
       void recordShareDiagnosticStage(
         jobId,
@@ -331,7 +372,7 @@ export function useShareSendController(onClose: () => void, active: boolean, job
       if (job.kind === 'text') {
         const text = await new File(job.fileUri).text();
         return finishSend(job.id, () =>
-          getUnifiedSyncRuntime().sendImportedText(text, profileHash, { targetIds })
+          getUnifiedSyncRuntime().sendImportedText(text, profileHash, sendOptions(job.id, targetIds))
         );
       }
       return finishSend(job.id, () =>
@@ -343,17 +384,18 @@ export function useShareSendController(onClose: () => void, active: boolean, job
             mimeType: job.mimeType,
           },
           profileHash,
-          { targetIds }
+          sendOptions(job.id, targetIds)
         )
       );
     },
-    [finishSend]
+    [finishSend, sendOptions]
   );
 
   // 发送单个 job(串行;不自动重试)
   const sendOne = useCallback(
     async (view: ShareJobView, targetIds: string[]): Promise<SendResult> => {
       const { job } = view;
+      const session = sessionRef.current;
       updateJob(job.id, { sendState: 'sending', errorMessage: undefined });
       setPhase({ kind: 'sending', jobId: job.id, stage: 'importing' });
       try {
@@ -365,9 +407,7 @@ export function useShareSendController(onClose: () => void, active: boolean, job
           const { profileHash } = await importTextToHistory(text);
           setPhase({ kind: 'sending', jobId: job.id, stage: 'sending' });
           return await finishSend(job.id, () =>
-            getUnifiedSyncRuntime().sendImportedText(text, profileHash, {
-              targetIds,
-            })
+            getUnifiedSyncRuntime().sendImportedText(text, profileHash, sendOptions(job.id, targetIds))
           );
         }
         const imported = await importFileToHistory(
@@ -387,41 +427,41 @@ export function useShareSendController(onClose: () => void, active: boolean, job
               mimeType: job.mimeType,
             },
             imported.profileHash,
-            { targetIds }
+            sendOptions(job.id, targetIds)
           )
         );
       } catch (error) {
         const message = error instanceof Error ? error.message : t('send.failed');
-        updateJob(job.id, { sendState: 'failed', errorMessage: message });
+        if (session === sessionRef.current) updateJob(job.id, { sendState: 'failed', errorMessage: message, deliveryState: 'failed' });
         return { jobId: job.id, success: false, deliveryState: 'failed', errorMessage: message };
       }
     },
-    [finishSend, jobs, sendHistoryJob, updateJob, t]
+    [finishSend, jobs, sendHistoryJob, sendOptions, updateJob, t]
   );
 
   // 发送全部 job(串行,每项独立展示状态)
   const sendAll = useCallback(async () => {
-    if (sendingRef.current) return;
+    if (sendingRef.current || selectedTargetIds.size === 0 || jobViews.length === 0) return;
     sendingRef.current = true;
+    const session = sessionRef.current;
+    setSessionTargets(targets);
     const selectedTargets = [...selectedTargetIds];
     const results: SendResult[] = [];
     try {
       for (const view of jobViews) {
+        if (session !== sessionRef.current) return;
         if (view.sendState === 'success') continue;
         results.push(await sendOne(view, selectedTargets));
       }
+      if (session !== sessionRef.current) return;
       setPhase({ kind: 'done', results });
       if (results.every((result) => result.success)) {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-        successCloseTimerRef.current = setTimeout(() => {
-          successCloseTimerRef.current = null;
-          onClose();
-        }, SUCCESS_CLOSE_DELAY_MS);
       }
     } finally {
-      sendingRef.current = false;
+      if (session === sessionRef.current) sendingRef.current = false;
     }
-  }, [jobViews, onClose, selectedTargetIds, sendOne]);
+  }, [jobViews, selectedTargetIds, sendOne, targets]);
 
   // 删除(显式):二次确认后清除记录 + payload,不可恢复
   const deleteJob = useCallback(async (jobId: string) => {
@@ -430,6 +470,7 @@ export function useShareSendController(onClose: () => void, active: boolean, job
   }, [completeJob]);
 
   const toggleTarget = useCallback((targetId: string) => {
+    if (sendingRef.current) return;
     setSelectedTargetIds((prev) => {
       const next = new Set(prev);
       if (next.has(targetId)) next.delete(targetId);
@@ -439,6 +480,7 @@ export function useShareSendController(onClose: () => void, active: boolean, job
   }, []);
 
   const refreshTargets = useCallback(async () => {
+    if (sendingRef.current) return;
     if (syncChannel === 'lan') {
       await lan.refresh();
       return;
@@ -477,6 +519,11 @@ export function useShareSendController(onClose: () => void, active: boolean, job
         ? lan.isRefreshing
         : isRefreshingP2pTargets || isP2pTargetStateLoading,
     selectedTargetIds,
+    targetProgress: new Map(
+      phase.kind === 'sending' || phase.kind === 'done'
+        ? [...selectedTargetIds].map((targetId) => [targetId, shareTargetProgress(jobViews, targetId, outbound.progress, outbound.available, isSending)] as const)
+        : []
+    ),
     isSending,
     isDone,
     canSend,

@@ -12,11 +12,13 @@ import type {
   SyncImportedAsset,
   SyncRuntimePolicy,
   SyncSendOptions,
+  SyncDeliveryState,
   SyncStartContext,
 } from '@/features/sync/contracts';
 import {
   LanHttpClient,
   LanUnavailableError,
+  LanDeliveryUnknownError,
   type LanClipboardDocument,
   type LanPayloadUpload,
   type LanPutResult,
@@ -422,7 +424,7 @@ export class LanSyncAdapter implements SyncAdapter {
   ): Promise<SyncAdapterDelivery> {
     if (options?.targetIds?.length) {
       return this.sendToTargets(options.targetIds, (server) =>
-        this.pushText(server, text, profileHash)
+        this.pushText(server, text, profileHash), options.onTargetResult
       );
     }
     return this.sendAutomatically((server) => this.pushText(server, text, profileHash));
@@ -435,7 +437,7 @@ export class LanSyncAdapter implements SyncAdapter {
   ): Promise<SyncAdapterDelivery> {
     if (options?.targetIds?.length) {
       return this.sendToTargets(options.targetIds, (server) =>
-        this.pushAsset(server, asset, profileHash)
+        this.pushAsset(server, asset, profileHash), options.onTargetResult
       );
     }
     return this.sendAutomatically((server) => this.pushAsset(server, asset, profileHash));
@@ -577,14 +579,22 @@ export class LanSyncAdapter implements SyncAdapter {
 
   private async sendToTargets(
     targetIds: string[],
-    send: (server: LanServerDraft) => Promise<SyncAdapterDelivery>
+    send: (server: LanServerDraft) => Promise<SyncAdapterDelivery>,
+    onTargetResult?: (targetId: string, state: SyncDeliveryState) => void,
   ): Promise<SyncAdapterDelivery> {
     const uniqueTargetIds = [...new Set(targetIds)];
     const results = await Promise.allSettled(
       uniqueTargetIds.map(async (targetId) => {
-        const server = await this.dependencies.getServer(targetId);
-        if (!server) throw new Error('LAN server not found');
-        return send(server);
+        try {
+          const server = await this.dependencies.getServer(targetId);
+          if (!server) throw new Error('LAN server not found');
+          const result = await send(server);
+          onTargetResult?.(targetId, result.state);
+          return result;
+        } catch (error) {
+          onTargetResult?.(targetId, error instanceof LanDeliveryUnknownError ? 'pending' : 'failed');
+          throw error;
+        }
       })
     );
     return this.aggregateDeliveries(results);

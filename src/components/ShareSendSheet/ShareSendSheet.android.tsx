@@ -1,4 +1,3 @@
-import { OutboundResultsSection } from '@/components/ReceiveResultsSheet';
 import React from 'react';
 import {
   ActivityIndicator,
@@ -16,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
 import type { ColorScheme } from '@/theme/colors.types';
 import { useShareSheetStore } from '@/stores/shareSheetStore';
+import type { ShareTargetProgress } from './shareTargetProgress';
 import type { ShareSendSheetProps } from './ShareSendSheet.types';
 import {
   useShareSendController,
@@ -42,7 +42,7 @@ export function ShareSendSheet({ visible, onClose, jobs, title }: ShareSendSheet
       animationType="slide"
       presentationStyle="fullScreen"
       statusBarTranslucent
-      onRequestClose={onClose}
+      onRequestClose={c.handleClose}
     >
       <View
         style={[
@@ -50,7 +50,7 @@ export function ShareSendSheet({ visible, onClose, jobs, title }: ShareSendSheet
           { backgroundColor: theme.colors.surfaceLow, paddingTop: Math.max(insets.top, 16) },
         ]}
       >
-        <PageHeader title={pageTitle} onClose={onClose} theme={theme.colors} />
+        <PageHeader title={pageTitle} onClose={c.handleClose} theme={theme.colors} />
         {isParsing ? <ParsingState /> : <ShareBody c={c} theme={theme.colors} title={pageTitle} />}
       </View>
     </Modal>
@@ -160,6 +160,8 @@ function ShareBody({
             />
             <TargetSection
               targets={c.targets}
+              targetProgress={c.targetProgress}
+              locked={c.isSending || c.isDone}
               selectedTargetIds={c.selectedTargetIds}
               onToggle={c.toggleTarget}
               theme={theme}
@@ -170,7 +172,6 @@ function ShareBody({
             />
           </>
         )}
-        {c.targetKind === 'device' ? <OutboundResultsSection actionsEnabled={!c.isSending} /> : null}
       </ScrollView>
       <SendFooter c={c} hasFailed={hasFailed} theme={theme} />
     </>
@@ -189,7 +190,7 @@ function SendFooter({
   const { t } = useTranslation('share');
   const done = c.isDone && !hasFailed;
   const enabled = done || hasFailed || c.canSend;
-  const label = done ? t('send.success') : hasFailed ? t(c.targetKind === 'device' ? 'send.checkExisting' : 'send.retry') : t('send.sendAll');
+  const label = c.isSending ? t('send.sending') : done ? t('send.done') : hasFailed ? t(c.targetKind === 'device' ? 'send.checkExisting' : 'send.retry') : t('send.sendAll');
   const icon = done ? 'checkmark' : hasFailed ? 'refresh' : 'paper-plane';
   const onPress = done ? c.handleClose : c.sendAll;
 
@@ -252,6 +253,8 @@ function ContentSection({
 function TargetSection({
   targets,
   selectedTargetIds,
+  targetProgress,
+  locked,
   onToggle,
   theme,
   label,
@@ -261,6 +264,8 @@ function TargetSection({
 }: {
   targets: ShareTarget[];
   selectedTargetIds: Set<string>;
+  targetProgress: Map<string, ShareTargetProgress>;
+  locked: boolean;
   onToggle: (targetId: string) => void;
   theme: ColorScheme;
   label: string;
@@ -279,6 +284,7 @@ function TargetSection({
           <Text style={[styles.noTargets, { color: theme.textSecondary }]}>{emptyLabel}</Text>
           <Pressable
             onPress={() => void onRefresh()}
+            disabled={locked}
             android_ripple={{ color: theme.fillSecondary as string }}
             style={[styles.refreshTargetsButton, { backgroundColor: theme.accentContainer }]}
             accessibilityRole="button"
@@ -296,6 +302,8 @@ function TargetSection({
             key={target.id}
             target={target}
             selected={selectedTargetIds.has(target.id)}
+            progress={targetProgress.get(target.id)}
+            locked={locked}
             onToggle={onToggle}
             theme={theme}
           />
@@ -348,46 +356,69 @@ function JobCard({ view, theme }: { view: ShareJobView; theme: ColorScheme }) {
 }
 
 function TargetRow({
-  target,
-  selected,
-  onToggle,
-  theme,
+  target, selected, onToggle, theme, progress, locked,
 }: {
   target: ShareTarget;
   selected: boolean;
   onToggle: (targetId: string) => void;
   theme: ColorScheme;
+  progress?: ShareTargetProgress;
+  locked: boolean;
 }) {
+  const { t } = useTranslation('share');
+  const successful = progress?.state === 'success';
+  const uncertain = progress?.state === 'unconfirmed' || progress?.state === 'failed';
+  const percentage = progress?.fraction == null ? null : Math.floor(progress.fraction * 100);
+  const color = successful ? theme.success : uncertain ? theme.warning : theme.accent;
   return (
     <Pressable
+      testID={`share-target-${target.id}`}
       onPress={() => onToggle(target.id)}
+      disabled={locked}
       android_ripple={{ color: theme.fillSecondary as string }}
       style={[
         styles.targetRow,
         selected && styles.targetRowSelected,
-        {
-          backgroundColor: selected ? theme.accentContainer : theme.surfaceHigh,
-          borderColor: selected ? theme.accent : theme.separator,
-        },
+        { backgroundColor: progress ? theme.surfaceHigh : selected ? theme.accentContainer : theme.surfaceLowest,
+          borderColor: selected ? color : theme.separator },
       ]}
       accessibilityRole="button"
-      accessibilityState={{ selected }}
+      accessibilityState={{ selected, disabled: locked }}
+      accessibilityLabel={[target.displayName, progress ? t(`send.targetState.${progress.state}`) : '', percentage === null ? '' : `${percentage}%`].filter(Boolean).join(', ')}
     >
+      {progress?.fraction != null ? (
+        <View
+          testID={`share-target-fill-${target.id}`}
+          pointerEvents="none"
+          style={[styles.targetProgressFill, {
+            width: `${progress.fraction * 100}%`,
+            backgroundColor: successful ? theme.successContainer : uncertain ? theme.warningContainer : theme.accentContainer,
+          }]}
+        />
+      ) : null}
       <View style={styles.targetText}>
         <Text style={[styles.targetName, { color: theme.textPrimary }]} numberOfLines={1}>
           {target.displayName}
         </Text>
-        {target.detail ? (
+        {progress ? (
+          <Text style={[styles.targetDetail, { color: theme.textSecondary }]}>
+            {t(`send.targetState.${progress.state}`)}
+          </Text>
+        ) : target.detail ? (
           <Text style={[styles.targetDetail, { color: theme.textSecondary }]} numberOfLines={1}>
             {target.detail}
           </Text>
         ) : null}
       </View>
-      <Ionicons
-        name={selected ? 'checkbox' : 'square-outline'}
-        size={23}
-        color={selected ? theme.accent : theme.textSecondary}
-      />
+      {successful || uncertain ? (
+        <Ionicons name={successful ? 'checkmark-circle' : 'alert-circle-outline'} size={23} color={color} />
+      ) : progress && (percentage === null || progress.state === 'confirming') ? (
+        <ActivityIndicator color={color} />
+      ) : progress ? (
+        <Text style={[styles.targetPercentage, { color }]}>{percentage}%</Text>
+      ) : (
+        <Ionicons name={selected ? 'checkbox' : 'square-outline'} size={23} color={selected ? theme.accent : theme.textSecondary} />
+      )}
     </Pressable>
   );
 }
@@ -453,9 +484,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 14,
-    minHeight: 58,
+    minHeight: 76,
   },
   targetRowSelected: { borderWidth: 2 },
+  targetProgressFill: { position: 'absolute', left: 0, top: 0, bottom: 0 },
+  targetPercentage: { fontSize: 14, fontWeight: '600', fontVariant: ['tabular-nums'] },
   targetText: { flex: 1, gap: 2 },
   targetName: { fontSize: 15 },
   targetDetail: { fontSize: 12 },

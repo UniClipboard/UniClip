@@ -23,6 +23,10 @@ export type SyncDeliveryState = 'delivered' | 'partial' | 'offline' | 'failed' |
 
 export interface SyncSendOptions {
   targetIds?: string[];
+  /** Report the exact Engine entry before waiting for file delivery. */
+  onEntryCreated?: (entryId: string) => void;
+  /** LAN requests settle independently for each selected server. */
+  onTargetResult?: (targetId: string, state: SyncDeliveryState) => void;
 }
 
 export interface SyncSwitchOptions {

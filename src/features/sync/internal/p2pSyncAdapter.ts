@@ -313,7 +313,9 @@ export class P2pSyncAdapter implements SyncAdapter {
   }
 
   private mapOptions(options?: SyncSendOptions): ImportedAssetSendOptions | undefined {
-    return options ? { targetDeviceIds: options.targetIds } : undefined;
+    return options
+      ? { targetDeviceIds: options.targetIds, ...(options.onEntryCreated ? { onEntryCreated: options.onEntryCreated } : {}) }
+      : undefined;
   }
 
   private mapDelivery(result: UnifiedContentResult): SyncAdapterDelivery {

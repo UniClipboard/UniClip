@@ -36,6 +36,7 @@ export interface UnifiedContentDependencies {
 
 export interface ImportedAssetSendOptions {
   targetDeviceIds?: string[];
+  onEntryCreated?: (entryId: string) => void;
 }
 
 export interface UnifiedContentResult {
@@ -90,10 +91,9 @@ export class UnifiedContentService {
     profileHash: string,
     options?: ImportedAssetSendOptions
   ): Promise<UnifiedContentResult> {
-    return this.p2pResult(
-      await this.deps.p2p.sendText(text, options?.targetDeviceIds ?? []),
-      profileHash
-    );
+    const report = await this.deps.p2p.sendText(text, options?.targetDeviceIds ?? []);
+    options?.onEntryCreated?.(report.entryId);
+    return this.p2pResult(report, profileHash);
   }
 
   async sendCurrentClipboard(): Promise<UnifiedContentResult> {
@@ -146,6 +146,7 @@ export class UnifiedContentService {
         imageMimeType(asset.uri, asset.mimeType),
         profileHash,
         options?.targetDeviceIds ?? [],
+        options?.onEntryCreated,
       );
     }
 
@@ -154,6 +155,7 @@ export class UnifiedContentService {
       profileHash,
       asset.fileName,
       options?.targetDeviceIds ?? [],
+      options?.onEntryCreated,
     );
   }
 
@@ -162,9 +164,13 @@ export class UnifiedContentService {
     mimeType: string,
     profileHash?: string,
     targetDeviceIds: string[] = [],
+    onEntryCreated?: (entryId: string) => void,
   ): Promise<UnifiedContentResult> {
-    const send = () =>
-      this.deps.p2p.sendImage(bytes, mimeType, targetDeviceIds);
+    const send = async () => {
+      const report = await this.deps.p2p.sendImage(bytes, mimeType, targetDeviceIds);
+      onEntryCreated?.(report.entryId);
+      return report;
+    };
     if (bytes.byteLength <= MAX_INLINE_IMAGE_BYTES) {
       return this.p2pResult(await send(), profileHash);
     }
@@ -184,11 +190,16 @@ export class UnifiedContentService {
     profileHash?: string,
     displayName?: string,
     targetDeviceIds: string[] = [],
+    onEntryCreated?: (entryId: string) => void,
   ): Promise<UnifiedContentResult> {
     const handle = this.deps.p2p.registerInputFile(uri, displayName);
     try {
       const outcome = await this.deps.completeOutboundDelivery(
-        () => this.deps.p2p.sendFiles([handle], targetDeviceIds),
+        async () => {
+          const report = await this.deps.p2p.sendFiles([handle], targetDeviceIds);
+          onEntryCreated?.(report.entryId);
+          return report;
+        },
         targetDeviceIds,
       );
       return this.p2pResult(
