@@ -33,4 +33,6 @@ appId: ${APP_ID}
           file: ../actions/history/floating-toolbar-scroll.yaml
           env:
             LAYOUT: compact
+      - assertVisible:
+          id: home-menu-select
       - stopRecording
