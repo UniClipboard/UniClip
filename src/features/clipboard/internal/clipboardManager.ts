@@ -12,9 +12,11 @@ import { calculateTextHash, calculateFileHash } from '@/utils/hash';
 import { isTextInvalid } from '@/utils/index';
 import { historyStorage } from '@/features/history';
 import { prepareTempFilePath, CLIPBOARD_TEMP_DIR } from '@/platform/files';
-import { nativeSetClipboardImageFromFile } from 'android-util';
+import { isNativeHashModuleAvailable, nativeSetClipboardImageFromFile } from 'android-util';
 import { createLogger } from '@/support/observability';
 import i18n from '@/i18n';
+
+import { beginFileRead, identifyFileRead, bindFileRead, measureHistoryStage, recordHistoryLatency } from '@/support/diagnostics/historyLatency';
 
 const log = createLogger('ClipboardManager');
 
@@ -125,14 +127,23 @@ export class ClipboardManager {
   }
 
   private async readClipboardFile(): Promise<ClipboardContent | null> {
-    const file = await ClipboardProxy.saveFileToFileAsync(CLIPBOARD_TEMP_DIR.uri);
+    const trace = beginFileRead();
+    const file = await measureHistoryStage('source_copy', trace, () =>
+      ClipboardProxy.saveFileToFileAsync(CLIPBOARD_TEMP_DIR.uri));
     if (!file) {
       this.resetFileReadCache();
       return null;
     }
 
-    const localClipboardHash = await calculateFileHash(file.filePath);
-    const historyItem = await historyStorage.getItemByLocalHash(localClipboardHash);
+    identifyFileRead(trace, file.sourceId);
+    const localClipboardHash = await measureHistoryStage('sha256', trace, () =>
+      calculateFileHash(file.filePath), { bytes: file.size, state: isNativeHashModuleAvailable ? 'native_sha256' : 'js_sha256' });
+    bindFileRead(trace, localClipboardHash);
+    const historyItem = await measureHistoryStage('history_lookup', trace, () =>
+      historyStorage.getItemByLocalHash(localClipboardHash));
+    recordHistoryLatency('file_read', trace, {
+      outcome: 'succeeded', bytes: file.size, durationMs: performance.now() - trace.startedMs,
+    });
     if (historyItem?.type === 'File' && historyItem.hasData && historyItem.dataName) {
       const historyFileUri = await this.resolveHistoryFileUri(
         historyItem.profileHash,
@@ -150,6 +161,7 @@ export class ClipboardManager {
         }
         const content: ClipboardContent = {
           type: 'File',
+          diagnosticReadId: trace.readId,
           text: historyItem.dataName,
           fileUri: historyFileUri,
           fileName: historyItem.dataName,
@@ -167,6 +179,7 @@ export class ClipboardManager {
 
     const content: ClipboardContent = {
       type: 'File',
+      diagnosticReadId: trace.readId,
       text: file.displayName,
       fileUri: file.filePath,
       fileName: file.displayName,

@@ -1,3 +1,4 @@
+import { recordHistoryPublished } from '@/support/diagnostics/historyLatency';
 /**
  * History Store
  * 历史记录状态管理 - 使用 Zustand
@@ -176,6 +177,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
         isLoading: false,
         isInitialLoadComplete: true,
       });
+      recordHistoryPublished(result.items);
     } catch (error) {
       if (querySequence !== historyQuerySequence) return;
       const errorMessage = error instanceof Error ? error.message : 'Failed to load history';
@@ -207,6 +209,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
         totalCount: result.total,
         isLoadingMore: false,
       }));
+      recordHistoryPublished(nextItems);
     } catch (error) {
       if (querySequence !== historyQuerySequence) return;
       const errorMessage = error instanceof Error ? error.message : 'Failed to load more history';
@@ -246,12 +249,14 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
       (current) => current.profileHash.toLowerCase() === item.profileHash.toLowerCase()
     );
     get().handleStorageChange([item], existingItem ? 'update' : 'add');
+    recordHistoryPublished(get().items);
 
     try {
       const savedItem = await historyStorage.addItem(item);
 
       // 持久化可能把临时文件移动到长期目录；用最终记录无感替换乐观项。
       get().handleStorageChange([savedItem], 'update');
+      recordHistoryPublished(get().items);
 
       return savedItem;
     } catch (error) {

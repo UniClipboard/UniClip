@@ -1,6 +1,7 @@
 import React, {
   forwardRef,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -21,6 +22,7 @@ export interface AnimatedCardGridHandle {
 
 interface AnimatedCardGridProps<T> {
   items: T[];
+  onVisibleItemsChanged?: (items: T[]) => void;
   numColumns: number;
   cardSize: number;
   renderCardSize?: number;
@@ -56,6 +58,7 @@ interface AnimatedCardGridProps<T> {
 function AnimatedCardGridInner<T>(
   {
     items,
+    onVisibleItemsChanged,
     numColumns,
     cardSize,
     renderCardSize,
@@ -175,6 +178,16 @@ function AnimatedCardGridInner<T>(
     totalRows,
     Math.ceil((scrollTop - paddingTop + viewportHeight + overscan) / cellSize)
   );
+  useEffect(() => {
+    if (!onVisibleItemsChanged) return;
+    // Exclude overscan. This is viewport geometry, not proof of displayed pixels.
+    const start = Math.max(0, Math.floor((scrollTop - paddingTop) / cellSize)) * numColumns;
+    const end = viewportHeight > 0
+      ? Math.max(0, Math.ceil((scrollTop - paddingTop + viewportHeight) / cellSize)) * numColumns
+      : 0;
+    onVisibleItemsChanged(items.slice(start, end));
+  }, [items, scrollTop, paddingTop, cellSize, numColumns, viewportHeight, onVisibleItemsChanged]);
+
   const windowStartIndex = windowStartRow * numColumns;
   const windowEndIndex = Math.min(items.length, windowEndRow * numColumns);
 

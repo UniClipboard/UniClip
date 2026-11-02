@@ -1,3 +1,4 @@
+import { recordHistoryLatency } from '@/support/diagnostics/historyLatency';
 import { OutboundProgressProjection } from "./outboundProgressProjection";
 import type { Device, OutboundProgress } from "./contracts";
 import NetInfo from '@react-native-community/netinfo';
@@ -326,6 +327,15 @@ export class UnifiedEngineService {
   }
 
   private applyEvent(event: EngineEvent): void {
+    if (event.type === 'incomingEntry' || event.type === 'incomingPending' ||
+        event.type === 'receiveAttemptStateChanged' || event.type === 'activeClipboardChanged') {
+      recordHistoryLatency('engine_event_js', undefined, {
+        outcome: 'observed', eventType: event.type, entryId: event.entryId,
+        attemptId: 'attemptId' in event ? event.attemptId : null,
+        nativeReturnedAtMs: event.diagnosticNativeReturnedAtMs,
+        nativeUptimeMs: event.diagnosticNativeUptimeMs,
+      });
+    }
     if (
       event.type === "outboundProgressChanged" ||
       event.type === "refreshRequired" ||

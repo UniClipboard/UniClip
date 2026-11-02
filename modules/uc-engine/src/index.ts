@@ -386,7 +386,13 @@ export type EntryReceiveCancellation =
   | 'superseded'
   | (string & {});
 
-export type EngineEvent =
+/** Native bridge return time is a boundary observation, not Engine event emission time. */
+export type EngineEvent = EngineEventPayload & {
+  diagnosticNativeReturnedAtMs?: number;
+  diagnosticNativeUptimeMs?: number;
+};
+
+type EngineEventPayload =
   | { type: 'stateChanged'; state: EngineState }
   | {
       type: 'operationFinished';
