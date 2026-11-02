@@ -133,19 +133,20 @@ export class P2pSyncAdapter implements SyncAdapter {
       appVersion: context.appVersion,
       profileId: context.profileId,
     });
-    await this.refresh(context.policy);
+    await this.refresh(this.policy);
   }
 
   async refresh(policy: SyncRuntimePolicy): Promise<void> {
     this.policy = policy;
     await this.dependencies.engine.setBackgroundSyncPolicy(policy.backgroundSyncEnabled);
     if (this.dependencies.platform === 'ios') {
-      if (policy.appState !== 'active') return;
+      if (this.policy !== policy || this.policy.appState !== 'active') return;
       await this.dependencies.engine.resume();
+      if (this.policy !== policy || this.policy.appState !== 'active') return;
     }
     const space = await this.dependencies.space.refresh();
     log.info('P2P space state', { deviceCount: space.devices.length });
-    if (policy.appState === 'active') {
+    if (this.policy === policy && this.policy.appState === 'active') {
       await this.dependencies.engine.notifyConnectivityOpportunity('foreground');
     }
   }

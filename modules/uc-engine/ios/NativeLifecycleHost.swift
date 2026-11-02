@@ -226,6 +226,21 @@ final class NativeLifecycleHost {
   private let report: (Error) -> Void
   private let flushObservability: () -> Void
   private let transitionLock = NSLock()
+  private let admissionLock = NSLock()
+  private var foregroundAdmission = true
+
+  /// UIKit updates admission synchronously, before dispatching transition work.
+  /// Only this short permit check shares the admission lock. Engine work never
+  /// holds it, so a UIKit callback cannot wait for a blocking Engine operation.
+  /// A resume admitted before closure is in flight; the transition lock drains
+  /// it before background suspension and completion can proceed.
+  func setForegroundAdmission(_ allowed: Bool) {
+    admissionLock.withLock { foregroundAdmission = allowed }
+  }
+
+  private var canResume: Bool {
+    admissionLock.withLock { foregroundAdmission }
+  }
 
   init(
     report: @escaping (Error) -> Void,
@@ -236,9 +251,17 @@ final class NativeLifecycleHost {
   }
 
   func prepare(_ engine: any NativeEngineLifecycle) throws {
-    let recovery = try engine.recoverSession()
-    if recovery.unlocked && !recovery.resumed {
-      throw NativeLifecycleError.incompleteRecovery
+    try transitionLock.withLock {
+      // Startup can finish after the background callback captured no Engine.
+      // Reconcile it here instead of recovering a session behind closed admission.
+      guard canResume else {
+        try suspendLocked(engine, remainingTimeMs: { nil })
+        return
+      }
+      let recovery = try engine.recoverSession()
+      if recovery.unlocked && !recovery.resumed {
+        throw NativeLifecycleError.incompleteRecovery
+      }
     }
   }
 
@@ -250,25 +273,37 @@ final class NativeLifecycleHost {
   /// terminate the process while a lock is still held.
   private static let minimumRetryBudgetMs: UInt64 = 250
 
-  func enterBackground(_ engine: (any NativeEngineLifecycle)?, remainingTimeMs: @escaping () -> UInt64?) -> Bool {
-    // The process can be suspended or killed while in the background, so buffered
-    // log records are written out whether or not the suspend succeeded.
-    defer { flushObservability() }
-    guard let engine else { return true }
-    do {
-      try suspendIfNeeded(engine, remainingTimeMs: remainingTimeMs)
-      return true
-    } catch {
-      report(error)
-      return false
+  func enterBackground(
+    _ engine: (any NativeEngineLifecycle)?,
+    remainingTimeMs: @escaping () -> UInt64?,
+    finish: () -> Void = {}
+  ) -> Bool {
+    transitionLock.withLock {
+      // Closure, flush and completion form one transition. A newly admitted
+      // foreground request cannot resume between these steps.
+      var succeeded = true
+      if let engine {
+        do {
+          try suspendLocked(engine, remainingTimeMs: remainingTimeMs)
+        } catch {
+          report(error)
+          succeeded = false
+        }
+      }
+      flushObservability()
+      if succeeded { finish() }
+      return succeeded
     }
   }
 
   func enterForeground(_ engine: (any NativeEngineLifecycle)?) {
     guard let engine else { return }
     do {
-      try resumeIfNeeded(engine)
-      if try engine.lifecycleState() == .running { try engine.notifyForegroundOpportunity() }
+      try transitionLock.withLock {
+        guard canResume else { return }
+        try resumeLocked(engine)
+        if try engine.lifecycleState() == .running { try engine.notifyForegroundOpportunity() }
+      }
     } catch {
       report(error)
     }
@@ -276,16 +311,20 @@ final class NativeLifecycleHost {
 
   func suspendIfNeeded(_ engine: any NativeEngineLifecycle, remainingTimeMs: () -> UInt64?) throws {
     try transitionLock.withLock {
-      if engine.isStartupLifecycle {
-        try engine.suspend(deadlineMs: remainingTimeMs())
-        return
-      }
-      switch try engine.lifecycleState() {
-      case .running, .quiesced:
-        try suspendRetryingWhileBudgetRemains(engine, remainingTimeMs: remainingTimeMs)
-      case .quiescing, .suspended, .shuttingDown, .stopped:
-        return
-      }
+      try suspendLocked(engine, remainingTimeMs: remainingTimeMs)
+    }
+  }
+
+  private func suspendLocked(_ engine: any NativeEngineLifecycle, remainingTimeMs: () -> UInt64?) throws {
+    if engine.isStartupLifecycle {
+      try engine.suspend(deadlineMs: remainingTimeMs())
+      return
+    }
+    switch try engine.lifecycleState() {
+    case .running, .quiesced:
+      try suspendRetryingWhileBudgetRemains(engine, remainingTimeMs: remainingTimeMs)
+    case .quiescing, .suspended, .shuttingDown, .stopped:
+      return
     }
   }
 
@@ -314,16 +353,23 @@ final class NativeLifecycleHost {
 
   func resumeIfNeeded(_ engine: any NativeEngineLifecycle) throws {
     try transitionLock.withLock {
-      if engine.isStartupLifecycle {
-        try engine.resume()
-        return
-      }
-      switch try engine.lifecycleState() {
-      case .suspended, .quiesced:
-        try engine.resume()
-      case .running, .quiescing, .shuttingDown, .stopped:
-        return
-      }
+      // Check at execution time, before even querying Engine state or acquiring
+      // runtime ownership. A request queued before background has no permit.
+      guard canResume else { return }
+      try resumeLocked(engine)
+    }
+  }
+
+  private func resumeLocked(_ engine: any NativeEngineLifecycle) throws {
+    if engine.isStartupLifecycle {
+      try engine.resume()
+      return
+    }
+    switch try engine.lifecycleState() {
+    case .suspended, .quiesced:
+      try engine.resume()
+    case .running, .quiescing, .shuttingDown, .stopped:
+      return
     }
   }
 }
@@ -392,7 +438,8 @@ final class NativeHostSuspension: @unchecked Sendable {
 
 /// Reports one background transition right before its activity ends: which
 /// owners still had App Group files open (`pending`), and whether the system's
-/// grant expired first. Nothing may write after the activity ended.
+/// grant expired first. While backgrounded, owners must not reopen files after
+/// the activity ends. Foreground cancellation does not emit a closure report.
 typealias NativeBackgroundReport = (_ pending: [NativeDiagnosticOwner], _ expired: Bool) -> Void
 
 final class NativeLifecycleTransitionCoordinator {
@@ -406,6 +453,7 @@ final class NativeLifecycleTransitionCoordinator {
   private let lock = NSLock()
   private var transitionId = 0
   private var preparedActivity: (any NativeBackgroundActivity)?
+  private var backgroundParts: [NativeBackgroundParts] = []
 
   init(
     lifecycle: NativeLifecycleHost,
@@ -439,12 +487,17 @@ final class NativeLifecycleTransitionCoordinator {
   }
 
   func enterBackground(_ engine: (any NativeEngineLifecycle)?) {
+    lifecycle.setForegroundAdmission(false)
     let (activity, id) = lock.withLock { () -> (any NativeBackgroundActivity, Int) in
       defer { preparedActivity = nil }
       transitionId += 1
       return (preparedActivity ?? beginBackgroundActivity(), transitionId)
     }
     let parts = NativeBackgroundParts(activity: activity, report: reportBackground)
+    lock.withLock {
+      backgroundParts.removeAll { $0.isEnded }
+      backgroundParts.append(parts)
+    }
     let transition = NativeLifecycleTransition(
       lifecycle: lifecycle,
       engine: engine,
@@ -465,8 +518,16 @@ final class NativeLifecycleTransitionCoordinator {
   }
 
   func enterForeground(_ engine: (any NativeEngineLifecycle)?) {
-    let id = lock.withLock { transitionId }
+    let (id, parts) = lock.withLock {
+      defer { backgroundParts = [] }
+      return (transitionId, backgroundParts)
+    }
+    // Foreground no longer needs suspension time. Retire the old assertions
+    // before reopening admission, including a detached/late host-file receipt.
+    // Each part serializes cancellation with its final report and end request.
+    parts.forEach { $0.endForForeground() }
     hostSuspension?.resume(transitionId: id)
+    lifecycle.setForegroundAdmission(true)
     let transition = NativeLifecycleTransition(
       lifecycle: lifecycle,
       engine: engine,
@@ -477,9 +538,9 @@ final class NativeLifecycleTransitionCoordinator {
   }
 }
 
-/// Ends one background transition's activity only after every owner closed
-/// its App Group files. On expiry it reports the owners still open, then lets
-/// the activity end; it never releases anything for them.
+/// While backgrounded, ends one transition's activity after every owner closed
+/// its App Group files. Foreground cancellation ends it without claiming closure.
+/// On expiry it reports the owners still open; it never releases files for them.
 private final class NativeBackgroundParts: @unchecked Sendable {
   private let lock = NSLock()
   private let activity: any NativeBackgroundActivity
@@ -500,16 +561,26 @@ private final class NativeBackgroundParts: @unchecked Sendable {
     }
   }
 
-  func complete(_ owner: NativeDiagnosticOwner) {
-    let finished = lock.withLock { () -> Bool in
-      open.remove(owner)
-      guard open.isEmpty, !ended else { return false }
+  var isEnded: Bool { lock.withLock { ended } }
+
+  func endForForeground() {
+    lock.withLock {
+      guard !ended else { return }
       ended = true
-      return true
+      activity.end()
     }
-    guard finished else { return }
-    report([], false)
-    activity.end()
+  }
+
+  func complete(_ owner: NativeDiagnosticOwner) {
+    lock.withLock {
+      open.remove(owner)
+      guard open.isEmpty, !ended else { return }
+      ended = true
+      // Keep reporting and the end request inside the cancellation boundary.
+      // Foreground cannot admit a new runtime before these steps finish.
+      report([], false)
+      activity.end()
+    }
   }
 }
 
@@ -540,12 +611,10 @@ private final class NativeLifecycleTransition: @unchecked Sendable {
     // surrender whatever real time iOS already granted, right when that
     // detached operation most needs it to finish and release the lock before
     // suspension. On failure we deliberately leave the task running: it is
-    // still ended reliably, either by a later successful transition or by
+    // still ended reliably, either on foreground entry or by
     // `UIKitBackgroundActivity.expire()` when the OS's own grant truly runs
     // out — never left open indefinitely.
-    if lifecycle.enterBackground(engine, remainingTimeMs: remainingTimeMs) {
-      finish()
-    }
+    _ = lifecycle.enterBackground(engine, remainingTimeMs: remainingTimeMs, finish: finish)
   }
 
   func enterForeground() {

@@ -138,3 +138,6 @@ release-notes-testflight.en.txt
 
 # Isolated E2E devices and evidence
 e2e/results/
+
+# Local evidence and test binaries for the iOS resume admission repair
+/.lody-artifacts/crash-199-fix/

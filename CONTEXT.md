@@ -217,6 +217,16 @@ and failure acceptance remain pending. Do not replace that owner in a pin update
   `P2pSyncAdapter` and `LanSyncAdapter`; runtime selection comes from settings.
 - `UnifiedEngineService` exposes engine state without leaking native bindings
   into screens.
+- On iOS, `NativeLifecycleHost` owns foreground resume admission. UIKit closes
+  admission before dispatching background work. Bridge and queued foreground
+  requests check admission before reading Engine state or acquiring runtime
+  ownership. A request already admitted before closure drains before suspension.
+  Suspension, observability flush, and Engine completion share one transition
+  lock. Foreground entry retires prior background activities before reopening
+  admission; late host-file receipts cannot report a new runtime as closed.
+  `P2pSyncAdapter` also discards stale continuations after asynchronous work and
+  retains the current app policy across startup. A background completion report
+  acknowledges that transition's closures; it does not prove future lock absence.
 - Mobile reports connectivity opportunities after engine startup, foreground
   entry, and network changes. Engine owns peer selection, retry, concurrency,
   and cancellation. Manual refresh remains explicit; mobile does not run a
