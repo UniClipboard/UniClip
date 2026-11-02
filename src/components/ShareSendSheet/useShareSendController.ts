@@ -395,7 +395,12 @@ export function useShareSendController(onClose: () => void, active: boolean, job
     async (view: ShareJobView, targetIds: string[]): Promise<SendResult> => {
       const { job } = view;
       const session = sessionRef.current;
-      updateJob(job.id, { sendState: 'sending', errorMessage: undefined });
+      updateJob(job.id, {
+        sendState: 'sending',
+        errorMessage: undefined,
+        targetResults: undefined,
+        deliveryState: undefined,
+      });
       setPhase({ kind: 'sending', jobId: job.id, stage: 'importing' });
       try {
         if (job.historyProfileHash) {

@@ -375,8 +375,8 @@ function TargetRow({
           alignment="center"
           modifiers={[
             frame({ maxWidth: Infinity, minHeight: 48 }),
-            contentShape(shapes.rectangle()),
             padding({ horizontal: 16, vertical: 14 }),
+            contentShape(shapes.rectangle()),
             onGeometryChange((layout) => setWidth(layout.width)),
           ]}
         >

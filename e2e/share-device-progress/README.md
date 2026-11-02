@@ -26,6 +26,25 @@ The first command writes these reproducible artifacts under `e2e/results/share-d
 
 The replay executes the real Share controller, P2P content service, P2P adapter, delivery coordinator, LAN adapter, and platform React renderers. Native transport and rendering boundaries are controlled. It covers progress before send completion, target isolation, file weighting, exact u64 arithmetic, unknown counts, unavailable snapshots, confirmation, independent target outcomes, duplicate-send prevention, session reopening, full-row ownership, selection locking, and explicit completion.
 
+## Review regression cases
+
+Review `5733238726` identified percentage drift, padded hit-shape ordering, and
+stale LAN retry results. The flow replay checks the visible platform rows at
+29%, 57%, 28.99%, and 99.99%. It also checks SwiftUI modifier order and both queued
+jobs during retries after unconfirmed and failed results.
+
+Run a specific review case while retaining the original product-flow checks:
+
+```sh
+SHARE_REVIEW_CASE=rounding node e2e/share-device-progress/run.cjs /tmp/share-review-rounding
+SHARE_REVIEW_CASE=hit-shape node e2e/share-device-progress/run.cjs /tmp/share-review-hit-shape
+SHARE_REVIEW_CASE=retry node e2e/share-device-progress/run.cjs /tmp/share-review-retry
+```
+
+Before the fixes, the commands failed on the visible 29% label, the content
+shape preceding padding, and retained target-result facts. The complete replay
+now passes all cases. Modifier ordering does not certify native edge hit testing.
+
 ## Validation boundary
 
 Type checking, lint, and Expo Hermes exports verify the TypeScript and both platform dependency graphs. They do not verify native layout or delivery.

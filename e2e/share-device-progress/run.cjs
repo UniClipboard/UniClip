@@ -89,6 +89,7 @@ const onClose = () => { closed++; };
 let visible = true;
 function Host() { current = useShareSendController(onClose, visible, jobs); return React.createElement(sheet, { visible, onClose, jobs }); }
 const receipts = [];
+const reviewEnabled = name => !process.env.SHARE_REVIEW_CASE || process.env.SHARE_REVIEW_CASE === name;
 function check(name, fn) { fn(); receipts.push({ name, passed: true }); }
 async function publish(values, available = true) {
   snapshots = values;
@@ -205,7 +206,77 @@ async function until(predicate) { const deadline = Date.now() + 4000; while (!pr
   await until(() => requests.length === 4);
   await renderer.act(async () => { requests[2].resolve({ url: 'https://controlled.invalid' }); requests[3].reject(new LanUnknown()); await lanSending; });
   check('LAN: acknowledged target succeeds and missing acknowledgement stays unconfirmed', () => { assert.equal(current.targetProgress.get('one').state, 'success'); assert.equal(current.targetProgress.get('two').state, 'unconfirmed'); });
+  if (reviewEnabled('retry')) {
+    for (const finalAttempt of [false, true]) {
+      const start = requests.length;
+      let retry;
+      await renderer.act(async () => { retry = current.sendAll(); });
+      await until(() => requests.length === start + 2);
+      check(`LAN: retry clears ${finalAttempt ? 'failed' : 'unconfirmed'} attempt facts before callbacks`, () => {
+        assert.equal(current.jobViews[0].targetResults, undefined, 'retry retained previous target results');
+        assert.equal(current.jobViews[0].deliveryState, undefined, 'retry retained previous delivery state');
+        for (const target of ['one', 'two']) {
+          assert.equal(current.targetProgress.get(target).state, 'sending');
+          assert.equal(current.targetProgress.get(target).fraction, null);
+        }
+      });
+      await renderer.act(async () => {
+        requests[start].resolve({ url: 'https://controlled.invalid' });
+        if (finalAttempt) requests[start + 1].resolve({ url: 'https://controlled.invalid' });
+        else requests[start + 1].reject(new Error('controlled failure'));
+      });
+      await until(() => requests.length === start + 4);
+      check('LAN: each queued job clears its own stale attempt results', () => {
+        assert.equal(current.jobViews[1].targetResults, undefined);
+        assert.equal(current.jobViews[1].deliveryState, undefined);
+      });
+      await renderer.act(async () => {
+        requests[start + 2].resolve({ url: 'https://controlled.invalid' });
+        if (finalAttempt) requests[start + 3].resolve({ url: 'https://controlled.invalid' });
+        else requests[start + 3].reject(new Error('controlled failure'));
+        await retry;
+      });
+    }
+  }
   await renderer.act(async () => { tree.unmount(); });
+  // Render one actual share job to verify the visible percentage on each platform.
+  channel = 'p2p';
+  for (const [platform, component] of [['android', AndroidSheet], ['ios', IosSheet]]) {
+    let finishReviewSend;
+    sync = { async sendImportedAsset(_asset, _hash, options) {
+      options.onEntryCreated('review-entry');
+      return new Promise(resolve => { finishReviewSend = resolve; });
+    } };
+    await renderer.act(async () => { tree = renderer.create(React.createElement(component, { visible: true, onClose, jobs: [jobs[0]] })); });
+    const rows = () => platform === 'android'
+      ? tree.root.findAllByType('Pressable').filter(node => node.props.testID?.startsWith('share-target-'))
+      : tree.root.findAllByType('Button').filter(node => node.findAllByType('Background').length > 0);
+    if (platform === 'ios' && reviewEnabled('hit-shape')) {
+      check('ios: row hit shape includes padding and geometry measures the padded row', () => {
+        const row = rows()[0].findAllByType('HStack').find(node => node.props.modifiers?.some(m => m.name === 'contentShape'));
+        const index = name => row.props.modifiers.findIndex(m => m.name === name);
+        assert(index('contentShape') > index('padding'), 'contentShape precedes padding');
+        assert(index('onGeometryChange') > index('padding'));
+      });
+    }
+    await renderer.act(async () => { rows().forEach(row => row.props.onPress()); });
+    const footer = platform === 'android'
+      ? tree.root.findAllByType('Pressable').find(node => node.props.accessibilityLabel === '发送')
+      : tree.root.findAllByType('Button').find(node => node.findAllByType('Text').some(text => text.props.children === '发送'));
+    await renderer.act(async () => { footer.props.onPress(); });
+    if (reviewEnabled('rounding')) {
+      for (const [bytes, total, expected] of [['29', '100', '29%'], ['57', '100', '57%'], ['2899', '10000', '28%'], ['9999', '10000', '99%']]) {
+        await publish([snapshot('review-entry', 'one', bytes, 'in_progress', total), snapshot('review-entry', 'two', bytes, 'in_progress', total)]);
+        check(`${platform}: ${bytes}/${total} displays ${expected} without floating-point drift`, () => {
+          for (const row of rows()) {
+            assert(row.findAllByType('Text').some(text => text.props.children === expected), `visible percentage must be ${expected}`);
+          }
+        });
+      }
+    }
+    await renderer.act(async () => { finishReviewSend({ success: true, state: 'delivered', entryId: 'review-entry' }); });
+    await renderer.act(async () => { tree.unmount(); });
+  }
   const crypto = require('node:crypto');
   const sourceFiles = ['src/components/ShareSendSheet/ShareSendSheet.android.tsx', 'src/components/ShareSendSheet/ShareSendSheet.ios.tsx', 'src/components/ShareSendSheet/useShareSendController.ts', 'src/components/ShareSendSheet/shareTargetProgress.ts', 'src/features/transfer/internal/contentTransfer.ts', 'src/features/sync/internal/p2pSyncAdapter.ts', 'src/features/lan-sync/internal/lanSyncAdapter.ts'];
   const sourceSha256 = Object.fromEntries(sourceFiles.map(file => [file, crypto.createHash('sha256').update(fs.readFileSync(path.join(root, file))).digest('hex')]));

@@ -23,3 +23,18 @@ percentage, activity, success, and warning markers on both platforms. Extracting
 marker rendering must not move the press handler off the full row. Removing the
 redundant session-target reset must preserve target freezing during a send and
 replace the target snapshot before a subsequent send after reopening.
+
+# Review 5733238726
+
+Record before the fixes. The 1/10000 progress grid must display exact integer
+percentages at 29% and 57% on both platform rows. Values below the next percentage
+must still round down, and 99.99% must not display 100%.
+
+SwiftUI must apply the row's rectangular content shape after its padding. The
+geometry observer must continue measuring the padded row. The replay checks
+modifier order; native edge hit testing remains a separate acceptance layer.
+
+Each LAN retry must clear the previous attempt's target results and delivery
+state before dispatch. A previously delivered, failed, or unconfirmed target must
+show the current attempt's activity until a new target callback arrives. Retain
+the P2P entry mapping and default reconciliation behavior.

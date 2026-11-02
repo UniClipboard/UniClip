@@ -69,7 +69,7 @@ export interface ShareTargetPresentation {
 /** Both platforms use the same status precedence and percentage rounding. */
 export function describeShareTargetProgress(progress?: ShareTargetProgress): ShareTargetPresentation {
   if (!progress) return { indicator: 'selection', tone: 'active', fraction: null, percentageLabel: '' };
-  const percentageLabel = progress.fraction === null ? '' : `${Math.floor(progress.fraction * 100)}%`;
+  const percentageLabel = progress.fraction === null ? '' : `${Math.floor(Math.round(progress.fraction * 10000) / 100)}%`;
   const base = { fraction: progress.fraction, percentageLabel };
   if (progress.state === 'success') return { ...base, indicator: 'success', tone: 'success' };
   if (progress.state === 'failed' || progress.state === 'unconfirmed') return { ...base, indicator: 'warning', tone: 'warning' };
