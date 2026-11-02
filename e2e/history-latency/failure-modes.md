@@ -19,3 +19,11 @@ Write these cases before the implementation and the controlled flow replay.
 - Logs rotate, are filtered, or are truncated. Keep the archive's existing capture and collection warnings.
 
 The replay uses actual product TypeScript with controlled native file, clock, storage, and rendering boundaries. It is not a device performance or pixel-display acceptance test. Retain a JSON verdict and structured trace. Native two-device verification must retain both archives and timestamped video.
+
+## Event-driven grid visibility regression
+
+- A layout or scroll event must report the viewport without an effect that calls a parent prop.
+- A new keyed cell can enter the viewport while the item count and scroll position stay unchanged. Its native layout event must report the new item.
+- An overscan cell can mount outside the viewport. Its layout event must not classify that cell as visible.
+- A viewport can have zero height before native layout. Do not report a visible file before layout.
+- Content size and viewport size can change. Use native layout events and the last observed scroll position.

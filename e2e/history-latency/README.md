@@ -35,7 +35,7 @@ The latency record contains no file path, filename, preview, bytes of content, f
 | `sqlite_commit` | The repository replacement call starts, succeeds, or fails. Success follows the awaited SQLite statement. |
 | `history_notify` | The storage owner queues a notification or delivers it to subscribers. |
 | `history_published` | A history store publication contains the file. `state` distinguishes optimistic and committed publication. |
-| `history_viewable` | A focused, foreground Home collection reports the file inside its viewport. Grid geometry excludes overscan. FlashList reports viewable data rows, excluding headers. |
+| `history_viewable` | A focused, foreground Home collection reports the file inside its viewport. Grid geometry excludes overscan. Native layout, content-size, and throttled scroll events trigger grid observations. FlashList reports viewable data rows, excluding headers. |
 | `history_frame_candidate` | A JS animation-frame callback runs after viewability. This is not a native display presentation timestamp. |
 | `engine_event_js` | JS consumes an entry-related Engine event. The record includes native iOS return times when available. The record excludes event payload text. |
 | `sender_report` | The outbound coordinator receives an Engine send report. |
@@ -71,6 +71,6 @@ node e2e/history-latency/run.cjs e2e/results/history-latency
 node scripts/analyze-history-latency.mjs e2e/results/history-latency/diagnostics.zip --out e2e/results/history-latency/analysis
 ```
 
-The replay uses an 80 MiB deterministic fixture and actual file copying. It runs product JS SHA-256, history admission, SQL over SQLite, Zustand, React hooks, the diagnostic exporter, and the offline analyzer. The replay controls native clipboard access, app startup, App Group import, FlashList/native rendering, and Engine APIs. The replay exercises both platform list callbacks and the grid viewport geometry. It also checks copy/import/SQLite failure, duplicate identity, background/focus cancellation, logger failure, and sender report/settlement separation.
+The replay uses an 80 MiB deterministic fixture and actual file copying. It runs product JS SHA-256, history admission, SQL over SQLite, Zustand, React hooks, the diagnostic exporter, and the offline analyzer. The replay controls native clipboard access, app startup, App Group import, FlashList/native rendering, and Engine APIs. The replay exercises both platform list callbacks and the grid viewport geometry. It checks native cell layout after a same-count data replacement, viewport resizing, and empty content. It also checks copy/import/SQLite failure, duplicate identity, background/focus cancellation, logger failure, and sender report/settlement separation.
 
 Retain `verdict.json`, `trace.jsonl`, `diagnostics.zip`, and `analysis/`. The fixture is reproducible from its byte count, repeated byte `0x5a`, and SHA-256 in the verdict. The verdict is bound to the source HEAD and the working diff hash. The replay is not a native build, two-device transfer, iOS CPU profile, or display-pixel acceptance test. Those checks remain **NOT RUN** until executed on devices.
