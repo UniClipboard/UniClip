@@ -1445,6 +1445,7 @@ class UcEngineModule : Module() {
       "atMs" to event.atMs
     )
     BindingEvent.OutboundProgressChanged -> mapOf("type" to "outboundProgressChanged")
+    BindingEvent.ReceiveProgressChanged -> mapOf("type" to "receiveProgressChanged")
     is BindingEvent.TransferProgress -> mapOf(
       "type" to "transferProgress",
       "transferId" to event.transferId,

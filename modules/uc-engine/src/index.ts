@@ -426,6 +426,7 @@ export type EngineEvent =
       state: string;
     }
   | { type: 'outboundProgressChanged' }
+  | { type: 'receiveProgressChanged' }
   | { type: 'deliveryStatusChanged'; entryId: string; targetDeviceId: string }
   | {
       type: 'peerPresenceChanged';

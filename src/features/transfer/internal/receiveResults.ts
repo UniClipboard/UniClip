@@ -253,6 +253,7 @@ export class ReceiveResultsService {
         if (event.attemptId) void this.refreshEntry(event.entryId);
         return;
       case 'refreshRequired':
+      case 'receiveProgressChanged':
         void this.refresh();
         return;
       case 'stateChanged':
