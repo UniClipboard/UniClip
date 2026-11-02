@@ -1,3 +1,13 @@
+v2.4.0.200-alpha.3
+
+### Common
+
+- Improvement: Update the sync core to commit 8c68da61 for file receive progress, space reset, and storage cleanup after history deletion.
+
+### iOS
+
+- Fix: Reject stale sync core resume requests after the app enters the background.
+
 v2.4.0.199-alpha.2
 
 ### Common
