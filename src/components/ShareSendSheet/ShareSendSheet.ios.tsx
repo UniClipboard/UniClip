@@ -1,7 +1,9 @@
-import { OutboundResultsSection } from '@/components/ReceiveResultsSheet';
-import React from 'react';
+import React, { useState } from 'react';
+import { useTheme } from '@/hooks/useTheme';
 import { StyleSheet } from 'react-native';
 import {
+  Background,
+  Rectangle,
   BottomSheet,
   Button as SwiftUIButton,
   Group,
@@ -9,7 +11,6 @@ import {
   HStack,
   Image,
   ProgressView,
-  RNHostView,
   Section,
   Spacer,
   Text as SwiftUIText,
@@ -17,6 +18,7 @@ import {
 } from '@expo/ui/swift-ui';
 import {
   background,
+  onGeometryChange,
   buttonStyle,
   clipShape,
   clipped,
@@ -48,6 +50,7 @@ import {
   iosSaturatedButtonPalette,
 } from '@/components/ui/iosButtonStyles.ios';
 import { iosColors, iosKindTints } from '@/theme/iosDesignTokens';
+import { describeShareTargetProgress, type ShareTargetPresentation, type ShareTargetProgress } from './shareTargetProgress';
 import type { ShareSendSheetProps } from './ShareSendSheet.types';
 import {
   useShareSendController,
@@ -145,6 +148,8 @@ function Body({ c }: { c: ReturnType<typeof useShareSendController> }) {
         <ContentSection views={c.jobViews} title={t('send.title')} />
         <TargetSection
           targets={c.targets}
+          targetProgress={c.targetProgress}
+          locked={c.isSending || c.isDone}
           selectedTargetIds={c.selectedTargetIds}
           onToggle={c.toggleTarget}
           title={t(c.targetKind === 'server' ? 'send.servers' : 'send.devices')}
@@ -152,11 +157,6 @@ function Body({ c }: { c: ReturnType<typeof useShareSendController> }) {
           isLoading={c.isLoadingTargets}
           onRefresh={c.refreshTargets}
         />
-        {c.targetKind === 'device' ? (
-          <RNHostView matchContents>
-            <OutboundResultsSection actionsEnabled={!c.isSending} />
-          </RNHostView>
-        ) : null}
       </IosSheetForm>
       <SendFooter c={c} />
     </VStack>
@@ -167,7 +167,7 @@ function SendFooter({ c }: { c: ReturnType<typeof useShareSendController> }) {
   const { t } = useTranslation('share');
   const hasFailed = c.jobViews.some((view) => view.sendState === 'failed');
   const successful = c.isDone && !hasFailed;
-  const label = successful ? t('send.success') : hasFailed ? t(c.targetKind === 'device' ? 'send.checkExisting' : 'send.retry') : t('send.sendAll');
+  const label = c.isSending ? t('send.sending') : successful ? t('send.done') : hasFailed ? t(c.targetKind === 'device' ? 'send.checkExisting' : 'send.retry') : t('send.sendAll');
   const enabled = c.isDone || hasFailed || c.canSend;
 
   return (
@@ -208,6 +208,8 @@ function ContentSection({ title, views }: { title: string; views: ShareJobView[]
 function TargetSection({
   targets,
   selectedTargetIds,
+  targetProgress,
+  locked,
   onToggle,
   title,
   emptyLabel,
@@ -216,6 +218,8 @@ function TargetSection({
 }: {
   targets: ShareTarget[];
   selectedTargetIds: Set<string>;
+  targetProgress: Map<string, ShareTargetProgress>;
+  locked: boolean;
   onToggle: (targetId: string) => void;
   title: string;
   emptyLabel: string;
@@ -238,7 +242,7 @@ function TargetSection({
               buttonStyle('plain'),
               labelStyle('iconOnly'),
               frame({ minWidth: 44, minHeight: 44 }),
-              disabled(isLoading),
+              disabled(isLoading || locked),
               opacity(isLoading ? 0.38 : 1),
             ]}
           />
@@ -259,6 +263,8 @@ function TargetSection({
             key={target.id}
             target={target}
             selected={selectedTargetIds.has(target.id)}
+            progress={targetProgress.get(target.id)}
+            locked={locked}
             onToggle={onToggle}
           />
         ))
@@ -337,53 +343,88 @@ function JobLeading({ view }: { view: ShareJobView }) {
 }
 
 function TargetRow({
-  target,
-  selected,
-  onToggle,
+  target, selected, onToggle, progress, locked,
 }: {
   target: ShareTarget;
   selected: boolean;
   onToggle: (targetId: string) => void;
+  progress?: ShareTargetProgress;
+  locked: boolean;
 }) {
+  const { t } = useTranslation('share');
+  const { theme } = useTheme();
+  const [width, setWidth] = useState(0);
+  const presentation = describeShareTargetProgress(progress);
+  const fill = { active: theme.colors.infoContainer, success: theme.colors.successContainer, warning: theme.colors.warningContainer }[presentation.tone];
+  const status = progress ? t(`send.targetState.${progress.state}`) : '';
+  const detail = status || target.detail;
   return (
     <SwiftUIButton
       onPress={() => onToggle(target.id)}
       modifiers={[
         buttonStyle('plain'),
-        accessibilityValue(selected ? 'selected' : 'not selected'),
+        disabled(locked),
+        accessibilityValue([selected ? 'selected' : 'not selected', status, presentation.percentageLabel].filter(Boolean).join(', ')),
+        listRowInsets({ top: 0, bottom: 0, leading: 0, trailing: 0 }),
         ...(selected ? [listRowBackground(SELECTED_ROW_BACKGROUND)] : []),
       ]}
     >
-      <HStack
-        spacing={10}
-        alignment="center"
-        modifiers={[
-          frame({ maxWidth: Infinity }),
-          contentShape(shapes.rectangle()),
-          padding({ vertical: 12 }),
-        ]}
-      >
-        <VStack alignment="leading" spacing={2}>
-          <SwiftUIText modifiers={[font({ size: 16 }), foregroundStyle('primary')]}>
-            {target.displayName}
-          </SwiftUIText>
-          {target.detail ? (
-            <SwiftUIText
-              modifiers={[font({ size: 12 }), foregroundStyle('secondary'), lineLimit(1)]}
-            >
-              {target.detail}
+      <Background alignment="leading">
+        <HStack
+          spacing={10}
+          alignment="center"
+          modifiers={[
+            frame({ maxWidth: Infinity, minHeight: 48 }),
+            padding({ horizontal: 16, vertical: 14 }),
+            contentShape(shapes.rectangle()),
+            onGeometryChange((layout) => setWidth(layout.width)),
+          ]}
+        >
+          <VStack alignment="leading" spacing={4} modifiers={[frame({ maxWidth: Infinity, alignment: 'leading' })]}>
+            <SwiftUIText modifiers={[font({ size: 16 }), foregroundStyle('primary'), lineLimit(1)]}>
+              {target.displayName}
             </SwiftUIText>
-          ) : null}
-        </VStack>
-        <Spacer />
-        {selected ? (
-          <Image systemName="checkmark.circle.fill" size={22} color={iosKindTints.text} />
-        ) : (
-          <Image systemName="circle" size={22} color={TERTIARY_LABEL} />
-        )}
-      </HStack>
+            {detail ? (
+              <SwiftUIText modifiers={[font({ size: 12 }), foregroundStyle('secondary'), lineLimit(1)]}>
+                {detail}
+              </SwiftUIText>
+            ) : null}
+          </VStack>
+          <Spacer />
+          <TargetRowIndicator presentation={presentation} selected={selected} />
+        </HStack>
+        <Background.Content>
+          <Rectangle modifiers={[
+            frame({ width: width * (presentation.fraction ?? 0), maxHeight: Infinity }),
+            foregroundStyle(fill),
+          ]} />
+        </Background.Content>
+      </Background>
     </SwiftUIButton>
   );
+}
+
+function TargetRowIndicator({ presentation, selected }: {
+  presentation: ShareTargetPresentation;
+  selected: boolean;
+}) {
+  const { theme } = useTheme();
+  switch (presentation.indicator) {
+    case 'success':
+      return <Image systemName="checkmark.circle.fill" size={22} color={theme.colors.success} />;
+    case 'warning':
+      return <Image systemName="exclamationmark.circle" size={22} color={theme.colors.warning} />;
+    case 'activity':
+      return <ProgressView />;
+    case 'percentage':
+      return (
+        <SwiftUIText modifiers={[font({ size: 14, weight: 'semibold' }), foregroundStyle(iosKindTints.text)]}>
+          {presentation.percentageLabel}
+        </SwiftUIText>
+      );
+    case 'selection':
+      return <Image systemName={selected ? 'checkmark.circle.fill' : 'circle'} size={22} color={selected ? iosKindTints.text : TERTIARY_LABEL} />;
+  }
 }
 
 const styles = StyleSheet.create({

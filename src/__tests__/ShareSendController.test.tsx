@@ -66,6 +66,10 @@ jest.mock('@/features/transfer', () => ({
   }),
 }));
 
+jest.mock('@/platform/engine', () => ({
+  getUnifiedEngineService: () => ({ refreshOutboundProgress: async () => {} }),
+}));
+
 jest.mock('@/features/sync', () => ({
   getUnifiedSyncRuntime: () => ({
     sendImportedText: (...args: unknown[]) => mockSendImportedText(...args),
@@ -228,7 +232,7 @@ describe('useShareSendController', () => {
     expect(current.jobViews[0].sendState).toBe('success');
     expect(mockSendImportedAsset).toHaveBeenLastCalledWith(
       expect.objectContaining({ uri: 'file:///documents/clipboards/history/file' }),
-      'HASH-F', { targetIds: ['desktop-1'] }
+      'HASH-F', expect.objectContaining({ targetIds: ['desktop-1'] })
     );
     expect(mockCompleteJob).not.toHaveBeenCalled();
   });
@@ -261,13 +265,11 @@ describe('useShareSendController', () => {
 
     expect(mockImportTextToHistory).not.toHaveBeenCalled();
     expect(mockImportFileToHistory).not.toHaveBeenCalled();
-    expect(mockSendImportedText).toHaveBeenCalledWith('hello world', 'HASH-TEXT', {
-      targetIds: ['desktop-1'],
-    });
+    expect(mockSendImportedText).toHaveBeenCalledWith('hello world', 'HASH-TEXT', expect.objectContaining({ targetIds: ['desktop-1'] }));
     expect(mockSendImportedAsset).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'file', uri: historyFile.fileUri, fileName: 'report.pdf' }),
       'HASH-FILE',
-      { targetIds: ['desktop-1'] }
+      expect.objectContaining({ targetIds: ['desktop-1'] })
     );
     expect(current.jobViews.every((view) => view.sendState === 'success')).toBe(true);
     expect(mockCompleteJob).not.toHaveBeenCalled();
@@ -524,9 +526,7 @@ describe('useShareSendController', () => {
     });
     await act(async () => current.sendAll());
 
-    expect(mockSendImportedText).toHaveBeenCalledWith('hello world', 'HASH-T', {
-      targetIds: ['home', 'studio'],
-    });
+    expect(mockSendImportedText).toHaveBeenCalledWith('hello world', 'HASH-T', expect.objectContaining({ targetIds: ['home', 'studio'] }));
   });
 
   it('keeps LAN send disabled when no configured server is reachable', async () => {
@@ -563,16 +563,14 @@ describe('useShareSendController', () => {
     });
 
     expect(mockImportTextToHistory).toHaveBeenCalledWith('hello world');
-    expect(mockSendImportedText).toHaveBeenCalledWith('hello world', 'HASH-T', {
-      targetIds: ['desktop-1'],
-    });
+    expect(mockSendImportedText).toHaveBeenCalledWith('hello world', 'HASH-T', expect.objectContaining({ targetIds: ['desktop-1'] }));
     expect(mockRecordShareDiagnosticStage).toHaveBeenCalledWith('text-1', 'sent', undefined);
     expect(mockCompleteJob).toHaveBeenCalledWith('text-1');
     expect(current.jobViews[0].sendState).toBe('success');
     expect(current.phase.kind).toBe('done');
   });
 
-  it('shows success feedback and closes the sheet 600ms after every job is delivered', async () => {
+  it('keeps success feedback visible until the user completes the sheet', async () => {
     mockClaimPending.mockResolvedValue([textJob]);
     const onClose = jest.fn();
     renderHarness(onClose);
@@ -601,6 +599,8 @@ describe('useShareSendController', () => {
       act(() => {
         jest.advanceTimersByTime(1);
       });
+      expect(onClose).not.toHaveBeenCalled();
+      act(() => current.handleClose());
       expect(onClose).toHaveBeenCalledTimes(1);
     } finally {
       jest.useRealTimers();
@@ -635,7 +635,7 @@ describe('useShareSendController', () => {
         mimeType: 'image/jpeg',
       },
       'HASH-F',
-      { targetIds: ['desktop-1', 'laptop-1'] }
+      expect.objectContaining({ targetIds: ['desktop-1', 'laptop-1'] })
     );
     expect(mockCompleteJob).toHaveBeenCalledWith('image-1');
   });
@@ -723,6 +723,7 @@ describe('useShareSendController', () => {
     const onClose = jest.fn();
     renderHarness(onClose);
     await settle();
+    act(() => current.toggleTarget('desktop-1'));
 
     await act(async () => {
       await current.sendAll();

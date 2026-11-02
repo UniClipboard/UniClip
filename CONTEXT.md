@@ -169,9 +169,15 @@ result. Startup, foreground recovery, reconnect and invalidation refresh the ful
 list. Failed reads retain previous facts and expose unavailable status.
 
 The existing transfer results sheet shows outbound targets and items separately.
-The Share sheet reuses that section during sending. Header acceptance and byte
-completion do not prove file delivery. Delivery waiters filter the selected target
-set; another target's historical result cannot satisfy a recipient count.
+The Share sheet shows results inside its selected destination rows instead of a
+separate results section. Each row aggregates byte progress for the current
+session's jobs and exact Engine entry/target pairs. Unknown byte counts show an
+activity indicator. LAN reports each server's result without simulating byte
+progress. A full progress background waits for delivery confirmation. Successful
+shares stay visible until the user presses Done.
+
+Header acceptance and byte completion do not prove file delivery. Delivery
+waiters filter the selected target set; another target's historical result cannot satisfy a recipient count.
 A local wait deadline leaves pending/unconfirmed results and does not fail Engine
 work. SendReport counters retain their original dispatch meaning.
 

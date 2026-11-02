@@ -39,13 +39,13 @@ describe('ShareSendSheet presentation', () => {
     expect(ios).not.toContain('function HeaderSendButton');
   });
 
-  it('shows a filled success button while the iOS sheet is closing after a send', () => {
+  it('keeps a filled Done action after a successful send', () => {
     const footer = ios.match(/function SendFooter[\s\S]*?\n}\n\nfunction ContentSection/)?.[0];
 
-    expect(footer).toContain("t('send.success')");
+    expect(footer).toContain("t('send.done')");
     expect(footer).toContain('iosSaturatedButtonPalette(iosKindTints.image)');
     expect(footer).toContain('checkmark.circle.fill');
-    expect(footer).not.toContain("t('send.done')");
+    expect(footer).not.toContain("t('send.success')");
   });
 
   it('anchors iOS device information left and the selection control right', () => {
@@ -59,7 +59,7 @@ describe('ShareSendSheet presentation', () => {
   });
 
   it('gives Android selected device rows full-row feedback and selection semantics', () => {
-    expect(android).toContain('accessibilityState={{ selected }}');
+    expect(android).toContain('accessibilityState={{ selected, disabled: locked }}');
     expect(android).toContain('selected && styles.targetRowSelected');
   });
 
@@ -77,7 +77,7 @@ describe('ShareSendSheet presentation', () => {
 
   it('uses the native full-row hit shape for iOS device selection', () => {
     expect(ios).toContain('contentShape(shapes.rectangle())');
-    expect(ios).toContain('accessibilityValue(selected ?');
+    expect(ios).toContain('accessibilityValue([selected ?');
   });
 
   it('keeps an accessible refresh action beside the iOS target-list heading', () => {
@@ -87,7 +87,7 @@ describe('ShareSendSheet presentation', () => {
     expect(targetSection).toContain('systemImage="arrow.clockwise"');
     expect(targetSection).toContain("labelStyle('iconOnly')");
     expect(targetSection).toContain('frame({ minWidth: 44, minHeight: 44 })');
-    expect(targetSection).toContain('disabled(isLoading)');
+    expect(targetSection).toContain('disabled(isLoading || locked)');
   });
 
   it('renders the active channel targets without device-only row types', () => {

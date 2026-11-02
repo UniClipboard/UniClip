@@ -46,6 +46,14 @@
     "localDevice": "本机",
     "allDevices": "全部设备",
     "unconfirmed": "结果未确认。请核对已有传输。",
-    "checkExisting": "核对已有传输"
+    "checkExisting": "核对已有传输",
+    "targetState": {
+      "preparing": "准备发送…",
+      "sending": "正在发送",
+      "confirming": "等待设备确认…",
+      "success": "已发送",
+      "failed": "发送失败",
+      "unconfirmed": "结果未确认"
+    }
   }
 }

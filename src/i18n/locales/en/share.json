@@ -46,6 +46,14 @@
     "localDevice": "This device",
     "allDevices": "All devices",
     "unconfirmed": "Result unconfirmed. Check the existing transfer.",
-    "checkExisting": "Check existing transfer"
+    "checkExisting": "Check existing transfer",
+    "targetState": {
+      "preparing": "Preparing…",
+      "sending": "Sending",
+      "confirming": "Waiting for confirmation…",
+      "success": "Sent",
+      "failed": "Send failed",
+      "unconfirmed": "Delivery unconfirmed"
+    }
   }
 }
