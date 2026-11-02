@@ -38,3 +38,11 @@ Each LAN retry must clear the previous attempt's target results and delivery
 state before dispatch. A previously delivered, failed, or unconfirmed target must
 show the current attempt's activity until a new target callback arrives. Retain
 the P2P entry mapping and default reconciliation behavior.
+
+# Release alpha.4 runtime boundary
+
+- Replacing the sync runtime with an adapter omits `switchTo` and prevents sending.
+- A runtime that has not started must not silently pass the send checks.
+- Replacing a transport must release the preceding runtime's subscriptions.
+- Controlled row-rendering sends must still pass through the real runtime.
+- A failed send phase must report its error instead of only timing out.

@@ -68,7 +68,15 @@ const { OutboundDeliveryCoordinator } = require('../../src/features/transfer/int
 realDelivery = require('../../src/features/transfer/internal/deliveryState.ts');
 const { UnifiedContentService } = require('../../src/features/transfer/internal/contentTransfer.ts');
 const { P2pSyncAdapter } = require('../../src/features/sync/internal/p2pSyncAdapter.ts');
+const { UnifiedSyncRuntime } = require('../../src/features/sync/internal/unifiedSyncRuntime.ts');
+async function startRuntime(transport) {
+  if (sync) await sync.stop();
+  sync = new UnifiedSyncRuntime([transport], transport.id);
+  await sync.start({ appVersion: 'test', profileId: 'test', policy: { appState: 'active', backgroundSyncEnabled: false } });
+}
 engine = {
+  async start() {}, async stop() {}, async setBackgroundSyncPolicy() {},
+  async resume() {}, async notifyConnectivityOpportunity() {},
   async refreshOutboundProgress() { useUnifiedEngineStore.setState({ outbound: { progress: snapshots, available: true, failure: null } }); },
   async listOutboundProgress() { return snapshots; },
   async listDevices() { return deviceState.devices; },
@@ -80,8 +88,10 @@ const content = new UnifiedContentService({
   p2p: { registerInputFile: uri => uri, releaseFileHandle() {}, async sendFiles() { sends++; return { entryId: `entry-${++sequence}`, totalAccepted: 2, totalDuplicate: 0, totalOffline: 0, totalErrored: 0, totalPending: 0 }; } },
   completeOutboundDelivery: (send, targets) => coordinator.run(send, targets), persistDelivery: async () => {},
 });
-const adapter = new P2pSyncAdapter({ content });
-sync = adapter;
+const adapter = new P2pSyncAdapter({
+  content, engine, platform: 'android',
+  space: { refresh: async () => deviceState },
+});
 const { ShareSendSheet: AndroidSheet } = require('../../src/components/ShareSendSheet/ShareSendSheet.android.tsx');
 const { ShareSendSheet: IosSheet } = require('../../src/components/ShareSendSheet/ShareSendSheet.ios.tsx');
 const jobs = [0, 1].map(i => ({ id: `job-${i}`, kind: 'file', fileUri: `controlled://file-${i}`, displayName: `File ${i}`, byteCount: 100, historyProfileHash: `hash-${i}`, createdAtMs: Date.now() }));
@@ -99,10 +109,11 @@ function snapshot(entryId, targetDeviceId, bytes, state = 'in_progress', total =
   const success = state === 'completed', failed = state === 'failed';
   return { entryId, targetDeviceId, attemptId: 'attempt', revision: '1', freshness: success || failed ? 'settled' : 'live', freshnessAvailable: true, state, itemsTotal: 1, itemsRunning: success || failed ? 0 : 1, itemsWaiting: 0, itemsCompleted: success ? 1 : 0, itemsFailed: failed ? 1 : 0, itemsCancelled: 0, itemsUnconfirmed: 0, items: [{ kind: 'file', index: 0, state: success ? 'completed' : failed ? 'failed' : 'transferring', completedBytes: bytes, totalBytes: total }] };
 }
-async function until(predicate) { const deadline = Date.now() + 4000; while (!predicate()) { if (Date.now() > deadline) throw Error('Timed out waiting for product state'); await renderer.act(async () => { await new Promise(r => setTimeout(r, 10)); }); } }
+async function until(predicate) { const deadline = Date.now() + 4000; while (!predicate()) { if (Date.now() > deadline) throw Error(`Timed out waiting for product state: ${JSON.stringify(current.phase)}`); await renderer.act(async () => { await new Promise(r => setTimeout(r, 10)); }); } }
 (async () => {
   for (const [platform, component] of [['android', AndroidSheet], ['ios', IosSheet]]) {
     sheet = component; snapshots = []; visible = true;
+    await startRuntime(adapter);
     await renderer.act(async () => { tree = renderer.create(React.createElement(Host)); });
     const rows = () => platform === 'android' ? tree.root.findAllByType('Pressable').filter(node => node.props.testID?.startsWith('share-target-')) : tree.root.findAllByType('Button').filter(node => node.findAllByType('Background').length > 0);
     await renderer.act(async () => { current.toggleTarget('one'); current.toggleTarget('two'); rows().forEach(row => row.props.onPress()); });
@@ -148,7 +159,7 @@ async function until(predicate) { const deadline = Date.now() + 4000; while (!pr
     // Render the same controller facts through each real platform row.
     let resolveSend;
     const facts = current;
-    sync = { async sendImportedAsset(_asset, _hash, options) { options.onEntryCreated('visible-entry'); return new Promise(resolve => { resolveSend = resolve; }); } };
+    await startRuntime({ id: 'p2p', async start() {}, async stop() {}, subscribe: () => () => {}, async sendImportedAsset(_asset, _hash, options) { options.onEntryCreated('visible-entry'); return new Promise(resolve => { resolveSend = resolve; }); } });
     await renderer.act(async () => { rows().forEach(row => row.props.onPress()); });
     const footer = platform === 'android' ? tree.root.findAllByType('Pressable').find(node => node.props.accessibilityLabel === '发送') : tree.root.findAllByType('Button').find(node => node.findAllByType('Text').some(text => text.props.children === '发送'));
     await renderer.act(async () => { footer.props.onPress(); });
@@ -184,15 +195,16 @@ async function until(predicate) { const deadline = Date.now() + 4000; while (!pr
     await renderer.act(async () => { resolveSend({ success: true, state: 'delivered', entryId: 'visible-entry' }); await reopenedSend; });
     deviceState.devices = previousDevices;
     await renderer.act(async () => { tree.unmount(); });
-    sync = adapter;
+    await sync.stop();
   }
   // Actual LAN adapter -> per-server callbacks -> actual Share controller.
   const { LanSyncAdapter } = require('../../src/features/lan-sync/internal/lanSyncAdapter.ts');
   const requests = [];
-  sync = new LanSyncAdapter({
+  await startRuntime(new LanSyncAdapter({
+    getServers: async () => [],
     getServer: async id => ({ id, name: id, urls: ['https://controlled.invalid'], username: '', password: '' }),
     client: { putClipboard: server => new Promise((resolve, reject) => requests.push({ id: server.id, resolve, reject })) },
-  });
+  }));
   channel = 'lan'; sheet = AndroidSheet; visible = true;
   await renderer.act(async () => { tree = renderer.create(React.createElement(Host)); });
   await renderer.act(async () => { current.toggleTarget('one'); current.toggleTarget('two'); });
@@ -243,10 +255,10 @@ async function until(predicate) { const deadline = Date.now() + 4000; while (!pr
   channel = 'p2p';
   for (const [platform, component] of [['android', AndroidSheet], ['ios', IosSheet]]) {
     let finishReviewSend;
-    sync = { async sendImportedAsset(_asset, _hash, options) {
+    await startRuntime({ id: 'p2p', async start() {}, async stop() {}, subscribe: () => () => {}, async sendImportedAsset(_asset, _hash, options) {
       options.onEntryCreated('review-entry');
       return new Promise(resolve => { finishReviewSend = resolve; });
-    } };
+    } });
     await renderer.act(async () => { tree = renderer.create(React.createElement(component, { visible: true, onClose, jobs: [jobs[0]] })); });
     const rows = () => platform === 'android'
       ? tree.root.findAllByType('Pressable').filter(node => node.props.testID?.startsWith('share-target-'))
@@ -278,8 +290,8 @@ async function until(predicate) { const deadline = Date.now() + 4000; while (!pr
     await renderer.act(async () => { tree.unmount(); });
   }
   const crypto = require('node:crypto');
-  const sourceFiles = ['src/components/ShareSendSheet/ShareSendSheet.android.tsx', 'src/components/ShareSendSheet/ShareSendSheet.ios.tsx', 'src/components/ShareSendSheet/useShareSendController.ts', 'src/components/ShareSendSheet/shareTargetProgress.ts', 'src/features/transfer/internal/contentTransfer.ts', 'src/features/sync/internal/p2pSyncAdapter.ts', 'src/features/lan-sync/internal/lanSyncAdapter.ts'];
+  const sourceFiles = ['src/components/ShareSendSheet/ShareSendSheet.android.tsx', 'src/components/ShareSendSheet/ShareSendSheet.ios.tsx', 'src/components/ShareSendSheet/useShareSendController.ts', 'src/components/ShareSendSheet/shareTargetProgress.ts', 'src/features/transfer/internal/contentTransfer.ts', 'src/features/sync/internal/p2pSyncAdapter.ts', 'src/features/sync/internal/unifiedSyncRuntime.ts', 'e2e/share-device-progress/run.cjs', 'src/features/lan-sync/internal/lanSyncAdapter.ts'];
   const sourceSha256 = Object.fromEntries(sourceFiles.map(file => [file, crypto.createHash('sha256').update(fs.readFileSync(path.join(root, file))).digest('hex')]));
-  fs.writeFileSync(path.join(output, 'receipt.json'), JSON.stringify({ sourceSha256, scope: 'Actual controller, P2P content service, adapter, delivery coordinator and platform React trees. Controlled native/transport boundary. Native layout, hit testing and real devices NOT RUN.', receipts }, null, 2) + '\n');
+  fs.writeFileSync(path.join(output, 'receipt.json'), JSON.stringify({ sourceSha256, scope: 'Actual controller, UnifiedSyncRuntime, P2P content service, adapter, delivery coordinator and platform React trees. Controlled native/transport boundary. Native layout, hit testing and real devices NOT RUN.', receipts }, null, 2) + '\n');
   console.log(`${receipts.length} checks passed. ${output}`);
-})().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => { if (tree) renderer.act(() => tree.unmount()); });
+})().catch(error => { console.error(error); process.exitCode = 1; }).finally(async () => { if (tree) renderer.act(() => tree.unmount()); if (sync) await sync.stop(); });

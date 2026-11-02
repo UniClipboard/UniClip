@@ -24,7 +24,7 @@ The first command writes these reproducible artifacts under `e2e/results/share-d
 - `android-tree.json`: the production Android component tree with progress.
 - `ios-tree.json`: the production iOS component tree with progress.
 
-The replay executes the real Share controller, P2P content service, P2P adapter, delivery coordinator, LAN adapter, and platform React renderers. Native transport and rendering boundaries are controlled. It covers progress before send completion, target isolation, file weighting, exact u64 arithmetic, unknown counts, unavailable snapshots, confirmation, independent target outcomes, duplicate-send prevention, session reopening, full-row ownership, selection locking, and explicit completion.
+The replay executes the real Share controller, UnifiedSyncRuntime, P2P content service, P2P adapter, delivery coordinator, LAN adapter, and platform React renderers. Each scenario starts the runtime before sending and stops the previous runtime before replacing it. Controlled row-rendering adapters also pass through the real runtime. The receipt hashes the runtime and replay script as well as the product sources. Native transport and rendering boundaries are controlled. It covers progress before send completion, target isolation, file weighting, exact u64 arithmetic, unknown counts, unavailable snapshots, confirmation, independent target outcomes, duplicate-send prevention, session reopening, full-row ownership, selection locking, and explicit completion.
 
 ## Review regression cases
 
