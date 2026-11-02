@@ -1,3 +1,16 @@
+v2.4.0.201-alpha.4
+
+### Common
+
+- Improvement: Update the sync core to v1.1.0-rc.24.
+- New: Share destination rows show each device's transfer progress and delivery status.
+- Improvement: Keep share results visible until you select Done.
+- Fix: Clear previous results before retrying a share to prevent stale status.
+
+### iOS
+
+- Fix: Allow the Share sheet to close during preparation or delivery. Stop sync work and clear unsent items on dismissal.
+
 v2.4.0.200-alpha.3
 
 ### Common
