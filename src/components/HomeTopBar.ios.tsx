@@ -33,7 +33,7 @@ export function DefaultTopBar({
   const { t } = useTranslation('home');
   const iconColor = theme.colors.textPrimary;
   return (
-    <View style={s.defaultRow}>
+    <View pointerEvents="box-none" style={s.defaultRow}>
       <GlassContainer shape="capsule" interactive style={s.actionPill}>
         {addActions ? (
           <Host style={s.pillButton}>

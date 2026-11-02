@@ -1,0 +1,30 @@
+# Pre: home at its initial scroll position with FloatingToolbar16 first.
+# Post: overflow menu open. Review screenshots for clipping and glass continuity.
+appId: ${APP_ID}
+---
+- assertVisible:
+    id: home-menu
+- assertVisible: "(?s).*FloatingToolbar16.*"
+- takeScreenshot: floating-toolbar-${LAYOUT}-initial
+- swipe:
+    start: "25%,65%"
+    end: "25%,20%"
+    duration: 1500
+- assertVisible:
+    id: home-menu
+- assertNotVisible: "(?s).*FloatingToolbar16.*"
+- takeScreenshot: floating-toolbar-${LAYOUT}-scrolled
+# Start inside the transparent, leading part of the toolbar row.
+- swipe:
+    start: "25%,11%"
+    end: "25%,80%"
+    duration: 1500
+- assertVisible:
+    id: home-menu
+- assertVisible: "(?s).*FloatingToolbar16.*"
+- takeScreenshot: floating-toolbar-${LAYOUT}-return
+- tapOn:
+    id: home-menu
+- assertVisible:
+    id: home-menu-select
+- takeScreenshot: floating-toolbar-${LAYOUT}-menu

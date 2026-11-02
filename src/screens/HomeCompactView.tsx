@@ -76,6 +76,7 @@ export function HomeCompactView({
       onRefresh={c.handleRefresh}
       tintColor={refreshTintColor}
       colors={[theme.colors.accent]}
+      progressViewOffset={overlayTopBarHeight}
     />
   );
 
@@ -115,11 +116,11 @@ export function HomeCompactView({
         ? topBar ?? <HomeTopBarArea c={c} accessory={search?.topBarAccessory} historyLayoutMenu />
         : null}
 
-      {/* Keep header clearance outside the scroll view: recycled iOS scroll views can lose their inset. */}
-      <View style={[styles.gridArea, { paddingTop: overlayTopBarHeight }]}>
+      {/* Keep clearance in scrollable content so history can pass behind the toolbar. */}
+      <View style={styles.gridArea}>
         {renderCollection ? (
           renderCollection({
-            paddingTop: 8,
+            paddingTop: overlayTopBarHeight + 8,
             paddingBottom,
             header: gridHeader?.node,
             refreshControl,
@@ -133,8 +134,10 @@ export function HomeCompactView({
             cardSize={cardSize}
             spacing={GRID_SPACING}
             paddingHorizontal={GRID_PADDING - GRID_SPACING / 2}
-            paddingTop={8 + (gridHeader?.height ?? 0)}
-            header={gridHeader?.node}
+            paddingTop={overlayTopBarHeight + 8 + (gridHeader?.height ?? 0)}
+            header={gridHeader ? (
+              <View style={{ paddingTop: overlayTopBarHeight }}>{gridHeader.node}</View>
+            ) : undefined}
             paddingBottom={paddingBottom}
             keyExtractor={c.keyExtractor}
             renderItem={renderCard}
@@ -144,7 +147,7 @@ export function HomeCompactView({
           />
         )}
         {items.length === 0 && c.isInitialHistoryLoadComplete && (
-          <View pointerEvents="box-none" style={styles.emptyState}>
+          <View pointerEvents="box-none" style={[styles.emptyState, { top: overlayTopBarHeight }]}>
             <View style={[styles.emptyIcon, { backgroundColor: theme.colors.surfaceHigh }]}>
               <Ionicons name={c.emptyContent.icon} size={30} color={c.emptyContent.tint} />
             </View>
@@ -158,11 +161,17 @@ export function HomeCompactView({
           </View>
         )}
 
-        {search?.gridOverlay}
+        {search?.gridOverlay && overlayTopBarHeight > 0 ? (
+          <View style={[StyleSheet.absoluteFill, { top: overlayTopBarHeight }]}>
+            {search.gridOverlay}
+          </View>
+        ) : search?.gridOverlay}
       </View>
 
       {/* 多选底栏(默认态由右下 FAB 取代) */}
-      {overlayTopBarHeight > 0 ? <View style={styles.topBarOverlay}>{topBar}</View> : null}
+      {overlayTopBarHeight > 0 ? (
+        <View pointerEvents="box-none" style={styles.topBarOverlay}>{topBar}</View>
+      ) : null}
       {!isSelectMode && bottomSearch}
       {isSelectMode && (
         <SelectModeBottomBarContainer bottomInset={c.insets.bottom} theme={theme}>

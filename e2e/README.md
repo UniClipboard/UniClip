@@ -70,6 +70,7 @@ npm run test:e2e:environment
 | `history-search-filter` | Text and URL capture, query replacement, no results, clearing and type filters |
 | `sms-code-recognition` | Android only: developer-options tool feeds simulated SMS text to the native recognizer (match, spaced digits, no match, ambiguous); no SMS permission, clipboard, history, sync or upload involved |
 | `history-search-dismiss` | iOS only: search layer over home; pull-to-dismiss from suggestions and results, short pull stays, search filters cleared, close button |
+| `history-floating-toolbar` | iOS only: seed 16 entries with native Copy, scroll beneath the toolbar, drag from its transparent leading area, and open the menu; save screenshots and a recording for visual review |
 
  Omitting the
 option discovers only `.maestro/scenarios/*.yaml`. Repetitions are limited to 1–7. Android also checks the total selected scenarios × repeat against its 15 unique transport pairs before creating any devices; the five-scenario suite supports up to three rounds if enough pairs are available. A suite is run serially with a new
