@@ -40,7 +40,6 @@ import {
   accessibilityValue,
   listRowBackground,
   listRowInsets,
-  interactiveDismissDisabled,
 } from '@expo/ui/swift-ui/modifiers';
 import { useTranslation } from 'react-i18next';
 import { IosSheetForm, SheetHeader } from '@/components/ui';
@@ -88,7 +87,6 @@ export function ShareSendSheet({
         modifiers={[
           presentationDetents(['large']),
           presentationDragIndicator('visible'),
-          interactiveDismissDisabled(c.isSending),
         ]}
       >
         <VStack

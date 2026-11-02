@@ -25,6 +25,8 @@ const mockCleanup = jest.fn(async () => undefined);
 
 const mockSendImportedText = jest.fn();
 const mockSendImportedAsset = jest.fn();
+const mockStopSyncRuntime = jest.fn(async () => undefined);
+const mockSwitchSyncRuntime = jest.fn(async () => undefined);
 const mockImportTextToHistory = jest.fn();
 const mockImportFileToHistory = jest.fn();
 const mockRecordShareDiagnosticStage = jest.fn();
@@ -72,6 +74,8 @@ jest.mock('@/platform/engine', () => ({
 
 jest.mock('@/features/sync', () => ({
   getUnifiedSyncRuntime: () => ({
+    stop: (...args: unknown[]) => mockStopSyncRuntime(...args),
+    switchTo: (...args: unknown[]) => mockSwitchSyncRuntime(...args),
     sendImportedText: (...args: unknown[]) => mockSendImportedText(...args),
     sendImportedAsset: (...args: unknown[]) => mockSendImportedAsset(...args),
   }),
@@ -275,7 +279,7 @@ describe('useShareSendController', () => {
     expect(mockCompleteJob).not.toHaveBeenCalled();
   });
 
-  it('keeps app-provided files owned by the parent while a send is in progress', async () => {
+  it('closes immediately during an app-provided send and leaves the job owned by the parent', async () => {
     let finish!: (result: { success: boolean; state: string }) => void;
     mockSendImportedAsset.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
     const onClose = jest.fn();
@@ -287,11 +291,37 @@ describe('useShareSendController', () => {
     let sending!: Promise<void>;
     await act(async () => { sending = current.sendAll(); await flush(); });
     act(() => current.handleClose());
-    expect(onClose).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(mockStopSyncRuntime).toHaveBeenCalledTimes(1);
+    expect(mockSwitchSyncRuntime).toHaveBeenCalledWith('p2p');
+    expect(mockCompleteJob).not.toHaveBeenCalled();
     await act(async () => { finish({ success: false, state: 'failed' }); await sending; });
-    act(() => current.handleClose());
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(mockCompleteJob).not.toHaveBeenCalled();
+  });
+
+  it('waits for runtime shutdown before cleaning up queued jobs on dismissal', async () => {
+    let finish!: (result: { success: boolean; state: string }) => void;
+    let finishStop!: () => void;
+    mockClaimPending.mockResolvedValue([imageJob]);
+    mockStopSyncRuntime.mockReturnValue(new Promise((resolve) => { finishStop = resolve; }));
+    mockSendImportedAsset.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+    const onClose = jest.fn();
+    renderHarness(onClose);
+    await settle();
+    act(() => current.toggleTarget('desktop-1'));
+    let sending!: Promise<void>;
+    await act(async () => { sending = current.sendAll(); await flush(); });
+
+    act(() => current.handleClose());
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(mockStopSyncRuntime).toHaveBeenCalledTimes(1);
+    expect(mockCompleteJob).not.toHaveBeenCalled();
+
+    await act(async () => { finishStop(); await flush(); });
+    expect(mockCompleteJob).toHaveBeenCalledWith(imageJob.id);
+
+    await act(async () => { finish({ success: false, state: 'failed' }); await sending; });
   });
 
   afterEach(() => {
@@ -308,6 +338,8 @@ describe('useShareSendController', () => {
     mockClaimPending.mockResolvedValue([]);
     mockSendImportedText.mockResolvedValue({ success: true, state: 'delivered' });
     mockSendImportedAsset.mockResolvedValue({ success: true, state: 'delivered' });
+    mockStopSyncRuntime.mockResolvedValue(undefined);
+    mockSwitchSyncRuntime.mockResolvedValue(undefined);
     mockImportTextToHistory.mockResolvedValue({ profileHash: 'HASH-T' });
     mockImportFileToHistory.mockResolvedValue({
       profileHash: 'HASH-F',
@@ -734,6 +766,7 @@ describe('useShareSendController', () => {
     act(() => {
       current.handleClose();
     });
+    await settle();
 
     // iOS:内容已在主页历史,关闭即出队,不再放回 pending 造成堆积
     expect(mockReleaseJob).not.toHaveBeenCalled();
@@ -752,6 +785,7 @@ describe('useShareSendController', () => {
     act(() => {
       current.handleClose();
     });
+    await settle();
 
     expect(mockReleaseJob).not.toHaveBeenCalled();
     expect(mockCompleteJob).toHaveBeenCalledWith('text-1');

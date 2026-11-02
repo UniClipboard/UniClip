@@ -55,7 +55,14 @@ export class UnifiedSyncRuntime {
     this.adapters.get(this.snapshot.activeTransport)!.handleAppStateChange(policy);
   }
 
-  async stop(): Promise<void> {
+  stop(): Promise<void> {
+    // A later explicit send must wait for shutdown before it restarts the adapter.
+    const operation = this.switchQueue.then(() => this.performStop());
+    this.switchQueue = operation.catch(() => undefined);
+    return operation;
+  }
+
+  private async performStop(): Promise<void> {
     this.snapshot = { ...this.snapshot, status: 'stopping', pendingTransport: null };
     this.detachAdapterEvents();
     try {
