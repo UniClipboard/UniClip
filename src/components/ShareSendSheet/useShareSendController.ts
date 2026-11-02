@@ -235,6 +235,7 @@ export function useShareSendController(onClose: () => void, active: boolean, job
         void refreshP2pTargets();
       }
       if (jobs) {
+        if (session.closed) return;
         const views = await Promise.all(jobs.map(loadPreview));
         if (session.closed) return;
         setJobViews(views);
@@ -256,6 +257,7 @@ export function useShareSendController(onClose: () => void, active: boolean, job
         }
       }
       const freshJobs = pendingJobs.filter((job) => now - job.createdAtMs <= STALE_JOB_AGE_MS);
+      if (session.closed) return;
       const views = await Promise.all(freshJobs.map(loadPreview));
       if (session.closed) return;
       setJobViews(views);
