@@ -1,7 +1,7 @@
 // Regression replay of the real iOS Share sheet and controller.
 // Failure modes: native dismissal disabled; close ignored while sending; later jobs
 // dispatched after close; late results overwrite a reopened session; duplicate close;
-// completed sends stopped; an old success timer closes a new session; stopped
+// completed sends stopped; late results close a new session; stopped
 // imports still dispatch; queue payloads removed before shutdown; stop rejection
 // leaves the sheet open; unconfirmed sends keep running after dismissal; a new
 // send fails after stop or restarts the adapter before shutdown finishes.
@@ -52,13 +52,21 @@ const deferred = () => {
 };
 const hostView = (name) => name;
 Module._load = function (name, parent, ...args) {
-  if (name === 'react-native') return { StyleSheet: { create: (s) => s }, Alert: { alert: () => events.push('alert') } };
-  if (name === '@expo/ui/swift-ui') return new Proxy({}, { get: (_, key) => hostView(key) });
+  if (name === 'react-native') return { StyleSheet: { create: (s) => s }, Easing: { bezier: () => () => 0 }, Alert: { alert: () => events.push('alert') } };
+  if (name === '@expo/ui/swift-ui') return new Proxy({}, { get: (_, key) => {
+    if (key === 'Background') {
+      const Background = (props) => React.createElement('Background', props);
+      Background.Content = hostView('Background.Content');
+      return Background;
+    }
+    return hostView(key);
+  } });
   if (name === '@expo/ui/swift-ui/modifiers') return new Proxy({}, { get: (_, key) => key === 'shapes' ? { rectangle: () => ({}), roundedRectangle: () => ({}) } : (...args) => ({ name: key, args }) });
   if (name === '@/components/ui') return { IosSheetForm: 'Form', SheetHeader: 'Header' };
   if (name === '@/components/ReceiveResultsSheet') return { OutboundResultsSection: 'Results' };
   if (name === '@/components/ui/iosButtonStyles.ios') return { iosProminentButtonModifiers: () => [], iosSecondaryButtonModifiers: () => [], iosSaturatedButtonPalette: () => ({}) };
   if (name === '@/theme/iosDesignTokens') return { iosColors: {}, iosKindTints: {} };
+  if (name === '@/hooks/useTheme') return { useTheme: () => ({ theme: { colors: { infoContainer: '#000', successContainer: '#000', warningContainer: '#000', success: '#000', warning: '#000' } } }) };
   if (name === 'expo-haptics') return { notificationAsync: async () => { events.push('haptic'); }, NotificationFeedbackType: { Success: 'success' } };
   if (name === 'expo-file-system') return { File: class {} };
   if (name === 'react-i18next') return { useTranslation: () => ({ t }) };
@@ -79,7 +87,7 @@ Module._load = function (name, parent, ...args) {
 const { ShareSendSheet } = require('../../src/components/ShareSendSheet/ShareSendSheet.ios.tsx');
 const { UnifiedSyncRuntime } = require('../../src/features/sync/internal/unifiedSyncRuntime.ts');
 sync = new UnifiedSyncRuntime([adapter], 'p2p');
-const job = (id) => ({ id, kind: 'file', fileUri: 'controlled://file', displayName: id, historyProfileHash: 'test-profile', createdAtMs: Date.now() });
+const job = (id) => ({ id, kind: 'file', fileUri: 'controlled://file', displayName: id, byteCount: 1, historyProfileHash: 'test-profile', createdAtMs: Date.now() });
 const checks = [];
 async function mount(jobs) {
   let tree;
@@ -115,8 +123,8 @@ async function mount(jobs) {
   assert.equal(current.phase.kind, 'ready', 'late completion overwrote reopened session');
   assert.equal(current.jobViews[0].sendState, 'idle');
   await renderer.act(async () => { await new Promise((done) => setTimeout(done, 650)); });
-  assert.equal(events.filter((e) => e === 'close').length, 1, 'old timer closed reopened sheet');
-  checks.push('later jobs blocked; late completion and timer cannot modify reopened session');
+  assert.equal(events.filter((e) => e === 'close').length, 1, 'late result closed reopened sheet');
+  checks.push('later jobs blocked; late completion cannot modify or close reopened session');
   await renderer.act(async () => first.tree.unmount());
   events.length = 0;
   send = async () => ({ entryId: 'done-entry', transport: 'p2p', success: true, state: 'delivered' });
@@ -125,9 +133,8 @@ async function mount(jobs) {
   assert.equal(current.isDone, true);
   await renderer.act(async () => completed.dismiss());
   assert.equal(events.filter((e) => e === 'stop').length, 0, 'completed transfer was stopped');
-  await renderer.act(async () => { await new Promise((done) => setTimeout(done, 650)); });
   assert.equal(events.filter((e) => e === 'close').length, 1);
-  checks.push('completed transfer closes normally; automatic close timer cleared');
+  checks.push('completed transfer remains open until explicit dismissal and is not stopped');
   await renderer.act(async () => completed.tree.unmount());
   events.length = 0;
   send = async () => ({ entryId: 'unconfirmed-entry', transport: 'p2p', success: false, state: 'pending' });

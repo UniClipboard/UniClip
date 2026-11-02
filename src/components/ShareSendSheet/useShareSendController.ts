@@ -79,7 +79,6 @@ export interface ShareTarget {
 }
 
 const TEXT_PREVIEW_MAX_CHARS = 80;
-const SUCCESS_CLOSE_DELAY_MS = 600;
 
 /** 与处理租约一致的陈旧判定:超过该时长的 job 只可能是中断会话的残留。 */
 const STALE_JOB_AGE_MS = 15 * 60 * 1_000;
@@ -294,11 +293,9 @@ export function useShareSendController(onClose: () => void, active: boolean, job
     void claim();
   }, [active, claim]);
 
-  const successCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
     sessionRef.current.closed = true;
     lastActiveRef.current = false;
-    if (successCloseTimerRef.current) clearTimeout(successCloseTimerRef.current);
   }, []);
 
   useEffect(() => {
@@ -509,10 +506,6 @@ export function useShareSendController(onClose: () => void, active: boolean, job
     if (session.closed) return;
     session.closed = true;
     sendingRef.current = false;
-    if (successCloseTimerRef.current) {
-      clearTimeout(successCloseTimerRef.current);
-      successCloseTimerRef.current = null;
-    }
     const unsent = jobViews.filter((view) => view.sendState !== 'success');
     const stopped = session.preparing || session.unsettledJobs.size > 0
       ? getUnifiedSyncRuntime().stop()
@@ -549,12 +542,6 @@ export function useShareSendController(onClose: () => void, active: boolean, job
       setPhase({ kind: 'done', results });
       if (results.every((result) => result.success)) {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-        successCloseTimerRef.current = setTimeout(() => {
-          successCloseTimerRef.current = null;
-          if (session.closed || sessionRef.current !== session) return;
-          session.closed = true;
-          onClose();
-        }, SUCCESS_CLOSE_DELAY_MS);
       }
     } catch (error) {
       if (!session.closed) {
@@ -564,7 +551,7 @@ export function useShareSendController(onClose: () => void, active: boolean, job
     } finally {
       if (sessionRef.current === session) sendingRef.current = false;
     }
-  }, [jobViews, onClose, selectedTargetIds, sendOne, syncChannel, t, targets]);
+  }, [jobViews, selectedTargetIds, sendOne, syncChannel, t, targets]);
 
   // 删除(显式):二次确认后清除记录 + payload,不可恢复
   const deleteJob = useCallback(async (jobId: string) => {
