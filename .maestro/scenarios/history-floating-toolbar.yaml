@@ -1,0 +1,36 @@
+# iOS only. Seed history through native Copy, then exercise scrolling through
+# the transparent toolbar area. Screenshots and recording require visual review.
+appId: ${APP_ID}
+---
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - runFlow: ../lifecycle/launch.yaml
+      - runFlow: ../actions/onboarding/complete.yaml
+      - setDarkMode: enabled
+      - evalScript: ${output.fixture = 0}
+      - repeat:
+          times: 16
+          commands:
+            - evalScript: ${output.fixture = output.fixture + 1}
+            - runFlow:
+                file: ../actions/clipboard/copy-text.yaml
+                env:
+                  CONTENT: ${'FloatingToolbar' + output.fixture}
+      - startRecording: floating-toolbar
+      - runFlow:
+          file: ../actions/history/floating-toolbar-scroll.yaml
+          env:
+            LAYOUT: grid
+      - tapOn: List
+      - runFlow:
+          file: ../actions/history/floating-toolbar-scroll.yaml
+          env:
+            LAYOUT: list
+      - tapOn: Compact list
+      - runFlow:
+          file: ../actions/history/floating-toolbar-scroll.yaml
+          env:
+            LAYOUT: compact
+      - stopRecording

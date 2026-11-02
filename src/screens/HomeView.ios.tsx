@@ -123,7 +123,7 @@ export function HomeView({ onOpenSettings, onImmersiveModeChange, searchRequestI
           }}
           renderCollection={getHomeHistoryCollection(home)}
           topBar={
-            <View style={topBarStyle}>
+            <View pointerEvents="box-none" style={topBarStyle}>
               {home.isSelectMode ? (
                 selectModeTopBar
               ) : (
@@ -178,7 +178,7 @@ export function HomeView({ onOpenSettings, onImmersiveModeChange, searchRequestI
                 search={search}
                 renderCollection={getHomeHistoryCollection(searchC)}
                 topBar={
-                  <View style={topBarStyle}>
+                  <View pointerEvents="box-none" style={topBarStyle}>
                     {c.isSelectMode ? (
                       selectModeTopBar
                     ) : // 筛选行只在结果视图里出现,空查询时是「建议」

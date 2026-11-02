@@ -63,8 +63,8 @@ describe('Home compact list top clearance', () => {
       const grid = renderer.root.findByType(AnimatedCardGrid);
       expect(grid === initialGrid).toBe(true);
       const parent = grid.parent!;
-      expect(StyleSheet.flatten(parent.props.style).paddingTop).toBe(118);
-      expect(grid.props.paddingTop).toBe(8);
+      expect(StyleSheet.flatten(parent.props.style).paddingTop ?? 0).toBe(0);
+      expect(grid.props.paddingTop).toBe(126);
       expect(grid.props.refreshControl.props.refreshing).toBe(false);
     }
     controller.refreshing = true;
