@@ -1,3 +1,4 @@
+import { fileReadTrace, measureHistoryStage, recordHistoryLatency } from '@/support/diagnostics/historyLatency';
 /**
  * Clipboard Monitor
  * 剪贴板监听器 - 监听剪贴板内容变化
@@ -47,6 +48,7 @@ export class ClipboardMonitor {
   };
 
   private debounceTimerTag: string | null = null;
+  private pendingFileTrace: ReturnType<typeof fileReadTrace>;
   private static readonly DEBOUNCE_TIMER_TAG = 'clipboard_monitor_debounce';
   private isChecking: boolean = false;
   private checkGeneration: number = 0;
@@ -213,6 +215,9 @@ export class ClipboardMonitor {
    * 开始轮询
    */
   private startPolling(): void {
+    recordHistoryLatency('monitor_started', undefined, {
+      outcome: 'observed', state: 'polling', delayMs: this.options.pollingInterval,
+    });
     this.stopPolling(); // 先停止现有轮询
 
     this.pollingTimerTag = setTimer(
@@ -252,7 +257,11 @@ export class ClipboardMonitor {
       const content = await this.clipboardManager.getClipboardContent();
 
       // 如果在 getClipboardContent 期间 setLastContent 被调用，丢弃本次结果
-      if (gen !== this.checkGeneration) return;
+      if (gen !== this.checkGeneration) {
+        const trace = fileReadTrace(content?.localClipboardHash, content?.diagnosticReadId);
+        if (trace) recordHistoryLatency('monitor_discarded', trace, { outcome: 'superseded' });
+        return;
+      }
 
       if (changeCount !== null) {
         if (content) {
@@ -280,7 +289,8 @@ export class ClipboardMonitor {
         return;
       }
 
-      await this.emitIfChanged(content);
+      await measureHistoryStage('monitor_persist', fileReadTrace(content.localClipboardHash, content.diagnosticReadId),
+        () => this.emitIfChanged(content));
     } catch (error) {
       log.error('Failed to check clipboard:', error);
     } finally {
@@ -463,6 +473,11 @@ export class ClipboardMonitor {
    * 使用 native-timer 替代 JS setTimeout，确保 Android 后台也能可靠触发
    */
   private notifyCallbacks(content: ClipboardContent): void {
+    const trace = fileReadTrace(content.localClipboardHash, content.diagnosticReadId);
+    if (this.pendingFileTrace) recordHistoryLatency('debounce', this.pendingFileTrace, { outcome: 'superseded' });
+    this.pendingFileTrace = trace;
+    const scheduledMs = performance.now();
+    if (trace) recordHistoryLatency('debounce', trace, { outcome: 'started', delayMs: this.options.debounceDelay });
     // 清除现有防抖计时器
     if (this.debounceTimerTag) {
       clearTimer(this.debounceTimerTag);
@@ -472,6 +487,7 @@ export class ClipboardMonitor {
     // 使用 native-timer 设置防抖（native-timer 是 interval 模式，回调后立即清除实现 one-shot）
     this.debounceTimerTag = setTimer(
       () => {
+        this.pendingFileTrace = undefined;
         // 立即清除，实现 one-shot 防抖
         if (this.debounceTimerTag) {
           clearTimer(this.debounceTimerTag);
@@ -493,6 +509,9 @@ export class ClipboardMonitor {
             return;
           }
         }
+        if (trace) recordHistoryLatency('monitor_callback', trace, {
+          outcome: 'observed', durationMs: performance.now() - scheduledMs,
+        });
         this.callbacks.forEach((callback) => {
           try {
             callback(content);

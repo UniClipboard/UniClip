@@ -1,3 +1,4 @@
+import { useHistoryViewability } from '@/support/diagnostics/useHistoryViewability';
 import { recordOutboundResend, useOutboundResendStore } from '@/stores/outboundResendStore';
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Share, Linking, BackHandler, Platform } from 'react-native';
@@ -83,6 +84,7 @@ export function useHomeController(
   { clearFiltersOnCloseSearch }: HomeControllerOptions
 ) {
   const { t } = useTranslation('home');
+  const reportVisibleHistoryItems = useHistoryViewability();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -925,6 +927,7 @@ export function useHomeController(
   const allSelected = items.length > 0 && selectedIds.size === items.length;
 
   return {
+    reportVisibleHistoryItems,
     // env
     t,
     theme,

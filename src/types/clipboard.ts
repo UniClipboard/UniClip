@@ -50,6 +50,8 @@ export enum HistorySyncStatus {
  * 剪贴板项目
  */
 export interface ClipboardItem extends HistoryItemRevision {
+  /** Process-local diagnostics only. The SQLite row mapper does not persist this field. */
+  diagnosticReadId?: string;
   /** 内容类型 */
   type: ClipboardContentType;
 
@@ -181,6 +183,8 @@ export function createDefaultClipboardItem(
  * 剪贴板内容
  */
 export interface ClipboardContent {
+  /** Process-local identity for one file read. Never use it as content identity. */
+  diagnosticReadId?: string;
   /** 内容类型 */
   type: ClipboardContentType;
 

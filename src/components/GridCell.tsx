@@ -11,6 +11,7 @@ interface GridCellProps<T> {
   index: number;
   item: T;
   renderItem: (item: T) => React.ReactNode;
+  onLayout?: () => void;
   numColumns: number;
   cardSize: number;
   renderCardSize?: number;
@@ -27,6 +28,7 @@ function GridCellInner<T>({
   index,
   item,
   renderItem,
+  onLayout,
   numColumns,
   cardSize,
   renderCardSize,
@@ -43,6 +45,7 @@ function GridCellInner<T>({
   return (
     <Animated.View
       layout={GRID_CELL_LAYOUT_TRANSITION}
+      onLayout={onLayout}
       style={{
         position: 'absolute',
         left: targetX,

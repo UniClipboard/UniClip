@@ -1,3 +1,4 @@
+import { recordHistoryLatency } from '@/support/diagnostics/historyLatency';
 import { recordOutboundResend } from '@/stores/outboundResendStore';
 import { getUnifiedEngineService } from '@/platform/engine';
 import { p2pDeliveryStateFromResend } from '@/features/transfer';
@@ -391,6 +392,9 @@ export function useShareSendController(onClose: () => void, active: boolean, job
         await completeJob(jobId);
         assertSessionOpen(session);
         updateJob(jobId, { sendState: "success" });
+        recordHistoryLatency('sender_ui_state', undefined, {
+          outcome: 'observed', entryId: result.entryId, state: 'success',
+        });
         return { jobId, success: true, deliveryState: result.state };
       }
       const offline = result.state === "offline";

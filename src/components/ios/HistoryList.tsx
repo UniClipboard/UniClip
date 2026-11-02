@@ -1,3 +1,4 @@
+import type { ViewToken } from 'react-native';
 import React, { forwardRef, useCallback, useImperativeHandle, useMemo, useRef } from 'react';
 import { StyleSheet, Text, View, type RefreshControlProps } from 'react-native';
 import { FlashList, type FlashListRef, type ListRenderItemInfo } from '@shopify/flash-list';
@@ -21,6 +22,7 @@ import {
 export interface HistoryListProps
   extends Pick<HistoryListRowProps, 'onPress' | 'onCopy' | 'onLongPress' | 'onDelete'> {
   items: ClipboardItem[];
+  onVisibleItemsChanged?: (items: ClipboardItem[]) => void;
   keyExtractor: (item: ClipboardItem) => string;
   density: HistoryListDensity;
   selectedIds: ReadonlySet<string>;
@@ -43,6 +45,7 @@ export const HistoryList = forwardRef<AnimatedCardGridHandle, HistoryListProps>(
   function HistoryList(
     {
       items,
+      onVisibleItemsChanged,
       keyExtractor,
       density,
       selectedIds,
@@ -71,6 +74,11 @@ export const HistoryList = forwardRef<AnimatedCardGridHandle, HistoryListProps>(
       }),
       []
     );
+
+    const onViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: ViewToken<Row>[] }) => {
+      onVisibleItemsChanged?.(viewableItems.flatMap(({ item, isViewable }) =>
+        isViewable && item.type === 'item' ? [item.item] : []));
+    }, [onVisibleItemsChanged]);
 
     const rows = useMemo(() => buildHistoryListRows(items, keyExtractor), [items, keyExtractor]);
 
@@ -111,6 +119,8 @@ export const HistoryList = forwardRef<AnimatedCardGridHandle, HistoryListProps>(
         <FlashList
           ref={listRef}
           data={rows}
+          onViewableItemsChanged={onViewableItemsChanged}
+          viewabilityConfig={HISTORY_VIEWABILITY}
           renderItem={renderItem}
           keyExtractor={rowKey}
           getItemType={rowType}
@@ -136,6 +146,8 @@ export const HistoryList = forwardRef<AnimatedCardGridHandle, HistoryListProps>(
     );
   }
 );
+
+const HISTORY_VIEWABILITY = { itemVisiblePercentThreshold: 1, minimumViewTime: 0 };
 
 const rowKey = (row: Row) => row.key;
 const rowType = (row: Row) => row.type;

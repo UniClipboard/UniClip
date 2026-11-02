@@ -17,6 +17,7 @@ export function getHomeHistoryCollection(c: HomeController): RenderHomeCollectio
     <HistoryList
       ref={c.listRef}
       items={c.items}
+      onVisibleItemsChanged={c.reportVisibleHistoryItems}
       keyExtractor={c.keyExtractor}
       density={density}
       selectedIds={c.selectedIds}

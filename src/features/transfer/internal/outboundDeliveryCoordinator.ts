@@ -1,3 +1,4 @@
+import { recordHistoryLatency } from '@/support/diagnostics/historyLatency';
 import type {
   Device,
   EngineEvent,
@@ -133,6 +134,7 @@ export class OutboundDeliveryCoordinator {
     let poll: ReturnType<typeof setInterval> | undefined;
     try {
       report = await send();
+      recordHistoryLatency('sender_report', undefined, { outcome: 'observed', entryId: report.entryId });
       // The wait deadline bounds the UI wait. It does not rewrite Engine state or cancel work.
       timeout = setTimeout(() => finish(collect()), this.timeoutMs);
       // A lost invalidation must not leave this short-lived delivery waiter permanently stale.
@@ -140,7 +142,12 @@ export class OutboundDeliveryCoordinator {
         void refresh();
       }, 1000);
       void refresh();
-      return await done;
+      const outcome = await done;
+      recordHistoryLatency('sender_settled', undefined, {
+        outcome: 'observed', entryId: report.entryId, completed: outcome.completed,
+        pending: outcome.pending, failed: outcome.failed,
+      });
+      return outcome;
     } finally {
       active = false;
       clearTimeout(timeout);

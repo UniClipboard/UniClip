@@ -21,6 +21,7 @@ export interface AnimatedCardGridHandle {
 
 interface AnimatedCardGridProps<T> {
   items: T[];
+  onVisibleItemsChanged?: (items: T[]) => void;
   numColumns: number;
   cardSize: number;
   renderCardSize?: number;
@@ -56,6 +57,7 @@ interface AnimatedCardGridProps<T> {
 function AnimatedCardGridInner<T>(
   {
     items,
+    onVisibleItemsChanged,
     numColumns,
     cardSize,
     renderCardSize,
@@ -79,6 +81,7 @@ function AnimatedCardGridInner<T>(
   const scrollRef = useRef<ScrollView>(null);
   const [viewportHeight, setViewportHeight] = useState(0);
   const [scrollTop, setScrollTop] = useState(0);
+  const observedViewport = useRef({ top: 0, height: 0 });
 
   const cellSize = cardSize + spacing;
   const totalRows = Math.ceil(items.length / numColumns);
@@ -109,6 +112,27 @@ function AnimatedCardGridInner<T>(
     [contentInsetTop]
   );
 
+  const reportVisibleItems = useCallback((top: number, height: number) => {
+    if (!onVisibleItemsChanged) return;
+    // Report native viewport observations only; exclude cells mounted for overscan.
+    const start = Math.max(0, Math.floor((top - paddingTop) / cellSize)) * numColumns;
+    const end = height > 0
+      ? Math.max(0, Math.ceil((top - paddingTop + height) / cellSize)) * numColumns
+      : 0;
+    onVisibleItemsChanged(items.slice(start, end));
+  }, [items, paddingTop, cellSize, numColumns, onVisibleItemsChanged]);
+
+  const handleScrollPosition = useCallback((top: number) => {
+    observedViewport.current.top = top;
+    setScrollTop(top);
+    reportVisibleItems(top, observedViewport.current.height);
+  }, [reportVisibleItems]);
+
+  const reportViewport = useCallback(() => {
+    const { top, height } = observedViewport.current;
+    reportVisibleItems(top, height);
+  }, [reportVisibleItems]);
+
   // 滚动追踪放在 UI 线程（worklet）而不是 JS 线程的 onScroll：快速甩动时 JS 线程可能忙于
   // 渲染/状态更新而丢帧或延迟处理原生滚动事件，导致虚拟化窗口跟不上真实滚动位置，
   // 表现为卡片挂载/卸载错乱。UI 线程里做节流判断，只有跨过半行阈值才回传 JS 更新状态。
@@ -130,7 +154,7 @@ function AnimatedCardGridInner<T>(
         }
         if (Math.abs(lastReportedScrollTop.value - y) > cellSize / 2) {
           lastReportedScrollTop.value = y;
-          scheduleOnRN(setScrollTop, y);
+          scheduleOnRN(handleScrollPosition, y);
         }
         if (
           onEndReached &&
@@ -152,6 +176,7 @@ function AnimatedCardGridInner<T>(
       },
     },
     [
+      handleScrollPosition,
       onScrollWorklet,
       onScrollEndWorklet,
       pullToDismiss,
@@ -166,8 +191,11 @@ function AnimatedCardGridInner<T>(
   );
 
   const handleLayout = useCallback((e: LayoutChangeEvent) => {
-    setViewportHeight(e.nativeEvent.layout.height);
-  }, []);
+    const height = e.nativeEvent.layout.height;
+    observedViewport.current.height = height;
+    setViewportHeight(height);
+    reportVisibleItems(observedViewport.current.top, height);
+  }, [reportVisibleItems]);
 
   const overscan = Math.max(viewportHeight, OVERSCAN_MIN_PX);
   const windowStartRow = Math.max(0, Math.floor((scrollTop - paddingTop - overscan) / cellSize));
@@ -175,6 +203,7 @@ function AnimatedCardGridInner<T>(
     totalRows,
     Math.ceil((scrollTop - paddingTop + viewportHeight + overscan) / cellSize)
   );
+
   const windowStartIndex = windowStartRow * numColumns;
   const windowEndIndex = Math.min(items.length, windowEndRow * numColumns);
 
@@ -192,6 +221,7 @@ function AnimatedCardGridInner<T>(
       ref={scrollRef}
       onScroll={scrollHandler}
       onLayout={handleLayout}
+      onContentSizeChange={reportViewport}
       scrollEventThrottle={1}
       refreshControl={refreshControl}
       showsVerticalScrollIndicator={false}
@@ -212,6 +242,7 @@ function AnimatedCardGridInner<T>(
               index={i}
               item={item}
               renderItem={renderItem}
+              onLayout={reportViewport}
               numColumns={numColumns}
               cardSize={cardSize}
               renderCardSize={renderCardSize}

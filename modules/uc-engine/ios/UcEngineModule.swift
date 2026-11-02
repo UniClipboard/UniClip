@@ -379,7 +379,11 @@ public final class UcEngineModule: Module {
     }.runOnQueue(engineOperationQueue)
 
     AsyncFunction("nextEvent") { (timeoutMs: UInt64) -> [String: Any?]? in
-      try self.requireEngine().nextEvent(timeoutMs: timeoutMs).map(Self.eventMap)
+      guard let event = try self.requireEngine().nextEvent(timeoutMs: timeoutMs) else { return nil }
+      var mapped = Self.eventMap(event)
+      mapped["diagnosticNativeReturnedAtMs"] = Date().timeIntervalSince1970 * 1_000
+      mapped["diagnosticNativeUptimeMs"] = ProcessInfo.processInfo.systemUptime * 1_000
+      return mapped
     }.runOnQueue(engineEventQueue)
 
     AsyncFunction("notifyConnectivityOpportunity") { (reason: String) in

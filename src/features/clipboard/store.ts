@@ -32,6 +32,7 @@ async function recordClipboardChange(content: ClipboardContent): Promise<void> {
     timestamp: content.timestamp || Date.now(),
     fileUri: content.fileUri,
     localClipboardHash: content.localClipboardHash,
+    diagnosticReadId: content.diagnosticReadId,
   });
   await useHistoryStore.getState().addItem(historyItem);
   void notifyDeviceClipboardChanged(content);
@@ -178,6 +179,7 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
         timestamp: content.timestamp || Date.now(),
         fileUri: content.fileUri,
         localClipboardHash: content.localClipboardHash,
+        diagnosticReadId: content.diagnosticReadId,
       });
       await useHistoryStore.getState().addItem(historyItem);
       void notifyDeviceClipboardChanged(content);
@@ -210,6 +212,7 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
           timestamp: content.timestamp || Date.now(),
           fileUri: content.fileUri,
           localClipboardHash: content.localClipboardHash,
+          diagnosticReadId: content.diagnosticReadId,
         });
         await useHistoryStore.getState().addItem(historyItem);
         void notifyDeviceClipboardChanged(content);
@@ -244,6 +247,7 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
           timestamp: content.timestamp || Date.now(),
           fileUri: content.fileUri,
           localClipboardHash: content.localClipboardHash,
+          diagnosticReadId: content.diagnosticReadId,
         });
         await useHistoryStore.getState().addItem(historyItem);
         void notifyDeviceClipboardChanged(content);
@@ -284,6 +288,7 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
           timestamp: content.timestamp || Date.now(),
           fileUri: content.fileUri,
           localClipboardHash: content.localClipboardHash,
+          diagnosticReadId: content.diagnosticReadId,
         });
         await useHistoryStore.getState().addItem(historyItem);
         void notifyDeviceClipboardChanged(content);

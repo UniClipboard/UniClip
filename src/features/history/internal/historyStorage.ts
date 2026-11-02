@@ -1,3 +1,4 @@
+import { fileReadTrace, measureHistoryStage, recordHistoryLatency } from '@/support/diagnostics/historyLatency';
 /**
  * History Storage Service
  * 历史记录存储服务 - 管理剪贴板历史记录
@@ -231,6 +232,10 @@ export class HistoryStorage {
     }
 
     for (const [action, items] of groupedChanges) {
+      for (const item of items) {
+        const trace = fileReadTrace(item.localClipboardHash ?? item.profileHash, item.diagnosticReadId);
+        if (trace) recordHistoryLatency('history_notify', trace, { outcome: 'observed', state: 'delivered' });
+      }
       for (const callback of this.changeCallbacks) {
         try {
           callback(items, action);
@@ -510,11 +515,15 @@ export class HistoryStorage {
    * 添加历史记录
    */
   public async addItem(item: ClipboardItem): Promise<ClipboardItem> {
+    const trace = fileReadTrace(item.localClipboardHash ?? item.profileHash, item.diagnosticReadId);
+    const queuedMs = performance.now();
+    if (trace) recordHistoryLatency('history_admission', trace, { outcome: 'started' });
     if (!this.initialized) {
       await this.initialize();
     }
 
     const { resultItem, action } = await this.withProfileMutations([item.profileHash], async () => {
+      if (trace) recordHistoryLatency('history_queue', trace, { outcome: 'succeeded', durationMs: performance.now() - queuedMs });
       // 处理文件复制逻辑
       const existing = await historyRepository.getByProfileHash(item.profileHash);
       const processedItem = { ...item, profileHash: existing?.profileHash ?? item.profileHash };
@@ -550,10 +559,10 @@ export class HistoryStorage {
           }
           if (!processedItem.fileUri.startsWith(historyDirUri)) {
             if (Platform.OS === 'ios') {
-              const importedUri = await importPayloadFile(
+              const importedUri = await measureHistoryStage('payload_import', trace, () => importPayloadFile(
                 `${processedItem.type}-${processedItem.profileHash}`,
                 sourceFile.uri
-              );
+              ));
               if (!importedUri) throw new Error('App Group payload import is unavailable');
               processedItem.fileUri = importedUri;
               log.info('File saved to history storage:', processedItem.fileUri);
@@ -602,6 +611,7 @@ export class HistoryStorage {
 
         resultItem = {
           ...existing,
+          diagnosticReadId: processedItem.diagnosticReadId,
           incarnationId: existing.incarnationId ?? randomUUID(),
           type: processedItem.type,
           text: processedItem.type === 'File' ? processedItem.text : text,
@@ -637,7 +647,8 @@ export class HistoryStorage {
       }
 
       try {
-        await historyRepository.replace(resultItem);
+        await measureHistoryStage('sqlite_commit', trace, () => historyRepository.replace(resultItem));
+        if (trace) trace.committed = true;
       } catch (error) {
         if (stagedFile?.exists) {
           try {
@@ -655,6 +666,7 @@ export class HistoryStorage {
           log.warn('Failed to remove replaced history payload:', error);
         }
       }
+      if (trace) recordHistoryLatency('history_notify', trace, { outcome: 'observed', state: 'queued' });
       this.notifyChange(resultItem, action);
       return { resultItem, action };
     });

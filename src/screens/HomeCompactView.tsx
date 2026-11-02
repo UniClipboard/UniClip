@@ -138,6 +138,7 @@ export function HomeCompactView({
             paddingBottom={paddingBottom}
             keyExtractor={c.keyExtractor}
             renderItem={renderCard}
+            onVisibleItemsChanged={c.reportVisibleHistoryItems}
             onEndReached={c.loadMoreItems}
             refreshControl={refreshControl}
             pullToDismiss={pullToDismiss}
