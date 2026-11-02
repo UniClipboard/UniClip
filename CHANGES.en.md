@@ -1,3 +1,17 @@
+v2.4.0.202
+
+### Common
+
+- New: Share destination rows show each device's transfer progress and delivery status. Results remain visible until you select Done.
+- Improvement: Send results distinguish delivered, awaiting confirmation, and failed items. A confirmation prompt appears before requesting a new transfer.
+- Improvement: Update the sync core to v1.1.0-rc.24.
+- Fix: Prefer available files when clipboard content contains both files and other formats.
+
+### iOS
+
+- Fix: Reject stale sync core resume requests after the app enters the background.
+- Fix: Restore text contrast on the Create Space button in dark mode.
+
 v2.4.0.201-alpha.4
 
 ### Common
