@@ -82,6 +82,8 @@ public enum NativeDiagnosticOwner: String, Encodable, Sendable, CaseIterable {
   case engine
   /// Host-owned files outside the Engine: the JS history database.
   case hostFiles
+  /// Process log files and the network-log run lease, including LAN-only mode.
+  case processObservability
 }
 
 /// Open descriptors under the App Group container, by kind only (never paths).
@@ -170,6 +172,7 @@ public final class NativeRuntimeDiagnostics: @unchecked Sendable {
   private var writerReady = false
   private var fileIndex = 0
   private var fileBytes = 0
+  private var acceptingRecords = true
 
   public init(directory: URL?, role: NativeDiagnosticRole, maxFileBytes: Int = 256 * 1024, maxFiles: Int = 24) {
     self.directory = directory
@@ -209,6 +212,16 @@ public final class NativeRuntimeDiagnostics: @unchecked Sendable {
     let completed = DispatchSemaphore(value: 0)
     queue.async { completed.signal() }
     return completed.wait(timeout: .now() + .milliseconds(max(0, deadlineMs))) == .success
+  }
+
+  /// Stop admission before draining. A completed drain proves no later journal write can run.
+  public func pause(deadlineMs: Int = 200) -> Bool {
+    state.withLock { acceptingRecords = false }
+    return flush(deadlineMs: deadlineMs)
+  }
+
+  public func resume() {
+    state.withLock { acceptingRecords = true }
   }
 
   public func snapshot() -> NativeDiagnosticsSnapshot {
@@ -253,9 +266,17 @@ public final class NativeRuntimeDiagnostics: @unchecked Sendable {
       state.withLock { droppedRecords += 1 }
       return
     }
+    // Serialize submission with pause so no accepted record can miss its drain barrier.
+    state.lock()
+    defer { state.unlock() }
+    guard acceptingRecords else {
+      droppedRecords += 1
+      capacity.signal()
+      return
+    }
     let capturedAt = Date()
     let uptime = DispatchTime.now().uptimeNanoseconds
-    let currentGeneration = operation?.generation ?? state.withLock { generation }
+    let currentGeneration = operation?.generation ?? generation
     queue.async { [self] in
       defer { capacity.signal() }
       do {

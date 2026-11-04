@@ -125,7 +125,7 @@ do {
   let reports = Trace()
   let coordinator = NativeLifecycleTransitionCoordinator(lifecycle: host, queue: queue,
     beginBackgroundActivity: { activity }, hostSuspension: suspension,
-    reportBackground: { _, _ in reports.add("background.closed") })
+    reportBackground: { _, _ in reports.add("background.closed"); return true })
   coordinator.enterBackground(engine); queue.sync {}
   let blocked = DispatchSemaphore(value: 0), release = DispatchSemaphore(value: 0)
   queue.async { blocked.signal(); wait(release) }; wait(blocked)

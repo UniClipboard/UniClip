@@ -197,8 +197,11 @@ instance once and retains the operation error. Service release, runtime detach
 and activity lifecycle transitions dispatch off the main thread. No-object failed
 startup remains owned because Mobile has not integrated the Engine startup
 release reports. The pinned Engine now provides startup and process release
-reports. iOS complete-owner integration remains separate in PR96; host integration
-and failure acceptance remain pending. Do not replace that owner in a pin update.
+reports. The iOS background host now integrates process observability release
+and resume. Only Released completes that owner; Pending and Failed retain the
+background activity. Full iOS owner integration remains separate in PR96.
+Full application and physical-device failure acceptance remain pending.
+Do not replace that owner in a pin update.
 
 ## Key Directories
 
@@ -229,8 +232,14 @@ and failure acceptance remain pending. Do not replace that owner in a pin update
   admission before dispatching background work. Bridge and queued foreground
   requests check admission before reading Engine state or acquiring runtime
   ownership. A request already admitted before closure drains before suspension.
-  Suspension, observability flush, and Engine completion share one transition
-  lock. Foreground entry retires prior background activities before reopening
+  Suspension, process observability release, and owner completion share one
+  transition lock. Regular mode must release process logs even without an
+  Engine. Only Released completes the process observability owner; a flush
+  alone does not release its files or network lease. The native journal stops
+  accepting writes and drains before the background activity ends. An
+  unconfirmed drain retains the activity. Foreground work resumes process
+  observability before resuming Engine work.
+  Foreground entry retires prior background activities before reopening
   admission; late host-file receipts cannot report a new runtime as closed.
   `P2pSyncAdapter` also discards stale continuations after asynchronous work and
   retains the current app policy across startup. A background completion report

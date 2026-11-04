@@ -81,6 +81,7 @@ enum NativeLifecycleError: Error, Equatable {
   /// completion. The Engine stays `.quiesced`, not `.suspended`, and may
   /// still be holding a lock; this does not mean the lock was released.
   case deadlineExceeded
+  case observabilityUnavailable
 }
 
 final class RuntimeOwnedNativeLifecycle: NativeEngineLifecycle {
@@ -225,6 +226,8 @@ final class RuntimeOwnedNativeLifecycle: NativeEngineLifecycle {
 final class NativeLifecycleHost {
   private let report: (Error) -> Void
   private let flushObservability: () -> Void
+  private let releaseObservability: (() -> UInt64?) throws -> Bool
+  private let resumeObservability: () throws -> Void
   private let transitionLock = NSLock()
   private let admissionLock = NSLock()
   private var foregroundAdmission = true
@@ -244,10 +247,22 @@ final class NativeLifecycleHost {
 
   init(
     report: @escaping (Error) -> Void,
-    flushObservability: @escaping () -> Void = {}
+    flushObservability: @escaping () -> Void = {},
+    releaseObservability: @escaping (() -> UInt64?) throws -> Bool = { _ in true },
+    resumeObservability: @escaping () throws -> Void = {}
   ) {
     self.report = report
     self.flushObservability = flushObservability
+    self.releaseObservability = releaseObservability
+    self.resumeObservability = resumeObservability
+  }
+
+  /// Startup logging must use the same admission and transition boundary as resume.
+  func performForegroundWork(_ operation: () -> Void) {
+    transitionLock.withLock {
+      guard canResume else { return }
+      operation()
+    }
   }
 
   func prepare(_ engine: any NativeEngineLifecycle) throws {
@@ -258,6 +273,7 @@ final class NativeLifecycleHost {
         try suspendLocked(engine, remainingTimeMs: { nil })
         return
       }
+      try resumeObservability()
       let recovery = try engine.recoverSession()
       if recovery.unlocked && !recovery.resumed {
         throw NativeLifecycleError.incompleteRecovery
@@ -276,7 +292,8 @@ final class NativeLifecycleHost {
   func enterBackground(
     _ engine: (any NativeEngineLifecycle)?,
     remainingTimeMs: @escaping () -> UInt64?,
-    finish: () -> Void = {}
+    finish: () -> Void = {},
+    finishObservability: () -> Void = {}
   ) -> Bool {
     transitionLock.withLock {
       // Closure, flush and completion form one transition. A newly admitted
@@ -292,15 +309,24 @@ final class NativeLifecycleHost {
       }
       flushObservability()
       if succeeded { finish() }
-      return succeeded
+      var observabilityReleased = false
+      do {
+        // Process logging exists even when regular mode has no Engine.
+        observabilityReleased = try releaseObservability(remainingTimeMs)
+        if observabilityReleased { finishObservability() }
+      } catch {
+        report(error)
+      }
+      return succeeded && observabilityReleased
     }
   }
 
   func enterForeground(_ engine: (any NativeEngineLifecycle)?) {
-    guard let engine else { return }
     do {
       try transitionLock.withLock {
         guard canResume else { return }
+        try resumeObservability()
+        guard let engine else { return }
         try resumeLocked(engine)
         if try engine.lifecycleState() == .running { try engine.notifyForegroundOpportunity() }
       }
@@ -356,6 +382,7 @@ final class NativeLifecycleHost {
       // Check at execution time, before even querying Engine state or acquiring
       // runtime ownership. A request queued before background has no permit.
       guard canResume else { return }
+      try resumeObservability()
       try resumeLocked(engine)
     }
   }
@@ -414,9 +441,10 @@ final class NativeHostSuspension: @unchecked Sendable {
   /// The owner's report for one transition. A late report for an earlier
   /// transition must not finish a later one.
   @discardableResult
-  func complete(transitionId: Int) -> Bool {
+  func complete(transitionId: Int, released: Bool = true) -> Bool {
     let finish = lock.withLock { () -> (() -> Void)? in
       guard let current = pending, current.transitionId == transitionId else { return nil }
+      guard released else { return nil }
       pending = nil
       return current.finish
     }
@@ -440,7 +468,7 @@ final class NativeHostSuspension: @unchecked Sendable {
 /// owners still had App Group files open (`pending`), and whether the system's
 /// grant expired first. While backgrounded, owners must not reopen files after
 /// the activity ends. Foreground cancellation does not emit a closure report.
-typealias NativeBackgroundReport = (_ pending: [NativeDiagnosticOwner], _ expired: Bool) -> Void
+typealias NativeBackgroundReport = (_ pending: [NativeDiagnosticOwner], _ expired: Bool) -> Bool
 
 final class NativeLifecycleTransitionCoordinator {
   typealias BeginBackgroundActivity = () -> any NativeBackgroundActivity
@@ -460,7 +488,7 @@ final class NativeLifecycleTransitionCoordinator {
     queue: DispatchQueue,
     beginBackgroundActivity: @escaping BeginBackgroundActivity,
     hostSuspension: NativeHostSuspension? = nil,
-    reportBackground: @escaping NativeBackgroundReport = { _, _ in }
+    reportBackground: @escaping NativeBackgroundReport = { _, _ in true }
   ) {
     self.lifecycle = lifecycle
     self.queue = queue
@@ -506,7 +534,8 @@ final class NativeLifecycleTransitionCoordinator {
       // background time at the moment of each attempt, not a value that was
       // already stale by the time this queue got scheduled.
       remainingTimeMs: { activity.remainingTimeMs },
-      finish: { parts.complete(.engine) }
+      finish: { parts.complete(.engine) },
+      finishObservability: { parts.complete(.processObservability) }
     )
     // The JS database and the Engine share no file, so both close at once.
     if let hostSuspension {
@@ -532,7 +561,8 @@ final class NativeLifecycleTransitionCoordinator {
       lifecycle: lifecycle,
       engine: engine,
       remainingTimeMs: { 0 },
-      finish: {}
+      finish: {},
+      finishObservability: {}
     )
     queue.async { transition.enterForeground() }
   }
@@ -557,7 +587,7 @@ private final class NativeBackgroundParts: @unchecked Sendable {
         ended = true
         return NativeDiagnosticOwner.allCases.filter(open.contains)
       }
-      if let pending { self.report(pending, true) }
+      if let pending { _ = self.report(pending, true) }
     }
   }
 
@@ -575,10 +605,10 @@ private final class NativeBackgroundParts: @unchecked Sendable {
     lock.withLock {
       open.remove(owner)
       guard open.isEmpty, !ended else { return }
-      ended = true
       // Keep reporting and the end request inside the cancellation boundary.
       // Foreground cannot admit a new runtime before these steps finish.
-      report([], false)
+      guard report([], false) else { return }
+      ended = true
       activity.end()
     }
   }
@@ -589,17 +619,20 @@ private final class NativeLifecycleTransition: @unchecked Sendable {
   private let engine: (any NativeEngineLifecycle)?
   private let remainingTimeMs: @Sendable () -> UInt64?
   private let finish: @Sendable () -> Void
+  private let finishObservability: @Sendable () -> Void
 
   init(
     lifecycle: NativeLifecycleHost,
     engine: (any NativeEngineLifecycle)?,
     remainingTimeMs: @escaping @Sendable () -> UInt64?,
-    finish: @escaping @Sendable () -> Void
+    finish: @escaping @Sendable () -> Void,
+    finishObservability: @escaping @Sendable () -> Void
   ) {
     self.lifecycle = lifecycle
     self.engine = engine
     self.remainingTimeMs = remainingTimeMs
     self.finish = finish
+    self.finishObservability = finishObservability
   }
 
   func enterBackground() {
@@ -614,7 +647,8 @@ private final class NativeLifecycleTransition: @unchecked Sendable {
     // still ended reliably, either on foreground entry or by
     // `UIKitBackgroundActivity.expire()` when the OS's own grant truly runs
     // out — never left open indefinitely.
-    _ = lifecycle.enterBackground(engine, remainingTimeMs: remainingTimeMs, finish: finish)
+    _ = lifecycle.enterBackground(engine, remainingTimeMs: remainingTimeMs, finish: finish,
+                                  finishObservability: finishObservability)
   }
 
   func enterForeground() {
