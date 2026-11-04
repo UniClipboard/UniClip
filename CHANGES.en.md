@@ -1,3 +1,10 @@
+v2.4.0.203
+
+### iOS
+
+- Fix: Release log file locks before background suspension to prevent the app from closing in regular mode.
+- Fix: Allow history to scroll beneath the floating toolbar.
+
 v2.4.0.202
 
 ### Common
