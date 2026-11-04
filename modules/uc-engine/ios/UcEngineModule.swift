@@ -10,7 +10,13 @@ public final class UcEngineModule: Module {
   private let host = MainApplicationEngineHost()
   private lazy var lifecycle = NativeLifecycleHost(
     report: Self.reportLifecycleError,
-    flushObservability: { _ = try? flushProcessObservability(deadlineMs: 250) }
+    flushObservability: { _ = try? flushProcessObservability(deadlineMs: 250) },
+    releaseObservability: AppleProcessObservability.suspend,
+    resumeObservability: { [host] in
+      try host.prepareDiagnosticLogging()
+      try AppleProcessObservability.resume()
+      AppleNativeDiagnostics.journal.resume()
+    }
   )
   private lazy var hostSuspension = NativeHostSuspension { [weak self] phase, transitionId in
     self?.sendEvent(Self.hostSuspensionEvent, ["phase": phase, "transitionId": transitionId])
@@ -63,7 +69,9 @@ public final class UcEngineModule: Module {
     OnCreate {
       self.lifecycle.setForegroundAdmission(UIApplication.shared.applicationState != .background)
       AppleNativeDiagnostics.start()
-      self.engineOperationQueue.async { try? self.host.prepareDiagnosticLogging() }
+      self.engineOperationQueue.async {
+        self.lifecycle.performForegroundWork { try? self.host.prepareDiagnosticLogging() }
+      }
       // Expo has no resign-active hook; it fires before didEnterBackground.
       self.resignActiveObserver = NotificationCenter.default.addObserver(
         forName: UIApplication.willResignActiveNotification, object: nil, queue: .main
@@ -80,7 +88,7 @@ public final class UcEngineModule: Module {
       AppleNativeDiagnostics.journal.record(
         .hostSuspend, trigger: .appBackground, outcome: released ? .succeeded : .failed
       )
-      self.hostSuspension.complete(transitionId: transitionId)
+      self.hostSuspension.complete(transitionId: transitionId, released: released)
     }
 
     Function("coreVersion") { coreVersion() }
@@ -633,6 +641,7 @@ public final class UcEngineModule: Module {
       )
     }
     OnAppEntersForeground {
+      AppleNativeDiagnostics.journal.resume()
       EngineDiagnosticBridge.record(.lifecycle(state: .foreground))
       AppleNativeDiagnostics.journal.record(.appForeground, trigger: .appForeground)
       self.lifecycleTransitions.enterForeground(
@@ -1109,6 +1118,37 @@ public final class UcEngineModule: Module {
       "updatedAtMs": convergence.updatedAtMs,
       "failureCategory": failureCategory,
     ]
+  }
+}
+
+/// Process logging is an independent owner. A flush is not a release receipt.
+private enum AppleProcessObservability {
+  static func suspend(remainingTimeMs: () -> UInt64?) throws -> Bool {
+    do {
+      var request = try releaseProcessObservability(deadlineMs: min(remainingTimeMs() ?? 1_000, 250))
+      var report = request.report
+      if report.state == .pending, let observation = request.observation {
+        report = observation.wait(deadlineMs: remainingTimeMs() ?? 1_000)
+      }
+      if report.state == .failed, report.explicitRetrySupported, (remainingTimeMs() ?? 0) > 250 {
+        request = try retryProcessObservabilityRelease(deadlineMs: min(remainingTimeMs() ?? 0, 250))
+        report = request.report
+        if report.state == .pending, let observation = request.observation {
+          report = observation.wait(deadlineMs: remainingTimeMs() ?? 0)
+        }
+      }
+      return report.state == .released
+    } catch BindingError.ObservabilityNotInstalled {
+      return true
+    }
+  }
+
+  static func resume() throws {
+    let request = try resumeProcessObservability(deadlineMs: 1_000)
+    let report = request.report.state == .pending
+      ? request.observation?.wait(deadlineMs: 1_000) ?? request.report
+      : request.report
+    guard report.state == .resumed else { throw NativeLifecycleError.observabilityUnavailable }
   }
 }
 
