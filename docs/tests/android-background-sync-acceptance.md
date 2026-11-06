@@ -113,3 +113,41 @@ No shared or production device or configuration was used; every run used a dispo
 - An explicit JS `shutdown` wins over the service's hold.
 - After a reboot or app update the service resumes only through the notification.
 - Intermediate commits were not individually built; the branch head compiles and passes Jest and `tsc`.
+
+## ADB listener recovery change (2026-10-31, automated checks only)
+
+The ADB log reader now owns its process and thread as one generation. An unexpected EOF or read/start failure is recorded
+with an exit code when available and at most 512 characters of logcat stderr; clipboard log lines and payloads are not
+retained. Recovery is event-driven: only a failed reader schedules retries, after 1, 5 and 15 seconds. Explicit access
+denial stops immediately, and exhausting the budget leaves a failed state until a foreground recovery or explicit restart.
+Healthy readers block on log input and do not poll the clipboard. Stop cancels retries, and a late old process cannot replace
+the new reader. Foreground recovery and native stop/start requests are serialized; enabling/resuming background sync also
+recreates the selected ADB monitor. ADB listener failure never enables the one-second clipboard polling timer.
+
+Settings distinguishes ADB/overlay permission from reader lifecycle. A running process is shown as waiting for an event,
+not proof that Android granted access to other processes' logs. Only an actual event read updates the read status; it still
+does not imply delivery to the peer. Stopped, failed, retrying and unreadable states are visible, with a full-row restart
+action. Native lifecycle/read failures are forwarded to the ordinary app diagnostic log. Older native binaries report health
+as unavailable instead of inferring it from READ_LOGS.
+
+Six Kotlin process/worker tests cover unexpected exit, successful event-only recovery, bounded retries, explicit log-access
+denial, stopping during backoff, and a late old process. TypeScript tests cover foreground recovery, stop/start serialization,
+no polling fallback, live Settings health, full-row restart and background-sync enable/resume. See the accompanying task
+validation record for actual command results and the tested revision. No physical phone installation or OEM acceptance is
+claimed by these checks. Android's one-time consent and OEM background policies remain platform-controlled.
+
+### Port to current main (2026-11-01)
+
+Ported from release `fcf68bfe917fc7a12a3c0696ac90b5463ae0b724` onto
+`168972ae0f35755e89e3e7dc8889297aace13f06` (2.4.0.198-alpha.1). Upstream made no changes
+to the affected listener, adapter, monitor or BackgroundSection between these revisions.
+
+- Node 22.22.3: all 237 Jest suites / 1,968 tests passed; `npm run type-check`, ESLint on changed
+  TypeScript files and `git diff --check` passed. Workspace module builds were prepared first.
+- `:clipboard-overlay:testDebugUnitTest --rerun-tasks --no-build-cache --no-daemon`: six tests,
+  zero failures, all 73 tasks executed. The target module compiled against the generated Android project.
+  Gradle configuration used a local historical Engine AAR; this target does not build or test the Engine.
+- No full APK using the new Engine pin (`357d7f64006789285fe5bfc4f025992bc9b84e5f`) was built here.
+  Historical APK build evidence applies only to 2.3.0.195 and its own Engine pin.
+- Physical Honor phone background delivery, long idle and reboot acceptance remain unverified.
+  Unexpected temporary background-sync disablement has not been diagnosed or fixed by this change.
