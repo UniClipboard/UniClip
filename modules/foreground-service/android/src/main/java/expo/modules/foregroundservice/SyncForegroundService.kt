@@ -199,14 +199,13 @@ class SyncForegroundService : Service() {
             BackgroundServiceDiagnostics.auxTaskRemoved(this)
             return
         }
-        NativeLogger.d(TAG, "onTaskRemoved: user swiped app from recents, stopping service")
-        stoppedByUser = true
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
-        isRunning = false
-        ServiceStopRecord.write(this, ServiceStopRecord.TASK_REMOVED)
+        // Keep the foreground service alive when the user swipes the app away or
+        // clears recents. The ongoing notification's stop/pause actions remain
+        // the explicit way to end sync. This mirrors the keep-alive behaviour of
+        // long-running foreground apps and prevents the app from killing itself
+        // on task removal.
+        NativeLogger.d(TAG, "onTaskRemoved: task removed; keeping service alive")
         BackgroundServiceDiagnostics.taskRemoved(this)
-        ForegroundServiceModule.sendTempStopEvent()
     }
 
     private fun isMainTask(rootIntent: Intent?): Boolean {
@@ -328,6 +327,11 @@ class SyncForegroundService : Service() {
             .setContentIntent(pendingLaunchIntent)
             .setOngoing(true)
             .setSilent(true)
+            .apply {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+                }
+            }
             .addAction(
                 0,
                 getString(R.string.foreground_service_action_temp_stop),

@@ -42,6 +42,8 @@ const withForegroundService: ConfigPlugin = (config) => {
       if (existing?.$) {
         // An entry kept from an earlier prebuild must not keep a type the service no longer starts with.
         existing.$['android:foregroundServiceType'] = 'connectedDevice';
+        // Keep the foreground service running when the user swipes the task away / clears recents.
+        existing.$['android:stopWithTask'] = 'false';
       } else if (!existing) {
         application.service.push({
           $: {
@@ -49,6 +51,7 @@ const withForegroundService: ConfigPlugin = (config) => {
             'android:enabled': 'true',
             'android:exported': 'false',
             'android:foregroundServiceType': 'connectedDevice',
+            'android:stopWithTask': 'false',
           },
         });
         console.log(`✅ Registered service: ${serviceClassName}`);
