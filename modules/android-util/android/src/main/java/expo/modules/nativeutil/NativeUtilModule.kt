@@ -723,7 +723,16 @@ class NativeUtilModule : Module() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 val am = activity.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
                     ?: return@Function false
-                am.appTasks.firstOrNull()?.setExcludeFromRecents(exclude)
+                val taskId = activity.taskId
+                val task = am.appTasks.firstOrNull {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        it.taskInfo?.taskId == taskId
+                    } else {
+                        @Suppress("DEPRECATION")
+                        it.taskInfo?.id == taskId
+                    }
+                }
+                task?.setExcludeFromRecents(exclude)
                 true
             } else {
                 false
