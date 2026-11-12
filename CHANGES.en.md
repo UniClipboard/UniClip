@@ -1,3 +1,11 @@
+v2.4.1.204
+
+### Android
+
+- Fix: Keep the background sync service running after clearing recent tasks.
+- Fix: Hide the correct recent task when shortcut tasks are present.
+- Improvement: Show the persistent background sync notification immediately on Android 12 and later.
+
 v2.4.0.203
 
 ### iOS
