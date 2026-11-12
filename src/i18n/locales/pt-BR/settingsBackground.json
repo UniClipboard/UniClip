@@ -30,6 +30,23 @@
       "desc": "Envia alterações da área de transferência em segundo plano quando Enviar automaticamente está ativado"
     },
     "clipboardAccess": {
+      "monitor": {
+        "permissionReady": "Permissões concedidas",
+        "permissionDescription": "As permissões ADB e de sobreposição foram concedidas; o Android ainda pode solicitar acesso aos registros",
+        "title": "Estado do monitor de eventos",
+        "restart": "Reiniciar",
+        "restartRequested": "Inicialização solicitada. Permita o acesso aos registros se o Android solicitar.",
+        "status": {
+          "stopped": "O monitor não foi iniciado. Toque para reiniciar.",
+          "starting": "Iniciando o monitor de eventos",
+          "listening": "O monitoramento de eventos foi iniciado e aguarda um evento de cópia. A leitura em segundo plano ainda não foi confirmada.",
+          "retrying": "O monitor parou e está tentando novamente um número limitado de vezes. A consulta periódica continua desativada.",
+          "failed": "O monitor parou. Toque para reiniciar e permita o acesso aos registros se solicitado.",
+          "unavailable": "Esta versão não informa o estado do monitor. Tente reiniciá-lo.",
+          "readFailed": "Um evento de cópia foi recebido, mas o conteúdo não pôde ser lido. Verifique a permissão de sobreposição e tente novamente.",
+          "active": "O conteúdo foi lido por um evento. Aguardando a próxima cópia; consulte o estado da sincronização para verificar a entrega."
+        }
+      },
       "title": "Leitura em segundo plano",
       "method": {
         "overlay-polling": "Consulta",

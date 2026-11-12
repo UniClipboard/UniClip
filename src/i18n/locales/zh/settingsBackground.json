@@ -30,6 +30,23 @@
       "desc": "自动推送开启时，在后台上传本机剪贴板变化"
     },
     "clipboardAccess": {
+      "monitor": {
+        "permissionReady": "权限已就绪",
+        "permissionDescription": "ADB 授权与悬浮窗权限已就绪；系统仍可能要求确认日志访问",
+        "title": "事件监听状态",
+        "restart": "重新启用",
+        "restartRequested": "已请求启动监听；如有日志访问提示，请允许",
+        "status": {
+          "stopped": "监听尚未启动，点按重新启用",
+          "starting": "正在启动事件监听",
+          "listening": "事件监听已启动，等待复制事件；这尚未确认后台读取可用",
+          "retrying": "监听中断，正在有限重试；不会切换到剪贴板轮询",
+          "failed": "监听已停止，点按重新启用，并按系统提示允许日志访问",
+          "unavailable": "当前版本无法报告监听状态，可尝试重新启用",
+          "readFailed": "收到复制事件，但未读到内容；请确认悬浮窗权限后重试",
+          "active": "已通过事件读取内容，等待新的复制；传输结果请查看同步状态"
+        }
+      },
       "title": "后台读取方式",
       "method": {
         "overlay-polling": "定时轮询",
